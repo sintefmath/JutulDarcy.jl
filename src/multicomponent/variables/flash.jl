@@ -81,7 +81,6 @@ end
     perform_flash_for_all_cells!(flash_results, storage, m, eos, buffers, Pressure, Temperature, OverallMoleFractions, threads = fr.use_threads)
 end
 
-
 function perform_flash_for_all_cells!(flash_results, storage, m, eos, buffers, P, T, z; threads = true)
     flash_cell(i, S, buf) = internal_flash!(flash_results, S, m, eos, buf, P, T, z, i)
     if threads

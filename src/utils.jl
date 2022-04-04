@@ -1,14 +1,15 @@
 reservoir_model(model) = model
+reservoir_model(model::MultiModel) = model.models.Reservoir
+
 reservoir_storage(model, storage) = storage
 reservoir_storage(model::MultiModel, storage) = storage.Reservoir
-reservoir_model(model::MultiModel) = model.models.Reservoir
 
 
 export setup_reservoir_simulator
 function setup_reservoir_simulator(models, initializer, parameters = nothing; method = :cpr, rtol = 0.005, initial_dt = 3600.0*24.0, target_its = 8, offset_its = 1, kwarg...)
-    reservoir_model = models[:Reservoir]
+    res_model = models[:Reservoir]
     # Convert to multi model
-    block_backend = is_cell_major(matrix_layout(reservoir_model.context))
+    block_backend = is_cell_major(matrix_layout(res_model.context))
     if block_backend && length(models) > 1
         groups = repeat([2], length(models))
         groups[1] = 1

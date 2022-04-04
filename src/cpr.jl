@@ -357,9 +357,9 @@ function should_update_pressure_subsystem(cpr, rec)
     elseif interval == :once
         update = false
     else
-        it = subiteration(rec)
-        outer_step = step(rec)
-        ministep = substep(rec)
+        it = Jutul.subiteration(rec)
+        outer_step = Jutul.step(rec)
+        ministep = Jutul.substep(rec)
         if interval == :iteration
             crit = true
             n = it

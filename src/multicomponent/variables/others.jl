@@ -2,7 +2,6 @@ struct PhaseMassFractions{T} <: CompositionalFractions
     phase::T
 end
 
-
 @jutul_secondary function update_as_secondary!(X, m::PhaseMassFractions, model::SimulationModel{D,S}, param, FlashResults) where {D,S<:CompositionalSystem}
     molar_mass = map((x) -> x.mw, model.system.equation_of_state.mixture.properties)
     phase = m.phase

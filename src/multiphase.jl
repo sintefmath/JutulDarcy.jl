@@ -40,7 +40,7 @@ function build_forces(model::SimulationModel{G, S}; sources = nothing) where {G<
     return (sources = sources,)
 end
 
-function subforce(s::AbstractVector{S}, model) where S<:SourceTerm
+function Jutul.subforce(s::AbstractVector{S}, model) where S<:SourceTerm
     # Just to be safe
     s = deepcopy(s)
     m = global_map(model.domain)
@@ -136,7 +136,7 @@ absolute_increment_limit(s::Saturations) = s.ds_max
 function initialize_primary_variable_ad!(state, model, pvar::Saturations, state_symbol, npartials; kwarg...)
     nph = values_per_entity(model, pvar)
     v = state[state_symbol]
-    state[state_symbol] = unit_sum_init(v, model, npartials, nph; kwarg...)
+    state[state_symbol] = Jutul.unit_sum_init(v, model, npartials, nph; kwarg...)
     return state
 end
 
@@ -232,7 +232,7 @@ function insert_phase_sources!(acc, model, kr, mu, rhoS, sources)
     nph = size(acc, 1)
     M = global_map(model.domain)
     for src in sources
-        c = full_cell(src.cell, M)
+        c = Jutul.full_cell(src.cell, M)
         for ph = 1:nph
             q_ph = phase_source(c, src, rhoS[ph], kr, mu, ph)
             @inbounds acc[ph, src.cell] -= q_ph
@@ -253,7 +253,7 @@ end
 
 function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw, r; dt = 1) where {D, S<:MultiPhaseSystem}
     M = global_map(model.domain)
-    v = x -> active_view(x, M)
+    v = x -> Jutul.active_view(x, M)
     Φ = v(storage.state.FluidVolume)
     ρ = v(storage.state.PhaseMassDensities)
 
@@ -271,7 +271,7 @@ end
 
 function get_reference_densities(model, storage)
     prm = storage.parameters
-    t = float_type(model.context)
+    t = Jutul.float_type(model.context)
     rhos = prm.reference_densities
     return rhos::AbstractVector{t}
 end

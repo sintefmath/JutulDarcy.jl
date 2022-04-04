@@ -21,7 +21,7 @@ absolute_increment_limit(z::OverallMoleFractions) = z.dz_max
 
 function update_primary_variable!(state, p::OverallMoleFractions, state_symbol, model, dx)
     s = state[state_symbol]
-    unit_sum_update!(s, p, model, dx)
+    Jutul.unit_sum_update!(s, p, model, dx)
 end
 
 """

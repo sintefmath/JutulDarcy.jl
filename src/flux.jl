@@ -1,9 +1,7 @@
-export DarcyMassMobilityFlow, CellNeighborPotentialDifference
+export DarcyMassMobilityFlow
 struct DarcyMassMobilityFlow <: FlowType end
 struct DarcyMassMobilityFlowFused <: FlowType end
 
-
-struct CellNeighborPotentialDifference <: GroupedVariables end
 
 function select_secondary_variables_flow_type!(S, domain, system, formulation, flow_type::Union{DarcyMassMobilityFlow, DarcyMassMobilityFlowFused})
     if isa(system, SinglePhaseSystem)
@@ -18,36 +16,6 @@ function single_unique_potential(model)
     # We should add capillary pressure here ventually
     return model.domain.discretizations.mass_flow.gravity
 end
-
-function degrees_of_freedom_per_entity(model, sf::CellNeighborPotentialDifference)
-    if single_unique_potential(model)
-        n = number_of_phases(model.system)
-    else
-        n = 1
-    end
-    return n
-end
-
-function associated_entity(::CellNeighborPotentialDifference)
-    Cells()
-end
-
-function number_of_entities(model, pv::CellNeighborPotentialDifference)
-    # We have two entities of potential difference per face of the domain since the difference
-    # is taken with respect to cells, but there is a possibility of some cells being inactive.
-    return number_of_half_faces(model.domain.discretizations.mass_flow)
-end
-
-@jutul_secondary function update_as_secondary!(pot, tv::CellNeighborPotentialDifference, model, param, Pressure, PhaseMassDensities)
-    mf = model.domain.discretizations.mass_flow
-    conn_data = mf.conn_data
-    if mf.gravity
-        @tullio pot[ph, i] = half_face_two_point_kgradp_gravity(conn_data[i], Pressure, view(PhaseMassDensities, ph, :))
-    else
-        @tullio pot[i] = half_face_two_point_kgradp(conn_data[i], Pressure)
-    end
-end
-
 
 """
 Half face Darcy flux with separate potential.
