@@ -1243,7 +1243,8 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = Vector{Symbol}()
         mrst_output_path = "$(output_path)_mrst"
         write_reservoir_simulator_output_to_mrst(sim.model, states, reports, mrst_output_path, parameters = parameters)
     end
-    return (states, reports, output_path)
+    setup = (sim = sim, parameters = parameters, mrst = mrst_data)
+    return (states, reports, output_path, setup)
 end
 
 function write_reservoir_simulator_output_to_mrst(model, states, reports, output_path; parameters = nothing, write_states = true, write_wells = true, convert_names = true)
