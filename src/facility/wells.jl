@@ -201,9 +201,7 @@ function PotentialDropBalanceWell(model::JutulModel, number_of_equations::Intege
     PotentialDropBalanceWell(eq, eq_cells)
 end
 
-function associated_entity(::PotentialDropBalanceWell) Faces() end
-
-function tolerance_scale(::PotentialDropBalanceWell) 1e6 end
+associated_entity(::PotentialDropBalanceWell) = Faces()
 
 function Jutul.declare_pattern(model, e::PotentialDropBalanceWell, ::Cells)
     # TODO: Fix active.

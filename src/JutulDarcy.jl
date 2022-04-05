@@ -38,7 +38,7 @@ module JutulDarcy
     import Jutul: apply_forces_to_equation!, convergence_criterion
     import Jutul: get_dependencies
     import Jutul: build_forces, setup_state, setup_state!
-    import Jutul: tolerance_scale, declare_pattern
+    import Jutul: declare_pattern
     using Jutul
     using ForwardDiff, StaticArrays, SparseArrays, LinearAlgebra, Statistics
     using AlgebraicMultigrid, Krylov
