@@ -44,7 +44,7 @@ function update_gas_mass_fractions_inner!(zg, dx, active_cells, pressure, sat_ch
             end
             abs_max = min(abs_max, abs_max_sat)
         end
-        dz = choose_increment(z, dz, abs_max, nothing, minval, maxval)
+        dz = Jutul.choose_increment(z, dz, abs_max, nothing, minval, maxval)
         zg[cell] += dz
     end
 end
@@ -53,8 +53,8 @@ struct BlackOilPhaseState <: ScalarVariable
 
 end
 
-default_value(model, ::BlackOilPhaseState) = OilAndGas
-initialize_secondary_variable_ad!(state, model, var::BlackOilPhaseState, arg...; kwarg...) = state
+Jutul.default_value(model, ::BlackOilPhaseState) = OilAndGas
+Jutul.initialize_secondary_variable_ad!(state, model, var::BlackOilPhaseState, arg...; kwarg...) = state
 
 max_dissolved_gas_fraction(rs, rhoOS, rhoGS) = rs*rhoGS/(rhoOS + rs*rhoGS)
 
