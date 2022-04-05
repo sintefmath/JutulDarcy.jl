@@ -230,15 +230,6 @@ struct ConstantCompressibilityDensities{T} <: PhaseMassDensities
     end
 end
 
-function transfer(c::SingleCUDAContext, rho::ConstantCompressibilityDensities)
-    pref = transfer(c, rho.reference_pressure)
-    rhoref = transfer(c, rho.reference_densities)
-    c = transfer(c, rho.compressibility)
-
-    nph = length(pref)
-    ConstantCompressibilityDensities(nph, pref, rhoref, c)
-end
-
 @jutul_secondary function update_as_secondary!(rho, density::ConstantCompressibilityDensities, model, param, Pressure)
     p_ref, c, rho_ref = density.reference_pressure, density.compressibility, density.reference_densities
     @tullio rho[ph, i] = constant_expansion(Pressure[i], p_ref[ph], c[ph], rho_ref[ph])
