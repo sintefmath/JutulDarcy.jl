@@ -49,7 +49,7 @@ module JutulDarcy
     using TimerOutputs
     using DataStructures
 
-    export reservoir_linsolve
+    export reservoir_linsolve, get_1d_reservoir
     include("types.jl")
     include("deck_types.jl")
     include("porousmedia_grids.jl")
