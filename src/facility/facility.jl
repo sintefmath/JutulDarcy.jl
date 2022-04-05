@@ -7,15 +7,11 @@ const MIN_ACTIVE_WELL_RATE = 1e-20
 Well variables - entities that we have exactly one of per well (and usually relates to the surface connection)
 """
 
-function count_entities(wg::WellGroup, ::Wells)
+function Jutul.count_entities(wg::WellGroup, ::Wells)
     return length(wg.well_symbols)
 end
 
-function count_entities(::WellGroup, ::Any)
-    error("Unit not found in well group.")
-end
-
-function get_domain_intersection(u::Cells, target_d::DiscretizedDomain{W}, source_d::WellControllerDomain,
+function Jutul.get_domain_intersection(u::Cells, target_d::DiscretizedDomain{W}, source_d::WellControllerDomain,
                                            target_symbol, source_symbol) where {W<:WellGrid}
     # From controller to top well cell
     pos = get_well_position(source_d, target_symbol)
@@ -29,7 +25,7 @@ function get_domain_intersection(u::Cells, target_d::DiscretizedDomain{W}, sourc
     (target = t, source = s, target_entity = u, source_entity = Wells())
 end
 
-function get_domain_intersection(u::Wells, target_d::WellControllerDomain, source_d::DiscretizedDomain{W},
+function Jutul.get_domain_intersection(u::Wells, target_d::WellControllerDomain, source_d::DiscretizedDomain{W},
                                            target_symbol, source_symbol) where {W<:WellGrid}
     # From top cell in well to control equation
     pos = get_well_position(target_d, source_symbol)
@@ -52,26 +48,26 @@ function get_well_position(d, symbol)
     end
 end
 
-function associated_entity(::TotalSurfaceMassRate) Wells() end
+function Jutul.associated_entity(::TotalSurfaceMassRate) Wells() end
 
-function update_primary_variable!(state, massrate::TotalSurfaceMassRate, state_symbol, model, dx)
+function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, state_symbol, model, dx)
     v = state[state_symbol]
     symbols = model.domain.well_symbols
     cfg = state.WellGroupConfiguration
     # Injectors can only have strictly positive injection rates,
     # producers can only have strictly negative and disabled controls give zero rate.
     function do_update(v, dx, ctrl)
-        return update_value(v, dx)
+        return Jutul.update_value(v, dx)
     end
     function do_update(v, dx, ctrl::InjectorControl)
-        return update_value(v, dx, nothing, nothing, MIN_ACTIVE_WELL_RATE, nothing)
+        return Jutul.update_value(v, dx, nothing, nothing, MIN_ACTIVE_WELL_RATE, nothing)
     end
     function do_update(v, dx, ctrl::ProducerControl)
-        return update_value(v, dx, nothing, nothing, nothing, -MIN_ACTIVE_WELL_RATE)
+        return Jutul.update_value(v, dx, nothing, nothing, nothing, -MIN_ACTIVE_WELL_RATE)
     end
     function do_update(v, dx, ctrl::DisabledControl)
         # Set value to zero since we know it is correct.
-        return update_value(v, -value(v))
+        return Jutul.update_value(v, -value(v))
     end
     @inbounds for i in eachindex(v)
         s = symbols[i]
@@ -85,7 +81,7 @@ end
 """
 Impact from well group in facility on conservation equation inside well
 """
-function update_cross_term!(ct::InjectiveCrossTerm, eq::ConservationLaw, well_storage, facility_storage,
+function Jutul.update_cross_term!(ct::InjectiveCrossTerm, eq::ConservationLaw, well_storage, facility_storage,
                             target_model::SimulationModel{D, S}, source_model::SimulationModel{WG},
                             well_symbol, source, dt) where
                             {D<:DiscretizedDomain{W} where W<:WellGrid,
@@ -131,7 +127,7 @@ end
 """
 Cross term from well on control equation for well
 """
-function update_cross_term!(ct::InjectiveCrossTerm, eq::ControlEquationWell,
+function Jutul.update_cross_term!(ct::InjectiveCrossTerm, eq::ControlEquationWell,
                             target_storage, source_storage,
                             target_model::SimulationModel{WG},
                             source_model::SimulationModel{D},
@@ -262,9 +258,9 @@ function well_target_value(q_t, control, target, arg...)
 end
 
 
-function associated_entity(::ControlEquationWell) Wells() end
+function Jutul.associated_entity(::ControlEquationWell) Wells() end
 
-function update_equation!(eq::ControlEquationWell, storage, model, dt)
+function Jutul.update_equation!(eq::ControlEquationWell, storage, model, dt)
     state = storage.state
     ctrl = state.WellGroupConfiguration.operating_controls
     wells = model.domain.well_symbols
@@ -279,7 +275,7 @@ function control_equations!(entries, wells, ctrl, surf_rate)
     end
 end
 
-function align_to_jacobian!(eq::ControlEquationWell, jac, model, u::Cells; kwarg...)
+function Jutul.align_to_jacobian!(eq::ControlEquationWell, jac, model, u::Cells; kwarg...)
     # Need to align to cells, faces is automatically done since it is on the diagonal bands
     cache = eq.equation_top_cell
     layout = matrix_layout(model.context)
@@ -311,12 +307,12 @@ function build_forces(model::SimulationModel{D}; control = Dict(), limits = Dict
     return (control = control::Dict, limits = limits::Dict,)
 end
 
-function initialize_extra_state_fields_domain!(state, model, domain::WellGroup)
+function Jutul.initialize_extra_state_fields_domain!(state, model, domain::WellGroup)
     # Insert structure that holds well control (limits etc) that is then updated before each step
     state[:WellGroupConfiguration] = WellGroupConfiguration(domain.well_symbols)
 end
 
-function update_before_step_domain!(storage, model::SimulationModel, domain::WellGroup, dt, forces)
+function Jutul.update_before_step_domain!(storage, model::SimulationModel, domain::WellGroup, dt, forces)
     # Set control to whatever is on the forces
     cfg = storage.state.WellGroupConfiguration
     q_t = storage.state.TotalSurfaceMassRate
@@ -344,20 +340,20 @@ end
 
 function set_minimum_surface_mass_rate(q_t, ::InjectorControl)
     if q_t < MIN_ACTIVE_WELL_RATE
-        q_t = replace_value(q_t, MIN_ACTIVE_WELL_RATE)
+        q_t = Jutul.replace_value(q_t, MIN_ACTIVE_WELL_RATE)
     end
     return q_t
 end
 
 function set_minimum_surface_mass_rate(q_t, ::ProducerControl)
     if q_t > -MIN_ACTIVE_WELL_RATE
-        q_t = replace_value(q_t, -MIN_ACTIVE_WELL_RATE)
+        q_t = Jutul.replace_value(q_t, -MIN_ACTIVE_WELL_RATE)
     end
     return q_t
 end
 
 function set_minimum_surface_mass_rate(q_t, ::DisabledControl)
-    return replace_value(q_t, 0.0)
+    return Jutul.replace_value(q_t, 0.0)
 end
 
 function apply_well_limit!(cfg::WellGroupConfiguration, target, wmodel, wstate, well::Symbol, density_s, volume_fraction_s, total_mass_rate, current_lims = current_limits(cfg, well))

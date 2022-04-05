@@ -1,8 +1,8 @@
 module JutulDarcy
-    import Jutul: number_of_cells, 
+    import Jutul: number_of_cells, number_of_faces,
                   degrees_of_freedom_per_entity,
                   values_per_entity,
-                  absolute_increment_limit, relative_increment_limit, maximum_value, minimum_value, variable_scale,
+                  absolute_increment_limit, relative_increment_limit, maximum_value, minimum_value,
                   select_primary_variables_system!,
                   select_primary_variables_domain!,
                   initialize_primary_variable_ad!,
@@ -27,6 +27,7 @@ module JutulDarcy
                   setup_parameters,
                   count_entities,
                   count_active_entities,
+                  associated_entity,
                   active_entities,
                   number_of_entities,
                   declare_entities,
@@ -37,6 +38,7 @@ module JutulDarcy
     import Jutul: apply_forces_to_equation!, convergence_criterion
     import Jutul: get_dependencies
     import Jutul: build_forces, setup_state, setup_state!
+    import Jutul: tolerance_scale, declare_pattern
     using Jutul
     using ForwardDiff, StaticArrays, SparseArrays, LinearAlgebra, Statistics
     using AlgebraicMultigrid, Krylov
@@ -45,6 +47,7 @@ module JutulDarcy
     using MAT
     using Tullio, LoopVectorization, Polyester, CUDA
     using TimerOutputs
+    using DataStructures
 
     export reservoir_linsolve
     include("types.jl")

@@ -115,7 +115,7 @@ struct Pressure <: ScalarVariable
     end
 end
 
-variable_scale(p::Pressure) = p.scale
+Jutul.variable_scale(p::Pressure) = p.scale
 absolute_increment_limit(p::Pressure) = p.max_abs
 relative_increment_limit(p::Pressure) = p.max_rel
 maximum_value(p::Pressure) = p.maximum_pressure

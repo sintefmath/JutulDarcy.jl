@@ -207,7 +207,7 @@ end
 Two point Darcy flux with gravity - inner version that takes in cells and transmissibily explicitly
 """
 @inline function half_face_two_point_kgradp_gravity(c_self::I, c_other::I, T, p::AbstractArray{R}, gΔz, ρ::AbstractArray{R}) where {R<:Real, I<:Integer}
-    v = -T*two_point_potential_drop_half_face(c_self, c_other, p, gΔz, ρ)
+    v = -T*Jutul.two_point_potential_drop_half_face(c_self, c_other, p, gΔz, ρ)
     return v
 end
 

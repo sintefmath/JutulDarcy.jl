@@ -1148,7 +1148,7 @@ function mrst_well_ctrl(model, wdata, is_comp, rhoS)
     is_injector = wdata["sign"] > 0
     is_shut = wdata["status"] < 1
     comp_i = vec(wdata["compi"])
-    phases = Jutul.get_phases(model.system)
+    phases = get_phases(model.system)
     nph = length(phases)
     name = wdata["name"]
 

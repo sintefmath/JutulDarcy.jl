@@ -9,7 +9,7 @@ export setup_reservoir_simulator
 function setup_reservoir_simulator(models, initializer, parameters = nothing; method = :cpr, rtol = 0.005, initial_dt = 3600.0*24.0, target_its = 8, offset_its = 1, kwarg...)
     res_model = models[:Reservoir]
     # Convert to multi model
-    block_backend = is_cell_major(matrix_layout(res_model.context))
+    block_backend = Jutul.is_cell_major(matrix_layout(res_model.context))
     if block_backend && length(models) > 1
         groups = repeat([2], length(models))
         groups[1] = 1

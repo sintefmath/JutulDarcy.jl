@@ -33,8 +33,8 @@ end
 relative_increment_limit(tmf::TotalMassFlux) = tmf.max_rel
 absolute_increment_limit(tmf::TotalMassFlux) = tmf.max_abs
 
-function associated_entity(::TotalMassFlux) Faces() end
-variable_scale(t::TotalMassFlux) = t.scale
+associated_entity(::TotalMassFlux) = Faces()
+Jutul.variable_scale(t::TotalMassFlux) = t.scale
 
 default_surface_cond() = (p = 101325.0, T = 288.15) # Pa and deg. K from ISO 13443:1996 for natural gas
 
@@ -205,7 +205,7 @@ function associated_entity(::PotentialDropBalanceWell) Faces() end
 
 function tolerance_scale(::PotentialDropBalanceWell) 1e6 end
 
-function declare_pattern(model, e::PotentialDropBalanceWell, ::Cells)
+function Jutul.declare_pattern(model, e::PotentialDropBalanceWell, ::Cells)
     # TODO: Fix active.
     D = model.domain
     N = D.grid.neighborship
@@ -225,7 +225,7 @@ function declare_pattern(model, e::PotentialDropBalanceWell, ::Cells)
     return (I, J)
 end
 
-function align_to_jacobian!(eq::PotentialDropBalanceWell, jac, model, u::Cells; kwarg...)
+function Jutul.align_to_jacobian!(eq::PotentialDropBalanceWell, jac, model, u::Cells; kwarg...)
     # Need to align to cells, faces is automatically done since it is on the diagonal bands
     cache = eq.equation_cells
     layout = matrix_layout(model.context)
@@ -235,7 +235,7 @@ function align_to_jacobian!(eq::PotentialDropBalanceWell, jac, model, u::Cells; 
 end
 
 function potential_drop_cells_alignment!(cache, jac, N, layout, nc; equation_offset = 0, variable_offset = 0)
-    _, ne, np = ad_dims(cache)
+    _, ne, np = Jutul.ad_dims(cache)
     nf = size(N, 2)
     nu_t = nf
     nu_s = nc
@@ -244,8 +244,8 @@ function potential_drop_cells_alignment!(cache, jac, N, layout, nc; equation_off
             cellix = N[lr, face]
             for e in 1:ne
                 for d = 1:np
-                    pos = find_jac_position(jac, face + equation_offset, cellix + variable_offset, e, d, nu_t, nu_s, ne, np, layout)
-                    set_jacobian_pos!(cache, 2*(face-1) + lr, e, d, pos)
+                    pos = Jutul.find_jac_position(jac, face + equation_offset, cellix + variable_offset, e, d, nu_t, nu_s, ne, np, layout)
+                    Jutul.set_jacobian_pos!(cache, 2*(face-1) + lr, e, d, pos)
                 end
             end
         end
@@ -300,7 +300,7 @@ function update_dp_eq!(cell_entries, face_entries, cd, p, s, V, μ, densities, W
     ρ_mix_self = mix_by_saturations(s_self, view(densities, :, self))
     ρ_mix_other = mix_by_saturations(s_other, as_value(view(densities, :, other)))
 
-    Δθ = two_point_potential_drop(p_self, p_other, gΔz, ρ_mix_self, ρ_mix_other)
+    Δθ = Jutul.two_point_potential_drop(p_self, p_other, gΔz, ρ_mix_self, ρ_mix_other)
     if Δθ > 0
         μ_mix = mix_by_saturations(s_self, view(μ, :, self))
     else
@@ -338,7 +338,7 @@ function convergence_criterion(model, storage, eq::PotentialDropBalanceWell, r; 
     return R
 end
 
-function update_linearized_system_equation!(nz, r, model, equation::PotentialDropBalanceWell)
+function Jutul.update_linearized_system_equation!(nz, r, model, equation::PotentialDropBalanceWell)
     fill_equation_entries!(nz, r, model, equation.equation)
     fill_equation_entries!(nz, nothing, model, equation.equation_cells)
 end
@@ -377,13 +377,13 @@ end
 """
 Intersection of well with reservoir cells
 """
-function get_domain_intersection(u::Cells, target_d::DiscretizedDomain{G}, source_d::DiscretizedDomain{W},
+function Jutul.get_domain_intersection(u::Cells, target_d::DiscretizedDomain{G}, source_d::DiscretizedDomain{W},
     target_symbol, source_symbol) where {W<:WellGrid, G<:ReservoirGrid}
     well = source_d.grid
     if target_symbol == well.reservoir_symbol
         # The symbol matches up and this well exists in this reservoir
         p = well.perforations
-        t = map(i -> interior_cell(i, global_map(target_d)), p.reservoir)::AbstractVector
+        t = map(i -> Jutul.interior_cell(i, global_map(target_d)), p.reservoir)::AbstractVector
         s = p.self::AbstractVector
     else
         t = nothing
@@ -395,9 +395,9 @@ end
 """
 Intersection of reservoir with well cells
 """
-function get_domain_intersection(u::Cells, target_d::DiscretizedDomain{W}, source_d::DiscretizedDomain{G}, target_symbol, source_symbol) where {W<:WellGrid, G<:ReservoirGrid}
+function Jutul.get_domain_intersection(u::Cells, target_d::DiscretizedDomain{W}, source_d::DiscretizedDomain{G}, target_symbol, source_symbol) where {W<:WellGrid, G<:ReservoirGrid}
     # transpose the connections
-    source, target, source_entity, target_entity = get_domain_intersection(u, source_d, target_d, source_symbol, target_symbol)
+    source, target, source_entity, target_entity = Jutul.get_domain_intersection(u, source_d, target_d, source_symbol, target_symbol)
     return (target = target, source = source, target_entity = target_entity, source_entity = source_entity)
 end
 
@@ -411,7 +411,7 @@ Intersection of wells to wells
 """
 Cross term from wellbore into reservoir
 """
-function update_cross_term!(ct::InjectiveCrossTerm, eq::ConservationLaw,
+function Jutul.update_cross_term!(ct::InjectiveCrossTerm, eq::ConservationLaw,
                             target_storage, source_storage,
                             target_model::SimulationModel{DR},
                             source_model::SimulationModel{DW},
@@ -435,7 +435,7 @@ end
 """
 Cross term from reservoir into well bore
 """
-function update_cross_term!(ct::InjectiveCrossTerm, eq::ConservationLaw,
+function Jutul.update_cross_term!(ct::InjectiveCrossTerm, eq::ConservationLaw,
     target_storage, source_storage,
     target_model::SimulationModel{DW},
     source_model::SimulationModel{DR},
@@ -677,13 +677,13 @@ function apply_mask!(ct::InjectiveCrossTerm, pm::PerforationMask)
     apply_mask!(ct.crossterm_source, pm)
 end
 
-function apply_force_to_cross_term_target!(ct::InjectiveCrossTerm, storage_t, storage_s, model_t, model_s, source, target, force::PerforationMask, dt, time)
+function Jutul.apply_force_to_cross_term_target!(ct::InjectiveCrossTerm, storage_t, storage_s, model_t, model_s, source, target, force::PerforationMask, dt, time)
     if source == :Reservoir || target == :Reservoir
         apply_mask!(ct, force)
     end
 end
 
-function apply_force_to_cross_term_source!(ct::InjectiveCrossTerm, storage_t, storage_s, model_t, model_s, source, target, force::PerforationMask, dt, time)
+function Jutul.apply_force_to_cross_term_source!(ct::InjectiveCrossTerm, storage_t, storage_s, model_t, model_s, source, target, force::PerforationMask, dt, time)
     if source == :Reservoir || target == :Reservoir
         apply_mask!(ct, force)
     end

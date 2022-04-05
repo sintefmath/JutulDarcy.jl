@@ -1,7 +1,7 @@
 function select_secondary_variables_flow_type!(S, domain, system, formulation, flow_type::TotalMassVelocityMassFractionsFlow)
     S[:TotalMass] = TotalMass()
 end
-include_face_sign(::TotalMassVelocityMassFractionsFlow) = true
+Jutul.include_face_sign(::TotalMassVelocityMassFractionsFlow) = true
 
 
 """
