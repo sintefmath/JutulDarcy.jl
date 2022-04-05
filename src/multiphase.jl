@@ -2,11 +2,8 @@ export MultiPhaseSystem, ImmiscibleSystem, SinglePhaseSystem
 export AqueousPhase, LiquidPhase, VaporPhase
 export number_of_phases, get_short_name, get_name, subscript
 export update_linearized_system!
-export SourceTerm, build_forces
-export setup_state, setup_state!
-
+export SourceTerm
 export setup_storage, update_equations!
-
 export Pressure, Saturations, TotalMasses, TotalMass
 
 # Abstract multiphase system
