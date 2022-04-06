@@ -34,9 +34,13 @@ setups = ["two_phase_simple",
             @testset "Block assembly, Krylov solver" begin
                 @test test_multiphase(setup = setup, context = bctx, linear_solver = GenericKrylov())
             end
-            @testset "Block assembly, preconditioners" begin
+            @testset "Block assembly, ILU0" begin
                 @test test_multiphase(setup = setup, context = bctx, linear_solver = GenericKrylov(preconditioner = ILUZeroPreconditioner()))
+            end
+            @testset "Block assembly, CPR" begin
                 @test test_multiphase(setup = setup, context = bctx, linear_solver = GenericKrylov(preconditioner = CPRPreconditioner()))
+            end
+            @testset "Block assembly, auto" begin
                 @test test_multiphase(setup = setup, context = bctx, linear_solver = :auto)
             end
             @testset "Unit major assembly, direct solver" begin
