@@ -120,14 +120,14 @@ function common_well_setup(nr; dz = nothing, WI = nothing, gravity = gravity_con
     return (WI, gdz)
 end
 
-export setup_well
+export setup_well, setup_vertical_well
 function setup_well(g, K, reservoir_cells::AbstractVector;
                                         reference_depth = nothing, 
                                         geometry = tpfv_geometry(g),
-                                        volume = 1e-3,
                                         skin = 0.0,
                                         Kh = nothing,
                                         radius = 0.1,
+                                        simple_well = false,
                                         dir = :z,
                                         kwarg...)
     n = length(reservoir_cells)
@@ -154,17 +154,30 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         else
             d = dir[i]
         end
-        dx, dy, dz = cell_dims(g, c)
-        if d == :x
-            h = dz
-        elseif d == :y
-            h = dy
-        else
-            h = dz
-        end
+        Δ = cell_dims(g, c)
+        h = findfirst(isequal(d), [:x, :y, :z])
         volumes[i] = h*π*radius^2
     end
-    return MultiSegmentWell(volumes, reservoir_cells; WI = WI, dz = dz, reference_depth = reference_depth, kwarg...)
+    if simple_well
+        W = SimpleWell(reservoir_cells, WI = WI, dz = dz, reference_depth = reference_depth, kwarg...)
+    else
+        W = MultiSegmentWell(volumes, reservoir_cells; WI = WI, dz = dz, reference_depth = reference_depth, kwarg...)
+    end
+    return W
+end
+
+function setup_vertical_well(g, K, i, j; heel = 1, toe = grid_dims_ijk(g)[3], kwarg...)
+    @assert heel <= toe
+    @assert heel > 0
+    @assert toe > 0
+    k_range = heel:toe
+    n = length(k_range)
+    @assert n > 0
+    reservoir_cells = zeros(Int64, n)
+    for (ix, k) in enumerate(k_range)
+        reservoir_cells[ix] = cell_index(g, (i, j, k))
+    end
+    return setup_well(g, K, reservoir_cells; kwarg...)
 end
 
 """
