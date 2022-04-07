@@ -144,6 +144,7 @@ function compute_peaceman_index(Δ, K, radius; dir::Symbol = :z, constant = 0.14
     return WI
 end
 
+export discretized_domain_tpfv_flow
 function discretized_domain_tpfv_flow(geometry; porosity = 0.1, 
                                                 permeability = 9.869232667160131e-14, # 100 mD 
                                                 T = nothing,

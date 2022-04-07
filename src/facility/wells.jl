@@ -120,6 +120,53 @@ function common_well_setup(nr; dz = nothing, WI = nothing, gravity = gravity_con
     return (WI, gdz)
 end
 
+export setup_well
+function setup_well(g, K, reservoir_cells::AbstractVector;
+                                        reference_depth = nothing, 
+                                        geometry = tpfv_geometry(g),
+                                        volume = 1e-3,
+                                        skin = 0.0,
+                                        Kh = nothing,
+                                        radius = 0.1,
+                                        dir = :z,
+                                        kwarg...)
+    n = length(reservoir_cells)
+    # Make sure these are cell indices
+    reservoir_cells = map(i -> cell_index(g, i), reservoir_cells)
+    centers = geometry.cell_centroids
+    if isnothing(reference_depth)
+        reference_depth = centers[3, first(reservoir_cells)]
+    end
+    volumes = zeros(n)
+    WI = zeros(n)
+    dz = zeros(n)
+    for (i, c) in enumerate(reservoir_cells)
+        if K isa AbstractVector
+            k = K[c]
+        else
+            k = K[:, c]
+        end
+        WI[i] = compute_peaceman_index(g, k, radius, c, skin = skin, Kh = Kh)
+        center = vec(centers[:, c])
+        dz[i] = center[3] - reference_depth
+        if dir isa Symbol
+            d = dir
+        else
+            d = dir[i]
+        end
+        dx, dy, dz = cell_dims(g, c)
+        if d == :x
+            h = dz
+        elseif d == :y
+            h = dy
+        else
+            h = dz
+        end
+        volumes[i] = h*π*radius^2
+    end
+    return MultiSegmentWell(volumes, reservoir_cells; WI = WI, dz = dz, reference_depth = reference_depth, kwarg...)
+end
+
 """
 Hagedorn and Brown well bore friction model for a segment.
 """
