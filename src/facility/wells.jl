@@ -43,12 +43,13 @@ struct SimpleWell <: WellGrid
     perforations
     surface
     reservoir_symbol
-    function SimpleWell(reservoir_cells; reference_depth = 0, volume = 1e-3, reservoir_symbol = :Reservoir, surface_conditions = default_surface_cond(), kwarg...)
+    name::Symbol     # Symbol that names the well
+    function SimpleWell(reservoir_cells; name = :Well, reference_depth = 0, volume = 1e-3, reservoir_symbol = :Reservoir, surface_conditions = default_surface_cond(), kwarg...)
         nr = length(reservoir_cells)
 
         WI, gdz = common_well_setup(nr; kwarg...)
         perf = (self = ones(Int64, nr), reservoir = vec(reservoir_cells), WI = WI, gdz = gdz)
-        new([volume], perf, surface_conditions, reservoir_symbol)
+        new([volume], perf, surface_conditions, reservoir_symbol, name)
     end
 end
 
@@ -59,9 +60,11 @@ struct MultiSegmentWell <: WellGrid
     top              # "Top" node where scalar well quantities live
     surface          # p, T at surface
     reservoir_symbol # Symbol of the reservoir the well is coupled to
+    name::Symbol     # Symbol that names the well
     segment_models   # Segment pressure drop model
     function MultiSegmentWell(volumes::AbstractVector, reservoir_cells;
                                                         N = nothing,
+                                                        name = :Well,
                                                         perforation_cells = nothing,
                                                         segment_models = nothing,
                                                         reference_depth = 0,
@@ -99,7 +102,7 @@ struct MultiSegmentWell <: WellGrid
         WI, gdz = common_well_setup(nr; kwarg...)
         perf = (self = perforation_cells, reservoir = reservoir_cells, WI = WI, gdz = gdz)
         accumulator = (reference_depth = reference_depth, )
-        new(volumes, perf, N, accumulator, surface_conditions, reservoir_symbol, segment_models)
+        new(volumes, perf, N, accumulator, surface_conditions, reservoir_symbol, name, segment_models)
     end
 end
 
