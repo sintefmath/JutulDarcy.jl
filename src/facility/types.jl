@@ -15,6 +15,11 @@ struct TotalSurfaceMassRate <: ScalarVariable end
 abstract type WellTarget end
 abstract type SurfaceVolumeTarget <: WellTarget end
 
+# Basics
+export BottomHolePressureTarget, TotalRateTarget, SinglePhaseRateTarget
+# Phase mixtures
+export SurfaceLiquidRateTarget, SurfaceOilRateTarget, SurfaceWaterRateTarget, SurfaceGasRateTarget
+
 struct BottomHolePressureTarget <: WellTarget
     value::AbstractFloat
 end

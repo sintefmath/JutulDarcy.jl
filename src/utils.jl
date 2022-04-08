@@ -1,3 +1,4 @@
+export reservoir_model
 reservoir_model(model) = model
 reservoir_model(model::MultiModel) = model.models.Reservoir
 
@@ -8,27 +9,36 @@ export setup_reservoir_model
 function setup_reservoir_model(reservoir, system; wells = [], block_backend = true, context = nothing, reference_densities = nothing)
     # List of models (order matters)
     models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()
-    # Initializers (should not go here)
-    # initializer = Dict{Symbol, Any}()
-    # Parameters
-
     # Support either a pre-discretized domain, a mesh or geometry
     main_domain(m::DiscretizedDomain) = m
     main_domain(m::Jutul.AbstractJutulMesh) = main_domain(tpfv_geometry(m))
     main_domain(geo::Jutul.JutulGeometry) = discretized_domain_tpfv_flow(geo)
 
-    if block_backend && isnothing(context)
-        main_context = DefaultContext(matrix_layout = BlockMajorLayout())
+    if isnothing(context)
+        context = DefaultContext()
+        if block_backend
+            main_context = DefaultContext(matrix_layout = BlockMajorLayout())
+        else
+            main_context = context
+        end
     else
         main_context = context
     end
-
+    # We first set up the reservoir
     D = main_domain(reservoir)
     models[:Reservoir] = SimulationModel(D, system, context = main_context)
+    # Then we set up all the wells
     for w in wells
         D_w = discretized_domain_well(w)
-        models[w.name] = SimulationModel(D_w, system, context = main_context)
+        models[w.name] = SimulationModel(D_w, system, context = context)
     end
+    # Add facility that gorups the wells
+    wg = WellGroup(map(x -> x.name, wells))
+    mode = PredictionMode()
+    F = SimulationModel(wg, mode, context = context)
+    models[:Facility] = F
+
+    # Put it all together as multimodel
     model = reservoir_multimodel(models)
     parameters = setup_parameters(model)
     if !isnothing(reference_densities)
@@ -112,20 +122,27 @@ function setup_reservoir_state(model; kwarg...)
             # Already done
             continue
         end
-        init_w = Dict{Symbol, Any}()
         W = model.models[k]
-        wg = W.domain.grid
-        res_c = wg.perforations.reservoir
-        if wg isa MultiSegmentWell
-            # Repeat top node. Not fully robust.
-            c = res_c[vcat(1, 1:length(res_c))]
-            init_w[:TotalMassFlux] = 0.0
+        if W.domain isa WellGroup
+            # Facility or well group
+            init_w = setup_state(W, TotalSurfaceMassRate = 0.0)
         else
-            c = res_c[1]
-        end
-        for pk in pvars
-            pv = res_state[pk]
-            init_w[pk] = perf_subset(pv, c)
+            # Wells
+            init_w = Dict{Symbol, Any}()
+            W = model.models[k]
+            wg = W.domain.grid
+            res_c = wg.perforations.reservoir
+            if wg isa MultiSegmentWell
+                # Repeat top node. Not fully robust.
+                c = res_c[vcat(1, 1:length(res_c))]
+                init_w[:TotalMassFlux] = 0.0
+            else
+                c = res_c[1]
+            end
+            for pk in pvars
+                pv = res_state[pk]
+                init_w[pk] = perf_subset(pv, c)
+            end
         end
         init[k] = init_w
     end
