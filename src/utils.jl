@@ -4,25 +4,45 @@ reservoir_model(model::MultiModel) = model.models.Reservoir
 reservoir_storage(model, storage) = storage
 reservoir_storage(model::MultiModel, storage) = storage.Reservoir
 
+export setup_reservoir_model
+function setup_reservoir_model(reservoir, system; wells = [], block_backend = true, context = nothing, reference_densities = nothing)
+    # List of models (order matters)
+    models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()
+    # Initializers (should not go here)
+    # initializer = Dict{Symbol, Any}()
+    # Parameters
+
+    # Support either a pre-discretized domain, a mesh or geometry
+    main_domain(m::DiscretizedDomain) = m
+    main_domain(m::Jutul.AbstractJutulMesh) = main_domain(tpfv_geometry(m))
+    main_domain(geo::Jutul.JutulGeometry) = discretized_domain_tpfv_flow(geo)
+
+    if block_backend && isnothing(context)
+        main_context = DefaultContext(matrix_layout = BlockMajorLayout())
+    else
+        main_context = context
+    end
+
+    D = main_domain(reservoir)
+    models[:Reservoir] = SimulationModel(D, system, context = main_context)
+    for w in wells
+        D_w = discretized_domain_well(w)
+        models[w.name] = SimulationModel(D_w, system, context = main_context)
+    end
+    model = reservoir_multimodel(models)
+    parameters = setup_parameters(model)
+    if !isnothing(reference_densities)
+        for k in keys(models)
+            parameters[k][:reference_densities] = reference_densities
+        end
+    end
+    return (model, parameters)
+end
 
 export setup_reservoir_simulator
 function setup_reservoir_simulator(models, initializer, parameters = nothing; method = :cpr, rtol = 0.005, initial_dt = 3600.0*24.0, target_its = 8, offset_its = 1, kwarg...)
-    res_model = models[:Reservoir]
     # Convert to multi model
-    block_backend = Jutul.is_cell_major(matrix_layout(res_model.context))
-    if block_backend && length(models) > 1
-        groups = repeat([2], length(models))
-        groups[1] = 1
-        red = :schur_apply
-        outer_context = DefaultContext()
-    else
-        outer_context = models[:Reservoir].context
-        groups = nothing
-        red = nothing
-    end
-    mmodel = MultiModel(convert_to_immutable_storage(models), groups = groups, 
-                                                              context = outer_context,
-                                                              reduction = red)
+    mmodel = reservoir_multimodel(models)
     # Set up simulator itself, containing the initial state
     state0 = setup_state(mmodel, initializer)
     sim = Simulator(mmodel, state0 = state0, parameters = deepcopy(parameters))
@@ -35,6 +55,30 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing; me
     cfg = simulator_config(sim, timestep_selectors = [t_base, t_its], linear_solver = lsolve; kwarg...)
 
     return (sim, cfg)
+end
+
+function reservoir_multimodel(model::MultiModel)
+    # The multimodel is a reservoir multimodel if there exists a submodel named Reservoir
+    @assert haskey(model.models, :Reservoir)
+    return model
+end
+
+function reservoir_multimodel(models::AbstractDict)
+    res_model = models[:Reservoir]
+    block_backend = Jutul.is_cell_major(matrix_layout(res_model.context))
+    if block_backend && length(models) > 1
+        groups = repeat([2], length(models))
+        groups[1] = 1
+        red = :schur_apply
+        outer_context = DefaultContext()
+    else
+        outer_context = models[:Reservoir].context
+        groups = nothing
+        red = nothing
+    end
+    models = convert_to_immutable_storage(models)
+    model = MultiModel(models, groups = groups, context = outer_context, reduction = red)
+    return model
 end
 
 export full_well_outputs, well_output, well_symbols, wellgroup_symbols, available_well_targets
