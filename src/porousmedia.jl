@@ -178,3 +178,18 @@ function discretized_domain_tpfv_flow(geometry; porosity = 0.1,
     disc = (mass_flow = flow,)
     return DiscretizedDomain(G, disc)
 end
+
+export discretized_domain_well
+function discretized_domain_well(W; z = nothing, kwarg...)
+    if W isa MultiSegmentWell
+        if isnothing(z)
+            z = vec(W.centers[3, :])
+        end
+        flow = TwoPointPotentialFlow(SPU(), MixedWellSegmentFlow(), TotalMassVelocityMassFractionsFlow(), W, nothing, z)
+    else
+        @assert W isa SimpleWell
+        flow = TwoPointPotentialFlow(nothing, nothing, TrivialFlow(), W)
+    end
+    disc = (mass_flow = flow,)
+    return DiscretizedDomain(W, disc; kwarg...)
+end

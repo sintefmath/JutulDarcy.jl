@@ -58,16 +58,18 @@ struct MultiSegmentWell <: WellGrid
     perforations     # (self -> local cells, reservoir -> reservoir cells, WI -> connection factor)
     neighborship     # Well cell connectivity
     top              # "Top" node where scalar well quantities live
+    centers          # Coordinate centers of nodes
     surface          # p, T at surface
     reservoir_symbol # Symbol of the reservoir the well is coupled to
     name::Symbol     # Symbol that names the well
     segment_models   # Segment pressure drop model
-    function MultiSegmentWell(volumes::AbstractVector, reservoir_cells;
+    function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
                                                         N = nothing,
                                                         name = :Well,
                                                         perforation_cells = nothing,
                                                         segment_models = nothing,
                                                         reference_depth = 0,
+                                                        dz = nothing,
                                                         surface_conditions = default_surface_cond(),
                                                         accumulator_volume = mean(volumes),
                                                         reservoir_symbol = :Reservoir, kwarg...)
@@ -83,8 +85,10 @@ struct MultiSegmentWell <: WellGrid
         end
         nseg = size(N, 2)
         @assert size(N, 1) == 2
-
+        @assert size(centers, 1) == 3
         volumes = vcat([accumulator_volume], volumes)
+        ext_centers = hcat([centers[1:2, 1]..., reference_depth], centers)
+        @assert length(volumes) == size(ext_centers, 2)
         if !isnothing(reservoir_cells) && isnothing(perforation_cells)
             @assert length(reservoir_cells) == nv "If no perforation cells are given, we must 1->1 correspondence between well volumes and reservoir cells."
             perforation_cells = collect(2:nc)
@@ -98,11 +102,14 @@ struct MultiSegmentWell <: WellGrid
             segment_models::AbstractVector
             @assert length(segment_models) == nseg
         end
+        if isnothing(dz)
+            dz = centers[3, :] - reference_depth
+        end
         @assert length(perforation_cells) == nr
-        WI, gdz = common_well_setup(nr; kwarg...)
+        WI, gdz = common_well_setup(nr; dz = dz, kwarg...)
         perf = (self = perforation_cells, reservoir = reservoir_cells, WI = WI, gdz = gdz)
         accumulator = (reference_depth = reference_depth, )
-        new(volumes, perf, N, accumulator, surface_conditions, reservoir_symbol, name, segment_models)
+        new(volumes, perf, N, accumulator, ext_centers, surface_conditions, reservoir_symbol, name, segment_models)
     end
 end
 
@@ -136,9 +143,9 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     n = length(reservoir_cells)
     # Make sure these are cell indices
     reservoir_cells = map(i -> cell_index(g, i), reservoir_cells)
-    centers = geometry.cell_centroids
+    centers = geometry.cell_centroids[:, reservoir_cells]
     if isnothing(reference_depth)
-        reference_depth = centers[3, first(reservoir_cells)]
+        reference_depth = centers[3, 1]
     end
     volumes = zeros(n)
     WI = zeros(n)
@@ -150,7 +157,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
             k = K[:, c]
         end
         WI[i] = compute_peaceman_index(g, k, radius, c, skin = skin, Kh = Kh)
-        center = vec(centers[:, c])
+        center = vec(centers[:, i])
         dz[i] = center[3] - reference_depth
         if dir isa Symbol
             d = dir
@@ -164,7 +171,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     if simple_well
         W = SimpleWell(reservoir_cells, WI = WI, dz = dz, reference_depth = reference_depth, kwarg...)
     else
-        W = MultiSegmentWell(volumes, reservoir_cells; WI = WI, dz = dz, reference_depth = reference_depth, kwarg...)
+        W = MultiSegmentWell(reservoir_cells, volumes, centers; WI = WI, dz = dz, reference_depth = reference_depth, kwarg...)
     end
     return W
 end

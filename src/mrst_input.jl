@@ -78,11 +78,11 @@ function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout 
     # dz = awrap(w.dZ)
     WI = awrap(w.WI)
     cell_centroids = copy((mrst_data["G"]["cells"]["centroids"])')
-    if size(cell_centroids, 1) == 3
-        z_res = cell_centroids[3, rc]
-    else
-        z_res = zeros(length(rc))
+    centers = cell_centroids[:, rc]
+    if size(centers, 1) == 2
+        centers = vcat(centers, zeros(1, size(centers, 2)))
     end
+    z_res = centers[3, :]
     res_volume = vec(copy(mrst_data["G"]["cells"]["volumes"]))
 
     well_cell_volume = res_volume[rc]
@@ -91,8 +91,8 @@ function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout 
         # For simple well, distance from ref depth to perf
         dz = ref_depth .- z_res
         W = SimpleWell(rc, WI = WI, dz = dz, volume = well_volume)
-        wmodel = SimulationModel(W, system; kwarg...)
-        flow = TwoPointPotentialFlow(nothing, nothing, TrivialFlow(), W)
+        # wmodel = SimulationModel(W, system; kwarg...)
+        # flow = TwoPointPotentialFlow(nothing, nothing, TrivialFlow(), W)
         reservoir_cells = [rc[1]]
     else
         if haskey(W_mrst, "isMS") && W_mrst["isMS"]
@@ -138,11 +138,13 @@ function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout 
         else
             pvol, accumulator_volume, perf_cells, well_topo, z, dz, reservoir_cells = simple_ms_setup(n, volume, well_cell_volume, rc, ref_depth, z_res)
         end
-        W = MultiSegmentWell(pvol, rc, WI = WI, reference_depth = ref_depth, dz = dz, N = well_topo, perforation_cells = perf_cells, accumulator_volume = accumulator_volume)
-        flow = TwoPointPotentialFlow(SPU(), MixedWellSegmentFlow(), TotalMassVelocityMassFractionsFlow(), W, nothing, z)
+        W = MultiSegmentWell(rc, pvol, centers, WI = WI, reference_depth = ref_depth, dz = dz, N = well_topo, perforation_cells = perf_cells, accumulator_volume = accumulator_volume)
+        # flow = TwoPointPotentialFlow(SPU(), MixedWellSegmentFlow(), TotalMassVelocityMassFractionsFlow(), W, nothing, z)
     end
-    disc = (mass_flow = flow,)
-    wmodel = SimulationModel(W, system, discretization = disc; kwarg...)
+    # disc = (mass_flow = flow,)
+    W_domain = discretized_domain_well(W, z = z)
+    wmodel = SimulationModel(W_domain, system; kwarg...)
+    # wmodel = SimulationModel(W, system, discretization = disc; kwarg...)
     if extraout
         out = (wmodel, W_mrst, vec(reservoir_cells))
     else
