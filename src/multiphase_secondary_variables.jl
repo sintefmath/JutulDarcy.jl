@@ -230,6 +230,11 @@ struct ConstantCompressibilityDensities{T} <: PhaseMassDensities
     end
 end
 
+function ConstantCompressibilityDensities(; p_ref = 101325.0, density_ref = 1000.0, compressibility = 1e-10)
+    n = max(length(p_ref), length(density_ref), length(compressibility))
+    return ConstantCompressibilityDensities(n, p_ref, density_ref, compressibility)
+end
+
 @jutul_secondary function update_as_secondary!(rho, density::ConstantCompressibilityDensities, model, param, Pressure)
     p_ref, c, rho_ref = density.reference_pressure, density.compressibility, density.reference_densities
     @tullio rho[ph, i] = constant_expansion(Pressure[i], p_ref[ph], c[ph], rho_ref[ph])
