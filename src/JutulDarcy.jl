@@ -37,7 +37,7 @@ module JutulDarcy
     import Jutul: fill_equation_entries!, update_linearized_system_equation!, check_convergence, update!, linear_operator, transfer, operator_nrows, matrix_layout, apply!
     import Jutul: apply_forces_to_equation!, convergence_criterion
     import Jutul: get_dependencies
-    import Jutul: build_forces, setup_state, setup_state!
+    import Jutul: setup_forces, setup_state, setup_state!
     import Jutul: declare_pattern
     using Jutul
     using ForwardDiff, StaticArrays, SparseArrays, LinearAlgebra, Statistics

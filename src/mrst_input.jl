@@ -206,7 +206,7 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         irate = pvfrac*sum(pv)/tot_time
         src = [SourceTerm(1, irate), 
             SourceTerm(nc, -irate)]
-        forces = build_forces(model, sources = src)
+        forces = setup_forces(model, sources = src)
 
         # State is dict with pressure in each cell
         init = Dict(:Pressure => p0)
@@ -237,7 +237,7 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         # s0 = 0.9
         src  = [SourceTerm(1, irate, fractional_flow = [1 - s, s]), 
                 SourceTerm(nc, -irate, fractional_flow = [1.0, 0.0])]
-        forces = build_forces(model, sources = src)
+        forces = setup_forces(model, sources = src)
 
         # State is dict with pressure in each cell
         init = Dict(:Pressure => p0, :Saturations => [1 - s0, s0])
@@ -267,7 +267,7 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         s[:PhaseMassDensities] = ConstantCompressibilityDensities(sys, pRef, rhoLS, cl)
 
         tot_time = sum(timesteps)
-        forces = build_forces(model)
+        forces = setup_forces(model)
 
         p_init = repeat([p0], nc)
         p_init[inj] = 2*p0
@@ -305,7 +305,7 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         s[:PhaseMassDensities] = ConstantCompressibilityDensities(sys, pRef, rhoLS, cl)
 
         tot_time = sum(timesteps)
-        forces = build_forces(model)
+        forces = setup_forces(model)
 
         p_init = repeat([p0], nc)
         p_init[inj] = 2*p0
@@ -357,7 +357,7 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         s[:Temperature] = ConstantVariables(T0)
 
         tot_time = sum(timesteps)
-        forces = build_forces(model)
+        forces = setup_forces(model)
 
         p_init = repeat([p0], nc)
         p_init[inj] = 2*p0
@@ -398,7 +398,7 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         s[:Temperature] = ConstantVariables(T0)
 
         tot_time = sum(timesteps)
-        forces = build_forces(model)
+        forces = setup_forces(model)
 
         p_init = repeat([p0], nc)
         p_init[inj] = 2*p0
@@ -1044,7 +1044,7 @@ function setup_case_from_mrst(casename; simple_well = false, block_backend = tru
         g = WellGroup(wsymbols)
         WG = SimulationModel(g, mode)
         ctrls = facility_subset(wsymbols, controls)
-        facility_forces = build_forces(WG, control = ctrls)
+        facility_forces = setup_forces(WG, control = ctrls)
         # Specifics
         @assert !haskey(models, sym)
         models[sym] = WG
@@ -1108,7 +1108,7 @@ function setup_case_from_mrst(casename; simple_well = false, block_backend = tru
                                     wi_mask[ix] = 0
                                 end
                             end
-                            new_force[wsym] = build_forces(wmodel, mask = PerforationMask(wi_mask))
+                            new_force[wsym] = setup_forces(wmodel, mask = PerforationMask(wi_mask))
                         end
                     end
                     # Now copy into the corresponding facilit(y/ies)
@@ -1119,7 +1119,7 @@ function setup_case_from_mrst(casename; simple_well = false, block_backend = tru
                         ctrls = facility_subset(wsymbols, current_control)
                         WG = models[fsymbol]
                         limits_local = facility_subset(wsymbols, limits)
-                        new_force[fsymbol] = build_forces(WG, control = ctrls, limits = limits_local)
+                        new_force[fsymbol] = setup_forces(WG, control = ctrls, limits = limits_local)
                     end
                     push!(all_controls, new_force)
                 end

@@ -303,7 +303,7 @@ function select_equations_domain!(eqs, domain::WellGroup, system, arg...)
     eqs[:control_equation] = (ControlEquationWell, 1)
 end
 
-function build_forces(model::SimulationModel{D}; control = Dict(), limits = Dict()) where {D <: WellGroup}
+function setup_forces(model::SimulationModel{D}; control = Dict(), limits = Dict()) where {D <: WellGroup}
     return (control = control::Dict, limits = limits::Dict,)
 end
 

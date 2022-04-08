@@ -33,7 +33,7 @@ function cell(s::SourceTerm{I, T}) where {I, T}
     return s.cell::I
 end
 
-function build_forces(model::SimulationModel{G, S}; sources = nothing) where {G<:Any, S<:MultiPhaseSystem}
+function setup_forces(model::SimulationModel{G, S}; sources = nothing) where {G<:Any, S<:MultiPhaseSystem}
     return (sources = sources,)
 end
 

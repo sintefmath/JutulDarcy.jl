@@ -38,7 +38,7 @@ function test_single_phase_gpu(casename = "pico"; float_type = Float32, pvfrac=0
     src = [SourceTerm(1, irate), 
            SourceTerm(nc, -irate)]
     src = CuArray(src)
-    forces = build_forces(model, sources = src)
+    forces = setup_forces(model, sources = src)
 
     # State is dict with pressure in each cell
     init = Dict(:Pressure => p0)

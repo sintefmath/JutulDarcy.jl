@@ -721,7 +721,7 @@ function mix_by_saturations(s::Real, values)
     return s*values[]
 end
 
-function build_forces(model::SimulationModel{D, S}; mask = nothing) where {D <: DiscretizedDomain{G}, S<:MultiPhaseSystem} where G<:WellGrid
+function setup_forces(model::SimulationModel{D, S}; mask = nothing) where {D <: DiscretizedDomain{G}, S<:MultiPhaseSystem} where G<:WellGrid
     mask::Union{Nothing, PerforationMask}
     return (mask = mask,)
 end
