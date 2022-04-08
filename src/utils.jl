@@ -81,6 +81,58 @@ function reservoir_multimodel(models::AbstractDict)
     return model
 end
 
+export setup_reservoir_state
+function setup_reservoir_state(model; kwarg...)
+    rmodel = reservoir_model(model)
+    pvars = [k for k in keys(Jutul.get_primary_variables(rmodel))]
+    np = length(pvars)
+    ok = repeat([false], np)
+    res_init = Dict{Symbol, Any}()
+    for (k, v) in kwarg
+        I = findfirst(isequal(k), pvars)
+        if isnothing(I)
+            @warn "Recieved primary variable $k, but this is not known to reservoir model... Adding anyway."
+        else
+            ok[I] = true
+        end
+        res_init[k] = v
+    end
+    if !all(ok)
+        missing_primary_variables = pvars[.!ok]
+        @warn "Not all primary variables were initialized for reservoir model." missing_primary_variables
+    end
+    res_state = setup_state(rmodel, res_init)
+    # Next, we initialize the wells.
+    init = Dict(:Reservoir => res_state)
+    perf_subset(v::AbstractVector, i) = v[i]
+    perf_subset(v::AbstractMatrix, i) = v[:, i]
+    perf_subset(v, i) = v
+    for k in keys(model.models)
+        if k == :Reservoir
+            # Already done
+            continue
+        end
+        init_w = Dict{Symbol, Any}()
+        W = model.models[k]
+        wg = W.domain.grid
+        res_c = wg.perforations.reservoir
+        if wg isa MultiSegmentWell
+            # Repeat top node. Not fully robust.
+            c = res_c[vcat(1, 1:length(res_c))]
+            init_w[:TotalMassFlux] = 0.0
+        else
+            c = res_c[1]
+        end
+        for pk in pvars
+            pv = res_state[pk]
+            init_w[pk] = perf_subset(pv, c)
+        end
+        init[k] = init_w
+    end
+    state = setup_state(model, init)
+    return state
+end
+
 export full_well_outputs, well_output, well_symbols, wellgroup_symbols, available_well_targets
 
 function full_well_outputs(model, parameters, states; targets = available_well_targets(model.models.Reservoir), shortname = false)
