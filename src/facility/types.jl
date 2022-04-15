@@ -78,6 +78,9 @@ struct DisabledTarget <: WellTarget end
 abstract type WellForce <: JutulForce end
 abstract type WellControlForce <: WellForce end
 
+default_limits(ctrl) = as_limit(ctrl.target)
+as_limit(target) = NamedTuple([Pair(translate_target_to_symbol(target, shortname = true), target.value)])
+as_limit(T::DisabledTarget) = nothing
 
 struct DisabledControl{T} <: WellControlForce
     target::T
@@ -106,6 +109,8 @@ struct InjectorControl{T} <: WellControlForce
     end
 end
 replace_target(f::InjectorControl, target) = InjectorControl(target, f.injection_mixture, density = f.mixture_density)
+default_limits(f::InjectorControl{T}) where T<:BottomHolePressureTarget = merge((rate = 1.1*MIN_ACTIVE_WELL_RATE, ), as_limit(f.target))
+
 
 struct ProducerControl{T} <: WellControlForce
     target::T
@@ -113,6 +118,9 @@ struct ProducerControl{T} <: WellControlForce
         new{T}(target)
     end
 end
+
+default_limits(f::ProducerControl{T}) where T<:SurfaceVolumeTarget = merge((bhp = 101325.0,), as_limit(f.target)) # 1 atm
+default_limits(f::ProducerControl{T}) where T<:BottomHolePressureTarget = merge((rate = -1.1*MIN_ACTIVE_WELL_RATE,), as_limit(f.target))
 
 function replace_target(f::ProducerControl, target)
     return ProducerControl(target)
@@ -170,9 +178,9 @@ import Base.copy
 Base.copy(m::PerforationMask) = PerforationMask(copy(m.values))
 
 translate_target_to_symbol(t; shortname = false) = Symbol(t)
-translate_target_to_symbol(t::BottomHolePressureTarget; shortname = false) = shortname ? "BHP" : Symbol("Bottom hole pressure")
-translate_target_to_symbol(t::TotalRateTarget; shortname = false) = shortname ? "RATE" : Symbol("Surface total rate")
-translate_target_to_symbol(t::SurfaceWaterRateTarget; shortname = false) = shortname ? "WRAT" : Symbol("Surface water rate")
-translate_target_to_symbol(t::SurfaceLiquidRateTarget; shortname = false) = shortname ? "LRAT" : Symbol("Surface liquid rate (water + oil)")
-translate_target_to_symbol(t::SurfaceOilRateTarget; shortname = false) = shortname ? "ORAT" : Symbol("Surface oil rate")
-translate_target_to_symbol(t::SurfaceGasRateTarget; shortname = false) = shortname ? "GRAT" : Symbol("Surface gas rate")
+translate_target_to_symbol(t::BottomHolePressureTarget; shortname = false) = shortname ? :bhp : Symbol("Bottom hole pressure")
+translate_target_to_symbol(t::TotalRateTarget; shortname = false) = shortname ? :rate : Symbol("Surface total rate")
+translate_target_to_symbol(t::SurfaceWaterRateTarget; shortname = false) = shortname ? :wrat : Symbol("Surface water rate")
+translate_target_to_symbol(t::SurfaceLiquidRateTarget; shortname = false) = shortname ? :lrat : Symbol("Surface liquid rate (water + oil)")
+translate_target_to_symbol(t::SurfaceOilRateTarget; shortname = false) = shortname ? :orat : Symbol("Surface oil rate")
+translate_target_to_symbol(t::SurfaceGasRateTarget; shortname = false) = shortname ? :grat : Symbol("Surface gas rate")

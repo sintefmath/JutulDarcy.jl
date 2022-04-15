@@ -155,9 +155,9 @@ export full_well_outputs, well_output, well_symbols, wellgroup_symbols, availabl
 function full_well_outputs(model, parameters, states; targets = available_well_targets(model.models.Reservoir), shortname = false)
     out = Dict()
     if shortname
-        tm = "MASS"
+        tm = :mass
     else
-        tm = "Total surface mass rate"
+        tm = Symbol("Total surface mass rate")
     end
     for w in well_symbols(model)
         out[w] = Dict()

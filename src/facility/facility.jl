@@ -303,8 +303,45 @@ function select_equations_domain!(eqs, domain::WellGroup, system, arg...)
     eqs[:control_equation] = (ControlEquationWell, 1)
 end
 
-function setup_forces(model::SimulationModel{D}; control = Dict(), limits = Dict()) where {D <: WellGroup}
-    return (control = control::Dict, limits = limits::Dict,)
+function setup_forces(model::SimulationModel{D}; control = nothing, limits = nothing, set_default_limits = false) where {D <: WellGroup}
+    # error() # Fix me. Set up defaults for all wells, including rate limits if not provided.
+    T = Dict{Symbol, Any}
+    if isnothing(control)
+        control = T()
+    end
+    wells = model.domain.well_symbols
+    for w in wells
+        if !haskey(control, w)
+            control[w] = DisabledControl()
+        end
+    end
+    # Initialize limits
+    if isnothing(limits)
+        limits = T()
+    end
+    for w in wells
+        if set_default_limits
+            # Set default limits with reasonable values (e.g. minimum rate limit on bhp producers)
+            defaults = default_limits(control[w])
+            if haskey(limits, w)
+                if !isnothing(defaults)
+                    if isnothing(limits[w])
+                        limits[w] = defaults
+                    else
+                        limits[w] = merge(defaults, limits[w])
+                    end
+                end
+            else
+                limits[w] = defaults
+            end
+        else
+            # Ensure that all limits exist, but set to nothing if not already present
+            if !haskey(limits, w)
+                limits[w] = nothing
+            end
+        end
+    end
+    return (control = control::AbstractDict, limits = limits::AbstractDict,)
 end
 
 function Jutul.initialize_extra_state_fields_domain!(state, model, domain::WellGroup)
@@ -388,29 +425,32 @@ function translate_limit(control::ProducerControl, name, val)
     # Note: Negative sign convention for production.
     # A lower absolute bound on a rate
     # |q| > |lim| -> q < lim if both sides are negative
-    is_lower = true
+    is_lower = false
     if name == :bhp
         # Lower limit, pressure
         target_limit = BottomHolePressureTarget(val)
         # Pressures are positive, this is a true lower bound
         is_lower = true
     elseif name == :orat
-        # Upper limit, surface oil rate
+        # Lower limit, surface oil rate
         target_limit = SurfaceOilRateTarget(val)
     elseif name == :lrat
-        # Upper limit, surface liquid (water + oil) rate
+        # Lower limit, surface liquid (water + oil) rate
         target_limit = SurfaceLiquidRateTarget(val)
     elseif name == :grat
-        # Upper limit, surface gas rate
+        # Lower limit, surface gas rate
         target_limit = SurfaceGasRateTarget(val)
     elseif name == :wrat
-        # Upper limit, surface water rate
+        # Lower limit, surface water rate
         target_limit = SurfaceWaterRateTarget(val)
+    elseif name == :rate
+        # Lower limit, total volumetric surface rate
+        target_limit = TotalRateTarget(val)
     elseif name == :vrat
         # Upper limit, total volumetric surface rate
         target_limit = TotalRateTarget(val)
         # This is an upper limit on production, which acts as a lower bound due to sign.
-        is_lower = false
+        is_lower = true
     else
         error("$name limit not supported for well acting as producer.")
     end
