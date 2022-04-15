@@ -309,7 +309,7 @@ function select_equations_domain!(eqs, domain::WellGroup, system, arg...)
     eqs[:control_equation] = (ControlEquationWell, 1)
 end
 
-function setup_forces(model::SimulationModel{D}; control = nothing, limits = nothing, set_default_limits = false) where {D <: WellGroup}
+function setup_forces(model::SimulationModel{D}; control = nothing, limits = nothing, set_default_limits = true) where {D <: WellGroup}
     # error() # Fix me. Set up defaults for all wells, including rate limits if not provided.
     T = Dict{Symbol, Any}
     if isnothing(control)
