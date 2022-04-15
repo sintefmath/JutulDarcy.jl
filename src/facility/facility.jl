@@ -1,8 +1,14 @@
 export TotalSurfaceMassRate, WellGroup, DisabledControl
 export HistoryMode, PredictionMode, Wells
 
+"""
+(Absolute) Minimum well rate for a well that is not disabled.
+"""
 const MIN_ACTIVE_WELL_RATE = 1e-20
-
+"""
+(Absolute) Minimum initial rate for wells when controls are updated.
+"""
+const MIN_INITIAL_WELL_RATE = 1e-12
 """
 Well variables - entities that we have exactly one of per well (and usually relates to the surface connection)
 """
@@ -368,28 +374,28 @@ function Jutul.update_before_step_domain!(storage, model::SimulationModel, domai
             op_ctrls[key] = newctrl
         end
         pos = get_well_position(model.domain, key)
-        q_t[pos] = set_minimum_surface_mass_rate(q_t[pos], newctrl)
+        q_t[pos] = valid_surface_rate_for_control(q_t[pos], newctrl)
     end
     for key in keys(forces.limits)
         cfg.limits[key] = forces.limits[key]
     end
 end
 
-function set_minimum_surface_mass_rate(q_t, ::InjectorControl)
-    if q_t < MIN_ACTIVE_WELL_RATE
-        q_t = Jutul.replace_value(q_t, MIN_ACTIVE_WELL_RATE)
+function valid_surface_rate_for_control(q_t, ::InjectorControl)
+    if q_t < MIN_INITIAL_WELL_RATE
+        q_t = Jutul.replace_value(q_t, MIN_INITIAL_WELL_RATE)
     end
     return q_t
 end
 
-function set_minimum_surface_mass_rate(q_t, ::ProducerControl)
-    if q_t > -MIN_ACTIVE_WELL_RATE
-        q_t = Jutul.replace_value(q_t, -MIN_ACTIVE_WELL_RATE)
+function valid_surface_rate_for_control(q_t, ::ProducerControl)
+    if q_t > -MIN_INITIAL_WELL_RATE
+        q_t = Jutul.replace_value(q_t, -MIN_INITIAL_WELL_RATE)
     end
     return q_t
 end
 
-function set_minimum_surface_mass_rate(q_t, ::DisabledControl)
+function valid_surface_rate_for_control(q_t, ::DisabledControl)
     return Jutul.replace_value(q_t, 0.0)
 end
 
