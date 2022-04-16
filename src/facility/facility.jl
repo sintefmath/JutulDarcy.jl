@@ -402,9 +402,10 @@ end
 function apply_well_limit!(cfg::WellGroupConfiguration, target, wmodel, wstate, well::Symbol, density_s, volume_fraction_s, total_mass_rate, current_lims = current_limits(cfg, well))
     if !isnothing(current_lims)
         ctrl = operating_control(cfg, well)
-        target, changed = check_active_limits(ctrl, target, current_lims, wmodel, wstate, well, density_s, volume_fraction_s, total_mass_rate)
+        target, changed, current_val, limit_val, lim_type = check_active_limits(ctrl, target, current_lims, wmodel, wstate, well, density_s, volume_fraction_s, total_mass_rate)
         if changed
-            @debug "Switching $well" target cfg.operating_controls[well].target
+            old = cfg.operating_controls[well].target
+            @debug "$well: Switching control from $old to $target due to $(typeof(target)) limit: Computed value $current_val exceeds $lim_type limit $limit_val"
             cfg.operating_controls[well] = replace_target(ctrl, target)
         end
     end
@@ -413,6 +414,8 @@ end
 
 function check_active_limits(control, target, limits, wmodel, wstate, well::Symbol, density_s, volume_fraction_s, total_mass_rate)
     changed = false
+    cval = tval = NaN
+    is_lower = false
     for (name, val) in pairs(limits)
         if isfinite(val)
             (target_limit, is_lower) = translate_limit(control, name, val)
@@ -424,14 +427,19 @@ function check_active_limits(control, target, limits, wmodel, wstate, well::Symb
             end
         end
     end
-    return (target, changed)
+    if is_lower
+        lim_type = :lower
+    else
+        lim_type = :upper
+    end
+    return (target, changed, cval, tval, lim_type)
 end
 
 function translate_limit(control::ProducerControl, name, val)
     # Note: Negative sign convention for production.
     # A lower absolute bound on a rate
     # |q| > |lim| -> q < lim if both sides are negative
-    is_lower = false
+    is_lower = true
     if name == :bhp
         # Lower limit, pressure
         target_limit = BottomHolePressureTarget(val)
