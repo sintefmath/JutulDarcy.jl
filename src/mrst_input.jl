@@ -1292,7 +1292,7 @@ function write_reservoir_simulator_output_to_mrst(model, states, reports, output
                 end
                 wd_m[String(k)] = tmp
             end
-            wd_m["TIME"] = report_times(reports)
+            wd_m["time"] = report_times(reports)
             ws_path = joinpath(output_path, "wells.mat")
             matwrite(ws_path, wd_m)
         end
