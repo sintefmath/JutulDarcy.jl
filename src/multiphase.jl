@@ -165,6 +165,7 @@ function select_equations_system!(eqs, domain, system::MultiPhaseSystem, formula
     eqs[:mass_conservation] = (ConservationLaw, nph)
 end
 
+export fluid_volume, pore_volume
 pore_volume(model::SimulationModel) = fluid_volume(model.domain.grid)
 pore_volume(grid) = fluid_volume(grid)
 
