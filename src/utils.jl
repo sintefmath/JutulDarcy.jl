@@ -150,6 +150,15 @@ function setup_reservoir_state(model; kwarg...)
     return state
 end
 
+export setup_reservoir_forces
+function setup_reservoir_forces(model::MultiModel; control = nothing, limits = nothing, kwarg...)
+    @assert (isnothing(control) && isnothing(limits)) || haskey(model.models, :Facility) "Model must have facility."
+    facility = model.models.Facility
+    surface_forces = setup_forces(facility, control = control, limits = limits)
+    # Set up forces for the whole model.
+    return setup_forces(model, Facility = surface_forces; kwarg...)
+end
+
 export full_well_outputs, well_output, well_symbols, wellgroup_symbols, available_well_targets
 
 function full_well_outputs(model, parameters, states; targets = available_well_targets(model.models.Reservoir), shortname = false)
