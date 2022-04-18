@@ -166,6 +166,7 @@ function select_equations_system!(eqs, domain, system::MultiPhaseSystem, formula
 end
 
 export fluid_volume, pore_volume
+pore_volume(model::MultiModel) = pore_volume(reservoir_model(model))
 pore_volume(model::SimulationModel) = fluid_volume(model.domain.grid)
 pore_volume(grid) = fluid_volume(grid)
 
