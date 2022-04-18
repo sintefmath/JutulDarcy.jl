@@ -1245,7 +1245,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = Vector{Symbol}()
         mrst_output_path = "$(output_path)_mrst"
         write_reservoir_simulator_output_to_mrst(sim.model, states, reports, mrst_output_path, parameters = parameters)
     end
-    setup = (sim = sim, parameters = parameters, mrst = mrst_data)
+    setup = (sim = sim, parameters = parameters, mrst = mrst_data, forces = forces, dt = dt, config = cfg)
     return (states, reports, output_path, setup)
 end
 
