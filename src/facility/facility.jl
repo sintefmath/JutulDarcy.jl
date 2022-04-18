@@ -405,8 +405,9 @@ function apply_well_limit!(cfg::WellGroupConfiguration, target, wmodel, wstate, 
         target, changed, current_val, limit_val, lim_type = check_active_limits(ctrl, target, current_lims, wmodel, wstate, well, density_s, volume_fraction_s, total_mass_rate)
         if changed
             old = cfg.operating_controls[well].target
-            @debug "$well: Switching control from $old to $target due to $(typeof(target)) limit: Computed value $current_val exceeds $lim_type limit $limit_val"
-            cfg.operating_controls[well] = replace_target(ctrl, target)
+            next = replace_target(ctrl, target)
+            cfg.operating_controls[well] = next
+            @debug "$well: Switching control from $old to $target due to $(typeof(target)) limit:\nComputed value $current_val exceeds $lim_type limit $limit_val.\nNew control: $next"
         end
     end
     return target
