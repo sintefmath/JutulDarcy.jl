@@ -120,7 +120,7 @@ struct ProducerControl{T} <: WellControlForce
 end
 
 default_limits(f::ProducerControl{T}) where T<:SurfaceVolumeTarget = merge((bhp = 101325.0,), as_limit(f.target)) # 1 atm
-default_limits(f::ProducerControl{T}) where T<:BottomHolePressureTarget = merge((rate = -MIN_ACTIVE_WELL_RATE,), as_limit(f.target))
+default_limits(f::ProducerControl{T}) where T<:BottomHolePressureTarget = merge((rate_lower = -MIN_ACTIVE_WELL_RATE,), as_limit(f.target))
 
 function replace_target(f::ProducerControl, target)
     return ProducerControl(target)

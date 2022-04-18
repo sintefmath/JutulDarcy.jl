@@ -440,32 +440,34 @@ function translate_limit(control::ProducerControl, name, val)
     # Note: Negative sign convention for production.
     # A lower absolute bound on a rate
     # |q| > |lim| -> q < lim if both sides are negative
+    # means that we specify is_lower for upper limits and the other
+    # way around for lower limits, when dealing with rates.
     is_lower = true
     if name == :bhp
-        # Lower limit, pressure
+        # Upper limit, pressure
         target_limit = BottomHolePressureTarget(val)
         # Pressures are positive, this is a true lower bound
         is_lower = true
     elseif name == :orat
-        # Lower limit, surface oil rate
+        # Upper limit, surface oil rate
         target_limit = SurfaceOilRateTarget(val)
     elseif name == :lrat
-        # Lower limit, surface liquid (water + oil) rate
+        # Upper limit, surface liquid (water + oil) rate
         target_limit = SurfaceLiquidRateTarget(val)
     elseif name == :grat
-        # Lower limit, surface gas rate
+        # Upper limit, surface gas rate
         target_limit = SurfaceGasRateTarget(val)
     elseif name == :wrat
-        # Lower limit, surface water rate
+        # Upper limit, surface water rate
         target_limit = SurfaceWaterRateTarget(val)
     elseif name == :rate
-        # Lower limit, total volumetric surface rate
-        target_limit = TotalRateTarget(val)
-    elseif name == :vrat
         # Upper limit, total volumetric surface rate
         target_limit = TotalRateTarget(val)
-        # This is an upper limit on production, which acts as a lower bound due to sign.
-        is_lower = true
+    elseif name == :rate_lower
+        # Lower limit, total volumetric surface rate. This is useful
+        # disabling producers if they would otherwise start to inject.
+        target_limit = TotalRateTarget(val)
+        is_lower = false
     else
         error("$name limit not supported for well acting as producer.")
     end

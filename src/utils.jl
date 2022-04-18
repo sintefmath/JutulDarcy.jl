@@ -151,10 +151,10 @@ function setup_reservoir_state(model; kwarg...)
 end
 
 export setup_reservoir_forces
-function setup_reservoir_forces(model::MultiModel; control = nothing, limits = nothing, kwarg...)
+function setup_reservoir_forces(model::MultiModel; control = nothing, limits = nothing, set_default_limits = true, kwarg...)
     @assert (isnothing(control) && isnothing(limits)) || haskey(model.models, :Facility) "Model must have facility."
     facility = model.models.Facility
-    surface_forces = setup_forces(facility, control = control, limits = limits)
+    surface_forces = setup_forces(facility, control = control, limits = limits, set_default_limits = set_default_limits)
     # Set up forces for the whole model.
     return setup_forces(model, Facility = surface_forces; kwarg...)
 end
