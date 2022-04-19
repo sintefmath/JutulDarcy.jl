@@ -1074,61 +1074,59 @@ function setup_case_from_mrst(casename; simple_well = false, block_backend = tru
         if has_schedule
             control_ix = Int64.(vec(schedule["step"]["control"]))
             nctrl = maximum(control_ix)
-            if nctrl > 1
-                # We have multiple controls and need to do further work.
-                current_control = deepcopy(controls)
-                all_controls = Vector{typeof(forces)}()
-                for i = 1:nctrl
-                    new_force = deepcopy(forces)
-                    # Create controls for this set of wells
-                    local_mrst_wells = vec(schedule["control"][i]["W"])
-                    limits = Dict{Symbol, Any}()
-                    found_limits = false
-                    for (wno, wsym) in enumerate(well_symbols)
-                        wdata = local_mrst_wells[wno]
-                        wmodel = models[wsym]
-                        current_control[wsym] = mrst_well_ctrl(model, wdata, is_comp, rhoS)
-                        cstatus = vectorize(wdata["cstatus"])
-                        lims = wdata["lims"]
-                        if !isempty(lims)
-                            limits[wsym] = convert_to_immutable_storage(lims)
-                            found_limits = true
-                        end
-                        Ω_w = models[wsym].domain
-                        WI = Ω_w.grid.perforations.WI
-                        new_WI = vectorize(wdata["WI"])
-                        if all(cstatus) && all(WI .== new_WI)
-                            new_force[wsym] = nothing
-                        else
-                            # Set mask to new / static so that static*mask = new.
-                            # In addition: Account for completion closures.
-                            wi_mask = vec(new_WI./WI)
-                            for ix in eachindex(wi_mask)
-                                if (!cstatus[ix] || !isfinite(wi_mask[ix]))
-                                    wi_mask[ix] = 0
-                                end
+            # We may have multiple controls and need to do further work.
+            current_control = deepcopy(controls)
+            all_controls = Vector{typeof(forces)}()
+            for i = 1:nctrl
+                new_force = deepcopy(forces)
+                # Create controls for this set of wells
+                local_mrst_wells = vec(schedule["control"][i]["W"])
+                limits = Dict{Symbol, Any}()
+                found_limits = false
+                for (wno, wsym) in enumerate(well_symbols)
+                    wdata = local_mrst_wells[wno]
+                    wmodel = models[wsym]
+                    current_control[wsym] = mrst_well_ctrl(model, wdata, is_comp, rhoS)
+                    cstatus = vectorize(wdata["cstatus"])
+                    lims = wdata["lims"]
+                    if !isempty(lims)
+                        limits[wsym] = convert_to_immutable_storage(lims)
+                        found_limits = true
+                    end
+                    Ω_w = models[wsym].domain
+                    WI = Ω_w.grid.perforations.WI
+                    new_WI = vectorize(wdata["WI"])
+                    if all(cstatus) && all(WI .== new_WI)
+                        new_force[wsym] = nothing
+                    else
+                        # Set mask to new / static so that static*mask = new.
+                        # In addition: Account for completion closures.
+                        wi_mask = vec(new_WI./WI)
+                        for ix in eachindex(wi_mask)
+                            if (!cstatus[ix] || !isfinite(wi_mask[ix]))
+                                wi_mask[ix] = 0
                             end
-                            new_force[wsym] = setup_forces(wmodel, mask = PerforationMask(wi_mask))
                         end
+                        new_force[wsym] = setup_forces(wmodel, mask = PerforationMask(wi_mask))
                     end
-                    # Now copy into the corresponding facilit(y/ies)
-                    if !found_limits
-                        limits = Dict()
-                    end
-                    for (fsymbol, wsymbols) in zip(facility_symbols, facility_owned_wells)
-                        ctrls = facility_subset(wsymbols, current_control)
-                        WG = models[fsymbol]
-                        limits_local = facility_subset(wsymbols, limits)
-                        new_force[fsymbol] = setup_forces(WG, control = ctrls, limits = limits_local)
-                    end
-                    push!(all_controls, new_force)
                 end
-                if nctrl == 1
-                    # No need to make a compilcated vector.
-                    forces = only(all_controls)
-                else
-                    forces = all_controls[control_ix]
+                # Now copy into the corresponding facilit(y/ies)
+                if !found_limits
+                    limits = Dict()
                 end
+                for (fsymbol, wsymbols) in zip(facility_symbols, facility_owned_wells)
+                    ctrls = facility_subset(wsymbols, current_control)
+                    WG = models[fsymbol]
+                    limits_local = facility_subset(wsymbols, limits)
+                    new_force[fsymbol] = setup_forces(WG, control = ctrls, limits = limits_local)
+                end
+                push!(all_controls, new_force)
+            end
+            if nctrl == 1
+                # No need to make a compilcated vector.
+                forces = only(all_controls)
+            else
+                forces = all_controls[control_ix]
             end
         end
     end
