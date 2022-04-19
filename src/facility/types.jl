@@ -109,7 +109,7 @@ struct InjectorControl{T} <: WellControlForce
     end
 end
 replace_target(f::InjectorControl, target) = InjectorControl(target, f.injection_mixture, density = f.mixture_density)
-default_limits(f::InjectorControl{T}) where T<:BottomHolePressureTarget = merge((rate = MIN_ACTIVE_WELL_RATE, ), as_limit(f.target))
+default_limits(f::InjectorControl{T}) where T<:BottomHolePressureTarget = merge((rate_lower = MIN_ACTIVE_WELL_RATE, ), as_limit(f.target))
 
 
 struct ProducerControl{T} <: WellControlForce

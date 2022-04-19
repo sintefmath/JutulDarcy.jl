@@ -460,7 +460,7 @@ function translate_limit(control::ProducerControl, name, val)
     elseif name == :wrat
         # Upper limit, surface water rate
         target_limit = SurfaceWaterRateTarget(val)
-    elseif name == :rate
+    elseif name == :rate || name == :rate_upper
         # Upper limit, total volumetric surface rate
         target_limit = TotalRateTarget(val)
     elseif name == :rate_lower
@@ -479,10 +479,10 @@ function translate_limit(control::InjectorControl, name, val)
     if name == :bhp
         # Upper limit, pressure
         target_limit = BottomHolePressureTarget(val)
-    elseif name == :rate
+    elseif name == :rate || name == :rate_upper
         # Upper limit, total volumetric surface rate
         target_limit = TotalRateTarget(val)
-    elseif name == :vrat
+    elseif name == :rate_lower
         # Lower limit, total volumetric surface rate
         target_limit = TotalRateTarget(val)
         is_lower = true
