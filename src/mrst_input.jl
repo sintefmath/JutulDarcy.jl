@@ -1220,6 +1220,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = Vector{Symbol}()
                                 block_backend = true,
                                 simple_well = false,
                                 write_mrst = false,
+                                error_on_incomplete = true,
                                 kwarg...)
     models, parameters, initializer, dt, forces, mrst_data = setup_case_from_mrst(fn, block_backend = block_backend, simple_well = simple_well);
     out = models[:Reservoir].output_variables
@@ -1239,7 +1240,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = Vector{Symbol}()
         output_path = nothing
     end
     # @info "Writing output to $output_path"
-    sim, cfg = setup_reservoir_simulator(models, initializer, parameters, output_path = output_path; kwarg...)
+    sim, cfg = setup_reservoir_simulator(models, initializer, parameters, output_path = output_path, error_on_incomplete = error_on_incomplete; kwarg...)
     states, reports = simulate(sim, dt, forces = forces, config = cfg);
     if write_output && write_mrst
         mrst_output_path = "$(output_path)_mrst"
