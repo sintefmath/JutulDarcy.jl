@@ -89,7 +89,7 @@ function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout 
     if simple
         well_volume = 1e-3# volume*mean(well_cell_volume)
         # For simple well, distance from ref depth to perf
-        dz = ref_depth .- z_res
+        dz = z_res .- ref_depth
         z = [ref_depth]
         W = SimpleWell(rc, WI = WI, dz = dz, volume = well_volume)
         # wmodel = SimulationModel(W, system; kwarg...)
@@ -115,7 +115,7 @@ function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout 
             z = vec(copy(W_mrst["nodes"].depth))
             # depth from tubing to perforation for each perf
             # dz = nothing # z[perf_cells] - ()
-            dz = z[perf_cells] .- z_res
+            dz = z_res .- z[perf_cells]
             # reservoir_cells - reservoir cells to be used to pick init values from
             n_nodes = length(z)
             reservoir_cells = zeros(Int64, n_nodes)
