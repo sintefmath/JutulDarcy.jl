@@ -4,7 +4,7 @@ Base.@kwdef struct GasMassFraction{R} <: ScalarVariable
 end
 
 maximum_value(::GasMassFraction) = 1.0
-minimum_value(::GasMassFraction) = 0.0
+minimum_value(::GasMassFraction) = 1e-12
 absolute_increment_limit(s::GasMassFraction) = s.dz_max
 
 function update_primary_variable!(state, p::GasMassFraction, state_symbol, model, dx)
