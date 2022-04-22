@@ -8,7 +8,13 @@ import Base.eltype
 abstract type PorousMediumGrid <: JutulGrid end
 abstract type ReservoirGrid <: PorousMediumGrid end
 # TPFA grid
-"Minimal struct for TPFA-like grid. Just connection data and pore-volumes"
+"""
+    MinimalTPFAGrid(ϕ, N)
+
+Generate a minimal grid suitable only for two-point flux discretization (TPFA) for given
+pore-volumes `ϕ` and a neighborship matrix `N` with size `(2, n)` where `n` is the number
+of internal faces.
+"""
 struct MinimalTPFAGrid{R<:AbstractFloat, I<:Integer} <: ReservoirGrid
     pore_volumes::AbstractVector{R}
     neighborship::AbstractArray{I}
@@ -24,6 +30,7 @@ struct MinimalTPFAGrid{R<:AbstractFloat, I<:Integer} <: ReservoirGrid
         new{eltype(pv), eltype(N)}(pv, N)
     end
 end
+Base.show(io::IO, g::MinimalTPFAGrid) = print(io, "MinimalTPFAGrid ($(number_of_cells(g)) cells, $(number_of_faces(g)) faces)")
 
 
 function number_of_cells(G::ReservoirGrid)
