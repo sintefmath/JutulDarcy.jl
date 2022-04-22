@@ -42,6 +42,8 @@ end
 struct ImmiscibleSystem{T} <: MultiPhaseSystem where T<:Tuple
     phases::T
 end
+Base.show(io::IO, t::ImmiscibleSystem) = print(io, "ImmiscibleSystem with $(join([typeof(p) for p in t.phases], ", "))")
+
 
 ImmiscibleSystem(phases::AbstractVector) = ImmiscibleSystem(tuple(phases...))
 

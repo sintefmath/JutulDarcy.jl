@@ -15,8 +15,10 @@ struct TotalSurfaceMassRate <: ScalarVariable end
 abstract type WellTarget end
 abstract type SurfaceVolumeTarget <: WellTarget end
 
+Base.show(io::IO, t::SurfaceVolumeTarget) = print(io, "$(typeof(t)) with value $(t.value) [m^3/s] for $(join([typeof(p) for p in lumped_phases(t)], ", "))")
+
 # Basics
-export BottomHolePressureTarget, TotalRateTarget, SinglePhaseRateTarget
+export BottomHolePressureTarget, TotalRateTarget, SinglePhaseRateTarget, DisabledTarget
 # Phase mixtures
 export SurfaceLiquidRateTarget, SurfaceOilRateTarget, SurfaceWaterRateTarget, SurfaceGasRateTarget
 
@@ -24,15 +26,29 @@ struct BottomHolePressureTarget <: WellTarget
     value::AbstractFloat
 end
 
+"""
+    SinglePhaseRateTarget(q, phase)
+
+Single-phase well target with value `q` specified for `phase`.
+
+# Examples
+```julia-repl
+julia> SinglePhaseRateTarget(0.001, LiquidPhase())
+SinglePhaseRateTarget of 0.001 [m^3/s] for LiquidPhase()
+```
+
+"""
 struct SinglePhaseRateTarget <: SurfaceVolumeTarget
     value::AbstractFloat
     phase::AbstractPhase
 end
 
 lumped_phases(t::SinglePhaseRateTarget) = (t.phase, )
-
 """
-Liquid rate (reservoir: oil + water but not gas)
+    SurfaceLiquidRateTarget(q)
+
+Well target of specified liquid rate with value `q` (liquid/oil and water, but not gas)
+at surface conditions.
 """
 struct SurfaceLiquidRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
@@ -41,7 +57,9 @@ end
 lumped_phases(::SurfaceLiquidRateTarget) = (AqueousPhase(), LiquidPhase())
 
 """
-Oil rate target
+    SurfaceOilRateTarget(q)
+
+Well target of specified oil rate with value `q` at surface conditions.
 """
 struct SurfaceOilRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
@@ -50,7 +68,9 @@ end
 lumped_phases(::SurfaceOilRateTarget) = (LiquidPhase(), )
 
 """
-Gas rate target
+    SurfaceGasRateTarget(q)
+
+Well target of specified gas rate with value `q` at surface conditions.
 """
 struct SurfaceGasRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
@@ -59,7 +79,9 @@ end
 lumped_phases(::SurfaceGasRateTarget) = (VaporPhase(), )
 
 """
-Water rate target
+    SurfaceWaterRateTarget(q)
+
+Well target of specified water rate with value `q` at surface conditions.
 """
 struct SurfaceWaterRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
@@ -68,20 +90,42 @@ end
 lumped_phases(::SurfaceWaterRateTarget) = (AqueousPhase(), )
 
 """
-All rates at surface conditions
+    TotalRateTarget(q)
+
+Well target of specified total rate of all phases with value `q` at surface conditions.
 """
 struct TotalRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
 end
+Base.show(io::IO, t::TotalRateTarget) = print(io, "TotalRateTarget with value $(t.value) [m^3/s]")
 
+"""
+    DisabledTarget(q)
+
+Disabled target used when a well is under `DisabledControl()` only.
+"""
 struct DisabledTarget <: WellTarget end
 abstract type WellForce <: JutulForce end
 abstract type WellControlForce <: WellForce end
+
+"""
+    default_limits(ctrl)
+
+Create reasonable default limits for well control `ctrl`, for example to avoid BHP injectors turning into producers.
+"""
 
 default_limits(ctrl) = as_limit(ctrl.target)
 as_limit(target) = NamedTuple([Pair(translate_target_to_symbol(target, shortname = true), target.value)])
 as_limit(T::DisabledTarget) = nothing
 
+"""
+    DisabledControl()
+
+Control that disables a well. If a well is disabled, it is disconnected from the surface network and no flow occurs
+between the well and the top side. Mass transfer can still occur inside the well, and between the well and the reservoir.
+
+See also [`ProducerControl`](@ref), [`InjectorControl`](@ref).
+"""
 struct DisabledControl{T} <: WellControlForce
     target::T
     function DisabledControl()
@@ -90,11 +134,36 @@ struct DisabledControl{T} <: WellControlForce
     end
 end
 
+"""
+    replace_target(ctrl, new_target)
+
+Create new well control using `ctrl` as a template that operates under `new_target`.
+"""
+function replace_target
+
+end
+
 function replace_target(f::DisabledControl, target)
     target::DisabledTarget()
     return f
 end
 
+"""
+    InjectorControl(target, mix, [density])
+
+Well control that specifies injection into the reservoir. `target` specifies the type of target and `mix` defines the
+injection mass fractions for all species in the model during injection. 
+
+For example, for a three-component system made up of CO2, H2O and H2, setting [0.1, 0.6, 0.3] would mean
+that the injection stream would contain 1 part CO2, 6 parts H2O and 3 parts H2 by mass. For an immiscible
+system (e.g. `LiquidPhase(), VaporPhase()`) the species corresponds to phases and [0.3, 0.7] would mean a
+3 to 7 mixture of liquid and vapor by mass.
+
+The density of the injected fluid at surface conditions is given by `density` which is defaulted to 1.0
+if not given.
+
+See also [`ProducerControl`](@ref), [`DisabledControl`](@ref).
+"""
 struct InjectorControl{T} <: WellControlForce
     target::T
     injection_mixture
@@ -111,7 +180,13 @@ end
 replace_target(f::InjectorControl, target) = InjectorControl(target, f.injection_mixture, density = f.mixture_density)
 default_limits(f::InjectorControl{T}) where T<:BottomHolePressureTarget = merge((rate_lower = MIN_ACTIVE_WELL_RATE, ), as_limit(f.target))
 
+"""
+    ProducerControl(target)
 
+Well control for production out of the reservoir. `target` specifies the type of target (for example `BottomHolePressureTarget()`).
+
+See also [`DisabledControl`](@ref), [`InjectorControl`](@ref).
+"""
 struct ProducerControl{T} <: WellControlForce
     target::T
     function ProducerControl(target::T) where T<:WellTarget
