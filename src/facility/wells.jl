@@ -166,7 +166,8 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
             d = dir[i]
         end
         Δ = cell_dims(g, c)
-        h = findfirst(isequal(d), [:x, :y, :z])
+        d_index = findfirst(isequal(d), [:x, :y, :z])
+        h = Δ[d_index]
         volumes[i] = h*π*radius^2
     end
     if simple_well
