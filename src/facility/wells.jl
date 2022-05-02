@@ -702,6 +702,13 @@ function select_equations_domain!(eqs, domain::DiscretizedDomain{G}, system, arg
     eqs[:potential_balance] = (PotentialDropBalanceWell, 1)
 end
 
+function minimum_output_variables(domain::DiscretizedDomain{G}, system::CompositionalSystem, formulation, primary_variables, secondary_variables) where {G<:WellGrid}
+    vars = minimum_output_variables(system, primary_variables)
+    push!(vars, :PhaseMassDensities)
+    push!(vars, :Saturations)
+    return vars
+end
+
 # Some utilities
 function mix_by_mass(masses, total, values)
     v = 0

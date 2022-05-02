@@ -1,10 +1,3 @@
-function minimum_output_variables(domain::DiscretizedDomain{G}, system::CompositionalSystem, formulation, primary_variables, secondary_variables) where {G<:WellGrid}
-    vars = minimum_output_variables(system, primary_variables)
-    push!(vars, :PhaseMassDensities)
-    push!(vars, :Saturations)
-    return vars
-end
-
 function flash_wellstream_at_surface(well_model::SimulationModel{D, S}, well_state, rhoS) where {D, S<:MultiComponentSystem}
     total_masses = well_state.TotalMasses
     T = eltype(total_masses)
