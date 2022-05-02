@@ -1215,7 +1215,22 @@ function mrst_well_ctrl(model, wdata, is_comp, rhoS)
 end
 
 export simulate_mrst_case
-function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = Vector{Symbol}(),
+
+"""
+    simulate_mrst_case(file_name; kwarg...)
+
+Simulate a MRST case from `file_name` as exported by `writeJutulInput` in MRST.
+
+# Arguments
+- `file_name::String`: The path to a `.mat` file that is to be simulated.
+- `extra_outputs::Vector{Symbol} = [:Saturations]`: Additional variables to output from the simulation.
+- `write_output::Bool = true`: Write output (in the default JLD2 format)
+- `output_path = nothing`: Directory for output files. Files will be written under this directory. Defaults to the folder of `file_name`.
+- `write_mrst = true`: Write MRST compatible output after completed simulation that can be read by `readJutulOutput` in MRST.
+
+Additional input arguments are passed onto sensible subroutines.
+"""
+function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                 write_output = true,
                                 output_path = nothing,
                                 block_backend = true,
