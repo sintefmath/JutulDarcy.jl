@@ -9,6 +9,7 @@ function apply_well_reservoir_sources!(sys::BlackOilSystem, res_q, well_q, state
     ρ = state_res.PhaseMassDensities
     rs = state_res.Rs
     b = state_res.ShrinkageFactors
+    s = state_res.Saturations
 
     ρ_w = state_well.PhaseMassDensities
     s_w = state_well.Saturations
@@ -17,11 +18,11 @@ function apply_well_reservoir_sources!(sys::BlackOilSystem, res_q, well_q, state
 
     rhoS = tuple(param_res[:reference_densities]...)
 
-    perforation_sources_blackoil!(well_q, perforations, val(p_res),         p_well,  val(kr), val(μ), val(ρ), val(b), val(rs),    ρ_w,      b_w,      s_w,      rs_w,  sgn, rhoS)
-    perforation_sources_blackoil!(res_q,  perforations,     p_res,      val(p_well),     kr,      μ,      ρ,      b,      rs, val(ρ_w), val(b_w), val(s_w), val(rs_w), sgn, rhoS)
+    perforation_sources_blackoil!(well_q, perforations, val(p_res),         p_well,  val(kr), val(s), val(μ), val(ρ), val(b), val(rs),    ρ_w,      b_w,      s_w,      rs_w,  sgn, rhoS)
+    perforation_sources_blackoil!(res_q,  perforations,     p_res,      val(p_well),     kr,      s,     μ,      ρ,      b,      rs, val(ρ_w), val(b_w), val(s_w), val(rs_w), sgn, rhoS)
 end
 
-function perforation_sources_blackoil!(target, perf, p_res, p_well, kr, μ, ρ, b, rs, ρ_w, b_w, s_w, rs_w, sgn, rhoS)
+function perforation_sources_blackoil!(target, perf, p_res, p_well, kr, s, μ, ρ, b, rs, ρ_w, b_w, s_w, rs_w, sgn, rhoS)
     # (self -> local cells, reservoir -> reservoir cells, WI -> connection factor)
     nc = size(ρ, 1)
     nph = size(μ, 1)
@@ -32,7 +33,9 @@ function perforation_sources_blackoil!(target, perf, p_res, p_well, kr, μ, ρ, 
     @inbounds for i in eachindex(perf.self)
         si, ri, wi, gdz = unpack_perf(perf, i)
         if gdz != 0
-            ρ_mix = @views mix_by_saturations(s_w[:, si], ρ_w[:, si])
+            dens_w = @views mix_by_saturations(s_w[:, si], ρ_w[:, si])
+            dens_r = @views mix_by_saturations(s[:, ri], ρ[:, ri])
+            ρ_mix = 0.5*(dens_w + dens_r)
             ρgdz = gdz*ρ_mix
         else
             ρgdz = 0
@@ -41,7 +44,7 @@ function perforation_sources_blackoil!(target, perf, p_res, p_well, kr, μ, ρ, 
         λ_a = kr[a, ri]/μ[a, ri]
         λ_l = kr[l, ri]/μ[l, ri]
         λ_v = kr[v, ri]/μ[v, ri]
-        if dp > 0
+        if dp >= 0
             # Injection
             λ_t = λ_a + λ_l + λ_v
             Q = sgn*λ_t*dp

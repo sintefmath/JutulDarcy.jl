@@ -228,6 +228,21 @@ end
 Well target contribution from well itself (surface volume, injector)
 """
 function well_target(control::InjectorControl, target::SurfaceVolumeTarget, well_model, well_state, surface_densities, surface_volume_fractions)
+    t_phases = lumped_phases(target)
+    w_phases = get_phases(well_model.system)
+    t = 0.0
+    for (ix, mix) in control.phases
+        if w_phases[ix] in t_phases
+            t += mix
+        end
+    end
+    return t/control.mixture_density
+end
+
+"""
+Well target contribution from well itself (surface volume, injector)
+"""
+function well_target(control::InjectorControl, target::TotalRateTarget, well_model, well_state, surface_densities, surface_volume_fractions)
     return 1.0/control.mixture_density
 end
 

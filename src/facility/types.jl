@@ -168,16 +168,17 @@ struct InjectorControl{T} <: WellControlForce
     target::T
     injection_mixture
     mixture_density
-    function InjectorControl(target::T, mix; density = 1.0) where T<:WellTarget
+    phases
+    function InjectorControl(target::T, mix; density = 1.0, phases = ((1, 1.0),)) where T<:WellTarget
         if isa(mix, Real)
             mix = [mix]
         end
         mix = vec(mix)
         @assert sum(mix) ≈ 1
-        new{T}(target, mix, density)
+        new{T}(target, mix, density, phases)
     end
 end
-replace_target(f::InjectorControl, target) = InjectorControl(target, f.injection_mixture, density = f.mixture_density)
+replace_target(f::InjectorControl, target) = InjectorControl(target, f.injection_mixture, density = f.mixture_density, phases = f.phases)
 default_limits(f::InjectorControl{T}) where T<:BottomHolePressureTarget = merge((rate_lower = MIN_ACTIVE_WELL_RATE, ), as_limit(f.target))
 
 """

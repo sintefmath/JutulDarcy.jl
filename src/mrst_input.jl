@@ -1075,7 +1075,7 @@ function setup_case_from_mrst(casename; simple_well = false, block_backend = tru
         vectorize(d) = vec(d)
 
         if has_schedule
-            control_ix = Int64.(vec(schedule["step"]["control"]))
+            control_ix = Int64.(vectorize(schedule["step"]["control"]))
             nctrl = maximum(control_ix)
             # We may have multiple controls and need to do further work.
             current_control = deepcopy(controls)
@@ -1206,7 +1206,7 @@ function mrst_well_ctrl(model, wdata, is_comp, rhoS)
                 rhoSw = vec(rhoS)
             end
             rhoS_inj = sum(comp_i.*rhoSw)
-            ctrl = InjectorControl(target, ct, density = rhoS_inj)
+            ctrl = InjectorControl(target, ct, density = rhoS_inj, phases = collect(enumerate(comp_i)))
         else
             ctrl = ProducerControl(target)
         end
@@ -1260,13 +1260,13 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
     states, reports = simulate(sim, dt, forces = forces, config = cfg);
     if write_output && write_mrst
         mrst_output_path = "$(output_path)_mrst"
-        write_reservoir_simulator_output_to_mrst(sim.model, states, reports, mrst_output_path, parameters = parameters)
+        write_reservoir_simulator_output_to_mrst(sim.model, states, reports, forces, mrst_output_path, parameters = parameters)
     end
     setup = (sim = sim, parameters = parameters, mrst = mrst_data, forces = forces, dt = dt, config = cfg)
     return (states, reports, output_path, setup)
 end
 
-function write_reservoir_simulator_output_to_mrst(model, states, reports, output_path; parameters = nothing, write_states = true, write_wells = true, convert_names = true)
+function write_reservoir_simulator_output_to_mrst(model, states, reports, forces, output_path; parameters = nothing, write_states = true, write_wells = true, convert_names = true)
     mkpath(output_path)
     prep_write(x) = x
     prep_write(x::AbstractMatrix) = collect(x')
@@ -1300,7 +1300,7 @@ function write_reservoir_simulator_output_to_mrst(model, states, reports, output
         end
         if write_wells && model isa MultiModel
             @assert !isnothing(parameters)
-            wd = full_well_outputs(model, parameters, states, shortname = true)
+            wd = full_well_outputs(model, parameters, states, forces, shortname = true)
             wd_m = Dict{String, Any}()
             for k in keys(wd)
                 tmp = Dict{String, Any}()

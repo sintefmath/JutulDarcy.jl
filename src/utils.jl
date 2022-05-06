@@ -161,7 +161,7 @@ end
 
 export full_well_outputs, well_output, well_symbols, wellgroup_symbols, available_well_targets
 
-function full_well_outputs(model, parameters, states; targets = available_well_targets(model.models.Reservoir), shortname = false)
+function full_well_outputs(model, parameters, states, forces; targets = available_well_targets(model.models.Reservoir), shortname = false)
     out = Dict()
     if shortname
         tm = :mass
@@ -171,14 +171,14 @@ function full_well_outputs(model, parameters, states; targets = available_well_t
     for w in well_symbols(model)
         out[w] = Dict()
         for t in targets
-            out[w][translate_target_to_symbol(t(1.0), shortname = shortname)] = well_output(model, parameters, states, w, t)
+            out[w][translate_target_to_symbol(t(1.0), shortname = shortname)] = well_output(model, parameters, states, w, forces, t)
         end
-        out[w][Symbol(tm)] = well_output(model, parameters, states, w, :TotalSurfaceMassRate)
+        out[w][Symbol(tm)] = well_output(model, parameters, states, w, forces, :TotalSurfaceMassRate)
     end
     return out
 end
 
-function well_output(model::MultiModel, parameters, states, well_symbol, target = BottomHolePressureTarget)
+function well_output(model::MultiModel, parameters, states, well_symbol, forces, target = BottomHolePressureTarget)
     n = length(states)
     d = zeros(n)
 
@@ -204,6 +204,11 @@ function well_output(model::MultiModel, parameters, states, well_symbol, target 
         well_state = state[well_symbol]
         well_state = convert_to_immutable_storage(well_state)
         q_t = state[group][:TotalSurfaceMassRate][pos]
+        if forces isa AbstractVector
+            force = forces[i]
+        else
+            force = forces
+        end
         if target == :TotalSurfaceMassRate
             d[i] = q_t
         else
@@ -211,11 +216,8 @@ function well_output(model::MultiModel, parameters, states, well_symbol, target 
                 current_control = DisabledControl()
                 d[i] = 0.0
             else
-                if q_t < 0
-                    current_control = ProducerControl(BottomHolePressureTarget(1.0))
-                else
-                    current_control = InjectorControl(BottomHolePressureTarget(1.0), 1.0)
-                end
+                control = force[:Facility].control[well_symbol]
+                current_control = replace_target(control, BottomHolePressureTarget(1.0))
                 rhoS, S = flash_wellstream_at_surface(well_model, well_state, rhoS_o)
                 v = well_target_value(q_t, current_control, target_limit, well_model, well_state, rhoS, S)
                 d[i] = v

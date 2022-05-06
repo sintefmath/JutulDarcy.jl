@@ -19,7 +19,15 @@ abstract type WellGrid <: PorousMediumGrid
     # Wells are not porous themselves per se, but they are discretizing
     # part of a porous medium.
 end
-Base.show(io::IO, w::WellGrid) = print(io, "$(typeof(w)) [$(w.name)] ($(length(w.volumes)) nodes, $(size(w.neighborship, 2)) segments, $(length(w.perforations.reservoir)) perforations)")
+
+function Base.show(io::IO, w::WellGrid)
+    if w isa SimpleWell
+        nseg = 0
+    else
+        nseg = size(w.neighborship, 2)
+    end
+    print(io, "$(typeof(w)) [$(w.name)] ($(length(w.volumes)) nodes, $(nseg) segments, $(length(w.perforations.reservoir)) perforations)")
+end
 
 # Total velocity in each well segment
 struct TotalMassFlux <: ScalarVariable
