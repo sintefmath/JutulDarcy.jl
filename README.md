@@ -20,7 +20,7 @@ Jutul builds upon many of the excellent packages in the Julia ecosystem. Here ar
 - [TimerOutputs.jl](https://github.com/KristofferC/TimerOutputs.jl) and [ProgressMeter.jl](https://github.com/timholy/ProgressMeter.jl) gives nice output to terminal 
 - [Makie.jl](https://makie.juliaplots.org/) is used for the visualization features
 - [MultiComponentFlash.jl](https://github.com/moyner/MultiComponentFlash.jl) provides many of the compositional features
-- 
+
 ...and many more, both directly in the Project.toml file and indirectly!
 
 ## Getting started
