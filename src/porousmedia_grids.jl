@@ -106,7 +106,7 @@ function get_1d_reservoir(nc; L = 1, perm = 9.8692e-14, # 0.1 darcy
     return D
 end
 
-function subgrid(g::MinimalTPFAGrid; cells = nothing, faces = nothing)
+function Jutul.subgrid(g::MinimalTPFAGrid; cells = nothing, faces = nothing)
     pv, N = g.pore_volumes, g.neighborship
     nc = number_of_cells(g)
 
