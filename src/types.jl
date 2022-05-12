@@ -49,4 +49,5 @@ ImmiscibleSystem(phases::AbstractVector) = ImmiscibleSystem(tuple(phases...))
 
 struct SinglePhaseSystem <: MultiPhaseSystem
     phase
+    SinglePhaseSystem(phase = LiquidPhase()) = new(phase)
 end
