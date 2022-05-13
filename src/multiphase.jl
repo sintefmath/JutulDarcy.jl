@@ -252,7 +252,7 @@ end
 
 function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw, r; dt = 1) where {D, S<:MultiPhaseSystem}
     M = global_map(model.domain)
-    v = x -> Jutul.active_view(x, M)
+    v = x -> Jutul.active_view(x, M, for_variables = false)
     Φ = v(storage.state.FluidVolume)
     ρ = v(storage.state.PhaseMassDensities)
 
