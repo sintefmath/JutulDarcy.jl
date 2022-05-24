@@ -1,4 +1,4 @@
-using Jutul, JutulDarcy
+using Jutul, JutulDarcy, Test
 
 g = CartesianMesh((1, 1, 1), (10, 3.14, 2.71828))
 r = 0.2;
