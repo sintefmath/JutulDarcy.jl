@@ -34,11 +34,12 @@ function default_psolve(; max_levels = 10, max_coarse = 10, type = :smoothed_agg
     return AMGPreconditioner(m, max_levels = max_levels, max_coarse = max_coarse, presmoother = gs, postsmoother = gs, cycle = cyc)
 end
 
-function update!(cpr::CPRPreconditioner, arg...)
-    update_p = update_cpr_internals!(cpr, arg...)
-    @timeit "s-precond" update!(cpr.system_precond, arg...)
+function update!(cpr::CPRPreconditioner, lsys, model, arg...)
+    rmodel = reservoir_model(model)
+    update_p = update_cpr_internals!(cpr, lsys, model, arg...)
+    @timeit "s-precond" update!(cpr.system_precond, lsys, model, arg...)
     @timeit "p-precond" if update_p
-        update!(cpr.pressure_precond, cpr.A_p, cpr.r_p)
+        update!(cpr.pressure_precond, cpr.A_p, cpr.r_p, rmodel.context)
     elseif cpr.partial_update
         partial_update!(cpr.pressure_precond, cpr.A_p, cpr.r_p)
     end
