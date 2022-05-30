@@ -109,6 +109,27 @@ function update_pressure_system!(A_p, A, w_p, bz, ctx)
     end
 end
 
+function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, A::Jutul.StaticSparsityMatrixCSR, w_p, bz, ctx)
+    nz = nonzeros(A_p)
+    nz_s = nonzeros(A)
+    cols = Jutul.colvals(A)
+    @assert size(nz) == size(nz_s)
+    n = size(A_p, 1)
+    # Update the pressure system with the same pattern in-place
+    tb = thread_batch(ctx)
+    @batch minbatch=tb for i in 1:n
+        @inbounds for j in nzrange(A, i)
+            col = cols[j]
+            Ji = nz_s[j]
+            tmp = 0.0
+            @inbounds for b = 1:bz
+                tmp += Ji[b, 1]*w_p[b, col]
+            end
+            nz[j] = tmp
+        end
+    end
+end
+
 function operator_nrows(cpr::CPRPreconditioner)
     return length(cpr.r_p)*cpr.block_size
 end
