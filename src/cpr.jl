@@ -47,18 +47,21 @@ end
 
 function initialize_storage!(cpr, J, s)
     if isnothing(cpr.A_p)
-        m = J.m
-        n = J.n
+        m, n = size(J)
         cpr.block_size = bz = size(eltype(J), 1)
         # @assert n == m == length(s.state.Pressure) "Expected Jacobian dimensions ($m by $n) to both equal number of pressures $(length(s.state.Pressure))"
-        nzval = zeros(length(J.nzval))
-
-        cpr.A_p = SparseMatrixCSC(n, n, J.colptr, J.rowval, nzval)
+        cpr.A_p = create_pressure_matrix(J)
         cpr.r_p = zeros(n)
         cpr.buf = zeros(n*bz)
         cpr.p = zeros(n)
         cpr.w_p = zeros(bz, n)
     end
+end
+
+function create_pressure_matrix(J)
+    nzval = zeros(nnz(J))
+    n = size(J, 2)
+    SparseMatrixCSC(n, n, J.colptr, J.rowval, nzval)
 end
 
 function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, recorder)
