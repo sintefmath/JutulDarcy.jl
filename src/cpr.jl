@@ -36,12 +36,13 @@ end
 
 function update!(cpr::CPRPreconditioner, lsys, model, arg...)
     rmodel = reservoir_model(model)
+    ctx = rmodel.context
     update_p = update_cpr_internals!(cpr, lsys, model, arg...)
     @timeit "s-precond" update!(cpr.system_precond, lsys, model, arg...)
     @timeit "p-precond" if update_p
-        update!(cpr.pressure_precond, cpr.A_p, cpr.r_p, rmodel.context)
+        update!(cpr.pressure_precond, cpr.A_p, cpr.r_p, ctx)
     elseif cpr.partial_update
-        partial_update!(cpr.pressure_precond, cpr.A_p, cpr.r_p)
+        partial_update!(cpr.pressure_precond, cpr.A_p, cpr.r_p, ctx)
     end
 end
 
