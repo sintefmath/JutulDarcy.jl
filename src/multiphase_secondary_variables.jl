@@ -24,7 +24,7 @@ function select_default_darcy!(S, domain, system, formulation)
     S[:TotalMasses] = TotalMasses()
     S[:PhaseViscosities] = ConstantVariables(1e-3*ones(nph), Cells()) # 1 cP for all phases by default
     fv = fluid_volume(domain)
-    S[:FluidVolume] = ConstantVariables(fv, Cells(), single_entity = !isa(fv, AbstractArray))
+    S[:FluidVolume] = ConstantVariables(fv, Cells(), single_entity = length(fv) == 1)
 end
 
 minimum_output_variables(system::MultiPhaseSystem, primary_variables) = [:TotalMasses]
