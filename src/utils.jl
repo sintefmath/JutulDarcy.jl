@@ -6,7 +6,7 @@ reservoir_storage(model, storage) = storage
 reservoir_storage(model::MultiModel, storage) = storage.Reservoir
 
 export setup_reservoir_model
-function setup_reservoir_model(reservoir, system; wells = [], block_backend = true, context = DefaultContext(), reservoir_context = nothing, reference_densities = nothing)
+function setup_reservoir_model(reservoir, system; wells = [], context = DefaultContext(), reservoir_context = nothing, reference_densities = nothing, backend = :csc, kwarg...)
     # List of models (order matters)
     models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()
     # Support either a pre-discretized domain, a mesh or geometry
@@ -14,14 +14,7 @@ function setup_reservoir_model(reservoir, system; wells = [], block_backend = tr
     main_domain(m::Jutul.AbstractJutulMesh) = main_domain(tpfv_geometry(m))
     main_domain(geo::Jutul.JutulGeometry) = discretized_domain_tpfv_flow(geo)
 
-    if isnothing(reservoir_context)
-        if block_backend
-            @assert context isa DefaultContext
-            reservoir_context = DefaultContext(matrix_layout = BlockMajorLayout())
-        else
-            reservoir_context = context
-        end
-    end
+    reservoir_context, context = Jutul.select_contexts(backend, main_context = reservoir_context, context = context, kwarg...)
     # We first set up the reservoir
     D = main_domain(reservoir)
     models[:Reservoir] = SimulationModel(D, system, context = reservoir_context)
