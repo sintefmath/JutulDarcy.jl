@@ -23,7 +23,7 @@ end
     if false
         @tullio mu[ph, i] = viscosity(pvt[ph], reg, Pressure[i], i)
     else
-        tb = thread_batch(model.context)
+        tb = minbatch(model.context)
         nph, nc = size(mu)
         for ph in 1:nph
             pvt_ph = pvt[ph]
@@ -45,7 +45,7 @@ end
         end
         do_stuff!(rho, rhos, reg, Pressure)
     else
-        tb = thread_batch(model.context)
+        tb = minbatch(model.context)
         nph, nc = size(rho)
         for ph in 1:nph
             rhos_ph = rhos[ph]
@@ -63,7 +63,7 @@ end
 @jutul_secondary function update_as_secondary!(b, ρ::DeckShrinkageFactors, model, param, Pressure)
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
-    tb = thread_batch(model.context)
+    tb = minbatch(model.context)
     nph, nc = size(b)
     for ph in 1:nph
         pvt_ph = pvt[ph]

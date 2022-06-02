@@ -70,7 +70,7 @@ function create_pressure_matrix(J::Jutul.StaticSparsityMatrixCSR)
     nzval = zeros(nnz(J))
     n = size(J, 2)
     # Assume symmetry in sparse pattern, but not values.
-    Jutul.StaticSparsityMatrixCSR(n, n, J.At.colptr, Jutul.colvals(J), nzval)
+    Jutul.StaticSparsityMatrixCSR(n, n, J.At.colptr, Jutul.colvals(J), nzval, nthreads = J.nthreads, minbatch = J.minbatch)
 end
 
 function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, recorder)
@@ -96,7 +96,7 @@ function update_pressure_system!(A_p, A, w_p, bz, ctx)
     @assert size(nz) == size(nz_s)
     n = A.n
     # Update the pressure system with the same pattern in-place
-    tb = thread_batch(ctx)
+    tb = minbatch(ctx)
     @batch minbatch=tb for i in 1:n
         @inbounds for j in cp[i]:cp[i+1]-1
             row = rv[j]
@@ -117,7 +117,7 @@ function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, A::Jutul.St
     @assert size(nz) == size(nz_s)
     n = size(A_p, 1)
     # Update the pressure system with the same pattern in-place
-    tb = thread_batch(ctx)
+    tb = minbatch(ctx)
     @batch minbatch=tb for i in 1:n
         @inbounds for j in nzrange(A, i)
             col = cols[j]

@@ -11,7 +11,7 @@ end
     sys = model.system
     eos = sys.equation_of_state
     n = size(mu, 2)
-    tb = thread_batch(model.context)
+    tb = minbatch(model.context)
     l, v = phase_indices(sys)
     @inbounds @batch minbatch = tb for i in 1:n
         p = Pressure[i]
@@ -25,7 +25,7 @@ end
     eos = sys.equation_of_state
     pvt = m.immiscible_pvt
     n = size(mu, 2)
-    tb = thread_batch(model.context)
+    tb = minbatch(model.context)
     a, l, v = phase_indices(sys)
     @inbounds @batch minbatch = tb for i in 1:n
         p = Pressure[i]

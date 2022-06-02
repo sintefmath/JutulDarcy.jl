@@ -5,7 +5,7 @@ end
 @jutul_secondary function update_as_secondary!(X, m::PhaseMassFractions, model::SimulationModel{D,S}, param, FlashResults) where {D,S<:CompositionalSystem}
     molar_mass = map((x) -> x.mw, model.system.equation_of_state.mixture.properties)
     phase = m.phase
-    tb = thread_batch(model.context)
+    tb = minbatch(model.context)
     @inbounds @batch minbatch = tb for i in eachindex(FlashResults)
         f = FlashResults[i]
         if phase_is_present(phase, f.state)
@@ -44,7 +44,7 @@ end
     if false
         @tullio totmass[c, i] = two_phase_compositional_mass(F[i].state, ρ, X, Y, Sat, c, i) * pv[i]
     else
-        tb = thread_batch(model.context)
+        tb = minbatch(model.context)
         sys = model.system
         phase_ix = phase_indices(sys)
         has_other = Val(has_other_phase(sys))
