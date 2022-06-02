@@ -256,9 +256,9 @@ function convergence_criterion(model::SimulationModel{D, S}, storage, eq::Conser
     Φ = v(storage.state.FluidVolume)
     ρ = v(storage.state.PhaseMassDensities)
 
-    @timeit "cnv" @tullio max e[j] := abs(r[j, i]) * dt / (value(ρ[j, i])*Φ[i])
+    @timeit "cnv" @tullio max e[j] := abs(r[j, i]) * dt / (value(ρ[j, i])*value(Φ[i]))
     @timeit "mb" begin
-        scale = dt./(sum(Φ).*mean(value, ρ, dims = 2))
+        scale = dt./(sum(value, Φ).*mean(value, ρ, dims = 2))
         mb = scale.*sum(abs, r, dims = 2)
     end
 
