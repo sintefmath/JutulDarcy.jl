@@ -211,6 +211,31 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
 
         # State is dict with pressure in each cell
         init = Dict(:Pressure => p0)
+    elseif case_name == "single_phase_fakewells"
+        # Parameters
+        bar = 1e5
+        cl = 1e-5/bar
+        pRef = 100*bar
+        rhoLS = 1000
+        # Single-phase liquid system (compressible pressure equation)
+        phase = LiquidPhase()
+        sys = SinglePhaseSystem(phase)
+        # Simulation model wraps grid and system together with context (which will be used for GPU etc)
+        model = SimulationModel(G, sys, context = context)
+        s = model.secondary_variables
+        s[:PhaseMassDensities] = ConstantCompressibilityDensities(sys, pRef, rhoLS, cl)
+        forces = setup_forces(model)
+
+        pv = model.domain.grid.pore_volumes
+        pv[1] *= 1000
+        pv[end] *= 1000
+
+        p_init = 100*bar
+        nc = number_of_cells(G)
+        p0 = repeat([p_init], nc)
+        p0[1] = 2*p_init
+        p0[end] = 0.5*p_init
+        init = Dict(:Pressure => p0)
     elseif case_name == "two_phase_simple"
         bar = 1e5
         p0 = 100*bar # 100 bar
@@ -897,34 +922,25 @@ function init_from_mat(mrst_data, model, param)
     return init
 end
 
-function setup_case_from_mrst(casename; simple_well = false, block_backend = true, facility_grouping = :onegroup, minbatch = 1000, kwarg...)
+function setup_case_from_mrst(casename; simple_well = false,
+                                        backend = :csc,
+                                        block_backend = true,
+                                        facility_grouping = :onegroup,
+                                        minbatch = 1000,
+                                        nthreads = Threads.nthreads(),
+                                        kwarg...)
     G, mrst_data = get_minimal_tpfa_grid_from_mrst(casename, extraout = true, fuse_flux = false; kwarg...)
-    function setup_res(G, mrst_data; block_backend = false, use_groups = false)
-        bctx = DefaultContext(matrix_layout = BlockMajorLayout(), minbatch = minbatch)
-        # bctx = DefaultContext(matrix_layout = UnitMajorLayout())
-        dctx = DefaultContext(minbatch = minbatch)
-        if block_backend && use_groups
-            res_context = bctx
-        else
-            res_context = dctx
-        end
-
-        model, param_res = model_from_mat(G, mrst_data, res_context)
-        init = init_from_mat(mrst_data, model, param_res)
-
-        # param_res[:tolerances][:default] = 0.01
-        # param_res[:tolerances][:mass_conservation] = 0.01
-    
-        return (model, init, param_res)
-    end
 
     # Set up initializers
     models = OrderedDict()
     initializer = Dict()
     forces = Dict()
     
-    
-    model, init, param_res = setup_res(G, mrst_data; block_backend = block_backend, use_groups = true)
+    res_context, = Jutul.select_contexts(backend, block_backend = block_backend, minbatch = minbatch, nthreads = nthreads)
+    model, param_res = model_from_mat(G, mrst_data, res_context)
+    init = init_from_mat(mrst_data, model, param_res)
+
+    # model, init, param_res = setup_res(G, mrst_data; block_backend = block_backend, use_groups = true)
     is_comp = haskey(init, :OverallMoleFractions)
     nph = number_of_phases(model.system)
     rhoS = param_res[:reference_densities]
@@ -1234,11 +1250,18 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                 write_output = true,
                                 output_path = nothing,
                                 block_backend = true,
+                                backend = :csc,
+                                nthreads = Threads.nthreads(),
+                                minbatch = 1000,
                                 simple_well = false,
                                 write_mrst = false,
                                 error_on_incomplete = true,
                                 kwarg...)
-    models, parameters, initializer, dt, forces, mrst_data = setup_case_from_mrst(fn, block_backend = block_backend, simple_well = simple_well);
+    models, parameters, initializer, dt, forces, mrst_data = setup_case_from_mrst(fn, block_backend = block_backend, 
+                                                                                      simple_well = simple_well,
+                                                                                      backend = backend,
+                                                                                      nthreads = nthreads,
+                                                                                      minbatch = minbatch);
     out = models[:Reservoir].output_variables
     for k in extra_outputs
         push!(out, k)
