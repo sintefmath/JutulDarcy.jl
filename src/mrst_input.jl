@@ -1290,6 +1290,12 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
 end
 
 function write_reservoir_simulator_output_to_mrst(model, states, reports, forces, output_path; parameters = nothing, write_states = true, write_wells = true, convert_names = true)
+    function valid_wellname(wname)
+        # Strip non-ascii since it goes to a .mat file.
+        wname = collect(String(wname))
+        ok = map(x -> isletter(x) || ('0' <= x <= '9'), wname)
+        return String(wname[ok])
+    end
     mkpath(output_path)
     prep_write(x) = x
     prep_write(x::AbstractMatrix) = collect(x')
@@ -1330,7 +1336,7 @@ function write_reservoir_simulator_output_to_mrst(model, states, reports, forces
                 for f in keys(wd[k])
                     tmp[String(f)] = wd[k][f]
                 end
-                wd_m[String(k)] = tmp
+                wd_m[valid_wellname(k)] = tmp
             end
             wd_m["time"] = report_times(reports)
             ws_path = joinpath(output_path, "wells.mat")
