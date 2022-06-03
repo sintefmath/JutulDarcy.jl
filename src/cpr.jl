@@ -89,19 +89,19 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
 end
 
 function update_pressure_system!(A_p, A, w_p, bz, ctx)
-    cp = A_p.colptr
-    nz = A_p.nzval
-    nz_s = A.nzval
-    rv = A_p.rowval
+    T_p = eltype(A_p)
+    nz = nonzeros(A_p)
+    nz_s = nonzeros(A)
+    rv = rowvals(A_p)
     @assert size(nz) == size(nz_s)
     n = A.n
     # Update the pressure system with the same pattern in-place
     tb = minbatch(ctx)
-    @batch minbatch=tb for i in 1:n
-        @inbounds for j in cp[i]:cp[i+1]-1
+    @batch minbatch=tb for col in 1:n
+        @inbounds for j in nzrange(A_p, col)
             row = rv[j]
             Ji = nz_s[j]
-            tmp = 0.0
+            tmp = zero(T_p)
             @inbounds for b = 1:bz
                 tmp += Ji[b, 1]*w_p[b, row]
             end
@@ -111,6 +111,7 @@ function update_pressure_system!(A_p, A, w_p, bz, ctx)
 end
 
 function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, A::Jutul.StaticSparsityMatrixCSR, w_p, bz, ctx)
+    T_p = eltype(A_p)
     nz = nonzeros(A_p)
     nz_s = nonzeros(A)
     cols = Jutul.colvals(A)
@@ -118,13 +119,13 @@ function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, A::Jutul.St
     n = size(A_p, 1)
     # Update the pressure system with the same pattern in-place
     tb = minbatch(ctx)
-    @batch minbatch=tb for i in 1:n
-        @inbounds for j in nzrange(A, i)
+    @batch minbatch=tb for row in 1:n
+        @inbounds for j in nzrange(A, row)
             col = cols[j]
             Ji = nz_s[j]
-            tmp = 0.0
+            tmp = zero(T_p)
             @inbounds for b = 1:bz
-                tmp += Ji[b, 1]*w_p[b, col]
+                tmp += Ji[b, 1]*w_p[b, row]
             end
             nz[j] = tmp
         end
