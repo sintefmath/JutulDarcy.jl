@@ -62,7 +62,7 @@ end
 function create_pressure_matrix(J)
     nzval = zeros(nnz(J))
     n = size(J, 2)
-    SparseMatrixCSC(n, n, J.colptr, J.rowval, nzval)
+    return SparseMatrixCSC(n, n, J.colptr, J.rowval, nzval)
 end
 
 
@@ -92,23 +92,28 @@ function update_pressure_system!(A_p, A, w_p, bz, ctx)
     T_p = eltype(A_p)
     nz = nonzeros(A_p)
     nz_s = nonzeros(A)
-    rv = rowvals(A_p)
+    rows = rowvals(A_p)
     @assert size(nz) == size(nz_s)
     n = A.n
     # Update the pressure system with the same pattern in-place
     tb = minbatch(ctx)
     @batch minbatch=tb for col in 1:n
-        @inbounds for j in nzrange(A_p, col)
-            row = rv[j]
-            Ji = nz_s[j]
-            tmp = zero(T_p)
-            @inbounds for b = 1:bz
-                tmp += Ji[b, 1]*w_p[b, row]
-            end
-            nz[j] = tmp
-        end
+        update_row!(nz, A_p, w_p, rows, nz_s, col)
     end
 end
+
+function update_row!(nz, A_p, w_p, rows, nz_s, col)
+    @inbounds for j in nzrange(A_p, col)
+        row = rows[j]
+        Ji = nz_s[j]
+        tmp = zero(T_p)
+        @inbounds for b = 1:size(Ji, 1)
+            tmp += Ji[b, 1]*w_p[b, row]
+        end
+        nz[j] = tmp
+    end
+end
+
 
 function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, A::Jutul.StaticSparsityMatrixCSR, w_p, bz, ctx)
     T_p = eltype(A_p)
@@ -120,15 +125,19 @@ function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, A::Jutul.St
     # Update the pressure system with the same pattern in-place
     tb = minbatch(ctx)
     @batch minbatch=tb for row in 1:n
-        @inbounds for j in nzrange(A, row)
-            col = cols[j]
-            Ji = nz_s[j]
-            tmp = zero(T_p)
-            @inbounds for b = 1:bz
-                tmp += Ji[b, 1]*w_p[b, row]
-            end
-            nz[j] = tmp
+        update_row!(nz, A_p, w_p, cols, nz_s, row)
+    end
+end
+
+function update_row!(nz, A_p, w_p, cols, nz_s, row)
+    @inbounds for j in nzrange(A_p, row)
+        col = cols[j]
+        Ji = nz_s[j]
+        tmp = 0
+        @inbounds for b = 1:size(Ji, 1)
+            tmp += Ji[b, 1]*w_p[b, row]
         end
+        nz[j] = tmp
     end
 end
 
