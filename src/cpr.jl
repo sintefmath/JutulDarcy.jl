@@ -70,7 +70,7 @@ function create_pressure_matrix(J::Jutul.StaticSparsityMatrixCSR)
     nzval = zeros(nnz(J))
     n = size(J, 2)
     # Assume symmetry in sparse pattern, but not values.
-    Jutul.StaticSparsityMatrixCSR(n, n, J.At.colptr, Jutul.colvals(J), nzval, nthreads = J.nthreads, minbatch = J.minbatch)
+    return Jutul.StaticSparsityMatrixCSR(n, n, J.At.colptr, Jutul.colvals(J), nzval, nthreads = J.nthreads, minbatch = J.minbatch)
 end
 
 function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, recorder)
