@@ -18,7 +18,7 @@ function update_half_face_flux!(flux::AbstractArray, state, model::SimulationMod
 end
 
 function blackoil_fluxes!(flux, conn_data, P, Rs, ρ, b, kr, μ, pc, ref_index, rhoS, context)
-    tb = thread_batch(context)
+    tb = minbatch(context)
     nf = size(flux, 2)
     # @batch minbatch = tb for i = 1:nf
     for i = 1:nf

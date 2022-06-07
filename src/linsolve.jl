@@ -1,9 +1,9 @@
-function reservoir_linsolve(model, method = :cpr;
-                                   rtol = 0.005,
-                                   v = 0,
-                                   provider = Krylov,
-                                   solver = Krylov.bicgstab,
-                                    update_interval = :ministep,
+function reservoir_linsolve(model,  method = :cpr;
+                                    rtol = 0.005,
+                                    v = 0,
+                                    provider = Krylov,
+                                    solver = Krylov.bicgstab,
+                                    update_interval = :once,
                                     amg_type = :smoothed_aggregation,
                                     max_coarse = nothing,
                                     cpr_type = nothing,

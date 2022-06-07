@@ -38,7 +38,7 @@ function update_half_face_flux!(flux::AbstractArray, state, model, param, dt, fl
 end
 
 function update_immiscible_fluxes!(flux, context, conn_data, rho, kr, mu, p, pc, ref_index, phases, single_potential)
-    mb = thread_batch(context)
+    mb = minbatch(context)
     if single_potential
         @batch minbatch = mb for i in eachindex(conn_data)
             immiscible_multiphase_flux_single_pot!(flux, i, conn_data, phases, p, rho, kr, mu)

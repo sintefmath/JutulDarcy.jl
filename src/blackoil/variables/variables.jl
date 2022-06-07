@@ -97,7 +97,7 @@ end
 @jutul_secondary function update_as_secondary!(b, ρ::DeckShrinkageFactors, model::SimulationModel{D, StandardBlackOilSystem{T, true, R}}, param, Pressure, Rs) where {D, T, R}
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
-    tb = thread_batch(model.context)
+    tb = minbatch(model.context)
     nph, nc = size(b)
 
     w = 1
@@ -118,7 +118,7 @@ end
 @jutul_secondary function update_as_secondary!(μ, ρ::DeckViscosity, model::SimulationModel{D, StandardBlackOilSystem{T, true, R}}, param, Pressure, Rs) where {D, T, R}
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
-    tb = thread_batch(model.context)
+    tb = minbatch(model.context)
     nph, nc = size(μ)
 
     w = 1
@@ -165,7 +165,7 @@ end
                                                                                                     Saturations,
                                                                                                     FluidVolume) where {G,S<:BlackOilSystem}
     rhoS = tuple(param[:reference_densities]...)
-    tb = thread_batch(model.context)
+    tb = minbatch(model.context)
     sys = model.system
     nc = size(totmass, 2)
     # @batch minbatch = tb for cell = 1:nc
@@ -194,7 +194,7 @@ end
 @inline oil_saturation(zo, rsSat, rhoOS, rhoGS, bO, bG) = zo*rhoGS*bG/(rhoOS*bO + zo*(rhoGS*bG - rhoOS*bO - rhoGS*bO*rsSat))
 
 @jutul_secondary function update_as_secondary!(s, SAT::Saturations, model::SimulationModel{D, S}, param, ImmiscibleSaturation, PhaseState, GasMassFraction, ShrinkageFactors, Rs) where {D, S<:BlackOilSystem}
-    # tb = thread_batch(model.context)
+    # tb = minbatch(model.context)
     nph, nc = size(s)
     a, l, v = 1, 2, 3
     rhoS = param[:reference_densities]

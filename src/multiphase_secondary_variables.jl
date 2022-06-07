@@ -24,7 +24,7 @@ function select_default_darcy!(S, domain, system, formulation)
     S[:TotalMasses] = TotalMasses()
     S[:PhaseViscosities] = ConstantVariables(1e-3*ones(nph), Cells()) # 1 cP for all phases by default
     fv = fluid_volume(domain)
-    S[:FluidVolume] = ConstantVariables(fv, Cells(), single_entity = !isa(fv, AbstractArray))
+    S[:FluidVolume] = ConstantVariables(fv, Cells(), single_entity = length(fv) == 1)
 end
 
 minimum_output_variables(system::MultiPhaseSystem, primary_variables) = [:TotalMasses]
@@ -108,13 +108,13 @@ end
     if false
         @tullio kr[ph, i] = I[ph](Saturations[ph, i])
     else
-        tb = thread_batch(model.context)
+        tb = minbatch(model.context)
         threaded_interp!(kr, model.context, I, Saturations)
     end
 end
 
 function threaded_interp!(F, context, I, x)
-    tb = thread_batch(context)
+    tb = minbatch(context)
     nc = size(F, 2)
     apply(I, x, j, i) = @inbounds I(x[j, i])
     @batch minbatch = tb for i in 1:nc

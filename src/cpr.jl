@@ -34,30 +34,43 @@ function default_psolve(; max_levels = 10, max_coarse = 10, type = :smoothed_agg
     return AMGPreconditioner(m, max_levels = max_levels, max_coarse = max_coarse, presmoother = gs, postsmoother = gs, cycle = cyc)
 end
 
-function update!(cpr::CPRPreconditioner, arg...)
-    update_p = update_cpr_internals!(cpr, arg...)
-    @timeit "s-precond" update!(cpr.system_precond, arg...)
-    @timeit "p-precond" if update_p
-        update!(cpr.pressure_precond, cpr.A_p, cpr.r_p)
+function update!(cpr::CPRPreconditioner, lsys, model, arg...)
+    rmodel = reservoir_model(model)
+    ctx = rmodel.context
+    update_p = update_cpr_internals!(cpr, lsys, model, arg...)
+    @timeit "s-precond" update!(cpr.system_precond, lsys, model, arg...)
+    if update_p
+        @timeit "p-precond" update!(cpr.pressure_precond, cpr.A_p, cpr.r_p, ctx)
     elseif cpr.partial_update
-        partial_update!(cpr.pressure_precond, cpr.A_p, cpr.r_p)
+        @timeit "p-precond (partial)" partial_update!(cpr.pressure_precond, cpr.A_p, cpr.r_p, ctx)
     end
 end
 
 function initialize_storage!(cpr, J, s)
     if isnothing(cpr.A_p)
-        m = J.m
-        n = J.n
+        m, n = size(J)
         cpr.block_size = bz = size(eltype(J), 1)
         # @assert n == m == length(s.state.Pressure) "Expected Jacobian dimensions ($m by $n) to both equal number of pressures $(length(s.state.Pressure))"
-        nzval = zeros(length(J.nzval))
-
-        cpr.A_p = SparseMatrixCSC(n, n, J.colptr, J.rowval, nzval)
+        cpr.A_p = create_pressure_matrix(J)
         cpr.r_p = zeros(n)
         cpr.buf = zeros(n*bz)
         cpr.p = zeros(n)
         cpr.w_p = zeros(bz, n)
     end
+end
+
+function create_pressure_matrix(J)
+    nzval = zeros(nnz(J))
+    n = size(J, 2)
+    return SparseMatrixCSC(n, n, J.colptr, J.rowval, nzval)
+end
+
+
+function create_pressure_matrix(J::Jutul.StaticSparsityMatrixCSR)
+    nzval = zeros(nnz(J))
+    n = size(J, 2)
+    # Assume symmetry in sparse pattern, but not values.
+    return Jutul.StaticSparsityMatrixCSR(n, n, J.At.colptr, Jutul.colvals(J), nzval, nthreads = J.nthreads, minbatch = J.minbatch)
 end
 
 function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, recorder)
@@ -76,24 +89,54 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
 end
 
 function update_pressure_system!(A_p, A, w_p, bz, ctx)
-    cp = A_p.colptr
-    nz = A_p.nzval
-    nz_s = A.nzval
-    rv = A_p.rowval
+    nz = nonzeros(A_p)
+    nz_s = nonzeros(A)
+    rows = rowvals(A_p)
     @assert size(nz) == size(nz_s)
     n = A.n
     # Update the pressure system with the same pattern in-place
-    tb = thread_batch(ctx)
-    @batch minbatch=tb for i in 1:n
-        @inbounds for j in cp[i]:cp[i+1]-1
-            row = rv[j]
-            Ji = nz_s[j]
-            tmp = 0.0
-            @inbounds for b = 1:bz
-                tmp += Ji[b, 1]*w_p[b, row]
-            end
-            nz[j] = tmp
+    tb = minbatch(ctx)
+    @batch minbatch=tb for col in 1:n
+        update_row_csc!(nz, A_p, w_p, rows, nz_s, col)
+    end
+end
+
+function update_row_csc!(nz, A_p, w_p, rows, nz_s, col)
+    @inbounds for j in nzrange(A_p, col)
+        row = rows[j]
+        Ji = nz_s[j]
+        tmp = 0
+        @inbounds for b = 1:size(Ji, 1)
+            tmp += Ji[b, 1]*w_p[b, row]
         end
+        nz[j] = tmp
+    end
+end
+
+
+function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, A::Jutul.StaticSparsityMatrixCSR, w_p, bz, ctx)
+    T_p = eltype(A_p)
+    nz = nonzeros(A_p)
+    nz_s = nonzeros(A)
+    cols = Jutul.colvals(A)
+    @assert size(nz) == size(nz_s)
+    n = size(A_p, 1)
+    # Update the pressure system with the same pattern in-place
+    tb = minbatch(ctx)
+    @batch minbatch=tb for row in 1:n
+        update_row_csr!(nz, A_p, w_p, cols, nz_s, row)
+    end
+end
+
+function update_row_csr!(nz, A_p, w_p, cols, nz_s, row)
+    @inbounds for j in nzrange(A_p, row)
+        col = cols[j]
+        Ji = nz_s[j]
+        tmp = 0
+        @inbounds for b = 1:size(Ji, 1)
+            tmp += Ji[b, 1]*w_p[b, row]
+        end
+        nz[j] = tmp
     end
 end
 

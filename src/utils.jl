@@ -6,7 +6,7 @@ reservoir_storage(model, storage) = storage
 reservoir_storage(model::MultiModel, storage) = storage.Reservoir
 
 export setup_reservoir_model
-function setup_reservoir_model(reservoir, system; wells = [], block_backend = true, context = nothing, reference_densities = nothing)
+function setup_reservoir_model(reservoir, system; wells = [], context = DefaultContext(), reservoir_context = nothing, reference_densities = nothing, backend = :csc, kwarg...)
     # List of models (order matters)
     models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()
     # Support either a pre-discretized domain, a mesh or geometry
@@ -14,19 +14,10 @@ function setup_reservoir_model(reservoir, system; wells = [], block_backend = tr
     main_domain(m::Jutul.AbstractJutulMesh) = main_domain(tpfv_geometry(m))
     main_domain(geo::Jutul.JutulGeometry) = discretized_domain_tpfv_flow(geo)
 
-    if isnothing(context)
-        context = DefaultContext()
-        if block_backend
-            main_context = DefaultContext(matrix_layout = BlockMajorLayout())
-        else
-            main_context = context
-        end
-    else
-        main_context = context
-    end
+    reservoir_context, context = Jutul.select_contexts(backend, main_context = reservoir_context, context = context, kwarg...)
     # We first set up the reservoir
     D = main_domain(reservoir)
-    models[:Reservoir] = SimulationModel(D, system, context = main_context)
+    models[:Reservoir] = SimulationModel(D, system, context = reservoir_context)
     # Then we set up all the wells
     for w in wells
         D_w = discretized_domain_well(w)
@@ -51,6 +42,12 @@ end
 
 export setup_reservoir_simulator
 function setup_reservoir_simulator(models, initializer, parameters = nothing; method = :cpr, rtol = 0.005, initial_dt = 3600.0*24.0, target_its = 8, offset_its = 1, kwarg...)
+    if isa(models, SimulationModel)
+        DT = Dict{Symbol, Any}
+        models = DT(:Reservoir => models)
+        initializer = DT(:Reservoir => initializer)
+        parameters = DT(:Reservoir => parameters)
+    end
     # Convert to multi model
     mmodel = reservoir_multimodel(models)
     # Set up simulator itself, containing the initial state

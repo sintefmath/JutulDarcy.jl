@@ -20,7 +20,7 @@ function update_half_face_flux!(flux::AbstractArray, state, model::SimulationMod
 end
 
 function compositional_fluxes!(flux, conn_data, P, X, Y, ρ, kr, Sat, μ, pc, ref_index, aqua, phase_ix, context)
-    tb = thread_batch(context)
+    tb = minbatch(context)
     nf = size(flux, 2)
     @batch minbatch = tb for i = 1:nf
         @inbounds @views compositional_flux_gravity!(flux[:, i], conn_data[i], P, X, Y, ρ, kr, Sat, μ, pc, ref_index, aqua, phase_ix)
