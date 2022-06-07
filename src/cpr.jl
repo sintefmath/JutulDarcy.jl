@@ -89,7 +89,6 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
 end
 
 function update_pressure_system!(A_p, A, w_p, bz, ctx)
-    T_p = eltype(A_p)
     nz = nonzeros(A_p)
     nz_s = nonzeros(A)
     rows = rowvals(A_p)
@@ -98,15 +97,15 @@ function update_pressure_system!(A_p, A, w_p, bz, ctx)
     # Update the pressure system with the same pattern in-place
     tb = minbatch(ctx)
     @batch minbatch=tb for col in 1:n
-        update_row!(nz, A_p, w_p, rows, nz_s, col)
+        update_row_csc!(nz, A_p, w_p, rows, nz_s, col)
     end
 end
 
-function update_row!(nz, A_p, w_p, rows, nz_s, col)
+function update_row_csc!(nz, A_p, w_p, rows, nz_s, col)
     @inbounds for j in nzrange(A_p, col)
         row = rows[j]
         Ji = nz_s[j]
-        tmp = zero(T_p)
+        tmp = 0
         @inbounds for b = 1:size(Ji, 1)
             tmp += Ji[b, 1]*w_p[b, row]
         end
@@ -125,11 +124,11 @@ function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, A::Jutul.St
     # Update the pressure system with the same pattern in-place
     tb = minbatch(ctx)
     @batch minbatch=tb for row in 1:n
-        update_row!(nz, A_p, w_p, cols, nz_s, row)
+        update_row_csr!(nz, A_p, w_p, cols, nz_s, row)
     end
 end
 
-function update_row!(nz, A_p, w_p, cols, nz_s, row)
+function update_row_csr!(nz, A_p, w_p, cols, nz_s, row)
     @inbounds for j in nzrange(A_p, row)
         col = cols[j]
         Ji = nz_s[j]
