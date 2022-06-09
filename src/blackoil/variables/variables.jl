@@ -67,7 +67,9 @@ max_dissolved_gas_fraction(rs, rhoOS, rhoGS) = rs*rhoGS/(rhoOS + rs*rhoGS)
         p = Pressure[i]
         z_g = GasMassFraction[i]
         z_g_bub = max_dissolved_gas_fraction(tab(p), rhoOS, rhoGS)
-        if z_g_bub < z_g
+        if value(z_g) == 1
+            new_state = GasOnly
+        elseif z_g_bub < z_g
             new_state = OilAndGas
         else
             new_state = OilOnly
@@ -85,12 +87,18 @@ struct Rs <: ScalarVariable end
     rhoGS = rhoS[3]
     @inbounds for i in eachindex(PhaseState)
         p = Pressure[i]
-        if PhaseState[i] == OilAndGas
-            z_g = max_dissolved_gas_fraction(tab(p), rhoOS, rhoGS)
+        phase_state = PhaseState[i]
+        if phase_state == GasOnly
+            rs_i = 0
         else
-            z_g = GasMassFraction[i]
+            if phase_state == OilAndGas
+                z_g = max_dissolved_gas_fraction(tab(p), rhoOS, rhoGS)
+            else
+                z_g = GasMassFraction[i]
+            end
+            rs_i = rhoOS*z_g/(rhoGS*(1-z_g))
         end
-        rs[i] = rhoOS*z_g/(rhoGS*(1-z_g))
+        rs[i] = rs_i
     end
 end
 
@@ -203,19 +211,19 @@ end
     @inbounds for i = 1:nc
         sw = ImmiscibleSaturation[i]
         s[a, i] = sw
-        @inbounds if PhaseState[i] == OilAndGas
+        @inbounds if PhaseState[i] == OilAndGas || PhaseState[i] == GasOnly
             rs = Rs[i]
             bO = ShrinkageFactors[l, i]
             bG = ShrinkageFactors[v, i]
 
             zo = 1 - GasMassFraction[i]
             so = oil_saturation(zo, rs, rhoOS, rhoGS, bO, bG)
-        else
-            so = 1
+            s_og = 1 - sw
+            s[l, i] = s_og*so
+            s[v, i] = s_og*(1 - so)
+        else # OilOnly
+            s[l, i] = 1 - sw
+            s[v, i] = 0
         end
-        s_og = 1 - sw
-        s[a, i] = sw
-        s[l, i] = s_og*so
-        s[v, i] = s_og*(1 - so)
     end
 end
