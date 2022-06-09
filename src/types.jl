@@ -41,8 +41,8 @@ struct StandardBlackOilSystem{D, W, R, F} <: BlackOilSystem where R<:Real
     end
 end
 
-const BlackOilModelVariableSwitching = SimulationModel{<:Any, StandardBlackOilSystem{D, W, R, :varswitch}, <:Any, <:Any} where {D, W, R}
-const BlackOilModelGasFraction = SimulationModel{<:Any, StandardBlackOilSystem{D, W, R, :zg}, <:Any, <:Any} where {D, W, R}
+const BlackOilModelVariableSwitching = SimulationModel{<:Any, StandardBlackOilSystem{<:Any, <:Any, <:Any, :varswitch}, <:Any, <:Any}
+const BlackOilModelGasFraction = SimulationModel{<:Any, StandardBlackOilSystem{<:Any, <:Any, <:Any, :zg}, <:Any, <:Any}
 const StandardBlackOilModel = SimulationModel{<:Any, <:StandardBlackOilSystem, <:Any, <:Any}
 
 struct ImmiscibleSystem{T} <: MultiPhaseSystem where T<:Tuple
