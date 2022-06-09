@@ -80,6 +80,24 @@ end
 
 struct Rs <: ScalarVariable end
 
+Base.@kwdef struct BlackOilUnknown{R} <: ScalarVariable
+    dr_max::R = 0.2
+    ds_max::R = 0.2
+end
+
+function blackoil_unknown_init(F_rs, sg, rs, p)
+    rs_sat = F_rs(p)
+    if sg > 0
+        @assert rs ≈ rs_sat
+        x = sg
+        state = OilAndGas
+    else
+        x = rs
+        state = OilOnly
+    end
+    return (x, state)
+end
+
 @jutul_secondary function update_as_secondary!(rs, m::Rs, model::SimulationModel{D, S}, param, PhaseState, Pressure, GasMassFraction) where {D, S<:BlackOilSystem}
     tab = model.system.saturation_table
     rhoS = param[:reference_densities]

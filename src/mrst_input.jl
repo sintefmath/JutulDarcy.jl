@@ -908,11 +908,20 @@ function init_from_mat(mrst_data, model, param)
         s = copy(state0["s"]')
         if haskey(state0, "rs") && haskey(state0, "zg")
             # Blackoil
-            init[:GasMassFraction] = copy(vec(state0["zg"]))
             if size(s, 1) > 2
                 sw = vec(s[1, :])
                 sw = min.(sw, 1 - MINIMUM_COMPOSITIONAL_SATURATION)
                 init[:ImmiscibleSaturation] = sw
+                sg = vec(s[3, :])
+            else
+                sg = vec(s[2, :])
+            end
+            if false
+                init[:GasMassFraction] = copy(vec(state0["zg"]))
+            else
+                rs = vec(state0["rs"])
+                F_rs = model.system.saturation_table
+                init[:BlackOilUnknown] = map((s, r, p) -> blackoil_unknown_init(F_rs, s, r, p), sg, rs, p0)
             end
         else
             # Immiscible
@@ -1042,11 +1051,10 @@ function setup_case_from_mrst(casename; simple_well = false,
         elseif haskey(init, :Saturations)
             w0[:Saturations] = init[:Saturations][:, res_cells]
         end
-        if haskey(init, :ImmiscibleSaturation)
-            w0[:ImmiscibleSaturation] = vec(init[:ImmiscibleSaturation][res_cells])
-        end
-        if haskey(init, :GasMassFraction)
-            w0[:GasMassFraction] = vec(init[:GasMassFraction][res_cells])
+        for sk in [:GassMassFraction, :BlackOilUnknown, :ImmiscibleSaturation]
+            if haskey(init, sk)
+                w0[sk] = vec(init[sk][res_cells])
+            end
         end
         parameters[sym] = param_w
         controls[sym] = ctrl
