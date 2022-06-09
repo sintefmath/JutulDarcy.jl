@@ -6,37 +6,67 @@ function update_primary_variable!(state, pvar::BlackOilUnknown, state_symbol, mo
     dr_max = 0.25
     # dr_max = pvar.dr_max
     ds_max = pvar.ds_max
-    ϵ = 1e-6
+    Ε = 1e-4
+    ϵ = 1e-4
+
     for i in eachindex(v)
         dx = Dx[i]
-        old_x, old_state = v[i]
+        old_x, old_state, was_near_bubble = v[i]
+        p = state.Pressure[i]
+        rs_sat = rs_tab(p)
         if old_state == OilOnly
-            p = state.Pressure[i]
-            rs_sat = rs_tab(p)
-
             abs_rs_max = dr_max*rs_sat
             next_x = old_x + Jutul.choose_increment(value(old_x), dx, abs_rs_max, nothing, 0, nothing)
             if next_x > rs_sat
-                # Switch to gas saturation as primary variable
-                next_x = replace_value(next_x, ϵ)
-                next_state = OilAndGas
+                if was_near_bubble
+                    # We are sufficiently close to the saturated point. Switch to gas saturation as primary variable.
+                    # @info "$i Switching to saturated" value(next_x) value(old_x) value(rs_sat)
+                    next_x = replace_value(next_x, ϵ)
+                    next_state = OilAndGas
+                    is_near_bubble = true
+                else
+                    # We are passing the saturated point, but we were sufficiently far from it that we limit the update
+                    # to just before the saturated point.
+                    next_x = replace_value(next_x, rs_sat - ϵ)
+                    next_state = old_state
+                    is_near_bubble = true
+                end
             else
+                if next_x > rs_sat
+                    # next_x = replace_value(next_x, rs_sat)
+                end
                 next_state = old_state
+                is_near_bubble = false
             end
         else
             next_x = old_x + Jutul.choose_increment(value(old_x), dx, ds_max, nothing, nothing, 1)
             if next_x <= 0
-                # Negative saturations - we switch to Rs as the primary variable
-
-                p = state.Pressure[i]
-                rs_sat = rs_tab(p)
-                next_x = replace_value(next_x, rs_sat - ϵ)
-                next_state = OilOnly
+                if was_near_bubble
+                    # Negative saturations - we switch to Rs as the primary variable
+                    # @info "$i Switching to undersaturated" value(next_x) value(old_x)
+                    p = state.Pressure[i]
+                    next_x = replace_value(next_x, rs_sat - ϵ)
+                    next_state = OilOnly
+                    is_near_bubble = true
+                else
+                    next_x = replace_value(next_x, ϵ)
+                    next_state = old_state
+                    is_near_bubble = true
+                end
             else
                 next_state = old_state
+                is_near_bubble = false
             end
         end
-        v[i] = (next_x, next_state)
+        if next_state == OilOnly
+            @assert 0 <= next_x <= rs_sat "$next_x $rs_sat"
+        else
+            @assert 0 <= next_x <= 1 "$next_x"
+        end
+        if old_state != next_state
+            @info "$i $old_state to $next_state" value(next_x) value(old_x) value(rs_sat)
+        end
+        v[i] = (next_x, next_state, is_near_bubble)
     end
 end
 
@@ -50,7 +80,7 @@ function blackoil_unknown_init(F_rs, sg, rs, p)
         x = rs
         state = OilOnly
     end
-    return (x, state)
+    return (x, state, false)
 end
 
 @jutul_secondary function update_as_secondary!(s, ph::BlackOilPhaseState, model::SimulationModel{D, S}, param, BlackOilUnknown)  where {D, S<:BlackOilVariableSwitchingSystem}
@@ -65,21 +95,21 @@ end
     for i in eachindex(BlackOilUnknown)
         sw = ImmiscibleSaturation[i]
         s[1, i] = sw
-        x, phase_state = BlackOilUnknown[i]
+        x, phase_state, = BlackOilUnknown[i]
         if phase_state == OilOnly
             sg = zero(T)
         else
             sg = x
         end
-        s[2, i] = 1 - sw - sg
-        s[3, i] = sg
+        s[2, i] = (1 - sw)*(1 - sg)
+        s[3, i] = (1 - sw)*sg
     end
 end
 
 
 @jutul_secondary function update_as_secondary!(rs, ph::Rs, model::SimulationModel{D, S}, param, Pressure, BlackOilUnknown)  where {D, S<:BlackOilVariableSwitchingSystem}
     for i in eachindex(BlackOilUnknown)
-        x, phase_state = BlackOilUnknown[i]
+        x, phase_state, = BlackOilUnknown[i]
         if phase_state == OilOnly
             r = x
         else
