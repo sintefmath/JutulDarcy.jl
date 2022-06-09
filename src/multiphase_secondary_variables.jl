@@ -178,27 +178,31 @@ degrees_of_freedom_per_entity(model, v::SimpleCapillaryPressure) = number_of_pha
     npc, nc = size(Δp)
     if npc == 1
         pcow = cap[1]
-        for c in 1:nc
+        @inbounds for c in 1:nc
             sw = Saturations[1, c]
             Δp[1, c] = pcow(sw)
         end
     elseif npc == 2
         pcow, pcog = cap
-        for c in 1:nc
-            if isnothing(pcow)
-                Δ = 0
-            else
-                sw = Saturations[1, c]
-                Δ = -pcow(sw)
-            end
-            Δp[1, c] = Δ
-            if isnothing(pcog)
-                Δ = 0
-            else
+        if isnothing(pcow)
+            @inbounds for c in 1:nc
                 sg = Saturations[3, c]
-                Δ = pcog(sg)
+                Δp[1, c] = 0
+                Δp[2, c] = pcog(sg)
             end
-            Δp[2, c] = Δ
+        elseif isnothing(pcog)
+            @inbounds for c in 1:nc
+                sw = Saturations[1, c]
+                Δp[1, c] = -pcow(sw)
+                Δp[2, c] = 0
+            end
+        else
+            @inbounds for c in 1:nc
+                sw = Saturations[1, c]
+                sg = Saturations[3, c]
+                Δp[1, c] = -pcow(sw)
+                Δp[2, c] = pcog(sg)
+            end
         end
     else
         error("Only implemented for two and three-phase flow.")

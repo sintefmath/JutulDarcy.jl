@@ -374,7 +374,7 @@ function correct_residual_for_dp!(y, x, Δp, bz, buf, A)
             @inbounds y[i] -= buf[i]
         end
     else
-        mul!(y, A, x, -1.0, 1.0)
+        mul!(y, A, x, -1.0, true)
     end
     # @. y -= buf
 end

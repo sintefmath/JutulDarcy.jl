@@ -700,7 +700,7 @@ function deck_pc(props; oil, water, gas)
         push!(pc_impl, interp_og)
     end
     if found
-        return SimpleCapillaryPressure(tuple(pc_impl)...)
+        return SimpleCapillaryPressure(tuple(pc_impl...))
     else
         return nothing
     end
