@@ -1,33 +1,42 @@
 import Jutul: replace_value
 
-function update_primary_variable!(state, p::BlackOilUnknown, state_symbol, model, dx)
+function update_primary_variable!(state, pvar::BlackOilUnknown, state_symbol, model, Dx)
     v = state[state_symbol]
     rs_tab = model.system.saturation_table
+    dr_max = 0.25
+    # dr_max = pvar.dr_max
+    ds_max = pvar.ds_max
     ϵ = 1e-6
     for i in eachindex(v)
-        old_value, old_state = v[i]
-        next_value = old_value + dx[i]
+        dx = Dx[i]
+        old_x, old_state = v[i]
         if old_state == OilOnly
             p = state.Pressure[i]
             rs_sat = rs_tab(p)
-            if next_value > rs_sat
+
+            abs_rs_max = dr_max*rs_sat
+            next_x = old_x + Jutul.choose_increment(value(old_x), dx, abs_rs_max, nothing, 0, nothing)
+            if next_x > rs_sat
                 # Switch to gas saturation as primary variable
-                next_value = replace_value(next_value, ϵ)
+                next_x = replace_value(next_x, ϵ)
                 next_state = OilAndGas
             else
                 next_state = old_state
             end
         else
-            if next_value < 0
+            next_x = old_x + Jutul.choose_increment(value(old_x), dx, ds_max, nothing, nothing, 1)
+            if next_x <= 0
+                # Negative saturations - we switch to Rs as the primary variable
+
                 p = state.Pressure[i]
                 rs_sat = rs_tab(p)
-                next_value = replace_value(next_value, rs_sat - ϵ)
+                next_x = replace_value(next_x, rs_sat - ϵ)
                 next_state = OilOnly
             else
                 next_state = old_state
             end
         end
-        v[i] = (next_value, next_state)
+        v[i] = (next_x, next_state)
     end
 end
 
