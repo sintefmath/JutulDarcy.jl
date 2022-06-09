@@ -918,7 +918,9 @@ function init_from_mat(mrst_data, model, param)
             end
             if blackoil_formulation(model.system) == :zg
                 init[:GasMassFraction] = copy(vec(state0["zg"]))
+                @assert typeof(model.system)<:BlackOilGasFractionSystem
             else
+                @assert typeof(model.system)<:BlackOilVariableSwitchingSystem
                 rs = vec(state0["rs"])
                 F_rs = model.system.saturation_table
                 init[:BlackOilUnknown] = map((s, r, p) -> blackoil_unknown_init(F_rs, s, r, p), sg, rs, p0)
