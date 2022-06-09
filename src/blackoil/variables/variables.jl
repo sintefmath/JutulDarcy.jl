@@ -26,6 +26,15 @@ Base.@kwdef struct BlackOilUnknown{R} <: ScalarVariable
     ds_max::R = 0.2
 end
 
+Jutul.default_value(model, ::BlackOilUnknown) = (NaN, OilAndGas)
+function Jutul.initialize_primary_variable_ad!(state, model, pvar::BlackOilUnknown, symb, npartials; offset, kwarg...)
+    pre = state[symb]
+    vals = map(first, pre)
+    ad_vals = allocate_array_ad(vals, diag_pos = offset + 1, context = model.context, npartials = npartials; kwarg...)
+    state[symb] = map((v, x) -> (v, x[2]), ad_vals, pre)
+    return state
+end
+
 @jutul_secondary function update_as_secondary!(b, ρ::DeckShrinkageFactors, model::SimulationModel{D, StandardBlackOilSystem{T, true, R, F}}, param, Pressure, Rs) where {D, T, R, F}
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
