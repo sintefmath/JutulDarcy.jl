@@ -35,9 +35,15 @@ struct StandardBlackOilSystem{D, W, R, F} <: BlackOilSystem where R<:Real
     rhoLS::R
     rhoVS::R
     function StandardBlackOilSystem(sat; water = true, rhoLS = 1.0, rhoVS = 1.0, formulation::Symbol = :varswitch)
+        formulation = :zg
+        @assert formulation == :varswitch || formulation == :zg
         new{typeof(sat), water, typeof(rhoLS), formulation}(sat, rhoLS, rhoVS)
     end
 end
+
+const BlackOilModelVariableSwitching = SimulationModel{<:Any, StandardBlackOilSystem{D, W, R, :varswitch}, <:Any, <:Any} where {D, W, R}
+const BlackOilModelGasFraction = SimulationModel{<:Any, StandardBlackOilSystem{D, W, R, :zg}, <:Any, <:Any} where {D, W, R}
+const StandardBlackOilModel = SimulationModel{<:Any, <:StandardBlackOilSystem, <:Any, <:Any}
 
 struct ImmiscibleSystem{T} <: MultiPhaseSystem where T<:Tuple
     phases::T

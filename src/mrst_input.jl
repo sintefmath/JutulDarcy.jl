@@ -916,7 +916,7 @@ function init_from_mat(mrst_data, model, param)
             else
                 sg = vec(s[2, :])
             end
-            if false
+            if blackoil_formulation(model.system) == :zg
                 init[:GasMassFraction] = copy(vec(state0["zg"]))
             else
                 rs = vec(state0["rs"])
@@ -1051,7 +1051,7 @@ function setup_case_from_mrst(casename; simple_well = false,
         elseif haskey(init, :Saturations)
             w0[:Saturations] = init[:Saturations][:, res_cells]
         end
-        for sk in [:GassMassFraction, :BlackOilUnknown, :ImmiscibleSaturation]
+        for sk in [:GasMassFraction, :BlackOilUnknown, :ImmiscibleSaturation]
             if haskey(init, sk)
                 w0[sk] = vec(init[sk][res_cells])
             end
