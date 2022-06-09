@@ -3,17 +3,15 @@ import Jutul: replace_value
 function update_primary_variable!(state, pvar::BlackOilUnknown, state_symbol, model, Dx)
     v = state[state_symbol]
     rs_tab = model.system.saturation_table
-    dr_max = 0.25
-    # dr_max = pvar.dr_max
+    dr_max = pvar.dr_max
     ds_max = pvar.ds_max
-    Ε = 1e-4
     ϵ = 1e-4
 
     for i in eachindex(v)
         dx = Dx[i]
         old_x, old_state, was_near_bubble = v[i]
         p = state.Pressure[i]
-        rs_sat = rs_tab(p)
+        rs_sat = rs_tab(value(p))
         if old_state == OilOnly
             abs_rs_max = dr_max*rs_sat
             next_x = old_x + Jutul.choose_increment(value(old_x), dx, abs_rs_max, nothing, 0, nothing)
@@ -27,14 +25,11 @@ function update_primary_variable!(state, pvar::BlackOilUnknown, state_symbol, mo
                 else
                     # We are passing the saturated point, but we were sufficiently far from it that we limit the update
                     # to just before the saturated point.
-                    next_x = replace_value(next_x, rs_sat - ϵ)
+                    next_x = replace_value(next_x, rs_sat*(1 - ϵ))
                     next_state = old_state
                     is_near_bubble = true
                 end
             else
-                if next_x > rs_sat
-                    # next_x = replace_value(next_x, rs_sat)
-                end
                 next_state = old_state
                 is_near_bubble = false
             end
@@ -44,8 +39,7 @@ function update_primary_variable!(state, pvar::BlackOilUnknown, state_symbol, mo
                 if was_near_bubble
                     # Negative saturations - we switch to Rs as the primary variable
                     # @info "$i Switching to undersaturated" value(next_x) value(old_x)
-                    p = state.Pressure[i]
-                    next_x = replace_value(next_x, rs_sat - ϵ)
+                    next_x = replace_value(next_x, rs_sat*(1 - ϵ))
                     next_state = OilOnly
                     is_near_bubble = true
                 else
@@ -58,14 +52,14 @@ function update_primary_variable!(state, pvar::BlackOilUnknown, state_symbol, mo
                 is_near_bubble = false
             end
         end
-        if next_state == OilOnly
-            @assert 0 <= next_x <= rs_sat "$next_x $rs_sat"
-        else
-            @assert 0 <= next_x <= 1 "$next_x"
-        end
-        if old_state != next_state
-            @info "$i $old_state to $next_state" value(next_x) value(old_x) value(rs_sat)
-        end
+        # if next_state == OilOnly
+        #     @assert 0 <= next_x <= rs_sat "$next_x $rs_sat"
+        # else
+        #     @assert 0 <= next_x <= 1 "$next_x"
+        # end
+        # if old_state != next_state
+        #     @info "$i $old_state to $next_state" value(next_x) value(old_x) value(rs_sat) next_x
+        # end
         v[i] = (next_x, next_state, is_near_bubble)
     end
 end
