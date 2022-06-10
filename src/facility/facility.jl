@@ -171,6 +171,7 @@ function update_facility_control_crossterm!(s_buf, t_buf, well_state, rhoS, targ
         else
             S = nothing
         end
+        rhoS = tuple(rhoS...)
         if has_limits
             target = apply_well_limit!(cfg, target, source_model, well_state, well_symbol, rhoS, S, value(q_t), limits)
         end
