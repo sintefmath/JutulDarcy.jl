@@ -18,6 +18,7 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
     old_x, old_state, was_near_bubble = v[i]
     p = pressure[i]
     rs_sat = rs_tab(value(p))
+    keep_bubble = false
     if old_state == OilOnly
         abs_rs_max = dr_max*rs_sat
         next_x = old_x + Jutul.choose_increment(value(old_x), dx, abs_rs_max, nothing, 0, nothing)
@@ -27,7 +28,7 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
                 # @info "$i Switching to saturated" value(next_x) value(old_x) value(rs_sat)
                 next_x = replace_value(next_x, ϵ)
                 next_state = OilAndGas
-                is_near_bubble = true
+                is_near_bubble = keep_bubble
             else
                 # We are passing the saturated point, but we were sufficiently far from it that we limit the update
                 # to just before the saturated point.
@@ -47,7 +48,7 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
                 # @info "$i Switching to undersaturated" value(next_x) value(old_x)
                 next_x = replace_value(next_x, rs_sat*(1 - ϵ))
                 next_state = OilOnly
-                is_near_bubble = true
+                is_near_bubble = keep_bubble
             else
                 next_x = replace_value(next_x, ϵ)
                 next_state = old_state

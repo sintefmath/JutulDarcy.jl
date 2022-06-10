@@ -22,7 +22,7 @@ Jutul.initialize_secondary_variable_ad!(state, model, var::BlackOilPhaseState, a
 struct Rs <: ScalarVariable end
 
 Base.@kwdef struct BlackOilUnknown{R} <: ScalarVariable
-    dr_max::R = 0.2
+    dr_max::R = Inf
     ds_max::R = 0.2
 end
 
