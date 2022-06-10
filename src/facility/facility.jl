@@ -144,7 +144,7 @@ function Jutul.update_cross_term!(ct::InjectiveCrossTerm, eq::ControlEquationWel
     # q_t = facility_surface_mass_rate_for_well(target_model, well_symbol, fstate)
     well_state = source_storage.state
     param = source_storage.parameters
-    rhoS = param[:reference_densities]
+    rhoS = get_reference_densities(source_model, source_storage)# param[:reference_densities]
 
     update_facility_control_crossterm!(ct.crossterm_source, ct.crossterm_target, well_state, rhoS, target_model, source_model, ctrl, well_symbol, fstate)
 end
@@ -418,7 +418,7 @@ end
 function apply_well_limit!(cfg::WellGroupConfiguration, target, wmodel, wstate, well::Symbol, density_s, volume_fraction_s, total_mass_rate, current_lims = current_limits(cfg, well))
     if !isnothing(current_lims)
         ctrl = operating_control(cfg, well)
-        target, changed, current_val, limit_val, lim_type = check_active_limits(ctrl, target, current_lims, wmodel, wstate, well, density_s, volume_fraction_s, total_mass_rate)
+        @timeit "limits" target, changed, current_val, limit_val, lim_type = check_active_limits(ctrl, target, current_lims, wmodel, wstate, well, density_s, volume_fraction_s, total_mass_rate)
         if changed
             old = cfg.operating_controls[well].target
             next = replace_target(ctrl, target)

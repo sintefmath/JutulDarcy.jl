@@ -571,7 +571,7 @@ function model_from_mat_comp(G, mrst_data, res_context)
     
     ## Model parameters
     param = setup_parameters(model)
-    param[:reference_densities] = vec(rhoS)
+    param[:reference_densities] = tuple(rhoS...)
 
     return (model, param)
 end
@@ -615,7 +615,7 @@ function model_from_mat_fluid_immiscible(G, mrst_data, res_context)
     
     ## Model parameters
     param = setup_parameters(model)
-    param[:reference_densities] = vec(rhoS)
+    param[:reference_densities] = tuple(rhoS...)
 
     return (model, param)
 end
@@ -855,7 +855,7 @@ function model_from_mat_deck(G, mrst_data, res_context)
 
     ## Model parameters
     param = setup_parameters(model)
-    param[:reference_densities] = vec(rhoS)
+    param[:reference_densities] = tuple(rhoS...)
 
     return (model, param)
 end
@@ -1038,7 +1038,7 @@ function setup_case_from_mrst(casename; simple_well = false,
         end
         @debug "$sym: Well $i/$num_wells" typeof(ctrl) ci
         param_w = setup_parameters(wi)
-        param_w[:reference_densities] = vec(param_res[:reference_densities])
+        param_w[:reference_densities] = param_res[:reference_densities]
 
         pw = vec(init[:Pressure][res_cells])
         w0 = Dict{Symbol, Any}(:Pressure => pw, :TotalMassFlux => 1e-12)
@@ -1227,9 +1227,9 @@ function mrst_well_ctrl(model, wdata, is_comp, rhoS)
                 ct = comp_i
             end
             if haskey(wdata, "rhoS") && length(wdata["rhoS"]) > 0
-                rhoSw = vec(wdata["rhoS"])
+                rhoSw = tuple(wdata["rhoS"]...)
             else
-                rhoSw = vec(rhoS)
+                rhoSw = rhoS
             end
             rhoS_inj = sum(comp_i.*rhoSw)
             ctrl = InjectorControl(target, ct, density = rhoS_inj, phases = collect(enumerate(comp_i)))

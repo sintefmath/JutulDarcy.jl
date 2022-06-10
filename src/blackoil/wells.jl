@@ -16,7 +16,7 @@ function apply_well_reservoir_sources!(sys::BlackOilSystem, res_q, well_q, state
     rs_w = state_well.Rs
     b_w = state_well.ShrinkageFactors
 
-    rhoS = tuple(param_res[:reference_densities]...)
+    rhoS = param_res[:reference_densities]
 
     perforation_sources_blackoil!(well_q, perforations, val(p_res),         p_well,  val(kr), val(s), val(μ), val(ρ), val(b), val(rs),    ρ_w,      b_w,      s_w,      rs_w,  sgn, rhoS)
     perforation_sources_blackoil!(res_q,  perforations,     p_res,      val(p_well),     kr,      s,     μ,      ρ,      b,      rs, val(ρ_w), val(b_w), val(s_w), val(rs_w), sgn, rhoS)
