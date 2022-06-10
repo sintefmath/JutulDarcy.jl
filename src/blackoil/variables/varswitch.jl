@@ -7,7 +7,7 @@ function update_primary_variable!(state, pvar::BlackOilUnknown, state_symbol, mo
     ds_max = pvar.ds_max
     ϵ = 1e-4
 
-    for i in eachindex(v)
+    @inbounds for i in eachindex(v)
         dx = Dx[i]
         old_x, old_state, was_near_bubble = v[i]
         p = state.Pressure[i]
@@ -78,7 +78,8 @@ function blackoil_unknown_init(F_rs, sg, rs, p)
 end
 
 @jutul_secondary function update_as_secondary!(s, ph::BlackOilPhaseState, model::SimulationModel{D, S}, param, BlackOilUnknown)  where {D, S<:BlackOilVariableSwitchingSystem}
-    for i in eachindex(s)
+    mb = minbatch(model.context)
+    @inbounds @batch minbatch = mb for i in eachindex(s)
         s[i] = BlackOilUnknown[i][2]
     end
 end
@@ -86,7 +87,8 @@ end
 @jutul_secondary function update_as_secondary!(s, sat::Saturations, model::SimulationModel{D, S}, param, BlackOilUnknown, ImmiscibleSaturation) where {D, S<:BlackOilVariableSwitchingSystem}
     @assert size(s, 1) == 3
     T = eltype(s)
-    for i in eachindex(BlackOilUnknown)
+    mb = minbatch(model.context)
+    @inbounds @batch minbatch = mb for i in eachindex(BlackOilUnknown)
         sw = ImmiscibleSaturation[i]
         s[1, i] = sw
         x, phase_state, = BlackOilUnknown[i]
@@ -102,7 +104,8 @@ end
 
 
 @jutul_secondary function update_as_secondary!(rs, ph::Rs, model::SimulationModel{D, S}, param, Pressure, BlackOilUnknown)  where {D, S<:BlackOilVariableSwitchingSystem}
-    for i in eachindex(BlackOilUnknown)
+    mb = minbatch(model.context)
+    @inbounds @batch minbatch = mb for i in eachindex(BlackOilUnknown)
         x, phase_state, = BlackOilUnknown[i]
         if phase_state == OilOnly
             r = x

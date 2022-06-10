@@ -47,9 +47,9 @@ end
     bO = pvt[o]
     bG = pvt[g]
     bW = pvt[w]
-    @batch minbatch = tb for i in 1:nc
-        @inbounds p = Pressure[i]
-        @inbounds rs = Rs[i]
+    @inbounds @batch minbatch = tb for i in 1:nc
+        p = Pressure[i]
+        rs = Rs[i]
         b[w, i] = shrinkage(bW, reg, p, i)
         b[o, i] = shrinkage(bO, reg, p, rs, i)
         b[g, i] = shrinkage(bG, reg, p, i)
@@ -59,7 +59,6 @@ end
 @jutul_secondary function update_as_secondary!(μ, ρ::DeckViscosity, model::SimulationModel{D, StandardBlackOilSystem{T, true, R, F}}, param, Pressure, Rs) where {D, T, R, F}
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
-    tb = minbatch(model.context)
     nph, nc = size(μ)
 
     w = 1
@@ -69,8 +68,8 @@ end
     muO = pvt[o]
     muG = pvt[g]
 
-    # @batch minbatch = tb for i in 1:nc
-    @inbounds for i = 1:nc
+    mb = minbatch(model.context)
+    @inbounds @batch minbatch = mb for i = 1:nc
         p = Pressure[i]
         rs = Rs[i]
         μ[w, i] = viscosity(muW, reg, p, i)
@@ -92,7 +91,8 @@ end
     o = 2
     g = 3
     n = size(rho, 2)
-    @inbounds for i = 1:n
+    mb = minbatch(model.context)
+    @inbounds @batch minbatch = mb for i = 1:n
         rho[w, i] = b[w, i]*rhoWS
         rho[o, i] = b[o, i]*(rhoOS + Rs[i]*rhoGS)
         rho[g, i] = b[g, i]*rhoGS
@@ -109,8 +109,7 @@ end
     tb = minbatch(model.context)
     sys = model.system
     nc = size(totmass, 2)
-    # @batch minbatch = tb for cell = 1:nc
-    for cell = 1:nc
+    @batch minbatch = tb for cell = 1:nc
         @inbounds @views blackoil_mass!(totmass[:, cell], FluidVolume, PhaseMassDensities, Rs, ShrinkageFactors, Saturations, rhoS, cell, (1,2,3))
     end
 end
