@@ -41,7 +41,7 @@ function setup_reservoir_model(reservoir, system; wells = [], context = DefaultC
 end
 
 export setup_reservoir_simulator
-function setup_reservoir_simulator(models, initializer, parameters = nothing; method = :cpr, rtol = 0.005, initial_dt = 3600.0*24.0, target_its = 8, offset_its = 1, kwarg...)
+function setup_reservoir_simulator(models, initializer, parameters = nothing; method = :cpr, rtol = nothing, initial_dt = 3600.0*24.0, target_its = 8, offset_its = 1, kwarg...)
     if isa(models, SimulationModel)
         DT = Dict{Symbol, Any}
         models = DT(:Reservoir => models)

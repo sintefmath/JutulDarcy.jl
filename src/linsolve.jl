@@ -1,5 +1,5 @@
 function reservoir_linsolve(model,  method = :cpr;
-                                    rtol = 0.005,
+                                    rtol = nothing,
                                     v = 0,
                                     provider = Krylov,
                                     solver = Krylov.bicgstab,
@@ -24,13 +24,20 @@ function reservoir_linsolve(model,  method = :cpr;
         if isnothing(max_coarse)
             max_coarse = Int64(ceil(0.05*number_of_cells(model.domain)))
             max_coarse = min(1000, max_coarse)
+            max_coarse = 10
         end
         p_solve = default_psolve(max_coarse = max_coarse, type = amg_type)
         prec = CPRPreconditioner(p_solve, strategy = cpr_type, 
                                  update_interval = update_interval,
                                  partial_update = partial_update)
+        if isnothing(rtol)
+            rtol = 1e-3
+        end
     elseif method == :ilu0
         prec = ILUZeroPreconditioner()
+        if isnothing(rtol)
+            rtol = 0.005
+        end
     else
         return nothing
     end
