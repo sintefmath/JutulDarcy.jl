@@ -272,8 +272,8 @@ function well_target(control::ProducerControl, target::SurfaceVolumeTarget, well
     return w
 end
 
-function well_target_value(q_t, control, target, arg...)
-    v = well_target(control, target, arg...)
+function well_target_value(q_t, control, target, source_model, well_state, rhoS, S)
+    v = well_target(control, target, source_model, well_state, rhoS, S)
     if rate_weighted(target)
         v *= value(q_t)
     end
@@ -509,13 +509,13 @@ function translate_limit(control::InjectorControl, name, val)
     return (target_limit, is_lower)
 end
 
-function check_limit(current_control, target_limit, target, is_lower::Bool, q_t, arg...)
+function check_limit(current_control, target_limit, target, is_lower::Bool, q_t, source_model, well_state, rhoS, S)
     if typeof(target_limit) == typeof(target)
         # We are already operating at this target and there is no need to check.
         ok = true
         current_val = limit_val = NaN
     else
-        current_val = value(well_target_value(q_t, current_control, target_limit, arg...))
+        current_val = value(well_target_value(q_t, current_control, target_limit, source_model, well_state, rhoS, S))
         limit_val = target_limit.value
         ϵ = 1e-6
         if is_lower

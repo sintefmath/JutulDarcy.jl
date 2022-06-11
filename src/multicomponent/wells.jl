@@ -47,6 +47,7 @@ function flash_wellstream_at_surface(well_model::SimulationModel{D, S}, well_sta
 
     volfrac[l] = rem*S_l
     volfrac[v] = rem*S_v
+    rho = tuple(rho...)
     return (rho, volfrac)
 end
 
