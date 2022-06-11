@@ -205,12 +205,6 @@ end
 
 bottom_hole_pressure(ws) = ws.Pressure[1]
 
-function surface_target_phases(target::SurfaceVolumeTarget, phases)
-    return findall(in(lumped_phases(target)), phases)
-end
-
-surface_target_phases(target::TotalRateTarget, phases) = eachindex(phases)
-
 """
 Well target contribution from well itself (disabled, zero value)
 """
