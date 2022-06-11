@@ -270,11 +270,14 @@ end
 
 function get_reference_densities(model, storage)
     prm = storage.parameters
-    T = Jutul.float_type(model.context)
-    ρ = prm.reference_densities
+    return typed_reference_density(prm.reference_densities, model)
+end
+
+typed_reference_density(rhoS::Tuple, model) = rhoS
+function typed_reference_density(ρ, model)
     N = length(ρ)
-    rhos = tuple(ρ...)
-    return rhos::NTuple{N, T}
+    T = Jutul.float_type(model.context)
+    return tuple(ρ...)::NTuple{N, T}
 end
 
 function setup_parameters_system!(d, model, sys::MultiPhaseSystem)
