@@ -7,6 +7,11 @@ function update_primary_variable!(state, pvar::BlackOilUnknown, state_symbol, mo
     ds_max = pvar.ds_max
     pressure = state.Pressure
 
+    update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, pressure)
+end
+
+
+function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, pressure)
     @inbounds for i in eachindex(v)
         dx = Dx[i]
         varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab, pressure)
@@ -16,10 +21,11 @@ end
 Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab, pressure)
     ϵ = 1e-4
     old_x, old_state, was_near_bubble = v[i]
-    p = pressure[i]
-    rs_sat = rs_tab(value(p))
     keep_bubble = false
     if old_state == OilOnly
+        p = pressure[i]
+        rs_sat = rs_tab(value(p))
+    
         abs_rs_max = dr_max*rs_sat
         next_x = old_x + Jutul.choose_increment(value(old_x), dx, abs_rs_max, nothing, 0, nothing)
         if next_x > rs_sat
@@ -45,7 +51,8 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
         if next_x <= 0
             if was_near_bubble
                 # Negative saturations - we switch to Rs as the primary variable
-                # @info "$i Switching to undersaturated" value(next_x) value(old_x)
+                p = pressure[i]
+                rs_sat = rs_tab(value(p))            
                 next_x = replace_value(next_x, rs_sat*(1 - ϵ))
                 next_state = OilOnly
                 is_near_bubble = keep_bubble
