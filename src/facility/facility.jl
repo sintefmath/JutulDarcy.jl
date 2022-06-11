@@ -187,8 +187,8 @@ function update_facility_control_crossterm!(s_buf, t_buf, well_state, rhoS, targ
         t_num = target.value
     end
     scale = target_scaling(target)
-    s_buf[1] = (t_∂w - t_num)/scale
-    t_buf[1] = (t_∂f - t_num)/scale
+    @inbounds s_buf[1] = (t_∂w - t_num)/scale
+    @inbounds t_buf[1] = (t_∂f - t_num)/scale
 end
 
 rate_weighted(t) = true
@@ -252,9 +252,6 @@ Well target contribution from well itself (surface volume, producer)
 """
 function well_target(control::ProducerControl, target::SurfaceVolumeTarget, well_model, well_state, surface_densities, surface_volume_fractions)
     phases = get_phases(well_model.system)
-    positions = surface_target_phases(target, phases)
-
-    @assert length(positions) > 0
     Tw = eltype(surface_volume_fractions)
     # Compute total density at surface conditions by weighting phase volumes at surf
     ρ_tot = zero(Tw)
@@ -263,9 +260,19 @@ function well_target(control::ProducerControl, target::SurfaceVolumeTarget, well
     end
     # Divide by total density to get total volume at surface, then multiply that by surface volume fraction
     w = zero(Tw)
-    for pos in positions
-        V = surface_volume_fractions[pos]
-        w += V
+    if isa(target, TotalRateTarget)
+        for i in eachindex(phases)
+            @inbounds V = surface_volume_fractions[i]
+            w += V
+        end
+    else
+        lp = lumped_phases(target)
+        for (i, ph) in enumerate(phases)
+            if ph in lp
+                @inbounds V = surface_volume_fractions[i]
+                w += V
+            end
+        end
     end
     w = w/ρ_tot
     return w

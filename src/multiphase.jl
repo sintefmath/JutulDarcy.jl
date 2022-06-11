@@ -72,7 +72,7 @@ number_of_components(sys::ImmiscibleSystem) = number_of_phases(sys)
 
 phase_names(system) = get_name.(get_phases(system))
 
-get_phases(sys::SinglePhaseSystem) = [sys.phase]
+get_phases(sys::SinglePhaseSystem) = (sys.phase, )
 number_of_phases(::SinglePhaseSystem) = 1
 
 ## Phases
