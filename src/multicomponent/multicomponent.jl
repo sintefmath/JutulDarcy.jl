@@ -18,11 +18,6 @@ function select_primary_variables_system!(S, domain, system::CompositionalSystem
     end
 end
 
-function select_equations_system!(eqs, domain, system::MultiComponentSystem, formulation)
-    nc = number_of_components(system)
-    eqs[:mass_conservation] = (ConservationLaw, nc)
-end
-
 function select_secondary_variables_system!(S, domain, system::CompositionalSystem, formulation)
     select_default_darcy!(S, domain, system, formulation)
     if has_other_phase(system)
