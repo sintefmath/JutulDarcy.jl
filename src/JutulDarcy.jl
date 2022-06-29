@@ -40,6 +40,7 @@ module JutulDarcy
     import Jutul: setup_forces, setup_state, setup_state!
     import Jutul: declare_pattern
     import Jutul: number_of_equations_per_entity
+    import Jutul: update_equation_in_entity!, local_discretization
     using Jutul
     using ForwardDiff, StaticArrays, SparseArrays, LinearAlgebra, Statistics
     using AlgebraicMultigrid, Krylov
@@ -48,7 +49,7 @@ module JutulDarcy
     using MAT
     using Tullio, LoopVectorization, Polyester, CUDA
     using TimerOutputs
-    using DataStructures
+    import DataStructures: OrderedDict
 
     export reservoir_linsolve, get_1d_reservoir
     include("types.jl")

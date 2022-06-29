@@ -229,7 +229,7 @@ function segment_pressure_drop(f::SegmentWellBoreFrictionHB, v, ρ, μ)
     R, L = f.roughness, f.L
     ΔD = D⁰-Dⁱ
     s = v > 0.0 ? 1.0 : -1.0
-    e = eps(typeof(value(v)))
+    e = 1e-12
     v = s*max(abs(v), e)
     # Scaling - assuming input is total mass rate
     v = v/(π*ρ*((D⁰/2)^2 - (Dⁱ/2)^2))
@@ -257,77 +257,46 @@ function segment_pressure_drop(f::SegmentWellBoreFrictionHB, v, ρ, μ)
 end
 
 
-struct PotentialDropBalanceWell <: JutulEquation
-    # Equation: pot_diff(p) - pot_diff_model(v, p)
-    equation # Differentiated with respect to Velocity
-    equation_cells # Differentiated with respect to Cells
-    function PotentialDropBalanceWell(e::JutulAutoDiffCache, ec::JutulAutoDiffCache)
-        new(e, ec)
-    end
-end
-
-function PotentialDropBalanceWell(model::JutulModel, number_of_equations::Integer; kwarg...)
-    D = model.domain
-    cell_entity = Cells()
-    face_entity = Faces()
-    nf = count_entities(D, face_entity)
-
-    alloc = (n, entity) -> CompactAutoDiffCache(number_of_equations, n, model, entity = entity; kwarg...)
-    # One equation per velocity
-    eq = alloc(nf, face_entity)
-    # Two cells per face -> 2*nf allocated
-    eq_cells = alloc(2*nf, cell_entity)
-
-    PotentialDropBalanceWell(eq, eq_cells)
+struct PotentialDropBalanceWell{T} <: JutulEquation
+    flow_discretization::T
 end
 
 associated_entity(::PotentialDropBalanceWell) = Faces()
 
-function Jutul.declare_pattern(model, e::PotentialDropBalanceWell, ::Cells)
-    # TODO: Fix active.
-    D = model.domain
-    N = D.grid.neighborship
-    nf = number_of_faces(D)
-    m = size(N, 1)
-    @assert size(N, 2) == nf
-    @assert m == 2
-    t = eltype(N)
-    I = Vector{t}()
-    J = Vector{t}()
-    for f in 1:nf
-        for i in 1:m
-            push!(I, f)
-            push!(J, N[i, f])
-        end
-    end
-    return (I, J)
-end
+local_discretization(e::PotentialDropBalanceWell, i) = e.flow_discretization.conn_data[i]
 
-function Jutul.align_to_jacobian!(eq::PotentialDropBalanceWell, jac, model, u::Cells; kwarg...)
-    # Need to align to cells, faces is automatically done since it is on the diagonal bands
-    cache = eq.equation_cells
-    layout = matrix_layout(model.context)
-    N = model.domain.grid.neighborship
-    nc = count_entities(model.domain, u)
-    potential_drop_cells_alignment!(cache, jac, N, layout, nc; kwarg...)
-end
+function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::PotentialDropBalanceWell, model, dt, ldisc = local_discretization(eq, i))
+    p = state.Pressure
+    μ = state.PhaseViscosities
+    V = state.TotalMassFlux
+    densities = state.PhaseMassDensities
+    s = state.Saturations
 
-function potential_drop_cells_alignment!(cache, jac, N, layout, nc; equation_offset = 0, variable_offset = 0)
-    _, ne, np = Jutul.ad_dims(cache)
-    nf = size(N, 2)
-    nu_t = nf
-    nu_s = nc
-    for face in 1:nf
-        for lr = 1:size(N, 1)
-            cellix = N[lr, face]
-            for e in 1:ne
-                for d = 1:np
-                    pos = Jutul.find_jac_position(jac, face + equation_offset, cellix + variable_offset, e, d, nu_t, nu_s, ne, np, layout)
-                    Jutul.set_jacobian_pos!(cache, 2*(face-1) + lr, e, d, pos)
-                end
-            end
-        end
+    @info i ldisc
+
+    (; face, self, other, gdz, face_sign) = ldisc
+    s_self = view(s, :, self)
+    s_other = as_value(view(s, :, other))
+
+    p_self = p[self]
+    p_other = value(p[other])
+
+    ρ_mix_self = mix_by_saturations(s_self, view(densities, :, self))
+    ρ_mix_other = mix_by_saturations(s_other, as_value(view(densities, :, other)))
+
+    Δθ = Jutul.two_point_potential_drop(p_self, p_other, gdz, ρ_mix_self, ρ_mix_other)
+    if Δθ > 0
+        μ_mix = mix_by_saturations(s_self, view(μ, :, self))
+    else
+        μ_mix = mix_by_saturations(s_other, as_value(view(μ, :, other)))
     end
+    v = face_sign*V[face]
+    ρ_mix = 0.5*(ρ_mix_self + ρ_mix_other)
+
+    seg_model = model.domain.grid.segment_models[face]
+    Δp = segment_pressure_drop(seg_model, value(v), ρ_mix, μ_mix)
+
+    eq_buf[] = Δθ + Δp
 end
 
 function update_equation!(eq::PotentialDropBalanceWell, storage, model, dt)
@@ -707,7 +676,7 @@ function select_primary_variables_domain!(S, domain::DiscretizedDomain{G}, syste
 end
 
 function select_equations_domain!(eqs, domain::DiscretizedDomain{G}, system, arg...) where {G<:MultiSegmentWell}
-    eqs[:potential_balance] = (PotentialDropBalanceWell, 1)
+    eqs[:potential_balance] = PotentialDropBalanceWell(domain.discretizations.mass_flow)
 end
 
 function minimum_output_variables(domain::DiscretizedDomain{G}, system::CompositionalSystem, formulation, primary_variables, secondary_variables) where {G<:WellGrid}

@@ -281,7 +281,7 @@ function well_target_value(q_t, control, target, source_model, well_state, rhoS,
 end
 
 
-function Jutul.associated_entity(::ControlEquationWell) Wells() end
+Jutul.associated_entity(::ControlEquationWell) = Wells()
 
 function Jutul.update_equation!(eq::ControlEquationWell, storage, model, dt)
     state = storage.state
@@ -298,24 +298,6 @@ function control_equations!(entries, wells, ctrl, surf_rate)
     end
 end
 
-function Jutul.align_to_jacobian!(eq::ControlEquationWell, jac, model, u::Cells; kwarg...)
-    # Need to align to cells, faces is automatically done since it is on the diagonal bands
-    cache = eq.equation_top_cell
-    layout = matrix_layout(model.context)
-    control_equation_top_cell_alignment!(cache, jac, layout; kwarg...)
-end
-
-function control_equation_top_cell_alignment!(cache, jac, layout; equation_offset = 0, variable_offset = 0)
-    nu, ne, np = ad_dims(cache)
-    cellix = 1
-    for e in 1:ne
-        for d = 1:np
-            pos = find_jac_position(jac, 1 + equation_offset, cellix + variable_offset, e, d, nu, nu, ne, np, layout)
-            set_jacobian_pos!(cache, 1, e, d, pos)
-        end
-    end
-end
-
 # Selection of primary variables
 function select_primary_variables_domain!(S, domain::WellGroup, system, formulation)
     S[:TotalSurfaceMassRate] = TotalSurfaceMassRate()
@@ -323,7 +305,7 @@ end
 
 function select_equations_domain!(eqs, domain::WellGroup, system, arg...)
     # eqs[:potential_balance] = (PotentialDropBalanceWell, 1)
-    eqs[:control_equation] = (ControlEquationWell, 1)
+    eqs[:control_equation] = ControlEquationWell()
 end
 
 function setup_forces(model::SimulationModel{D}; control = nothing, limits = nothing, set_default_limits = true) where {D <: WellGroup}

@@ -231,14 +231,6 @@ struct ControlEquationWell <: JutulEquation
     # Equation:
     #        q_t - target = 0
     #        p|top cell - target = 0
-    # We need to store derivatives with respect to q_t (same entity) and the top cell (other entity)
-    equation::JutulAutoDiffCache
-    function ControlEquationWell(model, number_of_equations; kwarg...)
-        nw = count_entities(model.domain, Wells())
-        alloc = (entity) -> CompactAutoDiffCache(number_of_equations, nw, model, entity = entity; kwarg...)
-        target_well = alloc(Wells())
-        new(target_well)
-    end
 end
 
 struct TotalMassVelocityMassFractionsFlow <: FlowType end
