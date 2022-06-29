@@ -55,7 +55,7 @@ function transfer(context::SingleCUDAContext, grid::MinimalTPFAGrid)
 end
 
 function get_1d_reservoir(nc; L = 1, perm = 9.8692e-14, # 0.1 darcy
-                         poro = 0.1, area = 1, fuse_flux = false,
+                         poro = 0.1, area = 1,
                          z_max = nothing)
     @assert nc > 1 "Must have at least two cells."
     nf = nc-1
@@ -95,12 +95,7 @@ function get_1d_reservoir(nc; L = 1, perm = 9.8692e-14, # 0.1 darcy
         g = gravity_constant
     end
 
-    if fuse_flux
-        ft = DarcyMassMobilityFlowFused()
-    else
-        ft = DarcyMassMobilityFlow()
-    end
-    flow = TwoPointPotentialFlow(SPU(), TPFA(), ft, G, T, z, g)
+    flow = TwoPointPotentialFlowHardCoded(G, T, z, g)
     disc = (mass_flow = flow,)
     D = DiscretizedDomain(G, disc)
     return D

@@ -3,13 +3,13 @@ struct DarcyMassMobilityFlow <: FlowType end
 struct DarcyMassMobilityFlowFused <: FlowType end
 
 
-function select_secondary_variables_flow_type!(S, domain, system, formulation, flow_type::Union{DarcyMassMobilityFlow, DarcyMassMobilityFlowFused})
-    if isa(system, SinglePhaseSystem)
-        S[:RelativePermeabilities] = ConstantVariables([1.0])
-    else
-        S[:RelativePermeabilities] = BrooksCoreyRelPerm(system)
-    end
-end
+# function select_secondary_variables_flow_type!(S, domain, system, formulation, flow_type::Union{DarcyMassMobilityFlow, DarcyMassMobilityFlowFused})
+#     if isa(system, SinglePhaseSystem)
+#         S[:RelativePermeabilities] = ConstantVariables([1.0])
+#     else
+#         S[:RelativePermeabilities] = BrooksCoreyRelPerm(system)
+#     end
+# end
 
 
 function single_unique_potential(model)
@@ -18,7 +18,7 @@ function single_unique_potential(model)
 end
 
 
-function update_half_face_flux!(flux::AbstractArray, state, model, param, dt, flow_disc::TwoPointPotentialFlow{U, K, T}) where {U,K,T<:DarcyMassMobilityFlow}
+function update_half_face_flux!(flux::AbstractArray, state, model, param, dt, flow_disc::TwoPointPotentialFlowHardCoded)
     rho, kr, mu, p = state.PhaseMassDensities, state.RelativePermeabilities, state.PhaseViscosities, state.Pressure
     pc, ref_index = capillary_pressure(model, state)
     conn_data = flow_disc.conn_data

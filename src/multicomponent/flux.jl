@@ -1,7 +1,7 @@
 """
 Half face Darcy flux (Compositional version)
 """
-function update_half_face_flux!(flux::AbstractArray, state, model::SimulationModel{D, S}, param, dt, flow_disc::TwoPointPotentialFlow{U, K, T}) where {D,S<:CompositionalSystem,U,K,T<:DarcyMassMobilityFlow}
+function update_half_face_flux!(flux::AbstractArray, state, model::SimulationModel{D, S}, param, dt, flow_disc::TwoPointPotentialFlowHardCoded) where {D,S<:CompositionalSystem}
     X = state.LiquidMassFractions
     Y = state.VaporMassFractions
     kr = state.RelativePermeabilities
