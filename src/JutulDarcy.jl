@@ -7,7 +7,6 @@ module JutulDarcy
                   select_primary_variables_domain!,
                   initialize_primary_variable_ad!,
                   update_primary_variable!,
-                  select_secondary_variables_flow_type!,
                   select_secondary_variables_system!,
                   select_secondary_variables_domain!,
                   select_secondary_variables_formulation!,
