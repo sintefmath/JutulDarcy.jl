@@ -263,6 +263,7 @@ end
 
 associated_entity(::PotentialDropBalanceWell) = Faces()
 
+# NOTE: Currently wrong. Just for mocking. This one is half face, should be full face.
 local_discretization(e::PotentialDropBalanceWell, i) = e.flow_discretization.conn_data[i]
 
 function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::PotentialDropBalanceWell, model, dt, ldisc = local_discretization(eq, i))
@@ -285,6 +286,7 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
     ρ_mix_other = mix_by_saturations(s_other, as_value(view(densities, :, other)))
 
     Δθ = Jutul.two_point_potential_drop(p_self, p_other, gdz, ρ_mix_self, ρ_mix_other)
+
     if Δθ > 0
         μ_mix = mix_by_saturations(s_self, view(μ, :, self))
     else
@@ -294,7 +296,7 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
     ρ_mix = 0.5*(ρ_mix_self + ρ_mix_other)
 
     seg_model = model.domain.grid.segment_models[face]
-    Δp = segment_pressure_drop(seg_model, value(v), ρ_mix, μ_mix)
+    Δp = segment_pressure_drop(seg_model, v, ρ_mix, μ_mix)
 
     eq_buf[] = Δθ + Δp
 end
