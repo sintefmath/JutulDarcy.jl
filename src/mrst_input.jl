@@ -940,7 +940,7 @@ function setup_case_from_mrst(casename; simple_well = false,
                                         minbatch = 1000,
                                         nthreads = Threads.nthreads(),
                                         kwarg...)
-    G, mrst_data = get_minimal_tpfa_grid_from_mrst(casename, extraout = true, fuse_flux = false; kwarg...)
+    G, mrst_data = get_minimal_tpfa_grid_from_mrst(casename, extraout = true; kwarg...)
 
     # Set up initializers
     models = OrderedDict()

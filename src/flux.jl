@@ -1,16 +1,3 @@
-export DarcyMassMobilityFlow
-struct DarcyMassMobilityFlow <: FlowType end
-struct DarcyMassMobilityFlowFused <: FlowType end
-
-
-# function select_secondary_variables_flow_type!(S, domain, system, formulation, flow_type::Union{DarcyMassMobilityFlow, DarcyMassMobilityFlowFused})
-#     if isa(system, SinglePhaseSystem)
-#         S[:RelativePermeabilities] = ConstantVariables([1.0])
-#     else
-#         S[:RelativePermeabilities] = BrooksCoreyRelPerm(system)
-#     end
-# end
-
 
 function single_unique_potential(model)
     # We should add capillary pressure here ventually

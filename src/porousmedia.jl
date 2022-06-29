@@ -175,12 +175,11 @@ end
 
 export discretized_domain_well
 function discretized_domain_well(W; z = nothing, kwarg...)
-    error()
     if W isa MultiSegmentWell
         if isnothing(z)
             z = vec(W.centers[3, :])
         end
-        flow = TwoPointPotentialFlowHardCoded(SPU(), MixedWellSegmentFlow(), TotalMassVelocityMassFractionsFlow(), W, nothing, z)
+        flow = WellSegmentFlow(W, z)
     else
         @assert W isa SimpleWell
         flow = TwoPointPotentialFlowHardCoded(nothing, nothing, TrivialFlow(), W)
