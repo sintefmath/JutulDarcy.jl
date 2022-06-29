@@ -283,19 +283,9 @@ end
 
 Jutul.associated_entity(::ControlEquationWell) = Wells()
 
-function Jutul.update_equation!(eq::ControlEquationWell, storage, model, dt)
-    state = storage.state
-    ctrl = state.WellGroupConfiguration.operating_controls
-    wells = model.domain.well_symbols
-    surf_rate = state.TotalSurfaceMassRate
-    entries = eq.equation.entries
-    control_equations!(entries, wells, ctrl, surf_rate)
-end
-
-function control_equations!(entries, wells, ctrl, surf_rate)
-    @inbounds for (i, key) in enumerate(wells)
-        entries[i] = 0.0
-    end
+function Jutul.update_equation_in_entity!(v, i, state, state0, eq::ControlEquationWell, model, dt, ldisc = local_discretization(eq, i))
+    # Set to zero, do actual control via cross terms
+    v[] = 0*state.TotalSurfaceMassRate[i]
 end
 
 # Selection of primary variables
