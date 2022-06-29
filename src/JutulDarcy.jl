@@ -39,6 +39,7 @@ module JutulDarcy
     import Jutul: get_dependencies
     import Jutul: setup_forces, setup_state, setup_state!
     import Jutul: declare_pattern
+    import Jutul: number_of_equations_per_entity
     using Jutul
     using ForwardDiff, StaticArrays, SparseArrays, LinearAlgebra, Statistics
     using AlgebraicMultigrid, Krylov

@@ -161,9 +161,11 @@ function select_primary_variables_system!(S, domain, system::ImmiscibleSystem, f
 end
 
 function select_equations_system!(eqs, domain, system::MultiPhaseSystem, formulation)
-    nph = number_of_phases(system)
-    eqs[:mass_conservation] = (ConservationLaw, nph)
+    eqs[:mass_conservation] = ConservationLaw(domain.discretizations.mass_flow)
 end
+
+number_of_equations_per_entity(system::MultiPhaseSystem, e::ConservationLaw) = number_of_components(system)
+number_of_equations_per_entity(system::SinglePhaseSystem, e::ConservationLaw) = 1
 
 export fluid_volume, pore_volume
 pore_volume(model::MultiModel) = pore_volume(reservoir_model(model))
