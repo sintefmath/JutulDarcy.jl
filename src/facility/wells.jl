@@ -267,38 +267,47 @@ associated_entity(::PotentialDropBalanceWell) = Faces()
 local_discretization(e::PotentialDropBalanceWell, i) = e.flow_discretization(i)
 
 function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::PotentialDropBalanceWell, model, dt, ldisc = local_discretization(eq, i))
+    (; face, left, right, gdz) = ldisc
     p = state.Pressure
     μ = state.PhaseViscosities
-    V = state.TotalMassFlux
+    V = state.TotalMassFlux[face]
     densities = state.PhaseMassDensities
     s = state.Saturations
 
     @info i ldisc
 
-    (; face, left, right, gdz) = ldisc
-    s_self = view(s, :, self)
-    s_other = as_value(view(s, :, other))
+    rho_l, mu_l = saturation_mixed(s, densities, μ, left)
+    rho_r, mu_r = saturation_mixed(s, densities, μ, right)
 
-    p_self = p[self]
-    p_other = value(p[other])
-
-    ρ_mix_self = mix_by_saturations(s_self, view(densities, :, self))
-    ρ_mix_other = mix_by_saturations(s_other, as_value(view(densities, :, other)))
-
-    Δθ = Jutul.two_point_potential_drop(p_self, p_other, gdz, ρ_mix_self, ρ_mix_other)
-
+    Δθ = Jutul.two_point_potential_drop(p_self, p_other, gdz, rho_l, rho_r)
     if Δθ > 0
-        μ_mix = mix_by_saturations(s_self, view(μ, :, self))
+        μ_mix = mu_l
     else
-        μ_mix = mix_by_saturations(s_other, as_value(view(μ, :, other)))
+        μ_mix = mu_r
     end
-    v = face_sign*V[face]
-    ρ_mix = 0.5*(ρ_mix_self + ρ_mix_other)
+    rho = 0.5*(rho_l + rho_r)
 
     seg_model = model.domain.grid.segment_models[face]
-    Δp = segment_pressure_drop(seg_model, v, ρ_mix, μ_mix)
+    Δp = segment_pressure_drop(seg_model, V, rho, μ_mix)
 
     eq_buf[] = Δθ + Δp
+end
+
+function saturation_mixed(s, densities, viscosities, ix)
+    nph = size(s, 1)
+    if nph == 1
+        rho = densities[ix]
+        mu = viscosities[ix]
+    else
+        rho = zero(eltype(densities))
+        mu = zero(eltype(viscosities))
+        for ph in 1:nph
+            s = s[ph, ix]
+            rho += densities[ph, ix]*s
+            mu += viscosities[ph, ix]*s
+        end
+    end
+    return (rho, mu)
 end
 
 function update_equation!(eq::PotentialDropBalanceWell, storage, model, dt)
