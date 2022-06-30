@@ -43,27 +43,32 @@ function saturation_mixed(saturations, densities, viscosities, ix)
     return (rho, mu)
 end
 
-function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::ConservationLaw, model, dt, ldisc = local_discretization(eq, i))
-    error()
-    (; face, left, right, gdz) = ldisc
-    μ = state.PhaseViscosities
-    V = state.TotalMassFlux[face]
-    densities = state.PhaseMassDensities
-    s = state.Saturations
+function Jutul.update_equation_in_entity!(eq_buf, self_cell, state, state0, eq::ConservationLaw{<:WellSegmentFlow}, model, dt, ldisc = local_discretization(eq, self_cell))
+    (; cells, faces, signs) = ldisc
 
-    rho_l, mu_l = saturation_mixed(s, densities, μ, left)
-    rho_r, mu_r = saturation_mixed(s, densities, μ, right)
-
-    Δθ = Jutul.two_point_potential_drop(left, right, gdz, rho_l, rho_r)
-    if Δθ > 0
-        μ_mix = mu_l
-    else
-        μ_mix = mu_r
+    mass = state.TotalMasses
+    mass0 = state0.TotalMasses
+    v = state.TotalMassFlux
+    # For each component, compute fractional flow for mass flux + accumulation
+    ncomp = number_of_components(model.system)
+    m_t = component_sum(mass, self_cell)
+    for i in 1:ncomp
+        m_i = mass[i, self_cell]
+        eq_i = (m_i - mass0[i, self_cell])/dt
+        f_i = m_i/m_t
+        for (cell, face, sgn) in zip(cells, faces, signs)
+            v_f = sgn*v[face]
+            f_o = mass[i, cell]/component_sum(mass, cell)
+            eq_i += v_f*upw_flux(v_f, f_i, f_o)
+        end
+        eq_buf[i] = eq_i
     end
-    rho = 0.5*(rho_l + rho_r)
+end
 
-    seg_model = model.domain.grid.segment_models[face]
-    Δp = segment_pressure_drop(seg_model, V, rho, μ_mix)
-
-    eq_buf[] = Δθ + Δp
+function component_sum(mass, i)
+    s = zero(eltype(mass))
+    for c = 1:size(mass, 1)
+        s += mass[c, i]
+    end
+    return s
 end
