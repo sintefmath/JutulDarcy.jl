@@ -255,6 +255,8 @@ struct WellSegmentFlow{C, T<:AbstractVector} <: Jutul.FlowDiscretization
     end
 end
 
+Base.show(io::IO, t::MIME"text/plain", d::WellSegmentFlow) = print(io, "WellSegmentFlow")
+
 function (D::WellSegmentFlow)(i, ::Faces)
     return D.face_discretizations[i]
 end

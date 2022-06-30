@@ -72,6 +72,8 @@ module JutulDarcy
     include("facility/flux.jl")
     include("facility/wells.jl")
     include("facility/facility.jl")
+    include("facility/cross_terms.jl")
+
     include("porousmedia.jl")
     # MRST inputs and test cases that use MRST input
     include("mrst_input.jl")

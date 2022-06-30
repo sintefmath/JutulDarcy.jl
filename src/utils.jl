@@ -50,6 +50,7 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing; me
     end
     # Convert to multi model
     mmodel = reservoir_multimodel(models)
+    setup_reservoir_cross_terms!(mmodel)
     # Set up simulator itself, containing the initial state
     state0 = setup_state(mmodel, initializer)
     sim = Simulator(mmodel, state0 = state0, parameters = deepcopy(parameters))
@@ -62,6 +63,26 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing; me
     cfg = simulator_config(sim, timestep_selectors = [t_base, t_its], linear_solver = lsolve; kwarg...)
 
     return (sim, cfg)
+end
+
+function setup_reservoir_cross_terms!(model::MultiModel)
+    for (k, m) in pairs(model.models)
+        if k == :Reservoir
+            # These are set up from wells via symmetry
+        elseif m.domain isa WellGroup
+            @warn "Fixme"
+        else
+            g = m.domain.grid
+            if g isa WellGrid
+                WI = g.perforations.WI
+                rc = g.perforations.reservoir
+                wc = g.perforations.self
+                # Put these over in cross term
+                ct = ReservoirWellCrossTerm(WI, rc, wc)
+                add_cross_term!(model, ct, target = :Reservoir, source = k, target_equation = :mass_conservation)
+            end
+        end
+    end
 end
 
 function reservoir_multimodel(model::MultiModel)
