@@ -259,6 +259,11 @@ function (D::WellSegmentFlow)(i, ::Faces)
     return D.face_discretizations[i]
 end
 
+function (D::WellSegmentFlow)(i, ::Cells)
+    error()
+    return D.face_discretizations[i]
+end
+
 struct PerforationMask{V} <: JutulForce where V<:AbstractVector
     values::V
     function PerforationMask(v::T) where T<:AbstractVecOrMat

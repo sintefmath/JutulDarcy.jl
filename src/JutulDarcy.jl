@@ -39,7 +39,7 @@ module JutulDarcy
     import Jutul: setup_forces, setup_state, setup_state!
     import Jutul: declare_pattern
     import Jutul: number_of_equations_per_entity
-    import Jutul: update_equation_in_entity!, local_discretization
+    import Jutul: update_equation_in_entity!, local_discretization, discretization
     using Jutul
     using ForwardDiff, StaticArrays, SparseArrays, LinearAlgebra, Statistics
     using AlgebraicMultigrid, Krylov
