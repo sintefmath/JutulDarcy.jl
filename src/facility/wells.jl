@@ -279,7 +279,7 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
     rho_l, mu_l = saturation_mixed(s, densities, μ, left)
     rho_r, mu_r = saturation_mixed(s, densities, μ, right)
 
-    Δθ = Jutul.two_point_potential_drop(p_self, p_other, gdz, rho_l, rho_r)
+    Δθ = Jutul.two_point_potential_drop(left, right, gdz, rho_l, rho_r)
     if Δθ > 0
         μ_mix = mu_l
     else
@@ -293,8 +293,8 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
     eq_buf[] = Δθ + Δp
 end
 
-function saturation_mixed(s, densities, viscosities, ix)
-    nph = size(s, 1)
+function saturation_mixed(saturations, densities, viscosities, ix)
+    nph = size(saturations, 1)
     if nph == 1
         rho = densities[ix]
         mu = viscosities[ix]
@@ -302,7 +302,7 @@ function saturation_mixed(s, densities, viscosities, ix)
         rho = zero(eltype(densities))
         mu = zero(eltype(viscosities))
         for ph in 1:nph
-            s = s[ph, ix]
+            s = saturations[ph, ix]
             rho += densities[ph, ix]*s
             mu += viscosities[ph, ix]*s
         end
