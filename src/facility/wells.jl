@@ -264,17 +264,14 @@ end
 associated_entity(::PotentialDropBalanceWell) = Faces()
 
 # NOTE: Currently wrong. Just for mocking. This one is half face, should be full face.
-local_discretization(e::PotentialDropBalanceWell, i) = e.flow_discretization(i)
+local_discretization(e::PotentialDropBalanceWell, i) = e.flow_discretization(i, Faces())
 
 function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::PotentialDropBalanceWell, model, dt, ldisc = local_discretization(eq, i))
     (; face, left, right, gdz) = ldisc
-    p = state.Pressure
     μ = state.PhaseViscosities
     V = state.TotalMassFlux[face]
     densities = state.PhaseMassDensities
     s = state.Saturations
-
-    @info i ldisc
 
     rho_l, mu_l = saturation_mixed(s, densities, μ, left)
     rho_r, mu_r = saturation_mixed(s, densities, μ, right)

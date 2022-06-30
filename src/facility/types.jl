@@ -233,21 +233,30 @@ struct ControlEquationWell <: JutulEquation
     #        p|top cell - target = 0
 end
 
-struct WellSegmentFlow{T<:AbstractVector} <: Jutul.FlowDiscretization
-    discretizations::T
+struct WellSegmentFlow{C, T<:AbstractVector} <: Jutul.FlowDiscretization
+    cell_discretizations::C
+    face_discretizations::T
+    function WellSegmentFlow(well, z)
+        # Face part
+        N = get_neighborship(well)
+        nf = size(N, 2)
+        nc = number_of_cells(well)
+        function F(i)
+            l = N[1, i]
+            r = N[2, i]
+            gdz =  -gravity_constant*(z[l] - z[r])
+            return (left = l, right = r, gdz = gdz, face = i)
+        end
+        fdisc = map(F, 1:nf)
+
+        # Handle cell part
+        cdisc = Jutul.half_face_map(N, nc)
+        return new{typeof(cdisc), typeof(fdisc)}(cdisc, fdisc)
+    end
 end
 
-function WellSegmentFlow(well, z)
-    N = get_neighborship(well)
-    nf = size(N, 2)
-    function F(i)
-        l = N[1, i]
-        r = N[2, i]
-        gdz =  -gravity_constant*(z[l] - z[r])
-        return (left = l, right = r, gdz = gdz, face = i)
-    end
-    disc = map(F, 1:nf)
-    return WellSegmentFlow(disc)
+function (D::WellSegmentFlow)(i, ::Faces)
+    return D.face_discretizations[i]
 end
 
 struct PerforationMask{V} <: JutulForce where V<:AbstractVector
