@@ -282,7 +282,7 @@ end
 
 
 Jutul.associated_entity(::ControlEquationWell) = Wells()
-
+Jutul.local_discretization(::ControlEquationWell, i) = nothing
 function Jutul.update_equation_in_entity!(v, i, state, state0, eq::ControlEquationWell, model, dt, ldisc = local_discretization(eq, i))
     # Set to zero, do actual control via cross terms
     v[] = 0*state.TotalSurfaceMassRate[i]
