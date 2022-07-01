@@ -73,6 +73,9 @@ function setup_reservoir_cross_terms!(model::MultiModel)
             for target_well in m.domain.well_symbols
                 ct = FacilityWellCrossTerm(target_well)
                 add_cross_term!(model, ct, target = k, source = target_well, target_equation = :control_equation)
+
+                ct = WellFacilityCrossterm(target_well)
+                add_cross_term!(model, ct, target = target_well, source = k, target_equation = :mass_conservation)
             end
         else
             g = m.domain.grid
