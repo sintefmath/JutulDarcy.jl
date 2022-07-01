@@ -41,11 +41,48 @@ function update_cross_term_in_entity!(out, i,
     ct::FacilityWellCrossTerm, eq, dt, ldisc = local_discretization(ct, i))
 
     well_symbol = ct.well
-    tn = well_top_node()
-    pos = get_well_position(facility.domain, well_symbol)
-    qT = state_facility.TotalSurfaceMassRate[pos]
+    # tn = well_top_node()
+    # pos = get_well_position(facility.domain, well_symbol)
 
-    error()
+    cfg = state_facility.WellGroupConfiguration
+    ctrl = operating_control(cfg, well_symbol)
+
+
+    # qT = state_facility.TotalSurfaceMassRate[pos]
+    target = ctrl.target
+    q_t = facility_surface_mass_rate_for_well(facility, well_symbol, state_facility)
+    if isa(target, DisabledTarget)
+        # Early return - no cross term needed.
+        t = q_t + 0*bottom_hole_pressure(state_well)
+        t_num = 0.0
+    else
+        cfg = state_facility.WellGroupConfiguration
+        limits = current_limits(cfg, well_symbol)
+
+        has_limits = !isnothing(limits)
+        is_bhp = isa(target, BottomHolePressureTarget)
+
+        need_rates = isa(ctrl, ProducerControl) && (!is_bhp || has_limits)
+        rhoS = param_w[:reference_densities]
+        if need_rates
+            rhoS, S = flash_wellstream_at_surface(well, state_well, rhoS)
+        else
+            S = nothing
+        end
+        rhoS = tuple(rhoS...)
+        if has_limits
+            target = apply_well_limit!(cfg, target, well, state_well, well_symbol, rhoS, S, value(q_t), limits)
+        end
+        # Compute target value with AD relative to well.
+        t = well_target(ctrl, target, well, state_well, rhoS, S)
+        if rate_weighted(target)
+            t *= value(q_t)
+        end
+        t_num = target.value
+    end
+    scale = target_scaling(target)
+
+    out[] = (t - t_num)/scale
 end
 
 # Facility influence on well
@@ -58,11 +95,37 @@ Jutul.cross_term_entities(ct::WellFacilityCrossterm, eq::ConservationLaw, model)
 function update_cross_term_in_entity!(out, i,
     state_well, state0_well,
     state_facility, state0_facility,
-    facility, well,
+    well, facility,
     param_w, param_f,
     ct::WellFacilityCrossterm, eq, dt, ldisc = local_discretization(ct, i))
 
     well_symbol = ct.well
-    error()
+    pos = get_well_position(facility.domain, well_symbol)
+
+    cfg = state_facility.WellGroupConfiguration
+    ctrl = operating_control(cfg, well_symbol)
+    qT = state_facility.TotalSurfaceMassRate[pos] 
+    # Hack for sparsity detection
+    qT += 0*bottom_hole_pressure(state_well)
+
+    if isa(ctrl, InjectorControl)
+        if value(qT) < 0
+            @warn "Injector $well_symbol is producing?"
+        end
+        mix = ctrl.injection_mixture
+        nmix = length(mix)
+        ncomp = number_of_components(well.system)
+        @assert nmix == ncomp "Injection composition length ($nmix) must match number of components ($ncomp)."
+    else
+        if value(qT) > 0
+            @warn "Producer $well_symbol is injecting?"
+        end
+        masses = state_well.TotalMasses[:, well_top_node()]
+        mass = sum(masses)
+        mix = masses./mass
+    end
+    for i in eachindex(out)
+        out[i] = mix[i]*qT
+    end
 end
 
