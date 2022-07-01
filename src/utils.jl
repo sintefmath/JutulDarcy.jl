@@ -70,7 +70,10 @@ function setup_reservoir_cross_terms!(model::MultiModel)
         if k == :Reservoir
             # These are set up from wells via symmetry
         elseif m.domain isa WellGroup
-            @warn "Fixme"
+            for target_well in m.domain.well_symbols
+                ct = FacilityWellCrossTerm(target_well)
+                add_cross_term!(model, ct, target = k, source = target_well, target_equation = :control_equation)
+            end
         else
             g = m.domain.grid
             if g isa WellGrid

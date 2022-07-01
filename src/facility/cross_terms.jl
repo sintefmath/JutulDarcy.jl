@@ -6,7 +6,8 @@ end
 
 Jutul.symmetry(::ReservoirWellCrossTerm) = Jutul.CTSkewSymmetry()
 
-function update_cross_term_in_entity!(out, i, state_t, state0_t,
+function update_cross_term_in_entity!(out, i,
+    state_t, state0_t,
     state_s, state0_s, 
     model_t, model_s,
     param_t, param_s,
@@ -22,3 +23,21 @@ end
 
 Jutul.cross_term_entities(ct::ReservoirWellCrossTerm, eq::ConservationLaw, model) = ct.reservoir_cells
 Jutul.cross_term_entities_source(ct::ReservoirWellCrossTerm, eq::ConservationLaw, model) = ct.well_cells
+
+
+struct FacilityWellCrossTerm <: Jutul.AdditiveCrossTerm
+    well::Symbol
+end
+
+well_top_node() = 1
+
+Jutul.cross_term_entities(ct::FacilityWellCrossTerm, eq::ControlEquationWell, model) = get_well_position(model.domain, ct.well)
+
+function update_cross_term_in_entity!(out, i,
+    state_facility, state0_facility,
+    state_well, state0_well,
+    facility, well,
+    param_f, param_w,
+    ct::FacilityWellCrossTerm, eq, dt, ldisc = local_discretization(ct, i))
+    error()
+end
