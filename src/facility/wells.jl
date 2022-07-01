@@ -470,6 +470,42 @@ function Jutul.update_cross_term!(ct::InjectiveCrossTerm, eq::ConservationLaw,
     apply_well_reservoir_sources!(sys_t, res_q, well_q, state_res, state_well, param_res, param_well, perforations, 1)
 end
 
+function well_perforation_flux!(out, sys::Union{ImmiscibleSystem, SinglePhaseSystem}, state_res, state_well, rhoS, WI, rc, wc)
+    # Reservoir quantities
+    p_res = state_res.Pressure
+    ρ = state_res.PhaseMassDensities
+    # Extra mobility needed
+    kr = state_res.RelativePermeabilities
+    μ = state_res.PhaseViscosities
+    # Well quantities
+    p_well = state_well.Pressure
+    ρ_w = state_well.PhaseMassDensities
+    # Saturation instead of mobility - use total mobility form
+    s_w = state_well.Saturations
+
+    nph = size(s_w, 1)
+    ρgdz = 0
+    dp = WI*(p_well[wc] - p_res[rc] + ρgdz)
+
+    if dp >= 0
+        # Injection
+        λ_t = 0
+        for ph in 1:nph
+            λ_t += kr[ph, rc]/μ[ph, rc]
+        end
+        Q = λ_t*dp
+        for ph in 1:nph
+            out[ph] = s_w[ph, wc]*ρ_w[ph, wc]*Q
+        end
+    else
+        # Production
+        for ph in 1:nph
+            λ = kr[ph, rc]/μ[ph, rc]
+            out[ph] = λ*ρ[ph, rc]*dp
+        end
+    end
+end
+
 
 function apply_well_reservoir_sources!(sys::Union{ImmiscibleSystem, SinglePhaseSystem}, res_q, well_q, state_res, state_well, param_res, param_well, perforations, sgn)
     p_res = state_res.Pressure
