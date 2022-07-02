@@ -72,10 +72,10 @@ function setup_reservoir_cross_terms!(model::MultiModel)
         elseif m.domain isa WellGroup
             for target_well in m.domain.well_symbols
                 ct = FacilityWellCrossTerm(target_well)
-                add_cross_term!(model, ct, target = k, source = target_well, target_equation = :control_equation)
+                add_cross_term!(model, ct, target = k, source = target_well, equation = :control_equation)
 
                 ct = WellFacilityCrossterm(target_well)
-                add_cross_term!(model, ct, target = target_well, source = k, target_equation = :mass_conservation)
+                add_cross_term!(model, ct, target = target_well, source = k, equation = :mass_conservation)
             end
         else
             g = m.domain.grid
@@ -85,7 +85,7 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                 wc = g.perforations.self
                 # Put these over in cross term
                 ct = ReservoirWellCrossTerm(WI, rc, wc)
-                add_cross_term!(model, ct, target = :Reservoir, source = k, target_equation = :mass_conservation)
+                add_cross_term!(model, ct, target = :Reservoir, source = k, equation = :mass_conservation)
             end
         end
     end
