@@ -1095,6 +1095,8 @@ function setup_case_from_mrst(casename; simple_well = false,
                 gsym = Symbol(string(sym)*string(:_ctrl))
                 add_facility!([sym], gsym)
             end
+        elseif isnothing(facility_grouping)
+            # Do nothing
         else
             error("Unknown grouping $facility_grouping")
         end
