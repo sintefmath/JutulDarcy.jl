@@ -265,7 +265,7 @@ function (D::WellSegmentFlow)(i, ::Cells)
     cd = D.cell_discretizations
     loc = cd.face_pos[i]:(cd.face_pos[i+1]-1)
     faces = @views cd.faces[loc]
-    signs = @views cd.faces[loc]
+    signs = @views cd.face_sign[loc]
     cells = @views cd.cells[loc]
     return (faces = cd.faces[loc], signs = signs, cells = cells)
 end
