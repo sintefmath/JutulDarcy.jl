@@ -179,11 +179,10 @@ function discretized_domain_well(W; z = nothing, kwarg...)
         if isnothing(z)
             z = vec(W.centers[3, :])
         end
-        flow = WellSegmentFlow(W, z)
     else
-        @assert W isa SimpleWell
-        flow = TwoPointPotentialFlowHardCoded(nothing, nothing, TrivialFlow(), W)
+        z = []
     end
+    flow = WellSegmentFlow(W, z)
     disc = (mass_flow = flow,)
     return DiscretizedDomain(W, disc; kwarg...)
 end
