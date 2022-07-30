@@ -495,13 +495,13 @@ function well_perforation_flux!(out, sys::Union{ImmiscibleSystem, SinglePhaseSys
         end
         Q = λ_t*dp
         for ph in 1:nph
-            out[ph] = s_w[ph, wc]*ρ_w[ph, wc]*Q
+            out[ph] = -s_w[ph, wc]*ρ_w[ph, wc]*Q
         end
     else
         # Production
         for ph in 1:nph
             λ = kr[ph, rc]/μ[ph, rc]
-            out[ph] = λ*ρ[ph, rc]*dp
+            out[ph] = -λ*ρ[ph, rc]*dp
         end
     end
 end

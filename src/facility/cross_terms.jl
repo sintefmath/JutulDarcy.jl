@@ -126,7 +126,7 @@ function update_cross_term_in_entity!(out, i,
         mix = masses./mass
     end
     for i in eachindex(out)
-        out[i] = mix[i]*qT
+        out[i] = -mix[i]*qT
     end
 end
 

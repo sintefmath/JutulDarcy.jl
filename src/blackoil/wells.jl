@@ -48,9 +48,9 @@ function well_perforation_flux!(out, sys::BlackOilSystem, state_res, state_well,
         q_l = dp*bO*λ_l*rhoOS
         q_v = dp*(bO*λ_l*rs[rc] + bG*λ_v)*rhoGS
     end
-    out[a] = q_a
-    out[l] = q_l
-    out[v] = q_v
+    out[a] = -q_a
+    out[l] = -q_l
+    out[v] = -q_v
 end
 
 function apply_well_reservoir_sources!(sys::BlackOilSystem, res_q, well_q, state_res, state_well, param_res, param_well, perforations, sgn)
