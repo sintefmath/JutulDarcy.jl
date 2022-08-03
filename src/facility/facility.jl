@@ -501,7 +501,7 @@ function check_limit(current_control, target_limit, target, is_lower::Bool, q_t,
 end
 
 
-function convergence_criterion(model, storage, eq::ControlEquationWell, r; dt = 1)
+function convergence_criterion(model, storage, eq::ControlEquationWell, eq_s, r; dt = 1)
     wells = model.domain.well_symbols
     cfg = storage.state.WellGroupConfiguration
     e = abs.(vec(r))

@@ -35,7 +35,7 @@ function select_secondary_variables_system!(S, domain, system::CompositionalSyst
     S[:Temperature] = ConstantVariables(273.15 + 30.0)
 end
 
-function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw, r; dt = 1) where {D, S<:CompositionalSystem}
+function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw, eq_s, r; dt = 1) where {D, S<:CompositionalSystem}
     tm = storage.state0.TotalMasses
     a = active_entities(model.domain, Cells())
     function scale(i)
@@ -53,7 +53,7 @@ function convergence_criterion(model::SimulationModel{D, S}, storage, eq::Conser
 end
 
 
-function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw, r; dt = 1) where {D, S<:MultiPhaseCompositionalSystemLV}
+function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw, eq_s, r; dt = 1) where {D, S<:MultiPhaseCompositionalSystemLV}
     tm = storage.state0.TotalMasses
 
     sys = model.system

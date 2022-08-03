@@ -78,7 +78,6 @@ function update_cross_term_in_entity!(out, i,
         if rate_weighted(target)
             t *= q_t
         end
-        @info q_t
         t_num = target.value
     end
     scale = target_scaling(target)
