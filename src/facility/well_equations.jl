@@ -2,6 +2,7 @@
 
 Jutul.discretization(e::PotentialDropBalanceWell) = e.flow_discretization
 
+import Jutul: two_point_potential_drop
 function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::PotentialDropBalanceWell, model, dt, ldisc = local_discretization(eq, i))
     (; face, left, right, gdz) = ldisc
     μ = state.PhaseViscosities
@@ -13,17 +14,12 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
     rho_l, mu_l = saturation_mixed(s, densities, μ, left)
     rho_r, mu_r = saturation_mixed(s, densities, μ, right)
 
-    Δθ = Jutul.two_point_potential_drop(p[left], p[right], gdz, rho_l, rho_r)
-    if Δθ > 0
-        μ_mix = mu_l
-    else
-        μ_mix = mu_r
-    end
     rho = 0.5*(rho_l + rho_r)
     μ_mix = 0.5*(mu_l + mu_r)
 
     seg_model = model.domain.grid.segment_models[face]
     Δp = segment_pressure_drop(seg_model, V, rho, μ_mix)
+    Δθ = two_point_potential_drop(p[left], p[right], gdz, rho_l, rho_r)
 
     eq_buf[] = Δθ + Δp
 end
