@@ -265,95 +265,10 @@ associated_entity(::PotentialDropBalanceWell) = Faces()
 
 include("well_equations.jl")
 
-function update_equation!(eq::PotentialDropBalanceWell, storage, model, dt)
-    # Loop over segments, calculate pressure drop, ...
-    W = model.domain.grid
-    state = storage.state
-    nph = number_of_phases(model.system)
-    single_phase = nph == 1
-    if single_phase
-        s = 1.0
-    else
-        s = state.Saturations
-    end
-    p = state.Pressure
-    μ = state.PhaseViscosities
-    V = state.TotalMassFlux
-    densities = state.PhaseMassDensities
-
-    face_entries = get_entries(eq.equation)
-    cell_entries = get_entries(eq.equation_cells)
-
-    mass_flow = model.domain.discretizations.mass_flow
-    conn_data = mass_flow.conn_data
-
-    for cd in conn_data
-        f = cd.face
-        seg = W.segment_models[f]
-        update_dp_eq!(cell_entries, face_entries, cd, p, s, V, μ, densities, W, seg, single_phase)
-    end
-end
-
-function update_dp_eq!(cell_entries, face_entries, cd, p, s, V, μ, densities, W, seg_model, single_phase)
-    gΔz = cd.gdz
-    self = cd.self
-    other = cd.other
-    face = cd.face
-
-    if single_phase
-        s_self, s_other = s, s
-    else
-        s_self = view(s, :, self)
-        s_other = as_value(view(s, :, other))
-    end
-
-    p_self = p[self]
-    p_other = value(p[other])
-
-    ρ_mix_self = mix_by_saturations(s_self, view(densities, :, self))
-    ρ_mix_other = mix_by_saturations(s_other, as_value(view(densities, :, other)))
-
-    Δθ = Jutul.two_point_potential_drop(p_self, p_other, gΔz, ρ_mix_self, ρ_mix_other)
-    if Δθ > 0
-        μ_mix = mix_by_saturations(s_self, view(μ, :, self))
-    else
-        μ_mix = mix_by_saturations(s_other, as_value(view(μ, :, other)))
-    end
-    sgn = cd.face_sign
-    v = sgn*V[face]
-    ρ_mix = 0.5*(ρ_mix_self + ρ_mix_other)
-
-    Δp = segment_pressure_drop(seg_model, value(v), ρ_mix, μ_mix)
-
-    @inline function pot_balance(Δθ, Δp)
-        return (Δθ + Δp)
-    end
-
-    eq = pot_balance(Δθ, Δp)
-    if self == 3
-        # @info "" value(ρ_mix) value(ρ_mix_self) value(ρ_mix_other) value(Δθ) value(gΔz) value(gΔz*0.5*(ρ_mix_self + ρ_mix_other)) value(eq)
-        # error()
-    end
-    if sgn == 1
-        # This is a good time to deal with the derivatives of v[face] since it is already fetched.
-        Δp_f = segment_pressure_drop(seg_model, v, value(ρ_mix), value(μ_mix))
-        eq_f = pot_balance(value(Δθ), Δp_f)
-        @inbounds face_entries[face] = eq_f
-        @inbounds cell_entries[(face-1)*2 + 1] = eq
-    else
-        @inbounds cell_entries[(face-1)*2 + 2] = -eq
-    end
-end
-
 function convergence_criterion(model, storage, eq::PotentialDropBalanceWell, eq_s, r; dt = 1)
     e = [norm(r, Inf)/1e5] # Given as pressure - scale by 1 bar
     R = Dict("AbsMax" => (errors = e, names = "R"))
     return R
-end
-
-function Jutul.update_linearized_system_equation!(nz, r, model, equation::PotentialDropBalanceWell)
-    fill_equation_entries!(nz, r, model, equation.equation)
-    fill_equation_entries!(nz, nothing, model, equation.equation_cells)
 end
 
 
