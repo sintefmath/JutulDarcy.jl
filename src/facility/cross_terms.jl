@@ -45,19 +45,19 @@ function Jutul.prepare_cross_term_in_entity!(i,
     facility, well,
     param_f, param_w,
     ct::FacilityFromWellCT, eq, dt, ldisc = local_discretization(ct, i))
+    # Check the limits before we calculate the cross term. Then, we know the current control
+    # is within limits when it is time to update the cross term itself.
     well_symbol = ct.well
     cfg = state_facility.WellGroupConfiguration
     ctrl = operating_control(cfg, well_symbol)
-
     target = ctrl.target
-    q_t = facility_surface_mass_rate_for_well(facility, well_symbol, state_facility)
     if !isa(target, DisabledTarget)
-        cfg = state_facility.WellGroupConfiguration
         limits = current_limits(cfg, well_symbol)
         if !isnothing(limits)
             rhoS = param_w[:reference_densities]
             rhoS, S = flash_wellstream_at_surface(well, state_well, rhoS)
             rhoS = tuple(rhoS...)
+            q_t = facility_surface_mass_rate_for_well(facility, well_symbol, state_facility)
             apply_well_limit!(cfg, target, well, state_well, well_symbol, rhoS, S, value(q_t), limits)    
         end
     end
@@ -77,11 +77,10 @@ function update_cross_term_in_entity!(out, i,
     target = ctrl.target
     q_t = facility_surface_mass_rate_for_well(facility, well_symbol, state_facility)
     if isa(target, DisabledTarget)
-        # Early return - no cross term needed.
-        t = q_t + 0*bottom_hole_pressure(state_well)
+        # The well should have zero rate. Enforce this by the trivial residual R = q_t = 0
+        t = q_t
         t_num = 0.0
     else
-        cfg = state_facility.WellGroupConfiguration
         need_rates = isa(ctrl, ProducerControl) && !isa(target, BottomHolePressureTarget)
         rhoS = param_w[:reference_densities]
         if need_rates
