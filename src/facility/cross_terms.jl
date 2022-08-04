@@ -45,7 +45,22 @@ function Jutul.prepare_cross_term_in_entity!(i,
     facility, well,
     param_f, param_w,
     ct::FacilityFromWellCT, eq, dt, ldisc = local_discretization(ct, i))
-    error()
+    well_symbol = ct.well
+    cfg = state_facility.WellGroupConfiguration
+    ctrl = operating_control(cfg, well_symbol)
+
+    target = ctrl.target
+    q_t = facility_surface_mass_rate_for_well(facility, well_symbol, state_facility)
+    if !isa(target, DisabledTarget)
+        cfg = state_facility.WellGroupConfiguration
+        limits = current_limits(cfg, well_symbol)
+        if !isnothing(limits)
+            rhoS = param_w[:reference_densities]
+            rhoS, S = flash_wellstream_at_surface(well, state_well, rhoS)
+            rhoS = tuple(rhoS...)
+            apply_well_limit!(cfg, target, well, state_well, well_symbol, rhoS, S, value(q_t), limits)    
+        end
+    end
 end
 
 function update_cross_term_in_entity!(out, i,
@@ -67,12 +82,7 @@ function update_cross_term_in_entity!(out, i,
         t_num = 0.0
     else
         cfg = state_facility.WellGroupConfiguration
-        limits = current_limits(cfg, well_symbol)
-
-        has_limits = !isnothing(limits)
-        is_bhp = isa(target, BottomHolePressureTarget)
-
-        need_rates = isa(ctrl, ProducerControl) && (!is_bhp || has_limits)
+        need_rates = isa(ctrl, ProducerControl) && !isa(target, BottomHolePressureTarget)
         rhoS = param_w[:reference_densities]
         if need_rates
             rhoS, S = flash_wellstream_at_surface(well, state_well, rhoS)
@@ -80,16 +90,13 @@ function update_cross_term_in_entity!(out, i,
             S = nothing
         end
         rhoS = tuple(rhoS...)
-        if has_limits
-            target = apply_well_limit!(cfg, target, well, state_well, well_symbol, rhoS, S, value(q_t), limits)
-        end
-        # Compute target value with AD relative to well.
         t = well_target(ctrl, target, well, state_well, rhoS, S)
         if rate_weighted(target)
             t *= q_t
         end
         t_num = target.value
     end
+    t += 0*bottom_hole_pressure(state_well) + 0*q_t
     scale = target_scaling(target)
     eq = (t - t_num)/scale
     out[] = eq
