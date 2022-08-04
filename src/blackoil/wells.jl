@@ -1,6 +1,4 @@
-function well_perforation_flux!(out, sys::BlackOilSystem, state_res, state_well, rhoS, dp, rc, wc)
-    p_res = state_res.Pressure
-    p_well = state_well.Pressure
+Base.@propagate_inbounds function well_perforation_flux!(out, sys::BlackOilSystem, state_res, state_well, rhoS, dp, rc, wc)
     # Res properties
     μ = state_res.PhaseViscosities
     kr = state_res.RelativePermeabilities

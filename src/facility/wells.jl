@@ -302,7 +302,7 @@ function declare_entities(W::WellGrid)
     return [c, f, p]
 end
 
-function well_perforation_flux!(out, sys::Union{ImmiscibleSystem, SinglePhaseSystem}, state_res, state_well, rhoS, dp, rc, wc)
+Base.@propagate_inbounds function well_perforation_flux!(out, sys::Union{ImmiscibleSystem, SinglePhaseSystem}, state_res, state_well, rhoS, dp, rc, wc)
     # Reservoir quantities
     ρ = state_res.PhaseMassDensities
     # Extra mobility needed
@@ -333,7 +333,7 @@ function well_perforation_flux!(out, sys::Union{ImmiscibleSystem, SinglePhaseSys
     end
 end
 
-function well_perforation_flux!(out, sys::CompositionalSystem, state_res, state_well, rhoS, dp, rc, wc)
+Base.@propagate_inbounds function well_perforation_flux!(out, sys::CompositionalSystem, state_res, state_well, rhoS, dp, rc, wc)
     μ = state_res.PhaseViscosities
     kr = state_res.RelativePermeabilities
     ρ = state_res.PhaseMassDensities
