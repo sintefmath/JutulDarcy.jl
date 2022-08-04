@@ -17,8 +17,14 @@ function update_cross_term_in_entity!(out, i,
     well_cell = ct.well_cells[i]
     WI = ct.WI[i]
     rhoS = param_s[:reference_densities]
+
+    p_well = state_s.Pressure
+    p_res = state_t.Pressure
+    # Todo: Fix conn -> cell pressure drop
+    ρgdz = 0
+    dp = -WI*(p_well[well_cell] - p_res[reservoir_cell] + ρgdz)
     # Call smaller interface that is easy to specialize
-    well_perforation_flux!(out, model_t.system, state_t, state_s, rhoS, WI, reservoir_cell, well_cell)
+    well_perforation_flux!(out, model_t.system, state_t, state_s, rhoS, dp, reservoir_cell, well_cell)
 end
 
 Jutul.cross_term_entities(ct::ReservoirFromWellCT, eq::ConservationLaw, model) = ct.reservoir_cells

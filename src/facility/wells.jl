@@ -302,24 +302,19 @@ function declare_entities(W::WellGrid)
     return [c, f, p]
 end
 
-function well_perforation_flux!(out, sys::Union{ImmiscibleSystem, SinglePhaseSystem}, state_res, state_well, rhoS, WI, rc, wc)
+function well_perforation_flux!(out, sys::Union{ImmiscibleSystem, SinglePhaseSystem}, state_res, state_well, rhoS, dp, rc, wc)
     # Reservoir quantities
-    p_res = state_res.Pressure
     ρ = state_res.PhaseMassDensities
     # Extra mobility needed
     kr = state_res.RelativePermeabilities
     μ = state_res.PhaseViscosities
     # Well quantities
-    p_well = state_well.Pressure
     ρ_w = state_well.PhaseMassDensities
     # Saturation instead of mobility - use total mobility form
     s_w = state_well.Saturations
-
     nph = size(s_w, 1)
-    ρgdz = 0
-    dp = WI*(p_well[wc] - p_res[rc] + ρgdz)
-
-    if dp >= 0
+    # dp is pressure difference from reservoir to well. If it is negative, we are injecting into the reservoir.
+    if dp < 0
         # Injection
         λ_t = 0
         for ph in 1:nph
@@ -327,34 +322,20 @@ function well_perforation_flux!(out, sys::Union{ImmiscibleSystem, SinglePhaseSys
         end
         Q = λ_t*dp
         for ph in 1:nph
-            out[ph] = -s_w[ph, wc]*ρ_w[ph, wc]*Q
+            out[ph] = s_w[ph, wc]*ρ_w[ph, wc]*Q
         end
     else
         # Production
         for ph in 1:nph
             λ = kr[ph, rc]/μ[ph, rc]
-            out[ph] = -λ*ρ[ph, rc]*dp
+            out[ph] = λ*ρ[ph, rc]*dp
         end
     end
 end
 
-function unpack_perf(perf, i)
-    @inbounds si = perf.self[i]
-    @inbounds ri = perf.reservoir[i]
-    @inbounds wi = perf.WI[i]
-    @inbounds gdz = perf.gdz[i]
-    return (si, ri, wi, gdz)
-end
-
-function apply_well_reservoir_sources!(sys::CompositionalSystem, res_q, well_q, state_res, state_well, param_res, param_well, perforations, sgn)
-    p_res = state_res.Pressure
-    p_well = state_well.Pressure
-
-    val = x -> local_ad(x, nothing)
-
+function well_perforation_flux!(out, sys::CompositionalSystem, state_res, state_well, rhoS, dp, rc, wc)
     μ = state_res.PhaseViscosities
     kr = state_res.RelativePermeabilities
-    sr = state_res.Saturations
     ρ = state_res.PhaseMassDensities
     X = state_res.LiquidMassFractions
     Y = state_res.VaporMassFractions
@@ -363,93 +344,48 @@ function apply_well_reservoir_sources!(sys::CompositionalSystem, res_q, well_q, 
     s_w = state_well.Saturations
     X_w = state_well.LiquidMassFractions
     Y_w = state_well.VaporMassFractions
-    μ_w = state_well.PhaseViscosities
 
-    phase_ix = phase_indices(sys)
-    perforation_sources_comp!(well_q, perforations, val(p_res),     p_well,  val(kr), val(sr),val(μ), val(ρ), val(X), val(Y),    ρ_w,      s_w,      μ_w,      X_w,      Y_w, phase_ix, sgn)
-    perforation_sources_comp!(res_q,  perforations,     p_res,  val(p_well),     kr,  sr,         μ,      ρ,      X,      Y, val(ρ_w), val(s_w), val(μ_w), val(X_w), val(Y_w), phase_ix, sgn)
-end
-
-function perforation_sources_comp!(target, perf, p_res, p_well, kr, s_r, μ, ρ_r, X, Y, ρ_w, s_w, μ_w, X_w, Y_w, phase_ix, sgn)
-    # (self -> local cells, reservoir -> reservoir cells, WI -> connection factor)
     nc = size(X, 1)
     nph = size(μ, 1)
     has_water = nph == 3
+    phase_ix = phase_indices(sys)
+
     if has_water
         A, L, V = phase_ix
     else
         L, V = phase_ix
     end
-
-    @inbounds for i in eachindex(perf.self)
-        wb_cell, res_cell, wi, gdz = unpack_perf(perf, i)
-        mob(phase) = kr[phase, res_cell]/μ[phase, res_cell]
-        λ_l = mob(L)
-        λ_v = mob(V)
-        @inbounds if has_water
-            λ_a = mob(A)
-        else
-            λ_a = zero(λ_l)
+    # dp is pressure difference from reservoir to well. If it is negative, we are injecting into the reservoir.
+    mob(ph) = kr[ph, rc]/μ[ph, rc]
+    if dp < 0
+        # Injection
+        λ_t = 0
+        for ph in 1:nph
+            λ_t += mob(ph)
         end
-        λ_t = λ_l + λ_v + λ_a
-        @inbounds dp = p_well[wb_cell] - p_res[res_cell]# + ρgdz
-        mass_flux(phase, λ) = compositional_well_flux(wi, dp, gdz, s_r, s_w, λ_t, λ, ρ_r, ρ_w, phase, wb_cell, res_cell, sgn)
-
-        q_l, l_inj = mass_flux(L, λ_l)
-        X_upw, l_c = pick_upwind_matrix((X_w, wb_cell), (X, res_cell), l_inj)
-
-        q_v, v_inj = mass_flux(V, λ_v)
-        Y_upw, v_c = pick_upwind_matrix((Y_w, wb_cell), (Y, res_cell), v_inj)
-
-        @inbounds for c in 1:nc
-            target[c, i] = q_l*X_upw[c, l_c] + q_v*Y_upw[c, v_c]
-        end
-        if has_water
-            q_a, = mass_flux(A, λ_a)
-            target[nc+1, i] = q_a
-        end
-    end
-end
-
-function pick_upwind_matrix(X_up, X_down, inj)
-    if inj
-        return X_up
+        Q = λ_t*dp
+        phase_mass_flux = ph -> ρ_w[ph, wc]*s_w[ph, wc]*Q
+        Q_l = phase_mass_flux(L)
+        Q_v = phase_mass_flux(V)
+        X_upw = X_w
+        Y_upw = Y_w
+        cell_upw = wc
     else
-        return X_down
+        phase_mass_flux = ph -> ρ[ph, rc]*mob(ph)*dp
+        X_upw = X
+        Y_upw = Y
+        cell_upw = rc
+    end
+    Q_l = phase_mass_flux(L)
+    Q_v = phase_mass_flux(V)
+
+    @inbounds for c in 1:nc
+        out[c] = Q_l*X_upw[c, cell_upw] + Q_v*Y_upw[c, cell_upw]
+    end
+    if has_water
+        out[nc+1] = phase_mass_flux(A)
     end
 end
-
-function compositional_well_flux(wi, dp, gdz, s_r, s_w, λ_t, λ, ρ_r, ρ_w, ph, wb_cell, res_cell, sgn)
-    Ψ, is_inj = compositional_phase_mass_rate(wi, dp, gdz, s_r, s_w, ρ_r, ρ_w, ph, wb_cell, res_cell)
-    if is_inj
-        S = s_w[ph, wb_cell]
-        q = λ_t*Ψ*S
-    else
-        q = λ*Ψ
-    end
-    return (sgn*q, is_inj)
-end
-
-
-function compositional_phase_mass_rate(wi, dp, gdz, S_r, S_w, ρ_r, ρ_w, ph, si, ri)
-    s_wb = S_w[ph, si]
-    s_res = S_r[ph, ri]
-
-    ρ_wb = ρ_w[ph, si]
-    ρ_res = ρ_r[ph, ri]
-
-    ρ = (ρ_res*s_res + ρ_wb*s_wb)/max(s_res + s_wb, 1e-12)
-    Ψ = wi*(dp + ρ*gdz)
-    injecting = Ψ > 0
-    if injecting
-        q = ρ_wb*Ψ
-    else
-        q = ρ_res*Ψ
-    end
-    return (q, injecting)
-end
-
-
 
 # Selection of primary variables
 function select_primary_variables_domain!(S, domain::DiscretizedDomain{G}, system, formulation) where {G<:MultiSegmentWell}

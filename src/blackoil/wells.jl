@@ -1,30 +1,25 @@
-function well_perforation_flux!(out, sys::BlackOilSystem, state_res, state_well, rhoS, WI, rc, wc)
+function well_perforation_flux!(out, sys::BlackOilSystem, state_res, state_well, rhoS, dp, rc, wc)
     p_res = state_res.Pressure
     p_well = state_well.Pressure
-
-
+    # Res properties
     μ = state_res.PhaseViscosities
     kr = state_res.RelativePermeabilities
     ρ = state_res.PhaseMassDensities
     rs = state_res.Rs
     b = state_res.ShrinkageFactors
-    # s = state_res.Saturations
-
+    # Well properties
     ρ_w = state_well.PhaseMassDensities
     s_w = state_well.Saturations
     rs_w = state_well.Rs
     b_w = state_well.ShrinkageFactors
-    # TODO: Fix the pressure drop
-    ρgdz = 0
     a, l, v = 1, 2, 3
-    dp = WI*(p_well[wc] - p_res[rc] + ρgdz)
     λ_a = kr[a, rc]/μ[a, rc]
     λ_l = kr[l, rc]/μ[l, rc]
     λ_v = kr[v, rc]/μ[v, rc]
     rhoOS = rhoS[l]
     rhoGS = rhoS[v]
 
-    if dp >= 0
+    if dp < 0
         # Injection
         λ_t = λ_a + λ_l + λ_v
         Q = λ_t*dp
@@ -48,9 +43,9 @@ function well_perforation_flux!(out, sys::BlackOilSystem, state_res, state_well,
         q_l = dp*bO*λ_l*rhoOS
         q_v = dp*(bO*λ_l*rs[rc] + bG*λ_v)*rhoGS
     end
-    out[a] = -q_a
-    out[l] = -q_l
-    out[v] = -q_v
+    out[a] = q_a
+    out[l] = q_l
+    out[v] = q_v
 end
 
 function apply_well_reservoir_sources!(sys::BlackOilSystem, res_q, well_q, state_res, state_well, param_res, param_well, perforations, sgn)
