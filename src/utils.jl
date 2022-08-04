@@ -80,9 +80,9 @@ function setup_reservoir_cross_terms!(model::MultiModel)
         else
             g = m.domain.grid
             if g isa WellGrid
-                WI = g.perforations.WI
-                rc = g.perforations.reservoir
-                wc = g.perforations.self
+                WI = vec(g.perforations.WI)
+                rc = vec(g.perforations.reservoir)
+                wc = vec(g.perforations.self)
                 # Put these over in cross term
                 ct = ReservoirFromWellCT(WI, rc, wc)
                 add_cross_term!(model, ct, target = :Reservoir, source = k, equation = :mass_conservation)

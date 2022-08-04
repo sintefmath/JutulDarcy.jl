@@ -39,6 +39,15 @@ well_top_node() = 1
 
 Jutul.cross_term_entities(ct::FacilityFromWellCT, eq::ControlEquationWell, model) = get_well_position(model.domain, ct.well)
 
+function Jutul.prepare_cross_term_in_entity!(i,
+    state_facility, state0_facility,
+    state_well, state0_well,
+    facility, well,
+    param_f, param_w,
+    ct::FacilityFromWellCT, eq, dt, ldisc = local_discretization(ct, i))
+    error()
+end
+
 function update_cross_term_in_entity!(out, i,
     state_facility, state0_facility,
     state_well, state0_well,
@@ -47,14 +56,9 @@ function update_cross_term_in_entity!(out, i,
     ct::FacilityFromWellCT, eq, dt, ldisc = local_discretization(ct, i))
 
     well_symbol = ct.well
-    # tn = well_top_node()
-    # pos = get_well_position(facility.domain, well_symbol)
-
     cfg = state_facility.WellGroupConfiguration
     ctrl = operating_control(cfg, well_symbol)
 
-
-    # qT = state_facility.TotalSurfaceMassRate[pos]
     target = ctrl.target
     q_t = facility_surface_mass_rate_for_well(facility, well_symbol, state_facility)
     if isa(target, DisabledTarget)
