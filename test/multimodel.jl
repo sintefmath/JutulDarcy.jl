@@ -188,10 +188,9 @@ function test_perforation_mask()
     pmask = PerforationMask([1.0, 0.0])
     forces[:Producer] = setup_forces(model.models[:Producer], mask = pmask)
     ## Simulate
-    sim, config = setup_reservoir_simulator(model, state0, parameters, info_level = 1)
+    sim, config = setup_reservoir_simulator(model, state0, parameters, info_level = -1)
     states, reports = simulate!(sim, dt, forces = forces, config = config);
     v = states[1][:Producer][:TotalMassFlux]
-    @info v
     @testset "Perforation mask" begin
         @test abs(v[2]) < 1e-10
         @test abs(v[1]) > 1e-4
