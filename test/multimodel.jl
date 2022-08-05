@@ -171,7 +171,7 @@ function test_perforation_mask()
     rhoS = [rhoLS, rhoGS]
     c = [1e-6/bar, 1e-4/bar]
     ρ = ConstantCompressibilityDensities(p_ref = 1*bar, density_ref = rhoS, compressibility = c)
-    model, parameters = setup_reservoir_model(g, sys, wells = [I, P], reference_densities = rhoS)
+    model, parameters = setup_reservoir_model(g, sys, wells = [P], reference_densities = rhoS)
     replace_variables!(model, PhaseMassDensities = ρ)
     ## Set up initial state
     state0 = setup_reservoir_state(model, Pressure = 150*bar, Saturations = [1.0, 0.0])
