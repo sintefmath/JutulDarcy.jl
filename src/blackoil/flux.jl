@@ -1,7 +1,7 @@
 """
 Half face Darcy flux (Blackoil version)
 """
-function update_half_face_flux!(flux::AbstractArray, state, model::SimulationModel{D, S}, param, dt, flow_disc::TwoPointPotentialFlow{U, K, T}) where {D,S<:BlackOilSystem,U,K,T<:DarcyMassMobilityFlow}
+function update_half_face_flux!(flux::AbstractArray, state, model::SimulationModel{D, S}, param, dt, flow_disc::TwoPointPotentialFlowHardCoded) where {D,S<:BlackOilSystem}
     Rs = state.Rs
     kr = state.RelativePermeabilities
     μ = state.PhaseViscosities

@@ -93,7 +93,7 @@ function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout 
         z = [ref_depth]
         W = SimpleWell(rc, WI = WI, dz = dz, volume = well_volume)
         # wmodel = SimulationModel(W, system; kwarg...)
-        # flow = TwoPointPotentialFlow(nothing, nothing, TrivialFlow(), W)
+        # flow = TwoPointPotentialFlowHardCoded(nothing, nothing, TrivialFlow(), W)
         reservoir_cells = [rc[1]]
     else
         if haskey(W_mrst, "isMS") && W_mrst["isMS"]
@@ -140,7 +140,7 @@ function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout 
             pvol, accumulator_volume, perf_cells, well_topo, z, dz, reservoir_cells = simple_ms_setup(n, volume, well_cell_volume, rc, ref_depth, z_res)
         end
         W = MultiSegmentWell(rc, pvol, centers, WI = WI, reference_depth = ref_depth, dz = dz, N = well_topo, perforation_cells = perf_cells, accumulator_volume = accumulator_volume)
-        # flow = TwoPointPotentialFlow(SPU(), MixedWellSegmentFlow(), TotalMassVelocityMassFractionsFlow(), W, nothing, z)
+        # flow = TwoPointPotentialFlowHardCoded(SPU(), MixedWellSegmentFlow(), TotalMassVelocityMassFractionsFlow(), W, nothing, z)
     end
     # disc = (mass_flow = flow,)
     W_domain = discretized_domain_well(W, z = z)
@@ -167,9 +167,9 @@ function simple_ms_setup(n, volume, well_cell_volume, rc, ref_depth, z_res)
     return (pvol, accumulator_volume, perf_cells, well_topo, z, dz, reservoir_cells)
 end
 
-function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", context = "cpu", timesteps = [1.0, 2.0], pvfrac = 0.05, fuse_flux = false, kwarg...)
+function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", context = "cpu", timesteps = [1.0, 2.0], pvfrac = 0.05, kwarg...)
     if isa(mesh_or_casename, String)
-        G, mrst_data = get_minimal_tpfa_grid_from_mrst(mesh_or_casename, extraout = true, fuse_flux = fuse_flux)
+        G, mrst_data = get_minimal_tpfa_grid_from_mrst(mesh_or_casename, extraout = true)
         mesh = MRSTWrapMesh(mrst_data["G"])
     else
         mesh = mesh_or_casename
@@ -940,13 +940,14 @@ function setup_case_from_mrst(casename; simple_well = false,
                                         minbatch = 1000,
                                         nthreads = Threads.nthreads(),
                                         kwarg...)
-    G, mrst_data = get_minimal_tpfa_grid_from_mrst(casename, extraout = true, fuse_flux = false; kwarg...)
+    G, mrst_data = get_minimal_tpfa_grid_from_mrst(casename, extraout = true; kwarg...)
 
     # Set up initializers
     models = OrderedDict()
     initializer = Dict()
     forces = Dict()
-    
+    cross_terms = []
+
     res_context, = Jutul.select_contexts(backend, block_backend = block_backend, minbatch = minbatch, nthreads = nthreads)
     model, param_res = model_from_mat(G, mrst_data, res_context)
     init = init_from_mat(mrst_data, model, param_res)
@@ -1094,6 +1095,8 @@ function setup_case_from_mrst(casename; simple_well = false,
                 gsym = Symbol(string(sym)*string(:_ctrl))
                 add_facility!([sym], gsym)
             end
+        elseif isnothing(facility_grouping)
+            # Do nothing
         else
             error("Unknown grouping $facility_grouping")
         end

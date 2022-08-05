@@ -148,7 +148,6 @@ export discretized_domain_tpfv_flow
 function discretized_domain_tpfv_flow(geometry; porosity = 0.1, 
                                                 permeability = 9.869232667160131e-14, # 100 mD 
                                                 T = nothing,
-                                                fuse_flux = false,
                                                 gravity = true,
                                                 pore_volume = nothing)
     N = geometry.neighbors
@@ -169,12 +168,7 @@ function discretized_domain_tpfv_flow(geometry; porosity = 0.1,
         g = nothing
     end
 
-    if fuse_flux
-        ft = DarcyMassMobilityFlowFused()
-    else
-        ft = DarcyMassMobilityFlow()
-    end
-    flow = TwoPointPotentialFlow(SPU(), TPFA(), ft, G, T, z, g, ncells = length(pore_volume))
+    flow = TwoPointPotentialFlowHardCoded(G, T, z, g, ncells = length(pore_volume))
     disc = (mass_flow = flow,)
     return DiscretizedDomain(G, disc)
 end
@@ -185,11 +179,10 @@ function discretized_domain_well(W; z = nothing, kwarg...)
         if isnothing(z)
             z = vec(W.centers[3, :])
         end
-        flow = TwoPointPotentialFlow(SPU(), MixedWellSegmentFlow(), TotalMassVelocityMassFractionsFlow(), W, nothing, z)
     else
-        @assert W isa SimpleWell
-        flow = TwoPointPotentialFlow(nothing, nothing, TrivialFlow(), W)
+        z = []
     end
+    flow = WellSegmentFlow(W, z)
     disc = (mass_flow = flow,)
     return DiscretizedDomain(W, disc; kwarg...)
 end

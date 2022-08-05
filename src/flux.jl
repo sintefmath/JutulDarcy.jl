@@ -1,33 +1,11 @@
-export DarcyMassMobilityFlow
-struct DarcyMassMobilityFlow <: FlowType end
-struct DarcyMassMobilityFlowFused <: FlowType end
-
-
-function select_secondary_variables_flow_type!(S, domain, system, formulation, flow_type::Union{DarcyMassMobilityFlow, DarcyMassMobilityFlowFused})
-    if isa(system, SinglePhaseSystem)
-        S[:RelativePermeabilities] = ConstantVariables([1.0])
-    else
-        S[:RelativePermeabilities] = BrooksCoreyRelPerm(system)
-    end
-end
-
 
 function single_unique_potential(model)
     # We should add capillary pressure here ventually
     return model.domain.discretizations.mass_flow.gravity
 end
 
-"""
-Half face Darcy flux with separate potential.
-"""
-function update_half_face_flux!(law::ConservationLaw, storage, model, dt, flow_type)
-    state = storage.state
-    param = storage.parameters
-    flux = get_entries(law.half_face_flux_cells)
-    update_half_face_flux!(flux, state, model, param, dt, flow_type)
-end
 
-function update_half_face_flux!(flux::AbstractArray, state, model, param, dt, flow_disc::TwoPointPotentialFlow{U, K, T}) where {U,K,T<:DarcyMassMobilityFlow}
+function update_half_face_flux!(flux::AbstractArray, state, model, param, dt, flow_disc::TwoPointPotentialFlowHardCoded)
     rho, kr, mu, p = state.PhaseMassDensities, state.RelativePermeabilities, state.PhaseViscosities, state.Pressure
     pc, ref_index = capillary_pressure(model, state)
     conn_data = flow_disc.conn_data

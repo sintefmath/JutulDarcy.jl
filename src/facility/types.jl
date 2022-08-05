@@ -231,18 +231,46 @@ struct ControlEquationWell <: JutulEquation
     # Equation:
     #        q_t - target = 0
     #        p|top cell - target = 0
-    # We need to store derivatives with respect to q_t (same entity) and the top cell (other entity)
-    equation::JutulAutoDiffCache
-    function ControlEquationWell(model, number_of_equations; kwarg...)
-        nw = count_entities(model.domain, Wells())
-        alloc = (entity) -> CompactAutoDiffCache(number_of_equations, nw, model, entity = entity; kwarg...)
-        target_well = alloc(Wells())
-        new(target_well)
+end
+
+struct WellSegmentFlow{C, T<:AbstractVector} <: Jutul.FlowDiscretization
+    cell_discretizations::C
+    face_discretizations::T
+    function WellSegmentFlow(well, z)
+        # Face part
+        N = get_neighborship(well)
+        nf = size(N, 2)
+        nc = number_of_cells(well)
+        function F(i)
+            l = N[1, i]
+            r = N[2, i]
+            gdz =  -gravity_constant*(z[l] - z[r])
+            return (left = l, right = r, gdz = gdz, face = i)
+        end
+        fdisc = map(F, 1:nf)
+
+        # Handle cell part
+        cdisc = Jutul.half_face_map(N, nc)
+        return new{typeof(cdisc), typeof(fdisc)}(cdisc, fdisc)
     end
 end
 
-struct TotalMassVelocityMassFractionsFlow <: FlowType end
+Base.show(io::IO, t::MIME"text/plain", d::WellSegmentFlow) = print(io, "WellSegmentFlow")
 
+function (D::WellSegmentFlow)(i, ::Faces)
+    return D.face_discretizations[i]
+end
+
+function (D::WellSegmentFlow)(i, ::Cells)
+    cd = D.cell_discretizations
+    loc = cd.face_pos[i]:(cd.face_pos[i+1]-1)
+    faces = @views cd.faces[loc]
+    signs = @views cd.face_sign[loc]
+    cells = @views cd.cells[loc]
+    return (faces = cd.faces[loc], signs = signs, cells = cells)
+end
+
+export PerforationMask
 struct PerforationMask{V} <: JutulForce where V<:AbstractVector
     values::V
     function PerforationMask(v::T) where T<:AbstractVecOrMat

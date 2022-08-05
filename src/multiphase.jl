@@ -161,9 +161,11 @@ function select_primary_variables_system!(S, domain, system::ImmiscibleSystem, f
 end
 
 function select_equations_system!(eqs, domain, system::MultiPhaseSystem, formulation)
-    nph = number_of_phases(system)
-    eqs[:mass_conservation] = (ConservationLaw, nph)
+    eqs[:mass_conservation] = ConservationLaw(domain.discretizations.mass_flow)
 end
+
+number_of_equations_per_entity(system::MultiPhaseSystem, e::ConservationLaw) = number_of_components(system)
+number_of_equations_per_entity(system::SinglePhaseSystem, e::ConservationLaw) = 1
 
 export fluid_volume, pore_volume
 pore_volume(model::MultiModel) = pore_volume(reservoir_model(model))
@@ -250,7 +252,7 @@ function insert_phase_sources!(acc::CuArray, model, kr, mu, rhoS, sources)
     @tullio acc[ph, ix[i]] = acc[ph, ix[i]] - phase_source(sources[i].cell, sources[i], rhoS[ph], kr, mu, ph)
 end
 
-function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw, r; dt = 1) where {D, S<:MultiPhaseSystem}
+function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw, eq_s, r; dt = 1) where {D, S<:MultiPhaseSystem}
     M = global_map(model.domain)
     v = x -> Jutul.active_view(x, M, for_variables = false)
     Φ = v(storage.state.FluidVolume)

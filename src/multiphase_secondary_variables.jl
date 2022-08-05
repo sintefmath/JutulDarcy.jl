@@ -25,6 +25,11 @@ function select_default_darcy!(S, domain, system, formulation)
     S[:PhaseViscosities] = ConstantVariables(1e-3*ones(nph), Cells()) # 1 cP for all phases by default
     fv = fluid_volume(domain)
     S[:FluidVolume] = ConstantVariables(fv, Cells(), single_entity = length(fv) == 1)
+    if isa(system, SinglePhaseSystem) || isa(domain.grid, WellGrid)
+        S[:RelativePermeabilities] = ConstantVariables([1.0])
+    else
+        S[:RelativePermeabilities] = BrooksCoreyRelPerm(system)
+    end
 end
 
 minimum_output_variables(system::MultiPhaseSystem, primary_variables) = [:TotalMasses]

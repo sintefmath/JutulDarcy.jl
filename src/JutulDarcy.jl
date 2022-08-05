@@ -7,7 +7,6 @@ module JutulDarcy
                   select_primary_variables_domain!,
                   initialize_primary_variable_ad!,
                   update_primary_variable!,
-                  select_secondary_variables_flow_type!,
                   select_secondary_variables_system!,
                   select_secondary_variables_domain!,
                   select_secondary_variables_formulation!,
@@ -39,6 +38,8 @@ module JutulDarcy
     import Jutul: get_dependencies
     import Jutul: setup_forces, setup_state, setup_state!
     import Jutul: declare_pattern
+    import Jutul: number_of_equations_per_entity
+    import Jutul: update_equation_in_entity!, update_cross_term_in_entity!, local_discretization, discretization
     using Jutul
     using ForwardDiff, StaticArrays, SparseArrays, LinearAlgebra, Statistics
     using AlgebraicMultigrid, Krylov
@@ -47,7 +48,7 @@ module JutulDarcy
     using MAT
     using Tullio, LoopVectorization, Polyester, CUDA
     using TimerOutputs
-    using DataStructures
+    import DataStructures: OrderedDict
 
     export reservoir_linsolve, get_1d_reservoir
     include("types.jl")
@@ -66,11 +67,8 @@ module JutulDarcy
     include("blackoil/blackoil.jl")
 
     # Wells etc.
-    include("facility/types.jl")
-
-    include("facility/flux.jl")
-    include("facility/wells.jl")
     include("facility/facility.jl")
+
     include("porousmedia.jl")
     # MRST inputs and test cases that use MRST input
     include("mrst_input.jl")
