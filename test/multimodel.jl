@@ -152,5 +152,51 @@ function test_immiscible_with_wells()
     end
 end
 
+using JutulDarcy, Test
+function test_perforation_mask()
+    nx = 3
+    ny = 1
+    nz = 2
+    day = 3600*24
+    bar = 1e5
+    dims = (nx, ny, nz)
+    g = CartesianMesh(dims, (2000.0, 1500.0, 50.0))
+    Darcy = 9.869232667160130e-13
+    K = repeat([0.65*Darcy], nx*ny*nz)
+    P = setup_vertical_well(g, K, 1, 1, name = :Producer);
+    phases = (LiquidPhase(), VaporPhase())
+    sys = ImmiscibleSystem(phases)
+    rhoLS = 1000.0
+    rhoGS = 100.0
+    rhoS = [rhoLS, rhoGS]
+    c = [1e-6/bar, 1e-4/bar]
+    ρ = ConstantCompressibilityDensities(p_ref = 1*bar, density_ref = rhoS, compressibility = c)
+    model, parameters = setup_reservoir_model(g, sys, wells = [I, P], reference_densities = rhoS)
+    replace_variables!(model, PhaseMassDensities = ρ)
+    ## Set up initial state
+    state0 = setup_reservoir_state(model, Pressure = 150*bar, Saturations = [1.0, 0.0])
+    ## Set up time-steps
+    dt = [30.0]*day
+    # The producer operates at a fixed bottom hole pressure
+    bhp_target = BottomHolePressureTarget(50*bar)
+    P_ctrl = ProducerControl(bhp_target)
+    # Set up the controls. One control per well in the Facility.
+    controls = Dict()
+    controls[:Producer] = P_ctrl
+    forces = setup_reservoir_forces(model, control = controls)
+    ## Mask away second perforation by multiplier
+    pmask = PerforationMask([1.0, 0.0])
+    forces[:Producer] = setup_forces(model.models[:Producer], mask = pmask)
+    ## Simulate
+    sim, config = setup_reservoir_simulator(model, state0, parameters, info_level = 1)
+    states, reports = simulate!(sim, dt, forces = forces, config = config);
+    v = states[1][:Producer][:TotalMassFlux]
+    @info v
+    @testset "Perforation mask" begin
+        @test abs(v[2]) < 1e-10
+        @test abs(v[1]) > 1e-4
+    end
+end
 test_compositional_with_wells()
 test_immiscible_with_wells()
+test_perforation_mask()

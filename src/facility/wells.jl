@@ -459,3 +459,29 @@ function Jutul.apply_force_to_cross_term_source!(ct::InjectiveCrossTerm, storage
         apply_mask!(ct, force)
     end
 end
+
+function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellCT, target, source, model, storage, dt, force::PerforationMask; time = time)
+    mask = force.values
+    apply_perforation_mask!(ct_s.target, mask)
+    apply_perforation_mask!(ct_s.source, mask)
+end
+
+function apply_perforation_mask!(storage::NamedTuple, mask::AbstractVector)
+    function mask_row!(M::AbstractMatrix, m, ix)
+        for i in 1:size(M, 1)
+            M[i, ix] *= m
+        end
+    end
+    function mask_row!(M::AbstractVector, m, ix)
+        M[ix] *= m
+    end
+    for s in values(storage)
+        v = s.entries
+        for i in 1:Jutul.number_of_entities(s)
+            mask_value = mask[i]
+            for j in Jutul.vrange(s, i)
+                mask_row!(v, mask_value, j)
+            end
+        end
+    end
+end
