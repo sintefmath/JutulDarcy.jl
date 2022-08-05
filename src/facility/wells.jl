@@ -429,43 +429,6 @@ function setup_forces(model::SimulationModel{D, S}; mask = nothing) where {D <: 
     return (mask = mask,)
 end
 
-function apply_mask!(v::AbstractMatrix, pm::PerforationMask)
-    for (i, mask) in enumerate(pm.values)
-        for r in 1:size(v, 1)
-            v[r, i] *= mask
-        end
-    end
-end
-
-function apply_mask!(v::AbstractVector, pm::PerforationMask)
-    for (i, mask) in enumerate(pm.values)
-        v[i] *= mask
-    end
-end
-
-function apply_mask!(ct::InjectiveCrossTerm, pm::PerforationMask)
-    apply_mask!(ct.crossterm_target, pm)
-    apply_mask!(ct.crossterm_source, pm)
-end
-
-function Jutul.apply_force_to_cross_term_target!(ct::InjectiveCrossTerm, storage_t, storage_s, model_t, model_s, source, target, force::PerforationMask, dt, time)
-    if source == :Reservoir || target == :Reservoir
-        apply_mask!(ct, force)
-    end
-end
-
-function Jutul.apply_force_to_cross_term_source!(ct::InjectiveCrossTerm, storage_t, storage_s, model_t, model_s, source, target, force::PerforationMask, dt, time)
-    if source == :Reservoir || target == :Reservoir
-        apply_mask!(ct, force)
-    end
-end
-
-function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellCT, target, source, model, storage, dt, force::PerforationMask; time = time)
-    mask = force.values
-    apply_perforation_mask!(ct_s.target, mask)
-    apply_perforation_mask!(ct_s.source, mask)
-end
-
 function apply_perforation_mask!(storage::NamedTuple, mask::AbstractVector)
     function mask_row!(M::AbstractMatrix, m, ix)
         for i in 1:size(M, 1)

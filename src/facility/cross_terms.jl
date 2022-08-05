@@ -63,6 +63,12 @@ function Jutul.prepare_cross_term_in_entity!(i,
     end
 end
 
+function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellCT, target, source, model, storage, dt, force::PerforationMask; time = time)
+    mask = force.values
+    apply_perforation_mask!(ct_s.target, mask)
+    apply_perforation_mask!(ct_s.source, mask)
+end
+
 function update_cross_term_in_entity!(out, i,
     state_facility, state0_facility,
     state_well, state0_well,
