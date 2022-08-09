@@ -54,7 +54,7 @@ function Jutul.prepare_cross_term_in_entity!(i,
     if !isa(target, DisabledTarget)
         limits = current_limits(cfg, well_symbol)
         if !isnothing(limits)
-            rhoS = param_w[:reference_densities]
+            rhoS = reference_densities(well.system)
             rhoS, S = flash_wellstream_at_surface(well, state_well, rhoS)
             rhoS = tuple(rhoS...)
             q_t = facility_surface_mass_rate_for_well(facility, well_symbol, state_facility)
@@ -88,7 +88,7 @@ function update_cross_term_in_entity!(out, i,
         t_num = 0.0
     else
         need_rates = isa(ctrl, ProducerControl) && !isa(target, BottomHolePressureTarget)
-        rhoS = param_w[:reference_densities]
+        rhoS = reference_densities(well.system)
         if need_rates
             rhoS, S = flash_wellstream_at_surface(well, state_well, rhoS)
         else

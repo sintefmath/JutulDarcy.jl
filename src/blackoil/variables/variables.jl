@@ -79,7 +79,6 @@ end
 end
 
 @jutul_secondary function update_as_secondary!(rho, m::DeckDensity, model::StandardBlackOilModel, param, Rs, ShrinkageFactors)
-    # sys = model.system
     b = ShrinkageFactors
     sys = model.system
     w, o, g = phase_indices(sys)

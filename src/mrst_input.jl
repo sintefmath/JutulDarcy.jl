@@ -855,7 +855,7 @@ function model_from_mat_deck(G, mrst_data, res_context)
 
     ## Model parameters
     param = setup_parameters(model)
-    param[:reference_densities] = NaN
+    param[:reference_densities] = nothing
     # param[:reference_densities] = tuple(rhoS...)
 
     return (model, param)
@@ -955,8 +955,7 @@ function setup_case_from_mrst(casename; simple_well = false,
 
     # model, init, param_res = setup_res(G, mrst_data; block_backend = block_backend, use_groups = true)
     is_comp = haskey(init, :OverallMoleFractions)
-    nph = number_of_phases(model.system)
-    rhoS = param_res[:reference_densities]
+    rhoS = reference_densities(model.system)
 
     has_schedule = haskey(mrst_data, "schedule")
     if has_schedule
