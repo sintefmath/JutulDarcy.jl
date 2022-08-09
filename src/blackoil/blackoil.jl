@@ -9,7 +9,7 @@ include("wells.jl")
 
 blackoil_formulation(::StandardBlackOilSystem{D, W, R, F}) where {D, W, R, F} = F
 
-function select_primary_variables_system!(S, domain, system::BlackOilSystem, formulation)
+function select_primary_variables!(S, system::BlackOilSystem, model)
     S[:Pressure] = Pressure(max_rel = 0.2, minimum = 1e5)
     bf = blackoil_formulation(system)
     if bf == :varswitch
@@ -24,8 +24,8 @@ function select_primary_variables_system!(S, domain, system::BlackOilSystem, for
     end
 end
 
-function select_secondary_variables_system!(S, domain, system::BlackOilSystem, formulation)
-    select_default_darcy!(S, domain, system, formulation)
+function select_secondary_variables!(S, system::BlackOilSystem, model)
+    select_default_darcy!(S, model.domain, model.system, model.formulation)
     S[:Saturations] = Saturations()
     S[:PhaseState] = BlackOilPhaseState()
     S[:ShrinkageFactors] = ConstantVariables(1.0)

@@ -54,17 +54,19 @@ function Jutul.update_equation_in_entity!(v, i, state, state0, eq::ControlEquati
 end
 
 # Selection of primary variables
-function select_primary_variables_domain!(S, domain::WellGroup, system, formulation)
+function select_primary_variables!(S, domain::WellGroup, model)
     S[:TotalSurfaceMassRate] = TotalSurfaceMassRate()
 end
 
-function select_equations_domain!(eqs, domain::WellGroup, system, arg...)
-    # eqs[:potential_balance] = (PotentialDropBalanceWell, 1)
+function select_primary_variables!(S, system::PredictionMode, model)
+    nothing
+end
+
+function select_equations!(eqs, domain::WellGroup, model)
     eqs[:control_equation] = ControlEquationWell()
 end
 
 function setup_forces(model::SimulationModel{D}; control = nothing, limits = nothing, set_default_limits = true) where {D <: WellGroup}
-    # error() # Fix me. Set up defaults for all wells, including rate limits if not provided.
     T = Dict{Symbol, Any}
     if isnothing(control)
         control = T()

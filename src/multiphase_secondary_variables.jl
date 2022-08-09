@@ -9,12 +9,12 @@ degrees_of_freedom_per_entity(model::SimulationModel{D, S}, sf::ComponentVariabl
 # Immiscible specialization
 degrees_of_freedom_per_entity(model::SimulationModel{D, S}, sf::ComponentVariable) where {D, S<:ImmiscibleSystem} = number_of_phases(model.system)
 
-function select_secondary_variables_system!(S, domain, system::MultiPhaseSystem, formulation)
-    select_default_darcy!(S, domain, system, formulation)
+function select_secondary_variables!(S, system::MultiPhaseSystem, model)
+    select_default_darcy!(S, model.domain, system, model.formulation)
 end
 
-function select_secondary_variables_system!(S, domain, system::SinglePhaseSystem, formulation)
-    select_default_darcy!(S, domain, system, formulation)
+function select_secondary_variables!(S, system::SinglePhaseSystem, model)
+    select_default_darcy!(S, model.domain, system, model.formulation)
     S[:Saturations] = ConstantVariables([1.0])
 end
 
@@ -32,7 +32,9 @@ function select_default_darcy!(S, domain, system, formulation)
     end
 end
 
-minimum_output_variables(system::MultiPhaseSystem, primary_variables) = [:TotalMasses]
+function set_minimum_output_variables(out, system::MultiPhaseSystem, model)
+    push!(out, :TotalMasses)
+end
 
 abstract type RelativePermeabilities <: PhaseVariables end
 

@@ -151,17 +151,17 @@ struct TotalMass <: ScalarVariable end
 
 
 # Selection of variables
-function select_primary_variables_system!(S, domain, system::SinglePhaseSystem, formulation)
+function select_primary_variables!(S, ::SinglePhaseSystem, model)
     S[:Pressure] = Pressure()
 end
 
-function select_primary_variables_system!(S, domain, system::ImmiscibleSystem, formulation)
+function select_primary_variables!(S, ::ImmiscibleSystem, model)
     S[:Pressure] = Pressure()
     S[:Saturations] = Saturations()
 end
 
-function select_equations_system!(eqs, domain, system::MultiPhaseSystem, formulation)
-    eqs[:mass_conservation] = ConservationLaw(domain.discretizations.mass_flow)
+function select_equations!(eqs, ::MultiPhaseSystem, model)
+    eqs[:mass_conservation] = ConservationLaw(model.domain.discretizations.mass_flow)
 end
 
 number_of_equations_per_entity(system::MultiPhaseSystem, e::ConservationLaw) = number_of_components(system)

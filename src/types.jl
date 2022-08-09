@@ -1,7 +1,10 @@
 
 abstract type MultiPhaseSystem <: JutulSystem end
 abstract type MultiComponentSystem <: MultiPhaseSystem end
+const CompositionalModel = SimulationModel{D, S, F, C} where {D, S<:CompositionalSystem, F, C}
 abstract type CompositionalSystem <: MultiComponentSystem end
+const LVCompositionalModel = SimulationModel{D, S, F, C} where {D, S<:MultiPhaseCompositionalSystemLV, F, C}
+
 abstract type BlackOilSystem <: MultiComponentSystem end
 
 abstract type PhaseVariables <: GroupedVariables end

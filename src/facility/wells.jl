@@ -386,18 +386,19 @@ Base.@propagate_inbounds function well_perforation_flux!(out, sys::Compositional
         out[nc+1] = phase_mass_flux(A)
     end
 end
+const WellDomain = DiscretizedDomain{<:WellGrid}
+const MSWellDomain = DiscretizedDomain{<:MultiSegmentWell}
 
 # Selection of primary variables
-function select_primary_variables_domain!(S, domain::DiscretizedDomain{G}, system, formulation) where {G<:MultiSegmentWell}
+function select_primary_variables!(S, ::MSWellDomain, model)
     S[:TotalMassFlux] = TotalMassFlux()
 end
 
-function select_equations_domain!(eqs, domain::DiscretizedDomain{G}, system, arg...) where {G<:MultiSegmentWell}
+function select_equations!(eqs, domain::MSWellDomain, model)
     eqs[:potential_balance] = PotentialDropBalanceWell(domain.discretizations.mass_flow)
 end
 
-function minimum_output_variables(domain::DiscretizedDomain{G}, system::CompositionalSystem, formulation, primary_variables, secondary_variables) where {G<:WellGrid}
-    vars = minimum_output_variables(system, primary_variables)
+function select_minimum_output_variables!(vars, domain::WellDomain, model)
     push!(vars, :PhaseMassDensities)
     push!(vars, :Saturations)
     return vars
