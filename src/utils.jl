@@ -214,7 +214,7 @@ function well_output(model::MultiModel, parameters, states, well_symbol, forces,
             break
         end
     end
-    rhoS_o = parameters[well_symbol][:reference_densities]
+    rhoS_o = reference_densities(model.models[well_symbol].system)
 
     to_target(t::DataType) = t(1.0)
     to_target(t::Type) = t(1.0)
