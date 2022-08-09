@@ -1036,7 +1036,7 @@ function setup_case_from_mrst(casename; simple_well = false,
         end
         @debug "$sym: Well $i/$num_wells" typeof(ctrl) ci
         param_w = setup_parameters(wi)
-        param_w[:reference_densities] = param_res[:reference_densities]
+        # param_w[:reference_densities] = param_res[:reference_densities]
 
         pw = vec(init[:Pressure][res_cells])
         w0 = Dict{Symbol, Any}(:Pressure => pw, :TotalMassFlux => 1e-12)

@@ -1,4 +1,4 @@
-function Jutul.initialize_extra_state_fields_domain!(state, model, domain::WellGroup)
+function Jutul.initialize_extra_state_fields!(state, domain::WellGroup, model)
     # Insert structure that holds well control (limits etc) that is then updated before each step
     state[:WellGroupConfiguration] = WellGroupConfiguration(domain.well_symbols)
 end

@@ -283,11 +283,6 @@ function typed_reference_density(ρ, model)
     return tuple(ρ...)::NTuple{N, T}
 end
 
-function setup_parameters_system!(d, model, sys::MultiPhaseSystem)
-    nph = number_of_phases(sys)
-    d[:reference_densities] = transfer(model.context, ones(nph))
-end
-
 function cpr_weights_no_partials!(w, model::SimulationModel{R, S}, state, r, n, bz, scaling) where {R, S<:ImmiscibleSystem}
     ρ = state.PhaseMassDensities
     tb = minbatch(model.context)
