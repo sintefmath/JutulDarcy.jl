@@ -34,4 +34,4 @@ end
 
 get_phases(sys::StandardBlackOilSystem) = sys.phases
 number_of_components(sys::StandardBlackOilSystem) = length(get_phases(sys))
-reference_densities(sys::StandardBlackOilSystem) = sys.rho_ref
+phase_indices(sys::StandardBlackOilSystem) = sys.phase_indices

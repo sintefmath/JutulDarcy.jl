@@ -81,15 +81,12 @@ end
 @jutul_secondary function update_as_secondary!(rho, m::DeckDensity, model::StandardBlackOilModel, param, Rs, ShrinkageFactors)
     # sys = model.system
     b = ShrinkageFactors
-    rhoS = param[:reference_densities]
-    rhoWS = rhoS[1]
-    rhoOS = rhoS[2]
-    rhoGS = rhoS[3]
-    # pvt, reg = ρ.pvt, ρ.regions
-    # eos = sys.equation_of_state
-    w = 1
-    o = 2
-    g = 3
+    sys = model.system
+    w, o, g = phase_indices(sys)
+    rhoS = reference_densities(sys)
+    rhoWS = rhoS[w]
+    rhoOS = rhoS[o]
+    rhoGS = rhoS[g]
     n = size(rho, 2)
     mb = minbatch(model.context)
     @inbounds @batch minbatch = mb for i = 1:n
@@ -105,12 +102,13 @@ end
                                                                                                     PhaseMassDensities,
                                                                                                     Saturations,
                                                                                                     FluidVolume)
-    rhoS = tuple(param[:reference_densities]...)
     tb = minbatch(model.context)
     sys = model.system
+    rhoS = reference_densities(sys)
+    ind = phase_indices(sys)
     nc = size(totmass, 2)
     @batch minbatch = tb for cell = 1:nc
-        @inbounds @views blackoil_mass!(totmass[:, cell], FluidVolume, PhaseMassDensities, Rs, ShrinkageFactors, Saturations, rhoS, cell, (1,2,3))
+        @inbounds @views blackoil_mass!(totmass[:, cell], FluidVolume, PhaseMassDensities, Rs, ShrinkageFactors, Saturations, rhoS, cell, ind)
     end
 end
 
