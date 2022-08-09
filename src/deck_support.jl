@@ -36,7 +36,7 @@ end
 end
 
 @jutul_secondary function update_as_secondary!(rho, ρ::DeckDensity, model, param, Pressure)
-    rhos = param[:reference_densities]
+    rhos = reference_densities(model.system)
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
     if false

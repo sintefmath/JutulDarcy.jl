@@ -64,8 +64,9 @@ max_dissolved_gas_fraction(rs, rhoOS, rhoGS) = rs*rhoGS/(rhoOS + rs*rhoGS)
 @jutul_secondary function update_as_secondary!(s, SAT::Saturations, model::SimulationModel{D, S}, param, ImmiscibleSaturation, PhaseState, GasMassFraction, ShrinkageFactors, Rs) where {D, S<:BlackOilGasFractionSystem}
     # tb = minbatch(model.context)
     nph, nc = size(s)
-    a, l, v = 1, 2, 3
-    rhoS = param[:reference_densities]
+    sys = model.system
+    a, l, v = phase_indices(sys)
+    rhoS = reference_densities(sys)
     rhoOS = rhoS[l]
     rhoGS = rhoS[v]
     @inbounds for i = 1:nc
@@ -89,10 +90,12 @@ max_dissolved_gas_fraction(rs, rhoOS, rhoGS) = rs*rhoGS/(rhoOS + rs*rhoGS)
 end
 
 @jutul_secondary function update_as_secondary!(phase_state, m::BlackOilPhaseState, model::SimulationModel{D, S}, param, Pressure, GasMassFraction) where {D, S<:BlackOilGasFractionSystem}
+    sys = model.system
+    a, l, v = phase_indices(sys)
+    rhoS = reference_densities(sys)
     tab = model.system.saturation_table
-    rhoS = param[:reference_densities]
-    rhoOS = rhoS[2]
-    rhoGS = rhoS[3]
+    rhoOS = rhoS[l]
+    rhoGS = rhoS[v]
     @inbounds for i in eachindex(phase_state)
         p = Pressure[i]
         z_g = GasMassFraction[i]

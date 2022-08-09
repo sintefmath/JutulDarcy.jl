@@ -531,7 +531,7 @@ function model_from_mat_comp(G, mrst_data, res_context)
     else
         phases = (AqueousPhase(), LiquidPhase(), VaporPhase())
     end
-    sys = MultiPhaseCompositionalSystemLV(eos, phases)
+    sys = MultiPhaseCompositionalSystemLV(eos, phases, reference_densities = rhoS)
     model = SimulationModel(G, sys, context = res_context)
 
     if haskey(f, "sgof")
@@ -571,7 +571,6 @@ function model_from_mat_comp(G, mrst_data, res_context)
     
     ## Model parameters
     param = setup_parameters(model)
-    param[:reference_densities] = tuple(rhoS...)
 
     return (model, param)
 end
@@ -587,7 +586,7 @@ function model_from_mat_fluid_immiscible(G, mrst_data, res_context)
 
     water = AqueousPhase()
     oil = LiquidPhase()
-    sys = ImmiscibleSystem([water, oil])
+    sys = ImmiscibleSystem((water, oil), reference_densities = rhoS)
 
     model = SimulationModel(G, sys, context = res_context)
     rho = ConstantCompressibilityDensities(sys, p, rhoS, c)
@@ -615,7 +614,7 @@ function model_from_mat_fluid_immiscible(G, mrst_data, res_context)
     
     ## Model parameters
     param = setup_parameters(model)
-    param[:reference_densities] = tuple(rhoS...)
+    param[:reference_densities] = nothing
 
     return (model, param)
 end
@@ -855,8 +854,6 @@ function model_from_mat_deck(G, mrst_data, res_context)
 
     ## Model parameters
     param = setup_parameters(model)
-    param[:reference_densities] = nothing
-    # param[:reference_densities] = tuple(rhoS...)
 
     return (model, param)
 end
