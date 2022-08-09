@@ -32,7 +32,7 @@ function select_default_darcy!(S, domain, system, formulation)
     end
 end
 
-function set_minimum_output_variables(out, system::MultiPhaseSystem, model)
+function select_minimum_output_variables!(out, system::MultiPhaseSystem, model)
     push!(out, :TotalMasses)
 end
 
