@@ -16,7 +16,7 @@ function update_cross_term_in_entity!(out, i,
     reservoir_cell = ct.reservoir_cells[i]
     well_cell = ct.well_cells[i]
     WI = ct.WI[i]
-    rhoS = param_s[:reference_densities]
+    rhoS = reference_densities(model_s.system)
 
     p_well = state_s.Pressure
     p_res = state_t.Pressure

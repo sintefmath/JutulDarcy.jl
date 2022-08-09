@@ -35,7 +35,7 @@ function Jutul.initialize_primary_variable_ad!(state, model, pvar::BlackOilUnkno
     return state
 end
 
-@jutul_secondary function update_as_secondary!(b, ρ::DeckShrinkageFactors, model::SimulationModel{D, StandardBlackOilSystem{T, true, R, F}}, param, Pressure, Rs) where {D, T, R, F}
+@jutul_secondary function update_as_secondary!(b, ρ::DeckShrinkageFactors, model::StandardBlackOilModelWithWater, param, Pressure, Rs)
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
     tb = minbatch(model.context)
@@ -56,7 +56,7 @@ end
     end
 end
 
-@jutul_secondary function update_as_secondary!(μ, ρ::DeckViscosity, model::SimulationModel{D, StandardBlackOilSystem{T, true, R, F}}, param, Pressure, Rs) where {D, T, R, F}
+@jutul_secondary function update_as_secondary!(μ, ρ::DeckViscosity, model::StandardBlackOilModelWithWater, param, Pressure, Rs)
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
     nph, nc = size(μ)

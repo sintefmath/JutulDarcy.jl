@@ -830,7 +830,7 @@ function model_from_mat_deck(G, mrst_data, res_context)
         else
             pvto = pvt[2]
             sat_table = get_1d_interpolator(pvto.sat_pressure, pvto.rs, cap_end = false)
-            sys = StandardBlackOilSystem(sat_table, water = has_wat, rhoVS = rhoGS, rhoLS = rhoOS)
+            sys = StandardBlackOilSystem(sat_table, phases = phases, reference_densities = rhoS)
             dp_max_rel = 0.2
             min_p = 101325.0
         end
@@ -855,7 +855,8 @@ function model_from_mat_deck(G, mrst_data, res_context)
 
     ## Model parameters
     param = setup_parameters(model)
-    param[:reference_densities] = tuple(rhoS...)
+    param[:reference_densities] = NaN
+    # param[:reference_densities] = tuple(rhoS...)
 
     return (model, param)
 end
