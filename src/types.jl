@@ -1,9 +1,8 @@
 
 abstract type MultiPhaseSystem <: JutulSystem end
 abstract type MultiComponentSystem <: MultiPhaseSystem end
-const CompositionalModel = SimulationModel{D, S, F, C} where {D, S<:CompositionalSystem, F, C}
 abstract type CompositionalSystem <: MultiComponentSystem end
-const LVCompositionalModel = SimulationModel{D, S, F, C} where {D, S<:MultiPhaseCompositionalSystemLV, F, C}
+const CompositionalModel = SimulationModel{D, S, F, C} where {D, S<:CompositionalSystem, F, C}
 
 abstract type BlackOilSystem <: MultiComponentSystem end
 
@@ -32,6 +31,7 @@ struct MultiPhaseCompositionalSystemLV{E, T, O} <: CompositionalSystem where T<:
         new{typeof(equation_of_state), T, O}(phases, c, equation_of_state)
     end
 end
+const LVCompositionalModel = SimulationModel{D, S, F, C} where {D, S<:MultiPhaseCompositionalSystemLV{<:Any, <:Any, <:Any}, F, C}
 
 struct StandardBlackOilSystem{D, W, R, F} <: BlackOilSystem where R<:Real
     saturation_table::D
