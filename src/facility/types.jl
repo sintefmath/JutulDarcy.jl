@@ -10,7 +10,7 @@ struct WellGroup <: WellControllerDomain
     well_symbols::Vector{Symbol}
 end
 
-struct Wells <: JutulUnit end
+struct Wells <: JutulEntity end
 struct TotalSurfaceMassRate <: ScalarVariable end
 abstract type WellTarget end
 abstract type SurfaceVolumeTarget <: WellTarget end

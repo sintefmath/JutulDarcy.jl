@@ -280,7 +280,7 @@ end
 """
 Perforations are connections from well cells to reservoir vcells
 """
-struct Perforations <: JutulUnit end
+struct Perforations <: JutulEntity end
 
 function get_neighborship(::SimpleWell)
     # No interior connections.
