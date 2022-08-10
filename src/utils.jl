@@ -6,7 +6,7 @@ reservoir_storage(model, storage) = storage
 reservoir_storage(model::MultiModel, storage) = storage.Reservoir
 
 export setup_reservoir_model
-function setup_reservoir_model(reservoir, system; wells = [], context = DefaultContext(), reservoir_context = nothing, reference_densities = nothing, backend = :csc, kwarg...)
+function setup_reservoir_model(reservoir, system; wells = [], context = DefaultContext(), reservoir_context = nothing, backend = :csc, kwarg...)
     # List of models (order matters)
     models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()
     # Support either a pre-discretized domain, a mesh or geometry
@@ -32,11 +32,6 @@ function setup_reservoir_model(reservoir, system; wells = [], context = DefaultC
     # Put it all together as multimodel
     model = reservoir_multimodel(models)
     parameters = setup_parameters(model)
-    if !isnothing(reference_densities)
-        for k in keys(models)
-            parameters[k][:reference_densities] = reference_densities
-        end
-    end
     return (model, parameters)
 end
 

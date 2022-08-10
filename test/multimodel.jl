@@ -25,18 +25,16 @@ function test_compositional_with_wells()
 
     mixture = MultiComponentMixture([co2, c1, c10], names = ["CO2", "C1", "C10"])
     eos = GenericCubicEOS(mixture)
-    nc = number_of_cells(g)
     # Definition of fluid phases
     rhoLS, rhoVS = 1000.0, 100.0
     rhoS = [rhoLS, rhoVS]
     L, V = LiquidPhase(), VaporPhase()
     # Define system and realize on grid
-    sys = MultiPhaseCompositionalSystemLV(eos, (L, V))
-    model, parameters = setup_reservoir_model(g, sys, wells = [inj, prod], reference_densities = rhoS);
+    sys = MultiPhaseCompositionalSystemLV(eos, (L, V), reference_densities = rhoS)
+    model, parameters = setup_reservoir_model(g, sys, wells = [inj, prod]);
     state0 = setup_reservoir_state(model, Pressure = 150*bar, OverallMoleFractions = [0.5, 0.3, 0.2])
 
     dt = repeat([30.0]*day, 12*5)
-    reservoir = reservoir_model(model);
     pv = pore_volume(model)
     inj_rate = 0.25*sum(pv)/sum(dt)
     rate_target = TotalRateTarget(inj_rate)
@@ -99,14 +97,14 @@ function test_immiscible_with_wells()
     I = setup_well(g, K, [(nx, ny, 1)], name = :Injector);
     ## Set up a two-phase immiscible system and define a density secondary variable
     phases = (LiquidPhase(), VaporPhase())
-    sys = ImmiscibleSystem(phases)
     rhoLS = 1000.0
     rhoGS = 100.0
     rhoS = [rhoLS, rhoGS]
+    sys = ImmiscibleSystem(phases, reference_densities = rhoS)
     c = [1e-6/bar, 1e-4/bar]
     ρ = ConstantCompressibilityDensities(p_ref = 1*bar, density_ref = rhoS, compressibility = c)
     ## Set up a reservoir model that contains the reservoir, wells and a facility that controls the wells
-    model, parameters = setup_reservoir_model(g, sys, wells = [I, P], reference_densities = rhoS)
+    model, parameters = setup_reservoir_model(g, sys, wells = [I, P])
     ## Replace the density function with our custom version
     replace_variables!(model, PhaseMassDensities = ρ)
     ## Set up initial state
@@ -165,13 +163,13 @@ function test_perforation_mask()
     K = repeat([0.65*Darcy], nx*ny*nz)
     P = setup_vertical_well(g, K, 1, 1, name = :Producer);
     phases = (LiquidPhase(), VaporPhase())
-    sys = ImmiscibleSystem(phases)
     rhoLS = 1000.0
     rhoGS = 100.0
     rhoS = [rhoLS, rhoGS]
+    sys = ImmiscibleSystem(phases, reference_densities = rhoS)
     c = [1e-6/bar, 1e-4/bar]
     ρ = ConstantCompressibilityDensities(p_ref = 1*bar, density_ref = rhoS, compressibility = c)
-    model, parameters = setup_reservoir_model(g, sys, wells = [P], reference_densities = rhoS)
+    model, parameters = setup_reservoir_model(g, sys, wells = [P])
     replace_variables!(model, PhaseMassDensities = ρ)
     ## Set up initial state
     state0 = setup_reservoir_state(model, Pressure = 150*bar, Saturations = [1.0, 0.0])
