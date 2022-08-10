@@ -3,7 +3,7 @@ import Jutul: compute_half_face_trans, compute_face_trans
 export compute_peaceman_index
 function compute_peaceman_index(g::T, K, r, pos; kwarg...) where T<:Jutul.AbstractJutulMesh
     Δ = Jutul.cell_dims(g, pos)
-    K = expand_perm(K, dim(g), full = true)
+    K = Jutul.expand_perm(K, dim(g), full = true)
     return compute_peaceman_index(Δ, K, r; kwarg...)
 end
 
@@ -64,8 +64,7 @@ function discretized_domain_tpfv_flow(geometry; porosity = 0.1,
         pore_volume = porosity.*geometry.volumes
     end
     if isnothing(T)
-        T_hf = compute_half_face_trans(geometry, permeability)
-        T = compute_face_trans(T_hf, N)
+        T = compute_face_trans(geometry, permeability)
     end
 
     G = MinimalTPFAGrid(pore_volume, N)
