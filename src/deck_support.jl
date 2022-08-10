@@ -18,7 +18,7 @@ function tab_by_region(pvt, reg)
 end
 
 
-@jutul_secondary function update_as_secondary!(mu, μ::DeckViscosity, model, param, Pressure)
+@jutul_secondary function update_as_secondary!(mu, μ::DeckViscosity, model, Pressure)
     pvt, reg = μ.pvt, μ.regions
     if false
         @tullio mu[ph, i] = viscosity(pvt[ph], reg, Pressure[i], i)
@@ -35,7 +35,7 @@ end
     end
 end
 
-@jutul_secondary function update_as_secondary!(rho, ρ::DeckDensity, model, param, Pressure)
+@jutul_secondary function update_as_secondary!(rho, ρ::DeckDensity, model, Pressure)
     rhos = reference_densities(model.system)
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
@@ -60,7 +60,7 @@ end
 end
 
 
-@jutul_secondary function update_as_secondary!(b, ρ::DeckShrinkageFactors, model, param, Pressure)
+@jutul_secondary function update_as_secondary!(b, ρ::DeckShrinkageFactors, model, Pressure)
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
     tb = minbatch(model.context)
@@ -74,7 +74,7 @@ end
     end
 end
 
-@jutul_secondary function update_as_secondary!(pv, Φ::LinearlyCompressiblePoreVolume, model, param, Pressure)
+@jutul_secondary function update_as_secondary!(pv, Φ::LinearlyCompressiblePoreVolume, model, Pressure)
     vol = Φ.volume
     c_r = Φ.expansion
     p_r = Φ.reference_pressure
@@ -95,7 +95,7 @@ end
 #     end
 # end
 
-# @jutul_secondary function update_as_secondary!(kr, kr_def::DeckRelativePermeability, model, param, Saturations)
+# @jutul_secondary function update_as_secondary!(kr, kr_def::DeckRelativePermeability, model, Saturations)
 #     @tullio kr[ph, i] = relative_permeability(get_sat(kr_def, ph, i), Saturations[ph, i])
 # end
 
@@ -111,6 +111,6 @@ end
 # degrees_of_freedom_per_entity(model, sf::DeckCapillaryPressure) = number_of_phases(model.system) - 1
 
 
-# @jutul_secondary function update_as_secondary!(kr, kr_def::DeckCapillaryPressure, model, param, Saturations)
+# @jutul_secondary function update_as_secondary!(kr, kr_def::DeckCapillaryPressure, model, Saturations)
 #     @tullio kr[ph, i] = relative_permeability(get_sat(kr_def, ph, i), Saturations[ph, i])
 # end

@@ -67,7 +67,7 @@ function transfer(c::SingleCUDAContext, kr::BrooksCoreyRelPerm)
     BrooksCoreyRelPerm(nph, e, r, ept)
 end
 
-@jutul_secondary function update_as_secondary!(kr, kr_def::BrooksCoreyRelPerm, model, param, Saturations)
+@jutul_secondary function update_as_secondary!(kr, kr_def::BrooksCoreyRelPerm, model, Saturations)
     n, sr, kwm, sr_tot = kr_def.exponents, kr_def.residuals, kr_def.endpoints, kr_def.residual_total
     @tullio kr[ph, i] = brooks_corey_relperm(Saturations[ph, i], n[ph], sr[ph], kwm[ph], sr_tot)
 end
@@ -110,7 +110,7 @@ struct TabulatedRelPermSimple{V, M, I} <: RelativePermeabilities
     end
 end
 
-@jutul_secondary function update_as_secondary!(kr, kr_def::TabulatedRelPermSimple, model, param, Saturations)
+@jutul_secondary function update_as_secondary!(kr, kr_def::TabulatedRelPermSimple, model, Saturations)
     I = kr_def.interpolators
     if false
         @tullio kr[ph, i] = I[ph](Saturations[ph, i])
@@ -146,7 +146,7 @@ function ThreePhaseRelPerm(; w, g, ow, og, swcon = 0.0)
     return ThreePhaseRelPerm(w, ow, og, g, swcon)
 end
 
-@jutul_secondary function update_as_secondary!(kr, relperm::ThreePhaseRelPerm, model, param, Saturations)
+@jutul_secondary function update_as_secondary!(kr, relperm::ThreePhaseRelPerm, model, Saturations)
     s = Saturations
     krw = relperm.krw
     krow = relperm.krow
@@ -180,7 +180,7 @@ end
 
 degrees_of_freedom_per_entity(model, v::SimpleCapillaryPressure) = number_of_phases(model.system) - 1
 
-@jutul_secondary function update_as_secondary!(Δp, pc::SimpleCapillaryPressure, model, param, Saturations)
+@jutul_secondary function update_as_secondary!(Δp, pc::SimpleCapillaryPressure, model, Saturations)
     cap = pc.pc
     npc, nc = size(Δp)
     if npc == 1
@@ -246,7 +246,7 @@ function ConstantCompressibilityDensities(; p_ref = 101325.0, density_ref = 1000
     return ConstantCompressibilityDensities(n, p_ref, density_ref, compressibility)
 end
 
-@jutul_secondary function update_as_secondary!(rho, density::ConstantCompressibilityDensities, model, param, Pressure)
+@jutul_secondary function update_as_secondary!(rho, density::ConstantCompressibilityDensities, model, Pressure)
     p_ref, c, rho_ref = density.reference_pressure, density.compressibility, density.reference_densities
     @tullio rho[ph, i] = constant_expansion(Pressure[i], p_ref[ph], c[ph], rho_ref[ph])
 end
@@ -257,18 +257,18 @@ end
 end
 
 # Total masses
-@jutul_secondary function update_as_secondary!(totmass, tv::TotalMasses, model::SimulationModel{G, S}, param, PhaseMassDensities, FluidVolume) where {G, S<:SinglePhaseSystem}
+@jutul_secondary function update_as_secondary!(totmass, tv::TotalMasses, model::SimulationModel{G, S}, PhaseMassDensities, FluidVolume) where {G, S<:SinglePhaseSystem}
     @tullio totmass[ph, i] = PhaseMassDensities[ph, i]*FluidVolume[i]
 end
 
-@jutul_secondary function update_as_secondary!(totmass, tv::TotalMasses, model::SimulationModel{G, S}, param, PhaseMassDensities, Saturations, FluidVolume) where {G, S<:ImmiscibleSystem}
+@jutul_secondary function update_as_secondary!(totmass, tv::TotalMasses, model::SimulationModel{G, S}, PhaseMassDensities, Saturations, FluidVolume) where {G, S<:ImmiscibleSystem}
     rho = PhaseMassDensities
     s = Saturations
     @tullio totmass[ph, i] = rho[ph, i]*FluidVolume[i]*s[ph, i]
 end
 
 # Total mass
-@jutul_secondary function update_as_secondary!(totmass, tv::TotalMass, model::SimulationModel{G, S}, param, TotalMasses) where {G, S<:MultiPhaseSystem}
+@jutul_secondary function update_as_secondary!(totmass, tv::TotalMass, model::SimulationModel{G, S}, TotalMasses) where {G, S<:MultiPhaseSystem}
     @tullio totmass[i] = TotalMasses[ph, i]
 end
 

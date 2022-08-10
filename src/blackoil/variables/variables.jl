@@ -35,7 +35,7 @@ function Jutul.initialize_primary_variable_ad!(state, model, pvar::BlackOilUnkno
     return state
 end
 
-@jutul_secondary function update_as_secondary!(b, ρ::DeckShrinkageFactors, model::StandardBlackOilModelWithWater, param, Pressure, Rs)
+@jutul_secondary function update_as_secondary!(b, ρ::DeckShrinkageFactors, model::StandardBlackOilModelWithWater, Pressure, Rs)
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
     tb = minbatch(model.context)
@@ -56,7 +56,7 @@ end
     end
 end
 
-@jutul_secondary function update_as_secondary!(μ, ρ::DeckViscosity, model::StandardBlackOilModelWithWater, param, Pressure, Rs)
+@jutul_secondary function update_as_secondary!(μ, ρ::DeckViscosity, model::StandardBlackOilModelWithWater, Pressure, Rs)
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
     nph, nc = size(μ)
@@ -78,7 +78,7 @@ end
     end
 end
 
-@jutul_secondary function update_as_secondary!(rho, m::DeckDensity, model::StandardBlackOilModel, param, Rs, ShrinkageFactors)
+@jutul_secondary function update_as_secondary!(rho, m::DeckDensity, model::StandardBlackOilModel, Rs, ShrinkageFactors)
     b = ShrinkageFactors
     sys = model.system
     w, o, g = phase_indices(sys)
@@ -95,7 +95,7 @@ end
     end
 end
 
-@jutul_secondary function update_as_secondary!(totmass, tv::TotalMasses, model::StandardBlackOilModel, param,
+@jutul_secondary function update_as_secondary!(totmass, tv::TotalMasses, model::StandardBlackOilModel,
                                                                                                     Rs,
                                                                                                     ShrinkageFactors,
                                                                                                     PhaseMassDensities,
