@@ -177,9 +177,7 @@ fluid_volume(domain::DiscretizedDomain) = fluid_volume(domain.grid)
 fluid_volume(grid::MinimalTPFAGrid) = grid.pore_volumes
 fluid_volume(grid) = 1.0
 
-
-function apply_forces_to_equation!(storage, model::SimulationModel{D, S}, eq::ConservationLaw, force::V, time) where {V <: AbstractVector{SourceTerm{I, F, T}}, D, S<:MultiPhaseSystem} where {I, F, T}
-    acc = get_diagonal_entries(eq)
+function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw, eq_s, force::V, time) where {V <: AbstractVector{SourceTerm{I, F, T}}, D, S<:MultiPhaseSystem} where {I, F, T}
     state = storage.state
     if haskey(state, :RelativePermeabilities)
         kr = state.RelativePermeabilities
@@ -187,7 +185,7 @@ function apply_forces_to_equation!(storage, model::SimulationModel{D, S}, eq::Co
         kr = 1.0
     end
     mu = state.PhaseViscosities
-    rhoS = reference_densities(model)
+    rhoS = reference_densities(model.system)
     insert_phase_sources!(acc, model, kr, mu, rhoS, force)
 end
 
