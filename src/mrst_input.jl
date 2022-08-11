@@ -599,12 +599,8 @@ function model_from_mat_fluid_immiscible(G, mrst_data, res_context)
         s, krt = preprocess_relperm_table(swof)
         kr = TabulatedRelPermSimple(s, krt)
     end
-    p = model.primary_variables
-    p[:Pressure] = Pressure(max_rel = 0.2)
-    s = model.secondary_variables
-    s[:PhaseMassDensities] = rho
-    s[:RelativePermeabilities] = kr
-    s[:PhaseViscosities] = mu
+    set_secondary_variables!(model, PhaseMassDensities = rho, RelativePermeabilities = kr, Pressure = Pressure(max_rel = 0.2))
+    set_parameters!(model, PhaseViscosities = mu)
 
     ## Model parameters
     param = setup_parameters(model, PhaseViscosities = mu)
@@ -793,6 +789,7 @@ function model_from_mat_deck(G, mrst_data, res_context)
         if length(unique(T)) == 1
             T = T[1]
         end
+        set_deck_specialization!(model, props, has_oil, has_wat, has_gas)
         param = setup_parameters(model, Temperature = T)
     else
         if has_wat
@@ -831,20 +828,28 @@ function model_from_mat_deck(G, mrst_data, res_context)
         pvar[:Pressure] = Pressure(max_rel = dp_max_rel, minimum = min_p)
         # Modify secondary variables
         svar = model.secondary_variables
+        prm = model.parameters
         # PVT
         pvt = tuple(pvt...)
-        svar[:PhaseMassDensities] = DeckDensity(pvt)
+        rho = DeckDensity(pvt)
         if !is_immiscible
-            svar[:ShrinkageFactors] = DeckShrinkageFactors(pvt)
+            set_secondary_variables!(model, ShrinkageFactors = DeckShrinkageFactors(pvt))
         end
-        svar[:PhaseViscosities] = DeckViscosity(pvt)
+        mu = DeckViscosity(pvt)
+        set_secondary_variables!(model, PhaseViscosities = mu, PhaseMassDensities = rho)
+        set_deck_specialization!(model, props, has_oil, has_wat, has_gas)
         param = setup_parameters(model)
     end
-    set_deck_relperm!(svar, props; oil = has_oil, water = has_wat, gas = has_gas)
-    set_deck_pc!(svar, props; oil = has_oil, water = has_wat, gas = has_gas)
-    set_deck_pvmult!(svar, param, props)
 
     return (model, param)
+end
+
+function set_deck_specialization!(model, props, oil, water, gas)
+    svar = model.secondary_variables
+    param = model.parameters
+    set_deck_relperm!(svar, props; oil = oil, water = water, gas = gas)
+    set_deck_pc!(svar, props; oil = oil, water = water, gas = gas)
+    set_deck_pvmult!(svar, param, props)
 end
 
 function set_deck_pc!(vars, props; kwarg...)
@@ -988,15 +993,23 @@ function setup_case_from_mrst(casename; simple_well = false,
 
         sv = wi.secondary_variables
         sv_m = model.secondary_variables
+
+        prm_w = wi.parameters
+        prm = model.parameters
         param_w = setup_parameters(wi)
 
         sv[:PhaseMassDensities] = sv_m[:PhaseMassDensities]
         if haskey(sv, :ShrinkageFactors)
             sv[:ShrinkageFactors] = sv_m[:ShrinkageFactors]
         end
+        if haskey(sv_m, :PhaseViscosities)
+            set_secondary_variables!(wi, PhaseViscosities = sv_m[:PhaseViscosities])
+        else
+            set_parameters(wi, PhaseViscosities = prm[:PhaseViscosities])
+        end
         sv[:PhaseViscosities] = sv_m[:PhaseViscosities]
         if haskey(param_w, :Temperature)
-            param_w[:Temperature] = model.parameters[:Temperature][res_cells]
+            param_w[:Temperature] = param_res[:Temperature][res_cells]
         end
         pw = wi.primary_variables
         models[sym] = wi
@@ -1272,7 +1285,6 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
     else
         output_path = nothing
     end
-    # @info "Writing output to $output_path"
     sim, cfg = setup_reservoir_simulator(models, initializer, parameters, output_path = output_path, error_on_incomplete = error_on_incomplete; kwarg...)
     states, reports = simulate(sim, dt, forces = forces, config = cfg);
     if write_output && write_mrst
