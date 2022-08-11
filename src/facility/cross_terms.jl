@@ -10,7 +10,6 @@ function update_cross_term_in_entity!(out, i,
     state_t, state0_t,
     state_s, state0_s, 
     model_t, model_s,
-    param_t, param_s,
     ct::ReservoirFromWellCT, eq, dt, ldisc = local_discretization(ct, i))
     # Unpack properties
     reservoir_cell = ct.reservoir_cells[i]
@@ -43,7 +42,6 @@ function Jutul.prepare_cross_term_in_entity!(i,
     state_facility, state0_facility,
     state_well, state0_well,
     facility, well,
-    param_f, param_w,
     ct::FacilityFromWellCT, eq, dt, ldisc = local_discretization(ct, i))
     # Check the limits before we calculate the cross term. Then, we know the current control
     # is within limits when it is time to update the cross term itself.
@@ -73,7 +71,6 @@ function update_cross_term_in_entity!(out, i,
     state_facility, state0_facility,
     state_well, state0_well,
     facility, well,
-    param_f, param_w,
     ct::FacilityFromWellCT, eq, dt, ldisc = local_discretization(ct, i))
 
     well_symbol = ct.well
@@ -118,7 +115,6 @@ function update_cross_term_in_entity!(out, i,
     state_well, state0_well,
     state_facility, state0_facility,
     well, facility,
-    param_w, param_f,
     ct::WellFromFacilityCT, eq, dt, ldisc = local_discretization(ct, i))
 
     well_symbol = ct.well
