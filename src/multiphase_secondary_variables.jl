@@ -47,7 +47,7 @@ end
 function select_default_darcy_parameters!(prm, domain, system, formulation)
     prm[:PhaseViscosities] = PhaseViscosities() # ConstantVariables(1e-3*ones(nph), Cells()) # 1 cP for all phases by default
     prm[:FluidVolume] = FluidVolume()
-    if isa(system, SinglePhaseSystem) || isa(domain.grid, WellGrid)
+    if isa(system, SinglePhaseSystem)
         prm[:RelativePermeabilities] = RelativePermeabilities()
     end
     if isa(system, SinglePhaseSystem)
