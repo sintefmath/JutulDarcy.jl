@@ -44,15 +44,20 @@ function select_default_darcy_secondary_variables!(S, domain, system, formulatio
     end
 end
 
-function select_default_darcy_parameters!(prm, domain, system, formulation)
+function select_default_darcy_parameters!(prm, domain, system::SinglePhaseSystem, formulation)
     prm[:PhaseViscosities] = PhaseViscosities()
     prm[:FluidVolume] = FluidVolume()
-    if isa(system, SinglePhaseSystem)
-        prm[:RelativePermeabilities] = RelativePermeabilities()
-    end
-    if isa(system, SinglePhaseSystem)
-        prm[:Saturations] = Saturations()
-    end
+    prm[:RelativePermeabilities] = RelativePermeabilities()
+    prm[:Saturations] = Saturations()
+end
+
+function select_default_darcy_parameters!(prm, domain, system::ImmiscibleSystem, formulation)
+    prm[:PhaseViscosities] = PhaseViscosities()
+    prm[:FluidVolume] = FluidVolume()
+end
+
+function select_default_darcy_parameters!(prm, domain, system::MultiPhaseSystem, formulation)
+    prm[:FluidVolume] = FluidVolume()
 end
 
 function select_minimum_output_variables!(out, system::MultiPhaseSystem, model)
