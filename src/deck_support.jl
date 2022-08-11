@@ -74,15 +74,14 @@ end
     end
 end
 
-@jutul_secondary function update_as_secondary!(pv, Φ::LinearlyCompressiblePoreVolume, model, Pressure)
-    vol = Φ.volume
+@jutul_secondary function update_as_secondary!(pv, Φ::LinearlyCompressiblePoreVolume, model, Pressure, StaticVolume)
     c_r = Φ.expansion
     p_r = Φ.reference_pressure
-    for i in eachindex(pv)
+    @inbounds for i in eachindex(pv)
         p = Pressure[i]
         x = c_r*(p-p_r)
         mult = 1 + x + 0.5*(x^2)
-        pv[i] = vol[i]*mult
+        pv[i] = StaticVolume[i]*mult
     end
 end
 

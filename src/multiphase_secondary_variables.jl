@@ -45,7 +45,7 @@ function select_default_darcy_secondary_variables!(S, domain, system, formulatio
 end
 
 function select_default_darcy_parameters!(prm, domain, system, formulation)
-    prm[:PhaseViscosities] = PhaseViscosities() # ConstantVariables(1e-3*ones(nph), Cells()) # 1 cP for all phases by default
+    prm[:PhaseViscosities] = PhaseViscosities()
     prm[:FluidVolume] = FluidVolume()
     if isa(system, SinglePhaseSystem)
         prm[:RelativePermeabilities] = RelativePermeabilities()
@@ -195,7 +195,7 @@ end
     end
 end
 
-struct SimpleCapillaryPressure{T} <: JutulVariables
+struct SimpleCapillaryPressure{T} <: GroupedVariables
     pc::T
 end
 

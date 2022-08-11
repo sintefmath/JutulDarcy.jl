@@ -563,15 +563,10 @@ function model_from_mat_comp(G, mrst_data, res_context)
     s[:RelativePermeabilities] = kr
     T = copy(vec(mrst_data["state0"]["T"]))
     if length(unique(T)) == 1
-        TV = ConstantVariables(T[1], single_entity = true)
-    else
-        TV = ConstantVariables(T, single_entity = false)
+        T = T[1]
     end
-
-    s[:Temperature] = TV
-    
     ## Model parameters
-    param = setup_parameters(model)
+    param = setup_parameters(model, Temperature = T)
 
     return (model, param)
 end
@@ -604,18 +599,15 @@ function model_from_mat_fluid_immiscible(G, mrst_data, res_context)
         s, krt = preprocess_relperm_table(swof)
         kr = TabulatedRelPermSimple(s, krt)
     end
-    mu = ConstantVariables(mu)
-
     p = model.primary_variables
     p[:Pressure] = Pressure(max_rel = 0.2)
     s = model.secondary_variables
     s[:PhaseMassDensities] = rho
     s[:RelativePermeabilities] = kr
     s[:PhaseViscosities] = mu
-    
+
     ## Model parameters
-    param = setup_parameters(model)
-    param[:reference_densities] = nothing
+    param = setup_parameters(model, PhaseViscosities = mu)
 
     return (model, param)
 end
@@ -799,11 +791,9 @@ function model_from_mat_deck(G, mrst_data, res_context)
         svar = model.secondary_variables
         T = copy(vec(mrst_data["state0"]["T"]))
         if length(unique(T)) == 1
-            TV = ConstantVariables(T[1], single_entity = true)
-        else
-            TV = ConstantVariables(T, single_entity = false)
+            T = T[1]
         end
-        svar[:Temperature] = TV
+        param = setup_parameters(model, Temperature = T)
     else
         if has_wat
             push!(pvt, deck_pvt_water(props))
@@ -848,13 +838,11 @@ function model_from_mat_deck(G, mrst_data, res_context)
             svar[:ShrinkageFactors] = DeckShrinkageFactors(pvt)
         end
         svar[:PhaseViscosities] = DeckViscosity(pvt)
+        param = setup_parameters(model)
     end
     set_deck_relperm!(svar, props; oil = has_oil, water = has_wat, gas = has_gas)
     set_deck_pc!(svar, props; oil = has_oil, water = has_wat, gas = has_gas)
-    set_deck_pvmult!(svar, props)
-
-    ## Model parameters
-    param = setup_parameters(model)
+    set_deck_pvmult!(svar, param, props)
 
     return (model, param)
 end
@@ -870,13 +858,15 @@ function set_deck_relperm!(vars, props; kwarg...)
     vars[:RelativePermeabilities] = deck_relperm(props; kwarg...)
 end
 
-function set_deck_pvmult!(vars, props)
+function set_deck_pvmult!(vars, param, props)
     # Rock compressibility (if present)
     if haskey(props, "ROCK")
         rock = props["ROCK"]
         if rock[2] > 0
-            V = vars[:FluidVolume].constants
-            vars[:FluidVolume] = LinearlyCompressiblePoreVolume(V, reference_pressure = rock[1], expansion = rock[2])
+            static = param[:FluidVolume]
+            delete!(param, :FluidVolume)
+            param[:StaticFluidVolume] = static
+            vars[:FluidVolume] = LinearlyCompressiblePoreVolume(reference_pressure = rock[1], expansion = rock[2])
         end
     end
 end
@@ -992,29 +982,23 @@ function setup_case_from_mrst(casename; simple_well = false,
     
         wi, wdata , res_cells = get_well_from_mrst_data(mrst_data, sys, i, W_data = first_well_set,
                 extraout = true, simple = simple_well, context = w_context)
+        param_w = setup_parameters(wi)
+
         wc = wi.domain.grid.perforations.reservoir
 
         sv = wi.secondary_variables
         sv_m = model.secondary_variables
+        param_w = setup_parameters(wi)
+
         sv[:PhaseMassDensities] = sv_m[:PhaseMassDensities]
         if haskey(sv, :ShrinkageFactors)
             sv[:ShrinkageFactors] = sv_m[:ShrinkageFactors]
         end
         sv[:PhaseViscosities] = sv_m[:PhaseViscosities]
-        if haskey(sv, :Temperature)
-            # !!!!
-            temp_var = sv_m[:Temperature]
-            if temp_var.single_entity
-                sv[:Temperature] = temp_var
-            else
-                T_w = vec(temp_var.constants[res_cells])
-                sv[:Temperature] = ConstantVariables(T_w, single_entity = false)
-            end
+        if haskey(param_w, :Temperature)
+            param_w[:Temperature] = model.parameters[:Temperature][res_cells]
         end
-    
         pw = wi.primary_variables
-        # pw[:Pressure] = Pressure(max_rel = 0.2)
-    
         models[sym] = wi
         ctrl = mrst_well_ctrl(model, wdata, is_comp, rhoS)
         if isa(ctrl, InjectorControl)
@@ -1036,7 +1020,6 @@ function setup_case_from_mrst(casename; simple_well = false,
             factor = 1.0
         end
         @debug "$sym: Well $i/$num_wells" typeof(ctrl) ci
-        param_w = setup_parameters(wi)
         # param_w[:reference_densities] = param_res[:reference_densities]
 
         pw = vec(init[:Pressure][res_cells])
