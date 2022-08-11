@@ -19,7 +19,7 @@ function select_primary_variables!(S, system::CompositionalSystem, model)
 end
 
 function select_secondary_variables!(S, system::CompositionalSystem, model)
-    select_default_darcy!(S, model.domain, system, model.formulation)
+    select_default_darcy_secondary_variables!(S, model.domain, system, model.formulation)
     if has_other_phase(system)
         water_pvt = ConstMuBTable(101325.0, 1.0, 1e-18, 1e-3, 1e-20)
         S[:PhaseMassDensities] = ThreePhaseCompositionalDensitiesLV(water_pvt)

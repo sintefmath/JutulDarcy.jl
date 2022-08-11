@@ -128,6 +128,8 @@ struct Saturations <: FractionVariables
     Saturations(;ds_max = 0.2) = new(ds_max)
 end
 
+default_value(model::SimulationModel{<:Any, <:SinglePhaseSystem, <:Any, <:Any}, ::Saturations) = 1.0
+
 values_per_entity(model, v::Saturations) = number_of_phases(model.system)
 absolute_increment_limit(s::Saturations) = s.ds_max
 
