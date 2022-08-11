@@ -186,7 +186,7 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         error("Unsupported target $context")
     end
     @assert isa(context, JutulContext)
-
+    parameters = nothing
     if case_name == "single_phase_simple"
         # Parameters
         bar = 1e5
@@ -251,8 +251,8 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         kr = BrooksCoreyRelPerm(sys, [2, 3])
         s = model.secondary_variables
         s[:RelativePermeabilities] = kr
-        s[:PhaseViscosities] = ConstantVariables([mu, mu/2])
         s[:PhaseMassDensities] = ConstantCompressibilityDensities(sys, pRef, rhoLS, cl)
+        parameters = setup_parameters(model, PhaseViscosities = [mu, mu/2])
 
         tot_time = sum(timesteps)
         irate = pvfrac*sum(pv)/tot_time
@@ -289,8 +289,8 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         kr = BrooksCoreyRelPerm(sys, [2, 3])
         s = model.secondary_variables
         s[:RelativePermeabilities] = kr
-        s[:PhaseViscosities] = ConstantVariables([mu, mu/2])
         s[:PhaseMassDensities] = ConstantCompressibilityDensities(sys, pRef, rhoLS, cl)
+        parameters = setup_parameters(model, PhaseViscosities = [mu, mu/2])
 
         tot_time = sum(timesteps)
         forces = setup_forces(model)
@@ -327,7 +327,6 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         kr = BrooksCoreyRelPerm(sys, [2, 2, 2])
         s = model.secondary_variables
         s[:RelativePermeabilities] = kr
-        s[:PhaseViscosities] = ConstantVariables([mu, mu, mu])
         s[:PhaseMassDensities] = ConstantCompressibilityDensities(sys, pRef, rhoLS, cl)
 
         tot_time = sum(timesteps)
@@ -380,7 +379,7 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         kr = BrooksCoreyRelPerm(sys, [2, 3])
         s = model.secondary_variables
         s[:RelativePermeabilities] = kr
-        s[:Temperature] = ConstantVariables(T0)
+        parameters = setup_parameters(model, Temperature = T0)
 
         tot_time = sum(timesteps)
         forces = setup_forces(model)
@@ -421,7 +420,7 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         kr = BrooksCoreyRelPerm(sys, [2, 3, 2])
         s = model.secondary_variables
         s[:RelativePermeabilities] = kr
-        s[:Temperature] = ConstantVariables(T0)
+        parameters = setup_parameters(model, Temperature = T0)
 
         tot_time = sum(timesteps)
         forces = setup_forces(model)
@@ -442,7 +441,9 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         error("Unknown case $case_name")
     end
     # Model parameters
-    parameters = setup_parameters(model)
+    if isnothing(parameters)
+        parameters = setup_parameters(model)
+    end
     state0 = setup_state(model, init)
     return (state0, model, parameters, forces, timesteps)
 end

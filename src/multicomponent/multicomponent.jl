@@ -32,7 +32,11 @@ function select_secondary_variables!(S, system::CompositionalSystem, model)
     S[:VaporMassFractions] = PhaseMassFractions(:vapor)
     S[:FlashResults] = FlashResults(system)
     S[:Saturations] = Saturations()
-    S[:Temperature] = ConstantVariables(273.15 + 30.0)
+end
+
+function select_parameters!(prm, system::CompositionalSystem, model)
+    select_default_darcy_parameters!(prm, model.domain, system, model.formulation)
+    prm[:Temperature] = Temperature()
 end
 
 function convergence_criterion(model::CompositionalModel, storage, eq::ConservationLaw, eq_s, r; dt = 1)

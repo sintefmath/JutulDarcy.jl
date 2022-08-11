@@ -3,6 +3,16 @@ export BrooksCoreyRelPerm, TabulatedRelPermSimple
 
 abstract type AbstractRelativePermeabilities <: PhaseVariables end
 struct RelativePermeabilities <: AbstractRelativePermeabilities end
+
+struct Temperature <: ScalarVariable end
+
+Jutul.default_value(model, ::Temperature) = 303.15 # 30.15 C°
+
+function Jutul.default_value(model, v::RelativePermeabilities)
+    @assert number_of_phases(model.system) == 1 "Relative permeabilities cannot be defaulted for multiphase models."
+    return 1.0
+end
+
 struct FluidVolume <: ScalarVariable end
 Jutul.default_values(model, ::FluidVolume) = fluid_volume(model.domain)
 
