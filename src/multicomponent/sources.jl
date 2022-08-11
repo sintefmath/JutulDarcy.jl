@@ -8,7 +8,7 @@ function Jutul.apply_forces_to_equation!(storage, model::SimulationModel{D, S}, 
     Y = state.VaporMassFractions
     Sat = state.Saturations
     FR = state.FlashResults
-    rhoS = get_reference_densities(model, storage)
+    rhoS = reference_densities(model)
     insert_component_sources!(acc, Sat, kr, mu, FR, X, Y, rho, rhoS, force)
 end
 

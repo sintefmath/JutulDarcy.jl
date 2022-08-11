@@ -187,7 +187,7 @@ function apply_forces_to_equation!(storage, model::SimulationModel{D, S}, eq::Co
         kr = 1.0
     end
     mu = state.PhaseViscosities
-    rhoS = get_reference_densities(model, storage)
+    rhoS = reference_densities(model)
     insert_phase_sources!(acc, model, kr, mu, rhoS, force)
 end
 
@@ -269,18 +269,6 @@ function convergence_criterion(model::SimulationModel{D, S}, storage, eq::Conser
     R = Dict("CNV" => (errors = e, names = names),
              "MB"  => (errors = mb, names = names))
     return R
-end
-
-function get_reference_densities(model, storage)
-    prm = storage.parameters
-    return typed_reference_density(prm.reference_densities, model)
-end
-
-typed_reference_density(rhoS::Tuple, model) = rhoS
-function typed_reference_density(ρ, model)
-    N = length(ρ)
-    T = Jutul.float_type(model.context)
-    return tuple(ρ...)::NTuple{N, T}
 end
 
 function cpr_weights_no_partials!(w, model::SimulationModel{R, S}, state, r, n, bz, scaling) where {R, S<:ImmiscibleSystem}
