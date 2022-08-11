@@ -180,7 +180,7 @@ end
 
 export full_well_outputs, well_output, well_symbols, wellgroup_symbols, available_well_targets
 
-function full_well_outputs(model, parameters, states, forces; targets = available_well_targets(model.models.Reservoir), shortname = false)
+function full_well_outputs(model, states, forces; targets = available_well_targets(model.models.Reservoir), shortname = false)
     out = Dict()
     if shortname
         tm = :mass
@@ -190,14 +190,14 @@ function full_well_outputs(model, parameters, states, forces; targets = availabl
     for w in well_symbols(model)
         out[w] = Dict()
         for t in targets
-            out[w][translate_target_to_symbol(t(1.0), shortname = shortname)] = well_output(model, parameters, states, w, forces, t)
+            out[w][translate_target_to_symbol(t(1.0), shortname = shortname)] = well_output(model, states, w, forces, t)
         end
-        out[w][Symbol(tm)] = well_output(model, parameters, states, w, forces, :TotalSurfaceMassRate)
+        out[w][Symbol(tm)] = well_output(model, states, w, forces, :TotalSurfaceMassRate)
     end
     return out
 end
 
-function well_output(model::MultiModel, parameters, states, well_symbol, forces, target = BottomHolePressureTarget)
+function well_output(model::MultiModel, states, well_symbol, forces, target = BottomHolePressureTarget)
     n = length(states)
     d = zeros(n)
 

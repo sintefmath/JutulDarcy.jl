@@ -1334,8 +1334,7 @@ function write_reservoir_simulator_output_to_mrst(model, states, reports, forces
             matwrite(state_path, Dict("data" => D))
         end
         if write_wells && model isa MultiModel
-            @assert !isnothing(parameters)
-            wd = full_well_outputs(model, parameters, states, forces, shortname = true)
+            wd = full_well_outputs(model, states, forces, shortname = true)
             wd_m = Dict{String, Any}()
             for k in keys(wd)
                 tmp = Dict{String, Any}()
