@@ -82,14 +82,14 @@ function blackoil_unknown_init(F_rs, sg, rs, p)
     return (x, state, false)
 end
 
-@jutul_secondary function update_as_secondary!(s, ph::BlackOilPhaseState, model::SimulationModel{D, S}, param, BlackOilUnknown)  where {D, S<:BlackOilVariableSwitchingSystem}
+@jutul_secondary function update_as_secondary!(s, ph::BlackOilPhaseState, model::SimulationModel{D, S}, BlackOilUnknown)  where {D, S<:BlackOilVariableSwitchingSystem}
     mb = minbatch(model.context)
     @inbounds @batch minbatch = mb for i in eachindex(s)
         s[i] = BlackOilUnknown[i][2]
     end
 end
 
-@jutul_secondary function update_as_secondary!(s, sat::Saturations, model::SimulationModel{D, S}, param, BlackOilUnknown, ImmiscibleSaturation) where {D, S<:BlackOilVariableSwitchingSystem}
+@jutul_secondary function update_as_secondary!(s, sat::Saturations, model::SimulationModel{D, S}, BlackOilUnknown, ImmiscibleSaturation) where {D, S<:BlackOilVariableSwitchingSystem}
     @assert size(s, 1) == 3
     T = eltype(s)
     mb = minbatch(model.context)
@@ -108,7 +108,7 @@ end
 end
 
 
-@jutul_secondary function update_as_secondary!(rs, ph::Rs, model::SimulationModel{D, S}, param, Pressure, BlackOilUnknown)  where {D, S<:BlackOilVariableSwitchingSystem}
+@jutul_secondary function update_as_secondary!(rs, ph::Rs, model::SimulationModel{D, S}, Pressure, BlackOilUnknown)  where {D, S<:BlackOilVariableSwitchingSystem}
     mb = minbatch(model.context)
     @inbounds @batch minbatch = mb for i in eachindex(BlackOilUnknown)
         x, phase_state, = BlackOilUnknown[i]

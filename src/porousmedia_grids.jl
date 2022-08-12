@@ -5,7 +5,7 @@ export transfer, get_1d_reservoir
 
 import Base.eltype
 
-abstract type PorousMediumGrid <: JutulGrid end
+abstract type PorousMediumGrid <: AbstractJutulMesh end
 abstract type ReservoirGrid <: PorousMediumGrid end
 # TPFA grid
 """
@@ -35,10 +35,6 @@ Base.show(io::IO, g::MinimalTPFAGrid) = print(io, "MinimalTPFAGrid ($(number_of_
 
 function number_of_cells(G::ReservoirGrid)
     return length(G.pore_volumes)
-end
-
-function number_of_faces(G)
-    size(get_neighborship(G), 2)
 end
 
 function declare_entities(G::MinimalTPFAGrid)

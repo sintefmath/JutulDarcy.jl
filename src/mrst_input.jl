@@ -186,7 +186,7 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         error("Unsupported target $context")
     end
     @assert isa(context, JutulContext)
-
+    parameters = nothing
     if case_name == "single_phase_simple"
         # Parameters
         bar = 1e5
@@ -251,8 +251,8 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         kr = BrooksCoreyRelPerm(sys, [2, 3])
         s = model.secondary_variables
         s[:RelativePermeabilities] = kr
-        s[:PhaseViscosities] = ConstantVariables([mu, mu/2])
         s[:PhaseMassDensities] = ConstantCompressibilityDensities(sys, pRef, rhoLS, cl)
+        parameters = setup_parameters(model, PhaseViscosities = [mu, mu/2])
 
         tot_time = sum(timesteps)
         irate = pvfrac*sum(pv)/tot_time
@@ -289,8 +289,8 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         kr = BrooksCoreyRelPerm(sys, [2, 3])
         s = model.secondary_variables
         s[:RelativePermeabilities] = kr
-        s[:PhaseViscosities] = ConstantVariables([mu, mu/2])
         s[:PhaseMassDensities] = ConstantCompressibilityDensities(sys, pRef, rhoLS, cl)
+        parameters = setup_parameters(model, PhaseViscosities = [mu, mu/2])
 
         tot_time = sum(timesteps)
         forces = setup_forces(model)
@@ -327,7 +327,6 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         kr = BrooksCoreyRelPerm(sys, [2, 2, 2])
         s = model.secondary_variables
         s[:RelativePermeabilities] = kr
-        s[:PhaseViscosities] = ConstantVariables([mu, mu, mu])
         s[:PhaseMassDensities] = ConstantCompressibilityDensities(sys, pRef, rhoLS, cl)
 
         tot_time = sum(timesteps)
@@ -380,7 +379,7 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         kr = BrooksCoreyRelPerm(sys, [2, 3])
         s = model.secondary_variables
         s[:RelativePermeabilities] = kr
-        s[:Temperature] = ConstantVariables(T0)
+        parameters = setup_parameters(model, Temperature = T0)
 
         tot_time = sum(timesteps)
         forces = setup_forces(model)
@@ -421,7 +420,7 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         kr = BrooksCoreyRelPerm(sys, [2, 3, 2])
         s = model.secondary_variables
         s[:RelativePermeabilities] = kr
-        s[:Temperature] = ConstantVariables(T0)
+        parameters = setup_parameters(model, Temperature = T0)
 
         tot_time = sum(timesteps)
         forces = setup_forces(model)
@@ -442,7 +441,9 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         error("Unknown case $case_name")
     end
     # Model parameters
-    parameters = setup_parameters(model)
+    if isnothing(parameters)
+        parameters = setup_parameters(model)
+    end
     state0 = setup_state(model, init)
     return (state0, model, parameters, forces, timesteps)
 end
@@ -531,7 +532,7 @@ function model_from_mat_comp(G, mrst_data, res_context)
     else
         phases = (AqueousPhase(), LiquidPhase(), VaporPhase())
     end
-    sys = MultiPhaseCompositionalSystemLV(eos, phases)
+    sys = MultiPhaseCompositionalSystemLV(eos, phases, reference_densities = rhoS)
     model = SimulationModel(G, sys, context = res_context)
 
     if haskey(f, "sgof")
@@ -562,16 +563,10 @@ function model_from_mat_comp(G, mrst_data, res_context)
     s[:RelativePermeabilities] = kr
     T = copy(vec(mrst_data["state0"]["T"]))
     if length(unique(T)) == 1
-        TV = ConstantVariables(T[1], single_entity = true)
-    else
-        TV = ConstantVariables(T, single_entity = false)
+        T = T[1]
     end
-
-    s[:Temperature] = TV
-    
     ## Model parameters
-    param = setup_parameters(model)
-    param[:reference_densities] = tuple(rhoS...)
+    param = setup_parameters(model, Temperature = T)
 
     return (model, param)
 end
@@ -587,7 +582,7 @@ function model_from_mat_fluid_immiscible(G, mrst_data, res_context)
 
     water = AqueousPhase()
     oil = LiquidPhase()
-    sys = ImmiscibleSystem([water, oil])
+    sys = ImmiscibleSystem((water, oil), reference_densities = rhoS)
 
     model = SimulationModel(G, sys, context = res_context)
     rho = ConstantCompressibilityDensities(sys, p, rhoS, c)
@@ -604,18 +599,11 @@ function model_from_mat_fluid_immiscible(G, mrst_data, res_context)
         s, krt = preprocess_relperm_table(swof)
         kr = TabulatedRelPermSimple(s, krt)
     end
-    mu = ConstantVariables(mu)
+    set_secondary_variables!(model, PhaseMassDensities = rho, RelativePermeabilities = kr, Pressure = Pressure(max_rel = 0.2))
+    set_parameters!(model, PhaseViscosities = mu)
 
-    p = model.primary_variables
-    p[:Pressure] = Pressure(max_rel = 0.2)
-    s = model.secondary_variables
-    s[:PhaseMassDensities] = rho
-    s[:RelativePermeabilities] = kr
-    s[:PhaseViscosities] = mu
-    
     ## Model parameters
-    param = setup_parameters(model)
-    param[:reference_densities] = tuple(rhoS...)
+    param = setup_parameters(model, PhaseViscosities = mu)
 
     return (model, param)
 end
@@ -799,11 +787,10 @@ function model_from_mat_deck(G, mrst_data, res_context)
         svar = model.secondary_variables
         T = copy(vec(mrst_data["state0"]["T"]))
         if length(unique(T)) == 1
-            TV = ConstantVariables(T[1], single_entity = true)
-        else
-            TV = ConstantVariables(T, single_entity = false)
+            T = T[1]
         end
-        svar[:Temperature] = TV
+        set_deck_specialization!(model, props, has_oil, has_wat, has_gas)
+        param = setup_parameters(model, Temperature = T)
     else
         if has_wat
             push!(pvt, deck_pvt_water(props))
@@ -830,7 +817,7 @@ function model_from_mat_deck(G, mrst_data, res_context)
         else
             pvto = pvt[2]
             sat_table = get_1d_interpolator(pvto.sat_pressure, pvto.rs, cap_end = false)
-            sys = StandardBlackOilSystem(sat_table, water = has_wat, rhoVS = rhoGS, rhoLS = rhoOS)
+            sys = StandardBlackOilSystem(sat_table, phases = phases, reference_densities = rhoS)
             dp_max_rel = 0.2
             min_p = 101325.0
         end
@@ -841,23 +828,28 @@ function model_from_mat_deck(G, mrst_data, res_context)
         pvar[:Pressure] = Pressure(max_rel = dp_max_rel, minimum = min_p)
         # Modify secondary variables
         svar = model.secondary_variables
+        prm = model.parameters
         # PVT
         pvt = tuple(pvt...)
-        svar[:PhaseMassDensities] = DeckDensity(pvt)
+        rho = DeckDensity(pvt)
         if !is_immiscible
-            svar[:ShrinkageFactors] = DeckShrinkageFactors(pvt)
+            set_secondary_variables!(model, ShrinkageFactors = DeckShrinkageFactors(pvt))
         end
-        svar[:PhaseViscosities] = DeckViscosity(pvt)
+        mu = DeckViscosity(pvt)
+        set_secondary_variables!(model, PhaseViscosities = mu, PhaseMassDensities = rho)
+        set_deck_specialization!(model, props, has_oil, has_wat, has_gas)
+        param = setup_parameters(model)
     end
-    set_deck_relperm!(svar, props; oil = has_oil, water = has_wat, gas = has_gas)
-    set_deck_pc!(svar, props; oil = has_oil, water = has_wat, gas = has_gas)
-    set_deck_pvmult!(svar, props)
-
-    ## Model parameters
-    param = setup_parameters(model)
-    param[:reference_densities] = tuple(rhoS...)
 
     return (model, param)
+end
+
+function set_deck_specialization!(model, props, oil, water, gas)
+    svar = model.secondary_variables
+    param = model.parameters
+    set_deck_relperm!(svar, props; oil = oil, water = water, gas = gas)
+    set_deck_pc!(svar, props; oil = oil, water = water, gas = gas)
+    set_deck_pvmult!(svar, param, props)
 end
 
 function set_deck_pc!(vars, props; kwarg...)
@@ -871,13 +863,15 @@ function set_deck_relperm!(vars, props; kwarg...)
     vars[:RelativePermeabilities] = deck_relperm(props; kwarg...)
 end
 
-function set_deck_pvmult!(vars, props)
+function set_deck_pvmult!(vars, param, props)
     # Rock compressibility (if present)
     if haskey(props, "ROCK")
         rock = props["ROCK"]
         if rock[2] > 0
-            V = vars[:FluidVolume].constants
-            vars[:FluidVolume] = LinearlyCompressiblePoreVolume(V, reference_pressure = rock[1], expansion = rock[2])
+            static = param[:FluidVolume]
+            delete!(param, :FluidVolume)
+            param[:StaticFluidVolume] = static
+            vars[:FluidVolume] = LinearlyCompressiblePoreVolume(reference_pressure = rock[1], expansion = rock[2])
         end
     end
 end
@@ -954,8 +948,7 @@ function setup_case_from_mrst(casename; simple_well = false,
 
     # model, init, param_res = setup_res(G, mrst_data; block_backend = block_backend, use_groups = true)
     is_comp = haskey(init, :OverallMoleFractions)
-    nph = number_of_phases(model.system)
-    rhoS = param_res[:reference_densities]
+    rhoS = reference_densities(model.system)
 
     has_schedule = haskey(mrst_data, "schedule")
     if has_schedule
@@ -994,29 +987,31 @@ function setup_case_from_mrst(casename; simple_well = false,
     
         wi, wdata , res_cells = get_well_from_mrst_data(mrst_data, sys, i, W_data = first_well_set,
                 extraout = true, simple = simple_well, context = w_context)
+        param_w = setup_parameters(wi)
+
         wc = wi.domain.grid.perforations.reservoir
 
         sv = wi.secondary_variables
         sv_m = model.secondary_variables
+
+        prm_w = wi.parameters
+        prm = model.parameters
+        param_w = setup_parameters(wi)
+
         sv[:PhaseMassDensities] = sv_m[:PhaseMassDensities]
         if haskey(sv, :ShrinkageFactors)
             sv[:ShrinkageFactors] = sv_m[:ShrinkageFactors]
         end
-        sv[:PhaseViscosities] = sv_m[:PhaseViscosities]
-        if haskey(sv, :Temperature)
-            # !!!!
-            temp_var = sv_m[:Temperature]
-            if temp_var.single_entity
-                sv[:Temperature] = temp_var
-            else
-                T_w = vec(temp_var.constants[res_cells])
-                sv[:Temperature] = ConstantVariables(T_w, single_entity = false)
-            end
+        if haskey(sv_m, :PhaseViscosities)
+            set_secondary_variables!(wi, PhaseViscosities = sv_m[:PhaseViscosities])
+        else
+            set_parameters(wi, PhaseViscosities = prm[:PhaseViscosities])
         end
-    
+        sv[:PhaseViscosities] = sv_m[:PhaseViscosities]
+        if haskey(param_w, :Temperature)
+            param_w[:Temperature] = param_res[:Temperature][res_cells]
+        end
         pw = wi.primary_variables
-        # pw[:Pressure] = Pressure(max_rel = 0.2)
-    
         models[sym] = wi
         ctrl = mrst_well_ctrl(model, wdata, is_comp, rhoS)
         if isa(ctrl, InjectorControl)
@@ -1038,8 +1033,7 @@ function setup_case_from_mrst(casename; simple_well = false,
             factor = 1.0
         end
         @debug "$sym: Well $i/$num_wells" typeof(ctrl) ci
-        param_w = setup_parameters(wi)
-        param_w[:reference_densities] = param_res[:reference_densities]
+        # param_w[:reference_densities] = param_res[:reference_densities]
 
         pw = vec(init[:Pressure][res_cells])
         w0 = Dict{Symbol, Any}(:Pressure => pw, :TotalMassFlux => 1e-12)
@@ -1291,7 +1285,6 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
     else
         output_path = nothing
     end
-    # @info "Writing output to $output_path"
     sim, cfg = setup_reservoir_simulator(models, initializer, parameters, output_path = output_path, error_on_incomplete = error_on_incomplete; kwarg...)
     states, reports = simulate(sim, dt, forces = forces, config = cfg);
     if write_output && write_mrst
@@ -1341,8 +1334,7 @@ function write_reservoir_simulator_output_to_mrst(model, states, reports, forces
             matwrite(state_path, Dict("data" => D))
         end
         if write_wells && model isa MultiModel
-            @assert !isnothing(parameters)
-            wd = full_well_outputs(model, parameters, states, forces, shortname = true)
+            wd = full_well_outputs(model, states, forces, shortname = true)
             wd_m = Dict{String, Any}()
             for k in keys(wd)
                 tmp = Dict{String, Any}()

@@ -7,7 +7,7 @@ struct ThreePhaseLBCViscositiesLV{T} <: AbstractCompositionalViscosities
 end
 
 
-@jutul_secondary function update_as_secondary!(mu, m::LBCViscosities, model::SimulationModel{D, S}, param, Pressure, Temperature, FlashResults) where {D, S<:CompositionalSystem}
+@jutul_secondary function update_as_secondary!(mu, m::LBCViscosities, model::SimulationModel{D, S}, Pressure, Temperature, FlashResults) where {D, S<:CompositionalSystem}
     sys = model.system
     eos = sys.equation_of_state
     n = size(mu, 2)
@@ -20,7 +20,7 @@ end
     end
 end
 
-@jutul_secondary function update_as_secondary!(mu, m::ThreePhaseLBCViscositiesLV, model::SimulationModel{D, S}, param, Pressure, Temperature, FlashResults) where {D, S<:CompositionalSystem}
+@jutul_secondary function update_as_secondary!(mu, m::ThreePhaseLBCViscositiesLV, model::SimulationModel{D, S}, Pressure, Temperature, FlashResults) where {D, S<:CompositionalSystem}
     sys = model.system
     eos = sys.equation_of_state
     pvt = m.immiscible_pvt

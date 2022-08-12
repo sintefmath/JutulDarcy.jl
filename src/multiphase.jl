@@ -10,6 +10,7 @@ export Pressure, Saturations, TotalMasses, TotalMass
 
 get_phases(sys::MultiPhaseSystem) = sys.phases
 number_of_phases(sys::MultiPhaseSystem) = length(get_phases(sys))
+reference_densities(sys::MultiPhaseSystem) = sys.rho_ref
 
 @enum FlowSourceType begin
     MassSource
@@ -127,6 +128,8 @@ struct Saturations <: FractionVariables
     Saturations(;ds_max = 0.2) = new(ds_max)
 end
 
+default_value(model::SimulationModel{<:Any, <:SinglePhaseSystem, <:Any, <:Any}, ::Saturations) = 1.0
+
 values_per_entity(model, v::Saturations) = number_of_phases(model.system)
 absolute_increment_limit(s::Saturations) = s.ds_max
 
@@ -151,17 +154,17 @@ struct TotalMass <: ScalarVariable end
 
 
 # Selection of variables
-function select_primary_variables_system!(S, domain, system::SinglePhaseSystem, formulation)
+function select_primary_variables!(S, ::SinglePhaseSystem, model)
     S[:Pressure] = Pressure()
 end
 
-function select_primary_variables_system!(S, domain, system::ImmiscibleSystem, formulation)
+function select_primary_variables!(S, ::ImmiscibleSystem, model)
     S[:Pressure] = Pressure()
     S[:Saturations] = Saturations()
 end
 
-function select_equations_system!(eqs, domain, system::MultiPhaseSystem, formulation)
-    eqs[:mass_conservation] = ConservationLaw(domain.discretizations.mass_flow)
+function select_equations!(eqs, ::MultiPhaseSystem, model)
+    eqs[:mass_conservation] = ConservationLaw(model.domain.discretizations.mass_flow)
 end
 
 number_of_equations_per_entity(system::MultiPhaseSystem, e::ConservationLaw) = number_of_components(system)
@@ -176,9 +179,7 @@ fluid_volume(domain::DiscretizedDomain) = fluid_volume(domain.grid)
 fluid_volume(grid::MinimalTPFAGrid) = grid.pore_volumes
 fluid_volume(grid) = 1.0
 
-
-function apply_forces_to_equation!(storage, model::SimulationModel{D, S}, eq::ConservationLaw, force::V, time) where {V <: AbstractVector{SourceTerm{I, F, T}}, D, S<:MultiPhaseSystem} where {I, F, T}
-    acc = get_diagonal_entries(eq)
+function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw, eq_s, force::V, time) where {V <: AbstractVector{SourceTerm{I, F, T}}, D, S<:MultiPhaseSystem} where {I, F, T}
     state = storage.state
     if haskey(state, :RelativePermeabilities)
         kr = state.RelativePermeabilities
@@ -186,7 +187,7 @@ function apply_forces_to_equation!(storage, model::SimulationModel{D, S}, eq::Co
         kr = 1.0
     end
     mu = state.PhaseViscosities
-    rhoS = get_reference_densities(model, storage)
+    rhoS = reference_densities(model.system)
     insert_phase_sources!(acc, model, kr, mu, rhoS, force)
 end
 
@@ -268,23 +269,6 @@ function convergence_criterion(model::SimulationModel{D, S}, storage, eq::Conser
     R = Dict("CNV" => (errors = e, names = names),
              "MB"  => (errors = mb, names = names))
     return R
-end
-
-function get_reference_densities(model, storage)
-    prm = storage.parameters
-    return typed_reference_density(prm.reference_densities, model)
-end
-
-typed_reference_density(rhoS::Tuple, model) = rhoS
-function typed_reference_density(ρ, model)
-    N = length(ρ)
-    T = Jutul.float_type(model.context)
-    return tuple(ρ...)::NTuple{N, T}
-end
-
-function setup_parameters_system!(d, model, sys::MultiPhaseSystem)
-    nph = number_of_phases(sys)
-    d[:reference_densities] = transfer(model.context, ones(nph))
 end
 
 function cpr_weights_no_partials!(w, model::SimulationModel{R, S}, state, r, n, bz, scaling) where {R, S<:ImmiscibleSystem}

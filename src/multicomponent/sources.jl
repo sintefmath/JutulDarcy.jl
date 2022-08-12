@@ -1,5 +1,4 @@
-function Jutul.apply_forces_to_equation!(storage, model::SimulationModel{D, S}, eq::ConservationLaw, force::V, time) where {V <: AbstractVector{SourceTerm{I, F, T}}, D, S<:CompositionalSystem} where {I, F, T}
-    acc = get_diagonal_entries(eq)
+function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw, eq_s, force::V, time) where {V <: AbstractVector{SourceTerm{I, F, T}}, D, S<:CompositionalSystem} where {I, F, T}
     state = storage.state
     kr = state.RelativePermeabilities
     rho = state.PhaseMassDensities
@@ -8,7 +7,7 @@ function Jutul.apply_forces_to_equation!(storage, model::SimulationModel{D, S}, 
     Y = state.VaporMassFractions
     Sat = state.Saturations
     FR = state.FlashResults
-    rhoS = get_reference_densities(model, storage)
+    rhoS = reference_densities(model.system)
     insert_component_sources!(acc, Sat, kr, mu, FR, X, Y, rho, rhoS, force)
 end
 

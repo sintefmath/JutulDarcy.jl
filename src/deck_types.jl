@@ -209,15 +209,14 @@ function PVCDO(pvcdo::AbstractArray)
 end
 
 
-struct LinearlyCompressiblePoreVolume{R, V} <: ScalarVariable where {R<:Real, V<:AbstractVector}
+struct LinearlyCompressiblePoreVolume{R} <: ScalarVariable where {R<:Real}
     reference_pressure::R
     expansion::R
-    volume::V
+    function LinearlyCompressiblePoreVolume(; reference_pressure::T = 101325.0, expansion::T = 1e-10) where T
+        new{T}(reference_pressure, expansion)
+    end
 end
 
-function LinearlyCompressiblePoreVolume(volume::V; reference_pressure::T = 101325.0, expansion::T = 1e-10) where {T, V}
-    LinearlyCompressiblePoreVolume{T, V}(reference_pressure, expansion, volume)
-end
 
 # abstract type AbstractTableSaturation <: AbstractTableDeck end
 

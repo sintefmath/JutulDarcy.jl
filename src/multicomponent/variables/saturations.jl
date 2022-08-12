@@ -1,5 +1,5 @@
 
-@jutul_secondary function update_as_secondary!(Sat, s::Saturations, model::SimulationModel{D, S}, param, Pressure, Temperature, FlashResults) where {D, S<:MultiPhaseCompositionalSystemLV{E, T, O} where {E, T, O<:Nothing}}
+@jutul_secondary function update_as_secondary!(Sat, s::Saturations, model::SimulationModel{D, S}, Pressure, Temperature, FlashResults) where {D, S<:MultiPhaseCompositionalSystemLV{E, T, O} where {E, T, O<:Nothing}}
     tb = minbatch(model.context)
     l, v = phase_indices(model.system)
     eos = model.system.equation_of_state
@@ -10,7 +10,7 @@
     end
 end
 
-@jutul_secondary function update_as_secondary!(Sat, s::Saturations, model::SimulationModel{D, S}, param, Pressure, Temperature, FlashResults, ImmiscibleSaturation) where {D, S<:MultiPhaseCompositionalSystemLV}
+@jutul_secondary function update_as_secondary!(Sat, s::Saturations, model::SimulationModel{D, S}, Pressure, Temperature, FlashResults, ImmiscibleSaturation) where {D, S<:MultiPhaseCompositionalSystemLV}
     T = eltype(Sat)
     a, l, v = phase_indices(model.system)
     tb = minbatch(model.context)

@@ -1,6 +1,24 @@
 export PhaseMassDensities, ConstantCompressibilityDensities
 export BrooksCoreyRelPerm, TabulatedRelPermSimple
 
+abstract type AbstractRelativePermeabilities <: PhaseVariables end
+struct RelativePermeabilities <: AbstractRelativePermeabilities end
+
+struct Temperature <: ScalarVariable end
+
+Jutul.default_value(model, ::Temperature) = 303.15 # 30.15 C°
+
+function Jutul.default_value(model, v::RelativePermeabilities)
+    @assert number_of_phases(model.system) == 1 "Relative permeabilities cannot be defaulted for multiphase models."
+    return 1.0
+end
+
+struct FluidVolume <: ScalarVariable end
+Jutul.default_values(model, ::FluidVolume) = fluid_volume(model.domain)
+
+struct PhaseViscosities <: PhaseVariables end
+Jutul.default_value(model, v::PhaseViscosities) = 1e-3
+
 degrees_of_freedom_per_entity(model, sf::PhaseVariables) = number_of_phases(model.system)
 
 # Single-phase specialization
@@ -9,34 +27,44 @@ degrees_of_freedom_per_entity(model::SimulationModel{D, S}, sf::ComponentVariabl
 # Immiscible specialization
 degrees_of_freedom_per_entity(model::SimulationModel{D, S}, sf::ComponentVariable) where {D, S<:ImmiscibleSystem} = number_of_phases(model.system)
 
-function select_secondary_variables_system!(S, domain, system::MultiPhaseSystem, formulation)
-    select_default_darcy!(S, domain, system, formulation)
+function select_secondary_variables!(S, system::MultiPhaseSystem, model)
+    select_default_darcy_secondary_variables!(S, model.domain, system, model.formulation)
 end
 
-function select_secondary_variables_system!(S, domain, system::SinglePhaseSystem, formulation)
-    select_default_darcy!(S, domain, system, formulation)
-    S[:Saturations] = ConstantVariables([1.0])
+function select_parameters!(S, system::MultiPhaseSystem, model)
+    select_default_darcy_parameters!(S, model.domain, system, model.formulation)
 end
 
-function select_default_darcy!(S, domain, system, formulation)
+function select_default_darcy_secondary_variables!(S, domain, system, formulation)
     nph = number_of_phases(system)
     S[:PhaseMassDensities] = ConstantCompressibilityDensities(nph)
     S[:TotalMasses] = TotalMasses()
-    S[:PhaseViscosities] = ConstantVariables(1e-3*ones(nph), Cells()) # 1 cP for all phases by default
-    fv = fluid_volume(domain)
-    S[:FluidVolume] = ConstantVariables(fv, Cells(), single_entity = length(fv) == 1)
-    if isa(system, SinglePhaseSystem) || isa(domain.grid, WellGrid)
-        S[:RelativePermeabilities] = ConstantVariables([1.0])
-    else
+    if !(isa(system, SinglePhaseSystem) || isa(domain.grid, WellGrid))
         S[:RelativePermeabilities] = BrooksCoreyRelPerm(system)
     end
 end
 
-minimum_output_variables(system::MultiPhaseSystem, primary_variables) = [:TotalMasses]
+function select_default_darcy_parameters!(prm, domain, system::SinglePhaseSystem, formulation)
+    prm[:PhaseViscosities] = PhaseViscosities()
+    prm[:FluidVolume] = FluidVolume()
+    prm[:RelativePermeabilities] = RelativePermeabilities()
+    prm[:Saturations] = Saturations()
+end
 
-abstract type RelativePermeabilities <: PhaseVariables end
+function select_default_darcy_parameters!(prm, domain, system::ImmiscibleSystem, formulation)
+    prm[:PhaseViscosities] = PhaseViscosities()
+    prm[:FluidVolume] = FluidVolume()
+end
 
-struct BrooksCoreyRelPerm{V, T} <: RelativePermeabilities
+function select_default_darcy_parameters!(prm, domain, system::MultiPhaseSystem, formulation)
+    prm[:FluidVolume] = FluidVolume()
+end
+
+function select_minimum_output_variables!(out, system::MultiPhaseSystem, model)
+    push!(out, :TotalMasses)
+end
+
+struct BrooksCoreyRelPerm{V, T} <: AbstractRelativePermeabilities
     exponents::V
     residuals::V
     endpoints::V
@@ -65,7 +93,7 @@ function transfer(c::SingleCUDAContext, kr::BrooksCoreyRelPerm)
     BrooksCoreyRelPerm(nph, e, r, ept)
 end
 
-@jutul_secondary function update_as_secondary!(kr, kr_def::BrooksCoreyRelPerm, model, param, Saturations)
+@jutul_secondary function update_as_secondary!(kr, kr_def::BrooksCoreyRelPerm, model, Saturations)
     n, sr, kwm, sr_tot = kr_def.exponents, kr_def.residuals, kr_def.endpoints, kr_def.residual_total
     @tullio kr[ph, i] = brooks_corey_relperm(Saturations[ph, i], n[ph], sr[ph], kwm[ph], sr_tot)
 end
@@ -80,7 +108,7 @@ end
 """
 Interpolated multiphase rel. perm. that is simple (single region, no magic for more than two phases)
 """
-struct TabulatedRelPermSimple{V, M, I} <: RelativePermeabilities
+struct TabulatedRelPermSimple{V, M, I} <: AbstractRelativePermeabilities
     s::V
     kr::M
     interpolators::I
@@ -108,7 +136,7 @@ struct TabulatedRelPermSimple{V, M, I} <: RelativePermeabilities
     end
 end
 
-@jutul_secondary function update_as_secondary!(kr, kr_def::TabulatedRelPermSimple, model, param, Saturations)
+@jutul_secondary function update_as_secondary!(kr, kr_def::TabulatedRelPermSimple, model, Saturations)
     I = kr_def.interpolators
     if false
         @tullio kr[ph, i] = I[ph](Saturations[ph, i])
@@ -132,7 +160,7 @@ end
 """
 Interpolated multiphase rel. perm. that is simple (single region, no magic for more than two phases)
 """
-struct ThreePhaseRelPerm{O, OW, OG, G, R} <: RelativePermeabilities
+struct ThreePhaseRelPerm{O, OW, OG, G, R} <: AbstractRelativePermeabilities
     krw::O
     krow::OW
     krog::OG
@@ -144,7 +172,7 @@ function ThreePhaseRelPerm(; w, g, ow, og, swcon = 0.0)
     return ThreePhaseRelPerm(w, ow, og, g, swcon)
 end
 
-@jutul_secondary function update_as_secondary!(kr, relperm::ThreePhaseRelPerm, model, param, Saturations)
+@jutul_secondary function update_as_secondary!(kr, relperm::ThreePhaseRelPerm, model, Saturations)
     s = Saturations
     krw = relperm.krw
     krow = relperm.krow
@@ -172,13 +200,13 @@ end
     end
 end
 
-struct SimpleCapillaryPressure{T} <: JutulVariables
+struct SimpleCapillaryPressure{T} <: GroupedVariables
     pc::T
 end
 
 degrees_of_freedom_per_entity(model, v::SimpleCapillaryPressure) = number_of_phases(model.system) - 1
 
-@jutul_secondary function update_as_secondary!(Δp, pc::SimpleCapillaryPressure, model, param, Saturations)
+@jutul_secondary function update_as_secondary!(Δp, pc::SimpleCapillaryPressure, model, Saturations)
     cap = pc.pc
     npc, nc = size(Δp)
     if npc == 1
@@ -244,7 +272,7 @@ function ConstantCompressibilityDensities(; p_ref = 101325.0, density_ref = 1000
     return ConstantCompressibilityDensities(n, p_ref, density_ref, compressibility)
 end
 
-@jutul_secondary function update_as_secondary!(rho, density::ConstantCompressibilityDensities, model, param, Pressure)
+@jutul_secondary function update_as_secondary!(rho, density::ConstantCompressibilityDensities, model, Pressure)
     p_ref, c, rho_ref = density.reference_pressure, density.compressibility, density.reference_densities
     @tullio rho[ph, i] = constant_expansion(Pressure[i], p_ref[ph], c[ph], rho_ref[ph])
 end
@@ -255,18 +283,18 @@ end
 end
 
 # Total masses
-@jutul_secondary function update_as_secondary!(totmass, tv::TotalMasses, model::SimulationModel{G, S}, param, PhaseMassDensities, FluidVolume) where {G, S<:SinglePhaseSystem}
+@jutul_secondary function update_as_secondary!(totmass, tv::TotalMasses, model::SimulationModel{G, S}, PhaseMassDensities, FluidVolume) where {G, S<:SinglePhaseSystem}
     @tullio totmass[ph, i] = PhaseMassDensities[ph, i]*FluidVolume[i]
 end
 
-@jutul_secondary function update_as_secondary!(totmass, tv::TotalMasses, model::SimulationModel{G, S}, param, PhaseMassDensities, Saturations, FluidVolume) where {G, S<:ImmiscibleSystem}
+@jutul_secondary function update_as_secondary!(totmass, tv::TotalMasses, model::SimulationModel{G, S}, PhaseMassDensities, Saturations, FluidVolume) where {G, S<:ImmiscibleSystem}
     rho = PhaseMassDensities
     s = Saturations
     @tullio totmass[ph, i] = rho[ph, i]*FluidVolume[i]*s[ph, i]
 end
 
 # Total mass
-@jutul_secondary function update_as_secondary!(totmass, tv::TotalMass, model::SimulationModel{G, S}, param, TotalMasses) where {G, S<:MultiPhaseSystem}
+@jutul_secondary function update_as_secondary!(totmass, tv::TotalMass, model::SimulationModel{G, S}, TotalMasses) where {G, S<:MultiPhaseSystem}
     @tullio totmass[i] = TotalMasses[ph, i]
 end
 

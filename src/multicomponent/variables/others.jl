@@ -2,7 +2,7 @@ struct PhaseMassFractions{T} <: CompositionalFractions
     phase::T
 end
 
-@jutul_secondary function update_as_secondary!(X, m::PhaseMassFractions, model::SimulationModel{D,S}, param, FlashResults) where {D,S<:CompositionalSystem}
+@jutul_secondary function update_as_secondary!(X, m::PhaseMassFractions, model::SimulationModel{D,S}, FlashResults) where {D,S<:CompositionalSystem}
     molar_mass = map((x) -> x.mw, model.system.equation_of_state.mixture.properties)
     phase = m.phase
     tb = minbatch(model.context)
@@ -28,7 +28,7 @@ end
 end
 
 # Total masses
-@jutul_secondary function update_as_secondary!(totmass, tv::TotalMasses, model::SimulationModel{G,S}, param,
+@jutul_secondary function update_as_secondary!(totmass, tv::TotalMasses, model::SimulationModel{G,S},
                                                                                                     FlashResults,
                                                                                                     PhaseMassDensities,
                                                                                                     Saturations,

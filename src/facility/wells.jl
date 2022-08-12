@@ -51,27 +51,25 @@ struct SimpleWell <: WellGrid
     volumes
     perforations
     surface
-    reservoir_symbol
     name::Symbol     # Symbol that names the well
     function SimpleWell(reservoir_cells; name = :Well, reference_depth = 0, volume = 1e-3, reservoir_symbol = :Reservoir, surface_conditions = default_surface_cond(), kwarg...)
         nr = length(reservoir_cells)
 
         WI, gdz = common_well_setup(nr; kwarg...)
         perf = (self = ones(Int64, nr), reservoir = vec(reservoir_cells), WI = WI, gdz = gdz)
-        new([volume], perf, surface_conditions, reservoir_symbol, name)
+        new([volume], perf, surface_conditions, name)
     end
 end
 
-struct MultiSegmentWell <: WellGrid
-    volumes          # One per cell
-    perforations     # (self -> local cells, reservoir -> reservoir cells, WI -> connection factor)
-    neighborship     # Well cell connectivity
-    top              # "Top" node where scalar well quantities live
-    centers          # Coordinate centers of nodes
-    surface          # p, T at surface
-    reservoir_symbol # Symbol of the reservoir the well is coupled to
-    name::Symbol     # Symbol that names the well
-    segment_models   # Segment pressure drop model
+struct MultiSegmentWell{V, P, N, A, C, SC, S} <: WellGrid
+    volumes::V          # One per cell
+    perforations::P     # (self -> local cells, reservoir -> reservoir cells, WI -> connection factor)
+    neighborship::N     # Well cell connectivity
+    top::A              # "Top" node where scalar well quantities live
+    centers::C          # Coordinate centers of nodes
+    surface::SC          # p, T at surface
+    name::Symbol             # Symbol that names the well
+    segment_models::S        # Segment pressure drop model
     function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
                                                         N = nothing,
                                                         name = :Well,
@@ -118,7 +116,7 @@ struct MultiSegmentWell <: WellGrid
         WI, gdz = common_well_setup(nr; dz = dz, kwarg...)
         perf = (self = perforation_cells, reservoir = reservoir_cells, WI = WI, gdz = gdz)
         accumulator = (reference_depth = reference_depth, )
-        new(volumes, perf, N, accumulator, ext_centers, surface_conditions, reservoir_symbol, name, segment_models)
+        new{typeof(volumes), typeof(perf), typeof(N), typeof(accumulator), typeof(ext_centers), typeof(surface_conditions), typeof(segment_models)}(volumes, perf, N, accumulator, ext_centers, surface_conditions, name, segment_models)
     end
 end
 
@@ -280,7 +278,7 @@ end
 """
 Perforations are connections from well cells to reservoir vcells
 """
-struct Perforations <: JutulUnit end
+struct Perforations <: JutulEntity end
 
 function get_neighborship(::SimpleWell)
     # No interior connections.
@@ -386,18 +384,19 @@ Base.@propagate_inbounds function well_perforation_flux!(out, sys::Compositional
         out[nc+1] = phase_mass_flux(A)
     end
 end
+const WellDomain = DiscretizedDomain{<:WellGrid}
+const MSWellDomain = DiscretizedDomain{<:MultiSegmentWell}
 
 # Selection of primary variables
-function select_primary_variables_domain!(S, domain::DiscretizedDomain{G}, system, formulation) where {G<:MultiSegmentWell}
+function select_primary_variables!(S, ::MSWellDomain, model)
     S[:TotalMassFlux] = TotalMassFlux()
 end
 
-function select_equations_domain!(eqs, domain::DiscretizedDomain{G}, system, arg...) where {G<:MultiSegmentWell}
+function select_equations!(eqs, domain::MSWellDomain, model)
     eqs[:potential_balance] = PotentialDropBalanceWell(domain.discretizations.mass_flow)
 end
 
-function minimum_output_variables(domain::DiscretizedDomain{G}, system::CompositionalSystem, formulation, primary_variables, secondary_variables) where {G<:WellGrid}
-    vars = minimum_output_variables(system, primary_variables)
+function select_minimum_output_variables!(vars, domain::WellDomain, model)
     push!(vars, :PhaseMassDensities)
     push!(vars, :Saturations)
     return vars

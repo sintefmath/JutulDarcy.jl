@@ -10,7 +10,7 @@ include("flux.jl")
 include("sources.jl")
 include("wells.jl")
 
-function select_primary_variables_system!(S, domain, system::CompositionalSystem, formulation)
+function select_primary_variables!(S, system::CompositionalSystem, model)
     S[:Pressure] = Pressure(max_rel = 0.2, minimum = 1e5)
     S[:OverallMoleFractions] = OverallMoleFractions(dz_max = 0.1)
     if has_other_phase(system)
@@ -18,24 +18,28 @@ function select_primary_variables_system!(S, domain, system::CompositionalSystem
     end
 end
 
-function select_secondary_variables_system!(S, domain, system::CompositionalSystem, formulation)
-    select_default_darcy!(S, domain, system, formulation)
+function select_secondary_variables!(S, system::CompositionalSystem, model)
+    select_default_darcy_secondary_variables!(S, model.domain, system, model.formulation)
     if has_other_phase(system)
         water_pvt = ConstMuBTable(101325.0, 1.0, 1e-18, 1e-3, 1e-20)
-        S[:PhaseMassDensities] = ThreePhaseCompositionalDensitiesLV(water_pvt)
-        S[:PhaseViscosities] = ThreePhaseLBCViscositiesLV(water_pvt)
+        set_secondary_variables!(model, PhaseViscosities = ThreePhaseLBCViscositiesLV(water_pvt),
+                                        PhaseMassDensities = ThreePhaseCompositionalDensitiesLV(water_pvt))
     else
-        S[:PhaseMassDensities] = TwoPhaseCompositionalDensities()
-        S[:PhaseViscosities] = LBCViscosities()
+        set_secondary_variables!(model, PhaseViscosities = LBCViscosities(),
+                                        PhaseMassDensities = TwoPhaseCompositionalDensities())
     end
     S[:LiquidMassFractions] = PhaseMassFractions(:liquid)
     S[:VaporMassFractions] = PhaseMassFractions(:vapor)
     S[:FlashResults] = FlashResults(system)
     S[:Saturations] = Saturations()
-    S[:Temperature] = ConstantVariables(273.15 + 30.0)
 end
 
-function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw, eq_s, r; dt = 1) where {D, S<:CompositionalSystem}
+function select_parameters!(prm, system::CompositionalSystem, model)
+    select_default_darcy_parameters!(prm, model.domain, system, model.formulation)
+    prm[:Temperature] = Temperature()
+end
+
+function convergence_criterion(model::CompositionalModel, storage, eq::ConservationLaw, eq_s, r; dt = 1)
     tm = storage.state0.TotalMasses
     a = active_entities(model.domain, Cells())
     function scale(i)
@@ -53,7 +57,7 @@ function convergence_criterion(model::SimulationModel{D, S}, storage, eq::Conser
 end
 
 
-function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw, eq_s, r; dt = 1) where {D, S<:MultiPhaseCompositionalSystemLV}
+function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::ConservationLaw, eq_s, r; dt = 1) where S<:MultiPhaseCompositionalSystemLV
     tm = storage.state0.TotalMasses
 
     sys = model.system

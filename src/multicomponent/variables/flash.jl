@@ -71,7 +71,7 @@ function initialize_variable_ad(state, model, pvar::FlashResults, symb, npartial
     return state
 end
 
-@jutul_secondary function update_as_secondary!(flash_results, fr::FlashResults, model, param, Pressure, Temperature, OverallMoleFractions)
+@jutul_secondary function update_as_secondary!(flash_results, fr::FlashResults, model, Pressure, Temperature, OverallMoleFractions)
     storage, m, buffers = fr.storage, fr.method, fr.update_buffer
     eos = model.system.equation_of_state
 

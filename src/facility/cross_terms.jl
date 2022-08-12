@@ -10,13 +10,12 @@ function update_cross_term_in_entity!(out, i,
     state_t, state0_t,
     state_s, state0_s, 
     model_t, model_s,
-    param_t, param_s,
     ct::ReservoirFromWellCT, eq, dt, ldisc = local_discretization(ct, i))
     # Unpack properties
     reservoir_cell = ct.reservoir_cells[i]
     well_cell = ct.well_cells[i]
     WI = ct.WI[i]
-    rhoS = param_s[:reference_densities]
+    rhoS = reference_densities(model_s.system)
 
     p_well = state_s.Pressure
     p_res = state_t.Pressure
@@ -43,7 +42,6 @@ function Jutul.prepare_cross_term_in_entity!(i,
     state_facility, state0_facility,
     state_well, state0_well,
     facility, well,
-    param_f, param_w,
     ct::FacilityFromWellCT, eq, dt, ldisc = local_discretization(ct, i))
     # Check the limits before we calculate the cross term. Then, we know the current control
     # is within limits when it is time to update the cross term itself.
@@ -54,7 +52,7 @@ function Jutul.prepare_cross_term_in_entity!(i,
     if !isa(target, DisabledTarget)
         limits = current_limits(cfg, well_symbol)
         if !isnothing(limits)
-            rhoS = param_w[:reference_densities]
+            rhoS = reference_densities(well.system)
             rhoS, S = flash_wellstream_at_surface(well, state_well, rhoS)
             rhoS = tuple(rhoS...)
             q_t = facility_surface_mass_rate_for_well(facility, well_symbol, state_facility)
@@ -73,7 +71,6 @@ function update_cross_term_in_entity!(out, i,
     state_facility, state0_facility,
     state_well, state0_well,
     facility, well,
-    param_f, param_w,
     ct::FacilityFromWellCT, eq, dt, ldisc = local_discretization(ct, i))
 
     well_symbol = ct.well
@@ -88,7 +85,7 @@ function update_cross_term_in_entity!(out, i,
         t_num = 0.0
     else
         need_rates = isa(ctrl, ProducerControl) && !isa(target, BottomHolePressureTarget)
-        rhoS = param_w[:reference_densities]
+        rhoS = reference_densities(well.system)
         if need_rates
             rhoS, S = flash_wellstream_at_surface(well, state_well, rhoS)
         else
@@ -118,7 +115,6 @@ function update_cross_term_in_entity!(out, i,
     state_well, state0_well,
     state_facility, state0_facility,
     well, facility,
-    param_w, param_f,
     ct::WellFromFacilityCT, eq, dt, ldisc = local_discretization(ct, i))
 
     well_symbol = ct.well

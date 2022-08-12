@@ -8,21 +8,22 @@ function update_half_face_flux!(flux::AbstractArray, state, model::SimulationMod
     ρ = state.PhaseMassDensities
     P = state.Pressure
     b = state.ShrinkageFactors
-    rhoS = tuple(param[:reference_densities]...)
 
     conn_data = flow_disc.conn_data
     pc, ref_index = capillary_pressure(model, state)
 
     sys = model.system
-    blackoil_fluxes!(flux, conn_data, P, Rs, ρ, b, kr, μ, pc, ref_index, rhoS, model.context)
+    ind = phase_indices(sys)
+    rhoS = reference_densities(sys)
+    blackoil_fluxes!(flux, conn_data, P, Rs, ρ, b, kr, μ, pc, ref_index, rhoS, ind, model.context)
 end
 
-function blackoil_fluxes!(flux, conn_data, P, Rs, ρ, b, kr, μ, pc, ref_index, rhoS, context)
+function blackoil_fluxes!(flux, conn_data, P, Rs, ρ, b, kr, μ, pc, ref_index, rhoS, ind, context)
     tb = minbatch(context)
     nf = size(flux, 2)
     # @batch minbatch = tb for i = 1:nf
     for i = 1:nf
-        @inbounds @views blackoil_flux!(flux[:, i], conn_data[i], P, Rs, ρ, b, kr, μ, pc, ref_index, rhoS, (1,2,3))
+        @inbounds @views blackoil_flux!(flux[:, i], conn_data[i], P, Rs, ρ, b, kr, μ, pc, ref_index, rhoS, ind)
     end
 end
 

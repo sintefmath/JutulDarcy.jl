@@ -35,7 +35,7 @@ function Jutul.initialize_primary_variable_ad!(state, model, pvar::BlackOilUnkno
     return state
 end
 
-@jutul_secondary function update_as_secondary!(b, ρ::DeckShrinkageFactors, model::SimulationModel{D, StandardBlackOilSystem{T, true, R, F}}, param, Pressure, Rs) where {D, T, R, F}
+@jutul_secondary function update_as_secondary!(b, ρ::DeckShrinkageFactors, model::StandardBlackOilModelWithWater, Pressure, Rs)
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
     tb = minbatch(model.context)
@@ -56,7 +56,7 @@ end
     end
 end
 
-@jutul_secondary function update_as_secondary!(μ, ρ::DeckViscosity, model::SimulationModel{D, StandardBlackOilSystem{T, true, R, F}}, param, Pressure, Rs) where {D, T, R, F}
+@jutul_secondary function update_as_secondary!(μ, ρ::DeckViscosity, model::StandardBlackOilModelWithWater, Pressure, Rs)
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
     nph, nc = size(μ)
@@ -78,18 +78,14 @@ end
     end
 end
 
-@jutul_secondary function update_as_secondary!(rho, m::DeckDensity, model::StandardBlackOilModel, param, Rs, ShrinkageFactors)
-    # sys = model.system
+@jutul_secondary function update_as_secondary!(rho, m::DeckDensity, model::StandardBlackOilModel, Rs, ShrinkageFactors)
     b = ShrinkageFactors
-    rhoS = param[:reference_densities]
-    rhoWS = rhoS[1]
-    rhoOS = rhoS[2]
-    rhoGS = rhoS[3]
-    # pvt, reg = ρ.pvt, ρ.regions
-    # eos = sys.equation_of_state
-    w = 1
-    o = 2
-    g = 3
+    sys = model.system
+    w, o, g = phase_indices(sys)
+    rhoS = reference_densities(sys)
+    rhoWS = rhoS[w]
+    rhoOS = rhoS[o]
+    rhoGS = rhoS[g]
     n = size(rho, 2)
     mb = minbatch(model.context)
     @inbounds @batch minbatch = mb for i = 1:n
@@ -99,18 +95,19 @@ end
     end
 end
 
-@jutul_secondary function update_as_secondary!(totmass, tv::TotalMasses, model::StandardBlackOilModel, param,
+@jutul_secondary function update_as_secondary!(totmass, tv::TotalMasses, model::StandardBlackOilModel,
                                                                                                     Rs,
                                                                                                     ShrinkageFactors,
                                                                                                     PhaseMassDensities,
                                                                                                     Saturations,
                                                                                                     FluidVolume)
-    rhoS = tuple(param[:reference_densities]...)
     tb = minbatch(model.context)
     sys = model.system
+    rhoS = reference_densities(sys)
+    ind = phase_indices(sys)
     nc = size(totmass, 2)
     @batch minbatch = tb for cell = 1:nc
-        @inbounds @views blackoil_mass!(totmass[:, cell], FluidVolume, PhaseMassDensities, Rs, ShrinkageFactors, Saturations, rhoS, cell, (1,2,3))
+        @inbounds @views blackoil_mass!(totmass[:, cell], FluidVolume, PhaseMassDensities, Rs, ShrinkageFactors, Saturations, rhoS, cell, ind)
     end
 end
 

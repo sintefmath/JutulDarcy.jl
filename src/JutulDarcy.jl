@@ -3,13 +3,13 @@ module JutulDarcy
                   degrees_of_freedom_per_entity,
                   values_per_entity,
                   absolute_increment_limit, relative_increment_limit, maximum_value, minimum_value,
-                  select_primary_variables_system!,
-                  select_primary_variables_domain!,
+                  select_primary_variables!,
+                  select_secondary_variables!,
+                  select_equations!,
+                  select_parameters!,
+                  select_minimum_output_variables!,
                   initialize_primary_variable_ad!,
                   update_primary_variable!,
-                  select_secondary_variables_system!,
-                  select_secondary_variables_domain!,
-                  select_secondary_variables_formulation!,
                   update_secondary_variable!,
                   default_value,
                   initialize_variable_value!,
@@ -17,12 +17,6 @@ module JutulDarcy
                   update_half_face_flux!,
                   update_accumulation!,
                   update_equation!,
-                  minimum_output_variables,
-                  select_equations,
-                  select_equations_domain!,
-                  select_equations_formulation!,
-                  select_equations_system!,
-                  select_output_variables,
                   setup_parameters,
                   count_entities,
                   count_active_entities,
@@ -32,7 +26,6 @@ module JutulDarcy
                   declare_entities,
                   get_neighborship
 
-    import Jutul: setup_parameters_domain!, setup_parameters_system!, setup_parameters_context!, setup_parameters_formulation!
     import Jutul: fill_equation_entries!, update_linearized_system_equation!, check_convergence, update!, linear_operator, transfer, operator_nrows, matrix_layout, apply!
     import Jutul: apply_forces_to_equation!, convergence_criterion
     import Jutul: get_dependencies

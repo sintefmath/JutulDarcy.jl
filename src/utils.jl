@@ -6,7 +6,7 @@ reservoir_storage(model, storage) = storage
 reservoir_storage(model::MultiModel, storage) = storage.Reservoir
 
 export setup_reservoir_model
-function setup_reservoir_model(reservoir, system; wells = [], context = DefaultContext(), reservoir_context = nothing, reference_densities = nothing, backend = :csc, kwarg...)
+function setup_reservoir_model(reservoir, system; wells = [], context = DefaultContext(), reservoir_context = nothing, backend = :csc, kwarg...)
     # List of models (order matters)
     models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()
     # Support either a pre-discretized domain, a mesh or geometry
@@ -32,11 +32,6 @@ function setup_reservoir_model(reservoir, system; wells = [], context = DefaultC
     # Put it all together as multimodel
     model = reservoir_multimodel(models)
     parameters = setup_parameters(model)
-    if !isnothing(reference_densities)
-        for k in keys(models)
-            parameters[k][:reference_densities] = reference_densities
-        end
-    end
     return (model, parameters)
 end
 
@@ -185,7 +180,7 @@ end
 
 export full_well_outputs, well_output, well_symbols, wellgroup_symbols, available_well_targets
 
-function full_well_outputs(model, parameters, states, forces; targets = available_well_targets(model.models.Reservoir), shortname = false)
+function full_well_outputs(model, states, forces; targets = available_well_targets(model.models.Reservoir), shortname = false)
     out = Dict()
     if shortname
         tm = :mass
@@ -195,14 +190,14 @@ function full_well_outputs(model, parameters, states, forces; targets = availabl
     for w in well_symbols(model)
         out[w] = Dict()
         for t in targets
-            out[w][translate_target_to_symbol(t(1.0), shortname = shortname)] = well_output(model, parameters, states, w, forces, t)
+            out[w][translate_target_to_symbol(t(1.0), shortname = shortname)] = well_output(model, states, w, forces, t)
         end
-        out[w][Symbol(tm)] = well_output(model, parameters, states, w, forces, :TotalSurfaceMassRate)
+        out[w][Symbol(tm)] = well_output(model, states, w, forces, :TotalSurfaceMassRate)
     end
     return out
 end
 
-function well_output(model::MultiModel, parameters, states, well_symbol, forces, target = BottomHolePressureTarget)
+function well_output(model::MultiModel, states, well_symbol, forces, target = BottomHolePressureTarget)
     n = length(states)
     d = zeros(n)
 
@@ -214,7 +209,7 @@ function well_output(model::MultiModel, parameters, states, well_symbol, forces,
             break
         end
     end
-    rhoS_o = parameters[well_symbol][:reference_densities]
+    rhoS_o = reference_densities(model.models[well_symbol].system)
 
     to_target(t::DataType) = t(1.0)
     to_target(t::Type) = t(1.0)

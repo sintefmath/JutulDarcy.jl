@@ -9,7 +9,7 @@ include("wells.jl")
 
 blackoil_formulation(::StandardBlackOilSystem{D, W, R, F}) where {D, W, R, F} = F
 
-function select_primary_variables_system!(S, domain, system::BlackOilSystem, formulation)
+function select_primary_variables!(S, system::BlackOilSystem, model)
     S[:Pressure] = Pressure(max_rel = 0.2, minimum = 1e5)
     bf = blackoil_formulation(system)
     if bf == :varswitch
@@ -24,14 +24,14 @@ function select_primary_variables_system!(S, domain, system::BlackOilSystem, for
     end
 end
 
-function select_secondary_variables_system!(S, domain, system::BlackOilSystem, formulation)
-    select_default_darcy!(S, domain, system, formulation)
+function select_secondary_variables!(S, system::BlackOilSystem, model)
+    select_default_darcy_secondary_variables!(S, model.domain, model.system, model.formulation)
     S[:Saturations] = Saturations()
     S[:PhaseState] = BlackOilPhaseState()
-    S[:ShrinkageFactors] = ConstantVariables(1.0)
+    S[:ShrinkageFactors] = ConstantCompressibilityDensities(number_of_phases(system))
     S[:Rs] = Rs()
 end
 
-get_phases(sys::StandardBlackOilSystem{T, false}) where T = (LiquidPhase(), VaporPhase())
-get_phases(sys::StandardBlackOilSystem) = (AqueousPhase(), LiquidPhase(), VaporPhase())
+get_phases(sys::StandardBlackOilSystem) = sys.phases
 number_of_components(sys::StandardBlackOilSystem) = length(get_phases(sys))
+phase_indices(sys::StandardBlackOilSystem) = sys.phase_indices

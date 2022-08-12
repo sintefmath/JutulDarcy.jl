@@ -7,7 +7,7 @@ struct ThreePhaseCompositionalDensitiesLV{T} <: AbstractCompositionalDensities
 end
 
 
-@jutul_secondary function update_as_secondary!(rho, m::TwoPhaseCompositionalDensities, model::SimulationModel{D, S}, param, Pressure, Temperature, FlashResults) where {D, S<:CompositionalSystem}
+@jutul_secondary function update_as_secondary!(rho, m::TwoPhaseCompositionalDensities, model::SimulationModel{D, S}, Pressure, Temperature, FlashResults) where {D, S<:CompositionalSystem}
     sys = model.system
     eos = sys.equation_of_state
     n = size(rho, 2)
@@ -20,10 +20,10 @@ end
     end
 end
 
-@jutul_secondary function update_as_secondary!(rho, m::ThreePhaseCompositionalDensitiesLV, model::SimulationModel{D, S}, param, Pressure, Temperature, FlashResults) where {D, S<:CompositionalSystem}
+@jutul_secondary function update_as_secondary!(rho, m::ThreePhaseCompositionalDensitiesLV, model::SimulationModel{D, S}, Pressure, Temperature, FlashResults) where {D, S<:CompositionalSystem}
     sys = model.system
     eos = sys.equation_of_state
-    rhos = param[:reference_densities]
+    rhos = reference_densities(sys)
 
     pvt = m.immiscible_pvt
     n = size(rho, 2)

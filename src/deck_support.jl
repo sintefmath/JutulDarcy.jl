@@ -18,7 +18,7 @@ function tab_by_region(pvt, reg)
 end
 
 
-@jutul_secondary function update_as_secondary!(mu, μ::DeckViscosity, model, param, Pressure)
+@jutul_secondary function update_as_secondary!(mu, μ::DeckViscosity, model, Pressure)
     pvt, reg = μ.pvt, μ.regions
     if false
         @tullio mu[ph, i] = viscosity(pvt[ph], reg, Pressure[i], i)
@@ -35,8 +35,8 @@ end
     end
 end
 
-@jutul_secondary function update_as_secondary!(rho, ρ::DeckDensity, model, param, Pressure)
-    rhos = param[:reference_densities]
+@jutul_secondary function update_as_secondary!(rho, ρ::DeckDensity, model, Pressure)
+    rhos = reference_densities(model.system)
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
     if false
@@ -60,7 +60,7 @@ end
 end
 
 
-@jutul_secondary function update_as_secondary!(b, ρ::DeckShrinkageFactors, model, param, Pressure)
+@jutul_secondary function update_as_secondary!(b, ρ::DeckShrinkageFactors, model, Pressure)
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
     tb = minbatch(model.context)
@@ -74,15 +74,14 @@ end
     end
 end
 
-@jutul_secondary function update_as_secondary!(pv, Φ::LinearlyCompressiblePoreVolume, model, param, Pressure)
-    vol = Φ.volume
+@jutul_secondary function update_as_secondary!(pv, Φ::LinearlyCompressiblePoreVolume, model, Pressure, StaticFluidVolume)
     c_r = Φ.expansion
     p_r = Φ.reference_pressure
-    for i in eachindex(pv)
+    @inbounds for i in eachindex(pv)
         p = Pressure[i]
         x = c_r*(p-p_r)
         mult = 1 + x + 0.5*(x^2)
-        pv[i] = vol[i]*mult
+        pv[i] = StaticFluidVolume[i]*mult
     end
 end
 
@@ -95,7 +94,7 @@ end
 #     end
 # end
 
-# @jutul_secondary function update_as_secondary!(kr, kr_def::DeckRelativePermeability, model, param, Saturations)
+# @jutul_secondary function update_as_secondary!(kr, kr_def::DeckRelativePermeability, model, Saturations)
 #     @tullio kr[ph, i] = relative_permeability(get_sat(kr_def, ph, i), Saturations[ph, i])
 # end
 
@@ -111,6 +110,6 @@ end
 # degrees_of_freedom_per_entity(model, sf::DeckCapillaryPressure) = number_of_phases(model.system) - 1
 
 
-# @jutul_secondary function update_as_secondary!(kr, kr_def::DeckCapillaryPressure, model, param, Saturations)
+# @jutul_secondary function update_as_secondary!(kr, kr_def::DeckCapillaryPressure, model, Saturations)
 #     @tullio kr[ph, i] = relative_permeability(get_sat(kr_def, ph, i), Saturations[ph, i])
 # end
