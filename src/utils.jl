@@ -14,7 +14,7 @@ function setup_reservoir_model(reservoir, system; wells = [], context = DefaultC
     main_domain(m::Jutul.AbstractJutulMesh) = main_domain(tpfv_geometry(m))
     main_domain(geo::Jutul.JutulGeometry) = discretized_domain_tpfv_flow(geo)
 
-    reservoir_context, context = Jutul.select_contexts(backend, main_context = reservoir_context, context = context, kwarg...)
+    reservoir_context, context = Jutul.select_contexts(backend; main_context = reservoir_context, context = context, kwarg...)
     # We first set up the reservoir
     D = main_domain(reservoir)
     models[:Reservoir] = SimulationModel(D, system, context = reservoir_context)
