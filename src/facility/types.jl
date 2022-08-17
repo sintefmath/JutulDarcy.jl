@@ -224,6 +224,10 @@ struct WellGroupConfiguration
     end
 end
 
+function Jutul.update_values!(old::WellGroupConfiguration, new::WellGroupConfiguration)
+    return WellGroupConfiguration(copy(new.operating_controls), copy(new.requested_controls), copy(new.limits))
+end
+
 operating_control(cfg::WellGroupConfiguration, well::Symbol) = cfg.operating_controls[well]
 current_limits(cfg::WellGroupConfiguration, well::Symbol) = cfg.limits[well]
 
