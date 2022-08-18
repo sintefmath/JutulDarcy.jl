@@ -275,10 +275,6 @@ function fluid_volume(grid::WellGrid)
 end
 
 # Well segments
-"""
-Perforations are connections from well cells to reservoir vcells
-"""
-struct Perforations <: JutulEntity end
 
 function get_neighborship(::SimpleWell)
     # No interior connections.
@@ -394,6 +390,10 @@ end
 
 function select_equations!(eqs, domain::MSWellDomain, model)
     eqs[:potential_balance] = PotentialDropBalanceWell(domain.discretizations.mass_flow)
+end
+
+function select_parameters!(prm, domain::MSWellDomain, model)
+    prm[:WellIndices] = WellIndices()
 end
 
 function select_minimum_output_variables!(vars, domain::WellDomain, model)

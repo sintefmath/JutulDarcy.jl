@@ -14,11 +14,11 @@ function update_cross_term_in_entity!(out, i,
     # Unpack properties
     reservoir_cell = ct.reservoir_cells[i]
     well_cell = ct.well_cells[i]
-    WI = ct.WI[i]
     rhoS = reference_densities(model_s.system)
 
     p_well = state_s.Pressure
     p_res = state_t.Pressure
+    WI = state_s.WellIndices[i]
     # Todo: Fix conn -> cell pressure drop
     ρgdz = 0
     @inbounds dp = -WI*(p_well[well_cell] - p_res[reservoir_cell] + ρgdz)

@@ -152,6 +152,18 @@ end
 struct TotalMass <: ScalarVariable end
 @inline function minimum_value(::TotalMass) 0 end
 
+struct Transmissibilities <: ScalarVariable end
+
+Jutul.associated_entity(::Transmissibilities) = Faces()
+function Jutul.default_values(model, ::Transmissibilities)
+    d = model.domain
+    T = zeros(number_of_faces(d))
+    conn_data = d.discretizations.mass_flow.conn_data
+    for cd in conn_data
+        T[cd.face] = cd.T
+    end
+    return T
+end
 
 # Selection of variables
 function select_primary_variables!(S, ::SinglePhaseSystem, model)
@@ -165,6 +177,10 @@ end
 
 function select_equations!(eqs, ::MultiPhaseSystem, model)
     eqs[:mass_conservation] = ConservationLaw(model.domain.discretizations.mass_flow)
+end
+
+function select_parameters!(prm, D::TwoPointPotentialFlowHardCoded, model)
+    prm[:Transmissibilities] = Transmissibilities()
 end
 
 number_of_equations_per_entity(system::MultiPhaseSystem, e::ConservationLaw) = number_of_components(system)
