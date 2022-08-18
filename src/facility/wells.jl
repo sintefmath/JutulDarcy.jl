@@ -23,10 +23,12 @@ end
 function Base.show(io::IO, w::WellGrid)
     if w isa SimpleWell
         nseg = 0
+        n = "SimpleWell"
     else
         nseg = size(w.neighborship, 2)
+        n = "MultiSegmentWell"
     end
-    print(io, "$(typeof(w)) [$(w.name)] ($(length(w.volumes)) nodes, $(nseg) segments, $(length(w.perforations.reservoir)) perforations)")
+    print(io, "$n [$(w.name)] ($(length(w.volumes)) nodes, $(nseg) segments, $(length(w.perforations.reservoir)) perforations)")
 end
 
 # Total velocity in each well segment
