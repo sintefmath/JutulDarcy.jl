@@ -109,7 +109,7 @@ struct WellFromFacilityCT <: Jutul.AdditiveCrossTerm
     well::Symbol
 end
 
-Jutul.cross_term_entities(ct::WellFromFacilityCT, eq::ConservationLaw, model) = well_top_node()
+Jutul.cross_term_entities(ct::WellFromFacilityCT, eq::ConservationLaw, model) = [well_top_node()]
 
 function update_cross_term_in_entity!(out, i,
     state_well, state0_well,
