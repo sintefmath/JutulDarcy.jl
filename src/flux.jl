@@ -18,20 +18,21 @@ function darcy_phase_fluxes(face, state, model, tpfa::TPFA, T)
 
     q = SVector{nph, T}(zeros(nph))
     for ph in 1:nph
-        @inbounds ρ_c = ρ[ph, l]
-        @inbounds ρ_i = ρ[ph, r]
-        Δpc = capillary_gradient(pc, l, r, ph, ref_index)
-        ρ_avg = (ρ_i + ρ_c)/2
-        V = -T_f*(∇p + Δpc + gΔz*ρ_avg)
+        V = darcy_phase_flux(∇p, gΔz, pc, l, r, ph, ref_index, T_f, ρ)
         q = setindex(q, V, ph)
     end
     return q
 end
 
-function Jutul.compute_tpfa_flux(left, right, face, eq, state, model, dt, flow_disc, T)
-    # (; face, other) = conn_data
+function darcy_phase_flux(∇p, gΔz, pc, l, r, ph, ref_index, T_f, ρ)
+    @inbounds ρ_c = ρ[ph, l]
+    @inbounds ρ_i = ρ[ph, r]
+    Δpc = capillary_gradient(pc, l, r, ph, ref_index)
+    ρ_avg = (ρ_i + ρ_c)/2
+    return -T_f*(∇p + Δpc + gΔz*ρ_avg)
+end
 
-    # basics = (l = cell, r = other)
+function Jutul.compute_tpfa_flux(left, right, face, eq, state, model, dt, flow_disc, T)
     q = darcy_phase_fluxes(face, state, model, TPFA(left, right), T)
     q_i = component_mass_fluxes(q, face, state, model, SPU(left, right), T)
     return q_i
