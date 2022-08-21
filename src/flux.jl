@@ -4,6 +4,65 @@ function single_unique_potential(model)
     return model.domain.discretizations.mass_flow.gravity
 end
 
+function darcy_phase_fluxes(face, state, model, gΔz, tpfa::TPFA, T)
+    nph = number_of_phases(model.system)
+    T_f = state.Transmissibilities[face]
+    P = state.Pressure
+    ρ = state.PhaseMassDensities
+    pc, ref_index = capillary_pressure(model, state)
+
+    l = tpfa.left
+    r = tpfa.right
+    ∇p = P[l] - P[r]
+
+    q = SVector{nph, T}(zeros(nph))
+    for ph in 1:nph
+        @inbounds ρ_c = ρ[ph, l]
+        @inbounds ρ_i = ρ[ph, r]
+        Δpc = capillary_gradient(pc, l, r, ph, ref_index)
+        ρ_avg = (ρ_i + ρ_c)/2
+        V = -T_f*(∇p + Δpc + gΔz*ρ_avg)
+        q = setindex(q, V, ph)
+    end
+    return q
+end
+
+function Jutul.compute_tpfa_flux(cell, eq, state, model, dt, conn_data, flow_disc, T)
+    (; face, other, gdz) = conn_data
+
+    # basics = (l = cell, r = other)
+    q = darcy_phase_fluxes(face, state, model, gdz, TPFA(cell, other), T)
+    q_i = component_mass_fluxes(q, face, state, model, SPU(cell, other), T)
+    return q_i
+end
+
+function upwind(upw::SPU, F, q)
+    if q > 0
+        v = F(upw.right)
+    else
+        v = F(upw.left)
+    end
+    return v
+end
+
+function immiscible_phase_mass_mobility(state, ph, c)
+    ρ = state.PhaseMassDensities
+    kr = state.RelativePermeabilities
+    μ = state.PhaseViscosities
+    return ρ[ph, c]*kr[ph, c]/μ[ph, c]
+end
+
+function component_mass_fluxes(q, face, state, model::SimulationModel{<:Any, <:Union{ImmiscibleSystem, SinglePhaseSystem}, <:Any, <:Any}, upw, T)
+    mass_mobility = (ph, c) -> immiscible_phase_mass_mobility(state, ph, c)
+    Q = similar(q)
+    for i in eachindex(q)
+        q_i = q[i]
+        λ = c -> mass_mobility(i, c)
+        Q_i = upwind(upw, λ, q_i)*q_i
+        Q = setindex(Q, Q_i, i)
+    end
+    return q
+end
 
 function update_half_face_flux!(flux::AbstractArray, state, model, param, dt, flow_disc::TwoPointPotentialFlowHardCoded)
     rho, kr, mu, p = state.PhaseMassDensities, state.RelativePermeabilities, state.PhaseViscosities, state.Pressure
