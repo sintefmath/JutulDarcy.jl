@@ -60,7 +60,8 @@ function component_mass_fluxes(q, face, state, model::SimulationModel{<:Any, <:U
     for i in eachindex(q)
         q_i = q[i]
         λ = c -> mass_mobility(i, c)
-        Q_i = upwind(upw, λ, q_i)*q_i
+        λ_f = upwind(upw, λ, q_i)
+        Q_i = λ_f*q_i
         Q = setindex(Q, Q_i, i)
     end
     return q
