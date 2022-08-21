@@ -4,9 +4,10 @@ function single_unique_potential(model)
     return model.domain.discretizations.mass_flow.gravity
 end
 
-function darcy_phase_fluxes(face, state, model, gΔz, tpfa::TPFA, T)
+function darcy_phase_fluxes(face, state, model, tpfa::TPFA, T)
     nph = number_of_phases(model.system)
     T_f = state.Transmissibilities[face]
+    gΔz = state.TwoPointGravityDifference[face]
     P = state.Pressure
     ρ = state.PhaseMassDensities
     pc, ref_index = capillary_pressure(model, state)
@@ -27,12 +28,12 @@ function darcy_phase_fluxes(face, state, model, gΔz, tpfa::TPFA, T)
     return q
 end
 
-function Jutul.compute_tpfa_flux(cell, eq, state, model, dt, conn_data, flow_disc, T)
-    (; face, other, gdz) = conn_data
+function Jutul.compute_tpfa_flux(left, right, face, eq, state, model, dt, flow_disc, T)
+    # (; face, other) = conn_data
 
     # basics = (l = cell, r = other)
-    q = darcy_phase_fluxes(face, state, model, gdz, TPFA(cell, other), T)
-    q_i = component_mass_fluxes(q, face, state, model, SPU(cell, other), T)
+    q = darcy_phase_fluxes(face, state, model, TPFA(left, right), T)
+    q_i = component_mass_fluxes(q, face, state, model, SPU(left, right), T)
     return q_i
 end
 

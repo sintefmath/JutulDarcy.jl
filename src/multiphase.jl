@@ -157,10 +157,27 @@ struct Transmissibilities <: ScalarVariable end
 Jutul.associated_entity(::Transmissibilities) = Faces()
 function Jutul.default_values(model, ::Transmissibilities)
     d = model.domain
-    T = zeros(number_of_faces(d))
+    nf = number_of_faces(d)
+    # @assert nf > 0
+    T = zeros(nf)
     conn_data = d.discretizations.mass_flow.conn_data
     for cd in conn_data
         T[cd.face] = cd.T
+    end
+    return T
+end
+
+
+struct TwoPointGravityDifference <: ScalarVariable end
+
+Jutul.associated_entity(::TwoPointGravityDifference) = Faces()
+function Jutul.default_values(model, ::TwoPointGravityDifference)
+    d = model.domain
+    nf = number_of_faces(d)
+    T = zeros(nf)
+    conn_data = d.discretizations.mass_flow.conn_data
+    for cd in conn_data
+        T[cd.face] = cd.gdz
     end
     return T
 end
@@ -181,6 +198,7 @@ end
 
 function select_parameters!(prm, D::TwoPointPotentialFlowHardCoded, model)
     prm[:Transmissibilities] = Transmissibilities()
+    prm[:TwoPointGravityDifference] = TwoPointGravityDifference()
 end
 
 number_of_equations_per_entity(system::MultiPhaseSystem, e::ConservationLaw) = number_of_components(system)
