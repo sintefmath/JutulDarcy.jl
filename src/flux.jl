@@ -64,7 +64,7 @@ function component_mass_fluxes(q, face, state, model::SimulationModel{<:Any, <:U
         Q_i = λ_f*q_i
         Q = setindex(Q, Q_i, i)
     end
-    return q
+    return Q
 end
 
 function update_half_face_flux!(flux::AbstractArray, state, model, param, dt, flow_disc::TwoPointPotentialFlowHardCoded)
