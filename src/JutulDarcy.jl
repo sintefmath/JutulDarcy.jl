@@ -39,7 +39,7 @@ module JutulDarcy
     # PVT
     using MultiComponentFlash
     using MAT
-    using Tullio, LoopVectorization, Polyester, CUDA
+    using Tullio, LoopVectorization, Polyester
     using TimerOutputs
     import DataStructures: OrderedDict
 
