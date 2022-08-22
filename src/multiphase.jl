@@ -276,16 +276,16 @@ function insert_phase_sources!(acc, model, kr, mu, rhoS, sources)
     end
 end
 
-function insert_phase_sources!(acc::CuArray, model, kr, mu, rhoS, sources)
-    sources::CuArray
-    ix = map(cell, sources)
-    if !isa(rhoS, CuArray)
-        @warn "SurfaceDensities is not a CuArray, will convert whenever needed. Improve performance by converting once."  maxlog=1
-        rhoS = CuArray(rhoS)
-    end
-    rhoS::CuArray
-    @tullio acc[ph, ix[i]] = acc[ph, ix[i]] - phase_source(sources[i].cell, sources[i], rhoS[ph], kr, mu, ph)
-end
+# function insert_phase_sources!(acc::CuArray, model, kr, mu, rhoS, sources)
+#     sources::CuArray
+#     ix = map(cell, sources)
+#     if !isa(rhoS, CuArray)
+#         @warn "SurfaceDensities is not a CuArray, will convert whenever needed. Improve performance by converting once."  maxlog=1
+#         rhoS = CuArray(rhoS)
+#     end
+#     rhoS::CuArray
+#     @tullio acc[ph, ix[i]] = acc[ph, ix[i]] - phase_source(sources[i].cell, sources[i], rhoS[ph], kr, mu, ph)
+# end
 
 function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw, eq_s, r; dt = 1) where {D, S<:MultiPhaseSystem}
     M = global_map(model.domain)

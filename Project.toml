@@ -5,7 +5,6 @@ version = "0.1.0"
 
 [deps]
 AlgebraicMultigrid = "2169fc97-5a83-5252-b627-83903c6c433c"
-CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 Jutul = "2b460a1a-8a2b-45b2-b125-b5c536396eb9"

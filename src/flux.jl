@@ -4,7 +4,7 @@ function single_unique_potential(model)
     return model.domain.discretizations.mass_flow.gravity
 end
 
-function darcy_phase_fluxes(face, state, model, tpfa::TPFA, T)
+function darcy_phase_fluxes(face, state, model, tpfa::TPFA, T)#, ::Val{nph}) where nph
     nph = number_of_phases(model.system)
     T_f = state.Transmissibilities[face]
     gΔz = state.TwoPointGravityDifference[face]
@@ -16,7 +16,10 @@ function darcy_phase_fluxes(face, state, model, tpfa::TPFA, T)
     r = tpfa.right
     ∇p = P[l] - P[r]
 
-    q = SVector{nph, T}(zeros(nph))
+    # q = SVector{2, T}(0, 0)
+    # q = SVector{nph, T}(zeros(nph))
+    # q = SVector{nph, T}
+    q = @SVector zeros(T, nph)
     for ph in 1:nph
         V = darcy_phase_flux(∇p, gΔz, pc, l, r, ph, ref_index, T_f, ρ)
         q = setindex(q, V, ph)
@@ -33,7 +36,9 @@ function darcy_phase_flux(∇p, gΔz, pc, l, r, ph, ref_index, T_f, ρ)
 end
 
 function Jutul.compute_tpfa_flux(left, right, face, eq, state, model, dt, flow_disc, T)
-    q = darcy_phase_fluxes(face, state, model, TPFA(left, right), T)
+    nph = number_of_phases(model.system)
+
+    q = darcy_phase_fluxes(face, state, model, TPFA(left, right), T)#, Val(nph))
     q_i = component_mass_fluxes(q, face, state, model, SPU(left, right), T)
     return q_i
 end
