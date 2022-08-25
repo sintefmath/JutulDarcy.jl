@@ -11,18 +11,19 @@
     kr = state.RelativePermeabilities
     μ = state.PhaseViscosities
     b = state.ShrinkageFactors
+    Rs = state.Rs
 
     # Oil
-    f_bl = (cell, flag) -> b_mob(b, kr, μ, l, cell, flag)
+    f_bl = cell -> b_mob(b, kr, μ, l, cell)
     λb_l = upwind(upw, f_bl, ψ_l)
     q_l = rhoS[l]*λb_l*ψ_l
-    # Gas
-    f_bv = (cell, flag) -> b_mob(b, kr, μ, v, cell, flag)
+    # Gas mobility
+    f_bv = cell -> b_mob(b, kr, μ, v, cell)
     λb_v = upwind(upw, f_bv, ψ_v)
-
-    f_rs = (cell, flag) -> @inbounds b[v, cell]
-    # Note: Rs is upwinded by liquid potential
+    # Rs (solute gas) upwinded by liquid potential
+    f_rs = cell -> @inbounds Rs[cell]
     rs = upwind(upw, f_rs, ψ_l)
+    # Final flux = gas phase flux + gas-in-oil flux
     q_v = (λb_v*ψ_v + rs*λb_l*ψ_l)*rhoS[v]
 
     q = setindex(q, q_a, a)
@@ -31,7 +32,7 @@
     return q
 end
 
-function b_mob(b, kr, μ, ph, c, flag)
+function b_mob(b, kr, μ, ph, c)
     @inbounds λ = kr[ph, c]/μ[ph, c]
     @inbounds b_f = b[ph, c]
     return λ*b_f

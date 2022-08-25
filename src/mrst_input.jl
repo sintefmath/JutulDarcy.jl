@@ -1329,7 +1329,10 @@ function write_reservoir_simulator_output_to_mrst(model, states, reports, forces
                         mk = "components"
                     end
                 end
-                D[mk] = prep_write(res_state[k])
+                vals = res_state[k]
+                if eltype(vals)<:Real
+                    D[mk] = prep_write(vals)
+                end
             end
             matwrite(state_path, Dict("data" => D))
         end
