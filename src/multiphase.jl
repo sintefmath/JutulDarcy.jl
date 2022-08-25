@@ -153,6 +153,7 @@ struct TotalMass <: ScalarVariable end
 @inline function minimum_value(::TotalMass) 0 end
 
 struct Transmissibilities <: ScalarVariable end
+Jutul.variable_scale(::Transmissibilities) = 1e-10
 
 Jutul.associated_entity(::Transmissibilities) = Faces()
 function Jutul.default_values(model, ::Transmissibilities)
