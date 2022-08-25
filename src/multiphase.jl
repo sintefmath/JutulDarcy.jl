@@ -152,6 +152,35 @@ end
 struct TotalMass <: ScalarVariable end
 @inline function minimum_value(::TotalMass) 0 end
 
+struct Transmissibilities <: ScalarVariable end
+
+Jutul.associated_entity(::Transmissibilities) = Faces()
+function Jutul.default_values(model, ::Transmissibilities)
+    d = model.domain
+    nf = number_of_faces(d)
+    # @assert nf > 0
+    T = zeros(nf)
+    conn_data = d.discretizations.mass_flow.conn_data
+    for cd in conn_data
+        T[cd.face] = cd.T
+    end
+    return T
+end
+
+
+struct TwoPointGravityDifference <: ScalarVariable end
+
+Jutul.associated_entity(::TwoPointGravityDifference) = Faces()
+function Jutul.default_values(model, ::TwoPointGravityDifference)
+    d = model.domain
+    nf = number_of_faces(d)
+    T = zeros(nf)
+    conn_data = d.discretizations.mass_flow.conn_data
+    for cd in conn_data
+        T[cd.face] = cd.face_sign*cd.gdz
+    end
+    return T
+end
 
 # Selection of variables
 function select_primary_variables!(S, ::SinglePhaseSystem, model)
@@ -165,6 +194,11 @@ end
 
 function select_equations!(eqs, ::MultiPhaseSystem, model)
     eqs[:mass_conservation] = ConservationLaw(model.domain.discretizations.mass_flow)
+end
+
+function select_parameters!(prm, D::TwoPointPotentialFlowHardCoded, model)
+    prm[:Transmissibilities] = Transmissibilities()
+    prm[:TwoPointGravityDifference] = TwoPointGravityDifference()
 end
 
 number_of_equations_per_entity(system::MultiPhaseSystem, e::ConservationLaw) = number_of_components(system)
@@ -242,16 +276,16 @@ function insert_phase_sources!(acc, model, kr, mu, rhoS, sources)
     end
 end
 
-function insert_phase_sources!(acc::CuArray, model, kr, mu, rhoS, sources)
-    sources::CuArray
-    ix = map(cell, sources)
-    if !isa(rhoS, CuArray)
-        @warn "SurfaceDensities is not a CuArray, will convert whenever needed. Improve performance by converting once."  maxlog=1
-        rhoS = CuArray(rhoS)
-    end
-    rhoS::CuArray
-    @tullio acc[ph, ix[i]] = acc[ph, ix[i]] - phase_source(sources[i].cell, sources[i], rhoS[ph], kr, mu, ph)
-end
+# function insert_phase_sources!(acc::CuArray, model, kr, mu, rhoS, sources)
+#     sources::CuArray
+#     ix = map(cell, sources)
+#     if !isa(rhoS, CuArray)
+#         @warn "SurfaceDensities is not a CuArray, will convert whenever needed. Improve performance by converting once."  maxlog=1
+#         rhoS = CuArray(rhoS)
+#     end
+#     rhoS::CuArray
+#     @tullio acc[ph, ix[i]] = acc[ph, ix[i]] - phase_source(sources[i].cell, sources[i], rhoS[ph], kr, mu, ph)
+# end
 
 function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw, eq_s, r; dt = 1) where {D, S<:MultiPhaseSystem}
     M = global_map(model.domain)

@@ -15,6 +15,19 @@ struct TotalSurfaceMassRate <: ScalarVariable end
 abstract type WellTarget end
 abstract type SurfaceVolumeTarget <: WellTarget end
 
+"""
+Perforations are connections from well cells to reservoir vcells
+"""
+struct Perforations <: JutulEntity end
+
+struct WellIndices <: ScalarVariable end
+
+Jutul.associated_entity(::WellIndices) = Perforations()
+function Jutul.default_values(model, ::WellIndices)
+    w = model.domain.grid
+    return vec(copy(w.perforations.WI))
+end
+
 Base.show(io::IO, t::SurfaceVolumeTarget) = print(io, "$(typeof(t)) with value $(t.value) [m^3/s] for $(join([typeof(p) for p in lumped_phases(t)], ", "))")
 
 # Basics
@@ -222,6 +235,10 @@ struct WellGroupConfiguration
         end
         new(control, requested, limits)
     end
+end
+
+function Jutul.update_values!(old::WellGroupConfiguration, new::WellGroupConfiguration)
+    return WellGroupConfiguration(copy(new.operating_controls), copy(new.requested_controls), copy(new.limits))
 end
 
 operating_control(cfg::WellGroupConfiguration, well::Symbol) = cfg.operating_controls[well]

@@ -12,9 +12,11 @@ function update_cross_term_in_entity!(out, i,
     model_t, model_s,
     ct::ReservoirFromWellCT, eq, dt, ldisc = local_discretization(ct, i))
     # Unpack properties
-    reservoir_cell = ct.reservoir_cells[i]
-    well_cell = ct.well_cells[i]
-    WI = ct.WI[i]
+    @inbounds begin 
+        reservoir_cell = ct.reservoir_cells[i]
+        well_cell = ct.well_cells[i]
+        WI = state_s.WellIndices[i]
+    end
     rhoS = reference_densities(model_s.system)
 
     p_well = state_s.Pressure
@@ -109,7 +111,7 @@ struct WellFromFacilityCT <: Jutul.AdditiveCrossTerm
     well::Symbol
 end
 
-Jutul.cross_term_entities(ct::WellFromFacilityCT, eq::ConservationLaw, model) = well_top_node()
+Jutul.cross_term_entities(ct::WellFromFacilityCT, eq::ConservationLaw, model) = [well_top_node()]
 
 function update_cross_term_in_entity!(out, i,
     state_well, state0_well,

@@ -23,10 +23,12 @@ end
 function Base.show(io::IO, w::WellGrid)
     if w isa SimpleWell
         nseg = 0
+        n = "SimpleWell"
     else
         nseg = size(w.neighborship, 2)
+        n = "MultiSegmentWell"
     end
-    print(io, "$(typeof(w)) [$(w.name)] ($(length(w.volumes)) nodes, $(nseg) segments, $(length(w.perforations.reservoir)) perforations)")
+    print(io, "$n [$(w.name)] ($(length(w.volumes)) nodes, $(nseg) segments, $(length(w.perforations.reservoir)) perforations)")
 end
 
 # Total velocity in each well segment
@@ -235,22 +237,22 @@ function segment_pressure_drop(f::SegmentWellBoreFrictionHB, v, ρ, μ)
     # Friction model - empirical relationship
     Re_l, Re_t = f.laminar_limit, f.turbulent_limit
     if is_laminar_flow(f, Re)
-        f = 16/Re_l
+        f = 16.0/Re_l
     else
         # Either turbulent or intermediate flow regime. We need turbulent value either way.
-        f_t = (-3.6*log(6.9/Re +(R/(3.7*D⁰))^(10/9))/log(10))^(-2)
+        f_t = (-3.6*log(6.9/Re +(R/(3.7*D⁰))^(10.0/9.0))/log(10.0))^(-2.0)
         if is_turbulent_flow(f, Re)
             # Turbulent flow
             f = f_t
         else
             # Intermediate regime - interpolation
-            f_l = 16/Re_l
+            f_l = 16.0/Re_l
             Δf = f_t - f_l
             ΔRe = Re_t - Re_l
             f = f_l + (Δf / ΔRe)*(Re - Re_l)
         end
     end
-    Δp = -(2*s*L/ΔD)*(f*ρ*v^2)
+    Δp = -(2.0*s*L/ΔD)*(f*ρ*v^2.0)
     return Δp
 end
 
@@ -275,10 +277,6 @@ function fluid_volume(grid::WellGrid)
 end
 
 # Well segments
-"""
-Perforations are connections from well cells to reservoir vcells
-"""
-struct Perforations <: JutulEntity end
 
 function get_neighborship(::SimpleWell)
     # No interior connections.
@@ -396,6 +394,10 @@ function select_equations!(eqs, domain::MSWellDomain, model)
     eqs[:potential_balance] = PotentialDropBalanceWell(domain.discretizations.mass_flow)
 end
 
+function select_parameters!(prm, domain::MSWellDomain, model)
+    prm[:WellIndices] = WellIndices()
+end
+
 function select_minimum_output_variables!(vars, domain::WellDomain, model)
     push!(vars, :PhaseMassDensities)
     push!(vars, :Saturations)
@@ -437,7 +439,10 @@ function apply_perforation_mask!(storage::NamedTuple, mask::AbstractVector)
     function mask_row!(M::AbstractVector, m, ix)
         M[ix] *= m
     end
-    for s in values(storage)
+    for (k, s) in pairs(storage)
+        if k == :numeric
+            continue
+        end
         v = s.entries
         for i in 1:Jutul.number_of_entities(s)
             mask_value = mask[i]
