@@ -11,7 +11,7 @@ end
 @inline function component_mass_fluxes!(q, face, state, model::SimulationModel{<:Any, <:Union{ImmiscibleSystem, SinglePhaseSystem}, <:Any, <:Any}, kgrad, upw)
     for ph in eachindex(q)
         q_i = darcy_phase_mass_flux(face, ph, state, model, kgrad, upw)
-        @inbounds q = @set q[ph] = q_i
+        @inbounds q = setindex(q, q_i, ph)
     end
     return q
 end
