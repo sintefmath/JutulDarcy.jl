@@ -4,43 +4,33 @@ function single_unique_potential(model)
     return model.domain.discretizations.mass_flow.gravity
 end
 
-function darcy_phase_fluxes(face, state, model, tpfa::TPFA, T)#, ::Val{nph}) where nph
-    nph = number_of_phases(model.system)
-    T_f = state.Transmissibilities[face]
-    gΔz = state.TwoPointGravityDifference[face]
+function Jutul.compute_tpfa_flux!(q_i, left, right, face, eq, state, model, dt, flow_disc)
+    return component_mass_fluxes!(q_i, face, state, model, TPFA(left, right), SPU(left, right))
+end
+
+function darcy_phase_kgrad_potential(face, phase, state, model, tpfa::TPFA)
+    @inbounds T_f = state.Transmissibilities[face]
+    @inbounds gΔz = state.TwoPointGravityDifference[face]
+
     P = state.Pressure
     ρ = state.PhaseMassDensities
     pc, ref_index = capillary_pressure(model, state)
 
     l = tpfa.left
     r = tpfa.right
-    ∇p = P[l] - P[r]
-
-    # q = SVector{2, T}(0, 0)
-    # q = SVector{nph, T}(zeros(nph))
-    # q = SVector{nph, T}
-    q = @SVector zeros(T, nph)
-    for ph in 1:nph
-        V = darcy_phase_flux(∇p, gΔz, pc, l, r, ph, ref_index, T_f, ρ)
-        q = setindex(q, V, ph)
-    end
-    return q
-end
-
-function darcy_phase_flux(∇p, gΔz, pc, l, r, ph, ref_index, T_f, ρ)
-    @inbounds ρ_c = ρ[ph, l]
-    @inbounds ρ_i = ρ[ph, r]
-    Δpc = capillary_gradient(pc, l, r, ph, ref_index)
-    ρ_avg = (ρ_i + ρ_c)/2
+    @inbounds ∇p = P[l] - P[r]
+    @inbounds ρ_c = ρ[phase, l]
+    @inbounds ρ_i = ρ[phase, r]
+    Δpc = capillary_gradient(pc, l, r, phase, ref_index)
+    ρ_avg = 0.5*(ρ_i + ρ_c)
     return -T_f*(∇p + Δpc + gΔz*ρ_avg)
 end
 
-function Jutul.compute_tpfa_flux(left, right, face, eq, state, model, dt, flow_disc, T)
-    nph = number_of_phases(model.system)
-
-    q = darcy_phase_fluxes(face, state, model, TPFA(left, right), T)#, Val(nph))
-    q_i = component_mass_fluxes(q, face, state, model, SPU(left, right), T)
-    return q_i
+function darcy_phase_mass_flux(face, phase, state, model, kgrad, upw)
+    Q = darcy_phase_kgrad_potential(face, phase, state, model, kgrad)
+    ρλ = c -> immiscible_phase_mass_mobility(state, phase, c)
+    ρλ_f = upwind(upw, ρλ, Q)
+    return ρλ_f*Q
 end
 
 function upwind(upw::SPU, F, q)
@@ -56,20 +46,14 @@ function immiscible_phase_mass_mobility(state, ph, c)
     ρ = state.PhaseMassDensities
     kr = state.RelativePermeabilities
     μ = state.PhaseViscosities
-    return ρ[ph, c]*kr[ph, c]/μ[ph, c]
+    return @inbounds ρ[ph, c]*kr[ph, c]/μ[ph, c]
 end
 
-function component_mass_fluxes(q, face, state, model::SimulationModel{<:Any, <:Union{ImmiscibleSystem, SinglePhaseSystem}, <:Any, <:Any}, upw, T)
-    mass_mobility = (ph, c) -> immiscible_phase_mass_mobility(state, ph, c)
-    Q = similar(q)
-    for i in eachindex(q)
-        q_i = q[i]
-        λ = c -> mass_mobility(i, c)
-        λ_f = upwind(upw, λ, q_i)
-        Q_i = λ_f*q_i
-        Q = setindex(Q, Q_i, i)
+function component_mass_fluxes!(q, face, state, model::SimulationModel{<:Any, <:Union{ImmiscibleSystem, SinglePhaseSystem}, <:Any, <:Any}, kgrad, upw)
+    for ph in eachindex(q)
+        q = @set q[ph] = darcy_phase_mass_flux(face, ph, state, model, kgrad, upw)
     end
-    return Q
+    return q
 end
 
 function update_half_face_flux!(flux::AbstractArray, state, model, param, dt, flow_disc::TwoPointPotentialFlowHardCoded)
