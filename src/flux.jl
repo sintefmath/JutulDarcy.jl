@@ -4,21 +4,27 @@ function single_unique_potential(model)
     return model.domain.discretizations.mass_flow.gravity
 end
 
-function Jutul.compute_tpfa_flux!(q_i, left, right, face, eq, state, model, dt, flow_disc)
-    return component_mass_fluxes!(q_i, face, state, model, TPFA(left, right), SPU(left, right))
+function Jutul.compute_tpfa_flux!(q_i, left, right, face, face_sign, eq, state, model, dt, flow_disc)
+    return component_mass_fluxes!(q_i, face, state, model, TPFA(left, right, face_sign), SPU(left, right))
+end
+
+@inline function pressure_gradient(state, tpfa::TPFA)
+    P = state.Pressure
+    return @inbounds P[tpfa.left] - P[tpfa.right]
 end
 
 function darcy_phase_kgrad_potential(face, phase, state, model, tpfa::TPFA)
-    @inbounds T_f = state.Transmissibilities[face]
-    @inbounds gΔz = state.TwoPointGravityDifference[face]
-
-    P = state.Pressure
-    ρ = state.PhaseMassDensities
-    pc, ref_index = capillary_pressure(model, state)
-
     l = tpfa.left
     r = tpfa.right
-    @inbounds ∇p = P[l] - P[r]
+    s = tpfa.face_sign
+
+    @inbounds T_f = state.Transmissibilities[face]
+    @inbounds gΔz = s*state.TwoPointGravityDifference[face]
+
+    ρ = state.PhaseMassDensities
+    pc, ref_index = capillary_pressure(model, state)
+    ∇p = pressure_gradient(state, tpfa)
+
     @inbounds ρ_c = ρ[phase, l]
     @inbounds ρ_i = ρ[phase, r]
     Δpc = capillary_gradient(pc, l, r, phase, ref_index)
@@ -34,12 +40,12 @@ function darcy_phase_mass_flux(face, phase, state, model, kgrad, upw)
 end
 
 function upwind(upw::SPU, F, q)
-    if q > 0
-        v = F(upw.right)
+    if q >= 0
+        up = upw.right
     else
-        v = F(upw.left)
+        up = upw.left
     end
-    return v
+    return F(up)
 end
 
 function immiscible_phase_mass_mobility(state, ph, c)
@@ -51,7 +57,8 @@ end
 
 function component_mass_fluxes!(q, face, state, model::SimulationModel{<:Any, <:Union{ImmiscibleSystem, SinglePhaseSystem}, <:Any, <:Any}, kgrad, upw)
     for ph in eachindex(q)
-        q = @set q[ph] = darcy_phase_mass_flux(face, ph, state, model, kgrad, upw)
+        q_i = darcy_phase_mass_flux(face, ph, state, model, kgrad, upw)
+        q = @set q[ph] = q_i
     end
     return q
 end

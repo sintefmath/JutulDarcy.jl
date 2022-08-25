@@ -177,7 +177,7 @@ function Jutul.default_values(model, ::TwoPointGravityDifference)
     T = zeros(nf)
     conn_data = d.discretizations.mass_flow.conn_data
     for cd in conn_data
-        T[cd.face] = cd.gdz
+        T[cd.face] = cd.face_sign*cd.gdz
     end
     return T
 end
