@@ -5,7 +5,9 @@ function single_unique_potential(model)
 end
 
 @inline function Jutul.compute_tpfa_flux!(q_i, left, right, face, face_sign, eq, state, model, dt, flow_disc)
-    return component_mass_fluxes!(q_i, face, state, model, TPFA(left, right, face_sign), SPU(left, right))
+    kgrad = TPFA(left, right, face_sign)
+    upw = SPU(left, right)
+    return component_mass_fluxes!(q_i, face, state, model, kgrad, upw)
 end
 
 @inline function component_mass_fluxes!(q, face, state, model::SimulationModel{<:Any, <:Union{ImmiscibleSystem, SinglePhaseSystem}, <:Any, <:Any}, kgrad, upw)
@@ -45,7 +47,7 @@ end
 
     @inbounds ρ_c = ρ[phase, l]
     @inbounds ρ_i = ρ[phase, r]
-    ρ_avg = 0.5*(ρ_i + ρ_c)
+    ρ_avg = (ρ_i + ρ_c)/2
     q = -T_f*(∇p + Δpc + gΔz*ρ_avg)
     return q
 end
@@ -71,14 +73,14 @@ end
     return ρ*kr/μ
 end
 
-capillary_gradient(::Nothing, c_l, c_r, ph, ph_ref) = 0.0
-function capillary_gradient(pc, c_l, c_r, ph, ph_ref)
+@inline capillary_gradient(::Nothing, c_l, c_r, ph, ph_ref) = 0.0
+@inline function capillary_gradient(pc, c_l, c_r, ph, ph_ref)
     if ph == ph_ref
         Δp_c = 0.0
     elseif ph < ph_ref
-        Δp_c = pc[ph, c_l] - pc[ph, c_r]
+        @inbounds Δp_c = pc[ph, c_l] - pc[ph, c_r]
     else
-        Δp_c = pc[ph-1, c_l] - pc[ph-1, c_r]
+        @inbounds Δp_c = pc[ph-1, c_l] - pc[ph-1, c_r]
     end
 end
 
