@@ -36,7 +36,6 @@ module JutulDarcy
     using Jutul
     using ForwardDiff, StaticArrays, SparseArrays, LinearAlgebra, Statistics
     using AlgebraicMultigrid, Krylov
-    using Setfield
     # PVT
     using MultiComponentFlash
     using MAT
