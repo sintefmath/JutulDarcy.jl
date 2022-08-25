@@ -439,7 +439,10 @@ function apply_perforation_mask!(storage::NamedTuple, mask::AbstractVector)
     function mask_row!(M::AbstractVector, m, ix)
         M[ix] *= m
     end
-    for s in values(storage)
+    for (k, s) in pairs(storage)
+        if k == :numeric
+            continue
+        end
         v = s.entries
         for i in 1:Jutul.number_of_entities(s)
             mask_value = mask[i]
