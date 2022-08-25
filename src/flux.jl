@@ -14,20 +14,30 @@ end
 end
 
 function darcy_phase_kgrad_potential(face, phase, state, model, tpfa::TPFA)
-    l = tpfa.left
-    r = tpfa.right
-    s = tpfa.face_sign
 
-    @inbounds T_f = state.Transmissibilities[face]
-    @inbounds gΔz = s*state.TwoPointGravityDifference[face]
+    trans = state.Transmissibilities
+    grav = state.TwoPointGravityDifference
 
     ρ = state.PhaseMassDensities
     pc, ref_index = capillary_pressure(model, state)
     ∇p = pressure_gradient(state, tpfa)
 
+    return darcy_phase_flux_inner(∇p, pc, ref_index, trans, face, phase, grav, ρ, tpfa)
+end
+
+function darcy_phase_flux_inner(∇p, pc, ref_index, trans, face, phase, grav, ρ, tpfa)
+    l = tpfa.left
+    r = tpfa.right
+    s = tpfa.face_sign
+
+    @inbounds T_f = trans[face]
+    @inbounds gΔz = s*grav[face]
+
+    Δpc = capillary_gradient(pc, l, r, phase, ref_index)
+
     @inbounds ρ_c = ρ[phase, l]
     @inbounds ρ_i = ρ[phase, r]
-    Δpc = capillary_gradient(pc, l, r, phase, ref_index)
+
     ρ_avg = 0.5*(ρ_i + ρ_c)
     return -T_f*(∇p + Δpc + gΔz*ρ_avg)
 end
