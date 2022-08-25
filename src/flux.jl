@@ -20,7 +20,7 @@ end
 
 @inline function darcy_phase_mass_flux(face, phase, state, model, kgrad, upw)
     Q = darcy_phase_kgrad_potential(face, phase, state, model, kgrad)
-    ρλ = c -> immiscible_phase_mass_mobility(state, phase, c)
+    ρλ = (c, flag) -> immiscible_phase_mass_mobility(state, phase, c, flag)
     ρλ_f = upwind(upw, ρλ, Q)
     return ρλ_f*Q
 end
@@ -58,15 +58,16 @@ end
 end
 
 @inline function upwind(upw::SPU, F, q)
-    if q >= 0
+    flag = q >= 0
+    if flag
         up = upw.right
     else
         up = upw.left
     end
-    return F(up)
+    return F(up, flag)
 end
 
-@inline function immiscible_phase_mass_mobility(state, ph, c)
+@inline function immiscible_phase_mass_mobility(state, ph, c, flag)
     @inbounds kr = state.RelativePermeabilities[ph, c]
     @inbounds ρ = state.PhaseMassDensities[ph, c]
     @inbounds μ = state.PhaseViscosities[ph, c]
