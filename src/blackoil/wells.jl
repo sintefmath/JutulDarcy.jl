@@ -17,7 +17,7 @@ Base.@propagate_inbounds function well_perforation_flux!(out, sys::BlackOilSyste
     rhoOS = rhoS[l]
     rhoGS = rhoS[v]
 
-    if dp < 0
+    if dp < 0.0
         # Injection
         λ_t = λ_a + λ_l + λ_v
         Q = λ_t*dp
