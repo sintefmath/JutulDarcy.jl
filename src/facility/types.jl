@@ -295,6 +295,8 @@ struct PerforationMask{V} <: JutulForce where V<:AbstractVector
     end
 end
 
+Jutul.can_impact_cross_term(force_t::PerforationMask, cross_term::ReservoirFromWellCT) = true
+
 import Base.copy
 Base.copy(m::PerforationMask) = PerforationMask(copy(m.values))
 
