@@ -5,6 +5,7 @@ struct ReservoirFromWellCT{T<:AbstractVector, I<:AbstractVector} <: Jutul.Additi
 end
 
 Jutul.symmetry(::ReservoirFromWellCT) = Jutul.CTSkewSymmetry()
+Jutul.can_impact_cross_term(force_t::PerforationMask, cross_term::ReservoirFromWellCT) = true
 
 function update_cross_term_in_entity!(out, i,
     state_t, state0_t,
