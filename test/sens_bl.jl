@@ -9,8 +9,18 @@ function get_sens(model, state0, parameters, tstep, forces, G)
                     extra_timing = false, raw_output = false)
 
     grad_numeric = Dict{Symbol, Any}()
+
+    is_multi = isa(model, MultiModel)
+    if is_multi
+        grad_adj = grad_adj[:Reservoir]
+    end
     for k in keys(grad_adj)
-        grad_numeric[k] = Jutul.solve_numerical_sensitivities(model, states, reports, G, k,
+        if is_multi
+            target = (:Reservoir, k)
+        else
+            target = k
+        end
+        grad_numeric[k] = Jutul.solve_numerical_sensitivities(model, states, reports, G, target,
                         forces = forces, state0 = state0, parameters = parameters,
                         epsilon = 1e-6)
     end
@@ -42,21 +52,38 @@ function setup_bl(;nc = 100, time = 1.0, nstep = 100)
     return (model, state0, parameters, forces, tstep)
 end
 # Test sensitivity of integrated Buckley-Leverett outlet saturation
-G = (model, state, dt, step_no, forces) -> dt*state[:Saturations][2, end]
-model, state0, parameters, forces, tstep = setup_bl(nc = 10, nstep = 10)
-adj, num = get_sens(model, state0, parameters, tstep, forces, G)
-
 @testset "BL sensitivities" begin
-    t = :Transmissibilities
-    @testset "$t" begin
-        @test isapprox(adj[t], num[t], rtol = 1e-3)
-    end
-    t = :TwoPointGravityDifference
-    @testset "$t" begin
-        @test isapprox(adj[t], num[t], rtol = 1e-2)
-    end
-    t = :FluidVolume
-    @testset "$t" begin
-        @test isapprox(adj[t], num[t], rtol = 1e-3)
+    for multi_model in [false, true]
+        model, state0, parameters, forces, tstep = setup_bl(nc = 10, nstep = 10)
+        if multi_model
+            sim, = setup_reservoir_simulator(model, state0, parameters)
+            model = sim.model
+            forces = Dict(:Reservoir => forces)
+            parameters = Dict(:Reservoir => parameters)
+            state0 = Dict(:Reservoir => state0)
+            G = (m, state, dt, step_no, forces) -> dt*state[:Reservoir][:Saturations][2, end]
+        else
+            G = (model, state, dt, step_no, forces) -> dt*state[:Saturations][2, end]
+        end
+        adj, num = get_sens(model, state0, parameters, tstep, forces, G)
+        if multi_model
+            name = "multimodel"
+        else
+            name = "single_model"
+        end
+        @testset "$name" begin
+            t = :Transmissibilities
+            @testset "$t" begin
+                @test isapprox(adj[t], num[t], rtol = 1e-3)
+            end
+            t = :TwoPointGravityDifference
+            @testset "$t" begin
+                @test isapprox(adj[t], num[t], rtol = 1e-2)
+            end
+            t = :FluidVolume
+            @testset "$t" begin
+                @test isapprox(adj[t], num[t], rtol = 1e-3)
+            end
+        end
     end
 end
