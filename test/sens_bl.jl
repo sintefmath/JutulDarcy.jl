@@ -53,25 +53,26 @@ function setup_bl(;nc = 100, time = 1.0, nstep = 100)
 end
 # Test sensitivity of integrated Buckley-Leverett outlet saturation
 @testset "BL sensitivities" begin
-    for multi_model in [false, true]
+    for model_type in [:single, :multi, :multi_dummy]
         model, state0, parameters, forces, tstep = setup_bl(nc = 10, nstep = 10)
-        if multi_model
-            sim, = setup_reservoir_simulator(model, state0, parameters)
-            model = sim.model
+        if model_type == :multi_dummy
+            model = MultiModel(Dict(:Dummy => model, :Reservoir => model))
+            forces = Dict(:Dummy => forces, :Reservoir => forces)
+            parameters = Dict(:Dummy => parameters, :Reservoir => parameters)
+            state0 = Dict(:Dummy => state0, :Reservoir => state0)
+            G = (m, state, dt, step_no, forces) -> dt*state[:Reservoir][:Saturations][2, end]
+        elseif model_type == :multi
+            model = MultiModel(Dict(:Reservoir => model))
             forces = Dict(:Reservoir => forces)
             parameters = Dict(:Reservoir => parameters)
             state0 = Dict(:Reservoir => state0)
             G = (m, state, dt, step_no, forces) -> dt*state[:Reservoir][:Saturations][2, end]
         else
+            @assert model_type == :single
             G = (model, state, dt, step_no, forces) -> dt*state[:Saturations][2, end]
         end
         adj, num = get_sens(model, state0, parameters, tstep, forces, G)
-        if multi_model
-            name = "multimodel"
-        else
-            name = "single_model"
-        end
-        @testset "$name" begin
+        @testset "$model_type" begin
             t = :Transmissibilities
             @testset "$t" begin
                 @test isapprox(adj[t], num[t], rtol = 1e-3)
