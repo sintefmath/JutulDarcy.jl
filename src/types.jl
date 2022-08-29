@@ -65,6 +65,11 @@ struct StandardBlackOilSystem{D, W, R, F, T, P} <: BlackOilSystem
     end
 end
 
+function Base.show(io::IO, d::StandardBlackOilSystem)
+    print(io, "StandardBlackOilSystem with $(d.phases)")
+end
+
+
 const BlackOilVariableSwitchingSystem = StandardBlackOilSystem{<:Any, <:Any, <:Any, :varswitch, <:Any, <:Any}
 const BlackOilGasFractionSystem = StandardBlackOilSystem{<:Any, <:Any, <:Any, :zg, <:Any, <:Any}
 

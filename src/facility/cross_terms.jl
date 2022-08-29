@@ -1,7 +1,13 @@
+export ReservoirFromWellCT, FacilityFromWellCT, WellFromFacilityCT
 struct ReservoirFromWellCT{T<:AbstractVector, I<:AbstractVector} <: Jutul.AdditiveCrossTerm
     WI::T
     reservoir_cells::I
     well_cells::I
+end
+
+function Base.show(io::IO, d::ReservoirFromWellCT)
+    n = length(d.WI)
+    print(io, "ReservoirFromWellCT ($n connections)")
 end
 
 Jutul.symmetry(::ReservoirFromWellCT) = Jutul.CTSkewSymmetry()

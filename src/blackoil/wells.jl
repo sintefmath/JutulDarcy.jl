@@ -10,25 +10,21 @@ Base.@propagate_inbounds function well_perforation_flux!(out, sys::BlackOilSyste
     s_w = state_well.Saturations
     rs_w = state_well.Rs
     b_w = state_well.ShrinkageFactors
-    a, l, v = 1, 2, 3
+    a, l, v = phase_indices(sys)
     λ_a = kr[a, rc]/μ[a, rc]
     λ_l = kr[l, rc]/μ[l, rc]
     λ_v = kr[v, rc]/μ[v, rc]
     rhoOS = rhoS[l]
     rhoGS = rhoS[v]
-
     if dp < 0.0
         # Injection
         λ_t = λ_a + λ_l + λ_v
         Q = λ_t*dp
-
         bO = b_w[l, wc]
         bG = b_w[v, wc]
         rs_i = rs_w[wc]
-
         sO = s_w[l, wc]
         sG = s_w[v, wc]
-
         q_a = s_w[a, wc]*ρ_w[a, wc]*Q
         q_l = sO*rhoOS*bO*Q
         q_v = rhoGS*(sG*bG + rs_i*sO*bO)*Q
@@ -36,7 +32,6 @@ Base.@propagate_inbounds function well_perforation_flux!(out, sys::BlackOilSyste
         # Production
         bO = b[l, rc]
         bG = b[v, rc]
-
         q_a = dp*ρ[a, rc]*λ_a
         q_l = dp*bO*λ_l*rhoOS
         q_v = dp*(bO*λ_l*rs[rc] + bG*λ_v)*rhoGS
