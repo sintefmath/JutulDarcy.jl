@@ -2,11 +2,13 @@
     sys = model.system
     a, l, v = phase_indices(sys)
     rhoS = reference_densities(sys)
+    kdisc = kgrad_common(face, state, model, kgrad)
+
     # Aqueous phase is straightforward, just the mass flux for phase
-    q_a = darcy_phase_mass_flux(face, a, state, model, kgrad, upw)
+    q_a = darcy_phase_mass_flux(face, a, state, model, kgrad, upw, kdisc)
     # Get the potentials since the flux is more complicated for miscible phases
-    ψ_l = darcy_phase_kgrad_potential(face, l, state, model, kgrad)
-    ψ_v = darcy_phase_kgrad_potential(face, v, state, model, kgrad)
+    ψ_l = darcy_phase_kgrad_potential(face, l, state, model, kgrad, kdisc)
+    ψ_v = darcy_phase_kgrad_potential(face, v, state, model, kgrad, kdisc)
 
     kr = state.RelativePermeabilities
     μ = state.PhaseViscosities

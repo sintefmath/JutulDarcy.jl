@@ -5,32 +5,27 @@
 
     X = state.LiquidMassFractions
     Y = state.VaporMassFractions
-    kr = state.RelativePermeabilities
-    μ = state.PhaseViscosities
-    ρ = state.PhaseMassDensities
-    pressure = state.Pressure
-    s = state.Saturations
-
-    q = compositional_fluxes!(q, face, state,  X, Y, kr, μ, ρ, pressure, s, model, kgrad, upw, aqua, ph_ix)
+    kdisc = kgrad_common(face, state, model, kgrad)
+    q = compositional_fluxes!(q, face, state,  X, Y, model, kgrad, kdisc, upw, aqua, ph_ix)
     return q
 end
 
-@inline function compositional_fluxes!(q, face, state, X, Y, kr, μ, ρ, pressure, s, model, kgrad, upw, aqua::Val{false}, phase_ix)
+@inline function compositional_fluxes!(q, face, state, X, Y, model, kgrad, kdisc, upw, aqua::Val{false}, phase_ix)
     nc = size(X, 1)
     l, v = phase_ix
-    q_l = darcy_phase_mass_flux(face, l, state, model, kgrad, upw)
-    q_v = darcy_phase_mass_flux(face, v, state, model, kgrad, upw)
+    q_l = darcy_phase_mass_flux(face, l, state, model, kgrad, upw, kdisc)
+    q_v = darcy_phase_mass_flux(face, v, state, model, kgrad, upw, kdisc)
 
     q = inner_compositional!(q, X, Y, q_l, q_v, upw, nc)
     return q
 end
 
-@inline function compositional_fluxes!(q, face, state, X, Y, kr, μ, ρ, pressure, s, model, kgrad, upw, aqua::Val{true}, phase_ix)
+@inline function compositional_fluxes!(q, face, state, X, Y, model, kgrad, kdisc, upw, aqua::Val{true}, phase_ix)
     nc = size(X, 1)
     a, l, v = phase_ix
-    q_a = darcy_phase_mass_flux(face, a, state, model, kgrad, upw)
-    q_l = darcy_phase_mass_flux(face, l, state, model, kgrad, upw)
-    q_v = darcy_phase_mass_flux(face, v, state, model, kgrad, upw)
+    q_a = darcy_phase_mass_flux(face, a, state, model, kgrad, upw, kdisc)
+    q_l = darcy_phase_mass_flux(face, l, state, model, kgrad, upw, kdisc)
+    q_v = darcy_phase_mass_flux(face, v, state, model, kgrad, upw, kdisc)
 
     q = inner_compositional!(q, X, Y, q_l, q_v, upw, nc)
     q = setindex(q, q_a, nc+1)

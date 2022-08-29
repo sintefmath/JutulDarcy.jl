@@ -11,37 +11,36 @@ end
 end
 
 @inline function component_mass_fluxes!(q, face, state, model::SimulationModel{<:Any, <:Union{ImmiscibleSystem, SinglePhaseSystem}, <:Any, <:Any}, kgrad, upw)
+    disc = kgrad_common(face, state, model, kgrad)
     for ph in eachindex(q)
-        q_i = darcy_phase_mass_flux(face, ph, state, model, kgrad, upw)
+        q_i = darcy_phase_mass_flux(face, ph, state, model, kgrad, upw, disc)
         @inbounds q = setindex(q, q_i, ph)
     end
     return q
 end
 
-@inline function darcy_phase_mass_flux(face, phase, state, model, kgrad, upw)
-    Q = darcy_phase_kgrad_potential(face, phase, state, model, kgrad)
+@inline function darcy_phase_mass_flux(face, phase, state, model, kgrad, upw, arg...)
+    Q = darcy_phase_kgrad_potential(face, phase, state, model, kgrad, arg...)
     ρλ = c -> immiscible_phase_mass_mobility(state, phase, c)
     ρλ_f = upwind(upw, ρλ, Q)
     return ρλ_f*Q
 end
 
-@inline function darcy_phase_kgrad_potential(face, phase, state, model, tpfa::TPFA)
+@inline function kgrad_common(face, state, model, tpfa::TPFA)
+    ∇p = pressure_gradient(state, tpfa)
     trans = state.Transmissibilities
     grav = state.TwoPointGravityDifference
-    ρ = state.PhaseMassDensities
-    pc, ref_index = capillary_pressure(model, state)
-    ∇p = pressure_gradient(state, tpfa)
-    q = darcy_phase_flux_inner(∇p, pc, ref_index, trans, face, phase, grav, ρ, tpfa)
-    return q
+    @inbounds T_f = trans[face]
+    @inbounds gΔz = tpfa.face_sign*grav[face]
+    return (∇p, T_f, gΔz)
 end
 
-@inline function darcy_phase_flux_inner(∇p, pc, ref_index, trans, face, phase, grav, ρ, tpfa)
+@inline function darcy_phase_kgrad_potential(face, phase, state, model, tpfa::TPFA, common = kgrad_common(face, state, model, tpfa))
+    ρ = state.PhaseMassDensities
+    pc, ref_index = capillary_pressure(model, state)
+    ∇p, T_f, gΔz = common
     l = tpfa.left
     r = tpfa.right
-    s = tpfa.face_sign
-
-    @inbounds T_f = trans[face]
-    @inbounds gΔz = s*grav[face]
 
     Δpc = capillary_gradient(pc, l, r, phase, ref_index)
 
