@@ -290,19 +290,19 @@ end
 
 function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw, eq_s, r; dt = 1) where {D, S<:MultiPhaseSystem}
     M = global_map(model.domain)
-    v = x -> Jutul.active_view(x, M, for_variables = false)
+    v = x -> as_value(Jutul.active_view(x, M, for_variables = false))
     Φ = v(storage.state.FluidVolume)
     ρ = v(storage.state.PhaseMassDensities)
 
-    @timeit "cnv" @tullio max e[j] := abs(r[j, i]) * dt / (value(ρ[j, i])*value(Φ[i]))
+    @timeit "cnv" @tullio max e[j] := abs(r[j, i]) * dt / (ρ[j, i]*Φ[i])
     @timeit "mb" begin
-        scale = dt./(sum(value, Φ).*mean(value, ρ, dims = 2))
-        mb = scale.*sum(abs, r, dims = 2)
+        N = length(Φ)
+        @tullio mb[i] := abs(r[i, j])*N*dt/(Φ[j]*ρ[i, j])
     end
 
     names = phase_names(model.system)
-    R = Dict("CNV" => (errors = e, names = names),
-             "MB"  => (errors = mb, names = names))
+    R = (CNV = (errors = e, names = names),
+         MB = (errors = mb, names = names))
     return R
 end
 
