@@ -266,8 +266,8 @@ associated_entity(::PotentialDropBalanceWell) = Faces()
 include("well_equations.jl")
 
 function convergence_criterion(model, storage, eq::PotentialDropBalanceWell, eq_s, r; dt = 1)
-    e = [norm(r, Inf)/1e5] # Given as pressure - scale by 1 bar
-    R = Dict("AbsMax" => (errors = e, names = "R"))
+    e = (norm(r, Inf)/1e5, ) # Given as pressure - scale by 1 bar
+    R = (AbsMax = (errors = e, names = "R"), )
     return R
 end
 

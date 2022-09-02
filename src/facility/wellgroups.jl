@@ -106,7 +106,7 @@ function convergence_criterion(model, storage, eq::ControlEquationWell, eq_s, r;
     cfg = storage.state.WellGroupConfiguration
     e = abs.(vec(r))
     names = map(w -> name_equation(w, cfg), wells)
-    R = Dict("Abs" => (errors = e, names = names))
+    R = (Abs = (errors = e, names = names), )
     return R
 end
 
