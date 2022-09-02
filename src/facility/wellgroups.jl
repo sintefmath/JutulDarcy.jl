@@ -3,12 +3,7 @@ function Jutul.count_entities(wg::WellGroup, ::Wells)
 end
 
 function get_well_position(d, symbol)
-    match = findall(d.well_symbols .== symbol)
-    if length(match) == 0
-        return nothing
-    else
-        return only(match)
-    end
+    return findfirst(isequal(symbol), d.well_symbols)
 end
 
 function Jutul.associated_entity(::TotalSurfaceMassRate) Wells() end

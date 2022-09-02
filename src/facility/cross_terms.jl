@@ -65,7 +65,7 @@ function Jutul.prepare_cross_term_in_entity!(i,
             rhoS, S = flash_wellstream_at_surface(well, state_well, rhoS)
             rhoS = tuple(rhoS...)
             q_t = facility_surface_mass_rate_for_well(facility, well_symbol, state_facility)
-            apply_well_limit!(cfg, target, well, state_well, well_symbol, rhoS, S, value(q_t), limits)    
+            apply_well_limit!(cfg, target, well, state_well, well_symbol, rhoS, S, value(q_t), limits)
         end
     end
 end
@@ -88,29 +88,36 @@ function update_cross_term_in_entity!(out, i,
 
     target = ctrl.target
     q_t = facility_surface_mass_rate_for_well(facility, well_symbol, state_facility)
-    if isa(target, DisabledTarget)
-        # The well should have zero rate. Enforce this by the trivial residual R = q_t = 0
-        t = q_t
-        t_num = 0.0
-    else
-        need_rates = isa(ctrl, ProducerControl) && !isa(target, BottomHolePressureTarget)
-        rhoS = reference_densities(well.system)
-        if need_rates
-            rhoS, S = flash_wellstream_at_surface(well, state_well, rhoS)
-        else
-            S = nothing
-        end
-        rhoS = tuple(rhoS...)
-        t = well_target(ctrl, target, well, state_well, rhoS, S)
-        if rate_weighted(target)
-            t *= q_t
-        end
-        t_num = target.value
-    end
+    t, t_num = target_actual_pair(target, well, state_well, q_t, ctrl)
     t += 0*bottom_hole_pressure(state_well) + 0*q_t
     scale = target_scaling(target)
     eq = (t - t_num)/scale
     out[] = eq
+end
+
+function target_actual_pair(target::DisabledTarget, well, state_well, q_t, ctrl)
+    # The well should have zero rate. Enforce this by the trivial residual R = q_t = 0
+    t = q_t
+    t_num = 0.0
+    return (t, t_num)
+end
+
+
+function target_actual_pair(target, well, state_well, q_t, ctrl)
+    need_rates = isa(ctrl, ProducerControl) && !isa(target, BottomHolePressureTarget)
+    rhoS = reference_densities(well.system)
+    if need_rates
+        rhoS, S = flash_wellstream_at_surface(well, state_well, rhoS)
+    else
+        S = nothing
+    end
+    rhoS = tuple(rhoS...)
+    t = well_target(ctrl, target, well, state_well, rhoS, S)
+    if rate_weighted(target)
+        t *= q_t
+    end
+    t_num = target.value
+    return (t, t_num)
 end
 
 # Facility influence on well
@@ -147,12 +154,12 @@ function update_cross_term_in_entity!(out, i,
         if value(qT) > 0
             @warn "Producer $well_symbol is injecting?"
         end
-        masses = state_well.TotalMasses[:, well_top_node()]
+        masses = @views state_well.TotalMasses[:, well_top_node()]
         mass = sum(masses)
         mix = masses./mass
     end
     for i in eachindex(out)
-        out[i] = -mix[i]*qT
+        @inbounds out[i] = -mix[i]*qT
     end
 end
 
