@@ -1,0 +1,6 @@
+[deps]
+AlgebraicMultigrid = "2169fc97-5a83-5252-b627-83903c6c433c"
+Jutul = "2b460a1a-8a2b-45b2-b125-b5c536396eb9"
+MultiComponentFlash = "35e5bd01-9722-4017-9deb-64a5d32478ff"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+JutulDarcy = "82210473-ab04-4dce-b31b-11573c4f8e0a"

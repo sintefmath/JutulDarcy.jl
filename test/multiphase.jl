@@ -1,7 +1,7 @@
 using JutulDarcy, Jutul
 using Test
 
-function test_multiphase(grid = "pico"; setup = "two_phase_simple", debug_level = 1, linear_solver = nothing, kwarg...)
+function test_multiphase(grid = CartesianMesh((2, 2), (2.0, 2.0)); setup = "two_phase_simple", debug_level = 1, linear_solver = nothing, kwarg...)
     state0, model, prm, f, t = get_test_setup(grid, case_name = setup; kwarg...)
     sim = Simulator(model, state0 = state0, parameters = prm)
     if linear_solver == :auto
