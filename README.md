@@ -1,11 +1,15 @@
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://sintefmath.github.io/JutulDarcy.jl/stable/)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://sintefmath.github.io/JutulDarcy.jl/dev/)
+[![Build Status](https://github.com/sintefmath/JutulDarcy.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/sintefmath/JutulDarcy.jl/actions/workflows/CI.yml?query=branch%3Amain)
+
 # JutulDarcy.jl
 Darcy-scale and subsurface flow using [Jutul.jl](https://github.com/sintefmath/Jutul.jl) developed by the [Computational Geosciences group](https://www.sintef.no/en/digital/departments-new/applied-mathematics/computational-geoscience/) at [SINTEF Digital](https://www.sintef.no/en/digital/).
 
 ## Key features
 - Written in pure Julia, with automatic differentiation
 - High performance assembly and linear solvers, with support for two-stage CPR BILU(0)-CPR Krylov solvers
-- Compositional, immiscible and black oil (experimental!) flow is supported and validated against existing simulators
-- Unstructured grids and complex cases input from [the Matlab Reservoir Simulation Toolbox (MRST)](https://www.mrst.no).
+- Equation-of-state compositional, immiscible and black oil flow is supported and validated against existing simulators
+- Unstructured grids and complex cases input from [the Matlab Reservoir Simulation Toolbox (MRST)](https://www.mrst.no) using the `jutul` module.
 - Support for general multisegment wells with rigorous mass balance, complex well limits and time-dependent controls
 - 3D visualization of grids and wells
 - Interactive plotting of well curves (somewhat experimental)
