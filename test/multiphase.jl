@@ -13,7 +13,7 @@ function test_multiphase(grid = CartesianMesh((2, 2), (2.0, 2.0)); setup = "two_
 end
 
 bctx = DefaultContext(matrix_layout = BlockMajorLayout())
-ctx = DefaultContext(matrix_layout = UnitMajorLayout())
+ctx = DefaultContext(matrix_layout = EntityMajorLayout())
 
 setups = ["two_phase_simple",
           "two_phase_fake_wells",
