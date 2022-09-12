@@ -297,7 +297,10 @@ function convergence_criterion(model::SimulationModel{D, S}, storage, eq::Conser
     @timeit "cnv" @tullio max e[j] := abs(r[j, i]) * dt / (ρ[j, i]*Φ[i])
     @timeit "mb" begin
         N = length(Φ)
-        @tullio mb[i] := abs(r[i, j])*N*dt/(Φ[j]*ρ[i, j])
+        pv_t = sum(Φ)
+        avg_density = sum(ρ, dims = 2)./N
+        r_sum = sum(abs, r, dims = 2)
+        mb = @. (dt/pv_t)*r_sum/avg_density
     end
 
     names = phase_names(model.system)
