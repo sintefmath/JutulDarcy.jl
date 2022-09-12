@@ -65,6 +65,9 @@ module JutulDarcy
     include("porousmedia.jl")
     # MRST inputs and test cases that use MRST input
     include("mrst_input.jl")
+    # Gradients, objective functions, etc
+    include("gradients/gradients.jl")
+
     # Various input tricks
     include("io.jl")
     include("linsolve.jl")
