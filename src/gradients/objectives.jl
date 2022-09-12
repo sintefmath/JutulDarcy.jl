@@ -40,21 +40,28 @@ function well_mismatch(model_f, model_c, states_f, states_c, tstep, forces, well
     return sqrt(mismatch)
 end
 
-function well_mismatch(qoi, well, model, state, dt, step_no, forces)
-    pos = get_well_position(model_f.models[:Facility].domain, well)
+function well_mismatch(qoi, well, model_f, states_f, model_c, state_c, dt, step_no, forces; weights = ones(length(qoi)))
+    if !(qoi isa AbstractArray)
+        qoi = [qoi]
+    end
+    pos = get_well_position(model_c.models[:Facility].domain, well)
 
     well_f = model_f[well]
     well_c = model_c[well]
+    rhoS = reference_densities(well_f.system)
 
-    # force = Jutul.forces_for_timestep(nothing, forces, tstep, i)
     ctrl = forces[:Facility].control[well]
-    ctrl = replace_target(ctrl, qoi)
 
-    state_f = states_f[i]
-    state_c = states_c[i]
+    state_f = states_f[step_no]
 
-    qoi_f = compute_qoi(well_f, state_f, well, pos, rhoS, ctrl)
-    qoi_c = compute_qoi(well_c, state_c, well, pos, rhoS, ctrl)
+    obj = 0.0
+    for (i, q) in enumerate(qoi)
+        ctrl = replace_target(ctrl, q)
+        qoi_f = compute_qoi(well_f, state_f, well, pos, rhoS, ctrl)
+        qoi_c = compute_qoi(well_c, state_c, well, pos, rhoS, ctrl)
 
-    return dt*(qoi_f - qoi_c)^2
+        obj += weights[i]*(qoi_f - qoi_c)^2
+    end
+
+    return dt*obj
 end
