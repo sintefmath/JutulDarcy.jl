@@ -82,6 +82,19 @@ function blackoil_unknown_init(F_rs, sg, rs, p)
     return (x, state, false)
 end
 
+Jutul.value(t::Tuple{T, PresentPhasesBlackOil, Bool}) where T<:ForwardDiff.Dual = (value(t[1]), t[2], t[3])
+
+# Overloads for our specific data type
+import Base:+
+function (+)(l::Tuple{T, PresentPhasesBlackOil, Bool}, r::Tuple{<:AbstractFloat, PresentPhasesBlackOil, Bool}) where T<:ForwardDiff.Dual
+    return (l[1] + r[1], r[2], r[3])
+end
+
+import Base:-
+function (-)(l::Tuple{T, PresentPhasesBlackOil, Bool}, r::Tuple{<:AbstractFloat, PresentPhasesBlackOil, Bool}) where T<:ForwardDiff.Dual
+    return (l[1] - r[1], r[2], r[3])
+end
+
 @jutul_secondary function update_as_secondary!(s, ph::BlackOilPhaseState, model::SimulationModel{D, S}, BlackOilUnknown)  where {D, S<:BlackOilVariableSwitchingSystem}
     mb = minbatch(model.context)
     @inbounds @batch minbatch = mb for i in eachindex(s)
