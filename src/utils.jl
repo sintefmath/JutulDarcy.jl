@@ -41,11 +41,16 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing; me
         DT = Dict{Symbol, Any}
         models = DT(:Reservoir => models)
         initializer = DT(:Reservoir => initializer)
-        parameters = DT(:Reservoir => parameters)
+        if !isnothing(parameters)
+            parameters = DT(:Reservoir => parameters)
+        end
     end
     # Convert to multi model
     mmodel = reservoir_multimodel(models)
     setup_reservoir_cross_terms!(mmodel)
+    if isnothing(parameters)
+        parameters = setup_parameters(mmodel)
+    end
     # Set up simulator itself, containing the initial state
     state0 = setup_state(mmodel, initializer)
     sim = Simulator(mmodel, state0 = state0, parameters = deepcopy(parameters))
