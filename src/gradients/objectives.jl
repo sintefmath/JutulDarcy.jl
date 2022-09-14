@@ -65,7 +65,8 @@ function well_mismatch(qoi, wells, model_f, states_f, model_c, state_c, dt, step
             qoi_f = compute_well_qoi(well_f, state_f, well, pos, rhoS, ctrl)
             qoi_c = compute_well_qoi(well_c, state_c, well, pos, rhoS, ctrl)
 
-            obj += weights[i]*(qoi_f - qoi_c)^2
+            Δ = qoi_f - qoi_c
+            obj += (weights[i]*Δ)^2
         end
     end
     return scale*dt*obj

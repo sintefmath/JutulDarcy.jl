@@ -4,7 +4,7 @@ function get_sens(model, state0, parameters, tstep, forces, G)
     sim = Simulator(model, state0 = state0, parameters = parameters)
     states, reports = simulate(sim, tstep, forces = forces, extra_timing = false, info_level = -1)
 
-    grad_adj = Jutul.solve_adjoint_sensitivities(model, states, reports, G,
+    grad_adj = solve_adjoint_sensitivities(model, states, reports, G,
                     forces = forces, state0 = state0, parameters = parameters,
                     extra_timing = false, raw_output = false)
 
