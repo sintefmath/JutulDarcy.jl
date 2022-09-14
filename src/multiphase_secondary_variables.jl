@@ -15,6 +15,7 @@ end
 
 struct FluidVolume <: ScalarVariable end
 Jutul.default_values(model, ::FluidVolume) = fluid_volume(model.domain)
+Jutul.minimum_value(::FluidVolume) = eps()
 
 struct PhaseViscosities <: PhaseVariables end
 Jutul.default_value(model, v::PhaseViscosities) = 1e-3
