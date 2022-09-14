@@ -40,28 +40,33 @@ end
 #     return sqrt(mismatch)
 # end
 
-function well_mismatch(qoi, well, model_f, states_f, model_c, state_c, dt, step_no, forces; weights = ones(length(qoi)), scale = 1.0)
+function well_mismatch(qoi, wells, model_f, states_f, model_c, state_c, dt, step_no, forces; weights = ones(length(qoi)), scale = 1.0)
     if !(qoi isa AbstractArray)
         qoi = [qoi]
     end
-    @assert length(weights) == length(qoi)
-    pos = get_well_position(model_c.models[:Facility].domain, well)
-
-    well_f = model_f[well]
-    well_c = model_c[well]
-    rhoS = reference_densities(well_f.system)
-
-    ctrl = forces[:Facility].control[well]
-
-    state_f = states_f[step_no]
-
+    if !(wells isa AbstractArray)
+        wells = [wells]
+    end
     obj = 0.0
-    for (i, q) in enumerate(qoi)
-        ctrl = replace_target(ctrl, q)
-        qoi_f = compute_well_qoi(well_f, state_f, well, pos, rhoS, ctrl)
-        qoi_c = compute_well_qoi(well_c, state_c, well, pos, rhoS, ctrl)
+    @assert length(weights) == length(qoi)
+    for well in wells
+        pos = get_well_position(model_c.models[:Facility].domain, well)
 
-        obj += weights[i]*(qoi_f - qoi_c)^2
+        well_f = model_f[well]
+        well_c = model_c[well]
+        rhoS = reference_densities(well_f.system)
+
+        ctrl = forces[:Facility].control[well]
+
+        state_f = states_f[step_no]
+
+        for (i, q) in enumerate(qoi)
+            ctrl = replace_target(ctrl, q)
+            qoi_f = compute_well_qoi(well_f, state_f, well, pos, rhoS, ctrl)
+            qoi_c = compute_well_qoi(well_c, state_c, well, pos, rhoS, ctrl)
+
+            obj += weights[i]*(qoi_f - qoi_c)^2
+        end
     end
     return scale*dt*obj
 end
