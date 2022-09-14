@@ -21,6 +21,7 @@ Perforations are connections from well cells to reservoir vcells
 struct Perforations <: JutulEntity end
 
 struct WellIndices <: ScalarVariable end
+Jutul.minimum_value(::WellIndices) = eps()
 
 Jutul.associated_entity(::WellIndices) = Perforations()
 function Jutul.default_values(model, ::WellIndices)
