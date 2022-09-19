@@ -22,6 +22,7 @@ struct Perforations <: JutulEntity end
 
 struct WellIndices <: ScalarVariable end
 Jutul.minimum_value(::WellIndices) = eps()
+Jutul.variable_scale(::WellIndices) = 1e-10
 
 Jutul.associated_entity(::WellIndices) = Perforations()
 function Jutul.default_values(model, ::WellIndices)
