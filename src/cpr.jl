@@ -17,7 +17,14 @@ mutable struct CPRPreconditioner <: JutulPreconditioner
     update_frequency::Integer # Update frequency for AMG hierarchy (and pressure part if partial_update = false)
     update_interval::Symbol   # iteration, ministep, step, ...
     partial_update            # Perform partial update of AMG and update pressure system
-    function CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner(); strategy = :quasi_impes, weight_scaling = :unit, update_frequency = 1, update_interval = :iteration, partial_update = true)
+    """
+    CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner(); strategy = :quasi_impes, weight_scaling = :unit, update_frequency = 1, update_interval = :iteration, partial_update = true)
+
+Construct a constrained pressure residual (CPR) preconditioner.
+
+By default, this is a AMG-BILU(0) version (algebraic multigrid for pressure, block-ILU(0) for the global system).
+"""
+function CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner(); strategy = :quasi_impes, weight_scaling = :unit, update_frequency = 1, update_interval = :iteration, partial_update = true)
         new(nothing, nothing, nothing, nothing, nothing, nothing, p, s, strategy, weight_scaling, nothing, update_frequency, update_interval, partial_update)
     end
 end
@@ -106,7 +113,7 @@ function update_row_csc!(nz, A_p, w_p, rows, nz_s, col)
         row = rows[j]
         Ji = nz_s[j]
         tmp = 0
-        @inbounds for b = 1:size(Ji, 1)
+        @inbounds for b in axes(Ji, 1)
             tmp += Ji[b, 1]*w_p[b, row]
         end
         nz[j] = tmp
@@ -130,10 +137,9 @@ end
 
 function update_row_csr!(nz, A_p, w_p, cols, nz_s, row)
     @inbounds for j in nzrange(A_p, row)
-        col = cols[j]
         Ji = nz_s[j]
         tmp = 0
-        @inbounds for b = 1:size(Ji, 1)
+        @inbounds for b = axes(Ji, 1)
             tmp += Ji[b, 1]*w_p[b, row]
         end
         nz[j] = tmp
