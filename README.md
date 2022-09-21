@@ -87,7 +87,7 @@ display(plt)
 We get a nice plot of the wells, and detailed statistics on the simulation time:
 ![Well curves](docs/src/assets/ex_plot.png)
 ```
-                                                  Number of iterations
+                    Number of iterations
 ╭────────────────────┬──────────┬──────────────┬──────────────┬────────┬───────╮
 │ Type               │ Avg/step │ Avg/ministep │     Time per │ Wasted │ Total │
 │                    │ 60 steps │ 64 ministeps │ Milliseconds │        │       │
@@ -96,7 +96,7 @@ We get a nice plot of the wells, and detailed statistics on the simulation time:
 │ Linearizations     │  3.46667 │         3.25 │       0.8956 │      0 │   208 │
 │ Linear solver its. │     6.55 │      6.14062 │       0.4740 │      0 │   393 │
 ╰────────────────────┴──────────┴──────────────┴──────────────┴────────┴───────╯
-                                                    Simulator timing
+                    Simulator timing
 ╭──────────────┬──────────────┬──────────┬──────────────╮
 │ Name         │         Each │ Fraction │        Total │
 │              │ Milliseconds │  Percent │ Milliseconds │
