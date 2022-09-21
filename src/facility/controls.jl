@@ -3,7 +3,7 @@ function Jutul.initialize_extra_state_fields!(state, domain::WellGroup, model)
     state[:WellGroupConfiguration] = WellGroupConfiguration(domain.well_symbols)
 end
 
-function Jutul.update_before_step_domain!(storage, model::SimulationModel, domain::WellGroup, dt, forces)
+function Jutul.update_before_step!(storage, domain::WellGroup, model::SimulationModel, dt, forces)
     # Set control to whatever is on the forces
     cfg = storage.state.WellGroupConfiguration
     q_t = storage.state.TotalSurfaceMassRate
