@@ -1,10 +1,4 @@
-
-function single_unique_potential(model)
-    # We should add capillary pressure here ventually
-    return model.domain.discretizations.mass_flow.gravity
-end
-
-@inline function Jutul.compute_tpfa_flux!(q_i, left, right, face, face_sign, eq, state, model, dt, flow_disc)
+@inline function Jutul.compute_tpfa_flux!(q_i, left, right, face, face_sign, eq, state, model::DarcyFlowModel, dt, flow_disc)
     kgrad = TPFA(left, right, face_sign)
     upw = SPU(left, right)
     return component_mass_fluxes!(q_i, face, state, model, kgrad, upw)

@@ -198,7 +198,7 @@ function select_equations!(eqs, ::MultiPhaseSystem, model)
     eqs[:mass_conservation] = ConservationLaw(model.domain.discretizations.mass_flow)
 end
 
-function select_parameters!(prm, D::TwoPointPotentialFlowHardCoded, model)
+function select_parameters!(prm, D::TwoPointPotentialFlowHardCoded, model::DarcyFlowModel)
     prm[:Transmissibilities] = Transmissibilities()
     prm[:TwoPointGravityDifference] = TwoPointGravityDifference()
 end

@@ -1,6 +1,8 @@
 
 abstract type MultiPhaseSystem <: JutulSystem end
 abstract type MultiComponentSystem <: MultiPhaseSystem end
+const DarcyFlowModel = SimulationModel{<:Any, <:MultiPhaseSystem, <:Any, <:Any}
+
 abstract type CompositionalSystem <: MultiComponentSystem end
 const CompositionalModel = SimulationModel{D, S, F, C} where {D, S<:CompositionalSystem, F, C}
 
