@@ -36,7 +36,7 @@ function setup_reservoir_model(reservoir, system; wells = [], context = DefaultC
 end
 
 export setup_reservoir_simulator
-function setup_reservoir_simulator(models, initializer, parameters = nothing; method = :cpr, rtol = nothing, initial_dt = 3600.0*24.0, target_its = 8, offset_its = 1, kwarg...)
+function setup_reservoir_simulator(models, initializer, parameters = nothing; method = :cpr, rtol = nothing, initial_dt = 3600.0*24.0, target_its = 8, offset_its = 1, specialize = false, kwarg...)
     if isa(models, SimulationModel)
         DT = Dict{Symbol, Any}
         models = DT(:Reservoir => models)
@@ -46,7 +46,7 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing; me
         end
     end
     # Convert to multi model
-    mmodel = reservoir_multimodel(models)
+    mmodel = reservoir_multimodel(models, specialize = specialize)
     setup_reservoir_cross_terms!(mmodel)
     if isnothing(parameters)
         parameters = setup_parameters(mmodel)
@@ -91,13 +91,13 @@ function setup_reservoir_cross_terms!(model::MultiModel)
     end
 end
 
-function reservoir_multimodel(model::MultiModel)
+function reservoir_multimodel(model::MultiModel; kwarg...)
     # The multimodel is a reservoir multimodel if there exists a submodel named Reservoir
     @assert haskey(model.models, :Reservoir)
     return model
 end
 
-function reservoir_multimodel(models::AbstractDict)
+function reservoir_multimodel(models::AbstractDict; specialize = false)
     res_model = models[:Reservoir]
     block_backend = Jutul.is_cell_major(matrix_layout(res_model.context))
     if block_backend && length(models) > 1
@@ -111,7 +111,7 @@ function reservoir_multimodel(models::AbstractDict)
         red = nothing
     end
     models = convert_to_immutable_storage(models)
-    model = MultiModel(models, groups = groups, context = outer_context, reduction = red)
+    model = MultiModel(models, groups = groups, context = outer_context, reduction = red, specialize = specialize)
     return model
 end
 

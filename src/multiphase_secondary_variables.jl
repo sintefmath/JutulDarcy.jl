@@ -118,11 +118,11 @@ struct TabulatedRelPermSimple{V, M, I} <: AbstractRelativePermeabilities
         n = length(kr[1])
         @assert nph > 0
         T = eltype(kr[1])
-        if n <= 50
-            V = SVector{n, T}
-        else
-            V = Vector{T}
-        end
+        #if n <= 50
+        #    V = SVector{n, T}
+        #else
+        V = Vector{T}
+        #end
         if eltype(s)<:AbstractVector
             # We got a set of different vectors that correspond to rows of kr
             @assert all(map(length, s) .== map(length, kr))

@@ -58,7 +58,8 @@ function MuBTable(pvtx::T; kwarg...) where T<:AbstractMatrix
     b = 1.0./B
     mu = vec(pvtx[:, 3])
 
-    V = SVector{N, eltype(mu)}
+    # V = SVector{N, eltype(mu)}
+    V = Vector{eltype(mu)}
     MuBTable(V(p), V(b), V(mu); kwarg...)
 end
 
