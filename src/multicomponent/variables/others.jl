@@ -41,17 +41,14 @@ end
     Y = VaporMassFractions
     Sat = Saturations
     F = FlashResults
-    if false
-        @tullio totmass[c, i] = two_phase_compositional_mass(F[i].state, ρ, X, Y, Sat, c, i) * pv[i]
-    else
-        tb = minbatch(model.context)
-        sys = model.system
-        phase_ix = phase_indices(sys)
-        has_other = Val(has_other_phase(sys))
-        nc = size(totmass, 2)
-        @batch minbatch = tb for cell = 1:nc
-            @inbounds @views two_phase_compositional_mass!(totmass[:, cell], F[cell].state, pv, ρ, X, Y, Sat, cell, has_other, phase_ix)
-        end
+    tb = minbatch(model.context)
+    sys = model.system
+    phase_ix = phase_indices(sys)
+    has_other = Val(has_other_phase(sys))
+    nc = size(totmass, 2)
+    @batch minbatch = tb for cell = 1:nc
+        m = view(totmass, :, cell)
+        @inbounds two_phase_compositional_mass!(m, F[cell].state, pv, ρ, X, Y, Sat, cell, has_other, phase_ix)
     end
 end
 
