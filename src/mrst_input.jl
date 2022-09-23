@@ -1262,8 +1262,13 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                 minbatch = 1000,
                                 simple_well = false,
                                 write_mrst = false,
+                                verbose = true,
                                 error_on_incomplete = true,
                                 kwarg...)
+    if verbose
+        @info "Reading MRST case $fn"
+    end
+    @info "This is the first call to simulate_mrst_case. Compilation may take some time..." maxlog = 1
     models, parameters, initializer, dt, forces, mrst_data = setup_case_from_mrst(fn, block_backend = block_backend, 
                                                                                       simple_well = simple_well,
                                                                                       backend = backend,
@@ -1286,9 +1291,15 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
         output_path = nothing
     end
     sim, cfg = setup_reservoir_simulator(models, initializer, parameters, output_path = output_path, error_on_incomplete = error_on_incomplete; kwarg...)
+    if verbose
+        @info "Simulating MRST case"
+    end
     states, reports = simulate(sim, dt, forces = forces, config = cfg);
     if write_output && write_mrst
         mrst_output_path = "$(output_path)_mrst"
+        if verbose
+            @info "Writing output to $mrst_output_path"
+        end
         write_reservoir_simulator_output_to_mrst(sim.model, states, reports, forces, mrst_output_path, parameters = parameters)
     end
     setup = (sim = sim, parameters = parameters, mrst = mrst_data, forces = forces, dt = dt, config = cfg, state0 = initializer)
