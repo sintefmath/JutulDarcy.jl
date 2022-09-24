@@ -53,7 +53,7 @@ function setup_bl(;nc = 100, time = 1.0, nstep = 100)
 end
 # Test sensitivity of integrated Buckley-Leverett outlet saturation
 @testset "BL sensitivities" begin
-    for model_type in [:single, :multi, :multi_dummy]
+    for model_type in [:single, :multi, :multi_spec, :multi_dummy]
         model, state0, parameters, forces, tstep = setup_bl(nc = 10, nstep = 10)
         if model_type == :multi_dummy
             model = MultiModel(Dict(:Dummy => model, :Reservoir => model))
@@ -61,8 +61,8 @@ end
             parameters = Dict(:Dummy => parameters, :Reservoir => parameters)
             state0 = Dict(:Dummy => state0, :Reservoir => state0)
             G = (m, state, dt, step_no, forces) -> dt*state[:Reservoir][:Saturations][2, end]
-        elseif model_type == :multi
-            model = MultiModel(Dict(:Reservoir => model))
+        elseif model_type == :multi || model_type == :multi_spec
+            model = MultiModel(Dict(:Reservoir => model), specialize = model_type == :multi_spec)
             forces = Dict(:Reservoir => forces)
             parameters = Dict(:Reservoir => parameters)
             state0 = Dict(:Reservoir => state0)
