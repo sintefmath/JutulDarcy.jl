@@ -1,8 +1,7 @@
 function reservoir_linsolve(model,  method = :cpr;
                                     rtol = nothing,
                                     v = 0,
-                                    provider = Krylov,
-                                    solver = Krylov.bicgstab,
+                                    solver = :bicgstab,
                                     update_interval = :once,
                                     amg_type = :smoothed_aggregation,
                                     max_coarse = nothing,
@@ -44,7 +43,7 @@ function reservoir_linsolve(model,  method = :cpr;
     max_it = 200
     atol = 0.0
 
-    lsolve = GenericKrylov(solver, provider = provider, verbose = v, preconditioner = prec, 
+    lsolve = GenericKrylov(solver, verbose = v, preconditioner = prec, 
             relative_tolerance = rtol, absolute_tolerance = atol,
             max_iterations = max_it; kwarg...)
     return lsolve
