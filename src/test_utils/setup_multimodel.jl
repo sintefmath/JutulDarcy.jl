@@ -1,4 +1,4 @@
-function simulate_mini_wellcase(::Val{:compositional_2ph_3c})
+function simulate_mini_wellcase(::Val{:compositional_2ph_3c}; kwarg...)
     ## Define the mesh
     nx = 3
     ny = 1
@@ -27,7 +27,7 @@ function simulate_mini_wellcase(::Val{:compositional_2ph_3c})
     L, V = LiquidPhase(), VaporPhase()
     # Define system and realize on grid
     sys = MultiPhaseCompositionalSystemLV(eos, (L, V), reference_densities = rhoS)
-    model, parameters = setup_reservoir_model(g, sys, wells = [inj, prod]);
+    model, parameters = setup_reservoir_model(g, sys, wells = [inj, prod]; kwarg...);
     state0 = setup_reservoir_state(model, Pressure = 150*bar, OverallMoleFractions = [0.5, 0.3, 0.2])
 
     dt = repeat([30.0]*day, 12*5)
@@ -48,7 +48,7 @@ function simulate_mini_wellcase(::Val{:compositional_2ph_3c})
     return simulate!(sim, dt, forces = forces, config = config);
 end
 
-function simulate_mini_wellcase(::Val{:immiscible_2ph})
+function simulate_mini_wellcase(::Val{:immiscible_2ph}; kwarg...)
     ## Define and plot the mesh
     nx = 3
     ny = 1
@@ -75,7 +75,7 @@ function simulate_mini_wellcase(::Val{:immiscible_2ph})
     c = [1e-6/bar, 1e-4/bar]
     ρ = ConstantCompressibilityDensities(p_ref = 1*bar, density_ref = rhoS, compressibility = c)
     ## Set up a reservoir model that contains the reservoir, wells and a facility that controls the wells
-    model, parameters = setup_reservoir_model(g, sys, wells = [I, P])
+    model, parameters = setup_reservoir_model(g, sys, wells = [I, P]; kwarg...)
     ## Replace the density function with our custom version
     replace_variables!(model, PhaseMassDensities = ρ)
     ## Set up initial state
@@ -102,7 +102,7 @@ function simulate_mini_wellcase(::Val{:immiscible_2ph})
     return simulate!(sim, dt, forces = forces, config = config);
 end
 
-function simulate_mini_wellcase(::Val{:bo_spe1})
+function simulate_mini_wellcase(::Val{:bo_spe1}; kwarg...)
     ## Define and plot the mesh
     nx = 3
     ny = 1
@@ -130,7 +130,7 @@ function simulate_mini_wellcase(::Val{:bo_spe1})
     sat_table = get_1d_interpolator(pvto.sat_pressure, pvto.rs, cap_end = false)
     sys = StandardBlackOilSystem(sat_table, phases = phases, reference_densities = rhoS)
     ## Set up a reservoir model that contains the reservoir, wells and a facility that controls the wells
-    model, parameters = setup_reservoir_model(g, sys, wells = [I, P])
+    model, parameters = setup_reservoir_model(g, sys, wells = [I, P]; kwarg...)
     ## Set up initial state
     bo = (50.0, JutulDarcy.OilOnly, false)
     state0 = setup_reservoir_state(model, Pressure = 200*bar, ImmiscibleSaturation = 0.1, BlackOilUnknown = bo)
@@ -154,4 +154,20 @@ function simulate_mini_wellcase(::Val{:bo_spe1})
     ## Finally simulate!
     sim, config = setup_reservoir_simulator(model, state0, parameters, info_level = -1)
     return simulate!(sim, dt, forces = forces, config = config);
+end
+
+function precompile_darcy_multimodels()
+    targets = []
+    # Block backend, CSC (CPR)
+    push!(targets, (true, :csc))
+    # Scalar blackend, CSC (direct solver)
+    push!(targets, (false, :csc))
+    # Block backend, CSR (CPR)
+    # push!(targets, (true, :csr))
+    wellcases = [:bo_spe1, :immiscible_2ph, :compositional_2ph_3c]
+    for (block_backend, backend) in targets
+        for w in wellcases
+            simulate_mini_wellcase(Val(w), block_backend = block_backend, backend = backend)
+        end
+    end
 end
