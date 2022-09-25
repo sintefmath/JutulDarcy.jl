@@ -18,6 +18,7 @@ ctx = DefaultContext(matrix_layout = EntityMajorLayout())
 setups = ["two_phase_simple",
           "two_phase_fake_wells",
           "three_phase_fake_wells",
+          "spe1_like_fake_wells",
           "simple_compositional_fake_wells",
           "compositional_three_phases"
           ]

@@ -27,7 +27,11 @@ function select_secondary_variables!(S, system::BlackOilSystem, model)
     select_default_darcy_secondary_variables!(S, model.domain, model.system, model.formulation)
     S[:Saturations] = Saturations()
     S[:PhaseState] = BlackOilPhaseState()
-    S[:ShrinkageFactors] = ConstantCompressibilityDensities(number_of_phases(system))
+    spe1_data = blackoil_bench_pvt(:spe1)
+    pvt = spe1_data[:pvt]
+    S[:PhaseMassDensities] = DeckDensity(pvt)
+    S[:ShrinkageFactors] = DeckShrinkageFactors(pvt)
+    S[:PhaseViscosities] = DeckViscosity(pvt)
     S[:Rs] = Rs()
 end
 

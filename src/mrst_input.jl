@@ -350,7 +350,30 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
 
         # State is dict with pressure in each cell
         init = Dict(:Pressure => p_init, :Saturations => s_init)
+    elseif case_name == "spe1_like_fake_wells"
+        inj = 1
+        prod = nc
+        G.grid.pore_volumes[inj] *= 1000
+        G.grid.pore_volumes[prod] *= 1000
+        # Blackoil specifics
+        setup = blackoil_bench_pvt(:spe1)
+        pvt = setup[:pvt]
+        pvto = pvt[2]
+        rhoS = setup[:rhoS]
+        phases = (AqueousPhase(), LiquidPhase(), VaporPhase())
+        sat_table = get_1d_interpolator(pvto.sat_pressure, pvto.rs, cap_end = false)
+        sys = StandardBlackOilSystem(sat_table, phases = phases, reference_densities = rhoS)
+        model = SimulationModel(G, sys, context = context)
+        forces = setup_forces(model)
+        # Values inside table range
+        p0 = 1.38909e7
+        p_init = repeat([p0], nc)
+        p_init[inj] = 3.45751e7
+        p_init[prod] = 1.82504e6
 
+        bo = repeat([(50.0, OilOnly, false)], nc)
+        bo[inj] = (0.9, GasOnly, false)
+        init = Dict(:Pressure => p_init, :ImmiscibleSaturation => 0.1, :BlackOilUnknown => bo)
     elseif case_name == "simple_compositional_fake_wells"
         inj = 1
         prod = nc

@@ -43,10 +43,13 @@ struct StandardBlackOilSystem{D, W, R, F, T, P} <: BlackOilSystem
     rho_ref::R
     phase_indices::T
     phases::P
-    function StandardBlackOilSystem(sat; phases = (AqueousPhase(), LiquidPhase(), VaporPhase), reference_densities = ones(length(phases)), formulation::Symbol = :varswitch)
+    function StandardBlackOilSystem(sat; phases = (AqueousPhase(), LiquidPhase(), VaporPhase()), reference_densities = [786.507, 1037.84, 0.969758], formulation::Symbol = :varswitch)
         phases = tuple(phases...)
-        reference_densities = tuple(reference_densities...)
         nph = length(phases)
+        if nph == 2 && length(reference_densities) == 3
+            reference_densities = reference_densities[2:3]
+        end
+        reference_densities = tuple(reference_densities...)
         @assert LiquidPhase() in phases
         @assert VaporPhase() in phases
         @assert nph == 2 || nph == 3
