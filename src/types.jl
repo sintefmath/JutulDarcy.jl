@@ -38,6 +38,7 @@ struct MultiPhaseCompositionalSystemLV{E, T, O, R} <: CompositionalSystem where 
 end
 const LVCompositionalModel = SimulationModel{D, S, F, C} where {D, S<:MultiPhaseCompositionalSystemLV{<:Any, <:Any, <:Any}, F, C}
 
+export StandardBlackOilSystem
 struct StandardBlackOilSystem{D, W, R, F, T, P} <: BlackOilSystem
     saturation_table::D
     rho_ref::R

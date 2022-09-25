@@ -84,6 +84,13 @@ end
 
 Jutul.value(t::Tuple{T, PresentPhasesBlackOil, Bool}) where T<:ForwardDiff.Dual = (value(t[1]), t[2], t[3])
 
+function Jutul.update_values!(old::AbstractVector{<:Tuple}, new::AbstractVector{T}) where T<:Tuple{<:Any, PresentPhasesBlackOil, Bool}
+    for (i, v) in enumerate(new)
+        o = old[i]
+        old[i] = (o[1] - value(o[1]) + value(v[1]), v[2], v[3])
+    end
+end
+
 # Overloads for our specific data type
 import Base:+
 function (+)(l::Tuple{T, PresentPhasesBlackOil, Bool}, r::Tuple{<:AbstractFloat, PresentPhasesBlackOil, Bool}) where T<:ForwardDiff.Dual
