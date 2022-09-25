@@ -1,4 +1,4 @@
-function simulate_mini_wellcase(::Val{:compositional_2ph_3c}; kwarg...)
+function simulate_mini_wellcase(::Val{:compositional_2ph_3c}; output_path = nothing, kwarg...)
     ## Define the mesh
     nx = 3
     ny = 1
@@ -44,7 +44,7 @@ function simulate_mini_wellcase(::Val{:compositional_2ph_3c}; kwarg...)
     controls[:Producer] = P_ctrl
     # Simulate
     forces = setup_reservoir_forces(model, control = controls)
-    sim, config = setup_reservoir_simulator(model, state0, parameters, info_level = -1)
+    sim, config = setup_reservoir_simulator(model, state0, parameters, info_level = -1, output_path = output_path)
     return simulate!(sim, dt, forces = forces, config = config);
 end
 
@@ -170,4 +170,6 @@ function precompile_darcy_multimodels()
             simulate_mini_wellcase(Val(w), block_backend = block_backend, backend = backend)
         end
     end
+    simulate_mini_wellcase(Val(:immiscible_2ph), output_path = tempdir())
+    return true
 end

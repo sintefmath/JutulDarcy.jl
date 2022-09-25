@@ -41,6 +41,7 @@ module JutulDarcy
     using MAT
     using Tullio, LoopVectorization, Polyester
     using TimerOutputs
+    using SnoopPrecompile
     import DataStructures: OrderedDict
 
     export reservoir_linsolve, get_1d_reservoir
@@ -75,4 +76,8 @@ module JutulDarcy
     include("deck_support.jl")
 
     include("test_utils/test_utils.jl")
+
+    @precompile_all_calls begin
+        precompile_darcy_multimodels()
+    end
 end # module
