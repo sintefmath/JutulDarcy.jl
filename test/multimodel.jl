@@ -150,6 +150,79 @@ function test_immiscible_with_wells()
     end
 end
 
+function test_blackoil_with_wells()
+    ## Define and plot the mesh
+    nx = 3
+    ny = 1
+    nz = 1
+    # Some useful constants
+    day = 3600*24
+    bar = 1e5
+    # Create and plot the mesh
+    dims = (nx, ny, nz)
+    g = CartesianMesh(dims, (2000.0, 1500.0, 50.0))
+    ## Create a layered permeability field
+    Darcy = 9.869232667160130e-13
+    nlayer = nx*ny
+    K = repeat([0.65*Darcy], nx*ny*nz)
+    ## Set up a vertical well in the first corner, perforated in all layers
+    P = setup_vertical_well(g, K, 1, 1, name = :Producer);
+    ## Set up an injector in the upper left corner
+    I = setup_well(g, K, [(nx, ny, 1)], name = :Injector);
+    ## Set up a two-phase immiscible system and define a density secondary variable
+    setup = JutulDarcy.blackoil_bench_pvt(:spe1)
+    pvt = setup[:pvt]
+    pvto = pvt[2]
+    rhoS = setup[:rhoS]
+    phases = (AqueousPhase(), LiquidPhase(), VaporPhase())
+    sat_table = get_1d_interpolator(pvto.sat_pressure, pvto.rs, cap_end = false)
+    sys = StandardBlackOilSystem(sat_table, phases = phases, reference_densities = rhoS)
+    ## Set up a reservoir model that contains the reservoir, wells and a facility that controls the wells
+    model, parameters = setup_reservoir_model(g, sys, wells = [I, P])
+    ## Set up initial state
+    bo = (50.0, JutulDarcy.OilOnly, false)
+    state0 = setup_reservoir_state(model, Pressure = 200*bar, ImmiscibleSaturation = 0.1, BlackOilUnknown = bo)
+    ## Set up time-steps
+    dt = repeat([30.0]*day, 12*5)
+    pv = pore_volume(model)
+    inj_rate = sum(pv)/sum(dt)
+    rate_target = TotalRateTarget(inj_rate)
+    i_mix = [0.01, 0.05, 0.94]
+    I_ctrl = InjectorControl(rate_target, i_mix, density = 1.0)
+    # The producer operates at a fixed bottom hole pressure
+    bhp_target = BottomHolePressureTarget(50*bar)
+    P_ctrl = ProducerControl(bhp_target)
+    # Set up the controls. One control per well in the Facility.
+    controls = Dict()
+    controls[:Injector] = I_ctrl
+    controls[:Producer] = P_ctrl
+    # Set up forces for the whole model. For this example, all forces are defaulted
+    # (amounting to no-flow for the reservoir).
+    forces = setup_reservoir_forces(model, control = controls)
+    ## Finally simulate!
+    sim, config = setup_reservoir_simulator(model, state0, parameters, info_level = -1)
+    states, reports = simulate!(sim, dt, forces = forces, config = config);
+
+    nc = number_of_cells(g)
+    @testset "Blackoil with SPE1 PVT" begin
+        @testset "Reservoir" begin
+            res = states[end][:Reservoir]
+            p = res[:Pressure]
+            p_ref = [5.05087e6, 5.14905e6, 5.21035e6]
+            @test isapprox(p, p_ref, rtol = 1e-4)
+
+            sw = res[:ImmiscibleSaturation]
+            sw_ref = [0.0904386, 0.0884205, 0.0850772]
+            @test isapprox(sw, sw_ref, atol = 1e-3)
+
+            bo = states[end][:Reservoir][:BlackOilUnknown]
+            for i in 1:nc
+                @test bo[i][2] == JutulDarcy.OilAndGas
+            end
+        end
+    end
+end
+
 using JutulDarcy, Test
 function test_perforation_mask()
     nx = 3
@@ -196,4 +269,5 @@ function test_perforation_mask()
 end
 test_compositional_with_wells()
 test_immiscible_with_wells()
+test_blackoil_with_wells()
 test_perforation_mask()
