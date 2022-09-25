@@ -73,4 +73,6 @@ module JutulDarcy
     include("linsolve.jl")
     include("cpr.jl")
     include("deck_support.jl")
+
+    include("test_utils/test_utils.jl")
 end # module
