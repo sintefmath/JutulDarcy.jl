@@ -53,7 +53,7 @@ module JutulDarcy
     include("flux.jl")
     # Definitions for multiphase flow
     include("multiphase.jl")
-    include("multiphase_secondary_variables.jl")
+    include("variables/variables.jl")
     # Compositional flow
     include("multicomponent/multicomponent.jl")
 
