@@ -10,7 +10,7 @@ struct DeckViscosity{T, R} <: DeckPhaseVariables
     pvt::T
     regions::R
     function DeckViscosity(pvt; regions = nothing)
-        check_regions(regions, pvt)
+        check_regions(regions)
         pvt_t = Tuple(pvt)
         new{typeof(pvt_t), typeof(regions)}(pvt_t, regions)
     end
@@ -20,7 +20,7 @@ struct DeckDensity{T, R} <: DeckPhaseVariables
     pvt::T
     regions::R
     function DeckDensity(pvt; regions = nothing)
-        check_regions(regions, pvt)
+        check_regions(regions)
         pvt_t = Tuple(pvt)
         new{typeof(pvt_t), typeof(regions)}(pvt_t, regions)
     end
@@ -30,7 +30,7 @@ struct DeckShrinkageFactors{T, R} <: DeckPhaseVariables
     pvt::T
     regions::R
     function DeckShrinkageFactors(pvt; regions = nothing)
-        check_regions(regions, pvt)
+        check_regions(regions)
         pvt_t = Tuple(pvt)
         new{typeof(pvt_t), typeof(regions)}(pvt_t, regions)
     end
@@ -84,7 +84,7 @@ function ConstMuBTable(pvtw::M) where M<:AbstractVector
 end
 
 function viscosity(pvt::AbstractTablePVT, reg, p, cell)
-    tbl = tab_by_region(pvt, region(reg, cell))
+    tbl = table_by_region(pvt.tab, region(reg, cell))
     return viscosity(tbl, p)
 end
 
@@ -101,7 +101,7 @@ end
 
 # 
 function shrinkage(pvt::AbstractTablePVT, reg, p::T, cell) where T
-    tbl = tab_by_region(pvt, region(reg, cell))
+    tbl = table_by_region(pvt.tab, region(reg, cell))
     return shrinkage(tbl, p)::T
 end
 

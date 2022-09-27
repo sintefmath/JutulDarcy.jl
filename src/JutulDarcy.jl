@@ -74,7 +74,7 @@ module JutulDarcy
     include("linsolve.jl")
     include("cpr.jl")
     include("deck_support.jl")
-
+    include("regions/regions.jl")
     include("test_utils/test_utils.jl")
 
     @precompile_all_calls begin

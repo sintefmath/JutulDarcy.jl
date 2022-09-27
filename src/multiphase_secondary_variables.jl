@@ -113,7 +113,7 @@ struct TabulatedRelPermSimple{V, M, I} <: AbstractRelativePermeabilities
     s::V
     kr::M
     interpolators::I
-    function TabulatedRelPermSimple(s::AbstractVector, kr::AbstractVector; kwarg...)
+    function TabulatedRelPermSimple(s::AbstractVector, kr::AbstractVector; regions::Union{AbstractVector, Nothing} = nothing, kwarg...)
         nph = length(kr)
         n = length(kr[1])
         @assert nph > 0
@@ -161,37 +161,38 @@ end
 """
 Interpolated multiphase rel. perm. that is simple (single region, no magic for more than two phases)
 """
-struct ThreePhaseRelPerm{O, OW, OG, G, R} <: AbstractRelativePermeabilities
+struct ThreePhaseRelPerm{O, OW, OG, G, S, R} <: AbstractRelativePermeabilities
     krw::O
     krow::OW
     krog::OG
     krg::G
-    swcon::R
+    swcon::S
+    regions::R
 end
 
-function ThreePhaseRelPerm(; w, g, ow, og, swcon = 0.0)
-    return ThreePhaseRelPerm(w, ow, og, g, swcon)
+function ThreePhaseRelPerm(; w, g, ow, og, swcon = 0.0, regions = nothing)
+    F = x -> region_wrap(x, regions)
+    return ThreePhaseRelPerm(F(w), F(ow), F(og), F(g), swcon, regions)
 end
 
 @jutul_secondary function update_as_secondary!(kr, relperm::ThreePhaseRelPerm, model, Saturations)
     s = Saturations
-    krw = relperm.krw
-    krow = relperm.krow
-    krog = relperm.krog
-    krg = relperm.krg
     swcon = relperm.swcon
 
-    l = 1
-    o = 2
-    g = 3
-    @inbounds for c in 1:size(kr, 2)
+    l, o, g = phase_indices(model.system)
+    @inbounds for c in axes(kr, 2)
+        reg = region(relperm.regions, c)
         # Water
+        krw = table_by_region(relperm.krw, reg)
         sw = s[l, c]
         kr[l, c] = krw(sw)
         # Gas
+        krg = table_by_region(relperm.krg, reg)
         sg = s[g, c]
         kr[g, c] = krg(sg)
         # Oil is special
+        krog = table_by_region(relperm.krog, reg)
+        krow = table_by_region(relperm.krow, reg)
         so = s[o, c]
         swc = min(swcon, value(sw) - 1e-5)
         d  = (sg + sw - swc)
