@@ -8,24 +8,24 @@ end
 struct RelativePermeabilities{K, R} <: AbstractRelativePermeabilities
     relperms::K
     regions::R
-    function RelativePermeabilities(kr; regions = nothing)
+    function RelativePermeabilities(kr; regions::T = nothing) where {T<:Union{Nothing, AbstractVector}}
         is_tup_tup = first(kr) isa Tuple
         check_regions(regions)
         if isnothing(regions)
-            @assert !is_tup_tup
+            @assert !is_tup_tup "Multiple rel. perm. functions provided, but region indicator was missing."
         end
         kr = map(x -> region_wrap(x, regions), kr)
         kr = tuple(kr...)
-        return new{typeof(kr), T}(kr)
+        return new{typeof(kr), T}(kr, regions)
     end
 end
 
 @jutul_secondary function update_as_secondary!(kr, relperm::RelativePermeabilities, model, Saturations)
-    @inbounds for c in axes(kr, 2)
-        reg = region(pc.regions, c)
-        for ph in axes(kr, 1)
+    for c in axes(kr, 2)
+        reg = region(relperm.regions, c)
+        @inbounds for ph in axes(kr, 1)
             s = Saturations[ph, c]
-            f = table_by_region(kr.relperms, reg)
+            f = table_by_region(relperm.relperms[ph], reg)
             kr[ph, c] = f(s)
         end
     end

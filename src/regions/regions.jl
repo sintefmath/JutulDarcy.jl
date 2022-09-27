@@ -1,15 +1,23 @@
-function check_regions(regions)
-    if !isnothing(regions)
-        regions<:AbstractVector
-        @assert minimum(regions) > 0
-    end
+function check_regions(regions::AbstractVector)
+    @assert minimum(regions) > 0
+    @assert eltype(regions)<:Integer
 end
 
+function check_regions(regions::Nothing)
+    # Ok.
+end
 
-@inline region(pv::DeckPhaseVariables, cell) = region(pv.regions, cell)
-@inline region(r::AbstractVector, cell) = @inbounds r[cell]
-@inline region(::Nothing, cell) = 1
+@inline function region(pv::DeckPhaseVariables, cell)
+    return region(pv.regions, cell)
+end
 
+@inline function region(r::AbstractVector, cell)
+    return @inbounds r[cell]
+end
+
+@inline function region(::Nothing, cell)
+    return 1
+end
 @inline number_of_regions(regions::Nothing) = 1
 @inline number_of_regions(regions::AbstractVector) = 1
 
