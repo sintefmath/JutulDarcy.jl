@@ -1,11 +1,35 @@
 abstract type AbstractRelativePermeabilities <: PhaseVariables end
 
 function Jutul.default_value(model, v::AbstractRelativePermeabilities)
-    @assert number_of_phases(model.system) == 1 "Relative permeabilities cannot be defaulted for multiphase models."
-    return 1.0
+    # A bit junk, but at least it's junk that sums to one for each cell.
+    return 1.0/number_of_phases(model.system)
 end
 
-struct RelativePermeabilities <: AbstractRelativePermeabilities end
+struct RelativePermeabilities{K, R} <: AbstractRelativePermeabilities
+    relperms::K
+    regions::R
+    function RelativePermeabilities(kr; regions = nothing)
+        is_tup_tup = first(kr) isa Tuple
+        check_regions(regions)
+        if isnothing(regions)
+            @assert !is_tup_tup
+        end
+        kr = map(x -> region_wrap(x, regions), kr)
+        kr = tuple(kr...)
+        return new{typeof(kr), T}(kr)
+    end
+end
+
+@jutul_secondary function update_as_secondary!(kr, relperm::RelativePermeabilities, model, Saturations)
+    @inbounds for c in axes(kr, 2)
+        reg = region(pc.regions, c)
+        for ph in axes(kr, 1)
+            s = Saturations[ph, c]
+            f = table_by_region(kr.relperms, reg)
+            kr[ph, c] = f(s)
+        end
+    end
+end
 
 struct BrooksCoreyRelPerm{V, T} <: AbstractRelativePermeabilities
     exponents::V
