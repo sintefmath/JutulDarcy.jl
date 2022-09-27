@@ -56,8 +56,8 @@ function test_standard_kr()
     S = repeat([0.5], 2, 2)
     kr = similar(S)
     JutulDarcy.update_as_secondary!(kr, rel_regs, nothing, S)
-    @test S[1, 1] == S[2, 1] ≈ 0.25
-    @test S[1, 2] == S[2, 2] ≈ 0.5
+    @test kr[1, 1] == kr[2, 1] ≈ 0.25
+    @test kr[1, 2] == kr[2, 2] ≈ 0.5
 end
 
 
