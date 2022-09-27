@@ -1,10 +1,11 @@
 abstract type AbstractRelativePermeabilities <: PhaseVariables end
-struct RelativePermeabilities <: AbstractRelativePermeabilities end
 
-function Jutul.default_value(model, v::RelativePermeabilities)
+function Jutul.default_value(model, v::AbstractRelativePermeabilities)
     @assert number_of_phases(model.system) == 1 "Relative permeabilities cannot be defaulted for multiphase models."
     return 1.0
 end
+
+struct RelativePermeabilities <: AbstractRelativePermeabilities end
 
 struct BrooksCoreyRelPerm{V, T} <: AbstractRelativePermeabilities
     exponents::V
@@ -24,27 +25,6 @@ struct BrooksCoreyRelPerm{V, T} <: AbstractRelativePermeabilities
         total = sum(residuals)
         new{typeof(e), typeof(total)}(e, r, epts, total)
     end
-end
-
-function transfer(c::SingleCUDAContext, kr::BrooksCoreyRelPerm)
-    e = transfer(c, kr.exponents)
-    r = transfer(c, kr.residuals)
-    ept = transfer(c, kr.residual_total)
-
-    nph = length(e)
-    BrooksCoreyRelPerm(nph, e, r, ept)
-end
-
-@jutul_secondary function update_as_secondary!(kr, kr_def::BrooksCoreyRelPerm, model, Saturations)
-    n, sr, kwm, sr_tot = kr_def.exponents, kr_def.residuals, kr_def.endpoints, kr_def.residual_total
-    @tullio kr[ph, i] = brooks_corey_relperm(Saturations[ph, i], n[ph], sr[ph], kwm[ph], sr_tot)
-end
-
-function brooks_corey_relperm(s::T, n::Real, sr::Real, kwm::Real, sr_tot::Real) where T
-    den = 1 - sr_tot
-    sat = (s - sr) / den
-    sat = clamp(sat, zero(T), one(T))
-    return kwm*sat^n
 end
 
 """
@@ -78,6 +58,36 @@ struct TabulatedRelPermSimple{V, M, I} <: AbstractRelativePermeabilities
     end
 end
 
+"""
+Interpolated multiphase rel. perm. that is simple (single region, no magic for more than two phases)
+"""
+struct ThreePhaseRelPerm{O, OW, OG, G, S, R} <: AbstractRelativePermeabilities
+    krw::O
+    krow::OW
+    krog::OG
+    krg::G
+    swcon::S
+    regions::R
+end
+
+function ThreePhaseRelPerm(; w, g, ow, og, swcon = 0.0, regions = nothing)
+    F = x -> region_wrap(x, regions)
+    return ThreePhaseRelPerm(F(w), F(ow), F(og), F(g), swcon, regions)
+end
+
+
+@jutul_secondary function update_as_secondary!(kr, kr_def::BrooksCoreyRelPerm, model, Saturations)
+    n, sr, kwm, sr_tot = kr_def.exponents, kr_def.residuals, kr_def.endpoints, kr_def.residual_total
+    @tullio kr[ph, i] = brooks_corey_relperm(Saturations[ph, i], n[ph], sr[ph], kwm[ph], sr_tot)
+end
+
+function brooks_corey_relperm(s::T, n::Real, sr::Real, kwm::Real, sr_tot::Real) where T
+    den = 1 - sr_tot
+    sat = (s - sr) / den
+    sat = clamp(sat, zero(T), one(T))
+    return kwm*sat^n
+end
+
 @jutul_secondary function update_as_secondary!(kr, kr_def::TabulatedRelPermSimple, model, Saturations)
     I = kr_def.interpolators
     if false
@@ -97,23 +107,6 @@ function threaded_interp!(F, context, I, x)
             F[j, i] = apply(I[j], x, j, i)
         end
     end
-end
-
-"""
-Interpolated multiphase rel. perm. that is simple (single region, no magic for more than two phases)
-"""
-struct ThreePhaseRelPerm{O, OW, OG, G, S, R} <: AbstractRelativePermeabilities
-    krw::O
-    krow::OW
-    krog::OG
-    krg::G
-    swcon::S
-    regions::R
-end
-
-function ThreePhaseRelPerm(; w, g, ow, og, swcon = 0.0, regions = nothing)
-    F = x -> region_wrap(x, regions)
-    return ThreePhaseRelPerm(F(w), F(ow), F(og), F(g), swcon, regions)
 end
 
 @jutul_secondary function update_as_secondary!(kr, relperm::ThreePhaseRelPerm, model, Saturations)
