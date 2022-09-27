@@ -35,7 +35,7 @@ end
 function select_default_darcy_parameters!(prm, domain, system::SinglePhaseSystem, formulation)
     prm[:PhaseViscosities] = PhaseViscosities()
     prm[:FluidVolume] = FluidVolume()
-    prm[:RelativePermeabilities] = RelativePermeabilities()
+    prm[:RelativePermeabilities] = BrooksCoreyRelPerm(system)
     prm[:Saturations] = Saturations()
 end
 
