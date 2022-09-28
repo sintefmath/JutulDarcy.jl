@@ -300,7 +300,7 @@ function convergence_criterion(model::SimulationModel{D, S}, storage, eq::Conser
         N = length(Φ)
         pv_t = sum(Φ)
         avg_density = sum(ρ, dims = 2)./N
-        r_sum = sum(abs, r, dims = 2)
+        r_sum = sum(r, dims = 2)
         mb = @. (dt/pv_t)*r_sum/avg_density
     end
 
