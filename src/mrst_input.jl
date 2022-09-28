@@ -351,22 +351,36 @@ function deck_pvt_gas(props)
     return PVDG(props["PVDG"])
 end
 
-function deck_relperm(props; oil, water, gas)
+function deck_relperm(props; oil, water, gas, satnum = nothing)
     if water && oil && gas
-        swof = only(props["SWOF"])
-        sgof = only(props["SGOF"])
+        KRW = []
+        KRG = []
+        KROW = []
+        KROG = []
+        SWCON = zeros(0)
+        for (swof, sgof) in zip(props["SWOF"], props["SGOF"])
+            s_water, kr_water = preprocess_relperm_table(swof)
+            swcon = swof[1, 1]
+            s_gas, kr_gas = preprocess_relperm_table(sgof, swcon = swcon)
 
-        s_water, kr_water = preprocess_relperm_table(swof)
-        swcon = swof[1, 1]
-        s_gas, kr_gas = preprocess_relperm_table(sgof, swcon = swcon)
+            krw = get_1d_interpolator(s_water[1], kr_water[1], cap_endpoints = false)
+            krow = get_1d_interpolator(s_water[2], kr_water[2], cap_endpoints = false)
 
-        krw = get_1d_interpolator(s_water[1], kr_water[1], cap_endpoints = false)
-        krow = get_1d_interpolator(s_water[2], kr_water[2], cap_endpoints = false)
+            krg = get_1d_interpolator(s_gas[1], kr_gas[1], cap_endpoints = false)
+            krog = get_1d_interpolator(s_gas[2], kr_gas[2], cap_endpoints = false)
 
-        krg = get_1d_interpolator(s_gas[1], kr_gas[1], cap_endpoints = false)
-        krog = get_1d_interpolator(s_gas[2], kr_gas[2], cap_endpoints = false)
-
-        return ThreePhaseRelPerm(w = krw, g = krg, ow = krow, og = krog, swcon = swcon)
+            push!(KRW, krw)
+            push!(KRG, krg)
+            push!(KROW, krow)
+            push!(KROG, krog)
+            push!(SWCON, swcon)
+        end
+        SWCON = Tuple(SWCON)
+        KRW = Tuple(KRW)
+        KRG = Tuple(KRG)
+        KROW = Tuple(KROW)
+        KROG = Tuple(KROG)
+        return ThreePhaseRelPerm(w = KRW, g = KRG, ow = KROW, og = KROG, swcon = SWCON)
     else
         if water && oil
             sat_table = props["SWOF"]
@@ -374,24 +388,41 @@ function deck_relperm(props; oil, water, gas)
             @assert gas && oil
             sat_table = props["SGOF"]
         end
-        kr_from_deck = only(sat_table)
-        s, krt = preprocess_relperm_table(kr_from_deck)
-        return TabulatedRelPermSimple(s, krt)
+        kr_from_deck = first(sat_table)
+        kr_1 = []
+        kr_2 = []
+        @assert length(sat_table) == 1 || !isnothing(satnum) "Saturation region must be provided for multiple saturation tables"
+        for s in sat_table
+            s, krt = preprocess_relperm_table(kr_from_deck)
+
+            I_1 = get_1d_interpolator(s[1], krt[1])
+            I_2 = get_1d_interpolator(s[2], krt[2])
+
+            push!(kr_1, I_1)
+            push!(kr_2, I_2)
+        end
+        kr = (tuple(kr_1...), tuple(kr_2)...)
+        return RelativePermeabilities(kr, regions = satnum)
     end
 end
 
-function deck_pc(props; oil, water, gas)
+function deck_pc(props; oil, water, gas, satnum = nothing)
     function get_pc(T)
-        tab = T[1]
-        s = vec(tab[:, 1])
-        pc = vec(tab[:, 4])
-        found = any(x -> x != 0, pc)
-        if found
+        found = false
+        PC = []
+        for tab in T
+            s = vec(tab[:, 1])
+            pc = vec(tab[:, 4])
+            found = found || any(x -> x != 0, pc)
             interp_ow = get_1d_interpolator(s, pc)
-        else
-            interp_ow = nothing
+            push!(PC, interp_ow)
         end
-        return (interp_ow, found)
+        if found
+            out = Tuple(PC)
+        else
+            out = nothing
+        end
+        return (out, found)
     end
     pc_impl = Vector{Any}()
     found = false
@@ -407,7 +438,7 @@ function deck_pc(props; oil, water, gas)
         push!(pc_impl, interp_og)
     end
     if found
-        return SimpleCapillaryPressure(tuple(pc_impl...))
+        return SimpleCapillaryPressure(tuple(pc_impl...), regions = satnum)
     else
         return nothing
     end
@@ -416,6 +447,12 @@ end
 function model_from_mat_deck(G, mrst_data, res_context)
     ## Set up reservoir part
     deck = mrst_data["deck"]
+    rock = mrst_data["rock"]
+    if haskey(rock, "regions") && haskey(rock["regions"], "saturation")
+        satnum = Int64.(vec(rock["regions"]["saturation"]))
+    else
+        satnum = nothing
+    end
     props = deck["PROPS"]
     runspec = deck["RUNSPEC"]
 
@@ -508,7 +545,7 @@ function model_from_mat_deck(G, mrst_data, res_context)
         if length(unique(T)) == 1
             T = T[1]
         end
-        set_deck_specialization!(model, props, has_oil, has_wat, has_gas)
+        set_deck_specialization!(model, props, satnum, has_oil, has_wat, has_gas)
         param = setup_parameters(model, Temperature = T)
     else
         if has_wat
@@ -547,7 +584,6 @@ function model_from_mat_deck(G, mrst_data, res_context)
         pvar[:Pressure] = Pressure(max_rel = dp_max_rel, minimum = min_p)
         # Modify secondary variables
         svar = model.secondary_variables
-        prm = model.parameters
         # PVT
         pvt = tuple(pvt...)
         rho = DeckDensity(pvt)
@@ -556,18 +592,18 @@ function model_from_mat_deck(G, mrst_data, res_context)
         end
         mu = DeckViscosity(pvt)
         set_secondary_variables!(model, PhaseViscosities = mu, PhaseMassDensities = rho)
-        set_deck_specialization!(model, props, has_oil, has_wat, has_gas)
+        set_deck_specialization!(model, props, satnum, has_oil, has_wat, has_gas)
         param = setup_parameters(model)
     end
 
     return (model, param)
 end
 
-function set_deck_specialization!(model, props, oil, water, gas)
+function set_deck_specialization!(model, props, satnum, oil, water, gas)
     svar = model.secondary_variables
     param = model.parameters
-    set_deck_relperm!(svar, props; oil = oil, water = water, gas = gas)
-    set_deck_pc!(svar, props; oil = oil, water = water, gas = gas)
+    set_deck_relperm!(svar, props; oil = oil, water = water, gas = gas, satnum = satnum)
+    set_deck_pc!(svar, props; oil = oil, water = water, gas = gas, satnum = satnum)
     set_deck_pvmult!(svar, param, props)
 end
 

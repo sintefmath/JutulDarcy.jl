@@ -5,7 +5,7 @@ struct SimpleCapillaryPressure{T, R} <: GroupedVariables
     function SimpleCapillaryPressure(pc::C; regions::T = nothing) where {C, T}
         is_tup_tup = first(pc) isa Tuple
         if isnothing(regions)
-            @assert !is_tup_tup
+            @assert !is_tup_tup || all(x -> length(x) == 1, pc)
         end
         pc = map(x -> region_wrap(x, regions), pc)
         pc = tuple(pc...)

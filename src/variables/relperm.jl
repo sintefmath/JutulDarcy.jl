@@ -152,7 +152,7 @@ end
         krog = table_by_region(relperm.krog, reg)
         krow = table_by_region(relperm.krow, reg)
         so = s[o, c]
-        swc = min(swcon, value(sw) - 1e-5)
+        swc = min(swcon[reg], value(sw) - 1e-5)
         d  = (sg + sw - swc)
         ww = (sw - swc)/d
         kro = (1-ww)*krog(so) + ww*krow(so)

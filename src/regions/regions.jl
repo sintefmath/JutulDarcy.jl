@@ -36,7 +36,7 @@ function region_wrap(x::Tuple, regions::AbstractArray)
 end
 
 function region_wrap(x::AbstractVector, regions)
-    return region_wrap(Tuple(x...), regions)
+    return region_wrap(Tuple(x), regions)
 end
 
 function region_wrap(x::Any, regions)
