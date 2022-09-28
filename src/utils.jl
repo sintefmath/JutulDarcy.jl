@@ -64,6 +64,8 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing;
                             offset_its = 1,
                             tol_cnv = 1e-3,
                             tol_mb = 1e-7,
+                            cpr_update_interval_partial = :iteration,
+                            cpr_update_interval = :once,
                             specialize = false,
                             kwarg...)
     if isa(models, SimulationModel)
@@ -85,7 +87,10 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing;
     sim = Simulator(mmodel, state0 = state0, parameters = deepcopy(parameters))
 
     # Config: Linear solver, timestep selection defaults, etc...
-    lsolve = reservoir_linsolve(mmodel, precond, rtol = rtol, solver = linear_solver)
+    lsolve = reservoir_linsolve(mmodel, precond, rtol = rtol, solver = linear_solver,
+                                        update_interval_partial = cpr_update_interval_partial,
+                                        update_interval = cpr_update_interval
+                                        )
     # day = 3600.0*24.0
     t_base = TimestepSelector(initial_absolute = initial_dt, max = Inf)
     t_its = IterationTimestepSelector(target_its, offset = offset_its)

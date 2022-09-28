@@ -3,6 +3,7 @@ function reservoir_linsolve(model,  precond = :cpr;
                                     v = 0,
                                     solver = :bicgstab,
                                     update_interval = :once,
+                                    update_interval_partial = :iteration,
                                     amg_type = :smoothed_aggregation,
                                     max_coarse = nothing,
                                     cpr_type = nothing,
@@ -28,7 +29,8 @@ function reservoir_linsolve(model,  precond = :cpr;
         p_solve = default_psolve(max_coarse = max_coarse, type = amg_type)
         prec = CPRPreconditioner(p_solve, strategy = cpr_type, 
                                  update_interval = update_interval,
-                                 partial_update = partial_update)
+                                 partial_update = partial_update,
+                                 update_interval_partial = update_interval_partial)
         if isnothing(rtol)
             rtol = 1e-3
         end
