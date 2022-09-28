@@ -12,7 +12,7 @@ struct RelativePermeabilities{K, R} <: AbstractRelativePermeabilities
         is_tup_tup = first(kr) isa Tuple
         check_regions(regions)
         if isnothing(regions)
-            @assert !is_tup_tup "Multiple rel. perm. functions provided, but region indicator was missing."
+            @assert !is_tup_tup || all(x -> length(x) == 1, kr) "Multiple rel. perm. functions provided, but region indicator was missing."
         end
         kr = map(x -> region_wrap(x, regions), kr)
         kr = tuple(kr...)
