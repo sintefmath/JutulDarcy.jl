@@ -103,7 +103,7 @@ function (-)(l::Tuple{T, PresentPhasesBlackOil, Bool}, r::Tuple{<:AbstractFloat,
 end
 
 @jutul_secondary function update_as_secondary!(s, ph::BlackOilPhaseState, model::SimulationModel{D, S}, BlackOilUnknown)  where {D, S<:BlackOilVariableSwitchingSystem}
-    mb = minbatch(model.context)
+    mb = minbatch(model.context, length(s))
     @inbounds @batch minbatch = mb for i in eachindex(s)
         s[i] = BlackOilUnknown[i][2]
     end
@@ -112,7 +112,7 @@ end
 @jutul_secondary function update_as_secondary!(s, sat::Saturations, model::SimulationModel{D, S}, BlackOilUnknown, ImmiscibleSaturation) where {D, S<:BlackOilVariableSwitchingSystem}
     @assert size(s, 1) == 3
     T = eltype(s)
-    mb = minbatch(model.context)
+    mb = minbatch(model.context, length(BlackOilUnknown))
     @inbounds @batch minbatch = mb for i in eachindex(BlackOilUnknown)
         sw = ImmiscibleSaturation[i]
         s[1, i] = sw
@@ -129,7 +129,7 @@ end
 
 
 @jutul_secondary function update_as_secondary!(rs, ph::Rs, model::SimulationModel{D, S}, Pressure, BlackOilUnknown)  where {D, S<:BlackOilVariableSwitchingSystem}
-    mb = minbatch(model.context)
+    mb = minbatch(model.context, length(BlackOilUnknown))
     @inbounds @batch minbatch = mb for i in eachindex(BlackOilUnknown)
         x, phase_state, = BlackOilUnknown[i]
         if phase_state == OilOnly

@@ -102,7 +102,7 @@ function update_pressure_system!(A_p, A, w_p, bz, ctx)
     @assert size(nz) == size(nz_s)
     n = A.n
     # Update the pressure system with the same pattern in-place
-    tb = minbatch(ctx)
+    tb = minbatch(ctx, n)
     @batch minbatch=tb for col in 1:n
         update_row_csc!(nz, A_p, w_p, rows, nz_s, col)
     end
@@ -129,7 +129,7 @@ function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, A::Jutul.St
     @assert size(nz) == size(nz_s)
     n = size(A_p, 1)
     # Update the pressure system with the same pattern in-place
-    tb = minbatch(ctx)
+    tb = minbatch(ctx, n)
     @batch minbatch=tb for row in 1:n
         update_row_csr!(nz, A_p, w_p, cols, nz_s, row)
     end

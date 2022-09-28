@@ -312,8 +312,8 @@ end
 
 function cpr_weights_no_partials!(w, model::SimulationModel{R, S}, state, r, n, bz, scaling) where {R, S<:ImmiscibleSystem}
     ρ = state.PhaseMassDensities
-    tb = minbatch(model.context)
     nph, nc = size(ρ)
+    tb = minbatch(model.context, nc)
     @batch minbatch = tb for i in 1:nc
         for ph in 1:nph
             @inbounds w[ph, i] = 1/value(ρ[ph, i])

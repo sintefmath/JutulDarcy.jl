@@ -21,8 +21,8 @@ end
     rhos = reference_densities(model.system)
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
-    tb = minbatch(model.context)
     nph, nc = size(rho)
+    tb = minbatch(model.context, nc)
     for ph in 1:nph
         rhos_ph = rhos[ph]
         pvt_ph = pvt[ph]
@@ -37,8 +37,8 @@ end
 @jutul_secondary function update_as_secondary!(b, ρ::DeckShrinkageFactors, model, Pressure)
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
-    tb = minbatch(model.context)
     nph, nc = size(b)
+    tb = minbatch(model.context, nc)
     for ph in 1:nph
         pvt_ph = pvt[ph]
         @batch minbatch = tb for i in 1:nc

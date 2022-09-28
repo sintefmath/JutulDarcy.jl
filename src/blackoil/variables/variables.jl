@@ -38,8 +38,8 @@ end
 @jutul_secondary function update_as_secondary!(b, ρ::DeckShrinkageFactors, model::StandardBlackOilModelWithWater, Pressure, Rs)
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
-    tb = minbatch(model.context)
     nph, nc = size(b)
+    tb = minbatch(model.context, nc)
 
     w = 1
     g = 3
@@ -61,14 +61,12 @@ end
     # Note immiscible assumption
     nph, nc = size(μ)
 
-    w = 1
-    o = 2
-    g = 3
+    w, o, g = phase_indices(model.system)
     muW = pvt[w]
     muO = pvt[o]
     muG = pvt[g]
 
-    mb = minbatch(model.context)
+    mb = minbatch(model.context, nc)
     @inbounds @batch minbatch = mb for i = 1:nc
         p = Pressure[i]
         rs = Rs[i]
@@ -87,7 +85,7 @@ end
     rhoOS = rhoS[o]
     rhoGS = rhoS[g]
     n = size(rho, 2)
-    mb = minbatch(model.context)
+    mb = minbatch(model.context, n)
     @inbounds @batch minbatch = mb for i = 1:n
         rho[w, i] = b[w, i]*rhoWS
         rho[o, i] = b[o, i]*(rhoOS + Rs[i]*rhoGS)
@@ -101,11 +99,11 @@ end
                                                                                                     PhaseMassDensities,
                                                                                                     Saturations,
                                                                                                     FluidVolume)
-    tb = minbatch(model.context)
     sys = model.system
     rhoS = reference_densities(sys)
     ind = phase_indices(sys)
     nc = size(totmass, 2)
+    tb = minbatch(model.context, nc)
     @batch minbatch = tb for cell = 1:nc
         @inbounds @views blackoil_mass!(totmass[:, cell], FluidVolume, PhaseMassDensities, Rs, ShrinkageFactors, Saturations, rhoS, cell, ind)
     end

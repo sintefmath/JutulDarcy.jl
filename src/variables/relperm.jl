@@ -117,14 +117,13 @@ end
     if false
         @tullio kr[ph, i] = I[ph](Saturations[ph, i])
     else
-        tb = minbatch(model.context)
         threaded_interp!(kr, model.context, I, Saturations)
     end
 end
 
 function threaded_interp!(F, context, I, x)
-    tb = minbatch(context)
     nc = size(F, 2)
+    tb = minbatch(context, nc)
     apply(I, x, j, i) = @inbounds I(x[j, i])
     @batch minbatch = tb for i in 1:nc
         @inbounds for j in eachindex(I)
