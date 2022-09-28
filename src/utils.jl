@@ -36,10 +36,29 @@ function setup_reservoir_model(reservoir, system; wells = [], context = DefaultC
 end
 
 export setup_reservoir_simulator
+"""
+    setup_reservoir_simulator(models, initializer, parameters = nothing; <keyword arguments>)
+
+# Arguments
+- `models`: either a single model or a Dict with the key :Reservoir for multimodels
+- `initializer`: used to setup state0, must be compatible with `model`
+- `parameters`: initialized parameters, must be compatible with `model` if provided
+- `linear_solver=:bicgstab`: iterative solver to use (provided model supports it)
+- `precond=:cpr`: preconditioner for iterative solver: Either :cpr or :ilu0.
+- `rtol=1e-3`: relative tolerance for linear solver
+- `initial_dt=3600*24.0`: initial time-step in seconds (one day by default)
+- `target_its=8`: target number of nonlinear iterations per time step
+- `offset_its=1`: dampening parameter for time step selector where larger values lead to more pessimistic estimates.
+- `tol_cnv=1e-3`: maximum allowable point-wise error (volume-balance)
+- `tol_mb=1e-7`: maximum alllowable integrated error (mass-balance)
+- `specialize=false`: use deep specialization of storage for faster execution, but significantly more compile time
+
+Additional keyword arguments are passed onto [`simulator_config`](@ref).
+"""
 function setup_reservoir_simulator(models, initializer, parameters = nothing;
                             precond = :cpr,
                             linear_solver = :bicgstab,
-                            rtol = nothing,
+                            rtol = 1e-3,
                             initial_dt = 3600.0*24.0,
                             target_its = 8,
                             offset_its = 1,
@@ -71,7 +90,10 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing;
     t_base = TimestepSelector(initial_absolute = initial_dt, max = Inf)
     t_its = IterationTimestepSelector(target_its, offset = offset_its)
     cfg = simulator_config(sim, timestep_selectors = [t_base, t_its], linear_solver = lsolve; kwarg...)
-    cfg[:tolerances][:Reservoir][:mass_conservation] = (CNV = tol_cnv, MB = tol_mb)
+    sys = mmodel[:Reservoir].system
+    if sys isa ImmiscibleSystem || sys isa BlackOilSystem
+        cfg[:tolerances][:Reservoir][:mass_conservation] = (CNV = tol_cnv, MB = tol_mb)
+    end
 
     return (sim, cfg)
 end
