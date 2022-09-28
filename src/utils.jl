@@ -36,7 +36,17 @@ function setup_reservoir_model(reservoir, system; wells = [], context = DefaultC
 end
 
 export setup_reservoir_simulator
-function setup_reservoir_simulator(models, initializer, parameters = nothing; method = :cpr, rtol = nothing, initial_dt = 3600.0*24.0, target_its = 8, offset_its = 1, specialize = false, kwarg...)
+function setup_reservoir_simulator(models, initializer, parameters = nothing;
+                            precond = :cpr,
+                            linear_solver = :bicgstab,
+                            rtol = nothing,
+                            initial_dt = 3600.0*24.0,
+                            target_its = 8,
+                            offset_its = 1,
+                            tol_cnv = 1e-3,
+                            tol_mb = 1e-7,
+                            specialize = false,
+                            kwarg...)
     if isa(models, SimulationModel)
         DT = Dict{Symbol, Any}
         models = DT(:Reservoir => models)
@@ -56,11 +66,12 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing; me
     sim = Simulator(mmodel, state0 = state0, parameters = deepcopy(parameters))
 
     # Config: Linear solver, timestep selection defaults, etc...
-    lsolve = reservoir_linsolve(mmodel, method, rtol = rtol)
+    lsolve = reservoir_linsolve(mmodel, precond, rtol = rtol, solver = linear_solver)
     # day = 3600.0*24.0
     t_base = TimestepSelector(initial_absolute = initial_dt, max = Inf)
     t_its = IterationTimestepSelector(target_its, offset = offset_its)
     cfg = simulator_config(sim, timestep_selectors = [t_base, t_its], linear_solver = lsolve; kwarg...)
+    cfg[:tolerances][:Reservoir][:mass_conservation] = (CNV = tol_cnv, MB = tol_mb)
 
     return (sim, cfg)
 end

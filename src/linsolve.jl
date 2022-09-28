@@ -1,4 +1,4 @@
-function reservoir_linsolve(model,  method = :cpr;
+function reservoir_linsolve(model,  precond = :cpr;
                                     rtol = nothing,
                                     v = 0,
                                     solver = :bicgstab,
@@ -12,7 +12,7 @@ function reservoir_linsolve(model,  method = :cpr;
     if !Jutul.is_cell_major(matrix_layout(model.context))
         return nothing
     end
-    if method == :cpr
+    if precond == :cpr
         if isnothing(cpr_type)
             if isa(model.system, ImmiscibleSystem)
                 cpr_type = :analytical
@@ -32,13 +32,13 @@ function reservoir_linsolve(model,  method = :cpr;
         if isnothing(rtol)
             rtol = 1e-3
         end
-    elseif method == :ilu0
+    elseif precond == :ilu0
         prec = ILUZeroPreconditioner()
         if isnothing(rtol)
             rtol = 0.005
         end
     else
-        return nothing
+        error("Solver $precond not supported for $(model.context)")
     end
     max_it = 200
     atol = 0.0

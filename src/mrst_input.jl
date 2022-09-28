@@ -1008,23 +1008,21 @@ Simulate a MRST case from `file_name` as exported by `writeJutulInput` in MRST.
 Additional input arguments are passed onto sensible subroutines.
 """
 function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
-                                write_output = true,
                                 output_path = nothing,
-                                block_backend = true,
                                 backend = :csc,
                                 nthreads = Threads.nthreads(),
                                 minbatch = 1000,
-                                simple_well = false,
                                 write_mrst = false,
+                                write_output = true,
                                 verbose = true,
-                                error_on_incomplete = true,
+                                linear_solver = :bicgstab,
                                 kwarg...)
     if verbose
         @info "Reading MRST case $fn"
+        @info "This is the first call to simulate_mrst_case. Compilation may take some time..." maxlog = 1
     end
-    @info "This is the first call to simulate_mrst_case. Compilation may take some time..." maxlog = 1
+    block_backend = linear_solver != :direct
     models, parameters, initializer, dt, forces, mrst_data = setup_case_from_mrst(fn, block_backend = block_backend, 
-                                                                                      simple_well = simple_well,
                                                                                       backend = backend,
                                                                                       nthreads = nthreads,
                                                                                       minbatch = minbatch);
@@ -1037,14 +1035,14 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
         if isnothing(output_path)
             # Put output under a folder with the same name as the .mat file, suffixed by _output
             directory, filename = splitdir(fn)
-            casename, ext = splitext(filename)
+            casename, = splitext(filename)
             output_path = joinpath(directory, "$(casename)_output")
         end
         mkpath(output_path)
     else
         output_path = nothing
     end
-    sim, cfg = setup_reservoir_simulator(models, initializer, parameters, output_path = output_path, error_on_incomplete = error_on_incomplete; kwarg...)
+    sim, cfg = setup_reservoir_simulator(models, initializer, parameters, output_path = output_path; kwarg...)
     if verbose
         @info "Simulating MRST case"
     end
