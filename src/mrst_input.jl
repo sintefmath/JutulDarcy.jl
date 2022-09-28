@@ -388,11 +388,10 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
             @assert gas && oil
             sat_table = props["SGOF"]
         end
-        kr_from_deck = first(sat_table)
         kr_1 = []
         kr_2 = []
         @assert length(sat_table) == 1 || !isnothing(satnum) "Saturation region must be provided for multiple saturation tables"
-        for s in sat_table
+        for kr_from_deck in sat_table
             s, krt = preprocess_relperm_table(kr_from_deck)
 
             I_1 = get_1d_interpolator(s[1], krt[1])
