@@ -24,7 +24,7 @@ degrees_of_freedom_per_entity(model, v::SimpleCapillaryPressure) = number_of_pha
             reg = region(pc.regions, c)
             pcow_c = table_by_region(pcow, reg)
             sw = Saturations[1, c]
-            Δp[1, c] = pcow(sw)
+            Δp[1, c] = pcow_c(sw)
         end
     elseif npc == 2
         pcow, pcog = cap
