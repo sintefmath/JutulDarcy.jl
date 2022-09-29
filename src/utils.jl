@@ -6,6 +6,14 @@ reservoir_storage(model, storage) = storage
 reservoir_storage(model::MultiModel, storage) = storage.Reservoir
 
 export setup_reservoir_model
+"""
+    setup_reservoir_model(reservoir, system; wells = [], <keyword arguments>)
+    setup_reservoir_model(reservoir, system; wells = [], context = DefaultContext(), reservoir_context = nothing, backend = :csc, <keyword arguments>)
+
+Set up a reservoir `MultiModel` for a given reservoir `SimulationModel` and an optional vector of wells.
+
+The routine automatically sets up a facility and couples the wells with the reservoir and that facility.
+"""
 function setup_reservoir_model(reservoir, system; wells = [], context = DefaultContext(), reservoir_context = nothing, backend = :csc, kwarg...)
     # List of models (order matters)
     models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()
@@ -177,6 +185,15 @@ function reservoir_multimodel(models::AbstractDict; specialize = false)
 end
 
 export setup_reservoir_state
+"""
+    setup_reservoir_state(model, <keyword arguments>)
+    # Ex: For immiscible two-phase
+    setup_reservoir_state(model, Pressure = 1e5, Saturations = [0.2, 0.8])
+
+Convenience constructor that initializes a state for a `MultiModel` set up using [`setup_reservoir_model`](@ref).
+The main convenience over [`setup_state`](@ref) is only the reservoir initialization values need be provided: wells
+are automatically initialized from the connected reservoir cells.
+"""
 function setup_reservoir_state(model; kwarg...)
     rmodel = reservoir_model(model)
     pvars = [k for k in keys(Jutul.get_primary_variables(rmodel))]
@@ -236,6 +253,11 @@ function setup_reservoir_state(model; kwarg...)
 end
 
 export setup_reservoir_forces
+"""
+    setup_reservoir_forces(model; control = nothing, limits = nothing, set_default_limits = true, <keyword arguments>)
+
+Set up driving forces for a reservoir model with wells
+"""
 function setup_reservoir_forces(model::MultiModel; control = nothing, limits = nothing, set_default_limits = true, kwarg...)
     @assert (isnothing(control) && isnothing(limits)) || haskey(model.models, :Facility) "Model must have facility."
     facility = model.models.Facility
@@ -246,6 +268,11 @@ end
 
 export full_well_outputs, well_output, well_symbols, wellgroup_symbols, available_well_targets
 
+"""
+    full_well_outputs(model, states, forces; targets = available_well_targets(model.models.Reservoir), shortname = false)
+
+Get the full set of well outputs after a simulation has occured, for plotting or other post-processing.
+"""
 function full_well_outputs(model, states, forces; targets = available_well_targets(model.models.Reservoir), shortname = false)
     out = Dict()
     if shortname
@@ -263,6 +290,11 @@ function full_well_outputs(model, states, forces; targets = available_well_targe
     return out
 end
 
+"""
+    well_output(model, states, well_symbol, forces, target = BottomHolePressureTarget)
+
+Get a specific well output from a valid operational target once a simulation is completed an `states` are available.
+"""
 function well_output(model::MultiModel, states, well_symbol, forces, target = BottomHolePressureTarget)
     n = length(states)
     d = zeros(n)
