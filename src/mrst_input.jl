@@ -1013,6 +1013,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                 backend = :csc,
                                 nthreads = Threads.nthreads(),
                                 minbatch = 1000,
+                                split_wells = false,
                                 write_mrst = false,
                                 write_output = true,
                                 verbose = true,
@@ -1023,9 +1024,15 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
         @info "This is the first call to simulate_mrst_case. Compilation may take some time..." maxlog = 1
     end
     block_backend = linear_solver != :direct
+    if split_wells
+        fg = :perwell
+    else
+        fg = :onegroup
+    end
     models, parameters, initializer, dt, forces, mrst_data = setup_case_from_mrst(fn, block_backend = block_backend, 
                                                                                       backend = backend,
                                                                                       nthreads = nthreads,
+                                                                                      facility_grouping = fg,
                                                                                       minbatch = minbatch);
     out = models[:Reservoir].output_variables
     for k in extra_outputs

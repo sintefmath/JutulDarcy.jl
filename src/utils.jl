@@ -138,9 +138,32 @@ end
 function reservoir_multimodel(models::AbstractDict; specialize = false)
     res_model = models[:Reservoir]
     block_backend = Jutul.is_cell_major(matrix_layout(res_model.context))
-    if block_backend && length(models) > 1
-        groups = repeat([2], length(models))
-        groups[1] = 1
+    n = length(models)
+    if block_backend && n > 1
+        if haskey(models, :Facility)
+            groups = repeat([2], n)
+            groups[1] = 1
+        else
+            groups = repeat([1], n)
+            gpos = 1
+            pos = 2
+            mkeys = collect(keys(models))
+            for (k, m) in models
+                if k == :Reservoir
+                    g = 1
+                else
+                    sk = String(k)
+                    if endswith(sk, "_ctrl")
+                        wk = Symbol(sk[1:end-5])
+                        wpos = findfirst(isequal(wk), mkeys)
+                        groups[wpos] = pos
+                        groups[gpos] = pos
+                        pos += 1
+                    end
+                end
+                gpos += 1
+            end
+        end
         red = :schur_apply
         outer_context = DefaultContext()
     else
