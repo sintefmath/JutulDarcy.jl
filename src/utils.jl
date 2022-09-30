@@ -143,12 +143,12 @@ function reservoir_multimodel(model::MultiModel; kwarg...)
     return model
 end
 
-function reservoir_multimodel(models::AbstractDict; specialize = false)
+function reservoir_multimodel(models::AbstractDict; specialize = false, split_wells = false)
     res_model = models[:Reservoir]
     block_backend = Jutul.is_cell_major(matrix_layout(res_model.context))
     n = length(models)
     if block_backend && n > 1
-        if haskey(models, :Facility)
+        if haskey(models, :Facility) || !split_wells
             groups = repeat([2], n)
             groups[1] = 1
         else
