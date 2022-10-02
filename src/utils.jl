@@ -156,16 +156,30 @@ function reservoir_multimodel(models::AbstractDict; specialize = false, split_we
             groups = repeat([1], n)
             gpos = 1
             pos = 2
+            wno = 1
             mkeys = collect(keys(models))
+            nw = 1
+            for (k, m) in models
+                if endswith(String(k), "_ctrl")
+                    nw += 1
+                end
+            end
+            p = Jutul.partition_linear(Threads.nthreads(), nw)
             for (k, m) in models
                 if k != :Reservoir
                     sk = String(k)
                     if endswith(sk, "_ctrl")
                         wk = Symbol(sk[1:end-5])
                         wpos = findfirst(isequal(wk), mkeys)
-                        groups[wpos] = pos
-                        groups[gpos] = pos
+                        if false
+                            g = pos
+                        else
+                            g = p[wno]+1
+                        end
+                        groups[wpos] = g
+                        groups[gpos] = g
                         pos += 1
+                        wno += 1
                     end
                 end
                 gpos += 1
