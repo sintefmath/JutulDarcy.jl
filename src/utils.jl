@@ -75,6 +75,7 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing;
                             cpr_update_interval_partial = :iteration,
                             cpr_update_interval = :once,
                             specialize = false,
+                            split_wells = false,
                             kwarg...)
     if isa(models, SimulationModel)
         DT = Dict{Symbol, Any}
@@ -85,7 +86,7 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing;
         end
     end
     # Convert to multi model
-    mmodel = reservoir_multimodel(models, specialize = specialize)
+    mmodel = reservoir_multimodel(models, specialize = specialize, split_wells = split_wells)
     setup_reservoir_cross_terms!(mmodel)
     if isnothing(parameters)
         parameters = setup_parameters(mmodel)
@@ -157,9 +158,7 @@ function reservoir_multimodel(models::AbstractDict; specialize = false, split_we
             pos = 2
             mkeys = collect(keys(models))
             for (k, m) in models
-                if k == :Reservoir
-                    g = 1
-                else
+                if k != :Reservoir
                     sk = String(k)
                     if endswith(sk, "_ctrl")
                         wk = Symbol(sk[1:end-5])
