@@ -47,11 +47,11 @@ function Jutul.subforce(s::AbstractVector{S}, model) where S<:SourceTerm
     keep = repeat([false], n)
     for (i, src) in enumerate(s)
         # Cell must be in local domain, and not on boundary
-        if !global_cell_inside_domain(src.cell, m)
+        if !Jutul.global_cell_inside_domain(src.cell, m)
             continue
         end
-        c_l = local_cell(src.cell, m)
-        c_i = interior_cell(c_l, m)
+        c_l = Jutul.local_cell(src.cell, m)
+        c_i = Jutul.interior_cell(c_l, m)
         inner = !isnothing(c_i)
         if !inner
             continue
