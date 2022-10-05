@@ -149,7 +149,7 @@ function reservoir_multimodel(models::AbstractDict; specialize = false, split_we
     block_backend = Jutul.is_cell_major(matrix_layout(res_model.context))
     n = length(models)
     if block_backend && n > 1
-        if haskey(models, :Facility) || !split_wells
+        if haskey(models, :Facility) || !(split_wells == true)
             groups = repeat([2], n)
             groups[1] = 1
         else
@@ -164,7 +164,12 @@ function reservoir_multimodel(models::AbstractDict; specialize = false, split_we
                     nw += 1
                 end
             end
-            p = Jutul.partition_linear(Threads.nthreads(), nw)
+            if split_wells == :threads
+                npartition = Threads.nthreads()
+            else
+                npartition = nw
+            end
+            p = Jutul.partition_linear(npartition, nw)
             for (k, m) in models
                 if k != :Reservoir
                     sk = String(k)
