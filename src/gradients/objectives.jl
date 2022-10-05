@@ -69,5 +69,5 @@ function well_mismatch(qoi, wells, model_f, states_f, model_c, state_c, dt, step
             obj += (weights[i]*Δ)^2
         end
     end
-    return scale*dt*obj
+    return scale*dt*sqrt(obj)
 end
