@@ -1,3 +1,7 @@
+function Jutul.active_entities(wg::WellGroup, ::Jutul.TrivialGlobalMap, e; for_variables = false)
+    return 1:count_entities(wg, e)
+end
+
 function Jutul.count_entities(wg::WellGroup, ::Wells)
     return length(wg.well_symbols)
 end
