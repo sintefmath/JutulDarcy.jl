@@ -30,6 +30,9 @@ function reservoir_linsolve(model,  precond = :cpr;
                                     partial_update = update_interval == :once,
                                     kwarg...)
     model = reservoir_model(model)
+    if solver == :lu
+        return LUSolver()
+    end
     if !Jutul.is_cell_major(matrix_layout(model.context))
         return nothing
     end

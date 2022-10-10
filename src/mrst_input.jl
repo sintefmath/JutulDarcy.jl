@@ -1027,7 +1027,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
         @info "Reading MRST case $fn"
         @info "This is the first call to simulate_mrst_case. Compilation may take some time..." maxlog = 1
     end
-    block_backend = linear_solver != :direct
+    block_backend = linear_solver != :direct && linear_solver != :lu
     if split_wells
         fg = :perwell
     else
