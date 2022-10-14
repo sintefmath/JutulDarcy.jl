@@ -1033,7 +1033,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                 linear_solver = :bicgstab,
                                 kwarg...)
     if verbose
-        @info "Reading MRST case $fn"
+        jutul_message("MRST model", "Reading input file $fn.")
         @info "This is the first call to simulate_mrst_case. Compilation may take some time..." maxlog = 1
     end
     block_backend = linear_solver != :direct && linear_solver != :lu
@@ -1066,15 +1066,32 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
     sim, cfg = setup_reservoir_simulator(models, initializer, parameters, linear_solver = linear_solver,
                                         output_path = output_path, split_wells = split_wells; kwarg...)
     if verbose
-        @info "Simulating MRST case"
+        M = first(values(models))
+        sys = M.system
+        if sys isa CompositionalSystem
+            s = "compositional"
+        elseif sys isa BlackOilSystem
+            s = "black-oil"
+        elseif sys isa ImmiscibleSystem
+            s = "immiscible"
+        else
+            s = "unknown"
+        end
+        ncomp = number_of_components(sys)
+        nph = number_of_phases(sys)
+        nc = number_of_cells(M.domain)
+        jutul_message("MRST model", "Starting simulation of $s system with $nc cells and $nph phases and $ncomp components.")
     end
     states, reports = simulate(sim, dt, forces = forces, config = cfg);
     if write_output && write_mrst
         mrst_output_path = "$(output_path)_mrst"
         if verbose
-            @info "Writing output to $mrst_output_path"
+            jutul_message("MRST model", "Writing output to $mrst_output_path.")
         end
         write_reservoir_simulator_output_to_mrst(sim.model, states, reports, forces, mrst_output_path, parameters = parameters)
+    end
+    if verbose
+        jutul_message("MRST model", "Model was successfully simulated.")
     end
     setup = (sim = sim, parameters = parameters, mrst = mrst_data, forces = forces, dt = dt, config = cfg, state0 = initializer)
     return (states, reports, output_path, setup)
