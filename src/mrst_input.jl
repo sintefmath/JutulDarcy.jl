@@ -533,12 +533,10 @@ function model_from_mat_deck(G, mrst_data, res_context)
                 vs = copy(eosm["volume_shift"])
                 vs = tuple(vs...)
             end
-            @info "Found EoS spec in input." eos_t bic vs
         else
             eos_t = PengRobinson()
             vs = nothing
             bic = nothing
-            @info "Defaulting EoS." eos_t
         end
         mixture = MultiComponentMixture(components, names = names, A_ij = bic)
         eos = GenericCubicEOS(mixture, eos_t, volume_shift = vs)
