@@ -15,31 +15,12 @@ function compute_well_qoi(well_model, state, well::Symbol, pos, rhoS, control)
     return v
 end
 
-# function well_mismatch(model_f, model_c, states_f, states_c, tstep, forces, well::Symbol, qoi)
-#     well_f = model_f[well]
-#     well_c = model_c[well]
-#     rhoS = reference_densities(well_f.system)
-#     pos = get_well_position(model_f.models[:Facility].domain, well)
 
-#     t_tot = sum(tstep)
-#     mismatch = 0.0
-#     for i in eachindex(tstep)
-#         dt = tstep[i]
-#         force = Jutul.forces_for_timestep(nothing, forces, tstep, i)
-#         ctrl = force[:Facility].control[well]
-#         ctrl = replace_target(ctrl, qoi)
+"""
+    well_mismatch(qoi, wells, model_f, states_f, model_c, state_c, dt, step_no, forces; <keyword arguments>)
 
-#         state_f = states_f[i]
-#         state_c = states_c[i]
-
-#         qoi_f = compute_qoi(well_f, state_f, well, pos, rhoS, ctrl)
-#         qoi_c = compute_qoi(well_c, state_c, well, pos, rhoS, ctrl)
-
-#         mismatch += (dt/t_tot)*(qoi_f - qoi_c)^2
-#     end
-#     return sqrt(mismatch)
-# end
-
+Compute well mismatch for a set of qoi's (well targets) and a set of well symbols.
+"""
 function well_mismatch(qoi, wells, model_f, states_f, model_c, state_c, dt, step_no, forces; weights = ones(length(qoi)), scale = 1.0)
     if !(qoi isa AbstractArray)
         qoi = [qoi]
@@ -69,5 +50,5 @@ function well_mismatch(qoi, wells, model_f, states_f, model_c, state_c, dt, step
             obj += (weights[i]*Δ)^2
         end
     end
-    return scale*dt*sqrt(obj)
+    return scale*dt*obj
 end

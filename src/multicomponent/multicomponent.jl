@@ -79,7 +79,7 @@ end
 
 function compositional_residual_scale(cell, dt, tm)
     t = 0.0
-    @inbounds for i = 1:size(tm, 1)
+    @inbounds for i = axes(tm, 1)
         t += tm[i, cell]
     end
     return dt/t
