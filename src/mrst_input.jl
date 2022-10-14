@@ -65,7 +65,13 @@ end
 function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout = false, simple = false, W_data = mrst_data["W"], kwarg...)
     W_mrst = W_data[ix]
     w = convert_to_immutable_storage(W_mrst)
-
+    if haskey(mrst_data, "surface_conditions")
+        p = only(mrst_data["surface_conditions"]["pressure"])::Float64
+        T = only(mrst_data["surface_conditions"]["T"])::Float64
+        cond = (p = p, T = T)
+    else
+        cond = default_surface_cond()
+    end
     function awrap(x::Any)
         x
     end
@@ -91,7 +97,7 @@ function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout 
         # For simple well, distance from ref depth to perf
         dz = z_res .- ref_depth
         z = [ref_depth]
-        W = SimpleWell(rc, WI = WI, dz = dz, volume = well_volume)
+        W = SimpleWell(rc, WI = WI, dz = dz, volume = well_volum, surface_conditions = cond)
         # wmodel = SimulationModel(W, system; kwarg...)
         # flow = TwoPointPotentialFlowHardCoded(nothing, nothing, TrivialFlow(), W)
         reservoir_cells = [rc[1]]
@@ -139,7 +145,12 @@ function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout 
         else
             pvol, accumulator_volume, perf_cells, well_topo, z, dz, reservoir_cells = simple_ms_setup(n, volume, well_cell_volume, rc, ref_depth, z_res)
         end
-        W = MultiSegmentWell(rc, pvol, centers, WI = WI, reference_depth = ref_depth, dz = dz, N = well_topo, perforation_cells = perf_cells, accumulator_volume = accumulator_volume)
+        W = MultiSegmentWell(rc, pvol, centers, WI = WI, reference_depth = ref_depth,
+                                                        dz = dz,
+                                                        N = well_topo,
+                                                        perforation_cells = perf_cells,
+                                                        accumulator_volume = accumulator_volume,
+                                                        surface_conditions = cond)
         # flow = TwoPointPotentialFlowHardCoded(SPU(), MixedWellSegmentFlow(), TotalMassVelocityMassFractionsFlow(), W, nothing, z)
     end
     # disc = (mass_flow = flow,)
@@ -236,12 +247,12 @@ function model_from_mat_comp(G, mrst_data, res_context)
             vs = copy(eosm["volume_shift"])
             vs = tuple(vs...)
         end
-        @info "Found EoS spec in input." eos_t bic vs
+        @debug "Found EoS spec in input." eos_t bic vs
     else
         eos_t = PengRobinson()
         vs = nothing
         bic = nothing
-        @info "Defaulting EoS." eos_t
+        @debug "Defaulting EoS." eos_t
     end
     mixture = MultiComponentMixture(components, names = names, A_ij = bic)
     eos = GenericCubicEOS(mixture, eos_t, volume_shift = vs)
