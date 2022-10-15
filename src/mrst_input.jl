@@ -1031,6 +1031,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                 write_mrst = false,
                                 write_output = true,
                                 verbose = true,
+                                do_sim = true,
                                 linear_solver = :bicgstab,
                                 kwarg...)
     if verbose
@@ -1081,19 +1082,28 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
         ncomp = number_of_components(sys)
         nph = number_of_phases(sys)
         nc = number_of_cells(M.domain)
+    end
+    if do_sim
         jutul_message("MRST model", "Starting simulation of $s system with $nc cells and $nph phases and $ncomp components.")
-    end
-    states, reports = simulate(sim, dt, forces = forces, config = cfg);
-    if write_output && write_mrst
-        mrst_output_path = "$(output_path)_mrst"
-        if verbose
-            jutul_message("MRST model", "Writing output to $mrst_output_path.")
+        states, reports = simulate(sim, dt, forces = forces, config = cfg);
+        if write_output && write_mrst
+            mrst_output_path = "$(output_path)_mrst"
+            if verbose
+                jutul_message("MRST model", "Writing output to $mrst_output_path.")
+            end
+            write_reservoir_simulator_output_to_mrst(sim.model, states, reports, forces, mrst_output_path, parameters = parameters)
         end
-        write_reservoir_simulator_output_to_mrst(sim.model, states, reports, forces, mrst_output_path, parameters = parameters)
+        if verbose
+            jutul_message("MRST model", "Model was successfully simulated.")
+        end
+    else
+        states = []
+        reports = []
+        if verbose
+            jutul_message("MRST model", "Model set up. Skipping simulation as do_sim = false.")
+        end
     end
-    if verbose
-        jutul_message("MRST model", "Model was successfully simulated.")
-    end
+
     setup = (sim = sim, parameters = parameters, mrst = mrst_data, forces = forces, dt = dt, config = cfg, state0 = initializer)
     return (states, reports, output_path, setup)
 end
