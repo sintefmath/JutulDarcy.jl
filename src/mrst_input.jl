@@ -456,6 +456,7 @@ end
 
 function model_from_mat_deck(G, mrst_data, res_context)
     ## Set up reservoir part
+    plot_mesh = MRSTWrapMesh(mrst_data["G"])
     deck = mrst_data["deck"]
     rock = mrst_data["rock"]
     if haskey(rock, "regions") && haskey(rock["regions"], "saturation")
@@ -546,7 +547,7 @@ function model_from_mat_deck(G, mrst_data, res_context)
             phases = (AqueousPhase(), LiquidPhase(), VaporPhase())
         end
         sys = MultiPhaseCompositionalSystemLV(eos, phases)
-        model = SimulationModel(G, sys, context = res_context)
+        model = SimulationModel(G, sys, context = res_context, plot_mesh = plot_mesh)
         # Insert pressure
         svar = model.secondary_variables
         T = copy(vec(mrst_data["state0"]["T"]))
@@ -586,7 +587,7 @@ function model_from_mat_deck(G, mrst_data, res_context)
             min_p = 101325.0
         end
 
-        model = SimulationModel(G, sys, context = res_context)
+        model = SimulationModel(G, sys, context = res_context, plot_mesh = plot_mesh)
         # Tweak primary variables
         pvar = model.primary_variables
         pvar[:Pressure] = Pressure(max_rel = dp_max_rel, minimum = min_p)
