@@ -186,6 +186,29 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     return W
 end
 
+function Jutul.plot_primitives(mesh::MultiSegmentWell, plot_type; kwarg...)
+    # By default, no plotting is supported
+    if plot_type == :lines
+        pts = collect(mesh.centers')
+        top = [pts[1, 1] pts[1, 2] pts[1, 3] - 10.0]
+        pts = vcat(top, pts)
+        @. pts[:, 3] *= -1
+
+        function cell_mapper(x::AbstractVector)
+            return vcat(x[1], x)
+        end
+
+        function cell_mapper(x::AbstractMatrix)
+            return hcat(x[:, 1], x)
+        end
+        mapper = (Cells = x -> cell_mapper(x), )
+        out = (points = pts, mapper = mapper, top_text = String(mesh.name))
+    else
+        out = nothing
+    end
+    return out
+end
+
 function setup_vertical_well(g, K, i, j; heel = 1, toe = grid_dims_ijk(g)[3], kwarg...)
     @assert heel <= toe
     @assert heel > 0

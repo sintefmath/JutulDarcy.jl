@@ -92,6 +92,7 @@ function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout 
     res_volume = vec(copy(mrst_data["G"]["cells"]["volumes"]))
 
     well_cell_volume = res_volume[rc]
+    nm =  W_mrst["name"]
     if simple
         well_volume = 1e-3# volume*mean(well_cell_volume)
         # For simple well, distance from ref depth to perf
@@ -104,7 +105,6 @@ function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout 
     else
         if haskey(W_mrst, "isMS") && W_mrst["isMS"]
             # @info "MS well found" W_mrst
-            nm =  W_mrst["name"]
             @info "MS well found: $nm"
             V = vec(copy(W_mrst["nodes"].vol))
             cn = copy(W_mrst["cells_to_nodes"])
@@ -148,15 +148,13 @@ function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout 
         W = MultiSegmentWell(rc, pvol, centers, WI = WI, reference_depth = ref_depth,
                                                         dz = dz,
                                                         N = well_topo,
+                                                        name = Symbol(nm),
                                                         perforation_cells = perf_cells,
                                                         accumulator_volume = accumulator_volume,
                                                         surface_conditions = cond)
-        # flow = TwoPointPotentialFlowHardCoded(SPU(), MixedWellSegmentFlow(), TotalMassVelocityMassFractionsFlow(), W, nothing, z)
     end
-    # disc = (mass_flow = flow,)
     W_domain = discretized_domain_well(W, z = z)
-    wmodel = SimulationModel(W_domain, system; kwarg...)
-    # wmodel = SimulationModel(W, system, discretization = disc; kwarg...)
+    wmodel = SimulationModel(W_domain, system; plot_mesh = W, kwarg...)
     if extraout
         out = (wmodel, W_mrst, vec(reservoir_cells))
     else
