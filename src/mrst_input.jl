@@ -544,7 +544,7 @@ function model_from_mat_deck(G, mrst_data, res_context)
         else
             phases = (AqueousPhase(), LiquidPhase(), VaporPhase())
         end
-        sys = MultiPhaseCompositionalSystemLV(eos, phases)
+        sys = MultiPhaseCompositionalSystemLV(eos, phases, reference_densities = rhoS)
         model = SimulationModel(G, sys, context = res_context, plot_mesh = plot_mesh)
         # Insert pressure
         svar = model.secondary_variables
@@ -574,7 +574,7 @@ function model_from_mat_deck(G, mrst_data, res_context)
         end
 
         if is_immiscible
-            sys = ImmiscibleSystem(phases)
+            sys = ImmiscibleSystem(phases, reference_densities = rhoS)
             dp_max_rel = Inf
             min_p = -Inf
         else
