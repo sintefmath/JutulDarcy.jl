@@ -189,7 +189,12 @@ end
 function Jutul.plot_primitives(mesh::MultiSegmentWell, plot_type; kwarg...)
     # By default, no plotting is supported
     if plot_type == :lines
-        pts = collect(mesh.centers')
+        centers = mesh.centers
+        if ndims(centers) == 3
+            # Some bug somewhere in MRST parser.
+            centers = dropdims(centers, dims = 3)
+        end
+        pts = collect(centers')
         top = [pts[1, 1] pts[1, 2] pts[1, 3] - 10.0]
         pts = vcat(top, pts)
         @. pts[:, 3] *= -1
