@@ -207,7 +207,7 @@ function Jutul.plot_primitives(mesh::MultiSegmentWell, plot_type; kwarg...)
             return hcat(x[:, 1], x)
         end
         mapper = (Cells = x -> cell_mapper(x), )
-        out = (points = pts, mapper = mapper, top_text = String(mesh.name))
+        out = (points = pts, mapper = mapper, top_text = String(mesh.name), marker_size = 20)
     else
         out = nothing
     end
