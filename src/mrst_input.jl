@@ -1030,6 +1030,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                 write_output = true,
                                 verbose = true,
                                 do_sim = true,
+                                steps = :full,
                                 linear_solver = :bicgstab,
                                 kwarg...)
     if verbose
@@ -1047,6 +1048,16 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                                                                       nthreads = nthreads,
                                                                                       facility_grouping = fg,
                                                                                       minbatch = minbatch);
+    if steps != :full
+        if steps isa Int64
+            steps = [steps]
+        end
+        steps::Union{Vector{Int64}, UnitRange}
+        dt = dt[steps]
+        if forces isa AbstractVector
+            forces = forces[steps]
+        end
+    end
     out = models[:Reservoir].output_variables
     for k in extra_outputs
         push!(out, k)
