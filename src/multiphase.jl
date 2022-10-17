@@ -74,6 +74,11 @@ number_of_components(sys::ImmiscibleSystem) = number_of_phases(sys)
 phase_names(system) = get_name.(get_phases(system))
 
 get_phases(sys::SinglePhaseSystem) = (sys.phase, )
+
+phase_indices(sys::SinglePhaseSystem) = 1
+phase_indices(sys::ImmiscibleSystem) = tuple(eachindex(sys.phases)...)
+
+
 number_of_phases(::SinglePhaseSystem) = 1
 
 ## Phases
