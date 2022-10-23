@@ -349,7 +349,7 @@ end
 @inline function invert_w!(w, J, r, cell, bz, scaling)
     tmp = J\r
     if scaling == :unit
-        s = 1.0/sum(tmp)
+        s = 1.0/norm(tmp)
     else
         s = 1.0
     end
