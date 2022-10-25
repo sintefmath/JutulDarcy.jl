@@ -16,6 +16,8 @@ struct DeckViscosity{T, R} <: DeckPhaseVariables
     end
 end
 
+export DeckDensity, RelativePermeabilities, ThreePhaseCompositionalDensitiesLV, PhaseMassFractions, PhaseMassFractions
+export ThreePhaseLBCViscositiesLV
 struct DeckDensity{T, R} <: DeckPhaseVariables
     pvt::T
     regions::R
