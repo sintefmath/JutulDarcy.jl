@@ -1,4 +1,4 @@
-@inline function Jutul.compute_tpfa_flux!(q_i, left, right, face, face_sign, eq, state, model::DarcyFlowModel, dt, flow_disc)
+@inline function Jutul.face_flux!(q_i, left, right, face, face_sign, eq::ConservationLaw{:TotalMasses, <:Any}, state, model::DarcyFlowModel, dt, flow_disc)
     kgrad = TPFA(left, right, face_sign)
     upw = SPU(left, right)
     return component_mass_fluxes!(q_i, face, state, model, kgrad, upw)
