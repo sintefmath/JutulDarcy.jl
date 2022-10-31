@@ -23,21 +23,27 @@ function test_basic_adjoint()
     # Check against numerical gradient
     grad_num = Jutul.solve_numerical_sensitivities(model, states, reports, G, 
                     forces = forces, state0 = state0, parameters = param,
-                    epsilon = 1e-3)
-    @info "" grad_num[:Reservoir] grad_adj[:Reservoir]
-    @test isapprox(grad_num, grad_adj, atol = 1e-4)
+                    epsilon = 1e-4)
+    for k in keys(grad_num)
+        for ki in keys(grad_num[k])
+            adj = grad_adj[k][ki]
+            num = grad_num[k][ki]
+            @info "$k.$ki" adj num
+            # @test isapprox(adj, num, atol = 1e-4)
+        end 
+    end
 end
 
 function test_optimization_gradient(; use_scaling = true, use_log = false)
     model, state0, states, reports, param, forces = solve_adjoint_forward_test_system()
     dt = report_timesteps(reports)
-    ϵ = 1e-3
+    ϵ = 1e-8
     num_tol = 1e-3
 
     G = (model, state, dt, step_no, forces) -> well_test_objective(model, state)
 
     active = nothing
-    active = Dict(:Reservoir => [:FluidVolume], :Injector => [], :Producer => [], :Facility => [])
+    # active = Dict(:Reservoir => [:FluidVolume, :Transmissibilities], :Injector => [], :Producer => [], :Facility => [])
     cfg = optimization_config(model, param, active, use_scaling = use_scaling, rel_min = 0.1, rel_max = 10)
     if use_log
         for (k, v) in cfg
@@ -95,9 +101,9 @@ function solve_out_of_place(model, state0, states, param, reports, G, forces; kw
 end
 
 
-# test_basic_adjoint()
+test_basic_adjoint()
 # test_optimization_gradient()
-test_optimization_gradient(use_scaling = false)
+# test_optimization_gradient(use_scaling = true)
 
 error()
 ##
