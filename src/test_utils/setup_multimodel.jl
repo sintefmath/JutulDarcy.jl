@@ -1,13 +1,9 @@
-function simulate_mini_wellcase(::Val{:compositional_2ph_3c}; output_path = nothing, kwarg...)
-    ## Define the mesh
-    nx = 3
-    ny = 1
-    nz = 1
+function simulate_mini_wellcase(::Val{:compositional_2ph_3c}; dims = (3, 1, 1), output_path = nothing, kwarg...)
     # Some useful constants
     day = 3600*24
     bar = 1e5
-    # Create and plot the mesh
-    dims = (nx, ny, nz)
+    # Create the mesh
+    nx, ny, nz = dims
     g = CartesianMesh(dims, (2000.0, 1500.0, 50.0))
     K = repeat([1e-13], number_of_cells(g))
     ## Set up a vertical well in the first corner, perforated in all layers
@@ -45,19 +41,23 @@ function simulate_mini_wellcase(::Val{:compositional_2ph_3c}; output_path = noth
     # Simulate
     forces = setup_reservoir_forces(model, control = controls)
     sim, config = setup_reservoir_simulator(model, state0, parameters, info_level = -1, output_path = output_path)
-    return simulate!(sim, dt, forces = forces, config = config);
+    setup = Dict(:config     => config,
+                 :forces     => forces,
+                 :state0     => state0,
+                 :model      => model,
+                 :sim        => sim,
+                 :parameters => parameters,
+                 :dt         => dt)
+    states, reports = simulate!(sim, dt, forces = forces, config = config);
+    return (states = states, reports = reports, setup = setup)
 end
 
-function simulate_mini_wellcase(::Val{:immiscible_2ph}; kwarg...)
-    ## Define and plot the mesh
-    nx = 3
-    ny = 1
-    nz = 1
+function simulate_mini_wellcase(::Val{:immiscible_2ph}; dims = (3, 1, 1), kwarg...)
     # Some useful constants
     day = 3600*24
     bar = 1e5
-    # Create and plot the mesh
-    dims = (nx, ny, nz)
+    # Create the mesh
+    nx, ny, nz = dims
     g = CartesianMesh(dims, (2000.0, 1500.0, 50.0))
     ## Create a layered permeability field
     Darcy = 9.869232667160130e-13
@@ -99,23 +99,26 @@ function simulate_mini_wellcase(::Val{:immiscible_2ph}; kwarg...)
     forces = setup_reservoir_forces(model, control = controls)
     ## Finally simulate!
     sim, config = setup_reservoir_simulator(model, state0, parameters, info_level = -1)
-    return simulate!(sim, dt, forces = forces, config = config);
+    setup = Dict(:config     => config,
+                 :forces     => forces,
+                 :state0     => state0,
+                 :model      => model,
+                 :sim        => sim,
+                 :parameters => parameters,
+                 :dt         => dt)
+    states, reports = simulate!(sim, dt, forces = forces, config = config);
+    return (states = states, reports = reports, setup = setup)
 end
 
-function simulate_mini_wellcase(::Val{:bo_spe1}; kwarg...)
-    ## Define and plot the mesh
-    nx = 3
-    ny = 1
-    nz = 1
+function simulate_mini_wellcase(::Val{:bo_spe1}; dims = (3, 1, 1), kwarg...)
     # Some useful constants
     day = 3600*24
     bar = 1e5
-    # Create and plot the mesh
-    dims = (nx, ny, nz)
+    # Create the mesh
+    nx, ny, nz = dims
     g = CartesianMesh(dims, (2000.0, 1500.0, 50.0))
     ## Create a layered permeability field
     Darcy = 9.869232667160130e-13
-    nlayer = nx*ny
     K = repeat([0.65*Darcy], nx*ny*nz)
     ## Set up a vertical well in the first corner, perforated in all layers
     P = setup_vertical_well(g, K, 1, 1, name = :Producer);
@@ -153,7 +156,19 @@ function simulate_mini_wellcase(::Val{:bo_spe1}; kwarg...)
     forces = setup_reservoir_forces(model, control = controls)
     ## Finally simulate!
     sim, config = setup_reservoir_simulator(model, state0, parameters, info_level = -1)
-    return simulate!(sim, dt, forces = forces, config = config);
+    setup = Dict(:config     => config,
+                 :forces     => forces,
+                 :state0     => state0,
+                 :model      => model,
+                 :sim        => sim,
+                 :parameters => parameters,
+                 :dt         => dt)
+    states, reports = simulate!(sim, dt, forces = forces, config = config);
+    return (states = states, reports = reports, setup = setup)
+end
+
+function simulate_mini_wellcase(physics::Symbol; kwarg...)
+    return simulate_mini_wellcase(Val(physics); kwarg...)
 end
 
 function precompile_darcy_multimodels()
@@ -163,7 +178,7 @@ function precompile_darcy_multimodels()
     # Scalar blackend, CSC (direct solver)
     push!(targets, (false, :csc))
     # Block backend, CSR (CPR)
-    # push!(targets, (true, :csr))
+    push!(targets, (true, :csr))
     wellcases = [:bo_spe1, :immiscible_2ph, :compositional_2ph_3c]
     for (block_backend, backend) in targets
         for w in wellcases
