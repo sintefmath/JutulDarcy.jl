@@ -183,8 +183,10 @@ function select_primary_variables!(S, ::ImmiscibleSystem, model)
     S[:Saturations] = Saturations()
 end
 
-function select_equations!(eqs, ::MultiPhaseSystem, model)
-    eqs[:mass_conservation] = ConservationLaw(model.domain.discretizations.mass_flow)
+function select_equations!(eqs, sys::MultiPhaseSystem, model)
+    fdisc = model.domain.discretizations.mass_flow
+    nc = number_of_components(sys)
+    eqs[:mass_conservation] = ConservationLaw(fdisc, :TotalMasses, nc)
 end
 
 function select_parameters!(prm, D::TwoPointPotentialFlowHardCoded, model::DarcyFlowModel)

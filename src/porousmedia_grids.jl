@@ -20,7 +20,7 @@ struct MinimalTPFAGrid{V, N} <: ReservoirGrid
     trans::V
     gdz::V
     neighborship::N
-    function MinimalTPFAGrid(pv::V, N::M; trans::V = ones(size(pv)), gdz::V = zeros(size(pv))) where {V<:AbstractVector, M<:AbstractMatrix}
+    function MinimalTPFAGrid(pv::V, N::M; trans::V = ones(size(N, 2)), gdz::V = zeros(size(N, 2))) where {V<:AbstractVector, M<:AbstractMatrix}
         nc = length(pv)
         pv::AbstractVector
         @assert size(N, 1) == 2  "Two neighbors per face"
@@ -54,7 +54,7 @@ end
 
 function get_1d_reservoir(nc; L = 1, perm = 9.8692e-14, # 0.1 darcy
                          poro = 0.1, area = 1,
-                         z_max = nothing)
+                         z_max = nothing, use_general = true)
     @assert nc > 1 "Must have at least two cells."
     nf = nc-1
     N = vcat((1:nf)', (2:nc)')
@@ -92,8 +92,11 @@ function get_1d_reservoir(nc; L = 1, perm = 9.8692e-14, # 0.1 darcy
     T = compute_face_trans(T_hf, N)
     gdz = compute_face_gdz(N, z)
     G = MinimalTPFAGrid(pv, N, trans = T, gdz = gdz)
-
-    flow = TwoPointPotentialFlowHardCoded(G, T, z, g)
+    if use_general
+        flow = PotentialFlow(N, nc)
+    else
+        flow = TwoPointPotentialFlowHardCoded(G, T, z, g)
+    end
     disc = (mass_flow = flow,)
     D = DiscretizedDomain(G, disc)
     return D
