@@ -4,8 +4,8 @@ using Test
 
 import JutulDarcy: simulate_mini_wellcase
 
-function test_compositional_with_wells()
-    states, = simulate_mini_wellcase(Val(:compositional_2ph_3c))
+function test_compositional_with_wells(; kwarg...)
+    states, = simulate_mini_wellcase(Val(:compositional_2ph_3c); kwarg...)
     @testset "Compositional with wells" begin
         @testset "Reservoir" begin
             res = states[end][:Reservoir]
@@ -31,8 +31,8 @@ function test_compositional_with_wells()
     end
 end
 
-function test_immiscible_with_wells()
-    states, = simulate_mini_wellcase(Val(:immiscible_2ph))
+function test_immiscible_with_wells(; kwarg...)
+    states, = simulate_mini_wellcase(Val(:immiscible_2ph); kwarg...)
     @testset "Immiscible with wells" begin
         @testset "Reservoir" begin
             res = states[end][:Reservoir]
@@ -53,8 +53,8 @@ function test_immiscible_with_wells()
     end
 end
 
-function test_blackoil_with_wells()
-    states, = simulate_mini_wellcase(Val(:bo_spe1))
+function test_blackoil_with_wells(; kwarg...)
+    states, = simulate_mini_wellcase(Val(:bo_spe1); kwarg...)
     @testset "Blackoil with SPE1 PVT" begin
         @testset "Reservoir" begin
             res = states[end][:Reservoir]
@@ -118,7 +118,12 @@ function test_perforation_mask()
         @test abs(v[1]) > 1e-4
     end
 end
-test_compositional_with_wells()
-test_immiscible_with_wells()
-test_blackoil_with_wells()
-test_perforation_mask()
+
+@testset "MultiModel (wells)" begin 
+    for gen_ad in [true, false]
+        test_compositional_with_wells(general_ad = gen_ad)
+        test_immiscible_with_wells(general_ad = gen_ad)
+        test_blackoil_with_wells(general_ad = gen_ad)
+    end
+    test_perforation_mask()
+end
