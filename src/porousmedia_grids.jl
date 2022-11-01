@@ -15,10 +15,12 @@ Generate a minimal grid suitable only for two-point flux discretization (TPFA) f
 pore-volumes `ϕ` and a neighborship matrix `N` with size `(2, n)` where `n` is the number
 of internal faces.
 """
-struct MinimalTPFAGrid{R<:AbstractFloat, I<:Integer} <: ReservoirGrid
-    pore_volumes::AbstractVector{R}
-    neighborship::AbstractArray{I}
-    function MinimalTPFAGrid(pv, N)
+struct MinimalTPFAGrid{V, N} <: ReservoirGrid
+    pore_volumes::V
+    trans::V
+    gdz::V
+    neighborship::N
+    function MinimalTPFAGrid(pv::V, N::M; trans::V = similar(pv), gdz::V = similar(pv)) where {V<:AbstractVector, M<:AbstractMatrix}
         nc = length(pv)
         pv::AbstractVector
         @assert size(N, 1) == 2  "Two neighbors per face"
@@ -27,7 +29,7 @@ struct MinimalTPFAGrid{R<:AbstractFloat, I<:Integer} <: ReservoirGrid
             @assert maximum(N) <= nc "Neighborship must be limited to number of cells."
         end
         @assert all(pv .> 0)     "Pore volumes must be positive"
-        new{eltype(pv), eltype(N)}(pv, N)
+        new{V, M}(pv, trans, gdz, N)
     end
 end
 Base.show(io::IO, g::MinimalTPFAGrid) = print(io, "MinimalTPFAGrid ($(number_of_cells(g)) cells, $(number_of_faces(g)) faces)")
