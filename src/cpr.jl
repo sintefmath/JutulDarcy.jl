@@ -216,8 +216,12 @@ function update_weights!(cpr, model, res_storage, J, ps)
     r[1] = 1.0
     scaling = cpr.weight_scaling
     if cpr.strategy == :true_impes
-        eq = res_storage.equations[:mass_conservation]
-        acc = eq.accumulation.entries
+        eq_s = res_storage.equations[:mass_conservation]
+        if eq_s isa ConservationLawTPFAStorage
+            acc = eq_s.accumulation.entries
+        else
+            acc = res_storage.state.TotalMasses
+        end
         true_impes!(w, acc, r, n, bz, ps, scaling)
     elseif cpr.strategy == :analytical
         rstate = res_storage.state
@@ -251,7 +255,7 @@ end
 
 function true_impes_2!(w, acc, r, n, bz, p_scale, scaling)
     r_p = SVector{2}(r)
-    for cell in 1:n
+    @inbounds for cell in 1:n
         W = acc[1, cell]
         O = acc[2, cell]
 
@@ -270,6 +274,8 @@ end
 function M_entry(acc, i, j, c)
     return @inbounds acc[j, c].partials[i]
 end
+
+# TODO: Turn these into @generated functions
 
 function true_impes_3!(w, acc, r, n, bz, s, scaling)
     r_p = SVector{3}(r)
