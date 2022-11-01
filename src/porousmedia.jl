@@ -57,26 +57,33 @@ export discretized_domain_tpfv_flow
 function discretized_domain_tpfv_flow(geometry; porosity = 0.1, 
                                                 permeability = 9.869232667160131e-14, # 100 mD 
                                                 T = nothing,
+                                                gdz = nothing,
                                                 gravity = true,
-                                                pore_volume = nothing)
+                                                pore_volume = nothing,
+                                                general_ad = false)
     N = geometry.neighbors
     if isnothing(pore_volume)
         pore_volume = porosity.*geometry.volumes
     end
+    nc = length(pore_volume)
     if isnothing(T)
         T = compute_face_trans(geometry, permeability)
     end
-
-    G = MinimalTPFAGrid(pore_volume, N)
-    if dim(geometry) == 3 && gravity
-        z = geometry.cell_centroids[3, :]
-        g = gravity_constant
+    cc = geometry.cell_centroids
+    if gravity && size(cc, 1) == 3
+        z = vec(cc[3, :])
     else
-        z = nothing
-        g = nothing
+        z = zeros(nc)
     end
-
-    flow = TwoPointPotentialFlowHardCoded(G, T, z, g, ncells = length(pore_volume))
+    if isnothing(gdz)
+        gdz = compute_face_gdz(N, z)
+    end
+    G = MinimalTPFAGrid(pore_volume, N, trans = T, gdz = gdz)
+    if general_ad
+        flow = PotentialFlow(N, nc)
+    else
+        flow = TwoPointPotentialFlowHardCoded(G, T, ncells = nc)
+    end
     disc = (mass_flow = flow,)
     return DiscretizedDomain(G, disc)
 end

@@ -41,7 +41,7 @@ function saturation_mixed(saturations, densities, viscosities, ix)
     return (rho, mu)
 end
 
-function Jutul.update_equation_in_entity!(eq_buf, self_cell, state, state0, eq::ConservationLaw{:TotalMasses, <:WellSegmentFlow}, model, dt, ldisc = local_discretization(eq, self_cell))
+function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::ConservationLaw{:TotalMasses, <:WellSegmentFlow}, model, dt, ldisc = local_discretization(eq, self_cell)) where T_e
     (; cells, faces, signs) = ldisc
 
     mass = state.TotalMasses
