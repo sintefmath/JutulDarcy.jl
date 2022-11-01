@@ -10,7 +10,7 @@ function well_test_objective_vec(model, state)
 end
 
 function solve_adjoint_forward_test_system()
-    states, reports, setup = JutulDarcy.simulate_mini_wellcase(:immiscible_2ph, block_backend = false)
+    states, reports, setup = JutulDarcy.simulate_mini_wellcase(:immiscible_2ph, block_backend = false, general_ad = false)
     return (setup[:model], setup[:state0], states, reports, setup[:parameters], setup[:forces])
 end
 

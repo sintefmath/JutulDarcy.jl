@@ -14,13 +14,13 @@ Set up a reservoir `MultiModel` for a given reservoir `SimulationModel` and an o
 
 The routine automatically sets up a facility and couples the wells with the reservoir and that facility.
 """
-function setup_reservoir_model(reservoir, system; wells = [], context = DefaultContext(), reservoir_context = nothing, backend = :csc, kwarg...)
+function setup_reservoir_model(reservoir, system; wells = [], context = DefaultContext(), reservoir_context = nothing, general_ad = false, backend = :csc, kwarg...)
     # List of models (order matters)
     models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()
     # Support either a pre-discretized domain, a mesh or geometry
     main_domain(m::DiscretizedDomain) = m
     main_domain(m::Jutul.AbstractJutulMesh) = main_domain(tpfv_geometry(m))
-    main_domain(geo::Jutul.JutulGeometry) = discretized_domain_tpfv_flow(geo)
+    main_domain(geo::Jutul.JutulGeometry) = discretized_domain_tpfv_flow(geo, general_ad = general_ad)
 
     reservoir_context, context = Jutul.select_contexts(backend; main_context = reservoir_context, context = context, kwarg...)
     # We first set up the reservoir
