@@ -103,3 +103,5 @@ struct SinglePhaseSystem{P, F} <: MultiPhaseSystem where {P, F<:AbstractFloat}
         return new{typeof(phase), typeof(reference_density)}(phase, reference_density)
     end
 end
+
+number_of_components(sys::SinglePhaseSystem) = 1

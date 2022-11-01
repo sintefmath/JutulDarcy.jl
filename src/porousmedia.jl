@@ -82,7 +82,7 @@ function discretized_domain_tpfv_flow(geometry; porosity = 0.1,
     if general_ad
         flow = PotentialFlow(N, nc)
     else
-        flow = TwoPointPotentialFlowHardCoded(G, T, ncells = nc)
+        flow = TwoPointPotentialFlowHardCoded(G, ncells = nc)
     end
     disc = (mass_flow = flow,)
     return DiscretizedDomain(G, disc)
