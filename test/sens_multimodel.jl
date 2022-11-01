@@ -1,8 +1,13 @@
 using Jutul, JutulDarcy, Test
 
 function well_test_objective(model, state)
-    q = state[:Facility][:TotalSurfaceMassRate]
-    return 2.0*q[1] + 0.5*q[2]
+    if true
+        q = state[:Facility][:TotalSurfaceMassRate]
+        obj = 2.0*q[1] + 0.5*q[2]
+    else
+        obj = state[:Reservoir][:Pressure][end]
+    end
+    return obj
 end
 
 function well_test_objective_vec(model, state)
@@ -10,7 +15,7 @@ function well_test_objective_vec(model, state)
 end
 
 function solve_adjoint_forward_test_system()
-    states, reports, setup = JutulDarcy.simulate_mini_wellcase(:immiscible_2ph, block_backend = false, general_ad = false)
+    states, reports, setup = JutulDarcy.simulate_mini_wellcase(:immiscible_2ph, block_backend = false, general_ad = true)
     return (setup[:model], setup[:state0], states, reports, setup[:parameters], setup[:forces])
 end
 
@@ -37,14 +42,17 @@ end
 function test_optimization_gradient(; use_scaling = true, use_log = false)
     model, state0, states, reports, param, forces = solve_adjoint_forward_test_system()
     dt = report_timesteps(reports)
-    ϵ = 1e-8
+    ϵ = 1e-4
     num_tol = 1e-3
 
     G = (model, state, dt, step_no, forces) -> well_test_objective(model, state)
 
     active = nothing
+    active = Dict(:Reservoir => [:FluidVolume, :Transmissibilities], :Injector => [:FluidVolume, :WellIndices], :Producer => [:FluidVolume, :WellIndices], :Facility => [])
     # active = Dict(:Reservoir => [:FluidVolume, :Transmissibilities], :Injector => [], :Producer => [], :Facility => [])
-    cfg = optimization_config(model, param, active, use_scaling = use_scaling, rel_min = 0.1, rel_max = 10)
+    # active = Dict(:Reservoir => [:Transmissibilities], :Injector => [], :Producer => [], :Facility => [])
+    active = Dict(:Reservoir => [:PhaseViscosities], :Injector => [], :Producer => [], :Facility => [])
+    cfg = optimization_config(model, param, active, use_scaling = use_scaling, rel_min = 0.5, rel_max = 2.0)
     if use_log
         for (k, v) in cfg
             for (ki, vi) in v
@@ -52,8 +60,19 @@ function test_optimization_gradient(; use_scaling = true, use_log = false)
             end
         end
     end
+    for (k, v) in cfg
+        for (ki, vi) in v
+            @info "$k.$ki" vi
+        end
+    end
     tmp = setup_parameter_optimization(model, state0, param, dt, forces, G, cfg, param_obj = true, print = false);
     F_o, dF_o, F_and_dF, x0, lims, data = tmp
+    @info "" data[:mapper]
+    for (k, v) in data[:mapper]
+        for (ki, vi) in v
+            @info "$k.$ki" vi
+        end
+    end
     # Evaluate gradient first to initialize
     F0 = F_o(x0)
     # This interface is only safe if F0 was called with x0 first.
@@ -101,9 +120,9 @@ function solve_out_of_place(model, state0, states, param, reports, G, forces; kw
 end
 
 
-test_basic_adjoint()
-# test_optimization_gradient()
-# test_optimization_gradient(use_scaling = true)
+# test_basic_adjoint()
+# test_optimization_gradient(use_scaling = false)
+test_optimization_gradient(use_scaling = true)
 
 error()
 ##

@@ -1,5 +1,5 @@
 
-struct SimpleCapillaryPressure{T, R} <: GroupedVariables
+struct SimpleCapillaryPressure{T, R} <: VectorVariables
     pc::T
     regions::R
     function SimpleCapillaryPressure(pc::C; regions::T = nothing) where {C, T}

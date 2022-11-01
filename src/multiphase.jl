@@ -146,7 +146,7 @@ function initialize_primary_variable_ad!(state, model, pvar::Saturations, state_
 end
 
 # Total component masses
-struct TotalMasses <: GroupedVariables end
+struct TotalMasses <: VectorVariables end
 
 function degrees_of_freedom_per_entity(model::SimulationModel{G, S}, v::TotalMasses) where {G<:Any, S<:MultiPhaseSystem}
     number_of_phases(model.system)
