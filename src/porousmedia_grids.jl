@@ -20,7 +20,7 @@ struct MinimalTPFAGrid{V, N} <: ReservoirGrid
     trans::V
     gdz::V
     neighborship::N
-    function MinimalTPFAGrid(pv::V, N::M; trans::V = similar(pv), gdz::V = similar(pv)) where {V<:AbstractVector, M<:AbstractMatrix}
+    function MinimalTPFAGrid(pv::V, N::M; trans::V = ones(size(pv)), gdz::V = zeros(size(pv))) where {V<:AbstractVector, M<:AbstractMatrix}
         nc = length(pv)
         pv::AbstractVector
         @assert size(N, 1) == 2  "Two neighbors per face"
@@ -81,17 +81,17 @@ function get_1d_reservoir(nc; L = 1, perm = 9.8692e-14, # 0.1 darcy
 
     @debug "Data unpack complete. Starting transmissibility calculations."
     # Deal with face data
-    T_hf = compute_half_face_trans(cell_centroids, face_centroids, face_normals, face_areas, perm, N)
-    T = compute_face_trans(T_hf, N)
-    G = MinimalTPFAGrid(pv, N)
     if isnothing(z_max)
-        z = nothing
-        g = nothing
+        z = zeros(nc)
     else
         dz = z_max/nc
         z = (dz/2:dz:z_max-dz/2)'
-        g = gravity_constant
     end
+    g = gravity_constant
+    T_hf = compute_half_face_trans(cell_centroids, face_centroids, face_normals, face_areas, perm, N)
+    T = compute_face_trans(T_hf, N)
+    gdz = compute_face_gdz(N, z)
+    G = MinimalTPFAGrid(pv, N, trans = T, gdz = gdz)
 
     flow = TwoPointPotentialFlowHardCoded(G, T, z, g)
     disc = (mass_flow = flow,)

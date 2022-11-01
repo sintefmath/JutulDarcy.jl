@@ -163,30 +163,14 @@ Jutul.minimum_value(::Transmissibilities) = 0.0
 
 Jutul.associated_entity(::Transmissibilities) = Faces()
 function Jutul.default_values(model, ::Transmissibilities)
-    d = model.domain
-    nf = number_of_faces(d)
-    # @assert nf > 0
-    T = zeros(nf)
-    conn_data = d.discretizations.mass_flow.conn_data
-    for cd in conn_data
-        T[cd.face] = cd.T
-    end
-    return T
+    return model.domain.grid.trans
 end
-
 
 struct TwoPointGravityDifference <: ScalarVariable end
 
 Jutul.associated_entity(::TwoPointGravityDifference) = Faces()
 function Jutul.default_values(model, ::TwoPointGravityDifference)
-    d = model.domain
-    nf = number_of_faces(d)
-    T = zeros(nf)
-    conn_data = d.discretizations.mass_flow.conn_data
-    for cd in conn_data
-        T[cd.face] = cd.face_sign*cd.gdz
-    end
-    return T
+    return model.domain.grid.gdz
 end
 
 # Selection of variables
