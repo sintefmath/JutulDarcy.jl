@@ -1,6 +1,13 @@
-@inline function Jutul.face_flux!(q_i, left, right, face, face_sign, eq::ConservationLaw{:TotalMasses, <:Any}, state, model::DarcyFlowModel, dt, flow_disc)
+@inline function Jutul.face_flux!(q_i, left, right, face, face_sign, eq::ConservationLaw{:TotalMasses, <:Any}, state, model::DarcyFlowModel, dt, flow_disc::TwoPointPotentialFlowHardCoded)
+    # Specific version for tpfa flux
     kgrad = TPFA(left, right, face_sign)
     upw = SPU(left, right)
+    return component_mass_fluxes!(q_i, face, state, model, kgrad, upw)
+end
+
+@inline function Jutul.face_flux!(q_i, face, eq::ConservationLaw{:TotalMasses, <:Any}, state, model::DarcyFlowModel, dt, flow_disc::PotentialFlow, ldisc)
+    # Inner version, for generic flux
+    kgrad, upw = ldisc.face_disc(face)
     return component_mass_fluxes!(q_i, face, state, model, kgrad, upw)
 end
 
@@ -79,67 +86,6 @@ end
 end
 
 
-
-"""
-TPFA KGrad(p) without gravity. (Outer version, with conn_data input)
-"""
-@inline function half_face_two_point_kgradp(conn_data::NamedTuple, p::AbstractArray)
-    half_face_two_point_kgradp(conn_data.self, conn_data.other, conn_data.T, p)
-end
-
-"""
-TPFA KGrad(p) without gravity. (Inner version, with explicit inputs)
-"""
-@inline function half_face_two_point_kgradp(c_self::I, c_other::I, T, p::AbstractArray{R}) where {R<:Real, I<:Integer}
-    return -T*(p[c_self] - value(p[c_other]))
-end
-
-"""
-TPFA-SPU Mobility * KGrad(p) without gravity. (Outer version, with conn_data input)
-"""
-@inline function half_face_two_point_flux_fused(conn_data, p, λ)
-    return half_face_two_point_flux_fused(conn_data.self, conn_data.other, conn_data.T, p, λ)
-end
-
-"""
-TPFA-SPU Mobility * KGrad(p) without gravity. (Inner version, with explicit inputs)
-"""
-@inline function half_face_two_point_flux_fused(c_self, c_other, T, p, λ)
-    θ = half_face_two_point_kgradp(c_self, c_other, T, p)
-    λᶠ = spu_upwind(c_self, c_other, θ, λ)
-    return λᶠ*θ
-end
-
-"""
-TPFA-SPU Mobility * (KGrad(p) + G). (Outer version, with conn_data input)
-"""
-@inline function half_face_two_point_flux_fused_gravity(conn_data, p, λ, density)
-    return half_face_two_point_flux_fused_gravity(conn_data.self, conn_data.other, conn_data.T, p, λ, conn_data.gdz, density)
-end
-
-"""
-TPFA-SPU Mobility * (KGrad(p) + G). (Inner version, with explicit inputs)
-"""
-@inline function half_face_two_point_flux_fused_gravity(c_self, c_other, T, p, λ, gΔz, density)
-    θ = half_face_two_point_kgradp_gravity(c_self, c_other, T, p, gΔz, density)
-    return spu_upwind_mult(c_self, c_other, θ, λ)
-end
-
-
-"""
-Two point Darcy flux with gravity - outer version that takes in NamedTuple for static parameters
-"""
-@inline function half_face_two_point_kgradp_gravity(conn_data::NamedTuple, p, density)
-    return half_face_two_point_kgradp_gravity(conn_data.self, conn_data.other, conn_data.T, p, conn_data.gdz, density)
-end
-
-"""
-Two point Darcy flux with gravity - inner version that takes in cells and transmissibily explicitly
-"""
-@inline function half_face_two_point_kgradp_gravity(c_self::I, c_other::I, T, p::AbstractArray{R}, gΔz, ρ::AbstractArray{R}) where {R<:Real, I<:Integer}
-    v = -T*Jutul.two_point_potential_drop_half_face(c_self, c_other, p, gΔz, ρ)
-    return v
-end
 
 @inline function phase_mass_flux(Ψ, c, i, ρ, kr, μ, ph)
     upc = upwind_cell(Ψ, c, i)

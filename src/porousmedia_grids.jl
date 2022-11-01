@@ -54,7 +54,7 @@ end
 
 function get_1d_reservoir(nc; L = 1, perm = 9.8692e-14, # 0.1 darcy
                          poro = 0.1, area = 1,
-                         z_max = nothing, use_general = true)
+                         z_max = nothing, general_ad = false)
     @assert nc > 1 "Must have at least two cells."
     nf = nc-1
     N = vcat((1:nf)', (2:nc)')
@@ -92,7 +92,7 @@ function get_1d_reservoir(nc; L = 1, perm = 9.8692e-14, # 0.1 darcy
     T = compute_face_trans(T_hf, N)
     gdz = compute_face_gdz(N, z)
     G = MinimalTPFAGrid(pv, N, trans = T, gdz = gdz)
-    if use_general
+    if general_ad
         flow = PotentialFlow(N, nc)
     else
         flow = TwoPointPotentialFlowHardCoded(G, T, z, g)

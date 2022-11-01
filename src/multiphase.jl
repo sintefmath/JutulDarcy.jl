@@ -189,7 +189,7 @@ function select_equations!(eqs, sys::MultiPhaseSystem, model)
     eqs[:mass_conservation] = ConservationLaw(fdisc, :TotalMasses, nc)
 end
 
-function select_parameters!(prm, D::TwoPointPotentialFlowHardCoded, model::DarcyFlowModel)
+function select_parameters!(prm, disc::D, model::DarcyFlowModel) where D<:Union{TwoPointPotentialFlowHardCoded, Jutul.PotentialFlow}
     prm[:Transmissibilities] = Transmissibilities()
     prm[:TwoPointGravityDifference] = TwoPointGravityDifference()
 end
