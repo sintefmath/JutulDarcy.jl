@@ -28,7 +28,7 @@ function test_basic_adjoint()
     # Check against numerical gradient
     grad_num = Jutul.solve_numerical_sensitivities(model, states, reports, G, 
                     forces = forces, state0 = state0, parameters = param,
-                    epsilon = 1e-4)
+                    epsilon = 1e-6)
     for k in keys(grad_num)
         for ki in keys(grad_num[k])
             adj = grad_adj[k][ki]
@@ -48,10 +48,10 @@ function test_optimization_gradient(; use_scaling = true, use_log = false)
     G = (model, state, dt, step_no, forces) -> well_test_objective(model, state)
 
     active = nothing
-    active = Dict(:Reservoir => [:FluidVolume, :Transmissibilities], :Injector => [:FluidVolume, :WellIndices], :Producer => [:FluidVolume, :WellIndices], :Facility => [])
+    # active = Dict(:Reservoir => [:FluidVolume, :Transmissibilities], :Injector => [:FluidVolume, :WellIndices], :Producer => [:FluidVolume, :WellIndices], :Facility => [])
     # active = Dict(:Reservoir => [:FluidVolume, :Transmissibilities], :Injector => [], :Producer => [], :Facility => [])
     # active = Dict(:Reservoir => [:Transmissibilities], :Injector => [], :Producer => [], :Facility => [])
-    active = Dict(:Reservoir => [:PhaseViscosities], :Injector => [], :Producer => [], :Facility => [])
+    # active = Dict(:Reservoir => [:PhaseViscosities], :Injector => [], :Producer => [], :Facility => [])
     cfg = optimization_config(model, param, active, use_scaling = use_scaling, rel_min = 0.5, rel_max = 2.0)
     if use_log
         for (k, v) in cfg
@@ -120,7 +120,7 @@ function solve_out_of_place(model, state0, states, param, reports, G, forces; kw
 end
 
 
-# test_basic_adjoint()
+test_basic_adjoint()
 # test_optimization_gradient(use_scaling = false)
 test_optimization_gradient(use_scaling = true)
 
