@@ -1031,6 +1031,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                 verbose = true,
                                 do_sim = true,
                                 steps = :full,
+                                general_ad = false,
                                 linear_solver = :bicgstab,
                                 kwarg...)
     if verbose
@@ -1047,6 +1048,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                                                                       backend = backend,
                                                                                       nthreads = nthreads,
                                                                                       facility_grouping = fg,
+                                                                                      general_ad = general_ad,
                                                                                       minbatch = minbatch);
     if steps != :full
         if steps isa Int64
