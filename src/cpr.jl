@@ -221,6 +221,8 @@ function update_weights!(cpr, model, res_storage, J, ps)
             acc = eq_s.accumulation.entries
         else
             acc = res_storage.state.TotalMasses
+            # This term isn't scaled by dt, so use simple weights instead
+            ps = 1.0
         end
         true_impes!(w, acc, r, n, bz, ps, scaling)
     elseif cpr.strategy == :analytical
