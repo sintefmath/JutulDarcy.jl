@@ -200,7 +200,13 @@ end
 Well target contribution from well itself (surface volume, injector)
 """
 function well_target(control::InjectorControl, target::TotalRateTarget, well_model, well_state, surface_densities, surface_volume_fractions)
-    return 1.0/control.mixture_density
+    if abs(target.value) == MIN_ACTIVE_WELL_RATE
+        # Special meaning: Limits set at the CONST minimum value are really absolute mass limits.
+        w = 1.0
+    else
+        w = 1.0/control.mixture_density
+    end
+    return w
 end
 
 """
@@ -209,28 +215,33 @@ Well target contribution from well itself (surface volume, producer)
 function well_target(control::ProducerControl, target::SurfaceVolumeTarget, well_model, well_state, surface_densities, surface_volume_fractions)
     phases = get_phases(well_model.system)
     Tw = eltype(surface_volume_fractions)
-    # Compute total density at surface conditions by weighting phase volumes at surf
-    ρ_tot = zero(Tw)
-    for (ρ, V) in zip(surface_densities, surface_volume_fractions)
-        ρ_tot += ρ*V
-    end
-    # Divide by total density to get total volume at surface, then multiply that by surface volume fraction
-    w = zero(Tw)
-    if isa(target, TotalRateTarget)
-        for i in eachindex(phases)
-            @inbounds V = surface_volume_fractions[i]
-            w += V
-        end
+    if abs(target.value) == MIN_ACTIVE_WELL_RATE
+        # Special meaning: Limits set at the CONST minimum value are really absolute mass limits.
+        w = 1.0
     else
-        lp = lumped_phases(target)
-        for (i, ph) in enumerate(phases)
-            if ph in lp
+        # Compute total density at surface conditions by weighting phase volumes at surf
+        ρ_tot = zero(Tw)
+        for (ρ, V) in zip(surface_densities, surface_volume_fractions)
+            ρ_tot += ρ*V
+        end
+        # Divide by total density to get total volume at surface, then multiply that by surface volume fraction
+        w = zero(Tw)
+        if isa(target, TotalRateTarget)
+            for i in eachindex(phases)
                 @inbounds V = surface_volume_fractions[i]
                 w += V
             end
+        else
+            lp = lumped_phases(target)
+            for (i, ph) in enumerate(phases)
+                if ph in lp
+                    @inbounds V = surface_volume_fractions[i]
+                    w += V
+                end
+            end
         end
+        w = w/ρ_tot
     end
-    w = w/ρ_tot
     return w
 end
 
