@@ -52,8 +52,7 @@ function flash_wellstream_at_surface(well_model::SimulationModel{D, S}, well_sta
 end
 
 function flash_wellstream_at_surface(well_model::SimulationModel{D, S}, well_state, rhoS) where {D, S<:ImmiscibleSystem}
-    tot_mass = well_state.TotalMasses
-    vol = map((i, rho) -> tot_mass[i, 1], 1:length(rhoS), rhoS)
+    vol = well_state.TotalMasses[:, 1]./rhoS
     volfrac = vol./sum(vol)
     return (rhoS, volfrac)
 end

@@ -299,43 +299,6 @@ function model_from_mat_comp(G, mrst_data, res_context)
     return (model, param)
 end
 
-function model_from_mat_fluid_immiscible(G, mrst_data, res_context)
-    ## Set up reservoir part
-    f = mrst_data["fluid"]
-    p = vec(f["p"])
-    c = vec(f["c"])
-    mu = vec(f["mu"])
-    nkr = vec(f["nkr"])
-    rhoS = vec(f["rhoS"])
-
-    water = AqueousPhase()
-    oil = LiquidPhase()
-    sys = ImmiscibleSystem((water, oil), reference_densities = rhoS)
-
-    model = SimulationModel(G, sys, context = res_context)
-    rho = ConstantCompressibilityDensities(sys, p, rhoS, c)
-
-    if haskey(f, "swof")
-        swof = f["swof"]
-    else
-        swof = []
-    end
-
-    if isempty(swof)
-        kr = BrooksCoreyRelPerm(sys, nkr)
-    else
-        s, krt = preprocess_relperm_table(swof)
-        kr = TabulatedRelPermSimple(s, krt)
-    end
-    set_secondary_variables!(model, PhaseMassDensities = rho, RelativePermeabilities = kr, Pressure = Pressure(max_rel = 0.2))
-    set_parameters!(model, PhaseViscosities = mu)
-
-    ## Model parameters
-    param = setup_parameters(model, PhaseViscosities = mu)
-
-    return (model, param)
-end
-
 function deck_pvt_water(props)
     if haskey(props, "PVTW_EXTENDED")
         pvt = PVTW_EXTENDED(props["PVTW_EXTENDED"])
