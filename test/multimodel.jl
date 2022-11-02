@@ -1,5 +1,4 @@
 using Jutul, JutulDarcy
-using MultiComponentFlash
 using Test
 
 import JutulDarcy: simulate_mini_wellcase
