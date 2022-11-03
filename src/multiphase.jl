@@ -152,6 +152,8 @@ function degrees_of_freedom_per_entity(model::SimulationModel{G, S}, v::TotalMas
     number_of_phases(model.system)
 end
 
+struct PhaseMassMobilities <: PhaseVariables end
+
 @inline function minimum_value(::TotalMasses) 0 end
 
 struct TotalMass <: ScalarVariable end

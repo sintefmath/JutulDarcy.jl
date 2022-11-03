@@ -59,6 +59,15 @@ end
     @tullio totmass[i] = TotalMasses[ph, i]
 end
 
+@jutul_secondary function update_as_secondary!(ρλ, var::PhaseMassMobilities, model, RelativePermeabilities, PhaseMassDensities, PhaseViscosities)
+    mb = minbatch(model.context)
+    @batch minbatch = mb for i in axes(ρλ, 2)
+        @inbounds for ph in axes(ρλ, 1)
+            ρλ[ph, i] = PhaseMassDensities[ph, i]*RelativePermeabilities[ph, i]/PhaseViscosities[ph, i]
+        end
+    end
+end
+
 struct FluidVolume <: ScalarVariable end
 Jutul.default_values(model, ::FluidVolume) = fluid_volume(model.domain)
 Jutul.minimum_value(::FluidVolume) = eps()

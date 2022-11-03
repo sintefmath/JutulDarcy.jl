@@ -133,7 +133,12 @@ struct SurfaceVolumeMobilities <: PhaseVariables end
                                                         PhaseViscosities,
                                                         RelativePermeabilities)
     # For blackoil, the main upwind term
-    @tullio b_mob[ph, i] = ShrinkageFactors[ph, i]*RelativePermeabilities[ph, i]/PhaseViscosities[ph, i]
+    mb = minbatch(model.context)
+    @batch minbatch = mb for i in axes(b_mob, 2)
+        @inbounds for ph in axes(b_mob, 1)
+            b_mob[ph, i] = ShrinkageFactors[ph, i]*RelativePermeabilities[ph, i]/PhaseViscosities[ph, i]
+        end
+    end
 end
 
 include("zg.jl")

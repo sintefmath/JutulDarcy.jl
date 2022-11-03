@@ -22,8 +22,8 @@ end
 
 @inline function darcy_phase_mass_flux(face, phase, state, model, kgrad, upw, arg...)
     Q = darcy_phase_kgrad_potential(face, phase, state, model, kgrad, arg...)
-    ρλ = c -> immiscible_phase_mass_mobility(state, phase, c)
-    ρλ_f = upwind(upw, ρλ, Q)
+    ρλ = state.PhaseMassMobilities
+    ρλ_f = phase_upwind(upw, ρλ, phase, Q)
     return ρλ_f*Q
 end
 
@@ -70,13 +70,6 @@ end
 @inline function phase_upwind(upw, m::AbstractMatrix, phase::Integer, q)
     F(cell) = @inbounds m[phase, cell]
     return upwind(upw, F, q)
-end
-
-@inline function immiscible_phase_mass_mobility(state, ph, c)
-    @inbounds kr = state.RelativePermeabilities[ph, c]
-    @inbounds ρ = state.PhaseMassDensities[ph, c]
-    @inbounds μ = state.PhaseViscosities[ph, c]
-    return ρ*kr/μ
 end
 
 @inline capillary_gradient(::Nothing, c_l, c_r, ph, ph_ref) = 0.0

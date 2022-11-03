@@ -27,8 +27,14 @@ function select_default_darcy_secondary_variables!(S, domain, system, formulatio
     nph = number_of_phases(system)
     S[:PhaseMassDensities] = ConstantCompressibilityDensities(nph)
     S[:TotalMasses] = TotalMasses()
-    if !(isa(system, SinglePhaseSystem) || isa(domain.grid, WellGrid))
+    is_well = domain.grid isa WellGrid
+    is_multiphase = !isa(system, SinglePhaseSystem)
+    is_bo = system isa BlackOilSystem
+    if is_multiphase && !is_well
         S[:RelativePermeabilities] = BrooksCoreyRelPerm(system)
+    end
+    if !is_bo && !is_well
+        S[:PhaseMassMobilities] = PhaseMassMobilities()
     end
 end
 
