@@ -126,5 +126,15 @@ Base.@propagate_inbounds function blackoil_mass!(M, pv, ρ, Rs, b, S, rhoS, cell
     M[v] = Φ*rhoS[v]*(bG*sG + bO*sO*rs)
 end
 
+struct SurfaceVolumeMobilities <: PhaseVariables end
+
+@jutul_secondary function update_as_secondary!(b_mob, var::SurfaceVolumeMobilities, model,
+                                                        ShrinkageFactors,
+                                                        PhaseViscosities,
+                                                        RelativePermeabilities)
+    # For blackoil, the main upwind term
+    @tullio b_mob[ph, i] = ShrinkageFactors[ph, i]*RelativePermeabilities[ph, i]/PhaseViscosities[ph, i]
+end
+
 include("zg.jl")
 include("varswitch.jl")

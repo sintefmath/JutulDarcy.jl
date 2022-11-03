@@ -67,6 +67,11 @@ end
     return F(up)
 end
 
+@inline function phase_upwind(upw, m::AbstractMatrix, phase::Integer, q)
+    F(cell) = @inbounds m[phase, cell]
+    return upwind(upw, F, q)
+end
+
 @inline function immiscible_phase_mass_mobility(state, ph, c)
     @inbounds kr = state.RelativePermeabilities[ph, c]
     @inbounds ρ = state.PhaseMassDensities[ph, c]

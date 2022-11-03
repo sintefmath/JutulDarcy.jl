@@ -31,6 +31,9 @@ function select_secondary_variables!(S, system::BlackOilSystem, model)
     pvt = spe1_data[:pvt]
     S[:PhaseMassDensities] = DeckDensity(pvt)
     S[:ShrinkageFactors] = DeckShrinkageFactors(pvt)
+    if !(model.domain.grid isa WellGrid)
+        S[:SurfaceVolumeMobilities] = SurfaceVolumeMobilities()
+    end
     S[:PhaseViscosities] = DeckViscosity(pvt)
     S[:Rs] = Rs()
 end
