@@ -19,7 +19,6 @@ jobs:
       matrix:
         version:
           - '1.8'
-          - 'nightly'
         os:
           - ubuntu-latest
         arch:
