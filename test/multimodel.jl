@@ -67,7 +67,7 @@ function test_blackoil_with_wells(; kwarg...)
 
             bo = states[end][:Reservoir][:BlackOilUnknown]
             for i in eachindex(bo)
-                @test bo[i][2] == JutulDarcy.OilAndGas
+                @test bo[i].phases_present == JutulDarcy.OilAndGas
             end
         end
     end

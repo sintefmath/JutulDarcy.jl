@@ -135,7 +135,7 @@ function simulate_mini_wellcase(::Val{:bo_spe1}; dims = (3, 1, 1), kwarg...)
     ## Set up a reservoir model that contains the reservoir, wells and a facility that controls the wells
     model, parameters = setup_reservoir_model(g, sys, wells = [I, P]; kwarg...)
     ## Set up initial state
-    bo = (50.0, JutulDarcy.OilOnly, false)
+    bo = BlackOilX(50.0, JutulDarcy.OilOnly, false)
     state0 = setup_reservoir_state(model, Pressure = 200*bar, ImmiscibleSaturation = 0.1, BlackOilUnknown = bo)
     ## Set up time-steps
     dt = repeat([30.0]*day, 12*5)

@@ -20,7 +20,10 @@ end
 
 Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab, pressure)
     ϵ = 1e-4
-    old_x, old_state, was_near_bubble = v[i]
+    X = v[i]
+    old_x = X.val
+    old_state = X.phases_present
+    was_near_bubble = X.sat_close
     keep_bubble = false
     if old_state == OilOnly
         p = pressure[i]
@@ -52,7 +55,7 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
             if was_near_bubble
                 # Negative saturations - we switch to Rs as the primary variable
                 p = pressure[i]
-                rs_sat = rs_tab(value(p))            
+                rs_sat = rs_tab(value(p))
                 next_x = replace_value(next_x, rs_sat*(1 - ϵ))
                 next_state = OilOnly
                 is_near_bubble = keep_bubble
@@ -66,7 +69,7 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
             is_near_bubble = false
         end
     end
-    v[i] = (next_x, next_state, is_near_bubble)
+    v[i] = BlackOilX(next_x, next_state, is_near_bubble)
 end
 
 function blackoil_unknown_init(F_rs, sg, rs, p)
@@ -79,33 +82,33 @@ function blackoil_unknown_init(F_rs, sg, rs, p)
         x = rs
         state = OilOnly
     end
-    return (x, state, false)
+    return BlackOilX(x, state, false)
 end
 
-Jutul.value(t::Tuple{T, PresentPhasesBlackOil, Bool}) where T<:ForwardDiff.Dual = (value(t[1]), t[2], t[3])
+Jutul.value(t::BlackOilX{T}) where T<:ForwardDiff.Dual = BlackOilX(value(t.val), t.phases_present, t.sat_close)
 
-function Jutul.update_values!(old::AbstractVector{<:Tuple}, new::AbstractVector{T}) where T<:Tuple{<:Any, PresentPhasesBlackOil, Bool}
+function Jutul.update_values!(old::AbstractVector{BlackOilX}, new::AbstractVector{BlackOilX})
     for (i, v) in enumerate(new)
         o = old[i]
-        old[i] = (o[1] - value(o[1]) + value(v[1]), v[2], v[3])
+        old[i] = BlackOilX(o.val - value(o.val) + value(v.val), v.phases_present, v.sat_close)
     end
 end
 
 # Overloads for our specific data type
 import Base:+
-function (+)(l::Tuple{T, PresentPhasesBlackOil, Bool}, r::Tuple{<:AbstractFloat, PresentPhasesBlackOil, Bool}) where T<:ForwardDiff.Dual
-    return (l[1] + r[1], r[2], r[3])
+function (+)(l::BlackOilX, r::BlackOilX)
+    return BlackOilX(l.val + r.val, r.phases_present, r.sat_close)
 end
 
 import Base:-
-function (-)(l::Tuple{T, PresentPhasesBlackOil, Bool}, r::Tuple{<:AbstractFloat, PresentPhasesBlackOil, Bool}) where T<:ForwardDiff.Dual
-    return (l[1] - r[1], r[2], r[3])
+function (-)(l::BlackOilX, r::BlackOilX)
+    return BlackOilX(l.val - r.val, r.phases_present, r.sat_close)
 end
 
 @jutul_secondary function update_as_secondary!(s, ph::BlackOilPhaseState, model::SimulationModel{D, S}, BlackOilUnknown)  where {D, S<:BlackOilVariableSwitchingSystem}
     mb = minbatch(model.context, length(s))
     @inbounds @batch minbatch = mb for i in eachindex(s)
-        s[i] = BlackOilUnknown[i][2]
+        s[i] = BlackOilUnknown[i].phases_present
     end
 end
 
@@ -116,11 +119,11 @@ end
     @inbounds @batch minbatch = mb for i in eachindex(BlackOilUnknown)
         sw = ImmiscibleSaturation[i]
         s[1, i] = sw
-        x, phase_state, = BlackOilUnknown[i]
-        if phase_state == OilOnly
-            sg = 0
+        X = BlackOilUnknown[i]
+        if X.phases_present == OilOnly
+            sg = zero(eltype(s))
         else
-            sg = x
+            sg = X.val
         end
         s[2, i] = (1 - sw)*(1 - sg)
         s[3, i] = (1 - sw)*sg
@@ -131,11 +134,12 @@ end
 @jutul_secondary function update_as_secondary!(rs, ph::Rs, model::SimulationModel{D, S}, Pressure, BlackOilUnknown)  where {D, S<:BlackOilVariableSwitchingSystem}
     mb = minbatch(model.context, length(BlackOilUnknown))
     @inbounds @batch minbatch = mb for i in eachindex(BlackOilUnknown)
-        x, phase_state, = BlackOilUnknown[i]
-        if phase_state == OilOnly
-            r = x
+        X = BlackOilUnknown[i]
+        if X.phases_present == OilOnly
+            r = X.val
         else
-            r = model.system.saturation_table(Pressure[i])
+            p = @inbounds Pressure[i]
+            r = model.system.saturation_table(p)
         end
         rs[i] = r
     end

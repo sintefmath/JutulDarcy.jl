@@ -26,12 +26,22 @@ Base.@kwdef struct BlackOilUnknown{R} <: ScalarVariable
     ds_max::R = 0.2
 end
 
+export BlackOilX
+struct BlackOilX{T}
+    val::T
+    phases_present::PresentPhasesBlackOil
+    sat_close::Bool
+    function BlackOilX(val::T, phases = OilAndGas, sat_close = false) where T<:Real
+        return new{T}(val, phases, sat_close)
+    end
+end
+
 Jutul.default_value(model, ::BlackOilUnknown) = (NaN, OilAndGas, false) # NaN, Oil+Gas, away from bubble point
 function Jutul.initialize_primary_variable_ad!(state, model, pvar::BlackOilUnknown, symb, npartials; offset, kwarg...)
     pre = state[symb]
-    vals = map(first, pre)
+    vals = map(x -> x.val, pre)
     ad_vals = allocate_array_ad(vals, diag_pos = offset + 1, context = model.context, npartials = npartials; kwarg...)
-    state[symb] = map((v, x) -> (v, x[2], false), ad_vals, pre)
+    state[symb] = map((v, x) -> BlackOilX(v, x.phases_present, false), ad_vals, pre)
     return state
 end
 
