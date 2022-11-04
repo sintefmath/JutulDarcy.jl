@@ -6,13 +6,13 @@ function update_primary_variable!(state, pvar::BlackOilUnknown, state_symbol, mo
     dr_max = pvar.dr_max
     ds_max = pvar.ds_max
     pressure = state.Pressure
-
-    update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, pressure)
+    active = active_entities(model.domain, associated_entity(pvar), for_variables = true)
+    update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, pressure, active)
 end
 
 
-function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, pressure)
-    @inbounds for i in eachindex(v)
+function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, pressure, active)
+    @inbounds for i in active
         dx = Dx[i]
         varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab, pressure)
     end
