@@ -51,9 +51,7 @@ end
     nph, nc = size(b)
     tb = minbatch(model.context, nc)
 
-    w = 1
-    g = 3
-    o = 2
+    w, o, g = phase_indices(model.system)
     bO = pvt[o]
     bG = pvt[g]
     bW = pvt[w]
@@ -90,10 +88,7 @@ end
     b = ShrinkageFactors
     sys = model.system
     w, o, g = phase_indices(sys)
-    rhoS = reference_densities(sys)
-    rhoWS = rhoS[w]
-    rhoOS = rhoS[o]
-    rhoGS = rhoS[g]
+    rhoWS, rhoOS, rhoGS = reference_densities(sys)
     n = size(rho, 2)
     mb = minbatch(model.context, n)
     @inbounds @batch minbatch = mb for i = 1:n

@@ -111,11 +111,11 @@ get_name(::VaporPhase) = "Vapor"
 Pressure
 """
 struct Pressure <: ScalarVariable
-    max_abs
-    max_rel
-    minimum_pressure
-    maximum_pressure
-    scale
+    max_abs::Union{Float64, Nothing}
+    max_rel::Union{Float64, Nothing}
+    minimum_pressure::Float64
+    maximum_pressure::Float64
+    scale::Float64
     function Pressure(; max_abs = nothing, max_rel = nothing, scale = 1e8, maximum = Inf, minimum = -Inf)
         new(max_abs, max_rel, minimum, maximum, scale)
     end
@@ -129,7 +129,7 @@ minimum_value(p::Pressure) = p.minimum_pressure
 
 # Saturations as primary variable
 struct Saturations <: FractionVariables
-    ds_max
+    ds_max::Float64
     Saturations(;ds_max = 0.2) = new(ds_max)
 end
 

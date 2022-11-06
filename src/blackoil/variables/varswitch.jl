@@ -12,8 +12,7 @@ end
 
 
 function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, pressure, active)
-    @inbounds for i in active
-        dx = Dx[i]
+    @inbounds for (i, dx) in zip(active, Dx)
         varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab, pressure)
     end
 end
