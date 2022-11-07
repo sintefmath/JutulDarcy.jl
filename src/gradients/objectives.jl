@@ -21,7 +21,7 @@ end
 
 Compute well mismatch for a set of qoi's (well targets) and a set of well symbols.
 """
-function well_mismatch(qoi, wells, model_f, states_f, model_c, state_c, dt, step_no, forces; weights = ones(length(qoi)), scale = 1.0)
+function well_mismatch(qoi, wells, model_f, states_f, model_c, state_c, dt, step_no, forces; weights = ones(length(qoi)), scale = 1.0, signs = nothing)
     if !(qoi isa AbstractArray)
         qoi = [qoi]
     end
@@ -43,6 +43,17 @@ function well_mismatch(qoi, wells, model_f, states_f, model_c, state_c, dt, step
 
         for (i, q) in enumerate(qoi)
             ctrl = replace_target(ctrl, q)
+            if !isnothing(signs)
+                s = signs[i]
+                if ctrl isa ProducerControl
+                    sgn = -1
+                else
+                    sgn = 1
+                end
+                if s != sgn && s != 0
+                    continue
+                end
+            end
             qoi_f = compute_well_qoi(well_f, state_f, well, pos, rhoS, ctrl)
             qoi_c = compute_well_qoi(well_c, state_c, well, pos, rhoS, ctrl)
 
