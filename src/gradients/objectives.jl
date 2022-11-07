@@ -10,7 +10,7 @@ function compute_well_qoi(well_model, state, well::Symbol, pos, rhoS, control)
     rhoS, S = flash_wellstream_at_surface(well_model, well_state, rhoS)
     v = well_target(control, target, well_model, well_state, rhoS, S)
     if rate_weighted(target)
-        v *= value(q_t)
+        v *= q_t
     end
     return v
 end
