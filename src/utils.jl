@@ -407,3 +407,20 @@ function available_well_targets(model)
     end
     return unique(targets)
 end
+
+function partitioner_input(model)
+    rmodel = reservoir_model(model)
+    grid = rmodel.domain.grid
+
+    N = grid.neighborship
+    T = grid.trans
+    groups = []
+    if model isa MultiModel
+        for (k, m) in pairs(model.models)
+            if m.domain isa DiscretizedDomain && m.domain.grid isa WellGrid
+                push!(groups, copy(m.domain.grid.perforations.reservoir))
+            end
+        end
+    end
+    return (N, T, groups)
+end
