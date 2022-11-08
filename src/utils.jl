@@ -104,12 +104,20 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing;
     t_base = TimestepSelector(initial_absolute = initial_dt, max = Inf)
     t_its = IterationTimestepSelector(target_its, offset = offset_its)
     cfg = simulator_config(sim, timestep_selectors = [t_base, t_its], linear_solver = lsolve; kwarg...)
-    sys = mmodel[:Reservoir].system
-    if sys isa ImmiscibleSystem || sys isa BlackOilSystem
-        cfg[:tolerances][:Reservoir][:mass_conservation] = (CNV = tol_cnv, MB = tol_mb)
-    end
-
+    set_default_cnv_mb!(cfg, mmodel, tol_cnv = tol_cnv, tol_mb = tol_mb)
     return (sim, cfg)
+end
+
+function set_default_cnv_mb!(cfg, model; tol_cnv = 1e-3, tol_mb = 1e-7)
+    rmodel = reservoir_model(model)
+    sys = rmodel.system
+    if sys isa ImmiscibleSystem || sys isa BlackOilSystem
+        tol = cfg[:tolerances]
+        if haskey(tol, :Reservoir)
+            tol = tol[:Reservoir]
+        end
+        tol[:mass_conservation] = (CNV = tol_cnv, MB = tol_mb)
+    end
 end
 
 function setup_reservoir_cross_terms!(model::MultiModel)
