@@ -170,7 +170,7 @@ function PVTG(d::Dict)
     B = vec(data[:, 2])
     b = 1.0 ./ B
     mu = vec(data[:, 3])
-    rv_sat = vec(p[pos[1:end-1]])
+    rv_sat = vec(rv[pos[1:end-1]])
     T = typeof(pos)
     V = typeof(mu)
     return PVTG{T, V}(pos, pressure, rv, rv_sat, b, mu)
