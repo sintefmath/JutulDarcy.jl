@@ -553,7 +553,7 @@ function model_from_mat_deck(G, mrst_data, res_context)
             end
             gas_pvt = pvt[3]
             if gas_pvt isa PVTG
-                rv_max = get_1d_interpolator(gas_pvt.sat_pressure, gas_pvt.rv, cap_end = false)
+                rv_max = get_1d_interpolator(gas_pvt.pressure, gas_pvt.sat_rv, cap_end = false)
             else
                 rv_max = nothing
             end

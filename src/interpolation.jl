@@ -7,21 +7,20 @@ function bin_interval(t, x)
 end
 
 function interp_pvt(pvto, p, v, type = :shrinkage; cap = false)
-    # v_tab = pvto.key
-    v_tab = second_key(pvto)
+    P, R, SP, pos = pvt_table_vectors(pvto)
     pos = pvto.pos
     if cap
-        v_max = linear_interp(pvto.sat_pressure, v_tab, p)
+        v_max = linear_interp(SP, R, p)
         v = min(v_max, v)
     end
-    w_l, ix = bin_interval(v_tab, v)
+    w_l, ix = bin_interval(R, v)
     # We now know what lines (for given v) bound the point
 
     lower = pos[ix]:pos[ix+1]-1
     upper = pos[ix+1]:pos[ix+2]-1
 
-    P_l = view(pvto.pressure, lower)
-    P_u = view(pvto.pressure, upper)
+    P_l = view(P, lower)
+    P_u = view(P, upper)
     u = first_lower(P_u, p)
     @inbounds Δp_u = P_u[u+1] - P_u[u]
 

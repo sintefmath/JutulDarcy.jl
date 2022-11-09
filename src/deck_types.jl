@@ -141,7 +141,7 @@ function PVTO(d::Dict)
     return PVTO{T, V}(pos, rs, p, p_sat, b, mu)
 end
 
-second_key(pvt::PVTO) = pvt.rs
+pvt_table_vectors(pvt::PVTO) = (pvt.pressure, pvt.rs, pvt.sat_pressure, pvt.pos)
 
 function shrinkage(pvt::PVTO, reg, p::T, rs, cell) where T
     return interp_pvt(pvt, p, rs, :shrinkage)::T
@@ -155,28 +155,28 @@ end
 # PVTG - vaporized oil
 struct PVTG{T,V} <: AbstractTablePVT where {T<:AbstractArray, V<:AbstractArray}
     pos::T
-    rv::V
     pressure::V
-    sat_pressure::V
+    rv::V
+    sat_rv::V
     shrinkage::V
     viscosity::V
 end
 
 function PVTG(d::Dict)
-    rv = vec(copy(d["key"]))
+    pressure = vec(copy(d["key"]))
     pos = vec(Int64.(d["pos"]))
     data = d["data"]
-    p = vec(data[:, 1])
+    rv = vec(data[:, 1])
     B = vec(data[:, 2])
     b = 1.0 ./ B
     mu = vec(data[:, 3])
-    p_sat = vec(p[pos[1:end-1]])
+    rv_sat = vec(p[pos[1:end-1]])
     T = typeof(pos)
     V = typeof(mu)
-    return PVTG{T, V}(pos, rv, p, p_sat, b, mu)
+    return PVTG{T, V}(pos, pressure, rv, rv_sat, b, mu)
 end
 
-second_key(pvt::PVTG) = pvt.rv
+pvt_table_vectors(pvt::PVTG) = (pvt.rv, pvt.pressure, pvt.sat_rv, pvt.pos)
 
 function shrinkage(pvt::PVTG, reg, p::T, rv, cell) where T
     return interp_pvt(pvt, p, rv, :shrinkage)::T
