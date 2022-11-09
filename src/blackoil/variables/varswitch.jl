@@ -3,21 +3,22 @@ import Jutul: replace_value
 function update_primary_variable!(state, pvar::BlackOilUnknown, state_symbol, model, Dx)
     v = state[state_symbol]
     rs_tab = model.system.rs_max
+    rv_tab = model.system.rv_max
     dr_max = pvar.dr_max
     ds_max = pvar.ds_max
     pressure = state.Pressure
     active = active_entities(model.domain, associated_entity(pvar), for_variables = true)
-    update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, pressure, active)
+    update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, pressure, active)
 end
 
 
-function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, pressure, active)
+function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, pressure, active)
     @inbounds for (i, dx) in zip(active, Dx)
-        varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab, pressure)
+        varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab, rv_tab, pressure)
     end
 end
 
-Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab, pressure)
+Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab, rv_tab, pressure)
     ϵ = 1e-4
     X = v[i]
     old_x = X.val
@@ -26,28 +27,10 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
     keep_bubble = false
     if old_state == OilOnly
         p = pressure[i]
-        rs_sat = rs_tab(value(p))
-    
-        abs_rs_max = dr_max*rs_sat
-        next_x = old_x + Jutul.choose_increment(value(old_x), dx, abs_rs_max, nothing, 0, nothing)
-        if next_x > rs_sat
-            if was_near_bubble
-                # We are sufficiently close to the saturated point. Switch to gas saturation as primary variable.
-                # @info "$i Switching to saturated" value(next_x) value(old_x) value(rs_sat)
-                next_x = replace_value(next_x, ϵ)
-                next_state = OilAndGas
-                is_near_bubble = keep_bubble
-            else
-                # We are passing the saturated point, but we were sufficiently far from it that we limit the update
-                # to just before the saturated point.
-                next_x = replace_value(next_x, rs_sat*(1 - ϵ))
-                next_state = old_state
-                is_near_bubble = true
-            end
-        else
-            next_state = old_state
-            is_near_bubble = false
-        end
+        next_x, next_state, is_near_bubble = r_update_inner(p, rs_tab, dr_max, old_state, old_x, dx, was_near_bubble, ϵ, keep_bubble)
+    elseif old_state == GasOnly
+        p = pressure[i]
+        next_x, next_state, is_near_bubble = r_update_inner(p, rv_tab, dr_max, old_state, old_x, dx, was_near_bubble, ϵ, keep_bubble)
     else
         next_x = old_x + Jutul.choose_increment(value(old_x), dx, ds_max, nothing, nothing, 1)
         if next_x <= 0
@@ -71,10 +54,35 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
     v[i] = BlackOilX(next_x, next_state, is_near_bubble)
 end
 
+function r_update_inner(p, r_tab, dr_max, old_state, old_x, dx, was_near_bubble, ϵ, keep_bubble)
+    r_sat = r_tab(value(p))
+
+    abs_r_max = dr_max*r_sat
+    next_x = old_x + Jutul.choose_increment(value(old_x), dx, abs_r_max, nothing, 0, nothing)
+    if next_x > r_sat
+        if was_near_bubble
+            # We are sufficiently close to the saturated point. Switch to gas saturation as primary variable.
+            next_x = replace_value(next_x, ϵ)
+            next_state = OilAndGas
+            is_near_bubble = keep_bubble
+        else
+            # We are passing the saturated point, but we were sufficiently far from it that we limit the update
+            # to just before the saturated point.
+            next_x = replace_value(next_x, r_sat*(1 - ϵ))
+            next_state = old_state
+            is_near_bubble = true
+        end
+    else
+        next_state = old_state
+        is_near_bubble = false
+    end
+    return (next_x, next_state, is_near_bubble)
+end
+
 function blackoil_unknown_init(F_rs, F_rv::Nothing, sg, so, rs, rv, p)
     rs_sat = F_rs(p)
     if sg > 0
-        @assert rs ≈ rs_sat
+        @assert rs ≈ rs_sat "rs = $rs is different from rs_sat = $rs_sat"
         x = sg
         state = OilAndGas
     else

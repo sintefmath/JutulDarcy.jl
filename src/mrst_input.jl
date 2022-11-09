@@ -677,7 +677,7 @@ function init_from_mat(mrst_data, model, param)
                 else
                     rv = vec(state0["rv"])
                 end
-                init[:BlackOilUnknown] = map((g, o, r, v, p) -> blackoil_unknown_init(F_rs, F_rv, g, o, r, v, p), so, sg, rs, rv, p0)
+                init[:BlackOilUnknown] = map((g, o, r, v, p) -> blackoil_unknown_init(F_rs, F_rv, g, o, r, v, p), sg, so, rs, rv, p0)
             end
         else
             # Immiscible
