@@ -320,7 +320,12 @@ function deck_pvt_oil(props)
 end
 
 function deck_pvt_gas(props)
-    return PVDG(props["PVDG"])
+    if haskey(props, "PVTG")
+        pvt = PVTG(props["PVTG"][1])
+    else
+        pvt = PVDG(props["PVDG"])
+    end
+    return pvt
 end
 
 function deck_relperm(props; oil, water, gas, satnum = nothing)
@@ -434,9 +439,8 @@ function model_from_mat_deck(G, mrst_data, res_context)
     has_gas = has("GAS")
     has_disgas = has("DISGAS")
     has_vapoil = has("VAPOIL")
-    @assert !has_vapoil "Not yet supported."
 
-    is_immiscible = !has_disgas
+    is_immiscible = !has_disgas && !has_vapoil
     is_compositional = haskey(mrst_data, "mixture")
 
     pvt = []
@@ -541,9 +545,19 @@ function model_from_mat_deck(G, mrst_data, res_context)
             dp_max_rel = Inf
             min_p = -Inf
         else
-            pvto = pvt[2]
-            sat_table = get_1d_interpolator(pvto.sat_pressure, pvto.rs, cap_end = false)
-            sys = StandardBlackOilSystem(sat_table, phases = phases, reference_densities = rhoS)
+            oil_pvt = pvt[2]
+            if oil_pvt isa PVTO
+                rs_max = get_1d_interpolator(oil_pvt.sat_pressure, oil_pvt.rs, cap_end = false)
+            else
+                rs_max = nothing
+            end
+            gas_pvt = pvt[3]
+            if gas_pvt isa PVTG
+                rv_max = get_1d_interpolator(gas_pvt.sat_pressure, gas_pvt.rv, cap_end = false)
+            else
+                rv_max = nothing
+            end
+            sys = StandardBlackOilSystem(rs_max = rs_max, rv_max = rv_max, phases = phases, reference_densities = rhoS)
             dp_max_rel = 0.2
             min_p = 101325.0
         end
@@ -625,14 +639,20 @@ function init_from_mat(mrst_data, model, param)
     else
         # Blackoil or immiscible
         s = copy(state0["s"]')
-        if haskey(state0, "rs") && haskey(state0, "zg")
+        sys = model.system
+        vapoil = has_vapoil(sys)
+        disgas = has_disgas(sys)
+        black_oil = vapoil || disgas
+        if black_oil
             # Blackoil
             if size(s, 1) > 2
                 sw = vec(s[1, :])
                 sw = min.(sw, 1 - MINIMUM_COMPOSITIONAL_SATURATION)
                 init[:ImmiscibleSaturation] = sw
+                so = vec(s[2, :])
                 sg = vec(s[3, :])
             else
+                so = vec(s[1, :])
                 sg = vec(s[2, :])
             end
             if blackoil_formulation(model.system) == :zg
@@ -640,9 +660,20 @@ function init_from_mat(mrst_data, model, param)
                 @assert typeof(model.system)<:BlackOilGasFractionSystem
             else
                 @assert typeof(model.system)<:BlackOilVariableSwitchingSystem
-                rs = vec(state0["rs"])
-                F_rs = model.system.saturation_table
-                init[:BlackOilUnknown] = map((s, r, p) -> blackoil_unknown_init(F_rs, s, r, p), sg, rs, p0)
+                F_rs = sys.rs_max
+                F_rv = sys.rv_max
+                nc = length(p0)
+                if isnothing(F_rs)
+                    rs = zeros(nc)
+                else
+                    rs = vec(state0["rs"])
+                end
+                if isnothing(F_rv)
+                    rv = zeros(nc)
+                else
+                    rv = vec(state0["rv"])
+                end
+                init[:BlackOilUnknown] = map((g, o, r, v, p) -> blackoil_unknown_init(F_rs, F_rv, g, o, r, v, p), so, sg, rs, rv, p0)
             end
         else
             # Immiscible

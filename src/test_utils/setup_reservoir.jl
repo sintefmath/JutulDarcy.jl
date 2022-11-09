@@ -193,7 +193,7 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         rhoS = setup[:rhoS]
         phases = (AqueousPhase(), LiquidPhase(), VaporPhase())
         sat_table = get_1d_interpolator(pvto.sat_pressure, pvto.rs, cap_end = false)
-        sys = StandardBlackOilSystem(sat_table, phases = phases, reference_densities = rhoS)
+        sys = StandardBlackOilSystem(rs_max = sat_table, phases = phases, reference_densities = rhoS)
         model = SimulationModel(G, sys, context = context)
         forces = setup_forces(model)
         # Values inside table range

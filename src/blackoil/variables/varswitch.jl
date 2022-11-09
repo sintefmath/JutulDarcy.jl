@@ -2,7 +2,7 @@ import Jutul: replace_value
 
 function update_primary_variable!(state, pvar::BlackOilUnknown, state_symbol, model, Dx)
     v = state[state_symbol]
-    rs_tab = model.system.saturation_table
+    rs_tab = model.system.rs_max
     dr_max = pvar.dr_max
     ds_max = pvar.ds_max
     pressure = state.Pressure
@@ -71,7 +71,7 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
     v[i] = BlackOilX(next_x, next_state, is_near_bubble)
 end
 
-function blackoil_unknown_init(F_rs, sg, rs, p)
+function blackoil_unknown_init(F_rs, F_rv::Nothing, sg, so, rs, rv, p)
     rs_sat = F_rs(p)
     if sg > 0
         @assert rs ≈ rs_sat
@@ -80,6 +80,37 @@ function blackoil_unknown_init(F_rs, sg, rs, p)
     else
         x = rs
         state = OilOnly
+    end
+    return BlackOilX(x, state, false)
+end
+
+function blackoil_unknown_init(F_rs::Nothing, F_rv, sg, so, rs, rv, p)
+    rv_sat = F_rv(p)
+    if sg > 0
+        @assert rv ≈ rv_sat
+        x = sg
+        state = OilAndGas
+    else
+        x = rv
+        state = GasOnly
+    end
+    return BlackOilX(x, state, false)
+end
+
+function blackoil_unknown_init(F_rs, F_rv, sg, so, rs, rv, p)
+    rs_sat = F_rs(p)
+    rv_sat = F_rv(p)
+    if sg > 0 && so > 0
+        @assert rv ≈ rv_sat
+        @assert rs ≈ rs_sat
+        x = sg
+        state = OilAndGas
+    elseif so > 0
+        x = rs
+        state = OilOnly
+    else
+        x = rv
+        state = GasOnly
     end
     return BlackOilX(x, state, false)
 end
@@ -138,7 +169,7 @@ end
             r = X.val
         else
             p = @inbounds Pressure[i]
-            r = model.system.saturation_table(p)
+            r = model.system.rs_max(p)
         end
         rs[i] = r
     end

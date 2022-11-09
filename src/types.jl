@@ -39,12 +39,13 @@ end
 const LVCompositionalModel = SimulationModel{D, S, F, C} where {D, S<:MultiPhaseCompositionalSystemLV{<:Any, <:Any, <:Any}, F, C}
 
 export StandardBlackOilSystem
-struct StandardBlackOilSystem{D, W, R, F, T, P} <: BlackOilSystem
-    saturation_table::D
+struct StandardBlackOilSystem{D, V, W, R, F, T, P} <: BlackOilSystem
+    rs_max::D
+    rv_max::V
     rho_ref::R
     phase_indices::T
     phases::P
-    function StandardBlackOilSystem(sat; phases = (AqueousPhase(), LiquidPhase(), VaporPhase()), reference_densities = [786.507, 1037.84, 0.969758], formulation::Symbol = :varswitch)
+    function StandardBlackOilSystem(; rs_max::RS = nothing, rv_max::RV = nothing, phases = (AqueousPhase(), LiquidPhase(), VaporPhase()), reference_densities = [786.507, 1037.84, 0.969758], formulation::Symbol = :varswitch) where {RS, RV}
         phases = tuple(phases...)
         nph = length(phases)
         if nph == 2 && length(reference_densities) == 3
@@ -67,7 +68,7 @@ struct StandardBlackOilSystem{D, W, R, F, T, P} <: BlackOilSystem
         phase_ind[2 + offset] = findfirst(isequal(VaporPhase()), phases)
         phase_ind = tuple(phase_ind...)
         @assert formulation == :varswitch || formulation == :zg
-        new{typeof(sat), has_water, typeof(reference_densities), formulation, typeof(phase_ind), typeof(phases)}(sat, reference_densities, phase_ind, phases)
+        new{RS, RV, has_water, typeof(reference_densities), formulation, typeof(phase_ind), typeof(phases)}(rs_max, rv_max, reference_densities, phase_ind, phases)
     end
 end
 
@@ -75,14 +76,16 @@ function Base.show(io::IO, d::StandardBlackOilSystem)
     print(io, "StandardBlackOilSystem with $(d.phases)")
 end
 
+const BlackOilVariableSwitchingSystem = StandardBlackOilSystem{<:Any, <:Any, <:Any, <:Any, :varswitch, <:Any, <:Any}
+const BlackOilGasFractionSystem = StandardBlackOilSystem{<:Any, <:Any, <:Any, <:Any, :zg, <:Any, <:Any}
 
-const BlackOilVariableSwitchingSystem = StandardBlackOilSystem{<:Any, <:Any, <:Any, :varswitch, <:Any, <:Any}
-const BlackOilGasFractionSystem = StandardBlackOilSystem{<:Any, <:Any, <:Any, :zg, <:Any, <:Any}
+const DisgasBlackOilSystem = StandardBlackOilSystem{<:Any, Nothing, <:Any, <:Any, <:Any, <:Any, <:Any}
+const VapoilBlackOilSystem = StandardBlackOilSystem{Nothing, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any}
 
 const BlackOilModelVariableSwitching = SimulationModel{<:Any, BlackOilVariableSwitchingSystem, <:Any, <:Any}
 const BlackOilModelGasFraction       = SimulationModel{<:Any, BlackOilGasFractionSystem,        <:Any, <:Any}
 const StandardBlackOilModel          = SimulationModel{<:Any, <:StandardBlackOilSystem, <:Any, <:Any}
-const StandardBlackOilModelWithWater = SimulationModel{<:Any, <:StandardBlackOilSystem{<:Any, true, <:Any, <:Any, <:Any, <:Any}, <:Any, <:Any}
+const StandardBlackOilModelWithWater = SimulationModel{<:Any, <:StandardBlackOilSystem{<:Any, <:Any, true, <:Any, <:Any, <:Any, <:Any}, <:Any, <:Any}
 
 struct ImmiscibleSystem{T, F} <: MultiPhaseSystem where {T<:Tuple, F<:NTuple}
     phases::T
