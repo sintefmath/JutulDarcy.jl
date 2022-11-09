@@ -95,7 +95,7 @@ end
 function blackoil_unknown_init(F_rs::Nothing, F_rv, sg, so, rs, rv, p)
     rv_sat = F_rv(p)
     if sg > 0
-        @assert rv ≈ rv_sat
+        @assert rv ≈ rv_sat "rv = $rv is different from rv_sat = $rv_sat"
         x = sg
         state = OilAndGas
     else
@@ -109,8 +109,8 @@ function blackoil_unknown_init(F_rs, F_rv, sg, so, rs, rv, p)
     rs_sat = F_rs(p)
     rv_sat = F_rv(p)
     if sg > 0 && so > 0
-        @assert rv ≈ rv_sat
-        @assert rs ≈ rs_sat
+        @assert rv ≈ rv_sat "rv = $rv is different from rv_sat = $rv_sat"
+        @assert rs ≈ rs_sat "rs = $rs is different from rs_sat = $rs_sat"
         x = sg
         state = OilAndGas
     elseif so > 0
