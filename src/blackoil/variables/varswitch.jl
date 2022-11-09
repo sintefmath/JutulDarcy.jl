@@ -174,3 +174,17 @@ end
         rs[i] = r
     end
 end
+
+@jutul_secondary function update_as_secondary!(rv, ph::Rv, model::SimulationModel{D, S}, Pressure, BlackOilUnknown)  where {D, S<:BlackOilVariableSwitchingSystem}
+    mb = minbatch(model.context, length(BlackOilUnknown))
+    @inbounds @batch minbatch = mb for i in eachindex(BlackOilUnknown)
+        X = BlackOilUnknown[i]
+        if X.phases_present == GasOnly
+            r = X.val
+        else
+            p = @inbounds Pressure[i]
+            r = model.system.rv_max(p)
+        end
+        rv[i] = r
+    end
+end

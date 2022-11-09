@@ -178,12 +178,12 @@ end
 
 second_key(pvt::PVTG) = pvt.rv
 
-function shrinkage(pvt::PVTO, reg, p::T, rs, cell) where T
-    return interp_pvt(pvt, p, rs, :shrinkage)::T
+function shrinkage(pvt::PVTG, reg, p::T, rv, cell) where T
+    return interp_pvt(pvt, p, rv, :shrinkage)::T
 end
 
-function viscosity(pvt::PVTO, reg, p::T, rs, cell) where T
-    return interp_pvt(pvt, p, rs, :viscosity)::T
+function viscosity(pvt::PVTG, reg, p::T, rv, cell) where T
+    return interp_pvt(pvt, p, rv, :viscosity)::T
 end
 
 struct PVDO{T} <: AbstractTablePVT

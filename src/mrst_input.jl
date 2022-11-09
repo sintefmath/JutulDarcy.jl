@@ -655,21 +655,25 @@ function init_from_mat(mrst_data, model, param)
                 so = vec(s[1, :])
                 sg = vec(s[2, :])
             end
-            if blackoil_formulation(model.system) == :zg
+            if blackoil_formulation(sys) == :zg
                 init[:GasMassFraction] = copy(vec(state0["zg"]))
-                @assert typeof(model.system)<:BlackOilGasFractionSystem
+                @assert typeof(sys)<:BlackOilGasFractionSystem
             else
-                @assert typeof(model.system)<:BlackOilVariableSwitchingSystem
+                @assert typeof(sys)<:BlackOilVariableSwitchingSystem
                 F_rs = sys.rs_max
                 F_rv = sys.rv_max
                 nc = length(p0)
                 if isnothing(F_rs)
                     rs = zeros(nc)
+                    @assert sys isa VapoilBlackOilSystem
+                    @assert model isa VapoilBlackOilModel
                 else
                     rs = vec(state0["rs"])
                 end
                 if isnothing(F_rv)
                     rv = zeros(nc)
+                    @assert sys isa DisgasBlackOilSystem
+                    @assert model isa DisgasBlackOilModel
                 else
                     rv = vec(state0["rv"])
                 end
