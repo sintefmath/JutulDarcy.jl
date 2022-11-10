@@ -179,11 +179,13 @@ end
 pvt_table_vectors(pvt::PVTG) = (pvt.rv, pvt.pressure, pvt.sat_rv, pvt.pos)
 
 function shrinkage(pvt::PVTG, reg, p::T, rv, cell) where T
-    return interp_pvt(pvt, p, rv, :shrinkage)::T
+    # Note: Reordered arguments!
+    return interp_pvt(pvt, rv, p, :shrinkage)::T
 end
 
 function viscosity(pvt::PVTG, reg, p::T, rv, cell) where T
-    return interp_pvt(pvt, p, rv, :viscosity)::T
+    # Note: Reordered arguments!
+    return interp_pvt(pvt, rv, p, :viscosity)::T
 end
 
 struct PVDO{T} <: AbstractTablePVT
