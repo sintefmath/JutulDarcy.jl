@@ -654,6 +654,7 @@ function init_from_mat(mrst_data, model, param)
             else
                 so = vec(s[1, :])
                 sg = vec(s[2, :])
+                sw = zeros(size(so))
             end
             if blackoil_formulation(sys) == :zg
                 init[:GasMassFraction] = copy(vec(state0["zg"]))
@@ -677,7 +678,9 @@ function init_from_mat(mrst_data, model, param)
                 else
                     rv = vec(state0["rv"])
                 end
-                init[:BlackOilUnknown] = map((g, o, r, v, p) -> blackoil_unknown_init(F_rs, F_rv, g, o, r, v, p), sg, so, rs, rv, p0)
+                init[:BlackOilUnknown] = map(
+                                            (w,  o,   g, r,  v, p) -> blackoil_unknown_init(F_rs, F_rv, w, o, g, r, v, p),
+                                             sw, so, sg, rs, rv, p0)
             end
         else
             # Immiscible

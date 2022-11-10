@@ -34,24 +34,38 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
     else
         next_x = old_x + Jutul.choose_increment(value(old_x), dx, ds_max, nothing, nothing, 1)
         if next_x <= 0
-            if was_near_bubble
-                # Negative saturations - we switch to Rs as the primary variable
-                p = pressure[i]
-                rs_sat = rs_tab(value(p))
-                next_x = replace_value(next_x, rs_sat*(1 - ϵ))
-                next_state = OilOnly
-                is_near_bubble = keep_bubble
-            else
-                next_x = replace_value(next_x, ϵ)
-                next_state = old_state
-                is_near_bubble = true
-            end
+            maybe_state = OilOnly
+            tab = rs_tab
+        elseif next_x >= 1
+            maybe_state = GasOnly
+            tab = rv_tab
         else
-            next_state = old_state
-            is_near_bubble = false
+            maybe_state = OilAndGas
+            tab = nothing
         end
+        next_x, next_state, is_near_bubble = handle_phase_disappearance(pressure, i, tab, next_x, old_state, maybe_state, was_near_bubble, keep_bubble, ϵ)
     end
     v[i] = BlackOilX(next_x, next_state, is_near_bubble)
+end
+
+function handle_phase_disappearance(pressure, i, ::Nothing, next_x, old_state, possible_new_state, was_near_bubble, keep_bubble, ϵ)
+    return (next_x, old_state, false)
+end
+
+function handle_phase_disappearance(pressure, i, r_tab, next_x, old_state, possible_new_state, was_near_bubble, keep_bubble, ϵ)
+    if was_near_bubble
+        # Negative oil saturation - oil phase disappears and Rv becomes primary variable
+        p = pressure[i]
+        r_sat = r_tab(value(p))
+        next_x = replace_value(next_x, r_sat*(1 - ϵ))
+        next_state = possible_new_state
+        is_near_bubble = keep_bubble
+    else
+        next_x = replace_value(next_x, ϵ)
+        next_state = old_state
+        is_near_bubble = true
+    end
+    return (next_x, next_state, is_near_bubble)
 end
 
 function r_update_inner(p, r_tab, dr_max, old_state, old_x, dx, was_near_bubble, ϵ, keep_bubble)
@@ -79,11 +93,20 @@ function r_update_inner(p, r_tab, dr_max, old_state, old_x, dx, was_near_bubble,
     return (next_x, next_state, is_near_bubble)
 end
 
-function blackoil_unknown_init(F_rs, F_rv::Nothing, sg, so, rs, rv, p)
+function s_removed(s, d)
+    if d < 1e-12
+        s_bar = 1.0
+    else
+        s_bar = s/(1-d)
+    end
+    return s_bar
+end
+
+function blackoil_unknown_init(F_rs, F_rv::Nothing, sw, so, sg, rs, rv, p)
     rs_sat = F_rs(p)
     if sg > 0
-        @assert rs ≈ rs_sat "rs = $rs is different from rs_sat = $rs_sat"
-        x = sg
+        @assert rs ≈ rs_sat "rs = $rs is different from rs_sat = $rs_sat: sg = $sg so = $so"
+        x = s_removed(sg, sw)
         state = OilAndGas
     else
         x = rs
@@ -92,11 +115,11 @@ function blackoil_unknown_init(F_rs, F_rv::Nothing, sg, so, rs, rv, p)
     return BlackOilX(x, state, false)
 end
 
-function blackoil_unknown_init(F_rs::Nothing, F_rv, sg, so, rs, rv, p)
+function blackoil_unknown_init(F_rs::Nothing, F_rv, sw, so, sg, rs, rv, p)
     rv_sat = F_rv(p)
-    if sg > 0
-        # @assert rv ≈ rv_sat "rv = $rv is different from rv_sat = $rv_sat"
-        x = sg
+    if so > 0
+        @assert rv ≈ rv_sat "rv = $rv is different from rv_sat = $rv_sat: sg = $sg so = $so"
+        x = s_removed(sg, sw)
         state = OilAndGas
     else
         x = rv
@@ -105,13 +128,13 @@ function blackoil_unknown_init(F_rs::Nothing, F_rv, sg, so, rs, rv, p)
     return BlackOilX(x, state, false)
 end
 
-function blackoil_unknown_init(F_rs, F_rv, sg, so, rs, rv, p)
+function blackoil_unknown_init(F_rs, F_rv, sw, so, sg, rs, rv, p)
     rs_sat = F_rs(p)
     rv_sat = F_rv(p)
     if sg > 0 && so > 0
-        # @assert rv ≈ rv_sat "rv = $rv is different from rv_sat = $rv_sat"
-        @assert rs ≈ rs_sat "rs = $rs is different from rs_sat = $rs_sat"
-        x = sg
+        @assert rv ≈ rv_sat "rv = $rv is different from rv_sat = $rv_sat: sg = $sg so = $so"
+        @assert rs ≈ rs_sat "rs = $rs is different from rs_sat = $rs_sat: sg = $sg so = $so"
+        x = s_removed(sg, sw)
         state = OilAndGas
     elseif so > 0
         x = rs
