@@ -165,7 +165,17 @@ end
 function PVTG(d::Dict)
     pressure = vec(copy(d["key"]))
     pos = vec(Int64.(d["pos"]))
-    data = d["data"]
+    data = copy(d["data"])
+    for i in 1:length(pos)-1
+        start = pos[i]
+        stop = pos[i+1]-1
+        if stop - start > 0
+            if data[start, 1] > data[start+1, 1]
+                # Reverse table 
+                data[start:stop, :] = data[stop:-1:start, :]
+            end
+        end
+    end
     rv = vec(data[:, 1])
     B = vec(data[:, 2])
     b = 1.0 ./ B
