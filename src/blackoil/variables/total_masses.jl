@@ -28,7 +28,7 @@ Base.@propagate_inbounds function blackoil_mass!(M, pv, ρ, Rs, Rv, b, S, rhoS, 
 
     # Water is trivial
     M[a] = Φ*ρ[a, cell]*S[a, cell]
-    # Oil is only in oil phase
+    # Oil is in both phases
     M[l] = Φ*rhoS[l]*(bO*sO + bG*sG*rv)
     # Gas is in both phases
     M[v] = Φ*rhoS[v]*(bG*sG + bO*sO*rs)
@@ -61,9 +61,9 @@ Base.@propagate_inbounds function blackoil_mass_vapoil!(M, pv, ρ, Rv, b, S, rho
 
     # Water is trivial
     M[a] = Φ*ρ[a, cell]*S[a, cell]
-    # Oil is only in oil phase
+    # Oil is in both phases
     M[l] = Φ*rhoS[l]*(bO*sO + bG*sG*rv)
-    # Gas is in both phases
+    # Gas is only in gas phase
     M[v] = Φ*rhoS[v]*bG*sG
 end
 

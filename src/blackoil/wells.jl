@@ -17,7 +17,6 @@ Base.@propagate_inbounds function well_perforation_flux!(out, sys::StandardBlack
         sO = s_w[l, wc]
         sG = s_w[v, wc]
         q_a = s_w[a, wc]*ρ_w[a, wc]*Q
-        q_l = sO*rhoOS*bO*Q
         q_l = rhoOS*(sO*bO + rv_i*sG*bG)*Q
         q_v = rhoGS*(sG*bG + rs_i*sO*bO)*Q
     else
@@ -49,7 +48,6 @@ Base.@propagate_inbounds function well_perforation_flux!(out, sys::VapoilBlackOi
         sO = s_w[l, wc]
         sG = s_w[v, wc]
         q_a = s_w[a, wc]*ρ_w[a, wc]*Q
-        q_l = sO*rhoOS*bO*Q
         q_l = rhoOS*(sO*bO + rv_i*sG*bG)*Q
         q_v = rhoGS*sG*bG*Q
     else
@@ -81,7 +79,6 @@ Base.@propagate_inbounds function well_perforation_flux!(out, sys::DisgasBlackOi
         sO = s_w[l, wc]
         sG = s_w[v, wc]
         q_a = s_w[a, wc]*ρ_w[a, wc]*Q
-        q_l = sO*rhoOS*bO*Q
         q_l = rhoOS*sO*bO*Q
         q_v = rhoGS*(sG*bG + rs_i*sO*bO)*Q
     else
