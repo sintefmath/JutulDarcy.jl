@@ -64,7 +64,6 @@ end
 
 function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout = false, simple = false, W_data = mrst_data["W"], kwarg...)
     W_mrst = W_data[ix]
-    w = convert_to_immutable_storage(W_mrst)
     if haskey(mrst_data, "surface_conditions")
         p = only(mrst_data["surface_conditions"]["pressure"])::Float64
         T = only(mrst_data["surface_conditions"]["T"])::Float64
@@ -79,10 +78,10 @@ function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout 
         [x]
     end
     ref_depth = W_mrst["refDepth"]
-    rc = Int64.(awrap(w.cells))
+    rc = Int64.(awrap(W_mrst["cells"]))
     n = length(rc)
     # dz = awrap(w.dZ)
-    WI = awrap(w.WI)
+    WI = awrap(W_mrst["WI"])
     cell_centroids = copy((mrst_data["G"]["cells"]["centroids"])')
     centers = cell_centroids[:, rc]
     if size(centers, 1) == 2
