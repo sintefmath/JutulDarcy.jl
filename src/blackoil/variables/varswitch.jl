@@ -182,7 +182,9 @@ end
         s[1, i] = sw
         X = BlackOilUnknown[i]
         if X.phases_present == OilOnly
-            sg = zero(eltype(s))
+            sg = zero(T)
+        elseif X.phases_present == GasOnly
+            sg = one(T)
         else
             sg = X.val
         end
