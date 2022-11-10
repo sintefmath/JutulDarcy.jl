@@ -78,7 +78,12 @@ function handle_phase_appearance(pressure, i, r_tab, dr_max, old_state, old_x, d
     if next_x > r_sat
         if was_near_bubble
             # We are sufficiently close to the saturated point. Switch to gas saturation as primary variable.
-            next_x = replace_value(next_x, ϵ)
+            if old_state == OilOnly
+                sg = ϵ
+            else
+                sg = 1 - ϵ
+            end
+            next_x = replace_value(next_x, sg)
             next_state = OilAndGas
             is_near_bubble = keep_bubble
         else
