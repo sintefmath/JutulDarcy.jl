@@ -25,13 +25,7 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
     old_state = X.phases_present
     was_near_bubble = X.sat_close
     keep_bubble = false
-    if old_state == OilOnly
-        p = pressure[i]
-        next_x, next_state, is_near_bubble = r_update_inner(p, rs_tab, dr_max, old_state, old_x, dx, was_near_bubble, ϵ, keep_bubble)
-    elseif old_state == GasOnly
-        p = pressure[i]
-        next_x, next_state, is_near_bubble = r_update_inner(p, rv_tab, dr_max, old_state, old_x, dx, was_near_bubble, ϵ, keep_bubble)
-    else
+    if old_state == OilAndGas
         next_x = old_x + Jutul.choose_increment(value(old_x), dx, ds_max, nothing, nothing, 1)
         if next_x <= 0
             maybe_state = OilOnly
@@ -44,6 +38,13 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
             tab = nothing
         end
         next_x, next_state, is_near_bubble = handle_phase_disappearance(pressure, i, tab, next_x, old_state, maybe_state, was_near_bubble, keep_bubble, ϵ)
+    else
+        if old_state == GasOnly
+            tab = rv_tab
+        else
+            tab = rs_tab
+        end
+        next_x, next_state, is_near_bubble = handle_phase_appearance(pressure, i, tab, dr_max, old_state, old_x, dx, was_near_bubble, ϵ, keep_bubble)
     end
     v[i] = BlackOilX(next_x, next_state, is_near_bubble)
 end
@@ -54,7 +55,7 @@ end
 
 function handle_phase_disappearance(pressure, i, r_tab, next_x, old_state, possible_new_state, was_near_bubble, keep_bubble, ϵ)
     if was_near_bubble
-        # Negative oil saturation - oil phase disappears and Rv becomes primary variable
+        # Gas/Oil Phase disappears and Rs/Rv becomes primary variable
         p = pressure[i]
         r_sat = r_tab(value(p))
         next_x = replace_value(next_x, r_sat*(1 - ϵ))
@@ -68,7 +69,8 @@ function handle_phase_disappearance(pressure, i, r_tab, next_x, old_state, possi
     return (next_x, next_state, is_near_bubble)
 end
 
-function r_update_inner(p, r_tab, dr_max, old_state, old_x, dx, was_near_bubble, ϵ, keep_bubble)
+function handle_phase_appearance(pressure, i, r_tab, dr_max, old_state, old_x, dx, was_near_bubble, ϵ, keep_bubble)
+    p = pressure[i]
     r_sat = r_tab(value(p))
 
     abs_r_max = dr_max*r_sat
