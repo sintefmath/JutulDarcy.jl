@@ -393,26 +393,23 @@ function deck_pc(props; oil, water, gas, satnum = nothing)
             interp_ow = get_1d_interpolator(s, pc)
             push!(PC, interp_ow)
         end
-        if found
-            out = Tuple(PC)
-        else
-            out = nothing
-        end
+        out = Tuple(PC)
         return (out, found)
     end
     pc_impl = Vector{Any}()
-    found = false
     if water && oil
-        interp_ow, foundow = get_pc(props["SWOF"])
-        found = found || foundow
+        interp_ow, found_pcow = get_pc(props["SWOF"])
         push!(pc_impl, interp_ow)
+    else
+        found_pcow = false
     end
-
     if oil && gas
-        interp_og, foundog = get_pc(props["SGOF"])
-        found = found || foundog
+        interp_og, found_pcog = get_pc(props["SGOF"])
         push!(pc_impl, interp_og)
+    else
+        found_pcog = false
     end
+    found = found_pcow || found_pcog
     if found
         return SimpleCapillaryPressure(tuple(pc_impl...), regions = satnum)
     else
