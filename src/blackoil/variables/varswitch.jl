@@ -26,7 +26,7 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
     was_near_bubble = X.sat_close
     keep_bubble = false
     if old_state == OilAndGas
-        next_x = old_x + Jutul.choose_increment(value(old_x), dx, ds_max, nothing, nothing, 1)
+        next_x = old_x + Jutul.choose_increment(value(old_x), dx, ds_max)
         if next_x <= 0
             maybe_state = OilOnly
             tab = rs_tab
