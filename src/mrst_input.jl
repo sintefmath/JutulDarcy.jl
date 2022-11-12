@@ -335,22 +335,51 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
         KROW = []
         KROG = []
         SWCON = zeros(0)
-        for (swof, sgof) in zip(props["SWOF"], props["SGOF"])
-            s_water, kr_water = preprocess_relperm_table(swof)
-            swcon = swof[1, 1]
-            s_gas, kr_gas = preprocess_relperm_table(sgof, swcon = swcon)
+        if haskey(props, "SWOF") && haskey(props, "SGOF")
+            for (swof, sgof) in zip(props["SWOF"], props["SGOF"])
+                s_water, kr_water = preprocess_relperm_table(swof)
+                swcon = swof[1, 1]
+                s_gas, kr_gas = preprocess_relperm_table(sgof, swcon = swcon)
 
-            krw = get_1d_interpolator(s_water[1], kr_water[1], cap_endpoints = false)
-            krow = get_1d_interpolator(s_water[2], kr_water[2], cap_endpoints = false)
+                krw = get_1d_interpolator(s_water[1], kr_water[1], cap_endpoints = false)
+                krow = get_1d_interpolator(s_water[2], kr_water[2], cap_endpoints = false)
 
-            krg = get_1d_interpolator(s_gas[1], kr_gas[1], cap_endpoints = false)
-            krog = get_1d_interpolator(s_gas[2], kr_gas[2], cap_endpoints = false)
+                krg = get_1d_interpolator(s_gas[1], kr_gas[1], cap_endpoints = false)
+                krog = get_1d_interpolator(s_gas[2], kr_gas[2], cap_endpoints = false)
 
-            push!(KRW, krw)
-            push!(KRG, krg)
-            push!(KROW, krow)
-            push!(KROG, krog)
-            push!(SWCON, swcon)
+                push!(KRW, krw)
+                push!(KRG, krg)
+                push!(KROW, krow)
+                push!(KROG, krog)
+                push!(SWCON, swcon)
+            end
+        else
+            @assert haskey(props, "SOF3")
+            @assert haskey(props, "SWFN")
+            @assert haskey(props, "SGFN")
+            for (sof3, swfn, sgfn) in zip(props["SOF3"], props["SWFN"], props["SGFN"])
+                so = sof3[:, 1]
+                krow_t = sof3[:, 2]
+                krog_t = sof3[:, 3]
+                _, krow_t = add_missing_endpoints(so, krow_t)
+                so, krog_t = add_missing_endpoints(so, krog_t)
+                # Oil pairs
+                krow = get_1d_interpolator(so, krow_t, cap_endpoints = false)
+                krog = get_1d_interpolator(so, krog_t, cap_endpoints = false)
+                # Water
+                sw, krw_t = add_missing_endpoints(swfn[:, 1], swfn[:, 2])
+                krw = get_1d_interpolator(sw, krw_t, cap_endpoints = false)
+                swcon = sw[1]
+                # Gas
+                sg, krg_t = add_missing_endpoints(sgfn[:, 1], sgfn[:, 2])
+                krg = get_1d_interpolator(sg, krg_t, cap_endpoints = false)
+
+                push!(KRW, krw)
+                push!(KRG, krg)
+                push!(KROW, krow)
+                push!(KROG, krog)
+                push!(SWCON, swcon)
+            end
         end
         SWCON = Tuple(SWCON)
         KRW = Tuple(KRW)
@@ -383,12 +412,12 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
 end
 
 function deck_pc(props; oil, water, gas, satnum = nothing)
-    function get_pc(T)
+    function get_pc(T, pc_ix)
         found = false
         PC = []
         for tab in T
             s = vec(tab[:, 1])
-            pc = vec(tab[:, 4])
+            pc = vec(tab[:, pc_ix])
             found = found || any(x -> x != 0, pc)
             interp_ow = get_1d_interpolator(s, pc)
             push!(PC, interp_ow)
@@ -398,13 +427,21 @@ function deck_pc(props; oil, water, gas, satnum = nothing)
     end
     pc_impl = Vector{Any}()
     if water && oil
-        interp_ow, found_pcow = get_pc(props["SWOF"])
+        if haskey(props, "SWOF")
+            interp_ow, found_pcow = get_pc(props["SWOF"], 4)
+        else
+            interp_ow, found_pcow = get_pc(props["SWFN"], 3)
+        end
         push!(pc_impl, interp_ow)
     else
         found_pcow = false
     end
     if oil && gas
-        interp_og, found_pcog = get_pc(props["SGOF"])
+        if haskey(props, "SGOF")
+            interp_og, found_pcog = get_pc(props["SGOF"], 4)
+        else
+            interp_og, found_pcog = get_pc(props["SGFN"], 3)
+        end
         push!(pc_impl, interp_og)
     else
         found_pcog = false
