@@ -163,7 +163,6 @@ struct PVTG{T,V} <: AbstractTablePVT where {T<:AbstractArray, V<:AbstractArray}
 end
 
 function PVTG(d::Dict)
-    pressure = vec(copy(d["key"]))
     pos = vec(Int64.(d["pos"]))
     data = copy(d["data"])
     for i in 1:length(pos)-1
@@ -180,10 +179,18 @@ function PVTG(d::Dict)
     B = vec(data[:, 2])
     b = 1.0 ./ B
     mu = vec(data[:, 3])
+    # Saturated table - extend with zero at zero pressure
+    pressure = vec(copy(d["key"]))
     rv_sat = vec(rv[pos[2:end] .- 1])
     T = typeof(pos)
     V = typeof(mu)
     return PVTG{T, V}(pos, pressure, rv, rv_sat, b, mu)
+end
+
+function saturated_table(t::PVTG)
+    pressure = vcat([-1e5, 0.0], t.pressure)
+    rv_sat = vcat([0.0, 0.0], t.sat_rv)
+    return get_1d_interpolator(pressure, rv_sat, cap_end = false)
 end
 
 pvt_table_vectors(pvt::PVTG) = (pvt.rv, pvt.pressure, pvt.sat_rv, pvt.pos)

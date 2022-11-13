@@ -358,18 +358,20 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
             @assert haskey(props, "SWFN")
             @assert haskey(props, "SGFN")
             for (sof3, swfn, sgfn) in zip(props["SOF3"], props["SWFN"], props["SGFN"])
+                # Water
+                sw, krw_t = add_missing_endpoints(swfn[:, 1], swfn[:, 2])
+                krw = get_1d_interpolator(sw, krw_t, cap_endpoints = false)
+                swcon = sw[1]
+
+                # Oil pairs
                 so = sof3[:, 1]
                 krow_t = sof3[:, 2]
                 krog_t = sof3[:, 3]
                 _, krow_t = add_missing_endpoints(so, krow_t)
                 so, krog_t = add_missing_endpoints(so, krog_t)
-                # Oil pairs
                 krow = get_1d_interpolator(so, krow_t, cap_endpoints = false)
                 krog = get_1d_interpolator(so, krog_t, cap_endpoints = false)
-                # Water
-                sw, krw_t = add_missing_endpoints(swfn[:, 1], swfn[:, 2])
-                krw = get_1d_interpolator(sw, krw_t, cap_endpoints = false)
-                swcon = sw[1]
+
                 # Gas
                 sg, krg_t = add_missing_endpoints(sgfn[:, 1], sgfn[:, 2])
                 krg = get_1d_interpolator(sg, krg_t, cap_endpoints = false)
@@ -587,7 +589,7 @@ function model_from_mat_deck(G, mrst_data, res_context)
             end
             gas_pvt = pvt[3]
             if gas_pvt isa PVTG
-                rv_max = get_1d_interpolator(gas_pvt.pressure, gas_pvt.sat_rv, cap_end = false)
+                rv_max = saturated_table(gas_pvt)
             else
                 rv_max = nothing
             end
@@ -1184,6 +1186,8 @@ function write_reservoir_simulator_output_to_mrst(model, states, reports, forces
                         mk = "s"
                     elseif k == :Rs
                         mk = "rs"
+                    elseif k == :Rv
+                        mk = "rv"
                     elseif k == :OverallMoleFractions
                         mk = "components"
                     end
