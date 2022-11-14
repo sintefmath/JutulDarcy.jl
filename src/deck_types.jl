@@ -141,6 +141,10 @@ function PVTO(d::Dict)
     return PVTO{T, V}(pos, rs, p, p_sat, b, mu)
 end
 
+function saturated_table(t::PVTO)
+    return saturated_table(t.sat_pressure, t.rs)
+end
+
 pvt_table_vectors(pvt::PVTO) = (pvt.pressure, pvt.rs, pvt.sat_pressure, pvt.pos)
 
 function shrinkage(pvt::PVTO, reg, p::T, rs, cell) where T
@@ -188,9 +192,16 @@ function PVTG(d::Dict)
 end
 
 function saturated_table(t::PVTG)
-    pressure = vcat([-1e5, 0.0], t.pressure)
-    rv_sat = vcat([0.0, 0.0], t.sat_rv)
-    return get_1d_interpolator(pressure, rv_sat, cap_end = false)
+    return saturated_table(t.pressure, t.sat_rv)
+end
+
+function saturated_table(p, r)
+    if r[1] > 0
+        @assert p[1] > 0.0
+        p = vcat([-1.0, 0.0], p)
+        r = vcat([0.0, 0.0], r)
+    end
+    return get_1d_interpolator(p, r, cap_end = false)
 end
 
 pvt_table_vectors(pvt::PVTG) = (pvt.rv, pvt.pressure, pvt.sat_rv, pvt.pos)
