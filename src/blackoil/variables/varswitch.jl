@@ -62,7 +62,12 @@ function handle_phase_disappearance(pressure, i, r_tab, next_x, old_state, possi
         next_state = possible_new_state
         is_near_bubble = keep_bubble
     else
-        next_x = replace_value(next_x, ϵ)
+        if possible_new_state == GasOnly
+            next_sg = 1 - ϵ
+        else
+            next_sg = ϵ
+        end
+        next_x = replace_value(next_x, next_sg)
         next_state = old_state
         is_near_bubble = true
     end
