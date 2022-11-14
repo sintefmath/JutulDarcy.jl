@@ -45,10 +45,10 @@ struct MuBTable{V, I}
     shrinkage_interp::I
     viscosity::V
     viscosity_interp::I
-    function MuBTable(p::T, b::T, mu::T; kwarg...) where T<:AbstractVector
+    function MuBTable(p::T, b::T, mu::T; extrapolate = true, kwarg...) where T<:AbstractVector
         @assert length(p) == length(b) == length(mu)
-        I_b = get_1d_interpolator(p, b; kwarg...)
-        I_mu = get_1d_interpolator(p, mu; kwarg...)
+        I_b = get_1d_interpolator(p, b; cap_endpoints = !extrapolate, kwarg...)
+        I_mu = get_1d_interpolator(p, mu; cap_endpoints = !extrapolate, kwarg...)
         new{T, typeof(I_b)}(p, b, I_b, mu, I_mu)
     end
 end
