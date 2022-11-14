@@ -45,7 +45,15 @@ struct StandardBlackOilSystem{D, V, W, R, F, T, P} <: BlackOilSystem
     rho_ref::R
     phase_indices::T
     phases::P
-    function StandardBlackOilSystem(; rs_max::RS = nothing, rv_max::RV = nothing, phases = (AqueousPhase(), LiquidPhase(), VaporPhase()), reference_densities = [786.507, 1037.84, 0.969758], formulation::Symbol = :varswitch) where {RS, RV}
+    saturated_chop::Bool
+    keep_bubble_flag::Bool
+    function StandardBlackOilSystem(; rs_max::RS = nothing,
+                                      rv_max::RV = nothing,
+                                      phases = (AqueousPhase(), LiquidPhase(), VaporPhase()),
+                                      reference_densities = [786.507, 1037.84, 0.969758], 
+                                      saturated_chop = true,
+                                      keep_bubble_flag = false,
+                                      formulation::Symbol = :varswitch) where {RS, RV}
         phases = tuple(phases...)
         nph = length(phases)
         if nph == 2 && length(reference_densities) == 3
@@ -68,7 +76,7 @@ struct StandardBlackOilSystem{D, V, W, R, F, T, P} <: BlackOilSystem
         phase_ind[2 + offset] = findfirst(isequal(VaporPhase()), phases)
         phase_ind = tuple(phase_ind...)
         @assert formulation == :varswitch || formulation == :zg
-        new{RS, RV, has_water, typeof(reference_densities), formulation, typeof(phase_ind), typeof(phases)}(rs_max, rv_max, reference_densities, phase_ind, phases)
+        new{RS, RV, has_water, typeof(reference_densities), formulation, typeof(phase_ind), typeof(phases)}(rs_max, rv_max, reference_densities, phase_ind, phases, saturated_chop, keep_bubble_flag)
     end
 end
 
