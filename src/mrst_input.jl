@@ -319,7 +319,12 @@ function deck_pvt_oil(props)
 end
 
 function deck_pvt_gas(props)
-    return PVDG(props["PVDG"])
+    if haskey(props, "PVTG")
+        pvt = PVTG(props["PVTG"][1])
+    else
+        pvt = PVDG(props["PVDG"])
+    end
+    return pvt
 end
 
 function deck_relperm(props; oil, water, gas, satnum = nothing)
@@ -329,22 +334,53 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
         KROW = []
         KROG = []
         SWCON = zeros(0)
-        for (swof, sgof) in zip(props["SWOF"], props["SGOF"])
-            s_water, kr_water = preprocess_relperm_table(swof)
-            swcon = swof[1, 1]
-            s_gas, kr_gas = preprocess_relperm_table(sgof, swcon = swcon)
+        if haskey(props, "SWOF") && haskey(props, "SGOF")
+            for (swof, sgof) in zip(props["SWOF"], props["SGOF"])
+                s_water, kr_water = preprocess_relperm_table(swof)
+                swcon = swof[1, 1]
+                s_gas, kr_gas = preprocess_relperm_table(sgof, swcon = swcon)
 
-            krw = get_1d_interpolator(s_water[1], kr_water[1], cap_endpoints = false)
-            krow = get_1d_interpolator(s_water[2], kr_water[2], cap_endpoints = false)
+                krw = get_1d_interpolator(s_water[1], kr_water[1], cap_endpoints = false)
+                krow = get_1d_interpolator(s_water[2], kr_water[2], cap_endpoints = false)
 
-            krg = get_1d_interpolator(s_gas[1], kr_gas[1], cap_endpoints = false)
-            krog = get_1d_interpolator(s_gas[2], kr_gas[2], cap_endpoints = false)
+                krg = get_1d_interpolator(s_gas[1], kr_gas[1], cap_endpoints = false)
+                krog = get_1d_interpolator(s_gas[2], kr_gas[2], cap_endpoints = false)
 
-            push!(KRW, krw)
-            push!(KRG, krg)
-            push!(KROW, krow)
-            push!(KROG, krog)
-            push!(SWCON, swcon)
+                push!(KRW, krw)
+                push!(KRG, krg)
+                push!(KROW, krow)
+                push!(KROG, krog)
+                push!(SWCON, swcon)
+            end
+        else
+            @assert haskey(props, "SOF3")
+            @assert haskey(props, "SWFN")
+            @assert haskey(props, "SGFN")
+            for (sof3, swfn, sgfn) in zip(props["SOF3"], props["SWFN"], props["SGFN"])
+                # Water
+                sw, krw_t = add_missing_endpoints(swfn[:, 1], swfn[:, 2])
+                krw = get_1d_interpolator(sw, krw_t, cap_endpoints = false)
+                swcon = sw[1]
+
+                # Oil pairs
+                so = sof3[:, 1]
+                krow_t = sof3[:, 2]
+                krog_t = sof3[:, 3]
+                _, krow_t = add_missing_endpoints(so, krow_t)
+                so, krog_t = add_missing_endpoints(so, krog_t)
+                krow = get_1d_interpolator(so, krow_t, cap_endpoints = false)
+                krog = get_1d_interpolator(so, krog_t, cap_endpoints = false)
+
+                # Gas
+                sg, krg_t = add_missing_endpoints(sgfn[:, 1], sgfn[:, 2])
+                krg = get_1d_interpolator(sg, krg_t, cap_endpoints = false)
+
+                push!(KRW, krw)
+                push!(KRG, krg)
+                push!(KROW, krow)
+                push!(KROG, krog)
+                push!(SWCON, swcon)
+            end
         end
         SWCON = Tuple(SWCON)
         KRW = Tuple(KRW)
@@ -377,36 +413,41 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
 end
 
 function deck_pc(props; oil, water, gas, satnum = nothing)
-    function get_pc(T)
+    function get_pc(T, pc_ix)
         found = false
         PC = []
         for tab in T
             s = vec(tab[:, 1])
-            pc = vec(tab[:, 4])
+            pc = vec(tab[:, pc_ix])
             found = found || any(x -> x != 0, pc)
             interp_ow = get_1d_interpolator(s, pc)
             push!(PC, interp_ow)
         end
-        if found
-            out = Tuple(PC)
-        else
-            out = nothing
-        end
+        out = Tuple(PC)
         return (out, found)
     end
     pc_impl = Vector{Any}()
-    found = false
     if water && oil
-        interp_ow, foundow = get_pc(props["SWOF"])
-        found = found || foundow
+        if haskey(props, "SWOF")
+            interp_ow, found_pcow = get_pc(props["SWOF"], 4)
+        else
+            interp_ow, found_pcow = get_pc(props["SWFN"], 3)
+        end
         push!(pc_impl, interp_ow)
+    else
+        found_pcow = false
     end
-
     if oil && gas
-        interp_og, foundog = get_pc(props["SGOF"])
-        found = found || foundog
+        if haskey(props, "SGOF")
+            interp_og, found_pcog = get_pc(props["SGOF"], 4)
+        else
+            interp_og, found_pcog = get_pc(props["SGFN"], 3)
+        end
         push!(pc_impl, interp_og)
+    else
+        found_pcog = false
     end
+    found = found_pcow || found_pcog
     if found
         return SimpleCapillaryPressure(tuple(pc_impl...), regions = satnum)
     else
@@ -433,9 +474,8 @@ function model_from_mat_deck(G, mrst_data, res_context)
     has_gas = has("GAS")
     has_disgas = has("DISGAS")
     has_vapoil = has("VAPOIL")
-    @assert !has_vapoil "Not yet supported."
 
-    is_immiscible = !has_disgas
+    is_immiscible = !has_disgas && !has_vapoil
     is_compositional = haskey(mrst_data, "mixture")
 
     pvt = []
@@ -540,9 +580,19 @@ function model_from_mat_deck(G, mrst_data, res_context)
             dp_max_rel = Inf
             min_p = -Inf
         else
-            pvto = pvt[2]
-            sat_table = get_1d_interpolator(pvto.sat_pressure, pvto.rs, cap_end = false)
-            sys = StandardBlackOilSystem(sat_table, phases = phases, reference_densities = rhoS)
+            oil_pvt = pvt[2]
+            if oil_pvt isa PVTO
+                rs_max = get_1d_interpolator(oil_pvt.sat_pressure, oil_pvt.rs, cap_end = false)
+            else
+                rs_max = nothing
+            end
+            gas_pvt = pvt[3]
+            if gas_pvt isa PVTG
+                rv_max = saturated_table(gas_pvt)
+            else
+                rv_max = nothing
+            end
+            sys = StandardBlackOilSystem(rs_max = rs_max, rv_max = rv_max, phases = phases, reference_densities = rhoS)
             dp_max_rel = 0.2
             min_p = 101325.0
         end
@@ -624,24 +674,48 @@ function init_from_mat(mrst_data, model, param)
     else
         # Blackoil or immiscible
         s = copy(state0["s"]')
-        if haskey(state0, "rs") && haskey(state0, "zg")
+        sys = model.system
+        vapoil = has_vapoil(sys)
+        disgas = has_disgas(sys)
+        black_oil = vapoil || disgas
+        if black_oil
             # Blackoil
             if size(s, 1) > 2
                 sw = vec(s[1, :])
                 sw = min.(sw, 1 - MINIMUM_COMPOSITIONAL_SATURATION)
                 init[:ImmiscibleSaturation] = sw
+                so = vec(s[2, :])
                 sg = vec(s[3, :])
             else
+                so = vec(s[1, :])
                 sg = vec(s[2, :])
+                sw = zeros(size(so))
             end
-            if blackoil_formulation(model.system) == :zg
+            if blackoil_formulation(sys) == :zg
                 init[:GasMassFraction] = copy(vec(state0["zg"]))
-                @assert typeof(model.system)<:BlackOilGasFractionSystem
+                @assert typeof(sys)<:BlackOilGasFractionSystem
             else
-                @assert typeof(model.system)<:BlackOilVariableSwitchingSystem
-                rs = vec(state0["rs"])
-                F_rs = model.system.saturation_table
-                init[:BlackOilUnknown] = map((s, r, p) -> blackoil_unknown_init(F_rs, s, r, p), sg, rs, p0)
+                @assert typeof(sys)<:BlackOilVariableSwitchingSystem
+                F_rs = sys.rs_max
+                F_rv = sys.rv_max
+                nc = length(p0)
+                if isnothing(F_rs)
+                    rs = zeros(nc)
+                    @assert sys isa VapoilBlackOilSystem
+                    @assert model isa VapoilBlackOilModel
+                else
+                    rs = vec(state0["rs"])
+                end
+                if isnothing(F_rv)
+                    rv = zeros(nc)
+                    @assert sys isa DisgasBlackOilSystem
+                    @assert model isa DisgasBlackOilModel
+                else
+                    rv = vec(state0["rv"])
+                end
+                init[:BlackOilUnknown] = map(
+                                            (w,  o,   g, r,  v, p) -> blackoil_unknown_init(F_rs, F_rv, w, o, g, r, v, p),
+                                             sw, so, sg, rs, rv, p0)
             end
         else
             # Immiscible
@@ -1111,6 +1185,8 @@ function write_reservoir_simulator_output_to_mrst(model, states, reports, forces
                         mk = "s"
                     elseif k == :Rs
                         mk = "rs"
+                    elseif k == :Rv
+                        mk = "rv"
                     elseif k == :OverallMoleFractions
                         mk = "components"
                     end

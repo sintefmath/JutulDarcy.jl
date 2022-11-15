@@ -20,6 +20,7 @@ Jutul.default_value(model, ::BlackOilPhaseState) = OilAndGas
 Jutul.initialize_secondary_variable_ad!(state, model, var::BlackOilPhaseState, arg...; kwarg...) = state
 
 struct Rs <: ScalarVariable end
+struct Rv <: ScalarVariable end
 
 Base.@kwdef struct BlackOilUnknown{R} <: ScalarVariable
     dr_max::R = Inf
@@ -36,100 +37,61 @@ struct BlackOilX{T}
     end
 end
 
+"""
+    BlackOilX(sys::BlackOilVariableSwitchingSystem, p; sw = 0.0, so = 0.0, sg = 0.0, rs = 0.0, rv = 0.0)
+
+High level initializer for the black oil unknown degree of freedom. Will try to fill in the gaps unless system
+is really underspecified.
+"""
+function BlackOilX(sys::BlackOilVariableSwitchingSystem, p; sw = 0.0, so = 0.0, sg = 0.0, rs = 0.0, rv = 0.0)
+    @assert p > 0 "Pressure must be positive"
+    F_rs = sys.rs_max
+    F_rv = sys.rv_max
+    if has_disgas(sys)
+        if sg > 0
+            rs = F_rs(p)
+            @assert sg ≈ 1 - sw
+        else
+            so = 1 - sw
+        end
+    end
+    if has_vapoil(sys)
+        if so > 0
+            rv = F_rv(p)
+            @assert so ≈ 1 - sw
+        else
+            sg = 1 - sw
+        end
+    end
+    @assert sw + so + sg ≈ 1 "Saturations must sum up to one"
+
+    return blackoil_unknown_init(F_rs, F_rv, sw, so, sg, rs, rv, p)
+end
+
 Jutul.default_value(model, ::BlackOilUnknown) = (NaN, OilAndGas, false) # NaN, Oil+Gas, away from bubble point
 function Jutul.initialize_primary_variable_ad!(state, model, pvar::BlackOilUnknown, symb, npartials; offset, kwarg...)
     pre = state[symb]
+    sys = model.system
+    disgas = has_disgas(sys)
+    vapoil = has_vapoil(sys)
+    for (i, v) in enumerate(pre)
+        if v.phases_present == GasOnly
+            @assert vapoil "Cell $i initialized as GasOnly, but system does not have vapoil enabled."
+        end
+        if v.phases_present == OilOnly
+            @assert disgas "Cell $i initialized as OilOnly, but system does not have vapoil enabled."
+        end
+    end
     vals = map(x -> x.val, pre)
     ad_vals = allocate_array_ad(vals, diag_pos = offset + 1, context = model.context, npartials = npartials; kwarg...)
     state[symb] = map((v, x) -> BlackOilX(v, x.phases_present, false), ad_vals, pre)
     return state
 end
 
-@jutul_secondary function update_as_secondary!(b, ρ::DeckShrinkageFactors, model::StandardBlackOilModelWithWater, Pressure, Rs)
-    pvt, reg = ρ.pvt, ρ.regions
-    # Note immiscible assumption
-    nph, nc = size(b)
-    tb = minbatch(model.context, nc)
-
-    w, o, g = phase_indices(model.system)
-    bO = pvt[o]
-    bG = pvt[g]
-    bW = pvt[w]
-    @inbounds @batch minbatch = tb for i in 1:nc
-        p = Pressure[i]
-        rs = Rs[i]
-        b[w, i] = shrinkage(bW, reg, p, i)
-        b[o, i] = shrinkage(bO, reg, p, rs, i)
-        b[g, i] = shrinkage(bG, reg, p, i)
-    end
-end
-
-@jutul_secondary function update_as_secondary!(μ, ρ::DeckViscosity, model::StandardBlackOilModelWithWater, Pressure, Rs)
-    pvt, reg = ρ.pvt, ρ.regions
-    # Note immiscible assumption
-    nph, nc = size(μ)
-
-    w, o, g = phase_indices(model.system)
-    muW = pvt[w]
-    muO = pvt[o]
-    muG = pvt[g]
-
-    mb = minbatch(model.context, nc)
-    @inbounds @batch minbatch = mb for i = 1:nc
-        p = Pressure[i]
-        rs = Rs[i]
-        μ[w, i] = viscosity(muW, reg, p, i)
-        μ[o, i] = viscosity(muO, reg, p, rs, i)
-        μ[g, i] = viscosity(muG, reg, p, i)
-    end
-end
-
-@jutul_secondary function update_as_secondary!(rho, m::DeckDensity, model::StandardBlackOilModel, Rs, ShrinkageFactors)
-    b = ShrinkageFactors
-    sys = model.system
-    w, o, g = phase_indices(sys)
-    rhoWS, rhoOS, rhoGS = reference_densities(sys)
-    n = size(rho, 2)
-    mb = minbatch(model.context, n)
-    @inbounds @batch minbatch = mb for i = 1:n
-        rho[w, i] = b[w, i]*rhoWS
-        rho[o, i] = b[o, i]*(rhoOS + Rs[i]*rhoGS)
-        rho[g, i] = b[g, i]*rhoGS
-    end
-end
-
-@jutul_secondary function update_as_secondary!(totmass, tv::TotalMasses, model::StandardBlackOilModel,
-                                                                                                    Rs,
-                                                                                                    ShrinkageFactors,
-                                                                                                    PhaseMassDensities,
-                                                                                                    Saturations,
-                                                                                                    FluidVolume)
-    sys = model.system
-    rhoS = reference_densities(sys)
-    ind = phase_indices(sys)
-    nc = size(totmass, 2)
-    tb = minbatch(model.context, nc)
-    @batch minbatch = tb for cell = 1:nc
-        @inbounds @views blackoil_mass!(totmass[:, cell], FluidVolume, PhaseMassDensities, Rs, ShrinkageFactors, Saturations, rhoS, cell, ind)
-    end
-end
-
-Base.@propagate_inbounds function blackoil_mass!(M, pv, ρ, Rs, b, S, rhoS, cell, phase_indices)
-    a, l, v = phase_indices
-    bO = b[l, cell]
-    bG = b[v, cell]
-    rs = Rs[cell]
-    sO = S[l, cell]
-    sG = S[v, cell]
-    Φ = pv[cell]
-
-    # Water is trivial
-    M[a] = Φ*ρ[a, cell]*S[a, cell]
-    # Oil is only in oil phase
-    M[l] = Φ*rhoS[l]*bO*sO
-    # Gas is in both phases
-    M[v] = Φ*rhoS[v]*(bG*sG + bO*sO*rs)
-end
+include("shrinkage.jl")
+include("viscosity.jl")
+include("density.jl")
+include("total_masses.jl")
 
 struct SurfaceVolumeMobilities <: PhaseVariables end
 

@@ -6,7 +6,7 @@ include("flux.jl")
 include("wells.jl")
 include("data.jl")
 
-blackoil_formulation(::StandardBlackOilSystem{D, W, R, F}) where {D, W, R, F} = F
+blackoil_formulation(::StandardBlackOilSystem{V, D, W, R, F}) where {V, D, W, R, F} = F
 
 function select_primary_variables!(S, system::BlackOilSystem, model)
     S[:Pressure] = Pressure(max_rel = 0.2, minimum = 1e5)
@@ -35,9 +35,24 @@ function select_secondary_variables!(S, system::BlackOilSystem, model)
         S[:SurfaceVolumeMobilities] = SurfaceVolumeMobilities()
     end
     S[:PhaseViscosities] = DeckViscosity(pvt)
-    S[:Rs] = Rs()
+    if has_disgas(system)
+        @assert has_disgas(system)
+        S[:Rs] = Rs()
+    else
+        @assert has_vapoil(system)
+        S[:Rv] = Rv()
+    end
 end
 
 get_phases(sys::StandardBlackOilSystem) = sys.phases
 number_of_components(sys::StandardBlackOilSystem) = length(get_phases(sys))
 phase_indices(sys::StandardBlackOilSystem) = sys.phase_indices
+
+has_vapoil(::Any) = false
+has_disgas(::Any) = false
+
+has_vapoil(::StandardBlackOilSystem) = true
+has_disgas(::StandardBlackOilSystem) = true
+
+has_vapoil(::DisgasBlackOilSystem) = false
+has_disgas(::VapoilBlackOilSystem) = false

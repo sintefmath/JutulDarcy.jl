@@ -3,7 +3,7 @@ function update_gas_fraction!(zg, state, zgvar, model, dx)
     maxval, minval = maximum_value(zgvar), minimum_value(zgvar)
     active_cells = active_entities(model.domain, Cells())
     sys = model.system
-    F_rs = sys.saturation_table
+    F_rs = sys.rs_max
     rhoOS = sys.rhoLS
     rhoGS = sys.rhoVS
 
@@ -36,7 +36,7 @@ function update_gas_mass_fractions_inner!(zg, dx, active_cells, pressure, sat_ch
 end
 
 @jutul_secondary function update_as_secondary!(rs, m::Rs, model::SimulationModel{D, S}, PhaseState, Pressure, GasMassFraction) where {D, S<:BlackOilGasFractionSystem}
-    tab = model.system.saturation_table
+    tab = model.system.rs_max
     rhoS = param[:reference_densities]
     rhoOS = rhoS[2]
     rhoGS = rhoS[3]
@@ -93,7 +93,7 @@ end
     sys = model.system
     a, l, v = phase_indices(sys)
     rhoS = reference_densities(sys)
-    tab = model.system.saturation_table
+    tab = model.system.rs_max
     rhoOS = rhoS[l]
     rhoGS = rhoS[v]
     @inbounds for i in eachindex(phase_state)

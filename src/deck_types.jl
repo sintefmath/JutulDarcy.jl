@@ -45,10 +45,10 @@ struct MuBTable{V, I}
     shrinkage_interp::I
     viscosity::V
     viscosity_interp::I
-    function MuBTable(p::T, b::T, mu::T; kwarg...) where T<:AbstractVector
+    function MuBTable(p::T, b::T, mu::T; extrapolate = true, kwarg...) where T<:AbstractVector
         @assert length(p) == length(b) == length(mu)
-        I_b = get_1d_interpolator(p, b; kwarg...)
-        I_mu = get_1d_interpolator(p, mu; kwarg...)
+        I_b = get_1d_interpolator(p, b; cap_endpoints = !extrapolate, kwarg...)
+        I_mu = get_1d_interpolator(p, mu; cap_endpoints = !extrapolate, kwarg...)
         new{T, typeof(I_b)}(p, b, I_b, mu, I_mu)
     end
 end
@@ -117,6 +117,7 @@ function shrinkage(tbl::ConstMuBTable, p::T) where T
     return b::T
 end
 
+# PVTO - dissolved gas
 struct PVTO{T,V} <: AbstractTablePVT where {T<:AbstractArray, V<:AbstractArray}
     pos::T
     rs::V
@@ -140,11 +141,11 @@ function PVTO(d::Dict)
     return PVTO{T, V}(pos, rs, p, p_sat, b, mu)
 end
 
-second_key(PVTO) = PVTO.rs
-
-struct PVDO{T} <: AbstractTablePVT
-    tab::T
+function saturated_table(t::PVTO)
+    return saturated_table(t.sat_pressure, t.rs)
 end
+
+pvt_table_vectors(pvt::PVTO) = (pvt.pressure, pvt.rs, pvt.sat_pressure, pvt.pos)
 
 function shrinkage(pvt::PVTO, reg, p::T, rs, cell) where T
     return interp_pvt(pvt, p, rs, :shrinkage)::T
@@ -152,6 +153,71 @@ end
 
 function viscosity(pvt::PVTO, reg, p::T, rs, cell) where T
     return interp_pvt(pvt, p, rs, :viscosity)::T
+end
+
+
+# PVTG - vaporized oil
+struct PVTG{T,V} <: AbstractTablePVT where {T<:AbstractArray, V<:AbstractArray}
+    pos::T
+    pressure::V
+    rv::V
+    sat_rv::V
+    shrinkage::V
+    viscosity::V
+end
+
+function PVTG(d::Dict)
+    pos = vec(Int64.(d["pos"]))
+    data = copy(d["data"])
+    for i in 1:length(pos)-1
+        start = pos[i]
+        stop = pos[i+1]-1
+        if stop - start > 0
+            if data[start, 1] > data[start+1, 1]
+                # Reverse table 
+                data[start:stop, :] = data[stop:-1:start, :]
+            end
+        end
+    end
+    rv = vec(data[:, 1])
+    B = vec(data[:, 2])
+    b = 1.0 ./ B
+    mu = vec(data[:, 3])
+    # Saturated table - extend with zero at zero pressure
+    pressure = vec(copy(d["key"]))
+    rv_sat = vec(rv[pos[2:end] .- 1])
+    T = typeof(pos)
+    V = typeof(mu)
+    return PVTG{T, V}(pos, pressure, rv, rv_sat, b, mu)
+end
+
+function saturated_table(t::PVTG)
+    return saturated_table(t.pressure, t.sat_rv)
+end
+
+function saturated_table(p, r)
+    if r[1] > 0
+        @assert p[1] > 0.0
+        p = vcat([-1.0, 0.0], p)
+        r = vcat([0.0, 0.0], r)
+    end
+    return get_1d_interpolator(p, r, cap_end = false)
+end
+
+pvt_table_vectors(pvt::PVTG) = (pvt.rv, pvt.pressure, pvt.sat_rv, pvt.pos)
+
+function shrinkage(pvt::PVTG, reg, p::T, rv, cell) where T
+    # Note: Reordered arguments!
+    return interp_pvt(pvt, rv, p, :shrinkage)::T
+end
+
+function viscosity(pvt::PVTG, reg, p::T, rv, cell) where T
+    # Note: Reordered arguments!
+    return interp_pvt(pvt, rv, p, :viscosity)::T
+end
+
+struct PVDO{T} <: AbstractTablePVT
+    tab::T
 end
 
 function PVDO(pvdo::AbstractArray)

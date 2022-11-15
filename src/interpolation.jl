@@ -7,26 +7,22 @@ function bin_interval(t, x)
 end
 
 function interp_pvt(pvto, p, v, type = :shrinkage; cap = false)
-    # v_tab = pvto.key
-    v_tab = second_key(pvto)
+    P, R, SP, pos = pvt_table_vectors(pvto)
     pos = pvto.pos
     if cap
-        v_max = linear_interp(pvto.sat_pressure, v_tab, p)
+        v_max = linear_interp(SP, R, p)
         v = min(v_max, v)
     end
-    w_l, ix = bin_interval(v_tab, v)
+    w, ix = bin_interval(R, v)
     # We now know what lines (for given v) bound the point
+    # Get the positions of those lines in the linear array
+    lower = pos[ix]:(pos[ix+1]-1)
+    upper = pos[ix+1]:(pos[ix+2]-1)
 
-    lower = pos[ix]:pos[ix+1]-1
-    upper = pos[ix+1]:pos[ix+2]-1
-
-    P_l = view(pvto.pressure, lower)
-    P_u = view(pvto.pressure, upper)
-    u = first_lower(P_u, p)
-    @inbounds Δp_u = P_u[u+1] - P_u[u]
-
-    Δp = Δp_u
-    w = w_l
+    P_l = view(P, lower)
+    P_u = view(P, upper)
+    # Width of interval in saturation table
+    @inbounds Δp = SP[ix+1] - SP[ix]
 
     p_u = p + (1-w)*Δp
     p_l = p - w*Δp
@@ -43,7 +39,5 @@ function interp_pvt(pvto, p, v, type = :shrinkage; cap = false)
     f_l = linear_interp(P_l, F_l, p_l)
     f_u = linear_interp(P_u, F_u, p_u)
 
-    f = f_l*(1-w) + w*f_u
- 
-    return f
+    return f_l*(1-w) + w*f_u
 end
