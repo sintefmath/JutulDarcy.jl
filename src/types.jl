@@ -51,7 +51,7 @@ struct StandardBlackOilSystem{D, V, W, R, F, T, P} <: BlackOilSystem
                                       rv_max::RV = nothing,
                                       phases = (AqueousPhase(), LiquidPhase(), VaporPhase()),
                                       reference_densities = [786.507, 1037.84, 0.969758], 
-                                      saturated_chop = true,
+                                      saturated_chop = false,
                                       keep_bubble_flag = true,
                                       formulation::Symbol = :varswitch) where {RS, RV}
         phases = tuple(phases...)
