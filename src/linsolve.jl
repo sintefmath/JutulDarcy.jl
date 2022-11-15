@@ -1,5 +1,5 @@
 """
-    reservoir_linsolve(model; <keyword arguments>)
+    reservoir_linsolve(model, precond = :cpr; <keyword arguments>)
 
 Set up iterative linear solver for a reservoir model from [`setup_reservoir_model`](@ref).
 
