@@ -202,10 +202,11 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         p_init[inj] = 3.45751e7
         p_init[prod] = 1.82504e6
 
-        x0 = BlackOilX(50.0, OilOnly, false)
-        bo = repeat([x0], nc)
-        bo[inj] = BlackOilX(0.9, GasOnly, false)
-        init = Dict(:Pressure => p_init, :ImmiscibleSaturation => 0.1, :BlackOilUnknown => bo)
+        sw = 0.1
+        sg = zeros(nc)
+        sg[inj] = 0.9
+        bo = map( (P, Sg) -> BlackOilX(sys, P, sw = sw, rs = 50.0, sg = Sg), p_init, sg)
+        init = Dict(:Pressure => p_init, :ImmiscibleSaturation => sw, :BlackOilUnknown => bo)
     elseif case_name == "simple_compositional_fake_wells"
         inj = 1
         prod = nc

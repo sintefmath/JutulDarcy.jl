@@ -37,9 +37,51 @@ struct BlackOilX{T}
     end
 end
 
+"""
+    BlackOilX(sys::BlackOilVariableSwitchingSystem, p; sw = 0.0, so = 0.0, sg = 0.0, rs = 0.0, rv = 0.0)
+
+High level initializer for the black oil unknown degree of freedom. Will try to fill in the gaps unless system
+is really underspecified.
+"""
+function BlackOilX(sys::BlackOilVariableSwitchingSystem, p; sw = 0.0, so = 0.0, sg = 0.0, rs = 0.0, rv = 0.0)
+    @assert p > 0 "Pressure must be positive"
+    F_rs = sys.rs_max
+    F_rv = sys.rv_max
+    if has_disgas(sys)
+        if sg > 0
+            rs = F_rs(p)
+            @assert sg ≈ 1 - sw
+        else
+            so = 1 - sw
+        end
+    end
+    if has_vapoil(sys)
+        if so > 0
+            rv = F_rv(p)
+            @assert so ≈ 1 - sw
+        else
+            sg = 1 - sw
+        end
+    end
+    @assert sw + so + sg ≈ 1 "Saturations must sum up to one"
+
+    return blackoil_unknown_init(F_rs, F_rv, sw, so, sg, rs, rv, p)
+end
+
 Jutul.default_value(model, ::BlackOilUnknown) = (NaN, OilAndGas, false) # NaN, Oil+Gas, away from bubble point
 function Jutul.initialize_primary_variable_ad!(state, model, pvar::BlackOilUnknown, symb, npartials; offset, kwarg...)
     pre = state[symb]
+    sys = model.system
+    disgas = has_disgas(sys)
+    vapoil = has_vapoil(sys)
+    for (i, v) in enumerate(pre)
+        if v.phases_present == GasOnly
+            @assert vapoil "Cell $i initialized as GasOnly, but system does not have vapoil enabled."
+        end
+        if v.phases_present == OilOnly
+            @assert disgas "Cell $i initialized as OilOnly, but system does not have vapoil enabled."
+        end
+    end
     vals = map(x -> x.val, pre)
     ad_vals = allocate_array_ad(vals, diag_pos = offset + 1, context = model.context, npartials = npartials; kwarg...)
     state[symb] = map((v, x) -> BlackOilX(v, x.phases_present, false), ad_vals, pre)
