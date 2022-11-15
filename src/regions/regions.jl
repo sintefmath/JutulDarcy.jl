@@ -31,7 +31,7 @@ function region_wrap(x::Tuple, regions::Nothing)
 end
 
 function region_wrap(x::Tuple, regions::AbstractArray)
-    @assert length(x) <= maximum(regions)
+    @assert length(x) >= maximum(regions)
     return x
 end
 

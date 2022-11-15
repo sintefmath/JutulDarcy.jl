@@ -31,6 +31,12 @@ end
     end
 end
 
+function Jutul.subvariable(k::RelativePermeabilities, map::FiniteVolumeGlobalMap)
+    c = map.cells
+    regions = Jutul.partition_variable_slice(k.regions, c)
+    return RelativePermeabilities(k.relperms, regions = regions)
+end
+
 struct BrooksCoreyRelPerm{V, T} <: AbstractRelativePermeabilities
     exponents::V
     residuals::V
@@ -99,6 +105,12 @@ function ThreePhaseRelPerm(; w, g, ow, og, swcon = 0.0, regions = nothing)
     return ThreePhaseRelPerm(F(w), F(ow), F(og), F(g), swcon, regions)
 end
 
+function Jutul.subvariable(k::ThreePhaseRelPerm, map::FiniteVolumeGlobalMap)
+    c = map.cells
+    regions = Jutul.partition_variable_slice(k.regions, c)
+    swcon = Jutul.partition_variable_slice(k.swcon, c)
+    return ThreePhaseRelPerm(k.krw, k.krow, k.krog, k.krg, swcon, regions)
+end
 
 @jutul_secondary function update_as_secondary!(kr, kr_def::BrooksCoreyRelPerm, model, Saturations)
     n, sr, kwm, sr_tot = kr_def.exponents, kr_def.residuals, kr_def.endpoints, kr_def.residual_total

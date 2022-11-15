@@ -13,6 +13,12 @@ struct SimpleCapillaryPressure{T, R} <: VectorVariables
     end
 end
 
+function Jutul.subvariable(p::SimpleCapillaryPressure, map::FiniteVolumeGlobalMap)
+    c = map.cells
+    regions = Jutul.partition_variable_slice(p.regions, c)
+    return SimpleCapillaryPressure(p.pc, regions = regions)
+end
+
 degrees_of_freedom_per_entity(model, v::SimpleCapillaryPressure) = number_of_phases(model.system) - 1
 
 @jutul_secondary function update_as_secondary!(Δp, pc::SimpleCapillaryPressure, model, Saturations)
