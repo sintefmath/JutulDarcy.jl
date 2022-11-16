@@ -118,11 +118,18 @@ function test_perforation_mask()
     end
 end
 
-@testset "MultiModel (wells)" begin 
-    for gen_ad in [true, false]
-        test_compositional_with_wells(general_ad = gen_ad)
-        test_immiscible_with_wells(general_ad = gen_ad)
-        test_blackoil_with_wells(general_ad = gen_ad)
+@testset "MultiModel (wells)" begin
+    for b in [false, true]
+        for backend in [:csr, :csc]
+            for gen_ad in [true, false]
+                for default_linsolve in [false, true]
+                arg = (general_ad = gen_ad, backend = backend, use_blocks = b, default_linsolve = default_linsolve)
+                test_compositional_with_wells(; arg...)
+                test_immiscible_with_wells(; arg...)
+                test_blackoil_with_wells(; arg...)
+                end
+            end
+        end
     end
     test_perforation_mask()
 end

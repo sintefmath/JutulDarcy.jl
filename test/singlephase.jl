@@ -1,4 +1,4 @@
-using Jutul, JutulDarcy, AlgebraicMultigrid
+using Jutul, JutulDarcy
 using Test
 
 function test_single_phase(grid = "pico"; linear_solver = nothing, kwarg...)
@@ -14,8 +14,8 @@ end
     @test test_single_phase()
 end
 
-agg = AMGPreconditioner(smoothed_aggregation)
-rs = AMGPreconditioner(ruge_stuben)
+agg = AMGPreconditioner(:smoothed_aggregation)
+rs = AMGPreconditioner(:ruge_stuben)
 @testset "Single-phase linear solvers" begin
     @test test_single_phase(linear_solver = GenericKrylov(preconditioner = agg))
     @test test_single_phase(linear_solver = GenericKrylov(preconditioner = rs))

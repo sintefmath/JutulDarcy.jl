@@ -66,6 +66,7 @@ Additional keyword arguments are passed onto [`simulator_config`](@ref).
 function setup_reservoir_simulator(models, initializer, parameters = nothing;
                             precond = :cpr,
                             linear_solver = :bicgstab,
+                            max_dt = Inf,
                             rtol = 1e-3,
                             initial_dt = 3600.0*24.0,
                             target_its = 8,
@@ -76,6 +77,8 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing;
                             cpr_update_interval = :once,
                             specialize = false,
                             split_wells = false,
+                            set_linear_solver = true,
+                            timesteps = :iteration,
                             kwarg...)
     if isa(models, SimulationModel)
         DT = Dict{Symbol, Any}
@@ -101,9 +104,19 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing;
                                         update_interval = cpr_update_interval
                                         )
     # day = 3600.0*24.0
-    t_base = TimestepSelector(initial_absolute = initial_dt, max = Inf)
+    t_base = TimestepSelector(initial_absolute = initial_dt, max = max_dt)
     t_its = IterationTimestepSelector(target_its, offset = offset_its)
-    cfg = simulator_config(sim, timestep_selectors = [t_base, t_its], linear_solver = lsolve; kwarg...)
+    if timesteps == :iteration
+        sel = [t_base, t_its]
+    else
+        @assert isnothing(timesteps)
+        sel = [t_base]
+    end
+    if set_linear_solver
+        cfg = simulator_config(sim, timestep_selectors = [t_base, t_its], linear_solver = lsolve; kwarg...)
+    else
+        cfg = simulator_config(sim, timestep_selectors = [t_base, t_its]; kwarg...)
+    end
     set_default_cnv_mb!(cfg, mmodel, tol_cnv = tol_cnv, tol_mb = tol_mb)
     return (sim, cfg)
 end
