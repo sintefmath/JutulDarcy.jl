@@ -21,12 +21,12 @@ end
 
 degrees_of_freedom_per_entity(model, v::SimpleCapillaryPressure) = number_of_phases(model.system) - 1
 
-@jutul_secondary function update_as_secondary!(Δp, pc::SimpleCapillaryPressure, model, Saturations)
+@jutul_secondary function update_pc!(Δp, pc::SimpleCapillaryPressure, model, Saturations, ix)
     cap = pc.pc
     npc, nc = size(Δp)
     if npc == 1
         pcow = cap[1]
-        @inbounds for c in 1:nc
+        @inbounds for c in ix
             reg = region(pc.regions, c)
             pcow_c = table_by_region(pcow, reg)
             sw = Saturations[1, c]
@@ -35,7 +35,7 @@ degrees_of_freedom_per_entity(model, v::SimpleCapillaryPressure) = number_of_pha
     elseif npc == 2
         pcow, pcog = cap
         if isnothing(pcow)
-            @inbounds for c in 1:nc
+            @inbounds for c in ix
                 reg = region(pc.regions, c)
                 pcog_c = table_by_region(pcog, reg)
                 sg = Saturations[3, c]
@@ -43,7 +43,7 @@ degrees_of_freedom_per_entity(model, v::SimpleCapillaryPressure) = number_of_pha
                 Δp[2, c] = pcog_c(sg)
             end
         elseif isnothing(pcog)
-            @inbounds for c in 1:nc
+            @inbounds for c in ix
                 reg = region(pc.regions, c)
                 pcow_c = table_by_region(pcow, reg)
                 sw = Saturations[1, c]
@@ -51,7 +51,7 @@ degrees_of_freedom_per_entity(model, v::SimpleCapillaryPressure) = number_of_pha
                 Δp[2, c] = 0
             end
         else
-            @inbounds for c in 1:nc
+            @inbounds for c in ix
                 reg = region(pc.regions, c)
                 pcow_c = table_by_region(pcow, reg)
                 pcog_c = table_by_region(pcog, reg)

@@ -47,7 +47,7 @@ end
 
     @inbounds ρ_c = ρ[phase, l]
     @inbounds ρ_i = ρ[phase, r]
-    ρ_avg = (ρ_i + ρ_c)/2
+    ρ_avg = 0.5*(ρ_i + ρ_c)
     q = -T_f*(∇p + Δpc + gΔz*ρ_avg)
     return q
 end

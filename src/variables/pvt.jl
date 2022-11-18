@@ -33,9 +33,13 @@ function ConstantCompressibilityDensities(; p_ref = 101325.0, density_ref = 1000
     return ConstantCompressibilityDensities(n, p_ref, density_ref, compressibility)
 end
 
-@jutul_secondary function update_as_secondary!(rho, density::ConstantCompressibilityDensities, model, Pressure)
+@jutul_secondary function update_density!(rho, density::ConstantCompressibilityDensities, model, Pressure, ix)
     p_ref, c, rho_ref = density.reference_pressure, density.compressibility, density.reference_densities
-    @tullio rho[ph, i] = constant_expansion(Pressure[i], p_ref[ph], c[ph], rho_ref[ph])
+    for i in ix
+        for ph in axes(rho, 1)
+            @inbounds rho[ph, i] = constant_expansion(Pressure[i], p_ref[ph], c[ph], rho_ref[ph])
+        end
+    end
 end
 
 @inline function constant_expansion(p::Real, p_ref::Real, c::Real, f_ref::Real)
@@ -44,24 +48,39 @@ end
 end
 
 # Total masses
-@jutul_secondary function update_as_secondary!(totmass, tv::TotalMasses, model::SimulationModel{G, S}, PhaseMassDensities, FluidVolume) where {G, S<:SinglePhaseSystem}
-    @tullio totmass[ph, i] = PhaseMassDensities[ph, i]*FluidVolume[i]
+@jutul_secondary function update_total_masses!(totmass, tv::TotalMasses, model::SimulationModel{G, S}, PhaseMassDensities, FluidVolume, ix) where {G, S<:SinglePhaseSystem}
+    @inbounds for i in ix
+        V = FluidVolume[i]
+        @inbounds for ph in axes(totmass, 1)
+            totmass[ph, i] = PhaseMassDensities[ph, i]*V
+        end
+    end
 end
 
-@jutul_secondary function update_as_secondary!(totmass, tv::TotalMasses, model::SimulationModel{G, S}, PhaseMassDensities, Saturations, FluidVolume) where {G, S<:ImmiscibleSystem}
+@jutul_secondary function update_total_masses!(totmass, tv::TotalMasses, model::SimulationModel{G, S}, PhaseMassDensities, Saturations, FluidVolume, ix) where {G, S<:ImmiscibleSystem}
     rho = PhaseMassDensities
     s = Saturations
-    @tullio totmass[ph, i] = rho[ph, i]*FluidVolume[i]*s[ph, i]
+    @inbounds for i in ix
+        V = FluidVolume[i]
+        @inbounds for ph in axes(totmass, 1)
+            totmass[ph, i] = rho[ph, i]*V*s[ph, i]
+        end
+    end
 end
 
 # Total mass
-@jutul_secondary function update_as_secondary!(totmass, tv::TotalMass, model::SimulationModel{G, S}, TotalMasses) where {G, S<:MultiPhaseSystem}
-    @tullio totmass[i] = TotalMasses[ph, i]
+@jutul_secondary function update_total_mass!(totmass, tv::TotalMass, model::SimulationModel{G, S}, TotalMasses, ix) where {G, S<:MultiPhaseSystem}
+    @inbounds for c in ix
+        tmp = zero(eltype(totmass))
+        @inbounds for ph in axes(TotalMasses, 1)
+            tmp += TotalMasses[ph, i]
+        end
+        totmass[c] = tmp
+    end
 end
 
-@jutul_secondary function update_as_secondary!(ρλ, var::PhaseMassMobilities, model, RelativePermeabilities, PhaseMassDensities, PhaseViscosities)
-    mb = minbatch(model.context)
-    @batch minbatch = mb for i in axes(ρλ, 2)
+@jutul_secondary function update_phase_mass_mob!(ρλ, var::PhaseMassMobilities, model, RelativePermeabilities, PhaseMassDensities, PhaseViscosities, ix)
+    for i in ix
         @inbounds for ph in axes(ρλ, 1)
             ρλ[ph, i] = PhaseMassDensities[ph, i]*RelativePermeabilities[ph, i]/PhaseViscosities[ph, i]
         end

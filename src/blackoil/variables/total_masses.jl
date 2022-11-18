@@ -1,17 +1,16 @@
 # Total masses
-@jutul_secondary function update_as_secondary!(totmass, tv::TotalMasses, model::StandardBlackOilModel,
+@jutul_secondary function update_total_masses!(totmass, tv::TotalMasses, model::StandardBlackOilModel,
                                                                                                     Rs,
                                                                                                     Rv,
                                                                                                     ShrinkageFactors,
                                                                                                     PhaseMassDensities,
                                                                                                     Saturations,
-                                                                                                    FluidVolume)
+                                                                                                    FluidVolume,
+                                                                                                    ix)
     sys = model.system
     rhoS = reference_densities(sys)
     ind = phase_indices(sys)
-    nc = size(totmass, 2)
-    tb = minbatch(model.context, nc)
-    @batch minbatch = tb for cell = 1:nc
+    for cell in ix
         @inbounds @views blackoil_mass!(totmass[:, cell], FluidVolume, PhaseMassDensities, Rs, Rv, ShrinkageFactors, Saturations, rhoS, cell, ind)
     end
 end
@@ -34,18 +33,17 @@ Base.@propagate_inbounds function blackoil_mass!(M, pv, ρ, Rs, Rv, b, S, rhoS, 
     M[v] = Φ*rhoS[v]*(bG*sG + bO*sO*rs)
 end
 
-@jutul_secondary function update_as_secondary!(totmass, tv::TotalMasses, model::VapoilBlackOilModel,
+@jutul_secondary function update_total_masses!(totmass, tv::TotalMasses, model::VapoilBlackOilModel,
                                                                                                     Rv,
                                                                                                     ShrinkageFactors,
                                                                                                     PhaseMassDensities,
                                                                                                     Saturations,
-                                                                                                    FluidVolume)
+                                                                                                    FluidVolume,
+                                                                                                    ix)
     sys = model.system
     rhoS = reference_densities(sys)
     ind = phase_indices(sys)
-    nc = size(totmass, 2)
-    tb = minbatch(model.context, nc)
-    @batch minbatch = tb for cell = 1:nc
+    for cell in ix
         @inbounds @views blackoil_mass_vapoil!(totmass[:, cell], FluidVolume, PhaseMassDensities, Rv, ShrinkageFactors, Saturations, rhoS, cell, ind)
     end
 end
@@ -67,18 +65,17 @@ Base.@propagate_inbounds function blackoil_mass_vapoil!(M, pv, ρ, Rv, b, S, rho
     M[v] = Φ*rhoS[v]*bG*sG
 end
 
-@jutul_secondary function update_as_secondary!(totmass, tv::TotalMasses, model::DisgasBlackOilModel,
+@jutul_secondary function update_total_masses!(totmass, tv::TotalMasses, model::DisgasBlackOilModel,
                                                                                                     Rs,
                                                                                                     ShrinkageFactors,
                                                                                                     PhaseMassDensities,
                                                                                                     Saturations,
-                                                                                                    FluidVolume)
+                                                                                                    FluidVolume,
+                                                                                                    ix)
     sys = model.system
     rhoS = reference_densities(sys)
     ind = phase_indices(sys)
-    nc = size(totmass, 2)
-    tb = minbatch(model.context, nc)
-    @batch minbatch = tb for cell = 1:nc
+    for cell in ix
         @inbounds @views blackoil_mass_disgas!(totmass[:, cell], FluidVolume, PhaseMassDensities, Rs, ShrinkageFactors, Saturations, rhoS, cell, ind)
     end
 end

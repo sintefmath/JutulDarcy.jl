@@ -71,32 +71,14 @@ function initialize_variable_ad(state, model, pvar::FlashResults, symb, npartial
     return state
 end
 
-@jutul_secondary function update_as_secondary!(flash_results, fr::FlashResults, model, Pressure, Temperature, OverallMoleFractions)
+@jutul_secondary function update_flash!(flash_results, fr::FlashResults, model, Pressure, Temperature, OverallMoleFractions, ix)
     storage, m, buffers = fr.storage, fr.method, fr.update_buffer
     eos = model.system.equation_of_state
 
-    for buf in buffers
-        update_flash_buffer!(buf, eos, Pressure, Temperature, OverallMoleFractions)
-    end
-    perform_flash_for_all_cells!(flash_results, storage, m, eos, buffers, Pressure, Temperature, OverallMoleFractions, threads = fr.use_threads)
-end
-
-function perform_flash_for_all_cells!(flash_results, storage, m, eos, buffers, P, T, z; threads = true)
-    flash_cell(i, S, buf) = internal_flash!(flash_results, S, m, eos, buf, P, T, z, i)
-    if threads
-        N = Threads.nthreads()
-        @assert length(storage) == N == length(buffers)
-        @inbounds @batch threadlocal=thread_buffers(storage, buffers) for i in eachindex(flash_results)
-            # Unpack thread specific storage
-            S, thread_buffer = threadlocal
-            # Do flash
-            flash_cell(i, S, thread_buffer)
-        end
-    else
-        S, buf = thread_buffers(storage, buffers)
-        @inbounds for i in eachindex(flash_results)
-            flash_cell(i, S, buf)
-        end
+    S, buf = thread_buffers(storage, buffers)
+    update_flash_buffer!(buf, eos, Pressure, Temperature, OverallMoleFractions)
+    @inbounds for i in ix
+        internal_flash!(flash_results, S, m, eos, buf, Pressure, Temperature, OverallMoleFractions, i)
     end
 end
 

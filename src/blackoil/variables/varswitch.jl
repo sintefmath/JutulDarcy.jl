@@ -180,18 +180,16 @@ function (-)(l::BlackOilX, r::BlackOilX)
     return BlackOilX(l.val - r.val, r.phases_present, r.sat_close)
 end
 
-@jutul_secondary function update_as_secondary!(s, ph::BlackOilPhaseState, model::SimulationModel{D, S}, BlackOilUnknown)  where {D, S<:BlackOilVariableSwitchingSystem}
-    mb = minbatch(model.context, length(s))
-    @inbounds @batch minbatch = mb for i in eachindex(s)
+@jutul_secondary function update_phase_state!(s, ph::BlackOilPhaseState, model::SimulationModel{D, S}, BlackOilUnknown, ix)  where {D, S<:BlackOilVariableSwitchingSystem}
+    @inbounds for i in ix
         s[i] = BlackOilUnknown[i].phases_present
     end
 end
 
-@jutul_secondary function update_as_secondary!(s, sat::Saturations, model::SimulationModel{D, S}, BlackOilUnknown, ImmiscibleSaturation) where {D, S<:BlackOilVariableSwitchingSystem}
+@jutul_secondary function updaet_saturations!(s, sat::Saturations, model::SimulationModel{D, S}, BlackOilUnknown, ImmiscibleSaturation, ix) where {D, S<:BlackOilVariableSwitchingSystem}
     @assert size(s, 1) == 3
     T = eltype(s)
-    mb = minbatch(model.context, length(BlackOilUnknown))
-    @inbounds @batch minbatch = mb for i in eachindex(BlackOilUnknown)
+    @inbounds for i in ix
         sw = ImmiscibleSaturation[i]
         s[1, i] = sw
         X = BlackOilUnknown[i]
@@ -208,9 +206,8 @@ end
 end
 
 
-@jutul_secondary function update_as_secondary!(rs, ph::Rs, model::SimulationModel{D, S}, Pressure, BlackOilUnknown)  where {D, S<:BlackOilVariableSwitchingSystem}
-    mb = minbatch(model.context, length(BlackOilUnknown))
-    @inbounds @batch minbatch = mb for i in eachindex(BlackOilUnknown)
+@jutul_secondary function update_rs!(rs, ph::Rs, model::SimulationModel{D, S}, Pressure, BlackOilUnknown, ix)  where {D, S<:BlackOilVariableSwitchingSystem}
+    @inbounds for i in ix
         X = BlackOilUnknown[i]
         if X.phases_present == OilOnly
             r = X.val
@@ -222,9 +219,8 @@ end
     end
 end
 
-@jutul_secondary function update_as_secondary!(rv, ph::Rv, model::SimulationModel{D, S}, Pressure, BlackOilUnknown)  where {D, S<:BlackOilVariableSwitchingSystem}
-    mb = minbatch(model.context, length(BlackOilUnknown))
-    @inbounds @batch minbatch = mb for i in eachindex(BlackOilUnknown)
+@jutul_secondary function update_rv!(rv, ph::Rv, model::SimulationModel{D, S}, Pressure, BlackOilUnknown, ix)  where {D, S<:BlackOilVariableSwitchingSystem}
+    @inbounds for i in ix
         X = BlackOilUnknown[i]
         if X.phases_present == GasOnly
             r = X.val

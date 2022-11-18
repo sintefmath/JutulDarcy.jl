@@ -20,8 +20,8 @@ struct RelativePermeabilities{K, R} <: AbstractRelativePermeabilities
     end
 end
 
-@jutul_secondary function update_as_secondary!(kr, relperm::RelativePermeabilities, model, Saturations)
-    for c in axes(kr, 2)
+@jutul_secondary function update_kr!(kr, relperm::RelativePermeabilities, model, Saturations, ix)
+    for c in ix
         reg = region(relperm.regions, c)
         @inbounds for ph in axes(kr, 1)
             s = Saturations[ph, c]
@@ -29,6 +29,7 @@ end
             kr[ph, c] = f(s)
         end
     end
+    return kr
 end
 
 function Jutul.subvariable(k::RelativePermeabilities, map::FiniteVolumeGlobalMap)
@@ -112,9 +113,14 @@ function Jutul.subvariable(k::ThreePhaseRelPerm, map::FiniteVolumeGlobalMap)
     return ThreePhaseRelPerm(k.krw, k.krow, k.krog, k.krg, swcon, regions)
 end
 
-@jutul_secondary function update_as_secondary!(kr, kr_def::BrooksCoreyRelPerm, model, Saturations)
+@jutul_secondary function update_kr!(kr, kr_def::BrooksCoreyRelPerm, model, Saturations, ix)
     n, sr, kwm, sr_tot = kr_def.exponents, kr_def.residuals, kr_def.endpoints, kr_def.residual_total
-    @tullio kr[ph, i] = brooks_corey_relperm(Saturations[ph, i], n[ph], sr[ph], kwm[ph], sr_tot)
+    for i in ix
+        for ph in axes(kr, 1)
+            kr[ph, i] = brooks_corey_relperm(Saturations[ph, i], n[ph], sr[ph], kwm[ph], sr_tot)
+        end
+    end
+    return kr
 end
 
 function brooks_corey_relperm(s::T, n::Real, sr::Real, kwm::Real, sr_tot::Real) where T
@@ -124,32 +130,23 @@ function brooks_corey_relperm(s::T, n::Real, sr::Real, kwm::Real, sr_tot::Real) 
     return kwm*sat^n
 end
 
-@jutul_secondary function update_as_secondary!(kr, kr_def::TabulatedRelPermSimple, model, Saturations)
+@jutul_secondary function update_kr!(kr, kr_def::TabulatedRelPermSimple, model, Saturations, ix)
     I = kr_def.interpolators
-    if false
-        @tullio kr[ph, i] = I[ph](Saturations[ph, i])
-    else
-        threaded_interp!(kr, model.context, I, Saturations)
-    end
-end
-
-function threaded_interp!(F, context, I, x)
-    nc = size(F, 2)
-    tb = minbatch(context, nc)
-    apply(I, x, j, i) = @inbounds I(x[j, i])
-    @batch minbatch = tb for i in 1:nc
+    for c in ix
         @inbounds for j in eachindex(I)
-            F[j, i] = apply(I[j], x, j, i)
+            s = Saturations[j, c]
+            kr[j, c] = I[j](s)
         end
     end
+    return kr
 end
 
-@jutul_secondary function update_as_secondary!(kr, relperm::ThreePhaseRelPerm, model, Saturations)
+@jutul_secondary function update_kr!(kr, relperm::ThreePhaseRelPerm, model, Saturations, ix)
     s = Saturations
     swcon = relperm.swcon
 
     l, o, g = phase_indices(model.system)
-    @inbounds for c in axes(kr, 2)
+    @inbounds for c in ix
         reg = region(relperm.regions, c)
         # Water
         krw = table_by_region(relperm.krw, reg)
@@ -169,4 +166,5 @@ end
         kro = (1-ww)*krog(so) + ww*krow(so)
         kr[o, c] = kro
     end
+    return kr
 end

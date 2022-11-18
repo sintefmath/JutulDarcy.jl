@@ -2,11 +2,10 @@ struct PhaseMassFractions{T} <: CompositionalFractions
     phase::T
 end
 
-@jutul_secondary function update_as_secondary!(X, m::PhaseMassFractions, model::SimulationModel{D,S}, FlashResults) where {D,S<:CompositionalSystem}
+@jutul_secondary function update_phase_xy!(X, m::PhaseMassFractions, model::SimulationModel{D,S}, FlashResults, ix) where {D,S<:CompositionalSystem}
     molar_mass = map((x) -> x.mw, model.system.equation_of_state.mixture.properties)
     phase = m.phase
-    tb = minbatch(model.context, length(FlashResults))
-    @inbounds @batch minbatch = tb for i in eachindex(FlashResults)
+    @inbounds for i in ix
         f = FlashResults[i]
         if phase_is_present(phase, f.state)
             X_i = view(X, :, i)
@@ -28,13 +27,13 @@ end
 end
 
 # Total masses
-@jutul_secondary function update_as_secondary!(totmass, tv::TotalMasses, model::SimulationModel{G,S},
+@jutul_secondary function update_total_masses!(totmass, tv::TotalMasses, model::SimulationModel{G,S},
                                                                                                     FlashResults,
                                                                                                     PhaseMassDensities,
                                                                                                     Saturations,
                                                                                                     VaporMassFractions,
                                                                                                     LiquidMassFractions,
-                                                                                                    FluidVolume) where {G,S<:CompositionalSystem}
+                                                                                                    FluidVolume, ix) where {G,S<:CompositionalSystem}
     pv = FluidVolume
     ρ = PhaseMassDensities
     X = LiquidMassFractions
@@ -44,9 +43,7 @@ end
     sys = model.system
     phase_ix = phase_indices(sys)
     has_other = Val(has_other_phase(sys))
-    nc = size(totmass, 2)
-    tb = minbatch(model.context, nc)
-    @batch minbatch = tb for cell = 1:nc
+    for cell in ix
         m = view(totmass, :, cell)
         @inbounds two_phase_compositional_mass!(m, F[cell].state, pv, ρ, X, Y, Sat, cell, has_other, phase_ix)
     end

@@ -95,13 +95,13 @@ include("total_masses.jl")
 
 struct SurfaceVolumeMobilities <: PhaseVariables end
 
-@jutul_secondary function update_as_secondary!(b_mob, var::SurfaceVolumeMobilities, model,
+@jutul_secondary function update_surface_mob!(b_mob, var::SurfaceVolumeMobilities, model,
                                                         ShrinkageFactors,
                                                         PhaseViscosities,
-                                                        RelativePermeabilities)
+                                                        RelativePermeabilities,
+                                                        ix)
     # For blackoil, the main upwind term
-    mb = minbatch(model.context)
-    @batch minbatch = mb for i in axes(b_mob, 2)
+    for i in ix
         @inbounds for ph in axes(b_mob, 1)
             b_mob[ph, i] = ShrinkageFactors[ph, i]*RelativePermeabilities[ph, i]/PhaseViscosities[ph, i]
         end
