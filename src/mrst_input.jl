@@ -768,14 +768,13 @@ function setup_case_from_mrst(casename; simple_well = false,
     end
     timesteps = vec(copy(dt))
     res_context = model.context
-    w_context = DefaultContext()
-    
+    w_context = DefaultContext(nthreads = 1)
+
     initializer[:Reservoir] = init
     forces[:Reservoir] = nothing
     models[:Reservoir] = model
     well_symbols = map((x) -> Symbol(x["name"]), first_well_set)
     num_wells = length(well_symbols)
-    
     parameters = Dict{Symbol, Any}()
     parameters[:Reservoir] = param_res
     controls = Dict()
