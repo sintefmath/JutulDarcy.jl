@@ -13,6 +13,7 @@ module JutulDarcy
                   update_secondary_variable!,
                   default_value,
                   initialize_variable_value!,
+                  initialize_variable_value,
                   initialize_variable_ad,
                   update_half_face_flux!,
                   update_accumulation!,

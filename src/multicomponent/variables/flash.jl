@@ -41,7 +41,7 @@ end
 
 default_value(model, ::FlashResults) = FlashedMixture2Phase(model.system.equation_of_state)
 
-function initialize_variable_value!(state, model, pvar::FlashResults, symb, val::AbstractDict; need_value = false)
+function initialize_variable_value(model, pvar::FlashResults, val::AbstractDict; need_value = false)
     @assert need_value == false
     n = number_of_entities(model, pvar)
     v = default_value(model, pvar)
@@ -51,7 +51,7 @@ function initialize_variable_value!(state, model, pvar::FlashResults, symb, val:
     for i in 1:n
         push!(V, default_value(model, pvar))
     end
-    initialize_variable_value!(state, model, pvar, symb, V)
+    initialize_variable_value(model, pvar, V)
 end
 
 function initialize_variable_ad(state, model, pvar::FlashResults, symb, npartials, diag_pos; context = DefaultContext(), kwarg...)
