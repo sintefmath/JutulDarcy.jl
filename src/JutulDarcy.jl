@@ -62,6 +62,8 @@ module JutulDarcy
     # Blackoil
     include("blackoil/blackoil.jl")
 
+    include("thermal/thermal.jl")
+
     # Wells etc.
     include("facility/facility.jl")
 
