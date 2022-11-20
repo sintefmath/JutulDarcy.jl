@@ -54,7 +54,7 @@ function initialize_variable_value(model, pvar::FlashResults, val::AbstractDict;
     initialize_variable_value(model, pvar, V)
 end
 
-function initialize_variable_ad(state, model, pvar::FlashResults, symb, npartials, diag_pos; context = DefaultContext(), kwarg...)
+function initialize_variable_ad!(state, model, pvar::FlashResults, symb, npartials, diag_pos; context = DefaultContext(), kwarg...)
     n = number_of_entities(model, pvar)
     v_ad = get_ad_entity_scalar(1.0, npartials, diag_pos; kwarg...)
     ∂T = typeof(v_ad)
