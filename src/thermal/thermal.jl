@@ -65,3 +65,4 @@ function select_secondary_variables!(S, system::ThermalSystem, model)
 end
 
 include("variables.jl")
+include("equations.jl")

@@ -2,7 +2,7 @@
     for i in ix
         T = Temperature[i]
         for ph in axes(U, 1)
-            U[ph, i] = FluidHeatCapacity[ph, i]*T# Saturations[ph, i]*FluidHeatCapacity[ph, i]
+            U[ph, i] = FluidHeatCapacity[ph, i]*T
         end
     end
 end

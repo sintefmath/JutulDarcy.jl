@@ -97,7 +97,7 @@ function get_1d_reservoir(nc; L = 1, perm = 9.8692e-14, # 0.1 darcy
     else
         flow = TwoPointPotentialFlowHardCoded(G, ncells = nc)
     end
-    disc = (mass_flow = flow,)
+    disc = (mass_flow = flow, heat_flow = flow)
     D = DiscretizedDomain(G, disc)
     return D
 end
