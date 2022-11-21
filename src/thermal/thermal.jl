@@ -19,10 +19,15 @@ struct TotalThermalEnergy <: ScalarVariable end
 struct FluidHeatCapacity <: PhaseVariables end
 struct FluidInternalEnergy <: PhaseVariables end
 
-struct ThermalConductivities <: ScalarVariable end
-Jutul.variable_scale(::ThermalConductivities) = 1e-10
-Jutul.minimum_value(::ThermalConductivities) = 0.0
-Jutul.associated_entity(::ThermalConductivities) = Faces()
+struct FluidThermalConductivities <: ScalarVariable end
+Jutul.variable_scale(::FluidThermalConductivities) = 1e-10
+Jutul.minimum_value(::FluidThermalConductivities) = 0.0
+Jutul.associated_entity(::FluidThermalConductivities) = Faces()
+
+struct RockThermalConductivities <: ScalarVariable end
+Jutul.variable_scale(::RockThermalConductivities) = 1e-10
+Jutul.minimum_value(::RockThermalConductivities) = 0.0
+Jutul.associated_entity(::RockThermalConductivities) = Faces()
 
 number_of_phases(t::ThermalSystem) = t.nph
 
@@ -45,7 +50,8 @@ function select_parameters!(S, system::ThermalSystem, model)
 end
 
 function select_parameters!(prm, disc::D, model::ThermalModel) where D<:Union{TwoPointPotentialFlowHardCoded, Jutul.PotentialFlow}
-    prm[:ThermalConductivities] = ThermalConductivities()
+    prm[:FluidThermalConductivities] = FluidThermalConductivities()
+    prm[:RockThermalConductivities] = RockThermalConductivities()
     prm[:Transmissibilities] = Transmissibilities()
     prm[:TwoPointGravityDifference] = TwoPointGravityDifference()
     prm[:BulkVolume] = BulkVolume()
