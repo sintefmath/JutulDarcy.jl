@@ -186,7 +186,7 @@ end
     end
 end
 
-@jutul_secondary function updaet_saturations!(s, sat::Saturations, model::SimulationModel{D, S}, BlackOilUnknown, ImmiscibleSaturation, ix) where {D, S<:BlackOilVariableSwitchingSystem}
+@jutul_secondary function update_saturations!(s, sat::Saturations, model::SimulationModel{D, S}, BlackOilUnknown, ImmiscibleSaturation, ix) where {D, S<:BlackOilVariableSwitchingSystem}
     @assert size(s, 1) == 3
     T = eltype(s)
     @inbounds for i in ix
