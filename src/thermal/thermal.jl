@@ -9,10 +9,12 @@ end
 
 const ThermalModel = SimulationModel{<:Any, <:ThermalSystem, <:Any, <:Any}
 
+struct BulkVolume <: ScalarVariable end
 struct RockHeatCapacity <: ScalarVariable end
-struct RockMass <: ScalarVariable end
+struct RockDensity <: ScalarVariable end
+
 struct RockInternalEnergy <: ScalarVariable end
-struct TotalInternalEnergy <: ScalarVariable end
+struct TotalThermalEnergy <: ScalarVariable end
 
 struct FluidHeatCapacity <: PhaseVariables end
 struct FluidInternalEnergy <: PhaseVariables end
@@ -32,7 +34,7 @@ function select_parameters!(S, system::ThermalSystem, model)
     nph = number_of_phases(system)
     # Rock itself
     S[:RockHeatCapacity] = RockHeatCapacity()
-    S[:RockMass] = RockMass()
+    S[:RockDensity] = RockDensity()
     # Fluid heat related parameters
     S[:FluidHeatCapacity] = FluidHeatCapacity()
     S[:FluidVolume] = FluidVolume()
@@ -46,11 +48,14 @@ function select_parameters!(prm, disc::D, model::ThermalModel) where D<:Union{Tw
     prm[:ThermalConductivities] = ThermalConductivities()
     prm[:Transmissibilities] = Transmissibilities()
     prm[:TwoPointGravityDifference] = TwoPointGravityDifference()
+    prm[:BulkVolume] = BulkVolume()
 end
 
 function select_secondary_variables!(S, system::ThermalSystem, model)
     nph = number_of_phases(system)
     S[:FluidInternalEnergy] = FluidInternalEnergy()
     S[:RockInternalEnergy] = RockInternalEnergy()
-    S[:TotalInternalEnergy] = TotalInternalEnergy()
+    S[:TotalThermalEnergy] = TotalThermalEnergy()
 end
+
+include("variables.jl")
