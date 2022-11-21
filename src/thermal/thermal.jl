@@ -40,6 +40,7 @@ function select_parameters!(S, system::ThermalSystem, model)
     # Rock itself
     S[:RockHeatCapacity] = RockHeatCapacity()
     S[:RockDensity] = RockDensity()
+    S[:BulkVolume] = BulkVolume()
     # Fluid heat related parameters
     S[:FluidHeatCapacity] = FluidHeatCapacity()
     S[:FluidVolume] = FluidVolume()
@@ -54,7 +55,6 @@ function select_parameters!(prm, disc::D, model::ThermalModel) where D<:Union{Tw
     prm[:RockThermalConductivities] = RockThermalConductivities()
     prm[:Transmissibilities] = Transmissibilities()
     prm[:TwoPointGravityDifference] = TwoPointGravityDifference()
-    prm[:BulkVolume] = BulkVolume()
 end
 
 function select_secondary_variables!(S, system::ThermalSystem, model)
