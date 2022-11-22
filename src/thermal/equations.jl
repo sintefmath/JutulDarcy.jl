@@ -18,7 +18,7 @@ function thermal_heat_flux!(face, state, model, grad, upw)
     λ_r = state.RockThermalConductivities[face]
     λ_f = state.FluidThermalConductivities[face]
 
-    conductive_flux = (λ_r + λ_f)*gradient(T, grad)
+    conductive_flux = -(λ_r + λ_f)*gradient(T, grad)
     convective_flux = zero(conductive_flux)
 
     flow_common = kgrad_common(face, state, model, grad)
