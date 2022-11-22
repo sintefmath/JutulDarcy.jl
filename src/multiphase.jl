@@ -176,16 +176,16 @@ function Jutul.default_values(model, ::TwoPointGravityDifference)
 end
 
 # Selection of variables
-function select_primary_variables!(S, ::SinglePhaseSystem, model)
+function select_primary_variables!(S, ::SinglePhaseSystem, model::SimulationModel)
     S[:Pressure] = Pressure()
 end
 
-function select_primary_variables!(S, ::ImmiscibleSystem, model)
+function select_primary_variables!(S, ::ImmiscibleSystem, model::SimulationModel)
     S[:Pressure] = Pressure()
     S[:Saturations] = Saturations()
 end
 
-function select_equations!(eqs, sys::MultiPhaseSystem, model)
+function select_equations!(eqs, sys::MultiPhaseSystem, model::SimulationModel)
     fdisc = model.domain.discretizations.mass_flow
     nc = number_of_components(sys)
     eqs[:mass_conservation] = ConservationLaw(fdisc, :TotalMasses, nc)
