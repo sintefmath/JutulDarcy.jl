@@ -7,6 +7,15 @@
     end
 end
 
+@jutul_secondary function update_fluid_enthalpy!(H, fe::FluidEnthalpy, model::ThermalModel, FluidInternalEnergy, Pressure, PhaseMassDensities, ix)
+    for i in ix
+        p = Pressure[i]
+        for ph in axes(H, 1)
+            H[ph, i] = FluidInternalEnergy[ph, i] + p/PhaseMassDensities[ph, i]
+        end
+    end
+end
+
 @jutul_secondary function update_rock_internal_energy!(U_r, e::RockInternalEnergy, model::ThermalModel, RockHeatCapacity, Temperature, ix)
     for i in ix
         U_r[i] = RockHeatCapacity[i]*Temperature[i]

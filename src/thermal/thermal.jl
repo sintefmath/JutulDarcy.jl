@@ -18,6 +18,7 @@ struct TotalThermalEnergy <: ScalarVariable end
 
 struct FluidHeatCapacity <: PhaseVariables end
 struct FluidInternalEnergy <: PhaseVariables end
+struct FluidEnthalpy <: PhaseVariables end
 
 struct FluidThermalConductivities <: ScalarVariable end
 Jutul.variable_scale(::FluidThermalConductivities) = 1e-10
@@ -60,6 +61,7 @@ end
 function select_secondary_variables!(S, system::ThermalSystem, model)
     nph = number_of_phases(system)
     S[:FluidInternalEnergy] = FluidInternalEnergy()
+    S[:FluidEnthalpy] = FluidEnthalpy()
     S[:RockInternalEnergy] = RockInternalEnergy()
     S[:TotalThermalEnergy] = TotalThermalEnergy()
 end

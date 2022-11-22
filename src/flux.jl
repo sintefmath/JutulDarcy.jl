@@ -52,10 +52,11 @@ end
     return q
 end
 
-@inline function pressure_gradient(state, tpfa::TPFA)
-    P = state.Pressure
-    return @inbounds P[tpfa.left] - P[tpfa.right]
+@inline function gradient(X, tpfa::TPFA)
+    return X[tpfa.left] - X[tpfa.right]
 end
+
+pressure_gradient(state, disc) = gradient(state.Pressure, disc)
 
 @inline function upwind(upw::SPU, F, q)
     flag = q >= 0
