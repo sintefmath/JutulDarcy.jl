@@ -61,7 +61,7 @@ function select_primary_variables!(S, system::PredictionMode, model)
     nothing
 end
 
-function select_equations!(eqs, domain::WellGroup, model)
+function select_equations!(eqs, domain::WellGroup, model::SimulationModel)
     eqs[:control_equation] = ControlEquationWell()
 end
 
