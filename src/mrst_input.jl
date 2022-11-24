@@ -738,8 +738,6 @@ function setup_case_from_mrst(casename; simple_well = false,
     models = OrderedDict()
     initializer = Dict()
     forces = Dict()
-    cross_terms = []
-
     res_context, = Jutul.select_contexts(backend, block_backend = block_backend, minbatch = minbatch, nthreads = nthreads)
     model, param_res = model_from_mat(G, mrst_data, res_context)
     init = init_from_mat(mrst_data, model, param_res)

@@ -54,6 +54,10 @@ function initialize_variable_value(model, pvar::FlashResults, val::AbstractDict;
     initialize_variable_value(model, pvar, V)
 end
 
+function Jutul.initialize_variable_value!(state, model, pvar::FlashResults, symb, val::AbstractDict; kwarg...)
+    state[symb] = initialize_variable_value(model, pvar, val; kwarg...)
+end
+
 function initialize_variable_ad!(state, model, pvar::FlashResults, symb, npartials, diag_pos; context = DefaultContext(), kwarg...)
     n = number_of_entities(model, pvar)
     v_ad = get_ad_entity_scalar(1.0, npartials, diag_pos; kwarg...)
@@ -62,7 +66,6 @@ function initialize_variable_ad!(state, model, pvar::FlashResults, symb, npartia
 
     r = FlashedMixture2Phase(eos, ∂T)
     T = typeof(r)
-    # T = MultiComponentFlash.flashed_mixture_array_type(eos, ∂T)
     V = Vector{T}(undef, n)
     for i in 1:n
         V[i] = FlashedMixture2Phase(eos, ∂T)
@@ -78,7 +81,7 @@ end
     S, buf = thread_buffers(storage, buffers)
     update_flash_buffer!(buf, eos, Pressure, Temperature, OverallMoleFractions)
     @inbounds for i in ix
-        internal_flash!(flash_results, S, m, eos, buf, Pressure, Temperature, OverallMoleFractions, i)
+        flash_results[i] = internal_flash!(flash_results[i], S, m, eos, buf, Pressure, Temperature, OverallMoleFractions, i)
     end
 end
 
@@ -102,10 +105,8 @@ function update_flash_buffer!(buf, eos, Pressure, Temperature, OverallMoleFracti
     end
 end
 
-function internal_flash!(flash_results, S, m, eos, buf, Pressure, Temperature, OverallMoleFractions, i)
-    # Ready to work
+function internal_flash!(f, S, m, eos, buf, Pressure, Temperature, OverallMoleFractions, i)
     @inbounds begin
-        f = flash_results[i]
         P = Pressure[i]
         T = Temperature[i]
         Z = @view OverallMoleFractions[:, i]
@@ -114,7 +115,7 @@ function internal_flash!(flash_results, S, m, eos, buf, Pressure, Temperature, O
         x = f.liquid.mole_fractions
         y = f.vapor.mole_fractions
 
-        flash_results[i] = update_flash_result(S, m, buf, eos, K, x, y, buf.z, buf.forces, P, T, Z)
+        return update_flash_result(S, m, buf, eos, K, x, y, buf.z, buf.forces, P, T, Z)
     end
 end
 
