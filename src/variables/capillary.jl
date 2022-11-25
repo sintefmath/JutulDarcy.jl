@@ -9,7 +9,7 @@ struct SimpleCapillaryPressure{T, R} <: VectorVariables
         end
         pc = map(x -> region_wrap(x, regions), pc)
         pc = tuple(pc...)
-        return new{typeof(pc), T}(pc)
+        return new{typeof(pc), T}(pc, regions)
     end
 end
 
