@@ -117,9 +117,8 @@ function s_removed(s, d)
 end
 
 function blackoil_unknown_init(F_rs, F_rv::Nothing, sw, so, sg, rs, rv, p)
-    rs_sat = F_rs(p)
     if sg > 0
-        @assert rs ≈ rs_sat "rs = $rs is different from rs_sat = $rs_sat: sg = $sg so = $so"
+        rs = F_rs(p)
         x = s_removed(sg, sw)
         state = OilAndGas
     else
@@ -130,9 +129,8 @@ function blackoil_unknown_init(F_rs, F_rv::Nothing, sw, so, sg, rs, rv, p)
 end
 
 function blackoil_unknown_init(F_rs::Nothing, F_rv, sw, so, sg, rs, rv, p)
-    rv_sat = F_rv(p)
     if so > 0
-        @assert rv ≈ rv_sat "rv = $rv is different from rv_sat = $rv_sat: sg = $sg so = $so"
+        rv = F_rv(p)
         x = s_removed(sg, sw)
         state = OilAndGas
     else
@@ -143,11 +141,9 @@ function blackoil_unknown_init(F_rs::Nothing, F_rv, sw, so, sg, rs, rv, p)
 end
 
 function blackoil_unknown_init(F_rs, F_rv, sw, so, sg, rs, rv, p)
-    rs_sat = F_rs(p)
-    rv_sat = F_rv(p)
     if sg > 0 && so > 0
-        @assert rv ≈ rv_sat "rv = $rv is different from rv_sat = $rv_sat: sg = $sg so = $so"
-        @assert rs ≈ rs_sat "rs = $rs is different from rs_sat = $rs_sat: sg = $sg so = $so"
+        rs = F_rs(p)
+        rv = F_rv(p)
         x = s_removed(sg, sw)
         state = OilAndGas
     elseif so > 0

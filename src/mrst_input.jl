@@ -186,116 +186,8 @@ end
 function model_from_mat(G, mrst_data, res_context)
     ## Set up reservoir part
     @debug "Loading model from MRST:" keys(mrst_data)
-    if haskey(mrst_data, "deck")
-        @debug "Found deck model"
-        f = model_from_mat_deck
-    elseif haskey(mrst_data, "mixture")
-        @debug "Found compositional model"
-        f = model_from_mat_comp
-    elseif haskey(mrst_data, "fluid")
-        @debug "Found immiscible model"
-        f = model_from_mat_fluid_immiscible
-    else
-        error("I don't know how this model was made: $(keys(mrst_data))")
-    end
-    return f(G, mrst_data, res_context)
-end
-
-function model_from_mat_comp(G, mrst_data, res_context)
-    ## Set up reservoir part
-    f = mrst_data["fluid"]
-    nkr = vec(f["nkr"])
-    rhoS = vec(f["rhoS"])
-    nph = length(rhoS)
-    has_water = nph == 3
-    @assert nph == 2 || nph == 3
-
-    mixture = mrst_data["mixture"]
-    comps = mixture["components"]
-    names = copy(vec(mixture["names"]))
-    n = length(comps)
-
-    components = map(x -> MolecularProperty(x["mw"], x["pc"], x["Tc"], x["Vc"], x["acf"]), comps)
-    if haskey(mrst_data, "eos")
-        eosm = mrst_data["eos"]
-        
-        nm = eosm["name"]
-        if nm == "pr"
-            eos_t = PengRobinson()
-        elseif nm == "prcorr"
-            eos_t = PengRobinsonCorrected()
-        elseif nm == "srk"
-            eos_t = SoaveRedlichKwong()
-        elseif nm == "rk"
-            eos_t = RedlichKwong()
-        elseif nm == "zj"
-            eos_t = ZudkevitchJoffe()
-        else
-            error("$nm not supported")
-        end
-        if isempty(eosm["bic"])
-            bic = nothing
-        else
-            bic = copy(eosm["bic"])
-        end
-        if isempty(eosm["volume_shift"])
-            vs = nothing
-        else
-            vs = copy(eosm["volume_shift"])
-            vs = tuple(vs...)
-        end
-        @debug "Found EoS spec in input." eos_t bic vs
-    else
-        eos_t = PengRobinson()
-        vs = nothing
-        bic = nothing
-        @debug "Defaulting EoS." eos_t
-    end
-    mixture = MultiComponentMixture(components, names = names, A_ij = bic)
-    eos = GenericCubicEOS(mixture, eos_t, volume_shift = vs)
-
-    if nph == 2
-        phases = (LiquidPhase(), VaporPhase())
-    else
-        phases = (AqueousPhase(), LiquidPhase(), VaporPhase())
-    end
-    sys = MultiPhaseCompositionalSystemLV(eos, phases, reference_densities = rhoS)
-    model = SimulationModel(G, sys, context = res_context)
-
-    if haskey(f, "sgof")
-        sgof = f["sgof"]
-    else
-        sgof = []
-    end
-
-    if nph == 2
-        if isempty(sgof)
-            kr = BrooksCoreyRelPerm(nph, nkr)
-        else
-            s, krt = preprocess_relperm_table(sgof)
-            kr = TabulatedRelPermSimple(s, krt)
-        end
-    else
-        if haskey(f, "swof")
-            swof = f["swof"]
-        else
-            swof = []
-        end
-        @assert isempty(swof) && isempty(sgof) "SWOF + SGOF is not implemented yet"
-        kr = BrooksCoreyRelPerm(nph, nkr)
-    end
-    # p = model.primary_variables
-    # p[:Pressure] = Pressure(max_rel = 0.2)
-    s = model.secondary_variables
-    s[:RelativePermeabilities] = kr
-    T = copy(vec(mrst_data["state0"]["T"]))
-    if length(unique(T)) == 1
-        T = T[1]
-    end
-    ## Model parameters
-    param = setup_parameters(model, Temperature = T)
-
-    return (model, param)
+    @assert haskey(mrst_data, "deck") "Model must contain deck field"
+    return model_from_mat_deck(G, mrst_data, res_context)
 end
 
 function deck_pvt_water(props)
@@ -728,9 +620,12 @@ end
 function setup_case_from_mrst(casename; simple_well = false,
                                         backend = :csc,
                                         block_backend = true,
+                                        split_wells = false,
                                         facility_grouping = :onegroup,
                                         minbatch = 1000,
+                                        steps = :full,
                                         nthreads = Threads.nthreads(),
+                                        legacy_output = false,
                                         kwarg...)
     G, mrst_data = get_minimal_tpfa_grid_from_mrst(casename, extraout = true; kwarg...)
 
@@ -756,7 +651,6 @@ function setup_case_from_mrst(casename; simple_well = false,
         dt = schedule["step"]["val"]
         first_ctrl = schedule["control"][1]
         first_well_set = vec(first_ctrl["W"])
-        
     else
         dt = mrst_data["dt"]
         first_well_set = vec(mrst_data["W"])
@@ -951,7 +845,27 @@ function setup_case_from_mrst(casename; simple_well = false,
             end
         end
     end
-    return (models, parameters, initializer, timesteps, forces, mrst_data)
+    if steps != :full
+        if steps isa Int64
+            steps = [steps]
+        end
+        steps::Union{Vector{Int64}, UnitRange}
+        dt = dt[steps]
+        if forces isa AbstractVector
+            forces = forces[steps]
+        end
+    end
+    if legacy_output
+        return (models, parameters, initializer, timesteps, forces, mrst_data)
+    else
+        model = reservoir_multimodel(models, split_wells = split_wells)
+        setup_reservoir_cross_terms!(model)
+        state0 = setup_state(model, initializer)
+        parameters = setup_parameters(model, parameters)
+
+        case = JutulCase(model, timesteps, forces, state0 = state0, parameters = parameters)
+        return (case, mrst_data)
+    end
 end
 
 function facility_subset(well_symbols, controls)
@@ -1077,22 +991,18 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
     else
         fg = :onegroup
     end
-    models, parameters, initializer, dt, forces, mrst_data = setup_case_from_mrst(fn, block_backend = block_backend, 
-                                                                                      backend = backend,
-                                                                                      nthreads = nthreads,
-                                                                                      facility_grouping = fg,
-                                                                                      general_ad = general_ad,
-                                                                                      minbatch = minbatch);
-    if steps != :full
-        if steps isa Int64
-            steps = [steps]
-        end
-        steps::Union{Vector{Int64}, UnitRange}
-        dt = dt[steps]
-        if forces isa AbstractVector
-            forces = forces[steps]
-        end
-    end
+    case, mrst_data = setup_case_from_mrst(fn, block_backend = block_backend, steps = steps,
+                                                                            backend = backend,
+                                                                            nthreads = nthreads,
+                                                                            split_wells = split_wells,
+                                                                            facility_grouping = fg,
+                                                                            general_ad = general_ad,
+                                                                            minbatch = minbatch);
+    model = case.model
+    forces = case.forces
+    dt = case.dt
+    parameters = case.parameters
+    models = model.models
     out = models[:Reservoir].output_variables
     for k in extra_outputs
         push!(out, k)
@@ -1109,7 +1019,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
     else
         output_path = nothing
     end
-    sim, cfg = setup_reservoir_simulator(models, initializer, parameters, linear_solver = linear_solver,
+    sim, cfg = setup_reservoir_simulator(case, linear_solver = linear_solver,
                                         output_path = output_path, split_wells = split_wells; kwarg...)
     if verbose
         M = first(values(models))
@@ -1148,7 +1058,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
         end
     end
 
-    setup = (sim = sim, parameters = parameters, mrst = mrst_data, forces = forces, dt = dt, config = cfg, state0 = initializer)
+    setup = (case = case, sim = sim, config = cfg, mrst = mrst_data)
     return (states, reports, output_path, setup)
 end
 

@@ -64,22 +64,9 @@ export setup_reservoir_simulator
 Additional keyword arguments are passed onto [`simulator_config`](@ref).
 """
 function setup_reservoir_simulator(models, initializer, parameters = nothing;
-                            precond = :cpr,
-                            linear_solver = :bicgstab,
-                            max_dt = Inf,
-                            rtol = 1e-3,
-                            initial_dt = 3600.0*24.0,
-                            target_its = 8,
-                            offset_its = 1,
-                            tol_cnv = 1e-3,
-                            tol_mb = 1e-7,
-                            cpr_update_interval_partial = :iteration,
-                            cpr_update_interval = :once,
-                            specialize = false,
-                            split_wells = false,
-                            set_linear_solver = true,
-                            timesteps = :iteration,
-                            kwarg...)
+                                                        specialize = false,
+                                                        split_wells = false,
+                                                        kwarg...)
     if isa(models, SimulationModel)
         DT = Dict{Symbol, Any}
         models = DT(:Reservoir => models)
@@ -96,10 +83,31 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing;
     end
     # Set up simulator itself, containing the initial state
     state0 = setup_state(mmodel, initializer)
-    sim = Simulator(mmodel, state0 = state0, parameters = deepcopy(parameters))
+
+    case = JutulCase(mmodel, state0 = state0, parameters = parameters)
+    setup_reservoir_simulator(case; kwarg...)
+end
+
+function setup_reservoir_simulator(case::JutulCase;
+                            precond = :cpr,
+                            linear_solver = :bicgstab,
+                            max_dt = Inf,
+                            rtol = 1e-3,
+                            initial_dt = 3600.0*24.0,
+                            target_its = 8,
+                            offset_its = 1,
+                            tol_cnv = 1e-3,
+                            tol_mb = 1e-7,
+                            cpr_update_interval_partial = :iteration,
+                            cpr_update_interval = :once,
+                            set_linear_solver = true,
+                            timesteps = :iteration,
+                            kwarg...)
+
+    sim = Simulator(case)
 
     # Config: Linear solver, timestep selection defaults, etc...
-    lsolve = reservoir_linsolve(mmodel, precond, rtol = rtol, solver = linear_solver,
+    lsolve = reservoir_linsolve(case.model, precond, rtol = rtol, solver = linear_solver,
                                         update_interval_partial = cpr_update_interval_partial,
                                         update_interval = cpr_update_interval
                                         )
@@ -117,7 +125,7 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing;
     else
         cfg = simulator_config(sim, timestep_selectors = [t_base, t_its]; kwarg...)
     end
-    set_default_cnv_mb!(cfg, mmodel, tol_cnv = tol_cnv, tol_mb = tol_mb)
+    set_default_cnv_mb!(cfg, case.model, tol_cnv = tol_cnv, tol_mb = tol_mb)
     return (sim, cfg)
 end
 
