@@ -19,7 +19,6 @@ function Jutul.line_plot_data(model::SimulationModel, cap::SimpleCapillaryPressu
     labels = []
     for i in eachindex(cap.pc)
         pc = cap.pc[i]
-        @info "" pc length(pc)
         for pc in cap.pc[i]
             (; X, F) = pc
             push!(x, X[2:end-1])
