@@ -20,7 +20,17 @@ Jutul.default_value(model, ::BlackOilPhaseState) = OilAndGas
 Jutul.initialize_secondary_variable_ad!(state, model, var::BlackOilPhaseState, arg...; kwarg...) = state
 
 struct Rs <: ScalarVariable end
+function Jutul.line_plot_data(model::SimulationModel, ::Rs)
+    (; X, F) = model.system.rs_max
+    return JutulLinePlotData(X[2:end]./1e5, F[2:end], title = "Saturated gas-in-oil ratio", xlabel = "Pressure [bar]", ylabel = "Rs")
+end
+
 struct Rv <: ScalarVariable end
+
+function Jutul.line_plot_data(model::SimulationModel, ::Rv)
+    (; X, F) = model.system.rv_max
+    return JutulLinePlotData(X[2:end]./1e5, F[2:end], title = "Saturated oil-in-gas ratio", xlabel = "Pressure [bar]", ylabel = "Rv")
+end
 
 Base.@kwdef struct BlackOilUnknown{R} <: ScalarVariable
     dr_max::R = Inf

@@ -106,7 +106,7 @@ function ThreePhaseRelPerm(; w, g, ow, og, swcon = 0.0, regions = nothing)
     return ThreePhaseRelPerm(F(w), F(ow), F(og), F(g), swcon, regions)
 end
 
-function Jutul.JutulLinePlotData(k::ThreePhaseRelPerm)
+function Jutul.line_plot_data(model::SimulationModel, k::ThreePhaseRelPerm)
     s = collect(0:0.01:1)
     has_reg = !isnothing(k.regions)
     if has_reg
@@ -128,13 +128,8 @@ function Jutul.JutulLinePlotData(k::ThreePhaseRelPerm)
         push!(labels, make_label("OW", ix))
         ix += 1
     end
-    wo = Jutul.JutulLinePlotData(x, y, labels = labels, title = "Water-Oil", xlabel = "Water saturation", ylabel = "Kr")
 
-    x = []
-    y = []
-    labels = []
     ix = 1
-
     for (krg, krog) in zip(k.krg, k.krog)
         push!(x, s)
         push!(y, krg.(s))
@@ -144,9 +139,7 @@ function Jutul.JutulLinePlotData(k::ThreePhaseRelPerm)
         push!(labels, make_label("OG", ix))
         ix += 1
     end
-    og = Jutul.JutulLinePlotData(x, y, labels = labels, title = "Oil-Gas", xlabel = "Gas saturation", ylabel = "Kr")
-
-    return [wo, og]
+    return Jutul.JutulLinePlotData(x, y, labels = labels, title = "Relative permeability", xlabel = "Saturation", ylabel = "Kr")
 end
 
 function Jutul.subvariable(k::ThreePhaseRelPerm, map::FiniteVolumeGlobalMap)
