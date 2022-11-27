@@ -106,6 +106,49 @@ function ThreePhaseRelPerm(; w, g, ow, og, swcon = 0.0, regions = nothing)
     return ThreePhaseRelPerm(F(w), F(ow), F(og), F(g), swcon, regions)
 end
 
+function Jutul.JutulLinePlotData(k::ThreePhaseRelPerm)
+    s = collect(0:0.01:1)
+    has_reg = !isnothing(k.regions)
+    if has_reg
+        make_label = (s, i) -> "$s region $i"
+    else
+        make_label = (s, i) -> "$s"
+    end
+    x = []
+    y = []
+    labels = []
+    ix = 1
+
+    for (krw, krow) in zip(k.krw, k.krow)
+        push!(x, s)
+        push!(y, krw.(s))
+        push!(labels, make_label("W", ix))
+        push!(x, 1 .- s)
+        push!(y, krow.(s))
+        push!(labels, make_label("OW", ix))
+        ix += 1
+    end
+    wo = Jutul.JutulLinePlotData(x, y, labels = labels, title = "Water-Oil", xlabel = "Water saturation", ylabel = "Kr")
+
+    x = []
+    y = []
+    labels = []
+    ix = 1
+
+    for (krg, krog) in zip(k.krg, k.krog)
+        push!(x, s)
+        push!(y, krg.(s))
+        push!(labels, make_label("G", ix))
+        push!(x, s)
+        push!(y, krog.(1 .- s))
+        push!(labels, make_label("OG", ix))
+        ix += 1
+    end
+    og = Jutul.JutulLinePlotData(x, y, labels = labels, title = "Oil-Gas", xlabel = "Gas saturation", ylabel = "Kr")
+
+    return [wo, og]
+end
+
 function Jutul.subvariable(k::ThreePhaseRelPerm, map::FiniteVolumeGlobalMap)
     c = map.cells
     regions = Jutul.partition_variable_slice(k.regions, c)
