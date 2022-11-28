@@ -14,19 +14,26 @@ struct SimpleCapillaryPressure{T, R} <: VectorVariables
 end
 
 function Jutul.line_plot_data(model::SimulationModel, cap::SimpleCapillaryPressure)
-    x = []
-    y = []
-    labels = []
-    for i in eachindex(cap.pc)
-        pc = cap.pc[i]
-        for pc in cap.pc[i]
-            (; X, F) = pc
+    npc = number_of_phases(model.system)-1
+    phases = phase_names(model.system)
+    nreg = length(cap.pc[1])
+    data = Matrix{Any}(undef, 1, nreg)
+    for reg in 1:nreg
+        x = []
+        y = []
+        labels = []
+        for i in 1:npc
+            pc = cap.pc[i]
+            (; X, F) = pc[reg]
             push!(x, X[2:end-1])
             push!(y, F[2:end-1]./1e5)
-            push!(labels, "Region $i")
+            prev = phases[i]
+            next = phases[i+1]
+            push!(labels, "$prev-$next")
         end
+        data[reg] = JutulLinePlotData(x, y, title = "Capillary pressure", xlabel = "Saturation", ylabel = "Pc [bar]", labels = labels)
     end
-    return JutulLinePlotData(x, y, title = "Capillary pressure", xlabel = "Saturation", ylabel = "Pc [bar]", labels = labels)
+    return data
 end
 
 function Jutul.subvariable(p::SimpleCapillaryPressure, map::FiniteVolumeGlobalMap)

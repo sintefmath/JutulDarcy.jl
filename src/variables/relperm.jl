@@ -110,36 +110,41 @@ function Jutul.line_plot_data(model::SimulationModel, k::ThreePhaseRelPerm)
     s = collect(0:0.01:1)
     has_reg = !isnothing(k.regions)
     if has_reg
-        make_label = (s, i) -> "$s region $i"
+        nreg = length(k.krw)
     else
-        make_label = (s, i) -> "$s"
+        nreg = 1
     end
-    x = []
-    y = []
-    labels = []
+    data = Matrix{Any}(undef, 2, nreg)
     ix = 1
-
     for (krw, krow) in zip(k.krw, k.krow)
+        x = []
+        y = []
+        labels = []
         push!(x, s)
         push!(y, krw.(s))
-        push!(labels, make_label("W", ix))
+        push!(labels, "W")
         push!(x, 1 .- s)
         push!(y, krow.(s))
-        push!(labels, make_label("OW", ix))
+        push!(labels, "OW")
+        data[1, ix] = Jutul.JutulLinePlotData(x, y, labels = labels, title = "Relative permeability", xlabel = "Water saturation", ylabel = "Water-Oil Kr")
         ix += 1
     end
 
     ix = 1
     for (krg, krog) in zip(k.krg, k.krog)
+        x = []
+        y = []
+        labels = []
         push!(x, s)
         push!(y, krg.(s))
-        push!(labels, make_label("G", ix))
+        push!(labels, "G")
         push!(x, s)
         push!(y, krog.(1 .- s))
-        push!(labels, make_label("OG", ix))
+        push!(labels, "OG")
+        data[2, ix] = Jutul.JutulLinePlotData(x, y, labels = labels, title = "Relative permeability", xlabel = "Gas saturation", ylabel = "Gas-Oil Kr")
         ix += 1
     end
-    return Jutul.JutulLinePlotData(x, y, labels = labels, title = "Relative permeability", xlabel = "Saturation", ylabel = "Kr")
+    return data
 end
 
 function Jutul.subvariable(k::ThreePhaseRelPerm, map::FiniteVolumeGlobalMap)
