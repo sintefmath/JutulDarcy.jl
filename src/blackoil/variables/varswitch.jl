@@ -1,6 +1,6 @@
 import Jutul: replace_value
 
-function update_primary_variable!(state, pvar::BlackOilUnknown, state_symbol, model, Dx)
+function update_primary_variable!(state, pvar::BlackOilUnknown, state_symbol, model, Dx, w)
     v = state[state_symbol]
     sys = model.system
     rs_tab = sys.rs_max
@@ -11,24 +11,24 @@ function update_primary_variable!(state, pvar::BlackOilUnknown, state_symbol, mo
     sat_chop = sys.saturated_chop
     pressure = state.Pressure
     active = active_entities(model.domain, associated_entity(pvar), for_variables = true)
-    update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, keep_bub, sat_chop, pressure, active)
+    update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, keep_bub, sat_chop, pressure, active, w)
 end
 
 
-function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, keep_bub, sat_chop, pressure, active)
+function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, keep_bub, sat_chop, pressure, active, w)
     @inbounds for (i, dx) in zip(active, Dx)
-        varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab, rv_tab, keep_bub, sat_chop, pressure)
+        varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab, rv_tab, keep_bub, sat_chop, pressure, w)
     end
 end
 
-Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab, rv_tab, keep_bubble, sat_chop, pressure)
+Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab, rv_tab, keep_bubble, sat_chop, pressure, w)
     ϵ = 1e-8
     X = v[i]
     old_x = X.val
     old_state = X.phases_present
     was_near_bubble = sat_chop || X.sat_close
     if old_state == OilAndGas
-        next_x = old_x + Jutul.choose_increment(value(old_x), dx, ds_max)
+        next_x = old_x + w*Jutul.choose_increment(value(old_x), dx, ds_max)
         if next_x <= 0
             maybe_state = OilOnly
             tab = rs_tab
