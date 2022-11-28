@@ -1019,8 +1019,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
     else
         output_path = nothing
     end
-    sim, cfg = setup_reservoir_simulator(case, linear_solver = linear_solver,
-                                        output_path = output_path, split_wells = split_wells; kwarg...)
+    sim, cfg = setup_reservoir_simulator(case, linear_solver = linear_solver, output_path = output_path; kwarg...)
     if verbose
         M = first(values(models))
         sys = M.system
