@@ -850,7 +850,7 @@ function setup_case_from_mrst(casename; simple_well = false,
             steps = [steps]
         end
         steps::Union{Vector{Int64}, UnitRange}
-        dt = dt[steps]
+        timesteps = timesteps[steps]
         if forces isa AbstractVector
             forces = forces[steps]
         end
