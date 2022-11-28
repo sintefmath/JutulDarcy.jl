@@ -251,10 +251,7 @@ struct PVTW{N, T} <: AbstractTablePVT
 end
 
 function PVTW(pvtw::AbstractArray)
-    if eltype(pvtw)<:AbstractFloat
-        pvtw = [pvtw]
-    end
-    c = map(x -> ConstMuBTable(vec(x)), pvtw)
+    c = map(i -> ConstMuBTable(vec(pvtw[i, :])), axes(pvtw, 1))
     ct = Tuple(c)
     N = length(ct)
     T = typeof(ct[1])
