@@ -975,6 +975,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                 split_wells = false,
                                 write_mrst = false,
                                 write_output = true,
+                                ds_max = 0.2,
                                 verbose = true,
                                 do_sim = true,
                                 steps = :full,
@@ -999,6 +1000,9 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                                                             general_ad = general_ad,
                                                                             minbatch = minbatch);
     model = case.model
+    # Replace saturations - if available
+    replace_variables!(model, Saturations = Saturations(ds_max = ds_max), throw = false)
+    replace_variables!(model, ImmiscibleSaturation = ImmiscibleSaturation(ds_max = ds_max), throw = false)
     forces = case.forces
     dt = case.dt
     parameters = case.parameters
