@@ -129,15 +129,20 @@ function setup_reservoir_simulator(case::JutulCase;
     return (sim, cfg)
 end
 
-function set_default_cnv_mb!(cfg, model; tol_cnv = 1e-3, tol_mb = 1e-7)
-    rmodel = reservoir_model(model)
-    sys = rmodel.system
+function set_default_cnv_mb!(cfg, model; kwarg...)
+    set_default_cnv_mb_inner!(cfg[:tolerances], model; kwarg...)
+end
+
+function set_default_cnv_mb_inner!(tol, model; tol_cnv = 1e-3, tol_mb = 1e-7)
+    sys = model.system
     if sys isa ImmiscibleSystem || sys isa BlackOilSystem
-        tol = cfg[:tolerances]
-        if haskey(tol, :Reservoir)
-            tol = tol[:Reservoir]
-        end
         tol[:mass_conservation] = (CNV = tol_cnv, MB = tol_mb)
+    end
+end
+
+function set_default_cnv_mb!(cfg, model::MultiModel; kwarg...)
+    for (k, m) in pairs(model.models)
+        set_default_cnv_mb_inner!(cfg[:tolerances][k], m; kwarg...)
     end
 end
 
