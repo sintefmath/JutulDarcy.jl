@@ -98,6 +98,8 @@ function setup_reservoir_simulator(case::JutulCase;
                             offset_its = 1,
                             tol_cnv = 1e-3,
                             tol_mb = 1e-7,
+                            tol_cnv_well = 1e-2,
+                            tol_mb_well = 1e-3,
                             cpr_update_interval_partial = :iteration,
                             cpr_update_interval = :once,
                             set_linear_solver = true,
@@ -121,11 +123,11 @@ function setup_reservoir_simulator(case::JutulCase;
         sel = [t_base]
     end
     if set_linear_solver
-        cfg = simulator_config(sim, timestep_selectors = [t_base, t_its], linear_solver = lsolve; kwarg...)
+        cfg = simulator_config(sim, timestep_selectors = sel, linear_solver = lsolve; kwarg...)
     else
-        cfg = simulator_config(sim, timestep_selectors = [t_base, t_its]; kwarg...)
+        cfg = simulator_config(sim, timestep_selectors = sel; kwarg...)
     end
-    set_default_cnv_mb!(cfg, case.model, tol_cnv = tol_cnv, tol_mb = tol_mb)
+    set_default_cnv_mb!(cfg, case.model, tol_cnv = tol_cnv, tol_mb = tol_mb, tol_cnv_well = tol_cnv_well, tol_mb_well = tol_mb_well)
     return (sim, cfg)
 end
 
@@ -133,10 +135,17 @@ function set_default_cnv_mb!(cfg, model; kwarg...)
     set_default_cnv_mb_inner!(cfg[:tolerances], model; kwarg...)
 end
 
-function set_default_cnv_mb_inner!(tol, model; tol_cnv = 1e-3, tol_mb = 1e-7)
+function set_default_cnv_mb_inner!(tol, model; tol_cnv = 1e-3, tol_mb = 1e-7, tol_mb_well = 1e-3, tol_cnv_well = 1e-2)
     sys = model.system
     if sys isa ImmiscibleSystem || sys isa BlackOilSystem
-        tol[:mass_conservation] = (CNV = tol_cnv, MB = tol_mb)
+        if model.domain isa WellDomain
+            c = tol_cnv_well
+            m = tol_mb_well
+        else
+            c = tol_cnv
+            m = tol_mb
+        end
+        tol[:mass_conservation] = (CNV = c, MB = m)
     end
 end
 
