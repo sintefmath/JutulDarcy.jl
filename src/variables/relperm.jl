@@ -38,6 +38,30 @@ function Jutul.subvariable(k::RelativePermeabilities, map::FiniteVolumeGlobalMap
     return RelativePermeabilities(k.relperms, regions = regions)
 end
 
+function Jutul.line_plot_data(model::SimulationModel, k::RelativePermeabilities)
+    has_reg = !isnothing(k.regions)
+    s = collect(0:0.01:1)
+    if has_reg
+        nreg = length(k.relperms[1])
+    else
+        nreg = 1
+    end
+    data = Matrix{Any}(undef, 1, nreg)
+    names = phase_names(model.system)
+    for r in 1:nreg
+        x = []
+        y = []
+        labels = []
+        for (i, ph) in enumerate(names)
+            push!(x, s)
+            push!(y, k.relperms[i][r].(s))
+            push!(labels, ph)
+        end
+        data[1, r] = Jutul.JutulLinePlotData(x, y, labels = labels, title = "Relative permeability", xlabel = "Saturation", ylabel = "Kr")
+    end
+    return data
+end
+
 struct BrooksCoreyRelPerm{V, T} <: AbstractRelativePermeabilities
     exponents::V
     residuals::V
