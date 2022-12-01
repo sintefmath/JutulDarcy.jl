@@ -626,6 +626,7 @@ function setup_case_from_mrst(casename; simple_well = false,
                                         steps = :full,
                                         nthreads = Threads.nthreads(),
                                         legacy_output = false,
+                                        ds_max = 0.2,
                                         kwarg...)
     G, mrst_data = get_minimal_tpfa_grid_from_mrst(casename, extraout = true; kwarg...)
 
@@ -860,6 +861,10 @@ function setup_case_from_mrst(casename; simple_well = false,
     else
         model = reservoir_multimodel(models, split_wells = split_wells)
         setup_reservoir_cross_terms!(model)
+        # Replace saturations - if available
+        replace_variables!(model, Saturations = Saturations(ds_max = ds_max), throw = false)
+        replace_variables!(model, ImmiscibleSaturation = ImmiscibleSaturation(ds_max = ds_max), throw = false)
+
         state0 = setup_state(model, initializer)
         parameters = setup_parameters(model, parameters)
 
@@ -998,11 +1003,9 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                                                             split_wells = split_wells,
                                                                             facility_grouping = fg,
                                                                             general_ad = general_ad,
-                                                                            minbatch = minbatch);
+                                                                            minbatch = minbatch,
+                                                                            ds_max = ds_max);
     model = case.model
-    # Replace saturations - if available
-    replace_variables!(model, Saturations = Saturations(ds_max = ds_max), throw = false)
-    replace_variables!(model, ImmiscibleSaturation = ImmiscibleSaturation(ds_max = ds_max), throw = false)
     forces = case.forces
     dt = case.dt
     parameters = case.parameters
