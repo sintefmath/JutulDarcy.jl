@@ -52,6 +52,13 @@ end
     end
 end
 
+function Jutul.line_plot_data(model::SimulationModel, k::LinearlyCompressiblePoreVolume)
+    p = collect(range(1e5, 1000e5, 1000))
+    v = ones(size(p))
+    y = similar(v)
+    update_pore_volume!(y, k, model, p, v, eachindex(y))
+    Jutul.JutulLinePlotData(p./1e5, y, labels = "Φ", title = "Rock pore volume expansion", xlabel = "Pressure [bar]", ylabel = "Pore-volume multiplier")
+end
 
 function Jutul.line_plot_data(model::SimulationModel, k::DeckPhaseVariables)
     deck_pvt_type(::DeckShrinkageFactors) = :shrinkage
