@@ -470,7 +470,6 @@ function model_from_mat_deck(G, mrst_data, res_context)
         if is_immiscible
             sys = ImmiscibleSystem(phases, reference_densities = rhoS)
             dp_max_rel = Inf
-            min_p = -Inf
         else
             oil_pvt = pvt[2]
             if oil_pvt isa PVTO
@@ -486,13 +485,11 @@ function model_from_mat_deck(G, mrst_data, res_context)
             end
             sys = StandardBlackOilSystem(rs_max = rs_max, rv_max = rv_max, phases = phases, reference_densities = rhoS)
             dp_max_rel = 0.2
-            min_p = 101325.0
         end
-
         model = SimulationModel(G, sys, context = res_context, plot_mesh = plot_mesh)
         # Tweak primary variables
         pvar = model.primary_variables
-        pvar[:Pressure] = Pressure(max_rel = dp_max_rel, minimum = min_p)
+        pvar[:Pressure] = Pressure(max_rel = dp_max_rel, minimum = 101325.0)
         # Modify secondary variables
         svar = model.secondary_variables
         # PVT
