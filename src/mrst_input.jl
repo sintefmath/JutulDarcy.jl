@@ -228,9 +228,9 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
         SWCON = zeros(0)
         if haskey(props, "SWOF") && haskey(props, "SGOF")
             for (swof, sgof) in zip(props["SWOF"], props["SGOF"])
-                krw, krow = table_to_relperm(swof)
+                krw, krow = table_to_relperm(swof, first_label = :o, second_label = :ow)
                 swcon = krw.connate
-                krg, krog = table_to_relperm(sgof, swcon = swcon)
+                krg, krog = table_to_relperm(sgof, swcon = swcon, first_label = :g, second_label = :og)
 
                 push!(KRW, krw)
                 push!(KRG, krg)
@@ -244,22 +244,18 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
             @assert haskey(props, "SGFN")
             for (sof3, swfn, sgfn) in zip(props["SOF3"], props["SWFN"], props["SGFN"])
                 # Water
-                sw, krw_t = add_missing_endpoints(swfn[:, 1], swfn[:, 2])
-                krw = get_1d_interpolator(sw, krw_t, cap_endpoints = false)
-                swcon = sw[1]
+                krw = PhaseRelPerm(swfn[:, 1], swfn[:, 2], label = :w)
+                swcon = krw.connate
 
                 # Oil pairs
                 so = sof3[:, 1]
                 krow_t = sof3[:, 2]
                 krog_t = sof3[:, 3]
-                _, krow_t = add_missing_endpoints(so, krow_t)
-                so, krog_t = add_missing_endpoints(so, krog_t)
-                krow = get_1d_interpolator(so, krow_t, cap_endpoints = false)
-                krog = get_1d_interpolator(so, krog_t, cap_endpoints = false)
+                krow = PhaseRelPerm(so, krow_t, label = :ow)
+                krog = PhaseRelPerm(so, krog_t, label = :og)
 
                 # Gas
-                sg, krg_t = add_missing_endpoints(sgfn[:, 1], sgfn[:, 2])
-                krg = get_1d_interpolator(sg, krg_t, cap_endpoints = false)
+                krg = PhaseRelPerm(sgfn[:, 1], sgfn[:, 2], label = :g)
 
                 push!(KRW, krw)
                 push!(KRG, krg)

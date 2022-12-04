@@ -132,7 +132,7 @@ end
 
 export PhaseRelPerm
 
-function PhaseRelPerm(s, k; label = :wo, connate = s[1], epsilon = 1e-16)
+function PhaseRelPerm(s, k; label = :w, connate = s[1], epsilon = 1e-16)
     for i in eachindex(s)
         if i == 1
             if s[1] == 0.0
