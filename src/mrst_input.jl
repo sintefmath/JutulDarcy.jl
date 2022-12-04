@@ -268,24 +268,30 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
     else
         if water && oil
             sat_table = props["SWOF"]
+            first_label = :w
+            second_label = :ow
         else
-            @assert gas && oil
             sat_table = props["SGOF"]
+            first_label = :g
+            second_label = :og
         end
         kr_1 = []
         kr_2 = []
         @assert length(sat_table) == 1 || !isnothing(satnum) "Saturation region must be provided for multiple saturation tables"
         for kr_from_deck in sat_table
-            s, krt = preprocess_relperm_table(kr_from_deck)
-
-            I_1 = get_1d_interpolator(s[1], krt[1])
-            I_2 = get_1d_interpolator(s[2], krt[2])
+            I_1, I_2 = table_to_relperm(kr_from_deck, first_label = first_label, second_label = second_label)
 
             push!(kr_1, I_1)
             push!(kr_2, I_2)
         end
-        kr = (tuple(kr_1...), tuple(kr_2)...)
-        return RelativePermeabilities(kr, regions = satnum)
+        kr_1 = tuple(kr_1...)
+        kr_2 = tuple(kr_2...)
+        if water && oil
+            return ReservoirRelPerm(w = kr_1, ow = kr_2, regions = satnum)
+        else
+            return ReservoirRelPerm(g = kr_1, og = kr_2, regions = satnum)
+        end
+
     end
 end
 

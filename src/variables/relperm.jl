@@ -127,7 +127,7 @@ struct ReservoirRelPerm{Scaling, O, OW, OG, G, R} <: AbstractRelativePermeabilit
     phases::Symbol
 end
 
-function ReservoirRelPerm(; w, g, ow, og, scaling = NoKrScale, regions = nothing)
+function ReservoirRelPerm(; w = nothing, g = nothing, ow = nothing, og = nothing, scaling = NoKrScale, regions = nothing)
     has_w = !isnothing(w)
     has_g = !isnothing(g)
     has_og = !isnothing(og)
@@ -241,27 +241,59 @@ end
 
 @jutul_secondary function update_kr!(kr, relperm::ReservoirRelPerm{NoKrScale}, model, Saturations, ix)
     s = Saturations
-
-    l, o, g = phase_indices(model.system)
-    @inbounds for c in ix
-        reg = region(relperm.regions, c)
-        # Water
-        krw = table_by_region(relperm.krw, reg)
-        sw = s[l, c]
-        kr[l, c] = krw(sw)
-        # Gas
-        krg = table_by_region(relperm.krg, reg)
-        sg = s[g, c]
-        kr[g, c] = krg(sg)
-        # Oil is special
-        krog = table_by_region(relperm.krog, reg)
-        krow = table_by_region(relperm.krow, reg)
-        so = s[o, c]
-        swc = min(krw.connate, value(sw) - 1e-5)
-        d  = (sg + sw - swc)
-        ww = (sw - swc)/d
-        kro = (1-ww)*krog(so) + ww*krow(so)
-        kr[o, c] = kro
+    phases = relperm.phases
+    regions = relperm.regions
+    indices = phase_indices(model.system)
+    if phases == :wog
+        for c in ix
+            @inbounds three_phase_relperm!(kr, s, regions, relperm.krw, relperm.krg, relperm.krog, relperm.krow, indices, c)
+        end
+    elseif phases == :wo
+        for c in ix
+            @inbounds two_phase_relperm!(kr, s, regions, relperm.krw, relperm.krow, indices, c)
+        end
+    elseif phases == :og
+        for c in ix
+            @inbounds two_phase_relperm!(kr, s, regions, relperm.krg, relperm.krog, reverse(indices), c)
+        end
+    elseif phases == :wg
+        for c in ix
+            @inbounds two_phase_relperm!(kr, s, regions, relperm.krw, relperm.krg, indices, c)
+        end
     end
+
     return kr
+end
+
+Base.@propagate_inbounds function three_phase_relperm!(kr, s, regions, Krw, Krg, Krog, Krow, phases, c)
+    l, o, g = phases
+    reg = region(regions, c)
+    # Water
+    krw = table_by_region(Krw, reg)
+    sw = s[l, c]
+    kr[l, c] = krw(sw)
+    # Gas
+    krg = table_by_region(Krg, reg)
+    sg = s[g, c]
+    kr[g, c] = krg(sg)
+    # Oil is special
+    krog = table_by_region(Krog, reg)
+    krow = table_by_region(Krow, reg)
+    so = s[o, c]
+    swc = min(krw.connate, value(sw) - 1e-5)
+    d  = (sg + sw - swc)
+    ww = (sw - swc)/d
+    kro = (1-ww)*krog(so) + ww*krow(so)
+    kr[o, c] = kro
+end
+
+Base.@propagate_inbounds function two_phase_relperm!(kr, s, regions, Kr_1, Kr_2, phases, c)
+    i1, i2 = phases
+    reg = region(regions, c)
+    kr1 = table_by_region(Kr_1, reg)
+    sw = s[i1, c]
+    kr[i1, c] = kr1(sw)
+    kr2 = table_by_region(Kr_2, reg)
+    sg = s[i2, c]
+    kr[i2, c] = kr2(sg)
 end
