@@ -119,3 +119,50 @@ struct SinglePhaseSystem{P, F} <: MultiPhaseSystem where {P, F<:AbstractFloat}
 end
 
 number_of_components(sys::SinglePhaseSystem) = 1
+
+
+struct PhaseRelPerm{T, N}
+    k::T
+    label::Symbol
+    connate::N
+    critical::N
+    s_max::N
+    k_max::N
+end
+
+export PhaseRelPerm
+
+function PhaseRelPerm(s, k; label = :wo, connate = s[1], epsilon = 1e-16)
+    for i in eachindex(s)
+        if i == 1
+            if s[1] == 0.0
+                @assert k[i] == 0.0 "Rel. perm. must be zero for s = 0, was $(k[i])"
+            end
+        else
+            msg = "k = $(k[i]) at entry $i corresponding to saturation $(s[i])"
+            @assert s[i] >= s[i-1] "Saturations must be increasing: $msg"
+            @assert k[i] >= k[i-1] "Rel. Perm. function must be increasing: $msg"
+            if k[i] > 1.0
+                @warn "Rel. Perm. $label has value larger than 1.0: $msg"
+            end
+        end
+    end
+    k_max, ix = findmax(k)
+    s_max = s[ix]
+    crit_ix = findfirst(x -> x > 0, k)
+    crit = s[crit_ix]
+    s, k = JutulDarcy.add_missing_endpoints(s, k)
+    JutulDarcy.ensure_endpoints!(s, k, epsilon)
+    kr = get_1d_interpolator(s, k, cap_endpoints = false)
+    return PhaseRelPerm(kr, label, connate, crit, s_max, k_max)
+end
+
+(kr::PhaseRelPerm)(S) = kr.k(S)
+
+function Base.show(io::IO, t::MIME"text/plain", kr::PhaseRelPerm)
+    println(io, "PhaseRelPerm for $(kr.label):")
+    println(io, "  .k: Internal representation: $(kr.k)")
+    println(io, "  Connate saturation = $(kr.connate)")
+    println(io, "  Critical saturation = $(kr.critical)")
+    println(io, "  Maximum rel. perm = $(kr.k_max) at $(kr.s_max)")
+end

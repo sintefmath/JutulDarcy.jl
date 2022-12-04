@@ -62,6 +62,24 @@ function test_standard_kr()
     @test kr[1, 2] == kr[2, 2] ≈ 0.5
 end
 
+function test_rel_perm_wrapper()
+    s = [0.1, 0.15, 0.2, 0.8, 1.0]
+    kr = [0.0, 0.0, 0.4, 0.9, 0.9]
+    relperm = PhaseRelPerm(s, kr)
+    @testset "Detection of points" begin
+        @test relperm.connate == 0.1
+        @test relperm.k_max == 0.9
+        @test relperm.s_max == 0.8
+        @test relperm.critical == 0.2
+    end
+    kro = @. (1 - s)^2
+    swof = hcat(s, kr, kro)
+    krw, krow = table_to_relperm(swof)
+    @testset "SWOF-like table" begin
+        @test krw.(s) ≈ swof[:, 2]
+        @test krow.(1 .- s) ≈ swof[:, 3]
+    end
+end
 
 @testset "RelativePermeabilities" begin
     @testset "BrooksCorey" begin
@@ -69,5 +87,8 @@ end
     end
     @testset "Standard kr" begin
         test_standard_kr()
+    end
+    @testset "Wrapper" begin
+        test_rel_perm_wrapper()
     end
 end

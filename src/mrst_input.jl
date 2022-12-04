@@ -279,7 +279,7 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
         KRG = Tuple(KRG)
         KROW = Tuple(KROW)
         KROG = Tuple(KROG)
-        return ThreePhaseRelPerm(w = KRW, g = KRG, ow = KROW, og = KROG, swcon = SWCON, regions = satnum)
+        return ReservoirRelPerm(w = KRW, g = KRG, ow = KROW, og = KROG, swcon = SWCON, regions = satnum)
     else
         if water && oil
             sat_table = props["SWOF"]

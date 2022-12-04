@@ -116,7 +116,7 @@ end
 """
 Interpolated multiphase rel. perm. that is simple (single region, no magic for more than two phases)
 """
-struct ThreePhaseRelPerm{O, OW, OG, G, S, R} <: AbstractRelativePermeabilities
+struct ReservoirRelPerm{O, OW, OG, G, S, R} <: AbstractRelativePermeabilities
     krw::O
     krow::OW
     krog::OG
@@ -125,12 +125,12 @@ struct ThreePhaseRelPerm{O, OW, OG, G, S, R} <: AbstractRelativePermeabilities
     regions::R
 end
 
-function ThreePhaseRelPerm(; w, g, ow, og, swcon = 0.0, regions = nothing)
+function ReservoirRelPerm(; w, g, ow, og, swcon = 0.0, regions = nothing)
     F = x -> region_wrap(x, regions)
-    return ThreePhaseRelPerm(F(w), F(ow), F(og), F(g), swcon, regions)
+    return ReservoirRelPerm(F(w), F(ow), F(og), F(g), swcon, regions)
 end
 
-function Jutul.line_plot_data(model::SimulationModel, k::ThreePhaseRelPerm)
+function Jutul.line_plot_data(model::SimulationModel, k::ReservoirRelPerm)
     s = collect(0:0.01:1)
     has_reg = !isnothing(k.regions)
     if has_reg
@@ -171,11 +171,11 @@ function Jutul.line_plot_data(model::SimulationModel, k::ThreePhaseRelPerm)
     return data
 end
 
-function Jutul.subvariable(k::ThreePhaseRelPerm, map::FiniteVolumeGlobalMap)
+function Jutul.subvariable(k::ReservoirRelPerm, map::FiniteVolumeGlobalMap)
     c = map.cells
     regions = Jutul.partition_variable_slice(k.regions, c)
     swcon = Jutul.partition_variable_slice(k.swcon, c)
-    return ThreePhaseRelPerm(k.krw, k.krow, k.krog, k.krg, swcon, regions)
+    return ReservoirRelPerm(k.krw, k.krow, k.krog, k.krg, swcon, regions)
 end
 
 @jutul_secondary function update_kr!(kr, kr_def::BrooksCoreyRelPerm, model, Saturations, ix)
@@ -206,7 +206,7 @@ end
     return kr
 end
 
-@jutul_secondary function update_kr!(kr, relperm::ThreePhaseRelPerm, model, Saturations, ix)
+@jutul_secondary function update_kr!(kr, relperm::ReservoirRelPerm, model, Saturations, ix)
     s = Saturations
     swcon = relperm.swcon
 
