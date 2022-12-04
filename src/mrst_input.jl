@@ -895,7 +895,7 @@ function mrst_well_ctrl(model, wdata, is_comp, rhoS)
         @debug "$name: Shut well (requested)"
         ctrl = DisabledControl()
     else
-        wt = wdata["type"]
+        wt = lowercase(wdata["type"])
         is_rate_ctrl = true
         if wt == "bhp"
             target = BottomHolePressureTarget(t_mrst)
@@ -911,6 +911,8 @@ function mrst_well_ctrl(model, wdata, is_comp, rhoS)
             target = SurfaceGasRateTarget(t_mrst)
         elseif wt == "lrat"
             target = SurfaceLiquidRateTarget(t_mrst)
+        elseif wt == "resv_history"
+            target = HistoricalReservoirVoidageTarget(t_mrst, tuple(compi...))
         else
             error("$wt target is not supported.")
         end

@@ -12,7 +12,7 @@ function Jutul.update_before_step!(storage, domain::WellGroup, model::Simulation
     for key in keys(forces.control)
         # If the requested control in forces differ from the one we are presently using, we need to switch.
         # Otherwise, stay the course.
-        newctrl = forces.control[key]
+        newctrl = realize_control(storage.state, forces.control[key], model, dt)
         oldctrl = req_ctrls[key]
         if newctrl != oldctrl
             # We have a new control. Any previous control change is invalid.

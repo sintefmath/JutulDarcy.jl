@@ -115,6 +115,27 @@ end
 Base.show(io::IO, t::TotalRateTarget) = print(io, "TotalRateTarget with value $(t.value) [m^3/s]")
 
 """
+    HistoricalReservoirVoidageTarget(q, weights)
+
+Historical RESV target for history matching cases.
+"""
+struct HistoricalReservoirVoidageTarget{T, K} <: WellTarget where {T<:AbstractFloat, K<:Tuple}
+    value::T
+    weights::K
+end
+Base.show(io::IO, t::HistoricalReservoirVoidageTarget) = print(io, "HistoricalReservoirVoidageTarget with value $(t.value) [m^3/s]")
+
+"""
+    ReservoirVoidageTarget(q, weights)
+
+RESV targets with weights for each pseudo-component
+"""
+struct ReservoirVoidageTarget{T, K} <: WellTarget where {T<:AbstractFloat, K<:Tuple}
+    value::T
+    weights::K
+end
+
+"""
     DisabledTarget(q)
 
 Disabled target used when a well is under `DisabledControl()` only.
@@ -307,3 +328,27 @@ translate_target_to_symbol(t::SurfaceWaterRateTarget; shortname = false) = short
 translate_target_to_symbol(t::SurfaceLiquidRateTarget; shortname = false) = shortname ? :lrat : Symbol("Surface liquid rate (water + oil)")
 translate_target_to_symbol(t::SurfaceOilRateTarget; shortname = false) = shortname ? :orat : Symbol("Surface oil rate")
 translate_target_to_symbol(t::SurfaceGasRateTarget; shortname = false) = shortname ? :grat : Symbol("Surface gas rate")
+
+function realize_control(state, ctrl, model, dt)
+    return ctrl
+end
+
+function realize_control(state, ctrl::ProducerControl{<:HistoricalReservoirVoidageTarget}, model, dt)
+    rstate = state.Reservoir
+
+    p_avg = 0.0
+    pv_t = 0.0
+    for (p_c, pv_c) in zip(rstate.Pressure, rstate.FluidVolume)
+        p_avg += value(p_c)*value(pv_c)
+        pv_t += value(pv_c)
+    end
+    p_avg /= pv_t
+    @assert has_disgas(model.system)
+    @assert has_vapoil(model.system)
+
+
+
+    error("Uh Oh")
+    return ctrl
+end
+
