@@ -228,15 +228,9 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
         SWCON = zeros(0)
         if haskey(props, "SWOF") && haskey(props, "SGOF")
             for (swof, sgof) in zip(props["SWOF"], props["SGOF"])
-                s_water, kr_water = preprocess_relperm_table(swof)
-                swcon = swof[1, 1]
-                s_gas, kr_gas = preprocess_relperm_table(sgof, swcon = swcon)
-
-                krw = get_1d_interpolator(s_water[1], kr_water[1], cap_endpoints = false)
-                krow = get_1d_interpolator(s_water[2], kr_water[2], cap_endpoints = false)
-
-                krg = get_1d_interpolator(s_gas[1], kr_gas[1], cap_endpoints = false)
-                krog = get_1d_interpolator(s_gas[2], kr_gas[2], cap_endpoints = false)
+                krw, krow = table_to_relperm(swof)
+                swcon = krw.connate
+                krg, krog = table_to_relperm(sgof, swcon = swcon)
 
                 push!(KRW, krw)
                 push!(KRG, krg)
