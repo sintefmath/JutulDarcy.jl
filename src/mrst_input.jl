@@ -343,8 +343,19 @@ function model_from_mat_deck(G, mrst_data, res_context)
     plot_mesh = MRSTWrapMesh(mrst_data["G"])
     deck = mrst_data["deck"]
     rock = mrst_data["rock"]
-    if haskey(rock, "regions") && haskey(rock["regions"], "saturation")
-        satnum = Int64.(vec(rock["regions"]["saturation"]))
+    if haskey(rock, "regions")
+        if haskey(rock["regions"], "saturation")
+            raw_satnum = rock["regions"]["saturation"]
+        elseif haskey(rock["regions"], "imbibition")
+            raw_satnum = rock["regions"]["imbibition"]
+        else
+            raw_satnum = nothing
+        end
+        if isnothing(raw_satnum)
+            satnum = nothing
+        else
+            satnum = Int64.(vec(raw_satnum))
+        end
     else
         satnum = nothing
     end
