@@ -25,6 +25,10 @@ end
     return tab[reg]
 end
 
+function region_wrap(x::Nothing, regions)
+    return x
+end
+
 function region_wrap(x::Tuple, regions::Nothing)
     @assert length(x) == 1
     return x

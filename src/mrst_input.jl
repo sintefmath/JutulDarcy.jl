@@ -225,7 +225,6 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
         KRG = []
         KROW = []
         KROG = []
-        SWCON = zeros(0)
         if haskey(props, "SWOF") && haskey(props, "SGOF")
             for (swof, sgof) in zip(props["SWOF"], props["SGOF"])
                 krw, krow = table_to_relperm(swof, first_label = :o, second_label = :ow)
@@ -236,7 +235,6 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
                 push!(KRG, krg)
                 push!(KROW, krow)
                 push!(KROG, krog)
-                push!(SWCON, swcon)
             end
         else
             @assert haskey(props, "SOF3")
@@ -245,7 +243,6 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
             for (sof3, swfn, sgfn) in zip(props["SOF3"], props["SWFN"], props["SGFN"])
                 # Water
                 krw = PhaseRelPerm(swfn[:, 1], swfn[:, 2], label = :w)
-                swcon = krw.connate
 
                 # Oil pairs
                 so = sof3[:, 1]
@@ -261,15 +258,13 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
                 push!(KRG, krg)
                 push!(KROW, krow)
                 push!(KROG, krog)
-                push!(SWCON, swcon)
             end
         end
-        SWCON = Tuple(SWCON)
         KRW = Tuple(KRW)
         KRG = Tuple(KRG)
         KROW = Tuple(KROW)
         KROG = Tuple(KROG)
-        return ReservoirRelPerm(w = KRW, g = KRG, ow = KROW, og = KROG, swcon = SWCON, regions = satnum)
+        return ReservoirRelPerm(w = KRW, g = KRG, ow = KROW, og = KROG, regions = satnum)
     else
         if water && oil
             sat_table = props["SWOF"]
