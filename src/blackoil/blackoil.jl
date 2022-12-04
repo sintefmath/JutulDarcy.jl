@@ -36,10 +36,9 @@ function select_secondary_variables!(S, system::BlackOilSystem, model)
     end
     S[:PhaseViscosities] = DeckViscosity(pvt)
     if has_disgas(system)
-        @assert has_disgas(system)
         S[:Rs] = Rs()
-    else
-        @assert has_vapoil(system)
+    end
+    if has_vapoil(system)
         S[:Rv] = Rv()
     end
 end
