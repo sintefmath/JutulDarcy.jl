@@ -118,7 +118,7 @@ end
 """
 Interpolated multiphase rel. perm. that is simple (single region, no magic for more than two phases)
 """
-struct ReservoirRelPerm{Scaling, O, OW, OG, G, R} <: AbstractRelativePermeabilities
+struct ReservoirRelativePermeability{Scaling, ph, O, OW, OG, G, R} <: AbstractRelativePermeabilities
     krw::O
     krow::OW
     krog::OG
@@ -127,7 +127,7 @@ struct ReservoirRelPerm{Scaling, O, OW, OG, G, R} <: AbstractRelativePermeabilit
     phases::Symbol
 end
 
-function ReservoirRelPerm(; w = nothing, g = nothing, ow = nothing, og = nothing, scaling = NoKrScale, regions = nothing)
+function ReservoirRelativePermeability(; w = nothing, g = nothing, ow = nothing, og = nothing, scaling = NoKrScale, regions = nothing)
     has_w = !isnothing(w)
     has_g = !isnothing(g)
     has_og = !isnothing(og)
@@ -151,7 +151,7 @@ function ReservoirRelPerm(; w = nothing, g = nothing, ow = nothing, og = nothing
             phases = :og
         end
     else
-        error("ReservoirRelPerm only implements two-phase (WO, OG, WG) or three-phase (WOG)")
+        error("ReservoirRelativePermeability only implements two-phase (WO, OG, WG) or three-phase (WOG)")
     end
 
     F = x -> region_wrap(x, regions)
@@ -160,10 +160,10 @@ function ReservoirRelPerm(; w = nothing, g = nothing, ow = nothing, og = nothing
     krog = F(og)
     krg = F(g)
 
-    return ReservoirRelPerm{scaling, typeof(krw), typeof(krow), typeof(krog), typeof(krg), typeof(regions)}(krw, krow, krog, krg, regions, phases)
+    return ReservoirRelativePermeability{scaling, phases, typeof(krw), typeof(krow), typeof(krog), typeof(krg), typeof(regions)}(krw, krow, krog, krg, regions, phases)
 end
 
-function Jutul.line_plot_data(model::SimulationModel, k::ReservoirRelPerm)
+function Jutul.line_plot_data(model::SimulationModel, k::ReservoirRelativePermeability)
     s = collect(0:0.01:1)
     has_reg = !isnothing(k.regions)
     if has_reg
@@ -204,10 +204,10 @@ function Jutul.line_plot_data(model::SimulationModel, k::ReservoirRelPerm)
     return data
 end
 
-function Jutul.subvariable(k::ReservoirRelPerm, map::FiniteVolumeGlobalMap)
+function Jutul.subvariable(k::ReservoirRelativePermeability, map::FiniteVolumeGlobalMap)
     c = map.cells
     regions = Jutul.partition_variable_slice(k.regions, c)
-    return ReservoirRelPerm(; w = k.krw, ow = k.krow, og = k.krog, g = k.krg, regions = regions)
+    return ReservoirRelativePermeability(; w = k.krw, ow = k.krow, og = k.krog, g = k.krg, regions = regions)
 end
 
 @jutul_secondary function update_kr!(kr, kr_def::BrooksCoreyRelPerm, model, Saturations, ix)
@@ -238,29 +238,43 @@ end
     return kr
 end
 
-@jutul_secondary function update_kr!(kr, relperm::ReservoirRelPerm{NoKrScale}, model, Saturations, ix)
+@jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeability{NoKrScale, :wog}, model, Saturations, ix)
     s = Saturations
-    phases = relperm.phases
     regions = relperm.regions
     indices = phase_indices(model.system)
-    if phases == :wog
-        for c in ix
-            @inbounds three_phase_relperm!(kr, s, regions, relperm.krw, relperm.krg, relperm.krog, relperm.krow, indices, c)
-        end
-    elseif phases == :wo
-        for c in ix
-            @inbounds two_phase_relperm!(kr, s, regions, relperm.krw, relperm.krow, indices, c)
-        end
-    elseif phases == :og
-        for c in ix
-            @inbounds two_phase_relperm!(kr, s, regions, relperm.krg, relperm.krog, reverse(indices), c)
-        end
-    elseif phases == :wg
-        for c in ix
-            @inbounds two_phase_relperm!(kr, s, regions, relperm.krw, relperm.krg, indices, c)
-        end
+    for c in ix
+        @inbounds three_phase_relperm!(kr, s, regions, relperm.krw, relperm.krg, relperm.krog, relperm.krow, indices, c)
     end
+    return kr
+end
 
+@jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeability{NoKrScale, :wo}, model, Saturations, ix)
+    s = Saturations
+    regions = relperm.regions
+    indices = phase_indices(model.system)
+    for c in ix
+        @inbounds two_phase_relperm!(kr, s, regions, relperm.krw, relperm.krow, indices, c)
+    end
+    return kr
+end
+
+@jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeability{NoKrScale, :og}, model, Saturations, ix)
+    s = Saturations
+    regions = relperm.regions
+    indices = phase_indices(model.system)
+    for c in ix
+        @inbounds two_phase_relperm!(kr, s, regions, relperm.krg, relperm.krog, reverse(indices), c)
+    end
+    return kr
+end
+
+@jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeability{NoKrScale, :wg}, model, Saturations, ix)
+    s = Saturations
+    regions = relperm.regions
+    indices = phase_indices(model.system)
+    for c in ix
+        @inbounds two_phase_relperm!(kr, s, regions, relperm.krw, relperm.krg, indices, c)
+    end
     return kr
 end
 

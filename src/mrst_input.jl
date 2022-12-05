@@ -264,7 +264,7 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
         KRG = Tuple(KRG)
         KROW = Tuple(KROW)
         KROG = Tuple(KROG)
-        return ReservoirRelPerm(w = KRW, g = KRG, ow = KROW, og = KROG, regions = satnum)
+        return ReservoirRelativePermeability(w = KRW, g = KRG, ow = KROW, og = KROG, regions = satnum)
     else
         if water && oil
             sat_table = props["SWOF"]
@@ -287,9 +287,9 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
         kr_1 = tuple(kr_1...)
         kr_2 = tuple(kr_2...)
         if water && oil
-            return ReservoirRelPerm(w = kr_1, ow = kr_2, regions = satnum)
+            return ReservoirRelativePermeability(w = kr_1, ow = kr_2, regions = satnum)
         else
-            return ReservoirRelPerm(g = kr_1, og = kr_2, regions = satnum)
+            return ReservoirRelativePermeability(g = kr_1, og = kr_2, regions = satnum)
         end
 
     end
