@@ -351,3 +351,77 @@ Base.@propagate_inbounds function two_phase_relperm!(kr, s, regions, Kr_1, Kr_2,
     sg = s[i2, c]
     kr[i2, c] = kr2(sg)
 end
+
+@jutul_secondary function update_kr_with_scaling!(kr, relperm::ReservoirRelativePermeability{<:Any, :wog}, model, Saturations, RelPermScalingW, RelPermScalingOW, RelPermScalingOG, RelPermScalingG, ix)
+    error()
+    s = Saturations
+    regions = relperm.regions
+    indices = phase_indices(model.system)
+    for c in ix
+
+
+
+
+        @inbounds three_phase_relperm!(kr, s, regions, relperm.krw, relperm.krg, relperm.krog, relperm.krow, indices, c)
+    end
+    return kr
+end
+
+function get_kr_scalers(kr::PhaseRelPerm)
+    return (relperm.connate, relperm.critical, relperm.s_max, relperm.k_max)
+end
+function get_kr_scalers(scaller::AbstractMatrix, c)
+    L = scaler[1, c]
+    CR = scaler[2, c]
+    U = scaler[3, c]
+    KM = scaler[4, c]
+    return (L, CR, U, KM)
+end
+
+function three_point_three_phase_scaling(relperm, sw, so, sg, scaler_w, scaler_ow, scaler_og, scaler_g, c)
+    L_w, CR_w, U_w, KM_w = get_kr_scalers(scaler_w, c)
+    L_ow, CR_ow, U_ow, KM_ow = get_kr_scalers(scaler_ow, c)
+    L_og, CR_og, U_og, KM_og = get_kr_scalers(scaler_og, c)
+    L_g, CR_g, U_g, KM_g = get_kr_scalers(scaler_g, c)
+
+    (; krw, krow, krog, krg) = relperm
+    l_w, cr_w, u_w, km_w = get_kr_scalers(krw)
+    l_ow, cr_ow, u_ow, km_ow = get_kr_scalers(krow)
+    l_og, cr_og, u_og, km_og = get_kr_scalers(krog)
+    l_g, cr_g, u_g, km_g = get_kr_scalers(krg)
+
+    R_w = 1.0 - CR_ow - L_g
+    R_g = 1.0 - CR_og - L_w
+    R_ow = R_og = 1.0 - L_w - L_g
+
+    r_w = 1.0 - cr_ow - l_g
+    r_g = 1.0 - cr_og - l_w
+    r_ow = r_og = 1.0 - l_w - l_g
+
+    Sw = three_point_scaling(sw, cr_w, CR_w, u_w, U_w, km_w, KM_w, r_w, R_w)
+    Sow = three_point_scaling(sow, cr_ow, CR_ow, u_ow, U_ow, km_ow, KM_ow, r_ow, R_ow)
+    Sog = three_point_scaling(sog, cr_og, CR_og, u_og, U_og, km_og, KM_og, r_og, R_og)
+    Sg = three_point_scaling(sg, cr_g, CR_g, u_g, U_g, km_g, KM_g, r_g, R_g)
+
+    # ix1 = sv >= p{1} & sv < p{2};
+    # ix2 = sv >= p{2} & sv < p{3};
+    # ix3 = sv >= p{3};
+    # a = ix1.*m{1} + ix2.*m{2};
+    # s_scale = a.*s + ix1.*c{1} + ix2.*c{2} + ix3;
+    #
+    # p{1} = SCR;
+    # p{2} = SR;
+    # p{3} = SU;
+
+    # m{1} = (sr-scr)./(SR-SCR);
+    # m{2} = (su-sr)./(SU-SR);
+
+    # c{1} = scr - SCR.*m{1};
+    # c{2} = sr - SR.*m{2};
+
+    return S
+end
+
+function three_point_scaling(s, cr, CR, u, U, km, KM, r, R)
+
+end
