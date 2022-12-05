@@ -358,7 +358,7 @@ function model_from_mat_deck(G, mrst_data, res_context)
         if haskey(rock["regions"], "saturation")
             raw_satnum = rock["regions"]["saturation"]
         elseif haskey(rock["regions"], "imbibition")
-            raw_satnum = rock["regions"]["imbibition"]
+            raw_satnum = ones(Int64, number_of_cells(G))
         else
             raw_satnum = nothing
         end
@@ -517,13 +517,32 @@ function model_from_mat_deck(G, mrst_data, res_context)
         param = setup_parameters(model)
     end
 
+    r = mrst_data["rock"]
+    if haskey(r, "krscale")
+        d = r["krscale"]["drainage"]
+        for (k, v) in d
+            name = Symbol("RelPermScaling$(uppercase(k))")
+            @assert size(v, 2) == 4
+            if haskey(param, name)
+                vals = param[name]
+                for c in axes(vals, 2)
+                    for i = axes(vals, 1)
+                        mrst_val = v[c, i]
+                        if isfinite(mrst_val)
+                            vals[i, c] = mrst_val
+                        end
+                    end
+                end
+            end
+        end
+    end
     return (model, param)
 end
 
 function set_deck_specialization!(model, props, satnum, oil, water, gas)
     svar = model.secondary_variables
     param = model.parameters
-    set_deck_relperm!(svar, props; oil = oil, water = water, gas = gas, satnum = satnum)
+    set_deck_relperm!(svar, param, props; oil = oil, water = water, gas = gas, satnum = satnum)
     set_deck_pc!(svar, props; oil = oil, water = water, gas = gas, satnum = satnum)
     set_deck_pvmult!(svar, param, props)
 end
@@ -535,8 +554,17 @@ function set_deck_pc!(vars, props; kwarg...)
     end
 end
 
-function set_deck_relperm!(vars, props; kwarg...)
-    vars[:RelativePermeabilities] = deck_relperm(props; kwarg...)
+function set_deck_relperm!(vars, param, props; kwarg...)
+    kr = deck_relperm(props; kwarg...)
+    vars[:RelativePermeabilities] = kr
+    if scaling_type(kr) != NoKrScale
+        ph = kr.phases
+        @assert ph == :wog
+        param[:RelPermScalingW] = RelPermScalingCoefficients(:w)
+        param[:RelPermScalingOW] = RelPermScalingCoefficients(:ow)
+        param[:RelPermScalingOG] = RelPermScalingCoefficients(:og)
+        param[:RelPermScalingG] = RelPermScalingCoefficients(:g)
+    end
 end
 
 function set_deck_pvmult!(vars, param, props)

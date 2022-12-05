@@ -127,6 +127,31 @@ struct ReservoirRelativePermeability{Scaling, ph, O, OW, OG, G, R} <: AbstractRe
     phases::Symbol
 end
 
+struct RelPermScalingCoefficients{phases} <: VectorVariables
+end
+
+function RelPermScalingCoefficients(phases::Symbol)
+    return RelPermScalingCoefficients{phases}()
+end
+
+Jutul.degrees_of_freedom_per_entity(model, ::RelPermScalingCoefficients) = 4
+
+function Jutul.default_values(model, scalers::RelPermScalingCoefficients{P}) where P<:Symbol
+    nc = number_of_cells(model.domain)
+    relperm = model.primary_variables[:RelativePermeabilities]
+    kr = relperm[P]
+    kscale = zeros(nc, 4)
+    for i in 1:nc
+        reg = region(relperm, i)
+        (; connate, critical, s_max, k_max) = kr[reg]
+        kscale[i, 1] = connate
+        kscale[i, 2] = critical
+        kscale[i, 3] = s_max
+        kscale[i, 4] = k_max
+    end
+    return kscale
+end
+
 function ReservoirRelativePermeability(; w = nothing, g = nothing, ow = nothing, og = nothing, scaling = NoKrScale, regions = nothing)
     has_w = !isnothing(w)
     has_g = !isnothing(g)
@@ -162,6 +187,22 @@ function ReservoirRelativePermeability(; w = nothing, g = nothing, ow = nothing,
 
     return ReservoirRelativePermeability{scaling, phases, typeof(krw), typeof(krow), typeof(krog), typeof(krg), typeof(regions)}(krw, krow, krog, krg, regions, phases)
 end
+
+function Base.getindex(m::ReservoirRelativePermeability, s::Symbol)
+    if s == :w
+        return m.krw
+    elseif s == :g
+        return m.krg
+    elseif s == :ow
+        return m.krow
+    elseif s == :og
+        return m.krog
+    else
+        error("No rel. perm. corresponding to symbol $s")
+    end
+end
+
+scaling_type(::ReservoirRelativePermeability{T}) where T = T
 
 function Jutul.line_plot_data(model::SimulationModel, k::ReservoirRelativePermeability)
     s = collect(0:0.01:1)
