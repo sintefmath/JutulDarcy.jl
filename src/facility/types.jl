@@ -155,6 +155,7 @@ Create reasonable default limits for well control `ctrl`, for example to avoid B
 default_limits(ctrl) = as_limit(ctrl.target)
 as_limit(target) = NamedTuple([Pair(translate_target_to_symbol(target, shortname = true), target.value)])
 as_limit(T::DisabledTarget) = nothing
+as_limit(T::HistoricalReservoirVoidageTarget) = nothing
 
 """
     DisabledControl()
@@ -323,13 +324,15 @@ end
 import Base.copy
 Base.copy(m::PerforationMask) = PerforationMask(copy(m.values))
 
-translate_target_to_symbol(t; shortname = false) = Symbol(t)
+translate_target_to_symbol(t::T; shortname = false) where T = Symbol(T)
 translate_target_to_symbol(t::BottomHolePressureTarget; shortname = false) = shortname ? :bhp : Symbol("Bottom hole pressure")
 translate_target_to_symbol(t::TotalRateTarget; shortname = false) = shortname ? :rate : Symbol("Surface total rate")
 translate_target_to_symbol(t::SurfaceWaterRateTarget; shortname = false) = shortname ? :wrat : Symbol("Surface water rate")
 translate_target_to_symbol(t::SurfaceLiquidRateTarget; shortname = false) = shortname ? :lrat : Symbol("Surface liquid rate (water + oil)")
 translate_target_to_symbol(t::SurfaceOilRateTarget; shortname = false) = shortname ? :orat : Symbol("Surface oil rate")
 translate_target_to_symbol(t::SurfaceGasRateTarget; shortname = false) = shortname ? :grat : Symbol("Surface gas rate")
+translate_target_to_symbol(t::ReservoirVoidageTarget; shortname = false) = shortname ? :resv : Symbol("Reservoir voidage rate")
+translate_target_to_symbol(t::HistoricalReservoirVoidageTarget; shortname = false) = shortname ? :resv_history : Symbol("Historical reservoir voidage rate")
 
 function realize_control_for_reservoir(state, ctrl, model, dt)
     return ctrl
@@ -405,8 +408,7 @@ function realize_control_for_reservoir(rstate, ctrl::ProducerControl{<:Historica
 
     new_weights = (new_water_weight, new_oil_weight, new_gas_weight)
     new_rate = new_water_rate + new_oil_rate + new_gas_rate
-    @info "" ctrl rs rs_avg rv rv_avg p_avg wo wg bW bO bG new_rate new_weights old_rate pv_t wg/wo wo/wg sum(rstate.FluidVolume) sum(rstate.StaticFluidVolume) sum(rstate.Rs)
-
-    return replace_target(ctrl, ReservoirVoidageTarget(new_rate, new_weights))
+    new_control = replace_target(ctrl, ReservoirVoidageTarget(new_rate, new_weights))
+    return new_control
 end
 

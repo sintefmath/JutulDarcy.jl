@@ -248,6 +248,18 @@ function well_target(control::ProducerControl, target::SurfaceVolumeTarget, well
     return w
 end
 
+"""
+Well target contribution from well itself (RESV, producer)
+"""
+function well_target(control::ProducerControl, target::ReservoirVoidageTarget, well_model, well_state, surface_densities, surface_volume_fractions)
+    Tw = eltype(surface_volume_fractions)
+    w = zero(Tw)
+    for (i, S) in enumerate(surface_volume_fractions)
+        w += S*target.weights[i]
+    end
+    return w
+end
+
 function well_target_value(q_t, control, target, source_model, well_state, rhoS, S)
     v = well_target(control, target, source_model, well_state, rhoS, S)
     if rate_weighted(target)
