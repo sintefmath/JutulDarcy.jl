@@ -220,6 +220,17 @@ function deck_pvt_gas(props)
 end
 
 function deck_relperm(props; oil, water, gas, satnum = nothing)
+    if haskey(props, "SCALECRS")
+        if length(props["SCALECRS"]) == 0 || lowercase(only(props["SCALECRS"])) == "no"
+            @info "Found three-point rel. perm. scaling"
+            scaling = ThreePointKrScale
+        else
+            @info "Found two-point rel. perm. scaling"
+            scaling = TwoPointKrScale
+        end
+    else
+        scaling = NoKrScale
+    end
     if water && oil && gas
         KRW = []
         KRG = []
@@ -264,7 +275,7 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
         KRG = Tuple(KRG)
         KROW = Tuple(KROW)
         KROG = Tuple(KROG)
-        return ReservoirRelativePermeability(w = KRW, g = KRG, ow = KROW, og = KROG, regions = satnum)
+        krarg = (w = KRW, g = KRG, ow = KROW, og = KROG)
     else
         if water && oil
             sat_table = props["SWOF"]
@@ -287,12 +298,12 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
         kr_1 = tuple(kr_1...)
         kr_2 = tuple(kr_2...)
         if water && oil
-            return ReservoirRelativePermeability(w = kr_1, ow = kr_2, regions = satnum)
+            krarg = (w = kr_1, ow = kr_2)
         else
-            return ReservoirRelativePermeability(g = kr_1, og = kr_2, regions = satnum)
+            krarg = (g = kr_1, og = kr_2)
         end
-
     end
+    return ReservoirRelativePermeability(; krarg..., regions = satnum, scaling = scaling)
 end
 
 function deck_pc(props; oil, water, gas, satnum = nothing)
