@@ -207,8 +207,7 @@ end
 function Jutul.subvariable(k::ReservoirRelPerm, map::FiniteVolumeGlobalMap)
     c = map.cells
     regions = Jutul.partition_variable_slice(k.regions, c)
-    swcon = Jutul.partition_variable_slice(k.swcon, c)
-    return ReservoirRelPerm(k.krw, k.krow, k.krog, k.krg, swcon, regions)
+    return ReservoirRelPerm(; w = k.krw, ow = k.krow, og = k.krog, g = k.krg, regions = regions)
 end
 
 @jutul_secondary function update_kr!(kr, kr_def::BrooksCoreyRelPerm, model, Saturations, ix)
