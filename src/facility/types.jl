@@ -10,6 +10,8 @@ struct WellGroup <: WellControllerDomain
     well_symbols::Vector{Symbol}
 end
 
+const WellGroupModel = SimulationModel{WellGroup, <:Any, <:Any, <:Any}
+
 struct Wells <: JutulEntity end
 struct TotalSurfaceMassRate <: ScalarVariable end
 abstract type WellTarget end
@@ -329,26 +331,82 @@ translate_target_to_symbol(t::SurfaceLiquidRateTarget; shortname = false) = shor
 translate_target_to_symbol(t::SurfaceOilRateTarget; shortname = false) = shortname ? :orat : Symbol("Surface oil rate")
 translate_target_to_symbol(t::SurfaceGasRateTarget; shortname = false) = shortname ? :grat : Symbol("Surface gas rate")
 
-function realize_control(state, ctrl, model, dt)
+function realize_control_for_reservoir(state, ctrl, model, dt)
     return ctrl
 end
 
-function realize_control(state, ctrl::ProducerControl{<:HistoricalReservoirVoidageTarget}, model, dt)
-    rstate = state.Reservoir
-
-    p_avg = 0.0
+function realize_control_for_reservoir(rstate, ctrl::ProducerControl{<:HistoricalReservoirVoidageTarget}, model, dt)
+    sys = model.system
+    w = ctrl.target.weights
     pv_t = 0.0
-    for (p_c, pv_c) in zip(rstate.Pressure, rstate.FluidVolume)
-        p_avg += value(p_c)*value(pv_c)
-        pv_t += value(pv_c)
+    p_avg = 0.0
+    rs_avg = 0.0
+    rv_avg = 0.0
+    disgas = has_disgas(sys)
+    vapoil = has_vapoil(sys)
+    for c in eachindex(rstate.Pressure)
+        p = value(rstate.Pressure[c])
+        vol = value(rstate.FluidVolume[c])
+        sw = value(rstate.ImmiscibleSaturation[c])
+        vol_hc = vol*(1.0 - sw)
+        p_avg += p*vol_hc
+        pv_t += vol_hc
+        if disgas
+            rs_avg += value(rstate.Rs[c])*vol_hc
+        end
+        if vapoil
+            rv_avg += value(rstate.Rv[c])*vol_hc
+        end
     end
     p_avg /= pv_t
-    @assert has_disgas(model.system)
-    @assert has_vapoil(model.system)
+    rs_avg /= pv_t
+    rv_avg /= pv_t
+
+    a, l, v = phase_indices(sys)
+    ww = w[a]
+    wo = w[l]
+    wg = w[v]
+    rs = min(wg/wo, rs_avg)
+    rv = min(wo/wg, rv_avg)
+
+    svar = Jutul.get_secondary_variables(model)
+    b_var = svar[:ShrinkageFactors]
+    reg = b_var.regions
+    bW = shrinkage(b_var.pvt[a], reg, p_avg, 1)
+    bO = shrinkage(b_var.pvt[l], reg, p_avg, rs, 1)
+    bG = shrinkage(b_var.pvt[v], reg, p_avg, rv, 1)
+    
+    shrink = 1.0 - rs*rv
+    shrink_avg = 1.0 - rs_avg*rv_avg
+    old_rate = ctrl.target.value
+    # Water
+    new_water_rate = old_rate*ww/bW
+    new_water_weight = 1/bW
+    # Oil
+    qo = old_rate*wo
+    new_oil_rate = qo
+    new_oil_weight = 1/(bO*shrink_avg)
+    # Gas
+    qg = old_rate*wg
+    new_gas_rate = qg
+    new_gas_weight = 1/(bG*shrink_avg)
+    # Miscibility adjustments
+    if vapoil
+        new_oil_rate -= rv*qg
+        new_gas_weight -= rv/(bO*shrink_avg)
+    end
+    if disgas
+        new_gas_rate -= rs*qo
+        new_oil_weight -= rs/(bG*shrink_avg)
+    end
+    new_oil_rate /= (bO*shrink)
+    new_gas_rate /= (bG*shrink)
 
 
+    new_weights = (new_water_weight, new_oil_weight, new_gas_weight)
+    new_rate = new_water_rate + new_oil_rate + new_gas_rate
+    @info "" ctrl rs rs_avg rv rv_avg p_avg wo wg bW bO bG new_rate new_weights old_rate pv_t wg/wo wo/wg sum(rstate.FluidVolume) sum(rstate.StaticFluidVolume) sum(rstate.Rs)
 
-    error("Uh Oh")
-    return ctrl
+    return replace_target(ctrl, ReservoirVoidageTarget(new_rate, new_weights))
 end
 

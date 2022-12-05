@@ -532,6 +532,10 @@ function set_deck_pvmult!(vars, param, props)
     # Rock compressibility (if present)
     if haskey(props, "ROCK")
         rock = props["ROCK"]
+        if size(rock, 1) > 1
+            @warn "Rock has multiple regions, taking the first..." rock
+            rock = rock[1, :]
+        end
         if rock[2] > 0
             static = param[:FluidVolume]
             delete!(param, :FluidVolume)
@@ -912,7 +916,7 @@ function mrst_well_ctrl(model, wdata, is_comp, rhoS)
         elseif wt == "lrat"
             target = SurfaceLiquidRateTarget(t_mrst)
         elseif wt == "resv_history"
-            target = HistoricalReservoirVoidageTarget(t_mrst, tuple(compi...))
+            target = HistoricalReservoirVoidageTarget(t_mrst, tuple(comp_i...))
         else
             error("$wt target is not supported.")
         end

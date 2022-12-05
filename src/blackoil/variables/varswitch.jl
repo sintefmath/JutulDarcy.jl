@@ -203,10 +203,14 @@ end
 
 
 @jutul_secondary function update_rs!(rs, ph::Rs, model::SimulationModel{D, S}, Pressure, BlackOilUnknown, ix)  where {D, S<:BlackOilVariableSwitchingSystem}
+    T = eltype(rs)
     @inbounds for i in ix
         X = BlackOilUnknown[i]
-        if X.phases_present == OilOnly
+        phases = X.phases_present
+        if phases == OilOnly
             r = X.val
+        elseif phases == GasOnly
+            r = zero(T)
         else
             p = @inbounds Pressure[i]
             r = model.system.rs_max(p)
@@ -216,10 +220,14 @@ end
 end
 
 @jutul_secondary function update_rv!(rv, ph::Rv, model::SimulationModel{D, S}, Pressure, BlackOilUnknown, ix)  where {D, S<:BlackOilVariableSwitchingSystem}
+    T = eltype(rv)
     @inbounds for i in ix
         X = BlackOilUnknown[i]
+        phases = X.phases_present
         if X.phases_present == GasOnly
             r = X.val
+        elseif phases == OilOnly
+            r = zero(T)
         else
             p = @inbounds Pressure[i]
             r = model.system.rv_max(p)
