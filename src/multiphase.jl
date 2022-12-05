@@ -305,11 +305,13 @@ end
 
 function cpr_weights_no_partials!(w, model::SimulationModel{R, S}, state, r, n, bz, scaling) where {R, S<:ImmiscibleSystem}
     ρ = state.PhaseMassDensities
-    nph, nc = size(ρ)
+    nc = size(w, 2)
     tb = minbatch(model.context, nc)
-    @batch minbatch = tb for i in 1:nc
-        for ph in 1:nph
-            @inbounds w[ph, i] = 1/value(ρ[ph, i])
+    M = global_map(model.domain)
+    density = Jutul.active_view(ρ, M, for_variables = false)
+    @batch minbatch = tb for i in axes(w, 2)
+        for ph in axes(w, 1)
+            @inbounds w[ph, i] = 1/value(density[ph, i])
         end
     end
 end
