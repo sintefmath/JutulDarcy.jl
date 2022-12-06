@@ -1059,7 +1059,17 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
     dt = case.dt
     parameters = case.parameters
     models = model.models
-    out = models[:Reservoir].output_variables
+    rmodel = models[:Reservoir]
+    if rmodel isa StandardBlackOilModel
+        sys = rmodel.system
+        if has_disgas(sys)
+            push!(extra_outputs, :Rs)
+        end
+        if has_vapoil(sys)
+            push!(extra_outputs, :Rv)
+        end
+    end
+    out = rmodel.output_variables
     for k in extra_outputs
         push!(out, k)
     end
