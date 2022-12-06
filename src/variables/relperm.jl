@@ -136,18 +136,20 @@ end
 
 Jutul.degrees_of_freedom_per_entity(model, ::RelPermScalingCoefficients) = 4
 
-function Jutul.default_values(model, scalers::RelPermScalingCoefficients{P}) where P<:Symbol
+function Jutul.default_values(model, scalers::RelPermScalingCoefficients{P}) where P
     nc = number_of_cells(model.domain)
-    relperm = model.primary_variables[:RelativePermeabilities]
+    relperm = Jutul.get_variable(model, :RelativePermeabilities)
     kr = relperm[P]
-    kscale = zeros(nc, 4)
+    n = degrees_of_freedom_per_entity(model, scalers)
+    kscale = zeros(n, nc)
     for i in 1:nc
-        reg = region(relperm, i)
-        (; connate, critical, s_max, k_max) = kr[reg]
-        kscale[i, 1] = connate
-        kscale[i, 2] = critical
-        kscale[i, 3] = s_max
-        kscale[i, 4] = k_max
+        reg = JutulDarcy.region(relperm.regions, i)
+        kr_i = JutulDarcy.table_by_region(kr, reg)
+        (; connate, critical, s_max, k_max) = kr_i
+        kscale[1, i] = connate
+        kscale[2, i] = critical
+        kscale[3, i] = s_max
+        kscale[4, i] = k_max
     end
     return kscale
 end
