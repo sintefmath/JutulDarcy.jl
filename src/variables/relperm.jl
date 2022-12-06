@@ -283,7 +283,7 @@ end
     s = Saturations
     phases = phase_indices(model.system)
     for c in ix
-        update_three_phase_relperm!(kr, relperm, phases, s, c, nothing)
+        @inbounds update_three_phase_relperm!(kr, relperm, phases, s, c, nothing)
     end
     return kr
 end
@@ -318,7 +318,7 @@ end
     return kr
 end
 
-Base.@propagate_inbounds function three_phase_oil_relperm(Krow, Krog, swcon, sg, sw)
+Base.@propagate_inbounds @inline function three_phase_oil_relperm(Krow, Krog, swcon, sg, sw)
     swc = min(swcon, value(sw) - 1e-5)
     d  = (sg + sw - swc)
     ww = (sw - swc)/d
@@ -342,15 +342,14 @@ end
     phases = phase_indices(model.system)
     scalers = (RelPermScalingW, RelPermScalingOW, RelPermScalingOG, RelPermScalingG)
     for c in ix
-        update_three_phase_relperm!(kr, relperm, phases, s, c, scalers)
+        @inbounds update_three_phase_relperm!(kr, relperm, phases, s, c, scalers)
     end
     return kr
 end
 
-function update_three_phase_relperm!(kr, relperm, phase_ind, s, c, scalers)
+Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relperm, phase_ind, s, c, scalers)
     w, o, g = phase_ind
     reg = region(relperm.regions, c)
-    # Water
     krw = table_by_region(relperm.krw, reg)
     krg = table_by_region(relperm.krg, reg)
     krog = table_by_region(relperm.krog, reg)
@@ -379,14 +378,13 @@ function get_kr_scalers(scaler::AbstractMatrix, c)
     return (L, CR, U, KM)
 end
 
-function three_phase_relperm(relperm, c, sw, so, sg, krw, krow, krog, krg, ::Nothing)
+@inline function three_phase_relperm(relperm, c, sw, so, sg, krw, krow, krog, krg, ::Nothing)
     return (krw(sw), krow(so), krog(so), krg(sg))
 end
 
 function three_phase_relperm(relperm, c, sw, so, sg, krw, krow, krog, krg, scalers)
     scaler_w, scaler_ow, scaler_og, scaler_g = scalers
     return three_point_three_phase_scaling(krw, krow, krog, krg, sw, so, sg, scaler_w, scaler_ow, scaler_og, scaler_g, c)
-    # return (krw(sw), krow(so), krog(so), krg(sg))
 end
 
 
@@ -430,7 +428,8 @@ function three_saturation_scaling(s::T, cr, CR, u, U, r, R) where T<:Real
         S = s*(r-cr)/(R-CR)
     elseif s >= R && s < U
         S = s*(u-r)
-    elseif s > U
+    else
         S = one(T)
     end
+    return S
 end
