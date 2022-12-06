@@ -282,9 +282,26 @@ end
 @jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeability{NoKrScale, :wog}, model, Saturations, ix)
     s = Saturations
     regions = relperm.regions
-    indices = phase_indices(model.system)
+    w, o, g = phase_indices(model.system)
     for c in ix
-        @inbounds three_phase_relperm!(kr, s, regions, relperm.krw, relperm.krg, relperm.krog, relperm.krow, indices, c)
+        reg = region(regions, c)
+        # Water
+        krw = table_by_region(relperm.krw, reg)
+        krg = table_by_region(relperm.krg, reg)
+        krog = table_by_region(relperm.krog, reg)
+        krow = table_by_region(relperm.krow, reg)
+
+        sw = s[w, c]
+        so = s[o, c]
+        sg = s[g, c]
+
+        Kro = three_phase_oil_relperm(krog(so), krow(so), krw.connate, sg, sw)
+        Krw = krw(sw)
+        Krg = krg(sg)
+
+        kr[w, c] = Krw
+        kr[o, c] = Kro
+        kr[g, c] = Krg
     end
     return kr
 end
@@ -319,26 +336,12 @@ end
     return kr
 end
 
-Base.@propagate_inbounds function three_phase_relperm!(kr, s, regions, Krw, Krg, Krog, Krow, phases, c)
-    l, o, g = phases
-    reg = region(regions, c)
-    # Water
-    krw = table_by_region(Krw, reg)
-    sw = s[l, c]
-    kr[l, c] = krw(sw)
-    # Gas
-    krg = table_by_region(Krg, reg)
-    sg = s[g, c]
-    kr[g, c] = krg(sg)
-    # Oil is special
-    krog = table_by_region(Krog, reg)
-    krow = table_by_region(Krow, reg)
-    so = s[o, c]
-    swc = min(krw.connate, value(sw) - 1e-5)
+Base.@propagate_inbounds function three_phase_oil_relperm(Krog, Krow, swcon, sg, sw)
+    swc = min(swcon, value(sw) - 1e-5)
     d  = (sg + sw - swc)
     ww = (sw - swc)/d
-    kro = (1-ww)*krog(so) + ww*krow(so)
-    kr[o, c] = kro
+    kro = (1-ww)*Krog + ww*Krow
+    return kro
 end
 
 Base.@propagate_inbounds function two_phase_relperm!(kr, s, regions, Kr_1, Kr_2, phases, c)
@@ -398,30 +401,28 @@ function three_point_three_phase_scaling(relperm, sw, so, sg, scaler_w, scaler_o
     r_g = 1.0 - cr_og - l_w
     r_ow = r_og = 1.0 - l_w - l_g
 
-    Sw = three_point_scaling(sw, cr_w, CR_w, u_w, U_w, km_w, KM_w, r_w, R_w)
-    Sow = three_point_scaling(sow, cr_ow, CR_ow, u_ow, U_ow, km_ow, KM_ow, r_ow, R_ow)
-    Sog = three_point_scaling(sog, cr_og, CR_og, u_og, U_og, km_og, KM_og, r_og, R_og)
-    Sg = three_point_scaling(sg, cr_g, CR_g, u_g, U_g, km_g, KM_g, r_g, R_g)
+    Krw = three_point_scaling(krw, sw, cr_w, CR_w, u_w, U_w, km_w, KM_w, r_w, R_w)
+    Krow = three_point_scaling(krow, sow, cr_ow, CR_ow, u_ow, U_ow, km_ow, KM_ow, r_ow, R_ow)
+    Krog = three_point_scaling(krog, sog, cr_og, CR_og, u_og, U_og, km_og, KM_og, r_og, R_og)
+    Krg = three_point_scaling(krg, sg, cr_g, CR_g, u_g, U_g, km_g, KM_g, r_g, R_g)
 
-    # ix1 = sv >= p{1} & sv < p{2};
-    # ix2 = sv >= p{2} & sv < p{3};
-    # ix3 = sv >= p{3};
-    # a = ix1.*m{1} + ix2.*m{2};
-    # s_scale = a.*s + ix1.*c{1} + ix2.*c{2} + ix3;
-    #
-    # p{1} = SCR;
-    # p{2} = SR;
-    # p{3} = SU;
-
-    # m{1} = (sr-scr)./(SR-SCR);
-    # m{2} = (su-sr)./(SU-SR);
-
-    # c{1} = scr - SCR.*m{1};
-    # c{2} = sr - SR.*m{2};
-
-    return S
+    return (Krw, Krow, Krog, Krg)
 end
 
-function three_point_scaling(s, cr, CR, u, U, km, KM, r, R)
+function three_point_scaling(F, s::T, cr, CR, u, U, km, KM, r, R) where T<:Real
+    S = three_saturation_scaling(s, cr, CR, u, U, r, R)
+    return (KM/km)*F(S)
+end
 
+
+function three_saturation_scaling(s::T, cr, CR, u, U, r, R) where T<:Real
+    if s < CR
+        S = zero(T)
+    elseif s >= CR && s < R
+        S = s*(r-cr)/(R-CR)
+    elseif s >= R && s < U
+        S = s*(u-r)
+    elseif s > U
+        S = one(T)
+    end
 end
