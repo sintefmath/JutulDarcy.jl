@@ -1128,8 +1128,13 @@ function write_reservoir_simulator_output_to_mrst(model, states, reports, forces
     prep_write(x) = x
     prep_write(x::AbstractMatrix) = collect(x')
     if write_states
+        nstates_found = length(states)
         for i in eachindex(states)
             state = states[i]
+            if length(keys(state)) == 0
+                nstates_found = i - 1
+                break
+            end
             if model isa MultiModel
                 res_state = state[:Reservoir]
             else
@@ -1161,6 +1166,12 @@ function write_reservoir_simulator_output_to_mrst(model, states, reports, forces
             matwrite(state_path, Dict("data" => D))
         end
         if write_wells && model isa MultiModel
+            ix = 1:nstates_found
+            if forces isa Vector
+                forces = forces[ix]
+            end
+            states = states[ix]
+            reports = reports[ix]
             wd = full_well_outputs(model, states, forces, shortname = true)
             wd_m = Dict{String, Any}()
             for k in keys(wd)
