@@ -4,7 +4,6 @@
     sys = model.system
     w, o, g = phase_indices(sys)
     rhoWS, rhoOS, rhoGS = reference_densities(sys)
-    n = size(rho, 2)
     @inbounds for i in ix
         rho[w, i] = b[w, i]*rhoWS
         rho[o, i] = b[o, i]*(rhoOS + Rs[i]*rhoGS)
@@ -29,8 +28,7 @@ end
     sys = model.system
     w, o, g = phase_indices(sys)
     rhoWS, rhoOS, rhoGS = reference_densities(sys)
-    n = size(rho, 2)
-    for i = 1:n
+    for i in ix
         rho[w, i] = b[w, i]*rhoWS
         rho[o, i] = b[o, i]*(rhoOS + Rs[i]*rhoGS)
         rho[g, i] = b[g, i]*rhoGS
