@@ -387,7 +387,12 @@ function model_from_mat_deck(G, mrst_data, res_context)
     phases = []
     rhoS = Vector{Float64}()
     if haskey(props, "DENSITY")
-        deck_density = vec(props["DENSITY"])
+        deck_density = props["DENSITY"]
+        if size(deck_density, 1) > 1
+            @warn "Multiple PVT regions found. Picking first one." deck_density
+            deck_density = deck_density[1, :]
+        end
+        deck_density = vec(deck_density)
         rhoOS = deck_density[1]
         rhoWS = deck_density[2]
         rhoGS = deck_density[3]

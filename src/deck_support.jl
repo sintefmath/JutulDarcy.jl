@@ -86,7 +86,6 @@ end
 
 
 function deck_function_plot_data(model, pvt, phase, reg, as_type)
-    @info "" pvt as_type
     error("Not implemented for $(typeof(pvt)) as $as_type")
 end
 
