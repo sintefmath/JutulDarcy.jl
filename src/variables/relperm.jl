@@ -281,27 +281,9 @@ end
 
 @jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeability{NoKrScale, :wog}, model, Saturations, ix)
     s = Saturations
-    regions = relperm.regions
-    w, o, g = phase_indices(model.system)
+    phases = phase_indices(model.system)
     for c in ix
-        reg = region(regions, c)
-        # Water
-        krw = table_by_region(relperm.krw, reg)
-        krg = table_by_region(relperm.krg, reg)
-        krog = table_by_region(relperm.krog, reg)
-        krow = table_by_region(relperm.krow, reg)
-
-        sw = s[w, c]
-        so = s[o, c]
-        sg = s[g, c]
-
-        Kro = three_phase_oil_relperm(krog(so), krow(so), krw.connate, sg, sw)
-        Krw = krw(sw)
-        Krg = krg(sg)
-
-        kr[w, c] = Krw
-        kr[o, c] = Kro
-        kr[g, c] = Krg
+        three_phase_relperm!(kr, relperm, phases, s, c)
     end
     return kr
 end
@@ -368,6 +350,28 @@ end
         @inbounds three_phase_relperm!(kr, s, regions, relperm.krw, relperm.krg, relperm.krog, relperm.krow, indices, c)
     end
     return kr
+end
+
+function three_phase_relperm!(kr, relperm, phase_ind, s, c)
+    w, o, g = phase_ind
+    reg = region(relperm.regions, c)
+    # Water
+    krw = table_by_region(relperm.krw, reg)
+    krg = table_by_region(relperm.krg, reg)
+    krog = table_by_region(relperm.krog, reg)
+    krow = table_by_region(relperm.krow, reg)
+
+    sw = s[w, c]
+    so = s[o, c]
+    sg = s[g, c]
+
+    Kro = three_phase_oil_relperm(krog(so), krow(so), krw.connate, sg, sw)
+    Krw = krw(sw)
+    Krg = krg(sg)
+
+    kr[w, c] = Krw
+    kr[o, c] = Kro
+    kr[g, c] = Krg
 end
 
 function get_kr_scalers(kr::PhaseRelPerm)
