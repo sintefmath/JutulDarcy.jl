@@ -149,7 +149,8 @@ function PhaseRelPerm(s, k; label = :w, connate = s[1], epsilon = 1e-16)
     end
     k_max, ix = findmax(k)
     s_max = s[ix]
-    crit_ix = findfirst(x -> x > 0, k)
+    # Last immobile point in table
+    crit_ix = findfirst(x -> x > 0, k) - 1
     crit = s[crit_ix]
     s, k = JutulDarcy.add_missing_endpoints(s, k)
     JutulDarcy.ensure_endpoints!(s, k, epsilon)

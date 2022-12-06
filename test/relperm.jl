@@ -70,7 +70,7 @@ function test_rel_perm_wrapper()
         @test relperm.connate == 0.1
         @test relperm.k_max == 0.9
         @test relperm.s_max == 0.8
-        @test relperm.critical == 0.2
+        @test relperm.critical == 0.15
     end
     kro = @. (1 - s)^2
     swof = hcat(s, kr, kro)
