@@ -342,7 +342,7 @@ end
 @jutul_secondary function update_kr_with_scaling!(kr, relperm::ReservoirRelativePermeability{<:Any, :wog}, model, Saturations, RelPermScalingW, RelPermScalingOW, RelPermScalingOG, RelPermScalingG, ix)
     s = Saturations
     phases = phase_indices(model.system)
-    scalers = (RelPermScalingW, RelPermScalingOW, RelPermScalingOG, RelPermScalingG)
+    scalers = (w = RelPermScalingW, ow = RelPermScalingOW, og = RelPermScalingOG, g = RelPermScalingG)
     for c in ix
         @inbounds update_three_phase_relperm!(kr, relperm, phases, s, c, scalers)
     end
@@ -361,8 +361,8 @@ Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relper
     so = s[o, c]
     sg = s[g, c]
 
-    Krw, Krow, Krog, Krg = three_phase_relperm(relperm, c, sw, so, sg, krw, krow, krog, krg, scalers)
-    Kro = three_phase_oil_relperm(Krow, Krog, krw.connate, sg, sw)
+    Krw, Krow, Krog, Krg, swcon = three_phase_relperm(relperm, c, sw, so, sg, krw, krow, krog, krg, scalers)
+    Kro = three_phase_oil_relperm(Krow, Krog, swcon, sg, sw)
 
     kr[w, c] = Krw
     kr[o, c] = Kro
@@ -381,7 +381,7 @@ function get_kr_scalers(scaler::AbstractMatrix, c)
 end
 
 @inline function three_phase_relperm(relperm, c, sw, so, sg, krw, krow, krog, krg, ::Nothing)
-    return (krw(sw), krow(so), krog(so), krg(sg))
+    return (krw(sw), krow(so), krog(so), krg(sg), krw.connate)
 end
 
 function three_phase_relperm(relperm, c, sw, so, sg, krw, krow, krog, krg, scalers)
@@ -402,19 +402,28 @@ function three_point_three_phase_scaling(krw, krow, krog, krg, sw, so, sg, scale
     l_g, cr_g, u_g, km_g = get_kr_scalers(krg)
 
     R_w = 1.0 - CR_ow - L_g
-    R_g = 1.0 - CR_og - L_w
-    R_ow = R_og = 1.0 - L_w - L_g
-
     r_w = 1.0 - cr_ow - l_g
+
+    R_g = 1.0 - CR_og - L_w
     r_g = 1.0 - cr_og - l_w
-    r_ow = r_og = 1.0 - l_w - l_g
+
+    R_ow = 1.0 - CR_w - L_g
+    r_ow = 1.0 - cr_w - l_g
+    U_ow = 1.0 - L_w - L_g
+    u_ow = 1.0 - l_w - l_g
+
+    R_og = 1.0 - CR_g - L_w
+    r_og = 1.0 - cr_w - l_w
+    U_og = 1.0 - L_g - L_w
+    u_og = 1.0 - l_g - l_w
+
 
     Krw = three_point_scaling(krw, sw, cr_w, CR_w, u_w, U_w, km_w, KM_w, r_w, R_w)
     Krow = three_point_scaling(krow, so, cr_ow, CR_ow, u_ow, U_ow, km_ow, KM_ow, r_ow, R_ow)
     Krog = three_point_scaling(krog, so, cr_og, CR_og, u_og, U_og, km_og, KM_og, r_og, R_og)
     Krg = three_point_scaling(krg, sg, cr_g, CR_g, u_g, U_g, km_g, KM_g, r_g, R_g)
 
-    return (Krw, Krow, Krog, Krg)
+    return (Krw, Krow, Krog, Krg, L_w)
 end
 
 function three_point_scaling(F, s::T, cr, CR, u, U, km, KM, r, R) where T<:Real
