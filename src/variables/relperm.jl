@@ -373,10 +373,10 @@ function get_kr_scalers(kr::PhaseRelPerm)
     return (kr.connate, kr.critical, kr.s_max, kr.k_max)
 end
 function get_kr_scalers(scaler::AbstractMatrix, c)
-    L = scaler[1, c]
-    CR = scaler[2, c]
-    U = scaler[3, c]
-    KM = scaler[4, c]
+    @inbounds L = scaler[1, c]
+    @inbounds CR = scaler[2, c]
+    @inbounds U = scaler[3, c]
+    @inbounds KM = scaler[4, c]
     return (L, CR, U, KM)
 end
 
