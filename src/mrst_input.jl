@@ -1189,6 +1189,7 @@ function write_reservoir_simulator_output_to_mrst(model, states, reports, forces
                 for f in keys(wd[k])
                     tmp[String(f)] = wd[k][f]
                 end
+                tmp["name"] = "$k"
                 wd_m[valid_wellname(k)] = tmp
             end
             wd_m["time"] = report_times(reports)
