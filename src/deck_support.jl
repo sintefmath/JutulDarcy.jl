@@ -109,3 +109,53 @@ function deck_function_plot_data(model, pvt::Union{PVTW, PVDO, PVTW_EXTENDED, PV
     end
     return Jutul.JutulLinePlotData(p./1e5, F.(p), labels = phase_name, title = title, xlabel = "Pressure [bar]", ylabel = yl)
 end
+
+function deck_function_plot_data(model, pvt::Union{PVTG, PVTO}, phase, reg, as_type)
+    sys = model.system
+    phase_name = phase_names(sys)[phase]
+    rhoS = reference_densities(sys)
+    rhoS_self = rhoS[phase]
+    a, l, v = phase_indices(sys)
+    if pvt isa PVTG
+        sat_fn = model.system.rv_max
+        @assert phase == v
+        rhoS_other = rhoS[l]
+    else
+        sat_fn = model.system.rs_max
+        @assert phase == l
+        rhoS_other = rhoS[v]
+    end
+    if as_type == :shrinkage
+        F = (pressure, r) -> shrinkage(pvt, reg, pressure, r, 1)
+        title = "Phase Shrinkage"
+        yl = "1/B"
+    elseif as_type == :viscosity
+        F = (pressure, r) -> viscosity(pvt, reg, pressure, r, 1)/1e-3
+        title = "Phase Viscosity"
+        yl = "μ [cP]"
+    else
+        @assert as_type == :density
+        F = (pressure, r) -> (rhoS_self + r*rhoS_other)*shrinkage(pvt, reg, pressure, r, 1)
+        title = "Phase Mass Density"
+        yl = "ρ [kg/m^3]"
+    end
+    np = 100
+    nsat = 10
+    data = Vector{Float64}()
+    p = Vector{Float64}()
+
+    sizehint!(data, np*nsat)
+    sizehint!(p, np*nsat)
+
+    p_max = maximum(sat_fn.X)
+    for r_ix in 1:nsat
+        for p_i in range(1e5, p_max, np)
+            r = (r_ix-1)*sat_fn(p_i)/(nsat-1)
+                push!(p, p_i)
+                push!(data, F(p_i, r))
+        end
+        push!(p, NaN)
+        push!(data, NaN)
+    end
+    return Jutul.JutulLinePlotData(p./1e5, data, labels = phase_name, title = title, xlabel = "Pressure [bar]", ylabel = yl)
+end

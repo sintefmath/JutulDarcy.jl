@@ -501,7 +501,8 @@ function model_from_mat_deck(G, mrst_data, res_context)
             else
                 rv_max = nothing
             end
-            sys = StandardBlackOilSystem(rs_max = rs_max, rv_max = rv_max, phases = phases, reference_densities = rhoS)
+            sys = StandardBlackOilSystem(rs_max = rs_max, rv_max = rv_max, phases = phases,
+                                         reference_densities = rhoS)
             dp_max_rel = 0.2
         end
         model = SimulationModel(G, sys, context = res_context, plot_mesh = plot_mesh)
@@ -1162,13 +1163,9 @@ function write_reservoir_simulator_output_to_mrst(model, states, reports, forces
     prep_write(x) = x
     prep_write(x::AbstractMatrix) = collect(x')
     if write_states
-        nstates_found = length(states)
-        for i in eachindex(states)
+        N = min(length(states), length(reports))
+        for i in 1:N
             state = states[i]
-            if length(keys(state)) == 0
-                nstates_found = i - 1
-                break
-            end
             if model isa MultiModel
                 res_state = state[:Reservoir]
             else
@@ -1200,7 +1197,7 @@ function write_reservoir_simulator_output_to_mrst(model, states, reports, forces
             matwrite(state_path, Dict("data" => D))
         end
         if write_wells && model isa MultiModel
-            ix = 1:nstates_found
+            ix = 1:N
             if forces isa Vector
                 forces = forces[ix]
             end
