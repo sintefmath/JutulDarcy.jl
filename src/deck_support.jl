@@ -151,8 +151,8 @@ function deck_function_plot_data(model, pvt::Union{PVTG, PVTO}, phase, reg, as_t
     for r_ix in 1:nsat
         for p_i in range(1e5, p_max, np)
             r = (r_ix-1)*sat_fn(p_i)/(nsat-1)
-                push!(p, p_i)
-                push!(data, F(p_i, r))
+            push!(p, p_i)
+            push!(data, F(p_i, r))
         end
         push!(p, NaN)
         push!(data, NaN)

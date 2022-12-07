@@ -675,6 +675,7 @@ function setup_case_from_mrst(casename; simple_well = false,
                                         nthreads = Threads.nthreads(),
                                         legacy_output = false,
                                         ds_max = 0.2,
+                                        dr_max = Inf,
                                         kwarg...)
     G, mrst_data = get_minimal_tpfa_grid_from_mrst(casename, extraout = true; kwarg...)
 
@@ -913,6 +914,7 @@ function setup_case_from_mrst(casename; simple_well = false,
         # Replace saturations - if available
         replace_variables!(model, Saturations = Saturations(ds_max = ds_max), throw = false)
         replace_variables!(model, ImmiscibleSaturation = ImmiscibleSaturation(ds_max = ds_max), throw = false)
+        replace_variables!(model, BlackOilUnknown = BlackOilUnknown(ds_max = ds_max, dr_max = dr_max), throw = false)
 
         state0 = setup_state(model, initializer)
         parameters = setup_parameters(model, parameters)

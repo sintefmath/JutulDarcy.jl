@@ -46,7 +46,7 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
         else
             tab = rs_tab
         end
-        next_x, next_state, is_near_bubble = handle_phase_appearance(pressure, i, tab, dr_max, old_state, old_x, dx, was_near_bubble, ϵ, keep_bubble)
+        next_x, next_state, is_near_bubble = handle_phase_appearance(pressure, i, tab, dr_max, old_state, old_x, dx, was_near_bubble, ϵ, keep_bubble, w)
     end
     v[i] = BlackOilX(next_x, next_state, is_near_bubble)
 end
@@ -76,12 +76,12 @@ function handle_phase_disappearance(pressure, i, r_tab, next_x, old_state, possi
     return (next_x, next_state, is_near_bubble)
 end
 
-function handle_phase_appearance(pressure, i, r_tab, dr_max, old_state, old_x, dx, was_near_bubble, ϵ, keep_bubble)
+function handle_phase_appearance(pressure, i, r_tab, dr_max, old_state, old_x, dx, was_near_bubble, ϵ, keep_bubble, w)
     p = pressure[i]
     r_sat = r_tab(value(p))
 
     abs_r_max = dr_max*r_sat
-    next_x = old_x + Jutul.choose_increment(value(old_x), dx, abs_r_max, nothing, 0, nothing)
+    next_x = old_x + w*Jutul.choose_increment(value(old_x), dx, abs_r_max, nothing, 0, nothing)
     if next_x > r_sat
         if was_near_bubble
             # We are sufficiently close to the saturated point. Switch to gas saturation as primary variable.
