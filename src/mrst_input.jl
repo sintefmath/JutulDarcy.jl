@@ -1132,8 +1132,12 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
             end
             write_reservoir_simulator_output_to_mrst(sim.model, states, reports, forces, mrst_output_path, parameters = parameters)
         end
-        if verbose && length(states) == length(dt)
+        ns = length(states)
+        nt = length(dt)
+        if verbose && ns == nt
             jutul_message("MRST model", "Model was successfully simulated.")
+        else
+            jutul_message("MRST model", "Simulation aborted: $ns/$nt steps completed.")
         end
     else
         states = []
