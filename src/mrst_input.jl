@@ -222,11 +222,11 @@ end
 function deck_relperm(props; oil, water, gas, satnum = nothing)
     if haskey(props, "SCALECRS")
         if length(props["SCALECRS"]) == 0 || lowercase(only(props["SCALECRS"])) == "no"
-            @info "Found three-point rel. perm. scaling"
-            scaling = ThreePointKrScale
-        else
             @info "Found two-point rel. perm. scaling"
             scaling = TwoPointKrScale
+        else
+            @info "Found three-point rel. perm. scaling"
+            scaling = ThreePointKrScale
         end
     else
         scaling = NoKrScale
@@ -698,7 +698,8 @@ function setup_case_from_mrst(casename; simple_well = false,
 
         dt = schedule["step"]["val"]
         first_ctrl = schedule["control"][1]
-        first_well_set = vec(first_ctrl["W"])
+        first_well_set = vec(deepcopy(first_ctrl["W"]))
+        first_well_set = set_wi_to_maximum!(first_well_set, schedule["control"])
     else
         dt = mrst_data["dt"]
         first_well_set = vec(mrst_data["W"])
@@ -920,6 +921,22 @@ function setup_case_from_mrst(casename; simple_well = false,
     end
 end
 
+function set_wi_to_maximum!(wells, controls)
+    for (i, well) in enumerate(wells)
+        WI = well["WI"]
+        for ctrl in controls
+            new_WI = ctrl["W"][i]["WI"]
+            if WI isa AbstractArray
+                @. WI = max(WI, new_WI)
+            else
+                WI = max(WI, new_WI)
+            end
+        end
+        well["WI"] = WI
+    end
+    return wells
+end
+
 function facility_subset(well_symbols, controls)
     ctrls = Dict()
     for k in keys(controls)
@@ -1068,6 +1085,9 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
         if has_vapoil(sys)
             push!(extra_outputs, :Rv)
         end
+        push!(extra_outputs, :RelativePermeabilities)
+        push!(extra_outputs, :PhaseViscosities)
+        push!(extra_outputs, :PhaseMassDensities)
     end
     out = rmodel.output_variables
     for k in extra_outputs
