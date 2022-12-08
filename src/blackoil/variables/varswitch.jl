@@ -37,39 +37,43 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
     ϵ_rs, ϵ_rv, ϵ_s = ϵ
     X = v[i]
     old_x = X.val
-    if swi > 1 - 1e-6
-        next_x = replace_value(old_x, 0.5)
+    old_state = X.phases_present
+    was_near_bubble = sat_chop || X.sat_close
+    if old_state == OilAndGas
+        next_x = old_x + w*Jutul.choose_increment(value(old_x), dx, ds_max)
+        if next_x <= 0
+            maybe_state = OilOnly
+            tab = rs_tab
+            ϵ_r = ϵ_rs
+        elseif next_x >= 1
+            maybe_state = GasOnly
+            tab = rv_tab
+            ϵ_r = ϵ_rv
+        else
+            maybe_state = OilAndGas
+            tab = nothing
+            ϵ_r = ϵ_s
+        end
+        next_x, next_state, is_near_bubble = handle_phase_disappearance(pressure, i, tab, next_x, old_state, maybe_state, was_near_bubble, keep_bubble, ϵ_s, ϵ_r)
+    else
+        if old_state == GasOnly
+            tab = rv_tab
+            ϵ_r = ϵ_rv
+        else
+            tab = rs_tab
+            ϵ_r = ϵ_rs
+        end
+        next_x, next_state, is_near_bubble = handle_phase_appearance(pressure, i, tab, dr_max, old_state, old_x, dx, was_near_bubble, ϵ_s, ϵ_r, keep_bubble, w)
+    end
+    if next_state != OilAndGas && swi > 1 - 10*ϵ_s
+        # If the cell is mostly water, keep it two-phase.
+        if next_state == OilOnly
+            next_x = replace_value(old_x, ϵ_s)
+        else
+            next_x = replace_value(old_x, 1.0 - ϵ_s)
+        end
         next_state = OilAndGas
         is_near_bubble = false
-    else
-        old_state = X.phases_present
-        was_near_bubble = sat_chop || X.sat_close
-        if old_state == OilAndGas
-            next_x = old_x + w*Jutul.choose_increment(value(old_x), dx, ds_max)
-            if next_x <= 0
-                maybe_state = OilOnly
-                tab = rs_tab
-                ϵ_r = ϵ_rs
-            elseif next_x >= 1
-                maybe_state = GasOnly
-                tab = rv_tab
-                ϵ_r = ϵ_rv
-            else
-                maybe_state = OilAndGas
-                tab = nothing
-                ϵ_r = ϵ_s
-            end
-            next_x, next_state, is_near_bubble = handle_phase_disappearance(pressure, i, tab, next_x, old_state, maybe_state, was_near_bubble, keep_bubble, ϵ_s, ϵ_r)
-        else
-            if old_state == GasOnly
-                tab = rv_tab
-                ϵ_r = ϵ_rv
-            else
-                tab = rs_tab
-                ϵ_r = ϵ_rs
-            end
-            next_x, next_state, is_near_bubble = handle_phase_appearance(pressure, i, tab, dr_max, old_state, old_x, dx, was_near_bubble, ϵ_s, ϵ_r, keep_bubble, w)
-        end
     end
     v[i] = BlackOilX(next_x, next_state, is_near_bubble)
 end
