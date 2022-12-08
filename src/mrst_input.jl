@@ -491,7 +491,7 @@ function model_from_mat_deck(G, mrst_data, res_context)
         else
             oil_pvt = pvt[2]
             if oil_pvt isa PVTO
-                rs_max = get_1d_interpolator(oil_pvt.sat_pressure, oil_pvt.rs, cap_end = false)
+                rs_max = saturated_table(oil_pvt)
             else
                 rs_max = nothing
             end
