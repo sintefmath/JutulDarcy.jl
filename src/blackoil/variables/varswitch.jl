@@ -10,19 +10,31 @@ function update_primary_variable!(state, pvar::BlackOilUnknown, state_symbol, mo
     keep_bub = sys.keep_bubble_flag
     sat_chop = sys.saturated_chop
     pressure = state.Pressure
+    if haskey(state, :ImmiscibleSaturation)
+        sw = state.ImmiscibleSaturation
+    else
+        sw = nothing
+    end
+    ϵ = (sys.rs_eps, sys.rv_eps, sys.s_eps)
     active = active_entities(model.domain, associated_entity(pvar), for_variables = true)
-    update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, keep_bub, sat_chop, pressure, active, w)
+    update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, keep_bub, sat_chop, pressure, active, sw, ϵ, w)
 end
 
 
-function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, keep_bub, sat_chop, pressure, active, w)
+function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, keep_bub, sat_chop, pressure, active, sw, ϵ, w)
+    water_saturation(::Nothing, i) = 0.0
+    water_saturation(sat, i) = value(sat[i])
     @inbounds for (i, dx) in zip(active, Dx)
-        varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab, rv_tab, keep_bub, sat_chop, pressure, w)
+        swi = water_saturation(sw, i)
+        # ds_max applies to the full saturation, so we need to scale it based on how much volume the
+        # vapor-liqud saturations actually take up.
+        ds_max_i = ds_max/max(1 - swi, 0.01)
+        varswitch_update_inner!(v, i, dx, dr_max, ds_max_i, rs_tab, rv_tab, keep_bub, sat_chop, pressure, ϵ, w)
     end
 end
 
-Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab, rv_tab, keep_bubble, sat_chop, pressure, w)
-    ϵ = 1e-8
+Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab, rv_tab, keep_bubble, sat_chop, pressure, ϵ, w)
+    ϵ_rs, ϵ_rv, ϵ_s = ϵ
     X = v[i]
     old_x = X.val
     old_state = X.phases_present
@@ -32,42 +44,47 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
         if next_x <= 0
             maybe_state = OilOnly
             tab = rs_tab
+            ϵ_r = ϵ_rs
         elseif next_x >= 1
             maybe_state = GasOnly
             tab = rv_tab
+            ϵ_r = ϵ_rv
         else
             maybe_state = OilAndGas
             tab = nothing
+            ϵ_r = ϵ_s
         end
-        next_x, next_state, is_near_bubble = handle_phase_disappearance(pressure, i, tab, next_x, old_state, maybe_state, was_near_bubble, keep_bubble, ϵ)
+        next_x, next_state, is_near_bubble = handle_phase_disappearance(pressure, i, tab, next_x, old_state, maybe_state, was_near_bubble, keep_bubble, ϵ_s, ϵ_r)
     else
         if old_state == GasOnly
             tab = rv_tab
+            ϵ_r = ϵ_rv
         else
             tab = rs_tab
+            ϵ_r = ϵ_rs
         end
-        next_x, next_state, is_near_bubble = handle_phase_appearance(pressure, i, tab, dr_max, old_state, old_x, dx, was_near_bubble, ϵ, keep_bubble, w)
+        next_x, next_state, is_near_bubble = handle_phase_appearance(pressure, i, tab, dr_max, old_state, old_x, dx, was_near_bubble, ϵ_s, ϵ_r, keep_bubble, w)
     end
     v[i] = BlackOilX(next_x, next_state, is_near_bubble)
 end
 
-function handle_phase_disappearance(pressure, i, ::Nothing, next_x, old_state, possible_new_state, was_near_bubble, keep_bubble, ϵ)
+function handle_phase_disappearance(pressure, i, ::Nothing, next_x, old_state, possible_new_state, was_near_bubble, keep_bubble, ϵ_s, ϵ_r)
     return (next_x, old_state, false)
 end
 
-function handle_phase_disappearance(pressure, i, r_tab, next_x, old_state, possible_new_state, was_near_bubble, keep_bubble, ϵ)
+function handle_phase_disappearance(pressure, i, r_tab, next_x, old_state, possible_new_state, was_near_bubble, keep_bubble, ϵ_s, ϵ_r)
     if was_near_bubble
         # Gas/Oil Phase disappears and Rs/Rv becomes primary variable
         p = pressure[i]
         r_sat = r_tab(value(p))
-        next_x = replace_value(next_x, r_sat*(1 - ϵ))
+        next_x = replace_value(next_x, r_sat - ϵ_r)
         next_state = possible_new_state
         is_near_bubble = keep_bubble
     else
         if possible_new_state == GasOnly
-            next_sg = 1 - ϵ
+            next_sg = 1 - ϵ_s
         else
-            next_sg = ϵ
+            next_sg = ϵ_s
         end
         next_x = replace_value(next_x, next_sg)
         next_state = old_state
@@ -76,19 +93,19 @@ function handle_phase_disappearance(pressure, i, r_tab, next_x, old_state, possi
     return (next_x, next_state, is_near_bubble)
 end
 
-function handle_phase_appearance(pressure, i, r_tab, dr_max, old_state, old_x, dx, was_near_bubble, ϵ, keep_bubble, w)
+function handle_phase_appearance(pressure, i, r_tab, dr_max, old_state, old_x, dx, was_near_bubble, ϵ_s, ϵ_r, keep_bubble, w)
     p = pressure[i]
     r_sat = r_tab(value(p))
 
     abs_r_max = dr_max*r_sat
     next_x = old_x + w*Jutul.choose_increment(value(old_x), dx, abs_r_max, nothing, 0, nothing)
-    if next_x > r_sat
+    if next_x >= r_sat
         if was_near_bubble
             # We are sufficiently close to the saturated point. Switch to gas saturation as primary variable.
             if old_state == OilOnly
-                sg = ϵ
+                sg = ϵ_s
             else
-                sg = 1 - ϵ
+                sg = 1 - ϵ_s
             end
             next_x = replace_value(next_x, sg)
             next_state = OilAndGas
@@ -96,7 +113,7 @@ function handle_phase_appearance(pressure, i, r_tab, dr_max, old_state, old_x, d
         else
             # We are passing the saturated point, but we were sufficiently far from it that we limit the update
             # to just before the saturated point.
-            next_x = replace_value(next_x, r_sat*(1 - ϵ))
+            next_x = replace_value(next_x, r_sat - ϵ_r)
             next_state = old_state
             is_near_bubble = true
         end

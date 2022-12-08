@@ -39,7 +39,7 @@ end
 const LVCompositionalModel = SimulationModel{D, S, F, C} where {D, S<:MultiPhaseCompositionalSystemLV{<:Any, <:Any, <:Any}, F, C}
 
 export StandardBlackOilSystem
-struct StandardBlackOilSystem{D, V, W, R, F, T, P} <: BlackOilSystem
+struct StandardBlackOilSystem{D, V, W, R, F, T, P, Num} <: BlackOilSystem
     rs_max::D
     rv_max::V
     rho_ref::R
@@ -47,37 +47,58 @@ struct StandardBlackOilSystem{D, V, W, R, F, T, P} <: BlackOilSystem
     phases::P
     saturated_chop::Bool
     keep_bubble_flag::Bool
-    function StandardBlackOilSystem(; rs_max::RS = nothing,
-                                      rv_max::RV = nothing,
-                                      phases = (AqueousPhase(), LiquidPhase(), VaporPhase()),
-                                      reference_densities = [786.507, 1037.84, 0.969758], 
-                                      saturated_chop = false,
-                                      keep_bubble_flag = true,
-                                      formulation::Symbol = :varswitch) where {RS, RV}
-        phases = tuple(phases...)
-        nph = length(phases)
-        if nph == 2 && length(reference_densities) == 3
-            reference_densities = reference_densities[2:3]
-        end
-        reference_densities = tuple(reference_densities...)
-        @assert LiquidPhase() in phases
-        @assert VaporPhase() in phases
-        @assert nph == 2 || nph == 3
-        @assert length(reference_densities) == nph
-        phase_ind = zeros(Int64, nph)
-        has_water = nph == 3
-        if has_water
-            phase_ind[1] = findfirst(isequal(AqueousPhase()), phases)
-            offset = 1
-        else
-            offset = 0
-        end
-        phase_ind[1 + offset] = findfirst(isequal(LiquidPhase()), phases)
-        phase_ind[2 + offset] = findfirst(isequal(VaporPhase()), phases)
-        phase_ind = tuple(phase_ind...)
-        @assert formulation == :varswitch || formulation == :zg
-        new{RS, RV, has_water, typeof(reference_densities), formulation, typeof(phase_ind), typeof(phases)}(rs_max, rv_max, reference_densities, phase_ind, phases, saturated_chop, keep_bubble_flag)
+    rs_eps::Num
+    rv_eps::Num
+    s_eps::Num
+end
+
+function StandardBlackOilSystem(; rs_max::RS = nothing,
+                                  rv_max::RV = nothing,
+                                  phases = (AqueousPhase(), LiquidPhase(), VaporPhase()),
+                                  reference_densities = [786.507, 1037.84, 0.969758], 
+                                  saturated_chop = false,
+                                  keep_bubble_flag = true,
+                                  eps_s = 1e-8,
+                                  eps_rs = nothing,
+                                  eps_rv = nothing,
+                                  formulation::Symbol = :varswitch) where {RS, RV}
+    phases = tuple(phases...)
+    nph = length(phases)
+    if nph == 2 && length(reference_densities) == 3
+        reference_densities = reference_densities[2:3]
     end
+    reference_densities = tuple(reference_densities...)
+    @assert LiquidPhase() in phases
+    @assert VaporPhase() in phases
+    @assert nph == 2 || nph == 3
+    @assert length(reference_densities) == nph
+    phase_ind = zeros(Int64, nph)
+    has_water = nph == 3
+    if has_water
+        phase_ind[1] = findfirst(isequal(AqueousPhase()), phases)
+        offset = 1
+    else
+        offset = 0
+    end
+    phase_ind[1 + offset] = findfirst(isequal(LiquidPhase()), phases)
+    phase_ind[2 + offset] = findfirst(isequal(VaporPhase()), phases)
+    phase_ind = tuple(phase_ind...)
+    if isnothing(eps_rs)
+        if isnothing(rs_max)
+            eps_rs = eps_s
+        else
+            eps_rs = 1e-4*mean(diff(rs_max.F))
+        end
+    end
+    if isnothing(eps_rv)
+        if isnothing(rv_max)
+            eps_rv = eps_s
+        else
+            eps_rv = 1e-4*mean(diff(rv_max.F))
+        end
+    end
+    @assert formulation == :varswitch || formulation == :zg
+    return StandardBlackOilSystem{RS, RV, has_water, typeof(reference_densities), formulation, typeof(phase_ind), typeof(phases), Float64}(rs_max, rv_max, reference_densities, phase_ind, phases, saturated_chop, keep_bubble_flag, eps_rs, eps_rv, eps_s)
 end
 
 function Base.show(io::IO, d::StandardBlackOilSystem)
