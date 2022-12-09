@@ -138,6 +138,10 @@ function PVTO(d::Dict)
     p_sat = vec(p[pos[1:end-1]])
     T = typeof(pos)
     V = typeof(mu)
+    @assert length(p) == length(b) == length(mu)
+    @assert pos[end] == length(p) + 1
+    @assert pos[1] == 1
+    @assert length(p_sat) == length(rs) == length(pos)-1
     return PVTO{T, V}(pos, rs, p, p_sat, b, mu)
 end
 
