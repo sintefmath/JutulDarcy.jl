@@ -10,12 +10,17 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
     q_t = storage.state.TotalSurfaceMassRate
     op_ctrls = cfg.operating_controls
     req_ctrls = cfg.requested_controls
+    # Set limits
+    for key in keys(forces.limits)
+        cfg.limits[key] = forces.limits[key]
+    end
+    # Set operational controls
     for key in keys(forces.control)
         # If the requested control in forces differ from the one we are presently using, we need to switch.
         # Otherwise, stay the course.
         rmodel = model_g[:Reservoir]
         rstate = storage_g.Reservoir.state
-        newctrl = realize_control_for_reservoir(rstate, forces.control[key], rmodel, dt)
+        newctrl, changed = realize_control_for_reservoir(rstate, forces.control[key], rmodel, dt)
         oldctrl = req_ctrls[key]
         if newctrl != oldctrl
             # We have a new control. Any previous control change is invalid.
@@ -26,9 +31,9 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
         end
         pos = get_well_position(model.domain, key)
         q_t[pos] = valid_surface_rate_for_control(q_t[pos], newctrl)
-    end
-    for key in keys(forces.limits)
-        cfg.limits[key] = forces.limits[key]
+        if changed
+            cfg.limits[key] = merge(cfg.limits[key], as_limit(newctrl.target))
+        end
     end
 end
 
@@ -69,7 +74,7 @@ function check_active_limits(control, target, limits, wmodel, wstate, well::Symb
     cval = tval = NaN
     is_lower = false
     for (name, val) in pairs(limits)
-        if isfinite(val)
+        if isfinite(first(val))
             (target_limit, is_lower) = translate_limit(control, name, val)
             ok, cval, tval = check_limit(control, target_limit, target, is_lower, total_mass_rate, wmodel, wstate, density_s, volume_fraction_s)
             if !ok
@@ -119,6 +124,9 @@ function translate_limit(control::ProducerControl, name, val)
         # disabling producers if they would otherwise start to inject.
         target_limit = TotalRateTarget(val)
         is_lower = false
+    elseif name == :resv
+        v, w = val
+        target_limit = ReservoirVoidageTarget(v, w)
     else
         error("$name limit not supported for well acting as producer.")
     end
