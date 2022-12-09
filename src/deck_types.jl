@@ -186,8 +186,24 @@ function PVTG(d::Dict)
     # Saturated table - extend with zero at zero pressure
     pressure = vec(copy(d["key"]))
     rv_sat = vec(rv[pos[2:end] .- 1])
+    ref_p = 101325.0
+    if pressure[1] > ref_p && false
+        # Make sure that zero is zero
+        pressure = vcat(ref_p, pressure)
+        rv_sat = vcat(0, rv_sat)
+        # Undersaturated tables
+        rv = vcat([0, 0], rv)
+        b = vcat([1.0, 1.0], b)
+        mu = vcat([mu[1], mu[1]], mu)
+        pos = vcat(1, pos .+ 2)
+    end
     T = typeof(pos)
     V = typeof(mu)
+
+    @assert length(rv) == length(b) == length(mu)
+    @assert pos[end] == length(rv) + 1
+    @assert pos[1] == 1
+    @assert length(pressure) == length(rv_sat) == length(pos)-1
     return PVTG{T, V}(pos, pressure, rv, rv_sat, b, mu)
 end
 
