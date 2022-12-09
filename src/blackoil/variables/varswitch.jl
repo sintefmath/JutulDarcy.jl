@@ -68,9 +68,9 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
     if next_state != OilAndGas && swi > 1 - 10*ϵ_s
         # If the cell is mostly water, keep it two-phase.
         if next_state == OilOnly
-            next_x = replace_value(old_x, ϵ_s)
+            next_x = replace_value(old_x, 0.0)
         else
-            next_x = replace_value(old_x, 1.0 - ϵ_s)
+            next_x = replace_value(old_x, 1.0)
         end
         next_state = OilAndGas
         is_near_bubble = false
