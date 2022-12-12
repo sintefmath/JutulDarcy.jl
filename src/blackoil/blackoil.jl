@@ -5,6 +5,7 @@ include("variables/variables.jl")
 include("flux.jl")
 include("wells.jl")
 include("data.jl")
+include("utils.jl")
 
 blackoil_formulation(::StandardBlackOilSystem{V, D, W, R, F}) where {V, D, W, R, F} = F
 
