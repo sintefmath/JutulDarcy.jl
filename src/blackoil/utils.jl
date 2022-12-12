@@ -1,40 +1,32 @@
-function check_blackoil_pvt(model, p; N = 100, reg = 1, cell = 1)
+function check_blackoil_pvt(model, p; rv = nothing, rs = nothing, reg = 1, cell = 1)
     p = ForwardDiff.Dual(p, 1.0)
     ∂(x) = x.partials[1]
 
     sys = model.system
-    dg = has_disgas(sys)
-    vo = has_vapoil(sys)
-    if dg
-        rs_range = range(0, sys.rs_max(p), N)
-    else
-        rs_range = [0.0]
-    end
-
-    if vo
-        rv_range = range(0, sys.rv_max(p), N)
-    else
-        rv_range = [0.0]
-    end
     b = model.secondary_variables[:ShrinkageFactors]
     pvto = b.pvt[2]
     pvtg = b.pvt[3]
-    for rs in rs_range
-        for rv in rv_range
-            if dg
-                B_o = shrinkage(pvto, reg, p, rs, cell)
-            else
-                B_o = shrinkage(pvto, reg, p, cell)
-            end
-            if vo
-                B_g = shrinkage(pvtg, reg, p, rv, cell)
-            else
-                B_g = shrinkage(pvtg, reg, p, cell)
-            end
-            ok = coats_pvt_tests(value(p), value(B_o), value(B_g), value(rv), value(rs), ∂(B_o), ∂(B_g), ∂(rv), ∂(rs))
-            @assert ok
+
+    if has_disgas(sys)
+        if isnothing(rs)
+            rs = sys.rs_max(p)
         end
+        B_o = 1/shrinkage(pvto, reg, p, rs, cell)
+    else
+        rs = 0.0
+        B_o = 1/shrinkage(pvto, reg, p, cell)
     end
+
+    if has_vapoil(sys)
+        if isnothing(rv)
+            rv = sys.rv_max(p)
+        end
+        B_g = 1/shrinkage(pvtg, reg, p, rv, cell)
+    else
+        rv = 0.0
+        B_g = 1/shrinkage(pvtg, reg, p, cell)
+    end
+    return coats_pvt_tests(value(p), value(B_o), value(B_g), value(rv), value(rs), ∂(B_o), ∂(B_g), ∂(rv), ∂(rs))
 end
 
 function coats_pvt_tests(p, B_o, B_g, R_v, R_s, dB_o, dB_g, dRv, dRs)
