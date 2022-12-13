@@ -131,6 +131,7 @@ function PVTO(d::Dict)
     rs = vec(copy(d["key"]))
     pos = vec(Int64.(d["pos"]))
     data = d["data"]
+    # data, pos, rs = add_lower_pvto(data, pos, rs)
     p = vec(data[:, 1])
     B = vec(data[:, 2])
     b = 1.0 ./ B
@@ -183,24 +184,13 @@ function PVTG(d::Dict)
             end
         end
     end
+    pressure = vec(copy(d["key"]))
+    # data, pos, pressure = add_lower_pvtg(data, pos, pressure)
     rv = vec(data[:, 1])
     B = vec(data[:, 2])
     b = 1.0 ./ B
     mu = vec(data[:, 3])
-    # Saturated table - extend with zero at zero pressure
-    pressure = vec(copy(d["key"]))
     rv_sat = vec(rv[pos[2:end] .- 1])
-    ref_p = 101325.0
-    if pressure[1] > ref_p && false
-        # Make sure that zero is zero
-        pressure = vcat(ref_p, pressure)
-        rv_sat = vcat(0, rv_sat)
-        # Undersaturated tables
-        rv = vcat([0, 0], rv)
-        b = vcat([1.0, 1.0], b)
-        mu = vcat([mu[1], mu[1]], mu)
-        pos = vcat(1, pos .+ 2)
-    end
     T = typeof(pos)
     V = typeof(mu)
 
@@ -223,6 +213,7 @@ function saturated_table(p, r)
     end
     return get_1d_interpolator(p, r, cap_end = false)
 end
+
 
 pvt_table_vectors(pvt::PVTG) = (pvt.rv, pvt.pressure, pvt.sat_rv, pvt.pos)
 
@@ -303,16 +294,39 @@ struct LinearlyCompressiblePoreVolume{R} <: ScalarVariable where {R<:Real}
     end
 end
 
+function add_lower_pvto(data, pos, rs)
+    ref_p = 101325.0
+    first_offset = pos[2]-1
+    start = 1:first_offset
+    new_start = data[start, :]
 
-# abstract type AbstractTableSaturation <: AbstractTableDeck end
+    dp = ref_p - new_start[1, 1]
+    for i in axes(new_start, 1)
+        new_start[i, 1] += dp
+        # new_start[i, 2] *= 0.99
+    end
+    @assert pos[1] == 1
+    data = vcat(new_start, data)
+    pos = vcat([1, first_offset+1], pos[2:end] .+ first_offset)
+    rs = vcat(rs[1], rs)
+    return (data, pos, rs)
+end
 
-# struct RelativePermeabilityTable <: AbstractTableSaturation
-
-# end
-
-# struct CapillaryPressureTable <: AbstractTableSaturation
-
-# end
-
-# Regions go in the outer part
-
+function add_lower_pvtg(data, pos, pressure)
+    ref_p = 101325.0
+    first_offset = pos[2]-1
+    start = 1:first_offset
+    new_start = data[start, :]
+    for i in axes(new_start, 1)
+        # new_start[i, 2] *= 0.99
+    end
+    # dp = ref_p - new_start[1, 1]
+    # for i in axes(new_start, 1)
+        # new_start[i, 1] += dp
+    # end
+    @assert pos[1] == 1
+    data = vcat(new_start, data)
+    pos = vcat([1, first_offset+1], pos[2:end] .+ first_offset)
+    pressure = vcat(ref_p, pressure)
+    return (data, pos, pressure)
+end
