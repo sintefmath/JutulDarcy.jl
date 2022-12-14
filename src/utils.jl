@@ -392,7 +392,12 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
         else
             if q_t == 0
                 current_control = DisabledControl()
-                d[i] = 0.0
+                if target == BottomHolePressureTarget
+                    v = well_state.Pressure[1]
+                else
+                    v = 0.0
+                end
+                d[i] = v
             else
                 if haskey(force, :Facility)
                     gforce = force[:Facility]
