@@ -84,5 +84,8 @@ module JutulDarcy
 
     @precompile_all_calls begin
         precompile_darcy_multimodels()
+        # We run a tiny MRST case to precompile the .MAT file loading
+        spe1_path = joinpath(pathof(JutulDarcy), "..", "..", "test", "mrst", "spe1.mat")
+        simulate_mrst_case(spe1_path, info_level = -1, verbose = false)
     end
 end # module
