@@ -1,4 +1,4 @@
-using JutulDarcy, TestItems, TestItemRunner
+using JutulDarcy, TestItems, Test, TestItemRunner
 @testitem "Utilities" begin
     include("utils.jl")
 end
