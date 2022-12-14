@@ -487,7 +487,6 @@ function model_from_mat_deck(G, mrst_data, res_context)
 
         if is_immiscible
             sys = ImmiscibleSystem(phases, reference_densities = rhoS)
-            dp_max_rel = Inf
         else
             oil_pvt = pvt[2]
             if oil_pvt isa PVTO
@@ -503,12 +502,8 @@ function model_from_mat_deck(G, mrst_data, res_context)
             end
             sys = StandardBlackOilSystem(rs_max = rs_max, rv_max = rv_max, phases = phases,
                                          reference_densities = rhoS)
-            dp_max_rel = 0.2
         end
         model = SimulationModel(G, sys, context = res_context, plot_mesh = plot_mesh)
-        # Tweak primary variables
-        pvar = model.primary_variables
-        pvar[:Pressure] = Pressure(max_rel = dp_max_rel, minimum = 101325.0)
         # Modify secondary variables
         svar = model.secondary_variables
         # PVT
@@ -1109,24 +1104,24 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
         output_path = nothing
     end
     sim, cfg = setup_reservoir_simulator(case, linear_solver = linear_solver, output_path = output_path; kwarg...)
-    if verbose
-        M = first(values(models))
-        sys = M.system
-        if sys isa CompositionalSystem
-            s = "compositional"
-        elseif sys isa BlackOilSystem
-            s = "black-oil"
-        elseif sys isa ImmiscibleSystem
-            s = "immiscible"
-        else
-            s = "unknown"
-        end
-        ncomp = number_of_components(sys)
-        nph = number_of_phases(sys)
-        nc = number_of_cells(M.domain)
+    M = first(values(models))
+    sys = M.system
+    if sys isa CompositionalSystem
+        s = "compositional"
+    elseif sys isa BlackOilSystem
+        s = "black-oil"
+    elseif sys isa ImmiscibleSystem
+        s = "immiscible"
+    else
+        s = "unknown"
     end
+    ncomp = number_of_components(sys)
+    nph = number_of_phases(sys)
+    nc = number_of_cells(M.domain)
     if do_sim
-        jutul_message("MRST model", "Starting simulation of $s system with $nc cells and $nph phases and $ncomp components.")
+        if verbose
+            jutul_message("MRST model", "Starting simulation of $s system with $nc cells and $nph phases and $ncomp components.")
+        end
         states, reports = simulate(sim, dt, forces = forces, config = cfg);
         if write_output && write_mrst
             mrst_output_path = "$(output_path)_mrst"
@@ -1137,10 +1132,12 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
         end
         ns = length(states)
         nt = length(dt)
-        if verbose && ns == nt
-            jutul_message("MRST model", "Model was successfully simulated.")
-        else
-            jutul_message("MRST model", "Simulation aborted: $ns/$nt steps completed.")
+        if verbose
+            if ns == nt
+                jutul_message("MRST model", "Model was successfully simulated.")
+            else
+                jutul_message("MRST model", "Simulation aborted: $ns/$nt steps completed.")
+            end
         end
     else
         states = []

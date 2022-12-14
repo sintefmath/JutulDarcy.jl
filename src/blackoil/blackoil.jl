@@ -10,7 +10,7 @@ include("utils.jl")
 blackoil_formulation(::StandardBlackOilSystem{V, D, W, R, F}) where {V, D, W, R, F} = F
 
 function select_primary_variables!(S, system::BlackOilSystem, model)
-    S[:Pressure] = Pressure(max_rel = 0.2, minimum = 1e5)
+    S[:Pressure] = Pressure()
     if has_other_phase(system)
         S[:ImmiscibleSaturation] = ImmiscibleSaturation(ds_max = 0.2)
     end

@@ -116,7 +116,7 @@ struct Pressure <: ScalarVariable
     minimum_pressure::Float64
     maximum_pressure::Float64
     scale::Float64
-    function Pressure(; max_abs = nothing, max_rel = nothing, scale = 1e8, maximum = Inf, minimum = -Inf)
+    function Pressure(; max_abs = nothing, max_rel = 0.2, scale = 1e8, maximum = Inf, minimum = 101325.0)
         new(max_abs, max_rel, minimum, maximum, scale)
     end
 end
