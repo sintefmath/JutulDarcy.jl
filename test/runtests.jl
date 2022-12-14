@@ -21,6 +21,10 @@ end
     include("sens_multimodel.jl")
 end
 
+@testset "MRST input cases" begin
+    include("mrst_cases.jl")
+end
+
 @run_package_tests
 nothing
 # include("gpu.jl")
