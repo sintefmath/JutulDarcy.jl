@@ -1,4 +1,4 @@
-using JutulDarcy, TestItems, TestItemRunner
+using JutulDarcy, TestItems, Test, TestItemRunner
 @testitem "Utilities" begin
     include("utils.jl")
 end
@@ -19,6 +19,10 @@ end
 end
 @testitem "Sensitivities (multimodel)" begin
     include("sens_multimodel.jl")
+end
+
+@testset "MRST input cases" begin
+    include("mrst_cases.jl")
 end
 
 @run_package_tests

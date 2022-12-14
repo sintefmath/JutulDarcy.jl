@@ -47,15 +47,16 @@ end
 
     @inbounds ρ_c = ρ[phase, l]
     @inbounds ρ_i = ρ[phase, r]
-    ρ_avg = (ρ_i + ρ_c)/2
+    ρ_avg = 0.5*(ρ_i + ρ_c)
     q = -T_f*(∇p + Δpc + gΔz*ρ_avg)
     return q
 end
 
-@inline function pressure_gradient(state, tpfa::TPFA)
-    P = state.Pressure
-    return @inbounds P[tpfa.left] - P[tpfa.right]
+@inline function gradient(X, tpfa::TPFA)
+    return X[tpfa.left] - X[tpfa.right]
 end
+
+pressure_gradient(state, disc) = gradient(state.Pressure, disc)
 
 @inline function upwind(upw::SPU, F, q)
     flag = q >= 0

@@ -10,7 +10,7 @@ end
 
 function spe1_pvtw()
     tab = [2.76804e7  1.029  4.53968e-10  0.00031  0.0]
-    return PVTW([tab])
+    return PVTW(tab)
 end
 
 function spe1_pvdg()

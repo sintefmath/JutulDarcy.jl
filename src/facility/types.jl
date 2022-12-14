@@ -10,6 +10,8 @@ struct WellGroup <: WellControllerDomain
     well_symbols::Vector{Symbol}
 end
 
+const WellGroupModel = SimulationModel{WellGroup, <:Any, <:Any, <:Any}
+
 struct Wells <: JutulEntity end
 struct TotalSurfaceMassRate <: ScalarVariable end
 abstract type WellTarget end
@@ -115,6 +117,27 @@ end
 Base.show(io::IO, t::TotalRateTarget) = print(io, "TotalRateTarget with value $(t.value) [m^3/s]")
 
 """
+    HistoricalReservoirVoidageTarget(q, weights)
+
+Historical RESV target for history matching cases.
+"""
+struct HistoricalReservoirVoidageTarget{T, K} <: WellTarget where {T<:AbstractFloat, K<:Tuple}
+    value::T
+    weights::K
+end
+Base.show(io::IO, t::HistoricalReservoirVoidageTarget) = print(io, "HistoricalReservoirVoidageTarget with value $(t.value) [m^3/s]")
+
+"""
+    ReservoirVoidageTarget(q, weights)
+
+RESV targets with weights for each pseudo-component
+"""
+struct ReservoirVoidageTarget{T, K} <: WellTarget where {T<:AbstractFloat, K<:Tuple}
+    value::T
+    weights::K
+end
+
+"""
     DisabledTarget(q)
 
 Disabled target used when a well is under `DisabledControl()` only.
@@ -132,6 +155,8 @@ Create reasonable default limits for well control `ctrl`, for example to avoid B
 default_limits(ctrl) = as_limit(ctrl.target)
 as_limit(target) = NamedTuple([Pair(translate_target_to_symbol(target, shortname = true), target.value)])
 as_limit(T::DisabledTarget) = nothing
+as_limit(T::HistoricalReservoirVoidageTarget) = nothing
+as_limit(target::ReservoirVoidageTarget) = NamedTuple([Pair(translate_target_to_symbol(target, shortname = true), (target.value, target.weights))])
 
 """
     DisabledControl()
@@ -300,10 +325,91 @@ end
 import Base.copy
 Base.copy(m::PerforationMask) = PerforationMask(copy(m.values))
 
-translate_target_to_symbol(t; shortname = false) = Symbol(t)
+translate_target_to_symbol(t::T; shortname = false) where T = Symbol(T)
 translate_target_to_symbol(t::BottomHolePressureTarget; shortname = false) = shortname ? :bhp : Symbol("Bottom hole pressure")
 translate_target_to_symbol(t::TotalRateTarget; shortname = false) = shortname ? :rate : Symbol("Surface total rate")
 translate_target_to_symbol(t::SurfaceWaterRateTarget; shortname = false) = shortname ? :wrat : Symbol("Surface water rate")
 translate_target_to_symbol(t::SurfaceLiquidRateTarget; shortname = false) = shortname ? :lrat : Symbol("Surface liquid rate (water + oil)")
 translate_target_to_symbol(t::SurfaceOilRateTarget; shortname = false) = shortname ? :orat : Symbol("Surface oil rate")
 translate_target_to_symbol(t::SurfaceGasRateTarget; shortname = false) = shortname ? :grat : Symbol("Surface gas rate")
+translate_target_to_symbol(t::ReservoirVoidageTarget; shortname = false) = shortname ? :resv : Symbol("Reservoir voidage rate")
+translate_target_to_symbol(t::HistoricalReservoirVoidageTarget; shortname = false) = shortname ? :resv_history : Symbol("Historical reservoir voidage rate")
+
+function realize_control_for_reservoir(state, ctrl, model, dt)
+    return (ctrl, false)
+end
+
+function realize_control_for_reservoir(rstate, ctrl::ProducerControl{<:HistoricalReservoirVoidageTarget}, model, dt)
+    sys = model.system
+    w = ctrl.target.weights
+    pv_t = 0.0
+    p_avg = 0.0
+    rs_avg = 0.0
+    rv_avg = 0.0
+    disgas = has_disgas(sys)
+    vapoil = has_vapoil(sys)
+    for c in eachindex(rstate.Pressure)
+        p = value(rstate.Pressure[c])
+        vol = value(rstate.FluidVolume[c])
+        sw = value(rstate.ImmiscibleSaturation[c])
+        vol_hc = vol*(1.0 - sw)
+        p_avg += p*vol_hc
+        pv_t += vol_hc
+        if disgas
+            rs_avg += value(rstate.Rs[c])*vol_hc
+        end
+        if vapoil
+            rv_avg += value(rstate.Rv[c])*vol_hc
+        end
+    end
+    p_avg /= pv_t
+    rs_avg /= pv_t
+    rv_avg /= pv_t
+
+    a, l, v = phase_indices(sys)
+    ww = w[a]
+    wo = w[l]
+    wg = w[v]
+    rs = min(wg/wo, rs_avg)
+    rv = min(wo/wg, rv_avg)
+
+    svar = Jutul.get_secondary_variables(model)
+    b_var = svar[:ShrinkageFactors]
+    reg = b_var.regions
+    bW = shrinkage(b_var.pvt[a], reg, p_avg, 1)
+    bO = shrinkage(b_var.pvt[l], reg, p_avg, rs, 1)
+    bG = shrinkage(b_var.pvt[v], reg, p_avg, rv, 1)
+    
+    shrink = 1.0 - rs*rv
+    shrink_avg = 1.0 - rs_avg*rv_avg
+    old_rate = ctrl.target.value
+    # Water
+    new_water_rate = old_rate*ww/bW
+    new_water_weight = 1/bW
+    # Oil
+    qo = old_rate*wo
+    new_oil_rate = qo
+    new_oil_weight = 1/(bO*shrink_avg)
+    # Gas
+    qg = old_rate*wg
+    new_gas_rate = qg
+    new_gas_weight = 1/(bG*shrink_avg)
+    # Miscibility adjustments
+    if vapoil
+        new_oil_rate -= rv*qg
+        new_gas_weight -= rv/(bO*shrink_avg)
+    end
+    if disgas
+        new_gas_rate -= rs*qo
+        new_oil_weight -= rs/(bG*shrink_avg)
+    end
+    new_oil_rate /= (bO*shrink)
+    new_gas_rate /= (bG*shrink)
+
+
+    new_weights = (new_water_weight, new_oil_weight, new_gas_weight)
+    new_rate = new_water_rate + new_oil_rate + new_gas_rate
+    new_control = replace_target(ctrl, ReservoirVoidageTarget(new_rate, new_weights))
+    return (new_control, true)
+end
+

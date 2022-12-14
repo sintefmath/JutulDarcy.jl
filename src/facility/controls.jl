@@ -3,16 +3,24 @@ function Jutul.initialize_extra_state_fields!(state, domain::WellGroup, model)
     state[:WellGroupConfiguration] = WellGroupConfiguration(domain.well_symbols)
 end
 
-function Jutul.update_before_step!(storage, domain::WellGroup, model::SimulationModel, dt, forces; time = NaN)
+function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, model::WellGroupModel, dt, forces, key)
     # Set control to whatever is on the forces
+    storage = storage_g[key]
     cfg = storage.state.WellGroupConfiguration
     q_t = storage.state.TotalSurfaceMassRate
     op_ctrls = cfg.operating_controls
     req_ctrls = cfg.requested_controls
+    # Set limits
+    for key in keys(forces.limits)
+        cfg.limits[key] = forces.limits[key]
+    end
+    # Set operational controls
     for key in keys(forces.control)
         # If the requested control in forces differ from the one we are presently using, we need to switch.
         # Otherwise, stay the course.
-        newctrl = forces.control[key]
+        rmodel = model_g[:Reservoir]
+        rstate = storage_g.Reservoir.state
+        newctrl, changed = realize_control_for_reservoir(rstate, forces.control[key], rmodel, dt)
         oldctrl = req_ctrls[key]
         if newctrl != oldctrl
             # We have a new control. Any previous control change is invalid.
@@ -23,9 +31,9 @@ function Jutul.update_before_step!(storage, domain::WellGroup, model::Simulation
         end
         pos = get_well_position(model.domain, key)
         q_t[pos] = valid_surface_rate_for_control(q_t[pos], newctrl)
-    end
-    for key in keys(forces.limits)
-        cfg.limits[key] = forces.limits[key]
+        if changed
+            cfg.limits[key] = merge(cfg.limits[key], as_limit(newctrl.target))
+        end
     end
 end
 
@@ -66,7 +74,7 @@ function check_active_limits(control, target, limits, wmodel, wstate, well::Symb
     cval = tval = NaN
     is_lower = false
     for (name, val) in pairs(limits)
-        if isfinite(val)
+        if isfinite(first(val))
             (target_limit, is_lower) = translate_limit(control, name, val)
             ok, cval, tval = check_limit(control, target_limit, target, is_lower, total_mass_rate, wmodel, wstate, density_s, volume_fraction_s)
             if !ok
@@ -116,6 +124,9 @@ function translate_limit(control::ProducerControl, name, val)
         # disabling producers if they would otherwise start to inject.
         target_limit = TotalRateTarget(val)
         is_lower = false
+    elseif name == :resv
+        v, w = val
+        target_limit = ReservoirVoidageTarget(v, w)
     else
         error("$name limit not supported for well acting as producer.")
     end
@@ -243,6 +254,22 @@ function well_target(control::ProducerControl, target::SurfaceVolumeTarget, well
         w = w/ρ_tot
     end
     return w
+end
+
+"""
+Well target contribution from well itself (RESV, producer)
+"""
+function well_target(control::ProducerControl, target::ReservoirVoidageTarget, well_model, well_state, surface_densities, surface_volume_fractions)
+    Tw = eltype(surface_volume_fractions)
+    ρ_tot = zero(Tw)
+    for (ρ, V) in zip(surface_densities, surface_volume_fractions)
+        ρ_tot += ρ*V
+    end
+    w = zero(Tw)
+    for (i, S) in enumerate(surface_volume_fractions)
+        w += S*target.weights[i]
+    end
+    return w/ρ_tot
 end
 
 function well_target_value(q_t, control, target, source_model, well_state, rhoS, S)

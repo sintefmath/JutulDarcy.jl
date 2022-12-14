@@ -1,4 +1,4 @@
-function simulate_mini_wellcase(::Val{:compositional_2ph_3c}; dims = (3, 1, 1), output_path = nothing, kwarg...)
+function simulate_mini_wellcase(::Val{:compositional_2ph_3c}; dims = (3, 1, 1), output_path = nothing, default_linsolve = true, kwarg...)
     # Some useful constants
     day = 3600*24
     bar = 1e5
@@ -40,7 +40,7 @@ function simulate_mini_wellcase(::Val{:compositional_2ph_3c}; dims = (3, 1, 1), 
     controls[:Producer] = P_ctrl
     # Simulate
     forces = setup_reservoir_forces(model, control = controls)
-    sim, config = setup_reservoir_simulator(model, state0, parameters, info_level = -1, output_path = output_path)
+    sim, config = setup_reservoir_simulator(model, state0, parameters, info_level = -1, set_linear_solver = !default_linsolve, output_path = output_path)
     setup = Dict(:config     => config,
                  :forces     => forces,
                  :state0     => state0,
@@ -52,7 +52,7 @@ function simulate_mini_wellcase(::Val{:compositional_2ph_3c}; dims = (3, 1, 1), 
     return (states = states, reports = reports, setup = setup)
 end
 
-function simulate_mini_wellcase(::Val{:immiscible_2ph}; dims = (3, 1, 1), kwarg...)
+function simulate_mini_wellcase(::Val{:immiscible_2ph}; dims = (3, 1, 1), output_path = nothing, default_linsolve = true, kwarg...)
     # Some useful constants
     day = 3600*24
     bar = 1e5
@@ -98,7 +98,7 @@ function simulate_mini_wellcase(::Val{:immiscible_2ph}; dims = (3, 1, 1), kwarg.
     # (amounting to no-flow for the reservoir).
     forces = setup_reservoir_forces(model, control = controls)
     ## Finally simulate!
-    sim, config = setup_reservoir_simulator(model, state0, parameters, info_level = -1)
+    sim, config = setup_reservoir_simulator(model, state0, parameters, info_level = -1, set_linear_solver = !default_linsolve, output_path = output_path)
     setup = Dict(:config     => config,
                  :forces     => forces,
                  :state0     => state0,
@@ -110,7 +110,7 @@ function simulate_mini_wellcase(::Val{:immiscible_2ph}; dims = (3, 1, 1), kwarg.
     return (states = states, reports = reports, setup = setup)
 end
 
-function simulate_mini_wellcase(::Val{:bo_spe1}; dims = (3, 1, 1), kwarg...)
+function simulate_mini_wellcase(::Val{:bo_spe1}; dims = (3, 1, 1), output_path = nothing, default_linsolve = true, kwarg...)
     # Some useful constants
     day = 3600*24
     bar = 1e5
@@ -155,7 +155,7 @@ function simulate_mini_wellcase(::Val{:bo_spe1}; dims = (3, 1, 1), kwarg...)
     # (amounting to no-flow for the reservoir).
     forces = setup_reservoir_forces(model, control = controls)
     ## Finally simulate!
-    sim, config = setup_reservoir_simulator(model, state0, parameters, info_level = -1)
+    sim, config = setup_reservoir_simulator(model, state0, parameters, info_level = -1, set_linear_solver = !default_linsolve, output_path = output_path)
     setup = Dict(:config     => config,
                  :forces     => forces,
                  :state0     => state0,

@@ -9,8 +9,8 @@ export Pressure, Saturations, TotalMasses, TotalMass
 # Abstract multiphase system
 
 get_phases(sys::MultiPhaseSystem) = sys.phases
-number_of_phases(sys::MultiPhaseSystem) = length(get_phases(sys))
-reference_densities(sys::MultiPhaseSystem) = sys.rho_ref
+@inline number_of_phases(sys::MultiPhaseSystem) = length(get_phases(sys))
+@inline reference_densities(sys::MultiPhaseSystem) = sys.rho_ref
 
 @enum FlowSourceType begin
     MassSource
@@ -116,7 +116,7 @@ struct Pressure <: ScalarVariable
     minimum_pressure::Float64
     maximum_pressure::Float64
     scale::Float64
-    function Pressure(; max_abs = nothing, max_rel = nothing, scale = 1e8, maximum = Inf, minimum = -Inf)
+    function Pressure(; max_abs = nothing, max_rel = 0.2, scale = 1e8, maximum = Inf, minimum = 101325.0)
         new(max_abs, max_rel, minimum, maximum, scale)
     end
 end
@@ -176,16 +176,16 @@ function Jutul.default_values(model, ::TwoPointGravityDifference)
 end
 
 # Selection of variables
-function select_primary_variables!(S, ::SinglePhaseSystem, model)
+function select_primary_variables!(S, ::SinglePhaseSystem, model::SimulationModel)
     S[:Pressure] = Pressure()
 end
 
-function select_primary_variables!(S, ::ImmiscibleSystem, model)
+function select_primary_variables!(S, ::ImmiscibleSystem, model::SimulationModel)
     S[:Pressure] = Pressure()
     S[:Saturations] = Saturations()
 end
 
-function select_equations!(eqs, sys::MultiPhaseSystem, model)
+function select_equations!(eqs, sys::MultiPhaseSystem, model::SimulationModel)
     fdisc = model.domain.discretizations.mass_flow
     nc = number_of_components(sys)
     eqs[:mass_conservation] = ConservationLaw(fdisc, :TotalMasses, nc)
@@ -305,11 +305,13 @@ end
 
 function cpr_weights_no_partials!(w, model::SimulationModel{R, S}, state, r, n, bz, scaling) where {R, S<:ImmiscibleSystem}
     ρ = state.PhaseMassDensities
-    nph, nc = size(ρ)
+    nc = size(w, 2)
     tb = minbatch(model.context, nc)
-    @batch minbatch = tb for i in 1:nc
-        for ph in 1:nph
-            @inbounds w[ph, i] = 1/value(ρ[ph, i])
+    M = global_map(model.domain)
+    density = Jutul.active_view(ρ, M, for_variables = false)
+    @batch minbatch = tb for i in axes(w, 2)
+        for ph in axes(w, 1)
+            @inbounds w[ph, i] = 1/value(density[ph, i])
         end
     end
 end

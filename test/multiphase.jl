@@ -4,10 +4,12 @@ using Test
 function test_multiphase(grid = CartesianMesh((2, 2), (2.0, 2.0)); setup = "two_phase_simple", debug_level = 1, linear_solver = nothing, kwarg...)
     state0, model, prm, f, t = get_test_setup(grid, case_name = setup; kwarg...)
     sim = Simulator(model, state0 = state0, parameters = prm)
-    if linear_solver == :auto
-        linear_solver = reservoir_linsolve(model)
+    if linear_solver != :auto
+        arg = (linear_solver = linear_solver, )
+    else
+        arg = NamedTuple()
     end
-    cfg = simulator_config(sim, info_level = -1, debug_level = debug_level, linear_solver = linear_solver)
+    cfg = simulator_config(sim; info_level = -1, debug_level = debug_level, arg...)
     simulate(sim, t, forces = f, config = cfg)
     return true
 end
@@ -39,7 +41,10 @@ setups = ["two_phase_simple",
                 @test test_multiphase(setup = setup, context = bctx, linear_solver = GenericKrylov(preconditioner = ILUZeroPreconditioner()))
             end
             @testset "Block assembly, CPR" begin
-                @test test_multiphase(setup = setup, context = bctx, linear_solver = GenericKrylov(preconditioner = CPRPreconditioner()))
+                for strategy in [:quasi_impes, :true_impes]
+                    prec = CPRPreconditioner(strategy = strategy)
+                    @test test_multiphase(setup = setup, context = bctx, linear_solver = GenericKrylov(preconditioner = prec))
+                end
             end
             @testset "Block assembly, auto" begin
                 @test test_multiphase(setup = setup, context = bctx, linear_solver = :auto)

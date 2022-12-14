@@ -13,7 +13,8 @@ module JutulDarcy
                   update_secondary_variable!,
                   default_value,
                   initialize_variable_value!,
-                  initialize_variable_ad,
+                  initialize_variable_value,
+                  initialize_variable_ad!,
                   update_half_face_flux!,
                   update_accumulation!,
                   update_equation!,
@@ -33,9 +34,11 @@ module JutulDarcy
     import Jutul: declare_pattern
     import Jutul: number_of_equations_per_entity
     import Jutul: update_equation_in_entity!, update_cross_term_in_entity!, local_discretization, discretization
+    import Jutul: FiniteVolumeGlobalMap, TrivialGlobalMap
+
     using Jutul
     using ForwardDiff, StaticArrays, SparseArrays, LinearAlgebra, Statistics
-    using AlgebraicMultigrid, Krylov
+    using AlgebraicMultigrid
     # PVT
     using MultiComponentFlash
     using MAT
@@ -60,6 +63,8 @@ module JutulDarcy
     # Blackoil
     include("blackoil/blackoil.jl")
 
+    include("thermal/thermal.jl")
+
     # Wells etc.
     include("facility/facility.jl")
 
@@ -79,5 +84,10 @@ module JutulDarcy
 
     @precompile_all_calls begin
         precompile_darcy_multimodels()
+        # We run a tiny MRST case to precompile the .MAT file loading
+        spe1_path = joinpath(pathof(JutulDarcy), "..", "..", "test", "mrst", "spe1.mat")
+        if isfile(spe1_path)
+            simulate_mrst_case(spe1_path, info_level = -1, verbose = false)
+        end
     end
 end # module

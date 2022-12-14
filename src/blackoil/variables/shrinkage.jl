@@ -1,14 +1,12 @@
 
-@jutul_secondary function update_as_secondary!(b, ρ::DeckShrinkageFactors, model::DisgasBlackOilModel, Pressure, Rs)
+@jutul_secondary function update_deck_shrinkage!(b, ρ::DeckShrinkageFactors, model::DisgasBlackOilModel,
+                                             Pressure, Rs, ix)
     pvt, reg = ρ.pvt, ρ.regions
-    nph, nc = size(b)
-    tb = minbatch(model.context, nc)
-
     w, o, g = phase_indices(model.system)
     bO = pvt[o]
     bG = pvt[g]
     bW = pvt[w]
-    @inbounds @batch minbatch = tb for i in 1:nc
+    @inbounds for i in ix
         p = Pressure[i]
         rs = Rs[i]
         b[w, i] = shrinkage(bW, reg, p, i)
@@ -18,16 +16,13 @@
 end
 
 # Shrinkage factors for all three cases
-@jutul_secondary function update_as_secondary!(b, ρ::DeckShrinkageFactors, model::StandardBlackOilModel, Pressure, Rs, Rv)
+@jutul_secondary function update_deck_shrinkage!(b, ρ::DeckShrinkageFactors, model::StandardBlackOilModel, Pressure, Rs, Rv, ix)
     pvt, reg = ρ.pvt, ρ.regions
-    nph, nc = size(b)
-    tb = minbatch(model.context, nc)
-
     w, o, g = phase_indices(model.system)
     bO = pvt[o]
     bG = pvt[g]
     bW = pvt[w]
-    @inbounds @batch minbatch = tb for i in 1:nc
+    @inbounds for i in ix
         p = Pressure[i]
         rv = Rv[i]
         rs = Rs[i]
@@ -37,16 +32,13 @@ end
     end
 end
 
-@jutul_secondary function update_as_secondary!(b, ρ::DeckShrinkageFactors, model::VapoilBlackOilModel, Pressure, Rv)
+@jutul_secondary function update_deck_shrinkage!(b, ρ::DeckShrinkageFactors, model::VapoilBlackOilModel, Pressure, Rv, ix)
     pvt, reg = ρ.pvt, ρ.regions
-    nph, nc = size(b)
-    tb = minbatch(model.context, nc)
-
     w, o, g = phase_indices(model.system)
     bO = pvt[o]
     bG = pvt[g]
     bW = pvt[w]
-    @inbounds @batch minbatch = tb for i in 1:nc
+    @inbounds for i in ix
         p = Pressure[i]
         rv = Rv[i]
         b[w, i] = shrinkage(bW, reg, p, i)

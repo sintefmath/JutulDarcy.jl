@@ -186,116 +186,8 @@ end
 function model_from_mat(G, mrst_data, res_context)
     ## Set up reservoir part
     @debug "Loading model from MRST:" keys(mrst_data)
-    if haskey(mrst_data, "deck")
-        @debug "Found deck model"
-        f = model_from_mat_deck
-    elseif haskey(mrst_data, "mixture")
-        @debug "Found compositional model"
-        f = model_from_mat_comp
-    elseif haskey(mrst_data, "fluid")
-        @debug "Found immiscible model"
-        f = model_from_mat_fluid_immiscible
-    else
-        error("I don't know how this model was made: $(keys(mrst_data))")
-    end
-    return f(G, mrst_data, res_context)
-end
-
-function model_from_mat_comp(G, mrst_data, res_context)
-    ## Set up reservoir part
-    f = mrst_data["fluid"]
-    nkr = vec(f["nkr"])
-    rhoS = vec(f["rhoS"])
-    nph = length(rhoS)
-    has_water = nph == 3
-    @assert nph == 2 || nph == 3
-
-    mixture = mrst_data["mixture"]
-    comps = mixture["components"]
-    names = copy(vec(mixture["names"]))
-    n = length(comps)
-
-    components = map(x -> MolecularProperty(x["mw"], x["pc"], x["Tc"], x["Vc"], x["acf"]), comps)
-    if haskey(mrst_data, "eos")
-        eosm = mrst_data["eos"]
-        
-        nm = eosm["name"]
-        if nm == "pr"
-            eos_t = PengRobinson()
-        elseif nm == "prcorr"
-            eos_t = PengRobinsonCorrected()
-        elseif nm == "srk"
-            eos_t = SoaveRedlichKwong()
-        elseif nm == "rk"
-            eos_t = RedlichKwong()
-        elseif nm == "zj"
-            eos_t = ZudkevitchJoffe()
-        else
-            error("$nm not supported")
-        end
-        if isempty(eosm["bic"])
-            bic = nothing
-        else
-            bic = copy(eosm["bic"])
-        end
-        if isempty(eosm["volume_shift"])
-            vs = nothing
-        else
-            vs = copy(eosm["volume_shift"])
-            vs = tuple(vs...)
-        end
-        @debug "Found EoS spec in input." eos_t bic vs
-    else
-        eos_t = PengRobinson()
-        vs = nothing
-        bic = nothing
-        @debug "Defaulting EoS." eos_t
-    end
-    mixture = MultiComponentMixture(components, names = names, A_ij = bic)
-    eos = GenericCubicEOS(mixture, eos_t, volume_shift = vs)
-
-    if nph == 2
-        phases = (LiquidPhase(), VaporPhase())
-    else
-        phases = (AqueousPhase(), LiquidPhase(), VaporPhase())
-    end
-    sys = MultiPhaseCompositionalSystemLV(eos, phases, reference_densities = rhoS)
-    model = SimulationModel(G, sys, context = res_context)
-
-    if haskey(f, "sgof")
-        sgof = f["sgof"]
-    else
-        sgof = []
-    end
-
-    if nph == 2
-        if isempty(sgof)
-            kr = BrooksCoreyRelPerm(nph, nkr)
-        else
-            s, krt = preprocess_relperm_table(sgof)
-            kr = TabulatedRelPermSimple(s, krt)
-        end
-    else
-        if haskey(f, "swof")
-            swof = f["swof"]
-        else
-            swof = []
-        end
-        @assert isempty(swof) && isempty(sgof) "SWOF + SGOF is not implemented yet"
-        kr = BrooksCoreyRelPerm(nph, nkr)
-    end
-    # p = model.primary_variables
-    # p[:Pressure] = Pressure(max_rel = 0.2)
-    s = model.secondary_variables
-    s[:RelativePermeabilities] = kr
-    T = copy(vec(mrst_data["state0"]["T"]))
-    if length(unique(T)) == 1
-        T = T[1]
-    end
-    ## Model parameters
-    param = setup_parameters(model, Temperature = T)
-
-    return (model, param)
+    @assert haskey(mrst_data, "deck") "Model must contain deck field"
+    return model_from_mat_deck(G, mrst_data, res_context)
 end
 
 function deck_pvt_water(props)
@@ -328,29 +220,32 @@ function deck_pvt_gas(props)
 end
 
 function deck_relperm(props; oil, water, gas, satnum = nothing)
+    if haskey(props, "SCALECRS")
+        if length(props["SCALECRS"]) == 0 || lowercase(only(props["SCALECRS"])) == "no"
+            @info "Found two-point rel. perm. scaling"
+            scaling = TwoPointKrScale
+        else
+            @info "Found three-point rel. perm. scaling"
+            scaling = ThreePointKrScale
+        end
+    else
+        scaling = NoKrScale
+    end
     if water && oil && gas
         KRW = []
         KRG = []
         KROW = []
         KROG = []
-        SWCON = zeros(0)
         if haskey(props, "SWOF") && haskey(props, "SGOF")
             for (swof, sgof) in zip(props["SWOF"], props["SGOF"])
-                s_water, kr_water = preprocess_relperm_table(swof)
-                swcon = swof[1, 1]
-                s_gas, kr_gas = preprocess_relperm_table(sgof, swcon = swcon)
-
-                krw = get_1d_interpolator(s_water[1], kr_water[1], cap_endpoints = false)
-                krow = get_1d_interpolator(s_water[2], kr_water[2], cap_endpoints = false)
-
-                krg = get_1d_interpolator(s_gas[1], kr_gas[1], cap_endpoints = false)
-                krog = get_1d_interpolator(s_gas[2], kr_gas[2], cap_endpoints = false)
+                krw, krow = table_to_relperm(swof, first_label = :o, second_label = :ow)
+                swcon = krw.connate
+                krg, krog = table_to_relperm(sgof, swcon = swcon, first_label = :g, second_label = :og)
 
                 push!(KRW, krw)
                 push!(KRG, krg)
                 push!(KROW, krow)
                 push!(KROG, krog)
-                push!(SWCON, swcon)
             end
         else
             @assert haskey(props, "SOF3")
@@ -358,58 +253,57 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
             @assert haskey(props, "SGFN")
             for (sof3, swfn, sgfn) in zip(props["SOF3"], props["SWFN"], props["SGFN"])
                 # Water
-                sw, krw_t = add_missing_endpoints(swfn[:, 1], swfn[:, 2])
-                krw = get_1d_interpolator(sw, krw_t, cap_endpoints = false)
-                swcon = sw[1]
+                krw = PhaseRelPerm(swfn[:, 1], swfn[:, 2], label = :w)
 
                 # Oil pairs
                 so = sof3[:, 1]
                 krow_t = sof3[:, 2]
                 krog_t = sof3[:, 3]
-                _, krow_t = add_missing_endpoints(so, krow_t)
-                so, krog_t = add_missing_endpoints(so, krog_t)
-                krow = get_1d_interpolator(so, krow_t, cap_endpoints = false)
-                krog = get_1d_interpolator(so, krog_t, cap_endpoints = false)
+                krow = PhaseRelPerm(so, krow_t, label = :ow)
+                krog = PhaseRelPerm(so, krog_t, label = :og)
 
                 # Gas
-                sg, krg_t = add_missing_endpoints(sgfn[:, 1], sgfn[:, 2])
-                krg = get_1d_interpolator(sg, krg_t, cap_endpoints = false)
+                krg = PhaseRelPerm(sgfn[:, 1], sgfn[:, 2], label = :g)
 
                 push!(KRW, krw)
                 push!(KRG, krg)
                 push!(KROW, krow)
                 push!(KROG, krog)
-                push!(SWCON, swcon)
             end
         end
-        SWCON = Tuple(SWCON)
         KRW = Tuple(KRW)
         KRG = Tuple(KRG)
         KROW = Tuple(KROW)
         KROG = Tuple(KROG)
-        return ThreePhaseRelPerm(w = KRW, g = KRG, ow = KROW, og = KROG, swcon = SWCON)
+        krarg = (w = KRW, g = KRG, ow = KROW, og = KROG)
     else
         if water && oil
             sat_table = props["SWOF"]
+            first_label = :w
+            second_label = :ow
         else
-            @assert gas && oil
             sat_table = props["SGOF"]
+            first_label = :g
+            second_label = :og
         end
         kr_1 = []
         kr_2 = []
         @assert length(sat_table) == 1 || !isnothing(satnum) "Saturation region must be provided for multiple saturation tables"
         for kr_from_deck in sat_table
-            s, krt = preprocess_relperm_table(kr_from_deck)
-
-            I_1 = get_1d_interpolator(s[1], krt[1])
-            I_2 = get_1d_interpolator(s[2], krt[2])
+            I_1, I_2 = table_to_relperm(kr_from_deck, first_label = first_label, second_label = second_label)
 
             push!(kr_1, I_1)
             push!(kr_2, I_2)
         end
-        kr = (tuple(kr_1...), tuple(kr_2)...)
-        return RelativePermeabilities(kr, regions = satnum)
+        kr_1 = tuple(kr_1...)
+        kr_2 = tuple(kr_2...)
+        if water && oil
+            krarg = (w = kr_1, ow = kr_2)
+        else
+            krarg = (g = kr_1, og = kr_2)
+        end
     end
+    return ReservoirRelativePermeability(; krarg..., regions = satnum, scaling = scaling)
 end
 
 function deck_pc(props; oil, water, gas, satnum = nothing)
@@ -460,8 +354,19 @@ function model_from_mat_deck(G, mrst_data, res_context)
     plot_mesh = MRSTWrapMesh(mrst_data["G"])
     deck = mrst_data["deck"]
     rock = mrst_data["rock"]
-    if haskey(rock, "regions") && haskey(rock["regions"], "saturation")
-        satnum = Int64.(vec(rock["regions"]["saturation"]))
+    if haskey(rock, "regions")
+        if haskey(rock["regions"], "saturation")
+            raw_satnum = rock["regions"]["saturation"]
+        elseif haskey(rock["regions"], "imbibition")
+            raw_satnum = ones(Int64, number_of_cells(G))
+        else
+            raw_satnum = nothing
+        end
+        if isnothing(raw_satnum)
+            satnum = nothing
+        else
+            satnum = Int64.(vec(raw_satnum))
+        end
     else
         satnum = nothing
     end
@@ -482,7 +387,12 @@ function model_from_mat_deck(G, mrst_data, res_context)
     phases = []
     rhoS = Vector{Float64}()
     if haskey(props, "DENSITY")
-        deck_density = vec(props["DENSITY"])
+        deck_density = props["DENSITY"]
+        if size(deck_density, 1) > 1
+            @warn "Multiple PVT regions found. Picking first one." deck_density
+            deck_density = deck_density[1, :]
+        end
+        deck_density = vec(deck_density)
         rhoOS = deck_density[1]
         rhoWS = deck_density[2]
         rhoGS = deck_density[3]
@@ -577,12 +487,10 @@ function model_from_mat_deck(G, mrst_data, res_context)
 
         if is_immiscible
             sys = ImmiscibleSystem(phases, reference_densities = rhoS)
-            dp_max_rel = Inf
-            min_p = -Inf
         else
             oil_pvt = pvt[2]
             if oil_pvt isa PVTO
-                rs_max = get_1d_interpolator(oil_pvt.sat_pressure, oil_pvt.rs, cap_end = false)
+                rs_max = saturated_table(oil_pvt)
             else
                 rs_max = nothing
             end
@@ -592,15 +500,10 @@ function model_from_mat_deck(G, mrst_data, res_context)
             else
                 rv_max = nothing
             end
-            sys = StandardBlackOilSystem(rs_max = rs_max, rv_max = rv_max, phases = phases, reference_densities = rhoS)
-            dp_max_rel = 0.2
-            min_p = 101325.0
+            sys = StandardBlackOilSystem(rs_max = rs_max, rv_max = rv_max, phases = phases,
+                                         reference_densities = rhoS)
         end
-
         model = SimulationModel(G, sys, context = res_context, plot_mesh = plot_mesh)
-        # Tweak primary variables
-        pvar = model.primary_variables
-        pvar[:Pressure] = Pressure(max_rel = dp_max_rel, minimum = min_p)
         # Modify secondary variables
         svar = model.secondary_variables
         # PVT
@@ -615,13 +518,32 @@ function model_from_mat_deck(G, mrst_data, res_context)
         param = setup_parameters(model)
     end
 
+    r = mrst_data["rock"]
+    if haskey(r, "krscale")
+        d = r["krscale"]["drainage"]
+        for (k, v) in d
+            name = Symbol("RelPermScaling$(uppercase(k))")
+            @assert size(v, 2) == 4
+            if haskey(param, name)
+                vals = param[name]
+                for c in axes(vals, 2)
+                    for i = axes(vals, 1)
+                        mrst_val = v[c, i]
+                        if isfinite(mrst_val)
+                            vals[i, c] = mrst_val
+                        end
+                    end
+                end
+            end
+        end
+    end
     return (model, param)
 end
 
 function set_deck_specialization!(model, props, satnum, oil, water, gas)
     svar = model.secondary_variables
     param = model.parameters
-    set_deck_relperm!(svar, props; oil = oil, water = water, gas = gas, satnum = satnum)
+    set_deck_relperm!(svar, param, props; oil = oil, water = water, gas = gas, satnum = satnum)
     set_deck_pc!(svar, props; oil = oil, water = water, gas = gas, satnum = satnum)
     set_deck_pvmult!(svar, param, props)
 end
@@ -633,14 +555,27 @@ function set_deck_pc!(vars, props; kwarg...)
     end
 end
 
-function set_deck_relperm!(vars, props; kwarg...)
-    vars[:RelativePermeabilities] = deck_relperm(props; kwarg...)
+function set_deck_relperm!(vars, param, props; kwarg...)
+    kr = deck_relperm(props; kwarg...)
+    vars[:RelativePermeabilities] = kr
+    if scaling_type(kr) != NoKrScale
+        ph = kr.phases
+        @assert ph == :wog
+        param[:RelPermScalingW] = RelPermScalingCoefficients(:w)
+        param[:RelPermScalingOW] = RelPermScalingCoefficients(:ow)
+        param[:RelPermScalingOG] = RelPermScalingCoefficients(:og)
+        param[:RelPermScalingG] = RelPermScalingCoefficients(:g)
+    end
 end
 
 function set_deck_pvmult!(vars, param, props)
     # Rock compressibility (if present)
     if haskey(props, "ROCK")
         rock = props["ROCK"]
+        if size(rock, 1) > 1
+            @warn "Rock has multiple regions, taking the first..." rock
+            rock = rock[1, :]
+        end
         if rock[2] > 0
             static = param[:FluidVolume]
             delete!(param, :FluidVolume)
@@ -728,9 +663,14 @@ end
 function setup_case_from_mrst(casename; simple_well = false,
                                         backend = :csc,
                                         block_backend = true,
+                                        split_wells = false,
                                         facility_grouping = :onegroup,
                                         minbatch = 1000,
+                                        steps = :full,
                                         nthreads = Threads.nthreads(),
+                                        legacy_output = false,
+                                        ds_max = 0.2,
+                                        dr_max = Inf,
                                         kwarg...)
     G, mrst_data = get_minimal_tpfa_grid_from_mrst(casename, extraout = true; kwarg...)
 
@@ -738,8 +678,6 @@ function setup_case_from_mrst(casename; simple_well = false,
     models = OrderedDict()
     initializer = Dict()
     forces = Dict()
-    cross_terms = []
-
     res_context, = Jutul.select_contexts(backend, block_backend = block_backend, minbatch = minbatch, nthreads = nthreads)
     model, param_res = model_from_mat(G, mrst_data, res_context)
     init = init_from_mat(mrst_data, model, param_res)
@@ -757,8 +695,8 @@ function setup_case_from_mrst(casename; simple_well = false,
 
         dt = schedule["step"]["val"]
         first_ctrl = schedule["control"][1]
-        first_well_set = vec(first_ctrl["W"])
-        
+        first_well_set = vec(deepcopy(first_ctrl["W"]))
+        first_well_set = set_wi_to_maximum!(first_well_set, schedule["control"])
     else
         dt = mrst_data["dt"]
         first_well_set = vec(mrst_data["W"])
@@ -768,14 +706,13 @@ function setup_case_from_mrst(casename; simple_well = false,
     end
     timesteps = vec(copy(dt))
     res_context = model.context
-    w_context = DefaultContext()
-    
+    w_context = DefaultContext(nthreads = 1)
+
     initializer[:Reservoir] = init
     forces[:Reservoir] = nothing
     models[:Reservoir] = model
     well_symbols = map((x) -> Symbol(x["name"]), first_well_set)
     num_wells = length(well_symbols)
-    
     parameters = Dict{Symbol, Any}()
     parameters[:Reservoir] = param_res
     controls = Dict()
@@ -954,7 +891,48 @@ function setup_case_from_mrst(casename; simple_well = false,
             end
         end
     end
-    return (models, parameters, initializer, timesteps, forces, mrst_data)
+    if steps != :full
+        if steps isa Int64
+            steps = [steps]
+        end
+        steps::Union{Vector{Int64}, UnitRange}
+        timesteps = timesteps[steps]
+        if forces isa AbstractVector
+            forces = forces[steps]
+        end
+    end
+    if legacy_output
+        return (models, parameters, initializer, timesteps, forces, mrst_data)
+    else
+        model = reservoir_multimodel(models, split_wells = split_wells)
+        setup_reservoir_cross_terms!(model)
+        # Replace saturations - if available
+        replace_variables!(model, Saturations = Saturations(ds_max = ds_max), throw = false)
+        replace_variables!(model, ImmiscibleSaturation = ImmiscibleSaturation(ds_max = ds_max), throw = false)
+        replace_variables!(model, BlackOilUnknown = BlackOilUnknown(ds_max = ds_max, dr_max = dr_max), throw = false)
+
+        state0 = setup_state(model, initializer)
+        parameters = setup_parameters(model, parameters)
+
+        case = JutulCase(model, timesteps, forces, state0 = state0, parameters = parameters)
+        return (case, mrst_data)
+    end
+end
+
+function set_wi_to_maximum!(wells, controls)
+    for (i, well) in enumerate(wells)
+        WI = well["WI"]
+        for ctrl in controls
+            new_WI = ctrl["W"][i]["WI"]
+            if WI isa AbstractArray
+                @. WI = max(WI, new_WI)
+            else
+                WI = max(WI, new_WI)
+            end
+        end
+        well["WI"] = WI
+    end
+    return wells
 end
 
 function facility_subset(well_symbols, controls)
@@ -980,7 +958,7 @@ function mrst_well_ctrl(model, wdata, is_comp, rhoS)
         @debug "$name: Shut well (requested)"
         ctrl = DisabledControl()
     else
-        wt = wdata["type"]
+        wt = lowercase(wdata["type"])
         is_rate_ctrl = true
         if wt == "bhp"
             target = BottomHolePressureTarget(t_mrst)
@@ -996,6 +974,8 @@ function mrst_well_ctrl(model, wdata, is_comp, rhoS)
             target = SurfaceGasRateTarget(t_mrst)
         elseif wt == "lrat"
             target = SurfaceLiquidRateTarget(t_mrst)
+        elseif wt == "resv_history"
+            target = HistoricalReservoirVoidageTarget(t_mrst, tuple(comp_i...))
         else
             error("$wt target is not supported.")
         end
@@ -1064,6 +1044,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                 split_wells = false,
                                 write_mrst = false,
                                 write_output = true,
+                                ds_max = 0.2,
                                 verbose = true,
                                 do_sim = true,
                                 steps = :full,
@@ -1080,23 +1061,33 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
     else
         fg = :onegroup
     end
-    models, parameters, initializer, dt, forces, mrst_data = setup_case_from_mrst(fn, block_backend = block_backend, 
-                                                                                      backend = backend,
-                                                                                      nthreads = nthreads,
-                                                                                      facility_grouping = fg,
-                                                                                      general_ad = general_ad,
-                                                                                      minbatch = minbatch);
-    if steps != :full
-        if steps isa Int64
-            steps = [steps]
+    case, mrst_data = setup_case_from_mrst(fn, block_backend = block_backend, steps = steps,
+                                                                            backend = backend,
+                                                                            nthreads = nthreads,
+                                                                            split_wells = split_wells,
+                                                                            facility_grouping = fg,
+                                                                            general_ad = general_ad,
+                                                                            minbatch = minbatch,
+                                                                            ds_max = ds_max);
+    model = case.model
+    forces = case.forces
+    dt = case.dt
+    parameters = case.parameters
+    models = model.models
+    rmodel = models[:Reservoir]
+    if rmodel isa StandardBlackOilModel
+        sys = rmodel.system
+        if has_disgas(sys)
+            push!(extra_outputs, :Rs)
         end
-        steps::Union{Vector{Int64}, UnitRange}
-        dt = dt[steps]
-        if forces isa AbstractVector
-            forces = forces[steps]
+        if has_vapoil(sys)
+            push!(extra_outputs, :Rv)
         end
+        push!(extra_outputs, :RelativePermeabilities)
+        push!(extra_outputs, :PhaseViscosities)
+        push!(extra_outputs, :PhaseMassDensities)
     end
-    out = models[:Reservoir].output_variables
+    out = rmodel.output_variables
     for k in extra_outputs
         push!(out, k)
     end
@@ -1112,26 +1103,25 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
     else
         output_path = nothing
     end
-    sim, cfg = setup_reservoir_simulator(models, initializer, parameters, linear_solver = linear_solver,
-                                        output_path = output_path, split_wells = split_wells; kwarg...)
-    if verbose
-        M = first(values(models))
-        sys = M.system
-        if sys isa CompositionalSystem
-            s = "compositional"
-        elseif sys isa BlackOilSystem
-            s = "black-oil"
-        elseif sys isa ImmiscibleSystem
-            s = "immiscible"
-        else
-            s = "unknown"
-        end
-        ncomp = number_of_components(sys)
-        nph = number_of_phases(sys)
-        nc = number_of_cells(M.domain)
+    sim, cfg = setup_reservoir_simulator(case, linear_solver = linear_solver, output_path = output_path; kwarg...)
+    M = first(values(models))
+    sys = M.system
+    if sys isa CompositionalSystem
+        s = "compositional"
+    elseif sys isa BlackOilSystem
+        s = "black-oil"
+    elseif sys isa ImmiscibleSystem
+        s = "immiscible"
+    else
+        s = "unknown"
     end
+    ncomp = number_of_components(sys)
+    nph = number_of_phases(sys)
+    nc = number_of_cells(M.domain)
     if do_sim
-        jutul_message("MRST model", "Starting simulation of $s system with $nc cells and $nph phases and $ncomp components.")
+        if verbose
+            jutul_message("MRST model", "Starting simulation of $s system with $nc cells and $nph phases and $ncomp components.")
+        end
         states, reports = simulate(sim, dt, forces = forces, config = cfg);
         if write_output && write_mrst
             mrst_output_path = "$(output_path)_mrst"
@@ -1140,8 +1130,14 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
             end
             write_reservoir_simulator_output_to_mrst(sim.model, states, reports, forces, mrst_output_path, parameters = parameters)
         end
-        if verbose && length(states) == length(dt)
-            jutul_message("MRST model", "Model was successfully simulated.")
+        ns = length(states)
+        nt = length(dt)
+        if verbose
+            if ns == nt
+                jutul_message("MRST model", "Model was successfully simulated.")
+            else
+                jutul_message("MRST model", "Simulation aborted: $ns/$nt steps completed.")
+            end
         end
     else
         states = []
@@ -1151,7 +1147,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
         end
     end
 
-    setup = (sim = sim, parameters = parameters, mrst = mrst_data, forces = forces, dt = dt, config = cfg, state0 = initializer)
+    setup = (case = case, sim = sim, config = cfg, mrst = mrst_data)
     return (states, reports, output_path, setup)
 end
 
@@ -1166,7 +1162,8 @@ function write_reservoir_simulator_output_to_mrst(model, states, reports, forces
     prep_write(x) = x
     prep_write(x::AbstractMatrix) = collect(x')
     if write_states
-        for i in eachindex(states)
+        N = min(length(states), length(reports))
+        for i in 1:N
             state = states[i]
             if model isa MultiModel
                 res_state = state[:Reservoir]
@@ -1199,6 +1196,12 @@ function write_reservoir_simulator_output_to_mrst(model, states, reports, forces
             matwrite(state_path, Dict("data" => D))
         end
         if write_wells && model isa MultiModel
+            ix = 1:N
+            if forces isa Vector
+                forces = forces[ix]
+            end
+            states = states[ix]
+            reports = reports[ix]
             wd = full_well_outputs(model, states, forces, shortname = true)
             wd_m = Dict{String, Any}()
             for k in keys(wd)
@@ -1206,6 +1209,7 @@ function write_reservoir_simulator_output_to_mrst(model, states, reports, forces
                 for f in keys(wd[k])
                     tmp[String(f)] = wd[k][f]
                 end
+                tmp["name"] = "$k"
                 wd_m[valid_wellname(k)] = tmp
             end
             wd_m["time"] = report_times(reports)

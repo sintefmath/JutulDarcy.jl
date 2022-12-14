@@ -25,13 +25,17 @@ end
     return tab[reg]
 end
 
+function region_wrap(x::Nothing, regions)
+    return x
+end
+
 function region_wrap(x::Tuple, regions::Nothing)
     @assert length(x) == 1
     return x
 end
 
 function region_wrap(x::Tuple, regions::AbstractArray)
-    @assert length(x) <= maximum(regions)
+    @assert length(x) >= maximum(regions)
     return x
 end
 

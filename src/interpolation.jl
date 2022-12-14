@@ -16,8 +16,11 @@ function interp_pvt(pvto, p, v, type = :shrinkage; cap = false)
     w, ix = bin_interval(R, v)
     # We now know what lines (for given v) bound the point
     # Get the positions of those lines in the linear array
-    lower = pos[ix]:(pos[ix+1]-1)
-    upper = pos[ix+1]:(pos[ix+2]-1)
+    ix_start = @inbounds pos[ix]
+    ix_middle = @inbounds pos[ix+1]
+    ix_end = @inbounds pos[ix+2]
+    lower = ix_start:(ix_middle-1)
+    upper = ix_middle:(ix_end-1)
 
     P_l = view(P, lower)
     P_u = view(P, upper)

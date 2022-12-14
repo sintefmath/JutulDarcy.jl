@@ -1,29 +1,15 @@
-export preprocess_relperm_table
+export table_to_relperm
 
-function preprocess_relperm_table(swof, ϵ = 1e-16; swcon = 0.0)
+function table_to_relperm(swof; swcon = 0.0, first_label = :w, second_label = :ow)
     sw = vec(swof[:, 1])
     krw = vec(swof[:, 2])
+    krw = PhaseRelPerm(sw, krw, label = first_label)
+    kro = vec(swof[end:-1:1, 3])
     so = 1 .- sw
     so = vec(so[end:-1:1])
-    if swcon != 0
-        for i in eachindex(so)
-            so[i] -= swcon
-        end
-    end
-    kro = vec(swof[end:-1:1, 3])
-    # Make sure that we don't extrapolate
-    sw, krw = add_missing_endpoints(sw, krw)
-    # Change so table to be with respect to so,
-    # and to be increasing with respect to input
-    so, kro = add_missing_endpoints(so, kro)
-    # Subtract a tiny bit from the saturations at endpoints.
-    # This is to ensure that the derivative ends up as zero
-    # when evaluated at s corresponding to kr_max
-    ensure_endpoints!(so, kro, ϵ)
-    ensure_endpoints!(sw, krw, ϵ)
-    s = [sw, so]
-    krt = [krw, kro]
-    return s, krt
+    @. so = so - swcon
+    krow = PhaseRelPerm(so, kro, label = second_label)
+    return (krw, krow)
 end
 
 function add_missing_endpoints(s, kr)

@@ -1,21 +1,19 @@
 
-@jutul_secondary function update_as_secondary!(Sat, s::Saturations, model::SimulationModel{D, S}, Pressure, Temperature, FlashResults) where {D, S<:MultiPhaseCompositionalSystemLV{E, T, O} where {E, T, O<:Nothing}}
-    tb = minbatch(model.context, size(Sat, 2))
+@jutul_secondary function update_saturations!(Sat, s::Saturations, model::SimulationModel{D, S}, Pressure, Temperature, FlashResults, ix) where {D, S<:MultiPhaseCompositionalSystemLV{E, T, O} where {E, T, O<:Nothing}}
     l, v = phase_indices(model.system)
     eos = model.system.equation_of_state
-    @inbounds @batch minbatch = tb for i in axes(Sat, 2)
+    @inbounds for i in ix
         S_l, S_v = phase_saturations(eos, Pressure[i], Temperature[i], FlashResults[i])
         Sat[l, i] = S_l
         Sat[v, i] = S_v
     end
 end
 
-@jutul_secondary function update_as_secondary!(Sat, s::Saturations, model::SimulationModel{D, S}, Pressure, Temperature, FlashResults, ImmiscibleSaturation) where {D, S<:MultiPhaseCompositionalSystemLV}
+@jutul_secondary function update_saturations!(Sat, s::Saturations, model::SimulationModel{D, S}, Pressure, Temperature, FlashResults, ImmiscibleSaturation, ix) where {D, S<:MultiPhaseCompositionalSystemLV}
     T = eltype(Sat)
     a, l, v = phase_indices(model.system)
-    tb = minbatch(model.context, size(Sat, 2))
     eos = model.system.equation_of_state
-    @inbounds @batch minbatch = tb for i in axes(Sat, 2)
+    @inbounds for i in ix
         S_other = ImmiscibleSaturation[i]
         rem = one(T) - S_other
         S_l, S_v = phase_saturations(eos, Pressure[i], Temperature[i], FlashResults[i])

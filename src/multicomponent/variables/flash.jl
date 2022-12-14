@@ -41,7 +41,7 @@ end
 
 default_value(model, ::FlashResults) = FlashedMixture2Phase(model.system.equation_of_state)
 
-function initialize_variable_value!(state, model, pvar::FlashResults, symb, val::AbstractDict; need_value = false)
+function initialize_variable_value(model, pvar::FlashResults, val::AbstractDict; need_value = false)
     @assert need_value == false
     n = number_of_entities(model, pvar)
     v = default_value(model, pvar)
@@ -51,10 +51,14 @@ function initialize_variable_value!(state, model, pvar::FlashResults, symb, val:
     for i in 1:n
         push!(V, default_value(model, pvar))
     end
-    initialize_variable_value!(state, model, pvar, symb, V)
+    initialize_variable_value(model, pvar, V)
 end
 
-function initialize_variable_ad(state, model, pvar::FlashResults, symb, npartials, diag_pos; context = DefaultContext(), kwarg...)
+function Jutul.initialize_variable_value!(state, model, pvar::FlashResults, symb, val::AbstractDict; kwarg...)
+    state[symb] = initialize_variable_value(model, pvar, val; kwarg...)
+end
+
+function initialize_variable_ad!(state, model, pvar::FlashResults, symb, npartials, diag_pos; context = DefaultContext(), kwarg...)
     n = number_of_entities(model, pvar)
     v_ad = get_ad_entity_scalar(1.0, npartials, diag_pos; kwarg...)
     ∂T = typeof(v_ad)
@@ -62,7 +66,6 @@ function initialize_variable_ad(state, model, pvar::FlashResults, symb, npartial
 
     r = FlashedMixture2Phase(eos, ∂T)
     T = typeof(r)
-    # T = MultiComponentFlash.flashed_mixture_array_type(eos, ∂T)
     V = Vector{T}(undef, n)
     for i in 1:n
         V[i] = FlashedMixture2Phase(eos, ∂T)
@@ -71,32 +74,14 @@ function initialize_variable_ad(state, model, pvar::FlashResults, symb, npartial
     return state
 end
 
-@jutul_secondary function update_as_secondary!(flash_results, fr::FlashResults, model, Pressure, Temperature, OverallMoleFractions)
+@jutul_secondary function update_flash!(flash_results, fr::FlashResults, model, Pressure, Temperature, OverallMoleFractions, ix)
     storage, m, buffers = fr.storage, fr.method, fr.update_buffer
     eos = model.system.equation_of_state
 
-    for buf in buffers
-        update_flash_buffer!(buf, eos, Pressure, Temperature, OverallMoleFractions)
-    end
-    perform_flash_for_all_cells!(flash_results, storage, m, eos, buffers, Pressure, Temperature, OverallMoleFractions, threads = fr.use_threads)
-end
-
-function perform_flash_for_all_cells!(flash_results, storage, m, eos, buffers, P, T, z; threads = true)
-    flash_cell(i, S, buf) = internal_flash!(flash_results, S, m, eos, buf, P, T, z, i)
-    if threads
-        N = Threads.nthreads()
-        @assert length(storage) == N == length(buffers)
-        @inbounds @batch threadlocal=thread_buffers(storage, buffers) for i in eachindex(flash_results)
-            # Unpack thread specific storage
-            S, thread_buffer = threadlocal
-            # Do flash
-            flash_cell(i, S, thread_buffer)
-        end
-    else
-        S, buf = thread_buffers(storage, buffers)
-        @inbounds for i in eachindex(flash_results)
-            flash_cell(i, S, buf)
-        end
+    S, buf = thread_buffers(storage, buffers)
+    update_flash_buffer!(buf, eos, Pressure, Temperature, OverallMoleFractions)
+    @inbounds for i in ix
+        flash_results[i] = internal_flash!(flash_results[i], S, m, eos, buf, Pressure, Temperature, OverallMoleFractions, i)
     end
 end
 
@@ -120,10 +105,8 @@ function update_flash_buffer!(buf, eos, Pressure, Temperature, OverallMoleFracti
     end
 end
 
-function internal_flash!(flash_results, S, m, eos, buf, Pressure, Temperature, OverallMoleFractions, i)
-    # Ready to work
+function internal_flash!(f, S, m, eos, buf, Pressure, Temperature, OverallMoleFractions, i)
     @inbounds begin
-        f = flash_results[i]
         P = Pressure[i]
         T = Temperature[i]
         Z = @view OverallMoleFractions[:, i]
@@ -132,7 +115,7 @@ function internal_flash!(flash_results, S, m, eos, buf, Pressure, Temperature, O
         x = f.liquid.mole_fractions
         y = f.vapor.mole_fractions
 
-        flash_results[i] = update_flash_result(S, m, buf, eos, K, x, y, buf.z, buf.forces, P, T, Z)
+        return update_flash_result(S, m, buf, eos, K, x, y, buf.z, buf.forces, P, T, Z)
     end
 end
 

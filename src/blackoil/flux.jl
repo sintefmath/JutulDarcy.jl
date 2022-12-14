@@ -21,7 +21,7 @@
     λb_v = phase_upwind(upw, b_mob, v, ψ_v)
 
     # Rv (vaporized oil) upwinded by vapor potential
-    Rs = state.Rv
+    Rv = state.Rv
     f_rv = cell -> @inbounds Rv[cell]
     rv = upwind(upw, f_rv, ψ_v)
     # Final flux = oil phase flux + oil-in-gas flux

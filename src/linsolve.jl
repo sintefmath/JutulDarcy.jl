@@ -1,5 +1,5 @@
 """
-    reservoir_linsolve(model; <keyword arguments>)
+    reservoir_linsolve(model, precond = :cpr; <keyword arguments>)
 
 Set up iterative linear solver for a reservoir model from [`setup_reservoir_model`](@ref).
 
@@ -74,3 +74,6 @@ function reservoir_linsolve(model,  precond = :cpr;
     return lsolve
 end
 
+function Jutul.select_linear_solver(m::SimulationModel{<:Any, S, <:Any, <:Any}; kwarg...) where S<:MultiPhaseSystem
+    return reservoir_linsolve(m; kwarg...)
+end

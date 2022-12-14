@@ -5,11 +5,15 @@ include("variables/variables.jl")
 include("flux.jl")
 include("wells.jl")
 include("data.jl")
+include("utils.jl")
 
 blackoil_formulation(::StandardBlackOilSystem{V, D, W, R, F}) where {V, D, W, R, F} = F
 
 function select_primary_variables!(S, system::BlackOilSystem, model)
-    S[:Pressure] = Pressure(max_rel = 0.2, minimum = 1e5)
+    S[:Pressure] = Pressure()
+    if has_other_phase(system)
+        S[:ImmiscibleSaturation] = ImmiscibleSaturation(ds_max = 0.2)
+    end
     bf = blackoil_formulation(system)
     if bf == :varswitch
         S[:BlackOilUnknown] = BlackOilUnknown()
@@ -17,9 +21,6 @@ function select_primary_variables!(S, system::BlackOilSystem, model)
         S[:GasMassFraction] = GasMassFraction(dz_max = 0.1)
     else
         error("Unsupported formulation $bf.")
-    end
-    if has_other_phase(system)
-        S[:ImmiscibleSaturation] = ImmiscibleSaturation(ds_max = 0.2)
     end
 end
 
@@ -36,10 +37,9 @@ function select_secondary_variables!(S, system::BlackOilSystem, model)
     end
     S[:PhaseViscosities] = DeckViscosity(pvt)
     if has_disgas(system)
-        @assert has_disgas(system)
         S[:Rs] = Rs()
-    else
-        @assert has_vapoil(system)
+    end
+    if has_vapoil(system)
         S[:Rv] = Rv()
     end
 end

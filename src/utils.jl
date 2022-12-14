@@ -64,19 +64,9 @@ export setup_reservoir_simulator
 Additional keyword arguments are passed onto [`simulator_config`](@ref).
 """
 function setup_reservoir_simulator(models, initializer, parameters = nothing;
-                            precond = :cpr,
-                            linear_solver = :bicgstab,
-                            rtol = 1e-3,
-                            initial_dt = 3600.0*24.0,
-                            target_its = 8,
-                            offset_its = 1,
-                            tol_cnv = 1e-3,
-                            tol_mb = 1e-7,
-                            cpr_update_interval_partial = :iteration,
-                            cpr_update_interval = :once,
-                            specialize = false,
-                            split_wells = false,
-                            kwarg...)
+                                                        specialize = false,
+                                                        split_wells = false,
+                                                        kwarg...)
     if isa(models, SimulationModel)
         DT = Dict{Symbol, Any}
         models = DT(:Reservoir => models)
@@ -93,30 +83,75 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing;
     end
     # Set up simulator itself, containing the initial state
     state0 = setup_state(mmodel, initializer)
-    sim = Simulator(mmodel, state0 = state0, parameters = deepcopy(parameters))
+
+    case = JutulCase(mmodel, state0 = state0, parameters = parameters)
+    setup_reservoir_simulator(case; kwarg...)
+end
+
+function setup_reservoir_simulator(case::JutulCase;
+                            precond = :cpr,
+                            linear_solver = :bicgstab,
+                            max_dt = Inf,
+                            rtol = 1e-3,
+                            initial_dt = 3600.0*24.0,
+                            target_its = 8,
+                            offset_its = 1,
+                            tol_cnv = 1e-3,
+                            tol_mb = 1e-7,
+                            tol_cnv_well = 1e-2,
+                            tol_mb_well = 1e-3,
+                            cpr_update_interval_partial = :iteration,
+                            cpr_update_interval = :once,
+                            set_linear_solver = true,
+                            timesteps = :iteration,
+                            kwarg...)
+
+    sim = Simulator(case)
 
     # Config: Linear solver, timestep selection defaults, etc...
-    lsolve = reservoir_linsolve(mmodel, precond, rtol = rtol, solver = linear_solver,
+    lsolve = reservoir_linsolve(case.model, precond, rtol = rtol, solver = linear_solver,
                                         update_interval_partial = cpr_update_interval_partial,
                                         update_interval = cpr_update_interval
                                         )
     # day = 3600.0*24.0
-    t_base = TimestepSelector(initial_absolute = initial_dt, max = Inf)
+    t_base = TimestepSelector(initial_absolute = initial_dt, max = max_dt)
     t_its = IterationTimestepSelector(target_its, offset = offset_its)
-    cfg = simulator_config(sim, timestep_selectors = [t_base, t_its], linear_solver = lsolve; kwarg...)
-    set_default_cnv_mb!(cfg, mmodel, tol_cnv = tol_cnv, tol_mb = tol_mb)
+    if timesteps == :iteration
+        sel = [t_base, t_its]
+    else
+        @assert isnothing(timesteps)
+        sel = [t_base]
+    end
+    if set_linear_solver
+        cfg = simulator_config(sim, timestep_selectors = sel, linear_solver = lsolve; kwarg...)
+    else
+        cfg = simulator_config(sim, timestep_selectors = sel; kwarg...)
+    end
+    set_default_cnv_mb!(cfg, case.model, tol_cnv = tol_cnv, tol_mb = tol_mb, tol_cnv_well = tol_cnv_well, tol_mb_well = tol_mb_well)
     return (sim, cfg)
 end
 
-function set_default_cnv_mb!(cfg, model; tol_cnv = 1e-3, tol_mb = 1e-7)
-    rmodel = reservoir_model(model)
-    sys = rmodel.system
+function set_default_cnv_mb!(cfg, model; kwarg...)
+    set_default_cnv_mb_inner!(cfg[:tolerances], model; kwarg...)
+end
+
+function set_default_cnv_mb_inner!(tol, model; tol_cnv = 1e-3, tol_mb = 1e-7, tol_mb_well = 1e-3, tol_cnv_well = 1e-2)
+    sys = model.system
     if sys isa ImmiscibleSystem || sys isa BlackOilSystem
-        tol = cfg[:tolerances]
-        if haskey(tol, :Reservoir)
-            tol = tol[:Reservoir]
+        if model.domain isa WellDomain
+            c = tol_cnv_well
+            m = tol_mb_well
+        else
+            c = tol_cnv
+            m = tol_mb
         end
-        tol[:mass_conservation] = (CNV = tol_cnv, MB = tol_mb)
+        tol[:mass_conservation] = (CNV = c, MB = m)
+    end
+end
+
+function set_default_cnv_mb!(cfg, model::MultiModel; kwarg...)
+    for (k, m) in pairs(model.models)
+        set_default_cnv_mb_inner!(cfg[:tolerances][k], m; kwarg...)
     end
 end
 
@@ -357,7 +392,12 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
         else
             if q_t == 0
                 current_control = DisabledControl()
-                d[i] = 0.0
+                if target == BottomHolePressureTarget
+                    v = well_state.Pressure[1]
+                else
+                    v = 0.0
+                end
+                d[i] = v
             else
                 if haskey(force, :Facility)
                     gforce = force[:Facility]

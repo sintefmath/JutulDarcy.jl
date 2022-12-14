@@ -12,7 +12,7 @@ end
 
 function Jutul.associated_entity(::TotalSurfaceMassRate) Wells() end
 
-function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, state_symbol, model, dx)
+function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, state_symbol, model, dx, w)
     v = state[state_symbol]
     symbols = model.domain.well_symbols
     cfg = state.WellGroupConfiguration
@@ -33,7 +33,7 @@ function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, s
     end
     @inbounds for i in eachindex(v)
         s = symbols[i]
-        v[i] = do_update(v[i], dx[i], operating_control(cfg, s))
+        v[i] = do_update(v[i], w*dx[i], operating_control(cfg, s))
     end
 end
 
@@ -61,7 +61,7 @@ function select_primary_variables!(S, system::PredictionMode, model)
     nothing
 end
 
-function select_equations!(eqs, domain::WellGroup, model)
+function select_equations!(eqs, domain::WellGroup, model::SimulationModel)
     eqs[:control_equation] = ControlEquationWell()
 end
 

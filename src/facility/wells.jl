@@ -414,19 +414,19 @@ const WellDomain = DiscretizedDomain{<:WellGrid}
 const MSWellDomain = DiscretizedDomain{<:MultiSegmentWell}
 
 # Selection of primary variables
-function select_primary_variables!(S, ::MSWellDomain, model)
+function select_primary_variables!(S, ::MSWellDomain, model::SimulationModel)
     S[:TotalMassFlux] = TotalMassFlux()
 end
 
-function select_equations!(eqs, domain::MSWellDomain, model)
+function select_equations!(eqs, domain::MSWellDomain, model::SimulationModel)
     eqs[:potential_balance] = PotentialDropBalanceWell(domain.discretizations.mass_flow)
 end
 
-function select_parameters!(prm, domain::MSWellDomain, model)
+function select_parameters!(prm, domain::MSWellDomain, model::SimulationModel)
     prm[:WellIndices] = WellIndices()
 end
 
-function select_minimum_output_variables!(vars, domain::WellDomain, model)
+function select_minimum_output_variables!(vars, domain::WellDomain, model::SimulationModel)
     push!(vars, :PhaseMassDensities)
     push!(vars, :Saturations)
     return vars

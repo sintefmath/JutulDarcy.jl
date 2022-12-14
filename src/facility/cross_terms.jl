@@ -38,7 +38,6 @@ end
 Jutul.cross_term_entities(ct::ReservoirFromWellCT, eq::ConservationLaw, model) = ct.reservoir_cells
 Jutul.cross_term_entities_source(ct::ReservoirFromWellCT, eq::ConservationLaw, model) = ct.well_cells
 
-import Jutul: FiniteVolumeGlobalMap, TrivialGlobalMap
 function Jutul.subcrossterm(ct::ReservoirFromWellCT, ctp, m_t, m_s, map_res::FiniteVolumeGlobalMap, ::TrivialGlobalMap, partition)
     (; WI, reservoir_cells, well_cells) = ct
     # rc = map(
