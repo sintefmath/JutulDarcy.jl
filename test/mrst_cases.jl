@@ -1,4 +1,4 @@
-using JutulDarcy, Test
+using JutulDarcy, Test, LinearAlgebra
 
 function test_mrst_case(casename; tol = 0.01, wtol = tol, otol = tol, gtol = tol, bhptol = tol)
     data_path = joinpath(@__DIR__, "mrst", "$(casename).mat")
