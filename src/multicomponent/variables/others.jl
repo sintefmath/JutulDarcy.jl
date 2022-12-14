@@ -66,7 +66,7 @@ Update total masses for two-phase compositional where another immiscible phase i
 function two_phase_compositional_mass!(M, state, Φ, ρ, X, Y, S, cell, N, aqua::Val{true}, phase_ix)
     update_mass_two_phase_compositional!(M, state, Φ, ρ, X, Y, S, cell, phase_ix[2:end], N - 1)
     a, = phase_ix
-    @inbounds M[end] = ρ[a, cell]*S[a, cell]*Φ[cell]
+    @inbounds M[end, cell] = ρ[a, cell]*S[a, cell]*Φ[cell]
 end
 
 function update_mass_two_phase_compositional!(M, state, Φ, ρ, X, Y, S, cell, phase_ix, N)
