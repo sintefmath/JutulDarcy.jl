@@ -25,6 +25,7 @@ function reservoir_linsolve(model,  precond = :cpr;
                                     update_interval = :once,
                                     update_interval_partial = :iteration,
                                     amg_type = :smoothed_aggregation,
+                                    smoother_type = :ilu0,
                                     max_coarse = nothing,
                                     cpr_type = nothing,
                                     partial_update = update_interval == :once,
@@ -51,7 +52,14 @@ function reservoir_linsolve(model,  precond = :cpr;
             max_coarse = 10
         end
         p_solve = default_psolve(max_coarse = max_coarse, type = amg_type)
-        prec = CPRPreconditioner(p_solve, strategy = cpr_type, 
+        if smoother_type == :ilu0
+            s = ILUZeroPreconditioner()
+        elseif smoother_type == :jacobi
+            s = JacobiPreconditioner()
+        else
+            error("Smoother :$smoother_type not supported for CPR.")
+        end
+        prec = CPRPreconditioner(p_solve, s, strategy = cpr_type, 
                                  update_interval = update_interval,
                                  partial_update = partial_update,
                                  update_interval_partial = update_interval_partial)

@@ -102,6 +102,7 @@ function setup_reservoir_simulator(case::JutulCase;
                             tol_mb_well = 1e-3,
                             cpr_update_interval_partial = :iteration,
                             cpr_update_interval = :once,
+                            cpr_smoother = :ilu0,
                             set_linear_solver = true,
                             timesteps = :iteration,
                             kwarg...)
@@ -111,7 +112,8 @@ function setup_reservoir_simulator(case::JutulCase;
     # Config: Linear solver, timestep selection defaults, etc...
     lsolve = reservoir_linsolve(case.model, precond, rtol = rtol, solver = linear_solver,
                                         update_interval_partial = cpr_update_interval_partial,
-                                        update_interval = cpr_update_interval
+                                        update_interval = cpr_update_interval,
+                                        smoother_type = cpr_smoother,
                                         )
     # day = 3600.0*24.0
     t_base = TimestepSelector(initial_absolute = initial_dt, max = max_dt)
