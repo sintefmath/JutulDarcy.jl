@@ -14,8 +14,8 @@ function test_multiphase(grid = CartesianMesh((2, 2), (2.0, 2.0)); setup = "two_
     return true
 end
 
-bctx = DefaultContext(matrix_layout = BlockMajorLayout())
-ctx = DefaultContext(matrix_layout = EntityMajorLayout())
+##
+contexts = ["CSC", "CSR"]
 
 setups = ["two_phase_simple",
           "two_phase_fake_wells",
@@ -26,31 +26,45 @@ setups = ["two_phase_simple",
           ]
 
 @testset "Multi phase flow" begin
-    for setup in setups
-        @testset "$setup" begin
-            @testset "Default, direct solver" begin
-                @test test_multiphase(setup = setup)
+    for context in contexts
+        @testset "$context" begin
+            if context == "CSC"
+                bctx = DefaultContext(matrix_layout = BlockMajorLayout())
+                ctx = DefaultContext(matrix_layout = EntityMajorLayout())            
+            else
+                @assert context == "CSR"
+                bctx = ParallelCSRContext(matrix_layout = BlockMajorLayout())
+                ctx = ParallelCSRContext(matrix_layout = EntityMajorLayout())
             end
-            @testset "Default backend, Krylov solver" begin
-                @test test_multiphase(setup = setup, linear_solver = GenericKrylov())
-            end
-            @testset "Block assembly, Krylov solver" begin
-                @test test_multiphase(setup = setup, context = bctx, linear_solver = GenericKrylov())
-            end
-            @testset "Block assembly, ILU0" begin
-                @test test_multiphase(setup = setup, context = bctx, linear_solver = GenericKrylov(preconditioner = ILUZeroPreconditioner()))
-            end
-            @testset "Block assembly, CPR" begin
-                for strategy in [:quasi_impes, :true_impes]
-                    prec = CPRPreconditioner(strategy = strategy)
-                    @test test_multiphase(setup = setup, context = bctx, linear_solver = GenericKrylov(preconditioner = prec))
+            for setup in setups
+                @testset "$setup" begin
+                    @testset "Scalar, direct solver" begin
+                        @test test_multiphase(setup = setup)
+                    end
+                    @testset "Scalar backend, Krylov solver" begin
+                        @test test_multiphase(setup = setup, linear_solver = GenericKrylov())
+                    end
+                    precond = [(nothing, "Krylov solver"), (ILUZeroPreconditioner(), "ILU(0)"), (SPAI0Preconditioner(), "SPAI(0)")]
+                    for (prec, name) in precond
+                        @testset "Block assembly, $name" begin
+                            lsolve = GenericKrylov(preconditioner = prec)
+                            @test test_multiphase(setup = setup, context = bctx, linear_solver = lsolve)
+                        end
+
+                    end
+                    @testset "Block assembly, CPR" begin
+                        for strategy in [:quasi_impes, :true_impes]
+                            prec = CPRPreconditioner(strategy = strategy)
+                            @test test_multiphase(setup = setup, context = bctx, linear_solver = GenericKrylov(preconditioner = prec))
+                        end
+                    end
+                    @testset "Block assembly, auto" begin
+                        @test test_multiphase(setup = setup, context = bctx, linear_solver = :auto)
+                    end
+                    @testset "Unit major assembly, direct solver" begin
+                        @test test_multiphase(setup = setup, context = ctx)
+                    end
                 end
-            end
-            @testset "Block assembly, auto" begin
-                @test test_multiphase(setup = setup, context = bctx, linear_solver = :auto)
-            end
-            @testset "Unit major assembly, direct solver" begin
-                @test test_multiphase(setup = setup, context = ctx)
             end
         end
     end
