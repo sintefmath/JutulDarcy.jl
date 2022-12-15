@@ -92,7 +92,7 @@ function setup_reservoir_simulator(case::JutulCase;
                             precond = :cpr,
                             linear_solver = :bicgstab,
                             max_dt = Inf,
-                            rtol = 1e-3,
+                            rtol = nothing,
                             initial_dt = 3600.0*24.0,
                             target_its = 8,
                             offset_its = 1,

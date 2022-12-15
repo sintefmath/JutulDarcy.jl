@@ -36,6 +36,7 @@ function reservoir_linsolve(model,  precond = :cpr;
     if !Jutul.is_cell_major(matrix_layout(model.context))
         return nothing
     end
+    default_tol = 0.005
     if precond == :cpr
         if isnothing(cpr_type)
             if isa(model.system, ImmiscibleSystem)
@@ -54,16 +55,18 @@ function reservoir_linsolve(model,  precond = :cpr;
                                  update_interval = update_interval,
                                  partial_update = partial_update,
                                  update_interval_partial = update_interval_partial)
-        if isnothing(rtol)
-            rtol = 1e-3
-        end
+        default_tol = 1e-3
     elseif precond == :ilu0
         prec = ILUZeroPreconditioner()
-        if isnothing(rtol)
-            rtol = 0.005
-        end
+    elseif precond == :jacobi
+        prec = JacobiPreconditioner()
+    elseif precond == :spai0
+        prec = SPAI0Preconditioner()
     else
         error("Solver $precond not supported for $(model.context)")
+    end
+    if isnothing(rtol)
+        rtol = default_tol
     end
     max_it = 200
     atol = 0.0
