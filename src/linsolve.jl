@@ -24,7 +24,7 @@ function reservoir_linsolve(model,  precond = :cpr;
                                     solver = :bicgstab,
                                     update_interval = :once,
                                     update_interval_partial = :iteration,
-                                    amg_type = :smoothed_aggregation,
+                                    amg_type = :ruge_stuben,
                                     smoother_type = :ilu0,
                                     max_coarse = nothing,
                                     cpr_type = nothing,
@@ -49,7 +49,7 @@ function reservoir_linsolve(model,  precond = :cpr;
         if isnothing(max_coarse)
             max_coarse = Int64(ceil(0.05*number_of_cells(model.domain)))
             max_coarse = min(1000, max_coarse)
-            max_coarse = 10
+            max_coarse = 50
         end
         p_solve = default_psolve(max_coarse = max_coarse, type = amg_type)
         if smoother_type == :ilu0

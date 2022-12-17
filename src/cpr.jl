@@ -158,6 +158,7 @@ function operator_nrows(cpr::CPRPreconditioner)
     return length(cpr.r_p)*cpr.block_size
 end
 
+using Krylov
 function apply!(x, cpr::CPRPreconditioner, r, arg...)
     r_p, w_p, bz, Δp = cpr.r_p, cpr.w_p, cpr.block_size, cpr.p
     if false
@@ -187,7 +188,15 @@ function apply!(x, cpr::CPRPreconditioner, r, arg...)
         # Construct right hand side by the weights
         @timeit "p rhs" update_p_rhs!(r_p, y, bz, w_p)
         # Apply preconditioner to pressure part
-        @timeit "p apply" apply!(Δp, cpr.pressure_precond, r_p)
+        @timeit "p apply" begin
+            if false
+                apply!(Δp, cpr.pressure_precond, r_p)
+            else
+                M = Jutul.PrecondWrapper(linear_operator(cpr.pressure_precond))
+                x_p, = fgmres(cpr.A_p, r_p, M = M, rtol = 0.1)
+                @. Δp = x_p
+            end
+        end
         @timeit "r update" correct_residual_for_dp!(y, x, Δp, bz, cpr.buf, cpr.A_ps)
         @timeit "s apply" apply!(x, cpr.system_precond, y)
         @timeit "Δp" increment_pressure!(x, Δp, bz)
@@ -390,15 +399,7 @@ function correct_residual_for_dp!(y, x, Δp, bz, buf, A)
     @batch minbatch = 1000 for i in eachindex(Δp)
         set_dp!(x, bz, Δp, i)
     end
-    if false
-        mul!(buf, A, x)
-        @batch minbatch = 1000 for i in eachindex(y)
-            @inbounds y[i] -= buf[i]
-        end
-    else
-        mul!(y, A, x, -1.0, true)
-    end
-    # @. y -= buf
+    mul!(y, A, x, -1.0, true)
 end
 
 @inline function set_dp!(x, bz, Δp, i)
