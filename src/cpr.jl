@@ -198,7 +198,6 @@ function apply!(x, cpr::CPRPreconditioner, r, arg...)
                 psolve = cpr.psolver
                 M = Jutul.PrecondWrapper(linear_operator(cpr.pressure_precond))
                 fgmres!(psolve, A_p, r_p, M = M, rtol = p_rtol)
-                # @info stats
                 @. Δp = psolve.x
             end
         end
