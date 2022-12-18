@@ -19,6 +19,8 @@ mutable struct CPRPreconditioner <: JutulPreconditioner
     update_frequency_partial::Integer # Update frequency for pressure system
     update_interval_partial::Symbol   # iteration, ministep, step, ...
     partial_update            # Perform partial update of AMG and update pressure system
+    p_rtol::Union{Float64, Nothing}
+    psolver
 """
     CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner(); strategy = :quasi_impes, weight_scaling = :unit, update_frequency = 1, update_interval = :iteration, partial_update = true)
 
@@ -32,21 +34,17 @@ function CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner(); st
                                                                               update_interval = :iteration,
                                                                               update_frequency_partial = 1,
                                                                               update_interval_partial = :iteration,
+                                                                              p_rtol = nothing,
                                                                               partial_update = true)
-        new(nothing, nothing, nothing, nothing, nothing, nothing, p, s, strategy, weight_scaling, nothing, update_frequency, update_interval, update_frequency_partial, update_interval_partial, partial_update)
+        new(nothing, nothing, nothing, nothing, nothing, nothing, p, s, strategy, weight_scaling, nothing, update_frequency, update_interval, update_frequency_partial, update_interval_partial, partial_update, p_rtol, nothing)
     end
 end
 
 function default_psolve(; max_levels = 10, max_coarse = 10, type = :smoothed_aggregation)
     gs_its = 1
     cyc = AlgebraicMultigrid.V()
-    if type == :smoothed_aggregation
-        m = smoothed_aggregation
-    else
-        m = ruge_stuben
-    end
     gs = GaussSeidel(ForwardSweep(), gs_its)
-    return AMGPreconditioner(m, max_levels = max_levels, max_coarse = max_coarse, presmoother = gs, postsmoother = gs, cycle = cyc)
+    return AMGPreconditioner(type, max_levels = max_levels, max_coarse = max_coarse, presmoother = gs, postsmoother = gs, cycle = cyc)
 end
 
 function update!(cpr::CPRPreconditioner, lsys, model, storage, recorder)
@@ -189,12 +187,19 @@ function apply!(x, cpr::CPRPreconditioner, r, arg...)
         @timeit "p rhs" update_p_rhs!(r_p, y, bz, w_p)
         # Apply preconditioner to pressure part
         @timeit "p apply" begin
-            if false
+            p_rtol = cpr.p_rtol
+            if isnothing(p_rtol)
                 apply!(Δp, cpr.pressure_precond, r_p)
             else
+                A_p = cpr.A_p
+                if isnothing(cpr.psolver)
+                    cpr.psolver = FgmresSolver(A_p, r_p)
+                end
+                psolve = cpr.psolver
                 M = Jutul.PrecondWrapper(linear_operator(cpr.pressure_precond))
-                x_p, = fgmres(cpr.A_p, r_p, M = M, rtol = 0.1)
-                @. Δp = x_p
+                fgmres!(psolve, A_p, r_p, M = M, rtol = p_rtol)
+                # @info stats
+                @. Δp = psolve.x
             end
         end
         @timeit "r update" correct_residual_for_dp!(y, x, Δp, bz, cpr.buf, cpr.A_ps)
