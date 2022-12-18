@@ -188,16 +188,16 @@ function apply!(x, cpr::CPRPreconditioner, r, arg...)
         # Apply preconditioner to pressure part
         @timeit "p apply" begin
             p_rtol = cpr.p_rtol
-            if isnothing(p_rtol)
-                apply!(Δp, cpr.pressure_precond, r_p)
-            else
+            apply!(Δp, cpr.pressure_precond, r_p)
+            if !isnothing(p_rtol)
                 A_p = cpr.A_p
                 if isnothing(cpr.psolver)
                     cpr.psolver = FgmresSolver(A_p, r_p)
                 end
                 psolve = cpr.psolver
+                warm_start!(psolve, Δp)
                 M = Jutul.PrecondWrapper(linear_operator(cpr.pressure_precond))
-                fgmres!(psolve, A_p, r_p, M = M, rtol = p_rtol)
+                fgmres!(psolve, A_p, r_p, M = M, rtol = p_rtol, itmax = 20)
                 @. Δp = psolve.x
             end
         end
