@@ -94,3 +94,4 @@ Jutul.minimum_value(::FluidVolume) = eps()
 struct Temperature <: ScalarVariable end
 
 Jutul.default_value(model, ::Temperature) = 303.15 # 30.15 C°
+Jutul.minimum_value(::Temperature) = 0.0
