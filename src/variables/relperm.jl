@@ -7,6 +7,7 @@ function Jutul.default_value(model, v::AbstractRelativePermeabilities)
     return 1.0/number_of_phases(model.system)
 end
 
+struct RelativePermeabilitiesParameter <: AbstractRelativePermeabilities end
 struct RelativePermeabilities{K, R} <: AbstractRelativePermeabilities
     relperms::K
     regions::R

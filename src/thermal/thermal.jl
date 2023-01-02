@@ -10,7 +10,7 @@ end
 thermal_system(sys::ThermalSystem) = sys
 thermal_system(sys::CompositeSystem) = sys.systems.thermal
 
-const ThermalModel = SimulationModel{<:Any, <:ThermalSystem, <:Any, <:Any}
+const ThermalModel = SimulationModel{<:JutulDomain, <:ThermalSystem, <:Any, <:Any}
 
 struct BulkVolume <: ScalarVariable end
 function Jutul.default_values(model, ::BulkVolume)
@@ -60,6 +60,9 @@ function select_parameters!(S, system::ThermalSystem, model)
     # Fluid flow related parameters
     S[:PhaseMassDensities] = ConstantCompressibilityDensities(nph)
     S[:Pressure] = Pressure()
+    S[:Saturations] = Saturations()
+    S[:RelativePermeabilities] = RelativePermeabilitiesParameter()
+    S[:PhaseViscosities] = PhaseViscosities()
     S[:PhaseMassMobilities] = PhaseMassMobilities()
 end
 
@@ -71,11 +74,14 @@ function select_parameters!(prm, disc::D, model::ThermalModel) where D<:Union{Tw
 end
 
 function select_secondary_variables!(S, system::ThermalSystem, model)
-    nph = number_of_phases(system)
     S[:FluidInternalEnergy] = FluidInternalEnergy()
     S[:FluidEnthalpy] = FluidEnthalpy()
     S[:RockInternalEnergy] = RockInternalEnergy()
     S[:TotalThermalEnergy] = TotalThermalEnergy()
+end
+
+function select_minimum_output_variables!(out, system::ThermalSystem, model)
+    push!(out, :TotalThermalEnergy)
 end
 
 include("variables.jl")

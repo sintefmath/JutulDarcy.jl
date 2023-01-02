@@ -194,7 +194,7 @@ function update_cross_term_in_entity!(out, i,
     model_res, model_well,
     ct::ReservoirFromWellThermalCT, eq, dt, ldisc = local_discretization(ct, i))
     # Unpack properties
-    sys = flow_system(model_res.system)
+    sys = thermal_system(model_res.system)
     nph = number_of_phases(sys)
     @inbounds begin 
         reservoir_cell = ct.reservoir_cells[i]
