@@ -23,11 +23,13 @@ struct FluidEnthalpy <: PhaseVariables end
 struct FluidThermalConductivities <: ScalarVariable end
 Jutul.variable_scale(::FluidThermalConductivities) = 1e-10
 Jutul.minimum_value(::FluidThermalConductivities) = 0.0
+Jutul.default_value(::FluidThermalConductivities) = 1e-3
 Jutul.associated_entity(::FluidThermalConductivities) = Faces()
 
 struct RockThermalConductivities <: ScalarVariable end
 Jutul.variable_scale(::RockThermalConductivities) = 1e-10
 Jutul.minimum_value(::RockThermalConductivities) = 0.0
+Jutul.default_value(::RockThermalConductivities) = 1e-3
 Jutul.associated_entity(::RockThermalConductivities) = Faces()
 
 number_of_phases(t::ThermalSystem) = t.nph

@@ -84,7 +84,7 @@ function discretized_domain_tpfv_flow(geometry; porosity = 0.1,
     else
         flow = TwoPointPotentialFlowHardCoded(G, ncells = nc)
     end
-    disc = (mass_flow = flow,)
+    disc = (mass_flow = flow, heat_flow = flow)
     return DiscretizedDomain(G, disc)
 end
 
@@ -98,6 +98,6 @@ function discretized_domain_well(W; z = nothing, kwarg...)
         z = []
     end
     flow = WellSegmentFlow(W, z)
-    disc = (mass_flow = flow,)
+    disc = (mass_flow = flow, heat_flow = flow)
     return DiscretizedDomain(W, disc; kwarg...)
 end

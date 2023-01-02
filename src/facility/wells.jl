@@ -412,29 +412,29 @@ Base.@propagate_inbounds function well_perforation_flux!(out, sys::Compositional
 end
 const WellDomain = DiscretizedDomain{<:WellGrid}
 const MSWellDomain = DiscretizedDomain{<:MultiSegmentWell}
-
+const MSWellFlowModel = SimulationModel{<:MSWellDomain, <:MultiPhaseSystem}
 # Selection of primary variables
-function select_primary_variables!(S, ::MSWellDomain, model::SimulationModel)
+function select_primary_variables!(S, ::MSWellDomain, model::MSWellFlowModel)
     S[:TotalMassFlux] = TotalMassFlux()
 end
 
-function select_equations!(eqs, domain::MSWellDomain, model::SimulationModel)
+function select_equations!(eqs, domain::MSWellDomain, model::MSWellFlowModel)
     eqs[:potential_balance] = PotentialDropBalanceWell(domain.discretizations.mass_flow)
 end
 
-function select_parameters!(prm, domain::MSWellDomain, model::SimulationModel)
+function select_parameters!(prm, domain::MSWellDomain, model::MSWellFlowModel)
     prm[:WellIndices] = WellIndices()
 end
 
-function select_minimum_output_variables!(vars, domain::WellDomain, model::SimulationModel)
+function select_minimum_output_variables!(vars, domain::WellDomain, model::MSWellFlowModel)
     push!(vars, :PhaseMassDensities)
     push!(vars, :Saturations)
     return vars
 end
 
 # Some utilities
-function mix_by_mass(masses, total, values)
-    v = 0
+function mix_by_mass(masses, total::T, values) where T
+    v = zero(T)
     @inbounds for i in eachindex(masses)
         v += masses[i]*values[i]
     end
@@ -442,7 +442,7 @@ function mix_by_mass(masses, total, values)
 end
 
 function mix_by_saturations(s, values)
-    v = 0
+    v = zero(eltype(s))
     @inbounds for i in eachindex(s)
         v += s[i]*values[i]
     end

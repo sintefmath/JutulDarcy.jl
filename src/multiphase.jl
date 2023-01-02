@@ -80,6 +80,7 @@ phase_indices(sys::ImmiscibleSystem) = tuple(eachindex(sys.phases)...)
 
 
 number_of_phases(::SinglePhaseSystem) = 1
+number_of_phases(sys::CompositeSystem) = number_of_phases(sys.systems.flow)
 
 ## Phases
 # Abstract phase

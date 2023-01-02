@@ -204,18 +204,19 @@ if not given.
 
 See also [`ProducerControl`](@ref), [`DisabledControl`](@ref).
 """
-struct InjectorControl{T} <: WellControlForce
+struct InjectorControl{T, R} <: WellControlForce
     target::T
     injection_mixture
-    mixture_density
+    mixture_density::R
     phases
-    function InjectorControl(target::T, mix; density = 1.0, phases = ((1, 1.0),)) where T<:WellTarget
+    temperature::R
+    function InjectorControl(target::T, mix; density::R = 1.0, phases = ((1, 1.0),), temperature::R = 273.15) where {T<:WellTarget, R<:Real}
         if isa(mix, Real)
             mix = [mix]
         end
         mix = vec(mix)
         @assert sum(mix) ≈ 1
-        new{T}(target, mix, density, phases)
+        new{T, R}(target, mix, density, phases, temperature)
     end
 end
 replace_target(f::InjectorControl, target) = InjectorControl(target, f.injection_mixture, density = f.mixture_density, phases = f.phases)
