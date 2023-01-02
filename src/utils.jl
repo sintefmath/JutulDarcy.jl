@@ -164,21 +164,27 @@ function setup_reservoir_cross_terms!(model::MultiModel)
         has_flow = haskey(systems, :flow)
         has_thermal = haskey(systems, :thermal)
         conservation = Pair(:flow, :mass_conservation)
+        energy = Pair(:thermal, :energy_conservation)
     else
         has_flow = true
         has_thermal = false
         conservation = :mass_conservation
+        energy = :energy_conservation
     end
     for (k, m) in pairs(model.models)
         if k == :Reservoir
             # These are set up from wells via symmetry
         elseif m.domain isa WellGroup
             for target_well in m.domain.well_symbols
-                ct = FacilityFromWellCT(target_well)
+                ct = FacilityFromWellFlowCT(target_well)
                 add_cross_term!(model, ct, target = k, source = target_well, equation = :control_equation)
 
-                ct = WellFromFacilityCT(target_well)
+                ct = WellFromFacilityFlowCT(target_well)
                 add_cross_term!(model, ct, target = target_well, source = k, equation = conservation)
+                if has_thermal
+                    ct = WellFromFacilityThermalCT(target_well)
+                    add_cross_term!(model, ct, target = target_well, source = k, equation = energy)
+                end
             end
         else
             g = m.domain.grid
@@ -187,8 +193,13 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                 rc = vec(g.perforations.reservoir)
                 wc = vec(g.perforations.self)
                 # Put these over in cross term
-                ct = ReservoirFromWellCT(WI, rc, wc)
+                ct = ReservoirFromWellFlowCT(WI, rc, wc)
                 add_cross_term!(model, ct, target = :Reservoir, source = k, equation = conservation)
+                if has_thermal
+                    CI = 1000 .* WI
+                    ct = ReservoirFromWellThermalCT(CI, WI, rc, wc)
+                    add_cross_term!(model, ct, target = :Reservoir, source = k, equation = energy)
+                end
             end
         end
     end

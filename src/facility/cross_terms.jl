@@ -1,23 +1,25 @@
-export ReservoirFromWellCT, FacilityFromWellCT, WellFromFacilityCT
-struct ReservoirFromWellCT{T<:AbstractVector, I<:AbstractVector} <: Jutul.AdditiveCrossTerm
+export ReservoirFromWellFlowCT, FacilityFromWellFlowCT, WellFromFacilityFlowCT
+
+abstract type AbstractReservoirFromWellCT <: Jutul.AdditiveCrossTerm end
+struct ReservoirFromWellFlowCT{T<:AbstractVector, I<:AbstractVector} <: AbstractReservoirFromWellCT
     WI::T
     reservoir_cells::I
     well_cells::I
 end
 
-function Base.show(io::IO, d::ReservoirFromWellCT)
+function Base.show(io::IO, d::ReservoirFromWellFlowCT)
     n = length(d.WI)
-    print(io, "ReservoirFromWellCT ($n connections)")
+    print(io, "ReservoirFromWellFlowCT ($n connections)")
 end
 
-Jutul.symmetry(::ReservoirFromWellCT) = Jutul.CTSkewSymmetry()
-Jutul.can_impact_cross_term(force_t::PerforationMask, cross_term::ReservoirFromWellCT) = true
+Jutul.symmetry(::AbstractReservoirFromWellCT) = Jutul.CTSkewSymmetry()
+Jutul.can_impact_cross_term(force_t::PerforationMask, cross_term::AbstractReservoirFromWellCT) = true
 
 function update_cross_term_in_entity!(out, i,
     state_t, state0_t,
     state_s, state0_s, 
     model_t, model_s,
-    ct::ReservoirFromWellCT, eq, dt, ldisc = local_discretization(ct, i))
+    ct::ReservoirFromWellFlowCT, eq, dt, ldisc = local_discretization(ct, i))
     # Unpack properties
     sys = flow_system(model_t.system)
     @inbounds begin 
@@ -36,10 +38,10 @@ function update_cross_term_in_entity!(out, i,
     @inbounds well_perforation_flux!(out, sys, state_t, state_s, rhoS, dp, reservoir_cell, well_cell)
 end
 
-Jutul.cross_term_entities(ct::ReservoirFromWellCT, eq::ConservationLaw, model) = ct.reservoir_cells
-Jutul.cross_term_entities_source(ct::ReservoirFromWellCT, eq::ConservationLaw, model) = ct.well_cells
+Jutul.cross_term_entities(ct::AbstractReservoirFromWellCT, eq::ConservationLaw, model) = ct.reservoir_cells
+Jutul.cross_term_entities_source(ct::AbstractReservoirFromWellCT, eq::ConservationLaw, model) = ct.well_cells
 
-function Jutul.subcrossterm(ct::ReservoirFromWellCT, ctp, m_t, m_s, map_res::FiniteVolumeGlobalMap, ::TrivialGlobalMap, partition)
+function Jutul.subcrossterm(ct::ReservoirFromWellFlowCT, ctp, m_t, m_s, map_res::FiniteVolumeGlobalMap, ::TrivialGlobalMap, partition)
     (; WI, reservoir_cells, well_cells) = ct
     # rc = map(
     #     c -> Jutul.interior_cell(
@@ -49,17 +51,17 @@ function Jutul.subcrossterm(ct::ReservoirFromWellCT, ctp, m_t, m_s, map_res::Fin
     rc = map(
         c -> Jutul.local_cell(c, map_res),
         reservoir_cells)
-    return ReservoirFromWellCT(copy(WI), rc, copy(well_cells))
+    return ReservoirFromWellFlowCT(copy(WI), rc, copy(well_cells))
 end
 
 # Well influence on facility
-struct FacilityFromWellCT <: Jutul.AdditiveCrossTerm
+struct FacilityFromWellFlowCT <: Jutul.AdditiveCrossTerm
     well::Symbol
 end
 
 well_top_node() = 1
 
-Jutul.cross_term_entities(ct::FacilityFromWellCT, eq::ControlEquationWell, model) = get_well_position(model.domain, ct.well)
+Jutul.cross_term_entities(ct::FacilityFromWellFlowCT, eq::ControlEquationWell, model) = get_well_position(model.domain, ct.well)
 
 import Jutul: prepare_cross_term_in_entity!
 
@@ -67,7 +69,7 @@ function Jutul.prepare_cross_term_in_entity!(i,
     state_facility, state0_facility,
     state_well, state0_well,
     facility, well,
-    ct::FacilityFromWellCT, eq, dt, ldisc = local_discretization(ct, i))
+    ct::FacilityFromWellFlowCT, eq, dt, ldisc = local_discretization(ct, i))
     # Check the limits before we calculate the cross term. Then, we know the current control
     # is within limits when it is time to update the cross term itself.
     well_symbol = ct.well
@@ -86,7 +88,7 @@ function Jutul.prepare_cross_term_in_entity!(i,
     end
 end
 
-function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellCT, target, source, model, storage, dt, force::PerforationMask; time = time)
+function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellFlowCT, target, source, model, storage, dt, force::PerforationMask; time = time)
     mask = force.values
     apply_perforation_mask!(ct_s.target, mask)
     apply_perforation_mask!(ct_s.source, mask)
@@ -96,7 +98,7 @@ function update_cross_term_in_entity!(out, i,
     state_facility, state0_facility,
     state_well, state0_well,
     facility, well,
-    ct::FacilityFromWellCT, eq, dt, ldisc = local_discretization(ct, i))
+    ct::FacilityFromWellFlowCT, eq, dt, ldisc = local_discretization(ct, i))
 
     well_symbol = ct.well
     cfg = state_facility.WellGroupConfiguration
@@ -137,17 +139,17 @@ function target_actual_pair(target, well, state_well, q_t, ctrl)
 end
 
 # Facility influence on well
-struct WellFromFacilityCT <: Jutul.AdditiveCrossTerm
+struct WellFromFacilityFlowCT <: Jutul.AdditiveCrossTerm
     well::Symbol
 end
 
-Jutul.cross_term_entities(ct::WellFromFacilityCT, eq::ConservationLaw, model) = [well_top_node()]
+Jutul.cross_term_entities(ct::WellFromFacilityFlowCT, eq::ConservationLaw, model) = [well_top_node()]
 
 function update_cross_term_in_entity!(out, i,
     state_well, state0_well,
     state_facility, state0_facility,
     well, facility,
-    ct::WellFromFacilityCT, eq, dt, ldisc = local_discretization(ct, i))
+    ct::WellFromFacilityFlowCT, eq, dt, ldisc = local_discretization(ct, i))
 
     well_symbol = ct.well
     pos = get_well_position(facility.domain, well_symbol)
@@ -178,4 +180,70 @@ function update_cross_term_in_entity!(out, i,
         @inbounds out[i] = -mix[i]*qT
     end
 end
+# Thermal
+struct ReservoirFromWellThermalCT{T<:AbstractVector, I<:AbstractVector} <: AbstractReservoirFromWellCT
+    CI::T
+    WI::T
+    reservoir_cells::I
+    well_cells::I
+end
 
+function update_cross_term_in_entity!(out, i,
+    state_res, state0_res,
+    state_well, state0_well, 
+    model_res, model_well,
+    ct::ReservoirFromWellThermalCT, eq, dt, ldisc = local_discretization(ct, i))
+    # Unpack properties
+    sys = flow_system(model_res.system)
+    nph = number_of_phases(sys)
+    @inbounds begin 
+        reservoir_cell = ct.reservoir_cells[i]
+        well_cell = ct.well_cells[i]
+        CI = ct.CI[i]
+        WI = ct.WI[i]
+    end
+
+    p_well = state_well.Pressure[well_cell]
+    p_res = state_res.Pressure[reservoir_cell]
+    T_well = state_well.Temperature[well_cell]
+    T_res = state_res.Temperature[reservoir_cell]
+
+    kr = state_res.RelativePermeabilities
+    mu = state_res.PhaseViscosities
+    # Todo: Fix conn -> cell pressure drop
+    ρgdz = 0
+    mob = 0
+    for ph in axes(kr, 1)
+        mob += kr[ph, reservoir_cell]/mu[ph, reservoir_cell]
+    end
+    Q = -mob*WI*(p_well - p_res + ρgdz)
+    fluid_heat = 0.0
+    if Q < 0
+        # Injection
+        c = well_cell
+        state_upw = state_well
+    else
+        c = reservoir_cell
+        state_upw = state_res
+    end
+    S = state_upw.Saturations
+    ρ = state_upw.PhaseMassDensities
+    H = state_upw.FluidEnthalpy
+
+    for ph in 1:nph
+        fluid_heat += ρ[ph, c]*H[ph, c]*S[ph, c]
+    end
+    conductive_heat_flux = CI*(T_res - T_well)
+    advective_heat_flux = fluid_heat*Q
+    out[] = advective_heat_flux + conductive_heat_flux
+end
+
+function Base.show(io::IO, d::ReservoirFromWellThermalCT)
+    n = length(d.CI)
+    print(io, "ReservoirFromWellThermalCT ($n connections)")
+end
+struct WellFromFacilityThermalCT <: Jutul.AdditiveCrossTerm
+    well::Symbol
+end
+
+Jutul.cross_term_entities(ct::WellFromFacilityThermalCT, eq::ConservationLaw, model) = [well_top_node()]

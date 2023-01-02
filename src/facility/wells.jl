@@ -460,7 +460,7 @@ end
 
 function apply_perforation_mask!(storage::NamedTuple, mask::AbstractVector)
     function mask_row!(M::AbstractMatrix, m, ix)
-        for i in 1:size(M, 1)
+        for i in axes(M, 1)
             M[i, ix] *= m
         end
     end
