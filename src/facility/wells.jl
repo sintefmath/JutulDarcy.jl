@@ -491,3 +491,7 @@ function flash_wellstream_at_surface(well_model, system::ImmiscibleSystem, well_
     volfrac = vol./sum(vol)
     return (rhoS, volfrac)
 end
+
+function flash_wellstream_at_surface(well_model, system::SinglePhaseSystem, well_state, rhoS)
+    return (rhoS, [1.0])
+end
