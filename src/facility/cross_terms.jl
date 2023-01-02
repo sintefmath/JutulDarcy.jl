@@ -61,6 +61,8 @@ well_top_node() = 1
 
 Jutul.cross_term_entities(ct::FacilityFromWellCT, eq::ControlEquationWell, model) = get_well_position(model.domain, ct.well)
 
+import Jutul: prepare_cross_term_in_entity!
+
 function Jutul.prepare_cross_term_in_entity!(i,
     state_facility, state0_facility,
     state_well, state0_well,
@@ -162,7 +164,7 @@ function update_cross_term_in_entity!(out, i,
         end
         mix = ctrl.injection_mixture
         nmix = length(mix)
-        ncomp = number_of_components(well.system)
+        ncomp = number_of_components(flow_system(well.system))
         @assert nmix == ncomp "Injection composition length ($nmix) must match number of components ($ncomp)."
     else
         if value(qT) > 0

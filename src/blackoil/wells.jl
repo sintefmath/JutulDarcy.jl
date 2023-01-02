@@ -94,7 +94,7 @@ Base.@propagate_inbounds function well_perforation_flux!(out, sys::DisgasBlackOi
     out[v] = q_v
 end
 
-function flash_wellstream_at_surface(well_model::SimulationModel{D, S}, well_state, rhoS) where {D, S<:BlackOilSystem}
+function flash_wellstream_at_surface(well_model, system::S, well_state, rhoS) where S<:BlackOilSystem
     vol = well_state.TotalMasses[:, 1]./rhoS
     volfrac = vol./sum(vol)
     return (rhoS, volfrac)

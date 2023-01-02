@@ -1,10 +1,9 @@
-function flash_wellstream_at_surface(well_model::SimulationModel{D, S}, well_state, rhoS) where {D, S<:MultiComponentSystem}
+function flash_wellstream_at_surface(well_model, sys::S, well_state, rhoS) where S<:MultiComponentSystem
     total_masses = well_state.TotalMasses
     T = eltype(total_masses)
     nph = length(rhoS)
     rho = zeros(T, nph)
     volfrac = zeros(T, nph)
-    sys = well_model.system
     eos = sys.equation_of_state
     nc = MultiComponentFlash.number_of_components(eos)
 
@@ -49,10 +48,4 @@ function flash_wellstream_at_surface(well_model::SimulationModel{D, S}, well_sta
     volfrac[v] = rem*S_v
     rho = tuple(rho...)
     return (rho, volfrac)
-end
-
-function flash_wellstream_at_surface(well_model::SimulationModel{D, S}, well_state, rhoS) where {D, S<:ImmiscibleSystem}
-    vol = well_state.TotalMasses[:, 1]./rhoS
-    volfrac = vol./sum(vol)
-    return (rhoS, volfrac)
 end

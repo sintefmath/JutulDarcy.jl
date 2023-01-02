@@ -224,7 +224,7 @@ end
 Well target contribution from well itself (surface volume, producer)
 """
 function well_target(control::ProducerControl, target::SurfaceVolumeTarget, well_model, well_state, surface_densities, surface_volume_fractions)
-    phases = get_phases(well_model.system)
+    phases = get_phases(flow_system(well_model.system))
     Tw = eltype(surface_volume_fractions)
     if abs(target.value) == MIN_ACTIVE_WELL_RATE
         # Special meaning: Limits set at the CONST minimum value are really absolute mass limits.
