@@ -247,3 +247,30 @@ struct WellFromFacilityThermalCT <: Jutul.AdditiveCrossTerm
 end
 
 Jutul.cross_term_entities(ct::WellFromFacilityThermalCT, eq::ConservationLaw, model) = [well_top_node()]
+
+function update_cross_term_in_entity!(out, i,
+    state_well, state0_well,
+    state_facility, state0_facility,
+    well, facility,
+    ct::WellFromFacilityThermalCT, eq, dt, ldisc = local_discretization(ct, i))
+    well_symbol = ct.well
+    pos = get_well_position(facility.domain, well_symbol)
+
+    cfg = state_facility.WellGroupConfiguration
+    ctrl = operating_control(cfg, well_symbol)
+    qT = state_facility.TotalSurfaceMassRate[pos] 
+    # Hack for sparsity detection
+    qT += 0*bottom_hole_pressure(state_well)
+
+    cell = well_top_node()
+    if isa(ctrl, InjectorControl)
+        heat_capacity = state_well.FluidHeatCapacity[cell]
+        p = state_well.Pressure[cell]
+        density = ctrl.mixture_density
+        T = ctrl.temperature
+        H = heat_capacity*T + p/density
+    else
+        H = state_well.FluidEnthalpy[cell]
+    end
+    out[] = qT*H
+end
