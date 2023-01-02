@@ -19,12 +19,13 @@ function update_cross_term_in_entity!(out, i,
     model_t, model_s,
     ct::ReservoirFromWellCT, eq, dt, ldisc = local_discretization(ct, i))
     # Unpack properties
+    sys = flow_system(model_t.system)
     @inbounds begin 
         reservoir_cell = ct.reservoir_cells[i]
         well_cell = ct.well_cells[i]
         WI = state_s.WellIndices[i]
     end
-    rhoS = reference_densities(model_s.system)
+    rhoS = reference_densities(sys)
 
     p_well = state_s.Pressure
     p_res = state_t.Pressure
@@ -32,7 +33,7 @@ function update_cross_term_in_entity!(out, i,
     ρgdz = 0
     @inbounds dp = -WI*(p_well[well_cell] - p_res[reservoir_cell] + ρgdz)
     # Call smaller interface that is easy to specialize
-    @inbounds well_perforation_flux!(out, model_t.system, state_t, state_s, rhoS, dp, reservoir_cell, well_cell)
+    @inbounds well_perforation_flux!(out, sys, state_t, state_s, rhoS, dp, reservoir_cell, well_cell)
 end
 
 Jutul.cross_term_entities(ct::ReservoirFromWellCT, eq::ConservationLaw, model) = ct.reservoir_cells

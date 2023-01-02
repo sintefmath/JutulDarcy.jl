@@ -7,6 +7,9 @@ struct ThermalSystem{T} <: JutulSystem
     end
 end
 
+thermal_system(sys::ThermalSystem) = sys
+thermal_system(sys::CompositeSystem) = sys.systems.thermal
+
 const ThermalModel = SimulationModel{<:Any, <:ThermalSystem, <:Any, <:Any}
 
 struct BulkVolume <: ScalarVariable end

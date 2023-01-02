@@ -11,6 +11,11 @@ export Pressure, Saturations, TotalMasses, TotalMass
 get_phases(sys::MultiPhaseSystem) = sys.phases
 @inline number_of_phases(sys::MultiPhaseSystem) = length(get_phases(sys))
 @inline reference_densities(sys::MultiPhaseSystem) = sys.rho_ref
+@inline reference_densities(sys::CompositeSystem) = reference_densities(flow_system(sys))
+
+flow_system(sys::MultiPhaseSystem) = sys
+flow_system(sys::CompositeSystem) = sys.systems.flow
+
 
 @enum FlowSourceType begin
     MassSource

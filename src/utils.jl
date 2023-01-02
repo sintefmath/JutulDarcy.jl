@@ -157,6 +157,18 @@ function set_default_cnv_mb!(cfg, model::MultiModel; kwarg...)
 end
 
 function setup_reservoir_cross_terms!(model::MultiModel)
+    rmodel = reservoir_model(model)
+    has_composite = rmodel isa Jutul.CompositeModel
+    if has_composite
+        systems = rmodel.system.systems
+        has_flow = haskey(systems, :flow)
+        has_thermal = haskey(systems, :thermal)
+        conservation = Pair(:flow, :mass_conservation)
+    else
+        has_flow = true
+        has_thermal = false
+        conservation = :mass_conservation
+    end
     for (k, m) in pairs(model.models)
         if k == :Reservoir
             # These are set up from wells via symmetry
@@ -166,7 +178,7 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                 add_cross_term!(model, ct, target = k, source = target_well, equation = :control_equation)
 
                 ct = WellFromFacilityCT(target_well)
-                add_cross_term!(model, ct, target = target_well, source = k, equation = :mass_conservation)
+                add_cross_term!(model, ct, target = target_well, source = k, equation = conservation)
             end
         else
             g = m.domain.grid
@@ -176,7 +188,7 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                 wc = vec(g.perforations.self)
                 # Put these over in cross term
                 ct = ReservoirFromWellCT(WI, rc, wc)
-                add_cross_term!(model, ct, target = :Reservoir, source = k, equation = :mass_conservation)
+                add_cross_term!(model, ct, target = :Reservoir, source = k, equation = conservation)
             end
         end
     end
