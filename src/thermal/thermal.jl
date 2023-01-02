@@ -13,26 +13,33 @@ thermal_system(sys::CompositeSystem) = sys.systems.thermal
 const ThermalModel = SimulationModel{<:Any, <:ThermalSystem, <:Any, <:Any}
 
 struct BulkVolume <: ScalarVariable end
+function Jutul.default_values(model, ::BulkVolume)
+    return 5*fluid_volume(model.domain)
+end
+
 struct RockHeatCapacity <: ScalarVariable end
+Jutul.default_value(model, ::RockHeatCapacity) = 5000.0
 struct RockDensity <: ScalarVariable end
+Jutul.default_value(model, ::RockDensity) = 1500.0
 
 struct RockInternalEnergy <: ScalarVariable end
 struct TotalThermalEnergy <: ScalarVariable end
 
 struct FluidHeatCapacity <: PhaseVariables end
+Jutul.default_value(model, ::FluidHeatCapacity) = 10000.0
 struct FluidInternalEnergy <: PhaseVariables end
 struct FluidEnthalpy <: PhaseVariables end
 
 struct FluidThermalConductivities <: ScalarVariable end
 Jutul.variable_scale(::FluidThermalConductivities) = 1e-10
 Jutul.minimum_value(::FluidThermalConductivities) = 0.0
-Jutul.default_value(::FluidThermalConductivities) = 1e-3
+Jutul.default_value(model, ::FluidThermalConductivities) = 1e-3
 Jutul.associated_entity(::FluidThermalConductivities) = Faces()
 
 struct RockThermalConductivities <: ScalarVariable end
 Jutul.variable_scale(::RockThermalConductivities) = 1e-10
 Jutul.minimum_value(::RockThermalConductivities) = 0.0
-Jutul.default_value(::RockThermalConductivities) = 1e-3
+Jutul.default_value(model, ::RockThermalConductivities) = 1e-3
 Jutul.associated_entity(::RockThermalConductivities) = Faces()
 
 number_of_phases(t::ThermalSystem) = t.nph
