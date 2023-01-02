@@ -63,6 +63,23 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
     end
 end
 
+function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::ConservationLaw{:TotalThermalEnergy, <:WellSegmentFlow}, model, dt, ldisc = local_discretization(eq, self_cell)) where T_e
+    (; cells, faces, signs) = ldisc
+    energy = state.TotalThermalEnergy
+    energy0 = state0.TotalThermalEnergy
+    H_f = state.FluidEnthalpy
+    v = state.TotalMassFlux
+
+    eq = (energy[self_cell] - energy0[self_cell])/dt
+    H_self = H_f[self_cell]
+    for (cell, face, sgn) in zip(cells, faces, signs)
+        v_f = sgn*v[face]
+        H_other = H_f[cell]
+        eq += v_f*upw_flux(v_f, H_self, H_other)
+    end
+    eq_buf[] = eq
+end
+
 function component_sum(mass, i)
     s = zero(eltype(mass))
     for c = 1:size(mass, 1)
