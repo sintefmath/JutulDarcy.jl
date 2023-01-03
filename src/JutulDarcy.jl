@@ -35,6 +35,7 @@ module JutulDarcy
     import Jutul: number_of_equations_per_entity
     import Jutul: update_equation_in_entity!, update_cross_term_in_entity!, local_discretization, discretization
     import Jutul: FiniteVolumeGlobalMap, TrivialGlobalMap
+    import Jutul: @tic
 
     using Jutul
     using ForwardDiff, StaticArrays, SparseArrays, LinearAlgebra, Statistics

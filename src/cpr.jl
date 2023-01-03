@@ -51,11 +51,11 @@ function update!(cpr::CPRPreconditioner, lsys, model, storage, recorder)
     rmodel = reservoir_model(model)
     ctx = rmodel.context
     update_p = update_cpr_internals!(cpr, lsys, model, storage, recorder)
-    @timeit "s-precond" update!(cpr.system_precond, lsys, model, storage, recorder)
+    @tic "s-precond" update!(cpr.system_precond, lsys, model, storage, recorder)
     if update_p
-        @timeit "p-precond" update!(cpr.pressure_precond, cpr.A_p, cpr.r_p, ctx)
+        @tic "p-precond" update!(cpr.pressure_precond, cpr.A_p, cpr.r_p, ctx)
     elseif should_update_cpr(cpr, recorder, :partial)
-        @timeit "p-precond (partial)" partial_update!(cpr.pressure_precond, cpr.A_p, cpr.r_p, ctx)
+        @tic "p-precond (partial)" partial_update!(cpr.pressure_precond, cpr.A_p, cpr.r_p, ctx)
     end
 end
 
@@ -95,8 +95,8 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
     initialize_storage!(cpr, A, s)
     ps = rmodel.primary_variables[:Pressure].scale
     if do_p_update || cpr.partial_update
-        @timeit "weights" w_p = update_weights!(cpr, rmodel, s, A, ps)
-        @timeit "pressure system" update_pressure_system!(cpr.A_p, A, w_p, cpr.block_size, model.context)
+        @tic "weights" w_p = update_weights!(cpr, rmodel, s, A, ps)
+        @tic "pressure system" update_pressure_system!(cpr.A_p, A, w_p, cpr.block_size, model.context)
     end
     return do_p_update
 end
@@ -184,9 +184,9 @@ function apply!(x, cpr::CPRPreconditioner, r, arg...)
     else
         y = r
         # Construct right hand side by the weights
-        @timeit "p rhs" update_p_rhs!(r_p, y, bz, w_p)
+        @tic "p rhs" update_p_rhs!(r_p, y, bz, w_p)
         # Apply preconditioner to pressure part
-        @timeit "p apply" begin
+        @tic "p apply" begin
             p_rtol = cpr.p_rtol
             apply!(Δp, cpr.pressure_precond, r_p)
             if !isnothing(p_rtol)
@@ -201,9 +201,9 @@ function apply!(x, cpr::CPRPreconditioner, r, arg...)
                 @. Δp = psolve.x
             end
         end
-        @timeit "r update" correct_residual_for_dp!(y, x, Δp, bz, cpr.buf, cpr.A_ps)
-        @timeit "s apply" apply!(x, cpr.system_precond, y)
-        @timeit "Δp" increment_pressure!(x, Δp, bz)
+        @tic "r update" correct_residual_for_dp!(y, x, Δp, bz, cpr.buf, cpr.A_ps)
+        @tic "s apply" apply!(x, cpr.system_precond, y)
+        @tic "Δp" increment_pressure!(x, Δp, bz)
     end
 end
 

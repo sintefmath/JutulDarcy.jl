@@ -294,8 +294,8 @@ function convergence_criterion(model::SimulationModel{D, S}, storage, eq::Conser
     Φ = v(storage.state.FluidVolume)
     ρ = v(storage.state.PhaseMassDensities)
 
-    @timeit "cnv" @tullio max e[j] := abs(r[j, i]) * dt / (ρ[j, i]*Φ[i])
-    @timeit "mb" begin
+    @tic "cnv" @tullio max e[j] := abs(r[j, i]) * dt / (ρ[j, i]*Φ[i])
+    @tic "mb" begin
         N = length(Φ)
         pv_t = sum(Φ)
         avg_density = sum(ρ, dims = 2)./N
