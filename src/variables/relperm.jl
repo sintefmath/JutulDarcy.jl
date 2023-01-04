@@ -251,8 +251,31 @@ end
 function Jutul.subvariable(k::ReservoirRelativePermeability, map::FiniteVolumeGlobalMap)
     c = map.cells
     regions = Jutul.partition_variable_slice(k.regions, c)
-    return ReservoirRelativePermeability(; w = k.krw, ow = k.krow, og = k.krog, g = k.krg, regions = regions)
+    scaling = scaling_type(k)
+    return ReservoirRelativePermeability(; w = k.krw, ow = k.krow, og = k.krog, g = k.krg, regions = regions, scaling = scaling)
 end
+
+function Base.show(io::IO, t::MIME"text/plain", kr::ReservoirRelativePermeability)
+    println(io, "ReservoirRelativePermeability")
+    println(io, "  functions:")
+    for f in [:krw, :krow, :krog, :krg]
+        k = getfield(kr, f)
+        # @info k
+        if isnothing(k)
+            s = "(not defined)"
+        else
+            s = "$(length(k)) functions"
+        end
+        println(io, "    - $f: $s" )
+    end
+    if isnothing(kr.regions)
+        println(io, "\n  regions: No regions defined.")
+    else
+        println(io, "\n  regions: $(unique(kr.regions)...).")
+    end
+    println(io, "\n  scaling: $(scaling_type(kr))")
+end
+
 
 @jutul_secondary function update_kr!(kr, kr_def::BrooksCoreyRelPerm, model, Saturations, ix)
     n, sr, kwm, sr_tot = kr_def.exponents, kr_def.residuals, kr_def.endpoints, kr_def.residual_total
