@@ -14,9 +14,9 @@ mutable struct CPRPreconditioner <: JutulPreconditioner
     strategy
     weight_scaling
     block_size
-    update_frequency::Integer # Update frequency for AMG hierarchy (and pressure part if partial_update = false)
+    update_frequency::Int # Update frequency for AMG hierarchy (and pressure part if partial_update = false)
     update_interval::Symbol   # iteration, ministep, step, ...
-    update_frequency_partial::Integer # Update frequency for pressure system
+    update_frequency_partial::Int # Update frequency for pressure system
     update_interval_partial::Symbol   # iteration, ministep, step, ...
     partial_update            # Perform partial update of AMG and update pressure system
     p_rtol::Union{Float64, Nothing}
