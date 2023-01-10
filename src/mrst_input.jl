@@ -884,7 +884,8 @@ function setup_case_from_mrst(casename; simple_well = false,
                 push!(all_controls, new_force)
             end
             if nctrl == 1
-                # No need to make a compilcated vector.
+                # No need to make a complicated vector since one control is
+                # valid for all steps.
                 forces = only(all_controls)
             else
                 forces = all_controls[control_ix]
