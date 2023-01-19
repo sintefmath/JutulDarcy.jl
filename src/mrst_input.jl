@@ -593,6 +593,10 @@ function init_from_mat(mrst_data, model, param)
     else
         p0 = [p0]
     end
+    min_p = minimum(p0)
+    if min_p <= 1.1*DEFAULT_MINIMUM_PRESSURE
+        @warn "Lowest initial pressure $min_p is close to lower default Jutul pressure limit of $DEFAULT_MINIMUM_PRESSURE. Case may not be feasible to simulate."
+    end
     init = Dict{Symbol, Any}(:Pressure => p0)
     if haskey(state0, "components")
         # Compositional

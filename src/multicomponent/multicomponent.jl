@@ -21,7 +21,7 @@ end
 function select_secondary_variables!(S, system::CompositionalSystem, model)
     select_default_darcy_secondary_variables!(S, model.domain, system, model.formulation)
     if has_other_phase(system)
-        water_pvt = ConstMuBTable(101325.0, 1.0, 1e-18, 1e-3, 1e-20)
+        water_pvt = ConstMuBTable(DEFAULT_MINIMUM_PRESSURE, 1.0, 1e-18, 1e-3, 1e-20)
         set_secondary_variables!(model, PhaseViscosities = ThreePhaseLBCViscositiesLV(water_pvt),
                                         PhaseMassDensities = ThreePhaseCompositionalDensitiesLV(water_pvt))
     else

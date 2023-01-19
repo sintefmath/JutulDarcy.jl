@@ -113,6 +113,7 @@ get_name(::VaporPhase) = "Vapor"
 ## Main implementation
 # Primary variable logic
 
+const DEFAULT_MINIMUM_PRESSURE = 101325.0
 """
 Pressure
 """
@@ -122,7 +123,7 @@ struct Pressure <: ScalarVariable
     minimum_pressure::Float64
     maximum_pressure::Float64
     scale::Float64
-    function Pressure(; max_abs = nothing, max_rel = 0.2, scale = 1e8, maximum = Inf, minimum = 101325.0)
+    function Pressure(; max_abs = nothing, max_rel = 0.2, scale = 1e8, maximum = Inf, minimum = DEFAULT_MINIMUM_PRESSURE)
         new(max_abs, max_rel, minimum, maximum, scale)
     end
 end

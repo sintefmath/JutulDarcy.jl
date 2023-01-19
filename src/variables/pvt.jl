@@ -28,7 +28,7 @@ function Base.show(io::IO, t::MIME"text/plain", d::ConstantCompressibilityDensit
     print(io, "ConstantCompressibilityDensities (ref_dens=$ρ_r kg/m^3, ref_p=$p_r bar)")
 end
 
-function ConstantCompressibilityDensities(; p_ref = 101325.0, density_ref = 1000.0, compressibility = 1e-10)
+function ConstantCompressibilityDensities(; p_ref = DEFAULT_MINIMUM_PRESSURE, density_ref = 1000.0, compressibility = 1e-10)
     n = max(length(p_ref), length(density_ref), length(compressibility))
     return ConstantCompressibilityDensities(n, p_ref, density_ref, compressibility)
 end
