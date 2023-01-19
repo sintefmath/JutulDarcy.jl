@@ -105,9 +105,10 @@ function setup_reservoir_simulator(case::JutulCase;
                             cpr_smoother = :ilu0,
                             set_linear_solver = linear_solver isa Symbol,
                             timesteps = :iteration,
+                            extra_timing_setup = false,
                             kwarg...)
 
-    sim = Simulator(case)
+    sim = Simulator(case, extra_timing = extra_timing_setup)
     t_base = TimestepSelector(initial_absolute = initial_dt, max = max_dt)
     t_its = IterationTimestepSelector(target_its, offset = offset_its)
     if timesteps == :iteration
