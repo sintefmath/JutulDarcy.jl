@@ -105,7 +105,10 @@ function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout 
         if haskey(W_mrst, "isMS") && W_mrst["isMS"]
             # @info "MS well found" W_mrst
             @info "MS well found: $nm"
-            V = vec(copy(W_mrst["nodes"].vol))
+            nodes = W_mrst["nodes"]
+            V = vec(copy(nodes["vol"]))
+            z = vec(copy(nodes["depth"]))
+
             cn = copy(W_mrst["cells_to_nodes"])
             # pvol - volume of each node (except for top node)
             pvol = V[2:end]
@@ -117,7 +120,6 @@ function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout 
             # well_topo - well topology
             well_topo = Int64.(copy(W_mrst["topo"])')
             # z depths of nodes
-            z = vec(copy(W_mrst["nodes"].depth))
             # depth from tubing to perforation for each perf
             # dz = nothing # z[perf_cells] - ()
             dz = z_res .- z[perf_cells]
@@ -141,6 +143,7 @@ function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout 
                     reservoir_cells[i] = cells_local[argmin(d)]
                 end
             end
+            centers = cell_centroids[:, reservoir_cells[2:end]]
         else
             pvol, accumulator_volume, perf_cells, well_topo, z, dz, reservoir_cells = simple_ms_setup(n, volume, well_cell_volume, rc, ref_depth, z_res)
         end
