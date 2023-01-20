@@ -465,7 +465,7 @@ function three_saturation_scaling(s::T, cr, CR, u, U, r, R) where T<:Real
         S = zero(T)
     elseif s >= CR && s < R
         S = (s - CR)*(r-cr)/(R-CR) + cr
-    elseif s >= R && s <= U
+    elseif s >= R && s < U
         S = (s - R)*(u-r)/(U-R) + r
     else
         S = one(T)
