@@ -92,6 +92,7 @@ function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout 
 
     well_cell_volume = res_volume[rc]
     nm =  W_mrst["name"]
+    segment_models = nothing
     if simple
         well_volume = 1e-3# volume*mean(well_cell_volume)
         # For simple well, distance from ref depth to perf
@@ -103,13 +104,16 @@ function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout 
         reservoir_cells = [rc[1]]
     else
         if haskey(W_mrst, "isMS") && W_mrst["isMS"]
-            # @info "MS well found" W_mrst
             @info "MS well found: $nm"
             nodes = W_mrst["nodes"]
             V = vec(copy(nodes["vol"]))
             z = vec(copy(nodes["depth"]))
-
             cn = copy(W_mrst["cells_to_nodes"])
+            top_node_depth = z[1]
+            if !(z[1] ≈ ref_depth)
+                @warn "$nm: Multisegment well with reference depth $ref_depth differs from top node depth $top_node_depth. Replacing reference depth."
+                ref_depth = top_node_depth
+            end
             # pvol - volume of each node (except for top node)
             pvol = V[2:end]
             # accumulator_volume - volume of top node
@@ -119,9 +123,7 @@ function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout 
             perf_cells = Int64.(vec(cn[:, 2]))
             # well_topo - well topology
             well_topo = Int64.(copy(W_mrst["topo"])')
-            # z depths of nodes
             # depth from tubing to perforation for each perf
-            # dz = nothing # z[perf_cells] - ()
             dz = z_res .- z[perf_cells]
             # reservoir_cells - reservoir cells to be used to pick init values from
             n_nodes = length(z)
@@ -143,7 +145,16 @@ function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout 
                     reservoir_cells[i] = cells_local[argmin(d)]
                 end
             end
-            centers = cell_centroids[:, reservoir_cells[2:end]]
+            # Set node centers to cell centroids in xy plane and their corresponding true depths
+            xy = cell_centroids[1:2, reservoir_cells[2:end]]
+            centers = vcat(xy, z[2:end]')
+            # Segment data follows
+            segs = W_mrst["segments"]
+            L = vec(segs["length"])
+            D = vec(segs["diameter"])
+            rough = vec(segs["roughness"])
+            @assert size(well_topo, 2) == length(L) == length(D) == length(rough)
+            segment_models = map(SegmentWellBoreFrictionHB, L, rough, D) 
         else
             pvol, accumulator_volume, perf_cells, well_topo, z, dz, reservoir_cells = simple_ms_setup(n, volume, well_cell_volume, rc, ref_depth, z_res)
         end
@@ -151,6 +162,7 @@ function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout 
                                                         dz = dz,
                                                         N = well_topo,
                                                         name = Symbol(nm),
+                                                        segment_models = segment_models,
                                                         perforation_cells = perf_cells,
                                                         accumulator_volume = accumulator_volume,
                                                         surface_conditions = cond)

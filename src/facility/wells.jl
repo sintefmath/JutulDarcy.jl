@@ -69,9 +69,9 @@ struct MultiSegmentWell{V, P, N, A, C, SC, S} <: WellGrid
     neighborship::N     # Well cell connectivity
     top::A              # "Top" node where scalar well quantities live
     centers::C          # Coordinate centers of nodes
-    surface::SC          # p, T at surface
-    name::Symbol             # Symbol that names the well
-    segment_models::S        # Segment pressure drop model
+    surface::SC         # p, T at surface
+    name::Symbol        # Symbol that names the well
+    segment_models::S   # Segment pressure drop model for each segment
     function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
                                                         N = nothing,
                                                         name = :Well,
@@ -81,7 +81,7 @@ struct MultiSegmentWell{V, P, N, A, C, SC, S} <: WellGrid
                                                         dz = nothing,
                                                         surface_conditions = default_surface_cond(),
                                                         accumulator_volume = mean(volumes),
-                                                        reservoir_symbol = :Reservoir, kwarg...)
+                                                        kwarg...)
         nv = length(volumes)
         nc = nv + 1
         reservoir_cells = vec(reservoir_cells)
