@@ -326,7 +326,9 @@ function declare_entities(W::WellGrid)
     return [c, f, p]
 end
 
-Base.@propagate_inbounds function well_perforation_flux!(out, sys::Union{ImmiscibleSystem, SinglePhaseSystem}, state_res, state_well, rhoS, dp, rc, wc)
+Base.@propagate_inbounds function well_perforation_flux!(out, sys::Union{ImmiscibleSystem, SinglePhaseSystem}, state_res, state_well, rhoS, conn)
+    rc = conn.reservoir
+    wc = conn.well
     # Reservoir quantities
     ρ = state_res.PhaseMassDensities
     # Extra mobility needed
@@ -337,24 +339,23 @@ Base.@propagate_inbounds function well_perforation_flux!(out, sys::Union{Immisci
     # Saturation instead of mobility - use total mobility form
     s_w = state_well.Saturations
     nph = size(s_w, 1)
-    # dp is pressure difference from reservoir to well. If it is negative, we are injecting into the reservoir.
-    if dp < 0
-        # Injection
-        λ_t = 0
-        for ph in 1:nph
-            λ_t += kr[ph, rc]/μ[ph, rc]
-        end
-        Q = λ_t*dp
-        for ph in 1:nph
-            out[ph] = s_w[ph, wc]*ρ_w[ph, wc]*Q
-        end
-    else
-        # Production
-        for ph in 1:nph
+    λ_t = 0
+    for ph in 1:nph
+        λ_t += kr[ph, rc]/μ[ph, rc]
+    end
+    for ph in 1:nph
+        # ψ is pressure difference from reservoir to well. If it is negative, we are injecting into the reservoir.
+        ψ = perforation_phase_potential_difference(conn, state_res, state_well, ph)
+        if ψ < 0
+            # Injection
+            out[ph] = s_w[ph, wc]*ρ_w[ph, wc]*ψ*λ_t
+        else
+            # Production
             λ = kr[ph, rc]/μ[ph, rc]
-            out[ph] = λ*ρ[ph, rc]*dp
+            out[ph] = λ*ρ[ph, rc]*ψ
         end
     end
+    return out
 end
 
 Base.@propagate_inbounds function well_perforation_flux!(out, sys::CompositionalSystem, state_res, state_well, rhoS, dp, rc, wc)
