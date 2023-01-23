@@ -1,97 +1,65 @@
-Base.@propagate_inbounds function well_perforation_flux!(out, sys::StandardBlackOilSystem, state_res, state_well, rhoS, dp, rc, wc)
-    λ_a, λ_l, λ_v = res_mobility(state_res, sys, rc)
-    a, l, v, rhoGS, rhoOS = well_pvt_bo(sys)
-    b, b_w, ρ, ρ_w, s_w = well_volumes_bo(state_res, state_well)
-    rs = state_res.Rs
-    rv = state_res.Rv
-    rs_w = state_well.Rs
-    rv_w = state_well.Rv
-    if dp < 0.0
-        # Injection
-        λ_t = λ_a + λ_l + λ_v
-        Q = λ_t*dp
-        bO = b_w[l, wc]
-        bG = b_w[v, wc]
-        rs_i = rs_w[wc]
-        rv_i = rv_w[wc]
-        sO = s_w[l, wc]
-        sG = s_w[v, wc]
-        q_a = s_w[a, wc]*ρ_w[a, wc]*Q
-        q_l = rhoOS*(sO*bO + rv_i*sG*bG)*Q
-        q_v = rhoGS*(sG*bG + rs_i*sO*bO)*Q
-    else
-        # Production
-        bO = b[l, rc]
-        bG = b[v, rc]
-        q_a = dp*ρ[a, rc]*λ_a
-        q_l = dp*(bO*λ_l + bG*λ_v*rv[rc])*rhoOS
-        q_v = dp*(bO*λ_l*rs[rc] + bG*λ_v)*rhoGS
-    end
-    out[a] = q_a
-    out[l] = q_l
-    out[v] = q_v
-end
+Base.@propagate_inbounds function well_perforation_flux!(out, sys::StandardBlackOilSystem, state_res, state_well, rhoS, conn)
+    rc = conn.reservoir
+    wc = conn.well
+    a, l, v = phase_indices(sys)
 
-Base.@propagate_inbounds function well_perforation_flux!(out, sys::VapoilBlackOilSystem, state_res, state_well, rhoS, dp, rc, wc)
+    dp_a, dp_l, dp_v = res_dp(conn, state_res, state_well, sys)
+    # error()
     λ_a, λ_l, λ_v = res_mobility(state_res, sys, rc)
-    a, l, v, rhoGS, rhoOS = well_pvt_bo(sys)
-    b, b_w, ρ, ρ_w, s_w = well_volumes_bo(state_res, state_well)
-    rv = state_res.Rv
-    rv_w = state_well.Rv
-    if dp < 0.0
-        # Injection
-        λ_t = λ_a + λ_l + λ_v
-        Q = λ_t*dp
-        bO = b_w[l, wc]
-        bG = b_w[v, wc]
-        rv_i = rv_w[wc]
-        sO = s_w[l, wc]
-        sG = s_w[v, wc]
-        q_a = s_w[a, wc]*ρ_w[a, wc]*Q
-        q_l = rhoOS*(sO*bO + rv_i*sG*bG)*Q
-        q_v = rhoGS*sG*bG*Q
-    else
-        # Production
-        bO = b[l, rc]
-        bG = b[v, rc]
-        q_a = dp*ρ[a, rc]*λ_a
-        q_l = dp*(bO*λ_l + bG*λ_v*rv[rc])*rhoOS
-        q_v = dp*bG*λ_v*rhoGS
-    end
-    out[a] = q_a
-    out[l] = q_l
-    out[v] = q_v
-end
+    λ_t = λ_a + λ_l + λ_v
 
-Base.@propagate_inbounds function well_perforation_flux!(out, sys::DisgasBlackOilSystem, state_res, state_well, rhoS, dp, rc, wc)
-    λ_a, λ_l, λ_v = res_mobility(state_res, sys, rc)
     a, l, v, rhoGS, rhoOS = well_pvt_bo(sys)
     b, b_w, ρ, ρ_w, s_w = well_volumes_bo(state_res, state_well)
-    rs = state_res.Rs
-    rs_w = state_well.Rs
-    if dp < 0.0
+    # Water component flux
+    if dp_a < 0.0
         # Injection
-        λ_t = λ_a + λ_l + λ_v
-        Q = λ_t*dp
+        Q_a = s_w[a, wc]*ρ_w[a, wc]*λ_t*dp_a
+    else
+        # Production
+        Q_a = dp_a*ρ[a, rc]*λ_a
+    end
+    q_l = q_v = zero(Q_a)
+    # Oil component flux
+    if dp_l < 0.0
+        # Injection
         bO = b_w[l, wc]
-        bG = b_w[v, wc]
-        rs_i = rs_w[wc]
         sO = s_w[l, wc]
-        sG = s_w[v, wc]
-        q_a = s_w[a, wc]*ρ_w[a, wc]*Q
-        q_l = rhoOS*sO*bO*Q
-        q_v = rhoGS*(sG*bG + rs_i*sO*bO)*Q
+        q = λ_t*dp_l*sO*bO
+        q_l += q
+        if has_disgas(sys)
+            q_v += state_well.Rs[wc]*q
+        end
     else
         # Production
         bO = b[l, rc]
-        bG = b[v, rc]
-        q_a = dp*ρ[a, rc]*λ_a
-        q_l = dp*bO*λ_l*rhoOS
-        q_v = dp*(bO*λ_l*rs[rc] + bG*λ_v)*rhoGS
+        q = dp_l*bO*λ_l
+        q_l += q
+        if has_disgas(sys)
+            q_v += state_res.Rs[rc]*q
+        end
     end
-    out[a] = q_a
-    out[l] = q_l
-    out[v] = q_v
+    # Gas component flux
+    if dp_v < 0.0
+        # Injection
+        bG = b_w[v, wc]
+        sG = s_w[v, wc]
+        q = λ_t*dp_v*sG*bG
+        q_v += q
+        if has_vapoil(sys)
+            q_l += state_well.Rv[wc]*q
+        end
+    else
+        # Production
+        bG = b[l, rc]
+        q = dp_v*bG*λ_v
+        q_v += q
+        if has_vapoil(sys)
+            q_l += state_res.Rv[rc]*q
+        end
+    end
+    out[a] = Q_a
+    out[l] = q_l*rhoOS
+    out[v] = q_v*rhoGS
 end
 
 function flash_wellstream_at_surface(well_model, system::S, well_state, rhoS) where S<:BlackOilSystem
@@ -117,6 +85,15 @@ function res_mobility(state_res, sys, rc)
     λ_v = kr[v, rc]/μ[v, rc]
     return (λ_a, λ_l, λ_v)
 end
+
+function res_dp(conn, state_res, state_well, sys)
+    a, l, v = phase_indices(sys)
+    dp_a = perforation_phase_potential_difference(conn, state_res, state_well, a)
+    dp_l = perforation_phase_potential_difference(conn, state_res, state_well, l)
+    dp_v = perforation_phase_potential_difference(conn, state_res, state_well, v)
+    return (dp_a, dp_l, dp_v)
+end
+
 
 function well_volumes_bo(state_res, state_well)
     ρ = state_res.PhaseMassDensities

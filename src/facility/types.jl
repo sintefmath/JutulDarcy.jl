@@ -32,6 +32,14 @@ function Jutul.default_values(model, ::WellIndices)
     return vec(copy(w.perforations.WI))
 end
 
+struct PerforationGravityDifference <: ScalarVariable end
+
+Jutul.associated_entity(::PerforationGravityDifference) = Perforations()
+function Jutul.default_values(model, ::PerforationGravityDifference)
+    w = model.domain.grid
+    return vec(copy(w.perforations.gdz))
+end
+
 Base.show(io::IO, t::SurfaceVolumeTarget) = print(io, "$(typeof(t)) with value $(t.value) [m^3/s] for $(join([typeof(p) for p in lumped_phases(t)], ", "))")
 
 # Basics

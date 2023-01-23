@@ -26,16 +26,27 @@ function update_cross_term_in_entity!(out, i,
         reservoir_cell = ct.reservoir_cells[i]
         well_cell = ct.well_cells[i]
         WI = state_s.WellIndices[i]
+        gdz = state_s.PerforationGravityDifference[i]
     end
     rhoS = reference_densities(sys)
 
     p_well = state_s.Pressure
     p_res = state_t.Pressure
-    # Todo: Fix conn -> cell pressure drop
-    ρgdz = 0
-    @inbounds dp = -WI*(p_well[well_cell] - p_res[reservoir_cell] + ρgdz)
+    # Wrap the key connection data in tuple for easy extension later
+    conn = (dp = p_well[well_cell] - p_res[reservoir_cell],
+           WI = WI, gdz = gdz,
+           well = well_cell,
+           reservoir = reservoir_cell)
     # Call smaller interface that is easy to specialize
-    @inbounds well_perforation_flux!(out, sys, state_t, state_s, rhoS, dp, reservoir_cell, well_cell)
+    @inbounds well_perforation_flux!(out, sys, state_t, state_s, rhoS, conn)
+end
+
+function perforation_phase_potential_difference(conn, state_res, state_well, ix)
+    (; dp, WI, well, reservoir, gdz) = conn
+    ρ_r = state_res.PhaseMassDensities[ix, reservoir]
+    ρ_w = state_well.PhaseMassDensities[ix, well]
+    ρgdz = 0.5*(ρ_r + ρ_w)*gdz
+    return -WI*(dp + ρgdz)
 end
 
 Jutul.cross_term_entities(ct::AbstractReservoirFromWellCT, eq::ConservationLaw, model) = ct.reservoir_cells

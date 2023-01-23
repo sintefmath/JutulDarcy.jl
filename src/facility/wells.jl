@@ -424,6 +424,7 @@ end
 
 function select_parameters!(prm, domain::MSWellDomain, model::MSWellFlowModel)
     prm[:WellIndices] = WellIndices()
+    prm[:PerforationGravityDifference] = PerforationGravityDifference()
 end
 
 function select_minimum_output_variables!(vars, domain::WellDomain, model::MSWellFlowModel)
