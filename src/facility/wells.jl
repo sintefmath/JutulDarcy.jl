@@ -239,7 +239,7 @@ struct SegmentWellBoreFrictionHB{R}
     assume_turbulent::Bool
     laminar_limit::R
     turbulent_limit::R
-    function SegmentWellBoreFrictionHB(L, roughness, D_outer; D_inner = 0, assume_turbulent = false, laminar_limit = 2000.0, turbulent_limit = 2000.0)
+    function SegmentWellBoreFrictionHB(L, roughness, D_outer; D_inner = 0, assume_turbulent = false, laminar_limit = 2000.0, turbulent_limit = 4000.0)
         new{typeof(L)}(L, roughness, D_outer, D_inner, assume_turbulent, laminar_limit, turbulent_limit)
     end
 end
