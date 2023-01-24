@@ -256,19 +256,15 @@ function segment_pressure_drop(f::SegmentWellBoreFrictionHB, v, ρ, μ)
     D⁰, Dⁱ = f.D_outer, f.D_inner
     R, L = f.roughness, f.L
     ΔD = D⁰-Dⁱ
-    s = v > 0.0 ? 1.0 : -1.0
-    e = eps(Float64)
-    v = s*max(abs(v), e)
-    # Scaling - assuming input is total mass rate
-    v = v/(π*ρ*((D⁰/2)^2 - (Dⁱ/2)^2))
-    Re = abs(v*ρ*ΔD)/μ
+    A = π*((D⁰/2)^2 - (Dⁱ/2)^2)
+    Re = abs(D⁰*v/(A*μ))
     # Friction model - empirical relationship
     Re_l, Re_t = f.laminar_limit, f.turbulent_limit
     if is_laminar_flow(f, Re)
         f = 16.0/Re_l
     else
         # Either turbulent or intermediate flow regime. We need turbulent value either way.
-        f_t = (-3.6*log(6.9/Re +(R/(3.7*D⁰))^(10.0/9.0))/log(10.0))^(-2.0)
+        f_t = (-3.6*log10(6.9/Re +(R/(3.7*D⁰))^(10.0/9.0)))^(-2.0)
         if is_turbulent_flow(f, Re)
             # Turbulent flow
             f = f_t
@@ -280,7 +276,7 @@ function segment_pressure_drop(f::SegmentWellBoreFrictionHB, v, ρ, μ)
             f = f_l + (Δf / ΔRe)*(Re - Re_l)
         end
     end
-    Δp = -(2.0*s*L/ΔD)*(f*ρ*v^2.0)
+    Δp = 2*f*L*v^2/((A^2)*D⁰*ρ)
     return Δp
 end
 
