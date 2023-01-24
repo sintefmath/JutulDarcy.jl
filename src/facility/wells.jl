@@ -358,59 +358,6 @@ Base.@propagate_inbounds function well_perforation_flux!(out, sys::Union{Immisci
     return out
 end
 
-Base.@propagate_inbounds function well_perforation_flux!(out, sys::CompositionalSystem, state_res, state_well, rhoS, dp, rc, wc)
-    μ = state_res.PhaseViscosities
-    kr = state_res.RelativePermeabilities
-    ρ = state_res.PhaseMassDensities
-    X = state_res.LiquidMassFractions
-    Y = state_res.VaporMassFractions
-
-    ρ_w = state_well.PhaseMassDensities
-    s_w = state_well.Saturations
-    X_w = state_well.LiquidMassFractions
-    Y_w = state_well.VaporMassFractions
-
-    nc = size(X, 1)
-    nph = size(μ, 1)
-    has_water = nph == 3
-    phase_ix = phase_indices(sys)
-
-    if has_water
-        A, L, V = phase_ix
-    else
-        L, V = phase_ix
-    end
-    # dp is pressure difference from reservoir to well. If it is negative, we are injecting into the reservoir.
-    mob(ph) = kr[ph, rc]/μ[ph, rc]
-    if dp < 0
-        # Injection
-        λ_t = 0
-        for ph in 1:nph
-            λ_t += mob(ph)
-        end
-        Q = λ_t*dp
-        phase_mass_flux = ph -> ρ_w[ph, wc]*s_w[ph, wc]*Q
-        Q_l = phase_mass_flux(L)
-        Q_v = phase_mass_flux(V)
-        X_upw = X_w
-        Y_upw = Y_w
-        cell_upw = wc
-    else
-        phase_mass_flux = ph -> ρ[ph, rc]*mob(ph)*dp
-        X_upw = X
-        Y_upw = Y
-        cell_upw = rc
-    end
-    Q_l = phase_mass_flux(L)
-    Q_v = phase_mass_flux(V)
-
-    @inbounds for c in 1:nc
-        out[c] = Q_l*X_upw[c, cell_upw] + Q_v*Y_upw[c, cell_upw]
-    end
-    if has_water
-        out[nc+1] = phase_mass_flux(A)
-    end
-end
 const WellDomain = DiscretizedDomain{<:WellGrid}
 const MSWellDomain = DiscretizedDomain{<:MultiSegmentWell}
 const MSWellFlowModel = SimulationModel{<:MSWellDomain, <:MultiPhaseSystem}

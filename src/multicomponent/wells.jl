@@ -49,3 +49,70 @@ function flash_wellstream_at_surface(well_model, sys::S, well_state, rhoS) where
     rho = tuple(rho...)
     return (rho, volfrac)
 end
+
+Base.@propagate_inbounds function well_perforation_flux!(out, sys::CompositionalSystem, state_res, state_well, rhoS, conn)
+    rc = conn.reservoir
+    wc = conn.well
+
+    μ = state_res.PhaseViscosities
+    kr = state_res.RelativePermeabilities
+    ρ = state_res.PhaseMassDensities
+    X = state_res.LiquidMassFractions
+    Y = state_res.VaporMassFractions
+
+    ρ_w = state_well.PhaseMassDensities
+    s_w = state_well.Saturations
+    X_w = state_well.LiquidMassFractions
+    Y_w = state_well.VaporMassFractions
+
+    nc = size(X, 1)
+    nph = size(μ, 1)
+    has_water = nph == 3
+    phase_ix = phase_indices(sys)
+
+    if has_water
+        A, L, V = phase_ix
+    else
+        L, V = phase_ix
+    end
+
+    # dp is pressure difference from reservoir to well. If it is negative, we are injecting into the reservoir.
+    mob(ph) = kr[ph, rc]/μ[ph, rc]
+    λ_t = zero(eltype(kr))
+    for ph in 1:nph
+        λ_t += mob(ph)
+    end
+
+    function phase_mass_flux(ph)
+        dp = perforation_phase_potential_difference(conn, state_res, state_well, ph)
+        if dp < 0
+            # Injection
+            Q = λ_t*s_w[ph, wc]*ρ_w[ph, wc]*dp
+        else
+            Q = mob(ph)*ρ[ph, rc]*dp
+        end
+        return (Q, dp)
+    end
+
+    Q_l, dp_l = phase_mass_flux(L)
+    Q_v, dp_v = phase_mass_flux(V)
+
+    @inbounds for c in 1:nc
+        if dp_l < 0
+            # Injection
+            X_upw = X_w[c, wc]
+        else
+            X_upw = X[c, rc]
+        end
+        if dp_v < 0
+            Y_upw = Y_w[c, wc]
+        else
+            Y_upw = Y[c, rc]
+        end
+        out[c] = Q_l*X_upw + Q_v*Y_upw
+    end
+    if has_water
+        out[nc+1], _ = phase_mass_flux(A)
+    end
+end
+
