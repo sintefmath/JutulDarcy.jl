@@ -1069,6 +1069,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                 do_sim = true,
                                 steps = :full,
                                 general_ad = false,
+                                restart = false,
                                 linear_solver = :bicgstab,
                                 kwarg...)
     if verbose
@@ -1142,7 +1143,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
         if verbose
             jutul_message("MRST model", "Starting simulation of $s system with $nc cells and $nph phases and $ncomp components.")
         end
-        states, reports = simulate(sim, dt, forces = forces, config = cfg);
+        states, reports = simulate(sim, dt, forces = forces, config = cfg, restart = restart);
         if write_output && write_mrst
             mrst_output_path = "$(output_path)_mrst"
             if verbose
