@@ -2,9 +2,7 @@ Base.@propagate_inbounds function well_perforation_flux!(out, sys::StandardBlack
     rc = conn.reservoir
     wc = conn.well
     a, l, v = phase_indices(sys)
-
     dp_a, dp_l, dp_v = res_dp(conn, state_res, state_well, sys)
-    # error()
     λ_a, λ_l, λ_v = res_mobility(state_res, sys, rc)
     λ_t = λ_a + λ_l + λ_v
 
@@ -16,7 +14,7 @@ Base.@propagate_inbounds function well_perforation_flux!(out, sys::StandardBlack
         Q_a = s_w[a, wc]*ρ_w[a, wc]*λ_t*dp_a
     else
         # Production
-        Q_a = dp_a*ρ[a, rc]*λ_a
+        Q_a = ρ[a, rc]*λ_a*dp_a
     end
     q_l = q_v = zero(Q_a)
     # Oil component flux
@@ -50,7 +48,7 @@ Base.@propagate_inbounds function well_perforation_flux!(out, sys::StandardBlack
         end
     else
         # Production
-        bG = b[l, rc]
+        bG = b[v, rc]
         q = dp_v*bG*λ_v
         q_v += q
         if has_vapoil(sys)
