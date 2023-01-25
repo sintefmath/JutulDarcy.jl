@@ -39,7 +39,7 @@ function test_mrst_case(casename; tol = 0.01, wtol = tol, otol = tol, gtol = tol
                             @testset "$wfield" begin
                                 err = norm(jutul.*w - m.*w, 1)/ref_norm
                                 if err > ϵ
-                                    @info "$k: $wfield" err ref_norm #jutul m ws[k][:mass] w
+                                    @info "$casename $k: $wfield" err ref_norm #jutul m ws[k][:mass] w
                                     println("Compare")
                                     display(hcat(jutul, m, w))
                                 end
@@ -55,16 +55,19 @@ function test_mrst_case(casename; tol = 0.01, wtol = tol, otol = tol, gtol = tol
     end
     return nothing
 end
-
+##
 @testset "SPE1" begin
     test_mrst_case("spe1")
 end
+##
 @testset "SPE3" begin
     test_mrst_case("spe3", wtol = 0.2, gtol = 0.02)
 end
+##
 @testset "SPE9" begin
     test_mrst_case("spe9", wtol = Inf, gtol = 0.1, otol = 0.05)
 end
+##
 @testset "Egg" begin
     test_mrst_case("egg")
 end
