@@ -45,8 +45,8 @@ function perforation_phase_potential_difference(conn, state_res, state_well, ix)
     (; dp, WI, well, reservoir, gdz) = conn
     ρ_r = state_res.PhaseMassDensities[ix, reservoir]
     ρ_w = state_well.PhaseMassDensities[ix, well]
-    ρgdz = 0.5*(ρ_r + ρ_w)*gdz
-    return -WI*(dp + ρgdz)
+    ρ = 0.5*(ρ_r + ρ_w)
+    return -WI*(dp + ρ*gdz)
 end
 
 Jutul.cross_term_entities(ct::AbstractReservoirFromWellCT, eq::ConservationLaw, model) = ct.reservoir_cells

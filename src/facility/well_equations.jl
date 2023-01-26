@@ -20,7 +20,6 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
     seg_model = model.domain.grid.segment_models[face]
     Δp = segment_pressure_drop(seg_model, V, rho, μ_mix)
     Δθ = two_point_potential_drop(p[left], p[right], gdz, rho_l, rho_r)
-
     eq_buf[] = Δθ + Δp
 end
 
@@ -83,7 +82,7 @@ end
 
 function component_sum(mass, i)
     s = zero(eltype(mass))
-    for c = 1:size(mass, 1)
+    for c = axes(mass, 1)
         s += mass[c, i]
     end
     return s
