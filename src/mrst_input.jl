@@ -1143,7 +1143,13 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
         if verbose
             jutul_message("MRST model", "Starting simulation of $s system with $nc cells and $nph phases and $ncomp components.")
         end
-        states, reports = simulate(sim, dt, forces = forces, config = cfg, restart = restart);
+        rspec = mrst_data["deck"]["RUNSPEC"]
+        if haskey(rspec, "START")
+            start = DateTime(0) + Day(rspec["START"])
+        else
+            start = nothing
+        end
+        states, reports = simulate(sim, dt, forces = forces, config = cfg, restart = restart, start_date = start);
         if write_output && write_mrst
             mrst_output_path = "$(output_path)_mrst"
             if verbose

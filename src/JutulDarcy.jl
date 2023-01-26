@@ -46,6 +46,7 @@ module JutulDarcy
     using Tullio, LoopVectorization, Polyester
     using TimerOutputs
     using SnoopPrecompile
+    using Dates
     import DataStructures: OrderedDict
 
     export reservoir_linsolve, get_1d_reservoir
