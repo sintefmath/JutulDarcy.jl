@@ -1,6 +1,6 @@
 import Jutul: first_lower, interval_weight, linear_interp
 
-function bin_interval(t, x)
+@inline function bin_interval(t, x)
     ix = Jutul.first_lower(t, x)
     w = interval_weight(t, x, ix)
     return (w, ix)
