@@ -6,7 +6,7 @@ function bin_interval(t, x)
     return (w, ix)
 end
 
-function interp_pvt(pvto, p, v, type = :shrinkage; cap = false)
+function interp_pvt(pvto, p, v, F_tab = pvt.shrinkage; cap = false)
     P, R, SP, pos = pvt_table_vectors(pvto)
     pos = pvto.pos
     if cap
@@ -22,25 +22,19 @@ function interp_pvt(pvto, p, v, type = :shrinkage; cap = false)
     lower = ix_start:(ix_middle-1)
     upper = ix_middle:(ix_end-1)
 
-    P_l = view(P, lower)
-    P_u = view(P, upper)
+    P_l = @inbounds view(P, lower)
+    P_u = @inbounds view(P, upper)
     # Width of interval in saturation table
     @inbounds Δp = SP[ix+1] - SP[ix]
 
     p_u = p + (1-w)*Δp
     p_l = p - w*Δp
 
-    if type == :shrinkage
-        F_tab = pvto.shrinkage
-    else
-        F_tab = pvto.viscosity
-    end
-
-    F_u = view(F_tab, upper)
-    F_l = view(F_tab, lower)
+    F_u = @inbounds view(F_tab, upper)
+    F_l = @inbounds view(F_tab, lower)
 
     f_l = linear_interp(P_l, F_l, p_l)
     f_u = linear_interp(P_u, F_u, p_u)
 
-    return f_l*(1-w) + w*f_u
+    return f_l*(1.0-w) + w*f_u
 end
