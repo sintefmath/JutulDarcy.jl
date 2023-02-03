@@ -9,7 +9,9 @@ function test_mrst_case(casename; tol = 0.01, wtol = tol, otol = tol, gtol = tol
         dt = setup.case.dt
         ws = full_well_outputs(model, states, forces, shortname = true)
         ref = setup.mrst["extra"][1]["mrst_solution"]
+        output = Dict();
         for k in keys(ws)
+            output[k] = Dict()
             @testset "$k" begin
                 ix = findfirst(isequal("$k"), vec(ref["names"]))
                 w = (abs.(ws[k][:mass]) .> 1e-10).*dt
@@ -33,6 +35,7 @@ function test_mrst_case(casename; tol = 0.01, wtol = tol, otol = tol, gtol = tol
                         end
                         jutul = ws[k][wfield]
                         m = mrst[:, ix]
+                        output[k][wfield] = (jutul = jutul, mrst = m)
                         ref_norm = norm(m.*w, 1)
                         # Don't test pure noise. MRST and Jutul do not use exactly the same wells.
                         if ref_norm > 1e-8*sum(dt)
@@ -53,7 +56,7 @@ function test_mrst_case(casename; tol = 0.01, wtol = tol, otol = tol, gtol = tol
     else
         @warn "Did not find test case." data_path
     end
-    return nothing
+    return output
 end
 ##
 @testset "SPE1" begin

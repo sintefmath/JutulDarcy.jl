@@ -76,7 +76,6 @@ Base.@propagate_inbounds function well_perforation_flux!(out, sys::Compositional
         L, V = phase_ix
     end
 
-    # dp is pressure difference from reservoir to well. If it is negative, we are injecting into the reservoir.
     mob(ph) = kr[ph, rc]/μ[ph, rc]
     λ_t = zero(eltype(kr))
     for ph in 1:nph
@@ -85,12 +84,16 @@ Base.@propagate_inbounds function well_perforation_flux!(out, sys::Compositional
 
     function phase_mass_flux(ph)
         dp = perforation_phase_potential_difference(conn, state_res, state_well, ph)
+        # dp is pressure difference from reservoir to well. If it is negative,
+        # we are injecting into the reservoir.
         if dp < 0
-            # Injection
-            Q = λ_t*s_w[ph, wc]*ρ_w[ph, wc]*dp
+            mob_ph = λ_t*s_w[ph, wc]
+            dens_ph = ρ_w[ph, wc]
         else
-            Q = mob(ph)*ρ[ph, rc]*dp
+            mob_ph = mob(ph)
+            dens_ph = ρ[ph, rc]
         end
+        Q = mob_ph*dens_ph*dp
         return (Q, dp)
     end
 

@@ -43,10 +43,13 @@ end
 
 function perforation_phase_potential_difference(conn, state_res, state_well, ix)
     (; dp, WI, well, reservoir, gdz) = conn
-    ρ_r = state_res.PhaseMassDensities[ix, reservoir]
-    ρ_w = state_well.PhaseMassDensities[ix, well]
-    ρ = 0.5*(ρ_r + ρ_w)
-    return -WI*(dp + ρ*gdz)
+    if gdz != 0
+        ρ_r = state_res.PhaseMassDensities[ix, reservoir]
+        ρ_w = state_well.PhaseMassDensities[ix, well]
+        ρ = 0.5*(ρ_r + ρ_w)
+        dp += ρ*gdz
+    end
+    return -WI*dp
 end
 
 Jutul.cross_term_entities(ct::AbstractReservoirFromWellCT, eq::ConservationLaw, model) = ct.reservoir_cells
@@ -54,11 +57,6 @@ Jutul.cross_term_entities_source(ct::AbstractReservoirFromWellCT, eq::Conservati
 
 function Jutul.subcrossterm(ct::ReservoirFromWellFlowCT, ctp, m_t, m_s, map_res::FiniteVolumeGlobalMap, ::TrivialGlobalMap, partition)
     (; WI, reservoir_cells, well_cells) = ct
-    # rc = map(
-    #     c -> Jutul.interior_cell(
-    #         Jutul.local_cell(c, map_res),
-    #     map_res),
-    #     reservoir_cells)
     rc = map(
         c -> Jutul.local_cell(c, map_res),
         reservoir_cells)
