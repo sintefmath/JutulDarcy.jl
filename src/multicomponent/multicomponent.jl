@@ -45,14 +45,14 @@ function convergence_criterion(model::CompositionalModel, storage, eq::Conservat
     function scale(i)
         @inbounds c = a[i]
         t = 0.0
-        @inbounds for i = 1:size(tm, 1)
+        @inbounds for i in axes(tm, 1)
             t += tm[i, c]
         end
         return t
     end
     @tullio max e[j] := abs(r[j, i]) * dt / scale(i)
     names = model.system.components
-    R = Dict("CNV" => (errors = e, names = names))
+    R = (CNV = (errors = e, names = names), )
     return R
 end
 
@@ -72,7 +72,7 @@ function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::Co
 
     e = compositional_criterion(dt, tm, a, r, nc, water)
     names = model.system.components
-    R = Dict("CNV" => (errors = e, names = names))
+    R = (CNV = (errors = e, names = names), )
     return R
 end
 

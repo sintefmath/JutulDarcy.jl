@@ -139,7 +139,7 @@ end
 
 function set_default_cnv_mb_inner!(tol, model; tol_cnv = 1e-3, tol_mb = 1e-7, tol_mb_well = 1e-3, tol_cnv_well = 1e-2)
     sys = model.system
-    if sys isa ImmiscibleSystem || sys isa BlackOilSystem
+    if sys isa ImmiscibleSystem || sys isa BlackOilSystem || sys isa CompositionalSystem
         if model.domain isa WellDomain
             c = tol_cnv_well
             m = tol_mb_well

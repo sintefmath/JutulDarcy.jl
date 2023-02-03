@@ -702,7 +702,7 @@ function setup_case_from_mrst(casename; simple_well = false,
     init = init_from_mat(mrst_data, model, param_res)
 
     # model, init, param_res = setup_res(G, mrst_data; block_backend = block_backend, use_groups = true)
-    is_comp = haskey(init, :OverallMoleFractions)
+    is_comp = model isa CompositionalModel
     rhoS = reference_densities(model.system)
 
     has_schedule = haskey(mrst_data, "schedule")
