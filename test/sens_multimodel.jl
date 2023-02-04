@@ -1,4 +1,4 @@
-using Jutul, JutulDarcy, Test
+using Jutul, JutulDarcy, Test, LinearAlgebra
 
 function well_test_objective(model, state)
     q = state[:Facility][:TotalSurfaceMassRate]
