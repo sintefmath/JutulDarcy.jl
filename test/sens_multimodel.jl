@@ -5,7 +5,7 @@ function well_test_objective(model, state)
     return 2.0*q[1] + 0.5*q[2]
 end
 
-function solve_adjoint_forward_test_system(; block_backend = false, kwarg...)
+function solve_adjoint_forward_test_system(; block_backend = true, kwarg...)
     states, reports, setup = JutulDarcy.simulate_mini_wellcase(:immiscible_2ph; kwarg..., block_backend = block_backend, general_ad = false)
     return (setup[:model], setup[:state0], states, reports, setup[:parameters], setup[:forces])
 end
@@ -19,10 +19,6 @@ function test_optimization_gradient(; use_scaling = true, use_log = false, kwarg
     G = (model, state, dt, step_no, forces) -> well_test_objective(model, state)
 
     active = nothing
-    # active = Dict(:Reservoir => [:FluidVolume, :Transmissibilities], :Injector => [:FluidVolume, :WellIndices], :Producer => [:FluidVolume, :WellIndices], :Facility => [])
-    # active = Dict(:Reservoir => [:FluidVolume, :Transmissibilities], :Injector => [], :Producer => [], :Facility => [])
-    # active = Dict(:Reservoir => [:Transmissibilities], :Injector => [], :Producer => [], :Facility => [])
-    # active = Dict(:Reservoir => [:PhaseViscosities], :Injector => [], :Producer => [], :Facility => [])
     cfg = optimization_config(model, param, active, use_scaling = use_scaling, rel_min = 0.5, rel_max = 2.0)
     if use_log
         for (k, v) in cfg
@@ -45,12 +41,13 @@ function test_optimization_gradient(; use_scaling = true, use_log = false, kwarg
     # Perturb the data in a few different directions and verify
     # the gradients there too. Use the F_and_dF interface, that
     # computes gradients together with the objective
-    for delta in [1.05, 0.85, 0.325, 1.55]
+    for delta in [1.05, 0.85, 0.325, 1.15]
         x_mod = delta.*x0
         dF_mod = similar(dF_initial)
         F_and_dF(NaN, dF_mod, x_mod)
         num_grad!(dF_num, x_mod, ϵ, F_o)
-        @test isapprox(dF_num, dF_mod, rtol = num_tol)
+        err = norm(dF_num - dF_mod)/norm(dF_num)
+        @test err <= num_tol
     end
 end
 
@@ -78,12 +75,21 @@ function solve_out_of_place(model, state0, states, param, reports, G, forces; kw
 end
 ##
 @testset "optimization interface with wells" begin
-    for ad in [true, false]
-        @testset "scaled (linear)" begin
-            test_optimization_gradient(use_scaling = true, general_ad = ad)
+    for block in [true, false]
+        if block
+            b = "block"
+        else
+            b = "scalar"
         end
-        @testset "scaled (log)" begin
-            test_optimization_gradient(use_scaling = true, use_log = true,  general_ad = ad)
+        @testset "$b" begin
+            for ad in [true, false]
+                @testset "scaled (linear)" begin
+                    test_optimization_gradient(use_scaling = true, general_ad = ad, block_backend = block)
+                end
+                @testset "scaled (log)" begin
+                    test_optimization_gradient(use_scaling = true, use_log = true,  general_ad = ad, block_backend = block)
+                end
+            end
         end
     end
 end

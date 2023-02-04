@@ -21,6 +21,7 @@ Additional keywords are passed onto the linear solver constructor.
 function reservoir_linsolve(model,  precond = :cpr;
                                     rtol = nothing,
                                     v = 0,
+                                    mode = :forward,
                                     solver = :bicgstab,
                                     update_interval = :once,
                                     update_interval_partial = :iteration,
