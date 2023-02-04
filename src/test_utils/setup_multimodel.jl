@@ -40,7 +40,13 @@ function simulate_mini_wellcase(::Val{:compositional_2ph_3c}; dims = (3, 1, 1), 
     controls[:Producer] = P_ctrl
     # Simulate
     forces = setup_reservoir_forces(model, control = controls)
-    sim, config = setup_reservoir_simulator(model, state0, parameters, info_level = -1, set_linear_solver = !default_linsolve, output_path = output_path)
+    sim, config = setup_reservoir_simulator(
+        model, state0, parameters, 
+        info_level = -1,
+        set_linear_solver = !default_linsolve,
+        output_path = output_path,
+        tol_cnv_well = 1e-3 # Needed for test
+    )
     setup = Dict(:config     => config,
                  :forces     => forces,
                  :state0     => state0,
