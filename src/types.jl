@@ -188,3 +188,28 @@ function Base.show(io::IO, t::MIME"text/plain", kr::PhaseRelPerm)
     println(io, "  Critical saturation = $(kr.critical)")
     println(io, "  Maximum rel. perm = $(kr.k_max) at $(kr.s_max)")
 end
+
+
+@enum FlowSourceType begin
+    MassSource
+    StandardVolumeSource
+    VolumeSource
+end
+
+struct SourceTerm{I, F, T} <: JutulForce
+    cell::I
+    value::F
+    fractional_flow::T
+    type::FlowSourceType
+end
+
+export FlowBoundaryCondition
+struct FlowBoundaryCondition{I, F, T} <: JutulForce
+    cell::I
+    pressure::F
+    temperature::F
+    trans_flow::F
+    trans_thermal::F
+    fractional_flow::T
+    density::Union{F, Nothing}
+end

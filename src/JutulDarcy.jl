@@ -83,6 +83,7 @@ module JutulDarcy
     include("deck_support.jl")
     include("regions/regions.jl")
     include("test_utils/test_utils.jl")
+    include("forces/forces.jl")
 
     @precompile_all_calls begin
         precompile_darcy_multimodels()

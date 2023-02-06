@@ -36,9 +36,9 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         # System state
         tot_time = sum(timesteps)
         irate = pvfrac*sum(pv)/tot_time
-        src = [SourceTerm(1, irate), 
-            SourceTerm(nc, -irate)]
-        forces = setup_forces(model, sources = src)
+        src = SourceTerm(1, irate)
+        bc = FlowBoundaryCondition(nc, p0/2)
+        forces = setup_forces(model, sources = src, bc = bc)
 
         # State is dict with pressure in each cell
         init = Dict(:Pressure => p0)
