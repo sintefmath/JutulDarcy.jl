@@ -80,8 +80,10 @@ end
 
     S, buf = thread_buffers(storage, buffers)
     update_flash_buffer!(buf, eos, Pressure, Temperature, OverallMoleFractions)
+    buf_z = buf.z
+    buf_forces = buf.forces
     @inbounds for i in ix
-        flash_results[i] = internal_flash!(flash_results[i], S, m, eos, buf, Pressure, Temperature, OverallMoleFractions, i)
+        flash_results[i] = internal_flash!(flash_results[i], S, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, i)
     end
 end
 
@@ -105,7 +107,7 @@ function update_flash_buffer!(buf, eos, Pressure, Temperature, OverallMoleFracti
     end
 end
 
-function internal_flash!(f, S, m, eos, buf, Pressure, Temperature, OverallMoleFractions, i)
+function internal_flash!(f, S, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, i)
     @inbounds begin
         P = Pressure[i]
         T = Temperature[i]
@@ -115,12 +117,12 @@ function internal_flash!(f, S, m, eos, buf, Pressure, Temperature, OverallMoleFr
         x = f.liquid.mole_fractions
         y = f.vapor.mole_fractions
 
-        return update_flash_result(S, m, buf, eos, K, x, y, buf.z, buf.forces, P, T, Z)
+        return update_flash_result(S, m, eos, K, x, y, buf_z, buf_forces, P, T, Z)
     end
 end
 
 
-function update_flash_result(S, m, buffer, eos, K, x, y, z, forces, P, T, Z)
+function update_flash_result(S, m, eos, K, x, y, z, forces, P, T, Z)
     @. z = max(value(Z), 1e-8)
     # Conditions
     c = (p = value(P), T = value(T), z = z)

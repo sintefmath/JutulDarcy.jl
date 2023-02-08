@@ -38,7 +38,7 @@ function flash_wellstream_at_surface(well_model, sys::S, well_state, rhoS) where
     y = f.vapor.mole_fractions
     forces = buf.forces
 
-    result = update_flash_result(fstorage, m, buf, eos, f.K, x, y, buf.z, forces, Pressure, Temperature, z)
+    result = update_flash_result(fstorage, m, eos, f.K, x, y, buf.z, forces, Pressure, Temperature, z)
 
     rho[l], rho[v] = mass_densities(eos, Pressure, Temperature, result)
     rem = one(T) - S_other
