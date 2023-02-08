@@ -98,6 +98,33 @@ function Jutul.initialize_primary_variable_ad!(state, model, pvar::BlackOilUnkno
     return state
 end
 
+function Jutul.increment_norm(dX, X, pvar::BlackOilUnknown)
+    T = eltype(dX)
+    rs_max_v = rs_sum_v = zero(T)
+    sg_max_v = sg_sum_v = zero(T)
+    rv_max_v = rv_sum_v = zero(T)
+
+    @inbounds for i in eachindex(dX)
+        ph = X[i].phases_present
+        dx_abs = abs(dX[i])
+        if ph == OilAndGas
+            sg_max_v = max(sg_max_v, dx_abs)
+            sg_sum_v += dx_abs
+        elseif ph == OilOnly
+            rs_max_v = max(rs_max_v, dx_abs)
+            rs_sum_v += dx_abs
+        else
+            rv_max_v = max(rv_max_v, dx_abs)
+            rv_sum_v += dx_abs
+        end
+    end
+    return (
+            sg_sum = sg_sum_v, sg_max = sg_max_v,
+            rs_sum = rs_sum_v, rs_max = rs_max_v,
+            rv_sum = rv_sum_v, rv_max = rv_max_v,
+            )
+end
+
 include("shrinkage.jl")
 include("viscosity.jl")
 include("density.jl")
