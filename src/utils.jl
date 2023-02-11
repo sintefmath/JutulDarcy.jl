@@ -94,7 +94,7 @@ function setup_reservoir_simulator(case::JutulCase;
                             max_dt = Inf,
                             rtol = nothing,
                             initial_dt = 3600.0*24.0,
-                            target_ds = 0.2,
+                            target_ds = Inf,
                             target_its = 8,
                             offset_its = 1,
                             tol_cnv = 1e-3,
@@ -111,12 +111,20 @@ function setup_reservoir_simulator(case::JutulCase;
 
     sim = Simulator(case, extra_timing = extra_timing_setup)
     t_base = TimestepSelector(initial_absolute = initial_dt, max = max_dt)
-    t_its = IterationTimestepSelector(target_its, offset = offset_its)
-    t_sat = VariableChangeTimestepSelector(:Saturations, target_ds, relative = false, reduction = :max, model = :Reservoir)
-    if timesteps == :auto
-        sel = [t_base, t_its, t_sat]
-    elseif timesteps == :iteration
-        sel = [t_base, t_its]
+    sel = Vector{Any}()
+    push!(sel, t_base)
+    if timesteps == :auto || timesteps == :iteration
+        if isfinite(target_its)
+            t_its = IterationTimestepSelector(target_its, offset = offset_its)
+            push!(sel, t_its)
+        end
+
+        if isfinite(target_ds)
+            t_sat = VariableChangeTimestepSelector(
+                :Saturations, target_ds, relative = false, reduction = :max, model = :Reservoir
+                )
+            push!(sel, t_sat)
+        end
     else
         @assert isnothing(timesteps)
         sel = [t_base]
