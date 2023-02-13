@@ -247,19 +247,40 @@ function convergence_criterion(model::SimulationModel{D, S}, storage, eq::Conser
     Φ = v(storage.state.FluidVolume)
     ρ = v(storage.state.PhaseMassDensities)
 
-    @tic "cnv" @tullio max e[j] := abs(r[j, i]) * dt / (ρ[j, i]*Φ[i])
-    @tic "mb" begin
-        N = length(Φ)
-        pv_t = sum(Φ)
-        avg_density = sum(ρ, dims = 2)./N
-        r_sum = sum(r, dims = 2)
-        mb = @. (dt/pv_t)*abs(r_sum)/avg_density
-    end
+    nph = number_of_phases(model.system)
+    cnv, mb = cnv_mb_errors(r, Φ, ρ, dt, Val(nph))
 
     names = phase_names(model.system)
-    R = (CNV = (errors = e, names = names),
+    R = (CNV = (errors = cnv, names = names),
          MB = (errors = mb, names = names))
     return R
+end
+
+function cnv_mb_errors(r, Φ, ρ, dt, ::Val{N}) where N
+    nc = length(Φ)
+    mb = @MVector zeros(N)
+    cnv = @MVector zeros(N)
+    avg_density = @MVector zeros(N)
+
+    pv_t = 0.0
+    @inbounds for c in 1:nc
+        pv_c = Φ[c]
+        pv_t += pv_c
+        @inbounds for ph = 1:N
+            r_ph = r[ph, c]
+            ρ_ph = ρ[ph, c]
+            # MB
+            mb[ph] += r_ph
+            avg_density[ph] += ρ_ph
+            # CNV
+            cnv[ph] = max(cnv[ph], dt*abs(r_ph)/(ρ_ph*pv_c))
+        end
+    end
+    @inbounds for ph = 1:N
+        ρ_avg = avg_density[ph]/nc
+        mb[ph] = (dt/pv_t)*abs(mb[ph])/ρ_avg
+    end
+    return (Tuple(cnv), Tuple(mb))
 end
 
 function cpr_weights_no_partials!(w, model::SimulationModel{R, S}, state, r, n, bz, scaling) where {R, S<:ImmiscibleSystem}
