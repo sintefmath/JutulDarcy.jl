@@ -89,15 +89,15 @@ function discretized_domain_tpfv_flow(geometry; porosity = 0.1,
 end
 
 export discretized_domain_well
-function discretized_domain_well(W; z = nothing, kwarg...)
-    if W isa MultiSegmentWell
-        if isnothing(z)
-            z = vec(W.centers[3, :])
-        end
-    else
-        z = []
+function discretized_domain_well(W::MultiSegmentWell; z = nothing, kwarg...)
+    if isnothing(z)
+        z = vec(W.centers[3, :])
     end
     flow = WellSegmentFlow(W, z)
     disc = (mass_flow = flow, heat_flow = flow)
     return DiscretizedDomain(W, disc; kwarg...)
+end
+
+function discretized_domain_well(W::SimpleWell; z = nothing, kwarg...)
+    return DiscretizedDomain(W; kwarg...)
 end

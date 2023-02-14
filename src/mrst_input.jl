@@ -104,7 +104,7 @@ function get_well_from_mrst_data(
         # For simple well, distance from ref depth to perf
         dz = z_res .- ref_depth
         z = [ref_depth]
-        W = SimpleWell(rc, WI = WI, dz = dz, surface_conditions = cond)
+        W = SimpleWell(rc, WI = WI, dz = dz, surface_conditions = cond, name = Symbol(nm))
         reservoir_cells = [rc[1]]
     elseif well_type == :ms
         if haskey(W_mrst, "isMS") && W_mrst["isMS"]
@@ -749,6 +749,7 @@ function setup_case_from_mrst(casename; wells = :ms,
                 extraout = true, well_type = wells, context = w_context)
         param_w = setup_parameters(wi)
 
+        wgrid = wi.domain.grid
         wc = wi.domain.grid.perforations.reservoir
 
         sv = wi.secondary_variables
@@ -758,19 +759,23 @@ function setup_case_from_mrst(casename; wells = :ms,
         prm = model.parameters
         param_w = setup_parameters(wi)
 
-        sv[:PhaseMassDensities] = sv_m[:PhaseMassDensities]
-        if haskey(sv, :ShrinkageFactors)
-            sv[:ShrinkageFactors] = sv_m[:ShrinkageFactors]
+        if wgrid isa MultiSegmentWell
+            sv[:PhaseMassDensities] = sv_m[:PhaseMassDensities]
+            if haskey(sv, :ShrinkageFactors)
+                sv[:ShrinkageFactors] = sv_m[:ShrinkageFactors]
+            end
+            if haskey(sv_m, :PhaseViscosities)
+                set_secondary_variables!(wi, PhaseViscosities = sv_m[:PhaseViscosities])
+            else
+                set_parameters(wi, PhaseViscosities = prm[:PhaseViscosities])
+            end
+            sv[:PhaseViscosities] = sv_m[:PhaseViscosities]
+            if haskey(param_w, :Temperature)
+                param_w[:Temperature] = param_res[:Temperature][res_cells]
+            end
         end
-        if haskey(sv_m, :PhaseViscosities)
-            set_secondary_variables!(wi, PhaseViscosities = sv_m[:PhaseViscosities])
-        else
-            set_parameters(wi, PhaseViscosities = prm[:PhaseViscosities])
-        end
-        sv[:PhaseViscosities] = sv_m[:PhaseViscosities]
-        if haskey(param_w, :Temperature)
-            param_w[:Temperature] = param_res[:Temperature][res_cells]
-        end
+        @warn "Debugging"
+        display(wi)
         pw = wi.primary_variables
         models[sym] = wi
         ctrl = mrst_well_ctrl(model, wdata, is_comp, rhoS)

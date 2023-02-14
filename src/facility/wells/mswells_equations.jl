@@ -1,3 +1,68 @@
+
+"""
+Hagedorn and Brown well bore friction model for a segment.
+"""
+struct SegmentWellBoreFrictionHB{R}
+    L::R
+    roughness::R
+    D_outer::R
+    D_inner::R
+    assume_turbulent::Bool
+    laminar_limit::R
+    turbulent_limit::R
+    function SegmentWellBoreFrictionHB(L, roughness, D_outer; D_inner = 0, assume_turbulent = false, laminar_limit = 2000.0, turbulent_limit = 4000.0)
+        new{typeof(L)}(L, roughness, D_outer, D_inner, assume_turbulent, laminar_limit, turbulent_limit)
+    end
+end
+
+function is_turbulent_flow(f::SegmentWellBoreFrictionHB, Re)
+    return f.assume_turbulent || Re >= f.turbulent_limit
+end
+
+function is_laminar_flow(f::SegmentWellBoreFrictionHB, Re)
+    return !f.assume_turbulent && Re <= f.laminar_limit
+end
+
+function segment_pressure_drop(f::SegmentWellBoreFrictionHB, v, ρ, μ)
+    D⁰, Dⁱ = f.D_outer, f.D_inner
+    R, L = f.roughness, f.L
+    ΔD = D⁰-Dⁱ
+    A = π*((D⁰/2)^2 - (Dⁱ/2)^2)
+    # Scaling fix
+    s = v > 0.0 ? 1.0 : -1.0
+    e = eps(Float64)
+    v = s*max(abs(v), e)
+
+    Re = abs(D⁰*v/(A*μ))
+    # Friction model - empirical relationship
+    Re_l, Re_t = f.laminar_limit, f.turbulent_limit
+    if is_laminar_flow(f, Re)
+        f = 16.0/Re
+    else
+        # Either turbulent or intermediate flow regime. We need turbulent value either way.
+        f_t = (-3.6*log10(6.9/Re +(R/(3.7*D⁰))^(10.0/9.0)))^(-2.0)
+        if is_turbulent_flow(f, Re)
+            # Turbulent flow
+            f = f_t
+        else
+            # Intermediate regime - interpolation
+            f_l = 16.0/Re_l
+            Δf = f_t - f_l
+            ΔRe = Re_t - Re_l
+            f = f_l + (Δf / ΔRe)*(Re - Re_l)
+        end
+    end
+    Δp = 2*f*L*v^2/((A^2)*D⁰*ρ)
+    return Δp
+end
+
+
+struct PotentialDropBalanceWell{T} <: JutulEquation
+    flow_discretization::T
+end
+
+associated_entity(::PotentialDropBalanceWell) = Faces()
+
 # local_discretization(e::PotentialDropBalanceWell, i) = e.flow_discretization(i, Faces())
 
 Jutul.discretization(e::PotentialDropBalanceWell) = e.flow_discretization

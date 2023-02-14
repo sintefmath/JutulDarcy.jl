@@ -23,12 +23,14 @@ end
 function Base.show(io::IO, w::WellGrid)
     if w isa SimpleWell
         nseg = 0
+        nn = 1
         n = "SimpleWell"
     else
         nseg = size(w.neighborship, 2)
+        nn = length(w.volumes)
         n = "MultiSegmentWell"
     end
-    print(io, "$n [$(w.name)] ($(length(w.volumes)) nodes, $(nseg) segments, $(length(w.perforations.reservoir)) perforations)")
+    print(io, "$n [$(w.name)] ($(nn) nodes, $(nseg) segments, $(length(w.perforations.reservoir)) perforations)")
 end
 
 # Total velocity in each well segment
@@ -226,71 +228,7 @@ function setup_vertical_well(g, K, i, j; heel = 1, toe = grid_dims_ijk(g)[3], kw
     return setup_well(g, K, reservoir_cells; kwarg...)
 end
 
-"""
-Hagedorn and Brown well bore friction model for a segment.
-"""
-struct SegmentWellBoreFrictionHB{R}
-    L::R
-    roughness::R
-    D_outer::R
-    D_inner::R
-    assume_turbulent::Bool
-    laminar_limit::R
-    turbulent_limit::R
-    function SegmentWellBoreFrictionHB(L, roughness, D_outer; D_inner = 0, assume_turbulent = false, laminar_limit = 2000.0, turbulent_limit = 4000.0)
-        new{typeof(L)}(L, roughness, D_outer, D_inner, assume_turbulent, laminar_limit, turbulent_limit)
-    end
-end
-
-function is_turbulent_flow(f::SegmentWellBoreFrictionHB, Re)
-    return f.assume_turbulent || Re >= f.turbulent_limit
-end
-
-function is_laminar_flow(f::SegmentWellBoreFrictionHB, Re)
-    return !f.assume_turbulent && Re <= f.laminar_limit
-end
-
-function segment_pressure_drop(f::SegmentWellBoreFrictionHB, v, ρ, μ)
-    D⁰, Dⁱ = f.D_outer, f.D_inner
-    R, L = f.roughness, f.L
-    ΔD = D⁰-Dⁱ
-    A = π*((D⁰/2)^2 - (Dⁱ/2)^2)
-    # Scaling fix
-    s = v > 0.0 ? 1.0 : -1.0
-    e = eps(Float64)
-    v = s*max(abs(v), e)
-
-    Re = abs(D⁰*v/(A*μ))
-    # Friction model - empirical relationship
-    Re_l, Re_t = f.laminar_limit, f.turbulent_limit
-    if is_laminar_flow(f, Re)
-        f = 16.0/Re
-    else
-        # Either turbulent or intermediate flow regime. We need turbulent value either way.
-        f_t = (-3.6*log10(6.9/Re +(R/(3.7*D⁰))^(10.0/9.0)))^(-2.0)
-        if is_turbulent_flow(f, Re)
-            # Turbulent flow
-            f = f_t
-        else
-            # Intermediate regime - interpolation
-            f_l = 16.0/Re_l
-            Δf = f_t - f_l
-            ΔRe = Re_t - Re_l
-            f = f_l + (Δf / ΔRe)*(Re - Re_l)
-        end
-    end
-    Δp = 2*f*L*v^2/((A^2)*D⁰*ρ)
-    return Δp
-end
-
-
-struct PotentialDropBalanceWell{T} <: JutulEquation
-    flow_discretization::T
-end
-
-associated_entity(::PotentialDropBalanceWell) = Faces()
-
-include("well_equations.jl")
+include("mswells_equations.jl")
 
 
 
@@ -320,7 +258,7 @@ function declare_entities(W::WellGrid)
     return [c, f, p]
 end
 
-Base.@propagate_inbounds function well_perforation_flux!(out, sys::Union{ImmiscibleSystem, SinglePhaseSystem}, state_res, state_well, rhoS, conn)
+Base.@propagate_inbounds function well_perforation_flux!(out, w, sys::Union{ImmiscibleSystem, SinglePhaseSystem}, state_res, state_well, rhoS, conn)
     rc = conn.reservoir
     wc = conn.well
     # Reservoir quantities
@@ -328,21 +266,34 @@ Base.@propagate_inbounds function well_perforation_flux!(out, sys::Union{Immisci
     # Extra mobility needed
     kr = state_res.RelativePermeabilities
     μ = state_res.PhaseViscosities
-    # Well quantities
-    ρ_w = state_well.PhaseMassDensities
-    # Saturation instead of mobility - use total mobility form
-    s_w = state_well.Saturations
-    nph = size(s_w, 1)
-    λ_t = 0
-    for ph in 1:nph
-        λ_t += kr[ph, rc]/μ[ph, rc]
+    is_ms = w isa MultiSegmentWell
+    nph = size(ρ, 1)
+    if is_ms
+        # Well quantities
+        ρ_w = state_well.PhaseMassDensities
+        # Saturation instead of mobility - use total mobility form
+        s_w = state_well.Saturations
+        λ_t = 0
+        for ph in 1:nph
+            λ_t += kr[ph, rc]/μ[ph, rc]
+        end
+    else
+        ρλ_t = 0
+        for ph in 1:nph
+            ρλ_t += ρ[ph, rc]*kr[ph, rc]/μ[ph, rc]
+        end
+        X = state_well.MassFractions
     end
     for ph in 1:nph
         # ψ is pressure difference from reservoir to well. If it is negative, we are injecting into the reservoir.
         ψ = perforation_phase_potential_difference(conn, state_res, state_well, ph)
         if ψ < 0
             # Injection
-            out[ph] = s_w[ph, wc]*ρ_w[ph, wc]*ψ*λ_t
+            if is_ms
+                out[ph] = s_w[ph, wc]*ρ_w[ph, wc]*ψ*λ_t
+            else
+                out[ph] = X[ph]*ψ*ρλ_t
+            end
         else
             # Production
             λ = kr[ph, rc]/μ[ph, rc]
@@ -355,6 +306,8 @@ end
 const WellDomain = DiscretizedDomain{<:WellGrid}
 include("mswells.jl")
 include("stdwells.jl")
+
+include("stdwells_equations.jl")
 
 # Some utilities
 function mix_by_mass(masses, total::T, values) where T
@@ -411,7 +364,12 @@ function flash_wellstream_at_surface(well_model, well_state, rhoS)
 end
 
 function flash_wellstream_at_surface(well_model, system::ImmiscibleSystem, well_state, rhoS)
-    vol = well_state.TotalMasses[:, 1]./rhoS
+    if haskey(well_state, :MassFractions)
+        X = well_state.MassFractions
+    else
+        X = well_state.TotalMasses[:, 1]
+    end
+    vol = X./rhoS
     volfrac = vol./sum(vol)
     return (rhoS, volfrac)
 end

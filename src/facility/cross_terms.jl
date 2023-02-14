@@ -38,15 +38,20 @@ function update_cross_term_in_entity!(out, i,
            well = well_cell,
            reservoir = reservoir_cell)
     # Call smaller interface that is easy to specialize
-    @inbounds well_perforation_flux!(out, sys, state_t, state_s, rhoS, conn)
+    wg = model_s.domain.grid
+    @inbounds well_perforation_flux!(out, wg, sys, state_t, state_s, rhoS, conn)
 end
 
 function perforation_phase_potential_difference(conn, state_res, state_well, ix)
     (; dp, WI, well, reservoir, gdz) = conn
     if gdz != 0
         ρ_r = state_res.PhaseMassDensities[ix, reservoir]
-        ρ_w = state_well.PhaseMassDensities[ix, well]
-        ρ = 0.5*(ρ_r + ρ_w)
+        if haskey(state_well, :PhaseMassDensities)
+            ρ_w = state_well.PhaseMassDensities[ix, well]
+            ρ = 0.5*(ρ_r + ρ_w)
+        else
+            ρ = ρ_r
+        end
         dp += ρ*gdz
     end
     return -WI*dp
@@ -158,7 +163,7 @@ function update_cross_term_in_entity!(out, i,
     state_well, state0_well,
     state_facility, state0_facility,
     well, facility,
-    ct::WellFromFacilityFlowCT, eq, dt, ldisc = local_discretization(ct, i))
+    ct::WellFromFacilityFlowCT, eq::ConservationLaw{:TotalMasses, D}, dt, ldisc = local_discretization(ct, i)) where D
 
     well_symbol = ct.well
     pos = get_well_position(facility.domain, well_symbol)
@@ -184,6 +189,42 @@ function update_cross_term_in_entity!(out, i,
         masses = @views state_well.TotalMasses[:, well_top_node()]
         mass = sum(masses)
         mix = masses./mass
+    end
+    for i in eachindex(out)
+        @inbounds out[i] = -mix[i]*qT
+    end
+end
+
+function update_cross_term_in_entity!(out, i,
+    state_well, state0_well,
+    state_facility, state0_facility,
+    well, facility,
+    ct::WellFromFacilityFlowCT, eq::SimpleWellEquation, dt, ldisc = local_discretization(ct, i))
+
+    well_symbol = ct.well
+    pos = get_well_position(facility.domain, well_symbol)
+
+    cfg = state_facility.WellGroupConfiguration
+    ctrl = operating_control(cfg, well_symbol)
+    qT = state_facility.TotalSurfaceMassRate[pos] 
+    # Hack for sparsity detection
+    qT += 0*bottom_hole_pressure(state_well)
+
+    if isa(ctrl, InjectorControl)
+        if value(qT) < 0
+            @warn "Injector $well_symbol is producing?"
+        end
+        mix = ctrl.injection_mixture + 1e-10*state_well.MassFractions
+        nmix = length(mix)
+        ncomp = number_of_components(flow_system(well.system))
+        @assert nmix == ncomp "Injection composition length ($nmix) must match number of components ($ncomp)."
+        # @info "Inject $well_symbol" mix
+    else
+        if value(qT) > 0
+            @warn "Producer $well_symbol is injecting?"
+        end
+        mix = state_well.MassFractions
+        # @info "Prod $well_symbol" mix
     end
     for i in eachindex(out)
         @inbounds out[i] = -mix[i]*qT

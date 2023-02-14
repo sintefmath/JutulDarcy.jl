@@ -1,4 +1,4 @@
-Base.@propagate_inbounds function well_perforation_flux!(out, sys::StandardBlackOilSystem, state_res, state_well, rhoS, conn)
+Base.@propagate_inbounds function well_perforation_flux!(out, wg::MultiSegmentWell, sys::StandardBlackOilSystem, state_res, state_well, rhoS, conn)
     rc = conn.reservoir
     wc = conn.well
     a, l, v = phase_indices(sys)
@@ -60,8 +60,75 @@ Base.@propagate_inbounds function well_perforation_flux!(out, sys::StandardBlack
     out[v] = q_v*rhoGS
 end
 
+Base.@propagate_inbounds function well_perforation_flux!(out, wg::SimpleWell, sys::StandardBlackOilSystem, state_res, state_well, rhoS, conn)
+    rc = conn.reservoir
+    wc = conn.well
+    a, l, v = phase_indices(sys)
+    dp_a, dp_l, dp_v = res_dp(conn, state_res, state_well, sys)
+    λ_a, λ_l, λ_v = res_mobility(state_res, sys, rc)
+
+    Q_in = 0
+    a, l, v, rhoGS, rhoOS = well_pvt_bo(sys)
+    # b, b_w, ρ, ρ_w, s_w = well_volumes_bo(state_res, state_well)
+
+    ρ = state_res.PhaseMassDensities
+    b = state_res.ShrinkageFactors
+
+    # Water component flux
+    ρ_a = ρ[a, rc]
+    Q_l = Q_v = Q_a = zero(dp_a)
+    if dp_a < 0.0
+        # Injection
+        Q_in += λ_a*ρ_a*dp_a
+    else
+        # Production
+        Q_a = ρ_a*λ_a*dp_a
+    end
+    # Oil component flux
+    if dp_l < 0.0
+        # Injection
+        Q_in += λ_l*ρ[l, rc]*dp_l
+    else
+        # Production
+        bO = b[l, rc]
+        q = dp_l*bO*λ_l
+        Q_l += rhoOS*q
+        if has_disgas(sys)
+            Q_v += rhoGS*state_res.Rs[rc]*q
+        end
+    end
+    # Gas component flux
+    if dp_v < 0.0
+        # Injection
+        Q_in += λ_v*ρ[v, rc]*dp_v
+    else
+        # Production
+        bG = b[v, rc]
+        q = dp_v*bG*λ_v
+        Q_v += rhoGS*q
+        if has_vapoil(sys)
+            Q_l += rhoOS*state_res.Rv[rc]*q
+        end
+    end
+
+    if Q_in < 0.0
+        X = state_well.MassFractions
+        Q_a += X[a]*Q_in
+        Q_l += X[l]*Q_in
+        Q_v += X[v]*Q_in
+    end
+    out[a] = Q_a
+    out[l] = Q_l
+    out[v] = Q_v
+end
+
 function flash_wellstream_at_surface(well_model, system::S, well_state, rhoS) where S<:BlackOilSystem
-    vol = well_state.TotalMasses[:, 1]./rhoS
+    if haskey(well_state, :MassFractions)
+        X = well_state.MassFractions
+    else
+        X = well_state.TotalMasses[:, 1]
+    end
+    vol = X./rhoS
     volfrac = vol./sum(vol)
     return (rhoS, volfrac)
 end
