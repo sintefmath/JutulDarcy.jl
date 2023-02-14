@@ -87,3 +87,9 @@ function component_sum(mass, i)
     end
     return s
 end
+
+function convergence_criterion(model, storage, eq::PotentialDropBalanceWell, eq_s, r; dt = 1)
+    e = (norm(r, Inf)/1e5, ) # Given as pressure - scale by 1 bar
+    R = (AbsMax = (errors = e, names = "R"), )
+    return R
+end

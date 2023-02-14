@@ -62,7 +62,14 @@ function get_minimal_tpfa_grid_from_mrst(name::String; relative_path=!ispath(nam
     end
 end
 
-function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout = false, simple = false, W_data = mrst_data["W"], kwarg...)
+function get_well_from_mrst_data(
+    mrst_data, system, ix;
+    volume = 1e-3,
+    extraout = false,
+    well_type = :ms,
+    W_data = mrst_data["W"],
+    kwarg...
+    )
     W_mrst = W_data[ix]
     if haskey(mrst_data, "surface_conditions")
         p = only(mrst_data["surface_conditions"]["pressure"])::Float64
@@ -93,16 +100,13 @@ function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout 
     well_cell_volume = res_volume[rc]
     nm =  W_mrst["name"]
     segment_models = nothing
-    if simple
-        well_volume = 1e-3# volume*mean(well_cell_volume)
+    if well_type == :std
         # For simple well, distance from ref depth to perf
         dz = z_res .- ref_depth
         z = [ref_depth]
-        W = SimpleWell(rc, WI = WI, dz = dz, volume = well_volum, surface_conditions = cond)
-        # wmodel = SimulationModel(W, system; kwarg...)
-        # flow = TwoPointPotentialFlowHardCoded(nothing, nothing, TrivialFlow(), W)
+        W = SimpleWell(rc, WI = WI, dz = dz, surface_conditions = cond)
         reservoir_cells = [rc[1]]
-    else
+    elseif well_type == :ms
         if haskey(W_mrst, "isMS") && W_mrst["isMS"]
             @info "MS well found: $nm"
             nodes = W_mrst["nodes"]
@@ -166,6 +170,8 @@ function get_well_from_mrst_data(mrst_data, system, ix; volume = 1e-3, extraout 
                                                         perforation_cells = perf_cells,
                                                         accumulator_volume = accumulator_volume,
                                                         surface_conditions = cond)
+    else
+        error("Unsupported well type $well_type (can be :ms or :mswell)")
     end
     W_domain = discretized_domain_well(W, z = z)
     wmodel = SimulationModel(W_domain, system; plot_mesh = W, kwarg...)
@@ -679,7 +685,7 @@ function init_from_mat(mrst_data, model, param)
     return init
 end
 
-function setup_case_from_mrst(casename; simple_well = false,
+function setup_case_from_mrst(casename; wells = :ms,
                                         backend = :csc,
                                         block_backend = true,
                                         split_wells = false,
@@ -740,7 +746,7 @@ function setup_case_from_mrst(casename; simple_well = false,
         sym = well_symbols[i]
     
         wi, wdata , res_cells = get_well_from_mrst_data(mrst_data, sys, i, W_data = first_well_set,
-                extraout = true, simple = simple_well, context = w_context)
+                extraout = true, well_type = wells, context = w_context)
         param_w = setup_parameters(wi)
 
         wc = wi.domain.grid.perforations.reservoir
@@ -1070,6 +1076,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                 steps = :full,
                                 general_ad = false,
                                 restart = false,
+                                wells = :ms,
                                 linear_solver = :bicgstab,
                                 kwarg...)
     if verbose
@@ -1089,6 +1096,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                                                             facility_grouping = fg,
                                                                             general_ad = general_ad,
                                                                             minbatch = minbatch,
+                                                                            wells = wells,
                                                                             ds_max = ds_max);
     model = case.model
     forces = case.forces

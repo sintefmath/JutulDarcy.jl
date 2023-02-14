@@ -49,20 +49,18 @@ Jutul.variable_scale(t::TotalMassFlux) = t.scale
 
 default_surface_cond() = (p = 101325.0, T = 288.15) # Pa and deg. K from ISO 13443:1996 for natural gas
 
-struct SimpleWell <: WellGrid
-    volumes
-    perforations
-    surface
-    name::Symbol     # Symbol that names the well
-    function SimpleWell(reservoir_cells; name = :Well, reference_depth = 0, volume = 1e-3, reservoir_symbol = :Reservoir, surface_conditions = default_surface_cond(), kwarg...)
-        nr = length(reservoir_cells)
-
-        WI, gdz = common_well_setup(nr; kwarg...)
-        perf = (self = ones(Int64, nr), reservoir = vec(reservoir_cells), WI = WI, gdz = gdz)
-        new([volume], perf, surface_conditions, name)
-    end
+struct SimpleWell{SC, P} <: WellGrid where {SC, P}
+    perforations::P
+    surface::SC
+    name::Symbol
 end
 
+function SimpleWell(reservoir_cells; name = :Well, surface_conditions = default_surface_cond(), kwarg...)
+    nr = length(reservoir_cells)
+    WI, gdz = common_well_setup(nr; kwarg...)
+    perf = (self = ones(Int64, nr), reservoir = vec(reservoir_cells), WI = WI, gdz = gdz)
+    return SimpleWell(perf, surface_conditions, name)
+end
 struct MultiSegmentWell{V, P, N, A, C, SC, S} <: WellGrid
     volumes::V          # One per cell
     perforations::P     # (self -> local cells, reservoir -> reservoir cells, WI -> connection factor)
@@ -294,11 +292,6 @@ associated_entity(::PotentialDropBalanceWell) = Faces()
 
 include("well_equations.jl")
 
-function convergence_criterion(model, storage, eq::PotentialDropBalanceWell, eq_s, r; dt = 1)
-    e = (norm(r, Inf)/1e5, ) # Given as pressure - scale by 1 bar
-    R = (AbsMax = (errors = e, names = "R"), )
-    return R
-end
 
 
 function fluid_volume(grid::WellGrid)
@@ -312,12 +305,12 @@ function get_neighborship(::SimpleWell)
     return zeros(Int64, 2, 0)
 end
 
-function get_neighborship(W::MultiSegmentWell)
-    return W.neighborship
+function number_of_cells(W::SimpleWell)
+    return 1
 end
 
 function number_of_cells(W::WellGrid)
-    length(W.volumes)
+    return length(W.volumes)
 end
 
 function declare_entities(W::WellGrid)
@@ -360,27 +353,8 @@ Base.@propagate_inbounds function well_perforation_flux!(out, sys::Union{Immisci
 end
 
 const WellDomain = DiscretizedDomain{<:WellGrid}
-const MSWellDomain = DiscretizedDomain{<:MultiSegmentWell}
-const MSWellFlowModel = SimulationModel{<:MSWellDomain, <:MultiPhaseSystem}
-# Selection of primary variables
-function select_primary_variables!(S, ::MSWellDomain, model::MSWellFlowModel)
-    S[:TotalMassFlux] = TotalMassFlux()
-end
-
-function select_equations!(eqs, domain::MSWellDomain, model::MSWellFlowModel)
-    eqs[:potential_balance] = PotentialDropBalanceWell(domain.discretizations.mass_flow)
-end
-
-function select_parameters!(prm, domain::MSWellDomain, model::MSWellFlowModel)
-    prm[:WellIndices] = WellIndices()
-    prm[:PerforationGravityDifference] = PerforationGravityDifference()
-end
-
-function select_minimum_output_variables!(vars, domain::WellDomain, model::MSWellFlowModel)
-    push!(vars, :PhaseMassDensities)
-    push!(vars, :Saturations)
-    return vars
-end
+include("mswells.jl")
+include("stdwells.jl")
 
 # Some utilities
 function mix_by_mass(masses, total::T, values) where T

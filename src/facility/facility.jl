@@ -14,7 +14,7 @@ Well variables - entities that we have exactly one of per well (and usually rela
 """
 
 include("types.jl")
-include("wells.jl")
+include("wells/wells.jl")
 include("controls.jl")
 include("wellgroups.jl")
 include("cross_terms.jl")
