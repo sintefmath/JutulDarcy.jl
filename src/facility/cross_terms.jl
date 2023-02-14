@@ -210,11 +210,12 @@ function update_cross_term_in_entity!(out, i,
     # Hack for sparsity detection
     qT += 0*bottom_hole_pressure(state_well)
 
+    X = state_well.MassFractions
     if isa(ctrl, InjectorControl)
         if value(qT) < 0
             @warn "Injector $well_symbol is producing?"
         end
-        mix = ctrl.injection_mixture + 1e-10*state_well.MassFractions
+        mix = ctrl.injection_mixture
         nmix = length(mix)
         ncomp = number_of_components(flow_system(well.system))
         @assert nmix == ncomp "Injection composition length ($nmix) must match number of components ($ncomp)."
@@ -223,9 +224,10 @@ function update_cross_term_in_entity!(out, i,
         if value(qT) > 0
             @warn "Producer $well_symbol is injecting?"
         end
-        mix = state_well.MassFractions
-        # @info "Prod $well_symbol" mix
+        mix = X
     end
+    ϵ = 1e-10
+    mix = mix .+ ϵ.*X
     for i in eachindex(out)
         @inbounds out[i] = -mix[i]*qT
     end
