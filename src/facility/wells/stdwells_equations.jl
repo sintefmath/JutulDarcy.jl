@@ -18,6 +18,10 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
 end
 
 function Jutul.convergence_criterion(model, storage, eq::SimpleWellEquation, eq_s, r; dt = 1)
-    R = (CNV = (errors = maximum(abs, r)/dt, names = "R"), )
+    # For CNV = 0.001 we assume 1% Inf error in well composition balance
+    ϵ = 0.01
+    e = maximum(abs, r)
+    scale = dt/ϵ
+    R = (CNV = (errors = e*scale, names = "R"), )
     return R
 end
