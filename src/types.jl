@@ -213,3 +213,95 @@ struct FlowBoundaryCondition{I, F, T} <: JutulForce
     fractional_flow::T
     density::Union{F, Nothing}
 end
+
+abstract type PorousMediumGrid <: AbstractJutulMesh end
+abstract type ReservoirGrid <: PorousMediumGrid end
+
+abstract type WellGrid <: PorousMediumGrid
+    # Wells are not porous themselves per se, but they are discretizing
+    # part of a porous medium.
+end
+
+function Base.show(io::IO, w::WellGrid)
+    if w isa SimpleWell
+        nseg = 0
+        nn = 1
+        n = "SimpleWell"
+    else
+        nseg = size(w.neighborship, 2)
+        nn = length(w.volumes)
+        n = "MultiSegmentWell"
+    end
+    print(io, "$n [$(w.name)] ($(nn) nodes, $(nseg) segments, $(length(w.perforations.reservoir)) perforations)")
+end
+struct SimpleWell{SC, P} <: WellGrid where {SC, P}
+    perforations::P
+    surface::SC
+    name::Symbol
+end
+
+function SimpleWell(reservoir_cells; name = :Well, surface_conditions = default_surface_cond(), kwarg...)
+    nr = length(reservoir_cells)
+    WI, gdz = common_well_setup(nr; kwarg...)
+    perf = (self = ones(Int64, nr), reservoir = vec(reservoir_cells), WI = WI, gdz = gdz)
+    return SimpleWell(perf, surface_conditions, name)
+end
+struct MultiSegmentWell{V, P, N, A, C, SC, S} <: WellGrid
+    volumes::V          # One per cell
+    perforations::P     # (self -> local cells, reservoir -> reservoir cells, WI -> connection factor)
+    neighborship::N     # Well cell connectivity
+    top::A              # "Top" node where scalar well quantities live
+    centers::C          # Coordinate centers of nodes
+    surface::SC         # p, T at surface
+    name::Symbol        # Symbol that names the well
+    segment_models::S   # Segment pressure drop model for each segment
+    function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
+                                                        N = nothing,
+                                                        name = :Well,
+                                                        perforation_cells = nothing,
+                                                        segment_models = nothing,
+                                                        reference_depth = 0,
+                                                        dz = nothing,
+                                                        surface_conditions = default_surface_cond(),
+                                                        accumulator_volume = mean(volumes),
+                                                        kwarg...)
+        nv = length(volumes)
+        nc = nv + 1
+        reservoir_cells = vec(reservoir_cells)
+        nr = length(reservoir_cells)
+        if isnothing(N)
+            @debug "No connectivity. Assuming nicely ordered linear well."
+            N = vcat((1:nv)', (2:nc)')
+        elseif maximum(N) == nv
+            N = vcat([1, 2], N+1)
+        end
+        nseg = size(N, 2)
+        @assert size(N, 1) == 2
+        @assert size(centers, 1) == 3
+        volumes = vcat([accumulator_volume], volumes)
+        ext_centers = hcat([centers[1:2, 1]..., reference_depth], centers)
+        @assert length(volumes) == size(ext_centers, 2)
+        if !isnothing(reservoir_cells) && isnothing(perforation_cells)
+            @assert length(reservoir_cells) == nv "If no perforation cells are given, we must 1->1 correspondence between well volumes and reservoir cells."
+            perforation_cells = collect(2:nc)
+        end
+        perforation_cells = vec(perforation_cells)
+
+        if isnothing(segment_models)
+            Δp = SegmentWellBoreFrictionHB(1.0, 1e-4, 0.1)
+            segment_models = repeat([Δp], nseg)
+        else
+            segment_models::AbstractVector
+            @assert length(segment_models) == nseg
+        end
+        if isnothing(dz)
+            dz = centers[3, :] - reference_depth
+        end
+        @assert length(perforation_cells) == nr
+        WI, gdz = common_well_setup(nr; dz = dz, kwarg...)
+        perf = (self = perforation_cells, reservoir = reservoir_cells, WI = WI, gdz = gdz)
+        accumulator = (reference_depth = reference_depth, )
+        new{typeof(volumes), typeof(perf), typeof(N), typeof(accumulator), typeof(ext_centers), typeof(surface_conditions), typeof(segment_models)}(volumes, perf, N, accumulator, ext_centers, surface_conditions, name, segment_models)
+    end
+end
+

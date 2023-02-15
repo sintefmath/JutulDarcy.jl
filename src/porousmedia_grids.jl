@@ -5,8 +5,6 @@ export transfer, get_1d_reservoir
 
 import Base.eltype
 
-abstract type PorousMediumGrid <: AbstractJutulMesh end
-abstract type ReservoirGrid <: PorousMediumGrid end
 # TPFA grid
 """
     MinimalTPFAGrid(ϕ, N)

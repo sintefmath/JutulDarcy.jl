@@ -163,7 +163,7 @@ function update_cross_term_in_entity!(out, i,
     state_well, state0_well,
     state_facility, state0_facility,
     well, facility,
-    ct::WellFromFacilityFlowCT, eq::ConservationLaw{:TotalMasses, D}, dt, ldisc = local_discretization(ct, i)) where D
+    ct::WellFromFacilityFlowCT, eq, dt, ldisc = local_discretization(ct, i))
 
     well_symbol = ct.well
     pos = get_well_position(facility.domain, well_symbol)
@@ -186,52 +186,19 @@ function update_cross_term_in_entity!(out, i,
         if value(qT) > 0
             @warn "Producer $well_symbol is injecting?"
         end
-        masses = @views state_well.TotalMasses[:, well_top_node()]
-        mass = sum(masses)
-        mix = masses./mass
+        if haskey(state_well, :MassFractions)
+            mix = state_well.MassFractions
+        else
+            masses = @views state_well.TotalMasses[:, well_top_node()]
+            mass = sum(masses)
+            mix = masses./mass
+        end
     end
     for i in eachindex(out)
         @inbounds out[i] = -mix[i]*qT
     end
 end
 
-function update_cross_term_in_entity!(out, i,
-    state_well, state0_well,
-    state_facility, state0_facility,
-    well, facility,
-    ct::WellFromFacilityFlowCT, eq::SimpleWellEquation, dt, ldisc = local_discretization(ct, i))
-
-    well_symbol = ct.well
-    pos = get_well_position(facility.domain, well_symbol)
-
-    cfg = state_facility.WellGroupConfiguration
-    ctrl = operating_control(cfg, well_symbol)
-    qT = state_facility.TotalSurfaceMassRate[pos] 
-    # Hack for sparsity detection
-    qT += 0*bottom_hole_pressure(state_well)
-
-    X = state_well.MassFractions
-    if isa(ctrl, InjectorControl)
-        if value(qT) < 0
-            @warn "Injector $well_symbol is producing?"
-        end
-        mix = ctrl.injection_mixture
-        nmix = length(mix)
-        ncomp = number_of_components(flow_system(well.system))
-        @assert nmix == ncomp "Injection composition length ($nmix) must match number of components ($ncomp)."
-        # @info "Inject $well_symbol" mix
-    else
-        if value(qT) > 0
-            @warn "Producer $well_symbol is injecting?"
-        end
-        mix = X
-    end
-    ϵ = 1e-10
-    mix = mix .+ ϵ.*X
-    for i in eachindex(out)
-        @inbounds out[i] = -mix[i]*qT
-    end
-end
 # Thermal
 struct ReservoirFromWellThermalCT{T<:AbstractVector, I<:AbstractVector} <: AbstractReservoirFromWellCT
     CI::T
