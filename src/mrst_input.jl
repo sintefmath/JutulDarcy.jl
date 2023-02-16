@@ -22,15 +22,15 @@ function get_mrst_input_path(name)
         has_global_path = haskey(ENV, "JUTUL_MRST_EXPORTS_PATH")
         if has_global_path
             base_path = ENV["JUTUL_MRST_EXPORTS_PATH"]
-            pth = joinpath(base_path, name)
-            fn2, ok = valid_mat_path(pth)
+            pth_env = joinpath(base_path, name)
+            fn_env, ok = valid_mat_path(pth_env)
             if ok
-                fn = fn2
+                fn = fn_env
             else
-                error("Did not find valid .mat file in either of the following paths:\n$fn1 (input) \n$fn2 (from ENV[\"JUTUL_MRST_EXPORTS_PATH\"])")
+                error("Did not find valid .mat file in either of the following paths:\n$fn (input) \n$fn_env (from ENV[\"JUTUL_MRST_EXPORTS_PATH\"])")
             end
         else
-            error("Did not find valid .mat file in $fn1. You can set ENV[\"JUTUL_MRST_EXPORTS_PATH\"] if you have a global path for .mat files.")
+            error("Did not find valid .mat file in $fn. You can set ENV[\"JUTUL_MRST_EXPORTS_PATH\"] if you have a global path for .mat files.")
         end
     end
     return fn
@@ -1107,6 +1107,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                 wells = :ms,
                                 linear_solver = :bicgstab,
                                 kwarg...)
+    fn = get_mrst_input_path(fn)
     if verbose
         jutul_message("MRST model", "Reading input file $fn.")
         @info "This is the first call to simulate_mrst_case. Compilation may take some time..." maxlog = 1
@@ -1117,7 +1118,6 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
     else
         fg = :onegroup
     end
-    fn = get_mrst_input_path(fn)
     case, mrst_data = setup_case_from_mrst(fn, block_backend = block_backend, steps = steps,
                                                                             backend = backend,
                                                                             nthreads = nthreads,
