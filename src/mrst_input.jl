@@ -7,12 +7,37 @@ struct MRSTPlotData
     data::Vector
 end
 
-function get_minimal_tpfa_grid_from_mrst(name::String; relative_path=!ispath(name), perm = nothing, poro = nothing, volumes = nothing, extraout = false, kwarg...)
-    if relative_path
-        fn = string(dirname(pathof(Jutul)), "/../data/testgrids/", name, ".mat")
-    else
-        fn = name
+function get_mrst_input_path(name)
+    function valid_mat_path(S)
+        base, ext = splitext(S)
+        if ext != "" && ext != ".mat"
+            error("MRST input file should have .mat extension, file $S had extension $ext")
+        end
+        pth = "$(base).mat"
+        return (pth, ispath(pth))
     end
+
+    fn, ok = valid_mat_path(name)
+    if !ok
+        has_global_path = haskey(ENV, "JUTUL_MRST_EXPORTS_PATH")
+        if has_global_path
+            base_path = ENV["JUTUL_MRST_EXPORTS_PATH"]
+            pth = joinpath(base_path, name)
+            fn2, ok = valid_mat_path(pth)
+            if ok
+                fn = fn2
+            else
+                error("Did not find valid .mat file in either of the following paths:\n$fn1 (input) \n$fn2 (from ENV[\"JUTUL_MRST_EXPORTS_PATH\"])")
+            end
+        else
+            error("Did not find valid .mat file in $fn1. You can set ENV[\"JUTUL_MRST_EXPORTS_PATH\"] if you have a global path for .mat files.")
+        end
+    end
+    return fn
+end
+
+function get_minimal_tpfa_grid_from_mrst(name::String; perm = nothing, poro = nothing, volumes = nothing, extraout = false, kwarg...)
+    fn = get_mrst_input_path(name)
     @debug "Reading MAT file $fn..."
     exported = MAT.matread(fn)
     @debug "File read complete. Unpacking data..."
@@ -1092,6 +1117,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
     else
         fg = :onegroup
     end
+    fn = get_mrst_input_path(fn)
     case, mrst_data = setup_case_from_mrst(fn, block_backend = block_backend, steps = steps,
                                                                             backend = backend,
                                                                             nthreads = nthreads,
