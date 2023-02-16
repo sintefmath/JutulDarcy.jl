@@ -122,8 +122,9 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
         local_weight = 0
         for ph in axes(ρ, 1)
             λ = kr[ph, rc]/mu[ph, rc]
-            local_weight += wi*λ
-            local_density += local_weight*ρ[ph, rc]
+            weight_ph = wi*λ
+            local_weight += weight_ph
+            local_density += weight_ph*ρ[ph, rc]
         end
         current_weight += local_weight
         current_density += local_density
