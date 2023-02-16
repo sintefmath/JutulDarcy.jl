@@ -50,7 +50,7 @@ function flash_wellstream_at_surface(well_model, sys::S, well_state, rhoS) where
     return (rho, volfrac)
 end
 
-Base.@propagate_inbounds function well_perforation_flux!(out, sys::CompositionalSystem, state_res, state_well, rhoS, conn)
+Base.@propagate_inbounds function well_perforation_flux!(out, wg, sys::CompositionalSystem, state_res, state_well, rhoS, conn)
     rc = conn.reservoir
     wc = conn.well
 
