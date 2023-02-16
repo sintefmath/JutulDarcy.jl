@@ -29,7 +29,12 @@ function setup_reservoir_model(reservoir, system; wells = [], context = DefaultC
     # Then we set up all the wells
     for w in wells
         D_w = discretized_domain_well(w)
-        models[w.name] = SimulationModel(D_w, system, context = context)
+        if D_w isa SimpleWellDomain
+            well_context = reservoir_context
+        else
+            well_context = context
+        end
+        models[w.name] = SimulationModel(D_w, system, context = well_context)
     end
     # Add facility that gorups the wells
     wg = WellGroup(map(x -> x.name, wells))
@@ -230,12 +235,18 @@ end
 
 function reservoir_multimodel(models::AbstractDict; specialize = false, split_wells = false)
     res_model = models[:Reservoir]
-    block_backend = Jutul.is_cell_major(matrix_layout(res_model.context))
+    is_block(x) = Jutul.is_cell_major(matrix_layout(x.context))
+    block_backend = is_block(res_model)
     n = length(models)
     if block_backend && n > 1
         if haskey(models, :Facility) || !(split_wells == true)
             groups = repeat([2], n)
-            groups[1] = 1
+            for (i, k) in enumerate(keys(models))
+                m = models[k]
+                if is_block(m)
+                    groups[i] = 1
+                end
+            end
         else
             groups = repeat([1], n)
             gpos = 1
