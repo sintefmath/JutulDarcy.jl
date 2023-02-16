@@ -244,7 +244,7 @@ end
 function SimpleWell(
     reservoir_cells;
     name = :Well,
-    explicit_dp = false,
+    explicit_dp = true,
     surface_conditions = default_surface_cond(),
     kwarg...
     )

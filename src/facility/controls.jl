@@ -35,6 +35,13 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
             cfg.limits[key] = merge(cfg.limits[key], as_limit(newctrl.target))
         end
     end
+    for wname in model.domain.well_symbols
+        wmodel = model_g[wname]
+        wstate = storage_g[wname].state
+        rmodel = model_g[:Reservoir]
+        rstate = storage_g.Reservoir.state
+        update_before_step_well!(wstate, wmodel, rstate, rmodel, op_ctrls[wname])
+    end
 end
 
 function valid_surface_rate_for_control(q_t, ::InjectorControl)

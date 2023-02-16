@@ -43,16 +43,19 @@ function update_cross_term_in_entity!(out, i,
 end
 
 function perforation_phase_potential_difference(conn, state_res, state_well, ix)
-    (; dp, WI, well, reservoir, gdz) = conn
-    if gdz != 0
-        ρ_r = state_res.PhaseMassDensities[ix, reservoir]
+    dp = conn.dp
+    WI = conn.WI
+    if haskey(state_well, :ConnectionPressureDrop)
+        dp += state_well.ConnectionPressureDrop[conn.well]
+    elseif conn.gdz != 0
+        ρ_r = state_res.PhaseMassDensities[ix, conn.reservoir]
         if haskey(state_well, :PhaseMassDensities)
-            ρ_w = state_well.PhaseMassDensities[ix, well]
+            ρ_w = state_well.PhaseMassDensities[ix, conn.well]
             ρ = 0.5*(ρ_r + ρ_w)
         else
             ρ = ρ_r
         end
-        dp += ρ*gdz
+        dp += ρ*conn.gdz
     end
     return -WI*dp
 end
