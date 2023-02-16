@@ -238,13 +238,20 @@ struct SimpleWell{SC, P} <: WellGrid where {SC, P}
     perforations::P
     surface::SC
     name::Symbol
+    explicit_dp::Bool
 end
 
-function SimpleWell(reservoir_cells; name = :Well, surface_conditions = default_surface_cond(), kwarg...)
+function SimpleWell(
+    reservoir_cells;
+    name = :Well,
+    explicit_dp = false,
+    surface_conditions = default_surface_cond(),
+    kwarg...
+    )
     nr = length(reservoir_cells)
     WI, gdz = common_well_setup(nr; kwarg...)
     perf = (self = ones(Int64, nr), reservoir = vec(reservoir_cells), WI = WI, gdz = gdz)
-    return SimpleWell(perf, surface_conditions, name)
+    return SimpleWell(perf, surface_conditions, name, explicit_dp)
 end
 struct MultiSegmentWell{V, P, N, A, C, SC, S} <: WellGrid
     volumes::V          # One per cell
