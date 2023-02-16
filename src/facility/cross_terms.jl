@@ -154,7 +154,12 @@ function target_actual_pair(target, well, state_well, q_t, ctrl)
     rhoS = tuple(rhoS...)
     t = well_target(ctrl, target, well, state_well, rhoS, S)
     if rate_weighted(target)
-        t *= q_t
+        actual_rate = t*q_t
+        if abs(actual_rate) < MIN_ACTIVE_WELL_RATE
+            t = q_t
+        else
+            t = actual_rate
+        end
     end
     t_num = target.value
     return (t, t_num)
