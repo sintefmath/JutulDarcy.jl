@@ -756,7 +756,7 @@ function setup_case_from_mrst(casename; wells = :ms,
     end
     timesteps = vec(copy(dt))
     res_context = model.context
-    if wells == :ms
+    if wells == :ms || true
         w_context = DefaultContext(nthreads = 1)
     else
         w_context = res_context

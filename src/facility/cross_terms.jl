@@ -161,6 +161,7 @@ function target_actual_pair(target, well, state_well, q_t, ctrl)
             t = actual_rate
         end
     end
+    t += 1e-20*q_t
     t_num = target.value
     return (t, t_num)
 end
