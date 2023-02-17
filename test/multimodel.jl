@@ -123,10 +123,12 @@ end
         for backend in [:csr, :csc]
             for gen_ad in [true, false]
                 for default_linsolve in [false, true]
-                arg = (general_ad = gen_ad, backend = backend, use_blocks = b, default_linsolve = default_linsolve)
-                test_compositional_with_wells(; arg...)
-                test_immiscible_with_wells(; arg...)
-                test_blackoil_with_wells(; arg...)
+                    @testset "Block=$b, backend=$b, defaulted linsolve=$default_linsolve" begin
+                        arg = (general_ad = gen_ad, backend = backend, use_blocks = b, default_linsolve = default_linsolve)
+                        test_compositional_with_wells(; arg...)
+                        test_immiscible_with_wells(; arg...)
+                        test_blackoil_with_wells(; arg...)
+                    end
                 end
             end
         end

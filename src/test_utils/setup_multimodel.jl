@@ -44,6 +44,7 @@ function simulate_mini_wellcase(::Val{:compositional_2ph_3c}; dims = (3, 1, 1), 
         model, state0, parameters, 
         info_level = -1,
         set_linear_solver = !default_linsolve,
+        error_on_incomplete = true,
         output_path = output_path,
         tol_cnv_well = 1e-3 # Needed for test
     )
@@ -104,7 +105,7 @@ function simulate_mini_wellcase(::Val{:immiscible_2ph}; dims = (3, 1, 1), output
     # (amounting to no-flow for the reservoir).
     forces = setup_reservoir_forces(model, control = controls)
     ## Finally simulate!
-    sim, config = setup_reservoir_simulator(model, state0, parameters, info_level = -1, set_linear_solver = !default_linsolve, output_path = output_path)
+    sim, config = setup_reservoir_simulator(model, state0, parameters, info_level = -1, set_linear_solver = !default_linsolve, output_path = output_path, error_on_incomplete = true)
     setup = Dict(:config     => config,
                  :forces     => forces,
                  :state0     => state0,
@@ -161,7 +162,7 @@ function simulate_mini_wellcase(::Val{:bo_spe1}; dims = (3, 1, 1), output_path =
     # (amounting to no-flow for the reservoir).
     forces = setup_reservoir_forces(model, control = controls)
     ## Finally simulate!
-    sim, config = setup_reservoir_simulator(model, state0, parameters, info_level = -1, set_linear_solver = !default_linsolve, output_path = output_path)
+    sim, config = setup_reservoir_simulator(model, state0, parameters, info_level = -1, set_linear_solver = !default_linsolve, output_path = output_path, error_on_incomplete = true)
     setup = Dict(:config     => config,
                  :forces     => forces,
                  :state0     => state0,

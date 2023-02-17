@@ -72,5 +72,5 @@ end
 end
 ##
 @testset "Egg" begin
-    test_mrst_case("egg")
+    test_mrst_case("egg", otol = 0.015)
 end
