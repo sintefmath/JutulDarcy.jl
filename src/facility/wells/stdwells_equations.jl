@@ -2,25 +2,29 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
     # error()
     mass = state.MassFractions
     mass0 = state0.MassFractions
+
+    density(P) = 1.0 + (P - DEFAULT_MINIMUM_PRESSURE)*1e-8
     p = state.Pressure[1]
     p0 = state0.Pressure[1]
-    ϵ = 1e-20
+
+    rho = density(p)
+    rho0 = density(p0)
+    # ϵ = 1e-20
+    vol = 0.01
+
+    V = vol*density(p)
+    V0 = vol*density(p0)
     for i in eachindex(eq_buf)
-        m = mass[i]
-        m0 = mass0[i]
-        #if i == 1
-            # Make sure that no sources/sinks means that the pressure remains
-            # the same and mass fractions remain the same.
-            Δ = (p - p0)/1e5
-        #else
-        #    Δ = 1.0
-        #end
-        eq_buf[i] = ϵ*((m - m0)*Δ)
+        m = mass[i]*V
+        m0 = mass0[i]*V0
+        eq_buf[i] = (m - m0)/dt
     end
 end
 
 function Jutul.convergence_criterion(model, storage, eq::SimpleWellEquation, eq_s, r; dt = 1)
-    e = maximum(abs, r)/dt
-    R = (CNV = (errors = e, names = "R"), )
+    vol = 0.01
+    scale = 0.1
+    e = map(x -> scale*abs(x)*dt/vol, vec(r))
+    R = (CNV = (errors = e, names = map(x -> "M$x", eachindex(e))), )
     return R
 end
