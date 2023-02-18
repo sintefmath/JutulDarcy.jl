@@ -3,7 +3,8 @@ const SimpleWellFlowModel = SimulationModel{<:SimpleWellDomain, <:MultiPhaseSyst
 
 struct WellMassFractions <: FractionVariables end
 Jutul.need_default_primary(model, ::WellMassFractions) = false
-# Jutul.absolute_increment_limit(::WellMassFractions) = 0.1
+Jutul.absolute_increment_limit(::WellMassFractions) = 0.15
+
 function Jutul.default_values(model, mf::WellMassFractions)
     nc = values_per_entity(model, mf)
     return [1/nc for _ in 1:nc]
@@ -25,7 +26,7 @@ end
 
 function select_primary_variables!(model::SimpleWellFlowModel)
     pvars = model.primary_variables
-    pvars[:Pressure] = Pressure()
+    pvars[:Pressure] = Pressure(max_rel = Inf)
     pvars[:MassFractions] = WellMassFractions()
 end
 
