@@ -234,7 +234,8 @@ function Base.show(io::IO, w::WellGrid)
     end
     print(io, "$n [$(w.name)] ($(nn) nodes, $(nseg) segments, $(length(w.perforations.reservoir)) perforations)")
 end
-struct SimpleWell{SC, P} <: WellGrid where {SC, P}
+struct SimpleWell{SC, P, V} <: WellGrid where {SC, P}
+    volume::V
     perforations::P
     surface::SC
     name::Symbol
@@ -246,12 +247,13 @@ function SimpleWell(
     name = :Well,
     explicit_dp = true,
     surface_conditions = default_surface_cond(),
+    volume = 1000.0, # Regularization volume for well, not a real volume
     kwarg...
     )
     nr = length(reservoir_cells)
     WI, gdz = common_well_setup(nr; kwarg...)
     perf = (self = ones(Int64, nr), reservoir = vec(reservoir_cells), WI = WI, gdz = gdz)
-    return SimpleWell(perf, surface_conditions, name, explicit_dp)
+    return SimpleWell(volume, perf, surface_conditions, name, explicit_dp)
 end
 struct MultiSegmentWell{V, P, N, A, C, SC, S} <: WellGrid
     volumes::V          # One per cell

@@ -1,5 +1,5 @@
 function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::SimpleWellEquation, model, dt, ldisc = local_discretization(eq, self_cell)) where T_e
-    # error()
+    vol = model.domain.grid.volume
     mass = state.MassFractions
     mass0 = state0.MassFractions
 
@@ -9,8 +9,6 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
 
     rho = density(p)
     rho0 = density(p0)
-    # ϵ = 1e-20
-    vol = simple_well_vol()
 
     V = vol*density(p)
     V0 = vol*density(p0)
@@ -21,11 +19,8 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
     end
 end
 
-simple_well_vol() = 100_000.0# 0.01
-# simple_well_vol() = 1000.0
-
 function Jutul.convergence_criterion(model, storage, eq::SimpleWellEquation, eq_s, r; dt = 1)
-    vol = simple_well_vol()
+    vol = model.domain.grid.volume
     scale = 0.1
     e = map(x -> scale*abs(x)*dt/vol, vec(r))
     R = (CNV = (errors = e, names = map(x -> "M$x", eachindex(e))), )
