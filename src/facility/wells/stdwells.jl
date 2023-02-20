@@ -17,6 +17,8 @@ struct SimpleWellSystem{T, P} <: MultiPhaseSystem
     rho_ref::T
 end
 
+const StandardWellFlowModel = SimulationModel{<:SimpleWellDomain, <:SimpleWellSystem}
+
 function SimpleWellSystem(ncomp, phases; c = 1e-8, reference_densities = ones(ncomp))
     reference_densities = tuple(reference_densities...)
     return SimpleWellSystem(ncomp, phases, c, reference_densities)

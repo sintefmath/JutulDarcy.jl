@@ -125,13 +125,7 @@ function get_well_from_mrst_data(
     well_cell_volume = res_volume[rc]
     nm =  W_mrst["name"]
     segment_models = nothing
-    if well_type == :std
-        # For simple well, distance from ref depth to perf
-        dz = z_res .- ref_depth
-        z = [ref_depth]
-        W = SimpleWell(rc, WI = WI, dz = dz, surface_conditions = cond, name = Symbol(nm))
-        reservoir_cells = [rc[1]]
-    elseif well_type == :ms
+    if well_type == :ms || (haskey(W_mrst, "isMS") && W_mrst["isMS"])
         if haskey(W_mrst, "isMS") && W_mrst["isMS"]
             @info "MS well found: $nm"
             nodes = W_mrst["nodes"]
@@ -183,7 +177,7 @@ function get_well_from_mrst_data(
             D = vec(segs["diameter"])
             rough = vec(segs["roughness"])
             @assert size(well_topo, 2) == length(L) == length(D) == length(rough)
-            segment_models = map(SegmentWellBoreFrictionHB, L, rough, D) 
+            segment_models = map(SegmentWellBoreFrictionHB, L, rough, D)
         else
             pvol, accumulator_volume, perf_cells, well_topo, z, dz, reservoir_cells = simple_ms_setup(n, volume, well_cell_volume, rc, ref_depth, z_res)
         end
@@ -195,11 +189,16 @@ function get_well_from_mrst_data(
                                                         perforation_cells = perf_cells,
                                                         accumulator_volume = accumulator_volume,
                                                         surface_conditions = cond)
+    elseif well_type == :simple || well_type == :std
+        # For simple well, distance from ref depth to perf
+        dz = z_res .- ref_depth
+        z = [ref_depth]
+        W = SimpleWell(rc, WI = WI, dz = dz, surface_conditions = cond, name = Symbol(nm))
+        reservoir_cells = [rc[1]]
     else
-        error("Unsupported well type $well_type (can be :ms or :mswell)")
+        error("Unsupported well type $well_type (can be :ms, :simple or :std)")
     end
     if well_type == :std
-        # ncomp = number_of_components(system)
         wsys = SimpleWellSystem(system)
     else
         wsys = system

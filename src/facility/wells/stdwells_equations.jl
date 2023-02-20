@@ -1,4 +1,4 @@
-function Jutul.convergence_criterion(model::SimpleWellFlowModel, storage, eq::ConservationLaw{:TotalMasses}, eq_s, r; dt = 1)
+function Jutul.convergence_criterion(model::StandardWellFlowModel, storage, eq::ConservationLaw{:TotalMasses}, eq_s, r; dt = 1)
     vol = value(only(storage.state.FluidVolume))
     scale = 0.1
     e = map(x -> scale*abs(x)*dt/vol, vec(r))
@@ -6,7 +6,7 @@ function Jutul.convergence_criterion(model::SimpleWellFlowModel, storage, eq::Co
     return R
 end
 
-@jutul_secondary function update_total_masses!(totmass, tv::TotalMasses, model::SimpleWellFlowModel,
+@jutul_secondary function update_total_masses!(totmass, tv::TotalMasses, model::StandardWellFlowModel,
     Pressure,
     MassFractions,
     FluidVolume,
