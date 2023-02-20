@@ -60,11 +60,11 @@ function perforation_phase_potential_difference(conn, state_res, state_well, ix)
     return -WI*dp
 end
 
-function Jutul.cross_term_entities(ct::AbstractReservoirFromWellCT, eq::Union{ConservationLaw, SimpleWellEquation}, model)
+function Jutul.cross_term_entities(ct::AbstractReservoirFromWellCT, eq::ConservationLaw, model)
     return ct.reservoir_cells
 end
 
-function Jutul.cross_term_entities_source(ct::AbstractReservoirFromWellCT, eq::Union{ConservationLaw, SimpleWellEquation}, model)
+function Jutul.cross_term_entities_source(ct::AbstractReservoirFromWellCT, eq::ConservationLaw, model)
     return ct.well_cells
 end
 

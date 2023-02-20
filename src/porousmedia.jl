@@ -99,5 +99,6 @@ function discretized_domain_well(W::MultiSegmentWell; z = nothing, kwarg...)
 end
 
 function discretized_domain_well(W::SimpleWell; z = nothing, kwarg...)
-    return DiscretizedDomain(W; kwarg...)
+    disc = (mass_flow = PotentialFlow(W), heat_flow = PotentialFlow(W))
+    return DiscretizedDomain(W, disc; kwarg...)
 end

@@ -10,51 +10,61 @@ function Jutul.default_values(model, mf::WellMassFractions)
     return [1/nc for _ in 1:nc]
 end
 
-struct SimpleWellEquation <: JutulEquation end
+struct SimpleWellSystem{T, P} <: MultiPhaseSystem
+    ncomp::Int
+    phases::P
+    c::Float64
+    rho_ref::T
+end
 
-Jutul.local_discretization(::SimpleWellEquation, i) = nothing
+function SimpleWellSystem(ncomp, phases; c = 1e-8, reference_densities = ones(ncomp))
+    reference_densities = tuple(reference_densities...)
+    return SimpleWellSystem(ncomp, phases, c, reference_densities)
+end
 
-function Jutul.number_of_equations_per_entity(model::SimpleWellFlowModel, ::SimpleWellEquation)
+function SimpleWellSystem(system; kwarg...)
+    rho = reference_densities(system)
+    ncomp = number_of_components(system)
+    phases = get_phases(system)
+    return SimpleWellSystem(ncomp, phases; reference_densities = rho, kwarg...)
+end
+
+number_of_components(s::SimpleWellSystem) = s.ncomp
+# number_of_phases(s::SimpleWellSystem) = s.ncomp
+reference_densities(s::SimpleWellSystem) = s.rho_ref
+
+function flash_wellstream_at_surface(well_model, system::SimpleWellSystem, well_state, rhoS)
+    X = well_state.MassFractions
+    vol = X./rhoS
+    volfrac = vol./sum(vol)
+    return (rhoS, volfrac)
+end
+
+function Jutul.values_per_entity(model, v::WellMassFractions)
     sys = model.system
     return number_of_components(sys)
 end
 
-function values_per_entity(model, v::WellMassFractions)
-    sys = model.system
-    return number_of_components(sys)
-end
-
-function select_primary_variables!(model::SimpleWellFlowModel)
-    pvars = model.primary_variables
+function Jutul.select_primary_variables!(pvars, s::SimpleWellSystem, model::SimpleWellFlowModel)
     pvars[:Pressure] = Pressure(max_rel = Inf)
     pvars[:MassFractions] = WellMassFractions()
 end
 
-function select_secondary_variables!(model::SimpleWellFlowModel)
-
+function Jutul.select_secondary_variables!(S, system::SimpleWellSystem, model::SimpleWellFlowModel)
+    S[:TotalMasses] = TotalMasses()
 end
 
-function select_equations!(model::SimpleWellFlowModel)
-    model.equations[:mass_conservation] = SimpleWellEquation()
-end
-
-function select_parameters!(model::SimpleWellFlowModel)
-    prm = model.parameters
+function select_parameters!(prm, s::SimpleWellDomain, model::SimpleWellFlowModel)
+    prm[:FluidVolume] = FluidVolume()
     prm[:WellIndices] = WellIndices()
     prm[:PerforationGravityDifference] = PerforationGravityDifference()
 end
 
-function select_minimum_output_variables!(model::SimpleWellFlowModel)
-    outputs = model.output_variables
-    for k in keys(model.primary_variables)
-        push!(outputs, k)
-    end
-    return model
-end
-
 function Jutul.initialize_extra_state_fields!(state, d::DiscretizedDomain, m::SimpleWellFlowModel)
-    nc = count_entities(d, Perforations())
-    state[:ConnectionPressureDrop] = zeros(nc)
+    if well_has_explicit_pressure_drop(m)
+        nc = count_entities(d, Perforations())
+        state[:ConnectionPressureDrop] = zeros(nc)
+    end
 end
 
 well_has_explicit_pressure_drop(m::SimpleWellFlowModel) = well_has_explicit_pressure_drop(m.domain.grid)

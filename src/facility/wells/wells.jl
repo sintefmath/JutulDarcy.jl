@@ -150,6 +150,10 @@ function fluid_volume(grid::WellGrid)
     return grid.volumes
 end
 
+function fluid_volume(grid::SimpleWell)
+    return [grid.volume]
+end
+
 # Well segments
 
 function get_neighborship(::SimpleWell)
@@ -278,12 +282,7 @@ function flash_wellstream_at_surface(well_model, well_state, rhoS)
 end
 
 function flash_wellstream_at_surface(well_model, system::ImmiscibleSystem, well_state, rhoS)
-    if haskey(well_state, :MassFractions)
-        X = well_state.MassFractions
-    else
-        X = well_state.TotalMasses[:, 1]
-    end
-    vol = X./rhoS
+    vol = well_state.TotalMasses[:, 1]./rhoS
     volfrac = vol./sum(vol)
     return (rhoS, volfrac)
 end

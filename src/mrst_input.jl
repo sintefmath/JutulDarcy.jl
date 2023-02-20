@@ -198,8 +198,14 @@ function get_well_from_mrst_data(
     else
         error("Unsupported well type $well_type (can be :ms or :mswell)")
     end
+    if well_type == :std
+        # ncomp = number_of_components(system)
+        wsys = SimpleWellSystem(system)
+    else
+        wsys = system
+    end
     W_domain = discretized_domain_well(W, z = z)
-    wmodel = SimulationModel(W_domain, system; plot_mesh = W, kwarg...)
+    wmodel = SimulationModel(W_domain, wsys; plot_mesh = W, kwarg...)
     if extraout
         out = (wmodel, W_mrst, vec(reservoir_cells))
     else
