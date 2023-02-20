@@ -176,7 +176,7 @@ function declare_entities(W::WellGrid)
     return [c, f, p]
 end
 
-Base.@propagate_inbounds function well_perforation_flux!(out, w, sys::Union{ImmiscibleSystem, SinglePhaseSystem}, state_res, state_well, rhoS, conn)
+Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::Union{ImmiscibleSystem, SinglePhaseSystem}, state_res, state_well, rhoS, conn)
     rc = conn.reservoir
     wc = conn.well
     # Reservoir quantities
@@ -184,34 +184,49 @@ Base.@propagate_inbounds function well_perforation_flux!(out, w, sys::Union{Immi
     # Extra mobility needed
     kr = state_res.RelativePermeabilities
     μ = state_res.PhaseViscosities
-    is_ms = w isa MultiSegmentWell
     nph = size(ρ, 1)
-    if is_ms
-        # Well quantities
-        ρ_w = state_well.PhaseMassDensities
-        # Saturation instead of mobility - use total mobility form
-        s_w = state_well.Saturations
-        λ_t = 0
-        for ph in 1:nph
-            λ_t += kr[ph, rc]/μ[ph, rc]
-        end
-    else
-        ρλ_t = 0
-        for ph in 1:nph
-            ρλ_t += ρ[ph, rc]*kr[ph, rc]/μ[ph, rc]
-        end
-        X = state_well.MassFractions
+    # Well quantities
+    ρ_w = state_well.PhaseMassDensities
+    # Saturation instead of mobility - use total mobility form
+    s_w = state_well.Saturations
+    λ_t = 0
+    for ph in 1:nph
+        λ_t += kr[ph, rc]/μ[ph, rc]
     end
     for ph in 1:nph
         # ψ is pressure difference from reservoir to well. If it is negative, we are injecting into the reservoir.
         ψ = perforation_phase_potential_difference(conn, state_res, state_well, ph)
         if ψ < 0
             # Injection
-            if is_ms
-                out[ph] = s_w[ph, wc]*ρ_w[ph, wc]*ψ*λ_t
-            else
-                out[ph] = X[ph]*ψ*ρλ_t
-            end
+            out[ph] = s_w[ph, wc]*ρ_w[ph, wc]*ψ*λ_t
+        else
+            # Production
+            λ = kr[ph, rc]/μ[ph, rc]
+            out[ph] = λ*ρ[ph, rc]*ψ
+        end
+    end
+    return out
+end
+
+Base.@propagate_inbounds function simple_well_perforation_flux!(out, sys::Union{ImmiscibleSystem, SinglePhaseSystem}, state_res, state_well, rhoS, conn)
+    rc = conn.reservoir
+    # Reservoir quantities
+    ρ = state_res.PhaseMassDensities
+    # Extra mobility needed
+    kr = state_res.RelativePermeabilities
+    μ = state_res.PhaseViscosities
+    nph = size(ρ, 1)
+    ρλ_t = 0
+    for ph in 1:nph
+        ρλ_t += ρ[ph, rc]*kr[ph, rc]/μ[ph, rc]
+    end
+    X = state_well.MassFractions
+    for ph in 1:nph
+        # ψ is pressure difference from reservoir to well. If it is negative, we are injecting into the reservoir.
+        ψ = perforation_phase_potential_difference(conn, state_res, state_well, ph)
+        if ψ < 0
+            # Injection
+            out[ph] = X[ph]*ψ*ρλ_t
         else
             # Production
             λ = kr[ph, rc]/μ[ph, rc]

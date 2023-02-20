@@ -1,4 +1,4 @@
-Base.@propagate_inbounds function well_perforation_flux!(out, wg::MultiSegmentWell, sys::StandardBlackOilSystem, state_res, state_well, rhoS, conn)
+Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::StandardBlackOilSystem, state_res, state_well, rhoS, conn)
     rc = conn.reservoir
     wc = conn.well
     a, l, v = phase_indices(sys)
@@ -60,7 +60,7 @@ Base.@propagate_inbounds function well_perforation_flux!(out, wg::MultiSegmentWe
     out[v] = q_v*rhoGS
 end
 
-Base.@propagate_inbounds function well_perforation_flux!(out, wg::SimpleWell, sys::StandardBlackOilSystem, state_res, state_well, rhoS, conn)
+Base.@propagate_inbounds function simple_well_perforation_flux!(out, sys::StandardBlackOilSystem, state_res, state_well, rhoS, conn)
     rc = conn.reservoir
     wc = conn.well
     a, l, v = phase_indices(sys)

@@ -38,8 +38,11 @@ function update_cross_term_in_entity!(out, i,
            well = well_cell,
            reservoir = reservoir_cell)
     # Call smaller interface that is easy to specialize
-    wg = model_s.domain.grid
-    @inbounds well_perforation_flux!(out, wg, sys, state_t, state_s, rhoS, conn)
+    if haskey(state_s, :MassFractions)
+        @inbounds simple_well_perforation_flux!(out, sys, state_t, state_s, rhoS, conn)
+    else
+        @inbounds multisegment_well_perforation_flux!(out, sys, state_t, state_s, rhoS, conn)
+    end
 end
 
 function perforation_phase_potential_difference(conn, state_res, state_well, ix)
