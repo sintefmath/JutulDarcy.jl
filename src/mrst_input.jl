@@ -783,17 +783,13 @@ function setup_case_from_mrst(casename; wells = :ms,
                 extraout = true, well_type = wells, context = w_context)
         param_w = setup_parameters(wi)
 
-        wgrid = wi.domain.grid
-        wc = wi.domain.grid.perforations.reservoir
-
         sv = wi.secondary_variables
         sv_m = model.secondary_variables
 
-        prm_w = wi.parameters
         prm = model.parameters
         param_w = setup_parameters(wi)
 
-        if wgrid isa MultiSegmentWell
+        if typeof(wi.system) == typeof(model.system)
             sv[:PhaseMassDensities] = sv_m[:PhaseMassDensities]
             if haskey(sv, :ShrinkageFactors)
                 sv[:ShrinkageFactors] = sv_m[:ShrinkageFactors]
@@ -830,7 +826,6 @@ function setup_case_from_mrst(casename; wells = :ms,
             factor = 1.0
         end
         @debug "$sym: Well $i/$num_wells" typeof(ctrl) ci
-        # param_w[:reference_densities] = param_res[:reference_densities]
 
         pw = vec(init[:Pressure][res_cells])
         w0 = Dict{Symbol, Any}(:Pressure => pw, :TotalMassFlux => 1e-12)
