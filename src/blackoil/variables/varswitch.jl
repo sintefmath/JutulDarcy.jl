@@ -237,8 +237,8 @@ end
         phases = X.phases_present
         if phases == MostlyWater
             sg = X.val
-            s[2, i] = sg
-            s[3, i] = 1 - sw - sg
+            s[2, i] = 1 - sw - sg
+            s[3, i] = sg
         else
             if phases == OilOnly
                 sg = zero(T)
@@ -261,7 +261,7 @@ end
         phases = X.phases_present
         if phases == OilOnly
             r = X.val
-        elseif phases == GasOnly || phases == MostlyWater
+        elseif phases == GasOnly
             r = zero(T)
         else
             p = @inbounds Pressure[i]
@@ -278,7 +278,7 @@ end
         phases = X.phases_present
         if X.phases_present == GasOnly
             r = X.val
-        elseif phases == OilOnly || phases == MostlyWater
+        elseif phases == OilOnly
             r = zero(T)
         else
             p = @inbounds Pressure[i]
