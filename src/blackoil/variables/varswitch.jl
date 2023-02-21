@@ -39,7 +39,35 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
     old_x = X.val
     old_state = X.phases_present
     was_near_bubble = sat_chop || X.sat_close
-    if old_state == OilAndGas
+    is_near_bubble = was_near_bubble
+    is_mostly_water = swi >= 1 - 10*ϵ_s
+    if old_state == MostlyWater && is_mostly_water
+        # Cell was mostly water and continues to be mostly water. 
+        if swi == 1.0
+            # Force to zero
+            ds = -value(old_x)
+        else
+            ds = w*Jutul.choose_increment(value(old_x), dx, ds_max, nothing, 0, 1 - swi)
+        end
+        next_x = old_x + ds
+        next_state = MostlyWater
+    elseif is_mostly_water
+        # We are transitioning to only water
+        # Set to only oil
+        next_x = replace_value(old_x, 0.0)
+        next_state = MostlyWater
+    elseif old_state == MostlyWater
+        # Handle transition out of only water regime
+        if swi < 1.0 - 1e-12
+            # We had a reasonable value
+            sg = value(old_x)/(1-swi)
+        else
+            # Value was junk, re-initialize 50-50
+            sg = 0.5
+        end
+        next_x = replace_value(old_x, sg)
+        next_state = OilAndGas
+    elseif old_state == OilAndGas
         next_x = old_x + w*Jutul.choose_increment(value(old_x), dx, ds_max)
         if next_x <= 0
             maybe_state = OilOnly
@@ -55,7 +83,7 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
             ϵ_r = ϵ_s
         end
         next_x, next_state, is_near_bubble = handle_phase_disappearance(pressure, i, tab, next_x, old_state, maybe_state, was_near_bubble, keep_bubble, ϵ_s, ϵ_r)
-    else
+    elseif old_state == GasOnly || old_state == OilOnly
         if old_state == GasOnly
             tab = rv_tab
             ϵ_r = ϵ_rv
@@ -64,16 +92,6 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
             ϵ_r = ϵ_rs
         end
         next_x, next_state, is_near_bubble = handle_phase_appearance(pressure, i, tab, dr_max, old_state, old_x, dx, was_near_bubble, ϵ_s, ϵ_r, keep_bubble, w)
-    end
-    if next_state != OilAndGas && swi > 1 - 10*ϵ_s
-        # If the cell is mostly water, keep it two-phase.
-        if next_state == OilOnly
-            next_x = replace_value(old_x, 0.0)
-        else
-            next_x = replace_value(old_x, 1.0)
-        end
-        next_state = OilAndGas
-        is_near_bubble = false
     end
     v[i] = BlackOilX(next_x, next_state, is_near_bubble)
 end
@@ -216,15 +234,22 @@ end
         sw = ImmiscibleSaturation[i]
         s[1, i] = sw
         X = BlackOilUnknown[i]
-        if X.phases_present == OilOnly
-            sg = zero(T)
-        elseif X.phases_present == GasOnly
-            sg = one(T)
-        else
+        phases = X.phases_present
+        if phases == MostlyWater
             sg = X.val
+            s[2, i] = sg
+            s[3, i] = 1 - sw - sg
+        else
+            if phases == OilOnly
+                sg = zero(T)
+            elseif phases == GasOnly
+                sg = one(T)
+            else
+                sg = X.val
+            end
+            s[2, i] = (1 - sw)*(1 - sg)
+            s[3, i] = (1 - sw)*sg
         end
-        s[2, i] = (1 - sw)*(1 - sg)
-        s[3, i] = (1 - sw)*sg
     end
 end
 
@@ -236,7 +261,7 @@ end
         phases = X.phases_present
         if phases == OilOnly
             r = X.val
-        elseif phases == GasOnly
+        elseif phases == GasOnly || phases == MostlyWater
             r = zero(T)
         else
             p = @inbounds Pressure[i]
@@ -253,7 +278,7 @@ end
         phases = X.phases_present
         if X.phases_present == GasOnly
             r = X.val
-        elseif phases == OilOnly
+        elseif phases == OilOnly || phases == MostlyWater
             r = zero(T)
         else
             p = @inbounds Pressure[i]
