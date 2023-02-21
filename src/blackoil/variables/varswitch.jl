@@ -60,7 +60,7 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
         # Handle transition out of only water regime
         if swi < 1.0 - 1e-12
             # We had a reasonable value
-            sg = value(old_x)/(1-swi)
+            sg = clamp(value(old_x)/(1-swi), 0, 1)
         else
             # Value was junk, re-initialize 50-50
             sg = 0.5
