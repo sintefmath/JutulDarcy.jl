@@ -1,4 +1,4 @@
-export WellGrid, MultiSegmentWell
+export WellDomain, MultiSegmentWell
 export TotalMassFlux, PotentialDropBalanceWell, SegmentWellBoreFrictionHB
 
 export InjectorControl, ProducerControl, SinglePhaseRateTarget, BottomHolePressureTarget
@@ -146,7 +146,7 @@ function update_before_step_well!(well_state, well_model, res_state, res_model, 
 
 end
 
-function fluid_volume(grid::WellGrid)
+function fluid_volume(grid::WellDomain)
     return grid.volumes
 end
 
@@ -165,11 +165,11 @@ function number_of_cells(W::SimpleWell)
     return 1
 end
 
-function number_of_cells(W::WellGrid)
+function number_of_cells(W::WellDomain)
     return length(W.volumes)
 end
 
-function declare_entities(W::WellGrid)
+function declare_entities(W::WellDomain)
     c = (entity = Cells(),         count = number_of_cells(W))
     f = (entity = Faces(),         count = number_of_faces(W))
     p = (entity = Perforations(),  count = length(W.perforations.self))
@@ -236,7 +236,6 @@ Base.@propagate_inbounds function simple_well_perforation_flux!(out, sys::Union{
     return out
 end
 
-const WellDomain = DiscretizedDomain{<:WellGrid}
 include("mswells.jl")
 include("stdwells.jl")
 
@@ -263,7 +262,7 @@ function mix_by_saturations(s::Real, values)
     return s*values[]
 end
 
-function setup_forces(model::SimulationModel{D, S}; mask = nothing) where {D <: DiscretizedDomain{G}, S<:MultiPhaseSystem} where G<:WellGrid
+function setup_forces(model::SimulationModel{D, S}; mask = nothing) where {D <: DiscretizedDomain{G}, S<:MultiPhaseSystem} where G<:WellDomain
     mask::Union{Nothing, PerforationMask}
     return (mask = mask,)
 end

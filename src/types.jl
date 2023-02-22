@@ -214,15 +214,15 @@ struct FlowBoundaryCondition{I, F, T} <: JutulForce
     density::Union{F, Nothing}
 end
 
-abstract type PorousMediumGrid <: JutulMesh end
-abstract type ReservoirGrid <: PorousMediumGrid end
+abstract type PorousMediumDomain <: JutulMesh end
+abstract type ReservoirGrid <: PorousMediumDomain end
 
-abstract type WellGrid <: PorousMediumGrid
+abstract type WellDomain <: PorousMediumDomain
     # Wells are not porous themselves per se, but they are discretizing
     # part of a porous medium.
 end
 
-function Base.show(io::IO, w::WellGrid)
+function Base.show(io::IO, w::WellDomain)
     if w isa SimpleWell
         nseg = 0
         nn = 1
@@ -234,7 +234,7 @@ function Base.show(io::IO, w::WellGrid)
     end
     print(io, "$n [$(w.name)] ($(nn) nodes, $(nseg) segments, $(length(w.perforations.reservoir)) perforations)")
 end
-struct SimpleWell{SC, P, V} <: WellGrid where {SC, P}
+struct SimpleWell{SC, P, V} <: WellDomain where {SC, P}
     volume::V
     perforations::P
     surface::SC
@@ -255,7 +255,7 @@ function SimpleWell(
     perf = (self = ones(Int64, nr), reservoir = vec(reservoir_cells), WI = WI, gdz = gdz)
     return SimpleWell(volume, perf, surface_conditions, name, explicit_dp)
 end
-struct MultiSegmentWell{V, P, N, A, C, SC, S} <: WellGrid
+struct MultiSegmentWell{V, P, N, A, C, SC, S} <: WellDomain
     volumes::V          # One per cell
     perforations::P     # (self -> local cells, reservoir -> reservoir cells, WI -> connection factor)
     neighborship::N     # Well cell connectivity
