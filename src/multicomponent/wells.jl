@@ -24,7 +24,7 @@ function flash_wellstream_at_surface(well_model, sys::S, well_state, rhoS) where
     end
     buf = InPlaceFlashBuffer(nc)
 
-    sc = well_model.domain.grid.surface
+    sc = physical_representation(well_model).surface
     Pressure = sc.p
     Temperature = sc.T
 

@@ -82,7 +82,8 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
     rho = 0.5*(rho_l + rho_r)
     μ_mix = 0.5*(mu_l + mu_r)
 
-    seg_model = model.domain.grid.segment_models[face]
+    w = physical_representation(model.domain)
+    seg_model = w.segment_models[face]
     Δp = segment_pressure_drop(seg_model, V, rho, μ_mix)
     Δθ = two_point_potential_drop(p[left], p[right], gdz, rho_l, rho_r)
     eq_buf[] = Δθ + Δp

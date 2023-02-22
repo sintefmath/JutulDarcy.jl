@@ -31,7 +31,7 @@ function test_single_phase_gpu(casename = "pico"; float_type = Float32, pvfrac=0
     s[:Saturations] = sat
     s[:RelativePermeabilities] = sat
     # System state
-    pv = model.domain.grid.pore_volumes
+    pv = physical_representation(model).pore_volumes
     timesteps = tstep*3600*24 # 1 day, 2 days
     tot_time = sum(timesteps)  
     irate = pvfrac*sum(pv)/tot_time

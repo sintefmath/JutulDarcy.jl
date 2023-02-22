@@ -28,7 +28,7 @@ Jutul.variable_scale(::WellIndices) = 1e-10
 
 Jutul.associated_entity(::WellIndices) = Perforations()
 function Jutul.default_values(model, ::WellIndices)
-    w = model.domain.grid
+    w = physical_representation(model.domain)
     return vec(copy(w.perforations.WI))
 end
 
@@ -36,7 +36,7 @@ struct PerforationGravityDifference <: ScalarVariable end
 
 Jutul.associated_entity(::PerforationGravityDifference) = Perforations()
 function Jutul.default_values(model, ::PerforationGravityDifference)
-    w = model.domain.grid
+    w = physical_representation(model.domain)
     return vec(copy(w.perforations.gdz))
 end
 

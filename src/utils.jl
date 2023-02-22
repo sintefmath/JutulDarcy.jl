@@ -207,7 +207,7 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                 end
             end
         else
-            g = m.domain.grid
+            g = physical_representation(m.domain)
             if g isa WellGrid
                 WI = vec(g.perforations.WI)
                 rc = vec(g.perforations.reservoir)
@@ -345,7 +345,7 @@ function setup_reservoir_state(model; kwarg...)
             # Wells
             init_w = Dict{Symbol, Any}()
             W = model.models[k]
-            wg = W.domain.grid
+            wg = physical_representation(W.domain)
             res_c = wg.perforations.reservoir
             if wg isa MultiSegmentWell
                 # Repeat top node. Not fully robust.
@@ -472,7 +472,7 @@ function well_symbols(model::MultiModel)
     symbols = Vector{Symbol}()
     for (k, m) in pairs(models)
         D = m.domain
-        if isa(D, DiscretizedDomain) && isa(D.grid, WellGrid)
+        if isa(D, DiscretizedDomain) && isa(physical_representation(D), WellGrid)
             push!(symbols, k)
         end
     end
@@ -510,15 +510,16 @@ end
 
 function partitioner_input(model)
     rmodel = reservoir_model(model)
-    grid = rmodel.domain.grid
+    grid = physical_representation(rmodel.domain)
 
     N = grid.neighborship
     T = grid.trans
     groups = []
     if model isa MultiModel
         for (k, m) in pairs(model.models)
-            if m.domain isa DiscretizedDomain && m.domain.grid isa WellGrid
-                push!(groups, copy(m.domain.grid.perforations.reservoir))
+            wg = physical_representation(m.domain)
+            if wg isa WellGrid
+                push!(groups, copy(wg.perforations.reservoir))
             end
         end
     end

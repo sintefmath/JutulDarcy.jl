@@ -8,7 +8,7 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         G = discretized_domain_tpfv_flow(geo; kwarg...)
     end
     nc = number_of_cells(G)
-    pv = G.grid.pore_volumes
+    pv = physical_representation(G).pore_volumes
     timesteps = timesteps*3600*24
 
     if context == "cpu"
@@ -57,7 +57,7 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         s[:PhaseMassDensities] = ConstantCompressibilityDensities(sys, pRef, rhoLS, cl)
         forces = setup_forces(model)
 
-        pv = model.domain.grid.pore_volumes
+        pv = physical_representation(model).pore_volumes
         pv[1] *= 1000
         pv[end] *= 1000
 
@@ -101,8 +101,9 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
     elseif case_name == "two_phase_fake_wells"
         inj = 1
         prod = nc
-        G.grid.pore_volumes[inj] *= 1000
-        G.grid.pore_volumes[prod] *= 1000
+        pv = physical_representation(G).pore_volumes
+        pv[inj] *= 1000
+        pv[prod] *= 1000
 
         bar = 1e5
         p0 = 100*bar # 100 bar
@@ -139,8 +140,9 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
     elseif case_name == "three_phase_fake_wells"
         inj = 1
         prod = nc
-        G.grid.pore_volumes[inj] *= 1000
-        G.grid.pore_volumes[prod] *= 1000
+        pv = physical_representation(G).pore_volumes
+        pv[inj] *= 1000
+        pv[prod] *= 1000
 
         bar = 1e5
         p0 = 100*bar # 100 bar
@@ -184,8 +186,9 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
     elseif case_name == "spe1_like_fake_wells"
         inj = 1
         prod = nc
-        G.grid.pore_volumes[inj] *= 1000
-        G.grid.pore_volumes[prod] *= 1000
+        pv = physical_representation(G).pore_volumes
+        pv[inj] *= 1000
+        pv[prod] *= 1000
         # Blackoil specifics
         setup = blackoil_bench_pvt(:spe1)
         pvt = setup[:pvt]
@@ -210,8 +213,9 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
     elseif case_name == "simple_compositional_fake_wells"
         inj = 1
         prod = nc
-        G.grid.pore_volumes[inj] *= 1000
-        G.grid.pore_volumes[prod] *= 1000
+        pv = physical_representation(G).pore_volumes
+        pv[inj] *= 1000
+        pv[prod] *= 1000
         co2 = MolecularProperty(0.0440, 7.38e6, 304.1, 9.412e-5, 0.224)
         c1 = MolecularProperty(0.0160, 4.60e6, 190.6, 9.863e-5, 0.011)
         c10 = MolecularProperty(0.0142, 2.10e6, 617.7, 6.098e-4, 0.488)
@@ -252,8 +256,9 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
     elseif case_name == "compositional_three_phases"
         inj = 1
         prod = nc
-        G.grid.pore_volumes[inj] *= 1000
-        G.grid.pore_volumes[prod] *= 1000
+        pv = physical_representation(G).pore_volumes
+        pv[inj] *= 1000
+        pv[prod] *= 1000
         co2 = MolecularProperty(0.0440, 7.38e6, 304.1, 9.412e-5, 0.224)
         c1 = MolecularProperty(0.0160, 4.60e6, 190.6, 9.863e-5, 0.011)
         c10 = MolecularProperty(0.0142, 2.10e6, 617.7, 6.098e-4, 0.488)

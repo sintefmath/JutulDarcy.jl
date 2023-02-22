@@ -69,7 +69,7 @@ function Jutul.initialize_extra_state_fields!(state, d::DiscretizedDomain, m::Si
     end
 end
 
-well_has_explicit_pressure_drop(m::SimpleWellFlowModel) = well_has_explicit_pressure_drop(m.domain.grid)
+well_has_explicit_pressure_drop(m::SimpleWellFlowModel) = well_has_explicit_pressure_drop(physical_representation(m.domain))
 well_has_explicit_pressure_drop(w::SimpleWell) = w.explicit_dp
 
 function update_before_step_well!(well_state, well_model::SimpleWellFlowModel, res_state, res_model, ctrl)
@@ -83,7 +83,7 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
     # Traverse down the well, using the phase notion encoded in ctrl and then
     # just accumulate pressure drop as we go assuming no cross flow
     phases = ctrl.phases
-    perf = well_model.domain.grid.perforations
+    perf = physical_representation(well_model.domain).perforations
     res_cells = perf.reservoir
     gdz = perf.gdz
 
@@ -113,7 +113,7 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
     # Well is either disabled or producing. Loop over well from the bottom,
     # aggregating mixture density as we go. Then traverse down from the top and
     # accumulate the actual pressure drop due to hydrostatic assumptions.
-    perf = well_model.domain.grid.perforations
+    perf = physical_representation(well_model).perforations
     res_cells = perf.reservoir
     WI = perf.WI
 

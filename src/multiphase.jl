@@ -124,14 +124,14 @@ Jutul.minimum_value(::Transmissibilities) = 0.0
 
 Jutul.associated_entity(::Transmissibilities) = Faces()
 function Jutul.default_values(model, ::Transmissibilities)
-    return model.domain.grid.trans
+    return physical_representation(model.domain).trans
 end
 
 struct TwoPointGravityDifference <: ScalarVariable end
 
 Jutul.associated_entity(::TwoPointGravityDifference) = Faces()
 function Jutul.default_values(model, ::TwoPointGravityDifference)
-    return model.domain.grid.gdz
+    return physical_representation(model.domain).gdz
 end
 
 # Selection of variables
@@ -160,10 +160,10 @@ number_of_equations_per_entity(system::SinglePhaseSystem, e::ConservationLaw) = 
 
 export fluid_volume, pore_volume
 pore_volume(model::MultiModel) = pore_volume(reservoir_model(model))
-pore_volume(model::SimulationModel) = fluid_volume(model.domain.grid)
+pore_volume(model::SimulationModel) = fluid_volume(physical_representation(model.domain))
 pore_volume(grid) = fluid_volume(grid)
 
-fluid_volume(domain::DiscretizedDomain) = fluid_volume(domain.grid)
+fluid_volume(domain::DiscretizedDomain) = fluid_volume(physical_representation(domain))
 fluid_volume(grid::MinimalTPFAGrid) = grid.pore_volumes
 fluid_volume(grid) = 1.0
 

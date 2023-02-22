@@ -912,7 +912,7 @@ function setup_case_from_mrst(casename; wells = :ms,
                         found_limits = true
                     end
                     Ω_w = models[wsym].domain
-                    WI = Ω_w.grid.perforations.WI
+                    WI = physical_representation(Ω_w).perforations.WI
                     new_WI = vectorize(wdata["WI"])
                     if all(cstatus) && all(WI .== new_WI)
                         new_force[wsym] = nothing

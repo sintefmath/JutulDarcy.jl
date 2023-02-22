@@ -42,7 +42,8 @@ function setup_bl(;nc = 100, time = 1.0, nstep = 100)
     kr = BrooksCoreyRelPerm(sys, [2.0, 2.0], [0.2, 0.2])
     replace_variables!(model, RelativePermeabilities = kr)
     tot_time = sum(timesteps)
-    irate = 500*sum(G.grid.pore_volumes)/tot_time
+    pv = physical_representation(G).pore_volumes
+    irate = 500*sum(pv)/tot_time
     src  = [SourceTerm(1, irate, fractional_flow = [0.8, 0.2]), 
             SourceTerm(nc, -irate, fractional_flow = [1.0, 0.0])]
     forces = setup_forces(model, sources = src)
