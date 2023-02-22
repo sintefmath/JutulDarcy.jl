@@ -19,7 +19,7 @@ function setup_reservoir_model(reservoir, system; wells = [], context = DefaultC
     models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()
     # Support either a pre-discretized domain, a mesh or geometry
     main_domain(m::DiscretizedDomain) = m
-    main_domain(m::Jutul.AbstractJutulMesh) = main_domain(tpfv_geometry(m))
+    main_domain(m::Jutul.JutulMesh) = main_domain(tpfv_geometry(m))
     main_domain(geo::Jutul.JutulGeometry) = discretized_domain_tpfv_flow(geo, general_ad = general_ad)
 
     reservoir_context, context = Jutul.select_contexts(backend; main_context = reservoir_context, context = context, kwarg...)

@@ -1,7 +1,7 @@
 import Jutul: compute_half_face_trans, compute_face_trans
 
 export compute_peaceman_index
-function compute_peaceman_index(g::T, K, r, pos; kwarg...) where T<:Jutul.AbstractJutulMesh
+function compute_peaceman_index(g::T, K, r, pos; kwarg...) where T<:Jutul.JutulMesh
     Δ = Jutul.cell_dims(g, pos)
     K = Jutul.expand_perm(K, dim(g), full = true)
     return compute_peaceman_index(Δ, K, r; kwarg...)

@@ -214,7 +214,7 @@ struct FlowBoundaryCondition{I, F, T} <: JutulForce
     density::Union{F, Nothing}
 end
 
-abstract type PorousMediumGrid <: AbstractJutulMesh end
+abstract type PorousMediumGrid <: JutulMesh end
 abstract type ReservoirGrid <: PorousMediumGrid end
 
 abstract type WellGrid <: PorousMediumGrid
