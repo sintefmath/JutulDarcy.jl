@@ -20,9 +20,9 @@ The compositional simulator has been matched against commercial offerings, AD-GP
 ## Example run times on benchmarks
 | Name      | Cells | Report steps | Preconditioner   | Time [s] |
 |-----------|-------|--------------|------------------|----------|
-| SPE1CASE2 | 300   | 120          | block-ILU(0)     | 0.85     |
-| SPE9      | 9000  | 35           | block-ILU(0)     | 9.30     |
-| Egg       | 18553 | 123          | CPR-block-ILU(0) | 22.5     |
+| SPE1CASE2 | 300   | 120          | block-ILU(0)     | 0.30     |
+| SPE9      | 9000  | 35           | block-ILU(0)     | 3.41     |
+| Egg       | 18553 | 123          | CPR-block-ILU(0) | 8.60     |
 
 Simulated with `julia -O2`, no threads.
 
