@@ -23,11 +23,12 @@ function reservoir_linsolve(model,  precond = :cpr;
                                     v = 0,
                                     mode = :forward,
                                     solver = :bicgstab,
+                                    max_iterations = nothing,
                                     update_interval = :once,
                                     update_interval_partial = :iteration,
                                     amg_type = :smoothed_aggregation,
                                     smoother_type = :ilu0,
-                                    max_coarse = nothing,
+                                    max_coarse = 10,
                                     cpr_type = nothing,
                                     partial_update = update_interval == :once,
                                     kwarg...)
@@ -39,6 +40,7 @@ function reservoir_linsolve(model,  precond = :cpr;
         return nothing
     end
     default_tol = 0.005
+    max_it = 200
     if precond == :cpr
         if isnothing(cpr_type)
             if isa(model.system, ImmiscibleSystem)
@@ -46,11 +48,6 @@ function reservoir_linsolve(model,  precond = :cpr;
             else
                 cpr_type = :true_impes
             end
-        end
-        if isnothing(max_coarse)
-            max_coarse = Int64(ceil(0.05*number_of_cells(model.domain)))
-            max_coarse = min(1000, max_coarse)
-            max_coarse = 50
         end
         p_solve = default_psolve(max_coarse = max_coarse, type = amg_type)
         if smoother_type == :ilu0
@@ -65,6 +62,7 @@ function reservoir_linsolve(model,  precond = :cpr;
                                  partial_update = partial_update,
                                  update_interval_partial = update_interval_partial)
         default_tol = 1e-3
+        max_it = 50
     elseif precond == :ilu0
         prec = ILUZeroPreconditioner()
     elseif precond == :jacobi
@@ -77,12 +75,13 @@ function reservoir_linsolve(model,  precond = :cpr;
     if isnothing(rtol)
         rtol = default_tol
     end
-    max_it = 200
+    if isnothing(max_iterations)
+        max_iterations = max_it
+    end
     atol = 0.0
-
     lsolve = GenericKrylov(solver, verbose = v, preconditioner = prec, 
             relative_tolerance = rtol, absolute_tolerance = atol,
-            max_iterations = max_it; kwarg...)
+            max_iterations = max_iterations; kwarg...)
     return lsolve
 end
 
