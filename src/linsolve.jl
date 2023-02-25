@@ -20,6 +20,7 @@ Additional keywords are passed onto the linear solver constructor.
 """
 function reservoir_linsolve(model,  precond = :cpr;
                                     rtol = nothing,
+                                    atol = nothing,
                                     v = 0,
                                     mode = :forward,
                                     solver = :bicgstab,
@@ -78,7 +79,6 @@ function reservoir_linsolve(model,  precond = :cpr;
     if isnothing(max_iterations)
         max_iterations = max_it
     end
-    atol = 0.0
     lsolve = GenericKrylov(solver, verbose = v, preconditioner = prec, 
             relative_tolerance = rtol, absolute_tolerance = atol,
             max_iterations = max_iterations; kwarg...)
