@@ -52,9 +52,15 @@ function common_well_setup(nr; dz = nothing, WI = nothing, gravity = gravity_con
 end
 
 export setup_well, setup_vertical_well
+function setup_well(D::DataDomain, reservoir_cells; cell_centers = D[:cell_centroids], kwarg...)
+    K = D[:permeability]
+    g = physical_representation(D)
+    return setup_well(g, K, reservoir_cells; cell_centers = cell_centers, kwarg...)
+end
+
 function setup_well(g, K, reservoir_cells::AbstractVector;
                                         reference_depth = nothing, 
-                                        geometry = tpfv_geometry(g),
+                                        cell_centers = nothing,
                                         skin = 0.0,
                                         Kh = nothing,
                                         radius = 0.1,
@@ -64,7 +70,12 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     n = length(reservoir_cells)
     # Make sure these are cell indices
     reservoir_cells = map(i -> cell_index(g, i), reservoir_cells)
-    centers = geometry.cell_centroids[:, reservoir_cells]
+    if isnothing(cell_centers)
+        geometry = tpfv_geometry(g)
+        cell_centers = geometry.cell_centroids
+    end
+    centers = cell_centers[:, reservoir_cells]
+
     if isnothing(reference_depth)
         reference_depth = centers[3, 1]
     end
@@ -124,6 +135,12 @@ function Jutul.plot_primitives(mesh::MultiSegmentWell, plot_type; kwarg...)
         out = nothing
     end
     return out
+end
+
+function setup_vertical_well(D::DataDomain, i, j; cell_centers = D[:cell_centroids], kwarg...)
+    K = D[:permeability]
+    g = physical_representation(D)
+    return setup_vertical_well(g, K, i, j; cell_centers = cell_centers, kwarg...)
 end
 
 function setup_vertical_well(g, K, i, j; heel = 1, toe = grid_dims_ijk(g)[3], kwarg...)
