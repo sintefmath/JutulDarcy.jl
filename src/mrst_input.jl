@@ -963,7 +963,6 @@ function setup_case_from_mrst(casename; wells = :ms,
         return (models, parameters, initializer, timesteps, forces, mrst_data)
     else
         model = reservoir_multimodel(models, split_wells = split_wells)
-        setup_reservoir_cross_terms!(model)
         # Replace saturations - if available
         replace_variables!(model, Saturations = Saturations(ds_max = ds_max), throw = false)
         replace_variables!(model, ImmiscibleSaturation = ImmiscibleSaturation(ds_max = ds_max), throw = false)

@@ -82,7 +82,6 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing;
     end
     # Convert to multi model
     mmodel = reservoir_multimodel(models, specialize = specialize, split_wells = split_wells)
-    setup_reservoir_cross_terms!(mmodel)
     if isnothing(parameters)
         parameters = setup_parameters(mmodel)
     end
@@ -301,6 +300,7 @@ function reservoir_multimodel(models::AbstractDict; specialize = false, split_we
     end
     models = convert_to_immutable_storage(models)
     model = MultiModel(models, groups = groups, context = outer_context, reduction = red, specialize = specialize)
+    setup_reservoir_cross_terms!(model)
     return model
 end
 
