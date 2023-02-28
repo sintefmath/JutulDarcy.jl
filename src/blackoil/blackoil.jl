@@ -1,4 +1,4 @@
-@enum PresentPhasesBlackOil OilOnly GasOnly OilAndGas MostlyWater
+@enum PresentPhasesBlackOil OilOnly GasOnly OilAndGas
 
 
 include("variables/variables.jl")

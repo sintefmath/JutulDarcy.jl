@@ -26,10 +26,7 @@ function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, keep_bub, sa
     water_saturation(sat, i) = value(sat[i])
     @inbounds for (i, dx) in zip(active, Dx)
         swi = water_saturation(sw, i)
-        # ds_max applies to the full saturation, so we need to scale it based on how much volume the
-        # vapor-liqud saturations actually take up.
-        ds_max_i = ds_max# /max(1 - swi, 0.01)
-        varswitch_update_inner!(v, i, dx, dr_max, ds_max_i, rs_tab, rv_tab, keep_bub, sat_chop, pressure, swi, ϵ, w)
+        varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab, rv_tab, keep_bub, sat_chop, pressure, swi, ϵ, w)
     end
 end
 
