@@ -11,6 +11,11 @@ function values_per_entity(model, v::CompositionalFractions)
     return nval
 end
 
+function update_primary_variable!(state, p::CompositionalFractions, state_symbol, model, dx, w)
+    s = state[state_symbol]
+    Jutul.unit_sum_update!(s, p, model, dx, w)
+end
+
 struct OverallMoleFractions <: CompositionalFractions
     dz_max::Float64
     OverallMoleFractions(;dz_max = 0.2) = new(dz_max)
@@ -19,10 +24,6 @@ end
 minimum_value(::OverallMoleFractions) = MultiComponentFlash.MINIMUM_COMPOSITION
 absolute_increment_limit(z::OverallMoleFractions) = z.dz_max
 
-function update_primary_variable!(state, p::OverallMoleFractions, state_symbol, model, dx, w)
-    s = state[state_symbol]
-    Jutul.unit_sum_update!(s, p, model, dx, w)
-end
 
 """
 A single saturation that represents the "other" phase in a
