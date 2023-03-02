@@ -2,8 +2,7 @@ export DeckViscosity, DeckShrinkage
 
 @jutul_secondary function update_deck_viscosity!(mu, μ::DeckViscosity, model, Pressure, ix)
     pvt, reg = μ.pvt, μ.regions
-    nph = size(mu, 1)
-    for ph in 1:nph
+    @inbounds for ph in axes(mu, 1)
         pvt_ph = pvt[ph]
         for i in ix
             p = Pressure[i]
@@ -16,13 +15,12 @@ end
     rhos = reference_densities(model.system)
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
-    nph, nc = size(rho)
-    for ph in 1:nph
+    @inbounds for ph in axes(rho, 1)
         rhos_ph = rhos[ph]
         pvt_ph = pvt[ph]
-        for i in ix
+        @inbounds for i in ix
             p = Pressure[i]
-            @inbounds rho[ph, i] = rhos_ph*shrinkage(pvt_ph, reg, p, i)
+            rho[ph, i] = rhos_ph*shrinkage(pvt_ph, reg, p, i)
         end
     end
 end
