@@ -1,21 +1,32 @@
 Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::StandardBlackOilSystem, state_res, state_well, rhoS, conn)
     rc = conn.reservoir
     wc = conn.well
-    a, l, v = phase_indices(sys)
-    dp_a, dp_l, dp_v = res_dp(conn, state_res, state_well, sys)
-    λ_a, λ_l, λ_v = res_mobility(state_res, sys, rc)
-    λ_t = λ_a + λ_l + λ_v
-
-    a, l, v, rhoGS, rhoOS = well_pvt_bo(sys)
-    b, b_w, ρ, ρ_w, s_w = well_volumes_bo(state_res, state_well)
-    # Water component flux
-    if dp_a < 0.0
-        # Injection
-        Q_a = s_w[a, wc]*ρ_w[a, wc]*λ_t*dp_a
+    if has_other_phase(sys)
+        a, l, v = phase_indices(sys)
+        dp_a, dp_l, dp_v = res_dp(conn, state_res, state_well, sys)
+        λ_a, λ_l, λ_v = res_mobility(state_res, sys, rc)
+        λ_t = λ_a + λ_l + λ_v
+    
+        a, l, v, rhoGS, rhoOS = well_pvt_bo(sys)
+        b, b_w, ρ, ρ_w, s_w = well_volumes_bo(state_res, state_well)
+        # Water component flux
+        if dp_a < 0.0
+            # Injection
+            Q_a = s_w[a, wc]*ρ_w[a, wc]*λ_t*dp_a
+        else
+            # Production
+            Q_a = ρ[a, rc]*λ_a*dp_a
+        end
+        out[a] = Q_a
     else
-        # Production
-        Q_a = ρ[a, rc]*λ_a*dp_a
+        l, v = phase_indices(sys)
+        dp_l, dp_v = res_dp(conn, state_res, state_well, sys)
+        λ_l, λ_v = res_mobility(state_res, sys, rc)
+        λ_t = λ_l + λ_v
+        l, v, rhoGS, rhoOS = well_pvt_bo_2ph(sys)
+        b, b_w, ρ, ρ_w, s_w = well_volumes_bo(state_res, state_well)
     end
+
     q_l = q_v = zero(Q_a)
     # Oil component flux
     if dp_l < 0.0
@@ -55,7 +66,6 @@ Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::
             q_l += state_res.Rv[rc]*q
         end
     end
-    out[a] = Q_a
     out[l] = q_l*rhoOS
     out[v] = q_v*rhoGS
 end
@@ -141,22 +151,29 @@ function well_pvt_bo(sys)
     return (a, l, v, rhoGS, rhoOS)
 end
 
+function well_pvt_bo_2ph(sys)
+    l, v = phase_indices(sys)
+    rhoS = reference_densities(sys)
+    rhoOS = rhoS[l]
+    rhoGS = rhoS[v]
+    return (l, v, rhoGS, rhoOS)
+end
+
+
 function res_mobility(state_res, sys, rc)
     μ = state_res.PhaseViscosities
     kr = state_res.RelativePermeabilities
-    a, l, v = phase_indices(sys)
-    λ_a = kr[a, rc]/μ[a, rc]
-    λ_l = kr[l, rc]/μ[l, rc]
-    λ_v = kr[v, rc]/μ[v, rc]
-    return (λ_a, λ_l, λ_v)
+    return map(
+        x -> kr[x, rc]/μ[x, rc], 
+        phase_indices(sys)
+    )
 end
 
+
 function res_dp(conn, state_res, state_well, sys)
-    a, l, v = phase_indices(sys)
-    dp_a = perforation_phase_potential_difference(conn, state_res, state_well, a)
-    dp_l = perforation_phase_potential_difference(conn, state_res, state_well, l)
-    dp_v = perforation_phase_potential_difference(conn, state_res, state_well, v)
-    return (dp_a, dp_l, dp_v)
+    return map(
+        x -> perforation_phase_potential_difference(conn, state_res, state_well, x),
+        phase_indices(sys))
 end
 
 
