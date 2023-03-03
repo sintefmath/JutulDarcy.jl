@@ -27,7 +27,7 @@ Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::
         b, b_w, ρ, ρ_w, s_w = well_volumes_bo(state_res, state_well)
     end
 
-    q_l = q_v = zero(Q_a)
+    q_l = q_v = zero(dp_l)
     # Oil component flux
     if dp_l < 0.0
         # Injection

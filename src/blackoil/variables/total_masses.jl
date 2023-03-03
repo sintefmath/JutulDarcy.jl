@@ -75,8 +75,14 @@ end
     sys = model.system
     rhoS = reference_densities(sys)
     ind = phase_indices(sys)
-    for cell in ix
-        @inbounds @views blackoil_mass_disgas!(totmass[:, cell], FluidVolume, PhaseMassDensities, Rs, ShrinkageFactors, Saturations, rhoS, cell, ind)
+    if has_other_phase(sys)
+        for cell in ix
+            @inbounds @views blackoil_mass_disgas!(totmass[:, cell], FluidVolume, PhaseMassDensities, Rs, ShrinkageFactors, Saturations, rhoS, cell, ind)
+        end
+    else
+        for cell in ix
+            @inbounds @views blackoil_mass_disgas_no_water!(totmass[:, cell], FluidVolume, PhaseMassDensities, Rs, ShrinkageFactors, Saturations, rhoS, cell, ind)
+        end
     end
 end
 
@@ -91,6 +97,21 @@ Base.@propagate_inbounds function blackoil_mass_disgas!(M, pv, ρ, Rs, b, S, rho
 
     # Water is trivial
     M[a] = Φ*ρ[a, cell]*S[a, cell]
+    # Oil is only in oil phase
+    M[l] = Φ*rhoS[l]*bO*sO
+    # Gas is in both phases
+    M[v] = Φ*rhoS[v]*(bG*sG + bO*sO*rs)
+end
+
+Base.@propagate_inbounds function blackoil_mass_disgas_no_water!(M, pv, ρ, Rs, b, S, rhoS, cell, phase_indices)
+    l, v = phase_indices
+    bO = b[l, cell]
+    bG = b[v, cell]
+    rs = Rs[cell]
+    sO = S[l, cell]
+    sG = S[v, cell]
+    Φ = pv[cell]
+
     # Oil is only in oil phase
     M[l] = Φ*rhoS[l]*bO*sO
     # Gas is in both phases

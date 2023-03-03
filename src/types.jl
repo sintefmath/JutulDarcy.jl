@@ -110,6 +110,9 @@ function Base.show(io::IO, d::StandardBlackOilSystem)
 end
 
 const BlackOilVariableSwitchingSystem = StandardBlackOilSystem{<:Any, <:Any, <:Any, <:Any, :varswitch, <:Any, <:Any}
+const BlackOilVariableSwitchingSystemWithWater = StandardBlackOilSystem{<:Any, <:Any, true, <:Any, :varswitch, <:Any, <:Any}
+const BlackOilVariableSwitchingSystemWithoutWater = StandardBlackOilSystem{<:Any, <:Any, false, <:Any, :varswitch, <:Any, <:Any}
+
 const BlackOilGasFractionSystem = StandardBlackOilSystem{<:Any, <:Any, <:Any, <:Any, :zg, <:Any, <:Any}
 
 const DisgasBlackOilSystem = StandardBlackOilSystem{<:Any, Nothing, <:Any, <:Any, <:Any, <:Any, <:Any}

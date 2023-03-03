@@ -215,8 +215,8 @@ end
     end
 end
 
-@jutul_secondary function update_saturations!(s, sat::Saturations, model::SimulationModel{D, S}, BlackOilUnknown, ImmiscibleSaturation, ix) where {D, S<:BlackOilVariableSwitchingSystem}
-    @assert size(s, 1) == 3
+@jutul_secondary function update_saturations!(s, sat::Saturations, model::SimulationModel{D, S}, BlackOilUnknown, ImmiscibleSaturation, ix) where {D, S<:BlackOilVariableSwitchingSystemWithWater}
+    a, l, v = phase_indices(model.system)
     T = eltype(s)
     @inbounds for i in ix
         sw = ImmiscibleSaturation[i]
@@ -232,15 +232,32 @@ end
             sg = X.val
             so = one(T) - sw - sg
         end
-        s[1, i] = sw
-        s[2, i] = so
-        s[3, i] = sg
-        @assert so >= 0 "$so $phases"
-        @assert sg >= 0 "$sg $phases"
-        @assert sw >= 0 "$sw $phases"
+        s[a, i] = sw
+        s[l, i] = so
+        s[v, i] = sg
     end
 end
 
+@jutul_secondary function update_saturations!(s, sat::Saturations, model::SimulationModel{D, S}, BlackOilUnknown, ix) where {D, S<:BlackOilVariableSwitchingSystemWithoutWater}
+    l, v = phase_indices(model.system)
+    T = eltype(s)
+    @inbounds for i in ix
+        X = BlackOilUnknown[i]
+        phases = X.phases_present
+        if phases == OilOnly
+            sg = zero(T)
+            so = one(T)
+        elseif phases == GasOnly
+            sg = one(T)
+            so = zero(T)
+        else
+            sg = X.val
+            so = one(T) - sg
+        end
+        s[l, i] = so
+        s[v, i] = sg
+    end
+end
 
 @jutul_secondary function update_rs!(rs, ph::Rs, model::SimulationModel{D, S}, Pressure, BlackOilUnknown, ix)  where {D, S<:BlackOilVariableSwitchingSystem}
     T = eltype(rs)
