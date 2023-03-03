@@ -539,13 +539,14 @@ function model_from_mat_deck(G, mrst_data, res_context)
         if is_immiscible
             sys = ImmiscibleSystem(phases, reference_densities = rhoS)
         else
-            oil_pvt = pvt[2]
+            has_water = length(pvt) == 3
+            oil_pvt = pvt[1 + has_water]
             if oil_pvt isa PVTO
                 rs_max = saturated_table(oil_pvt)
             else
                 rs_max = nothing
             end
-            gas_pvt = pvt[3]
+            gas_pvt = pvt[2 + has_water]
             if gas_pvt isa PVTG
                 rv_max = saturated_table(gas_pvt)
             else

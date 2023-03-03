@@ -101,6 +101,10 @@ function StandardBlackOilSystem(; rs_max::RS = nothing,
     return StandardBlackOilSystem{RS, RV, has_water, typeof(reference_densities), formulation, typeof(phase_ind), typeof(phases), Float64}(rs_max, rv_max, reference_densities, phase_ind, phases, saturated_chop, keep_bubble_flag, eps_rs, eps_rv, eps_s)
 end
 
+function has_other_phase(sys::StandardBlackOilSystem{A, B, W}) where {A, B, W}
+    return W
+end
+
 function Base.show(io::IO, d::StandardBlackOilSystem)
     print(io, "StandardBlackOilSystem with $(d.phases)")
 end
@@ -171,7 +175,7 @@ function PhaseRelPerm(s, k; label = :w, connate = s[1], epsilon = 1e-16)
     k_max, ix = findmax(k)
     s_max = s[ix]
     # Last immobile point in table
-    crit_ix = findfirst(x -> x > 0, k) - 1
+    crit_ix = findfirst(x -> x > eps(Float64), k) - 1
     crit = s[crit_ix]
     s, k = JutulDarcy.add_missing_endpoints(s, k)
     JutulDarcy.ensure_endpoints!(s, k, epsilon)
