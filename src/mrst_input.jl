@@ -193,7 +193,8 @@ function get_well_from_mrst_data(
         # For simple well, distance from ref depth to perf
         dz = z_res .- ref_depth
         z = [ref_depth]
-        W = SimpleWell(rc, WI = WI, dz = dz, surface_conditions = cond, name = Symbol(nm))
+        accumulator_volume = volume*mean(well_cell_volume)
+        W = SimpleWell(rc, WI = WI, dz = dz, surface_conditions = cond, name = Symbol(nm), volume = accumulator_volume)
         reservoir_cells = [rc[1]]
     else
         error("Unsupported well type $well_type (can be :ms, :simple or :std)")
