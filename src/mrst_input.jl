@@ -670,7 +670,6 @@ function init_from_mat(mrst_data, model, param)
         end
     end
     init = Dict{Symbol, Any}(:Pressure => p0)
-    
     if haskey(state0, "components")
         # Compositional
         z0 = copy(state0["components"]')

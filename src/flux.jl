@@ -44,7 +44,6 @@ end
     r = tpfa.right
 
     Δpc = capillary_gradient(pc, l, r, phase, ref_index)
-
     @inbounds ρ_c = ρ[phase, l]
     @inbounds ρ_i = ρ[phase, r]
     ρ_avg = 0.5*(ρ_i + ρ_c)
@@ -82,6 +81,7 @@ end
     else
         @inbounds Δp_c = pc[ph-1, c_l] - pc[ph-1, c_r]
     end
+    return Δp_c
 end
 
 
