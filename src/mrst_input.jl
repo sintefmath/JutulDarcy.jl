@@ -359,13 +359,19 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
 end
 
 function deck_pc(props; oil, water, gas, satnum = nothing)
-    function get_pc(T, pc_ix)
+    function get_pc(T, pc_ix, reverse = false)
         found = false
         PC = []
         for tab in T
             s = vec(tab[:, 1])
             pc = vec(tab[:, pc_ix])
             found = found || any(x -> x != 0, pc)
+            if reverse
+                @. s = 1.0 - s
+                ix = length(s):-1:1
+                pc = -pc[ix]
+                s = s[ix]
+            end
             interp_ow = get_1d_interpolator(s, pc)
             push!(PC, interp_ow)
         end
@@ -384,10 +390,11 @@ function deck_pc(props; oil, water, gas, satnum = nothing)
         found_pcow = false
     end
     if oil && gas
+        reverse = !water
         if haskey(props, "SGOF")
-            interp_og, found_pcog = get_pc(props["SGOF"], 4)
+            interp_og, found_pcog = get_pc(props["SGOF"], 4, reverse)
         else
-            interp_og, found_pcog = get_pc(props["SGFN"], 3)
+            interp_og, found_pcog = get_pc(props["SGFN"], 3, reverse)
         end
         push!(pc_impl, interp_og)
     else
@@ -650,7 +657,20 @@ function init_from_mat(mrst_data, model, param)
     if min_p <= 1.1*DEFAULT_MINIMUM_PRESSURE
         @warn "Lowest initial pressure $min_p is close to lower default Jutul pressure limit of $DEFAULT_MINIMUM_PRESSURE. Case may not be feasible to simulate."
     end
+    sys = model.system
+    s = copy(state0["s"]')
+    if haskey(model.secondary_variables, :CapillaryPressure)
+        phases = get_phases(sys)
+        if length(phases) == 2 && phases[2] isa VaporPhase && phases[1] isa LiquidPhase
+            pc = zeros(1, length(p0))
+            pc_impl = model[:CapillaryPressure]
+            Jutul.update_secondary_variable!(pc, pc_impl, model, (Saturations = s, ), 1:length(p0))
+            pc = vec(pc)
+            @. p0 += pc
+        end
+    end
     init = Dict{Symbol, Any}(:Pressure => p0)
+    
     if haskey(state0, "components")
         # Compositional
         z0 = copy(state0["components"]')
@@ -665,8 +685,6 @@ function init_from_mat(mrst_data, model, param)
         end
     else
         # Blackoil or immiscible
-        s = copy(state0["s"]')
-        sys = model.system
         vapoil = has_vapoil(sys)
         disgas = has_disgas(sys)
         black_oil = vapoil || disgas
@@ -1150,6 +1168,8 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
         push!(extra_outputs, :PhaseViscosities)
         push!(extra_outputs, :PhaseMassDensities)
     end
+    push!(extra_outputs, :CapillaryPressure)
+
     out = rmodel.output_variables
     for k in extra_outputs
         push!(out, k)

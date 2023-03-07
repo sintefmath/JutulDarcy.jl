@@ -113,7 +113,13 @@ function deck_function_plot_data(model, pvt::Union{PVTG, PVTO}, phase, reg, as_t
     phase_name = phase_names(sys)[phase]
     rhoS = reference_densities(sys)
     rhoS_self = rhoS[phase]
-    a, l, v = phase_indices(sys)
+    
+    ix = phase_indices(sys)
+    if length(ix) == 3
+        a, l, v = ix
+    else
+        l, v = ix
+    end
     if pvt isa PVTG
         sat_fn = model.system.rv_max
         @assert phase == v

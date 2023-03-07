@@ -46,9 +46,10 @@ degrees_of_freedom_per_entity(model, v::SimpleCapillaryPressure) = number_of_pha
 
 @jutul_secondary function update_pc!(Δp, pc::SimpleCapillaryPressure, model, Saturations, ix)
     cap = pc.pc
-    npc, nc = size(Δp)
+    npc = size(Δp, 1)
+    @assert npc == 1
     if npc == 1
-        pcow = cap[1]
+        pcow = only(cap)
         @inbounds for c in ix
             reg = region(pc.regions, c)
             pcow_c = table_by_region(pcow, reg)
