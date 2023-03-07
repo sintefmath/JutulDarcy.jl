@@ -52,7 +52,7 @@ end
 end
 
 @inline function gradient(X, tpfa::TPFA)
-    return X[tpfa.left] - X[tpfa.right]
+    return @inbounds X[tpfa.left] - X[tpfa.right]
 end
 
 pressure_gradient(state, disc) = gradient(state.Pressure, disc)
