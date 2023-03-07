@@ -1,11 +1,13 @@
-function check_blackoil_pvt(model, p; rv = nothing, rs = nothing, reg = 1, cell = 1)
+function check_blackoil_pvt(model, p; rv = nothing, rs = nothing, reg = nothing, cell = 1)
     p = ForwardDiff.Dual(p, 1.0)
     ∂(x) = x.partials[1]
+    ∂(x::Float64) = 0.0
 
     sys = model.system
     b = model.secondary_variables[:ShrinkageFactors]
-    pvto = b.pvt[2]
-    pvtg = b.pvt[3]
+    wat = has_other_phase(sys)
+    pvto = b.pvt[1+wat]
+    pvtg = b.pvt[2+wat]
 
     if has_disgas(sys)
         if isnothing(rs)
