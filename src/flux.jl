@@ -75,11 +75,10 @@ end
 @inline capillary_gradient(::Nothing, c_l, c_r, ph, ph_ref) = 0.0
 @inline function capillary_gradient(pc, c_l, c_r, ph, ph_ref)
     if ph == ph_ref
-        Δp_c = 0.0
-    elseif ph < ph_ref
-        @inbounds Δp_c = pc[ph, c_l] - pc[ph, c_r]
+        Δp_c = zero(eltype(pc))
     else
-        @inbounds Δp_c = pc[ph-1, c_l] - pc[ph-1, c_r]
+        pos = ph - (ph > ph_ref)
+        Δp_c = @inbounds pc[pos, c_l] - pc[pos, c_r]
     end
     return Δp_c
 end
