@@ -185,7 +185,7 @@ function get_well_from_mrst_data(
         wsys = system
     end
     W_domain = discretized_domain_well(W, z = z)
-    wmodel = SimulationModel(W_domain, wsys; plot_mesh = W, kwarg...)
+    wmodel = SimulationModel(W_domain, wsys; kwarg...)
     if extraout
         out = (wmodel, W_mrst, vec(reservoir_cells))
     else
@@ -727,7 +727,6 @@ function setup_case_from_mrst(casename; wells = :ms,
     model, param_res = model_from_mat(G, data_domain, mrst_data, res_context)
     init = init_from_mat(mrst_data, model, param_res)
 
-    # model, init, param_res = setup_res(G, mrst_data; block_backend = block_backend, use_groups = true)
     is_comp = model isa CompositionalModel
     rhoS = reference_densities(model.system)
 
@@ -768,8 +767,7 @@ function setup_case_from_mrst(casename; wells = :ms,
     sys = model.system
     for i = 1:num_wells
         sym = well_symbols[i]
-    
-        wi, wdata , res_cells = get_well_from_mrst_data(mrst_data, sys, i, W_data = first_well_set,
+        wi, wdata, res_cells = get_well_from_mrst_data(mrst_data, sys, i, W_data = first_well_set,
                 extraout = true, well_type = wells, context = w_context)
         param_w = setup_parameters(wi)
 
@@ -1136,8 +1134,8 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
         end
         push!(extra_outputs, :Saturations)
     elseif rmodel isa CompositionalModel
-        push!(extra_outputs, :LiquidMoleFractions)
-        push!(extra_outputs, :VaporMoleFractions)
+        push!(extra_outputs, :LiquidMassFractions)
+        push!(extra_outputs, :VaporMassFractions)
         push!(extra_outputs, :Saturations)
     end
 

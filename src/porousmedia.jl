@@ -53,6 +53,10 @@ function compute_peaceman_index(Δ, K, radius; dir::Symbol = :z, constant = 0.14
     return WI
 end
 
+function Jutul.discretize_domain(d::DataDomain, system::MultiPhaseSystem, ::Val{:default}; kwarg...)
+    return discretized_domain_tpfv_flow(d; kwarg...)
+end
+
 export discretized_domain_tpfv_flow
 function discretized_domain_tpfv_flow(geometry; porosity = 0.1, 
                                                 permeability = 9.869232667160131e-14, # 100 mD 
@@ -100,6 +104,10 @@ function discretized_domain_tpfv_flow(domain::Jutul.DataDomain; general_ad = fal
     disc = (mass_flow = d, heat_flow = d)
     G = MinimalTPFATopology(N, ncells = nc)
     return DiscretizedDomain(G, disc)
+end
+
+function Jutul.discretize_domain(d::DataDomain{W}, system::MultiPhaseSystem, ::Val{:default}; kwarg...) where W<:Union{SimpleWell, MultiSegmentWell}
+    return discretized_domain_well(physical_representation(d); kwarg...)
 end
 
 export discretized_domain_well

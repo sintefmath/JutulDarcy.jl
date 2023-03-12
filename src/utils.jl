@@ -26,14 +26,13 @@ function setup_reservoir_model(reservoir::DataDomain, system;
     reservoir_context = nothing,
     general_ad = false,
     backend = :csc,
-    discretized_domain = discretized_domain_tpfv_flow(reservoir, general_ad = general_ad),
     kwarg...
     )
     # List of models (order matters)
     models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()
     reservoir_context, context = Jutul.select_contexts(backend; main_context = reservoir_context, context = context, kwarg...)
     # We first set up the reservoir
-    models[:Reservoir] = SimulationModel(discretized_domain, system, context = reservoir_context, data_domain = reservoir)
+    models[:Reservoir] = SimulationModel(reservoir, system, context = reservoir_context, data_domain = reservoir, general_ad = general_ad)
     # Then we set up all the wells
     for w in wells
         D_w = discretized_domain_well(w)
