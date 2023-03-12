@@ -170,6 +170,8 @@ function setup_reservoir_simulator(case::JutulCase;
     return (sim, cfg)
 end
 
+export simulate_reservoir
+
 function simulate_reservoir(model, state0, parameters; kwarg...)
     sim, config = setup_reservoir_simulator(model, state0, parameters; kwarg...)
     states, reports = simulate!(sim, dt, forces = forces, config = config);

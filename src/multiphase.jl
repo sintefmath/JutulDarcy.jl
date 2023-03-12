@@ -128,13 +128,17 @@ function Jutul.default_values(model, ::Transmissibilities)
 end
 
 function Jutul.default_parameter_values(data_domain, model, param::Transmissibilities, symb)
-    if haskey(data_domain, :permeability, Cells())
+    if haskey(data_domain, :transmissibility, Faces())
+        # This takes precedence
+        T = data_domain[:transmissibility]
+    elseif haskey(data_domain, :permeability, Cells())
         U = data_domain[:permeability]
+        g = physical_representation(data_domain)
+        T = compute_face_trans(g, U)
     else
-        error(":permeability symbol must be present to initialize parameter $symb, had keys: $(keys(data_domain))")
+        error(":permeability or :transmissibility symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
-    g = physical_representation(data_domain)
-    return compute_face_trans(g, U)
+    return T
 end
 
 struct TwoPointGravityDifference <: ScalarVariable end
@@ -142,6 +146,29 @@ struct TwoPointGravityDifference <: ScalarVariable end
 Jutul.associated_entity(::TwoPointGravityDifference) = Faces()
 function Jutul.default_values(model, ::TwoPointGravityDifference)
     return physical_representation(model.domain).gdz
+end
+
+function Jutul.default_parameter_values(data_domain, model, param::TwoPointGravityDifference, symb)
+    has_gdz = haskey(data_domain, :gdz, Faces())
+    has_cell_centroids = haskey(data_domain, :cell_centroids, Cells())
+    has_face_neighbors = haskey(data_domain, :neighbors, Faces())
+    if has_gdz
+        # This takes precedence
+        gdz = data_domain[:gdz]
+    elseif has_cell_centroids && has_face_neighbors
+        N = data_domain[:neighbors]
+        cc = data_domain[:cell_centroids]
+        if size(cc, 1) == 3
+            z = vec(cc[3, :])
+            gdz = compute_face_gdz(N, z)
+        else
+            nf = size(N, 2)
+            gdz = zeros(nf)
+        end
+    else
+        error(":gdz or :neighbors + :cell_centroids symbols must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+    end
+    return gdz
 end
 
 # Selection of variables
