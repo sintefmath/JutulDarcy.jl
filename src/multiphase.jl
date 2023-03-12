@@ -196,13 +196,10 @@ number_of_equations_per_entity(system::MultiPhaseSystem, e::ConservationLaw) = n
 number_of_equations_per_entity(system::SinglePhaseSystem, e::ConservationLaw) = 1
 
 export fluid_volume, pore_volume
-pore_volume(model::MultiModel) = pore_volume(reservoir_model(model))
-pore_volume(model::SimulationModel) = fluid_volume(physical_representation(model.domain))
-pore_volume(grid) = fluid_volume(grid)
-
-fluid_volume(domain::DiscretizedDomain) = fluid_volume(physical_representation(domain))
-fluid_volume(grid::MinimalTPFAGrid) = grid.pore_volumes
-fluid_volume(grid) = 1.0
+pore_volume(model::MultiModel, parameters) = pore_volume(reservoir_model(model), parameters[:Reservoir])
+pore_volume(model::SimulationModel, parameters) = fluid_volume(model, parameters)
+fluid_volume(model, parameters) = parameters[:FluidVolume]
+domain_fluid_volume(g) = missing
 
 function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw, eq_s, force::V, time) where {V <: AbstractVector{SourceTerm{I, F, T}}, D, S<:MultiPhaseSystem} where {I, F, T}
     state = storage.state

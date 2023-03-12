@@ -163,11 +163,11 @@ function update_before_step_well!(well_state, well_model, res_state, res_model, 
 
 end
 
-function fluid_volume(grid::WellDomain)
+function domain_fluid_volume(grid::WellDomain)
     return grid.volumes
 end
 
-function fluid_volume(grid::SimpleWell)
+function domain_fluid_volume(grid::SimpleWell)
     return [grid.volume]
 end
 

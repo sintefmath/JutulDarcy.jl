@@ -31,12 +31,9 @@ function setup_reservoir_model(reservoir::DataDomain, system;
     )
     # List of models (order matters)
     models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()
-    multi_domain = Dict{Symbol, DataDomain}()
-
     reservoir_context, context = Jutul.select_contexts(backend; main_context = reservoir_context, context = context, kwarg...)
     # We first set up the reservoir
-    models[:Reservoir] = SimulationModel(discretized_domain, system, context = reservoir_context)
-    multi_domain[:Reservoir] = reservoir
+    models[:Reservoir] = SimulationModel(discretized_domain, system, context = reservoir_context, data_domain = reservoir)
     # Then we set up all the wells
     for w in wells
         D_w = discretized_domain_well(w)
@@ -45,20 +42,19 @@ function setup_reservoir_model(reservoir::DataDomain, system;
         else
             well_context = context
         end
-        models[w.name] = SimulationModel(D_w, system, context = well_context)
-        multi_domain[w.name] = DataDomain(w)
+        w_domain = DataDomain(w)
+        models[w.name] = SimulationModel(D_w, system, context = well_context, data_domain = w_domain)
     end
     # Add facility that gorups the wells
     wg = WellGroup(map(x -> x.name, wells))
     mode = PredictionMode()
-    F = SimulationModel(wg, mode, context = context)
+    F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
     models[:Facility] = F
-    multi_domain[:Facility] = DataDomain(wg)
 
     # Put it all together as multimodel
     model = reservoir_multimodel(models)
     # Insert domain here.
-    parameters = setup_parameters(multi_domain, model)
+    parameters = setup_parameters(model)
     return (model, parameters)
 end
 
@@ -172,14 +168,12 @@ end
 
 export simulate_reservoir
 
-function simulate_reservoir(model, state0, parameters; kwarg...)
+function simulate_reservoir(state0, model, dt; parameters = setup_parameters(model), forces = setup_forces(model), kwarg...)
     sim, config = setup_reservoir_simulator(model, state0, parameters; kwarg...)
     states, reports = simulate!(sim, dt, forces = forces, config = config);
     res_states = map(x -> x[:Reservoir], states)
     wells = full_well_outputs(model, states, forces)
-    time = report_times(reports)
-
-    return (wells = wells, states = res_states, time = time, reports = reports)
+    return (wells = wells, states = res_states, reports = reports)
 end
 
 function set_default_cnv_mb!(cfg, model; kwarg...)

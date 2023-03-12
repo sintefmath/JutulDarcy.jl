@@ -88,8 +88,31 @@ end
 end
 
 struct FluidVolume <: ScalarVariable end
-Jutul.default_values(model, ::FluidVolume) = fluid_volume(model.domain)
 Jutul.minimum_value(::FluidVolume) = eps()
+
+function Jutul.default_parameter_values(data_domain, model, param::FluidVolume, symb)
+    vol = missing
+    if haskey(data_domain, :fluid_volume, Cells())
+        vol = data_domain[:fluid_volume]
+    elseif haskey(data_domain, :pore_volume, Cells())
+        vol = data_domain[:pore_volume]
+    elseif haskey(data_domain, :volumes, Cells())
+        vol = data_domain[:volumes]
+        if haskey(data_domain, :porosity, Cells())
+            vol = vol.*data_domain[:porosity]
+        end
+        if haskey(data_domain, :net_to_gross, Cells())
+            vol = vol.*data_domain[:net_to_gross]
+        end
+    else
+        g = physical_representation(data_domain)
+        vol = domain_fluid_volume(g)
+    end
+    if ismissing(vol)
+        error(":volumes or :pore_volume symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+    end
+    return copy(vol)
+end
 
 struct Temperature <: ScalarVariable end
 
