@@ -1094,6 +1094,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                 do_sim = true,
                                 steps = :full,
                                 general_ad = false,
+                                legacy_output = false,
                                 restart = false,
                                 wells = :ms,
                                 linear_solver = :bicgstab,
@@ -1180,7 +1181,8 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
         else
             start = nothing
         end
-        states, reports = simulate(sim, dt, forces = forces, config = cfg, restart = restart, start_date = start);
+        result = simulate(sim, dt, forces = forces, config = cfg, restart = restart, start_date = start);
+        states, reports = result
         if write_output && write_mrst
             mrst_output_path = "$(output_path)_mrst"
             if verbose
@@ -1204,9 +1206,12 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
             jutul_message("MRST model", "Model set up. Skipping simulation as do_sim = false.")
         end
     end
-
-    setup = (case = case, sim = sim, config = cfg, mrst = mrst_data)
-    return (states, reports, output_path, setup)
+    if legacy_output
+        setup = (case = case, sim = sim, config = cfg, mrst = mrst_data)
+        return (states, reports, output_path, setup)
+    else
+        return ReservoirSimResult(model, result, forces, sim = sim, config = cfg, mrst = mrst_data, path = output_path)
+    end
 end
 
 function write_reservoir_simulator_output_to_mrst(model, states, reports, forces, output_path; parameters = nothing, write_states = true, write_wells = true, convert_names = true)

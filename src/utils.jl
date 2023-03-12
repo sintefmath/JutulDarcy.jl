@@ -607,7 +607,8 @@ function Base.show(io::IO, ::MIME"text/plain", sr::ReservoirSimResult)
     end
     print(io, "\n  time (report time for each state)\n     $(typeof(sr.time)) of length $n\n")
     print(io, "\n  result\n     $(sr.result)\n")
-    print(io, "\n  extra\n     $(sr.extra)")
+    ek = join(keys(sr.extra), ", ")
+    print(io, "\n  extra\n     $(typeof(sr.extra)) with keys $ek")
 end
 
 function Base.show(io::IO, sr::ReservoirSimResult)
