@@ -602,7 +602,7 @@ function Base.show(io::IO, ::MIME"text/plain", sr::ReservoirSimResult)
             print_keys("        ", sr.wells[first(wk)])
         end
         el = first(states)
-        print(io, "\n  states (reservoir variables)\n")
+        print(io, "\n  states (Vector with $n entries, reservoir variables for each state)\n")
         print_keys("    ", el)
     end
     print(io, "\n  time (report time for each state)\n     $(typeof(sr.time)) of length $n\n")
