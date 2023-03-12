@@ -88,6 +88,19 @@ function discretized_domain_tpfv_flow(geometry; porosity = 0.1,
     return DiscretizedDomain(G, disc)
 end
 
+function discretized_domain_tpfv_flow(domain::Jutul.DataDomain; general_ad = false)
+    N = domain[:neighbors]
+    nc = number_of_cells(physical_representation(domain))
+    if general_ad
+        d = PotentialFlow(N, nc)
+    else
+        d = TwoPointPotentialFlowHardCoded(N, nc)
+    end
+    disc = (mass_flow = d, heat_flow = d)
+    G = MinimalTPFATopology(N, ncells = nc)
+    return DiscretizedDomain(G, disc)
+end
+
 export discretized_domain_well
 function discretized_domain_well(W::MultiSegmentWell; z = nothing, kwarg...)
     if isnothing(z)

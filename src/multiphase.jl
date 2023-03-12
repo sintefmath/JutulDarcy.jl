@@ -127,6 +127,16 @@ function Jutul.default_values(model, ::Transmissibilities)
     return physical_representation(model.domain).trans
 end
 
+function Jutul.default_parameter_values(data_domain, model, param::Transmissibilities, symb)
+    if haskey(data_domain, :permeability, Cells())
+        U = data_domain[:permeability]
+    else
+        error(":permeability symbol must be present to initialize parameter $symb, had keys: $(keys(data_domain))")
+    end
+    g = physical_representation(data_domain)
+    return compute_face_trans(g, U)
+end
+
 struct TwoPointGravityDifference <: ScalarVariable end
 
 Jutul.associated_entity(::TwoPointGravityDifference) = Faces()

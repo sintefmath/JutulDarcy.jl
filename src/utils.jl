@@ -5,6 +5,12 @@ reservoir_model(model::MultiModel) = model.models.Reservoir
 reservoir_storage(model, storage) = storage
 reservoir_storage(model::MultiModel, storage) = storage.Reservoir
 
+
+export reservoir_domain
+function reservoir_domain(g; permeability = 9.869232667160130e-14, porosity = 0.1)
+    return DataDomain(g, permeability = permeability, porosity = porosity)
+end
+
 export setup_reservoir_model
 """
     setup_reservoir_model(reservoir, system; wells = [], <keyword arguments>)
@@ -14,18 +20,23 @@ Set up a reservoir `MultiModel` for a given reservoir `SimulationModel` and an o
 
 The routine automatically sets up a facility and couples the wells with the reservoir and that facility.
 """
-function setup_reservoir_model(reservoir, system; wells = [], context = DefaultContext(), reservoir_context = nothing, general_ad = false, backend = :csc, kwarg...)
+function setup_reservoir_model(reservoir::DataDomain, system;
+    wells = [],
+    context = DefaultContext(),
+    reservoir_context = nothing,
+    general_ad = false,
+    backend = :csc,
+    discretized_domain = discretized_domain_tpfv_flow(reservoir, general_ad = general_ad),
+    kwarg...
+    )
     # List of models (order matters)
     models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()
-    # Support either a pre-discretized domain, a mesh or geometry
-    main_domain(m::DiscretizedDomain) = m
-    main_domain(m::Jutul.JutulMesh) = main_domain(tpfv_geometry(m))
-    main_domain(geo::Jutul.JutulGeometry) = discretized_domain_tpfv_flow(geo, general_ad = general_ad)
+    multi_domain = Dict{Symbol, DataDomain}()
 
     reservoir_context, context = Jutul.select_contexts(backend; main_context = reservoir_context, context = context, kwarg...)
     # We first set up the reservoir
-    D = main_domain(reservoir)
-    models[:Reservoir] = SimulationModel(D, system, context = reservoir_context)
+    models[:Reservoir] = SimulationModel(discretized_domain, system, context = reservoir_context)
+    multi_domain[:Reservoir] = reservoir
     # Then we set up all the wells
     for w in wells
         D_w = discretized_domain_well(w)
@@ -35,16 +46,19 @@ function setup_reservoir_model(reservoir, system; wells = [], context = DefaultC
             well_context = context
         end
         models[w.name] = SimulationModel(D_w, system, context = well_context)
+        multi_domain[w.name] = DataDomain(w)
     end
     # Add facility that gorups the wells
     wg = WellGroup(map(x -> x.name, wells))
     mode = PredictionMode()
     F = SimulationModel(wg, mode, context = context)
     models[:Facility] = F
+    multi_domain[:Facility] = DataDomain(wg)
 
     # Put it all together as multimodel
     model = reservoir_multimodel(models)
-    parameters = setup_parameters(model)
+    # Insert domain here.
+    parameters = setup_parameters(multi_domain, model)
     return (model, parameters)
 end
 
@@ -154,6 +168,16 @@ function setup_reservoir_simulator(case::JutulCase;
     end
     set_default_cnv_mb!(cfg, case.model, tol_cnv = tol_cnv, tol_mb = tol_mb, tol_cnv_well = tol_cnv_well, tol_mb_well = tol_mb_well)
     return (sim, cfg)
+end
+
+function simulate_reservoir(model, state0, parameters; kwarg...)
+    sim, config = setup_reservoir_simulator(model, state0, parameters; kwarg...)
+    states, reports = simulate!(sim, dt, forces = forces, config = config);
+    res_states = map(x -> x[:Reservoir], states)
+    wells = full_well_outputs(model, states, forces)
+    time = report_times(reports)
+
+    return (wells = wells, states = res_states, time = time, reports = reports)
 end
 
 function set_default_cnv_mb!(cfg, model; kwarg...)

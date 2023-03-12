@@ -32,12 +32,34 @@ struct MinimalTPFAGrid{V, N} <: ReservoirGrid
 end
 Base.show(io::IO, g::MinimalTPFAGrid) = print(io, "MinimalTPFAGrid ($(number_of_cells(g)) cells, $(number_of_faces(g)) faces)")
 
-
 function number_of_cells(G::ReservoirGrid)
     return length(G.pore_volumes)
 end
 
 function declare_entities(G::MinimalTPFAGrid)
+    c = (entity = Cells(), count = number_of_cells(G)) # Cells equal to number of pore volumes
+    f = (entity = Faces(), count = number_of_faces(G)) # Faces
+    return [c, f]
+end
+struct MinimalTPFATopology{N} <: ReservoirGrid
+    nc::Int
+    neighborship::N
+end
+
+function MinimalTPFATopology(N::T; ncells = maximum(N)) where T<:AbstractMatrix
+    @assert size(N, 1) == 2
+    @assert maximum(N) <= ncells
+    @assert minimum(N) > 0
+    return MinimalTPFATopology{T}(ncells, N)
+end
+
+Base.show(io::IO, g::MinimalTPFATopology) = print(io, "MinimalTPFATopology ($(number_of_cells(g)) cells, $(number_of_faces(g)) faces)")
+
+function number_of_cells(G::MinimalTPFATopology)
+    return G.nc
+end
+
+function declare_entities(G::MinimalTPFATopology)
     c = (entity = Cells(), count = number_of_cells(G)) # Cells equal to number of pore volumes
     f = (entity = Faces(), count = number_of_faces(G)) # Faces
     return [c, f]
