@@ -16,9 +16,12 @@ export setup_reservoir_model
     setup_reservoir_model(reservoir, system; wells = [], <keyword arguments>)
     setup_reservoir_model(reservoir, system; wells = [], context = DefaultContext(), reservoir_context = nothing, backend = :csc, <keyword arguments>)
 
-Set up a reservoir `MultiModel` for a given reservoir `SimulationModel` and an optional vector of wells.
+Set up a reservoir `MultiModel` for a given reservoir `DataDomain` typically set
+up from  [`reservoir_domain`](@ref) and an optional vector of wells that are
+created using [`setup_vertical_well`](@ref) and  [`setup_well`](@ref).
 
-The routine automatically sets up a facility and couples the wells with the reservoir and that facility.
+The routine automatically sets up a facility and couples the wells with the
+reservoir and that facility.
 """
 function setup_reservoir_model(reservoir::DataDomain, system;
     wells = [],
