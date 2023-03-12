@@ -321,3 +321,24 @@ struct MultiSegmentWell{V, P, N, A, C, SC, S} <: WellDomain
     end
 end
 
+
+export ReservoirSimResult
+struct ReservoirSimResult
+    wells::AbstractDict
+    states::AbstractVector
+    time::AbstractVector
+    result::Jutul.SimResult
+    extra::AbstractDict
+end
+
+function ReservoirSimResult(model, result::Jutul.SimResult, forces, extra = Dict(); kwarg...)
+    for (k, v) in kwarg
+        extra[k] = v
+    end
+    states, reports = result
+    res_states = map(x -> x[:Reservoir], states)
+    wells = full_well_outputs(model, states, forces)
+    report_time = Jutul.report_times(reports)
+    return ReservoirSimResult(wells, res_states, report_time, result, extra)
+end
+

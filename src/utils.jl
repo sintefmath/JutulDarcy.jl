@@ -171,10 +171,8 @@ export simulate_reservoir
 
 function simulate_reservoir(state0, model, dt; parameters = setup_parameters(model), forces = setup_forces(model), kwarg...)
     sim, config = setup_reservoir_simulator(model, state0, parameters; kwarg...)
-    states, reports = simulate!(sim, dt, forces = forces, config = config);
-    res_states = map(x -> x[:Reservoir], states)
-    wells = full_well_outputs(model, states, forces)
-    return (wells = wells, states = res_states, reports = reports)
+    result = simulate!(sim, dt, forces = forces, config = config);
+    return ReservoirSimResult(model, result, forces)
 end
 
 function set_default_cnv_mb!(cfg, model; kwarg...)
@@ -552,4 +550,72 @@ function partitioner_input(model)
         end
     end
     return (N, T, groups)
+end
+
+function Base.iterate(t::ReservoirSimResult)
+    return (t.wells, :wells)
+end
+
+function Base.iterate(t::ReservoirSimResult, state)
+    if state == :states
+        return (t.time, nothing)
+    else
+        @assert state == :wells
+        return (t.states, :states)
+    end
+    return (t.reports, nothing)
+end
+
+function Base.show(io::IO, ::MIME"text/plain", sr::ReservoirSimResult)
+    # return 
+    function print_keys(prefix, el)
+        for k in keys(el)
+            v = el[k]
+            if v isa AbstractDict
+                print(io, "$prefix:$k\n")
+                print_keys("  $prefix", v)
+            else
+                if v isa AbstractVecOrMat
+                    s = " of size $(size(v))"
+                else
+                    s = ""
+                end
+                print(io, "$prefix:$k => $(typeof(v))$s\n")
+            end
+        end
+    end
+    # fmt = raw"u. dd Y H:mm"
+
+    states = sr.states
+    n = length(states)
+    print(io, sr)
+    print(io, ":\n")
+    if n > 0
+        wk = keys(sr.wells)
+        nw = length(wk)
+        print(io, "\n  wells ($nw present):\n")
+        if nw > 0
+            for k in wk
+                print(io, "    $k\n")
+            end
+            print(io, "    Results per well:\n")
+            print_keys("        ", sr.wells[first(wk)])
+        end
+        el = first(states)
+        print(io, "\n  states (reservoir variables)\n")
+        print_keys("    ", el)
+    end
+    print(io, "\n  time (report time for each state)\n     $(typeof(sr.time)) of length $n\n")
+    print(io, "\n  result\n     $(sr.result)\n")
+    print(io, "\n  extra\n     $(sr.extra)")
+end
+
+function Base.show(io::IO, sr::ReservoirSimResult)
+    n = length(sr.states)
+    if n == 1
+        s = "entry"
+    else
+        s = "entries"
+    end
+    print(io, "ReservoirSimResult with $n $s")
 end
