@@ -62,6 +62,7 @@ function discretized_domain_tpfv_flow(geometry; porosity = 0.1,
                                                 pore_volume = nothing,
                                                 general_ad = false)
     N = geometry.neighbors
+    error("Deprecated.")
     if isnothing(pore_volume)
         pore_volume = porosity.*geometry.volumes
     end

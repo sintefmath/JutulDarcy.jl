@@ -1,12 +1,6 @@
 export get_minimal_tpfa_grid_from_mrst, plot_interactive, get_test_setup, get_well_from_mrst_data
 export setup_case_from_mrst
 
-struct MRSTPlotData
-    faces::Array
-    vertices::Array
-    data::Vector
-end
-
 function get_mrst_input_path(name)
     function valid_mat_path(S)
         base, ext = splitext(S)
@@ -36,7 +30,7 @@ function get_mrst_input_path(name)
     return fn
 end
 
-function get_minimal_tpfa_grid_from_mrst(name::String; perm = nothing, poro = nothing, volumes = nothing, extraout = false, kwarg...)
+function reservoir_domain_from_mrst(name::String; extraout = false)
     fn = get_mrst_input_path(name)
     @debug "Reading MAT file $fn..."
     exported = MAT.matread(fn)
@@ -45,11 +39,9 @@ function get_minimal_tpfa_grid_from_mrst(name::String; perm = nothing, poro = no
     has_trans = haskey(exported, "T") && length(exported["T"]) > 0
     if haskey(exported, "N")
         N = Int64.(exported["N"]')
-        @assert has_trans
     else
         N = nothing
     end
-    geo = tpfv_geometry(g, N = N)
 
     function get_vec(d)
         if isa(d, AbstractArray)
@@ -58,32 +50,20 @@ function get_minimal_tpfa_grid_from_mrst(name::String; perm = nothing, poro = no
             return [d]
         end
     end
-
-    # Deal with cell data
-    if isnothing(poro)
-        poro = get_vec(exported["rock"]["poro"])
-    end
-    if !isnothing(volumes)
-        geo.volumes .= volumes
-    end
+    poro = get_vec(exported["rock"]["poro"])
+    perm = copy((exported["rock"]["perm"])')
+    domain = reservoir_domain(g, porosity = poro, permeability = perm)
 
     # Deal with face data
     if has_trans
         @debug "Found precomputed transmissibilities, reusing"
         T = get_vec(exported["T"])
-    else
-        @debug "Data unpack complete. Starting transmissibility calculations."
-        if isnothing(perm)
-            perm = copy((exported["rock"]["perm"])')
-        end
-        T = nothing
+        domain[:transmissibilities, Faces()] = T
     end
-    D = discretized_domain_tpfv_flow(geo, porosity = poro, permeability = perm, T = T; kwarg...)
-
     if extraout
-        return (D, exported)
+        return (domain, exported)
     else
-        return D
+        return domain
     end
 end
 
@@ -227,19 +207,11 @@ function simple_ms_setup(n, volume, well_cell_volume, rc, ref_depth, z_res)
     return (pvol, accumulator_volume, perf_cells, well_topo, z, dz, reservoir_cells)
 end
 
-function read_patch_plot(filename::String)
-    vars = MAT.matread(filename)
-    f = vars["faces"];
-    v = vars["vertices"];
-    d = vec(vars["data"])
-    MRSTPlotData(f, v, d)
-end
-
-function model_from_mat(G, mrst_data, res_context)
+function model_from_mat(G, data_domain, mrst_data, res_context)
     ## Set up reservoir part
     @debug "Loading model from MRST:" keys(mrst_data)
     @assert haskey(mrst_data, "deck") "Model must contain deck field"
-    return model_from_mat_deck(G, mrst_data, res_context)
+    return model_from_mat_deck(G, data_domain, mrst_data, res_context)
 end
 
 function deck_pvt_water(props)
@@ -408,9 +380,8 @@ function deck_pc(props; oil, water, gas, satnum = nothing)
     end
 end
 
-function model_from_mat_deck(G, mrst_data, res_context)
+function model_from_mat_deck(G, data_domain, mrst_data, res_context)
     ## Set up reservoir part
-    plot_mesh = MRSTWrapMesh(mrst_data["G"])
     deck = mrst_data["deck"]
     rock = mrst_data["rock"]
     if haskey(rock, "regions")
@@ -516,7 +487,7 @@ function model_from_mat_deck(G, mrst_data, res_context)
             phases = (AqueousPhase(), LiquidPhase(), VaporPhase())
         end
         sys = MultiPhaseCompositionalSystemLV(eos, phases, reference_densities = rhoS)
-        model = SimulationModel(G, sys, context = res_context, plot_mesh = plot_mesh)
+        model = SimulationModel(G, sys, context = res_context, data_domain = data_domain)
         # Insert pressure
         svar = model.secondary_variables
         T = copy(vec(mrst_data["state0"]["T"]))
@@ -563,7 +534,7 @@ function model_from_mat_deck(G, mrst_data, res_context)
             sys = StandardBlackOilSystem(rs_max = rs_max, rv_max = rv_max, phases = phases,
                                          reference_densities = rhoS)
         end
-        model = SimulationModel(G, sys, context = res_context, plot_mesh = plot_mesh)
+        model = SimulationModel(G, sys, context = res_context, data_domain = data_domain)
         # Modify secondary variables
         svar = model.secondary_variables
         # PVT
@@ -746,14 +717,14 @@ function setup_case_from_mrst(casename; wells = :ms,
                                         ds_max = 0.2,
                                         dr_max = Inf,
                                         kwarg...)
-    G, mrst_data = get_minimal_tpfa_grid_from_mrst(casename, extraout = true; kwarg...)
-
+    data_domain, mrst_data = reservoir_domain_from_mrst(casename, extraout = true)
+    G = discretized_domain_tpfv_flow(data_domain; kwarg...)
     # Set up initializers
     models = OrderedDict()
     initializer = Dict()
     forces = Dict()
     res_context, = Jutul.select_contexts(backend, block_backend = block_backend, minbatch = minbatch, nthreads = nthreads)
-    model, param_res = model_from_mat(G, mrst_data, res_context)
+    model, param_res = model_from_mat(G, data_domain, mrst_data, res_context)
     init = init_from_mat(mrst_data, model, param_res)
 
     # model, init, param_res = setup_res(G, mrst_data; block_backend = block_backend, use_groups = true)
@@ -1163,11 +1134,12 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
         if has_vapoil(sys)
             push!(extra_outputs, :Rv)
         end
-        push!(extra_outputs, :RelativePermeabilities)
-        push!(extra_outputs, :PhaseViscosities)
-        push!(extra_outputs, :PhaseMassDensities)
+        push!(extra_outputs, :Saturations)
+    elseif rmodel isa CompositionalModel
+        push!(extra_outputs, :LiquidMoleFractions)
+        push!(extra_outputs, :VaporMoleFractions)
+        push!(extra_outputs, :Saturations)
     end
-    push!(extra_outputs, :CapillaryPressure)
 
     out = rmodel.output_variables
     for k in extra_outputs

@@ -128,15 +128,15 @@ function Jutul.default_values(model, ::Transmissibilities)
 end
 
 function Jutul.default_parameter_values(data_domain, model, param::Transmissibilities, symb)
-    if haskey(data_domain, :transmissibility, Faces())
+    if haskey(data_domain, :transmissibilities, Faces())
         # This takes precedence
-        T = data_domain[:transmissibility]
+        T = data_domain[:transmissibilities]
     elseif haskey(data_domain, :permeability, Cells())
         U = data_domain[:permeability]
         g = physical_representation(data_domain)
         T = compute_face_trans(g, U)
     else
-        error(":permeability or :transmissibility symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+        error(":permeability or :transmissibilities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
     return T
 end

@@ -7,8 +7,8 @@ reservoir_storage(model::MultiModel, storage) = storage.Reservoir
 
 
 export reservoir_domain
-function reservoir_domain(g; permeability = 9.869232667160130e-14, porosity = 0.1)
-    return DataDomain(g, permeability = permeability, porosity = porosity)
+function reservoir_domain(g; permeability = 9.869232667160130e-14, porosity = 0.1, kwarg...)
+    return DataDomain(g; permeability = permeability, porosity = porosity, kwarg...)
 end
 
 export setup_reservoir_model
