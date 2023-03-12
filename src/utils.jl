@@ -32,17 +32,16 @@ function setup_reservoir_model(reservoir::DataDomain, system;
     models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()
     reservoir_context, context = Jutul.select_contexts(backend; main_context = reservoir_context, context = context, kwarg...)
     # We first set up the reservoir
-    models[:Reservoir] = SimulationModel(reservoir, system, context = reservoir_context, data_domain = reservoir, general_ad = general_ad)
+    models[:Reservoir] = SimulationModel(reservoir, system, context = reservoir_context, general_ad = general_ad)
     # Then we set up all the wells
     for w in wells
-        D_w = discretized_domain_well(w)
-        if D_w isa SimpleWellDomain
+        if w isa SimpleWell
             well_context = reservoir_context
         else
             well_context = context
         end
         w_domain = DataDomain(w)
-        models[w.name] = SimulationModel(D_w, system, context = well_context, data_domain = w_domain)
+        models[w.name] = SimulationModel(w_domain, system, context = well_context)
     end
     # Add facility that gorups the wells
     wg = WellGroup(map(x -> x.name, wells))
