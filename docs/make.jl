@@ -1,10 +1,11 @@
 using JutulDarcy
+using Jutul
 using Documenter
 
-DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy); recursive=true)
+DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy; using Jutul); recursive=true)
 
 makedocs(;
-    modules=[JutulDarcy],
+    modules=[JutulDarcy, Jutul],
     authors="Olav Møyner <olav.moyner@sintef.no> and contributors",
     repo="https://github.com/sintefmath/JutulDarcy.jl/blob/{commit}{path}#{line}",
     sitename="JutulDarcy.jl",

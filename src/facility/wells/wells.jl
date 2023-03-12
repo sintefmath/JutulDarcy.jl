@@ -137,12 +137,25 @@ function Jutul.plot_primitives(mesh::MultiSegmentWell, plot_type; kwarg...)
     return out
 end
 
+"""
+    setup_vertical_well(D::DataDomain, i, j; <kwarg>)
+
+Set up a vertical well with a `DataDomain` input that represents the porous
+medium / reservoir where the wells it to be placed.
+"""
 function setup_vertical_well(D::DataDomain, i, j; cell_centers = D[:cell_centroids], kwarg...)
     K = D[:permeability]
     g = physical_representation(D)
     return setup_vertical_well(g, K, i, j; cell_centers = cell_centers, kwarg...)
 end
 
+"""
+    setup_vertical_well(g, K, i, j; heel = 1, toe = grid_dims_ijk(g)[3], kwarg...)
+
+Set up a vertical well for given grid `g` and permeability `K` at logical
+indices `i, j` perforating all cells starting at k-logical index `heel` to
+`toe`.
+"""
 function setup_vertical_well(g, K, i, j; heel = 1, toe = grid_dims_ijk(g)[3], kwarg...)
     @assert heel <= toe
     @assert heel > 0
