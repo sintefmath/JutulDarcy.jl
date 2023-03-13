@@ -68,11 +68,11 @@ function simulate_mini_wellcase(::Val{:immiscible_2ph}; dims = (3, 1, 1), output
     g = CartesianMesh(dims, (2000.0, 1500.0, 50.0))
     ## Create a layered permeability field
     Darcy = 9.869232667160130e-13
-    K = repeat([0.65*Darcy], nx*ny*nz)
+    domain = reservoir_domain(g, permeability = 0.65*Darcy, porosity = 0.2)
     ## Set up a vertical well in the first corner, perforated in all layers
-    P = setup_vertical_well(g, K, 1, 1, name = :Producer);
+    P = setup_vertical_well(domain, 1, 1, name = :Producer);
     ## Set up an injector in the upper left corner
-    I = setup_well(g, K, [(nx, ny, 1)], name = :Injector);
+    I = setup_well(domain, [(nx, ny, 1)], name = :Injector);
     ## Set up a two-phase immiscible system and define a density secondary variable
     phases = (LiquidPhase(), VaporPhase())
     rhoLS = 1000.0
@@ -82,14 +82,14 @@ function simulate_mini_wellcase(::Val{:immiscible_2ph}; dims = (3, 1, 1), output
     c = [1e-6/bar, 1e-4/bar]
     ρ = ConstantCompressibilityDensities(p_ref = 1*bar, density_ref = rhoS, compressibility = c)
     ## Set up a reservoir model that contains the reservoir, wells and a facility that controls the wells
-    model, parameters = setup_reservoir_model(g, sys, wells = [I, P]; kwarg...)
+    model, parameters = setup_reservoir_model(domain, sys, wells = [I, P]; kwarg...)
     ## Replace the density function with our custom version
     replace_variables!(model, PhaseMassDensities = ρ)
     ## Set up initial state
     state0 = setup_reservoir_state(model, Pressure = 150*bar, Saturations = [1.0, 0.0])
     ## Set up time-steps
     dt = repeat([30.0]*day, 12*5)
-    pv = pore_volume(model)
+    pv = pore_volume(model, parameters)
     inj_rate = sum(pv)/sum(dt)
     rate_target = TotalRateTarget(inj_rate)
     i_mix = [0.0, 1.0]

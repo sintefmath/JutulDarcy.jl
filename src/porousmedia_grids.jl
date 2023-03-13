@@ -72,53 +72,20 @@ function transfer(context::SingleCUDAContext, grid::MinimalTPFAGrid)
     return MinimalTPFAGrid(pv, N)
 end
 
-function get_1d_reservoir(nc; L = 1, perm = 9.8692e-14, # 0.1 darcy
-                         poro = 0.1, area = 1,
-                         z_max = nothing, general_ad = false)
+function get_1d_reservoir(nc; L = 1.0, perm = 9.8692e-14, # 0.1 darcy
+                         poro = 0.1, area = 1.0,
+                         z_max = nothing)
     @assert nc > 1 "Must have at least two cells."
-    nf = nc-1
-    N = vcat((1:nf)', (2:nc)')
-    dx = L/nc
-    cell_centroids = vcat((dx/2:dx:L-dx/2)', ones(2, nc))
-    face_centroids = vcat((dx:dx:L-dx)', ones(2, nf))
-    face_areas = ones(nf)
-    face_normals = vcat(ones(1, nf), zeros(2, nf))
+    g = CartesianMesh((nc, 1, 1), (L, sqrt(area), sqrt(area)))
+    D = reservoir_domain(g, permeability = perm, porosity = poro)
 
-    function expand(x, nc)
-        repeat([x], nc)
-    end
-    function expand(x::AbstractVector, nc)
-        x
-    end
-    perm = expand(perm, nc)
-    if isa(perm, AbstractVector)
-        perm = copy(perm')
-    end
-    volumes = repeat([area.*dx], nc)
-
-    pv = poro.*volumes
-    nc = length(pv)
-
-    @debug "Data unpack complete. Starting transmissibility calculations."
-    # Deal with face data
-    if isnothing(z_max)
-        z = zeros(nc)
-    else
+    if !isnothing(z_max)
+        # Manipulate z coordinates manually
         dz = z_max/nc
         z = (dz/2:dz:z_max-dz/2)'
+        cc = D[:cell_centroids]
+        @. cc[3, :] = z
     end
-    g = gravity_constant
-    T_hf = compute_half_face_trans(cell_centroids, face_centroids, face_normals, face_areas, perm, N)
-    T = compute_face_trans(T_hf, N)
-    gdz = compute_face_gdz(N, z)
-    G = MinimalTPFAGrid(pv, N, trans = T, gdz = gdz)
-    if general_ad
-        flow = PotentialFlow(N, nc)
-    else
-        flow = TwoPointPotentialFlowHardCoded(G, ncells = nc)
-    end
-    disc = (mass_flow = flow, heat_flow = flow)
-    D = DiscretizedDomain(G, disc)
     return D
 end
 

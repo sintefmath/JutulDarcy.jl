@@ -30,7 +30,7 @@ setups = ["two_phase_simple",
         @testset "$context" begin
             if context == "CSC"
                 bctx = DefaultContext(matrix_layout = BlockMajorLayout())
-                ctx = DefaultContext(matrix_layout = EntityMajorLayout())            
+                ctx = DefaultContext(matrix_layout = EntityMajorLayout())
             else
                 @assert context == "CSR"
                 bctx = ParallelCSRContext(matrix_layout = BlockMajorLayout())
