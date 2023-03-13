@@ -607,8 +607,14 @@ function Base.show(io::IO, ::MIME"text/plain", sr::ReservoirSimResult)
     end
     print(io, "\n  time (report time for each state)\n     $(typeof(sr.time)) of length $n\n")
     print(io, "\n  result (extended states, reports)\n     $(sr.result)\n")
-    ek = join(keys(sr.extra), ", :")
-    print(io, "\n  extra\n     $(typeof(sr.extra)) with keys :$ek\n")
+    extra_keys = keys(sr.extra)
+    print(io, "\n  extra\n     $(typeof(sr.extra)) with ")
+    if length(extra_keys) == 0
+        print(io, "with no data.\n")
+    else
+        ek = join(extra_keys, ", :")
+        print(io, "keys :$ek\n")
+    end
     Jutul.print_sim_result_timing(io, sr.result)
 end
 
