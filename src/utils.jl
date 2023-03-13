@@ -596,7 +596,7 @@ function Base.show(io::IO, ::MIME"text/plain", sr::ReservoirSimResult)
         print(io, "\n  wells ($nw present):\n")
         if nw > 0
             for k in wk
-                print(io, "    $k\n")
+                print(io, "    :$k\n")
             end
             print(io, "    Results per well:\n")
             print_keys("        ", sr.wells[first(wk)])
@@ -606,9 +606,10 @@ function Base.show(io::IO, ::MIME"text/plain", sr::ReservoirSimResult)
         print_keys("    ", el)
     end
     print(io, "\n  time (report time for each state)\n     $(typeof(sr.time)) of length $n\n")
-    print(io, "\n  result\n     $(sr.result)\n")
-    ek = join(keys(sr.extra), ", ")
-    print(io, "\n  extra\n     $(typeof(sr.extra)) with keys $ek")
+    print(io, "\n  result (extended states, reports)\n     $(sr.result)\n")
+    ek = join(keys(sr.extra), ", :")
+    print(io, "\n  extra\n     $(typeof(sr.extra)) with keys :$ek\n")
+    Jutul.print_sim_result_timing(io, sr.result)
 end
 
 function Base.show(io::IO, sr::ReservoirSimResult)
