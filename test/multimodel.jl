@@ -83,8 +83,8 @@ function test_perforation_mask()
     dims = (nx, ny, nz)
     g = CartesianMesh(dims, (2000.0, 1500.0, 50.0))
     Darcy = 9.869232667160130e-13
-    K = repeat([0.65*Darcy], nx*ny*nz)
-    P = setup_vertical_well(g, K, 1, 1, name = :Producer);
+    domain = reservoir_domain(g, permeability = 0.1*Darcy, porosity = 0.1)
+    P = setup_vertical_well(domain, 1, 1, name = :Producer);
     phases = (LiquidPhase(), VaporPhase())
     rhoLS = 1000.0
     rhoGS = 100.0
@@ -92,7 +92,7 @@ function test_perforation_mask()
     sys = ImmiscibleSystem(phases, reference_densities = rhoS)
     c = [1e-6/bar, 1e-4/bar]
     ρ = ConstantCompressibilityDensities(p_ref = 1*bar, density_ref = rhoS, compressibility = c)
-    model, parameters = setup_reservoir_model(g, sys, wells = [P])
+    model, parameters = setup_reservoir_model(domain, sys, wells = [P])
     replace_variables!(model, PhaseMassDensities = ρ)
     ## Set up initial state
     state0 = setup_reservoir_state(model, Pressure = 150*bar, Saturations = [1.0, 0.0])
