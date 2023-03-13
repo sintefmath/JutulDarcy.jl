@@ -89,10 +89,9 @@ function get_1d_reservoir(nc; L = 1.0, perm = 9.8692e-14, # 0.1 darcy
     return D
 end
 
-function Jutul.subgrid(g::MinimalTPFAGrid; cells = nothing, faces = nothing)
-    pv, N = g.pore_volumes, g.neighborship
+function subgrid_renumber_neighborship(g, cells, faces)
+    N = g.neighborship
     nc = number_of_cells(g)
-
     renumeration = zeros(Integer, nc)
     for (i, c) in enumerate(cells)
         renumeration[c] = i
@@ -104,5 +103,16 @@ function Jutul.subgrid(g::MinimalTPFAGrid; cells = nothing, faces = nothing)
         @assert new != 0
         N_new[i] = new
     end
+    return N_new
+end
+
+function Jutul.subgrid(g::MinimalTPFAGrid; cells = nothing, faces = nothing)
+    pv = g.pore_volumes
+    N_new = subgrid_renumber_neighborship(g, cells, faces)
     return MinimalTPFAGrid(pv[cells], N_new)
+end
+
+function Jutul.subgrid(g::MinimalTPFATopology; cells, faces)
+    N_new = subgrid_renumber_neighborship(g, cells, faces)
+    return MinimalTPFATopology(length(cells), N_new)
 end
