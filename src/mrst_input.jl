@@ -1210,7 +1210,13 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
         setup = (case = case, sim = sim, config = cfg, mrst = mrst_data)
         return (states, reports, output_path, setup)
     else
-        return ReservoirSimResult(model, result, forces, sim = sim, config = cfg, mrst = mrst_data, path = output_path)
+        return ReservoirSimResult(model, result, forces,
+            case = case,
+            sim = sim,
+            config = cfg,
+            mrst = mrst_data,
+            path = output_path
+        )
     end
 end
 

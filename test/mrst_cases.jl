@@ -3,12 +3,12 @@ using JutulDarcy, Test, LinearAlgebra
 function test_mrst_case(casename; tol = 0.01, wtol = tol, otol = tol, gtol = tol, bhptol = tol)
     data_path = joinpath(@__DIR__, "mrst", "$(casename).mat")
     if isfile(data_path)
-        states, reports, output_path, setup = simulate_mrst_case(data_path, info_level = -1, verbose = false)
-        model = setup.sim.model
-        forces = setup.case.forces
-        dt = setup.case.dt
-        ws = full_well_outputs(model, states, forces, shortname = true)
-        ref = setup.mrst["extra"][1]["mrst_solution"]
+        result = simulate_mrst_case(data_path, info_level = -1, verbose = false)
+        # ws = result.wells
+        case = result.extra[:case]
+        ref = result.extra[:mrst]["extra"][1]["mrst_solution"]
+        dt = case.dt
+        ws = full_well_outputs(case.model, result.result.states, case.forces, shortname = true)
         output = Dict();
         for k in keys(ws)
             output[k] = Dict()

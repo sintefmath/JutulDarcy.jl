@@ -599,7 +599,7 @@ function Base.show(io::IO, ::MIME"text/plain", sr::ReservoirSimResult)
                 print(io, "    :$k\n")
             end
             print(io, "    Results per well:\n")
-            print_keys("        ", sr.wells[first(wk)])
+            print_keys("       ", sr.wells[first(wk)])
         end
         el = first(states)
         print(io, "\n  states (Vector with $n entries, reservoir variables for each state)\n")
