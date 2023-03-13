@@ -9,19 +9,19 @@ function test_compositional_with_wells(; kwarg...)
         @testset "Reservoir" begin
             res = states[end][:Reservoir]
             p = res[:Pressure]
-            p_ref = [5.341976350091003e6, 5.288647141719963e6, 5.221199515744034e6]
+            p_ref = [5.339498480719606e6, 5.286962684301168e6, 5.220578859258279e6]
             @test isapprox(p, p_ref, rtol = 1e-4)
             z = res[:OverallMoleFractions]
-            z_ref = [0.600928  0.52301   0.500993
-                    0.145798  0.184558  0.193206
-                    0.253274  0.292432  0.305802]
+            z_ref = [0.6009474698888384 0.5230019087571177 0.5010366327832844;
+                     0.1457150214399396 0.18452868856102886 0.1932052149361152;
+                     0.2533375086712221 0.2924694026818535 0.30575815228060055]
             @test isapprox(z, z_ref, atol = 1e-4)
         end
 
         @testset "Injector" begin
             inj = states[end][:Injector]
             p = inj[:Pressure]
-            p_ref = [5.476226607917717e6, 5.476163345412835e6]
+            p_ref = [5.473686690364579e6, 5.473750003244529e6]
             @test isapprox(p, p_ref, rtol = 1e-4)
             z = inj[:OverallMoleFractions]
             z_ref = repeat([1.0, 0.0, 0.0], 1, 2)
@@ -36,14 +36,14 @@ function test_immiscible_with_wells(; kwarg...)
         @testset "Reservoir" begin
             res = states[end][:Reservoir]
             p = res[:Pressure]
-            p_ref = [ 8.67141998033803e6, 1.7206847840192154e7, 2.567442267889495e7]
+            p_ref = [2.8356344596143845e7, 3.672611929876592e7, 4.50310779011929e7]
             @test isapprox(p, p_ref, rtol = 1e-4)
         end
 
         @testset "Injector" begin
             inj = states[end][:Injector]
             p = inj[:Pressure]
-            p_ref = [ 2.9273662323437214e7, 2.9272083186770644e7]
+            p_ref = [6.753641685512246e7, 6.753793670867026e7]
             @test isapprox(p, p_ref, rtol = 1e-4)
             s = inj[:Saturations]
             s_ref = repeat([0.0, 1.0], 1, 2)
@@ -58,11 +58,11 @@ function test_blackoil_with_wells(; kwarg...)
         @testset "Reservoir" begin
             res = states[end][:Reservoir]
             p = res[:Pressure]
-            p_ref = [5.05087e6, 5.14905e6, 5.21035e6]
+            p_ref = [5.304935198089932e6, 5.409387646073289e6, 5.471340338832063e6]
             @test isapprox(p, p_ref, rtol = 1e-4)
 
             sw = res[:ImmiscibleSaturation]
-            sw_ref = [0.0904386, 0.0884205, 0.0850772]
+            sw_ref = [0.09318952675271851, 0.09143892412276486, 0.08736801209544151]
             @test isapprox(sw, sw_ref, atol = 1e-3)
 
             bo = states[end][:Reservoir][:BlackOilUnknown]

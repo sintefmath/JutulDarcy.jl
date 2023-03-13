@@ -59,16 +59,14 @@ function simulate_mini_wellcase(::Val{:compositional_2ph_3c}; dims = (3, 1, 1), 
     return (states = states, reports = reports, setup = setup)
 end
 
-function simulate_mini_wellcase(::Val{:immiscible_2ph}; dims = (3, 1, 1), output_path = nothing, default_linsolve = true, kwarg...)
+function simulate_mini_wellcase(::Val{:immiscible_2ph}; dims = (3, 1, 1), output_path = nothing, permeability = 0.1*9.869232667160130e-13, default_linsolve = true, kwarg...)
     # Some useful constants
     day = 3600*24
     bar = 1e5
     # Create the mesh
     nx, ny, nz = dims
     g = CartesianMesh(dims, (2000.0, 1500.0, 50.0))
-    ## Create a layered permeability field
-    Darcy = 9.869232667160130e-13
-    domain = reservoir_domain(g, permeability = 0.65*Darcy, porosity = 0.2)
+    domain = reservoir_domain(g, permeability = permeability, porosity = 0.1)
     ## Set up a vertical well in the first corner, perforated in all layers
     P = setup_vertical_well(domain, 1, 1, name = :Producer);
     ## Set up an injector in the upper left corner
@@ -126,7 +124,7 @@ function simulate_mini_wellcase(::Val{:bo_spe1}; dims = (3, 1, 1), output_path =
     g = CartesianMesh(dims, (2000.0, 1500.0, 50.0))
     ## Create a layered permeability field
     Darcy = 9.869232667160130e-13
-    domain = reservoir_domain(g, permeability = 0.65*Darcy, porosity = 0.1)
+    domain = reservoir_domain(g, permeability = 0.1*Darcy, porosity = 0.1)
     ## Set up a vertical well in the first corner, perforated in all layers
     P = setup_vertical_well(domain, 1, 1, name = :Producer);
     ## Set up an injector in the upper left corner
