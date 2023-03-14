@@ -2,8 +2,11 @@
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://sintefmath.github.io/JutulDarcy.jl/dev/)
 [![Build Status](https://github.com/sintefmath/JutulDarcy.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/sintefmath/JutulDarcy.jl/actions/workflows/CI.yml?query=branch%3Amain)
 
-# JutulDarcy.jl
-Darcy-scale and subsurface flow (CO2 sequestration, gas/H2 storage, oil/gas fields) using [Jutul.jl](https://github.com/sintefmath/Jutul.jl) developed by the [Computational Geosciences group](https://www.sintef.no/en/digital/departments-new/applied-mathematics/computational-geoscience/) at [SINTEF Digital](https://www.sintef.no/en/digital/).
+
+![Jutul Darcy logo](docs/src/assets/logo_wide.png)
+
+# Reservoir simulation in Julia
+JutulDarcy.jl: Darcy-scale and subsurface flow (CO2 sequestration, gas/H2 storage, oil/gas fields) using [Jutul.jl](https://github.com/sintefmath/Jutul.jl) developed by the [Computational Geosciences group](https://www.sintef.no/en/digital/departments-new/applied-mathematics/computational-geoscience/) at [SINTEF Digital](https://www.sintef.no/en/digital/).
 
 ## Key features
 - Written in pure Julia, with automatic differentiation and dynamic sparsity detection
