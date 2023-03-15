@@ -69,12 +69,16 @@ rhoGS = 100.0
 rhoS = [rhoLS, rhoGS]
 sys = ImmiscibleSystem(phases, reference_densities = rhoS)
 ```
-
 ### Creating the model
+The same fluid system can be used for both flow inside the wells and the reservoir. JutulDarcy treats wells as first-class citizens
 ```@example intro_wells
 ## Set up a reservoir model that contains the reservoir, wells and a facility that controls the wells
 model, parameters = setup_reservoir_model(domain, sys, wells = [Inj, Prod])
 model
+```
+The model 
+```@example intro_wells
+reservoir = model[:Reservoir]
 ```
 
 ### Replace the density function with our custom version
@@ -95,7 +99,6 @@ state0 = setup_reservoir_state(model, Pressure = 150*bar, Saturations = [1.0, 0.
 dt = repeat([30.0]*day, 12*5)
 ## Inject a full pore-volume (at reference conditions) of gas
 # We first define an injection rate
-reservoir = reservoir_model(model);
 pv = pore_volume(model, parameters)
 inj_rate = sum(pv)/sum(dt)
 ```
@@ -122,4 +125,9 @@ forces = setup_reservoir_forces(model, control = controls)
 ```@example intro_wells
 ## Finally simulate!
 wd, states, reports = simulate_reservoir(state0, model, dt, parameters = parameters, forces = forces);
+```
+
+
+```@example intro_wells
+wd[:Producer][Symbol("Surface gas rate")][1:5:end]
 ```
