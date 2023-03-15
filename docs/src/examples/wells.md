@@ -60,7 +60,7 @@ We also define an injector by [`setup_well`](@ref). This function allows us to p
 Inj = setup_well(domain, [(nx, ny, 1)], name = :Injector);
 ```
 ## Choosing a fluid system
-
+To solve multiphase flow with our little toy reservoir we need to pick a fluid system. The type of system determines what physical effects are modelled, what parameters are required and the runtime and accuracy of the resulting simulation. The choice is in practice a trade-off between accuracy, runtime and available data that should be informed by modelling objectives. In this example our goal is to understand how to set up a simple well problem and the [`ImmiscibleSystem`](@ref) requires a minimal amount of input. We define liquid and gas phases and their densities at some reference conditions and instantiate the system.
 ```@example intro_wells
 ## Set up a two-phase immiscible system and define a density secondary variable
 phases = (LiquidPhase(), VaporPhase())
