@@ -92,7 +92,10 @@ function test_perforation_mask()
     sys = ImmiscibleSystem(phases, reference_densities = rhoS)
     c = [1e-6/bar, 1e-4/bar]
     ρ = ConstantCompressibilityDensities(p_ref = 1*bar, density_ref = rhoS, compressibility = c)
-    model, parameters = setup_reservoir_model(domain, sys, wells = [P])
+    visLS = 1e-4
+    visGS = 1e-3
+    parameters = Dict(:Reservoir=>Dict(:PhaseViscosities=>[visLS, visGS]))
+    model, parameters = setup_reservoir_model(domain, sys, wells = [P], parameters=parameters)
     replace_variables!(model, PhaseMassDensities = ρ)
     ## Set up initial state
     state0 = setup_reservoir_state(model, Pressure = 150*bar, Saturations = [1.0, 0.0])

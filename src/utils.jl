@@ -29,6 +29,7 @@ function setup_reservoir_model(reservoir::DataDomain, system;
     reservoir_context = nothing,
     general_ad = false,
     backend = :csc,
+    parameters = Dict{Symbol, Any}(),
     kwarg...
     )
     # List of models (order matters)
@@ -55,7 +56,7 @@ function setup_reservoir_model(reservoir::DataDomain, system;
     # Put it all together as multimodel
     model = reservoir_multimodel(models)
     # Insert domain here.
-    parameters = setup_parameters(model)
+    parameters = setup_parameters(model, parameters...)
     return (model, parameters)
 end
 
