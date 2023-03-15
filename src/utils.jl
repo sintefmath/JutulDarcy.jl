@@ -465,6 +465,9 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
         else
             force = forces
         end
+        if haskey(force, :outer)
+            force = force.outer
+        end
         if target == :TotalSurfaceMassRate
             d[i] = q_t
         else
