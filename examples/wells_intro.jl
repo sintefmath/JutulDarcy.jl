@@ -15,13 +15,6 @@ bar = 1e5
 day = 3600*24.0
 Darcy = 9.869232667160130e-13
 
-# !!! info "Note about units"
-#    JutulDarcy does currently not make us of conversion factors or explicit
-#    units can in principle use any consistent unit system. Some default scaling
-#    of variables assume that the magnitude pressures and velocities roughly
-#    match that of strict SI (e.g. Pascals and cubic meters per second). These
-#    scaling factors are primarily used when iterative linear solvers are used.
-
 # ## Defining a porous medium
 # We start by defining the static part of our simulation problem -- the porous medium itself.
 # ### Defining the grid
@@ -138,8 +131,29 @@ controls[:Producer] = P_ctrl
 # (amounting to no-flow for the reservoir).
 forces = setup_reservoir_forces(model, control = controls)
 
-## Finally simulate!
-wd, states, reports = simulate_reservoir(state0, model, dt, parameters = parameters, forces = forces);
-
-
-wd[:Producer][Symbol("Surface gas rate")][1:5:end]
+# ## Simulate the model
+result = simulate_reservoir(state0, model, dt, parameters = parameters, forces = forces)
+# ## Plot the producer responses
+using CairoMakie
+wd, states, t = result
+qg = wd[:Producer][Symbol("Surface gas rate")]
+qt = wd[:Producer][Symbol("Surface total rate")]
+ql = qt - qg
+x = t/day
+fig = Figure()
+ax = Axis(fig[1, 1], xlabel = "Time (days)",
+                     ylabel = "Rate (m³/day)",
+                     title = "Well production rates")
+lines!(ax, x, abs.(qg).*day, label = "Gas")
+lines!(ax, x, abs.(ql).*day, label = "Liquid")
+lines!(ax, x, abs.(qt).*day, label = "Total")
+axislegend(position = :rb)
+fig
+##
+bh = wd[:Injector][Symbol("Bottom hole pressure")]
+fig = Figure()
+ax = Axis(fig[1, 1], xlabel = "Time (days)",
+                     ylabel = "Bottom hole pressure (bar)",
+                     title = "Injector bottom hole pressure")
+lines!(ax, x, bh./bar)
+fig

@@ -570,7 +570,6 @@ function Base.iterate(t::ReservoirSimResult, state)
         @assert state == :wells
         return (t.states, :states)
     end
-    return (t.reports, nothing)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", sr::ReservoirSimResult)
