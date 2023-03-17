@@ -21,6 +21,8 @@ mutable struct CPRPreconditioner <: JutulPreconditioner
     partial_update            # Perform partial update of AMG and update pressure system
     p_rtol::Union{Float64, Nothing}
     psolver
+end
+
 """
     CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner(); strategy = :quasi_impes, weight_scaling = :unit, update_frequency = 1, update_interval = :iteration, partial_update = true)
 
@@ -28,16 +30,17 @@ Construct a constrained pressure residual (CPR) preconditioner.
 
 By default, this is a AMG-BILU(0) version (algebraic multigrid for pressure, block-ILU(0) for the global system).
 """
-function CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner(); strategy = :quasi_impes,
-                                                                              weight_scaling = :unit,
-                                                                              update_frequency = 1,
-                                                                              update_interval = :iteration,
-                                                                              update_frequency_partial = 1,
-                                                                              update_interval_partial = :iteration,
-                                                                              p_rtol = nothing,
-                                                                              partial_update = true)
-        new(nothing, nothing, nothing, nothing, nothing, nothing, p, s, strategy, weight_scaling, nothing, update_frequency, update_interval, update_frequency_partial, update_interval_partial, partial_update, p_rtol, nothing)
-    end
+function CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner();
+    strategy = :quasi_impes,
+    weight_scaling = :unit,
+    update_frequency = 1,
+    update_interval = :iteration,
+    update_frequency_partial = 1,
+    update_interval_partial = :iteration,
+    p_rtol = nothing,
+    partial_update = true
+    )
+    CPRPreconditioner(nothing, nothing, nothing, nothing, nothing, nothing, p, s, strategy, weight_scaling, nothing, update_frequency, update_interval, update_frequency_partial, update_interval_partial, partial_update, p_rtol, nothing)
 end
 
 function default_psolve(; max_levels = 10, max_coarse = 10, type = :smoothed_aggregation)
@@ -208,7 +211,7 @@ function cpr_p_apply!(Δp, cpr, p_precond, r_p, p_rtol)
         psolve = cpr.psolver
         warm_start!(psolve, Δp)
         M = Jutul.PrecondWrapper(linear_operator(p_precond))
-        fgmres!(psolve, A_p, r_p, M = M, rtol = p_rtol, itmax = 20)
+        fgmres!(psolve, A_p, r_p, M = M, rtol = p_rtol, atol = 1e-12, itmax = 20)
         @. Δp = psolve.x
     end
 end
