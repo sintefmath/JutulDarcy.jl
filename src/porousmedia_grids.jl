@@ -84,7 +84,9 @@ function get_1d_reservoir(nc; L = 1.0, perm = 9.8692e-14, # 0.1 darcy
         dz = z_max/nc
         z = (dz/2:dz:z_max-dz/2)'
         cc = D[:cell_centroids]
-        @. cc[3, :] = z
+        for i in eachindex(z)
+            cc[3, i] = z[i]
+        end
     end
     return D
 end
