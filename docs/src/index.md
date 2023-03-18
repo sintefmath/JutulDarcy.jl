@@ -17,6 +17,13 @@ Documentation for [JutulDarcy](https://github.com/sintefmath/JutulDarcy.jl).
 
 ```@docs
 simulator_config
+simulate!
+simulate
+VectorVariables
+MultiModel
+SimulationModel
+Simulator
+setup_parameters
 setup_state
 setup_forces
 ```

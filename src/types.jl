@@ -129,12 +129,24 @@ const StandardBlackOilModelWithWater = SimulationModel{<:Any, <:StandardBlackOil
 struct ImmiscibleSystem{T, F} <: MultiPhaseSystem where {T<:Tuple, F<:NTuple}
     phases::T
     rho_ref::F
-    function ImmiscibleSystem(phases; reference_densities = ones(length(phases)))
-        phases = tuple(phases...)
-        reference_densities = tuple(reference_densities...)
-        new{typeof(phases), typeof(reference_densities)}(phases, reference_densities)
-    end
 end
+
+"""
+    ImmiscibleSystem(phases; reference_densities = ones(length(phases)))
+    ImmiscibleSystem((LiquidPhase(), VaporPhase()), (1000.0, 700.0))
+
+Set up an immiscible system for the given phases with optional reference
+densitites. This system is easy to specify with [Pressure](@ref) and
+[Saturations](@ref) as the default primary variables. Immiscible system assume
+that there is no mass transfer between phases and that a phase is uniform in
+composition.
+"""
+function ImmiscibleSystem(phases; reference_densities = ones(length(phases)))
+    phases = tuple(phases...)
+    reference_densities = tuple(reference_densities...)
+    return ImmiscibleSystem(phases, reference_densities)
+end
+
 Base.show(io::IO, t::ImmiscibleSystem) = print(io, "ImmiscibleSystem with $(join([typeof(p) for p in t.phases], ", "))")
 
 

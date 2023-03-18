@@ -61,8 +61,8 @@ domain = reservoir_domain(g, permeability = K, porosity = 0.2)
 
 # ### A vertical producer well
 # We will define two wells: A first well is named "Producer" and is a vertical
-# well positioned at `(1, 1)`. By default, the [`vertical_well`](@ref) function
-# perforates all layers in the model.
+# well positioned at `(1, 1)`. By default, the [`setup_vertical_well`](@ref)
+# function perforates all layers in the model.
 Prod = setup_vertical_well(domain, 1, 1, name = :Producer);
 
 # ### A single-perforation injector

@@ -52,6 +52,12 @@ function common_well_setup(nr; dz = nothing, WI = nothing, gravity = gravity_con
 end
 
 export setup_well, setup_vertical_well
+"""
+    setup_well(D::DataDomain, reservoir_cells; skin = 0.0, Kh = nothing, radius = 0.1, dir = :z)
+
+Set up a well in `reservoir_cells` with given skin factor and radius. The order
+of cells matter as it is treated as a trajectory.
+"""
 function setup_well(D::DataDomain, reservoir_cells; cell_centers = D[:cell_centroids], kwarg...)
     K = D[:permeability]
     g = physical_representation(D)
