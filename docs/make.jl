@@ -16,12 +16,18 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
         "Intro to wells" => "wells_intro"
     ]
     examples_markdown = ["Getting started" => "examples/intro.md"]
+    function update_footer(content, pth)
+        return content*"\n\n # ## Example on GitHub\n "*
+        "# If you would like to run this example yourself, it can be downloaded from "*
+        "[the JutulDarcy.jl GitHub repository](https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/$pth.jl)."
+    end
     if build_examples
         for (ex, pth) in examples
             in_pth = joinpath(jutul_dir, "examples", "$pth.jl")
             out_dir = joinpath(jutul_dir, "docs", "src", "examples")
             push!(examples_markdown, ex => joinpath("examples", "$pth.md"))
-            Literate.markdown(in_pth, out_dir)
+            upd(content) = update_footer(content, pth)
+            Literate.markdown(in_pth, out_dir, preprocess = upd)
         end
     end
     ## Docs
