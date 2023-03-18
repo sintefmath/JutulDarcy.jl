@@ -9,31 +9,35 @@
 # between the two compressible phases and let it simulate until equilibrium is
 # reached.
 using JutulDarcy, Jutul
-function solve_gravity_column(nc = 100, tstep = repeat([0.02], 150))
-    domain = get_1d_reservoir(nc, z_max = 1)
-    nc = number_of_cells(domain)
-    bar = 1e5
-    p0 = 100*bar
-    rhoLS, rhoVS = 1000.0, 100.0 # Definition of fluid phases
-    cl, cv = 1e-5/bar, 1e-4/bar
-    L, V = LiquidPhase(), VaporPhase()
-    sys = ImmiscibleSystem([L, V])
-    model = SimulationModel(domain, sys)
-    density = ConstantCompressibilityDensities(sys, p0, [rhoLS, rhoVS], [cl, cv]) # Replace density with a lighter pair
-    set_secondary_variables!(model, PhaseMassDensities = density)
-    nl = nc ÷ 2
-    sL = vcat(ones(nl), zeros(nc - nl))'
-    s0 = vcat(sL, 1 .- sL) # Put heavy phase on top and light phase on bottom
-    state0 = setup_state(model, Pressure = p0, Saturations = s0)
-    timesteps = tstep*3600*24 # Convert time-steps from days to seconds
-    states, report = simulate(state0, model, timesteps, info_level = -1)
-    return states, model, report
-end
-
+nc = 100
+domain = get_1d_reservoir(nc, z_max = 1)
+# ## Fluid properties
+# Define two phases liquid and vapor with a 10-1 ratio reference densities and
+# set up the simulation model.
+bar = 1e5
+p0 = 100*bar
+rhoLS, rhoVS = 1000.0, 100.0
+cl, cv = 1e-5/bar, 1e-4/bar
+L, V = LiquidPhase(), VaporPhase()
+sys = ImmiscibleSystem([L, V])
+model = SimulationModel(domain, sys)
+# ### Definition for phase mass densities
+# Replace default density with a constant compressibility function that uses the
+# reference values at the initial pressure.
+density = ConstantCompressibilityDensities(sys, p0, [rhoLS, rhoVS], [cl, cv])
+set_secondary_variables!(model, PhaseMassDensities = density)
+# ### Set up initial state
+# Put heavy phase on top and light phase on bottom. Saturations have one value
+# per phase, per cell and consequently a per-cell instantiation will require a
+# two by number of cells matrix as input.
+nl = nc ÷ 2
+sL = vcat(ones(nl), zeros(nc - nl))'
+s0 = vcat(sL, 1 .- sL)
+state0 = setup_state(model, Pressure = p0, Saturations = s0)
+# Convert time-steps from days to seconds
+timesteps = repeat([0.02]*3600*24, 150)
 ## Perform simulation
-states, model, report = solve_gravity_column();
-nothing
-
+states, report = simulate(state0, model, timesteps, info_level = -1)
 # ## Plot results
 # The 1D nature of the problem allows us to plot all timesteps simultaneously in
 # 2D. We see that the heavy fluid, colored blue, is initially at the top of the

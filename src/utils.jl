@@ -38,20 +38,22 @@ function setup_reservoir_model(reservoir::DataDomain, system;
     # We first set up the reservoir
     models[:Reservoir] = SimulationModel(reservoir, system, context = reservoir_context, general_ad = general_ad)
     # Then we set up all the wells
-    for w in wells
-        if w isa SimpleWell
-            well_context = reservoir_context
-        else
-            well_context = context
+    if length(wells) > 0
+        for w in wells
+            if w isa SimpleWell
+                well_context = reservoir_context
+            else
+                well_context = context
+            end
+            w_domain = DataDomain(w)
+            models[w.name] = SimulationModel(w_domain, system, context = well_context)
         end
-        w_domain = DataDomain(w)
-        models[w.name] = SimulationModel(w_domain, system, context = well_context)
+        # Add facility that gorups the wells
+        wg = WellGroup(map(x -> x.name, wells))
+        mode = PredictionMode()
+        F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
+        models[:Facility] = F
     end
-    # Add facility that gorups the wells
-    wg = WellGroup(map(x -> x.name, wells))
-    mode = PredictionMode()
-    F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
-    models[:Facility] = F
 
     # Put it all together as multimodel
     model = reservoir_multimodel(models)

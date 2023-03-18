@@ -10,8 +10,9 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
     jutul_dir = joinpath(dirname(pathof(JutulDarcy)), "..")
     # Convert examples as .jl files to markdown
     examples = [
-        "Two-phase Buckley-Leverett" => "two_phase_buckley_leverett",
         "Gravity segregation" => "two_phase_gravity_segregation",
+        "Two-phase Buckley-Leverett" => "two_phase_buckley_leverett",
+        "Gravity circulation with CPR preconditioner" => "two_phase_unstable_gravity",
         "Intro to wells" => "wells_intro"
     ]
     examples_markdown = ["Getting started" => "examples/intro.md"]
