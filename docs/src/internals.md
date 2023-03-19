@@ -1,15 +1,3 @@
-
-```@meta
-CurrentModule = Jutul
-```
-
-```@meta
-DocTestSetup = quote
-    using Jutul;
-    using JutulDarcy;
-end
-```
-
 ```@docs
 simulator_config
 simulate!
@@ -24,10 +12,6 @@ Simulator
 setup_parameters
 setup_state
 setup_forces
-```
-
-```@meta
-CurrentModule = JutulDarcy
 ```
 
 ```@autodocs
