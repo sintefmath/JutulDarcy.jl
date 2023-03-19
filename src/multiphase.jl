@@ -75,9 +75,18 @@ struct Pressure <: ScalarVariable
     minimum_pressure::Float64
     maximum_pressure::Float64
     scale::Float64
-    function Pressure(; max_abs = nothing, max_rel = 0.2, scale = 1e8, maximum = Inf, minimum = DEFAULT_MINIMUM_PRESSURE)
-        new(max_abs, max_rel, minimum, maximum, scale)
-    end
+end
+
+"""
+    Pressure(; max_abs = nothing, max_rel = 0.2, scale = 1e8, maximum = Inf, minimum = DEFAULT_MINIMUM_PRESSURE)
+
+Pressure variable definition. `max_abs`/`max_rel` maximum allowable
+absolute/relative change over a Newton iteration, `scale` is a "typical" value
+used to regularize the linear system, `maximum` the largest possible value and
+`minimum` the smallest.
+"""
+function Pressure(; max_abs = nothing, max_rel = 0.2, scale = 1e8, maximum = Inf, minimum = DEFAULT_MINIMUM_PRESSURE)
+    Pressure(max_abs, max_rel, minimum, maximum, scale)
 end
 
 Jutul.variable_scale(p::Pressure) = p.scale
@@ -86,11 +95,17 @@ relative_increment_limit(p::Pressure) = p.max_rel
 maximum_value(p::Pressure) = p.maximum_pressure
 minimum_value(p::Pressure) = p.minimum_pressure
 
-# Saturations as primary variable
 struct Saturations <: FractionVariables
     ds_max::Float64
-    Saturations(;ds_max = 0.2) = new(ds_max)
 end
+
+"""
+    Saturations(;ds_max = 0.2)
+
+Saturations as primary variable. `ds_max` controls maximum allowable saturation
+change between two Newton iterations.
+"""
+Saturations(;ds_max = 0.2) = Saturations(ds_max)
 
 default_value(model::SimulationModel{<:Any, <:SinglePhaseSystem, <:Any, <:Any}, ::Saturations) = 1.0
 

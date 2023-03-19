@@ -13,7 +13,8 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
         "Gravity segregation" => "two_phase_gravity_segregation",
         "Two-phase Buckley-Leverett" => "two_phase_buckley_leverett",
         "Gravity circulation with CPR preconditioner" => "two_phase_unstable_gravity",
-        "Intro to wells" => "wells_intro"
+        "Intro to wells" => "wells_intro",
+        "Validation of reservoir simulator" => "mrst_validation"
     ]
     examples_markdown = ["Getting started" => "examples/intro.md"]
     function update_footer(content, pth)

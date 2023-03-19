@@ -7,6 +7,16 @@ reservoir_storage(model::MultiModel, storage) = storage.Reservoir
 
 
 export reservoir_domain
+"""
+    reservoir_domain(g; permeability = 9.869232667160130e-14, porosity = 0.1, kwarg...)
+
+Set up a `DataDomain` instance for given mesh or other representation `g`.
+`permeability` and `porosity` are then added to the domain. If scalars are
+passed, they are expanded to cover all cells. Arrays are asserted to match all
+cells. Permeability is either one value per cell (diagonal scalar), one value
+per dimension given in each row (for a diagonal tensor) or a vector that
+represents a compact full tensor representation (6 elements in 3D, 3 in 2D).
+"""
 function reservoir_domain(g; permeability = 9.869232667160130e-14, porosity = 0.1, kwarg...)
     return DataDomain(g; permeability = permeability, porosity = porosity, kwarg...)
 end

@@ -19,6 +19,9 @@ Documentation for [JutulDarcy](https://github.com/sintefmath/JutulDarcy.jl).
 simulator_config
 simulate!
 simulate
+JutulSystem
+JutulMesh
+JutulDomain
 VectorVariables
 MultiModel
 SimulationModel
