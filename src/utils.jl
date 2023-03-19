@@ -34,9 +34,19 @@ function setup_reservoir_model(reservoir::DataDomain, system;
     )
     # List of models (order matters)
     models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()
-    reservoir_context, context = Jutul.select_contexts(backend; main_context = reservoir_context, context = context, kwarg...)
+    reservoir_context, context = Jutul.select_contexts(
+        backend; 
+        main_context = reservoir_context,
+        context = context,
+        kwarg...
+    )
     # We first set up the reservoir
-    models[:Reservoir] = SimulationModel(reservoir, system, context = reservoir_context, general_ad = general_ad)
+    models[:Reservoir] = SimulationModel(
+        reservoir,
+        system,
+        context = reservoir_context,
+        general_ad = general_ad
+    )
     # Then we set up all the wells
     if length(wells) > 0
         for w in wells
@@ -58,7 +68,7 @@ function setup_reservoir_model(reservoir::DataDomain, system;
     # Put it all together as multimodel
     model = reservoir_multimodel(models)
     # Insert domain here.
-    parameters = setup_parameters(model, parameters...)
+    parameters = setup_parameters(model, parameters)
     return (model, parameters)
 end
 

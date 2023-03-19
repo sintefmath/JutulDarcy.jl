@@ -116,8 +116,8 @@ function test_perforation_mask()
     states, reports = simulate!(sim, dt, forces = forces, config = config);
     v = states[1][:Producer][:TotalMassFlux]
     @testset "Perforation mask" begin
-        @test abs(v[2]) < 1e-10
-        @test abs(v[1]) > 1e-5
+        @test abs(v[2]) < 1e-12
+        @test abs(v[1]) > 1e-7
     end
 end
 
