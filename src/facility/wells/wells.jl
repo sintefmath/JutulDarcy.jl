@@ -71,6 +71,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
                                         Kh = nothing,
                                         radius = 0.1,
                                         simple_well = false,
+                                        WI = missing,
                                         dir = :z,
                                         kwarg...)
     n = length(reservoir_cells)
@@ -86,7 +87,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         reference_depth = centers[3, 1]
     end
     volumes = zeros(n)
-    WI = zeros(n)
+    WI_computed = zeros(n)
     dz = zeros(n)
     for (i, c) in enumerate(reservoir_cells)
         if K isa AbstractVector
@@ -94,7 +95,14 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         else
             k = K[:, c]
         end
-        WI[i] = compute_peaceman_index(g, k, radius, c, skin = skin, Kh = Kh)
+        if ismissing(WI)
+            WI_i = compute_peaceman_index(g, k, radius, c, skin = skin, Kh = Kh)
+        elseif WI isa AbstractFloat
+            WI_i = WI
+        else
+            WI_i = WI[i]
+        end
+        WI_computed[i] = WI_i
         center = vec(centers[:, i])
         dz[i] = center[3] - reference_depth
         if dir isa Symbol
@@ -108,9 +116,9 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         volumes[i] = h*π*radius^2
     end
     if simple_well
-        W = SimpleWell(reservoir_cells, WI = WI, dz = dz, reference_depth = reference_depth, kwarg...)
+        W = SimpleWell(reservoir_cells, WI = WI_computed, dz = dz, reference_depth = reference_depth, kwarg...)
     else
-        W = MultiSegmentWell(reservoir_cells, volumes, centers; WI = WI, dz = dz, reference_depth = reference_depth, kwarg...)
+        W = MultiSegmentWell(reservoir_cells, volumes, centers; WI = WI_computed, dz = dz, reference_depth = reference_depth, kwarg...)
     end
     return W
 end
