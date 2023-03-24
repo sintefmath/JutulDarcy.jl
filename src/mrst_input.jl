@@ -884,9 +884,28 @@ function setup_case_from_mrst(casename; wells = :ms,
             current_control = deepcopy(controls)
             all_controls = Vector{typeof(forces)}()
             for i = 1:nctrl
+                ctrl_i = schedule["control"][i]
                 new_force = deepcopy(forces)
+                if haskey(ctrl_i, "bc")
+                    bc = ctrl_i["bc"]
+                    if length(bc) > 0
+                        @assert all(isequal("pressure"), bc["type"]) "Only pressure bc is supported."
+                        bc_converted = Vector{FlowBoundaryCondition}()
+                        for ix in eachindex(bc["face"])
+                            face = Int(bc["face"][ix])
+                            sat = bc["sat"][ix, :]
+                            val = bc["value"][ix]
+
+                            bc_cell = Int(sum(mrst_data["G"]["faces"]["neighbors"][face, :]))
+                            @assert haskey(mrst_data, "T_all")
+                            T_bf = mrst_data["T_all"][face]
+                            push!(bc_converted, FlowBoundaryCondition(bc_cell, val, fractional_flow = sat, trans_flow = T_bf))
+                        end
+                        new_force[:Reservoir] = setup_forces(model, bc = bc_converted)
+                    end
+                end
                 # Create controls for this set of wells
-                local_mrst_wells = vec(schedule["control"][i]["W"])
+                local_mrst_wells = vec(ctrl_i["W"])
                 limits = Dict{Symbol, Any}()
                 found_limits = false
                 for (wno, wsym) in enumerate(well_symbols)

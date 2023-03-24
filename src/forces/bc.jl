@@ -25,7 +25,7 @@ function FlowBoundaryCondition(
         f = fractional_flow
     else
         f = Tuple(fractional_flow)
-        @assert all(f .> 0)
+        @assert all(f .>= 0) "Fractional flow must be non-negative: $f"
         @assert sum(f) == 1.0 "Fractional flow for boundary condition in cell $cell must sum to 1."
     end
     @assert pressure >= DEFAULT_MINIMUM_PRESSURE

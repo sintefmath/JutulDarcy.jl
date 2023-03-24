@@ -118,3 +118,81 @@ end
     q = setindex(q, q_v, v)
     return q
 end
+
+
+function apply_flow_bc!(acc, q, bc, model::StandardBlackOilModel, state, time)
+    mu = state.PhaseViscosities
+    b = state.ShrinkageFactors
+    kr = state.RelativePermeabilities
+    rho = state.PhaseMassDensities
+    nph = length(acc)
+    @assert size(kr, 1) == nph
+
+    rho_inj = bc.density
+    f_inj = bc.fractional_flow
+    c = bc.cell
+    sys = model.system
+    if q > 0
+        # Pressure inside is higher than outside, flow out from domain
+        phases = phase_indices(sys)
+        wat = has_other_phase(sys)
+        rhoS = reference_densities(sys)
+
+        if wat
+            a, l, v = phases
+        else
+            l, v = phases
+        end
+
+        if wat
+            acc[a] += q*rho[a, c]*kr[a, c]/mu[a, c]
+        end
+        q_l = q_v = 0.0
+        q = q*b[l, c]*kr[l, c]/mu[l, c]
+        if has_disgas(sys)
+            q_v += state.Rs[c]*q
+        end
+        q_l += q
+
+        q = q*b[v, c]*kr[v, c]/mu[v, c]
+        if has_vapoil(sys)
+            q_l += state.Rv[c]*q
+        end
+        q_v += q
+
+        acc[l] += q_l*rhoS[l]
+        acc[v] += q_v*rhoS[v]
+    else
+        # Injection of mass
+        λ_t = 0.0
+        for ph in eachindex(acc)
+            λ_t += kr[ph, c]/mu[ph, c]
+        end
+        if isnothing(rho_inj)
+            # Density not provided, take saturation average from what we have in
+            # the inside of the domain
+            rho_inj = 0.0
+            for ph in 1:nph
+                rho_inj += state.Saturations[ph, c]*rho[ph, c]
+            end
+        end
+        if isnothing(f_inj)
+            # Fractional flow not provided. We match the mass fraction we
+            # observe on the inside.
+            total = 0.0
+            for ph in 1:nph
+                total += state.TotalMasses[ph, c]
+            end
+            for ph in 1:nph
+                F = state.TotalMasses[ph, c]/total
+                acc[ph] += q*rho_inj*λ_t*F
+            end
+        else
+            @assert length(f_inj) == nph
+            for ph in 1:nph
+                F = f_inj[ph]
+                acc[ph] += q*rho_inj*λ_t*F
+            end
+        end
+    end
+end
