@@ -715,6 +715,10 @@ function setup_case_from_mrst(casename; wells = :ms,
                                         nthreads = Threads.nthreads(),
                                         legacy_output = false,
                                         ds_max = 0.2,
+                                        dp_max_abs = nothing,
+                                        dp_max_rel = 0.2,
+                                        p_min = DEFAULT_MINIMUM_PRESSURE,
+                                        p_max = Inf,
                                         dr_max = Inf,
                                         kwarg...)
     data_domain, mrst_data = reservoir_domain_from_mrst(casename, extraout = true)
@@ -975,6 +979,9 @@ function setup_case_from_mrst(casename; wells = :ms,
         replace_variables!(model, ImmiscibleSaturation = ImmiscibleSaturation(ds_max = ds_max), throw = false)
         replace_variables!(model, BlackOilUnknown = BlackOilUnknown(ds_max = ds_max, dr_max = dr_max), throw = false)
 
+        p_def = Pressure(max_abs = dp_max_abs, max_rel = dp_max_rel, minimum = p_min, maximum = p_max)
+        replace_variables!(model, Pressure = p_def, throw = false)
+
         state0 = setup_state(model, initializer)
         parameters = setup_parameters(model, parameters)
 
@@ -1109,6 +1116,10 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                 write_mrst = false,
                                 write_output = true,
                                 ds_max = 0.2,
+                                dp_max_abs = nothing,
+                                dp_max_rel = 0.2,
+                                p_min = DEFAULT_MINIMUM_PRESSURE,
+                                p_max = Inf,
                                 verbose = true,
                                 do_sim = true,
                                 steps = :full,
@@ -1137,6 +1148,10 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                                                             general_ad = general_ad,
                                                                             minbatch = minbatch,
                                                                             wells = wells,
+                                                                            dp_max_abs = dp_max_abs,
+                                                                            dp_max_rel = dp_max_rel,
+                                                                            p_min = p_min,
+                                                                            p_max = p_max,
                                                                             ds_max = ds_max);
     model = case.model
     forces = case.forces
