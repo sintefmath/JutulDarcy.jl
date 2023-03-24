@@ -568,7 +568,7 @@ function partitioner_input(model, parameters)
     grid = physical_representation(rmodel.domain)
 
     N = grid.neighborship
-    T = parameters[:Transmissibilities]
+    T = copy(parameters[:Transmissibilities])
     groups = []
     if model isa MultiModel
         for (k, m) in pairs(model.models)
