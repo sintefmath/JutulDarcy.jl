@@ -73,27 +73,34 @@ end
 Base.@propagate_inbounds function simple_well_perforation_flux!(out, sys::StandardBlackOilSystem, state_res, state_well, rhoS, conn)
     rc = conn.reservoir
     wc = conn.well
-    a, l, v = phase_indices(sys)
-    dp_a, dp_l, dp_v = res_dp(conn, state_res, state_well, sys)
-    λ_a, λ_l, λ_v = res_mobility(state_res, sys, rc)
+    Q_a = Q_v = Q_l = 0
 
     Q_in = 0
-    a, l, v, rhoGS, rhoOS = well_pvt_bo(sys)
-    # b, b_w, ρ, ρ_w, s_w = well_volumes_bo(state_res, state_well)
+    if has_other_phase(sys)
+        a, l, v = phase_indices(sys)
+        dp_a, dp_l, dp_v = res_dp(conn, state_res, state_well, sys)
+        λ_a, λ_l, λ_v = res_mobility(state_res, sys, rc)
+        λ_t = λ_a + λ_l + λ_v
 
+        a, l, v, rhoGS, rhoOS = well_pvt_bo(sys)
+        # Water component flux
+        if dp_a < 0.0
+            # Injection
+            Q_in += λ_a*ρ[a, rc]*dp_a
+        else
+            # Production
+            Q_a += ρ[a, rc]*λ_a*dp_a
+        end
+    else
+        l, v = phase_indices(sys)
+        dp_l, dp_v = res_dp(conn, state_res, state_well, sys)
+        λ_l, λ_v = res_mobility(state_res, sys, rc)
+        λ_t = λ_l + λ_v
+        l, v, rhoGS, rhoOS = well_pvt_bo_2ph(sys)
+    end
     ρ = state_res.PhaseMassDensities
     b = state_res.ShrinkageFactors
 
-    # Water component flux
-    ρ_a = ρ[a, rc]
-    Q_l = Q_v = Q_a = zero(dp_a)
-    if dp_a < 0.0
-        # Injection
-        Q_in += λ_a*ρ_a*dp_a
-    else
-        # Production
-        Q_a = ρ_a*λ_a*dp_a
-    end
     # Oil component flux
     if dp_l < 0.0
         # Injection
@@ -123,11 +130,15 @@ Base.@propagate_inbounds function simple_well_perforation_flux!(out, sys::Standa
 
     if Q_in < 0.0
         X = state_well.MassFractions
-        Q_a += X[a]*Q_in
+        if has_other_phase(sys)
+            Q_a += X[a]*Q_in
+        end
         Q_l += X[l]*Q_in
         Q_v += X[v]*Q_in
     end
-    out[a] = Q_a
+    if has_other_phase(sys)
+        out[a] = Q_a
+    end
     out[l] = Q_l
     out[v] = Q_v
 end
