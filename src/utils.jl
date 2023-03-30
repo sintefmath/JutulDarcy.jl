@@ -589,10 +589,12 @@ function Base.iterate(t::ReservoirSimResult, state)
     if state == :states
         return (t.time, nothing)
     else
-        @assert state == :wells
+        @assert state == :wells "Unapck syntax: ws, states, t = res_result"
         return (t.states, :states)
     end
 end
+
+Base.lastindex(t::ReservoirSimResult) = :states
 
 function Base.show(io::IO, ::MIME"text/plain", sr::ReservoirSimResult)
     # return 
