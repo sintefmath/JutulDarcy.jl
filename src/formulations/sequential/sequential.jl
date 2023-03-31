@@ -57,7 +57,11 @@ function Jutul.perform_step!(
     done_p, report_p = Jutul.solve_ministep(simulator.pressure, dt, forces, max_iter, config)
     if done_p
         # Copy over values for pressure and fluxes into parameters for second simulator
+        model_p = simulator.pressure.model
+        state_p = simulator.pressure.storage.state
 
+        vT = simulator.transport.storage.parameters.TotalVolumetricFlux
+        store_total_fluxes!(vT, model_p, as_value(state_p))
         # Then transport
         done_t, report_t = Jutul.solve_ministep(simulator.transport, dt, forces, max_iter, config)
     else
