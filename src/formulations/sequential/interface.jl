@@ -1,9 +1,11 @@
 
 function convert_to_sequential(model, variant = :pressure)
-    if variant == :pressure
+    is_pressure = variant == :pressure
+    if is_pressure
         f = PressureFormulation()
     else
-        error("NotImplementedYet")
+        @assert variant == :transport
+        f = TransportFormulation()
     end
     # TODO: Figure out context
     pmodel = SimulationModel(
@@ -12,9 +14,11 @@ function convert_to_sequential(model, variant = :pressure)
         data_domain = model.data_domain,
         formulation = f
         )
-    for (pkey, pvar) in model.primary_variables
-        if pkey != :Pressure
-            pmodel.parameters[pkey] = pvar
+    if is_pressure
+        for (pkey, pvar) in model.primary_variables
+            if pkey != :Pressure
+                pmodel.parameters[pkey] = pvar
+            end
         end
     end
     for (skey, svar) in model.secondary_variables

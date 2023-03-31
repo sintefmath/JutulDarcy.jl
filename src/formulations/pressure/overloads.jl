@@ -2,7 +2,6 @@ function Jutul.select_secondary_variables!(pvar, ::PressureFormulation, model::P
     pvar[:PressureReductionFactors] = PressureReductionFactors()
 end
 
-
 function Jutul.select_equations!(eqs, ::PressureFormulation, model::PressureModel)
     @assert haskey(eqs, :mass_conservation)
     eqs[:pressure] = PressureEquation(eqs[:mass_conservation])
