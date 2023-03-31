@@ -11,7 +11,6 @@ struct PressureEquation{T} <: JutulEquation where T<:ConservationLaw
 end
 
 
-include("interface.jl")
 include("variables.jl")
 include("overloads.jl")
 include("functions.jl")
