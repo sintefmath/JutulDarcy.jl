@@ -5,4 +5,5 @@ end
 
 function Jutul.select_parameters!(vars, ::TransportFormulation, model::TransportModel)
     vars[:Pressure] = Pressure()
+    vars[:TotalVolumetricFlux] = TotalVolumetricFlux()
 end

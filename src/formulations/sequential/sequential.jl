@@ -28,6 +28,11 @@ function Jutul.select_linear_solver(sim::SequentialSimulator; kwarg...)
     return nothing
 end
 
+# function Jutul.reset_variables!(sim::SequentialSimulator, vars; kwarg...)
+#     Jutul.reset_variables!(sim.pressure, vars; kwarg...)
+#     Jutul.reset_variables!(sim.transport, vars; kwarg...)
+#     return sim
+# end
 
 function Jutul.initial_setup!(sim::SequentialSimulator, config, timesteps; kwarg...)
     Jutul.initial_setup!(sim.pressure, config, timesteps; kwarg...)
@@ -37,11 +42,27 @@ function Jutul.initialize_before_first_timestep!(sim::SequentialSimulator, dt; k
     Jutul.initialize_before_first_timestep!(sim.pressure, dt; kwarg...)
 end
 
-function Jutul.perform_step!(simulator::SequentialSimulator, dt, forces, config; kwarg...)
+function Jutul.perform_step!(
+        simulator::SequentialSimulator,
+        dt,
+        forces,
+        config;
+        iteration = NaN,
+        relaxation = 1.0,
+        update_secondary = true,
+        solve = true
+    )
     # Solve pressure
-    e_p, converged_p, report_p = Jutul.perform_step!(simulator.pressure, dt, forces, config; kwarg...)
-    # Copy over values for pressure and fluxes into parameters for second simulator
-    # Then transport
+    max_iter = config[:max_nonlinear_iterations]
+    done_p, report_p = Jutul.solve_ministep(simulator.pressure, dt, forces, max_iter, config)
+    if done_p
+        # Copy over values for pressure and fluxes into parameters for second simulator
+
+        # Then transport
+        done_t, report_t = Jutul.solve_ministep(simulator.transport, dt, forces, max_iter, config)
+    else
+        error("Pressure failure not implemented")
+    end
     # Return convergence criterion for outer loop
 end
 
