@@ -95,7 +95,6 @@ function fill_pressure_eq_cell!(nz, r, cell, weights::Matrix{T}, acc, cell_flux,
 end
 
 function Jutul.apply_forces_to_equation!(acc, storage, model::PressureModel, eq::PressureEquation, eq_s, force, time)
-    @info "Applying force"
     Jutul.apply_forces_to_equation!(acc, storage, model, eq.conservation, eq_s.conservation, force, time)
 end
 
