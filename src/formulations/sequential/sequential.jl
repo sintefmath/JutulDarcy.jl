@@ -1,7 +1,26 @@
-struct SequentialSimulator{P, T, S} <: Jutul.JutulSimulator
+struct SequentialSimulator{M, P, T, S} <: Jutul.JutulSimulator
+    model::M
     pressure::P
     transport::T
     storage::S
+end
+
+function SequentialSimulator(model; state0 = setup_state(model), parameters = setup_parameters(model))
+    pmodel = convert_to_sequential(model, pressure = true)
+    tmodel = convert_to_sequential(model, pressure = false)
+    init = merge(state0, parameters)
+    if !haskey(state0, :TotalSaturation)
+        init[:TotalSaturation] = ones(number_of_cells(model.domain))
+    end
+    function subsimulator(m)
+        s0, prm = setup_state_and_parameters(m; pairs(init)...)
+        return Simulator(m, state0 = s0, parameters = prm)    
+    end
+
+    PSim = subsimulator(pmodel)
+    TSim = subsimulator(tmodel)
+    S = JutulStorage()
+    return SequentialSimulator(model, PSim, TSim, S)
 end
 
 include("interface.jl")
