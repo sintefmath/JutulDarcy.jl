@@ -41,7 +41,7 @@ function MultiPhaseCompositionalSystemLV(equation_of_state, phases = (LiquidPhas
     end
     only(findall(isequal(LiquidPhase()), phases))
     only(findall(isequal(VaporPhase()), phases))
-    new{typeof(equation_of_state), T, O, typeof(reference_densities)}(phases, c, equation_of_state, reference_densities)
+    MultiPhaseCompositionalSystemLV{typeof(equation_of_state), T, O, typeof(reference_densities)}(phases, c, equation_of_state, reference_densities)
 end
 
 
@@ -385,7 +385,7 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
     WI, gdz = common_well_setup(nr; dz = dz, kwarg...)
     perf = (self = perforation_cells, reservoir = reservoir_cells, WI = WI, gdz = gdz)
     accumulator = (reference_depth = reference_depth, )
-    new{typeof(volumes), typeof(perf), typeof(N), typeof(accumulator), typeof(ext_centers), typeof(surface_conditions), typeof(segment_models)}(volumes, perf, N, accumulator, ext_centers, surface_conditions, name, segment_models)
+    MultiSegmentWell{typeof(volumes), typeof(perf), typeof(N), typeof(accumulator), typeof(ext_centers), typeof(surface_conditions), typeof(segment_models)}(volumes, perf, N, accumulator, ext_centers, surface_conditions, name, segment_models)
 end
 
 
