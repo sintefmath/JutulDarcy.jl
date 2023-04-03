@@ -94,7 +94,12 @@ Currently experimental and undocumented. See [`ThermalSystem`](@ref) if you are 
 
 ## Summary
 
-
+| System | Number of phases | Number of components | ``M`` | ``V`` |
+|---|---|---|---|---|
+| [`SinglePhaseSystem`](@ref) | 1 | 1 | ``\rho \phi `` | ``\rho \vec{v}`` |
+| [`ImmiscibleSystem`](@ref) | Any | (Any) | ``S_\alpha \rho_\alpha \phi`` | ``\rho_\alpha \vec{v}_\alpha`` |
+| [`StandardBlackOilSystem`](@ref) | 2-3 | (2-3) | ``\rho_o^s(b_g S_g + R_s b_o S_o)`` | `` b_g \vec{v}_g + R_s b_g \vec{v}_o`` |
+| [`MultiPhaseCompositionalSystemLV`](@ref) | 2-3 | Any | ``\rho_l X_i S_l + \rho_v Y_i S_v`` | ``\rho_l X_i \vec{v}_l + \rho_v Y_i \vec{v}_v`` |
 # Solving the system
 
 ## Newton's method
