@@ -1,5 +1,5 @@
 # Solving the equations
-By default, Jutul solves a system as a fully-coupled implicit system of equations.
+By default, Jutul solves a system as a fully-coupled implicit system of equations discretized with a two-point flux approximation with single-point upwind.
 ## Newton's method
 The standard way of solving a system of non-linear equations is by Newton's method (also known as Newton-Raphson's method). A quick recap: For a vector valued residual ``\mathbf{r}(x)`` of the primary variable vector ``\mathbf{x}`` we can defined a Newton update:
 ```math
@@ -25,7 +25,7 @@ For most practical applications it is not feasible or efficient to invert the Ja
 If `block_backend` is set to `false`, Jutul will assemble into the standard Julia CSC sparse matrix with `Float64` elements and Julia's default direct solver will be used. It is also possible to use other Julia solvers on this system, but the default preconditioners assume that block backend is enabled.
 
 ### Iterative solver 
-If `block_backend` is set to `true`, Jutul will by default use a constrained-pressure residual (CPR) preconditioner for BiCGStab. Jutul relies on [Krylov.jl](https://github.com/JuliaSmoothOptimizers/Krylov.jl) for iterative solvers. 
+If `block_backend` is set to `true`, Jutul will by default use a constrained-pressure residual (CPR) preconditioner for BiCGStab. Jutul relies on [Krylov.jl](https://github.com/JuliaSmoothOptimizers/Krylov.jl) for iterative solvers. The main function that selects the linear solver is [`reservoir_linsolve`](@ref) that allows for the selection of different preconditioners and linear solvers.
 
 #### Single model (only porous medium)
 If the model is a single model (e.g. only a reservoir) the matrix format is a block-CSC matrix that combines Julia's builtin sparse matrix format with statically sized elements from the [StaticArrays.jl](https://github.com/JuliaArrays/StaticArrays.jl) package. If we consider the two-phase immiscible system from [Multi-phase, immiscible flow](@ref) we have a pair of equations ``R_n, R_w`` together with the corresponding primary variables pressure and first saturation ``p, S_n`` defined for all ``N_c`` cells. Let us simplify the notation a bit so that the subscripts of the primary variables are ``p, s`` and define a ``N_c \times N_c`` block Jacobian linear system where the entires are given by:
@@ -44,17 +44,89 @@ This block system has several advantages:
  - Performing local reductions over variables is much easier when they are located in a local matrix.
 
 
-##### CPR
+##### Constrained Pressure Residual
+The CPR preconditioner [`CPRPreconditioner`](@ref) is a multi-stage physics-informed preconditioner that seeks to decouple the global pressure part of the system from the local  transport part. In the limits of incompressible flow without gravity it can be thought of as an elliptic / hyperbolic splitting.
+
+The short version of the CPR preconditioner can be motivated by our test system:
+```math
+r_n = \frac{\partial}{\partial t} ((1 - S_w) \rho_n \phi) + \nabla \cdot (\rho_n \vec{v}_n) - \rho_n q_n = 0,\\
+r_w = \frac{\partial}{\partial t} (S_w \rho_w \phi) + \nabla \cdot (\rho_w \vec{v}_w) - \rho_w q_w = 0.
+```
+For simplicity, we assume that there is no gravity, source terms, or compressibility. Each equation can then be divided by their respective densities and summed up to produce a pressure equation:
+```math
+r_p = \frac{\partial}{\partial t} ((1 - S_w) \phi) + \nabla \cdot \vec{v}_n + \frac{\partial}{\partial t} (S_w \phi) + \nabla \cdot  \vec{v}_w \\
+= \frac{\partial}{\partial t} ((S_w - S_w) \phi) + \nabla \cdot (\vec{v}_n + \vec{v}_w) \\
+= \nabla \cdot (\vec{v}_n + \vec{v}_w) \\
+= - \nabla \mathbf{K}(k_{rw}/\mu_w + k_{rn}/\mu_n) \nabla p \\
+= - \nabla \mathbf{K}\lambda_t \nabla p = 0
+```
+The final equation is the variable coefficient Poisson equation and is referred to as the incompressible pressure equation for a porous  media. We know that algebraic multigrid preconditioners (AMG) are highly efficient for linear systems made by discretizing this equation. The idea in CPR is to exploit this by constructing an approximate pressure equation that is suited for AMG inside the preconditioner.
+
+Constructing the preconditioner is done in two stages:
+
+1. First, weights for each equation is found locally in each cell that decouples the time derivative from the non-pressure variables. In the above example, this was the true IMPES weights (dividing by density). JutulDarcy supports analytical true IMPES weights for some systems, numerical true IMPES weights for all systems and quasi IMPES weights for all systems.
+2. A pressure equation is formed by weighting each equation by the respective weights and summing. We then have two systems: The pressure system ``r_p`` with scalar entries and the full system ``r`` that has block structure.
+
+During the linear solve, the preconditioner is then made up of two broad stages: First, a preconditioner is applied to the pressure part (typically AMG), then the full system is preconditioned (typically ILU(0)) after the residual has been corrected by the pressure estimate:
+
+1. Form weighted pressure residual ``r_p = \sum_i w_i r_i ``.
+2. Apply pressure preconditioer ``M_p``: ``\Delta p = M_p^{-1} r_p``.
+3. Correct global residual ``r^* = r - J P(\Delta p)`` where ``P`` expands the pressure update to the full system vector, with zero entries outside the pressure indices.
+4. Precondition the full system ``\Delta x^* = M^{-1}r^*``
+5. Correct the global update with the pressure to obtain the final update: ``\Delta x = \Delta x^* + P(\Delta p)``
 
 #### Multi model (porous medium with wells)
+If a model is a porous medium with wells, the same preconditioners can be used, but an additional step is required to incorporate the well system. In practical terms, this means that our linearized system is expanded to multiple linear systems:
 
 
+```math
+J \Delta \mathbf{x} = \begin{bmatrix}
+   J_{rr} & J_{rw} \\
+   J_{wr} & J_{ww}
+\end{bmatrix}
+\begin{bmatrix}
+\Delta \mathbf{x}_r \\
+\Delta \mathbf{x}_w
+\end{bmatrix}
+ = 
+\begin{bmatrix}
+\mathbf{r}_r \\
+\mathbf{r}_w
+\end{bmatrix}
+```
+Here, ``J_{rr}`` is the reservoir equations differentiated with respect to the reservoir primary variables, i.e. the Jacobian from the previous section. ``J_{ww}`` is the well system differentiated with respect to the well primary variables. The cross terms, ``J_{rw}``and ``J_{wr}``, are the same equations differentiated with respect to the primary variables of the other system.
+
+The well system is generally much smaller than the reservoir system and can be solved by a direct solver. We would like to reuse the block preconditioners defined for the base system. The approach we use is a [Schur complement](https://en.wikipedia.org/wiki/Schur_complement) approach to solve the full system. If we linearly eliminate the dependence of the reservoir equations on the well primary variables, we obtain the reduced system:
+```math
+J \Delta \mathbf{x} = \begin{bmatrix}
+   J_{rr} - J_{rw}J_{ww}^{-1}J_{wr} & 0 \\
+   J_{wr} & J_{ww}
+\end{bmatrix}
+\begin{bmatrix}
+\Delta \mathbf{x}_r \\
+\Delta \mathbf{x}_w
+\end{bmatrix}
+ = 
+\begin{bmatrix}
+\mathbf{r}_r - J_{rw}J_{ww}^{-1}\mathbf{r}_w\\
+\mathbf{r}_w
+\end{bmatrix}
+```
+We can then solve the system in terms of the reservoir degrees of freedom where the system is a block linear system and we already have a working preconditioner:
+```math
+\left(J_{rr} - J_{rw}J_{ww}^{-1}J_{wr}\right)\mathbf{x}_r = \mathbf{r}_r - J_{rw}J_{ww}^{-1}\mathbf{r}_w
+```
+Once that system is solved for ``\mathbf{x}_r``, we can recover the well degrees of freedom ``\mathbf{r}_w`` directly:
+```math
+\mathbf{r}_w = J_{ww}^{-1}(\mathbf{r}_w - J_{wr}\mathbf{x}_r)
+```
+
+
+!!! note "Efficiency of Schur complement"
+    Explicitly forming the matrix ``J_{rr} - J_{rw}J_{ww}^{-1}J_{wr}`` will generally lead to a lot of fill-in in the linear system. JutulDarcy instead uses the action of ``J_{rr} - J_{rw}J_{ww}^{-1}J_{wr}`` as a linear operator from [LinearOperators.jl](https://github.com/JuliaSmoothOptimizers/LinearOperators.jl). This means that we must apply the inverse of the well system every time we need to compute the residual or action of the system matrix, but fortunately performing the action of the Schur complement is inexpensive as long as ``J_{ww}`` is small and the factorization can be stored. 
 ### CSR backend and experimental features
-`backend=:csr`
+An experimental thread-parallel backend for matrices and linear algebra can be enabled by setting `backend=:csr` in the call to [`setup_reservoir_model`](@ref). This backend provides additional features such as a parallel zero-overlap ILU(0) implementation and parallel apply for AMG, but these features are still work in progress.
 ## References
-
-CPR:
-
 [Wallis, J.R. "Incomplete Gaussian Elimination as a Preconditioning for Generalized Conjugate Gradient Acceleration." Paper presented at the SPE Reservoir Simulation Symposium, San Francisco, California, November 1983](https://doi.org/10.2118/12265-MS)
 
 [Cao, H., Tchelepi, H. A., Wallis, J., and H. Yardumian. "Parallel Scalable Unstructured CPR-Type Linear Solver for Reservoir Simulation." Paper presented at the SPE Annual Technical Conference and Exhibition, Dallas, Texas, October 2005](https://doi.org/10.2118/96809-MS)
