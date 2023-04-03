@@ -8,7 +8,7 @@ The general form of the flow systems we will discuss is a conservation law for `
 R = \frac{\partial}{\partial t} M_i + \nabla \cdot \vec{V}_i - Q_i, \quad \forall i \in \{1, \dots, N\}
 ```
 
-Here, ``M_i`` is the conserved quantity (usually masses) for component ``i`` and ``\vec{V}_i`` the velocity of the conserved quantity. ``Q_i`` represents source terms that come from direct sources [`SourceTerm`](@ref), boundary conditions ([`FlowBoundaryCondition`](@ref)) or from wells ([`MultiSegmentWell`](@ref), [`SimpleWell`](@ref)).
+Here, ``M_i`` is the conserved quantity (usually masses) for component ``i`` and ``\vec{V}_i`` the velocity of the conserved quantity. ``Q_i`` represents source terms that come from direct sources [`SourceTerm`](@ref), boundary conditions ([`FlowBoundaryCondition`](@ref)) or from wells ([`setup_well`](@ref), [`setup_vertical_well`](@ref)).
 
 The following table gives an overview of the available features that are described in more detail below:
 

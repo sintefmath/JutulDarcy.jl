@@ -16,11 +16,20 @@ function update_primary_variable!(state, p::CompositionalFractions, state_symbol
     Jutul.unit_sum_update!(s, p, model, dx, w)
 end
 
+export OverallMoleFractions
 struct OverallMoleFractions <: CompositionalFractions
     dz_max::Float64
-    OverallMoleFractions(;dz_max = 0.2) = new(dz_max)
 end
 
+"""
+    OverallMoleFractions(;dz_max = 0.2)
+
+Overall mole fractions definition for compositional. `dz_max` is the maximum
+allowable change in any composition during a single Newton iteration.
+"""
+function OverallMoleFractions(;dz_max = 0.2)
+    OverallMoleFractions(dz_max)
+end
 minimum_value(::OverallMoleFractions) = MultiComponentFlash.MINIMUM_COMPOSITION
 absolute_increment_limit(z::OverallMoleFractions) = z.dz_max
 

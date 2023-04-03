@@ -16,27 +16,34 @@ struct MultiPhaseCompositionalSystemLV{E, T, O, R} <: CompositionalSystem where 
     components::Vector{String}
     equation_of_state::E
     rho_ref::R
-    function MultiPhaseCompositionalSystemLV(equation_of_state, phases = (LiquidPhase(), VaporPhase()); reference_densities = ones(length(phases)), other_name = "Water")
-        c = copy(equation_of_state.mixture.component_names)
-        phases = tuple(phases...)
-        T = typeof(phases)
-        nph = length(phases)
-        @assert nph == 2 || nph == 3
-        reference_densities = tuple(reference_densities...)
-        @assert length(reference_densities) == nph
-        if nph == 3
-            other = only(filter(x -> !(isa(x, LiquidPhase) || isa(x, VaporPhase)), phases))
-            O = typeof(other)
-            push!(c, other_name)
-        else
-            O = Nothing
-        end
-        only(findall(isequal(LiquidPhase()), phases))
-        only(findall(isequal(VaporPhase()), phases))
-        new{typeof(equation_of_state), T, O, typeof(reference_densities)}(phases, c, equation_of_state, reference_densities)
-    end
 end
 const LVCompositionalModel = SimulationModel{D, S, F, C} where {D, S<:MultiPhaseCompositionalSystemLV{<:Any, <:Any, <:Any}, F, C}
+
+"""
+    MultiPhaseCompositionalSystemLV(equation_of_state, phases = (LiquidPhase(), VaporPhase()); reference_densities = ones(length(phases)), other_name = "Water")
+
+Set up a compositional system for a given `equation_of_state` from `MultiComponentFlash`.
+"""
+function MultiPhaseCompositionalSystemLV(equation_of_state, phases = (LiquidPhase(), VaporPhase()); reference_densities = ones(length(phases)), other_name = "Water")
+    c = copy(equation_of_state.mixture.component_names)
+    phases = tuple(phases...)
+    T = typeof(phases)
+    nph = length(phases)
+    @assert nph == 2 || nph == 3
+    reference_densities = tuple(reference_densities...)
+    @assert length(reference_densities) == nph
+    if nph == 3
+        other = only(filter(x -> !(isa(x, LiquidPhase) || isa(x, VaporPhase)), phases))
+        O = typeof(other)
+        push!(c, other_name)
+    else
+        O = Nothing
+    end
+    only(findall(isequal(LiquidPhase()), phases))
+    only(findall(isequal(VaporPhase()), phases))
+    new{typeof(equation_of_state), T, O, typeof(reference_densities)}(phases, c, equation_of_state, reference_densities)
+end
+
 
 export StandardBlackOilSystem
 struct StandardBlackOilSystem{D, V, W, R, F, T, P, Num} <: BlackOilSystem
@@ -52,6 +59,21 @@ struct StandardBlackOilSystem{D, V, W, R, F, T, P, Num} <: BlackOilSystem
     s_eps::Num
 end
 
+"""
+    StandardBlackOilSystem(; rs_max = nothing,
+                             rv_max = nothing,
+                             phases = (AqueousPhase(), LiquidPhase(), VaporPhase()),
+                             reference_densities = [786.507, 1037.84, 0.969758])
+
+Set up a standard black-oil system. Keyword arguments `rs_max` and `rv_max` can
+either be nothing or callable objects / functions for the maximum Rs and Rv as a
+function of pressure. `phases` can be specified together with
+`reference_densities` for each phase. 
+
+NOTE: For the black-oil model, the reference densities significantly impact many
+aspects of the PVT behavior. These should generally be set consistently with the
+other properties.
+"""
 function StandardBlackOilSystem(; rs_max::RS = nothing,
                                   rv_max::RV = nothing,
                                   phases = (AqueousPhase(), LiquidPhase(), VaporPhase()),
@@ -153,9 +175,15 @@ Base.show(io::IO, t::ImmiscibleSystem) = print(io, "ImmiscibleSystem with $(join
 struct SinglePhaseSystem{P, F} <: MultiPhaseSystem where {P, F<:AbstractFloat}
     phase::P
     rho_ref::F
-    function SinglePhaseSystem(phase = LiquidPhase(); reference_density = 1.0)
-        return new{typeof(phase), typeof(reference_density)}(phase, reference_density)
-    end
+end
+
+"""
+    SinglePhaseSystem(phase = LiquidPhase(); reference_density = 1.0)
+
+A single-phase system that only solves for pressure.
+"""
+function SinglePhaseSystem(phase = LiquidPhase(); reference_density = 1.0)
+    return SinglePhaseSystem{typeof(phase), typeof(reference_density)}(phase, reference_density)
 end
 
 number_of_components(sys::SinglePhaseSystem) = 1
@@ -261,6 +289,14 @@ struct SimpleWell{SC, P, V} <: WellDomain where {SC, P}
     explicit_dp::Bool
 end
 
+"""
+    SimpleWell(reservoir_cells)
+
+Set up a simple well.
+
+NOTE: `setup_vertical_well` or `setup_well` are the recommended way of setting
+up wells.
+"""
 function SimpleWell(
     reservoir_cells;
     name = :Well,
@@ -283,54 +319,73 @@ struct MultiSegmentWell{V, P, N, A, C, SC, S} <: WellDomain
     surface::SC         # p, T at surface
     name::Symbol        # Symbol that names the well
     segment_models::S   # Segment pressure drop model for each segment
-    function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
-                                                        N = nothing,
-                                                        name = :Well,
-                                                        perforation_cells = nothing,
-                                                        segment_models = nothing,
-                                                        reference_depth = 0,
-                                                        dz = nothing,
-                                                        surface_conditions = default_surface_cond(),
-                                                        accumulator_volume = mean(volumes),
-                                                        kwarg...)
-        nv = length(volumes)
-        nc = nv + 1
-        reservoir_cells = vec(reservoir_cells)
-        nr = length(reservoir_cells)
-        if isnothing(N)
-            @debug "No connectivity. Assuming nicely ordered linear well."
-            N = vcat((1:nv)', (2:nc)')
-        elseif maximum(N) == nv
-            N = vcat([1, 2], N+1)
-        end
-        nseg = size(N, 2)
-        @assert size(N, 1) == 2
-        @assert size(centers, 1) == 3
-        volumes = vcat([accumulator_volume], volumes)
-        ext_centers = hcat([centers[1:2, 1]..., reference_depth], centers)
-        @assert length(volumes) == size(ext_centers, 2)
-        if !isnothing(reservoir_cells) && isnothing(perforation_cells)
-            @assert length(reservoir_cells) == nv "If no perforation cells are given, we must 1->1 correspondence between well volumes and reservoir cells."
-            perforation_cells = collect(2:nc)
-        end
-        perforation_cells = vec(perforation_cells)
+end
 
-        if isnothing(segment_models)
-            Δp = SegmentWellBoreFrictionHB(1.0, 1e-4, 0.1)
-            segment_models = repeat([Δp], nseg)
-        else
-            segment_models::AbstractVector
-            @assert length(segment_models) == nseg
-        end
-        if isnothing(dz)
-            dz = centers[3, :] - reference_depth
-        end
-        @assert length(perforation_cells) == nr
-        WI, gdz = common_well_setup(nr; dz = dz, kwarg...)
-        perf = (self = perforation_cells, reservoir = reservoir_cells, WI = WI, gdz = gdz)
-        accumulator = (reference_depth = reference_depth, )
-        new{typeof(volumes), typeof(perf), typeof(N), typeof(accumulator), typeof(ext_centers), typeof(surface_conditions), typeof(segment_models)}(volumes, perf, N, accumulator, ext_centers, surface_conditions, name, segment_models)
+"""
+    MultiSegmentWell(reservoir_cells, volumes, centers;
+                    N = nothing,
+                    name = :Well,
+                    perforation_cells = nothing,
+                    segment_models = nothing,
+                    reference_depth = 0,
+                    dz = nothing,
+                    surface_conditions = default_surface_cond(),
+                    accumulator_volume = mean(volumes),
+                    )
+
+Create well perforated in a vector of `reservoir_cells` with corresponding
+`volumes` and cell `centers`.
+
+NOTE: `setup_vertical_well` or `setup_well` are the recommended way of setting
+up wells.
+"""
+function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
+                                                    N = nothing,
+                                                    name = :Well,
+                                                    perforation_cells = nothing,
+                                                    segment_models = nothing,
+                                                    reference_depth = 0,
+                                                    dz = nothing,
+                                                    surface_conditions = default_surface_cond(),
+                                                    accumulator_volume = mean(volumes),
+                                                    kwarg...)
+    nv = length(volumes)
+    nc = nv + 1
+    reservoir_cells = vec(reservoir_cells)
+    nr = length(reservoir_cells)
+    if isnothing(N)
+        @debug "No connectivity. Assuming nicely ordered linear well."
+        N = vcat((1:nv)', (2:nc)')
+    elseif maximum(N) == nv
+        N = vcat([1, 2], N+1)
     end
+    nseg = size(N, 2)
+    @assert size(N, 1) == 2
+    @assert size(centers, 1) == 3
+    volumes = vcat([accumulator_volume], volumes)
+    ext_centers = hcat([centers[1:2, 1]..., reference_depth], centers)
+    @assert length(volumes) == size(ext_centers, 2)
+    if !isnothing(reservoir_cells) && isnothing(perforation_cells)
+        @assert length(reservoir_cells) == nv "If no perforation cells are given, we must 1->1 correspondence between well volumes and reservoir cells."
+        perforation_cells = collect(2:nc)
+    end
+    perforation_cells = vec(perforation_cells)
+
+    if isnothing(segment_models)
+        Δp = SegmentWellBoreFrictionHB(1.0, 1e-4, 0.1)
+        segment_models = repeat([Δp], nseg)
+    else
+        segment_models::AbstractVector
+        @assert length(segment_models) == nseg
+    end
+    if isnothing(dz)
+        dz = centers[3, :] - reference_depth
+    end
+    @assert length(perforation_cells) == nr
+    WI, gdz = common_well_setup(nr; dz = dz, kwarg...)
+    perf = (self = perforation_cells, reservoir = reservoir_cells, WI = WI, gdz = gdz)
+    accumulator = (reference_depth = reference_depth, )
+    new{typeof(volumes), typeof(perf), typeof(N), typeof(accumulator), typeof(ext_centers), typeof(surface_conditions), typeof(segment_models)}(volumes, perf, N, accumulator, ext_centers, surface_conditions, name, segment_models)
 end
 
 
