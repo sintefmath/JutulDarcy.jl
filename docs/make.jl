@@ -50,7 +50,10 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
         pages=[
             "Home" => "index.md",
             "Examples" => examples_markdown,
-            "Usage" => "usage.md",
+            "Usage" => [
+                "Supported physical systems" =>"usage/systems.md",
+                "Solving the equations" => "usage/solution.md"
+                ],
             "Internals" => "internals.md"
         ],
     )
@@ -60,5 +63,5 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
         devbranch="main",
     )
 end
-
+##
 build_jutul_darcy_docs()

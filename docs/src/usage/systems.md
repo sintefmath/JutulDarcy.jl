@@ -1,6 +1,7 @@
-# Systems in JutulDarcy
+# Supported physical systems
 JutulDarcy supports a number of different systems. These are [`JutulSystem`](@ref) instances that describe a particular type of physics for porous media flow. We describe these in roughly the order of complexity that they can model.
 
+## Summary
 The general form of the flow systems we will discuss is a conservation law for ``N`` components on residual form:
 
 ```math
@@ -9,10 +10,20 @@ R = \frac{\partial}{\partial t} M_i + \nabla \cdot \vec{V}_i - Q_i, \quad \foral
 
 Here, ``M_i`` is the conserved quantity (usually masses) for component ``i`` and ``\vec{V}_i`` the velocity of the conserved quantity. ``Q_i`` represents source terms that come from direct sources [`SourceTerm`](@ref), boundary conditions ([`FlowBoundaryCondition`](@ref)) or from wells ([`MultiSegmentWell`](@ref), [`SimpleWell`](@ref)).
 
+The following table gives an overview of the available features that are described in more detail below:
+
+| System | Number of phases | Number of components | ``M`` | ``V`` |
+|---|---|---|---|---|
+| [`SinglePhaseSystem`](@ref) | 1 | 1 | ``\rho \phi `` | ``\rho \vec{v}`` |
+| [`ImmiscibleSystem`](@ref) | Any | (Any) | ``S_\alpha \rho_\alpha \phi`` | ``\rho_\alpha \vec{v}_\alpha`` |
+| [`StandardBlackOilSystem`](@ref) | 2-3 | (2-3) | ``\rho_o^s(b_g S_g + R_s b_o S_o)`` | `` b_g \vec{v}_g + R_s b_g \vec{v}_o`` |
+| [`MultiPhaseCompositionalSystemLV`](@ref) | 2-3 | Any | ``\rho_l X_i S_l + \rho_v Y_i S_v`` | ``\rho_l X_i \vec{v}_l + \rho_v Y_i \vec{v}_v`` |
+
+
+
 ### Implementation details
 In the above the discrete version of ``M_i`` is implemented in the update function for [`TotalMasses`](@ref) that should by convention be named [`update_total_masses!`](@ref). The discrete component fluxes are implemented by [`component_mass_fluxes!`](@ref). The source terms are implemented by [`apply_forces_to_equation!`](@ref) for boundary conditions and sources, and [`update_cross_term_in_entity!`](@ref) for wells. We use Julia's multiple dispatch to pair the right implementation with the right physics system.
 
-[``](@ref)
 ## Single-phase flow
 The simplest form of porous media flow is the single-phase system.
 
@@ -86,26 +97,10 @@ Assume that we have two phases liquid and vapor referred to as ``l`` and ``v`` w
 R_i = \frac{\partial}{\partial t} \left( (\rho_l X_i S_l + \rho_v Y_i S_v) \phi \right) + \nabla \cdot (\rho_l X_i \vec{v}_l + \rho_v Y_i \vec{v}_v) - Q_i, \quad M \in \{1, \dots, M\}
 ```
 
+For additional details, please see [Chapter 8 - Compositional Simulation with the AD-OO Framework Advanced Modeling with the MATLAB Reservoir Simulation Toolbox, Møyner, 2021](https://doi.org/10.1017/9781009019781).
+
 !!! note "Compositional implementation"
     The [`MultiPhaseCompositionalSystemLV`](@ref) implements the compositional model. The primary variables for the most general case is the reference [`Pressure`](@ref), an [`ImmiscibleSaturation`](@ref) for the optional immiscible phase and ``M-1`` [`OverallMoleFractions`](@ref).
 
 ## Thermal flow
 Currently experimental and undocumented. See [`ThermalSystem`](@ref) if you are feeling brave.
-
-## Summary
-
-| System | Number of phases | Number of components | ``M`` | ``V`` |
-|---|---|---|---|---|
-| [`SinglePhaseSystem`](@ref) | 1 | 1 | ``\rho \phi `` | ``\rho \vec{v}`` |
-| [`ImmiscibleSystem`](@ref) | Any | (Any) | ``S_\alpha \rho_\alpha \phi`` | ``\rho_\alpha \vec{v}_\alpha`` |
-| [`StandardBlackOilSystem`](@ref) | 2-3 | (2-3) | ``\rho_o^s(b_g S_g + R_s b_o S_o)`` | `` b_g \vec{v}_g + R_s b_g \vec{v}_o`` |
-| [`MultiPhaseCompositionalSystemLV`](@ref) | 2-3 | Any | ``\rho_l X_i S_l + \rho_v Y_i S_v`` | ``\rho_l X_i \vec{v}_l + \rho_v Y_i \vec{v}_v`` |
-# Solving the system
-
-## Newton's method
-
-## Linear solvers
-
-### Single model (only porous medium)
-
-### Multi model (porous medium with wells)
