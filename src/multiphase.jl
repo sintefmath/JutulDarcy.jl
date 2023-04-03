@@ -66,9 +66,7 @@ get_name(::VaporPhase) = "Vapor"
 # Primary variable logic
 
 const DEFAULT_MINIMUM_PRESSURE = 101325.0
-"""
-Pressure
-"""
+
 struct Pressure <: ScalarVariable
     max_abs::Union{Float64, Nothing}
     max_rel::Union{Float64, Nothing}
@@ -105,7 +103,9 @@ end
 Saturations as primary variable. `ds_max` controls maximum allowable saturation
 change between two Newton iterations.
 """
-Saturations(;ds_max = 0.2) = Saturations(ds_max)
+function Saturations(;ds_max = 0.2)
+    Saturations(ds_max)
+end
 
 default_value(model::SimulationModel{<:Any, <:SinglePhaseSystem, <:Any, <:Any}, ::Saturations) = 1.0
 

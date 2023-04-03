@@ -1,3 +1,10 @@
+"""
+    SourceTerm(cell, value; fractional_flow = [1.0], type = MassSource)
+
+Create source term in given `cell` with given total `value`. The optional
+`fractional_flow` argument controls how this term is divided over components if
+used for inflow.
+"""
 function SourceTerm(cell, value; fractional_flow = [1.0], type = MassSource)
     @assert sum(fractional_flow) == 1.0 "Fractional flow for source term in cell $cell must sum to 1."
     f = Tuple(fractional_flow)

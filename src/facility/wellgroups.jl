@@ -44,6 +44,7 @@ rate_weighted(::DisabledTarget) = false
 
 target_scaling(::Any) = 1.0
 target_scaling(::BottomHolePressureTarget) = 1e5
+target_scaling(::SurfaceVolumeTarget) = 1.0/(3600*24.0) # weight by day
 
 Jutul.associated_entity(::ControlEquationWell) = Wells()
 Jutul.local_discretization(::ControlEquationWell, i) = nothing

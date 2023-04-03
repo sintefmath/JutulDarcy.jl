@@ -86,7 +86,7 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
     seg_model = w.segment_models[face]
     Δp = segment_pressure_drop(seg_model, V, rho, μ_mix)
     Δθ = two_point_potential_drop(p[left], p[right], gdz, rho_l, rho_r)
-    eq_buf[] = Δθ + Δp
+    eq_buf[] = Δθ + Δp - 1e-12*V
 end
 
 function saturation_mixed(saturations, densities, viscosities, ix)

@@ -85,6 +85,8 @@ module JutulDarcy
     include("test_utils/test_utils.jl")
     include("forces/forces.jl")
 
+    include("formulations/formulations.jl")
+
     @precompile_all_calls begin
         precompile_darcy_multimodels()
         # We run a tiny MRST case to precompile the .MAT file loading

@@ -108,3 +108,23 @@ end
     avg = (ρ_1*S_1 + ρ_2*S_2)/max(S_1 + S_2, 1e-12)
     return avg
 end
+
+export component_mass_fluxes!, update_total_masses!
+"""
+    component_mass_fluxes!(q, face, state, model, kgrad, upw)
+
+Implementation of component fluxes for a given system for a given face.
+"""
+function component_mass_fluxes!
+
+end
+
+"""
+    update_total_masses!(totmass, tv, model, arg..., ix)
+
+Update total masses for a given system. Number of input arguments varies based
+on physical system under consideration.
+"""
+function update_total_masses!
+
+end
