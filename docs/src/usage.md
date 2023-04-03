@@ -59,18 +59,23 @@ Here, we have introduced the relative permeability of the phase ``k_{r\alpha}``,
 
 !!! note "Immiscible implementation"
     The [`ImmiscibleSystem`](@ref) implements this system for any number of phases. The primary variables for this system is a single reference [`Pressure`](@ref) and phase [`Saturations`](@ref). As we do not solve for the volume closure equation, there is one less degree of freedom associated with the saturations than there are number of phases.
-### ImmiscibleSystem
 
-#### Primary variables
-The 
+## Black-oil: Multi-phase, pseudo-compositional flow
+The black-oil equations is an extension of the immiscible description to handle limited miscibility between the phases. Originally developed for certain types of oil and gas simulation, these equations are useful when the number of components is low and tabulated values for dissolution and vaporization are available.
 
-## Multi-phase, pseudo-compositional flow
-
+The assumptions of the black-oil model is that the "oil" and "gas" pseudo-components have uniform composition throughout the domain. JutulDarcy supports two- and three-phase black oil flow. The difference between two and three phases amounts to an additional immiscible aqueous phase that is identical to that of the previous section. For that reason, we focus on the miscible pseudo-components:
 ```math
-R(p) = \frac{\partial}{\partial t}( \rho \phi) + \nabla \cdot (\rho \vec{v}) - q
+R_o = \rho_o^s \left( \frac{\partial}{\partial t}( (b_o S_o + R_v b_g (1 - S_o)) \phi) + \nabla \cdot ( b_o \vec{v}_o + R_v b_o \vec{v}_g) - q_o^s \right ) \\
+R_g = \rho_g^s \left( \frac{\partial}{\partial t}( (b_g S_g + R_s b_o S_o) \phi) + \nabla \cdot ( b_g \vec{v}_g + R_s b_g \vec{v}_o) - q_g^s \right )
 ```
 
-## Multi-phase, multi-component equation-of-state flow
+The model uses the notion of surface (or reference densities) ``\rho_o^s, \rho_g^s`` to define the densities of the component at specific pressure and temperature conditions where it is assumed that all "gas" has moved to the vapor phase and the defined "oil" is only found in the liquid phase. Keeping this definition in mind, the above equations can be divided by the surface densities to produce a surface volume balance equation where we have defined `b_o` and `b_g` as the dimensionless reciprocal formation volume factors that relate a volume at reservoir conditions to surface volumes and `R_s` for the dissolved volume of gas in the oil phase when brought to surface conditions. `R_v` is the same definition, but for oil vaporized into the gas phase.
+
+!!! note "Blackoil implementation"
+    The [`StandardBlackOilSystem`](@ref) implements the black-oil equations. It is possible to run cases with and without water, with and without ``R_s`` and with and without ``R_v``. The primary variables for the most general case is the reference [`Pressure`](@ref), an [`ImmiscibleSaturation`](@ref) for the aqueous phase and the special [`BlackOilUnknown`](@ref) that will represent either ``S_o``, ``R_s`` or ``R_v`` on a cell-by-cell basis depending on what phases are present and saturated.
+
+A full description of the black-oil equations is outside the scope of this documentation. Please see [Lie, An Introduction to Reservoir Simulation Using MATLAB/GNU Octave, Cambridge University Press, 2019](https://doi.org/10.1017/9781108591416) for more details.
+## Compositional: Multi-phase, multi-component flow
 ```math
 R(p) = \frac{\partial}{\partial t}( \rho \phi) + \nabla \cdot (\rho \vec{v}) - q
 ```
