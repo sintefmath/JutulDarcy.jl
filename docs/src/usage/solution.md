@@ -11,7 +11,7 @@ JutulDarcy solves systems that generally have both non-smooth behavior and physi
 \mathbf{x}^{k+1} = \mathbf{r}^k + \omega(\Delta \mathbf{x})
 ```
 
-Here, ``\oemga`` is a function that limits the variables so that they do not change too much (e.g. Appleyard chopping, limiting of pressure, saturation and composition updates) and that they are within the prescribed limits. There are also options for automated global dampening in the presence of convergence issues. The update is then defined from inverting the Jacobian:
+Here, ``\omega`` is a function that limits the variables so that they do not change too much (e.g. Appleyard chopping, limiting of pressure, saturation and composition updates) and that they are within the prescribed limits. There are also options for automated global dampening in the presence of convergence issues. The update is then defined from inverting the Jacobian:
 
 ```math
 \Delta \mathbf{x} = -J^{-1} \mathbf{r}(\mathbf{x}^k), \quad J_{ij} = \frac{\partial \mathbf{r}_i}{\partial \mathbf{x}_j}.
