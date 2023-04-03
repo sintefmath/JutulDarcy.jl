@@ -76,24 +76,24 @@ The model uses the notion of surface (or reference densities) ``\rho_o^s, \rho_g
 
 A full description of the black-oil equations is outside the scope of this documentation. Please see [Lie, An Introduction to Reservoir Simulation Using MATLAB/GNU Octave, Cambridge University Press, 2019](https://doi.org/10.1017/9781108591416) for more details.
 ## Compositional: Multi-phase, multi-component flow
+The more general case of multi-component flow is often referred to as a compositional model. The typical version of this model describes the fluid as a system of ``N`` components where the phases present and fluid properties are determined by an equation-of-state. This can be highly accurate if the equation-of-state is tuned for the mixtures that are encountered, but comes at a significant computational cost as the equation-of-state must be evaluated many times.
+
+JutulDarcy implements a standard compositional model that assumes local instantaneous equilibrium and that the components are present in up to two phases with an optional immiscible phase added. This is sometimes referred to as a "simple water" or "dead water" description. By default the solvers use [MultiComponentFlash.jl](https://github.com/moyner/MultiComponentFlash.jl) to solve thermodynamic equilibrium. This package implements the generalized cubic approach and defaults to Peng-Robinson.
+
+Assume that we have two phases liquid and vapor referred to as ``l`` and ``v`` with the Darcy flux given as in the preceeding sections. We can then write the residual equation for each of the ``M`` components by the liquid and vapor mole fractions ``X_i, Y_i```of that component as:
+
 ```math
-R(p) = \frac{\partial}{\partial t}( \rho \phi) + \nabla \cdot (\rho \vec{v}) - q
+R_i = \frac{\partial}{\partial t} \left( (\rho_l X_i S_l + \rho_v Y_i S_v) \phi \right) + \nabla \cdot (\rho_l X_i \vec{v}_l + \rho_v Y_i \vec{v}_v) - Q_i, \quad M \in \{1, \dots, M\}
 ```
-### StandardBlackOilSystem
-The [``](@ref)
 
-#### Primary variables
+!!! note "Compositional implementation"
+    The [`MultiPhaseCompositionalSystemLV`](@ref) implements the compositional model. The primary variables for the most general case is the reference [`Pressure`](@ref), an [`ImmiscibleSaturation`](@ref) for the optional immiscible phase and ``M-1`` [`OverallMoleFractions`](@ref).
 
-### CompositionalSystem
-The [``](@ref)
-
-
-#### Primary variables
+## Thermal flow
+Currently experimental and undocumented. See [`ThermalSystem`](@ref) if you are feeling brave.
 
 ## Summary
 
-## Thermal flow
-Currently experimental.
 
 # Solving the system
 
