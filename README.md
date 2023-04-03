@@ -3,7 +3,7 @@
 [![Build Status](https://github.com/sintefmath/JutulDarcy.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/sintefmath/JutulDarcy.jl/actions/workflows/CI.yml?query=branch%3Amain)
 
 
-![Jutul Darcy logo](docs/src/assets/logo_wide.png)
+[![Jutul Darcy logo](docs/src/assets/logo_wide.png)](https://sintefmath.github.io/JutulDarcy.jl/dev/)
 
 # Reservoir simulation in Julia
 JutulDarcy.jl: Darcy-scale and subsurface flow (CO2 sequestration, gas/H2 storage, oil/gas fields) using [Jutul.jl](https://github.com/sintefmath/Jutul.jl) developed by the [Computational Geosciences group](https://www.sintef.no/en/digital/departments-new/applied-mathematics/computational-geoscience/) at [SINTEF Digital](https://www.sintef.no/en/digital/).
@@ -54,6 +54,6 @@ Pkg.add("CairoMakie")
 You can then run any of the examples in the `examples` directory by including them.
 
 # Additional examples and further reading
-As per Julia tradition, the documentation is fairly sparse at the moment. Please see the [examples](examples/) folder for more information. There are also examples in [JutulExamples](https://github.com/sintefmath/JutulExamples.jl) that may occasionally be a bit out of date.
+The [documentation](https://sintefmath.github.io/JutulDarcy.jl/dev/) is still work in progress, but contains a fair bit of useful information. In addition, see the [examples](examples/) folder for more information. Some functionality is also demonstrated in the [tests](https://github.com/sintefmath/JutulDarcy.jl/tree/main/test). There are also examples in [JutulExamples](https://github.com/sintefmath/JutulExamples.jl) that may occasionally be a bit out of date.
 
 *Internals and undocumented functions are subject to change at this time. However, the main interface for the reservoir simulator itself seen in the examples should be fairly stable.*
