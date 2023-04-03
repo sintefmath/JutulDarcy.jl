@@ -657,3 +657,19 @@ function Base.show(io::IO, sr::ReservoirSimResult)
     end
     print(io, "ReservoirSimResult with $n $s")
 end
+
+"""
+    generate_phase_indices(phases, canonical = (a = AqueousPhase(), l = LiquidPhase(), v = VaporPhase()))
+
+Generate mapping for canonical ordering of phases.
+"""
+function generate_phase_indices(phases, canonical = (a = AqueousPhase(), l = LiquidPhase(), v = VaporPhase()))
+    phase_ind_dict = OrderedDict()
+    for (s, ph) in pairs(canonical)
+        pos = findfirst(isequal(ph), phases)
+        if !isnothing(pos)
+            phase_ind_dict[s] = pos
+        end
+    end
+    return NamedTuple(pairs(phase_ind_dict))
+end

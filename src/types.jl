@@ -96,15 +96,7 @@ function StandardBlackOilSystem(; rs_max::RS = nothing,
     @assert length(reference_densities) == nph
     phase_ind = zeros(Int64, nph)
     has_water = nph == 3
-    if has_water
-        phase_ind[1] = findfirst(isequal(AqueousPhase()), phases)
-        offset = 1
-    else
-        offset = 0
-    end
-    phase_ind[1 + offset] = findfirst(isequal(LiquidPhase()), phases)
-    phase_ind[2 + offset] = findfirst(isequal(VaporPhase()), phases)
-    phase_ind = tuple(phase_ind...)
+    phase_ind = generate_phase_indices(phases)
     if isnothing(eps_rs)
         if isnothing(rs_max)
             eps_rs = eps_s
