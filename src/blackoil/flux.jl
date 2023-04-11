@@ -3,10 +3,10 @@
     ix = phase_indices(sys)
     (; l, v) = ix
     rhoS = reference_densities(sys)
-    kdisc = kgrad_common(face, state, model, kgrad)
+    kdisc = flux_primitives(face, state, model, flux_type, kgrad, upw)
 
     # Get the potentials since the flux is more complicated for miscible phases
-    potential_difference(phase) = darcy_phase_kgrad_potential(face, phase, state, model, kgrad, kdisc)
+    potential_difference(phase) = darcy_phase_kgrad_potential(face, phase, state, model, flux_type, kgrad, upw, kdisc)
 
     b_mob = state.SurfaceVolumeMobilities
     # Water component is the aqueous phase only

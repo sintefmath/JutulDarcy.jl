@@ -13,17 +13,17 @@ end
     return component_mass_fluxes!(q_i, face, state, model, ft, kgrad, upw)
 end
 
-@inline function component_mass_fluxes!(q, face, state, model::SimulationModel{<:Any, <:Union{ImmiscibleSystem, SinglePhaseSystem}, <:Any, <:Any}, flux_type, kgrad, upw)
-    disc = kgrad_common(face, state, model, kgrad)
+function component_mass_fluxes!(q, face, state, model, flux_type, kgrad, upw)
+    disc = flux_primitives(face, state, model, flux_type, kgrad, upw)
     for ph in eachindex(q)
-        q_i = darcy_phase_mass_flux(face, ph, state, model, kgrad, upw, disc)
+        q_i = darcy_phase_mass_flux(face, ph, state, model, flux_type, kgrad, upw, disc)
         @inbounds q = setindex(q, q_i, ph)
     end
     return q
 end
 
-@inline function darcy_phase_mass_flux(face, phase, state, model, kgrad, upw, arg...)
-    Q = darcy_phase_kgrad_potential(face, phase, state, model, kgrad, arg...)
+@inline function darcy_phase_mass_flux(face, phase, state, model, flux_type, kgrad, upw, arg...)
+    Q = darcy_phase_kgrad_potential(face, phase, state, model, flux_type, kgrad, upw, arg...)
     ρλ = state.PhaseMassMobilities
     ρλ_f = phase_upwind(upw, ρλ, phase, Q)
     return ρλ_f*Q
@@ -38,7 +38,11 @@ end
     return (∇p, T_f, gΔz)
 end
 
-@inline function darcy_phase_kgrad_potential(face, phase, state, model, tpfa::TPFA, common = kgrad_common(face, state, model, tpfa))
+@inline function flux_primitives(face, state, model, flux_type, tpfa::TPFA, upw)
+    return kgrad_common(face, state, model, tpfa)
+end
+
+@inline function darcy_phase_kgrad_potential(face, phase, state, model, flux_type, tpfa::TPFA, upw, common = flux_primitives(face, state, model, flux_type, upw, tpfa))
     ρ = state.PhaseMassDensities
     pc, ref_index = capillary_pressure(model, state)
     ∇p, T_f, gΔz = common
