@@ -5,8 +5,9 @@ function convert_to_sequential(model; pressure = true)
     else
         f = TransportFormulation()
     end
+    transport = !pressure
     # TODO: Figure out context
-    pmodel = SimulationModel(
+    seqmodel = SimulationModel(
         model.domain,
         model.system,
         data_domain = model.data_domain,
@@ -15,15 +16,26 @@ function convert_to_sequential(model; pressure = true)
     if pressure
         for (pkey, pvar) in model.primary_variables
             if pkey != :Pressure
-                pmodel.parameters[pkey] = pvar
+                seqmodel.parameters[pkey] = pvar
             end
         end
     end
     for (skey, svar) in model.secondary_variables
-        pmodel.secondary_variables[skey] = svar
+        seqmodel.secondary_variables[skey] = svar
+    end
+    if transport
+        vars = seqmodel.secondary_variables
+        if haskey(vars, :ShrinkageFactors)
+            k = :ShrinkageFactors
+        else
+            k = :PhaseMassDensities
+        end
+        @assert haskey(vars, k)
+        vars[:UncorrectedVariable] = vars[k]
+        vars[k] = TotalSaturationCorrectedVariable()
     end
     for (pkey, pvar) in model.parameters
-        pmodel.parameters[pkey] = pvar
+        seqmodel.parameters[pkey] = pvar
     end
-    return pmodel
+    return seqmodel
 end
