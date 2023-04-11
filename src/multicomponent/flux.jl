@@ -1,4 +1,4 @@
-@inline function component_mass_fluxes!(q, face, state, model::SimulationModel{<:Any, <:CompositionalSystem, <:Any, <:Any}, kgrad, upw)
+@inline function component_mass_fluxes!(q, face, state, model::SimulationModel{<:Any, <:CompositionalSystem, <:Any, <:Any}, flux_type, kgrad, upw)
     sys = model.system
     aqua = Val(has_other_phase(sys))
     ph_ix = phase_indices(sys)

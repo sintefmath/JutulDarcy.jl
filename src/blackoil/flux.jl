@@ -1,4 +1,4 @@
-@inline function component_mass_fluxes!(q, face, state, model::StandardBlackOilModel, kgrad, upw)
+@inline function component_mass_fluxes!(q, face, state, model::StandardBlackOilModel, flux_type, kgrad, upw)
     sys = model.system
     ix = phase_indices(sys)
     (; l, v) = ix

@@ -2,16 +2,18 @@
     # Specific version for tpfa flux
     kgrad = TPFA(left, right, face_sign)
     upw = SPU(left, right)
-    return component_mass_fluxes!(q_i, face, state, model, kgrad, upw)
+    ft = Jutul.flux_type(eq)
+    return component_mass_fluxes!(q_i, face, state, model, ft, kgrad, upw)
 end
 
 @inline function Jutul.face_flux!(q_i, face, eq::ConservationLaw{:TotalMasses, <:Any}, state, model::DarcyFlowModel, dt, flow_disc::PotentialFlow, ldisc)
     # Inner version, for generic flux
     kgrad, upw = ldisc.face_disc(face)
-    return component_mass_fluxes!(q_i, face, state, model, kgrad, upw)
+    ft = Jutul.flux_type(eq)
+    return component_mass_fluxes!(q_i, face, state, model, ft, kgrad, upw)
 end
 
-@inline function component_mass_fluxes!(q, face, state, model::SimulationModel{<:Any, <:Union{ImmiscibleSystem, SinglePhaseSystem}, <:Any, <:Any}, kgrad, upw)
+@inline function component_mass_fluxes!(q, face, state, model::SimulationModel{<:Any, <:Union{ImmiscibleSystem, SinglePhaseSystem}, <:Any, <:Any}, flux_type, kgrad, upw)
     disc = kgrad_common(face, state, model, kgrad)
     for ph in eachindex(q)
         q_i = darcy_phase_mass_flux(face, ph, state, model, kgrad, upw, disc)
