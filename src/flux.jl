@@ -38,7 +38,7 @@ end
     return (∇p, T_f, gΔz)
 end
 
-@inline function flux_primitives(face, state, model, flux_type, tpfa::TPFA, upw)
+@inline function flux_primitives(face, state, model, flux_type::Jutul.DefaultFlux, tpfa::TPFA, upw)
     return kgrad_common(face, state, model, tpfa)
 end
 
