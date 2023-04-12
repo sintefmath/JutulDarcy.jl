@@ -72,5 +72,22 @@ function Jutul.perform_step!(
     # Return convergence criterion for outer loop
 end
 
+function Jutul.update_after_step!(sim::SequentialSimulator, dt, forces; kwarg...)
+    report = Dict{Symbol, Any}()
+    report[:pressure] = Jutul.update_after_step!(sim.pressure, dt, forces; kwarg...)
+    report[:transport] = Jutul.update_after_step!(sim.transport, dt, forces; kwarg...)
+    return report
+end
+
+function Jutul.get_output_state(sim::SequentialSimulator)
+    Jutul.get_output_state(sim.transport)
+end
+
+function Jutul.final_simulation_message(simulator::SequentialSimulator, arg...)
+    Jutul.jutul_message("Sequential", "All done.")
+    # Jutul.final_simulation_message(simulator.pressure, arg...)
+    # Jutul.jutul_message("Transport")
+    #Jutul.final_simulation_message(simulator.transport, arg...)
+end
 
 include("interface.jl")
