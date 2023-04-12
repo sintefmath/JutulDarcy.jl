@@ -20,7 +20,6 @@ function Jutul.select_equations!(eqs, ::TransportFormulation, model::TransportMo
 end
 
 @inline function flux_primitives(face, state, model, flux_type::TotalSaturationFlux, tpfa::TPFA, upw)
-    V_t = state.TotalVolumetricFlux[face]
     trans = state.Transmissibilities
     grav = state.TwoPointGravityDifference
     kr = state.RelativePermeabilities
@@ -28,6 +27,7 @@ end
 
     @inbounds T_f = trans[face]
     @inbounds gΔz = tpfa.face_sign*grav[face]
+    V_t = tpfa.face_sign*state.TotalVolumetricFlux[face]
 
     ix = phase_indices(model.system)
     l = upw.left

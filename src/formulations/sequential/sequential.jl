@@ -52,19 +52,20 @@ function Jutul.perform_step!(
         update_secondary = true,
         solve = true
     )
+    psim = simulator.pressure
+    tsim = simulator.transport
     # Solve pressure
     max_iter = config[:max_nonlinear_iterations]
     config[:always_update_secondary] = true
-    done_p, report_p = Jutul.solve_ministep(simulator.pressure, dt, forces, max_iter, config)
+    done_p, report_p = Jutul.solve_ministep(psim, dt, forces, max_iter, config)
     if done_p
         # Copy over values for pressure and fluxes into parameters for second simulator
-        model_p = simulator.pressure.model
-        state_p = simulator.pressure.storage.state
-
-        vT = simulator.transport.storage.parameters.TotalVolumetricFlux
+        model_p = psim.model
+        state_p = psim.storage.state
+        vT = tsim.storage.state.TotalVolumetricFlux
         store_total_fluxes!(vT, model_p, as_value(state_p))
         # Then transport
-        done_t, report_t = Jutul.solve_ministep(simulator.transport, dt, forces, max_iter, config)
+        done_t, report_t = Jutul.solve_ministep(tsim, dt, forces, max_iter, config)
     else
         error("Pressure failure not implemented")
     end
