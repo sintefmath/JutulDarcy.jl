@@ -23,11 +23,21 @@ end
     V_t = state.TotalVolumetricFlux[face]
     trans = state.Transmissibilities
     grav = state.TwoPointGravityDifference
+    kr = state.RelativePermeabilities
+    mu = state.PhaseViscosities
 
     @inbounds T_f = trans[face]
     @inbounds gΔz = tpfa.face_sign*grav[face]
+
+    ix = phase_indices(model.system)
+    l = upw.left
+    r = upw.right
+    c = upwind_cell(V_t, l, r)
+    λ = map(ph -> kr[ph, c]/mu[ph, c], ix)
+    λ_t = sum(λ)
+
     # TODO: Phase upwind and fractional flow here
-    return (V_t = V_t, T_f, gΔz)
+    return (q = V_t/λ_t, T = T_f, gdz = gΔz, V_t = V_t, λ = λ)
 end
 
 @inline function darcy_phase_kgrad_potential(face, phase, state, model, flux_type::TotalSaturationFlux, tpfa::TPFA, upw, common = flux_primitives(face, state, model, flux_type, upw, tpfa))
