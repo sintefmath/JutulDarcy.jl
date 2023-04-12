@@ -57,6 +57,7 @@ function Jutul.perform_step!(
     # Solve pressure
     max_iter = config[:max_nonlinear_iterations]
     config[:always_update_secondary] = true
+    # Copy over variables to parameters for both solves
     done_p, report_p = Jutul.solve_ministep(psim, dt, forces, max_iter, config)
     if done_p
         # Copy over values for pressure and fluxes into parameters for second simulator
@@ -69,8 +70,8 @@ function Jutul.perform_step!(
     else
         error("Pressure failure not implemented")
     end
-    return (0.0, true, report_p)
-    # Return convergence criterion for outer loop
+    # Return convergence criterion for outer loop if SFI
+    return (0.0, done_t, report_p)
 end
 
 function Jutul.update_after_step!(sim::SequentialSimulator, dt, forces; kwarg...)
