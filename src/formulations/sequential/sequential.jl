@@ -19,8 +19,64 @@ function SequentialSimulator(model; state0 = setup_state(model), parameters = se
 
     PSim = subsimulator(pmodel)
     TSim = subsimulator(tmodel)
+
+    function seq_output_keys(m)
+        return copy(m.output_variables)
+    end
+    # Transfer rule: All parameters present in other that are not parameters both places.
+    function transfer_keys(target, source)
+        prm_t = keys(Jutul.get_parameters(target))
+        prm_s = keys(Jutul.get_parameters(source))
+
+        all_t = keys(Jutul.get_variables_by_type(target, :all))
+        all_s = keys(Jutul.get_variables_by_type(source, :all))
+
+        return intersect(all_s, setdiff(prm_t, prm_s))
+    end
+    transfer_keys_transport = transfer_keys(TSim.model, PSim.model)
+    transfer_keys_pressure = transfer_keys(PSim.model, TSim.model)
+    # Init rule: Transfer over everything that is present from transport state.
+    function init_keys(target, source)
+        all_t = keys(Jutul.get_variables_by_type(target, :all))
+        all_s = keys(Jutul.get_variables_by_type(source, :all))
+
+        return intersect(all_t, all_s)
+    end
+    # init_keys_transport = init_keys(TSim.model)
+    init_keys_pressure = init_keys(PSim.model, TSim.model)
+
+    transfer_keys = JutulStorage()
+    transfer_keys[:pressure] = transfer_keys_pressure
+    transfer_keys[:transport] = transfer_keys_transport
+
+    init_keys = JutulStorage()
+    init_keys[:pressure] = init_keys_pressure
+    # init_keys[:transport] = init_keys_transport
+
     S = JutulStorage()
+    S[:init_keys] = init_keys
+    S[:transfer_keys] = transfer_keys
+
+    @info "Keys" transfer_keys_pressure transfer_keys_transport init_keys_transport init_keys_pressure
+
+
+    # all_keys = union(seq_output_keys(PSim.model), seq_output_keys(TSim.model))
+    # seq_state = JutulStorage()
+    # for s in [PSim, TSim]
+    #     s0 = s.storage.state0
+    #     for k in seq_output_keys(s.model)
+    #         if haskey(s0, k)
+    #             seq_state[k] = similar(s0[k])
+    #         end
+    #     end
+    # end
+    # @info "!" seq_state
+    # error()
+
     S[:recorder] = ProgressRecorder()
+    # S[:state] = seq_state
+    # S[:state0] = deepcopy(seq_state)
+    # S[:primary_variables] = seq_state
     return SequentialSimulator(model, PSim, TSim, S)
 end
 
@@ -53,11 +109,22 @@ function Jutul.perform_step!(
         solve = true
     )
     psim = simulator.pressure
+    pstate = psim.storage.state
+
     tsim = simulator.transport
+    tstate = tsim.storage.state
+    
+    transfer_keys = simulator.storage.transfer_keys
     # Solve pressure
     max_iter = config[:max_nonlinear_iterations]
     config[:always_update_secondary] = true
     # Copy over variables to parameters for both solves
+    if iteration > 1
+        # We need to transfer from pressure
+        for k in transfer_keys[:pressure]
+            update_values!(pstate[k], tstate[k])
+        end
+    end
     done_p, report_p = Jutul.solve_ministep(psim, dt, forces, max_iter, config)
     if done_p
         # Copy over values for pressure and fluxes into parameters for second simulator
@@ -65,6 +132,9 @@ function Jutul.perform_step!(
         state_p = psim.storage.state
         vT = tsim.storage.state.TotalVolumetricFlux
         store_total_fluxes!(vT, model_p, as_value(state_p))
+        for k in transfer_keys[:transport]
+            update_values!(tstate[k], pstate[k])
+        end
         # Then transport
         done_t, report_t = Jutul.solve_ministep(tsim, dt, forces, max_iter, config)
     else
@@ -91,5 +161,30 @@ function Jutul.final_simulation_message(simulator::SequentialSimulator, arg...)
     # Jutul.jutul_message("Transport")
     #Jutul.final_simulation_message(simulator.transport, arg...)
 end
+
+function Jutul.update_before_step!(sim::SequentialSimulator, dt, forces; kwarg...)
+    Jutul.update_before_step!(sim.pressure, dt, forces; kwarg...)
+    Jutul.update_before_step!(sim.transport, dt, forces; kwarg...)
+end
+
+function Jutul.update_after_step!(sim::SequentialSimulator, dt, forces; kwarg...)
+    # First, sync up state and state0 for transport
+    Jutul.update_after_step!(sim.transport, dt, forces; kwarg...)
+    # NOTE: This part must be done carefully so that the pressure contains the
+    # final solution from the last transport solve.
+    pstate = sim.pressure.storage.state
+    tstate = sim.transport.storage.state
+    for k in sim.storage.init_keys.pressure
+        update_values!(pstate[k], tstate[k])
+    end
+    Jutul.update_after_step!(sim.pressure, dt, forces; kwarg...)
+end
+
+
+function Jutul.reset_state_to_previous_state!(sim::SequentialSimulator)
+    Jutul.reset_state_to_previous_state!(sim.pressure)
+    Jutul.reset_state_to_previous_state!(sim.transport)
+end
+
 
 include("interface.jl")
