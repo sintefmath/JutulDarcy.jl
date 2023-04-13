@@ -47,9 +47,12 @@ function convert_to_sequential(model; pressure = true)
 end
 
 
-function convert_to_sequential(model::MultiModel; kwarg...)
-    ct = deepcopy(model.cross_terms)
-    smodel = convert_to_sequential(model[:Reservoir]; kwarg...)
+function convert_to_sequential(model::MultiModel; pressure = true)
+    ct = Vector{Jutul.CrossTermPair}()
+    for ctp in model.cross_terms
+        
+    end
+    smodel = convert_to_sequential(model[:Reservoir]; pressure = pressure)
     models = Dict{Symbol, Any}()
     for (k, v) in pairs(model.models)
         if k == :Reservoir
