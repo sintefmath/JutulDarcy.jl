@@ -5,6 +5,10 @@ struct SequentialSimulator{M, P, T, S} <: Jutul.JutulSimulator
     storage::S
 end
 
+function SequentialSimulator(case::JutulCase; kwarg...)
+    return SequentialSimulator(case.model; state0 = case.state0, parameters = case.parameters)
+end
+
 function SequentialSimulator(model; state0 = setup_state(model), parameters = setup_parameters(model))
     pmodel = convert_to_sequential(model, pressure = true)
     tmodel = convert_to_sequential(model, pressure = false)
