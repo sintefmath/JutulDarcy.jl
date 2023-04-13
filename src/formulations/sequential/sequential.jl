@@ -57,7 +57,7 @@ function SequentialSimulator(model; state0 = setup_state(model), parameters = se
     S[:init_keys] = init_keys
     S[:transfer_keys] = transfer_keys
 
-    @info "Keys" transfer_keys_pressure transfer_keys_transport init_keys_transport init_keys_pressure
+    # @info "Keys" transfer_keys_pressure transfer_keys_transport init_keys_transport init_keys_pressure
 
 
     # all_keys = union(seq_output_keys(PSim.model), seq_output_keys(TSim.model))
@@ -92,6 +92,7 @@ end
 
 function Jutul.initial_setup!(sim::SequentialSimulator, config, timesteps; kwarg...)
     Jutul.initial_setup!(sim.pressure, config, timesteps; kwarg...)
+    Jutul.initial_setup!(sim.transport, config, timesteps; kwarg...)
 end
 
 function Jutul.initialize_before_first_timestep!(sim::SequentialSimulator, dt; kwarg...)
@@ -186,5 +187,17 @@ function Jutul.reset_state_to_previous_state!(sim::SequentialSimulator)
     Jutul.reset_state_to_previous_state!(sim.transport)
 end
 
+
+function Jutul.reset_variables!(sim::SequentialSimulator, state; kwarg...)
+    @info "Hey..."
+    Jutul.reset_variables!(sim.pressure, state; kwarg...)
+    Jutul.reset_variables!(sim.transport, state; kwarg...)
+end
+
+function Jutul.reset_previous_state!(sim::SequentialSimulator, state)
+    Jutul.reset_previous_state!(sim.pressure, state)
+    Jutul.reset_previous_state!(sim.transport, state)
+end
+# reset_previous_state!
 
 include("interface.jl")
