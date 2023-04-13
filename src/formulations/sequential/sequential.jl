@@ -80,6 +80,18 @@ function SequentialSimulator(model; state0 = setup_state(model), parameters = se
     return SequentialSimulator(model, PSim, TSim, S)
 end
 
+function Jutul.simulator_config(sim::SequentialSimulator; kwarg...)
+    cfg = Jutul.JutulConfig("Simulator config")
+    Jutul.simulator_config!(cfg, sim; kwarg...)
+    for k in [:pressure, :transport]
+        cfg_k = Jutul.simulator_config(getfield(sim, k); always_update_secondary = true, kwarg...)
+        Jutul.add_option!(cfg, k, cfg_k)
+    end
+    return cfg
+end
+
+
+
 function Jutul.select_linear_solver(sim::SequentialSimulator; kwarg...)
     return nothing
 end
@@ -117,8 +129,6 @@ function Jutul.perform_step!(
     
     transfer_keys = simulator.storage.transfer_keys
     # Solve pressure
-    max_iter = config[:max_nonlinear_iterations]
-    config[:always_update_secondary] = true
     # Copy over variables to parameters for both solves
     if iteration > 1
         # We need to transfer from pressure
@@ -127,7 +137,10 @@ function Jutul.perform_step!(
         end
     end
     report = Jutul.setup_ministep_report()
-    done_p, report_p = Jutul.solve_ministep(psim, dt, forces, max_iter, config)
+    config_p = config[:pressure]
+    max_iter_p = config_p[:max_nonlinear_iterations]
+
+    done_p, report_p = Jutul.solve_ministep(psim, dt, forces, max_iter_p, config_p)
     if done_p
         # Copy over values for pressure and fluxes into parameters for second simulator
         model_p = psim.model
@@ -138,7 +151,9 @@ function Jutul.perform_step!(
             update_values!(tstate[k], pstate[k])
         end
         # Then transport
-        done_t, report_t = Jutul.solve_ministep(tsim, dt, forces, max_iter, config)
+        config_t = config[:transport]
+        max_iter_t = config_t[:max_nonlinear_iterations]
+        done_t, report_t = Jutul.solve_ministep(tsim, dt, forces, max_iter_t, config_t)
         report[:transport] = report_t
     else
         error("Pressure failure not implemented")
@@ -230,7 +245,7 @@ function Jutul.final_simulation_message(simulator::SequentialSimulator, p, rec, 
         s = stats[k]
         i = s[:iterations]
         li = s[:linear_iterations]
-        Jutul.jutul_message(k, "$i iterations, $li linear iterations")
+        Jutul.jutul_message(titlecase("$k"), "$i iterations, $li linear iterations")
     end
     # Jutul.jutul_message("Transport")
     # Jutul.final_simulation_message(simulator.transport, arg...)
