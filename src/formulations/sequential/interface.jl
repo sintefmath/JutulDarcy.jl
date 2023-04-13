@@ -38,6 +38,11 @@ function convert_to_sequential(model; pressure = true)
     for (pkey, pvar) in model.parameters
         seqmodel.parameters[pkey] = pvar
     end
+    for (pkey, pvar) in seqmodel.parameters
+        if haskey(seqmodel.secondary_variables, pkey)
+            delete!(seqmodel.parameters, pkey)
+        end
+    end
     return seqmodel
 end
 

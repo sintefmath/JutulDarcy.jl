@@ -12,13 +12,28 @@ end
 function SequentialSimulator(model; state0 = setup_state(model), parameters = setup_parameters(model))
     pmodel = convert_to_sequential(model, pressure = true)
     tmodel = convert_to_sequential(model, pressure = false)
-    init = merge(state0, parameters)
-    if !haskey(state0, :TotalSaturation)
-        init[:TotalSaturation] = ones(number_of_cells(model.domain))
+    function add_total_saturation!(m, state0)
+        if !haskey(state0, :TotalSaturation)
+            state0[:TotalSaturation] = ones(number_of_cells(m.domain))
+        end
     end
+    function add_total_saturation!(m::MultiModel, state0)
+        add_total_saturation!(m[:Reservoir], state0[:Reservoir])
+    end
+    add_total_saturation!(model, state0)
+
+    function merge_initial_state(m, state0, parameters)
+        return merge(state0, parameters)
+    end
+    function merge_initial_state(m::MultiModel, state0, parameters)
+        init = copy(state0)
+        init[:Reservoir] = merge(state0[:Reservoir], parameters[:Reservoir])
+        return init
+    end
+    init = merge_initial_state(model, state0, parameters)
     function subsimulator(m)
-        s0, prm = setup_state_and_parameters(m; pairs(init)...)
-        return Simulator(m, state0 = s0, parameters = prm)    
+        s0, prm = setup_state_and_parameters(m, init)
+        return Simulator(m, state0 = s0, parameters = prm)
     end
 
     PSim = subsimulator(pmodel)
