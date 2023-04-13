@@ -33,6 +33,9 @@ function select_default_darcy_secondary_variables!(S, domain, system, formulatio
     if is_multiphase && !is_well
         S[:RelativePermeabilities] = BrooksCoreyRelPerm(system)
     end
+    if !is_well
+        S[:PhaseMobilities] = PhaseMobilities()
+    end
     if !is_bo && !is_well
         S[:PhaseMassMobilities] = PhaseMassMobilities()
     end

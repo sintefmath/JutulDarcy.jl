@@ -79,10 +79,19 @@ end
     end
 end
 
-@jutul_secondary function update_phase_mass_mob!(ρλ, var::PhaseMassMobilities, model, RelativePermeabilities, PhaseMassDensities, PhaseViscosities, ix)
+@jutul_secondary function update_phase_mass_mob!(ρλ, var::PhaseMassMobilities, model, PhaseMassDensities, PhaseMobilities, ix)
     for i in ix
         @inbounds for ph in axes(ρλ, 1)
-            ρλ[ph, i] = PhaseMassDensities[ph, i]*RelativePermeabilities[ph, i]/PhaseViscosities[ph, i]
+            ρλ[ph, i] = PhaseMassDensities[ph, i]*PhaseMobilities[ph, i]
+        end
+    end
+end
+
+
+@jutul_secondary function update_phase_mass_mob!(λ, var::PhaseMobilities, model, RelativePermeabilities, PhaseViscosities, ix)
+    for i in ix
+        @inbounds for ph in axes(λ, 1)
+            λ[ph, i] = RelativePermeabilities[ph, i]/PhaseViscosities[ph, i]
         end
     end
 end

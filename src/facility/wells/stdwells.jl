@@ -120,8 +120,9 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
     gdz = perf.gdz
 
     ρ = as_value(res_state.PhaseMassDensities)
-    kr = as_value(res_state.RelativePermeabilities)
-    mu = as_value(res_state.PhaseViscosities)
+    mob = as_value(res_state.PhaseMobilities)
+    # kr = as_value(res_state.RelativePermeabilities)
+    # mu = as_value(res_state.PhaseViscosities)
 
     # Integrate up, adding weighted density into well bore and keeping track of
     # current weight
@@ -135,7 +136,7 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
         local_density = 0
         local_weight = 0
         for ph in axes(ρ, 1)
-            λ = kr[ph, rc]/mu[ph, rc]
+            λ = mob[ph, rc]
             weight_ph = wi*λ
             local_weight += weight_ph
             local_density += weight_ph*ρ[ph, rc]

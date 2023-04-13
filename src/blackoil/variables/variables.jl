@@ -134,13 +134,12 @@ struct SurfaceVolumeMobilities <: PhaseVariables end
 
 @jutul_secondary function update_surface_mob!(b_mob, var::SurfaceVolumeMobilities, model,
                                                         ShrinkageFactors,
-                                                        PhaseViscosities,
-                                                        RelativePermeabilities,
+                                                        PhaseMobilities,
                                                         ix)
     # For blackoil, the main upwind term
     for i in ix
         @inbounds for ph in axes(b_mob, 1)
-            b_mob[ph, i] = ShrinkageFactors[ph, i]*RelativePermeabilities[ph, i]/PhaseViscosities[ph, i]
+            b_mob[ph, i] = ShrinkageFactors[ph, i]*PhaseMobilities[ph, i]
         end
     end
 end

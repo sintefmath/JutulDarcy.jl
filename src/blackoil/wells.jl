@@ -6,7 +6,6 @@ Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::
         dp_a, dp_l, dp_v = res_dp(conn, state_res, state_well, sys)
         λ_a, λ_l, λ_v = res_mobility(state_res, sys, rc)
         λ_t = λ_a + λ_l + λ_v
-    
         a, l, v, rhoGS, rhoOS = well_pvt_bo(sys)
         b, b_w, ρ, ρ_w, s_w = well_volumes_bo(state_res, state_well)
         # Water component flux
@@ -172,10 +171,9 @@ end
 
 
 function res_mobility(state_res, sys, rc)
-    μ = state_res.PhaseViscosities
-    kr = state_res.RelativePermeabilities
+    λ = state_res.PhaseMobilities
     return map(
-        x -> kr[x, rc]/μ[x, rc], 
+        x -> λ[x, rc], 
         phase_indices(sys)
     )
 end
