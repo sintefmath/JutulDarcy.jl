@@ -33,6 +33,7 @@ function convert_to_sequential(model; pressure = true)
         @assert haskey(vars, k)
         vars[:UncorrectedVariable] = vars[k]
         vars[k] = TotalSaturationCorrectedVariable()
+        push!(seqmodel.output_variables, :Pressure)
     end
     for (pkey, pvar) in model.parameters
         seqmodel.parameters[pkey] = pvar

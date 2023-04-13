@@ -126,6 +126,7 @@ function Jutul.perform_step!(
             update_values!(pstate[k], tstate[k])
         end
     end
+    report = Jutul.setup_ministep_report()
     done_p, report_p = Jutul.solve_ministep(psim, dt, forces, max_iter, config)
     if done_p
         # Copy over values for pressure and fluxes into parameters for second simulator
@@ -138,11 +139,34 @@ function Jutul.perform_step!(
         end
         # Then transport
         done_t, report_t = Jutul.solve_ministep(tsim, dt, forces, max_iter, config)
+        report[:transport] = report_t
     else
         error("Pressure failure not implemented")
     end
+    converged = done_t
+    report[:pressure] = report_p
+    report[:converged] = converged
+    for k in [
+        :secondary_time,
+        :equations_time,
+        :linear_system_time,
+        :convergence_time,
+        :linear_solve_time,
+        :update_time,
+        :linear_iterations
+        ]
+        v = 0
+        for R in [report_p, report_t]
+            for step in R[:steps]
+                if haskey(step, k)
+                    v += step[k]
+                end
+            end
+        end
+        report[k] = v
+    end
     # Return convergence criterion for outer loop if SFI
-    return (0.0, done_t, report_p)
+    return (0.0, converged, report)
 end
 
 function Jutul.update_after_step!(sim::SequentialSimulator, dt, forces; kwarg...)
@@ -156,11 +180,60 @@ function Jutul.get_output_state(sim::SequentialSimulator)
     Jutul.get_output_state(sim.transport)
 end
 
-function Jutul.final_simulation_message(simulator::SequentialSimulator, arg...)
-    Jutul.jutul_message("Sequential", "All done.")
-    # Jutul.final_simulation_message(simulator.pressure, arg...)
+function Jutul.final_simulation_message(simulator::SequentialSimulator, p, rec, t_elapsed, reports, arg...)
+    Jutul.jutul_message("Sequential", "Total timing, per SFI iteration")
+    Jutul.final_simulation_message(simulator.pressure, p, rec, t_elapsed, reports, arg...)
+
+    # function make_sub_report(reports, typ)
+    #     reports_seq = Vector{Any}()
+    #     for rep in reports
+    #         rep_seq = similar(rep)
+    #         for (k, v) in rep
+    #             if k == :ministeps
+    #                 @info "?!" v
+    #                 rep_inner = Vector{Any}()
+    #                 for ministep in v
+    #                     @info ministep rep_inner
+    #                 end
+
+    #                 rep_seq[k] = rep_inner
+    #             else
+    #                 rep_seq[k] = v
+    #             end
+    #         end
+    #         push!(reports_seq, rep_seq)
+    #     end
+    #     return reports_seq
+    # end
+    # @info "Hey" make_sub_report(reports, :pressure)
+
+
+    stats = Dict()
+    stats[:pressure] = Dict(:iterations => 0, :linear_iterations => 0)
+    stats[:transport] = Dict(:iterations => 0, :linear_iterations => 0)
+
+    for rep in reports
+        for ministep in rep[:ministeps]
+            for step in ministep[:steps]
+                for k in [:pressure, :transport]
+                    for sstep in step[k][:steps]
+                        if haskey(sstep, :update)
+                            stats[k][:iterations] += 1
+                            stats[k][:linear_iterations] += sstep[:linear_iterations]
+                        end
+                    end
+                end
+            end
+        end
+    end
+    for k in [:pressure, :transport]
+        s = stats[k]
+        i = s[:iterations]
+        li = s[:linear_iterations]
+        Jutul.jutul_message(k, "$i iterations, $li linear iterations")
+    end
     # Jutul.jutul_message("Transport")
-    #Jutul.final_simulation_message(simulator.transport, arg...)
+    # Jutul.final_simulation_message(simulator.transport, arg...)
 end
 
 function Jutul.update_before_step!(sim::SequentialSimulator, dt, forces; kwarg...)
@@ -189,7 +262,6 @@ end
 
 
 function Jutul.reset_variables!(sim::SequentialSimulator, state; kwarg...)
-    @info "Hey..."
     Jutul.reset_variables!(sim.pressure, state; kwarg...)
     Jutul.reset_variables!(sim.transport, state; kwarg...)
 end
