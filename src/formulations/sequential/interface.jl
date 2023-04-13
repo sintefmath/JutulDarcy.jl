@@ -40,3 +40,26 @@ function convert_to_sequential(model; pressure = true)
     end
     return seqmodel
 end
+
+
+function convert_to_sequential(model::MultiModel; kwarg...)
+    ct = deepcopy(model.cross_terms)
+    smodel = convert_to_sequential(model[:Reservoir]; kwarg...)
+    models = Dict{Symbol, Any}()
+    for (k, v) in pairs(model.models)
+        if k == :Reservoir
+            models[k] = smodel
+        else
+            models[k] = deepcopy(v)
+        end
+    end
+
+    seqmodel = MultiModel(
+        models,
+        cross_terms = ct,
+        groups = copy(model.groups),
+        context = model.context,
+        reduction = model.reduction
+        )
+    return seqmodel
+end
