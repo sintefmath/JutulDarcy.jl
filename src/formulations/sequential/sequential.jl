@@ -199,7 +199,16 @@ function Jutul.perform_step!(
             for i = 1:nsub
                 dt_i = dt/nsub
                 done_t, report_t = Jutul.solve_ministep(tsim, dt_i, forces, max_iter_t, config_t)
-                @. mob += dt_i*value(mob_t)
+                for i in axes(mob_t, 2)
+                    λ_t = 0.0
+                    for ph in axes(mob_t, 1)
+                        λ_t += value(mob_t[ph, i])
+                    end
+                    for ph in axes(mob_t, 1)
+                        λ = value(mob_t[ph, i])
+                        mob[ph, i] += λ/λ_t
+                    end
+                end
                 report[:transport] = report_t
             end
             @. mob /= dt
