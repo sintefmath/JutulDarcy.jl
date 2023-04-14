@@ -80,7 +80,9 @@ function SequentialSimulator(model; state0 = setup_state(model), parameters = se
 
     nph = number_of_phases(sys)
     nc = number_of_cells(model.domain)
-    S[:mobility] = zeros(nph, nc)
+    λ = zeros(nph, nc)
+    @. λ = NaN
+    S[:mobility] = λ
 
     # @info "Keys" transfer_keys_pressure transfer_keys_transport init_keys_transport init_keys_pressure
 
@@ -152,7 +154,7 @@ function Jutul.perform_step!(
 
     tsim = simulator.transport
     tstate = tsim.storage.state
-    
+
     transfer_keys = simulator.storage.transfer_keys
     # Solve pressure
     # Copy over variables to parameters for both solves
@@ -165,12 +167,20 @@ function Jutul.perform_step!(
     report = Jutul.setup_ministep_report()
     config_p = config[:pressure]
     max_iter_p = config_p[:max_nonlinear_iterations]
+    mob_p = psim.storage.state.PhaseMobilities
+    mob_t = tsim.storage.state.PhaseMobilities
+    mob = simulator.storage.mobility
+    if isnan(mob[1, 1])
+        @. mob = value(mob_t)
+    end
+    @. mob_p = mob
 
     done_p, report_p = Jutul.solve_ministep(psim, dt, forces, max_iter_p, config_p)
     if done_p
         # Copy over values for pressure and fluxes into parameters for second simulator
         model_p = psim.model
         state_p = psim.storage.state
+
         vT = tsim.storage.state.TotalVolumetricFlux
         store_total_fluxes!(vT, model_p, as_value(state_p))
         for k in transfer_keys[:transport]
@@ -185,12 +195,11 @@ function Jutul.perform_step!(
             done_t, report_t = Jutul.solve_ministep(tsim, dt, forces, max_iter_t, config_t)
             report[:transport] = report_t
         else
-            mob = simulator.storage.mobility
             @. mob = 0
             for i = 1:nsub
                 dt_i = dt/nsub
                 done_t, report_t = Jutul.solve_ministep(tsim, dt_i, forces, max_iter_t, config_t)
-                @. mob += dt_i*value(tsim.storage.state.PhaseMobilities)
+                @. mob += dt_i*value(mob_t)
                 report[:transport] = report_t
             end
             @. mob /= dt

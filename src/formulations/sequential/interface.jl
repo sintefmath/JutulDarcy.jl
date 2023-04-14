@@ -19,6 +19,11 @@ function convert_to_sequential(model; pressure = true)
                 seqmodel.parameters[pkey] = pvar
             end
         end
+        mob = :PhaseMobilities
+        if haskey(seqmodel.secondary_variables, mob)
+            seqmodel.parameters[mob] = PhaseMobilities()
+            delete!(seqmodel.secondary_variables, mob)
+        end
     end
     for (skey, svar) in model.secondary_variables
         seqmodel.secondary_variables[skey] = svar
