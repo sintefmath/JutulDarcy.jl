@@ -50,8 +50,23 @@ end
 function convert_to_sequential(model::MultiModel; pressure = true)
     ct = Vector{Jutul.CrossTermPair}()
     for ctp in model.cross_terms
-        
+        ctp = deepcopy(ctp)
+        (; target, source, target_equation, source_equation, cross_term) = ctp
+        if target_equation == :mass_conservation
+            if target == :Reservoir || source == :Reservoir
+                if target == :Reservoir
+                    target_equation = :pressure
+                else
+                    source_equation = :pressure
+                end
+                @info "OK" target source
+                cross_term = PressureReservoirFromWellFlowCT(cross_term)
+                ctp = Jutul.CrossTermPair(target, source, target_equation, source_equation, cross_term)
+            end
+        end
+        push!(ct, ctp)
     end
+    @info "?!" ct
     smodel = convert_to_sequential(model[:Reservoir]; pressure = pressure)
     models = Dict{Symbol, Any}()
     for (k, v) in pairs(model.models)

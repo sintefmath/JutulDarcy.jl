@@ -10,6 +10,8 @@ function SequentialSimulator(case::JutulCase; kwarg...)
 end
 
 function SequentialSimulator(model; state0 = setup_state(model), parameters = setup_parameters(model))
+    rmodel = reservoir_model(model)
+    sys = rmodel.system
     pmodel = convert_to_sequential(model, pressure = true)
     tmodel = convert_to_sequential(model, pressure = false)
     function add_total_saturation!(m, state0)
@@ -76,6 +78,10 @@ function SequentialSimulator(model; state0 = setup_state(model), parameters = se
     S[:init_keys] = init_keys
     S[:transfer_keys] = transfer_keys
 
+    nph = number_of_phases(sys)
+    nc = number_of_cells(model.domain)
+    S[:mobility] = zeros(nph, nc)
+
     # @info "Keys" transfer_keys_pressure transfer_keys_transport init_keys_transport init_keys_pressure
 
 
@@ -99,8 +105,9 @@ function SequentialSimulator(model; state0 = setup_state(model), parameters = se
     return SequentialSimulator(model, PSim, TSim, S)
 end
 
-function Jutul.simulator_config(sim::SequentialSimulator; kwarg...)
+function Jutul.simulator_config(sim::SequentialSimulator; transport_substeps = 1, kwarg...)
     cfg = Jutul.JutulConfig("Simulator config")
+    Jutul.add_option!(cfg, :transport_substeps, transport_substeps, types = Int)
     Jutul.simulator_config!(cfg, sim; kwarg...)
     for k in [:pressure, :transport]
         cfg_k = Jutul.simulator_config(getfield(sim, k); always_update_secondary = true, kwarg...)
@@ -169,11 +176,25 @@ function Jutul.perform_step!(
         for k in transfer_keys[:transport]
             update_values!(tstate[k], pstate[k])
         end
-        # Then transport
+        nsub = config[:transport_substeps]
         config_t = config[:transport]
         max_iter_t = config_t[:max_nonlinear_iterations]
-        done_t, report_t = Jutul.solve_ministep(tsim, dt, forces, max_iter_t, config_t)
-        report[:transport] = report_t
+
+        if nsub == 1
+            # Then transport
+            done_t, report_t = Jutul.solve_ministep(tsim, dt, forces, max_iter_t, config_t)
+            report[:transport] = report_t
+        else
+            mob = simulator.storage.mobility
+            @. mob = 0
+            for i = 1:nsub
+                dt_i = dt/nsub
+                done_t, report_t = Jutul.solve_ministep(tsim, dt_i, forces, max_iter_t, config_t)
+                @. mob += dt_i*value(tsim.storage.state.PhaseMobilities)
+                report[:transport] = report_t
+            end
+            @. mob /= dt
+        end
     else
         error("Pressure failure not implemented")
     end
