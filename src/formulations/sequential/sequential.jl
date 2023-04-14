@@ -108,10 +108,25 @@ function SequentialSimulator(model; state0 = setup_state(model), parameters = se
     return SequentialSimulator(model, PSim, TSim, S)
 end
 
-function Jutul.simulator_config(sim::SequentialSimulator; transport_substeps = 1, kwarg...)
+function Jutul.simulator_config(
+        sim::SequentialSimulator;
+        transport_substeps = 1,
+        saturation_tol = 1e-2,
+        mobility_tol = 1e-2,
+        sfi = true,
+        kwarg...
+    )
     cfg = Jutul.JutulConfig("Simulator config")
     Jutul.add_option!(cfg, :transport_substeps, transport_substeps, types = Int)
-    Jutul.simulator_config!(cfg, sim; kwarg...)
+    Jutul.add_option!(cfg, :saturation_tol, saturation_tol, types = Float64)
+    Jutul.add_option!(cfg, :mobility_tol, mobility_tol, types = Float64)
+    Jutul.add_option!(cfg, :sfi, sfi, types = Bool)
+
+    Jutul.simulator_config!(cfg, sim;
+        min_nonlinear_iterations = 0,
+        kwarg...
+    )
+
     for k in [:pressure, :transport]
         cfg_k = Jutul.simulator_config(getfield(sim, k); always_update_secondary = true, kwarg...)
         Jutul.add_option!(cfg, k, cfg_k)
@@ -241,10 +256,12 @@ function Jutul.perform_step!(
         report[k] = v
     end
     # Return convergence criterion for outer loop if SFI
-    sfi = true
+    sfi = config[:sfi]
     if sfi
         tol_s = 1e-2
         tol_mob = 1e-2
+        tol_mob = config[:mobility_tol]
+        tol_s = config[:saturation_tol]
         il = config[:info_level]
         min_its = config[:min_nonlinear_iterations]
 
@@ -269,9 +286,19 @@ function Jutul.perform_step!(
         converged = converged && iteration > min_its
         err = max(e_s, e_mob)
 
-        @info iteration converged err
-        if il > 1
-           # get_convergence_table(errors, il, iteration, config)
+        # errors = [
+        #     (
+        #         name = :total_saturation,
+        #         tolerances = Dict(:total_saturation => tol_s),
+        #         criterions = ((
+        #             E = (errors = e_s, ),
+        #             names = (:E1, ),
+        #         ),),
+        #     )
+        # ]
+        if il > 1 || true
+            jutul_message("#$iteration", "|S_t - 1| = $e_s, |Δλ| = $e_mob")
+           # Jutul.get_convergence_table(errors, il, iteration, config)
         end
     else
         converged = done_t
