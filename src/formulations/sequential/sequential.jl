@@ -83,6 +83,7 @@ function SequentialSimulator(model; state0 = setup_state(model), parameters = se
     λ = zeros(nph, nc)
     @. λ = NaN
     S[:mobility] = λ
+    S[:mobility_prev] = similar(λ)
 
     # @info "Keys" transfer_keys_pressure transfer_keys_transport init_keys_transport init_keys_pressure
 
@@ -170,10 +171,13 @@ function Jutul.perform_step!(
     mob_p = psim.storage.state.PhaseMobilities
     mob_t = tsim.storage.state.PhaseMobilities
     mob = simulator.storage.mobility
-    if isnan(mob[1, 1])
+    mob_prev = simulator.storage.mobility_prev
+    if iteration == 1
+        # Initial guess from end of last time-step
         @. mob = value(mob_t)
     end
     @. mob_p = mob
+    @. mob_prev = mob
 
     done_p, report_p = Jutul.solve_ministep(psim, dt, forces, max_iter_p, config_p)
     if done_p
@@ -216,9 +220,7 @@ function Jutul.perform_step!(
     else
         error("Pressure failure not implemented")
     end
-    converged = done_t
     report[:pressure] = report_p
-    report[:converged] = converged
     for k in [
         :secondary_time,
         :equations_time,
@@ -239,7 +241,45 @@ function Jutul.perform_step!(
         report[k] = v
     end
     # Return convergence criterion for outer loop if SFI
-    return (0.0, converged, report)
+    sfi = true
+    if sfi
+        tol_s = 1e-2
+        tol_mob = 1e-2
+        il = config[:info_level]
+        min_its = config[:min_nonlinear_iterations]
+
+        e_mob = 0
+        for i in axes(mob, 2)
+            λ_t = 0.0
+            for ph in axes(mob_t, 1)
+                λ_t += mob[ph, i]
+            end
+            for ph in axes(mob, 1)
+                e = abs(mob[ph, i] - mob_prev[ph, i])
+                e_mob = max(e, e_mob)
+            end
+        end
+
+        e_s = 0.0
+        for sT in tsim.storage.state.TotalSaturation
+            e_s = max(abs(value(sT) - 1.0), e_s)
+        end
+
+        converged = e_s <= tol_s && e_mob <= tol_mob
+        converged = converged && iteration > min_its
+        err = max(e_s, e_mob)
+
+        @info iteration converged err
+        if il > 1
+           # get_convergence_table(errors, il, iteration, config)
+        end
+    else
+        converged = done_t
+        err = 0.0
+    end
+    report[:converged] = converged
+
+    return (err, converged, report)
 end
 
 function Jutul.update_after_step!(sim::SequentialSimulator, dt, forces; kwarg...)
