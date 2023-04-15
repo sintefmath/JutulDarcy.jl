@@ -167,6 +167,7 @@ function Jutul.perform_step!(
     )
     psim = simulator.pressure
     pstate = psim.storage.state
+    pstate0 = psim.storage.state0
 
     tsim = simulator.transport
     tstate = tsim.storage.state
@@ -194,14 +195,17 @@ function Jutul.perform_step!(
     @. mob_p = mob
     @. mob_prev = mob
 
-    done_p, report_p = Jutul.solve_ministep(psim, dt, forces, max_iter_p, config_p)
+    done_p, report_p = Jutul.solve_ministep(psim, dt, forces, max_iter_p, config_p, finalize = false)
     if done_p
         # Copy over values for pressure and fluxes into parameters for second simulator
         model_p = psim.model
-        state_p = psim.storage.state
+        if iteration > 1
+            Jutul.reset_previous_state!(tsim, pstate0)
+            Jutul.reset_state_to_previous_state!(tsim)
+        end
 
         vT = tsim.storage.state.TotalVolumetricFlux
-        store_total_fluxes!(vT, model_p, as_value(state_p))
+        store_total_fluxes!(vT, model_p, as_value(pstate))
         for k in transfer_keys[:transport]
             update_values!(tstate[k], pstate[k])
         end
@@ -305,7 +309,9 @@ function Jutul.perform_step!(
         err = 0.0
     end
     report[:converged] = converged
-
+    if converged
+        Jutul.update_after_step!(psim, dt, forces)
+    end
     return (err, converged, report)
 end
 
