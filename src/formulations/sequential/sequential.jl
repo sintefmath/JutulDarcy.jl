@@ -212,16 +212,18 @@ function Jutul.perform_step!(
         nsub = config[:transport_substeps]
         config_t = config[:transport]
         max_iter_t = config_t[:max_nonlinear_iterations]
+        # TODO: Store initial guesses here for SFI
 
+        report_t = nothing
         if nsub == 1
             # Then transport
             done_t, report_t = Jutul.solve_ministep(tsim, dt, forces, max_iter_t, config_t)
-            report[:transport] = report_t
         else
             @. mob = 0
-            for i = 1:nsub
+            for stepno = 1:nsub
                 dt_i = dt/nsub
-                done_t, report_t = Jutul.solve_ministep(tsim, dt_i, forces, max_iter_t, config_t)
+                done_t, subreport_t = Jutul.solve_ministep(tsim, dt_i, forces, max_iter_t, config_t)
+
                 for i in axes(mob_t, 2)
                     λ_t = 0.0
                     for ph in axes(mob_t, 1)
@@ -232,10 +234,27 @@ function Jutul.perform_step!(
                         mob[ph, i] += λ/λ_t
                     end
                 end
-                report[:transport] = report_t
+                if stepno > 1
+                    for (k, v) in subreport_t
+                        if k == :steps
+                            for s in v
+                                push!(report_t[k], s)
+                            end
+                        elseif v isa AbstractFloat
+                            report_t[k] += v
+                        else
+                            # We skip some data.
+                            report_t[k] = v
+                        end
+                    end
+                else
+                    report_t = subreport_t
+                end
             end
             @. mob /= dt
         end
+        report[:transport] = report_t
+
     else
         error("Pressure failure not implemented")
     end
@@ -300,7 +319,7 @@ function Jutul.perform_step!(
         #         ),),
         #     )
         # ]
-        if il > 1 || true
+        if il > 1
             jutul_message("#$iteration", "|S_t - 1| = $e_s, |Δλ| = $e_mob")
            # Jutul.get_convergence_table(errors, il, iteration, config)
         end
