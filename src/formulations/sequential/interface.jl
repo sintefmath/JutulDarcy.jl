@@ -13,6 +13,9 @@ function convert_to_sequential(model; pressure = true)
         data_domain = model.data_domain,
         formulation = f
         )
+    for (skey, svar) in model.secondary_variables
+        seqmodel.secondary_variables[skey] = svar
+    end
     if pressure
         for (pkey, pvar) in model.primary_variables
             if pkey != :Pressure
@@ -25,9 +28,7 @@ function convert_to_sequential(model; pressure = true)
             delete!(seqmodel.secondary_variables, mob)
         end
     end
-    for (skey, svar) in model.secondary_variables
-        seqmodel.secondary_variables[skey] = svar
-    end
+
     if transport
         vars = seqmodel.secondary_variables
         if haskey(vars, :ShrinkageFactors)

@@ -189,9 +189,15 @@ function Jutul.perform_step!(
     mob = simulator.storage.mobility
     mob_prev = simulator.storage.mobility_prev
     if iteration == 1
-        # Initial guess from end of last time-step
-        @. mob = value(mob_t)
+        if isnan(mob[1, 1])
+            mob_t0 = tsim.storage.state0.PhaseMobilities
+            @. mob = value(mob_t0)
+        else
+            # Initial guess from end of last time-step
+            @. mob = value(mob_t)
+        end
     end
+
     @. mob_p = mob
     @. mob_prev = mob
 
@@ -323,7 +329,7 @@ function Jutul.perform_step!(
         #         ),),
         #     )
         # ]
-        if il > 1 || true
+        if il > 1 # || true
             jutul_message("#$iteration", "|S_t - 1| = $e_s, |Δλ| = $e_mob")
            # Jutul.get_convergence_table(errors, il, iteration, config)
         end
