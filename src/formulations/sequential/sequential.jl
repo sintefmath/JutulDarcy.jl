@@ -214,27 +214,30 @@ function Jutul.perform_step!(
         max_iter_t = config_t[:max_nonlinear_iterations]
         # TODO: Store initial guesses here for SFI
 
+        function store_mobility!(mob, mob_t, w)
+            for i in axes(mob_t, 2)
+                # λ_t = 0.0
+                # for ph in axes(mob_t, 1)
+                #   λ_t += value(mob_t[ph, i])
+                # end
+                for ph in axes(mob_t, 1)
+                    λ = value(mob_t[ph, i])
+                    # mob[ph, i] += λ/λ_t
+                    mob[ph, i] += w*λ
+                end
+            end
+        end
         report_t = nothing
+        @. mob = 0
         if nsub == 1
             # Then transport
             done_t, report_t = Jutul.solve_ministep(tsim, dt, forces, max_iter_t, config_t)
+            store_mobility!(mob, mob_t, 1.0)
         else
-            @. mob = 0
             for stepno = 1:nsub
                 dt_i = dt/nsub
                 done_t, subreport_t = Jutul.solve_ministep(tsim, dt_i, forces, max_iter_t, config_t)
-
-                for i in axes(mob_t, 2)
-                    # λ_t = 0.0
-                    # for ph in axes(mob_t, 1)
-                    #   λ_t += value(mob_t[ph, i])
-                    # end
-                    for ph in axes(mob_t, 1)
-                        λ = value(mob_t[ph, i])
-                        # mob[ph, i] += λ/λ_t
-                        mob[ph, i] += dt_i*λ
-                    end
-                end
+                store_mobility!(mob, mob_t, dt_i)
                 if stepno > 1
                     for (k, v) in subreport_t
                         if k == :steps
@@ -320,7 +323,7 @@ function Jutul.perform_step!(
         #         ),),
         #     )
         # ]
-        if il > 1
+        if il > 1 || true
             jutul_message("#$iteration", "|S_t - 1| = $e_s, |Δλ| = $e_mob")
            # Jutul.get_convergence_table(errors, il, iteration, config)
         end
