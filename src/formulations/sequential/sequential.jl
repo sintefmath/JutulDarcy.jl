@@ -188,6 +188,7 @@ function Jutul.perform_step!(
     mob_t = tsim.storage.state.PhaseMobilities
     mob = simulator.storage.mobility
     mob_prev = simulator.storage.mobility_prev
+    total_saturation = tsim.storage.state.TotalSaturation
     if iteration == 1
         if isnan(mob[1, 1])
             mob_t0 = tsim.storage.state0.PhaseMobilities
@@ -220,16 +221,20 @@ function Jutul.perform_step!(
         max_iter_t = config_t[:max_nonlinear_iterations]
         # TODO: Store initial guesses here for SFI
 
-        function store_mobility!(mob, mob_t, w)
+        
+        function store_mobility!(mob, mob_t, w, cell_weight)
+            cw(::Nothing, i) = 1.0
+            cw(x, i) = value(x[i])
             for i in axes(mob_t, 2)
                 # λ_t = 0.0
                 # for ph in axes(mob_t, 1)
                 #   λ_t += value(mob_t[ph, i])
                 # end
+                w_i = w*cw(cell_weight, i)
                 for ph in axes(mob_t, 1)
                     λ = value(mob_t[ph, i])
                     # mob[ph, i] += λ/λ_t
-                    mob[ph, i] += w*λ
+                    mob[ph, i] += w_i*λ
                 end
             end
         end
@@ -238,12 +243,17 @@ function Jutul.perform_step!(
         if nsub == 1
             # Then transport
             done_t, report_t = Jutul.solve_ministep(tsim, dt, forces, max_iter_t, config_t)
-            store_mobility!(mob, mob_t, 1.0)
+            store_mobility!(mob, mob_t, 1.0, nothing)
         else
             for stepno = 1:nsub
                 dt_i = dt/nsub
                 done_t, subreport_t = Jutul.solve_ministep(tsim, dt_i, forces, max_iter_t, config_t)
-                store_mobility!(mob, mob_t, dt_i)
+                if stepno == nsub
+                    w_i = nothing
+                else
+                    w_i = total_saturation
+                end
+                store_mobility!(mob, mob_t, dt_i, w_i)
                 if stepno > 1
                     for (k, v) in subreport_t
                         if k == :steps
@@ -311,7 +321,7 @@ function Jutul.perform_step!(
         end
 
         e_s = 0.0
-        for sT in tsim.storage.state.TotalSaturation
+        for sT in total_saturation
             e_s = max(abs(value(sT) - 1.0), e_s)
         end
 
