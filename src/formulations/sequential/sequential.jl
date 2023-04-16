@@ -9,10 +9,10 @@ function SequentialSimulator(case::JutulCase; kwarg...)
     return SequentialSimulator(case.model; state0 = case.state0, parameters = case.parameters)
 end
 
-function SequentialSimulator(model; state0 = setup_state(model), parameters = setup_parameters(model))
+function SequentialSimulator(model; state0 = setup_state(model), parameters = setup_parameters(model), avg_mobility = false)
     rmodel = reservoir_model(model)
     sys = rmodel.system
-    pmodel = convert_to_sequential(model, pressure = true)
+    pmodel = convert_to_sequential(model, pressure = true, avg_mobility = avg_mobility)
     tmodel = convert_to_sequential(model, pressure = false)
     function add_total_saturation!(m, state0)
         if !haskey(state0, :TotalSaturation)

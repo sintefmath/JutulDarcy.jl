@@ -1,5 +1,5 @@
 
-function convert_to_sequential(model; pressure = true)
+function convert_to_sequential(model; avg_mobility = false, pressure = true)
     if pressure
         f = PressureFormulation()
     else
@@ -22,10 +22,12 @@ function convert_to_sequential(model; pressure = true)
                 seqmodel.parameters[pkey] = pvar
             end
         end
-        mob = :PhaseMobilities
-        if haskey(seqmodel.secondary_variables, mob)
-            seqmodel.parameters[mob] = PhaseMobilities()
-            delete!(seqmodel.secondary_variables, mob)
+        if avg_mobility
+            mob = :PhaseMobilities
+            if haskey(seqmodel.secondary_variables, mob)
+                seqmodel.parameters[mob] = PhaseMobilities()
+                delete!(seqmodel.secondary_variables, mob)
+            end
         end
     end
 
@@ -53,7 +55,7 @@ function convert_to_sequential(model; pressure = true)
 end
 
 
-function convert_to_sequential(model::MultiModel; pressure = true)
+function convert_to_sequential(model::MultiModel; pressure = true, kwarg...)
     ct = Vector{Jutul.CrossTermPair}()
     for ctp in model.cross_terms
         ctp = deepcopy(ctp)
@@ -73,7 +75,7 @@ function convert_to_sequential(model::MultiModel; pressure = true)
         push!(ct, ctp)
     end
     @info "?!" ct
-    smodel = convert_to_sequential(model[:Reservoir]; pressure = pressure)
+    smodel = convert_to_sequential(model[:Reservoir]; pressure = pressure, kwarg...)
     models = Dict{Symbol, Any}()
     for (k, v) in pairs(model.models)
         if k == :Reservoir
