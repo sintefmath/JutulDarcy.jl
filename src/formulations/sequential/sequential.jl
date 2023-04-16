@@ -354,12 +354,12 @@ function Jutul.perform_step!(
     return (err, converged, report)
 end
 
-function Jutul.update_after_step!(sim::SequentialSimulator, dt, forces; kwarg...)
-    report = Dict{Symbol, Any}()
-    report[:pressure] = Jutul.update_after_step!(sim.pressure, dt, forces; kwarg...)
-    report[:transport] = Jutul.update_after_step!(sim.transport, dt, forces; kwarg...)
-    return report
-end
+# function Jutul.update_after_step!(sim::SequentialSimulator, dt, forces; kwarg...)
+#     report = Dict{Symbol, Any}()
+#     report[:pressure] = Jutul.update_after_step!(sim.pressure, dt, forces; kwarg...)
+#     report[:transport] = Jutul.update_after_step!(sim.transport, dt, forces; kwarg...)
+#     return report
+# end
 
 function Jutul.get_output_state(sim::SequentialSimulator)
     Jutul.get_output_state(sim.transport)
