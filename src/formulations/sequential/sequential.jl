@@ -225,13 +225,14 @@ function Jutul.perform_step!(
                 done_t, subreport_t = Jutul.solve_ministep(tsim, dt_i, forces, max_iter_t, config_t)
 
                 for i in axes(mob_t, 2)
-                    λ_t = 0.0
-                    for ph in axes(mob_t, 1)
-                        λ_t += value(mob_t[ph, i])
-                    end
+                    # λ_t = 0.0
+                    # for ph in axes(mob_t, 1)
+                    #   λ_t += value(mob_t[ph, i])
+                    # end
                     for ph in axes(mob_t, 1)
                         λ = value(mob_t[ph, i])
-                        mob[ph, i] += λ/λ_t
+                        # mob[ph, i] += λ/λ_t
+                        mob[ph, i] += dt_i*λ
                     end
                 end
                 if stepno > 1
@@ -295,7 +296,7 @@ function Jutul.perform_step!(
                 λ_t += mob[ph, i]
             end
             for ph in axes(mob, 1)
-                e = abs(mob[ph, i] - mob_prev[ph, i])
+                e = abs(mob[ph, i] - mob_prev[ph, i])/λ_t
                 e_mob = max(e, e_mob)
             end
         end
