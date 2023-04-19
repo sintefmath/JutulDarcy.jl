@@ -143,6 +143,7 @@ function setup_reservoir_simulator(case::JutulCase;
                             cpr_update_interval_partial = :iteration,
                             cpr_update_interval = :once,
                             cpr_smoother = :ilu0,
+                            amg_type = :smoothed_aggregation,
                             set_linear_solver = linear_solver isa Symbol,
                             timesteps = :auto,
                             extra_timing_setup = false,
@@ -180,6 +181,7 @@ function setup_reservoir_simulator(case::JutulCase;
                                             update_interval_partial = cpr_update_interval_partial,
                                             update_interval = cpr_update_interval,
                                             smoother_type = cpr_smoother,
+                                            amg_type = amg_type,
                                             verbose = v,
                                             )
         cfg = simulator_config(sim, timestep_selectors = sel, linear_solver = lsolve; info_level = info_level, kwarg...)

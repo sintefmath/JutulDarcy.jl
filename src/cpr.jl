@@ -43,11 +43,15 @@ function CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner();
     CPRPreconditioner(nothing, nothing, nothing, nothing, nothing, nothing, p, s, strategy, weight_scaling, nothing, update_frequency, update_interval, update_frequency_partial, update_interval_partial, partial_update, p_rtol, nothing)
 end
 
-function default_psolve(; max_levels = 10, max_coarse = 10, type = :smoothed_aggregation)
-    gs_its = 1
-    cyc = AlgebraicMultigrid.V()
-    gs = GaussSeidel(ForwardSweep(), gs_its)
-    return AMGPreconditioner(type, max_levels = max_levels, max_coarse = max_coarse, presmoother = gs, postsmoother = gs, cycle = cyc)
+function default_psolve(; max_levels = 10, max_coarse = 10, type = :smoothed_aggregation, kwarg...)
+    if type == :hypre
+        amg = BoomerAMGPreconditioner(; kwarg...)
+    else
+        gs_its = 1
+        cyc = AlgebraicMultigrid.V()
+        gs = GaussSeidel(ForwardSweep(), gs_its)
+        amg = AMGPreconditioner(type; max_levels = max_levels, max_coarse = max_coarse, presmoother = gs, postsmoother = gs, cycle = cyc, kwarg...)
+    end
 end
 
 function update!(cpr::CPRPreconditioner, lsys, model, storage, recorder)
