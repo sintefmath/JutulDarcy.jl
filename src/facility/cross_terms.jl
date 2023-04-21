@@ -200,7 +200,7 @@ function update_cross_term_in_entity!(out, i,
         ncomp = number_of_components(flow_system(well.system))
         @assert nmix == ncomp "Injection composition length ($nmix) must match number of components ($ncomp)."
     else
-        if value(qT) > 0
+        if value(qT) > 0 && ctrl isa ProducerControl
             @warn "Producer $well_symbol is injecting?"
         end
         if haskey(state_well, :MassFractions)
