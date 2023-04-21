@@ -167,7 +167,7 @@ function setup_reservoir_simulator(case::JutulCase;
         end
     else
         @assert isnothing(timesteps)
-        sel = [t_base]
+        push!(sel, t_base)
     end
     # Config: Linear solver, timestep selection defaults, etc...
     if set_linear_solver
