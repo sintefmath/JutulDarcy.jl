@@ -200,6 +200,13 @@ function simulate_reservoir(state0, model, dt; parameters = setup_parameters(mod
     return ReservoirSimResult(model, result, forces)
 end
 
+function simulate_reservoir(case::JutulCase; kwarg...)
+    (; model, forces, state0, parameters, dt) = case
+    sim, config = setup_reservoir_simulator(model, state0, parameters; kwarg...)
+    result = simulate!(sim, dt, forces = forces, config = config);
+    return ReservoirSimResult(model, result, forces)
+end
+
 function set_default_cnv_mb!(cfg, model; kwarg...)
     set_default_cnv_mb_inner!(cfg[:tolerances], model; kwarg...)
 end
