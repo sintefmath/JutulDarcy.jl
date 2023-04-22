@@ -1,9 +1,0 @@
-[deps]
-AlgebraicMultigrid = "2169fc97-5a83-5252-b627-83903c6c433c"
-Jutul = "2b460a1a-8a2b-45b2-b125-b5c536396eb9"
-JutulDarcy = "82210473-ab04-4dce-b31b-11573c4f8e0a"
-LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-MultiComponentFlash = "35e5bd01-9722-4017-9deb-64a5d32478ff"
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-TestItemRunner = "f8b46487-2199-4994-9208-9a1283c18c0a"
-TestItems = "1c621080-faea-4a02-84b6-bbd5e436b8fe"
