@@ -6,7 +6,7 @@
     X = state.LiquidMassFractions
     Y = state.VaporMassFractions
     kdisc = flux_primitives(face, state, model, flux_type, kgrad, upw)
-    q = compositional_fluxes!(q, face, state,  X, Y, model, flux_type, kgrad, kdisc, upw, aqua, ph_ix)
+    q = compositional_fluxes!(q, face, state, X, Y, model, flux_type, kgrad, kdisc, upw, aqua, ph_ix)
     return q
 end
 
@@ -20,7 +20,7 @@ end
     return q
 end
 
-@inline function compositional_fluxes!(q, face, state, X, Y, model, kgrad, kdisc, upw, aqua::Val{true}, phase_ix)
+@inline function compositional_fluxes!(q, face, state, X, Y, model, flux_type, kgrad, kdisc, upw, aqua::Val{true}, phase_ix)
     nc = size(X, 1)
     a, l, v = phase_ix
     q_a = darcy_phase_mass_flux(face, a, state, model, flux_type, kgrad, upw, kdisc)
