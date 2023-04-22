@@ -58,13 +58,13 @@ end
 end
 
 @inline function gradient(X, tpfa::TPFA)
-    return @inbounds X[tpfa.left] - X[tpfa.right]
+    return @inbounds X[tpfa.right] - X[tpfa.left]
 end
 
 pressure_gradient(state, disc) = gradient(state.Pressure, disc)
 
 @inline function upwind(upw::SPU, F, q)
-    flag = q >= 0
+    flag = q < 0
     if flag
         up = upw.right
     else
@@ -84,7 +84,7 @@ end
         Δp_c = zero(eltype(pc))
     else
         pos = ph - (ph > ph_ref)
-        Δp_c = @inbounds pc[pos, c_l] - pc[pos, c_r]
+        Δp_c = @inbounds pc[pos, c_r] - pc[pos, c_l]
     end
     return Δp_c
 end
