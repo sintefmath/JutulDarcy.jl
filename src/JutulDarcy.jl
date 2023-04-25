@@ -45,7 +45,7 @@ module JutulDarcy
     using MAT
     using Tullio, LoopVectorization, Polyester
     using TimerOutputs
-    using SnoopPrecompile
+    using PrecompileTools
     using Dates
     import DataStructures: OrderedDict
 
@@ -87,7 +87,7 @@ module JutulDarcy
 
     include("formulations/formulations.jl")
 
-    @precompile_all_calls begin
+    @compile_workload begin
         precompile_darcy_multimodels()
         # We run a tiny MRST case to precompile the .MAT file loading
         spe1_path = joinpath(pathof(JutulDarcy), "..", "..", "test", "mrst", "spe1.mat")
