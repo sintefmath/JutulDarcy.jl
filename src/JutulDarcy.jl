@@ -1,3 +1,4 @@
+__precompile__(false)
 module JutulDarcy
     import Jutul: number_of_cells, number_of_faces,
                   degrees_of_freedom_per_entity,
@@ -86,6 +87,8 @@ module JutulDarcy
     include("forces/forces.jl")
 
     include("formulations/formulations.jl")
+
+    include("ext.jl")
 
     @compile_workload begin
         precompile_darcy_multimodels()
