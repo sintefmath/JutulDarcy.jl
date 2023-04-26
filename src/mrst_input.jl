@@ -1127,6 +1127,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                 legacy_output = false,
                                 restart = false,
                                 wells = :ms,
+                                plot = false,
                                 linear_solver = :bicgstab,
                                 kwarg...)
     fn = get_mrst_input_path(fn)
@@ -1244,13 +1245,29 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
         setup = (case = case, sim = sim, config = cfg, mrst = mrst_data)
         return (states, reports, output_path, setup)
     else
-        return ReservoirSimResult(model, result, forces,
+        result = ReservoirSimResult(model, result, forces,
             case = case,
             sim = sim,
             config = cfg,
             mrst = mrst_data,
             path = output_path
         )
+        if plot isa Symbol
+            if plot == :wells
+                plot_wells = true
+                plot_res = false
+            elseif plot == :reservoir
+                plot_res = true
+                plot_wells = false
+            end
+            plot = true
+        elseif plot
+            plot_res = plot_wells = true
+        end
+        if plot
+            plot_reservoir_simulation_result(model, result, reservoir = plot_res, wells = plot_wells)
+        end
+        return result
     end
 end
 
