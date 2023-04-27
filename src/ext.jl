@@ -16,6 +16,7 @@ interactively. If `reservoir=true` the reservoir quantities will be visualized
 in 3D. These options can be combined.
 """
 function plot_reservoir_simulation_result(model::MultiModel, res::ReservoirSimResult; wells = true, reservoir = true)
+    Jutul.check_plotting_availability()
     if reservoir
         rmodel = reservoir_model(model)
         fig = plot_interactive(rmodel, res.states)
