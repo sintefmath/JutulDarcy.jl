@@ -191,7 +191,7 @@ end
 
 Jutul.value(t::BlackOilX{T}) where T<:ForwardDiff.Dual = BlackOilX(value(t.val), t.phases_present, t.sat_close)
 
-function Jutul.update_values!(old::AbstractVector{BlackOilX}, new::AbstractVector{BlackOilX})
+function Jutul.update_values!(old::AbstractVector{<:BlackOilX}, new::AbstractVector{<:BlackOilX})
     for (i, v) in enumerate(new)
         o = old[i]
         old[i] = BlackOilX(o.val - value(o.val) + value(v.val), v.phases_present, v.sat_close)
