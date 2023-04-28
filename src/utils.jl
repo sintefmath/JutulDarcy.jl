@@ -194,16 +194,21 @@ end
 
 export simulate_reservoir
 
-function simulate_reservoir(state0, model, dt; parameters = setup_parameters(model), forces = setup_forces(model), kwarg...)
+function simulate_reservoir(state0, model, dt;
+        parameters = setup_parameters(model),
+        restart = false,
+        forces = setup_forces(model),
+        kwarg...
+    )
     sim, config = setup_reservoir_simulator(model, state0, parameters; kwarg...)
-    result = simulate!(sim, dt, forces = forces, config = config);
+    result = simulate!(sim, dt, forces = forces, config = config, restart = restart);
     return ReservoirSimResult(model, result, forces)
 end
 
-function simulate_reservoir(case::JutulCase; kwarg...)
+function simulate_reservoir(case::JutulCase; restart = false, kwarg...)
     (; model, forces, state0, parameters, dt) = case
     sim, config = setup_reservoir_simulator(model, state0, parameters; kwarg...)
-    result = simulate!(sim, dt, forces = forces, config = config);
+    result = simulate!(sim, dt, forces = forces, config = config, restart = restart);
     return ReservoirSimResult(model, result, forces)
 end
 
