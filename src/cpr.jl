@@ -98,7 +98,8 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
     s = reservoir_storage(model, storage)
     A = reservoir_jacobian(lsys)
     rmodel = reservoir_model(model)
-    cpr.A_ps = linear_operator(lsys)
+    # cpr.A_ps = linear_operator(lsys)
+    cpr.A_ps = linear_operator(lsys[1,1])
     initialize_storage!(cpr, A, s)
     ps = rmodel.primary_variables[:Pressure].scale
     if do_p_update || cpr.partial_update
@@ -166,42 +167,19 @@ end
 using Krylov
 function apply!(x, cpr::CPRPreconditioner, r, arg...)
     r_p, w_p, bz, Δp = cpr.r_p, cpr.w_p, cpr.block_size, cpr.p
-    if false
-        y = copy(r)
-        # y = r
-        # Construct right hand side by the weights
-        norm0 = norm(r)
-        do_cpr = true
-        update_p_rhs!(r_p, y, bz, w_p)
-        println("**************************************************************")
-        # Apply preconditioner to pressure part
-        @info "Before pressure correction" norm(y) norm(r_p)
-        if do_cpr
-            apply!(Δp, cpr.pressure_precond, r_p)
-            correct_residual_for_dp!(y, x, Δp, bz, cpr.buf, cpr.A_ps)
-            norm_after = norm(y)
-            @info "After pressure correction" norm(y) norm(cpr.A_p*Δp - r_p) norm_after/norm0
-        end
-        apply!(x, cpr.system_precond, y)
-        if do_cpr
-            @info "After second stage" norm(cpr.A_ps*x - y)
-            increment_pressure!(x, Δp, bz)
-        end
-        @info "Final" norm(cpr.A_ps*x - r) norm(cpr.A_ps*x - r)/norm0
-    else
-        y = r
-        # Construct right hand side by the weights
-        @tic "p rhs" update_p_rhs!(r_p, y, bz, w_p)
-        # Apply preconditioner to pressure part
-        @tic "p apply" begin
-            p_rtol = cpr.p_rtol
-            p_precond = cpr.pressure_precond
-            cpr_p_apply!(Δp, cpr, p_precond, r_p, p_rtol)
-        end
-        @tic "r update" correct_residual_for_dp!(y, x, Δp, bz, cpr.buf, cpr.A_ps)
-        @tic "s apply" apply!(x, cpr.system_precond, y)
-        @tic "Δp" increment_pressure!(x, Δp, bz)
+    # We currently mutate r and it seems ok. Could copy here if needed.
+    y = r
+    # Construct right hand side by the weights
+    @tic "p rhs" update_p_rhs!(r_p, y, bz, w_p)
+    # Apply preconditioner to pressure part
+    @tic "p apply" begin
+        p_rtol = cpr.p_rtol
+        p_precond = cpr.pressure_precond
+        cpr_p_apply!(Δp, cpr, p_precond, r_p, p_rtol)
     end
+    @tic "r update" correct_residual_for_dp!(y, x, Δp, bz, cpr.buf, cpr.A_ps)
+    @tic "s apply" apply!(x, cpr.system_precond, y)
+    @tic "Δp" increment_pressure!(x, Δp, bz)
 end
 
 
@@ -393,7 +371,7 @@ end
 end
 
 function update_p_rhs!(r_p, y, bz, w_p)
-    if false
+    if true
         @batch minbatch = 1000 for i in eachindex(r_p)
             v = 0.0
             @inbounds for b = 1:bz
@@ -401,10 +379,11 @@ function update_p_rhs!(r_p, y, bz, w_p)
             end
             @inbounds r_p[i] = v
         end
+    else
+        n = length(y) ÷ bz
+        yv = reshape(y, bz, n)
+        @tullio r_p[i] = yv[b, i]*w_p[b, i]
     end
-    n = length(y) ÷ bz
-    yv = reshape(y, bz, n)
-    @tullio r_p[i] = yv[b, i]*w_p[b, i]
 end
 
 function correct_residual_for_dp!(y, x, Δp, bz, buf, A)
