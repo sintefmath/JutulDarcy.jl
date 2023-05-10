@@ -87,9 +87,9 @@ end
     end
 end
 
-@inline function update_values!(vals::AbstractArray{<:FlashedMixture2Phase}, next::AbstractArray{<:FlashedMixture2Phase})
+@inline function Jutul.update_values!(vals::AbstractVector{<:FlashedMixture2Phase}, next::AbstractVector{<:FlashedMixture2Phase})
     function replace_flashed_phase_values(x, y)
-        update_values!(x.mole_fractions, y.mole_fractions)
+        Jutul.update_values!(x.mole_fractions, y.mole_fractions)
         Z = x.Z
         return FlashedPhase(x.mole_fractions, Z - value(Z) + value(y.Z))
     end
@@ -101,7 +101,7 @@ end
         v = replace_flashed_phase_values(old_v.vapor, next_v.vapor)
         K = old_v.K
         V = old_v.V
-        update_values!(K, next_v.K)
+        Jutul.update_values!(K, next_v.K)
         state = next_v.state
         V = V - value(V) + value(next_v.V)
         vals[i] = FlashedMixture2Phase(state, K, V, l, v)

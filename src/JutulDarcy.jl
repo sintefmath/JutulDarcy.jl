@@ -1,4 +1,3 @@
-__precompile__(false)
 module JutulDarcy
     import Jutul: number_of_cells, number_of_faces,
                   degrees_of_freedom_per_entity,
