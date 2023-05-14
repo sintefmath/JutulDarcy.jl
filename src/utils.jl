@@ -59,6 +59,7 @@ function setup_reservoir_model(reservoir::DataDomain, system;
         general_ad = general_ad
     )
     # Then we set up all the wells
+    mode = PredictionMode()
     if length(wells) > 0
         for w in wells
             if w isa SimpleWell
@@ -67,13 +68,20 @@ function setup_reservoir_model(reservoir::DataDomain, system;
                 well_context = context
             end
             w_domain = DataDomain(w)
-            models[w.name] = SimulationModel(w_domain, system, context = well_context)
+            wname = w.name
+            models[wname] = SimulationModel(w_domain, system, context = well_context)
+            if split_wells
+                wg = WellGroup([wname])
+                F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
+                models[Symbol(string(wname)*string(:_ctrl))] = F
+            end
         end
         # Add facility that gorups the wells
-        wg = WellGroup(map(x -> x.name, wells))
-        mode = PredictionMode()
-        F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
-        models[:Facility] = F
+        if !split_wells
+            wg = WellGroup(map(x -> x.name, wells))
+            F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
+            models[:Facility] = F
+        end
     end
 
     # Put it all together as multimodel
@@ -436,11 +444,37 @@ export setup_reservoir_forces
 Set up driving forces for a reservoir model with wells
 """
 function setup_reservoir_forces(model::MultiModel; control = nothing, limits = nothing, set_default_limits = true, kwarg...)
-    @assert (isnothing(control) && isnothing(limits)) || haskey(model.models, :Facility) "Model must have facility."
-    facility = model.models.Facility
-    surface_forces = setup_forces(facility, control = control, limits = limits, set_default_limits = set_default_limits)
-    # Set up forces for the whole model.
-    return setup_forces(model, Facility = surface_forces; kwarg...)
+    submodels = model.models
+    has_facility = any(x -> isa(x.domain, WellGroup), values(submodels))
+    no_well_controls = isnothing(control) && isnothing(limits)
+    @assert no_well_controls || has_facility "Model must have facility."
+    if haskey(submodels, :Facility)
+        # Unified facility for all wells
+        facility = model.models.Facility
+
+        surface_forces = setup_forces(facility,
+            control = control,
+            limits = limits,
+            set_default_limits = set_default_limits
+        )
+        # Set up forces for the whole model.
+        return setup_forces(model, Facility = surface_forces; kwarg...)
+    else
+        new_forces = Dict{Symbol, Any}()
+        for (k, m) in pairs(submodels)
+            if m isa SimpleWellFlowModel || m isa MSWellFlowModel
+                ctrl_symbol = Symbol("$(k)_ctrl")
+                @assert haskey(submodels, ctrl_symbol) "Controller for well $k must be present with the name $ctrl_symbol"
+                facility = submodels[ctrl_symbol]
+                new_forces[k] = setup_forces(facility,
+                    control = control,
+                    limits = limits,
+                    set_default_limits = set_default_limits
+                )
+            end
+        end
+        return setup_forces(model; pairs(new_forces)..., kwarg...)
+    end
 end
 
 export full_well_outputs, well_output, well_symbols, wellgroup_symbols, available_well_targets
