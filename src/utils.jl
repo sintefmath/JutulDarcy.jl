@@ -39,6 +39,7 @@ function setup_reservoir_model(reservoir::DataDomain, system;
     reservoir_context = nothing,
     general_ad = false,
     backend = :csc,
+    split_wells = false,
     parameters = Dict{Symbol, Any}(),
     kwarg...
     )
@@ -76,7 +77,7 @@ function setup_reservoir_model(reservoir::DataDomain, system;
     end
 
     # Put it all together as multimodel
-    model = reservoir_multimodel(models)
+    model = reservoir_multimodel(models, split_wells = split_wells)
     # Insert domain here.
     parameters = setup_parameters(model, parameters)
     return (model, parameters)
@@ -593,6 +594,44 @@ function partitioner_input(model, parameters)
         end
     end
     return (N, T, groups)
+end
+
+function reservoir_partition(model::MultiModel, p)
+    p_res = SimplePartition(p)
+    models = model.models
+    function model_is_well(m)
+        d = physical_representation(m.domain)
+        return isa(d, JutulDarcy.WellDomain)
+    end
+    wpart = Dict()
+    for key in keys(models)
+        m = models[key]
+        if model_is_well(m)
+            wg = physical_representation(m.domain)
+            wc = wg.perforations.reservoir
+            unique_part_wcells = unique(p[wc])
+            @assert length(unique_part_wcells) == 1 "All cells of well $key must be in the same partitioned block. Found: $unique_part_wcells for cells $wc = $(p[wc])"
+            wpart[key] = first(unique_part_wcells)
+        end
+    end
+    part = Dict()
+    for key in keys(models)
+        m = models[key]
+        if key == :Reservoir
+            part[key] = p_res
+        elseif model_is_well(m)
+            part[key] = wpart[key]
+        else
+            # Well group, probably?
+            s = Symbol(string(key)[1:end-5])
+            part[key] = wpart[s]
+        end
+    end
+    return SimpleMultiModelPartition(part, :Reservoir)
+end
+
+function reservoir_partition(model, p)
+    return SimplePartition(p)
 end
 
 function Base.iterate(t::ReservoirSimResult)
