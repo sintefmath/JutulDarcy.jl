@@ -40,6 +40,7 @@ function setup_reservoir_model(reservoir::DataDomain, system;
     general_ad = false,
     backend = :csc,
     split_wells = false,
+    assemble_wells_together = true,
     parameters = Dict{Symbol, Any}(),
     kwarg...
     )
@@ -85,7 +86,7 @@ function setup_reservoir_model(reservoir::DataDomain, system;
     end
 
     # Put it all together as multimodel
-    model = reservoir_multimodel(models, split_wells = split_wells)
+    model = reservoir_multimodel(models, split_wells = split_wells, assemble_wells_together = assemble_wells_together)
     # Insert domain here.
     parameters = setup_parameters(model, parameters)
     return (model, parameters)
@@ -114,6 +115,7 @@ Additional keyword arguments are passed onto [`simulator_config`](@ref).
 function setup_reservoir_simulator(models, initializer, parameters = nothing;
                                                         specialize = false,
                                                         split_wells = false,
+                                                        assemble_wells_together = true,
                                                         kwarg...)
     if isa(models, SimulationModel)
         DT = Dict{Symbol, Any}
@@ -124,7 +126,7 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing;
         end
     end
     # Convert to multi model
-    mmodel = reservoir_multimodel(models, specialize = specialize, split_wells = split_wells)
+    mmodel = reservoir_multimodel(models, specialize = specialize, split_wells = split_wells, assemble_wells_together = assemble_wells_together)
     if isnothing(parameters)
         parameters = setup_parameters(mmodel)
     end
@@ -304,13 +306,13 @@ function reservoir_multimodel(model::MultiModel; kwarg...)
     return model
 end
 
-function reservoir_multimodel(models::AbstractDict; specialize = false, split_wells = false)
+function reservoir_multimodel(models::AbstractDict; specialize = false, split_wells = false, assemble_wells_together = haskey(models, :Facility))
     res_model = models[:Reservoir]
     is_block(x) = Jutul.is_cell_major(matrix_layout(x.context))
     block_backend = is_block(res_model)
     n = length(models)
     if block_backend && n > 1
-        if haskey(models, :Facility) || !(split_wells == true)
+        if  !(split_wells == true) || assemble_wells_together
             groups = repeat([2], n)
             for (i, k) in enumerate(keys(models))
                 m = models[k]
@@ -648,7 +650,7 @@ function reservoir_partition(model::MultiModel, p)
             wpart[key] = first(unique_part_wcells)
         end
     end
-    part = Dict()
+    part = Dict{Symbol, Any}()
     for key in keys(models)
         m = models[key]
         if key == :Reservoir
