@@ -88,12 +88,12 @@ function update!(cpr::CPRPreconditioner, lsys, model, storage, recorder)
     end
 end
 
-function initialize_storage!(cpr, J, s)
+function initialize_cpr_storage!(cpr, J, s)
     if isnothing(cpr.A_p)
         m, n = size(J)
         cpr.block_size = bz = size(eltype(J), 1)
         # @assert n == m == length(s.state.Pressure) "Expected Jacobian dimensions ($m by $n) to both equal number of pressures $(length(s.state.Pressure))"
-        cpr.A_p = create_pressure_matrix(J)
+        cpr.A_p = create_pressure_matrix(cpr.pressure_precond, J)
         cpr.r_p = zeros(n)
         cpr.buf = zeros(n*bz)
         cpr.p = zeros(n)
@@ -101,18 +101,21 @@ function initialize_storage!(cpr, J, s)
     end
 end
 
-function create_pressure_matrix(J)
+function pressure_matrix_from_global_jacobian(J::SparseMatrixCSC)
     nzval = zeros(nnz(J))
     n = size(J, 2)
     return SparseMatrixCSC(n, n, J.colptr, J.rowval, nzval)
 end
 
-
-function create_pressure_matrix(J::Jutul.StaticSparsityMatrixCSR)
+function pressure_matrix_from_global_jacobian(J::Jutul.StaticSparsityMatrixCSR)
     nzval = zeros(nnz(J))
     n = size(J, 2)
     # Assume symmetry in sparse pattern, but not values.
     return Jutul.StaticSparsityMatrixCSR(n, n, J.At.colptr, Jutul.colvals(J), nzval, nthreads = J.nthreads, minbatch = J.minbatch)
+end
+
+function create_pressure_matrix(p_prec, J)
+    return pressure_matrix_from_global_jacobian(J)
 end
 
 function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, recorder)
@@ -125,7 +128,7 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
     else
         cpr.A_ps = linear_operator(lsys[1,1])
     end
-    initialize_storage!(cpr, A, s)
+    initialize_cpr_storage!(cpr, A, s)
     ps = rmodel.primary_variables[:Pressure].scale
     if do_p_update || cpr.partial_update
         @tic "weights" w_p = update_weights!(cpr, rmodel, s, A, ps)
@@ -133,6 +136,12 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
     end
     return do_p_update
 end
+
+function assemble_pressure_system!(A_p, A, w_p, block_size, context)
+    update_pressure_system!(A_p, A, w_p, block_size, context)
+end
+
+# CSC (default) version
 
 function update_pressure_system!(A_p, A, w_p, bz, ctx)
     nz = nonzeros(A_p)
@@ -159,6 +168,7 @@ function update_row_csc!(nz, A_p, w_p, rows, nz_s, col)
     end
 end
 
+# CSR version
 
 function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, A::Jutul.StaticSparsityMatrixCSR, w_p, bz, ctx)
     T_p = eltype(A_p)
