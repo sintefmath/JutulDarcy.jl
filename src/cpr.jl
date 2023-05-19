@@ -82,9 +82,9 @@ function update_preconditioner!(cpr::CPRPreconditioner, lsys, model, storage, re
     update_p = update_cpr_internals!(cpr, lsys, model, storage, recorder)
     @tic "s-precond" update_preconditioner!(cpr.system_precond, lsys, model, storage, recorder, executor)
     if update_p
-        @tic "p-precond" update_preconditioner!(cpr.pressure_precond, cpr.A_p, cpr.r_p, ctx)
+        @tic "p-precond" update_preconditioner!(cpr.pressure_precond, cpr.A_p, cpr.r_p, ctx, executor)
     elseif should_update_cpr(cpr, recorder, :partial)
-        @tic "p-precond (partial)" partial_update_preconditioner!(cpr.pressure_precond, cpr.A_p, cpr.r_p, ctx)
+        @tic "p-precond (partial)" partial_update_preconditioner!(cpr.pressure_precond, cpr.A_p, cpr.r_p, ctx, executor)
     end
 end
 
