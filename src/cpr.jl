@@ -19,6 +19,7 @@ mutable struct CPRPreconditioner <: JutulPreconditioner
     update_frequency_partial::Int # Update frequency for pressure system
     update_interval_partial::Symbol   # iteration, ministep, step, ...
     partial_update            # Perform partial update of AMG and update pressure system
+    full_system_correction::Bool
     p_rtol::Union{Float64, Nothing}
     psolver
 end
@@ -38,9 +39,30 @@ function CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner();
     update_frequency_partial = 1,
     update_interval_partial = :iteration,
     p_rtol = nothing,
+    full_system_correction = false,
     partial_update = true
     )
-    CPRPreconditioner(nothing, nothing, nothing, nothing, nothing, nothing, p, s, strategy, weight_scaling, nothing, update_frequency, update_interval, update_frequency_partial, update_interval_partial, partial_update, p_rtol, nothing)
+    return CPRPreconditioner(
+        nothing,
+        nothing,
+        nothing,
+        nothing,
+        nothing,
+        nothing,
+        p,
+        s,
+        strategy,
+        weight_scaling,
+        nothing,
+        update_frequency,
+        update_interval,
+        update_frequency_partial,
+        update_interval_partial,
+        partial_update,
+        full_system_correction,
+        p_rtol,
+        nothing
+        )
 end
 
 function default_psolve(; max_levels = 10, max_coarse = 10, type = :smoothed_aggregation, kwarg...)
@@ -98,8 +120,11 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
     s = reservoir_storage(model, storage)
     A = reservoir_jacobian(lsys)
     rmodel = reservoir_model(model)
-    # cpr.A_ps = linear_operator(lsys)
-    cpr.A_ps = linear_operator(lsys[1,1])
+    if cpr.full_system_correction
+        cpr.A_ps = linear_operator(lsys)
+    else
+        cpr.A_ps = linear_operator(lsys[1,1])
+    end
     initialize_storage!(cpr, A, s)
     ps = rmodel.primary_variables[:Pressure].scale
     if do_p_update || cpr.partial_update
