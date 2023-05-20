@@ -89,14 +89,23 @@ function update_preconditioner!(cpr::CPRPreconditioner, lsys, model, storage, re
 end
 
 function initialize_cpr_storage!(cpr, J, s)
+    n = size(J, 2)
     if isnothing(cpr.A_p)
-        m, n = size(J)
-        cpr.block_size = bz = size(eltype(J), 1)
-        # @assert n == m == length(s.state.Pressure) "Expected Jacobian dimensions ($m by $n) to both equal number of pressures $(length(s.state.Pressure))"
         cpr.A_p = create_pressure_matrix(cpr.pressure_precond, J)
+    end
+    if isnothing(cpr.block_size)
+        cpr.block_size = bz = size(eltype(J), 1)
+    end
+    if isnothing(cpr.r_p)
         cpr.r_p = zeros(n)
+    end
+    if isnothing(cpr.buf)
         cpr.buf = zeros(n*bz)
+    end
+    if isnothing(cpr.p)
         cpr.p = zeros(n)
+    end
+    if isnothing(cpr.w_p)
         cpr.w_p = zeros(bz, n)
     end
 end
