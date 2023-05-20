@@ -2,23 +2,23 @@ export CPRPreconditioner
 """
 Constrained pressure residual
 """
-mutable struct CPRPreconditioner <: JutulPreconditioner
+mutable struct CPRPreconditioner{P, S} <: JutulPreconditioner
     A_p  # pressure system
     r_p  # pressure residual
     p    # last pressure approximation
     buf  # buffer of size equal to full system rhs
     A_ps # full system
     w_p  # pressure weights
-    pressure_precond
-    system_precond
-    strategy
+    pressure_precond::P
+    system_precond::S
+    strategy::Symbol
     weight_scaling
-    block_size
-    update_frequency::Int # Update frequency for AMG hierarchy (and pressure part if partial_update = false)
-    update_interval::Symbol   # iteration, ministep, step, ...
-    update_frequency_partial::Int # Update frequency for pressure system
+    block_size::Union{Nothing, Int}
+    update_frequency::Int             # Update frequency for AMG hierarchy (and pressure part if partial_update = false)
+    update_interval::Symbol           # iteration, ministep, step, ...
+    update_frequency_partial::Int     # Update frequency for pressure system
     update_interval_partial::Symbol   # iteration, ministep, step, ...
-    partial_update            # Perform partial update of AMG and update pressure system
+    partial_update::Bool              # Perform partial update of AMG and update pressure system
     full_system_correction::Bool
     p_rtol::Union{Float64, Nothing}
     psolver
