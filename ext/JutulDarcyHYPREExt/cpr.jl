@@ -13,6 +13,10 @@ function update_pressure_system_hypre!(single_buf, longer_buf, V_buffers, A_p, A
     cols = Jutul.colvals(A)
 
     @assert length(single_buf) == 1
+    (; iupper, ilower) = A_p
+    @assert n == iupper - ilower + 1 "$n $ilower -> $iupper"
+    offset = ilower - 1
+
     assembler = HYPRE.start_assemble!(A_p)
 
     T = eltype(A)
@@ -20,7 +24,7 @@ function update_pressure_system_hypre!(single_buf, longer_buf, V_buffers, A_p, A
         pos_ix = nzrange(A, row)
         k = length(pos_ix)
         I = single_buf
-        I[1] = Jutul.executor_index_to_global(executor, row, :row)
+        I[1] = row + offset
         J = longer_buf
         resize!(J, k)
         V_buf = V_buffers[k]
@@ -32,7 +36,7 @@ function update_pressure_system_hypre!(single_buf, longer_buf, V_buffers, A_p, A
                 next_value += w_p[component, row]*A_block[component, 1]
             end
             V_buf[ki] = next_value
-            J[ki] = Jutul.executor_index_to_global(executor, cols[ri], :column)
+            J[ki] = cols[ri] + offset
         end
         HYPRE.assemble!(assembler, I, J, V_buf)
     end
@@ -48,7 +52,10 @@ function JutulDarcy.update_p_rhs!(r_p::HYPRE.HYPREVector, y, bz, w_p)
         end
         tmp[i] = v
     end
-    ix = Int32.(1:length(tmp))
+    (; iupper, ilower) = r_p
+    @assert length(tmp) == iupper - ilower + 1
+    ix = Int32.(ilower:iupper)
+
     assembler = HYPRE.start_assemble!(r_p)
     HYPRE.assemble!(assembler, ix, tmp)
     HYPRE.finish_assemble!(assembler)
