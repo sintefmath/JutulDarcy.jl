@@ -254,7 +254,7 @@ function reservoir_jacobian(lsys::MultiLinearizedSystem)
 end
 
 function update_weights!(cpr, model, res_storage, J, ps)
-    n = size(cpr.A_p, 1)
+    n = size(J, 1)
     bz = cpr.block_size
     if isnothing(cpr.w_p)
         cpr.w_p = ones(bz, n)

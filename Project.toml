@@ -37,6 +37,7 @@ StaticArrays = "1.4.4"
 TestItems = "0.1.0"
 TimerOutputs = "0.5.19"
 Tullio = "0.3.4"
+HYPRE = "1.4.0"
 julia = "1.7"
 Krylov = "0.9.0"
 
@@ -45,12 +46,15 @@ TestItemRunner = "f8b46487-2199-4994-9208-9a1283c18c0a"
 TestItems = "1c621080-faea-4a02-84b6-bbd5e436b8fe"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
+HYPRE = "b5ffcf37-a2bd-41ab-a3da-4bd9bc8ad771"
 
 [targets]
 test = ["Test", "TestItemRunner", "TestItems"]
 
 [weakdeps]
 GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
+HYPRE = "b5ffcf37-a2bd-41ab-a3da-4bd9bc8ad771"
 
 [extensions]
 JutulDarcyGLMakieExt = "GLMakie"
+JutulDarcyHYPREExt = "HYPRE"
