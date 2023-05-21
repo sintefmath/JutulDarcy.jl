@@ -32,7 +32,7 @@ Construct a constrained pressure residual (CPR) preconditioner.
 By default, this is a AMG-BILU(0) version (algebraic multigrid for pressure, block-ILU(0) for the global system).
 """
 function CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner();
-    strategy = :quasi_impes,
+    strategy = :true_impes,
     weight_scaling = :unit,
     update_frequency = 1,
     update_interval = :iteration,
