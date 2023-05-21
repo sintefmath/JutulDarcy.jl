@@ -53,3 +53,15 @@ function JutulDarcy.update_p_rhs!(r_p::HYPRE.HYPREVector, y, bz, w_p)
     HYPRE.assemble!(assembler, ix, tmp)
     HYPRE.finish_assemble!(assembler)
 end
+
+function JutulDarcy.correct_residual_for_dp!(y, x, Δp::HYPRE.HYPREVector, bz, buf, A)
+    tmp = zeros(length(y)÷bz)
+    copy!(tmp, Δp)
+    JutulDarcy.correct_residual_for_dp!(y, x, tmp, bz, buf, A)
+end
+
+function JutulDarcy.increment_pressure!(x, Δp::HYPRE.HYPREVector, bz)
+    tmp = zeros(length(x)÷bz)
+    copy!(tmp, Δp)
+    JutulDarcy.increment_pressure!(x, tmp, bz)
+end
