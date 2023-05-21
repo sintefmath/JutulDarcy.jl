@@ -37,4 +37,19 @@ function update_pressure_system_hypre!(single_buf, longer_buf, V_buffers, A_p, A
         HYPRE.assemble!(assembler, I, J, V_buf)
     end
     HYPRE.finish_assemble!(assembler)
+end    @info "HYPRE system assembled."
+
+function JutulDarcy.update_p_rhs!(r_p::HYPRE.HYPREVector, y, bz, w_p)
+    tmp = zeros(length(y)÷bz)
+    for i in eachindex(tmp)
+        v = 0.0
+        for b = 1:bz
+            v += y[(i-1)*bz + b]*w_p[b, i]
+        end
+        tmp[i] = v
+    end
+    ix = Int32.(1:length(tmp))
+    assembler = HYPRE.start_assemble!(r_p)
+    HYPRE.assemble!(assembler, ix, tmp)
+    HYPRE.finish_assemble!(assembler)
 end
