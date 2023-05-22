@@ -1,7 +1,8 @@
 function JutulDarcy.update_pressure_system!(A_p::HYPRE.HYPREMatrix, p_prec, A::Jutul.StaticSparsityMatrixCSR, w_p, bz, ctx, executor)
     D = p_prec.data
     if !haskey(D, :assembly_helper)
-        D[:assembly_helper] = Jutul.generate_hypre_assembly_helper(A, executor)
+        (; ilower, iupper) = A_p
+        D[:assembly_helper] = Jutul.generate_hypre_assembly_helper(A, executor, ilower, iupper)
     end
     helper = D[:assembly_helper]
     I_buf, J_buf, V_buffers, = D[:assembly_helper]
@@ -14,7 +15,8 @@ function update_pressure_system_hypre!(single_buf, longer_buf, V_buffers, A_p, A
 
     @assert length(single_buf) == 1
     (; iupper, ilower) = A_p
-    @assert n == iupper - ilower + 1 "$n $ilower -> $iupper"
+    owned_num = iupper - ilower + 1 # 5
+    @assert n == iupper - ilower + 1 "$(n-1) != $ilower -> $iupper"
     offset = ilower - 1
 
     assembler = HYPRE.start_assemble!(A_p)
