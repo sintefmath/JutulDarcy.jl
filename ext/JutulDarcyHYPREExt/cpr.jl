@@ -15,14 +15,10 @@ function update_pressure_system_hypre!(single_buf, longer_buf, V_buffers, A_p, A
 
     @assert length(single_buf) == 1
     (; iupper, ilower) = A_p
-    owned_num = iupper - ilower + 1 # 5
-    # @info "?!" owned_num iupper ilower n
     @assert n == iupper - ilower + 1 "$(n-1) != $ilower -> $iupper"
-    offset = ilower - 1
 
     assembler = HYPRE.start_assemble!(A_p)
 
-    @info "Assembly start"
     for row in 1:n
         pos_ix = nzrange(A, row)
         k = length(pos_ix)
@@ -44,18 +40,12 @@ function update_pressure_system_hypre!(single_buf, longer_buf, V_buffers, A_p, A
             J[ki] = Jutul.executor_index_to_global(executor, col, :column)
             num_added += 1
         end
-
-        @info "Assembling in" I (ilower, iupper)
-        @info "?? $num_added"  J
         HYPRE.assemble!(assembler, I, J, V_buf)
     end
     HYPRE.finish_assemble!(assembler)
-    @info "Assembly done"
 end
 
 function JutulDarcy.update_p_rhs!(r_p::HYPRE.HYPREVector, y, bz, w_p)
-    @info "RHS start" length(y) bz size(w_p)
-
     tmp = zeros(size(w_p, 2))
     for i in eachindex(tmp)
         v = 0.0
@@ -71,7 +61,6 @@ function JutulDarcy.update_p_rhs!(r_p::HYPRE.HYPREVector, y, bz, w_p)
     assembler = HYPRE.start_assemble!(r_p)
     HYPRE.assemble!(assembler, ix, tmp)
     HYPRE.finish_assemble!(assembler)
-    @info "RHS done" ix
 end
 
 function JutulDarcy.correct_residual_for_dp!(y, x, Δp::HYPRE.HYPREVector, bz, buf, A)
