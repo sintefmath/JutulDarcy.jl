@@ -211,22 +211,30 @@ end
 
 using Krylov
 function apply!(x, cpr::CPRPreconditioner, r, arg...)
+    apply_cpr_first_stage!(cpr, r, arg...)
+    apply_cpr_second_stage!(x, cpr, r, arg...)
+end
+
+function apply_cpr_first_stage!(cpr::CPRPreconditioner, r, arg...)
     r_p, w_p, bz, Δp = cpr.r_p, cpr.w_p, cpr.block_size, cpr.p
-    # We currently mutate r and it seems ok. Could copy here if needed.
-    y = r
     # Construct right hand side by the weights
-    @tic "p rhs" update_p_rhs!(r_p, y, bz, w_p)
+    @tic "p rhs" update_p_rhs!(r_p, r, bz, w_p)
     # Apply preconditioner to pressure part
     @tic "p apply" begin
         p_rtol = cpr.p_rtol
         p_precond = cpr.pressure_precond
         cpr_p_apply!(Δp, cpr, p_precond, r_p, p_rtol)
     end
+end
+
+function apply_cpr_second_stage!(x, cpr::CPRPreconditioner, r, arg...)
+    bz, Δp = cpr.block_size, cpr.p
+    # We currently mutate r and it seems ok. Could copy here if needed.
+    y = r
     @tic "r update" correct_residual_for_dp!(y, x, Δp, bz, cpr.buf, cpr.A_ps)
     @tic "s apply" apply!(x, cpr.system_precond, y)
     @tic "Δp" increment_pressure!(x, Δp, bz)
 end
-
 
 function cpr_p_apply!(Δp, cpr, p_precond, r_p, p_rtol)
     apply!(Δp, p_precond, r_p)
