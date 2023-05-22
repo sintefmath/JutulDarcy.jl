@@ -22,6 +22,7 @@ mutable struct CPRPreconditioner{P, S} <: JutulPreconditioner
     full_system_correction::Bool
     p_rtol::Union{Float64, Nothing}
     psolver
+    np::Union{Int, Nothing}
 end
 
 """
@@ -61,6 +62,7 @@ function CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner();
         partial_update,
         full_system_correction,
         p_rtol,
+        nothing,
         nothing
         )
 end
@@ -89,7 +91,10 @@ function update_preconditioner!(cpr::CPRPreconditioner, lsys, model, storage, re
 end
 
 function initialize_cpr_storage!(cpr, J, s)
-    n = size(J, 2)
+    if isnothing(cpr.np)
+        cpr.np = size(J, 1)
+    end
+    n = cpr.np
     if isnothing(cpr.A_p)
         cpr.A_p = create_pressure_matrix(cpr.pressure_precond, J)
     end
@@ -250,7 +255,7 @@ function reservoir_jacobian(lsys::MultiLinearizedSystem)
 end
 
 function update_weights!(cpr, model, res_storage, J, ps)
-    n = size(J, 1)
+    n = cpr.np
     bz = cpr.block_size
     if isnothing(cpr.w_p)
         cpr.w_p = ones(bz, n)

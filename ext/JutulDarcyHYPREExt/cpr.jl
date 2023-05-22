@@ -54,9 +54,9 @@ function update_pressure_system_hypre!(single_buf, longer_buf, V_buffers, A_p, A
 end
 
 function JutulDarcy.update_p_rhs!(r_p::HYPRE.HYPREVector, y, bz, w_p)
-    @info "RHS start"
+    @info "RHS start" length(y) bz size(w_p)
 
-    tmp = zeros(length(y)÷bz)
+    tmp = zeros(size(w_p, 2))
     for i in eachindex(tmp)
         v = 0.0
         for b = 1:bz
@@ -65,7 +65,7 @@ function JutulDarcy.update_p_rhs!(r_p::HYPRE.HYPREVector, y, bz, w_p)
         tmp[i] = v
     end
     (; iupper, ilower) = r_p
-    @assert length(tmp) == iupper - ilower + 1
+    @assert length(tmp) == iupper - ilower + 1 "($ilower, $iupper), tmp = $(length(tmp))"
     ix = Int32.(ilower:iupper)
 
     assembler = HYPRE.start_assemble!(r_p)
@@ -75,13 +75,15 @@ function JutulDarcy.update_p_rhs!(r_p::HYPRE.HYPREVector, y, bz, w_p)
 end
 
 function JutulDarcy.correct_residual_for_dp!(y, x, Δp::HYPRE.HYPREVector, bz, buf, A)
-    tmp = zeros(length(y)÷bz)
+    nvalues = Δp.iupper - Δp.ilower + 1
+    tmp = zeros(nvalues)
     copy!(tmp, Δp)
     JutulDarcy.correct_residual_for_dp!(y, x, tmp, bz, buf, A)
 end
 
 function JutulDarcy.increment_pressure!(x, Δp::HYPRE.HYPREVector, bz)
-    tmp = zeros(length(x)÷bz)
+    nvalues = Δp.iupper - Δp.ilower + 1
+    tmp = zeros(nvalues)
     copy!(tmp, Δp)
     JutulDarcy.increment_pressure!(x, tmp, bz)
 end
