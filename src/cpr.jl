@@ -33,15 +33,15 @@ Construct a constrained pressure residual (CPR) preconditioner.
 By default, this is a AMG-BILU(0) version (algebraic multigrid for pressure, block-ILU(0) for the global system).
 """
 function CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner();
-    strategy = :true_impes,
-    weight_scaling = :unit,
-    update_frequency = 1,
-    update_interval = :iteration,
-    update_frequency_partial = 1,
-    update_interval_partial = :iteration,
-    p_rtol = nothing,
-    full_system_correction = false,
-    partial_update = true
+        strategy = :true_impes,
+        weight_scaling = :unit,
+        update_frequency = 1,
+        update_interval = :ministep,
+        update_frequency_partial = 1,
+        update_interval_partial = :iteration,
+        p_rtol = nothing,
+        full_system_correction = true,
+        partial_update = update_interval == :once
     )
     return CPRPreconditioner(
         nothing,
@@ -496,6 +496,9 @@ end
 function should_update_cpr(cpr, rec, type = :amg)
     if type == :partial
         interval, update_frequency = cpr.update_interval_partial, cpr.update_frequency_partial
+        if !cpr.partial_update
+            return false
+        end
     else
         @assert type == :amg
         interval, update_frequency = cpr.update_interval, cpr.update_frequency
@@ -505,7 +508,7 @@ function should_update_cpr(cpr, rec, type = :amg)
     elseif interval == :once
         update = false
     else
-        it = Jutul.subiteration(rec)
+        it = Jutul.subiteration(rec) + 1
         outer_step = Jutul.step(rec)
         ministep = Jutul.substep(rec)
         if interval == :iteration
