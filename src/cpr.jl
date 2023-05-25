@@ -218,7 +218,7 @@ end
 function apply_cpr_first_stage!(cpr::CPRPreconditioner, r, arg...)
     r_p, w_p, bz, Δp = cpr.r_p, cpr.w_p, cpr.block_size, cpr.p
     # Construct right hand side by the weights
-    @tic "p rhs" update_p_rhs!(r_p, r, bz, w_p)
+    @tic "p rhs" update_p_rhs!(r_p, r, bz, w_p, cpr.pressure_precond)
     # Apply preconditioner to pressure part
     @tic "p apply" begin
         p_rtol = cpr.p_rtol
@@ -265,6 +265,8 @@ end
 function update_weights!(cpr, model, res_storage, J, ps)
     n = cpr.np
     bz = cpr.block_size
+    bz::Int
+    n::Int
     if isnothing(cpr.w_p)
         cpr.w_p = ones(bz, n)
     end
@@ -423,7 +425,7 @@ end
     end
 end
 
-function update_p_rhs!(r_p, y, bz, w_p)
+function update_p_rhs!(r_p, y, bz, w_p, p_prec)
     if true
         @batch minbatch = 1000 for i in eachindex(r_p)
             v = 0.0

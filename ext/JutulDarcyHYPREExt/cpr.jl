@@ -45,22 +45,25 @@ function update_pressure_system_hypre!(single_buf, longer_buf, V_buffers, A_p, A
     HYPRE.finish_assemble!(assembler)
 end
 
-function JutulDarcy.update_p_rhs!(r_p::HYPRE.HYPREVector, y, bz, w_p)
-    tmp = zeros(size(w_p, 2))
-    for i in eachindex(tmp)
+function JutulDarcy.update_p_rhs!(r_p::HYPRE.HYPREVector, y, bz, w_p, p_prec)
+    helper = p_prec.data[:assembly_helper]
+    inner_hypre_p_rhs!(r_p, y, bz, w_p, helper)
+end
+
+function inner_hypre_p_rhs!(r_p, y, bz, w_p, helper)
+    R_p = helper.native_zeroed_buffer
+    ix = helper.indices
+
+    @inbounds for i in eachindex(R_p)
         v = 0.0
         for b = 1:bz
             v += y[(i-1)*bz + b]*w_p[b, i]
         end
-        tmp[i] = v
+        R_p[i] = v
     end
-    (; iupper, ilower) = r_p
-    @assert length(tmp) == iupper - ilower + 1 "($ilower, $iupper), tmp = $(length(tmp))"
-    ix = Int32.(ilower:iupper)
 
-    assembler = HYPRE.start_assemble!(r_p)
-    HYPRE.assemble!(assembler, ix, tmp)
-    HYPRE.finish_assemble!(assembler)
+    Jutul.local_hypre_copy!(r_p, R_p, ix)
+    @. R_p = 0.0
 end
 
 function JutulDarcy.correct_residual_for_dp!(y, x, Δp::HYPRE.HYPREVector, bz, buf, A)
