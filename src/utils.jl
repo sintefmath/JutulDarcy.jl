@@ -611,7 +611,7 @@ function available_well_targets(model)
     return unique(targets)
 end
 
-function partitioner_input(model, parameters)
+function partitioner_input(model, parameters; conn = :trans)
     rmodel = reservoir_model(model)
     if haskey(parameters, :Reservoir)
         parameters = parameters[:Reservoir]
@@ -619,7 +619,13 @@ function partitioner_input(model, parameters)
     grid = physical_representation(rmodel.domain)
 
     N = grid.neighborship
-    T = copy(parameters[:Transmissibilities])
+    trans = parameters[:Transmissibilities]
+    if conn == :trans
+        T = copy(trans)
+    else
+        @assert conn == :unit
+        T = ones(Int, length(trans))
+    end
     groups = []
     if model isa MultiModel
         for (k, m) in pairs(model.models)
