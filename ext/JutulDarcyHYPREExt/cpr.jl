@@ -45,6 +45,27 @@ function update_pressure_system_hypre!(single_buf, longer_buf, V_buffers, A_p, A
     HYPRE.finish_assemble!(assembler)
 end
 
+function JutulDarcy.create_pressure_system(p_prec::BoomerAMGPreconditioner, J, n)
+    tmp = HYPRE.HYPREVector(zeros(3))
+    comm = HYPRE.Internals.get_comm(tmp)
+    function create_hypre_vector()
+        x = HYPREVector(comm, 1, n)
+        asm = HYPRE.start_assemble!(x)
+        HYPRE.finish_assemble!(asm)
+        return x
+    end
+
+    if J isa SparseMatrixCSC
+        return JutulDarcy.create_pressure_system(nothing, J, n)
+    else
+        A = HYPREMatrix(comm, 1, n)
+        r = create_hypre_vector()
+        p = create_hypre_vector()
+        p_prec.data[:hypre_system] = (A, r, p)
+        return (A, r, p)
+    end
+end
+
 function JutulDarcy.update_p_rhs!(r_p::HYPRE.HYPREVector, y, bz, w_p, p_prec)
     helper = p_prec.data[:assembly_helper]
     inner_hypre_p_rhs!(r_p, y, bz, w_p, helper)

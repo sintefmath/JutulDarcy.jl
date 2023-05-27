@@ -96,19 +96,15 @@ function initialize_cpr_storage!(cpr, J, s)
     end
     n = cpr.np
     if isnothing(cpr.A_p)
-        cpr.A_p = create_pressure_matrix(cpr.pressure_precond, J)
+        @assert isnothing(cpr.p)
+        @assert isnothing(cpr.r_p)
+        cpr.A_p, cpr.r_p, cpr.p = create_pressure_system(cpr.pressure_precond, J, n)
     end
     if isnothing(cpr.block_size)
         cpr.block_size = bz = size(eltype(J), 1)
     end
-    if isnothing(cpr.r_p)
-        cpr.r_p = zeros(n)
-    end
     if isnothing(cpr.buf)
         cpr.buf = zeros(n*bz)
-    end
-    if isnothing(cpr.p)
-        cpr.p = zeros(n)
     end
     if isnothing(cpr.w_p)
         cpr.w_p = zeros(bz, n)
@@ -128,8 +124,8 @@ function pressure_matrix_from_global_jacobian(J::Jutul.StaticSparsityMatrixCSR)
     return Jutul.StaticSparsityMatrixCSR(n, n, J.At.colptr, Jutul.colvals(J), nzval, nthreads = J.nthreads, minbatch = J.minbatch)
 end
 
-function create_pressure_matrix(p_prec, J)
-    return pressure_matrix_from_global_jacobian(J)
+function create_pressure_system(p_prec, J, n)
+    return (pressure_matrix_from_global_jacobian(J), zeros(n), zeros(n))
 end
 
 function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, recorder, executor)
@@ -206,7 +202,7 @@ function update_row_csr!(nz, A_p, w_p, cols, nz_s, row)
 end
 
 function operator_nrows(cpr::CPRPreconditioner)
-    return length(cpr.r_p)*cpr.block_size
+    return size(cpr.w_p, 2)*cpr.block_size
 end
 
 using Krylov
