@@ -1198,7 +1198,12 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
     else
         output_path = nothing
     end
-    sim, cfg = setup_reservoir_simulator(case, linear_solver = linear_solver, output_path = output_path; kwarg...)
+    sim, cfg = setup_reservoir_simulator(
+        case,
+        mode = mode,
+        linear_solver = linear_solver,
+        output_path = output_path;
+        kwarg...)
     M = first(values(models))
     sys = M.system
     if sys isa CompositionalSystem
@@ -1248,7 +1253,9 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
             jutul_message("MRST model", "Model set up. Skipping simulation as do_sim = false.")
         end
     end
-    if legacy_output
+    if mode != :default
+        return result
+    elseif legacy_output
         setup = (case = case, sim = sim, config = cfg, mrst = mrst_data)
         return (states, reports, output_path, setup)
     else
