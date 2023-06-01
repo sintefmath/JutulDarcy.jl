@@ -195,10 +195,11 @@ function setup_reservoir_simulator(case::JutulCase;
                                             amg_type = amg_type,
                                             verbose = v,
                                             )
-        cfg = simulator_config(sim, timestep_selectors = sel, linear_solver = lsolve; info_level = info_level, kwarg...)
+        extra_arg = (linear_solver = lsolve, )
     else
-        cfg = simulator_config(sim, timestep_selectors = sel; info_level = info_level, kwarg...)
+        extra_arg = NamedTuple()
     end
+    cfg = simulator_config(sim; extra_arg..., timestep_selectors = sel, info_level = info_level, kwarg...)
     set_default_cnv_mb!(cfg, case.model, tol_cnv = tol_cnv, tol_mb = tol_mb, tol_cnv_well = tol_cnv_well, tol_mb_well = tol_mb_well)
     return (sim, cfg)
 end
