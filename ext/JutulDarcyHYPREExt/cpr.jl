@@ -1,4 +1,4 @@
-function JutulDarcy.update_pressure_system!(A_p::HYPRE.HYPREMatrix, p_prec, A::Jutul.StaticSparsityMatrixCSR, w_p, bz, ctx, executor)
+function JutulDarcy.update_pressure_system!(A_p::HYPRE.HYPREMatrix, p_prec, A, w_p, bz, ctx, executor)
     D = p_prec.data
     if !haskey(D, :assembly_helper)
         (; ilower, iupper) = A_p
@@ -10,15 +10,17 @@ function JutulDarcy.update_pressure_system!(A_p::HYPRE.HYPREMatrix, p_prec, A::J
 end
 
 function update_pressure_system_hypre!(single_buf, longer_buf, V_buffers, A_p, A, w_p, executor, n)
-    nzval = SparseArrays.nonzeros(A)
-    cols = Jutul.colvals(A)
-
     @assert length(single_buf) == 1
     (; iupper, ilower) = A_p
     @assert n == iupper - ilower + 1 "$(n-1) != $ilower -> $iupper"
-
     assembler = HYPRE.start_assemble!(A_p)
+    assemble_into_hypre_psystem!(A_p, A, assembler, w_p, single_buf, longer_buf, V_buffers, executor, n)
+    HYPRE.finish_assemble!(assembler)
+end
 
+function assemble_into_hypre_psystem!(A_p::HYPRE.HYPREMatrix, A::Jutul.StaticSparsityMatrixCSR, assembler, w_p, single_buf, longer_buf, V_buffers, executor, n)
+    nzval = SparseArrays.nonzeros(A)
+    cols = Jutul.colvals(A)
     for row in 1:n
         pos_ix = nzrange(A, row)
         k = length(pos_ix)
@@ -42,7 +44,34 @@ function update_pressure_system_hypre!(single_buf, longer_buf, V_buffers, A_p, A
         end
         HYPRE.assemble!(assembler, I, J, V_buf)
     end
-    HYPRE.finish_assemble!(assembler)
+end
+
+function assemble_into_hypre_psystem!(A_p::HYPRE.HYPREMatrix, A::SparseMatrixCSC, assembler, w_p, single_buf, longer_buf, V_buffers, executor, n)
+    nzval = SparseArrays.nonzeros(A)
+    rows = rowvals(A)
+    for col in 1:n
+        pos_ix = nzrange(A, col)
+        k = length(pos_ix)
+        J = single_buf
+        J[1] = Jutul.executor_index_to_global(executor, col, :column)
+        I = longer_buf
+        resize!(I, k)
+        V_buf = V_buffers[k]
+        num_added = 0
+        @inbounds for ki in 1:k
+            ri = pos_ix[ki]
+            row = rows[ri]
+            A_block = nzval[ri]
+            next_value = 0.0
+            for component in axes(w_p, 1)
+                next_value += w_p[component, row]*A_block[component, 1]
+            end
+            V_buf[ki] = next_value
+            I[ki] = Jutul.executor_index_to_global(executor, row, :row)
+            num_added += 1
+        end
+        HYPRE.assemble!(assembler, I, J, V_buf)
+    end
 end
 
 function JutulDarcy.create_pressure_system(p_prec::BoomerAMGPreconditioner, J, n)
@@ -55,15 +84,12 @@ function JutulDarcy.create_pressure_system(p_prec::BoomerAMGPreconditioner, J, n
         return x
     end
 
-    if J isa SparseMatrixCSC
-        return JutulDarcy.create_pressure_system(nothing, J, n)
-    else
+
         A = HYPREMatrix(comm, 1, n)
         r = create_hypre_vector()
         p = create_hypre_vector()
         p_prec.data[:hypre_system] = (A, r, p)
         return (A, r, p)
-    end
 end
 
 function JutulDarcy.update_p_rhs!(r_p::HYPRE.HYPREVector, y, bz, w_p, p_prec)
