@@ -137,7 +137,23 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing;
     setup_reservoir_simulator(case; kwarg...)
 end
 
+function mode_to_backend(mode::Symbol)
+    if mode == :mpi
+        mode = MPI_PArrayBackend()
+    elseif mode == :parray
+        mode = JuliaPArrayBackend()
+    else
+        @assert mode == :debug
+        mode = Jutul.DebugPArrayBackend()
+    end
+end
+
+function mode_to_backend(mode::Jutul.PArrayBackend)
+    return mode
+end
+
 function setup_reservoir_simulator(case::JutulCase;
+                            mode = :default,
                             precond = :cpr,
                             linear_solver = :bicgstab,
                             max_dt = Inf,
@@ -159,8 +175,12 @@ function setup_reservoir_simulator(case::JutulCase;
                             timesteps = :auto,
                             extra_timing_setup = false,
                             kwarg...)
-
-    sim = Simulator(case, extra_timing = extra_timing_setup)
+    if mode == :default
+        sim = Simulator(case, extra_timing = extra_timing_setup)
+    else
+        b = mode_to_backend(mode)
+        sim = setup_reservoir_simulator_parray(case, b);
+    end
     t_base = TimestepSelector(initial_absolute = initial_dt, max = max_dt)
     sel = Vector{Any}()
     push!(sel, t_base)

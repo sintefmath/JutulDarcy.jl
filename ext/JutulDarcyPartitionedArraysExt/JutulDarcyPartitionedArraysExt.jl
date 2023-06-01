@@ -9,13 +9,18 @@ module JutulDarcyPartitionedArraysExt
     import Jutul: partition_distributed, simulate_parray
     import JutulDarcy: reservoir_partition, partitioner_input
 
-    function JutulDarcy.simulate_reservoir_parray(case::JutulCase, np::Int, backend::PArrayBackend; conn = :unit)
+    function JutulDarcy.setup_reservoir_simulator_parray(
+            case::JutulCase,
+            backend::PArrayBackend;
+            conn = :unit,
+            np = MPI.Comm_size(MPI.COMM_WORLD)
+        )
         N, T, groups = partitioner_input(case.model, case.parameters, conn = conn)
         rmodel = reservoir_model(case.model)
         nc = number_of_cells(rmodel.domain)
         p_num = partition_distributed(N, T, nc = nc, np = np, groups = groups)
         p = reservoir_partition(case.model, p_num)
-        return simulate_parray(case, p, backend)
+        return PArraySimulator(case, p, backend = backend)
     end
 
     function Jutul.parray_preconditioner_apply!(global_out, main_prec::CPRPreconditioner{<:BoomerAMGPreconditioner, <:Any}, X, preconditioners, simulator, arg...)

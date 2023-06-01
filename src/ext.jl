@@ -41,6 +41,13 @@ function plot_reservoir_simulation_result(model::MultiModel, res::ReservoirSimRe
 end
 
 export simulate_reservoir_parray
-function simulate_reservoir_parray
+function simulate_reservoir_parray(case, mode = :mpi; kwarg...)
+    sim, cfg = setup_reservoir_simulator(case; mode = :mpi, kwarg...)
+    # TODO: Call consolidator etc and make proper output
+    return simulate!(sim, case.dt, forces = case.forces, config = cfg)
+end
+
+export setup_reservoir_simulator_parray
+function setup_reservoir_simulator_parray
 
 end
