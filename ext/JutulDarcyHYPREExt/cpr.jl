@@ -83,13 +83,11 @@ function JutulDarcy.create_pressure_system(p_prec::BoomerAMGPreconditioner, J, n
         HYPRE.finish_assemble!(asm)
         return x
     end
-
-
-        A = HYPREMatrix(comm, 1, n)
-        r = create_hypre_vector()
-        p = create_hypre_vector()
-        p_prec.data[:hypre_system] = (A, r, p)
-        return (A, r, p)
+    A = HYPREMatrix(comm, 1, n)
+    r = create_hypre_vector()
+    p = create_hypre_vector()
+    p_prec.data[:hypre_system] = (A, r, p)
+    return (A, r, p)
 end
 
 function JutulDarcy.update_p_rhs!(r_p::HYPRE.HYPREVector, y, bz, w_p, p_prec)
