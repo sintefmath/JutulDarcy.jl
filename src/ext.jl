@@ -39,3 +39,8 @@ function plot_reservoir_simulation_result(model::MultiModel, res::ReservoirSimRe
     end
     return fig
 end
+
+export simulate_reservoir_parray
+function simulate_reservoir_parray
+
+end
