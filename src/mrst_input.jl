@@ -1110,6 +1110,7 @@ Additional input arguments are passed onto [`setup_reservoir_simulator`](@ref) a
 function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                 output_path = nothing,
                                 backend = :csc,
+                                mode = :default,
                                 nthreads = Threads.nthreads(),
                                 minbatch = 1000,
                                 split_wells = false,
@@ -1131,16 +1132,22 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                 linear_solver = :bicgstab,
                                 kwarg...)
     fn = get_mrst_input_path(fn)
-    if verbose
-        jutul_message("MRST model", "Reading input file $fn.")
-        @info "This is the first call to simulate_mrst_case. Compilation may take some time..." maxlog = 1
-    end
-    block_backend = linear_solver != :direct && linear_solver != :lu
     if split_wells
         fg = :perwell
     else
         fg = :onegroup
     end
+    if mode != :default
+        Jutul.jutul_message("Mode is $mode", "Adjusting default settings accordingly.", color = :green)
+        backend = :csr
+        use_blocks = true
+        fg = :perwell
+    end
+    if verbose
+        jutul_message("MRST model", "Reading input file $fn.")
+        @info "This is the first call to simulate_mrst_case. Compilation may take some time..." maxlog = 1
+    end
+    block_backend = linear_solver != :direct && linear_solver != :lu
     case, mrst_data = setup_case_from_mrst(fn, block_backend = block_backend, steps = steps,
                                                                             backend = backend,
                                                                             nthreads = nthreads,
