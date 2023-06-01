@@ -62,4 +62,4 @@ MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
 [extensions]
 JutulDarcyGLMakieExt = "GLMakie"
 JutulDarcyHYPREExt = "HYPRE"
-JutulDarcyPartitionedArraysExt = ["PartitionedArrays", "MPI"]
+JutulDarcyPartitionedArraysExt = ["PartitionedArrays", "MPI", "HYPRE"]
