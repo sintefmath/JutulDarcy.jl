@@ -27,7 +27,11 @@ function reservoir_linsolve(model,  precond = :cpr;
                                     max_iterations = nothing,
                                     update_interval = :ministep,
                                     update_interval_partial = :iteration,
-                                    amg_type = :smoothed_aggregation,
+                                    amg_type = ifelse(
+                                        Jutul.check_hypre_availability(throw = false),
+                                            :hypre,
+                                            :smoothed_aggregation
+                                        ),
                                     smoother_type = :ilu0,
                                     max_coarse = 10,
                                     cpr_type = nothing,
