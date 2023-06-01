@@ -67,7 +67,7 @@ function CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner();
         )
 end
 
-function default_psolve(; max_levels = 10, max_coarse = 10, type = :smoothed_aggregation, kwarg...)
+function default_psolve(; max_levels = 10, max_coarse = 10, type = default_amg_symbol(), kwarg...)
     if type == :hypre
         amg = BoomerAMGPreconditioner(; kwarg...)
     else

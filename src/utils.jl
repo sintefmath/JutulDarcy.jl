@@ -154,7 +154,7 @@ function setup_reservoir_simulator(case::JutulCase;
                             cpr_update_interval_partial = :iteration,
                             cpr_update_interval = :once,
                             cpr_smoother = :ilu0,
-                            amg_type = :smoothed_aggregation,
+                            amg_type = default_amg_symbol(),
                             set_linear_solver = linear_solver isa Symbol,
                             timesteps = :auto,
                             extra_timing_setup = false,
