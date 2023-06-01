@@ -220,7 +220,7 @@ function setup_reservoir_simulator(case::JutulCase;
         extra_arg = NamedTuple()
     end
     cfg = simulator_config(sim; extra_arg..., timestep_selectors = sel, info_level = info_level, kwarg...)
-    set_default_cnv_mb!(cfg, case.model, tol_cnv = tol_cnv, tol_mb = tol_mb, tol_cnv_well = tol_cnv_well, tol_mb_well = tol_mb_well)
+    set_default_cnv_mb!(cfg, sim, tol_cnv = tol_cnv, tol_mb = tol_mb, tol_cnv_well = tol_cnv_well, tol_mb_well = tol_mb_well)
     return (sim, cfg)
 end
 
@@ -242,6 +242,10 @@ function simulate_reservoir(case::JutulCase; restart = false, kwarg...)
     sim, config = setup_reservoir_simulator(model, state0, parameters; kwarg...)
     result = simulate!(sim, dt, forces = forces, config = config, restart = restart);
     return ReservoirSimResult(model, result, forces)
+end
+
+function set_default_cnv_mb!(cfg::JutulConfig, sim::JutulSimulator; kwarg...)
+    set_default_cnv_mb!(cfg, sim.model; kwarg...)
 end
 
 function set_default_cnv_mb!(cfg, model; kwarg...)

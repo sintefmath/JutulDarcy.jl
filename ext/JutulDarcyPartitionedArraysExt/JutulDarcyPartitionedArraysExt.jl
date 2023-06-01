@@ -23,6 +23,14 @@ module JutulDarcyPartitionedArraysExt
         return PArraySimulator(case, p, backend = backend)
     end
 
+    function JutulDarcy.set_default_cnv_mb!(config::JutulConfig, sim::Jutul.PArraySimulator; kwarg...)
+        simulators = sim.storage[:simulators]
+        map(simulators, config[:configs]) do sim, cfg
+            JutulDarcy.set_default_cnv_mb!(cfg, sim)
+        end
+        return config
+    end
+
     function Jutul.parray_preconditioner_apply!(global_out, main_prec::CPRPreconditioner{<:BoomerAMGPreconditioner, <:Any}, X, preconditioners, simulator, arg...)
         tmr = simulator.storage.global_timer
         global_cell_vector = simulator.storage.distributed_cell_buffer
