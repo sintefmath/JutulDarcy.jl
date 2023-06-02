@@ -127,11 +127,12 @@ end
 
 
 function Jutul.parray_update_preconditioners!(sim::Jutul.PArraySimulator, cpr::CPRPreconditioner{<:BoomerAMGPreconditioner, <:Any}, preconditioners, recorder, tmr)
-    @assert sim isa Jutul.MPISimulator
-    # @info "!!" sim.storage.nc sim.storage.nc_process sim.storage.process_offset
     offset = sim.storage.process_offset
     n = sim.storage.nc_process
     comm = sim.storage.comm
+    if sim.storage[:number_of_processes] > 1
+        @assert sim isa Jutul.MPISimulator "Cannot use HYPRE with emulated multiple processes."
+    end
 
     function create_hypre_vector()
         x = HYPREVector(comm, offset + 1, offset + n)
@@ -161,7 +162,6 @@ function Jutul.parray_update_preconditioners!(sim::Jutul.PArraySimulator, cpr::C
 
         prec.pressure_precond.data[:hypre_system] = (A_p, r_p, x_p)
         Jutul.update_preconditioner!(prec, sys, model, storage, recorder, sim.executor)
-        # toc!(tmr, "Update preconditioner")
         prec
     end
 
