@@ -131,7 +131,7 @@ function Jutul.parray_update_preconditioners!(sim::Jutul.PArraySimulator, cpr::C
     n = sim.storage.nc_process
     comm = sim.storage.comm
     if sim.storage[:number_of_processes] > 1
-        @assert sim isa Jutul.MPISimulator "Cannot use HYPRE with emulated multiple processes."
+        @assert sim.backend isa Jutul.MPI_PArrayBackend "Cannot use HYPRE with emulated multiple processes."
     end
 
     function create_hypre_vector()
