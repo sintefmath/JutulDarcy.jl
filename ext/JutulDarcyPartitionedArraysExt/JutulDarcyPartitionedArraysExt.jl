@@ -13,8 +13,12 @@ module JutulDarcyPartitionedArraysExt
             case::JutulCase,
             backend::PArrayBackend;
             conn = :unit,
-            np = MPI.Comm_size(MPI.COMM_WORLD)
+            np = missing
         )
+        if ismissing(np)
+            np = MPI.Comm_size(MPI.COMM_WORLD)
+        end
+        np::Int
         N, T, groups = partitioner_input(case.model, case.parameters, conn = conn)
         rmodel = reservoir_model(case.model)
         nc = number_of_cells(rmodel.domain)

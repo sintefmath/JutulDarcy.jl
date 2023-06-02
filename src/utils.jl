@@ -141,7 +141,7 @@ function mode_to_backend(mode::Symbol)
     if mode == :mpi
         mode = MPI_PArrayBackend()
     elseif mode == :parray
-        mode = JuliaPArrayBackend()
+        mode = Jutul.JuliaPArrayBackend()
     else
         @assert mode == :debug
         mode = Jutul.DebugPArrayBackend()
@@ -173,13 +173,14 @@ function setup_reservoir_simulator(case::JutulCase;
                             amg_type = default_amg_symbol(),
                             set_linear_solver = linear_solver isa Symbol,
                             timesteps = :auto,
+                            np = missing,
                             extra_timing_setup = false,
                             kwarg...)
     if mode == :default
         sim = Simulator(case, extra_timing = extra_timing_setup)
     else
         b = mode_to_backend(mode)
-        sim = setup_reservoir_simulator_parray(case, b);
+        sim = setup_reservoir_simulator_parray(case, b, np = np);
     end
     t_base = TimestepSelector(initial_absolute = initial_dt, max = max_dt)
     sel = Vector{Any}()
