@@ -143,7 +143,7 @@ function mode_to_backend(mode::Symbol)
     elseif mode == :parray
         mode = Jutul.JuliaPArrayBackend()
     else
-        @assert mode == :debug
+        @assert mode == :debug "Mode must be one of :mpi, :parray, :debug, was :$mode"
         mode = Jutul.DebugPArrayBackend()
     end
 end
