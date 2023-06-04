@@ -1,5 +1,6 @@
 module JutulDarcyPartitionedArraysExt
     using Jutul, JutulDarcy
+    using PrecompileTools
     # Specific dependencies
     using PartitionedArrays, MPI, HYPRE
     using LinearAlgebra
@@ -81,5 +82,24 @@ module JutulDarcyPartitionedArraysExt
         consistent!(global_out) |> wait
         global_out
     end
-
+    @compile_workload begin
+        targets = [(true, :csc), (true, :csr)]
+        # MPI, trivial partition
+        JutulDarcy.precompile_darcy_multimodels(targets,
+            dims = (4, 1, 1),
+            setuparg = (mode = :mpi, ),
+            split_wells = true
+        )
+        # Native PArray, non-trivial partition
+        JutulDarcy.precompile_darcy_multimodels(targets,
+            dims = (4, 1, 1),
+            default_linsolve = false,
+            setuparg = (
+                mode = :parray,
+                parray_arg = (np = 2, ),
+                precond = :ilu0
+                ),
+            split_wells = true
+        )
+    end
 end
