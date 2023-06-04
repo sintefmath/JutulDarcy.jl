@@ -13,7 +13,8 @@ module JutulDarcyPartitionedArraysExt
             case::JutulCase,
             backend::PArrayBackend;
             conn = :unit,
-            np = missing
+            np = missing,
+            kwarg...
         )
         if ismissing(np)
             np = MPI.Comm_size(MPI.COMM_WORLD)
@@ -24,7 +25,7 @@ module JutulDarcyPartitionedArraysExt
         nc = number_of_cells(rmodel.domain)
         p_num = partition_distributed(N, T, nc = nc, np = np, groups = groups)
         p = reservoir_partition(case.model, p_num)
-        return PArraySimulator(case, p, backend = backend)
+        return PArraySimulator(case, p; backend = backend, kwarg...)
     end
 
     function JutulDarcy.set_default_cnv_mb!(config::JutulConfig, sim::Jutul.PArraySimulator; kwarg...)

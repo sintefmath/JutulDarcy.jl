@@ -173,14 +173,14 @@ function setup_reservoir_simulator(case::JutulCase;
                             amg_type = default_amg_symbol(),
                             set_linear_solver = linear_solver isa Symbol,
                             timesteps = :auto,
-                            np = missing,
+                            parray_arg = NamedTuple(),
                             extra_timing_setup = false,
                             kwarg...)
     if mode == :default
         sim = Simulator(case, extra_timing = extra_timing_setup)
     else
         b = mode_to_backend(mode)
-        sim = setup_reservoir_simulator_parray(case, b, np = np);
+        sim = setup_reservoir_simulator_parray(case, b; parray_arg...);
     end
     t_base = TimestepSelector(initial_absolute = initial_dt, max = max_dt)
     sel = Vector{Any}()
@@ -192,6 +192,7 @@ function setup_reservoir_simulator(case::JutulCase;
         end
 
         if isfinite(target_ds)
+            @assert mode == :default "target_ds is only supported in serial."
             t_sat = VariableChangeTimestepSelector(
                 :Saturations, target_ds, relative = false, reduction = :max, model = :Reservoir
                 )

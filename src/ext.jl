@@ -42,8 +42,7 @@ end
 
 export simulate_reservoir_parray
 function simulate_reservoir_parray(case, mode = :mpi; kwarg...)
-    sim, cfg = setup_reservoir_simulator(case; mode = :mpi, kwarg...)
-    # TODO: Call consolidator etc and make proper output
+    sim, cfg = setup_reservoir_simulator(case; mode = mode, kwarg...)
     return simulate!(sim, case.dt, forces = case.forces, config = cfg)
 end
 
