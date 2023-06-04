@@ -6,7 +6,7 @@ module JutulDarcyPartitionedArraysExt
 
     import Jutul: PArraySimulator, MPISimulator, PArrayExecutor
     import Jutul: DebugPArrayBackend, JuliaPArrayBackend, MPI_PArrayBackend
-    import Jutul: partition_distributed, simulate_parray
+    import Jutul: partition_distributed, simulate_parray, @tic
     import JutulDarcy: reservoir_partition, partitioner_input
 
     function JutulDarcy.setup_reservoir_simulator_parray(
@@ -37,19 +37,13 @@ module JutulDarcyPartitionedArraysExt
     end
 
     function Jutul.parray_preconditioner_apply!(global_out, main_prec::CPRPreconditioner{<:BoomerAMGPreconditioner, <:Any}, X, preconditioners, simulator, arg...)
-        tmr = simulator.storage.global_timer
         global_cell_vector = simulator.storage.distributed_cell_buffer
         global_buf = simulator.storage.distributed_residual_buffer
-        # tic!(tmr)
-        # toc!(tmr, "Apply preconditioner communication")
-        # tic!(tmr)
         map(local_values(X), preconditioners, ghost_values(X)) do x, prec, x_g
             @. x_g = 0.0
             JutulDarcy.apply_cpr_first_stage!(prec, x, arg...)
             nothing
         end
-        # toc!(tmr, "Apply CPR stage 1")
-        # tic!(tmr)
         # The following is an unsafe version of this:
         # copy!(global_cell_vector, main_prec.p)
         map(own_values(global_cell_vector), preconditioners) do ov, prec
@@ -62,9 +56,6 @@ module JutulDarcyPartitionedArraysExt
         # End unsafe shenanigans
 
         # consistent!(global_cell_vector) |> wait
-        # toc!(tmr, "Apply preconditioner communication")
-        # tic!(tmr)
-
         map(own_values(global_buf), own_values(global_cell_vector), preconditioners) do dx, dp, prec
             bz = prec.block_size
             for i in eachindex(dp)
@@ -72,15 +63,12 @@ module JutulDarcyPartitionedArraysExt
             end
             nothing
         end
-        # n = length(global_buf)
         if main_prec.full_system_correction
             mul_ix = nothing
         else
             mul_ix = 1
         end
-        # distributed_mul! = Jutul.setup_parray_mul!(tmr, simulator.storage.simulators, mul_ix)
-        full_op = Jutul.parray_linear_system_operator(tmr, simulator.storage.simulators, global_buf)
-        # full_op = LinearOperator(Float64, n, n, false, false, distributed_mul!)
+        full_op = Jutul.parray_linear_system_operator(simulator.storage.simulators, global_buf)
         mul!(X, full_op, global_buf, -1.0, true)
 
         map(local_values(global_out), local_values(X), preconditioners, local_values(global_cell_vector), ghost_values(X)) do y, x, prec, dp, x_g
@@ -90,10 +78,7 @@ module JutulDarcyPartitionedArraysExt
             JutulDarcy.increment_pressure!(y, dp, bz)
             nothing
         end
-        # toc!(tmr, "CPR second stage")
-        # tic!(tmr)
         consistent!(global_out) |> wait
-        # toc!(tmr, "Apply preconditioner communication")
         global_out
     end
 

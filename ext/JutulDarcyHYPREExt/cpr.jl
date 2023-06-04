@@ -126,7 +126,7 @@ function JutulDarcy.increment_pressure!(x, Δp::HYPRE.HYPREVector, bz)
 end
 
 
-function Jutul.parray_update_preconditioners!(sim::Jutul.PArraySimulator, cpr::CPRPreconditioner{<:BoomerAMGPreconditioner, <:Any}, preconditioners, recorder, tmr)
+function Jutul.parray_update_preconditioners!(sim::Jutul.PArraySimulator, cpr::CPRPreconditioner{<:BoomerAMGPreconditioner, <:Any}, preconditioners, recorder)
     offset = sim.storage.process_offset
     n = sim.storage.nc_process
     comm = sim.storage.comm
@@ -151,7 +151,6 @@ function Jutul.parray_update_preconditioners!(sim::Jutul.PArraySimulator, cpr::C
     x_p = cpr.p
 
     map(sim.storage.simulators, preconditioners) do sim, prec
-        # tic!(tmr)
         sys = sim.storage.LinearizedSystem
         model = sim.model
         storage = sim.storage
