@@ -84,6 +84,46 @@ module JutulDarcyPartitionedArraysExt
         consistent!(global_out) |> wait
         global_out
     end
+
+    function Jutul.parray_update_preconditioners!(sim::Jutul.PArraySimulator, cpr::CPRPreconditioner{<:BoomerAMGPreconditioner, <:Any}, preconditioners, recorder)
+        offset = sim.storage.process_offset
+        n = sim.storage.nc_process
+        comm = sim.storage.comm
+        if sim.storage[:number_of_processes] > 1
+            @assert sim.backend isa Jutul.MPI_PArrayBackend "Cannot use HYPRE with emulated multiple processes."
+        end
+
+        function create_hypre_vector()
+            x = HYPREVector(comm, offset + 1, offset + n)
+            asm = HYPRE.start_assemble!(x)
+            HYPRE.finish_assemble!(asm)
+            return x
+        end
+        if isnothing(cpr.A_p)
+            cpr.A_p = HYPREMatrix(comm, offset + 1, offset + n)
+            cpr.r_p = create_hypre_vector()
+            cpr.p = create_hypre_vector()
+            cpr.np = n
+        end
+        A_p = cpr.A_p
+        r_p = cpr.r_p
+        x_p = cpr.p
+
+        map(sim.storage.simulators, preconditioners) do sim, prec
+            sys = sim.storage.LinearizedSystem
+            model = sim.model
+            storage = sim.storage
+            prec.A_p = A_p
+            prec.p = x_p
+            prec.r_p = r_p
+            prec.np = n
+            prec.pressure_precond.data[:hypre_system] = (A_p, r_p, x_p)
+            Jutul.update_preconditioner!(prec, sys, model, storage, recorder, sim.executor)
+            prec
+        end
+        return (cpr, preconditioners)
+    end
+
     @compile_workload begin
         targets = [(true, :csc), (true, :csr)]
         # MPI, trivial partition
