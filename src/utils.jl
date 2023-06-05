@@ -39,6 +39,8 @@ function setup_reservoir_model(reservoir::DataDomain, system;
     reservoir_context = nothing,
     general_ad = false,
     backend = :csc,
+    split_wells = false,
+    assemble_wells_together = true,
     parameters = Dict{Symbol, Any}(),
     kwarg...
     )
@@ -58,6 +60,7 @@ function setup_reservoir_model(reservoir::DataDomain, system;
         general_ad = general_ad
     )
     # Then we set up all the wells
+    mode = PredictionMode()
     if length(wells) > 0
         for w in wells
             if w isa SimpleWell
@@ -66,17 +69,24 @@ function setup_reservoir_model(reservoir::DataDomain, system;
                 well_context = context
             end
             w_domain = DataDomain(w)
-            models[w.name] = SimulationModel(w_domain, system, context = well_context)
+            wname = w.name
+            models[wname] = SimulationModel(w_domain, system, context = well_context)
+            if split_wells
+                wg = WellGroup([wname])
+                F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
+                models[Symbol(string(wname)*string(:_ctrl))] = F
+            end
         end
         # Add facility that gorups the wells
-        wg = WellGroup(map(x -> x.name, wells))
-        mode = PredictionMode()
-        F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
-        models[:Facility] = F
+        if !split_wells
+            wg = WellGroup(map(x -> x.name, wells))
+            F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
+            models[:Facility] = F
+        end
     end
 
     # Put it all together as multimodel
-    model = reservoir_multimodel(models)
+    model = reservoir_multimodel(models, split_wells = split_wells, assemble_wells_together = assemble_wells_together)
     # Insert domain here.
     parameters = setup_parameters(model, parameters)
     return (model, parameters)
@@ -105,6 +115,7 @@ Additional keyword arguments are passed onto [`simulator_config`](@ref).
 function setup_reservoir_simulator(models, initializer, parameters = nothing;
                                                         specialize = false,
                                                         split_wells = false,
+                                                        assemble_wells_together = true,
                                                         kwarg...)
     if isa(models, SimulationModel)
         DT = Dict{Symbol, Any}
@@ -115,7 +126,7 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing;
         end
     end
     # Convert to multi model
-    mmodel = reservoir_multimodel(models, specialize = specialize, split_wells = split_wells)
+    mmodel = reservoir_multimodel(models, specialize = specialize, split_wells = split_wells, assemble_wells_together = assemble_wells_together)
     if isnothing(parameters)
         parameters = setup_parameters(mmodel)
     end
@@ -126,7 +137,23 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing;
     setup_reservoir_simulator(case; kwarg...)
 end
 
+function mode_to_backend(mode::Symbol)
+    if mode == :mpi
+        mode = MPI_PArrayBackend()
+    elseif mode == :parray
+        mode = Jutul.JuliaPArrayBackend()
+    else
+        @assert mode == :debug "Mode must be one of :mpi, :parray, :debug, was :$mode"
+        mode = Jutul.DebugPArrayBackend()
+    end
+end
+
+function mode_to_backend(mode::Jutul.PArrayBackend)
+    return mode
+end
+
 function setup_reservoir_simulator(case::JutulCase;
+                            mode = :default,
                             precond = :cpr,
                             linear_solver = :bicgstab,
                             max_dt = Inf,
@@ -143,13 +170,18 @@ function setup_reservoir_simulator(case::JutulCase;
                             cpr_update_interval_partial = :iteration,
                             cpr_update_interval = :once,
                             cpr_smoother = :ilu0,
-                            amg_type = :smoothed_aggregation,
+                            amg_type = default_amg_symbol(),
                             set_linear_solver = linear_solver isa Symbol,
                             timesteps = :auto,
+                            parray_arg = NamedTuple(),
                             extra_timing_setup = false,
                             kwarg...)
-
-    sim = Simulator(case, extra_timing = extra_timing_setup)
+    if mode == :default
+        sim = Simulator(case, extra_timing = extra_timing_setup)
+    else
+        b = mode_to_backend(mode)
+        sim = setup_reservoir_simulator_parray(case, b; parray_arg...);
+    end
     t_base = TimestepSelector(initial_absolute = initial_dt, max = max_dt)
     sel = Vector{Any}()
     push!(sel, t_base)
@@ -160,6 +192,7 @@ function setup_reservoir_simulator(case::JutulCase;
         end
 
         if isfinite(target_ds)
+            @assert mode == :default "target_ds is only supported in serial."
             t_sat = VariableChangeTimestepSelector(
                 :Saturations, target_ds, relative = false, reduction = :max, model = :Reservoir
                 )
@@ -184,27 +217,37 @@ function setup_reservoir_simulator(case::JutulCase;
                                             amg_type = amg_type,
                                             verbose = v,
                                             )
-        cfg = simulator_config(sim, timestep_selectors = sel, linear_solver = lsolve; info_level = info_level, kwarg...)
+        extra_arg = (linear_solver = lsolve, )
     else
-        cfg = simulator_config(sim, timestep_selectors = sel; info_level = info_level, kwarg...)
+        extra_arg = NamedTuple()
     end
-    set_default_cnv_mb!(cfg, case.model, tol_cnv = tol_cnv, tol_mb = tol_mb, tol_cnv_well = tol_cnv_well, tol_mb_well = tol_mb_well)
+    cfg = simulator_config(sim; extra_arg..., timestep_selectors = sel, info_level = info_level, kwarg...)
+    set_default_cnv_mb!(cfg, sim, tol_cnv = tol_cnv, tol_mb = tol_mb, tol_cnv_well = tol_cnv_well, tol_mb_well = tol_mb_well)
     return (sim, cfg)
 end
 
 export simulate_reservoir
 
-function simulate_reservoir(state0, model, dt; parameters = setup_parameters(model), forces = setup_forces(model), kwarg...)
+function simulate_reservoir(state0, model, dt;
+        parameters = setup_parameters(model),
+        restart = false,
+        forces = setup_forces(model),
+        kwarg...
+    )
     sim, config = setup_reservoir_simulator(model, state0, parameters; kwarg...)
-    result = simulate!(sim, dt, forces = forces, config = config);
+    result = simulate!(sim, dt, forces = forces, config = config, restart = restart);
     return ReservoirSimResult(model, result, forces)
 end
 
-function simulate_reservoir(case::JutulCase; kwarg...)
+function simulate_reservoir(case::JutulCase; restart = false, kwarg...)
     (; model, forces, state0, parameters, dt) = case
     sim, config = setup_reservoir_simulator(model, state0, parameters; kwarg...)
-    result = simulate!(sim, dt, forces = forces, config = config);
+    result = simulate!(sim, dt, forces = forces, config = config, restart = restart);
     return ReservoirSimResult(model, result, forces)
+end
+
+function set_default_cnv_mb!(cfg::JutulConfig, sim::JutulSimulator; kwarg...)
+    set_default_cnv_mb!(cfg, sim.model; kwarg...)
 end
 
 function set_default_cnv_mb!(cfg, model; kwarg...)
@@ -290,13 +333,13 @@ function reservoir_multimodel(model::MultiModel; kwarg...)
     return model
 end
 
-function reservoir_multimodel(models::AbstractDict; specialize = false, split_wells = false)
+function reservoir_multimodel(models::AbstractDict; specialize = false, split_wells = false, assemble_wells_together = haskey(models, :Facility))
     res_model = models[:Reservoir]
     is_block(x) = Jutul.is_cell_major(matrix_layout(x.context))
     block_backend = is_block(res_model)
     n = length(models)
     if block_backend && n > 1
-        if haskey(models, :Facility) || !(split_wells == true)
+        if  !(split_wells == true) || assemble_wells_together
             groups = repeat([2], n)
             for (i, k) in enumerate(keys(models))
                 m = models[k]
@@ -430,11 +473,37 @@ export setup_reservoir_forces
 Set up driving forces for a reservoir model with wells
 """
 function setup_reservoir_forces(model::MultiModel; control = nothing, limits = nothing, set_default_limits = true, kwarg...)
-    @assert (isnothing(control) && isnothing(limits)) || haskey(model.models, :Facility) "Model must have facility."
-    facility = model.models.Facility
-    surface_forces = setup_forces(facility, control = control, limits = limits, set_default_limits = set_default_limits)
-    # Set up forces for the whole model.
-    return setup_forces(model, Facility = surface_forces; kwarg...)
+    submodels = model.models
+    has_facility = any(x -> isa(x.domain, WellGroup), values(submodels))
+    no_well_controls = isnothing(control) && isnothing(limits)
+    @assert no_well_controls || has_facility "Model must have facility."
+    if haskey(submodels, :Facility)
+        # Unified facility for all wells
+        facility = model.models.Facility
+
+        surface_forces = setup_forces(facility,
+            control = control,
+            limits = limits,
+            set_default_limits = set_default_limits
+        )
+        # Set up forces for the whole model.
+        return setup_forces(model, Facility = surface_forces; kwarg...)
+    else
+        new_forces = Dict{Symbol, Any}()
+        for (k, m) in pairs(submodels)
+            if m isa SimpleWellFlowModel || m isa MSWellFlowModel
+                ctrl_symbol = Symbol("$(k)_ctrl")
+                @assert haskey(submodels, ctrl_symbol) "Controller for well $k must be present with the name $ctrl_symbol"
+                facility = submodels[ctrl_symbol]
+                new_forces[k] = setup_forces(facility,
+                    control = control,
+                    limits = limits,
+                    set_default_limits = set_default_limits
+                )
+            end
+        end
+        return setup_forces(model; pairs(new_forces)..., kwarg...)
+    end
 end
 
 export full_well_outputs, well_output, well_symbols, wellgroup_symbols, available_well_targets
@@ -569,7 +638,7 @@ function available_well_targets(model)
     return unique(targets)
 end
 
-function partitioner_input(model, parameters)
+function partitioner_input(model, parameters; conn = :trans)
     rmodel = reservoir_model(model)
     if haskey(parameters, :Reservoir)
         parameters = parameters[:Reservoir]
@@ -577,7 +646,13 @@ function partitioner_input(model, parameters)
     grid = physical_representation(rmodel.domain)
 
     N = grid.neighborship
-    T = copy(parameters[:Transmissibilities])
+    trans = parameters[:Transmissibilities]
+    if conn == :trans
+        T = copy(trans)
+    else
+        @assert conn == :unit
+        T = ones(Int, length(trans))
+    end
     groups = []
     if model isa MultiModel
         for (k, m) in pairs(model.models)
@@ -588,6 +663,44 @@ function partitioner_input(model, parameters)
         end
     end
     return (N, T, groups)
+end
+
+function reservoir_partition(model::MultiModel, p)
+    p_res = SimplePartition(p)
+    models = model.models
+    function model_is_well(m)
+        d = physical_representation(m.domain)
+        return isa(d, JutulDarcy.WellDomain)
+    end
+    wpart = Dict()
+    for key in keys(models)
+        m = models[key]
+        if model_is_well(m)
+            wg = physical_representation(m.domain)
+            wc = wg.perforations.reservoir
+            unique_part_wcells = unique(p[wc])
+            @assert length(unique_part_wcells) == 1 "All cells of well $key must be in the same partitioned block. Found: $unique_part_wcells for cells $wc = $(p[wc])"
+            wpart[key] = first(unique_part_wcells)
+        end
+    end
+    part = Dict{Symbol, Any}()
+    for key in keys(models)
+        m = models[key]
+        if key == :Reservoir
+            part[key] = p_res
+        elseif model_is_well(m)
+            part[key] = wpart[key]
+        else
+            # Well group, probably?
+            s = Symbol(string(key)[1:end-5])
+            part[key] = wpart[s]
+        end
+    end
+    return SimpleMultiModelPartition(part, :Reservoir)
+end
+
+function reservoir_partition(model, p)
+    return SimplePartition(p)
 end
 
 function Base.iterate(t::ReservoirSimResult)

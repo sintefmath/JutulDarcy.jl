@@ -1110,6 +1110,7 @@ Additional input arguments are passed onto [`setup_reservoir_simulator`](@ref) a
 function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                 output_path = nothing,
                                 backend = :csc,
+                                mode = :default,
                                 nthreads = Threads.nthreads(),
                                 minbatch = 1000,
                                 split_wells = false,
@@ -1127,19 +1128,26 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                 legacy_output = false,
                                 restart = false,
                                 wells = :ms,
+                                plot = false,
                                 linear_solver = :bicgstab,
                                 kwarg...)
     fn = get_mrst_input_path(fn)
-    if verbose
-        jutul_message("MRST model", "Reading input file $fn.")
-        @info "This is the first call to simulate_mrst_case. Compilation may take some time..." maxlog = 1
-    end
-    block_backend = linear_solver != :direct && linear_solver != :lu
     if split_wells
         fg = :perwell
     else
         fg = :onegroup
     end
+    if mode != :default
+        Jutul.jutul_message("Mode is $mode", "Adjusting default settings accordingly.", color = :green)
+        backend = :csr
+        use_blocks = true
+        fg = :perwell
+    end
+    if verbose
+        jutul_message("MRST model", "Reading input file $fn.")
+        @info "This is the first call to simulate_mrst_case. Compilation may take some time..." maxlog = 1
+    end
+    block_backend = linear_solver != :direct && linear_solver != :lu
     case, mrst_data = setup_case_from_mrst(fn, block_backend = block_backend, steps = steps,
                                                                             backend = backend,
                                                                             nthreads = nthreads,
@@ -1190,7 +1198,12 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
     else
         output_path = nothing
     end
-    sim, cfg = setup_reservoir_simulator(case, linear_solver = linear_solver, output_path = output_path; kwarg...)
+    sim, cfg = setup_reservoir_simulator(
+        case,
+        mode = mode,
+        linear_solver = linear_solver,
+        output_path = output_path;
+        kwarg...)
     M = first(values(models))
     sys = M.system
     if sys isa CompositionalSystem
@@ -1240,17 +1253,35 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
             jutul_message("MRST model", "Model set up. Skipping simulation as do_sim = false.")
         end
     end
-    if legacy_output
+    if mode != :default
+        return result
+    elseif legacy_output
         setup = (case = case, sim = sim, config = cfg, mrst = mrst_data)
         return (states, reports, output_path, setup)
     else
-        return ReservoirSimResult(model, result, forces,
+        result = ReservoirSimResult(model, result, forces,
             case = case,
             sim = sim,
             config = cfg,
             mrst = mrst_data,
             path = output_path
         )
+        if plot isa Symbol
+            if plot == :wells
+                plot_wells = true
+                plot_res = false
+            elseif plot == :reservoir
+                plot_res = true
+                plot_wells = false
+            end
+            plot = true
+        elseif plot
+            plot_res = plot_wells = true
+        end
+        if plot
+            plot_reservoir_simulation_result(model, result, reservoir = plot_res, wells = plot_wells)
+        end
+        return result
     end
 end
 

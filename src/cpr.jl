@@ -2,25 +2,27 @@ export CPRPreconditioner
 """
 Constrained pressure residual
 """
-mutable struct CPRPreconditioner <: JutulPreconditioner
+mutable struct CPRPreconditioner{P, S} <: JutulPreconditioner
     A_p  # pressure system
     r_p  # pressure residual
     p    # last pressure approximation
     buf  # buffer of size equal to full system rhs
     A_ps # full system
     w_p  # pressure weights
-    pressure_precond
-    system_precond
-    strategy
+    pressure_precond::P
+    system_precond::S
+    strategy::Symbol
     weight_scaling
-    block_size
-    update_frequency::Int # Update frequency for AMG hierarchy (and pressure part if partial_update = false)
-    update_interval::Symbol   # iteration, ministep, step, ...
-    update_frequency_partial::Int # Update frequency for pressure system
+    block_size::Union{Nothing, Int}
+    update_frequency::Int             # Update frequency for AMG hierarchy (and pressure part if partial_update = false)
+    update_interval::Symbol           # iteration, ministep, step, ...
+    update_frequency_partial::Int     # Update frequency for pressure system
     update_interval_partial::Symbol   # iteration, ministep, step, ...
-    partial_update            # Perform partial update of AMG and update pressure system
+    partial_update::Bool              # Perform partial update of AMG and update pressure system
+    full_system_correction::Bool
     p_rtol::Union{Float64, Nothing}
     psolver
+    np::Union{Int, Nothing}
 end
 
 """
@@ -31,19 +33,41 @@ Construct a constrained pressure residual (CPR) preconditioner.
 By default, this is a AMG-BILU(0) version (algebraic multigrid for pressure, block-ILU(0) for the global system).
 """
 function CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner();
-    strategy = :quasi_impes,
-    weight_scaling = :unit,
-    update_frequency = 1,
-    update_interval = :iteration,
-    update_frequency_partial = 1,
-    update_interval_partial = :iteration,
-    p_rtol = nothing,
-    partial_update = true
+        strategy = :true_impes,
+        weight_scaling = :unit,
+        update_frequency = 1,
+        update_interval = :ministep,
+        update_frequency_partial = 1,
+        update_interval_partial = :iteration,
+        p_rtol = nothing,
+        full_system_correction = true,
+        partial_update = update_interval == :once
     )
-    CPRPreconditioner(nothing, nothing, nothing, nothing, nothing, nothing, p, s, strategy, weight_scaling, nothing, update_frequency, update_interval, update_frequency_partial, update_interval_partial, partial_update, p_rtol, nothing)
+    return CPRPreconditioner(
+        nothing,
+        nothing,
+        nothing,
+        nothing,
+        nothing,
+        nothing,
+        p,
+        s,
+        strategy,
+        weight_scaling,
+        nothing,
+        update_frequency,
+        update_interval,
+        update_frequency_partial,
+        update_interval_partial,
+        partial_update,
+        full_system_correction,
+        p_rtol,
+        nothing,
+        nothing
+        )
 end
 
-function default_psolve(; max_levels = 10, max_coarse = 10, type = :smoothed_aggregation, kwarg...)
+function default_psolve(; max_levels = 10, max_coarse = 10, type = default_amg_symbol(), kwarg...)
     if type == :hypre
         amg = BoomerAMGPreconditioner(; kwarg...)
     else
@@ -54,61 +78,78 @@ function default_psolve(; max_levels = 10, max_coarse = 10, type = :smoothed_agg
     end
 end
 
-function update!(cpr::CPRPreconditioner, lsys, model, storage, recorder)
+function update_preconditioner!(cpr::CPRPreconditioner, lsys, model, storage, recorder, executor)
     rmodel = reservoir_model(model)
     ctx = rmodel.context
-    update_p = update_cpr_internals!(cpr, lsys, model, storage, recorder)
-    @tic "s-precond" update!(cpr.system_precond, lsys, model, storage, recorder)
+    update_p = update_cpr_internals!(cpr, lsys, model, storage, recorder, executor)
+    @tic "s-precond" update_preconditioner!(cpr.system_precond, lsys, model, storage, recorder, executor)
     if update_p
-        @tic "p-precond" update!(cpr.pressure_precond, cpr.A_p, cpr.r_p, ctx)
+        @tic "p-precond" update_preconditioner!(cpr.pressure_precond, cpr.A_p, cpr.r_p, ctx, executor)
     elseif should_update_cpr(cpr, recorder, :partial)
-        @tic "p-precond (partial)" partial_update!(cpr.pressure_precond, cpr.A_p, cpr.r_p, ctx)
+        @tic "p-precond (partial)" partial_update_preconditioner!(cpr.pressure_precond, cpr.A_p, cpr.r_p, ctx, executor)
     end
 end
 
-function initialize_storage!(cpr, J, s)
+function initialize_cpr_storage!(cpr, J, s)
+    if isnothing(cpr.np)
+        cpr.np = size(J, 1)
+    end
+    n = cpr.np
     if isnothing(cpr.A_p)
-        m, n = size(J)
+        @assert isnothing(cpr.p)
+        @assert isnothing(cpr.r_p)
+        cpr.A_p, cpr.r_p, cpr.p = create_pressure_system(cpr.pressure_precond, J, n)
+    end
+    if isnothing(cpr.block_size)
         cpr.block_size = bz = size(eltype(J), 1)
-        # @assert n == m == length(s.state.Pressure) "Expected Jacobian dimensions ($m by $n) to both equal number of pressures $(length(s.state.Pressure))"
-        cpr.A_p = create_pressure_matrix(J)
-        cpr.r_p = zeros(n)
+    end
+    if isnothing(cpr.buf)
         cpr.buf = zeros(n*bz)
-        cpr.p = zeros(n)
+    end
+    if isnothing(cpr.w_p)
         cpr.w_p = zeros(bz, n)
     end
 end
 
-function create_pressure_matrix(J)
+function pressure_matrix_from_global_jacobian(J::SparseMatrixCSC)
     nzval = zeros(nnz(J))
     n = size(J, 2)
     return SparseMatrixCSC(n, n, J.colptr, J.rowval, nzval)
 end
 
-
-function create_pressure_matrix(J::Jutul.StaticSparsityMatrixCSR)
+function pressure_matrix_from_global_jacobian(J::Jutul.StaticSparsityMatrixCSR)
     nzval = zeros(nnz(J))
     n = size(J, 2)
     # Assume symmetry in sparse pattern, but not values.
     return Jutul.StaticSparsityMatrixCSR(n, n, J.At.colptr, Jutul.colvals(J), nzval, nthreads = J.nthreads, minbatch = J.minbatch)
 end
 
-function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, recorder)
+function create_pressure_system(p_prec, J, n)
+    return (pressure_matrix_from_global_jacobian(J), zeros(n), zeros(n))
+end
+
+function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, recorder, executor)
     do_p_update = should_update_cpr(cpr, recorder, :amg)
     s = reservoir_storage(model, storage)
     A = reservoir_jacobian(lsys)
     rmodel = reservoir_model(model)
-    cpr.A_ps = linear_operator(lsys)
-    initialize_storage!(cpr, A, s)
+    if cpr.full_system_correction
+        cpr.A_ps = linear_operator(lsys)
+    else
+        cpr.A_ps = linear_operator(lsys[1,1])
+    end
+    initialize_cpr_storage!(cpr, A, s)
     ps = rmodel.primary_variables[:Pressure].scale
     if do_p_update || cpr.partial_update
         @tic "weights" w_p = update_weights!(cpr, rmodel, s, A, ps)
-        @tic "pressure system" update_pressure_system!(cpr.A_p, A, w_p, cpr.block_size, model.context)
+        @tic "pressure system" update_pressure_system!(cpr.A_p, cpr.pressure_precond, A, w_p, cpr.block_size, model.context, executor)
     end
     return do_p_update
 end
 
-function update_pressure_system!(A_p, A, w_p, bz, ctx)
+# CSC (default) version
+
+function update_pressure_system!(A_p, p_prec, A, w_p, bz, ctx, executor)
     nz = nonzeros(A_p)
     nz_s = nonzeros(A)
     rows = rowvals(A_p)
@@ -133,8 +174,9 @@ function update_row_csc!(nz, A_p, w_p, rows, nz_s, col)
     end
 end
 
+# CSR version
 
-function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, A::Jutul.StaticSparsityMatrixCSR, w_p, bz, ctx)
+function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, p_prec, A::Jutul.StaticSparsityMatrixCSR, w_p, bz, ctx, executor)
     T_p = eltype(A_p)
     nz = nonzeros(A_p)
     nz_s = nonzeros(A)
@@ -160,50 +202,35 @@ function update_row_csr!(nz, A_p, w_p, cols, nz_s, row)
 end
 
 function operator_nrows(cpr::CPRPreconditioner)
-    return length(cpr.r_p)*cpr.block_size
+    return size(cpr.w_p, 2)*cpr.block_size
 end
 
 using Krylov
 function apply!(x, cpr::CPRPreconditioner, r, arg...)
+    apply_cpr_first_stage!(cpr, r, arg...)
+    apply_cpr_second_stage!(x, cpr, r, arg...)
+end
+
+function apply_cpr_first_stage!(cpr::CPRPreconditioner, r, arg...)
     r_p, w_p, bz, Δp = cpr.r_p, cpr.w_p, cpr.block_size, cpr.p
-    if false
-        y = copy(r)
-        # y = r
-        # Construct right hand side by the weights
-        norm0 = norm(r)
-        do_cpr = true
-        update_p_rhs!(r_p, y, bz, w_p)
-        println("**************************************************************")
-        # Apply preconditioner to pressure part
-        @info "Before pressure correction" norm(y) norm(r_p)
-        if do_cpr
-            apply!(Δp, cpr.pressure_precond, r_p)
-            correct_residual_for_dp!(y, x, Δp, bz, cpr.buf, cpr.A_ps)
-            norm_after = norm(y)
-            @info "After pressure correction" norm(y) norm(cpr.A_p*Δp - r_p) norm_after/norm0
-        end
-        apply!(x, cpr.system_precond, y)
-        if do_cpr
-            @info "After second stage" norm(cpr.A_ps*x - y)
-            increment_pressure!(x, Δp, bz)
-        end
-        @info "Final" norm(cpr.A_ps*x - r) norm(cpr.A_ps*x - r)/norm0
-    else
-        y = r
-        # Construct right hand side by the weights
-        @tic "p rhs" update_p_rhs!(r_p, y, bz, w_p)
-        # Apply preconditioner to pressure part
-        @tic "p apply" begin
-            p_rtol = cpr.p_rtol
-            p_precond = cpr.pressure_precond
-            cpr_p_apply!(Δp, cpr, p_precond, r_p, p_rtol)
-        end
-        @tic "r update" correct_residual_for_dp!(y, x, Δp, bz, cpr.buf, cpr.A_ps)
-        @tic "s apply" apply!(x, cpr.system_precond, y)
-        @tic "Δp" increment_pressure!(x, Δp, bz)
+    # Construct right hand side by the weights
+    @tic "p rhs" update_p_rhs!(r_p, r, bz, w_p, cpr.pressure_precond)
+    # Apply preconditioner to pressure part
+    @tic "p apply" begin
+        p_rtol = cpr.p_rtol
+        p_precond = cpr.pressure_precond
+        cpr_p_apply!(Δp, cpr, p_precond, r_p, p_rtol)
     end
 end
 
+function apply_cpr_second_stage!(x, cpr::CPRPreconditioner, r, arg...)
+    bz, Δp = cpr.block_size, cpr.p
+    # We currently mutate r and it seems ok. Could copy here if needed.
+    y = r
+    @tic "r update" correct_residual_for_dp!(y, x, Δp, bz, cpr.buf, cpr.A_ps)
+    @tic "s apply" apply!(x, cpr.system_precond, y)
+    @tic "Δp" increment_pressure!(x, Δp, bz)
+end
 
 function cpr_p_apply!(Δp, cpr, p_precond, r_p, p_rtol)
     apply!(Δp, p_precond, r_p)
@@ -232,8 +259,10 @@ function reservoir_jacobian(lsys::MultiLinearizedSystem)
 end
 
 function update_weights!(cpr, model, res_storage, J, ps)
-    n = size(cpr.A_p, 1)
+    n = cpr.np
     bz = cpr.block_size
+    bz::Int
+    n::Int
     if isnothing(cpr.w_p)
         cpr.w_p = ones(bz, n)
     end
@@ -392,8 +421,8 @@ end
     end
 end
 
-function update_p_rhs!(r_p, y, bz, w_p)
-    if false
+function update_p_rhs!(r_p, y, bz, w_p, p_prec)
+    if true
         @batch minbatch = 1000 for i in eachindex(r_p)
             v = 0.0
             @inbounds for b = 1:bz
@@ -401,10 +430,11 @@ function update_p_rhs!(r_p, y, bz, w_p)
             end
             @inbounds r_p[i] = v
         end
+    else
+        n = length(y) ÷ bz
+        yv = reshape(y, bz, n)
+        @tullio r_p[i] = yv[b, i]*w_p[b, i]
     end
-    n = length(y) ÷ bz
-    yv = reshape(y, bz, n)
-    @tullio r_p[i] = yv[b, i]*w_p[b, i]
 end
 
 function correct_residual_for_dp!(y, x, Δp, bz, buf, A)
@@ -464,6 +494,9 @@ end
 function should_update_cpr(cpr, rec, type = :amg)
     if type == :partial
         interval, update_frequency = cpr.update_interval_partial, cpr.update_frequency_partial
+        if !cpr.partial_update
+            return false
+        end
     else
         @assert type == :amg
         interval, update_frequency = cpr.update_interval, cpr.update_frequency
@@ -473,7 +506,7 @@ function should_update_cpr(cpr, rec, type = :amg)
     elseif interval == :once
         update = false
     else
-        it = Jutul.subiteration(rec)
+        it = Jutul.subiteration(rec) + 1
         outer_step = Jutul.step(rec)
         ministep = Jutul.substep(rec)
         if interval == :iteration

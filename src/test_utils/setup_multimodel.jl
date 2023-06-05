@@ -1,4 +1,4 @@
-function simulate_mini_wellcase(::Val{:compositional_2ph_3c}; dims = (3, 1, 1), output_path = nothing, default_linsolve = true, kwarg...)
+function simulate_mini_wellcase(::Val{:compositional_2ph_3c}; dims = (3, 1, 1), setuparg = NamedTuple(), output_path = nothing, default_linsolve = true, kwarg...)
     # Some useful constants
     day = 3600*24
     bar = 1e5
@@ -41,11 +41,12 @@ function simulate_mini_wellcase(::Val{:compositional_2ph_3c}; dims = (3, 1, 1), 
     # Simulate
     forces = setup_reservoir_forces(model, control = controls)
     sim, config = setup_reservoir_simulator(
-        model, state0, parameters, 
+        model, state0, parameters;
         info_level = -1,
         set_linear_solver = !default_linsolve,
         error_on_incomplete = true,
         output_path = output_path,
+        setuparg...,
         tol_cnv_well = 1e-3 # Needed for test
     )
     setup = Dict(:config     => config,
@@ -59,7 +60,7 @@ function simulate_mini_wellcase(::Val{:compositional_2ph_3c}; dims = (3, 1, 1), 
     return (states = states, reports = reports, setup = setup)
 end
 
-function simulate_mini_wellcase(::Val{:immiscible_2ph}; dims = (3, 1, 1), output_path = nothing, permeability = 0.1*9.869232667160130e-13, default_linsolve = true, kwarg...)
+function simulate_mini_wellcase(::Val{:immiscible_2ph}; dims = (3, 1, 1), setuparg = NamedTuple(), output_path = nothing, permeability = 0.1*9.869232667160130e-13, default_linsolve = true, kwarg...)
     # Some useful constants
     day = 3600*24
     bar = 1e5
@@ -103,7 +104,14 @@ function simulate_mini_wellcase(::Val{:immiscible_2ph}; dims = (3, 1, 1), output
     # (amounting to no-flow for the reservoir).
     forces = setup_reservoir_forces(model, control = controls)
     ## Finally simulate!
-    sim, config = setup_reservoir_simulator(model, state0, parameters, info_level = -1, set_linear_solver = !default_linsolve, output_path = output_path, error_on_incomplete = true)
+    sim, config = setup_reservoir_simulator(
+        model, state0, parameters;
+        info_level = -1,
+        set_linear_solver = !default_linsolve,
+        output_path = output_path,
+        error_on_incomplete = true,
+        setuparg...
+        )
     setup = Dict(:config     => config,
                  :forces     => forces,
                  :state0     => state0,
@@ -115,7 +123,7 @@ function simulate_mini_wellcase(::Val{:immiscible_2ph}; dims = (3, 1, 1), output
     return (states = states, reports = reports, setup = setup)
 end
 
-function simulate_mini_wellcase(::Val{:bo_spe1}; dims = (3, 1, 1), output_path = nothing, default_linsolve = true, kwarg...)
+function simulate_mini_wellcase(::Val{:bo_spe1}; dims = (3, 1, 1), setuparg = NamedTuple(), output_path = nothing, default_linsolve = true, kwarg...)
     # Some useful constants
     day = 3600*24
     bar = 1e5
@@ -160,7 +168,14 @@ function simulate_mini_wellcase(::Val{:bo_spe1}; dims = (3, 1, 1), output_path =
     # (amounting to no-flow for the reservoir).
     forces = setup_reservoir_forces(model, control = controls)
     ## Finally simulate!
-    sim, config = setup_reservoir_simulator(model, state0, parameters, info_level = -1, set_linear_solver = !default_linsolve, output_path = output_path, error_on_incomplete = true)
+    sim, config = setup_reservoir_simulator(
+        model, state0, parameters;
+        info_level = -1,
+        set_linear_solver = !default_linsolve,
+        output_path = output_path,
+        error_on_incomplete = true,
+        setuparg...
+        )
     setup = Dict(:config     => config,
                  :forces     => forces,
                  :state0     => state0,
@@ -176,24 +191,26 @@ function simulate_mini_wellcase(physics::Symbol; kwarg...)
     return simulate_mini_wellcase(Val(physics); kwarg...)
 end
 
-function precompile_darcy_multimodels()
-    targets = []
-    # Block backend, CSC (CPR)
-    push!(targets, (true, :csc))
-    # Scalar blackend, CSC (direct solver)
-    push!(targets, (false, :csc))
-    # Block backend, CSR (CPR)
-    push!(targets, (true, :csr))
+function precompile_darcy_multimodels(targets = missing; kwarg...)
+    if ismissing(targets)
+        targets = []
+        # Block backend, CSC (CPR)
+        push!(targets, (true, :csc))
+        # Scalar blackend, CSC (direct solver)
+        push!(targets, (false, :csc))
+        # Block backend, CSR (CPR)
+        push!(targets, (true, :csr))
+    end
     wellcases = [:bo_spe1, :immiscible_2ph, :compositional_2ph_3c]
     for (block_backend, backend) in targets
         for w in wellcases
-            simulate_mini_wellcase(Val(w), block_backend = block_backend, backend = backend)
+            simulate_mini_wellcase(Val(w); block_backend = block_backend, backend = backend, kwarg...)
         end
     end
     try
-        simulate_mini_wellcase(Val(:immiscible_2ph), output_path = tempdir()) 
+        simulate_mini_wellcase(Val(:immiscible_2ph); output_path = tempdir()) 
     catch
-        simulate_mini_wellcase(Val(:immiscible_2ph)) 
+        # Don't do anything, cannot write to folder?
     end
     return true
 end

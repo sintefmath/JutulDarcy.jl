@@ -34,9 +34,35 @@ function FlowBoundaryCondition(
 end
 
 function Jutul.subforce(s::AbstractVector{S}, model) where S<:FlowBoundaryCondition
-    error("Not implemented.")
+    s = deepcopy(s)
+    m = global_map(model.domain)
+    
+    n = length(s)
+    keep = repeat([false], n)
+    for (i, bc) in enumerate(s)
+        # Cell must be in local domain, and not on boundary
+        if !Jutul.global_cell_inside_domain(bc.cell, m)
+            continue
+        end
+        c_l = Jutul.local_cell(bc.cell, m)
+        c_i = Jutul.interior_cell(c_l, m)
+        inner = !isnothing(c_i)
+        if !inner
+            continue
+        end
+        keep[i] = true
+        s[i] = FlowBoundaryCondition(
+            c_i,
+            bc.pressure,
+            bc.temperature,
+            bc.trans_flow,
+            bc.trans_thermal,
+            bc.fractional_flow,
+            bc.density
+        )
+    end
+    return s[keep]
 end
-
 
 function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw{:TotalMasses}, eq_s, force::V, time) where {V <: AbstractVector{<:FlowBoundaryCondition}, D, S<:MultiPhaseSystem}
     state = storage.state

@@ -27,6 +27,8 @@ module JutulDarcy
                   declare_entities,
                   get_neighborship
 
+    import Jutul: update_preconditioner!, partial_update_preconditioner!
+
     import Jutul: fill_equation_entries!, update_linearized_system_equation!, check_convergence, update!, linear_operator, transfer, operator_nrows, matrix_layout, apply!
     import Jutul: apply_forces_to_equation!, convergence_criterion
     import Jutul: get_dependencies
@@ -86,6 +88,8 @@ module JutulDarcy
     include("forces/forces.jl")
 
     include("formulations/formulations.jl")
+
+    include("ext.jl")
 
     @compile_workload begin
         precompile_darcy_multimodels()

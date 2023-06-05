@@ -87,6 +87,27 @@ end
     end
 end
 
+@inline function Jutul.update_values!(vals::AbstractVector{<:FlashedMixture2Phase}, next::AbstractVector{<:FlashedMixture2Phase})
+    function replace_flashed_phase_values(x, y)
+        Jutul.update_values!(x.mole_fractions, y.mole_fractions)
+        Z = x.Z
+        return FlashedPhase(x.mole_fractions, Z - value(Z) + value(y.Z))
+    end
+
+    for i in eachindex(vals)
+        old_v = vals[i]
+        next_v = next[i]
+        l = replace_flashed_phase_values(old_v.liquid, next_v.liquid)
+        v = replace_flashed_phase_values(old_v.vapor, next_v.vapor)
+        K = old_v.K
+        V = old_v.V
+        Jutul.update_values!(K, next_v.K)
+        state = next_v.state
+        V = V - value(V) + value(next_v.V)
+        vals[i] = FlashedMixture2Phase(state, K, V, l, v)
+    end
+end
+
 function thread_buffers(storage, buffers)
     thread_id = Threads.threadid()
     S = storage[thread_id]

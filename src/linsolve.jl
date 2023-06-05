@@ -25,9 +25,9 @@ function reservoir_linsolve(model,  precond = :cpr;
                                     mode = :forward,
                                     solver = :bicgstab,
                                     max_iterations = nothing,
-                                    update_interval = :once,
+                                    update_interval = :ministep,
                                     update_interval_partial = :iteration,
-                                    amg_type = :smoothed_aggregation,
+                                    amg_type = default_amg_symbol(),
                                     smoother_type = :ilu0,
                                     max_coarse = 10,
                                     cpr_type = nothing,
@@ -84,6 +84,16 @@ function reservoir_linsolve(model,  precond = :cpr;
             max_iterations = max_iterations; kwarg...)
     return lsolve
 end
+
+function default_amg_symbol()
+    if Jutul.check_hypre_availability(throw = false)
+        amg_type = :hypre
+    else
+        amg_type = :smoothed_aggregation
+    end
+    return amg_type
+end
+
 
 function Jutul.select_linear_solver(m::SimulationModel{<:Any, S, <:Any, <:Any}; kwarg...) where S<:MultiPhaseSystem
     return reservoir_linsolve(m; kwarg...)
