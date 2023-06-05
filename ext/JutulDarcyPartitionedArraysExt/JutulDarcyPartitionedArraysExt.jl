@@ -47,12 +47,14 @@ module JutulDarcyPartitionedArraysExt
         end
         # The following is an unsafe version of this:
         # copy!(global_cell_vector, main_prec.p)
+        p_h = main_prec.p
+        @assert !isnothing(p_h) "CPR is not properly initialized."
         map(own_values(global_cell_vector), preconditioners) do ov, prec
             helper = prec.pressure_precond.data[:assembly_helper]
             indices = helper.indices
             indices::Vector{HYPRE.HYPRE_BigInt}
             nvalues = indices[end] - indices[1] + 1
-            HYPRE.@check HYPRE.HYPRE_IJVectorGetValues(main_prec.p, nvalues, indices, ov)
+            HYPRE.@check HYPRE.HYPRE_IJVectorGetValues(p_h, nvalues, indices, ov)
         end
         # End unsafe shenanigans
 
