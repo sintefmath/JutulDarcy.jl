@@ -167,13 +167,10 @@ function setup_reservoir_simulator(case::JutulCase;
                             info_level = 0,
                             tol_cnv_well = 10*tol_cnv,
                             tol_mb_well = 1e4*tol_mb,
-                            cpr_update_interval_partial = :iteration,
-                            cpr_update_interval = :once,
-                            cpr_smoother = :ilu0,
-                            amg_type = default_amg_symbol(),
                             set_linear_solver = linear_solver isa Symbol,
                             timesteps = :auto,
                             parray_arg = NamedTuple(),
+                            linear_solver_arg = NamedTuple(),
                             extra_timing_setup = false,
                             kwarg...)
     if mode == :default
@@ -209,13 +206,9 @@ function setup_reservoir_simulator(case::JutulCase;
         else
             v = 0
         end
-        lsolve = reservoir_linsolve(case.model, precond, rtol = rtol,
-                                            solver = linear_solver,
-                                            update_interval_partial = cpr_update_interval_partial,
-                                            update_interval = cpr_update_interval,
-                                            smoother_type = cpr_smoother,
-                                            amg_type = amg_type,
-                                            verbose = v,
+        lsolve = reservoir_linsolve(case.model, precond;
+                                            rtol = rtol,
+                                            linear_solver_arg...,
                                             )
         extra_arg = (linear_solver = lsolve, )
     else
