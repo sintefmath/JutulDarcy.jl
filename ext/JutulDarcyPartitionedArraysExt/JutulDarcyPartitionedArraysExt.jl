@@ -129,7 +129,11 @@ module JutulDarcyPartitionedArraysExt
         # MPI, trivial partition
         JutulDarcy.precompile_darcy_multimodels(targets,
             dims = (4, 1, 1),
-            setuparg = (mode = :mpi, ),
+            default_linsolve = false,
+            setuparg = (
+                mode = :mpi,
+                precond = :ilu0
+                ),
             split_wells = true
         )
         # Native PArray, non-trivial partition
