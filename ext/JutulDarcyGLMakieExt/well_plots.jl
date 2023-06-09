@@ -100,7 +100,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = nothing; start_d
         else
             c_key = :Paired_10
         end
-        cmap = cgrad(c_key, nw, categorical=true)
+        cmap = cgrad(c_key, max(nw, 2), categorical=true)
     end
     wellstr = [String(x) for x in wells]
 
