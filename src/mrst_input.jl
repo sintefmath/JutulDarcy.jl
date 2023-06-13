@@ -52,11 +52,6 @@ function reservoir_domain_from_mrst(name::String; extraout = false)
     @debug "File read complete. Unpacking data..."
     g = MRSTWrapMesh(exported["G"])
     has_trans = haskey(exported, "T") && length(exported["T"]) > 0
-    if haskey(exported, "N")
-        N = Int64.(exported["N"]')
-    else
-        N = nothing
-    end
 
     function get_vec(d)
         if isa(d, AbstractArray)
@@ -69,6 +64,19 @@ function reservoir_domain_from_mrst(name::String; extraout = false)
     perm = copy((exported["rock"]["perm"])')
     domain = reservoir_domain(g, porosity = poro, permeability = perm)
 
+    nf = number_of_faces(domain)
+    if haskey(exported, "N")
+        N = Int64.(exported["N"]')
+        nf = size(N, 2)
+        if nf != number_of_faces(domain)
+            d = Jutul.dim(g)
+            domain.entities[Faces()] = nf
+            domain[:areas, Faces()] = fill!(zeros(nf), NaN)
+            domain[:normals, Faces()] = fill!(zeros(d, nf), NaN)
+            domain[:face_centroids, Faces()] = fill!(zeros(d, nf), NaN)
+        end
+        domain[:neighbors, Faces()] = N
+    end
     # Deal with face data
     if has_trans
         @debug "Found precomputed transmissibilities, reusing"
