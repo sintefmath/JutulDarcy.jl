@@ -46,7 +46,7 @@ function common_well_setup(nr; dz = nothing, WI = nothing, gravity = gravity_con
         @warn "No well indices provided. Using 1e-12."
         WI = repeat(1e-12, nr)
     else
-        @assert length(WI) == nr  "Must have one well index per perforated cell"
+        @assert length(WI) == nr  "Must have one well index per perforated cell ($(length(WI)) well indices, $nr reservoir cells))"
     end
     return (WI, gdz)
 end
