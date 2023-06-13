@@ -179,6 +179,13 @@ function get_well_from_mrst_data(
             L = vec(segs["length"])
             D = vec(segs["diameter"])
             rough = vec(segs["roughness"])
+            n_segs = size(well_topo, 2)
+            if length(L) != n_segs
+                @warn "Inconsistent segments. Adding averages."
+                L = repeat([mean(L)], n_segs)
+                D = repeat([mean(D)], n_segs)
+                rough = repeat([mean(rough)], n_segs)
+            end
             @assert size(well_topo, 2) == length(L) == length(D) == length(rough)
             segment_models = map(SegmentWellBoreFrictionHB, L, rough, D)
         else
