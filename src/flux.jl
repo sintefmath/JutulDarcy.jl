@@ -43,18 +43,24 @@ end
 end
 
 @inline function darcy_phase_kgrad_potential(face, phase, state, model, flux_type, tpfa::TPFA, upw, common = flux_primitives(face, state, model, flux_type, upw, tpfa))
-    ρ = state.PhaseMassDensities
     pc, ref_index = capillary_pressure(model, state)
     ∇p, T_f, gΔz = common
     l = tpfa.left
     r = tpfa.right
 
     Δpc = capillary_gradient(pc, l, r, phase, ref_index)
-    @inbounds ρ_c = ρ[phase, l]
-    @inbounds ρ_i = ρ[phase, r]
-    ρ_avg = 0.5*(ρ_i + ρ_c)
+    ρ_avg = face_average_density(model, state, tpfa, phase)
     q = -T_f*(∇p + Δpc + gΔz*ρ_avg)
     return q
+end
+
+function face_average_density(model, state, tpfa, phase)
+    ρ = state.PhaseMassDensities
+    l = tpfa.left
+    r = tpfa.right
+    @inbounds ρ_c = ρ[phase, l]
+    @inbounds ρ_i = ρ[phase, r]
+    return 0.5*(ρ_i + ρ_c)
 end
 
 @inline function gradient(X, tpfa::TPFA)
