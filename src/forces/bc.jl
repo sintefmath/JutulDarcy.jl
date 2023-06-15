@@ -128,3 +128,90 @@ function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, tim
         end
     end
 end
+
+function Jutul.vectorization_length(bc::FlowBoundaryCondition, variant)
+    if variant == :all
+        n = 4 # pressure, temperature, T_flow, T_thermal
+        f = bc.fractional_flow
+        if !isnothing(f)
+            n += length(f)
+        end
+        if !isnothing(bc.density)
+            n += 1
+        end
+        return n
+    elseif variant == :control
+        return 1
+    else
+        error("Variant $variant not supported")
+    end
+end
+
+function Jutul.vectorize_force!(v, bc::FlowBoundaryCondition, variant)
+    names = []
+    if variant == :all
+        v[1] = bc.pressure
+        push!(names, :pressure)
+        v[2] = bc.temperature
+        push!(names, :temperature)
+        v[3] = bc.trans_flow
+        push!(names, :trans_flow)
+        v[4] = bc.trans_thermal
+        push!(names, :trans_thermal)
+        offset = 4
+        f = bc.fractional_flow
+        if !isnothing(f)
+            for (i, f_i) in enumerate(f)
+                offset += 1
+                v[offset] = f_i
+                push!(names, Symbol("fractional_flow$i"))
+            end
+        end
+        if !isnothing(bc.density)
+            offset += 1
+            v[offset] = bc.density
+            push!(names, :density)
+        end
+    elseif variant == :control
+        v[1] = bc.pressure
+        push!(names, :pressure)
+    else
+        error("Variant $variant not supported")
+    end
+    return (names = names, )
+end
+
+function Jutul.devectorize_force(bc::FlowBoundaryCondition, X, meta, variant)
+    p = X[1]
+    T = bc.temperature
+    trans_flow = bc.trans_flow
+    trans_thermal = bc.trans_thermal
+    f = bc.fractional_flow
+    ρ = bc.density
+    if variant == :all
+        T = X[2]
+        trans_flow = X[3]
+        trans_thermal = X[4]
+
+        offset = 4
+        if !isnothing(f)
+            f = X[(offset+1):(offset+length(f))]
+        end
+        if !isnothing(ρ)
+            ρ = X[end]
+        end
+    elseif variant == :control
+        # DO nothing
+    else
+        error("Variant $variant not supported")
+    end
+    return FlowBoundaryCondition(
+        bc.cell,
+        p,
+        T,
+        trans_flow,
+        trans_thermal,
+        f,
+        ρ
+    )
+end
