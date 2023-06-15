@@ -39,3 +39,53 @@ function Jutul.subforce(s::AbstractVector{S}, model) where S<:SourceTerm
     return s[keep]
 end
 
+function Jutul.vectorization_length(src::SourceTerm, variant)
+    n = 1
+    if variant == :all
+        f = src.fractional_flow
+        if !isnothing(f)
+            n += length(f)
+        end
+    elseif variant == :control
+        # Do nothing
+    else
+        error("Variant $variant not supported")
+    end
+    return n
+end
+
+function Jutul.vectorize_force!(v, src::SourceTerm, variant)
+    v[1] = src.value
+    names = [:value]
+    if variant == :all
+        offset = 1
+        f = src.fractional_flow
+        if !isnothing(f)
+            for (i, f_i) in enumerate(f)
+                offset += 1
+                v[offset] = f_i
+                push!(names, Symbol("fractional_flow$i"))
+            end
+        end
+    elseif variant == :control
+        # Do nothing
+    else
+        error("Variant $variant not supported")
+    end
+    return (names = names, )
+end
+
+function Jutul.devectorize_force(src::SourceTerm, X, meta, variant)
+    val = X[1]
+    f = src.fractional_flow
+    if variant == :all
+        if !isnothing(f)
+            f = tuple(X[2:end]...)
+        end
+    elseif variant == :control
+        # Do nothing
+    else
+        error("Variant $variant not supported")
+    end
+    return SourceTerm(src.cell, val, f, src.type)
+end
