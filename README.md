@@ -12,10 +12,11 @@ JutulDarcy.jl: Darcy-scale and subsurface flow (CO2 sequestration, gas/H2 storag
 - Written in pure Julia, with automatic differentiation and dynamic sparsity detection
 - Support for sensitivities with respect to any model parameters using the adjoint method
 - High performance assembly and linear solvers, with support for two-stage CPR BILU(0)-CPR Krylov solvers
+- MPI support with domain decomposition and BoomerAMG-CPR solver with automatic METIS partitioning.
 - Equation-of-state compositional, immiscible and black oil flow is supported and validated against existing simulators
 - Unstructured grids and complex cases input from [the Matlab Reservoir Simulation Toolbox (MRST)](https://www.mrst.no) using the `jutul` module.
 - Support for general multisegment wells with rigorous mass balance, complex well limits and time-dependent controls
-- 3D visualization of grids and wells in [JutulViz.jl](https://github.com/sintefmath/JutulViz.jl)
+- 3D visualization of grids and wells by loading a [Makie.jl](https://docs.makie.org/stable/) backend (requires Julia 1.9, `GLMakie` for interactivity)
 - Interactive plotting of well curves
 
 The compositional simulator has been matched against commercial offerings, AD-GPRS and MRST. The blackoil simulator has been validated on the standard SPE benchmarks (SPE1, SPE9, ...).
@@ -36,7 +37,9 @@ Jutul builds upon many of the excellent packages in the Julia ecosystem. Here ar
 - [Krylov.jl](https://github.com/JuliaSmoothOptimizers/Krylov.jl) provides the iterative linear solvers
 - [ILUZero.jl](https://github.com/mcovalt/ILUZero.jl/blob/master/src/ILUZero.jl) for ILU(0) preconditioners
 - [AlgebraicMultigrid.jl](https://github.com/JuliaLinearAlgebra/AlgebraicMultigrid.jl) for AMG preconditioners
-- [Tullio.jl](https://github.com/mcabbott/Tullio.jl) for automatically optimized loops and [Polyester.jl]() for lightweight threads
+- [HYPRE.jl](https://github.com/fredrikekre/HYPRE.jl) for robust AMG preconditioners with MPI support
+- [PartitionedArrays.jl](https://github.com/fverdugo/PartitionedArrays.jl) for MPI assembly and linear solve
+- [Tullio.jl](https://github.com/mcabbott/Tullio.jl) for automatically optimized loops and [Polyester.jl](https://github.com/JuliaSIMD/Polyester.jl) for lightweight threads
 - [TimerOutputs.jl](https://github.com/KristofferC/TimerOutputs.jl) and [ProgressMeter.jl](https://github.com/timholy/ProgressMeter.jl) gives nice output to terminal 
 - [Makie.jl](https://makie.juliaplots.org/) is used for the visualization features found in [JutulViz.jl](https://github.com/sintefmath/JutulViz.jl)
 - [MultiComponentFlash.jl](https://github.com/moyner/MultiComponentFlash.jl) provides many of the compositional features
@@ -47,9 +50,9 @@ Jutul builds upon many of the excellent packages in the Julia ecosystem. Here ar
 Install [Julia](https://julialang.org/) and add the package to your environment of choice:
 ```julia
 using Pkg
+Pkg.add("CairoMakie")
 Pkg.add("Jutul")
 Pkg.add("JutulDarcy")
-Pkg.add("CairoMakie")
 ```
 You can then run any of the examples in the `examples` directory by including them.
 
