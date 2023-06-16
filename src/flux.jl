@@ -67,6 +67,10 @@ end
     return @inbounds X[tpfa.right] - X[tpfa.left]
 end
 
+@inline function gradient(X::AbstractMatrix, i, tpfa::TPFA)
+    return @inbounds X[i, tpfa.right] - X[i, tpfa.left]
+end
+
 pressure_gradient(state, disc) = gradient(state.Pressure, disc)
 
 @inline function upwind(upw::SPU, F, q)
