@@ -13,7 +13,7 @@ end
     return component_mass_fluxes!(q_i, face, state, model, ft, kgrad, upw)
 end
 
-function component_mass_fluxes!(q, face, state, model, flux_type, kgrad, upw)
+@inline function component_mass_fluxes!(q, face, state, model, flux_type, kgrad, upw)
     disc = flux_primitives(face, state, model, flux_type, kgrad, upw)
     for ph in eachindex(q)
         q_i = darcy_phase_mass_flux(face, ph, state, model, flux_type, kgrad, upw, disc)
