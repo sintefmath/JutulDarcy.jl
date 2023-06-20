@@ -13,18 +13,33 @@ function get_mrst_input_path(name)
 
     fn, ok = valid_mat_path(name)
     if !ok
+        # The path given does not work directly, but could be found through
+        # either an environment variable or as a part of the default cases that
+        # come with JutulDarcy. Let us try those and otherwise try to give a
+        # helpful message explaining what we did try.
         has_global_path = haskey(ENV, "JUTUL_MRST_EXPORTS_PATH")
         if has_global_path
             base_path = ENV["JUTUL_MRST_EXPORTS_PATH"]
-            pth_env = joinpath(base_path, name)
-            fn_env, ok = valid_mat_path(pth_env)
-            if ok
-                fn = fn_env
-            else
-                error("Did not find valid .mat file in either of the following paths:\n$fn (input) \n$fn_env (from ENV[\"JUTUL_MRST_EXPORTS_PATH\"])")
-            end
         else
-            error("Did not find valid .mat file in $fn. You can set ENV[\"JUTUL_MRST_EXPORTS_PATH\"] if you have a global path for .mat files.")
+            base_path = ""
+        end
+        pth_env = joinpath(base_path, name)
+        fn_env, ok = valid_mat_path(pth_env)
+        if ok
+            fn = fn_env
+        else
+            base_path, = splitdir(pathof(JutulDarcy))
+            pth_mod = joinpath(base_path, "..", "test", "mrst", "$(name).mat")
+            fn_mod, ok = valid_mat_path(pth_mod)
+            if ok
+                fn = fn_mod
+            else
+                if has_global_path
+                    error("Did not find valid .mat file in $fn. You can set ENV[\"JUTUL_MRST_EXPORTS_PATH\"] if you have a global path for .mat files.")
+                else
+                    error("Did not find valid .mat file in either of the following paths:\n$fn (input) \n$fn_env (from ENV[\"JUTUL_MRST_EXPORTS_PATH\"])\n$pth_mod (included test files)")
+                end
+            end
         end
     end
     return fn

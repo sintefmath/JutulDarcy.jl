@@ -70,6 +70,7 @@ function plot_comparison(wells, ref, rep_t, t, wells_keys = keys(wells))
     ax.ylabel[] = "$l ($yscale)"
     fig
 end
+#-
 # ## The Egg model (oil-water compressible)
 # A two-phase model that is taken from the first member of the EGG ensemble. For
 # more details, see the paper where the ensemble is introduced:
@@ -85,11 +86,13 @@ ref = mrst_solution(egg);
 # ### Compare well responses
 injectors = [:INJECT1, :INJECT2, :INJECT3, :INJECT4, :INJECT5, :INJECT6, :INJECT7]
 producers = [:PROD1, :PROD2, :PROD3, :PROD4]
-
+#-
 # #### Bottom hole pressures
 plot_comparison(wells, ref, rep_t, :bhp, injectors)
+#-
 # #### Oil rates
 plot_comparison(wells, ref, rep_t, :qos, producers)
+#-
 # #### Water rates
 plot_comparison(wells, ref, rep_t, :qws, producers)
 
@@ -109,8 +112,10 @@ rep_t = spe1.time
 ref = mrst_solution(spe1);
 # ### Compare well responses
 # #### Bottom hole pressures
+#-
 plot_comparison(wells, ref, rep_t, :bhp)
 # #### Gas rates
+#-
 plot_comparison(wells, ref, rep_t, :qgs, [:PRODUCER])
 
 # ## SPE3 (black oil, vapoil)
@@ -128,10 +133,16 @@ ref = mrst_solution(spe3);
 # ### Compare well responses
 # #### Bottom hole pressures
 plot_comparison(wells, ref, rep_t, :bhp, [:PRODUCER])
+#-
+#-
 # #### Gas rates
 plot_comparison(wells, ref, rep_t, :qgs, [:PRODUCER])
+#-
+#-
 # #### Oil rates
 plot_comparison(wells, ref, rep_t, :qos, [:PRODUCER])
+#-
+#-
 
 # ## SPE9 (black oil, disgas)
 # Example of the SPE9 model exported from MRST running in JutulDarcy.
@@ -155,9 +166,13 @@ producers = [Symbol("PROD$i") for i in 1:25]
 
 # #### Injector water rate
 plot_comparison(wells, ref, rep_t, :qws, injectors)
+#-
 # #### Oil rates
 plot_comparison(wells, ref, rep_t, :qos, producers)
+#-
 # #### Water rates
 plot_comparison(wells, ref, rep_t, :qws, producers)
+#-
 # #### Bottom hole pressures
 plot_comparison(wells, ref, rep_t, :bhp, producers)
+#-

@@ -52,7 +52,7 @@ end
 n, n_f = 100, 1000
 states, model, report = solve_bl(nc = n)
 print_stats(report)
-
+#-
 # ## Run refined version (1000 cells, 1000 steps)
 # Using a grid with 100 cells will not yield a fully converged solution. We can
 # increase the number of cells at the cost of increasing the runtime a bit. Note
@@ -61,7 +61,7 @@ print_stats(report)
 # use an iterative solver.
 states_refined, _, report_refined = solve_bl(nc = n_f);
 print_stats(report_refined)
-
+#-
 # ## Plot results
 # We plot the saturation front for the base case at different times together
 # with the final solution for the refined model. In this case, refining the grid
