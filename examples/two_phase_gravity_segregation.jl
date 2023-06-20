@@ -11,6 +11,7 @@
 using JutulDarcy, Jutul
 nc = 100
 domain = get_1d_reservoir(nc, z_max = 1)
+#-
 # ## Fluid properties
 # Define two phases liquid and vapor with a 10-1 ratio reference densities and
 # set up the simulation model.
@@ -21,6 +22,7 @@ cl, cv = 1e-5/bar, 1e-4/bar
 L, V = LiquidPhase(), VaporPhase()
 sys = ImmiscibleSystem([L, V])
 model = SimulationModel(domain, sys)
+#-
 # ### Definition for phase mass densities
 # Replace default density with a constant compressibility function that uses the
 # reference values at the initial pressure.
@@ -36,6 +38,7 @@ s0 = vcat(sL, 1 .- sL)
 state0 = setup_state(model, Pressure = p0, Saturations = s0)
 # Convert time-steps from days to seconds
 timesteps = repeat([0.02]*3600*24, 150)
+#-
 ## Perform simulation
 states, report = simulate(state0, model, timesteps, info_level = -1)
 # ## Plot results

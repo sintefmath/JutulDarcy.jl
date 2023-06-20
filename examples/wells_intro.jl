@@ -26,6 +26,7 @@ nx = ny = 5
 nz = 4
 dims = (nx, ny, nz)
 g = CartesianMesh(dims, (2000.0, 1500.0, 50.0))
+#-
 # ### Adding properties and making a domain
 # The grid by itself does not fully specify a porous medium. For that we need to
 # specify the permeability in each cell and the porosity. Permeability, often
@@ -197,6 +198,7 @@ lines!(ax, x, abs.(ql).*day, label = "Liquid")
 lines!(ax, x, abs.(qt).*day, label = "Total")
 axislegend(position = :rb)
 fig
+#-
 ## Plot bottom hole pressure of the injector
 # The pressure builds during injection, until the gas breaks through to the
 # other well.

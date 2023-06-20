@@ -68,7 +68,7 @@ tmp = reshape(state0[:Reservoir][:Saturations][1, :], nx, nz)
 f = Figure()
 ax = Axis(f[1, 1], title = "Before")
 heatmap!(ax, tmp, colormap = cmap)
-# Plot intermediate sautration
+# Plot intermediate saturation
 tmp = reshape(states[length(states) ÷ 2][:Saturations][1, :], nx, nz)
 ax = Axis(f[1, 2], title = "Half way")
 hm = heatmap!(ax, tmp, colormap = cmap)
