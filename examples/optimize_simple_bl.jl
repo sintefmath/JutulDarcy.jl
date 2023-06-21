@@ -15,10 +15,8 @@ function setup_bl(;nc = 100, time = 1.0, nstep = 100, poro = 0.1, perm = 9.8692e
 
     bar = 1e5
     p0 = 1000*bar
-    # Define system and realize on grid
     sys = ImmiscibleSystem((LiquidPhase(), VaporPhase()))
     model = SimulationModel(G, sys)
-    # Avoid dampening and limits on pressure - simple synthetic case can have negative or zero pressures.
     model.primary_variables[:Pressure] = Pressure(minimum = -Inf, max_rel = nothing)
     kr = BrooksCoreyRelPerm(sys, [2.0, 2.0])
     replace_variables!(model, RelativePermeabilities = kr)
@@ -79,17 +77,18 @@ end
 # optimization, with relative box limits 0.1 and 10 specified here. If
 # use_scaling is enabled the variables in the optimization are scaled so that
 # their actual limits are approximately box limits.
+#
+# We are not interested in matching gravity effects or viscosity here.
+# Transmissibilities are derived from permeability and varies significantly. We
+# can set log scaling to get a better conditioned optimization system, without
+# changing the limits or the result.
+
 cfg = optimization_config(model, parameters, use_scaling = true, rel_min = 0.1, rel_max = 10)
 for (ki, vi) in cfg
-    if ki in [:TwoPointGravityDifference,
-              :PhaseViscosities]
-        # We are not interested in matching gravity effects or viscosity here.
+    if ki in [:TwoPointGravityDifference, :PhaseViscosities]
         vi[:active] = false
     end
     if ki == :Transmissibilities
-        # Transmissibilities are derived from permeability and varies significantly. We can set
-        # log scaling to get a better conditioned optimization system, without changing the limits
-        # or the result.
         vi[:scaler] = :log
     end
 end
