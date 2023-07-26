@@ -5,11 +5,15 @@ end
 
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:COORD})
-    data["COORD"] = parse_deck_matrix(f, Float64)
+    coord = parse_deck_matrix(f, Float64)
+    coord = swap_unit_system!(coord, units, Val(:length))
+    data["COORD"] = coord
 end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:ZCORN})
-    data["ZCORN"] = parse_deck_vector(f, Float64)
+    zcorn = parse_deck_vector(f, Float64)
+    zcorn = swap_unit_system!(zcorn, units, Val(:length))
+    data["ZCORN"] = zcorn
 end
 
 function parse_keyword!(data, outer_data, units, f, v::Union{Val{:PERMX}, Val{:PERMY}, Val{:PERMZ}})

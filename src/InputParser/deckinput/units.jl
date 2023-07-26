@@ -19,6 +19,7 @@ function current_unit_system(deck)
 end
 
 Base.@kwdef struct DeckUnitSystem{S, T}
+    length::T = 1.0
     area::T = 1.0
     time::T = 1.0
     density::T = 1.0
@@ -64,6 +65,7 @@ function DeckUnitSystem(sys::Symbol, T = Float64)
     cP = u[:centi]*u[:poise]
     mD = u[:milli]*u[:darcy]
     if sys == :metric
+        len = m
         kJ = u[:kilo]*u[:joule]
         volume = m^3
         area = m^2
@@ -85,6 +87,7 @@ function DeckUnitSystem(sys::Symbol, T = Float64)
         relative_temperature = :Celsius
         absolute_temperature = :Kelvin
     elseif sys == :field
+        len = ft
         area = ft^2
         time = day
         pressure = psi
@@ -108,6 +111,7 @@ function DeckUnitSystem(sys::Symbol, T = Float64)
         error("Not implemented")
     else
         @assert sys == :si
+        len = 1.0
         area = 1.0
         time = 1.0
         pressure = 1.0
@@ -133,6 +137,7 @@ function DeckUnitSystem(sys::Symbol, T = Float64)
     compressibility = 1.0/pressure
     transmissibility = viscosity * volume / (time * pressure)
     return DeckUnitSystem{sys, T}(
+        length = len,
         area = area,
         time = time,
         density = density,
