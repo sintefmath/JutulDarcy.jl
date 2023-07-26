@@ -454,7 +454,7 @@ function grid_from_primitives(primitives)
             nodes = reverse(nodes)
         end
         add_face_from_nodes!(boundary_faces, boundary_face_pos, nodes)
-        push!(cell_boundary_faces[self], faceno)
+        push!(cell_boundary_faces[self], boundary_faceno)
         push!(boundary_cells, self)
         boundary_faceno += 1
     end
