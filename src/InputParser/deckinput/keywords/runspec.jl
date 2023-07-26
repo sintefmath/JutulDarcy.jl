@@ -1,0 +1,107 @@
+function parse_keyword!(data, outer_data, units, f, ::Val{:NOECHO})
+    # Do nothing
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Val{:ECHO})
+    # Do nothing
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Val{:START})
+    rec = read_record(f)
+    tdims = [1 "JAN" 1970];
+    data["START"] = parse_defaulted_line(rec, tdims)
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Val{:TITLE})
+    m = next_keyword!(f)
+    data["TITLE"] = m
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Val{:NONNC})
+    data["NONNC"] = true
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Val{:METRIC})
+    data["METRIC"] = true
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Val{:FIELD})
+    data["FIELD"] = true
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Val{:WATER})
+    data["WATER"] = true
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Val{:OIL})
+    data["OIL"] = true
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Val{:GAS})
+    data["GAS"] = true
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Val{:DISGAS})
+    data["DISGAS"] = true
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Val{:VAPOIL})
+    data["VAPOIL"] = true
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Val{:UNIFOUT})
+    data["UNIFOUT"] = true
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Val{:UNIFIN})
+    data["UNIFIN"] = true
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Val{:NUMRES})
+    read_record(f)
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Val{:TABDIMS})
+    rec = read_record(f)
+    tdims = [1, 1, 20, 20, 1, 20, 20, 1,
+             1, -1, 10,  1, -1,  0,  0, -1,
+             10, 10, 10, -1,  5,  5,  5,  0, -1];
+    # TODO: Special logic for -1 entries
+    data["TABDIMS"] = parse_defaulted_line(rec, tdims)
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Val{:EQLDIMS})
+    rec = read_record(f)
+    tdims = [1, 100, 50, 1, 50];
+    data["EQLDIMS"] = parse_defaulted_line(rec, tdims)
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Val{:REGDIMS})
+    rec = read_record(f)
+    tdims = [1, 1, 0, 0, 0, 1, 0, 0, 0];
+    data["REGDIMS"] = parse_defaulted_line(rec, tdims)
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Val{:WELLDIMS})
+    rec = read_record(f)
+    tdims = [0, 0, 0, 0, 5, 10, 5, 4, 3, 0, 1, 1, 10, 201]
+    data["WELLDIMS"] = parse_defaulted_line(rec, tdims)
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Val{:VFPPDIMS})
+    rec = read_record(f)
+    tdims = [0, 0, 0, 0, 0, 0]
+    data["VFPPDIMS"] = parse_defaulted_line(rec, tdims)
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Val{:VFPIDIMS})
+    rec = read_record(f)
+    tdims = [0, 0, 0]
+    data["VFPIDIMS"] = parse_defaulted_line(rec, tdims)
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Val{:AQUDIMS})
+    rec = read_record(f)
+    tdims = [1, 1, 1, 36, 1, 1, 0, 0]
+    data["AQUDIMS"] = parse_defaulted_line(rec, tdims)
+end

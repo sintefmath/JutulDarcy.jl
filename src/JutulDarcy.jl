@@ -75,6 +75,8 @@ module JutulDarcy
     include("porousmedia.jl")
     # MRST inputs and test cases that use MRST input
     include("mrst_input.jl")
+    # Corner point grids
+    include("cpgrid/cpgrid.jl")
     # Gradients, objective functions, etc
     include("gradients/gradients.jl")
 
@@ -90,6 +92,11 @@ module JutulDarcy
     include("formulations/formulations.jl")
 
     include("ext.jl")
+
+    include("InputParser/InputParser.jl")
+    using .InputParser
+    import .InputParser: parse_deck_file
+    export parse_deck_file
 
     @compile_workload begin
         precompile_darcy_multimodels()
