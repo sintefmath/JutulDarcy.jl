@@ -170,7 +170,12 @@ function swap_unit_system(v, systems::Nothing, k)
     return v
 end
 
-function swap_unit_system(val, systems::NamedTuple, k)
+function swap_unit_system(val, systems, k)
+    return swap_unit_system(val, systems, Val(k))
+end
+
+
+function swap_unit_system(val, systems::NamedTuple, ::Val{k}) where k
     (; to, from) = systems
     to_unit = getproperty(to, k)
     from_unit = getproperty(from, k)

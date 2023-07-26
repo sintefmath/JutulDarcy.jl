@@ -15,7 +15,7 @@ end
 function parse_keyword!(data, outer_data, units, f, v::Union{Val{:PERMX}, Val{:PERMY}, Val{:PERMZ}})
     k = unpack_val(v)
     vals = parse_grid_vector(f, get_cartdims(outer_data), Float64)
-    vals = swap_unit_system!(vals, units, :permeability)
+    vals = swap_unit_system!(vals, units, Val(:permeability))
     data["$k"] = vals
 end
 
