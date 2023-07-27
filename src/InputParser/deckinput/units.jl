@@ -26,6 +26,8 @@ Base.@kwdef struct DeckUnitSystem{S, T}
     pressure::T = 1.0
     mol::T = 1.0
     mass::T = 1.0
+    u_rs::T = 1.0
+    u_rv::T = 1.0
     concentration::T = 1.0
     compressibility::T = 1.0
     viscosity::T = 1.0
@@ -142,6 +144,8 @@ function DeckUnitSystem(sys::Symbol, T = Float64)
         length = len,
         area = area,
         time = time,
+        u_rs = gas_volume_surface/liquid_volume_surface,
+        u_rv = liquid_volume_surface/gas_volume_surface,
         density = density,
         pressure = pressure,
         mol = mol,

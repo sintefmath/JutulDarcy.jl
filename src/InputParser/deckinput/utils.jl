@@ -194,9 +194,99 @@ function parse_live_pvt_table(f, outer_data)
             end
             push!(current, next)
         end
-        push!(out, current)
+        push!(out, restructure_pvt_table(current))
     end
     return out
+end
+
+function restructure_pvt_table(tab)
+    nvals_per_rec = 3
+    function record_length(x)
+        # Actual number of records: 1 key value + nrec*N entries. Return N.
+        return (length(x) - 1) ÷ nvals_per_rec
+    end
+    @assert record_length(last(tab)) > 1
+    nrecords = length(tab)
+    keys = map(first, tab)
+    current = 1
+    for tab_ix in eachindex(tab)
+        rec = tab[tab_ix]
+        interpolate_missing_usat!(tab, tab_ix, record_length, nvals_per_rec)
+    end
+    # Generate final table
+    ntab = sum(record_length, tab)
+    data = zeros(ntab, nvals_per_rec)
+    for tab_ix in eachindex(tab)
+        rec = tab[tab_ix]
+        for i in 1:record_length(rec)
+            for j in 1:nvals_per_rec
+                linear_ix = (i-1)*nvals_per_rec + j + 1
+                data[current, j] = rec[linear_ix]
+            end
+            current += 1
+        end
+    end
+
+    # Generate pos
+    pos = Int[1]
+    sizehint!(pos, nrecords+1)
+    for rec in tab
+        push!(pos, pos[end] + record_length(rec))
+    end
+    return Dict("data" => data, "key" => keys, "pos" => pos)
+end
+
+function interpolate_missing_usat!(tab, tab_ix, record_length, nvals_per_rec)
+    rec = tab[tab_ix]
+    if record_length(rec) == 1
+        @assert nvals_per_rec == 3
+        next_rec = missing
+        for j in (tab_ix):length(tab)
+            if record_length(tab[j]) > 1
+                next_rec = tab[j]
+                break
+            end
+        end
+        @assert record_length(rec) == 1
+        next_rec_length = record_length(next_rec)
+        sizehint!(rec, 1 + nvals_per_rec*next_rec_length)
+
+        get_index(major, minor) = nvals_per_rec*(major-1) + minor + 1
+        pressure(x, idx) = x[get_index(idx, 1)]
+        B(x, idx) = x[get_index(idx, 2)]
+        viscosity(x, idx) = x[get_index(idx, 3)]
+
+        function constant_comp_interp(F, F_l, F_r)
+            # So that dF/dp * F = constant over the pair of points extrapolated from F
+            w = 2.0*(F_l - F_r)/(F_l + F_r)
+            return F*(1.0 + w/2.0)/(1.0 - w/2.0)
+        end
+        @assert !ismissing(next_rec) "Final table must be saturated."
+
+        for idx in 2:next_rec_length
+            # Each of these gets added as new unsaturated points
+            p_0 = pressure(rec, idx - 1)
+            p_l = pressure(next_rec, idx - 1)
+            p_r = pressure(next_rec, idx)
+
+            mu_0 = viscosity(rec, idx - 1)
+            mu_l = viscosity(next_rec, idx - 1)
+            mu_r = viscosity(next_rec, idx)
+
+            B_0 = B(rec, idx - 1)
+            B_l = B(next_rec, idx - 1)
+            B_r = B(next_rec, idx)
+
+            p_next = p_0 + p_r - p_l
+            B_next = constant_comp_interp(B_0, B_l, B_r)
+            mu_next = constant_comp_interp(mu_0, mu_l, mu_r)
+
+            push!(rec, p_next)
+            push!(rec, B_next)
+            push!(rec, mu_next)
+        end
+    end
+    return tab
 end
 
 function parse_region_matrix_table(f, nreg)

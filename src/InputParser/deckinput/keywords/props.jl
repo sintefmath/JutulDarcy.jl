@@ -22,7 +22,12 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:PVDG})
 end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:PVTO})
-    data["PVTO"] = parse_live_pvt_table(f, outer_data)
+    pvto = parse_live_pvt_table(f, outer_data)
+    for tab in pvto
+        swap_unit_system_axes!(tab["data"], units, (:pressure, :liquid_formation_volume_factor, :viscosity))
+        swap_unit_system!(tab["key"], units, :u_rs)
+    end
+    data["PVTO"] = pvto
 end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:PVTW})
