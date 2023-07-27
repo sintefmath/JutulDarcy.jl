@@ -26,11 +26,15 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:SWAT})
 end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:PRESSURE})
-    data["PRESSURE"] = parse_grid_vector(f, outer_data["GRID"]["cartDims"], Float64)
+    p = parse_grid_vector(f, outer_data["GRID"]["cartDims"], Float64)
+    swap_unit_system!(p, units, :pressure)
+    data["PRESSURE"] = p
 end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:RS})
-    data["RS"] = parse_grid_vector(f, outer_data["GRID"]["cartDims"], Float64)
+    rs = parse_grid_vector(f, outer_data["GRID"]["cartDims"], Float64)
+    swap_unit_system!(rs, units, :u_rs)
+    data["RS"] = rs
 end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:ACTNUM})
@@ -38,5 +42,7 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:ACTNUM})
 end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:RSVD})
-    data["RSVD"] = parse_deck_matrix(f)
+    rs = parse_deck_matrix(f)
+    swap_unit_system_axes!(rs, units, (:length, :u_rs))
+    data["RSVD"] = rs
 end
