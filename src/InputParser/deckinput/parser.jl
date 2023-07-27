@@ -14,12 +14,26 @@ function parse_deck_file!(outer_data, filename, data = outer_data;
         sections = [:RUNSPEC, :GRID, :PROPS, :REGIONS, :SOLUTION, :SCHEDULE],
         skip = [:SUMMARY],
         units::Union{Symbol, Nothing} = :si,
+        input_units::Union{Symbol, Nothing} = nothing,
         unit_systems = missing
     )
+    function get_unit_system_pair(from::Symbol, target::Symbol)
+        from_sys = DeckUnitSystem(from)
+        target_sys = DeckUnitSystem(target)
+        # We have a pair of unit systems to convert between
+        return (from = from_sys, to = target_sys)
+    end
+
     if isnothing(units)
         # nothing for units means no conversion
         @assert ismissing(unit_systems)
         unit_systems = nothing
+    end
+    if !isnothing(units) && !isnothing(input_units)
+        # Input and output units are both specified, potentially overriding
+        # what's in RUNSPEC. This will also check that they are valid symbols
+        # for us.
+        unit_systems = get_unit_system_pair(input_units, units)
     end
     filename = realpath(filename)
     basedir = dirname(filename)
@@ -44,10 +58,7 @@ function parse_deck_file!(outer_data, filename, data = outer_data;
             runspec_passed = m != :RUNSPEC && haskey(outer_data, "RUNSPEC")
             unit_system_not_initialized = ismissing(unit_systems)
             if runspec_passed && unit_system_not_initialized
-                from_sys = DeckUnitSystem(current_unit_system(outer_data))
-                target_sys = DeckUnitSystem(units)
-                # We have a pair of unit systems to convert between
-                unit_systems = (from = from_sys, to = target_sys)
+                unit_systems = get_unit_system_pair(current_unit_system(outer_data), units)
             end
         elseif m == :INCLUDE
             next = strip(readline(f))
