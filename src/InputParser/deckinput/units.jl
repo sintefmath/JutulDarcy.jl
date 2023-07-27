@@ -72,7 +72,6 @@ function DeckUnitSystem(sys::Symbol, T = Float64)
         len = m
         kJ = u[:kilo]*u[:joule]
         volume = m^3
-        area = m^2
         time = day
         pressure = u[:bar]
         mol = u[:kilo]
@@ -92,7 +91,6 @@ function DeckUnitSystem(sys::Symbol, T = Float64)
         absolute_temperature = :Kelvin
     elseif sys == :field
         len = ft
-        area = ft^2
         time = day
         pressure = psi
         mol = pound*kilo
@@ -105,7 +103,6 @@ function DeckUnitSystem(sys::Symbol, T = Float64)
         liquid_volume_reservoir = stb
         gas_volume_surface = kilo*ft^3
         gas_volume_reservoir = stb
-        volume = ft^3
         rock_conductivity = btu / (ft*day*rankine)
         volume_heat_capacity = btu / (ft^3*rankine)
         mass_heat_capacity = btu / (pound*rankine)
@@ -116,7 +113,6 @@ function DeckUnitSystem(sys::Symbol, T = Float64)
     else
         @assert sys == :si
         len = 1.0
-        area = 1.0
         time = 1.0
         pressure = 1.0
         mol = 1.0
@@ -129,13 +125,14 @@ function DeckUnitSystem(sys::Symbol, T = Float64)
         liquid_volume_reservoir = 1.0
         gas_volume_surface = 1.0
         gas_volume_reservoir = 1.0
-        volume = 1.0
         rock_conductivity = 1.0
         volume_heat_capacity = 1.0
         mass_heat_capacity = 1.0
         relative_temperature = :Celsius
         absolute_temperature = :Kelvin
     end
+    area = len^2
+    volume = len^3
     density = mass/volume
     concentration = mass/volume
     compressibility = 1.0/pressure
