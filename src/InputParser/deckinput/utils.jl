@@ -196,6 +196,7 @@ function parse_live_pvt_table(f, outer_data)
         end
         push!(out, current)
     end
+    return out
 end
 
 function parse_region_matrix_table(f, nreg)
@@ -205,12 +206,6 @@ function parse_region_matrix_table(f, nreg)
     end
     return out
 end
-
-
-
-
-
-
 
 function parse_keyword!(data, outer_data, units, f, ::Val{T}) where T
     # Do nothing
@@ -239,10 +234,6 @@ function next_keyword!(f)
     return m
 end
 
-# for line in readlines(f)
-
-
-
 function number_of_tables(outer_data, t::Symbol)
     td = outer_data["RUNSPEC"]["TABDIMS"]
     if t == :saturation
@@ -255,7 +246,7 @@ function number_of_tables(outer_data, t::Symbol)
         error(":$t is not known")
     end
 end
-#
+
 function clean_include_path(basedir, include_file_name)
     include_file_name = strip(include_file_name)
     include_file_name = replace(include_file_name, "./" => "")
@@ -264,7 +255,6 @@ function clean_include_path(basedir, include_file_name)
     return include_path
 end
 
-#
 function get_section(outer_data, name::Symbol)
     s = "$name"
     if !haskey(outer_data, s)
@@ -277,4 +267,3 @@ function new_section(outer_data, name::Symbol)
     data = get_section(outer_data, name)
     return data
 end
-
