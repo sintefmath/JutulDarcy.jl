@@ -210,16 +210,46 @@ function swap_unit_system(v, systems::Nothing, k)
     return v
 end
 
-function swap_unit_system(val, systems::NamedTuple, ::Val{:identity})
+function swap_unit_system(val, systems::NamedTuple, ::Union{Val{:identity}, Val{:id}})
     # Identity specifically means no unit.
     return val
 end
 
+function identity_unit_vector(x)
+    return identity_unit_vector(length(x))
+end
+
+function identity_unit_vector(n::Int)
+    utypes = Vector{Symbol}(undef, n)
+    fill!(utypes, :id)
+    return utypes
+end
+
 function swap_unit_system(val, systems::NamedTuple, ::Val{k}) where k
     (; to, from) = systems
-    to_unit = getproperty(to, k)
-    from_unit = getproperty(from, k)
+    to_unit = deck_unit(to, k)
+    from_unit = deck_unit(from, k)
+
     val_si = convert_to_si(val, from_unit)
     val_final = convert_from_si(val_si, to_unit)
     return val_final
+end
+
+function deck_unit(sys::DeckUnitSystem, s::Symbol)
+    return deck_unit(sys, Val(s))
+end
+
+function deck_unit(sys::DeckUnitSystem, ::Val{k}) where k
+    return getproperty(sys, k)
+end
+
+# Magic type overloads
+
+function deck_unit(sys::DeckUnitSystem, ::Val{:Kh})
+    return deck_unit(sys, :permeability)*deck_unit(sys, :length)
+end
+
+
+function deck_unit(sys::DeckUnitSystem, ::Val{:time_over_volume})
+    return deck_unit(sys, :time)/deck_unit(sys, :volume)
 end

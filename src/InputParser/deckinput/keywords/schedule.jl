@@ -1,13 +1,25 @@
 function parse_keyword!(data, outer_data, units, f, ::Val{:WELSPECS})
     d = "Default"
-    defaults = [d, d, -1, -1, NaN, d, 0.0, "STD", "SHUT", "YES", 0, "SEG", 0, d, d, "STD"]
+    defaults = [d,     d,  -1,  -1, NaN,   d,     0.0, "STD", "SHUT", "YES",   0, "SEG", 0,     d, d, "STD"]
+    utypes =   [:id, :id, :id, :id, :length, :id, :length,   :id,    :id,   :id, :id,   :id, :id, :id, :id, :id]
     data["WELSPECS"] = parse_defaulted_group(f, defaults)
 end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:COMPDAT})
     d = "Default"
     defaults = [d, -1, -1, -1, -1, "OPEN", -1, -1.0, -1.0, -1.0, 0.0, -1, "Z", -1]
-    data["COMPDAT"] = parse_defaulted_group(f, defaults)
+    compdat = parse_defaulted_group(f, defaults)
+    # Unit conversion
+    utypes = identity_unit_vector(defaults)
+    utypes[8] = :transmissibility
+    utypes[9] = :length
+    utypes[10] = :Kh
+    utypes[12] = :time_over_volume
+    utypes[14] = :length
+    for cd in compdat
+        swap_unit_system_axes!(cd, units, utypes)
+    end
+    data["COMPDAT"] = compdat
 end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:WCONPROD})
