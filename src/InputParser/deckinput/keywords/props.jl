@@ -14,7 +14,11 @@ end
 
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:PVDG})
-    data["PVDG"] = parse_dead_pvt_table(f, outer_data)
+    pvdg = parse_dead_pvt_table(f, outer_data)
+    for tab in pvdg
+        swap_unit_system_axes!(tab, units, (:pressure, :gas_formation_volume_factor, :viscosity))
+    end
+    data["PVDG"] = pvdg
 end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:PVTO})
