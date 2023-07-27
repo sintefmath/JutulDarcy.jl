@@ -37,7 +37,8 @@ function parse_keyword!(data, outer_data, units, f, v::Union{Val{:DX}, Val{:DY},
 end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:TOPS})
-    data["TOPS"] = parse_deck_vector(f, Float64)
+    tops = parse_deck_vector(f, Float64)
+    data["TOPS"] = swap_unit_system!(tops, units, Val(:length))
 end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:DIMENS})

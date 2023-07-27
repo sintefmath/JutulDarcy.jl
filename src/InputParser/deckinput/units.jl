@@ -164,6 +164,21 @@ function DeckUnitSystem(sys::Symbol, T = Float64)
     )
 end
 
+function swap_unit_system_axes!(x::AbstractMatrix, systems, eachunit; dim = 2)
+    @assert eltype(eachunit)<:Symbol
+    @assert size(x, dim) == length(eachunit)
+    if dim == 1
+        x_t = x'
+    else
+        x_t = x
+    end
+    for i in axes(x_t, 2)
+        x_i = view(x_t, :, i)
+        swap_unit_system!(x_i, systems, eachunit[i])
+    end
+    return x
+end
+
 function swap_unit_system!(x::AbstractArray, systems, k)
     for i in eachindex(x)
         x[i] = swap_unit_system(x[i], systems, k)
@@ -171,14 +186,20 @@ function swap_unit_system!(x::AbstractArray, systems, k)
     return x
 end
 
-function swap_unit_system(v, systems::Nothing, k)
-    return v
-end
 
 function swap_unit_system(val, systems, k)
     return swap_unit_system(val, systems, Val(k))
 end
 
+function swap_unit_system(v, systems::Nothing, k)
+    # No systems - trivial conversion
+    return v
+end
+
+function swap_unit_system(val, systems::NamedTuple, ::Val{:identity})
+    # Identity specifically means no unit.
+    return val
+end
 
 function swap_unit_system(val, systems::NamedTuple, ::Val{k}) where k
     (; to, from) = systems

@@ -3,13 +3,15 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:RPTPROPS})
     read_record(f)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:SWOF})
-    data["SWOF"] = parse_saturation_table(f, outer_data)
+function parse_keyword!(data, outer_data, units, f, v::Union{Val{:SWOF}, Val{:SGOF}})
+    k = unpack_val(v)
+    sat_tab = parse_saturation_table(f, outer_data)
+    for tab in sat_tab
+        swap_unit_system_axes!(tab, units, (:identity, :identity, :identity, :pressure))
+    end
+    data["$k"] = sat_tab
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:SGOF})
-    data["SGOF"] = parse_saturation_table(f, outer_data)
-end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:PVDG})
     data["PVDG"] = parse_dead_pvt_table(f, outer_data)
