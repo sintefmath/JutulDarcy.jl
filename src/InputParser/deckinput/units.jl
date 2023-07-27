@@ -249,7 +249,22 @@ function deck_unit(sys::DeckUnitSystem, ::Val{:Kh})
     return deck_unit(sys, :permeability)*deck_unit(sys, :length)
 end
 
-
 function deck_unit(sys::DeckUnitSystem, ::Val{:time_over_volume})
     return deck_unit(sys, :time)/deck_unit(sys, :volume)
+end
+
+function deck_unit(sys::DeckUnitSystem, ::Val{:liquid_rate_surface})
+    return deck_unit(sys, :liquid_volume_surface)/deck_unit(sys, :time)
+end
+
+function deck_unit(sys::DeckUnitSystem, ::Val{:gas_rate_surface})
+    return deck_unit(sys, :gas_volume_surface)/deck_unit(sys, :time)
+end
+
+function deck_unit(sys::DeckUnitSystem, ::Val{:liquid_rate_reservoir})
+    return deck_unit(sys, :liquid_volume_reservoir)/deck_unit(sys, :time)
+end
+
+function deck_unit(sys::DeckUnitSystem, ::Val{:gas_rate_reservoir})
+    return deck_unit(sys, :gas_volume_reservoir)/deck_unit(sys, :time)
 end
