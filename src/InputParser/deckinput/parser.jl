@@ -45,50 +45,50 @@ function parse_deck_file!(outer_data, filename, data = outer_data;
     msg("Starting parse of $filename...")
     f = open(filename, "r")
 
-    allsections = vcat(sections, skip)
-    while !eof(f)
-        m = next_keyword!(f)
-        if isnothing(m)
-            # Do nothing
-        elseif m in allsections
-            msg("Starting section $m")
-            data = new_section(outer_data, m)
-            skip_mode = m in skip
-            # Check if we have passed RUNSPEC so that units can be set
-            runspec_passed = m != :RUNSPEC && haskey(outer_data, "RUNSPEC")
-            unit_system_not_initialized = ismissing(unit_systems)
-            if runspec_passed && unit_system_not_initialized
-                unit_systems = get_unit_system_pair(current_unit_system(outer_data), units)
+    try
+        allsections = vcat(sections, skip)
+        while !eof(f)
+            m = next_keyword!(f)
+            if isnothing(m)
+                # Do nothing
+            elseif m in allsections
+                msg("Starting section $m")
+                data = new_section(outer_data, m)
+                skip_mode = m in skip
+                # Check if we have passed RUNSPEC so that units can be set
+                runspec_passed = m != :RUNSPEC && haskey(outer_data, "RUNSPEC")
+                unit_system_not_initialized = ismissing(unit_systems)
+                if runspec_passed && unit_system_not_initialized
+                    unit_systems = get_unit_system_pair(current_unit_system(outer_data), units)
+                end
+            elseif m == :INCLUDE
+                next = strip(readline(f))
+                if endswith(next, '/')
+                    next = rstrip(next, '/')
+                else
+                    readline(f)
+                end
+                include_path = clean_include_path(basedir, next)
+                msg("Including file $include_path...")
+                parse_deck_file!(
+                    outer_data, include_path, data,
+                    verbose = verbose,
+                    sections = sections,
+                    skip = skip,
+                    skip_mode = skip_mode,
+                    units = units,
+                    unit_systems = unit_systems
+                )
+            elseif m == :END
+                # All done!
+                break
+            elseif !skip_mode
+                parse_keyword!(data, outer_data, unit_systems, f, Val(m))
             end
-        elseif m == :INCLUDE
-            next = strip(readline(f))
-            if endswith(next, '/')
-                next = rstrip(next, '/')
-            else
-                readline(f)
-            end
-            include_path = clean_include_path(basedir, next)
-            msg("Including file $include_path...")
-            parse_deck_file!(
-                outer_data, include_path, data,
-                verbose = verbose,
-                sections = sections,
-                skip = skip,
-                skip_mode = skip_mode,
-                units = units,
-                unit_systems = unit_systems
-            )
-        elseif m == :END
-            # All done!
-            break
-        elseif !skip_mode
-            parse_keyword!(data, outer_data, unit_systems, f, Val(m))
         end
+    finally
+        close(f)
     end
-    close(f)
-    # if !isnothing(units)
-    #     convert_deck_units!(outer_data, units)
-    # end
     return outer_data
 end
 
