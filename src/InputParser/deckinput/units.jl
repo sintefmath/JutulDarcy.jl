@@ -187,6 +187,15 @@ function swap_unit_system_axes!(x::AbstractMatrix, systems, eachunit; dim = 2)
     return x
 end
 
+function swap_unit_system_axes!(x::AbstractVector, systems, eachunit)
+    @assert eltype(eachunit)<:Symbol
+    @assert length(x) == length(eachunit)
+    for i in eachindex(x)
+        x[i] = swap_unit_system(x[i], systems, eachunit[i])
+    end
+    return x
+end
+
 function swap_unit_system!(x::AbstractArray, systems, k)
     for i in eachindex(x)
         x[i] = swap_unit_system(x[i], systems, k)

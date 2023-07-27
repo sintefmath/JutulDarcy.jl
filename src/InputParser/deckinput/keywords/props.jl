@@ -33,17 +33,31 @@ end
 function parse_keyword!(data, outer_data, units, f, ::Val{:PVTW})
     rec = read_record(f)
     tdims = [NaN, NaN, NaN, NaN, NaN]
-    # TODO: This should handle regions
-    data["PVTW"] = parse_defaulted_line(rec, tdims)
-    @assert all(isfinite, data["PVTW"]) "PVTW cannot be defaulted"
+    utypes = (:pressure, :liquid_formation_volume_factor, :compressibility, :viscosity, :compressibility)
+    nreg = number_of_tables(outer_data, :pvt)
+    out = []
+    for i = 1:nreg
+        t = parse_defaulted_line(rec, tdims)
+        swap_unit_system_axes!(t, units, utypes)
+        @assert all(isfinite, t) "PVTW cannot be defaulted, found defaulted record in region $i"
+        push!(out, t)
+    end
+    data["PVTW"] = out
 end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:PVCDO})
     rec = read_record(f)
     tdims = [NaN, NaN, NaN, NaN, NaN]
-    # TODO: This should handle regions, merge with PVTW etc
-    data["PVCDO"] = parse_defaulted_line(rec, tdims)
-    @assert all(isfinite, data["PVCDO"]) "PVCDO cannot be defaulted"
+    utypes = (:pressure, :liquid_formation_volume_factor, :compressibility, :viscosity, :compressibility)
+    nreg = number_of_tables(outer_data, :pvt)
+    out = []
+    for i = 1:nreg
+        t = parse_defaulted_line(rec, tdims)
+        swap_unit_system_axes!(t, units, utypes)
+        @assert all(isfinite, t) "PVCDO cannot be defaulted, found defaulted record in region $i"
+        push!(out, t)
+    end
+    data["PVCDO"] = out
 end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:ROCK})
@@ -55,5 +69,12 @@ end
 function parse_keyword!(data, outer_data, units, f, ::Val{:DENSITY})
     rec = read_record(f)
     tdims = [NaN, NaN, NaN]
-    data["DENSITY"] = parse_defaulted_line(rec, tdims)
+    nreg = number_of_tables(outer_data, :pvt)
+    out = []
+    for i = 1:nreg
+        t = parse_defaulted_line(rec, tdims)
+        swap_unit_system!(t, units, :density)
+        push!(out, t)
+    end
+    data["DENSITY"] = out
 end
