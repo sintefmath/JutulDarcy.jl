@@ -35,6 +35,29 @@ function keyword_start(line)
     end
 end
 
+function parse_defaulted_group_well(f, defaults, wells, namepos = 1)
+    out = []
+    line = read_record(f)
+    while length(line) > 0
+        parsed = parse_defaulted_line(line, defaults)
+        name = parsed[namepos]
+        if occursin('*', name) || occursin('?', name)
+            re = Regex(replace(name, "*" => ".*", "?" => "."))
+            for wname in keys(wells)
+                if occursin(re, wname)
+                    replaced_parsed = copy(parsed)
+                    replaced_parsed[namepos] = wname
+                    push!(out, replaced_parsed)
+                end
+            end
+        else
+            push!(out, parsed)
+        end
+        line = read_record(f)
+    end
+    return out
+end
+
 function parse_defaulted_group(f, defaults)
     out = []
     line = read_record(f)
@@ -45,7 +68,7 @@ function parse_defaulted_group(f, defaults)
     end
     return out
 end
-##
+
 function parse_defaulted_line(lines::String, defaults)
     return parse_defaulted_line([lines], defaults)
 end
