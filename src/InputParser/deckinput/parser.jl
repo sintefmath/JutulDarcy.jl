@@ -83,7 +83,7 @@ function parse_deck_file!(outer_data, filename, data = outer_data;
                 parse_keyword!(data, outer_data, unit_systems, f, Val(m))
                 # New control step starts after this
                 data = OrderedDict{String, Any}()
-                push!(outer_data["SCHEDULE"], data)
+                push!(outer_data["SCHEDULE"]["STEPS"], data)
             elseif m == :END
                 # All done!
                 break

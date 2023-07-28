@@ -1,12 +1,27 @@
+function welspecs_to_well(ws)
+    name = ws[1]::AbstractString
+    # TODO: Parse more fields.
+    w = (
+        head = (ws[3], ws[4]),
+        ref_depth = ws[5],
+        preferred_phase = ws[6],
+        drainage_radius = ws[7]
+    )
+    return (name, w)
+end
+
 function parse_keyword!(data, outer_data, units, f, ::Val{:WELSPECS})
     d = "Default"
     defaults = [d,     d,  -1,  -1, NaN,   d,     0.0, "STD", "SHUT", "YES",   0, "SEG", 0,     d, d, "STD"]
     utypes =   [:id, :id, :id, :id, :length, :id, :length,   :id,    :id,   :id, :id,   :id, :id, :id, :id, :id]
     wspecs = parse_defaulted_group(f, defaults)
+    wells = outer_data["SCHEDULE"]["WELSPECS"]
     for ws in wspecs
         swap_unit_system_axes!(ws, units, utypes)
+        name, well = welspecs_to_well(ws)
+        @assert !haskey(wells, name) "Well $name is already defined."
+        wells[name] = well
     end
-    data["WELSPECS"] = wspecs
 end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:COMPDAT})
