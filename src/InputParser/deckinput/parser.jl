@@ -82,7 +82,7 @@ function parse_deck_file!(outer_data, filename, data = outer_data;
             elseif m in (:DATES, :TIME, :TSTEP)
                 parse_keyword!(data, outer_data, unit_systems, f, Val(m))
                 # New control step starts after this
-                data = Dict{String, Any}()
+                data = OrderedDict{String, Any}()
                 push!(outer_data["SCHEDULE"], data)
             elseif m == :END
                 # All done!
