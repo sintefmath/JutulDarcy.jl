@@ -348,7 +348,7 @@ end
 function get_section(outer_data, name::Symbol)
     s = "$name"
     is_sched = name == :SCHEDULE
-    T = Dict{String, Any}
+    T = OrderedDict{String, Any}
     if is_sched
         if !haskey(outer_data, s)
             outer_data[s] = [T()]
