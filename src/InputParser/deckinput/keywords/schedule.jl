@@ -10,6 +10,10 @@ function welspecs_to_well(ws)
     return (name, w)
 end
 
+function get_well(outer_data, name)
+    return outer_data["SCHEDULE"]["WELSPECS"][name]
+end
+
 function parse_keyword!(data, outer_data, units, f, ::Val{:WELSPECS})
     d = "Default"
     defaults = [d,     d,  -1,  -1, NaN,   d,     0.0, "STD", "SHUT", "YES",   0, "SEG", 0,     d, d, "STD"]
@@ -85,13 +89,13 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:WCONINJ})
     utypes[9] = :pressure
     utypes[10] = :pressure
     for o in out
-        # TODO: This should probably use the WELSPECS declaration
-        if o[2] == "GAS"
+        w = get_well(outer_data, o[1])
+        if w.preferred_phase == "GAS"
             utypes[5] = :gas_rate_surface
             utypes[12] = :u_rv
         else
             utypes[5] = :liquid_rate_surface
-            if o[2] == "OIL"
+            if w.preferred_phase == "OIL"
                 utypes[12] = :u_rs
             end
         end
@@ -109,13 +113,13 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:WCONINJE})
     utypes[7] = :pressure
     utypes[8] = :pressure
     for o in out
-        # TODO: This should probably use the WELSPECS declaration
-        if o[2] == "GAS"
+        w = get_well(outer_data, o[1])
+        if w.preferred_phase == "GAS"
             utypes[5] = :gas_rate_surface
             utypes[10] = :u_rv
         else
             utypes[5] = :liquid_rate_surface
-            if o[2] == "OIL"
+            if w.preferred_phase == "OIL"
                 utypes[12] = :u_rs
             end
         end
