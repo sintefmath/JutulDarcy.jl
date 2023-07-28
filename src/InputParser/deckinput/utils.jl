@@ -347,10 +347,20 @@ end
 
 function get_section(outer_data, name::Symbol)
     s = "$name"
-    if !haskey(outer_data, s)
-        outer_data[s] = Dict{String, Any}()
+    is_sched = name == :SCHEDULE
+    T = Dict{String, Any}
+    if is_sched
+        if !haskey(outer_data, s)
+            outer_data[s] = [T()]
+        end
+        out = outer_data[s][end]
+    else
+        if !haskey(outer_data, s)
+            outer_data[s] = T()
+        end
+        out = outer_data[s]
     end
-    return outer_data[s]
+    return out
 end
 
 function new_section(outer_data, name::Symbol)

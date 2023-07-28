@@ -79,6 +79,10 @@ function parse_deck_file!(outer_data, filename, data = outer_data;
                     units = units,
                     unit_systems = unit_systems
                 )
+            elseif m in (:DATES, :TIME, :TSTEP)
+                data = Dict{String, Any}()
+                push!(outer_data["SCHEDULE"], data)
+                parse_keyword!(data, outer_data, unit_systems, f, Val(m))
             elseif m == :END
                 # All done!
                 break
