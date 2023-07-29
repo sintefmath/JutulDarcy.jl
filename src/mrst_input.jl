@@ -360,6 +360,25 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
     return ReservoirRelativePermeability(; krarg..., regions = satnum, scaling = scaling)
 end
 
+function flat_region_expand(x::AbstractMatrix, n = nothing)
+    # Utility to handle mismatch between MRST and Jutul parsers in simple PVT
+    # table format.
+    if !isnothing(n)
+        @assert size(x, 2) == n
+    end
+    x = map(i -> x[i, :], axes(x, 1))
+    return x
+end
+
+function flat_region_expand(x::Vector{Float64}, n = nothing)
+    return [x]
+end
+
+
+function flat_region_expand(x::Vector, n = nothing)
+    return x
+end
+
 function deck_pc(props; oil, water, gas, satnum = nothing)
     function get_pc(T, pc_ix, reverse = false)
         found = false
@@ -443,7 +462,6 @@ function model_from_mat_deck(G, data_domain, mrst_data, res_context)
     is_immiscible = !has_disgas && !has_vapoil
     is_compositional = haskey(mrst_data, "mixture")
 
-    pvt = []
     phases = []
     rhoS = Vector{Float64}()
     if haskey(props, "DENSITY")
@@ -462,7 +480,7 @@ function model_from_mat_deck(G, data_domain, mrst_data, res_context)
         has_oil = true
         has_gas = true
     end
-
+    pvt = []
     if is_compositional
         if has_wat
             push!(rhoS, rhoWS)
