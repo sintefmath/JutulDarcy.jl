@@ -706,7 +706,7 @@ function grid_from_primitives(primitives)
         primitives.nodes, # ok ??
         face_neighbors, # ok
         boundary_cells; # ok
-        cell_map = missing # TODO: Fix indexmap
+        cell_map = primitives.active
     )
 end
 
