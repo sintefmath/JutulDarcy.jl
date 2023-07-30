@@ -706,6 +706,7 @@ function grid_from_primitives(primitives)
         primitives.nodes, # ok ??
         face_neighbors, # ok
         boundary_cells; # ok
+        structure = CartesianIndex(cartdims[1], cartdims[2], cartdims[3]),
         cell_map = primitives.active
     )
 end
