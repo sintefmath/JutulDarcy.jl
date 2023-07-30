@@ -118,6 +118,8 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     if simple_well
         W = SimpleWell(reservoir_cells, WI = WI_computed, dz = dz, reference_depth = reference_depth, kwarg...)
     else
+        # Depth differences are taken care of via centers.
+        dz *= 0.0
         W = MultiSegmentWell(reservoir_cells, volumes, centers; WI = WI_computed, dz = dz, reference_depth = reference_depth, kwarg...)
     end
     return W
