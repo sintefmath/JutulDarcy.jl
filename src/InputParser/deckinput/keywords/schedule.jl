@@ -91,7 +91,8 @@ end
 function parse_keyword!(data, outer_data, units, f, ::Val{:WCONINJ})
     d = "Default"
     defaults = [d, d, "OPEN", d, Inf, Inf, 0.0, "NONE", -1, Inf, 0.0, 0.0]
-    out = parse_defaulted_group_well(f, defaults)
+    wells = get_wells(outer_data)
+    out = parse_defaulted_group_well(f, defaults, wells, 1)
     utypes = identity_unit_vector(defaults)
     utypes[6] = :liquid_rate_surface
     utypes[9] = :pressure
@@ -135,6 +136,69 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:WCONINJE})
         swap_unit_system_axes!(o, units, utypes)
     end
     data["WCONINJE"] = out
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Union{Val{:WELLTARG}, Val{:WELTARG}})
+    defaults = ["Default", "ORAT", NaN]
+    wells = get_wells(outer_data)
+    out = parse_defaulted_group_well(f, defaults, wells, 1)
+    @warn "WELLTARG not supported."
+    data["WELTARG"] = out
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Val{:WEFAC})
+    defaults = ["Default", 1.0]
+    wells = get_wells(outer_data)
+    d = parse_defaulted_group_well(f, defaults, wells, 1)
+    @warn "WEFAC not fully handled."
+    data["WEFAC"] = d
+end
+
+function convert_date_kw(t)
+    function get_month(s)
+        if s == "JAN"
+            return 1
+        elseif s == "FEB"
+            return 2
+        elseif s == "MAR"
+            return 3
+        elseif s == "APR"
+            return 4
+        elseif s == "MAY"
+            return 5
+        elseif s == "JUN"
+            return 6
+        elseif s == "JLY"
+            return 7
+        elseif s == "AUG"
+            return 8
+        elseif s == "SEP"
+            return 9
+        elseif s == "OCT"
+            return 10
+        elseif s == "NOV"
+            return 11
+        else
+            @assert s == "DEC"
+            return 12
+        end
+    end
+    yr = t[3]
+    m = get_month(t[2])
+    d = t[1]
+
+    return parse(DateTime, "$yr-$d-$m $(t[4])", dateformat"y-d-m H:M:S")
+end
+
+function parse_keyword!(data, outer_data, units, f, ::Val{:DATES})
+    defaults = [1, "JAN", 1970, "00:00:00"]
+    dt = parse_defaulted_group(f, defaults)
+    out = Vector{DateTime}()
+    sizehint!(out, length(dt))
+    for t in dt
+        push!(out, convert_date_kw(t))
+    end
+    data["TSTEP"] = out
 end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:TSTEP})

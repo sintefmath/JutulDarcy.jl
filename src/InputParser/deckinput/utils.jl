@@ -107,7 +107,8 @@ function parse_defaulted_line(lines, defaults)
         end
     end
     n = length(defaults)
-    if pos < n
+    pos = length(out)+1
+    if pos < n + 1
         for i in pos:n
             push!(out, defaults[i])
         end
