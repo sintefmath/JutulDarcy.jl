@@ -8,8 +8,9 @@ end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:START})
     rec = read_record(f)
-    tdims = [1 "JAN" 1970];
-    data["START"] = parse_defaulted_line(rec, tdims)
+    tdims = [1, "JAN", 1970, "00:00:00"];
+    start = parse_defaulted_line(rec, tdims)
+    data["START"] = convert_date_kw(start)
 end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:TITLE})

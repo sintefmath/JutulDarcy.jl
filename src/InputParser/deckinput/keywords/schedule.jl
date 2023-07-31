@@ -155,6 +155,7 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:WEFAC})
 end
 
 function convert_date_kw(t)
+    @assert length(t) == 4
     function get_month(s)
         if s == "JAN"
             return 1
@@ -198,7 +199,7 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:DATES})
     for t in dt
         push!(out, convert_date_kw(t))
     end
-    data["TSTEP"] = out
+    data["DATES"] = out
 end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:TSTEP})
