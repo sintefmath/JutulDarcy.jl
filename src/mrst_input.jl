@@ -650,11 +650,11 @@ end
 function set_deck_pvmult!(vars, param, props)
     # Rock compressibility (if present)
     if haskey(props, "ROCK")
-        rock = props["ROCK"]
-        if size(rock, 1) > 1
+        rock = JutulDarcy.flat_region_expand(props["ROCK"])
+        if length(rock) > 1
             @warn "Rock has multiple regions, taking the first..." rock
-            rock = rock[1, :]
         end
+        rock = first(rock)
         if rock[2] > 0
             static = param[:FluidVolume]
             delete!(param, :FluidVolume)

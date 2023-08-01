@@ -63,7 +63,15 @@ end
 function parse_keyword!(data, outer_data, units, f, ::Val{:ROCK})
     rec = read_record(f)
     tdims = [NaN, NaN, NaN, NaN, NaN, NaN]
-    data["ROCK"] = parse_defaulted_line(rec, tdims)
+    utypes = [:pressure, :compressibility, :compressibility, :compressibility, :id, :id]
+    out = []
+    nreg = number_of_tables(outer_data, :pvt)
+    for i = 1:nreg
+        l = parse_defaulted_line(rec, tdims)
+        swap_unit_system_axes!(l, units, utypes)
+        push!(out, l)
+    end
+    data["ROCK"] = out
 end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:DENSITY})
