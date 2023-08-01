@@ -464,7 +464,8 @@ function grid_from_primitives(primitives)
         @assert prev_cell > 0
         @assert prev_cell != cell
         add_face_from_nodes!(faces, face_pos, nodes)
-        push!(face_neighbors, (cell, prev_cell))
+        # Note order here.
+        push!(face_neighbors, (prev_cell, cell))
         push!(cell_faces[cell], faceno)
         push!(cell_faces[prev_cell], faceno)
         faceno += 1
