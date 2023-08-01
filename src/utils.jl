@@ -397,9 +397,13 @@ export setup_reservoir_state
     # Ex: For immiscible two-phase
     setup_reservoir_state(model, Pressure = 1e5, Saturations = [0.2, 0.8])
 
-Convenience constructor that initializes a state for a `MultiModel` set up using [`setup_reservoir_model`](@ref).
-The main convenience over [`setup_state`](@ref) is only the reservoir initialization values need be provided: wells
-are automatically initialized from the connected reservoir cells.
+Convenience constructor that initializes a state for a `MultiModel` set up using
+[`setup_reservoir_model`](@ref). The main convenience over [`setup_state`](@ref)
+is only the reservoir initialization values need be provided: wells are
+automatically initialized from the connected reservoir cells.
+
+As an alternative to passing keyword arguments, a `Dict{Symbol, Any}` instance
+can be sent in as a second, non-keyword argument.
 """
 function setup_reservoir_state(model; kwarg...)
     rmodel = reservoir_model(model)
@@ -457,6 +461,10 @@ function setup_reservoir_state(model; kwarg...)
     end
     state = setup_state(model, init)
     return state
+end
+
+function setup_reservoir_state(model, init)
+    return setup_reservoir_state(model; pairs(init)...)
 end
 
 export setup_reservoir_forces
