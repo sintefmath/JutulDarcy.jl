@@ -39,7 +39,7 @@ function compute_peaceman_index(Δ, K, radius; dir::Symbol = :z, constant = 0.14
     re  = kratio(re1, re2)
     ke  = sqrt(k1*k2)
  
-    if isnothing(Kh)
+    if isnothing(Kh) || isnan(Kh)
         Kh = L*ke
     end
     WI = 2 * π * Kh / (log(re / radius) + skin)
