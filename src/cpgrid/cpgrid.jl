@@ -690,23 +690,18 @@ function grid_from_primitives(primitives)
     c2f, c2f_pos = convert_to_flat(cell_faces)
     b2f, b2f_pos = convert_to_flat(cell_boundary_faces)
 
-    # return (
-    #     boundary_faces = (faces = boundary_faces, face_pos = boundary_face_pos),
-    #     faces = (faces = faces, face_pos = face_pos),
-    #     coords = primitives.nodes
-    # )
     return UnstructuredMesh(
         c2f,
         c2f_pos,
         b2f,
         b2f_pos,
-        faces, # ok
-        face_pos, #ok
-        boundary_faces, # ok?
-        boundary_face_pos, # ok?
-        primitives.nodes, # ok ??
-        face_neighbors, # ok
-        boundary_cells; # ok
+        faces,
+        face_pos,
+        boundary_faces,
+        boundary_face_pos,
+        primitives.nodes,
+        face_neighbors,
+        boundary_cells;
         structure = CartesianIndex(cartdims[1], cartdims[2], cartdims[3]),
         cell_map = primitives.active
     )

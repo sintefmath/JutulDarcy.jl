@@ -329,13 +329,15 @@ end
 function parse_keyword!(data, outer_data, units, f, ::Val{:EQUIL})
     n = number_of_tables(outer_data, :equil)
     def = [0.0, NaN, 0.0, 0.0, 0.0, 0.0, 0, 0, 0]
+    eunits = (:length, :pressure, :length, :pressure, :length, :pressure, :id, :id, :id)
     out = []
     for i = 1:n
         rec = read_record(f)
         result = parse_defaulted_line(rec, def)
+        swap_unit_system_axes!(result, units, eunits)
         push!(out, result)
     end
-    return out
+    data["EQUIL"] = out
 end
 
 
