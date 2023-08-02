@@ -18,8 +18,11 @@ function compute_peaceman_index(Δ, K, radius; dir::Symbol = :z, constant = 0.14
     else
         d1, d2, L = Δ
         i, j = 1, 2
-        @assert dir == :z "dir must be either :x, :y or :z (was :$dir)"
+        @assert dir == :z || dir == :Z "dir must be either :x, :y or :z (was :$dir)"
     end
+    @assert L > 0
+    @assert d1 > 0
+    @assert d2 > 0
     k1, k2 = K_d[i], K_d[j]
 
     function kratio(l, v)
