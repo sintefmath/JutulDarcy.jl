@@ -239,8 +239,8 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
 
     function get_edge(i, j, t)
         if t == :right
-            p1 = linear_line_ix(i+1, j)
-            p2 = linear_line_ix(i+1, j+1)
+            p1 = linear_line_ix(i+1, j+1)
+            p2 = linear_line_ix(i+1, j)
         elseif t == :left
             p1 = linear_line_ix(i, j)
             p2 = linear_line_ix(i, j+1)
@@ -279,7 +279,7 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
                     push!(column_neighbors, e)
                     if i == 1
                         e = get_boundary_edge(column_indices[i, j], i, j, :left)
-                        push!(column_boundary, e)    
+                        push!(column_boundary, e)
                     end
                 else
                     # Add right edge to boundary
@@ -292,7 +292,7 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
                     push!(column_neighbors, e)
                     if j == 1
                         e = get_boundary_edge(column_indices[i, j], i, j, :lower)
-                        push!(column_boundary, e)    
+                        push!(column_boundary, e)
                     end
                 else
                     e = get_boundary_edge(self, i, j, :upper)
@@ -308,36 +308,9 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
                     push!(column_boundary, e)
                 end
             end
-
         end
     end
-    # line_neighbors = Vector{Tuple{Int64, Int64}}()
-    # for i = 1:(nx+1)
-    #     for j = 1:(ny+1)
-    #         ll = linear_line_ix(i, j)
-    #         ll_act = lines_active[ll]
 
-    #         if i < nx+1
-    #             rl = linear_line_ix(i+1, j)
-    #             rl_act = lines_active[rl]
-    #             if ll_act && rl_act
-    #                 push!(line_neighbors, (ll, rl))
-    #             end
-    #         end
-    #         if j < ny+1
-    #             lr = linear_line_ix(i, j+1)
-    #             lr_act = lines_active[lr]
-    #             if lr_act && lr_act
-    #                 push!(line_neighbors, (ll, lr))
-    #             end
-    #         end
-    #     end
-    # end
-    # Filter lines that do not contain any points from both sets here
-    # keep = BitArray(undef, length(lines))
-    # for (i, line) in enumerate(lines)
-    #     keep[i] = length(line.z) > 0
-    # end
     return (
         lines = lines,
         lines_active = lines_active,
