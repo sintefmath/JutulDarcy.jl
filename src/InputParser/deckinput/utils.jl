@@ -326,21 +326,6 @@ function parse_keyword!(data, outer_data, units, f, ::Val{T}) where T
     error("Unhandled keyword $T encountered.")
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:EQUIL})
-    n = number_of_tables(outer_data, :equil)
-    def = [0.0, NaN, 0.0, 0.0, 0.0, 0.0, 0, 0, 0]
-    eunits = (:length, :pressure, :length, :pressure, :length, :pressure, :id, :id, :id)
-    out = []
-    for i = 1:n
-        rec = read_record(f)
-        result = parse_defaulted_line(rec, def)
-        swap_unit_system_axes!(result, units, eunits)
-        push!(out, result)
-    end
-    data["EQUIL"] = out
-end
-
-
 function next_keyword!(f)
     m = nothing
     while isnothing(m) && !eof(f)
@@ -360,6 +345,31 @@ function number_of_tables(outer_data, t::Symbol)
         return outer_data["RUNSPEC"]["EQLDIMS"][1]
     else
         error(":$t is not known")
+    end
+end
+
+function table_region(outer_data, t::Symbol, reg::Int = 1; active = true)
+    num = number_of_tables(outer_data, t)
+    if num == 1
+        @assert reg == 1
+        dim = outer_data["GRID"]["cartDims"]
+        return ones(Int, prod(dim))
+    else
+        reg = outer_data["REGIONS"]
+        if t == :saturation
+            d = reg["SATNUM"]
+        elseif t == :pvt
+            d = reg["PVTNUM"]
+        elseif t == :equil
+            d = reg["EQLNUM"]
+        else
+            error(":$t is not known")
+        end
+        if active
+            act = vec(outer_data["GRID"]["ACTNUM"])
+            d = view(d, act)
+        end
+        return findall(isequal(reg), d)
     end
 end
 

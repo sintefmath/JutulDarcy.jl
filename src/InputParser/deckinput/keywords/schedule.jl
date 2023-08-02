@@ -35,7 +35,6 @@ end
 function parse_keyword!(data, outer_data, units, f, ::Val{:COMPDAT})
     d = "Default"
     defaults = [d, -1, -1, -1, -1, "OPEN", -1, NaN, NaN, NaN, 0.0, -1, "Z", -1]
-    wells = get_well
     wells = get_wells(outer_data)
     compdat = parse_defaulted_group_well(f, defaults, wells, 1)
     # Unit conversion
