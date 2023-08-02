@@ -42,9 +42,14 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:ACTNUM})
 end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:RSVD})
-    rs = parse_deck_matrix(f)
-    swap_unit_system_axes!(rs, units, (:length, :u_rs))
-    data["RSVD"] = rs
+    n = number_of_tables(outer_data, :equil)
+    out = []
+    for i = 1:n
+        rs = parse_deck_matrix(f)
+        swap_unit_system_axes!(rs, units, (:length, :u_rs))
+        push!(out, rs)
+    end
+    data["RSVD"] = out
 end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:EQUIL})
