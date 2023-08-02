@@ -3,6 +3,10 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:INIT})
     data["INIT"] = true
 end
 
+function parse_keyword!(data, outer_data, units, f, ::Val{:COORDSYS})
+    read_record(f)
+    @warn "COORDSYS skipped."
+end
 
 function parse_keyword!(data, outer_data, units, f, ::Val{:COORD})
     coord = parse_deck_matrix(f, Float64)
