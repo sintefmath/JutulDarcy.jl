@@ -348,12 +348,11 @@ function number_of_tables(outer_data, t::Symbol)
     end
 end
 
-function table_region(outer_data, t::Symbol, reg::Int = 1; active = true)
+function table_region(outer_data, t::Symbol; active = nothing)
     num = number_of_tables(outer_data, t)
     if num == 1
-        @assert reg == 1
         dim = outer_data["GRID"]["cartDims"]
-        return ones(Int, prod(dim))
+        D = ones(Int, prod(dim))
     else
         reg = outer_data["REGIONS"]
         if t == :saturation
@@ -365,12 +364,12 @@ function table_region(outer_data, t::Symbol, reg::Int = 1; active = true)
         else
             error(":$t is not known")
         end
-        if active
-            act = vec(outer_data["GRID"]["ACTNUM"])
-            d = view(d, act)
-        end
-        return findall(isequal(reg), d)
+        D = vec(d)
     end
+    if !isnothing(active)
+        D = D[active]
+    end
+    return D
 end
 
 function clean_include_path(basedir, include_file_name)
