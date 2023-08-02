@@ -9,10 +9,10 @@ end
 
 function compute_peaceman_index(Δ, K, radius; dir::Symbol = :z, constant = 0.14, Kh = nothing, skin = 0, check = true)
     K_d = diag(K)
-    if dir == :x
+    if dir == :x || dir == :X
         L, d1, d2 = Δ
         i, j = 2, 3
-    elseif dir == :y
+    elseif dir == :y || dir == :Y
         d1, L, d2 = Δ
         i, j = 1, 3
     else
