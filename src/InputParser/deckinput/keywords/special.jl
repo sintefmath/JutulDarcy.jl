@@ -41,7 +41,7 @@ function apply_copy!(data, dst, src, I, J, K, dims)
         @assert J[2] == dims[2]
         @assert K[2] == dims[3]
 
-        data[dst] = src
+        data[dst] = copy(src)
     end
 end
 
