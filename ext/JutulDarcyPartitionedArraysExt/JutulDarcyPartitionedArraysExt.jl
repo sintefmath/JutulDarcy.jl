@@ -116,9 +116,9 @@ module JutulDarcyPartitionedArraysExt
         x_p = cpr.p
 
         map(sim.storage.simulators, preconditioners) do sim, prec
-            sys = sim.storage.LinearizedSystem
-            model = sim.model
-            storage = sim.storage
+            storage = Jutul.get_simulator_storage(sim)
+            model = Jutul.get_simulator_model(sim)
+            sys = storage.LinearizedSystem
             prec.A_p = A_p
             prec.A_ps = A_ps
             prec.p = x_p
