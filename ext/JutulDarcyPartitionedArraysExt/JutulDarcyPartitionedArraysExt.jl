@@ -88,7 +88,7 @@ module JutulDarcyPartitionedArraysExt
         n = sim.storage.nc_process
         comm = sim.storage.comm
         if sim.storage[:number_of_processes] > 1
-            @assert sim.backend isa Jutul.MPI_PArrayBackend "Cannot use HYPRE with emulated multiple processes."
+            @assert sim.backend isa Jutul.MPI_PArrayBackend "Cannot use HYPRE with emulated multiple processes. Backend was $(sim.backend)"
         end
 
         function create_hypre_vector()
