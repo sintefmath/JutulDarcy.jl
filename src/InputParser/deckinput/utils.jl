@@ -280,7 +280,7 @@ function interpolate_missing_usat!(tab, tab_ix, record_length, nvals_per_rec)
         B(x, idx) = x[get_index(idx, 2)]
         viscosity(x, idx) = x[get_index(idx, 3)]
 
-        function constant_comp_interp(F, F_l, F_r)
+        function constant_comp_interp(F, F_r, F_l)
             # So that dF/dp * F = constant over the pair of points extrapolated from F
             w = 2.0*(F_l - F_r)/(F_l + F_r)
             return F*(1.0 + w/2.0)/(1.0 - w/2.0)
@@ -336,13 +336,18 @@ function next_keyword!(f)
 end
 
 function number_of_tables(outer_data, t::Symbol)
-    td = outer_data["RUNSPEC"]["TABDIMS"]
+    rs = outer_data["RUNSPEC"]
+    td = rs["TABDIMS"]
     if t == :saturation
         return td[1]
     elseif t == :pvt
         return td[2]
     elseif t == :equil
-        return outer_data["RUNSPEC"]["EQLDIMS"][1]
+        if haskey(rs, "EQLDIMS")
+            return rs["EQLDIMS"][1]
+        else
+            return 1
+        end
     else
         error(":$t is not known")
     end
