@@ -136,7 +136,7 @@ function DeckUnitSystem(sys::Symbol, T = Float64)
     density = mass/volume
     concentration = mass/volume
     compressibility = 1.0/pressure
-    transmissibility = viscosity * volume / (time * pressure)
+    transmissibility = viscosity * liquid_volume_reservoir / (time * pressure)
     return DeckUnitSystem{sys, T}(
         length = len,
         area = area,
