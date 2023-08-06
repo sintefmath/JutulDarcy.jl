@@ -1,68 +1,68 @@
-function parse_keyword!(data, outer_data, units, f, ::Val{:NOECHO})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:NOECHO})
     # Do nothing
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:ECHO})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ECHO})
     # Do nothing
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:START})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:START})
     rec = read_record(f)
     tdims = [1, "JAN", 1970, "00:00:00"];
     start = parse_defaulted_line(rec, tdims)
     data["START"] = convert_date_kw(start)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:TITLE})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:TITLE})
     m = next_keyword!(f)
     data["TITLE"] = m
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:NONNC})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:NONNC})
     data["NONNC"] = true
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:METRIC})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:METRIC})
     data["METRIC"] = true
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:FIELD})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FIELD})
     data["FIELD"] = true
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:WATER})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WATER})
     data["WATER"] = true
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:OIL})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:OIL})
     data["OIL"] = true
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:GAS})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GAS})
     data["GAS"] = true
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:DISGAS})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:DISGAS})
     data["DISGAS"] = true
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:VAPOIL})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:VAPOIL})
     data["VAPOIL"] = true
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:UNIFOUT})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:UNIFOUT})
     data["UNIFOUT"] = true
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:UNIFIN})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:UNIFIN})
     data["UNIFIN"] = true
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:NUMRES})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:NUMRES})
     read_record(f)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:TABDIMS})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:TABDIMS})
     rec = read_record(f)
     tdims = [1, 1, 20, 20, 1, 20, 20, 1,
              1, -1, 10,  1, -1,  0,  0, -1,
@@ -71,37 +71,37 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:TABDIMS})
     data["TABDIMS"] = parse_defaulted_line(rec, tdims)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:EQLDIMS})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:EQLDIMS})
     rec = read_record(f)
     tdims = [1, 100, 50, 1, 50];
     data["EQLDIMS"] = parse_defaulted_line(rec, tdims)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:REGDIMS})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:REGDIMS})
     rec = read_record(f)
     tdims = [1, 1, 0, 0, 0, 1, 0, 0, 0];
     data["REGDIMS"] = parse_defaulted_line(rec, tdims)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:WELLDIMS})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WELLDIMS})
     rec = read_record(f)
     tdims = [0, 0, 0, 0, 5, 10, 5, 4, 3, 0, 1, 1, 10, 201]
     data["WELLDIMS"] = parse_defaulted_line(rec, tdims)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:VFPPDIMS})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:VFPPDIMS})
     rec = read_record(f)
     tdims = [0, 0, 0, 0, 0, 0]
     data["VFPPDIMS"] = parse_defaulted_line(rec, tdims)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:VFPIDIMS})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:VFPIDIMS})
     rec = read_record(f)
     tdims = [0, 0, 0]
     data["VFPIDIMS"] = parse_defaulted_line(rec, tdims)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:AQUDIMS})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:AQUDIMS})
     rec = read_record(f)
     tdims = [1, 1, 1, 36, 1, 1, 0, 0]
     data["AQUDIMS"] = parse_defaulted_line(rec, tdims)

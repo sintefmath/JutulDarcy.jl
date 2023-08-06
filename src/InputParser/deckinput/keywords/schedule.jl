@@ -18,7 +18,7 @@ function get_well(outer_data, name)
     return get_wells(outer_data)[name]
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:WELSPECS})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WELSPECS})
     d = "Default"
     defaults = [d,     d,  -1,  -1, NaN,   d,     0.0, "STD", "SHUT", "YES",   0, "SEG", 0,     d, d, "STD"]
     utypes =   [:id, :id, :id, :id, :length, :id, :length,   :id,    :id,   :id, :id,   :id, :id, :id, :id, :id]
@@ -32,7 +32,7 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:WELSPECS})
     end
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:COMPDAT})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COMPDAT})
     d = "Default"
     defaults = [d, -1, -1, -1, -1, "OPEN", -1, NaN, NaN, NaN, 0.0, -1, "Z", -1]
     wells = get_wells(outer_data)
@@ -50,7 +50,7 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:COMPDAT})
     data["COMPDAT"] = compdat
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:WCONPROD})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WCONPROD})
     d = "Default"
     defaults = [d, "OPEN", d, Inf, Inf, Inf, Inf, NaN, 0.0, 0, 0.0]
     wells = get_wells(outer_data)
@@ -69,7 +69,7 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:WCONPROD})
     data["WCONPROD"] = wconprod
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:WCONHIST})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WCONHIST})
     d = "Default"
     defaults = [d, "OPEN", d, 0.0, 0.0, 0.0, 0, d, 0.0, 0.0, 0.0]
     wells = get_wells(outer_data)
@@ -87,7 +87,7 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:WCONHIST})
     data["WCONHIST"] = out
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:WCONINJ})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WCONINJ})
     d = "Default"
     defaults = [d, d, "OPEN", d, Inf, Inf, 0.0, "NONE", -1, Inf, 0.0, 0.0]
     wells = get_wells(outer_data)
@@ -112,7 +112,7 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:WCONINJ})
     data["WCONINJ"] = out
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:WCONINJE})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WCONINJE})
     d = "Default"
     defaults = [d, d, "OPEN", d, Inf, Inf, NaN, Inf, 0, 0.0, 0.0, 0, 0, 0]
     wells = get_wells(outer_data)
@@ -137,19 +137,23 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:WCONINJE})
     data["WCONINJE"] = out
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Union{Val{:WELLTARG}, Val{:WELTARG}})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Union{Val{:WELLTARG}, Val{:WELTARG}})
     defaults = ["Default", "ORAT", NaN]
     wells = get_wells(outer_data)
     out = parse_defaulted_group_well(f, defaults, wells, 1)
-    @warn "WELLTARG not supported."
+    if cfg.warn
+        @warn "WELLTARG not supported."
+    end
     data["WELTARG"] = out
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:WEFAC})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WEFAC})
     defaults = ["Default", 1.0]
     wells = get_wells(outer_data)
     d = parse_defaulted_group_well(f, defaults, wells, 1)
-    @warn "WEFAC not fully handled."
+    if cfg.warn
+        @warn "WEFAC not fully handled."
+    end
     data["WEFAC"] = d
 end
 
@@ -190,7 +194,7 @@ function convert_date_kw(t)
     return parse(DateTime, "$yr-$d-$m $(t[4])", dateformat"y-d-m H:M:S")
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:DATES})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:DATES})
     defaults = [1, "JAN", 1970, "00:00:00"]
     dt = parse_defaulted_group(f, defaults)
     out = Vector{DateTime}()
@@ -201,21 +205,21 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:DATES})
     data["DATES"] = out
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:TSTEP})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:TSTEP})
     dt = parse_deck_vector(f)
     swap_unit_system!(dt, units, :time)
     data["TSTEP"] = dt
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:TUNING})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:TUNING})
     skip_records(f, 3)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:RPTSCHED})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:RPTSCHED})
     read_record(f)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:NUPCOL})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:NUPCOL})
     rec = read_record(f)
     tdims = [3];
     data["NUPCOL"] = only(parse_defaulted_line(rec, tdims))

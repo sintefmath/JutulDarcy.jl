@@ -17,31 +17,31 @@ end
 
 # Keywords follow
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:SGAS})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:SGAS})
     data["SGAS"] = parse_grid_vector(f, outer_data["GRID"]["cartDims"], Float64)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:SWAT})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:SWAT})
     data["SWAT"] = parse_grid_vector(f, outer_data["GRID"]["cartDims"], Float64)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:PRESSURE})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PRESSURE})
     p = parse_grid_vector(f, outer_data["GRID"]["cartDims"], Float64)
     swap_unit_system!(p, units, :pressure)
     data["PRESSURE"] = p
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:RS})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:RS})
     rs = parse_grid_vector(f, outer_data["GRID"]["cartDims"], Float64)
     swap_unit_system!(rs, units, :u_rs)
     data["RS"] = rs
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:ACTNUM})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ACTNUM})
     data["ACTNUM"] = parse_grid_vector(f, get_cartdims(outer_data), Bool)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:RSVD})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:RSVD})
     n = number_of_tables(outer_data, :equil)
     out = []
     for i = 1:n
@@ -52,7 +52,7 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:RSVD})
     data["RSVD"] = out
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:EQUIL})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:EQUIL})
     n = number_of_tables(outer_data, :equil)
     def = [0.0, NaN, 0.0, 0.0, 0.0, 0.0, 0, 0, 0]
     eunits = (:length, :pressure, :length, :pressure, :length, :pressure, :id, :id, :id)

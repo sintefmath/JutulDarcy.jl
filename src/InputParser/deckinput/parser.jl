@@ -45,6 +45,7 @@ function parse_deck_file!(outer_data, filename, data = outer_data;
     msg("Starting parse of $filename...")
     f = open(filename, "r")
 
+    cfg = (warn = true, )
     try
         allsections = vcat(sections, skip)
         while !eof(f)
@@ -80,7 +81,7 @@ function parse_deck_file!(outer_data, filename, data = outer_data;
                     unit_systems = unit_systems
                 )
             elseif m in (:DATES, :TIME, :TSTEP)
-                parse_keyword!(data, outer_data, unit_systems, f, Val(m))
+                parse_keyword!(data, outer_data, unit_systems, cfg, f, Val(m))
                 # New control step starts after this
                 data = OrderedDict{String, Any}()
                 push!(outer_data["SCHEDULE"]["STEPS"], data)
@@ -88,7 +89,7 @@ function parse_deck_file!(outer_data, filename, data = outer_data;
                 # All done!
                 break
             elseif !skip_mode
-                parse_keyword!(data, outer_data, unit_systems, f, Val(m))
+                parse_keyword!(data, outer_data, unit_systems, cfg, f, Val(m))
             end
         end
     finally

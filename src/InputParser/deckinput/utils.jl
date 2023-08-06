@@ -321,7 +321,7 @@ function parse_region_matrix_table(f, nreg)
     return out
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{T}) where T
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{T}) where T
     # Do nothing
     error("Unhandled keyword $T encountered.")
 end

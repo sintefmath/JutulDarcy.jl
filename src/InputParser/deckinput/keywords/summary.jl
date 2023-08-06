@@ -1,102 +1,102 @@
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:NSTACK})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:NSTACK})
     read_record(f)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:RPTSOL})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:RPTSOL})
     read_record(f)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:EXCEL})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:EXCEL})
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:RUNSUM})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:RUNSUM})
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:SEPARATE})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:SEPARATE})
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:NEWTON})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:NEWTON})
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:TCPU})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:TCPU})
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:ELAPSED})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ELAPSED})
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:MAXDPR})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MAXDPR})
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:FOPR})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FOPR})
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:FWPR})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FWPR})
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:FWIR})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FWIR})
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:FOPT})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FOPT})
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:FWPT})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FWPT})
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:FWIT})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FWIT})
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:RPTONLY})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:RPTONLY})
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:WMCTL})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WMCTL})
     read_record(f)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:RPTRST})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:RPTRST})
     read_record(f)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:WLPR})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WLPR})
     read_record(f)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:WGOR})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WGOR})
     read_record(f)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:WWIR})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WWIR})
     read_record(f)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:WWPR})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WWPR})
     read_record(f)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:WOPR})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WOPR})
     read_record(f)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:WBHP})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WBHP})
     read_record(f)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:BGSAT})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:BGSAT})
     skip_record(f)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:BOSAT})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:BOSAT})
     skip_record(f)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:BOKR})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:BOKR})
     skip_record(f)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:BWSAT})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:BWSAT})
     skip_record(f)
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:BPR})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:BPR})
     skip_record(f)
 end

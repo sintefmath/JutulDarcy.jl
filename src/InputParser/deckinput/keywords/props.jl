@@ -1,9 +1,9 @@
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:RPTPROPS})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:RPTPROPS})
     read_record(f)
 end
 
-function parse_keyword!(data, outer_data, units, f, v::Union{Val{:SWOF}, Val{:SGOF}})
+function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:SWOF}, Val{:SGOF}})
     k = unpack_val(v)
     sat_tab = parse_saturation_table(f, outer_data)
     for tab in sat_tab
@@ -13,7 +13,7 @@ function parse_keyword!(data, outer_data, units, f, v::Union{Val{:SWOF}, Val{:SG
 end
 
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:PVDG})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PVDG})
     pvdg = parse_dead_pvt_table(f, outer_data)
     for tab in pvdg
         swap_unit_system_axes!(tab, units, (:pressure, :gas_formation_volume_factor, :viscosity))
@@ -21,7 +21,7 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:PVDG})
     data["PVDG"] = pvdg
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:PVTO})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PVTO})
     pvto = parse_live_pvt_table(f, outer_data)
     for tab in pvto
         swap_unit_system_axes!(tab["data"], units, (:pressure, :liquid_formation_volume_factor, :viscosity))
@@ -30,7 +30,7 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:PVTO})
     data["PVTO"] = pvto
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:PVTW})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PVTW})
     rec = read_record(f)
     tdims = [NaN, NaN, NaN, NaN, NaN]
     utypes = (:pressure, :liquid_formation_volume_factor, :compressibility, :viscosity, :compressibility)
@@ -45,7 +45,7 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:PVTW})
     data["PVTW"] = out
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:PVCDO})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PVCDO})
     rec = read_record(f)
     tdims = [NaN, NaN, NaN, NaN, NaN]
     utypes = (:pressure, :liquid_formation_volume_factor, :compressibility, :viscosity, :compressibility)
@@ -60,7 +60,7 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:PVCDO})
     data["PVCDO"] = out
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:ROCK})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ROCK})
     rec = read_record(f)
     tdims = [NaN, NaN, NaN, NaN, NaN, NaN]
     utypes = [:pressure, :compressibility, :compressibility, :compressibility, :id, :id]
@@ -74,7 +74,7 @@ function parse_keyword!(data, outer_data, units, f, ::Val{:ROCK})
     data["ROCK"] = out
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:DENSITY})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:DENSITY})
     rec = read_record(f)
     tdims = [NaN, NaN, NaN]
     nreg = number_of_tables(outer_data, :pvt)

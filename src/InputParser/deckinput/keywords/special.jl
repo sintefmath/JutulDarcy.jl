@@ -1,5 +1,5 @@
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:COPY})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COPY})
     rec = read_record(f)
     gdata = get_section(outer_data, :GRID)
     l, u = gdata["CURRENT_BOX"]
@@ -45,7 +45,7 @@ function apply_copy!(data, dst, src, I, J, K, dims)
     end
 end
 
-function parse_keyword!(data, outer_data, units, f, ::Val{:MULTIPLY})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MULTIPLY})
     # TODO: Merge shared code with COPY
     rec = read_record(f)
     l, u = outer_data["GRID"]["CURRENT_BOX"]
