@@ -47,7 +47,11 @@ end
 
 function parse_well_from_compdat(domain, wname, v, wspecs)
     wc, WI, open = compdat_to_connection_factors(domain, v)
-    W = setup_well(domain, wc, name = Symbol(wname), WI = WI, reference_depth = wspecs.ref_depth)
+    rd = wspecs.ref_depth
+    if isnan(rd)
+        rd = nothing
+    end
+    W = setup_well(domain, wc, name = Symbol(wname), WI = WI, reference_depth = rd)
     return (W, WI, open)
 end
 
