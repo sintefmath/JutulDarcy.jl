@@ -408,7 +408,7 @@ can be sent in as a second, non-keyword argument.
 function setup_reservoir_state(model::MultiModel; kwarg...)
     rmodel = reservoir_model(model)
     pvars = collect(keys(Jutul.get_primary_variables(rmodel)))
-    res_state = setup_reservoir_state(rmodel, pvars; kwarg...)
+    res_state = setup_reservoir_state(rmodel; kwarg...)
     # Next, we initialize the wells.
     init = Dict(:Reservoir => res_state)
     perf_subset(v::AbstractVector, i) = v[i]
@@ -451,14 +451,18 @@ function setup_reservoir_state(model, init)
     return setup_reservoir_state(model; pairs(init)...)
 end
 
-function setup_reservoir_state(rmodel::SimulationModel, pvars; kwarg...)
+function setup_reservoir_state(rmodel::SimulationModel; kwarg...)
+    pvars = collect(keys(Jutul.get_primary_variables(rmodel)))
+    svars = collect(keys(Jutul.get_secondary_variables(rmodel)))
     np = length(pvars)
     found = Symbol[]
     res_init = Dict{Symbol, Any}()
     for (k, v) in kwarg
         I = findfirst(isequal(k), pvars)
         if isnothing(I)
-            @warn "Recieved primary variable $k, but this is not known to reservoir model... Adding anyway."
+            if !(k in svars)
+                @warn "Recieved primary variable $k, but this is not known to reservoir model... Adding anyway."
+            end
         else
             push!(found, k)
         end
