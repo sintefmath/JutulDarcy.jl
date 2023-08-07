@@ -1,7 +1,7 @@
 name = "JutulDarcy"
 uuid = "82210473-ab04-4dce-b31b-11573c4f8e0a"
 authors = ["Olav Møyner <olav.moyner@gmail.com>"]
-version = "0.2.7"
+version = "0.2.8"
 
 [deps]
 AlgebraicMultigrid = "2169fc97-5a83-5252-b627-83903c6c433c"
@@ -43,7 +43,7 @@ DataStructures = "0.18.13"
 DelimitedFiles = "1.9.1"
 ForwardDiff = "0.10.30"
 HYPRE = "1.4.0"
-Jutul = "0.2.10"
+Jutul = "0.2.12"
 Krylov = "0.9.1"
 LoopVectorization = "0.12.115"
 MAT = "0.10.3"
