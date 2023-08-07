@@ -28,12 +28,16 @@ end
     include("sens_multimodel.jl")
 end
 
-@testset "MRST input cases" begin
+@testitem "MRST input cases" begin
     include("mrst_cases.jl")
 end
 
-@testset "PArray solve" begin
+@testitem "PArray solve" begin
     include("parray.jl")
+end
+
+@testitem "Parser" begin
+    include("parser.jl")
 end
 
 @run_package_tests

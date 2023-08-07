@@ -24,3 +24,18 @@ r = 0.2;
     end
 end
 
+
+import JutulDarcy: current_phase_index
+@testset "current_phase_index" begin
+    depths = (1.0, 2.0) # W O G
+    @test current_phase_index(0.1, depths, reverse = false) == 1
+    @test current_phase_index(1.01, depths, reverse = false) == 2
+    @test current_phase_index(1.5, depths, reverse = false) == 2
+    @test current_phase_index(2.5, depths, reverse = false) == 3
+
+    depths = (2.0, 1.0) # WO OG
+    @test current_phase_index(0.1, depths, reverse = true) == 3 # Gas
+    @test current_phase_index(1.01, depths, reverse = true) == 2 # Oil
+    @test current_phase_index(1.5, depths, reverse = true) == 2 # Oil
+    @test current_phase_index(2.5, depths, reverse = true) == 1 # Water
+end

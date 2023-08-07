@@ -46,7 +46,7 @@ function common_well_setup(nr; dz = nothing, WI = nothing, gravity = gravity_con
         @warn "No well indices provided. Using 1e-12."
         WI = repeat(1e-12, nr)
     else
-        @assert length(WI) == nr  "Must have one well index per perforated cell"
+        @assert length(WI) == nr  "Must have one well index per perforated cell ($(length(WI)) well indices, $nr reservoir cells))"
     end
     return (WI, gdz)
 end
@@ -89,19 +89,27 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     volumes = zeros(n)
     WI_computed = zeros(n)
     dz = zeros(n)
+
+    function get_entry(x::AbstractVector, i)
+        return x[i]
+    end
+    function get_entry(x, i)
+        return x
+    end
     for (i, c) in enumerate(reservoir_cells)
         if K isa AbstractVector
-            k = K[c]
+            k_i = K[c]
         else
-            k = K[:, c]
+            k_i = K[:, c]
         end
-        if ismissing(WI)
-            WI_i = compute_peaceman_index(g, k, radius, c, skin = skin, Kh = Kh)
-        elseif WI isa AbstractFloat
-            WI_i = WI
-        else
-            WI_i = WI[i]
+        WI_i = get_entry(WI, i)
+        Kh_i = get_entry(Kh, i)
+        r_i = get_entry(radius, i)
+        s_i = get_entry(skin, i)
+        if ismissing(WI_i) || isnan(WI_i)
+            WI_i = compute_peaceman_index(g, k_i, r_i, c, skin = s_i, Kh = Kh_i)
         end
+        WI_i::AbstractFloat
         WI_computed[i] = WI_i
         center = vec(centers[:, i])
         dz[i] = center[3] - reference_depth
@@ -113,11 +121,13 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         Δ = cell_dims(g, c)
         d_index = findfirst(isequal(d), [:x, :y, :z])
         h = Δ[d_index]
-        volumes[i] = h*π*radius^2
+        volumes[i] = h*π*r_i^2
     end
     if simple_well
         W = SimpleWell(reservoir_cells, WI = WI_computed, dz = dz, reference_depth = reference_depth, kwarg...)
     else
+        # Depth differences are taken care of via centers.
+        dz *= 0.0
         W = MultiSegmentWell(reservoir_cells, volumes, centers; WI = WI_computed, dz = dz, reference_depth = reference_depth, kwarg...)
     end
     return W

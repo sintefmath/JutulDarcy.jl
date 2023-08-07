@@ -1,12 +1,13 @@
 name = "JutulDarcy"
 uuid = "82210473-ab04-4dce-b31b-11573c4f8e0a"
 authors = ["Olav Møyner <olav.moyner@gmail.com>"]
-version = "0.2.7"
+version = "0.2.8"
 
 [deps]
 AlgebraicMultigrid = "2169fc97-5a83-5252-b627-83903c6c433c"
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 Jutul = "2b460a1a-8a2b-45b2-b125-b5c536396eb9"
 Krylov = "ba0b0d4f-ebba-5204-a429-3ac8c609bfb7"
@@ -14,6 +15,8 @@ LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
 MAT = "23992714-dd62-5051-b70f-ba57cb901cac"
 MultiComponentFlash = "35e5bd01-9722-4017-9deb-64a5d32478ff"
+OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
+Parsers = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
 Polyester = "f517fe37-dbe3-4b94-8317-1923a5111588"
 PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
@@ -23,44 +26,47 @@ TestItems = "1c621080-faea-4a02-84b6-bbd5e436b8fe"
 TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 Tullio = "bc48ee85-29a4-5162-ae0b-a64e1601d4bc"
 
-[compat]
-AlgebraicMultigrid = "0.5.1"
-DataStructures = "0.18.13"
-ForwardDiff = "0.10.30"
-Jutul = "0.2.10"
-LoopVectorization = "0.12.115"
-MAT = "0.10.3"
-MultiComponentFlash = "1.1.3"
-Polyester = "0.6.11, 0.7.3"
-PrecompileTools = "1.0.1"
-PartitionedArrays = "0.3.2"
-StaticArrays = "1.4.4"
-TestItems = "0.1.0"
-TimerOutputs = "0.5.19"
-Tullio = "0.3.4"
-HYPRE = "1.4.0"
-julia = "1.7"
-Krylov = "0.9.1"
-
-[extras]
-TestItemRunner = "f8b46487-2199-4994-9208-9a1283c18c0a"
-TestItems = "1c621080-faea-4a02-84b6-bbd5e436b8fe"
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
-HYPRE = "b5ffcf37-a2bd-41ab-a3da-4bd9bc8ad771"
-PartitionedArrays = "5a9dfac6-5c52-46f7-8278-5e2210713be9"
-MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
-
-[targets]
-test = ["Test", "TestItemRunner", "TestItems", "HYPRE", "MPI", "PartitionedArrays"]
-
 [weakdeps]
 GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 HYPRE = "b5ffcf37-a2bd-41ab-a3da-4bd9bc8ad771"
-PartitionedArrays = "5a9dfac6-5c52-46f7-8278-5e2210713be9"
 MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
+PartitionedArrays = "5a9dfac6-5c52-46f7-8278-5e2210713be9"
 
 [extensions]
 JutulDarcyGLMakieExt = "GLMakie"
 JutulDarcyHYPREExt = "HYPRE"
 JutulDarcyPartitionedArraysExt = ["PartitionedArrays", "MPI", "HYPRE"]
+
+[compat]
+AlgebraicMultigrid = "0.5.1"
+DataStructures = "0.18.13"
+DelimitedFiles = "1.9.1"
+ForwardDiff = "0.10.30"
+HYPRE = "1.4.0"
+Jutul = "0.2.12"
+Krylov = "0.9.1"
+LoopVectorization = "0.12.115"
+MAT = "0.10.3"
+MultiComponentFlash = "1.1.3"
+OrderedCollections = "1.6.2"
+Parsers = "2.7.1"
+PartitionedArrays = "0.3.2"
+Polyester = "0.6.11, 0.7.3"
+PrecompileTools = "1.0.1"
+StaticArrays = "1.4.4"
+TestItems = "0.1.0"
+TimerOutputs = "0.5.19"
+Tullio = "0.3.4"
+julia = "1.7"
+
+[extras]
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
+HYPRE = "b5ffcf37-a2bd-41ab-a3da-4bd9bc8ad771"
+MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
+PartitionedArrays = "5a9dfac6-5c52-46f7-8278-5e2210713be9"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+TestItemRunner = "f8b46487-2199-4994-9208-9a1283c18c0a"
+TestItems = "1c621080-faea-4a02-84b6-bbd5e436b8fe"
+
+[targets]
+test = ["Test", "TestItemRunner", "TestItems", "HYPRE", "MPI", "PartitionedArrays"]

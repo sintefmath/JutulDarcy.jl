@@ -52,11 +52,6 @@ function reservoir_domain_from_mrst(name::String; extraout = false)
     @debug "File read complete. Unpacking data..."
     g = MRSTWrapMesh(exported["G"])
     has_trans = haskey(exported, "T") && length(exported["T"]) > 0
-    if haskey(exported, "N")
-        N = Int64.(exported["N"]')
-    else
-        N = nothing
-    end
 
     function get_vec(d)
         if isa(d, AbstractArray)
@@ -69,6 +64,19 @@ function reservoir_domain_from_mrst(name::String; extraout = false)
     perm = copy((exported["rock"]["perm"])')
     domain = reservoir_domain(g, porosity = poro, permeability = perm)
 
+    nf = number_of_faces(domain)
+    if haskey(exported, "N")
+        N = Int64.(exported["N"]')
+        nf = size(N, 2)
+        if nf != number_of_faces(domain)
+            d = Jutul.dim(g)
+            domain.entities[Faces()] = nf
+            domain[:areas, Faces()] = fill!(zeros(nf), NaN)
+            domain[:normals, Faces()] = fill!(zeros(d, nf), NaN)
+            domain[:face_centroids, Faces()] = fill!(zeros(d, nf), NaN)
+        end
+        domain[:neighbors, Faces()] = N
+    end
     # Deal with face data
     if has_trans
         @debug "Found precomputed transmissibilities, reusing"
@@ -171,6 +179,13 @@ function get_well_from_mrst_data(
             L = vec(segs["length"])
             D = vec(segs["diameter"])
             rough = vec(segs["roughness"])
+            n_segs = size(well_topo, 2)
+            if length(L) != n_segs
+                @warn "Inconsistent segments. Adding averages."
+                L = repeat([mean(L)], n_segs)
+                D = repeat([mean(D)], n_segs)
+                rough = repeat([mean(rough)], n_segs)
+            end
             @assert size(well_topo, 2) == length(L) == length(D) == length(rough)
             segment_models = map(SegmentWellBoreFrictionHB, L, rough, D)
         else
@@ -345,6 +360,25 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
     return ReservoirRelativePermeability(; krarg..., regions = satnum, scaling = scaling)
 end
 
+function flat_region_expand(x::AbstractMatrix, n = nothing)
+    # Utility to handle mismatch between MRST and Jutul parsers in simple PVT
+    # table format.
+    if !isnothing(n)
+        @assert size(x, 2) == n
+    end
+    x = map(i -> x[i, :], axes(x, 1))
+    return x
+end
+
+function flat_region_expand(x::Vector{Float64}, n = nothing)
+    return [x]
+end
+
+
+function flat_region_expand(x::Vector, n = nothing)
+    return x
+end
+
 function deck_pc(props; oil, water, gas, satnum = nothing)
     function get_pc(T, pc_ix, reverse = false)
         found = false
@@ -428,7 +462,6 @@ function model_from_mat_deck(G, data_domain, mrst_data, res_context)
     is_immiscible = !has_disgas && !has_vapoil
     is_compositional = haskey(mrst_data, "mixture")
 
-    pvt = []
     phases = []
     rhoS = Vector{Float64}()
     if haskey(props, "DENSITY")
@@ -447,7 +480,7 @@ function model_from_mat_deck(G, data_domain, mrst_data, res_context)
         has_oil = true
         has_gas = true
     end
-
+    pvt = []
     if is_compositional
         if has_wat
             push!(rhoS, rhoWS)
@@ -617,11 +650,11 @@ end
 function set_deck_pvmult!(vars, param, props)
     # Rock compressibility (if present)
     if haskey(props, "ROCK")
-        rock = props["ROCK"]
-        if size(rock, 1) > 1
+        rock = JutulDarcy.flat_region_expand(props["ROCK"])
+        if length(rock) > 1
             @warn "Rock has multiple regions, taking the first..." rock
-            rock = rock[1, :]
         end
+        rock = first(rock)
         if rock[2] > 0
             static = param[:FluidVolume]
             delete!(param, :FluidVolume)

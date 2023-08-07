@@ -9,17 +9,20 @@ end
 
 function compute_peaceman_index(Δ, K, radius; dir::Symbol = :z, constant = 0.14, Kh = nothing, skin = 0, check = true)
     K_d = diag(K)
-    if dir == :x
+    if dir == :x || dir == :X
         L, d1, d2 = Δ
         i, j = 2, 3
-    elseif dir == :y
+    elseif dir == :y || dir == :Y
         d1, L, d2 = Δ
         i, j = 1, 3
     else
         d1, d2, L = Δ
         i, j = 1, 2
-        @assert dir == :z "dir must be either :x, :y or :z (was :$dir)"
+        @assert dir == :z || dir == :Z "dir must be either :x, :y or :z (was :$dir)"
     end
+    @assert L > 0
+    @assert d1 > 0
+    @assert d2 > 0
     k1, k2 = K_d[i], K_d[j]
 
     function kratio(l, v)
@@ -39,7 +42,7 @@ function compute_peaceman_index(Δ, K, radius; dir::Symbol = :z, constant = 0.14
     re  = kratio(re1, re2)
     ke  = sqrt(k1*k2)
  
-    if isnothing(Kh)
+    if isnothing(Kh) || isnan(Kh)
         Kh = L*ke
     end
     WI = 2 * π * Kh / (log(re / radius) + skin)

@@ -103,3 +103,53 @@ function cnv_mb_errors_bo(r, Φ, b, dt, rhoS, ::Val{N}) where N
     end
     return (Tuple(cnv), Tuple(mb))
 end
+
+function handle_alternate_primary_variable_spec!(init, found, sys::StandardBlackOilSystem)
+    # Internal utility to handle non-trivial specification of primary variables
+    nph = number_of_phases(sys)
+    @assert haskey(init, :Pressure)
+    @assert haskey(init, :Saturations) || haskey(init, :BlackOilUnknown)
+
+    if nph == 3 && !haskey(init, :ImmiscibleSaturation)
+        S = init[:Saturations]
+        a, l, v = phase_indices(sys)
+        sw = S[a, :]
+        init[:ImmiscibleSaturation] = sw
+        push!(found, :ImmiscibleSaturation)
+    end
+
+    if !haskey(init, :BlackOilUnknown)
+        S = init[:Saturations]
+        pressure = init[:Pressure]
+        nc = length(pressure)
+        if nph == 2
+            sw = zeros(nc)
+            l, v = phase_indices(sys)
+        else
+            a, l, v = phase_indices(sys)
+            sw = S[a, :]
+        end
+        so = S[l, :]
+        sg = S[v, :]
+
+        F_rs = sys.rs_max
+        F_rv = sys.rv_max
+        if has_disgas(sys)
+            rs = init[:Rs]
+        else
+            rs = zeros(nc)
+        end
+        if has_vapoil(sys)
+            rv = init[:Rs]
+        else
+            rv = zeros(nc)
+        end
+        so = @. 1.0 - so - sg
+        bo = map(
+            (w,  o,   g, r,  v, p) -> blackoil_unknown_init(F_rs, F_rv, w, o, g, r, v, p),
+            sw, so, sg, rs, rv, pressure)
+        init[:BlackOilUnknown] = bo
+        push!(found, :BlackOilUnknown)
+    end
+    return init
+end
