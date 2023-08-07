@@ -1,5 +1,14 @@
 export simulate_data_file, case_from_data_input
 
+"""
+    simulate_data_file(inp; parse_arg = NamedTuple(), kwarg...)
+
+Simulate standard input file (with extension .DATA). `inp` can either be the
+output from `case_from_data_input` or a String for the path of an input file.
+
+Additional arguments are passed onto `simulate_reservoir`. Extra inputs to the
+parser can be sent as a `parse_arg` `NamedTuple`.
+"""
 function simulate_data_file(fn::String; parse_arg = NamedTuple(), kwarg...)
     data = parse_data_file(fn; parse_arg...)
     return simulate_data_file(data; kwarg...)
