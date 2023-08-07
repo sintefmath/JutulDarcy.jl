@@ -108,10 +108,10 @@ function handle_alternate_primary_variable_spec!(init, found, sys::StandardBlack
     # Internal utility to handle non-trivial specification of primary variables
     nph = number_of_phases(sys)
     @assert haskey(init, :Pressure)
-    @assert haskey(init, :Saturations)
-    S = init[:Saturations]
+    @assert haskey(init, :Saturations) || haskey(init, :BlackOilUnknown)
 
     if nph == 3 && !haskey(init, :ImmiscibleSaturation)
+        S = init[:Saturations]
         a, l, v = phase_indices(sys)
         sw = S[a, :]
         init[:ImmiscibleSaturation] = sw
@@ -119,7 +119,7 @@ function handle_alternate_primary_variable_spec!(init, found, sys::StandardBlack
     end
 
     if !haskey(init, :BlackOilUnknown)
-
+        S = init[:Saturations]
         pressure = init[:Pressure]
         nc = length(pressure)
         if nph == 2

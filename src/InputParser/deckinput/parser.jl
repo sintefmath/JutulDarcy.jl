@@ -2,13 +2,25 @@ include("units.jl")
 include("utils.jl")
 include("keywords/keywords.jl")
 
-function parse_deck_file(filename; kwarg...)
+"""
+    parse_data_file(filename; unit = :si)
+
+Parse a .DATA file (industry standard input file) into a Dict. Units will be
+converted to strict SI unless you pass something else like `units = :field`.
+Setting `units = nothing` will skip unit conversion. Note that JutulDarcy
+assumes that the unit system is internally consistent. It is highly recommended
+to parse to the SI units if you want to perform simulations.
+
+NOTE: This function is experimental and only covers a small portion of the
+keywords that exist for various simulators.
+"""
+function parse_data_file(filename; kwarg...)
     outer_data = Dict{String, Any}()
-    parse_deck_file!(outer_data, filename; kwarg...)
+    parse_data_file!(outer_data, filename; kwarg...)
     return outer_data
 end
 
-function parse_deck_file!(outer_data, filename, data = outer_data;
+function parse_data_file!(outer_data, filename, data = outer_data;
         skip_mode = false,
         verbose = false,
         sections = [:RUNSPEC, :GRID, :PROPS, :REGIONS, :SOLUTION, :SCHEDULE],
@@ -71,7 +83,7 @@ function parse_deck_file!(outer_data, filename, data = outer_data;
                 end
                 include_path = clean_include_path(basedir, next)
                 msg("Including file $include_path...")
-                parse_deck_file!(
+                parse_data_file!(
                     outer_data, include_path, data,
                     verbose = verbose,
                     sections = sections,
