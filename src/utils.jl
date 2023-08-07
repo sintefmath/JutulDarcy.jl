@@ -405,26 +405,10 @@ automatically initialized from the connected reservoir cells.
 As an alternative to passing keyword arguments, a `Dict{Symbol, Any}` instance
 can be sent in as a second, non-keyword argument.
 """
-function setup_reservoir_state(model; kwarg...)
+function setup_reservoir_state(model::MultiModel; kwarg...)
     rmodel = reservoir_model(model)
-    pvars = [k for k in keys(Jutul.get_primary_variables(rmodel))]
-    np = length(pvars)
-    ok = repeat([false], np)
-    res_init = Dict{Symbol, Any}()
-    for (k, v) in kwarg
-        I = findfirst(isequal(k), pvars)
-        if isnothing(I)
-            @warn "Recieved primary variable $k, but this is not known to reservoir model... Adding anyway."
-        else
-            ok[I] = true
-        end
-        res_init[k] = v
-    end
-    if !all(ok)
-        missing_primary_variables = pvars[.!ok]
-        @warn "Not all primary variables were initialized for reservoir model." missing_primary_variables
-    end
-    res_state = setup_state(rmodel, res_init)
+    pvars = collect(keys(Jutul.get_primary_variables(rmodel)))
+    res_state = setup_reservoir_state(rmodel, pvars; kwarg...)
     # Next, we initialize the wells.
     init = Dict(:Reservoir => res_state)
     perf_subset(v::AbstractVector, i) = v[i]
@@ -465,6 +449,32 @@ end
 
 function setup_reservoir_state(model, init)
     return setup_reservoir_state(model; pairs(init)...)
+end
+
+function setup_reservoir_state(rmodel::SimulationModel, pvars; kwarg...)
+    np = length(pvars)
+    found = Symbol[]
+    res_init = Dict{Symbol, Any}()
+    for (k, v) in kwarg
+        I = findfirst(isequal(k), pvars)
+        if isnothing(I)
+            @warn "Recieved primary variable $k, but this is not known to reservoir model... Adding anyway."
+        else
+            push!(found, k)
+        end
+        res_init[k] = v
+    end
+    handle_alternate_primary_variable_spec!(res_init, found, rmodel.system)
+    if length(found) != length(pvars)
+        missing_primary_variables = setdiff(pvars, found)
+        @warn "Not all primary variables were initialized for reservoir model." missing_primary_variables
+    end
+    return setup_state(rmodel, res_init)
+end
+
+function handle_alternate_primary_variable_spec!(res_init, found, system)
+    # Internal utility to handle non-trivial specification of primary variables
+    return res_init
 end
 
 export setup_reservoir_forces
