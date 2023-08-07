@@ -147,7 +147,7 @@ function parse_state0_equil(model, datafile)
         end
         if has_water
             krw = only(model.secondary_variables[:RelativePermeabilities].krw)
-            swcon = krw.critical
+            swcon = krw.connate
             push!(s_min, swcon)
             push!(s_max, non_connate)
             non_connate = 1.0 - swcon
