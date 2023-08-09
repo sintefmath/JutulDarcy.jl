@@ -211,8 +211,10 @@ function setup_reservoir_simulator(case::JutulCase;
                                             linear_solver_arg...,
                                             )
         extra_arg = (linear_solver = lsolve, )
-    else
+    elseif isnothing(linear_solver)
         extra_arg = NamedTuple()
+    else
+        extra_arg = (linear_solver = linear_solver, )
     end
     cfg = simulator_config(sim; extra_arg..., timestep_selectors = sel, info_level = info_level, kwarg...)
     set_default_cnv_mb!(cfg, sim, tol_cnv = tol_cnv, tol_mb = tol_mb, tol_cnv_well = tol_cnv_well, tol_mb_well = tol_mb_well)
