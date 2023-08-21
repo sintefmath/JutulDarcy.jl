@@ -14,9 +14,10 @@ function select_parameters!(prm, domain::MSWellDomain, model::MSWellFlowModel)
     prm[:PerforationGravityDifference] = PerforationGravityDifference()
 end
 
-function select_minimum_output_variables!(vars, domain::WellDomain, model::MSWellFlowModel)
+function Jutul.select_minimum_output_variables!(vars, domain::DiscretizedDomain, model::MSWellFlowModel)
     push!(vars, :PhaseMassDensities)
     push!(vars, :Saturations)
+    push!(vars, :SurfaceWellConditions)
     return vars
 end
 
