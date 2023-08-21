@@ -15,14 +15,27 @@ Two point approximation with flux for wells
 """
 struct MixedWellSegmentFlow <: WellPotentialFlowDiscretization end
 
+struct SurfaceWellConditions{T} <: ScalarVariable
+    storage::T
+    function SurfaceWellConditions(S::T) where T<:JutulStorage
+        new{T}(S)
+    end
+end
+
+function SurfaceWellConditions(sys::JutulSystem; kwarg...)
+    s = JutulStorage()
+    return SurfaceWellConditions(s)
+end
+
+include("separator.jl")
 
 # Total velocity in each well segment
-struct TotalMassFlux <: ScalarVariable
-    scale
-    max_abs
-    max_rel
+struct TotalMassFlux{R} <: ScalarVariable
+    scale::Union{Nothing, R}
+    max_abs::Union{Nothing, R}
+    max_rel::Union{Nothing, R}
     function TotalMassFlux(;scale = 3600*24, max_abs = nothing, max_rel = nothing)
-        new(scale, max_abs, max_rel)
+        new{Float64}(scale, max_abs, max_rel)
     end
 end
 
@@ -224,10 +237,16 @@ function number_of_cells(W::WellDomain)
 end
 
 function declare_entities(W::WellDomain)
+    np = length(W.perforations.self)
     c = (entity = Cells(),         count = number_of_cells(W))
     f = (entity = Faces(),         count = number_of_faces(W))
-    p = (entity = Perforations(),  count = length(W.perforations.self))
-    return [c, f, p]
+    t = (entity = SurfaceNode(),   count = 1)
+    p = (entity = Perforations(),  count = np)
+    return [c, f, t, p]
+end
+
+function Jutul.select_secondary_variables!(S, D::WellDomain, model)
+    S[:SurfaceWellConditions] = SurfaceWellConditions(model.system)
 end
 
 Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::Union{ImmiscibleSystem, SinglePhaseSystem}, state_res, state_well, rhoS, conn)

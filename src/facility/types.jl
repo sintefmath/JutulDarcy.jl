@@ -22,6 +22,11 @@ Perforations are connections from well cells to reservoir vcells
 """
 struct Perforations <: JutulEntity end
 
+"""
+Surface node is for properties at the collection point for the well
+"""
+struct SurfaceNode <: JutulEntity end
+
 struct WellIndices <: ScalarVariable end
 Jutul.minimum_value(::WellIndices) = eps()
 Jutul.variable_scale(::WellIndices) = 1e-10
