@@ -68,3 +68,28 @@ function Jutul.value(tc::TopConditions{N, <:ForwardDiff.Dual}) where N
     v = value.(tc.volume_fractions)
     return TopConditions(N, Float64, density = d, volume_fractions = v)
 end
+
+function add_separator_stage!(var::SurfaceWellConditions, cond = default_surface_cond(), dest = (0, 0); clear = false)
+    sc = var.separator_conditions
+    t = var.separator_targets
+
+    @assert cond.p > 0.0
+    @assert cond.T > 0.0
+    for i in dest
+        @assert i >= 0
+        @assert i < length(sc)
+    end
+    if clear
+        empty!(sc)
+        empty!(t)
+    end
+    @assert length(t) == length(sc)
+    push!(sc, cond)
+    push!(t, dest)
+    return var
+end
+
+function add_separator_stage!(model::SimulationModel, arg...)
+    add_separator_stage!(model[:SurfaceWellConditions], arg...)
+    return model
+end

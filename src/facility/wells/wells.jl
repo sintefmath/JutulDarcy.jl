@@ -15,16 +15,20 @@ Two point approximation with flux for wells
 """
 struct MixedWellSegmentFlow <: WellPotentialFlowDiscretization end
 
-struct SurfaceWellConditions{T} <: ScalarVariable
+struct SurfaceWellConditions{T, R} <: ScalarVariable
     storage::T
-    function SurfaceWellConditions(S::T) where T<:JutulStorage
-        new{T}(S)
+    separator_conditions::Vector{NamedTuple{(:p, :T), Tuple{R, R}}}
+    separator_targets::Vector{Tuple{Int, Int}}
+    function SurfaceWellConditions(S::T, c, t, R::DataType = Float64) where T<:JutulStorage
+        new{T, R}(S, c, t)
     end
 end
 
 function SurfaceWellConditions(sys::JutulSystem; kwarg...)
     s = JutulStorage()
-    return SurfaceWellConditions(s)
+    cond = [default_surface_cond()]
+    targets = [(0, 0)]
+    return SurfaceWellConditions(s, cond, targets)
 end
 
 include("separator.jl")
