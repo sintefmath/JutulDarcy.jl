@@ -240,9 +240,8 @@ function declare_entities(W::WellDomain)
     np = length(W.perforations.self)
     c = (entity = Cells(),         count = number_of_cells(W))
     f = (entity = Faces(),         count = number_of_faces(W))
-    t = (entity = SurfaceNode(),   count = 1)
     p = (entity = Perforations(),  count = np)
-    return [c, f, t, p]
+    return [c, f, p]
 end
 
 function Jutul.select_secondary_variables!(S, D::WellDomain, model)
