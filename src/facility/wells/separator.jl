@@ -3,7 +3,8 @@ struct TopConditions{N, R}
     volume_fractions::SVector{N, R}
     function TopConditions(n::Int, R::DataType = Float64; density = missing, volume_fractions = missing)
         function internal_convert(x::Missing)
-            return @SVector zeros(R, n)
+            x = @SVector ones(R, n)
+            return x./n
         end
         function internal_convert(x)
             x0 = x
@@ -32,6 +33,10 @@ function update_secondary_variable!(x::Vector{TopConditions{N, R}}, var::Surface
     rhoS = reference_densities(model.system)
     rhoS, vol = flash_wellstream_at_surface(model, model.system, state, rhoS)
     x[1] = TopConditions(N, R, density = rhoS, volume_fractions = vol)
+end
+
+function Jutul.get_dependencies(x::SurfaceWellConditions, model)
+    return [:TotalMasses]
 end
 
 function initialize_variable_ad!(state, model, pvar::SurfaceWellConditions, symb, npartials, diag_pos; context = DefaultContext(), kwarg...)
