@@ -216,6 +216,27 @@ function get_well_from_mrst_data(
     end
     W_domain = discretized_domain_well(W, z = z)
     wmodel = SimulationModel(W_domain, wsys; kwarg...)
+    if haskey(mrst_data["deck"], "SOLUTION")
+        sol = mrst_data["deck"]["SOLUTION"]
+        if haskey(sol, "FIELDSEP")
+            fsep = sol["FIELDSEP"]
+            stage = Int.(fsep[:, 1])
+            T = fsep[:, 2]
+            p = fsep[:, 3]
+            liquid_dest = Int.(fsep[:, 4])
+            vapor_dest = Int.(fsep[:, 5])
+            n = length(stage)
+            for i in eachindex(stage)
+                cond = (p = p[i], T = T[i])
+                l = liquid_dest[i]
+                if l == 0 && i < n
+                    l = i+1
+                end
+                v = vapor_dest[i]
+                add_separator_stage!(wmodel, cond, (l, v), clear = i == 1)
+            end
+        end
+    end
     if extraout
         out = (wmodel, W_mrst, vec(reservoir_cells))
     else
