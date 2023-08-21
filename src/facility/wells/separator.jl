@@ -77,7 +77,6 @@ function add_separator_stage!(var::SurfaceWellConditions, cond = default_surface
     @assert cond.T > 0.0
     for i in dest
         @assert i >= 0
-        @assert i < length(sc)
     end
     if clear
         empty!(sc)
@@ -89,7 +88,7 @@ function add_separator_stage!(var::SurfaceWellConditions, cond = default_surface
     return var
 end
 
-function add_separator_stage!(model::SimulationModel, arg...)
-    add_separator_stage!(model[:SurfaceWellConditions], arg...)
+function add_separator_stage!(model::SimulationModel, arg...; kwarg...)
+    add_separator_stage!(model[:SurfaceWellConditions], arg...; kwarg...)
     return model
 end
