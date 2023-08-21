@@ -377,3 +377,8 @@ end
 function flash_wellstream_at_surface(well_model, system::SinglePhaseSystem, well_state, rhoS)
     return (rhoS, [1.0])
 end
+
+function surface_density_and_volume_fractions(state)
+    x = only(state.SurfaceWellConditions)
+    return (x.density, x.volume_fractions)
+end

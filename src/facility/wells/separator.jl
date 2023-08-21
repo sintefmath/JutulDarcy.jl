@@ -28,16 +28,10 @@ function initialize_variable_value(model, pvar::SurfaceWellConditions, val::Abst
     initialize_variable_value(model, pvar, [default_value(model, pvar)])
 end
 
-# function Jutul.values_per_entity(model, ::SurfaceWellConditions)
-#     return 1
-# end
-
 function update_secondary_variable!(x::Vector{TopConditions{N, R}}, var::SurfaceWellConditions, model, state, ix) where {N, R}
     rhoS = reference_densities(model.system)
     rhoS, vol = flash_wellstream_at_surface(model, model.system, state, rhoS)
     x[1] = TopConditions(N, R, density = rhoS, volume_fractions = vol)
-    # error("Hei")
-
 end
 
 function initialize_variable_ad!(state, model, pvar::SurfaceWellConditions, symb, npartials, diag_pos; context = DefaultContext(), kwarg...)

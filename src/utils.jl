@@ -605,7 +605,7 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
                 end
                 control = gforce.control[well_symbol]
                 current_control = replace_target(control, BottomHolePressureTarget(1.0))
-                rhoS, S = flash_wellstream_at_surface(well_model, well_state, rhoS_o)
+                rhoS, S = surface_density_and_volume_fractions(well_state)
                 v = well_target_value(q_t, current_control, target_limit, well_model, well_state, rhoS, S)
                 d[i] = v
             end
