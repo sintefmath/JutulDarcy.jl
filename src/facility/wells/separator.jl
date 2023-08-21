@@ -47,3 +47,9 @@ function Base.convert(::Type{TopConditions{N, Float64}}, v::TopConditions{N, <:F
     s = value.(v.volume_fractions)
     return TopConditions(N, Float64, density = rho, volume_fractions = s)
 end
+
+function Jutul.value(tc::TopConditions{N, <:ForwardDiff.Dual}) where N
+    d = value.(tc.density)
+    v = value.(tc.volume_fractions)
+    return TopConditions(N, Float64, density = d, volume_fractions = v)
+end
