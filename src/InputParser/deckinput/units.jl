@@ -45,6 +45,7 @@ Base.@kwdef struct DeckUnitSystem{S, T}
     rock_conductivity::T = 1.0
     volume_heat_capacity::T = 1.0
     mass_heat_capacity::T = 1.0
+    molar_mass::T = 1.0
     relative_temperature::Symbol = :Celsius
     absolute_temperature::Symbol = :Kelvin
 end
@@ -75,6 +76,7 @@ function DeckUnitSystem(sys::Symbol, T = Float64)
         time = day
         pressure = u[:bar]
         mol = u[:kilo]
+        molar_mass = 1/(mol)
         mass = kilogram
         viscosity = cP
         surface_tension = u[:newton]/m
@@ -94,6 +96,7 @@ function DeckUnitSystem(sys::Symbol, T = Float64)
         time = day
         pressure = psi
         mol = pound*kilo
+        molar_mass = 1/(mol)
         mass = pound
         viscosity = cP
         surface_tension = u[:lbf]/u[:inch]
@@ -128,6 +131,7 @@ function DeckUnitSystem(sys::Symbol, T = Float64)
         rock_conductivity = 1.0
         volume_heat_capacity = 1.0
         mass_heat_capacity = 1.0
+        molar_mass = 1.0
         relative_temperature = :Celsius
         absolute_temperature = :Kelvin
     end
@@ -160,6 +164,7 @@ function DeckUnitSystem(sys::Symbol, T = Float64)
         gas_volume_reservoir = gas_volume_reservoir,
         gas_formation_volume_factor = gas_volume_reservoir/gas_volume_surface,
         volume = volume,
+        molar_mass = molar_mass,
         transmissibility = transmissibility,
         rock_conductivity = rock_conductivity,
         volume_heat_capacity = volume_heat_capacity,
@@ -267,4 +272,8 @@ end
 
 function deck_unit(sys::DeckUnitSystem, ::Val{:gas_rate_reservoir})
     return deck_unit(sys, :gas_volume_reservoir)/deck_unit(sys, :time)
+end
+
+function deck_unit(sys::DeckUnitSystem, ::Val{:critical_volume})
+    return deck_unit(sys, :volume)/deck_unit(sys, :mol)
 end

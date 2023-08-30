@@ -337,7 +337,11 @@ end
 
 function number_of_tables(outer_data, t::Symbol)
     rs = outer_data["RUNSPEC"]
-    td = rs["TABDIMS"]
+    if haskey(rs, "TABDIMS")
+        td = rs["TABDIMS"]
+    else
+        td = [1 1]
+    end
     if t == :saturation
         return td[1]
     elseif t == :pvt
@@ -351,6 +355,10 @@ function number_of_tables(outer_data, t::Symbol)
     else
         error(":$t is not known")
     end
+end
+
+function compositional_number_of_components(outer_data)
+    return outer_data["RUNSPEC"]["COMPS"]
 end
 
 function table_region(outer_data, t::Symbol; active = nothing)

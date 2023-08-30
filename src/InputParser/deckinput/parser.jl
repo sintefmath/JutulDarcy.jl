@@ -23,7 +23,7 @@ end
 function parse_data_file!(outer_data, filename, data = outer_data;
         skip_mode = false,
         verbose = false,
-        sections = [:RUNSPEC, :GRID, :PROPS, :REGIONS, :SOLUTION, :SCHEDULE],
+        sections = [:RUNSPEC, :GRID, :PROPS, :REGIONS, :SOLUTION, :SCHEDULE, :EDIT],
         skip = [:SUMMARY],
         units::Union{Symbol, Nothing} = :si,
         input_units::Union{Symbol, Nothing} = nothing,
