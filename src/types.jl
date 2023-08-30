@@ -401,3 +401,40 @@ function ReservoirSimResult(model, result::Jutul.SimResult, forces, extra = Dict
     return ReservoirSimResult(wells, res_states, report_time, result, extra)
 end
 
+struct TopConditions{N, R}
+    density::SVector{N, R}
+    volume_fractions::SVector{N, R}
+    function TopConditions(n::Int, R::DataType = Float64; density = missing, volume_fractions = missing)
+        function internal_convert(x::Missing)
+            x = @SVector ones(R, n)
+            return x./n
+        end
+        function internal_convert(x)
+            x0 = x
+            @assert length(x0) == n
+            x = @MVector zeros(R, n)
+            @. x = x0
+            return SVector(x)
+        end
+        density = internal_convert(density)
+        volume_fractions = internal_convert(volume_fractions)
+        return new{n, R}(density, volume_fractions)
+    end
+end
+
+
+struct SurfaceWellConditions{T, R} <: ScalarVariable
+    storage::T
+    separator_conditions::Vector{NamedTuple{(:p, :T), Tuple{R, R}}}
+    separator_targets::Vector{Tuple{Int, Int}}
+    function SurfaceWellConditions(S::T, c, t, R::DataType = Float64) where T<:JutulStorage
+        new{T, R}(S, c, t)
+    end
+end
+
+function SurfaceWellConditions(sys::JutulSystem; kwarg...)
+    s = JutulStorage()
+    cond = [default_surface_cond()]
+    targets = [(0, 0)]
+    return SurfaceWellConditions(s, cond, targets)
+end

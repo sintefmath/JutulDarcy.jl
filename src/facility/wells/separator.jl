@@ -1,24 +1,3 @@
-struct TopConditions{N, R}
-    density::SVector{N, R}
-    volume_fractions::SVector{N, R}
-    function TopConditions(n::Int, R::DataType = Float64; density = missing, volume_fractions = missing)
-        function internal_convert(x::Missing)
-            x = @SVector ones(R, n)
-            return x./n
-        end
-        function internal_convert(x)
-            x0 = x
-            @assert length(x0) == n
-            x = @MVector zeros(R, n)
-            @. x = x0
-            return SVector(x)
-        end
-        density = internal_convert(density)
-        volume_fractions = internal_convert(volume_fractions)
-        return new{n, R}(density, volume_fractions)
-    end
-end
-
 function default_value(model, ::SurfaceWellConditions)
     rho = reference_densities(model.system)
     return TopConditions(length(rho), density = rho, volume_fractions = missing)
