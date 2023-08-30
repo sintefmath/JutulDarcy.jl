@@ -254,8 +254,7 @@ function parse_physics_types(datafile)
     has_vapoil = has("VAPOIL")
 
     is_immiscible = !has_disgas && !has_vapoil
-    # TODO: compositional detection
-    # is_compositional = haskey(mrst_data, "mixture")
+    is_compositional = haskey(runspec, "COMPS")
 
     phases = []
     rhoS = Vector{Float64}()
