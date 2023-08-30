@@ -284,35 +284,76 @@ function parse_physics_types(datafile)
         push!(rhoS, rhoWS)
     end
 
-    if has_oil
-        push!(pvt, JutulDarcy.deck_pvt_oil(props))
+    if is_compositional
+        push!(pvt, missing)
         push!(phases, LiquidPhase())
         push!(rhoS, rhoOS)
-    end
-
-    if has_gas
-        push!(pvt, JutulDarcy.deck_pvt_gas(props))
+        push!(pvt, missing)
         push!(phases, VaporPhase())
         push!(rhoS, rhoGS)
-    end
-    if is_immiscible
-        sys = ImmiscibleSystem(phases, reference_densities = rhoS)
+
+        cnames = props["CNAMES"]
+        acf = props["ACF"]
+        mw = props["MW"]
+        p_c = props["PCRIT"]
+        V_c = props["VCRIT"]
+        T_c = props["TCRIT"]
+
+        if haskey(props, "BIC")
+            A_ij = props["BIC"]
+        else
+            A_ij = nothing
+        end
+        mp = MolecularProperty.(mw, p_c, T_c, V_c, acf)
+        mixture = MultiComponentMixture(mp, A_ij = A_ij, names = cnames)
+        if haskey(props, "EOS")
+            eos_str = lowercase(props["EOS"])
+            if eos_str == "pr"
+                eos_type = PengRobinson()
+            elseif eos_str == "srk"
+                eos_type = SoaveRedlichKwong()
+            elseif eos_str == "rk"
+                eos_type = RedlichKwong()
+            else
+                @assert eos_str == "zj"
+                eos_type = ZudkevitchJoffe()
+            end
+        else
+            eos_type = PengRobinson()
+        end
+        eos = GenericCubicEOS(mixture, eos_type)
+        sys = MultiPhaseCompositionalSystemLV(eos, phases, reference_densities = rhoS)
     else
-        has_water = length(pvt) == 3
-        oil_pvt = pvt[1 + has_water]
-        if oil_pvt isa JutulDarcy.PVTO
-            rs_max = JutulDarcy.saturated_table(oil_pvt)
-        else
-            rs_max = nothing
+        if has_oil
+            push!(pvt, JutulDarcy.deck_pvt_oil(props))
+            push!(phases, LiquidPhase())
+            push!(rhoS, rhoOS)
         end
-        gas_pvt = pvt[2 + has_water]
-        if gas_pvt isa JutulDarcy.PVTG
-            rv_max = JutulDarcy.saturated_table(gas_pvt)
-        else
-            rv_max = nothing
+
+        if has_gas
+            push!(pvt, JutulDarcy.deck_pvt_gas(props))
+            push!(phases, VaporPhase())
+            push!(rhoS, rhoGS)
         end
-        sys = JutulDarcy.StandardBlackOilSystem(rs_max = rs_max, rv_max = rv_max, phases = phases,
-                                     reference_densities = rhoS)
+        if is_immiscible
+            sys = ImmiscibleSystem(phases, reference_densities = rhoS)
+        else
+            has_water = length(pvt) == 3
+            oil_pvt = pvt[1 + has_water]
+            if oil_pvt isa JutulDarcy.PVTO
+                rs_max = JutulDarcy.saturated_table(oil_pvt)
+            else
+                rs_max = nothing
+            end
+            gas_pvt = pvt[2 + has_water]
+            if gas_pvt isa JutulDarcy.PVTG
+                rv_max = JutulDarcy.saturated_table(gas_pvt)
+            else
+                rv_max = nothing
+            end
+            sys = JutulDarcy.StandardBlackOilSystem(rs_max = rs_max, rv_max = rv_max, phases = phases,
+                                        reference_densities = rhoS)
+        end
     end
 
     return (system = sys, pvt = pvt)
