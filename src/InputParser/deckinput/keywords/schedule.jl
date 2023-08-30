@@ -225,3 +225,26 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:NUPCOL})
     data["NUPCOL"] = only(parse_defaulted_line(rec, tdims))
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WELLSTRE})
+    n = compositional_number_of_components(outer_data)
+    defaults = ["DEFAULT", 0.0]
+    for i in 1:(n-1)
+        push!(defaults, 0.0)
+    end
+    rec = parse_defaulted_group(f, defaults)
+    for r in rec
+        sum = 0.0
+        for i in 1:n
+            sum += r[i+1]
+        end
+        @assert sum ≈ 1.0 "Compositions in well stream $(r[1]) defined by WELLSTRE must sum up to one (was $sum)"
+    end
+    data["WELLSTRE"] = rec
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WINJGAS})
+    defaults = ["Default", "GRUP", "Default", "Default", 0]
+    wells = get_wells(outer_data)
+    d = parse_defaulted_group_well(f, defaults, wells, 1)
+    data["WINJGAS"] = d
+end

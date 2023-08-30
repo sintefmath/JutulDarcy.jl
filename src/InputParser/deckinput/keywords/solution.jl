@@ -25,6 +25,26 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:SWAT})
     data["SWAT"] = parse_grid_vector(f, outer_data["GRID"]["cartDims"], Float64)
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:TEMPI})
+    T_i = parse_grid_vector(f, outer_data["GRID"]["cartDims"], Float64)
+    swap_unit_system!(T_i, units, :relative_temperature)
+    data["TEMPI"] = T_i
+end
+
+function parse_mole_fractions!(f, outer_data)
+    d = outer_data["GRID"]["cartDims"]
+    nc = compositional_number_of_components(outer_data)
+    return parse_grid_vector(f, (d[1], d[2], d[3], nc), Float64)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:XMF})
+    data["XMF"] = parse_mole_fractions!(f, outer_data)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:YMF})
+    data["YMF"] = parse_mole_fractions!(f, outer_data)
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PRESSURE})
     p = parse_grid_vector(f, outer_data["GRID"]["cartDims"], Float64)
     swap_unit_system!(p, units, :pressure)

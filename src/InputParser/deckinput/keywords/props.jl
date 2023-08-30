@@ -19,6 +19,13 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:EOS})
     data["EOS"] = only(rec)
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:STCOND})
+    std = parse_deck_vector(f)
+    @assert length(std) == 2
+    swap_unit_system_axes!(std, units, [:relative_temperature, :pressure])
+    data["STCOND"] = std
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:BIC})
     n = compositional_number_of_components(outer_data)
     bic = parse_deck_vector(f)
