@@ -218,26 +218,44 @@ end
 
 function parse_reservoir(data_file)
     grid = data_file["GRID"]
-    coord = grid["COORD"]
-    zcorn = grid["ZCORN"]
-    actnum = grid["ACTNUM"]
     cartdims = grid["cartDims"]
-    primitives = JutulDarcy.cpgrid_primitives(coord, zcorn, cartdims, actnum = actnum)
-    G = JutulDarcy.grid_from_primitives(primitives)
-
+    if haskey(grid, "ACTNUM")
+        actnum = grid["ACTNUM"]
+    else
+        actnum = fill(true, prod(cartdims))
+    end
+    if haskey(grid, "COORD")
+        coord = grid["COORD"]
+        zcorn = grid["ZCORN"]
+        primitives = JutulDarcy.cpgrid_primitives(coord, zcorn, cartdims, actnum = actnum)
+        G = JutulDarcy.grid_from_primitives(primitives)
+        active_ix = G.cell_map
+    else
+        @assert haskey(grid, "DX")
+        @assert haskey(grid, "DY")
+        @assert haskey(grid, "DZ")
+        @assert haskey(grid, "TOPS")
+        @warn "DX+DY+DZ+TOPS format is only supported if all cells are equally sized. If you get an error, this is the cause."
+        @assert all(actnum)
+        dx = only(unique(grid["DX"]))
+        dy = only(unique(grid["DY"]))
+        dz = only(unique(grid["DZ"]))
+        tops = only(unique(grid["TOPS"]))
+        G = CartesianMesh(cartdims, cartdims.*(dx, dy, dz))
+        active_ix = 1:number_of_cells(G)
+    end
     nc = number_of_cells(G)
-    ix = G.cell_map
     # TODO: PERMYY etc for full tensor perm
     perm = zeros(3, nc)
     poro = zeros(nc)
-    for (i, c) in enumerate(G.cell_map)
+    for (i, c) in enumerate(active_ix)
         perm[1, i] = grid["PERMX"][c]
         perm[2, i] = grid["PERMY"][c]
         perm[3, i] = grid["PERMZ"][c]
         poro[i] = grid["PORO"][c]
     end
-    satnum = JutulDarcy.InputParser.table_region(data_file, :saturation, active = G.cell_map)
-    eqlnum = JutulDarcy.InputParser.table_region(data_file, :equil, active = G.cell_map)
+    satnum = JutulDarcy.InputParser.table_region(data_file, :saturation, active = active_ix)
+    eqlnum = JutulDarcy.InputParser.table_region(data_file, :equil, active = active_ix)
 
     domain = reservoir_domain(G, permeability = perm, porosity = poro, satnum = satnum, eqlnum = eqlnum)
 end
