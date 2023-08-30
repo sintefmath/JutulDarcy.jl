@@ -50,16 +50,6 @@ function flash_wellstream_at_surface(well_model, sys::S, well_state, rhoS) where
     return (rho, volfrac)
 end
 
-function update_secondary_variable!(x::Vector{TopConditions{N, R}}, var::SurfaceWellConditions, model::CompositionalModel, state, ix) where {N, R}
-    if length(var.separator_conditions) > 1
-        @info "Compositional separator found, not implemented yet." var.separator_conditions var.separator_targets
-        error()
-    end
-    rhoS = reference_densities(model.system)
-    rhoS, vol = flash_wellstream_at_surface(model, model.system, state, rhoS)
-    x[1] = TopConditions(N, R, density = rhoS, volume_fractions = vol)
-end
-
 Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::CompositionalSystem, state_res, state_well, rhoS, conn)
     rc = conn.reservoir
     wc = conn.well

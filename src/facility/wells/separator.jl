@@ -15,9 +15,21 @@ function initialize_variable_value(model, pvar::SurfaceWellConditions, val::Vect
 end
 
 function update_secondary_variable!(x::Vector{TopConditions{N, R}}, var::SurfaceWellConditions, model, state, ix) where {N, R}
+    nstages = length(var.separator_conditions)
+    if nstages == 0
+        first_time_surface_well_setup!(var, model, state)
+    elseif nstages > 1
+        error("Separator system found, not implemented yet")
+    end
     rhoS = reference_densities(model.system)
     rhoS, vol = flash_wellstream_at_surface(model, model.system, state, rhoS)
     x[1] = TopConditions(N, R, density = rhoS, volume_fractions = vol)
+end
+
+function first_time_surface_well_setup!(var, model, state)
+    sc = physical_representation(model).surface
+    push!(var.separator_conditions, sc)
+    push!(var.separator_targets, (0, 0))
 end
 
 function Jutul.default_values(model, var::SurfaceWellConditions)

@@ -434,7 +434,8 @@ end
 
 function SurfaceWellConditions(sys::JutulSystem; kwarg...)
     s = JutulStorage()
-    cond = [default_surface_cond()]
-    targets = [(0, 0)]
+    S_t = typeof(default_surface_cond())
+    cond = S_t[]
+    targets = Tuple{Int, Int}[]
     return SurfaceWellConditions(s, cond, targets)
 end
