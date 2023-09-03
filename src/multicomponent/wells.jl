@@ -154,6 +154,7 @@ function separator_surface_flash!(var, model, system::MultiPhaseCompositionalSys
     T = eltype(z)
     nph = length(surface_moles)
     rhoS = @MVector zeros(T, nph)
+    vol = @MVector zeros(T, nph)
     for ph in eachindex(surface_moles)
         sm = surface_moles[ph]
         z = sm./sum(sm)
@@ -164,13 +165,9 @@ function separator_surface_flash!(var, model, system::MultiPhaseCompositionalSys
             LV = result.vapor
         end
         rhoS[ph] = mass_density(eos, cond.p, cond.T, LV)
-
-        # rhoS = mass_densities(eos, cond.p, cond.T, result)
-
+        vol[ph] = molar_volume(eos, cond.p, cond.T, LV)
     end
-    @warn "Done." rhoS
-    @assert all(isequal(0), targets)
-    error("Implementation not complete")
+    return (rhoS, vol)
 end
 
 function separator_flash!(flash, eos, cond, z)
@@ -185,14 +182,12 @@ function separator_flash!(flash, eos, cond, z)
 end
 
 function flash_stream!(moles::SVector{N, T}, flash, eos, cond) where {N, T}
-    @info "Flashing at $cond" moles
-
     total_moles = sum(moles)
     if total_moles ≈ 0
         fstorage, buf, f = flash
         x = f.liquid.mole_fractions
         y = f.vapor.mole_fractions
-    
+
         q_l = q_v = zero(T)
         @. x = zero(T)
         @. y = zero(T)
@@ -200,14 +195,8 @@ function flash_stream!(moles::SVector{N, T}, flash, eos, cond) where {N, T}
     else
         z = moles./total_moles
         result = separator_flash!(flash, eos, cond, z)
-        # rho, rho = mass_densities(eos, Pressure, Temperature, result)
-        # S_l, S_v = phase_saturations(eos, Pressure, Temperature, result)
-
         V = result.V
         L = one(V) - V
-
-        # rho_l = molar_volume(eos, Pressure, Temperature, f.liquid)
-        # rho_v = molar_volume(eos, Pressure, Temperature, f.vapor)
 
         x = result.liquid.mole_fractions
         y = result.vapor.mole_fractions
