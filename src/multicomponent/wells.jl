@@ -129,59 +129,81 @@ function separator_surface_flash!(var, model, system::MultiPhaseCompositionalSys
     z = SVector{nc}(state.OverallMoleFractions[:, 1])
     F = get_separator_flash_buffer(var, system, z)
 
-    moles = get_separator_buffers(var, z)
+    moles, surface_moles = get_separator_buffers(var, z, 2)
     moles[1] = z
     n_stage = length(var.separator_conditions)
     for i in 1:n_stage
         cond = var.separator_conditions[i]
-        streams, mole_fractions, result = flash_stream!(moles[i], F, eos, cond)
+        streams, mole_fractions = flash_stream!(moles[i], F, eos, cond)
         targets = var.separator_targets[i]
-        if i == n_stage
-            # Final stage means we are done.
-            rhoS = mass_densities(eos, cond.p, cond.T, result)
-            @warn "Done." targets mole_fractions[end] rhoS
-            @assert all(isequal(0), targets)
-            error("Implementation not complete")
-        else
-            for ph in eachindex(targets)
-                dest = targets[ph]
-                if dest == 0
-                    # TODO: Clean up this logic.
-                    dest = n_stage
-                end
+        for ph in eachindex(targets)
+            dest = targets[ph]
+            q = streams[ph].*mole_fractions[ph]
+            if dest == 0
+                surface_moles[ph] += q
+            else
                 @assert dest > i "Destination was $dest for stage $i"
-                moles[dest] += streams[ph].*mole_fractions[ph]
+                moles[dest] += q
             end
         end
     end
+    # TODO: This is wrong, need to also have moles for each surface stream and account for how much you get there.
+    cond = physical_representation(model.domain).surface
+    # fstorage, buf, f = flash
+
+    T = eltype(z)
+    nph = length(surface_moles)
+    rhoS = @MVector zeros(T, nph)
+    for ph in eachindex(surface_moles)
+        sm = surface_moles[ph]
+        z = sm./sum(sm)
+        result = separator_flash!(F, eos, cond, z)
+        if ph == 1
+            LV = result.liquid
+        else
+            LV = result.vapor
+        end
+        rhoS[ph] = mass_density(eos, cond.p, cond.T, LV)
+
+        # rhoS = mass_densities(eos, cond.p, cond.T, result)
+
+    end
+    @warn "Done." rhoS
+    @assert all(isequal(0), targets)
+    error("Implementation not complete")
+end
+
+function separator_flash!(flash, eos, cond, z)
+    fstorage, buf, f = flash
+    x = f.liquid.mole_fractions
+    y = f.vapor.mole_fractions
+    Pressure = cond.p
+    Temperature = cond.T
+    update_flash_buffer!(buf, eos, Pressure, Temperature, z)
+    forces = buf.forces
+    return update_flash_result(fstorage, SSIFlash(), eos, f.K, x, y, buf.z, forces, Pressure, Temperature, z)
 end
 
 function flash_stream!(moles::SVector{N, T}, flash, eos, cond) where {N, T}
     @info "Flashing at $cond" moles
-    fstorage, buf, f = flash
-    x = f.liquid.mole_fractions
-    y = f.vapor.mole_fractions
 
     total_moles = sum(moles)
     if total_moles ≈ 0
+        fstorage, buf, f = flash
+        x = f.liquid.mole_fractions
+        y = f.vapor.mole_fractions
+    
         q_l = q_v = zero(T)
         @. x = zero(T)
         @. y = zero(T)
         result = f
     else
         z = moles./total_moles
-        Pressure = cond.p
-        Temperature = cond.T
-        update_flash_buffer!(buf, eos, Pressure, Temperature, z)
-
-        forces = buf.forces
-
-        result = update_flash_result(fstorage, SSIFlash(), eos, f.K, x, y, buf.z, forces, Pressure, Temperature, z)
-
+        result = separator_flash!(flash, eos, cond, z)
         # rho, rho = mass_densities(eos, Pressure, Temperature, result)
         # S_l, S_v = phase_saturations(eos, Pressure, Temperature, result)
 
-        V = f.V
+        V = result.V
         L = one(V) - V
 
         # rho_l = molar_volume(eos, Pressure, Temperature, f.liquid)
@@ -194,7 +216,7 @@ function flash_stream!(moles::SVector{N, T}, flash, eos, cond) where {N, T}
         q_v = total_moles.*V
     end
 
-    return ((q_l, q_v), (x, y), result)
+    return ((q_l, q_v), (x, y))
 end
 
 function get_separator_flash_buffer(var, system, z)
@@ -213,7 +235,7 @@ function get_separator_flash_buffer(var, system, z)
     return s[:flash_storage]
 end
 
-function get_separator_buffers(var, z::T) where T
+function get_separator_buffers(var, z::T, nph) where T
     # TODO: Deal with varying AD inputs in this function and the flash one.
     s = var.storage
     n = length(var.separator_conditions)
@@ -222,5 +244,6 @@ function get_separator_buffers(var, z::T) where T
     end
     moles = s[:mole_stages]
     @. moles = zero(T)
-    return moles
+    surface_moles = [zero(T) for ph in 1:nph]
+    return (moles, surface_moles)
 end
