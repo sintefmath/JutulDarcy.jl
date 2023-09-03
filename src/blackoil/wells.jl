@@ -142,7 +142,7 @@ Base.@propagate_inbounds function simple_well_perforation_flux!(out, sys::Standa
     out[v] = Q_v
 end
 
-function flash_wellstream_at_surface(well_model, system::S, well_state, rhoS) where S<:BlackOilSystem
+function flash_wellstream_at_surface(well_model, system::S, well_state, rhoS, cond = default_surface_cond()) where S<:BlackOilSystem
     if haskey(well_state, :MassFractions)
         X = well_state.MassFractions
     else

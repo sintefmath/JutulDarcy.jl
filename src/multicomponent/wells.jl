@@ -1,4 +1,4 @@
-function flash_wellstream_at_surface(well_model, sys::S, well_state, rhoS) where S<:MultiComponentSystem
+function flash_wellstream_at_surface(well_model, sys::S, well_state, rhoS, cond = default_surface_cond()) where S<:MultiComponentSystem
     total_masses = well_state.TotalMasses
     T = eltype(total_masses)
     nph = length(rhoS)
@@ -24,9 +24,8 @@ function flash_wellstream_at_surface(well_model, sys::S, well_state, rhoS) where
     end
     buf = InPlaceFlashBuffer(nc)
 
-    sc = physical_representation(well_model).surface
-    Pressure = sc.p
-    Temperature = sc.T
+    Pressure = cond.p
+    Temperature = cond.T
 
     z = SVector{nc}(well_state.OverallMoleFractions[:, 1])
     m = SSIFlash()

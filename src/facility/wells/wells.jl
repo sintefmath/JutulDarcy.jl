@@ -350,18 +350,18 @@ function apply_perforation_mask!(storage::NamedTuple, mask::AbstractVector)
     end
 end
 
-function flash_wellstream_at_surface(well_model, well_state, rhoS)
+function flash_wellstream_at_surface(well_model, well_state, rhoS, cond = default_surface_cond())
     fsys = flow_system(well_model.system)
     return flash_wellstream_at_surface(well_model, fsys, well_state, rhoS)
 end
 
-function flash_wellstream_at_surface(well_model, system::ImmiscibleSystem, well_state, rhoS)
+function flash_wellstream_at_surface(well_model, system::ImmiscibleSystem, well_state, rhoS, cond = default_surface_cond())
     vol = well_state.TotalMasses[:, 1]./rhoS
     volfrac = vol./sum(vol)
     return (rhoS, volfrac)
 end
 
-function flash_wellstream_at_surface(well_model, system::SinglePhaseSystem, well_state, rhoS)
+function flash_wellstream_at_surface(well_model, system::SinglePhaseSystem, well_state, rhoS, cond = default_surface_cond())
     return (rhoS, [1.0])
 end
 
