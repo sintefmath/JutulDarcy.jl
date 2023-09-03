@@ -24,7 +24,7 @@ function update_secondary_variable!(x::Vector{TopConditions{N, R}}, var::Surface
         cond = only(var.separator_conditions)
         rhoS, vol = flash_wellstream_at_surface(model, model.system, state, rhoS, cond)
     else
-        error("Separator system found, not implemented yet")
+        rhoS, vol = separator_surface_flash!(var, model, model.system, state)
     end
     x[1] = TopConditions(N, R, density = rhoS, volume_fractions = vol)
 end

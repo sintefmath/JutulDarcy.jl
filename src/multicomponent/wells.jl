@@ -118,3 +118,82 @@ Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::
     end
 end
 
+
+function separator_surface_flash!(var, model, system::MultiPhaseCompositionalSystemLV, state)
+    # For each stage we need to keep track of:
+    # Total mass / moles
+    # Composition
+    # Can then flash w.r.t. that set of conditions
+    eos = system.equation_of_state
+    nc = MultiComponentFlash.number_of_components(eos)
+    z = SVector{nc}(state.OverallMoleFractions[:, 1])
+    F = get_separator_flash_buffer(var, system, z)
+
+    streams, moles = get_separator_buffers(var, z)
+    moles[1] = z
+    streams[1] = z
+    n_stage = length(var.separator_conditions)
+    for i in 1:n_stage
+        cond = var.separator_conditions[i]
+
+        liquid_stream, vapor_stream = flash_stream!(streams[i], moles[i], F, eos, cond)
+        if i == n_stage
+            # Quit here.
+        end
+    end
+    @info "??" z
+    error("Separator system found, not implemented yet")
+end
+
+function flash_stream!(stream, moles::SVector{N, T}, flash, eos, cond) where {N, T}
+    fstorage, buf, f = flash
+
+    z = moles./sum(moles)
+    Pressure = cond.p
+    Temperature = cond.T
+    update_flash_buffer!(buf, eos, Pressure, Temperature, z)
+
+    x = f.liquid.mole_fractions
+    y = f.vapor.mole_fractions
+    forces = buf.forces
+
+    result = update_flash_result(fstorage, SSIFlash(), eos, f.K, x, y, buf.z, forces, Pressure, Temperature, z)
+
+    rho, rho = mass_densities(eos, Pressure, Temperature, result)
+    S_l, S_v = phase_saturations(eos, Pressure, Temperature, result)
+
+    return (q_l, q_v)
+end
+
+function get_separator_flash_buffer(var, system, z)
+    s = var.storage
+    if !haskey(s, :flash_storage) || true
+        nc = number_of_components(system)
+        n = nc + has_other_phase(system)
+        eos = system.equation_of_state
+        m = SSIFlash()
+        buf = InPlaceFlashBuffer(nc)
+        T = eltype(z)
+        f = FlashedMixture2Phase(eos, T)
+        fstorage = flash_storage(eos, method = m, inc_jac = true, diff_externals = true, npartials = n, static_size = true)    
+        s[:flash_storage] = (fstorage, buf, f)
+    end
+    return s[:flash_storage]
+end
+
+function get_separator_buffers(var, z::T) where T
+    # TODO: Deal with varying AD inputs in this function and the flash one.
+    s = var.storage
+    n = length(var.separator_conditions)
+    if !haskey(s, :mole_stages) || true
+        s[:mole_stages] = zeros(T, n)
+    end
+    if !haskey(s, :mole_streams) || true
+        s[:mole_streams] = zeros(T, n)
+    end
+    moles = s[:mole_stages]
+    @. moles = zero(T)
+    streams = s[:mole_streams]
+    @. streams = zero(T)
+    return (streams, moles)
+end
