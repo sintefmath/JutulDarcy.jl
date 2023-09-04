@@ -170,9 +170,9 @@ function get_separator_intermediate_storage(var, system::MultiPhaseCompositional
     z::Union{AbstractVector, Tuple, NamedTuple}
     T = eltype(z)
     if !haskey(s, T)
-        nc = number_of_components(system)
-        n = nc + has_other_phase(system)
         eos = system.equation_of_state
+        nc = MultiComponentFlash.number_of_components(eos)
+        n = nc + has_other_phase(system)
         m = SSIFlash()
         buf = InPlaceFlashBuffer(nc)
         f = FlashedMixture2Phase(eos, T)
@@ -201,10 +201,10 @@ function compositional_surface_densities(state, system, S_l::S_T, S_v::S_T, rho_
     volume = @MVector zeros(T, nph)
     if has_other_phase(system)
         a, l, v = phase_indices(system)
-        rhoWS = rhoS[a]
+        rhoWS = reference_densities(system)[a]
         # Convert to surface conditions
-        rhoWW = well_state.PhaseMassDensities[a, 1]
-        S_other = well_state.Saturations[a, 1]*rhoWW/rhoWS
+        rhoWW = state.PhaseMassDensities[a, 1]
+        S_other = state.Saturations[a, 1]*rhoWW/rhoWS
         # Surface density given for aqueous phase
         rhoS[a] = rhoWS
         volume[a] = S_other
