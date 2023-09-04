@@ -20,7 +20,7 @@ function update_secondary_variable!(x::Vector{TopConditions{N, R}}, var::Surface
     if nstages == 0
         rhoS = reference_densities(model.system)
         cond = physical_representation(model).surface
-        rhoS, vol = flash_wellstream_at_surface(model, model.system, state, rhoS, cond)
+        rhoS, vol = flash_wellstream_at_surface(var, model, model.system, state, rhoS, cond)
     else
         rhoS, vol = separator_surface_flash!(var, model, model.system, state)
     end

@@ -35,7 +35,7 @@ number_of_components(s::SimpleWellSystem) = s.ncomp
 # number_of_phases(s::SimpleWellSystem) = s.ncomp
 reference_densities(s::SimpleWellSystem) = s.rho_ref
 
-function flash_wellstream_at_surface(well_model, system::SimpleWellSystem, well_state, rhoS, cond = default_surface_cond())
+function flash_wellstream_at_surface(var, well_model, system::SimpleWellSystem, well_state, rhoS, cond = default_surface_cond())
     X = well_state.MassFractions
     vol = X./rhoS
     volfrac = vol./sum(vol)

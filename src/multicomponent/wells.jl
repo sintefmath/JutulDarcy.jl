@@ -1,52 +1,13 @@
-function flash_wellstream_at_surface(well_model, sys::S, well_state, rhoS, cond = default_surface_cond()) where S<:MultiComponentSystem
-    total_masses = well_state.TotalMasses
-    T = eltype(total_masses)
-    nph = length(rhoS)
-    rho = zeros(T, nph)
-    volfrac = zeros(T, nph)
-    eos = sys.equation_of_state
+function flash_wellstream_at_surface(var, well_model, system::S, state, rhoS, cond = default_surface_cond()) where S<:MultiComponentSystem
+    eos = system.equation_of_state
     nc = MultiComponentFlash.number_of_components(eos)
+    z = SVector{nc}(state.OverallMoleFractions[:, 1])
+    flash, _, surface_moles = get_separator_intermediate_storage(var, system, z, 2)
+    result = separator_flash!(flash, eos, cond, z)
+    rho_l, rho_v = mass_densities(eos, cond.p, cond.T, result)
+    S_l, S_v = phase_saturations(eos, cond.p, cond.T, result)
 
-    if nph == 3
-        a, l, v = phase_indices(sys)
-        rhoWS = rhoS[a]
-        # Convert to surface conditions
-        rhoWW = well_state.PhaseMassDensities[a, 1]
-        S_other = well_state.Saturations[a, 1]*rhoWW/rhoWS
-        # Surface density given for aqueous phase
-        rho[a] = rhoWS
-        volfrac[a] = S_other
-        n = nc + 1
-    else
-        l, v = phase_indices(sys)
-        n = nc
-        S_other = zero(T)
-    end
-    buf = InPlaceFlashBuffer(nc)
-
-    Pressure = cond.p
-    Temperature = cond.T
-
-    z = SVector{nc}(well_state.OverallMoleFractions[:, 1])
-    m = SSIFlash()
-    fstorage = flash_storage(eos, method = m, inc_jac = true, diff_externals = true, npartials = n, static_size = true)
-    update_flash_buffer!(buf, eos, Pressure, Temperature, z)
-
-    f = FlashedMixture2Phase(eos, T)
-    x = f.liquid.mole_fractions
-    y = f.vapor.mole_fractions
-    forces = buf.forces
-
-    result = update_flash_result(fstorage, m, eos, f.K, x, y, buf.z, forces, Pressure, Temperature, z)
-
-    rho[l], rho[v] = mass_densities(eos, Pressure, Temperature, result)
-    rem = one(T) - S_other
-    S_l, S_v = phase_saturations(eos, Pressure, Temperature, result)
-
-    volfrac[l] = rem*S_l
-    volfrac[v] = rem*S_v
-    rho = tuple(rho...)
-    return (rho, volfrac)
+    return compositional_surface_densities(state, system, S_l, S_v, rho_l, rho_v)
 end
 
 Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::CompositionalSystem, state_res, state_well, rhoS, conn)
@@ -145,10 +106,8 @@ function separator_surface_flash!(var, model, system::MultiPhaseCompositionalSys
             end
         end
     end
-    # TODO: This is wrong, need to also have moles for each surface stream and account for how much you get there.
+    # Final stage: Flash the tank conditions for each component.
     cond = physical_representation(model.domain).surface
-    # fstorage, buf, f = flash
-
     T = eltype(z)
     nph = length(surface_moles)
     rhoS = @MVector zeros(T, nph)
@@ -165,7 +124,7 @@ function separator_surface_flash!(var, model, system::MultiPhaseCompositionalSys
         rhoS[ph] = mass_density(eos, cond.p, cond.T, LV)
         vol[ph] = molar_volume(eos, cond.p, cond.T, LV)
     end
-    return (rhoS, vol)
+    return compositional_surface_densities(state, system, vol[1], vol[2], rhoS[1], rhoS[2])
 end
 
 function separator_flash!(flash, eos, cond, z)
@@ -198,7 +157,7 @@ function flash_stream!(moles::SVector{N, T}, flash, eos, cond) where {N, T}
 
         x = result.liquid.mole_fractions
         y = result.vapor.mole_fractions
-    
+
         q_l = total_moles.*L
         q_v = total_moles.*V
     end
@@ -206,7 +165,7 @@ function flash_stream!(moles::SVector{N, T}, flash, eos, cond) where {N, T}
     return ((q_l, q_v), (x, y))
 end
 
-function get_separator_intermediate_storage(var, system, z::S, nph) where S
+function get_separator_intermediate_storage(var, system::MultiPhaseCompositionalSystemLV, z::S, nph) where S
     s = var.storage
     z::Union{AbstractVector, Tuple, NamedTuple}
     T = eltype(z)
@@ -233,4 +192,30 @@ function get_separator_intermediate_storage(var, system, z::S, nph) where S
     @. moles = zero(S)
     @. surface = zero(S)
     return (flash, moles, surface)
+end
+
+function compositional_surface_densities(state, system, S_l::S_T, S_v::S_T, rho_l::R_T, rho_v::R_T) where {S_T, R_T}
+    nph = number_of_phases(system)
+    T = promote_type(S_T, R_T)
+    rhoS = @MVector zeros(T, nph)
+    volume = @MVector zeros(T, nph)
+    if has_other_phase(system)
+        a, l, v = phase_indices(system)
+        rhoWS = rhoS[a]
+        # Convert to surface conditions
+        rhoWW = well_state.PhaseMassDensities[a, 1]
+        S_other = well_state.Saturations[a, 1]*rhoWW/rhoWS
+        # Surface density given for aqueous phase
+        rhoS[a] = rhoWS
+        volume[a] = S_other
+        rem = one(T) - S_other
+    else
+        l, v = phase_indices(system)
+        rem = one(T)
+    end
+    rhoS[l] = rho_l
+    rhoS[v] = rho_v
+    volume[l] = S_l*rem
+    volume[v] = S_v*rem
+    return (rhoS, volume)
 end
