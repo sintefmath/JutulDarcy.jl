@@ -127,9 +127,7 @@ function separator_surface_flash!(var, model, system::MultiPhaseCompositionalSys
     eos = system.equation_of_state
     nc = MultiComponentFlash.number_of_components(eos)
     z = SVector{nc}(state.OverallMoleFractions[:, 1])
-    F = get_separator_flash_buffer(var, system, z)
-
-    moles, surface_moles = get_separator_buffers(var, z, 2)
+    F, moles, surface_moles = get_separator_intermediate_storage(var, system, z, 2)
     moles[1] = z
     n_stage = length(var.separator_conditions)
     for i in 1:n_stage
@@ -208,31 +206,31 @@ function flash_stream!(moles::SVector{N, T}, flash, eos, cond) where {N, T}
     return ((q_l, q_v), (x, y))
 end
 
-function get_separator_flash_buffer(var, system, z)
+function get_separator_intermediate_storage(var, system, z::S, nph) where S
     s = var.storage
-    if !haskey(s, :flash_storage) || true
+    z::Union{AbstractVector, Tuple, NamedTuple}
+    T = eltype(z)
+    if !haskey(s, T)
         nc = number_of_components(system)
         n = nc + has_other_phase(system)
         eos = system.equation_of_state
         m = SSIFlash()
         buf = InPlaceFlashBuffer(nc)
-        T = eltype(z)
         f = FlashedMixture2Phase(eos, T)
-        fstorage = flash_storage(eos, method = m, inc_jac = true, diff_externals = true, npartials = n, static_size = true)    
-        s[:flash_storage] = (fstorage, buf, f)
+        fstorage = flash_storage(eos, method = m, inc_jac = true, diff_externals = true, npartials = n, static_size = true)
+        n_stages = length(var.separator_conditions)
+        # Array of vectors, one for each stage
+        moles = zeros(S, n_stages)
+        # Mutable surface moles
+        surface_moles = zeros(S, nph)
+        s[T] = (
+            flash = (fstorage, buf, f),
+            moles = moles,
+            surface_moles = surface_moles
+        )
     end
-    return s[:flash_storage]
-end
-
-function get_separator_buffers(var, z::T, nph) where T
-    # TODO: Deal with varying AD inputs in this function and the flash one.
-    s = var.storage
-    n = length(var.separator_conditions)
-    if !haskey(s, :mole_stages) || true
-        s[:mole_stages] = zeros(T, n)
-    end
-    moles = s[:mole_stages]
-    @. moles = zero(T)
-    surface_moles = [zero(T) for ph in 1:nph]
-    return (moles, surface_moles)
+    flash, moles, surface = s[T]
+    @. moles = zero(S)
+    @. surface = zero(S)
+    return (flash, moles, surface)
 end

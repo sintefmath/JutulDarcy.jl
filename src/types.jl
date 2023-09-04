@@ -427,13 +427,13 @@ struct SurfaceWellConditions{T, R} <: ScalarVariable
     storage::T
     separator_conditions::Vector{NamedTuple{(:p, :T), Tuple{R, R}}}
     separator_targets::Vector{Tuple{Int, Int}}
-    function SurfaceWellConditions(S::T, c, t, R::DataType = Float64) where T<:JutulStorage
+    function SurfaceWellConditions(S::T, c, t, R::DataType = Float64) where T
         new{T, R}(S, c, t)
     end
 end
 
 function SurfaceWellConditions(sys::JutulSystem; kwarg...)
-    s = JutulStorage()
+    s = Dict{Type, Any}()
     S_t = typeof(default_surface_cond())
     cond = S_t[]
     targets = Tuple{Int, Int}[]

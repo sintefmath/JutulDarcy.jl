@@ -18,21 +18,13 @@ function update_secondary_variable!(x::Vector{TopConditions{N, R}}, var::Surface
     nstages = length(var.separator_conditions)
     rhoS = vol = missing
     if nstages == 0
-        first_time_surface_well_setup!(var, model, state)
-    elseif nstages == 1
         rhoS = reference_densities(model.system)
-        cond = only(var.separator_conditions)
+        cond = physical_representation(model).surface
         rhoS, vol = flash_wellstream_at_surface(model, model.system, state, rhoS, cond)
     else
         rhoS, vol = separator_surface_flash!(var, model, model.system, state)
     end
     x[1] = TopConditions(N, R, density = rhoS, volume_fractions = vol)
-end
-
-function first_time_surface_well_setup!(var, model, state)
-    sc = physical_representation(model).surface
-    push!(var.separator_conditions, sc)
-    push!(var.separator_targets, (0, 0))
 end
 
 function Jutul.default_values(model, var::SurfaceWellConditions)
