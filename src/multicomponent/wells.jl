@@ -6,7 +6,7 @@ function flash_wellstream_at_surface(var, well_model, system::S, state, rhoS, co
     result = separator_flash!(flash, eos, cond, z)
     rho_l, rho_v = mass_densities(eos, cond.p, cond.T, result)
     S_l, S_v = phase_saturations(eos, cond.p, cond.T, result)
-
+    @assert S_l + S_v ≈ 1.0
     return compositional_surface_densities(state, system, S_l, S_v, rho_l, rho_v)
 end
 
@@ -112,6 +112,7 @@ function separator_surface_flash!(var, model, system::MultiPhaseCompositionalSys
     nph = length(surface_moles)
     rhoS = @MVector zeros(T, nph)
     vol = @MVector zeros(T, nph)
+    vol_total = zero(T)
     for ph in eachindex(surface_moles)
         sm = surface_moles[ph]
         tot_moles = sum(sm)
@@ -127,8 +128,14 @@ function separator_surface_flash!(var, model, system::MultiPhaseCompositionalSys
                 LV = result.vapor
             end
             rhoS[ph] = mass_density(eos, cond.p, cond.T, LV)
-            vol[ph] = molar_volume(eos, cond.p, cond.T, LV)
+            V_i = molar_volume(eos, cond.p, cond.T, LV)
+            vol[ph] = V_i
+            vol_total += V_i
         end
+    end
+    # Normalize surface volumes to get fractions
+    for ph in eachindex(vol)
+        vol[ph] /= vol_total
     end
     return compositional_surface_densities(state, system, vol[1], vol[2], rhoS[1], rhoS[2])
 end
@@ -223,5 +230,6 @@ function compositional_surface_densities(state, system, S_l::S_T, S_v::S_T, rho_
     rhoS[v] = rho_v
     volume[l] = S_l*rem
     volume[v] = S_v*rem
+    @assert sum(volume) ≈ 1.0
     return (rhoS, volume)
 end
