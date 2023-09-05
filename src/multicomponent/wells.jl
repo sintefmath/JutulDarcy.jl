@@ -114,15 +114,21 @@ function separator_surface_flash!(var, model, system::MultiPhaseCompositionalSys
     vol = @MVector zeros(T, nph)
     for ph in eachindex(surface_moles)
         sm = surface_moles[ph]
-        z = sm./sum(sm)
-        result = separator_flash!(F, eos, cond, z)
-        if ph == 1
-            LV = result.liquid
+        tot_moles = sum(sm)
+        if tot_moles ≈ 0
+            vol[ph] = zero(T)
+            rhoS[ph] = one(T)
         else
-            LV = result.vapor
+            z = sm./tot_moles
+            result = separator_flash!(F, eos, cond, z)
+            if ph == 1
+                LV = result.liquid
+            else
+                LV = result.vapor
+            end
+            rhoS[ph] = mass_density(eos, cond.p, cond.T, LV)
+            vol[ph] = molar_volume(eos, cond.p, cond.T, LV)
         end
-        rhoS[ph] = mass_density(eos, cond.p, cond.T, LV)
-        vol[ph] = molar_volume(eos, cond.p, cond.T, LV)
     end
     return compositional_surface_densities(state, system, vol[1], vol[2], rhoS[1], rhoS[2])
 end

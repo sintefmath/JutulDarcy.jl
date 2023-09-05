@@ -55,6 +55,17 @@ function Jutul.value(tc::TopConditions{N, <:ForwardDiff.Dual}) where N
     return TopConditions(N, Float64, density = d, volume_fractions = v)
 end
 
+@inline function Jutul.update_values!(vals::Vector{TopConditions{N, T}}, next::Vector{TopConditions{N, Float64}}) where {N, T<:ForwardDiff.Dual}
+    for i in eachindex(vals)
+        v0 = vals[i]
+        v = next[i]
+        rho = v0.density - value(v.density) + v.density
+        vol = v0.volume_fractions - value(v.volume_fractions) + v.volume_fractions
+        vals[i] = TopConditions(N, T, density = rho, volume_fractions = vol)
+    end
+    vals
+end
+
 function add_separator_stage!(var::SurfaceWellConditions, cond = default_surface_cond(), dest = (0, 0); clear = false)
     sc = var.separator_conditions
     t = var.separator_targets

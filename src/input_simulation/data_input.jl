@@ -399,10 +399,14 @@ function parse_control_steps(runspec, schedule, sys)
     compdat = Dict{String, OrderedDict}()
     controls = Dict{String, Any}()
     limits = Dict{String, Any}()
+    streams = Dict{String, Any}()
+    well_injection = Dict{String, Any}()
     for k in keys(wells)
         compdat[k] = OrderedDict{NTuple{3, Int}, Any}()
         controls[k] = nothing
         limits[k] = nothing
+        streams[k] = nothing
+        well_injection[k] = nothing
     end
     all_compdat = []
     all_controls = []
@@ -481,6 +485,8 @@ function parse_control_steps(runspec, schedule, sys)
                 end
             elseif key in ("WEFAC", "WELTARG")
                 @warn "$key Not supported properly."
+            elseif key == "WELLSTRE"
+                error()
             else
                 error("Unhandled keyword $key")
             end
