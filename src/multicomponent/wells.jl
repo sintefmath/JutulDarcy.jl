@@ -128,7 +128,7 @@ function separator_surface_flash!(var, model, system::MultiPhaseCompositionalSys
                 LV = result.vapor
             end
             rhoS[ph] = mass_density(eos, cond.p, cond.T, LV)
-            V_i = molar_volume(eos, cond.p, cond.T, LV)
+            V_i = tot_moles*molar_volume(eos, cond.p, cond.T, LV)
             vol[ph] = V_i
             vol_total += V_i
         end
