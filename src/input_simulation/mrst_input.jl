@@ -99,6 +99,10 @@ function get_well_from_mrst_data(
     kwarg...
     )
     W_mrst = W_data[ix]
+    if haskey(W_mrst, "isMS") && W_mrst["isMS"]
+        # This should always be treated as a MS well.
+        well_type = :ms
+    end
     if haskey(mrst_data, "surface_conditions")
         p = only(mrst_data["surface_conditions"]["pressure"])::Float64
         T = only(mrst_data["surface_conditions"]["T"])::Float64
@@ -128,7 +132,7 @@ function get_well_from_mrst_data(
     well_cell_volume = res_volume[rc]
     nm =  W_mrst["name"]
     segment_models = nothing
-    if well_type == :ms || (haskey(W_mrst, "isMS") && W_mrst["isMS"])
+    if well_type == :ms
         if haskey(W_mrst, "isMS") && W_mrst["isMS"]
             @info "MS well found: $nm"
             nodes = W_mrst["nodes"]
