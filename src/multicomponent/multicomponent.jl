@@ -69,8 +69,8 @@ function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::Co
     else
         water = nothing
     end
-
-    e = compositional_criterion(dt, tm, a, r, nc, water)
+    w = map(x -> x.mw, sys.equation_of_state.mixture.properties)
+    e = compositional_criterion(dt, tm, a, r, nc, w, water)
     names = model.system.components
     R = (CNV = (errors = e, names = names), )
     return R
@@ -85,36 +85,42 @@ function compositional_residual_scale(cell, dt, tm)
     return dt/t
 end
 
-function compositional_criterion(dt, total_mass0, active, r, nc, water)
+function compositional_residual_scale(cell, dt, w, tm)
+    t = 0.0
+    @inbounds for i = axes(tm, 1)
+        t += tm[i, cell]/w[i]
+    end
+    return dt/t
+end
+
+
+function compositional_criterion(dt, total_mass0, active, r, nc, w, water)
     e = fill(-Inf, nc)
-    worst = Vector{Int64}(undef, nc)
     for (ix, i) in enumerate(active)
-        s = compositional_residual_scale(i, dt, total_mass0)
+        s = compositional_residual_scale(i, dt, w, total_mass0)
         sw = value(water[i])
         sc = (1 - sw)*s
         for c in 1:(nc-1)
-            val =  sc*abs(r[c, ix])
+            val = sc*abs(r[c, ix])/w[c]
             if val > e[c]
                 e[c] = val
-                worst[c] = i
             end
         end
-        valw = s*abs(r[end, ix])
+        s = compositional_residual_scale(i, dt, total_mass0)
+        valw = s*abs(r[end, ix])/sum(w)
         if valw > e[end]
             e[end] = valw
-            worst[end] = i
         end
     end
-    # @debug "Worst cells" e worst
     return e
 end
 
-function compositional_criterion(dt, total_mass0, active, r, nc, water::Nothing)
+function compositional_criterion(dt, total_mass0, active, r, nc, w, water::Nothing)
     e = zeros(nc)
     for (ix, i) in enumerate(active)
-        s = compositional_residual_scale(i, dt, total_mass0)
+        s = compositional_residual_scale(i, dt, w, total_mass0)
         for c in 1:nc
-            e[c] = max(e[c], s*abs(r[c, ix]))
+            e[c] = max(e[c], s*abs(r[c, ix])/w[c])
         end
     end
     return e
