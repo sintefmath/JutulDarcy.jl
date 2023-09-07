@@ -788,6 +788,7 @@ function setup_case_from_mrst(casename; wells = :ms,
                                         nthreads = Threads.nthreads(),
                                         legacy_output = false,
                                         ds_max = 0.2,
+                                        dz_max = 0.2,
                                         dp_max_abs = nothing,
                                         dp_max_rel = 0.2,
                                         p_min = DEFAULT_MINIMUM_PRESSURE,
@@ -1047,7 +1048,8 @@ function setup_case_from_mrst(casename; wells = :ms,
         return (models, parameters, initializer, timesteps, forces, mrst_data)
     else
         model = reservoir_multimodel(models, split_wells = split_wells)
-        # Replace saturations - if available
+        # Replace various variables - if they are available
+        replace_variables!(model, OverallMoleFractions = OverallMoleFractions(dz_max = dz_max), throw = false)
         replace_variables!(model, Saturations = Saturations(ds_max = ds_max), throw = false)
         replace_variables!(model, ImmiscibleSaturation = ImmiscibleSaturation(ds_max = ds_max), throw = false)
         replace_variables!(model, BlackOilUnknown = BlackOilUnknown(ds_max = ds_max, dr_max = dr_max), throw = false)
