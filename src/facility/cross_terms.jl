@@ -145,16 +145,11 @@ end
 
 
 function target_actual_pair(target, well, state_well, q_t, ctrl)
-    need_rates = isa(ctrl, ProducerControl) && !isa(target, BottomHolePressureTarget)
-    rhoS = reference_densities(well.system)
-    if need_rates
-        rhoS, S = surface_density_and_volume_fractions(state_well)
-    else
-        S = nothing
-    end
+    rhoS, S = surface_density_and_volume_fractions(state_well)
     t = well_target(ctrl, target, well, state_well, rhoS, S)
     if rate_weighted(target)
         actual_rate = t*q_t
+        name = physical_representation(well.domain).name
         if abs(actual_rate) < MIN_ACTIVE_WELL_RATE
             t = q_t
         else

@@ -13,7 +13,21 @@ end
 const WellGroupModel = SimulationModel{WellGroup, <:Any, <:Any, <:Any}
 
 struct Wells <: JutulEntity end
-struct TotalSurfaceMassRate <: ScalarVariable end
+Base.@kwdef struct TotalSurfaceMassRate <: ScalarVariable
+    "Maximum absolute change betweeen two Newton updates (nominally kg/s)"
+    max_absolute_change::Union{Float64, Nothing} = 1.0
+    "Maximum relative change between two Newton updates. Warning: Can be dangerous if set for wells operating around zero rate."
+    max_relative_change::Union{Float64, Nothing} = nothing
+end
+
+function Jutul.absolute_increment_limit(q::TotalSurfaceMassRate)
+    return q.max_absolute_change
+end
+
+function Jutul.relative_increment_limit(q::TotalSurfaceMassRate)
+    return q.max_relative_change
+end
+
 abstract type WellTarget end
 abstract type SurfaceVolumeTarget <: WellTarget end
 
