@@ -107,7 +107,7 @@ function compositional_criterion(dt, total_mass0, active, r, nc, w, water)
             end
         end
         s = compositional_residual_scale(i, dt, total_mass0)
-        valw = s*abs(r[end, ix])/sum(w)
+        valw = s*abs(r[end, ix])
         if valw > e[end]
             e[end] = valw
         end
