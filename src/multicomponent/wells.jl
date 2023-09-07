@@ -87,9 +87,9 @@ function separator_surface_flash!(var, model, system::MultiPhaseCompositionalSys
     # Can then flash w.r.t. that set of conditions
     eos = system.equation_of_state
     nc = MultiComponentFlash.number_of_components(eos)
-    z = SVector{nc}(state.OverallMoleFractions[:, 1])
-    F, moles, surface_moles = get_separator_intermediate_storage(var, system, z, 2)
-    moles[1] = z
+    z0 = SVector{nc}(state.OverallMoleFractions[:, 1])
+    F, moles, surface_moles = get_separator_intermediate_storage(var, system, z0, 2)
+    moles[1] = z0
     n_stage = length(var.separator_conditions)
     for i in 1:n_stage
         cond = var.separator_conditions[i]
@@ -108,7 +108,7 @@ function separator_surface_flash!(var, model, system::MultiPhaseCompositionalSys
     end
     # Final stage: Flash the tank conditions for each component.
     cond = physical_representation(model.domain).surface
-    T = eltype(z)
+    T = eltype(z0)
     nph = length(surface_moles)
     rhoS = @MVector zeros(T, nph)
     vol = @MVector zeros(T, nph)
