@@ -44,6 +44,18 @@ function MultiPhaseCompositionalSystemLV(equation_of_state, phases = (LiquidPhas
     MultiPhaseCompositionalSystemLV{typeof(equation_of_state), T, O, typeof(reference_densities)}(phases, c, equation_of_state, reference_densities)
 end
 
+function Base.show(io::IO, sys::MultiPhaseCompositionalSystemLV)
+    n = number_of_components(sys)
+    if has_other_phase(sys)
+        name = "(with water)"
+        n = n - 1
+    else
+        name = "(no water)"
+    end
+    eos = sys.equation_of_state
+    cnames = join(eos.mixture.component_names, ", ")
+    print(io, "MultiPhaseCompositionalSystemLV $name with $(eos.type) EOS with $n components: $cnames")
+end
 
 export StandardBlackOilSystem
 struct StandardBlackOilSystem{D, V, W, R, F, T, P, Num} <: BlackOilSystem
