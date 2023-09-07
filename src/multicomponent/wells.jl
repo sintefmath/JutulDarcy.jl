@@ -122,15 +122,21 @@ function separator_surface_flash!(var, model, system::MultiPhaseCompositionalSys
         else
             z = sm./tot_moles
             result = separator_flash!(F, eos, cond, z)
-            if ph == 1
-                LV = result.liquid
-            else
-                LV = result.vapor
-            end
-            rhoS[ph] = mass_density(eos, cond.p, cond.T, LV)
-            V_i = tot_moles*molar_volume(eos, cond.p, cond.T, LV)
+            V = result.V
+            L = one(V) - V
+            rho_l, rho_v = mass_densities(eos, cond.p, cond.T, result)
+            S_l, S_v = phase_saturations(eos, cond.p, cond.T, result)
+            V_l = molar_volume(eos, cond.p, cond.T, result.liquid)
+            V_v = molar_volume(eos, cond.p, cond.T, result.vapor)
+            # This could in fact still be two-phase so we just sum up the
+            # densities and volumes according to their fractions to get a volume
+            # average and pretend it is single-phase. This way we preserve mass
+            # in the effective density even if it is not strictly necessary.
+            V_i = tot_moles*(L*V_l + V*V_v)
             vol[ph] = V_i
             vol_total += V_i
+            # Volume weighted density
+            rhoS[ph] = rho_l*S_l + rho_v*S_v
         end
     end
     # Normalize surface volumes to get fractions
