@@ -65,25 +65,22 @@ function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::Co
     nc = number_of_components(sys)
     has_water = has_other_phase(sys)
     if has_water
-        water = storage.state.ImmiscibleSaturation
+        a, l, v = phase_indices(sys)
+        water = as_value(storage.state.ImmiscibleSaturation)
+        water_density = as_value(view(storage.state.PhaseMassDensities, a, :))
     else
         water = nothing
+        water_density = nothing
     end
+    vol = as_value(storage.state.FluidVolume)
+
     w = map(x -> x.mw, sys.equation_of_state.mixture.properties)
-    e = compositional_criterion(dt, tm, a, r, nc, w, water)
+    e = compositional_criterion(dt, tm, a, r, nc, w, water, water_density, vol)
     names = model.system.components
     R = (CNV = (errors = e, names = names), )
     return R
 end
 
-
-function compositional_residual_scale(cell, dt, tm)
-    t = 0.0
-    @inbounds for i = axes(tm, 1)
-        t += tm[i, cell]
-    end
-    return dt/t
-end
 
 function compositional_residual_scale(cell, dt, w, tm)
     t = 0.0
@@ -94,7 +91,7 @@ function compositional_residual_scale(cell, dt, w, tm)
 end
 
 
-function compositional_criterion(dt, total_mass0, active, r, nc, w, water)
+function compositional_criterion(dt, total_mass0, active, r, nc, w, water, water_density, vol)
     e = fill(-Inf, nc)
     for (ix, i) in enumerate(active)
         s = compositional_residual_scale(i, dt, w, total_mass0)
@@ -106,8 +103,7 @@ function compositional_criterion(dt, total_mass0, active, r, nc, w, water)
                 e[c] = val
             end
         end
-        s = compositional_residual_scale(i, dt, total_mass0)
-        valw = s*abs(r[end, ix])
+        valw = dt*abs(r[end, ix])/(water_density[i]*vol[i])
         if valw > e[end]
             e[end] = valw
         end
@@ -115,7 +111,7 @@ function compositional_criterion(dt, total_mass0, active, r, nc, w, water)
     return e
 end
 
-function compositional_criterion(dt, total_mass0, active, r, nc, w, water::Nothing)
+function compositional_criterion(dt, total_mass0, active, r, nc, w, water::Nothing, ::Nothing, vol)
     e = zeros(nc)
     for (ix, i) in enumerate(active)
         s = compositional_residual_scale(i, dt, w, total_mass0)
