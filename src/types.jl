@@ -350,6 +350,7 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
                                                     segment_models = nothing,
                                                     reference_depth = 0,
                                                     dz = nothing,
+                                                    friction = 1e-4,
                                                     surface_conditions = default_surface_cond(),
                                                     accumulator_volume = mean(volumes),
                                                     kwarg...)
@@ -362,6 +363,10 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
         N = vcat((1:nv)', (2:nc)')
     elseif maximum(N) == nv
         N = vcat([1, 2], N+1)
+    end
+    if length(size(centers)) == 3
+        @assert size(centers, 3) == 1
+        centers = centers[:, :, 1]
     end
     nseg = size(N, 2)
     @assert size(N, 1) == 2
@@ -376,8 +381,13 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
     perforation_cells = vec(perforation_cells)
 
     if isnothing(segment_models)
-        Δp = SegmentWellBoreFrictionHB(1.0, 1e-4, 0.1)
-        segment_models = repeat([Δp], nseg)
+        segment_models = Vector{SegmentWellBoreFrictionHB{Float64}}()
+        for seg in 1:nseg
+            l, r = N[:, seg]
+            L = norm(ext_centers[:, l] - ext_centers[:, r], 2)
+            Δp = SegmentWellBoreFrictionHB(L, friction, 0.1)
+            push!(segment_models, Δp)
+        end
     else
         segment_models::AbstractVector
         @assert length(segment_models) == nseg
