@@ -167,6 +167,7 @@ function setup_reservoir_simulator(case::JutulCase;
                             info_level = 0,
                             tol_cnv_well = 10*tol_cnv,
                             tol_mb_well = 1e4*tol_mb,
+                            tol_dp_well = 1e-3,
                             set_linear_solver = linear_solver isa Symbol,
                             timesteps = :auto,
                             parray_arg = NamedTuple(),
@@ -217,7 +218,7 @@ function setup_reservoir_simulator(case::JutulCase;
         extra_arg = (linear_solver = linear_solver, )
     end
     cfg = simulator_config(sim; extra_arg..., timestep_selectors = sel, info_level = info_level, kwarg...)
-    set_default_cnv_mb!(cfg, sim, tol_cnv = tol_cnv, tol_mb = tol_mb, tol_cnv_well = tol_cnv_well, tol_mb_well = tol_mb_well)
+    set_default_cnv_mb!(cfg, sim, tol_cnv = tol_cnv, tol_mb = tol_mb, tol_cnv_well = tol_cnv_well, tol_mb_well = tol_mb_well, tol_dp_well = tol_dp_well)
     return (sim, cfg)
 end
 
@@ -249,12 +250,14 @@ function set_default_cnv_mb!(cfg, model; kwarg...)
     set_default_cnv_mb_inner!(cfg[:tolerances], model; kwarg...)
 end
 
-function set_default_cnv_mb_inner!(tol, model; tol_cnv = 1e-3, tol_mb = 1e-7, tol_mb_well = 1e-3, tol_cnv_well = 1e-2)
+function set_default_cnv_mb_inner!(tol, model; tol_cnv = 1e-3, tol_mb = 1e-7, tol_mb_well = 1e-3, tol_cnv_well = 1e-2, tol_dp_well = 1e-3)
     sys = model.system
     if sys isa ImmiscibleSystem || sys isa BlackOilSystem || sys isa CompositionalSystem
-        if physical_representation(model) isa WellDomain
+        is_well = physical_representation(model) isa WellDomain
+        if is_well
             c = tol_cnv_well
             m = tol_mb_well
+            tol[:potential_balance] = (AbsMax = tol_dp_well,)
         else
             c = tol_cnv
             m = tol_mb
