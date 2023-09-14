@@ -97,7 +97,7 @@ function compositional_residual_scale(cell, dt, w, sl, liquid_density, sv, vapor
     sat_scale(sw) = 1.0 - sw[cell]
 
     total_density = liquid_density[cell] * sl[cell] + vapor_density[cell] * sv[cell]
-    return sum(w) * (dt/vol[cell]) * sat_scale(sw) / max(total_density, 1e-3)
+    return sum(w) * (dt/vol[cell]) * (sat_scale(sw) / max(total_density, 1e-3))
 end
 
 
@@ -120,13 +120,12 @@ function compositional_criterion(dt, active, r, nc, w, sl, liquid_density, sv, v
     return e
 end
 
-function compositional_criterion(dt, total_mass0, active, r, nc, w, water::Nothing, ::Nothing, vol)
-    # TODO: Fix for updated criterion.
+function compositional_criterion(dt, active, r, nc, w, sl, liquid_density, sv, vapor_density, sw::Nothing, water_density::Nothing, vol)
     e = zeros(nc)
     for (ix, i) in enumerate(active)
-        s = compositional_residual_scale(i, dt, w, total_mass0)
+        scaling = compositional_residual_scale(i, dt, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
         for c in 1:nc
-            e[c] = max(e[c], s*abs(r[c, ix])/w[c])
+            e[c] = max(e[c], scaling*abs(r[c, ix])/w[c])
         end
     end
     return e
