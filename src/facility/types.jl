@@ -287,6 +287,10 @@ struct WellGroupConfiguration
     end
 end
 
+function Jutul.numerical_type(tc::WellGroupConfiguration)
+    return Float64
+end
+
 function Jutul.update_values!(old::WellGroupConfiguration, new::WellGroupConfiguration)
     return WellGroupConfiguration(copy(new.operating_controls), copy(new.requested_controls), copy(new.limits))
 end

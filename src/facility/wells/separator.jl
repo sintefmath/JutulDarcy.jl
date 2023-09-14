@@ -43,6 +43,10 @@ function initialize_variable_ad!(state, model, pvar::SurfaceWellConditions, symb
     return state
 end
 
+function Jutul.numerical_type(tc::TopConditions{N, T}) where {N, T}
+    return T
+end
+
 function Base.convert(::Type{TopConditions{N, Float64}}, v::TopConditions{N, <:ForwardDiff.Dual}) where N
     rho = value.(v.density)
     s = value.(v.volume_fractions)
