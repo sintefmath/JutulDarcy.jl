@@ -43,7 +43,7 @@ function initialize_variable_ad!(state, model, pvar::SurfaceWellConditions, symb
     return state
 end
 
-function Jutul.numerical_type(tc::TopConditions{N, T}) where {N, T}
+function Jutul.numerical_type(::Type{TopConditions{N, T}}) where {N, T}
     return T
 end
 
