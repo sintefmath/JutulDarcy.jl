@@ -108,7 +108,7 @@ function setup_forces(model::SimulationModel{D}; control = nothing, limits = not
     return (control = control::AbstractDict, limits = limits::AbstractDict,)
 end
 
-function convergence_criterion(model, storage, eq::ControlEquationWell, eq_s, r; dt = 1)
+function convergence_criterion(model, storage, eq::ControlEquationWell, eq_s, r; dt = 1.0, update_report = missing)
     wells = model.domain.well_symbols
     cfg = storage.state.WellGroupConfiguration
     e = abs.(vec(r))

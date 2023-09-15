@@ -39,7 +39,7 @@ function select_parameters!(prm, system::CompositionalSystem, model)
     prm[:Temperature] = Temperature()
 end
 
-function convergence_criterion(model::CompositionalModel, storage, eq::ConservationLaw, eq_s, r; dt = 1)
+function convergence_criterion(model::CompositionalModel, storage, eq::ConservationLaw, eq_s, r; dt = 1.0, update_report = missing)
     tm = storage.state0.TotalMasses
     a = active_entities(model.domain, Cells())
     function scale(i)
@@ -57,7 +57,7 @@ function convergence_criterion(model::CompositionalModel, storage, eq::Conservat
 end
 
 
-function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::ConservationLaw, eq_s, r; dt = 1) where S<:MultiPhaseCompositionalSystemLV
+function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::ConservationLaw, eq_s, r; dt = 1.0, update_report = missing) where S<:MultiPhaseCompositionalSystemLV
     sys = model.system
     active = active_entities(model.domain, Cells())
     nc = number_of_components(sys)
@@ -80,7 +80,7 @@ function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::Co
     vol = as_value(storage.state.FluidVolume)
 
     w = map(x -> x.mw, sys.equation_of_state.mixture.properties)
-    e = compositional_criterion(dt, active, r, nc, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
+    e = compositional_criterion(storage.state, dt, active, r, nc, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
     names = model.system.components
     R = (CNV = (errors = e, names = names), )
     return R
@@ -88,15 +88,23 @@ end
 
 
 function compositional_residual_scale(cell, dt, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
-    sat_scale(::Nothing) = 1.0
-    sat_scale(sw) = 1.0 - sw[cell]
-
+    function sat_scale(::Nothing)
+        return 1.0
+    end
+    function sat_scale(sw)
+        sw_i = sw[cell]
+        if sw_i > 1.0 - 1e-4
+            scale = 0.0
+        else
+            scale = 1.0 - sw_i
+        end
+        return scale
+    end
     total_density = liquid_density[cell] * sl[cell] + vapor_density[cell] * sv[cell]
     return dt * mean(w) * (sat_scale(sw) / (vol[cell] * max(total_density, 1e-3)))
 end
 
-
-function compositional_criterion(dt, active, r, nc, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
+function compositional_criterion(state, dt, active, r, nc, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
     e = fill(-Inf, nc)
     s_max = 0
     for (ix, i) in enumerate(active)
@@ -115,7 +123,7 @@ function compositional_criterion(dt, active, r, nc, w, sl, liquid_density, sv, v
     return e
 end
 
-function compositional_criterion(dt, active, r, nc, w, sl, liquid_density, sv, vapor_density, sw::Nothing, water_density::Nothing, vol)
+function compositional_criterion(state, dt, active, r, nc, w, sl, liquid_density, sv, vapor_density, sw::Nothing, water_density::Nothing, vol)
     e = zeros(nc)
     for (ix, i) in enumerate(active)
         scaling = compositional_residual_scale(i, dt, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)

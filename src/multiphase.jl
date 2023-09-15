@@ -313,7 +313,7 @@ end
 #     @tullio acc[ph, ix[i]] = acc[ph, ix[i]] - phase_source(sources[i].cell, sources[i], rhoS[ph], kr, mu, ph)
 # end
 
-function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw, eq_s, r; dt = 1) where {D, S<:MultiPhaseSystem}
+function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw, eq_s, r; dt = 1, update_report = missing) where {D, S<:MultiPhaseSystem}
     M = global_map(model.domain)
     v = x -> as_value(Jutul.active_view(x, M, for_variables = false))
     Φ = v(storage.state.FluidVolume)
