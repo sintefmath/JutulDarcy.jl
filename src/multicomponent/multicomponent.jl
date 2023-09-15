@@ -59,10 +59,11 @@ end
 
 function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::ConservationLaw, eq_s, r; dt = 1.0, update_report = missing) where S<:MultiPhaseCompositionalSystemLV
     sys = model.system
+    state = storage.state
     active = active_entities(model.domain, Cells())
     nc = number_of_components(sys)
-    get_sat(ph) = as_value(view(storage.state.Saturations, ph, :))
-    get_density(ph) = as_value(view(storage.state.PhaseMassDensities, ph, :))
+    get_sat(ph) = as_value(view(state.Saturations, ph, :))
+    get_density(ph) = as_value(view(state.PhaseMassDensities, ph, :))
     if has_other_phase(sys)
         a, l, v = phase_indices(sys)
         sw = get_sat(a)
@@ -77,13 +78,35 @@ function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::Co
 
     sl = get_sat(l)
     sv = get_sat(v)
-    vol = as_value(storage.state.FluidVolume)
+    vol = as_value(state.FluidVolume)
 
     w = map(x -> x.mw, sys.equation_of_state.mixture.properties)
-    e = compositional_criterion(storage.state, dt, active, r, nc, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
+    e = compositional_criterion(state, dt, active, r, nc, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
+    dz = compositional_increment(model, state, update_report)
+    dp = pressure_increment(model, state, update_report)
     names = model.system.components
-    R = (CNV = (errors = e, names = names), )
+    R = (
+        CNV = (errors = e, names = names),
+        increment = (errors = (dz, dp), names = (raw"dp", raw"dz"))
+        )
     return R
+end
+
+function compositional_increment(model, state, update_report::Missing)
+    return 1e3
+end
+
+function pressure_increment(model, state, update_report::Missing)
+    return 1e3
+end
+
+
+function compositional_increment(model, state, update_report)
+    return update_report[:OverallMoleFractions].max
+end
+
+function pressure_increment(model, state, update_report)
+    return 0
 end
 
 
@@ -106,7 +129,6 @@ end
 
 function compositional_criterion(state, dt, active, r, nc, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
     e = fill(-Inf, nc)
-    s_max = 0
     for (ix, i) in enumerate(active)
         scaling = compositional_residual_scale(i, dt, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
         for c in 1:(nc-1)
