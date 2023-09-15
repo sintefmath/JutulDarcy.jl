@@ -97,7 +97,7 @@ function compositional_residual_scale(cell, dt, w, sl, liquid_density, sv, vapor
     sat_scale(sw) = 1.0 - sw[cell]
 
     total_density = liquid_density[cell] * sl[cell] + vapor_density[cell] * sv[cell]
-    return sum(w) * (dt/vol[cell]) * (sat_scale(sw) / max(total_density, 1e-3))
+    return dt * mean(w) * (sat_scale(sw) / (vol[cell] * max(total_density, 1e-3)))
 end
 
 
