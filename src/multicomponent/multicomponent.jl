@@ -65,7 +65,7 @@ function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::Co
     get_density(ph) = as_value(view(storage.state.PhaseMassDensities, ph, :))
     if has_other_phase(sys)
         a, l, v = phase_indices(sys)
-        sw = get_density(a)
+        sw = get_sat(a)
         water_density = get_density(a)
     else
         l, v = phase_indices(sys)
@@ -88,11 +88,6 @@ end
 
 
 function compositional_residual_scale(cell, dt, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
-    if isnothing(sw)
-        sw_i = 0.0
-    else
-        sw_i = sw[cell]
-    end
     sat_scale(::Nothing) = 1.0
     sat_scale(sw) = 1.0 - sw[cell]
 
