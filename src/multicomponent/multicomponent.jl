@@ -83,11 +83,13 @@ function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::Co
     w = map(x -> x.mw, sys.equation_of_state.mixture.properties)
     e = compositional_criterion(state, dt, active, r, nc, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
     dz = compositional_increment(model, state, update_report)
-    dp = pressure_increment(model, state, update_report)
+    dp_abs, dp_rel = pressure_increments(model, state, update_report)
     names = model.system.components
     R = (
         CNV = (errors = e, names = names),
-        increment = (errors = (dz, dp), names = (raw"dp", raw"dz"))
+        increment_dp_abs = (errors = (dp_abs, ), names = (raw"Δp", ), ),
+        increment_dp_rel = (errors = (dp_rel, ), names = (raw"Δp", ), ),
+        increment_dz = (errors = (dz, ), names = (raw"Δz", ), )
         )
     return R
 end
@@ -96,19 +98,20 @@ function compositional_increment(model, state, update_report::Missing)
     return 1e3
 end
 
-function pressure_increment(model, state, update_report::Missing)
-    return 1e3
+function pressure_increments(model, state, update_report::Missing)
+    return (1e3*si_unit(:bar), 1e3)
 end
 
+function pressure_increments(model, state, update_report)
+    dp = update_report[:Pressure]
+    dp_abs = dp.max
+    dp_rel = dp_abs/maximum(value, state.Pressure)
+    return (dp_abs, dp_rel)
+end
 
 function compositional_increment(model, state, update_report)
     return update_report[:OverallMoleFractions].max
 end
-
-function pressure_increment(model, state, update_report)
-    return 0
-end
-
 
 function compositional_residual_scale(cell, dt, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
     function sat_scale(::Nothing)
