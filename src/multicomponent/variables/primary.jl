@@ -46,7 +46,7 @@ function Jutul.increment_norm(dX, state, model, X, pvar::OverallMoleFractions)
     scale = @something Jutul.variable_scale(pvar) one(T)
     max_v = sum_v = max_v_scaled = sum_v_scaled = zero(T)
     N = degrees_of_freedom_per_entity(model, pvar)
-    dx_mat = reshape(dX, N, length(dX) ÷ N)
+    dx_mat = reshape(dX, length(dX) ÷ N, N)'
     # do_print = length(dX) > 1000
     worst_cell = -1
     for i in axes(dx_mat, 2)
