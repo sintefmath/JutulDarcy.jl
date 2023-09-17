@@ -110,7 +110,7 @@ function pressure_increments(model, state, update_report)
 end
 
 function compositional_increment(model, state, update_report)
-    return update_report[:OverallMoleFractions].max
+    return update_report[:OverallMoleFractions].max_scaled
 end
 
 function compositional_residual_scale(cell, dt, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)

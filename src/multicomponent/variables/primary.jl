@@ -34,6 +34,37 @@ minimum_value(::OverallMoleFractions) = MultiComponentFlash.MINIMUM_COMPOSITION
 absolute_increment_limit(z::OverallMoleFractions) = z.dz_max
 
 
+function Jutul.increment_norm(dX, state, model, X, pvar::OverallMoleFractions)
+    if haskey(state, :ImmiscibleSaturation)
+        sw = state.ImmiscibleSaturation
+    else
+        sw = missing
+    end
+    get_scaling(::Missing, i) = 1.0
+    get_scaling(s, i) = 1.0 - value(s[i])
+    T = eltype(dX)
+    scale = @something Jutul.variable_scale(pvar) one(T)
+    max_v = sum_v = max_v_scaled = sum_v_scaled = zero(T)
+    N = degrees_of_freedom_per_entity(model, pvar)
+    dx_mat = reshape(dX, N, length(dX) ÷ N)
+    for i in axes(dx_mat, 2)
+        for inner in axes(dx_mat, 1)
+            dx = dx_mat[inner, i]
+            s = get_scaling(sw, i)
+
+            dx_abs = abs(dx)
+            # Scale by 1-water saturation
+            dx_abs_scaled = dx_abs*s
+            max_v = max(max_v, dx_abs)
+            max_v_scaled = max(max_v_scaled, dx_abs_scaled)
+
+            sum_v += dx_abs
+            sum_v_scaled += dx_abs_scaled
+        end
+    end
+    return (sum = scale*sum_v, sum_scaled = sum_v_scaled, max = scale*max_v, max_scaled = max_v_scaled)
+end
+
 """
 A single saturation that represents the "other" phase in a
 three phase compositional system where two phases are predicted by an EoS
