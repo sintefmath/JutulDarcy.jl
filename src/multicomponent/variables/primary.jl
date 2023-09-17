@@ -40,18 +40,20 @@ function Jutul.increment_norm(dX, state, model, X, pvar::OverallMoleFractions)
     else
         sw = missing
     end
+    # @info "???" size(dX)
+    # error()
     get_scaling(::Missing, i) = 1.0
     get_scaling(s, i) = 1.0 - value(s[i])
     T = eltype(dX)
     scale = @something Jutul.variable_scale(pvar) one(T)
     max_v = sum_v = max_v_scaled = sum_v_scaled = zero(T)
     N = degrees_of_freedom_per_entity(model, pvar)
-    dx_mat = reshape(dX, length(dX) ÷ N, N)'
+    # dx_mat = reshape(dX, length(dX) ÷ N, N)'
     # do_print = length(dX) > 1000
     worst_cell = -1
-    for i in axes(dx_mat, 2)
-        for inner in axes(dx_mat, 1)
-            dx = dx_mat[inner, i]
+    for i in axes(dX, 1)
+        for j in axes(dX, 2)
+            dx = dX[i, j]
             s = get_scaling(sw, i)
 
             dx_abs = abs(dx)
@@ -74,7 +76,7 @@ function Jutul.increment_norm(dX, state, model, X, pvar::OverallMoleFractions)
         end
     end
     if length(dX) > 1000
-        @info "Worst cell" worst_cell dx_mat[:, worst_cell] max_v max_v_scaled
+        # @info "Worst cell" worst_cell dx_mat[:, worst_cell] max_v max_v_scaled
     end
     return (sum = scale*sum_v, sum_scaled = sum_v_scaled, max = scale*max_v, max_scaled = max_v_scaled)
 end
