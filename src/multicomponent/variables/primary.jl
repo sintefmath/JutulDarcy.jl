@@ -47,6 +47,8 @@ function Jutul.increment_norm(dX, state, model, X, pvar::OverallMoleFractions)
     max_v = sum_v = max_v_scaled = sum_v_scaled = zero(T)
     N = degrees_of_freedom_per_entity(model, pvar)
     dx_mat = reshape(dX, N, length(dX) ÷ N)
+    # do_print = length(dX) > 1000
+    worst_cell = -1
     for i in axes(dx_mat, 2)
         for inner in axes(dx_mat, 1)
             dx = dx_mat[inner, i]
@@ -55,12 +57,24 @@ function Jutul.increment_norm(dX, state, model, X, pvar::OverallMoleFractions)
             dx_abs = abs(dx)
             # Scale by 1-water saturation
             dx_abs_scaled = dx_abs*s
+            if max_v_scaled < dx_abs_scaled
+                worst_cell = i
+            end
             max_v = max(max_v, dx_abs)
             max_v_scaled = max(max_v_scaled, dx_abs_scaled)
 
+            # if dx_abs_scaled > 1 && i == 91148
+            #     @info i s dx_abs dx_abs_scaled
+            #     if i == 91148
+            #         error()
+            #     end
+            # end
             sum_v += dx_abs
             sum_v_scaled += dx_abs_scaled
         end
+    end
+    if length(dX) > 1000
+        @info "Worst cell" worst_cell dx_mat[:, worst_cell] max_v max_v_scaled
     end
     return (sum = scale*sum_v, sum_scaled = sum_v_scaled, max = scale*max_v, max_scaled = max_v_scaled)
 end

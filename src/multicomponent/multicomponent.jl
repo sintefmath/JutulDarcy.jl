@@ -90,6 +90,9 @@ function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::Co
     w = map(x -> x.mw, sys.equation_of_state.mixture.properties)
     e = compositional_criterion(state, dt, active, r, nc, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
     names = model.system.components
+    if length(active) > 1000
+        @info "Dz" dz dz0
+    end
     R = (
         CNV = (errors = e, names = names),
         increment_dp_abs = (errors = (dp_abs, ), names = (raw"Δp", ), ),
@@ -147,18 +150,24 @@ end
 
 function compositional_criterion(state, dt, active, r, nc, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
     e = fill(-Inf, nc)
+    worst = zeros(Int, nc+1)
     for (ix, i) in enumerate(active)
         scaling = compositional_residual_scale(i, dt, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
         for c in 1:(nc-1)
             val = scaling*abs(r[c, ix])/w[c]
             if val > e[c]
                 e[c] = val
+                worst[c] = i
             end
         end
         valw = dt*abs(r[end, ix])/(water_density[i]*vol[i])
         if valw > e[end]
             e[end] = valw
+            worst[end] = i
         end
+    end
+    if length(active) > 1000
+        @info "Worst" unique(worst) e
     end
     return e
 end

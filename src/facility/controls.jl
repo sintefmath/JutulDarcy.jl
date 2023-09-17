@@ -77,7 +77,7 @@ function apply_well_limit!(cfg::WellGroupConfiguration, target, wmodel, wstate, 
             end
             limstr = "Current value $(current_val) $lb $lim_type limit $(limit_val)."
             header = "$well is switching control due to $lim_type limit for $(typeof(target)) of $limit_val"
-            @debug "$(header)\n$(limstr)\nOld value: $old\nNew value: $target." next_control
+            @info "$(header)\n$(limstr)\nOld value: $old\nNew value: $target." next_control
         end
     end
     return target
