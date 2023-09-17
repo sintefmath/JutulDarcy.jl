@@ -98,7 +98,7 @@ function Jutul.initialize_primary_variable_ad!(state, model, pvar::BlackOilUnkno
     return state
 end
 
-function Jutul.increment_norm(dX, X, pvar::BlackOilUnknown)
+function Jutul.increment_norm(dX, state, model, X, pvar::BlackOilUnknown)
     T = eltype(dX)
     rs_max_v = rs_sum_v = zero(T)
     sg_max_v = sg_sum_v = zero(T)
