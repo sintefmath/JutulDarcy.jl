@@ -64,10 +64,17 @@ function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::Co
     nc = number_of_components(sys)
     get_sat(ph) = as_value(view(state.Saturations, ph, :))
     get_density(ph) = as_value(view(state.PhaseMassDensities, ph, :))
+
+    dz = compositional_increment(model, state, update_report)
+    dp_abs, dp_rel = pressure_increments(model, state, update_report)
+
+    dz0 = dz
     if has_other_phase(sys)
         a, l, v = phase_indices(sys)
         sw = get_sat(a)
         water_density = get_density(a)
+        dsw_max = immiscible_increment(model, state, update_report)
+        dz = max(dz, dsw_max)
     else
         l, v = phase_indices(sys)
         sw = nothing
@@ -82,8 +89,6 @@ function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::Co
 
     w = map(x -> x.mw, sys.equation_of_state.mixture.properties)
     e = compositional_criterion(state, dt, active, r, nc, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
-    dz = compositional_increment(model, state, update_report)
-    dp_abs, dp_rel = pressure_increments(model, state, update_report)
     names = model.system.components
     R = (
         CNV = (errors = e, names = names),
@@ -95,22 +100,32 @@ function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::Co
 end
 
 function compositional_increment(model, state, update_report::Missing)
-    return 1e3
+    return 1.0
 end
 
 function pressure_increments(model, state, update_report::Missing)
-    return (1e3*si_unit(:bar), 1e3)
+    max_p = maximum(value, state.Pressure)
+    return (max_p, 1.0)
 end
 
 function pressure_increments(model, state, update_report)
+    max_p = maximum(value, state.Pressure)
     dp = update_report[:Pressure]
     dp_abs = dp.max
-    dp_rel = dp_abs/maximum(value, state.Pressure)
+    dp_rel = dp_abs/max_p
     return (dp_abs, dp_rel)
 end
 
 function compositional_increment(model, state, update_report)
     return update_report[:OverallMoleFractions].max_scaled
+end
+
+function immiscible_increment(model, state, ::Missing)
+    return 1.0
+end
+
+function immiscible_increment(model, state, update_report)
+    return update_report[:ImmiscibleSaturation].max
 end
 
 function compositional_residual_scale(cell, dt, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
