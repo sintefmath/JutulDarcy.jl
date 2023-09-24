@@ -22,5 +22,8 @@ Documentation for [JutulDarcy.jl](https://github.com/sintefmath/JutulDarcy.jl). 
 
 JutulDarcy builds upon the general features found in [Jutul.jl](https://github.com/sintefmath/Jutul.jl). You may also find it useful to look at the [Jutul.jl documentation](https://sintefmath.github.io/Jutul.jl/dev/).
 
+## Reading input files
+It is also possible to read cases that have been set up in MRST (see [setup_case_from_mrst](@ref) and [simulate_mrst_case](@ref)) or from .DATA files (see [parse_data_file](@ref) and [simulate_data_file](@ref))
+
 ```@index
 ```

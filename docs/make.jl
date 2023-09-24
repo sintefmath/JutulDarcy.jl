@@ -4,7 +4,8 @@ using Literate
 using Documenter
 
 function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
-    DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy; using Jutul); recursive=true)
+    DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy); recursive=true)
+
     ## Literate pass
     # Base directory
     jutul_dir = joinpath(dirname(pathof(JutulDarcy)), "..")
@@ -45,7 +46,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
         )
     end
     makedocs(;
-        modules=[JutulDarcy, Jutul],
+        modules=[JutulDarcy],
         authors="Olav Møyner <olav.moyner@sintef.no> and contributors",
         repo="https://github.com/sintefmath/JutulDarcy.jl/blob/{commit}{path}#{line}",
         sitename="JutulDarcy.jl",

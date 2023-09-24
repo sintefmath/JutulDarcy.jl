@@ -3,7 +3,6 @@
 # different components. Other than that, the example is similar to the others
 # that include wells and is therefore not commented in great detail.
 using MultiComponentFlash
-Darcy, bar, kg, meter, Kelvin, day = si_units(:darcy, :bar, :kilogram, :meter, :Kelvin, :day)
 
 n2_ch4 = MolecularProperty(0.0161594, 4.58e6, 189.515, 9.9701e-05, 0.00854)
 co2 = MolecularProperty(0.04401, 7.3866e6, 304.200, 9.2634e-05, 0.228)
@@ -21,6 +20,7 @@ mixture = MultiComponentMixture([n2_ch4, co2, c2_5, c6_13, c14_24], A_ij = bic, 
 eos = GenericCubicEOS(mixture, PengRobinson())
 
 using Jutul, JutulDarcy, CairoMakie
+Darcy, bar, kg, meter, Kelvin, day = si_units(:darcy, :bar, :kilogram, :meter, :Kelvin, :day)
 nx = ny = 20
 nz = 2
 
