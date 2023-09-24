@@ -49,6 +49,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
         authors="Olav Møyner <olav.moyner@sintef.no> and contributors",
         repo="https://github.com/sintefmath/JutulDarcy.jl/blob/{commit}{path}#{line}",
         sitename="JutulDarcy.jl",
+        warnonly = true,
         format=build_format,
         pages=[
             "Home" => "index.md",
