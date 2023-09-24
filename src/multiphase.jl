@@ -343,7 +343,7 @@ function cnv_mb_errors(r, Φ, ρ, dt, ::Val{N}) where N
             ρ_ph = ρ[ph, c]
             # MB
             mb[ph] += r_ph
-            avg_density[ph] += ρ_ph
+            avg_density[ph] += abs(ρ_ph)
             # CNV
             cnv[ph] = max(cnv[ph], dt*abs(r_ph)/(ρ_ph*pv_c))
         end
