@@ -331,6 +331,7 @@ end
                     name = :Well,
                     perforation_cells = nothing,
                     segment_models = nothing,
+                    segment_length = nothing,
                     reference_depth = 0,
                     dz = nothing,
                     surface_conditions = default_surface_cond(),
@@ -350,6 +351,7 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
                                                     segment_models = nothing,
                                                     reference_depth = 0,
                                                     dz = nothing,
+                                                    segment_length = nothing,
                                                     friction = 1e-4,
                                                     surface_conditions = default_surface_cond(),
                                                     accumulator_volume = mean(volumes),
@@ -384,7 +386,15 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
         segment_models = Vector{SegmentWellBoreFrictionHB{Float64}}()
         for seg in 1:nseg
             l, r = N[:, seg]
-            L = norm(ext_centers[:, l] - ext_centers[:, r], 2)
+            if isnothing(segment_length)
+                L = norm(ext_centers[:, l] - ext_centers[:, r], 2)
+            else
+                if segment_length isa Real
+                    L = segment_length
+                else
+                    L = segment_length[seg]
+                end
+            end
             Δp = SegmentWellBoreFrictionHB(L, friction, 0.1)
             push!(segment_models, Δp)
         end

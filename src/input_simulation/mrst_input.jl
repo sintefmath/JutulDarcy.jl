@@ -200,6 +200,7 @@ function get_well_from_mrst_data(
                                                         N = well_topo,
                                                         name = Symbol(nm),
                                                         segment_models = segment_models,
+                                                        segment_length = 1.0,
                                                         perforation_cells = perf_cells,
                                                         accumulator_volume = accumulator_volume,
                                                         surface_conditions = cond)
