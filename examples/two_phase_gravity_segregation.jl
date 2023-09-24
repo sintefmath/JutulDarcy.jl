@@ -15,9 +15,11 @@ domain = get_1d_reservoir(nc, z_max = 1)
 # ## Fluid properties
 # Define two phases liquid and vapor with a 10-1 ratio reference densities and
 # set up the simulation model.
-bar = 1e5
+Darcy, bar, kg, meter, day = si_units(:darcy, :bar, :kilogram, :meter, :day)
 p0 = 100*bar
-rhoLS, rhoVS = 1000.0, 100.0
+
+rhoLS = 1000.0*kg/meter^3
+rhoVS = 100.0*kg/meter^3
 cl, cv = 1e-5/bar, 1e-4/bar
 L, V = LiquidPhase(), VaporPhase()
 sys = ImmiscibleSystem([L, V])
@@ -37,7 +39,7 @@ sL = vcat(ones(nl), zeros(nc - nl))'
 s0 = vcat(sL, 1 .- sL)
 state0 = setup_state(model, Pressure = p0, Saturations = s0)
 # Convert time-steps from days to seconds
-timesteps = repeat([0.02]*3600*24, 150)
+timesteps = repeat([0.02]*day, 150)
 #-
 ## Perform simulation
 states, report = simulate(state0, model, timesteps, info_level = -1)

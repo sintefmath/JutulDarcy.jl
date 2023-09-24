@@ -19,9 +19,10 @@ D = 10.0
 g = CartesianMesh((nx, 1, nz), (D, 1.0, D))
 domain = reservoir_domain(g)
 # ## Set up model and properties
-bar = 1e5
+Darcy, bar, kg, meter, day = si_units(:darcy, :bar, :kilogram, :meter, :day)
 p0 = 100*bar
-rhoLS, rhoVS = 1000.0, 500.0 # Definition of fluid phases
+rhoLS = 1000.0*kg/meter^3 # Definition of fluid phases
+rhoVS = 500.0*kg/meter^3
 cl, cv = 1e-5/bar, 1e-4/bar
 L, V = LiquidPhase(), VaporPhase()
 sys = ImmiscibleSystem([L, V])

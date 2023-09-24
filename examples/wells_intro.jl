@@ -11,9 +11,7 @@ using JutulDarcy, Jutul
 # `JutulDarcy` uses SI units internally. It is therefore convenient to define a
 # few constants at the start of the script to have more managable numbers later
 # on.
-bar = 1e5
-day = 3600*24.0
-Darcy = 9.869232667160130e-13
+Darcy, bar, kg, meter, day = si_units(:darcy, :bar, :kilogram, :meter, :day)
 
 # ## Defining a porous medium
 # We start by defining the static part of our simulation problem -- the porous medium itself.
@@ -86,7 +84,7 @@ Inj = setup_well(domain, [(nx, ny, 1)], name = :Injector);
 phases = (LiquidPhase(), VaporPhase())
 rhoLS = 1000.0
 rhoGS = 100.0
-rhoS = [rhoLS, rhoGS]
+rhoS = [rhoLS, rhoGS] .* kg/meter^3
 sys = ImmiscibleSystem(phases, reference_densities = rhoS)
 # ### Creating the model
 # The same fluid system can be used for both flow inside the wells and the

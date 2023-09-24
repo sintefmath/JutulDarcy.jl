@@ -1,6 +1,6 @@
 # # Quarter-five-spot example
 # The quarter-five-spot is a standard test problem that simulates 1/4 of the
-# five spot well pattern by arguing for axial symmetry. The problem contains an
+# five spot well pattern by assuming axial symmetry. The problem contains an
 # injector in one corner and the producer in the opposing corner, with a
 # significant volume of fluids injected into the domain.
 using JutulDarcy, Jutul
@@ -19,19 +19,19 @@ function perm_kozeny_carman(Φ)
 end
 
 function simulate_qfs(porosity = 0.2)
-    bar = 1e5
-    day = 3600*24.0
     Dx = 1000.0
     Dz = 10.0
     Darcy = 9.869232667160130e-13
+    Darcy, bar, kg, meter, Kelvin, day, sec = si_units(:darcy, :bar, :kilogram, :meter, :Kelvin, :day, :second)
+
     mesh = CartesianMesh((nx, nx, 1), (Dx, Dx, Dz))
     K = perm_kozeny_carman.(porosity)
     domain = reservoir_domain(mesh, permeability = K, porosity = porosity)
     Inj = setup_vertical_well(domain, 1, 1, name = :Injector);
     Prod = setup_vertical_well(domain, nx, nx, name = :Producer);
     phases = (LiquidPhase(), VaporPhase())
-    rhoLS = 1000.0
-    rhoGS = 700.0
+    rhoLS = 1000.0*kg/meter^3
+    rhoGS = 700.0*kg/meter^3
     rhoS = [rhoLS, rhoGS]
     sys = ImmiscibleSystem(phases, reference_densities = rhoS)
     model, parameters = setup_reservoir_model(domain, sys, wells = [Inj, Prod])

@@ -7,6 +7,10 @@
 # getting started with compositional simulation.
 # ## Set up mixture
 # We load the external flash package and define a two-component H2O-CO2 system.
+# The constructor for each species takes in molecular weight, critical pressure,
+# critical temperature, critical volume, acentric factor given as strict SI.
+# This means, for instance, that molar masses are given in kg/mole and not
+# g/mole or kg/kmol.
 using MultiComponentFlash
 h2o = MolecularProperty(0.018015268, 22.064e6, 647.096, 5.595e-05, 0.3442920843)
 co2 = MolecularProperty(0.0440098, 7.3773e6, 304.1282, 9.412e-05, 0.22394)
@@ -22,11 +26,10 @@ using Jutul, JutulDarcy, CairoMakie
 nx = 50
 ny = 1
 nz = 20
-bar = 1e5
 dims = (nx, ny, nz)
 g = CartesianMesh(dims, (100.0, 10.0, 10.0))
 nc = number_of_cells(g)
-Darcy = 9.869232667160130e-13
+Darcy, bar, kg, meter, Kelvin, day, sec = si_units(:darcy, :bar, :kilogram, :meter, :Kelvin, :day, :second)
 K = repeat([0.1, 0.1, 0.001]*Darcy, 1, nc)
 res = reservoir_domain(g, porosity = 0.3, permeability = K)
 ## Set up a vertical well in the first corner, perforated in top layer
@@ -35,7 +38,8 @@ prod = setup_well(g, K, [(nx, ny, 1)], name = :Producer)
 inj = setup_well(g, K, [(1, 1, nz)], name = :Injector)
 #-
 # ## Define system and realize on grid
-rhoLS, rhoVS = 844.23, 126.97
+rhoLS = 844.23*kg/meter^3
+rhoVS = 126.97*kg/meter^3
 rhoS = [rhoLS, rhoVS]
 L, V = LiquidPhase(), VaporPhase()
 sys = MultiPhaseCompositionalSystemLV(eos, (L, V))
@@ -43,17 +47,16 @@ model, parameters = setup_reservoir_model(res, sys, wells = [inj, prod], referen
 push!(model[:Reservoir].output_variables, :Saturations)
 kr = BrooksCoreyRelPerm(sys, 2.0, 0.0, 1.0)
 model = replace_variables!(model, RelativePermeabilities = kr)
-T0 = repeat([303.15], 1, nc)
+T0 = repeat([303.15*Kelvin], 1, nc)
 parameters[:Reservoir][:Temperature] = T0
 state0 = setup_reservoir_state(model, Pressure = 50*bar, OverallMoleFractions = [1.0, 0.0]);
 
 # ## Define schedule
 # 5 year (5*365.24 days) simulation period
-day = 24*3600.0
 dt0 = repeat([1]*day, 26)
 dt1 = repeat([10.0]*day, 180)
 dt = append!(dt0, dt1)
-rate_target = TotalRateTarget(9.5066e-06)
+rate_target = TotalRateTarget(9.5066e-06*meter^3/sec)
 I_ctrl = InjectorControl(rate_target, [0, 1], density = rhoVS)
 bhp_target = BottomHolePressureTarget(50*bar)
 P_ctrl = ProducerControl(bhp_target)

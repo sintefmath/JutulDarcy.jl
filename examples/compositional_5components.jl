@@ -3,6 +3,8 @@
 # different components. Other than that, the example is similar to the others
 # that include wells and is therefore not commented in great detail.
 using MultiComponentFlash
+Darcy, bar, kg, meter, Kelvin, day = si_units(:darcy, :bar, :kilogram, :meter, :Kelvin, :day)
+
 n2_ch4 = MolecularProperty(0.0161594, 4.58e6, 189.515, 9.9701e-05, 0.00854)
 co2 = MolecularProperty(0.04401, 7.3866e6, 304.200, 9.2634e-05, 0.228)
 c2_5 = MolecularProperty(0.0455725, 4.0955e6, 387.607, 2.1708e-04, 0.16733)
@@ -21,18 +23,20 @@ eos = GenericCubicEOS(mixture, PengRobinson())
 using Jutul, JutulDarcy, CairoMakie
 nx = ny = 20
 nz = 2
-bar = 1e5
+
 dims = (nx, ny, nz)
 g = CartesianMesh(dims, (1000.0, 1000.0, 1.0))
 nc = number_of_cells(g)
-K = repeat([5.0e-14], 1, nc)
+K = repeat([0.05*Darcy], 1, nc)
 res = reservoir_domain(g, porosity = 0.25, permeability = K)
 ## Set up a vertical well in the first corner, perforated in all layers
 prod = setup_vertical_well(g, K, nx, ny, name = :Producer)
 ## Set up an injector in the opposite corner, perforated in all layers
 inj = setup_vertical_well(g, K, 1, 1, name = :Injector)
 
-rhoLS, rhoVS = 1000.0, 100.0
+rhoLS = 1000.0*kg/meter^3
+rhoVS = 100.0*kg/meter^3
+
 rhoS = [rhoLS, rhoVS]
 L, V = LiquidPhase(), VaporPhase()
 # Define system and realize on grid
@@ -43,12 +47,10 @@ model = replace_variables!(model, RelativePermeabilities = kr)
 
 push!(model[:Reservoir].output_variables, :Saturations)
 
-T0 = repeat([387.45], 1, nc)
+T0 = repeat([387.45*Kelvin], 1, nc)
 parameters[:Reservoir][:Temperature] = T0
 state0 = setup_reservoir_state(model, Pressure = 225*bar, OverallMoleFractions = [0.463, 0.01640, 0.20520, 0.19108, 0.12432]);
 
-
-day = 24*3600.0
 dt = repeat([2.0]*day, 365)
 rate_target = TotalRateTarget(0.0015)
 I_ctrl = InjectorControl(rate_target, [0, 1, 0, 0, 0], density = rhoVS)

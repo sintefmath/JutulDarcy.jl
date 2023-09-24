@@ -1,5 +1,5 @@
 # Supported physical systems
-JutulDarcy supports a number of different systems. These are [`JutulSystem`](@ref) instances that describe a particular type of physics for porous media flow. We describe these in roughly the order of complexity that they can model.
+JutulDarcy supports a number of different systems. These are [`JutulSystem`](https://sintefmath.github.io/Jutul.jl/dev/usage/#Jutul.JutulSystem) instances that describe a particular type of physics for porous media flow. We describe these in roughly the order of complexity that they can model.
 
 ## Summary
 The general form of the flow systems we will discuss is a conservation law for ``N`` components on residual form:
