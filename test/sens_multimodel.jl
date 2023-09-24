@@ -6,8 +6,13 @@ function well_test_objective(model, state)
 end
 
 function solve_adjoint_forward_test_system(; block_backend = true, kwarg...)
-    Darcy = 9.869232667160130e-13
-    states, reports, setup = JutulDarcy.simulate_mini_wellcase(:immiscible_2ph; kwarg..., block_backend = block_backend, permeability = 0.65*Darcy, general_ad = false)
+    Darcy = si_unit(:darcy)
+    states, reports, setup = JutulDarcy.simulate_mini_wellcase(
+        :immiscible_2ph;
+        kwarg...,
+        block_backend = block_backend,
+        permeability = 0.65*Darcy
+        )
     return (setup[:model], setup[:state0], states, reports, setup[:parameters], setup[:forces])
 end
 
