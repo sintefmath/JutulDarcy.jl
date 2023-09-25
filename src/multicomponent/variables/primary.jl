@@ -40,17 +40,19 @@ function Jutul.increment_norm(dX, state, model, X, pvar::OverallMoleFractions)
     else
         sw = missing
     end
+    M = global_map(model.domain)
+    active = active_entities(model.domain, M, Cells())
     get_scaling(::Missing, i) = 1.0
     get_scaling(s, i) = 1.0 - value(s[i])
     T = eltype(dX)
     scale = @something Jutul.variable_scale(pvar) one(T)
     max_v = sum_v = max_v_scaled = sum_v_scaled = zero(T)
     N = degrees_of_freedom_per_entity(model, pvar)
-    dx_mat = reshape(dX, N, length(dX) ÷ N)
-    for i in axes(dx_mat, 2)
-        for inner in axes(dx_mat, 1)
-            dx = dx_mat[inner, i]
-            s = get_scaling(sw, i)
+    for i in axes(dX, 1)
+        for j in axes(dX, 2)
+            cell = active[i]
+            dx = dX[i, j]
+            s = get_scaling(sw, cell)
 
             dx_abs = abs(dx)
             # Scale by 1-water saturation
