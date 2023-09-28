@@ -69,6 +69,13 @@ function Jutul.initialize_extra_state_fields!(state, d::DiscretizedDomain, m::Si
     end
 end
 
+function Jutul.select_minimum_output_variables!(vars, domain::DiscretizedDomain, model::SimpleWellFlowModel)
+    push!(vars, :PhaseMassDensities)
+    push!(vars, :Saturations)
+    push!(vars, :SurfaceWellConditions)
+    return vars
+end
+
 well_has_explicit_pressure_drop(m::SimpleWellFlowModel) = well_has_explicit_pressure_drop(physical_representation(m.domain))
 well_has_explicit_pressure_drop(w::SimpleWell) = w.explicit_dp
 
