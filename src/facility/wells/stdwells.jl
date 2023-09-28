@@ -167,7 +167,7 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
         Δgdz = gdz_next - gdz_current
 
         dp_current += local_density*Δgdz
-        gdz_current += gdz_next
+        gdz_current = gdz_next
 
         dp[i] = dp_current
     end
