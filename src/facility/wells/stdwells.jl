@@ -150,7 +150,12 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
         end
         current_weight += local_weight
         current_density += local_density
-        dp[i] = current_density/current_weight
+        if abs(current_weight) > 0.0
+            next_dp = current_density/current_weight
+        else
+            next_dp = 0.0
+        end
+        dp[i] = next_dp
     end
     # Integrate down, using the mixture densities (temporarily stored in dp) to
     # calculate the pressure drop from the top.
