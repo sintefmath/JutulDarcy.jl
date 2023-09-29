@@ -122,14 +122,11 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
     # accumulate the actual pressure drop due to hydrostatic assumptions.
     perf = physical_representation(well_model).perforations
     res_cells = perf.reservoir
-    WI = perf.WI
-
     gdz = perf.gdz
-
+    # Explicit update, take value.
+    WI = as_value(well_state.WellIndices)
     ρ = as_value(res_state.PhaseMassDensities)
     mob = as_value(res_state.PhaseMobilities)
-    # kr = as_value(res_state.RelativePermeabilities)
-    # mu = as_value(res_state.PhaseViscosities)
 
     # Integrate up, adding weighted density into well bore and keeping track of
     # current weight
