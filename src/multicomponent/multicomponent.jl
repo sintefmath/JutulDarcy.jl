@@ -2,7 +2,7 @@ using MultiComponentFlash
 export MultiPhaseCompositionalSystemLV
 export StandardVolumeSource, VolumeSource, MassSource
 
-const MINIMUM_COMPOSITIONAL_SATURATION = 1e-10
+const MINIMUM_COMPOSITIONAL_SATURATION = 1e-5
 
 include("variables/variables.jl")
 include("utils.jl")
