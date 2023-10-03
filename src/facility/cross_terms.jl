@@ -27,17 +27,21 @@ function update_cross_term_in_entity!(out, i,
         well_cell = ct.well_cells[i]
         WI = state_s.WellIndices[i]
         gdz = state_s.PerforationGravityDifference[i]
+        p_well = state_s.Pressure
+        p_res = state_t.Pressure    
+        dp = p_well[well_cell] - p_res[reservoir_cell]
     end
     rhoS = reference_densities(sys)
 
-    p_well = state_s.Pressure
-    p_res = state_t.Pressure
     # Wrap the key connection data in tuple for easy extension later
-    conn = (dp = p_well[well_cell] - p_res[reservoir_cell],
-           WI = WI, gdz = gdz,
-           well = well_cell,
-           perforation = i,
-           reservoir = reservoir_cell)
+    conn = (
+        dp = dp,
+        WI = WI,
+        gdz = gdz,
+        well = well_cell,
+        perforation = i,
+        reservoir = reservoir_cell
+    )
     # Call smaller interface that is easy to specialize
     if haskey(state_s, :MassFractions)
         @inbounds simple_well_perforation_flux!(out, sys, state_t, state_s, rhoS, conn)
