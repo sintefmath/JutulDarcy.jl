@@ -63,14 +63,9 @@ function setup_reservoir_model(reservoir::DataDomain, system;
     mode = PredictionMode()
     if length(wells) > 0
         for w in wells
-            if w isa SimpleWell
-                well_context = reservoir_context
-            else
-                well_context = context
-            end
             w_domain = DataDomain(w)
             wname = w.name
-            models[wname] = SimulationModel(w_domain, system, context = well_context)
+            models[wname] = SimulationModel(w_domain, system, context = context)
             if split_wells
                 wg = WellGroup([wname])
                 F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))

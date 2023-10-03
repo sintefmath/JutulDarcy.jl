@@ -125,7 +125,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         volumes[i] = h*π*r_i^2
     end
     if simple_well
-        W = SimpleWell(reservoir_cells, WI = WI_computed, dz = dz, reference_depth = reference_depth, kwarg...)
+        W = SimpleWell(reservoir_cells; WI = WI_computed, dz = dz, kwarg...)
     else
         # Depth differences are taken care of via centers.
         dz *= 0.0
