@@ -27,19 +27,31 @@ end
 end
 
 # Total masses
-@jutul_secondary function update_total_masses!(totmass, tv::TotalMasses, model::SimulationModel{G,S},
-                                                                                                    FlashResults,
-                                                                                                    PhaseMassDensities,
-                                                                                                    Saturations,
-                                                                                                    VaporMassFractions,
-                                                                                                    LiquidMassFractions,
-                                                                                                    FluidVolume, ix) where {G,S<:CompositionalSystem}
-    pv = FluidVolume
-    ρ = PhaseMassDensities
-    X = LiquidMassFractions
-    Y = VaporMassFractions
-    Sat = Saturations
-    F = FlashResults
+@jutul_secondary function update_total_masses!(totmass,
+    tv::TotalMasses,
+    model::SimulationModel{G,S},
+    FlashResults,
+    PhaseMassDensities,
+    Saturations,
+    VaporMassFractions,
+    LiquidMassFractions,
+    FluidVolume,
+    ix
+    ) where {G,S<:CompositionalSystem}
+    compositiona_mass_update_loop!(
+        totmass,
+        model,
+        FlashResults,
+        PhaseMassDensities,
+        Saturations,
+        LiquidMassFractions,
+        VaporMassFractions,
+        FluidVolume,
+        ix
+    )
+end
+
+function compositiona_mass_update_loop!(totmass, model, F, ρ, Sat, X, Y, pv, ix)
     sys = model.system
     phase_ix = phase_indices(sys)
     has_other = Val(has_other_phase(sys))
@@ -47,6 +59,7 @@ end
     for cell in ix
         @inbounds two_phase_compositional_mass!(totmass, F[cell].state, pv, ρ, X, Y, Sat, cell, N, has_other, phase_ix)
     end
+    return totmass
 end
 
 function degrees_of_freedom_per_entity(model::SimulationModel{G,S}, v::TotalMasses) where {G<:Any,S<:MultiComponentSystem}
