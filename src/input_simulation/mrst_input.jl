@@ -728,7 +728,8 @@ function init_from_mat(mrst_data, model, param)
         s = copy(state0["s"])
         if size(s, 2) == 3
             sw = vec(s[:, 1])
-            sw = min.(sw, 1 - MINIMUM_COMPOSITIONAL_SATURATION)
+            # sw = min.(sw, 1 - MINIMUM_COMPOSITIONAL_SATURATION)
+            sw = min.(sw, 1.0)
             init[:ImmiscibleSaturation] = sw
         else
             @assert size(s, 2) == 2

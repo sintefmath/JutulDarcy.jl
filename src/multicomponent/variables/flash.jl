@@ -75,6 +75,10 @@ function initialize_variable_ad!(state, model, pvar::FlashResults, symb, npartia
 end
 
 @jutul_secondary function update_flash!(flash_results, fr::FlashResults, model, Pressure, Temperature, OverallMoleFractions, ix)
+    flash_entity_loop!(flash_results, fr, model, Pressure, Temperature, OverallMoleFractions, nothing, ix)
+end
+
+function flash_entity_loop!(flash_results, fr, model, Pressure, Temperature, OverallMoleFractions, sw, ix)
     storage, m, buffers = fr.storage, fr.method, fr.update_buffer
     eos = model.system.equation_of_state
 
@@ -83,7 +87,7 @@ end
     buf_z = buf.z
     buf_forces = buf.forces
     @inbounds for i in ix
-        flash_results[i] = internal_flash!(flash_results[i], S, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, i)
+        flash_results[i] = internal_flash!(flash_results[i], S, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, sw, i)
     end
 end
 
@@ -128,27 +132,40 @@ function update_flash_buffer!(buf, eos, Pressure, Temperature, OverallMoleFracti
     end
 end
 
-function internal_flash!(f, S, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, i)
+function internal_flash!(f, S, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, sw, i)
+    @inline function immiscible_sat(::Nothing, i)
+        return 0.0
+    end
+
+    @inline function immiscible_sat(s, i)
+        return @inbounds s[i]
+    end
+
     @inbounds begin
         P = Pressure[i]
         T = Temperature[i]
         Z = @view OverallMoleFractions[:, i]
+        Sw = immiscible_sat(sw, i)
 
         K = f.K
         x = f.liquid.mole_fractions
         y = f.vapor.mole_fractions
 
-        return update_flash_result(S, m, eos, K, x, y, buf_z, buf_forces, P, T, Z)
+        return update_flash_result(S, m, eos, K, x, y, buf_z, buf_forces, P, T, Z, Sw)
     end
 end
 
 
-function update_flash_result(S, m, eos, K, x, y, z, forces, P, T, Z)
+function update_flash_result(S, m, eos, K, x, y, z, forces, P, T, Z, Sw = 0.0)
     @. z = max(value(Z), 1e-8)
     # Conditions
     c = (p = value(P), T = value(T), z = z)
     # Perform flash
-    vapor_frac = flash_2ph!(S, K, eos, c, NaN, method = m, extra_out = false, z_min = nothing)
+    if is_pure_single_phase(Sw)
+        vapor_frac = NaN
+    else
+        vapor_frac = flash_2ph!(S, K, eos, c, NaN, method = m, extra_out = false, z_min = nothing)
+    end
     force_coefficients!(forces, eos, (p = P, T = T, z = Z))
     if isnan(vapor_frac)
         # Single phase condition. Life is easy.
