@@ -1,3 +1,4 @@
+abstract type AbstractPhase end
 
 abstract type MultiPhaseSystem <: JutulSystem end
 abstract type MultiComponentSystem <: MultiPhaseSystem end
@@ -17,7 +18,13 @@ struct MultiPhaseCompositionalSystemLV{E, T, O, R} <: CompositionalSystem where 
     equation_of_state::E
     rho_ref::R
 end
-const LVCompositionalModel = SimulationModel{D, S, F, C} where {D, S<:MultiPhaseCompositionalSystemLV{<:Any, <:Any, <:Any}, F, C}
+
+const LVCompositional2PhaseSystem = MultiPhaseCompositionalSystemLV{<:Any, <:Any, Nothing, <:Any}
+const LVCompositional3PhaseSystem = MultiPhaseCompositionalSystemLV{<:Any, <:Any, <:AbstractPhase, <:Any}
+
+const LVCompositionalModel = SimulationModel{D, S, F, C} where {D, S<:MultiPhaseCompositionalSystemLV{<:Any, <:Any, <:Any, <:Any}, F, C}
+const LVCompositionalModel2Phase = SimulationModel{D, S, F, C} where {D, S<:LVCompositional2PhaseSystem, F, C}
+const LVCompositionalModel3Phase = SimulationModel{D, S, F, C} where {D, S<:LVCompositional3PhaseSystem, F, C}
 
 """
     MultiPhaseCompositionalSystemLV(equation_of_state, phases = (LiquidPhase(), VaporPhase()); reference_densities = ones(length(phases)), other_name = "Water")

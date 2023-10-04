@@ -40,9 +40,6 @@ number_of_phases(::SinglePhaseSystem) = 1
 number_of_phases(sys::CompositeSystem) = number_of_phases(sys.systems.flow)
 
 ## Phases
-# Abstract phase
-abstract type AbstractPhase end
-
 function get_short_name(phase::AbstractPhase)
     return get_name(phase)[]
 end
