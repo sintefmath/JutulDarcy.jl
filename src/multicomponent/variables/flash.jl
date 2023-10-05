@@ -78,6 +78,10 @@ end
     flash_entity_loop!(flash_results, fr, model, Pressure, Temperature, OverallMoleFractions, nothing, ix)
 end
 
+@jutul_secondary function update_flash!(flash_results, fr::FlashResults, model::LVCompositionalModel3Phase, Pressure, Temperature, OverallMoleFractions, ImmiscibleSaturation, ix)
+    flash_entity_loop!(flash_results, fr, model, Pressure, Temperature, OverallMoleFractions, ImmiscibleSaturation, ix)
+end
+
 function flash_entity_loop!(flash_results, fr, model, Pressure, Temperature, OverallMoleFractions, sw, ix)
     storage, m, buffers = fr.storage, fr.method, fr.update_buffer
     eos = model.system.equation_of_state
@@ -161,7 +165,9 @@ function update_flash_result(S, m, eos, K, x, y, z, forces, P, T, Z, Sw = 0.0)
     # Conditions
     c = (p = value(P), T = value(T), z = z)
     # Perform flash
-    if is_pure_single_phase(Sw)
+    @info "Cell water = $(value(Sw))"
+    if is_pure_single_phase(Sw) && false
+        @info "Setting to single phase: Sw = $Sw"
         vapor_frac = NaN
     else
         vapor_frac = flash_2ph!(S, K, eos, c, NaN, method = m, extra_out = false, z_min = nothing)

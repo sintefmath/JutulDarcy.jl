@@ -16,7 +16,7 @@ end
     @inbounds for i in ix
         S_other = ImmiscibleSaturation[i]
         fr = FlashResults[i]
-        rem = one(T) - S_other
+        rem = one(T) - S_other - MINIMUM_COMPOSITIONAL_SATURATION
         if fr.state == MultiComponentFlash.two_phase_lv
             S_v_pure = MultiComponentFlash.two_phase_vapor_saturation(eos, Pressure[i], Temperature[i], fr)
             S_v = rem*S_v_pure
