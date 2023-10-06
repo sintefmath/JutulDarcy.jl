@@ -127,7 +127,7 @@ end
 function single_phase_mass!(M, ρ, S, mass_fractions, Φ, cell, N, phase)
     S_eos = S[phase, cell]
     if S_eos < MINIMUM_COMPOSITIONAL_SATURATION
-        # S_eos = replace_value(S_eos, MINIMUM_COMPOSITIONAL_SATURATION)
+        S_eos = replace_value(S_eos, MINIMUM_COMPOSITIONAL_SATURATION)
     end
     # S_eos = max(S[phase, cell], MINIMUM_COMPOSITIONAL_SATURATION)
     # @info "?? $phase" S[phase, cell] MINIMUM_COMPOSITIONAL_SATURATION S_eos
