@@ -165,9 +165,7 @@ function update_flash_result(S, m, eos, K, x, y, z, forces, P, T, Z, Sw = 0.0)
     # Conditions
     c = (p = value(P), T = value(T), z = z)
     # Perform flash
-    @info "Cell water = $(value(Sw))"
     if is_pure_single_phase(Sw) && false
-        @info "Setting to single phase: Sw = $Sw"
         vapor_frac = NaN
     else
         vapor_frac = flash_2ph!(S, K, eos, c, NaN, method = m, extra_out = false, z_min = nothing)

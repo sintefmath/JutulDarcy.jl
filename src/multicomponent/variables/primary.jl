@@ -75,6 +75,6 @@ Base.@kwdef struct ImmiscibleSaturation <: ScalarVariable
     ds_max::Float64 = 0.2
 end
 
-maximum_value(::ImmiscibleSaturation) = 1.0# - MINIMUM_COMPOSITIONAL_SATURATION
+maximum_value(::ImmiscibleSaturation) = 1.0 - MINIMUM_COMPOSITIONAL_SATURATION
 minimum_value(::ImmiscibleSaturation) = 0.0
 absolute_increment_limit(s::ImmiscibleSaturation) = s.ds_max
