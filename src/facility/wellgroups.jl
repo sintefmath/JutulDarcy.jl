@@ -20,22 +20,36 @@ function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, s
     # producers can only have strictly negative and disabled controls give zero rate.
     rel_max = Jutul.absolute_increment_limit(massrate)
     abs_max = Jutul.relative_increment_limit(massrate)
-    function do_update(v, dx, ctrl)
+    function do_update!(wcfg, s, v, dx, ctrl)
         return Jutul.update_value(v, dx)
     end
-    function do_update(v, dx, ctrl::InjectorControl)
-        return Jutul.update_value(v, dx, abs_max, rel_max, MIN_ACTIVE_WELL_RATE, nothing)
+    function do_update!(wcfg, s, v, dx, ctrl::InjectorControl)
+        if v == MIN_ACTIVE_WELL_RATE && v + dx < MIN_ACTIVE_WELL_RATE
+            @info "Disabling injector $s"
+            wcfg.operating_controls[s] = DisabledControl()
+            next = Jutul.update_value(v, -value(v))
+        else
+            next = Jutul.update_value(v, dx, abs_max, rel_max, MIN_ACTIVE_WELL_RATE, nothing)
+        end
+        return next
     end
-    function do_update(v, dx, ctrl::ProducerControl)
-        return Jutul.update_value(v, dx, abs_max, rel_max, nothing, -MIN_ACTIVE_WELL_RATE)
+    function do_update!(wcfg, s, v, dx, ctrl::ProducerControl)
+        if v == MIN_ACTIVE_WELL_RATE && v + dx > MIN_ACTIVE_WELL_RATE
+            @info "Disabling producer $s"
+            wcfg.operating_controls[s] = DisabledControl()
+            next = Jutul.update_value(v, -value(v))
+        else
+            next = Jutul.update_value(v, dx, abs_max, rel_max, nothing, -MIN_ACTIVE_WELL_RATE)
+        end
+        return next
     end
-    function do_update(v, dx, ctrl::DisabledControl)
+    function do_update!(wcfg, s, v, dx, ctrl::DisabledControl)
         # Set value to zero since we know it is correct.
         return Jutul.update_value(v, -value(v))
     end
     @inbounds for i in eachindex(v)
         s = symbols[i]
-        v[i] = do_update(v[i], w*dx[i], operating_control(cfg, s))
+        v[i] = do_update!(cfg, s, v[i], w*dx[i], operating_control(cfg, s))
     end
 end
 
