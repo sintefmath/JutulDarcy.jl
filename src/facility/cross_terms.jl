@@ -28,7 +28,7 @@ function update_cross_term_in_entity!(out, i,
         WI = state_s.WellIndices[i]
         gdz = state_s.PerforationGravityDifference[i]
         p_well = state_s.Pressure
-        p_res = state_t.Pressure    
+        p_res = state_t.Pressure
         dp = p_well[well_cell] - p_res[reservoir_cell]
     end
     rhoS = reference_densities(sys)
