@@ -2,7 +2,7 @@ using MultiComponentFlash
 export MultiPhaseCompositionalSystemLV
 export StandardVolumeSource, VolumeSource, MassSource
 
-const MINIMUM_COMPOSITIONAL_SATURATION = 1e-5
+const MINIMUM_COMPOSITIONAL_SATURATION = 1e-10
 
 @inline function is_pure_single_phase(s_immiscible)
     return s_immiscible > 1.0 - MINIMUM_COMPOSITIONAL_SATURATION
