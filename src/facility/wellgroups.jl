@@ -16,6 +16,7 @@ function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, s
     v = state[state_symbol]
     symbols = model.domain.well_symbols
     cfg = state.WellGroupConfiguration
+    can_shut_wells = model.domain.can_shut_wells
     # Injectors can only have strictly positive injection rates,
     # producers can only have strictly negative and disabled controls give zero rate.
     rel_max = Jutul.absolute_increment_limit(massrate)
@@ -24,8 +25,8 @@ function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, s
         return Jutul.update_value(v, dx)
     end
     function do_update!(wcfg, s, v, dx, ctrl::InjectorControl)
-        if v == MIN_ACTIVE_WELL_RATE && v + dx < MIN_ACTIVE_WELL_RATE
-            @info "Disabling injector $s"
+        if v == MIN_ACTIVE_WELL_RATE && v + dx < MIN_ACTIVE_WELL_RATE && can_shut_wells
+            jutul_message("$s", "Approaching zero rate, disabling injector for current step", color = :red)
             wcfg.operating_controls[s] = DisabledControl()
             next = Jutul.update_value(v, -value(v))
         else
@@ -34,8 +35,8 @@ function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, s
         return next
     end
     function do_update!(wcfg, s, v, dx, ctrl::ProducerControl)
-        if v == MIN_ACTIVE_WELL_RATE && v + dx > MIN_ACTIVE_WELL_RATE
-            @info "Disabling producer $s"
+        if v == MIN_ACTIVE_WELL_RATE && v + dx > MIN_ACTIVE_WELL_RATE && can_shut_wells
+            jutul_message("$s", "Approaching zero rate, disabling producer for current step", color = :red)
             wcfg.operating_controls[s] = DisabledControl()
             next = Jutul.update_value(v, -value(v))
         else
