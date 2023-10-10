@@ -139,7 +139,7 @@ function compositional_residual_scale(cell, dt, w, sl, liquid_density, sv, vapor
         sw_i = sw[cell]
     end
 
-    if sw_i > 1.0 - 1e-4
+    if sw_i > 1.0 - MINIMUM_COMPOSITIONAL_SATURATION
         scale = 0.0
     else
         # The convergence criterion is taken to be dimensionless in a similar
@@ -147,12 +147,12 @@ function compositional_residual_scale(cell, dt, w, sl, liquid_density, sv, vapor
         # immiscible phase so that the convergence criterion is more relaxed in
         # cells that are close to or completely filled with the immiscible
         # phase.
-        scale_lv = 1.0 - sw_i
+        scale_lv = 1.0 - sw_i + MINIMUM_COMPOSITIONAL_SATURATION
         sl_scaled = sl[cell]/scale_lv
         denl = liquid_density[cell]
         denv = vapor_density[cell]
         total_density = denl * sl_scaled + denv * (1.0 - sl_scaled)
-        scale = dt * mean(w) * (scale_lv / (vol[cell] * max(total_density, 1e-3)))
+        scale = dt * mean(w) * (scale_lv / (vol[cell] * max(total_density, 1e-8)))
     end
     return scale
 end
