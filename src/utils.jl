@@ -696,12 +696,13 @@ function partitioner_input(model, parameters; conn = :trans)
         @assert conn == :unit
         T = ones(Int, length(trans))
     end
-    groups = []
+    groups = Vector{Vector{Int}}()
     if model isa MultiModel
         for (k, m) in pairs(model.models)
             wg = physical_representation(m.domain)
             if wg isa WellDomain
-                push!(groups, copy(wg.perforations.reservoir))
+                rcells = vec(Int.(wg.perforations.reservoir))
+                push!(groups, rcells)
             end
         end
     end
