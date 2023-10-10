@@ -222,15 +222,16 @@ end
         sw = ImmiscibleSaturation[i]
         X = BlackOilUnknown[i]
         phases = X.phases_present
+        rem = one(T) - sw + MINIMUM_COMPOSITIONAL_SATURATION
         if phases == OilOnly
             sg = zero(T)
-            so = one(T) - sw
+            so = rem
         elseif phases == GasOnly
-            sg = one(T) - sw
+            sg = rem
             so = zero(T)
         else
             sg = X.val
-            so = one(T) - sw - sg
+            so = rem - sg
         end
         s[a, i] = sw
         s[l, i] = so
