@@ -115,16 +115,6 @@ end
     end
 end
 
-@inline function saturation_averaged_density(ρ, ph, sat, c1, c2)
-    @inbounds ρ_1 = ρ[ph, c1]
-    @inbounds ρ_2 = ρ[ph, c2]
-    @inbounds S_1 = sat[ph, c1]
-    @inbounds S_2 = sat[ph, c2]
-
-    avg = (ρ_1*S_1 + ρ_2*S_2)/max(S_1 + S_2, 1e-12)
-    return avg
-end
-
 export component_mass_fluxes!, update_total_masses!
 """
     component_mass_fluxes!(q, face, state, model, kgrad, upw)
