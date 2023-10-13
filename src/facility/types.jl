@@ -298,7 +298,7 @@ function Jutul.numerical_type(tc::WellGroupConfiguration)
 end
 
 function Jutul.update_values!(old::WellGroupConfiguration, new::WellGroupConfiguration)
-    return WellGroupConfiguration(copy(new.operating_controls), copy(new.requested_controls), copy(new.limits))
+    return WellGroupConfiguration(copy(new.operating_controls), copy(new.requested_controls), copy(new.limits), new.step_index)
 end
 
 operating_control(cfg::WellGroupConfiguration, well::Symbol) = cfg.operating_controls[well]
