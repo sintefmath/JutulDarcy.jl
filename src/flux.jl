@@ -63,12 +63,17 @@ function face_average_density(model, state, tpfa, phase)
     return 0.5*(ρ_i + ρ_c)
 end
 
-@inline function gradient(X, tpfa::TPFA)
+@inline function gradient(X::AbstractVector, tpfa::TPFA)
     return @inbounds X[tpfa.right] - X[tpfa.left]
 end
 
 @inline function gradient(X::AbstractMatrix, i, tpfa::TPFA)
     return @inbounds X[i, tpfa.right] - X[i, tpfa.left]
+end
+
+@inline function gradient(F, tpfa::TPFA)
+    # Function handle version
+    return F(tpfa.right) - F(tpfa.left)
 end
 
 pressure_gradient(state, disc) = gradient(state.Pressure, disc)

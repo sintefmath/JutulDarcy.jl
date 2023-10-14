@@ -173,7 +173,9 @@ function Jutul.default_parameter_values(data_domain, model, param::Diffusivities
         T = data_domain[:diffusivities]
     elseif haskey(data_domain, :diffusion, Cells())
         T = zeros(nph, nf)
-        U = data_domain[:diffusion]
+        ϕ = data_domain[:porosity]
+        D = data_domain[:diffusion]
+        U = ϕ'.*D
         g = physical_representation(data_domain)
         if U isa AbstractVector
             T_i = compute_face_trans(g, U)

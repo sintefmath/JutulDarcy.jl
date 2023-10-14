@@ -48,6 +48,38 @@
     else
         q_v = rhoVS*λb_v*∇ψ_v
     end
+
+    if haskey(state, :Diffusivities)
+        S = state.Saturations
+        density = state.PhaseMassDensities
+        D = state.Diffusivities
+        @inbounds D_l = D[l, face]
+        @inbounds D_v = D[v, face]
+
+        if has_disgas(sys)
+            X_o = cell -> @inbounds rhoLS/(Rs[cell]*rhoVS)
+            X_g = cell -> @inbounds (Rs[cell]*rhoLS)/(Rs[cell]*rhoVS)
+
+            ΔX_o = -gradient(X_o, kgrad)
+            ΔX_g = -gradient(X_g, kgrad)
+
+            mass_l = cell -> density[l, cell]*S[l, cell]
+            q_l += D_l*upwind(upw, mass_l, ΔX_o)
+            q_v += D_l*upwind(upw, mass_l, ΔX_g)
+        end
+
+        if has_vapoil(sys)
+            Y_o = cell -> @inbounds rhoVS/(Rv[cell]*rhoLS)
+            Y_g = cell -> @inbounds (Rv[cell]*rhoVS)/(Rv[cell]*rhoLS)
+
+            ΔY_o = -gradient(Y_o, kgrad)
+            ΔY_g = -gradient(Y_g, kgrad)
+
+            mass_v = cell -> density[v, cell]*S[v, cell]
+            q_l += D_v*upwind(upw, mass_v, ΔY_o)
+            q_v += D_v*upwind(upw, mass_v, ΔX_g)
+        end
+    end
     q = setindex(q, q_l, l)
     q = setindex(q, q_v, v)
     return q
