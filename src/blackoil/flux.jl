@@ -77,7 +77,7 @@
 
             mass_v = cell -> density[v, cell]*S[v, cell]
             q_l += D_v*upwind(upw, mass_v, ΔY_o)
-            q_v += D_v*upwind(upw, mass_v, ΔX_g)
+            q_v += D_v*upwind(upw, mass_v, ΔY_g)
         end
     end
     q = setindex(q, q_l, l)
