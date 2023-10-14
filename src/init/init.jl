@@ -3,6 +3,7 @@ function equilibriate_state(model, contacts, datum_depth = missing, datum_pressu
     cells = missing,
     rs = missing,
     kwarg...)
+    model = reservoir_model(model)
     D = model.data_domain
     G = physical_representation(D)
     cc = D[:cell_centroids][3, :]
@@ -200,7 +201,7 @@ function init_reference_pressure(pressures, contacts, kr, pc, ref_ix = 2)
         p[i] = pressures[ref_ix, i]
         if kr[ref_ix, i] <= 0
             for ph in 1:nph
-                if kr[ph, i] > 0
+                if kr[ph, i] > 1e-12
                     p[i] = pressures[ph, i]# - pc[ph, i]
                 end
             end
@@ -274,11 +275,11 @@ end
 function determine_saturations(depths, contacts, pressures; s_min = missing, s_max = missing, pc = nothing)
     nc = length(depths)
     nph = length(contacts) + 1
-    if ismissing(s_max)
-        s_max = zeros(nph)
+    if ismissing(s_min)
+        s_min = zeros(nph)
     end
     if ismissing(s_max)
-        s_max = zeros(nph)
+        s_max = ones(nph)
     end
     sat = zeros(nph, nc)
     sat_pc = similar(sat)
