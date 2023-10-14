@@ -55,7 +55,6 @@
         D = state.Diffusivities
         @inbounds D_l = D[l, face]
         @inbounds D_v = D[v, face]
-        ϵ = 1e-10
         if has_disgas(sys)
             X_o = cell -> black_oil_phase_mass_fraction(rhoLS, rhoVS, Rs, cell)
             X_g = cell -> 1.0 - black_oil_phase_mass_fraction(rhoLS, rhoVS, Rs, cell)
@@ -95,7 +94,7 @@ end
     if rs < 1e-10
         v = zero(rs)
     else
-        v = rhoLS/(rs*rhoVS)
+        v = rhoLS/(rhoLS + rs*rhoVS)
     end
     return v
 end
