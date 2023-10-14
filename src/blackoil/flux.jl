@@ -55,34 +55,49 @@
         D = state.Diffusivities
         @inbounds D_l = D[l, face]
         @inbounds D_v = D[v, face]
-
+        ϵ = 1e-10
         if has_disgas(sys)
-            X_o = cell -> @inbounds rhoLS/(Rs[cell]*rhoVS)
-            X_g = cell -> @inbounds (Rs[cell]*rhoLS)/(Rs[cell]*rhoVS)
+            X_o = cell -> black_oil_phase_mass_fraction(rhoLS, rhoVS, Rs, cell)
+            X_g = cell -> 1.0 - black_oil_phase_mass_fraction(rhoLS, rhoVS, Rs, cell)
 
             ΔX_o = -gradient(X_o, kgrad)
             ΔX_g = -gradient(X_g, kgrad)
 
             mass_l = cell -> density[l, cell]*S[l, cell]
-            q_l += D_l*upwind(upw, mass_l, ΔX_o)
-            q_v += D_l*upwind(upw, mass_l, ΔX_g)
+            q_l += D_l*upwind(upw, mass_l, ΔX_o)*ΔX_o
+            q_v += D_l*upwind(upw, mass_l, ΔX_g)*ΔX_g
+            # q_l += D_v*face_average(mass_l, kgrad)*ΔX_o
+            # q_v += D_v*face_average(mass_l, kgrad)*ΔX_g
         end
 
         if has_vapoil(sys)
-            Y_o = cell -> @inbounds rhoVS/(Rv[cell]*rhoLS)
-            Y_g = cell -> @inbounds (Rv[cell]*rhoVS)/(Rv[cell]*rhoLS)
+            Y_o = cell -> 1.0 - black_oil_phase_mass_fraction(rhoVS, rhoLS, Rv, cell)
+            Y_g = cell -> black_oil_phase_mass_fraction(rhoVS, rhoLS, Rv, cell)
 
             ΔY_o = -gradient(Y_o, kgrad)
             ΔY_g = -gradient(Y_g, kgrad)
 
             mass_v = cell -> density[v, cell]*S[v, cell]
-            q_l += D_v*upwind(upw, mass_v, ΔY_o)
-            q_v += D_v*upwind(upw, mass_v, ΔY_g)
+            q_l += D_v*upwind(upw, mass_v, ΔY_o)*ΔY_o
+            q_v += D_v*upwind(upw, mass_v, ΔY_g)*ΔY_g
+            # q_l += D_v*face_average(mass_v, kgrad)*ΔY_o
+            # q_v += D_v*face_average(mass_v, kgrad)*ΔY_g
         end
     end
     q = setindex(q, q_l, l)
     q = setindex(q, q_v, v)
     return q
+end
+
+@inline function black_oil_phase_mass_fraction(rhoLS, rhoVS, Rs, cell)
+    # TODO: Should have molar weights here maybe, but not part of standard input
+    @inbounds rs = Rs[cell]
+    if rs < 1e-10
+        v = zero(rs)
+    else
+        v = rhoLS/(rs*rhoVS)
+    end
+    return v
 end
 
 function apply_flow_bc!(acc, q, bc, model::StandardBlackOilModel, state, time)
