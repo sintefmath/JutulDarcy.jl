@@ -63,10 +63,12 @@
             ΔX_g = -gradient(X_g, kgrad)
 
             mass_l = cell -> density[l, cell]*S[l, cell]
-            q_l += D_l*upwind(upw, mass_l, ΔX_o)*ΔX_o
-            q_v += D_l*upwind(upw, mass_l, ΔX_g)*ΔX_g
-            # q_l += D_v*face_average(mass_l, kgrad)*ΔX_o
-            # q_v += D_v*face_average(mass_l, kgrad)*ΔX_g
+            # TODO: Upwind or average here? Maybe doesn't matter, should be in
+            # parabolic limit for diffusion
+            # q_l += D_l*upwind(upw, mass_l, ΔX_o)*ΔX_o
+            # q_v += D_l*upwind(upw, mass_l, ΔX_g)*ΔX_g
+            q_l += D_v*face_average(mass_l, kgrad)*ΔX_o
+            q_v += D_v*face_average(mass_l, kgrad)*ΔX_g
         end
 
         if has_vapoil(sys)
@@ -92,7 +94,7 @@ end
     # TODO: Should have molar weights here maybe, but not part of standard input
     @inbounds rs = Rs[cell]
     if rs < 1e-10
-        v = zero(rs)
+        v = one(rs)
     else
         v = rhoLS/(rhoLS + rs*rhoVS)
     end
