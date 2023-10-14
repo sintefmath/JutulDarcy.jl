@@ -84,7 +84,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     JutulDarcy.update_kr!(kr, relperm, model, s, cells)
 
     init[:Saturations] = s
-    init[:Pressure] = init_reference_pressure(pressures, contacts, pc, kr, 2)
+    init[:Pressure] = init_reference_pressure(pressures, contacts, kr, pc, 2)
     return init
 end
 
@@ -197,12 +197,15 @@ end
 function init_reference_pressure(pressures, contacts, kr, pc, ref_ix = 2)
     nph, nc = size(kr)
     p = zeros(nc)
+    ϵ = 1e-12
     for i in eachindex(p)
         p[i] = pressures[ref_ix, i]
-        if kr[ref_ix, i] <= 0
+        kr_ref = kr[ref_ix, i]
+        @assert kr_ref >= -ϵ
+        if kr[ref_ix, i] <= ϵ
             for ph in 1:nph
-                if kr[ph, i] > 1e-12
-                    p[i] = pressures[ph, i]# - pc[ph, i]
+                if kr[ph, i] > ϵ
+                    p[i] = pressures[ph, i]
                 end
             end
         end
