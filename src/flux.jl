@@ -76,6 +76,15 @@ end
     return F(tpfa.right) - F(tpfa.left)
 end
 
+function face_average(F, tpfa)
+    return 0.5*(F(tpfa.right) + F(tpfa.left))
+end
+
+function phase_face_average(phase_property, tpfa, cell)
+    F(cell) = @inbounds phase_property[phase, cell]
+    return face_average(F, tpfa)
+end
+
 pressure_gradient(state, disc) = gradient(state.Pressure, disc)
 
 @inline function upwind(upw::SPU, F, q)
