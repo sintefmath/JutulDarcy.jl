@@ -444,19 +444,19 @@ struct TopConditions{N, R}
     density::SVector{N, R}
     volume_fractions::SVector{N, R}
     function TopConditions(n::Int, R::DataType = Float64; density = missing, volume_fractions = missing)
-        function internal_convert(x::Missing)
+        function internal_convert(x::Missing, N)
             x = @SVector ones(R, n)
-            return x./n
+            return x./N
         end
-        function internal_convert(x)
+        function internal_convert(x, N)
             x0 = x
-            @assert length(x0) == n
-            x = @MVector zeros(R, n)
+            @assert length(x0) == N
+            x = @MVector zeros(R, N)
             @. x = x0
             return SVector(x)
         end
-        density = internal_convert(density)
-        volume_fractions = internal_convert(volume_fractions)
+        density = internal_convert(density, n)
+        volume_fractions = internal_convert(volume_fractions, n)
         return new{n, R}(density, volume_fractions)
     end
 end
