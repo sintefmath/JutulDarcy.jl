@@ -30,8 +30,7 @@
     if has_vapoil(sys)
         # Rv (vaporized oil) upwinded by vapor potential
         Rv = state.Rv
-        f_rv = cell -> @inbounds Rv[cell]
-        rv = upwind(upw, f_rv, ∇ψ_v)
+        rv = upwind(upw, Rv, ∇ψ_v)
         # Final flux = oil phase flux + oil-in-gas flux
         q_l = rhoLS*(λb_l*∇ψ_l + rv*λb_v*∇ψ_v)
     else
@@ -41,8 +40,7 @@
     if has_disgas(sys)
         # Rs (solute gas) upwinded by liquid potential
         Rs = state.Rs
-        f_rs = cell -> @inbounds Rs[cell]
-        rs = upwind(upw, f_rs, ∇ψ_l)
+        rs = upwind(upw, Rs, ∇ψ_l)
         # Final flux = gas phase flux + gas-in-oil flux
         q_v = rhoVS*(λb_v*∇ψ_v + rs*λb_l*∇ψ_l)
     else
@@ -87,7 +85,7 @@ function blackoil_diffusion(R, S, density, rhoS_self, rhoS_dissolved, face, D, �
     diffused_mass = D_α*face_average(mass_l, kgrad)
     diff_self = convert(T, diffused_mass*ΔX_self)
     diff_dissolved = convert(T, diffused_mass*ΔX_other)
-    return (diff_self::T, diff_dissolved::T)
+    return (diff_self::T, diff_dissolved::T)::Tuple{T, T}
 end
 
 @inline function black_oil_phase_mass_fraction(rhoLS, rhoVS, Rs, cell)

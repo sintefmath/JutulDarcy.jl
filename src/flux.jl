@@ -88,13 +88,24 @@ end
 pressure_gradient(state, disc) = gradient(state.Pressure, disc)
 
 @inline function upwind(upw::SPU, F, q)
-    flag = q < 0
+    flag = q < zero(q)
     if flag
         up = upw.right
     else
         up = upw.left
     end
     return F(up)
+end
+
+
+@inline function upwind(upw::SPU, X::AbstractArray, q)
+    flag = q < zero(q)
+    if flag
+        up = upw.right
+    else
+        up = upw.left
+    end
+    return @inbounds X[up]
 end
 
 @inline function phase_upwind(upw, m::AbstractMatrix, phase::Integer, q)
