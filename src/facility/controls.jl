@@ -3,7 +3,7 @@ function Jutul.initialize_extra_state_fields!(state, domain::WellGroup, model)
     state[:WellGroupConfiguration] = WellGroupConfiguration(domain.well_symbols)
 end
 
-function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, model::WellGroupModel, dt, forces, key; recorder, kwarg...)
+function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, model::WellGroupModel, dt, forces, key; time = NaN, recorder, update_explicit = true)
     # Set control to whatever is on the forces
     storage = storage_g[key]
     cfg = storage.state.WellGroupConfiguration
@@ -44,7 +44,7 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
         wstate = storage_g[wname].state
         rmodel = model_g[:Reservoir]
         rstate = storage_g.Reservoir.state
-        update_before_step_well!(wstate, wmodel, rstate, rmodel, op_ctrls[wname])
+        update_before_step_well!(wstate, wmodel, rstate, rmodel, op_ctrls[wname], update_explicit = update_explicit)
     end
 end
 

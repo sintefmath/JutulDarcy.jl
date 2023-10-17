@@ -79,8 +79,8 @@ end
 well_has_explicit_pressure_drop(m::SimpleWellFlowModel) = well_has_explicit_pressure_drop(physical_representation(m.domain))
 well_has_explicit_pressure_drop(w::SimpleWell) = w.explicit_dp
 
-function update_before_step_well!(well_state, well_model::SimpleWellFlowModel, res_state, res_model, ctrl)
-    if well_has_explicit_pressure_drop(well_model)
+function update_before_step_well!(well_state, well_model::SimpleWellFlowModel, res_state, res_model, ctrl; update_explicit = true)
+    if well_has_explicit_pressure_drop(well_model) && update_explicit
         dp = well_state.ConnectionPressureDrop
         update_connection_pressure_drop!(dp, well_state, well_model, res_state, res_model, ctrl)
     end
