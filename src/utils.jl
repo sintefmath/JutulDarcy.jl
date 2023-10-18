@@ -8,7 +8,7 @@ reservoir_storage(model::MultiModel, storage) = storage.Reservoir
 
 export reservoir_domain
 """
-    reservoir_domain(g; permeability = 9.869232667160130e-14, porosity = 0.1, kwarg...)
+    reservoir_domain(g; permeability = convert_to_si(0.1, :darcy), porosity = 0.1, kwarg...)
 
 Set up a `DataDomain` instance for given mesh or other representation `g`.
 `permeability` and `porosity` are then added to the domain. If scalars are
@@ -17,7 +17,10 @@ cells. Permeability is either one value per cell (diagonal scalar), one value
 per dimension given in each row (for a diagonal tensor) or a vector that
 represents a compact full tensor representation (6 elements in 3D, 3 in 2D).
 """
-function reservoir_domain(g; permeability = 9.869232667160130e-14, porosity = 0.1, kwarg...)
+function reservoir_domain(g; permeability = convert_to_si(0.1, :darcy), porosity = 0.1, diffusion = missing, kwarg...)
+    if !ismissing(diffusion)
+        kwarg = (diffusion = diffusion, kwarg...)
+    end
     return DataDomain(g; permeability = permeability, porosity = porosity, kwarg...)
 end
 
@@ -53,24 +56,23 @@ function setup_reservoir_model(reservoir::DataDomain, system;
         kwarg...
     )
     # We first set up the reservoir
-    models[:Reservoir] = SimulationModel(
+    rmodel = SimulationModel(
         reservoir,
         system,
         context = reservoir_context,
         general_ad = general_ad
     )
+    if haskey(reservoir, :diffusion) || haskey(reservoir, :diffusivity)
+        rmodel.parameters[:Diffusivities] = Diffusivities()
+    end
+    models[:Reservoir] = rmodel
     # Then we set up all the wells
     mode = PredictionMode()
     if length(wells) > 0
         for w in wells
-            if w isa SimpleWell
-                well_context = reservoir_context
-            else
-                well_context = context
-            end
             w_domain = DataDomain(w)
             wname = w.name
-            models[wname] = SimulationModel(w_domain, system, context = well_context)
+            models[wname] = SimulationModel(w_domain, system, context = context)
             if split_wells
                 wg = WellGroup([wname])
                 F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
@@ -701,12 +703,13 @@ function partitioner_input(model, parameters; conn = :trans)
         @assert conn == :unit
         T = ones(Int, length(trans))
     end
-    groups = []
+    groups = Vector{Vector{Int}}()
     if model isa MultiModel
         for (k, m) in pairs(model.models)
             wg = physical_representation(m.domain)
             if wg isa WellDomain
-                push!(groups, copy(wg.perforations.reservoir))
+                rcells = vec(Int.(wg.perforations.reservoir))
+                push!(groups, rcells)
             end
         end
     end

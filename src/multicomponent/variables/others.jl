@@ -27,26 +27,68 @@ end
 end
 
 # Total masses
-@jutul_secondary function update_total_masses!(totmass, tv::TotalMasses, model::SimulationModel{G,S},
-                                                                                                    FlashResults,
-                                                                                                    PhaseMassDensities,
-                                                                                                    Saturations,
-                                                                                                    VaporMassFractions,
-                                                                                                    LiquidMassFractions,
-                                                                                                    FluidVolume, ix) where {G,S<:CompositionalSystem}
-    pv = FluidVolume
-    ρ = PhaseMassDensities
-    X = LiquidMassFractions
-    Y = VaporMassFractions
-    Sat = Saturations
-    F = FlashResults
+@jutul_secondary function update_total_masses!(
+        totmass,
+        tmvar::TotalMasses,
+        model::LVCompositionalModel2Phase,
+        FlashResults,
+        PhaseMassDensities,
+        Saturations,
+        VaporMassFractions,
+        LiquidMassFractions,
+        FluidVolume,
+        ix
+    )
+    compositional_mass_update_loop!(
+        totmass,
+        model,
+        FlashResults,
+        PhaseMassDensities,
+        Saturations,
+        LiquidMassFractions,
+        VaporMassFractions,
+        nothing,
+        FluidVolume,
+        ix
+    )
+end
+
+@jutul_secondary function update_total_masses!(
+        totmass,
+        tmvar::TotalMasses,
+        model::LVCompositionalModel3Phase,
+        FlashResults,
+        PhaseMassDensities,
+        Saturations,
+        VaporMassFractions,
+        LiquidMassFractions,
+        ImmiscibleSaturation,
+        FluidVolume,
+        ix
+    )
+    compositional_mass_update_loop!(
+        totmass,
+        model,
+        FlashResults,
+        PhaseMassDensities,
+        Saturations,
+        LiquidMassFractions,
+        VaporMassFractions,
+        ImmiscibleSaturation,
+        FluidVolume,
+        ix
+    )
+end
+
+
+function compositional_mass_update_loop!(totmass, model, F, ρ, Sat, X, Y, sw, pv, ix)
     sys = model.system
     phase_ix = phase_indices(sys)
-    has_other = Val(has_other_phase(sys))
     N = size(totmass, 1)
     for cell in ix
-        @inbounds two_phase_compositional_mass!(totmass, F[cell].state, pv, ρ, X, Y, Sat, cell, N, has_other, phase_ix)
+        @inbounds two_phase_compositional_mass!(totmass, F[cell].state, sw, pv, ρ, X, Y, Sat, cell, N, phase_ix)
     end
+    return totmass
 end
 
 function degrees_of_freedom_per_entity(model::SimulationModel{G,S}, v::TotalMasses) where {G<:Any,S<:MultiComponentSystem}
@@ -56,20 +98,20 @@ end
 """
 Update total masses for two-phase compositional
 """
-function two_phase_compositional_mass!(M, state, Φ, ρ, X, Y, S, cell, N, aqua::Val{false}, phase_ix)
-    update_mass_two_phase_compositional!(M, state, Φ, ρ, X, Y, S, cell, phase_ix, N)
+function two_phase_compositional_mass!(M, state, sw::Nothing, Φ, ρ, X, Y, S, cell, N, phase_ix)
+    update_mass_two_phase_compositional!(M, state, sw, Φ, ρ, X, Y, S, cell, phase_ix, N)
 end
 
 """
 Update total masses for two-phase compositional where another immiscible phase is present
 """
-function two_phase_compositional_mass!(M, state, Φ, ρ, X, Y, S, cell, N, aqua::Val{true}, phase_ix)
-    update_mass_two_phase_compositional!(M, state, Φ, ρ, X, Y, S, cell, phase_ix[2:end], N - 1)
+function two_phase_compositional_mass!(M, state, sw, Φ, ρ, X, Y, S, cell, N, phase_ix)
+    update_mass_two_phase_compositional!(M, state, sw, Φ, ρ, X, Y, S, cell, phase_ix[2:end], N - 1)
     a, = phase_ix
     @inbounds M[end, cell] = ρ[a, cell]*S[a, cell]*Φ[cell]
 end
 
-function update_mass_two_phase_compositional!(M, state, Φ, ρ, X, Y, S, cell, phase_ix, N)
+function update_mass_two_phase_compositional!(M, state, sw, Φ, ρ, X, Y, S, cell, phase_ix, N)
     l, v = phase_ix
     has_liquid = liquid_phase_present(state)
     has_vapor = vapor_phase_present(state)
@@ -83,7 +125,14 @@ function update_mass_two_phase_compositional!(M, state, Φ, ρ, X, Y, S, cell, p
 end
 
 function single_phase_mass!(M, ρ, S, mass_fractions, Φ, cell, N, phase)
-    @inbounds M_l = ρ[phase, cell] * S[phase, cell]
+    S_eos = S[phase, cell]
+    if S_eos < MINIMUM_COMPOSITIONAL_SATURATION
+        S_eos = replace_value(S_eos, MINIMUM_COMPOSITIONAL_SATURATION)
+    end
+    # S_eos = max(S[phase, cell], MINIMUM_COMPOSITIONAL_SATURATION)
+    # @info "?? $phase" S[phase, cell] MINIMUM_COMPOSITIONAL_SATURATION S_eos
+
+    @inbounds M_l = ρ[phase, cell] * S_eos
     for c in 1:N
         @inbounds M[c, cell] = M_l*mass_fractions[c, cell]*Φ[cell]
     end

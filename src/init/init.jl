@@ -3,6 +3,7 @@ function equilibriate_state(model, contacts, datum_depth = missing, datum_pressu
     cells = missing,
     rs = missing,
     kwarg...)
+    model = reservoir_model(model)
     D = model.data_domain
     G = physical_representation(D)
     cc = D[:cell_centroids][3, :]
@@ -83,7 +84,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     JutulDarcy.update_kr!(kr, relperm, model, s, cells)
 
     init[:Saturations] = s
-    init[:Pressure] = init_reference_pressure(pressures, contacts, pc, kr, 2)
+    init[:Pressure] = init_reference_pressure(pressures, contacts, kr, pc, 2)
     return init
 end
 
@@ -196,12 +197,15 @@ end
 function init_reference_pressure(pressures, contacts, kr, pc, ref_ix = 2)
     nph, nc = size(kr)
     p = zeros(nc)
+    ϵ = 1e-12
     for i in eachindex(p)
         p[i] = pressures[ref_ix, i]
-        if kr[ref_ix, i] <= 0
+        kr_ref = kr[ref_ix, i]
+        @assert kr_ref >= -ϵ
+        if kr[ref_ix, i] <= ϵ
             for ph in 1:nph
-                if kr[ph, i] > 0
-                    p[i] = pressures[ph, i]# - pc[ph, i]
+                if kr[ph, i] > ϵ
+                    p[i] = pressures[ph, i]
                 end
             end
         end
@@ -274,11 +278,11 @@ end
 function determine_saturations(depths, contacts, pressures; s_min = missing, s_max = missing, pc = nothing)
     nc = length(depths)
     nph = length(contacts) + 1
-    if ismissing(s_max)
-        s_max = zeros(nph)
+    if ismissing(s_min)
+        s_min = zeros(nph)
     end
     if ismissing(s_max)
-        s_max = zeros(nph)
+        s_max = ones(nph)
     end
     sat = zeros(nph, nc)
     sat_pc = similar(sat)

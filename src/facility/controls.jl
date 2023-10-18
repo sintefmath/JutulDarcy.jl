@@ -3,7 +3,11 @@ function Jutul.initialize_extra_state_fields!(state, domain::WellGroup, model)
     state[:WellGroupConfiguration] = WellGroupConfiguration(domain.well_symbols)
 end
 
-function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, model::WellGroupModel, dt, forces, key)
+function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, model::WellGroupModel, dt, forces, key;
+        time = NaN,
+        recorder = ProgressRecorder(),
+        update_explicit = true
+    )
     # Set control to whatever is on the forces
     storage = storage_g[key]
     cfg = storage.state.WellGroupConfiguration
@@ -14,6 +18,7 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
     for key in keys(forces.limits)
         cfg.limits[key] = forces.limits[key]
     end
+    current_step = recorder.recorder.step
     # Set operational controls
     for key in keys(forces.control)
         # If the requested control in forces differ from the one we are presently using, we need to switch.
@@ -22,7 +27,9 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
         rstate = storage_g.Reservoir.state
         newctrl, changed = realize_control_for_reservoir(rstate, forces.control[key], rmodel, dt)
         oldctrl = req_ctrls[key]
-        if newctrl != oldctrl
+        is_new_step = cfg.step_index != current_step
+        well_was_disabled = op_ctrls[key] == DisabledControl()
+        if is_new_step && (newctrl != oldctrl || well_was_disabled)
             # We have a new control. Any previous control change is invalid.
             # Set both operating and requested control to the new one.
             @debug "Well $key switching from $oldctrl to $newctrl"
@@ -35,12 +42,13 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
             cfg.limits[key] = merge(cfg.limits[key], as_limit(newctrl.target))
         end
     end
+    cfg.step_index = current_step
     for wname in model.domain.well_symbols
         wmodel = model_g[wname]
         wstate = storage_g[wname].state
         rmodel = model_g[:Reservoir]
         rstate = storage_g.Reservoir.state
-        update_before_step_well!(wstate, wmodel, rstate, rmodel, op_ctrls[wname])
+        update_before_step_well!(wstate, wmodel, rstate, rmodel, op_ctrls[wname], update_explicit = update_explicit)
     end
 end
 

@@ -16,26 +16,42 @@ function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, s
     v = state[state_symbol]
     symbols = model.domain.well_symbols
     cfg = state.WellGroupConfiguration
+    can_shut_wells = model.domain.can_shut_wells
     # Injectors can only have strictly positive injection rates,
     # producers can only have strictly negative and disabled controls give zero rate.
     rel_max = Jutul.absolute_increment_limit(massrate)
     abs_max = Jutul.relative_increment_limit(massrate)
-    function do_update(v, dx, ctrl)
+    function do_update!(wcfg, s, v, dx, ctrl)
         return Jutul.update_value(v, dx)
     end
-    function do_update(v, dx, ctrl::InjectorControl)
-        return Jutul.update_value(v, dx, abs_max, rel_max, MIN_ACTIVE_WELL_RATE, nothing)
+    function do_update!(wcfg, s, v, dx, ctrl::InjectorControl)
+        if v <= MIN_ACTIVE_WELL_RATE && v + dx < MIN_ACTIVE_WELL_RATE && can_shut_wells
+            jutul_message("$s", "Approaching zero rate, disabling injector for current step", color = :red)
+            wcfg.operating_controls[s] = DisabledControl()
+            next = Jutul.update_value(v, -value(v))
+        else
+            next = Jutul.update_value(v, dx, abs_max, rel_max, MIN_ACTIVE_WELL_RATE, nothing)
+        end
+        return next
     end
-    function do_update(v, dx, ctrl::ProducerControl)
-        return Jutul.update_value(v, dx, abs_max, rel_max, nothing, -MIN_ACTIVE_WELL_RATE)
+    function do_update!(wcfg, s, v, dx, ctrl::ProducerControl)
+        # A significant negative rate is the valid producer control
+        if v >= MIN_ACTIVE_WELL_RATE && v + dx > MIN_ACTIVE_WELL_RATE && can_shut_wells
+            jutul_message("$s", "Approaching zero rate, disabling producer for current step", color = :red)
+            wcfg.operating_controls[s] = DisabledControl()
+            next = Jutul.update_value(v, -value(v))
+        else
+            next = Jutul.update_value(v, dx, abs_max, rel_max, nothing, -MIN_ACTIVE_WELL_RATE)
+        end
+        return next
     end
-    function do_update(v, dx, ctrl::DisabledControl)
+    function do_update!(wcfg, s, v, dx, ctrl::DisabledControl)
         # Set value to zero since we know it is correct.
         return Jutul.update_value(v, -value(v))
     end
     @inbounds for i in eachindex(v)
         s = symbols[i]
-        v[i] = do_update(v[i], w*dx[i], operating_control(cfg, s))
+        v[i] = do_update!(cfg, s, v[i], w*dx[i], operating_control(cfg, s))
     end
 end
 

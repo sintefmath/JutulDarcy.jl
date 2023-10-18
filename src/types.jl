@@ -1,3 +1,4 @@
+abstract type AbstractPhase end
 
 abstract type MultiPhaseSystem <: JutulSystem end
 abstract type MultiComponentSystem <: MultiPhaseSystem end
@@ -17,7 +18,13 @@ struct MultiPhaseCompositionalSystemLV{E, T, O, R} <: CompositionalSystem where 
     equation_of_state::E
     rho_ref::R
 end
-const LVCompositionalModel = SimulationModel{D, S, F, C} where {D, S<:MultiPhaseCompositionalSystemLV{<:Any, <:Any, <:Any}, F, C}
+
+const LVCompositional2PhaseSystem = MultiPhaseCompositionalSystemLV{<:Any, <:Any, Nothing, <:Any}
+const LVCompositional3PhaseSystem = MultiPhaseCompositionalSystemLV{<:Any, <:Any, <:AbstractPhase, <:Any}
+
+const LVCompositionalModel = SimulationModel{D, S, F, C} where {D, S<:MultiPhaseCompositionalSystemLV{<:Any, <:Any, <:Any, <:Any}, F, C}
+const LVCompositionalModel2Phase = SimulationModel{D, S, F, C} where {D, S<:LVCompositional2PhaseSystem, F, C}
+const LVCompositionalModel3Phase = SimulationModel{D, S, F, C} where {D, S<:LVCompositional3PhaseSystem, F, C}
 
 """
     MultiPhaseCompositionalSystemLV(equation_of_state, phases = (LiquidPhase(), VaporPhase()); reference_densities = ones(length(phases)), other_name = "Water")
@@ -437,19 +444,19 @@ struct TopConditions{N, R}
     density::SVector{N, R}
     volume_fractions::SVector{N, R}
     function TopConditions(n::Int, R::DataType = Float64; density = missing, volume_fractions = missing)
-        function internal_convert(x::Missing)
+        function internal_convert(x::Missing, N)
             x = @SVector ones(R, n)
-            return x./n
+            return x./N
         end
-        function internal_convert(x)
+        function internal_convert(x, N)
             x0 = x
-            @assert length(x0) == n
-            x = @MVector zeros(R, n)
+            @assert length(x0) == N
+            x = @MVector zeros(R, N)
             @. x = x0
             return SVector(x)
         end
-        density = internal_convert(density)
-        volume_fractions = internal_convert(volume_fractions)
+        density = internal_convert(density, n)
+        volume_fractions = internal_convert(volume_fractions, n)
         return new{n, R}(density, volume_fractions)
     end
 end

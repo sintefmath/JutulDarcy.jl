@@ -6,8 +6,13 @@ struct HistoryMode <: FacilitySystem end
 
 abstract type SurfaceFacilityDomain <: JutulDomain end
 abstract type WellControllerDomain <: SurfaceFacilityDomain end
-struct WellGroup <: WellControllerDomain
-    well_symbols::Vector{Symbol}
+mutable struct WellGroup <: WellControllerDomain
+    const well_symbols::Vector{Symbol} # Controlled wells
+    can_shut_wells::Bool               # Can temporarily shut wells that try to reach zero rate multiple solves in a row
+end
+
+function WellGroup(wells::Vector{Symbol}; can_shut_wells = true)
+    return WellGroup(wells, can_shut_wells)
 end
 
 const WellGroupModel = SimulationModel{WellGroup, <:Any, <:Any, <:Any}
@@ -265,11 +270,12 @@ function replace_target(f::ProducerControl, target)
     return ProducerControl(target)
 end
 
-struct WellGroupConfiguration
-    operating_controls # Currently operating control
-    requested_controls # The requested control (which may be different if limits are hit)
-    limits             # Operating limits for the wells
-    function WellGroupConfiguration(well_symbols, control = nothing, limits = nothing)
+mutable struct WellGroupConfiguration{T, O, L}
+    const operating_controls::T # Currently operating control
+    const requested_controls::O # The requested control (which may be different if limits are hit)
+    const limits::L             # Operating limits for the wells
+    step_index::Int             # Internal book-keeping of what step we are at
+    function WellGroupConfiguration(well_symbols, control = nothing, limits = nothing, step = 0)
         if isnothing(control)
             control = Dict{Symbol, WellControlForce}()
             for s in well_symbols
@@ -283,7 +289,7 @@ struct WellGroupConfiguration
                 limits[s] = nothing
             end
         end
-        new(control, requested, limits)
+        new{typeof(control), typeof(requested), typeof(limits)}(control, requested, limits, step)
     end
 end
 
@@ -292,7 +298,7 @@ function Jutul.numerical_type(tc::WellGroupConfiguration)
 end
 
 function Jutul.update_values!(old::WellGroupConfiguration, new::WellGroupConfiguration)
-    return WellGroupConfiguration(copy(new.operating_controls), copy(new.requested_controls), copy(new.limits))
+    return WellGroupConfiguration(copy(new.operating_controls), copy(new.requested_controls), copy(new.limits), new.step_index)
 end
 
 operating_control(cfg::WellGroupConfiguration, well::Symbol) = cfg.operating_controls[well]

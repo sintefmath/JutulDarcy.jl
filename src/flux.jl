@@ -63,7 +63,7 @@ function face_average_density(model, state, tpfa, phase)
     return 0.5*(ρ_i + ρ_c)
 end
 
-@inline function gradient(X, tpfa::TPFA)
+@inline function gradient(X::AbstractVector, tpfa::TPFA)
     return @inbounds X[tpfa.right] - X[tpfa.left]
 end
 
@@ -71,16 +71,41 @@ end
     return @inbounds X[i, tpfa.right] - X[i, tpfa.left]
 end
 
+@inline function gradient(F, tpfa::TPFA)
+    # Function handle version
+    return F(tpfa.right) - F(tpfa.left)
+end
+
+function face_average(F, tpfa)
+    return 0.5*(F(tpfa.right) + F(tpfa.left))
+end
+
+function phase_face_average(phase_property, tpfa, cell)
+    F(cell) = @inbounds phase_property[phase, cell]
+    return face_average(F, tpfa)
+end
+
 pressure_gradient(state, disc) = gradient(state.Pressure, disc)
 
 @inline function upwind(upw::SPU, F, q)
-    flag = q < 0
+    flag = q < zero(q)
     if flag
         up = upw.right
     else
         up = upw.left
     end
     return F(up)
+end
+
+
+@inline function upwind(upw::SPU, X::AbstractArray, q)
+    flag = q < zero(q)
+    if flag
+        up = upw.right
+    else
+        up = upw.left
+    end
+    return @inbounds X[up]
 end
 
 @inline function phase_upwind(upw, m::AbstractMatrix, phase::Integer, q)
@@ -113,16 +138,6 @@ end
     else
         c = r
     end
-end
-
-@inline function saturation_averaged_density(ρ, ph, sat, c1, c2)
-    @inbounds ρ_1 = ρ[ph, c1]
-    @inbounds ρ_2 = ρ[ph, c2]
-    @inbounds S_1 = sat[ph, c1]
-    @inbounds S_2 = sat[ph, c2]
-
-    avg = (ρ_1*S_1 + ρ_2*S_2)/max(S_1 + S_2, 1e-12)
-    return avg
 end
 
 export component_mass_fluxes!, update_total_masses!

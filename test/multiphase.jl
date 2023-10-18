@@ -1,6 +1,7 @@
 using JutulDarcy, Jutul
 using Test
 
+# Note: This test can get failures if HYPRE is loaded on some of the simple cases.
 function test_multiphase(grid = CartesianMesh((2, 2), (2.0, 2.0)); setup = "two_phase_simple", debug_level = 1, linear_solver = nothing, kwarg...)
     state0, model, prm, f, t = get_test_setup(grid, case_name = setup; kwarg...)
     sim = Simulator(model, state0 = state0, parameters = prm)

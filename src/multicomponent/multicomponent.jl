@@ -4,6 +4,10 @@ export StandardVolumeSource, VolumeSource, MassSource
 
 const MINIMUM_COMPOSITIONAL_SATURATION = 1e-10
 
+@inline function is_pure_single_phase(s_immiscible)
+    return s_immiscible > 1.0 - MINIMUM_COMPOSITIONAL_SATURATION
+end
+
 include("variables/variables.jl")
 include("utils.jl")
 include("flux.jl")
@@ -129,20 +133,28 @@ function immiscible_increment(model, state, update_report)
 end
 
 function compositional_residual_scale(cell, dt, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
-    function sat_scale(::Nothing)
-        return 1.0
-    end
-    function sat_scale(sw)
+    if isnothing(sw)
+        sw_i = 0.0
+    else
         sw_i = sw[cell]
-        if sw_i > 1.0 - 1e-4
-            scale = 0.0
-        else
-            scale = 1.0 - sw_i
-        end
-        return scale
     end
-    total_density = liquid_density[cell] * sl[cell] + vapor_density[cell] * sv[cell]
-    return dt * mean(w) * (sat_scale(sw) / (vol[cell] * max(total_density, 1e-3)))
+
+    if sw_i > 1.0 - MINIMUM_COMPOSITIONAL_SATURATION
+        scale = 0.0
+    else
+        # The convergence criterion is taken to be dimensionless in a similar
+        # manner to the standard CNV type criterion. We scale everything by the
+        # immiscible phase so that the convergence criterion is more relaxed in
+        # cells that are close to or completely filled with the immiscible
+        # phase.
+        scale_lv = 1.0 - sw_i + MINIMUM_COMPOSITIONAL_SATURATION
+        sl_scaled = sl[cell]/scale_lv
+        denl = liquid_density[cell]
+        denv = vapor_density[cell]
+        total_density = denl * sl_scaled + denv * (1.0 - sl_scaled)
+        scale = dt * mean(w) * (scale_lv / (vol[cell] * max(total_density, 1e-8)))
+    end
+    return scale
 end
 
 function compositional_criterion(state, dt, active, r, nc, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)

@@ -131,28 +131,28 @@ module JutulDarcyPartitionedArraysExt
         return (cpr, preconditioners)
     end
 
-    @compile_workload begin
-        targets = [(true, :csc), (true, :csr)]
-        # MPI, trivial partition
-        JutulDarcy.precompile_darcy_multimodels(targets,
-            dims = (4, 1, 1),
-            default_linsolve = false,
-            setuparg = (
-                mode = :mpi,
-                precond = :ilu0
-                ),
-            split_wells = true
-        )
-        # Native PArray, non-trivial partition
-        JutulDarcy.precompile_darcy_multimodels(targets,
-            dims = (4, 1, 1),
-            default_linsolve = false,
-            setuparg = (
-                mode = :parray,
-                parray_arg = (np = 2, ),
-                precond = :ilu0
-                ),
-            split_wells = true
-        )
-    end
+    # @compile_workload begin
+    #     targets = [(true, :csc), (true, :csr)]
+    #     # MPI, trivial partition
+    #     JutulDarcy.precompile_darcy_multimodels(targets,
+    #         dims = (4, 1, 1),
+    #         default_linsolve = false,
+    #         setuparg = (
+    #             mode = :mpi,
+    #             precond = :ilu0
+    #             ),
+    #         split_wells = true
+    #     )
+    #     # Native PArray, non-trivial partition
+    #     JutulDarcy.precompile_darcy_multimodels(targets,
+    #         dims = (4, 1, 1),
+    #         default_linsolve = false,
+    #         setuparg = (
+    #             mode = :parray,
+    #             parray_arg = (np = 2, ),
+    #             precond = :ilu0
+    #             ),
+    #         split_wells = true
+    #     )
+    # end
 end

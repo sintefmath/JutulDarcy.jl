@@ -40,9 +40,6 @@ number_of_phases(::SinglePhaseSystem) = 1
 number_of_phases(sys::CompositeSystem) = number_of_phases(sys.systems.flow)
 
 ## Phases
-# Abstract phase
-abstract type AbstractPhase end
-
 function get_short_name(phase::AbstractPhase)
     return get_name(phase)[]
 end
@@ -158,6 +155,47 @@ function Jutul.default_parameter_values(data_domain, model, param::Transmissibil
     else
         error(":permeability or :transmissibilities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
+    return T
+end
+
+struct Diffusivities <: VectorVariables end
+Jutul.variable_scale(::Diffusivities) = 1e-10
+Jutul.minimum_value(::Diffusivities) = 0.0
+
+Jutul.associated_entity(::Diffusivities) = Faces()
+Jutul.values_per_entity(model, ::Diffusivities) = number_of_phases(model.system)
+
+function Jutul.default_parameter_values(data_domain, model, param::Diffusivities, symb)
+    nf = number_of_faces(model.domain)
+    nph = number_of_phases(model.system)
+    if haskey(data_domain, :diffusivities, Faces())
+        # This takes precedence
+        T = data_domain[:diffusivities]
+    elseif haskey(data_domain, :diffusion, Cells())
+        T = zeros(nph, nf)
+        ϕ = data_domain[:porosity]
+        D = data_domain[:diffusion]
+        U = ϕ'.*D
+        g = physical_representation(data_domain)
+        if U isa AbstractVector
+            T_i = compute_face_trans(g, U)
+            for i in 1:nph
+                T[i, :] .= T_i
+            end
+        else
+            for i in 1:nph
+                T_i = compute_face_trans(g, U[i, :])
+                T[i, :] .= T_i
+            end
+        end
+        if any(x -> x < 0, T)
+            c = count(x -> x < 0, T)
+            @warn "$c negative diffusivities detected."
+        end
+    else
+        error(":diffusion or :diffusivities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+    end
+    @assert size(T) == (nph, nf)
     return T
 end
 

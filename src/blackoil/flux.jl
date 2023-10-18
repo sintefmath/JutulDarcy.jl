@@ -30,8 +30,7 @@
     if has_vapoil(sys)
         # Rv (vaporized oil) upwinded by vapor potential
         Rv = state.Rv
-        f_rv = cell -> @inbounds Rv[cell]
-        rv = upwind(upw, f_rv, ∇ψ_v)
+        rv = upwind(upw, Rv, ∇ψ_v)
         # Final flux = oil phase flux + oil-in-gas flux
         q_l = rhoLS*(λb_l*∇ψ_l + rv*λb_v*∇ψ_v)
     else
@@ -41,16 +40,63 @@
     if has_disgas(sys)
         # Rs (solute gas) upwinded by liquid potential
         Rs = state.Rs
-        f_rs = cell -> @inbounds Rs[cell]
-        rs = upwind(upw, f_rs, ∇ψ_l)
+        rs = upwind(upw, Rs, ∇ψ_l)
         # Final flux = gas phase flux + gas-in-oil flux
         q_v = rhoVS*(λb_v*∇ψ_v + rs*λb_l*∇ψ_l)
     else
         q_v = rhoVS*λb_v*∇ψ_v
     end
+
+    if haskey(state, :Diffusivities)
+        S = state.Saturations
+        density = state.PhaseMassDensities
+        D = state.Diffusivities
+        if has_disgas(sys)
+            qo_diffusive_l, qo_diffusive_v = blackoil_diffusion(Rs, S, density, rhoLS, rhoVS, face, D, l, kgrad, upw)
+            q_l += qo_diffusive_l
+            q_v += qo_diffusive_v
+        end
+
+        if has_vapoil(sys)
+            qg_diffusive_v, qg_diffusive_l = blackoil_diffusion(Rv, S, density, rhoVS, rhoLS, face, D, v, kgrad, upw)
+            q_l += qg_diffusive_l
+            q_v += qg_diffusive_v
+        end
+    end
     q = setindex(q, q_l, l)
     q = setindex(q, q_v, v)
     return q
+end
+
+function blackoil_diffusion(R, S, density, rhoS_self, rhoS_dissolved, face, D, α, kgrad, upw)
+    @inbounds D_α = D[α, face]
+    X_self = cell -> black_oil_phase_mass_fraction(rhoS_self, rhoS_dissolved, R, cell)
+    # Two components: 1 - X_l - (1 - X_r) = - X_l + X_r = -(X_l - X_r) = ΔX
+    ΔX_self = -gradient(X_self, kgrad)
+    ΔX_other = -ΔX_self
+
+    T = typeof(ΔX_self)
+    mass_l = cell -> density[α, cell]*S[α, cell]
+    # TODO: Upwind or average here? Maybe doesn't matter, should be in
+    # parabolic limit for diffusion
+    # q_l += D_l*upwind(upw, mass_l, ΔX_o)*ΔX_o
+    # q_v += D_l*upwind(upw, mass_l, ΔX_g)*ΔX_g
+
+    diffused_mass = D_α*face_average(mass_l, kgrad)
+    diff_self = convert(T, diffused_mass*ΔX_self)
+    diff_dissolved = convert(T, diffused_mass*ΔX_other)
+    return (diff_self::T, diff_dissolved::T)::Tuple{T, T}
+end
+
+@inline function black_oil_phase_mass_fraction(rhoLS, rhoVS, Rs, cell)
+    # TODO: Should have molar weights here maybe, but not part of standard input
+    @inbounds rs = Rs[cell]
+    if rs < 1e-10
+        v = one(rs)
+    else
+        v = rhoLS/(rhoLS + rs*rhoVS)
+    end
+    return v
 end
 
 function apply_flow_bc!(acc, q, bc, model::StandardBlackOilModel, state, time)

@@ -58,15 +58,17 @@ function JutulDarcy.plot_well_results(well_data::Dict, arg...; name = "Data", kw
     JutulDarcy.plot_well_results([well_data], arg...; names = [name], kwarg...)
 end
 
-function JutulDarcy.plot_well_results(well_data::Vector, time = nothing; start_date = nothing,
-                                                              names =["Dataset $i" for i in 1:length(well_data)], 
-                                                              linewidth = 3,
-                                                              cmap = nothing, 
-                                                              dashwidth = 1,
-                                                              new_window = false,
-                                                              styles = [:solid, :scatter, :dash, :dashdot, :dot, :dashdotdot],
-                                                              resolution = (1600, 900),
-                                                              kwarg...)
+function JutulDarcy.plot_well_results(well_data::Vector, time = nothing;
+        start_date = nothing,
+        names =["Dataset $i" for i in 1:length(well_data)], 
+        linewidth = 3,
+        cmap = nothing, 
+        dashwidth = 1,
+        new_window = false,
+        styles = [:solid, :scatter, :dash, :dashdot, :dot, :dashdotdot],
+        resolution = (1600, 900),
+        kwarg...
+    )
     # Figure part
     names = Vector{String}(names)
     ndata = length(well_data)
@@ -77,6 +79,9 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = nothing; start_d
     if nw == 0
         return nothing
     end
+    # Type of plot (bhp, rate...)
+    responses = collect(keys(wd[first(wells)]))
+    respstr = [String(x) for x in responses]
 
     is_inj = is_injectors(wd)
     @assert ndata <= length(styles) "Can't plot more datasets than styles provided"
@@ -90,7 +95,27 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = nothing; start_d
     else
         t_l = "Date"
     end
-    ax = Axis(fig[1, 1], xlabel = t_l)
+    function response_label_to_unit(s)
+        s = "$s"
+        rate_labels = [
+            "Surface total rate", "rate",
+            "Surface water rate", "wrat",
+            "Surface liquid rate (water + oil)", "lrat",
+            "Surface oil rate", "orat",
+            "Surface gas rate", "grat",
+            "Reservoir voidage rate", "resv",
+            "Historical reservoir voidage rate", "resv"
+        ]
+        if s in rate_labels
+            return "m^3/s"
+        elseif s in ["bhp", "Bottom hole pressure"]
+            return "Pa"
+        else
+            return ""
+        end
+    end
+    y_l = Observable(response_label_to_unit(first(responses)))
+    ax = Axis(fig[1, 1], xlabel = t_l, ylabel = y_l)
 
     if isnothing(cmap)
         if nw > 20
@@ -104,9 +129,6 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = nothing; start_d
     end
     wellstr = [String(x) for x in wells]
 
-    # Type of plot (bhp, rate...)
-    responses = collect(keys(wd[first(wells)]))
-    respstr = [String(x) for x in responses]
     response_ix = Observable(1)
     is_accum = Observable(false)
     is_abs = Observable(false)
@@ -114,6 +136,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = nothing; start_d
 
     on(type_menu.selection) do s
         val = findfirst(isequal(s), respstr)
+        y_l[] = response_label_to_unit(s)
         response_ix[] = val
         autolimits!(ax)
     end

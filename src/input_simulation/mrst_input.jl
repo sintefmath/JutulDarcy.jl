@@ -94,6 +94,7 @@ function get_well_from_mrst_data(
     mrst_data, system, ix;
     volume = 1e-3,
     extraout = false,
+    use_lengths = false,
     well_type = :ms,
     W_data = mrst_data["W"],
     kwarg...
@@ -195,12 +196,17 @@ function get_well_from_mrst_data(
         else
             pvol, accumulator_volume, perf_cells, well_topo, z, dz, reservoir_cells = simple_ms_setup(n, volume, well_cell_volume, rc, ref_depth, z_res)
         end
+        if use_lengths
+            L_i = nothing
+        else
+            L_i = 1.0
+        end
         W = MultiSegmentWell(rc, pvol, centers, WI = WI, reference_depth = ref_depth,
                                                         dz = dz,
                                                         N = well_topo,
                                                         name = Symbol(nm),
                                                         segment_models = segment_models,
-                                                        segment_length = 1.0,
+                                                        segment_length = L_i,
                                                         perforation_cells = perf_cells,
                                                         accumulator_volume = accumulator_volume,
                                                         surface_conditions = cond)
@@ -722,7 +728,8 @@ function init_from_mat(mrst_data, model, param)
         s = copy(state0["s"])
         if size(s, 2) == 3
             sw = vec(s[:, 1])
-            sw = min.(sw, 1 - MINIMUM_COMPOSITIONAL_SATURATION)
+            # sw = min.(sw, 1 - MINIMUM_COMPOSITIONAL_SATURATION)
+            sw = min.(sw, 1.0)
             init[:ImmiscibleSaturation] = sw
         else
             @assert size(s, 2) == 2
@@ -783,6 +790,7 @@ function setup_case_from_mrst(casename; wells = :ms,
                                         backend = :csc,
                                         block_backend = true,
                                         split_wells = false,
+                                        use_well_lengths = false,
                                         facility_grouping = :onegroup,
                                         minbatch = 1000,
                                         steps = :full,
@@ -847,7 +855,7 @@ function setup_case_from_mrst(casename; wells = :ms,
     for i = 1:num_wells
         sym = well_symbols[i]
         wi, wdata, res_cells = get_well_from_mrst_data(mrst_data, sys, i, W_data = first_well_set,
-                extraout = true, well_type = wells, context = w_context)
+                extraout = true, well_type = wells, context = w_context, use_lengths = use_well_lengths)
         param_w = setup_parameters(wi)
 
         sv = wi.secondary_variables

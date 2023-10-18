@@ -69,11 +69,18 @@ function Jutul.initialize_extra_state_fields!(state, d::DiscretizedDomain, m::Si
     end
 end
 
+function Jutul.select_minimum_output_variables!(vars, domain::DiscretizedDomain, model::SimpleWellFlowModel)
+    push!(vars, :PhaseMassDensities)
+    push!(vars, :Saturations)
+    push!(vars, :SurfaceWellConditions)
+    return vars
+end
+
 well_has_explicit_pressure_drop(m::SimpleWellFlowModel) = well_has_explicit_pressure_drop(physical_representation(m.domain))
 well_has_explicit_pressure_drop(w::SimpleWell) = w.explicit_dp
 
-function update_before_step_well!(well_state, well_model::SimpleWellFlowModel, res_state, res_model, ctrl)
-    if well_has_explicit_pressure_drop(well_model)
+function update_before_step_well!(well_state, well_model::SimpleWellFlowModel, res_state, res_model, ctrl; update_explicit = true)
+    if well_has_explicit_pressure_drop(well_model) && update_explicit
         dp = well_state.ConnectionPressureDrop
         update_connection_pressure_drop!(dp, well_state, well_model, res_state, res_model, ctrl)
     end
@@ -115,14 +122,11 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
     # accumulate the actual pressure drop due to hydrostatic assumptions.
     perf = physical_representation(well_model).perforations
     res_cells = perf.reservoir
-    WI = perf.WI
-
     gdz = perf.gdz
-
+    # Explicit update, take value.
+    WI = as_value(well_state.WellIndices)
     ρ = as_value(res_state.PhaseMassDensities)
     mob = as_value(res_state.PhaseMobilities)
-    # kr = as_value(res_state.RelativePermeabilities)
-    # mu = as_value(res_state.PhaseViscosities)
 
     # Integrate up, adding weighted density into well bore and keeping track of
     # current weight
@@ -143,7 +147,12 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
         end
         current_weight += local_weight
         current_density += local_density
-        dp[i] = current_density/current_weight
+        if abs(current_weight) > 0.0
+            next_dp = current_density/current_weight
+        else
+            next_dp = 0.0
+        end
+        dp[i] = next_dp
     end
     # Integrate down, using the mixture densities (temporarily stored in dp) to
     # calculate the pressure drop from the top.
@@ -155,7 +164,7 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
         Δgdz = gdz_next - gdz_current
 
         dp_current += local_density*Δgdz
-        gdz_current += gdz_next
+        gdz_current = gdz_next
 
         dp[i] = dp_current
     end
