@@ -443,24 +443,27 @@ end
 struct TopConditions{N, R}
     density::SVector{N, R}
     volume_fractions::SVector{N, R}
-    function TopConditions(n::Int, R::DataType = Float64; density = missing, volume_fractions = missing)
-        function internal_convert(x::Missing, N)
-            x = @SVector ones(R, n)
-            return x./N
-        end
-        function internal_convert(x, N)
-            x0 = x
-            @assert length(x0) == N
-            x = @MVector zeros(R, N)
-            @. x = x0
-            return SVector(x)
-        end
-        density = internal_convert(density, n)
-        volume_fractions = internal_convert(volume_fractions, n)
-        return new{n, R}(density, volume_fractions)
+    function TopConditions(density::SVector{N, R}, volume_fractions::SVector{N, R}) where {N, R}
+        return new{N, R}(density, volume_fractions)
     end
 end
 
+function TopConditions(n::Int, R::DataType = Float64; density = missing, volume_fractions = missing)
+    return TopConditions(Val(n), Val(R), density, volume_fractions)
+end
+
+function TopConditions(::Val{n}, ::Val{R}, density, volume_fractions) where {n, R}
+    function internal_convert(x::Missing)
+        x = @SVector ones(R, n)
+        return x./n
+    end
+    function internal_convert(x)
+        return convert(SVector{n, R}, x)
+    end
+    density = internal_convert(density)
+    volume_fractions = internal_convert(volume_fractions)
+    return TopConditions(density, volume_fractions)
+end
 
 struct SurfaceWellConditions{T, R} <: ScalarVariable
     storage::T
