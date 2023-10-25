@@ -77,7 +77,7 @@ function plot_vertical(x, t)
     data = data[:, end:-1:1]
     fig, ax, plot = heatmap(data)
     ax.title = t
-    Colorbar(fig[1, 2])
+    Colorbar(fig[1, 2], plot)
     fig
 end
 #-
@@ -90,4 +90,4 @@ plot_vertical(sg, "Vapor saturation")
 #-
 # ### Plot final pressure
 p = states[end][:Pressure]
-plot_vertical(p, "Pressure")
+plot_vertical(p./bar, "Pressure [bar]")
