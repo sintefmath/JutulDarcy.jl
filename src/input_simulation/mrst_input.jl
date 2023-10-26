@@ -878,7 +878,6 @@ function setup_case_from_mrst(casename; wells = :ms,
                 param_w[:Temperature] = param_res[:Temperature][res_cells]
             end
         end
-        pw = wi.primary_variables
         models[sym] = wi
         ctrl = mrst_well_ctrl(model, wdata, is_comp, rhoS)
         if isa(ctrl, InjectorControl)
