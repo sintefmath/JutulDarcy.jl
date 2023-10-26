@@ -865,16 +865,15 @@ function setup_case_from_mrst(casename; wells = :ms,
         param_w = setup_parameters(wi)
 
         if typeof(wi.system) == typeof(model.system)
-            sv[:PhaseMassDensities] = sv_m[:PhaseMassDensities]
+            set_secondary_variables!(wi, PhaseMassDensities = sv_m[:PhaseMassDensities])
             if haskey(sv, :ShrinkageFactors)
-                sv[:ShrinkageFactors] = sv_m[:ShrinkageFactors]
+                set_secondary_variables!(wi, ShrinkageFactors = sv_m[:ShrinkageFactors])
             end
             if haskey(sv_m, :PhaseViscosities)
                 set_secondary_variables!(wi, PhaseViscosities = sv_m[:PhaseViscosities])
             else
                 set_parameters(wi, PhaseViscosities = prm[:PhaseViscosities])
             end
-            sv[:PhaseViscosities] = sv_m[:PhaseViscosities]
             if haskey(param_w, :Temperature)
                 param_w[:Temperature] = param_res[:Temperature][res_cells]
             end
