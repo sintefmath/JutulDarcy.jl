@@ -106,6 +106,15 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PVTO})
     data["PVTO"] = pvto
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PVTG})
+    pvtg = parse_live_pvt_table(f, outer_data)
+    for tab in pvtg
+        swap_unit_system_axes!(tab["data"], units, (:u_rv, :gas_formation_volume_factor, :viscosity))
+        swap_unit_system!(tab["key"], units, :pressure)
+    end
+    data["PVTG"] = pvtg
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PVTW})
     rec = read_record(f)
     tdims = [NaN, NaN, NaN, NaN, NaN]
