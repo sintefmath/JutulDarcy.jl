@@ -113,3 +113,9 @@ function parse_data_file!(outer_data, filename, data = outer_data;
     return outer_data
 end
 
+function parse_grdecl_file(filename; kwarg...)
+    outer_data = Dict{String, Any}()
+    data = new_section(outer_data, :GRID)
+    parse_data_file!(outer_data, filename, data; kwarg...)
+    return data
+end
