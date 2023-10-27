@@ -9,7 +9,8 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COORDSYS})
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COORD})
-    coord = parse_deck_matrix(f, Float64)
+    coord = parse_deck_vector(f, Float64)
+    coord = reshape(coord, 6, :)'
     coord = swap_unit_system!(coord, units, Val(:length))
     data["COORD"] = coord
 end
