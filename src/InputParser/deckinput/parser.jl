@@ -49,8 +49,8 @@ function parse_data_file!(outer_data, filename, data = outer_data;
     end
     filename = realpath(filename)
     basedir = dirname(filename)
-    function msg(s)
-        if verbose
+    function msg(s, threshold = 1)
+        if verbose >= threshold
             println("PARSER: $s")
         end
     end
@@ -63,8 +63,10 @@ function parse_data_file!(outer_data, filename, data = outer_data;
         while !eof(f)
             m = next_keyword!(f)
             if isnothing(m)
-                # Do nothing
-            elseif m in allsections
+                continue
+            end
+            msg("Starting $m keyword...", 2)
+            t_p = @elapsed if m in allsections
                 msg("Starting section $m")
                 data = new_section(outer_data, m)
                 skip_mode = m in skip
@@ -103,6 +105,7 @@ function parse_data_file!(outer_data, filename, data = outer_data;
             elseif !skip_mode
                 parse_keyword!(data, outer_data, unit_systems, cfg, f, Val(m))
             end
+            msg("$m keyword parsed in $(t_p)s.", 2)
         end
     finally
         close(f)

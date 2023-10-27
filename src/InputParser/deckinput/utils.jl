@@ -169,8 +169,8 @@ function parse_deck_vector(f, T = Float64)
             else
                 n_rep = 1
             end
+            parsed = parse(T, el)::T
             for i in 1:n_rep
-                parsed = parse(T, el)::T
                 push!(out, parsed)
             end
         end
