@@ -117,5 +117,9 @@ function parse_grdecl_file(filename; kwarg...)
     outer_data = Dict{String, Any}()
     data = new_section(outer_data, :GRID)
     parse_data_file!(outer_data, filename, data; kwarg...)
+    if !haskey(data, "ACTNUM")
+        data["ACTNUM"] = fill(true, data["cartDims"])
+    end
+    delete!(data, "CURRENT_BOX")
     return data
 end
