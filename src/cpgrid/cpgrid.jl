@@ -99,6 +99,7 @@ end
 
 function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
     # Add all lines that have at least one active neighbor
+    coord = reshape(coord, 6, :)'
     nx, ny, nz = cartdims
     if ismissing(actnum)
         actnum = Array{Bool, 3}(undef, nx, ny, nz)
@@ -519,7 +520,6 @@ function grid_from_primitives(primitives)
         for p in start:n
             foundA, foundB = seek_range(cells, cpos, p, A, B)
             done = !foundA || !foundB
-            # @info "?!" p done
             if done
                 # @info "Did find" (p, foundA, foundB)
                 # We reached the end of our range.
