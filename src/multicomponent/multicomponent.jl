@@ -91,7 +91,7 @@ function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::Co
     sv = get_sat(v)
     vol = as_value(state.FluidVolume)
 
-    w = map(x -> x.mw, sys.equation_of_state.mixture.properties)
+    w = MultiComponentFlash.molar_masses(sys.equation_of_state)
     e = compositional_criterion(state, dt, active, r, nc, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
     names = model.system.components
     R = (

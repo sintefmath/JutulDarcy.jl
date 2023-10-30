@@ -194,7 +194,7 @@ end
     Z_V = Z_L
     @. x = Z
     @. y = Z
-    V = single_phase_label(eos.mixture, c)
+    V = single_phase_label(eos, c)
     if V > 0.5
         phase_state = MultiComponentFlash.single_phase_v
     else
