@@ -185,7 +185,8 @@ end
 function get_compressibility_factor(forces, eos, P, T, Z, phase = :unknown)
     ∂cond = (p = P, T = T, z = Z)
     force_coefficients!(forces, eos, ∂cond)
-    return mixture_compressibility_factor(eos, ∂cond, forces, phase)
+    scalars = force_scalars(eos, ∂cond, forces)
+    return mixture_compressibility_factor(eos, ∂cond, forces, scalars, phase)
 end
 
 @inline function single_phase_update!(P, T, Z, x, y, forces, eos, c)
