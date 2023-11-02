@@ -166,11 +166,11 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COMPS})
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:DENSITY})
-    rec = read_record(f)
     tdims = [NaN, NaN, NaN]
     nreg = number_of_tables(outer_data, :pvt)
     out = []
     for i = 1:nreg
+        rec = read_record(f)
         t = parse_defaulted_line(rec, tdims)
         swap_unit_system!(t, units, :density)
         push!(out, t)
