@@ -1438,3 +1438,128 @@ function write_reservoir_simulator_output_to_mrst(model, states, reports, forces
         end
     end
 end
+
+function write_reservoir_simulator_reports_to_opm_format(reports, name::String = "JUTUL")
+    open("$name.INFOSTEP", "w") do io
+        write_reservoir_simulator_reports_to_opm_format!(io, reports, Val(:steps))
+    end
+    open("$name.INFOITER", "w") do io
+        write_reservoir_simulator_reports_to_opm_format!(io, reports, Val(:iterations))
+    end
+end
+
+function write_reservoir_simulator_reports_to_opm_format!(io, reports, ::Val{:steps})
+    header = ["Time(day)", "TStep(day)","Assembly","LSetup","LSolve","Update","Output","WellIt","Lins","NewtIt","LinIt","Conv"]
+    rep_stats = timing_breakdown(reports, reduce = false)
+    rep_time = report_timesteps(reports)
+    day = si_unit(:day)
+    t = 0.0
+    n = 0
+    for report in reports
+        n += length(report[:ministeps])
+    end
+    data = zeros(Union{Float64, Int}, n, 12)
+    index = 1
+    for (i, report) in enumerate(reports)
+        for (j, minireport) in enumerate(report[:ministeps])
+            stats = Jutul.stats_ministep(minireport[:steps])
+            dt = minireport[:dt]/day
+            data[index, 1] = t
+            data[index, 2] = dt
+            data[index, 3] = stats.equations + stats.secondary + stats.linear_system
+            data[index, 4] = stats.linear_setup
+            data[index, 5] = stats.linear_solve
+            data[index, 6] = stats.update
+            data[index, 7] = 0.0 # TODO
+            data[index, 8] = 0 # TODO
+            data[index, 9] = stats.linearizations
+            data[index, 10] = stats.newtons
+            data[index, 11] = stats.linear_iterations
+            data[index, 12] = Int(minireport[:success])
+            if minireport[:success]
+                t += dt
+            end
+            index += 1
+        end
+    end
+    function formatter(v, i, j)
+        if v isa Float64
+            return round(v, digits = 3);
+        else
+            return v
+        end
+    end
+    Jutul.pretty_table(data, header = header, formatters = formatter, tf = Jutul.tf_borderless, hlines = :none)
+end
+
+function write_reservoir_simulator_reports_to_opm_format!(io, reports, ::Val{:iterations})
+    header = ["ReportStep","TimeStep","Time","Iteration"]
+    sample = reports[1][:ministeps][1][:steps][1]
+    res_error = x -> only(x[:errors][:Reservoir])
+    res_sample = res_error(sample)
+    phases = res_sample.criterions.MB.names
+    day = si_unit(:day)
+    for name in phases
+        push!(header, "MB_$name")
+    end
+    for name in phases
+        push!(header, "CNV_$name")
+    end
+    push!(header, "WellStatus")
+    n = 0
+    for report in reports
+        for ministep in report[:ministeps]
+            for step in ministep[:steps]
+                n += 1
+            end
+        end
+    end
+    function formatter(v, i, j)
+        if v isa Float64
+            return v# round(v, digits = 3);
+        else
+            return v
+        end
+    end
+    data = Matrix{Union{Float64, Int, String}}(undef, n, length(header))
+    index = 1
+    t = 0.0
+    for (report_i, report) in enumerate(reports)
+        for (step_i, ministep) in enumerate(report[:ministeps])
+            for (it, step) in enumerate(ministep[:steps])
+                res = res_error(step)
+                mb = res.criterions.MB.errors
+                cnv = res.criterions.CNV.errors
+                for i in eachindex(phases)
+                    data[index, 4 + i] = mb[i]
+                    data[index, 4 + i + length(phases)] = cnv[i]
+                end
+                wells_ok = true
+                for (k, v) in step[:errors]
+                    if k != :Reservoir
+                        for err in v
+                            for cname in keys(err.criterions)
+                                e = err.criterions[cname].errors
+                                wells_ok = wells_ok && all(e .<= err.tolerances[cname])
+                            end
+                        end
+                    end
+                end
+                data[index, 1] = report_i - 1
+                data[index, 2] = step_i - 1
+                data[index, 3] = t
+                data[index, 4] = it - 1
+                if wells_ok
+                    data[index, end] = "CONV"
+                else
+                    data[index, end] = "FAIL"
+                end
+                index += 1
+            end
+            if ministep[:success]
+                t += ministep[:dt]/day
+            end
+        end
+    end
+    Jutul.pretty_table(data, header = header, formatters = formatter, tf = Jutul.tf_borderless, hlines = :none)
+end
