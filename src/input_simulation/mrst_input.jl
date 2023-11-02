@@ -1489,7 +1489,7 @@ function write_reservoir_simulator_reports_to_opm_format!(io, reports, ::Val{:st
             return v
         end
     end
-    Jutul.pretty_table(data, header = header, formatters = formatter, tf = Jutul.tf_borderless, hlines = :none)
+    Jutul.pretty_table(io, data, header = header, formatters = formatter, tf = Jutul.tf_borderless, hlines = :none)
 end
 
 function write_reservoir_simulator_reports_to_opm_format!(io, reports, ::Val{:iterations})
@@ -1561,5 +1561,5 @@ function write_reservoir_simulator_reports_to_opm_format!(io, reports, ::Val{:it
             end
         end
     end
-    Jutul.pretty_table(data, header = header, formatters = formatter, tf = Jutul.tf_borderless, hlines = :none)
+    Jutul.pretty_table(io, data, header = header, formatters = formatter, tf = Jutul.tf_borderless, hlines = :none)
 end
