@@ -43,7 +43,7 @@ end
 export plot_reservoir
 function plot_reservoir(model, arg...; kwarg...)
     rmodel = reservoir_model(model)
-    fig = plot_interactive(rmodel, arg...; kwarg...)
+    fig = plot_interactive(rmodel.data_domain, arg...; kwarg...)
     g = physical_representation(rmodel.data_domain)
     ax = fig.current_axis[]
     for (k, m) in pairs(model.models)
