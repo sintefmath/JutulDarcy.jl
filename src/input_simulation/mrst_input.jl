@@ -1439,16 +1439,16 @@ function write_reservoir_simulator_output_to_mrst(model, states, reports, forces
     end
 end
 
-function write_reservoir_simulator_reports_to_opm_format(reports, name::String = "JUTUL")
+function write_reservoir_simulator_reports_to_opm_format(reports, name::String = "JUTUL"; digits = 5)
     open("$name.INFOSTEP", "w") do io
-        write_reservoir_simulator_reports_to_opm_format!(io, reports, Val(:steps))
+        write_reservoir_simulator_reports_to_opm_format!(io, reports, Val(:steps), digits = digits)
     end
     open("$name.INFOITER", "w") do io
         write_reservoir_simulator_reports_to_opm_format!(io, reports, Val(:iterations))
     end
 end
 
-function write_reservoir_simulator_reports_to_opm_format!(io, reports, ::Val{:steps})
+function write_reservoir_simulator_reports_to_opm_format!(io, reports, ::Val{:steps}; digits = 5)
     header = ["Time(day)", "TStep(day)","Assembly","LSetup","LSolve","Update","Output","WellIt","Lins","NewtIt","LinIt","Conv"]
     rep_stats = timing_breakdown(reports, reduce = false)
     rep_time = report_timesteps(reports)
@@ -1484,7 +1484,7 @@ function write_reservoir_simulator_reports_to_opm_format!(io, reports, ::Val{:st
     end
     function formatter(v, i, j)
         if v isa Float64
-            return round(v, digits = 3);
+            return round(v, digits = digits);
         else
             return v
         end
