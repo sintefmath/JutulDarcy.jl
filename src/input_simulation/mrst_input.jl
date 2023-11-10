@@ -883,9 +883,9 @@ function setup_case_from_mrst(casename; wells = :ms,
         if isa(ctrl, InjectorControl)
             factor = 1.01
             if is_comp
+                mw = MultiComponentFlash.molar_masses(model.system.equation_of_state)
                 ci = copy(vec(wdata["components"]))
-                props = model.system.equation_of_state.mixture.properties
-                ci = map((x, c) -> max(c.mw*x, 1e-10), ci, props)
+                ci = map((x, mwi) -> max(mwi*x, 1e-10), ci, mw)
                 ci = normalize(ci, 1)
             else
                 ci = vec(wdata["compi"])
@@ -1139,8 +1139,8 @@ function mrst_well_ctrl(model, wdata, is_comp, rhoS)
         elseif is_injector
             if is_comp
                 ci = copy(vec(wdata["components"]))
-                props = model.system.equation_of_state.mixture.properties
-                ci = map((x, c) -> max(c.mw*x, 1e-10), ci, props)
+                mw = MultiComponentFlash.molar_masses(model.system.equation_of_state)
+                ci = map((x, mwi) -> max(mwi*x, 1e-10), ci, mw)
                 ct = copy(ci)
                 normalize!(ct, 1)
                 if nph == 3

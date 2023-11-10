@@ -3,7 +3,7 @@ struct PhaseMassFractions{T} <: CompositionalFractions
 end
 
 @jutul_secondary function update_phase_xy!(X, m::PhaseMassFractions, model::SimulationModel{D,S}, FlashResults, ix) where {D,S<:CompositionalSystem}
-    molar_mass = map((x) -> x.mw, model.system.equation_of_state.mixture.properties)
+    molar_mass = MultiComponentFlash.molar_masses(model.system.equation_of_state)
     phase = m.phase
     @inbounds for i in ix
         f = FlashResults[i]

@@ -182,10 +182,11 @@ function update_flash_result(S, m, eos, K, x, y, z, forces, P, T, Z, Sw = 0.0)
     return out
 end
 
-function get_compressibility_factor(forces, eos, P, T, Z)
+function get_compressibility_factor(forces, eos, P, T, Z, phase = :unknown)
     ∂cond = (p = P, T = T, z = Z)
     force_coefficients!(forces, eos, ∂cond)
-    return mixture_compressibility_factor(eos, ∂cond, forces)
+    scalars = force_scalars(eos, ∂cond, forces)
+    return mixture_compressibility_factor(eos, ∂cond, forces, scalars, phase)
 end
 
 @inline function single_phase_update!(P, T, Z, x, y, forces, eos, c)
@@ -194,7 +195,7 @@ end
     Z_V = Z_L
     @. x = Z
     @. y = Z
-    V = single_phase_label(eos.mixture, c)
+    V = single_phase_label(eos, c)
     if V > 0.5
         phase_state = MultiComponentFlash.single_phase_v
     else
@@ -222,8 +223,8 @@ two_phase_pre!(S, P, T, Z, x, y, V, eos, c) = V
     @. x = liquid_mole_fraction(Z, K, vapor_frac)
     @. y = vapor_mole_fraction(x, K)
     V = two_phase_pre!(S, P, T, Z, x, y, vapor_frac, eos, c)
-    Z_L = get_compressibility_factor(forces, eos, P, T, x)
-    Z_V = get_compressibility_factor(forces, eos, P, T, y)
+    Z_L = get_compressibility_factor(forces, eos, P, T, x, :liquid)
+    Z_V = get_compressibility_factor(forces, eos, P, T, y, :vapor)
     phase_state = MultiComponentFlash.two_phase_lv
 
     return (Z_L::AD, Z_V::AD, V::AD, phase_state)
