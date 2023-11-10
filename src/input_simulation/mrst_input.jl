@@ -856,23 +856,18 @@ function setup_case_from_mrst(casename; wells = :ms,
         sym = well_symbols[i]
         wi, wdata, res_cells = get_well_from_mrst_data(mrst_data, sys, i, W_data = first_well_set,
                 extraout = true, well_type = wells, context = w_context, use_lengths = use_well_lengths)
-        param_w = setup_parameters(wi)
 
-        sv = wi.secondary_variables
-        sv_m = model.secondary_variables
-
-        prm = model.parameters
         param_w = setup_parameters(wi)
 
         if typeof(wi.system) == typeof(model.system)
-            set_secondary_variables!(wi, PhaseMassDensities = sv_m[:PhaseMassDensities])
-            if haskey(sv, :ShrinkageFactors)
-                set_secondary_variables!(wi, ShrinkageFactors = sv_m[:ShrinkageFactors])
+            set_secondary_variables!(wi, PhaseMassDensities = model.secondary_variables[:PhaseMassDensities])
+            if haskey(wi.secondary_variables, :ShrinkageFactors)
+                set_secondary_variables!(wi, ShrinkageFactors = model.secondary_variables[:ShrinkageFactors])
             end
-            if haskey(sv_m, :PhaseViscosities)
-                set_secondary_variables!(wi, PhaseViscosities = sv_m[:PhaseViscosities])
+            if haskey(model.secondary_variables, :PhaseViscosities)
+                set_secondary_variables!(wi, PhaseViscosities = model.secondary_variables[:PhaseViscosities])
             else
-                set_parameters(wi, PhaseViscosities = prm[:PhaseViscosities])
+                set_parameters(wi, PhaseViscosities = model.parameters[:PhaseViscosities])
             end
             if haskey(param_w, :Temperature)
                 param_w[:Temperature] = param_res[:Temperature][res_cells]
