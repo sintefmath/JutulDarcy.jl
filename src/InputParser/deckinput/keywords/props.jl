@@ -145,6 +145,14 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PVCDO})
     data["PVCDO"] = out
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PVDO})
+    pvdo = parse_dead_pvt_table(f, outer_data)
+    for tab in pvdo
+        swap_unit_system_axes!(tab, units, (:pressure, :liquid_formation_volume_factor, :viscosity))
+    end
+    data["PVDO"] = pvdo
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ROCK})
     rec = read_record(f)
     tdims = [NaN, NaN, NaN, NaN, NaN, NaN]

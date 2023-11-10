@@ -99,7 +99,10 @@ function parse_defaulted_line(lines, defaults)
                     converted = strip(s, [' ', '\''])
                 else
                     T = typeof(default)
-                    converted = Parsers.parse(T, s)
+                    converted = Parsers.tryparse(T, s)
+                    if isnothing(converted)
+                        converted = T.(Parsers.tryparse(Float64, s))
+                    end
                 end
                 push!(out, converted)
                 pos += 1
