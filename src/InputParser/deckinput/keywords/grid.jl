@@ -8,6 +8,32 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COORDSYS})
     @warn "COORDSYS skipped."
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MAPUNITS})
+    # TODO: This needs to be handled
+    partial_parse!(data, outer_data, units, cfg, f, :GRIDUNIT)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GRIDUNIT})
+    # TODO: This needs to be handled
+    partial_parse!(data, outer_data, units, cfg, f, :GRIDUNIT)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GDORIENT})
+    # TODO: This needs to be handled
+    partial_parse!(data, outer_data, units, cfg, f, :GDORIENT)
+end
+
+function partial_parse!(data, outer_data, units, cfg, f, k::Symbol)
+    rec = read_record(f)
+    @warn "$k not properly handled."
+    data["$k"] = rec
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MAPAXES})
+    rec = parse_deck_vector(f, Float64)
+    data["MAPAXES"] = rec
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COORD})
     coord = parse_deck_vector(f, Float64)
     coord = swap_unit_system!(coord, units, Val(:length))
