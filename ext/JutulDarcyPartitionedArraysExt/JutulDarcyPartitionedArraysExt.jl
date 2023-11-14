@@ -97,23 +97,24 @@ module JutulDarcyPartitionedArraysExt
             HYPRE.finish_assemble!(asm)
             return x
         end
-        if isnothing(cpr.A_p)
-            cpr.A_p = HYPREMatrix(comm, offset + 1, offset + n)
-            cpr.r_p = create_hypre_vector()
-            cpr.p = create_hypre_vector()
-            cpr.np = n
-            if cpr.full_system_correction
-                mul_ix = nothing
-            else
-                mul_ix = 1
-            end
-            global_buf = sim.storage.distributed_residual_buffer
-            cpr.A_ps = Jutul.parray_linear_system_operator(sim.storage.simulators, global_buf)
+        if isnothing(cpr.storage)
+            A_p = HYPREMatrix(comm, offset + 1, offset + n)
+            r_p = create_hypre_vector()
+            p = create_hypre_vector()
+
+            global_sol_buf = sim.storage.distributed_solution_buffer
+            global_res_buf = sim.storage.distributed_residual_buffer
+            A_ps = Jutul.parray_linear_system_operator(sim.storage.simulators, length(global_res_buf))
+            p_sys = (A_p, r_p, p)
+            rmodel = reservoir_model(sim.storage.model)
+            bz = degrees_of_freedom_per_entity(rmodel, Cells())
+            cpr.storage = JutulDarcy.CPRStorage(n, bz, A_ps, p_sys, global_sol_buf, global_res_buf)
         end
-        A_p = cpr.A_p
-        A_ps = cpr.A_ps
-        r_p = cpr.r_p
-        x_p = cpr.p
+        cpr_storage = cpr.storage
+        A_p = cpr_storage.A_p
+        A_ps = cpr_storage.A_ps
+        r_p = cpr_storage.r_p
+        x_p = cpr_storage.p
 
         map(sim.storage.simulators, preconditioners) do sim, prec
             storage = Jutul.get_simulator_storage(sim)

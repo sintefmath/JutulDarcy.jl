@@ -1,11 +1,11 @@
 export CPRPreconditioner
 
-struct CPRStorage{P, R, F, W, V}
+struct CPRStorage{P, R, S, F, W, V}
     A_p::P  # pressure system
     r_p::R  # pressure residual
     p::R    # last pressure approximation
-    x_ps::R  # buffer of size equal to full system rhs
-    r_ps::R  # buffer of size equal to full system rhs
+    x_ps::S  # buffer of size equal to full system rhs
+    r_ps::S  # buffer of size equal to full system rhs
     A_ps::F # full system
     w_p::W  # pressure weights
     w_rhs::V
@@ -29,6 +29,16 @@ function CPRStorage(p_prec, lin_op, full_jac)
     w_rhs = SVector{bz, T}(w_rhs)
     return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p, w_rhs, np, bz)
 end
+
+function CPRStorage(np::Int, bz::Int, lin_op, psys::Tuple, solution, residual, T = Float64)
+    A_p, r_p, p = psys
+    w_p = zeros(T, bz, np)
+    w_rhs = zeros(bz)
+    w_rhs[1] = 1
+    w_rhs = SVector{bz, T}(w_rhs)
+    return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p, w_rhs, np, bz)
+end
+
 
 """
 Constrained pressure residual
