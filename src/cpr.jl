@@ -198,7 +198,7 @@ end
 
 # CSR version
 
-function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, p_prec, A::Jutul.StaticSparsityMatrixCSR, w_p, bz, ctx, executor)
+function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, p_prec, A::Jutul.StaticSparsityMatrixCSR, w_p, ctx, executor)
     T_p = eltype(A_p)
     nz = nonzeros(A_p)
     nz_s = nonzeros(A)
