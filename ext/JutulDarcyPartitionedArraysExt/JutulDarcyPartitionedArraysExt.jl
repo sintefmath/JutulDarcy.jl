@@ -57,7 +57,12 @@ module JutulDarcyPartitionedArraysExt
         # copy!(global_cell_vector, main_prec.p)
         p_h = main_prec.storage.p
         @assert !isnothing(p_h) "CPR is not properly initialized."
-        @tic "hypre GetValues" map(own_values(global_cell_vector), preconditioners, own_values(global_out), own_values(global_buf)) do ov, prec, x_final, buf
+        @tic "hypre GetValues" map(
+            own_values(global_cell_vector),
+            preconditioners,
+            own_values(global_out),
+            own_values(global_buf)
+        ) do ov, prec, x_final, buf
             helper = prec.pressure_precond.data[:assembly_helper]
             bz = prec.storage.block_size
             indices = helper.indices
@@ -75,7 +80,7 @@ module JutulDarcyPartitionedArraysExt
         end
         # End unsafe shenanigans
         if npost > 0
-            JutulDarcy.correct_residual!(global_out, A_ps, global_buf)
+            JutulDarcy.correct_residual!(R, A_ps, global_buf)
             JutulDarcy.apply_cpr_smoother!(global_out, R, global_buf, preconditioners, A_ps, npost)
         end
         @tic "communication" consistent!(global_out) |> wait
