@@ -230,13 +230,44 @@ end
 using Krylov
 function apply!(x, cpr::CPRPreconditioner, r, arg...)
     cpr_s = cpr.storage
+    buf = cpr_s.r_ps
+    # x = cpr_s.x_ps
+    A_ps = cpr_s.A_ps
+    smoother = cpr.system_precond
+    @. x = 0.0
+    # presmooth
+    apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npre)
     apply_cpr_first_stage!(cpr, cpr_s, r, arg...)
-    apply_cpr_second_stage!(x, cpr, cpr_s, r, arg...)
+    # apply_cpr_second_stage!(x, cpr, cpr_s, r, arg...)
+    # mul!(r, A_ps, buf, -1.0, 1.0)
+    # @tic "Δp" increment_pressure!(x, cpr_s.p, bz)
+    @. buf = 0
+    p = cpr_s.p
+    bz = cpr_s.block_size
+    for i in 1:length(p)
+        ix = (i-1)*bz + 1
+        p_i = p[i]
+        buf[ix] = p_i
+        x[ix] += p_i
+    end
+    mul!(r, A_ps, buf, -1.0, 1.0)
+    
+    # correct_residual_for_dp!(r, buf, cpr_s.p, cpr_s.block_size, missing, cpr_s.A_ps)
+
+    apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npost)
+    # postsmooth
+end
+
+function apply_cpr_smoother!(x, r, buf, smoother, A_ps, n)
+    for i in 1:n
+        apply!(buf, smoother, r)
+        @. x += buf
+        mul!(r, A_ps, buf, -1.0, 1.0)
+    end
 end
 
 function apply_cpr_first_stage!(cpr::CPRPreconditioner, cpr_s::CPRStorage, r, arg...)
     r_p, w_p, bz, Δp = cpr_s.r_p, cpr_s.w_p, cpr_s.block_size, cpr_s.p
-    # Construct right hand side by the weights
     @tic "p rhs" update_p_rhs!(r_p, r, bz, w_p, cpr.pressure_precond)
     # Apply preconditioner to pressure part
     @tic "p apply" begin
