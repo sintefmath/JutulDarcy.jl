@@ -42,7 +42,7 @@ module JutulDarcyPartitionedArraysExt
         global_buf = simulator.storage.distributed_residual_buffer
         @tic "cpr first stage" map(local_values(X), preconditioners, ghost_values(X)) do x, prec, x_g
             @. x_g = 0.0
-            JutulDarcy.apply_cpr_first_stage!(prec, prec.storage, x, arg...)
+            JutulDarcy.apply_cpr_pressure_stage!(prec, prec.storage, x, arg...)
             nothing
         end
         # The following is an unsafe version of this:
