@@ -162,15 +162,16 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
     ps = rmodel.primary_variables[:Pressure].scale
     if do_p_update || cpr.partial_update
         @tic "weights" w_p = update_weights!(cpr, cpr.storage, rmodel, s, A, ps)
-        @tic "pressure system" update_pressure_system!(cpr.storage, cpr.pressure_precond, A, model.context, executor)
+        A_p = cpr.storage.A_p
+        w_p = cpr.storage.w_p
+        @tic "pressure system" update_pressure_system!(A_p, cpr.pressure_precond, A, w_p, model.context, executor)
     end
     return do_p_update
 end
 
 # CSC (default) version
 
-function update_pressure_system!(cpr_storage, p_prec, A, ctx, executor)
-    A_p = cpr_storage.A_p
+function update_pressure_system!(A_p, p_prec, A, w_p, ctx, executor)
     nz = nonzeros(A_p)
     nz_s = nonzeros(A)
     rows = rowvals(A_p)
@@ -179,7 +180,7 @@ function update_pressure_system!(cpr_storage, p_prec, A, ctx, executor)
     # Update the pressure system with the same pattern in-place
     tb = minbatch(ctx, n)
     @batch minbatch=tb for col in 1:n
-        update_row_csc!(nz, A_p, cpr_storage.w_p, rows, nz_s, col)
+        update_row_csc!(nz, A_p, w_p, rows, nz_s, col)
     end
 end
 

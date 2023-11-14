@@ -42,12 +42,12 @@ module JutulDarcyPartitionedArraysExt
         global_buf = simulator.storage.distributed_residual_buffer
         @tic "cpr first stage" map(local_values(X), preconditioners, ghost_values(X)) do x, prec, x_g
             @. x_g = 0.0
-            JutulDarcy.apply_cpr_first_stage!(prec, x, arg...)
+            JutulDarcy.apply_cpr_first_stage!(prec, prec.storage, x, arg...)
             nothing
         end
         # The following is an unsafe version of this:
         # copy!(global_cell_vector, main_prec.p)
-        p_h = main_prec.p
+        p_h = main_prec.storage.p
         @assert !isnothing(p_h) "CPR is not properly initialized."
         @tic "hypre GetValues" map(own_values(global_cell_vector), preconditioners) do ov, prec
             helper = prec.pressure_precond.data[:assembly_helper]
@@ -60,7 +60,7 @@ module JutulDarcyPartitionedArraysExt
 
         # consistent!(global_cell_vector) |> wait
         @tic "set dp" map(own_values(global_buf), own_values(global_cell_vector), preconditioners) do dx, dp, prec
-            bz = prec.block_size
+            bz = prec.storage.block_size
             for i in eachindex(dp)
                 JutulDarcy.set_dp!(dx, bz, dp, i)
             end
@@ -68,14 +68,14 @@ module JutulDarcyPartitionedArraysExt
         end
 
         @tic "correct residual" begin
-            mul!(X, main_prec.A_ps, global_buf, -1.0, true)
+            mul!(X, main_prec.storage.A_ps, global_buf, -1.0, true)
             nothing
         end
 
         @tic "increment dp" map(local_values(global_out), local_values(X), preconditioners, local_values(global_cell_vector), ghost_values(X)) do y, x, prec, dp, x_g
             @. x_g = 0.0
             apply!(y, prec.system_precond, x, arg...)
-            bz = prec.block_size
+            bz = prec.storage.block_size
             JutulDarcy.increment_pressure!(y, dp, bz)
             nothing
         end
@@ -115,17 +115,18 @@ module JutulDarcyPartitionedArraysExt
         A_ps = cpr_storage.A_ps
         r_p = cpr_storage.r_p
         x_p = cpr_storage.p
+        bz = cpr_storage.block_size
+        w_rhs = cpr_storage.w_rhs
 
         map(sim.storage.simulators, preconditioners) do sim, prec
             storage = Jutul.get_simulator_storage(sim)
             model = Jutul.get_simulator_model(sim)
             sys = storage.LinearizedSystem
-            prec.A_p = A_p
-            prec.A_ps = A_ps
-            prec.p = x_p
-            prec.r_p = r_p
-            prec.np = n
             prec.pressure_precond.data[:hypre_system] = (A_p, r_p, x_p)
+
+            nc = number_of_cells(reservoir_model(model).domain)
+            w_p = zeros(bz, nc)
+            prec.storage = JutulDarcy.CPRStorage(A_p, r_p, x_p, missing, missing, A_ps, w_p, w_rhs, n, bz)
             Jutul.update_preconditioner!(prec, sys, model, storage, recorder, sim.executor)
             prec
         end

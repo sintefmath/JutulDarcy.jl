@@ -1,4 +1,4 @@
-function JutulDarcy.update_pressure_system!(A_p::HYPRE.HYPREMatrix, p_prec, A, w_p, bz, ctx, executor)
+function JutulDarcy.update_pressure_system!(A_p::HYPRE.HYPREMatrix, p_prec, A, w_p, ctx, executor)
     D = p_prec.data
     if !haskey(D, :assembly_helper)
         (; ilower, iupper) = A_p
