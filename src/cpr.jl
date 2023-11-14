@@ -234,39 +234,27 @@ function apply!(x, cpr::CPRPreconditioner, r, arg...)
     # x = cpr_s.x_ps
     A_ps = cpr_s.A_ps
     smoother = cpr.system_precond
+    # Zero out buffer, just in case
     @. x = 0.0
     # presmooth
     apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npre)
-    apply_cpr_first_stage!(cpr, cpr_s, r, arg...)
-    # apply_cpr_second_stage!(x, cpr, cpr_s, r, arg...)
-    # mul!(r, A_ps, buf, -1.0, 1.0)
-    # @tic "Δp" increment_pressure!(x, cpr_s.p, bz)
-    @. buf = 0
-    p = cpr_s.p
-    bz = cpr_s.block_size
-    for i in 1:length(p)
-        ix = (i-1)*bz + 1
-        p_i = p[i]
-        buf[ix] = p_i
-        x[ix] += p_i
-    end
-    mul!(r, A_ps, buf, -1.0, 1.0)
-    
-    # correct_residual_for_dp!(r, buf, cpr_s.p, cpr_s.block_size, missing, cpr_s.A_ps)
-
-    apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npost)
+    apply_cpr_pressure_stage!(cpr, cpr_s, r, arg...)
+    correct_residual_for_dp!(r, x, cpr_s.p, cpr_s.block_size, buf, cpr_s.A_ps)
     # postsmooth
+    apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npost, skip_last = true)
 end
 
-function apply_cpr_smoother!(x, r, buf, smoother, A_ps, n)
+function apply_cpr_smoother!(x, r, buf, smoother, A_ps, n; skip_last = false)
     for i in 1:n
         apply!(buf, smoother, r)
         @. x += buf
-        mul!(r, A_ps, buf, -1.0, 1.0)
+        if i < n || !skip_last
+            mul!(r, A_ps, buf, -1.0, 1.0)
+        end
     end
 end
 
-function apply_cpr_first_stage!(cpr::CPRPreconditioner, cpr_s::CPRStorage, r, arg...)
+function apply_cpr_pressure_stage!(cpr::CPRPreconditioner, cpr_s::CPRStorage, r, arg...)
     r_p, w_p, bz, Δp = cpr_s.r_p, cpr_s.w_p, cpr_s.block_size, cpr_s.p
     @tic "p rhs" update_p_rhs!(r_p, r, bz, w_p, cpr.pressure_precond)
     # Apply preconditioner to pressure part
@@ -485,16 +473,20 @@ function update_p_rhs!(r_p, y, bz, w_p, p_prec)
     end
 end
 
-function correct_residual_for_dp!(y, x, Δp, bz, buf, A)
+function correct_residual_for_dp!(r, x, Δp, bz, buf, A_ps)
     # x = x' + Δx
     # A (x' + Δx) = y
     # A x' = y'
     # y' = y - A*Δx
     # x = A \ y' + Δx
-    @batch minbatch = 1000 for i in eachindex(Δp)
-        set_dp!(x, bz, Δp, i)
+    @. buf = 0
+    for i in 1:length(Δp)
+        ix = (i-1)*bz + 1
+        p_i = Δp[i]
+        buf[ix] = p_i
+        x[ix] += p_i
     end
-    mul!(y, A, x, -1.0, true)
+    mul!(r, A_ps, buf, -1.0, 1.0)
 end
 
 @inline function set_dp!(x, bz, Δp, i)
