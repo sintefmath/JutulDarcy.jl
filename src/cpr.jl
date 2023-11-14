@@ -1,6 +1,6 @@
 export CPRPreconditioner
 
-struct CPRStorage{P, R, F, W}
+struct CPRStorage{P, R, F, W, V}
     A_p::P  # pressure system
     r_p::R  # pressure residual
     p::R    # last pressure approximation
@@ -8,6 +8,7 @@ struct CPRStorage{P, R, F, W}
     r_ps::R  # buffer of size equal to full system rhs
     A_ps::F # full system
     w_p::W  # pressure weights
+    w_rhs::V
     np::Int
     block_size::Int
 end
@@ -23,7 +24,10 @@ function CPRStorage(p_prec, lin_op, full_jac)
     solution = zeros(T, np*bz)
     residual = zeros(T, np*bz)
     w_p = zeros(T, bz, np)
-    return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p, np, bz)
+    w_rhs = zeros(bz)
+    w_rhs[1] = 1
+    w_rhs = SVector{bz, T}(w_rhs)
+    return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p, w_rhs, np, bz)
 end
 
 """
@@ -270,8 +274,7 @@ function update_weights!(cpr, cpr_storage::CPRStorage, model, res_storage, J, ps
     n = cpr_storage.np
     bz = cpr_storage.block_size
     w = cpr_storage.w_p
-    r = zeros(bz)
-    r[1] = 1.0
+    r = cpr_storage.w_rhs
     scaling = cpr.weight_scaling
     if cpr.strategy == :true_impes
         eq_s = res_storage.equations[:mass_conservation]
