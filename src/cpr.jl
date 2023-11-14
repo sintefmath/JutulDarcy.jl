@@ -249,9 +249,13 @@ function apply_cpr_smoother!(x, r, buf, smoother, A_ps, n; skip_last = false)
         apply!(buf, smoother, r)
         @. x += buf
         if i < n || !skip_last
-            mul!(r, A_ps, buf, -1.0, 1.0)
+            correct_residual!(r, A_ps, buf)
         end
     end
+end
+
+function correct_residual!(r, A, x)
+    mul!(r, A, x, -1.0, 1.0)
 end
 
 function apply_cpr_pressure_stage!(cpr::CPRPreconditioner, cpr_s::CPRStorage, r, arg...)
@@ -486,7 +490,7 @@ function correct_residual_for_dp!(r, x, Δp, bz, buf, A_ps)
         buf[ix] = p_i
         x[ix] += p_i
     end
-    mul!(r, A_ps, buf, -1.0, 1.0)
+    correct_residual!(r, A_ps, buf)
 end
 
 @inline function set_dp!(x, bz, Δp, i)
