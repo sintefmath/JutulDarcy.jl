@@ -75,7 +75,7 @@ function CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner();
         npre = 1,
         npost = 1,
         update_frequency = 1,
-        update_interval = :ministep,
+        update_interval = :iteration,
         update_frequency_partial = 1,
         update_interval_partial = :iteration,
         p_rtol = nothing,
@@ -239,9 +239,11 @@ function apply!(x, cpr::CPRPreconditioner, r, arg...)
     # presmooth
     apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npre)
     apply_cpr_pressure_stage!(cpr, cpr_s, r, arg...)
-    correct_residual_for_dp!(r, x, cpr_s.p, cpr_s.block_size, buf, cpr_s.A_ps)
     # postsmooth
-    apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npost, skip_last = true)
+    if cpr.npost > 0
+        correct_residual_for_dp!(r, x, cpr_s.p, cpr_s.block_size, buf, cpr_s.A_ps)
+        apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npost, skip_last = true)
+    end
 end
 
 function apply_cpr_smoother!(x, r, buf, smoother, A_ps, n; skip_last = false)

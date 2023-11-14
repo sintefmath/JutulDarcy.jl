@@ -68,7 +68,7 @@ module JutulDarcyPartitionedArraysExt
         end
 
         @tic "correct residual" begin
-            mul!(X, main_prec.storage.A_ps, global_buf, -1.0, true)
+            Jutul.correct_residual!(X, main_prec.storage.A_ps, global_buf)
             nothing
         end
 
