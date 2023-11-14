@@ -234,15 +234,18 @@ function apply!(x, cpr::CPRPreconditioner, r, arg...)
     # x = cpr_s.x_ps
     A_ps = cpr_s.A_ps
     smoother = cpr.system_precond
+    bz = cpr_s.block_size
     # Zero out buffer, just in case
     @. x = 0.0
     # presmooth
     apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npre)
     apply_cpr_pressure_stage!(cpr, cpr_s, r, arg...)
     # postsmooth
-    if cpr.npost > 0
-        correct_residual_for_dp!(r, x, cpr_s.p, cpr_s.block_size, buf, cpr_s.A_ps)
+    if cpr.npost == 0
+        correct_residual_and_increment_pressure!(r, x, cpr_s.p, bz, buf, cpr_s.A_ps)
         apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npost, skip_last = true)
+    else
+        increment_pressure!(x, cpr_s.p, bz)
     end
 end
 
@@ -479,7 +482,7 @@ function update_p_rhs!(r_p, y, bz, w_p, p_prec)
     end
 end
 
-function correct_residual_for_dp!(r, x, Δp, bz, buf, A_ps)
+function correct_residual_and_increment_pressure!(r, x, Δp, bz, buf, A_ps)
     # x = x' + Δx
     # A (x' + Δx) = y
     # A x' = y'

@@ -37,12 +37,12 @@ module JutulDarcyPartitionedArraysExt
         return config
     end
 
-    function Jutul.parray_preconditioner_apply!(global_out, main_prec::CPRPreconditioner{<:BoomerAMGPreconditioner, <:Any}, X, preconditioners, simulator, arg...)
+    function Jutul.parray_preconditioner_apply!(global_out, main_prec::CPRPreconditioner{<:BoomerAMGPreconditioner, <:Any}, R, preconditioners, simulator, arg...)
         global_cell_vector = simulator.storage.distributed_cell_buffer
         global_buf = simulator.storage.distributed_residual_buffer
-        @tic "cpr first stage" map(local_values(X), preconditioners, ghost_values(X)) do x, prec, x_g
+        @tic "cpr first stage" map(local_values(R), preconditioners, ghost_values(R)) do r, prec, x_g
             @. x_g = 0.0
-            JutulDarcy.apply_cpr_pressure_stage!(prec, prec.storage, x, arg...)
+            JutulDarcy.apply_cpr_pressure_stage!(prec, prec.storage, r, arg...)
             nothing
         end
         # The following is an unsafe version of this:
@@ -68,13 +68,13 @@ module JutulDarcyPartitionedArraysExt
         end
 
         @tic "correct residual" begin
-            Jutul.correct_residual!(X, main_prec.storage.A_ps, global_buf)
+            JutulDarcy.correct_residual!(R, main_prec.storage.A_ps, global_buf)
             nothing
         end
 
-        @tic "increment dp" map(local_values(global_out), local_values(X), preconditioners, local_values(global_cell_vector), ghost_values(X)) do y, x, prec, dp, x_g
+        @tic "increment dp" map(local_values(global_out), local_values(R), preconditioners, local_values(global_cell_vector), ghost_values(R)) do y, r, prec, dp, x_g
             @. x_g = 0.0
-            apply!(y, prec.system_precond, x, arg...)
+            apply!(y, prec.system_precond, r, arg...)
             bz = prec.storage.block_size
             JutulDarcy.increment_pressure!(y, dp, bz)
             nothing
