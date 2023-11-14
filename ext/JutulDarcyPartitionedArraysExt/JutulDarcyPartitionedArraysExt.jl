@@ -40,6 +40,14 @@ module JutulDarcyPartitionedArraysExt
     function Jutul.parray_preconditioner_apply!(global_out, main_prec::CPRPreconditioner{<:BoomerAMGPreconditioner, <:Any}, R, preconditioners, simulator, arg...)
         global_cell_vector = simulator.storage.distributed_cell_buffer
         global_buf = simulator.storage.distributed_residual_buffer
+        A_ps = main_prec.storage.A_ps
+
+        @. global_out = 0.0
+        npre = main_prec.npre
+        npost = main_prec.npost
+        if npre > 0
+            JutulDarcy.apply_cpr_smoother!(global_out, R, global_buf, preconditioners, A_ps, npre)
+        end
         @tic "cpr first stage" map(local_values(R), preconditioners, ghost_values(R)) do r, prec, x_g
             @. x_g = 0.0
             JutulDarcy.apply_cpr_pressure_stage!(prec, prec.storage, r, arg...)
@@ -49,38 +57,41 @@ module JutulDarcyPartitionedArraysExt
         # copy!(global_cell_vector, main_prec.p)
         p_h = main_prec.storage.p
         @assert !isnothing(p_h) "CPR is not properly initialized."
-        @tic "hypre GetValues" map(own_values(global_cell_vector), preconditioners) do ov, prec
+        @tic "hypre GetValues" map(own_values(global_cell_vector), preconditioners, own_values(global_out), own_values(global_buf)) do ov, prec, x_final, buf
             helper = prec.pressure_precond.data[:assembly_helper]
+            bz = prec.storage.block_size
             indices = helper.indices
             indices::Vector{HYPRE.HYPRE_BigInt}
             nvalues = indices[end] - indices[1] + 1
             HYPRE.@check HYPRE.HYPRE_IJVectorGetValues(p_h, nvalues, indices, ov)
+            JutulDarcy.increment_pressure!(x_final, ov, bz)
+            if npost > 0
+                @. buf = 0
+                for i in 1:length(ov)
+                    p_i = ov[i]
+                    buf[(i-1)*bz + 1] = p_i
+                end
+            end
         end
         # End unsafe shenanigans
-
-        # consistent!(global_cell_vector) |> wait
-        @tic "set dp" map(own_values(global_buf), own_values(global_cell_vector), preconditioners) do dx, dp, prec
-            bz = prec.storage.block_size
-            for i in eachindex(dp)
-                JutulDarcy.set_dp!(dx, bz, dp, i)
-            end
-            nothing
-        end
-
-        @tic "correct residual" begin
-            JutulDarcy.correct_residual!(R, main_prec.storage.A_ps, global_buf)
-            nothing
-        end
-
-        @tic "increment dp" map(local_values(global_out), local_values(R), preconditioners, local_values(global_cell_vector), ghost_values(R)) do y, r, prec, dp, x_g
-            @. x_g = 0.0
-            apply!(y, prec.system_precond, r, arg...)
-            bz = prec.storage.block_size
-            JutulDarcy.increment_pressure!(y, dp, bz)
-            nothing
+        if npost > 0
+            JutulDarcy.correct_residual!(global_out, A_ps, global_buf)
+            JutulDarcy.apply_cpr_smoother!(global_out, R, global_buf, preconditioners, A_ps, npost)
         end
         @tic "communication" consistent!(global_out) |> wait
-        global_out
+        return global_out
+    end
+
+    function JutulDarcy.apply_cpr_smoother!(X::PVector, R::PVector, Buf::PVector, prec, A_ps, n; skip_last = false)
+        for i in 1:n
+            map(local_values(Buf), local_values(R), local_values(X), prec) do buf, r, x, p
+                apply!(buf, p.system_precond, r)
+                @. x += buf
+            end
+            if i < n || !skip_last
+                JutulDarcy.correct_residual!(R, A_ps, X)
+            end
+        end
     end
 
     function Jutul.parray_update_preconditioners!(sim::Jutul.PArraySimulator, cpr::CPRPreconditioner{<:BoomerAMGPreconditioner, <:Any}, preconditioners, recorder)
