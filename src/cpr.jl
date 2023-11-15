@@ -241,7 +241,7 @@ function apply!(x, cpr::CPRPreconditioner, r, arg...)
     apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npre)
     apply_cpr_pressure_stage!(cpr, cpr_s, r, arg...)
     # postsmooth
-    if cpr.npost == 0
+    if cpr.npost > 0
         correct_residual_and_increment_pressure!(r, x, cpr_s.p, bz, buf, cpr_s.A_ps)
         apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npost, skip_last = true)
     else
@@ -260,7 +260,7 @@ function apply_cpr_smoother!(x, r, buf, smoother, A_ps, n; skip_last = false)
 end
 
 function correct_residual!(r, A, x)
-    mul!(r, A, x, -1.0, 1.0)
+    mul!(r, A, x, -1.0, true)
 end
 
 function apply_cpr_pressure_stage!(cpr::CPRPreconditioner, cpr_s::CPRStorage, r, arg...)

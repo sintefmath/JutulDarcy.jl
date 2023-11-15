@@ -38,6 +38,7 @@ module JutulDarcyPartitionedArraysExt
     end
 
     function Jutul.parray_preconditioner_apply!(global_out, main_prec::CPRPreconditioner{<:BoomerAMGPreconditioner, <:Any}, R, preconditioners, simulator, arg...)
+        # @info "Starting apply"
         global_cell_vector = simulator.storage.distributed_cell_buffer
         global_buf = simulator.storage.distributed_residual_buffer
         A_ps = main_prec.storage.A_ps
@@ -69,19 +70,28 @@ module JutulDarcyPartitionedArraysExt
             indices::Vector{HYPRE.HYPRE_BigInt}
             nvalues = indices[end] - indices[1] + 1
             HYPRE.@check HYPRE.HYPRE_IJVectorGetValues(p_h, nvalues, indices, ov)
-            JutulDarcy.increment_pressure!(x_final, ov, bz)
-            if npost > 0
-                @. buf = 0
-                for i in 1:length(ov)
-                    p_i = ov[i]
-                    buf[(i-1)*bz + 1] = p_i
-                end
+        end
+        @tic "set dp" map(own_values(global_out), own_values(global_cell_vector), preconditioners) do dx, dp, prec
+            bz = prec.storage.block_size
+            for i in eachindex(dp)
+                JutulDarcy.increment_pressure!(dx, dp, bz)
             end
         end
         # End unsafe shenanigans
         if npost > 0
+            @tic "set dp" map(
+                    own_values(global_buf),
+                    own_values(global_cell_vector),
+                    preconditioners
+                ) do buf, dp, prec
+                bz = prec.storage.block_size
+                for i in eachindex(dp)
+                    JutulDarcy.set_dp!(buf, bz, dp, i)
+                end
+            end
             JutulDarcy.correct_residual!(R, A_ps, global_buf)
-            JutulDarcy.apply_cpr_smoother!(global_out, R, global_buf, preconditioners, A_ps, npost)
+            @tic "communication" consistent!(R) |> wait
+            JutulDarcy.apply_cpr_smoother!(global_out, R, global_buf, preconditioners, A_ps, npost, skip_last = true)
         end
         @tic "communication" consistent!(global_out) |> wait
         return global_out
@@ -89,9 +99,17 @@ module JutulDarcyPartitionedArraysExt
 
     function JutulDarcy.apply_cpr_smoother!(X::PVector, R::PVector, Buf::PVector, prec, A_ps, n; skip_last = false)
         for i in 1:n
-            map(local_values(Buf), local_values(R), local_values(X), prec) do buf, r, x, p
+            map(
+                local_values(Buf),
+                local_values(R),
+                own_values(X),
+                prec,
+                ghost_values(R),
+                own_values(Buf)
+            ) do buf, r, x, p, r_g, buf_o
+                @. r_g = 0.0
                 apply!(buf, p.system_precond, r)
-                @. x += buf
+                @. x += buf_o
             end
             if i < n || !skip_last
                 JutulDarcy.correct_residual!(R, A_ps, X)
@@ -138,11 +156,11 @@ module JutulDarcyPartitionedArraysExt
             storage = Jutul.get_simulator_storage(sim)
             model = Jutul.get_simulator_model(sim)
             sys = storage.LinearizedSystem
-            prec.pressure_precond.data[:hypre_system] = (A_p, r_p, x_p)
-
-            nc = number_of_cells(reservoir_model(model).domain)
-            w_p = zeros(bz, nc)
-            prec.storage = JutulDarcy.CPRStorage(A_p, r_p, x_p, missing, missing, A_ps, w_p, w_rhs, n, bz)
+            if isnothing(prec.storage)
+                prec.pressure_precond.data[:hypre_system] = (A_p, r_p, x_p)
+                w_p = zeros(bz, n)
+                prec.storage = JutulDarcy.CPRStorage(A_p, r_p, x_p, missing, missing, A_ps, w_p, w_rhs, n, bz)
+            end
             Jutul.update_preconditioner!(prec, sys, model, storage, recorder, sim.executor)
             prec
         end
