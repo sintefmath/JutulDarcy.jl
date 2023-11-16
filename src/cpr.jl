@@ -72,7 +72,7 @@ By default, this is a AMG-BILU(0) version (algebraic multigrid for pressure, blo
 function CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner();
         strategy = :true_impes,
         weight_scaling = :unit,
-        npre = 1,
+        npre = 0,
         npost = 1,
         update_frequency = 1,
         update_interval = :iteration,

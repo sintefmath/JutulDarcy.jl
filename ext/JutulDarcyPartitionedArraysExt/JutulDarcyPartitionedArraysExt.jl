@@ -38,7 +38,6 @@ module JutulDarcyPartitionedArraysExt
     end
 
     function Jutul.parray_preconditioner_apply!(global_out, main_prec::CPRPreconditioner{<:BoomerAMGPreconditioner, <:Any}, R, preconditioners, simulator, arg...)
-        # @info "Starting apply"
         global_cell_vector = simulator.storage.distributed_cell_buffer
         global_buf = simulator.storage.distributed_residual_buffer
         A_ps = main_prec.storage.A_ps
@@ -69,11 +68,10 @@ module JutulDarcyPartitionedArraysExt
             nvalues = indices[end] - indices[1] + 1
             HYPRE.@check HYPRE.HYPRE_IJVectorGetValues(p_h, nvalues, indices, ov)
         end
+
         @tic "set dp" map(own_values(global_out), own_values(global_cell_vector), preconditioners) do dx, dp, prec
             bz = prec.storage.block_size
-            for i in eachindex(dp)
-                JutulDarcy.increment_pressure!(dx, dp, bz)
-            end
+            JutulDarcy.increment_pressure!(dx, dp, bz)
         end
         # End unsafe shenanigans
         if npost > 0
@@ -88,7 +86,6 @@ module JutulDarcyPartitionedArraysExt
                 end
             end
             JutulDarcy.correct_residual!(R, A_ps, global_buf)
-            @tic "communication" consistent!(R) |> wait
             JutulDarcy.apply_cpr_smoother!(global_out, R, global_buf, preconditioners, A_ps, npost, skip_last = true)
         end
         @tic "communication" consistent!(global_out) |> wait
@@ -190,3 +187,4 @@ module JutulDarcyPartitionedArraysExt
     #     )
     # end
 end
+
