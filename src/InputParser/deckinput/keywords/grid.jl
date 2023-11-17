@@ -8,8 +8,34 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COORDSYS})
     @warn "COORDSYS skipped."
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MAPUNITS})
+    # TODO: This needs to be handled
+    partial_parse!(data, outer_data, units, cfg, f, :GRIDUNIT)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GRIDUNIT})
+    # TODO: This needs to be handled
+    partial_parse!(data, outer_data, units, cfg, f, :GRIDUNIT)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GDORIENT})
+    # TODO: This needs to be handled
+    partial_parse!(data, outer_data, units, cfg, f, :GDORIENT)
+end
+
+function partial_parse!(data, outer_data, units, cfg, f, k::Symbol)
+    rec = read_record(f)
+    @warn "$k not properly handled."
+    data["$k"] = rec
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MAPAXES})
+    rec = parse_deck_vector(f, Float64)
+    data["MAPAXES"] = rec
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COORD})
-    coord = parse_deck_matrix(f, Float64)
+    coord = parse_deck_vector(f, Float64)
     coord = swap_unit_system!(coord, units, Val(:length))
     data["COORD"] = coord
 end
@@ -24,6 +50,12 @@ function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:PERMX}, V
     k = unpack_val(v)
     vals = parse_grid_vector(f, get_cartdims(outer_data), Float64)
     vals = swap_unit_system!(vals, units, Val(:permeability))
+    data["$k"] = vals
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:FIPNUM}, Val{:PVTNUM}, Val{:SATNUM}})
+    k = unpack_val(v)
+    vals = parse_grid_vector(f, get_cartdims(outer_data), Int)
     data["$k"] = vals
 end
 

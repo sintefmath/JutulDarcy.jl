@@ -206,11 +206,11 @@ function swap_unit_system!(x::AbstractArray, systems, k)
 end
 
 
-function swap_unit_system(val, systems, k)
+function swap_unit_system(val, systems, k::Symbol)
     return swap_unit_system(val, systems, Val(k))
 end
 
-function swap_unit_system(v, systems::Nothing, k)
+function swap_unit_system(v, systems::Union{Nothing, Missing}, k::Union{Symbol, Val})
     # No systems - trivial conversion
     return v
 end

@@ -106,6 +106,15 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PVTO})
     data["PVTO"] = pvto
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PVTG})
+    pvtg = parse_live_pvt_table(f, outer_data)
+    for tab in pvtg
+        swap_unit_system_axes!(tab["data"], units, (:u_rv, :gas_formation_volume_factor, :viscosity))
+        swap_unit_system!(tab["key"], units, :pressure)
+    end
+    data["PVTG"] = pvtg
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PVTW})
     rec = read_record(f)
     tdims = [NaN, NaN, NaN, NaN, NaN]
@@ -136,6 +145,14 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PVCDO})
     data["PVCDO"] = out
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PVDO})
+    pvdo = parse_dead_pvt_table(f, outer_data)
+    for tab in pvdo
+        swap_unit_system_axes!(tab, units, (:pressure, :liquid_formation_volume_factor, :viscosity))
+    end
+    data["PVDO"] = pvdo
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ROCK})
     rec = read_record(f)
     tdims = [NaN, NaN, NaN, NaN, NaN, NaN]
@@ -157,11 +174,11 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COMPS})
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:DENSITY})
-    rec = read_record(f)
     tdims = [NaN, NaN, NaN]
     nreg = number_of_tables(outer_data, :pvt)
     out = []
     for i = 1:nreg
+        rec = read_record(f)
         t = parse_defaulted_line(rec, tdims)
         swap_unit_system!(t, units, :density)
         push!(out, t)

@@ -28,12 +28,14 @@ function JutulDarcy.plot_well!(ax, g, w; color = :darkred, textcolor = nothing, 
     pts[3, 1] = s
 
     l = pts[:, 1]
+    if fontsize > 0
     text!(well_name_for_plot(w, name),
             position = Tuple([l[1], l[2], -l[3]]),
             space = :data,
             color = textcolor,
             align = (:center, :baseline),
             fontsize = fontsize)
+    end
     lines!(ax, vec(pts[1, :]), vec(pts[2, :]), -vec(pts[3, :]), linewidth = linewidth, color = color, kwarg...)
 end
 

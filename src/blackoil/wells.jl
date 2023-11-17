@@ -75,6 +75,7 @@ Base.@propagate_inbounds function simple_well_perforation_flux!(out, sys::Standa
     Q_a = Q_v = Q_l = 0
 
     Q_in = 0
+    ρ = state_res.PhaseMassDensities
     if has_other_phase(sys)
         a, l, v = phase_indices(sys)
         dp_a, dp_l, dp_v = res_dp(conn, state_res, state_well, sys)

@@ -173,7 +173,7 @@ function convert_date_kw(t)
             return 5
         elseif s == "JUN"
             return 6
-        elseif s == "JLY"
+        elseif s == "JLY" || s == "JUL"
             return 7
         elseif s == "AUG"
             return 8

@@ -78,6 +78,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MULTIPLY})
     end
 end
 
+
 function apply_multiply!(target::AbstractVector, factor, I, J, K, dims)
     apply_multiply!(reshape(target, dims), factor, I, J, K, dims)
 end
@@ -88,6 +89,51 @@ function apply_multiply!(target, factor, I, J, K, dims)
         for j in J[1]:J[2]
             for k in K[1]:K[2]
                 target[i, j, k] *= factor
+            end
+        end
+    end
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:EQUALS})
+    # TODO: Merge shared code with COPY
+    rec = read_record(f)
+    l, u = outer_data["GRID"]["CURRENT_BOX"]
+    dims = outer_data["GRID"]["cartDims"]
+
+    il = l[1]
+    iu = u[1]
+    jl = l[2]
+    ju = u[2]
+    kl = l[3]
+    ku = u[3]
+
+    while length(rec) > 0
+        d = "Default"
+        parsed = parse_defaulted_line(rec, [d, 1.0, il, iu, jl, ju, kl, ku])
+        dst = parsed[1]
+        constval = parsed[2]
+        @assert dst != "Default"
+        if haskey(data, dst)
+            # Box can be kept.
+            il = parsed[3]
+            iu = parsed[4]
+            jl = parsed[5]
+            ju = parsed[6]
+            kl = parsed[7]
+            ku = parsed[8]
+            apply_equals!(data[dst], constval, (il, iu), (jl, ju), (kl, ku), dims)
+        else
+            data[dst] = fill(constval, dims...)
+        end
+        rec = read_record(f)
+    end
+end
+
+function apply_equals!(target, constval, I, J, K, dims)
+    for i in I[1]:I[2]
+        for j in J[1]:J[2]
+            for k in K[1]:K[2]
+                target[i, j, k] = constval
             end
         end
     end

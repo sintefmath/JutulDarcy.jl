@@ -1,4 +1,4 @@
-function JutulDarcy.update_pressure_system!(A_p::HYPRE.HYPREMatrix, p_prec, A, w_p, bz, ctx, executor)
+function JutulDarcy.update_pressure_system!(A_p::HYPRE.HYPREMatrix, p_prec, A, w_p, ctx, executor)
     D = p_prec.data
     if !haskey(D, :assembly_helper)
         (; ilower, iupper) = A_p
@@ -111,11 +111,11 @@ function inner_hypre_p_rhs!(r_p, y, bz, w_p, helper)
     @. R_p = 0.0
 end
 
-function JutulDarcy.correct_residual_for_dp!(y, x, Δp::HYPRE.HYPREVector, bz, buf, A)
+function JutulDarcy.correct_residual_and_increment_pressure!(y, x, Δp::HYPRE.HYPREVector, bz, buf, A)
     nvalues = Δp.iupper - Δp.ilower + 1
     tmp = zeros(nvalues)
     copy!(tmp, Δp)
-    JutulDarcy.correct_residual_for_dp!(y, x, tmp, bz, buf, A)
+    JutulDarcy.correct_residual_and_increment_pressure!(y, x, tmp, bz, buf, A)
 end
 
 function JutulDarcy.increment_pressure!(x, Δp::HYPRE.HYPREVector, bz)

@@ -213,8 +213,14 @@ function setup_reservoir_simulator(case::JutulCase;
         else
             v = 0
         end
+        if linear_solver isa Symbol
+            extra_ls = (solver = linear_solver,)
+        else
+            extra_ls = NamedTuple()
+        end
         lsolve = reservoir_linsolve(case.model, precond;
                                             rtol = rtol,
+                                            extra_ls...,
                                             linear_solver_arg...,
                                             )
         extra_arg = (linear_solver = lsolve, )

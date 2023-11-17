@@ -99,6 +99,7 @@ end
 
 function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
     # Add all lines that have at least one active neighbor
+    coord = reshape(coord, 6, :)'
     nx, ny, nz = cartdims
     if ismissing(actnum)
         actnum = Array{Bool, 3}(undef, nx, ny, nz)
@@ -277,25 +278,25 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
                     other = column_indices[i+1, j]
                     e = get_interior_edge(self, other, i, j, :right)
                     push!(column_neighbors, e)
-                    if i == 1
-                        e = get_boundary_edge(column_indices[i, j], i, j, :left)
-                        push!(column_boundary, e)
-                    end
                 else
                     # Add right edge to boundary
                     e = get_boundary_edge(self, i, j, :right)
+                    push!(column_boundary, e)
+                end
+                if i == 1
+                    e = get_boundary_edge(column_indices[i, j], i, j, :left)
                     push!(column_boundary, e)
                 end
                 if j < ny && active_columns[i, j+1]
                     other = column_indices[i, j+1]
                     e = get_interior_edge(self, other, i, j, :upper)
                     push!(column_neighbors, e)
-                    if j == 1
-                        e = get_boundary_edge(column_indices[i, j], i, j, :lower)
-                        push!(column_boundary, e)
-                    end
                 else
                     e = get_boundary_edge(self, i, j, :upper)
+                    push!(column_boundary, e)
+                end
+                if j == 1
+                    e = get_boundary_edge(column_indices[i, j], i, j, :lower)
                     push!(column_boundary, e)
                 end
             else
@@ -519,7 +520,6 @@ function grid_from_primitives(primitives)
         for p in start:n
             foundA, foundB = seek_range(cells, cpos, p, A, B)
             done = !foundA || !foundB
-            # @info "?!" p done
             if done
                 # @info "Did find" (p, foundA, foundB)
                 # We reached the end of our range.

@@ -56,7 +56,7 @@ end
 function Jutul.value(tc::TopConditions{N, <:ForwardDiff.Dual}) where N
     d = value.(tc.density)
     v = value.(tc.volume_fractions)
-    return TopConditions(N, Float64, density = d, volume_fractions = v)
+    return TopConditions(d, v)
 end
 
 @inline function Jutul.update_values!(vals::Vector{TopConditions{N, T}}, next::Vector{TopConditions{N, Float64}}) where {N, T<:ForwardDiff.Dual}

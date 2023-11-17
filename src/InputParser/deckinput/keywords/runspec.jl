@@ -6,6 +6,12 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ECHO})
     # Do nothing
 end
 
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MESSAGES})
+    read_record(f)
+    # TODO: Process the record.
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:START})
     rec = read_record(f)
     tdims = [1, "JAN", 1970, "00:00:00"];
