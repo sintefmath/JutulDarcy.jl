@@ -163,6 +163,7 @@ function as_printed_table(tab::PVTO, u)
     InputParser.swap_unit_system!(B, u, :liquid_formation_volume_factor)
 
     mat = Matrix{Union{Nothing, Float64}}(undef, n, 4)
+    end_records = Int[]
     for i in eachindex(Rs)
         start = tab.pos[i]
         stop = (tab.pos[i+1]-1)
@@ -173,8 +174,9 @@ function as_printed_table(tab::PVTO, u)
             mat[j, 3] = B[j]
             mat[j, 4] = M[j]
         end
+        push!(end_records, stop)
     end
-    return (mat, ["Rs", "Pressure", "B_o", "mu_u"])
+    return (mat, ["Rs", "Pressure", "B_o", "mu_u"], end_records)
 end
 
 function saturated_table(t::PVTO)
@@ -366,11 +368,10 @@ function print_deck_table!(io, tab; units = :si, self = :si)
     u_target = InputParser.DeckUnitSystem(units)
     u_self = InputParser.DeckUnitSystem(self)
     u = (from = u_self, to = u_target)
-    tab_as_mat, header = as_printed_table(tab, u)
+    tab_as_mat, header, end_records = as_printed_table(tab, u)
 
     header = copy(header)
     header[1] = "-- $(header[1])"
-    # a = rand(10, 5)
     function fmt(x, i, j)
         if isnothing(x)
             return ""
@@ -384,9 +385,15 @@ function print_deck_table!(io, tab; units = :si, self = :si)
         tf = Jutul.PrettyTables.tf_borderless,
         hlines = :none,
         formatters = fmt,
+        body_hlines_format = (' ', ' ', '/', ' '),
+        body_hlines = end_records,
         alignment = :l,
         header = header
     )
+    if length(end_records) > 0 && last(end_records) == size(tab_as_mat, 1)
+        println(io, "    /")
+    end
+    println(io, "/")
 end
 
 function print_deck_table!(tab; kwarg...)
