@@ -176,7 +176,7 @@ function as_printed_table(tab::PVTO, u)
         end
         push!(end_records, stop)
     end
-    return (mat, ["Rs", "Pressure", "B_o", "mu_u"], end_records)
+    return ("PVTO", mat, ["Rs", "Pressure", "B_o", "mu_u"], end_records)
 end
 
 function saturated_table(t::PVTO)
@@ -364,11 +364,11 @@ function add_lower_pvtg(data, pos, pressure)
     return (data, pos, pressure)
 end
 
-function print_deck_table!(io, tab; units = :si, self = :si)
+function print_deck_table!(io, tab; units = :si, self = :si, print_keyword = true)
     u_target = InputParser.DeckUnitSystem(units)
     u_self = InputParser.DeckUnitSystem(self)
     u = (from = u_self, to = u_target)
-    tab_as_mat, header, end_records = as_printed_table(tab, u)
+    start_label, tab_as_mat, header, end_records = as_printed_table(tab, u)
 
     header = copy(header)
     header[1] = "-- $(header[1])"
@@ -376,8 +376,11 @@ function print_deck_table!(io, tab; units = :si, self = :si)
         if isnothing(x)
             return ""
         else
-            return Jutul.Printf.@sprintf "%4.5f" x
+            return Jutul.Printf.@sprintf "%4.10g" x
         end
+    end
+    if print_keyword && !isnothing(start_label)
+        println(io, start_label)
     end
     Jutul.PrettyTables.pretty_table(
         io,
