@@ -52,6 +52,14 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:DISGAS})
     data["DISGAS"] = true
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:THERMAL})
+    data["THERMAL"] = true
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MECH})
+    data["MECH"] = true
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:VAPOIL})
     data["VAPOIL"] = true
 end

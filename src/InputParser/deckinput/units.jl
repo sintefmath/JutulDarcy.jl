@@ -254,6 +254,10 @@ function deck_unit(sys::DeckUnitSystem, ::Val{:Kh})
     return deck_unit(sys, :permeability)*deck_unit(sys, :length)
 end
 
+function deck_unit(sys::DeckUnitSystem, ::Val{:gigapascal})
+    return si_unit(:Pa)*si_unit(:giga)
+end
+
 function deck_unit(sys::DeckUnitSystem, ::Val{:time_over_volume})
     return deck_unit(sys, :time)/deck_unit(sys, :volume)
 end

@@ -53,6 +53,27 @@ function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:PERMX}, V
     data["$k"] = vals
 end
 
+
+function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:PRATIO}, Val{:BIOTCOEF}})
+    k = unpack_val(v)
+    vals = parse_grid_vector(f, get_cartdims(outer_data), Float64)
+    data["$k"] = vals
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:YMODULE}})
+    k = unpack_val(v)
+    vals = parse_grid_vector(f, get_cartdims(outer_data), Float64)
+    vals = swap_unit_system!(vals, units, Val(:gigapascal))
+    data["$k"] = vals
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:POELCOEF}, Val{:THELCOEF}, Val{:THERMEXR}, Val{:THCONR}})
+    k = unpack_val(v)
+    vals = parse_grid_vector(f, get_cartdims(outer_data), Float64)
+    @warn "Units not implemented for $k"
+    data["$k"] = vals
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:FIPNUM}, Val{:PVTNUM}, Val{:SATNUM}})
     k = unpack_val(v)
     vals = parse_grid_vector(f, get_cartdims(outer_data), Int)
