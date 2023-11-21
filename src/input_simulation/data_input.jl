@@ -16,7 +16,9 @@ end
 
 function simulate_data_file(data::AbstractDict; setup_arg = NamedTuple(), kwarg...)
     case = case_from_data_input(data; setup_arg...)
-    return simulate_reservoir(case; kwarg...)
+    result = simulate_reservoir(case; kwarg...)
+    result.extra[:case] = case
+    return result
 end
 
 function case_from_data_input(datafile; kwarg...)
