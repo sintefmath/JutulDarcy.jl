@@ -852,3 +852,38 @@ function generate_phase_indices(phases, canonical = (a = AqueousPhase(), l = Liq
     end
     return NamedTuple(pairs(phase_ind_dict))
 end
+
+"""
+    reservoir_groups_for_printing(model::MultiModel)
+
+Break down the standard reservoir simulator model into groups based on if they
+are the reservoir, wells, facility or something else.
+"""
+function reservoir_groups_for_printing(model::MultiModel)
+    groups = Vector{Tuple{Symbol, Vector{Symbol}}}()
+
+    rgroup = (:Reservoir, [:Reservoir])
+    wgroup = (:Wells, Symbol[])
+    fgroup = (:Facility, Symbol[])
+
+    push!(groups, rgroup)
+    push!(groups, wgroup)
+    push!(groups, fgroup)
+
+    for (k, m) in pairs(model.models)
+        d = m.domain
+        if d isa Jutul.DiscretizedDomain
+            d = m.domain.representation
+        end
+        if k == :Reservoir
+            continue
+        elseif d isa JutulDarcy.WellDomain
+            push!(wgroup[2], k)
+        elseif d isa JutulDarcy.WellControllerDomain
+            push!(fgroup[2], k)
+        else
+            push!(groups, (k, [k]))
+        end
+    end
+    return groups
+end
