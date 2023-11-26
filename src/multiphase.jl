@@ -70,6 +70,17 @@ struct Pressure <: ScalarVariable
     minimum_pressure::Float64
     maximum_pressure::Float64
     scale::Float64
+    function Pressure(max_abs, max_rel, minimum_pressure, maximum_pressure, scale)
+        if !isnothing(max_abs)
+            @assert max_abs > 0.0 "Maximum absolute pressure change was $max_abs, must be positive"
+        end
+        if !isnothing(max_rel)
+            @assert max_rel > 0.0 "Maximum relative pressure change was $max_rel, must be positive"
+        end
+        @assert minimum_pressure < maximum_pressure "Maximum pressure $maximum_pressure must be larger than minimum pressure $minimum_pressure"
+        @assert scale > 0.0 "Pressure scale must be positive Float64, was $scale"
+        new(max_abs, max_rel, minimum_pressure, maximum_pressure, scale)
+    end
 end
 
 """
