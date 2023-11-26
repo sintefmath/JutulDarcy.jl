@@ -173,13 +173,12 @@ function setup_reservoir_simulator(case::JutulCase;
                             inc_tol_dp_abs = Inf,
                             inc_tol_dp_rel = Inf,
                             inc_tol_dz = Inf,
-                            set_linear_solver = true,
+                            set_linear_solver = linear_solver isa Symbol,
                             timesteps = :auto,
                             parray_arg = NamedTuple(),
                             linear_solver_arg = NamedTuple(),
                             extra_timing_setup = false,
                             kwarg...)
-    set_linear_solver = set_linear_solver || linear_solver isa Symbol
     if mode == :default
         sim = Simulator(case, extra_timing = extra_timing_setup)
     else
