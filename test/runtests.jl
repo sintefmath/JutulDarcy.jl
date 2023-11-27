@@ -40,6 +40,10 @@ end
     include("parser.jl")
 end
 
+@testitem "Scalarization" begin
+    include("scalarization.jl")
+end
+
 @run_package_tests
 nothing
 # include("gpu.jl")
