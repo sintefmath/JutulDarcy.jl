@@ -5,13 +5,14 @@ module JutulDarcyPartitionedArraysExt
     using PartitionedArrays, MPI, HYPRE
     using LinearAlgebra
 
+    import Jutul: JutulCase, PArrayBackend, JutulConfig, BoomerAMGPreconditioner
     import Jutul: PArraySimulator, MPISimulator, PArrayExecutor
     import Jutul: DebugPArrayBackend, JuliaPArrayBackend, MPI_PArrayBackend
     import Jutul: partition_distributed, simulate_parray, @tic
     import JutulDarcy:
         reservoir_partition, partitioner_input, apply_cpr_pressure_stage!,
         apply_cpr_smoother!, set_default_cnv_mb!, setup_reservoir_simulator_parray,
-        increment_pressure!, set_dp!, correct_residual!, CPRStorage
+        increment_pressure!, set_dp!, correct_residual!, CPRStorage, CPRPreconditioner
 
     function setup_reservoir_simulator_parray(
             case::JutulCase,
@@ -32,7 +33,7 @@ module JutulDarcyPartitionedArraysExt
         return PArraySimulator(case, p; backend = backend, kwarg...)
     end
 
-    function set_default_cnv_mb!(config::JutulConfig, sim::Jutul.PArraySimulator; kwarg...)
+    function set_default_cnv_mb!(config::JutulConfig, sim::PArraySimulator; kwarg...)
         simulators = sim.storage[:simulators]
         map(simulators, config[:configs]) do sim, cfg
             set_default_cnv_mb!(cfg, sim)
@@ -115,8 +116,7 @@ module JutulDarcyPartitionedArraysExt
         end
     end
 
-    function Jutul.parray_update_preconditioners!(sim::Jutul.PArraySimulator, cpr::CPRPreconditioner{<:BoomerAMGPreconditioner, <:Any}, preconditioners, recorder)
-        @info "CPR with HYPRE."
+    function Jutul.parray_update_preconditioners!(sim::PArraySimulator, cpr::CPRPreconditioner{<:BoomerAMGPreconditioner, <:Any}, preconditioners, recorder)
         offset = sim.storage.process_offset
         n = sim.storage.nc_process
         comm = sim.storage.comm
