@@ -37,6 +37,24 @@ Base.@kwdef struct BlackOilUnknown{R} <: ScalarVariable
     ds_max::R = 0.2
 end
 
+function Jutul.scalarized_primary_variable_type(model, var::BlackOilUnknown)
+    return Tuple{Float64, PresentPhasesBlackOil}
+end
+
+function Jutul.scalarize_primary_variable(model, source_vec, var::BlackOilUnknown, index)
+    x = source_vec[index]
+    return (value(x.val), x.phases_present)
+end
+
+function Jutul.descalarize_primary_variable!(dest_array, model, V, var::BlackOilUnknown, index)
+    val, flag = V
+    V_old = dest_array[index]
+    val0 = V_old.val
+
+    val_converted = replace_value(val0, val)
+    dest_array[index] = BlackOilX(val_converted, flag, false)
+end
+
 export BlackOilX
 struct BlackOilX{T}
     val::T
@@ -45,6 +63,14 @@ struct BlackOilX{T}
     function BlackOilX(val::T, phases = OilAndGas, sat_close = false) where T<:Real
         return new{T}(val, phases, sat_close)
     end
+end
+
+function Base.zero(::Type{BlackOilX{R}}) where R
+    return BlackOilX(zero(R))
+end
+
+function Base.zero(::BlackOilX{R}) where R
+    return BlackOilX(zero(R))
 end
 
 """

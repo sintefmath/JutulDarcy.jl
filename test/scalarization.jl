@@ -24,9 +24,16 @@ function scalarization_bl_test_sim(;nc = 10, nph = 2)
 end
 
 @testset "scalarization 2ph" begin
-    for nph in (2, 3)
-        @testset "$nph phases" begin
-            sim = scalarization_bl_test_sim(nph = nph);
+    for case in (2, 3, "spe1")
+        if case isa Int
+            test_name = "$case phases"
+            sim = scalarization_bl_test_sim(nph = case);
+        else
+            test_name = "spe1"
+            tmp, = setup_case_from_mrst(case)
+            sim = Simulator(tmp.model[:Reservoir], state0 = tmp.state0[:Reservoir])
+        end
+        @testset "$test_name" begin
             state = sim.storage.primary_variables
             model = sim.model
             pvar_vec = Jutul.scalarize_primary_variables(model, state)
@@ -34,7 +41,7 @@ end
             for (k, v) in pairs(state)
                 new_v = copy(v)
                 for i in eachindex(new_v)
-                    new_v[i] = Jutul.replace_value(new_v[i], 0.0)
+                    new_v[i] = Jutul.replace_value(new_v[i], zero(new_v[i]))
                 end
                 state_new[k] = new_v
             end
@@ -47,7 +54,11 @@ end
                 @test typeof(var_old) == typeof(var_new)
                 for i in eachindex(var_old)
                     @test var_old[i] == var_new[i]
-                    @test var_old[i].partials == var_new[i].partials
+                    if eltype(var_old)<:JutulDarcy.BlackOilX
+                        @test var_old[i].val.partials == var_new[i].val.partials
+                    else
+                        @test var_old[i].partials == var_new[i].partials
+                    end
                 end
             end
         end
