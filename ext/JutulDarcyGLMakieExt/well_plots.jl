@@ -87,7 +87,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = nothing;
 
     is_inj = is_injectors(wd)
     @assert ndata <= length(styles) "Can't plot more datasets than styles provided"
-    fig = Figure(resolution = resolution)
+    fig = Figure(size = resolution)
     no_time = isnothing(time)
     if no_time
         t_l = "Time-step"
