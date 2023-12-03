@@ -193,13 +193,17 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
         for j in 1:(ny+1)
             L = lines[i, j]
             # Top layer
-            t = boundary_index(i, j, true)
-            pushfirst!(L.z, L.z[1] - 1.0, L.z[1])
-            pushfirst!(L.cells, t, t)
+            if L.cells[1] > 0
+                t = boundary_index(i, j, true)
+                pushfirst!(L.z, L.z[1] - 1.0, L.z[1])
+                pushfirst!(L.cells, t, t)
+            end
             # Bottom layer
-            b = boundary_index(i, j, false)
-            push!(L.z, L.z[end], L.z[end] + 1.0)
-            push!(L.cells, b, b)
+            if L.cells[end] > 0
+                b = boundary_index(i, j, false)
+                push!(L.z, L.z[end], L.z[end] + 1.0)
+                push!(L.cells, b, b)
+            end
         end
     end
 
@@ -576,7 +580,8 @@ function grid_from_primitives(primitives)
         nA = length(lineA.z)
         nB = length(lineB.z)
         it = 1
-        # @warn "Starting" current_cellA current_cellB nA nB
+        @warn "Starting" current_cellA current_cellB nA nB
+        @info "Current pillars" cols pillars
         # for i in 1:nA
         #     p = lineA.cellpos
         #     @error "Node $i:" lineA.cells[p[i]:(p[i+1]-1)]
