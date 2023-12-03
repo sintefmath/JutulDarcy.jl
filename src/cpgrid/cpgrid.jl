@@ -27,13 +27,20 @@ function get_line(coord, i, j, nx, ny)
     return (x1, x2)
 end
 
-function interp_coord(line::Tuple, z)
-    p0, p1 = line
-    return interp_coord(p0, p1, z)
-end
+# function interp_coord(line::Tuple, z)
+#     p0, p1 = line
+#     return interp_coord(p0, p1, z)
+# end
 
 function interp_coord(line::NamedTuple, z)
-    return interp_coord(line.x1, line.x2, z)
+    if line.equal_points
+        x = line.x1
+        T = eltype(x)
+        pt = SVector{3, T}(x[1], x[2], z)
+    else
+        pt = interp_coord(line.x1, line.x2, z)
+    end
+    return pt
 end
 
 function interp_coord(p0::SVector{3, T}, p1::SVector{3, T}, z::T) where T<:Real
@@ -127,7 +134,8 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
             cellpos = Vector{Int}(),
             nodes = Vector{Int}(),
             x1 = SVector{3, Float64}(p1),
-            x2 = SVector{3, Float64}(p2)
+            x2 = SVector{3, Float64}(p2),
+            equal_points = p1 ≈ p2
             )
     end
     # active_lines = BitArray(undef, nlinex, nliney)
