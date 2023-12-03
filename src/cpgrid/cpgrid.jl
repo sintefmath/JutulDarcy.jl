@@ -39,11 +39,15 @@ end
 function interp_coord(p0::SVector{3, T}, p1::SVector{3, T}, z::T) where T<:Real
     z0 = p0[3]
     z1 = p1[3]
-
-    weight = (z - z0)/(z1 - z0)
-
-    interp_pt = p0 .+ weight.*(p1 .- p0)
-    @assert interp_pt[3] ≈ z "expected $z was $(interp_pt[3])"
+    if z0 ≈ z1 
+        # Coinciding corner points. Just return the point and hope the pillar is
+        # inactive.
+        interp_pt = p0
+    else
+        weight = (z - z0)/(z1 - z0)
+        interp_pt = p0 .+ weight.*(p1 .- p0)
+        @assert interp_pt[3] ≈ z "expected $z was $(interp_pt[3]) != $z"
+    end
     return interp_pt
 end
 
