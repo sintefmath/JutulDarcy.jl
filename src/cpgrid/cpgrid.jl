@@ -147,7 +147,7 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
         else
             layer_offset = -(nx*ny*nz)
         end
-        return layer_offset - ij_to_linear(i, j, cartdims[1:2])
+        return layer_offset #- ij_to_linear(i, j, cartdims[1:2])
     end
 
     function cell_index(i, j, k)
@@ -193,11 +193,13 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
         for j in 1:(ny+1)
             L = lines[i, j]
             # Top layer
-            pushfirst!(L.z, L.z[1] - 1.0)
-            pushfirst!(L.cells, boundary_index(i, j, true))
+            t = boundary_index(i, j, true)
+            pushfirst!(L.z, L.z[1] - 1.0, L.z[1])
+            pushfirst!(L.cells, t, t)
             # Bottom layer
-            push!(L.z, L.z[end] + 1.0)
-            push!(L.cells, boundary_index(i, j, false))
+            b = boundary_index(i, j, false)
+            push!(L.z, L.z[end], L.z[end] + 1.0)
+            push!(L.cells, b, b)
         end
     end
 
