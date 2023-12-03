@@ -141,6 +141,15 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
     # active_lines = BitArray(undef, nlinex, nliney)
     x1, x2 = get_line(coord, 1, 1, nlinex, nliney)
     line0 = generate_line(x1, x2)
+    function boundary_index(i, j, is_top)
+        if is_top
+            layer_offset = -(2*nx*ny*nz)
+        else
+            layer_offset = -(nx*ny*nz)
+        end
+        return layer_offset - ij_to_linear(i, j, cartdims[1:2])
+    end
+
     function cell_index(i, j, k)
         ix = ijk_to_linear(i, j, k, cartdims)
         if actnum[i, j, k]
@@ -179,6 +188,19 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
             end
         end
     end
+    # Add fake boundary nodes with corresponding cells
+    for i in 1:(nx+1)
+        for j in 1:(ny+1)
+            L = lines[i, j]
+            # Top layer
+            pushfirst!(L.z, L.z[1] - 1.0)
+            pushfirst!(L.cells, boundary_index(i, j, true))
+            # Bottom layer
+            push!(L.z, L.z[end] + 1.0)
+            push!(L.cells, boundary_index(i, j, false))
+        end
+    end
+
     # Process lines and merge similar nodes
     nodes, lines_active = process_lines!(lines)
 
@@ -222,7 +244,8 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
         for j in 1:ny
             if active_columns[i, j]
                 col = make_column(i, j)
-                prev = 0
+                prev = boundary_index(i, j, true) 
+                push!(col.cells, prev)
                 for k in 1:nz
                     cell = cell_index(i, j, k)
                     if cell != prev
@@ -231,9 +254,7 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
                     prev = cell
                 end
                 # Put a boundary at the end
-                if col.cells[end] > 0
-                    push!(col.cells, -(nx*ny*nz+1))
-                end
+                push!(col.cells, boundary_index(i, j, false))
                 push!(columns, col)
                 column_indices[i, j] = col_counter
                 col_counter += 1
