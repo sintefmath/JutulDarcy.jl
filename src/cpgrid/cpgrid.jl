@@ -532,41 +532,47 @@ function grid_from_primitives(primitives)
     # Vertical faces (between active columns)
     function initialize_cpair(pillars, cols, i)
         c = columns[cols[i]]
-        @assert cell_is_boundary(c.cells[1])
+        @assert c.cells[1] <= 0
         return (lines[pillars[i]], c, c.cells[2])
     end
-
-
-    function seek_range(cells, cpos, p, A, B)
-        foundA = false
-        foundB = false
-        for i in cpos[p]:(cpos[p+1]-1)
-            c = cells[i]
-            foundA = foundA || c == A
-            foundB = foundB || c == B
-            if foundA && foundB
+    
+    function node_positions_cell_pair(cA, cB, line)
+        # Find start and stop
+        n = length(line.cellpos)-1
+        get_pos(i) = line.cellpos[i]:(line.cellpos[i+1]-1)
+        get_cells(i) = @view line.cells[get_pos(i)]
+        start = missing
+        for i in 1:n
+            cells = get_cells(i)
+            if cA in cells && cB in cells
+                start = i
                 break
             end
         end
-        return (foundA, foundB)
-    end
-
-    function seek_line(line, start, A, B)
-        cpos = line.cellpos
-        cells = line.cells
-        # @info "Looking for a node missing either of A=$A B=$B from $start"# cells
-        n = length(cpos)-1
-        for p in start:n
-            foundA, foundB = seek_range(cells, cpos, p, A, B)
-            done = !foundA || !foundB
-            if done
-                # @info "Did find" (p, foundA, foundB)
-                # We reached the end of our range.
-                return (p, foundA, foundB)
+        @assert !ismissing(start)
+        # @info "Found starting point" start
+        stop = missing
+        for i in n:-1:start
+            cells = get_cells(i)
+            # @info "??" cA cB cells i
+            if cA in cells && cB in cells
+                stop = i
+                break
             end
         end
-        # @info "Did not find" (n+1, false, false)
-        return (n+1, false, false)
+        @assert !ismissing(stop)
+        # @info "Found ending point" stop n
+        # pos = findfirst(isequal(cA), col.cells)
+    
+        if stop == n
+            A_next = B_next = false
+        else
+            next = get_cells(stop+1)
+            A_next = cA in next
+            B_next = cB in next
+        end
+        @assert !(A_next && B_next) "Found $cA and $cB in $next at $(stop+1)?"
+        return (start, stop, A_next, B_next)
     end
 
     node_buf = zeros(Int, 10)
@@ -580,21 +586,18 @@ function grid_from_primitives(primitives)
         nA = length(lineA.z)
         nB = length(lineB.z)
         it = 1
-        @warn "Starting" current_cellA current_cellB nA nB
-        @info "Current pillars" cols pillars
+        # @warn "Starting" current_cellA current_cellB nA nB
+        # @info "Current pillars" cols pillars
         # for i in 1:nA
         #     p = lineA.cellpos
         #     @error "Node $i:" lineA.cells[p[i]:(p[i+1]-1)]
         # end
-        while ptrA < nA && ptrB < nB
+        while true
 
             # Both functions should get both cell pairs
-            next_ptrA, foundA1, foundB1 = seek_line(lineA, ptrA, current_cellA, current_cellB)
-            next_ptrB, foundA2, foundB2 = seek_line(lineB, ptrB, current_cellA, current_cellB)
+            startA, stopA, lineA_foundA, lineA_foundB = node_positions_cell_pair(current_cellA, current_cellB, lineA)
+            startB, stopB, lineB_foundA, lineB_foundB = node_positions_cell_pair(current_cellA, current_cellB, lineB)
 
-            @assert !(foundA1 && foundA2 && foundB1 && foundB2)
-            @assert foundA1 == foundA2
-            @assert foundB1 == foundB2
             # @info "Found?" foundA1 foundB1 ptrA ptrB next_ptrA next_ptrB current_cellA current_cellB
 
             # Insert new face
@@ -614,24 +617,40 @@ function grid_from_primitives(primitives)
                 is_bnd = bndA || bndB
                 insert_face!(current_cellA, current_cellB, node_buf; is_boundary = is_bnd)
             end
-
+            # @info "??" lineA_foundA lineA_foundB lineB_foundA lineB_foundB
             # @warn "Iteration $it:" zA zB
+            foundA1 = lineA_foundA || lineB_foundA
             if !foundA1
-                colposA += 1
-                # @warn "Replacing A = $current_cellA with $next_cellA" colA.cells
-                current_cellA = colA.cells[min(colposA, length(colA.cells))]
+                if current_cellA == colA.cells[end]
+                    break
+                end
+                @info "??" colA.cells current_cellA
+                ok = false
+                for i in eachindex(colA.cells)
+                    if colA.cells[i] == current_cellA
+                        current_cellA = colA.cells[i+1]
+                        ok = true
+                        break
+                    end
+                end
+                if !ok
+                    @info "Went bad" current_cellA colA
+                    error("!!")
+                end
             end
+            foundB1 = lineA_foundB || lineB_foundB
             if !foundB1
-                colposB += 1
-                # @warn "Replacing B = $current_cellB with $next_cellB" colA.cells
-                current_cellB = colB.cells[min(colposB, length(colB.cells))]
+                if current_cellB == colB.cells[end]
+                    break
+                end
+                for i in eachindex(colB.cells)
+                    if colB.cells[i] == current_cellB
+                        current_cellB = colB.cells[i+1]
+                        break
+                    end
+                end
             end
-            # ptrA:(next_ptrA-1) ptrB:(next_ptrB-1)
-            # @info "It $it" ptrA next_ptrA foundA1 current_cellA
-            # @info "It $it" ptrB next_ptrB foundB1 current_cellB
-
-            ptrA = next_ptrA-1
-            ptrB = next_ptrB-1
+            @info "$it" current_cellA colA current_cellB colB foundB1 foundA1
             it += 1
         end
 
