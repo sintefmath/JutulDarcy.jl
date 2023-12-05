@@ -94,15 +94,15 @@ end
 function subgrid_renumber_neighborship(g, cells, faces)
     N = g.neighborship
     nc = number_of_cells(g)
-    renumeration = zeros(Integer, nc)
+    renumeration = Dict{Int, Int}()
     for (i, c) in enumerate(cells)
         renumeration[c] = i
     end
     N_new = N[:, faces]
     for i in eachindex(N_new)
         old = N_new[i]
+        @assert haskey(renumeration, old)
         new = renumeration[old]
-        @assert new != 0
         N_new[i] = new
     end
     return N_new
