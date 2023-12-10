@@ -194,15 +194,15 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
             L = lines[i, j]
             # Top layer
             if L.cells[1] > 0
-                t = boundary_index(i, j, true)
-                pushfirst!(L.z, L.z[1] - 1.0, L.z[1])
-                pushfirst!(L.cells, t, t)
+                # t = boundary_index(i, j, true)
+                # pushfirst!(L.z, L.z[1] - 1.0, L.z[1])
+                # pushfirst!(L.cells, t, t)
             end
             # Bottom layer
             if L.cells[end] > 0
-                b = boundary_index(i, j, false)
-                push!(L.z, L.z[end], L.z[end] + 1.0)
-                push!(L.cells, b, b)
+                # b = boundary_index(i, j, false)
+                # push!(L.z, L.z[end], L.z[end] + 1.0)
+                # push!(L.cells, b, b)
             end
         end
     end
@@ -241,7 +241,7 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
         end
     end
     # Generate the columns with cell lists
-    make_column(i, j) = (cells = Int[typemin(Int)], i = i, j = j)
+    make_column(i, j) = (cells = Int[], i = i, j = j)
     cT = typeof(make_column(1, 1))
     col_counter = 1
     columns = Vector{cT}()
@@ -251,7 +251,7 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
             if active_columns[i, j]
                 col = make_column(i, j)
                 prev = boundary_index(i, j, true) 
-                push!(col.cells, prev)
+                # push!(col.cells, prev)
                 for k in 1:nz
                     cell = cell_index(i, j, k)
                     if cell != prev
@@ -260,7 +260,7 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
                     prev = cell
                 end
                 # Put a boundary at the end
-                push!(col.cells, boundary_index(i, j, false))
+                # push!(col.cells, boundary_index(i, j, false))
                 push!(columns, col)
                 column_indices[i, j] = col_counter
                 col_counter += 1
@@ -583,7 +583,7 @@ function grid_from_primitives(primitives)
         lineA, colA, current_cellA = initialize_cpair(pillars, cols, 1)
         lineB, colB, current_cellB = initialize_cpair(pillars, cols, 2)
         ptrA = ptrB = 1
-        colposA = colposB = 2
+        # colposA = colposB = 2
         # @info "?!" colA lineA
 
         nA = length(lineA.z)
@@ -595,6 +595,9 @@ function grid_from_primitives(primitives)
         #     p = lineA.cellpos
         #     @error "Node $i:" lineA.cells[p[i]:(p[i+1]-1)]
         # end
+        function myprint(msg)
+            println("Iteration $it ($colA, $colB): $msg")
+        end
         while true
 
             # Both functions should get both cell pairs
@@ -606,7 +609,10 @@ function grid_from_primitives(primitives)
             # Insert new face
             bndA = cell_is_boundary(current_cellA)
             bndB = cell_is_boundary(current_cellB)
+            @info "Processing ($current_cellA, $current_cellB)"
+
             if !bndA || !bndB
+                @info "Inserting face for ($current_cellA, $current_cellB)"
                 Arange = startA:stopA
                 Brange = startB:stopB
                 resize!(node_buf, 0)
@@ -622,16 +628,17 @@ function grid_from_primitives(primitives)
             end
             # @info "??" lineA_foundA lineA_foundB lineB_foundA lineB_foundB
             # @warn "Iteration $it:" zA zB
+            @info "Status matrix" lineA_foundA lineA_foundB lineB_foundA lineB_foundB
             foundA1 = lineA_foundA || lineB_foundA
             if !foundA1
                 if current_cellA == colA.cells[end]
                     break
                 end
-                @info "??" colA.cells current_cellA
                 ok = false
                 for i in eachindex(colA.cells)
                     if colA.cells[i] == current_cellA
                         current_cellA = colA.cells[i+1]
+                        @info "A: Increasing cell to $current_cellA"
                         ok = true
                         break
                     end
@@ -649,6 +656,7 @@ function grid_from_primitives(primitives)
                 for i in eachindex(colB.cells)
                     if colB.cells[i] == current_cellB
                         current_cellB = colB.cells[i+1]
+                        @info "B: Increasing cell to $current_cellB"
                         break
                     end
                 end
