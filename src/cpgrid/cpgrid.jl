@@ -544,12 +544,13 @@ function grid_from_primitives(primitives)
         start = missing
         for i in 1:n
             cells = get_cells(i)
+            @info "$i: $cells"
             if cA in cells && cB in cells
                 start = i
                 break
             end
         end
-        @assert !ismissing(start)
+        @assert !ismissing(start) "Did not find $((cA, cB)) in $(line.cells)"
         # @info "Found starting point" start
         stop = missing
         for i in n:-1:start
@@ -572,6 +573,8 @@ function grid_from_primitives(primitives)
             B_next = cB in next
         end
         @assert !(A_next && B_next) "Found $cA and $cB in $next at $(stop+1)?"
+        # A in next, B in next
+        # start and stop
         return (start, stop, A_next, B_next)
     end
 
@@ -604,8 +607,8 @@ function grid_from_primitives(primitives)
             bndA = cell_is_boundary(current_cellA)
             bndB = cell_is_boundary(current_cellB)
             if !bndA || !bndB
-                Arange = ptrA:(next_ptrA-1)
-                Brange = ptrB:(next_ptrB-1)
+                Arange = startA:stopA
+                Brange = startB:stopB
                 resize!(node_buf, 0)
                 for i in Arange
                     push!(node_buf, lineA.nodes[i])
@@ -675,16 +678,18 @@ function grid_from_primitives(primitives)
         #     @error "Node $i:" lineA.cells[p[i]:(p[i+1]-1)]
         # end
         while ptrA < nA && ptrB < nB
-            next_ptrA, foundA1, foundB1 = seek_line(lineA, ptrA, current_cell, current_cell)
-            next_ptrB, foundA2, foundB2 = seek_line(lineB, ptrB, current_cell, current_cell)
+            # next_ptrA, foundA1, foundB1 = seek_line(lineA, ptrA, current_cell, current_cell)
+            # next_ptrB, foundA2, foundB2 = seek_line(lineB, ptrB, current_cell, current_cell)
+            startA, stopA, foundA1, foundB1 = node_positions_cell_pair(current_cell, current_cell, lineA)
+            startB, stopB, foundA2, foundB2 = node_positions_cell_pair(current_cell, current_cell, lineB)
 
             @assert !(foundA1 && foundA2 && foundB1 && foundB2)
             @assert foundA1 == foundA2
             @assert foundB1 == foundB2
 
             if !cell_is_boundary(current_cell)
-                Arange = ptrA:(next_ptrA-1)
-                Brange = ptrB:(next_ptrB-1)
+                Arange = startA:stopA
+                Brange = startB:stopB
                 resize!(node_buf, 0)
                 for i in Arange
                     push!(node_buf, lineA.nodes[i])
@@ -695,15 +700,19 @@ function grid_from_primitives(primitives)
                 insert_face!(current_cell, 0, node_buf; is_boundary = true)
             end
             if !foundA1
-                colpos = min(colpos+1, length(colA.cells))
-                current_cell = colA.cells[colpos]
+                if current_cell == colA.cells[end]
+                    break
+                end
+                for i in eachindex(colA.cells)
+                    if colA.cells[i] == current_cell
+                        current_cell = colA.cells[i+1]
+                        ok = true
+                        break
+                    end
+                end
             end
-            ptrA = next_ptrA-1
-            ptrB = next_ptrB-1
             it += 1
         end
-
-        # error()
     end
 
 
