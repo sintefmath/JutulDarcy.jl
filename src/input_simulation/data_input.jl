@@ -23,6 +23,8 @@ end
 
 function case_from_data_input(datafile; kwarg...)
     sys, pvt = parse_physics_types(datafile)
+    is_blackoil = sys isa StandardBlackOilSystem
+    is_compositional = sys isa CompositionalSystem
     domain = parse_reservoir(datafile)
     wells, controls, limits, cstep, dt, well_mul = parse_schedule(domain, sys, datafile)
 
@@ -31,15 +33,17 @@ function case_from_data_input(datafile; kwarg...)
     for (k, submodel) in pairs(model.models)
         if submodel.system isa MultiPhaseSystem
             # Modify secondary variables
-            svar = submodel.secondary_variables
-            # PVT
-            pvt = tuple(pvt...)
-            rho = DeckDensity(pvt)
-            if sys isa StandardBlackOilSystem
-                set_secondary_variables!(submodel, ShrinkageFactors = JutulDarcy.DeckShrinkageFactors(pvt))
+            if !is_compositional
+                svar = submodel.secondary_variables
+                # PVT
+                pvt = tuple(pvt...)
+                rho = DeckDensity(pvt)
+                if sys isa StandardBlackOilSystem
+                    set_secondary_variables!(submodel, ShrinkageFactors = JutulDarcy.DeckShrinkageFactors(pvt))
+                end
+                mu = DeckViscosity(pvt)
+                set_secondary_variables!(submodel, PhaseViscosities = mu, PhaseMassDensities = rho)
             end
-            mu = DeckViscosity(pvt)
-            set_secondary_variables!(submodel, PhaseViscosities = mu, PhaseMassDensities = rho)
             if k == :Reservoir
                 rs = datafile["RUNSPEC"]
                 oil = haskey(rs, "OIL")
@@ -757,7 +761,6 @@ function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, t
     phases = JutulDarcy.get_phases(sys)
     mix = Float64[]
     rho = 0.0
-    @info "Setting up stream" streams name
     # Well stream will be molar fracitons.
     offset = Int(has_other_phase(sys))
     ncomp = number_of_components(sys)
