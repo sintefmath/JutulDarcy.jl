@@ -159,6 +159,7 @@ function parse_state0_direct_assignment(model, datafile)
     nc = number_of_cells(G)
     ix = G.cell_map
     is_blackoil = sys isa StandardBlackOilSystem
+    is_compositional = sys isa MultiPhaseCompositionalSystemLV
 
     function get_active(k; to_zero = false)
         if haskey(sol, k)
@@ -168,6 +169,35 @@ function parse_state0_direct_assignment(model, datafile)
             end
         elseif to_zero
             x = zeros(nc)
+        else
+            x = missing
+        end
+        return x
+    end
+
+    function get_active_fraction(k)
+        ϵ = MultiComponentFlash.MINIMUM_COMPOSITION
+        if haskey(sol, k)
+            val = sol[k]
+            sz = size(val)
+            @assert length(sz) == 4 # 3 dims + last index for comps
+            ncomp = sz[4]
+            x = zeros(ncomp, nc)
+            for cell in 1:nc
+                I, J, K = cell_ijk(G, cell)
+                tot = 0.0
+                for i in 1:ncomp
+                    v_i = val[I, J, K, i]
+                    v_i = max(v_i, ϵ)
+                    x[i, cell] = v_i
+                    tot += v_i
+                end
+                err = abs(tot - 1.0)
+                @assert err < 0.1 "Too large composition error in cell $cell: sum of compositions $k was $err"
+                for i in 1:ncomp
+                    x[i, cell] /= tot
+                end
+            end
         else
             x = missing
         end
@@ -196,8 +226,15 @@ function parse_state0_direct_assignment(model, datafile)
 
     @assert !ismissing(pressure)
     init[:Pressure] = pressure
-
-    if is_blackoil
+    # Temperature
+    if haskey(sol, "TEMPI")
+        T = get_active("TEMPI")
+        for i in eachindex(T)
+            T[i] = convert_to_si(T[i], :Celsius)
+        end
+        init[:Temperature] = T
+    end
+    if is_blackoil || is_compositional
         if ismissing(sw)
             sw = zeros(nc)
         end
@@ -205,13 +242,42 @@ function parse_state0_direct_assignment(model, datafile)
         if nph == 3
             init[:ImmiscibleSaturation] = sw
         end
-        F_rs = sys.rs_max
-        F_rv = sys.rv_max
+        if is_blackoil
+            F_rs = sys.rs_max
+            F_rv = sys.rv_max
 
-        so = s_rem
-        init[:BlackOilUnknown] = map(
-            (w,  o,   g, r,  v, p) -> JutulDarcy.blackoil_unknown_init(F_rs, F_rv, w, o, g, r, v, p),
-             sw, so, sg, rs, rv, pressure)
+            so = s_rem
+            init[:BlackOilUnknown] = map(
+                (w,  o,   g, r,  v, p) -> JutulDarcy.blackoil_unknown_init(F_rs, F_rv, w, o, g, r, v, p),
+                sw, so, sg, rs, rv, pressure)
+        else
+            @assert !ismissing(sg)
+            function get_mole_fraction(k)
+                mf = get_active_fraction(k)
+                @assert !ismissing(mf)
+                return mf
+            end
+            if haskey(sol, "ZMF")
+                z = get_mole_fraction("ZMF")
+            else
+                x = get_mole_fraction("XMF")
+                y = get_mole_fraction("YMF")
+                e = 1e-8
+                two_ph = count(s -> (s < (1-e) && s > 1e-8), sg)
+                if two_ph > 0
+                    @warn "XMF/YMF initialization with two-phase conditions does not properly handle multiphase initial conditions. Initial compositions may not be what you expect!"
+                end
+                z = zeros(size(x))
+                for cell in axes(z, 2)
+                    for i in axes(z, 1)
+                        # TODO: This is wrong for 2ph cells. See warning above.
+                        L = sg[i]/(1.0 - sw[i])
+                        z[i, cell] = L*x[i] + (1.0-L)*y[i]
+                    end
+                end
+            end
+            init[:OverallMoleFractions] = z
+        end
     else
         error("Not implemented yet.")
     end
@@ -231,7 +297,6 @@ function parse_reservoir(data_file)
         zcorn = grid["ZCORN"]
         primitives = JutulDarcy.cpgrid_primitives(coord, zcorn, cartdims, actnum = actnum)
         G = JutulDarcy.grid_from_primitives(primitives)
-        active_ix = G.cell_map
     else
         @assert haskey(grid, "DX")
         @assert haskey(grid, "DY")
@@ -244,8 +309,10 @@ function parse_reservoir(data_file)
         dz = only(unique(grid["DZ"]))
         tops = only(unique(grid["TOPS"]))
         G = CartesianMesh(cartdims, cartdims.*(dx, dy, dz))
-        active_ix = 1:number_of_cells(G)
+        # We always want to return an unstructured mesh.
+        G = UnstructuredMesh(G)
     end
+    active_ix = G.cell_map
     nc = number_of_cells(G)
     # TODO: PERMYY etc for full tensor perm
     perm = zeros(3, nc)
