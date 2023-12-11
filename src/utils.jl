@@ -71,6 +71,10 @@ function setup_reservoir_model(reservoir::DataDomain, system;
     if length(wells) > 0
         for w in wells
             w_domain = DataDomain(w)
+            if haskey(reservoir, :temperature)
+                wc = w.perforations.reservoir
+                w_domain[:temperature] = reservoir[:temperature][wc]
+            end
             wname = w.name
             models[wname] = SimulationModel(w_domain, system, context = context)
             if split_wells
