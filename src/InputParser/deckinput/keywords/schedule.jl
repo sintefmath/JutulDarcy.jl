@@ -52,9 +52,17 @@ end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WCONPROD})
     d = "Default"
-    defaults = [d, "OPEN", d, Inf, Inf, Inf, Inf, NaN, 0.0, 0, 0.0]
+    defaults = [d, "OPEN", d, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, 0]
     wells = get_wells(outer_data)
     wconprod = parse_defaulted_group_well(f, defaults, wells, 1)
+    for kw in wconprod
+        for i in 4:10
+            # Handle defaults
+            if kw[i] < 0
+                kw[i] = Inf
+            end
+        end
+    end
     utypes = identity_unit_vector(defaults)
     utypes[4] = :liquid_rate_surface
     utypes[5] = :liquid_rate_surface
@@ -62,7 +70,6 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WCONPROD})
     utypes[7] = :liquid_rate_surface
     utypes[8] = :liquid_rate_reservoir
     utypes[9] = :pressure
-    utypes[10] = :pressure
     for wp in wconprod
         swap_unit_system_axes!(wp, units, utypes)
     end

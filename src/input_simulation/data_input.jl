@@ -332,7 +332,7 @@ function parse_reservoir(data_file)
         end
         temp_arg = (temperature = temperature, )
     else
-        temp_arg = NamedTuple
+        temp_arg = NamedTuple()
     end
     satnum = JutulDarcy.InputParser.table_region(data_file, :saturation, active = active_ix)
     eqlnum = JutulDarcy.InputParser.table_region(data_file, :equil, active = active_ix)
