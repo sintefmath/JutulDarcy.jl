@@ -226,14 +226,6 @@ function parse_state0_direct_assignment(model, datafile)
 
     @assert !ismissing(pressure)
     init[:Pressure] = pressure
-    # Temperature
-    if haskey(sol, "TEMPI")
-        T = get_active("TEMPI")
-        for i in eachindex(T)
-            T[i] = convert_to_si(T[i], :Celsius)
-        end
-        init[:Temperature] = T
-    end
     if is_blackoil || is_compositional
         if ismissing(sw)
             sw = zeros(nc)
@@ -323,10 +315,31 @@ function parse_reservoir(data_file)
         perm[3, i] = grid["PERMZ"][c]
         poro[i] = grid["PORO"][c]
     end
+    sol = data_file["SOLUTION"]
+    has_tempi = haskey(sol, "TEMPI")
+    has_tempvd = haskey(sol, "TEMPVD")
+
+    if has_tempvd || has_tempi
+        @assert !has_tempvd "TEMPVD not implemented."
+        temperature = zeros(nc)
+        T_inp = sol["TEMPI"]
+        for (i, c) in enumerate(active_ix)
+            temperature[i] = convert_to_si(T_inp[i], :Celsius)
+        end
+        temp_arg = (temperature = temperature, )
+    else
+        temp_arg = NamedTuple
+    end
     satnum = JutulDarcy.InputParser.table_region(data_file, :saturation, active = active_ix)
     eqlnum = JutulDarcy.InputParser.table_region(data_file, :equil, active = active_ix)
 
-    domain = reservoir_domain(G, permeability = perm, porosity = poro, satnum = satnum, eqlnum = eqlnum)
+    domain = reservoir_domain(G;
+        permeability = perm,
+        porosity = poro,
+        satnum = satnum,
+        eqlnum = eqlnum,
+        temp_arg...
+    )
 end
 
 
