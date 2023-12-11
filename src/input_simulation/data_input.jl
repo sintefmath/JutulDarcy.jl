@@ -62,7 +62,7 @@ function parse_well_from_compdat(domain, wname, v, wspecs)
     if isnan(rd)
         rd = nothing
     end
-    W = setup_well(domain, wc, name = Symbol(wname), WI = WI, reference_depth = rd)
+    W = setup_well(domain, wc, name = Symbol(wname), WI = WI, reference_depth = rd, simple_well = true)
     return (W, WI, open)
 end
 
@@ -96,8 +96,8 @@ function compdat_to_connection_factors(domain, v)
     return (wc, WI, open)
 end
 
-function parse_schedule(domain, runspec, schedule, sys)
-    dt, cstep, controls, completions, limits = parse_control_steps(runspec, schedule, sys)
+function parse_schedule(domain, runspec, props, schedule, sys)
+    dt, cstep, controls, completions, limits = parse_control_steps(runspec, props, schedule, sys)
     ncomp = length(completions)
     wells = []
     well_mul = []
@@ -381,10 +381,11 @@ end
 
 function parse_schedule(domain, sys, datafile)
     schedule = datafile["SCHEDULE"]
-    return parse_schedule(domain, datafile["RUNSPEC"], schedule, sys)
+    props = datafile["PROPS"]
+    return parse_schedule(domain, datafile["RUNSPEC"], props, schedule, sys)
 end
 
-function parse_control_steps(runspec, schedule, sys)
+function parse_control_steps(runspec, props, schedule, sys)
     rho_s = JutulDarcy.reference_densities(sys)
     phases = JutulDarcy.get_phases(sys)
 
@@ -426,8 +427,10 @@ function parse_control_steps(runspec, schedule, sys)
         push!(cstep, ctrl_ix)
     end
 
+    skip = ("WEFAC", "WELTARG", "WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE")
     for (ctrl_ix, step) in enumerate(steps)
         found_time = false
+        streams = parse_well_streams_for_step(step, props)
         for (key, kword) in pairs(step)
             if key == "DATES"
                 @assert !ismissing(start_date)
@@ -483,12 +486,12 @@ function parse_control_steps(runspec, schedule, sys)
             elseif key in ("WCONINJE", "WCONPROD", "WCONHIST", "WCONINJ")
                 for wk in kword
                     name = wk[1]
-                    controls[name], limits[name] = keyword_to_control(sys, wk, key)
+                    controls[name], limits[name] = keyword_to_control(sys, streams, wk, key)
                 end
             elseif key in ("WEFAC", "WELTARG")
                 @warn "$key Not supported properly."
-            elseif key == "WELLSTRE"
-                error()
+            elseif key in skip
+                # Already handled
             else
                 error("Unhandled keyword $key")
             end
@@ -503,12 +506,46 @@ function parse_control_steps(runspec, schedule, sys)
     return (dt = tstep, control_step = cstep, controls = all_controls, completions = all_compdat, limits = all_limits)
 end
 
+function parse_well_streams_for_step(step, props)
+    if haskey(props, "STCOND")
+        std = props["STCOND"]
+        T = convert_to_si(std[1], :Celsius)
+        p = std[2]
+    else
+        @debug "Defaulted STCOND..."
+        T = convert_to_si(15.56, :Celsius)
+        p = convert_to_si(1.0, :atm)
+    end
 
-function keyword_to_control(sys, kw, k::String)
-    return keyword_to_control(sys, kw, Val(Symbol(k)))
+    streams = Dict{String, Any}()
+    well_streams = Dict{String, String}()
+    if haskey(step, "WELLSTRE")
+        for stream in step["WELLSTRE"]
+            mix = Float64.(stream[2:end])
+            streams[first(stream)] = (mole_fractions = mix, cond = (p = p, T = T))
+        end
+    end
+    if haskey(step, "WINJGAS")
+        winjgas = step["WINJGAS"]
+        for winjgas in step["WINJGAS"]
+            @assert uppercase(winjgas[2]) == "STREAM"
+            well_streams[winjgas[1]] = winjgas[3]
+        end
+    end
+    for kw in ["GINJGAS", "GRUPINJE", "WELLINJE"]
+        if haskey(step, kw)
+            @warn "Stream keyword $kw was found but is not supported."
+        end
+    end
+
+    return (streams = streams, wells = well_streams)
 end
 
-function keyword_to_control(sys, kw, ::Val{:WCONPROD})
+function keyword_to_control(sys, streams, kw, k::String)
+    return keyword_to_control(sys, streams, kw, Val(Symbol(k)))
+end
+
+function keyword_to_control(sys, streams, kw, ::Val{:WCONPROD})
     rho_s = JutulDarcy.reference_densities(sys)
     phases = JutulDarcy.get_phases(sys)
 
@@ -522,7 +559,7 @@ function keyword_to_control(sys, kw, ::Val{:WCONPROD})
     return producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp)
 end
 
-function keyword_to_control(sys, kw, ::Val{:WCONHIST})
+function keyword_to_control(sys, streams, kw, ::Val{:WCONHIST})
     rho_s = JutulDarcy.reference_densities(sys)
     phases = JutulDarcy.get_phases(sys)
     # 1 name
@@ -549,7 +586,7 @@ function producer_limits(; bhp = Inf, lrat = Inf, orat = Inf, wrat = Inf, grat =
     return NamedTuple(pairs(lims))
 end
 
-function producer_control(sys::Union{ImmiscibleSystem, StandardBlackOilSystem}, flag, ctrl, orat, wrat, grat, lrat, bhp)
+function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp)
     rho_s = JutulDarcy.reference_densities(sys)
     phases = JutulDarcy.get_phases(sys)
 
@@ -591,10 +628,7 @@ function injector_limits(; bhp = Inf, surface_rate = Inf, reservoir_rate = Inf)
     return NamedTuple(pairs(lims))
 end
 
-function injector_control(sys::Union{ImmiscibleSystem, StandardBlackOilSystem}, flag, type, ctype, surf_rate, res_rate, bhp)
-    rho_s = JutulDarcy.reference_densities(sys)
-    phases = JutulDarcy.get_phases(sys)
-
+function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp)
     if flag == "SHUT" || flag == "STOP"
         ctrl = DisabledControl()
         lims = nothing
@@ -608,33 +642,77 @@ function injector_control(sys::Union{ImmiscibleSystem, StandardBlackOilSystem}, 
             # RESV, GRUP, THP
             error("$ctype control not supported")
         end
-        mix = Float64[]
-        rho = 0.0
-        for (phase, rho_ph) in zip(phases, rho_s)
-            if phase == LiquidPhase()
-                v = Float64(type == "OIL")
-            elseif phase == AqueousPhase()
-                v = Float64(type == "WATER")
-            else
-                @assert phase isa VaporPhase
-                v = Float64(type == "GAS")
-            end
-            rho += rho_ph*v
-            push!(mix, v)
-        end
-        @assert sum(mix) ≈ 1.0
+        rho, mix = select_injector_mixture_spec(sys, name, streams, type)
         ctrl = InjectorControl(t, mix, density = rho)
         lims = injector_limits(bhp = bhp, surface_rate = surf_rate, reservoir_rate = res_rate)
     end
     return (ctrl, lims)
 end
 
-function keyword_to_control(sys, kw, ::Val{:WCONINJE})
+function select_injector_mixture_spec(sys::Union{ImmiscibleSystem, StandardBlackOilSystem}, name, streams, type)
+    rho_s = JutulDarcy.reference_densities(sys)
+    phases = JutulDarcy.get_phases(sys)
+    mix = Float64[]
+    rho = 0.0
+    for (phase, rho_ph) in zip(phases, rho_s)
+        if phase == LiquidPhase()
+            v = Float64(type == "OIL")
+        elseif phase == AqueousPhase()
+            v = Float64(type == "WATER")
+        else
+            @assert phase isa VaporPhase
+            v = Float64(type == "GAS")
+        end
+        rho += rho_ph*v
+        push!(mix, v)
+    end
+    @assert sum(mix) ≈ 1.0
+    return (rho, mix)
+end
+
+function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, type)
+    eos = sys.equation_of_state
+    props = eos.mixture.properties
+    rho_s = JutulDarcy.reference_densities(sys)
+    phases = JutulDarcy.get_phases(sys)
+    mix = Float64[]
+    rho = 0.0
+    @info "Setting up stream" streams name
+    # Well stream will be molar fracitons.
+    offset = Int(has_other_phase(sys))
+    ncomp = number_of_components(sys)
+    mix = zeros(Float64, ncomp)
+    stream_id = streams.wells[name]
+    stream = streams.streams[stream_id]
+
+    ϵ = MultiComponentFlash.MINIMUM_COMPOSITION
+    z = map(z_i -> max(z_i, ϵ), stream.mole_fractions)
+    cond = stream.cond
+
+    z_mass = map(
+        (z_i, prop) -> max(z_i*prop.mw, ϵ),
+        z, props
+    )
+    z_mass = z_mass./sum(z_mass)
+    for i in 1:ncomp
+        mix[i+offset] = z_mass[i]
+    end
+    @assert sum(mix) ≈ 1.0 "Sum of mixture was $(sum(mix)) != 1 for mole mixture $(z) as mass $z_mass"
+
+    flash = MultiComponentFlash.flashed_mixture_2ph(eos, (p = cond.p, T = cond.T, z = z))
+    rho_l, rho_v = MultiComponentFlash.mass_densities(eos, cond.p, cond.T, flash)
+    S_l, S_v = MultiComponentFlash.phase_saturations(eos, cond.p, cond.T, flash)
+    rho = S_l*rho_l + S_v*rho_v
+    return (rho, mix)
+end
+
+function keyword_to_control(sys, streams, kw, ::Val{:WCONINJE})
+    name = kw[1]
     type = kw[2]
     flag = kw[3]
     ctype = kw[4]
     surf_rate = kw[5]
     res_rate = kw[6]
     bhp = kw[7]
-    return injector_control(sys, flag, type, ctype, surf_rate, res_rate, bhp)
+    return injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp)
 end
