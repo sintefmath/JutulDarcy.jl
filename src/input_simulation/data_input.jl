@@ -770,19 +770,21 @@ function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, t
 
     ϵ = MultiComponentFlash.MINIMUM_COMPOSITION
     z = map(z_i -> max(z_i, ϵ), stream.mole_fractions)
+    z /= sum(z)
     cond = stream.cond
 
     z_mass = map(
         (z_i, prop) -> max(z_i*prop.mw, ϵ),
         z, props
     )
-    z_mass = z_mass./sum(z_mass)
+    z_mass /= sum(z_mass)
     for i in 1:ncomp
         mix[i+offset] = z_mass[i]
     end
     @assert sum(mix) ≈ 1.0 "Sum of mixture was $(sum(mix)) != 1 for mole mixture $(z) as mass $z_mass"
 
-    flash = MultiComponentFlash.flashed_mixture_2ph(eos, (p = cond.p, T = cond.T, z = z))
+    flash_cond = (p = cond.p, T = cond.T, z = z)
+    flash = MultiComponentFlash.flashed_mixture_2ph(eos, flash_cond)
     rho_l, rho_v = MultiComponentFlash.mass_densities(eos, cond.p, cond.T, flash)
     S_l, S_v = MultiComponentFlash.phase_saturations(eos, cond.p, cond.T, flash)
     rho = S_l*rho_l + S_v*rho_v
