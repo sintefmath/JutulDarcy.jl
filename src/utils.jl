@@ -42,6 +42,7 @@ function setup_reservoir_model(reservoir::DataDomain, system;
     reservoir_context = nothing,
     general_ad = false,
     backend = :csc,
+    extra_outputs = [:LiquidMassFractions, :VaporMassFractions, :Rs, :Rv, :Saturations],
     split_wells = false,
     assemble_wells_together = true,
     parameters = Dict{Symbol, Any}(),
@@ -62,6 +63,12 @@ function setup_reservoir_model(reservoir::DataDomain, system;
         context = reservoir_context,
         general_ad = general_ad
     )
+    for k in extra_outputs
+        if haskey(rmodel.secondary_variables, k)
+            push!(rmodel.output_variables, k)
+        end
+        unique!(rmodel.output_variables)
+    end
     if haskey(reservoir, :diffusion) || haskey(reservoir, :diffusivity)
         rmodel.parameters[:Diffusivities] = Diffusivities()
     end
