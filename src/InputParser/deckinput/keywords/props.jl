@@ -30,9 +30,6 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:BIC})
     n = compositional_number_of_components(outer_data)
     bic = parse_deck_vector(f)
     @assert length(bic) == n*(n-1)÷2 "Bad length for BIC input."
-    for i in eachindex(bic)
-        bic[i] = rand()
-    end
     m = zeros(n, n)
     ix = 1
     for i in 1:n
