@@ -44,6 +44,10 @@ end
     include("scalarization.jl")
 end
 
+@testitem "Corner point grids" begin
+    include("cpgrid.jl")
+end
+
 @run_package_tests
 nothing
 # include("gpu.jl")

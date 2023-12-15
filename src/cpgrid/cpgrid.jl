@@ -1,3 +1,4 @@
+include("processing.jl")
 function ijk_to_linear(i, j, k, dims)
     nx, ny, nz = dims
     return (k-1)*nx*ny + (j-1)*nx + i
