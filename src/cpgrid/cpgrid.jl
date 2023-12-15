@@ -523,7 +523,6 @@ function grid_from_primitives(primitives)
             top_is_boundary = cell_is_boundary(prev)
             bottom_is_boundary = cell_is_boundary(next)
             cell_bnds = map(l -> find_cell_bounds(cell, l), current_column_lines)
-            @info "Bnds found" cell_bnds
             for is_top in (true, false)
                 # TODO: c1/c2 definition will have to be modified to pick the
                 # right normal vector, check this later.

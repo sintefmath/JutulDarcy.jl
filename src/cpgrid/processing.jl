@@ -78,12 +78,22 @@ end
 function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pairs, overlaps, l1, l2)
     complicated_overlap_categories = (DISTINCT_A_ABOVE, DISTINCT_B_ABOVE)
     node_pos = Int[]
+    function global_node_index(l, local_node)
+        @info "!" local_node l
+        return l.nodes[local_node]
+    end
+    function global_node_point(l, local_node::Int)
+        return nodes[global_node_index(l, local_node)]
+    end
+
+    function global_node_point_and_index(l, local_node)
+        ix = global_node_index(l, local_node)
+        return (nodes[ix], ix)
+    end
+
     sizehint!(node_pos, 6)
     for (overlap, cell_pair) in zip(overlaps, cell_pairs)
-        c1, c2 = cell_pair
-        if c1 == c2
-            # continue
-        end
+        cell_a, cell_b = cell_pair
 
         # @info "Starting" overlap cell_pair
         cat1 = overlap.line1.category
@@ -101,19 +111,44 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
 
         empty!(node_pos)
         if n1 + n2 < 3
-            @warn "Skipping" n1 n2 cat1 cat2
+            # @warn "Skipping" n1 n2 cat1 cat2
             continue
         elseif line1_distinct && line2_distinct
             @info "Very complicated matching"
             error("Not implemented yet.")
         elseif line1_distinct
+            l1_a_top, l1_a_bottom = find_cell_bounds(cell_a, l1)
+            l1_b_top, l1_b_bottom = find_cell_bounds(cell_b, l1)
+
+
+
+            # top_distinct, bottom_distinct = find_cell_bounds(cell_a, l1)
+            # Top and bottom point of the column that is entirely distinct
+            # top_pt_outside, top_ix_outside = global_node_point_and_index(l1, top_distinct)
+            # bottom_pt_outside, bottom_ix_outside = global_node_point_and_index(l1, bottom_distinct)
+            # Points on the other edge, limited to overlap
+            if cat1 == DISTINCT_A_ABOVE
+                upper_outside = l1_a_bottom
+                lower_outside = l1_b_top
+            else
+                @assert cat1 == DISTINCT_B_ABOVE
+                upper_outside = l1_b_bottom
+                lower_outside = l1_a_top
+            end
+            upper_pt_outside, upper_ix_outside = global_node_point_and_index(l1, upper_outside)
+            lower_pt_outside, lower_ix_outside = global_node_point_and_index(l1, lower_outside)
+            # These are the same no matter hat
+            upper_pt_inside, top_ix_inside = global_node_point_and_index(l2, first(edge2))
+            lower_pt_inside, bottom_ix_inside = global_node_point_and_index(l2, last(edge2))
+            new_node = handle_crossing_node!(extra_node_lookup, nodes, upper_pt_outside, lower_pt_inside, lower_pt_outside, upper_pt_inside)
+
             @info "Complicated 1"
             error("Not implemented yet.")
         elseif line2_distinct
             @info "Complicated 2"
             error("Not implemented yet.")
         else
-            @info "Simple matching!"
+            # @info "Simple matching!"
             # Need line1 lookup here.
             for local_node_ix in edge1
                 push!(node_pos, l1.nodes[local_node_ix])
@@ -121,17 +156,44 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
             for local_node_ix in edge2
                 push!(node_pos, l2.nodes[local_node_ix])
             end
-            if c1 == c2
+            if cell_a == cell_b
                 # If both cells are the same, we are dealing with a mirrored
                 # column pair at the boundary.
-                c2 = 0
+                cell_a = 0
             end
-            F(c1, c2, node_pos)
+            F(cell_a, cell_b, node_pos)
         end
     end
     return nothing
 end
 
+function handle_crossing_node!(extra_node_lookup, nodes, l1_p1, l1_p2, l2_p1, l2_p2)
+    pt = find_crossing_node(l1_p1, l1_p2, l2_p1, l2_p2)
+    return cpgrid_get_or_add_crossing_node!(extra_node_lookup, nodes, pt)
+end
+
+function find_crossing_node(x1, x2, x3, x4)
+    # Line (x1 -> x2) crossing line (x3 -> x4)
+    a = x2 - x1
+    b = x4 - x3
+    c = x3 - x1
+    axb = cross(a, b)
+    nrm = sum(axb.^2)
+    @assert nrm > 0.0
+    x_intercept = x1 + a*(dot(cross(c, b), axb)/nrm)
+    return x_intercept
+end
+
+function cpgrid_get_or_add_crossing_node!(extra_node_lookup, nodes, pt)
+    if haskey(extra_node_lookup, pt)
+        ix = extra_node_lookup[pt]
+    else
+        push!(nodes, pt)
+        ix = length(nodes)
+        extra_node_lookup[pt] = ix
+    end
+    return ix
+end
 
 function traverse_column_pair(col_a, col_b, l1, l2)
     cell_pairs = Tuple{Int, Int}[]
@@ -179,8 +241,6 @@ function traverse_column_pair(col_a, col_b, l1, l2)
 
             t1, overlap_1 = determine_overlap(pos_a, pos_b, true)
             t2, overlap_2 = determine_overlap(pos_a, pos_b, false)
-            @info t1 overlap_1
-            @info t2 overlap_2
 
             t_equal = t1 == t2
             if t_equal && t1 in (DISTINCT_A_ABOVE, DISTINCT_B_ABOVE)
