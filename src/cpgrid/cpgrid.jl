@@ -451,6 +451,8 @@ function grid_from_primitives(primitives)
     nlinex = nx+1
     nliney = ny+1
 
+    extra_node_lookup = Dict()
+
     function add_face_from_nodes!(V, Vpos, nodes)
         for n in nodes
             push!(V, n)
@@ -518,6 +520,8 @@ function grid_from_primitives(primitives)
             cell_bnds = map(l -> find_cell_bounds(cell, l), current_column_lines)
             @info "Bnds found" cell_bnds
             for is_top in (true, false)
+                # TODO: c1/c2 definition will have to be modified to pick the
+                # right normal vector, check this later.
                 if is_top
                     if !top_is_boundary
                         # Avoid adding interior faces twice.
@@ -540,42 +544,27 @@ function grid_from_primitives(primitives)
                 insert_face!(c1, c2, node_indices, is_boundary = is_bnd)
             end
         end
-        if false
-            # Traverse each column one by one and then figure out what cells are
-            # connected, generate faces and push to the respective arrays
-            ncorners = length(cl)
-            line_ptr = ones(Int, ncorners)
-            self_lines = map(i -> lines[i], cl)
+    end
 
+    for (cols, pillars) in column_neighbors
+        # Get the pair of lines we are processing
+        p1, p2 = pillars
+        l1 = lines[p1]
+        l2 = lines[p2]
+        a, b = cols
+        @info "!" cols pillars
 
-            cells = col.cells
-            @assert cell_is_boundary(cells[1])
-            @assert cell_is_boundary(cells[end])
-            cell = cells[2]
-            # Deal with the top first
-            nodes_first = map(x -> first(x.nodes), self_lines)
-            n = length(cells)
-            for i in 2:(n-1)
-                prev_cell = cells[i-1]
-                current_cell = cells[i]
-                next_cell = cells[i+1]
-                if cell_is_boundary(current_cell)
-                    # Keep going until we find actual cells
-                    continue
-                end
-                next_cell_line_ptr!(line_ptr, self_lines, current_cell)
-                bottom_nodes = map((l, ix) -> l.nodes[ix+1], self_lines, line_ptr)
-                if cell_is_boundary(prev_cell)
-                    # There was a gap or we were at the top, add boundary
-                    top_nodes = map((l, ix) -> l.nodes[ix], self_lines, line_ptr)
-                    insert_face!(prev_cell, current_cell, top_nodes; is_boundary = true)
-                end
-                # Next cell down in column might be a gap or at the bottom
-                is_bnd = cell_is_boundary(next_cell)
-                insert_face!(current_cell, next_cell, bottom_nodes; is_boundary = is_bnd)
-            end
-        end
-        # error()
+        col_a = columns[a]
+        col_b = columns[b]
+
+        cell_pairs, overlaps = JutulDarcy.traverse_column_pair(col_a, col_b, l1, l2)
+        int_pairs, int_overlaps, bnd_pairs, bnd_overlaps = split_overlaps_into_interior_and_boundary(cell_pairs, overlaps)
+
+        F_interior = (l, r, node_indices) -> insert_face!(l, r, node_indices, is_boundary = false)
+        F_bnd = (l, r, node_indices) -> insert_face!(l, r, node_indices, is_boundary = true)
+
+        add_vertical_cells_from_overlaps!(extra_node_lookup, F_interior, nodes, int_pairs, int_overlaps)
+        add_vertical_cells_from_overlaps!(extra_node_lookup, F_bnd, nodes, bnd_pairs, bnd_overlaps)
     end
     if false
     # Vertical faces (between active columns)

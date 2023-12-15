@@ -75,17 +75,12 @@ function cell_top_bottom(cells, line1, line2; check = true)
     return out
 end
 
-function vertical_cells_from_overlaps(nodes, cell_pairs, overlaps)
-    nodes = copy(nodes)
-    extra_node_lookup = Dict()
-    faces = Int[]
-    faces_pos = Int[1]
-    vertical_cells_from_overlaps!(faces, faces_pos, nodes, extra_node_lookup, cell_pairs, overlaps)
-end
-
-function vertical_cells_from_overlaps!(faces, faces_pos, nodes, extra_node_lookup, cell_pairs, overlaps)
+function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pairs, overlaps)
     complicated_overlap_categories = (DISTINCT_A_ABOVE, DISTINCT_B_ABOVE)
+    node_pos = Int[]
+    sizehint!(node_pos, 6)
     for (overlap, cell_pair) in zip(overlaps, cell_pairs)
+        c1, c2 = cell_pair
         # @info "Starting" overlap cell_pair
         cat1 = overlap.line1.category
         cat2 = overlap.line2.category
@@ -100,6 +95,7 @@ function vertical_cells_from_overlaps!(faces, faces_pos, nodes, extra_node_looku
         line1_distinct = cat1 == DISTINCT_A_ABOVE || cat1 == DISTINCT_B_ABOVE
         line2_distinct = cat2 == DISTINCT_A_ABOVE || cat2 == DISTINCT_B_ABOVE
 
+        empty!(node_pos)
         if line1_distinct && line2_distinct
             @info "Very complicated matching"
             error("Not implemented yet.")
@@ -112,15 +108,15 @@ function vertical_cells_from_overlaps!(faces, faces_pos, nodes, extra_node_looku
         else
             @info "Simple matching!"
             for node in edge1
-                push!(faces, node)
+                push!(node_pos, node)
             end
             for node in edge2
-                push!(faces, node)
+                push!(node_pos, node)
             end
-            push!(faces_pos, faces_pos[end]+n1+n2)
+            F(c1, c2, node_pos)
         end
     end
-    return faces, faces_pos
+    return nothing
 end
 
 
@@ -191,6 +187,26 @@ function traverse_column_pair(col_a, col_b, l1, l2)
     return (cell_pairs, overlaps)
 end
 
+function split_overlaps_into_interior_and_boundary(cell_pairs, overlaps)
+    interior_pairs = similar(cell_pairs, 0)
+    interior_overlaps = similar(overlaps, 0)
+
+    boundary_pairs = similar(interior_pairs)
+    boundary_overlaps = similar(interior_overlaps)
+
+    for (cell_pair, overlap) in zip(cell_pairs, overlaps)
+        l, r = cell_pair
+        if l <= 0 || r <= 0
+            push!(boundary_pairs, cell_pair)
+            push!(boundary_overlaps, overlap)
+        else
+            push!(interior_pairs, cell_pair)
+            push!(interior_overlaps, overlap)
+        end
+    end
+    return (interior_pairs, interior_overlaps, boundary_pairs, boundary_overlaps)
+    # return (interior = (interior_pairs, interior_overlaps), boundary = (boundary_pairs, boundary_overlaps))
+end
 ##
 function determine_cell_overlap_inside_line(a_start, a_stop, b_start, b_stop)
     a_range = a_start:a_stop
