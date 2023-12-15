@@ -116,11 +116,15 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
             @info "Very complicated matching"
             error("Not implemented yet.")
         elseif line1_distinct
-            handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat1, cell_a, cell_b, l1, l2, edge2, global_node_point_and_index)
+            a_range = overlap.line1.range_a
+            b_range = overlap.line1.range_b
+            handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat1, cell_a, cell_b, l1, l2, edge2, a_range, b_range, global_node_point_and_index)
         elseif line2_distinct
-            @info "Handle2"
+            # @info "Handle2"
+            a_range = overlap.line2.range_a
+            b_range = overlap.line2.range_b
             # TODO: Check that this part is actually ok.
-            handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat2, cell_b, cell_a, l2, l1, edge1, global_node_point_and_index)
+            handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat2, cell_b, cell_a, l2, l1, edge1, b_range, a_range, global_node_point_and_index)
         else
             # @info "Simple matching!"
             # Need line1 lookup here.
@@ -141,9 +145,15 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
     return nothing
 end
 
-function handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat1, cell_a, cell_b, l1, l2, edge2, global_node_point_and_index)
-    l1_a_top, l1_a_bottom = find_cell_bounds(cell_a, l1)
-    l1_b_top, l1_b_bottom = find_cell_bounds(cell_b, l1)
+function handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat1, cell_a, cell_b, l1, l2, edge2, a_range, b_range, global_node_point_and_index)
+    # l1_a_top, l1_a_bottom = find_cell_bounds(cell_a, l1)
+    # l1_b_top, l1_b_bottom = find_cell_bounds(cell_b, l1)
+    l1_a_top = a_range[1]
+    l1_a_bottom = a_range[end]
+
+    l1_b_top = b_range[1]
+    l1_b_bottom = b_range[end]
+
     # Points on the other edge, limited to overlap
     if cat1 == DISTINCT_A_ABOVE
         upper_outside = l1_a_bottom
@@ -177,7 +187,9 @@ function find_crossing_node(x1, x2, x3, x4)
     c = x3 - x1
     axb = cross(a, b)
     nrm = sum(axb.^2)
-    @assert nrm > 0.0 "Bad intercept: $((x1, x2)) to $((x3, x4))"
+    if nrm == 0.0 
+        @warn "Bad intercept: $((x1, x2)) to $((x3, x4))" a b c
+    end
     x_intercept = x1 + a*(dot(cross(c, b), axb)/nrm)
     return x_intercept
 end
