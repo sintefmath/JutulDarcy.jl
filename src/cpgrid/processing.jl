@@ -26,7 +26,7 @@ function find_cell_bounds(cell, line)
             break
         end
     end
-    @assert start > 0
+    @assert start > 0 "$cell start point not found in line $line"
     stop = 0
     for i in (n:-1:start)
         if cell in get_cells(i)
@@ -34,7 +34,7 @@ function find_cell_bounds(cell, line)
             break
         end
     end
-    @assert stop > 0
+    @assert stop > 0 "$cell end point not found in line $line"
     return (start, stop)
 end
 
@@ -79,7 +79,6 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
     complicated_overlap_categories = (DISTINCT_A_ABOVE, DISTINCT_B_ABOVE)
     node_pos = Int[]
     function global_node_index(l, local_node)
-        @info "!" local_node l
         return l.nodes[local_node]
     end
     function global_node_point(l, local_node::Int)
@@ -117,36 +116,12 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
             @info "Very complicated matching"
             error("Not implemented yet.")
         elseif line1_distinct
-            l1_a_top, l1_a_bottom = find_cell_bounds(cell_a, l1)
-            l1_b_top, l1_b_bottom = find_cell_bounds(cell_b, l1)
-
-
-
-            # top_distinct, bottom_distinct = find_cell_bounds(cell_a, l1)
-            # Top and bottom point of the column that is entirely distinct
-            # top_pt_outside, top_ix_outside = global_node_point_and_index(l1, top_distinct)
-            # bottom_pt_outside, bottom_ix_outside = global_node_point_and_index(l1, bottom_distinct)
-            # Points on the other edge, limited to overlap
-            if cat1 == DISTINCT_A_ABOVE
-                upper_outside = l1_a_bottom
-                lower_outside = l1_b_top
-            else
-                @assert cat1 == DISTINCT_B_ABOVE
-                upper_outside = l1_b_bottom
-                lower_outside = l1_a_top
-            end
-            upper_pt_outside, upper_ix_outside = global_node_point_and_index(l1, upper_outside)
-            lower_pt_outside, lower_ix_outside = global_node_point_and_index(l1, lower_outside)
-            # These are the same no matter hat
-            upper_pt_inside, top_ix_inside = global_node_point_and_index(l2, first(edge2))
-            lower_pt_inside, bottom_ix_inside = global_node_point_and_index(l2, last(edge2))
-            new_node = handle_crossing_node!(extra_node_lookup, nodes, upper_pt_outside, lower_pt_inside, lower_pt_outside, upper_pt_inside)
-
-            @info "Complicated 1"
-            error("Not implemented yet.")
+            @info "Handle1"
+            handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat1, cell_a, cell_b, l1, l2, edge2, global_node_point_and_index)
         elseif line2_distinct
-            @info "Complicated 2"
-            error("Not implemented yet.")
+            @info "Handle2"
+            # TODO: Check that this part is actually ok.
+            handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat2, cell_b, cell_a, l2, l1, edge1, global_node_point_and_index)
         else
             # @info "Simple matching!"
             # Need line1 lookup here.
@@ -156,15 +131,39 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
             for local_node_ix in edge2
                 push!(node_pos, l2.nodes[local_node_ix])
             end
-            if cell_a == cell_b
-                # If both cells are the same, we are dealing with a mirrored
-                # column pair at the boundary.
-                cell_a = 0
-            end
-            F(cell_a, cell_b, node_pos)
         end
+        if cell_a == cell_b
+            # If both cells are the same, we are dealing with a mirrored
+            # column pair at the boundary.
+            cell_a = 0
+        end
+        F(cell_a, cell_b, node_pos)
     end
     return nothing
+end
+
+function handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat1, cell_a, cell_b, l1, l2, edge2, global_node_point_and_index)
+    l1_a_top, l1_a_bottom = find_cell_bounds(cell_a, l1)
+    l1_b_top, l1_b_bottom = find_cell_bounds(cell_b, l1)
+    # Points on the other edge, limited to overlap
+    if cat1 == DISTINCT_A_ABOVE
+        upper_outside = l1_a_bottom
+        lower_outside = l1_b_top
+    else
+        @assert cat1 == DISTINCT_B_ABOVE
+        upper_outside = l1_b_bottom
+        lower_outside = l1_a_top
+    end
+    upper_pt_outside, upper_ix_outside = global_node_point_and_index(l1, upper_outside)
+    lower_pt_outside, lower_ix_outside = global_node_point_and_index(l1, lower_outside)
+    # These are the same no matter hat
+    upper_pt_inside, top_ix_inside = global_node_point_and_index(l2, first(edge2))
+    lower_pt_inside, bottom_ix_inside = global_node_point_and_index(l2, last(edge2))
+    new_node_ix = handle_crossing_node!(extra_node_lookup, nodes, upper_pt_outside, lower_pt_inside, lower_pt_outside, upper_pt_inside)
+    push!(node_pos, new_node_ix)
+    for local_node_ix in edge2
+        push!(node_pos, l1.nodes[local_node_ix])
+    end
 end
 
 function handle_crossing_node!(extra_node_lookup, nodes, l1_p1, l1_p2, l2_p1, l2_p2)
@@ -179,7 +178,7 @@ function find_crossing_node(x1, x2, x3, x4)
     c = x3 - x1
     axb = cross(a, b)
     nrm = sum(axb.^2)
-    @assert nrm > 0.0
+    @assert nrm > 0.0 "Bad intercept: $((x1, x2)) to $((x3, x4))"
     x_intercept = x1 + a*(dot(cross(c, b), axb)/nrm)
     return x_intercept
 end
