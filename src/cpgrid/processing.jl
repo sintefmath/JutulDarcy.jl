@@ -101,6 +101,8 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
         # TODO: Figure out sign
         edge1 = overlap.line1.overlap
         edge2 = reverse(overlap.line2.overlap)
+        @assert maximum(edge1) <= length(l1.nodes)
+        @assert maximum(edge2) <= length(l2.nodes)
 
         n1 = length(edge1)
         n2 = length(edge2)
@@ -124,6 +126,7 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
             a_range = overlap.line2.range_a
             b_range = overlap.line2.range_b
             # TODO: Check that this part is actually ok.
+            # handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat2, cell_a, cell_b, l2, l1, edge1, a_range, b_range, global_node_point_and_index)
             handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat2, cell_b, cell_a, l2, l1, edge1, b_range, a_range, global_node_point_and_index)
         else
             # @info "Simple matching!"
@@ -171,7 +174,7 @@ function handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat1, cel
     new_node_ix = handle_crossing_node!(extra_node_lookup, nodes, upper_pt_outside, lower_pt_inside, lower_pt_outside, upper_pt_inside)
     push!(node_pos, new_node_ix)
     for local_node_ix in edge2
-        push!(node_pos, l1.nodes[local_node_ix])
+        push!(node_pos, l2.nodes[local_node_ix])
     end
 end
 
