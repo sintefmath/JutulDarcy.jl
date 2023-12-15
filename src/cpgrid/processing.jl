@@ -75,7 +75,7 @@ function cell_top_bottom(cells, line1, line2; check = true)
     return out
 end
 
-function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pairs, overlaps)
+function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pairs, overlaps, l1, l2)
     complicated_overlap_categories = (DISTINCT_A_ABOVE, DISTINCT_B_ABOVE)
     node_pos = Int[]
     sizehint!(node_pos, 6)
@@ -96,7 +96,10 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
         line2_distinct = cat2 == DISTINCT_A_ABOVE || cat2 == DISTINCT_B_ABOVE
 
         empty!(node_pos)
-        if line1_distinct && line2_distinct
+        if n1 + n2 < 3
+            @warn "Skipping" n1 n2
+            continue
+        elseif line1_distinct && line2_distinct
             @info "Very complicated matching"
             error("Not implemented yet.")
         elseif line1_distinct
@@ -107,12 +110,14 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
             error("Not implemented yet.")
         else
             @info "Simple matching!"
-            for node in edge1
-                push!(node_pos, node)
+            # Need line1 lookup here.
+            for local_node_ix in edge1
+                push!(node_pos, l1.nodes[local_node_ix])
             end
-            for node in edge2
-                push!(node_pos, node)
+            for local_node_ix in edge2
+                push!(node_pos, l2.nodes[local_node_ix])
             end
+            @info "!?" node_pos edge1 edge2
             F(c1, c2, node_pos)
         end
     end

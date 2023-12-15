@@ -454,7 +454,12 @@ function grid_from_primitives(primitives)
     extra_node_lookup = Dict()
 
     function add_face_from_nodes!(V, Vpos, nodes)
+        n_global_nodes = length(primitives.nodes)
+        n_local_nodes = length(nodes)
+        @assert n_local_nodes > 2
         for n in nodes
+            @assert n <= n_global_nodes
+            @assert n > 0
             push!(V, n)
         end
         push!(Vpos, length(nodes) + Vpos[end])
@@ -545,14 +550,13 @@ function grid_from_primitives(primitives)
             end
         end
     end
-
+    # primitives.column_boundary
     for (cols, pillars) in column_neighbors
         # Get the pair of lines we are processing
         p1, p2 = pillars
         l1 = lines[p1]
         l2 = lines[p2]
         a, b = cols
-        @info "!" cols pillars
 
         col_a = columns[a]
         col_b = columns[b]
@@ -563,8 +567,8 @@ function grid_from_primitives(primitives)
         F_interior = (l, r, node_indices) -> insert_face!(l, r, node_indices, is_boundary = false)
         F_bnd = (l, r, node_indices) -> insert_face!(l, r, node_indices, is_boundary = true)
 
-        add_vertical_cells_from_overlaps!(extra_node_lookup, F_interior, nodes, int_pairs, int_overlaps)
-        add_vertical_cells_from_overlaps!(extra_node_lookup, F_bnd, nodes, bnd_pairs, bnd_overlaps)
+        add_vertical_cells_from_overlaps!(extra_node_lookup, F_interior, nodes, int_pairs, int_overlaps, l1, l2)
+        add_vertical_cells_from_overlaps!(extra_node_lookup, F_bnd, nodes, bnd_pairs, bnd_overlaps, l1, l2)
     end
     if false
     # Vertical faces (between active columns)
