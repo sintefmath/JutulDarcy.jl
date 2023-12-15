@@ -116,7 +116,6 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
             @info "Very complicated matching"
             error("Not implemented yet.")
         elseif line1_distinct
-            @info "Handle1"
             handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat1, cell_a, cell_b, l1, l2, edge2, global_node_point_and_index)
         elseif line2_distinct
             @info "Handle2"
@@ -227,7 +226,14 @@ function traverse_column_pair(col_a, col_b, l1, l2)
         return (start, stop)
     end
 
-    gen_category(t::CPGRID_PILLAR_AB_INTERSECTION, rng) = (category = t, overlap = rng)
+    function gen_category(t::CPGRID_PILLAR_AB_INTERSECTION, rng, range_a, range_b)
+    return (
+        category = t,
+        overlap = rng,
+        range_a = range_a,
+        range_b = range_b
+    )
+end
 
     function determine_overlap(pos_a, pos_b, is_line1)
         a_start, a_stop = get_local_line(pos_a, is_line1)
@@ -238,8 +244,8 @@ function traverse_column_pair(col_a, col_b, l1, l2)
         for pos_b in ord_b
             # @info "Cell pair: $((pos_a.cell, pos_b.cell))"
 
-            t1, overlap_1 = determine_overlap(pos_a, pos_b, true)
-            t2, overlap_2 = determine_overlap(pos_a, pos_b, false)
+            t1, overlap_1, range_1a, range_1b = determine_overlap(pos_a, pos_b, true)
+            t2, overlap_2, range_2a, range_2b = determine_overlap(pos_a, pos_b, false)
 
             t_equal = t1 == t2
             if t_equal && t1 in (DISTINCT_A_ABOVE, DISTINCT_B_ABOVE)
@@ -249,8 +255,8 @@ function traverse_column_pair(col_a, col_b, l1, l2)
             # we have found a face.
             push!(overlaps,
                 (
-                line1 = gen_category(t1, overlap_1),
-                line2 = gen_category(t2, overlap_2)
+                line1 = gen_category(t1, overlap_1, range_1a, range_1b),
+                line2 = gen_category(t2, overlap_2, range_2a, range_2b)
                 )
             )
             push!(cell_pairs, (pos_a.cell, pos_b.cell))
