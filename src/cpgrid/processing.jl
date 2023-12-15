@@ -193,6 +193,7 @@ function traverse_column_pair(col_a, col_b, l1, l2)
 end
 
 function split_overlaps_into_interior_and_boundary(cell_pairs, overlaps)
+    cell_is_boundary(x) = x < 1
     interior_pairs = similar(cell_pairs, 0)
     interior_overlaps = similar(overlaps, 0)
 
@@ -201,7 +202,12 @@ function split_overlaps_into_interior_and_boundary(cell_pairs, overlaps)
 
     for (cell_pair, overlap) in zip(cell_pairs, overlaps)
         l, r = cell_pair
-        if l <= 0 || r <= 0
+        l_bnd = cell_is_boundary(l)
+        r_bnd = cell_is_boundary(r)
+        if l_bnd && r_bnd
+            # Two inactive cells, can be skipped.
+            continue
+        elseif l_bnd || r_bnd
             push!(boundary_pairs, cell_pair)
             push!(boundary_overlaps, overlap)
         else

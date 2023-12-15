@@ -467,7 +467,7 @@ function grid_from_primitives(primitives)
 
     function insert_boundary_face!(prev_cell, cell, nodes)
         orient = cell_is_boundary(prev_cell) && !cell_is_boundary(cell)
-        @assert orient || (cell_is_boundary(cell) && !cell_is_boundary(prev_cell))
+        @assert orient || (cell_is_boundary(cell) && !cell_is_boundary(prev_cell)) "cell pair $((cell, prev_cell)) is not on boundary"
         if orient
             self = cell
         else
