@@ -416,7 +416,7 @@ function grid_from_primitives(primitives)
     (;
         lines,
         lines_active,
-        column_neighbors,
+        # column_neighbors,
         column_lines,
         columns,
         active,
@@ -551,25 +551,42 @@ function grid_from_primitives(primitives)
         end
     end
     # primitives.column_boundary
-    for (cols, pillars) in column_neighbors
-        # Get the pair of lines we are processing
-        p1, p2 = pillars
-        l1 = lines[p1]
-        l2 = lines[p2]
-        a, b = cols
+    for is_bnd in [true, false]
+        if is_bnd
+            col_neighbors = primitives.column_boundary
+        else
+            col_neighbors = primitives.column_neighbors
+        end
+        for (cols, pillars) in col_neighbors
+            # Get the pair of lines we are processing
+            p1, p2 = pillars
+            l1 = lines[p1]
+            l2 = lines[p2]
+            if length(cols) == 1
+                a = b = only(cols)
+            else
+                a, b = cols
+            end
 
-        col_a = columns[a]
-        col_b = columns[b]
+            col_a = columns[a]
+            col_b = columns[b]
 
-        cell_pairs, overlaps = JutulDarcy.traverse_column_pair(col_a, col_b, l1, l2)
-        int_pairs, int_overlaps, bnd_pairs, bnd_overlaps = split_overlaps_into_interior_and_boundary(cell_pairs, overlaps)
+            cell_pairs, overlaps = JutulDarcy.traverse_column_pair(col_a, col_b, l1, l2)
+            int_pairs, int_overlaps, bnd_pairs, bnd_overlaps = split_overlaps_into_interior_and_boundary(cell_pairs, overlaps)
 
-        F_interior = (l, r, node_indices) -> insert_face!(l, r, node_indices, is_boundary = false)
-        F_bnd = (l, r, node_indices) -> insert_face!(l, r, node_indices, is_boundary = true)
+            F_interior = (l, r, node_indices) -> insert_face!(l, r, node_indices, is_boundary = false)
+            F_bnd = (l, r, node_indices) -> insert_face!(l, r, node_indices, is_boundary = true)
 
-        add_vertical_cells_from_overlaps!(extra_node_lookup, F_interior, nodes, int_pairs, int_overlaps, l1, l2)
-        add_vertical_cells_from_overlaps!(extra_node_lookup, F_bnd, nodes, bnd_pairs, bnd_overlaps, l1, l2)
+            if is_bnd
+                # We are dealing with a boundary column, everything is boundary
+                add_vertical_cells_from_overlaps!(extra_node_lookup, F_bnd, nodes, int_pairs, int_overlaps, l1, l2)
+            else
+                add_vertical_cells_from_overlaps!(extra_node_lookup, F_interior, nodes, int_pairs, int_overlaps, l1, l2)
+                add_vertical_cells_from_overlaps!(extra_node_lookup, F_bnd, nodes, bnd_pairs, bnd_overlaps, l1, l2)
+            end
+        end
     end
+
     if false
     # Vertical faces (between active columns)
     function initialize_cpair(pillars, cols, i)
@@ -577,7 +594,7 @@ function grid_from_primitives(primitives)
         @assert c.cells[1] <= 0
         return (lines[pillars[i]], c, c.cells[2])
     end
-    
+
     function node_positions_cell_pair(cA, cB, line)
         # Find start and stop
         n = length(line.cellpos)-1

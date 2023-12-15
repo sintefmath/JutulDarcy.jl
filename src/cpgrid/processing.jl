@@ -81,6 +81,10 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
     sizehint!(node_pos, 6)
     for (overlap, cell_pair) in zip(overlaps, cell_pairs)
         c1, c2 = cell_pair
+        if c1 == c2
+            # continue
+        end
+
         # @info "Starting" overlap cell_pair
         cat1 = overlap.line1.category
         cat2 = overlap.line2.category
@@ -97,7 +101,7 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
 
         empty!(node_pos)
         if n1 + n2 < 3
-            @warn "Skipping" n1 n2
+            @warn "Skipping" n1 n2 cat1 cat2
             continue
         elseif line1_distinct && line2_distinct
             @info "Very complicated matching"
@@ -117,7 +121,11 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
             for local_node_ix in edge2
                 push!(node_pos, l2.nodes[local_node_ix])
             end
-            @info "!?" node_pos edge1 edge2
+            if c1 == c2
+                # If both cells are the same, we are dealing with a mirrored
+                # column pair at the boundary.
+                c2 = 0
+            end
             F(c1, c2, node_pos)
         end
     end
