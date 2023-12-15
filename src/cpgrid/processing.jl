@@ -158,11 +158,11 @@ function handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat1, cel
     l1_b_bottom = b_range[end]
 
     # Points on the other edge, limited to overlap
-    if cat1 == DISTINCT_A_ABOVE
+    if cat1 == DISTINCT_B_ABOVE
         upper_outside = l1_a_bottom
         lower_outside = l1_b_top
     else
-        @assert cat1 == DISTINCT_B_ABOVE
+        # @assert cat1 == DISTINCT_B_ABOVE
         upper_outside = l1_b_bottom
         lower_outside = l1_a_top
     end
@@ -192,6 +192,7 @@ function find_crossing_node(x1, x2, x3, x4)
     nrm = sum(axb.^2)
     if nrm == 0.0 
         @warn "Bad intercept: $((x1, x2)) to $((x3, x4))" a b c
+        error()
     end
     x_intercept = x1 + a*(dot(cross(c, b), axb)/nrm)
     return x_intercept
