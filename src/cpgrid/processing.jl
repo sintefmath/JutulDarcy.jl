@@ -325,5 +325,5 @@ function determine_cell_overlap_inside_line(a_start, a_stop, b_start, b_stop)
         error("Programming error")
     end
     # @info "Result:" out
-    return out
+    return (out[1], out[2], a_range, b_range)
 end
