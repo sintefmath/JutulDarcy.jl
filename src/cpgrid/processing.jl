@@ -115,6 +115,7 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
             # @warn "Skipping" n1 n2 cat1 cat2
             continue
         elseif cat1 == cat2 == AB_RANGES_MATCH
+            # TODO: This can probably include more categories.
             # @info "Simple matching!"
             # Need line1 lookup here.
             handle_matching_overlap!(node_pos, edge1, edge2, l1, l2)
@@ -173,11 +174,32 @@ function handle_matching_overlap_with_intersections!(node_pos, extra_node_lookup
     range2_b = overlap.line2.range_b
 
     @info "!" overlap.line1.category overlap.line2.category
-    # Left edge overlap
+    # Fist traverse down left vertical edge, then find potential crossing point
+    # at bottom horizontal edge, then up right vertical edge and finally
+    # potential crossing point at top horizontal edge.
+
+    # 1. Left vertical edge overlap
     for local_node_ix in edge1
         push!(node_pos, l1.nodes[local_node_ix])
     end
-    # Then potential midpoint intersection on bottom
+
+    # 2. Potential crossing point at bottom horizontal edge
+    a1_b = range1_a[end]
+    b1_b = range1_b[end]
+    a2_b = range2_a[end]
+    b2_b = range2_b[end]
+    a_above_left_b_above_right = a1_b < b1_b && a2_b > b2_b
+    b_above_left_a_above_right = a1_b > b1_b && a2_b < b2_b
+    if a_above_left_b_above_right || b_above_left_a_above_right
+        error("Not implemented yet")
+    end
+
+    # 3. Reverse traversal of right edge
+    for local_node_ix in reverse(overlap.line2.overlap)
+        push!(node_pos, l2.nodes[local_node_ix])
+    end
+
+    # 4. Finally potential crossing point at top horizontal edge
     @info keys(overlap.line2)
     a1_t = range1_a[1]
     b1_t = range1_b[1]
@@ -188,22 +210,7 @@ function handle_matching_overlap_with_intersections!(node_pos, extra_node_lookup
     b_above_left_a_above_right = a1_t > b1_t && a2_t < b2_t
 
     if a_above_left_b_above_right || b_above_left_a_above_right
-        error("Not implemented yet")
-    end
-
-
-    # Then right edge overlap
-    for local_node_ix in reverse(overlap.line2.overlap)
-        push!(node_pos, l2.nodes[local_node_ix])
-    end
-    # Then potential midpoint on top
-    a1_b = range1_a[end]
-    b1_b = range1_b[end]
-    a2_b = range2_a[end]
-    b2_b = range2_b[end]
-    a_above_left_b_above_right = a1_b < b1_b && a2_b > b2_b
-    b_above_left_a_above_right = a1_b > b1_b && a2_b < b2_b
-    if a_above_left_b_above_right || b_above_left_a_above_right
+        # Find intersection of top 
         error("Not implemented yet")
     end
 end
