@@ -139,7 +139,7 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
             handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat2, cell_a, cell_b, l2, l1, edge1, a_range, b_range, global_node_point)
         else
             # Some degree of mismatch
-            # handle_matching_overlap_with_intersections!(node_pos, extra_node_lookup, nodes, cell_a, cell_b, l1, l2, overlap, global_node_point)
+            handle_matching_overlap_with_intersections!(node_pos, extra_node_lookup, nodes, cell_a, cell_b, l1, l2, overlap, global_node_point)
         end
         if cell_a == cell_b
             # If both cells are the same, we are dealing with a mirrored
