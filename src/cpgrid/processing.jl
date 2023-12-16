@@ -132,7 +132,7 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
             @warn "Handle2" a_range b_range cat2
             # TODO: Check that this part is actually ok.
             # handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat2, cell_a, cell_b, l2, l1, edge1, a_range, b_range, global_node_point_and_index)
-            handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat2, cell_b, cell_a, l2, l1, edge1, b_range, a_range, global_node_point_and_index)
+            handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat2, cell_a, cell_b, l2, l1, edge1, a_range, b_range, global_node_point_and_index)
         else
             # @info "Simple matching!"
             # Need line1 lookup here.
@@ -173,7 +173,7 @@ function handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat1, cel
         upper_outside = l1_b_bottom
         lower_outside = l1_a_top
     end
-    # @assert upper_outside < lower_outside
+    @assert upper_outside < lower_outside "Error: $upper_outside >= $lower_outside"
     upper_pt_outside, upper_ix_outside = global_node_point_and_index(l1, upper_outside)
     lower_pt_outside, lower_ix_outside = global_node_point_and_index(l1, lower_outside)
     # These are the same no matter hat
