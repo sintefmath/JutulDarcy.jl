@@ -120,8 +120,7 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
             # Need line1 lookup here.
             handle_matching_overlap!(node_pos, edge1, edge2, l1, l2)
         elseif line1_distinct && line2_distinct
-            @info "Very complicated matching"
-            error("Not implemented yet.")
+            handle_no_overlapping_edges(node_pos, extra_node_lookup, nodes, cell_a, cell_b, l1, l2, overlap, global_node_point)
         elseif line1_distinct
             @assert n1 == 0
             a_range = overlap.line1.range_a
@@ -140,7 +139,7 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
             handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat2, cell_a, cell_b, l2, l1, edge1, a_range, b_range, global_node_point)
         else
             # Some degree of mismatch
-            handle_matching_overlap_with_intersections!(node_pos, extra_node_lookup, nodes, cell_a, cell_b, l1, l2, overlap, global_node_point)
+            # handle_matching_overlap_with_intersections!(node_pos, extra_node_lookup, nodes, cell_a, cell_b, l1, l2, overlap, global_node_point)
         end
         if cell_a == cell_b
             # If both cells are the same, we are dealing with a mirrored
@@ -222,6 +221,56 @@ function handle_matching_overlap_with_intersections!(node_pos, extra_node_lookup
         push!(node_pos, bottom_edge_node)
     end
 end
+
+function handle_no_overlapping_edges(node_pos, extra_node_lookup, nodes, cell_a, cell_b, l1, l2, overlap, global_node_point)
+    # Full ranges for line 1
+    edge1 = overlap.line1.overlap
+    range1_a = overlap.line1.range_a
+    range1_b = overlap.line1.range_b
+    # Full ranges for line 2
+    edge2 = overlap.line2.overlap
+    range2_a = overlap.line2.range_a
+    range2_b = overlap.line2.range_b
+
+    a1_l = range1_a[end]
+    b1_l = range1_b[end]
+    a2_l = range2_a[end]
+    b2_l = range2_b[end]
+
+    a1_t = range1_a[1]
+    b1_t = range1_b[1]
+    a2_t = range2_a[1]
+    b2_t = range2_b[1]
+    # TODO: Finish this
+
+    # Lower nodes
+    l1_p1_l = global_node_point(l1, a1_l)
+    l1_p2_l = global_node_point(l2, a2_l)
+    l2_p1_l = global_node_point(l1, b1_l)
+    l2_p2_l = global_node_point(l2, b2_l)
+    # Top nodes
+    l1_p1_t = global_node_point(l1, a1_t)
+    l1_p2_t = global_node_point(l2, a2_t)
+    l2_p1_t = global_node_point(l1, b1_t)
+    l2_p2_t = global_node_point(l2, b2_t)
+
+    # lower to lower
+    n_ll = handle_crossing_node!(extra_node_lookup, nodes, l1_p1_l, l1_p2_l, l2_p1_l, l2_p2_l)
+    push!(node_pos, n_ll)
+
+    # lower [1] to top [2]
+    n_lt = handle_crossing_node!(extra_node_lookup, nodes, l1_p1_l, l1_p2_l, l2_p1_t, l2_p2_t)
+    push!(node_pos, n_lt)
+
+    # top to top 
+    n_tt = handle_crossing_node!(extra_node_lookup, nodes, l1_p1_t, l1_p2_t, l2_p1_t, l2_p2_t)
+    push!(node_pos, n_tt)
+
+    # top [1] to lower [2]
+    n_tl = handle_crossing_node!(extra_node_lookup, nodes, l1_p1_t, l1_p2_t, l2_p1_l, l2_p2_l)
+    push!(node_pos, n_tl)
+end
+
 
 function handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat_self, cell_a, cell_b, l_self, l_other, other_edge, a_range, b_range, global_node_point)
     # l_self: Line where cells are distinct
