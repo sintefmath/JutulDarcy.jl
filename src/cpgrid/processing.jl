@@ -148,44 +148,44 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
             # column pair at the boundary.
             cell_a = 0
         end
-        if length(node_pos) > 0
+        # if length(node_pos) > 0
             F(cell_a, cell_b, node_pos)
-        end
+        # end
     end
     return nothing
 end
 
-function handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat1, cell_a, cell_b, l1, l2, edge2, a_range, b_range, global_node_point_and_index)
-    # l1_a_top, l1_a_bottom = find_cell_bounds(cell_a, l1)
-    # l1_b_top, l1_b_bottom = find_cell_bounds(cell_b, l1)
-    l1_a_top = a_range[1]
-    l1_a_bottom = a_range[end]
+function handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat_self, cell_a, cell_b, l_self, l_other, other_edge, a_range, b_range, global_node_point_and_index)
+    # l_self: Line where cells are distinct
+    # l_other: Line where cells are not distinct (i.e. overlapping to some extent.)
+    self_a_top = a_range[1]
+    self_a_bottom = a_range[end]
 
-    l1_b_top = b_range[1]
-    l1_b_bottom = b_range[end]
+    self_b_top = b_range[1]
+    self_b_bottom = b_range[end]
 
     # Points on the other edge, limited to overlap
-    if cat1 == DISTINCT_A_ABOVE
-        upper_outside = l1_a_bottom
-        lower_outside = l1_b_top
+    if cat_self == DISTINCT_A_ABOVE
+        upper_self = self_a_bottom
+        lower_self = self_b_top
     else
-        # @assert cat1 == DISTINCT_B_ABOVE
-        upper_outside = l1_b_bottom
-        lower_outside = l1_a_top
+        @assert cat_self == DISTINCT_B_ABOVE
+        upper_self = self_b_bottom
+        lower_self = self_a_top
     end
-    @assert upper_outside < lower_outside "Error: $upper_outside >= $lower_outside"
-    upper_pt_outside, upper_ix_outside = global_node_point_and_index(l1, upper_outside)
-    lower_pt_outside, lower_ix_outside = global_node_point_and_index(l1, lower_outside)
+    @assert upper_self < lower_self "Error: $upper_self >= $lower_self"
+    upper_pt_self, upper_ix_self = global_node_point_and_index(l_self, upper_self)
+    lower_pt_self, lower_ix_self = global_node_point_and_index(l_self, lower_self)
     # These are the same no matter hat
-    upper_pt_inside, top_ix_inside = global_node_point_and_index(l2, first(edge2))
-    lower_pt_inside, bottom_ix_inside = global_node_point_and_index(l2, last(edge2))
+    upper_pt_other, top_ix_other = global_node_point_and_index(l_other, first(other_edge))
+    lower_pt_other, bottom_ix_other = global_node_point_and_index(l_other, last(other_edge))
 
-    @info "??" upper_ix_outside lower_ix_outside edge2
-    @info "!" upper_pt_outside lower_pt_outside upper_pt_inside lower_pt_inside cat1
-    new_node_ix = handle_crossing_node!(extra_node_lookup, nodes, upper_pt_outside, lower_pt_inside, lower_pt_outside, upper_pt_inside)
+    @info "??" upper_ix_self lower_ix_self other_edge
+    @info "!" upper_pt_self lower_pt_self upper_pt_other lower_pt_other cat_self
+    new_node_ix = handle_crossing_node!(extra_node_lookup, nodes, upper_pt_self, lower_pt_other, lower_pt_self, upper_pt_other)
     push!(node_pos, new_node_ix)
-    for local_node_ix in edge2
-        push!(node_pos, l2.nodes[local_node_ix])
+    for local_node_ix in other_edge
+        push!(node_pos, l_other.nodes[local_node_ix])
     end
 end
 
