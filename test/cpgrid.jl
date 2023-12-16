@@ -43,9 +43,9 @@ import JutulDarcy: determine_cell_overlap_inside_line
             # |     x
             #   | = x
             #   |   x
-            @test determine_cell_overlap_inside_line(top, mid, bottom, far) == (JutulDarcy.DISTINCT_A_ABOVE, 0:0, top:mid, bottom:far)
+            @test determine_cell_overlap_inside_line(top, mid, bottom, far) == (JutulDarcy.DISTINCT_A_ABOVE, 0:-1, top:mid, bottom:far)
             # Reversed case.
-            @test determine_cell_overlap_inside_line(bottom, far, top, mid) == (JutulDarcy.DISTINCT_B_ABOVE, 0:0, bottom:far, top:mid)
+            @test determine_cell_overlap_inside_line(bottom, far, top, mid) == (JutulDarcy.DISTINCT_B_ABOVE, 0:-1, bottom:far, top:mid)
         end
     end
 end

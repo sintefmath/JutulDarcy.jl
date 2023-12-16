@@ -100,12 +100,12 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
 
         # TODO: Figure out sign
         edge1 = overlap.line1.overlap
-        edge2 = reverse(overlap.line2.overlap)
-        @assert maximum(edge1) <= length(l1.nodes)
-        @assert maximum(edge2) <= length(l2.nodes)
-
+        edge2 = overlap.line2.overlap
         n1 = length(edge1)
         n2 = length(edge2)
+
+        @assert n1 == 0 || maximum(edge1) <= length(l1.nodes)
+        @assert n2 == 0 || maximum(edge2) <= length(l2.nodes)
 
         line1_distinct = cat1 == DISTINCT_A_ABOVE || cat1 == DISTINCT_B_ABOVE
         line2_distinct = cat2 == DISTINCT_A_ABOVE || cat2 == DISTINCT_B_ABOVE
@@ -118,13 +118,18 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
             @info "Very complicated matching"
             error("Not implemented yet.")
         elseif line1_distinct
+            @assert n1 == 0
             a_range = overlap.line1.range_a
             b_range = overlap.line1.range_b
+            @warn "Handle1" a_range b_range cat1
+
             handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat1, cell_a, cell_b, l1, l2, edge2, a_range, b_range, global_node_point_and_index)
         elseif line2_distinct
-            # @info "Handle2"
+            @assert n2 == 0 "n2 = $n2 for $edge2"
             a_range = overlap.line2.range_a
             b_range = overlap.line2.range_b
+
+            @warn "Handle2" a_range b_range cat2
             # TODO: Check that this part is actually ok.
             # handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat2, cell_a, cell_b, l2, l1, edge1, a_range, b_range, global_node_point_and_index)
             handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat2, cell_b, cell_a, l2, l1, edge1, b_range, a_range, global_node_point_and_index)
@@ -134,7 +139,7 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
             for local_node_ix in edge1
                 push!(node_pos, l1.nodes[local_node_ix])
             end
-            for local_node_ix in edge2
+            for local_node_ix in reverse(edge2)
                 push!(node_pos, l2.nodes[local_node_ix])
             end
         end
@@ -143,7 +148,9 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
             # column pair at the boundary.
             cell_a = 0
         end
-        F(cell_a, cell_b, node_pos)
+        if length(node_pos) > 0
+            F(cell_a, cell_b, node_pos)
+        end
     end
     return nothing
 end
@@ -158,7 +165,7 @@ function handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat1, cel
     l1_b_bottom = b_range[end]
 
     # Points on the other edge, limited to overlap
-    if cat1 == DISTINCT_B_ABOVE
+    if cat1 == DISTINCT_A_ABOVE
         upper_outside = l1_a_bottom
         lower_outside = l1_b_top
     else
@@ -166,11 +173,15 @@ function handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat1, cel
         upper_outside = l1_b_bottom
         lower_outside = l1_a_top
     end
+    # @assert upper_outside < lower_outside
     upper_pt_outside, upper_ix_outside = global_node_point_and_index(l1, upper_outside)
     lower_pt_outside, lower_ix_outside = global_node_point_and_index(l1, lower_outside)
     # These are the same no matter hat
     upper_pt_inside, top_ix_inside = global_node_point_and_index(l2, first(edge2))
     lower_pt_inside, bottom_ix_inside = global_node_point_and_index(l2, last(edge2))
+
+    @info "??" upper_ix_outside lower_ix_outside edge2
+    @info "!" upper_pt_outside lower_pt_outside upper_pt_inside lower_pt_inside cat1
     new_node_ix = handle_crossing_node!(extra_node_lookup, nodes, upper_pt_outside, lower_pt_inside, lower_pt_outside, upper_pt_inside)
     push!(node_pos, new_node_ix)
     for local_node_ix in edge2
@@ -336,9 +347,9 @@ function determine_cell_overlap_inside_line(a_start, a_stop, b_start, b_stop)
             out = (BOTTOM_MATCHES_B_LONG, a_range)
         end
     elseif b_start > a_stop
-        out = (DISTINCT_A_ABOVE, 0:0)
+        out = (DISTINCT_A_ABOVE, 0:-1)
     elseif a_start > b_stop
-        out = (DISTINCT_B_ABOVE, 0:0)
+        out = (DISTINCT_B_ABOVE, 0:-1)
     elseif a_starts_before_b && b_stop > a_stop
         out = (AB_OVERLAP_A_FIRST, b_start:a_stop)
     elseif b_starts_before_a && a_stop > b_stop
