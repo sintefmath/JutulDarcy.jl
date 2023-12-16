@@ -114,6 +114,10 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
         if n1 + n2 < 3
             # @warn "Skipping" n1 n2 cat1 cat2
             continue
+        elseif cat1 == cat2 == AB_RANGES_MATCH
+            # @info "Simple matching!"
+            # Need line1 lookup here.
+            handle_matching_overlap!(node_pos, edge1, edge2, l1, l2)
         elseif line1_distinct && line2_distinct
             @info "Very complicated matching"
             error("Not implemented yet.")
@@ -134,25 +138,74 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
             # handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat2, cell_a, cell_b, l2, l1, edge1, a_range, b_range, global_node_point_and_index)
             handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat2, cell_a, cell_b, l2, l1, edge1, a_range, b_range, global_node_point_and_index)
         else
-            # @info "Simple matching!"
-            # Need line1 lookup here.
-            for local_node_ix in edge1
-                push!(node_pos, l1.nodes[local_node_ix])
-            end
-            for local_node_ix in reverse(edge2)
-                push!(node_pos, l2.nodes[local_node_ix])
-            end
+            # Some degree of mismatch
+            handle_matching_overlap_with_intersections!(node_pos, extra_node_lookup, nodes, cell_a, cell_b, l1, l2, overlap)
         end
         if cell_a == cell_b
             # If both cells are the same, we are dealing with a mirrored
             # column pair at the boundary.
             cell_a = 0
         end
-        # if length(node_pos) > 0
+        if length(node_pos) > 0
             F(cell_a, cell_b, node_pos)
-        # end
+        end
     end
     return nothing
+end
+
+function handle_matching_overlap!(node_pos, edge1, edge2, l1, l2)
+    for local_node_ix in edge1
+        push!(node_pos, l1.nodes[local_node_ix])
+    end
+    for local_node_ix in reverse(edge2)
+        push!(node_pos, l2.nodes[local_node_ix])
+    end
+end
+
+function handle_matching_overlap_with_intersections!(node_pos, extra_node_lookup, nodes, cell_a, cell_b, l1, l2, overlap)
+    # Full ranges for line 1
+    edge1 = overlap.line1.overlap
+    range1_a = overlap.line1.range_a
+    range1_b = overlap.line1.range_b
+    # Full ranges for line 2
+    edge2 = overlap.line2.overlap
+    range2_a = overlap.line2.range_a
+    range2_b = overlap.line2.range_b
+
+    @info "!" overlap.line1.category overlap.line2.category
+    # Left edge overlap
+    for local_node_ix in edge1
+        push!(node_pos, l1.nodes[local_node_ix])
+    end
+    # Then potential midpoint intersection on bottom
+    @info keys(overlap.line2)
+    a1_t = range1_a[1]
+    b1_t = range1_b[1]
+    a2_t = range2_a[1]
+    b2_t = range2_b[1]
+
+    a_above_left_b_above_right = a1_t < b1_t && a2_t > b2_t
+    b_above_left_a_above_right = a1_t > b1_t && a2_t < b2_t
+
+    if a_above_left_b_above_right || b_above_left_a_above_right
+        error("Not implemented yet")
+    end
+
+
+    # Then right edge overlap
+    for local_node_ix in reverse(overlap.line2.overlap)
+        push!(node_pos, l2.nodes[local_node_ix])
+    end
+    # Then potential midpoint on top
+    a1_b = range1_a[end]
+    b1_b = range1_b[end]
+    a2_b = range2_a[end]
+    b2_b = range2_b[end]
+    a_above_left_b_above_right = a1_b < b1_b && a2_b > b2_b
+    b_above_left_a_above_right = a1_b > b1_b && a2_b < b2_b
+    if a_above_left_b_above_right || b_above_left_a_above_right
+        error("Not implemented yet")
+    end
 end
 
 function handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat_self, cell_a, cell_b, l_self, l_other, other_edge, a_range, b_range, global_node_point_and_index)
