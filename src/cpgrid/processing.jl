@@ -270,6 +270,7 @@ function handle_no_overlapping_edges(node_pos, extra_node_lookup, nodes, cell_a,
 end
 
 function handle_generic_intersections!(node_pos, extra_node_lookup, nodes, cell_a, cell_b, l1, l2, overlap, global_node_point)
+    @warn "Starting"
     # Full ranges for line 1
     edge1 = overlap.line1.overlap
     range1_a = overlap.line1.range_a
@@ -297,12 +298,12 @@ function handle_generic_intersections!(node_pos, extra_node_lookup, nodes, cell_
     al_before_bl_2, matching_ll_2 = pos_diff(a2_l, b2_l)
 
     # Low-high matching (a > b)
-    at_before_bl_1, matching_tl_1 = pos_diff(a1_t, b1_l)
-    at_before_bl_2, matching_tl_2 = pos_diff(a2_t, b2_l)
+    # at_before_bl_1, = pos_diff(a1_t, b1_l)
+    # at_before_bl_2, = pos_diff(a2_t, b2_l)
 
     # High-low matching (a < b)
-    al_before_bt_1, matching_tl_1 = pos_diff(a1_t, b1_l)
-    al_before_bt_2, matching_tl_2 = pos_diff(a2_t, b2_l)
+    # al_before_bt_1, = pos_diff(a1_t, b1_l)
+    # al_before_bt_2, = pos_diff(a2_t, b2_l)
 
     # Top nodes
     a1_t_pt = global_node_point(l1, a1_t)
@@ -326,6 +327,9 @@ function handle_generic_intersections!(node_pos, extra_node_lookup, nodes, cell_
     #TODO: Decide order here
     # Four conditionals, each potentially adding a point
     # 1_top crossing 2_top (reversal a/b top over pair)
+    @info "A" line_top_a line_low_a
+    @info "B" line_top_b line_low_b
+
     if at_before_bt_1 != at_before_bt_2 && !(matching_tt_1 || matching_tt_2)
         @info "Adding top" (a1_t, b1_t) (a2_t, b2_t)
         @assert a1_t != b1_t
@@ -338,6 +342,7 @@ function handle_generic_intersections!(node_pos, extra_node_lookup, nodes, cell_
     end
 
     if length(edge1) == 0
+        @info "edge1 missing" range1_a range1_b
         # Check which one is the lowest
         # 1_top crossing 2_low (reversal ab_top_1 vs ab_low_1 over pair)
         if at_before_bt_1
@@ -353,9 +358,10 @@ function handle_generic_intersections!(node_pos, extra_node_lookup, nodes, cell_
             push!(node_pos, l1.nodes[local_node_ix])
         end
     end
+    @info "edge1 done."
 
     if al_before_bl_1 != al_before_bl_2 && !(matching_ll_1 || matching_ll_2)
-        @info "Adding bottom" (a1_t, b1_t) (a2_t, b2_t)
+        @info "Adding bottom" (a1_l, b1_l) (a2_l, b2_l)
         @assert a1_l != b1_l
         @assert a2_l != b2_l
 
@@ -367,22 +373,28 @@ function handle_generic_intersections!(node_pos, extra_node_lookup, nodes, cell_
     end
 
     if length(edge2) == 0
+        @info "edge2 missing" range2_a range2_b at_before_bt_2
+
         # 1_low crossing 2_top (reversal ab_low_1 vs ab_top_1 over pair)
-        n_lt = handle_crossing_node!(extra_node_lookup, nodes, line_top_a, line_low_b)
+        # n_lt = handle_crossing_node!(extra_node_lookup, nodes, line_top_a, line_low_b)
 
         if at_before_bt_2
-            # A is above B at left edge. This extra node is formed from A lower
+            # A is above B at right edge. This extra node is formed from A lower
             # cutting B upper.
-            n_tl = handle_crossing_node!(extra_node_lookup, nodes, line_low_a, line_top_b)
+            n_lt = handle_crossing_node!(extra_node_lookup, nodes, line_low_a, line_top_b)
         else
-            n_tl = handle_crossing_node!(extra_node_lookup, nodes, line_top_a, line_low_b)
+            n_lt = handle_crossing_node!(extra_node_lookup, nodes, line_top_a, line_low_b)
         end
-
         push!(node_pos, n_lt)
     else
         for local_node_ix in reverse(edge2)
             push!(node_pos, l2.nodes[local_node_ix])
         end
+    end
+    @info "edge2 done."
+
+    if length(edge2) == 0 || length(edge1) == 0
+        @error "All done" node_pos
     end
     @info "Done" node_pos
 end
@@ -438,12 +450,14 @@ function find_crossing_node(x1, x2, x3, x4)
     b = x4 - x3
     c = x3 - x1
     axb = cross(a, b)
-    nrm = sum(axb.^2)
+    cxb = cross(c, b)
+    nrm = norm(axb, 2)^2
     if nrm == 0.0 
         @warn "Bad intercept: $((x1, x2)) to $((x3, x4))" a b c
         error()
     end
-    x_intercept = x1 + a*(dot(cross(c, b), axb)/nrm)
+    x_intercept = x1 + a*(dot(cxb, axb)/nrm)
+    @info "Found intersection" (x1, x2) (x3, x4) x_intercept
     return x_intercept
 end
 
