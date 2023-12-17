@@ -119,7 +119,6 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
     end
     # remapped_indices = findall(vec(actnum))
     nactive = sum(vec(actnum))
-    @info "??" nactive length(actnum)
     remapped_indices = Vector{Int}(undef, nx*ny*nz)
     tmp = vec(actnum)
     active_cell_indices = findall(isequal(1), tmp)
@@ -534,13 +533,13 @@ function grid_from_primitives(primitives)
                     end
                     is_bnd = top_is_boundary
                     F = first
-                    c2 = cell
                     c1 = prev
+                    c2 = cell
                 else
                     is_bnd = bottom_is_boundary
                     F = last
-                    c2 = next
                     c1 = cell
+                    c2 = next
                 end
                 # Index into pillars
                 node_in_pillar_indices = map(F, cell_bnds)
