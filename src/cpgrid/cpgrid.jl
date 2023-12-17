@@ -534,13 +534,13 @@ function grid_from_primitives(primitives)
                     end
                     is_bnd = top_is_boundary
                     F = first
-                    c1 = cell
-                    c2 = prev
+                    c2 = cell
+                    c1 = prev
                 else
                     is_bnd = bottom_is_boundary
                     F = last
-                    c1 = next
-                    c2 = cell
+                    c2 = next
+                    c1 = cell
                 end
                 # Index into pillars
                 node_in_pillar_indices = map(F, cell_bnds)
