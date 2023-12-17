@@ -111,16 +111,16 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
         line2_distinct = cat2 == DISTINCT_A_ABOVE || cat2 == DISTINCT_B_ABOVE
 
         empty!(node_pos)
-        if n1 + n2 < 3
+        if n1 + n2 < 3 && false
             # @warn "Skipping" n1 n2 cat1 cat2
             continue
-        elseif cat1 == cat2 == AB_RANGES_MATCH
+        elseif cat1 == cat2 == AB_RANGES_MATCH  && false
             # TODO: This can probably include more categories.
             # @info "Simple matching!"
             # Need line1 lookup here.
             handle_matching_overlap!(node_pos, edge1, edge2, l1, l2)
         elseif true
-            handle_generic_interesctions!(node_pos, extra_node_lookup, nodes, cell_a, cell_b, l1, l2, overlap, global_node_point)
+            handle_generic_intersections!(node_pos, extra_node_lookup, nodes, cell_a, cell_b, l1, l2, overlap, global_node_point)
     
         elseif line1_distinct && line2_distinct
             handle_no_overlapping_edges(node_pos, extra_node_lookup, nodes, cell_a, cell_b, l1, l2, overlap, global_node_point)
@@ -149,7 +149,7 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
             # column pair at the boundary.
             cell_a = 0
         end
-        if length(node_pos) > 0
+        if length(node_pos) > 2
             F(cell_a, cell_b, node_pos)
         end
     end
@@ -274,7 +274,7 @@ function handle_no_overlapping_edges(node_pos, extra_node_lookup, nodes, cell_a,
     push!(node_pos, n_tl)
 end
 
-function handle_generic_interesctions!(node_pos, extra_node_lookup, nodes, cell_a, cell_b, l1, l2, overlap, global_node_point)
+function handle_generic_intersections!(node_pos, extra_node_lookup, nodes, cell_a, cell_b, l1, l2, overlap, global_node_point)
     # Full ranges for line 1
     edge1 = overlap.line1.overlap
     range1_a = overlap.line1.range_a
@@ -337,13 +337,23 @@ function handle_generic_interesctions!(node_pos, extra_node_lookup, nodes, cell_
     # Four conditionals, each potentially adding a point
     # 1_top crossing 2_top (reversal a/b top over pair)
     if at_before_bt_1 != at_before_bt_2 && !(matching_tt_1 || matching_tt_2)
+        @info "Adding top"
         n_tt = handle_crossing_node!(extra_node_lookup, nodes, line_top_a, line_top_b)
         push!(node_pos, n_tt)
+    else
+        @info "Skipping top"
     end
 
     if length(edge1) == 0
+        # Check which one is the lowest
         # 1_top crossing 2_low (reversal ab_top_1 vs ab_low_1 over pair)
-        n_tl = handle_crossing_node!(extra_node_lookup, nodes, line_low_a, line_top_b)
+        if at_before_bt_1
+            # A is above B at left edge. This extra node is formed from A lower
+            # cutting B upper.
+            n_tl = handle_crossing_node!(extra_node_lookup, nodes, line_low_a, line_top_b)
+        else
+            n_tl = handle_crossing_node!(extra_node_lookup, nodes, line_top_a, line_low_b)
+        end
         push!(node_pos, n_tl)
     else
         for local_node_ix in edge1
@@ -352,20 +362,33 @@ function handle_generic_interesctions!(node_pos, extra_node_lookup, nodes, cell_
     end
 
     if al_before_bl_1 != al_before_bl_2 && !(matching_ll_1 || matching_ll_2)
+        @info "Adding bottom"
         # 1_low crossing 2_low (reversal a/b low over pair)
         n_ll = handle_crossing_node!(extra_node_lookup, nodes, line_low_a, line_low_b)
         push!(node_pos, n_ll)
+    else
+        @info "Skipping bottom"
     end
 
     if length(edge2) == 0
         # 1_low crossing 2_top (reversal ab_low_1 vs ab_top_1 over pair)
         n_lt = handle_crossing_node!(extra_node_lookup, nodes, line_top_a, line_low_b)
-        push!(node_pos, n_lt)
+
+        if at_before_bt_2
+            # A is above B at left edge. This extra node is formed from A lower
+            # cutting B upper.
+            n_tl = handle_crossing_node!(extra_node_lookup, nodes, line_low_a, line_top_b)
+        else
+            n_tl = handle_crossing_node!(extra_node_lookup, nodes, line_top_a, line_low_b)
+        end
+
+        # push!(node_pos, n_lt)
     else
         for local_node_ix in reverse(edge2)
             push!(node_pos, l2.nodes[local_node_ix])
         end
     end
+    @info "Done" node_pos
 end
 
 
