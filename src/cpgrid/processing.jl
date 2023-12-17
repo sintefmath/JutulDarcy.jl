@@ -307,12 +307,12 @@ function handle_generic_interesctions!(node_pos, extra_node_lookup, nodes, cell_
     al_before_bl_2, matching_ll_2 = pos_diff(a2_l, b2_l)
 
     # Low-high matching (a > b)
-    at_before_bl_1, matching_tl_1 = pos_diff(a1_t, b1_l)
-    at_before_bl_2, matching_tl_2 = pos_diff(a2_t, b2_l)
+    # at_before_bl_1, matching_tl_1 = pos_diff(a1_t, b1_l)
+    # at_before_bl_2, matching_tl_2 = pos_diff(a2_t, b2_l)
 
     # High-low matching (a < b)
-    al_before_bt_1, matching_tl_1 = pos_diff(a1_t, b1_l)
-    al_before_bt_2, matching_tl_2 = pos_diff(a2_t, b2_l)
+    # al_before_bt_1, matching_tl_1 = pos_diff(a1_t, b1_l)
+    # al_before_bt_2, matching_tl_2 = pos_diff(a2_t, b2_l)
 
     # Top nodes
     l1_p1_t = global_node_point(l1, a1_t)
@@ -336,7 +336,7 @@ function handle_generic_interesctions!(node_pos, extra_node_lookup, nodes, cell_
     #TODO: Decide order here
     # Four conditionals, each potentially adding a point
     # 1_top crossing 2_top (reversal a/b top over pair)
-    if at_before_bt_1 != at_before_bt_2
+    if at_before_bt_1 != at_before_bt_2 && !(matching_tt_1 || matching_tt_2)
         n_tt = handle_crossing_node!(extra_node_lookup, nodes, line_top_a, line_top_b)
         push!(node_pos, n_tt)
     end
@@ -351,7 +351,7 @@ function handle_generic_interesctions!(node_pos, extra_node_lookup, nodes, cell_
         end
     end
 
-    if al_before_bt_1 != al_before_bt_2
+    if al_before_bl_1 != al_before_bl_2 && !(matching_ll_1 || matching_ll_2)
         # 1_low crossing 2_low (reversal a/b low over pair)
         n_ll = handle_crossing_node!(extra_node_lookup, nodes, line_low_a, line_low_b)
         push!(node_pos, n_ll)
@@ -371,6 +371,7 @@ end
 
 
 function handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat_self, cell_a, cell_b, l_self, l_other, other_edge, a_range, b_range, global_node_point)
+    @info "Hey..."
     # l_self: Line where cells are distinct
     # l_other: Line where cells are not distinct (i.e. overlapping to some extent.)
     self_a_top = a_range[1]
