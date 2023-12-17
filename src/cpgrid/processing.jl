@@ -119,6 +119,9 @@ function add_vertical_cells_from_overlaps!(extra_node_lookup, F, nodes, cell_pai
             # @info "Simple matching!"
             # Need line1 lookup here.
             handle_matching_overlap!(node_pos, edge1, edge2, l1, l2)
+        elseif true
+            handle_generic_interesctions!(node_pos, extra_node_lookup, nodes, cell_a, cell_b, l1, l2, overlap, global_node_point)
+    
         elseif line1_distinct && line2_distinct
             handle_no_overlapping_edges(node_pos, extra_node_lookup, nodes, cell_a, cell_b, l1, l2, overlap, global_node_point)
         elseif line1_distinct
@@ -271,6 +274,101 @@ function handle_no_overlapping_edges(node_pos, extra_node_lookup, nodes, cell_a,
     push!(node_pos, n_tl)
 end
 
+function handle_generic_interesctions!(node_pos, extra_node_lookup, nodes, cell_a, cell_b, l1, l2, overlap, global_node_point)
+    # Full ranges for line 1
+    edge1 = overlap.line1.overlap
+    range1_a = overlap.line1.range_a
+    range1_b = overlap.line1.range_b
+    # Full ranges for line 2
+    edge2 = overlap.line2.overlap
+    range2_a = overlap.line2.range_a
+    range2_b = overlap.line2.range_b
+
+    a1_l = range1_a[end]
+    b1_l = range1_b[end]
+    a2_l = range2_a[end]
+    b2_l = range2_b[end]
+
+
+    a1_t = range1_a[1]
+    b1_t = range1_b[1]
+    a2_t = range2_a[1]
+    b2_t = range2_b[1]
+
+    function pos_diff(a, b)
+        return (a < b, a == b)
+    end
+
+    # Top-top matching
+    at_before_bt_1, matching_tt_1 = pos_diff(a1_t, b1_t)
+    at_before_bt_2, matching_tt_2 = pos_diff(a2_t, b2_t)
+    # Low-low matching
+    al_before_bl_1, matching_ll_1 = pos_diff(a1_l, b1_l)
+    al_before_bl_2, matching_ll_2 = pos_diff(a2_l, b2_l)
+
+    # Low-high matching (a > b)
+    at_before_bl_1, matching_tl_1 = pos_diff(a1_t, b1_l)
+    at_before_bl_2, matching_tl_2 = pos_diff(a2_t, b2_l)
+
+    # High-low matching (a < b)
+    al_before_bt_1, matching_tl_1 = pos_diff(a1_t, b1_l)
+    al_before_bt_2, matching_tl_2 = pos_diff(a2_t, b2_l)
+
+    # Top nodes
+    l1_p1_t = global_node_point(l1, a1_t)
+    l1_p2_t = global_node_point(l2, a2_t)
+    l2_p1_t = global_node_point(l1, b1_t)
+    l2_p2_t = global_node_point(l2, b2_t)
+
+    line_top_a = (l1_p1_t, l1_p2_t)
+    line_top_b = (l2_p1_t, l2_p2_t)
+
+    # Lower nodes
+    l1_p1_l = global_node_point(l1, a1_l)
+    l1_p2_l = global_node_point(l2, a2_l)
+    l2_p1_l = global_node_point(l1, b1_l)
+    l2_p2_l = global_node_point(l2, b2_l)
+
+    line_low_a = (l1_p1_l, l1_p2_l)
+    line_low_b = (l2_p1_l, l2_p2_l)
+
+    # 2 edge reversed first.
+    #TODO: Decide order here
+    # Four conditionals, each potentially adding a point
+    # 1_top crossing 2_top (reversal a/b top over pair)
+    if at_before_bt_1 != at_before_bt_2
+        n_tt = handle_crossing_node!(extra_node_lookup, nodes, line_top_a, line_top_b)
+        push!(node_pos, n_tt)
+    end
+
+    if length(edge1) == 0
+        # 1_top crossing 2_low (reversal ab_top_1 vs ab_low_1 over pair)
+        n_tl = handle_crossing_node!(extra_node_lookup, nodes, line_low_a, line_top_b)
+        push!(node_pos, n_tl)
+    else
+        for local_node_ix in edge1
+            push!(node_pos, l1.nodes[local_node_ix])
+        end
+    end
+
+    if al_before_bt_1 != al_before_bt_2
+        # 1_low crossing 2_low (reversal a/b low over pair)
+        n_ll = handle_crossing_node!(extra_node_lookup, nodes, line_low_a, line_low_b)
+        push!(node_pos, n_ll)
+    end
+
+    if length(edge2) == 0
+        # 1_low crossing 2_top (reversal ab_low_1 vs ab_top_1 over pair)
+        n_lt = handle_crossing_node!(extra_node_lookup, nodes, line_top_a, line_low_b)
+        push!(node_pos, n_lt)
+    else
+        for local_node_ix in reverse(edge2)
+            push!(node_pos, l2.nodes[local_node_ix])
+        end
+    end
+end
+
+
 
 function handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat_self, cell_a, cell_b, l_self, l_other, other_edge, a_range, b_range, global_node_point)
     # l_self: Line where cells are distinct
@@ -304,9 +402,14 @@ function handle_one_side_distinct!(node_pos, extra_node_lookup, nodes, cat_self,
     end
 end
 
-function handle_crossing_node!(extra_node_lookup, nodes, l1_p1, l1_p2, l2_p1, l2_p2)
-    pt = find_crossing_node(l1_p1, l1_p2, l2_p1, l2_p2)
+function handle_crossing_node!(extra_node_lookup, nodes, line_a, line_b)
+    pt = find_crossing_node(line_a, line_b)
     return cpgrid_get_or_add_crossing_node!(extra_node_lookup, nodes, pt)
+end
+
+function find_crossing_node(l1, l2)
+    @assert length(l1) == 2 == length(l2)
+    return find_crossing_node(l1[1], l1[2], l2[1], l2[2])
 end
 
 function find_crossing_node(x1, x2, x3, x4)
