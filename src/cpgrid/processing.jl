@@ -297,37 +297,37 @@ function handle_generic_intersections!(node_pos, extra_node_lookup, nodes, cell_
     al_before_bl_2, matching_ll_2 = pos_diff(a2_l, b2_l)
 
     # Low-high matching (a > b)
-    # at_before_bl_1, matching_tl_1 = pos_diff(a1_t, b1_l)
-    # at_before_bl_2, matching_tl_2 = pos_diff(a2_t, b2_l)
+    at_before_bl_1, matching_tl_1 = pos_diff(a1_t, b1_l)
+    at_before_bl_2, matching_tl_2 = pos_diff(a2_t, b2_l)
 
     # High-low matching (a < b)
-    # al_before_bt_1, matching_tl_1 = pos_diff(a1_t, b1_l)
-    # al_before_bt_2, matching_tl_2 = pos_diff(a2_t, b2_l)
+    al_before_bt_1, matching_tl_1 = pos_diff(a1_t, b1_l)
+    al_before_bt_2, matching_tl_2 = pos_diff(a2_t, b2_l)
 
     # Top nodes
-    l1_p1_t = global_node_point(l1, a1_t)
-    l1_p2_t = global_node_point(l2, a2_t)
-    l2_p1_t = global_node_point(l1, b1_t)
-    l2_p2_t = global_node_point(l2, b2_t)
+    a1_t_pt = global_node_point(l1, a1_t)
+    a2_t_pt = global_node_point(l2, a2_t)
+    b1_t_pt = global_node_point(l1, b1_t)
+    b2_t_pt = global_node_point(l2, b2_t)
 
-    line_top_a = (l1_p1_t, l1_p2_t)
-    line_top_b = (l2_p1_t, l2_p2_t)
+    line_top_a = (a1_t_pt, a2_t_pt)
+    line_top_b = (b1_t_pt, b2_t_pt)
 
     # Lower nodes
-    l1_p1_l = global_node_point(l1, a1_l)
-    l1_p2_l = global_node_point(l2, a2_l)
-    l2_p1_l = global_node_point(l1, b1_l)
-    l2_p2_l = global_node_point(l2, b2_l)
+    a1_l_pt = global_node_point(l1, a1_l)
+    a2_l_pt = global_node_point(l2, a2_l)
+    b1_l_pt = global_node_point(l1, b1_l)
+    b2_l_pt = global_node_point(l2, b2_l)
 
-    line_low_a = (l1_p1_l, l1_p2_l)
-    line_low_b = (l2_p1_l, l2_p2_l)
+    line_low_a = (a1_l_pt, a2_l_pt)
+    line_low_b = (b1_l_pt, b2_l_pt)
 
     # 2 edge reversed first.
     #TODO: Decide order here
     # Four conditionals, each potentially adding a point
     # 1_top crossing 2_top (reversal a/b top over pair)
     if at_before_bt_1 != at_before_bt_2 && !(matching_tt_1 || matching_tt_2)
-        @info "Adding top"
+        @info "Adding top" (a1_t, b1_t) (a2_t, b2_t)
         @assert a1_t != b1_t
         @assert a2_t != b2_t
 
@@ -355,7 +355,7 @@ function handle_generic_intersections!(node_pos, extra_node_lookup, nodes, cell_
     end
 
     if al_before_bl_1 != al_before_bl_2 && !(matching_ll_1 || matching_ll_2)
-        @info "Adding bottom"
+        @info "Adding bottom" (a1_t, b1_t) (a2_t, b2_t)
         @assert a1_l != b1_l
         @assert a2_l != b2_l
 
