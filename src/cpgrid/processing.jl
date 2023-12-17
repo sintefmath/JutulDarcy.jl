@@ -235,16 +235,11 @@ function handle_no_overlapping_edges(node_pos, extra_node_lookup, nodes, cell_a,
     range2_a = overlap.line2.range_a
     range2_b = overlap.line2.range_b
 
-    a1_l = range1_a[end]
-    b1_l = range1_b[end]
-    a2_l = range2_a[end]
-    b2_l = range2_b[end]
-
-    a1_t = range1_a[1]
-    b1_t = range1_b[1]
-    a2_t = range2_a[1]
-    b2_t = range2_b[1]
-    # TODO: Finish this
+    first_and_last(x) = (first(x), last(x))
+    a1_t, a1_l = first_and_last(range1_a)
+    a2_t, a2_l = first_and_last(range2_a)
+    b1_t, b1_l = first_and_last(range1_b)
+    b2_t, b2_l = first_and_last(range2_b)
 
     # Lower nodes
     l1_p1_l = global_node_point(l1, a1_l)
@@ -284,16 +279,11 @@ function handle_generic_intersections!(node_pos, extra_node_lookup, nodes, cell_
     range2_a = overlap.line2.range_a
     range2_b = overlap.line2.range_b
 
-    a1_l = range1_a[end]
-    b1_l = range1_b[end]
-    a2_l = range2_a[end]
-    b2_l = range2_b[end]
-
-
-    a1_t = range1_a[1]
-    b1_t = range1_b[1]
-    a2_t = range2_a[1]
-    b2_t = range2_b[1]
+    first_and_last(x) = (first(x), last(x))
+    a1_t, a1_l = first_and_last(range1_a)
+    a2_t, a2_l = first_and_last(range2_a)
+    b1_t, b1_l = first_and_last(range1_b)
+    b2_t, b2_l = first_and_last(range2_b)
 
     function pos_diff(a, b)
         return (a < b, a == b)
@@ -338,6 +328,9 @@ function handle_generic_intersections!(node_pos, extra_node_lookup, nodes, cell_
     # 1_top crossing 2_top (reversal a/b top over pair)
     if at_before_bt_1 != at_before_bt_2 && !(matching_tt_1 || matching_tt_2)
         @info "Adding top"
+        @assert a1_t != b1_t
+        @assert a2_t != b2_t
+
         n_tt = handle_crossing_node!(extra_node_lookup, nodes, line_top_a, line_top_b)
         push!(node_pos, n_tt)
     else
@@ -363,6 +356,9 @@ function handle_generic_intersections!(node_pos, extra_node_lookup, nodes, cell_
 
     if al_before_bl_1 != al_before_bl_2 && !(matching_ll_1 || matching_ll_2)
         @info "Adding bottom"
+        @assert a1_l != b1_l
+        @assert a2_l != b2_l
+
         # 1_low crossing 2_low (reversal a/b low over pair)
         n_ll = handle_crossing_node!(extra_node_lookup, nodes, line_low_a, line_low_b)
         push!(node_pos, n_ll)
@@ -382,7 +378,7 @@ function handle_generic_intersections!(node_pos, extra_node_lookup, nodes, cell_
             n_tl = handle_crossing_node!(extra_node_lookup, nodes, line_top_a, line_low_b)
         end
 
-        # push!(node_pos, n_lt)
+        push!(node_pos, n_lt)
     else
         for local_node_ix in reverse(edge2)
             push!(node_pos, l2.nodes[local_node_ix])
