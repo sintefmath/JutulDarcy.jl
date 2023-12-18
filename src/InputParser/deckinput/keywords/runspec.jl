@@ -101,6 +101,15 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GRIDOPTS})
     data["GRIDOPTS"] = parse_defaulted_line(rec, tdims)
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ENDSCALE})
+    rec = read_record(f)
+    if cfg.warn
+        @warn "ENDSCALE is not supported in JutulDarcy."
+    end
+    tdims = ["NODIR", "REVERS", 1, 20, 0];
+    data["ENDSCALE"] = parse_defaulted_line(rec, tdims)
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:EQLDIMS})
     rec = read_record(f)
     tdims = [1, 100, 50, 1, 50];

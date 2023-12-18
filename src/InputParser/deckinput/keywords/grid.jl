@@ -1,3 +1,8 @@
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GRIDFILE})
+    rec = read_record(f)
+    tdims = [0, 1];
+    data["GRIDFILE"] = parse_defaulted_line(rec, tdims)
+end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:INIT})
     data["INIT"] = true
