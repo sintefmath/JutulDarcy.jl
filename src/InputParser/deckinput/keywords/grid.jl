@@ -13,6 +13,11 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COORDSYS})
     @warn "COORDSYS skipped."
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MULTPV})
+    read_record(f)
+    @warn "MULTPV not supported, skipped."
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MAPUNITS})
     # TODO: This needs to be handled
     partial_parse!(data, outer_data, units, cfg, f, :GRIDUNIT)
