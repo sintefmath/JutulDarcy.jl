@@ -37,12 +37,12 @@ function setup_case_from_data_file(
     return out
 end
 
-function setup_case_from_parsed_data(datafile; kwarg...)
+function setup_case_from_parsed_data(datafile; simple_well = true, kwarg...)
     sys, pvt = parse_physics_types(datafile)
     is_blackoil = sys isa StandardBlackOilSystem
     is_compositional = sys isa CompositionalSystem
     domain = parse_reservoir(datafile)
-    wells, controls, limits, cstep, dt, well_mul = parse_schedule(domain, sys, datafile)
+    wells, controls, limits, cstep, dt, well_mul = parse_schedule(domain, sys, datafile; simple_well = simple_well)
 
     model, parameters0 = setup_reservoir_model(domain, sys; wells = wells, kwarg...)
 
@@ -76,13 +76,13 @@ function setup_case_from_parsed_data(datafile; kwarg...)
     return JutulCase(model, dt, forces, state0 = state0, parameters = parameters)
 end
 
-function parse_well_from_compdat(domain, wname, v, wspecs)
+function parse_well_from_compdat(domain, wname, v, wspecs; simple_well = true)
     wc, WI, open = compdat_to_connection_factors(domain, v)
     rd = wspecs.ref_depth
     if isnan(rd)
         rd = nothing
     end
-    W = setup_well(domain, wc, name = Symbol(wname), WI = WI, reference_depth = rd, simple_well = true)
+    W = setup_well(domain, wc, name = Symbol(wname), WI = WI, reference_depth = rd, simple_well = simple_well)
     return (W, WI, open)
 end
 
@@ -116,13 +116,13 @@ function compdat_to_connection_factors(domain, v)
     return (wc, WI, open)
 end
 
-function parse_schedule(domain, runspec, props, schedule, sys)
+function parse_schedule(domain, runspec, props, schedule, sys; simple_well = true)
     dt, cstep, controls, completions, limits = parse_control_steps(runspec, props, schedule, sys)
     ncomp = length(completions)
     wells = []
     well_mul = []
     for (k, v) in pairs(completions[end])
-        W, WI, open = parse_well_from_compdat(domain, k, v, schedule["WELSPECS"][k])
+        W, WI, open = parse_well_from_compdat(domain, k, v, schedule["WELSPECS"][k]; simple_well = simple_well)
         wi_mul = zeros(length(WI), ncomp)
         for (i, c) in enumerate(completions)
             compdat = c[k]
@@ -479,10 +479,10 @@ function parse_physics_types(datafile)
     return (system = sys, pvt = pvt)
 end
 
-function parse_schedule(domain, sys, datafile)
+function parse_schedule(domain, sys, datafile; kwarg...)
     schedule = datafile["SCHEDULE"]
     props = datafile["PROPS"]
-    return parse_schedule(domain, datafile["RUNSPEC"], props, schedule, sys)
+    return parse_schedule(domain, datafile["RUNSPEC"], props, schedule, sys; kwarg...)
 end
 
 function parse_control_steps(runspec, props, schedule, sys)
