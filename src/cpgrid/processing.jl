@@ -378,9 +378,8 @@ end
 
 function traverse_column_pair(col_a, col_b, l1, l2)
     cell_pairs = Tuple{Int, Int}[]
-    # overlaps = Tuple{UnitRange{Int64}, UnitRange{Int64}}[]
-    # TODO: Make concrete.
-    overlaps = []
+    # TODO: Deal with horrible type. We could just compute this on the fly.
+    overlaps = @NamedTuple{line1::@NamedTuple{category::JutulDarcy.CPGRID_PILLAR_AB_INTERSECTION, overlap::UnitRange{Int64}, range_a::UnitRange{Int64}, range_b::UnitRange{Int64}}, line2::@NamedTuple{category::JutulDarcy.CPGRID_PILLAR_AB_INTERSECTION, overlap::UnitRange{Int64}, range_a::UnitRange{Int64}, range_b::UnitRange{Int64}}}[]
 
     function find_end(a, b, s::Symbol)
         end_a = a[s][2]
