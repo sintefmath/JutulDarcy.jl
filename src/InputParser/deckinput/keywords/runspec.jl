@@ -72,6 +72,10 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:UNIFIN})
     data["UNIFIN"] = true
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:CPR})
+    data["CPR"] = true
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:NUMRES})
     read_record(f)
 end
@@ -83,6 +87,12 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:TABDIMS})
              10, 10, 10, -1,  5,  5,  5,  0, -1];
     # TODO: Special logic for -1 entries
     data["TABDIMS"] = parse_defaulted_line(rec, tdims)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FAULTDIMS})
+    rec = read_record(f)
+    tdims = [0];
+    data["FAULTDIMS"] = parse_defaulted_line(rec, tdims)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:EQLDIMS})
