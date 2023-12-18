@@ -1,27 +1,43 @@
-export simulate_data_file, case_from_data_input
+export simulate_data_file, setup_case_from_data_file
 
 """
     simulate_data_file(inp; parse_arg = NamedTuple(), kwarg...)
 
 Simulate standard input file (with extension .DATA). `inp` can either be the
-output from `case_from_data_input` or a String for the path of an input file.
+output from `setup_case_from_parsed_data` or a String for the path of an input file.
 
 Additional arguments are passed onto `simulate_reservoir`. Extra inputs to the
 parser can be sent as a `parse_arg` `NamedTuple`.
 """
-function simulate_data_file(fn::String; parse_arg = NamedTuple(), kwarg...)
-    data = parse_data_file(fn; parse_arg...)
-    return simulate_data_file(data; kwarg...)
-end
-
-function simulate_data_file(data::AbstractDict; setup_arg = NamedTuple(), kwarg...)
-    case = case_from_data_input(data; setup_arg...)
+function simulate_data_file(data; setup_arg = NamedTuple(), kwarg...)
+    case = setup_case_from_data_file(data; setup_arg...)
     result = simulate_reservoir(case; kwarg...)
     result.extra[:case] = case
     return result
 end
 
-function case_from_data_input(datafile; kwarg...)
+function setup_case_from_data_file(
+        fn;
+        parse_arg = NamedTuple(),
+        include_data::Bool = false,
+        kwarg...
+    )
+    if fn isa String
+        data = parse_data_file(fn; parse_arg...)
+    else
+        @assert fn isa AbstractDict
+        data = fn
+    end
+    case = setup_case_from_parsed_data(data; kwarg...)
+    if include_data
+        out = (case, data)
+    else
+        out = case
+    end
+    return out
+end
+
+function setup_case_from_parsed_data(datafile; kwarg...)
     sys, pvt = parse_physics_types(datafile)
     is_blackoil = sys isa StandardBlackOilSystem
     is_compositional = sys isa CompositionalSystem
