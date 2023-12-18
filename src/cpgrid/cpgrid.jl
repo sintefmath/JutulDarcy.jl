@@ -74,33 +74,95 @@ function corner_index(cell, corner::NTuple, dims)
     nx, ny, nz = dims
     # offset = 2*prod(dims)
     # near/far, left/right, up/down
-    if corner == (0, 0, 0)
-        major = 0
-        minor = 1
-    elseif corner == (0, 0, 1)
-        major = 2
-        minor = 1
-    elseif corner == (0, 1, 1)
-        major = 2
-        minor = 2
-    elseif corner == (0, 1, 0)
-        major = 0
-        minor = 2
-    elseif corner == (1, 0, 0)
-        major = 1
-        minor = 1
-    elseif corner == (1, 0, 1)
-        major = 3
-        minor = 1
-    elseif corner == (1, 1, 1)
-        major = 3
-        minor = 2
-    elseif corner == (1, 1, 0)
-        major = 1
-        minor = 2
-    else
-        error("Unsupported $corner_type")
+    if true
+        i_is_upper, j_is_upper, k_is_upper = corner
+
+        j_is_upper, i_is_upper, k_is_upper = corner
+        cell_i_offset = 2*(i-1)
+        cell_j_offset = 4*nx*(j-1)
+        cell_k_offset = 8*nx*ny*(k-1)
+        # @info "big offsets" cell_i_offset cell_j_offset cell_k_offset
+
+        cell_offset = cell_i_offset + cell_j_offset + cell_k_offset
+
+        i_offset = i_is_upper+1
+        j_offset = j_is_upper*2*nx
+        k_offset = k_is_upper*4*nx*ny
+        # @info "small offsets" i_offset j_offset k_offset
+
+        ijk = i_offset + j_offset + k_offset
+        return cell_offset + ijk
+
+        # x = i_offset + i_upper
+        # y = j_offset + j_upper*2*nx
+        # z = k_offset + k_upper*4*nx*ny
+        # return x + y + z
+        # return k*k_offset + j*j_offset + i_offset + 
+
+
+        # i_pos = i_offset + x + 1
+        # j_pos = 
+
+        # offset = i_offset + j_offset + k_offset
+
+        # return planar_offset + top_bottom_offset + y_offset + x_offset + minor
+    
     end
+    error()
+    # if corner == (0, 0, 0)
+    #     major = 0
+    #     minor = 1
+    # elseif corner == (1, 0, 0)
+    #     major = 0
+    #     minor = 2
+    # elseif corner == (0, 1, 0)
+    #     major = 1
+    #     minor = 1
+    # elseif corner == (1, 1, 0)
+    #     major = 1
+    #     minor = 2
+    # elseif corner == (0, 0, 1)
+    #     major = 2
+    #     minor = 1
+    # elseif corner == (0, 1, 1)
+    #     major = 2
+    #     minor = 2
+    # elseif corner == (1, 0, 1)
+    #     major = 3
+    #     minor = 1
+    # elseif corner == (1, 1, 1)
+    #     major = 3
+    #     minor = 2
+    # else
+    #     error("Unsupported $corner_type")
+    # end
+    # if corner == (0, 0, 0)
+    #     major = 0
+    #     minor = 1
+    # elseif corner == (1, 0, 0)
+    #     major = 1
+    #     minor = 1
+    # elseif corner == (0, 1, 0)
+    #     major = 0
+    #     minor = 2
+    # elseif corner == (1, 1, 0)
+    #     major = 1
+    #     minor = 2
+    # elseif corner == (0, 0, 1)
+    #     major = 2
+    #     minor = 1
+    # elseif corner == (0, 1, 1)
+    #     major = 2
+    #     minor = 2
+    # elseif corner == (1, 0, 1)
+    #     major = 3
+    #     minor = 1
+    # elseif corner == (1, 1, 1)
+    #     major = 3
+    #     minor = 2
+    # else
+    #     error("Unsupported $corner_type")
+    # end
     planar_offset = 8*nx*ny*(k-1)
     top_bottom_offset = major*2*nx*ny
     y_offset = 2*nx*(j-1)
@@ -174,15 +236,16 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
         for j = 1:ny
             for k = 1:nz
                 ix = ijk_to_linear(i, j, k, cartdims)
-                get_corner(pos) = zcorn[corner_index(ix, pos, cartdims)]
+                active_cell_index = cell_index(i, j, k)
                 for I1 in (0, 1)
                     for I2 in (0, 1)
                         L = lines[i + I2, j + I1]
                         for I3 in (0, 1)
-                            c = get_corner((I1, I2, I3))
+                            zcorn_ix = corner_index(ix, (I1, I2, I3), cartdims)
+                            c = zcorn[zcorn_ix]
                             # Note reversed indices, this is a bit of a mess
                             push!(L.z, c)
-                            push!(L.cells, cell_index(i, j, k))
+                            push!(L.cells, active_cell_index)
                         end
                     end
                 end
