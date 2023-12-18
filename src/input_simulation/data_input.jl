@@ -299,11 +299,7 @@ end
 function parse_reservoir(data_file)
     grid = data_file["GRID"]
     cartdims = grid["cartDims"]
-    if haskey(grid, "ACTNUM")
-        actnum = grid["ACTNUM"]
-    else
-        actnum = fill(true, prod(cartdims))
-    end
+    actnum = get_effective_actnum(grid)
     if haskey(grid, "COORD")
         coord = grid["COORD"]
         zcorn = grid["ZCORN"]
@@ -362,6 +358,37 @@ function parse_reservoir(data_file)
     )
 end
 
+function get_effective_actnum(g)
+    if haskey(g, "ACTNUM")
+        actnum = copy(g["ACTNUM"])
+    else
+        actnum = fill(true, prod(grid["cartDims"]))
+    end
+    if haskey(g, "PORO")
+        # Have to handle zero or negligble porosity.
+        if haskey(g, "NTG")
+            ntg = g["NTG"]
+        else
+            ntg = ones(size(actnum))
+        end
+        poro = g["PORO"]
+        added = 0
+        active = 0
+        for i in eachindex(actnum)
+            pv = poro[i]*ntg[i]
+            if actnum[i]
+                active += active
+                # TODO: Don't hardcode this.
+                if pv < 0.001
+                    added += 1
+                    actnum[i] = false
+                end
+            end
+        end
+        @debug "$added disabled cells out of $(length(actnum)) due to low effective pore-volume."
+    end
+    return actnum
+end
 
 function parse_physics_types(datafile)
     runspec = datafile["RUNSPEC"]
