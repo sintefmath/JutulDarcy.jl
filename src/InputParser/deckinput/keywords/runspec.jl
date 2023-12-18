@@ -89,10 +89,16 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:TABDIMS})
     data["TABDIMS"] = parse_defaulted_line(rec, tdims)
 end
 
-function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FAULTDIMS})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FAULTDIM})
     rec = read_record(f)
     tdims = [0];
-    data["FAULTDIMS"] = parse_defaulted_line(rec, tdims)
+    data["FAULTDIM"] = parse_defaulted_line(rec, tdims)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GRIDOPTS})
+    rec = read_record(f)
+    tdims = ["NO", 0, 0];
+    data["GRIDOPTS"] = parse_defaulted_line(rec, tdims)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:EQLDIMS})
