@@ -34,7 +34,7 @@ end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COMPDAT})
     d = "Default"
-    defaults = [d, -1, -1, -1, -1, "OPEN", -1, NaN, NaN, NaN, 0.0, -1, "Z", -1]
+    defaults = [d, -1, -1, -1, -1, "OPEN", -1, NaN, NaN, NaN, 0.0, -1.0, "Z", -1.0]
     wells = get_wells(outer_data)
     compdat = parse_defaulted_group_well(f, defaults, wells, 1)
     # Unit conversion
@@ -52,9 +52,17 @@ end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WCONPROD})
     d = "Default"
-    defaults = [d, "OPEN", d, Inf, Inf, Inf, Inf, NaN, 0.0, 0, 0.0]
+    defaults = [d, "OPEN", d, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, 0]
     wells = get_wells(outer_data)
     wconprod = parse_defaulted_group_well(f, defaults, wells, 1)
+    for kw in wconprod
+        for i in 4:10
+            # Handle defaults
+            if kw[i] < 0
+                kw[i] = Inf
+            end
+        end
+    end
     utypes = identity_unit_vector(defaults)
     utypes[4] = :liquid_rate_surface
     utypes[5] = :liquid_rate_surface
@@ -62,7 +70,6 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WCONPROD})
     utypes[7] = :liquid_rate_surface
     utypes[8] = :liquid_rate_reservoir
     utypes[9] = :pressure
-    utypes[10] = :pressure
     for wp in wconprod
         swap_unit_system_axes!(wp, units, utypes)
     end
@@ -114,7 +121,7 @@ end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WCONINJE})
     d = "Default"
-    defaults = [d, d, "OPEN", d, Inf, Inf, NaN, Inf, 0, 0.0, 0.0, 0, 0, 0]
+    defaults = [d, d, "OPEN", d, -1.0, -1.0, NaN, -1.0, 0, 0.0, 0.0, 0, 0, 0]
     wells = get_wells(outer_data)
     out = parse_defaulted_group_well(f, defaults, wells, 1)
     utypes = identity_unit_vector(defaults)
@@ -122,6 +129,11 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WCONINJE})
     utypes[7] = :pressure
     utypes[8] = :pressure
     for o in out
+        for i in [5, 6, 8]
+            if o[i] <= 0
+                o[i] = Inf
+            end
+        end
         w = get_well(outer_data, o[1])
         if w.preferred_phase == "GAS"
             utypes[5] = :gas_rate_surface
@@ -137,13 +149,35 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WCONINJE})
     data["WCONINJE"] = out
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WCONINJH})
+    d = "Default"
+    defaults = [d, d, "OPEN", 0.0, 0.0, 0.0, 0, 0.0, 0.0, 0.0, 0.0, "RATE"]
+    wells = get_wells(outer_data)
+    out = parse_defaulted_group_well(f, defaults, wells, 1)
+    utypes = identity_unit_vector(defaults)
+    utypes[5] = :pressure
+    utypes[6] = :pressure
+    for o in out
+        w = get_well(outer_data, o[1])
+        if w.preferred_phase == "GAS"
+            utypes[4] = :gas_rate_surface
+            utypes[8] = :u_rv
+        else
+            utypes[4] = :liquid_rate_surface
+            if w.preferred_phase == "OIL"
+                utypes[8] = :u_rs
+            end
+        end
+        swap_unit_system_axes!(o, units, utypes)
+    end
+    data["WCONINJH"] = out
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Union{Val{:WELLTARG}, Val{:WELTARG}})
     defaults = ["Default", "ORAT", NaN]
     wells = get_wells(outer_data)
     out = parse_defaulted_group_well(f, defaults, wells, 1)
-    if cfg.warn
-        @warn "WELLTARG not supported."
-    end
+    parser_message(cfg, outer_data, "WELTARG", PARSER_JUTULDARCY_MISSING_SUPPORT)
     data["WELTARG"] = out
 end
 
@@ -151,9 +185,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WEFAC})
     defaults = ["Default", 1.0]
     wells = get_wells(outer_data)
     d = parse_defaulted_group_well(f, defaults, wells, 1)
-    if cfg.warn
-        @warn "WEFAC not fully handled."
-    end
+    parser_message(cfg, outer_data, "WEFAC", PARSER_JUTULDARCY_PARTIAL_SUPPORT)
     data["WEFAC"] = d
 end
 
@@ -248,4 +280,10 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WINJGAS})
     wells = get_wells(outer_data)
     d = parse_defaulted_group_well(f, defaults, wells, 1)
     data["WINJGAS"] = d
+end
+
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WRFTPLT})
+    parser_message(cfg, outer_data, "WRFTPLT", PARSER_MISSING_SUPPORT)
+    skip_record(f)
 end

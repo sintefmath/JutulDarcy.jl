@@ -35,9 +35,9 @@ function get_mrst_input_path(name)
                 fn = fn_mod
             else
                 if has_global_path
-                    error("Did not find valid .mat file in $fn. You can set ENV[\"JUTUL_MRST_EXPORTS_PATH\"] if you have a global path for .mat files.")
-                else
                     error("Did not find valid .mat file in either of the following paths:\n$fn (input) \n$fn_env (from ENV[\"JUTUL_MRST_EXPORTS_PATH\"])\n$pth_mod (included test files)")
+                else
+                    error("Did not find valid .mat file in $fn. You can set ENV[\"JUTUL_MRST_EXPORTS_PATH\"] if you have a global path for .mat files.")
                 end
             end
         end
@@ -45,12 +45,17 @@ function get_mrst_input_path(name)
     return fn
 end
 
-function reservoir_domain_from_mrst(name::String; extraout = false)
+function reservoir_domain_from_mrst(name::String; extraout = false, convert_grid = false)
     fn = get_mrst_input_path(name)
     @debug "Reading MAT file $fn..."
     exported = MAT.matread(fn)
     @debug "File read complete. Unpacking data..."
-    g = MRSTWrapMesh(exported["G"])
+    G_raw = exported["G"]
+    if convert_grid && haskey(G_raw, "nodes")
+        g = UnstructuredMesh(G_raw)
+    else
+        g = MRSTWrapMesh(G_raw)
+    end
     has_trans = haskey(exported, "T") && length(exported["T"]) > 0
 
     function get_vec(d)
@@ -796,6 +801,7 @@ function setup_case_from_mrst(casename; wells = :ms,
                                         steps = :full,
                                         nthreads = Threads.nthreads(),
                                         legacy_output = false,
+                                        convert_grid = false,
                                         ds_max = 0.2,
                                         dz_max = 0.2,
                                         dp_max_abs = nothing,
@@ -804,7 +810,7 @@ function setup_case_from_mrst(casename; wells = :ms,
                                         p_max = Inf,
                                         dr_max = Inf,
                                         kwarg...)
-    data_domain, mrst_data = reservoir_domain_from_mrst(casename, extraout = true)
+    data_domain, mrst_data = reservoir_domain_from_mrst(casename, extraout = true, convert_grid = convert_grid)
     G = discretized_domain_tpfv_flow(data_domain; kwarg...)
     # Set up initializers
     models = OrderedDict()

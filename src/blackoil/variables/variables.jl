@@ -47,6 +47,29 @@ struct BlackOilX{T}
     end
 end
 
+function Base.zero(::Type{BlackOilX{R}}) where R
+    return BlackOilX(zero(R))
+end
+
+function Base.zero(::BlackOilX{R}) where R
+    return BlackOilX(zero(R))
+end
+
+function Jutul.scalarized_primary_variable_type(model, var::BlackOilUnknown)
+    return BlackOilX{Float64}
+end
+
+function Jutul.scalarize_primary_variable(model, source_vec, var::BlackOilUnknown, index)
+    x = source_vec[index]
+    return BlackOilX(value(x.val), x.phases_present, x.sat_close)
+end
+
+function Jutul.descalarize_primary_variable!(dest_array, model, V::BlackOilX, var::BlackOilUnknown, index)
+    V_old = dest_array[index]
+    val_converted = replace_value(V_old.val, V.val)
+    dest_array[index] = BlackOilX(val_converted, V.phases_present, V.sat_close)
+end
+
 """
     BlackOilX(sys::BlackOilVariableSwitchingSystem, p; sw = 0.0, so = 0.0, sg = 0.0, rs = 0.0, rv = 0.0)
 

@@ -70,6 +70,17 @@ struct Pressure <: ScalarVariable
     minimum_pressure::Float64
     maximum_pressure::Float64
     scale::Float64
+    function Pressure(max_abs, max_rel, minimum_pressure, maximum_pressure, scale)
+        if !isnothing(max_abs)
+            @assert max_abs > 0.0 "Maximum absolute pressure change was $max_abs, must be positive"
+        end
+        if !isnothing(max_rel)
+            @assert max_rel > 0.0 "Maximum relative pressure change was $max_rel, must be positive"
+        end
+        @assert minimum_pressure < maximum_pressure "Maximum pressure $maximum_pressure must be larger than minimum pressure $minimum_pressure"
+        @assert scale > 0.0 "Pressure scale must be positive Float64, was $scale"
+        new(max_abs, max_rel, minimum_pressure, maximum_pressure, scale)
+    end
 end
 
 """
@@ -80,8 +91,8 @@ absolute/relative change over a Newton iteration, `scale` is a "typical" value
 used to regularize the linear system, `maximum` the largest possible value and
 `minimum` the smallest.
 """
-function Pressure(; max_abs = nothing, max_rel = 0.2, scale = 1e8, maximum = Inf, minimum = DEFAULT_MINIMUM_PRESSURE)
-    Pressure(max_abs, max_rel, minimum, maximum, scale)
+function Pressure(; max_abs = nothing, max_rel = 0.2, scale = si_unit(:bar), maximum = Inf, minimum = DEFAULT_MINIMUM_PRESSURE)
+    return Pressure(max_abs, max_rel, minimum, maximum, scale)
 end
 
 Jutul.variable_scale(p::Pressure) = p.scale
@@ -150,7 +161,7 @@ function Jutul.default_parameter_values(data_domain, model, param::Transmissibil
         T = compute_face_trans(g, U)
         if any(x -> x < 0, T)
             c = count(x -> x < 0, T)
-            @warn "$c negative transmissibilities detected."
+            @warn "Parameter initialization for $symb: $c negative values detected out of $(length(T)) total."
         end
     else
         error(":permeability or :transmissibilities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")

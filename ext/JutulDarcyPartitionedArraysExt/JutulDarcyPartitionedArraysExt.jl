@@ -5,12 +5,16 @@ module JutulDarcyPartitionedArraysExt
     using PartitionedArrays, MPI, HYPRE
     using LinearAlgebra
 
+    import Jutul: JutulCase, PArrayBackend, JutulConfig, BoomerAMGPreconditioner
     import Jutul: PArraySimulator, MPISimulator, PArrayExecutor
     import Jutul: DebugPArrayBackend, JuliaPArrayBackend, MPI_PArrayBackend
     import Jutul: partition_distributed, simulate_parray, @tic
-    import JutulDarcy: reservoir_partition, partitioner_input
+    import JutulDarcy:
+        reservoir_partition, partitioner_input, apply_cpr_pressure_stage!,
+        apply_cpr_smoother!, set_default_cnv_mb!, setup_reservoir_simulator_parray,
+        increment_pressure!, set_dp!, correct_residual!, CPRStorage, CPRPreconditioner
 
-    function JutulDarcy.setup_reservoir_simulator_parray(
+    function setup_reservoir_simulator_parray(
             case::JutulCase,
             backend::PArrayBackend;
             conn = :unit,
@@ -29,10 +33,10 @@ module JutulDarcyPartitionedArraysExt
         return PArraySimulator(case, p; backend = backend, kwarg...)
     end
 
-    function JutulDarcy.set_default_cnv_mb!(config::JutulConfig, sim::Jutul.PArraySimulator; kwarg...)
+    function set_default_cnv_mb!(config::JutulConfig, sim::PArraySimulator; kwarg...)
         simulators = sim.storage[:simulators]
         map(simulators, config[:configs]) do sim, cfg
-            JutulDarcy.set_default_cnv_mb!(cfg, sim)
+            set_default_cnv_mb!(cfg, sim)
         end
         return config
     end
@@ -46,11 +50,11 @@ module JutulDarcyPartitionedArraysExt
         npre = main_prec.npre
         npost = main_prec.npost
         if npre > 0
-            JutulDarcy.apply_cpr_smoother!(global_out, R, global_buf, preconditioners, A_ps, npre)
+            apply_cpr_smoother!(global_out, R, global_buf, preconditioners, A_ps, npre)
         end
         @tic "cpr first stage" map(local_values(R), preconditioners, ghost_values(R)) do r, prec, x_g
             @. x_g = 0.0
-            JutulDarcy.apply_cpr_pressure_stage!(prec, prec.storage, r, arg...)
+            apply_cpr_pressure_stage!(prec, prec.storage, r, arg...)
             nothing
         end
         # The following is an unsafe version of this:
@@ -71,7 +75,7 @@ module JutulDarcyPartitionedArraysExt
 
         @tic "set dp" map(own_values(global_out), own_values(global_cell_vector), preconditioners) do dx, dp, prec
             bz = prec.storage.block_size
-            JutulDarcy.increment_pressure!(dx, dp, bz)
+            increment_pressure!(dx, dp, bz)
         end
         # End unsafe shenanigans
         if npost > 0
@@ -82,17 +86,17 @@ module JutulDarcyPartitionedArraysExt
                 ) do buf, dp, prec
                 bz = prec.storage.block_size
                 for i in eachindex(dp)
-                    JutulDarcy.set_dp!(buf, bz, dp, i)
+                    set_dp!(buf, bz, dp, i)
                 end
             end
-            JutulDarcy.correct_residual!(R, A_ps, global_buf)
-            JutulDarcy.apply_cpr_smoother!(global_out, R, global_buf, preconditioners, A_ps, npost, skip_last = true)
+            correct_residual!(R, A_ps, global_buf)
+            apply_cpr_smoother!(global_out, R, global_buf, preconditioners, A_ps, npost, skip_last = true)
         end
         @tic "communication" consistent!(global_out) |> wait
         return global_out
     end
 
-    function JutulDarcy.apply_cpr_smoother!(X::PVector, R::PVector, Buf::PVector, prec, A_ps, n; skip_last = false)
+    function apply_cpr_smoother!(X::PVector, R::PVector, Buf::PVector, prec, A_ps, n; skip_last = false)
         for i in 1:n
             map(
                 local_values(Buf),
@@ -107,12 +111,12 @@ module JutulDarcyPartitionedArraysExt
             end
             @. X += Buf
             if i < n || !skip_last
-                JutulDarcy.correct_residual!(R, A_ps, Buf)
+                correct_residual!(R, A_ps, Buf)
             end
         end
     end
 
-    function Jutul.parray_update_preconditioners!(sim::Jutul.PArraySimulator, cpr::CPRPreconditioner{<:BoomerAMGPreconditioner, <:Any}, preconditioners, recorder)
+    function Jutul.parray_update_preconditioners!(sim::PArraySimulator, cpr::CPRPreconditioner{<:BoomerAMGPreconditioner, <:Any}, preconditioners, recorder)
         offset = sim.storage.process_offset
         n = sim.storage.nc_process
         comm = sim.storage.comm
@@ -137,7 +141,7 @@ module JutulDarcyPartitionedArraysExt
             p_sys = (A_p, r_p, p)
             rmodel = reservoir_model(sim.storage.model)
             bz = degrees_of_freedom_per_entity(rmodel, Cells())
-            cpr.storage = JutulDarcy.CPRStorage(n, bz, A_ps, p_sys, global_sol_buf, global_res_buf)
+            cpr.storage = CPRStorage(n, bz, A_ps, p_sys, global_sol_buf, global_res_buf)
         end
         cpr_storage = cpr.storage
         A_p = cpr_storage.A_p
@@ -151,10 +155,10 @@ module JutulDarcyPartitionedArraysExt
             storage = Jutul.get_simulator_storage(sim)
             model = Jutul.get_simulator_model(sim)
             sys = storage.LinearizedSystem
+            prec.pressure_precond.data[:hypre_system] = (A_p, r_p, x_p)
             if isnothing(prec.storage)
-                prec.pressure_precond.data[:hypre_system] = (A_p, r_p, x_p)
                 w_p = zeros(bz, n)
-                prec.storage = JutulDarcy.CPRStorage(A_p, r_p, x_p, missing, missing, A_ps, w_p, w_rhs, n, bz)
+                prec.storage = CPRStorage(A_p, r_p, x_p, missing, missing, A_ps, w_p, w_rhs, n, bz)
             end
             Jutul.update_preconditioner!(prec, sys, model, storage, recorder, sim.executor)
             prec

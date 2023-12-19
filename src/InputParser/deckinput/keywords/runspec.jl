@@ -52,6 +52,14 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:DISGAS})
     data["DISGAS"] = true
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:THERMAL})
+    data["THERMAL"] = true
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MECH})
+    data["MECH"] = true
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:VAPOIL})
     data["VAPOIL"] = true
 end
@@ -62,6 +70,10 @@ end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:UNIFIN})
     data["UNIFIN"] = true
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:CPR})
+    data["CPR"] = true
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:NUMRES})
@@ -75,6 +87,25 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:TABDIMS})
              10, 10, 10, -1,  5,  5,  5,  0, -1];
     # TODO: Special logic for -1 entries
     data["TABDIMS"] = parse_defaulted_line(rec, tdims)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FAULTDIM})
+    rec = read_record(f)
+    tdims = [0];
+    data["FAULTDIM"] = parse_defaulted_line(rec, tdims)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GRIDOPTS})
+    rec = read_record(f)
+    tdims = ["NO", 0, 0];
+    data["GRIDOPTS"] = parse_defaulted_line(rec, tdims)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ENDSCALE})
+    rec = read_record(f)
+    parser_message(cfg, outer_data, "ENDSCALE", PARSER_JUTULDARCY_MISSING_SUPPORT)
+    tdims = ["NODIR", "REVERS", 1, 20, 0];
+    data["ENDSCALE"] = parse_defaulted_line(rec, tdims)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:EQLDIMS})

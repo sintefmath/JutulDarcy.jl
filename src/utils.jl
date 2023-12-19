@@ -24,6 +24,25 @@ function reservoir_domain(g; permeability = convert_to_si(0.1, :darcy), porosity
     return DataDomain(g; permeability = permeability, porosity = porosity, kwarg...)
 end
 
+"""
+    reservoir_domain(m::Union{SimulationModel, MultiModel})
+
+Get reservoir domain embedded in model.
+"""
+function reservoir_domain(m::Union{SimulationModel, MultiModel})
+    d = reservoir_model(m).data_domain
+    return d::DataDomain
+end
+
+"""
+    reservoir_domain(case::JutulCase)
+
+Get reservoir domain from a reservoir simulation case.
+"""
+function reservoir_domain(case::JutulCase)
+    return reservoir_domain(case.model)
+end
+
 export setup_reservoir_model
 """
     setup_reservoir_model(reservoir, system; wells = [], <keyword arguments>)
@@ -42,6 +61,7 @@ function setup_reservoir_model(reservoir::DataDomain, system;
     reservoir_context = nothing,
     general_ad = false,
     backend = :csc,
+    extra_outputs = [:LiquidMassFractions, :VaporMassFractions, :Rs, :Rv, :Saturations],
     split_wells = false,
     assemble_wells_together = true,
     parameters = Dict{Symbol, Any}(),
@@ -62,6 +82,12 @@ function setup_reservoir_model(reservoir::DataDomain, system;
         context = reservoir_context,
         general_ad = general_ad
     )
+    for k in extra_outputs
+        if haskey(rmodel.secondary_variables, k)
+            push!(rmodel.output_variables, k)
+        end
+        unique!(rmodel.output_variables)
+    end
     if haskey(reservoir, :diffusion) || haskey(reservoir, :diffusivity)
         rmodel.parameters[:Diffusivities] = Diffusivities()
     end
@@ -71,6 +97,10 @@ function setup_reservoir_model(reservoir::DataDomain, system;
     if length(wells) > 0
         for w in wells
             w_domain = DataDomain(w)
+            if haskey(reservoir, :temperature)
+                wc = w.perforations.reservoir
+                w_domain[:temperature] = reservoir[:temperature][wc]
+            end
             wname = w.name
             models[wname] = SimulationModel(w_domain, system, context = context)
             if split_wells
@@ -203,7 +233,7 @@ function setup_reservoir_simulator(case::JutulCase;
             push!(sel, t_sat)
         end
     else
-        @assert isnothing(timesteps)
+        @assert isnothing(timesteps) || timesteps == :none
         push!(sel, t_base)
     end
     # Config: Linear solver, timestep selection defaults, etc...
@@ -851,4 +881,39 @@ function generate_phase_indices(phases, canonical = (a = AqueousPhase(), l = Liq
         end
     end
     return NamedTuple(pairs(phase_ind_dict))
+end
+
+"""
+    reservoir_groups_for_printing(model::MultiModel)
+
+Break down the standard reservoir simulator model into groups based on if they
+are the reservoir, wells, facility or something else.
+"""
+function reservoir_groups_for_printing(model::MultiModel)
+    groups = Vector{Tuple{Symbol, Vector{Symbol}}}()
+
+    rgroup = (:Reservoir, [:Reservoir])
+    wgroup = (:Wells, Symbol[])
+    fgroup = (:Facility, Symbol[])
+
+    push!(groups, rgroup)
+    push!(groups, wgroup)
+    push!(groups, fgroup)
+
+    for (k, m) in pairs(model.models)
+        d = m.domain
+        if d isa Jutul.DiscretizedDomain
+            d = m.domain.representation
+        end
+        if k == :Reservoir
+            continue
+        elseif d isa JutulDarcy.WellDomain
+            push!(wgroup[2], k)
+        elseif d isa JutulDarcy.WellControllerDomain
+            push!(fgroup[2], k)
+        else
+            push!(groups, (k, [k]))
+        end
+    end
+    return groups
 end

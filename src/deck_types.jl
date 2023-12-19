@@ -149,6 +149,36 @@ function PVTO(d::Dict)
     return PVTO{T, V}(pos, rs, p, p_sat, b, mu)
 end
 
+function as_printed_table(tab::PVTO, u)
+    n = tab.pos[end]-1
+    P = copy(tab.pressure)
+    B = 1.0./tab.shrinkage
+    M = copy(tab.viscosity)
+
+    Rs = copy(tab.rs)
+    # Deal with units
+    InputParser.swap_unit_system!(M, u, :viscosity)
+    InputParser.swap_unit_system!(Rs, u, :u_rs)
+    InputParser.swap_unit_system!(P, u, :pressure)
+    InputParser.swap_unit_system!(B, u, :liquid_formation_volume_factor)
+
+    mat = Matrix{Union{Nothing, Float64}}(undef, n, 4)
+    end_records = Int[]
+    for i in eachindex(Rs)
+        start = tab.pos[i]
+        stop = (tab.pos[i+1]-1)
+        pos = start:stop
+        mat[start, 1] = Rs[i]
+        for j in start:stop
+            mat[j, 2] = P[j]
+            mat[j, 3] = B[j]
+            mat[j, 4] = M[j]
+        end
+        push!(end_records, stop)
+    end
+    return ("PVTO", mat, ["Rs", "Pressure", "B_o", "mu_u"], end_records)
+end
+
 function saturated_table(t::PVTO)
     return saturated_table(t.sat_pressure, t.rs)
 end
@@ -332,4 +362,43 @@ function add_lower_pvtg(data, pos, pressure)
     pos = vcat([1, first_offset+1], pos[2:end] .+ first_offset)
     pressure = vcat(ref_p, pressure)
     return (data, pos, pressure)
+end
+
+function print_deck_table!(io, tab; units = :si, self = :si, print_keyword = true)
+    u_target = InputParser.DeckUnitSystem(units)
+    u_self = InputParser.DeckUnitSystem(self)
+    u = (from = u_self, to = u_target)
+    start_label, tab_as_mat, header, end_records = as_printed_table(tab, u)
+
+    header = copy(header)
+    header[1] = "-- $(header[1])"
+    function fmt(x, i, j)
+        if isnothing(x)
+            return ""
+        else
+            return Jutul.Printf.@sprintf "%4.10g" x
+        end
+    end
+    if print_keyword && !isnothing(start_label)
+        println(io, start_label)
+    end
+    Jutul.PrettyTables.pretty_table(
+        io,
+        tab_as_mat,
+        tf = Jutul.PrettyTables.tf_borderless,
+        hlines = :none,
+        formatters = fmt,
+        body_hlines_format = (' ', ' ', '/', ' '),
+        body_hlines = end_records,
+        alignment = :l,
+        header = header
+    )
+    if length(end_records) > 0 && last(end_records) == size(tab_as_mat, 1)
+        println(io, "    /")
+    end
+    println(io, "/")
+end
+
+function print_deck_table!(tab; kwarg...)
+    print_deck_table!(stdout, tab; kwarg...)
 end

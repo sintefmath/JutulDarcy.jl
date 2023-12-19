@@ -72,6 +72,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
                                         Kh = nothing,
                                         radius = 0.1,
                                         simple_well = false,
+                                        simple_well_regularization = 1.0,
                                         WI = missing,
                                         dir = :z,
                                         kwarg...)
@@ -125,7 +126,8 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         volumes[i] = h*π*r_i^2
     end
     if simple_well
-        W = SimpleWell(reservoir_cells; WI = WI_computed, dz = dz, kwarg...)
+        accumulator_volume = simple_well_regularization*maximum(volumes)
+        W = SimpleWell(reservoir_cells; WI = WI_computed, volume = accumulator_volume, dz = dz, kwarg...)
     else
         # Depth differences are taken care of via centers.
         dz *= 0.0

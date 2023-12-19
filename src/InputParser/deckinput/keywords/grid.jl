@@ -1,3 +1,8 @@
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GRIDFILE})
+    rec = read_record(f)
+    tdims = [0, 1];
+    data["GRIDFILE"] = parse_defaulted_line(rec, tdims)
+end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:INIT})
     data["INIT"] = true
@@ -5,7 +10,12 @@ end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COORDSYS})
     read_record(f)
-    @warn "COORDSYS skipped."
+    parser_message(cfg, outer_data, "COORDSYS", PARSER_MISSING_SUPPORT)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MULTPV})
+    read_record(f)
+    parser_message(cfg, outer_data, "MULTPV", PARSER_MISSING_SUPPORT)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MAPUNITS})
@@ -25,7 +35,7 @@ end
 
 function partial_parse!(data, outer_data, units, cfg, f, k::Symbol)
     rec = read_record(f)
-    @warn "$k not properly handled."
+    parser_message(cfg, outer_data, "$k", PARSER_MISSING_SUPPORT)
     data["$k"] = rec
 end
 
@@ -50,6 +60,27 @@ function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:PERMX}, V
     k = unpack_val(v)
     vals = parse_grid_vector(f, get_cartdims(outer_data), Float64)
     vals = swap_unit_system!(vals, units, Val(:permeability))
+    data["$k"] = vals
+end
+
+
+function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:PRATIO}, Val{:BIOTCOEF}})
+    k = unpack_val(v)
+    vals = parse_grid_vector(f, get_cartdims(outer_data), Float64)
+    data["$k"] = vals
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:YMODULE}})
+    k = unpack_val(v)
+    vals = parse_grid_vector(f, get_cartdims(outer_data), Float64)
+    vals = swap_unit_system!(vals, units, Val(:gigapascal))
+    data["$k"] = vals
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:POELCOEF}, Val{:THELCOEF}, Val{:THERMEXR}, Val{:THCONR}})
+    k = unpack_val(v)
+    vals = parse_grid_vector(f, get_cartdims(outer_data), Float64)
+    @warn "Units not implemented for $k"
     data["$k"] = vals
 end
 
@@ -90,5 +121,28 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:SPECGRID})
     tdims = [1, 1, 1, 1, "F"]
     data["SPECGRID"] = parse_defaulted_line(rec, tdims)
     set_cartdims!(outer_data, data["SPECGRID"][1:3])
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FAULTS})
+    read_record
+    tdims = ["NAME", -1, -1, -1, -1, -1, -1, "XYZ_IJK"]
+    if !haskey(data, "FAULTS")
+        data["FAULTS"] = Dict{String, Any}()
+    end
+    faults = data["FAULTS"]
+    while true
+        rec = read_record(f)
+        if length(rec) == 0
+            break
+        end
+        parsed = parse_defaulted_line(rec, tdims, required_num = length(tdims), keyword = "FAULTS")
+        name = parsed[1]
+        faults[name] = (
+            i = parsed[2]:parsed[3],
+            j = parsed[4]:parsed[5],
+            k = parsed[6]:parsed[7],
+            direction = parsed[8]
+        )
+    end
 end
 

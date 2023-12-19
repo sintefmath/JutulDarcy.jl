@@ -37,6 +37,10 @@ function parse_mole_fractions!(f, outer_data)
     return parse_grid_vector(f, (d[1], d[2], d[3], nc), Float64)
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ZMF})
+    data["ZMF"] = parse_mole_fractions!(f, outer_data)
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:XMF})
     data["XMF"] = parse_mole_fractions!(f, outer_data)
 end

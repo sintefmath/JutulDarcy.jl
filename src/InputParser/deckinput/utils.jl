@@ -69,11 +69,11 @@ function parse_defaulted_group(f, defaults)
     return out
 end
 
-function parse_defaulted_line(lines::String, defaults)
-    return parse_defaulted_line([lines], defaults)
+function parse_defaulted_line(lines::String, defaults; kwarg...)
+    return parse_defaulted_line([lines], defaults; kwarg...)
 end
 
-function parse_defaulted_line(lines, defaults)
+function parse_defaulted_line(lines, defaults; required_num = 0, keyword = "")
     out = similar(defaults, 0)
     sizehint!(out, length(defaults))
     pos = 1
@@ -110,7 +110,11 @@ function parse_defaulted_line(lines, defaults)
         end
     end
     n = length(defaults)
-    pos = length(out)+1
+    n_out = length(out)
+    if required_num > n
+        error("Bad record: $required_num entries required for keyword $keyword, but only $n records were present.")
+    end
+    pos = n_out + 1
     if pos < n + 1
         for i in pos:n
             push!(out, defaults[i])
@@ -371,12 +375,22 @@ function table_region(outer_data, t::Symbol; active = nothing)
         D = ones(Int, prod(dim))
     else
         reg = outer_data["REGIONS"]
+
+        function get_or_default(k)
+            if haskey(reg, k)
+                return vec(reg[k])
+            else
+                dim = outer_data["GRID"]["cartDims"]
+                return ones(Int, prod(dim))
+            end
+        end
+    
         if t == :saturation
-            d = reg["SATNUM"]
+            d = get_or_default("SATNUM")
         elseif t == :pvt
-            d = reg["PVTNUM"]
+            d = get_or_default("PVTNUM")
         elseif t == :equil
-            d = reg["EQLNUM"]
+            d = get_or_default("EQLNUM")
         else
             error(":$t is not known")
         end
@@ -399,6 +413,7 @@ end
 function get_section(outer_data, name::Symbol)
     s = "$name"
     is_sched = name == :SCHEDULE
+    outer_data["CURRENT_SECTION"] = name
     T = OrderedDict{String, Any}
     if is_sched
         if !haskey(outer_data, s)

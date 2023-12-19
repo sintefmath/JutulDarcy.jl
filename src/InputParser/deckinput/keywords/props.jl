@@ -30,9 +30,6 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:BIC})
     n = compositional_number_of_components(outer_data)
     bic = parse_deck_vector(f)
     @assert length(bic) == n*(n-1)÷2 "Bad length for BIC input."
-    for i in eachindex(bic)
-        bic[i] = rand()
-    end
     m = zeros(n, n)
     ix = 1
     for i in 1:n
@@ -185,3 +182,13 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:DENSITY})
     end
     data["DENSITY"] = out
 end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Union{Val{:RSCONST}, Val{:RSCONSTT}})
+    rec = read_record(f)
+    # TODO: This is missing units.
+    tdims = [NaN, NaN]
+    parsed = parse_defaulted_line(rec, tdims, required_num = length(tdims), keyword = "RSCONST")
+    parser_message(cfg, outer_data, "RSCONST", PARSER_PARTIAL_SUPPORT)
+    data["RSCONST"] = parsed
+end
+

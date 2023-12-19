@@ -1,43 +1,65 @@
-export simulate_data_file, case_from_data_input
+export simulate_data_file, setup_case_from_data_file
 
 """
     simulate_data_file(inp; parse_arg = NamedTuple(), kwarg...)
 
 Simulate standard input file (with extension .DATA). `inp` can either be the
-output from `case_from_data_input` or a String for the path of an input file.
+output from `setup_case_from_parsed_data` or a String for the path of an input file.
 
 Additional arguments are passed onto `simulate_reservoir`. Extra inputs to the
 parser can be sent as a `parse_arg` `NamedTuple`.
 """
-function simulate_data_file(fn::String; parse_arg = NamedTuple(), kwarg...)
-    data = parse_data_file(fn; parse_arg...)
-    return simulate_data_file(data; kwarg...)
+function simulate_data_file(data; setup_arg = NamedTuple(), kwarg...)
+    case = setup_case_from_data_file(data; setup_arg...)
+    result = simulate_reservoir(case; kwarg...)
+    result.extra[:case] = case
+    return result
 end
 
-function simulate_data_file(data::AbstractDict; setup_arg = NamedTuple(), kwarg...)
-    case = case_from_data_input(data; setup_arg...)
-    return simulate_reservoir(case; kwarg...)
+function setup_case_from_data_file(
+        fn;
+        parse_arg = NamedTuple(),
+        include_data::Bool = false,
+        kwarg...
+    )
+    if fn isa String
+        data = parse_data_file(fn; parse_arg...)
+    else
+        @assert fn isa AbstractDict
+        data = fn
+    end
+    case = setup_case_from_parsed_data(data; kwarg...)
+    if include_data
+        out = (case, data)
+    else
+        out = case
+    end
+    return out
 end
 
-function case_from_data_input(datafile; kwarg...)
+function setup_case_from_parsed_data(datafile; simple_well = true, kwarg...)
     sys, pvt = parse_physics_types(datafile)
+    is_blackoil = sys isa StandardBlackOilSystem
+    is_compositional = sys isa CompositionalSystem
     domain = parse_reservoir(datafile)
-    wells, controls, limits, cstep, dt, well_mul = parse_schedule(domain, sys, datafile)
+    wells, controls, limits, cstep, dt, well_mul = parse_schedule(domain, sys, datafile; simple_well = simple_well)
 
     model, parameters0 = setup_reservoir_model(domain, sys; wells = wells, kwarg...)
 
     for (k, submodel) in pairs(model.models)
         if submodel.system isa MultiPhaseSystem
             # Modify secondary variables
-            svar = submodel.secondary_variables
-            # PVT
-            pvt = tuple(pvt...)
-            rho = DeckDensity(pvt)
-            if sys isa StandardBlackOilSystem
-                set_secondary_variables!(submodel, ShrinkageFactors = JutulDarcy.DeckShrinkageFactors(pvt))
+            if !is_compositional
+                svar = submodel.secondary_variables
+                # PVT
+                pvt = tuple(pvt...)
+                rho = DeckDensity(pvt)
+                if sys isa StandardBlackOilSystem
+                    set_secondary_variables!(submodel, ShrinkageFactors = JutulDarcy.DeckShrinkageFactors(pvt))
+                end
+                mu = DeckViscosity(pvt)
+                set_secondary_variables!(submodel, PhaseViscosities = mu, PhaseMassDensities = rho)
             end
-            mu = DeckViscosity(pvt)
-            set_secondary_variables!(submodel, PhaseViscosities = mu, PhaseMassDensities = rho)
             if k == :Reservoir
                 rs = datafile["RUNSPEC"]
                 oil = haskey(rs, "OIL")
@@ -54,14 +76,14 @@ function case_from_data_input(datafile; kwarg...)
     return JutulCase(model, dt, forces, state0 = state0, parameters = parameters)
 end
 
-function parse_well_from_compdat(domain, wname, v, wspecs)
+function parse_well_from_compdat(domain, wname, v, wspecs; simple_well = true)
     wc, WI, open = compdat_to_connection_factors(domain, v)
     rd = wspecs.ref_depth
     if isnan(rd)
         rd = nothing
     end
-    W = setup_well(domain, wc, name = Symbol(wname), WI = WI, reference_depth = rd)
-    return (W, WI, open)
+    W = setup_well(domain, wc, name = Symbol(wname), WI = WI, reference_depth = rd, simple_well = simple_well)
+    return (W, wc, WI, open)
 end
 
 function compdat_to_connection_factors(domain, v)
@@ -94,18 +116,26 @@ function compdat_to_connection_factors(domain, v)
     return (wc, WI, open)
 end
 
-function parse_schedule(domain, runspec, schedule, sys)
-    dt, cstep, controls, completions, limits = parse_control_steps(runspec, schedule, sys)
+function parse_schedule(domain, runspec, props, schedule, sys; simple_well = true)
+    dt, cstep, controls, completions, limits = parse_control_steps(runspec, props, schedule, sys)
     ncomp = length(completions)
     wells = []
     well_mul = []
     for (k, v) in pairs(completions[end])
-        W, WI, open = parse_well_from_compdat(domain, k, v, schedule["WELSPECS"][k])
-        wi_mul = zeros(length(WI), ncomp)
+        W, wc_base, WI_base, open = parse_well_from_compdat(domain, k, v, schedule["WELSPECS"][k]; simple_well = simple_well)
+        wi_mul = zeros(length(WI_base), ncomp)
         for (i, c) in enumerate(completions)
             compdat = c[k]
-            _, WI, open = compdat_to_connection_factors(domain, compdat)
-            @. wi_mul[:, i] = (WI*open)/WI
+            wc, WI, open = compdat_to_connection_factors(domain, compdat)
+            for (c, wi, is_open) in zip(wc, WI, open)
+                compl_idx = findfirst(isequal(c), wc_base)
+                if isnothing(compl_idx)
+                    # This perforation is missing, leave at zero.
+                    continue
+                end
+                wi_mul[compl_idx, i] = wi*is_open/WI_base[compl_idx]
+            end
+            # @. wi_mul[:, i] = (WI*open)/WI_base
         end
         push!(wells, W)
         if all(isapprox(1.0), wi_mul)
@@ -157,6 +187,7 @@ function parse_state0_direct_assignment(model, datafile)
     nc = number_of_cells(G)
     ix = G.cell_map
     is_blackoil = sys isa StandardBlackOilSystem
+    is_compositional = sys isa MultiPhaseCompositionalSystemLV
 
     function get_active(k; to_zero = false)
         if haskey(sol, k)
@@ -172,8 +203,36 @@ function parse_state0_direct_assignment(model, datafile)
         return x
     end
 
+    function get_active_fraction(k)
+        ϵ = MultiComponentFlash.MINIMUM_COMPOSITION
+        if haskey(sol, k)
+            val = sol[k]
+            sz = size(val)
+            @assert length(sz) == 4 # 3 dims + last index for comps
+            ncomp = sz[4]
+            x = zeros(ncomp, nc)
+            for cell in 1:nc
+                I, J, K = cell_ijk(G, cell)
+                tot = 0.0
+                for i in 1:ncomp
+                    v_i = val[I, J, K, i]
+                    v_i = max(v_i, ϵ)
+                    x[i, cell] = v_i
+                    tot += v_i
+                end
+                err = abs(tot - 1.0)
+                @assert err < 0.1 "Too large composition error in cell $cell: sum of compositions $k was $err"
+                for i in 1:ncomp
+                    x[i, cell] /= tot
+                end
+            end
+        else
+            x = missing
+        end
+        return x
+    end
+
     nph = number_of_phases(sys)
-    sat = zeros(nph, nc)
     if is_blackoil
         rs = get_active("RS", to_zero = true)
         rv = get_active("RV", to_zero = true)
@@ -194,8 +253,7 @@ function parse_state0_direct_assignment(model, datafile)
 
     @assert !ismissing(pressure)
     init[:Pressure] = pressure
-
-    if is_blackoil
+    if is_blackoil || is_compositional
         if ismissing(sw)
             sw = zeros(nc)
         end
@@ -203,15 +261,55 @@ function parse_state0_direct_assignment(model, datafile)
         if nph == 3
             init[:ImmiscibleSaturation] = sw
         end
-        F_rs = sys.rs_max
-        F_rv = sys.rv_max
+        if is_blackoil
+            F_rs = sys.rs_max
+            F_rv = sys.rv_max
 
-        so = s_rem
-        init[:BlackOilUnknown] = map(
-            (w,  o,   g, r,  v, p) -> JutulDarcy.blackoil_unknown_init(F_rs, F_rv, w, o, g, r, v, p),
-             sw, so, sg, rs, rv, pressure)
+            so = s_rem
+            init[:BlackOilUnknown] = map(
+                (w,  o,   g, r,  v, p) -> JutulDarcy.blackoil_unknown_init(F_rs, F_rv, w, o, g, r, v, p),
+                sw, so, sg, rs, rv, pressure)
+        else
+            @assert !ismissing(sg)
+            function get_mole_fraction(k)
+                mf = get_active_fraction(k)
+                @assert !ismissing(mf)
+                return mf
+            end
+            if haskey(sol, "ZMF")
+                z = get_mole_fraction("ZMF")
+            else
+                x = get_mole_fraction("XMF")
+                y = get_mole_fraction("YMF")
+                e = 1e-8
+                two_ph = count(s -> (s < (1-e) && s > 1e-8), sg)
+                if two_ph > 0
+                    @warn "XMF/YMF initialization with two-phase conditions does not properly handle multiphase initial conditions. Initial compositions may not be what you expect!"
+                end
+                z = zeros(size(x))
+                for cell in axes(z, 2)
+                    for i in axes(z, 1)
+                        # TODO: This is wrong for 2ph cells. See warning above.
+                        L = sg[i]/(1.0 - sw[i])
+                        z[i, cell] = L*x[i] + (1.0-L)*y[i]
+                    end
+                end
+            end
+            init[:OverallMoleFractions] = z
+        end
     else
-        error("Not implemented yet.")
+        sat = zeros(nph, nc)
+        for (idx, phase) in enumerate(get_phases(sys))
+            if phase == AqueousPhase()
+                sat[idx, :] .= sw
+            elseif phase == LiquidPhase()
+                sat[idx, :] .= s_rem
+            else
+                @assert phase == VaporPhase()
+                sat[idx, :] .= sg
+            end
+        end
+        init[:Saturations] = sat
     end
     return init
 end
@@ -219,17 +317,12 @@ end
 function parse_reservoir(data_file)
     grid = data_file["GRID"]
     cartdims = grid["cartDims"]
-    if haskey(grid, "ACTNUM")
-        actnum = grid["ACTNUM"]
-    else
-        actnum = fill(true, prod(cartdims))
-    end
+    actnum = get_effective_actnum(grid)
     if haskey(grid, "COORD")
         coord = grid["COORD"]
         zcorn = grid["ZCORN"]
         primitives = JutulDarcy.cpgrid_primitives(coord, zcorn, cartdims, actnum = actnum)
         G = JutulDarcy.grid_from_primitives(primitives)
-        active_ix = G.cell_map
     else
         @assert haskey(grid, "DX")
         @assert haskey(grid, "DY")
@@ -242,8 +335,10 @@ function parse_reservoir(data_file)
         dz = only(unique(grid["DZ"]))
         tops = only(unique(grid["TOPS"]))
         G = CartesianMesh(cartdims, cartdims.*(dx, dy, dz))
-        active_ix = 1:number_of_cells(G)
+        # We always want to return an unstructured mesh.
+        G = UnstructuredMesh(G)
     end
+    active_ix = G.cell_map
     nc = number_of_cells(G)
     # TODO: PERMYY etc for full tensor perm
     perm = zeros(3, nc)
@@ -254,12 +349,64 @@ function parse_reservoir(data_file)
         perm[3, i] = grid["PERMZ"][c]
         poro[i] = grid["PORO"][c]
     end
+    sol = data_file["SOLUTION"]
+    has_tempi = haskey(sol, "TEMPI")
+    has_tempvd = haskey(sol, "TEMPVD")
+
+    if has_tempvd || has_tempi
+        @assert !has_tempvd "TEMPVD not implemented."
+        temperature = zeros(nc)
+        T_inp = sol["TEMPI"]
+        for (i, c) in enumerate(active_ix)
+            temperature[i] = convert_to_si(T_inp[i], :Celsius)
+        end
+        temp_arg = (temperature = temperature, )
+    else
+        temp_arg = NamedTuple()
+    end
     satnum = JutulDarcy.InputParser.table_region(data_file, :saturation, active = active_ix)
     eqlnum = JutulDarcy.InputParser.table_region(data_file, :equil, active = active_ix)
 
-    domain = reservoir_domain(G, permeability = perm, porosity = poro, satnum = satnum, eqlnum = eqlnum)
+    domain = reservoir_domain(G;
+        permeability = perm,
+        porosity = poro,
+        satnum = satnum,
+        eqlnum = eqlnum,
+        temp_arg...
+    )
 end
 
+function get_effective_actnum(g)
+    if haskey(g, "ACTNUM")
+        actnum = copy(g["ACTNUM"])
+    else
+        actnum = fill(true, prod(grid["cartDims"]))
+    end
+    if haskey(g, "PORO")
+        # Have to handle zero or negligble porosity.
+        if haskey(g, "NTG")
+            ntg = g["NTG"]
+        else
+            ntg = ones(size(actnum))
+        end
+        poro = g["PORO"]
+        added = 0
+        active = 0
+        for i in eachindex(actnum)
+            pv = poro[i]*ntg[i]
+            if actnum[i]
+                active += active
+                # TODO: Don't hardcode this.
+                if pv < 0.001
+                    added += 1
+                    actnum[i] = false
+                end
+            end
+        end
+        @debug "$added disabled cells out of $(length(actnum)) due to low effective pore-volume."
+    end
+    return actnum
+end
 
 function parse_physics_types(datafile)
     runspec = datafile["RUNSPEC"]
@@ -377,12 +524,13 @@ function parse_physics_types(datafile)
     return (system = sys, pvt = pvt)
 end
 
-function parse_schedule(domain, sys, datafile)
+function parse_schedule(domain, sys, datafile; kwarg...)
     schedule = datafile["SCHEDULE"]
-    return parse_schedule(domain, datafile["RUNSPEC"], schedule, sys)
+    props = datafile["PROPS"]
+    return parse_schedule(domain, datafile["RUNSPEC"], props, schedule, sys; kwarg...)
 end
 
-function parse_control_steps(runspec, schedule, sys)
+function parse_control_steps(runspec, props, schedule, sys)
     rho_s = JutulDarcy.reference_densities(sys)
     phases = JutulDarcy.get_phases(sys)
 
@@ -403,7 +551,7 @@ function parse_control_steps(runspec, schedule, sys)
     well_injection = Dict{String, Any}()
     for k in keys(wells)
         compdat[k] = OrderedDict{NTuple{3, Int}, Any}()
-        controls[k] = nothing
+        controls[k] = DisabledControl()
         limits[k] = nothing
         streams[k] = nothing
         well_injection[k] = nothing
@@ -424,8 +572,10 @@ function parse_control_steps(runspec, schedule, sys)
         push!(cstep, ctrl_ix)
     end
 
+    skip = ("WEFAC", "WELTARG", "WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE")
     for (ctrl_ix, step) in enumerate(steps)
         found_time = false
+        streams = parse_well_streams_for_step(step, props)
         for (key, kword) in pairs(step)
             if key == "DATES"
                 @assert !ismissing(start_date)
@@ -478,15 +628,15 @@ function parse_control_steps(runspec, schedule, sys)
                             ctrl = ctrl_ix)
                     end
                 end
-            elseif key in ("WCONINJE", "WCONPROD", "WCONHIST", "WCONINJ")
+            elseif key in ("WCONINJE", "WCONPROD", "WCONHIST", "WCONINJ", "WCONINJH")
                 for wk in kword
                     name = wk[1]
-                    controls[name], limits[name] = keyword_to_control(sys, wk, key)
+                    controls[name], limits[name] = keyword_to_control(sys, streams, wk, key)
                 end
             elseif key in ("WEFAC", "WELTARG")
                 @warn "$key Not supported properly."
-            elseif key == "WELLSTRE"
-                error()
+            elseif key in skip
+                # Already handled
             else
                 error("Unhandled keyword $key")
             end
@@ -501,12 +651,46 @@ function parse_control_steps(runspec, schedule, sys)
     return (dt = tstep, control_step = cstep, controls = all_controls, completions = all_compdat, limits = all_limits)
 end
 
+function parse_well_streams_for_step(step, props)
+    if haskey(props, "STCOND")
+        std = props["STCOND"]
+        T = convert_to_si(std[1], :Celsius)
+        p = std[2]
+    else
+        @debug "Defaulted STCOND..."
+        T = convert_to_si(15.56, :Celsius)
+        p = convert_to_si(1.0, :atm)
+    end
 
-function keyword_to_control(sys, kw, k::String)
-    return keyword_to_control(sys, kw, Val(Symbol(k)))
+    streams = Dict{String, Any}()
+    well_streams = Dict{String, String}()
+    if haskey(step, "WELLSTRE")
+        for stream in step["WELLSTRE"]
+            mix = Float64.(stream[2:end])
+            streams[first(stream)] = (mole_fractions = mix, cond = (p = p, T = T))
+        end
+    end
+    if haskey(step, "WINJGAS")
+        winjgas = step["WINJGAS"]
+        for winjgas in step["WINJGAS"]
+            @assert uppercase(winjgas[2]) == "STREAM"
+            well_streams[winjgas[1]] = winjgas[3]
+        end
+    end
+    for kw in ["GINJGAS", "GRUPINJE", "WELLINJE"]
+        if haskey(step, kw)
+            @warn "Stream keyword $kw was found but is not supported."
+        end
+    end
+
+    return (streams = streams, wells = well_streams)
 end
 
-function keyword_to_control(sys, kw, ::Val{:WCONPROD})
+function keyword_to_control(sys, streams, kw, k::String)
+    return keyword_to_control(sys, streams, kw, Val(Symbol(k)))
+end
+
+function keyword_to_control(sys, streams, kw, ::Val{:WCONPROD})
     rho_s = JutulDarcy.reference_densities(sys)
     phases = JutulDarcy.get_phases(sys)
 
@@ -520,11 +704,21 @@ function keyword_to_control(sys, kw, ::Val{:WCONPROD})
     return producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp)
 end
 
-function keyword_to_control(sys, kw, ::Val{:WCONHIST})
+function keyword_to_control(sys, streams, kw, ::Val{:WCONHIST})
     rho_s = JutulDarcy.reference_densities(sys)
     phases = JutulDarcy.get_phases(sys)
     # 1 name
-    error("Not implemented yet.")
+    flag = kw[2]
+    ctrl = kw[3]
+    orat = kw[4]
+    wrat = kw[5]
+    grat = kw[6]
+    lrat = wrat + orat
+    # TODO: Pass thp on
+    thp = kw[9]
+    bhp = kw[10]
+
+    return producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp, is_hist = true)
 end
 
 function producer_limits(; bhp = Inf, lrat = Inf, orat = Inf, wrat = Inf, grat = Inf)
@@ -547,7 +741,7 @@ function producer_limits(; bhp = Inf, lrat = Inf, orat = Inf, wrat = Inf, grat =
     return NamedTuple(pairs(lims))
 end
 
-function producer_control(sys::Union{ImmiscibleSystem, StandardBlackOilSystem}, flag, ctrl, orat, wrat, grat, lrat, bhp)
+function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = false)
     rho_s = JutulDarcy.reference_densities(sys)
     phases = JutulDarcy.get_phases(sys)
 
@@ -566,6 +760,13 @@ function producer_control(sys::Union{ImmiscibleSystem, StandardBlackOilSystem}, 
             t = SurfaceGasRateTarget(-grat)
         elseif ctrl == "BHP"
             t = BottomHolePressureTarget(bhp)
+        elseif ctrl == "RESV"
+            t = -(wrat + orat + grat)
+            if is_hist
+                ctrl = HistoricalReservoirVoidageTarget(t)
+            else
+                ctrl = ReservoirVoidageTarget(t)
+            end
         else
             error("$ctype control not supported")
         end
@@ -589,10 +790,7 @@ function injector_limits(; bhp = Inf, surface_rate = Inf, reservoir_rate = Inf)
     return NamedTuple(pairs(lims))
 end
 
-function injector_control(sys::Union{ImmiscibleSystem, StandardBlackOilSystem}, flag, type, ctype, surf_rate, res_rate, bhp)
-    rho_s = JutulDarcy.reference_densities(sys)
-    phases = JutulDarcy.get_phases(sys)
-
+function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp; is_hist = false)
     if flag == "SHUT" || flag == "STOP"
         ctrl = DisabledControl()
         lims = nothing
@@ -606,33 +804,91 @@ function injector_control(sys::Union{ImmiscibleSystem, StandardBlackOilSystem}, 
             # RESV, GRUP, THP
             error("$ctype control not supported")
         end
-        mix = Float64[]
-        rho = 0.0
-        for (phase, rho_ph) in zip(phases, rho_s)
-            if phase == LiquidPhase()
-                v = Float64(type == "OIL")
-            elseif phase == AqueousPhase()
-                v = Float64(type == "WATER")
-            else
-                @assert phase isa VaporPhase
-                v = Float64(type == "GAS")
-            end
-            rho += rho_ph*v
-            push!(mix, v)
-        end
-        @assert sum(mix) ≈ 1.0
+        rho, mix = select_injector_mixture_spec(sys, name, streams, type)
         ctrl = InjectorControl(t, mix, density = rho)
         lims = injector_limits(bhp = bhp, surface_rate = surf_rate, reservoir_rate = res_rate)
     end
     return (ctrl, lims)
 end
 
-function keyword_to_control(sys, kw, ::Val{:WCONINJE})
+function select_injector_mixture_spec(sys::Union{ImmiscibleSystem, StandardBlackOilSystem}, name, streams, type)
+    rho_s = JutulDarcy.reference_densities(sys)
+    phases = JutulDarcy.get_phases(sys)
+    mix = Float64[]
+    rho = 0.0
+    for (phase, rho_ph) in zip(phases, rho_s)
+        if phase == LiquidPhase()
+            v = Float64(type == "OIL")
+        elseif phase == AqueousPhase()
+            v = Float64(type == "WATER")
+        else
+            @assert phase isa VaporPhase
+            v = Float64(type == "GAS")
+        end
+        rho += rho_ph*v
+        push!(mix, v)
+    end
+    @assert sum(mix) ≈ 1.0
+    return (rho, mix)
+end
+
+function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, type)
+    eos = sys.equation_of_state
+    props = eos.mixture.properties
+    rho_s = JutulDarcy.reference_densities(sys)
+    phases = JutulDarcy.get_phases(sys)
+    mix = Float64[]
+    rho = 0.0
+    # Well stream will be molar fracitons.
+    offset = Int(has_other_phase(sys))
+    ncomp = number_of_components(sys)
+    mix = zeros(Float64, ncomp)
+    stream_id = streams.wells[name]
+    stream = streams.streams[stream_id]
+
+    ϵ = MultiComponentFlash.MINIMUM_COMPOSITION
+    z = map(z_i -> max(z_i, ϵ), stream.mole_fractions)
+    z /= sum(z)
+    cond = stream.cond
+
+    z_mass = map(
+        (z_i, prop) -> max(z_i*prop.mw, ϵ),
+        z, props
+    )
+    z_mass /= sum(z_mass)
+    for i in 1:ncomp
+        mix[i+offset] = z_mass[i]
+    end
+    @assert sum(mix) ≈ 1.0 "Sum of mixture was $(sum(mix)) != 1 for mole mixture $(z) as mass $z_mass"
+
+    flash_cond = (p = cond.p, T = cond.T, z = z)
+    flash = MultiComponentFlash.flashed_mixture_2ph(eos, flash_cond)
+    rho_l, rho_v = MultiComponentFlash.mass_densities(eos, cond.p, cond.T, flash)
+    S_l, S_v = MultiComponentFlash.phase_saturations(eos, cond.p, cond.T, flash)
+    rho = S_l*rho_l + S_v*rho_v
+    return (rho, mix)
+end
+
+function keyword_to_control(sys, streams, kw, ::Val{:WCONINJE})
+    # TODO: Expand to handle mixture etc.
+    name = kw[1]
     type = kw[2]
     flag = kw[3]
     ctype = kw[4]
     surf_rate = kw[5]
     res_rate = kw[6]
     bhp = kw[7]
-    return injector_control(sys, flag, type, ctype, surf_rate, res_rate, bhp)
+    return injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp)
+end
+
+function keyword_to_control(sys, streams, kw, ::Val{:WCONINJH})
+    name = kw[1]
+    type = kw[2]
+    flag = kw[3]
+    surf_rate = kw[4]
+    bhp = kw[5]
+    ctype = kw[12]
+    # TODO: Expand to handle mixture etc.
+    res_rate = Inf
+    return injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp, is_hist = true)
 end

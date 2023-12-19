@@ -1,3 +1,4 @@
+include("processing.jl")
 function ijk_to_linear(i, j, k, dims)
     nx, ny, nz = dims
     return (k-1)*nx*ny + (j-1)*nx + i
@@ -27,23 +28,34 @@ function get_line(coord, i, j, nx, ny)
     return (x1, x2)
 end
 
-function interp_coord(line::Tuple, z)
-    p0, p1 = line
-    return interp_coord(p0, p1, z)
-end
+# function interp_coord(line::Tuple, z)
+#     p0, p1 = line
+#     return interp_coord(p0, p1, z)
+# end
 
 function interp_coord(line::NamedTuple, z)
-    return interp_coord(line.x1, line.x2, z)
+    if line.equal_points
+        x = line.x1
+        T = eltype(x)
+        pt = SVector{3, T}(x[1], x[2], z)
+    else
+        pt = interp_coord(line.x1, line.x2, z)
+    end
+    return pt
 end
 
 function interp_coord(p0::SVector{3, T}, p1::SVector{3, T}, z::T) where T<:Real
     z0 = p0[3]
     z1 = p1[3]
-
-    weight = (z - z0)/(z1 - z0)
-
-    interp_pt = p0 .+ weight.*(p1 .- p0)
-    @assert interp_pt[3] ≈ z "expected $z was $(interp_pt[3])"
+    if z0 ≈ z1 
+        # Coinciding corner points. Just return the point and hope the pillar is
+        # inactive.
+        interp_pt = p0
+    else
+        weight = (z - z0)/(z1 - z0)
+        interp_pt = p0 .+ weight.*(p1 .- p0)
+        @assert interp_pt[3] ≈ z "expected $z was $(interp_pt[3]) != $z"
+    end
     return interp_pt
 end
 
@@ -62,33 +74,95 @@ function corner_index(cell, corner::NTuple, dims)
     nx, ny, nz = dims
     # offset = 2*prod(dims)
     # near/far, left/right, up/down
-    if corner == (0, 0, 0)
-        major = 0
-        minor = 1
-    elseif corner == (0, 0, 1)
-        major = 2
-        minor = 1
-    elseif corner == (0, 1, 1)
-        major = 2
-        minor = 2
-    elseif corner == (0, 1, 0)
-        major = 0
-        minor = 2
-    elseif corner == (1, 0, 0)
-        major = 1
-        minor = 1
-    elseif corner == (1, 0, 1)
-        major = 3
-        minor = 1
-    elseif corner == (1, 1, 1)
-        major = 3
-        minor = 2
-    elseif corner == (1, 1, 0)
-        major = 1
-        minor = 2
-    else
-        error("Unsupported $corner_type")
+    if true
+        i_is_upper, j_is_upper, k_is_upper = corner
+
+        j_is_upper, i_is_upper, k_is_upper = corner
+        cell_i_offset = 2*(i-1)
+        cell_j_offset = 4*nx*(j-1)
+        cell_k_offset = 8*nx*ny*(k-1)
+        # @info "big offsets" cell_i_offset cell_j_offset cell_k_offset
+
+        cell_offset = cell_i_offset + cell_j_offset + cell_k_offset
+
+        i_offset = i_is_upper+1
+        j_offset = j_is_upper*2*nx
+        k_offset = k_is_upper*4*nx*ny
+        # @info "small offsets" i_offset j_offset k_offset
+
+        ijk = i_offset + j_offset + k_offset
+        return cell_offset + ijk
+
+        # x = i_offset + i_upper
+        # y = j_offset + j_upper*2*nx
+        # z = k_offset + k_upper*4*nx*ny
+        # return x + y + z
+        # return k*k_offset + j*j_offset + i_offset + 
+
+
+        # i_pos = i_offset + x + 1
+        # j_pos = 
+
+        # offset = i_offset + j_offset + k_offset
+
+        # return planar_offset + top_bottom_offset + y_offset + x_offset + minor
+    
     end
+    error()
+    # if corner == (0, 0, 0)
+    #     major = 0
+    #     minor = 1
+    # elseif corner == (1, 0, 0)
+    #     major = 0
+    #     minor = 2
+    # elseif corner == (0, 1, 0)
+    #     major = 1
+    #     minor = 1
+    # elseif corner == (1, 1, 0)
+    #     major = 1
+    #     minor = 2
+    # elseif corner == (0, 0, 1)
+    #     major = 2
+    #     minor = 1
+    # elseif corner == (0, 1, 1)
+    #     major = 2
+    #     minor = 2
+    # elseif corner == (1, 0, 1)
+    #     major = 3
+    #     minor = 1
+    # elseif corner == (1, 1, 1)
+    #     major = 3
+    #     minor = 2
+    # else
+    #     error("Unsupported $corner_type")
+    # end
+    # if corner == (0, 0, 0)
+    #     major = 0
+    #     minor = 1
+    # elseif corner == (1, 0, 0)
+    #     major = 1
+    #     minor = 1
+    # elseif corner == (0, 1, 0)
+    #     major = 0
+    #     minor = 2
+    # elseif corner == (1, 1, 0)
+    #     major = 1
+    #     minor = 2
+    # elseif corner == (0, 0, 1)
+    #     major = 2
+    #     minor = 1
+    # elseif corner == (0, 1, 1)
+    #     major = 2
+    #     minor = 2
+    # elseif corner == (1, 0, 1)
+    #     major = 3
+    #     minor = 1
+    # elseif corner == (1, 1, 1)
+    #     major = 3
+    #     minor = 2
+    # else
+    #     error("Unsupported $corner_type")
+    # end
     planar_offset = 8*nx*ny*(k-1)
     top_bottom_offset = major*2*nx*ny
     y_offset = 2*nx*(j-1)
@@ -123,12 +197,22 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
             cellpos = Vector{Int}(),
             nodes = Vector{Int}(),
             x1 = SVector{3, Float64}(p1),
-            x2 = SVector{3, Float64}(p2)
+            x2 = SVector{3, Float64}(p2),
+            equal_points = p1 ≈ p2
             )
     end
     # active_lines = BitArray(undef, nlinex, nliney)
     x1, x2 = get_line(coord, 1, 1, nlinex, nliney)
     line0 = generate_line(x1, x2)
+    function boundary_index(i, j, is_top)
+        if is_top
+            layer_offset = -(2*nx*ny*nz)
+        else
+            layer_offset = -(nx*ny*nz)
+        end
+        return layer_offset #- ij_to_linear(i, j, cartdims[1:2])
+    end
+
     function cell_index(i, j, k)
         ix = ijk_to_linear(i, j, k, cartdims)
         if actnum[i, j, k]
@@ -152,21 +236,41 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
         for j = 1:ny
             for k = 1:nz
                 ix = ijk_to_linear(i, j, k, cartdims)
-                get_corner(pos) = zcorn[corner_index(ix, pos, cartdims)]
+                active_cell_index = cell_index(i, j, k)
                 for I1 in (0, 1)
                     for I2 in (0, 1)
                         L = lines[i + I2, j + I1]
                         for I3 in (0, 1)
-                            c = get_corner((I1, I2, I3))
+                            zcorn_ix = corner_index(ix, (I1, I2, I3), cartdims)
+                            c = zcorn[zcorn_ix]
                             # Note reversed indices, this is a bit of a mess
                             push!(L.z, c)
-                            push!(L.cells, cell_index(i, j, k))
+                            push!(L.cells, active_cell_index)
                         end
                     end
                 end
             end
         end
     end
+    # Add fake boundary nodes with corresponding cells
+    for i in 1:(nx+1)
+        for j in 1:(ny+1)
+            L = lines[i, j]
+            # Top layer
+            if L.cells[1] > 0
+                # t = boundary_index(i, j, true)
+                # pushfirst!(L.z, L.z[1] - 1.0, L.z[1])
+                # pushfirst!(L.cells, t, t)
+            end
+            # Bottom layer
+            if L.cells[end] > 0
+                # b = boundary_index(i, j, false)
+                # push!(L.z, L.z[end], L.z[end] + 1.0)
+                # push!(L.cells, b, b)
+            end
+        end
+    end
+
     # Process lines and merge similar nodes
     nodes, lines_active = process_lines!(lines)
 
@@ -201,7 +305,7 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
         end
     end
     # Generate the columns with cell lists
-    make_column(i, j) = (cells = Int[typemin(Int)], i = i, j = j)
+    make_column(i, j) = (cells = Int[], i = i, j = j)
     cT = typeof(make_column(1, 1))
     col_counter = 1
     columns = Vector{cT}()
@@ -210,7 +314,8 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
         for j in 1:ny
             if active_columns[i, j]
                 col = make_column(i, j)
-                prev = 0
+                prev = boundary_index(i, j, true) 
+                # push!(col.cells, prev)
                 for k in 1:nz
                     cell = cell_index(i, j, k)
                     if cell != prev
@@ -219,9 +324,7 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
                     prev = cell
                 end
                 # Put a boundary at the end
-                if col.cells[end] > 0
-                    push!(col.cells, -(nx*ny*nz+1))
-                end
+                # push!(col.cells, boundary_index(i, j, false))
                 push!(columns, col)
                 column_indices[i, j] = col_counter
                 col_counter += 1
@@ -376,7 +479,7 @@ function grid_from_primitives(primitives)
     (;
         lines,
         lines_active,
-        column_neighbors,
+        # column_neighbors,
         column_lines,
         columns,
         active,
@@ -411,8 +514,15 @@ function grid_from_primitives(primitives)
     nlinex = nx+1
     nliney = ny+1
 
+    extra_node_lookup = Dict()
+
     function add_face_from_nodes!(V, Vpos, nodes)
+        n_global_nodes = length(primitives.nodes)
+        n_local_nodes = length(nodes)
+        @assert n_local_nodes > 2
         for n in nodes
+            @assert n <= n_global_nodes
+            @assert n > 0
             push!(V, n)
         end
         push!(Vpos, length(nodes) + Vpos[end])
@@ -420,7 +530,7 @@ function grid_from_primitives(primitives)
 
     function insert_boundary_face!(prev_cell, cell, nodes)
         orient = cell_is_boundary(prev_cell) && !cell_is_boundary(cell)
-        @assert orient || (cell_is_boundary(cell) && !cell_is_boundary(prev_cell))
+        @assert orient || (cell_is_boundary(cell) && !cell_is_boundary(prev_cell)) "cell pair $((cell, prev_cell)) is not on boundary"
         if orient
             self = cell
         else
@@ -454,199 +564,90 @@ function grid_from_primitives(primitives)
     end
 
     # Horizontal faces (top/bottom and faces along column)
+    node_buffer = Int[]
+    sizehint!(node_buffer, 10)
     for (cl, col) in zip(column_lines, columns)
-        # Traverse each column one by one and then figure out what cells are
-        # connected, generate faces and push to the respective arrays
-        ncorners = length(cl)
-        line_ptr = ones(Int, ncorners)
-        self_lines = map(i -> lines[i], cl)
-
-
-        cells = col.cells
-        @assert cell_is_boundary(cells[1])
-        @assert cell_is_boundary(cells[end])
-        cell = cells[2]
-        # Deal with the top first
-        nodes_first = map(x -> first(x.nodes), self_lines)
-        n = length(cells)
-        for i in 2:(n-1)
-            prev_cell = cells[i-1]
-            current_cell = cells[i]
-            next_cell = cells[i+1]
-            if cell_is_boundary(current_cell)
-                # Keep going until we find actual cells
+        number_of_cells_in_column = length(col.cells)
+        current_column_lines = map(l -> lines[l], cl)
+        for (i, cell) in enumerate(col.cells)
+            if cell_is_boundary(cell)
                 continue
             end
-            next_cell_line_ptr!(line_ptr, self_lines, current_cell)
-            bottom_nodes = map((l, ix) -> l.nodes[ix+1], self_lines, line_ptr)
-            if cell_is_boundary(prev_cell)
-                # There was a gap or we were at the top, add boundary
-                top_nodes = map((l, ix) -> l.nodes[ix], self_lines, line_ptr)
-                insert_face!(prev_cell, current_cell, top_nodes; is_boundary = true)
+            if i == 1
+                prev = 0
+            else
+                prev = col.cells[i-1]
             end
-            # Next cell down in column might be a gap or at the bottom
-            is_bnd = cell_is_boundary(next_cell)
-            insert_face!(current_cell, next_cell, bottom_nodes; is_boundary = is_bnd)
-        end
-        # error()
-    end
-    # Vertical faces (between active columns)
-    function initialize_cpair(pillars, cols, i)
-        c = columns[cols[i]]
-        @assert cell_is_boundary(c.cells[1])
-        return (lines[pillars[i]], c, c.cells[2])
-    end
-
-
-    function seek_range(cells, cpos, p, A, B)
-        foundA = false
-        foundB = false
-        for i in cpos[p]:(cpos[p+1]-1)
-            c = cells[i]
-            foundA = foundA || c == A
-            foundB = foundB || c == B
-            if foundA && foundB
-                break
+            if i == number_of_cells_in_column
+                next = 0
+            else
+                next = col.cells[i+1]
             end
-        end
-        return (foundA, foundB)
-    end
-
-    function seek_line(line, start, A, B)
-        cpos = line.cellpos
-        cells = line.cells
-        # @info "Looking for a node missing either of A=$A B=$B from $start"# cells
-        n = length(cpos)-1
-        for p in start:n
-            foundA, foundB = seek_range(cells, cpos, p, A, B)
-            done = !foundA || !foundB
-            if done
-                # @info "Did find" (p, foundA, foundB)
-                # We reached the end of our range.
-                return (p, foundA, foundB)
-            end
-        end
-        # @info "Did not find" (n+1, false, false)
-        return (n+1, false, false)
-    end
-
-    node_buf = zeros(Int, 10)
-    for (cols, pillars) in column_neighbors
-        lineA, colA, current_cellA = initialize_cpair(pillars, cols, 1)
-        lineB, colB, current_cellB = initialize_cpair(pillars, cols, 2)
-        ptrA = ptrB = 1
-        colposA = colposB = 2
-        # @info "?!" colA lineA
-
-        nA = length(lineA.z)
-        nB = length(lineB.z)
-        it = 1
-        # @warn "Starting" current_cellA current_cellB nA nB
-        # for i in 1:nA
-        #     p = lineA.cellpos
-        #     @error "Node $i:" lineA.cells[p[i]:(p[i+1]-1)]
-        # end
-        while ptrA < nA && ptrB < nB
-
-            # Both functions should get both cell pairs
-            next_ptrA, foundA1, foundB1 = seek_line(lineA, ptrA, current_cellA, current_cellB)
-            next_ptrB, foundA2, foundB2 = seek_line(lineB, ptrB, current_cellA, current_cellB)
-
-            @assert !(foundA1 && foundA2 && foundB1 && foundB2)
-            @assert foundA1 == foundA2
-            @assert foundB1 == foundB2
-            # @info "Found?" foundA1 foundB1 ptrA ptrB next_ptrA next_ptrB current_cellA current_cellB
-
-            # Insert new face
-            bndA = cell_is_boundary(current_cellA)
-            bndB = cell_is_boundary(current_cellB)
-            if !bndA || !bndB
-                Arange = ptrA:(next_ptrA-1)
-                Brange = ptrB:(next_ptrB-1)
-                resize!(node_buf, 0)
-                for i in Arange
-                    push!(node_buf, lineA.nodes[i])
+            top_is_boundary = cell_is_boundary(prev)
+            bottom_is_boundary = cell_is_boundary(next)
+            cell_bnds = map(l -> find_cell_bounds(cell, l), current_column_lines)
+            for is_top in (true, false)
+                # TODO: c1/c2 definition will have to be modified to pick the
+                # right normal vector, check this later.
+                if is_top
+                    if !top_is_boundary
+                        # Avoid adding interior faces twice.
+                        continue
+                    end
+                    is_bnd = top_is_boundary
+                    F = first
+                    c1 = prev
+                    c2 = cell
+                else
+                    is_bnd = bottom_is_boundary
+                    F = last
+                    c1 = cell
+                    c2 = next
                 end
-                for i in Iterators.reverse(Brange)
-                    push!(node_buf, lineB.nodes[i])
-                end
-                # @info "Inserting face" primitives.nodes[node_buf] Arange Brange
-                is_bnd = bndA || bndB
-                insert_face!(current_cellA, current_cellB, node_buf; is_boundary = is_bnd)
+                # Index into pillars
+                node_in_pillar_indices = map(F, cell_bnds)
+                # Then find the global node indices
+                node_indices = map((line, i) -> line.nodes[i], current_column_lines, node_in_pillar_indices)
+                insert_face!(c1, c2, node_indices, is_boundary = is_bnd)
             end
-
-            # @warn "Iteration $it:" zA zB
-            if !foundA1
-                colposA += 1
-                # @warn "Replacing A = $current_cellA with $next_cellA" colA.cells
-                current_cellA = colA.cells[min(colposA, length(colA.cells))]
-            end
-            if !foundB1
-                colposB += 1
-                # @warn "Replacing B = $current_cellB with $next_cellB" colA.cells
-                current_cellB = colB.cells[min(colposB, length(colB.cells))]
-            end
-            # ptrA:(next_ptrA-1) ptrB:(next_ptrB-1)
-            # @info "It $it" ptrA next_ptrA foundA1 current_cellA
-            # @info "It $it" ptrB next_ptrB foundB1 current_cellB
-
-            ptrA = next_ptrA-1
-            ptrB = next_ptrB-1
-            it += 1
         end
-
-        # error()
     end
-    # Treat boundary
-    for (col, pillars) in primitives.column_boundary
-        # lineA, lineB = pillars
-        lineA, colA, current_cell = initialize_cpair(pillars, (col, col), 1)
-        lineB, colB, current_cellB = initialize_cpair(pillars, (col, col), 2)
-        @assert current_cell == current_cellB
-        ptrA = ptrB = 1
-        colpos = 2
-        # @info "?!" colA lineA
-
-        nA = length(lineA.z)
-        nB = length(lineB.z)
-        it = 1
-        # @warn "Starting" current_cellA current_cellB nA nB
-        # for i in 1:nA
-        #     p = lineA.cellpos
-        #     @error "Node $i:" lineA.cells[p[i]:(p[i+1]-1)]
-        # end
-        while ptrA < nA && ptrB < nB
-            next_ptrA, foundA1, foundB1 = seek_line(lineA, ptrA, current_cell, current_cell)
-            next_ptrB, foundA2, foundB2 = seek_line(lineB, ptrB, current_cell, current_cell)
-
-            @assert !(foundA1 && foundA2 && foundB1 && foundB2)
-            @assert foundA1 == foundA2
-            @assert foundB1 == foundB2
-
-            if !cell_is_boundary(current_cell)
-                Arange = ptrA:(next_ptrA-1)
-                Brange = ptrB:(next_ptrB-1)
-                resize!(node_buf, 0)
-                for i in Arange
-                    push!(node_buf, lineA.nodes[i])
-                end
-                for i in Iterators.reverse(Brange)
-                    push!(node_buf, lineB.nodes[i])
-                end
-                insert_face!(current_cell, 0, node_buf; is_boundary = true)
-            end
-            if !foundA1
-                colpos = min(colpos+1, length(colA.cells))
-                current_cell = colA.cells[colpos]
-            end
-            ptrA = next_ptrA-1
-            ptrB = next_ptrB-1
-            it += 1
+    # primitives.column_boundary
+    for is_bnd in [true, false]
+        if is_bnd
+            col_neighbors = primitives.column_boundary
+        else
+            col_neighbors = primitives.column_neighbors
         end
+        for (cols, pillars) in col_neighbors
+            # Get the pair of lines we are processing
+            p1, p2 = pillars
+            l1 = lines[p1]
+            l2 = lines[p2]
+            if length(cols) == 1
+                a = b = only(cols)
+            else
+                a, b = cols
+            end
 
-        # error()
+            col_a = columns[a]
+            col_b = columns[b]
+
+            cell_pairs, overlaps = JutulDarcy.traverse_column_pair(col_a, col_b, l1, l2)
+            int_pairs, int_overlaps, bnd_pairs, bnd_overlaps = split_overlaps_into_interior_and_boundary(cell_pairs, overlaps)
+
+            F_interior = (l, r, node_indices) -> insert_face!(l, r, node_indices, is_boundary = false)
+            F_bnd = (l, r, node_indices) -> insert_face!(l, r, node_indices, is_boundary = true)
+
+            if is_bnd
+                # We are dealing with a boundary column, everything is boundary
+                add_vertical_cells_from_overlaps!(extra_node_lookup, F_bnd, nodes, int_pairs, int_overlaps, l1, l2)
+            else
+                add_vertical_cells_from_overlaps!(extra_node_lookup, F_interior, nodes, int_pairs, int_overlaps, l1, l2)
+                add_vertical_cells_from_overlaps!(extra_node_lookup, F_bnd, nodes, bnd_pairs, bnd_overlaps, l1, l2)
+            end
+        end
     end
-
 
     function convert_to_flat(v)
         flat_vals = Int[]
