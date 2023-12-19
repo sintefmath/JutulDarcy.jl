@@ -34,7 +34,7 @@ end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COMPDAT})
     d = "Default"
-    defaults = [d, -1, -1, -1, -1, "OPEN", -1, NaN, NaN, NaN, 0.0, -1, "Z", -1]
+    defaults = [d, -1, -1, -1, -1, "OPEN", -1, NaN, NaN, NaN, 0.0, -1.0, "Z", -1.0]
     wells = get_wells(outer_data)
     compdat = parse_defaulted_group_well(f, defaults, wells, 1)
     # Unit conversion
@@ -256,4 +256,10 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WINJGAS})
     wells = get_wells(outer_data)
     d = parse_defaulted_group_well(f, defaults, wells, 1)
     data["WINJGAS"] = d
+end
+
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WRFTPLT})
+    parser_message(cfg, outer_data, "WRFTPLT", PARSER_MISSING_SUPPORT)
+    skip_record(f)
 end
