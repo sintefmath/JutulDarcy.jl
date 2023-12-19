@@ -24,6 +24,25 @@ function reservoir_domain(g; permeability = convert_to_si(0.1, :darcy), porosity
     return DataDomain(g; permeability = permeability, porosity = porosity, kwarg...)
 end
 
+"""
+    reservoir_domain(m::Union{SimulationModel, MultiModel})
+
+Get reservoir domain embedded in model.
+"""
+function reservoir_domain(m::Union{SimulationModel, MultiModel})
+    d = reservoir_model(m).data_domain
+    return d::DataDomain
+end
+
+"""
+    reservoir_domain(case::JutulCase)
+
+Get reservoir domain from a reservoir simulation case.
+"""
+function reservoir_domain(case::JutulCase)
+    return reservoir_domain(case.model)
+end
+
 export setup_reservoir_model
 """
     setup_reservoir_model(reservoir, system; wells = [], <keyword arguments>)
