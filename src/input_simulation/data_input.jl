@@ -83,7 +83,7 @@ function parse_well_from_compdat(domain, wname, v, wspecs; simple_well = true)
         rd = nothing
     end
     W = setup_well(domain, wc, name = Symbol(wname), WI = WI, reference_depth = rd, simple_well = simple_well)
-    return (W, WI, open)
+    return (W, wc, WI, open)
 end
 
 function compdat_to_connection_factors(domain, v)
@@ -122,12 +122,20 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
     wells = []
     well_mul = []
     for (k, v) in pairs(completions[end])
-        W, WI, open = parse_well_from_compdat(domain, k, v, schedule["WELSPECS"][k]; simple_well = simple_well)
-        wi_mul = zeros(length(WI), ncomp)
+        W, wc_base, WI_base, open = parse_well_from_compdat(domain, k, v, schedule["WELSPECS"][k]; simple_well = simple_well)
+        wi_mul = zeros(length(WI_base), ncomp)
         for (i, c) in enumerate(completions)
             compdat = c[k]
-            _, WI, open = compdat_to_connection_factors(domain, compdat)
-            @. wi_mul[:, i] = (WI*open)/WI
+            wc, WI, open = compdat_to_connection_factors(domain, compdat)
+            for (c, wi, is_open) in zip(wc, WI, open)
+                compl_idx = findfirst(isequal(c), wc_base)
+                if isnothing(compl_idx)
+                    # This perforation is missing, leave at zero.
+                    continue
+                end
+                wi_mul[compl_idx, i] = wi*is_open/WI_base[compl_idx]
+            end
+            # @. wi_mul[:, i] = (WI*open)/WI_base
         end
         push!(wells, W)
         if all(isapprox(1.0), wi_mul)
