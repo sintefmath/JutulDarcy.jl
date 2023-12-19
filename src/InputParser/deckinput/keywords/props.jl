@@ -192,3 +192,14 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Union{Val{:RSCONST}, 
     data["RSCONST"] = parsed
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FILLEPS})
+    data["FILLEPS"] = true
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ROCKOPTS})
+    rec = read_record(f)
+    tdims = ["PRESSURE", "NOSTORE", "PVTNUM", "DEFLATION"]
+    parsed = parse_defaulted_line(rec, tdims)
+    parser_message(cfg, outer_data, "ROCKOPTS", PARSER_JUTULDARCY_MISSING_SUPPORT)
+    data["ROCKOPTS"] = parsed
+end

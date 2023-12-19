@@ -80,7 +80,7 @@ end
 function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:POELCOEF}, Val{:THELCOEF}, Val{:THERMEXR}, Val{:THCONR}})
     k = unpack_val(v)
     vals = parse_grid_vector(f, get_cartdims(outer_data), Float64)
-    @warn "Units not implemented for $k"
+    parser_message(cfg, outer_data, "$k", PARSER_PARTIAL_SUPPORT)
     data["$k"] = vals
 end
 
@@ -123,6 +123,13 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:SPECGRID})
     set_cartdims!(outer_data, data["SPECGRID"][1:3])
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PINCH})
+    rec = read_record(f)
+    tdims = [0.001, "GAP", Inf, "TOPBOT", "TOP"]
+    parser_message(cfg, outer_data, "PINCH", PARSER_JUTULDARCY_PARTIAL_SUPPORT)
+    data["PINCH"] = parse_defaulted_line(rec, tdims)
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FAULTS})
     read_record
     tdims = ["NAME", -1, -1, -1, -1, -1, -1, "XYZ_IJK"]
@@ -144,5 +151,24 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FAULTS})
             direction = parsed[8]
         )
     end
+end
+
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MULTFLT})
+    read_record
+    tdims = ["NAME", 1.0, 1.0]
+    faults = outer_data["GRID"]["FAULTS"]
+    out = []
+    while true
+        rec = read_record(f)
+        if length(rec) == 0
+            break
+        end
+        parsed = parse_defaulted_line(rec, tdims, required_num = length(tdims), keyword = "FAULTS")
+        name = parsed[1]
+        @assert haskey(faults, name) "Fault $name used in MULTFLT, but it is not in the list of declared faults: $(keys(faults))"
+        push!(out, parsed)
+    end
+    data["MULTFLT"] = out
 end
 
