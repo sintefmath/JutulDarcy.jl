@@ -382,6 +382,11 @@ function get_effective_actnum(g)
     else
         actnum = fill(true, prod(grid["cartDims"]))
     end
+    handle_zero_effective_porosity!(actnum, g)
+    return actnum
+end
+
+function handle_zero_effective_porosity!(actnum, g)
     if haskey(g, "PORO")
         # Have to handle zero or negligble porosity.
         if haskey(g, "NTG")
