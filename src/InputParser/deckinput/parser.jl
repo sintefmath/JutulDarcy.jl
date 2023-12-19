@@ -131,7 +131,14 @@ function parse_data_file!(outer_data, filename, data = outer_data;
             end
             parsed_keyword = false
             parser_message(cfg, outer_data, "$m", "Starting parse...")
-            t_p = @elapsed if m in allsections
+            t_p = @elapsed if m == :SKIP || m == :ENDSKIP
+                if m == :SKIP
+                    skip_mode = true
+                else
+                    @assert skip_mode
+                    skip_mode = false
+                end
+            elseif m in allsections
                 parser_message(cfg, outer_data, "$m", "Starting new section.")
                 data = new_section(outer_data, m)
                 skip_mode = m in skip

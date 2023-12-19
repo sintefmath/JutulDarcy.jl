@@ -20,8 +20,8 @@ end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WELSPECS})
     d = "Default"
-    defaults = [d,     d,  -1,  -1, NaN,   d,     0.0, "STD", "SHUT", "YES",   0, "SEG", 0,     d, d, "STD"]
-    utypes =   [:id, :id, :id, :id, :length, :id, :length,   :id,    :id,   :id, :id,   :id, :id, :id, :id, :id]
+    defaults = [d,     d,  -1,  -1, NaN,       d,     0.0, "STD", "SHUT", "YES",   0, "SEG",    0,  d,  d, "STD", 0]
+    utypes =   [:id, :id, :id, :id, :length, :id, :length,   :id,    :id,   :id, :id,   :id, :id, :id, :id, :id, :id]
     wspecs = parse_defaulted_group(f, defaults)
     wells = get_wells(outer_data)
     for ws in wspecs

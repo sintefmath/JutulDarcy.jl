@@ -84,7 +84,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:POELCOEF}
     data["$k"] = vals
 end
 
-function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:FIPNUM}, Val{:PVTNUM}, Val{:SATNUM}})
+function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:FIPNUM}, Val{:PVTNUM}, Val{:SATNUM}, Val{:EQLNUM}, Val{:ROCKNUM}})
     k = unpack_val(v)
     vals = parse_grid_vector(f, get_cartdims(outer_data), Int)
     data["$k"] = vals

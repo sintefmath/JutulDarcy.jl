@@ -78,6 +78,7 @@ function parse_defaulted_line(lines, defaults; required_num = 0, keyword = "")
     sizehint!(out, length(defaults))
     pos = 1
     for line in lines
+        line = replace_quotes(line)
         lsplit = split(strip(line), DECK_SPLIT_REGEX)
         for s in lsplit
             if length(s) == 0
@@ -101,6 +102,7 @@ function parse_defaulted_line(lines, defaults; required_num = 0, keyword = "")
                     T = typeof(default)
                     converted = Parsers.tryparse(T, s)
                     if isnothing(converted)
+                        @info s
                         converted = T.(Parsers.tryparse(Float64, s))
                     end
                 end
@@ -432,4 +434,25 @@ end
 function new_section(outer_data, name::Symbol)
     data = get_section(outer_data, name)
     return data
+end
+
+function replace_quotes(str::String)
+    if '\'' in str
+        v = collect(str)
+        in_quote = false
+        new_char = Char[]
+        for i in eachindex(v)
+            v_i = v[i]
+            if v_i == '\''
+                in_quote = !in_quote
+            elseif in_quote && v_i == ' '
+                # TODO: Is this a safe replacement?
+                push!(new_char, '-')
+            else
+                push!(new_char, v_i)
+            end
+        end
+        str = String(new_char)
+    end
+    return str
 end
