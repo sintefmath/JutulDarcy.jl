@@ -233,7 +233,6 @@ function parse_state0_direct_assignment(model, datafile)
     end
 
     nph = number_of_phases(sys)
-    sat = zeros(nph, nc)
     if is_blackoil
         rs = get_active("RS", to_zero = true)
         rv = get_active("RV", to_zero = true)
@@ -299,7 +298,18 @@ function parse_state0_direct_assignment(model, datafile)
             init[:OverallMoleFractions] = z
         end
     else
-        error("Not implemented yet.")
+        sat = zeros(nph, nc)
+        for (idx, phase) in enumerate(get_phases(sys))
+            if phase == AqueousPhase()
+                sat[idx, :] .= sw
+            elseif phase == LiquidPhase()
+                sat[idx, :] .= s_rem
+            else
+                @assert phase == VaporPhase()
+                sat[idx, :] .= sg
+            end
+        end
+        init[:Saturations] = sat
     end
     return init
 end
