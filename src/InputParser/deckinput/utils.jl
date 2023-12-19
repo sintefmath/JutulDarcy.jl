@@ -375,12 +375,22 @@ function table_region(outer_data, t::Symbol; active = nothing)
         D = ones(Int, prod(dim))
     else
         reg = outer_data["REGIONS"]
+
+        function get_or_default(k)
+            if haskey(reg, k)
+                return vec(reg[k])
+            else
+                dim = outer_data["GRID"]["cartDims"]
+                return ones(Int, prod(dim))
+            end
+        end
+    
         if t == :saturation
-            d = reg["SATNUM"]
+            d = get_or_default("SATNUM")
         elseif t == :pvt
-            d = reg["PVTNUM"]
+            d = get_or_default("PVTNUM")
         elseif t == :equil
-            d = reg["EQLNUM"]
+            d = get_or_default("EQLNUM")
         else
             error(":$t is not known")
         end
