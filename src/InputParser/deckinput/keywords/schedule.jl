@@ -149,6 +149,30 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WCONINJE})
     data["WCONINJE"] = out
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WCONINJH})
+    d = "Default"
+    defaults = [d, d, "OPEN", 0.0, 0.0, 0.0, 0, 0.0, 0.0, 0.0, 0.0, "RATE"]
+    wells = get_wells(outer_data)
+    out = parse_defaulted_group_well(f, defaults, wells, 1)
+    utypes = identity_unit_vector(defaults)
+    utypes[5] = :pressure
+    utypes[6] = :pressure
+    for o in out
+        w = get_well(outer_data, o[1])
+        if w.preferred_phase == "GAS"
+            utypes[4] = :gas_rate_surface
+            utypes[8] = :u_rv
+        else
+            utypes[4] = :liquid_rate_surface
+            if w.preferred_phase == "OIL"
+                utypes[8] = :u_rs
+            end
+        end
+        swap_unit_system_axes!(o, units, utypes)
+    end
+    data["WCONINJH"] = out
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Union{Val{:WELLTARG}, Val{:WELTARG}})
     defaults = ["Default", "ORAT", NaN]
     wells = get_wells(outer_data)
