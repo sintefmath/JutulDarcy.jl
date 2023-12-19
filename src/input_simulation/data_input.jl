@@ -610,7 +610,7 @@ function parse_control_steps(runspec, props, schedule, sys)
                             ctrl = ctrl_ix)
                     end
                 end
-            elseif key in ("WCONINJE", "WCONPROD", "WCONHIST", "WCONINJ")
+            elseif key in ("WCONINJE", "WCONPROD", "WCONHIST", "WCONINJ", "WCONINJH")
                 for wk in kword
                     name = wk[1]
                     controls[name], limits[name] = keyword_to_control(sys, streams, wk, key)
@@ -690,7 +690,17 @@ function keyword_to_control(sys, streams, kw, ::Val{:WCONHIST})
     rho_s = JutulDarcy.reference_densities(sys)
     phases = JutulDarcy.get_phases(sys)
     # 1 name
-    error("Not implemented yet.")
+    flag = kw[2]
+    ctrl = kw[3]
+    orat = kw[4]
+    wrat = kw[5]
+    grat = kw[6]
+    lrat = wrat + orat
+    # TODO: Pass thp on
+    thp = kw[9]
+    bhp = kw[10]
+
+    return producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp, is_hist = true)
 end
 
 function producer_limits(; bhp = Inf, lrat = Inf, orat = Inf, wrat = Inf, grat = Inf)
@@ -713,7 +723,7 @@ function producer_limits(; bhp = Inf, lrat = Inf, orat = Inf, wrat = Inf, grat =
     return NamedTuple(pairs(lims))
 end
 
-function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp)
+function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = false)
     rho_s = JutulDarcy.reference_densities(sys)
     phases = JutulDarcy.get_phases(sys)
 
@@ -732,6 +742,13 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp)
             t = SurfaceGasRateTarget(-grat)
         elseif ctrl == "BHP"
             t = BottomHolePressureTarget(bhp)
+        elseif ctrl == "RESV"
+            t = -(wrat + orat + grat)
+            if is_hist
+                ctrl = HistoricalReservoirVoidageTarget(t)
+            else
+                ctrl = ReservoirVoidageTarget(t)
+            end
         else
             error("$ctype control not supported")
         end
@@ -755,7 +772,7 @@ function injector_limits(; bhp = Inf, surface_rate = Inf, reservoir_rate = Inf)
     return NamedTuple(pairs(lims))
 end
 
-function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp)
+function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp; is_hist = false)
     if flag == "SHUT" || flag == "STOP"
         ctrl = DisabledControl()
         lims = nothing
@@ -835,6 +852,7 @@ function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, t
 end
 
 function keyword_to_control(sys, streams, kw, ::Val{:WCONINJE})
+    # TODO: Expand to handle mixture etc.
     name = kw[1]
     type = kw[2]
     flag = kw[3]
@@ -843,4 +861,16 @@ function keyword_to_control(sys, streams, kw, ::Val{:WCONINJE})
     res_rate = kw[6]
     bhp = kw[7]
     return injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp)
+end
+
+function keyword_to_control(sys, streams, kw, ::Val{:WCONINJH})
+    name = kw[1]
+    type = kw[2]
+    flag = kw[3]
+    surf_rate = kw[4]
+    bhp = kw[5]
+    ctype = kw[12]
+    # TODO: Expand to handle mixture etc.
+    res_rate = Inf
+    injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp, is_hist = true)
 end
