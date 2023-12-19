@@ -28,11 +28,6 @@ function get_line(coord, i, j, nx, ny)
     return (x1, x2)
 end
 
-# function interp_coord(line::Tuple, z)
-#     p0, p1 = line
-#     return interp_coord(p0, p1, z)
-# end
-
 function interp_coord(line::NamedTuple, z)
     if line.equal_points
         x = line.x1
@@ -72,102 +67,21 @@ function corner_index(cell, corner::NTuple, dims)
         cell = ijk_to_linear(i, j, k, cartdims)
     end
     nx, ny, nz = dims
-    # offset = 2*prod(dims)
-    # near/far, left/right, up/down
-    if true
-        i_is_upper, j_is_upper, k_is_upper = corner
+    i_is_upper, j_is_upper, k_is_upper = corner
 
-        j_is_upper, i_is_upper, k_is_upper = corner
-        cell_i_offset = 2*(i-1)
-        cell_j_offset = 4*nx*(j-1)
-        cell_k_offset = 8*nx*ny*(k-1)
-        # @info "big offsets" cell_i_offset cell_j_offset cell_k_offset
+    j_is_upper, i_is_upper, k_is_upper = corner
+    cell_i_offset = 2*(i-1)
+    cell_j_offset = 4*nx*(j-1)
+    cell_k_offset = 8*nx*ny*(k-1)
 
-        cell_offset = cell_i_offset + cell_j_offset + cell_k_offset
+    cell_offset = cell_i_offset + cell_j_offset + cell_k_offset
 
-        i_offset = i_is_upper+1
-        j_offset = j_is_upper*2*nx
-        k_offset = k_is_upper*4*nx*ny
-        # @info "small offsets" i_offset j_offset k_offset
+    i_offset = i_is_upper+1
+    j_offset = j_is_upper*2*nx
+    k_offset = k_is_upper*4*nx*ny
 
-        ijk = i_offset + j_offset + k_offset
-        return cell_offset + ijk
-
-        # x = i_offset + i_upper
-        # y = j_offset + j_upper*2*nx
-        # z = k_offset + k_upper*4*nx*ny
-        # return x + y + z
-        # return k*k_offset + j*j_offset + i_offset + 
-
-
-        # i_pos = i_offset + x + 1
-        # j_pos = 
-
-        # offset = i_offset + j_offset + k_offset
-
-        # return planar_offset + top_bottom_offset + y_offset + x_offset + minor
-    
-    end
-    error()
-    # if corner == (0, 0, 0)
-    #     major = 0
-    #     minor = 1
-    # elseif corner == (1, 0, 0)
-    #     major = 0
-    #     minor = 2
-    # elseif corner == (0, 1, 0)
-    #     major = 1
-    #     minor = 1
-    # elseif corner == (1, 1, 0)
-    #     major = 1
-    #     minor = 2
-    # elseif corner == (0, 0, 1)
-    #     major = 2
-    #     minor = 1
-    # elseif corner == (0, 1, 1)
-    #     major = 2
-    #     minor = 2
-    # elseif corner == (1, 0, 1)
-    #     major = 3
-    #     minor = 1
-    # elseif corner == (1, 1, 1)
-    #     major = 3
-    #     minor = 2
-    # else
-    #     error("Unsupported $corner_type")
-    # end
-    # if corner == (0, 0, 0)
-    #     major = 0
-    #     minor = 1
-    # elseif corner == (1, 0, 0)
-    #     major = 1
-    #     minor = 1
-    # elseif corner == (0, 1, 0)
-    #     major = 0
-    #     minor = 2
-    # elseif corner == (1, 1, 0)
-    #     major = 1
-    #     minor = 2
-    # elseif corner == (0, 0, 1)
-    #     major = 2
-    #     minor = 1
-    # elseif corner == (0, 1, 1)
-    #     major = 2
-    #     minor = 2
-    # elseif corner == (1, 0, 1)
-    #     major = 3
-    #     minor = 1
-    # elseif corner == (1, 1, 1)
-    #     major = 3
-    #     minor = 2
-    # else
-    #     error("Unsupported $corner_type")
-    # end
-    planar_offset = 8*nx*ny*(k-1)
-    top_bottom_offset = major*2*nx*ny
-    y_offset = 2*nx*(j-1)
-    x_offset = 2*(i-1)
-    return planar_offset + top_bottom_offset + y_offset + x_offset + minor
+    ijk = i_offset + j_offset + k_offset
+    return cell_offset + ijk
 end
 
 
@@ -276,23 +190,7 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
 
     # The four lines making up each column
     column_lines = Vector{NTuple{4, Int64}}()
-    # for i = 1:nx
-    #     for j = 1:ny
-    #         ll = linear_line_ix(i, j)
-    #         rl = linear_line_ix(i+1, j)
-    #         lr = linear_line_ix(i, j+1)
-    #         rr = linear_line_ix(i+1, j+1)
 
-    #         ll_act = lines_active[ll]
-    #         rl_act = lines_active[rl]
-    #         lr_act = lines_active[lr]
-    #         rr_act = lines_active[rr]
-
-    #         if ll_act && rl_act && lr_act && rr_act
-    #             push!(column_lines, (ll, rl, rr, lr))
-    #         end
-    #     end
-    # end
     # Tag columns as active or inactive
     active_columns = Matrix{Bool}(undef, nx, ny)
     for i in 1:nx
@@ -679,31 +577,4 @@ function grid_from_primitives(primitives)
         structure = CartesianIndex(cartdims[1], cartdims[2], cartdims[3]),
         cell_map = primitives.active
     )
-end
-
-function next_cell_line_ptr!(line_ptr, self_lines, next_cell)
-    for (i, line_i) in enumerate(self_lines)
-        cells_i = line_i.cells
-        ptr_i = line_ptr[i]
-        cellpos = line_i.cellpos
-        current_i = cellpos[ptr_i]
-        nc = length(cells_i)
-        while current_i <= nc && cells_i[current_i] != next_cell
-            current_i += 1
-        end
-        next_ptr = -1
-        for j in ptr_i:(length(cellpos)-1)
-            if current_i >= cellpos[j] && current_i < cellpos[j+1]
-                next_ptr = j
-                break
-            end
-        end
-        if next_ptr == -1
-            @info "?!" line_i cells_i next_cell
-            error("This should not occur.")
-        end
-        pos = cellpos[next_ptr]:(cellpos[next_ptr+1]-1)
-        @assert next_cell in cells_i[pos]
-        line_ptr[i] = next_ptr
-    end
 end
