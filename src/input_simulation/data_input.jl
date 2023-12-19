@@ -541,7 +541,7 @@ function parse_control_steps(runspec, props, schedule, sys)
     well_injection = Dict{String, Any}()
     for k in keys(wells)
         compdat[k] = OrderedDict{NTuple{3, Int}, Any}()
-        controls[k] = nothing
+        controls[k] = DisabledControl()
         limits[k] = nothing
         streams[k] = nothing
         well_injection[k] = nothing
@@ -880,5 +880,5 @@ function keyword_to_control(sys, streams, kw, ::Val{:WCONINJH})
     ctype = kw[12]
     # TODO: Expand to handle mixture etc.
     res_rate = Inf
-    injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp, is_hist = true)
+    return injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp, is_hist = true)
 end
