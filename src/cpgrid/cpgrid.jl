@@ -631,29 +631,26 @@ function handle_pinch!(actnum, zcorn, cartdims, pinch)
                 continue
             end
 
-            prev_is_active = false
             for k in 1:nz
                 if !pinched[k]
                     continue
                 end
+                actnum[i, j, k] = false
 
-                if k == 1
-                    prev_is_active = false
-                else
-                    prev_is_active = actnum[i, j, k-1]
-                end
-                if prev_is_active
+                if k > 1
                     prev_ix = ijk_to_linear(i, j, k-1, cartdims)
                     linear_ix = ijk_to_linear(i, j, k, cartdims)
                     # Could have a section of inactive cells, so look up just in case.
                     if haskey(remapped, prev_ix)
                         new_index = remapped[prev_ix]
                     else
+                        if !actnum[i, j, k-1]
+                            continue
+                        end
                         new_index = prev_ix
                     end
                     remapped[linear_ix] = prev_ix
                 end
-                actnum[i, j, k] = false
             end
         end
     end
