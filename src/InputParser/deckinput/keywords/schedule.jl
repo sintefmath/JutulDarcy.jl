@@ -287,3 +287,8 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WRFTPLT})
     parser_message(cfg, outer_data, "WRFTPLT", PARSER_MISSING_SUPPORT)
     skip_record(f)
 end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GRUPTREE})
+    parser_message(cfg, outer_data, "GRUPTREE", PARSER_MISSING_SUPPORT)
+    skip_record(f)
+end
