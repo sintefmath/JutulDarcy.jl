@@ -7,6 +7,8 @@ Base.@kwdef struct ParserVerbosityConfig
     verbose::Bool = true
     warn_feature::Bool = true
     warn_parsing::Bool = true
+    warn_limit::Int = 1
+    warn_count::Dict{String, Int} = Dict{String, Int}()
 end
 
 @enum PARSER_WARNING PARSER_MISSING_SUPPORT PARSER_JUTULDARCY_MISSING_SUPPORT PARSER_JUTULDARCY_PARTIAL_SUPPORT PARSER_PARTIAL_SUPPORT
@@ -50,7 +52,14 @@ function parser_message(cfg::ParserVerbosityConfig, outer_data, keyword, msg::PA
     if !ismissing(reason)
         text_msg = "$text_msg\n\n$reason"
     end
-    @warn "$(keyword_header(outer_data, keyword)): $text_msg"
+    if haskey(cfg.warn_count, keyword)
+        cfg.warn_count[keyword] += 1
+    else
+        cfg.warn_count[keyword] = 1
+    end
+    if cfg.warn_count[keyword] <= cfg.warn_limit
+        @warn "$(keyword_header(outer_data, keyword)): $text_msg"
+    end
 end
 
 """
