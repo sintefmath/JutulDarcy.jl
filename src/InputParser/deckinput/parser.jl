@@ -2,6 +2,57 @@ include("units.jl")
 include("utils.jl")
 include("keywords/keywords.jl")
 
+Base.@kwdef struct ParserVerbosityConfig
+    silent::Bool = false
+    verbose::Bool = true
+    warn_feature::Bool = true
+    warn_parsing::Bool = true
+end
+
+@enum PARSER_WARNING PARSER_MISSING_SUPPORT PARSER_JUTULDARCY_MISSING_SUPPORT PARSER_JUTULDARCY_PARTIAL_SUPPORT PARSER_PARTIAL_SUPPORT
+
+function keyword_header(current_data, keyword)
+    if haskey(current_data, "CURRENT_SECTION")
+        section = current_data["CURRENT_SECTION"]
+        out = "$section/$keyword"
+    else
+        out = "$keyword"
+    end
+    return out
+end
+
+function parser_message(cfg::ParserVerbosityConfig, outer_data, keyword, msg::String; important = false)
+    if !cfg.silent
+        if important || cfg.verbose
+            println("$(keyword_header(outer_data, keyword)): $msg")
+        end
+    end
+end
+
+function parser_message(cfg::ParserVerbosityConfig, outer_data, keyword, msg::PARSER_WARNING, reason = missing)
+    if cfg.silent
+        return
+    end
+    if msg == PARSER_MISSING_SUPPORT
+        text_msg = "Parser does not support keyword. It will be skipped."
+        do_print = cfg.warn_parsing
+    elseif msg == PARSER_JUTULDARCY_MISSING_SUPPORT
+        text_msg = "$keyword is not supported by JutulDarcy solvers. It will be ignored in simulations."
+        do_print = cfg.warn_feature
+    elseif msg == PARSER_JUTULDARCY_PARTIAL_SUPPORT
+        text_msg = "$keyword is only partially supported by JutulDarcy solvers."
+        do_print = cfg.warn_feature
+    else
+        @assert msg == PARSER_PARTIAL_SUPPORT
+        text_msg = "Parser has only partial support. $keyword may have missing or wrong entries."
+        do_print = cfg.warn_parsing
+    end
+    if !ismissing(reason)
+        text_msg = "$text_msg\n\n$reason"
+    end
+    @warn "$(keyword_header(outer_data, keyword)): $text_msg"
+end
+
 """
     parse_data_file(filename; unit = :si)
 
@@ -17,6 +68,7 @@ keywords that exist for various simulators.
 function parse_data_file(filename; kwarg...)
     outer_data = Dict{String, Any}()
     parse_data_file!(outer_data, filename; kwarg...)
+    delete!(outer_data, "CURRENT_SECTION")
     return outer_data
 end
 
@@ -26,6 +78,9 @@ function parse_data_file!(outer_data, filename, data = outer_data;
         sections = [:RUNSPEC, :GRID, :PROPS, :REGIONS, :SOLUTION, :SCHEDULE, :EDIT],
         skip = [:SUMMARY],
         units::Union{Symbol, Nothing} = :si,
+        warn_parsing = true,
+        warn_feature = true,
+        silent = false,
         input_units::Union{Symbol, Nothing} = nothing,
         unit_systems = missing
     )
@@ -49,15 +104,15 @@ function parse_data_file!(outer_data, filename, data = outer_data;
     end
     filename = realpath(filename)
     basedir = dirname(filename)
-    function msg(s, threshold = 1)
-        if verbose >= threshold
-            println("PARSER: $s")
-        end
-    end
-    msg("Starting parse of $filename...")
     f = open(filename, "r")
 
-    cfg = (warn = true, )
+    cfg = ParserVerbosityConfig(
+        verbose = verbose,
+        warn_parsing = warn_parsing,
+        warn_feature = warn_feature,
+        silent = silent
+    )
+    parser_message(cfg, outer_data, "PARSER", "Starting parse of $filename...")
     try
         allsections = vcat(sections, skip)
         while !eof(f)
@@ -65,9 +120,10 @@ function parse_data_file!(outer_data, filename, data = outer_data;
             if isnothing(m)
                 continue
             end
-            msg("Starting $m keyword...", 2)
+            parsed_keyword = false
+            parser_message(cfg, outer_data, "$m", "Starting parse...")
             t_p = @elapsed if m in allsections
-                msg("Starting section $m")
+                parser_message(cfg, outer_data, "$m", "Starting new section.")
                 data = new_section(outer_data, m)
                 skip_mode = m in skip
                 # Check if we have passed RUNSPEC so that units can be set
@@ -84,10 +140,13 @@ function parse_data_file!(outer_data, filename, data = outer_data;
                     readline(f)
                 end
                 include_path = clean_include_path(basedir, next)
-                msg("Including file $include_path...")
+                parser_message(cfg, outer_data, "$m", "Including file: $include_path")
                 parse_data_file!(
                     outer_data, include_path, data,
                     verbose = verbose,
+                    warn_parsing = warn_parsing,
+                    warn_feature = warn_feature,
+                    silent = silent,
                     sections = sections,
                     skip = skip,
                     skip_mode = skip_mode,
@@ -95,6 +154,7 @@ function parse_data_file!(outer_data, filename, data = outer_data;
                     unit_systems = unit_systems
                 )
             elseif m in (:DATES, :TIME, :TSTEP)
+                parsed_keyword = true
                 parse_keyword!(data, outer_data, unit_systems, cfg, f, Val(m))
                 # New control step starts after this
                 data = OrderedDict{String, Any}()
@@ -102,10 +162,15 @@ function parse_data_file!(outer_data, filename, data = outer_data;
             elseif m == :END
                 # All done!
                 break
-            elseif !skip_mode
+            elseif skip_mode
+                parser_message(cfg, outer_data, "$m", "Keyword skipped.")
+            else
                 parse_keyword!(data, outer_data, unit_systems, cfg, f, Val(m))
+                parsed_keyword = true
             end
-            msg("$m keyword parsed in $(t_p)s.", 2)
+            if parsed_keyword
+                parser_message(cfg, outer_data, "$m", "Keyword parsed in $(t_p)s.")
+            end
         end
     finally
         close(f)

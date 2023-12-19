@@ -103,9 +103,7 @@ end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ENDSCALE})
     rec = read_record(f)
-    if cfg.warn
-        @warn "ENDSCALE is not supported in JutulDarcy."
-    end
+    parser_message(cfg, outer_data, "ENDSCALE", PARSER_JUTULDARCY_MISSING_SUPPORT)
     tdims = ["NODIR", "REVERS", 1, 20, 0];
     data["ENDSCALE"] = parse_defaulted_line(rec, tdims)
 end

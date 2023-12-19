@@ -153,9 +153,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Union{Val{:WELLTARG},
     defaults = ["Default", "ORAT", NaN]
     wells = get_wells(outer_data)
     out = parse_defaulted_group_well(f, defaults, wells, 1)
-    if cfg.warn
-        @warn "WELLTARG not supported."
-    end
+    parser_message(cfg, outer_data, "WELTARG", PARSER_JUTULDARCY_MISSING_SUPPORT)
     data["WELTARG"] = out
 end
 
@@ -163,9 +161,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WEFAC})
     defaults = ["Default", 1.0]
     wells = get_wells(outer_data)
     d = parse_defaulted_group_well(f, defaults, wells, 1)
-    if cfg.warn
-        @warn "WEFAC not fully handled."
-    end
+    parser_message(cfg, outer_data, "WEFAC", PARSER_JUTULDARCY_PARTIAL_SUPPORT)
     data["WEFAC"] = d
 end
 
