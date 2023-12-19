@@ -10,12 +10,12 @@ end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COORDSYS})
     read_record(f)
-    @warn "COORDSYS skipped."
+    parser_message(cfg, outer_data, "COORDSYS", PARSER_MISSING_SUPPORT)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MULTPV})
     read_record(f)
-    @warn "MULTPV not supported, skipped."
+    parser_message(cfg, outer_data, "MULTPV", PARSER_MISSING_SUPPORT)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MAPUNITS})
@@ -35,7 +35,7 @@ end
 
 function partial_parse!(data, outer_data, units, cfg, f, k::Symbol)
     rec = read_record(f)
-    @warn "$k not properly handled."
+    parser_message(cfg, outer_data, "$k", PARSER_MISSING_SUPPORT)
     data["$k"] = rec
 end
 
@@ -121,5 +121,28 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:SPECGRID})
     tdims = [1, 1, 1, 1, "F"]
     data["SPECGRID"] = parse_defaulted_line(rec, tdims)
     set_cartdims!(outer_data, data["SPECGRID"][1:3])
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FAULTS})
+    read_record
+    tdims = ["NAME", -1, -1, -1, -1, -1, -1, "XYZ_IJK"]
+    if !haskey(data, "FAULTS")
+        data["FAULTS"] = Dict{String, Any}()
+    end
+    faults = data["FAULTS"]
+    while true
+        rec = read_record(f)
+        if length(rec) == 0
+            break
+        end
+        parsed = parse_defaulted_line(rec, tdims, required_num = length(tdims), keyword = "FAULTS")
+        name = parsed[1]
+        faults[name] = (
+            i = parsed[2]:parsed[3],
+            j = parsed[4]:parsed[5],
+            k = parsed[6]:parsed[7],
+            direction = parsed[8]
+        )
+    end
 end
 

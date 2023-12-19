@@ -69,11 +69,11 @@ function parse_defaulted_group(f, defaults)
     return out
 end
 
-function parse_defaulted_line(lines::String, defaults)
-    return parse_defaulted_line([lines], defaults)
+function parse_defaulted_line(lines::String, defaults; kwarg...)
+    return parse_defaulted_line([lines], defaults; kwarg...)
 end
 
-function parse_defaulted_line(lines, defaults)
+function parse_defaulted_line(lines, defaults; required_num = 0, keyword = "")
     out = similar(defaults, 0)
     sizehint!(out, length(defaults))
     pos = 1
@@ -110,7 +110,11 @@ function parse_defaulted_line(lines, defaults)
         end
     end
     n = length(defaults)
-    pos = length(out)+1
+    n_out = length(out)
+    if required_num > n
+        error("Bad record: $required_num entries required for keyword $keyword, but only $n records were present.")
+    end
+    pos = n_out + 1
     if pos < n + 1
         for i in pos:n
             push!(out, defaults[i])
