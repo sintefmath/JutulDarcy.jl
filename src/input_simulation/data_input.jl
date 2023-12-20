@@ -568,7 +568,7 @@ function parse_control_steps(runspec, props, schedule, sys)
     if haskey(runspec, "START")
         start_date = runspec["START"]
     else
-        start_date = missing
+        start_date = DateTime("1983-01-01")
     end
     current_time = 0.0
     function add_dt!(dt, ctrl_ix)
