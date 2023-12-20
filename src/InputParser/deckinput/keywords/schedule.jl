@@ -195,6 +195,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WPIMULT})
 
     defaults = ["Default", 1.0, -1, -1, -1, -1, -1, -1]
     wells = get_wells(outer_data)
+    parsed = parse_defaulted_group_well(f, defaults, wells, 1)
     push_and_create!(data, "WPIMULT", parsed)
 end
 
