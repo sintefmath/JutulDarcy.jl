@@ -207,11 +207,14 @@ end
 end
 
 function two_phase_pre!(S, P, T, Z, x::AbstractVector{AD}, y::AbstractVector{AD}, vapor_frac, eos, c) where {AD <: ForwardDiff.Dual}
-    inverse_flash_update!(S, eos, c, vapor_frac)
-    ∂c = (p = P, T = T, z = Z)
-    V = set_partials_vapor_fraction(convert(AD, vapor_frac), S, eos, ∂c)
-    set_partials_phase_mole_fractions!(x, S, eos, ∂c, :liquid)
-    set_partials_phase_mole_fractions!(y, S, eos, ∂c, :vapor)
+    V = convert(AD, vapor_frac)
+    if P isa AD || T isa AD || eltype(Z)<:AD
+        inverse_flash_update!(S, eos, c, vapor_frac)
+        ∂c = (p = P, T = T, z = Z)
+        V = set_partials_vapor_fraction(V, S, eos, ∂c)
+        set_partials_phase_mole_fractions!(x, S, eos, ∂c, :liquid)
+        set_partials_phase_mole_fractions!(y, S, eos, ∂c, :vapor)
+    end
     return V
 end
 
@@ -219,7 +222,7 @@ two_phase_pre!(S, P, T, Z, x, y, V, eos, c) = V
 
 
 @inline function two_phase_update!(S, P, T, Z, x, y, K, vapor_frac, forces, eos, c)
-    AD = Base.promote_type(typeof(P), eltype(Z), typeof(T))
+    AD = Base.promote_type(typeof(P), eltype(Z), typeof(T), eltype(x), eltype(y))
     @. x = liquid_mole_fraction(Z, K, vapor_frac)
     @. y = vapor_mole_fraction(x, K)
     V = two_phase_pre!(S, P, T, Z, x, y, vapor_frac, eos, c)
@@ -227,5 +230,5 @@ two_phase_pre!(S, P, T, Z, x, y, V, eos, c) = V
     Z_V = get_compressibility_factor(forces, eos, P, T, y, :vapor)
     phase_state = MultiComponentFlash.two_phase_lv
 
-    return (Z_L::AD, Z_V::AD, V::AD, phase_state)
+    return (convert(AD, Z_L), convert(AD, Z_V), convert(AD, V), phase_state)
 end
