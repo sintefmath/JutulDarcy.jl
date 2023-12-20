@@ -456,3 +456,15 @@ function replace_quotes(str::String)
     end
     return str
 end
+
+function push_and_create!(data, k, vals, T = Any)
+    if !haskey(data, k)
+        data[k] = T[]
+    end
+    out = data[k]
+    for v in vals
+        v::T
+        push!(out, v)
+    end
+    return data
+end

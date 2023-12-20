@@ -182,25 +182,20 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Union{Val{:WELLTARG},
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WEFAC})
+    parser_message(cfg, outer_data, "WEFAC", PARSER_JUTULDARCY_PARTIAL_SUPPORT)
+
     defaults = ["Default", 1.0]
     wells = get_wells(outer_data)
-    d = parse_defaulted_group_well(f, defaults, wells, 1)
-    parser_message(cfg, outer_data, "WEFAC", PARSER_JUTULDARCY_PARTIAL_SUPPORT)
-    data["WEFAC"] = d
+    parsed = parse_defaulted_group_well(f, defaults, wells, 1)
+    push_and_create!(data, "WEFAC", parsed)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WPIMULT})
+    parser_message(cfg, outer_data, "WPIMULT", PARSER_JUTULDARCY_MISSING_SUPPORT)
+
     defaults = ["Default", 1.0, -1, -1, -1, -1, -1, -1]
     wells = get_wells(outer_data)
-    parser_message(cfg, outer_data, "WPIMULT", PARSER_JUTULDARCY_MISSING_SUPPORT)
-    if !haskey(data, "WPIMULT")
-        data["WPIMULT"] = []
-    end
-    out = data["WPIMULT"]
-    for o in parse_defaulted_group_well(f, defaults, wells, 1)
-        push!(out, o)
-    end
-    return data
+    push_and_create!(data, "WPIMULT", parsed)
 end
 
 function convert_date_kw(t)
