@@ -171,6 +171,23 @@ function filter_inactive_completions!(completions_vector, g)
             end
         end
     end
+    
+    bad_wells = String[]
+    for (well, completion_set) in pairs(completions_vector[end])
+        if length(keys(completion_set)) == 0
+            for c in completions_vector
+                @assert length(keys(c[well])) == 0
+            end
+            push!(bad_wells, well)
+        end
+    end
+    if length(bad_wells) > 0
+        for well in bad_wells
+            println("$well has no completions in active cells.")
+        end
+        error("Fatal error.")
+    end
+    return completions_vector
 end
 
 
@@ -421,7 +438,7 @@ function handle_zero_effective_porosity!(actnum, g)
     added = 0
     active = 0
 
-    @time if haskey(g, "PORV")
+    if haskey(g, "PORV")
         porv = G["PORV"]
         for i in eachindex(actnum)
             if actnum[i]
