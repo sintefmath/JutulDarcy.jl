@@ -93,7 +93,7 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing, pinch = mis
         actnum = Array{Bool, 3}(undef, nx, ny, nz)
         @. actnum = true
     end
-    actnum, pinch_map = handle_pinch!(actnum, zcorn, cartdims, pinch)
+    # actnum, pinch_map = handle_pinch!(actnum, zcorn, cartdims, pinch)
     # remapped_indices = findall(vec(actnum))
     nactive = sum(vec(actnum))
     remapped_indices = Vector{Int}(undef, nx*ny*nz)
@@ -132,8 +132,8 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing, pinch = mis
         ix = ijk_to_linear(i, j, k, cartdims)
         if actnum[i, j, k]
             cell = remapped_indices[ix]
-        elseif haskey(pinch_map, ix)
-            cell = remapped_indices[pinch_map[ix]]
+        # elseif haskey(pinch_map, ix)
+        #     cell = remapped_indices[pinch_map[ix]]
         else
             cell = -ix
             @assert cell <= 0
@@ -654,6 +654,5 @@ function handle_pinch!(actnum, zcorn, cartdims, pinch)
             end
         end
     end
-    # @info "Done" pinch_count
     return (actnum, remapped)
 end
