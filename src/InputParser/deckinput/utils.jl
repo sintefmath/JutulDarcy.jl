@@ -8,7 +8,12 @@ function read_record(f; fix = true)
     split_lines = Vector{String}()
     active = true
     while !eof(f) && active
-        line = strip(readline(f))
+        line = readline(f)
+        cpos = findfirst("--", line)
+        if !isnothing(cpos)
+            line = line[1:(first(cpos)-1)]
+        end
+        line = strip(line)
         if !startswith(line, "--")
             if endswith(line, '/')
                 line = strip(rstrip(line, '/'))

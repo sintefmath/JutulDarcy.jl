@@ -568,7 +568,7 @@ function parse_control_steps(runspec, props, schedule, sys)
     if haskey(runspec, "START")
         start_date = runspec["START"]
     else
-        start_date = DateTime("1983-01-01")
+        start_date = missing
     end
     current_time = 0.0
     function add_dt!(dt, ctrl_ix)
@@ -583,7 +583,10 @@ function parse_control_steps(runspec, props, schedule, sys)
         streams = parse_well_streams_for_step(step, props)
         for (key, kword) in pairs(step)
             if key == "DATES"
-                @assert !ismissing(start_date)
+                if ismissing(start_date)
+                    @warn "Defaulted date in parsed data and DATES is used. Setting start date to Jan 1. 1983."
+                    start_date = DateTime("1983-01-01")
+                end
                 @assert !found_time
                 found_time = true
                 for date in kword
@@ -643,7 +646,7 @@ function parse_control_steps(runspec, props, schedule, sys)
             elseif key in skip
                 # Already handled
             else
-                error("Unhandled keyword $key")
+                @warn "Unhandled well keyword $key"
             end
         end
         push!(all_compdat, deepcopy(compdat))

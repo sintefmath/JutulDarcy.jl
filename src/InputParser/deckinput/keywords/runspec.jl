@@ -8,7 +8,8 @@ end
 
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MESSAGES})
-    read_record(f)
+    parser_message(cfg, outer_data, "MESSAGES", PARSER_MISSING_SUPPORT)
+    rec = read_record(f)
     # TODO: Process the record.
 end
 
