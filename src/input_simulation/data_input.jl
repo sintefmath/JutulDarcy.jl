@@ -117,7 +117,10 @@ function compdat_to_connection_factors(domain, v)
 end
 
 function parse_schedule(domain, runspec, props, schedule, sys; simple_well = true)
+    G = physical_representation(domain)
+
     dt, cstep, controls, completions, limits = parse_control_steps(runspec, props, schedule, sys)
+    filter_inactive_completions!(completions, G)
     ncomp = length(completions)
     wells = []
     well_mul = []
@@ -145,6 +148,29 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
         end
     end
     return (wells, controls, limits, cstep, dt, well_mul)
+end
+
+function filter_inactive_completions!(completions_vector, g)
+    tuple_active = Dict{Tuple{String, NTuple{3, Int}}, Bool}()
+    for completions in completions_vector
+        for (well, completion_set) in pairs(completions)
+            for tupl in keys(completion_set)
+                k = (well, tupl)
+                if !haskey(tuple_active, k)
+                    ix = cell_index(g, tupl, throw = false)
+                    if isnothing(ix)
+                        @warn "Well $k completion $tupl was declared using COMPDAT, but that cell is not active in model. Skipped."
+                        tuple_active[k] = false
+                    else
+                        tuple_active[k] = true
+                    end
+                end
+                if !tuple_active[k]
+                    delete!(completion_set, tupl)
+                end
+            end
+        end
+    end
 end
 
 
