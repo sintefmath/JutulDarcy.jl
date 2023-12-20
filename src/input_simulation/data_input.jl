@@ -424,8 +424,8 @@ function handle_zero_effective_porosity!(actnum, g)
     @time if haskey(g, "PORV")
         porv = G["PORV"]
         for i in eachindex(actnum)
-            pv = porv[i]
             if actnum[i]
+                pv = porv[i]
                 active += active
                 if pv < minpv
                     added += 1
@@ -451,7 +451,7 @@ function handle_zero_effective_porosity!(actnum, g)
         for i in eachindex(actnum)
             if actnum[i]
                 vol = zcorn_volume(g, zcorn, coord, cartdims, i)
-                pv = poro[i]*ntg[i]*vol    
+                pv = poro[i]*ntg[i]*vol
                 active += active
                 if pv < minpv
                     added += 1
