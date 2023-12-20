@@ -603,7 +603,6 @@ function handle_pinch!(actnum, zcorn, cartdims, pinch)
                 active = actnum[i, j, k]
                 if active
                     get_zcorn(I1, I2, I3) = zcorn[corner_index(linear_ix, (I1, I2, I3), cartdims)]
-
                     get_pair(I, J) = (get_zcorn(I, J, 0), get_zcorn(I, J, 1))
 
                     # Check if cross part is small
