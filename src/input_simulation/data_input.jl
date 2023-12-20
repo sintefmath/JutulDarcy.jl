@@ -159,7 +159,7 @@ function filter_inactive_completions!(completions_vector, g)
                 if !haskey(tuple_active, k)
                     ix = cell_index(g, tupl, throw = false)
                     if isnothing(ix)
-                        @warn "Well $k completion $tupl was declared using COMPDAT, but that cell is not active in model. Skipped."
+                        @warn "Well $well completion $tupl was declared using COMPDAT, but that cell is not active in model. Skipped."
                         tuple_active[k] = false
                     else
                         tuple_active[k] = true
