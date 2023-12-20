@@ -27,7 +27,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WELSPECS})
     for ws in wspecs
         swap_unit_system_axes!(ws, units, utypes)
         name, well = welspecs_to_well(ws)
-        @assert !haskey(wells, name) "Well $name is already defined."
+        # @assert !haskey(wells, name) "Well $name is already defined."
         wells[name] = well
     end
 end
@@ -187,6 +187,20 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WEFAC})
     d = parse_defaulted_group_well(f, defaults, wells, 1)
     parser_message(cfg, outer_data, "WEFAC", PARSER_JUTULDARCY_PARTIAL_SUPPORT)
     data["WEFAC"] = d
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WPIMULT})
+    defaults = ["Default", 1.0, -1, -1, -1, -1, -1, -1]
+    wells = get_wells(outer_data)
+    parser_message(cfg, outer_data, "WPIMULT", PARSER_JUTULDARCY_MISSING_SUPPORT)
+    if !haskey(data, "WPIMULT")
+        data["WPIMULT"] = []
+    end
+    out = data["WPIMULT"]
+    for o in parse_defaulted_group_well(f, defaults, wells, 1)
+        push!(out, o)
+    end
+    return data
 end
 
 function convert_date_kw(t)
