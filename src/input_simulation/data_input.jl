@@ -120,7 +120,8 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
     G = physical_representation(domain)
 
     dt, cstep, controls, completions, limits = parse_control_steps(runspec, props, schedule, sys)
-    filter_inactive_completions!(completions, G)
+    bad_wells = filter_inactive_completions!(completions, G)
+    handle_wells_without_active_perforations!(bad_wells, completions, controls, limits)
     ncomp = length(completions)
     wells = []
     well_mul = []
@@ -171,7 +172,6 @@ function filter_inactive_completions!(completions_vector, g)
             end
         end
     end
-    
     bad_wells = String[]
     for (well, completion_set) in pairs(completions_vector[end])
         if length(keys(completion_set)) == 0
@@ -181,15 +181,20 @@ function filter_inactive_completions!(completions_vector, g)
             push!(bad_wells, well)
         end
     end
-    if length(bad_wells) > 0
-        for well in bad_wells
-            println("$well has no completions in active cells.")
-        end
-        error("Fatal error.")
-    end
-    return completions_vector
+    return (completions_vector, bad_wells)
 end
 
+function handle_wells_without_active_perforations!(bad_wells, completions, controls, limits)
+    if length(bad_wells) > 0
+        # @info "" typeof(completions) typeof(controls) typeof(limits)
+        for well in bad_wells
+            println("$well has no completions in active cells. Well will be not be present in model or simulation results.")
+
+        end
+
+        error("Fatal error.")
+    end
+end
 
 function parse_forces(model, wells, controls, limits, cstep, dt, well_mul)
     forces = []
@@ -495,19 +500,25 @@ function zcorn_volume(g, zcorn, coord, dims, linear_ix)
         return (x1 = x1, x2 = x2, equal_points = false)
     end
 
+    function interpolate_line(I, J, L)
+        pl = pillar_line(I, J)
+        return interp_coord(pl, L)
+    end
+
     l_11, t_11 = get_pair(0, 0)
     l_12, t_12 = get_pair(0, 1)
     l_21, t_21 = get_pair(1, 0)
     l_22, t_22 = get_pair(1, 1)
 
-    pt_11 = interp_coord(pillar_line(0, 0), l_11)
-    pt_12 = interp_coord(pillar_line(0, 1), l_12)
-    pt_21 = interp_coord(pillar_line(1, 0), l_21)
-    pt_22 = interp_coord(pillar_line(1, 1), l_22)
+    pt_11 = interpolate_line(0, 0, l_11)
+    pt_12 = interpolate_line(0, 1, l_12)
+    pt_21 = interpolate_line(1, 0, l_21)
+    pt_22 = interpolate_line(1, 1, l_22)
 
-    A_1 = cross(pt_21 - pt_11, pt_12 - pt_11)
-    A_2 = cross(pt_21 - pt_22, pt_12 - pt_22)
-    area = norm(A_1 + A_2, 2)/2.0
+
+    A_1 = norm(cross(pt_21 - pt_11, pt_12 - pt_11), 2)
+    A_2 = norm(cross(pt_21 - pt_22, pt_12 - pt_22), 2)
+    area = (A_1 + A_2)/2.0
 
     d_11 = t_11 - l_11
     d_12 = t_12 - l_12
@@ -515,7 +526,6 @@ function zcorn_volume(g, zcorn, coord, dims, linear_ix)
     d_22 = t_22 - l_22
 
     d_avg = 0.25*(d_11 + d_12 + d_21 + d_22)
-
     return d_avg*area
 end
 
