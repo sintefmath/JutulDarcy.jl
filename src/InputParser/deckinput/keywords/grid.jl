@@ -16,7 +16,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Union{Val{:MINPVV}, V
     tdims = [1e-6];
     rec = parse_defaulted_line(rec, tdims)
     zcorn = swap_unit_system!(rec, units, :volume)
-    data["MINPV"] = rec
+    data["MINPV"] = only(rec)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:INIT})
