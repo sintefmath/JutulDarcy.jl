@@ -1,5 +1,8 @@
-function finish_current_section!(data, cfg, outer_data, ::Val{:GRID})
-    
+function finish_current_section!(data, units, cfg, outer_data, ::Val{:GRID})
+    if !haskey(data, "MINPV")
+        io = IOBuffer("1e-6\n/\n")
+        parse_keyword!(data, outer_data, units, cfg, io, Val(:MINPV))
+    end
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GRIDFILE})

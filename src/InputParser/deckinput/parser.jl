@@ -139,16 +139,16 @@ function parse_data_file!(outer_data, filename, data = outer_data;
                     skip_mode = false
                 end
             elseif m in allsections
-                finish_current_section!(data, cfg, outer_data)
-                parser_message(cfg, outer_data, "$m", "Starting new section.")
-                data = new_section(outer_data, m)
-                skip_mode = m in skip
                 # Check if we have passed RUNSPEC so that units can be set
                 runspec_passed = m != :RUNSPEC && haskey(outer_data, "RUNSPEC")
                 unit_system_not_initialized = ismissing(unit_systems)
                 if runspec_passed && unit_system_not_initialized
                     unit_systems = get_unit_system_pair(current_unit_system(outer_data), units)
                 end
+                finish_current_section!(data, unit_systems, cfg, outer_data)
+                parser_message(cfg, outer_data, "$m", "Starting new section.")
+                data = new_section(outer_data, m)
+                skip_mode = m in skip
             elseif m == :INCLUDE
                 next = strip(readline(f))
                 if endswith(next, '/')
@@ -209,10 +209,10 @@ function parse_grdecl_file(filename; actnum_path = missing, kwarg...)
     return data
 end
 
-function finish_current_section!(data, cfg, outer_data)
+function finish_current_section!(data, units, cfg, outer_data)
     if haskey(outer_data, "CURRENT_SECTION")
         v = outer_data["CURRENT_SECTION"]
         v::Symbol
-        finish_current_section!(data, cfg, outer_data, Val(v))
+        finish_current_section!(data, units, cfg, outer_data, Val(v))
     end
 end
