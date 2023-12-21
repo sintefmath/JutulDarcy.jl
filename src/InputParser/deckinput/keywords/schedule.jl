@@ -1,3 +1,7 @@
+function finish_current_section!(data, cfg, outer_data, ::Val{:SCHEDULE})
+    
+end
+
 function welspecs_to_well(ws)
     name = ws[1]::AbstractString
     # TODO: Parse more fields.

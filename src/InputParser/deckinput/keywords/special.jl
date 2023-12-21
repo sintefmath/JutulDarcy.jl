@@ -1,3 +1,6 @@
+function finish_current_section!(data, cfg, outer_data, ::Val{:EDIT})
+    
+end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COPY})
     rec = read_record(f)

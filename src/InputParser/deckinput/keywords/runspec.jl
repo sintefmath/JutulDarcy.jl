@@ -1,3 +1,7 @@
+function finish_current_section!(data, cfg, outer_data, ::Val{:RUNSPEC})
+    
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:NOECHO})
     # Do nothing
 end

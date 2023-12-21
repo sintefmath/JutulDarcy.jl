@@ -1,3 +1,7 @@
+function finish_current_section!(data, cfg, outer_data, ::Val{:GRID})
+    
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GRIDFILE})
     rec = read_record(f)
     tdims = [0, 1];

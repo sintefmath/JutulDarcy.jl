@@ -1,3 +1,6 @@
+function finish_current_section!(data, cfg, outer_data, ::Val{:PROPS})
+    
+end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:RPTPROPS})
     read_record(f)

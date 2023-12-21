@@ -139,6 +139,7 @@ function parse_data_file!(outer_data, filename, data = outer_data;
                     skip_mode = false
                 end
             elseif m in allsections
+                finish_current_section!(data, cfg, outer_data)
                 parser_message(cfg, outer_data, "$m", "Starting new section.")
                 data = new_section(outer_data, m)
                 skip_mode = m in skip
@@ -206,4 +207,12 @@ function parse_grdecl_file(filename; actnum_path = missing, kwarg...)
     end
     delete!(data, "CURRENT_BOX")
     return data
+end
+
+function finish_current_section!(data, cfg, outer_data)
+    if haskey(outer_data, "CURRENT_SECTION")
+        v = outer_data["CURRENT_SECTION"]
+        v::Symbol
+        finish_current_section!(data, cfg, outer_data, Val(v))
+    end
 end

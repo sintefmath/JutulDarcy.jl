@@ -1,3 +1,7 @@
+function finish_current_section!(data, cfg, outer_data, ::Val{:SOLUTION})
+    
+end
+
 # Utilities
 
 function get_cartdims(outer_data)
