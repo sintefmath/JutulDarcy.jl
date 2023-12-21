@@ -49,18 +49,23 @@ function select_default_darcy_parameters!(prm, domain, system::SinglePhaseSystem
 end
 
 function select_default_darcy_parameters!(prm, domain, system::ImmiscibleSystem, formulation)
+    add_connate_water_if_aqueous_present!(prm, domain, system)
+    prm[:PhaseViscosities] = PhaseViscosities()
+    prm[:FluidVolume] = FluidVolume()
+end
+
+function select_default_darcy_parameters!(prm, domain, system::MultiPhaseSystem, formulation)
+    add_connate_water_if_aqueous_present!(prm, domain, system)
+    prm[:FluidVolume] = FluidVolume()
+end
+
+function add_connate_water_if_aqueous_present!(prm, domain, system)
     is_well = physical_representation(domain) isa WellDomain
     if !is_well
         if AqueousPhase() in get_phases(system)
             prm[:ConnateWater] = ConnateWater()
         end
     end
-    prm[:PhaseViscosities] = PhaseViscosities()
-    prm[:FluidVolume] = FluidVolume()
-end
-
-function select_default_darcy_parameters!(prm, domain, system::MultiPhaseSystem, formulation)
-    prm[:FluidVolume] = FluidVolume()
 end
 
 function select_minimum_output_variables!(out, system::MultiPhaseSystem, model)

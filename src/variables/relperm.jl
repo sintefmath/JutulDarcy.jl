@@ -305,11 +305,11 @@ end
     return kr
 end
 
-@jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeability{NoKrScale, :wog}, model, Saturations, ix)
+@jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeability{NoKrScale, :wog}, model, Saturations, ConnateWater, ix)
     s = Saturations
     phases = phase_indices(model.system)
     for c in ix
-        @inbounds update_three_phase_relperm!(kr, relperm, phases, s, c, nothing)
+        @inbounds update_three_phase_relperm!(kr, relperm, phases, s, c, ConnateWater[c], nothing)
     end
     return kr
 end

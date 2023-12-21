@@ -140,7 +140,6 @@ function Jutul.default_values(model, ::ConnateWater)
             kr_i = JutulDarcy.table_by_region(kr, reg)
             swcon[i] = kr_i.connate
         end
-        @info "???" swcon
     end
     return swcon
 end
