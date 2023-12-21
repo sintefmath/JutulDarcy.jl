@@ -80,8 +80,12 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_f, contacts_pc)
     s, pc = determine_saturations(depths, contacts, pressures; kwarg...)
 
-    kr = similar(s)
-    JutulDarcy.update_kr!(kr, relperm, model, s, cells)
+    nc_total = number_of_cells(model.domain)
+    kr = zeros(nph, nc_total)
+    s_eval = zeros(nph, nc_total)
+    s_eval[:, cells] .= s
+    JutulDarcy.update_kr!(kr, relperm, model, s_eval, cells)
+    kr = kr[:, cells]
 
     init[:Saturations] = s
     init[:Pressure] = init_reference_pressure(pressures, contacts, kr, pc, 2)
@@ -110,6 +114,10 @@ function parse_state0_equil(model, datafile)
     for ereg in 1:nequil
         eq = equil[ereg]
         cells = findall(isequal(ereg), model.data_domain[:eqlnum])
+
+        if length(cells) == 0
+            continue
+        end
         datum_depth = eq[1]
         datum_pressure = eq[2]
 
@@ -187,7 +195,15 @@ function parse_state0_equil(model, datafile)
             rs = missing
         end
 
-        subinit = equilibriate_state(model, contacts, datum_depth, datum_pressure, cells = cells, contacts_pc = contacts_pc, s_min = s_min, s_max = s_max, rs = rs, pc = pc)
+        subinit = equilibriate_state(
+                model, contacts, datum_depth, datum_pressure,
+                cells = cells,
+                contacts_pc = contacts_pc,
+                s_min = s_min,
+                s_max = s_max,
+                rs = rs,
+                pc = pc
+            )
         push!(inits, subinit)
     end
     # TODO: Handle multiple regions by merging each init
@@ -201,7 +217,7 @@ function init_reference_pressure(pressures, contacts, kr, pc, ref_ix = 2)
     for i in eachindex(p)
         p[i] = pressures[ref_ix, i]
         kr_ref = kr[ref_ix, i]
-        @assert kr_ref >= -ϵ
+        @assert kr_ref >= -ϵ "Evaluated rel. perm. was $kr_ref for phase reference phase (index $ref_ix)."
         if kr[ref_ix, i] <= ϵ
             for ph in 1:nph
                 if kr[ph, i] > ϵ
@@ -305,8 +321,8 @@ function determine_saturations(depths, contacts, pressures; s_min = missing, s_m
                 pc_max = maximum(pc_pair)
                 pc_min = minimum(pc_pair)
 
-                I = Jutul.LinearInterpolant(pc_pair, s)
-                I_pc = Jutul.LinearInterpolant(s, pc_pair)
+                I = get_1d_interpolator(pc_pair, s)
+                I_pc = get_1d_interpolator(s, pc_pair)
                 for i in eachindex(depths)
                     z = depths[i]
 
