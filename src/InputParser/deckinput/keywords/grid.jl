@@ -11,7 +11,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GRIDFILE})
     data["GRIDFILE"] = parse_defaulted_line(rec, tdims)
 end
 
-function parse_keyword!(data, outer_data, units, cfg, f, ::Union{Val{:MINPVV}, Val{:MINPV}})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Union{Val{:MINPORV}, Val{:MINPV}})
     rec = read_record(f)
     tdims = [1e-6];
     rec = parse_defaulted_line(rec, tdims)
