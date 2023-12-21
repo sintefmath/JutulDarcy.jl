@@ -80,6 +80,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_f, contacts_pc)
     s, pc = determine_saturations(depths, contacts, pressures; kwarg...)
 
+    # kr = similar(s)
     nc_total = number_of_cells(model.domain)
     kr = zeros(nph, nc_total)
     s_eval = zeros(nph, nc_total)
@@ -100,7 +101,7 @@ function parse_state0_equil(model, datafile)
     G = physical_representation(model.data_domain)
     nc = number_of_cells(G)
     nph = number_of_phases(model.system)
-    ix = G.cell_map
+    actnum_ix = G.cell_map
     is_blackoil = sys isa StandardBlackOilSystem
     has_water = haskey(datafile["RUNSPEC"], "WATER")
     has_oil = haskey(datafile["RUNSPEC"], "OIL")
@@ -116,9 +117,11 @@ function parse_state0_equil(model, datafile)
         eq = equil[ereg]
         cells = findall(isequal(ereg), model.data_domain[:eqlnum])
 
-        if length(cells) == 0
+        ncells_reg = length(cells)
+        if ncells_reg == 0
             continue
         end
+        actnum_ix_for_reg = actnum_ix[cells]
         datum_depth = eq[1]
         datum_pressure = eq[2]
 
@@ -130,9 +133,9 @@ function parse_state0_equil(model, datafile)
         s_max = 1.0
         s_min = 0.0
 
-        non_connate = 1.0
-        s_max = Float64[]
-        s_min = Float64[]
+        non_connate = ones(ncells_reg)
+        s_max = Vector{Float64}[]
+        s_min = Vector{Float64}[]
         # @assert !haskey(model.secondary_variables, :CapillaryPressure) "Capillary initialization not yet implemented."
         has_pc = haskey(model.secondary_variables, :CapillaryPressure)
         if has_pc
@@ -157,17 +160,22 @@ function parse_state0_equil(model, datafile)
         end
         if has_water
             krw = only(model.secondary_variables[:RelativePermeabilities].krw)
-            swcon = krw.connate
+            if haskey(datafile, "PROPS") && haskey(datafile["PROPS"], "SWL")
+                swl = vec(datafile["PROPS"]["SWL"])
+                swcon = swl[actnum_ix_for_reg]
+            else
+                swcon = fill(krw.connate, ncells_reg)
+            end
             push!(s_min, swcon)
             push!(s_max, non_connate)
-            non_connate = 1.0 - swcon
+            @. non_connate -= swcon
         end
         if has_oil
-            push!(s_min, 0.0)
+            push!(s_min, zeros(ncells_reg))
             push!(s_max, non_connate)
         end
         if has_gas
-            push!(s_min, 0.0)
+            push!(s_min, zeros(ncells_reg))
             push!(s_max, non_connate)
         end
 
@@ -331,10 +339,10 @@ function determine_saturations(depths, contacts, pressures; s_min = missing, s_m
     nc = length(depths)
     nph = length(contacts) + 1
     if ismissing(s_min)
-        s_min = zeros(nph)
+        s_min = [zeros(nc) for i in 1:nph]
     end
     if ismissing(s_max)
-        s_max = ones(nph)
+        s_max = [ones(nc) for i in 1:nph]
     end
     sat = zeros(nph, nc)
     sat_pc = similar(sat)
@@ -344,7 +352,7 @@ function determine_saturations(depths, contacts, pressures; s_min = missing, s_m
             ph = current_phase_index(z, contacts)
             for j in axes(sat, 1)
                 is_main = ph == j
-                s = is_main*s_max[j] + !is_main*s_min[j]
+                s = is_main*s_max[j][i] + !is_main*s_min[j][i]
                 sat[j, i] = s
             end
         end
@@ -364,13 +372,13 @@ function determine_saturations(depths, contacts, pressures; s_min = missing, s_m
 
                     dp = pressures[ph, i] - pressures[ref_ix, i]
                     if dp > pc_max
-                        s_eff = s_max[ph]
+                        s_eff = s_max[ph][i]
                     elseif dp < pc_min
-                        s_eff = s_min[ph]
+                        s_eff = s_min[ph][i]
                     else
                         s_eff = I(dp)
                     end
-                    s_eff = clamp(s_eff, s_min[ph], s_max[ph])
+                    s_eff = clamp(s_eff, s_min[ph][i], s_max[ph][i])
                     sat[ph, i] = s_eff
                     sat_pc[ph, i] = I_pc(s_eff)
                 end
