@@ -8,6 +8,14 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GRIDFILE})
     data["GRIDFILE"] = parse_defaulted_line(rec, tdims)
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Union{Val{:MINPVV}, Val{:MINPV}})
+    rec = read_record(f)
+    tdims = [1e-6];
+    rec = parse_defaulted_line(rec, tdims)
+    zcorn = swap_unit_system!(rec, units, :volume)
+    data["MINPV"] = rec
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:INIT})
     data["INIT"] = true
 end
