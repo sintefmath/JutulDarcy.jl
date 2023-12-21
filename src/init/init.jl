@@ -42,6 +42,7 @@ end
 function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pressure;
         cells = 1:length(depths),
         rs = missing,
+        s_min = missing,
         contacts_pc = missing,
         kwarg...
     )
@@ -78,14 +79,22 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         return rho
     end
     pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_f, contacts_pc)
-    s, pc = determine_saturations(depths, contacts, pressures; kwarg...)
+    s, pc = determine_saturations(depths, contacts, pressures; s_min = s_min, kwarg...)
 
     # kr = similar(s)
     nc_total = number_of_cells(model.domain)
     kr = zeros(nph, nc_total)
     s_eval = zeros(nph, nc_total)
     s_eval[:, cells] .= s
-    JutulDarcy.update_kr!(kr, relperm, model, s_eval, cells)
+    if AqueousPhase() in get_phases(sys)
+        swcon = zeros(nc_total)
+        if !ismissing(s_min)
+            swcon[cells] .= s_min[1]
+        end
+        JutulDarcy.update_kr!(kr, relperm, model, s_eval, swcon, cells)
+    else
+        JutulDarcy.update_kr!(kr, relperm, model, s_eval, cells)
+    end
     kr = kr[:, cells]
 
     init[:Saturations] = s
