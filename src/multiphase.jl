@@ -127,6 +127,24 @@ function initialize_primary_variable_ad!(state, model, pvar::Saturations, state_
     return state
 end
 
+struct ConnateWater <: ScalarVariable end
+
+function Jutul.default_values(model, ::ConnateWater)
+    nc = number_of_cells(model.domain)
+    relperm = Jutul.get_variable(model, :RelativePermeabilities)
+    swcon = zeros(nc)
+    if hasproperty(relperm, :regions)
+        kr = relperm[:w]
+        for i in 1:nc
+            reg = JutulDarcy.region(relperm.regions, i)
+            kr_i = JutulDarcy.table_by_region(kr, reg)
+            swcon[i] = kr_i.connate
+        end
+        @info "???" swcon
+    end
+    return swcon
+end
+
 # Total component masses
 struct TotalMasses <: VectorVariables end
 

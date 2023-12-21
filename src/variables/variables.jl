@@ -49,6 +49,12 @@ function select_default_darcy_parameters!(prm, domain, system::SinglePhaseSystem
 end
 
 function select_default_darcy_parameters!(prm, domain, system::ImmiscibleSystem, formulation)
+    is_well = physical_representation(domain) isa WellDomain
+    if !is_well
+        if AqueousPhase() in get_phases(system)
+            prm[:ConnateWater] = ConnateWater()
+        end
+    end
     prm[:PhaseViscosities] = PhaseViscosities()
     prm[:FluidVolume] = FluidVolume()
 end

@@ -56,16 +56,16 @@ The routine automatically sets up a facility and couples the wells with the
 reservoir and that facility.
 """
 function setup_reservoir_model(reservoir::DataDomain, system;
-    wells = [],
-    context = DefaultContext(),
-    reservoir_context = nothing,
-    general_ad = false,
-    backend = :csc,
-    extra_outputs = [:LiquidMassFractions, :VaporMassFractions, :Rs, :Rv, :Saturations],
-    split_wells = false,
-    assemble_wells_together = true,
-    parameters = Dict{Symbol, Any}(),
-    kwarg...
+        wells = [],
+        context = DefaultContext(),
+        reservoir_context = nothing,
+        general_ad = false,
+        backend = :csc,
+        extra_outputs = [:LiquidMassFractions, :VaporMassFractions, :Rs, :Rv, :Saturations],
+        split_wells = false,
+        assemble_wells_together = true,
+        parameters = Dict{Symbol, Any}(),
+        kwarg...
     )
     # List of models (order matters)
     models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()

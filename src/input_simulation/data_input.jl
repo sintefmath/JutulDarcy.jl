@@ -45,7 +45,6 @@ function setup_case_from_parsed_data(datafile; simple_well = true, kwarg...)
     wells, controls, limits, cstep, dt, well_mul = parse_schedule(domain, sys, datafile; simple_well = simple_well)
 
     model, parameters0 = setup_reservoir_model(domain, sys; wells = wells, kwarg...)
-
     for (k, submodel) in pairs(model.models)
         if submodel.system isa MultiPhaseSystem
             # Modify secondary variables
@@ -71,6 +70,11 @@ function setup_case_from_parsed_data(datafile; simple_well = true, kwarg...)
         end
     end
     parameters = setup_parameters(model)
+    if haskey(datafile["PROPS"], "SWL")
+        G = physical_representation(domain)
+        swl = vec(datafile["PROPS"]["SWL"])
+        parameters[:Reservoir][:ConnateWter] .= swl[G.cell_map]
+    end
     forces = parse_forces(model, wells, controls, limits, cstep, dt, well_mul)
     state0 = parse_state0(model, datafile)
     return JutulCase(model, dt, forces, state0 = state0, parameters = parameters)
