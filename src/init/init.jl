@@ -111,6 +111,7 @@ function parse_state0_equil(model, datafile)
     nequil = JutulDarcy.InputParser.number_of_tables(datafile, :equil)
     @assert length(equil) == nequil
     inits = []
+    inits_cells = []
     for ereg in 1:nequil
         eq = equil[ereg]
         cells = findall(isequal(ereg), model.data_domain[:eqlnum])
@@ -205,9 +206,44 @@ function parse_state0_equil(model, datafile)
                 pc = pc
             )
         push!(inits, subinit)
+        push!(inits_cells, cells)
     end
-    # TODO: Handle multiple regions by merging each init
-    return only(inits)
+    if length(inits) == 1
+        init = only(inits)
+    else
+        # Handle multiple regions by merging each init
+        init = Dict{Symbol, Any}()
+        nc = number_of_cells(model.domain)
+        touched = [false for i in 1:nc]
+        for (k, v) in first(inits)
+            if v isa AbstractVector
+                init[k] = zeros(nc)
+            else
+                @assert v isa AbstractMatrix
+                init[k] = zeros(size(v, 1), nc)
+            end
+        end
+        for (subinit, cells) in zip(inits, inits_cells)
+            for c in cells
+                if touched[c]
+                    @warn "Equils overlap for cell $c?"
+                end
+                touched[c] = true
+            end
+
+            for (k, v) in subinit
+                for (i, c) in enumerate(cells)
+                    if v isa AbstractVector
+                        init[k][cells] .= v
+                    else
+                        init[k][:, cells] .= v
+                    end
+                end
+            end
+        end
+        @assert all(touched) "Some cells are not initialized by equil: $(findall(!, touched))"
+    end
+    return init
 end
 
 function init_reference_pressure(pressures, contacts, kr, pc, ref_ix = 2)
