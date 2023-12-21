@@ -120,7 +120,7 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
     G = physical_representation(domain)
 
     dt, cstep, controls, completions, limits = parse_control_steps(runspec, props, schedule, sys)
-    bad_wells = filter_inactive_completions!(completions, G)
+    completions, bad_wells = filter_inactive_completions!(completions, G)
     handle_wells_without_active_perforations!(bad_wells, completions, controls, limits)
     ncomp = length(completions)
     wells = []
@@ -186,13 +186,15 @@ end
 
 function handle_wells_without_active_perforations!(bad_wells, completions, controls, limits)
     if length(bad_wells) > 0
-        # @info "" typeof(completions) typeof(controls) typeof(limits)
+        @assert length(completions) == length(controls) == length(limits)
         for well in bad_wells
             println("$well has no completions in active cells. Well will be not be present in model or simulation results.")
-
+            for i in eachindex(completions)
+                delete!(completions[i], well)
+                delete!(controls[i], well)
+                delete!(limits[i], well)
+            end
         end
-
-        error("Fatal error.")
     end
 end
 
