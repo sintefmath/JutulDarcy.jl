@@ -86,7 +86,8 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     kr = zeros(nph, nc_total)
     s_eval = zeros(nph, nc_total)
     s_eval[:, cells] .= s
-    if length(get_phases) == 3 && AqueousPhase() in get_phases(sys)
+    phases = get_phases(sys)
+    if length(phases) == 3 && AqueousPhase() in phases
         swcon = zeros(nc_total)
         if !ismissing(s_min)
             swcon[cells] .= s_min[1]
