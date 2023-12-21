@@ -171,17 +171,29 @@ end
 function Jutul.default_parameter_values(data_domain, model, param::Transmissibilities, symb)
     if haskey(data_domain, :transmissibilities, Faces())
         # This takes precedence
-        T = data_domain[:transmissibilities]
+        T = copy(data_domain[:transmissibilities])
     elseif haskey(data_domain, :permeability, Cells())
         U = data_domain[:permeability]
         g = physical_representation(data_domain)
         T = compute_face_trans(g, U)
-        if any(x -> x < 0, T)
-            c = count(x -> x < 0, T)
-            @warn "Parameter initialization for $symb: $c negative values detected out of $(length(T)) total."
-        end
     else
         error(":permeability or :transmissibilities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+    end
+    replace_bad_trans!(T, symb)
+    return T
+end
+
+function replace_bad_trans!(T, symb; replace = 0.0)
+    for (F, descr) in [(x -> x < 0, "negative"), (x -> !isfinite(x), "non-finite")]
+        if any(F, T)
+            c = count(F, T)
+            @warn "Parameter initialization for $symb: $c $descr values detected out of $(length(T)) total. Replacing with $replace"
+            for i in eachindex(T)
+                if F(T[i])
+                    T[i] = replace
+                end
+            end
+        end
     end
     return T
 end
