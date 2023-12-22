@@ -403,6 +403,23 @@ function parse_reservoir(data_file)
         perm[3, i] = grid["PERMZ"][c]
         poro[i] = grid["PORO"][c]
     end
+    extra_data_arg = Dict{Symbol, Any}()
+    if haskey(grid, "MULTPV")
+        multpv = zeros(nc)
+        for (i, c) in enumerate(active_ix)
+            multpv[i] = grid["MULTPV"][c]
+        end
+        extra_data_arg[:pore_volume_multiplier] = multpv
+    end
+
+    if haskey(grid, "NTG")
+        ntg = zeros(nc)
+        for (i, c) in enumerate(active_ix)
+            ntg[i] = grid["MULTPV"][c]
+        end
+        extra_data_arg[:net_to_gross] = ntg
+    end
+
     sol = data_file["SOLUTION"]
     has_tempi = haskey(sol, "TEMPI")
     has_tempvd = haskey(sol, "TEMPVD")
@@ -414,9 +431,7 @@ function parse_reservoir(data_file)
         for (i, c) in enumerate(active_ix)
             temperature[i] = convert_to_si(T_inp[i], :Celsius)
         end
-        temp_arg = (temperature = temperature, )
-    else
-        temp_arg = NamedTuple()
+        extra_data_arg[:temperature] = temperature
     end
     satnum = JutulDarcy.InputParser.table_region(data_file, :saturation, active = active_ix)
     eqlnum = JutulDarcy.InputParser.table_region(data_file, :equil, active = active_ix)
@@ -426,7 +441,7 @@ function parse_reservoir(data_file)
         porosity = poro,
         satnum = satnum,
         eqlnum = eqlnum,
-        temp_arg...
+        pairs(extra_data_arg)...
     )
 end
 

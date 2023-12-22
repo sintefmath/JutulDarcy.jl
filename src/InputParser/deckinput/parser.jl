@@ -58,7 +58,7 @@ function parser_message(cfg::ParserVerbosityConfig, outer_data, keyword, msg::PA
         cfg.warn_count[keyword] = 1
     end
     if cfg.warn_count[keyword] <= cfg.warn_limit
-        @warn "$(keyword_header(outer_data, keyword)): $text_msg"
+        jutul_message("Parser", "$(keyword_header(outer_data, keyword)) - $text_msg", color = :yellow)
     end
 end
 

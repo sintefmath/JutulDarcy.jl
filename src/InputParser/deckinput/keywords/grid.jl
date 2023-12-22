@@ -78,6 +78,11 @@ function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:PERMX}, V
     data["$k"] = vals
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, v::Val{:MULTPV})
+    k = unpack_val(v)
+    vals = parse_grid_vector(f, get_cartdims(outer_data), Float64)
+    data["MULTPV"] = vals
+end
 
 function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:PRATIO}, Val{:BIOTCOEF}})
     k = unpack_val(v)

@@ -103,22 +103,15 @@ function Jutul.default_parameter_values(data_domain, model, param::FluidVolume, 
     vol = missing
     if haskey(data_domain, :fluid_volume, Cells())
         vol = data_domain[:fluid_volume]
-    elseif haskey(data_domain, :pore_volume, Cells())
-        vol = data_domain[:pore_volume]
-    elseif haskey(data_domain, :volumes, Cells())
-        vol = data_domain[:volumes]
-        if haskey(data_domain, :porosity, Cells())
-            vol = vol.*data_domain[:porosity]
-        end
-        if haskey(data_domain, :net_to_gross, Cells())
-            vol = vol.*data_domain[:net_to_gross]
-        end
     else
-        g = physical_representation(data_domain)
-        vol = domain_fluid_volume(g)
+        vol = pore_volume(data_domain, throw = false)
     end
     if ismissing(vol)
-        error(":volumes or :pore_volume symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+        g = physical_representation(data_domain)
+        vol = domain_fluid_volume(g)
+        if ismissing(vol)
+            error(":volumes or :pore_volume symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+        end
     end
     return copy(vol)
 end
