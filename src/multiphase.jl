@@ -173,17 +173,7 @@ function Jutul.default_parameter_values(data_domain, model, param::Transmissibil
         # This takes precedence
         T = copy(data_domain[:transmissibilities])
     elseif haskey(data_domain, :permeability, Cells())
-        U = data_domain[:permeability]
-        g = physical_representation(data_domain)
-        T = compute_face_trans(g, U)
-        neg_count = 0
-        for (i, T_i) in enumerate(T)
-            neg_count += T_i < 0
-            T[i] = abs(T_i)
-        end
-        if neg_count > 0
-            @warn "Replaced $neg_count negative transmissibilities (out of $(length(T))) with their absolute value."
-        end
+        T = reservoir_transmissibility(data_domain)
     else
         error(":permeability or :transmissibilities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end

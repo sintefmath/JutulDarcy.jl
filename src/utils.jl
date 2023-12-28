@@ -917,3 +917,26 @@ function reservoir_groups_for_printing(model::MultiModel)
     end
     return groups
 end
+
+function reservoir_transmissibility(d::DataDomain)
+    # g = physical_representation(d)
+    N = d[:neighbors]
+    T_hf = compute_half_face_trans(
+        d[:cell_centroids],
+        d[:face_centroids],
+        d[:normals],
+        d[:areas],
+        d[:permeability],
+        N
+    )
+    T = compute_face_trans(T_hf, N)
+    neg_count = 0
+    for (i, T_i) in enumerate(T)
+        neg_count += T_i < 0
+        T[i] = abs(T_i)
+    end
+    if neg_count > 0
+        @warn "Replaced $neg_count negative transmissibilities (out of $(length(T))) with their absolute value."
+    end
+    return T
+end
