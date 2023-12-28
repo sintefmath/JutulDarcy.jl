@@ -918,17 +918,47 @@ function reservoir_groups_for_printing(model::MultiModel)
     return groups
 end
 
+"""
+    reservoir_transmissibility(d::DataDomain)
+
+Special transmissibility function for reservoir simulation that handles
+additional complexity present in industry grade models.
+"""
 function reservoir_transmissibility(d::DataDomain)
-    # g = physical_representation(d)
+    g = physical_representation(d)
     N = d[:neighbors]
+    nc = number_of_cells(d)
+    faces, facepos = get_facepos(N, nc)
+    facesigns = Jutul.get_facesigns(N, faces, facepos, nc)
+
     T_hf = compute_half_face_trans(
         d[:cell_centroids],
         d[:face_centroids],
         d[:normals],
         d[:areas],
         d[:permeability],
-        N
+        faces, facepos, facesigns
     )
+    if haskey(d, :net_to_gross)
+        # Net to gross applies to vertical trans only
+        nf = number_of_faces(d)
+        k_index = map(c -> cell_ijk(g, c), 1:nc)
+        face_is_vertical = map(1:nf) do face
+            l, r = N[:, face]
+            return k_index[l] == k_index[r]
+        end
+        count = 0
+        for (c, ntg) in enumerate(d[:net_to_gross])
+            if !(ntg ≈ 1.0)
+                count += 1
+                for fp in facepos[c]:(facepos[c+1]-1)
+                    if face_is_vertical[faces[fp]]
+                        T_hf[fp] *= ntg
+                    end
+                end
+            end
+        end
+    end
     T = compute_face_trans(T_hf, N)
     neg_count = 0
     for (i, T_i) in enumerate(T)
