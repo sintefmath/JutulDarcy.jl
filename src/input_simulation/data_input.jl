@@ -415,7 +415,7 @@ function parse_reservoir(data_file)
     if haskey(grid, "NTG")
         ntg = zeros(nc)
         for (i, c) in enumerate(active_ix)
-            ntg[i] = grid["MULTPV"][c]
+            ntg[i] = grid["NTG"][c]
         end
         extra_data_arg[:net_to_gross] = ntg
     end
