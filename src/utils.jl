@@ -942,10 +942,27 @@ function reservoir_transmissibility(d::DataDomain)
     if haskey(d, :net_to_gross)
         # Net to gross applies to vertical trans only
         nf = number_of_faces(d)
-        k_index = map(c -> cell_ijk(g, c), 1:nc)
-        face_is_vertical = map(1:nf) do face
-            l, r = N[:, face]
-            return k_index[l] == k_index[r]
+        otag = get_mesh_entity_tag(g, Faces(), :orientation, throw = false)
+        if !ismissing(otag)
+            # Use tags if provided
+            face_is_vertical = map(1:nf) do face
+                return mesh_entity_has_tag(g, Faces(), :orientation, :horizontal, face)
+            end
+        elseif g isa CartesianMesh
+            # Cartesian mesh is simple
+            k_index = map(c -> cell_ijk(g, c), 1:nc)
+            face_is_vertical = map(1:nf) do face
+                l, r = N[:, face]
+                return k_index[l] == k_index[r]
+            end
+        else
+            # Fall back to normals
+            normals = d[:normals]
+            face_is_vertical = map(1:nf) do face
+                nx, ny, nz = normals[3, face]
+                abs(nz) > max(abs(nx), abs(ny))
+                return k_index[l] == k_index[r]
+            end
         end
         count = 0
         for (c, ntg) in enumerate(d[:net_to_gross])
