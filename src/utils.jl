@@ -960,7 +960,7 @@ function reservoir_transmissibility(d::DataDomain)
             normals = d[:normals]
             face_is_vertical = map(1:nf) do face
                 nx, ny, nz = normals[:, face]
-                return abs(nz) > max(abs(nx), abs(ny))
+                return abs(nz) < max(abs(nx), abs(ny))
             end
         end
         count = 0

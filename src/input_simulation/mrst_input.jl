@@ -68,7 +68,9 @@ function reservoir_domain_from_mrst(name::String; extraout = false, convert_grid
     poro = get_vec(exported["rock"]["poro"])
     perm = copy((exported["rock"]["perm"])')
     domain = reservoir_domain(g, porosity = poro, permeability = perm)
-
+    if haskey(exported["rock"], "ntg")
+        domain[:net_to_gross, Cells()] = get_vec(exported["rock"]["ntg"])
+    end
     nf = number_of_faces(domain)
     if haskey(exported, "N")
         N = Int64.(exported["N"]')
