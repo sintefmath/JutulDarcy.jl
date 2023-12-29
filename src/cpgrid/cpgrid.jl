@@ -410,6 +410,12 @@ function grid_from_primitives(primitives)
     face_neighbors = Vector{Tuple{Int, Int}}()
     boundary_cells = Vector{Int}()
 
+    vertical_face_tag = Vector{Int}()
+    horizontal_face_tag = Vector{Int}()
+
+    vertical_bnd_face_tag = Vector{Int}()
+    horizontal_bnd_face_tag = Vector{Int}()
+
     nx, ny, nz = cartdims
 
     nlinex = nx+1
@@ -429,7 +435,7 @@ function grid_from_primitives(primitives)
         push!(Vpos, length(nodes) + Vpos[end])
     end
 
-    function insert_boundary_face!(prev_cell, cell, nodes)
+    function insert_boundary_face!(prev_cell, cell, nodes, is_vertical)
         orient = cell_is_boundary(prev_cell) && !cell_is_boundary(cell)
         @assert orient || (cell_is_boundary(cell) && !cell_is_boundary(prev_cell)) "cell pair $((cell, prev_cell)) is not on boundary"
         if orient
@@ -441,10 +447,16 @@ function grid_from_primitives(primitives)
         add_face_from_nodes!(boundary_faces, boundary_face_pos, nodes)
         push!(cell_boundary_faces[self], boundary_faceno)
         push!(boundary_cells, self)
+        if is_vertical
+            push!(vertical_bnd_face_tag, boundary_faceno)
+        else
+            push!(horizontal_bnd_face_tag, boundary_faceno)
+        end
+
         boundary_faceno += 1
     end
 
-    function insert_interior_face!(prev_cell, cell, nodes)
+    function insert_interior_face!(prev_cell, cell, nodes, is_vertical)
         @assert cell > 0
         @assert prev_cell > 0
         @assert prev_cell != cell
@@ -453,14 +465,19 @@ function grid_from_primitives(primitives)
         push!(face_neighbors, (prev_cell, cell))
         push!(cell_faces[cell], faceno)
         push!(cell_faces[prev_cell], faceno)
+        if is_vertical
+            push!(vertical_face_tag, faceno)
+        else
+            push!(horizontal_face_tag, faceno)
+        end
         faceno += 1
     end
 
-    function insert_face!(prev_cell, cell, nodes; is_boundary)
+    function insert_face!(prev_cell, cell, nodes; is_boundary, is_vertical)
         if is_boundary
-            insert_boundary_face!(prev_cell, cell, nodes)
+            insert_boundary_face!(prev_cell, cell, nodes, is_vertical)
         else
-            insert_interior_face!(prev_cell, cell, nodes)
+            insert_interior_face!(prev_cell, cell, nodes, is_vertical)
         end
     end
 
@@ -509,7 +526,7 @@ function grid_from_primitives(primitives)
                 node_in_pillar_indices = map(F, cell_bnds)
                 # Then find the global node indices
                 node_indices = map((line, i) -> line.nodes[i], current_column_lines, node_in_pillar_indices)
-                insert_face!(c1, c2, node_indices, is_boundary = is_bnd)
+                insert_face!(c1, c2, node_indices, is_vertical = false, is_boundary = is_bnd)
             end
         end
     end
@@ -537,8 +554,8 @@ function grid_from_primitives(primitives)
             cell_pairs, overlaps = JutulDarcy.traverse_column_pair(col_a, col_b, l1, l2)
             int_pairs, int_overlaps, bnd_pairs, bnd_overlaps = split_overlaps_into_interior_and_boundary(cell_pairs, overlaps)
 
-            F_interior = (l, r, node_indices) -> insert_face!(l, r, node_indices, is_boundary = false)
-            F_bnd = (l, r, node_indices) -> insert_face!(l, r, node_indices, is_boundary = true)
+            F_interior = (l, r, node_indices) -> insert_face!(l, r, node_indices, is_boundary = false, is_vertical = true)
+            F_bnd = (l, r, node_indices) -> insert_face!(l, r, node_indices, is_boundary = true, is_vertical = true)
 
             if is_bnd
                 # We are dealing with a boundary column, everything is boundary
@@ -565,7 +582,7 @@ function grid_from_primitives(primitives)
     c2f, c2f_pos = convert_to_flat(cell_faces)
     b2f, b2f_pos = convert_to_flat(cell_boundary_faces)
 
-    return UnstructuredMesh(
+    g = UnstructuredMesh(
         c2f,
         c2f_pos,
         b2f,
@@ -580,6 +597,11 @@ function grid_from_primitives(primitives)
         structure = CartesianIndex(cartdims[1], cartdims[2], cartdims[3]),
         cell_map = primitives.active
     )
+    set_mesh_entity_tag!(g, Faces(), :orientation, :horizontal, horizontal_face_tag)
+    set_mesh_entity_tag!(g, Faces(), :orientation, :vertical, vertical_face_tag)
+    set_mesh_entity_tag!(g, BoundaryFaces(), :orientation, :horizontal, horizontal_bnd_face_tag)
+    set_mesh_entity_tag!(g, BoundaryFaces(), :orientation, :vertical, vertical_bnd_face_tag)
+    return g
 end
 
 
