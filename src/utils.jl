@@ -959,9 +959,8 @@ function reservoir_transmissibility(d::DataDomain)
             # Fall back to normals
             normals = d[:normals]
             face_is_vertical = map(1:nf) do face
-                nx, ny, nz = normals[3, face]
-                abs(nz) > max(abs(nx), abs(ny))
-                return k_index[l] == k_index[r]
+                nx, ny, nz = normals[:, face]
+                return abs(nz) > max(abs(nx), abs(ny))
             end
         end
         count = 0
