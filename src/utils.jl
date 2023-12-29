@@ -946,7 +946,7 @@ function reservoir_transmissibility(d::DataDomain)
         if !ismissing(otag)
             # Use tags if provided
             face_is_vertical = map(1:nf) do face
-                return mesh_entity_has_tag(g, Faces(), :orientation, :horizontal, face)
+                return mesh_entity_has_tag(g, Faces(), :orientation, :vertical, face)
             end
         elseif g isa CartesianMesh
             # Cartesian mesh is simple
