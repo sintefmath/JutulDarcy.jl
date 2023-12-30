@@ -125,6 +125,7 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
 
     dt, cstep, controls, completions, limits = parse_control_steps(runspec, props, schedule, sys)
     completions, bad_wells = filter_inactive_completions!(completions, G)
+    @assert length(controls) == length(completions)
     handle_wells_without_active_perforations!(bad_wells, completions, controls, limits)
     ncomp = length(completions)
     wells = []
@@ -134,16 +135,18 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
         wi_mul = zeros(length(WI_base), ncomp)
         for (i, c) in enumerate(completions)
             compdat = c[k]
-            wc, WI, open = compdat_to_connection_factors(domain, compdat)
-            for (c, wi, is_open) in zip(wc, WI, open)
-                compl_idx = findfirst(isequal(c), wc_base)
-                if isnothing(compl_idx)
-                    # This perforation is missing, leave at zero.
-                    continue
+            well_is_shut = controls[i][k] isa DisabledControl
+            if !well_is_shut
+                wc, WI, open = compdat_to_connection_factors(domain, compdat)
+                for (c, wi, is_open) in zip(wc, WI, open)
+                    compl_idx = findfirst(isequal(c), wc_base)
+                    if isnothing(compl_idx)
+                        # This perforation is missing, leave at zero.
+                        continue
+                    end
+                    wi_mul[compl_idx, i] = wi*is_open/WI_base[compl_idx]
                 end
-                wi_mul[compl_idx, i] = wi*is_open/WI_base[compl_idx]
             end
-            # @. wi_mul[:, i] = (WI*open)/WI_base
         end
         push!(wells, W)
         if all(isapprox(1.0), wi_mul)
