@@ -42,7 +42,7 @@ function setup_case_from_parsed_data(datafile; simple_well = true, kwarg...)
     is_blackoil = sys isa StandardBlackOilSystem
     is_compositional = sys isa CompositionalSystem
     domain = parse_reservoir(datafile)
-    wells, controls, limits, cstep, dt, well_mul = parse_schedule(domain, sys, datafile; simple_well = simple_well)
+    wells, controls, limits, cstep, dt, well_forces = parse_schedule(domain, sys, datafile; simple_well = simple_well)
 
     model = setup_reservoir_model(domain, sys; wells = wells, extra_out = false, kwarg...)
     for (k, submodel) in pairs(model.models)
@@ -75,7 +75,7 @@ function setup_case_from_parsed_data(datafile; simple_well = true, kwarg...)
         swl = vec(datafile["PROPS"]["SWL"])
         parameters[:Reservoir][:ConnateWater] .= swl[G.cell_map]
     end
-    forces = parse_forces(model, wells, controls, limits, cstep, dt, well_mul)
+    forces = parse_forces(model, wells, controls, limits, cstep, dt, well_forces)
     state0 = parse_state0(model, datafile)
     return JutulCase(model, dt, forces, state0 = state0, parameters = parameters)
 end
@@ -129,13 +129,19 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
     handle_wells_without_active_perforations!(bad_wells, completions, controls, limits)
     ncomp = length(completions)
     wells = []
-    well_mul = []
+    well_forces = Dict{Symbol, Any}[]
+    for i in eachindex(completions)
+        push!(well_forces, Dict{Symbol, Any}())
+    end
     for (k, v) in pairs(completions[end])
+        for i in eachindex(completions)
+            well_forces[i][Symbol(k)] = (mask = nothing, )
+        end
         W, wc_base, WI_base, open = parse_well_from_compdat(domain, k, v, schedule["WELSPECS"][k]; simple_well = simple_well)
-        wi_mul = zeros(length(WI_base), ncomp)
         for (i, c) in enumerate(completions)
             compdat = c[k]
             well_is_shut = controls[i][k] isa DisabledControl
+            wi_mul = zeros(length(WI_base))
             if !well_is_shut
                 wc, WI, open = compdat_to_connection_factors(domain, compdat)
                 for (c, wi, is_open) in zip(wc, WI, open)
@@ -144,18 +150,20 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
                         # This perforation is missing, leave at zero.
                         continue
                     end
-                    wi_mul[compl_idx, i] = wi*is_open/WI_base[compl_idx]
+                    wi_mul[compl_idx] = wi*is_open/WI_base[compl_idx]
                 end
             end
+            if all(isapprox(1.0), wi_mul)
+                mask = nothing
+            else
+                mask = PerforationMask(wi_mul)
+            end
+            # TODO: Make this use setup_forces properly
+            well_forces[i][Symbol(k)] = (mask = mask, )
         end
         push!(wells, W)
-        if all(isapprox(1.0), wi_mul)
-            push!(well_mul, nothing)
-        else
-            push!(well_mul, wi_mul)
-        end
     end
-    return (wells, controls, limits, cstep, dt, well_mul)
+    return (wells, controls, limits, cstep, dt, well_forces)
 end
 
 function filter_inactive_completions!(completions_vector, g)
@@ -205,9 +213,10 @@ function handle_wells_without_active_perforations!(bad_wells, completions, contr
     end
 end
 
-function parse_forces(model, wells, controls, limits, cstep, dt, well_mul)
+function parse_forces(model, wells, controls, limits, cstep, dt, well_forces)
     forces = []
-    for (ctrl, lim) in zip(controls, limits)
+    @assert length(controls) == length(limits) == length(forces)
+    for (ctrl, lim, wforce) in zip(controls, limits, well_forces)
         ctrl_s = Dict{Symbol, Any}()
         for (k, v) in pairs(ctrl)
             ctrl_s[Symbol(k)] = v
@@ -216,7 +225,7 @@ function parse_forces(model, wells, controls, limits, cstep, dt, well_mul)
         for (k, v) in pairs(lim)
             lim_s[Symbol(k)] = v
         end
-        f = setup_reservoir_forces(model, control = ctrl_s, limits = lim_s)
+        f = setup_reservoir_forces(model; control = ctrl_s, limits = lim_s, pairs(wforce)...)
         push!(forces, f)
     end
     return forces[cstep]
