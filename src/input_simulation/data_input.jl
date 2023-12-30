@@ -973,7 +973,13 @@ function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_
         end
         rho, mix = select_injector_mixture_spec(sys, name, streams, type)
         ctrl = InjectorControl(t, mix, density = rho)
-        lims = injector_limits(bhp = bhp, surface_rate = surf_rate, reservoir_rate = res_rate)
+        if is_hist
+            # TODO: This magic number comes from MRST.
+            bhp_lim = convert_to_si(6895.0, :bar)
+        else
+            bhp_lim = bhp
+        end
+        lims = injector_limits(bhp = bhp_lim, surface_rate = surf_rate, reservoir_rate = res_rate)
     end
     return (ctrl, lims)
 end
