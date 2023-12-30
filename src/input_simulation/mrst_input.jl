@@ -81,6 +81,7 @@ function reservoir_domain_from_mrst(name::String; extraout = false, convert_grid
         N = Int64.(exported["N"]')
         nf = size(N, 2)
         if nf != number_of_faces(domain)
+            jutul_message("Case setup", "Mismatch beteween neighborship and grid. Simulation model will work, but post-processing based on geometry may fail.")
             d = Jutul.dim(g)
             domain.entities[Faces()] = nf
             domain[:areas, Faces()] = fill!(zeros(nf), NaN)
