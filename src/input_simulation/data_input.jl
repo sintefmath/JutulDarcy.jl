@@ -215,7 +215,7 @@ end
 
 function parse_forces(model, wells, controls, limits, cstep, dt, well_forces)
     forces = []
-    @assert length(controls) == length(limits) == length(forces)
+    @assert length(controls) == length(limits) == length(well_forces)
     for (ctrl, lim, wforce) in zip(controls, limits, well_forces)
         ctrl_s = Dict{Symbol, Any}()
         for (k, v) in pairs(ctrl)
@@ -934,7 +934,8 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
         end
         ctrl = ProducerControl(t)
         if is_hist
-            lims = (; :bhp => si_unit(:atm), translate_target_to_symbol(t) => self_val)
+            self_symbol = translate_target_to_symbol(t, shortname = true)
+            lims = (; :bhp => si_unit(:atm), self_symbol => self_val)
         else
             lims = producer_limits(bhp = bhp, orat = orat, wrat = wrat, grat = grat, lrat = lrat)
         end
