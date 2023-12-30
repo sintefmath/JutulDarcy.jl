@@ -64,6 +64,7 @@ function setup_reservoir_model(reservoir::DataDomain, system;
         extra_outputs = [:LiquidMassFractions, :VaporMassFractions, :Rs, :Rv, :Saturations],
         split_wells = false,
         assemble_wells_together = true,
+        extra_out = true,
         parameters = Dict{Symbol, Any}(),
         kwarg...
     )
@@ -119,9 +120,13 @@ function setup_reservoir_model(reservoir::DataDomain, system;
 
     # Put it all together as multimodel
     model = reservoir_multimodel(models, split_wells = split_wells, assemble_wells_together = assemble_wells_together)
-    # Insert domain here.
-    parameters = setup_parameters(model, parameters)
-    return (model, parameters)
+    if extra_out
+        parameters = setup_parameters(model, parameters)
+        out = (model, parameters)
+    else
+        out = model
+    end
+    return out
 end
 
 export setup_reservoir_simulator

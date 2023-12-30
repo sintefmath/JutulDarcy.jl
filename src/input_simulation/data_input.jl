@@ -44,7 +44,7 @@ function setup_case_from_parsed_data(datafile; simple_well = true, kwarg...)
     domain = parse_reservoir(datafile)
     wells, controls, limits, cstep, dt, well_mul = parse_schedule(domain, sys, datafile; simple_well = simple_well)
 
-    model, parameters0 = setup_reservoir_model(domain, sys; wells = wells, kwarg...)
+    model = setup_reservoir_model(domain, sys; wells = wells, extra_out = false, kwarg...)
     for (k, submodel) in pairs(model.models)
         if submodel.system isa MultiPhaseSystem
             # Modify secondary variables
