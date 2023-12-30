@@ -164,12 +164,17 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FAULTS})
         end
         parsed = parse_defaulted_line(rec, tdims, required_num = length(tdims), keyword = "FAULTS")
         name = parsed[1]
-        faults[name] = (
+        flt = (
             i = parsed[2]:parsed[3],
             j = parsed[4]:parsed[5],
             k = parsed[6]:parsed[7],
             direction = parsed[8]
         )
+        if haskey(faults, name)
+            push!(faults[name], flt)
+        else
+            faults[name] = [flt]
+        end
     end
 end
 
