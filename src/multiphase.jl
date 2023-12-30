@@ -294,27 +294,28 @@ number_of_equations_per_entity(system::SinglePhaseSystem, e::ConservationLaw) = 
 export fluid_volume, pore_volume
 function pore_volume(data_domain::DataDomain; throw = true)
     if haskey(data_domain, :pore_volume, Cells())
-        vol = data_domain[:pore_volume]
+        pv = data_domain[:pore_volume]
     elseif haskey(data_domain, :volumes, Cells())
-        vol = data_domain[:volumes]
+        vol = copy(data_domain[:volumes])
+        ntg = poro = pvmult = 1.0
         if haskey(data_domain, :porosity, Cells())
-            vol = vol.*data_domain[:porosity]
+            poro = data_domain[:porosity]
         end
         if haskey(data_domain, :net_to_gross, Cells())
-            vol = vol.*data_domain[:net_to_gross]
+            ntg = data_domain[:net_to_gross]
         end
         if haskey(data_domain, :pore_volume_multiplier, Cells())
-            vol = vol.*data_domain[:pore_volume_multiplier]
+            pvmult = data_domain[:pore_volume_multiplier]
         end
+        pv = @. vol * poro * ntg * pvmult
     else
+        pv = missing
         if throw
             error("Neither pair :volumes and :porosity or :pore_volume found in domain.")
-        else
-            return missing
         end
     end
 
-    return vol
+    return pv
 end
 
 pore_volume(model::MultiModel, parameters) = pore_volume(reservoir_model(model), parameters[:Reservoir])
