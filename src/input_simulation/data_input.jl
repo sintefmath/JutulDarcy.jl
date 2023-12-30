@@ -908,27 +908,36 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
     else
         @assert flag == "OPEN"
         if ctrl == "LRAT"
-            t = SurfaceLiquidRateTarget(-lrat)
+            self_val = -lrat
+            t = SurfaceLiquidRateTarget(self_val)
         elseif ctrl == "WRAT"
-            t = SurfaceWaterRateTarget(-wrat)
+            self_val = -wrat
+            t = SurfaceWaterRateTarget(self_val)
         elseif ctrl == "ORAT"
-            t = SurfaceOilRateTarget(-orat)
+            self_val = -orat
+            t = SurfaceOilRateTarget(self_val)
         elseif ctrl == "GRAT"
-            t = SurfaceGasRateTarget(-grat)
+            self_val = -grat
+            t = SurfaceGasRateTarget(self_val)
         elseif ctrl == "BHP"
-            t = BottomHolePressureTarget(bhp)
+            self_val = bhp
+            t = BottomHolePressureTarget(self_val)
         elseif ctrl == "RESV"
-            t = -(wrat + orat + grat)
+            selv_val = -(wrat + orat + grat)
             if is_hist
-                ctrl = HistoricalReservoirVoidageTarget(t)
+                t = HistoricalReservoirVoidageTarget(selv_val)
             else
-                ctrl = ReservoirVoidageTarget(t)
+                t = ReservoirVoidageTarget(selv_val)
             end
         else
             error("$ctype control not supported")
         end
         ctrl = ProducerControl(t)
-        lims = producer_limits(bhp = bhp, orat = orat, wrat = wrat, grat = grat, lrat = lrat)
+        if is_hist
+            lims = (; :bhp => si_unit(:atm), translate_target_to_symbol(t) => self_val)
+        else
+            lims = producer_limits(bhp = bhp, orat = orat, wrat = wrat, grat = grat, lrat = lrat)
+        end
     end
     return (ctrl, lims)
 end
