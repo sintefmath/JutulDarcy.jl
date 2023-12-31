@@ -906,6 +906,7 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
         ctrl = DisabledControl()
         lims = nothing
     else
+        is_rate = true
         @assert flag == "OPEN"
         if ctrl == "LRAT"
             self_val = -lrat
@@ -922,6 +923,7 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
         elseif ctrl == "BHP"
             self_val = bhp
             t = BottomHolePressureTarget(self_val)
+            is_rate = false
         elseif ctrl == "RESV"
             selv_val = -(wrat + orat + grat)
             if is_hist
@@ -932,7 +934,12 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
         else
             error("$ctype control not supported")
         end
-        ctrl = ProducerControl(t)
+        if is_rate && abs(self_val) < MIN_ACTIVE_WELL_RATE
+            @debug "Producer with $ctrl disabled due to zero rate." abs(self_val)
+            ctrl = DisabledControl()
+        else
+            ctrl = ProducerControl(t)
+        end
         if is_hist
             self_symbol = translate_target_to_symbol(t, shortname = true)
             lims = (; :bhp => si_unit(:atm), self_symbol => self_val)
@@ -964,15 +971,22 @@ function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_
     else
         @assert flag == "OPEN"
         if ctype == "RATE"
+            is_rate = true
             t = TotalRateTarget(surf_rate)
         elseif ctype == "BHP"
+            is_rate = false
             t = BottomHolePressureTarget(bhp)
         else
             # RESV, GRUP, THP
             error("$ctype control not supported")
         end
         rho, mix = select_injector_mixture_spec(sys, name, streams, type)
-        ctrl = InjectorControl(t, mix, density = rho)
+        if is_rate && surf_rate < MIN_ACTIVE_WELL_RATE
+            @debug "Disabling injector $name with $ctype ctrl due to zero rate" surf_rate
+            ctrl = DisabledControl()
+        else
+            ctrl = InjectorControl(t, mix, density = rho)
+        end
         if is_hist
             # TODO: This magic number comes from MRST.
             bhp_lim = convert_to_si(6895.0, :bar)
