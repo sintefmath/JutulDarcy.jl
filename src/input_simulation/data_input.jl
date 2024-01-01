@@ -1092,21 +1092,106 @@ end
 function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
     order_t = lowercase(order_t0)
     @assert order_t in ("track", "input", "depth") "Invalid order for well: $order_t0"
-    x = view(domain[:cell_centroids], 1, :)
-    y = view(domain[:cell_centroids], 2, :)
-    z = view(domain[:cell_centroids], 3, :)
-    if order_t == "input"
+    centroid(dim) = domain[:cell_centroids][dim, wc]
+    n = length(wc)
+    if n < 2 || order_t == "input"
         # Do nothing.
-        return eachindex(wc)
+        sorted = eachindex(wc)
     elseif order_t == "depth" || all(isequal("Z"), dir)
-        z_i = z[wc]
-        return sortperm(z_i)
+        z = centroid(3)
+        sorted = sortperm(z)
     else
         sorted = Int[]
-        start = swpec.head
-        @info "??" wspec wc dir
-        error()
-    end
+        @assert order_t == "track"
+        x = centroid(1)
+        y = centroid(2)
+        z = centroid(3)
+        # Make copies so we can safely remove values as we go.
+        wc = copy(wc)
+        dir = lowercase.(copy(dir))
+        g = physical_representation(domain)
+        ijk = map(ix -> cell_ijk(g, ix), wc)
 
-    return compdats
+        function remove_candidate!(ix)
+            deleteat!(x, ix)
+            deleteat!(y, ix)
+            deleteat!(z, ix)
+            deleteat!(wc, ix)
+            deleteat!(dir, ix)
+            deleteat!(ijk, ix)
+        end
+        function add_to_sorted!(ix)
+            @assert ix > 0 && ix <= length(wc) "Algorithm failure. Programming error?"
+            push!(sorted, ix)
+            previous_ix = closest_ix
+            previous_coord = (x[ix], y[ix], z[ix])
+            previous_ijk = ijk[ix]
+            previous_dir = dir[ix]
+            remove_candidate!(ix)
+            return (previous_ix, previous_coord, previous_ijk, previous_dir)
+        end
+
+        # Pick closest cell to head to start with
+        closest_ix = 0
+        closest_ij_distance = typemax(Int)
+        lowest_z = Inf
+        I_head, J_head = wspec.head
+        for (i, c) in enumerate(wc)
+            z_i = z[i]
+            I, J, = ijk[i]
+            d = abs(I - I_head) + abs(J - J_head)
+            if d == closest_ij_distance
+                new_minimum = z_i < lowest_z
+            elseif d < closest_ij_distance
+                new_minimum = true
+            else
+                new_minimum = false
+            end
+
+            if new_minimum
+                closest_ij_distance = d
+                closest_ix = i
+                lowest_z = z_i
+            end
+        end
+        prev_ix, prev_coord, prev_ijk, prev_dir = add_to_sorted!(closest_ix)
+        start = wspec.head
+        # Pick closest point in IJK space, using XYZ as tie breaker. TODO: Could
+        # probably be improved for corner cases.
+        while length(wc) > 0
+            closest_ix = 0
+            closest_ijk_distance = typemax(Int)
+            closest_xyz_distance = Inf
+            if prev_dir == "x"
+                dim = 1
+                coord = x
+            elseif prev_dir == "y"
+                dim = 2
+                coord = y
+            else
+                @assert prev_dir == "z"
+                dim = 3
+                coord = z
+            end
+            for (i, c) in enumerate(wc)
+                d_ijk = abs(ijk[i][dim] - prev_ijk[dim])
+                d_xyz = abs(coord[i] - prev_coord[dim])
+                if d_ijk == closest_ijk_distance
+                    new_minimum = d_xyz < closest_xyz_distance
+                elseif d_ijk < closest_ijk_distance
+                    new_minimum = true
+                else
+                    new_minimum = false
+                end
+                if new_minimum
+                    closest_ix = i
+                    closest_ijk_distance = d_ijk
+                    closest_xyz_distance = d_xyz
+                end
+            end
+            prev_ix, prev_coord, prev_ijk, prev_dir = add_to_sorted!(closest_ix)
+        end
+    end
+    @assert length(sorted) == n
+    return sorted
 end
