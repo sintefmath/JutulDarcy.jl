@@ -217,33 +217,36 @@ function Jutul.line_plot_data(model::SimulationModel, k::ReservoirRelativePermea
     end
     data = Matrix{Any}(undef, 2, nreg)
     ix = 1
-    for (krw, krow) in zip(k.krw, k.krow)
-        x = []
-        y = []
-        labels = []
-        push!(x, s)
-        push!(y, krw.(s))
-        push!(labels, "W")
-        push!(x, 1 .- s)
-        push!(y, krow.(s))
-        push!(labels, "OW")
-        data[1, ix] = Jutul.JutulLinePlotData(x, y, labels = labels, title = "Relative permeability", xlabel = "Water saturation", ylabel = "Water-Oil Kr")
-        ix += 1
+    if !isnothing(k.krw)
+        for (krw, krow) in zip(k.krw, k.krow)
+            x = []
+            y = []
+            labels = []
+            push!(x, s)
+            push!(y, krw.(s))
+            push!(labels, "W")
+            push!(x, 1 .- s)
+            push!(y, krow.(s))
+            push!(labels, "OW")
+            data[1, ix] = Jutul.JutulLinePlotData(x, y, labels = labels, title = "Relative permeability", xlabel = "Water saturation", ylabel = "Water-Oil Kr")
+            ix += 1
+        end
     end
-
-    ix = 1
-    for (krg, krog) in zip(k.krg, k.krog)
-        x = []
-        y = []
-        labels = []
-        push!(x, s)
-        push!(y, krg.(s))
-        push!(labels, "G")
-        push!(x, s)
-        push!(y, krog.(1 .- s))
-        push!(labels, "OG")
-        data[2, ix] = Jutul.JutulLinePlotData(x, y, labels = labels, title = "Relative permeability", xlabel = "Gas saturation", ylabel = "Gas-Oil Kr")
-        ix += 1
+    if !isnothing(k.krg)
+        ix = 1
+        for (krg, krog) in zip(k.krg, k.krog)
+            x = []
+            y = []
+            labels = []
+            push!(x, s)
+            push!(y, krg.(s))
+            push!(labels, "G")
+            push!(x, s)
+            push!(y, krog.(1 .- s))
+            push!(labels, "OG")
+            data[2, ix] = Jutul.JutulLinePlotData(x, y, labels = labels, title = "Relative permeability", xlabel = "Gas saturation", ylabel = "Gas-Oil Kr")
+            ix += 1
+        end
     end
     return data
 end
