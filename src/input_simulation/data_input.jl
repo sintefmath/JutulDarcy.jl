@@ -1108,6 +1108,7 @@ function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
         z = centroid(3)
         # Make copies so we can safely remove values as we go.
         wc = copy(wc)
+        original_ix = collect(1:n)
         dir = lowercase.(copy(dir))
         g = physical_representation(domain)
         ijk = map(ix -> cell_ijk(g, ix), wc)
@@ -1119,10 +1120,11 @@ function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
             deleteat!(wc, ix)
             deleteat!(dir, ix)
             deleteat!(ijk, ix)
+            deleteat!(original_ix, ix)
         end
         function add_to_sorted!(ix)
             @assert ix > 0 && ix <= length(wc) "Algorithm failure. Programming error?"
-            push!(sorted, ix)
+            push!(sorted, original_ix[ix])
             previous_ix = closest_ix
             previous_coord = (x[ix], y[ix], z[ix])
             previous_ijk = ijk[ix]
@@ -1156,29 +1158,29 @@ function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
         end
         prev_ix, prev_coord, prev_ijk, prev_dir = add_to_sorted!(closest_ix)
         start = wspec.head
-        # Pick closest point in IJK space, using XYZ as tie breaker. TODO: Could
-        # probably be improved for corner cases.
         while length(wc) > 0
             closest_ix = 0
-            closest_ijk_distance = typemax(Int)
+            closest_ijk_distance = Inf#typemax(Int)
             closest_xyz_distance = Inf
-            if prev_dir == "x"
-                dim = 1
-                coord = x
-            elseif prev_dir == "y"
-                dim = 2
-                coord = y
-            else
-                @assert prev_dir == "z"
-                dim = 3
-                coord = z
-            end
+            # if prev_dir == "x"
+            #     dim = 1
+            #     coord = x
+            # elseif prev_dir == "y"
+            #     dim = 2
+            #     coord = y
+            # else
+            #     @assert prev_dir == "z"
+            #     dim = 3
+            #     coord = z
+            # end
             for (i, c) in enumerate(wc)
-                d_ijk = abs(ijk[i][dim] - prev_ijk[dim])
-                d_xyz = abs(coord[i] - prev_coord[dim])
-                if d_ijk == closest_ijk_distance
-                    new_minimum = d_xyz < closest_xyz_distance
-                elseif d_ijk < closest_ijk_distance
+                coord = (x[i], y[i], z[i])
+                d_ijk = norm(ijk[i] .- prev_ijk, 2)
+                d_xyz = norm(coord .- prev_coord, 2)
+                # d_xyz = abs(coord[i] - prev_coord[dim])
+                if d_xyz == closest_xyz_distance
+                    new_minimum = d_ijk < closest_ijk_distance
+                elseif d_xyz < closest_xyz_distance
                     new_minimum = true
                 else
                     new_minimum = false
@@ -1192,6 +1194,7 @@ function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
             prev_ix, prev_coord, prev_ijk, prev_dir = add_to_sorted!(closest_ix)
         end
     end
+    @assert sort(sorted) == 1:n "$sorted was not $(1:n)"
     @assert length(sorted) == n
     return sorted
 end
