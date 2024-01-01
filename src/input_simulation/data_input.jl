@@ -225,9 +225,18 @@ end
 function parse_forces(model, wells, controls, limits, cstep, dt, well_forces)
     forces = []
     @assert length(controls) == length(limits) == length(well_forces)
+    i = 0
     for (ctrl, lim, wforce) in zip(controls, limits, well_forces)
+        i += 1
         ctrl_s = Dict{Symbol, Any}()
         for (k, v) in pairs(ctrl)
+            wf_k = wforce[Symbol(k)]
+            if !isa(v, DisabledControl) && !isnothing(wf_k.mask)
+                if all(isequal(0), wf_k.mask.values)
+                    @warn "Well $k has no open perforations at step $i, shutting."
+                    v = DisabledControl()
+                end
+            end
             ctrl_s[Symbol(k)] = v
         end
         lim_s = Dict{Symbol, Any}()
@@ -1158,7 +1167,7 @@ function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
         end
         prev_ix, prev_coord, prev_ijk, prev_dir = add_to_sorted!(closest_ix)
         start = wspec.head
-        use_dir = false
+        use_dir = true
         while length(wc) > 0
             closest_ix = 0
             closest_xyz_distance = Inf
