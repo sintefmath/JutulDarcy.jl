@@ -90,6 +90,7 @@ function parse_data_file!(outer_data, filename, data = outer_data;
         warn_parsing = true,
         warn_feature = true,
         silent = false,
+        is_outer = true,
         input_units::Union{Symbol, Nothing} = nothing,
         unit_systems = missing
     )
@@ -167,6 +168,7 @@ function parse_data_file!(outer_data, filename, data = outer_data;
                     sections = sections,
                     skip = skip,
                     skip_mode = skip_mode,
+                    is_outer = false,
                     units = units,
                     unit_systems = unit_systems
                 )
@@ -191,6 +193,9 @@ function parse_data_file!(outer_data, filename, data = outer_data;
             end
         end
     finally
+        if is_outer
+            finish_current_section!(data, unit_systems, cfg, outer_data)
+        end
         close(f)
     end
     return outer_data

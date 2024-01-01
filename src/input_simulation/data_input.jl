@@ -1092,20 +1092,17 @@ end
 function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
     order_t = lowercase(order_t0)
     @assert order_t in ("track", "input", "depth") "Invalid order for well: $order_t0"
-    if order_t == "input"
-        # Do nothing.
-        return eachindex(wc)
-    end
-
-    sorted = Int[]
     x = view(domain[:cell_centroids], 1, :)
     y = view(domain[:cell_centroids], 2, :)
     z = view(domain[:cell_centroids], 3, :)
-
-    if order_t == "depth" || all(isequal("Z"), dir)
+    if order_t == "input"
+        # Do nothing.
+        return eachindex(wc)
+    elseif order_t == "depth" || all(isequal("Z"), dir)
         z_i = z[wc]
         return sortperm(z_i)
     else
+        sorted = Int[]
         start = swpec.head
         @info "??" wspec wc dir
         error()
