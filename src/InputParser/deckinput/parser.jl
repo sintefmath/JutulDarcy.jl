@@ -178,6 +178,7 @@ function parse_data_file!(outer_data, filename, data = outer_data;
                 push!(outer_data["SCHEDULE"]["STEPS"], data)
             elseif m == :END
                 # All done!
+                finish_current_section!(data, unit_systems, cfg, outer_data)
                 break
             elseif skip_mode
                 parser_message(cfg, outer_data, "$m", "Keyword skipped.")

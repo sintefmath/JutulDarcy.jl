@@ -424,7 +424,11 @@ function get_section(outer_data, name::Symbol)
     T = OrderedDict{String, Any}
     if is_sched
         if !haskey(outer_data, s)
-            outer_data[s] = Dict("STEPS" => [T()], "WELSPECS" => T())
+            outer_data[s] = Dict(
+                "STEPS" => [T()],
+                "WELSPECS" => T(),
+                "COMPORD" => T()
+            )
         end
         out = outer_data[s]["STEPS"][end]
     else

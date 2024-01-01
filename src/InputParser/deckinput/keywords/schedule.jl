@@ -1,5 +1,10 @@
 function finish_current_section!(data, units, cfg, outer_data, ::Val{:SCHEDULE})
-    
+    compord = outer_data["SCHEDULE"]["COMPORD"]
+    for k in keys(get_wells(outer_data))
+        if !haskey(compord, k)
+            compord[k] = "TRACK"
+        end
+    end
 end
 
 function welspecs_to_well(ws)
@@ -33,6 +38,17 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WELSPECS})
         name, well = welspecs_to_well(ws)
         # @assert !haskey(wells, name) "Well $name is already defined."
         wells[name] = well
+    end
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COMPORD})
+    d = "Default"
+    defaults = [d, "TRACK"]
+    compord = parse_defaulted_group(f, defaults)
+    out = outer_data["SCHEDULE"]["COMPORD"]
+    for co in compord
+        well, val = co
+        out[name] = val
     end
 end
 

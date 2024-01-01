@@ -80,8 +80,9 @@ function setup_case_from_parsed_data(datafile; simple_well = true, kwarg...)
     return JutulCase(model, dt, forces, state0 = state0, parameters = parameters)
 end
 
-function parse_well_from_compdat(domain, wname, v, wspecs; simple_well = true)
-    wc, WI, open = compdat_to_connection_factors(domain, v)
+function parse_well_from_compdat(domain, wname, cdat, wspecs, compord; simple_well = true)
+    wc, WI, open = compdat_to_connection_factors(domain, wspecs, cdat, sort = true, order = compord)
+
     rd = wspecs.ref_depth
     if isnan(rd)
         rd = nothing
@@ -90,7 +91,7 @@ function parse_well_from_compdat(domain, wname, v, wspecs; simple_well = true)
     return (W, wc, WI, open)
 end
 
-function compdat_to_connection_factors(domain, v)
+function compdat_to_connection_factors(domain, wspec, v; sort = true, order = "TRACK")
     G = physical_representation(domain)
     K = domain[:permeability]
 
@@ -117,6 +118,12 @@ function compdat_to_connection_factors(domain, v)
             WI[i] = compute_peaceman_index(G, k_i, d[i]/2, c, skin = skin[i], Kh = Kh[i], dir = Symbol(dir[i]))
         end
     end
+    if sort
+        ix = well_completion_sortperm(domain, wspec, order, wc, dir)
+        wc = wc[ix]
+        WI = WI[ix]
+        open = open[ix]
+    end
     return (wc, WI, open)
 end
 
@@ -134,16 +141,18 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
         push!(well_forces, Dict{Symbol, Any}())
     end
     for (k, v) in pairs(completions[end])
+        wspec = schedule["WELSPECS"][k]
+        compord = schedule["COMPORD"][k]
         for i in eachindex(completions)
             well_forces[i][Symbol(k)] = (mask = nothing, )
         end
-        W, wc_base, WI_base, open = parse_well_from_compdat(domain, k, v, schedule["WELSPECS"][k]; simple_well = simple_well)
+        W, wc_base, WI_base, open = parse_well_from_compdat(domain, k, v, wspec, compord; simple_well = simple_well)
         for (i, c) in enumerate(completions)
             compdat = c[k]
             well_is_shut = controls[i][k] isa DisabledControl
             wi_mul = zeros(length(WI_base))
             if !well_is_shut
-                wc, WI, open = compdat_to_connection_factors(domain, compdat)
+                wc, WI, open = compdat_to_connection_factors(domain, wspec, compdat, sort = false)
                 for (c, wi, is_open) in zip(wc, WI, open)
                     compl_idx = findfirst(isequal(c), wc_base)
                     if isnothing(compl_idx)
@@ -1078,4 +1087,29 @@ function keyword_to_control(sys, streams, kw, ::Val{:WCONINJH})
     # TODO: Expand to handle mixture etc.
     res_rate = Inf
     return injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp, is_hist = true)
+end
+
+function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
+    order_t = lowercase(order_t0)
+    @assert order_t in ("track", "input", "depth") "Invalid order for well: $order_t0"
+    if order_t == "input"
+        # Do nothing.
+        return eachindex(wc)
+    end
+
+    sorted = Int[]
+    x = view(domain[:cell_centroids], 1, :)
+    y = view(domain[:cell_centroids], 2, :)
+    z = view(domain[:cell_centroids], 3, :)
+
+    if order_t == "depth" || all(isequal("Z"), dir)
+        z_i = z[wc]
+        return sortperm(z_i)
+    else
+        start = swpec.head
+        @info "??" wspec wc dir
+        error()
+    end
+
+    return compdats
 end
