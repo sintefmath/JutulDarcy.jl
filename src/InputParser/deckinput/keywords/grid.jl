@@ -28,11 +28,6 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COORDSYS})
     parser_message(cfg, outer_data, "COORDSYS", PARSER_MISSING_SUPPORT)
 end
 
-function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MULTPV})
-    read_record(f)
-    parser_message(cfg, outer_data, "MULTPV", PARSER_MISSING_SUPPORT)
-end
-
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MAPUNITS})
     # TODO: This needs to be handled
     partial_parse!(data, outer_data, units, cfg, f, :GRIDUNIT)
