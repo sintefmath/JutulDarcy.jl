@@ -93,6 +93,10 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing, pinch = mis
         actnum = Array{Bool, 3}(undef, nx, ny, nz)
         @. actnum = true
     end
+    # Create bounding box used to get boundaries correct
+    z_mean = max(sum(zcorn)/length(zcorn), 1.0)
+    z_max = maximum(zcorn) + z_mean
+    z_min = minimum(zcorn) - z_mean
     # actnum, pinch_map = handle_pinch!(actnum, zcorn, cartdims, pinch)
     # remapped_indices = findall(vec(actnum))
     nactive = sum(vec(actnum))
@@ -125,7 +129,7 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing, pinch = mis
         else
             layer_offset = -(nx*ny*nz)
         end
-        return layer_offset #- ij_to_linear(i, j, cartdims[1:2])
+        return layer_offset - ij_to_linear(i, j, cartdims[1:2])
     end
 
     function cell_index(i, j, k)
@@ -173,17 +177,24 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing, pinch = mis
     for i in 1:(nx+1)
         for j in 1:(ny+1)
             L = lines[i, j]
-            # Top layer
-            if L.cells[1] > 0
-                # t = boundary_index(i, j, true)
-                # pushfirst!(L.z, L.z[1] - 1.0, L.z[1])
-                # pushfirst!(L.cells, t, t)
-            end
-            # Bottom layer
-            if L.cells[end] > 0
-                # b = boundary_index(i, j, false)
-                # push!(L.z, L.z[end], L.z[end] + 1.0)
-                # push!(L.cells, b, b)
+            z_top = minimum(L.z)
+            z_bottom = maximum(L.z)
+
+            for i_offset in (-1, 0)
+                for j_offset in (-1, 0)
+                    I = i+i_offset
+                    J = j+j_offset
+                    if I > 0 && J > 0
+                        t = boundary_index(I, J, true)
+                        b = boundary_index(I, J, false)
+                        # Top layer
+                        push!(L.z, z_min, z_top)
+                        push!(L.cells, t, t)
+                        # Bottom layer
+                        push!(L.z, z_bottom, z_max)
+                        push!(L.cells, b, b)
+                    end
+                end
             end
         end
     end
@@ -216,7 +227,7 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing, pinch = mis
             if active_columns[i, j]
                 col = make_column(i, j)
                 prev = boundary_index(i, j, true) 
-                # push!(col.cells, prev)
+                push!(col.cells, prev)
                 for k in 1:nz
                     cell = cell_index(i, j, k)
                     if cell != prev
@@ -225,7 +236,7 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing, pinch = mis
                     prev = cell
                 end
                 # Put a boundary at the end
-                # push!(col.cells, boundary_index(i, j, false))
+                push!(col.cells, boundary_index(i, j, false))
                 push!(columns, col)
                 column_indices[i, j] = col_counter
                 col_counter += 1
