@@ -210,7 +210,12 @@ function swap_unit_system(val, systems, k::Symbol)
     return swap_unit_system(val, systems, Val(k))
 end
 
-function swap_unit_system(v, systems::Union{Nothing, Missing}, k::Union{Symbol, Val})
+function swap_unit_system(v, systems::Union{Nothing, Missing}, k::Val)
+    # No systems - trivial conversion
+    return v
+end
+
+function swap_unit_system(v, systems::Union{Nothing, Missing}, k::Symbol)
     # No systems - trivial conversion
     return v
 end
