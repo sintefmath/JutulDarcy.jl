@@ -21,6 +21,14 @@ function reservoir_domain(g; permeability = convert_to_si(0.1, :darcy), porosity
     if !ismissing(diffusion)
         kwarg = (diffusion = diffusion, kwarg...)
     end
+    nk = length(permeability)
+    nc = number_of_cells(g)
+    if nk != nc && permeability isa AbstractVector
+        d = dim(g)
+        if nk == d || (d == 2 && nk == 3) || (d == 3 && nk == 6)
+            permeability = repeat(permeability, 1, nc)
+        end
+    end
     return DataDomain(g; permeability = permeability, porosity = porosity, kwarg...)
 end
 
