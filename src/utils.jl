@@ -952,6 +952,14 @@ function reservoir_transmissibility(d::DataDomain)
         d[:permeability],
         faces, facepos, facesigns
     )
+    neg_count = 0
+    for (i, T_hf_i) in enumerate(T_hf)
+        neg_count += T_hf_i < 0
+        T_hf[i] = abs(T_hf_i)
+    end
+    if neg_count > 0
+        @warn "Replaced $neg_count negative half-transmissibilities (out of $(length(T_hf))) with their absolute value."
+    end
     if haskey(d, :net_to_gross)
         # Net to gross applies to vertical trans only
         nf = number_of_faces(d)
@@ -989,13 +997,5 @@ function reservoir_transmissibility(d::DataDomain)
         end
     end
     T = compute_face_trans(T_hf, N)
-    neg_count = 0
-    for (i, T_i) in enumerate(T)
-        neg_count += T_i < 0
-        T[i] = abs(T_i)
-    end
-    if neg_count > 0
-        @warn "Replaced $neg_count negative transmissibilities (out of $(length(T))) with their absolute value."
-    end
     return T
 end
