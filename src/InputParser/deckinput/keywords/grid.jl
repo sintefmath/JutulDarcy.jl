@@ -30,12 +30,17 @@ end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MAPUNITS})
     # TODO: This needs to be handled
-    partial_parse!(data, outer_data, units, cfg, f, :GRIDUNIT)
+    partial_parse!(data, outer_data, units, cfg, f, :MAPUNITS)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GRIDUNIT})
     # TODO: This needs to be handled
     partial_parse!(data, outer_data, units, cfg, f, :GRIDUNIT)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FILEUNIT})
+    # TODO: This needs to be handled
+    partial_parse!(data, outer_data, units, cfg, f, :FILEUNIT)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GDORIENT})
