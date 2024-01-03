@@ -750,7 +750,8 @@ function parse_control_steps(runspec, props, schedule, sys)
         push!(cstep, ctrl_ix)
     end
 
-    skip = ("WEFAC", "WELTARG", "WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE")
+    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE")
+    bad_kw = Dict{String, Bool}()
     for (ctrl_ix, step) in enumerate(steps)
         found_time = false
         streams = parse_well_streams_for_step(step, props)
@@ -814,12 +815,10 @@ function parse_control_steps(runspec, props, schedule, sys)
                     name = wk[1]
                     controls[name], limits[name] = keyword_to_control(sys, streams, wk, key)
                 end
-            elseif key in ("WEFAC", "WELTARG")
-                @warn "$key Not supported properly."
             elseif key in skip
                 # Already handled
             else
-                @warn "Unhandled well keyword $key"
+                bad_kw[key] = true
             end
         end
         push!(all_compdat, deepcopy(compdat))
@@ -828,6 +827,9 @@ function parse_control_steps(runspec, props, schedule, sys)
         if !found_time
             error("Did not find supported time kw in step $ctrl_ix: Keys were $(keys(step))")
         end
+    end
+    for k in keys(bad_kw)
+        jutul_message("Unsupported keyword", "Keyword $k was present, but is not supported.", color = :yellow)
     end
     return (dt = tstep, control_step = cstep, controls = all_controls, completions = all_compdat, limits = all_limits)
 end
