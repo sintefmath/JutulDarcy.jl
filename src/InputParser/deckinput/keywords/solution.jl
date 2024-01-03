@@ -59,6 +59,13 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PRESSURE})
     data["PRESSURE"] = p
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:RTEMP})
+    rec = read_record(f)
+    result = parse_defaulted_line(rec, [NaN])
+    swap_unit_system!(result, units, :relative_temperature)
+    data["RTEMP"] = result
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:RS})
     rs = parse_grid_vector(f, outer_data["GRID"]["cartDims"], Float64)
     swap_unit_system!(rs, units, :u_rs)

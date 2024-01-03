@@ -22,6 +22,11 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:EOS})
     data["EOS"] = only(rec)
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:NCOMPS})
+    rec = read_record(f)
+    data["NCOMPS"] = parse(Int, only(rec))
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:STCOND})
     std = parse_deck_vector(f)
     @assert length(std) == 2
@@ -50,6 +55,7 @@ function parse_compositional_helper!(f, outer_data, data, k)
     @assert length(val) == n "One $k should be provided per component (expected $n, was $(length(val)))."
     return val
 end
+
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ACF})
     data["ACF"] = parse_compositional_helper!(f, outer_data, data, "ACF")
