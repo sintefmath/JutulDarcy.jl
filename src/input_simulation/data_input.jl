@@ -66,6 +66,12 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
                 gas = haskey(rs, "GAS")
 
                 JutulDarcy.set_deck_specialization!(submodel, datafile["PROPS"], domain[:satnum], oil, water, gas)
+            else
+                pvar = submodel.primary_variables
+                if haskey(pvar, :Pressure)
+                    # Wells should avoid relative limits on pressure changes
+                    pvar[:Pressure] = Pressure(max_abs = 50*si_unit(:bar), max_rel = Inf)
+                end
             end
         end
     end
@@ -963,7 +969,8 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
         end
         if is_hist
             self_symbol = translate_target_to_symbol(t, shortname = true)
-            lims = (; :bhp => si_unit(:atm), self_symbol => self_val)
+            # Put pressure slightly above 1 atm to avoid hard limit.
+            lims = (; :bhp => 1.001*si_unit(:atm), self_symbol => self_val)
         else
             lims = producer_limits(bhp = bhp, orat = orat, wrat = wrat, grat = grat, lrat = lrat)
         end
