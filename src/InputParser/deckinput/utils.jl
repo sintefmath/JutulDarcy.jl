@@ -151,7 +151,12 @@ function parse_deck_matrix(f, T = Float64)
             push!(data, parse(T, d))
         end
     end
-    return reshape(data, n, length(data) ÷ n)'
+    if length(data) == 0
+        out = missing
+    else
+        out = reshape(data, n, length(data) ÷ n)'
+    end
+    return out
 end
 
 function preprocess_delim_records(split_lines)
@@ -330,7 +335,14 @@ end
 function parse_region_matrix_table(f, nreg)
     out = []
     for i = 1:nreg
-        push!(out, parse_deck_matrix(f))
+        next = parse_deck_matrix(f)
+        if ismissing(next)
+            if length(out) == 0
+                error("First region table cannot be defaulted.")
+            end
+            next = copy(out[end])
+        end
+        push!(out, next)
     end
     return out
 end
