@@ -37,7 +37,7 @@ function setup_case_from_data_file(
     return out
 end
 
-function setup_case_from_parsed_data(datafile; simple_well = true, kwarg...)
+function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans = true, kwarg...)
     sys, pvt = parse_physics_types(datafile)
     is_blackoil = sys isa StandardBlackOilSystem
     is_compositional = sys isa CompositionalSystem
@@ -74,6 +74,9 @@ function setup_case_from_parsed_data(datafile; simple_well = true, kwarg...)
         G = physical_representation(domain)
         swl = vec(datafile["PROPS"]["SWL"])
         parameters[:Reservoir][:ConnateWater] .= swl[G.cell_map]
+    end
+    if use_ijk_trans
+        parameters[:Reservoir][:Transmissibilities] = reservoir_transmissibility(domain, version = :ijk);
     end
     forces = parse_forces(model, wells, controls, limits, cstep, dt, well_forces)
     state0 = parse_state0(model, datafile)
