@@ -187,7 +187,10 @@ function filter_inactive_completions!(completions_vector, g)
                 if !haskey(tuple_active, k)
                     ix = cell_index(g, tupl, throw = false)
                     if isnothing(ix)
-                        @warn "Well $well completion $tupl was declared using COMPDAT, but that cell is not active in model. Skipped."
+                        jutul_message("Removing well",
+                            "Well $well completion $tupl was declared using COMPDAT, but that cell is not active in model. Skipped.",
+                            color = :yellow
+                        )
                         tuple_active[k] = false
                     else
                         tuple_active[k] = true
@@ -236,7 +239,7 @@ function parse_forces(model, wells, controls, limits, cstep, dt, well_forces)
             wf_k = wforce[Symbol(k)]
             if !isa(v, DisabledControl) && !isnothing(wf_k.mask)
                 if all(isequal(0), wf_k.mask.values)
-                    @warn "Well $k has no open perforations at step $i, shutting."
+                    jutul_message("Shutting $k", "Well has no open perforations at step $i, shutting.")
                     v = DisabledControl()
                 end
             end
