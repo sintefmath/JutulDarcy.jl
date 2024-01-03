@@ -131,7 +131,6 @@ function setup_reservoir_model(reservoir::DataDomain, system;
             end
             wname = w.name
             wmodel = SimulationModel(w_domain, system, context = context)
-            # replace_variables!(wmodel, throw = false, Pressure = p_well)
             set_reservoir_variable_defaults!(wmodel,
                 dp_max_abs = dp_max_abs_well,
                 dp_max_rel = dp_max_rel_well,
