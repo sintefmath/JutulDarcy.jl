@@ -99,6 +99,11 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:VCRITVIS})
     data["VCRITVIS"] = parse_compositional_helper!(f, outer_data, data, "VCRITVIS")
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ZI})
+    parser_message(cfg, outer_data, "ZI", PARSER_JUTULDARCY_MISSING_SUPPORT)
+    data["ZI"] = parse_compositional_helper!(f, outer_data, data, "ZI")
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PCRIT})
     p_c = parse_compositional_helper!(f, outer_data, data, "PCRIT")
     swap_unit_system!(p_c, units, :pressure)

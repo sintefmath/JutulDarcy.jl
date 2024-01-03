@@ -1,5 +1,5 @@
 function finish_current_section!(data, units, cfg, outer_data, ::Val{:RUNSPEC})
-    
+
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:NOECHO})
@@ -9,7 +9,6 @@ end
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ECHO})
     # Do nothing
 end
-
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MESSAGES})
     parser_message(cfg, outer_data, "MESSAGES", PARSER_MISSING_SUPPORT)
@@ -57,6 +56,14 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:DISGAS})
     data["DISGAS"] = true
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:AIM})
+    data["AIM"] = true
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:HWELLS})
+    data["HWELLS"] = true
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PRCORR})
     data["PRCORR"] = true
 end
@@ -90,6 +97,14 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:CPR})
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:NUMRES})
+    read_record(f)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MULTSAVE})
+    read_record(f)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:VECTABLE})
     read_record(f)
 end
 
