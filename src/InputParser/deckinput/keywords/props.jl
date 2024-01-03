@@ -88,6 +88,20 @@ function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:SWOF}, Va
     data["$k"] = sat_tab
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:SWFN}, Val{:SGFN}})
+    k = unpack_val(v)
+    sat_tab = parse_saturation_table(f, outer_data)
+    for tab in sat_tab
+        swap_unit_system_axes!(tab, units, (:identity, :identity, :pressure))
+    end
+    data["$k"] = sat_tab
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:SOF2}, Val{:SOF3}})
+    k = unpack_val(v)
+    sat_tab = parse_saturation_table(f, outer_data)
+    data["$k"] = sat_tab
+end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PVDG})
     pvdg = parse_dead_pvt_table(f, outer_data)
