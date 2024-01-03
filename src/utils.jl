@@ -73,6 +73,15 @@ function setup_reservoir_model(reservoir::DataDomain, system;
         split_wells = false,
         assemble_wells_together = true,
         extra_out = true,
+        dp_max_abs = nothing,
+        dp_max_rel = 0.2,
+        dp_max_abs_well = convert_to_si(50, :bar),
+        dp_max_rel_well = nothing,
+        ds_max = 0.2,
+        dz_max = 0.2,
+        p_min = DEFAULT_MINIMUM_PRESSURE,
+        p_max = Inf,
+        dr_max = Inf,
         parameters = Dict{Symbol, Any}(),
         kwarg...
     )
@@ -91,6 +100,16 @@ function setup_reservoir_model(reservoir::DataDomain, system;
         context = reservoir_context,
         general_ad = general_ad
     )
+    set_reservoir_variable_defaults!(rmodel,
+        dp_max_abs = dp_max_abs,
+        dp_max_rel = dp_max_rel,
+        p_min = p_min,
+        p_max = p_max,
+        dr_max = dr_max,
+        ds_max = ds_max,
+        dz_max = dz_max
+    )
+
     for k in extra_outputs
         if haskey(rmodel.secondary_variables, k)
             push!(rmodel.output_variables, k)
@@ -111,7 +130,18 @@ function setup_reservoir_model(reservoir::DataDomain, system;
                 w_domain[:temperature] = reservoir[:temperature][wc]
             end
             wname = w.name
-            models[wname] = SimulationModel(w_domain, system, context = context)
+            wmodel = SimulationModel(w_domain, system, context = context)
+            # replace_variables!(wmodel, throw = false, Pressure = p_well)
+            set_reservoir_variable_defaults!(wmodel,
+                dp_max_abs = dp_max_abs_well,
+                dp_max_rel = dp_max_rel_well,
+                p_min = p_min,
+                p_max = p_max,
+                dr_max = dr_max,
+                ds_max = ds_max,
+                dz_max = dz_max
+            )
+            models[wname] = wmodel
             if split_wells
                 wg = WellGroup([wname])
                 F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
@@ -135,6 +165,23 @@ function setup_reservoir_model(reservoir::DataDomain, system;
         out = model
     end
     return out
+end
+
+function set_reservoir_variable_defaults!(model; p_min, p_max, dp_max_abs, dp_max_rel, ds_max, dz_max, dr_max)
+    # Replace various variables - if they are available
+    replace_variables!(model, OverallMoleFractions = OverallMoleFractions(dz_max = dz_max), throw = false)
+    replace_variables!(model, Saturations = Saturations(ds_max = ds_max), throw = false)
+    replace_variables!(model, ImmiscibleSaturation = ImmiscibleSaturation(ds_max = ds_max), throw = false)
+    replace_variables!(model, BlackOilUnknown = BlackOilUnknown(ds_max = ds_max, dr_max = dr_max), throw = false)
+
+    p_def = Pressure(
+        max_abs = dp_max_abs,
+        max_rel = dp_max_rel,
+        minimum = p_min,
+        maximum = p_max
+    )
+    replace_variables!(model, Pressure = p_def, throw = false)
+    return model
 end
 
 export setup_reservoir_simulator

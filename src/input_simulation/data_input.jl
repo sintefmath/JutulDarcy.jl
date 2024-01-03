@@ -66,12 +66,6 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
                 gas = haskey(rs, "GAS")
 
                 JutulDarcy.set_deck_specialization!(submodel, datafile["PROPS"], domain[:satnum], oil, water, gas)
-            else
-                pvar = submodel.primary_variables
-                if haskey(pvar, :Pressure)
-                    # Wells should avoid relative limits on pressure changes
-                    pvar[:Pressure] = Pressure(max_abs = 50*si_unit(:bar), max_rel = Inf)
-                end
             end
         end
     end
