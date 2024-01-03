@@ -27,6 +27,23 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:NCOMPS})
     data["NCOMPS"] = parse(Int, only(rec))
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:OMEGAA})
+    parser_message(cfg, outer_data, "OMEGAA", PARSER_JUTULDARCY_MISSING_SUPPORT)
+    data["OMEGAA"] = parse_deck_vector(f)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:OMEGAB})
+    parser_message(cfg, outer_data, "OMEGAB", PARSER_JUTULDARCY_MISSING_SUPPORT)
+    data["OMEGAB"] = parse_deck_vector(f)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:LBCCOEF})
+    parser_message(cfg, outer_data, "LBCCOEF", PARSER_JUTULDARCY_MISSING_SUPPORT)
+    rec = read_record(f)
+    defaults = [0.1023, 0.023364, 0.058533, -0.040758, 0.0093324]
+    data["LBCCOEF"] = parse_defaulted_line(rec, defaults)
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:STCOND})
     std = parse_deck_vector(f)
     @assert length(std) == 2
@@ -56,9 +73,30 @@ function parse_compositional_helper!(f, outer_data, data, k)
     return val
 end
 
-
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ACF})
     data["ACF"] = parse_compositional_helper!(f, outer_data, data, "ACF")
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ZCRIT})
+    parser_message(cfg, outer_data, "ZCRIT", PARSER_JUTULDARCY_MISSING_SUPPORT)
+    data["ZCRIT"] = parse_compositional_helper!(f, outer_data, data, "ZCRIT")
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:SSHIFT})
+    parser_message(cfg, outer_data, "SSHIFT", PARSER_JUTULDARCY_MISSING_SUPPORT)
+    data["SSHIFT"] = parse_compositional_helper!(f, outer_data, data, "SSHIFT")
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PARACHOR})
+    parser_message(cfg, outer_data, "PARACHOR", PARSER_MISSING_SUPPORT)
+    # TODO: Units.
+    data["PARACHOR"] = parse_compositional_helper!(f, outer_data, data, "PARACHOR")
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:VCRITVIS})
+    parser_message(cfg, outer_data, "VCRITVIS", PARSER_MISSING_SUPPORT)
+    # TODO: Units.
+    data["VCRITVIS"] = parse_compositional_helper!(f, outer_data, data, "VCRITVIS")
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PCRIT})
