@@ -937,20 +937,27 @@ end
 Special transmissibility function for reservoir simulation that handles
 additional complexity present in industry grade models.
 """
-function reservoir_transmissibility(d::DataDomain)
+function reservoir_transmissibility(d::DataDomain; version = :xyz)
     g = physical_representation(d)
     N = d[:neighbors]
     nc = number_of_cells(d)
     faces, facepos = get_facepos(N, nc)
     facesigns = Jutul.get_facesigns(N, faces, facepos, nc)
 
+    if version == :ijk
+        face_dir = get_ijk_face_dir(g, N)
+    else
+        face_dir = missing
+    end
     T_hf = compute_half_face_trans(
         d[:cell_centroids],
         d[:face_centroids],
         d[:normals],
         d[:areas],
         d[:permeability],
-        faces, facepos, facesigns
+        faces, facepos, facesigns,
+        version = version,
+        face_dir = face_dir
     )
     neg_count = 0
     for (i, T_hf_i) in enumerate(T_hf)
@@ -998,4 +1005,23 @@ function reservoir_transmissibility(d::DataDomain)
     end
     T = compute_face_trans(T_hf, N)
     return T
+end
+
+function get_ijk_face_dir(g, N)
+    nf = number_of_faces(g)
+    face_dir = ones(Int, nf)
+    ijk_c = map(i -> cell_ijk(g, i), 1:number_of_cells(g))
+    gdim = dim(g)
+    for i in 1:nf
+        l, r = N[:, i]
+        ijk_l = ijk_c[l]
+        ijk_r = ijk_c[r]
+        for j in 1:gdim
+            if ijk_l[j] != ijk_r[j]
+                face_dir[i] = j
+                break
+            end
+        end
+    end
+    return face_dir
 end
