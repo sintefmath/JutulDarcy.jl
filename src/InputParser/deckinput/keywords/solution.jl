@@ -35,6 +35,13 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:TEMPI})
     data["TEMPI"] = T_i
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:DATUM})
+    rec = read_record(f)
+    l = parse_defaulted_line(rec, [NaN])
+    swap_unit_system!(l, units, :length)
+    data["DATUM"] = only(l)
+end
+
 function parse_mole_fractions!(f, outer_data)
     d = outer_data["GRID"]["cartDims"]
     nc = compositional_number_of_components(outer_data)
