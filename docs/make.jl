@@ -3,6 +3,9 @@ using Jutul
 using Literate
 using Documenter
 
+using DocumenterCitations
+bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"))
+
 function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
     DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy; using Jutul); recursive=true)
     DocMeta.setdocmeta!(Jutul, :DocTestSetup, :(using Jutul); recursive=true)
@@ -43,7 +46,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
             prettyurls=get(ENV, "CI", "false") == "true",
             canonical="https://sintefmath.github.io/JutulDarcy.jl",
             edit_link="main",
-            assets=String[],
+            assets=String["assets/citations.css"],
         )
     end
     makedocs(;
@@ -52,6 +55,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
         repo="https://github.com/sintefmath/JutulDarcy.jl/blob/{commit}{path}#{line}",
         sitename="JutulDarcy.jl",
         warnonly = true,
+        plugins=[bib],
         format=build_format,
         pages=[
             "Home" => "index.md",
@@ -60,6 +64,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
                 "Supported physical systems" =>"usage/systems.md",
                 "Solving the equations" => "usage/solution.md"
                 ],
+            "References" => "refs.md",
             "Internals" => "internals.md",
             "Jutul functions" => "jutul.md"
         ],

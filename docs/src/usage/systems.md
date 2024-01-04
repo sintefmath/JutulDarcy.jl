@@ -95,7 +95,7 @@ The model uses the notion of surface (or reference densities) ``\rho_o^s, \rho_g
 !!! note "Blackoil implementation"
     The [`StandardBlackOilSystem`](@ref) implements the black-oil equations. It is possible to run cases with and without water, with and without ``R_s`` and with and without ``R_v``. The primary variables for the most general case is the reference [`Pressure`](@ref), an [`ImmiscibleSaturation`](@ref) for the aqueous phase and the special [`BlackOilUnknown`](@ref) that will represent either ``S_o``, ``R_s`` or ``R_v`` on a cell-by-cell basis depending on what phases are present and saturated.
 
-A full description of the black-oil equations is outside the scope of this documentation. Please see [Lie, An Introduction to Reservoir Simulation Using MATLAB/GNU Octave, Cambridge University Press, 2019](https://doi.org/10.1017/9781108591416) for more details.
+A full description of the black-oil equations is outside the scope of this documentation. Please see [mrst-book-i](@cite) for more details.
 
 ## Compositional: Multi-phase, multi-component flow
 
@@ -109,7 +109,7 @@ Assume that we have two phases liquid and vapor referred to as ``l`` and ``v`` w
 r_i = \frac{\partial}{\partial t} \left( (\rho_l X_i S_l + \rho_v Y_i S_v) \phi \right) + \nabla \cdot (\rho_l X_i \vec{v}_l + \rho_v Y_i \vec{v}_v) - Q_i, \quad M \in \{1, \dots, M\}
 ```
 
-For additional details, please see [Chapter 8 - Compositional Simulation with the AD-OO Framework Advanced Modeling with the MATLAB Reservoir Simulation Toolbox, Møyner, 2021](https://doi.org/10.1017/9781009019781).
+For additional details, please see Chapter 8 - Compositional Simulation with the AD-OO Framework in [mrst-book-ii](@cite).
 
 !!! note "Compositional implementation"
     The [`MultiPhaseCompositionalSystemLV`](@ref) implements the compositional model. The primary variables for the most general case is the reference [`Pressure`](@ref), an [`ImmiscibleSaturation`](@ref) for the optional immiscible phase and ``M-1`` [`OverallMoleFractions`](@ref).
