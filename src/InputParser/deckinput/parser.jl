@@ -36,7 +36,7 @@ function parser_message(cfg::ParserVerbosityConfig, outer_data, keyword, msg::PA
         return
     end
     if msg == PARSER_MISSING_SUPPORT
-        text_msg = "Parser does not support keyword. It will be skipped."
+        text_msg = "Unsupported keyword. It will be ignored."
         do_print = cfg.warn_parsing
     elseif msg == PARSER_JUTULDARCY_MISSING_SUPPORT
         text_msg = "$keyword is not supported by JutulDarcy solvers. It will be ignored in simulations."

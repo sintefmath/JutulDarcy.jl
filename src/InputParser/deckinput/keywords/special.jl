@@ -18,11 +18,14 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ENDBOX})
     reset_current_box!(outer_data)
 end
 
-function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COPY})
+function parse_keyword!(data, outer_data, units, cfg, f, kval::Union{Val{:COPY}, Val{:ADD}, Val{:MULTIPLY}})
+    k = unpack_val(kval)
+    is_copy = k == :COPY
     rec = read_record(f)
     gdata = get_section(outer_data, :GRID)
     l, u = gdata["CURRENT_BOX"]
     dims = get_cartdims(outer_data)
+    d = "Default"
 
     il = l[1]
     iu = u[1]
@@ -30,14 +33,26 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COPY})
     ju = u[2]
     kl = l[3]
     ku = u[3]
+    if is_copy
+        d_op = d
+    else
+        d_op = NaN
+    end
 
     while length(rec) > 0
-        d = "Default"
-        parsed = parse_defaulted_line(rec, [d, d, il, iu, jl, ju, kl, ku])
-        src = parsed[1]
-        dst = parsed[2]
-        @assert src != "Default" "Source was defaulted? rec = $rec"
-        @assert dst != "Default" "Destination was defaulted? rec = $rec"
+        parsed = parse_defaulted_line(rec, [d, d_op, il, iu, jl, ju, kl, ku])
+        if is_copy
+            dst = parsed[2]
+            src = parsed[1]
+            op = NaN
+            @assert src != d "Source was defaulted for $k. rec = $rec"
+        else
+            dst = parsed[1]
+            op = parsed[2]
+            src = missing
+            @assert op != d_op "Operator was defaulted for $k. rec = $rec"
+        end
+        @assert dst != d "Destination was defaulted for $k. rec = $rec"
 
         # Box can be kept.
         il = parsed[3]
@@ -46,7 +61,24 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COPY})
         ju = parsed[6]
         kl = parsed[7]
         ku = parsed[8]
-        apply_copy!(data, dst, data[src], get_box_indices(outer_data), dims)
+        if is_copy
+            if !haskey(data, dst)
+                T = eltype(data[src])
+                data[dst] = zeros(T, dims)
+            end
+            apply_copy!(data[dst], data[src], get_box_indices(outer_data), dims)
+        else
+            if !haskey(data, dst)
+                data[dst] = zeros(Float64, dims)
+            end
+            if k == :ADD
+                # add is a const
+                apply_add!(data[dst], op, get_box_indices(outer_data), dims)
+            else
+                # multiply is a const
+                apply_multiply!(data[dst], op, get_box_indices(outer_data), dims)
+            end
+        end
         rec = read_record(f)
     end
 end
@@ -95,13 +127,19 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:OPERATE})
     end
 end
 
-function apply_copy!(data, dst, src, IX, dims)
-    if haskey(data, dst)
-        I, J, K = IX
-        data[dst][I, J, K] = src
-    else
-        data[dst] = copy(src)
-    end
+function apply_copy!(vals, src, IX, dims)
+    I, J, K = IX
+    vals[I, J, K] = src
+end
+
+function apply_add!(vals, src, IX, dims)
+    I, J, K = IX
+    vals[I, J, K] .+= src
+end
+
+function apply_multiply!(vals, src, IX, dims)
+    I, J, K = IX
+    vals[I, J, K] .*= src
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MULTIPLY})
