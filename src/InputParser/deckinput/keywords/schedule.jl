@@ -70,6 +70,15 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COMPDAT})
     data["COMPDAT"] = compdat
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WELOPEN})
+    d = "Default"
+    defaults = [d, "OPEN", -1, -1, -1, -1, -1]
+    wells = get_wells(outer_data)
+    welopen = parse_defaulted_group_well(f, defaults, wells, 1)
+    parser_message(cfg, outer_data, "WELTARG", PARSER_JUTULDARCY_MISSING_SUPPORT)
+    data["WELOPEN"] = welopen
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WCONPROD})
     d = "Default"
     defaults = [d, "OPEN", d, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, 0]
