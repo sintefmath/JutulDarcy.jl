@@ -12,6 +12,10 @@ end
 
 # JutulDarcy
 
+```@docs
+JutulDarcy
+```
+
 Documentation for [JutulDarcy.jl](https://github.com/sintefmath/JutulDarcy.jl). The documentation is currently limited to docstrings and a series of examples. The examples are sorted by complexity. We suggest you start with [Gravity segregation example](Gravity segregation example).
 
 !!! info "Note about units"
