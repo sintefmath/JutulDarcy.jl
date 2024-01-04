@@ -347,9 +347,39 @@ function parse_region_matrix_table(f, nreg)
     return out
 end
 
-function parse_keyword!(data, outer_data, units, cfg, f, ::Val{T}) where T
-    # Do nothing
-    error("Unhandled keyword $T encountered.")
+function parse_keyword!(data, outer_data, units, cfg, f, v::Val{T}) where T
+    # Keywords where we read a single record and don't do anything proper
+    skip_kw = [
+        :PETOPTS,
+        :PARALLEL,
+        :VECTABLE,
+        :MULTSAVE
+        ]
+    # Keywords that are a single record where we should warn
+    skip_kw_with_warn = Symbol[
+
+    ]
+    # Single word keywords are trivial to parse, just set a true flag.
+    single_word_kw = [
+            :MULTOUT,
+            :NOSIM,
+            :NONNC,
+            :NEWTRAN
+            ]
+    single_word_kw_with_warn = Symbol[]
+    if T in skip_kw
+        data["$T"] = read_record(f)
+    elseif T in skip_kw_with_warn
+        parser_message(cfg, outer_data, "$T", PARSER_MISSING_SUPPORT)
+        data["$T"] = read_record(f)
+    elseif T in single_word_kw
+        data["$T"] = true
+    elseif T in single_word_kw_with_warn
+        parser_message(cfg, outer_data, "$T", PARSER_JUTULDARCY_MISSING_SUPPORT)
+        data["$T"] = true
+    else
+        error("Unhandled keyword $T encountered.")
+    end
 end
 
 function next_keyword!(f)

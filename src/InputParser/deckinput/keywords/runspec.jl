@@ -28,10 +28,6 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:TITLE})
     data["TITLE"] = m
 end
 
-function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:NONNC})
-    data["NONNC"] = true
-end
-
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:METRIC})
     data["METRIC"] = true
 end
@@ -101,10 +97,6 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:NUMRES})
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MULTSAVE})
-    read_record(f)
-end
-
-function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:VECTABLE})
     read_record(f)
 end
 
