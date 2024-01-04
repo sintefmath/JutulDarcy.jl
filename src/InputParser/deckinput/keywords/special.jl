@@ -35,6 +35,50 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COPY})
     end
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:OPERATE})
+    rec = read_record(f)
+    gdata = get_section(outer_data, :GRID)
+    l, u = gdata["CURRENT_BOX"]
+    dims = get_cartdims(outer_data)
+
+    il = l[1]
+    iu = u[1]
+    jl = l[2]
+    ju = u[2]
+    kl = l[3]
+    ku = u[3]
+
+    parser_message(cfg, outer_data, "OPERATE", PARSER_MISSING_SUPPORT)
+
+    while length(rec) > 0
+        d = "Default"
+        parsed = parse_defaulted_line(rec, [d, d, il, iu, jl, ju, kl, ku, d, NaN, NaN, NaN])
+        src = parsed[1]
+        op = parsed[8]
+        @assert src != d "Source was defaulted? rec = $rec"
+        @assert op != d "Operator was defaulted? rec = $rec"
+
+        # Box can be kept.
+        il = parsed[2]
+        iu = parsed[3]
+        jl = parsed[4]
+        ju = parsed[5]
+        kl = parsed[6]
+        ku = parsed[7]
+
+        op_prm1 = parsed[9]
+        op_prm2 = parsed[10]
+        op_prm3 = parsed[11]
+
+        @assert isfinite(op_prm1) "Operator parameter 1 was non-finite for OPERATE: $rec"
+        @assert isfinite(op_prm2) "Operator parameter 2 was non-finite for OPERATE: $rec"
+        @assert isfinite(op_prm3) "Operator parameter 3 was non-finite for OPERATE: $rec"
+        # TODO: Implement operation
+        # apply_copy!(data, dst, data[src], (il, iu), (jl, ju), (kl, ku), dims)
+        rec = read_record(f)
+    end
+end
+
 function apply_copy!(data, dst, src, I, J, K, dims)
     if haskey(data, dst)
         error("Not implemented")
