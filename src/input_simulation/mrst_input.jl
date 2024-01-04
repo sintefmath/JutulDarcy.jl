@@ -68,12 +68,20 @@ function reservoir_domain_from_mrst(name::String; extraout = false, convert_grid
     poro = get_vec(exported["rock"]["poro"])
     perm = copy((exported["rock"]["perm"])')
     domain = reservoir_domain(g, porosity = poro, permeability = perm)
-
+    if haskey(exported["rock"], "ntg")
+        ntg = get_vec(exported["rock"]["ntg"])
+        domain[:net_to_gross, Cells()] = ntg
+        # TODO: MRST exporter assumes pv = vol*poro and defines poro from that.
+        # We fix that calculation here in the Jutul side. If we fix it in the
+        # MATLAB exporter all old exported mat files will be rendered obsolete.
+        domain[:porosity] = poro./ntg
+    end
     nf = number_of_faces(domain)
     if haskey(exported, "N")
         N = Int64.(exported["N"]')
         nf = size(N, 2)
         if nf != number_of_faces(domain)
+            jutul_message("Case setup", "Mismatch beteween neighborship and grid. Simulation model will work, but post-processing based on geometry may fail.")
             d = Jutul.dim(g)
             domain.entities[Faces()] = nf
             domain[:areas, Faces()] = fill!(zeros(nf), NaN)

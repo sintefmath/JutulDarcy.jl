@@ -210,7 +210,12 @@ function swap_unit_system(val, systems, k::Symbol)
     return swap_unit_system(val, systems, Val(k))
 end
 
-function swap_unit_system(v, systems::Union{Nothing, Missing}, k::Union{Symbol, Val})
+function swap_unit_system(v, systems::Union{Nothing, Missing}, k::Val)
+    # No systems - trivial conversion
+    return v
+end
+
+function swap_unit_system(v, systems::Union{Nothing, Missing}, k::Symbol)
     # No systems - trivial conversion
     return v
 end
@@ -230,8 +235,11 @@ function identity_unit_vector(n::Int)
     return utypes
 end
 
-function swap_unit_system(val, systems::NamedTuple, ::Val{k}) where k
+function swap_unit_system(val, systems::NamedTuple, ::Val{k}; reverse = false) where k
     (; to, from) = systems
+    if reverse
+        to, from = from, to
+    end
     to_unit = deck_unit(to, k)
     from_unit = deck_unit(from, k)
 

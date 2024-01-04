@@ -21,6 +21,14 @@ function reservoir_domain(g; permeability = convert_to_si(0.1, :darcy), porosity
     if !ismissing(diffusion)
         kwarg = (diffusion = diffusion, kwarg...)
     end
+    nk = length(permeability)
+    nc = number_of_cells(g)
+    if nk != nc && permeability isa AbstractVector
+        d = dim(g)
+        if nk == d || (d == 2 && nk == 3) || (d == 3 && nk == 6)
+            permeability = repeat(permeability, 1, nc)
+        end
+    end
     return DataDomain(g; permeability = permeability, porosity = porosity, kwarg...)
 end
 
@@ -56,16 +64,26 @@ The routine automatically sets up a facility and couples the wells with the
 reservoir and that facility.
 """
 function setup_reservoir_model(reservoir::DataDomain, system;
-    wells = [],
-    context = DefaultContext(),
-    reservoir_context = nothing,
-    general_ad = false,
-    backend = :csc,
-    extra_outputs = [:LiquidMassFractions, :VaporMassFractions, :Rs, :Rv, :Saturations],
-    split_wells = false,
-    assemble_wells_together = true,
-    parameters = Dict{Symbol, Any}(),
-    kwarg...
+        wells = [],
+        context = DefaultContext(),
+        reservoir_context = nothing,
+        general_ad = false,
+        backend = :csc,
+        extra_outputs = [:LiquidMassFractions, :VaporMassFractions, :Rs, :Rv, :Saturations],
+        split_wells = false,
+        assemble_wells_together = true,
+        extra_out = true,
+        dp_max_abs = nothing,
+        dp_max_rel = 0.2,
+        dp_max_abs_well = convert_to_si(50, :bar),
+        dp_max_rel_well = nothing,
+        ds_max = 0.2,
+        dz_max = 0.2,
+        p_min = DEFAULT_MINIMUM_PRESSURE,
+        p_max = Inf,
+        dr_max = Inf,
+        parameters = Dict{Symbol, Any}(),
+        kwarg...
     )
     # List of models (order matters)
     models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()
@@ -82,6 +100,16 @@ function setup_reservoir_model(reservoir::DataDomain, system;
         context = reservoir_context,
         general_ad = general_ad
     )
+    set_reservoir_variable_defaults!(rmodel,
+        dp_max_abs = dp_max_abs,
+        dp_max_rel = dp_max_rel,
+        p_min = p_min,
+        p_max = p_max,
+        dr_max = dr_max,
+        ds_max = ds_max,
+        dz_max = dz_max
+    )
+
     for k in extra_outputs
         if haskey(rmodel.secondary_variables, k)
             push!(rmodel.output_variables, k)
@@ -102,7 +130,17 @@ function setup_reservoir_model(reservoir::DataDomain, system;
                 w_domain[:temperature] = reservoir[:temperature][wc]
             end
             wname = w.name
-            models[wname] = SimulationModel(w_domain, system, context = context)
+            wmodel = SimulationModel(w_domain, system, context = context)
+            set_reservoir_variable_defaults!(wmodel,
+                dp_max_abs = dp_max_abs_well,
+                dp_max_rel = dp_max_rel_well,
+                p_min = p_min,
+                p_max = p_max,
+                dr_max = dr_max,
+                ds_max = ds_max,
+                dz_max = dz_max
+            )
+            models[wname] = wmodel
             if split_wells
                 wg = WellGroup([wname])
                 F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
@@ -119,9 +157,30 @@ function setup_reservoir_model(reservoir::DataDomain, system;
 
     # Put it all together as multimodel
     model = reservoir_multimodel(models, split_wells = split_wells, assemble_wells_together = assemble_wells_together)
-    # Insert domain here.
-    parameters = setup_parameters(model, parameters)
-    return (model, parameters)
+    if extra_out
+        parameters = setup_parameters(model, parameters)
+        out = (model, parameters)
+    else
+        out = model
+    end
+    return out
+end
+
+function set_reservoir_variable_defaults!(model; p_min, p_max, dp_max_abs, dp_max_rel, ds_max, dz_max, dr_max)
+    # Replace various variables - if they are available
+    replace_variables!(model, OverallMoleFractions = OverallMoleFractions(dz_max = dz_max), throw = false)
+    replace_variables!(model, Saturations = Saturations(ds_max = ds_max), throw = false)
+    replace_variables!(model, ImmiscibleSaturation = ImmiscibleSaturation(ds_max = ds_max), throw = false)
+    replace_variables!(model, BlackOilUnknown = BlackOilUnknown(ds_max = ds_max, dr_max = dr_max), throw = false)
+
+    p_def = Pressure(
+        max_abs = dp_max_abs,
+        max_rel = dp_max_rel,
+        minimum = p_min,
+        maximum = p_max
+    )
+    replace_variables!(model, Pressure = p_def, throw = false)
+    return model
 end
 
 export setup_reservoir_simulator
@@ -916,4 +975,99 @@ function reservoir_groups_for_printing(model::MultiModel)
         end
     end
     return groups
+end
+
+"""
+    reservoir_transmissibility(d::DataDomain)
+
+Special transmissibility function for reservoir simulation that handles
+additional complexity present in industry grade models.
+"""
+function reservoir_transmissibility(d::DataDomain; version = :xyz)
+    g = physical_representation(d)
+    N = d[:neighbors]
+    nc = number_of_cells(d)
+    faces, facepos = get_facepos(N, nc)
+    facesigns = Jutul.get_facesigns(N, faces, facepos, nc)
+
+    if version == :ijk
+        face_dir = get_ijk_face_dir(g, N)
+    else
+        face_dir = missing
+    end
+    T_hf = compute_half_face_trans(
+        d[:cell_centroids],
+        d[:face_centroids],
+        d[:normals],
+        d[:areas],
+        d[:permeability],
+        faces, facepos, facesigns,
+        version = version,
+        face_dir = face_dir
+    )
+    neg_count = 0
+    for (i, T_hf_i) in enumerate(T_hf)
+        neg_count += T_hf_i < 0
+        T_hf[i] = abs(T_hf_i)
+    end
+    if neg_count > 0
+        @warn "Replaced $neg_count negative half-transmissibilities (out of $(length(T_hf))) with their absolute value."
+    end
+    if haskey(d, :net_to_gross)
+        # Net to gross applies to vertical trans only
+        nf = number_of_faces(d)
+        otag = get_mesh_entity_tag(g, Faces(), :orientation, throw = false)
+        if !ismissing(otag)
+            # Use tags if provided
+            face_is_vertical = map(1:nf) do face
+                return mesh_entity_has_tag(g, Faces(), :orientation, :vertical, face)
+            end
+        elseif g isa CartesianMesh
+            # Cartesian mesh is simple
+            k_index = map(c -> cell_ijk(g, c), 1:nc)
+            face_is_vertical = map(1:nf) do face
+                l, r = N[:, face]
+                return k_index[l] == k_index[r]
+            end
+        else
+            # Fall back to normals
+            normals = d[:normals]
+            face_is_vertical = map(1:nf) do face
+                nx, ny, nz = normals[:, face]
+                return abs(nz) < max(abs(nx), abs(ny))
+            end
+        end
+        count = 0
+        for (c, ntg) in enumerate(d[:net_to_gross])
+            if !(ntg ≈ 1.0)
+                count += 1
+                for fp in facepos[c]:(facepos[c+1]-1)
+                    if face_is_vertical[faces[fp]]
+                        T_hf[fp] *= ntg
+                    end
+                end
+            end
+        end
+    end
+    T = compute_face_trans(T_hf, N)
+    return T
+end
+
+function get_ijk_face_dir(g, N)
+    nf = number_of_faces(g)
+    face_dir = ones(Int, nf)
+    ijk_c = map(i -> cell_ijk(g, i), 1:number_of_cells(g))
+    gdim = dim(g)
+    for i in 1:nf
+        l, r = N[:, i]
+        ijk_l = ijk_c[l]
+        ijk_r = ijk_c[r]
+        for j in 1:gdim
+            if ijk_l[j] != ijk_r[j]
+                face_dir[i] = j
+                break
+            end
+        end
+    end
+    return face_dir
 end

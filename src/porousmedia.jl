@@ -3,7 +3,7 @@ import Jutul: compute_half_face_trans, compute_face_trans
 export compute_peaceman_index
 function compute_peaceman_index(g::T, K, r, pos; kwarg...) where T<:Jutul.JutulMesh
     Δ = Jutul.cell_dims(g, pos)
-    K = Jutul.expand_perm(K, dim(g), full = true)
+    K = Jutul.expand_perm(K, dim(g))
     return compute_peaceman_index(Δ, K, r; kwarg...)
 end
 
@@ -38,10 +38,10 @@ function compute_peaceman_index(Δ, K, radius; dir::Symbol = :z, constant = 0.14
 
     re1 = 2 * constant * sqrt((d1^2)*sqrt(k21) + (d2^2)*sqrt(k12))
     re2 = k21^(1/4) + k12^(1/4)
- 
+
     re  = kratio(re1, re2)
     ke  = sqrt(k1*k2)
- 
+
     if isnothing(Kh) || isnan(Kh)
         Kh = L*ke
     end

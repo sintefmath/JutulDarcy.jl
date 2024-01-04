@@ -1,3 +1,12 @@
+function finish_current_section!(data, units, cfg, outer_data, ::Val{:SCHEDULE})
+    compord = outer_data["SCHEDULE"]["COMPORD"]
+    for k in keys(get_wells(outer_data))
+        if !haskey(compord, k)
+            compord[k] = "TRACK"
+        end
+    end
+end
+
 function welspecs_to_well(ws)
     name = ws[1]::AbstractString
     # TODO: Parse more fields.
@@ -20,15 +29,26 @@ end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WELSPECS})
     d = "Default"
-    defaults = [d,     d,  -1,  -1, NaN,   d,     0.0, "STD", "SHUT", "YES",   0, "SEG", 0,     d, d, "STD"]
-    utypes =   [:id, :id, :id, :id, :length, :id, :length,   :id,    :id,   :id, :id,   :id, :id, :id, :id, :id]
+    defaults = [d,     d,  -1,  -1, NaN,       d,     0.0, "STD", "SHUT", "YES",   0, "SEG",    0,  d,  d, "STD", 0]
+    utypes =   [:id, :id, :id, :id, :length, :id, :length,   :id,    :id,   :id, :id,   :id, :id, :id, :id, :id, :id]
     wspecs = parse_defaulted_group(f, defaults)
     wells = get_wells(outer_data)
     for ws in wspecs
         swap_unit_system_axes!(ws, units, utypes)
         name, well = welspecs_to_well(ws)
-        @assert !haskey(wells, name) "Well $name is already defined."
+        # @assert !haskey(wells, name) "Well $name is already defined."
         wells[name] = well
+    end
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COMPORD})
+    d = "Default"
+    defaults = [d, "TRACK"]
+    compord = parse_defaulted_group(f, defaults)
+    out = outer_data["SCHEDULE"]["COMPORD"]
+    for co in compord
+        well, val = co
+        out[name] = val
     end
 end
 
@@ -48,6 +68,15 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COMPDAT})
         swap_unit_system_axes!(cd, units, utypes)
     end
     data["COMPDAT"] = compdat
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WELOPEN})
+    d = "Default"
+    defaults = [d, "OPEN", -1, -1, -1, -1, -1]
+    wells = get_wells(outer_data)
+    welopen = parse_defaulted_group_well(f, defaults, wells, 1)
+    parser_message(cfg, outer_data, "WELTARG", PARSER_JUTULDARCY_MISSING_SUPPORT)
+    data["WELOPEN"] = welopen
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WCONPROD})
@@ -182,11 +211,21 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Union{Val{:WELLTARG},
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WEFAC})
+    parser_message(cfg, outer_data, "WEFAC", PARSER_JUTULDARCY_PARTIAL_SUPPORT)
+
     defaults = ["Default", 1.0]
     wells = get_wells(outer_data)
-    d = parse_defaulted_group_well(f, defaults, wells, 1)
-    parser_message(cfg, outer_data, "WEFAC", PARSER_JUTULDARCY_PARTIAL_SUPPORT)
-    data["WEFAC"] = d
+    parsed = parse_defaulted_group_well(f, defaults, wells, 1)
+    push_and_create!(data, "WEFAC", parsed)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WPIMULT})
+    parser_message(cfg, outer_data, "WPIMULT", PARSER_JUTULDARCY_MISSING_SUPPORT)
+
+    defaults = ["Default", 1.0, -1, -1, -1, -1, -1, -1]
+    wells = get_wells(outer_data)
+    parsed = parse_defaulted_group_well(f, defaults, wells, 1)
+    push_and_create!(data, "WPIMULT", parsed)
 end
 
 function convert_date_kw(t)
@@ -285,5 +324,20 @@ end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WRFTPLT})
     parser_message(cfg, outer_data, "WRFTPLT", PARSER_MISSING_SUPPORT)
+    skip_record(f)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GRUPTREE})
+    parser_message(cfg, outer_data, "GRUPTREE", PARSER_MISSING_SUPPORT)
+    skip_record(f)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:AQUFETP})
+    parser_message(cfg, outer_data, "AQUFETP", PARSER_MISSING_SUPPORT)
+    skip_record(f)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:AQUANCON})
+    parser_message(cfg, outer_data, "AQUANCON", PARSER_MISSING_SUPPORT)
     skip_record(f)
 end

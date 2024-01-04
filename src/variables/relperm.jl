@@ -217,33 +217,36 @@ function Jutul.line_plot_data(model::SimulationModel, k::ReservoirRelativePermea
     end
     data = Matrix{Any}(undef, 2, nreg)
     ix = 1
-    for (krw, krow) in zip(k.krw, k.krow)
-        x = []
-        y = []
-        labels = []
-        push!(x, s)
-        push!(y, krw.(s))
-        push!(labels, "W")
-        push!(x, 1 .- s)
-        push!(y, krow.(s))
-        push!(labels, "OW")
-        data[1, ix] = Jutul.JutulLinePlotData(x, y, labels = labels, title = "Relative permeability", xlabel = "Water saturation", ylabel = "Water-Oil Kr")
-        ix += 1
+    if !isnothing(k.krw)
+        for (krw, krow) in zip(k.krw, k.krow)
+            x = []
+            y = []
+            labels = []
+            push!(x, s)
+            push!(y, krw.(s))
+            push!(labels, "W")
+            push!(x, 1 .- s)
+            push!(y, krow.(s))
+            push!(labels, "OW")
+            data[1, ix] = Jutul.JutulLinePlotData(x, y, labels = labels, title = "Relative permeability", xlabel = "Water saturation", ylabel = "Water-Oil Kr")
+            ix += 1
+        end
     end
-
-    ix = 1
-    for (krg, krog) in zip(k.krg, k.krog)
-        x = []
-        y = []
-        labels = []
-        push!(x, s)
-        push!(y, krg.(s))
-        push!(labels, "G")
-        push!(x, s)
-        push!(y, krog.(1 .- s))
-        push!(labels, "OG")
-        data[2, ix] = Jutul.JutulLinePlotData(x, y, labels = labels, title = "Relative permeability", xlabel = "Gas saturation", ylabel = "Gas-Oil Kr")
-        ix += 1
+    if !isnothing(k.krg)
+        ix = 1
+        for (krg, krog) in zip(k.krg, k.krog)
+            x = []
+            y = []
+            labels = []
+            push!(x, s)
+            push!(y, krg.(s))
+            push!(labels, "G")
+            push!(x, s)
+            push!(y, krog.(1 .- s))
+            push!(labels, "OG")
+            data[2, ix] = Jutul.JutulLinePlotData(x, y, labels = labels, title = "Relative permeability", xlabel = "Gas saturation", ylabel = "Gas-Oil Kr")
+            ix += 1
+        end
     end
     return data
 end
@@ -305,11 +308,11 @@ end
     return kr
 end
 
-@jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeability{NoKrScale, :wog}, model, Saturations, ix)
+@jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeability{NoKrScale, :wog}, model, Saturations, ConnateWater, ix)
     s = Saturations
     phases = phase_indices(model.system)
     for c in ix
-        @inbounds update_three_phase_relperm!(kr, relperm, phases, s, c, nothing)
+        @inbounds update_three_phase_relperm!(kr, relperm, phases, s, c, ConnateWater[c], nothing)
     end
     return kr
 end
@@ -363,17 +366,17 @@ Base.@propagate_inbounds function two_phase_relperm!(kr, s, regions, Kr_1, Kr_2,
     kr[i2, c] = kr2(sg)
 end
 
-@jutul_secondary function update_kr_with_scaling!(kr, relperm::ReservoirRelativePermeability{<:Any, :wog}, model, Saturations, RelPermScalingW, RelPermScalingOW, RelPermScalingOG, RelPermScalingG, ix)
+@jutul_secondary function update_kr_with_scaling!(kr, relperm::ReservoirRelativePermeability{<:Any, :wog}, model, Saturations, RelPermScalingW, RelPermScalingOW, RelPermScalingOG, RelPermScalingG, ConnateWater, ix)
     s = Saturations
     phases = phase_indices(model.system)
     scalers = (w = RelPermScalingW, ow = RelPermScalingOW, og = RelPermScalingOG, g = RelPermScalingG)
     for c in ix
-        @inbounds update_three_phase_relperm!(kr, relperm, phases, s, c, scalers)
+        @inbounds update_three_phase_relperm!(kr, relperm, phases, s, c, ConnateWater[c], scalers)
     end
     return kr
 end
 
-Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relperm, phase_ind, s, c, scalers)
+Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relperm, phase_ind, s, c, swcon, scalers)
     w, o, g = phase_ind
     reg = region(relperm.regions, c)
     krw = table_by_region(relperm.krw, reg)
@@ -385,7 +388,7 @@ Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relper
     so = s[o, c]
     sg = s[g, c]
 
-    Krw, Krow, Krog, Krg, swcon = three_phase_relperm(relperm, c, sw, so, sg, krw, krow, krog, krg, scalers)
+    Krw, Krow, Krog, Krg, swcon = three_phase_relperm(relperm, c, sw, so, sg, krw, krow, krog, krg, swcon, scalers)
     Kro = three_phase_oil_relperm(Krow, Krog, swcon, sg, sw)
 
     kr[w, c] = Krw
@@ -404,23 +407,25 @@ function get_kr_scalers(scaler::AbstractMatrix, c)
     return (L, CR, U, KM)
 end
 
-@inline function three_phase_relperm(relperm, c, sw, so, sg, krw, krow, krog, krg, ::Nothing)
-    return (krw(sw), krow(so), krog(so), krg(sg), krw.connate)
+@inline function three_phase_relperm(relperm, c, sw, so, sg, krw, krow, krog, krg, swcon, ::Nothing)
+    return (krw(sw), krow(so), krog(so), krg(sg), swcon)
 end
 
-function three_phase_relperm(relperm, c, sw, so, sg, krw, krow, krog, krg, scalers)
+function three_phase_relperm(relperm, c, sw, so, sg, krw, krow, krog, krg, swcon, scalers)
     scaler_w, scaler_ow, scaler_og, scaler_g = scalers
-    return three_point_three_phase_scaling(krw, krow, krog, krg, sw, so, sg, scaler_w, scaler_ow, scaler_og, scaler_g, c)
+    return three_point_three_phase_scaling(krw, krow, krog, krg, sw, so, sg, swcon, scaler_w, scaler_ow, scaler_og, scaler_g, c)
 end
 
 
-function three_point_three_phase_scaling(krw, krow, krog, krg, sw, so, sg, scaler_w, scaler_ow, scaler_og, scaler_g, c)
+function three_point_three_phase_scaling(krw, krow, krog, krg, sw, so, sg, swcon, scaler_w, scaler_ow, scaler_og, scaler_g, c)
     L_w, CR_w, U_w, KM_w = get_kr_scalers(scaler_w, c)
     L_ow, CR_ow, U_ow, KM_ow = get_kr_scalers(scaler_ow, c)
     L_og, CR_og, U_og, KM_og = get_kr_scalers(scaler_og, c)
     L_g, CR_g, U_g, KM_g = get_kr_scalers(scaler_g, c)
 
-    l_w, cr_w, u_w, km_w = get_kr_scalers(krw)
+    _, cr_w, u_w, km_w = get_kr_scalers(krw)
+    l_w = swcon
+
     l_ow, cr_ow, u_ow, km_ow = get_kr_scalers(krow)
     l_og, cr_og, u_og, km_og = get_kr_scalers(krog)
     l_g, cr_g, u_g, km_g = get_kr_scalers(krg)

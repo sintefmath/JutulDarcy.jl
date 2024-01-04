@@ -1,7 +1,43 @@
+function parse_and_set_grid_data!(data, outer_data, units, cfg, f, k; unit = :id, T = Float64, default = zero(T))
+    bdims = get_boxdims(outer_data)
+    cdims = get_cartdims(outer_data)
+    vals = parse_grid_vector(f, bdims, T)
+    if unit != :id
+        vals = swap_unit_system!(vals, units, Val(unit))
+    end
+    skey = "$k"
+    if bdims == cdims
+        data[skey] = vals
+    else
+        if !haskey(data, skey)
+            data[skey] = fill(default, cdims)
+        end
+        d = data[skey]
+        @assert size(d) == cdims
+        I, J, K = get_box_indices(outer_data)
+        d[I, J, K] = vals
+    end
+end
+
+function finish_current_section!(data, units, cfg, outer_data, ::Val{:GRID})
+    if !haskey(data, "MINPV")
+        io = IOBuffer("1e-6\n/\n")
+        parse_keyword!(data, outer_data, units, cfg, io, Val(:MINPV))
+    end
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GRIDFILE})
     rec = read_record(f)
     tdims = [0, 1];
     data["GRIDFILE"] = parse_defaulted_line(rec, tdims)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Union{Val{:MINPORV}, Val{:MINPV}})
+    rec = read_record(f)
+    tdims = [1e-6];
+    rec = parse_defaulted_line(rec, tdims)
+    zcorn = swap_unit_system!(rec, units, :volume)
+    data["MINPV"] = only(rec)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:INIT})
@@ -13,19 +49,19 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COORDSYS})
     parser_message(cfg, outer_data, "COORDSYS", PARSER_MISSING_SUPPORT)
 end
 
-function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MULTPV})
-    read_record(f)
-    parser_message(cfg, outer_data, "MULTPV", PARSER_MISSING_SUPPORT)
-end
-
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MAPUNITS})
     # TODO: This needs to be handled
-    partial_parse!(data, outer_data, units, cfg, f, :GRIDUNIT)
+    partial_parse!(data, outer_data, units, cfg, f, :MAPUNITS)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GRIDUNIT})
     # TODO: This needs to be handled
     partial_parse!(data, outer_data, units, cfg, f, :GRIDUNIT)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FILEUNIT})
+    # TODO: This needs to be handled
+    partial_parse!(data, outer_data, units, cfg, f, :FILEUNIT)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GDORIENT})
@@ -58,44 +94,42 @@ end
 
 function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:PERMX}, Val{:PERMY}, Val{:PERMZ}})
     k = unpack_val(v)
-    vals = parse_grid_vector(f, get_cartdims(outer_data), Float64)
-    vals = swap_unit_system!(vals, units, Val(:permeability))
-    data["$k"] = vals
+    parse_and_set_grid_data!(data, outer_data, units, cfg, f, k, unit = :permeability)
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, v::Val{:MULTPV})
+    k = unpack_val(v)
+    parse_and_set_grid_data!(data, outer_data, units, cfg, f, k)
+end
 
 function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:PRATIO}, Val{:BIOTCOEF}})
     k = unpack_val(v)
-    vals = parse_grid_vector(f, get_cartdims(outer_data), Float64)
-    data["$k"] = vals
+    parse_and_set_grid_data!(data, outer_data, units, cfg, f, k)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:YMODULE}})
     k = unpack_val(v)
-    vals = parse_grid_vector(f, get_cartdims(outer_data), Float64)
-    vals = swap_unit_system!(vals, units, Val(:gigapascal))
-    data["$k"] = vals
+    parse_and_set_grid_data!(data, outer_data, units, cfg, f, k, unit = :gigapascal)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:POELCOEF}, Val{:THELCOEF}, Val{:THERMEXR}, Val{:THCONR}})
     k = unpack_val(v)
     vals = parse_grid_vector(f, get_cartdims(outer_data), Float64)
-    @warn "Units not implemented for $k"
+    parser_message(cfg, outer_data, "$k", PARSER_PARTIAL_SUPPORT)
     data["$k"] = vals
 end
 
-function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:FIPNUM}, Val{:PVTNUM}, Val{:SATNUM}})
+function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:FIPNUM}, Val{:PVTNUM}, Val{:SATNUM}, Val{:EQLNUM}, Val{:ROCKNUM}})
     k = unpack_val(v)
-    vals = parse_grid_vector(f, get_cartdims(outer_data), Int)
-    data["$k"] = vals
+    parse_and_set_grid_data!(data, outer_data, units, cfg, f, k, T = Int)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PORO})
-    data["PORO"] = parse_grid_vector(f, get_cartdims(outer_data), Float64)
+    parse_and_set_grid_data!(data, outer_data, units, cfg, f, :PORO)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:NTG})
-    data["NTG"] = parse_grid_vector(f, get_cartdims(outer_data), Float64)
+    parse_and_set_grid_data!(data, outer_data, units, cfg, f, :NTG)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:DX}, Val{:DY}, Val{:DZ}})
@@ -123,6 +157,13 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:SPECGRID})
     set_cartdims!(outer_data, data["SPECGRID"][1:3])
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PINCH})
+    rec = read_record(f)
+    tdims = [0.001, "GAP", Inf, "TOPBOT", "TOP"]
+    parser_message(cfg, outer_data, "PINCH", PARSER_JUTULDARCY_PARTIAL_SUPPORT)
+    data["PINCH"] = parse_defaulted_line(rec, tdims)
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FAULTS})
     read_record
     tdims = ["NAME", -1, -1, -1, -1, -1, -1, "XYZ_IJK"]
@@ -137,12 +178,26 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FAULTS})
         end
         parsed = parse_defaulted_line(rec, tdims, required_num = length(tdims), keyword = "FAULTS")
         name = parsed[1]
-        faults[name] = (
+        flt = (
             i = parsed[2]:parsed[3],
             j = parsed[4]:parsed[5],
             k = parsed[6]:parsed[7],
             direction = parsed[8]
         )
+        if haskey(faults, name)
+            push!(faults[name], flt)
+        else
+            faults[name] = [flt]
+        end
     end
 end
 
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MULTFLT})
+    d = "*"
+    tdims = [d, 1.0, 1.0]
+    faults = outer_data["GRID"]["FAULTS"]
+    parser_message(cfg, outer_data, "MULTFLT", PARSER_JUTULDARCY_MISSING_SUPPORT)
+    out = parse_defaulted_group_well(f, tdims, faults);
+    data["MULTFLT"] = out
+end

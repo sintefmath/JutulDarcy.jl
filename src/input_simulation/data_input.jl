@@ -37,15 +37,14 @@ function setup_case_from_data_file(
     return out
 end
 
-function setup_case_from_parsed_data(datafile; simple_well = true, kwarg...)
+function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans = true, kwarg...)
     sys, pvt = parse_physics_types(datafile)
     is_blackoil = sys isa StandardBlackOilSystem
     is_compositional = sys isa CompositionalSystem
     domain = parse_reservoir(datafile)
-    wells, controls, limits, cstep, dt, well_mul = parse_schedule(domain, sys, datafile; simple_well = simple_well)
+    wells, controls, limits, cstep, dt, well_forces = parse_schedule(domain, sys, datafile; simple_well = simple_well)
 
-    model, parameters0 = setup_reservoir_model(domain, sys; wells = wells, kwarg...)
-
+    model = setup_reservoir_model(domain, sys; wells = wells, extra_out = false, kwarg...)
     for (k, submodel) in pairs(model.models)
         if submodel.system isa MultiPhaseSystem
             # Modify secondary variables
@@ -71,13 +70,22 @@ function setup_case_from_parsed_data(datafile; simple_well = true, kwarg...)
         end
     end
     parameters = setup_parameters(model)
-    forces = parse_forces(model, wells, controls, limits, cstep, dt, well_mul)
+    if haskey(datafile["PROPS"], "SWL")
+        G = physical_representation(domain)
+        swl = vec(datafile["PROPS"]["SWL"])
+        parameters[:Reservoir][:ConnateWater] .= swl[G.cell_map]
+    end
+    if use_ijk_trans
+        parameters[:Reservoir][:Transmissibilities] = reservoir_transmissibility(domain, version = :ijk);
+    end
+    forces = parse_forces(model, wells, controls, limits, cstep, dt, well_forces)
     state0 = parse_state0(model, datafile)
     return JutulCase(model, dt, forces, state0 = state0, parameters = parameters)
 end
 
-function parse_well_from_compdat(domain, wname, v, wspecs; simple_well = true)
-    wc, WI, open = compdat_to_connection_factors(domain, v)
+function parse_well_from_compdat(domain, wname, cdat, wspecs, compord; simple_well = true)
+    wc, WI, open = compdat_to_connection_factors(domain, wspecs, cdat, sort = true, order = compord)
+
     rd = wspecs.ref_depth
     if isnan(rd)
         rd = nothing
@@ -86,7 +94,7 @@ function parse_well_from_compdat(domain, wname, v, wspecs; simple_well = true)
     return (W, wc, WI, open)
 end
 
-function compdat_to_connection_factors(domain, v)
+function compdat_to_connection_factors(domain, wspec, v; sort = true, order = "TRACK")
     G = physical_representation(domain)
     K = domain[:permeability]
 
@@ -113,53 +121,135 @@ function compdat_to_connection_factors(domain, v)
             WI[i] = compute_peaceman_index(G, k_i, d[i]/2, c, skin = skin[i], Kh = Kh[i], dir = Symbol(dir[i]))
         end
     end
+    if sort
+        ix = well_completion_sortperm(domain, wspec, order, wc, dir)
+        wc = wc[ix]
+        WI = WI[ix]
+        open = open[ix]
+    end
     return (wc, WI, open)
 end
 
 function parse_schedule(domain, runspec, props, schedule, sys; simple_well = true)
+    G = physical_representation(domain)
+
     dt, cstep, controls, completions, limits = parse_control_steps(runspec, props, schedule, sys)
+    completions, bad_wells = filter_inactive_completions!(completions, G)
+    @assert length(controls) == length(completions)
+    handle_wells_without_active_perforations!(bad_wells, completions, controls, limits)
     ncomp = length(completions)
     wells = []
-    well_mul = []
+    well_forces = Dict{Symbol, Any}[]
+    for i in eachindex(completions)
+        push!(well_forces, Dict{Symbol, Any}())
+    end
     for (k, v) in pairs(completions[end])
-        W, wc_base, WI_base, open = parse_well_from_compdat(domain, k, v, schedule["WELSPECS"][k]; simple_well = simple_well)
-        wi_mul = zeros(length(WI_base), ncomp)
+        wspec = schedule["WELSPECS"][k]
+        compord = schedule["COMPORD"][k]
+        for i in eachindex(completions)
+            well_forces[i][Symbol(k)] = (mask = nothing, )
+        end
+        W, wc_base, WI_base, open = parse_well_from_compdat(domain, k, v, wspec, compord; simple_well = simple_well)
         for (i, c) in enumerate(completions)
             compdat = c[k]
-            wc, WI, open = compdat_to_connection_factors(domain, compdat)
-            for (c, wi, is_open) in zip(wc, WI, open)
-                compl_idx = findfirst(isequal(c), wc_base)
-                if isnothing(compl_idx)
-                    # This perforation is missing, leave at zero.
-                    continue
+            well_is_shut = controls[i][k] isa DisabledControl
+            wi_mul = zeros(length(WI_base))
+            if !well_is_shut
+                wc, WI, open = compdat_to_connection_factors(domain, wspec, compdat, sort = false)
+                for (c, wi, is_open) in zip(wc, WI, open)
+                    compl_idx = findfirst(isequal(c), wc_base)
+                    if isnothing(compl_idx)
+                        # This perforation is missing, leave at zero.
+                        continue
+                    end
+                    wi_mul[compl_idx] = wi*is_open/WI_base[compl_idx]
                 end
-                wi_mul[compl_idx, i] = wi*is_open/WI_base[compl_idx]
             end
-            # @. wi_mul[:, i] = (WI*open)/WI_base
+            if all(isapprox(1.0), wi_mul)
+                mask = nothing
+            else
+                mask = PerforationMask(wi_mul)
+            end
+            # TODO: Make this use setup_forces properly
+            well_forces[i][Symbol(k)] = (mask = mask, )
         end
         push!(wells, W)
-        if all(isapprox(1.0), wi_mul)
-            push!(well_mul, nothing)
-        else
-            push!(well_mul, wi_mul)
-        end
     end
-    return (wells, controls, limits, cstep, dt, well_mul)
+    return (wells, controls, limits, cstep, dt, well_forces)
 end
 
+function filter_inactive_completions!(completions_vector, g)
+    tuple_active = Dict{Tuple{String, NTuple{3, Int}}, Bool}()
+    for completions in completions_vector
+        for (well, completion_set) in pairs(completions)
+            for tupl in keys(completion_set)
+                k = (well, tupl)
+                if !haskey(tuple_active, k)
+                    ix = cell_index(g, tupl, throw = false)
+                    if isnothing(ix)
+                        jutul_message("Removing well",
+                            "Well $well completion $tupl was declared using COMPDAT, but that cell is not active in model. Skipped.",
+                            color = :yellow
+                        )
+                        tuple_active[k] = false
+                    else
+                        tuple_active[k] = true
+                    end
+                end
+                if !tuple_active[k]
+                    delete!(completion_set, tupl)
+                end
+            end
+        end
+    end
+    bad_wells = String[]
+    for (well, completion_set) in pairs(completions_vector[end])
+        if length(keys(completion_set)) == 0
+            for c in completions_vector
+                @assert length(keys(c[well])) == 0
+            end
+            push!(bad_wells, well)
+        end
+    end
+    return (completions_vector, bad_wells)
+end
 
-function parse_forces(model, wells, controls, limits, cstep, dt, well_mul)
+function handle_wells_without_active_perforations!(bad_wells, completions, controls, limits)
+    if length(bad_wells) > 0
+        @assert length(completions) == length(controls) == length(limits)
+        for well in bad_wells
+            println("$well has no completions in active cells. Well will be not be present in model or simulation results.")
+            for i in eachindex(completions)
+                delete!(completions[i], well)
+                delete!(controls[i], well)
+                delete!(limits[i], well)
+            end
+        end
+    end
+end
+
+function parse_forces(model, wells, controls, limits, cstep, dt, well_forces)
     forces = []
-    for (ctrl, lim) in zip(controls, limits)
+    @assert length(controls) == length(limits) == length(well_forces)
+    i = 0
+    for (ctrl, lim, wforce) in zip(controls, limits, well_forces)
+        i += 1
         ctrl_s = Dict{Symbol, Any}()
         for (k, v) in pairs(ctrl)
+            wf_k = wforce[Symbol(k)]
+            if !isa(v, DisabledControl) && !isnothing(wf_k.mask)
+                if all(isequal(0), wf_k.mask.values)
+                    jutul_message("Shutting $k", "Well has no open perforations at step $i, shutting.")
+                    v = DisabledControl()
+                end
+            end
             ctrl_s[Symbol(k)] = v
         end
         lim_s = Dict{Symbol, Any}()
         for (k, v) in pairs(lim)
             lim_s[Symbol(k)] = v
         end
-        f = setup_reservoir_forces(model, control = ctrl_s, limits = lim_s)
+        f = setup_reservoir_forces(model; control = ctrl_s, limits = lim_s, pairs(wforce)...)
         push!(forces, f)
     end
     return forces[cstep]
@@ -349,6 +439,23 @@ function parse_reservoir(data_file)
         perm[3, i] = grid["PERMZ"][c]
         poro[i] = grid["PORO"][c]
     end
+    extra_data_arg = Dict{Symbol, Any}()
+    if haskey(grid, "MULTPV")
+        multpv = zeros(nc)
+        for (i, c) in enumerate(active_ix)
+            multpv[i] = grid["MULTPV"][c]
+        end
+        extra_data_arg[:pore_volume_multiplier] = multpv
+    end
+
+    if haskey(grid, "NTG")
+        ntg = zeros(nc)
+        for (i, c) in enumerate(active_ix)
+            ntg[i] = grid["NTG"][c]
+        end
+        extra_data_arg[:net_to_gross] = ntg
+    end
+
     sol = data_file["SOLUTION"]
     has_tempi = haskey(sol, "TEMPI")
     has_tempvd = haskey(sol, "TEMPVD")
@@ -360,9 +467,7 @@ function parse_reservoir(data_file)
         for (i, c) in enumerate(active_ix)
             temperature[i] = convert_to_si(T_inp[i], :Celsius)
         end
-        temp_arg = (temperature = temperature, )
-    else
-        temp_arg = NamedTuple()
+        extra_data_arg[:temperature] = temperature
     end
     satnum = JutulDarcy.InputParser.table_region(data_file, :saturation, active = active_ix)
     eqlnum = JutulDarcy.InputParser.table_region(data_file, :equil, active = active_ix)
@@ -372,7 +477,7 @@ function parse_reservoir(data_file)
         porosity = poro,
         satnum = satnum,
         eqlnum = eqlnum,
-        temp_arg...
+        pairs(extra_data_arg)...
     )
 end
 
@@ -382,7 +487,39 @@ function get_effective_actnum(g)
     else
         actnum = fill(true, prod(grid["cartDims"]))
     end
-    if haskey(g, "PORO")
+    handle_zero_effective_porosity!(actnum, g)
+    return actnum
+end
+
+function handle_zero_effective_porosity!(actnum, g)
+    if haskey(g, "MINPV")
+        minpv = g["MINPV"]
+    else
+        minpv = 1e-6
+    end
+    added = 0
+    active = 0
+
+    if haskey(g, "PORV")
+        porv = G["PORV"]
+        for i in eachindex(actnum)
+            if actnum[i]
+                pv = porv[i]
+                active += active
+                if pv < minpv
+                    added += 1
+                    actnum[i] = false
+                end
+            end
+        end
+    elseif haskey(g, "PORO")
+        if haskey(g, "ZCORN")
+            zcorn = g["ZCORN"]
+            coord = reshape(g["COORD"], 6, :)'
+            cartdims = g["cartDims"]
+        else
+            zcorn = coord = cartdims = missing
+        end
         # Have to handle zero or negligble porosity.
         if haskey(g, "NTG")
             ntg = g["NTG"]
@@ -390,22 +527,63 @@ function get_effective_actnum(g)
             ntg = ones(size(actnum))
         end
         poro = g["PORO"]
-        added = 0
-        active = 0
         for i in eachindex(actnum)
-            pv = poro[i]*ntg[i]
             if actnum[i]
+                vol = zcorn_volume(g, zcorn, coord, cartdims, i)
+                pv = poro[i]*ntg[i]*vol
                 active += active
-                # TODO: Don't hardcode this.
-                if pv < 0.001
+                if pv < minpv
                     added += 1
                     actnum[i] = false
                 end
             end
         end
-        @debug "$added disabled cells out of $(length(actnum)) due to low effective pore-volume."
     end
+    @debug "$added disabled cells out of $(length(actnum)) due to low effective pore-volume."
     return actnum
+end
+
+function zcorn_volume(g, zcorn, coord, dims, linear_ix)
+    if ismissing(zcorn)
+        return 1.0
+    end
+    nx, ny, nz = dims
+    i, j, k = linear_to_ijk(linear_ix, dims)
+
+    get_zcorn(I1, I2, I3) = zcorn[corner_index(linear_ix, (I1, I2, I3), dims)]
+    get_pair(I, J) = (get_zcorn(I, J, 0), get_zcorn(I, J, 1))
+    function pillar_line(I, J)
+        x1, x2 = get_line(coord, i+I, j+J, nx+1, ny+1)
+        return (x1 = x1, x2 = x2, equal_points = false)
+    end
+
+    function interpolate_line(I, J, L)
+        pl = pillar_line(I, J)
+        return interp_coord(pl, L)
+    end
+
+    l_11, t_11 = get_pair(0, 0)
+    l_12, t_12 = get_pair(0, 1)
+    l_21, t_21 = get_pair(1, 0)
+    l_22, t_22 = get_pair(1, 1)
+
+    pt_11 = interpolate_line(0, 0, l_11)
+    pt_12 = interpolate_line(0, 1, l_12)
+    pt_21 = interpolate_line(1, 0, l_21)
+    pt_22 = interpolate_line(1, 1, l_22)
+
+
+    A_1 = norm(cross(pt_21 - pt_11, pt_12 - pt_11), 2)
+    A_2 = norm(cross(pt_21 - pt_22, pt_12 - pt_22), 2)
+    area = (A_1 + A_2)/2.0
+
+    d_11 = t_11 - l_11
+    d_12 = t_12 - l_12
+    d_21 = t_21 - l_21
+    d_22 = t_22 - l_22
+
+    d_avg = 0.25*(d_11 + d_12 + d_21 + d_22)
+    return d_avg*area
 end
 
 function parse_physics_types(datafile)
@@ -572,13 +750,17 @@ function parse_control_steps(runspec, props, schedule, sys)
         push!(cstep, ctrl_ix)
     end
 
-    skip = ("WEFAC", "WELTARG", "WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE")
+    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE")
+    bad_kw = Dict{String, Bool}()
     for (ctrl_ix, step) in enumerate(steps)
         found_time = false
         streams = parse_well_streams_for_step(step, props)
         for (key, kword) in pairs(step)
             if key == "DATES"
-                @assert !ismissing(start_date)
+                if ismissing(start_date)
+                    @warn "Defaulted date in parsed data and DATES is used. Setting start date to Jan 1. 1983."
+                    start_date = DateTime("1983-01-01")
+                end
                 @assert !found_time
                 found_time = true
                 for date in kword
@@ -633,12 +815,10 @@ function parse_control_steps(runspec, props, schedule, sys)
                     name = wk[1]
                     controls[name], limits[name] = keyword_to_control(sys, streams, wk, key)
                 end
-            elseif key in ("WEFAC", "WELTARG")
-                @warn "$key Not supported properly."
             elseif key in skip
                 # Already handled
             else
-                error("Unhandled keyword $key")
+                bad_kw[key] = true
             end
         end
         push!(all_compdat, deepcopy(compdat))
@@ -647,6 +827,9 @@ function parse_control_steps(runspec, props, schedule, sys)
         if !found_time
             error("Did not find supported time kw in step $ctrl_ix: Keys were $(keys(step))")
         end
+    end
+    for k in keys(bad_kw)
+        jutul_message("Unsupported keyword", "Keyword $k was present, but is not supported.", color = :yellow)
     end
     return (dt = tstep, control_step = cstep, controls = all_controls, completions = all_compdat, limits = all_limits)
 end
@@ -749,29 +932,47 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
         ctrl = DisabledControl()
         lims = nothing
     else
+        is_rate = true
         @assert flag == "OPEN"
         if ctrl == "LRAT"
-            t = SurfaceLiquidRateTarget(-lrat)
+            self_val = -lrat
+            t = SurfaceLiquidRateTarget(self_val)
         elseif ctrl == "WRAT"
-            t = SurfaceWaterRateTarget(-wrat)
+            self_val = -wrat
+            t = SurfaceWaterRateTarget(self_val)
         elseif ctrl == "ORAT"
-            t = SurfaceOilRateTarget(-orat)
+            self_val = -orat
+            t = SurfaceOilRateTarget(self_val)
         elseif ctrl == "GRAT"
-            t = SurfaceGasRateTarget(-grat)
+            self_val = -grat
+            t = SurfaceGasRateTarget(self_val)
         elseif ctrl == "BHP"
-            t = BottomHolePressureTarget(bhp)
+            self_val = bhp
+            t = BottomHolePressureTarget(self_val)
+            is_rate = false
         elseif ctrl == "RESV"
-            t = -(wrat + orat + grat)
+            selv_val = -(wrat + orat + grat)
             if is_hist
-                ctrl = HistoricalReservoirVoidageTarget(t)
+                t = HistoricalReservoirVoidageTarget(selv_val)
             else
-                ctrl = ReservoirVoidageTarget(t)
+                t = ReservoirVoidageTarget(selv_val)
             end
         else
             error("$ctype control not supported")
         end
-        ctrl = ProducerControl(t)
-        lims = producer_limits(bhp = bhp, orat = orat, wrat = wrat, grat = grat, lrat = lrat)
+        if is_rate && abs(self_val) < MIN_ACTIVE_WELL_RATE
+            @debug "Producer with $ctrl disabled due to zero rate." abs(self_val)
+            ctrl = DisabledControl()
+        else
+            ctrl = ProducerControl(t)
+        end
+        if is_hist
+            self_symbol = translate_target_to_symbol(t, shortname = true)
+            # Put pressure slightly above 1 atm to avoid hard limit.
+            lims = (; :bhp => 1.001*si_unit(:atm), self_symbol => self_val)
+        else
+            lims = producer_limits(bhp = bhp, orat = orat, wrat = wrat, grat = grat, lrat = lrat)
+        end
     end
     return (ctrl, lims)
 end
@@ -797,16 +998,29 @@ function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_
     else
         @assert flag == "OPEN"
         if ctype == "RATE"
+            is_rate = true
             t = TotalRateTarget(surf_rate)
         elseif ctype == "BHP"
+            is_rate = false
             t = BottomHolePressureTarget(bhp)
         else
             # RESV, GRUP, THP
             error("$ctype control not supported")
         end
         rho, mix = select_injector_mixture_spec(sys, name, streams, type)
-        ctrl = InjectorControl(t, mix, density = rho)
-        lims = injector_limits(bhp = bhp, surface_rate = surf_rate, reservoir_rate = res_rate)
+        if is_rate && surf_rate < MIN_ACTIVE_WELL_RATE
+            @debug "Disabling injector $name with $ctype ctrl due to zero rate" surf_rate
+            ctrl = DisabledControl()
+        else
+            ctrl = InjectorControl(t, mix, density = rho)
+        end
+        if is_hist
+            # TODO: This magic number comes from MRST.
+            bhp_lim = convert_to_si(6895.0, :bar)
+        else
+            bhp_lim = bhp
+        end
+        lims = injector_limits(bhp = bhp_lim, surface_rate = surf_rate, reservoir_rate = res_rate)
     end
     return (ctrl, lims)
 end
@@ -891,4 +1105,131 @@ function keyword_to_control(sys, streams, kw, ::Val{:WCONINJH})
     # TODO: Expand to handle mixture etc.
     res_rate = Inf
     return injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp, is_hist = true)
+end
+
+function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
+    order_t = lowercase(order_t0)
+    @assert order_t in ("track", "input", "depth") "Invalid order for well: $order_t0"
+    centroid(dim) = domain[:cell_centroids][dim, wc]
+    n = length(wc)
+    if n < 2 || order_t == "input"
+        # Do nothing.
+        sorted = eachindex(wc)
+    elseif order_t == "depth" || all(isequal("Z"), dir)
+        z = centroid(3)
+        sorted = sortperm(z)
+    else
+        sorted = Int[]
+        @assert order_t == "track"
+        x = centroid(1)
+        y = centroid(2)
+        z = centroid(3)
+        # Make copies so we can safely remove values as we go.
+        wc = copy(wc)
+        original_ix = collect(1:n)
+        dir = lowercase.(copy(dir))
+        g = physical_representation(domain)
+        ijk = map(ix -> cell_ijk(g, ix), wc)
+
+        function remove_candidate!(ix)
+            deleteat!(x, ix)
+            deleteat!(y, ix)
+            deleteat!(z, ix)
+            deleteat!(wc, ix)
+            deleteat!(dir, ix)
+            deleteat!(ijk, ix)
+            deleteat!(original_ix, ix)
+        end
+        function add_to_sorted!(ix)
+            @assert ix > 0 && ix <= length(wc) "Algorithm failure. Programming error?"
+            push!(sorted, original_ix[ix])
+            previous_ix = closest_ix
+            previous_coord = (x[ix], y[ix], z[ix])
+            previous_ijk = ijk[ix]
+            previous_dir = dir[ix]
+            remove_candidate!(ix)
+            return (previous_ix, previous_coord, previous_ijk, previous_dir)
+        end
+
+        # Pick closest cell to head to start with
+        closest_ix = 0
+        closest_ij_distance = typemax(Int)
+        lowest_z = Inf
+        I_head, J_head = wspec.head
+        for (i, c) in enumerate(wc)
+            z_i = z[i]
+            I, J, = ijk[i]
+            d = abs(I - I_head) + abs(J - J_head)
+            if d == closest_ij_distance
+                new_minimum = z_i < lowest_z
+            elseif d < closest_ij_distance
+                new_minimum = true
+            else
+                new_minimum = false
+            end
+
+            if new_minimum
+                closest_ij_distance = d
+                closest_ix = i
+                lowest_z = z_i
+            end
+        end
+        prev_ix, prev_coord, prev_ijk, prev_dir = add_to_sorted!(closest_ix)
+        start = wspec.head
+        use_dir = true
+        while length(wc) > 0
+            closest_ix = 0
+            closest_xyz_distance = Inf
+            if use_dir
+                closest_ijk_distance = typemax(Int)
+                if prev_dir == "x"
+                    dim = 1
+                    coord = x
+                elseif prev_dir == "y"
+                    dim = 2
+                    coord = y
+                else
+                    @assert prev_dir == "z"
+                    dim = 3
+                    coord = z
+                end
+            else
+                closest_ijk_distance = Inf
+            end
+            for (i, c) in enumerate(wc)
+                if use_dir
+                    d_ijk = abs(ijk[i][dim] - prev_ijk[dim])
+                    d_xyz = abs(coord[i] - prev_coord[dim])
+                    if d_ijk == closest_ijk_distance
+                        new_minimum = d_xyz < closest_xyz_distance
+                    elseif d_ijk < closest_ijk_distance
+                        new_minimum = true
+                    else
+                        new_minimum = false
+                    end
+                else
+                    coord = (x[i], y[i], z[i])
+                    d_ijk = norm(ijk[i] .- prev_ijk, 2)
+                    d_xyz = norm(coord .- prev_coord, 2)
+                    # d_xyz = abs(coord[i] - prev_coord[dim])
+                    if d_xyz == closest_xyz_distance
+                        new_minimum = d_ijk < closest_ijk_distance
+                    elseif d_xyz < closest_xyz_distance
+                        new_minimum = true
+                    else
+                        new_minimum = false
+                    end
+                end
+                if new_minimum
+                    closest_ix = i
+                    closest_ijk_distance = d_ijk
+                    closest_xyz_distance = d_xyz
+                end
+            end
+            prev_ix, prev_coord, prev_ijk, prev_dir = add_to_sorted!(closest_ix)
+        end
+    end
+    @assert sort(sorted) == 1:n "$sorted was not $(1:n)"
+    @assert length(sorted) == n
+    return sorted
 end

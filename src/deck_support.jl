@@ -76,7 +76,11 @@ function Jutul.line_plot_data(model::SimulationModel, k::DeckPhaseVariables)
     data = Matrix{Any}(undef, nph, nreg)
     for r in 1:nreg
         for ph in 1:nph
-            data[ph, r] = deck_function_plot_data(model, k.pvt[ph], ph, r, pvt_type)
+            x = deck_function_plot_data(model, k.pvt[ph], ph, r, pvt_type)
+            if ismissing(x)
+                continue
+            end
+            data[ph, r] = x
         end
     end
     return data
@@ -84,7 +88,8 @@ end
 
 
 function deck_function_plot_data(model, pvt, phase, reg, as_type)
-    error("Not implemented for $(typeof(pvt)) as $as_type")
+    @warn "Plotting not implemented for $(typeof(pvt)) as $as_type"
+    return missing
 end
 
 function deck_function_plot_data(model, pvt::Union{PVTW, PVDO, PVTW_EXTENDED, PVDG}, phase, reg, as_type)

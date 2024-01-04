@@ -36,7 +36,7 @@ function parser_message(cfg::ParserVerbosityConfig, outer_data, keyword, msg::PA
         return
     end
     if msg == PARSER_MISSING_SUPPORT
-        text_msg = "Parser does not support keyword. It will be skipped."
+        text_msg = "Unsupported keyword. It will be ignored."
         do_print = cfg.warn_parsing
     elseif msg == PARSER_JUTULDARCY_MISSING_SUPPORT
         text_msg = "$keyword is not supported by JutulDarcy solvers. It will be ignored in simulations."
@@ -58,7 +58,7 @@ function parser_message(cfg::ParserVerbosityConfig, outer_data, keyword, msg::PA
         cfg.warn_count[keyword] = 1
     end
     if cfg.warn_count[keyword] <= cfg.warn_limit
-        @warn "$(keyword_header(outer_data, keyword)): $text_msg"
+        jutul_message("Parser", "$(keyword_header(outer_data, keyword)) - $text_msg", color = :yellow)
     end
 end
 
@@ -90,6 +90,7 @@ function parse_data_file!(outer_data, filename, data = outer_data;
         warn_parsing = true,
         warn_feature = true,
         silent = false,
+        is_outer = true,
         input_units::Union{Symbol, Nothing} = nothing,
         unit_systems = missing
     )
@@ -131,16 +132,24 @@ function parse_data_file!(outer_data, filename, data = outer_data;
             end
             parsed_keyword = false
             parser_message(cfg, outer_data, "$m", "Starting parse...")
-            t_p = @elapsed if m in allsections
-                parser_message(cfg, outer_data, "$m", "Starting new section.")
-                data = new_section(outer_data, m)
-                skip_mode = m in skip
+            t_p = @elapsed if m == :SKIP || m == :ENDSKIP
+                if m == :SKIP
+                    skip_mode = true
+                else
+                    @assert skip_mode
+                    skip_mode = false
+                end
+            elseif m in allsections
                 # Check if we have passed RUNSPEC so that units can be set
                 runspec_passed = m != :RUNSPEC && haskey(outer_data, "RUNSPEC")
                 unit_system_not_initialized = ismissing(unit_systems)
                 if runspec_passed && unit_system_not_initialized
                     unit_systems = get_unit_system_pair(current_unit_system(outer_data), units)
                 end
+                finish_current_section!(data, unit_systems, cfg, outer_data)
+                parser_message(cfg, outer_data, "$m", "Starting new section.")
+                data = new_section(outer_data, m)
+                skip_mode = m in skip
             elseif m == :INCLUDE
                 next = strip(readline(f))
                 if endswith(next, '/')
@@ -159,6 +168,7 @@ function parse_data_file!(outer_data, filename, data = outer_data;
                     sections = sections,
                     skip = skip,
                     skip_mode = skip_mode,
+                    is_outer = false,
                     units = units,
                     unit_systems = unit_systems
                 )
@@ -170,6 +180,7 @@ function parse_data_file!(outer_data, filename, data = outer_data;
                 push!(outer_data["SCHEDULE"]["STEPS"], data)
             elseif m == :END
                 # All done!
+                finish_current_section!(data, unit_systems, cfg, outer_data)
                 break
             elseif skip_mode
                 parser_message(cfg, outer_data, "$m", "Keyword skipped.")
@@ -182,6 +193,9 @@ function parse_data_file!(outer_data, filename, data = outer_data;
             end
         end
     finally
+        if is_outer
+            finish_current_section!(data, unit_systems, cfg, outer_data)
+        end
         close(f)
     end
     return outer_data
@@ -199,4 +213,12 @@ function parse_grdecl_file(filename; actnum_path = missing, kwarg...)
     end
     delete!(data, "CURRENT_BOX")
     return data
+end
+
+function finish_current_section!(data, units, cfg, outer_data)
+    if haskey(outer_data, "CURRENT_SECTION")
+        v = outer_data["CURRENT_SECTION"]
+        v::Symbol
+        finish_current_section!(data, units, cfg, outer_data, Val(v))
+    end
 end

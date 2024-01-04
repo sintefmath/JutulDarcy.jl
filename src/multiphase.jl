@@ -127,6 +127,23 @@ function initialize_primary_variable_ad!(state, model, pvar::Saturations, state_
     return state
 end
 
+struct ConnateWater <: ScalarVariable end
+
+function Jutul.default_values(model, ::ConnateWater)
+    nc = number_of_cells(model.domain)
+    relperm = Jutul.get_variable(model, :RelativePermeabilities)
+    swcon = zeros(nc)
+    if hasproperty(relperm, :regions)
+        kr = relperm[:w]
+        for i in 1:nc
+            reg = JutulDarcy.region(relperm.regions, i)
+            kr_i = JutulDarcy.table_by_region(kr, reg)
+            swcon[i] = kr_i.connate
+        end
+    end
+    return swcon
+end
+
 # Total component masses
 struct TotalMasses <: VectorVariables end
 
@@ -154,17 +171,27 @@ end
 function Jutul.default_parameter_values(data_domain, model, param::Transmissibilities, symb)
     if haskey(data_domain, :transmissibilities, Faces())
         # This takes precedence
-        T = data_domain[:transmissibilities]
+        T = copy(data_domain[:transmissibilities])
     elseif haskey(data_domain, :permeability, Cells())
-        U = data_domain[:permeability]
-        g = physical_representation(data_domain)
-        T = compute_face_trans(g, U)
-        if any(x -> x < 0, T)
-            c = count(x -> x < 0, T)
-            @warn "Parameter initialization for $symb: $c negative values detected out of $(length(T)) total."
-        end
+        T = reservoir_transmissibility(data_domain)
     else
         error(":permeability or :transmissibilities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+    end
+    replace_bad_trans!(T, symb)
+    return T
+end
+
+function replace_bad_trans!(T, symb; replace = 0.0)
+    for (F, descr) in [(x -> x < 0, "negative"), (x -> !isfinite(x), "non-finite")]
+        if any(F, T)
+            c = count(F, T)
+            @warn "Parameter initialization for $symb: $c $descr values detected out of $(length(T)) total. Replacing with $replace"
+            for i in eachindex(T)
+                if F(T[i])
+                    T[i] = replace
+                end
+            end
+        end
     end
     return T
 end
@@ -265,22 +292,30 @@ number_of_equations_per_entity(system::MultiPhaseSystem, e::ConservationLaw) = n
 number_of_equations_per_entity(system::SinglePhaseSystem, e::ConservationLaw) = 1
 
 export fluid_volume, pore_volume
-function pore_volume(data_domain::DataDomain)
+function pore_volume(data_domain::DataDomain; throw = true)
     if haskey(data_domain, :pore_volume, Cells())
-        vol = data_domain[:pore_volume]
+        pv = data_domain[:pore_volume]
     elseif haskey(data_domain, :volumes, Cells())
-        vol = data_domain[:volumes]
+        vol = copy(data_domain[:volumes])
+        ntg = poro = pvmult = 1.0
         if haskey(data_domain, :porosity, Cells())
-            vol = vol.*data_domain[:porosity]
+            poro = data_domain[:porosity]
         end
         if haskey(data_domain, :net_to_gross, Cells())
-            vol = vol.*data_domain[:net_to_gross]
+            ntg = data_domain[:net_to_gross]
         end
+        if haskey(data_domain, :pore_volume_multiplier, Cells())
+            pvmult = data_domain[:pore_volume_multiplier]
+        end
+        pv = @. vol * poro * ntg * pvmult
     else
-        error("Neither pair :volumes and :porosity or :pore_volume found in domain.")
+        pv = missing
+        if throw
+            error("Neither pair :volumes and :porosity or :pore_volume found in domain.")
+        end
     end
 
-    return vol
+    return pv
 end
 
 pore_volume(model::MultiModel, parameters) = pore_volume(reservoir_model(model), parameters[:Reservoir])

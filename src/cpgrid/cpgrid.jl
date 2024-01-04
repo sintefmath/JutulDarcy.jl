@@ -28,11 +28,6 @@ function get_line(coord, i, j, nx, ny)
     return (x1, x2)
 end
 
-# function interp_coord(line::Tuple, z)
-#     p0, p1 = line
-#     return interp_coord(p0, p1, z)
-# end
-
 function interp_coord(line::NamedTuple, z)
     if line.equal_points
         x = line.x1
@@ -72,106 +67,25 @@ function corner_index(cell, corner::NTuple, dims)
         cell = ijk_to_linear(i, j, k, cartdims)
     end
     nx, ny, nz = dims
-    # offset = 2*prod(dims)
-    # near/far, left/right, up/down
-    if true
-        i_is_upper, j_is_upper, k_is_upper = corner
+    i_is_upper, j_is_upper, k_is_upper = corner
 
-        j_is_upper, i_is_upper, k_is_upper = corner
-        cell_i_offset = 2*(i-1)
-        cell_j_offset = 4*nx*(j-1)
-        cell_k_offset = 8*nx*ny*(k-1)
-        # @info "big offsets" cell_i_offset cell_j_offset cell_k_offset
+    j_is_upper, i_is_upper, k_is_upper = corner
+    cell_i_offset = 2*(i-1)
+    cell_j_offset = 4*nx*(j-1)
+    cell_k_offset = 8*nx*ny*(k-1)
 
-        cell_offset = cell_i_offset + cell_j_offset + cell_k_offset
+    cell_offset = cell_i_offset + cell_j_offset + cell_k_offset
 
-        i_offset = i_is_upper+1
-        j_offset = j_is_upper*2*nx
-        k_offset = k_is_upper*4*nx*ny
-        # @info "small offsets" i_offset j_offset k_offset
+    i_offset = i_is_upper+1
+    j_offset = j_is_upper*2*nx
+    k_offset = k_is_upper*4*nx*ny
 
-        ijk = i_offset + j_offset + k_offset
-        return cell_offset + ijk
-
-        # x = i_offset + i_upper
-        # y = j_offset + j_upper*2*nx
-        # z = k_offset + k_upper*4*nx*ny
-        # return x + y + z
-        # return k*k_offset + j*j_offset + i_offset + 
-
-
-        # i_pos = i_offset + x + 1
-        # j_pos = 
-
-        # offset = i_offset + j_offset + k_offset
-
-        # return planar_offset + top_bottom_offset + y_offset + x_offset + minor
-    
-    end
-    error()
-    # if corner == (0, 0, 0)
-    #     major = 0
-    #     minor = 1
-    # elseif corner == (1, 0, 0)
-    #     major = 0
-    #     minor = 2
-    # elseif corner == (0, 1, 0)
-    #     major = 1
-    #     minor = 1
-    # elseif corner == (1, 1, 0)
-    #     major = 1
-    #     minor = 2
-    # elseif corner == (0, 0, 1)
-    #     major = 2
-    #     minor = 1
-    # elseif corner == (0, 1, 1)
-    #     major = 2
-    #     minor = 2
-    # elseif corner == (1, 0, 1)
-    #     major = 3
-    #     minor = 1
-    # elseif corner == (1, 1, 1)
-    #     major = 3
-    #     minor = 2
-    # else
-    #     error("Unsupported $corner_type")
-    # end
-    # if corner == (0, 0, 0)
-    #     major = 0
-    #     minor = 1
-    # elseif corner == (1, 0, 0)
-    #     major = 1
-    #     minor = 1
-    # elseif corner == (0, 1, 0)
-    #     major = 0
-    #     minor = 2
-    # elseif corner == (1, 1, 0)
-    #     major = 1
-    #     minor = 2
-    # elseif corner == (0, 0, 1)
-    #     major = 2
-    #     minor = 1
-    # elseif corner == (0, 1, 1)
-    #     major = 2
-    #     minor = 2
-    # elseif corner == (1, 0, 1)
-    #     major = 3
-    #     minor = 1
-    # elseif corner == (1, 1, 1)
-    #     major = 3
-    #     minor = 2
-    # else
-    #     error("Unsupported $corner_type")
-    # end
-    planar_offset = 8*nx*ny*(k-1)
-    top_bottom_offset = major*2*nx*ny
-    y_offset = 2*nx*(j-1)
-    x_offset = 2*(i-1)
-    return planar_offset + top_bottom_offset + y_offset + x_offset + minor
+    ijk = i_offset + j_offset + k_offset
+    return cell_offset + ijk
 end
 
 
-function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
+function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing, pinch = missing)
     # Add all lines that have at least one active neighbor
     coord = reshape(coord, 6, :)'
     nx, ny, nz = cartdims
@@ -179,6 +93,11 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
         actnum = Array{Bool, 3}(undef, nx, ny, nz)
         @. actnum = true
     end
+    # Create bounding box used to get boundaries correct
+    z_mean = max(sum(zcorn)/length(zcorn), 1.0)
+    z_max = maximum(zcorn) + z_mean
+    z_min = minimum(zcorn) - z_mean
+    # actnum, pinch_map = handle_pinch!(actnum, zcorn, cartdims, pinch)
     # remapped_indices = findall(vec(actnum))
     nactive = sum(vec(actnum))
     remapped_indices = Vector{Int}(undef, nx*ny*nz)
@@ -210,13 +129,15 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
         else
             layer_offset = -(nx*ny*nz)
         end
-        return layer_offset #- ij_to_linear(i, j, cartdims[1:2])
+        return layer_offset - ij_to_linear(i, j, cartdims[1:2])
     end
 
     function cell_index(i, j, k)
         ix = ijk_to_linear(i, j, k, cartdims)
         if actnum[i, j, k]
             cell = remapped_indices[ix]
+        # elseif haskey(pinch_map, ix)
+        #     cell = remapped_indices[pinch_map[ix]]
         else
             cell = -ix
             @assert cell <= 0
@@ -256,17 +177,24 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
     for i in 1:(nx+1)
         for j in 1:(ny+1)
             L = lines[i, j]
-            # Top layer
-            if L.cells[1] > 0
-                # t = boundary_index(i, j, true)
-                # pushfirst!(L.z, L.z[1] - 1.0, L.z[1])
-                # pushfirst!(L.cells, t, t)
-            end
-            # Bottom layer
-            if L.cells[end] > 0
-                # b = boundary_index(i, j, false)
-                # push!(L.z, L.z[end], L.z[end] + 1.0)
-                # push!(L.cells, b, b)
+            z_top = minimum(L.z)
+            z_bottom = maximum(L.z)
+
+            for i_offset in (-1, 0)
+                for j_offset in (-1, 0)
+                    I = i+i_offset
+                    J = j+j_offset
+                    if I > 0 && J > 0
+                        t = boundary_index(I, J, true)
+                        b = boundary_index(I, J, false)
+                        # Top layer
+                        push!(L.z, z_min, z_top)
+                        push!(L.cells, t, t)
+                        # Bottom layer
+                        push!(L.z, z_bottom, z_max)
+                        push!(L.cells, b, b)
+                    end
+                end
             end
         end
     end
@@ -276,23 +204,7 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
 
     # The four lines making up each column
     column_lines = Vector{NTuple{4, Int64}}()
-    # for i = 1:nx
-    #     for j = 1:ny
-    #         ll = linear_line_ix(i, j)
-    #         rl = linear_line_ix(i+1, j)
-    #         lr = linear_line_ix(i, j+1)
-    #         rr = linear_line_ix(i+1, j+1)
 
-    #         ll_act = lines_active[ll]
-    #         rl_act = lines_active[rl]
-    #         lr_act = lines_active[lr]
-    #         rr_act = lines_active[rr]
-
-    #         if ll_act && rl_act && lr_act && rr_act
-    #             push!(column_lines, (ll, rl, rr, lr))
-    #         end
-    #     end
-    # end
     # Tag columns as active or inactive
     active_columns = Matrix{Bool}(undef, nx, ny)
     for i in 1:nx
@@ -315,7 +227,7 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
             if active_columns[i, j]
                 col = make_column(i, j)
                 prev = boundary_index(i, j, true) 
-                # push!(col.cells, prev)
+                push!(col.cells, prev)
                 for k in 1:nz
                     cell = cell_index(i, j, k)
                     if cell != prev
@@ -324,7 +236,7 @@ function cpgrid_primitives(coord, zcorn, cartdims; actnum = missing)
                     prev = cell
                 end
                 # Put a boundary at the end
-                # push!(col.cells, boundary_index(i, j, false))
+                push!(col.cells, boundary_index(i, j, false))
                 push!(columns, col)
                 column_indices[i, j] = col_counter
                 col_counter += 1
@@ -509,6 +421,12 @@ function grid_from_primitives(primitives)
     face_neighbors = Vector{Tuple{Int, Int}}()
     boundary_cells = Vector{Int}()
 
+    vertical_face_tag = Vector{Int}()
+    horizontal_face_tag = Vector{Int}()
+
+    vertical_bnd_face_tag = Vector{Int}()
+    horizontal_bnd_face_tag = Vector{Int}()
+
     nx, ny, nz = cartdims
 
     nlinex = nx+1
@@ -528,7 +446,7 @@ function grid_from_primitives(primitives)
         push!(Vpos, length(nodes) + Vpos[end])
     end
 
-    function insert_boundary_face!(prev_cell, cell, nodes)
+    function insert_boundary_face!(prev_cell, cell, nodes, is_vertical)
         orient = cell_is_boundary(prev_cell) && !cell_is_boundary(cell)
         @assert orient || (cell_is_boundary(cell) && !cell_is_boundary(prev_cell)) "cell pair $((cell, prev_cell)) is not on boundary"
         if orient
@@ -540,10 +458,16 @@ function grid_from_primitives(primitives)
         add_face_from_nodes!(boundary_faces, boundary_face_pos, nodes)
         push!(cell_boundary_faces[self], boundary_faceno)
         push!(boundary_cells, self)
+        if is_vertical
+            push!(vertical_bnd_face_tag, boundary_faceno)
+        else
+            push!(horizontal_bnd_face_tag, boundary_faceno)
+        end
+
         boundary_faceno += 1
     end
 
-    function insert_interior_face!(prev_cell, cell, nodes)
+    function insert_interior_face!(prev_cell, cell, nodes, is_vertical)
         @assert cell > 0
         @assert prev_cell > 0
         @assert prev_cell != cell
@@ -552,14 +476,19 @@ function grid_from_primitives(primitives)
         push!(face_neighbors, (prev_cell, cell))
         push!(cell_faces[cell], faceno)
         push!(cell_faces[prev_cell], faceno)
+        if is_vertical
+            push!(vertical_face_tag, faceno)
+        else
+            push!(horizontal_face_tag, faceno)
+        end
         faceno += 1
     end
 
-    function insert_face!(prev_cell, cell, nodes; is_boundary)
+    function insert_face!(prev_cell, cell, nodes; is_boundary, is_vertical)
         if is_boundary
-            insert_boundary_face!(prev_cell, cell, nodes)
+            insert_boundary_face!(prev_cell, cell, nodes, is_vertical)
         else
-            insert_interior_face!(prev_cell, cell, nodes)
+            insert_interior_face!(prev_cell, cell, nodes, is_vertical)
         end
     end
 
@@ -608,7 +537,7 @@ function grid_from_primitives(primitives)
                 node_in_pillar_indices = map(F, cell_bnds)
                 # Then find the global node indices
                 node_indices = map((line, i) -> line.nodes[i], current_column_lines, node_in_pillar_indices)
-                insert_face!(c1, c2, node_indices, is_boundary = is_bnd)
+                insert_face!(c1, c2, node_indices, is_vertical = false, is_boundary = is_bnd)
             end
         end
     end
@@ -636,8 +565,8 @@ function grid_from_primitives(primitives)
             cell_pairs, overlaps = JutulDarcy.traverse_column_pair(col_a, col_b, l1, l2)
             int_pairs, int_overlaps, bnd_pairs, bnd_overlaps = split_overlaps_into_interior_and_boundary(cell_pairs, overlaps)
 
-            F_interior = (l, r, node_indices) -> insert_face!(l, r, node_indices, is_boundary = false)
-            F_bnd = (l, r, node_indices) -> insert_face!(l, r, node_indices, is_boundary = true)
+            F_interior = (l, r, node_indices) -> insert_face!(l, r, node_indices, is_boundary = false, is_vertical = true)
+            F_bnd = (l, r, node_indices) -> insert_face!(l, r, node_indices, is_boundary = true, is_vertical = true)
 
             if is_bnd
                 # We are dealing with a boundary column, everything is boundary
@@ -664,7 +593,7 @@ function grid_from_primitives(primitives)
     c2f, c2f_pos = convert_to_flat(cell_faces)
     b2f, b2f_pos = convert_to_flat(cell_boundary_faces)
 
-    return UnstructuredMesh(
+    g = UnstructuredMesh(
         c2f,
         c2f_pos,
         b2f,
@@ -679,31 +608,83 @@ function grid_from_primitives(primitives)
         structure = CartesianIndex(cartdims[1], cartdims[2], cartdims[3]),
         cell_map = primitives.active
     )
+    set_mesh_entity_tag!(g, Faces(), :orientation, :horizontal, horizontal_face_tag)
+    set_mesh_entity_tag!(g, Faces(), :orientation, :vertical, vertical_face_tag)
+    set_mesh_entity_tag!(g, BoundaryFaces(), :orientation, :horizontal, horizontal_bnd_face_tag)
+    set_mesh_entity_tag!(g, BoundaryFaces(), :orientation, :vertical, vertical_bnd_face_tag)
+    return g
 end
 
-function next_cell_line_ptr!(line_ptr, self_lines, next_cell)
-    for (i, line_i) in enumerate(self_lines)
-        cells_i = line_i.cells
-        ptr_i = line_ptr[i]
-        cellpos = line_i.cellpos
-        current_i = cellpos[ptr_i]
-        nc = length(cells_i)
-        while current_i <= nc && cells_i[current_i] != next_cell
-            current_i += 1
-        end
-        next_ptr = -1
-        for j in ptr_i:(length(cellpos)-1)
-            if current_i >= cellpos[j] && current_i < cellpos[j+1]
-                next_ptr = j
-                break
+
+function handle_pinch!(actnum, zcorn, cartdims, pinch)
+    if ismissing(pinch)
+        pinch = 0.001
+    end
+    nx, ny, nz = cartdims
+    # Note: Remapped is from and to logical indices since this can potentially
+    # modify ACTNUM.
+    remapped = Dict{Int, Int}()
+    pinched = fill(false, nz)
+    pinch_count = 0
+    for i in 1:nx
+        for j in 1:ny
+            pinched .= false
+            prev_active = 0
+            pinch_found_in_col = false
+            for k in 1:nz
+                linear_ix = ijk_to_linear(i, j, k, cartdims)
+                active = actnum[i, j, k]
+                if active
+                    get_zcorn(I1, I2, I3) = zcorn[corner_index(linear_ix, (I1, I2, I3), cartdims)]
+                    get_pair(I, J) = (get_zcorn(I, J, 0), get_zcorn(I, J, 1))
+
+                    # Check if cross part is small
+                    # Check if maximum width is small
+                    l_11, t_11 = get_pair(0, 0)
+                    l_12, t_12 = get_pair(0, 1)
+                    l_21, t_21 = get_pair(1, 0)
+                    l_22, t_22 = get_pair(1, 1)
+
+                    d_11 = t_11 - l_11
+                    d_12 = t_12 - l_12
+                    d_21 = t_21 - l_21
+                    d_22 = t_22 - l_22
+
+                    pinched_simple = max(d_11, d_12, d_21, d_22) <= pinch
+                    cell_is_pinched = pinched_simple
+
+                    pinched[k] = cell_is_pinched
+                    pinch_count += cell_is_pinched
+
+                    pinch_found_in_col = pinch_found_in_col || cell_is_pinched
+                end
+            end
+            if !pinch_found_in_col
+                continue
+            end
+
+            for k in 1:nz
+                if !pinched[k]
+                    continue
+                end
+                actnum[i, j, k] = false
+
+                if k > 1
+                    prev_ix = ijk_to_linear(i, j, k-1, cartdims)
+                    linear_ix = ijk_to_linear(i, j, k, cartdims)
+                    # Could have a section of inactive cells, so look up just in case.
+                    if haskey(remapped, prev_ix)
+                        new_index = remapped[prev_ix]
+                    else
+                        if !actnum[i, j, k-1]
+                            continue
+                        end
+                        new_index = prev_ix
+                    end
+                    remapped[linear_ix] = prev_ix
+                end
             end
         end
-        if next_ptr == -1
-            @info "?!" line_i cells_i next_cell
-            error("This should not occur.")
-        end
-        pos = cellpos[next_ptr]:(cellpos[next_ptr+1]-1)
-        @assert next_cell in cells_i[pos]
-        line_ptr[i] = next_ptr
     end
+    return (actnum, remapped)
 end

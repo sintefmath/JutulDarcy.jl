@@ -1,3 +1,6 @@
+function finish_current_section!(data, units, cfg, outer_data, ::Val{:SUMMARY})
+    
+end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:NSTACK})
     read_record(f)

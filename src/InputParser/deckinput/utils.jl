@@ -8,7 +8,12 @@ function read_record(f; fix = true)
     split_lines = Vector{String}()
     active = true
     while !eof(f) && active
-        line = strip(readline(f))
+        line = readline(f)
+        cpos = findfirst("--", line)
+        if !isnothing(cpos)
+            line = line[1:(first(cpos)-1)]
+        end
+        line = strip(line)
         if !startswith(line, "--")
             if endswith(line, '/')
                 line = strip(rstrip(line, '/'))
@@ -78,6 +83,7 @@ function parse_defaulted_line(lines, defaults; required_num = 0, keyword = "")
     sizehint!(out, length(defaults))
     pos = 1
     for line in lines
+        line = replace_quotes(line)
         lsplit = split(strip(line), DECK_SPLIT_REGEX)
         for s in lsplit
             if length(s) == 0
@@ -101,6 +107,7 @@ function parse_defaulted_line(lines, defaults; required_num = 0, keyword = "")
                     T = typeof(default)
                     converted = Parsers.tryparse(T, s)
                     if isnothing(converted)
+                        @info s
                         converted = T.(Parsers.tryparse(Float64, s))
                     end
                 end
@@ -144,7 +151,12 @@ function parse_deck_matrix(f, T = Float64)
             push!(data, parse(T, d))
         end
     end
-    return reshape(data, n, length(data) ÷ n)'
+    if length(data) == 0
+        out = missing
+    else
+        out = reshape(data, n, length(data) ÷ n)'
+    end
+    return out
 end
 
 function preprocess_delim_records(split_lines)
@@ -323,14 +335,51 @@ end
 function parse_region_matrix_table(f, nreg)
     out = []
     for i = 1:nreg
-        push!(out, parse_deck_matrix(f))
+        next = parse_deck_matrix(f)
+        if ismissing(next)
+            if length(out) == 0
+                error("First region table cannot be defaulted.")
+            end
+            next = copy(out[end])
+        end
+        push!(out, next)
     end
     return out
 end
 
-function parse_keyword!(data, outer_data, units, cfg, f, ::Val{T}) where T
-    # Do nothing
-    error("Unhandled keyword $T encountered.")
+function parse_keyword!(data, outer_data, units, cfg, f, v::Val{T}) where T
+    # Keywords where we read a single record and don't do anything proper
+    skip_kw = [
+        :PETOPTS,
+        :PARALLEL,
+        :VECTABLE,
+        :MULTSAVE
+        ]
+    # Keywords that are a single record where we should warn
+    skip_kw_with_warn = Symbol[
+
+    ]
+    # Single word keywords are trivial to parse, just set a true flag.
+    single_word_kw = [
+            :MULTOUT,
+            :NOSIM,
+            :NONNC,
+            :NEWTRAN
+            ]
+    single_word_kw_with_warn = Symbol[]
+    if T in skip_kw
+        data["$T"] = read_record(f)
+    elseif T in skip_kw_with_warn
+        parser_message(cfg, outer_data, "$T", PARSER_MISSING_SUPPORT)
+        data["$T"] = read_record(f)
+    elseif T in single_word_kw
+        data["$T"] = true
+    elseif T in single_word_kw_with_warn
+        parser_message(cfg, outer_data, "$T", PARSER_JUTULDARCY_MISSING_SUPPORT)
+        data["$T"] = true
+    else
+        error("Unhandled keyword $T encountered.")
+    end
 end
 
 function next_keyword!(f)
@@ -417,7 +466,11 @@ function get_section(outer_data, name::Symbol)
     T = OrderedDict{String, Any}
     if is_sched
         if !haskey(outer_data, s)
-            outer_data[s] = Dict("STEPS" => [T()], "WELSPECS" => T())
+            outer_data[s] = Dict(
+                "STEPS" => [T()],
+                "WELSPECS" => T(),
+                "COMPORD" => T()
+            )
         end
         out = outer_data[s]["STEPS"][end]
     else
@@ -431,5 +484,38 @@ end
 
 function new_section(outer_data, name::Symbol)
     data = get_section(outer_data, name)
+    return data
+end
+
+function replace_quotes(str::String)
+    if '\'' in str
+        v = collect(str)
+        in_quote = false
+        new_char = Char[]
+        for i in eachindex(v)
+            v_i = v[i]
+            if v_i == '\''
+                in_quote = !in_quote
+            elseif in_quote && v_i == ' '
+                # TODO: Is this a safe replacement?
+                push!(new_char, '-')
+            else
+                push!(new_char, v_i)
+            end
+        end
+        str = String(new_char)
+    end
+    return str
+end
+
+function push_and_create!(data, k, vals, T = Any)
+    if !haskey(data, k)
+        data[k] = T[]
+    end
+    out = data[k]
+    for v in vals
+        v::T
+        push!(out, v)
+    end
     return data
 end
