@@ -144,7 +144,9 @@ function Jutul.default_values(model, ::ConnateWater)
     return swcon
 end
 
-# Total component masses
+"""
+Variable that defines total component masses in each cell of the domain.
+"""
 struct TotalMasses <: VectorVariables end
 
 function degrees_of_freedom_per_entity(model::SimulationModel{G, S}, v::TotalMasses) where {G<:Any, S<:MultiPhaseSystem}
