@@ -17,6 +17,14 @@ function get_boxdims(outer_data)
     return dim
 end
 
+function get_box_indices(outer_data)
+    gdata = get_section(outer_data, :GRID)
+    box = gdata["CURRENT_BOX"]
+    l = box.lower
+    u = box.upper
+    return (l[1]:u[1], l[2]:u[2], l[3]:u[3])
+end
+
 function set_cartdims!(outer_data, dim)
     @assert length(dim) == 3
     g = get_section(outer_data, :GRID)
@@ -92,7 +100,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:RS})
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ACTNUM})
-    data["ACTNUM"] = parse_grid_vector(f, get_cartdims(outer_data), Bool)
+    parse_and_set_grid_data!(data, outer_data, units, cfg, f, :ACTNUM, T = Bool)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:RSVD})

@@ -1,13 +1,21 @@
-function parse_and_set_grid_data!(data, outer_data, units, cfg, f, k; unit = :id, T = Float64)
+function parse_and_set_grid_data!(data, outer_data, units, cfg, f, k; unit = :id, T = Float64, default = zero(T))
     bdims = get_boxdims(outer_data)
     cdims = get_cartdims(outer_data)
     vals = parse_grid_vector(f, bdims, T)
     if unit != :id
         vals = swap_unit_system!(vals, units, Val(unit))
     end
+    skey = "$k"
     if bdims == cdims
-        data["$k"] = vals
+        data[skey] = vals
     else
+        if !haskey(data, skey)
+            data[skey] = fill(default, cdims)
+        end
+        d = data[skey]
+        @assert size(d) == cdims
+        I, J, K = get_box_indices(outer_data)
+        d[I, J, K] = vals
         error("Not implemented")
     end
 end
