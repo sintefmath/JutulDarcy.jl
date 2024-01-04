@@ -322,3 +322,13 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GRUPTREE})
     parser_message(cfg, outer_data, "GRUPTREE", PARSER_MISSING_SUPPORT)
     skip_record(f)
 end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:AQUFETP})
+    parser_message(cfg, outer_data, "AQUFETP", PARSER_MISSING_SUPPORT)
+    skip_record(f)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:AQUANCON})
+    parser_message(cfg, outer_data, "AQUANCON", PARSER_MISSING_SUPPORT)
+    skip_record(f)
+end
