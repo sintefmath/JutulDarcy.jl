@@ -134,6 +134,12 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:EQLDIMS})
     data["EQLDIMS"] = parse_defaulted_line(rec, tdims)
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MSGFILE})
+    rec = read_record(f)
+    tdims = [1];
+    data["MSGFILE"] = parse_defaulted_line(rec, tdims)
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:REGDIMS})
     rec = read_record(f)
     tdims = [1, 1, 0, 0, 0, 1, 0, 0, 0];

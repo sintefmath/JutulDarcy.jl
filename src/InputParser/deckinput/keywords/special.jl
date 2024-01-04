@@ -1,5 +1,17 @@
 function finish_current_section!(data, units, cfg, outer_data, ::Val{:EDIT})
-    
+
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:BOX})
+    rec = read_record(f)
+    tdims = [1];
+    gdata = get_section(outer_data, :GRID)
+    l, u = gdata["CURRENT_BOX"]
+    il, jl, kl = l
+    iu, ju, ku = u
+
+    il, iu, jl, ju, kl, ku = parse_defaulted_line(rec, (il, iu, jl, ju, kl, ku))
+    gdata["CURRENT_BOX"] = (lower = (il, jl, kl), upper = (iu, ju, ku))
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COPY})
