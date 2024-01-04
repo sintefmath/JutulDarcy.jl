@@ -4,7 +4,8 @@ using Literate
 using Documenter
 
 function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
-    DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy); recursive=true)
+    DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy; using Jutul); recursive=true)
+    DocMeta.setdocmeta!(Jutul, :DocTestSetup, :(using Jutul); recursive=true)
 
     ## Literate pass
     # Base directory
@@ -46,7 +47,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
         )
     end
     makedocs(;
-        modules=[JutulDarcy],
+        modules=[JutulDarcy, Jutul],
         authors="Olav Møyner <olav.moyner@sintef.no> and contributors",
         repo="https://github.com/sintefmath/JutulDarcy.jl/blob/{commit}{path}#{line}",
         sitename="JutulDarcy.jl",
@@ -59,7 +60,8 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
                 "Supported physical systems" =>"usage/systems.md",
                 "Solving the equations" => "usage/solution.md"
                 ],
-            "Internals" => "internals.md"
+            "Internals" => "internals.md",
+            "Jutul functions" => "jutul.md"
         ],
     )
 

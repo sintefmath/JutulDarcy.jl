@@ -67,14 +67,16 @@ function Jutul.increment_norm(dX, state, model, X, pvar::OverallMoleFractions)
     return (sum = scale*sum_v, sum_scaled = sum_v_scaled, max = scale*max_v, max_scaled = max_v_scaled)
 end
 
+export ImmiscibleSaturation
+
 """
-A single saturation that represents the "other" phase in a
-three phase compositional system where two phases are predicted by an EoS
+A single saturation variable that represents the "other" phase in a three phase
+compositional system where two phases are predicted by an EoS
 """
 Base.@kwdef struct ImmiscibleSaturation <: ScalarVariable
     ds_max::Float64 = 0.2
 end
 
-maximum_value(::ImmiscibleSaturation) = 1.0# - MINIMUM_COMPOSITIONAL_SATURATION
+maximum_value(::ImmiscibleSaturation) = 1.0
 minimum_value(::ImmiscibleSaturation) = 0.0
 absolute_increment_limit(s::ImmiscibleSaturation) = s.ds_max
