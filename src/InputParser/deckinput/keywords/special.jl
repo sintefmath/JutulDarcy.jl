@@ -52,7 +52,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:OPERATE})
 
     while length(rec) > 0
         d = "Default"
-        parsed = parse_defaulted_line(rec, [d, d, il, iu, jl, ju, kl, ku, d, NaN, NaN, NaN])
+        parsed = parse_defaulted_line(rec, [d, il, iu, jl, ju, kl, ku, d, d, NaN, NaN])
         src = parsed[1]
         op = parsed[8]
         @assert src != d "Source was defaulted? rec = $rec"
@@ -70,9 +70,9 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:OPERATE})
         op_prm2 = parsed[10]
         op_prm3 = parsed[11]
 
-        @assert isfinite(op_prm1) "Operator parameter 1 was non-finite for OPERATE: $rec"
-        @assert isfinite(op_prm2) "Operator parameter 2 was non-finite for OPERATE: $rec"
-        @assert isfinite(op_prm3) "Operator parameter 3 was non-finite for OPERATE: $rec"
+        # @assert op_prm1 != "Default" "Operator parameter 1 was non-finite for OPERATE: $rec"
+        # @assert isfinite(op_prm2) "Operator parameter 2 was non-finite for OPERATE: $rec"
+        # @assert isfinite(op_prm3) "Operator parameter 3 was non-finite for OPERATE: $rec"
         # TODO: Implement operation
         # apply_copy!(data, dst, data[src], (il, iu), (jl, ju), (kl, ku), dims)
         rec = read_record(f)
