@@ -1,7 +1,7 @@
 name = "JutulDarcy"
 uuid = "82210473-ab04-4dce-b31b-11573c4f8e0a"
 authors = ["Olav Møyner <olav.moyner@gmail.com>"]
-version = "0.2.12"
+version = "0.2.13"
 
 [deps]
 AlgebraicMultigrid = "2169fc97-5a83-5252-b627-83903c6c433c"
@@ -38,13 +38,13 @@ JutulDarcyHYPREExt = "HYPRE"
 JutulDarcyPartitionedArraysExt = ["PartitionedArrays", "MPI", "HYPRE"]
 
 [compat]
-AlgebraicMultigrid = "0.5.1"
+AlgebraicMultigrid = "0.5.1, 0.6.0"
 DataStructures = "0.18.13"
 Dates = "1"
 DelimitedFiles = "1.9.1"
 ForwardDiff = "0.10.30"
 HYPRE = "1.4.0"
-Jutul = "0.2.17"
+Jutul = "0.2.18"
 Krylov = "0.9.1"
 LoopVectorization = "0.12.115"
 LinearAlgebra = "1"
