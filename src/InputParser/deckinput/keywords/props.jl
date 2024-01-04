@@ -236,6 +236,23 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COMPS})
     data["COMPS"] = ncomp
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:SCALECRS})
+    rec = read_record(f)
+    scale = only(parse_defaulted_line(rec, ["NO"]))
+    scale = uppercase(scale)
+    if scale == "Y"
+        scale = "YES"
+    elseif scale == "N"
+        scale = "NO"
+    end
+    if scale == "YES" || scale == "NO"
+        data["SCALECRS"] = scale
+    else
+        error("SCALECRS must be one of the following: Y, N, YES, NO")
+    end
+end
+
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:DENSITY})
     tdims = [NaN, NaN, NaN]
     nreg = number_of_tables(outer_data, :pvt)
