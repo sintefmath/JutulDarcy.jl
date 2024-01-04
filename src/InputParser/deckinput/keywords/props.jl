@@ -217,12 +217,12 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PVDO})
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ROCK})
-    rec = read_record(f)
     tdims = [NaN, NaN, NaN, NaN, NaN, NaN]
     utypes = [:pressure, :compressibility, :compressibility, :compressibility, :id, :id]
     out = []
     nreg = number_of_tables(outer_data, :pvt)
     for i = 1:nreg
+        rec = read_record(f)
         l = parse_defaulted_line(rec, tdims)
         swap_unit_system_axes!(l, units, utypes)
         push!(out, l)
