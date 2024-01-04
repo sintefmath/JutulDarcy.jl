@@ -194,20 +194,10 @@ end
 
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MULTFLT})
-    read_record
-    tdims = ["NAME", 1.0, 1.0]
+    d = "*"
+    tdims = [d, 1.0, 1.0]
     faults = outer_data["GRID"]["FAULTS"]
-    out = []
-    while true
-        rec = read_record(f)
-        if length(rec) == 0
-            break
-        end
-        parsed = parse_defaulted_line(rec, tdims, required_num = length(tdims), keyword = "FAULTS")
-        name = parsed[1]
-        @assert haskey(faults, name) "Fault $name used in MULTFLT, but it is not in the list of declared faults: $(keys(faults))"
-        push!(out, parsed)
-    end
+    parser_message(cfg, outer_data, "MULTFLT", PARSER_JUTULDARCY_MISSING_SUPPORT)
+    out = parse_defaulted_group_well(f, tdims, faults);
     data["MULTFLT"] = out
 end
-
