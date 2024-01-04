@@ -14,6 +14,10 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:BOX})
     gdata["CURRENT_BOX"] = (lower = (il, jl, kl), upper = (iu, ju, ku))
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ENDBOX})
+    reset_current_box!(outer_data)
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COPY})
     rec = read_record(f)
     gdata = get_section(outer_data, :GRID)

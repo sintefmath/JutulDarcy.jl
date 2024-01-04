@@ -1,3 +1,17 @@
+function parse_and_set_grid_data!(data, outer_data, units, cfg, f, k; unit = :id, T = Float64)
+    bdims = get_boxdims(outer_data)
+    cdims = get_cartdims(outer_data)
+    vals = parse_grid_vector(f, bdims, T)
+    if unit != :id
+        vals = swap_unit_system!(vals, units, Val(unit))
+    end
+    if bdims == cdims
+        data["$k"] = vals
+    else
+        error("Not implemented")
+    end
+end
+
 function finish_current_section!(data, units, cfg, outer_data, ::Val{:GRID})
     if !haskey(data, "MINPV")
         io = IOBuffer("1e-6\n/\n")
@@ -73,28 +87,22 @@ end
 
 function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:PERMX}, Val{:PERMY}, Val{:PERMZ}})
     k = unpack_val(v)
-    vals = parse_grid_vector(f, get_cartdims(outer_data), Float64)
-    vals = swap_unit_system!(vals, units, Val(:permeability))
-    data["$k"] = vals
+    parse_and_set_grid_data!(data, outer_data, units, cfg, f, k, unit = :permeability)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, v::Val{:MULTPV})
     k = unpack_val(v)
-    vals = parse_grid_vector(f, get_cartdims(outer_data), Float64)
-    data["MULTPV"] = vals
+    parse_and_set_grid_data!(data, outer_data, units, cfg, f, k)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:PRATIO}, Val{:BIOTCOEF}})
     k = unpack_val(v)
-    vals = parse_grid_vector(f, get_cartdims(outer_data), Float64)
-    data["$k"] = vals
+    parse_and_set_grid_data!(data, outer_data, units, cfg, f, k)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:YMODULE}})
     k = unpack_val(v)
-    vals = parse_grid_vector(f, get_cartdims(outer_data), Float64)
-    vals = swap_unit_system!(vals, units, Val(:gigapascal))
-    data["$k"] = vals
+    parse_and_set_grid_data!(data, outer_data, units, cfg, f, k, unit = :gigapascal)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:POELCOEF}, Val{:THELCOEF}, Val{:THERMEXR}, Val{:THCONR}})
@@ -106,16 +114,15 @@ end
 
 function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:FIPNUM}, Val{:PVTNUM}, Val{:SATNUM}, Val{:EQLNUM}, Val{:ROCKNUM}})
     k = unpack_val(v)
-    vals = parse_grid_vector(f, get_cartdims(outer_data), Int)
-    data["$k"] = vals
+    parse_and_set_grid_data!(data, outer_data, units, cfg, f, k, T = Int)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PORO})
-    data["PORO"] = parse_grid_vector(f, get_cartdims(outer_data), Float64)
+    parse_and_set_grid_data!(data, outer_data, units, cfg, f, :PORO)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:NTG})
-    data["NTG"] = parse_grid_vector(f, get_cartdims(outer_data), Float64)
+    parse_and_set_grid_data!(data, outer_data, units, cfg, f, :NTG)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:DX}, Val{:DY}, Val{:DZ}})

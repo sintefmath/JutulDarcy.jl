@@ -10,13 +10,25 @@ function get_cartdims(outer_data)
     return g["cartDims"]
 end
 
+function get_boxdims(outer_data)
+    gdata = get_section(outer_data, :GRID)
+    box = gdata["CURRENT_BOX"]
+    dim = @. box.upper - box.lower + 1
+    return dim
+end
+
 function set_cartdims!(outer_data, dim)
     @assert length(dim) == 3
     g = get_section(outer_data, :GRID)
     dim = tuple(dim...)
     gdata = get_section(outer_data, :GRID)
     gdata["cartDims"] = dim
-    gdata["CURRENT_BOX"] = (lower = (1, 1, 1), upper = dim)
+    reset_current_box!(outer_data)
+end
+
+function reset_current_box!(outer_data)
+    gdata = get_section(outer_data, :GRID)
+    gdata["CURRENT_BOX"] = (lower = (1, 1, 1), upper = gdata["cartDims"])
 end
 
 # Keywords follow
