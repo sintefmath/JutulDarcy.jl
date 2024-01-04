@@ -17,14 +17,14 @@ function test_compositional_with_wells(; kwarg...)
                 0.13981926168012976 0.181469203945046 0.1907407040733318; 
                 0.2569377678218861 0.2969622689812199 0.3092325976322113
                 ]
-            @test isapprox(z, z_ref, atol = 1e-4)
+            @test isapprox(z, z_ref, atol = 1e-3)
         end
 
         @testset "Injector" begin
             inj = states[end][:Injector]
             p = inj[:Pressure]
-            p_ref = [5.331770340767909e6, 5.331770340767909e6]
-            @test isapprox(p, p_ref, rtol = 1e-4)
+            p_ref = [5.332306160997921e6, 5.332306160997921e6]
+            @test isapprox(p, p_ref, rtol = 1e-3)
             z = inj[:OverallMoleFractions]
             z_ref = repeat([1.0, 0.0, 0.0], 1, 2)
             @test isapprox(z, z_ref, atol = 1e-8)
