@@ -46,7 +46,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COPY})
         ju = parsed[6]
         kl = parsed[7]
         ku = parsed[8]
-        apply_copy!(data, dst, data[src], (il, iu), (jl, ju), (kl, ku), dims)
+        apply_copy!(data, dst, data[src], get_box_indices(outer_data), dims)
         rec = read_record(f)
     end
 end
@@ -95,15 +95,11 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:OPERATE})
     end
 end
 
-function apply_copy!(data, dst, src, I, J, K, dims)
+function apply_copy!(data, dst, src, IX, dims)
     if haskey(data, dst)
-        error("Not implemented")
+        I, J, K = IX
+        data[dst][I, J, K] = src
     else
-        @assert I[1] == J[1] == K[1] == 1
-        @assert I[2] == dims[1]
-        @assert J[2] == dims[2]
-        @assert K[2] == dims[3]
-
         data[dst] = copy(src)
     end
 end
