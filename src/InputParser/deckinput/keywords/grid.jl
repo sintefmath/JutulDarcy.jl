@@ -16,7 +16,6 @@ function parse_and_set_grid_data!(data, outer_data, units, cfg, f, k; unit = :id
         @assert size(d) == cdims
         I, J, K = get_box_indices(outer_data)
         d[I, J, K] = vals
-        error("Not implemented")
     end
 end
 
