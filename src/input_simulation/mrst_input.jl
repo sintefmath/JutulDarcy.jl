@@ -799,6 +799,11 @@ function init_from_mat(mrst_data, model, param)
     return init
 end
 
+"""
+    setup_case_from_mrst("filename.mat"; kwarg...)
+
+Set up a [`Jutul.SimulationCase`](@ref) from a MRST-exported .mat file.
+"""
 function setup_case_from_mrst(casename; wells = :ms,
                                         backend = :csc,
                                         block_backend = true,

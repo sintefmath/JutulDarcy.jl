@@ -1,31 +1,43 @@
+__precompile__(false)
+
+"""
+$(README)
+
+---
+##  Module exports:
+
+$(EXPORTS)
+
+"""
 module JutulDarcy
-    import Jutul: number_of_cells, number_of_faces,
-                  degrees_of_freedom_per_entity,
-                  values_per_entity,
-                  absolute_increment_limit, relative_increment_limit, maximum_value, minimum_value,
-                  select_primary_variables!,
-                  select_secondary_variables!,
-                  select_equations!,
-                  select_parameters!,
-                  select_minimum_output_variables!,
-                  initialize_primary_variable_ad!,
-                  update_primary_variable!,
-                  update_secondary_variable!,
-                  default_value,
-                  initialize_variable_value!,
-                  initialize_variable_value,
-                  initialize_variable_ad!,
-                  update_half_face_flux!,
-                  update_accumulation!,
-                  update_equation!,
-                  setup_parameters,
-                  count_entities,
-                  count_active_entities,
-                  associated_entity,
-                  active_entities,
-                  number_of_entities,
-                  declare_entities,
-                  get_neighborship
+    import Jutul:
+        number_of_cells, number_of_faces,
+        degrees_of_freedom_per_entity,
+        values_per_entity,
+        absolute_increment_limit, relative_increment_limit, maximum_value, minimum_value,
+        select_primary_variables!,
+        select_secondary_variables!,
+        select_equations!,
+        select_parameters!,
+        select_minimum_output_variables!,
+        initialize_primary_variable_ad!,
+        update_primary_variable!,
+        update_secondary_variable!,
+        default_value,
+        initialize_variable_value!,
+        initialize_variable_value,
+        initialize_variable_ad!,
+        update_half_face_flux!,
+        update_accumulation!,
+        update_equation!,
+        setup_parameters,
+        count_entities,
+        count_active_entities,
+        associated_entity,
+        active_entities,
+        number_of_entities,
+        declare_entities,
+        get_neighborship
 
     import Jutul: update_preconditioner!, partial_update_preconditioner!
 
@@ -50,6 +62,7 @@ module JutulDarcy
     using PrecompileTools
     using Dates
     import DataStructures: OrderedDict
+    using DocStringExtensions
 
     export reservoir_linsolve, get_1d_reservoir
     include("types.jl")
