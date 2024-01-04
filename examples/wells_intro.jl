@@ -179,7 +179,7 @@ wd, states, t = result
 # ## Plot the producer responses
 # We load a plotting package to plot the wells.
 using CairoMakie
-## Plot the surface rates at the producer
+# ## Plot the surface rates at the producer
 # We observe that the total rate does not vary much, but the composition changes
 # from liquid to gas as the front propagate through the domain and hits the
 # producer well.
@@ -197,7 +197,7 @@ lines!(ax, x, abs.(qt).*day, label = "Total")
 axislegend(position = :rb)
 fig
 #-
-## Plot bottom hole pressure of the injector
+# ## Plot bottom hole pressure of the injector
 # The pressure builds during injection, until the gas breaks through to the
 # other well.
 bh = wd[:Injector][Symbol("Bottom hole pressure")]

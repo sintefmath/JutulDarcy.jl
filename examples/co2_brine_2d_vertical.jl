@@ -32,9 +32,9 @@ nc = number_of_cells(g)
 Darcy, bar, kg, meter, Kelvin, day, sec = si_units(:darcy, :bar, :kilogram, :meter, :Kelvin, :day, :second)
 K = repeat([0.1, 0.1, 0.001]*Darcy, 1, nc)
 res = reservoir_domain(g, porosity = 0.3, permeability = K)
-## Set up a vertical well in the first corner, perforated in top layer
+# Set up a vertical well in the first corner, perforated in top layer
 prod = setup_well(g, K, [(nx, ny, 1)], name = :Producer)
-## Set up an injector in the opposite corner, perforated in bottom layer
+# Set up an injector in the opposite corner, perforated in bottom layer
 inj = setup_well(g, K, [(1, 1, nz)], name = :Injector)
 #-
 # ## Define system and realize on grid

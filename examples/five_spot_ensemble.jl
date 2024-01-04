@@ -56,10 +56,10 @@ function simulate_qfs(porosity = 0.2)
     return simulate_reservoir(state0, model, dt, parameters = parameters, forces = forces, info_level = -1)
 end
 #-
-## ## Simulate base case
+# ## Simulate base case
 # This will give the solution with uniform porosity of 0.2.
 ws, states, report_time = simulate_qfs()
-## ### Plot the solution of the base case
+# ### Plot the solution of the base case
 # We observe a radial flow pattern initially, before coning occurs near the
 # producer well once the fluid has reached the opposite corner. The uniform
 # permeability and porosity gives axial symmetry at ``x=y``.

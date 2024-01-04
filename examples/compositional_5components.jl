@@ -29,9 +29,9 @@ g = CartesianMesh(dims, (1000.0, 1000.0, 1.0))
 nc = number_of_cells(g)
 K = repeat([0.05*Darcy], 1, nc)
 res = reservoir_domain(g, porosity = 0.25, permeability = K)
-## Set up a vertical well in the first corner, perforated in all layers
+# Set up a vertical well in the first corner, perforated in all layers
 prod = setup_vertical_well(g, K, nx, ny, name = :Producer)
-## Set up an injector in the opposite corner, perforated in all layers
+# Set up an injector in the opposite corner, perforated in all layers
 inj = setup_vertical_well(g, K, 1, 1, name = :Injector)
 
 rhoLS = 1000.0*kg/meter^3
