@@ -10,7 +10,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:BOX})
     il, jl, kl = l
     iu, ju, ku = u
 
-    il, iu, jl, ju, kl, ku = parse_defaulted_line(rec, (il, iu, jl, ju, kl, ku))
+    il, iu, jl, ju, kl, ku = parse_defaulted_line(rec, [il, iu, jl, ju, kl, ku])
     gdata["CURRENT_BOX"] = (lower = (il, jl, kl), upper = (iu, ju, ku))
 end
 
