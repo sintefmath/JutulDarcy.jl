@@ -20,13 +20,14 @@ relative permeability on the form:
 Supports multiple fluid regions through the `regions` keyword.
 
 # Examples
+Single region:
 ```
 kr1 = S -> S^2
 kr2 = S -> S^3
 
 kr = RelativePermeabilities((kr1, kr2))
 ```
-
+Two regions:
 ```
 kr1_reg1 = S -> S^2
 kr2_reg1 = S -> S^3

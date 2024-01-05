@@ -440,13 +440,33 @@ end
 
 
 struct ReservoirSimResult
+    "Well results as a Dict (output from [`full_well_outputs`](@ref))"
     wells::AbstractDict
+    "Reservoir states for each time-step"
     states::AbstractVector
+    "The time the states and well solutions are given at"
     time::AbstractVector
+    "Raw simulation results with more detailed well results and reports of solution progress"
     result::Jutul.SimResult
+    "Dict for holding additional useful data connected to the simulation"
     extra::AbstractDict
 end
 
+"""
+    ReservoirSimResult(model, result::Jutul.SimResult, forces, extra = Dict(); kwarg...)
+
+Create a specific reservoir simulation results that contains well curves,
+reservoir states, and so on. This is the return type from `simulate_reservoir`.
+
+A `ReservoirSimResult` can be unpacked into wells and states:
+```julia
+ws, states = res_result
+```
+
+# Fields
+
+$FIELDS
+"""
 function ReservoirSimResult(model, result::Jutul.SimResult, forces, extra = Dict(); kwarg...)
     for (k, v) in kwarg
         extra[k] = v
