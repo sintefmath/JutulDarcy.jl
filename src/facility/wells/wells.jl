@@ -14,7 +14,7 @@ struct TotalMassFlux{R} <: ScalarVariable
     scale::Union{Nothing, R}
     max_abs::Union{Nothing, R}
     max_rel::Union{Nothing, R}
-    function TotalMassFlux(;scale = 3600*24, max_abs = nothing, max_rel = nothing)
+    function TotalMassFlux(;scale = 3600*24.0, max_abs = nothing, max_rel = nothing)
         new{Float64}(scale, max_abs, max_rel)
     end
 end

@@ -89,25 +89,29 @@ function parse_defaulted_line(lines, defaults; required_num = 0, keyword = "")
             if length(s) == 0
                 continue
             end
-            if occursin('*', s) && !startswith(s, '\'') # Could be inside a string for wildcard matching
+            default = defaults[pos]
+            is_num = default isa Real
+            if is_num && occursin('*', s) && !startswith(s, '\'') # Could be inside a string for wildcard matching
                 if s == "*"
                     num_defaulted = 1
                 else
-                    num_defaulted = Parsers.parse(Int, match(r"\d+\*", s).match[1:end-1])
+                    parse_wildcard = match(r"\d+\*", s)
+                    if isnothing(parse_wildcard)
+                        error("Unable to parse string for * expansion: $s")
+                    end
+                    num_defaulted = Parsers.parse(Int, parse_wildcard.match[1:end-1])
                 end
                 for i in 1:num_defaulted
                     push!(out, defaults[pos])
                     pos += 1
                 end
             else
-                default = defaults[pos]
                 if default isa String
                     converted = strip(s, [' ', '\''])
                 else
                     T = typeof(default)
                     converted = Parsers.tryparse(T, s)
                     if isnothing(converted)
-                        @info s
                         converted = T.(Parsers.tryparse(Float64, s))
                     end
                 end

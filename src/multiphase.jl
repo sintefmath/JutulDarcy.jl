@@ -40,15 +40,28 @@ end
 function subscript(prefix::String, phase::AbstractPhase)
     return string(prefix, "_", get_short_name(phase))
 end
-# Aqueous phase
+
+"""
+    AqueousPhase()
+
+`AbstractPhase` subtype for water-like phases.
+"""
 struct AqueousPhase <: AbstractPhase end
 get_name(::AqueousPhase) = "Aqueous"
 
-# Liquid phase
+"""
+    LiquidPhase()
+
+`AbstractPhase` subtype for liquid-like phases.
+"""
 struct LiquidPhase <: AbstractPhase end
 get_name(::LiquidPhase) = "Liquid"
 
-# Vapor phases
+"""
+    VaporPhase()
+
+`AbstractPhase` subtype for vapor or gaseous phases.
+"""
 struct VaporPhase <: AbstractPhase end
 get_name(::VaporPhase) = "Vapor"
 

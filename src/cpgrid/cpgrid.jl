@@ -398,7 +398,7 @@ function grid_from_primitives(primitives)
         nodes,
         cartdims
     ) = primitives
-    if !any(active)
+    if sum(active) == 0
         error("Grid has no active cells.")
     end
     # Faces mapping to nodes
