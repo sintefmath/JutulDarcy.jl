@@ -205,7 +205,6 @@ end
 
 number_of_components(sys::SinglePhaseSystem) = 1
 
-
 struct PhaseRelPerm{T, N}
     k::T
     label::Symbol
@@ -216,6 +215,18 @@ struct PhaseRelPerm{T, N}
 end
 
 
+"""
+    PhaseRelPerm(s, k; label = :w, connate = s[1], epsilon = 1e-16)
+
+Type that stores a sorted phase relative permeability table (given as vectors of
+equal length `s` and `k`):
+
+``K_r = K(S)``
+
+Optionally, a label for the phase, the connate
+saturation and a small epsilon value used to avoid extrapolation can be
+specified.
+"""
 function PhaseRelPerm(s, k; label = :w, connate = s[1], epsilon = 1e-16)
     for i in eachindex(s)
         if i == 1
