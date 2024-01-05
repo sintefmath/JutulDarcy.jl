@@ -345,7 +345,6 @@ function (D::WellSegmentFlow)(i, ::Cells)
     return (faces = cd.faces[loc], signs = signs, cells = cells)
 end
 
-export PerforationMask
 struct PerforationMask{V} <: JutulForce where V<:AbstractVector
     values::V
     function PerforationMask(v::T) where T<:AbstractVecOrMat

@@ -70,71 +70,81 @@ module JutulDarcy
         DeckViscosity,
         DeckShrinkage,
         CPRPreconditioner,
-        MuBTable, ConstMuBTable
-        export DeckDensity, RelativePermeabilities, ThreePhaseCompositionalDensitiesLV, PhaseMassFractions, PhaseMassFractions
-        export ThreePhaseLBCViscositiesLV
-        export plot_well!, plot_well_results, plot_reservoir_simulation_result
-        export plot_reservoir
-        export simulate_reservoir_parray
-        export setup_reservoir_simulator_parray
-        export component_mass_fluxes!, update_total_masses!
-        export table_to_relperm
-        export MultiPhaseSystem, ImmiscibleSystem, SinglePhaseSystem
-        export AqueousPhase, LiquidPhase, VaporPhase
-        export number_of_phases, get_short_name, get_name, subscript
-        export update_linearized_system!
-        export SourceTerm
-        export setup_storage, update_equations!
-        export Pressure, Saturations, TotalMasses, TotalMass
-        export fluid_volume, pore_volume
-        export MinimalTPFAGrid
-        export subgrid
-        export transfer, get_1d_reservoir
-        export compute_peaceman_index
-        export discretized_domain_tpfv_flow
-        export discretized_domain_well
-        export StandardBlackOilSystem
-        export PhaseRelPerm
-        export FlowBoundaryCondition
-        export ReservoirSimResult
-        export reservoir_domain
-        export reservoir_model
-        export setup_reservoir_model
-        export setup_reservoir_simulator
-        export simulate_reservoir
-        export setup_reservoir_state
-        export setup_reservoir_forces
-        export full_well_outputs, well_output, well_symbols, wellgroup_symbols, available_well_targets
-        export BlackOilUnknown
-        export BlackOilX
-        export ReservoirFromWellFlowCT, FacilityFromWellFlowCT, WellFromFacilityFlowCT
-        export TotalSurfaceMassRate, WellGroup, DisabledControl
-        export HistoryMode, PredictionMode, Wells
-        export TotalMassVelocityMassFractionsFlow
-        # Basics
-        export BottomHolePressureTarget, TotalRateTarget, SinglePhaseRateTarget, DisabledTarget
-        # Phase mixtures
-        export SurfaceLiquidRateTarget, SurfaceOilRateTarget, SurfaceWaterRateTarget, SurfaceGasRateTarget
-        export PerforationMask
-        export WellDomain, MultiSegmentWell
-        export TotalMassFlux, PotentialDropBalanceWell, SegmentWellBoreFrictionHB
-        export InjectorControl, ProducerControl, SinglePhaseRateTarget, BottomHolePressureTarget
-        export Perforations
-        export MixedWellSegmentFlow
-        export segment_pressure_drop
-        export setup_well, setup_vertical_well
-        export well_mismatch
-        export simulate_data_file, setup_case_from_data_file
-        export get_minimal_tpfa_grid_from_mrst, plot_interactive, get_test_setup, get_well_from_mrst_data
-        export setup_case_from_mrst
-        export simulate_mrst_case
-        export MultiPhaseCompositionalSystemLV
-        export StandardVolumeSource, VolumeSource, MassSource
-        export OverallMoleFractions
-        export ImmiscibleSaturation
-        export ThermalSystem
-        export PhaseMassDensities, ConstantCompressibilityDensities
-        export BrooksCoreyRelPerm, TabulatedRelPermSimple
+        MuBTable,
+        ConstMuBTable,
+        DeckDensity, RelativePermeabilities,
+        ThreePhaseCompositionalDensitiesLV,
+        PhaseMassFractions,
+        PhaseMassFractions,
+        ThreePhaseLBCViscositiesLV,
+        plot_well!,
+        plot_well_results,
+        plot_reservoir_simulation_result,
+        plot_reservoir,
+        simulate_reservoir_parray,
+        setup_reservoir_simulator_parray,
+        component_mass_fluxes!, update_total_masses!,
+        table_to_relperm,
+        MultiPhaseSystem, ImmiscibleSystem, SinglePhaseSystem,
+        AqueousPhase, LiquidPhase, VaporPhase,
+        number_of_phases, get_short_name, get_name,
+        SourceTerm,
+        Pressure, Saturations, TotalMasses, TotalMass,
+        fluid_volume, pore_volume,
+        MinimalTPFAGrid,
+        compute_peaceman_index,
+        discretized_domain_tpfv_flow,
+        discretized_domain_well,
+        StandardBlackOilSystem,
+        PhaseRelPerm,
+        FlowBoundaryCondition,
+        ReservoirSimResult,
+        reservoir_domain,
+        reservoir_model,
+        setup_reservoir_model,
+        setup_reservoir_simulator,
+        simulate_reservoir,
+        setup_reservoir_state,
+        setup_reservoir_forces,
+        full_well_outputs,
+        well_output,
+        well_symbols,
+        wellgroup_symbols,
+        available_well_targets,
+        BlackOilUnknown,
+        BlackOilX,
+        ReservoirFromWellFlowCT,
+        FacilityFromWellFlowCT,
+        WellFromFacilityFlowCT,
+        TotalSurfaceMassRate,
+        WellGroup,
+        DisabledControl,
+        HistoryMode,
+        PredictionMode,
+        Wells,
+        TotalMassVelocityMassFractionsFlow
+        BottomHolePressureTarget, TotalRateTarget, SinglePhaseRateTarget, DisabledTarget
+        SurfaceLiquidRateTarget, SurfaceOilRateTarget, SurfaceWaterRateTarget, SurfaceGasRateTarget,
+        PerforationMask,
+        WellDomain, MultiSegmentWell,
+        TotalMassFlux, PotentialDropBalanceWell, SegmentWellBoreFrictionHB,
+        InjectorControl, ProducerControl, SinglePhaseRateTarget, BottomHolePressureTarget,
+        Perforations,
+        MixedWellSegmentFlow,
+        segment_pressure_drop,
+        setup_well, setup_vertical_well,
+        well_mismatch,
+        simulate_data_file, setup_case_from_data_file,
+        get_test_setup, get_well_from_mrst_data,
+        setup_case_from_mrst,
+        simulate_mrst_case,
+        MultiPhaseCompositionalSystemLV,
+        StandardVolumeSource, VolumeSource, MassSource,
+        OverallMoleFractions,
+        ImmiscibleSaturation,
+        ThermalSystem,
+        PhaseMassDensities, ConstantCompressibilityDensities,
+        BrooksCoreyRelPerm, TabulatedRelPermSimple
 
     include("types.jl")
     include("deck_types.jl")
