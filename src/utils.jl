@@ -329,6 +329,28 @@ function setup_reservoir_simulator(case::JutulCase;
 end
 
 
+"""
+    simulate_reservoir(state0, model, dt;
+        parameters = setup_parameters(model),
+        restart = false,
+        forces = setup_forces(model),
+        kwarg...
+    )
+    simulate_reservoir(case;
+        kwarg...
+    )
+
+Convenience function for simulating a reservoir model. This function internally
+calls [`setup_reservoir_simulator`](@ref), simulates the problem and returns a
+[`ReservoirSimResult`](@ref).
+
+You can optionally unpack this result into the most typical desired outputs:
+
+`wellsols, states = simulate_reservoir(...)`
+
+where `wellsols` contains the well results and `states` the reservoir results
+(pressure, saturations and so on, in each cell of the reservoir domain).
+"""
 function simulate_reservoir(state0, model, dt;
         parameters = setup_parameters(model),
         restart = false,
