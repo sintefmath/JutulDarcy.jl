@@ -59,13 +59,9 @@ module JutulDarcy
     export available_well_targets
     export BlackOilUnknown
     export BlackOilX
-    export ReservoirFromWellFlowCT
-    export FacilityFromWellFlowCT
-    export WellFromFacilityFlowCT
     export TotalSurfaceMassRate
     export WellGroup
     export DisabledControl
-    export HistoryMode, PredictionMode
     export Wells
     export TotalMassVelocityMassFractionsFlow
     export BottomHolePressureTarget, TotalRateTarget
