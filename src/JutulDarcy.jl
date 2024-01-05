@@ -64,8 +64,58 @@ module JutulDarcy
     import DataStructures: OrderedDict
     using DocStringExtensions
 
+
+    include("types.jl")
+    include("deck_types.jl")
+    include("porousmedia_grids.jl")
+    include("utils.jl")
+    include("interpolation.jl")
+    include("flux.jl")
+    # Definitions for multiphase flow
+    include("multiphase.jl")
+    include("variables/variables.jl")
+    # Compositional flow
+    include("multicomponent/multicomponent.jl")
+
+    # Blackoil
+    include("blackoil/blackoil.jl")
+
+    include("thermal/thermal.jl")
+
+    # Wells etc.
+    include("facility/facility.jl")
+
+    include("porousmedia.jl")
+    # MRST inputs and test cases that use MRST input
+    # and .DATA file simulation
+    include("input_simulation/input_simulation.jl")
+    # Initialization by equilibriation
+    include("init/init.jl")
+    # Corner point grids
+    include("cpgrid/cpgrid.jl")
+    # Gradients, objective functions, etc
+    include("gradients/gradients.jl")
+
+    # Various input tricks
+    include("io.jl")
+    include("linsolve.jl")
+    include("cpr.jl")
+    include("deck_support.jl")
+    include("regions/regions.jl")
+    include("test_utils/test_utils.jl")
+    include("forces/forces.jl")
+
+    include("formulations/formulations.jl")
+
+    include("ext.jl")
+
+    include("InputParser/InputParser.jl")
+    using .InputParser
+    import .InputParser: parse_data_file
+
     export
         reservoir_linsolve,
+        parse_data_file,
         get_1d_reservoir,
         DeckViscosity,
         DeckShrinkage,
@@ -119,8 +169,7 @@ module JutulDarcy
         TotalSurfaceMassRate,
         WellGroup,
         DisabledControl,
-        HistoryMode,
-        PredictionMode,
+        HistoryMode, PredictionMode,
         Wells,
         TotalMassVelocityMassFractionsFlow
         BottomHolePressureTarget, TotalRateTarget, SinglePhaseRateTarget, DisabledTarget
@@ -145,55 +194,6 @@ module JutulDarcy
         ThermalSystem,
         PhaseMassDensities, ConstantCompressibilityDensities,
         BrooksCoreyRelPerm, TabulatedRelPermSimple
-
-    include("types.jl")
-    include("deck_types.jl")
-    include("porousmedia_grids.jl")
-    include("utils.jl")
-    include("interpolation.jl")
-    include("flux.jl")
-    # Definitions for multiphase flow
-    include("multiphase.jl")
-    include("variables/variables.jl")
-    # Compositional flow
-    include("multicomponent/multicomponent.jl")
-
-    # Blackoil
-    include("blackoil/blackoil.jl")
-
-    include("thermal/thermal.jl")
-
-    # Wells etc.
-    include("facility/facility.jl")
-
-    include("porousmedia.jl")
-    # MRST inputs and test cases that use MRST input
-    # and .DATA file simulation
-    include("input_simulation/input_simulation.jl")
-    # Initialization by equilibriation
-    include("init/init.jl")
-    # Corner point grids
-    include("cpgrid/cpgrid.jl")
-    # Gradients, objective functions, etc
-    include("gradients/gradients.jl")
-
-    # Various input tricks
-    include("io.jl")
-    include("linsolve.jl")
-    include("cpr.jl")
-    include("deck_support.jl")
-    include("regions/regions.jl")
-    include("test_utils/test_utils.jl")
-    include("forces/forces.jl")
-
-    include("formulations/formulations.jl")
-
-    include("ext.jl")
-
-    include("InputParser/InputParser.jl")
-    using .InputParser
-    import .InputParser: parse_data_file
-    export parse_data_file
 
     @compile_workload begin
         precompile_darcy_multimodels()
