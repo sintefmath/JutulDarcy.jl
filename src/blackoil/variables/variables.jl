@@ -32,7 +32,6 @@ function Jutul.line_plot_data(model::SimulationModel, ::Rv)
     return JutulLinePlotData(X[2:end]./1e5, F[2:end], title = "Saturated oil-in-gas ratio", xlabel = "Pressure [bar]", ylabel = "Rv")
 end
 
-export BlackOilUnknown
 """
     BlackOilUnknown(dr_max = Inf, ds_max = Inf)
 
@@ -50,7 +49,6 @@ Base.@kwdef struct BlackOilUnknown{R} <: ScalarVariable
     ds_max::R = 0.2
 end
 
-export BlackOilX
 struct BlackOilX{T}
     val::T
     phases_present::PresentPhasesBlackOil

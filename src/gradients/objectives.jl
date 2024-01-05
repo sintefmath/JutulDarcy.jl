@@ -1,5 +1,3 @@
-export well_mismatch
-
 function compute_well_qoi(well_model, state, well::Symbol, pos, rhoS, control)
     well_state = state[well]
     well_state = convert_to_immutable_storage(well_state)

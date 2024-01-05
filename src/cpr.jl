@@ -1,4 +1,3 @@
-export CPRPreconditioner
 
 struct CPRStorage{P, R, S, F, W, V}
     A_p::P  # pressure system

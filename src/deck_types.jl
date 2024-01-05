@@ -1,10 +1,6 @@
 abstract type DeckPhaseVariables <: PhaseVariables end
 abstract type AbstractReservoirDeckTable end
-
-export MuBTable, ConstMuBTable
-
 abstract type AbstractTablePVT <: AbstractReservoirDeckTable end
-
 
 struct DeckViscosity{T, R} <: DeckPhaseVariables
     pvt::T
@@ -15,9 +11,6 @@ struct DeckViscosity{T, R} <: DeckPhaseVariables
         new{typeof(pvt_t), typeof(regions)}(pvt_t, regions)
     end
 end
-
-export DeckDensity, RelativePermeabilities, ThreePhaseCompositionalDensitiesLV, PhaseMassFractions, PhaseMassFractions
-export ThreePhaseLBCViscositiesLV
 struct DeckDensity{T, R} <: DeckPhaseVariables
     pvt::T
     regions::R

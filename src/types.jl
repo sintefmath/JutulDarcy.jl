@@ -64,7 +64,6 @@ function Base.show(io::IO, sys::MultiPhaseCompositionalSystemLV)
     print(io, "MultiPhaseCompositionalSystemLV $name with $(MultiComponentFlash.eostype(eos)) EOS with $n components: $cnames")
 end
 
-export StandardBlackOilSystem
 struct StandardBlackOilSystem{D, V, W, R, F, T, P, Num} <: BlackOilSystem
     rs_max::D
     rv_max::V
@@ -209,7 +208,6 @@ struct PhaseRelPerm{T, N}
     k_max::N
 end
 
-export PhaseRelPerm
 
 function PhaseRelPerm(s, k; label = :w, connate = s[1], epsilon = 1e-16)
     for i in eachindex(s)
@@ -261,7 +259,6 @@ struct SourceTerm{I, F, T} <: JutulForce
     type::FlowSourceType
 end
 
-export FlowBoundaryCondition
 struct FlowBoundaryCondition{I, F, T} <: JutulForce
     cell::I
     pressure::F
@@ -420,7 +417,6 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
 end
 
 
-export ReservoirSimResult
 struct ReservoirSimResult
     wells::AbstractDict
     states::AbstractVector

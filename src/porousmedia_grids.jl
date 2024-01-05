@@ -1,7 +1,3 @@
-export MinimalTPFAGrid
-export subgrid
-
-export transfer, get_1d_reservoir
 
 import Base.eltype
 

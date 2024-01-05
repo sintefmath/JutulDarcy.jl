@@ -1,4 +1,3 @@
-export reservoir_model
 reservoir_model(model) = model
 reservoir_model(model::MultiModel) = model.models.Reservoir
 
@@ -6,7 +5,6 @@ reservoir_storage(model, storage) = storage
 reservoir_storage(model::MultiModel, storage) = storage.Reservoir
 
 
-export reservoir_domain
 """
     reservoir_domain(g; permeability = convert_to_si(0.1, :darcy), porosity = 0.1, kwarg...)
 
@@ -51,7 +49,6 @@ function reservoir_domain(case::JutulCase)
     return reservoir_domain(case.model)
 end
 
-export setup_reservoir_model
 """
     setup_reservoir_model(reservoir, system; wells = [], <keyword arguments>)
     setup_reservoir_model(reservoir, system; wells = [], context = DefaultContext(), reservoir_context = nothing, backend = :csc, <keyword arguments>)
@@ -183,7 +180,6 @@ function set_reservoir_variable_defaults!(model; p_min, p_max, dp_max_abs, dp_ma
     return model
 end
 
-export setup_reservoir_simulator
 """
     setup_reservoir_simulator(models, initializer, parameters = nothing; <keyword arguments>)
 
@@ -332,7 +328,6 @@ function setup_reservoir_simulator(case::JutulCase;
     return (sim, cfg)
 end
 
-export simulate_reservoir
 
 function simulate_reservoir(state0, model, dt;
         parameters = setup_parameters(model),
@@ -521,7 +516,6 @@ function reservoir_multimodel(models::AbstractDict; specialize = false, split_we
     return model
 end
 
-export setup_reservoir_state
 """
     setup_reservoir_state(model, <keyword arguments>)
     # Ex: For immiscible two-phase
@@ -611,7 +605,6 @@ function handle_alternate_primary_variable_spec!(res_init, found, system)
     return res_init
 end
 
-export setup_reservoir_forces
 """
     setup_reservoir_forces(model; control = nothing, limits = nothing, set_default_limits = true, <keyword arguments>)
 
@@ -651,7 +644,6 @@ function setup_reservoir_forces(model::MultiModel; control = nothing, limits = n
     end
 end
 
-export full_well_outputs, well_output, well_symbols, wellgroup_symbols, available_well_targets
 
 """
     full_well_outputs(model, states, forces; targets = available_well_targets(model.models.Reservoir), shortname = false)

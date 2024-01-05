@@ -16,7 +16,6 @@ function update_primary_variable!(state, p::CompositionalFractions, state_symbol
     Jutul.unit_sum_update!(s, p, model, dx, w)
 end
 
-export OverallMoleFractions
 struct OverallMoleFractions <: CompositionalFractions
     dz_max::Float64
 end
@@ -66,8 +65,6 @@ function Jutul.increment_norm(dX, state, model, X, pvar::OverallMoleFractions)
     end
     return (sum = scale*sum_v, sum_scaled = sum_v_scaled, max = scale*max_v, max_scaled = max_v_scaled)
 end
-
-export ImmiscibleSaturation
 
 """
 A single saturation variable that represents the "other" phase in a three phase

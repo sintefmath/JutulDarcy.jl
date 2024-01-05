@@ -1,4 +1,3 @@
-export ReservoirFromWellFlowCT, FacilityFromWellFlowCT, WellFromFacilityFlowCT
 
 abstract type AbstractReservoirFromWellCT <: Jutul.AdditiveCrossTerm end
 struct ReservoirFromWellFlowCT{T<:AbstractVector, I<:AbstractVector} <: AbstractReservoirFromWellCT

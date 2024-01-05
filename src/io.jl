@@ -1,5 +1,3 @@
-export table_to_relperm
-
 function table_to_relperm(swof; swcon = 0.0, first_label = :w, second_label = :ow)
     sw = vec(swof[:, 1])
     krw = vec(swof[:, 2])

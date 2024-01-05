@@ -1,6 +1,3 @@
-export TotalSurfaceMassRate, WellGroup, DisabledControl
-export HistoryMode, PredictionMode, Wells
-
 """
 (Absolute) Minimum well rate for a well that is not disabled.
 """

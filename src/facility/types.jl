@@ -1,4 +1,3 @@
-export TotalMassVelocityMassFractionsFlow
 
 abstract type FacilitySystem <: JutulSystem end
 struct PredictionMode <: FacilitySystem end
@@ -61,10 +60,6 @@ end
 
 Base.show(io::IO, t::SurfaceVolumeTarget) = print(io, "$(typeof(t)) with value $(t.value) [m^3/s] for $(join([typeof(p) for p in lumped_phases(t)], ", "))")
 
-# Basics
-export BottomHolePressureTarget, TotalRateTarget, SinglePhaseRateTarget, DisabledTarget
-# Phase mixtures
-export SurfaceLiquidRateTarget, SurfaceOilRateTarget, SurfaceWaterRateTarget, SurfaceGasRateTarget
 
 struct BottomHolePressureTarget <: WellTarget
     value::AbstractFloat

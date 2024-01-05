@@ -1,5 +1,3 @@
-export DeckViscosity, DeckShrinkage
-
 @jutul_secondary function update_deck_viscosity!(mu, μ::DeckViscosity, model, Pressure, ix)
     pvt, reg = μ.pvt, μ.regions
     @inbounds for ph in axes(mu, 1)

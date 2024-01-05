@@ -1,6 +1,3 @@
-export get_minimal_tpfa_grid_from_mrst, plot_interactive, get_test_setup, get_well_from_mrst_data
-export setup_case_from_mrst
-
 function get_mrst_input_path(name)
     function valid_mat_path(S)
         base, ext = splitext(S)
@@ -1181,8 +1178,6 @@ function mrst_well_ctrl(model, wdata, is_comp, rhoS)
     end
     return ctrl
 end
-
-export simulate_mrst_case
 
 """
     simulate_mrst_case(file_name; kwarg...)

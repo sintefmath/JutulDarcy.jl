@@ -1,10 +1,3 @@
-export MultiPhaseSystem, ImmiscibleSystem, SinglePhaseSystem
-export AqueousPhase, LiquidPhase, VaporPhase
-export number_of_phases, get_short_name, get_name, subscript
-export update_linearized_system!
-export SourceTerm
-export setup_storage, update_equations!
-export Pressure, Saturations, TotalMasses, TotalMass
 
 # Abstract multiphase system
 
@@ -293,7 +286,6 @@ end
 number_of_equations_per_entity(system::MultiPhaseSystem, e::ConservationLaw) = number_of_components(system)
 number_of_equations_per_entity(system::SinglePhaseSystem, e::ConservationLaw) = 1
 
-export fluid_volume, pore_volume
 function pore_volume(data_domain::DataDomain; throw = true)
     if haskey(data_domain, :pore_volume, Cells())
         pv = data_domain[:pore_volume]

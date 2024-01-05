@@ -1,11 +1,3 @@
-export WellDomain, MultiSegmentWell
-export TotalMassFlux, PotentialDropBalanceWell, SegmentWellBoreFrictionHB
-
-export InjectorControl, ProducerControl, SinglePhaseRateTarget, BottomHolePressureTarget
-
-export Perforations
-export MixedWellSegmentFlow
-export segment_pressure_drop
 
 
 abstract type WellPotentialFlowDiscretization <: PotentialFlowDiscretization end
@@ -52,7 +44,6 @@ function common_well_setup(nr; dz = nothing, WI = nothing, gravity = gravity_con
     return (WI, gdz)
 end
 
-export setup_well, setup_vertical_well
 """
     setup_well(D::DataDomain, reservoir_cells; skin = 0.0, Kh = nothing, radius = 0.1, dir = :z)
 

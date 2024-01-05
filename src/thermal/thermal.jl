@@ -1,4 +1,3 @@
-export ThermalSystem
 struct ThermalSystem{T} <: JutulSystem
     nph::Int64
     function ThermalSystem(; nphases = 1, formulation = :Temperature)

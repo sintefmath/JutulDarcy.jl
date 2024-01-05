@@ -140,7 +140,6 @@ end
     end
 end
 
-export component_mass_fluxes!, update_total_masses!
 """
     component_mass_fluxes!(q, face, state, model, kgrad, upw)
 

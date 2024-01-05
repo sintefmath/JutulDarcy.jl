@@ -1,5 +1,3 @@
-export simulate_data_file, setup_case_from_data_file
-
 """
     simulate_data_file(inp; parse_arg = NamedTuple(), kwarg...)
 

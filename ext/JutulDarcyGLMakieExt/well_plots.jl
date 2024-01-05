@@ -55,7 +55,6 @@ function well_cells_for_plot(w)
     return w.perforations.reservoir
 end
 
-# export plot_well_results
 function JutulDarcy.plot_well_results(well_data::Dict, arg...; name = "Data", kwarg...)
     JutulDarcy.plot_well_results([well_data], arg...; names = [name], kwarg...)
 end

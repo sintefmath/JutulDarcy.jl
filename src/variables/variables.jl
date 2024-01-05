@@ -1,6 +1,3 @@
-export PhaseMassDensities, ConstantCompressibilityDensities
-export BrooksCoreyRelPerm, TabulatedRelPermSimple
-
 include("capillary.jl")
 include("relperm.jl")
 include("pvt.jl")

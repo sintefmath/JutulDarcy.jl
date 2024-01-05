@@ -1,6 +1,5 @@
 import Jutul: compute_half_face_trans, compute_face_trans
 
-export compute_peaceman_index
 function compute_peaceman_index(g::T, K, r, pos; kwarg...) where T<:Jutul.JutulMesh
     Δ = Jutul.cell_dims(g, pos)
     K = Jutul.expand_perm(K, dim(g))
@@ -60,42 +59,6 @@ function Jutul.discretize_domain(d::DataDomain, system::MultiPhaseSystem, ::Val{
     return discretized_domain_tpfv_flow(d; kwarg...)
 end
 
-export discretized_domain_tpfv_flow
-function discretized_domain_tpfv_flow(geometry; porosity = 0.1, 
-                                                permeability = 9.869232667160131e-14, # 100 mD 
-                                                T = nothing,
-                                                gdz = nothing,
-                                                gravity = true,
-                                                pore_volume = nothing,
-                                                general_ad = false)
-    N = geometry.neighbors
-    error("Deprecated.")
-    if isnothing(pore_volume)
-        pore_volume = porosity.*geometry.volumes
-    end
-    nc = length(pore_volume)
-    if isnothing(T)
-        T = compute_face_trans(geometry, permeability)
-    end
-    cc = geometry.cell_centroids
-    if gravity && size(cc, 1) == 3
-        z = vec(cc[3, :])
-    else
-        z = zeros(nc)
-    end
-    if isnothing(gdz)
-        gdz = compute_face_gdz(N, z)
-    end
-    G = MinimalTPFAGrid(pore_volume, N, trans = T, gdz = gdz)
-    if general_ad
-        flow = PotentialFlow(N, nc)
-    else
-        flow = TwoPointPotentialFlowHardCoded(G, ncells = nc)
-    end
-    disc = (mass_flow = flow, heat_flow = flow)
-    return DiscretizedDomain(G, disc)
-end
-
 function discretized_domain_tpfv_flow(domain::Jutul.DataDomain; general_ad = false)
     N = domain[:neighbors]
     nc = number_of_cells(physical_representation(domain))
@@ -113,7 +76,6 @@ function Jutul.discretize_domain(d::DataDomain{W}, system::MultiPhaseSystem, ::V
     return discretized_domain_well(physical_representation(d); kwarg...)
 end
 
-export discretized_domain_well
 function discretized_domain_well(W::MultiSegmentWell; z = nothing, kwarg...)
     if isnothing(z)
         z = vec(W.centers[3, :])
