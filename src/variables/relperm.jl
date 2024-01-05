@@ -65,10 +65,31 @@ function Jutul.line_plot_data(model::SimulationModel, k::RelativePermeabilities)
     return data
 end
 
+"""
+    BrooksCoreyRelPerm(
+        sys_or_nph::Union{MultiPhaseSystem, Integer},
+        exponents = 1.0,
+        residuals = 0.0,
+        endpoints = 1.0
+    )
+
+Secondary variable that implements the family of Brooks-Corey relative
+permeability functions. This is a simple analytical expression for relative
+permeabilities that has a limited number of parameters:
+
+``K(S) = K_{max} * ((S - S_r)/(1 - S_r^{tot}))^N``
+
+## Fields
+$FIELDS
+"""
 struct BrooksCoreyRelPerm{V, T} <: AbstractRelativePermeabilities
+    "Exponents for each phase"
     exponents::V
+    "Residual saturations for each phase"
     residuals::V
+    "Maximum relative permeability for each phase"
     endpoints::V
+    "Total residual saturation over all phases"
     residual_total::T
     function BrooksCoreyRelPerm(sys_or_nph::Union{MultiPhaseSystem, Integer}, exponents = 1.0, residuals = 0.0, endpoints = 1.0)
         if isa(sys_or_nph, Integer)
