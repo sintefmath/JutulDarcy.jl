@@ -76,7 +76,6 @@ BottomHolePressureTarget with value 100.0 [bar]
 ```
 
 """
-
 struct BottomHolePressureTarget{T} <: WellTarget
     value::T
 end
