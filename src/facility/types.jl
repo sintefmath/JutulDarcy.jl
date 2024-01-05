@@ -60,10 +60,27 @@ end
 
 Base.show(io::IO, t::SurfaceVolumeTarget) = print(io, "$(typeof(t)) with value $(t.value) [m^3/s] for $(join([typeof(p) for p in lumped_phases(t)], ", "))")
 
+"""
+BottomHolePressureTarget(q, phase)
 
-struct BottomHolePressureTarget <: WellTarget
-    value::AbstractFloat
+Bottom-hole pressure (bhp) target with target pressure value `bhp`. A well
+operating under a bhp constraint will keep the well pressure at the bottom hole
+(typically the top of the perforations) fixed at this value unless doing so
+would violate other constraints, like the well switching from injection to
+production when declared as an injector.
+
+# Examples
+```julia-repl
+julia> BottomHolePressureTarget(100e5)
+BottomHolePressureTarget with value 100.0 [bar]
+```
+
+"""
+
+struct BottomHolePressureTarget{T} <: WellTarget
+    value::T
 end
+Base.show(io::IO, t::BottomHolePressureTarget) = print(io, "BottomHolePressureTarget with value $(convert_from_si(t.value, :bar)) [bar]")
 
 """
     SinglePhaseRateTarget(q, phase)
@@ -77,9 +94,9 @@ SinglePhaseRateTarget of 0.001 [m^3/s] for LiquidPhase()
 ```
 
 """
-struct SinglePhaseRateTarget <: SurfaceVolumeTarget
-    value::AbstractFloat
-    phase::AbstractPhase
+struct SinglePhaseRateTarget{T, P} <: SurfaceVolumeTarget
+    value::T
+    phase::P
 end
 
 lumped_phases(t::SinglePhaseRateTarget) = (t.phase, )
