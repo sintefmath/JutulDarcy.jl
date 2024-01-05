@@ -74,6 +74,12 @@ struct ConstMuBTable{R}
     mu_c::R
 end
 
+"""
+    ConstMuBTable(pvtw::M) where M<:AbstractVector
+
+Create a constant viscosity and formation-volume-factor table from a vector.
+Typical usage is to wrap a PVTW type table generated from external software.
+"""
 function ConstMuBTable(pvtw::M) where M<:AbstractVector
     pvtw = flat_region_expand(pvtw)
     # Only one region supported atm
