@@ -15,7 +15,7 @@ module JutulDarcy
     export parse_data_file
     export get_1d_reservoir
     export DeckViscosity
-    export DeckShrinkage
+    export DeckShrinkageFactors
     export CPRPreconditioner
     export MuBTable
     export ConstMuBTable

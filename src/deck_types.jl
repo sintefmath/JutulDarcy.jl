@@ -2,6 +2,12 @@ abstract type DeckPhaseVariables <: PhaseVariables end
 abstract type AbstractReservoirDeckTable end
 abstract type AbstractTablePVT <: AbstractReservoirDeckTable end
 
+"""
+    DeckViscosity(pvt, regions = nothing)
+
+Secondary variable used to evaluate viscosities when a case is generated from a
+input file. Typically not instantiated in user scripts.
+"""
 struct DeckViscosity{T, R} <: DeckPhaseVariables
     pvt::T
     regions::R
@@ -11,6 +17,13 @@ struct DeckViscosity{T, R} <: DeckPhaseVariables
         new{typeof(pvt_t), typeof(regions)}(pvt_t, regions)
     end
 end
+
+"""
+    DeckDensity(pvt, regions = nothing)
+
+Secondary variable used to evaluate densities when a case is generated from a
+input file. Typically not instantiated in user scripts.
+"""
 struct DeckDensity{T, R} <: DeckPhaseVariables
     pvt::T
     regions::R
@@ -21,6 +34,12 @@ struct DeckDensity{T, R} <: DeckPhaseVariables
     end
 end
 
+"""
+DeckShrinkageFactors(pvt, regions = nothing)
+
+Secondary variable used to evaluate shrinkage factors when a case is generated
+from a input file. Typically not instantiated in user scripts.
+"""
 struct DeckShrinkageFactors{T, R} <: DeckPhaseVariables
     pvt::T
     regions::R
@@ -31,7 +50,13 @@ struct DeckShrinkageFactors{T, R} <: DeckPhaseVariables
     end
 end
 
+"""
+    MuBTable(pvt, regions = nothing)
 
+Table used to evaluate viscosities and shrinkage factors when a case is
+generated from a input file. Typically used to wrap tables (e.g. PVDG, PVDO) for
+use in simulation.
+"""
 struct MuBTable{V, I}
     pressure::V
     shrinkage::V
