@@ -88,7 +88,18 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, compord; simple_we
     if isnan(rd)
         rd = nothing
     end
-    W = setup_well(domain, wc, name = Symbol(wname), WI = WI, reference_depth = rd, simple_well = simple_well)
+    if simple_well
+        avol = 0.1*mean(domain[:volumes][wc])*mean(domain[:porosity][wc])
+    else
+        avol = missing
+    end
+    W = setup_well(domain, wc,
+        name = Symbol(wname),
+        accumulator_volume = avol,
+        WI = WI,
+        reference_depth = rd,
+        simple_well = simple_well
+    )
     return (W, wc, WI, open)
 end
 
