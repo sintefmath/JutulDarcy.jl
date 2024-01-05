@@ -10,6 +10,91 @@ $(EXPORTS)
 
 """
 module JutulDarcy
+    export MultiPhaseSystem, ImmiscibleSystem, SinglePhaseSystem
+    export reservoir_linsolve
+    export parse_data_file
+    export get_1d_reservoir
+    export DeckViscosity
+    export DeckShrinkage
+    export CPRPreconditioner
+    export MuBTable
+    export ConstMuBTable
+    export DeckDensity, RelativePermeabilities
+    export ThreePhaseCompositionalDensitiesLV
+    export PhaseMassFractions
+    export PhaseMassFractions
+    export ThreePhaseLBCViscositiesLV
+    export plot_well!
+    export plot_well_results
+    export plot_reservoir_simulation_result
+    export plot_reservoir
+    export simulate_reservoir_parray
+    export setup_reservoir_simulator_parray
+    export component_mass_fluxes!, update_total_masses!
+    export table_to_relperm
+    export AqueousPhase, LiquidPhase, VaporPhase
+    export number_of_phases, get_short_name, get_name
+    export SourceTerm
+    export Pressure, Saturations, TotalMasses, TotalMass
+    export fluid_volume, pore_volume
+    export MinimalTPFAGrid
+    export compute_peaceman_index
+    export discretized_domain_tpfv_flow
+    export discretized_domain_well
+    export StandardBlackOilSystem
+    export PhaseRelPerm
+    export FlowBoundaryCondition
+    export ReservoirSimResult
+    export reservoir_domain
+    export reservoir_model
+    export setup_reservoir_model
+    export setup_reservoir_simulator
+    export simulate_reservoir
+    export setup_reservoir_state
+    export setup_reservoir_forces
+    export full_well_outputs
+    export well_output
+    export well_symbols
+    export wellgroup_symbols
+    export available_well_targets
+    export BlackOilUnknown
+    export BlackOilX
+    export ReservoirFromWellFlowCT
+    export FacilityFromWellFlowCT
+    export WellFromFacilityFlowCT
+    export TotalSurfaceMassRate
+    export WellGroup
+    export DisabledControl
+    export HistoryMode, PredictionMode
+    export Wells
+    export TotalMassVelocityMassFractionsFlow
+    export BottomHolePressureTarget, TotalRateTarget
+    export SinglePhaseRateTarget, DisabledTarget
+    export SurfaceLiquidRateTarget, SurfaceOilRateTarget
+    export SurfaceWaterRateTarget, SurfaceGasRateTarget
+    export SinglePhaseRateTarget, BottomHolePressureTarget
+    export PerforationMask
+    export WellDomain, MultiSegmentWell
+    export TotalMassFlux, PotentialDropBalanceWell
+    export SegmentWellBoreFrictionHB
+    export InjectorControl, ProducerControl
+    export Perforations
+    export MixedWellSegmentFlow
+    export segment_pressure_drop
+    export setup_well, setup_vertical_well
+    export well_mismatch
+    export simulate_data_file, setup_case_from_data_file
+    export get_test_setup, get_well_from_mrst_data
+    export setup_case_from_mrst
+    export simulate_mrst_case
+    export MultiPhaseCompositionalSystemLV
+    export StandardVolumeSource, VolumeSource, MassSource
+    export OverallMoleFractions
+    export ImmiscibleSaturation
+    export ThermalSystem
+    export PhaseMassDensities, ConstantCompressibilityDensities
+    export BrooksCoreyRelPerm, TabulatedRelPermSimple
+
     import Jutul:
         number_of_cells, number_of_faces,
         degrees_of_freedom_per_entity,
@@ -113,87 +198,6 @@ module JutulDarcy
     using .InputParser
     import .InputParser: parse_data_file
 
-    export
-        reservoir_linsolve,
-        parse_data_file,
-        get_1d_reservoir,
-        DeckViscosity,
-        DeckShrinkage,
-        CPRPreconditioner,
-        MuBTable,
-        ConstMuBTable,
-        DeckDensity, RelativePermeabilities,
-        ThreePhaseCompositionalDensitiesLV,
-        PhaseMassFractions,
-        PhaseMassFractions,
-        ThreePhaseLBCViscositiesLV,
-        plot_well!,
-        plot_well_results,
-        plot_reservoir_simulation_result,
-        plot_reservoir,
-        simulate_reservoir_parray,
-        setup_reservoir_simulator_parray,
-        component_mass_fluxes!, update_total_masses!,
-        table_to_relperm,
-        MultiPhaseSystem, ImmiscibleSystem, SinglePhaseSystem,
-        AqueousPhase, LiquidPhase, VaporPhase,
-        number_of_phases, get_short_name, get_name,
-        SourceTerm,
-        Pressure, Saturations, TotalMasses, TotalMass,
-        fluid_volume, pore_volume,
-        MinimalTPFAGrid,
-        compute_peaceman_index,
-        discretized_domain_tpfv_flow,
-        discretized_domain_well,
-        StandardBlackOilSystem,
-        PhaseRelPerm,
-        FlowBoundaryCondition,
-        ReservoirSimResult,
-        reservoir_domain,
-        reservoir_model,
-        setup_reservoir_model,
-        setup_reservoir_simulator,
-        simulate_reservoir,
-        setup_reservoir_state,
-        setup_reservoir_forces,
-        full_well_outputs,
-        well_output,
-        well_symbols,
-        wellgroup_symbols,
-        available_well_targets,
-        BlackOilUnknown,
-        BlackOilX,
-        ReservoirFromWellFlowCT,
-        FacilityFromWellFlowCT,
-        WellFromFacilityFlowCT,
-        TotalSurfaceMassRate,
-        WellGroup,
-        DisabledControl,
-        HistoryMode, PredictionMode,
-        Wells,
-        TotalMassVelocityMassFractionsFlow
-        BottomHolePressureTarget, TotalRateTarget, SinglePhaseRateTarget, DisabledTarget
-        SurfaceLiquidRateTarget, SurfaceOilRateTarget, SurfaceWaterRateTarget, SurfaceGasRateTarget,
-        PerforationMask,
-        WellDomain, MultiSegmentWell,
-        TotalMassFlux, PotentialDropBalanceWell, SegmentWellBoreFrictionHB,
-        InjectorControl, ProducerControl, SinglePhaseRateTarget, BottomHolePressureTarget,
-        Perforations,
-        MixedWellSegmentFlow,
-        segment_pressure_drop,
-        setup_well, setup_vertical_well,
-        well_mismatch,
-        simulate_data_file, setup_case_from_data_file,
-        get_test_setup, get_well_from_mrst_data,
-        setup_case_from_mrst,
-        simulate_mrst_case,
-        MultiPhaseCompositionalSystemLV,
-        StandardVolumeSource, VolumeSource, MassSource,
-        OverallMoleFractions,
-        ImmiscibleSaturation,
-        ThermalSystem,
-        PhaseMassDensities, ConstantCompressibilityDensities,
-        BrooksCoreyRelPerm, TabulatedRelPermSimple
 
     @compile_workload begin
         precompile_darcy_multimodels()
