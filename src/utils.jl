@@ -756,6 +756,11 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
     return d
 end
 
+"""
+    well_symbols(model::MultiModel)
+
+Get the keys of a `MultiModel` models that correspond to well models.
+"""
 function well_symbols(model::MultiModel)
     models = model.models
     symbols = Vector{Symbol}()

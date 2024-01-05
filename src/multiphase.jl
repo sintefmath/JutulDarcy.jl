@@ -112,10 +112,10 @@ struct Saturations <: FractionVariables
 end
 
 """
-    Saturations(;ds_max = 0.2)
+    Saturations(; ds_max = 0.2)
 
 Saturations as primary variable. `ds_max` controls maximum allowable saturation
-change between two Newton iterations.
+change between two successive Newton iterations.
 """
 function Saturations(;ds_max = 0.2)
     Saturations(ds_max)
@@ -151,6 +151,8 @@ function Jutul.default_values(model, ::ConnateWater)
 end
 
 """
+    TotalMasses()
+
 Variable that defines total component masses in each cell of the domain.
 """
 struct TotalMasses <: VectorVariables end
@@ -162,11 +164,26 @@ end
 struct PhaseMassMobilities <: PhaseVariables end
 struct PhaseMobilities <: PhaseVariables end
 
-@inline function minimum_value(::TotalMasses) 0 end
+@inline function minimum_value(::TotalMasses)
+    0.0
+end
 
+"""
+    TotalMasses()
+
+Variable that defines total mass of all components in each cell of the domain.
+"""
 struct TotalMass <: ScalarVariable end
-@inline function minimum_value(::TotalMass) 0 end
+@inline function minimum_value(::TotalMass)
+    return 0.0
+end
 
+"""
+    Transmissibilities()
+
+Variable/parameter used to define the cell-to-cell transmissibilities when using
+a two-point flux approximation scheme.
+"""
 struct Transmissibilities <: ScalarVariable end
 Jutul.variable_scale(::Transmissibilities) = 1e-10
 Jutul.minimum_value(::Transmissibilities) = 0.0

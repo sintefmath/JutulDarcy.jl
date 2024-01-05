@@ -1,6 +1,13 @@
 abstract type AbstractPhase end
 
+"""
+Abstract supertype for all multiphase flow systems.
+"""
 abstract type MultiPhaseSystem <: JutulSystem end
+"""
+Abstract supertype for multicomponent systems, i.e. flow systems where the
+number of components is decoupled from the number of phases.
+"""
 abstract type MultiComponentSystem <: MultiPhaseSystem end
 const DarcyFlowModel = SimulationModel{<:Any, <:MultiPhaseSystem, <:Any, <:Any}
 
@@ -245,7 +252,11 @@ function Base.show(io::IO, t::MIME"text/plain", kr::PhaseRelPerm)
     println(io, "  Maximum rel. perm = $(kr.k_max) at $(kr.s_max)")
 end
 
-
+"""
+MassSource: Source is directly interpreted as component masses.
+StandardVolumeSource: Source is volume at standard/surface conditions. References densities are used to convert into mass sources.
+VolumeSource: Source is volume at in-situ / reservoir conditions.
+"""
 @enum FlowSourceType begin
     MassSource
     StandardVolumeSource

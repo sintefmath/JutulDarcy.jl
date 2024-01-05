@@ -33,7 +33,7 @@ module JutulDarcy
     export component_mass_fluxes!, update_total_masses!
     export table_to_relperm
     export AqueousPhase, LiquidPhase, VaporPhase
-    export number_of_phases, get_short_name, get_name
+    export number_of_phases
     export SourceTerm
     export Pressure, Saturations, TotalMasses, TotalMass
     export fluid_volume, pore_volume
