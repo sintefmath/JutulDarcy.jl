@@ -1,7 +1,7 @@
 """
     FlowBoundaryCondition(
     cell,
-    pressure = DEFAULT_MINIMUM_PRESSURE, 
+    pressure = DEFAULT_MINIMUM_PRESSURE,
     temperature = 298.15;
     fractional_flow = nothing,
     density = nothing,
@@ -9,7 +9,7 @@
     trans_thermal = 1e-6
     )
 
-Boundary condition for constant values (pressure/temperature)
+Dirchlet boundary condition for constant values (pressure/temperature) at some inflow boundary
 """
 function FlowBoundaryCondition(
     cell,
@@ -36,7 +36,6 @@ end
 function Jutul.subforce(s::AbstractVector{S}, model) where S<:FlowBoundaryCondition
     s = deepcopy(s)
     m = global_map(model.domain)
-    
     n = length(s)
     keep = repeat([false], n)
     for (i, bc) in enumerate(s)

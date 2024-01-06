@@ -27,6 +27,10 @@ In the above the discrete version of ``M_i`` is implemented in the update functi
 
 ## Single-phase flow
 
+```@docs
+SinglePhaseSystem
+```
+
 The simplest form of porous media flow is the single-phase system.
 
 ```math
@@ -48,6 +52,9 @@ Here, ``\mathbf{K}`` is a positive-definite permeability tensor, ``\mu`` the flu
     JutulDarcy uses the notion of depth rather than coordinate when defining buoyancy forces. This is consistent with the convention in the literature on subsurface flow.
 
 ## Multi-phase, immiscible flow
+```@docs
+ImmiscibleSystem
+```
 
 The flow systems immediately become more interesting if we add more phases. We can extend the above single-phase system by introducing the phase saturation of phase with label ``\alpha`` as ``S_\alpha``. The phase saturation represents the volumetric fraction of the rock void space occupied by the phase. If we consider a pair of phases ``\{n, w\}`` non-wetting and wetting we can write the system as
 
@@ -80,6 +87,9 @@ Here, we have introduced the relative permeability of the phase ``k_{r\alpha}``,
     The [`ImmiscibleSystem`](@ref) implements this system for any number of phases. The primary variables for this system is a single reference [`Pressure`](@ref) and phase [`Saturations`](@ref). As we do not solve for the volume closure equation, there is one less degree of freedom associated with the saturations than there are number of phases.
 
 ## Black-oil: Multi-phase, pseudo-compositional flow
+```@docs
+StandardBlackOilSystem
+```
 
 The black-oil equations is an extension of the immiscible description to handle limited miscibility between the phases. Originally developed for certain types of oil and gas simulation, these equations are useful when the number of components is low and tabulated values for dissolution and vaporization are available.
 
@@ -98,6 +108,9 @@ The model uses the notion of surface (or reference densities) ``\rho_o^s, \rho_g
 A full description of the black-oil equations is outside the scope of this documentation. Please see [mrst-book-i](@cite) for more details.
 
 ## Compositional: Multi-phase, multi-component flow
+```@docs
+MultiPhaseCompositionalSystemLV
+```
 
 The more general case of multi-component flow is often referred to as a compositional model. The typical version of this model describes the fluid as a system of ``N`` components where the phases present and fluid properties are determined by an equation-of-state. This can be highly accurate if the equation-of-state is tuned for the mixtures that are encountered, but comes at a significant computational cost as the equation-of-state must be evaluated many times.
 
