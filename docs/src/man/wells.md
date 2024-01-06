@@ -18,6 +18,9 @@ MultiSegmentWell
 
 ### Well setup routines
 
+[``](@ref)
+
+
 ```@docs
 setup_well
 setup_vertical_well
