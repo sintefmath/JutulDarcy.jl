@@ -36,6 +36,11 @@ If `block_backend` is set to `false`, Jutul will assemble into the standard Juli
 
 If `block_backend` is set to `true`, Jutul will by default use a constrained-pressure residual (CPR) preconditioner for BiCGStab. Jutul relies on [Krylov.jl](https://github.com/JuliaSmoothOptimizers/Krylov.jl) for iterative solvers. The main function that selects the linear solver is [`reservoir_linsolve`](@ref) that allows for the selection of different preconditioners and linear solvers.
 
+```@docs
+reservoir_linsolve
+Jutul.GenericKrylov
+```
+
 #### Single model (only porous medium)
 
 If the model is a single model (e.g. only a reservoir) the matrix format is a block-CSC matrix that combines Julia's builtin sparse matrix format with statically sized elements from the [StaticArrays.jl](https://github.com/JuliaArrays/StaticArrays.jl) package. If we consider the two-phase immiscible system from [Multi-phase, immiscible flow](@ref) we have a pair of equations ``R_n, R_w`` together with the corresponding primary variables pressure and first saturation ``p, S_n`` defined for all ``N_c`` cells. Let us simplify the notation a bit so that the subscripts of the primary variables are ``p, s`` and define a ``N_c \times N_c`` block Jacobian linear system where the entires are given by:
@@ -65,6 +70,10 @@ This block system has several advantages:
 ##### Constrained Pressure Residual
 
 The CPR preconditioner [wallis-cpr, cao-cpr](@cite) [`CPRPreconditioner`](@ref) is a multi-stage physics-informed preconditioner that seeks to decouple the global pressure part of the system from the local  transport part. In the limits of incompressible flow without gravity it can be thought of as an elliptic / hyperbolic splitting.
+
+```@docs
+CPRPreconditioner
+```
 
 The short version of the CPR preconditioner can be motivated by our test system:
 
@@ -151,4 +160,4 @@ Once that system is solved for ``\mathbf{x}_r``, we can recover the well degrees
 ```
 
 !!! note "Efficiency of Schur complement"
-    Explicitly forming the matrix ``J_{rr} - J_{rw}J_{ww}^{-1}J_{wr}`` will generally lead to a lot of fill-in in the linear system. JutulDarcy instead uses the action of ``J_{rr} - J_{rw}J_{ww}^{-1}J_{wr}`` as a linear operator from [LinearOperators.jl](https://github.com/JuliaSmoothOptimizers/LinearOperators.jl). This means that we must apply the inverse of the well system every time we need to compute the residual or action of the system matrix, but fortunately performing the action of the Schur complement is inexpensive as long as ``J_{ww}`` is small and the factorization can be stored. 
+    Explicitly forming the matrix ``J_{rr} - J_{rw}J_{ww}^{-1}J_{wr}`` will generally lead to a lot of fill-in in the linear system. JutulDarcy instead uses the action of ``J_{rr} - J_{rw}J_{ww}^{-1}J_{wr}`` as a linear operator from [LinearOperators.jl](https://github.com/JuliaSmoothOptimizers/LinearOperators.jl). This means that we must apply the inverse of the well system every time we need to compute the residual or action of the system matrix, but fortunately performing the action of the Schur complement is inexpensive as long as ``J_{ww}`` is small and the factorization can be stored.
