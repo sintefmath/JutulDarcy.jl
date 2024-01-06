@@ -35,6 +35,7 @@ DisabledControl
 
 ```@docs
 JutulDarcy.replace_target
+JutulDarcy.default_limits
 ```
 
 ### Types of well targets

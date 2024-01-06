@@ -113,8 +113,16 @@ lumped_phases(t::SinglePhaseRateTarget) = (t.phase, )
 """
     SurfaceLiquidRateTarget(q)
 
-Well target of specified liquid rate with value `q` (liquid/oil and water, but not gas)
-at surface conditions.
+Well target of specified liquid rate at surface conditions with value `q`.
+Typically used for a [`ProducerControl`](@ref) as you have full control over the
+mixture composition during injection.
+
+Liquid rate, sometimes abbreviated LRAT, is made up of the phases that remain
+liquid at surface conditions. Typically, this will be water and oil if present
+in the model, but never different types of gas. If a producing becomes nearly or
+completely flooded by gas the well can go to very high or even infinite flows.
+It is therefore important to combine this control with a limit such as a
+bottom-hole-pressure constraint.
 """
 struct SurfaceLiquidRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
@@ -126,6 +134,8 @@ lumped_phases(::SurfaceLiquidRateTarget) = (AqueousPhase(), LiquidPhase())
     SurfaceOilRateTarget(q)
 
 Well target of specified oil rate with value `q` at surface conditions.
+Typically used for a [`ProducerControl`](@ref) as oil, for economic reasons, is
+rarely injected into the subsurface. Abbreviated as ORAT in some settings.
 """
 struct SurfaceOilRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
@@ -137,6 +147,11 @@ lumped_phases(::SurfaceOilRateTarget) = (LiquidPhase(), )
     SurfaceGasRateTarget(q)
 
 Well target of specified gas rate with value `q` at surface conditions.
+
+Often used for both [`InjectorControl`](@ref) [`ProducerControl`](@ref).
+Abbreviated as GRAT in some settings. If used for production it is important to
+also impose limits, as the well rate may become very high if there is little gas
+present.
 """
 struct SurfaceGasRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
@@ -148,6 +163,10 @@ lumped_phases(::SurfaceGasRateTarget) = (VaporPhase(), )
     SurfaceWaterRateTarget(q)
 
 Well target of specified water rate with value `q` at surface conditions.
+
+Often used for both [`InjectorControl`](@ref) [`ProducerControl`](@ref). If used
+for production it is important to also impose limits, as the well rate may
+become very high if there is little water present.
 """
 struct SurfaceWaterRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
@@ -158,7 +177,10 @@ lumped_phases(::SurfaceWaterRateTarget) = (AqueousPhase(), )
 """
     TotalRateTarget(q)
 
-Well target of specified total rate of all phases with value `q` at surface conditions.
+Well target of specified total rate (sum of all phases) with value `q` at surface
+conditions.
+
+Often used for both [`InjectorControl`](@ref) [`ProducerControl`](@ref).
 """
 struct TotalRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
@@ -168,7 +190,10 @@ Base.show(io::IO, t::TotalRateTarget) = print(io, "TotalRateTarget with value $(
 """
     HistoricalReservoirVoidageTarget(q, weights)
 
-Historical RESV target for history matching cases.
+Historical RESV target for history matching cases. See
+[`ReservoirVoidageTarget`](@ref). For historical rates, the weights described in
+that target are computed based on the reservoir pressure and conditions at the
+previous time-step.
 """
 struct HistoricalReservoirVoidageTarget{T, K} <: WellTarget where {T<:AbstractFloat, K<:Tuple}
     value::T
@@ -179,7 +204,16 @@ Base.show(io::IO, t::HistoricalReservoirVoidageTarget) = print(io, "HistoricalRe
 """
     ReservoirVoidageTarget(q, weights)
 
-RESV targets with weights for each pseudo-component
+RESV target for history matching cases. The `weights` input should
+have one entry per phase (or pseudocomponent) in the system. The well control
+equation is then:
+
+``|q_{ctrl} - \\sum_i w_i q_i^s|``
+
+where ``q_i^s`` is the surface rate of phase ``i`` and ``w_i`` the weight of
+component stream ``i``.
+
+This constraint is typically set up from .DATA files for black-oil and immiscible cases.
 """
 struct ReservoirVoidageTarget{T, K} <: WellTarget where {T<:AbstractFloat, K<:Tuple}
     value::T
@@ -189,7 +223,8 @@ end
 """
     DisabledTarget(q)
 
-Disabled target used when a well is under `DisabledControl()` only.
+Disabled target used when a well is under `DisabledControl()` only. The well
+will be disconnected from the surface.
 """
 struct DisabledTarget <: WellTarget end
 abstract type WellForce <: JutulForce end
@@ -198,10 +233,13 @@ abstract type WellControlForce <: WellForce end
 """
     default_limits(ctrl)
 
-Create reasonable default limits for well control `ctrl`, for example to avoid BHP injectors turning into producers.
+Create reasonable default limits for well control `ctrl`, for example to avoid
+BHP injectors turning into producers.
 """
+function default_limits(ctrl)
+    as_limit(ctrl.target)
+end
 
-default_limits(ctrl) = as_limit(ctrl.target)
 as_limit(target) = NamedTuple([Pair(translate_target_to_symbol(target, shortname = true), target.value)])
 as_limit(T::DisabledTarget) = nothing
 as_limit(T::HistoricalReservoirVoidageTarget) = nothing
@@ -210,8 +248,10 @@ as_limit(target::ReservoirVoidageTarget) = NamedTuple([Pair(translate_target_to_
 """
     DisabledControl()
 
-Control that disables a well. If a well is disabled, it is disconnected from the surface network and no flow occurs
-between the well and the top side. Mass transfer can still occur inside the well, and between the well and the reservoir.
+Control that disables a well. If a well is disabled, it is disconnected from the
+surface network and no flow occurs between the well and the top side. Mass
+transfer can still occur inside the well, and between the well and the reservoir
+unless perforations are also closed by a [`PerforationMask`](@ref).
 
 See also [`ProducerControl`](@ref), [`InjectorControl`](@ref).
 """
