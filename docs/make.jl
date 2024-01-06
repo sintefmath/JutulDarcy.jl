@@ -59,14 +59,18 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
         format=build_format,
         pages=[
             "Home" => "index.md",
-            "Examples" => examples_markdown,
-            "Usage" => [
+            "Manual" => [ 
                 "Supported physical systems" =>"usage/systems.md",
                 "Solving the equations" => "usage/solution.md"
                 ],
-            "References" => "refs.md",
-            "Internals" => "internals.md",
-            "Jutul functions" => "jutul.md"
+            "Examples" => examples_markdown,
+            "Reference" => [
+                "Internals" => "internals.md",
+                "Jutul functions" => "jutul.md"
+            ],
+            "Additional information "=> [
+                "References" => "refs.md"
+            ]
         ],
     )
 
@@ -76,4 +80,4 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
     )
 end
 ##
-build_jutul_darcy_docs()
+# build_jutul_darcy_docs()
