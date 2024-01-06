@@ -1,4 +1,4 @@
-@jutul_secondary function update_deck_viscosity!(μ, ρ::DeckViscosity, model::StandardBlackOilModel, Pressure, Rs, Rv, ix)
+@jutul_secondary function update_deck_viscosity!(μ, ρ::DeckPhaseViscosities, model::StandardBlackOilModel, Pressure, Rs, Rv, ix)
     pvt, reg = ρ.pvt, ρ.regions
     w, o, g = phase_indices(model.system)
     muW = pvt[w]
@@ -15,7 +15,7 @@
     end
 end
 
-@jutul_secondary function update_deck_viscosity!(μ, ρ::DeckViscosity, model::VapoilBlackOilModel, Pressure, Rv, ix)
+@jutul_secondary function update_deck_viscosity!(μ, ρ::DeckPhaseViscosities, model::VapoilBlackOilModel, Pressure, Rv, ix)
     pvt, reg = ρ.pvt, ρ.regions
     w, o, g = phase_indices(model.system)
     muW = pvt[w]
@@ -31,7 +31,7 @@ end
     end
 end
 
-@jutul_secondary function update_deck_viscosity!(μ, ρ::DeckViscosity, model::DisgasBlackOilModel, Pressure, Rs, ix)
+@jutul_secondary function update_deck_viscosity!(μ, ρ::DeckPhaseViscosities, model::DisgasBlackOilModel, Pressure, Rs, ix)
     pvt, reg = ρ.pvt, ρ.regions
     has_wat = has_other_phase(model.system)
     if has_wat

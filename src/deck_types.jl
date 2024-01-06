@@ -3,15 +3,15 @@ abstract type AbstractReservoirDeckTable end
 abstract type AbstractTablePVT <: AbstractReservoirDeckTable end
 
 """
-    DeckViscosity(pvt, regions = nothing)
+    DeckPhaseViscosities(pvt, regions = nothing)
 
 Secondary variable used to evaluate viscosities when a case is generated from a
 input file. Typically not instantiated in user scripts.
 """
-struct DeckViscosity{T, R} <: DeckPhaseVariables
+struct DeckPhaseViscosities{T, R} <: DeckPhaseVariables
     pvt::T
     regions::R
-    function DeckViscosity(pvt; regions = nothing)
+    function DeckPhaseViscosities(pvt; regions = nothing)
         check_regions(regions)
         pvt_t = Tuple(pvt)
         new{typeof(pvt_t), typeof(regions)}(pvt_t, regions)
@@ -19,15 +19,15 @@ struct DeckViscosity{T, R} <: DeckPhaseVariables
 end
 
 """
-    DeckDensity(pvt, regions = nothing)
+    DeckPhaseMassDensities(pvt, regions = nothing)
 
 Secondary variable used to evaluate densities when a case is generated from a
 input file. Typically not instantiated in user scripts.
 """
-struct DeckDensity{T, R} <: DeckPhaseVariables
+struct DeckPhaseMassDensities{T, R} <: DeckPhaseVariables
     pvt::T
     regions::R
-    function DeckDensity(pvt; regions = nothing)
+    function DeckPhaseMassDensities(pvt; regions = nothing)
         check_regions(regions)
         pvt_t = Tuple(pvt)
         new{typeof(pvt_t), typeof(regions)}(pvt_t, regions)

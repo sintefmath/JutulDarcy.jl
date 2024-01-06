@@ -65,11 +65,11 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
                 svar = submodel.secondary_variables
                 # PVT
                 pvt = tuple(pvt...)
-                rho = DeckDensity(pvt)
+                rho = DeckPhaseMassDensities(pvt)
                 if sys isa StandardBlackOilSystem
                     set_secondary_variables!(submodel, ShrinkageFactors = JutulDarcy.DeckShrinkageFactors(pvt))
                 end
-                mu = DeckViscosity(pvt)
+                mu = DeckPhaseViscosities(pvt)
                 set_secondary_variables!(submodel, PhaseViscosities = mu, PhaseMassDensities = rho)
             end
             if k == :Reservoir

@@ -30,13 +30,13 @@ function select_secondary_variables!(S, system::BlackOilSystem, model)
     S[:PhaseState] = BlackOilPhaseState()
     spe1_data = blackoil_bench_pvt(:spe1)
     pvt = spe1_data[:pvt]
-    S[:PhaseMassDensities] = DeckDensity(pvt)
+    S[:PhaseMassDensities] = DeckPhaseMassDensities(pvt)
     S[:ShrinkageFactors] = DeckShrinkageFactors(pvt)
     g = physical_representation(model.domain)
     if !(g isa WellDomain)
         S[:SurfaceVolumeMobilities] = SurfaceVolumeMobilities()
     end
-    S[:PhaseViscosities] = DeckViscosity(pvt)
+    S[:PhaseViscosities] = DeckPhaseViscosities(pvt)
     if has_disgas(system)
         S[:Rs] = Rs()
     end

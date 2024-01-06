@@ -629,11 +629,11 @@ function model_from_mat_deck(G, data_domain, mrst_data, res_context)
         svar = model.secondary_variables
         # PVT
         pvt = tuple(pvt...)
-        rho = DeckDensity(pvt)
+        rho = DeckPhaseMassDensities(pvt)
         if !is_immiscible
             set_secondary_variables!(model, ShrinkageFactors = DeckShrinkageFactors(pvt))
         end
-        mu = DeckViscosity(pvt)
+        mu = DeckPhaseViscosities(pvt)
         set_secondary_variables!(model, PhaseViscosities = mu, PhaseMassDensities = rho)
         set_deck_specialization!(model, props, satnum, has_oil, has_wat, has_gas)
         param = setup_parameters(model)

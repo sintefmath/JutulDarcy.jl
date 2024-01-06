@@ -1,4 +1,4 @@
-@jutul_secondary function update_deck_viscosity!(mu, μ::DeckViscosity, model, Pressure, ix)
+@jutul_secondary function update_deck_viscosity!(mu, μ::DeckPhaseViscosities, model, Pressure, ix)
     pvt, reg = μ.pvt, μ.regions
     @inbounds for ph in axes(mu, 1)
         pvt_ph = pvt[ph]
@@ -9,7 +9,7 @@
     end
 end
 
-@jutul_secondary function update_deck_density!(rho, ρ::DeckDensity, model, Pressure, ix)
+@jutul_secondary function update_deck_density!(rho, ρ::DeckPhaseMassDensities, model, Pressure, ix)
     rhos = reference_densities(model.system)
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
@@ -58,8 +58,8 @@ end
 
 function Jutul.line_plot_data(model::SimulationModel, k::DeckPhaseVariables)
     deck_pvt_type(::DeckShrinkageFactors) = :shrinkage
-    deck_pvt_type(::DeckDensity) = :density
-    deck_pvt_type(::DeckViscosity) = :viscosity
+    deck_pvt_type(::DeckPhaseMassDensities) = :density
+    deck_pvt_type(::DeckPhaseViscosities) = :viscosity
 
     pvt_type = deck_pvt_type(k)
     has_reg = !isnothing(k.regions)

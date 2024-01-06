@@ -19,7 +19,7 @@ PhaseRelPerm
 #### Phase viscosities
 
 ```@docs
-DeckViscosity
+DeckPhaseViscosities
 ```
 
 ```@docs

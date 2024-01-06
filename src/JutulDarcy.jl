@@ -13,12 +13,12 @@ module JutulDarcy
     export reservoir_linsolve
     export parse_data_file
     export get_1d_reservoir
-    export DeckViscosity
+    export DeckPhaseViscosities
     export DeckShrinkageFactors
     export CPRPreconditioner
     export MuBTable
     export ConstMuBTable
-    export DeckDensity, RelativePermeabilities
+    export DeckPhaseMassDensities, RelativePermeabilities
     export ThreePhaseCompositionalDensitiesLV
     export PhaseMassFractions
     export PhaseMassFractions
