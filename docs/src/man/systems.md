@@ -83,6 +83,8 @@ To complete this description we also need expressions for the phase fluxes. We u
 
 Here, we have introduced the relative permeability of the phase ``k_{r\alpha}``, an empirical relationship between the saturation and the flow rate. Relative permeability is a complex topic with many different relationships and functional forms, but we limit the discussion to monotone, non-negative functions of their respective saturations, for example a simple Brooks-Corey type of ``k_{r\alpha}(S_\alpha) = S_\alpha^2``. We have also introduced separate phase pressures ``p_\alpha`` that account for capillary pressure, e.g. ``p_w = p_n + p_c(S_w)``.
 
+### Primary variables
+
 !!! note "Immiscible implementation"
     The [`ImmiscibleSystem`](@ref) implements this system for any number of phases. The primary variables for this system is a single reference [`Pressure`](@ref) and phase [`Saturations`](@ref). As we do not solve for the volume closure equation, there is one less degree of freedom associated with the saturations than there are number of phases.
 

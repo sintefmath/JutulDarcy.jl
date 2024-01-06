@@ -17,6 +17,14 @@ end
 const WellGroupModel = SimulationModel{WellGroup, <:Any, <:Any, <:Any}
 
 struct Wells <: JutulEntity end
+
+"""
+    TotalSurfaceMassRate(max_absolute_change = nothing, max_relative_change = nothing)
+
+Variable, typically representing the primary variable for a [`WellGroup`](@ref).
+The variable is a single entry per well and solves for the total surface mass
+rate from a well to the facility model.
+"""
 Base.@kwdef struct TotalSurfaceMassRate <: ScalarVariable
     "Maximum absolute change betweeen two Newton updates (nominally kg/s)"
     max_absolute_change::Union{Float64, Nothing} = nothing
@@ -36,7 +44,10 @@ abstract type WellTarget end
 abstract type SurfaceVolumeTarget <: WellTarget end
 
 """
-Perforations are connections from well cells to reservoir vcells
+    Perforations()
+
+Entity that defines perforations: Connections from well cells to reservoir
+cells.
 """
 struct Perforations <: JutulEntity end
 
@@ -61,7 +72,7 @@ end
 Base.show(io::IO, t::SurfaceVolumeTarget) = print(io, "$(typeof(t)) with value $(t.value) [m^3/s] for $(join([typeof(p) for p in lumped_phases(t)], ", "))")
 
 """
-BottomHolePressureTarget(q, phase)
+    BottomHolePressureTarget(q, phase)
 
 Bottom-hole pressure (bhp) target with target pressure value `bhp`. A well
 operating under a bhp constraint will keep the well pressure at the bottom hole

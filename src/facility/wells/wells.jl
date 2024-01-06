@@ -9,12 +9,29 @@ struct MixedWellSegmentFlow <: WellPotentialFlowDiscretization end
 
 include("separator.jl")
 
-# Total velocity in each well segment
+"""
+    TotalMassFlux(scale = si_unit(:day), max_abs = nothing, max_rel = nothing)
+
+Variable normally used as primary variable. Represents the total mass flux going
+through a face. The typical usage is the mass flow through a segment of a
+[`MultiSegmentWell`](@ref).
+
+Note that the flow direction can often switch signs over a segment during a
+complex simulation. Setting `max_rel` to something other than `nothing` can
+therefore lead to severe convergence issues in the case of flow reversal.
+
+# Fields (as keyword arguments)
+
+$FIELDS
+"""
 struct TotalMassFlux{R} <: ScalarVariable
+    "Scaling for variable"
     scale::Union{Nothing, R}
+    "Max absolute change between Newton iterations"
     max_abs::Union{Nothing, R}
+    "Maximum relative change between Newton iterations"
     max_rel::Union{Nothing, R}
-    function TotalMassFlux(;scale = 3600*24.0, max_abs = nothing, max_rel = nothing)
+    function TotalMassFlux(; scale = si_unit(:day), max_abs = nothing, max_rel = nothing)
         new{Float64}(scale, max_abs, max_rel)
     end
 end
