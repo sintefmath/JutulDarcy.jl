@@ -1,13 +1,17 @@
 # Parameters
 
+## General
+
+```@docs
+FluidVolume
+```
+
 ## Reservoir parameters
 
 ```@docs
 Transmissibilities
 TwoPointGravityDifference
 ConnateWater
-PoreVolumes
-StaticPoreVolumes
 ```
 
 ## Well parameters
@@ -15,5 +19,4 @@ StaticPoreVolumes
 ```@docs
 WellIndices
 PerforationGravityDifference
-FluidVolume
 ```
