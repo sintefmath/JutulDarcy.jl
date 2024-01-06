@@ -59,9 +59,16 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
         format=build_format,
         pages=[
             "Home" => "index.md",
-            "Manual" => [ 
+            "Manual" => [
+                "Getting started" =>"man/intro.md",
+                "Initial state" =>"man/state0.md",
+                "Driving forces" =>"man/forces.md",
                 "Supported physical systems" =>"man/systems.md",
-                "Solving the equations" => "man/solution.md"
+                "Wells and controls" =>"man/wells.md",
+                "Solving the equations" => "man/solution.md",
+                "Input files" =>"man/input_files.md",
+                "Parallel solves with MPI" =>"man/mpi.md",
+                "JutulDarcy.jl compiled app" =>"man/compiled.md",
                 ],
             "Examples" => examples_markdown,
             "Reference" => [
