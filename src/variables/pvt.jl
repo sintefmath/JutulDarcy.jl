@@ -122,6 +122,15 @@ end
     end
 end
 
+"""
+    FluidVolume()
+
+Variable typically taken to be a parameter. Represents the per-cell volume that
+where multiphase flow can occur. For a well, this is the volume inside the
+well-bore free flow can occur. For a porous medium, this is the void space
+inside the pores that is, to some extent, connected and open to flow (effective
+pore-volume).
+"""
 struct FluidVolume <: ScalarVariable end
 Jutul.minimum_value(::FluidVolume) = eps()
 
