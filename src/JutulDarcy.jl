@@ -89,7 +89,7 @@ module JutulDarcy
     export ImmiscibleSaturation
     export ThermalSystem
     export PhaseMassDensities, ConstantCompressibilityDensities
-    export BrooksCoreyRelPerm, TabulatedRelPermSimple
+    export BrooksCoreyRelativePermeabilities, TabulatedRelPermSimple
 
     import Jutul:
         number_of_cells, number_of_faces,

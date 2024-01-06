@@ -76,7 +76,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
                 ],
             "Examples" => examples_markdown,
             "Reference" => [
-                "Internals" => "ref/internals.md",
+                # "Internals" => "ref/internals.md",
                 "Jutul functions" => "ref/jutul.md"
             ],
             "Additional information "=> [
@@ -93,3 +93,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
 end
 ##
 # build_jutul_darcy_docs()
+
+# ```@autodocs
+# Modules = [JutulDarcy]
+# ```

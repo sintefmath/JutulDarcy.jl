@@ -399,7 +399,7 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
             krarg = (g = kr_1, og = kr_2)
         end
     end
-    return ReservoirRelativePermeability(; krarg..., regions = satnum, scaling = scaling)
+    return ReservoirRelativePermeabilities(; krarg..., regions = satnum, scaling = scaling)
 end
 
 function flat_region_expand(x::AbstractMatrix, n = nothing)

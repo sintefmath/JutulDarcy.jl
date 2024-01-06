@@ -18,7 +18,7 @@ function setup_bl(;nc = 100, time = 1.0, nstep = 100, poro = 0.1, perm = 9.8692e
     sys = ImmiscibleSystem((LiquidPhase(), VaporPhase()))
     model = SimulationModel(G, sys)
     model.primary_variables[:Pressure] = Pressure(minimum = -Inf, max_rel = nothing)
-    kr = BrooksCoreyRelPerm(sys, [2.0, 2.0])
+    kr = BrooksCoreyRelativePermeabilities(sys, [2.0, 2.0])
     replace_variables!(model, RelativePermeabilities = kr)
     tot_time = sum(tstep)
 

@@ -18,13 +18,8 @@ MultiSegmentWell
 
 ### Well setup routines
 
-[``](@ref)
-
-
-```@docs
-setup_well
-setup_vertical_well
-```
+[`setup_well`](@ref)
+[`setup_vertical_well`](@ref)
 
 ## Well controls and limits
 

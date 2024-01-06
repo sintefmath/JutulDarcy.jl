@@ -12,6 +12,11 @@
 
 ## Running the simulation
 
+```@docs
+setup_reservoir_simulator_parray
+simulate_reservoir_parray
+```
+
 ### MPI executable notes
 
 ### Limitations for running in MPI

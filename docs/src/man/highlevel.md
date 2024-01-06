@@ -28,6 +28,7 @@ setup_reservoir_model
 ```@docs
 simulate_reservoir
 setup_reservoir_simulator
+reservoir_linsolve
 ```
 
 ## Visualization

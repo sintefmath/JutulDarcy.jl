@@ -39,7 +39,7 @@ function setup_bl(;nc = 100, time = 1.0, nstep = 100)
     # Define system and realize on grid
     sys = ImmiscibleSystem((LiquidPhase(), VaporPhase()))
     model = SimulationModel(G, sys)
-    kr = BrooksCoreyRelPerm(sys, [2.0, 2.0], [0.2, 0.2])
+    kr = BrooksCoreyRelativePermeabilities(sys, [2.0, 2.0], [0.2, 0.2])
     replace_variables!(model, RelativePermeabilities = kr)
     tot_time = sum(timesteps)
     pv = pore_volume(G)

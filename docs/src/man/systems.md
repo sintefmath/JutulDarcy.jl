@@ -16,9 +16,9 @@ The following table gives an overview of the available features that are describ
 
 | System | Number of phases | Number of components | ``M`` | ``V`` |
 |---|---|---|---|---|
-| [`SinglePhaseSystem`](@ref) | 1 | 1 | ``\rho \phi `` | ``\rho \vec{v}`` |
+| [`SinglePhaseSystem`](@ref) | 1 | 1 | ``\rho \phi`` | ``\rho \vec{v}`` |
 | [`ImmiscibleSystem`](@ref) | Any | (Any) | ``S_\alpha \rho_\alpha \phi`` | ``\rho_\alpha \vec{v}_\alpha`` |
-| [`StandardBlackOilSystem`](@ref) | 2-3 | (2-3) | ``\rho_o^s(b_g S_g + R_s b_o S_o)`` | `` b_g \vec{v}_g + R_s b_g \vec{v}_o`` |
+| [`StandardBlackOilSystem`](@ref) | 2-3 | (2-3) | ``\rho_o^s(b_g S_g + R_s b_o S_o)`` | ``b_g \vec{v}_g + R_s b_g \vec{v}_o`` |
 | [`MultiPhaseCompositionalSystemLV`](@ref) | 2-3 | Any | ``\rho_l X_i S_l + \rho_v Y_i S_v`` | ``\rho_l X_i \vec{v}_l + \rho_v Y_i \vec{v}_v`` |
 
 ### Implementation details
@@ -52,6 +52,7 @@ Here, ``\mathbf{K}`` is a positive-definite permeability tensor, ``\mu`` the flu
     JutulDarcy uses the notion of depth rather than coordinate when defining buoyancy forces. This is consistent with the convention in the literature on subsurface flow.
 
 ## Multi-phase, immiscible flow
+
 ```@docs
 ImmiscibleSystem
 ```
@@ -89,6 +90,7 @@ Here, we have introduced the relative permeability of the phase ``k_{r\alpha}``,
     The [`ImmiscibleSystem`](@ref) implements this system for any number of phases. The primary variables for this system is a single reference [`Pressure`](@ref) and phase [`Saturations`](@ref). As we do not solve for the volume closure equation, there is one less degree of freedom associated with the saturations than there are number of phases.
 
 ## Black-oil: Multi-phase, pseudo-compositional flow
+
 ```@docs
 StandardBlackOilSystem
 ```
@@ -110,6 +112,7 @@ The model uses the notion of surface (or reference densities) ``\rho_o^s, \rho_g
 A full description of the black-oil equations is outside the scope of this documentation. Please see [mrst-book-i](@cite) for more details.
 
 ## Compositional: Multi-phase, multi-component flow
+
 ```@docs
 MultiPhaseCompositionalSystemLV
 ```

@@ -1,4 +1,0 @@
-
-```@autodocs
-Modules = [JutulDarcy]
-```
