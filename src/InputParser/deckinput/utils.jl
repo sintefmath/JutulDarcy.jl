@@ -417,7 +417,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, v::Val{T}) where T
     if !found
         if startswith("$T", "TVDP")
             parser_message(cfg, outer_data, "$T", PARSER_MISSING_SUPPORT)
-            skip_record(f)
+            read_record(f)
         else
             error("Unhandled keyword $T encountered.")
         end
