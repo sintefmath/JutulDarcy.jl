@@ -806,7 +806,7 @@ function setup_case_from_mrst(casename; wells = :ms,
                                         block_backend = true,
                                         split_wells = false,
                                         use_well_lengths = false,
-                                        facility_grouping = :onegroup,
+                                        facility_grouping = missing,
                                         minbatch = 1000,
                                         steps = :full,
                                         nthreads = Threads.nthreads(),
@@ -822,6 +822,13 @@ function setup_case_from_mrst(casename; wells = :ms,
                                         kwarg...)
     data_domain, mrst_data = reservoir_domain_from_mrst(casename, extraout = true, convert_grid = convert_grid)
     G = discretized_domain_tpfv_flow(data_domain; kwarg...)
+    if ismissing(facility_grouping)
+        if split_wells
+            facility_grouping = :perwell
+        else
+            facility_grouping = :onegroup
+        end
+    end
     # Set up initializers
     models = OrderedDict()
     initializer = Dict()
@@ -1065,7 +1072,7 @@ function setup_case_from_mrst(casename; wells = :ms,
     if legacy_output
         return (models, parameters, initializer, timesteps, forces, mrst_data)
     else
-        model = reservoir_multimodel(models, split_wells = split_wells)
+        model = reservoir_multimodel(models)
         # Replace various variables - if they are available
         replace_variables!(model, OverallMoleFractions = OverallMoleFractions(dz_max = dz_max), throw = false)
         replace_variables!(model, Saturations = Saturations(ds_max = ds_max), throw = false)
