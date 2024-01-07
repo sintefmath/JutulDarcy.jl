@@ -201,6 +201,16 @@ function parse_data_file!(outer_data, filename, data = outer_data;
     return outer_data
 end
 
+"""
+    parse_grdecl_file("mygrid.grdecl"; actnum_path = missing, kwarg...)
+
+TBW
+# Keyword arguments
+ - `input_units=nothing`:
+ - `units=:si`:
+ - `verbose=false`
+
+"""
 function parse_grdecl_file(filename; actnum_path = missing, kwarg...)
     outer_data = Dict{String, Any}()
     data = new_section(outer_data, :GRID)

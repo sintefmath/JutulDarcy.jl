@@ -141,9 +141,13 @@ end
 end
 
 """
-    component_mass_fluxes!(q, face, state, model, kgrad, upw)
+    component_mass_fluxes!(q, face, state, model, flux_type, kgrad, upw)
 
-Implementation of component fluxes for a given system for a given face.
+Implementation of component fluxes for a given system for a given face. Should
+return a `StaticVector` with one entry per component.
+
+$(SIGNATURES)
+
 """
 function component_mass_fluxes!
 
@@ -154,6 +158,9 @@ end
 
 Update total masses for a given system. Number of input arguments varies based
 on physical system under consideration.
+
+$(SIGNATURES)
+
 """
 function update_total_masses!
 

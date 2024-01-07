@@ -428,10 +428,20 @@ function parse_state0_direct_assignment(model, datafile)
     return init
 end
 
-function parse_reservoir(data_file)
-    grid = data_file["GRID"]
+function mesh_from_grid_section(f, actnum = missing)
+    if f isa String
+        f = parse_grdecl_file(f)
+    end
+    f::AbstractDict
+    if haskey(f, "GRID")
+        grid = f["GRID"]
+    else
+        grid = f
+    end
+    if ismissing(actnum)
+        actnum = get_effective_actnum(grid)
+    end
     cartdims = grid["cartDims"]
-    actnum = get_effective_actnum(grid)
     if haskey(grid, "COORD")
         coord = grid["COORD"]
         zcorn = grid["ZCORN"]
@@ -452,6 +462,13 @@ function parse_reservoir(data_file)
         # We always want to return an unstructured mesh.
         G = UnstructuredMesh(G)
     end
+    return G
+end
+
+function parse_reservoir(data_file)
+    grid = data_file["GRID"]
+    cartdims = grid["cartDims"]
+    G = mesh_from_grid_section(grid)
     active_ix = G.cell_map
     nc = number_of_cells(G)
     # TODO: PERMYY etc for full tensor perm

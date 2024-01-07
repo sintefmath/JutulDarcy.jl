@@ -33,7 +33,14 @@ VaporPhase
 
 ### Implementation details
 
-In the above the discrete version of ``M_i`` is implemented in the update function for [`TotalMasses`](@ref) that should by convention be named [`update_total_masses!`](@ref). The discrete component fluxes are implemented by [`component_mass_fluxes!`](@ref). The source terms are implemented by [`Jutul.apply_forces_to_equation!`](@ref) for boundary conditions and sources, and [`Jutul.update_cross_term_in_entity!`](@ref) for wells. We use Julia's multiple dispatch to pair the right implementation with the right physics system.
+In the above the discrete version of ``M_i`` is implemented in the update function for [`TotalMasses`](@ref) that should by convention be named [`JutulDarcy.update_total_masses!`](@ref). The discrete component fluxes are implemented by [`JutulDarcy.component_mass_fluxes!`](@ref).
+
+```@docs
+JutulDarcy.update_total_masses!
+JutulDarcy.component_mass_fluxes!
+```
+
+The source terms are implemented by [`Jutul.apply_forces_to_equation!`](@ref) for boundary conditions and sources, and [`Jutul.update_cross_term_in_entity!`](@ref) for wells. We use Julia's multiple dispatch to pair the right implementation with the right physics system.
 
 ## Single-phase flow
 

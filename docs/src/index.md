@@ -17,9 +17,5 @@ JutulDarcy builds upon the general features found in [Jutul.jl](https://github.c
 
 ## Package Features
 
-```@docs
-JutulDarcy
-```
-
 ```@index
 ```

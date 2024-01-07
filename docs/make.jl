@@ -62,6 +62,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
             "Manual" => [
                 "Getting started" =>"man/intro.md",
                 "High-level functions" =>"man/highlevel.md",
+                "Input files" =>"man/input_files.md",
                 "Initial state" =>"man/state0.md",
                 "Driving forces" =>"man/forces.md",
                 "Supported physical systems" =>"man/systems.md",
@@ -70,7 +71,6 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
                 "Primary variables" => "man/primary.md",
                 "Secondary variables (properties)" => "man/secondary.md",
                 "Parameters" => "man/parameters.md",
-                "Input files" =>"man/input_files.md",
                 "Visualization" =>"man/plotting.md",
                 ],
             "Advanced usage" => [
@@ -90,7 +90,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
     )
 
     deploydocs(;
-        repo="github.com/sintefmath/JutulDarcy.jl",
+        repo="github.com/sintefmath/JutulDarcy.jl.git",
         devbranch="main",
     )
 end
