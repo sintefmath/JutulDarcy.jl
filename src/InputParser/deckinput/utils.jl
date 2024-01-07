@@ -366,6 +366,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, v::Val{T}) where T
         :EQLOPTS,
         :TRACERS,
         :PIMTDIMS,
+        :FLUXNUM,
         :OPTIONS
     ]
     # Single word keywords are trivial to parse, just set a true flag.
