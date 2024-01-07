@@ -97,6 +97,16 @@ function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:PERMX}, V
     parse_and_set_grid_data!(data, outer_data, units, cfg, f, k, unit = :permeability)
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, v::Union{
+        Val{:MULTX}, Val{:MULTY}, Val{:MULTZ},
+        Val{Symbol("MULTX-")}, Val{Symbol("MULTY-")}, Val{Symbol("MULTZ-")}
+        }
+    )
+    k = unpack_val(v)
+    parser_message(cfg, outer_data, "$k", PARSER_JUTULDARCY_MISSING_SUPPORT)
+    parse_and_set_grid_data!(data, outer_data, units, cfg, f, k, unit = :id)
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, v::Val{:MULTPV})
     k = unpack_val(v)
     parse_and_set_grid_data!(data, outer_data, units, cfg, f, k)
