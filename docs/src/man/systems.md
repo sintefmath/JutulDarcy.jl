@@ -21,6 +21,16 @@ The following table gives an overview of the available features that are describ
 | [`StandardBlackOilSystem`](@ref) | 2-3 | (2-3) | ``\rho_o^s(b_g S_g + R_s b_o S_o)`` | ``b_g \vec{v}_g + R_s b_g \vec{v}_o`` |
 | [`MultiPhaseCompositionalSystemLV`](@ref) | 2-3 | Any | ``\rho_l X_i S_l + \rho_v Y_i S_v`` | ``\rho_l X_i \vec{v}_l + \rho_v Y_i \vec{v}_v`` |
 
+### Phases
+
+Phases are defined using specific types. Some constructors take a list of phases present in the model. Phases do not contain any data themselves and the distinction between different phases applies primarily for well controls.
+
+```@docs
+LiquidPhase
+AqueousPhase
+VaporPhase
+```
+
 ### Implementation details
 
 In the above the discrete version of ``M_i`` is implemented in the update function for [`TotalMasses`](@ref) that should by convention be named [`update_total_masses!`](@ref). The discrete component fluxes are implemented by [`component_mass_fluxes!`](@ref). The source terms are implemented by [`Jutul.apply_forces_to_equation!`](@ref) for boundary conditions and sources, and [`Jutul.update_cross_term_in_entity!`](@ref) for wells. We use Julia's multiple dispatch to pair the right implementation with the right physics system.

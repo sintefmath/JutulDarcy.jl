@@ -29,11 +29,3 @@ setup_reservoir_model
 simulate_reservoir
 setup_reservoir_simulator
 ```
-
-## Visualization
-
-```@docs
-plot_reservoir
-plot_well_results
-Jutul.plot_cell_data
-```

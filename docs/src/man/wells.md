@@ -57,6 +57,10 @@ DisabledTarget
 
 ### Changing perforations
 
+```@docs
+PerforationMask
+```
+
 ### Other forces
 
 Can use [`SourceTerm`](@ref) or [`FlowBoundaryCondition`](@ref)

@@ -61,7 +61,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
             "Home" => "index.md",
             "Manual" => [
                 "Getting started" =>"man/intro.md",
-                "High-level API" =>"man/highlevel.md",
+                "High-level functions" =>"man/highlevel.md",
                 "Initial state" =>"man/state0.md",
                 "Driving forces" =>"man/forces.md",
                 "Supported physical systems" =>"man/systems.md",
@@ -71,9 +71,12 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
                 "Secondary variables (properties)" => "man/secondary.md",
                 "Parameters" => "man/parameters.md",
                 "Input files" =>"man/input_files.md",
-                "Parallel solves with MPI" =>"man/mpi.md",
-                "JutulDarcy.jl compiled app" =>"man/compiled.md",
+                "Visualization" =>"man/plotting.md",
                 ],
+            "Advanced usage" => [
+                "Parallel solves with MPI" =>"man/mpi.md",
+                "JutulDarcy.jl compiled app" =>"man/compiled.md"
+            ],
             "Examples" => examples_markdown,
             "Reference" => [
                 # "Internals" => "ref/internals.md",
