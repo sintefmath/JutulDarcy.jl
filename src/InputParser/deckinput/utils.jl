@@ -359,9 +359,12 @@ function parse_keyword!(data, outer_data, units, cfg, f, v::Val{T}) where T
         :VECTABLE,
         :MULTSAVE
         ]
-    # Keywords that are a single record where we should warn
     skip_kw_with_warn = Symbol[
-
+        :SATOPTS,
+        :EQLOPTS,
+        :TRACERS,
+        :PIMTDIMS,
+        :OPTIONS
     ]
     # Single word keywords are trivial to parse, just set a true flag.
     single_word_kw = [
@@ -370,7 +373,10 @@ function parse_keyword!(data, outer_data, units, cfg, f, v::Val{T}) where T
             :NONNC,
             :NEWTRAN
             ]
-    single_word_kw_with_warn = Symbol[]
+    # Keywords that are a single record where we should warn
+    single_word_kw_with_warn = Symbol[
+
+    ]
     if T in skip_kw
         data["$T"] = read_record(f)
     elseif T in skip_kw_with_warn
