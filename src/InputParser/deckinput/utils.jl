@@ -386,8 +386,13 @@ function parse_keyword!(data, outer_data, units, cfg, f, v::Val{T}) where T
     skip_kw!(:PIMTDIMS, 1, PARSER_MISSING_SUPPORT)
     skip_kw!(:FLUXNUM, 1, PARSER_MISSING_SUPPORT)
     skip_kw!(:OPTIONS, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:EHYSTR, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:SWATINIT, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:ZIPPY2, 1, PARSER_MISSING_SUPPORT)
 
     skip_kw!(:TRACER, Inf, PARSER_MISSING_SUPPORT)
+    skip_kw!(:THPRES, Inf, PARSER_MISSING_SUPPORT)
+    skip_kw!(:PIMULTAB, Inf, PARSER_MISSING_SUPPORT)
 
     found = false
     for (kw, num, msg) in skip_list
@@ -410,7 +415,12 @@ function parse_keyword!(data, outer_data, units, cfg, f, v::Val{T}) where T
     end
 
     if !found
-        error("Unhandled keyword $T encountered.")
+        if startswith("$T", "TVDP")
+            parser_message(cfg, outer_data, "$T", PARSER_MISSING_SUPPORT)
+            skip_record(f)
+        else
+            error("Unhandled keyword $T encountered.")
+        end
     end
 end
 
