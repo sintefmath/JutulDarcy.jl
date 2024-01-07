@@ -355,12 +355,7 @@ end
 
 function parse_keyword!(data, outer_data, units, cfg, f, v::Val{T}) where T
     # Keywords where we read a single record and don't do anything proper
-    skip_kw = [
-        :PETOPTS,
-        :PARALLEL,
-        :VECTABLE,
-        :MULTSAVE
-        ]
+
     skip_kw_with_warn = Symbol[
         :SATOPTS,
         :EQLOPTS,
@@ -369,28 +364,52 @@ function parse_keyword!(data, outer_data, units, cfg, f, v::Val{T}) where T
         :FLUXNUM,
         :OPTIONS
     ]
-    # Single word keywords are trivial to parse, just set a true flag.
-    single_word_kw = [
-            :MULTOUT,
-            :NOSIM,
-            :NONNC,
-            :NEWTRAN
-            ]
-    # Keywords that are a single record where we should warn
-    single_word_kw_with_warn = Symbol[
 
-    ]
-    if T in skip_kw
-        data["$T"] = read_record(f)
-    elseif T in skip_kw_with_warn
-        parser_message(cfg, outer_data, "$T", PARSER_MISSING_SUPPORT)
-        data["$T"] = read_record(f)
-    elseif T in single_word_kw
-        data["$T"] = true
-    elseif T in single_word_kw_with_warn
-        parser_message(cfg, outer_data, "$T", PARSER_JUTULDARCY_MISSING_SUPPORT)
-        data["$T"] = true
-    else
+    skip_list = []
+    function skip_kw!(kw, num, msg = nothing)
+        push!(skip_list, (kw, num, msg))
+    end
+    skip_kw!(:PETOPTS, 1)
+    skip_kw!(:PARALLEL, 1)
+    skip_kw!(:MULTSAVE, 1)
+    skip_kw!(:VECTABLE, 1)
+    skip_kw!(:MULTSAVE, 1)
+
+    skip_kw!(:MULTOUT, 0)
+    skip_kw!(:NOSIM, 0)
+    skip_kw!(:NONNC, 0)
+    skip_kw!(:NEWTRAN, 0)
+
+    skip_kw!(:SATOPTS, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:EQLOPTS, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:TRACERS, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:PIMTDIMS, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:FLUXNUM, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:OPTIONS, 1, PARSER_MISSING_SUPPORT)
+
+    skip_kw!(:TRACER, Inf, PARSER_MISSING_SUPPORT)
+
+    found = false
+    for (kw, num, msg) in skip_list
+        if kw != T
+            continue
+        end
+        if !isnothing(msg)
+            parser_message(cfg, outer_data, "$kw", msg)
+        end
+        if num == 0
+            # Single word keywords are trivial to parse, just set a true flag.
+            data["$T"] = true
+        elseif num == 1
+            data["$T"] = read_record(f)
+        else
+            skip_record(f)
+        end
+        found = true
+        break
+    end
+
+    if !found
         error("Unhandled keyword $T encountered.")
     end
 end
