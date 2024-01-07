@@ -272,6 +272,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:DATES})
     out = Vector{DateTime}()
     sizehint!(out, length(dt))
     for t in dt
+        if length(t[end]) > 8
             # TODO: Fix dirty hack for skipping ms
             t[end] = t[end][1:8]
         end
