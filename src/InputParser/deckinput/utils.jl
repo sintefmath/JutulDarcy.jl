@@ -15,8 +15,10 @@ function read_record(f; fix = true)
         end
         line = strip(line)
         if !startswith(line, "--")
-            if endswith(line, '/')
-                line = strip(rstrip(line, '/'))
+            if contains(line, '/')
+                # TODO: Think this is OK for parsing ASCII.
+                ix = findfirst('/', line)
+                line = line[1:ix-1]
                 active = false
             end
             if length(line) > 0
