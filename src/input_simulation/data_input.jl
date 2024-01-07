@@ -992,11 +992,13 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
             t = BottomHolePressureTarget(self_val)
             is_rate = false
         elseif ctrl == "RESV"
-            selv_val = -(wrat + orat + grat)
+            self_val = -(wrat + orat + grat)
+            w = [wrat, orat, grat]
+            w = w./sum(w)
             if is_hist
-                t = HistoricalReservoirVoidageTarget(selv_val)
+                t = HistoricalReservoirVoidageTarget(self_val, w)
             else
-                t = ReservoirVoidageTarget(selv_val)
+                t = ReservoirVoidageTarget(self_val, w)
             end
         else
             error("$ctype control not supported")
@@ -1033,11 +1035,15 @@ function injector_limits(; bhp = Inf, surface_rate = Inf, reservoir_rate = Inf)
 end
 
 function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp; is_hist = false)
+    if occursin('*', flag)
+        # This is a bit of a hack.
+        flag = "OPEN"
+    end
     if flag == "SHUT" || flag == "STOP"
         ctrl = DisabledControl()
         lims = nothing
     else
-        @assert flag == "OPEN"
+        @assert flag == "OPEN" "Unsupported well flag: $flag"
         if ctype == "RATE"
             is_rate = true
             t = TotalRateTarget(surf_rate)
