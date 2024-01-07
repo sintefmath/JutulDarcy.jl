@@ -389,10 +389,19 @@ function parse_keyword!(data, outer_data, units, cfg, f, v::Val{T}) where T
     skip_kw!(:EHYSTR, 1, PARSER_MISSING_SUPPORT)
     skip_kw!(:SWATINIT, 1, PARSER_MISSING_SUPPORT)
     skip_kw!(:ZIPPY2, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:DRSDT, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:WPAVE, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:VAPPARS, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:NETBALAN, 1, PARSER_MISSING_SUPPORT)
 
     skip_kw!(:TRACER, Inf, PARSER_MISSING_SUPPORT)
     skip_kw!(:THPRES, Inf, PARSER_MISSING_SUPPORT)
     skip_kw!(:PIMULTAB, Inf, PARSER_MISSING_SUPPORT)
+    skip_kw!(:VFPPROD, Inf, PARSER_MISSING_SUPPORT)
+    skip_kw!(:VFPINJ, Inf, PARSER_MISSING_SUPPORT)
+    skip_kw!(:WTRACER, Inf, PARSER_MISSING_SUPPORT)
+    skip_kw!(:GCONINJE, Inf, PARSER_MISSING_SUPPORT)
+    skip_kw!(:WTEST, Inf, PARSER_MISSING_SUPPORT)
 
     found = false
     for (kw, num, msg) in skip_list

@@ -272,6 +272,9 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:DATES})
     out = Vector{DateTime}()
     sizehint!(out, length(dt))
     for t in dt
+            # TODO: Fix dirty hack for skipping ms
+            t[end] = t[end][1:8]
+        end
         push!(out, convert_date_kw(t))
     end
     data["DATES"] = out
