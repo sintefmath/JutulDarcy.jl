@@ -81,7 +81,12 @@ end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WCONPROD})
     d = "Default"
-    defaults = [d, "OPEN", d, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, 0]
+    defaults = [
+        d, "OPEN", d, -1.0, -1.0,
+        -1.0, -1.0, -1.0, -1.0, -1.0,
+        0, 0.0, NaN, NaN, NaN,
+        NaN, NaN, NaN, NaN, NaN
+        ]
     wells = get_wells(outer_data)
     wconprod = parse_defaulted_group_well(f, defaults, wells, 1)
     for kw in wconprod

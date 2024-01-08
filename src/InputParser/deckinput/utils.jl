@@ -46,7 +46,9 @@ function parse_defaulted_group_well(f, defaults, wells, namepos = 1)
     out = []
     line = read_record(f)
     while length(line) > 0
-        parsed = parse_defaulted_line(line, defaults)
+        allow_wildcard = fill(true, length(defaults))
+        allow_wildcard[1] = false
+        parsed = parse_defaulted_line(line, defaults, allow_wildcard = allow_wildcard)
         name = parsed[namepos]
         if occursin('*', name) || occursin('?', name)
             re = Regex(replace(name, "*" => ".*", "?" => "."))
@@ -80,7 +82,7 @@ function parse_defaulted_line(lines::String, defaults; kwarg...)
     return parse_defaulted_line([lines], defaults; kwarg...)
 end
 
-function parse_defaulted_line(lines, defaults; required_num = 0, keyword = "")
+function parse_defaulted_line(lines, defaults; required_num = 0, keyword = "", allow_wildcard = missing)
     out = similar(defaults, 0)
     sizehint!(out, length(defaults))
     pos = 1
@@ -92,8 +94,12 @@ function parse_defaulted_line(lines, defaults; required_num = 0, keyword = "")
                 continue
             end
             default = defaults[pos]
-            is_num = default isa Real
-            if is_num && occursin('*', s) && !startswith(s, '\'') # Could be inside a string for wildcard matching
+            if ismissing(allow_wildcard)
+                allow_star = true
+            else
+                allow_star = allow_wildcard[pos]
+            end
+            if allow_star && occursin('*', s) && !startswith(s, '\'') # Could be inside a string for wildcard matching
                 if s == "*"
                     num_defaulted = 1
                 else
