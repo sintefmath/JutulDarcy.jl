@@ -10,12 +10,14 @@
 # reached.
 using JutulDarcy, Jutul
 nc = 100
-domain = get_1d_reservoir(nc, z_max = 1)
+Darcy, bar, kg, meter, day = si_units(:darcy, :bar, :kilogram, :meter, :day)
+
+g = CartesianMesh((1, 1, nc), (1.0, 1.0, 10.0))
+domain = reservoir_domain(g, permeability = 1.0*Darcy)
 #-
 # ## Fluid properties
 # Define two phases liquid and vapor with a 10-1 ratio reference densities and
 # set up the simulation model.
-Darcy, bar, kg, meter, day = si_units(:darcy, :bar, :kilogram, :meter, :day)
 p0 = 100*bar
 
 rhoLS = 1000.0*kg/meter^3
