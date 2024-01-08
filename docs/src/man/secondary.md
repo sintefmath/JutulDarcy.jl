@@ -9,7 +9,7 @@
 ```@docs
 BrooksCoreyRelativePermeabilities
 RelativePermeabilities
-ReservoirRelativePermeabilities
+JutulDarcy.ReservoirRelativePermeabilities
 ```
 
 ```@docs

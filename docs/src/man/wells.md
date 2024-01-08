@@ -1,11 +1,15 @@
 # Wells and controls
 
+## Well setup routines
+
+Wells can be set up using the convenience functions [`setup_well`](@ref) and [`setup_vertical_well`](@ref). These routines act on the output from [`reservoir_domain`](@ref) and can set up both types of wells. We recommend that you use these functions instead of manually calling the well constructors.
+
 ## Types of wells
 
 ### Simple wells
 
 ```@docs
-SimpleWell
+JutulDarcy.SimpleWell
 ```
 
 #### Equations
@@ -15,11 +19,6 @@ SimpleWell
 ```@docs
 MultiSegmentWell
 ```
-
-### Well setup routines
-
-[`setup_well`](@ref)
-[`setup_vertical_well`](@ref)
 
 ## Well controls and limits
 

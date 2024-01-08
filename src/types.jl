@@ -323,20 +323,23 @@ struct SimpleWell{SC, P, V} <: WellDomain where {SC, P}
 end
 
 """
-    SimpleWell(reservoir_cells)
+    SimpleWell(reservoir_cells; <keyword arguments>)
 
 Set up a simple well.
 
-NOTE: `setup_vertical_well` or `setup_well` are the recommended way of setting
-up wells.
+NOTE: [`setup_vertical_well`](@ref) or [`setup_well`](@ref) are the recommended
+way of setting up wells.
+
+$FIELDS
+
 """
 function SimpleWell(
-    reservoir_cells;
-    name = :Well,
-    explicit_dp = true,
-    surface_conditions = default_surface_cond(),
-    volume = 1000.0, # Regularization volume for well, not a real volume
-    kwarg...
+        reservoir_cells;
+        name = :Well,
+        explicit_dp = true,
+        surface_conditions = default_surface_cond(),
+        volume = 1000.0, # Regularization volume for well, not a real volume
+        kwarg...
     )
     nr = length(reservoir_cells)
     WI, gdz = common_well_setup(nr; kwarg...)
@@ -344,14 +347,22 @@ function SimpleWell(
     return SimpleWell(volume, perf, surface_conditions, name, explicit_dp)
 end
 struct MultiSegmentWell{V, P, N, A, C, SC, S} <: WellDomain
-    volumes::V          # One per cell
-    perforations::P     # (self -> local cells, reservoir -> reservoir cells, WI -> connection factor)
-    neighborship::N     # Well cell connectivity
-    top::A              # "Top" node where scalar well quantities live
-    centers::C          # Coordinate centers of nodes
-    surface::SC         # p, T at surface
-    name::Symbol        # Symbol that names the well
-    segment_models::S   # Segment pressure drop model for each segment
+    "One of volumes per node (cell)"
+    volumes::V
+    "(self -> local cells, reservoir -> reservoir cells, WI -> connection factor)"
+    perforations::P
+    "Well cell connectivity (connections between nodes)"
+    neighborship::N
+    "Top node where scalar well quantities live"
+    top::A
+    "Coordinate centers of nodes"
+    centers::C
+    "pressure and temperature conditions at surface"
+    surface::SC
+    "Name of the well as a Symbol"
+    name::Symbol
+    "Pressure drop model for seg well segment"
+    segment_models::S
 end
 
 """
@@ -370,8 +381,11 @@ end
 Create well perforated in a vector of `reservoir_cells` with corresponding
 `volumes` and cell `centers`.
 
-NOTE: `setup_vertical_well` or `setup_well` are the recommended way of setting
-up wells.
+NOTE: [`setup_vertical_well`](@ref) or [`setup_well`](@ref) are the recommended
+way of setting up wells.
+
+$FIELDS
+
 """
 function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
                                                     N = nothing,

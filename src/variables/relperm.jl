@@ -169,15 +169,18 @@ struct TabulatedRelPermSimple{V, M, I} <: AbstractRelativePermeabilities
     end
 end
 
-"""
-Interpolated multiphase rel. perm. that is simple (single region, no magic for more than two phases)
-"""
 struct ReservoirRelativePermeabilities{Scaling, ph, O, OW, OG, G, R} <: AbstractRelativePermeabilities
+    "Water relative permeability as a function of water saturation: ``k_{rw}(S_w)``"
     krw::O
+    "Oil relative permeability (in the presence of water) as a function of oil saturation: ``k_{row}(S_o)``"
     krow::OW
+    "Gas relative permeability (in the presence of water) as a function of gas saturation: ``k_{row}(S_g)``"
     krog::OG
+    "Gas relative permeability as a function of gas saturation: ``k_{rg}(S_g)``"
     krg::G
+    "Regions to use for each cell of the domain. Can be `nothing` if a single region is used throughout the domain."
     regions::R
+    "Symbol designating the type of system, :wog for three-phase, :og for oil-gas, :wg for water-gas, etc."
     phases::Symbol
 end
 
@@ -208,6 +211,19 @@ function Jutul.default_values(model, scalers::RelPermScalingCoefficients{P}) whe
     return kscale
 end
 
+"""
+    ReservoirRelativePermeabilities(
+        w = nothing, g = nothing, ow = nothing, og = nothing,
+        scaling = NoKrScale, regions = nothing)
+
+Relative permeability with advanced features for reservoir simulation. Includes
+features like rel. perm. endpoint scaling, connate water adjustment and separate
+phase pair relative permeabilites for the oil phase.
+
+# Fields
+
+$FIELDS
+"""
 function ReservoirRelativePermeabilities(; w = nothing, g = nothing, ow = nothing, og = nothing, scaling = NoKrScale, regions = nothing)
     has_w = !isnothing(w)
     has_g = !isnothing(g)
