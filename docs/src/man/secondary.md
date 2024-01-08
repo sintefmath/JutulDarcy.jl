@@ -58,4 +58,5 @@ PhaseMassFractions
 ## Wells
 
 ```@docs
+TotalMass
 ```

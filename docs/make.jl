@@ -63,7 +63,6 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
                 "Getting started" =>"man/intro.md",
                 "High-level functions" =>"man/highlevel.md",
                 "Input files" =>"man/input_files.md",
-                "Initial state" =>"man/state0.md",
                 "Driving forces" =>"man/forces.md",
                 "Supported physical systems" =>"man/systems.md",
                 "Wells and controls" =>"man/wells.md",

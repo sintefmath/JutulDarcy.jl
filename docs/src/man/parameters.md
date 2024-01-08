@@ -11,7 +11,7 @@ FluidVolume
 ### Transmissibility
 
 ```@docs
-Transmissibilities
+JutulDarcy.Transmissibilities
 ```
 
 ```@docs

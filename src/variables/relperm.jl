@@ -139,13 +139,16 @@ struct BrooksCoreyRelativePermeabilities{V, T} <: AbstractRelativePermeabilities
 end
 
 """
-Interpolated multiphase rel. perm. that is simple (single region, no magic for more than two phases)
+    TabulatedSimpleRelativePermeabilities(s::AbstractVector, kr::AbstractVector; regions::Union{AbstractVector, Nothing} = nothing, kwarg...)
+
+Interpolated multiphase relative permeabilities that assumes that the relative
+permeability of each phase depends only on the phase saturation of that phase.
 """
-struct TabulatedRelPermSimple{V, M, I} <: AbstractRelativePermeabilities
+struct TabulatedSimpleRelativePermeabilities{V, M, I} <: AbstractRelativePermeabilities
     s::V
     kr::M
     interpolators::I
-    function TabulatedRelPermSimple(s::AbstractVector, kr::AbstractVector; regions::Union{AbstractVector, Nothing} = nothing, kwarg...)
+    function TabulatedSimpleRelativePermeabilities(s::AbstractVector, kr::AbstractVector; regions::Union{AbstractVector, Nothing} = nothing, kwarg...)
         nph = length(kr)
         n = length(kr[1])
         @assert nph > 0
@@ -366,7 +369,7 @@ function brooks_corey_relperm(s::T, n::Real, sr::Real, kwm::Real, sr_tot::Real) 
     return kwm*sat^n
 end
 
-@jutul_secondary function update_kr!(kr, kr_def::TabulatedRelPermSimple, model, Saturations, ix)
+@jutul_secondary function update_kr!(kr, kr_def::TabulatedSimpleRelativePermeabilities, model, Saturations, ix)
     I = kr_def.interpolators
     for c in ix
         @inbounds for j in eachindex(I)
