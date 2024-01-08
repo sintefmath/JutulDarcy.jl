@@ -99,16 +99,18 @@ NOTE: For the black-oil model, the reference densities significantly impact many
 aspects of the PVT behavior. These should generally be set consistently with the
 other properties.
 """
-function StandardBlackOilSystem(; rs_max::RS = nothing,
-                                  rv_max::RV = nothing,
-                                  phases = (AqueousPhase(), LiquidPhase(), VaporPhase()),
-                                  reference_densities = [786.507, 1037.84, 0.969758], 
-                                  saturated_chop = false,
-                                  keep_bubble_flag = true,
-                                  eps_s = 1e-5,
-                                  eps_rs = nothing,
-                                  eps_rv = nothing,
-                                  formulation::Symbol = :varswitch) where {RS, RV}
+function StandardBlackOilSystem(;
+        rs_max::RS = nothing,
+        rv_max::RV = nothing,
+        phases = (AqueousPhase(), LiquidPhase(), VaporPhase()),
+        reference_densities = [786.507, 1037.84, 0.969758], 
+        saturated_chop = false,
+        keep_bubble_flag = true,
+        eps_s = 1e-5,
+        eps_rs = nothing,
+        eps_rv = nothing,
+        formulation::Symbol = :varswitch
+    ) where {RS, RV}
     phases = tuple(phases...)
     nph = length(phases)
     if nph == 2 && length(reference_densities) == 3

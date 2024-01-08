@@ -48,6 +48,10 @@ end
     include("cpgrid.jl")
 end
 
+@testitem "Multi-phase systems basics" begin
+    include("systems.jl")
+end
+
 @run_package_tests
 nothing
 # include("gpu.jl")
