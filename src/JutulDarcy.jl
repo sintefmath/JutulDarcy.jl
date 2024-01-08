@@ -11,7 +11,7 @@ $(EXPORTS)
 module JutulDarcy
     export MultiPhaseSystem, ImmiscibleSystem, SinglePhaseSystem
     export reservoir_linsolve
-    export parse_data_file
+    export parse_data_file, parse_grdecl_file
     export get_1d_reservoir
     export DeckPhaseViscosities
     export DeckShrinkageFactors

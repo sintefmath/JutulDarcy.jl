@@ -327,8 +327,12 @@ end
 
 Set up a simple well.
 
-NOTE: [`setup_vertical_well`](@ref) or [`setup_well`](@ref) are the recommended
+# Note
+
+[`setup_vertical_well`](@ref) or [`setup_well`](@ref) are the recommended
 way of setting up wells.
+
+# Fields
 
 $FIELDS
 
@@ -381,8 +385,12 @@ end
 Create well perforated in a vector of `reservoir_cells` with corresponding
 `volumes` and cell `centers`.
 
-NOTE: [`setup_vertical_well`](@ref) or [`setup_well`](@ref) are the recommended
+# Note
+
+[`setup_vertical_well`](@ref) or [`setup_well`](@ref) are the recommended
 way of setting up wells.
+
+# Fields
 
 $FIELDS
 
