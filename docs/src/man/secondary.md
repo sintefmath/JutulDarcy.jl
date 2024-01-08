@@ -13,7 +13,11 @@ JutulDarcy.ReservoirRelativePermeabilities
 ```
 
 ```@docs
-PhaseRelPerm
+PhaseRelativePermeability
+```
+
+```@docs
+EndPointScalingCoefficients
 ```
 
 #### Phase viscosities

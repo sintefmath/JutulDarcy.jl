@@ -349,17 +349,17 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
             @assert haskey(props, "SGFN")
             for (sof3, swfn, sgfn) in zip(props["SOF3"], props["SWFN"], props["SGFN"])
                 # Water
-                krw = PhaseRelPerm(swfn[:, 1], swfn[:, 2], label = :w)
+                krw = PhaseRelativePermeability(swfn[:, 1], swfn[:, 2], label = :w)
 
                 # Oil pairs
                 so = sof3[:, 1]
                 krow_t = sof3[:, 2]
                 krog_t = sof3[:, 3]
-                krow = PhaseRelPerm(so, krow_t, label = :ow)
-                krog = PhaseRelPerm(so, krog_t, label = :og)
+                krow = PhaseRelativePermeability(so, krow_t, label = :ow)
+                krog = PhaseRelativePermeability(so, krog_t, label = :og)
 
                 # Gas
-                krg = PhaseRelPerm(sgfn[:, 1], sgfn[:, 2], label = :g)
+                krg = PhaseRelativePermeability(sgfn[:, 1], sgfn[:, 2], label = :g)
 
                 push!(KRW, krw)
                 push!(KRG, krg)
@@ -682,10 +682,10 @@ function set_deck_relperm!(vars, param, props; kwarg...)
     if scaling_type(kr) != NoKrScale
         ph = kr.phases
         @assert ph == :wog
-        param[:RelPermScalingW] = RelPermScalingCoefficients(:w)
-        param[:RelPermScalingOW] = RelPermScalingCoefficients(:ow)
-        param[:RelPermScalingOG] = RelPermScalingCoefficients(:og)
-        param[:RelPermScalingG] = RelPermScalingCoefficients(:g)
+        param[:RelPermScalingW] = EndPointScalingCoefficients(:w)
+        param[:RelPermScalingOW] = EndPointScalingCoefficients(:ow)
+        param[:RelPermScalingOG] = EndPointScalingCoefficients(:og)
+        param[:RelPermScalingG] = EndPointScalingCoefficients(:g)
     end
 end
 

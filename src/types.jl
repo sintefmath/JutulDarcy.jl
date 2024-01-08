@@ -208,7 +208,7 @@ end
 
 number_of_components(sys::SinglePhaseSystem) = 1
 
-struct PhaseRelPerm{T, N}
+struct PhaseRelativePermeability{T, N}
     k::T
     label::Symbol
     connate::N
@@ -219,7 +219,7 @@ end
 
 
 """
-    PhaseRelPerm(s, k; label = :w, connate = s[1], epsilon = 1e-16)
+    PhaseRelativePermeability(s, k; label = :w, connate = s[1], epsilon = 1e-16)
 
 Type that stores a sorted phase relative permeability table (given as vectors of
 equal length `s` and `k`):
@@ -230,7 +230,7 @@ Optionally, a label for the phase, the connate
 saturation and a small epsilon value used to avoid extrapolation can be
 specified.
 """
-function PhaseRelPerm(s, k; label = :w, connate = s[1], epsilon = 1e-16)
+function PhaseRelativePermeability(s, k; label = :w, connate = s[1], epsilon = 1e-16)
     for i in eachindex(s)
         if i == 1
             if s[1] == 0.0
@@ -253,13 +253,13 @@ function PhaseRelPerm(s, k; label = :w, connate = s[1], epsilon = 1e-16)
     s, k = JutulDarcy.add_missing_endpoints(s, k)
     JutulDarcy.ensure_endpoints!(s, k, epsilon)
     kr = get_1d_interpolator(s, k, cap_endpoints = false)
-    return PhaseRelPerm(kr, label, connate, crit, s_max, k_max)
+    return PhaseRelativePermeability(kr, label, connate, crit, s_max, k_max)
 end
 
-(kr::PhaseRelPerm)(S) = kr.k(S)
+(kr::PhaseRelativePermeability)(S) = kr.k(S)
 
-function Base.show(io::IO, t::MIME"text/plain", kr::PhaseRelPerm)
-    println(io, "PhaseRelPerm for $(kr.label):")
+function Base.show(io::IO, t::MIME"text/plain", kr::PhaseRelativePermeability)
+    println(io, "PhaseRelativePermeability for $(kr.label):")
     println(io, "  .k: Internal representation: $(kr.k)")
     println(io, "  Connate saturation = $(kr.connate)")
     println(io, "  Critical saturation = $(kr.critical)")

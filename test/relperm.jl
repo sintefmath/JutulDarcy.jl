@@ -65,7 +65,7 @@ end
 function test_rel_perm_wrapper()
     s = [0.1, 0.15, 0.2, 0.8, 1.0]
     kr = [0.0, 0.0, 0.4, 0.9, 0.9]
-    relperm = PhaseRelPerm(s, kr)
+    relperm = PhaseRelativePermeability(s, kr)
     @testset "Detection of points" begin
         @test relperm.connate == 0.1
         @test relperm.k_max == 0.9

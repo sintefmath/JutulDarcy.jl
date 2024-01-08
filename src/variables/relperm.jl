@@ -184,16 +184,16 @@ struct ReservoirRelativePermeabilities{Scaling, ph, O, OW, OG, G, R} <: Abstract
     phases::Symbol
 end
 
-struct RelPermScalingCoefficients{phases} <: VectorVariables
+struct EndPointScalingCoefficients{phases} <: VectorVariables
 end
 
-function RelPermScalingCoefficients(phases::Symbol)
-    return RelPermScalingCoefficients{phases}()
+function EndPointScalingCoefficients(phases::Symbol)
+    return EndPointScalingCoefficients{phases}()
 end
 
-Jutul.degrees_of_freedom_per_entity(model, ::RelPermScalingCoefficients) = 4
+Jutul.degrees_of_freedom_per_entity(model, ::EndPointScalingCoefficients) = 4
 
-function Jutul.default_values(model, scalers::RelPermScalingCoefficients{P}) where P
+function Jutul.default_values(model, scalers::EndPointScalingCoefficients{P}) where P
     nc = number_of_cells(model.domain)
     relperm = Jutul.get_variable(model, :RelativePermeabilities)
     kr = relperm[P]
@@ -465,7 +465,7 @@ Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relper
     kr[g, c] = Krg
 end
 
-function get_kr_scalers(kr::PhaseRelPerm)
+function get_kr_scalers(kr::PhaseRelativePermeability)
     return (kr.connate, kr.critical, kr.s_max, kr.k_max)
 end
 function get_kr_scalers(scaler::AbstractMatrix, c)
