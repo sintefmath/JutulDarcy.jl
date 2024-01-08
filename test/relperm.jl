@@ -33,7 +33,7 @@ function kr_test_sat(n)
 end
 
 function test_brooks_corey_kr()
-    bc = BrooksCoreyRelPerm(2, [2.0, 3.0], [0.2, 0.3], [0.9, 1.0])
+    bc = BrooksCoreyRelativePermeabilities(2, [2.0, 3.0], [0.2, 0.3], [0.9, 1.0])
     S = kr_test_sat(2)
     kr = similar(S)
     @test JutulDarcy.update_kr!(kr, bc, nothing, S, entity_eachindex(kr)) ≈ [0.9 0.324 0.0; 0.0 0.064 1.0]
@@ -65,7 +65,7 @@ end
 function test_rel_perm_wrapper()
     s = [0.1, 0.15, 0.2, 0.8, 1.0]
     kr = [0.0, 0.0, 0.4, 0.9, 0.9]
-    relperm = PhaseRelPerm(s, kr)
+    relperm = PhaseRelativePermeability(s, kr)
     @testset "Detection of points" begin
         @test relperm.connate == 0.1
         @test relperm.k_max == 0.9

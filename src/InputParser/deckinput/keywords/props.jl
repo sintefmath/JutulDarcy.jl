@@ -179,12 +179,12 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PVTG})
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PVTW})
-    rec = read_record(f)
     tdims = [NaN, NaN, NaN, NaN, NaN]
     utypes = (:pressure, :liquid_formation_volume_factor, :compressibility, :viscosity, :compressibility)
     nreg = number_of_tables(outer_data, :pvt)
     out = []
     for i = 1:nreg
+        rec = read_record(f)
         t = parse_defaulted_line(rec, tdims)
         swap_unit_system_axes!(t, units, utypes)
         @assert all(isfinite, t) "PVTW cannot be defaulted, found defaulted record in region $i"
@@ -194,12 +194,12 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PVTW})
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PVCDO})
-    rec = read_record(f)
     tdims = [NaN, NaN, NaN, NaN, NaN]
     utypes = (:pressure, :liquid_formation_volume_factor, :compressibility, :viscosity, :compressibility)
     nreg = number_of_tables(outer_data, :pvt)
     out = []
     for i = 1:nreg
+        rec = read_record(f)
         t = parse_defaulted_line(rec, tdims)
         swap_unit_system_axes!(t, units, utypes)
         @assert all(isfinite, t) "PVCDO cannot be defaulted, found defaulted record in region $i"

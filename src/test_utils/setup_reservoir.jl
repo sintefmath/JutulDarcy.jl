@@ -75,7 +75,7 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         sys = ImmiscibleSystem([L, V])
         model = SimulationModel(G, sys, context = context)
 
-        kr = BrooksCoreyRelPerm(sys, [2, 3])
+        kr = BrooksCoreyRelativePermeabilities(sys, [2, 3])
         s = model.secondary_variables
         s[:RelativePermeabilities] = kr
         s[:PhaseMassDensities] = ConstantCompressibilityDensities(sys, pRef, rhoLS, cl)
@@ -113,7 +113,7 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         sys = ImmiscibleSystem([L, V])
         model = SimulationModel(G, sys, context = context)
 
-        kr = BrooksCoreyRelPerm(sys, [2, 3])
+        kr = BrooksCoreyRelativePermeabilities(sys, [2, 3])
         s = model.secondary_variables
         s[:RelativePermeabilities] = kr
         s[:PhaseMassDensities] = ConstantCompressibilityDensities(sys, pRef, rhoLS, cl)
@@ -151,7 +151,7 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         sys = ImmiscibleSystem([A, L, V])
         model = SimulationModel(G, sys, context = context)
 
-        kr = BrooksCoreyRelPerm(sys, [2, 2, 2])
+        kr = BrooksCoreyRelativePermeabilities(sys, [2, 2, 2])
         s = model.secondary_variables
         s[:RelativePermeabilities] = kr
         s[:PhaseMassDensities] = ConstantCompressibilityDensities(sys, pRef, rhoLS, cl)
@@ -228,7 +228,7 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         sys = MultiPhaseCompositionalSystemLV(eos, (L, V))
         model = SimulationModel(G, sys, context = context)
 
-        kr = BrooksCoreyRelPerm(sys, [2, 3])
+        kr = BrooksCoreyRelativePermeabilities(sys, [2, 3])
         s = model.secondary_variables
         s[:RelativePermeabilities] = kr
         parameters = setup_parameters(model, Temperature = T0)
@@ -269,7 +269,7 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         sys = MultiPhaseCompositionalSystemLV(eos, (A, L, V))
         model = SimulationModel(G, sys, context = context)
 
-        kr = BrooksCoreyRelPerm(sys, [2, 3, 2])
+        kr = BrooksCoreyRelativePermeabilities(sys, [2, 3, 2])
         s = model.secondary_variables
         s[:RelativePermeabilities] = kr
         parameters = setup_parameters(model, Temperature = T0)

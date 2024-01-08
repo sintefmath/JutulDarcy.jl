@@ -398,6 +398,9 @@ function grid_from_primitives(primitives)
         nodes,
         cartdims
     ) = primitives
+    if sum(active) == 0
+        error("Grid has no active cells.")
+    end
     # Faces mapping to nodes
     faces = Vector{Int}()
     face_pos = [1]

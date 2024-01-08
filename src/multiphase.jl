@@ -1,10 +1,3 @@
-export MultiPhaseSystem, ImmiscibleSystem, SinglePhaseSystem
-export AqueousPhase, LiquidPhase, VaporPhase
-export number_of_phases, get_short_name, get_name, subscript
-export update_linearized_system!
-export SourceTerm
-export setup_storage, update_equations!
-export Pressure, Saturations, TotalMasses, TotalMass
 
 # Abstract multiphase system
 
@@ -47,15 +40,28 @@ end
 function subscript(prefix::String, phase::AbstractPhase)
     return string(prefix, "_", get_short_name(phase))
 end
-# Aqueous phase
+
+"""
+    AqueousPhase()
+
+`AbstractPhase` subtype for water-like phases.
+"""
 struct AqueousPhase <: AbstractPhase end
 get_name(::AqueousPhase) = "Aqueous"
 
-# Liquid phase
+"""
+    LiquidPhase()
+
+`AbstractPhase` subtype for liquid-like phases.
+"""
 struct LiquidPhase <: AbstractPhase end
 get_name(::LiquidPhase) = "Liquid"
 
-# Vapor phases
+"""
+    VaporPhase()
+
+`AbstractPhase` subtype for vapor or gaseous phases.
+"""
 struct VaporPhase <: AbstractPhase end
 get_name(::VaporPhase) = "Vapor"
 
@@ -84,7 +90,7 @@ struct Pressure <: ScalarVariable
 end
 
 """
-    Pressure(; max_abs = nothing, max_rel = 0.2, scale = 1e8, maximum = Inf, minimum = DEFAULT_MINIMUM_PRESSURE)
+    Pressure(; max_abs = nothing, max_rel = 0.2, scale = si_unit(:bar), maximum = Inf, minimum = DEFAULT_MINIMUM_PRESSURE)
 
 Pressure variable definition. `max_abs`/`max_rel` maximum allowable
 absolute/relative change over a Newton iteration, `scale` is a "typical" value
@@ -106,10 +112,10 @@ struct Saturations <: FractionVariables
 end
 
 """
-    Saturations(;ds_max = 0.2)
+    Saturations(; ds_max = 0.2)
 
 Saturations as primary variable. `ds_max` controls maximum allowable saturation
-change between two Newton iterations.
+change between two successive Newton iterations.
 """
 function Saturations(;ds_max = 0.2)
     Saturations(ds_max)
@@ -144,7 +150,11 @@ function Jutul.default_values(model, ::ConnateWater)
     return swcon
 end
 
-# Total component masses
+"""
+    TotalMasses()
+
+Variable that defines total component masses in each cell of the domain.
+"""
 struct TotalMasses <: VectorVariables end
 
 function degrees_of_freedom_per_entity(model::SimulationModel{G, S}, v::TotalMasses) where {G<:Any, S<:MultiPhaseSystem}
@@ -154,11 +164,26 @@ end
 struct PhaseMassMobilities <: PhaseVariables end
 struct PhaseMobilities <: PhaseVariables end
 
-@inline function minimum_value(::TotalMasses) 0 end
+@inline function minimum_value(::TotalMasses)
+    0.0
+end
 
+"""
+    TotalMasses()
+
+Variable that defines total mass of all components in each cell of the domain.
+"""
 struct TotalMass <: ScalarVariable end
-@inline function minimum_value(::TotalMass) 0 end
+@inline function minimum_value(::TotalMass)
+    return 0.0
+end
 
+"""
+    Transmissibilities()
+
+Variable/parameter used to define the cell-to-cell transmissibilities when using
+a two-point flux approximation scheme.
+"""
 struct Transmissibilities <: ScalarVariable end
 Jutul.variable_scale(::Transmissibilities) = 1e-10
 Jutul.minimum_value(::Transmissibilities) = 0.0
@@ -291,7 +316,6 @@ end
 number_of_equations_per_entity(system::MultiPhaseSystem, e::ConservationLaw) = number_of_components(system)
 number_of_equations_per_entity(system::SinglePhaseSystem, e::ConservationLaw) = 1
 
-export fluid_volume, pore_volume
 function pore_volume(data_domain::DataDomain; throw = true)
     if haskey(data_domain, :pore_volume, Cells())
         pv = data_domain[:pore_volume]

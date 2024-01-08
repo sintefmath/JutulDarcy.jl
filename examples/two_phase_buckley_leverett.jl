@@ -32,7 +32,7 @@ function solve_bl(;nc = 100, time = 1.0, nstep = nc)
     p0 = 100*bar
     sys = ImmiscibleSystem((LiquidPhase(), VaporPhase()))
     model = SimulationModel(domain, sys)
-    kr = BrooksCoreyRelPerm(sys, [2.0, 2.0], [0.2, 0.2])
+    kr = BrooksCoreyRelativePermeabilities(sys, [2.0, 2.0], [0.2, 0.2])
     replace_variables!(model, RelativePermeabilities = kr)
     tot_time = sum(timesteps)
     pv = pore_volume(domain)

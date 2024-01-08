@@ -1,14 +1,12 @@
-export table_to_relperm
-
 function table_to_relperm(swof; swcon = 0.0, first_label = :w, second_label = :ow)
     sw = vec(swof[:, 1])
     krw = vec(swof[:, 2])
-    krw = PhaseRelPerm(sw, krw, label = first_label)
+    krw = PhaseRelativePermeability(sw, krw, label = first_label)
     kro = vec(swof[end:-1:1, 3])
     so = 1 .- sw
     so = vec(so[end:-1:1])
     @. so = so - swcon
-    krow = PhaseRelPerm(so, kro, label = second_label)
+    krow = PhaseRelativePermeability(so, kro, label = second_label)
     return (krw, krow)
 end
 

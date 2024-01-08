@@ -1,5 +1,3 @@
-export simulate_data_file, setup_case_from_data_file
-
 """
     simulate_data_file(inp; parse_arg = NamedTuple(), kwarg...)
 
@@ -16,6 +14,21 @@ function simulate_data_file(data; setup_arg = NamedTuple(), kwarg...)
     return result
 end
 
+"""
+    case = setup_case_from_data_file(
+        filename;
+        parse_arg = NamedTuple(),
+        kwarg...
+    )
+
+    case, data = setup_case_from_data_file(filename; include_data = true)
+
+Set up a [`JutulCase`](@ref) from a standard input file (with extension .DATA).
+Additional arguments to the parser can be passed as key/values in a `NamedTuple`
+given as `parse_arg`. The optional input `include_data=true` will make the
+function return the parsed data in addition the case itself. Additional keyword
+arguments are passed on to [`setup_case_from_parsed_data`](@ref).
+"""
 function setup_case_from_data_file(
         fn;
         parse_arg = NamedTuple(),
@@ -52,11 +65,11 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
                 svar = submodel.secondary_variables
                 # PVT
                 pvt = tuple(pvt...)
-                rho = DeckDensity(pvt)
+                rho = DeckPhaseMassDensities(pvt)
                 if sys isa StandardBlackOilSystem
                     set_secondary_variables!(submodel, ShrinkageFactors = JutulDarcy.DeckShrinkageFactors(pvt))
                 end
-                mu = DeckViscosity(pvt)
+                mu = DeckPhaseViscosities(pvt)
                 set_secondary_variables!(submodel, PhaseViscosities = mu, PhaseMassDensities = rho)
             end
             if k == :Reservoir
@@ -90,7 +103,18 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, compord; simple_we
     if isnan(rd)
         rd = nothing
     end
-    W = setup_well(domain, wc, name = Symbol(wname), WI = WI, reference_depth = rd, simple_well = simple_well)
+    if simple_well
+        avol = 0.1*mean(domain[:volumes][wc])*mean(domain[:porosity][wc])
+    else
+        avol = missing
+    end
+    W = setup_well(domain, wc,
+        name = Symbol(wname),
+        accumulator_volume = avol,
+        WI = WI,
+        reference_depth = rd,
+        simple_well = simple_well
+    )
     return (W, wc, WI, open)
 end
 
@@ -404,10 +428,20 @@ function parse_state0_direct_assignment(model, datafile)
     return init
 end
 
-function parse_reservoir(data_file)
-    grid = data_file["GRID"]
+function mesh_from_grid_section(f, actnum = missing)
+    if f isa String
+        f = parse_grdecl_file(f)
+    end
+    f::AbstractDict
+    if haskey(f, "GRID")
+        grid = f["GRID"]
+    else
+        grid = f
+    end
+    if ismissing(actnum)
+        actnum = get_effective_actnum(grid)
+    end
     cartdims = grid["cartDims"]
-    actnum = get_effective_actnum(grid)
     if haskey(grid, "COORD")
         coord = grid["COORD"]
         zcorn = grid["ZCORN"]
@@ -428,6 +462,13 @@ function parse_reservoir(data_file)
         # We always want to return an unstructured mesh.
         G = UnstructuredMesh(G)
     end
+    return G
+end
+
+function parse_reservoir(data_file)
+    grid = data_file["GRID"]
+    cartdims = grid["cartDims"]
+    G = mesh_from_grid_section(grid)
     active_ix = G.cell_map
     nc = number_of_cells(G)
     # TODO: PERMYY etc for full tensor perm
@@ -951,11 +992,13 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
             t = BottomHolePressureTarget(self_val)
             is_rate = false
         elseif ctrl == "RESV"
-            selv_val = -(wrat + orat + grat)
+            self_val = -(wrat + orat + grat)
+            w = [wrat, orat, grat]
+            w = w./sum(w)
             if is_hist
-                t = HistoricalReservoirVoidageTarget(selv_val)
+                t = HistoricalReservoirVoidageTarget(self_val, w)
             else
-                t = ReservoirVoidageTarget(selv_val)
+                t = ReservoirVoidageTarget(self_val, w)
             end
         else
             error("$ctype control not supported")
@@ -992,11 +1035,15 @@ function injector_limits(; bhp = Inf, surface_rate = Inf, reservoir_rate = Inf)
 end
 
 function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp; is_hist = false)
+    if occursin('*', flag)
+        # This is a bit of a hack.
+        flag = "OPEN"
+    end
     if flag == "SHUT" || flag == "STOP"
         ctrl = DisabledControl()
         lims = nothing
     else
-        @assert flag == "OPEN"
+        @assert flag == "OPEN" "Unsupported well flag: $flag"
         if ctype == "RATE"
             is_rate = true
             t = TotalRateTarget(surf_rate)

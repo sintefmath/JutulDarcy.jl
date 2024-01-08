@@ -61,7 +61,7 @@ function setup_bl_case(nc, backend = :csr; nstep = nc)
         ctx = DefaultContext(matrix_layout = BlockMajorLayout())
     end
     model = SimulationModel(domain, sys, context = ctx)
-    kr = BrooksCoreyRelPerm(sys, [2.0, 2.0], [0.2, 0.2])
+    kr = BrooksCoreyRelativePermeabilities(sys, [2.0, 2.0], [0.2, 0.2])
     replace_variables!(model, RelativePermeabilities = kr)
     tot_time = sum(timesteps)
     pv = pore_volume(domain)

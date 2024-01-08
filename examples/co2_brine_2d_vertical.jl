@@ -45,7 +45,7 @@ L, V = LiquidPhase(), VaporPhase()
 sys = MultiPhaseCompositionalSystemLV(eos, (L, V))
 model, parameters = setup_reservoir_model(res, sys, wells = [inj, prod], reference_densities = rhoS);
 push!(model[:Reservoir].output_variables, :Saturations)
-kr = BrooksCoreyRelPerm(sys, 2.0, 0.0, 1.0)
+kr = BrooksCoreyRelativePermeabilities(sys, 2.0, 0.0, 1.0)
 model = replace_variables!(model, RelativePermeabilities = kr)
 T0 = repeat([303.15*Kelvin], 1, nc)
 parameters[:Reservoir][:Temperature] = T0

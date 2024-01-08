@@ -1,6 +1,3 @@
-export get_minimal_tpfa_grid_from_mrst, plot_interactive, get_test_setup, get_well_from_mrst_data
-export setup_case_from_mrst
-
 function get_mrst_input_path(name)
     function valid_mat_path(S)
         base, ext = splitext(S)
@@ -320,7 +317,7 @@ end
 
 function deck_relperm(props; oil, water, gas, satnum = nothing)
     if haskey(props, "SCALECRS")
-        if length(props["SCALECRS"]) == 0 || lowercase(only(props["SCALECRS"])) == "no"
+        if length(props["SCALECRS"]) == 0 || lowercase(first(props["SCALECRS"])) == "no"
             @info "Found two-point rel. perm. scaling"
             scaling = TwoPointKrScale
         else
@@ -352,17 +349,17 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
             @assert haskey(props, "SGFN")
             for (sof3, swfn, sgfn) in zip(props["SOF3"], props["SWFN"], props["SGFN"])
                 # Water
-                krw = PhaseRelPerm(swfn[:, 1], swfn[:, 2], label = :w)
+                krw = PhaseRelativePermeability(swfn[:, 1], swfn[:, 2], label = :w)
 
                 # Oil pairs
                 so = sof3[:, 1]
                 krow_t = sof3[:, 2]
                 krog_t = sof3[:, 3]
-                krow = PhaseRelPerm(so, krow_t, label = :ow)
-                krog = PhaseRelPerm(so, krog_t, label = :og)
+                krow = PhaseRelativePermeability(so, krow_t, label = :ow)
+                krog = PhaseRelativePermeability(so, krog_t, label = :og)
 
                 # Gas
-                krg = PhaseRelPerm(sgfn[:, 1], sgfn[:, 2], label = :g)
+                krg = PhaseRelativePermeability(sgfn[:, 1], sgfn[:, 2], label = :g)
 
                 push!(KRW, krw)
                 push!(KRG, krg)
@@ -402,7 +399,7 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
             krarg = (g = kr_1, og = kr_2)
         end
     end
-    return ReservoirRelativePermeability(; krarg..., regions = satnum, scaling = scaling)
+    return ReservoirRelativePermeabilities(; krarg..., regions = satnum, scaling = scaling)
 end
 
 function flat_region_expand(x::AbstractMatrix, n = nothing)
@@ -632,11 +629,11 @@ function model_from_mat_deck(G, data_domain, mrst_data, res_context)
         svar = model.secondary_variables
         # PVT
         pvt = tuple(pvt...)
-        rho = DeckDensity(pvt)
+        rho = DeckPhaseMassDensities(pvt)
         if !is_immiscible
             set_secondary_variables!(model, ShrinkageFactors = DeckShrinkageFactors(pvt))
         end
-        mu = DeckViscosity(pvt)
+        mu = DeckPhaseViscosities(pvt)
         set_secondary_variables!(model, PhaseViscosities = mu, PhaseMassDensities = rho)
         set_deck_specialization!(model, props, satnum, has_oil, has_wat, has_gas)
         param = setup_parameters(model)
@@ -685,10 +682,10 @@ function set_deck_relperm!(vars, param, props; kwarg...)
     if scaling_type(kr) != NoKrScale
         ph = kr.phases
         @assert ph == :wog
-        param[:RelPermScalingW] = RelPermScalingCoefficients(:w)
-        param[:RelPermScalingOW] = RelPermScalingCoefficients(:ow)
-        param[:RelPermScalingOG] = RelPermScalingCoefficients(:og)
-        param[:RelPermScalingG] = RelPermScalingCoefficients(:g)
+        param[:RelPermScalingW] = EndPointScalingCoefficients(:w)
+        param[:RelPermScalingOW] = EndPointScalingCoefficients(:ow)
+        param[:RelPermScalingOG] = EndPointScalingCoefficients(:og)
+        param[:RelPermScalingG] = EndPointScalingCoefficients(:g)
     end
 end
 
@@ -799,12 +796,17 @@ function init_from_mat(mrst_data, model, param)
     return init
 end
 
+"""
+    setup_case_from_mrst("filename.mat"; kwarg...)
+
+Set up a [`Jutul.SimulationCase`](@ref) from a MRST-exported .mat file.
+"""
 function setup_case_from_mrst(casename; wells = :ms,
                                         backend = :csc,
                                         block_backend = true,
                                         split_wells = false,
                                         use_well_lengths = false,
-                                        facility_grouping = :onegroup,
+                                        facility_grouping = missing,
                                         minbatch = 1000,
                                         steps = :full,
                                         nthreads = Threads.nthreads(),
@@ -820,6 +822,13 @@ function setup_case_from_mrst(casename; wells = :ms,
                                         kwarg...)
     data_domain, mrst_data = reservoir_domain_from_mrst(casename, extraout = true, convert_grid = convert_grid)
     G = discretized_domain_tpfv_flow(data_domain; kwarg...)
+    if ismissing(facility_grouping)
+        if split_wells
+            facility_grouping = :perwell
+        else
+            facility_grouping = :onegroup
+        end
+    end
     # Set up initializers
     models = OrderedDict()
     initializer = Dict()
@@ -1063,7 +1072,7 @@ function setup_case_from_mrst(casename; wells = :ms,
     if legacy_output
         return (models, parameters, initializer, timesteps, forces, mrst_data)
     else
-        model = reservoir_multimodel(models, split_wells = split_wells)
+        model = reservoir_multimodel(models)
         # Replace various variables - if they are available
         replace_variables!(model, OverallMoleFractions = OverallMoleFractions(dz_max = dz_max), throw = false)
         replace_variables!(model, Saturations = Saturations(ds_max = ds_max), throw = false)
@@ -1177,26 +1186,36 @@ function mrst_well_ctrl(model, wdata, is_comp, rhoS)
     return ctrl
 end
 
-export simulate_mrst_case
-
 """
-    simulate_mrst_case(file_name; kwarg...)
+    simulate_mrst_case(file_name)
+    simulate_mrst_case(file_name; <keyword arguments>)
 
 Simulate a MRST case from `file_name` as exported by `writeJutulInput` in MRST.
 
 # Arguments
 - `file_name::String`: The path to a `.mat` file that is to be simulated.
-- `extra_outputs::Vector{Symbol} = [:Saturations]`: Additional variables to output from the simulation.
-- `write_output::Bool = true`: Write output (in the default JLD2 format)
-- `output_path = nothing`: Directory for output files. Files will be written under this directory. Defaults to the folder of `file_name`.
-- `write_mrst = true`: Write MRST compatible output after completed simulation that can be read by `readJutulOutput` in MRST.
-- `backend=:csc`: choice of backend for linear systems. :csc for default Julia sparse, :csr for experimental parallel CSR.
-- `verbose=true`: print some extra information specific to this routine upon calling
-- `nthreads=Threads.nthreads()`: number of threads to use
-- `linear_solver=:bicgstab`: name of Krylov.jl solver to use, or :direct (for small cases only)
-- `info_level=0`: standard Jutul info_level. 0 for minimal printing, -1 for no printing, 1-5 for various levels of verbosity
 
-Additional input arguments are passed onto [`setup_reservoir_simulator`](@ref) and [`simulator_config`](@ref) if applicable.
+# Keyword arguments
+- `extra_outputs::Vector{Symbol} = [:Saturations]`: Additional variables to
+  output from the simulation.
+- `write_output::Bool = true`: Write output (in the default JLD2 format)
+- `output_path = nothing`: Directory for output files. Files will be written
+  under this directory. Defaults to the folder of `file_name`.
+- `write_mrst = true`: Write MRST compatible output after completed simulation
+  that can be read by `readJutulOutput` in MRST.
+- `backend=:csc`: choice of backend for linear systems. `:csc` for default Julia
+  sparse, `:csr` for experimental parallel CSR.
+- `verbose=true`: print some extra information specific to this routine upon
+  calling
+- `nthreads=Threads.nthreads()`: number of threads to use
+- `linear_solver=:bicgstab`: name of Krylov.jl solver to use, or :direct (for
+  small cases only)
+- `info_level=0`: standard Jutul info_level. 0 for minimal printing, -1 for no
+  printing, 1-5 for various levels of verbosity
+
+Additional input arguments are passed onto, [`setup_case_from_mrst`](@ref),
+[`setup_reservoir_simulator`](@ref) and [`simulator_config`](@ref) if
+applicable.
 """
 function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                 output_path = nothing,

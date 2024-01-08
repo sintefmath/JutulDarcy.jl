@@ -29,7 +29,7 @@ sys = ImmiscibleSystem([L, V])
 model, parameters = setup_reservoir_model(domain, sys)
 density = ConstantCompressibilityDensities(sys, p0, [rhoLS, rhoVS], [cl, cv]) # Replace density with a lighter pair
 replace_variables!(model, PhaseMassDensities = density);
-kr = BrooksCoreyRelPerm(sys, [2.0, 3.0])
+kr = BrooksCoreyRelativePermeabilities(sys, [2.0, 3.0])
 replace_variables!(model, RelativePermeabilities = kr)
 
 # ### Define initial saturation

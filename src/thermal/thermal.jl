@@ -1,4 +1,11 @@
-export ThermalSystem
+
+
+"""
+    ThermalSystem(num_phases = 1, formulation = :Temperature)
+
+Geothermal system that defines heat transfer through fluid advection and through
+the rock itself. Can be combined with a multiphase system using [`Jutul.CompositeSystem`](@ref).
+"""
 struct ThermalSystem{T} <: JutulSystem
     nph::Int64
     function ThermalSystem(; nphases = 1, formulation = :Temperature)

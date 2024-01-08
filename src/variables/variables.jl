@@ -1,6 +1,3 @@
-export PhaseMassDensities, ConstantCompressibilityDensities
-export BrooksCoreyRelPerm, TabulatedRelPermSimple
-
 include("capillary.jl")
 include("relperm.jl")
 include("pvt.jl")
@@ -31,7 +28,7 @@ function select_default_darcy_secondary_variables!(S, domain, system, formulatio
     is_multiphase = !isa(system, SinglePhaseSystem)
     is_bo = system isa BlackOilSystem
     if is_multiphase && !is_well
-        S[:RelativePermeabilities] = BrooksCoreyRelPerm(system)
+        S[:RelativePermeabilities] = BrooksCoreyRelativePermeabilities(system)
     end
     if !is_well
         S[:PhaseMobilities] = PhaseMobilities()
@@ -44,7 +41,7 @@ end
 function select_default_darcy_parameters!(prm, domain, system::SinglePhaseSystem, formulation)
     prm[:PhaseViscosities] = PhaseViscosities()
     prm[:FluidVolume] = FluidVolume()
-    prm[:RelativePermeabilities] = BrooksCoreyRelPerm(system)
+    prm[:RelativePermeabilities] = BrooksCoreyRelativePermeabilities(system)
     prm[:Saturations] = Saturations()
 end
 

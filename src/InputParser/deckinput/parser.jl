@@ -64,15 +64,33 @@ end
 
 """
     parse_data_file(filename; unit = :si)
+    data = parse_data_file("MY_MODEL.DATA")
 
-Parse a .DATA file (industry standard input file) into a Dict. Units will be
-converted to strict SI unless you pass something else like `units = :field`.
-Setting `units = nothing` will skip unit conversion. Note that JutulDarcy
-assumes that the unit system is internally consistent. It is highly recommended
-to parse to the SI units if you want to perform simulations.
+Parse a .DATA file given by the `filename` (industry standard input file) into a
+Dict. Units will be converted to strict SI unless you pass something else like
+`units = :field`. Setting `units = nothing` will skip unit conversion. Note that
+JutulDarcy assumes that the unit system is internally consistent. It is highly
+recommended to parse to the SI units if you want to perform simulations.
 
-NOTE: This function is experimental and only covers a small portion of the
-keywords that exist for various simulators.
+The best publicly available documentation on this format is available from the
+Open Porous Media (OPM) project's webpages: [OPM Flow manual
+](https://opm-project.org/?page_id=955).
+
+# Keyword arguments
+- `warn_parsing=true`: Produce a warning when keywords are not supported (or
+  partially supported) by the parser.
+- `warn_feature`=true`: Produce a warning when keywords are supported, but have
+  limited or missing support in the numerical solvers.
+- `units=:si`: Symbol that indicates the unit system to be used in the output.
+  Setting this to `nothing` will return values without conversion, i.e. exactly
+  what is in the input files. `:si` will use strict SI. Other alternatives are
+  `:field` and `:metric`. `:lab` is currently unsupported.
+
+# Note
+This function is experimental and only covers a small portion of the keywords
+that exist for various simulators. You will get warnings that indicate the level
+of support for keywords in both the parser and the numerical solvers when known
+keywords with limited support. Pull requests for new keywords are welcome!
 """
 function parse_data_file(filename; kwarg...)
     outer_data = Dict{String, Any}()
@@ -201,6 +219,19 @@ function parse_data_file!(outer_data, filename, data = outer_data;
     return outer_data
 end
 
+"""
+    parse_grdecl_file("mygrid.grdecl"; actnum_path = missing, kwarg...)
+
+Parse a GRDECL file separately from the full input file. Note that the GRID
+section does not contain units - passing the `input_units` keyword is therefore
+highly recommended.
+
+# Keyword arguments
+ - `units=:si`: Units to use for return values. Requires `input_units` to be set.
+ - `input_units=nothing`: The units the file is given in.
+ - `verbose=false`: Toggle verbosity.
+
+"""
 function parse_grdecl_file(filename; actnum_path = missing, kwarg...)
     outer_data = Dict{String, Any}()
     data = new_section(outer_data, :GRID)

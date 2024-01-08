@@ -15,8 +15,10 @@ function read_record(f; fix = true)
         end
         line = strip(line)
         if !startswith(line, "--")
-            if endswith(line, '/')
-                line = strip(rstrip(line, '/'))
+            if contains(line, '/')
+                # TODO: Think this is OK for parsing ASCII.
+                ix = findfirst('/', line)
+                line = line[1:ix-1]
                 active = false
             end
             if length(line) > 0
@@ -44,7 +46,9 @@ function parse_defaulted_group_well(f, defaults, wells, namepos = 1)
     out = []
     line = read_record(f)
     while length(line) > 0
-        parsed = parse_defaulted_line(line, defaults)
+        allow_wildcard = fill(true, length(defaults))
+        allow_wildcard[1] = false
+        parsed = parse_defaulted_line(line, defaults, allow_wildcard = allow_wildcard)
         name = parsed[namepos]
         if occursin('*', name) || occursin('?', name)
             re = Regex(replace(name, "*" => ".*", "?" => "."))
@@ -78,7 +82,7 @@ function parse_defaulted_line(lines::String, defaults; kwarg...)
     return parse_defaulted_line([lines], defaults; kwarg...)
 end
 
-function parse_defaulted_line(lines, defaults; required_num = 0, keyword = "")
+function parse_defaulted_line(lines, defaults; required_num = 0, keyword = "", allow_wildcard = missing)
     out = similar(defaults, 0)
     sizehint!(out, length(defaults))
     pos = 1
@@ -89,25 +93,33 @@ function parse_defaulted_line(lines, defaults; required_num = 0, keyword = "")
             if length(s) == 0
                 continue
             end
-            if occursin('*', s) && !startswith(s, '\'') # Could be inside a string for wildcard matching
+            default = defaults[pos]
+            if ismissing(allow_wildcard)
+                allow_star = true
+            else
+                allow_star = allow_wildcard[pos]
+            end
+            if allow_star && occursin('*', s) && !startswith(s, '\'') # Could be inside a string for wildcard matching
                 if s == "*"
                     num_defaulted = 1
                 else
-                    num_defaulted = Parsers.parse(Int, match(r"\d+\*", s).match[1:end-1])
+                    parse_wildcard = match(r"\d+\*", s)
+                    if isnothing(parse_wildcard)
+                        error("Unable to parse string for * expansion: $s")
+                    end
+                    num_defaulted = Parsers.parse(Int, parse_wildcard.match[1:end-1])
                 end
                 for i in 1:num_defaulted
                     push!(out, defaults[pos])
                     pos += 1
                 end
             else
-                default = defaults[pos]
                 if default isa String
                     converted = strip(s, [' ', '\''])
                 else
                     T = typeof(default)
                     converted = Parsers.tryparse(T, s)
                     if isnothing(converted)
-                        @info s
                         converted = T.(Parsers.tryparse(Float64, s))
                     end
                 end
@@ -349,36 +361,81 @@ end
 
 function parse_keyword!(data, outer_data, units, cfg, f, v::Val{T}) where T
     # Keywords where we read a single record and don't do anything proper
-    skip_kw = [
-        :PETOPTS,
-        :PARALLEL,
-        :VECTABLE,
-        :MULTSAVE
-        ]
-    # Keywords that are a single record where we should warn
-    skip_kw_with_warn = Symbol[
 
+    skip_kw_with_warn = Symbol[
+        :SATOPTS,
+        :EQLOPTS,
+        :TRACERS,
+        :PIMTDIMS,
+        :FLUXNUM,
+        :OPTIONS
     ]
-    # Single word keywords are trivial to parse, just set a true flag.
-    single_word_kw = [
-            :MULTOUT,
-            :NOSIM,
-            :NONNC,
-            :NEWTRAN
-            ]
-    single_word_kw_with_warn = Symbol[]
-    if T in skip_kw
-        data["$T"] = read_record(f)
-    elseif T in skip_kw_with_warn
-        parser_message(cfg, outer_data, "$T", PARSER_MISSING_SUPPORT)
-        data["$T"] = read_record(f)
-    elseif T in single_word_kw
-        data["$T"] = true
-    elseif T in single_word_kw_with_warn
-        parser_message(cfg, outer_data, "$T", PARSER_JUTULDARCY_MISSING_SUPPORT)
-        data["$T"] = true
-    else
-        error("Unhandled keyword $T encountered.")
+
+    skip_list = []
+    function skip_kw!(kw, num, msg = nothing)
+        push!(skip_list, (kw, num, msg))
+    end
+    skip_kw!(:PETOPTS, 1)
+    skip_kw!(:PARALLEL, 1)
+    skip_kw!(:MULTSAVE, 1)
+    skip_kw!(:VECTABLE, 1)
+    skip_kw!(:MULTSAVE, 1)
+
+    skip_kw!(:MULTOUT, 0)
+    skip_kw!(:NOSIM, 0)
+    skip_kw!(:NONNC, 0)
+    skip_kw!(:NEWTRAN, 0)
+
+    skip_kw!(:SATOPTS, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:EQLOPTS, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:TRACERS, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:PIMTDIMS, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:FLUXNUM, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:OPTIONS, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:EHYSTR, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:SWATINIT, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:ZIPPY2, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:DRSDT, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:WPAVE, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:VAPPARS, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:NETBALAN, 1, PARSER_MISSING_SUPPORT)
+
+    skip_kw!(:TRACER, Inf, PARSER_MISSING_SUPPORT)
+    skip_kw!(:THPRES, Inf, PARSER_MISSING_SUPPORT)
+    skip_kw!(:PIMULTAB, Inf, PARSER_MISSING_SUPPORT)
+    skip_kw!(:VFPPROD, Inf, PARSER_MISSING_SUPPORT)
+    skip_kw!(:VFPINJ, Inf, PARSER_MISSING_SUPPORT)
+    skip_kw!(:WTRACER, Inf, PARSER_MISSING_SUPPORT)
+    skip_kw!(:GCONINJE, Inf, PARSER_MISSING_SUPPORT)
+    skip_kw!(:WTEST, Inf, PARSER_MISSING_SUPPORT)
+
+    found = false
+    for (kw, num, msg) in skip_list
+        if kw != T
+            continue
+        end
+        if !isnothing(msg)
+            parser_message(cfg, outer_data, "$kw", msg)
+        end
+        if num == 0
+            # Single word keywords are trivial to parse, just set a true flag.
+            data["$T"] = true
+        elseif num == 1
+            data["$T"] = read_record(f)
+        else
+            skip_record(f)
+        end
+        found = true
+        break
+    end
+
+    if !found
+        if startswith("$T", "TVDP")
+            parser_message(cfg, outer_data, "$T", PARSER_MISSING_SUPPORT)
+            read_record(f)
+        else
+            error("Unhandled keyword $T encountered.")
+        end
     end
 end
 

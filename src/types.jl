@@ -1,6 +1,13 @@
 abstract type AbstractPhase end
 
+"""
+Abstract supertype for all multiphase flow systems.
+"""
 abstract type MultiPhaseSystem <: JutulSystem end
+"""
+Abstract supertype for multicomponent systems, i.e. flow systems where the
+number of components is decoupled from the number of phases.
+"""
 abstract type MultiComponentSystem <: MultiPhaseSystem end
 const DarcyFlowModel = SimulationModel{<:Any, <:MultiPhaseSystem, <:Any, <:Any}
 
@@ -64,7 +71,6 @@ function Base.show(io::IO, sys::MultiPhaseCompositionalSystemLV)
     print(io, "MultiPhaseCompositionalSystemLV $name with $(MultiComponentFlash.eostype(eos)) EOS with $n components: $cnames")
 end
 
-export StandardBlackOilSystem
 struct StandardBlackOilSystem{D, V, W, R, F, T, P, Num} <: BlackOilSystem
     rs_max::D
     rv_max::V
@@ -166,7 +172,10 @@ end
 
 """
     ImmiscibleSystem(phases; reference_densities = ones(length(phases)))
-    ImmiscibleSystem((LiquidPhase(), VaporPhase()), (1000.0, 700.0))
+    ImmiscibleSystem((LiquidPhase(), VaporPhase()), reference_densities = (1000.0, 700.0))
+
+Immiscible flow system: Each component exists only in a single phase, and the
+number of components equal the number of phases.
 
 Set up an immiscible system for the given phases with optional reference
 densitites. This system is easy to specify with [Pressure](@ref) and
@@ -199,8 +208,7 @@ end
 
 number_of_components(sys::SinglePhaseSystem) = 1
 
-
-struct PhaseRelPerm{T, N}
+struct PhaseRelativePermeability{T, N}
     k::T
     label::Symbol
     connate::N
@@ -209,9 +217,20 @@ struct PhaseRelPerm{T, N}
     k_max::N
 end
 
-export PhaseRelPerm
 
-function PhaseRelPerm(s, k; label = :w, connate = s[1], epsilon = 1e-16)
+"""
+    PhaseRelativePermeability(s, k; label = :w, connate = s[1], epsilon = 1e-16)
+
+Type that stores a sorted phase relative permeability table (given as vectors of
+equal length `s` and `k`):
+
+``K_r = K(S)``
+
+Optionally, a label for the phase, the connate
+saturation and a small epsilon value used to avoid extrapolation can be
+specified.
+"""
+function PhaseRelativePermeability(s, k; label = :w, connate = s[1], epsilon = 1e-16)
     for i in eachindex(s)
         if i == 1
             if s[1] == 0.0
@@ -234,20 +253,24 @@ function PhaseRelPerm(s, k; label = :w, connate = s[1], epsilon = 1e-16)
     s, k = JutulDarcy.add_missing_endpoints(s, k)
     JutulDarcy.ensure_endpoints!(s, k, epsilon)
     kr = get_1d_interpolator(s, k, cap_endpoints = false)
-    return PhaseRelPerm(kr, label, connate, crit, s_max, k_max)
+    return PhaseRelativePermeability(kr, label, connate, crit, s_max, k_max)
 end
 
-(kr::PhaseRelPerm)(S) = kr.k(S)
+(kr::PhaseRelativePermeability)(S) = kr.k(S)
 
-function Base.show(io::IO, t::MIME"text/plain", kr::PhaseRelPerm)
-    println(io, "PhaseRelPerm for $(kr.label):")
+function Base.show(io::IO, t::MIME"text/plain", kr::PhaseRelativePermeability)
+    println(io, "PhaseRelativePermeability for $(kr.label):")
     println(io, "  .k: Internal representation: $(kr.k)")
     println(io, "  Connate saturation = $(kr.connate)")
     println(io, "  Critical saturation = $(kr.critical)")
     println(io, "  Maximum rel. perm = $(kr.k_max) at $(kr.s_max)")
 end
 
-
+"""
+MassSource: Source is directly interpreted as component masses.
+StandardVolumeSource: Source is volume at standard/surface conditions. References densities are used to convert into mass sources.
+VolumeSource: Source is volume at in-situ / reservoir conditions.
+"""
 @enum FlowSourceType begin
     MassSource
     StandardVolumeSource
@@ -261,7 +284,6 @@ struct SourceTerm{I, F, T} <: JutulForce
     type::FlowSourceType
 end
 
-export FlowBoundaryCondition
 struct FlowBoundaryCondition{I, F, T} <: JutulForce
     cell::I
     pressure::F
@@ -301,20 +323,27 @@ struct SimpleWell{SC, P, V} <: WellDomain where {SC, P}
 end
 
 """
-    SimpleWell(reservoir_cells)
+    SimpleWell(reservoir_cells; <keyword arguments>)
 
 Set up a simple well.
 
-NOTE: `setup_vertical_well` or `setup_well` are the recommended way of setting
-up wells.
+# Note
+
+[`setup_vertical_well`](@ref) or [`setup_well`](@ref) are the recommended
+way of setting up wells.
+
+# Fields
+
+$FIELDS
+
 """
 function SimpleWell(
-    reservoir_cells;
-    name = :Well,
-    explicit_dp = true,
-    surface_conditions = default_surface_cond(),
-    volume = 1000.0, # Regularization volume for well, not a real volume
-    kwarg...
+        reservoir_cells;
+        name = :Well,
+        explicit_dp = true,
+        surface_conditions = default_surface_cond(),
+        volume = 1000.0, # Regularization volume for well, not a real volume
+        kwarg...
     )
     nr = length(reservoir_cells)
     WI, gdz = common_well_setup(nr; kwarg...)
@@ -322,14 +351,22 @@ function SimpleWell(
     return SimpleWell(volume, perf, surface_conditions, name, explicit_dp)
 end
 struct MultiSegmentWell{V, P, N, A, C, SC, S} <: WellDomain
-    volumes::V          # One per cell
-    perforations::P     # (self -> local cells, reservoir -> reservoir cells, WI -> connection factor)
-    neighborship::N     # Well cell connectivity
-    top::A              # "Top" node where scalar well quantities live
-    centers::C          # Coordinate centers of nodes
-    surface::SC         # p, T at surface
-    name::Symbol        # Symbol that names the well
-    segment_models::S   # Segment pressure drop model for each segment
+    "One of volumes per node (cell)"
+    volumes::V
+    "(self -> local cells, reservoir -> reservoir cells, WI -> connection factor)"
+    perforations::P
+    "Well cell connectivity (connections between nodes)"
+    neighborship::N
+    "Top node where scalar well quantities live"
+    top::A
+    "Coordinate centers of nodes"
+    centers::C
+    "pressure and temperature conditions at surface"
+    surface::SC
+    "Name of the well as a Symbol"
+    name::Symbol
+    "Pressure drop model for seg well segment"
+    segment_models::S
 end
 
 """
@@ -348,8 +385,15 @@ end
 Create well perforated in a vector of `reservoir_cells` with corresponding
 `volumes` and cell `centers`.
 
-NOTE: `setup_vertical_well` or `setup_well` are the recommended way of setting
-up wells.
+# Note
+
+[`setup_vertical_well`](@ref) or [`setup_well`](@ref) are the recommended
+way of setting up wells.
+
+# Fields
+
+$FIELDS
+
 """
 function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
                                                     N = nothing,
@@ -420,15 +464,34 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
 end
 
 
-export ReservoirSimResult
 struct ReservoirSimResult
+    "Well results as a Dict (output from [`full_well_outputs`](@ref))"
     wells::AbstractDict
+    "Reservoir states for each time-step"
     states::AbstractVector
+    "The time the states and well solutions are given at"
     time::AbstractVector
+    "Raw simulation results with more detailed well results and reports of solution progress"
     result::Jutul.SimResult
+    "Dict for holding additional useful data connected to the simulation"
     extra::AbstractDict
 end
 
+"""
+    ReservoirSimResult(model, result::Jutul.SimResult, forces, extra = Dict(); kwarg...)
+
+Create a specific reservoir simulation results that contains well curves,
+reservoir states, and so on. This is the return type from `simulate_reservoir`.
+
+A `ReservoirSimResult` can be unpacked into wells and states:
+```julia
+ws, states = res_result
+```
+
+# Fields
+
+$FIELDS
+"""
 function ReservoirSimResult(model, result::Jutul.SimResult, forces, extra = Dict(); kwarg...)
     for (k, v) in kwarg
         extra[k] = v

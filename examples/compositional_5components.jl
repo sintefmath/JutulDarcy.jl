@@ -42,13 +42,12 @@ L, V = LiquidPhase(), VaporPhase()
 # Define system and realize on grid
 sys = MultiPhaseCompositionalSystemLV(eos, (L, V))
 model, parameters = setup_reservoir_model(res, sys, wells = [inj, prod], reference_densities = rhoS, block_backend = true);
-kr = BrooksCoreyRelPerm(sys, 2.0, 0.0, 1.0)
+kr = BrooksCoreyRelativePermeabilities(sys, 2.0, 0.0, 1.0)
 model = replace_variables!(model, RelativePermeabilities = kr)
 
 push!(model[:Reservoir].output_variables, :Saturations)
 
-T0 = repeat([387.45*Kelvin], 1, nc)
-parameters[:Reservoir][:Temperature] = T0
+parameters[:Reservoir][:Temperature] = 387.45*Kelvin
 state0 = setup_reservoir_state(model, Pressure = 225*bar, OverallMoleFractions = [0.463, 0.01640, 0.20520, 0.19108, 0.12432]);
 
 dt = repeat([2.0]*day, 365)

@@ -1,5 +1,5 @@
 # Density for all three cases
-@jutul_secondary function update_deck_density!(rho, m::DeckDensity, model::StandardBlackOilModel, Rs, Rv, ShrinkageFactors, ix)
+@jutul_secondary function update_deck_density!(rho, m::DeckPhaseMassDensities, model::StandardBlackOilModel, Rs, Rv, ShrinkageFactors, ix)
     b = ShrinkageFactors
     sys = model.system
     w, o, g = phase_indices(sys)
@@ -11,7 +11,7 @@
     end
 end
 
-@jutul_secondary function update_deck_density!(rho, m::DeckDensity, model::VapoilBlackOilModel, Rv, ShrinkageFactors, ix)
+@jutul_secondary function update_deck_density!(rho, m::DeckPhaseMassDensities, model::VapoilBlackOilModel, Rv, ShrinkageFactors, ix)
     b = ShrinkageFactors
     sys = model.system
     has_water = has_other_phase(sys)
@@ -31,7 +31,7 @@ end
     end
 end
 
-@jutul_secondary function update_deck_density!(rho, m::DeckDensity, model::DisgasBlackOilModel, Rs, ShrinkageFactors, ix)
+@jutul_secondary function update_deck_density!(rho, m::DeckPhaseMassDensities, model::DisgasBlackOilModel, Rs, ShrinkageFactors, ix)
     b = ShrinkageFactors
     sys = model.system
     has_water = has_other_phase(sys)

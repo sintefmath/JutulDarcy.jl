@@ -1,31 +1,124 @@
+
+"""
+$(README)
+
+---
+##  Module exports:
+
+$(EXPORTS)
+
+"""
 module JutulDarcy
-    import Jutul: number_of_cells, number_of_faces,
-                  degrees_of_freedom_per_entity,
-                  values_per_entity,
-                  absolute_increment_limit, relative_increment_limit, maximum_value, minimum_value,
-                  select_primary_variables!,
-                  select_secondary_variables!,
-                  select_equations!,
-                  select_parameters!,
-                  select_minimum_output_variables!,
-                  initialize_primary_variable_ad!,
-                  update_primary_variable!,
-                  update_secondary_variable!,
-                  default_value,
-                  initialize_variable_value!,
-                  initialize_variable_value,
-                  initialize_variable_ad!,
-                  update_half_face_flux!,
-                  update_accumulation!,
-                  update_equation!,
-                  setup_parameters,
-                  count_entities,
-                  count_active_entities,
-                  associated_entity,
-                  active_entities,
-                  number_of_entities,
-                  declare_entities,
-                  get_neighborship
+    export MultiPhaseSystem, ImmiscibleSystem, SinglePhaseSystem
+    export reservoir_linsolve
+    export parse_data_file, parse_grdecl_file
+    export get_1d_reservoir
+    export DeckPhaseViscosities
+    export DeckShrinkageFactors
+    export CPRPreconditioner
+    export MuBTable
+    export ConstMuBTable
+    export DeckPhaseMassDensities, RelativePermeabilities
+    export ThreePhaseCompositionalDensitiesLV
+    export PhaseMassFractions
+    export PhaseMassFractions
+    export ThreePhaseLBCViscositiesLV
+    export plot_well!
+    export plot_well_results
+    export plot_reservoir_simulation_result
+    export plot_reservoir
+    export simulate_reservoir_parray
+    export setup_reservoir_simulator_parray
+    export component_mass_fluxes!, update_total_masses!
+    export table_to_relperm
+    export AqueousPhase, LiquidPhase, VaporPhase
+    export number_of_phases
+    export SourceTerm
+    export Pressure, Saturations, TotalMasses, TotalMass
+    export fluid_volume, pore_volume
+    export MinimalTPFAGrid
+    export compute_peaceman_index
+    export discretized_domain_tpfv_flow
+    export discretized_domain_well
+    export StandardBlackOilSystem
+    export PhaseRelativePermeability
+    export FlowBoundaryCondition
+    export ReservoirSimResult
+    export reservoir_domain
+    export reservoir_model
+    export setup_reservoir_model
+    export setup_reservoir_simulator
+    export simulate_reservoir
+    export setup_reservoir_state
+    export setup_reservoir_forces
+    export full_well_outputs
+    export well_output
+    export well_symbols
+    export wellgroup_symbols
+    export available_well_targets
+    export BlackOilUnknown
+    export BlackOilX
+    export TotalSurfaceMassRate
+    export WellGroup
+    export DisabledControl
+    export Wells
+    export TotalMassVelocityMassFractionsFlow
+    export BottomHolePressureTarget, TotalRateTarget
+    export SinglePhaseRateTarget, DisabledTarget
+    export SurfaceLiquidRateTarget, SurfaceOilRateTarget
+    export SurfaceWaterRateTarget, SurfaceGasRateTarget
+    export HistoricalReservoirVoidageTarget, ReservoirVoidageTarget
+    export SinglePhaseRateTarget, BottomHolePressureTarget
+    export PerforationMask
+    export WellDomain, MultiSegmentWell
+    export TotalMassFlux, PotentialDropBalanceWell
+    export SegmentWellBoreFrictionHB
+    export InjectorControl, ProducerControl
+    export Perforations
+    export MixedWellSegmentFlow
+    export segment_pressure_drop
+    export setup_well, setup_vertical_well
+    export well_mismatch
+    export simulate_data_file, setup_case_from_data_file
+    export get_test_setup, get_well_from_mrst_data
+    export setup_case_from_mrst
+    export simulate_mrst_case
+    export MultiPhaseCompositionalSystemLV
+    export StandardVolumeSource, VolumeSource, MassSource
+    export OverallMoleFractions
+    export ImmiscibleSaturation
+    export ThermalSystem
+    export PhaseMassDensities, ConstantCompressibilityDensities
+    export BrooksCoreyRelativePermeabilities, TabulatedSimpleRelativePermeabilities
+
+    import Jutul:
+        number_of_cells, number_of_faces,
+        degrees_of_freedom_per_entity,
+        values_per_entity,
+        absolute_increment_limit, relative_increment_limit, maximum_value, minimum_value,
+        select_primary_variables!,
+        select_secondary_variables!,
+        select_equations!,
+        select_parameters!,
+        select_minimum_output_variables!,
+        initialize_primary_variable_ad!,
+        update_primary_variable!,
+        update_secondary_variable!,
+        default_value,
+        initialize_variable_value!,
+        initialize_variable_value,
+        initialize_variable_ad!,
+        update_half_face_flux!,
+        update_accumulation!,
+        update_equation!,
+        setup_parameters,
+        count_entities,
+        count_active_entities,
+        associated_entity,
+        active_entities,
+        number_of_entities,
+        declare_entities,
+        get_neighborship
 
     import Jutul: update_preconditioner!, partial_update_preconditioner!
 
@@ -50,8 +143,9 @@ module JutulDarcy
     using PrecompileTools
     using Dates
     import DataStructures: OrderedDict
+    using DocStringExtensions
 
-    export reservoir_linsolve, get_1d_reservoir
+
     include("types.jl")
     include("deck_types.jl")
     include("porousmedia_grids.jl")
@@ -99,7 +193,7 @@ module JutulDarcy
     include("InputParser/InputParser.jl")
     using .InputParser
     import .InputParser: parse_data_file
-    export parse_data_file
+
 
     @compile_workload begin
         precompile_darcy_multimodels()

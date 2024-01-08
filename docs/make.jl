@@ -3,8 +3,12 @@ using Jutul
 using Literate
 using Documenter
 
+using DocumenterCitations
+bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"))
+
 function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
-    DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy); recursive=true)
+    DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy; using Jutul); recursive=true)
+    DocMeta.setdocmeta!(Jutul, :DocTestSetup, :(using Jutul); recursive=true)
 
     ## Literate pass
     # Base directory
@@ -42,31 +46,56 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
             prettyurls=get(ENV, "CI", "false") == "true",
             canonical="https://sintefmath.github.io/JutulDarcy.jl",
             edit_link="main",
-            assets=String[],
+            assets=String["assets/citations.css"],
         )
     end
     makedocs(;
-        modules=[JutulDarcy],
+        modules=[JutulDarcy, Jutul],
         authors="Olav Møyner <olav.moyner@sintef.no> and contributors",
         repo="https://github.com/sintefmath/JutulDarcy.jl/blob/{commit}{path}#{line}",
         sitename="JutulDarcy.jl",
         warnonly = true,
+        plugins=[bib],
         format=build_format,
         pages=[
             "Home" => "index.md",
-            "Examples" => examples_markdown,
-            "Usage" => [
-                "Supported physical systems" =>"usage/systems.md",
-                "Solving the equations" => "usage/solution.md"
+            "Manual" => [
+                "Getting started" =>"man/intro.md",
+                "High-level functions" =>"man/highlevel.md",
+                "Input files" =>"man/input_files.md",
+                "Driving forces" =>"man/forces.md",
+                "Supported physical systems" =>"man/systems.md",
+                "Wells and controls" =>"man/wells.md",
+                "Solving the equations" => "man/solution.md",
+                "Primary variables" => "man/primary.md",
+                "Secondary variables (properties)" => "man/secondary.md",
+                "Parameters" => "man/parameters.md",
+                "Visualization" =>"man/plotting.md",
                 ],
-            "Internals" => "internals.md"
+            "Advanced usage" => [
+                "Parallel solves with MPI" =>"man/mpi.md",
+                "JutulDarcy.jl compiled app" =>"man/compiled.md"
+            ],
+            "Examples" => examples_markdown,
+            "Reference" => [
+                # "Internals" => "ref/internals.md",
+                "Jutul functions" => "ref/jutul.md"
+            ],
+            "Additional information "=> [
+                "References" => "extras/refs.md",
+                "FAQ" => "extras/faq.md"
+            ]
         ],
     )
 
     deploydocs(;
-        repo="github.com/sintefmath/JutulDarcy.jl",
+        repo="github.com/sintefmath/JutulDarcy.jl.git",
         devbranch="main",
     )
 end
 ##
 build_jutul_darcy_docs()
+
+# ```@autodocs
+# Modules = [JutulDarcy]
+# ```

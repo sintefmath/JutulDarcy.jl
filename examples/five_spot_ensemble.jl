@@ -37,7 +37,7 @@ function simulate_qfs(porosity = 0.2)
     model, parameters = setup_reservoir_model(domain, sys, wells = [Inj, Prod])
     c = [1e-6/bar, 1e-6/bar]
     ρ = ConstantCompressibilityDensities(p_ref = 150*bar, density_ref = rhoS, compressibility = c)
-    kr = BrooksCoreyRelPerm(sys, [2.0, 2.0])
+    kr = BrooksCoreyRelativePermeabilities(sys, [2.0, 2.0])
     replace_variables!(model, PhaseMassDensities = ρ, RelativePermeabilities = kr);
 
     state0 = setup_reservoir_state(model, Pressure = 150*bar, Saturations = [1.0, 0.0])

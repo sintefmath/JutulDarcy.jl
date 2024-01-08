@@ -1,11 +1,3 @@
-export WellDomain, MultiSegmentWell
-export TotalMassFlux, PotentialDropBalanceWell, SegmentWellBoreFrictionHB
-
-export InjectorControl, ProducerControl, SinglePhaseRateTarget, BottomHolePressureTarget
-
-export Perforations
-export MixedWellSegmentFlow
-export segment_pressure_drop
 
 
 abstract type WellPotentialFlowDiscretization <: PotentialFlowDiscretization end
@@ -17,12 +9,29 @@ struct MixedWellSegmentFlow <: WellPotentialFlowDiscretization end
 
 include("separator.jl")
 
-# Total velocity in each well segment
+"""
+    TotalMassFlux(scale = si_unit(:day), max_abs = nothing, max_rel = nothing)
+
+Variable normally used as primary variable. Represents the total mass flux going
+through a face. The typical usage is the mass flow through a segment of a
+[`MultiSegmentWell`](@ref).
+
+Note that the flow direction can often switch signs over a segment during a
+complex simulation. Setting `max_rel` to something other than `nothing` can
+therefore lead to severe convergence issues in the case of flow reversal.
+
+# Fields (as keyword arguments)
+
+$FIELDS
+"""
 struct TotalMassFlux{R} <: ScalarVariable
+    "Scaling for variable"
     scale::Union{Nothing, R}
+    "Max absolute change between Newton iterations"
     max_abs::Union{Nothing, R}
+    "Maximum relative change between Newton iterations"
     max_rel::Union{Nothing, R}
-    function TotalMassFlux(;scale = 3600*24, max_abs = nothing, max_rel = nothing)
+    function TotalMassFlux(; scale = si_unit(:day), max_abs = nothing, max_rel = nothing)
         new{Float64}(scale, max_abs, max_rel)
     end
 end
@@ -52,7 +61,6 @@ function common_well_setup(nr; dz = nothing, WI = nothing, gravity = gravity_con
     return (WI, gdz)
 end
 
-export setup_well, setup_vertical_well
 """
     setup_well(D::DataDomain, reservoir_cells; skin = 0.0, Kh = nothing, radius = 0.1, dir = :z)
 
@@ -71,6 +79,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
                                         skin = 0.0,
                                         Kh = nothing,
                                         radius = 0.1,
+                                        accumulator_volume = missing,
                                         simple_well = false,
                                         simple_well_regularization = 1.0,
                                         WI = missing,
@@ -126,7 +135,9 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         volumes[i] = h*π*r_i^2
     end
     if simple_well
-        accumulator_volume = simple_well_regularization*maximum(volumes)
+        if ismissing(accumulator_volume)
+            accumulator_volume = simple_well_regularization*maximum(volumes)
+        end
         W = SimpleWell(reservoir_cells; WI = WI_computed, volume = accumulator_volume, dz = dz, kwarg...)
     else
         # Depth differences are taken care of via centers.

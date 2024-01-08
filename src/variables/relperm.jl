@@ -8,6 +8,38 @@ function Jutul.default_value(model, v::AbstractRelativePermeabilities)
 end
 
 struct RelativePermeabilitiesParameter <: AbstractRelativePermeabilities end
+
+"""
+    RelativePermeabilities((kr1, kr2, ...))
+
+A simple relative permeability implementation. Assumes that each phase has a
+relative permeability on the form:
+
+``K_{r,phase} = F(S_{phase})``
+
+Supports multiple fluid regions through the `regions` keyword.
+
+# Examples
+Single region:
+```
+kr1 = S -> S^2
+kr2 = S -> S^3
+
+kr = RelativePermeabilities((kr1, kr2))
+```
+Two regions:
+```
+kr1_reg1 = S -> S^2
+kr2_reg1 = S -> S^3
+
+kr1_reg2 = S -> S^3
+kr2_reg2 = S -> S^4
+
+regions # should be a vector with one entry that is 1 or 2 for each cell in the domain
+
+kr = RelativePermeabilities(((kr1_reg1, kr2_reg1), (kr1_reg2, kr2_reg2)), regions = regions)
+```
+"""
 struct RelativePermeabilities{K, R} <: AbstractRelativePermeabilities
     relperms::K
     regions::R
@@ -65,12 +97,33 @@ function Jutul.line_plot_data(model::SimulationModel, k::RelativePermeabilities)
     return data
 end
 
-struct BrooksCoreyRelPerm{V, T} <: AbstractRelativePermeabilities
+"""
+    BrooksCoreyRelativePermeabilities(
+        sys_or_nph::Union{MultiPhaseSystem, Integer},
+        exponents = 1.0,
+        residuals = 0.0,
+        endpoints = 1.0
+    )
+
+Secondary variable that implements the family of Brooks-Corey relative
+permeability functions. This is a simple analytical expression for relative
+permeabilities that has a limited number of parameters:
+
+``K(S) = K_{max} * ((S - S_r)/(1 - S_r^{tot}))^N``
+
+## Fields
+$FIELDS
+"""
+struct BrooksCoreyRelativePermeabilities{V, T} <: AbstractRelativePermeabilities
+    "Exponents for each phase"
     exponents::V
+    "Residual saturations for each phase"
     residuals::V
+    "Maximum relative permeability for each phase"
     endpoints::V
+    "Total residual saturation over all phases"
     residual_total::T
-    function BrooksCoreyRelPerm(sys_or_nph::Union{MultiPhaseSystem, Integer}, exponents = 1.0, residuals = 0.0, endpoints = 1.0)
+    function BrooksCoreyRelativePermeabilities(sys_or_nph::Union{MultiPhaseSystem, Integer}, exponents = 1.0, residuals = 0.0, endpoints = 1.0)
         if isa(sys_or_nph, Integer)
             nph = sys_or_nph
         else
@@ -86,13 +139,16 @@ struct BrooksCoreyRelPerm{V, T} <: AbstractRelativePermeabilities
 end
 
 """
-Interpolated multiphase rel. perm. that is simple (single region, no magic for more than two phases)
+    TabulatedSimpleRelativePermeabilities(s::AbstractVector, kr::AbstractVector; regions::Union{AbstractVector, Nothing} = nothing, kwarg...)
+
+Interpolated multiphase relative permeabilities that assumes that the relative
+permeability of each phase depends only on the phase saturation of that phase.
 """
-struct TabulatedRelPermSimple{V, M, I} <: AbstractRelativePermeabilities
+struct TabulatedSimpleRelativePermeabilities{V, M, I} <: AbstractRelativePermeabilities
     s::V
     kr::M
     interpolators::I
-    function TabulatedRelPermSimple(s::AbstractVector, kr::AbstractVector; regions::Union{AbstractVector, Nothing} = nothing, kwarg...)
+    function TabulatedSimpleRelativePermeabilities(s::AbstractVector, kr::AbstractVector; regions::Union{AbstractVector, Nothing} = nothing, kwarg...)
         nph = length(kr)
         n = length(kr[1])
         @assert nph > 0
@@ -116,28 +172,31 @@ struct TabulatedRelPermSimple{V, M, I} <: AbstractRelativePermeabilities
     end
 end
 
-"""
-Interpolated multiphase rel. perm. that is simple (single region, no magic for more than two phases)
-"""
-struct ReservoirRelativePermeability{Scaling, ph, O, OW, OG, G, R} <: AbstractRelativePermeabilities
+struct ReservoirRelativePermeabilities{Scaling, ph, O, OW, OG, G, R} <: AbstractRelativePermeabilities
+    "Water relative permeability as a function of water saturation: ``k_{rw}(S_w)``"
     krw::O
+    "Oil relative permeability (in the presence of water) as a function of oil saturation: ``k_{row}(S_o)``"
     krow::OW
+    "Gas relative permeability (in the presence of water) as a function of gas saturation: ``k_{row}(S_g)``"
     krog::OG
+    "Gas relative permeability as a function of gas saturation: ``k_{rg}(S_g)``"
     krg::G
+    "Regions to use for each cell of the domain. Can be `nothing` if a single region is used throughout the domain."
     regions::R
+    "Symbol designating the type of system, :wog for three-phase, :og for oil-gas, :wg for water-gas, etc."
     phases::Symbol
 end
 
-struct RelPermScalingCoefficients{phases} <: VectorVariables
+struct EndPointScalingCoefficients{phases} <: VectorVariables
 end
 
-function RelPermScalingCoefficients(phases::Symbol)
-    return RelPermScalingCoefficients{phases}()
+function EndPointScalingCoefficients(phases::Symbol)
+    return EndPointScalingCoefficients{phases}()
 end
 
-Jutul.degrees_of_freedom_per_entity(model, ::RelPermScalingCoefficients) = 4
+Jutul.degrees_of_freedom_per_entity(model, ::EndPointScalingCoefficients) = 4
 
-function Jutul.default_values(model, scalers::RelPermScalingCoefficients{P}) where P
+function Jutul.default_values(model, scalers::EndPointScalingCoefficients{P}) where P
     nc = number_of_cells(model.domain)
     relperm = Jutul.get_variable(model, :RelativePermeabilities)
     kr = relperm[P]
@@ -155,7 +214,20 @@ function Jutul.default_values(model, scalers::RelPermScalingCoefficients{P}) whe
     return kscale
 end
 
-function ReservoirRelativePermeability(; w = nothing, g = nothing, ow = nothing, og = nothing, scaling = NoKrScale, regions = nothing)
+"""
+    ReservoirRelativePermeabilities(
+        w = nothing, g = nothing, ow = nothing, og = nothing,
+        scaling = NoKrScale, regions = nothing)
+
+Relative permeability with advanced features for reservoir simulation. Includes
+features like rel. perm. endpoint scaling, connate water adjustment and separate
+phase pair relative permeabilites for the oil phase.
+
+# Fields
+
+$FIELDS
+"""
+function ReservoirRelativePermeabilities(; w = nothing, g = nothing, ow = nothing, og = nothing, scaling = NoKrScale, regions = nothing)
     has_w = !isnothing(w)
     has_g = !isnothing(g)
     has_og = !isnothing(og)
@@ -179,7 +251,7 @@ function ReservoirRelativePermeability(; w = nothing, g = nothing, ow = nothing,
             phases = :og
         end
     else
-        error("ReservoirRelativePermeability only implements two-phase (WO, OG, WG) or three-phase (WOG)")
+        error("ReservoirRelativePermeabilities only implements two-phase (WO, OG, WG) or three-phase (WOG)")
     end
 
     F = x -> region_wrap(x, regions)
@@ -188,10 +260,10 @@ function ReservoirRelativePermeability(; w = nothing, g = nothing, ow = nothing,
     krog = F(og)
     krg = F(g)
 
-    return ReservoirRelativePermeability{scaling, phases, typeof(krw), typeof(krow), typeof(krog), typeof(krg), typeof(regions)}(krw, krow, krog, krg, regions, phases)
+    return ReservoirRelativePermeabilities{scaling, phases, typeof(krw), typeof(krow), typeof(krog), typeof(krg), typeof(regions)}(krw, krow, krog, krg, regions, phases)
 end
 
-function Base.getindex(m::ReservoirRelativePermeability, s::Symbol)
+function Base.getindex(m::ReservoirRelativePermeabilities, s::Symbol)
     if s == :w
         return m.krw
     elseif s == :g
@@ -205,9 +277,9 @@ function Base.getindex(m::ReservoirRelativePermeability, s::Symbol)
     end
 end
 
-scaling_type(::ReservoirRelativePermeability{T}) where T = T
+scaling_type(::ReservoirRelativePermeabilities{T}) where T = T
 
-function Jutul.line_plot_data(model::SimulationModel, k::ReservoirRelativePermeability)
+function Jutul.line_plot_data(model::SimulationModel, k::ReservoirRelativePermeabilities)
     s = collect(0:0.01:1)
     has_reg = !isnothing(k.regions)
     if has_reg
@@ -251,15 +323,15 @@ function Jutul.line_plot_data(model::SimulationModel, k::ReservoirRelativePermea
     return data
 end
 
-function Jutul.subvariable(k::ReservoirRelativePermeability, map::FiniteVolumeGlobalMap)
+function Jutul.subvariable(k::ReservoirRelativePermeabilities, map::FiniteVolumeGlobalMap)
     c = map.cells
     regions = Jutul.partition_variable_slice(k.regions, c)
     scaling = scaling_type(k)
-    return ReservoirRelativePermeability(; w = k.krw, ow = k.krow, og = k.krog, g = k.krg, regions = regions, scaling = scaling)
+    return ReservoirRelativePermeabilities(; w = k.krw, ow = k.krow, og = k.krog, g = k.krg, regions = regions, scaling = scaling)
 end
 
-function Base.show(io::IO, t::MIME"text/plain", kr::ReservoirRelativePermeability)
-    println(io, "ReservoirRelativePermeability")
+function Base.show(io::IO, t::MIME"text/plain", kr::ReservoirRelativePermeabilities)
+    println(io, "ReservoirRelativePermeabilities")
     println(io, "  functions:")
     for f in [:krw, :krow, :krog, :krg]
         k = getfield(kr, f)
@@ -280,7 +352,7 @@ function Base.show(io::IO, t::MIME"text/plain", kr::ReservoirRelativePermeabilit
 end
 
 
-@jutul_secondary function update_kr!(kr, kr_def::BrooksCoreyRelPerm, model, Saturations, ix)
+@jutul_secondary function update_kr!(kr, kr_def::BrooksCoreyRelativePermeabilities, model, Saturations, ix)
     n, sr, kwm, sr_tot = kr_def.exponents, kr_def.residuals, kr_def.endpoints, kr_def.residual_total
     for i in ix
         for ph in axes(kr, 1)
@@ -297,7 +369,7 @@ function brooks_corey_relperm(s::T, n::Real, sr::Real, kwm::Real, sr_tot::Real) 
     return kwm*sat^n
 end
 
-@jutul_secondary function update_kr!(kr, kr_def::TabulatedRelPermSimple, model, Saturations, ix)
+@jutul_secondary function update_kr!(kr, kr_def::TabulatedSimpleRelativePermeabilities, model, Saturations, ix)
     I = kr_def.interpolators
     for c in ix
         @inbounds for j in eachindex(I)
@@ -308,7 +380,7 @@ end
     return kr
 end
 
-@jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeability{NoKrScale, :wog}, model, Saturations, ConnateWater, ix)
+@jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeabilities{NoKrScale, :wog}, model, Saturations, ConnateWater, ix)
     s = Saturations
     phases = phase_indices(model.system)
     for c in ix
@@ -317,7 +389,7 @@ end
     return kr
 end
 
-@jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeability{NoKrScale, :wo}, model, Saturations, ix)
+@jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeabilities{NoKrScale, :wo}, model, Saturations, ix)
     s = Saturations
     regions = relperm.regions
     indices = phase_indices(model.system)
@@ -327,7 +399,7 @@ end
     return kr
 end
 
-@jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeability{NoKrScale, :og}, model, Saturations, ix)
+@jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeabilities{NoKrScale, :og}, model, Saturations, ix)
     s = Saturations
     regions = relperm.regions
     indices = phase_indices(model.system)
@@ -337,7 +409,7 @@ end
     return kr
 end
 
-@jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeability{NoKrScale, :wg}, model, Saturations, ix)
+@jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeabilities{NoKrScale, :wg}, model, Saturations, ix)
     s = Saturations
     regions = relperm.regions
     indices = phase_indices(model.system)
@@ -366,7 +438,7 @@ Base.@propagate_inbounds function two_phase_relperm!(kr, s, regions, Kr_1, Kr_2,
     kr[i2, c] = kr2(sg)
 end
 
-@jutul_secondary function update_kr_with_scaling!(kr, relperm::ReservoirRelativePermeability{<:Any, :wog}, model, Saturations, RelPermScalingW, RelPermScalingOW, RelPermScalingOG, RelPermScalingG, ConnateWater, ix)
+@jutul_secondary function update_kr_with_scaling!(kr, relperm::ReservoirRelativePermeabilities{<:Any, :wog}, model, Saturations, RelPermScalingW, RelPermScalingOW, RelPermScalingOG, RelPermScalingG, ConnateWater, ix)
     s = Saturations
     phases = phase_indices(model.system)
     scalers = (w = RelPermScalingW, ow = RelPermScalingOW, og = RelPermScalingOG, g = RelPermScalingG)
@@ -396,7 +468,7 @@ Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relper
     kr[g, c] = Krg
 end
 
-function get_kr_scalers(kr::PhaseRelPerm)
+function get_kr_scalers(kr::PhaseRelativePermeability)
     return (kr.connate, kr.critical, kr.s_max, kr.k_max)
 end
 function get_kr_scalers(scaler::AbstractMatrix, c)

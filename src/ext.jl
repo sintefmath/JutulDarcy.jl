@@ -1,4 +1,3 @@
-export plot_well!, plot_well_results, plot_reservoir_simulation_result
 
 function plot_well!
 
@@ -40,7 +39,6 @@ function plot_reservoir_simulation_result(model::MultiModel, res::ReservoirSimRe
     return fig
 end
 
-export plot_reservoir
 function plot_reservoir(model, arg...; well_fontsize = 18, well_linewidth = 5, kwarg...)
     rmodel = reservoir_model(model)
     fig = plot_interactive(rmodel.data_domain, arg...; kwarg...)
@@ -55,13 +53,11 @@ function plot_reservoir(model, arg...; well_fontsize = 18, well_linewidth = 5, k
     return fig
 end
 
-export simulate_reservoir_parray
 function simulate_reservoir_parray(case, mode = :mpi; kwarg...)
     sim, cfg = setup_reservoir_simulator(case; mode = mode, kwarg...)
     return simulate!(sim, case.dt, forces = case.forces, config = cfg)
 end
 
-export setup_reservoir_simulator_parray
 function setup_reservoir_simulator_parray
 
 end

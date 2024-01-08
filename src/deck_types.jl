@@ -1,33 +1,45 @@
 abstract type DeckPhaseVariables <: PhaseVariables end
 abstract type AbstractReservoirDeckTable end
-
-export MuBTable, ConstMuBTable
-
 abstract type AbstractTablePVT <: AbstractReservoirDeckTable end
 
+"""
+    DeckPhaseViscosities(pvt, regions = nothing)
 
-struct DeckViscosity{T, R} <: DeckPhaseVariables
+Secondary variable used to evaluate viscosities when a case is generated from a
+input file. Typically not instantiated in user scripts.
+"""
+struct DeckPhaseViscosities{T, R} <: DeckPhaseVariables
     pvt::T
     regions::R
-    function DeckViscosity(pvt; regions = nothing)
+    function DeckPhaseViscosities(pvt; regions = nothing)
         check_regions(regions)
         pvt_t = Tuple(pvt)
         new{typeof(pvt_t), typeof(regions)}(pvt_t, regions)
     end
 end
 
-export DeckDensity, RelativePermeabilities, ThreePhaseCompositionalDensitiesLV, PhaseMassFractions, PhaseMassFractions
-export ThreePhaseLBCViscositiesLV
-struct DeckDensity{T, R} <: DeckPhaseVariables
+"""
+    DeckPhaseMassDensities(pvt, regions = nothing)
+
+Secondary variable used to evaluate densities when a case is generated from a
+input file. Typically not instantiated in user scripts.
+"""
+struct DeckPhaseMassDensities{T, R} <: DeckPhaseVariables
     pvt::T
     regions::R
-    function DeckDensity(pvt; regions = nothing)
+    function DeckPhaseMassDensities(pvt; regions = nothing)
         check_regions(regions)
         pvt_t = Tuple(pvt)
         new{typeof(pvt_t), typeof(regions)}(pvt_t, regions)
     end
 end
 
+"""
+DeckShrinkageFactors(pvt, regions = nothing)
+
+Secondary variable used to evaluate shrinkage factors when a case is generated
+from a input file. Typically not instantiated in user scripts.
+"""
 struct DeckShrinkageFactors{T, R} <: DeckPhaseVariables
     pvt::T
     regions::R
@@ -38,7 +50,13 @@ struct DeckShrinkageFactors{T, R} <: DeckPhaseVariables
     end
 end
 
+"""
+    MuBTable(pvt, regions = nothing)
 
+Table used to evaluate viscosities and shrinkage factors when a case is
+generated from a input file. Typically used to wrap tables (e.g. PVDG, PVDO) for
+use in simulation.
+"""
 struct MuBTable{V, I}
     pressure::V
     shrinkage::V
@@ -81,6 +99,12 @@ struct ConstMuBTable{R}
     mu_c::R
 end
 
+"""
+    ConstMuBTable(pvtw::M) where M<:AbstractVector
+
+Create a constant viscosity and formation-volume-factor table from a vector.
+Typical usage is to wrap a PVTW type table generated from external software.
+"""
 function ConstMuBTable(pvtw::M) where M<:AbstractVector
     pvtw = flat_region_expand(pvtw)
     # Only one region supported atm
