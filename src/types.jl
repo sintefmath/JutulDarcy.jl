@@ -19,17 +19,17 @@ abstract type BlackOilSystem <: MultiComponentSystem end
 abstract type PhaseVariables <: VectorVariables end
 abstract type ComponentVariable <: VectorVariables end
 
-struct MultiPhaseCompositionalSystemLV{E, T, O, R} <: CompositionalSystem where T<:Tuple
+struct MultiPhaseCompositionalSystemLV{E, T, O, R, N} <: CompositionalSystem where T<:Tuple
     phases::T
     components::Vector{String}
     equation_of_state::E
     rho_ref::R
 end
 
-const LVCompositional2PhaseSystem = MultiPhaseCompositionalSystemLV{<:Any, <:Any, Nothing, <:Any}
-const LVCompositional3PhaseSystem = MultiPhaseCompositionalSystemLV{<:Any, <:Any, <:AbstractPhase, <:Any}
+const LVCompositional2PhaseSystem = MultiPhaseCompositionalSystemLV{<:Any, <:Any, Nothing, <:Any, <:Any}
+const LVCompositional3PhaseSystem = MultiPhaseCompositionalSystemLV{<:Any, <:Any, <:AbstractPhase, <:Any, <:Any}
 
-const LVCompositionalModel = SimulationModel{D, S, F, C} where {D, S<:MultiPhaseCompositionalSystemLV{<:Any, <:Any, <:Any, <:Any}, F, C}
+const LVCompositionalModel = SimulationModel{D, S, F, C} where {D, S<:MultiPhaseCompositionalSystemLV{<:Any, <:Any, <:Any, <:Any, <:Any}, F, C}
 const LVCompositionalModel2Phase = SimulationModel{D, S, F, C} where {D, S<:LVCompositional2PhaseSystem, F, C}
 const LVCompositionalModel3Phase = SimulationModel{D, S, F, C} where {D, S<:LVCompositional3PhaseSystem, F, C}
 
@@ -40,6 +40,7 @@ Set up a compositional system for a given `equation_of_state` from `MultiCompone
 """
 function MultiPhaseCompositionalSystemLV(equation_of_state, phases = (LiquidPhase(), VaporPhase()); reference_densities = ones(length(phases)), other_name = "Water")
     c = MultiComponentFlash.component_names(equation_of_state)
+    N = length(c)
     phases = tuple(phases...)
     T = typeof(phases)
     nph = length(phases)
@@ -55,7 +56,7 @@ function MultiPhaseCompositionalSystemLV(equation_of_state, phases = (LiquidPhas
     end
     only(findall(isequal(LiquidPhase()), phases))
     only(findall(isequal(VaporPhase()), phases))
-    MultiPhaseCompositionalSystemLV{typeof(equation_of_state), T, O, typeof(reference_densities)}(phases, c, equation_of_state, reference_densities)
+    MultiPhaseCompositionalSystemLV{typeof(equation_of_state), T, O, typeof(reference_densities), N}(phases, c, equation_of_state, reference_densities)
 end
 
 function Base.show(io::IO, sys::MultiPhaseCompositionalSystemLV)

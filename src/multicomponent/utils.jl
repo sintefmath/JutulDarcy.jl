@@ -6,6 +6,10 @@ liquid_phase_index(sys::MultiPhaseCompositionalSystemLV) = phase_index(sys, Liqu
 vapor_phase_index(sys::MultiPhaseCompositionalSystemLV) = phase_index(sys, VaporPhase())
 other_phase_index(sys::MultiPhaseCompositionalSystemLV{E, T, O}) where {E, T, O} = phase_index(sys, O())
 
+function number_of_components(sys::MultiPhaseCompositionalSystemLV{E, T, O, G, N}) where {E, T, O, G, N}
+    return N + has_other_phase(sys)
+end
+
 phase_index(sys, phase) = only(findfirst(isequal(phase), sys.phases))
 has_other_phase(sys) = true
 has_other_phase(sys::MultiPhaseCompositionalSystemLV{E, T, O}) where {E, T, O<:Nothing} = false
