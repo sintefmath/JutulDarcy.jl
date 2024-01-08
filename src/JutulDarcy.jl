@@ -41,7 +41,7 @@ module JutulDarcy
     export discretized_domain_tpfv_flow
     export discretized_domain_well
     export StandardBlackOilSystem
-    export PhaseRelPerm
+    export PhaseRelativePermeability
     export FlowBoundaryCondition
     export ReservoirSimResult
     export reservoir_domain
