@@ -15,7 +15,12 @@ Documentation for [JutulDarcy.jl](https://github.com/sintefmath/JutulDarcy.jl). 
 
 JutulDarcy builds upon the general features found in [Jutul.jl](https://github.com/sintefmath/Jutul.jl). You may also find it useful to look at the [Jutul.jl documentation](https://sintefmath.github.io/Jutul.jl/dev/).
 
-## Package Features
+## Package docstring
 
+```@docs
+JutulDarcy
+```
+
+## Index
 ```@index
 ```
