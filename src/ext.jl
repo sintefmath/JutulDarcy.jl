@@ -46,10 +46,10 @@ function plot_reservoir(model, arg...; well_fontsize = 18, well_linewidth = 3, k
     fig = plot_interactive(data_domain, arg...; kwarg...)
     g = physical_representation(data_domain)
     ax = fig.current_axis[]
-    for (k, m) in pairs(model.models)
+    @time for (k, m) in pairs(model.models)
         w = physical_representation(m.data_domain)
         if w isa WellDomain
-            plot_well!(ax, g, w,
+            plot_well!(ax.scene, g, w,
                 fontsize = well_fontsize,
                 linewidth = well_linewidth,
                 cell_centroids = cell_centroids)

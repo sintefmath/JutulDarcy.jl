@@ -38,7 +38,7 @@ function JutulDarcy.plot_well!(ax, g, w;
 
     l = pts[:, 1]
     if fontsize > 0
-        txt = text!(well_name_for_plot(w, name),
+        txt = text!(ax, well_name_for_plot(w, name),
             position = Tuple([l[1], l[2], l[3]]),
             space = :data,
             color = textcolor,
