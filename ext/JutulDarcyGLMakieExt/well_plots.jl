@@ -6,13 +6,16 @@ function JutulDarcy.plot_well!(ax, g, w;
         top_factor = 0.2,
         fontsize = 18,
         geometry = tpfv_geometry(g),
+        edge_color = nothing,
+        edge_arg = NamedTuple(),
         kwarg...
     )
     if isnothing(textcolor)
         textcolor = color
     end
+    c = well_cells_for_plot(w)
     centers = geometry.cell_centroids
-    coord_range(i) = maximum(centers[i, :]) - minimum(centers[i, :])
+    coord_range(i) = maximum(view(centers, i, :)) - minimum(view(centers, i, :))
 
     if size(centers, 1) == 3
         z = centers[3, :]
@@ -22,13 +25,9 @@ function JutulDarcy.plot_well!(ax, g, w;
     bottom = maximum(z)
     top = minimum(z)
 
-    # xrng = coord_range(1)
-    # yrng = coord_range(2)
-
     rng = top - bottom
     s = top + top_factor*rng
 
-    c = well_cells_for_plot(w)
     pts = centers[:, [c[1], c...]]
     if size(pts, 1) == 2
         # 2D grid, add some zeros to make logic work
@@ -46,6 +45,10 @@ function JutulDarcy.plot_well!(ax, g, w;
             fontsize = fontsize
         )
     end
+    if !isnothing(edge_color)
+        Jutul.plot_mesh_edges!(ax, g; color = edge_color, edge_arg...)
+    end
+
     lines!(ax, vec(pts[1, :]), vec(pts[2, :]), vec(pts[3, :]), linewidth = linewidth, color = color, kwarg...)
 end
 
