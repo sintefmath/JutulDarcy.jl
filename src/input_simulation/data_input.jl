@@ -474,6 +474,7 @@ function parse_reservoir(data_file)
     G = mesh_from_grid_section(grid)
     active_ix = G.cell_map
     nc = number_of_cells(G)
+    nf = number_of_faces(G)
     # TODO: PERMYY etc for full tensor perm
     perm = zeros(3, nc)
     poro = zeros(nc)
@@ -500,6 +501,19 @@ function parse_reservoir(data_file)
         extra_data_arg[:net_to_gross] = ntg
     end
 
+    tranmult = ones(nf)
+    # TODO: MULTX, ...
+    for k in ("GRID", "EDIT")
+        if haskey(data_file, k)
+            if haskey(data_file[k], "MULTFLT")
+                for (fault, vals) in data_file[k]["MULTFLT"]
+                    fault_faces = get_mesh_entity_tag(G, Faces(), :faults, Symbol(fault))
+                    tranmult[fault_faces] *= vals[1]
+                end
+            end
+        end
+    end
+
     sol = data_file["SOLUTION"]
     has_tempi = haskey(sol, "TEMPI")
     has_tempvd = haskey(sol, "TEMPVD")
@@ -523,6 +537,10 @@ function parse_reservoir(data_file)
         eqlnum = eqlnum,
         pairs(extra_data_arg)...
     )
+    if !all(isequal(1.0), tranmult)
+        domain[:transmissibility_multiplier, Faces()] = tranmult
+    end
+    return domain
 end
 
 function get_effective_actnum(g)
@@ -1322,7 +1340,7 @@ function mesh_add_fault_tags!(G::UnstructuredMesh, faults)
 
             match_fault_to_faces!(fault_faces, N, ijk, range_1, ix_1, range_2, ix_2, self, ix_self, inc)
         end
-        @info "Fault $fault: Added $(length(fault_faces)) faces"
+        @debug "Fault $fault: Added $(length(fault_faces)) faces"
         set_mesh_entity_tag!(G, Faces(), :faults, Symbol(fault), fault_faces)
     end
 end
@@ -1350,7 +1368,6 @@ function match_fault_to_faces!(fault_faces, N, ijk_cells, range_1, ix_1, range_2
         if fpair != pair
             continue
         end
-
 
         # Keep going unless fixed indices match
         cr_1 = ijk_r[ix_1]

@@ -1069,6 +1069,10 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
         end
     end
     T = compute_face_trans(T_hf, N)
+    if haskey(d, :transmissibility_multiplier, Faces())
+        tm = d[:transmissibility_multiplier]
+        @. T *= tm
+    end
     return T
 end
 
