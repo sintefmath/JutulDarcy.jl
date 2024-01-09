@@ -105,7 +105,41 @@ end
 
 
 function parse_state0_equil(model, datafile)
+    has_water = haskey(datafile["RUNSPEC"], "WATER")
+    has_oil = haskey(datafile["RUNSPEC"], "OIL")
+    has_gas = haskey(datafile["RUNSPEC"], "GAS")
+
     sys = model.system
+    d = model.data_domain
+    has_sat_reg = haskey(d, :satnum)
+    if has_sat_reg
+        satnum = d[:satnum]
+    else
+        satnum = ones(Int, number_of_cells(d))
+    end
+    has_pc = haskey(model.secondary_variables, :CapillaryPressure)
+    if has_pc
+        pcvar = model.secondary_variables[:CapillaryPressure]
+        pc_functions = pcvar.pc
+        if has_sat_reg
+            @assert !isnothing(pcvar.regions)
+            @assert pcvar.regions == satnum
+        end
+    else
+        pc_functions = missing
+    end
+
+    if has_water
+        kr_var = model.secondary_variables[:RelativePermeabilities]
+        krw_fn = kr_var.krw
+        if has_sat_reg
+            @assert !isnothing(kr_var.regions)
+            @assert kr_var.regions == satnum
+        end
+    else
+        krw_fn = missing
+    end
+
     init = Dict{Symbol, Any}()
     sol = datafile["SOLUTION"]
     G = physical_representation(model.data_domain)
@@ -113,9 +147,6 @@ function parse_state0_equil(model, datafile)
     nph = number_of_phases(model.system)
     actnum_ix = G.cell_map
     is_blackoil = sys isa StandardBlackOilSystem
-    has_water = haskey(datafile["RUNSPEC"], "WATER")
-    has_oil = haskey(datafile["RUNSPEC"], "OIL")
-    has_gas = haskey(datafile["RUNSPEC"], "GAS")
     disgas = JutulDarcy.has_disgas(model.system)
 
     equil = sol["EQUIL"]
@@ -125,106 +156,111 @@ function parse_state0_equil(model, datafile)
     inits_cells = []
     for ereg in 1:nequil
         eq = equil[ereg]
-        cells = findall(isequal(ereg), model.data_domain[:eqlnum])
-
-        ncells_reg = length(cells)
-        if ncells_reg == 0
+        cells_eql = findall(isequal(ereg), model.data_domain[:eqlnum])
+        if length(cells_eql) == 0
             continue
         end
-        actnum_ix_for_reg = actnum_ix[cells]
-        datum_depth = eq[1]
-        datum_pressure = eq[2]
 
-        woc = eq[3]
-        woc_pc = eq[4]
-        goc = eq[5]
-        goc_pc = eq[6]
-        # Contact depths
-        s_max = 1.0
-        s_min = 0.0
+        cells_satnum = satnum[cells_eql]
+        for sreg in unique(cells_satnum)
+            cells = cells_eql[findall(isequal(sreg), cells_satnum)]
+            ncells_reg = length(cells)
+            if ncells_reg == 0
+                continue
+            end
+            actnum_ix_for_reg = actnum_ix[cells]
+            datum_depth = eq[1]
+            datum_pressure = eq[2]
 
-        non_connate = ones(ncells_reg)
-        s_max = Vector{Float64}[]
-        s_min = Vector{Float64}[]
-        # @assert !haskey(model.secondary_variables, :CapillaryPressure) "Capillary initialization not yet implemented."
-        has_pc = haskey(model.secondary_variables, :CapillaryPressure)
-        if has_pc
-            pc_f = model.secondary_variables[:CapillaryPressure].pc
-            pc = []
-            for (i, f) in enumerate(pc_f)
-                s = only(f).X
-                cap = only(f).F
-                if s[1] < 0
-                    s = s[2:end]
-                    cap = cap[2:end]
+            woc = eq[3]
+            woc_pc = eq[4]
+            goc = eq[5]
+            goc_pc = eq[6]
+            # Contact depths
+            s_max = 1.0
+            s_min = 0.0
+
+            non_connate = ones(ncells_reg)
+            s_max = Vector{Float64}[]
+            s_min = Vector{Float64}[]
+            if has_pc
+                pc = []
+                for (i, f) in enumerate(pc_functions)
+                    f = table_by_region(f, sreg)
+                    s = only(f).X
+                    cap = only(f).F
+                    if s[1] < 0
+                        s = s[2:end]
+                        cap = cap[2:end]
+                    end
+                    ix = unique(i -> cap[i], 1:length(cap))
+
+                    if nph == 3 && i == 1
+                        @. cap *= -1
+                    end
+                    push!(pc, (s = s[ix], pc = cap[ix]))
                 end
-                ix = unique(i -> cap[i], 1:length(cap))
-
-                if nph == 3 && i == 1
-                    @. cap *= -1
+            else
+                pc = nothing
+            end
+            if has_water
+                krw = table_by_region(krw_fn, sreg)
+                if haskey(datafile, "PROPS") && haskey(datafile["PROPS"], "SWL")
+                    swl = vec(datafile["PROPS"]["SWL"])
+                    swcon = swl[actnum_ix_for_reg]
+                else
+                    swcon = fill(krw.connate, ncells_reg)
                 end
-                push!(pc, (s = s[ix], pc = cap[ix]))
+                push!(s_min, swcon)
+                push!(s_max, non_connate)
+                @. non_connate -= swcon
             end
-        else
-            pc = nothing
-        end
-        if has_water
-            krw = only(model.secondary_variables[:RelativePermeabilities].krw)
-            if haskey(datafile, "PROPS") && haskey(datafile["PROPS"], "SWL")
-                swl = vec(datafile["PROPS"]["SWL"])
-                swcon = swl[actnum_ix_for_reg]
+            if has_oil
+                push!(s_min, zeros(ncells_reg))
+                push!(s_max, non_connate)
+            end
+            if has_gas
+                push!(s_min, zeros(ncells_reg))
+                push!(s_max, non_connate)
+            end
+
+            if nph == 1
+                error("Not implemented.")
+            elseif nph == 2
+                if has_oil && has_gas
+                    contacts = (goc, )
+                    contacts_pc = (goc_pc, )
+                else
+                    contacts = (woc, )
+                    contacts_pc = (woc_pc, )
+                end
             else
-                swcon = fill(krw.connate, ncells_reg)
+                contacts = (woc, goc)
+                contacts_pc = (woc_pc, goc_pc)
             end
-            push!(s_min, swcon)
-            push!(s_max, non_connate)
-            @. non_connate -= swcon
-        end
-        if has_oil
-            push!(s_min, zeros(ncells_reg))
-            push!(s_max, non_connate)
-        end
-        if has_gas
-            push!(s_min, zeros(ncells_reg))
-            push!(s_max, non_connate)
-        end
 
-        if nph == 1
-            error("Not implemented.")
-        elseif nph == 2
-            if has_oil && has_gas
-                contacts = (goc, )
-                contacts_pc = (goc_pc, )
+            if disgas
+                @assert haskey(sol, "RSVD")
+                rsvd = sol["RSVD"][ereg]
+                z = rsvd[:, 1]
+                Rs = rsvd[:, 2]
+                rs = Jutul.LinearInterpolant(z, Rs)
             else
-                contacts = (woc, )
-                contacts_pc = (woc_pc, )
+                rs = missing
             end
-        else
-            contacts = (woc, goc)
-            contacts_pc = (woc_pc, goc_pc)
-        end
 
-        if disgas
-            @assert haskey(sol, "RSVD")
-            rsvd = sol["RSVD"][ereg]
-            z = rsvd[:, 1]
-            Rs = rsvd[:, 2]
-            rs = Jutul.LinearInterpolant(z, Rs)
-        else
-            rs = missing
+            subinit = equilibriate_state(
+                    model, contacts, datum_depth, datum_pressure,
+                    cells = cells,
+                    contacts_pc = contacts_pc,
+                    s_min = s_min,
+                    s_max = s_max,
+                    rs = rs,
+                    pc = pc
+                )
+            push!(inits, subinit)
+            push!(inits_cells, cells)
         end
-
-        subinit = equilibriate_state(
-                model, contacts, datum_depth, datum_pressure,
-                cells = cells,
-                contacts_pc = contacts_pc,
-                s_min = s_min,
-                s_max = s_max,
-                rs = rs,
-                pc = pc
-            )
-        push!(inits, subinit)
-        push!(inits_cells, cells)
     end
     if length(inits) == 1
         init = only(inits)
