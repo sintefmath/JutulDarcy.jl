@@ -609,7 +609,8 @@ function grid_from_primitives(primitives)
         face_neighbors,
         boundary_cells;
         structure = CartesianIndex(cartdims[1], cartdims[2], cartdims[3]),
-        cell_map = primitives.active
+        cell_map = primitives.active,
+        z_is_depth = true
     )
     set_mesh_entity_tag!(g, Faces(), :orientation, :horizontal, horizontal_face_tag)
     set_mesh_entity_tag!(g, Faces(), :orientation, :vertical, vertical_face_tag)

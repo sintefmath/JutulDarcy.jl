@@ -1,4 +1,13 @@
-function JutulDarcy.plot_well!(ax, g, w; color = :darkred, textcolor = nothing, name = nothing, linewidth = 5, top_factor = 0.2, fontsize = 18, geometry = tpfv_geometry(g), kwarg...)
+function JutulDarcy.plot_well!(ax, g, w;
+        color = :darkred,
+        textcolor = nothing,
+        name = nothing,
+        linewidth = 2,
+        top_factor = 0.2,
+        fontsize = 18,
+        geometry = tpfv_geometry(g),
+        kwarg...
+    )
     if isnothing(textcolor)
         textcolor = color
     end
@@ -29,14 +38,15 @@ function JutulDarcy.plot_well!(ax, g, w; color = :darkred, textcolor = nothing, 
 
     l = pts[:, 1]
     if fontsize > 0
-    text!(well_name_for_plot(w, name),
-            position = Tuple([l[1], l[2], -l[3]]),
+        text!(well_name_for_plot(w, name),
+            position = Tuple([l[1], l[2], l[3]]),
             space = :data,
             color = textcolor,
             align = (:center, :baseline),
-            fontsize = fontsize)
+            fontsize = fontsize
+        )
     end
-    lines!(ax, vec(pts[1, :]), vec(pts[2, :]), -vec(pts[3, :]), linewidth = linewidth, color = color, kwarg...)
+    lines!(ax, vec(pts[1, :]), vec(pts[2, :]), vec(pts[3, :]), linewidth = linewidth, color = color, kwarg...)
 end
 
 well_name_for_plot(w::Dict, ::Nothing) = w["name"]
