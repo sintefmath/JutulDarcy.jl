@@ -39,15 +39,20 @@ function plot_reservoir_simulation_result(model::MultiModel, res::ReservoirSimRe
     return fig
 end
 
-function plot_reservoir(model, arg...; well_fontsize = 18, well_linewidth = 5, kwarg...)
+function plot_reservoir(model, arg...; well_fontsize = 18, well_linewidth = 3, kwarg...)
     rmodel = reservoir_model(model)
-    fig = plot_interactive(rmodel.data_domain, arg...; kwarg...)
-    g = physical_representation(rmodel.data_domain)
+    data_domain = rmodel.data_domain
+    cell_centroids = data_domain[:cell_centroids]
+    fig = plot_interactive(data_domain, arg...; kwarg...)
+    g = physical_representation(data_domain)
     ax = fig.current_axis[]
     for (k, m) in pairs(model.models)
         w = physical_representation(m.data_domain)
         if w isa WellDomain
-            plot_well!(ax, g, w, fontsize = well_fontsize, linewidth = well_linewidth)
+            plot_well!(ax, g, w,
+                fontsize = well_fontsize,
+                linewidth = well_linewidth,
+                cell_centroids = cell_centroids)
         end
     end
     return fig

@@ -2,23 +2,24 @@ function JutulDarcy.plot_well!(ax, g, w;
         color = :darkred,
         textcolor = nothing,
         name = nothing,
-        linewidth = 2,
+        linewidth = 3,
         top_factor = 0.2,
         fontsize = 18,
-        geometry = tpfv_geometry(g),
-        edge_color = nothing,
-        edge_arg = NamedTuple(),
+        cell_centroids = missing,
         kwarg...
     )
     if isnothing(textcolor)
         textcolor = color
     end
     c = well_cells_for_plot(w)
-    centers = geometry.cell_centroids
-    coord_range(i) = maximum(view(centers, i, :)) - minimum(view(centers, i, :))
-
+    if ismissing(cell_centroids)
+        geometry = tpfv_geometry(g)
+        centers = geometry.cell_centroids
+    else
+        centers = cell_centroids
+    end
     if size(centers, 1) == 3
-        z = centers[3, :]
+        z = view(centers, 3, :)
     else
         z = [0.0, 1.0]
     end
@@ -37,16 +38,13 @@ function JutulDarcy.plot_well!(ax, g, w;
 
     l = pts[:, 1]
     if fontsize > 0
-        text!(well_name_for_plot(w, name),
+        txt = text!(well_name_for_plot(w, name),
             position = Tuple([l[1], l[2], l[3]]),
             space = :data,
             color = textcolor,
             align = (:center, :baseline),
             fontsize = fontsize
         )
-    end
-    if !isnothing(edge_color)
-        Jutul.plot_mesh_edges!(ax, g; color = edge_color, edge_arg...)
     end
 
     lines!(ax, vec(pts[1, :]), vec(pts[2, :]), vec(pts[3, :]), linewidth = linewidth, color = color, kwarg...)
