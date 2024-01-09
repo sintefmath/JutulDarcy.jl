@@ -43,17 +43,44 @@ function plot_reservoir(model, arg...; well_fontsize = 18, well_linewidth = 3, k
     rmodel = reservoir_model(model)
     data_domain = rmodel.data_domain
     cell_centroids = data_domain[:cell_centroids]
+    if haskey(data_domain, :boundary_centroids)
+        bc = data_domain[:boundary_centroids]
+        if size(bc, 1) == 3
+            zb = data_domain[:boundary_centroids][3, :]
+            filter!(isfinite, zb)
+            if length(zb) > 1
+                bounds_z = (minimum(zb), maximum(zb))
+            else
+                bounds_z = missing
+            end
+        else
+            bounds_z = missing
+        end
+    else
+        bounds_z = missing
+    end
     fig = plot_interactive(data_domain, arg...; kwarg...)
     g = physical_representation(data_domain)
     ax = fig.current_axis[]
-    @time for (k, m) in pairs(model.models)
+    wells = Dict{Symbol, Any}()
+    for (k, m) in pairs(model.models)
         w = physical_representation(m.data_domain)
         if w isa WellDomain
-            plot_well!(ax.scene, g, w,
-                fontsize = well_fontsize,
-                linewidth = well_linewidth,
-                cell_centroids = cell_centroids)
+            wells[k] = w
         end
+    end
+
+    i = 1
+    n = length(wells)
+    for (k, w) in pairs(wells)
+        tf =  0.2 + 0.1*(i/n)
+        plot_well!(ax.scene, g, w,
+            fontsize = well_fontsize,
+            top_factor = tf,
+            bounds_z = bounds_z,
+            linewidth = well_linewidth,
+            cell_centroids = cell_centroids)
+        i += 1
     end
     return fig
 end

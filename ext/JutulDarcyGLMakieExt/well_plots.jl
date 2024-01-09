@@ -5,6 +5,8 @@ function JutulDarcy.plot_well!(ax, g, w;
         linewidth = 3,
         top_factor = 0.2,
         fontsize = 18,
+        transparency = true,
+        bounds_z = missing,
         cell_centroids = missing,
         kwarg...
     )
@@ -23,8 +25,12 @@ function JutulDarcy.plot_well!(ax, g, w;
     else
         z = [0.0, 1.0]
     end
-    bottom = maximum(z)
-    top = minimum(z)
+    if ismissing(bounds_z)
+        bottom = maximum(z)
+        top = minimum(z)
+    else
+        top, bottom = bounds_z
+    end
 
     rng = top - bottom
     s = top + top_factor*rng
@@ -41,13 +47,19 @@ function JutulDarcy.plot_well!(ax, g, w;
         txt = text!(ax, well_name_for_plot(w, name),
             position = Tuple([l[1], l[2], l[3]]),
             space = :data,
+            transparency = transparency,
             color = textcolor,
             align = (:center, :baseline),
             fontsize = fontsize
         )
     end
 
-    lines!(ax, vec(pts[1, :]), vec(pts[2, :]), vec(pts[3, :]), linewidth = linewidth, color = color, kwarg...)
+    lines!(ax, vec(pts[1, :]), vec(pts[2, :]), vec(pts[3, :]),
+        transparency = transparency,
+        linewidth = linewidth,
+        color = color,
+        kwarg...
+    )
 end
 
 well_name_for_plot(w::Dict, ::Nothing) = w["name"]
