@@ -490,7 +490,7 @@ function table_region(outer_data, t::Symbol; active = nothing)
                 return ones(Int, prod(dim))
             end
         end
-    
+
         if t == :saturation
             d = get_or_default("SATNUM")
         elseif t == :pvt
@@ -510,7 +510,9 @@ end
 
 function clean_include_path(basedir, include_file_name)
     include_file_name = strip(include_file_name)
-    include_file_name = replace(include_file_name, "./" => "")
+    if startswith(include_file_name, "./")
+        include_file_name = include_file_name[3:end]
+    end
     include_file_name = replace(include_file_name, "'" => "")
     include_path = joinpath(basedir, include_file_name)
     return include_path
