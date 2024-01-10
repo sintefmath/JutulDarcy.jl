@@ -61,22 +61,23 @@ function parse_keyword!(data, outer_data, units, cfg, f, kval::Union{Val{:COPY},
         ju = parsed[6]
         kl = parsed[7]
         ku = parsed[8]
+        IJK = get_box_indices(outer_data, il, iu, jl, ju, kl, ku)
         if is_copy
             if !haskey(data, dst)
                 T = eltype(data[src])
                 data[dst] = zeros(T, dims)
             end
-            apply_copy!(data[dst], data[src], get_box_indices(outer_data), dims)
+            apply_copy!(data[dst], data[src], IJK, dims)
         else
             if !haskey(data, dst)
                 data[dst] = zeros(Float64, dims)
             end
             if k == :ADD
                 # add is a const
-                apply_add!(data[dst], op, get_box_indices(outer_data), dims)
+                apply_add!(data[dst], op, IJK, dims)
             else
                 # multiply is a const
-                apply_multiply!(data[dst], op, get_box_indices(outer_data), dims)
+                apply_multiply!(data[dst], op, IJK, dims)
             end
         end
         rec = read_record(f)
@@ -96,15 +97,15 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:OPERATE})
     kl = l[3]
     ku = u[3]
 
-    parser_message(cfg, outer_data, "OPERATE", PARSER_MISSING_SUPPORT)
-
     while length(rec) > 0
         d = "Default"
         parsed = parse_defaulted_line(rec, [d, il, iu, jl, ju, kl, ku, d, d, NaN, NaN])
-        src = parsed[1]
+        target = parsed[1]
         op = parsed[8]
-        @assert src != d "Source was defaulted? rec = $rec"
+        source = parsed[9]
+        @assert target != d "Target was defaulted? rec = $rec"
         @assert op != d "Operator was defaulted? rec = $rec"
+        @assert source != d "Source was defaulted? rec = $rec"
 
         # Box can be kept.
         il = parsed[2]
@@ -114,16 +115,59 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:OPERATE})
         kl = parsed[6]
         ku = parsed[7]
 
-        op_prm1 = parsed[9]
-        op_prm2 = parsed[10]
-        op_prm3 = parsed[11]
+        op_prm1 = parsed[10]
+        op_prm2 = parsed[11]
 
-        # @assert op_prm1 != "Default" "Operator parameter 1 was non-finite for OPERATE: $rec"
-        # @assert isfinite(op_prm2) "Operator parameter 2 was non-finite for OPERATE: $rec"
-        # @assert isfinite(op_prm3) "Operator parameter 3 was non-finite for OPERATE: $rec"
-        # TODO: Implement operation
-        # apply_copy!(data, dst, data[src], (il, iu), (jl, ju), (kl, ku), dims)
+        IJK = get_box_indices(outer_data, il, iu, jl, ju, kl, ku)
+        if !haskey(data, target)
+            data[target] = zeros(dims)
+        end
+        apply_operate!(data[target], data[source], IJK, op, op_prm1, op_prm2)
+        # On to the next one.
         rec = read_record(f)
+    end
+end
+
+function apply_operate!(target, source, IJK, op, prm1, prm2)
+    I, J, K = IJK
+    op = lowercase(op)
+    if op == "multx"
+        F = (t, s) -> prm1*s
+    elseif op == "addx"
+        F = (t, s) -> s + prm1
+    elseif op == "multa"
+        F = (t, s) -> prm1*s + prm2
+    elseif op == "abs"
+        F = (t, s) -> abs(s)
+    elseif op ==  "loge"
+        F = (t, s) -> ln(s)
+    elseif op ==  "log10"
+        F = (t, s) -> log10(s)
+    elseif op ==  "slog"
+        F = (t, s) -> 10^(prm1 + prm2*s)
+    elseif op ==  "poly"
+        F = (t, s) -> t + prm1*s^prm2
+    elseif op ==  "inv"
+        F = (t, s) -> 1.0/s
+    elseif op == "multiply"
+        F = (t, s) -> t*s
+    elseif op == "multp"
+        F = (t, s) -> prm1*s^prm2
+    elseif op == "minlim"
+        F = (t, s) -> max(prm1, s)
+    elseif op == "maxlim"
+        F = (t, s) -> min(prm1, s)
+    elseif op == "copy"
+        F = (t, s) -> s
+    else
+        error("OPERATE option $(uppercase(op)) is not implemented.")
+    end
+    for i in I
+        for j in J
+            for k in K
+                target[i, j, k] = F(target[i, j, k], source[i, j, k])
+            end
+        end
     end
 end
 

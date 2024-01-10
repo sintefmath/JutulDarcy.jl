@@ -25,6 +25,10 @@ function get_box_indices(outer_data)
     return (l[1]:u[1], l[2]:u[2], l[3]:u[3])
 end
 
+function get_box_indices(outer_data, il, iu, jl, ju, kl, ku)
+    return (il:iu, jl:ju, kl:ku)
+end
+
 function set_cartdims!(outer_data, dim)
     @assert length(dim) == 3
     g = get_section(outer_data, :GRID)
