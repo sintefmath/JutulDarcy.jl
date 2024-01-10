@@ -187,8 +187,8 @@ function parse_state0_equil(model, datafile)
                 pc = []
                 for (i, f) in enumerate(pc_functions)
                     f = table_by_region(f, sreg)
-                    s = only(f).X
-                    cap = only(f).F
+                    s = f.X
+                    cap = f.F
                     if s[1] < 0
                         s = s[2:end]
                         cap = cap[2:end]
