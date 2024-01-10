@@ -257,6 +257,8 @@ function setup_reservoir_simulator(case::JutulCase;
                             tol_dp_well = 1e-3,
                             inc_tol_dp_abs = Inf,
                             inc_tol_dp_rel = Inf,
+                            failure_cuts_timestep = true,
+                            max_timestep_cuts = 25,
                             inc_tol_dz = Inf,
                             set_linear_solver = true,
                             timesteps = :auto,
@@ -314,7 +316,14 @@ function setup_reservoir_simulator(case::JutulCase;
     else
         extra_arg = (linear_solver = linear_solver, )
     end
-    cfg = simulator_config(sim; extra_arg..., timestep_selectors = sel, info_level = info_level, kwarg...)
+    cfg = simulator_config(sim;
+        extra_arg...,
+        timestep_selectors = sel,
+        info_level = info_level,
+        failure_cuts_timestep = failure_cuts_timestep,
+        max_timestep_cuts = max_timestep_cuts,
+        kwarg...
+    )
     set_default_cnv_mb!(cfg, sim,
         tol_cnv = tol_cnv,
         tol_mb = tol_mb,
