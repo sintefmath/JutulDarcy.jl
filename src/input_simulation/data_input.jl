@@ -547,7 +547,7 @@ function get_effective_actnum(g)
     if haskey(g, "ACTNUM")
         actnum = copy(g["ACTNUM"])
     else
-        actnum = fill(true, prod(grid["cartDims"]))
+        actnum = fill(true, g["cartDims"])
     end
     handle_zero_effective_porosity!(actnum, g)
     return actnum
