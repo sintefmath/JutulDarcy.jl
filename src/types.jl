@@ -206,6 +206,9 @@ end
 A single-phase system that only solves for pressure.
 """
 function SinglePhaseSystem(phase = LiquidPhase(); reference_density = 1.0)
+    if reference_density isa Real
+        reference_density = (reference_density, )
+    end
     return SinglePhaseSystem{typeof(phase), typeof(reference_density)}(phase, reference_density)
 end
 
