@@ -36,9 +36,9 @@ function equilibriate_state(model, contacts, datum_depth = missing, datum_pressu
             Rs = rs.(pts)
         end
         if ismissing(rv)
-            Rs = zeros(nc)
+            Rv = zeros(nc)
         else
-            Rs = rv.(pts)
+            Rv = rv.(pts)
         end
         init[:Rs] = Rs
         init[:Rv] = Rv
@@ -162,7 +162,7 @@ function parse_state0_equil(model, datafile)
     actnum_ix = G.cell_map
     is_blackoil = sys isa StandardBlackOilSystem
     disgas = JutulDarcy.has_disgas(model.system)
-    disgas = JutulDarcy.has_vapoil(model.system)
+    vapoil = JutulDarcy.has_vapoil(model.system)
 
     equil = sol["EQUIL"]
     nequil = JutulDarcy.InputParser.number_of_tables(datafile, :equil)
