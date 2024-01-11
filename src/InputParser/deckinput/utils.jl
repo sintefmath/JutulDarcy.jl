@@ -15,12 +15,14 @@ function read_record(f; fix = true)
         end
         line = strip(line)
         if !startswith(line, "--")
+            line = String(line)
             if contains(line, '/')
                 # TODO: Think this is OK for parsing ASCII.
                 ix = findfirst('/', line)
                 line = line[1:ix-1]
                 active = false
             end
+            line::String
             if length(line) > 0
                 push!(split_lines, line)
             end
@@ -177,12 +179,26 @@ function parse_deck_matrix_line!(data::Vector{T}, seg, n) where T
 end
 
 function preprocess_delim_records(split_lines)
-    # Strip end whitespace
-    split_lines = map(strip, split_lines)
-    # Remove comments
-    filter!(x -> !startswith(x, "--"), split_lines)
-    # Split into entries (could be whitespace + a comma anywhere in between)
-    split_rec = map(x -> split(x, r"\s*,?\s+"), split_lines)
+    # Old slow code:
+    # split_lines = map(strip, split_lines)
+    # filter!(x -> !startswith(x, "--"), split_lines)
+    # split_rec = map(x -> split(x, r"\s*,?\s+"), split_lines)
+    split_rec = Vector{Vector{String}}()
+    sizehint!(split_rec, length(split_lines))
+    for line in split_lines
+        # Strip end whitespace
+        line = strip(line)
+        # Remove comments
+        if !startswith(line, "--")
+            # Split into entries (could be whitespace + a comma anywhere in between)
+            sub_rec = Vector{String}()
+            sizehint!(sub_rec, 10)
+            for rec in eachsplit(line, r"\s*,?\s+")
+                push!(sub_rec, String(rec))
+            end
+            push!(split_rec, sub_rec)
+        end
+    end
     # Remove entries
     for recs in split_rec
         filter!(x -> length(x) > 0, recs)
