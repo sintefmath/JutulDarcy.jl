@@ -234,17 +234,17 @@ saturation and a small epsilon value used to avoid extrapolation can be
 specified.
 """
 function PhaseRelativePermeability(s, k; label = :w, connate = s[1], epsilon = 1e-16)
+    msg(i) = "k = $(k[i]) at entry $i corresponding to saturation $(s[i])"
     for i in eachindex(s)
         if i == 1
             if s[1] == 0.0
-                @assert k[i] == 0.0 "Rel. perm. must be zero for s = 0, was $(k[i])"
+                k[i] == 0.0 || throw(ArgumentError("Rel. perm. must be zero for s = 0, was $(k[i])"))
             end
         else
-            msg = "k = $(k[i]) at entry $i corresponding to saturation $(s[i])"
-            @assert s[i] >= s[i-1] "Saturations must be increasing: $msg"
-            @assert k[i] >= k[i-1] "Rel. Perm. function must be increasing: $msg"
+            s[i] >= s[i-1] || throw(ArgumentError("Saturations must be increasing: $(msg(i))"))
+            k[i] >= k[i-1] || throw(ArgumentError("Rel. Perm. function must be increasing: $(msg(i))"))
             if k[i] > 1.0
-                @warn "Rel. Perm. $label has value larger than 1.0: $msg"
+                @warn "Rel. Perm. $label has value larger than 1.0: $(msg(i))"
             end
         end
     end
