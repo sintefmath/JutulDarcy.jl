@@ -430,7 +430,7 @@ end
 
 function mesh_from_grid_section(f, actnum = missing)
     if f isa String
-        f = parse_grdecl_file(f)
+        f = InputParser.parse_grdecl_file(f)
     end
     f::AbstractDict
     if haskey(f, "GRID")

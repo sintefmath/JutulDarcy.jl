@@ -230,6 +230,22 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ROCK})
     data["ROCK"] = out
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:DIFFC})
+    parser_message(cfg, outer_data, "DIFFC", PARSER_MISSING_SUPPORT)
+    nreg = number_of_tables(outer_data, :pvt)
+    for i = 1:nreg
+        rec = read_record(f)
+    end
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:SPECROCK})
+    parser_message(cfg, outer_data, "SPECROCK", PARSER_MISSING_SUPPORT)
+    nreg = number_of_tables(outer_data, :saturation)
+    for i = 1:nreg
+        rec = read_record(f)
+    end
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COMPS})
     rec = read_record(f)
     ncomp = only(parse_defaulted_line(rec, [0]))
