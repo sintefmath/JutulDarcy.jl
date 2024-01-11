@@ -196,12 +196,10 @@ function preprocess_delim_records(split_lines)
             for rec in eachsplit(line, r"\s*,?\s+")
                 push!(sub_rec, String(rec))
             end
-            push!(split_rec, sub_rec)
+            if length(sub_rec) > 0
+                push!(split_rec, sub_rec)
+            end
         end
-    end
-    # Remove entries
-    for recs in split_rec
-        filter!(x -> length(x) > 0, recs)
     end
     return split_rec
 end
