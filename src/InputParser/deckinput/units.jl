@@ -199,12 +199,15 @@ function swap_unit_system_axes!(x::AbstractVector, systems, eachunit)
 end
 
 function swap_unit_system!(x::AbstractArray, systems, k)
+    return swap_unit_system!(x, systems, Val(k))
+end
+
+function swap_unit_system!(x::AbstractArray, systems, k::Val)
     for i in eachindex(x)
         x[i] = swap_unit_system(x[i], systems, k)
     end
     return x
 end
-
 
 function swap_unit_system(val, systems, k::Symbol)
     return swap_unit_system(val, systems, Val(k))
