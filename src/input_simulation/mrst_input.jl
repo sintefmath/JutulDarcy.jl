@@ -734,6 +734,18 @@ function init_from_mat(mrst_data, model, param)
     if haskey(state0, "components")
         # Compositional
         z0 = copy(state0["components"]')
+        ϵ_c = MultiComponentFlash.MINIMUM_COMPOSITION
+        z0 = max.(z0, ϵ_c)
+        norm_count = 0
+        for (i, t) in enumerate(sum(z0, dims = 1))
+            norm_count += t < 0.9
+            for j in axes(z0, 1)
+                z0[j, i] /= t
+            end
+        end
+        if norm_count > 0
+            @warn "$norm_count of $(size(z0, 2)) cells had composition with sum less than 0.9. All values have been normalized."
+        end
         init[:OverallMoleFractions] = z0
         s = copy(state0["s"])
         if size(s, 2) == 3
