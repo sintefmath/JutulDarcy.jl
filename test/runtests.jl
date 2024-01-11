@@ -52,6 +52,10 @@ end
     include("systems.jl")
 end
 
+@testitem "Thermal" begin
+    include("thermal.jl")
+end
+
 @run_package_tests
 nothing
 # include("gpu.jl")
