@@ -151,17 +151,7 @@ function parse_deck_matrix(f, T = Float64)
     data = Vector{T}()
     n = -1
     for seg in split_lines
-        m = length(seg)
-        if m == 0
-            continue
-        elseif n == -1
-            n = m
-        else
-            @assert m == n "Expected $n was $m"
-        end
-        for d in seg
-            push!(data, Parsers.parse(T, d))
-        end
+        n = parse_deck_matrix_line!(data, seg, n)
     end
     if length(data) == 0
         out = missing
@@ -169,6 +159,21 @@ function parse_deck_matrix(f, T = Float64)
         out = reshape(data, n, length(data) ÷ n)'
     end
     return out
+end
+
+function parse_deck_matrix_line!(data::Vector{T}, seg, n) where T
+    m = length(seg)
+    if m == 0
+        return n
+    elseif n == -1
+        n = m
+    else
+        @assert m == n "Expected $n was $m"
+    end
+    for d in seg
+        push!(data, Parsers.parse(T, d))
+    end
+    return n
 end
 
 function preprocess_delim_records(split_lines)
