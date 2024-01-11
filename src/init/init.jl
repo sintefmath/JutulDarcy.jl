@@ -2,6 +2,7 @@
 function equilibriate_state(model, contacts, datum_depth = missing, datum_pressure = JutulDarcy.DEFAULT_MINIMUM_PRESSURE;
     cells = missing,
     rs = missing,
+    rv = missing,
     kwarg...)
     model = reservoir_model(model)
     D = model.data_domain
@@ -20,7 +21,9 @@ function equilibriate_state(model, contacts, datum_depth = missing, datum_pressu
     sys = model.system
 
     init = Dict{Symbol, Any}()
-    init = equilibriate_state!(init, pts, model, sys, contacts, datum_depth, datum_pressure; cells = cells, rs = rs, kwarg...)
+    init = equilibriate_state!(init, pts, model, sys, contacts, datum_depth, datum_pressure;
+        cells = cells, rv = rv, rs = rs, kwarg...
+    )
 
     is_blackoil = sys isa StandardBlackOilSystem
     if is_blackoil
@@ -32,9 +35,13 @@ function equilibriate_state(model, contacts, datum_depth = missing, datum_pressu
         else
             Rs = rs.(pts)
         end
-        # TODO: Handle Rv.
-        Rv = zeros(nc)
+        if ismissing(rv)
+            Rs = zeros(nc)
+        else
+            Rs = rv.(pts)
+        end
         init[:Rs] = Rs
+        init[:Rv] = Rv
     end
     return init
 end
@@ -42,6 +49,7 @@ end
 function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pressure;
         cells = 1:length(depths),
         rs = missing,
+        rv = missing,
         s_min = missing,
         contacts_pc = missing,
         kwarg...
@@ -59,7 +67,9 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     rho_s = JutulDarcy.reference_densities(sys)
     phases = JutulDarcy.get_phases(sys)
     disgas = JutulDarcy.has_disgas(sys)
-    if disgas
+    vapoil = JutulDarcy.has_vapoil(sys)
+
+    if disgas || vapoil
         if JutulDarcy.has_other_phase(sys)
             _, rhoOS, rhoGS = rho_s
         else
@@ -73,6 +83,10 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
             Rs = min(rs(z), sys.rs_max(p))
             b = JutulDarcy.shrinkage(pvt[ph], 1, p, Rs, 1)
             rho = b*(rhoOS + Rs*rhoGS)
+        elseif phases[ph] == VaporPhase() && vapoil
+            Rv = min(rv(z), sys.rv_max(p))
+            b = JutulDarcy.shrinkage(pvt[ph], 1, p, Rv, 1)
+            rho = b*(rhoGS + Rv*rhoOS)
         else
             rho = rho_s[ph]*JutulDarcy.shrinkage(only(pvt[ph].tab), p)
         end
@@ -148,6 +162,7 @@ function parse_state0_equil(model, datafile)
     actnum_ix = G.cell_map
     is_blackoil = sys isa StandardBlackOilSystem
     disgas = JutulDarcy.has_disgas(model.system)
+    disgas = JutulDarcy.has_vapoil(model.system)
 
     equil = sol["EQUIL"]
     nequil = JutulDarcy.InputParser.number_of_tables(datafile, :equil)
@@ -248,6 +263,15 @@ function parse_state0_equil(model, datafile)
             else
                 rs = missing
             end
+            if vapoil
+                @assert haskey(sol, "RVVD")
+                rvvd = sol["RVVD"][ereg]
+                z = rvvd[:, 1]
+                Rv = rvvd[:, 2]
+                rv = Jutul.LinearInterpolant(z, Rv)
+            else
+                rv = missing
+            end
 
             subinit = equilibriate_state(
                     model, contacts, datum_depth, datum_pressure,
@@ -256,6 +280,7 @@ function parse_state0_equil(model, datafile)
                     s_min = s_min,
                     s_max = s_max,
                     rs = rs,
+                    rv = rv,
                     pc = pc
                 )
             push!(inits, subinit)
