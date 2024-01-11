@@ -21,7 +21,11 @@ const ThermalModel = SimulationModel{<:JutulDomain, <:ThermalSystem, <:Any, <:An
 
 struct BulkVolume <: ScalarVariable end
 function Jutul.default_values(model, ::BulkVolume)
-    return 5*fluid_volume(model.domain)
+    return 1.0
+end
+
+function Jutul.default_parameter_values(data_domain, model, param::BulkVolume, symb)
+    return copy(data_domain[:volumes])
 end
 
 struct RockHeatCapacity <: ScalarVariable end

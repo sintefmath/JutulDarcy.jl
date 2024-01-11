@@ -8,11 +8,13 @@ end
     # TODO: Add general version for thermal
     grad = TPFA(left, right, face_sign)
     upw = SPU(left, right)
-    q = thermal_heat_flux!(face, state, model, grad, upw)
+    # TODO: This could be inconsistent if we use flux_type for something.
+    flux_type = Jutul.flux_type(eq)
+    q = thermal_heat_flux!(face, state, model, grad, upw, flux_type)
     return setindex(Q, q, 1)
 end
 
-function thermal_heat_flux!(face, state, model, grad, upw)
+function thermal_heat_flux!(face, state, model, grad, upw, flux_type)
     T = state.Temperature
     H_f = state.FluidEnthalpy
     λ_r = state.RockThermalConductivities[face]
@@ -23,7 +25,7 @@ function thermal_heat_flux!(face, state, model, grad, upw)
 
     flow_common = kgrad_common(face, state, model, grad)
     for α in 1:number_of_phases(model.system)
-        F_α = darcy_phase_mass_flux(face, α, state, model, grad, upw, flow_common)
+        F_α = darcy_phase_mass_flux(face, α, state, model, flux_type, grad, upw, flow_common)
         H_face_α = phase_upwind(upw, H_f, α, F_α)
         convective_flux += H_face_α*F_α
     end
