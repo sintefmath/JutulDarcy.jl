@@ -21,7 +21,7 @@ function solve_thermal(; nc = 10, time = 1000.0, nstep = 100, poro = 0.1, perm =
     sys_f = ImmiscibleSystem((LiquidPhase(), VaporPhase()))
     sys_t = ThermalSystem(nphases = 2)
 
-    sys = CompositeSystem(flow = sys_f, thermal = sys_t)
+    sys = CompositeSystem(:Reservoir, flow = sys_f, thermal = sys_t)
     D = discretized_domain_tpfv_flow(G)
     model = SimulationModel(D, sys, data_domain = G)
     push!(model.output_variables, :Temperature)
