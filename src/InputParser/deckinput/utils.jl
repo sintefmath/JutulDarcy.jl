@@ -160,7 +160,7 @@ function parse_deck_matrix(f, T = Float64)
             @assert m == n "Expected $n was $m"
         end
         for d in seg
-            push!(data, parse(T, d))
+            push!(data, Parsers.parse(T, d))
         end
     end
     if length(data) == 0
