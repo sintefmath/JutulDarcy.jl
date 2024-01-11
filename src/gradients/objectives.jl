@@ -36,6 +36,9 @@ function well_mismatch(qoi, wells, model_f, states_f, model_c, state_c, dt, step
         rhoS = reference_densities(well_f.system)
 
         ctrl = forces[:Facility].control[well]
+        if ctrl isa DisabledControl
+            continue
+        end
 
         state_f = states_f[step_no]
 
