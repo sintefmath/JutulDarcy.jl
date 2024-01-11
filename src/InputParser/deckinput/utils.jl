@@ -427,6 +427,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, v::Val{T}) where T
     skip_kw!(:WTRACER, Inf, PARSER_MISSING_SUPPORT)
     skip_kw!(:GCONINJE, Inf, PARSER_MISSING_SUPPORT)
     skip_kw!(:WTEST, Inf, PARSER_MISSING_SUPPORT)
+    skip_kw!(:WTEMP, Inf, PARSER_MISSING_SUPPORT)
 
     found = false
     for (kw, num, msg) in skip_list
