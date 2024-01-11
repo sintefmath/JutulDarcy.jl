@@ -25,7 +25,12 @@ function Jutul.default_values(model, ::BulkVolume)
 end
 
 function Jutul.default_parameter_values(data_domain, model, param::BulkVolume, symb)
-    return copy(data_domain[:volumes])
+    if haskey(data_domain, :volumes)
+        bv = copy(data_domain[:volumes])
+    elseif model.domain.representation isa WellDomain
+        bv = copy(model.domain.representation.volumes)
+    end
+    return bv
 end
 
 struct RockHeatCapacity <: ScalarVariable end

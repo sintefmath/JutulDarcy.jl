@@ -1,5 +1,5 @@
 function default_value(model, ::SurfaceWellConditions)
-    rho = reference_densities(model.system)
+    rho = reference_densities(flow_system(model.system))
     return TopConditions(length(rho), density = rho, volume_fractions = missing)
 end
 

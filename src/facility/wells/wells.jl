@@ -246,7 +246,10 @@ function declare_entities(W::WellDomain)
 end
 
 function Jutul.select_secondary_variables!(S, D::WellDomain, model)
-    S[:SurfaceWellConditions] = SurfaceWellConditions(model.system)
+    if model.system isa MultiPhaseSystem || model.system isa CompositeSystem
+        sys = flow_system(model.system)
+        S[:SurfaceWellConditions] = SurfaceWellConditions(sys)
+    end
 end
 
 Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::Union{ImmiscibleSystem, SinglePhaseSystem}, state_res, state_well, rhoS, conn)
