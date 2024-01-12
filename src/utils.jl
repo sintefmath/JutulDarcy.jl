@@ -656,23 +656,28 @@ function setup_reservoir_forces(model::MultiModel; control = nothing, limits = n
             set_default_limits = set_default_limits
         )
         # Set up forces for the whole model.
-        return setup_forces(model, Facility = surface_forces; kwarg...)
+        out = setup_forces(model, Facility = surface_forces; kwarg...)
     else
         new_forces = Dict{Symbol, Any}()
         for (k, m) in pairs(submodels)
             if m isa SimpleWellFlowModel || m isa MSWellFlowModel
                 ctrl_symbol = Symbol("$(k)_ctrl")
                 @assert haskey(submodels, ctrl_symbol) "Controller for well $k must be present with the name $ctrl_symbol"
+                subctrl = Dict{Symbol, Any}()
+                subctrl[k] = control[k]
+                sublimits = Dict{Symbol, Any}()
+                sublimits[k] = limits[k]
                 facility = submodels[ctrl_symbol]
-                new_forces[k] = setup_forces(facility,
-                    control = control,
-                    limits = limits,
+                new_forces[ctrl_symbol] = setup_forces(facility,
+                    control = subctrl,
+                    limits = sublimits,
                     set_default_limits = set_default_limits
                 )
             end
         end
-        return setup_forces(model; pairs(new_forces)..., kwarg...)
+        out = setup_forces(model; pairs(new_forces)..., kwarg...)
     end
+    return out
 end
 
 
