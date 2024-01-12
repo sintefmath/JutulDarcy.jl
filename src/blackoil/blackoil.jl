@@ -144,7 +144,7 @@ function handle_alternate_primary_variable_spec!(init, found, sys::StandardBlack
         else
             rv = zeros(nc)
         end
-        so = @. 1.0 - so - sg
+        so = @. 1.0 - sw - sg
         bo = map(
             (w,  o,   g, r,  v, p) -> blackoil_unknown_init(F_rs, F_rv, w, o, g, r, v, p),
             sw, so, sg, rs, rv, pressure)
