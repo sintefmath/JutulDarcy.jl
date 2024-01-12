@@ -756,8 +756,12 @@ function parse_physics_types(datafile)
             else
                 rv_max = nothing
             end
-            sys = JutulDarcy.StandardBlackOilSystem(rs_max = rs_max, rv_max = rv_max, phases = phases,
-                                        reference_densities = rhoS)
+            sys = JutulDarcy.StandardBlackOilSystem(
+                rs_max = rs_max,
+                rv_max = rv_max,
+                phases = phases,
+                reference_densities = rhoS
+            )
         end
     end
 
