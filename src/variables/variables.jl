@@ -72,6 +72,8 @@ end
 function model_or_domain_is_well(m)
     if m isa SimulationModel
         domain = m.domain
+    else
+        domain = m
     end
     if domain isa DiscretizedDomain
         is_well = physical_representation(domain) isa WellDomain
