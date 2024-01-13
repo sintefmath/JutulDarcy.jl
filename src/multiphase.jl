@@ -121,7 +121,11 @@ function Saturations(;ds_max = 0.2)
     Saturations(ds_max)
 end
 
-default_value(model::SimulationModel{<:Any, <:SinglePhaseSystem, <:Any, <:Any}, ::Saturations) = 1.0
+function default_value(model, ::Saturations)
+    fsys = flow_system(model.system)
+    nph = number_of_phases(fsys)
+    return 1.0/nph
+end
 
 values_per_entity(model, v::Saturations) = number_of_phases(model.system)
 absolute_increment_limit(s::Saturations) = s.ds_max
