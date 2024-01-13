@@ -27,8 +27,14 @@ end
 function Jutul.default_parameter_values(data_domain, model, param::BulkVolume, symb)
     if haskey(data_domain, :volumes)
         bv = copy(data_domain[:volumes])
-    elseif model.domain.representation isa WellDomain
-        bv = copy(model.domain.representation.volumes)
+    elseif model_or_domain_is_well(model)
+        r = physical_representation(model.domain)
+        if r isa MultiSegmentWell
+            bv = copy(model.domain.representation.volumes)
+        else
+            r::SimpleWell
+            bv = [r.volume]
+        end
     end
     return bv
 end
@@ -85,8 +91,10 @@ end
 function select_parameters!(prm, disc::D, model::ThermalModel) where D<:Union{TwoPointPotentialFlowHardCoded, Jutul.PotentialFlow}
     prm[:FluidThermalConductivities] = FluidThermalConductivities()
     prm[:RockThermalConductivities] = RockThermalConductivities()
-    prm[:Transmissibilities] = Transmissibilities()
-    prm[:TwoPointGravityDifference] = TwoPointGravityDifference()
+    if !model_or_domain_is_well(model)
+        prm[:Transmissibilities] = Transmissibilities()
+        prm[:TwoPointGravityDifference] = TwoPointGravityDifference()
+    end
 end
 
 function select_secondary_variables!(S, system::ThermalSystem, model)

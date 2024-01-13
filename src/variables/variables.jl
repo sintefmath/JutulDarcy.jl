@@ -57,7 +57,7 @@ function select_default_darcy_parameters!(prm, domain, system::MultiPhaseSystem,
 end
 
 function add_connate_water_if_aqueous_present!(prm, domain, system)
-    is_well = physical_representation(domain) isa WellDomain
+    is_well = model_or_domain_is_well(m)
     if !is_well
         if AqueousPhase() in get_phases(system)
             prm[:ConnateWater] = ConnateWater()
@@ -67,4 +67,16 @@ end
 
 function select_minimum_output_variables!(out, system::MultiPhaseSystem, model)
     push!(out, :TotalMasses)
+end
+
+function model_or_domain_is_well(m)
+    if m isa SimulationModel
+        domain = m.domain
+    end
+    if domain isa DiscretizedDomain
+        is_well = physical_representation(domain) isa WellDomain
+    else
+        is_well = false
+    end
+    return is_well
 end
