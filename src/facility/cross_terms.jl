@@ -295,14 +295,18 @@ function update_cross_term_in_entity!(out, i,
     qT += 0*bottom_hole_pressure(state_well)
 
     cell = well_top_node()
-    if isa(ctrl, InjectorControl)
-        heat_capacity = state_well.FluidHeatCapacity[cell]
-        p = state_well.Pressure[cell]
-        density = ctrl.mixture_density
-        T = ctrl.temperature
-        H = heat_capacity*T + p/density
-    else
-        H = state_well.FluidEnthalpy[cell]
-    end
+    H = well_top_node_enthalpy(ctrl, state_well, cell)
     out[] = qT*H
+end
+
+function well_top_node_enthalpy(ctrl::InjectorControl, state_well, cell)
+    heat_capacity = state_well.FluidHeatCapacity[cell]
+    p = state_well.Pressure[cell]
+    density = ctrl.mixture_density
+    T = ctrl.temperature
+    return heat_capacity*T + p/density
+end
+
+function well_top_node_enthalpy(ctrl, state_well, cell)
+    return state_well.FluidEnthalpy[cell]
 end
