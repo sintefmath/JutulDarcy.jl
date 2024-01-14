@@ -232,41 +232,46 @@ function update_cross_term_in_entity!(out, i,
         reservoir_cell = ct.reservoir_cells[i]
         well_cell = ct.well_cells[i]
         CI = ct.CI[i]
-        WI = ct.WI[i]
+        WI = state_well.WellIndices[i]
+        gdz = state_well.PerforationGravityDifference[i]
+        p_well = state_well.Pressure
+        p_res = state_res.Pressure
+        dp = p_well[well_cell] - p_res[reservoir_cell]
+        conn = (
+            dp = dp,
+            WI = WI,
+            gdz = gdz,
+            well = well_cell,
+            perforation = i,
+            reservoir = reservoir_cell
+        )
     end
 
-    p_well = state_well.Pressure[well_cell]
-    p_res = state_res.Pressure[reservoir_cell]
-    T_well = state_well.Temperature[well_cell]
-    T_res = state_res.Temperature[reservoir_cell]
+    # p_well = state_well.Pressure[well_cell]
+    # p_res = state_res.Pressure[reservoir_cell]
 
     kr = state_res.RelativePermeabilities
     mu = state_res.PhaseViscosities
-    # Todo: Fix conn -> cell pressure drop
-    ρgdz = 0
-    mob = 0
-    for ph in axes(kr, 1)
-        mob += kr[ph, reservoir_cell]/mu[ph, reservoir_cell]
-    end
-    Q = -mob*WI*(p_well - p_res + ρgdz)
-    fluid_heat = 0.0
-    if Q < 0
-        # Injection
-        c = well_cell
-        state_upw = state_well
-    else
-        c = reservoir_cell
-        state_upw = state_res
-    end
-    S = state_upw.Saturations
-    ρ = state_upw.PhaseMassDensities
-    H = state_upw.FluidEnthalpy
 
+    λ_t = 0
     for ph in 1:nph
-        fluid_heat += ρ[ph, c]*H[ph, c]*S[ph, c]
+        λ_t += state_res.PhaseMobilities[ph, reservoir_cell]
     end
-    conductive_heat_flux = CI*(T_res - T_well)
-    advective_heat_flux = fluid_heat*Q
+    advective_heat_flux = 0
+    for ph in 1:nph
+        q_ph = perforation_phase_mass_flux(λ_t, conn, state_res, state_well, ph)
+        if q_ph < 0
+            # Injection
+            H_perf = state_well.FluidEnthalpy[ph, well_cell]
+        else
+            H_perf = state_res.FluidEnthalpy[ph, reservoir_cell]
+        end
+        advective_heat_flux += H_perf*q_ph
+    end
+    T_well = state_well.Temperature[well_cell]
+    T_res = state_res.Temperature[reservoir_cell]
+
+    conductive_heat_flux = -CI*(T_well - T_res)
     out[] = advective_heat_flux + conductive_heat_flux
 end
 
