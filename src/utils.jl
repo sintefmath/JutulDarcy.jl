@@ -15,7 +15,14 @@ cells. Permeability is either one value per cell (diagonal scalar), one value
 per dimension given in each row (for a diagonal tensor) or a vector that
 represents a compact full tensor representation (6 elements in 3D, 3 in 2D).
 """
-function reservoir_domain(g; permeability = convert_to_si(0.1, :darcy), porosity = 0.1, diffusion = missing, kwarg...)
+function reservoir_domain(g;
+        permeability = convert_to_si(0.1, :darcy),
+        porosity = 0.1,
+        rock_thermal_conductivity = 3.0, # W/m K (~sandstone)
+        fluid_thermal_conductivity = 0.6, # W/m K (~water)
+        diffusion = missing,
+        kwarg...
+    )
     if !ismissing(diffusion)
         kwarg = (diffusion = diffusion, kwarg...)
     end
@@ -27,7 +34,13 @@ function reservoir_domain(g; permeability = convert_to_si(0.1, :darcy), porosity
             permeability = repeat(permeability, 1, nc)
         end
     end
-    return DataDomain(g; permeability = permeability, porosity = porosity, kwarg...)
+    return DataDomain(g;
+        permeability = permeability,
+        porosity = porosity,
+        rock_thermal_conductivity = rock_thermal_conductivity,
+        fluid_thermal_conductivity = fluid_thermal_conductivity,
+        kwarg...
+    )
 end
 
 """
@@ -432,6 +445,7 @@ function setup_reservoir_cross_terms!(model::MultiModel)
         has_thermal = haskey(systems, :thermal)
         conservation = Pair(:flow, :mass_conservation)
         energy = Pair(:thermal, :energy_conservation)
+        @info "??" has_flow has_thermal
     else
         has_flow = rmodel.system isa MultiPhaseSystem
         has_thermal = !has_flow

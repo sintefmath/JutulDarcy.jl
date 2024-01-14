@@ -52,17 +52,55 @@ Jutul.default_value(model, ::FluidHeatCapacity) = 10000.0
 struct FluidInternalEnergy <: PhaseVariables end
 struct FluidEnthalpy <: PhaseVariables end
 
-struct FluidThermalConductivities <: ScalarVariable end
+struct FluidThermalConductivities <: VectorVariables end
 Jutul.variable_scale(::FluidThermalConductivities) = 1e-10
 Jutul.minimum_value(::FluidThermalConductivities) = 0.0
-Jutul.default_value(model, ::FluidThermalConductivities) = 1e-3
+Jutul.values_per_entity(model, ::FluidThermalConductivities) = number_of_phases(model.system)
+
+function Jutul.default_parameter_values(data_domain, model, param::FluidThermalConductivities, symb)
+    if haskey(data_domain, :fluid_thermal_conductivities, Faces())
+        # This takes precedence
+        T = copy(data_domain[:fluid_thermal_conductivities])
+    elseif haskey(data_domain, :fluid_thermal_conductivity, Cells())
+        nph = number_of_phases(model.system)
+        C = data_domain[:fluid_thermal_conductivity]
+        if C isa Vector
+            T = compute_face_trans(data_domain, C)
+            T = repeat(T', nph, 1)
+        else
+            @assert size(C, 1) == nph
+            nf = number_of_faces(data_domain)
+            T = zeros(nph, nf)
+            for ph in 1:nph
+                T[i, :] = compute_face_trans(data_domain, C[ph, :])
+            end
+        end
+    else
+        error(":fluid_thermal_conductivities or :fluid_thermal_conductivities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+    end
+    return T
+end
+
 Jutul.associated_entity(::FluidThermalConductivities) = Faces()
 
 struct RockThermalConductivities <: ScalarVariable end
 Jutul.variable_scale(::RockThermalConductivities) = 1e-10
 Jutul.minimum_value(::RockThermalConductivities) = 0.0
-Jutul.default_value(model, ::RockThermalConductivities) = 1e-3
 Jutul.associated_entity(::RockThermalConductivities) = Faces()
+
+function Jutul.default_parameter_values(data_domain, model, param::RockThermalConductivities, symb)
+    if haskey(data_domain, :rock_thermal_conductivities, Faces())
+        # This takes precedence
+        T = copy(data_domain[:rock_thermal_conductivities])
+    elseif haskey(data_domain, :rock_thermal_conductivity, Cells())
+        nph = number_of_phases(model.system)
+        C = data_domain[:rock_thermal_conductivity]
+        T = compute_face_trans(data_domain, C)
+    else
+        error(":fluid_thermal_conductivities or :fluid_thermal_conductivities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+    end
+    return T
+end
 
 number_of_phases(t::ThermalSystem) = t.nph
 
