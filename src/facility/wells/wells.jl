@@ -255,33 +255,34 @@ end
 Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::Union{ImmiscibleSystem, SinglePhaseSystem}, state_res, state_well, rhoS, conn)
     rc = conn.reservoir
     wc = conn.well
-    # Reservoir quantities
-    ρ = state_res.PhaseMassDensities
-    # Extra mobility needed
-    kr = state_res.RelativePermeabilities
-    μ = state_res.PhaseViscosities
-    nph = size(ρ, 1)
-    # Well quantities
-    ρ_w = state_well.PhaseMassDensities
-    # Saturation instead of mobility - use total mobility form
-    s_w = state_well.Saturations
+    nph = number_of_phases(sys)
     λ_t = 0
     for ph in 1:nph
-        λ_t += kr[ph, rc]/μ[ph, rc]
+        λ_t += state_res.PhaseMobilities[ph, rc]
     end
     for ph in 1:nph
-        # ψ is pressure difference from reservoir to well. If it is negative, we are injecting into the reservoir.
-        ψ = perforation_phase_potential_difference(conn, state_res, state_well, ph)
-        if ψ < 0
-            # Injection
-            out[ph] = s_w[ph, wc]*ρ_w[ph, wc]*ψ*λ_t
-        else
-            # Production
-            λ = kr[ph, rc]/μ[ph, rc]
-            out[ph] = λ*ρ[ph, rc]*ψ
-        end
+        out[ph] = perforation_phase_mass_flux(λ_t, conn, state_res, state_well, ph)
     end
     return out
+end
+
+function perforation_phase_mass_flux(λ_t, conn, state_res, state_well, ph)
+    # ψ is pressure difference from reservoir to well. If it is negative, we are injecting into the reservoir.
+    ψ = perforation_phase_potential_difference(conn, state_res, state_well, ph)
+    if ψ < 0
+        wc = conn.well
+        # Injection
+        ρ_w = state_well.PhaseMassDensities
+        s_w = state_well.Saturations
+        q_ph = s_w[ph, wc]*ρ_w[ph, wc]*ψ*λ_t
+    else
+        rc = conn.reservoir
+        # Production
+        ρ = state_res.PhaseMassDensities
+        λ = state_res.PhaseMobilities[ph, rc]
+        q_ph = λ*ρ[ph, rc]*ψ
+    end
+    return q_ph
 end
 
 Base.@propagate_inbounds function simple_well_perforation_flux!(out, sys::Union{ImmiscibleSystem, SinglePhaseSystem}, state_res, state_well, rhoS, conn)
