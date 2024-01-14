@@ -139,6 +139,7 @@ end
 
 function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::ConservationLaw{:TotalThermalEnergy, <:WellSegmentFlow}, model, dt, ldisc = local_discretization(eq, self_cell)) where T_e
     (; cells, faces, signs) = ldisc
+    nph = number_of_phases(model.system)
     energy = state.TotalThermalEnergy
     energy0 = state0.TotalThermalEnergy
     H_f = state.FluidEnthalpy
@@ -146,11 +147,13 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
 
     eq = (energy[self_cell] - energy0[self_cell])/dt
     @assert size(H_f, 1) == 1
-    H_self = H_f[self_cell]
     for (cell, face, sgn) in zip(cells, faces, signs)
         v_f = sgn*v[face]
-        H_other = H_f[cell]
-        eq += v_f*upw_flux(v_f, H_self, H_other)
+        for ph in 1:nph
+            H_other = H_f[ph, cell]
+            H_self = H_f[ph, self_cell]
+            eq += v_f*upw_flux(v_f, H_self, H_other)
+        end
     end
     eq_buf[] = eq
 end
