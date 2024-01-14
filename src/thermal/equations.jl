@@ -14,6 +14,13 @@ end
     return setindex(Q, q, 1)
 end
 
+@inline function Jutul.face_flux!(q_i, face, eq::ConservationLaw{:TotalThermalEnergy, <:Any}, state, model::ThermalModel, dt, flow_disc::PotentialFlow, ldisc)
+    # Inner version, for generic flux
+    kgrad, upw = ldisc.face_disc(face)
+    ft = Jutul.flux_type(eq)
+    return thermal_heat_flux!(q_i, face, state, model, ft, kgrad, upw)
+end
+
 function thermal_heat_flux!(face, state, model, grad, upw, flux_type)
     T = state.Temperature
     H_f = state.FluidEnthalpy
