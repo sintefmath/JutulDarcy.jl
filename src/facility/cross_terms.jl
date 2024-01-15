@@ -301,7 +301,7 @@ function update_cross_term_in_entity!(out, i,
 
     cell = well_top_node()
     H = well_top_node_enthalpy(ctrl, state_well, cell)
-    out[] = qT*H
+    out[] = -qT*H
 end
 
 function well_top_node_enthalpy(ctrl::InjectorControl, state_well, cell)
@@ -309,7 +309,15 @@ function well_top_node_enthalpy(ctrl::InjectorControl, state_well, cell)
     p = state_well.Pressure[cell]
     density = ctrl.mixture_density
     T = ctrl.temperature
-    return heat_capacity*T + p/density
+    nph = size(state_well.Saturations, 1)
+    H = 0
+    for ph in 1:nph
+        C = state_well.FluidHeatCapacity[ph, cell]
+        dens = state_well.PhaseMassDensities[ph, cell]
+        S = state_well.Saturations[ph, cell]
+        H += S*(C*T + p/dens)
+    end
+    return H
 end
 
 function well_top_node_enthalpy(ctrl, state_well, cell)
