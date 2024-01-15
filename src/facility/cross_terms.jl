@@ -321,5 +321,11 @@ function well_top_node_enthalpy(ctrl::InjectorControl, state_well, cell)
 end
 
 function well_top_node_enthalpy(ctrl, state_well, cell)
-    return state_well.FluidEnthalpy[cell]
+    H = state_well.FluidEnthalpy
+    S = state_well.Saturations
+    H_w = 0.0
+    for ph in axes(H, 1)
+        H_w += H[ph, cell]*S[ph, cell]
+    end
+    return H_w
 end
