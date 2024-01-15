@@ -146,7 +146,6 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
     v = state.TotalMassFlux
 
     eq = (energy[self_cell] - energy0[self_cell])/dt
-    @assert size(H_f, 1) == 1
     for (cell, face, sgn) in zip(cells, faces, signs)
         v_f = sgn*v[face]
         for ph in 1:nph
