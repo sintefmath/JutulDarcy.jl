@@ -40,15 +40,15 @@ function Jutul.default_parameter_values(data_domain, model, param::BulkVolume, s
 end
 
 struct RockHeatCapacity <: ScalarVariable end
-Jutul.default_value(model, ::RockHeatCapacity) = 5000.0
+Jutul.default_value(model, ::RockHeatCapacity) = 1000.0
 struct RockDensity <: ScalarVariable end
-Jutul.default_value(model, ::RockDensity) = 1500.0
+Jutul.default_value(model, ::RockDensity) = 2000.0
 
 struct RockInternalEnergy <: ScalarVariable end
 struct TotalThermalEnergy <: ScalarVariable end
 
 struct FluidHeatCapacity <: PhaseVariables end
-Jutul.default_value(model, ::FluidHeatCapacity) = 10000.0
+Jutul.default_value(model, ::FluidHeatCapacity) = 5000.0
 struct FluidInternalEnergy <: PhaseVariables end
 struct FluidEnthalpy <: PhaseVariables end
 
