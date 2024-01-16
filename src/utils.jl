@@ -1,5 +1,14 @@
-reservoir_model(model) = model
-reservoir_model(model::MultiModel) = model.models.Reservoir
+function reservoir_model(model::SimulationModel; kwarg...)
+    return model
+end
+
+function reservoir_model(model::MultiModel; kwarg...)
+    return reservoir_model(model.models.Reservoir; kwarg...)
+end
+
+function reservoir_model(model::Jutul.CompositeModel; type = :flow)
+    return Jutul.composite_submodel(model, type)
+end
 
 reservoir_storage(model, storage) = storage
 reservoir_storage(model::MultiModel, storage) = storage.Reservoir
