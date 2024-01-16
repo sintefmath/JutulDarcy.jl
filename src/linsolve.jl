@@ -98,3 +98,7 @@ end
 function Jutul.select_linear_solver(m::SimulationModel{<:Any, S, <:Any, <:Any}; kwarg...) where S<:MultiPhaseSystem
     return reservoir_linsolve(m; kwarg...)
 end
+
+function Jutul.select_linear_solver(m::SimulationModel{<:Any, <:CompositeSystem{:Reservoir, T}, <:Any, <:Any}; kwarg...) where T
+    return reservoir_linsolve(m; kwarg...)
+end
