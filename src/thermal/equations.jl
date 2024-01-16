@@ -10,7 +10,7 @@ end
     upw = SPU(left, right)
     # TODO: This could be inconsistent if we use flux_type for something.
     flux_type = Jutul.flux_type(eq)
-    q = thermal_heat_flux!(face, state, model, grad, upw, flux_type)
+    q = thermal_heat_flux(face, state, model, grad, upw, flux_type)
     return setindex(Q, q, 1)
 end
 
@@ -18,10 +18,11 @@ end
     # Inner version, for generic flux
     kgrad, upw = ldisc.face_disc(face)
     ft = Jutul.flux_type(eq)
-    return thermal_heat_flux!(q_i, face, state, model, ft, kgrad, upw)
+    q = thermal_heat_flux(face, state, model, kgrad, upw, ft)
+    return setindex(q_i, q, 1)
 end
 
-function thermal_heat_flux!(face, state, model, grad, upw, flux_type)
+function thermal_heat_flux(face, state, model, grad, upw, flux_type)
     T = state.Temperature
     H_f = state.FluidEnthalpy
     λ_r = state.RockThermalConductivities
