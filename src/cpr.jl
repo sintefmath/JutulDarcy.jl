@@ -119,7 +119,7 @@ function default_psolve(; max_levels = 10, max_coarse = 10, type = default_amg_s
 end
 
 function update_preconditioner!(cpr::CPRPreconditioner, lsys, model, storage, recorder, executor)
-    rmodel = reservoir_model(model)
+    rmodel = reservoir_model(model, type = :flow)
     ctx = rmodel.context
     update_p = update_cpr_internals!(cpr, lsys, model, storage, recorder, executor)
     @tic "s-precond" update_preconditioner!(cpr.system_precond, lsys, model, storage, recorder, executor)
@@ -164,7 +164,7 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
     do_p_update = should_update_cpr(cpr, recorder, :amg)
     s = reservoir_storage(model, storage)
     A = reservoir_jacobian(lsys)
-    rmodel = reservoir_model(model)
+    rmodel = reservoir_model(model, type = :flow)
     initialize_cpr_storage!(cpr, lsys, s)
     ps = rmodel.primary_variables[:Pressure].scale
     if do_p_update || cpr.partial_update

@@ -6,8 +6,11 @@ function reservoir_model(model::MultiModel; kwarg...)
     return reservoir_model(model.models.Reservoir; kwarg...)
 end
 
-function reservoir_model(model::Jutul.CompositeModel; type = :flow)
-    return Jutul.composite_submodel(model, type)
+function reservoir_model(model::Jutul.CompositeModel; type = missing)
+    if !ismissing(type)
+        model = Jutul.composite_submodel(model, type)
+    end
+    return model
 end
 
 reservoir_storage(model, storage) = storage
@@ -454,7 +457,6 @@ function setup_reservoir_cross_terms!(model::MultiModel)
         has_thermal = haskey(systems, :thermal)
         conservation = Pair(:flow, :mass_conservation)
         energy = Pair(:thermal, :energy_conservation)
-        @info "??" has_flow has_thermal
     else
         has_flow = rmodel.system isa MultiPhaseSystem
         has_thermal = !has_flow
