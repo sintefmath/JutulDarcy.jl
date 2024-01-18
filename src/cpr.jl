@@ -18,25 +18,29 @@ struct CPRStorage{P, R, S, F, W, V}
     w_rhs::V
     np::Int
     block_size::Int
+    number_of_components::Int
     "id for keeping track of usage, typically `objectid` of reservoir jacobian"
     id::UInt64
 end
 
-function CPRStorage(p_prec, lin_op, full_jac)
+function CPRStorage(p_prec, lin_op, full_jac, ncomp = missing)
     T_b = eltype(full_jac)
     @assert T_b<:StaticMatrix
     T = eltype(T_b)
     @assert T<:Real
     np = size(full_jac, 1)
     bz = size(T_b, 1)
+    if ismissing(ncomp)
+        ncomp = bz
+    end
     A_p, r_p, p = create_pressure_system(p_prec, full_jac, np)
     solution = zeros(T, np*bz)
     residual = zeros(T, np*bz)
-    w_p = zeros(T, bz, np)
-    w_rhs = zeros(bz)
+    w_p = zeros(T, ncomp, np)
+    w_rhs = zeros(ncomp)
     w_rhs[1] = 1
-    w_rhs = SVector{bz, T}(w_rhs)
-    return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p, w_rhs, np, bz, objectid(full_jac))
+    w_rhs = SVector{ncomp, T}(w_rhs)
+    return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p, w_rhs, np, bz, ncomp, objectid(full_jac))
 end
 
 function CPRStorage(np::Int, bz::Int, lin_op, psys::Tuple, solution, residual, T = Float64, id = zero(UInt64))
@@ -45,7 +49,7 @@ function CPRStorage(np::Int, bz::Int, lin_op, psys::Tuple, solution, residual, T
     w_rhs = zeros(bz)
     w_rhs[1] = 1
     w_rhs = SVector{bz, T}(w_rhs)
-    return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p, w_rhs, np, bz, id)
+    return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p, w_rhs, np, bz, bz, id)
 end
 
 
@@ -130,7 +134,7 @@ function update_preconditioner!(cpr::CPRPreconditioner, lsys, model, storage, re
     end
 end
 
-function initialize_cpr_storage!(cpr, lsys, s)
+function initialize_cpr_storage!(cpr, lsys, s, bz)
     J = reservoir_jacobian(lsys)
     do_setup = isnothing(cpr.storage) || cpr.storage.id != objectid(J)
     if do_setup
@@ -139,7 +143,7 @@ function initialize_cpr_storage!(cpr, lsys, s)
         else
             op = linear_operator(lsys[1,1])
         end
-        cpr.storage = CPRStorage(cpr.pressure_precond, op, J)
+        cpr.storage = CPRStorage(cpr.pressure_precond, op, J, bz)
     end
 end
 
@@ -165,7 +169,8 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
     s = reservoir_storage(model, storage)
     A = reservoir_jacobian(lsys)
     rmodel = reservoir_model(model, type = :flow)
-    initialize_cpr_storage!(cpr, lsys, s)
+    bz = number_of_components(rmodel.system)
+    initialize_cpr_storage!(cpr, lsys, s, bz)
     ps = rmodel.primary_variables[:Pressure].scale
     if do_p_update || cpr.partial_update
         @tic "weights" w_p = update_weights!(cpr, cpr.storage, rmodel, s, A, ps)
@@ -186,17 +191,19 @@ function update_pressure_system!(A_p, p_prec, A, w_p, ctx, executor)
     n = A.n
     # Update the pressure system with the same pattern in-place
     tb = minbatch(ctx, n)
+    ncomp = size(w_p, 1)
+    N = Val(ncomp)
     @batch minbatch=tb for col in 1:n
-        update_row_csc!(nz, A_p, w_p, rows, nz_s, col)
+        update_row_csc!(nz, A_p, w_p, rows, nz_s, col, N)
     end
 end
 
-function update_row_csc!(nz, A_p, w_p, rows, nz_s, col)
+function update_row_csc!(nz, A_p, w_p, rows, nz_s, col, ::Val{Ncomp}) where Ncomp
     @inbounds for j in nzrange(A_p, col)
         row = rows[j]
         Ji = nz_s[j]
         tmp = 0
-        @inbounds for b in axes(Ji, 1)
+        @inbounds for b in 1:Ncomp
             tmp += Ji[b, 1]*w_p[b, row]
         end
         nz[j] = tmp
@@ -214,16 +221,18 @@ function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, p_prec, A::
     n = size(A_p, 1)
     # Update the pressure system with the same pattern in-place
     tb = minbatch(ctx, n)
+    ncomp = size(w_p, 1)
+    N = Val(ncomp)
     @batch minbatch=tb for row in 1:n
-        update_row_csr!(nz, A_p, w_p, cols, nz_s, row)
+        update_row_csr!(nz, A_p, w_p, cols, nz_s, row, N)
     end
 end
 
-function update_row_csr!(nz, A_p, w_p, cols, nz_s, row)
+function update_row_csr!(nz, A_p, w_p, cols, nz_s, row, ::Val{Ncomp}) where Ncomp
     @inbounds for j in nzrange(A_p, row)
         Ji = nz_s[j]
         tmp = 0
-        @inbounds for b = axes(Ji, 1)
+        @inbounds for b = 1:Ncomp
             tmp += Ji[b, 1]*w_p[b, row]
         end
         nz[j] = tmp
@@ -272,7 +281,8 @@ end
 
 function apply_cpr_pressure_stage!(cpr::CPRPreconditioner, cpr_s::CPRStorage, r, arg...)
     r_p, w_p, bz, Δp = cpr_s.r_p, cpr_s.w_p, cpr_s.block_size, cpr_s.p
-    @tic "p rhs" update_p_rhs!(r_p, r, bz, w_p, cpr.pressure_precond)
+    ncomp = cpr_s.number_of_components
+    @tic "p rhs" update_p_rhs!(r_p, r, ncomp, w_p, cpr.pressure_precond)
     # Apply preconditioner to pressure part
     @tic "p apply" begin
         p_rtol = cpr.p_rtol
@@ -321,6 +331,7 @@ function update_weights!(cpr, cpr_storage::CPRStorage, model, res_storage, J, ps
     bz = cpr_storage.block_size
     w = cpr_storage.w_p
     r = cpr_storage.w_rhs
+    ncomp = size(w, 1)
     scaling = cpr.weight_scaling
     if cpr.strategy == :true_impes
         eq_s = res_storage.equations[:mass_conservation]
@@ -331,12 +342,12 @@ function update_weights!(cpr, cpr_storage::CPRStorage, model, res_storage, J, ps
             # This term isn't scaled by dt, so use simple weights instead
             ps = 1.0
         end
-        true_impes!(w, acc, r, n, bz, ps, scaling)
+        true_impes!(w, acc, r, n, ncomp, ps, scaling)
     elseif cpr.strategy == :analytical
         rstate = res_storage.state
-        cpr_weights_no_partials!(w, model, rstate, r, n, bz, scaling)
+        cpr_weights_no_partials!(w, model, rstate, r, n, ncomp, scaling)
     elseif cpr.strategy == :quasi_impes
-        quasi_impes!(w, J, r, n, bz, scaling)
+        quasi_impes!(w, J, r, n, ncomp, scaling)
     elseif cpr.strategy == :none
         # Do nothing. Already set to one.
     else
