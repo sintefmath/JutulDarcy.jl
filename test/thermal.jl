@@ -1,5 +1,12 @@
 using Jutul, JutulDarcy, Test
-function solve_thermal(; nc = 10, time = 1000.0, nstep = 100, poro = 0.1, perm = 9.8692e-14)
+function solve_thermal(;
+        nc = 10,
+        time = 1000.0,
+        nstep = 100,
+        poro = 0.1,
+        perm = 9.8692e-14,
+        use_blocks = false
+    )
     T = time
     tstep = repeat([T/nstep], nstep)
     G = get_1d_reservoir(nc, poro = poro, perm = perm)
@@ -23,7 +30,14 @@ function solve_thermal(; nc = 10, time = 1000.0, nstep = 100, poro = 0.1, perm =
 
     sys = CompositeSystem(:Reservoir, flow = sys_f, thermal = sys_t)
     D = discretized_domain_tpfv_flow(G)
-    model = SimulationModel(D, sys, data_domain = G)
+    if use_blocks
+        l = BlockMajorLayout()
+    else
+        l = EquationMajorLayout()
+    end
+    ctx = DefaultContext(matrix_layout = l)
+
+    model = SimulationModel(D, sys, data_domain = G, context = ctx)
     push!(model.output_variables, :Temperature)
     kr = BrooksCoreyRelativePermeabilities(2, [2.0, 2.0])
     replace_variables!(model, RelativePermeabilities = Pair(:flow, kr))
@@ -48,11 +62,13 @@ function solve_thermal(; nc = 10, time = 1000.0, nstep = 100, poro = 0.1, perm =
 end
 
 using Test
-@testset begin "simple_thermal"
-    states, = solve_thermal(nc = 10);
-    T = states[end][:Temperature]
-    # Check that the first cell fullfills BC
-    @test 490 < T[2] < 500
-    # Check monotone temp profile
-    @test all(x -> x < 0, diff(T))
+@testset "simple_thermal" begin
+    for use_blocks in [true, false]
+        states, = solve_thermal(nc = 10, use_blocks = use_blocks);
+        T = states[end][:Temperature]
+        # Check that the first cell fullfills BC
+        @test 490 < T[2] < 500
+        # Check monotone temp profile
+        @test all(x -> x < 0, diff(T))
+    end
 end
