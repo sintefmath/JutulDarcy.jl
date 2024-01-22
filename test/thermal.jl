@@ -145,9 +145,6 @@ function solve_thermal_wells(;
 
     controls = Dict(:Injector => ictrl,
                     :Producer => pctrl)
-    # Wrap forces and initialize the state
-    il = 3
-    max_cuts = 0
     forces = setup_reservoir_forces(model, control = controls)
     if thermal
         state0 = setup_reservoir_state(model,
@@ -161,7 +158,8 @@ function solve_thermal_wells(;
             Saturations = [1.0, 0.0]
         )
     end
-    result = simulate_reservoir(state0, model, dt, forces = forces, parameters = parameters)
+    result = simulate_reservoir(state0, model, dt,
+        forces = forces, parameters = parameters, info_level = -1)
     @test length(result.states) == length(dt)
     return (result.states, result.result.reports, missing)
 end
