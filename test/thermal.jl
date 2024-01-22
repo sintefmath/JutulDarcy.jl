@@ -28,7 +28,7 @@ function solve_thermal(;
     sys_f = ImmiscibleSystem((LiquidPhase(), VaporPhase()))
     sys_t = ThermalSystem(nphases = 2)
 
-    sys = CompositeSystem(:Reservoir, flow = sys_f, thermal = sys_t)
+    sys = reservoir_system(flow = sys_f, thermal = sys_t)
     D = discretized_domain_tpfv_flow(G)
     if use_blocks
         l = BlockMajorLayout()
