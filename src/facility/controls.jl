@@ -219,7 +219,7 @@ Well target contribution from well itself (surface volume, injector)
 """
 function well_target(control::InjectorControl, target::SurfaceVolumeTarget, well_model, well_state, surface_densities, surface_volume_fractions)
     t_phases = lumped_phases(target)
-    w_phases = get_phases(well_model.system)
+    w_phases = get_phases(flow_system(well_model.system))
     t = 0.0
     for (ix, mix) in control.phases
         if w_phases[ix] in t_phases

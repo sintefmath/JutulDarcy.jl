@@ -48,7 +48,8 @@ function Jutul.default_parameter_values(data_domain, model, param::RockDensity, 
     if haskey(data_domain, :rock_density, Cells())
         # This takes precedence
         T = copy(data_domain[:rock_density])
-        error(":rock_density symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+    else
+        T = fill(default_value(model, param), number_of_cells(data_domain))
     end
     return T
 end
@@ -136,9 +137,9 @@ function select_parameters!(S, system::ThermalSystem, model)
 end
 
 function select_parameters!(prm, disc::D, model::ThermalModel) where D<:Union{TwoPointPotentialFlowHardCoded, Jutul.PotentialFlow}
-    prm[:FluidThermalConductivities] = FluidThermalConductivities()
-    prm[:RockThermalConductivities] = RockThermalConductivities()
     if !model_or_domain_is_well(model)
+        prm[:FluidThermalConductivities] = FluidThermalConductivities()
+        prm[:RockThermalConductivities] = RockThermalConductivities()
         prm[:Transmissibilities] = Transmissibilities()
         prm[:TwoPointGravityDifference] = TwoPointGravityDifference()
     end

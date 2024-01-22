@@ -1,6 +1,8 @@
 const SimpleWellDomain = DiscretizedDomain{<:SimpleWell}
 const SimpleWellFlowModel = SimulationModel{<:SimpleWellDomain, <:MultiPhaseSystem}
 
+const SimpleWellModel = SimulationModel{<:SimpleWellDomain, <:Any}
+
 struct WellMassFractions <: FractionVariables end
 Jutul.need_default_primary(model, ::WellMassFractions) = false
 Jutul.absolute_increment_limit(::WellMassFractions) = 0.15

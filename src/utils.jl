@@ -873,7 +873,7 @@ function wellgroup_symbols(model::MultiModel)
 end
 
 function available_well_targets(model)
-    phases = get_phases(model.system)
+    phases = get_phases(flow_system(model.system))
     targets = [BottomHolePressureTarget, SurfaceLiquidRateTarget, TotalRateTarget]
     if AqueousPhase() in phases
         push!(targets, SurfaceLiquidRateTarget)

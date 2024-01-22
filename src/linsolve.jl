@@ -58,10 +58,12 @@ function reservoir_linsolve(model,  precond = :cpr;
         else
             error("Smoother :$smoother_type not supported for CPR.")
         end
-        prec = CPRPreconditioner(p_solve, s, strategy = cpr_type, 
-                                 update_interval = update_interval,
-                                 partial_update = partial_update,
-                                 update_interval_partial = update_interval_partial)
+        prec = CPRPreconditioner(
+            p_solve, s, strategy = cpr_type, 
+            update_interval = update_interval,
+            partial_update = partial_update,
+            update_interval_partial = update_interval_partial
+        )
         default_tol = 1e-3
         max_it = 50
     elseif precond == :ilu0
@@ -100,5 +102,6 @@ function Jutul.select_linear_solver(m::SimulationModel{<:Any, S, <:Any, <:Any}; 
 end
 
 function Jutul.select_linear_solver(m::SimulationModel{<:Any, <:CompositeSystem{:Reservoir, T}, <:Any, <:Any}; kwarg...) where T
-    return reservoir_linsolve(m; kwarg...)
+    lsolve = reservoir_linsolve(m; kwarg...)
+    return lsolve
 end

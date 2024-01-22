@@ -21,6 +21,13 @@ function Jutul.select_minimum_output_variables!(vars, domain::DiscretizedDomain,
     return vars
 end
 
+function Jutul.select_minimum_output_variables!(vars, domain::Union{MSWellDomain, SimpleWellDomain}, model::SimulationModel{<:Any, CompositeSystem{:Reservoir, T}, <:Any, <:Any}) where T
+    push!(vars, :PhaseMassDensities)
+    push!(vars, :Saturations)
+    push!(vars, :SurfaceWellConditions)
+    return vars
+end
+
 function get_neighborship(W::MultiSegmentWell)
     return W.neighborship
 end
