@@ -268,7 +268,8 @@ function setup_reservoir_simulator(case::JutulCase;
                             mode = :default,
                             precond = :cpr,
                             linear_solver = :bicgstab,
-                            max_dt = Inf,
+                            max_timestep = si_unit(:year),
+                            max_dt = max_timestep,
                             rtol = nothing,
                             initial_dt = 3600.0*24.0,
                             target_ds = Inf,
@@ -292,6 +293,8 @@ function setup_reservoir_simulator(case::JutulCase;
                             extra_timing_setup = false,
                             kwarg...)
     set_linear_solver = set_linear_solver || linear_solver isa Symbol
+    # Handle old kwarg...
+    max_timestep = min(max_dt, max_timestep)
     if mode == :default
         sim = Simulator(case, extra_timing = extra_timing_setup)
     else
@@ -345,6 +348,7 @@ function setup_reservoir_simulator(case::JutulCase;
         extra_arg...,
         timestep_selectors = sel,
         info_level = info_level,
+        max_timestep = max_timestep,
         failure_cuts_timestep = failure_cuts_timestep,
         max_timestep_cuts = max_timestep_cuts,
         kwarg...
