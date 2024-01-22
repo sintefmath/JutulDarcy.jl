@@ -44,6 +44,15 @@ Jutul.default_value(model, ::RockHeatCapacity) = 1000.0
 struct RockDensity <: ScalarVariable end
 Jutul.default_value(model, ::RockDensity) = 2000.0
 
+function Jutul.default_parameter_values(data_domain, model, param::RockDensity, symb)
+    if haskey(data_domain, :rock_density, Cells())
+        # This takes precedence
+        T = copy(data_domain[:rock_density])
+        error(":rock_density symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+    end
+    return T
+end
+
 struct RockInternalEnergy <: ScalarVariable end
 struct TotalThermalEnergy <: ScalarVariable end
 

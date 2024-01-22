@@ -26,12 +26,24 @@ passed, they are expanded to cover all cells. Arrays are asserted to match all
 cells. Permeability is either one value per cell (diagonal scalar), one value
 per dimension given in each row (for a diagonal tensor) or a vector that
 represents a compact full tensor representation (6 elements in 3D, 3 in 2D).
+
+# Default data and their values
+
+| Name                         | Explanation                              | Unit         | Default |
+|------------------------------|------------------------------------------|--------------|---------|
+| `permeability`               | Rock ability to conduct fluid flow       | ``m^2``      | 100 mD  |
+| `porosity`                   | Rock void fraction open to flow (0 to 1) | -            |  0.3    |
+| `rock_thermal_conductivity`  | Heat conductivity of rock                | ``W/m K``    | 3.0     |
+| `fluid_thermal_conductivity` | Heat conductivity of fluid phases        | ``W/m K``    | 0.6     |
+| `rock_density`               | Mass density of rock                     | ``kg^3/m^3`` | 2000.0  |
+
 """
 function reservoir_domain(g;
         permeability = convert_to_si(0.1, :darcy),
         porosity = 0.1,
         rock_thermal_conductivity = 3.0, # W/m K (~sandstone)
         fluid_thermal_conductivity = 0.6, # W/m K (~water)
+        rock_density = 2000.0,
         diffusion = missing,
         kwarg...
     )
@@ -51,6 +63,7 @@ function reservoir_domain(g;
         porosity = porosity,
         rock_thermal_conductivity = rock_thermal_conductivity,
         fluid_thermal_conductivity = fluid_thermal_conductivity,
+        rock_density = rock_density,
         kwarg...
     )
 end
@@ -72,6 +85,37 @@ Get reservoir domain from a reservoir simulation case.
 """
 function reservoir_domain(case::JutulCase)
     return reservoir_domain(case.model)
+end
+
+export reservoir_system
+
+function reservoir_system(flow::MultiPhaseSystem; kwarg...)
+    reservoir_system(;flow = flow, kwarg...)
+end
+
+"""
+    reservoir_system(flow = flow_system, thermal = thermal_system)
+
+Set up a [`Jutul.CompositeSystem`](@ref) that combines multiple systems
+together. In some terminologies this is refered to as a multi-physics system.
+The classical example is to combine a flow system and a thermal system to create
+a coupled flow and heat system.
+"""
+function reservoir_system(; flow = missing, thermal = missing, kwarg...)
+    carg = Pair{Symbol, Jutul.JutulSystem}[]
+    if !ismissing(flow)
+        flow::MultiPhaseSystem
+        push!(carg, :flow => flow)
+    end
+    if !ismissing(thermal)
+        thermal::ThermalSystem
+        push!(carg, :thermal => thermal)
+    end
+    for (k, v) in kwarg
+        v::Jutul.JutulSystem
+        push!(carg, k => v)
+    end
+    return CompositeSystem(:Reservoir; carg...)
 end
 
 """
