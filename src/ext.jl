@@ -59,7 +59,7 @@ function plot_reservoir(model, arg...; well_fontsize = 18, well_linewidth = 3, k
     else
         bounds_z = missing
     end
-    fig = plot_interactive(data_domain, arg...; kwarg...)
+    fig = plot_interactive(data_domain, arg...; z_is_depth = true, kwarg...)
     g = physical_representation(data_domain)
     ax = fig.current_axis[]
     wells = Dict{Symbol, Any}()
