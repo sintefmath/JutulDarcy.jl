@@ -1,4 +1,4 @@
-using Test, JutulDarcy, MultiComponentFlash
+using Test, JutulDarcy, Jutul, MultiComponentFlash
 
 @testset "number of components and phases" begin
     @testset "immiscible" begin

@@ -1,4 +1,4 @@
-using Jutul, JutulDarcy, Test
+using Jutul, JutulDarcy, Test, LinearAlgebra
 function solve_thermal(;
         nc = 10,
         time = 1000.0,
@@ -73,8 +73,6 @@ using Test
     end
 end
 
-##
-using Jutul, JutulDarcy, GLMakie
 function solve_thermal_wells(;
         nx = 10,
         ny = nx,
