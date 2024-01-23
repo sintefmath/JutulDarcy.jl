@@ -43,13 +43,13 @@ function CPRStorage(p_prec, lin_op, full_jac, ncomp = missing)
     return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p, w_rhs, np, bz, ncomp, objectid(full_jac))
 end
 
-function CPRStorage(np::Int, bz::Int, lin_op, psys::Tuple, solution, residual, T = Float64, id = zero(UInt64))
+function CPRStorage(np::Int, bz::Int, lin_op, psys::Tuple, solution, residual, T = Float64, id = zero(UInt64); ncomp = bz)
     A_p, r_p, p = psys
-    w_p = zeros(T, bz, np)
-    w_rhs = zeros(bz)
+    w_p = zeros(T, ncomp, np)
+    w_rhs = zeros(ncomp)
     w_rhs[1] = 1
     w_rhs = SVector{bz, T}(w_rhs)
-    return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p, w_rhs, np, bz, bz, id)
+    return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p, w_rhs, np, bz, ncomp, id)
 end
 
 

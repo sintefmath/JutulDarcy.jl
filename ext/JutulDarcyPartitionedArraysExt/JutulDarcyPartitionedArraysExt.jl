@@ -12,7 +12,8 @@ module JutulDarcyPartitionedArraysExt
     import JutulDarcy:
         reservoir_partition, partitioner_input, apply_cpr_pressure_stage!,
         apply_cpr_smoother!, set_default_cnv_mb!, setup_reservoir_simulator_parray,
-        increment_pressure!, set_dp!, correct_residual!, CPRStorage, CPRPreconditioner
+        increment_pressure!, set_dp!, correct_residual!, CPRStorage, CPRPreconditioner,
+        number_of_components
 
     function setup_reservoir_simulator_parray(
             case::JutulCase,
@@ -141,7 +142,8 @@ module JutulDarcyPartitionedArraysExt
             p_sys = (A_p, r_p, p)
             rmodel = reservoir_model(sim.storage.model)
             bz = degrees_of_freedom_per_entity(rmodel, Cells())
-            cpr.storage = CPRStorage(n, bz, A_ps, p_sys, global_sol_buf, global_res_buf)
+            ncomp = number_of_components(rmodel.system)
+            cpr.storage = CPRStorage(n, bz, A_ps, p_sys, global_sol_buf, global_res_buf; ncomp = ncomp)
         end
         cpr_storage = cpr.storage
         A_p = cpr_storage.A_p
@@ -150,6 +152,7 @@ module JutulDarcyPartitionedArraysExt
         x_p = cpr_storage.p
         bz = cpr_storage.block_size
         w_rhs = cpr_storage.w_rhs
+        ncomp = cpr_storage.number_of_components
 
         map(sim.storage.simulators, preconditioners) do sim, prec
             storage = Jutul.get_simulator_storage(sim)
@@ -160,7 +163,7 @@ module JutulDarcyPartitionedArraysExt
             prec.pressure_precond.data[:hypre_system] = (A_p, r_p, x_p)
             if isnothing(prec.storage)
                 w_p = zeros(bz, n)
-                prec.storage = CPRStorage(A_p, r_p, x_p, missing, missing, A_ps, w_p, w_rhs, n, bz, rid)
+                prec.storage = CPRStorage(A_p, r_p, x_p, missing, missing, A_ps, w_p, w_rhs, n, bz, ncomp, rid)
             else
                 @assert prec.storage.id == rid
             end
