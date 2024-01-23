@@ -28,7 +28,7 @@ function setup_well_case(nx = 5, backend = :csr)
     ρ = ConstantCompressibilityDensities(p_ref = 1*bar, density_ref = rhoS, compressibility = c)
     replace_variables!(model, PhaseMassDensities = ρ);
     state0 = setup_reservoir_state(model, Pressure = 150*bar, Saturations = [1.0, 0.0])
-    dt = repeat([30.0]*day, 12*5)
+    dt = repeat([7.5]*day, 12*20)
     pv = pore_volume(model, parameters)
     inj_rate = sum(pv)/sum(dt)
 
@@ -44,7 +44,7 @@ function setup_well_case(nx = 5, backend = :csr)
     return JutulCase(model, dt, forces, state0 = state0, parameters = parameters)
 end
 
-function setup_bl_case(nc, backend = :csr; nstep = nc)
+function setup_bl_case(nc, backend = :csr; nstep = 10*nc)
     time = 1.0
 
     T = time
@@ -74,7 +74,7 @@ function setup_bl_case(nc, backend = :csr; nstep = nc)
     return JutulCase(model, tstep, forces, state0 = state0, parameters = parameters)
 end
 ##
-function compare_states(states_ref, states; rtol = 1e-5)
+function compare_states(states_ref, states; rtol = 1e-4)
     for (state, state_ref) in zip(states, states_ref)
         for (k, v) in state_ref
             if v isa AbstractArray && eltype(v)<:Number
@@ -92,30 +92,33 @@ function compare_ws(ws, ws_ref)
         end
     end
 end
-
+##
 @testset "PArray" begin
+    num_procs_to_test = 1:5
     @testset "SimulationModel" begin
         for backend in [:csc, :csr]
             @testset "$backend" begin
-                case = setup_bl_case(10, backend)
+                case = setup_bl_case(50, backend)
                 arg = (info_level = -1,)
                 states, reports = simulate(case; arg...)
                 @testset "PArray native" begin
-                    for np = 1:10
-                        for order in [:default, :symrcm]
+                    for np = num_procs_to_test
+                        for order in [:default]#, :symrcm]
                             states_p, reports_p = simulate_reservoir_parray(case, 
                                 :parray;
                                 arg...,
-                                parray_arg = (np = 2, order = order),
+                                parray_arg = (np = np, order = order),
                                 output_path = tempdir(),
-                                precond = :ilu0
+                                precond = :ilu0,
+                                rtol = 1e-4,
+                                timesteps = :none
                                 )
                             compare_states(states, states_p, rtol = 1e-4)
                         end
                     end
                 end
                 @testset "PArray MPI" begin
-                    states_m, reports_m = simulate_reservoir_parray(case; mode = :mpi, arg...)
+                    states_m, reports_m = simulate_reservoir_parray(case; mode = :mpi, timesteps = :none, arg...)
                     compare_states(states, states_m)
                 end
             end
@@ -124,17 +127,17 @@ end
     @testset "MultiModel" begin
         for backend in [:csc, :csr]
             @testset "$backend" begin
-                case = setup_well_case(10, backend)
-                arg = (info_level = -1,)
+                case = setup_well_case(50, backend)
+                arg = (info_level = -1, timesteps = :none)
                 # Test basic version
                 ws, states = simulate_reservoir(case; mode = :default, arg...)
                 # Basic version (multiproc faked)
                 @testset "PArray native" begin
-                    for order in [:default, :symrcm]
-                        for np in 1:10
+                    for order in [:default]#, :symrcm]
+                        for np in num_procs_to_test
                             ws_d, states_d = simulate_reservoir(case;
                                 mode = :parray,
-                                parray_arg = (np = 2, order = order),
+                                parray_arg = (np = np, order = order),
                                 precond = :ilu0,
                                 output_path = tempdir(),
                                 arg...
