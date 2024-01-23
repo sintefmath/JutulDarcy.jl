@@ -176,11 +176,13 @@ end
         @test norm(rstate[:Pressure]-rstate_c[:Pressure])/norm(rstate[:Pressure]) < 1e-8
         @test norm(rstate[:Saturations]-rstate_c[:Saturations])/norm(rstate[:Saturations]) < 1e-6
     end
-    @testset "well types" begin
-        solve_thermal_wells(nx = 3, nz = 1,
-            thermal = true, composite = true, simple_well = false, block_backend = false);
-        solve_thermal_wells(nx = 3, nz = 1,
-            thermal = true, composite = true, simple_well = true, block_backend = false);
+    @testset "well types and backends" begin
+        for simple_well in [false, true]
+            for block_backend in [false, true]
+                solve_thermal_wells(nx = 3, nz = 1,
+                    thermal = true, composite = true, simple_well = simple_well, block_backend = block_backend);
+            end
+        end
     end
 end
 
