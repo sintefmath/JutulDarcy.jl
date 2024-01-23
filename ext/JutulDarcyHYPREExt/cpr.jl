@@ -90,18 +90,18 @@ function JutulDarcy.create_pressure_system(p_prec::BoomerAMGPreconditioner, J, n
     return (A, r, p)
 end
 
-function JutulDarcy.update_p_rhs!(r_p::HYPRE.HYPREVector, y, bz, w_p, p_prec)
+function JutulDarcy.update_p_rhs!(r_p::HYPRE.HYPREVector, y, ncomp, bz, w_p, p_prec)
     helper = p_prec.data[:assembly_helper]
-    inner_hypre_p_rhs!(r_p, y, bz, w_p, helper)
+    inner_hypre_p_rhs!(r_p, y, ncomp, bz, w_p, helper)
 end
 
-function inner_hypre_p_rhs!(r_p, y, bz, w_p, helper)
+function inner_hypre_p_rhs!(r_p, y, ncomp, bz, w_p, helper)
     R_p = helper.native_zeroed_buffer
     ix = helper.indices
 
     @inbounds for i in eachindex(R_p)
         v = 0.0
-        for b = 1:bz
+        for b = 1:ncomp
             v += y[(i-1)*bz + b]*w_p[b, i]
         end
         R_p[i] = v

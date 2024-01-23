@@ -282,7 +282,7 @@ end
 function apply_cpr_pressure_stage!(cpr::CPRPreconditioner, cpr_s::CPRStorage, r, arg...)
     r_p, w_p, bz, Δp = cpr_s.r_p, cpr_s.w_p, cpr_s.block_size, cpr_s.p
     ncomp = cpr_s.number_of_components
-    @tic "p rhs" update_p_rhs!(r_p, r, ncomp, w_p, cpr.pressure_precond)
+    @tic "p rhs" update_p_rhs!(r_p, r, ncomp, bz, w_p, cpr.pressure_precond)
     # Apply preconditioner to pressure part
     @tic "p apply" begin
         p_rtol = cpr.p_rtol
@@ -484,19 +484,13 @@ end
     end
 end
 
-function update_p_rhs!(r_p, y, bz, w_p, p_prec)
-    if true
-        @batch minbatch = 1000 for i in eachindex(r_p)
-            v = 0.0
-            @inbounds for b = 1:bz
-                v += y[(i-1)*bz + b]*w_p[b, i]
-            end
-            @inbounds r_p[i] = v
+function update_p_rhs!(r_p, y, ncomp, bz, w_p, p_prec)
+    @batch minbatch = 1000 for i in eachindex(r_p)
+        v = 0.0
+        @inbounds for b = 1:ncomp
+            v += y[(i-1)*bz + b]*w_p[b, i]
         end
-    else
-        n = length(y) ÷ bz
-        yv = reshape(y, bz, n)
-        @tullio r_p[i] = yv[b, i]*w_p[b, i]
+        @inbounds r_p[i] = v
     end
 end
 
