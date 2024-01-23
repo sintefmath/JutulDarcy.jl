@@ -537,6 +537,10 @@ function clean_include_path(basedir, include_file_name)
         include_file_name = include_file_name[3:end]
     end
     include_file_name = replace(include_file_name, "'" => "")
+    # Do this one more time in case we have nested string and ./
+    if startswith(include_file_name, "./")
+        include_file_name = include_file_name[3:end]
+    end
     include_path = joinpath(basedir, include_file_name)
     return include_path
 end
