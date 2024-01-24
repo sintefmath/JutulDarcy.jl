@@ -350,3 +350,61 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:AQUANCON})
     parser_message(cfg, outer_data, "AQUANCON", PARSER_MISSING_SUPPORT)
     skip_record(f)
 end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WELSEGS})
+    d = "Default"
+    # TODO: Last two entries for heat capacity / thermal conductivity are not
+    # properly handled w.r.t. units.
+    defaults = [d, NaN, 0.0, 1e-5, d, "HFA", "HO", 0.0, 0.0, 0.0, 0.0, 0.0]
+    utypes = [:id, :length, :length, :volume, :id, :id, :id, :length, :length, :area, :id, :id]
+    wells = get_wells(outer_data)
+    rec = read_record(f)
+    wheader = parse_defaulted_line(rec, defaults)
+    swap_unit_system_axes!(wheader, units, utypes)
+
+    wname = wheader[1]
+    wrec = wheader[2:end]
+
+    # Now follows the segments
+    defaults = [-1, -1, -1, -1, 0.0]
+    utypes = [:id, :id, :id, :id, :length]
+
+    defaults = []
+    utypes = Symbol[]
+
+    function add_entry!(v, u = :id)
+        push!(defaults, v)
+        push!(utypes, u)
+    end
+
+    add_entry!(-1)
+    add_entry!(-1)
+    add_entry!(-1)
+    add_entry!(-1)
+    add_entry!(0.0, :length)
+    add_entry!(0.0, :length)
+    add_entry!(0.0, :length)
+    add_entry!(0.0, :area)
+    add_entry!(0.0, :volume)
+    add_entry!(0.0, :length)
+    add_entry!(0.0, :length)
+    add_entry!(0.0, :length)
+    add_entry!(0.0, :area)
+    add_entry!(0.0, :id)
+    add_entry!(0.0, :id)
+
+    segments = []
+    while true
+        rec = read_record(f)
+        if length(rec) == 0
+            break
+        end
+        l = parse_defaulted_line(rec, defaults)
+        swap_unit_system_axes!(l, units, utypes)
+        push!(segments, l)
+    end
+    if !haskey(data, "WELSEGS")
+        data["WELSEGS"] = Dict{String, Any}()
+    end
+    data["WELSEGS"][wname] = (header = wheader, segments = segments)
+end
