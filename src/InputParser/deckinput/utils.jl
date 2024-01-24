@@ -469,7 +469,10 @@ end
 function next_keyword!(f)
     m = nothing
     while isnothing(m) && !eof(f)
-        line = readline(f)
+        line = strip(readline(f))
+        if line == "/"
+            continue
+        end
         m = keyword_start(line)
     end
     return m
