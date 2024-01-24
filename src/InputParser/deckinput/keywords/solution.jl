@@ -169,3 +169,29 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:EQUIL})
     end
     data["EQUIL"] = out
 end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FIELDSEP})
+    u_type = deck_unit_system_label(units.from)
+    if u_type == :field
+        temp = 60.0
+    else
+        temp = 15.56
+    end
+    # TODO: Can be improved.
+    p = si_unit(:atm)
+
+    n = number_of_tables(outer_data, :equil)
+    def = [1, temp, p, 0, 0, 0, 0, 1, NaN, NaN]
+    eunits = (:id, :relative_temperature, :pressure, :id, :id, :id, :id, :id, :relative_temperature, :pressure)
+    out = []
+    while true
+        rec = read_record(f)
+        if length(rec) == 0
+            break
+        end
+        result = parse_defaulted_line(rec, def)
+        swap_unit_system_axes!(result, units, eunits)
+        push!(out, result)
+    end
+    data["FIELDSEP"] = out
+end
