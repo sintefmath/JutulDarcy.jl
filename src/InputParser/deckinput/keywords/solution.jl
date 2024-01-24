@@ -91,10 +91,15 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PRESSURE})
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:RTEMP})
-    rec = read_record(f)
-    result = parse_defaulted_line(rec, [NaN])
-    swap_unit_system!(result, units, :relative_temperature)
-    data["RTEMP"] = result
+    nreg = number_of_tables(outer_data, :eos)
+    out = Float64[]
+    for i in 1:nreg
+        rec = read_record(f)
+        result = parse_defaulted_line(rec, [NaN])
+        swap_unit_system!(result, units, :relative_temperature)
+        push!(out, only(result))
+    end
+    data["RTEMP"] = out
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:RS})

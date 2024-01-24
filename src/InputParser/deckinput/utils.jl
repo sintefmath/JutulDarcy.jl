@@ -495,9 +495,14 @@ function number_of_tables(outer_data, t::Symbol)
         else
             return 1
         end
-    else
-        error(":$t is not known")
+    elseif t == :eos
+        if haskey(rs, "TABDIMS")
+            return rs["TABDIMS"][9]
+        else
+            return 1
+        end
     end
+    error(":$t is not known")
 end
 
 function compositional_number_of_components(outer_data)
