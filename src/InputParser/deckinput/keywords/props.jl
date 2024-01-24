@@ -179,7 +179,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PVTG})
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PVTW})
-    tdims = [NaN, NaN, NaN, NaN, NaN]
+    tdims = [NaN, NaN, NaN, NaN, 0.0]
     utypes = (:pressure, :liquid_formation_volume_factor, :compressibility, :viscosity, :compressibility)
     nreg = number_of_tables(outer_data, :pvt)
     out = []

@@ -52,6 +52,31 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:DISGAS})
     data["DISGAS"] = true
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, v::Union{Val{:STONE1}, Val{:STONE2}, Val{:BAKER1}, Val{:BAKER2}})
+    k = unpack_val(v)
+    parser_message(cfg, outer_data, "$k", PARSER_JUTULDARCY_MISSING_SUPPORT)
+    data["$k"] = true
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, v::Val{:MISCSTR})
+    parser_message(cfg, outer_data, "MISCSTR", PARSER_JUTULDARCY_MISSING_SUPPORT)
+    rec = read_record(f)
+    tdims = [NaN, NaN, NaN];
+    l = parse_defaulted_line(rec, tdims)
+    @assert !isnan(l[1])
+    for i in 2:3
+        if isnan(l[i])
+            l[i] = l[1]
+        end
+    end
+    cm = si_unit(:centi)*si_unit(:meter)
+    d = si_unit(:dyne)
+    for i in eachindex(l)
+        l[i] *= d/cm
+    end
+    data["MISCSTR"] = l
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:AIM})
     data["AIM"] = true
 end
@@ -152,6 +177,12 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WELLDIMS})
     data["WELLDIMS"] = parse_defaulted_line(rec, tdims)
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WSEGDIMS})
+    rec = read_record(f)
+    tdims = [0, 1, 1, 0]
+    data["WSEGDIMS"] = parse_defaulted_line(rec, tdims)
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:VFPPDIMS})
     rec = read_record(f)
     tdims = [0, 0, 0, 0, 0, 0]
@@ -168,4 +199,11 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:AQUDIMS})
     rec = read_record(f)
     tdims = [1, 1, 1, 36, 1, 1, 0, 0]
     data["AQUDIMS"] = parse_defaulted_line(rec, tdims)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MISCIBLE})
+    rec = read_record(f)
+    tdims = [1, 20, "NONE"]
+    parser_message(cfg, outer_data, "MISCIBLE", PARSER_JUTULDARCY_MISSING_SUPPORT)
+    data["MISCIBLE"] = parse_defaulted_line(rec, tdims)
 end

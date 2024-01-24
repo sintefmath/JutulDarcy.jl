@@ -399,6 +399,8 @@ function parse_keyword!(data, outer_data, units, cfg, f, v::Val{T}) where T
     skip_kw!(:MULTSAVE, 1)
     skip_kw!(:VECTABLE, 1)
     skip_kw!(:MULTSAVE, 1)
+    skip_kw!(:MEMORY, 1)
+    skip_kw!(:OPTIONS3, 1)
 
     skip_kw!(:MULTOUT, 0)
     skip_kw!(:NOSIM, 0)
@@ -407,6 +409,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, v::Val{T}) where T
     skip_kw!(:CO2STORE, 0, PARSER_JUTULDARCY_MISSING_SUPPORT)
     skip_kw!(:CO2STOR, 0, PARSER_JUTULDARCY_MISSING_SUPPORT)
     skip_kw!(:DIFFUSE, 0, PARSER_JUTULDARCY_MISSING_SUPPORT)
+    skip_kw!(:UNIFSAVE, 0)
 
     skip_kw!(:SATOPTS, 1, PARSER_MISSING_SUPPORT)
     skip_kw!(:EQLOPTS, 1, PARSER_MISSING_SUPPORT)
@@ -421,6 +424,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, v::Val{T}) where T
     skip_kw!(:WPAVE, 1, PARSER_MISSING_SUPPORT)
     skip_kw!(:VAPPARS, 1, PARSER_MISSING_SUPPORT)
     skip_kw!(:NETBALAN, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:JFUNC, 1, PARSER_MISSING_SUPPORT)
 
     skip_kw!(:TRACER, Inf, PARSER_MISSING_SUPPORT)
     skip_kw!(:THPRES, Inf, PARSER_MISSING_SUPPORT)
