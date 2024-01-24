@@ -191,7 +191,7 @@ end
 
 function swap_unit_system_axes!(x::AbstractVector, systems, eachunit)
     @assert eltype(eachunit)<:Symbol
-    @assert length(x) == length(eachunit)
+    @assert length(x) == length(eachunit) "Recieved vector of length $(length(x)) but units were $(length(eachunit)) long."
     for i in eachindex(x)
         x[i] = swap_unit_system(x[i], systems, eachunit[i])
     end
