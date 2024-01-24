@@ -19,7 +19,7 @@ end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:EOS})
     rec = read_record(f)
-    data["EOS"] = only(rec)
+    data["EOS"] = only(parse_defaulted_line(rec, ["PR"]))
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:NCOMPS})

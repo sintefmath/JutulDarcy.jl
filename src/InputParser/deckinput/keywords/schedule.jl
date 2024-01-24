@@ -48,7 +48,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COMPORD})
     out = outer_data["SCHEDULE"]["COMPORD"]
     for co in compord
         well, val = co
-        out[name] = val
+        out[well] = val
     end
 end
 
@@ -218,7 +218,7 @@ end
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WEFAC})
     parser_message(cfg, outer_data, "WEFAC", PARSER_JUTULDARCY_PARTIAL_SUPPORT)
 
-    defaults = ["Default", 1.0]
+    defaults = ["Default", 1.0, "YES"]
     wells = get_wells(outer_data)
     parsed = parse_defaulted_group_well(f, defaults, wells, 1)
     push_and_create!(data, "WEFAC", parsed)
@@ -363,12 +363,10 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WELSEGS})
     swap_unit_system_axes!(wheader, units, utypes)
 
     wname = wheader[1]
+    @assert wname != d
     wrec = wheader[2:end]
 
     # Now follows the segments
-    defaults = [-1, -1, -1, -1, 0.0]
-    utypes = [:id, :id, :id, :id, :length]
-
     defaults = []
     utypes = Symbol[]
 
@@ -407,4 +405,45 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:WELSEGS})
         data["WELSEGS"] = Dict{String, Any}()
     end
     data["WELSEGS"][wname] = (header = wheader, segments = segments)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COMPSEGS})
+    rec = read_record(f)
+    wname = only(parse_defaulted_line(rec, ["Default"]))
+    @assert wname != "Default"
+
+    defaults = []
+    utypes = Symbol[]
+
+    function add_entry!(v, u = :id)
+        push!(defaults, v)
+        push!(utypes, u)
+    end
+
+    add_entry!(-1)
+    add_entry!(-1)
+    add_entry!(-1)
+    add_entry!(-1)
+    add_entry!(0.0, :length)
+    add_entry!(0.0, :length)
+    add_entry!("Default")
+    add_entry!(-1)
+    add_entry!(0.0, :length)
+    add_entry!(0.0, :length)
+    add_entry!(0)
+
+    segments = []
+    while true
+        rec = read_record(f)
+        if length(rec) == 0
+            break
+        end
+        l = parse_defaulted_line(rec, defaults)
+        swap_unit_system_axes!(l, units, utypes)
+        push!(segments, l)
+    end
+    if !haskey(data, "COMPSEGS")
+        data["COMPSEGS"] = Dict{String, Any}()
+    end
+    data["COMPSEGS"][wname] = segments
 end

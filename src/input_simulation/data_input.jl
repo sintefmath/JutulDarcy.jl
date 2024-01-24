@@ -712,15 +712,15 @@ function parse_physics_types(datafile)
         mp = MolecularProperty.(mw, p_c, T_c, V_c, acf)
         mixture = MultiComponentMixture(mp, A_ij = A_ij, names = cnames)
         if haskey(props, "EOS")
-            eos_str = lowercase(props["EOS"])
-            if eos_str == "pr"
+            eos_str = uppercase(props["EOS"])
+            if eos_str == "PR"
                 eos_type = PengRobinson()
-            elseif eos_str == "srk"
+            elseif eos_str == "SRK"
                 eos_type = SoaveRedlichKwong()
-            elseif eos_str == "rk"
+            elseif eos_str == "RK"
                 eos_type = RedlichKwong()
             else
-                @assert eos_str == "zj"
+                @assert eos_str == "ZJ" "Unexpected EOS $eos_str: Should be one of PR, SRK, RK, ZJ"
                 eos_type = ZudkevitchJoffe()
             end
         else
