@@ -119,10 +119,13 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:OPERATE})
         op_prm2 = parsed[11]
 
         IJK = get_box_indices(outer_data, il, iu, jl, ju, kl, ku)
-        if !haskey(data, target)
+        operation_target = get_operation_section(outer_data, target)
+        operation_source = get_operation_section(outer_data, source)
+        if ismissing(operation_target)
             data[target] = zeros(dims)
+            operation_target = data[target]
         end
-        apply_operate!(data[target], data[source], IJK, op, op_prm1, op_prm2)
+        apply_operate!(operation_target, operation_source, IJK, op, op_prm1, op_prm2)
         # On to the next one.
         rec = read_record(f)
     end
@@ -186,11 +189,21 @@ function apply_multiply!(vals, src, IX, dims)
     vals[I, J, K] .*= src
 end
 
+function get_operation_section(outer_data, kw)
+    for (k, data) in pairs(outer_data)
+        if data isa AbstractDict && haskey(data, kw)
+            return data[kw]
+        end
+    end
+    return missing
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MULTIPLY})
     # TODO: Merge shared code with COPY
     rec = read_record(f)
-    l, u = outer_data["GRID"]["CURRENT_BOX"]
-    dims = outer_data["GRID"]["cartDims"]
+    grid = outer_data["GRID"]
+    l, u = grid["CURRENT_BOX"]
+    dims = grid["cartDims"]
 
     il = l[1]
     iu = u[1]
@@ -213,8 +226,16 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MULTIPLY})
         ju = parsed[6]
         kl = parsed[7]
         ku = parsed[8]
-        @assert haskey(data, dst) "Unable to apply MULTIPLY to non-declared field $dst"
-        apply_multiply!(data[dst], factor, (il, iu), (jl, ju), (kl, ku), dims)
+        target = get_operation_section(outer_data, dst)
+        if ismissing(target)
+            if dst == "PORV" && haskey(grid, "PORO")
+                # TODO: Bit of a hack
+                target = grid["PORO"]
+            else
+                throw(ArgumentError("Unable to apply MULTIPLY to non-declared field $dst"))
+            end
+        end
+        apply_multiply!(target, factor, (il, iu), (jl, ju), (kl, ku), dims)
         rec = read_record(f)
     end
 end
@@ -254,7 +275,11 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:EQUALS})
         dst = parsed[1]
         constval = parsed[2]
         @assert dst != "Default"
-        if haskey(data, dst)
+        target = get_operation_section(outer_data, dst)
+        if ismissing(target)
+            # TODO: Different keywords go in different spots...
+            data[dst] = fill(constval, dims...)
+        else
             # Box can be kept.
             il = parsed[3]
             iu = parsed[4]
@@ -262,9 +287,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:EQUALS})
             ju = parsed[6]
             kl = parsed[7]
             ku = parsed[8]
-            apply_equals!(data[dst], constval, (il, iu), (jl, ju), (kl, ku), dims)
-        else
-            data[dst] = fill(constval, dims...)
+            apply_equals!(target, constval, (il, iu), (jl, ju), (kl, ku), dims)
         end
         rec = read_record(f)
     end
