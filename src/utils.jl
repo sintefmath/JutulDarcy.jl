@@ -1121,7 +1121,9 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
         T_hf[i] = abs(T_hf_i)
     end
     if neg_count > 0
-        @warn "Replaced $neg_count negative half-transmissibilities (out of $(length(T_hf))) with their absolute value."
+        tran_tot = length(T_hf)
+        perc = round(100*neg_count/tran_tot, digits = 2)
+        @warn "Replaced $neg_count negative half-transmissibilities (out of $tran_tot, $perc%) with their absolute value."
     end
     if haskey(d, :net_to_gross)
         # Net to gross applies to vertical trans only
