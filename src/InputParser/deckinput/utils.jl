@@ -544,6 +544,11 @@ function table_region(outer_data, t::Symbol; active = nothing)
 end
 
 function clean_include_path(basedir, include_file_name)
+    m = match(r"'[^']*'", include_file_name)
+    if !isnothing(m)
+        # Strip away anything that isn't '
+        include_file_name = m.match[2:end-1]
+    end
     include_file_name = strip(include_file_name)
     if startswith(include_file_name, "./")
         include_file_name = include_file_name[3:end]
