@@ -63,7 +63,8 @@ function check_unit(unit_str, units, kw)
     ref = uppercase("$(deck_unit_system_label(units.from))")
     u = uppercase(unit_str)
     if u != ref
-        @warn "Unit mismatch in $kw: Was $u but RUNSPEC declared $ref"
+        # Commented out due to missing logic (e.g. METRIC should equal METRES)
+        # @warn "Unit mismatch in $kw: Was $u but RUNSPEC declared $ref"
     end
 end
 

@@ -447,3 +447,8 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COMPSEGS})
     end
     data["COMPSEGS"][wname] = segments
 end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:UDQ})
+    skip_record(f)
+    parser_message(cfg, outer_data, "UDQ", PARSER_MISSING_SUPPORT)
+end

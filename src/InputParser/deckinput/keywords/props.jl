@@ -302,3 +302,21 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ROCKOPTS})
     parser_message(cfg, outer_data, "ROCKOPTS", PARSER_JUTULDARCY_MISSING_SUPPORT)
     data["ROCKOPTS"] = parsed
 end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:AQUTAB})
+    num = outer_data["RUNSPEC"]["AQUDIMS"][3]-1
+    for i in 1:num
+        skip_record(f)
+    end
+    parser_message(cfg, outer_data, "AQUTAB", PARSER_MISSING_SUPPORT)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:AQUCT})
+    skip_record(f)
+    parser_message(cfg, outer_data, "AQUCT", PARSER_MISSING_SUPPORT)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:AQUANCON})
+    skip_record(f)
+    parser_message(cfg, outer_data, "AQUANCON", PARSER_MISSING_SUPPORT)
+end

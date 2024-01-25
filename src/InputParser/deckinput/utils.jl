@@ -173,7 +173,13 @@ function parse_deck_matrix_line!(data::Vector{T}, seg, n) where T
         @assert m == n "Expected $n was $m"
     end
     for d in seg
-        push!(data, Parsers.parse(T, d))
+        if d == raw"1*"
+            # Defaulted...
+            @assert T == Float64
+            push!(data, NaN)
+        else
+            push!(data, Parsers.parse(T, d))
+        end
     end
     return n
 end
