@@ -238,6 +238,7 @@ specified.
 """
 function PhaseRelativePermeability(s, k; label = :w, connate = s[1], epsilon = 1e-16)
     msg(i) = "k = $(k[i]) at entry $i corresponding to saturation $(s[i])"
+    s, k = saturation_table_handle_defaults(s, k)
     for i in eachindex(s)
         if i == 1
             if s[1] == 0.0

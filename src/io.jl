@@ -10,6 +10,16 @@ function table_to_relperm(swof; swcon = 0.0, first_label = :w, second_label = :o
     return (krw, krow)
 end
 
+function saturation_table_handle_defaults(s, f)
+    if any(isnan, f)
+        # NaN values are removed due to INPUT file shenanigans
+        ix = findall(!isnan, f)
+        s = s[ix]
+        f = f[ix]
+    end
+    return (s, f)
+end
+
 function add_missing_endpoints(s, kr)
     if s[1] > 0.0
         s = vcat(0.0, s)
