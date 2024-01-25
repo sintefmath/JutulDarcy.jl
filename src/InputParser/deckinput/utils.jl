@@ -553,6 +553,10 @@ function clean_include_path(basedir, include_file_name)
     if startswith(include_file_name, "./")
         include_file_name = include_file_name[3:end]
     end
+    pos = findlast(" /", include_file_name)
+    if !isnothing(pos)
+        include_file_name = include_file_name[1:pos[1]-1]
+    end
     include_path = joinpath(basedir, include_file_name)
     return include_path
 end

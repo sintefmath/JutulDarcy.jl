@@ -134,6 +134,24 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:TABDIMS})
     data["TABDIMS"] = parse_defaulted_line(rec, tdims)
 end
 
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:UDADIMS})
+    rec = read_record(f)
+    tdims = [0, 0, 100]
+    data["UDADIMS"] = parse_defaulted_line(rec, tdims)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:UDQDIMS})
+    rec = read_record(f)
+    tdims = [16, 16, 0, 0, 0, 0, 0, 0, 0, 0, "N"]
+    data["UDQDIMS"] = parse_defaulted_line(rec, tdims)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:EXTRAPMS})
+    rec = read_record(f)
+    tdims = [0]
+    data["EXTRAPMS"] = only(parse_defaulted_line(rec, tdims))
+end
+
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FAULTDIM})
     rec = read_record(f)
     tdims = [0];

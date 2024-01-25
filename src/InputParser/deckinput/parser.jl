@@ -107,6 +107,7 @@ function parse_data_file!(outer_data, filename, data = outer_data;
         units::Union{Symbol, Nothing} = :si,
         warn_parsing = true,
         warn_feature = true,
+        basedir = missing,
         silent = false,
         is_outer = true,
         input_units::Union{Symbol, Nothing} = nothing,
@@ -131,7 +132,9 @@ function parse_data_file!(outer_data, filename, data = outer_data;
         unit_systems = get_unit_system_pair(input_units, units)
     end
     filename = realpath(filename)
-    basedir = dirname(filename)
+    if ismissing(basedir)
+        basedir = dirname(filename)
+    end
     f = open(filename, "r")
 
     cfg = ParserVerbosityConfig(
@@ -176,7 +179,7 @@ function parse_data_file!(outer_data, filename, data = outer_data;
                     readline(f)
                 end
                 include_path = clean_include_path(basedir, next)
-                parser_message(cfg, outer_data, "$m", "Including file: $include_path")
+                parser_message(cfg, outer_data, "$m", "Including file: $include_path. Basedir: $basedir with INCLUDE = $next)")
                 parse_data_file!(
                     outer_data, include_path, data,
                     verbose = verbose,
@@ -185,6 +188,7 @@ function parse_data_file!(outer_data, filename, data = outer_data;
                     silent = silent,
                     sections = sections,
                     skip = skip,
+                    basedir = basedir,
                     skip_mode = skip_mode,
                     is_outer = false,
                     units = units,
