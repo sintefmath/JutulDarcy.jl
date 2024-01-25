@@ -302,3 +302,52 @@ function apply_equals!(target, constval, I, J, K, dims)
         end
     end
 end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MAXVALUE})
+    edit_apply_clamping!(f, outer_data, min)
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MINVALUE})
+    edit_apply_clamping!(f, outer_data, max)
+end
+
+function edit_apply_clamping!(f, outer_data, FUNCTION)
+    rec = read_record(f)
+    l, u = outer_data["GRID"]["CURRENT_BOX"]
+    dims = outer_data["GRID"]["cartDims"]
+
+    il = l[1]
+    iu = u[1]
+    jl = l[2]
+    ju = u[2]
+    kl = l[3]
+    ku = u[3]
+
+    while length(rec) > 0
+        d = "Default"
+        parsed = parse_defaulted_line(rec, [d, 1.0, il, iu, jl, ju, kl, ku])
+        dst = parsed[1]
+        lim = parsed[2]
+        @assert dst != "Default"
+        target = get_operation_section(outer_data, dst)
+        # Box can be kept.
+        il = parsed[3]
+        iu = parsed[4]
+        jl = parsed[5]
+        ju = parsed[6]
+        kl = parsed[7]
+        ku = parsed[8]
+        apply_equals!(target, lim, (il, iu), (jl, ju), (kl, ku), dims)
+        rec = read_record(f)
+    end
+end
+
+function apply_minmax!(target, lim, I, J, K, dims, F)
+    for i in I[1]:I[2]
+        for j in J[1]:J[2]
+            for k in K[1]:K[2]
+                target[i, j, k] = F(target[i, j, k], lim)
+            end
+        end
+    end
+end
