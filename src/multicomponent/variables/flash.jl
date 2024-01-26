@@ -137,6 +137,10 @@ function update_flash_buffer!(buf, eos, Pressure, Temperature, OverallMoleFracti
     end
 end
 
+function update_flash_buffer!(buf, eos::KValuesEOS, Pressure, Temperature, OverallMoleFractions)
+    return nothing
+end
+
 function internal_flash!(f, S, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, sw, i)
     @inline function immiscible_sat(::Nothing, i)
         return 0.0
@@ -275,11 +279,37 @@ function k_value_flash!(result::FR, eos, P, T, Z, z) where FR
         V = convert(Num_t, V)
     else
         phase_state = MultiComponentFlash.two_phase_lv
-        @. x = liquid_mole_fraction(Z, K, vapor_frac)
+        V = add_derivatives_to_vapor_fraction_rachford_rice(V, K_ad, Z, K, z)
+        @. x = liquid_mole_fraction(Z, K, V)
         @. y = vapor_mole_fraction(x, K)
-        # TODO: Handle partial derivatives of RR here.
     end
-    Z_L = Z_V = convert(Num_t, NaN)
+    Z_L = Z_V = convert(Num_t, 1.0)
     new_result = FlashedMixture2Phase(phase_state, K, V, x, y, Z_L, Z_V)
     return new_result::FR
+end
+
+function add_derivatives_to_vapor_fraction_rachford_rice(V::Float64, K, z, K_val = value(K), z_val = value(z))
+    Zt = eltype(z)
+    Kt = eltype(K)
+    T = Base.promote_type(Zt, Kt)
+    if T != Float64
+        N = length(z)
+        V0 = V
+        V = convert(T, V)
+        ∂V = V.partials
+        if Kt == T
+            for i in 1:N
+                dK_i = MultiComponentFlash.objectiveRR_dK(V0, K_val, z_val, i)
+                ∂V += K[i].partials*dK_i
+            end
+        end
+        if Zt == T
+            for i in 1:N
+                dz_i = MultiComponentFlash.objectiveRR_dz(V0, K_val, z_val, i)
+                ∂V += z[i].partials*dz_i
+            end
+        end
+        V = T(V0, ∂V)
+    end
+    return V
 end
