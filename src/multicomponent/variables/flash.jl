@@ -1,5 +1,5 @@
 mutable struct InPlaceFlashBuffer
-    z
+    z::Vector{Float64}
     forces
     function InPlaceFlashBuffer(n)
         z = zeros(n)
@@ -75,16 +75,17 @@ function initialize_variable_ad!(state, model, pvar::FlashResults, symb, npartia
 end
 
 @jutul_secondary function update_flash!(flash_results, fr::FlashResults, model, Pressure, Temperature, OverallMoleFractions, ix)
-    flash_entity_loop!(flash_results, fr, model, Pressure, Temperature, OverallMoleFractions, nothing, ix)
+    eos = model.system.equation_of_state
+    flash_entity_loop!(flash_results, fr, model, eos, Pressure, Temperature, OverallMoleFractions, nothing, ix)
 end
 
 @jutul_secondary function update_flash!(flash_results, fr::FlashResults, model::LVCompositionalModel3Phase, Pressure, Temperature, OverallMoleFractions, ImmiscibleSaturation, ix)
-    flash_entity_loop!(flash_results, fr, model, Pressure, Temperature, OverallMoleFractions, ImmiscibleSaturation, ix)
+    eos = model.system.equation_of_state
+    flash_entity_loop!(flash_results, fr, model, eos, Pressure, Temperature, OverallMoleFractions, ImmiscibleSaturation, ix)
 end
 
-function flash_entity_loop!(flash_results, fr, model, Pressure, Temperature, OverallMoleFractions, sw, ix)
+function flash_entity_loop!(flash_results, fr, model, eos, Pressure, Temperature, OverallMoleFractions, sw, ix)
     storage, m, buffers = fr.storage, fr.method, fr.update_buffer
-    eos = model.system.equation_of_state
 
     S, buf = thread_buffers(storage, buffers)
     update_flash_buffer!(buf, eos, Pressure, Temperature, OverallMoleFractions)
@@ -231,4 +232,54 @@ two_phase_pre!(S, P, T, Z, x, y, V, eos, c) = V
     phase_state = MultiComponentFlash.two_phase_lv
 
     return (convert(AD, Z_L), convert(AD, Z_V), convert(AD, V), phase_state)
+end
+
+function flash_entity_loop!(flash_results, fr, model, eos::KValuesEOS, Pressure, Temperature, OverallMoleFractions, sw, ix)
+    storage, m, buffers = fr.storage, fr.method, fr.update_buffer
+    S, buf = thread_buffers(storage, buffers)
+    z_buf = buf.z
+    for i in ix
+        P = Pressure[i]
+        T = Temperature[i]
+        Z = @view OverallMoleFractions[:, i]
+
+        fr = flash_results[i]
+        flash_results[i] = k_value_flash!(fr, eos, P, T, Z, z_buf)
+    end
+end
+
+function k_value_flash!(result::FR, eos, P, T, Z, z) where FR
+    Num_t = Base.promote_type(typeof(P), typeof(T), eltype(Z))
+    @. z = max(value(Z), 1e-8)
+    # Conditions
+    c = (p = value(P), T = value(T), z = z)
+    c_ad = (p = P, T = T, z = Z)
+    K_ad = eos.K_values_evaluator(c_ad)
+    K = result.K
+    x = result.liquid.mole_fractions
+    y = result.vapor.mole_fractions
+
+    @. K = value(K_ad)
+    V = flash_2ph!(nothing, K, eos, c)
+
+    pure_liquid = V <= 0.0
+    pure_vapor = V >= 1.0
+    if pure_vapor || pure_liquid
+        if pure_vapor
+            phase_state = MultiComponentFlash.single_phase_v
+        else
+            phase_state = MultiComponentFlash.single_phase_l
+        end
+        @. x = Z
+        @. y = Z
+        V = convert(Num_t, V)
+    else
+        phase_state = MultiComponentFlash.two_phase_lv
+        @. x = liquid_mole_fraction(Z, K, vapor_frac)
+        @. y = vapor_mole_fraction(x, K)
+        # TODO: Handle partial derivatives of RR here.
+    end
+    Z_L = Z_V = convert(Num_t, NaN)
+    new_result = FlashedMixture2Phase(phase_state, K, V, x, y, Z_L, Z_V)
+    return new_result::FR
 end
