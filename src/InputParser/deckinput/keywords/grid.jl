@@ -49,19 +49,34 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COORDSYS})
     parser_message(cfg, outer_data, "COORDSYS", PARSER_MISSING_SUPPORT)
 end
 
-function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MAPUNITS})
-    # TODO: This needs to be handled
-    partial_parse!(data, outer_data, units, cfg, f, :MAPUNITS)
-end
-
-function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GRIDUNIT})
-    # TODO: This needs to be handled
-    partial_parse!(data, outer_data, units, cfg, f, :GRIDUNIT)
+function check_unit(unit_str, units, kw)
+    ref = uppercase("$(deck_unit_system_label(units.from))")
+    u = uppercase(unit_str)
+    if u != ref
+        # Commented out due to missing logic (e.g. METRIC should equal METRES)
+        # @warn "Unit mismatch in $kw: Was $u but RUNSPEC declared $ref"
+    end
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FILEUNIT})
-    # TODO: This needs to be handled
-    partial_parse!(data, outer_data, units, cfg, f, :FILEUNIT)
+    rec = strip(only(read_record(f)))
+    check_unit(rec, units, "FILEUNIT")
+    data["FILEUNIT"] = rec
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GRIDUNIT})
+    rec = read_record(f)
+    tdims = ["Default", "MAP"]
+    v = parse_defaulted_line(rec, tdims)
+    check_unit(v[1], units, "GRIDUNIT")
+    data["GRIDUNIT"] = v
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MAPUNITS})
+    rec = read_record(f)
+    tdims = ["Default"]
+    v = parse_defaulted_line(rec, tdims)
+    data["MAPUNITS"] = only(v)
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GDORIENT})

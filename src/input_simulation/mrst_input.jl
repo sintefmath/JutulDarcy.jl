@@ -435,6 +435,7 @@ function deck_pc(props; oil, water, gas, satnum = nothing)
                 pc = -pc[ix]
                 s = s[ix]
             end
+            s, pc = saturation_table_handle_defaults(s, pc)
             interp_ow = get_1d_interpolator(s, pc)
             push!(PC, interp_ow)
         end

@@ -1,5 +1,5 @@
 mutable struct InPlaceFlashBuffer
-    z
+    z::Vector{Float64}
     forces
     function InPlaceFlashBuffer(n)
         z = zeros(n)
@@ -75,16 +75,17 @@ function initialize_variable_ad!(state, model, pvar::FlashResults, symb, npartia
 end
 
 @jutul_secondary function update_flash!(flash_results, fr::FlashResults, model, Pressure, Temperature, OverallMoleFractions, ix)
-    flash_entity_loop!(flash_results, fr, model, Pressure, Temperature, OverallMoleFractions, nothing, ix)
+    eos = model.system.equation_of_state
+    flash_entity_loop!(flash_results, fr, model, eos, Pressure, Temperature, OverallMoleFractions, nothing, ix)
 end
 
 @jutul_secondary function update_flash!(flash_results, fr::FlashResults, model::LVCompositionalModel3Phase, Pressure, Temperature, OverallMoleFractions, ImmiscibleSaturation, ix)
-    flash_entity_loop!(flash_results, fr, model, Pressure, Temperature, OverallMoleFractions, ImmiscibleSaturation, ix)
+    eos = model.system.equation_of_state
+    flash_entity_loop!(flash_results, fr, model, eos, Pressure, Temperature, OverallMoleFractions, ImmiscibleSaturation, ix)
 end
 
-function flash_entity_loop!(flash_results, fr, model, Pressure, Temperature, OverallMoleFractions, sw, ix)
+function flash_entity_loop!(flash_results, fr, model, eos, Pressure, Temperature, OverallMoleFractions, sw, ix)
     storage, m, buffers = fr.storage, fr.method, fr.update_buffer
-    eos = model.system.equation_of_state
 
     S, buf = thread_buffers(storage, buffers)
     update_flash_buffer!(buf, eos, Pressure, Temperature, OverallMoleFractions)
@@ -134,6 +135,10 @@ function update_flash_buffer!(buf, eos, Pressure, Temperature, OverallMoleFracti
         end
         buf.forces = force_coefficients(eos, (p = P, T = T, z = Z), static_size = true)
     end
+end
+
+function update_flash_buffer!(buf, eos::KValuesEOS, Pressure, Temperature, OverallMoleFractions)
+    return nothing
 end
 
 function internal_flash!(f, S, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, sw, i)
@@ -231,4 +236,80 @@ two_phase_pre!(S, P, T, Z, x, y, V, eos, c) = V
     phase_state = MultiComponentFlash.two_phase_lv
 
     return (convert(AD, Z_L), convert(AD, Z_V), convert(AD, V), phase_state)
+end
+
+function flash_entity_loop!(flash_results, fr, model, eos::KValuesEOS, Pressure, Temperature, OverallMoleFractions, sw, ix)
+    storage, m, buffers = fr.storage, fr.method, fr.update_buffer
+    S, buf = thread_buffers(storage, buffers)
+    z_buf = buf.z
+    for i in ix
+        P = Pressure[i]
+        T = Temperature[i]
+        Z = @view OverallMoleFractions[:, i]
+
+        fr = flash_results[i]
+        flash_results[i] = k_value_flash!(fr, eos, P, T, Z, z_buf)
+    end
+end
+
+function k_value_flash!(result::FR, eos, P, T, Z, z) where FR
+    Num_t = Base.promote_type(typeof(P), typeof(T), eltype(Z))
+    @. z = max(value(Z), 1e-8)
+    # Conditions
+    c = (p = value(P), T = value(T), z = z)
+    c_ad = (p = P, T = T, z = Z)
+    K_ad = eos.K_values_evaluator(c_ad)
+    K = result.K
+    x = result.liquid.mole_fractions
+    y = result.vapor.mole_fractions
+
+    @. K = value(K_ad)
+    V = flash_2ph!(nothing, K, eos, c)
+
+    pure_liquid = V <= 0.0
+    pure_vapor = V >= 1.0
+    if pure_vapor || pure_liquid
+        if pure_vapor
+            phase_state = MultiComponentFlash.single_phase_v
+        else
+            phase_state = MultiComponentFlash.single_phase_l
+        end
+        @. x = Z
+        @. y = Z
+        V = convert(Num_t, V)
+    else
+        phase_state = MultiComponentFlash.two_phase_lv
+        V = add_derivatives_to_vapor_fraction_rachford_rice(V, K_ad, Z, K, z)
+        @. x = liquid_mole_fraction(Z, K, V)
+        @. y = vapor_mole_fraction(x, K)
+    end
+    Z_L = Z_V = convert(Num_t, 1.0)
+    new_result = FlashedMixture2Phase(phase_state, K, V, x, y, Z_L, Z_V)
+    return new_result::FR
+end
+
+function add_derivatives_to_vapor_fraction_rachford_rice(V::Float64, K, z, K_val = value(K), z_val = value(z))
+    Zt = eltype(z)
+    Kt = eltype(K)
+    T = Base.promote_type(Zt, Kt)
+    if T != Float64
+        N = length(z)
+        V0 = V
+        V = convert(T, V)
+        ∂V = V.partials
+        if Kt == T
+            for i in 1:N
+                dK_i = MultiComponentFlash.objectiveRR_dK(V0, K_val, z_val, i)
+                ∂V += K[i].partials*dK_i
+            end
+        end
+        if Zt == T
+            for i in 1:N
+                dz_i = MultiComponentFlash.objectiveRR_dz(V0, K_val, z_val, i)
+                ∂V += z[i].partials*dz_i
+            end
+        end
+        V = T(V0, ∂V)
+    end
+    return V
 end

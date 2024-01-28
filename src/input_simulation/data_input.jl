@@ -712,15 +712,15 @@ function parse_physics_types(datafile)
         mp = MolecularProperty.(mw, p_c, T_c, V_c, acf)
         mixture = MultiComponentMixture(mp, A_ij = A_ij, names = cnames)
         if haskey(props, "EOS")
-            eos_str = lowercase(props["EOS"])
-            if eos_str == "pr"
+            eos_str = uppercase(props["EOS"])
+            if eos_str == "PR"
                 eos_type = PengRobinson()
-            elseif eos_str == "srk"
+            elseif eos_str == "SRK"
                 eos_type = SoaveRedlichKwong()
-            elseif eos_str == "rk"
+            elseif eos_str == "RK"
                 eos_type = RedlichKwong()
             else
-                @assert eos_str == "zj"
+                @assert eos_str == "ZJ" "Unexpected EOS $eos_str: Should be one of PR, SRK, RK, ZJ"
                 eos_type = ZudkevitchJoffe()
             end
         else
@@ -1123,35 +1123,42 @@ function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, t
     props = eos.mixture.properties
     rho_s = JutulDarcy.reference_densities(sys)
     phases = JutulDarcy.get_phases(sys)
-    mix = Float64[]
-    rho = 0.0
-    # Well stream will be molar fracitons.
     offset = Int(has_other_phase(sys))
     ncomp = number_of_components(sys)
+    # Well stream will be molar fractions.
     mix = zeros(Float64, ncomp)
-    stream_id = streams.wells[name]
-    stream = streams.streams[stream_id]
+    if uppercase(type) == "WATER"
+        has_other_phase(sys) || throw(ArgumentError("Cannot have WATER injector without water phase."))
+        mix[1] = 1.0
+        rho = rho_s[1]
+    else
+        if !haskey(streams.wells, name)
+            throw(ArgumentError("Well $name does not have a stream declared with well type $type."))
+        end
+        stream_id = streams.wells[name]
+        stream = streams.streams[stream_id]
 
-    ϵ = MultiComponentFlash.MINIMUM_COMPOSITION
-    z = map(z_i -> max(z_i, ϵ), stream.mole_fractions)
-    z /= sum(z)
-    cond = stream.cond
+        ϵ = MultiComponentFlash.MINIMUM_COMPOSITION
+        z = map(z_i -> max(z_i, ϵ), stream.mole_fractions)
+        z /= sum(z)
+        cond = stream.cond
 
-    z_mass = map(
-        (z_i, prop) -> max(z_i*prop.mw, ϵ),
-        z, props
-    )
-    z_mass /= sum(z_mass)
-    for i in 1:ncomp
-        mix[i+offset] = z_mass[i]
+        z_mass = map(
+            (z_i, prop) -> max(z_i*prop.mw, ϵ),
+            z, props
+        )
+        z_mass /= sum(z_mass)
+        for i in 1:ncomp
+            mix[i+offset] = z_mass[i]
+        end
+        @assert sum(mix) ≈ 1.0 "Sum of mixture was $(sum(mix)) != 1 for mole mixture $(z) as mass $z_mass"
+
+        flash_cond = (p = cond.p, T = cond.T, z = z)
+        flash = MultiComponentFlash.flashed_mixture_2ph(eos, flash_cond)
+        rho_l, rho_v = MultiComponentFlash.mass_densities(eos, cond.p, cond.T, flash)
+        S_l, S_v = MultiComponentFlash.phase_saturations(eos, cond.p, cond.T, flash)
+        rho = S_l*rho_l + S_v*rho_v
     end
-    @assert sum(mix) ≈ 1.0 "Sum of mixture was $(sum(mix)) != 1 for mole mixture $(z) as mass $z_mass"
-
-    flash_cond = (p = cond.p, T = cond.T, z = z)
-    flash = MultiComponentFlash.flashed_mixture_2ph(eos, flash_cond)
-    rho_l, rho_v = MultiComponentFlash.mass_densities(eos, cond.p, cond.T, flash)
-    S_l, S_v = MultiComponentFlash.phase_saturations(eos, cond.p, cond.T, flash)
-    rho = S_l*rho_l + S_v*rho_v
     return (rho, mix)
 end
 

@@ -30,18 +30,23 @@ function equilibriate_state(model, contacts, datum_depth = missing, datum_pressu
         sat = init[:Saturations]
         pressure = init[:Pressure]
         nph, nc = size(sat)
-        if ismissing(rs)
-            Rs = zeros(nc)
-        else
-            Rs = rs.(pts)
+
+        if has_disgas(sys)
+            if ismissing(rs)
+                Rs = zeros(nc)
+            else
+                Rs = rs.(pts)
+            end
+            init[:Rs] = Rs
         end
-        if ismissing(rv)
-            Rv = zeros(nc)
-        else
-            Rv = rv.(pts)
+        if has_vapoil(sys)
+            if ismissing(rv)
+                Rv = zeros(nc)
+            else
+                Rv = rv.(pts)
+            end
+            init[:Rv] = Rv
         end
-        init[:Rs] = Rs
-        init[:Rv] = Rv
     end
     return init
 end
@@ -255,10 +260,17 @@ function parse_state0_equil(model, datafile)
             end
 
             if disgas
-                @assert haskey(sol, "RSVD")
-                rsvd = sol["RSVD"][ereg]
-                z = rsvd[:, 1]
-                Rs = rsvd[:, 2]
+                if haskey(sol, "RSVD")
+                    rsvd = sol["RSVD"][ereg]
+                    z = rsvd[:, 1]
+                    Rs = rsvd[:, 2]
+                else
+                    @assert haskey(sol, "PBVD")
+                    pbvd = sol["PBVD"][ereg]
+                    z = pbvd[:, 1]
+                    pb = vec(pbvd[:, 2])
+                    Rs = sys.rs_max.(pb)
+                end
                 rs = Jutul.LinearInterpolant(z, Rs)
             else
                 rs = missing

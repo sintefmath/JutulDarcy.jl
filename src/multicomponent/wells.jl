@@ -3,11 +3,29 @@ function flash_wellstream_at_surface(var, well_model, system::S, state, rhoS, co
     nc = MultiComponentFlash.number_of_components(eos)
     z = SVector{nc}(state.OverallMoleFractions[:, 1])
     flash, _, surface_moles = get_separator_intermediate_storage(var, system, z, 2)
+    S_l, S_v, rho_l, rho_v = separator_flash(flash, system, surface_moles, eos, cond, z)
+    return compositional_surface_densities(state, system, S_l, S_v, rho_l, rho_v)
+end
+
+function separator_flash(flash, system, surface_moles, eos, cond, z)
     result = separator_flash!(flash, eos, cond, z)
     rho_l, rho_v = mass_densities(eos, cond.p, cond.T, result)
     S_l, S_v = phase_saturations(eos, cond.p, cond.T, result)
     @assert S_l + S_v ≈ 1.0
-    return compositional_surface_densities(state, system, S_l, S_v, rho_l, rho_v)
+    return (S_l, S_v, rho_l, rho_v)
+end
+
+function separator_flash(flash, system, surface_moles, eos::KValuesEOS, cond, z)
+    if has_other_phase(system)
+        _, rho_l, rho_v = reference_densities(system)
+    else
+        rho_l, rho_v = reference_densities(system)
+    end
+    # TODO Clean up, correct, derivatives?
+    V = flash_2ph(eos, (p = cond.p, T = cond.T, z = z))
+    S_l = 1.0 - V
+    S_v = V
+    return (S_l, S_v, rho_l, rho_v)
 end
 
 Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::CompositionalSystem, state_res, state_well, rhoS, conn)

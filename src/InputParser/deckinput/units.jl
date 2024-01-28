@@ -174,6 +174,10 @@ function DeckUnitSystem(sys::Symbol, T = Float64)
     )
 end
 
+function deck_unit_system_label(::DeckUnitSystem{S, T}) where {S, T}
+    return S
+end
+
 function swap_unit_system_axes!(x::AbstractMatrix, systems, eachunit; dim = 2)
     @assert eltype(eachunit)<:Symbol
     @assert size(x, dim) == length(eachunit)
@@ -191,7 +195,7 @@ end
 
 function swap_unit_system_axes!(x::AbstractVector, systems, eachunit)
     @assert eltype(eachunit)<:Symbol
-    @assert length(x) == length(eachunit)
+    @assert length(x) == length(eachunit) "Recieved vector of length $(length(x)) but units were $(length(eachunit)) long."
     for i in eachindex(x)
         x[i] = swap_unit_system(x[i], systems, eachunit[i])
     end

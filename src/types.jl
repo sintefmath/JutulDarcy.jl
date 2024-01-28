@@ -56,7 +56,7 @@ function MultiPhaseCompositionalSystemLV(equation_of_state, phases = (LiquidPhas
     end
     only(findall(isequal(LiquidPhase()), phases))
     only(findall(isequal(VaporPhase()), phases))
-    MultiPhaseCompositionalSystemLV{typeof(equation_of_state), T, O, typeof(reference_densities), N}(phases, c, equation_of_state, reference_densities)
+    return MultiPhaseCompositionalSystemLV{typeof(equation_of_state), T, O, typeof(reference_densities), N}(phases, c, equation_of_state, reference_densities)
 end
 
 function Base.show(io::IO, sys::MultiPhaseCompositionalSystemLV)
@@ -94,7 +94,7 @@ end
 Set up a standard black-oil system. Keyword arguments `rs_max` and `rv_max` can
 either be nothing or callable objects / functions for the maximum Rs and Rv as a
 function of pressure. `phases` can be specified together with
-`reference_densities` for each phase. 
+`reference_densities` for each phase.
 
 NOTE: For the black-oil model, the reference densities significantly impact many
 aspects of the PVT behavior. These should generally be set consistently with the
@@ -238,6 +238,7 @@ specified.
 """
 function PhaseRelativePermeability(s, k; label = :w, connate = s[1], epsilon = 1e-16)
     msg(i) = "k = $(k[i]) at entry $i corresponding to saturation $(s[i])"
+    s, k = saturation_table_handle_defaults(s, k)
     for i in eachindex(s)
         if i == 1
             if s[1] == 0.0

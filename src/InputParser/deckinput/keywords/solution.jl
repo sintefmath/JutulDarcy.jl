@@ -91,10 +91,15 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PRESSURE})
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:RTEMP})
-    rec = read_record(f)
-    result = parse_defaulted_line(rec, [NaN])
-    swap_unit_system!(result, units, :relative_temperature)
-    data["RTEMP"] = result
+    nreg = number_of_tables(outer_data, :eos)
+    out = Float64[]
+    for i in 1:nreg
+        rec = read_record(f)
+        result = parse_defaulted_line(rec, [NaN])
+        swap_unit_system!(result, units, :relative_temperature)
+        push!(out, only(result))
+    end
+    data["RTEMP"] = out
 end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:RS})
@@ -118,7 +123,33 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:RSVD})
     data["RSVD"] = out
 end
 
-function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:RTEMPVD})
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:PBVD})
+    n = number_of_tables(outer_data, :equil)
+    out = []
+    for i = 1:n
+        rs = parse_deck_matrix(f)
+        swap_unit_system_axes!(rs, units, (:length, :pressure))
+        push!(out, rs)
+    end
+    data["PBVD"] = out
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:ZMFVD})
+    n = number_of_tables(outer_data, :equil)
+    out = []
+    ncomp = compositional_number_of_components(outer_data)
+    for i = 1:n
+        zmfvd = parse_deck_vector(f)
+        zmfvd = collect(reshape(zmfvd, ncomp+1, :)')
+        for j in 1:size(zmfvd, 1)
+            zmfvd[j, 1] = swap_unit_system(zmfvd[j, 1], units, :length)
+        end
+        push!(out, zmfvd)
+    end
+    data["ZMFVD"] = out
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Union{Val{:TEMPVD}, Val{:RTEMPVD}})
     n = number_of_tables(outer_data, :equil)
     out = []
     for i = 1:n
@@ -143,8 +174,8 @@ end
 
 function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:EQUIL})
     n = number_of_tables(outer_data, :equil)
-    def = [0.0, NaN, 0.0, 0.0, 0.0, 0.0, 0, 0, 0]
-    eunits = (:length, :pressure, :length, :pressure, :length, :pressure, :id, :id, :id)
+    def = [0.0, NaN, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, 1, 0]
+    eunits = (:length, :pressure, :length, :pressure, :length, :pressure, :id, :id, :id, :id, :id)
     out = []
     for i = 1:n
         rec = read_record(f)
@@ -153,4 +184,30 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:EQUIL})
         push!(out, result)
     end
     data["EQUIL"] = out
+end
+
+function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:FIELDSEP})
+    u_type = deck_unit_system_label(units.from)
+    if u_type == :field
+        temp = 60.0
+    else
+        temp = 15.56
+    end
+    # TODO: Can be improved.
+    p = si_unit(:atm)
+
+    n = number_of_tables(outer_data, :equil)
+    def = [1, temp, p, 0, 0, 0, 0, 1, NaN, NaN]
+    eunits = (:id, :relative_temperature, :pressure, :id, :id, :id, :id, :id, :relative_temperature, :pressure)
+    out = []
+    while true
+        rec = read_record(f)
+        if length(rec) == 0
+            break
+        end
+        result = parse_defaulted_line(rec, def)
+        swap_unit_system_axes!(result, units, eunits)
+        push!(out, result)
+    end
+    data["FIELDSEP"] = out
 end

@@ -173,7 +173,13 @@ function parse_deck_matrix_line!(data::Vector{T}, seg, n) where T
         @assert m == n "Expected $n was $m"
     end
     for d in seg
-        push!(data, Parsers.parse(T, d))
+        if d == raw"1*"
+            # Defaulted...
+            @assert T == Float64
+            push!(data, NaN)
+        else
+            push!(data, Parsers.parse(T, d))
+        end
     end
     return n
 end
@@ -399,6 +405,8 @@ function parse_keyword!(data, outer_data, units, cfg, f, v::Val{T}) where T
     skip_kw!(:MULTSAVE, 1)
     skip_kw!(:VECTABLE, 1)
     skip_kw!(:MULTSAVE, 1)
+    skip_kw!(:MEMORY, 1)
+    skip_kw!(:OPTIONS3, 1)
 
     skip_kw!(:MULTOUT, 0)
     skip_kw!(:NOSIM, 0)
@@ -407,6 +415,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, v::Val{T}) where T
     skip_kw!(:CO2STORE, 0, PARSER_JUTULDARCY_MISSING_SUPPORT)
     skip_kw!(:CO2STOR, 0, PARSER_JUTULDARCY_MISSING_SUPPORT)
     skip_kw!(:DIFFUSE, 0, PARSER_JUTULDARCY_MISSING_SUPPORT)
+    skip_kw!(:UNIFSAVE, 0)
 
     skip_kw!(:SATOPTS, 1, PARSER_MISSING_SUPPORT)
     skip_kw!(:EQLOPTS, 1, PARSER_MISSING_SUPPORT)
@@ -421,6 +430,7 @@ function parse_keyword!(data, outer_data, units, cfg, f, v::Val{T}) where T
     skip_kw!(:WPAVE, 1, PARSER_MISSING_SUPPORT)
     skip_kw!(:VAPPARS, 1, PARSER_MISSING_SUPPORT)
     skip_kw!(:NETBALAN, 1, PARSER_MISSING_SUPPORT)
+    skip_kw!(:JFUNC, 1, PARSER_MISSING_SUPPORT)
 
     skip_kw!(:TRACER, Inf, PARSER_MISSING_SUPPORT)
     skip_kw!(:THPRES, Inf, PARSER_MISSING_SUPPORT)
@@ -465,7 +475,10 @@ end
 function next_keyword!(f)
     m = nothing
     while isnothing(m) && !eof(f)
-        line = readline(f)
+        line = strip(readline(f))
+        if line == "/"
+            continue
+        end
         m = keyword_start(line)
     end
     return m
@@ -488,9 +501,14 @@ function number_of_tables(outer_data, t::Symbol)
         else
             return 1
         end
-    else
-        error(":$t is not known")
+    elseif t == :eos
+        if haskey(rs, "TABDIMS")
+            return rs["TABDIMS"][9]
+        else
+            return 1
+        end
     end
+    error(":$t is not known")
 end
 
 function compositional_number_of_components(outer_data)
@@ -532,6 +550,11 @@ function table_region(outer_data, t::Symbol; active = nothing)
 end
 
 function clean_include_path(basedir, include_file_name)
+    m = match(r"'[^']*'", include_file_name)
+    if !isnothing(m)
+        # Strip away anything that isn't '
+        include_file_name = m.match[2:end-1]
+    end
     include_file_name = strip(include_file_name)
     if startswith(include_file_name, "./")
         include_file_name = include_file_name[3:end]
@@ -540,6 +563,10 @@ function clean_include_path(basedir, include_file_name)
     # Do this one more time in case we have nested string and ./
     if startswith(include_file_name, "./")
         include_file_name = include_file_name[3:end]
+    end
+    pos = findlast(" /", include_file_name)
+    if !isnothing(pos)
+        include_file_name = include_file_name[1:pos[1]-1]
     end
     include_path = joinpath(basedir, include_file_name)
     return include_path
