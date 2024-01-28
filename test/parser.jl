@@ -6,8 +6,8 @@ import JutulDarcy.InputParser: clean_include_path, parse_defaulted_line
     @test clean_include_path("/some/path", " 'MYFILE'") == joinpath("/some/path", "MYFILE")
     @test clean_include_path("/some/path", " ./MYFILE") == joinpath("/some/path", "MYFILE")
     @test clean_include_path("/some/path", " './MYFILE'") == joinpath("/some/path", "MYFILE")
-    @test clean_include_path("/some/path", " 'INCLUDE/file.txt' /  (Some comment)") == "/some/path/INCLUDE/file.txt"
-    @test clean_include_path("/some/path", " 'INCLUDE/file.txt'/(Some comment)") == "/some/path/INCLUDE/file.txt"
+    @test clean_include_path("/some/path", " 'file.txt' /  (Some comment)") == joinpath("/some/path", "file.txt")
+    @test clean_include_path("/some/path", " 'file.txt'/(Some comment)") == joinpath("/some/path", "file.txt")
 
     @test parse_defaulted_line("3.0 2* 7", [1.0, 2, 3, 4]) == [3.0, 2, 3, 7]
     @test parse_defaulted_line("2.0", [1.0, 2, 3, 4]) == [2.0, 2, 3, 4]
