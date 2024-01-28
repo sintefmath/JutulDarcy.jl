@@ -49,16 +49,6 @@ function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:COORDSYS})
     parser_message(cfg, outer_data, "COORDSYS", PARSER_MISSING_SUPPORT)
 end
 
-function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:MAPUNITS})
-    # TODO: This needs to be handled
-    partial_parse!(data, outer_data, units, cfg, f, :MAPUNITS)
-end
-
-function parse_keyword!(data, outer_data, units, cfg, f, ::Val{:GRIDUNIT})
-    # TODO: This needs to be handled
-    partial_parse!(data, outer_data, units, cfg, f, :GRIDUNIT)
-end
-
 function check_unit(unit_str, units, kw)
     ref = uppercase("$(deck_unit_system_label(units.from))")
     u = uppercase(unit_str)
