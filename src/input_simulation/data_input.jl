@@ -919,17 +919,23 @@ function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_
         # This is a bit of a hack.
         flag = "OPEN"
     end
-    if flag == "SHUT" || flag == "STOP"
-        ctrl = DisabledControl()
-        lims = nothing
-    else
+    well_is_disabled = flag == "SHUT" || flag == "STOP"
+    if !well_is_disabled
         @assert flag == "OPEN" "Unsupported well flag: $flag"
         if ctype == "RATE"
             is_rate = true
-            t = TotalRateTarget(surf_rate)
+            if isfinite(surf_rate)
+                t = TotalRateTarget(surf_rate)
+            else
+                well_is_disabled = true
+            end
         elseif ctype == "BHP"
             is_rate = false
-            t = BottomHolePressureTarget(bhp)
+            if isfinite(bhp)
+                t = BottomHolePressureTarget(bhp)
+            else
+                well_is_disabled = true
+            end
         else
             # RESV, GRUP, THP
             error("$ctype control not supported")
@@ -937,10 +943,14 @@ function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_
         rho, mix = select_injector_mixture_spec(sys, name, streams, type)
         if is_rate && surf_rate < MIN_ACTIVE_WELL_RATE
             @debug "Disabling injector $name with $ctype ctrl due to zero rate" surf_rate
-            ctrl = DisabledControl()
-        else
-            ctrl = InjectorControl(t, mix, density = rho)
+            well_is_disabled = true
         end
+    end
+    if well_is_disabled
+        ctrl = DisabledControl()
+        lims = nothing
+    else
+        ctrl = InjectorControl(t, mix, density = rho)
         if is_hist
             # TODO: This magic number comes from MRST.
             bhp_lim = convert_to_si(6895.0, :bar)
