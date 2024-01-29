@@ -428,46 +428,6 @@ function parse_state0_direct_assignment(model, datafile)
     return init
 end
 
-function mesh_from_grid_section(f, actnum = missing)
-    if f isa String
-        f = InputParser.parse_grdecl_file(f)
-    end
-    f::AbstractDict
-    if haskey(f, "GRID")
-        grid = f["GRID"]
-    else
-        grid = f
-    end
-    if ismissing(actnum)
-        actnum = get_effective_actnum(grid)
-    end
-    cartdims = grid["cartDims"]
-    if haskey(grid, "COORD")
-        coord = grid["COORD"]
-        zcorn = grid["ZCORN"]
-        primitives = JutulDarcy.cpgrid_primitives(coord, zcorn, cartdims, actnum = actnum)
-        G = JutulDarcy.grid_from_primitives(primitives)
-    else
-        @assert haskey(grid, "DX")
-        @assert haskey(grid, "DY")
-        @assert haskey(grid, "DZ")
-        @assert haskey(grid, "TOPS")
-        @warn "DX+DY+DZ+TOPS format is only supported if all cells are equally sized. If you get an error, this is the cause."
-        @assert all(actnum)
-        dx = only(unique(grid["DX"]))
-        dy = only(unique(grid["DY"]))
-        dz = only(unique(grid["DZ"]))
-        tops = only(unique(grid["TOPS"]))
-        G = CartesianMesh(cartdims, cartdims.*(dx, dy, dz))
-        # We always want to return an unstructured mesh.
-        G = UnstructuredMesh(G)
-    end
-    if haskey(grid, "FAULTS")
-        mesh_add_fault_tags!(G, grid["FAULTS"])
-    end
-    return G
-end
-
 function parse_reservoir(data_file)
     grid = data_file["GRID"]
     cartdims = grid["cartDims"]
@@ -527,8 +487,8 @@ function parse_reservoir(data_file)
         end
         extra_data_arg[:temperature] = temperature
     end
-    satnum = JutulDarcy.InputParser.table_region(data_file, :saturation, active = active_ix)
-    eqlnum = JutulDarcy.InputParser.table_region(data_file, :equil, active = active_ix)
+    satnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :satnum, active = active_ix)
+    eqlnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :eqlnum, active = active_ix)
 
     domain = reservoir_domain(G;
         permeability = perm,
@@ -541,111 +501,6 @@ function parse_reservoir(data_file)
         domain[:transmissibility_multiplier, Faces()] = tranmult
     end
     return domain
-end
-
-function get_effective_actnum(g)
-    if haskey(g, "ACTNUM")
-        actnum = copy(g["ACTNUM"])
-    else
-        actnum = fill(true, g["cartDims"])
-    end
-    handle_zero_effective_porosity!(actnum, g)
-    return actnum
-end
-
-function handle_zero_effective_porosity!(actnum, g)
-    if haskey(g, "MINPV")
-        minpv = g["MINPV"]
-    else
-        minpv = 1e-6
-    end
-    added = 0
-    active = 0
-
-    if haskey(g, "PORV")
-        porv = G["PORV"]
-        for i in eachindex(actnum)
-            if actnum[i]
-                pv = porv[i]
-                active += active
-                if pv < minpv
-                    added += 1
-                    actnum[i] = false
-                end
-            end
-        end
-    elseif haskey(g, "PORO")
-        if haskey(g, "ZCORN")
-            zcorn = g["ZCORN"]
-            coord = reshape(g["COORD"], 6, :)'
-            cartdims = g["cartDims"]
-        else
-            zcorn = coord = cartdims = missing
-        end
-        # Have to handle zero or negligble porosity.
-        if haskey(g, "NTG")
-            ntg = g["NTG"]
-        else
-            ntg = ones(size(actnum))
-        end
-        poro = g["PORO"]
-        for i in eachindex(actnum)
-            if actnum[i]
-                vol = zcorn_volume(g, zcorn, coord, cartdims, i)
-                pv = poro[i]*ntg[i]*vol
-                active += active
-                if pv < minpv
-                    added += 1
-                    actnum[i] = false
-                end
-            end
-        end
-    end
-    @debug "$added disabled cells out of $(length(actnum)) due to low effective pore-volume."
-    return actnum
-end
-
-function zcorn_volume(g, zcorn, coord, dims, linear_ix)
-    if ismissing(zcorn)
-        return 1.0
-    end
-    nx, ny, nz = dims
-    i, j, k = linear_to_ijk(linear_ix, dims)
-
-    get_zcorn(I1, I2, I3) = zcorn[corner_index(linear_ix, (I1, I2, I3), dims)]
-    get_pair(I, J) = (get_zcorn(I, J, 0), get_zcorn(I, J, 1))
-    function pillar_line(I, J)
-        x1, x2 = get_line(coord, i+I, j+J, nx+1, ny+1)
-        return (x1 = x1, x2 = x2, equal_points = false)
-    end
-
-    function interpolate_line(I, J, L)
-        pl = pillar_line(I, J)
-        return interp_coord(pl, L)
-    end
-
-    l_11, t_11 = get_pair(0, 0)
-    l_12, t_12 = get_pair(0, 1)
-    l_21, t_21 = get_pair(1, 0)
-    l_22, t_22 = get_pair(1, 1)
-
-    pt_11 = interpolate_line(0, 0, l_11)
-    pt_12 = interpolate_line(0, 1, l_12)
-    pt_21 = interpolate_line(1, 0, l_21)
-    pt_22 = interpolate_line(1, 1, l_22)
-
-
-    A_1 = norm(cross(pt_21 - pt_11, pt_12 - pt_11), 2)
-    A_2 = norm(cross(pt_21 - pt_22, pt_12 - pt_22), 2)
-    area = (A_1 + A_2)/2.0
-
-    d_11 = t_11 - l_11
-    d_12 = t_12 - l_12
-    d_21 = t_21 - l_21
-    d_22 = t_22 - l_22
-
-    d_avg = 0.25*(d_11 + d_12 + d_21 + d_22)
-    return d_avg*area
 end
 
 function parse_physics_types(datafile)
@@ -1311,93 +1166,4 @@ function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
     @assert sort(sorted) == 1:n "$sorted was not $(1:n)"
     @assert length(sorted) == n
     return sorted
-end
-
-function mesh_add_fault_tags!(G::UnstructuredMesh, faults)
-    ijk = map(x -> cell_ijk(G, x), 1:number_of_cells(G))
-    N = G.faces.neighbors
-    for (fault, specs) in faults
-        fault_faces = Int[]
-        for (I, J, K, dir) in specs
-            IJK = (I, J, K)
-            @assert length(dir) == 1 || length(dir) == 2
-            d = dir[1]
-            if d == 'X' || d == 'I'
-                ix_self = 1
-                ix_1 = 2
-                ix_2 = 3
-            elseif d == 'Y' || d == 'J'
-                ix_self = 2
-                ix_1 = 1
-                ix_2 = 3
-            elseif d == 'Z' || d == 'K'
-                ix_self = 3
-                ix_1 = 1
-                ix_2 = 2
-            else
-                error("Bad direction for fault $fault entry: $dir")
-            end
-            if length(dir) == 1 || dir[2] == '+'
-                inc = 1
-            else
-                @assert dir[2] == '-'
-                inc = -1
-            end
-            range_self = IJK[ix_self]
-            range_1 = IJK[ix_1]
-            range_2 = IJK[ix_2]
-            @assert length(range_self) == 1
-            self = range_self[1]
-
-            match_fault_to_faces!(fault_faces, N, ijk, range_1, ix_1, range_2, ix_2, self, ix_self, inc)
-        end
-        @debug "Fault $fault: Added $(length(fault_faces)) faces"
-        set_mesh_entity_tag!(G, Faces(), :faults, Symbol(fault), fault_faces)
-    end
-end
-
-function match_fault_to_faces!(fault_faces, N, ijk_cells, range_1, ix_1, range_2, ix_2, self, ix_self, inc)
-    function sorted_tuple(a, b)
-        if a < b
-            pair = (a, b)
-        else
-            pair = (b, a)
-        end
-    end
-    pair = sorted_tuple(self, self+inc)
-    face = 0
-    for (l, r) in N
-        face += 1
-
-        ijk_l = ijk_cells[l]
-        ijk_r = ijk_cells[r]
-
-        self_l = ijk_l[ix_self]
-        self_r = ijk_r[ix_self]
-
-        fpair = sorted_tuple(self_l, self_r)
-        if fpair != pair
-            continue
-        end
-
-        # Keep going unless fixed indices match
-        cr_1 = ijk_r[ix_1]
-        if !(cr_1 in range_1)
-            continue
-        end
-        cr_2 = ijk_r[ix_2]
-        if !(cr_2 in range_2)
-            continue
-        end
-        cl_1 = ijk_l[ix_1]
-        if !(cl_1 in range_1)
-            continue
-        end
-        cl_2 = ijk_l[ix_2]
-        if !(cl_2 in range_2)
-            continue
-        end
-
-        push!(fault_faces, face)
-    end
 end

@@ -9,15 +9,7 @@ get_phases(sys::MultiPhaseSystem) = sys.phases
 flow_system(sys::MultiPhaseSystem) = sys
 flow_system(sys::CompositeSystem) = sys.systems.flow
 
-
-
-
-
 number_of_components(sys::ImmiscibleSystem) = number_of_phases(sys)
-
-# function ImmiscibleSystem(phases)
-#    @assert length(phases) > 1 "System should have at least two phases. For single-phase, use SinglePhaseSystem instead."
-# end
 
 # Single-phase
 
