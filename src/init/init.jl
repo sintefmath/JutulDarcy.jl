@@ -323,18 +323,29 @@ function parse_state0_equil(model, datafile)
             end
 
             for (k, v) in subinit
-                for (i, c) in enumerate(cells)
-                    if v isa AbstractVector
-                        init[k][cells] .= v
-                    else
-                        init[k][:, cells] .= v
-                    end
-                end
+                fill_subinit!(init[k], cells, v)
             end
         end
         @assert all(touched) "Some cells are not initialized by equil: $(findall(!, touched))"
     end
     return init
+end
+
+function fill_subinit!(x::Vector, cells, v::Vector)
+    @assert length(v) == length(cells)
+    for (i, c) in enumerate(cells)
+        x[c] = v[i]
+    end
+end
+
+function fill_subinit!(x::Matrix, cells, v::Matrix)
+    @assert size(x, 1) == size(v, 1)
+    @assert size(v, 2) == length(cells)
+    for (i, c) in enumerate(cells)
+        for j in axes(x, 1)
+            x[j, c] = v[j, i]
+        end
+    end
 end
 
 function init_reference_pressure(pressures, contacts, kr, pc, ref_ix = 2)
