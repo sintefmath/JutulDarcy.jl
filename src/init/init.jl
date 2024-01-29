@@ -379,7 +379,7 @@ function determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, da
             I = I_ref
         else
             contact = contacts[pos]
-            datum_pressure_ph = I_ref(contact)
+            datum_pressure_ph = I_ref(contact) + contacts_pc[pos]
             I = phase_pressure_depth_table(contact, zmin, zmax, datum_pressure_ph, density_f, ph)
             pos += 1
         end
