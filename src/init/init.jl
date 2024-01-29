@@ -170,7 +170,7 @@ function parse_state0_equil(model, datafile)
     vapoil = JutulDarcy.has_vapoil(model.system)
 
     equil = sol["EQUIL"]
-    nequil = JutulDarcy.InputParser.number_of_tables(datafile, :equil)
+    nequil = GeoEnergyIO.InputParser.number_of_tables(datafile, :eqlnum)
     @assert length(equil) == nequil
     inits = []
     inits_cells = []
