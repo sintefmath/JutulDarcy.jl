@@ -126,6 +126,10 @@ bottom-hole-pressure constraint.
 """
 struct SurfaceLiquidRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
+    function SurfaceLiquidRateTarget(v::T) where T
+        isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))'
+        return new{T}(v)
+    end
 end
 
 lumped_phases(::SurfaceLiquidRateTarget) = (AqueousPhase(), LiquidPhase())
@@ -139,6 +143,10 @@ rarely injected into the subsurface. Abbreviated as ORAT in some settings.
 """
 struct SurfaceOilRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
+    function SurfaceOilRateTarget(v::T) where T
+        isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))'
+        return new{T}(v)
+    end
 end
 
 lumped_phases(::SurfaceOilRateTarget) = (LiquidPhase(), )
@@ -155,6 +163,10 @@ present.
 """
 struct SurfaceGasRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
+    function SurfaceGasRateTarget(v::T) where T
+        isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))'
+        return new{T}(v)
+    end
 end
 
 lumped_phases(::SurfaceGasRateTarget) = (VaporPhase(), )
@@ -170,6 +182,10 @@ become very high if there is little water present.
 """
 struct SurfaceWaterRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
+    function SurfaceWaterRateTarget(v::T) where T
+        isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))'
+        return new{T}(v)
+    end
 end
 
 lumped_phases(::SurfaceWaterRateTarget) = (AqueousPhase(), )
@@ -184,6 +200,10 @@ Often used for both [`InjectorControl`](@ref) [`ProducerControl`](@ref).
 """
 struct TotalRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
+    function TotalRateTarget(v::T) where T
+        isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))'
+        return new{T}(v)
+    end
 end
 Base.show(io::IO, t::TotalRateTarget) = print(io, "TotalRateTarget with value $(t.value) [m^3/s]")
 
