@@ -1,9 +1,12 @@
 
-function equilibriate_state(model, contacts, datum_depth = missing, datum_pressure = JutulDarcy.DEFAULT_MINIMUM_PRESSURE;
-    cells = missing,
-    rs = missing,
-    rv = missing,
-    kwarg...)
+function equilibriate_state(model, contacts,
+        datum_depth = missing,
+        datum_pressure = JutulDarcy.DEFAULT_MINIMUM_PRESSURE;
+        cells = missing,
+        rs = missing,
+        rv = missing,
+        kwarg...
+    )
     model = reservoir_model(model)
     D = model.data_domain
     G = physical_representation(D)
@@ -215,7 +218,7 @@ function parse_state0_equil(model, datafile)
                     end
                     ix = unique(i -> cap[i], 1:length(cap))
 
-                    if nph == 3 && i == 1
+                    if i == 1 && get_phases(model.system)[1] isa AqueousPhase
                         @. cap *= -1
                     end
                     push!(pc, (s = s[ix], pc = cap[ix]))
@@ -252,11 +255,11 @@ function parse_state0_equil(model, datafile)
                     contacts_pc = (goc_pc, )
                 else
                     contacts = (woc, )
-                    contacts_pc = (woc_pc, )
+                    contacts_pc = (-woc_pc, )
                 end
             else
                 contacts = (woc, goc)
-                contacts_pc = (woc_pc, goc_pc)
+                contacts_pc = (-woc_pc, goc_pc)
             end
 
             if disgas
