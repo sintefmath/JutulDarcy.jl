@@ -1,6 +1,6 @@
 module JutulDarcyPartitionedArraysExt
     using Jutul, JutulDarcy
-    using PrecompileTools
+    using PrecompileTools, TimerOutputs
     # Specific dependencies
     using PartitionedArrays, MPI, HYPRE
     using LinearAlgebra
@@ -14,6 +14,8 @@ module JutulDarcyPartitionedArraysExt
         apply_cpr_smoother!, set_default_cnv_mb!, setup_reservoir_simulator_parray,
         increment_pressure!, set_dp!, correct_residual!, CPRStorage, CPRPreconditioner,
         number_of_components
+
+    timeit_debug_enabled() = false
 
     function setup_reservoir_simulator_parray(
             case::JutulCase,

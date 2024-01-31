@@ -4,6 +4,10 @@ module JutulDarcyHYPREExt
     using Jutul
     using SparseArrays
     using PrecompileTools
+    using TimerOutputs
+
+    timeit_debug_enabled() = false
+
     include("cpr.jl")
 
     # @compile_workload begin
