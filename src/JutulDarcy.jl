@@ -145,6 +145,8 @@ module JutulDarcy
     import DataStructures: OrderedDict
     using DocStringExtensions
 
+    timeit_debug_enabled() = Jutul.timeit_debug_enabled()
+
     include("types.jl")
     include("deck_types.jl")
     include("porousmedia_grids.jl")
