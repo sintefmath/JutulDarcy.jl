@@ -36,16 +36,8 @@ end
     include("parray.jl")
 end
 
-@testitem "Parser" begin
-    include("parser.jl")
-end
-
 @testitem "Scalarization" begin
     include("scalarization.jl")
-end
-
-@testitem "Corner point grids" begin
-    include("cpgrid.jl")
 end
 
 @testitem "Multi-phase systems basics" begin

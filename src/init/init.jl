@@ -1,9 +1,12 @@
 
-function equilibriate_state(model, contacts, datum_depth = missing, datum_pressure = JutulDarcy.DEFAULT_MINIMUM_PRESSURE;
-    cells = missing,
-    rs = missing,
-    rv = missing,
-    kwarg...)
+function equilibriate_state(model, contacts,
+        datum_depth = missing,
+        datum_pressure = JutulDarcy.DEFAULT_MINIMUM_PRESSURE;
+        cells = missing,
+        rs = missing,
+        rv = missing,
+        kwarg...
+    )
     model = reservoir_model(model)
     D = model.data_domain
     G = physical_representation(D)
@@ -170,7 +173,7 @@ function parse_state0_equil(model, datafile)
     vapoil = JutulDarcy.has_vapoil(model.system)
 
     equil = sol["EQUIL"]
-    nequil = JutulDarcy.InputParser.number_of_tables(datafile, :equil)
+    nequil = GeoEnergyIO.InputParser.number_of_tables(datafile, :eqlnum)
     @assert length(equil) == nequil
     inits = []
     inits_cells = []
@@ -215,7 +218,7 @@ function parse_state0_equil(model, datafile)
                     end
                     ix = unique(i -> cap[i], 1:length(cap))
 
-                    if nph == 3 && i == 1
+                    if i == 1 && get_phases(model.system)[1] isa AqueousPhase
                         @. cap *= -1
                     end
                     push!(pc, (s = s[ix], pc = cap[ix]))
@@ -232,7 +235,7 @@ function parse_state0_equil(model, datafile)
                     swcon = fill(krw.connate, ncells_reg)
                 end
                 push!(s_min, swcon)
-                push!(s_max, non_connate)
+                push!(s_max, ones(ncells_reg))
                 @. non_connate -= swcon
             end
             if has_oil
@@ -252,11 +255,11 @@ function parse_state0_equil(model, datafile)
                     contacts_pc = (goc_pc, )
                 else
                     contacts = (woc, )
-                    contacts_pc = (woc_pc, )
+                    contacts_pc = (-woc_pc, )
                 end
             else
                 contacts = (woc, goc)
-                contacts_pc = (woc_pc, goc_pc)
+                contacts_pc = (-woc_pc, goc_pc)
             end
 
             if disgas
@@ -323,18 +326,29 @@ function parse_state0_equil(model, datafile)
             end
 
             for (k, v) in subinit
-                for (i, c) in enumerate(cells)
-                    if v isa AbstractVector
-                        init[k][cells] .= v
-                    else
-                        init[k][:, cells] .= v
-                    end
-                end
+                fill_subinit!(init[k], cells, v)
             end
         end
         @assert all(touched) "Some cells are not initialized by equil: $(findall(!, touched))"
     end
     return init
+end
+
+function fill_subinit!(x::Vector, cells, v::Vector)
+    @assert length(v) == length(cells)
+    for (i, c) in enumerate(cells)
+        x[c] = v[i]
+    end
+end
+
+function fill_subinit!(x::Matrix, cells, v::Matrix)
+    @assert size(x, 1) == size(v, 1)
+    @assert size(v, 2) == length(cells)
+    for (i, c) in enumerate(cells)
+        for j in axes(x, 1)
+            x[j, c] = v[j, i]
+        end
+    end
 end
 
 function init_reference_pressure(pressures, contacts, kr, pc, ref_ix = 2)
@@ -368,7 +382,7 @@ function determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, da
             I = I_ref
         else
             contact = contacts[pos]
-            datum_pressure_ph = I_ref(contact)
+            datum_pressure_ph = I_ref(contact) + contacts_pc[pos]
             I = phase_pressure_depth_table(contact, zmin, zmax, datum_pressure_ph, density_f, ph)
             pos += 1
         end

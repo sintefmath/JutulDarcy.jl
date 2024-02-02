@@ -254,14 +254,14 @@ function apply!(x, cpr::CPRPreconditioner, r, arg...)
     # Zero out buffer, just in case
     @. x = 0.0
     # presmooth
-    apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npre)
-    apply_cpr_pressure_stage!(cpr, cpr_s, r, arg...)
+    @tic "cpr smoother" apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npre)
+    @tic "cpr pressure stage" apply_cpr_pressure_stage!(cpr, cpr_s, r, arg...)
     # postsmooth
     if cpr.npost > 0
         correct_residual_and_increment_pressure!(r, x, cpr_s.p, bz, buf, cpr_s.A_ps)
-        apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npost, skip_last = true)
+        @tic "cpr smoother" apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npost, skip_last = true)
     else
-        increment_pressure!(x, cpr_s.p, bz)
+        @tic "p increment" increment_pressure!(x, cpr_s.p, bz)
     end
 end
 
@@ -276,7 +276,7 @@ function apply_cpr_smoother!(x, r, buf, smoother, A_ps, n; skip_last = false)
 end
 
 function correct_residual!(r, A, x)
-    mul!(r, A, x, -1.0, true)
+    @tic "residual correction" mul!(r, A, x, -1.0, true)
 end
 
 function apply_cpr_pressure_stage!(cpr::CPRPreconditioner, cpr_s::CPRStorage, r, arg...)
@@ -289,15 +289,6 @@ function apply_cpr_pressure_stage!(cpr::CPRPreconditioner, cpr_s::CPRStorage, r,
         p_precond = cpr.pressure_precond
         cpr_p_apply!(Δp, cpr, p_precond, r_p, p_rtol)
     end
-end
-
-function apply_cpr_second_stage!(x, cpr::CPRPreconditioner, cpr_s::CPRStorage, r, arg...)
-    bz, Δp = cpr_s.block_size, cpr_s.p
-    # We currently mutate r and it seems ok. Could copy here if needed.
-    y = r
-    @tic "r update" correct_residual_for_dp!(y, x, Δp, bz, cpr_s.x_ps, cpr_s.A_ps)
-    @tic "s apply" apply!(x, cpr.system_precond, y)
-    @tic "Δp" increment_pressure!(x, Δp, bz)
 end
 
 function cpr_p_apply!(Δp, cpr, p_precond, r_p, p_rtol)
@@ -501,7 +492,7 @@ function correct_residual_and_increment_pressure!(r, x, Δp, bz, buf, A_ps)
     # y' = y - A*Δx
     # x = A \ y' + Δx
     @. buf = 0
-    for i in 1:length(Δp)
+    @tic "p increment" @inbounds for i in eachindex(Δp)
         ix = (i-1)*bz + 1
         p_i = Δp[i]
         buf[ix] = p_i

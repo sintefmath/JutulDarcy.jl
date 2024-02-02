@@ -1,8 +1,0 @@
-include("runspec.jl")
-include("grid.jl")
-include("props.jl")
-include("regions.jl")
-include("schedule.jl")
-include("solution.jl")
-include("summary.jl")
-include("special.jl")

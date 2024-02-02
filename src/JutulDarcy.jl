@@ -11,7 +11,6 @@ $(EXPORTS)
 module JutulDarcy
     export MultiPhaseSystem, ImmiscibleSystem, SinglePhaseSystem
     export reservoir_linsolve
-    export parse_data_file, parse_grdecl_file
     export get_1d_reservoir
     export DeckPhaseViscosities
     export DeckShrinkageFactors
@@ -142,9 +141,11 @@ module JutulDarcy
     using TimerOutputs
     using PrecompileTools
     using Dates
+    using GeoEnergyIO
     import DataStructures: OrderedDict
     using DocStringExtensions
 
+    timeit_debug_enabled() = Jutul.timeit_debug_enabled()
 
     include("types.jl")
     include("deck_types.jl")
@@ -172,8 +173,6 @@ module JutulDarcy
     include("input_simulation/input_simulation.jl")
     # Initialization by equilibriation
     include("init/init.jl")
-    # Corner point grids
-    include("cpgrid/cpgrid.jl")
     # Gradients, objective functions, etc
     include("gradients/gradients.jl")
 
@@ -189,11 +188,6 @@ module JutulDarcy
     include("formulations/formulations.jl")
 
     include("ext.jl")
-
-    include("InputParser/InputParser.jl")
-    using .InputParser
-    import .InputParser: parse_data_file
-
 
     @compile_workload begin
         precompile_darcy_multimodels()

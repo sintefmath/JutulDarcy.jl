@@ -5,10 +5,10 @@ function well_test_objective(model, state)
     return 2.0*q[1] + 0.5*q[2]
 end
 
-function solve_adjoint_forward_test_system(; block_backend = true, kwarg...)
+function solve_adjoint_forward_test_system(casename; block_backend = true, kwarg...)
     Darcy = si_unit(:darcy)
     states, reports, setup = JutulDarcy.simulate_mini_wellcase(
-        :immiscible_2ph;
+        casename;
         kwarg...,
         block_backend = block_backend,
         permeability = 0.65*Darcy
@@ -16,8 +16,8 @@ function solve_adjoint_forward_test_system(; block_backend = true, kwarg...)
     return (setup[:model], setup[:state0], states, reports, setup[:parameters], setup[:forces])
 end
 
-function test_optimization_gradient(; use_scaling = true, use_log = false, kwarg...)
-    model, state0, states, reports, param, forces = solve_adjoint_forward_test_system(; kwarg...)
+function test_optimization_gradient(casename = :immiscible_2ph; use_scaling = true, use_log = false, kwarg...)
+    model, state0, states, reports, param, forces = solve_adjoint_forward_test_system(casename; kwarg...)
     dt = report_timesteps(reports)
     ϵ = 1e-3
     num_tol = 1e-2
