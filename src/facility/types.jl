@@ -509,9 +509,17 @@ function realize_control_for_reservoir(rstate, ctrl::ProducerControl{<:Historica
     b_var = svar[:ShrinkageFactors]
     reg = b_var.regions
     bW = shrinkage(b_var.pvt[a], reg, p_avg, 1)
-    bO = shrinkage(b_var.pvt[l], reg, p_avg, rs, 1)
-    bG = shrinkage(b_var.pvt[v], reg, p_avg, rv, 1)
-    
+    if has_disgas(model.system)
+        bO = shrinkage(b_var.pvt[l], reg, p_avg, rs, 1)
+    else
+        bO = shrinkage(b_var.pvt[l], reg, p_avg, 1)
+    end
+    if has_vapoil(model.system)
+        bG = shrinkage(b_var.pvt[v], reg, p_avg, rv, 1)
+    else
+        bG = shrinkage(b_var.pvt[v], reg, p_avg, 1)
+    end
+
     shrink = 1.0 - rs*rv
     shrink_avg = 1.0 - rs_avg*rv_avg
     old_rate = ctrl.target.value

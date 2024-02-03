@@ -278,8 +278,8 @@ function parse_state0_equil(model, datafile)
                     contacts_pc = (-woc_pc, goc_pc)
                 end
 
-                rhoGS = map(x -> x[3], data["PROPS"]["DENSITY"])
-                rhoOS = map(x -> x[1], data["PROPS"]["DENSITY"])
+                rhoGS = map(x -> x[3], datafile["PROPS"]["DENSITY"])
+                rhoOS = map(x -> x[1], datafile["PROPS"]["DENSITY"])
 
                 Rs_scale = (rhoGS[preg]/rhoGS[1])*(rhoOS[preg]/rhoOS[1])
                 Rv_scale = 1.0/Rs_scale
