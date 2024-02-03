@@ -942,7 +942,11 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
         if is_hist
             self_symbol = translate_target_to_symbol(t, shortname = true)
             # Put pressure slightly above 1 atm to avoid hard limit.
-            lims = (; :bhp => 1.001*si_unit(:atm), self_symbol => self_val)
+            if self_symbol == :resv_history
+                lims = (; :bhp => 1.001*si_unit(:atm))
+            else
+                lims = (; :bhp => 1.001*si_unit(:atm), self_symbol => self_val)
+            end
         else
             lims = producer_limits(bhp = bhp, orat = orat, wrat = wrat, grat = grat, lrat = lrat)
         end
