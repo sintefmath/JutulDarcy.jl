@@ -51,30 +51,49 @@ function setup_case_from_data_file(
 end
 
 function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans = true, kwarg...)
-    sys, pvt = parse_physics_types(datafile)
+    sys, pvt = parse_physics_types(datafile, pvt_region = 1)
     is_blackoil = sys isa StandardBlackOilSystem
     is_compositional = sys isa CompositionalSystem
     domain = parse_reservoir(datafile)
     pvt_reg = reservoir_regions(domain, :pvtnum)
-
+    has_pvt = isnothing(pvt_reg)
+    # Parse wells
     wells, controls, limits, cstep, dt, well_forces = parse_schedule(domain, sys, datafile; simple_well = simple_well)
 
-    model = setup_reservoir_model(domain, sys; wells = wells, extra_out = false, kwarg...)
+    wells_pvt = Dict()
+    wells_systems = []
+    for w in wells
+        if has_pvt
+            c = first(w.perforations.reservoir)
+            reg_w = pvt_reg[c]
+            sys, pvt = parse_physics_types(datafile, pvt_region = reg_w)
+        else
+            sys_w, pvt_w = sys, pvt
+        end
+        wells_pvt[w.name] = pvt_w
+        push!(wells_systems, sys_w)
+    end
+
+    model = setup_reservoir_model(domain, sys; wells = wells, extra_out = false, wells_systems = wells_systems, kwarg...)
     for (k, submodel) in pairs(model.models)
         if submodel.system isa MultiPhaseSystem
             # Modify secondary variables
             if !is_compositional
                 svar = submodel.secondary_variables
-                # PVT
                 pvt_reg_i = reservoir_regions(submodel.data_domain, :pvtnum)
-                pvt = tuple(pvt...)
-                rho = DeckPhaseMassDensities(pvt, regions = pvt_reg_i)
+                if model_or_domain_is_well(submodel)
+                    pvt_i = wells_pvt[submodel.domain.representation.name]
+                else
+                    pvt_i = pvt
+                end
+                pvt_i = tuple(pvt_i...)
+                rho = DeckPhaseMassDensities(pvt_i, regions = pvt_reg_i)
                 if sys isa StandardBlackOilSystem
                     set_secondary_variables!(submodel,
-                        ShrinkageFactors = JutulDarcy.DeckShrinkageFactors(pvt, regions = pvt_reg_i)
+                        ShrinkageFactors = DeckShrinkageFactors(pvt_i, regions = pvt_reg_i)
                     )
                 end
-                mu = DeckPhaseViscosities(pvt, regions = pvt_reg_i)
+                mu = DeckPhaseViscosities(pvt_i, regions = pvt_reg_i)
                 set_secondary_variables!(submodel, PhaseViscosities = mu, PhaseMassDensities = rho)
             end
             if k == :Reservoir
@@ -82,8 +101,7 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
                 oil = haskey(rs, "OIL")
                 water = haskey(rs, "WATER")
                 gas = haskey(rs, "GAS")
-
-                JutulDarcy.set_deck_specialization!(submodel, datafile["PROPS"], domain[:satnum], oil, water, gas)
+                set_deck_specialization!(submodel, datafile["PROPS"], domain[:satnum], oil, water, gas)
             end
         end
     end
@@ -285,7 +303,7 @@ function parse_forces(model, wells, controls, limits, cstep, dt, well_forces)
 end
 
 function parse_state0(model, datafile)
-    rmodel = JutulDarcy.reservoir_model(model)
+    rmodel = reservoir_model(model)
     init = Dict{Symbol, Any}()
     sol = datafile["SOLUTION"]
 
@@ -386,7 +404,7 @@ function parse_state0_direct_assignment(model, datafile)
 
             so = s_rem
             init[:BlackOilUnknown] = map(
-                (w,  o,   g, r,  v, p) -> JutulDarcy.blackoil_unknown_init(F_rs, F_rv, w, o, g, r, v, p),
+                (w,  o,   g, r,  v, p) -> blackoil_unknown_init(F_rs, F_rv, w, o, g, r, v, p),
                 sw, so, sg, rs, rv, pressure)
         else
             @assert !ismissing(sg)
@@ -529,7 +547,7 @@ function parse_physics_types(datafile; pvt_region = missing)
     if haskey(props, "DENSITY")
         deck_densities = props["DENSITY"]
         if deck_densities isa Matrix
-            deck_densities = JutulDarcy.flat_region_expand(deck_density, 3)
+            deck_densities = flat_region_expand(deck_density, 3)
         end
         if ismissing(pvt_region)
             if length(deck_densities) > 1
@@ -541,6 +559,20 @@ function parse_physics_types(datafile; pvt_region = missing)
         pvt_region in 1:num_pvt_reg || throw(ArgumentError("Single PVT region found but region $pvt_region was requested."))
         deck_density = deck_densities[pvt_region]
 
+        rhoW_all = map(x -> x[1], deck_densities)
+        rhoO_all = map(x -> x[2], deck_densities)
+        rhoG_all = map(x -> x[3], deck_densities)
+
+        oil_scale = rhoO_all[pvt_region]./rhoO_all
+        gas_scale = rhoG_all[pvt_region]./rhoG_all
+        scaling = (
+            water_density = rhoW_all[pvt_region]./rhoW_all,
+            oil_density = oil_scale,
+            gas_density = gas_scale,
+            rs = gas_scale./oil_scale,
+            rv = oil_scale./gas_scale
+            )
+
         rhoOS = deck_density[1]
         rhoWS = deck_density[2]
         rhoGS = deck_density[3]
@@ -549,10 +581,11 @@ function parse_physics_types(datafile; pvt_region = missing)
         rhoOS = rhoWS = rhoGS = 1.0
         has_oil = true
         has_gas = true
+        scaling = missing
     end
 
     if has_wat
-        push!(pvt, JutulDarcy.deck_pvt_water(props))
+        push!(pvt, deck_pvt_water(props, scaling = scaling))
         push!(phases, AqueousPhase())
         push!(rhoS, rhoWS)
     end
@@ -598,13 +631,13 @@ function parse_physics_types(datafile; pvt_region = missing)
         sys = MultiPhaseCompositionalSystemLV(eos, phases, reference_densities = rhoS)
     else
         if has_oil
-            push!(pvt, deck_pvt_oil(props))
+            push!(pvt, deck_pvt_oil(props, scaling = scaling))
             push!(phases, LiquidPhase())
             push!(rhoS, rhoOS)
         end
 
         if has_gas
-            push!(pvt, deck_pvt_gas(props))
+            push!(pvt, deck_pvt_gas(props, scaling = scaling))
             push!(phases, VaporPhase())
             push!(rhoS, rhoGS)
         end
@@ -630,7 +663,7 @@ function pick_system_from_pvt(pvt, rhoS, phases, is_immiscible)
         else
             rv_max = nothing
         end
-        sys = JutulDarcy.StandardBlackOilSystem(
+        sys = StandardBlackOilSystem(
             rs_max = rs_max,
             rv_max = rv_max,
             phases = phases,
@@ -647,8 +680,8 @@ function parse_schedule(domain, sys, datafile; kwarg...)
 end
 
 function parse_control_steps(runspec, props, schedule, sys)
-    rho_s = JutulDarcy.reference_densities(sys)
-    phases = JutulDarcy.get_phases(sys)
+    rho_s = reference_densities(sys)
+    phases = get_phases(sys)
 
     wells = schedule["WELSPECS"]
     steps = schedule["STEPS"]
@@ -812,8 +845,8 @@ function keyword_to_control(sys, streams, kw, k::String)
 end
 
 function keyword_to_control(sys, streams, kw, ::Val{:WCONPROD})
-    rho_s = JutulDarcy.reference_densities(sys)
-    phases = JutulDarcy.get_phases(sys)
+    rho_s = reference_densities(sys)
+    phases = get_phases(sys)
 
     flag = kw[2]
     ctrl = kw[3]
@@ -826,8 +859,8 @@ function keyword_to_control(sys, streams, kw, ::Val{:WCONPROD})
 end
 
 function keyword_to_control(sys, streams, kw, ::Val{:WCONHIST})
-    rho_s = JutulDarcy.reference_densities(sys)
-    phases = JutulDarcy.get_phases(sys)
+    rho_s = reference_densities(sys)
+    phases = get_phases(sys)
     # 1 name
     flag = kw[2]
     ctrl = kw[3]
@@ -863,8 +896,8 @@ function producer_limits(; bhp = Inf, lrat = Inf, orat = Inf, wrat = Inf, grat =
 end
 
 function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = false)
-    rho_s = JutulDarcy.reference_densities(sys)
-    phases = JutulDarcy.get_phases(sys)
+    rho_s = reference_densities(sys)
+    phases = get_phases(sys)
 
     if flag == "SHUT" || flag == "STOP"
         ctrl = DisabledControl()
@@ -980,8 +1013,8 @@ function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_
 end
 
 function select_injector_mixture_spec(sys::Union{ImmiscibleSystem, StandardBlackOilSystem}, name, streams, type)
-    rho_s = JutulDarcy.reference_densities(sys)
-    phases = JutulDarcy.get_phases(sys)
+    rho_s = reference_densities(sys)
+    phases = get_phases(sys)
     mix = Float64[]
     rho = 0.0
     for (phase, rho_ph) in zip(phases, rho_s)
@@ -1003,8 +1036,8 @@ end
 function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, type)
     eos = sys.equation_of_state
     props = eos.mixture.properties
-    rho_s = JutulDarcy.reference_densities(sys)
-    phases = JutulDarcy.get_phases(sys)
+    rho_s = reference_densities(sys)
+    phases = get_phases(sys)
     offset = Int(has_other_phase(sys))
     ncomp = number_of_components(sys)
     # Well stream will be molar fractions.

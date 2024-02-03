@@ -286,31 +286,80 @@ function model_from_mat(G, data_domain, mrst_data, res_context)
     return model_from_mat_deck(G, data_domain, mrst_data, res_context)
 end
 
-function deck_pvt_water(props)
+function rescale_btable(pvt, scaling, ix = 2)
+    pvt = deepcopy(pvt)
+    for (i, tab) in enumerate(pvt)
+        if tab isa Vector
+            tab[ix] /= scaling.water_density[i]
+        else
+            tab[:, ix] /= scaling.water_density[i]
+        end
+    end
+    return pvt
+end
+
+function rescale_btable(pvt, scaling::Missing, ix = 2)
+    return pvt
+end
+
+function deck_pvt_water(props; scaling = missing)
     if haskey(props, "PVTW_EXTENDED")
-        pvt = PVTW_EXTENDED(props["PVTW_EXTENDED"])
+        t = rescale_btable(props["PVTW_EXTENDED"], scaling)
+        pvt = PVTW_EXTENDED(t)
     else
-        pvt = PVTW(props["PVTW"])
+        t = rescale_btable(props["PVTW"], scaling)
+        pvt = PVTW(t)
     end
     return pvt
 end
 
-function deck_pvt_oil(props)
+function rescale_live_table(pvt, scaling, k = :pvto)
+    pvt = deepcopy(pvt)
+    for (i, tab) in enumerate(pvt)
+        if k == :pvto
+            # rs is key
+            # bo is second in data
+            tab["key"] *= scaling.rs[i]
+            tab["data"][:, 2] /= scaling.oil_density[i]
+        else
+            @assert k == :pvtg
+            # rv is first
+            # bo is second in data
+            tab["data"][:, 1] *= scaling.rv[i]
+            tab["data"][:, 2] /= scaling.gas_density[i]
+        end
+    end
+    return pvt
+end
+
+function rescale_live_table(pvt, scaling::Missing, ix = 2)
+    return pvt
+end
+
+
+function deck_pvt_oil(props; scaling = missing)
     if haskey(props, "PVTO")
-        pvt = PVTO(vec(props["PVTO"]))
+        t = vec(props["PVTO"])
+        t = rescale_live_table(t, scaling, :pvto)
+        pvt = PVTO(t)
     elseif haskey(props, "PVDO")
-        pvt = PVDO(props["PVDO"])
+        t = rescale_btable(props["PVDO"], scaling)
+        pvt = PVDO(t)
     else
-        pvt = PVCDO(props["PVCDO"])
+        t = rescale_btable(props["PVCDO"], scaling)
+        pvt = PVCDO(t)
     end
     return pvt
 end
 
-function deck_pvt_gas(props)
+function deck_pvt_gas(props; scaling = missing)
     if haskey(props, "PVTG")
-        pvt = PVTG(vec(props["PVTG"]))
+        t = vec(props["PVTG"])
+        t = rescale_live_table(t, scaling, :pvtg)
+        pvt = PVTG(t)
     else
-        pvt = PVDG(props["PVDG"])
+        t = rescale_btable(props["PVDG"], scaling)
+        pvt = PVDG(t)
     end
     return pvt
 end
