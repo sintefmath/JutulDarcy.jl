@@ -37,11 +37,12 @@ function select_secondary_variables!(S, system::BlackOilSystem, model)
         S[:SurfaceVolumeMobilities] = SurfaceVolumeMobilities()
     end
     S[:PhaseViscosities] = DeckPhaseViscosities(pvt)
+    pvt_regions = reservoir_regions(model, :pvtnum)
     if has_disgas(system)
-        S[:Rs] = Rs()
+        S[:Rs] = Rs(system.rs_max, regions = pvt_regions)
     end
     if has_vapoil(system)
-        S[:Rv] = Rv()
+        S[:Rv] = Rv(system.rv_max, regions = pvt_regions)
     end
 end
 

@@ -19,16 +19,44 @@ end
 Jutul.default_value(model, ::BlackOilPhaseState) = OilAndGas
 Jutul.initialize_secondary_variable_ad!(state, model, var::BlackOilPhaseState, arg...; kwarg...) = state
 
-struct Rs <: ScalarVariable end
+struct Rs{F, R} <: ScalarVariable
+    rs_max::F
+    regions::R
+end
+
+function Rs(rs_max::F; regions::R = nothing) where {F, R}
+    return Rs{F, R}(rs_max, regions)
+end
+
+function Jutul.subvariable(v::Rs, map::FiniteVolumeGlobalMap)
+    c = map.cells
+    regions = Jutul.partition_variable_slice(v.regions, c)
+    return Rs(v.rs_max, regions = regions)
+end
+
 function Jutul.line_plot_data(model::SimulationModel, ::Rs)
-    (; X, F) = model.system.rs_max
+    # TODO: Generalize to multiple regions
+    (; X, F) = first(model.system.rs_max)
     return JutulLinePlotData(X[2:end]./1e5, F[2:end], title = "Saturated gas-in-oil ratio", xlabel = "Pressure [bar]", ylabel = "Rs")
 end
 
-struct Rv <: ScalarVariable end
+struct Rv{F, R} <: ScalarVariable
+    rv_max::F
+    regions::R
+end
+
+function Rv(rv_max::F; regions::R = nothing) where {F, R}
+    return Rv{F, R}(rv_max, regions)
+end
+
+function Jutul.subvariable(v::Rv, map::FiniteVolumeGlobalMap)
+    c = map.cells
+    regions = Jutul.partition_variable_slice(v.regions, c)
+    return Rv(v.rv_max, regions = regions)
+end
 
 function Jutul.line_plot_data(model::SimulationModel, ::Rv)
-    (; X, F) = model.system.rv_max
+    (; X, F) = first(model.system.rv_max)
     return JutulLinePlotData(X[2:end]./1e5, F[2:end], title = "Saturated oil-in-gas ratio", xlabel = "Pressure [bar]", ylabel = "Rv")
 end
 

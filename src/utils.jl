@@ -1187,3 +1187,27 @@ function get_ijk_face_dir(g, N)
     end
     return face_dir
 end
+
+function reservoir_regions(m::MultiModel, arg...; kwarg...)
+    rm = reservoir_model(m)
+    return reservoir_regions(rm, arg...; kwarg...)
+end
+
+function reservoir_regions(m::SimulationModel, arg...; kwarg...)
+    return reservoir_regions(m.data_domain, arg...; kwarg...)
+end
+
+"""
+    reservoir_regions(d::DataDomain, type = :pvtnum)
+
+Get regions stored in `DataDomain`, returning `nothing` if the field is not
+found.
+"""
+function reservoir_regions(d::DataDomain, type = :pvtnum)
+    if haskey(d, type, Cells())
+        out = d[type]
+    else
+        out = nothing
+    end
+    return out
+end

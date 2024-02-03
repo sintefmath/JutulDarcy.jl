@@ -101,8 +101,8 @@ aspects of the PVT behavior. These should generally be set consistently with the
 other properties.
 """
 function StandardBlackOilSystem(;
-        rs_max::RS = nothing,
-        rv_max::RV = nothing,
+        rs_max = nothing,
+        rv_max = nothing,
         phases = (AqueousPhase(), LiquidPhase(), VaporPhase()),
         reference_densities = [786.507, 1037.84, 0.969758], 
         saturated_chop = false,
@@ -111,7 +111,11 @@ function StandardBlackOilSystem(;
         eps_rs = nothing,
         eps_rv = nothing,
         formulation::Symbol = :varswitch
-    ) where {RS, RV}
+    )
+    rs_max = region_wrap(rs_max)
+    rv_max = region_wrap(rv_max)
+    RS = typeof(rs_max)
+    RV = typeof(rv_max)
     phases = tuple(phases...)
     nph = length(phases)
     if nph == 2 && length(reference_densities) == 3
@@ -129,18 +133,26 @@ function StandardBlackOilSystem(;
         if isnothing(rs_max)
             eps_rs = eps_s
         else
-            eps_rs = 1e-4*mean(diff(rs_max.F))
+            eps_rs = 1e-4*mean(diff(first(rs_max).F))
         end
     end
     if isnothing(eps_rv)
         if isnothing(rv_max)
             eps_rv = eps_s
         else
-            eps_rv = 1e-4*mean(diff(rv_max.F))
+            eps_rv = 1e-4*mean(diff(first(rv_max).F))
         end
     end
     @assert formulation == :varswitch || formulation == :zg
     return StandardBlackOilSystem{RS, RV, has_water, typeof(reference_densities), formulation, typeof(phase_ind), typeof(phases), Float64}(rs_max, rv_max, reference_densities, phase_ind, phases, saturated_chop, keep_bubble_flag, eps_rs, eps_rv, eps_s)
+end
+
+@inline function rs_max_function(sys::StandardBlackOilSystem, region = 1)
+    return table_by_region(sys.rs_max, region)
+end
+
+@inline function rv_max_function(sys::StandardBlackOilSystem, region = 1)
+    return table_by_region(sys.rv_max, region)
 end
 
 function has_other_phase(sys::StandardBlackOilSystem{A, B, W}) where {A, B, W}

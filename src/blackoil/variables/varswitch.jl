@@ -17,16 +17,26 @@ function update_primary_variable!(state, pvar::BlackOilUnknown, state_symbol, mo
     end
     ϵ = (sys.rs_eps, sys.rv_eps, sys.s_eps)
     active = active_entities(model.domain, associated_entity(pvar), for_variables = true)
-    update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, keep_bub, sat_chop, pressure, active, sw, ϵ, w)
+    if has_disgas(sys)
+        reg = model[:Rs].regions
+    elseif has_vapoil(sys)
+        reg = model[:Rv].regions
+    else
+        reg = nothing
+    end
+    update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, reg, keep_bub, sat_chop, pressure, active, sw, ϵ, w)
 end
 
 
-function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, keep_bub, sat_chop, pressure, active, sw, ϵ, w)
+function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, reg, keep_bub, sat_chop, pressure, active, sw, ϵ, w)
     water_saturation(::Nothing, i) = 0.0
     water_saturation(sat, i) = value(sat[i])
     @inbounds for (i, dx) in zip(active, Dx)
         swi = water_saturation(sw, i)
-        varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab, rv_tab, keep_bub, sat_chop, pressure, swi, ϵ, w)
+        reg_i = region(reg, i)
+        rs_tab_i = table_by_region(rs_tab, reg_i)
+        rv_tab_i = table_by_region(rv_tab, reg_i)
+        varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab_i, rv_tab_i, keep_bub, sat_chop, pressure, swi, ϵ, w)
     end
 end
 
@@ -271,7 +281,9 @@ end
             r = zero(T)
         else
             p = @inbounds Pressure[i]
-            r = model.system.rs_max(p)
+            reg_i = region(ph.regions, i)
+            rs_max = table_by_region(model.system.rs_max, reg_i)
+            r = rs_max(p)
         end
         rs[i] = r
     end
@@ -288,7 +300,9 @@ end
             r = zero(T)
         else
             p = @inbounds Pressure[i]
-            r = model.system.rv_max(p)
+            reg_i = region(ph.regions, i)
+            rv_max = table_by_region(model.system.rv_max, reg_i)
+            r = rv_max(p)
         end
         rv[i] = r
     end

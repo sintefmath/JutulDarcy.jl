@@ -25,7 +25,11 @@ end
     return tab[reg]
 end
 
-function region_wrap(x::Nothing, regions)
+@inline function table_by_region(tab::Nothing, reg)
+    return tab
+end
+
+function region_wrap(x::Nothing, regions = missing)
     return x
 end
 
@@ -39,10 +43,20 @@ function region_wrap(x::Tuple, regions::AbstractArray)
     return x
 end
 
-function region_wrap(x::AbstractVector, regions)
+function region_wrap(x::Tuple, regions::Missing)
+    return x
+end
+
+function region_wrap(x::AbstractVector, regions = missing)
     return region_wrap(Tuple(x), regions)
 end
 
-function region_wrap(x::Any, regions)
+"""
+    region_wrap(x::Any, regions = missing)
+
+Turn one or more functions/tables into a Tuple for access using
+`table_by_region`. Single tables will be turned into a single-element tuple.
+"""
+function region_wrap(x::Any, regions = missing)
     return region_wrap((x,), regions)
 end
