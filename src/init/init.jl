@@ -92,12 +92,12 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         if phases[ph] == LiquidPhase() && disgas
             rs_max = table_by_region(sys.rs_max, pvtnum)
             Rs = min(rs(z), rs_max(p))
-            b = JutulDarcy.shrinkage(pvt_i, 1, p, Rs, 1)
+            b = JutulDarcy.shrinkage(pvt_i, p, Rs, pvt_i.shrinkage)
             rho = b*(rhoOS + Rs*rhoGS)
         elseif phases[ph] == VaporPhase() && vapoil
             rv_max = table_by_region(sys.rv_max, pvtnum)
             Rv = min(rv(z), rv_max(p))
-            b = JutulDarcy.shrinkage(pvt_i, 1, p, Rv, 1)
+            b = JutulDarcy.shrinkage(pvt_i, p, Rv, pvt_i.shrinkage)
             rho = b*(rhoGS + Rv*rhoOS)
         else
             rho = rho_s[ph]*JutulDarcy.shrinkage(pvt_i.tab, p)

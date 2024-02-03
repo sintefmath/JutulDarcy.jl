@@ -598,42 +598,46 @@ function parse_physics_types(datafile; pvt_region = missing)
         sys = MultiPhaseCompositionalSystemLV(eos, phases, reference_densities = rhoS)
     else
         if has_oil
-            push!(pvt, JutulDarcy.deck_pvt_oil(props))
+            push!(pvt, deck_pvt_oil(props))
             push!(phases, LiquidPhase())
             push!(rhoS, rhoOS)
         end
 
         if has_gas
-            push!(pvt, JutulDarcy.deck_pvt_gas(props))
+            push!(pvt, deck_pvt_gas(props))
             push!(phases, VaporPhase())
             push!(rhoS, rhoGS)
         end
-        if is_immiscible
-            sys = ImmiscibleSystem(phases, reference_densities = rhoS)
-        else
-            has_water = length(pvt) == 3
-            oil_pvt = pvt[1 + has_water]
-            if oil_pvt isa JutulDarcy.PVTO
-                rs_max = JutulDarcy.saturated_table(oil_pvt)
-            else
-                rs_max = nothing
-            end
-            gas_pvt = pvt[2 + has_water]
-            if gas_pvt isa JutulDarcy.PVTG
-                rv_max = JutulDarcy.saturated_table(gas_pvt)
-            else
-                rv_max = nothing
-            end
-            sys = JutulDarcy.StandardBlackOilSystem(
-                rs_max = rs_max,
-                rv_max = rv_max,
-                phases = phases,
-                reference_densities = rhoS
-            )
-        end
+        sys = pick_system_from_pvt(pvt, rhoS, phases, is_immiscible)
     end
-
     return (system = sys, pvt = pvt)
+end
+
+function pick_system_from_pvt(pvt, rhoS, phases, is_immiscible)
+    if is_immiscible
+        sys = ImmiscibleSystem(phases, reference_densities = rhoS)
+    else
+        has_water = length(pvt) == 3
+        oil_pvt = pvt[1 + has_water]
+        if oil_pvt isa PVTO
+            rs_max = map(saturated_table, oil_pvt.tab)
+        else
+            rs_max = nothing
+        end
+        gas_pvt = pvt[2 + has_water]
+        if gas_pvt isa PVTG
+            rv_max = map(saturated_table, gas_pvt.tab)
+        else
+            rv_max = nothing
+        end
+        sys = JutulDarcy.StandardBlackOilSystem(
+            rs_max = rs_max,
+            rv_max = rv_max,
+            phases = phases,
+            reference_densities = rhoS
+        )
+    end
+    return sys
 end
 
 function parse_schedule(domain, sys, datafile; kwarg...)

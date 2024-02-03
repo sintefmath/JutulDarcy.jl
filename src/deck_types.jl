@@ -144,8 +144,17 @@ function shrinkage(tbl::ConstMuBTable, p::T) where T
     return b::T
 end
 
-# PVTO - dissolved gas
-struct PVTO{T,V} <: AbstractTablePVT where {T<:AbstractArray, V<:AbstractArray}
+struct PVTO{T} <: AbstractTablePVT
+    tab::T
+    function PVTO(tab::T) where T<:Tuple
+        for (i, t) in enumerate(tab)
+            t isa PVTOTable || throw(ArgumentError("Table $i was a $(typeof(t)), should be a PVTOTable."))
+        end
+        return new{T}(tab)
+    end
+end
+
+struct PVTOTable{T,V}
     pos::T
     rs::V
     pressure::V
@@ -154,7 +163,22 @@ struct PVTO{T,V} <: AbstractTablePVT where {T<:AbstractArray, V<:AbstractArray}
     viscosity::V
 end
 
-function PVTO(d::Dict)
+function PVTO(pvto::Vector)
+    c = map(PVTOTable, pvto)
+    ct = Tuple(c)
+    return PVTO(ct)
+end
+
+function PVTO(pvto::PVTOTable)
+    ct = (pvto, )
+    return PVTO(ct)
+end
+
+function PVTO(pvto::Dict)
+    return PVTO(PVTOTable(pvto))
+end
+
+function PVTOTable(d::Dict)
     rs = vec(copy(d["key"]))
     pos = vec(Int64.(d["pos"]))
     data = d["data"]
@@ -170,7 +194,7 @@ function PVTO(d::Dict)
     @assert pos[end] == length(p) + 1
     @assert pos[1] == 1
     @assert length(p_sat) == length(rs) == length(pos)-1
-    return PVTO{T, V}(pos, rs, p, p_sat, b, mu)
+    return PVTOTable{T, V}(pos, rs, p, p_sat, b, mu)
 end
 
 function as_printed_table(tab::PVTO, u)
@@ -203,23 +227,39 @@ function as_printed_table(tab::PVTO, u)
     return ("PVTO", mat, ["Rs", "Pressure", "B_o", "mu_u"], end_records)
 end
 
-function saturated_table(t::PVTO)
+function saturated_table(t::PVTOTable)
     return saturated_table(t.sat_pressure, t.rs)
 end
 
-pvt_table_vectors(pvt::PVTO) = (pvt.pressure, pvt.rs, pvt.sat_pressure, pvt.pos)
+pvt_table_vectors(pvt::PVTOTable) = (pvt.pressure, pvt.rs, pvt.sat_pressure, pvt.pos)
 
 function shrinkage(pvt::PVTO, reg, p::T, rs, cell) where T
-    return interp_pvt(pvt, p, rs, pvt.shrinkage)::T
+    tbl = table_by_region(pvt.tab, region(reg, cell))
+    return interp_pvt(tbl, p, rs, tbl.shrinkage)::T
 end
 
 function viscosity(pvt::PVTO, reg, p::T, rs, cell) where T
-    return interp_pvt(pvt, p, rs, pvt.viscosity)::T
+    tbl = table_by_region(pvt.tab, region(reg, cell))
+    return interp_pvt(tbl, p, rs, tbl.viscosity)::T
 end
 
+struct PVTG{T} <: AbstractTablePVT
+    tab::T
+    function PVTG(tab::T) where T<:Tuple
+        for (i, t) in enumerate(tab)
+            t isa PVTGTable || throw(ArgumentError("Table $i was a $(typeof(t)), should be a PVTGTable."))
+        end
+        return new{T}(tab)
+    end
+end
 
+function PVTG(pvtg::Vector)
+    c = map(PVTGTable, pvtg)
+    ct = Tuple(c)
+    return PVTG(ct)
+end
 # PVTG - vaporized oil
-struct PVTG{T,V} <: AbstractTablePVT where {T<:AbstractArray, V<:AbstractArray}
+struct PVTGTable{T,V}
     pos::T
     pressure::V
     rv::V
@@ -228,7 +268,16 @@ struct PVTG{T,V} <: AbstractTablePVT where {T<:AbstractArray, V<:AbstractArray}
     viscosity::V
 end
 
-function PVTG(d::Dict)
+function PVTG(pvtg::PVTGTable)
+    ct = (pvtg, )
+    return PVTG(ct)
+end
+
+function PVTG(pvtg::Dict)
+    return PVTG(PVTGTable(pvtg))
+end
+
+function PVTGTable(d::Dict)
     pos = vec(Int64.(d["pos"]))
     data = copy(d["data"])
     for i in 1:length(pos)-1
@@ -255,10 +304,10 @@ function PVTG(d::Dict)
     @assert pos[end] == length(rv) + 1
     @assert pos[1] == 1
     @assert length(pressure) == length(rv_sat) == length(pos)-1
-    return PVTG{T, V}(pos, pressure, rv, rv_sat, b, mu)
+    return PVTGTable{T, V}(pos, pressure, rv, rv_sat, b, mu)
 end
 
-function saturated_table(t::PVTG)
+function saturated_table(t::PVTGTable)
     return saturated_table(t.pressure, t.sat_rv)
 end
 
@@ -271,17 +320,18 @@ function saturated_table(p, r)
     return get_1d_interpolator(p, r, cap_end = false)
 end
 
-
-pvt_table_vectors(pvt::PVTG) = (pvt.rv, pvt.pressure, pvt.sat_rv, pvt.pos)
+pvt_table_vectors(pvt::PVTGTable) = (pvt.rv, pvt.pressure, pvt.sat_rv, pvt.pos)
 
 function shrinkage(pvt::PVTG, reg, p::T, rv, cell) where T
+    tbl = table_by_region(pvt.tab, region(reg, cell))
     # Note: Reordered arguments!
-    return interp_pvt(pvt, rv, p, pvt.shrinkage)::T
+    return interp_pvt(tbl, rv, p, tbl.shrinkage)::T
 end
 
 function viscosity(pvt::PVTG, reg, p::T, rv, cell) where T
+    tbl = table_by_region(pvt.tab, region(reg, cell))
     # Note: Reordered arguments!
-    return interp_pvt(pvt, rv, p, pvt.viscosity)::T
+    return interp_pvt(tbl, rv, p, tbl.viscosity)::T
 end
 
 struct PVDO{T} <: AbstractTablePVT

@@ -297,7 +297,7 @@ end
 
 function deck_pvt_oil(props)
     if haskey(props, "PVTO")
-        pvt = PVTO(props["PVTO"][1])
+        pvt = PVTO(vec(props["PVTO"]))
     elseif haskey(props, "PVDO")
         pvt = PVDO(props["PVDO"])
     else
@@ -308,7 +308,7 @@ end
 
 function deck_pvt_gas(props)
     if haskey(props, "PVTG")
-        pvt = PVTG(props["PVTG"][1])
+        pvt = PVTG(vec(props["PVTG"]))
     else
         pvt = PVDG(props["PVDG"])
     end
@@ -606,25 +606,7 @@ function model_from_mat_deck(G, data_domain, mrst_data, res_context)
             push!(rhoS, rhoGS)
         end
 
-        if is_immiscible
-            sys = ImmiscibleSystem(phases, reference_densities = rhoS)
-        else
-            has_water = length(pvt) == 3
-            oil_pvt = pvt[1 + has_water]
-            if oil_pvt isa PVTO
-                rs_max = saturated_table(oil_pvt)
-            else
-                rs_max = nothing
-            end
-            gas_pvt = pvt[2 + has_water]
-            if gas_pvt isa PVTG
-                rv_max = saturated_table(gas_pvt)
-            else
-                rv_max = nothing
-            end
-            sys = StandardBlackOilSystem(rs_max = rs_max, rv_max = rv_max, phases = phases,
-                                         reference_densities = rhoS)
-        end
+        sys = pick_system_from_pvt(pvt, rhoS, phases, is_immiscible)
         model = SimulationModel(G, sys, context = res_context, data_domain = data_domain)
         # Modify secondary variables
         svar = model.secondary_variables
