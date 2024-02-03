@@ -60,6 +60,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         rv = missing,
         s_min = missing,
         contacts_pc = missing,
+        pvtnum = 1,
         kwarg...
     )
     if ismissing(contacts_pc)
@@ -87,16 +88,19 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     pvt = model.secondary_variables[:PhaseMassDensities].pvt
     relperm = model.secondary_variables[:RelativePermeabilities]
     function density_f(p, z, ph)
+        pvt_i = table_by_region(pvt[ph], pvtnum)
         if phases[ph] == LiquidPhase() && disgas
-            Rs = min(rs(z), sys.rs_max(p))
-            b = JutulDarcy.shrinkage(pvt[ph], 1, p, Rs, 1)
+            rs_max = table_by_region(sys.rs_max, pvtnum)
+            Rs = min(rs(z), rs_max(p))
+            b = JutulDarcy.shrinkage(pvt_i, 1, p, Rs, 1)
             rho = b*(rhoOS + Rs*rhoGS)
         elseif phases[ph] == VaporPhase() && vapoil
-            Rv = min(rv(z), sys.rv_max(p))
-            b = JutulDarcy.shrinkage(pvt[ph], 1, p, Rv, 1)
+            rv_max = table_by_region(sys.rv_max, pvtnum)
+            Rv = min(rv(z), rv_max(p))
+            b = JutulDarcy.shrinkage(pvt_i, 1, p, Rv, 1)
             rho = b*(rhoGS + Rv*rhoOS)
         else
-            rho = rho_s[ph]*JutulDarcy.shrinkage(only(pvt[ph].tab), p)
+            rho = rho_s[ph]*JutulDarcy.shrinkage(pvt_i.tab, p)
         end
         return rho
     end
@@ -134,11 +138,19 @@ function parse_state0_equil(model, datafile)
     sys = model.system
     d = model.data_domain
     has_sat_reg = haskey(d, :satnum)
+    ncells = number_of_cells(d)
     if has_sat_reg
         satnum = d[:satnum]
     else
-        satnum = ones(Int, number_of_cells(d))
+        satnum = ones(Int, ncells)
     end
+    if haskey(d, :pvtnum)
+        pvtnum = d[:pvtnum]
+    else
+        pvtnum = ones(Int, nc)
+    end
+    eqlnum = model.data_domain[:eqlnum]
+
     has_pc = haskey(model.secondary_variables, :CapillaryPressure)
     if has_pc
         pcvar = model.secondary_variables[:CapillaryPressure]
@@ -174,132 +186,138 @@ function parse_state0_equil(model, datafile)
 
     equil = sol["EQUIL"]
     nequil = GeoEnergyIO.InputParser.number_of_tables(datafile, :eqlnum)
+    npvt = GeoEnergyIO.InputParser.number_of_tables(datafile, :pvtnum)
+    nsat = GeoEnergyIO.InputParser.number_of_tables(datafile, :satnum)
+
     @assert length(equil) == nequil
     inits = []
     inits_cells = []
     for ereg in 1:nequil
         eq = equil[ereg]
-        cells_eql = findall(isequal(ereg), model.data_domain[:eqlnum])
-        if length(cells_eql) == 0
-            continue
-        end
-
-        cells_satnum = satnum[cells_eql]
-        for sreg in unique(cells_satnum)
-            cells = cells_eql[findall(isequal(sreg), cells_satnum)]
-            ncells_reg = length(cells)
-            if ncells_reg == 0
-                continue
-            end
-            actnum_ix_for_reg = actnum_ix[cells]
-            datum_depth = eq[1]
-            datum_pressure = eq[2]
-
-            woc = eq[3]
-            woc_pc = eq[4]
-            goc = eq[5]
-            goc_pc = eq[6]
-            # Contact depths
-            s_max = 1.0
-            s_min = 0.0
-
-            non_connate = ones(ncells_reg)
-            s_max = Vector{Float64}[]
-            s_min = Vector{Float64}[]
-            if has_pc
-                pc = []
-                for (i, f) in enumerate(pc_functions)
-                    f = table_by_region(f, sreg)
-                    s = f.X
-                    cap = f.F
-                    if s[1] < 0
-                        s = s[2:end]
-                        cap = cap[2:end]
-                    end
-                    ix = unique(i -> cap[i], 1:length(cap))
-
-                    if i == 1 && get_phases(model.system)[1] isa AqueousPhase
-                        @. cap *= -1
-                    end
-                    push!(pc, (s = s[ix], pc = cap[ix]))
-                end
-            else
-                pc = nothing
-            end
-            if has_water
-                krw = table_by_region(krw_fn, sreg)
-                if haskey(datafile, "PROPS") && haskey(datafile["PROPS"], "SWL")
-                    swl = vec(datafile["PROPS"]["SWL"])
-                    swcon = swl[actnum_ix_for_reg]
-                else
-                    swcon = fill(krw.connate, ncells_reg)
-                end
-                push!(s_min, swcon)
-                push!(s_max, ones(ncells_reg))
-                @. non_connate -= swcon
-            end
-            if has_oil
-                push!(s_min, zeros(ncells_reg))
-                push!(s_max, non_connate)
-            end
-            if has_gas
-                push!(s_min, zeros(ncells_reg))
-                push!(s_max, non_connate)
-            end
-
-            if nph == 1
-                error("Not implemented.")
-            elseif nph == 2
-                if has_oil && has_gas
-                    contacts = (goc, )
-                    contacts_pc = (goc_pc, )
-                else
-                    contacts = (woc, )
-                    contacts_pc = (-woc_pc, )
-                end
-            else
-                contacts = (woc, goc)
-                contacts_pc = (-woc_pc, goc_pc)
-            end
-
-            if disgas
-                if haskey(sol, "RSVD")
-                    rsvd = sol["RSVD"][ereg]
-                    z = rsvd[:, 1]
-                    Rs = rsvd[:, 2]
-                else
-                    @assert haskey(sol, "PBVD")
-                    pbvd = sol["PBVD"][ereg]
-                    z = pbvd[:, 1]
-                    pb = vec(pbvd[:, 2])
-                    Rs = sys.rs_max.(pb)
-                end
-                rs = Jutul.LinearInterpolant(z, Rs)
-            else
-                rs = missing
-            end
-            if vapoil
-                @assert haskey(sol, "RVVD")
-                rvvd = sol["RVVD"][ereg]
-                z = rvvd[:, 1]
-                Rv = rvvd[:, 2]
-                rv = Jutul.LinearInterpolant(z, Rv)
-            else
-                rv = missing
-            end
-
-            subinit = equilibriate_state(
-                    model, contacts, datum_depth, datum_pressure,
-                    cells = cells,
-                    contacts_pc = contacts_pc,
-                    s_min = s_min,
-                    s_max = s_max,
-                    rs = rs,
-                    rv = rv,
-                    pc = pc
+        for sreg in 1:nsat
+            for preg in 1:npvt
+                cells = findall(
+                    i ->satnum[i] == sreg &&
+                        pvtnum[i] == preg &&
+                        eqlnum[i] == ereg,
+                    1:ncells
                 )
-            push!(inits, subinit)
-            push!(inits_cells, cells)
+
+                ncells_reg = length(cells)
+                if ncells_reg == 0
+                    continue
+                end
+                actnum_ix_for_reg = actnum_ix[cells]
+                datum_depth = eq[1]
+                datum_pressure = eq[2]
+
+                woc = eq[3]
+                woc_pc = eq[4]
+                goc = eq[5]
+                goc_pc = eq[6]
+                # Contact depths
+                s_max = 1.0
+                s_min = 0.0
+
+                non_connate = ones(ncells_reg)
+                s_max = Vector{Float64}[]
+                s_min = Vector{Float64}[]
+                if has_pc
+                    pc = []
+                    for (i, f) in enumerate(pc_functions)
+                        f = table_by_region(f, sreg)
+                        s = f.X
+                        cap = f.F
+                        if s[1] < 0
+                            s = s[2:end]
+                            cap = cap[2:end]
+                        end
+                        ix = unique(i -> cap[i], 1:length(cap))
+
+                        if i == 1 && get_phases(model.system)[1] isa AqueousPhase
+                            @. cap *= -1
+                        end
+                        push!(pc, (s = s[ix], pc = cap[ix]))
+                    end
+                else
+                    pc = nothing
+                end
+                if has_water
+                    krw = table_by_region(krw_fn, sreg)
+                    if haskey(datafile, "PROPS") && haskey(datafile["PROPS"], "SWL")
+                        swl = vec(datafile["PROPS"]["SWL"])
+                        swcon = swl[actnum_ix_for_reg]
+                    else
+                        swcon = fill(krw.connate, ncells_reg)
+                    end
+                    push!(s_min, swcon)
+                    push!(s_max, ones(ncells_reg))
+                    @. non_connate -= swcon
+                end
+                if has_oil
+                    push!(s_min, zeros(ncells_reg))
+                    push!(s_max, non_connate)
+                end
+                if has_gas
+                    push!(s_min, zeros(ncells_reg))
+                    push!(s_max, non_connate)
+                end
+
+                if nph == 1
+                    error("Not implemented.")
+                elseif nph == 2
+                    if has_oil && has_gas
+                        contacts = (goc, )
+                        contacts_pc = (goc_pc, )
+                    else
+                        contacts = (woc, )
+                        contacts_pc = (-woc_pc, )
+                    end
+                else
+                    contacts = (woc, goc)
+                    contacts_pc = (-woc_pc, goc_pc)
+                end
+
+                if disgas
+                    if haskey(sol, "RSVD")
+                        rsvd = sol["RSVD"][ereg]
+                        z = rsvd[:, 1]
+                        Rs = rsvd[:, 2]
+                    else
+                        @assert haskey(sol, "PBVD")
+                        pbvd = sol["PBVD"][ereg]
+                        z = pbvd[:, 1]
+                        pb = vec(pbvd[:, 2])
+                        Rs = sys.rs_max.(pb)
+                    end
+                    rs = Jutul.LinearInterpolant(z, Rs)
+                else
+                    rs = missing
+                end
+                if vapoil
+                    @assert haskey(sol, "RVVD")
+                    rvvd = sol["RVVD"][ereg]
+                    z = rvvd[:, 1]
+                    Rv = rvvd[:, 2]
+                    rv = Jutul.LinearInterpolant(z, Rv)
+                else
+                    rv = missing
+                end
+
+                subinit = equilibriate_state(
+                        model, contacts, datum_depth, datum_pressure,
+                        cells = cells,
+                        pvtnum = preg,
+                        contacts_pc = contacts_pc,
+                        s_min = s_min,
+                        s_max = s_max,
+                        rs = rs,
+                        rv = rv,
+                        pc = pc
+                    )
+                push!(inits, subinit)
+                push!(inits_cells, cells)
+            end
         end
     end
     if length(inits) == 1
