@@ -87,27 +87,27 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     end
     pvt = model.secondary_variables[:PhaseMassDensities].pvt
     relperm = model.secondary_variables[:RelativePermeabilities]
+    reg = Int[pvtnum]
     function density_f(p, z, ph)
-        pvt_i = table_by_region(pvt[ph], pvtnum)
+        pvt_i = pvt[ph]
         if phases[ph] == LiquidPhase() && disgas
             rs_max = table_by_region(sys.rs_max, pvtnum)
             Rs = min(rs(z), rs_max(p))
-            b = JutulDarcy.shrinkage(pvt_i, p, Rs, pvt_i.shrinkage)
+            b = JutulDarcy.shrinkage(pvt_i, reg, p, Rs, 1)
             rho = b*(rhoOS + Rs*rhoGS)
         elseif phases[ph] == VaporPhase() && vapoil
             rv_max = table_by_region(sys.rv_max, pvtnum)
             Rv = min(rv(z), rv_max(p))
-            b = JutulDarcy.shrinkage(pvt_i, p, Rv, pvt_i.shrinkage)
+            b = JutulDarcy.shrinkage(pvt_i, reg, p, Rv, 1)
             rho = b*(rhoGS + Rv*rhoOS)
         else
-            rho = rho_s[ph]*JutulDarcy.shrinkage(pvt_i.tab, p)
+            rho = rho_s[ph]*JutulDarcy.shrinkage(pvt_i, reg, p, 1)
         end
         return rho
     end
     pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_f, contacts_pc)
     s, pc = determine_saturations(depths, contacts, pressures; s_min = s_min, kwarg...)
 
-    # kr = similar(s)
     nc_total = number_of_cells(model.domain)
     kr = zeros(nph, nc_total)
     s_eval = zeros(nph, nc_total)
