@@ -55,6 +55,8 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
     is_blackoil = sys isa StandardBlackOilSystem
     is_compositional = sys isa CompositionalSystem
     domain = parse_reservoir(datafile)
+    pvt_reg = reservoir_regions(domain, :pvtnum)
+
     wells, controls, limits, cstep, dt, well_forces = parse_schedule(domain, sys, datafile; simple_well = simple_well)
 
     model = setup_reservoir_model(domain, sys; wells = wells, extra_out = false, kwarg...)
@@ -64,12 +66,15 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
             if !is_compositional
                 svar = submodel.secondary_variables
                 # PVT
+                pvt_reg_i = reservoir_regions(submodel.data_domain, :pvtnum)
                 pvt = tuple(pvt...)
-                rho = DeckPhaseMassDensities(pvt)
+                rho = DeckPhaseMassDensities(pvt, regions = pvt_reg_i)
                 if sys isa StandardBlackOilSystem
-                    set_secondary_variables!(submodel, ShrinkageFactors = JutulDarcy.DeckShrinkageFactors(pvt))
+                    set_secondary_variables!(submodel,
+                        ShrinkageFactors = JutulDarcy.DeckShrinkageFactors(pvt, regions = pvt_reg_i)
+                    )
                 end
-                mu = DeckPhaseViscosities(pvt)
+                mu = DeckPhaseViscosities(pvt, regions = pvt_reg_i)
                 set_secondary_variables!(submodel, PhaseViscosities = mu, PhaseMassDensities = rho)
             end
             if k == :Reservoir
@@ -488,6 +493,7 @@ function parse_reservoir(data_file)
         extra_data_arg[:temperature] = temperature
     end
     satnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :satnum, active = active_ix)
+    pvtnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :pvtnum, active = active_ix)
     eqlnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :eqlnum, active = active_ix)
 
     domain = reservoir_domain(G;
@@ -495,6 +501,7 @@ function parse_reservoir(data_file)
         porosity = poro,
         satnum = satnum,
         eqlnum = eqlnum,
+        pvtnum = pvtnum,
         pairs(extra_data_arg)...
     )
     if !all(isequal(1.0), tranmult)
@@ -503,7 +510,7 @@ function parse_reservoir(data_file)
     return domain
 end
 
-function parse_physics_types(datafile)
+function parse_physics_types(datafile; pvt_region = missing)
     runspec = datafile["RUNSPEC"]
     props = datafile["PROPS"]
     has(name) = haskey(runspec, name) && runspec[name]
@@ -520,14 +527,20 @@ function parse_physics_types(datafile)
     rhoS = Vector{Float64}()
     pvt = []
     if haskey(props, "DENSITY")
-        deck_density = props["DENSITY"]
-        if deck_density isa Matrix
-            deck_density = JutulDarcy.flat_region_expand(deck_density, 3)
+        deck_densities = props["DENSITY"]
+        if deck_densities isa Matrix
+            deck_densities = JutulDarcy.flat_region_expand(deck_density, 3)
         end
-        if length(deck_density) > 1
-            @warn "Multiple PVT regions found. Picking first one." deck_density
+        if ismissing(pvt_region)
+            if length(deck_densities) > 1
+                @warn "Multiple PVT regions found. Picking first one." deck_densities
+            end
+            pvt_region = 1
         end
-        deck_density = deck_density[1]
+        num_pvt_reg = length(deck_densities)
+        pvt_region in 1:num_pvt_reg || throw(ArgumentError("Single PVT region found but region $pvt_region was requested."))
+        deck_density = deck_densities[pvt_region]
+
         rhoOS = deck_density[1]
         rhoWS = deck_density[2]
         rhoGS = deck_density[3]

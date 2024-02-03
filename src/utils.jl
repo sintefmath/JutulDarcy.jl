@@ -191,9 +191,17 @@ function setup_reservoir_model(reservoir::DataDomain, system;
     if length(wells) > 0
         for w in wells
             w_domain = DataDomain(w)
-            if haskey(reservoir, :temperature)
-                wc = w.perforations.reservoir
-                w_domain[:temperature] = reservoir[:temperature][wc]
+            wc = w.perforations.reservoir
+            if w isa MultiSegmentWell
+                # Repeat top node. Not fully robust.
+                c = wc[vcat(1, 1:length(wc))]
+            else
+                c = wc[1]
+            end
+            for propk in [:temperature, :pvtnum]
+                if haskey(reservoir, propk)
+                    w_domain[propk] = reservoir[propk][c]
+                end
             end
             wname = w.name
             wmodel = SimulationModel(w_domain, system, context = context)
