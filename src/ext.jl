@@ -63,24 +63,26 @@ function plot_reservoir(model, arg...; well_fontsize = 18, well_linewidth = 3, k
     g = physical_representation(data_domain)
     ax = fig.current_axis[]
     wells = Dict{Symbol, Any}()
-    for (k, m) in pairs(model.models)
-        w = physical_representation(m.data_domain)
-        if w isa WellDomain
-            wells[k] = w
+    if model isa MultiModel
+        for (k, m) in pairs(model.models)
+            w = physical_representation(m.data_domain)
+            if w isa WellDomain
+                wells[k] = w
+            end
         end
-    end
 
-    i = 1
-    n = length(wells)
-    for (k, w) in pairs(wells)
-        tf =  0.2 + 0.1*(i/n)
-        plot_well!(ax.scene, g, w,
-            fontsize = well_fontsize,
-            top_factor = tf,
-            bounds_z = bounds_z,
-            linewidth = well_linewidth,
-            cell_centroids = cell_centroids)
-        i += 1
+        i = 1
+        n = length(wells)
+        for (k, w) in pairs(wells)
+            tf =  0.2 + 0.1*(i/n)
+            plot_well!(ax.scene, g, w,
+                fontsize = well_fontsize,
+                top_factor = tf,
+                bounds_z = bounds_z,
+                linewidth = well_linewidth,
+                cell_centroids = cell_centroids)
+            i += 1
+        end
     end
     return fig
 end
