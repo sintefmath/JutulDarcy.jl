@@ -559,8 +559,8 @@ function parse_physics_types(datafile; pvt_region = missing)
         pvt_region in 1:num_pvt_reg || throw(ArgumentError("Single PVT region found but region $pvt_region was requested."))
         deck_density = deck_densities[pvt_region]
 
-        rhoW_all = map(x -> x[1], deck_densities)
-        rhoO_all = map(x -> x[2], deck_densities)
+        rhoW_all = map(x -> x[2], deck_densities)
+        rhoO_all = map(x -> x[1], deck_densities)
         rhoG_all = map(x -> x[3], deck_densities)
 
         oil_scale = rhoO_all[pvt_region]./rhoO_all
