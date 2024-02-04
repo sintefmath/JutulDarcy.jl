@@ -319,7 +319,8 @@ struct InjectorControl{T, R} <: WellControlForce
     mixture_density::R
     phases
     temperature::R
-    function InjectorControl(target::T, mix; density::R = 1.0, phases = ((1, 1.0),), temperature::R = 273.15) where {T<:WellTarget, R<:Real}
+    factor::R
+    function InjectorControl(target::T, mix; density::R = 1.0, phases = ((1, 1.0),), temperature::R = 273.15, factor::R = 1.0) where {T<:WellTarget, R<:Real}
         @assert isfinite(density) && density > 0.0 "Injector density must be finite and positive"
         @assert isfinite(temperature) && temperature > 0.0 "Injector temperature must be finite and positive"
 
@@ -328,10 +329,10 @@ struct InjectorControl{T, R} <: WellControlForce
         end
         mix = vec(mix)
         @assert sum(mix) ≈ 1
-        new{T, R}(target, mix, density, phases, temperature)
+        new{T, R}(target, mix, density, phases, temperature, factor)
     end
 end
-replace_target(f::InjectorControl, target) = InjectorControl(target, f.injection_mixture, density = f.mixture_density, phases = f.phases)
+replace_target(f::InjectorControl, target) = InjectorControl(target, f.injection_mixture, density = f.mixture_density, phases = f.phases, factor = f.factor)
 default_limits(f::InjectorControl{T}) where T<:BottomHolePressureTarget = merge((rate_lower = MIN_ACTIVE_WELL_RATE, ), as_limit(f.target))
 
 """
@@ -341,10 +342,11 @@ Well control for production out of the reservoir. `target` specifies the type of
 
 See also [`DisabledControl`](@ref), [`InjectorControl`](@ref).
 """
-struct ProducerControl{T} <: WellControlForce
+struct ProducerControl{T, R} <: WellControlForce
     target::T
-    function ProducerControl(target::T) where T<:WellTarget
-        new{T}(target)
+    factor::R
+    function ProducerControl(target::T; factor::R = 1.0) where {T<:WellTarget, R<:Real}
+        new{T, R}(target, factor)
     end
 end
 
@@ -352,7 +354,7 @@ default_limits(f::ProducerControl{T}) where T<:SurfaceVolumeTarget = merge((bhp 
 default_limits(f::ProducerControl{T}) where T<:BottomHolePressureTarget = merge((rate_lower = -MIN_ACTIVE_WELL_RATE,), as_limit(f.target))
 
 function replace_target(f::ProducerControl, target)
-    return ProducerControl(target)
+    return ProducerControl(target, factor = f.factor)
 end
 
 mutable struct WellGroupConfiguration{T, O, L}

@@ -186,7 +186,12 @@ function update_cross_term_in_entity!(out, i,
     qT = state_facility.TotalSurfaceMassRate[pos] 
     # Hack for sparsity detection
     qT += 0*bottom_hole_pressure(state_well)
-
+    if ctrl isa DisabledControl
+        factor = 1.0
+    else
+        factor = ctrl.factor
+    end
+    qT *= factor
     if isa(ctrl, InjectorControl)
         if value(qT) < 0
             @warn "Injector $well_symbol is producing?"
