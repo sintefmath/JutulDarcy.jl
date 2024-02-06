@@ -563,10 +563,14 @@ function parse_physics_types(datafile; pvt_region = missing)
         rhoO_all = map(x -> x[1], deck_densities)
         rhoG_all = map(x -> x[3], deck_densities)
 
-        oil_scale = rhoO_all[pvt_region]./rhoO_all
-        gas_scale = rhoG_all[pvt_region]./rhoG_all
+        # Scale densities by dividing by the reference density and multiplying
+        # with their PVT region's density to make it consistent when you
+        # evaluate density by rhoS*(1/B)
+        oil_scale = rhoO_all./rhoO_all[pvt_region]
+        gas_scale = rhoG_all./rhoG_all[pvt_region]
+        water_scale = rhoW_all./rhoW_all[pvt_region]
         scaling = (
-            water_density = rhoW_all[pvt_region]./rhoW_all,
+            water_density = water_scale,
             oil_density = oil_scale,
             gas_density = gas_scale,
             rs = gas_scale./oil_scale,
