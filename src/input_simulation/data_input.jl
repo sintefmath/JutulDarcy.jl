@@ -698,12 +698,14 @@ function parse_control_steps(runspec, props, schedule, sys)
     limits = Dict{String, Any}()
     streams = Dict{String, Any}()
     well_injection = Dict{String, Any}()
+    well_factor = Dict{String, Float64}()
     for k in keys(wells)
         compdat[k] = OrderedDict{NTuple{3, Int}, Any}()
         controls[k] = DisabledControl()
         limits[k] = nothing
         streams[k] = nothing
         well_injection[k] = nothing
+        well_factor[k] = 1.0
     end
     all_compdat = []
     all_controls = []
@@ -784,7 +786,11 @@ function parse_control_steps(runspec, props, schedule, sys)
             elseif key in ("WCONINJE", "WCONPROD", "WCONHIST", "WCONINJ", "WCONINJH")
                 for wk in kword
                     name = wk[1]
-                    controls[name], limits[name] = keyword_to_control(sys, streams, wk, key)
+                    controls[name], limits[name] = keyword_to_control(sys, streams, wk, key, factor = well_factor[name])
+                end
+            elseif key == "WEFAC"
+                for wk in kword
+                    well_factor[wk[1]] = wk[2]
                 end
             elseif key in skip
                 # Already handled
@@ -840,11 +846,11 @@ function parse_well_streams_for_step(step, props)
     return (streams = streams, wells = well_streams)
 end
 
-function keyword_to_control(sys, streams, kw, k::String)
-    return keyword_to_control(sys, streams, kw, Val(Symbol(k)))
+function keyword_to_control(sys, streams, kw, k::String; kwarg...)
+    return keyword_to_control(sys, streams, kw, Val(Symbol(k)); kwarg...)
 end
 
-function keyword_to_control(sys, streams, kw, ::Val{:WCONPROD})
+function keyword_to_control(sys, streams, kw, ::Val{:WCONPROD}; kwarg...)
     rho_s = reference_densities(sys)
     phases = get_phases(sys)
 
@@ -855,10 +861,10 @@ function keyword_to_control(sys, streams, kw, ::Val{:WCONPROD})
     grat = kw[6]
     lrat = kw[7]
     bhp = kw[9]
-    return producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp)
+    return producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; kwarg...)
 end
 
-function keyword_to_control(sys, streams, kw, ::Val{:WCONHIST})
+function keyword_to_control(sys, streams, kw, ::Val{:WCONHIST}; kwarg...)
     rho_s = reference_densities(sys)
     phases = get_phases(sys)
     # 1 name
@@ -872,7 +878,7 @@ function keyword_to_control(sys, streams, kw, ::Val{:WCONHIST})
     thp = kw[9]
     bhp = kw[10]
 
-    return producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp, is_hist = true)
+    return producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = true, kwarg...)
 end
 
 function producer_limits(; bhp = Inf, lrat = Inf, orat = Inf, wrat = Inf, grat = Inf)
@@ -895,7 +901,7 @@ function producer_limits(; bhp = Inf, lrat = Inf, orat = Inf, wrat = Inf, grat =
     return NamedTuple(pairs(lims))
 end
 
-function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = false)
+function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = false, kwarg...)
     rho_s = reference_densities(sys)
     phases = get_phases(sys)
 
@@ -937,7 +943,7 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
             @debug "Producer with $ctrl disabled due to zero rate." abs(self_val)
             ctrl = DisabledControl()
         else
-            ctrl = ProducerControl(t)
+            ctrl = ProducerControl(t; kwarg...)
         end
         if is_hist
             self_symbol = translate_target_to_symbol(t, shortname = true)
@@ -968,7 +974,7 @@ function injector_limits(; bhp = Inf, surface_rate = Inf, reservoir_rate = Inf)
     return NamedTuple(pairs(lims))
 end
 
-function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp; is_hist = false)
+function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp; is_hist = false, kwarg...)
     if occursin('*', flag)
         # This is a bit of a hack.
         flag = "OPEN"
@@ -1004,7 +1010,7 @@ function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_
         ctrl = DisabledControl()
         lims = nothing
     else
-        ctrl = InjectorControl(t, mix, density = rho)
+        ctrl = InjectorControl(t, mix; density = rho, kwarg...)
         if is_hist
             # TODO: This magic number comes from MRST.
             bhp_lim = convert_to_si(6895.0, :bar)
@@ -1081,7 +1087,7 @@ function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, t
     return (rho, mix)
 end
 
-function keyword_to_control(sys, streams, kw, ::Val{:WCONINJE})
+function keyword_to_control(sys, streams, kw, ::Val{:WCONINJE}; kwarg...)
     # TODO: Expand to handle mixture etc.
     name = kw[1]
     type = kw[2]
@@ -1090,10 +1096,10 @@ function keyword_to_control(sys, streams, kw, ::Val{:WCONINJE})
     surf_rate = kw[5]
     res_rate = kw[6]
     bhp = kw[7]
-    return injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp)
+    return injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp; kwarg...)
 end
 
-function keyword_to_control(sys, streams, kw, ::Val{:WCONINJH})
+function keyword_to_control(sys, streams, kw, ::Val{:WCONINJH}; kwarg...)
     name = kw[1]
     type = kw[2]
     flag = kw[3]
@@ -1102,7 +1108,7 @@ function keyword_to_control(sys, streams, kw, ::Val{:WCONINJH})
     ctype = kw[12]
     # TODO: Expand to handle mixture etc.
     res_rate = Inf
-    return injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp, is_hist = true)
+    return injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp, is_hist = true; kwarg...)
 end
 
 function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
