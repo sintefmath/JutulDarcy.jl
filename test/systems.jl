@@ -24,7 +24,7 @@ using Test, JutulDarcy, Jutul, MultiComponentFlash
         for include_water in [true, false]
             setup = JutulDarcy.blackoil_bench_pvt(:spe1)
             pvt = setup[:pvt]
-            pvto = pvt[2]
+            pvto = pvt[2].tab[1]
             rhoS = setup[:rhoS]
 
             if include_water
