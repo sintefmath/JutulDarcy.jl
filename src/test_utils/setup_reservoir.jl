@@ -188,7 +188,7 @@ function get_test_setup(mesh_or_casename; case_name = "single_phase_simple", con
         pvto = pvt[2]
         rhoS = setup[:rhoS]
         phases = (AqueousPhase(), LiquidPhase(), VaporPhase())
-        sat_table = saturated_table(pvto)
+        sat_table = saturated_table(pvto.tab[1])
         sys = StandardBlackOilSystem(rs_max = sat_table, phases = phases, reference_densities = rhoS)
         model = SimulationModel(G, sys, context = context)
         forces = setup_forces(model)
