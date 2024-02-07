@@ -110,15 +110,15 @@ function Jutul.descalarize_primary_variable!(dest_array, model, V::BlackOilX, va
 end
 
 """
-    BlackOilX(sys::BlackOilVariableSwitchingSystem, p; sw = 0.0, so = 0.0, sg = 0.0, rs = 0.0, rv = 0.0)
+    BlackOilX(sys::BlackOilVariableSwitchingSystem, p; sw = 0.0, so = 0.0, sg = 0.0, rs = 0.0, rv = 0.0, region = 1)
 
 High level initializer for the black oil unknown degree of freedom. Will try to fill in the gaps unless system
 is really underspecified.
 """
-function BlackOilX(sys::BlackOilVariableSwitchingSystem, p; sw = 0.0, so = 0.0, sg = 0.0, rs = 0.0, rv = 0.0)
+function BlackOilX(sys::BlackOilVariableSwitchingSystem, p; sw = 0.0, so = 0.0, sg = 0.0, rs = 0.0, rv = 0.0, region = 1)
     @assert p > 0 "Pressure must be positive"
-    F_rs = sys.rs_max
-    F_rv = sys.rv_max
+    F_rs = sys.rs_max[region]
+    F_rv = sys.rv_max[region]
     if has_disgas(sys)
         if sg > 0
             rs = F_rs(p)
