@@ -727,11 +727,16 @@ function parse_control_steps(runspec, props, schedule, sys)
         push!(cstep, ctrl_ix)
     end
 
-    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE")
+    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC")
     bad_kw = Dict{String, Bool}()
     for (ctrl_ix, step) in enumerate(steps)
         found_time = false
         streams = parse_well_streams_for_step(step, props)
+        if haskey(step, "WEFAC")
+            for wk in step["WEFAC"]
+                well_factor[wk[1]] = wk[2]
+            end
+        end
         for (key, kword) in pairs(step)
             if key == "DATES"
                 if ismissing(start_date)
@@ -791,10 +796,6 @@ function parse_control_steps(runspec, props, schedule, sys)
                 for wk in kword
                     name = wk[1]
                     controls[name], limits[name] = keyword_to_control(sys, streams, wk, key, factor = well_factor[name])
-                end
-            elseif key == "WEFAC"
-                for wk in kword
-                    well_factor[wk[1]] = wk[2]
                 end
             elseif key in skip
                 # Already handled
