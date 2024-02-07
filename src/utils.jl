@@ -1135,8 +1135,10 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
     end
     bad_count = 0
     for (i, T_hf_i) in enumerate(T_hf)
-        bad_count += !isfinite(T_hf_i)
-        T_hf[i] = 0.0
+        if !isfinite(T_hf_i)
+            bad_count += 1
+            T_hf[i] = 0.0
+        end
     end
     if bad_count > 0
         tran_tot = length(T_hf)
