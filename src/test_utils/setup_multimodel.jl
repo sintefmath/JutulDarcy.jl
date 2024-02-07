@@ -143,7 +143,8 @@ function simulate_mini_wellcase(::Val{:bo_spe1}; dims = (3, 1, 1), setuparg = Na
     pvto = pvt[2]
     rhoS = setup[:rhoS]
     phases = (AqueousPhase(), LiquidPhase(), VaporPhase())
-    sat_table = get_1d_interpolator(pvto.sat_pressure, pvto.rs, cap_end = false)
+    pvto_tab = pvto.tab[1]
+    sat_table = get_1d_interpolator(pvto_tab.sat_pressure, pvto_tab.rs, cap_end = false)
     sys = StandardBlackOilSystem(rs_max = sat_table, phases = phases, reference_densities = rhoS)
     ## Set up a reservoir model that contains the reservoir, wells and a facility that controls the wells
     model, parameters = setup_reservoir_model(domain, sys, wells = [I, P]; kwarg...)
