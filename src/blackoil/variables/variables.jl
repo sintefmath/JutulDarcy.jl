@@ -117,8 +117,14 @@ is really underspecified.
 """
 function BlackOilX(sys::BlackOilVariableSwitchingSystem, p; sw = 0.0, so = 0.0, sg = 0.0, rs = 0.0, rv = 0.0, region = 1)
     @assert p > 0 "Pressure must be positive"
-    F_rs = sys.rs_max[region]
-    F_rv = sys.rv_max[region]
+    function get_by_region(x::Nothing)
+        return x
+    end
+    function get_by_region(x)
+        return x[region]
+    end
+    F_rs = get_by_region(sys.rs_max)
+    F_rv = get_by_region(sys.rv_max)
     if has_disgas(sys)
         if sg > 0
             rs = F_rs(p)
