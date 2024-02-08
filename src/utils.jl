@@ -704,7 +704,7 @@ function setup_reservoir_state(rmodel::SimulationModel; kwarg...)
         end
         res_init[k] = v
     end
-    handle_alternate_primary_variable_spec!(res_init, found, rmodel.system)
+    handle_alternate_primary_variable_spec!(res_init, found, rmodel, rmodel.system)
     if length(found) != length(pvars)
         missing_primary_variables = setdiff(pvars, found)
         @warn "Not all primary variables were initialized for reservoir model." missing_primary_variables
@@ -712,7 +712,7 @@ function setup_reservoir_state(rmodel::SimulationModel; kwarg...)
     return setup_state(rmodel, res_init)
 end
 
-function handle_alternate_primary_variable_spec!(res_init, found, system)
+function handle_alternate_primary_variable_spec!(res_init, found, rmodel, system)
     # Internal utility to handle non-trivial specification of primary variables
     return res_init
 end

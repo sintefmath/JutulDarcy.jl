@@ -24,6 +24,10 @@ struct Rs{F, R} <: ScalarVariable
     regions::R
 end
 
+@inline function region(pv::Rs, cell)
+    return region(pv.regions, cell)
+end
+
 function Rs(rs_max::F; regions::R = nothing) where {F, R}
     return Rs{F, R}(rs_max, regions)
 end
@@ -47,6 +51,10 @@ end
 
 function Rv(rv_max::F; regions::R = nothing) where {F, R}
     return Rv{F, R}(rv_max, regions)
+end
+
+@inline function region(pv::Rv, cell)
+    return region(pv.regions, cell)
 end
 
 function Jutul.subvariable(v::Rv, map::FiniteVolumeGlobalMap)
