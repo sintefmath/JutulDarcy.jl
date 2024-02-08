@@ -50,16 +50,24 @@ function setup_case_from_data_file(
     return out
 end
 
-function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans = true, kwarg...)
+function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans = true, verbose = false, kwarg...)
+    function msg(s)
+        if verbose
+            jutul_message("Setup", s)
+        end
+    end
+    msg("Parsing physics and system.")
     sys, pvt = parse_physics_types(datafile, pvt_region = 1)
     is_blackoil = sys isa StandardBlackOilSystem
     is_compositional = sys isa CompositionalSystem
+    msg("Parsing reservoir domain.")
     domain = parse_reservoir(datafile)
     pvt_reg = reservoir_regions(domain, :pvtnum)
     has_pvt = isnothing(pvt_reg)
     # Parse wells
+    msg("Parsing schedule.")
     wells, controls, limits, cstep, dt, well_forces = parse_schedule(domain, sys, datafile; simple_well = simple_well)
-
+    msg("Setting up model with $(length(wells)) wells.")
     wells_pvt = Dict()
     wells_systems = []
     for w in wells
@@ -105,6 +113,7 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
             end
         end
     end
+    msg("Setting up parameters.")
     parameters = setup_parameters(model)
     if haskey(datafile["PROPS"], "SWL")
         G = physical_representation(domain)
@@ -114,8 +123,11 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
     if use_ijk_trans
         parameters[:Reservoir][:Transmissibilities] = reservoir_transmissibility(domain, version = :ijk);
     end
+    msg("Setting up forces.")
     forces = parse_forces(model, wells, controls, limits, cstep, dt, well_forces)
+    msg("Setting up initial state.")
     state0 = parse_state0(model, datafile)
+    msg("Setup complete.")
     return JutulCase(model, dt, forces, state0 = state0, parameters = parameters)
 end
 
@@ -1187,6 +1199,7 @@ function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
         start = wspec.head
         use_dir = true
         while length(wc) > 0
+            @info "Well..." wc
             closest_ix = 0
             closest_xyz_distance = Inf
             if use_dir
