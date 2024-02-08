@@ -196,12 +196,15 @@ function parse_state0_equil(model, datafile)
         eq = equil[ereg]
         for sreg in 1:nsat
             for preg in 1:npvt
-                cells = findall(
-                    i ->satnum[i] == sreg &&
+                cells = Int[]
+                sizehint!(cells, ncells÷(nsat*npvt*nequil))
+                for i in 1:ncells
+                    if satnum[i] == sreg &&
                         pvtnum[i] == preg &&
-                        eqlnum[i] == ereg,
-                    1:ncells
-                )
+                        eqlnum[i] == ereg
+                        push!(cells, i)
+                    end
+                end
 
                 ncells_reg = length(cells)
                 if ncells_reg == 0
