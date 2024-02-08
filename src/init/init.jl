@@ -194,18 +194,13 @@ function parse_state0_equil(model, datafile)
     inits_cells = []
     for ereg in 1:nequil
         eq = equil[ereg]
+        cells_eqlnum = findall(isequal(ereg), eqlnum)
         for sreg in 1:nsat
+            cells_satnum = findall(isequal(sreg), satnum)
+            cells_sat_and_pvt = intersect_sorted(cells_satnum, cells_eqlnum)
             for preg in 1:npvt
-                cells = Int[]
-                sizehint!(cells, ncells÷(nsat*npvt*nequil))
-                for i in 1:ncells
-                    if satnum[i] == sreg &&
-                        pvtnum[i] == preg &&
-                        eqlnum[i] == ereg
-                        push!(cells, i)
-                    end
-                end
-
+                cells_pvtnum = findall(isequal(preg), pvtnum)
+                cells = intersect_sorted(cells_pvtnum, cells_sat_and_pvt)
                 ncells_reg = length(cells)
                 if ncells_reg == 0
                     continue
@@ -358,6 +353,27 @@ function parse_state0_equil(model, datafile)
         @assert all(touched) "Some cells are not initialized by equil: $(findall(!, touched))"
     end
     return init
+end
+
+function intersect_sorted(a::Vector{T}, b::Vector{T}) where T
+    na = length(a)
+    nb = length(b)
+    c = Vector{T}()
+    ptr_a = ptr_b = 1
+    while ptr_a <= na && ptr_b <= nb
+        a_val = a[ptr_a]
+        b_val = b[ptr_b]
+        if a_val == b_val
+            push!(c, a_val)
+            ptr_a += 1
+            ptr_b += 1
+        elseif a_val < b_val
+            ptr_a += 1
+        else
+            ptr_b += 1
+        end
+    end
+    return c
 end
 
 function fill_subinit!(x::Vector, cells, v::Vector)
