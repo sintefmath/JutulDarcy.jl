@@ -1199,7 +1199,6 @@ function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
         start = wspec.head
         use_dir = true
         while length(wc) > 0
-            @info "Well..." wc
             closest_ix = 0
             closest_xyz_distance = Inf
             if use_dir
