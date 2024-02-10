@@ -276,7 +276,7 @@ function k_value_flash!(result::FR, eos, P, T, Z, z) where FR
         end
         @. x = Z
         @. y = Z
-        V = convert(Num_t, V)
+        V = convert(Num_t, clamp(V, 0.0, 1.0))
     else
         phase_state = MultiComponentFlash.two_phase_lv
         V = add_derivatives_to_vapor_fraction_rachford_rice(V, K_ad, Z, K, z)
