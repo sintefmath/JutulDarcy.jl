@@ -242,7 +242,11 @@ function flash_entity_loop!(flash_results, fr, model, eos::KValuesEOS, Pressure,
     storage, m, buffers = fr.storage, fr.method, fr.update_buffer
     S, buf = thread_buffers(storage, buffers)
     z_buf = buf.z
-    for i in ix
+    kvalue_loop!(flash_results, ix, Pressure, Temperature, OverallMoleFractions, eos, z_buf)
+end
+
+function kvalue_loop!(flash_results, ix, Pressure, Temperature, OverallMoleFractions, eos, z_buf)
+    @inbounds for i in ix
         P = Pressure[i]
         T = Temperature[i]
         Z = @view OverallMoleFractions[:, i]
