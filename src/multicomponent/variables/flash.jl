@@ -296,19 +296,21 @@ function add_derivatives_to_vapor_fraction_rachford_rice(V::Float64, K, z, K_val
         N = length(z)
         V0 = V
         V = convert(T, V)
-        ∂V = V.partials
+        ∂R_chain = V.partials
         if Kt == T
             for i in 1:N
                 dK_i = MultiComponentFlash.objectiveRR_dK(V0, K_val, z_val, i)
-                ∂V += K[i].partials*dK_i
+                ∂R_chain += K[i].partials*dK_i
             end
         end
         if Zt == T
             for i in 1:N
                 dz_i = MultiComponentFlash.objectiveRR_dz(V0, K_val, z_val, i)
-                ∂V += z[i].partials*dz_i
+                ∂R_chain += z[i].partials*dz_i
             end
         end
+        ∂R_dV = MultiComponentFlash.objectiveRR_dV(V0, K_val, z_val)
+        ∂V = -∂R_chain/∂R_dV
         V = T(V0, ∂V)
     end
     return V
