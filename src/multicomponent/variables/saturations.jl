@@ -41,7 +41,7 @@ end
     l, v = phase_indices(model.system)
     @assert number_of_phases(model.system) == 2
     eos = model.system.equation_of_state
-    props = map(x -> x.mw, eos.mixture.properties)
+    molar_masses = map(x -> x.mw, eos.mixture.properties)
     @inbounds for i in ix
         flash = FlashResults[i]
         x = flash.liquid.mole_fractions
@@ -51,15 +51,16 @@ end
             # saturation from that.
             mass_liquid = 0.0
             mass_vapor = 0.0
-            for c in eachindex(props)
-                mw = props[i].mw
+            for c in eachindex(molar_masses)
+                mw = molar_masses[i]
                 mass_liquid += mw*x[i]
                 mass_vapor += mw*y[i]
             end
             rho_l = PhaseMassDensities[l, i]
-            rho_l = PhaseMassDensities[v, i]
-            vol_liquid = mass_liquid/rho_l
-            vol_vapor = mass_vapor/rho_v
+            rho_v = PhaseMassDensities[v, i]
+            V = flash.V
+            vol_liquid = (1.0-V)*mass_liquid/rho_l
+            vol_vapor = V*mass_vapor/rho_v
             S_v = vol_vapor/(vol_liquid + vol_vapor)
         elseif flash.state == MultiComponentFlash.single_phase_v
             S_v = 1.0
