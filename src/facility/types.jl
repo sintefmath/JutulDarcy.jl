@@ -504,8 +504,16 @@ function realize_control_for_reservoir(rstate, ctrl::ProducerControl{<:Historica
     ww = w[a]
     wo = w[l]
     wg = w[v]
-    rs = min(wg/wo, rs_avg)
-    rv = min(wo/wg, rv_avg)
+    if wo <= 1e-20
+        rs = 0.0
+    else
+        rs = min(wg/wo, rs_avg)
+    end
+    if wg <= 1e-20
+        rv = 0.0
+    else
+        rv = min(wo/wg, rv_avg)
+    end
 
     svar = Jutul.get_secondary_variables(model)
     b_var = svar[:ShrinkageFactors]
@@ -522,8 +530,8 @@ function realize_control_for_reservoir(rstate, ctrl::ProducerControl{<:Historica
         bG = shrinkage(b_var.pvt[v], reg, p_avg, 1)
     end
 
-    shrink = 1.0 - rs*rv
-    shrink_avg = 1.0 - rs_avg*rv_avg
+    shrink = max(1.0 - rs*rv, 1e-20)
+    shrink_avg = max(1.0 - rs_avg*rv_avg, 1e-20)
     old_rate = ctrl.target.value
     # Water
     new_water_rate = old_rate*ww/bW
@@ -531,11 +539,11 @@ function realize_control_for_reservoir(rstate, ctrl::ProducerControl{<:Historica
     # Oil
     qo = old_rate*wo
     new_oil_rate = qo
-    new_oil_weight = 1/(bO*shrink_avg)
+    new_oil_weight = 1.0/(bO*shrink_avg)
     # Gas
     qg = old_rate*wg
     new_gas_rate = qg
-    new_gas_weight = 1/(bG*shrink_avg)
+    new_gas_weight = 1.0/(bG*shrink_avg)
     # Miscibility adjustments
     if vapoil
         new_oil_rate -= rv*qg
@@ -550,6 +558,8 @@ function realize_control_for_reservoir(rstate, ctrl::ProducerControl{<:Historica
 
 
     new_weights = (new_water_weight, new_oil_weight, new_gas_weight)
+    @assert all(isfinite, new_weights) "Computed RESV weights were non-finite: $new_weights"
+
     new_rate = new_water_rate + new_oil_rate + new_gas_rate
     new_control = replace_target(ctrl, ReservoirVoidageTarget(new_rate, new_weights))
     return (new_control, true)
