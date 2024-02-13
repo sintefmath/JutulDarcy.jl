@@ -38,15 +38,11 @@ struct BrineCO2MixingDensities{T} <: AbstractCompositionalDensities
     coeffs::NTuple{4, Float64}
 end
 
-function BrineCO2MixingDensities(tab::T; coefficients = (37.51, −9.585*10e−2, 8.74*10e−4, −5.044*10e−7)) where T
+function BrineCO2MixingDensities(tab::T; coefficients = (37.51, −9.585e−2, 8.74e−4, −5.044e−7)) where T
     return BrineCO2MixingDensities{T}(tab, coefficients)
 end
 
 @jutul_secondary function update_density!(rho, rho_def::BrineCO2MixingDensities, model::SimulationModel{D, S}, Pressure, Temperature, LiquidMassFractions, ix) where {D, S<:CompositionalSystem}
-    # V = 10e−6*(37.51 − 9.585*10e−2*T + 8.74*10e−4*T^2 − 5.044*10e−7*T^3)
-    # M_co2 = 44.01*10^-3
-    # ρ_co2 = M_co2/V
-
     c1, c2, c3, c4 = rho_def.coeffs
     sys = model.system
     eos = sys.equation_of_state
@@ -69,7 +65,7 @@ end
 
 function co2_brine_mixture_density(T, c1, c2, c3, c4, rho_h2o_pure, X_co2)
     T -= 273.15 # Relation is in C, input is in Kelvin
-    vol_co2 = 10e−6*(c1 + c2*T + c3*T^2 + c4*T^3)
+    vol_co2 = 1e−6*(c1 + c2*T + c3*T^2 + c4*T^3)
     rho_liquid_co2_pure = 44.01e-3/vol_co2
     X_h2o = 1.0 - X_co2
     # Linear volume mixing rule
