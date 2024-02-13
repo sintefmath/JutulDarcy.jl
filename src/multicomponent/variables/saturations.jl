@@ -52,9 +52,9 @@ end
             mass_liquid = 0.0
             mass_vapor = 0.0
             for c in eachindex(molar_masses)
-                mw = molar_masses[i]
-                mass_liquid += mw*x[i]
-                mass_vapor += mw*y[i]
+                mw = molar_masses[c]
+                mass_liquid += mw*x[c]
+                mass_vapor += mw*y[c]
             end
             rho_l = PhaseMassDensities[l, i]
             rho_v = PhaseMassDensities[v, i]
