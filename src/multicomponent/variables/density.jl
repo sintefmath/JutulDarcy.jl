@@ -52,14 +52,15 @@ end
     eos = sys.equation_of_state
     cnames = eos.mixture.component_names
     # TODO: This is hard coded.
-    @assert cnames[1] == raw"CarbonDioxide"
+    @assert cnames[1] == raw"H₂O" "First component was $(cnames[1]), expected H₂O"
+    @assert cnames[2] == raw"CO₂" "Second component was $(cnames[1]), expected CO₂"
     @assert length(cnames) == 2
     l, v = phase_indices(sys)
     for i in ix
         p = Pressure[i]
         T = Temperature[i]
-        X_co2 = LiquidMassFractions[1, i]
-        rho_co2, rho_h2o_pure = rho_def.tab(p, T)
+        X_co2 = LiquidMassFractions[2, i]
+        rho_h2o_pure, rho_co2 = rho_def.tab(p, T)
         rho_brine = co2_brine_mixture_density(T, c1, c2, c3, c4, rho_h2o_pure, X_co2)
         rho[v, i] = rho_co2
         rho[l, i] = rho_brine
