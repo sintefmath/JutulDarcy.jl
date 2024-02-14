@@ -21,7 +21,7 @@ end
 @inline number_of_regions(regions::Nothing) = 1
 @inline number_of_regions(regions::AbstractVector) = 1
 
-@inline function table_by_region(tab, reg)
+Base.@propagate_inbounds @inline function table_by_region(tab, reg)
     return tab[reg]
 end
 

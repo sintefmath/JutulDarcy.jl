@@ -266,8 +266,11 @@ function k_value_flash!(result::FR, eos, P, T, Z, z) where FR
     K = result.K
     x = result.liquid.mole_fractions
     y = result.vapor.mole_fractions
+    ncomp = length(z)
 
-    @. K = value(K_ad)
+    @inbounds for i in 1:ncomp
+        K[i] = value(K_ad[i])
+    end
     V = flash_2ph!(nothing, K, eos, c)
 
     pure_liquid = V <= 0.0
@@ -278,14 +281,21 @@ function k_value_flash!(result::FR, eos, P, T, Z, z) where FR
         else
             phase_state = MultiComponentFlash.single_phase_l
         end
-        @. x = Z
-        @. y = Z
+        @inbounds for i in 1:ncomp
+            Z_i = Z[i]
+            x[i] = Z_i
+            y[i] = Z_i
+        end
         V = convert(Num_t, clamp(V, 0.0, 1.0))
     else
         phase_state = MultiComponentFlash.two_phase_lv
         V = add_derivatives_to_vapor_fraction_rachford_rice(V, K_ad, Z, K, z)
-        @. x = liquid_mole_fraction(Z, K, V)
-        @. y = vapor_mole_fraction(x, K)
+        @inbounds for i in 1:ncomp
+            K_i = K[i]
+            x_i = liquid_mole_fraction(Z[i], K_i, V)
+            x[i] = x_i
+            y[i] = vapor_mole_fraction(x_i, K_i)
+        end
     end
     Z_L = Z_V = convert(Num_t, 1.0)
     new_result = FlashedMixture2Phase(phase_state, K, V, x, y, Z_L, Z_V)
