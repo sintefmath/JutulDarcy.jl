@@ -23,10 +23,10 @@ end
 
 @inline function update_mass_fractions!(X, x, cell, molar_masses)
     t = zero(eltype(X))
-    @inbounds for i in eachindex(x)
+    @inbounds for i in 1:length(x)
         t += molar_masses[i] * x[i]
     end
-    @inbounds for i in eachindex(x)
+    @inbounds for i in 1:length(x)
         X[i, cell] = molar_masses[i] * x[i] / t
     end
 end
@@ -134,9 +134,6 @@ function single_phase_mass!(M, ρ, S, mass_fractions, Φ, cell, N, phase)
     if S_eos < MINIMUM_COMPOSITIONAL_SATURATION
         S_eos = replace_value(S_eos, MINIMUM_COMPOSITIONAL_SATURATION)
     end
-    # S_eos = max(S[phase, cell], MINIMUM_COMPOSITIONAL_SATURATION)
-    # @info "?? $phase" S[phase, cell] MINIMUM_COMPOSITIONAL_SATURATION S_eos
-
     @inbounds M_l = ρ[phase, cell] * S_eos
     for c in 1:N
         @inbounds M[c, cell] = M_l*mass_fractions[c, cell]*Φ[cell]
