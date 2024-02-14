@@ -485,7 +485,12 @@ function deck_pc(props; oil, water, gas, satnum = nothing)
                 s = s[ix]
             end
             s, pc = saturation_table_handle_defaults(s, pc)
-            interp_ow = get_1d_interpolator(s, pc)
+            if length(T) == 1
+                constant_dx = missing
+            else
+                constant_dx = false
+            end
+            interp_ow = get_1d_interpolator(s, pc, constant_dx = constant_dx)
             push!(PC, interp_ow)
         end
         out = Tuple(PC)
