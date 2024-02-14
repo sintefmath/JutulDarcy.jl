@@ -430,12 +430,11 @@ end
 Base.@propagate_inbounds function two_phase_relperm!(kr, s, regions, Kr_1, Kr_2, phases, c)
     i1, i2 = phases
     reg = region(regions, c)
-    kr1 = table_by_region(Kr_1, reg)
     sw = s[i1, c]
-    kr[i1, c] = kr1(sw)
-    kr2 = table_by_region(Kr_2, reg)
     sg = s[i2, c]
-    kr[i2, c] = kr2(sg)
+
+    kr[i1, c] = evaluate_table_by_region(Kr_1, reg, sw)
+    kr[i2, c] = evaluate_table_by_region(Kr_2, reg, sg)
 end
 
 @jutul_secondary function update_kr_with_scaling!(kr, relperm::ReservoirRelativePermeabilities{<:Any, :wog}, model, Saturations, RelPermScalingW, RelPermScalingOW, RelPermScalingOG, RelPermScalingG, ConnateWater, ix)
