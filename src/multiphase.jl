@@ -10,6 +10,7 @@ flow_system(sys::MultiPhaseSystem) = sys
 flow_system(sys::CompositeSystem) = sys.systems.flow
 
 number_of_components(sys::ImmiscibleSystem) = number_of_phases(sys)
+number_of_components(sys::CompositeSystem) = number_of_components(flow_system(sys))
 
 # Single-phase
 
