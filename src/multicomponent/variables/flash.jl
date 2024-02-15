@@ -62,7 +62,7 @@ function initialize_variable_ad!(state, model, pvar::FlashResults, symb, npartia
     n = number_of_entities(model, pvar)
     v_ad = get_ad_entity_scalar(1.0, npartials, diag_pos; kwarg...)
     ∂T = typeof(v_ad)
-    eos = model.system.equation_of_state
+    eos = flow_system(model.system).equation_of_state
 
     r = FlashedMixture2Phase(eos, ∂T)
     T = typeof(r)

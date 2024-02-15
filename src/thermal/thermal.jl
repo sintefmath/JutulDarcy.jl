@@ -1,17 +1,28 @@
 
 
 """
-    ThermalSystem(num_phases = 1, formulation = :Temperature)
+    ThermalSystem(number_of_phases = 1, number_of_components = number_of_phases, formulation = :Temperature)
 
 Geothermal system that defines heat transfer through fluid advection and through
 the rock itself. Can be combined with a multiphase system using [`Jutul.CompositeSystem`](@ref).
 """
 struct ThermalSystem{T} <: JutulSystem
     nph::Int64
-    function ThermalSystem(; nphases = 1, formulation = :Temperature)
+    ncomp::Int64
+    function ThermalSystem(;
+            number_of_phases = 1,
+            number_of_components = number_of_phases,
+            formulation = :Temperature
+        )
         @assert formulation == :Temperature
-        new{formulation}(nphases)
+        new{formulation}(number_of_phases, number_of_components)
     end
+end
+
+function ThermalSystem(sys::MultiPhaseSystem; kwarg...)
+    nph = number_of_phases(sys)
+    nc = number_of_components(sys)
+    return ThermalSystem(number_of_phases = nph, number_of_components = nc; kwarg...)
 end
 
 thermal_system(sys::ThermalSystem) = sys
@@ -113,6 +124,7 @@ function Jutul.default_parameter_values(data_domain, model, param::RockThermalCo
 end
 
 number_of_phases(t::ThermalSystem) = t.nph
+number_of_components(t::ThermalSystem) = t.ncomp
 
 function select_primary_variables!(S, system::ThermalSystem, model)
     S[:Temperature] = Temperature()

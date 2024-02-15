@@ -11,7 +11,8 @@ function number_of_components(sys::MultiPhaseCompositionalSystemLV{E, T, O, G, N
 end
 
 phase_index(sys, phase) = only(findfirst(isequal(phase), sys.phases))
-has_other_phase(sys) = true
+has_other_phase(sys) = number_of_phases(sys) > 2
+has_other_phase(sys::CompositeSystem) = has_other_phase(flow_system(sys))
 has_other_phase(sys::MultiPhaseCompositionalSystemLV{E, T, O}) where {E, T, O<:Nothing} = false
 
 phase_indices(sys::MultiPhaseCompositionalSystemLV{E, T, O}) where {E, T, O<:Nothing} = (liquid_phase_index(sys), vapor_phase_index(sys))
