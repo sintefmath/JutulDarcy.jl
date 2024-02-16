@@ -366,7 +366,11 @@ end
 
 function deck_relperm(props; oil, water, gas, satnum = nothing)
     if haskey(props, "SCALECRS")
-        if length(props["SCALECRS"]) == 0 || lowercase(first(props["SCALECRS"])) == "no"
+        scalecrs = props["SCALECRS"]
+        if scalecrs isa String
+            scalecrs = [scalecrs]
+        end
+        if length(scalecrs) == 0 || lowercase(first(scalecrs)) == "no"
             @info "Found two-point rel. perm. scaling"
             scaling = TwoPointKrScale
         else
