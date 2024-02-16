@@ -143,9 +143,11 @@ function select_parameters!(S, system::ThermalSystem, model)
     S[:PhaseMassDensities] = ConstantCompressibilityDensities(nph)
     S[:Pressure] = Pressure()
     S[:Saturations] = Saturations()
-    S[:RelativePermeabilities] = RelativePermeabilitiesParameter()
     S[:PhaseViscosities] = PhaseViscosities()
-    S[:PhaseMassMobilities] = PhaseMassMobilities()
+    if !model_or_domain_is_well(model)
+        S[:PhaseMassMobilities] = PhaseMassMobilities()
+        S[:RelativePermeabilities] = RelativePermeabilitiesParameter()
+    end
 end
 
 function select_parameters!(prm, disc::D, model::ThermalModel) where D<:Union{TwoPointPotentialFlowHardCoded, Jutul.PotentialFlow}
