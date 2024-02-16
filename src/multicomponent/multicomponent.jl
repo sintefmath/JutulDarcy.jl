@@ -112,11 +112,7 @@ end
 function pressure_increments(model, state, update_report)
     max_p = maximum(value, state.Pressure)
     dp = update_report[:Pressure]
-    if haskey(dp, :max)
-        dp_abs = dp.max
-    else
-        dp_abs = Inf
-    end
+    dp_abs = dp.max
     dp_rel = dp_abs/max_p
     return (dp_abs, dp_rel)
 end
@@ -125,8 +121,10 @@ function compositional_increment(model, state, update_report)
     mf_report = update_report[:OverallMoleFractions]
     if haskey(mf_report, :max_scaled)
         v = mf_report.max_scaled
+    elseif haskey(mf_report, :max)
+        v = mf_report.max
     else
-        v = Inf
+        v = 1.0
     end
     return v
 end
