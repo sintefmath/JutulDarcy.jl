@@ -741,7 +741,7 @@ function setup_reservoir_forces(model::MultiModel; control = nothing, limits = n
     else
         new_forces = Dict{Symbol, Any}()
         for (k, m) in pairs(submodels)
-            if m isa SimpleWellFlowModel || m isa MSWellFlowModel
+            if model_or_domain_is_well(m) && !isnothing(control)
                 ctrl_symbol = Symbol("$(k)_ctrl")
                 @assert haskey(submodels, ctrl_symbol) "Controller for well $k must be present with the name $ctrl_symbol"
                 subctrl = Dict{Symbol, Any}()
