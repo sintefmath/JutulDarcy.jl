@@ -112,13 +112,23 @@ end
 function pressure_increments(model, state, update_report)
     max_p = maximum(value, state.Pressure)
     dp = update_report[:Pressure]
-    dp_abs = dp.max
+    if haskey(dp, :max)
+        dp_abs = dp.max
+    else
+        dp_abs = Inf
+    end
     dp_rel = dp_abs/max_p
     return (dp_abs, dp_rel)
 end
 
 function compositional_increment(model, state, update_report)
-    return update_report[:OverallMoleFractions].max_scaled
+    mf_report = update_report[:OverallMoleFractions]
+    if haskey(mf_report, :max_scaled)
+        v = mf_report.max_scaled
+    else
+        v = Inf
+    end
+    return v
 end
 
 function immiscible_increment(model, state, ::Missing)
