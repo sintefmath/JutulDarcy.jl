@@ -278,6 +278,7 @@ function Base.getindex(m::ReservoirRelativePermeabilities, s::Symbol)
 end
 
 scaling_type(::ReservoirRelativePermeabilities{T}) where T = T
+scaling_type(::AbstractRelativePermeabilities) = NoKrScale
 
 function Jutul.line_plot_data(model::SimulationModel, k::ReservoirRelativePermeabilities)
     s = collect(0:0.01:1)

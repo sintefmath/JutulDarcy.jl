@@ -106,26 +106,32 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         return rho
     end
     pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_f, contacts_pc)
-    s, pc = determine_saturations(depths, contacts, pressures; s_min = s_min, kwarg...)
+    if nph > 1
+        s, pc = determine_saturations(depths, contacts, pressures; s_min = s_min, kwarg...)
 
-    nc_total = number_of_cells(model.domain)
-    kr = zeros(nph, nc_total)
-    s_eval = zeros(nph, nc_total)
-    s_eval[:, cells] .= s
-    phases = get_phases(sys)
-    if length(phases) == 3 && AqueousPhase() in phases
-        swcon = zeros(nc_total)
-        if !ismissing(s_min)
-            swcon[cells] .= s_min[1]
+        nc_total = number_of_cells(model.domain)
+        kr = zeros(nph, nc_total)
+        s_eval = zeros(nph, nc_total)
+        s_eval[:, cells] .= s
+        phases = get_phases(sys)
+        if length(phases) == 3 && AqueousPhase() in phases
+            swcon = zeros(nc_total)
+            if !ismissing(s_min)
+                swcon[cells] .= s_min[1]
+            end
+            JutulDarcy.update_kr!(kr, relperm, model, s_eval, swcon, cells)
+        else
+            JutulDarcy.update_kr!(kr, relperm, model, s_eval, cells)
         end
-        JutulDarcy.update_kr!(kr, relperm, model, s_eval, swcon, cells)
+        kr = kr[:, cells]
+        init[:Saturations] = s
+        init[:Pressure] = init_reference_pressure(pressures, contacts, kr, pc, 2)
     else
-        JutulDarcy.update_kr!(kr, relperm, model, s_eval, cells)
+        p = copy(vec(pressures))
+        init[:Pressure] = p
+        init[:Saturations] = ones(1, length(p))
     end
-    kr = kr[:, cells]
 
-    init[:Saturations] = s
-    init[:Pressure] = init_reference_pressure(pressures, contacts, kr, pc, 2)
     return init
 end
 
@@ -134,6 +140,8 @@ function parse_state0_equil(model, datafile)
     has_water = haskey(datafile["RUNSPEC"], "WATER")
     has_oil = haskey(datafile["RUNSPEC"], "OIL")
     has_gas = haskey(datafile["RUNSPEC"], "GAS")
+
+    is_single_phase = (has_water + has_oil + has_gas) == 1
 
     sys = model.system
     d = model.data_domain
@@ -151,27 +159,33 @@ function parse_state0_equil(model, datafile)
     end
     eqlnum = model.data_domain[:eqlnum]
 
-    has_pc = haskey(model.secondary_variables, :CapillaryPressure)
-    if has_pc
-        pcvar = model.secondary_variables[:CapillaryPressure]
-        pc_functions = pcvar.pc
-        if has_sat_reg
-            @assert !isnothing(pcvar.regions)
-            @assert pcvar.regions == satnum
-        end
-    else
+    if is_single_phase
+        has_pc = false
         pc_functions = missing
-    end
-
-    if has_water
-        kr_var = model.secondary_variables[:RelativePermeabilities]
-        krw_fn = kr_var.krw
-        if has_sat_reg
-            @assert !isnothing(kr_var.regions)
-            @assert kr_var.regions == satnum
-        end
-    else
         krw_fn = missing
+    else
+        has_pc = haskey(model.secondary_variables, :CapillaryPressure)
+        if has_pc
+            pcvar = model.secondary_variables[:CapillaryPressure]
+            pc_functions = pcvar.pc
+            if has_sat_reg
+                @assert !isnothing(pcvar.regions)
+                @assert pcvar.regions == satnum
+            end
+        else
+            pc_functions = missing
+        end
+
+        if has_water
+            kr_var = model.secondary_variables[:RelativePermeabilities]
+            krw_fn = kr_var.krw
+            if has_sat_reg
+                @assert !isnothing(kr_var.regions)
+                @assert kr_var.regions == satnum
+            end
+        else
+            krw_fn = missing
+        end
     end
 
     init = Dict{Symbol, Any}()
@@ -240,29 +254,35 @@ function parse_state0_equil(model, datafile)
                 else
                     pc = nothing
                 end
-                if has_water
-                    krw = table_by_region(krw_fn, sreg)
-                    if haskey(datafile, "PROPS") && haskey(datafile["PROPS"], "SWL")
-                        swl = vec(datafile["PROPS"]["SWL"])
-                        swcon = swl[actnum_ix_for_reg]
-                    else
-                        swcon = fill(krw.connate, ncells_reg)
-                    end
-                    push!(s_min, swcon)
+                if is_single_phase
+                    push!(s_min, zeros(ncells_reg))
                     push!(s_max, ones(ncells_reg))
-                    @. non_connate -= swcon
-                end
-                if has_oil
-                    push!(s_min, zeros(ncells_reg))
-                    push!(s_max, non_connate)
-                end
-                if has_gas
-                    push!(s_min, zeros(ncells_reg))
-                    push!(s_max, non_connate)
+                else
+                    if has_water
+                        krw = table_by_region(krw_fn, sreg)
+                        if haskey(datafile, "PROPS") && haskey(datafile["PROPS"], "SWL")
+                            swl = vec(datafile["PROPS"]["SWL"])
+                            swcon = swl[actnum_ix_for_reg]
+                        else
+                            swcon = fill(krw.connate, ncells_reg)
+                        end
+                        push!(s_min, swcon)
+                        push!(s_max, ones(ncells_reg))
+                        @. non_connate -= swcon
+                    end
+                    if has_oil
+                        push!(s_min, zeros(ncells_reg))
+                        push!(s_max, non_connate)
+                    end
+                    if has_gas
+                        push!(s_min, zeros(ncells_reg))
+                        push!(s_max, non_connate)
+                    end
                 end
 
                 if nph == 1
-                    error("Not implemented.")
+                    contacts = []
+                    contacts_pc = []
                 elseif nph == 2
                     if has_oil && has_gas
                         contacts = (goc, )
@@ -415,7 +435,7 @@ end
 function determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_f, contacts_pc)
     nc = length(depths)
     nph = length(contacts) + 1
-    ref_ix = 2
+    ref_ix = min(2, nph)
     I_ref = phase_pressure_depth_table(depth, zmin, zmax, datum_pressure, density_f, ref_ix)
     pressures = zeros(nph, nc)
     pos = 1
