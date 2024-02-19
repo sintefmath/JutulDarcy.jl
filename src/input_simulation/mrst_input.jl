@@ -365,6 +365,10 @@ function deck_pvt_gas(props; scaling = missing)
 end
 
 function deck_relperm(props; oil, water, gas, satnum = nothing)
+    if (water + oil + gas) == 1
+        # Early return for single-phase.
+        return BrooksCoreyRelativePermeabilities(1)
+    end
     if haskey(props, "SCALECRS")
         scalecrs = props["SCALECRS"]
         if scalecrs isa String
