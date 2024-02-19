@@ -711,6 +711,8 @@ function parse_control_steps(runspec, props, schedule, sys)
     cstep = Vector{Int}()
     compdat = Dict{String, OrderedDict}()
     controls = Dict{String, Any}()
+    # "Hidden" well control mirror used with WELOPEN logic
+    active_controls = Dict{String, Any}()
     limits = Dict{String, Any}()
     streams = Dict{String, Any}()
     well_injection = Dict{String, Any}()
@@ -718,6 +720,7 @@ function parse_control_steps(runspec, props, schedule, sys)
     for k in keys(wells)
         compdat[k] = OrderedDict{NTuple{3, Int}, Any}()
         controls[k] = DisabledControl()
+        active_controls[k] = DisabledControl()
         limits[k] = nothing
         streams[k] = nothing
         well_injection[k] = nothing
@@ -811,6 +814,13 @@ function parse_control_steps(runspec, props, schedule, sys)
                 for wk in kword
                     name = wk[1]
                     controls[name], limits[name] = keyword_to_control(sys, streams, wk, key, factor = well_factor[name])
+                    if !(controls[name] isa DisabledControl)
+                        active_controls[name] = controls[name]
+                    end
+                end
+            elseif key == "WELOPEN"
+                for wk in kword
+                    apply_welopen!(controls, compdat, wk, active_controls)
                 end
             elseif key in skip
                 # Already handled
@@ -1257,4 +1267,47 @@ function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
     @assert sort(sorted) == 1:n "$sorted was not $(1:n)"
     @assert length(sorted) == n
     return sorted
+end
+
+function apply_welopen!(controls, compdat, wk, controls_if_active)
+    name, flag, I, J, K, first_num, last_num = wk
+    # TODO: Handle shut in a better way
+    flag = uppercase(flag)
+    @assert flag in ("OPEN", "SHUT", "STOP")
+    is_open = flag == "OPEN"
+    if I == J == K == first_num == last_num == -1
+        # Applies to well
+        if is_open
+            controls[name] = controls_if_active[name]
+        else
+            controls[name] = DisabledControl()
+        end
+    else
+        cdat = compdat[name]
+        ijk = keys(cdat)
+
+        first_num = max(first_num, 1)
+        if last_num < 1
+            last_num = length(ijk)
+        end
+        for i in eachindex(ijk)
+            if i < first_num
+                continue
+            elseif i > last_num
+                continue
+            else
+                I_i, J_i, K_i = ijk[i]
+                current_cdat = cdat[ijk[i]]
+                is_match(ix, ix_i) = ix < 1 || ix_i == ix
+                if is_match(I, I_i) && is_match(J, J_i) && is_match(K, K_i)
+                    c = OrderedDict{Symbol, Any}()
+                    for (k, v) in current_cdat
+                        c[k] = v
+                    end
+                    c[:open] = is_open
+                    cdat[ijk[i]] = (; c...)
+                end
+            end
+        end
+    end
 end
