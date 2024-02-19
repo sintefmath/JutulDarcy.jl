@@ -734,7 +734,10 @@ function parse_control_steps(runspec, props, schedule, sys)
     end
     current_time = 0.0
     function add_dt!(dt, ctrl_ix)
-        @assert dt > 0.0
+        if dt ≈ 0
+            return
+        end
+        @assert dt > 0.0 "dt must be positive, attempt to add dt number $(length(tstep)) was $dt at control $ctrl_ix"
         push!(tstep, dt)
         push!(cstep, ctrl_ix)
     end
@@ -1048,7 +1051,7 @@ function select_injector_mixture_spec(sys::Union{ImmiscibleSystem, StandardBlack
         if phase == LiquidPhase()
             v = Float64(type == "OIL")
         elseif phase == AqueousPhase()
-            v = Float64(type == "WATER")
+            v = Float64(type == "WATER" || type == "WAT")
         else
             @assert phase isa VaporPhase
             v = Float64(type == "GAS")
@@ -1056,7 +1059,7 @@ function select_injector_mixture_spec(sys::Union{ImmiscibleSystem, StandardBlack
         rho += rho_ph*v
         push!(mix, v)
     end
-    @assert sum(mix) ≈ 1.0
+    @assert sum(mix) ≈ 1.0 "Expected mixture to sum to 1, was $mix for type $type (declared phases: $phases)"
     return (rho, mix)
 end
 
