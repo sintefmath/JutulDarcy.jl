@@ -818,11 +818,12 @@ function parse_control_steps(runspec, props, schedule, sys)
                 bad_kw[key] = true
             end
         end
-        push!(all_compdat, deepcopy(compdat))
-        push!(all_controls, deepcopy(controls))
-        push!(all_limits, deepcopy(limits))
-        if !found_time
-            error("Did not find supported time kw in step $ctrl_ix: Keys were $(keys(step))")
+        if found_time
+            push!(all_compdat, deepcopy(compdat))
+            push!(all_controls, deepcopy(controls))
+            push!(all_limits, deepcopy(limits))
+        else
+            @warn "Did not find supported time kw in step $ctrl_ix: Keys were $(keys(step))."
         end
     end
     for k in keys(bad_kw)
