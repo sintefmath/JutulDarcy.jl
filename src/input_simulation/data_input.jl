@@ -709,6 +709,7 @@ function parse_control_steps(runspec, props, schedule, sys)
 
     tstep = Vector{Float64}()
     cstep = Vector{Int}()
+    well_temp = Dict{String, Float64}()
     compdat = Dict{String, OrderedDict}()
     controls = Dict{String, Any}()
     # "Hidden" well control mirror used with WELOPEN logic
@@ -725,6 +726,7 @@ function parse_control_steps(runspec, props, schedule, sys)
         streams[k] = nothing
         well_injection[k] = nothing
         well_factor[k] = 1.0
+        well_temp[k] = 273.15 + 20.0
     end
     all_compdat = []
     all_controls = []
@@ -813,7 +815,7 @@ function parse_control_steps(runspec, props, schedule, sys)
             elseif key in ("WCONINJE", "WCONPROD", "WCONHIST", "WCONINJ", "WCONINJH")
                 for wk in kword
                     name = wk[1]
-                    controls[name], limits[name] = keyword_to_control(sys, streams, wk, key, factor = well_factor[name])
+                    controls[name], limits[name] = keyword_to_control(sys, streams, wk, key, factor = well_factor[name], temperature = well_temp[name])
                     if !(controls[name] isa DisabledControl)
                         active_controls[name] = controls[name]
                     end
@@ -821,6 +823,11 @@ function parse_control_steps(runspec, props, schedule, sys)
             elseif key == "WELOPEN"
                 for wk in kword
                     apply_welopen!(controls, compdat, wk, active_controls)
+                end
+            elseif key == "WTEMP"
+                for wk in kword
+                    wnm, wt = wk
+                    well_temp[wnm] = convert_to_si(wt, :Celsius)
                 end
             elseif key in skip
                 # Already handled
@@ -932,7 +939,7 @@ function producer_limits(; bhp = Inf, lrat = Inf, orat = Inf, wrat = Inf, grat =
     return NamedTuple(pairs(lims))
 end
 
-function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = false, kwarg...)
+function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = false, temperature = NaN, kwarg...)
     rho_s = reference_densities(sys)
     phases = get_phases(sys)
 
