@@ -21,7 +21,7 @@ function equilibriate_state(model, contacts,
     if ismissing(datum_depth)
         datum_depth = pmin
     end
-    sys = model.system
+    sys = flow_system(model.system)
 
     init = Dict{Symbol, Any}()
     init = equilibriate_state!(init, pts, model, sys, contacts, datum_depth, datum_pressure;
@@ -85,8 +85,16 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
             rhoOS, rhoGS = rho_s
         end
     end
-    pvt = model.secondary_variables[:PhaseMassDensities].pvt
+    rho = model.secondary_variables[:PhaseMassDensities]
+    if rho isa Pair
+        rho = last(rho)
+    end
     relperm = model.secondary_variables[:RelativePermeabilities]
+    if relperm isa Pair
+        relperm = last(relperm)
+    end
+
+    pvt = rho.pvt
     reg = Int[pvtnum]
     function density_f(p, z, ph)
         pvt_i = pvt[ph]

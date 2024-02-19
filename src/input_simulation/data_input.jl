@@ -58,6 +58,7 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
     end
     msg("Parsing physics and system.")
     sys, pvt = parse_physics_types(datafile, pvt_region = 1)
+    flow_sys = flow_system(sys)
     is_blackoil = sys isa StandardBlackOilSystem
     is_compositional = sys isa CompositionalSystem
     msg("Parsing reservoir domain.")
@@ -66,7 +67,7 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
     has_pvt = isnothing(pvt_reg)
     # Parse wells
     msg("Parsing schedule.")
-    wells, controls, limits, cstep, dt, well_forces = parse_schedule(domain, sys, datafile; simple_well = simple_well)
+    wells, controls, limits, cstep, dt, well_forces = parse_schedule(domain, flow_sys, datafile; simple_well = simple_well)
     msg("Setting up model with $(length(wells)) wells.")
     wells_pvt = Dict()
     wells_systems = []
@@ -658,6 +659,9 @@ function parse_physics_types(datafile; pvt_region = missing)
             push!(rhoS, rhoGS)
         end
         sys = pick_system_from_pvt(pvt, rhoS, phases, is_immiscible)
+    end
+    if has("THERMAL")
+        sys = reservoir_system(flow = sys, thermal = ThermalSystem(sys))
     end
     return (system = sys, pvt = pvt)
 end
