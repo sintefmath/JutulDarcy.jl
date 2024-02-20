@@ -526,6 +526,26 @@ function parse_reservoir(data_file)
         end
         extra_data_arg[:temperature] = temperature
     end
+    if haskey(grid, "THCROCK")
+        extra_data_arg[:rock_thermal_conductivity] = grid["THCROCK"][active_ix]
+    end
+    has(name) = haskey(data_file["RUNSPEC"], name) && data_file["RUNSPEC"][name]
+
+    if has("THERMAL")
+        w = has("WATER")
+        o = has("OIL")
+        g = has("GAS")
+        fluid_conductivity = zeros(w+o+g, nc)
+        pos = 1
+        for phase in ("WATER", "OIL", "GAS")
+            if has(phase)
+                fluid_conductivity[pos, :] .= grid["THC$phase"][active_ix]
+                pos += 1
+            end
+        end
+        extra_data_arg[:fluid_thermal_conductivity] = fluid_conductivity
+    end
+
     satnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :satnum, active = active_ix)
     pvtnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :pvtnum, active = active_ix)
     eqlnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :eqlnum, active = active_ix)

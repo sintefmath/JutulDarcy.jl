@@ -98,7 +98,7 @@ function Jutul.default_parameter_values(data_domain, model, param::FluidThermalC
             nf = number_of_faces(data_domain)
             T = zeros(nph, nf)
             for ph in 1:nph
-                T[i, :] = compute_face_trans(data_domain, C[ph, :])
+                T[ph, :] = compute_face_trans(data_domain, C[ph, :])
             end
         end
     else
