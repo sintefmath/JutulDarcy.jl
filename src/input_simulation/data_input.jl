@@ -59,8 +59,8 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
     msg("Parsing physics and system.")
     sys, pvt = parse_physics_types(datafile, pvt_region = 1)
     flow_sys = flow_system(sys)
-    is_blackoil = sys isa StandardBlackOilSystem
-    is_compositional = sys isa CompositionalSystem
+    is_blackoil = flow_sys isa StandardBlackOilSystem
+    is_compositional = flow_sys isa CompositionalSystem
     msg("Parsing reservoir domain.")
     domain = parse_reservoir(datafile)
     pvt_reg = reservoir_regions(domain, :pvtnum)
@@ -82,11 +82,18 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
         wells_pvt[w.name] = pvt_w
         push!(wells_systems, sys_w)
     end
+    function wrap_flow_variable(x)
+        if sys isa CompositeSystem
+            x = Pair(:flow, x)
+        end
+        return x
+    end
 
     model = setup_reservoir_model(domain, sys; wells = wells, extra_out = false, wells_systems = wells_systems, kwarg...)
     for (k, submodel) in pairs(model.models)
-        if submodel.system isa MultiPhaseSystem
+        if model_or_domain_is_well(submodel) || k == :Reservoir
             # Modify secondary variables
+            @info "==" k submodel
             if !is_compositional
                 svar = submodel.secondary_variables
                 pvt_reg_i = reservoir_regions(submodel.data_domain, :pvtnum)
@@ -98,12 +105,16 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
                 pvt_i = tuple(pvt_i...)
                 rho = DeckPhaseMassDensities(pvt_i, regions = pvt_reg_i)
                 if sys isa StandardBlackOilSystem
+                    b_i = DeckShrinkageFactors(pvt_i, regions = pvt_reg_i)
                     set_secondary_variables!(submodel,
-                        ShrinkageFactors = DeckShrinkageFactors(pvt_i, regions = pvt_reg_i)
+                        ShrinkageFactors = wrap_flow_variable(b_i)
                     )
                 end
                 mu = DeckPhaseViscosities(pvt_i, regions = pvt_reg_i)
-                set_secondary_variables!(submodel, PhaseViscosities = mu, PhaseMassDensities = rho)
+                set_secondary_variables!(submodel,
+                    PhaseViscosities = wrap_flow_variable(mu),
+                    PhaseMassDensities = wrap_flow_variable(rho)
+                )
             end
             if k == :Reservoir
                 rs = datafile["RUNSPEC"]
