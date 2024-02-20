@@ -762,6 +762,23 @@ function setup_reservoir_forces(model::MultiModel; control = nothing, limits = n
         end
         out = setup_forces(model; pairs(new_forces)..., kwarg...)
     end
+    # If the model is a composite model we need to do some extra work to pass on
+    # flow forces with the correct label.
+    #
+    # TODO: At the moment we have no mechanism for setting up forces for thermal
+    # specifically.
+    for (k, m) in pairs(submodels)
+        f = out[k]
+        if m isa Jutul.CompositeModel
+            mkeys = keys(m.system.systems)
+            tmp = Dict{Symbol, Any}()
+            tmp[:flow] = f
+            for mk in mkeys
+                tmp[mk] = nothing
+            end
+            out[k] = (; pairs(tmp)...)
+        end
+    end
     return out
 end
 

@@ -82,12 +82,6 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
         wells_pvt[w.name] = pvt_w
         push!(wells_systems, sys_w)
     end
-    function wrap_flow_variable(x)
-        if sys isa CompositeSystem
-            x = Pair(:flow, x)
-        end
-        return x
-    end
 
     model = setup_reservoir_model(domain, sys; wells = wells, extra_out = false, wells_systems = wells_systems, kwarg...)
     for (k, submodel) in pairs(model.models)
@@ -106,13 +100,13 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
                 if sys isa StandardBlackOilSystem
                     b_i = DeckShrinkageFactors(pvt_i, regions = pvt_reg_i)
                     set_secondary_variables!(submodel,
-                        ShrinkageFactors = wrap_flow_variable(b_i)
+                        ShrinkageFactors = wrap_reservoir_variable(sys, b_i, :flow)
                     )
                 end
                 mu = DeckPhaseViscosities(pvt_i, regions = pvt_reg_i)
                 set_secondary_variables!(submodel,
-                    PhaseViscosities = wrap_flow_variable(mu),
-                    PhaseMassDensities = wrap_flow_variable(rho)
+                    PhaseViscosities = wrap_reservoir_variable(sys, mu, :flow),
+                    PhaseMassDensities = wrap_reservoir_variable(sys, rho, :flow)
                 )
             end
             if k == :Reservoir
