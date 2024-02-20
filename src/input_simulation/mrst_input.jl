@@ -707,23 +707,26 @@ function model_from_mat_deck(G, data_domain, mrst_data, res_context)
 end
 
 function set_deck_specialization!(model, props, satnum, oil, water, gas)
+    sys = model.system
     svar = model.secondary_variables
     param = model.parameters
-    set_deck_relperm!(svar, param, props; oil = oil, water = water, gas = gas, satnum = satnum)
-    set_deck_pc!(svar, props; oil = oil, water = water, gas = gas, satnum = satnum)
-    set_deck_pvmult!(svar, param, props)
+    if number_of_phases(sys) > 1
+        set_deck_relperm!(svar, param, sys, props; oil = oil, water = water, gas = gas, satnum = satnum)
+        set_deck_pc!(svar, param, sys, props; oil = oil, water = water, gas = gas, satnum = satnum)
+    end
+    set_deck_pvmult!(svar, param, sys, props)
 end
 
-function set_deck_pc!(vars, props; kwarg...)
+function set_deck_pc!(vars, param, sys, props; kwarg...)
     pc = deck_pc(props; kwarg...)
     if !isnothing(pc)
-        vars[:CapillaryPressure] = pc
+        vars[:CapillaryPressure] = wrap_reservoir_variable(sys, pc, :flow)
     end
 end
 
-function set_deck_relperm!(vars, param, props; kwarg...)
+function set_deck_relperm!(vars, param, sys, props; kwarg...)
     kr = deck_relperm(props; kwarg...)
-    vars[:RelativePermeabilities] = kr
+    vars[:RelativePermeabilities] = wrap_reservoir_variable(sys, kr, :flow)
     if scaling_type(kr) != NoKrScale
         ph = kr.phases
         @assert ph == :wog
@@ -734,7 +737,7 @@ function set_deck_relperm!(vars, param, props; kwarg...)
     end
 end
 
-function set_deck_pvmult!(vars, param, props)
+function set_deck_pvmult!(vars, param, sys, props)
     # Rock compressibility (if present)
     if haskey(props, "ROCK")
         rock = JutulDarcy.flat_region_expand(props["ROCK"])
@@ -746,9 +749,18 @@ function set_deck_pvmult!(vars, param, props)
             static = param[:FluidVolume]
             delete!(param, :FluidVolume)
             param[:StaticFluidVolume] = static
-            vars[:FluidVolume] = LinearlyCompressiblePoreVolume(reference_pressure = rock[1], expansion = rock[2])
+            ϕ = LinearlyCompressiblePoreVolume(reference_pressure = rock[1], expansion = rock[2])
+            vars[:FluidVolume] = wrap_reservoir_variable(sys, ϕ, :flow)
         end
     end
+end
+
+function wrap_reservoir_variable(sys::CompositeSystem, var::JutulVariables, type::Symbol = :flow)
+    return Pair(type, var)
+end
+
+function wrap_reservoir_variable(sys, var, type::Symbol = :flow)
+    return var
 end
 
 function init_from_mat(mrst_data, model, param)
