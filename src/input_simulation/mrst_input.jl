@@ -717,6 +717,55 @@ function set_deck_specialization!(model, props, satnum, oil, water, gas)
     set_deck_pvmult!(svar, param, sys, props)
 end
 
+function set_thermal_deck_specialization!(model, props, pvtnum, oil, water, gas)
+    # SPECHEAT - fluid heat capacity F(T)
+    # SPECROCK - rock heat capacity by volume F(T)
+    if haskey(props, "SPECHEAT")
+        ix = Int[]
+        if water
+            push!(ix, 2)
+        end
+        if oil
+            push!(ix, 1)
+        end
+        if gas
+            push!(ix, 3)
+        end
+        tab = []
+        for (i, specheat) in enumerate(props["SPECHEAT"])
+            T = specheat[:, 1] .+ 273.15
+            C_f = specheat[:, ix .+ 1]
+
+            N = length(ix)
+            F = SVector{N, Float64}[]
+            for i in axes(C_f, 1)
+                push!(F, SVector{N, Float64}(C_f[i, :]...))
+            end
+            push!(tab, get_1d_interpolator(T, F))
+        end
+        tab = tuple(tab...)
+        v = TemperatureDependentVariable(tab, regions = pvtnum)
+        v = wrap_reservoir_variable(model.system, v, :thermal)
+        set_secondary_variables!(model, FluidHeatCapacity = v)
+    end
+
+    if !model_or_domain_is_well(model) && haskey(props, "SPECROCK")
+        rock_density = first(model.data_domain[:rock_density])
+        tab = []
+        for (i, specrock) in enumerate(props["SPECROCK"])
+            T = specrock[:, 1] .+ 273.15
+            # (1 / volume) / (mass / volume) = 1 / mass... Input file does not
+            # know rock density.
+            C_r = specrock[:, 2] ./ rock_density
+            push!(tab, get_1d_interpolator(T, C_r))
+        end
+        tab = tuple(tab...)
+        v = TemperatureDependentVariable(tab, regions = pvtnum)
+        v = wrap_reservoir_variable(model.system, v, :thermal)
+        set_secondary_variables!(model, RockHeatCapacity = v)
+    end
+end
+
 function set_deck_pc!(vars, param, sys, props; kwarg...)
     pc = deck_pc(props; kwarg...)
     if !isnothing(pc)

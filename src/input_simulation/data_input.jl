@@ -61,6 +61,13 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
     flow_sys = flow_system(sys)
     is_blackoil = flow_sys isa StandardBlackOilSystem
     is_compositional = flow_sys isa CompositionalSystem
+    is_thermal = sys isa CompositeSystem && haskey(sys.systems, :thermal)
+
+    rs = datafile["RUNSPEC"]
+    oil = haskey(rs, "OIL")
+    water = haskey(rs, "WATER")
+    gas = haskey(rs, "GAS")
+
     msg("Parsing reservoir domain.")
     domain = parse_reservoir(datafile)
     pvt_reg = reservoir_regions(domain, :pvtnum)
@@ -109,11 +116,10 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
                     PhaseMassDensities = wrap_reservoir_variable(sys, rho, :flow)
                 )
             end
+            if is_thermal
+                set_thermal_deck_specialization!(submodel, datafile["PROPS"], domain[:pvtnum], oil, water, gas)
+            end
             if k == :Reservoir
-                rs = datafile["RUNSPEC"]
-                oil = haskey(rs, "OIL")
-                water = haskey(rs, "WATER")
-                gas = haskey(rs, "GAS")
                 set_deck_specialization!(submodel, datafile["PROPS"], domain[:satnum], oil, water, gas)
             end
         end
