@@ -216,7 +216,7 @@ function parse_state0_equil(model, datafile)
     nsat = GeoEnergyIO.InputParser.number_of_tables(datafile, :satnum)
 
     if haskey(sol, "RTEMP")
-        Ti = only(sol["RTEMP"])
+        Ti = convert_to_si(only(sol["RTEMP"]), :Celsius)
         T_z = z -> Ti
     elseif haskey(sol, "TEMPVD")
         z = vec(sol["TEMPVD"][:, 1])
