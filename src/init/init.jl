@@ -189,7 +189,7 @@ function parse_state0_equil(model, datafile)
         end
 
         if has_water
-            kr_var = model.secondary_variables[:RelativePermeabilities]
+            kr_var = unwrap_reservoir_variable(model.secondary_variables[:RelativePermeabilities])
             krw_fn = kr_var.krw
             if has_sat_reg
                 @assert !isnothing(kr_var.regions)

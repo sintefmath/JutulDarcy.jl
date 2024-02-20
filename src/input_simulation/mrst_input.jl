@@ -763,6 +763,14 @@ function wrap_reservoir_variable(sys, var, type::Symbol = :flow)
     return var
 end
 
+function unwrap_reservoir_variable(var)
+    return var
+end
+
+function unwrap_reservoir_variable(var::Pair)
+    return last(var)
+end
+
 function init_from_mat(mrst_data, model, param)
     state0 = mrst_data["state0"]
     p0 = state0["pressure"]

@@ -73,6 +73,11 @@ Jutul.default_value(model, ::FluidHeatCapacity) = 5000.0
 struct FluidInternalEnergy <: PhaseVariables end
 struct FluidEnthalpy <: PhaseVariables end
 
+"""
+    FluidThermalConductivities()
+
+Variable defining the fluid component conductivity.
+"""
 struct FluidThermalConductivities <: VectorVariables end
 Jutul.variable_scale(::FluidThermalConductivities) = 1e-10
 Jutul.minimum_value(::FluidThermalConductivities) = 0.0
