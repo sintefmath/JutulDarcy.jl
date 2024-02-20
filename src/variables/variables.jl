@@ -49,11 +49,17 @@ function select_default_darcy_parameters!(prm, domain, system::ImmiscibleSystem,
     add_connate_water_if_aqueous_present!(prm, domain, system)
     prm[:PhaseViscosities] = PhaseViscosities()
     prm[:FluidVolume] = FluidVolume()
+    if number_of_phases(system) == 1
+        prm[:Saturations] = Saturations()
+    end
 end
 
 function select_default_darcy_parameters!(prm, domain, system::MultiPhaseSystem, formulation)
     add_connate_water_if_aqueous_present!(prm, domain, system)
     prm[:FluidVolume] = FluidVolume()
+    if number_of_phases(system) == 1
+        prm[:Saturations] = Saturations()
+    end
 end
 
 function add_connate_water_if_aqueous_present!(prm, domain, system)
