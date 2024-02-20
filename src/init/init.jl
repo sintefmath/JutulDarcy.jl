@@ -58,6 +58,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         cells = 1:length(depths),
         rs = missing,
         rv = missing,
+        T_z = missing,
         s_min = missing,
         contacts_pc = missing,
         pvtnum = 1,
@@ -139,6 +140,9 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         init[:Pressure] = p
         init[:Saturations] = ones(1, length(p))
     end
+    if !ismissing(T_z)
+        init[:Temperature] = T_z.(depths)
+    end
 
     return init
 end
@@ -210,6 +214,17 @@ function parse_state0_equil(model, datafile)
     nequil = GeoEnergyIO.InputParser.number_of_tables(datafile, :eqlnum)
     npvt = GeoEnergyIO.InputParser.number_of_tables(datafile, :pvtnum)
     nsat = GeoEnergyIO.InputParser.number_of_tables(datafile, :satnum)
+
+    if haskey(sol, "RTEMP")
+        Ti = only(sol["RTEMP"])
+        T_z = z -> Ti
+    elseif haskey(sol, "TEMPVD")
+        z = vec(sol["TEMPVD"][:, 1])
+        Tvd = vec(sol["TEMPVD"][:, 2] + 273.15)
+        T_z = get_1d_interpolator(z, Tvd)
+    else
+        T_z = missing
+    end
 
     @assert length(equil) == nequil
     inits = []
@@ -342,6 +357,7 @@ function parse_state0_equil(model, datafile)
                         contacts_pc = contacts_pc,
                         s_min = s_min,
                         s_max = s_max,
+                        T_z = T_z,
                         rs = rs,
                         rv = rv,
                         pc = pc

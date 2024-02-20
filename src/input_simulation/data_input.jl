@@ -93,7 +93,6 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
     for (k, submodel) in pairs(model.models)
         if model_or_domain_is_well(submodel) || k == :Reservoir
             # Modify secondary variables
-            @info "==" k submodel
             if !is_compositional
                 svar = submodel.secondary_variables
                 pvt_reg_i = reservoir_regions(submodel.data_domain, :pvtnum)
@@ -338,7 +337,6 @@ function parse_state0(model, datafile)
     end
     state0 = setup_reservoir_state(model, init)
 end
-
 
 function parse_state0_direct_assignment(model, datafile)
     sys = model.system
