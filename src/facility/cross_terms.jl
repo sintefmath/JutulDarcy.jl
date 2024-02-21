@@ -284,6 +284,15 @@ function Base.show(io::IO, d::ReservoirFromWellThermalCT)
     n = length(d.CI)
     print(io, "ReservoirFromWellThermalCT ($n connections)")
 end
+
+function Jutul.subcrossterm(ct::ReservoirFromWellThermalCT, ctp, m_t, m_s, map_res::FiniteVolumeGlobalMap, ::TrivialGlobalMap, partition)
+    (; CI, WI, reservoir_cells, well_cells) = ct
+    rc = map(
+        c -> Jutul.local_cell(c, map_res),
+        reservoir_cells)
+    return ReservoirFromWellThermalCT(copy(CI), copy(WI), rc, copy(well_cells))
+end
+
 struct WellFromFacilityThermalCT <: Jutul.AdditiveCrossTerm
     well::Symbol
 end
