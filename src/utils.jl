@@ -33,16 +33,24 @@ represents a compact full tensor representation (6 elements in 3D, 3 in 2D).
 |------------------------------|------------------------------------------|--------------|---------|
 | `permeability`               | Rock ability to conduct fluid flow       | ``m^2``      | 100 mD  |
 | `porosity`                   | Rock void fraction open to flow (0 to 1) | -            |  0.3    |
+| `rock_density`               | Mass density of rock                     | ``kg^3/m^3`` | 2000.0  |
+| `rock_heat_capacity`         | Specific heat capacity of rock           | ``J/(kg K)`` | 900.0   |
 | `rock_thermal_conductivity`  | Heat conductivity of rock                | ``W/m K``    | 3.0     |
 | `fluid_thermal_conductivity` | Heat conductivity of fluid phases        | ``W/m K``    | 0.6     |
-| `rock_density`               | Mass density of rock                     | ``kg^3/m^3`` | 2000.0  |
+| `fluid_heat_capacity`        | Specific heat capacity of fluid phases   | ``J/(kg K)`` | 4184.0  |
 
+Note that the default values are taken to be roughly those of water for fluid
+phases and sandstone for those of rock. Choice of values can severely impact
+your simulation results - take care to check the values that your physical
+system makes use of!
 """
 function reservoir_domain(g;
         permeability = convert_to_si(0.1, :darcy),
         porosity = 0.1,
         rock_thermal_conductivity = 3.0, # W/m K (~sandstone)
         fluid_thermal_conductivity = 0.6, # W/m K (~water)
+        rock_heat_capacity = 900.0, # ~sandstone
+        fluid_heat_capacity = 4184.0, # ~water
         rock_density = 2000.0,
         diffusion = missing,
         kwarg...
