@@ -464,7 +464,7 @@ function simulate_reservoir(state0, model, dt;
     return ReservoirSimResult(model, result, forces; simulator = sim, config = config)
 end
 
-function simulate_reservoir(case::JutulCase; restart = false, kwarg...)
+function simulate_reservoir(case::JutulCase; config = missing, restart = false, kwarg...)
     (; model, forces, state0, parameters, dt) = case
     sim, config_new = setup_reservoir_simulator(model, state0, parameters; kwarg...)
     if ismissing(config)
