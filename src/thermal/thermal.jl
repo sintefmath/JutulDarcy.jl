@@ -52,6 +52,17 @@ end
 
 struct RockHeatCapacity <: ScalarVariable end
 Jutul.default_value(model, ::RockHeatCapacity) = 1000.0
+
+function Jutul.default_parameter_values(data_domain, model, param::RockHeatCapacity, symb)
+    if haskey(data_domain, :rock_heat_capacity, Cells())
+        # This takes precedence
+        T = copy(data_domain[:rock_heat_capacity])
+    else
+        T = fill(default_value(model, param), number_of_cells(data_domain))
+    end
+    return T
+end
+
 struct RockDensity <: ScalarVariable end
 Jutul.default_value(model, ::RockDensity) = 2000.0
 
@@ -69,7 +80,22 @@ struct RockInternalEnergy <: ScalarVariable end
 struct TotalThermalEnergy <: ScalarVariable end
 
 struct FluidHeatCapacity <: PhaseVariables end
-Jutul.default_value(model, ::FluidHeatCapacity) = 5000.0
+Jutul.default_value(model, ::FluidHeatCapacity) = 4184.0
+
+function Jutul.default_parameter_values(data_domain, model, param::FluidHeatCapacity, symb)
+    nph = number_of_phases(model.system)
+    if haskey(data_domain, :fluid_heat_capacity, Cells())
+        # This takes precedence
+        T = copy(data_domain[:fluid_heat_capacity])
+        if T isa Vector
+            T = repeat(T', nph, 1)
+        end
+    else
+        T = fill(default_value(model, param), nph, number_of_cells(data_domain))
+    end
+    return T
+end
+
 struct FluidInternalEnergy <: PhaseVariables end
 struct FluidEnthalpy <: PhaseVariables end
 
