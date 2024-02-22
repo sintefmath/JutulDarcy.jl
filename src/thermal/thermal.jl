@@ -100,6 +100,33 @@ end
     return result
 end
 
+struct PressureTemperatureDependentVariable{T, R, N} <: VectorVariables
+    tab::T
+    regions::R
+    function PressureTemperatureDependentVariable(tab; regions = nothing)
+        tab = region_wrap(tab, regions)
+        ex = first(tab)
+        N = length(ex(1e8, 273.15 + 30.0))
+        new{typeof(tab), typeof(regions), N}(tab, regions)
+    end
+end
+
+function Jutul.values_per_entity(model, ::PressureTemperatureDependentVariable{T, R, N}) where {T, R, N}
+    return N
+end
+
+@jutul_secondary function update_temperature_dependent!(result, var::PressureTemperatureDependentVariable{T, R, N}, model, Pressure, Temperature, ix) where {T, R, N}
+    for c in ix
+        reg = region(var.regions, c)
+        interpolator = table_by_region(var.tab, reg)
+        F_of_T = interpolator(Pressure[c], Temperature[c])
+        for i in 1:N
+            result[i, c] = F_of_T[i]
+        end
+    end
+    return result
+end
+
 """
     FluidThermalConductivities()
 
