@@ -41,3 +41,11 @@ function thermal_heat_flux(face, state, model, grad, upw, flux_type)
     conductive_flux = -λ_total*gradient(T, grad)
     return conductive_flux + convective_flux
 end
+
+
+function Jutul.convergence_criterion(model, storage, eq::ConservationLaw{:TotalThermalEnergy}, eq_s, r; dt = 1.0, update_report = missing)
+    a = active_entities(model.domain, Cells())
+    E0 = storage.state0.TotalThermalEnergy
+    @tullio max e := abs(r[i]) * dt / value(E0[a[i]])
+    return (Max = (errors = (e, ), names = ("Energy balance",)), )
+end
