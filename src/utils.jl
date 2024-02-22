@@ -445,18 +445,25 @@ function simulate_reservoir(state0, model, dt;
         parameters = setup_parameters(model),
         restart = false,
         forces = setup_forces(model),
+        config = missing,
         kwarg...
     )
-    sim, config = setup_reservoir_simulator(model, state0, parameters; kwarg...)
+    sim, config_new = setup_reservoir_simulator(model, state0, parameters; kwarg...)
+    if ismissing(config)
+        config = config_new
+    end
     result = simulate!(sim, dt, forces = forces, config = config, restart = restart);
-    return ReservoirSimResult(model, result, forces)
+    return ReservoirSimResult(model, result, forces; simulator = sim, config = config)
 end
 
 function simulate_reservoir(case::JutulCase; restart = false, kwarg...)
     (; model, forces, state0, parameters, dt) = case
-    sim, config = setup_reservoir_simulator(model, state0, parameters; kwarg...)
+    sim, config_new = setup_reservoir_simulator(model, state0, parameters; kwarg...)
+    if ismissing(config)
+        config = config_new
+    end
     result = simulate!(sim, dt, forces = forces, config = config, restart = restart);
-    return ReservoirSimResult(model, result, forces)
+    return ReservoirSimResult(model, result, forces; simulator = sim, config = config)
 end
 
 function set_default_cnv_mb!(cfg::JutulConfig, sim::JutulSimulator; kwarg...)
