@@ -36,7 +36,7 @@ function thermal_heat_flux(face, state, model, grad, upw, flux_type)
         F_α = darcy_phase_mass_flux(face, α, state, model, flux_type, grad, upw, flow_common)
         H_face_α = phase_upwind(upw, H_f, α, F_α)
         convective_flux += H_face_α*F_α
-        λ_total += λ_f[α, face]*phase_upwind(upw, S, α, F_α)
+        λ_total += λ_f[α, face]*phase_face_average(S, grad, α)
     end
     conductive_flux = -λ_total*gradient(T, grad)
     return conductive_flux + convective_flux
