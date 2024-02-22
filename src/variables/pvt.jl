@@ -153,7 +153,7 @@ end
 
 Base.@kwdef struct Temperature{T} <: ScalarVariable
     min::T = 0.0
-    max::T = Inf
+    max::T = 1e6
     max_rel::Union{T, Nothing} = nothing
     max_abs::Union{T, Nothing} = nothing
 end
