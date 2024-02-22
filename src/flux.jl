@@ -80,7 +80,7 @@ function face_average(F, tpfa)
     return 0.5*(F(tpfa.right) + F(tpfa.left))
 end
 
-function phase_face_average(phase_property, tpfa, cell)
+function phase_face_average(phase_property, tpfa, phase)
     F(cell) = @inbounds phase_property[phase, cell]
     return face_average(F, tpfa)
 end
