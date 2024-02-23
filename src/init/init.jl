@@ -334,7 +334,7 @@ function parse_state0_equil(model, datafile)
                         pbvd = sol["PBVD"][ereg]
                         z = pbvd[:, 1]
                         pb = vec(pbvd[:, 2])
-                        Rs = sys.rs_max.(pb)
+                        Rs = sys.rs_max[preg].(pb)
                     end
                     rs = Jutul.LinearInterpolant(z, Rs_scale.*Rs)
                 else
