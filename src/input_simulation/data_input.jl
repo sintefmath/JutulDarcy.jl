@@ -1324,13 +1324,13 @@ function apply_welopen!(controls, compdat, wk, controls_if_active)
         end
     else
         cdat = compdat[name]
-        ijk = keys(cdat)
-
+        ijk = collect(keys(cdat))
+        nperf = length(ijk)
         first_num = max(first_num, 1)
         if last_num < 1
-            last_num = length(ijk)
+            last_num = nperf
         end
-        for i in eachindex(ijk)
+        for i in 1:nperf
             if i < first_num
                 continue
             elseif i > last_num
@@ -1341,7 +1341,7 @@ function apply_welopen!(controls, compdat, wk, controls_if_active)
                 is_match(ix, ix_i) = ix < 1 || ix_i == ix
                 if is_match(I, I_i) && is_match(J, J_i) && is_match(K, K_i)
                     c = OrderedDict{Symbol, Any}()
-                    for (k, v) in current_cdat
+                    for (k, v) in pairs(current_cdat)
                         c[k] = v
                     end
                     c[:open] = is_open
