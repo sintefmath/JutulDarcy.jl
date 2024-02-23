@@ -268,11 +268,16 @@ function parse_state0_equil(model, datafile)
                             cap = cap[2:end]
                         end
                         ix = unique(i -> cap[i], 1:length(cap))
-
                         if i == 1 && get_phases(model.system)[1] isa AqueousPhase
                             @. cap *= -1
                         end
-                        push!(pc, (s = s[ix], pc = cap[ix]))
+                        s = s[ix]
+                        cap = cap[ix]
+                        if length(s) == 1
+                            push!(s, s[end])
+                            push!(cap, cap[end]+1.0)
+                        end
+                        push!(pc, (s = s, pc = cap))
                     end
                 else
                     pc = nothing
@@ -547,9 +552,8 @@ function determine_saturations(depths, contacts, pressures; s_min = missing, s_m
                 s, pc_pair = pc[offset]
                 pc_max = maximum(pc_pair)
                 pc_min = minimum(pc_pair)
-
-                I = get_1d_interpolator(pc_pair, s)
-                I_pc = get_1d_interpolator(s, pc_pair)
+                I = get_1d_interpolator(pc_pair, s, constant_dx = false)
+                I_pc = get_1d_interpolator(s, pc_pair, constant_dx = false)
                 for i in eachindex(depths)
                     z = depths[i]
 
