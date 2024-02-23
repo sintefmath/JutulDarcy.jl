@@ -572,12 +572,23 @@ function determine_saturations(depths, contacts, pressures; s_min = missing, s_m
                 offset += 1
             end
         end
+        bad_cells = Int[]
         for i in eachindex(depths)
-            s_fill = 1 - sum(view(sat, :, i))
+            sat_i = view(sat, :, i)
+            sat_tot = sum(sat_i)
+            s_fill = 1 - sat_tot
             if s_fill < 0
-                @warn "Negative saturation in cell $i: $s_fill"
+                push!(bad_cells, i)
+                sat[ref_ix, i] = 0.0
+                for j in axes(sat, 1)
+                    sat[j, i] /= sat_tot
+                end
+            else
+                sat[ref_ix, i] = s_fill
             end
-            sat[ref_ix, i] = s_fill
+        end
+        if length(bad_cells) > 0
+            @warn "Negative saturation in $(length(bad_cells)) cells for phase $ref_ix. Normalizing."
         end
     end
     return (sat, sat_pc)
