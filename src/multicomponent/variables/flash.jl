@@ -258,20 +258,26 @@ end
 
 function k_value_flash!(result::FR, eos, P, T, Z, z) where FR
     Num_t = Base.promote_type(typeof(P), typeof(T), eltype(Z))
-    @. z = max(value(Z), 1e-8)
-    # Conditions
-    c = (p = value(P), T = value(T), z = z)
+    ncomp = length(z)
     c_ad = (p = P, T = T, z = Z)
     K_ad = eos.K_values_evaluator(c_ad)
-    K = result.K
     x = result.liquid.mole_fractions
     y = result.vapor.mole_fractions
-    ncomp = length(z)
-
-    @inbounds for i in 1:ncomp
-        K[i] = value(K_ad[i])
+    analytical_rr = ncomp == 2 || ncomp == 3
+    K = result.K
+    if analytical_rr
+        # If we have 2 or 3 components the Rachford-Rice equations have an
+        # analytical solution. We can then bypass a bunch of chain rule magic.
+        V = flash_2ph!(nothing, K_ad, eos, c_ad, analytical = true)
+    else
+        @. z = max(value(Z), 1e-8)
+        # Conditions
+        c_numeric = (p = value(P), T = value(T), z = z)
+        @inbounds for i in 1:ncomp
+            K[i] = value(K_ad[i])
+        end
+        V = flash_2ph!(nothing, K, eos, c_numeric)
     end
-    V = flash_2ph!(nothing, K, eos, c)
 
     pure_liquid = V <= 0.0
     pure_vapor = V >= 1.0
@@ -286,17 +292,21 @@ function k_value_flash!(result::FR, eos, P, T, Z, z) where FR
             x[i] = Z_i
             y[i] = Z_i
         end
-        V = convert(Num_t, clamp(V, 0.0, 1.0))
+        V = Num_t(pure_vapor)
     else
         phase_state = MultiComponentFlash.two_phase_lv
-        V = add_derivatives_to_vapor_fraction_rachford_rice(V, K_ad, Z, K, z)
+        if !analytical_rr
+            V = add_derivatives_to_vapor_fraction_rachford_rice(value(V), K_ad, Z, K, z)
+        end
+        V::Num_t
         @inbounds for i in 1:ncomp
-            K_i = K[i]
+            K_i = K_ad[i]
             x_i = liquid_mole_fraction(Z[i], K_i, V)
             x[i] = x_i
             y[i] = vapor_mole_fraction(x_i, K_i)
         end
     end
+    V::Num_t
     Z_L = Z_V = convert(Num_t, 1.0)
     new_result = FlashedMixture2Phase(phase_state, K, V, x, y, Z_L, Z_V)
     return new_result::FR
