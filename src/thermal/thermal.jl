@@ -23,6 +23,10 @@ flow_system(sys::ThermalSystem) = sys.flow_system
 
 const ThermalModel = SimulationModel{<:JutulDomain, <:ThermalSystem, <:Any, <:Any}
 
+const ThermalCompositionalModel = SimulationModel{<:JutulDomain, <:ThermalSystem{<:Any, <:CompositionalSystem}, <:Any, <:Any}
+const ThermalBlackOilModel = SimulationModel{<:JutulDomain, <:ThermalSystem{<:Any, <:StandardBlackOilModel}, <:Any, <:Any}
+const ThermalImmiscibleModel = SimulationModel{<:JutulDomain, <:ThermalSystem{<:Any, <:ImmiscibleSystem}, <:Any, <:Any}
+
 struct BulkVolume <: ScalarVariable end
 function Jutul.default_values(model, ::BulkVolume)
     return 1.0

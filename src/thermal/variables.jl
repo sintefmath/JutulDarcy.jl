@@ -1,4 +1,4 @@
-@jutul_secondary function update_fluid_internal_energy!(U, fe::FluidInternalEnergy, model::ThermalModel, Temperature, ComponentHeatCapacity, ix)
+@jutul_secondary function update_fluid_internal_energy!(U, fe::FluidInternalEnergy, model::ThermalImmiscibleModel, Temperature, ComponentHeatCapacity, ix)
     @assert size(U) == size(ComponentHeatCapacity) "This fluid internal energy implementation assumes immiscible phases."
     for i in ix
         T = Temperature[i]
