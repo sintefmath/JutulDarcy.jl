@@ -43,7 +43,7 @@ end
     return q
 end
 
-function face_average_density(model::CompositionalModel, state, tpfa, phase)
+function face_average_density(model::Union{CompositionalModel, ThermalCompositionalModel}, state, tpfa, phase)
     ρ = state.PhaseMassDensities
     s = state.Saturations
     l = tpfa.left
