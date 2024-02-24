@@ -8,6 +8,36 @@
     end
 end
 
+@jutul_secondary function update_fluid_internal_energy!(U, fe::FluidInternalEnergy, model::ThermalCompositionalModel, Temperature, ComponentHeatCapacity, LiquidMassFractions, VaporMassFractions, ix)
+    fsys = flow_system(model.system)
+    C = ComponentHeatCapacity
+    X = LiquidMassFractions
+    Y = VaporMassFractions
+    if has_other_phase(fsys)
+        a, l, v = phase_indices(fsys)
+        offset = 1
+    else
+        l, v = phase_indices(fsys)
+        offset = 0
+    end
+    for i in ix
+        T = Temperature[i]
+        if has_other_phase(fsys)
+            C_w = C[1, i]
+            U[a, i] = C_w*T
+        end
+        U_v = 0.0
+        U_l = 0.0
+        for c in axes(X, 1)
+            C_i = C[c+offset, i]
+            U_l += C_i*X[c, i]
+            U_v += C_i*Y[c, i]
+        end
+        U[l, i] = U_l*T
+        U[v, i] = U_v*T
+    end
+end
+
 @jutul_secondary function update_fluid_enthalpy!(H, fe::FluidEnthalpy, model::ThermalModel, FluidInternalEnergy, Pressure, PhaseMassDensities, ix)
     for i in ix
         p = Pressure[i]
