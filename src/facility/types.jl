@@ -313,14 +313,15 @@ if not given.
 
 See also [`ProducerControl`](@ref), [`DisabledControl`](@ref).
 """
-struct InjectorControl{T, R} <: WellControlForce
+struct InjectorControl{T, R, P, M, E} <: WellControlForce
     target::T
-    injection_mixture
+    injection_mixture::M
     mixture_density::R
-    phases
+    phases::P
     temperature::R
+    enthalpy::E
     factor::R
-    function InjectorControl(target::T, mix; density::R = 1.0, phases = ((1, 1.0),), temperature::R = 273.15, factor::R = 1.0) where {T<:WellTarget, R<:Real}
+    function InjectorControl(target::T, mix; density::R = 1.0, phases = ((1, 1.0),), temperature::R = 273.15, enthalpy = missing, factor::R = 1.0) where {T<:WellTarget, R<:Real}
         @assert isfinite(density) && density > 0.0 "Injector density must be finite and positive"
         @assert isfinite(temperature) && temperature > 0.0 "Injector temperature must be finite and positive"
 
@@ -329,7 +330,7 @@ struct InjectorControl{T, R} <: WellControlForce
         end
         mix = vec(mix)
         @assert sum(mix) ≈ 1
-        new{T, R}(target, mix, density, phases, temperature, factor)
+        new{T, R, typeof(phases), typeof(mix), typeof(enthalpy)}(target, mix, density, phases, temperature, enthalpy, factor)
     end
 end
 replace_target(f::InjectorControl, target) = InjectorControl(target, f.injection_mixture, density = f.mixture_density, phases = f.phases, factor = f.factor)
