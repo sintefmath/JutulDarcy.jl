@@ -28,14 +28,18 @@ function thermal_heat_flux(face, state, model, grad, upw, flux_type)
     λ_r = state.RockThermalConductivities
     λ_f = state.FluidThermalConductivities
     S = state.Saturations
+    nph = number_of_phases(model.system)
 
-    convective_flux = 0
-    λ_total = λ_r[face]
+    convective_flux = 0.0
     flow_common = kgrad_common(face, state, model, grad)
-    for α in 1:number_of_phases(model.system)
+    for α in 1:nph
         F_α = darcy_phase_mass_flux(face, α, state, model, flux_type, grad, upw, flow_common)
         H_face_α = phase_upwind(upw, H_f, α, F_α)
         convective_flux += H_face_α*F_α
+    end
+
+    λ_total = λ_r[face]
+    for α in 1:nph
         λ_total += λ_f[α, face]*phase_face_average(S, grad, α)
     end
     conductive_flux = -λ_total*gradient(T, grad)
