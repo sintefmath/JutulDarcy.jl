@@ -43,27 +43,3 @@ end
     return q
 end
 
-function face_average_density(model::Union{CompositionalModel, ThermalCompositionalModel}, state, tpfa, phase)
-    ρ = state.PhaseMassDensities
-    s = state.Saturations
-    l = tpfa.left
-    r = tpfa.right
-    ϵ = MINIMUM_COMPOSITIONAL_SATURATION
-    @inbounds s_l = s[phase, l]
-    @inbounds s_r = s[phase, r]
-    @inbounds ρ_l = ρ[phase, l]
-    @inbounds ρ_r = ρ[phase, r]
-
-    s_l_tiny = s_l <= ϵ
-    s_r_tiny = s_r <= ϵ
-    if s_l_tiny && s_r_tiny
-        ρ_avg = zero(s_l)
-    elseif s_l_tiny
-        ρ_avg = ρ_r
-    elseif s_r_tiny
-        ρ_avg = ρ_l
-    else
-        ρ_avg = (s_l*ρ_r + s_r*ρ_l)/(s_l + s_r)
-    end
-    return ρ_avg
-end
