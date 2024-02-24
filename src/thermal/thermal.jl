@@ -1,32 +1,25 @@
 
 
 """
-    ThermalSystem(number_of_phases = 1, number_of_components = number_of_phases, formulation = :Temperature)
+    ThermalSystem(flow_system, formulation = :Temperature)
 
 Geothermal system that defines heat transfer through fluid advection and through
-the rock itself. Can be combined with a multiphase system using [`Jutul.CompositeSystem`](@ref).
+the rock itself. Can be combined with a multiphase system using
+[`Jutul.CompositeSystem`](@ref).
 """
-struct ThermalSystem{T} <: JutulSystem
-    nph::Int64
-    ncomp::Int64
-    function ThermalSystem(;
-            number_of_phases = 1,
-            number_of_components = number_of_phases,
+struct ThermalSystem{T, F} <: JutulSystem
+    flow_system::F
+    function ThermalSystem(sys::T;
             formulation = :Temperature
-        )
+        ) where T<:Union{MultiPhaseSystem, Missing}
         @assert formulation == :Temperature
-        new{formulation}(number_of_phases, number_of_components)
+        new{formulation, T}(sys)
     end
-end
-
-function ThermalSystem(sys::MultiPhaseSystem; kwarg...)
-    nph = number_of_phases(sys)
-    nc = number_of_components(sys)
-    return ThermalSystem(number_of_phases = nph, number_of_components = nc; kwarg...)
 end
 
 thermal_system(sys::ThermalSystem) = sys
 thermal_system(sys::CompositeSystem) = sys.systems.thermal
+flow_system(sys::ThermalSystem) = sys.flow_system
 
 const ThermalModel = SimulationModel{<:JutulDomain, <:ThermalSystem, <:Any, <:Any}
 
@@ -210,8 +203,8 @@ function Jutul.default_parameter_values(data_domain, model, param::RockThermalCo
     return T
 end
 
-number_of_phases(t::ThermalSystem) = t.nph
-number_of_components(t::ThermalSystem) = t.ncomp
+number_of_phases(t::ThermalSystem) = number_of_phases(flow_system(t))
+number_of_components(t::ThermalSystem) = number_of_components(flow_system(t))
 
 function select_primary_variables!(S, system::ThermalSystem, model)
     S[:Temperature] = Temperature()
