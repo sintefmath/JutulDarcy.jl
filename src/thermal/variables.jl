@@ -1,8 +1,8 @@
-@jutul_secondary function update_fluid_internal_energy!(U, fe::FluidInternalEnergy, model::ThermalModel, Temperature, FluidHeatCapacity, ix)
+@jutul_secondary function update_fluid_internal_energy!(U, fe::FluidInternalEnergy, model::ThermalModel, Temperature, ComponentHeatCapacity, ix)
     for i in ix
         T = Temperature[i]
         for ph in axes(U, 1)
-            U[ph, i] = FluidHeatCapacity[ph, i]*T
+            U[ph, i] = ComponentHeatCapacity[ph, i]*T
         end
     end
 end

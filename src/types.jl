@@ -17,7 +17,7 @@ const CompositionalModel = SimulationModel{D, S, F, C} where {D, S<:Compositiona
 abstract type BlackOilSystem <: MultiComponentSystem end
 
 abstract type PhaseVariables <: VectorVariables end
-abstract type ComponentVariable <: VectorVariables end
+abstract type ComponentVariables <: VectorVariables end
 
 struct MultiPhaseCompositionalSystemLV{E, T, O, R, N} <: CompositionalSystem where T<:Tuple
     phases::T

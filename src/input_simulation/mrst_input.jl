@@ -746,7 +746,7 @@ function set_thermal_deck_specialization!(model, props, pvtnum, oil, water, gas)
         tab = tuple(tab...)
         v = TemperatureDependentVariable(tab, regions = pvtnum)
         v = wrap_reservoir_variable(model.system, v, :thermal)
-        set_secondary_variables!(model, FluidHeatCapacity = v)
+        set_secondary_variables!(model, ComponentHeatCapacity = v)
     end
 
     if !model_or_domain_is_well(model) && haskey(props, "SPECROCK")

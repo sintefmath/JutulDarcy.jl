@@ -7,10 +7,10 @@ include("viscosity.jl")
 degrees_of_freedom_per_entity(model, sf::PhaseVariables) = number_of_phases(model.system)
 
 # Single-phase specialization
-degrees_of_freedom_per_entity(model::SimulationModel{D, S}, sf::ComponentVariable) where {D, S<:SinglePhaseSystem} = 1
+degrees_of_freedom_per_entity(model::SimulationModel{D, S}, sf::ComponentVariables) where {D, S<:SinglePhaseSystem} = 1
 
 # Immiscible specialization
-degrees_of_freedom_per_entity(model::SimulationModel{D, S}, sf::ComponentVariable) where {D, S<:ImmiscibleSystem} = number_of_phases(model.system)
+degrees_of_freedom_per_entity(model::SimulationModel{D, S}, sf::ComponentVariables) where {D, S<:ImmiscibleSystem} = number_of_phases(model.system)
 
 function select_secondary_variables!(S, system::MultiPhaseSystem, model)
     select_default_darcy_secondary_variables!(S, model.domain, system, model.formulation)

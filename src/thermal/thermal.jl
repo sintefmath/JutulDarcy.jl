@@ -79,19 +79,21 @@ end
 struct RockInternalEnergy <: ScalarVariable end
 struct TotalThermalEnergy <: ScalarVariable end
 
-struct FluidHeatCapacity <: PhaseVariables end
-Jutul.default_value(model, ::FluidHeatCapacity) = 4184.0
+struct ComponentHeatCapacity <: ComponentVariabless end
+Jutul.default_value(model, ::ComponentHeatCapacity) = 4184.0
 
-function Jutul.default_parameter_values(data_domain, model, param::FluidHeatCapacity, symb)
-    nph = number_of_phases(model.system)
-    if haskey(data_domain, :fluid_heat_capacity, Cells())
+function Jutul.default_parameter_values(data_domain, model, param::ComponentHeatCapacity, symb)
+    ncomp = number_of_components(model.system)
+    if haskey(data_domain, :component_heat_capacity, Cells())
         # This takes precedence
-        T = copy(data_domain[:fluid_heat_capacity])
+        T = copy(data_domain[:component_heat_capacity])
         if T isa Vector
-            T = repeat(T', nph, 1)
+            T = repeat(T', ncomp, 1)
+        else
+            @assert size(T, 1) == ncomp
         end
     else
-        T = fill(default_value(model, param), nph, number_of_cells(data_domain))
+        T = fill(default_value(model, param), ncomp, number_of_cells(data_domain))
     end
     return T
 end
@@ -222,7 +224,7 @@ function select_parameters!(S, system::ThermalSystem, model)
     S[:RockDensity] = RockDensity()
     S[:BulkVolume] = BulkVolume()
     # Fluid heat related parameters
-    S[:FluidHeatCapacity] = FluidHeatCapacity()
+    S[:ComponentHeatCapacity] = ComponentHeatCapacity()
     S[:FluidVolume] = FluidVolume()
     # Fluid flow related parameters
     S[:PhaseMassDensities] = ConstantCompressibilityDensities(nph)

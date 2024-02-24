@@ -49,7 +49,7 @@ function solve_thermal(;
                                 RockThermalConductivities = 1e-2,
                                 FluidThermalConductivities = 1e-2,
                                 RockDensity = 1e3,
-                                FluidHeatCapacity = 10000.0,
+                                ComponentHeatCapacity = 10000.0,
                                 RockHeatCapacity = 500.0)
     T0 = repeat([273.15], nc)
     T0[1] = 500.0
