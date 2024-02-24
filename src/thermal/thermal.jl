@@ -79,7 +79,7 @@ end
 struct RockInternalEnergy <: ScalarVariable end
 struct TotalThermalEnergy <: ScalarVariable end
 
-struct ComponentHeatCapacity <: ComponentVariabless end
+struct ComponentHeatCapacity <: ComponentVariables end
 Jutul.default_value(model, ::ComponentHeatCapacity) = 4184.0
 
 function Jutul.default_parameter_values(data_domain, model, param::ComponentHeatCapacity, symb)

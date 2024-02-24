@@ -6,6 +6,9 @@ include("viscosity.jl")
 
 degrees_of_freedom_per_entity(model, sf::PhaseVariables) = number_of_phases(model.system)
 
+# Generic version
+degrees_of_freedom_per_entity(model, sf::ComponentVariables) = number_of_components(model.system)
+
 # Single-phase specialization
 degrees_of_freedom_per_entity(model::SimulationModel{D, S}, sf::ComponentVariables) where {D, S<:SinglePhaseSystem} = 1
 
