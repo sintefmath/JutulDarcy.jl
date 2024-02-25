@@ -8,13 +8,17 @@ abstract type AbstractTablePVT <: AbstractReservoirDeckTable end
 Secondary variable used to evaluate viscosities when a case is generated from a
 input file. Typically not instantiated in user scripts.
 """
-struct DeckPhaseViscosities{T, R} <: DeckPhaseVariables
+struct DeckPhaseViscosities{T, M, R} <: DeckPhaseVariables
     pvt::T
+    thermal::M
     regions::R
-    function DeckPhaseViscosities(pvt; regions = nothing)
+    function DeckPhaseViscosities(pvt; regions = nothing, thermal = nothing)
         check_regions(regions)
         pvt_t = Tuple(pvt)
-        new{typeof(pvt_t), typeof(regions)}(pvt_t, regions)
+        if !isnothing(thermal)
+            thermal = Tuple(thermal)
+        end
+        new{typeof(pvt_t), typeof(thermal), typeof(regions)}(pvt_t, thermal, regions)
     end
 end
 
@@ -40,13 +44,15 @@ DeckShrinkageFactors(pvt, regions = nothing)
 Secondary variable used to evaluate shrinkage factors when a case is generated
 from a input file. Typically not instantiated in user scripts.
 """
-struct DeckShrinkageFactors{T, R} <: DeckPhaseVariables
+struct DeckShrinkageFactors{T, W, R} <: DeckPhaseVariables
     pvt::T
+    watdent::W
     regions::R
-    function DeckShrinkageFactors(pvt; regions = nothing)
+    function DeckShrinkageFactors(pvt; watdent = nothing, regions = nothing)
         check_regions(regions)
         pvt_t = Tuple(pvt)
-        new{typeof(pvt_t), typeof(regions)}(pvt_t, regions)
+        watdent_t = region_wrap(watdent, regions)
+        new{typeof(pvt_t), typeof(watdent_t), typeof(regions)}(pvt_t, watdent, regions)
     end
 end
 
