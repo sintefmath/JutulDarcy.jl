@@ -67,6 +67,11 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
     oil = haskey(rs, "OIL")
     water = haskey(rs, "WATER")
     gas = haskey(rs, "GAS")
+    if haskey(datafile, "PROPS")
+        props = datafile["PROPS"]
+    else
+        props = Dict{String, Any}()
+    end
 
     msg("Parsing reservoir domain.")
     domain = parse_reservoir(datafile)
@@ -104,8 +109,8 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
                 end
                 pvt_i = tuple(pvt_i...)
 
-                if is_thermal && haskey(datafile["PROPS"], "WATDENT")
-                    watdent = WATDENT(datafile["PROPS"]["WATDENT"])
+                if is_thermal && haskey(props, "WATDENT")
+                    watdent = WATDENT(props["WATDENT"])
                 else
                     watdent = nothing
                 end
@@ -116,25 +121,30 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
                         ShrinkageFactors = wrap_reservoir_variable(sys, b_i, :flow)
                     )
                 end
-                mu = DeckPhaseViscosities(pvt_i, regions = pvt_reg_i)
+                if is_thermal && haskey(props, "VISCREF")
+                    thermal_visc = DeckThermalViscosityTable(props, pvt_i, water, oil, gas)
+                else
+                    thermal_visc = nothing
+                end
+                mu = DeckPhaseViscosities(pvt_i, regions = pvt_reg_i, thermal = thermal_visc)
                 set_secondary_variables!(submodel,
                     PhaseViscosities = wrap_reservoir_variable(sys, mu, :flow),
                     PhaseMassDensities = wrap_reservoir_variable(sys, rho, :flow)
                 )
             end
             if is_thermal
-                set_thermal_deck_specialization!(submodel, datafile["PROPS"], domain[:pvtnum], oil, water, gas)
+                set_thermal_deck_specialization!(submodel, props, domain[:pvtnum], oil, water, gas)
             end
             if k == :Reservoir
-                set_deck_specialization!(submodel, datafile["PROPS"], domain[:satnum], oil, water, gas)
+                set_deck_specialization!(submodel, props, domain[:satnum], oil, water, gas)
             end
         end
     end
     msg("Setting up parameters.")
     parameters = setup_parameters(model)
-    if haskey(datafile["PROPS"], "SWL")
+    if haskey(props, "SWL")
         G = physical_representation(domain)
-        swl = vec(datafile["PROPS"]["SWL"])
+        swl = vec(props["SWL"])
         parameters[:Reservoir][:ConnateWater] .= swl[G.cell_map]
     end
     if use_ijk_trans

@@ -15,9 +15,7 @@ struct DeckPhaseViscosities{T, M, R} <: DeckPhaseVariables
     function DeckPhaseViscosities(pvt; regions = nothing, thermal = nothing)
         check_regions(regions)
         pvt_t = Tuple(pvt)
-        if !isnothing(thermal)
-            thermal = Tuple(thermal)
-        end
+        thermal::Union{Nothing, DeckThermalViscosityTable}
         new{typeof(pvt_t), typeof(thermal), typeof(regions)}(pvt_t, thermal, regions)
     end
 end
@@ -383,6 +381,34 @@ function PVTW(pvtw::AbstractArray)
     T = typeof(ct[1])
     PVTW{N, T}(ct)
 end
+
+struct DeckThermalViscosityTable{T, V}
+    visc_tab::T
+    p_ref::V
+    rs_ref::V
+end
+
+function DeckThermalViscosityTable(props::AbstractDict, pvt, water, oil, gas)
+    visc_tab = []
+    function tab_to_interp(tab)
+        return map(x -> get_1d_interpolator(x[:, 1] .+ 273.15, x[:, 2]), tab)
+    end
+    vref = props["VISCREF"]
+    rs_ref = map(x -> x[2], vref)
+    p_ref = map(x -> x[1], vref)
+    if water
+        push!(visc_tab, tab_to_interp(props["WATVISCT"]))
+    end
+    if oil
+        push!(visc_tab, tab_to_interp(props["OILVISCT"]))
+    end
+    if gas
+        push!(visc_tab, tab_to_interp(props["GASVISCT"]))
+    end
+    visc_tab = Tuple(visc_tab)
+    return DeckThermalViscosityTable(visc_tab, p_ref, rs_ref)
+end
+
 
 struct WATDENT{N, T} <: AbstractTablePVT
     tab::NTuple{N, T}
