@@ -28,13 +28,15 @@ end
 Secondary variable used to evaluate densities when a case is generated from a
 input file. Typically not instantiated in user scripts.
 """
-struct DeckPhaseMassDensities{T, R} <: DeckPhaseVariables
+struct DeckPhaseMassDensities{T, W, R} <: DeckPhaseVariables
     pvt::T
+    watdent::W
     regions::R
-    function DeckPhaseMassDensities(pvt; regions = nothing)
+    function DeckPhaseMassDensities(pvt; regions = nothing, watdent = nothing)
         check_regions(regions)
         pvt_t = Tuple(pvt)
-        new{typeof(pvt_t), typeof(regions)}(pvt_t, regions)
+        watdent_t = region_wrap(watdent, regions)
+        new{typeof(pvt_t), typeof(watdent_t), typeof(regions)}(pvt_t, watdent_t, regions)
     end
 end
 
@@ -380,6 +382,18 @@ function PVTW(pvtw::AbstractArray)
     N = length(ct)
     T = typeof(ct[1])
     PVTW{N, T}(ct)
+end
+
+struct WATDENT{N, T} <: AbstractTablePVT
+    tab::NTuple{N, T}
+end
+
+function WATDENT(watdent::AbstractArray)
+    c = map(rec ->  (T = rec[1], c1 = rec[2], c2 = rec[3]), watdent)
+    ct = Tuple(c)
+    N = length(ct)
+    T = typeof(ct[1])
+    return WATDENT{N, T}(ct)
 end
 
 struct PVCDO{N, T} <: AbstractTablePVT

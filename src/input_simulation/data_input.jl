@@ -103,9 +103,15 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
                     pvt_i = pvt
                 end
                 pvt_i = tuple(pvt_i...)
-                rho = DeckPhaseMassDensities(pvt_i, regions = pvt_reg_i)
+
+                if is_thermal && haskey(datafile["PROPS"], "WATDENT")
+                    watdent = WATDENT(datafile["PROPS"]["WATDENT"])
+                else
+                    watdent = nothing
+                end
+                rho = DeckPhaseMassDensities(pvt_i, regions = pvt_reg_i, watdent = watdent)
                 if sys isa StandardBlackOilSystem
-                    b_i = DeckShrinkageFactors(pvt_i, regions = pvt_reg_i)
+                    b_i = DeckShrinkageFactors(pvt_i, regions = pvt_reg_i, watdent = watdent)
                     set_secondary_variables!(submodel,
                         ShrinkageFactors = wrap_reservoir_variable(sys, b_i, :flow)
                     )
@@ -579,6 +585,7 @@ function parse_physics_types(datafile; pvt_region = missing)
     has_gas = has("GAS")
     has_disgas = has("DISGAS")
     has_vapoil = has("VAPOIL")
+    has_thermal = has("THERMAL")
 
     is_immiscible = !has_disgas && !has_vapoil
     is_compositional = haskey(runspec, "COMPS")
@@ -631,7 +638,8 @@ function parse_physics_types(datafile; pvt_region = missing)
     end
 
     if has_wat
-        push!(pvt, deck_pvt_water(props, scaling = scaling))
+        water_pvt = deck_pvt_water(props, scaling = scaling)
+        push!(pvt, water_pvt)
         push!(phases, AqueousPhase())
         push!(rhoS, rhoWS)
     end
