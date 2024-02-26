@@ -1,10 +1,29 @@
 @jutul_secondary function update_deck_viscosity!(mu, μ::DeckPhaseViscosities, model, Pressure, ix)
     pvt, reg = μ.pvt, μ.regions
-    @inbounds for ph in axes(mu, 1)
-        pvt_ph = pvt[ph]
-        for i in ix
-            p = Pressure[i]
+    @inbounds for i in ix
+        p = Pressure[i]
+        for ph in axes(mu, 1)
+            pvt_ph = pvt[ph]
             @inbounds mu[ph, i] = viscosity(pvt_ph, reg, p, i)
+        end
+    end
+end
+
+@jutul_secondary function update_deck_viscosity!(mu, μ::DeckPhaseViscosities{<:Any, Ttab, <:Any}, model, Pressure, Temperature, ix) where Ttab<:DeckThermalViscosityTable
+    pvt, reg = μ.pvt, μ.regions
+    for i in ix
+        r_i = region(μ, i)
+        p = Pressure[i]
+        T = Temperature[i]
+        for ph in axes(mu, 1)
+            pvt_ph = pvt[ph]
+            pvt_thermal = table_by_region(μ.thermal.visc_tab[ph], r_i)
+            p_ref = table_by_region(μ.thermal.p_ref[ph], r_i)
+
+            mu_p = viscosity(pvt_ph, reg, p, i)
+            mu_ref = viscosity(pvt_ph, reg, p_ref, i)
+            mu_thermal = pvt_thermal(T)
+            mu[ph, i] = mu_thermal*(mu_p/mu_ref)
         end
     end
 end
