@@ -152,6 +152,47 @@ end
     return result
 end
 
+struct PressureTemperatureDependentEnthalpy{T, R, N} <: VectorVariables
+    tab::T
+    regions::R
+    function PressureTemperatureDependentEnthalpy(tab; regions = nothing)
+        tab = region_wrap(tab, regions)
+        ex = first(tab)
+        N = length(ex(1e8, 273.15 + 30.0))
+        new{typeof(tab), typeof(regions), N}(tab, regions)
+    end
+end
+
+function Jutul.values_per_entity(model, ::PressureTemperatureDependentEnthalpy{T, R, N}) where {T, R, N}
+    return N
+end
+
+@jutul_secondary function update_temperature_dependent_enthalpy!(H_phases, var::PressureTemperatureDependentEnthalpy{T, R, N}, model::ThermalCompositionalModel, Pressure, Temperature, LiquidMassFractions, VaporMassFractions, PhaseMassDensities, ix) where {T, R, N}
+    fsys = flow_system(model.system)
+    @assert !has_other_phase(fsys)
+    @assert N == number_of_components(fsys)
+    l, v = phase_indices(fsys)
+
+    X, Y = LiquidMassFractions, VaporMassFractions
+    rho = PhaseMassDensities
+    for c in ix
+        reg = region(var.regions, c)
+        interpolator = table_by_region(var.tab, reg)
+        component_H = interpolator(Pressure[c], Temperature[c])
+        H_l = 0.0
+        H_v = 0.0
+        for i in 1:N
+            H_i = component_H[i]
+            H_l += X[i, c]*H_i
+            H_v += Y[i, c]*H_i
+        end
+        # p = Pressure[c]
+        H_phases[l, c] = H_l# + p/rho[l, c]
+        H_phases[v, c] = H_v# + p/rho[v, c]
+    end
+    return H_phases
+end
+
 """
     FluidThermalConductivities()
 
