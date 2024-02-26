@@ -798,7 +798,7 @@ function parse_control_steps(runspec, props, schedule, sys)
         push!(cstep, ctrl_ix)
     end
 
-    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC")
+    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP")
     bad_kw = Dict{String, Bool}()
     for (ctrl_ix, step) in enumerate(steps)
         found_time = false
@@ -806,6 +806,12 @@ function parse_control_steps(runspec, props, schedule, sys)
         if haskey(step, "WEFAC")
             for wk in step["WEFAC"]
                 well_factor[wk[1]] = wk[2]
+            end
+        end
+        if haskey(step, "WTEMP")
+            for wk in step["WTEMP"]
+                wnm, wt = wk
+                well_temp[wnm] = convert_to_si(wt, :Celsius)
             end
         end
         for (key, kword) in pairs(step)
@@ -874,11 +880,6 @@ function parse_control_steps(runspec, props, schedule, sys)
             elseif key == "WELOPEN"
                 for wk in kword
                     apply_welopen!(controls, compdat, wk, active_controls)
-                end
-            elseif key == "WTEMP"
-                for wk in kword
-                    wnm, wt = wk
-                    well_temp[wnm] = convert_to_si(wt, :Celsius)
                 end
             elseif key in skip
                 # Already handled
