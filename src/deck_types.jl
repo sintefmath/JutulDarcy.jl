@@ -33,8 +33,8 @@ struct DeckPhaseMassDensities{T, W, R} <: DeckPhaseVariables
     function DeckPhaseMassDensities(pvt; regions = nothing, watdent = nothing)
         check_regions(regions)
         pvt_t = Tuple(pvt)
-        watdent_t = region_wrap(watdent, regions)
-        new{typeof(pvt_t), typeof(watdent_t), typeof(regions)}(pvt_t, watdent_t, regions)
+        watdent::Union{Nothing, WATDENT}
+        new{typeof(pvt_t), typeof(watdent), typeof(regions)}(pvt_t, watdent, regions)
     end
 end
 

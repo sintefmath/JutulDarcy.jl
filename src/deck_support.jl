@@ -42,6 +42,33 @@ end
     end
 end
 
+@jutul_secondary function update_deck_density!(rho, ρ::DeckPhaseMassDensities{<:Any, <:WATDENT, <:Any}, model, Pressure, Temperature, ix)
+    rhos = reference_densities(model.system)
+    pvt, reg = ρ.pvt, ρ.regions
+    phases = get_phases(model.system)
+    # Note immiscible assumption
+    for i in ix
+        r_i = region(ρ, i)
+        p = Pressure[i]
+        T = Temperature[i]
+        for ph in axes(rho, 1)
+            rhos_ph = rhos[ph]
+            pvt_ph = pvt[ph]
+            if phases[ph] == AqueousPhase()
+                T_ref, c1, c2 = ρ.watdent.tab[r_i]
+                pvtw = pvt_ph.tab[r_i]
+                p_ref = pvtw.p_ref
+                B_pref = 1.0/shrinkage(pvt_ph, reg, p_ref, i)
+                Δp = pvtw.b_c*(p - p_ref)
+                ΔT = T - T_ref
+                B_w = B_pref*(1.0 - Δp)*(1.0 + c1*ΔT + c2*ΔT^2)
+                rho[ph, i] = rhos_ph/B_w
+            else
+                rho[ph, i] = rhos_ph*shrinkage(pvt_ph, reg, p, i)
+            end
+        end
+    end
+end
 
 @jutul_secondary function update_deck_shrinkage!(b, ρ::DeckShrinkageFactors, model, Pressure, ix)
     pvt, reg = ρ.pvt, ρ.regions
