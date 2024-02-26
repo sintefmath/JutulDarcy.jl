@@ -493,7 +493,7 @@ function set_default_cnv_mb_inner!(tol, model;
         inc_tol_dz = Inf
         )
     sys = model.system
-    if model isa Jutul.CompositeModel && hasproperty(model.system, :flow)
+    if model isa Jutul.CompositeModel && hasproperty(model.system.systems, :flow)
         sys = flow_system(model.system)
     end
     if sys isa ImmiscibleSystem || sys isa BlackOilSystem || sys isa CompositionalSystem
