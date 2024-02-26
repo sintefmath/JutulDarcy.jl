@@ -93,8 +93,8 @@ function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::Co
     names = model.system.components
     R = (
         CNV = (errors = e, names = names),
-        increment_dp_abs = (errors = (dp_abs, ), names = (raw"Δp", ), ),
-        increment_dp_rel = (errors = (dp_rel, ), names = (raw"Δp", ), ),
+        increment_dp_abs = (errors = (dp_abs/1e6, ), names = (raw"Δp (abs, MPa)", ), ),
+        increment_dp_rel = (errors = (dp_rel, ), names = (raw"Δp (rel)", ), ),
         increment_dz = (errors = (dz, ), names = (raw"Δz", ), )
         )
     return R
