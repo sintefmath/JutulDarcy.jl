@@ -19,11 +19,15 @@ end
             pvt_ph = pvt[ph]
             pvt_thermal = table_by_region(μ.thermal.visc_tab[ph], r_i)
             p_ref = table_by_region(μ.thermal.p_ref[ph], r_i)
-
-            mu_p = viscosity(pvt_ph, reg, p, i)
-            mu_ref = viscosity(pvt_ph, reg, p_ref, i)
             mu_thermal = pvt_thermal(T)
-            mu[ph, i] = mu_thermal*(mu_p/mu_ref)
+            if isfinite(p_ref)
+                # We have pressure dependence in addition to temperature
+                # dependence.
+                mu_p = viscosity(pvt_ph, reg, p, i)
+                mu_ref = viscosity(pvt_ph, reg, p_ref, i)
+                mu_thermal *= mu_p/mu_ref
+            end
+            mu[ph, i] = mu_thermal
         end
     end
 end

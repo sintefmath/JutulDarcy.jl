@@ -393,9 +393,6 @@ function DeckThermalViscosityTable(props::AbstractDict, pvt, water, oil, gas)
     function tab_to_interp(tab)
         return map(x -> get_1d_interpolator(x[:, 1] .+ 273.15, x[:, 2]), tab)
     end
-    vref = props["VISCREF"]
-    rs_ref = map(x -> x[2], vref)
-    p_ref = map(x -> x[1], vref)
     if water
         push!(visc_tab, tab_to_interp(props["WATVISCT"]))
     end
@@ -406,6 +403,15 @@ function DeckThermalViscosityTable(props::AbstractDict, pvt, water, oil, gas)
         push!(visc_tab, tab_to_interp(props["GASVISCT"]))
     end
     visc_tab = Tuple(visc_tab)
+    if haskey(props, "VISCREF")
+        vref = props["VISCREF"]
+        rs_ref = map(x -> x[2], vref)
+        p_ref = map(x -> x[1], vref)
+    else
+        nreg = length(first(visc_tab))
+        rs_ref = fill(NaN, nreg)
+        p_ref = fill(NaN, nreg)
+    end
     return DeckThermalViscosityTable(visc_tab, p_ref, rs_ref)
 end
 

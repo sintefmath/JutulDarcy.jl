@@ -121,8 +121,12 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
                         ShrinkageFactors = wrap_reservoir_variable(sys, b_i, :flow)
                     )
                 end
-                if is_thermal && haskey(props, "VISCREF")
-                    thermal_visc = DeckThermalViscosityTable(props, pvt_i, water, oil, gas)
+                if is_thermal
+                    if haskey(props, "WATVISCT") || haskey(props, "OILVISCT") || haskey(props, "GASVISCT")
+                        thermal_visc = DeckThermalViscosityTable(props, pvt_i, water, oil, gas)
+                    else
+                        thermal_visc = nothing
+                    end
                 else
                     thermal_visc = nothing
                 end
