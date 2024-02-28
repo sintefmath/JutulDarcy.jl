@@ -322,13 +322,22 @@ function well_top_node_enthalpy(ctrl::InjectorControl, model, state_well, cell)
     p = state_well.Pressure[cell]
     # density = ctrl.mixture_density
     T = ctrl.temperature
-    nph = size(state_well.Saturations, 1)
-    H = 0
-    for ph in 1:nph
-        C = state_well.ComponentHeatCapacity[ph, cell]
-        dens = state_well.PhaseMassDensities[ph, cell]
-        S = state_well.Saturations[ph, cell]
-        H += S*(C*T + p/dens)
+    H_w = ctrl.enthalpy
+    if ismissing(H_w)
+        nph = size(state_well.Saturations, 1)
+        H = 0.0
+        for ph in 1:nph
+            C = state_well.ComponentHeatCapacity[ph, cell]
+            dens = state_well.PhaseMassDensities[ph, cell]
+            S = state_well.Saturations[ph, cell]
+            H += S*(C*T + p/dens)
+        end
+    elseif H_w isa Real
+        H = H_w
+    elseif H_w isa Function
+        H = H_w(p, T)
+    else
+        error("InjectorControl.enthalpy must be missing, a real or a function.")
     end
     return H
 end
