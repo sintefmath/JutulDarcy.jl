@@ -156,6 +156,8 @@ function setup_reservoir_model(reservoir::DataDomain, system;
         p_min = DEFAULT_MINIMUM_PRESSURE,
         p_max = Inf,
         dr_max = Inf,
+        dT_max_rel = nothing,
+        dT_max_abs = nothing,
         parameters = Dict{Symbol, Any}(),
         kwarg...
     )
@@ -181,7 +183,9 @@ function setup_reservoir_model(reservoir::DataDomain, system;
         p_max = p_max,
         dr_max = dr_max,
         ds_max = ds_max,
-        dz_max = dz_max
+        dz_max = dz_max,
+        dT_max_rel = dT_max_rel,
+        dT_max_abs = dT_max_abs
     )
 
     for k in extra_outputs
@@ -220,7 +224,9 @@ function setup_reservoir_model(reservoir::DataDomain, system;
                 p_max = p_max,
                 dr_max = dr_max,
                 ds_max = ds_max,
-                dz_max = dz_max
+                dz_max = dz_max,
+                dT_max_rel = dT_max_rel,
+                dT_max_abs = dT_max_abs
             )
             models[wname] = wmodel
             if split_wells
@@ -248,10 +254,11 @@ function setup_reservoir_model(reservoir::DataDomain, system;
     return out
 end
 
-function set_reservoir_variable_defaults!(model; p_min, p_max, dp_max_abs, dp_max_rel, ds_max, dz_max, dr_max)
+function set_reservoir_variable_defaults!(model; p_min, p_max, dp_max_abs, dp_max_rel, ds_max, dz_max, dr_max, dT_max_rel = nothing, dT_max_abs = nothing)
     # Replace various variables - if they are available
     replace_variables!(model, OverallMoleFractions = OverallMoleFractions(dz_max = dz_max), throw = false)
     replace_variables!(model, Saturations = Saturations(ds_max = ds_max), throw = false)
+    replace_variables!(model, Temperature = Temperature(max_rel = dT_max_rel, max_abs = dT_max_abs), throw = false)
     replace_variables!(model, ImmiscibleSaturation = ImmiscibleSaturation(ds_max = ds_max), throw = false)
     replace_variables!(model, BlackOilUnknown = BlackOilUnknown(ds_max = ds_max, dr_max = dr_max), throw = false)
 
