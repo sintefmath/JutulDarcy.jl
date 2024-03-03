@@ -72,6 +72,8 @@ end
 
 function phase_diffused_mass(D, ρ, α, S, face, grad)
     @inbounds D_α = D[α, face]
-    mass_α = cell -> @inbounds ρ[α, cell]*S[α, cell]
-    return -D_α*face_average(mass_α, grad)
+    den_α = cell -> @inbounds ρ[α, cell]
+    # Take minimum - diffusion should not cross phase boundaries.
+    S = min(S[α, grad.left], S[α, grad.right])
+    return -D_α*S*face_average(den_α, grad)
 end
