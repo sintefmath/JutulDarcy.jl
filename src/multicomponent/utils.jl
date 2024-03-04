@@ -52,7 +52,7 @@ function (k::KValueWrapper{<:Any, :pT})(cond::NamedTuple)
     return val
 end
 
-function (k::KValueWrapper{<:Any, :T})(cond::NamedTuple)
+function (k::KValueWrapper{<:Any, :pTz})(cond::NamedTuple)
     val = k.K(cond.p, cond.T, cond.z)
     return val
 end
