@@ -329,11 +329,8 @@ function well_top_node_enthalpy(ctrl::InjectorControl, model, state_well, cell)
             # Define it via the volume weighted internal energy
             S = state_well.Saturations[ph, cell]
             dens = state_well.PhaseMassDensities[ph, cell]
-            E_ph = state_well.FluidInternalEnergy[ph, cell]
-            H += S*(E_ph + p/dens)
-            # Alternative definition:
-            # C = state_well.ComponentHeatCapacity[ph, cell]
-            # H += S*(C*T + p/dens)
+            C = state_well.ComponentHeatCapacity[ph, cell]
+            H += S*(C*T + p/dens)
         end
     elseif H_w isa Real
         H = H_w
