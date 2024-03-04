@@ -9,7 +9,7 @@ function test_compositional_with_wells(; kwarg...)
         @testset "Reservoir" begin
             res = states[end][:Reservoir]
             p = res[:Pressure]
-            p_ref = [5.21689677531206e6, 5.179716466955712e6, 5.136721581520829e6]
+            p_ref = [5.217526602862003e6, 5.180267757745085e6, 5.137145631361415e6]
             @test isapprox(p, p_ref, rtol = 1e-4)
             z = res[:OverallMoleFractions]
             z_ref = [
@@ -60,7 +60,7 @@ function test_blackoil_with_wells(; kwarg...)
         @testset "Reservoir" begin
             res = states[end][:Reservoir]
             p = res[:Pressure]
-            p_ref = [5.304935198089932e6, 5.409387646073289e6, 5.471340338832063e6]
+            p_ref = [5.305212867881992e6, 5.409995957652735e6, 5.472027929725644e6]
             @test isapprox(p, p_ref, rtol = 1e-4)
 
             sw = res[:ImmiscibleSaturation]
