@@ -30,3 +30,17 @@ end
         mu[a, i] = viscosity(pvt, p)
     end
 end
+
+struct PTViscosities{T} <: AbstractCompositionalViscosities
+    tab::T
+end
+
+@jutul_secondary function update_viscosity!(mu, mu_def::PTViscosities, model, Pressure, Temperature, ix)
+    tab = mu_def.tab
+    @inbounds for i in ix
+        p = Pressure[i]
+        T = Temperature[i]
+        μ = tab(p, T)
+        @. mu[:, i] = μ
+    end
+end

@@ -26,7 +26,7 @@ function solve_thermal(;
 
     # Define system and realize on grid
     sys_f = ImmiscibleSystem((LiquidPhase(), VaporPhase()))
-    sys_t = ThermalSystem(nphases = 2)
+    sys_t = ThermalSystem(sys_f)
 
     sys = reservoir_system(flow = sys_f, thermal = sys_t)
     D = discretized_domain_tpfv_flow(G)
@@ -40,7 +40,7 @@ function solve_thermal(;
     model = SimulationModel(D, sys, data_domain = G, context = ctx)
     push!(model.output_variables, :Temperature)
     kr = BrooksCoreyRelativePermeabilities(2, [2.0, 2.0])
-    replace_variables!(model, RelativePermeabilities = Pair(:flow, kr))
+    replace_variables!(model, RelativePermeabilities = JutulDarcy.wrap_reservoir_variable(sys, kr))
     forces_f = nothing
     forces = setup_forces(model, flow = forces_f)
 
@@ -49,7 +49,7 @@ function solve_thermal(;
                                 RockThermalConductivities = 1e-2,
                                 FluidThermalConductivities = 1e-2,
                                 RockDensity = 1e3,
-                                FluidHeatCapacity = 10000.0,
+                                ComponentHeatCapacity = 10000.0,
                                 RockHeatCapacity = 500.0)
     T0 = repeat([273.15], nc)
     T0[1] = 500.0
@@ -109,7 +109,7 @@ function solve_thermal_wells(;
         i_mix = [0.0, 1.0]
         c = [1e-6/bar, 1e-5/bar]
     end
-    sys_t = ThermalSystem(nphases = nph)
+    sys_t = ThermalSystem(sys_f)
     if composite
         if thermal
             sys = reservoir_system(flow = sys_f, thermal = sys_t)
@@ -127,12 +127,7 @@ function solve_thermal_wells(;
     model, parameters = setup_reservoir_model(res, sys, wells = wells, block_backend = block_backend)
     # Replace the density function with our custom version for wells and reservoir
     ρ = ConstantCompressibilityDensities(p_ref = 1*bar, density_ref = rhoS, compressibility = c)
-    if composite
-        tmp = Pair(:flow, ρ)
-    else
-        tmp = ρ
-    end
-    replace_variables!(model, PhaseMassDensities = tmp)
+    replace_variables!(model, PhaseMassDensities = JutulDarcy.wrap_reservoir_variable(sys, ρ))
     dt = repeat([30.0]*day, 12*5)
     rate_target = TotalRateTarget(sum(parameters[:Reservoir][:FluidVolume])/sum(dt))
     bhp_target = BottomHolePressureTarget(50*bar)

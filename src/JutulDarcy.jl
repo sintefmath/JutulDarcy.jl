@@ -152,7 +152,6 @@ module JutulDarcy
     include("porousmedia_grids.jl")
     include("utils.jl")
     include("interpolation.jl")
-    include("flux.jl")
     # Definitions for multiphase flow
     include("multiphase.jl")
     include("variables/variables.jl")
@@ -167,6 +166,7 @@ module JutulDarcy
     # Wells etc.
     include("facility/facility.jl")
 
+    include("flux.jl")
     include("porousmedia.jl")
     # MRST inputs and test cases that use MRST input
     # and .DATA file simulation

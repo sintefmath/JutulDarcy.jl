@@ -62,7 +62,7 @@ function initialize_variable_ad!(state, model, pvar::FlashResults, symb, npartia
     n = number_of_entities(model, pvar)
     v_ad = get_ad_entity_scalar(1.0, npartials, diag_pos; kwarg...)
     ∂T = typeof(v_ad)
-    eos = model.system.equation_of_state
+    eos = flow_system(model.system).equation_of_state
 
     r = FlashedMixture2Phase(eos, ∂T)
     T = typeof(r)
@@ -242,7 +242,11 @@ function flash_entity_loop!(flash_results, fr, model, eos::KValuesEOS, Pressure,
     storage, m, buffers = fr.storage, fr.method, fr.update_buffer
     S, buf = thread_buffers(storage, buffers)
     z_buf = buf.z
-    for i in ix
+    kvalue_loop!(flash_results, ix, Pressure, Temperature, OverallMoleFractions, eos, z_buf)
+end
+
+function kvalue_loop!(flash_results, ix, Pressure, Temperature, OverallMoleFractions, eos, z_buf)
+    @inbounds for i in ix
         P = Pressure[i]
         T = Temperature[i]
         Z = @view OverallMoleFractions[:, i]
@@ -254,17 +258,26 @@ end
 
 function k_value_flash!(result::FR, eos, P, T, Z, z) where FR
     Num_t = Base.promote_type(typeof(P), typeof(T), eltype(Z))
-    @. z = max(value(Z), 1e-8)
-    # Conditions
-    c = (p = value(P), T = value(T), z = z)
+    ncomp = length(z)
     c_ad = (p = P, T = T, z = Z)
     K_ad = eos.K_values_evaluator(c_ad)
-    K = result.K
     x = result.liquid.mole_fractions
     y = result.vapor.mole_fractions
-
-    @. K = value(K_ad)
-    V = flash_2ph!(nothing, K, eos, c)
+    analytical_rr = ncomp == 2 || ncomp == 3
+    K = result.K
+    if analytical_rr
+        # If we have 2 or 3 components the Rachford-Rice equations have an
+        # analytical solution. We can then bypass a bunch of chain rule magic.
+        V = flash_2ph!(nothing, K_ad, eos, c_ad, analytical = true)
+    else
+        @. z = max(value(Z), 1e-8)
+        # Conditions
+        c_numeric = (p = value(P), T = value(T), z = z)
+        @inbounds for i in 1:ncomp
+            K[i] = value(K_ad[i])
+        end
+        V = flash_2ph!(nothing, K, eos, c_numeric)
+    end
 
     pure_liquid = V <= 0.0
     pure_vapor = V >= 1.0
@@ -274,15 +287,26 @@ function k_value_flash!(result::FR, eos, P, T, Z, z) where FR
         else
             phase_state = MultiComponentFlash.single_phase_l
         end
-        @. x = Z
-        @. y = Z
-        V = convert(Num_t, V)
+        @inbounds for i in 1:ncomp
+            Z_i = Z[i]
+            x[i] = Z_i
+            y[i] = Z_i
+        end
+        V = Num_t(pure_vapor)
     else
         phase_state = MultiComponentFlash.two_phase_lv
-        V = add_derivatives_to_vapor_fraction_rachford_rice(V, K_ad, Z, K, z)
-        @. x = liquid_mole_fraction(Z, K, V)
-        @. y = vapor_mole_fraction(x, K)
+        if !analytical_rr
+            V = add_derivatives_to_vapor_fraction_rachford_rice(value(V), K_ad, Z, K, z)
+        end
+        V::Num_t
+        @inbounds for i in 1:ncomp
+            K_i = K_ad[i]
+            x_i = liquid_mole_fraction(Z[i], K_i, V)
+            x[i] = x_i
+            y[i] = vapor_mole_fraction(x_i, K_i)
+        end
     end
+    V::Num_t
     Z_L = Z_V = convert(Num_t, 1.0)
     new_result = FlashedMixture2Phase(phase_state, K, V, x, y, Z_L, Z_V)
     return new_result::FR
@@ -296,19 +320,21 @@ function add_derivatives_to_vapor_fraction_rachford_rice(V::Float64, K, z, K_val
         N = length(z)
         V0 = V
         V = convert(T, V)
-        ∂V = V.partials
+        ∂R_chain = V.partials
         if Kt == T
             for i in 1:N
                 dK_i = MultiComponentFlash.objectiveRR_dK(V0, K_val, z_val, i)
-                ∂V += K[i].partials*dK_i
+                ∂R_chain += K[i].partials*dK_i
             end
         end
         if Zt == T
             for i in 1:N
                 dz_i = MultiComponentFlash.objectiveRR_dz(V0, K_val, z_val, i)
-                ∂V += z[i].partials*dz_i
+                ∂R_chain += z[i].partials*dz_i
             end
         end
+        ∂R_dV = MultiComponentFlash.objectiveRR_dV(V0, K_val, z_val)
+        ∂V = -∂R_chain/∂R_dV
         V = T(V0, ∂V)
     end
     return V

@@ -21,7 +21,7 @@ function equilibriate_state(model, contacts,
     if ismissing(datum_depth)
         datum_depth = pmin
     end
-    sys = model.system
+    sys = flow_system(model.system)
 
     init = Dict{Symbol, Any}()
     init = equilibriate_state!(init, pts, model, sys, contacts, datum_depth, datum_pressure;
@@ -58,6 +58,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         cells = 1:length(depths),
         rs = missing,
         rv = missing,
+        T_z = missing,
         s_min = missing,
         contacts_pc = missing,
         pvtnum = 1,
@@ -85,8 +86,16 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
             rhoOS, rhoGS = rho_s
         end
     end
-    pvt = model.secondary_variables[:PhaseMassDensities].pvt
+    rho = model.secondary_variables[:PhaseMassDensities]
+    if rho isa Pair
+        rho = last(rho)
+    end
     relperm = model.secondary_variables[:RelativePermeabilities]
+    if relperm isa Pair
+        relperm = last(relperm)
+    end
+
+    pvt = rho.pvt
     reg = Int[pvtnum]
     function density_f(p, z, ph)
         pvt_i = pvt[ph]
@@ -106,26 +115,35 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         return rho
     end
     pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_f, contacts_pc)
-    s, pc = determine_saturations(depths, contacts, pressures; s_min = s_min, kwarg...)
+    if nph > 1
+        s, pc = determine_saturations(depths, contacts, pressures; s_min = s_min, kwarg...)
 
-    nc_total = number_of_cells(model.domain)
-    kr = zeros(nph, nc_total)
-    s_eval = zeros(nph, nc_total)
-    s_eval[:, cells] .= s
-    phases = get_phases(sys)
-    if length(phases) == 3 && AqueousPhase() in phases
-        swcon = zeros(nc_total)
-        if !ismissing(s_min)
-            swcon[cells] .= s_min[1]
+        nc_total = number_of_cells(model.domain)
+        kr = zeros(nph, nc_total)
+        s_eval = zeros(nph, nc_total)
+        s_eval[:, cells] .= s
+        phases = get_phases(sys)
+        if length(phases) == 3 && AqueousPhase() in phases
+            swcon = zeros(nc_total)
+            if !ismissing(s_min)
+                swcon[cells] .= s_min[1]
+            end
+            JutulDarcy.update_kr!(kr, relperm, model, s_eval, swcon, cells)
+        else
+            JutulDarcy.update_kr!(kr, relperm, model, s_eval, cells)
         end
-        JutulDarcy.update_kr!(kr, relperm, model, s_eval, swcon, cells)
+        kr = kr[:, cells]
+        init[:Saturations] = s
+        init[:Pressure] = init_reference_pressure(pressures, contacts, kr, pc, 2)
     else
-        JutulDarcy.update_kr!(kr, relperm, model, s_eval, cells)
+        p = copy(vec(pressures))
+        init[:Pressure] = p
+        init[:Saturations] = ones(1, length(p))
     end
-    kr = kr[:, cells]
+    if !ismissing(T_z)
+        init[:Temperature] = T_z.(depths)
+    end
 
-    init[:Saturations] = s
-    init[:Pressure] = init_reference_pressure(pressures, contacts, kr, pc, 2)
     return init
 end
 
@@ -134,6 +152,8 @@ function parse_state0_equil(model, datafile)
     has_water = haskey(datafile["RUNSPEC"], "WATER")
     has_oil = haskey(datafile["RUNSPEC"], "OIL")
     has_gas = haskey(datafile["RUNSPEC"], "GAS")
+
+    is_single_phase = (has_water + has_oil + has_gas) == 1
 
     sys = model.system
     d = model.data_domain
@@ -151,27 +171,33 @@ function parse_state0_equil(model, datafile)
     end
     eqlnum = model.data_domain[:eqlnum]
 
-    has_pc = haskey(model.secondary_variables, :CapillaryPressure)
-    if has_pc
-        pcvar = model.secondary_variables[:CapillaryPressure]
-        pc_functions = pcvar.pc
-        if has_sat_reg
-            @assert !isnothing(pcvar.regions)
-            @assert pcvar.regions == satnum
-        end
-    else
+    if is_single_phase
+        has_pc = false
         pc_functions = missing
-    end
-
-    if has_water
-        kr_var = model.secondary_variables[:RelativePermeabilities]
-        krw_fn = kr_var.krw
-        if has_sat_reg
-            @assert !isnothing(kr_var.regions)
-            @assert kr_var.regions == satnum
-        end
-    else
         krw_fn = missing
+    else
+        has_pc = haskey(model.secondary_variables, :CapillaryPressure)
+        if has_pc
+            pcvar = model.secondary_variables[:CapillaryPressure]
+            pc_functions = pcvar.pc
+            if has_sat_reg
+                @assert !isnothing(pcvar.regions)
+                @assert pcvar.regions == satnum
+            end
+        else
+            pc_functions = missing
+        end
+
+        if has_water
+            kr_var = unwrap_reservoir_variable(model.secondary_variables[:RelativePermeabilities])
+            krw_fn = kr_var.krw
+            if has_sat_reg
+                @assert !isnothing(kr_var.regions)
+                @assert kr_var.regions == satnum
+            end
+        else
+            krw_fn = missing
+        end
     end
 
     init = Dict{Symbol, Any}()
@@ -189,20 +215,29 @@ function parse_state0_equil(model, datafile)
     npvt = GeoEnergyIO.InputParser.number_of_tables(datafile, :pvtnum)
     nsat = GeoEnergyIO.InputParser.number_of_tables(datafile, :satnum)
 
+    if haskey(sol, "RTEMP")
+        Ti = convert_to_si(only(sol["RTEMP"]), :Celsius)
+        T_z = z -> Ti
+    elseif haskey(sol, "TEMPVD")
+        z = vec(sol["TEMPVD"][:, 1])
+        Tvd = vec(sol["TEMPVD"][:, 2] + 273.15)
+        T_z = get_1d_interpolator(z, Tvd)
+    else
+        T_z = missing
+    end
+
     @assert length(equil) == nequil
     inits = []
     inits_cells = []
     for ereg in 1:nequil
         eq = equil[ereg]
+        cells_eqlnum = findall(isequal(ereg), eqlnum)
         for sreg in 1:nsat
+            cells_satnum = findall(isequal(sreg), satnum)
+            cells_sat_and_pvt = intersect_sorted(cells_satnum, cells_eqlnum)
             for preg in 1:npvt
-                cells = findall(
-                    i ->satnum[i] == sreg &&
-                        pvtnum[i] == preg &&
-                        eqlnum[i] == ereg,
-                    1:ncells
-                )
-
+                cells_pvtnum = findall(isequal(preg), pvtnum)
+                cells = intersect_sorted(cells_pvtnum, cells_sat_and_pvt)
                 ncells_reg = length(cells)
                 if ncells_reg == 0
                     continue
@@ -233,38 +268,49 @@ function parse_state0_equil(model, datafile)
                             cap = cap[2:end]
                         end
                         ix = unique(i -> cap[i], 1:length(cap))
-
                         if i == 1 && get_phases(model.system)[1] isa AqueousPhase
                             @. cap *= -1
                         end
-                        push!(pc, (s = s[ix], pc = cap[ix]))
+                        s = s[ix]
+                        cap = cap[ix]
+                        if length(s) == 1
+                            push!(s, s[end])
+                            push!(cap, cap[end]+1.0)
+                        end
+                        push!(pc, (s = s, pc = cap))
                     end
                 else
                     pc = nothing
                 end
-                if has_water
-                    krw = table_by_region(krw_fn, sreg)
-                    if haskey(datafile, "PROPS") && haskey(datafile["PROPS"], "SWL")
-                        swl = vec(datafile["PROPS"]["SWL"])
-                        swcon = swl[actnum_ix_for_reg]
-                    else
-                        swcon = fill(krw.connate, ncells_reg)
-                    end
-                    push!(s_min, swcon)
+                if is_single_phase
+                    push!(s_min, zeros(ncells_reg))
                     push!(s_max, ones(ncells_reg))
-                    @. non_connate -= swcon
-                end
-                if has_oil
-                    push!(s_min, zeros(ncells_reg))
-                    push!(s_max, non_connate)
-                end
-                if has_gas
-                    push!(s_min, zeros(ncells_reg))
-                    push!(s_max, non_connate)
+                else
+                    if has_water
+                        krw = table_by_region(krw_fn, sreg)
+                        if haskey(datafile, "PROPS") && haskey(datafile["PROPS"], "SWL")
+                            swl = vec(datafile["PROPS"]["SWL"])
+                            swcon = swl[actnum_ix_for_reg]
+                        else
+                            swcon = fill(krw.connate, ncells_reg)
+                        end
+                        push!(s_min, swcon)
+                        push!(s_max, ones(ncells_reg))
+                        @. non_connate -= swcon
+                    end
+                    if has_oil
+                        push!(s_min, zeros(ncells_reg))
+                        push!(s_max, non_connate)
+                    end
+                    if has_gas
+                        push!(s_min, zeros(ncells_reg))
+                        push!(s_max, non_connate)
+                    end
                 end
 
                 if nph == 1
-                    error("Not implemented.")
+                    contacts = []
+                    contacts_pc = []
                 elseif nph == 2
                     if has_oil && has_gas
                         contacts = (goc, )
@@ -293,7 +339,7 @@ function parse_state0_equil(model, datafile)
                         pbvd = sol["PBVD"][ereg]
                         z = pbvd[:, 1]
                         pb = vec(pbvd[:, 2])
-                        Rs = sys.rs_max.(pb)
+                        Rs = sys.rs_max[preg].(pb)
                     end
                     rs = Jutul.LinearInterpolant(z, Rs_scale.*Rs)
                 else
@@ -316,6 +362,7 @@ function parse_state0_equil(model, datafile)
                         contacts_pc = contacts_pc,
                         s_min = s_min,
                         s_max = s_max,
+                        T_z = T_z,
                         rs = rs,
                         rv = rv,
                         pc = pc
@@ -357,6 +404,27 @@ function parse_state0_equil(model, datafile)
     return init
 end
 
+function intersect_sorted(a::Vector{T}, b::Vector{T}) where T
+    na = length(a)
+    nb = length(b)
+    c = Vector{T}()
+    ptr_a = ptr_b = 1
+    while ptr_a <= na && ptr_b <= nb
+        a_val = a[ptr_a]
+        b_val = b[ptr_b]
+        if a_val == b_val
+            push!(c, a_val)
+            ptr_a += 1
+            ptr_b += 1
+        elseif a_val < b_val
+            ptr_a += 1
+        else
+            ptr_b += 1
+        end
+    end
+    return c
+end
+
 function fill_subinit!(x::Vector, cells, v::Vector)
     @assert length(v) == length(cells)
     for (i, c) in enumerate(cells)
@@ -396,7 +464,7 @@ end
 function determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_f, contacts_pc)
     nc = length(depths)
     nph = length(contacts) + 1
-    ref_ix = 2
+    ref_ix = min(2, nph)
     I_ref = phase_pressure_depth_table(depth, zmin, zmax, datum_pressure, density_f, ref_ix)
     pressures = zeros(nph, nc)
     pos = 1
@@ -484,9 +552,8 @@ function determine_saturations(depths, contacts, pressures; s_min = missing, s_m
                 s, pc_pair = pc[offset]
                 pc_max = maximum(pc_pair)
                 pc_min = minimum(pc_pair)
-
-                I = get_1d_interpolator(pc_pair, s)
-                I_pc = get_1d_interpolator(s, pc_pair)
+                I = get_1d_interpolator(pc_pair, s, constant_dx = false)
+                I_pc = get_1d_interpolator(s, pc_pair, constant_dx = false)
                 for i in eachindex(depths)
                     z = depths[i]
 
@@ -505,12 +572,23 @@ function determine_saturations(depths, contacts, pressures; s_min = missing, s_m
                 offset += 1
             end
         end
+        bad_cells = Int[]
         for i in eachindex(depths)
-            s_fill = 1 - sum(view(sat, :, i))
+            sat_i = view(sat, :, i)
+            sat_tot = sum(sat_i)
+            s_fill = 1 - sat_tot
             if s_fill < 0
-                @warn "Negative saturation in cell $i: $s_fill"
+                push!(bad_cells, i)
+                sat[ref_ix, i] = 0.0
+                for j in axes(sat, 1)
+                    sat[j, i] /= sat_tot
+                end
+            else
+                sat[ref_ix, i] = s_fill
             end
-            sat[ref_ix, i] = s_fill
+        end
+        if length(bad_cells) > 0
+            @warn "Negative saturation in $(length(bad_cells)) cells for phase $ref_ix. Normalizing."
         end
     end
     return (sat, sat_pc)

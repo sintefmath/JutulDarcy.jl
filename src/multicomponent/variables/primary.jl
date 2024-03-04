@@ -49,7 +49,7 @@ function Jutul.increment_norm(dX, state, model, X, pvar::OverallMoleFractions)
     N = degrees_of_freedom_per_entity(model, pvar)
     for i in axes(dX, 1)
         for j in axes(dX, 2)
-            cell = active[i]
+            cell = active[j]
             dx = dX[i, j]
             s = get_scaling(sw, cell)
 

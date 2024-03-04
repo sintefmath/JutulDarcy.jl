@@ -1,9 +1,41 @@
-@jutul_secondary function update_fluid_internal_energy!(U, fe::FluidInternalEnergy, model::ThermalModel, Temperature, FluidHeatCapacity, ix)
+@jutul_secondary function update_fluid_internal_energy!(U, fe::FluidInternalEnergy, model::ThermalImmiscibleModel, Temperature, ComponentHeatCapacity, ix)
+    C = ComponentHeatCapacity
+    @assert size(U) == size(C) "This fluid internal energy implementation assumes immiscible phases."
     for i in ix
         T = Temperature[i]
-        for ph in axes(U, 1)
-            U[ph, i] = FluidHeatCapacity[ph, i]*T
+        for c in axes(U, 1)
+            U[c, i] = C[c, i]*T
         end
+    end
+end
+
+@jutul_secondary function update_fluid_internal_energy!(U, fe::FluidInternalEnergy, model::ThermalCompositionalModel, Temperature, ComponentHeatCapacity, LiquidMassFractions, VaporMassFractions, ix)
+    fsys = flow_system(model.system)
+    C = ComponentHeatCapacity
+    X = LiquidMassFractions
+    Y = VaporMassFractions
+    if has_other_phase(fsys)
+        a, l, v = phase_indices(fsys)
+        offset = 1
+    else
+        l, v = phase_indices(fsys)
+        offset = 0
+    end
+    for i in ix
+        T = Temperature[i]
+        if has_other_phase(fsys)
+            C_w = C[1, i]
+            U[a, i] = C_w*T
+        end
+        U_v = 0.0
+        U_l = 0.0
+        for c in axes(X, 1)
+            C_i = C[c+offset, i]
+            U_l += C_i*X[c, i]
+            U_v += C_i*Y[c, i]
+        end
+        U[l, i] = U_l*T
+        U[v, i] = U_v*T
     end
 end
 

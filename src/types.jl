@@ -17,7 +17,7 @@ const CompositionalModel = SimulationModel{D, S, F, C} where {D, S<:Compositiona
 abstract type BlackOilSystem <: MultiComponentSystem end
 
 abstract type PhaseVariables <: VectorVariables end
-abstract type ComponentVariable <: VectorVariables end
+abstract type ComponentVariables <: VectorVariables end
 
 struct MultiPhaseCompositionalSystemLV{E, T, O, R, N} <: CompositionalSystem where T<:Tuple
     phases::T
@@ -244,9 +244,8 @@ equal length `s` and `k`):
 
 ``K_r = K(S)``
 
-Optionally, a label for the phase, the connate
-saturation and a small epsilon value used to avoid extrapolation can be
-specified.
+Optionally, a label for the phase, the connate saturation and a small epsilon
+value used to avoid extrapolation can be specified.
 """
 function PhaseRelativePermeability(s, k; label = :w, connate = s[1], epsilon = 1e-16)
     msg(i) = "k = $(k[i]) at entry $i corresponding to saturation $(s[i])"
@@ -271,7 +270,7 @@ function PhaseRelativePermeability(s, k; label = :w, connate = s[1], epsilon = 1
     crit = s[crit_ix]
     s, k = JutulDarcy.add_missing_endpoints(s, k)
     JutulDarcy.ensure_endpoints!(s, k, epsilon)
-    kr = get_1d_interpolator(s, k, cap_endpoints = false)
+    kr = get_1d_interpolator(s, k, cap_endpoints = false, constant_dx = false)
     return PhaseRelativePermeability(kr, label, connate, crit, s_max, k_max)
 end
 

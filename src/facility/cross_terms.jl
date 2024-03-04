@@ -284,6 +284,15 @@ function Base.show(io::IO, d::ReservoirFromWellThermalCT)
     n = length(d.CI)
     print(io, "ReservoirFromWellThermalCT ($n connections)")
 end
+
+function Jutul.subcrossterm(ct::ReservoirFromWellThermalCT, ctp, m_t, m_s, map_res::FiniteVolumeGlobalMap, ::TrivialGlobalMap, partition)
+    (; CI, WI, reservoir_cells, well_cells) = ct
+    rc = map(
+        c -> Jutul.local_cell(c, map_res),
+        reservoir_cells)
+    return ReservoirFromWellThermalCT(copy(CI), copy(WI), rc, copy(well_cells))
+end
+
 struct WellFromFacilityThermalCT <: Jutul.AdditiveCrossTerm
     well::Symbol
 end
@@ -305,27 +314,35 @@ function update_cross_term_in_entity!(out, i,
     qT += 0*bottom_hole_pressure(state_well)
 
     cell = well_top_node()
-    H = well_top_node_enthalpy(ctrl, state_well, cell)
+    H = well_top_node_enthalpy(ctrl, well, state_well, cell)
     out[] = -qT*H
 end
 
-function well_top_node_enthalpy(ctrl::InjectorControl, state_well, cell)
-    heat_capacity = state_well.FluidHeatCapacity[cell]
+function well_top_node_enthalpy(ctrl::InjectorControl, model, state_well, cell)
     p = state_well.Pressure[cell]
-    density = ctrl.mixture_density
+    # density = ctrl.mixture_density
     T = ctrl.temperature
-    nph = size(state_well.Saturations, 1)
-    H = 0
-    for ph in 1:nph
-        C = state_well.FluidHeatCapacity[ph, cell]
-        dens = state_well.PhaseMassDensities[ph, cell]
-        S = state_well.Saturations[ph, cell]
-        H += S*(C*T + p/dens)
+    H_w = ctrl.enthalpy
+    if ismissing(H_w)
+        H = 0.0
+        for ph in axes(state_well.Saturations, 1)
+            # Define it via the volume weighted internal energy
+            S = state_well.Saturations[ph, cell]
+            dens = state_well.PhaseMassDensities[ph, cell]
+            C = state_well.ComponentHeatCapacity[ph, cell]
+            H += S*(C*T + p/dens)
+        end
+    elseif H_w isa Real
+        H = H_w
+    elseif H_w isa Function
+        H = H_w(p, T)
+    else
+        error("InjectorControl.enthalpy must be missing, a real or a function (p, T).")
     end
     return H
 end
 
-function well_top_node_enthalpy(ctrl, state_well, cell)
+function well_top_node_enthalpy(ctrl, model, state_well, cell)
     H = state_well.FluidEnthalpy
     S = state_well.Saturations
     H_w = 0.0

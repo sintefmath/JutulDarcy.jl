@@ -50,16 +50,37 @@ function setup_case_from_data_file(
     return out
 end
 
-function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans = true, kwarg...)
+function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans = true, verbose = false, kwarg...)
+    function msg(s)
+        if verbose
+            jutul_message("Setup", s)
+        end
+    end
+    msg("Parsing physics and system.")
     sys, pvt = parse_physics_types(datafile, pvt_region = 1)
-    is_blackoil = sys isa StandardBlackOilSystem
-    is_compositional = sys isa CompositionalSystem
+    flow_sys = flow_system(sys)
+    is_blackoil = flow_sys isa StandardBlackOilSystem
+    is_compositional = flow_sys isa CompositionalSystem
+    is_thermal = sys isa CompositeSystem && haskey(sys.systems, :thermal)
+
+    rs = datafile["RUNSPEC"]
+    oil = haskey(rs, "OIL")
+    water = haskey(rs, "WATER")
+    gas = haskey(rs, "GAS")
+    if haskey(datafile, "PROPS")
+        props = datafile["PROPS"]
+    else
+        props = Dict{String, Any}()
+    end
+
+    msg("Parsing reservoir domain.")
     domain = parse_reservoir(datafile)
     pvt_reg = reservoir_regions(domain, :pvtnum)
     has_pvt = isnothing(pvt_reg)
     # Parse wells
-    wells, controls, limits, cstep, dt, well_forces = parse_schedule(domain, sys, datafile; simple_well = simple_well)
-
+    msg("Parsing schedule.")
+    wells, controls, limits, cstep, dt, well_forces = parse_schedule(domain, flow_sys, datafile; simple_well = simple_well)
+    msg("Setting up model with $(length(wells)) wells.")
     wells_pvt = Dict()
     wells_systems = []
     for w in wells
@@ -76,7 +97,7 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
 
     model = setup_reservoir_model(domain, sys; wells = wells, extra_out = false, wells_systems = wells_systems, kwarg...)
     for (k, submodel) in pairs(model.models)
-        if submodel.system isa MultiPhaseSystem
+        if model_or_domain_is_well(submodel) || k == :Reservoir
             # Modify secondary variables
             if !is_compositional
                 svar = submodel.secondary_variables
@@ -87,35 +108,57 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
                     pvt_i = pvt
                 end
                 pvt_i = tuple(pvt_i...)
-                rho = DeckPhaseMassDensities(pvt_i, regions = pvt_reg_i)
+
+                if is_thermal && haskey(props, "WATDENT")
+                    watdent = WATDENT(props["WATDENT"])
+                else
+                    watdent = nothing
+                end
+                rho = DeckPhaseMassDensities(pvt_i, regions = pvt_reg_i, watdent = watdent)
                 if sys isa StandardBlackOilSystem
+                    b_i = DeckShrinkageFactors(pvt_i, regions = pvt_reg_i, watdent = watdent)
                     set_secondary_variables!(submodel,
-                        ShrinkageFactors = DeckShrinkageFactors(pvt_i, regions = pvt_reg_i)
+                        ShrinkageFactors = wrap_reservoir_variable(sys, b_i, :flow)
                     )
                 end
-                mu = DeckPhaseViscosities(pvt_i, regions = pvt_reg_i)
-                set_secondary_variables!(submodel, PhaseViscosities = mu, PhaseMassDensities = rho)
+                if is_thermal
+                    if haskey(props, "WATVISCT") || haskey(props, "OILVISCT") || haskey(props, "GASVISCT")
+                        thermal_visc = DeckThermalViscosityTable(props, pvt_i, water, oil, gas)
+                    else
+                        thermal_visc = nothing
+                    end
+                else
+                    thermal_visc = nothing
+                end
+                mu = DeckPhaseViscosities(pvt_i, regions = pvt_reg_i, thermal = thermal_visc)
+                set_secondary_variables!(submodel,
+                    PhaseViscosities = wrap_reservoir_variable(sys, mu, :flow),
+                    PhaseMassDensities = wrap_reservoir_variable(sys, rho, :flow)
+                )
+            end
+            if is_thermal
+                set_thermal_deck_specialization!(submodel, props, domain[:pvtnum], oil, water, gas)
             end
             if k == :Reservoir
-                rs = datafile["RUNSPEC"]
-                oil = haskey(rs, "OIL")
-                water = haskey(rs, "WATER")
-                gas = haskey(rs, "GAS")
-                set_deck_specialization!(submodel, datafile["PROPS"], domain[:satnum], oil, water, gas)
+                set_deck_specialization!(submodel, props, domain[:satnum], oil, water, gas)
             end
         end
     end
+    msg("Setting up parameters.")
     parameters = setup_parameters(model)
-    if haskey(datafile["PROPS"], "SWL")
+    if haskey(props, "SWL")
         G = physical_representation(domain)
-        swl = vec(datafile["PROPS"]["SWL"])
+        swl = vec(props["SWL"])
         parameters[:Reservoir][:ConnateWater] .= swl[G.cell_map]
     end
     if use_ijk_trans
         parameters[:Reservoir][:Transmissibilities] = reservoir_transmissibility(domain, version = :ijk);
     end
+    msg("Setting up forces.")
     forces = parse_forces(model, wells, controls, limits, cstep, dt, well_forces)
+    msg("Setting up initial state.")
     state0 = parse_state0(model, datafile)
+    msg("Setup complete.")
     return JutulCase(model, dt, forces, state0 = state0, parameters = parameters)
 end
 
@@ -315,7 +358,6 @@ function parse_state0(model, datafile)
     state0 = setup_reservoir_state(model, init)
 end
 
-
 function parse_state0_direct_assignment(model, datafile)
     sys = model.system
     init = Dict{Symbol, Any}()
@@ -510,6 +552,26 @@ function parse_reservoir(data_file)
         end
         extra_data_arg[:temperature] = temperature
     end
+    if haskey(grid, "THCROCK")
+        extra_data_arg[:rock_thermal_conductivity] = grid["THCROCK"][active_ix]
+    end
+    has(name) = haskey(data_file["RUNSPEC"], name) && data_file["RUNSPEC"][name]
+
+    if has("THERMAL")
+        w = has("WATER")
+        o = has("OIL")
+        g = has("GAS")
+        fluid_conductivity = zeros(w+o+g, nc)
+        pos = 1
+        for phase in ("WATER", "OIL", "GAS")
+            if has(phase)
+                fluid_conductivity[pos, :] .= grid["THC$phase"][active_ix]
+                pos += 1
+            end
+        end
+        extra_data_arg[:fluid_thermal_conductivity] = fluid_conductivity
+    end
+
     satnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :satnum, active = active_ix)
     pvtnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :pvtnum, active = active_ix)
     eqlnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :eqlnum, active = active_ix)
@@ -537,6 +599,7 @@ function parse_physics_types(datafile; pvt_region = missing)
     has_gas = has("GAS")
     has_disgas = has("DISGAS")
     has_vapoil = has("VAPOIL")
+    has_thermal = has("THERMAL")
 
     is_immiscible = !has_disgas && !has_vapoil
     is_compositional = haskey(runspec, "COMPS")
@@ -589,7 +652,8 @@ function parse_physics_types(datafile; pvt_region = missing)
     end
 
     if has_wat
-        push!(pvt, deck_pvt_water(props, scaling = scaling))
+        water_pvt = deck_pvt_water(props, scaling = scaling)
+        push!(pvt, water_pvt)
         push!(phases, AqueousPhase())
         push!(rhoS, rhoWS)
     end
@@ -647,6 +711,9 @@ function parse_physics_types(datafile; pvt_region = missing)
         end
         sys = pick_system_from_pvt(pvt, rhoS, phases, is_immiscible)
     end
+    if has("THERMAL")
+        sys = reservoir_system(flow = sys, thermal = ThermalSystem(sys))
+    end
     return (system = sys, pvt = pvt)
 end
 
@@ -697,8 +764,11 @@ function parse_control_steps(runspec, props, schedule, sys)
 
     tstep = Vector{Float64}()
     cstep = Vector{Int}()
+    well_temp = Dict{String, Float64}()
     compdat = Dict{String, OrderedDict}()
     controls = Dict{String, Any}()
+    # "Hidden" well control mirror used with WELOPEN logic
+    active_controls = Dict{String, Any}()
     limits = Dict{String, Any}()
     streams = Dict{String, Any}()
     well_injection = Dict{String, Any}()
@@ -706,10 +776,12 @@ function parse_control_steps(runspec, props, schedule, sys)
     for k in keys(wells)
         compdat[k] = OrderedDict{NTuple{3, Int}, Any}()
         controls[k] = DisabledControl()
+        active_controls[k] = DisabledControl()
         limits[k] = nothing
         streams[k] = nothing
         well_injection[k] = nothing
         well_factor[k] = 1.0
+        well_temp[k] = 273.15 + 20.0
     end
     all_compdat = []
     all_controls = []
@@ -722,12 +794,15 @@ function parse_control_steps(runspec, props, schedule, sys)
     end
     current_time = 0.0
     function add_dt!(dt, ctrl_ix)
-        @assert dt > 0.0
+        if dt ≈ 0
+            return
+        end
+        @assert dt > 0.0 "dt must be positive, attempt to add dt number $(length(tstep)) was $dt at control $ctrl_ix"
         push!(tstep, dt)
         push!(cstep, ctrl_ix)
     end
 
-    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC")
+    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP")
     bad_kw = Dict{String, Bool}()
     for (ctrl_ix, step) in enumerate(steps)
         found_time = false
@@ -735,6 +810,12 @@ function parse_control_steps(runspec, props, schedule, sys)
         if haskey(step, "WEFAC")
             for wk in step["WEFAC"]
                 well_factor[wk[1]] = wk[2]
+            end
+        end
+        if haskey(step, "WTEMP")
+            for wk in step["WTEMP"]
+                wnm, wt = wk
+                well_temp[wnm] = convert_to_si(wt, :Celsius)
             end
         end
         for (key, kword) in pairs(step)
@@ -795,7 +876,14 @@ function parse_control_steps(runspec, props, schedule, sys)
             elseif key in ("WCONINJE", "WCONPROD", "WCONHIST", "WCONINJ", "WCONINJH")
                 for wk in kword
                     name = wk[1]
-                    controls[name], limits[name] = keyword_to_control(sys, streams, wk, key, factor = well_factor[name])
+                    controls[name], limits[name] = keyword_to_control(sys, streams, wk, key, factor = well_factor[name], temperature = well_temp[name])
+                    if !(controls[name] isa DisabledControl)
+                        active_controls[name] = controls[name]
+                    end
+                end
+            elseif key == "WELOPEN"
+                for wk in kword
+                    apply_welopen!(controls, compdat, wk, active_controls)
                 end
             elseif key in skip
                 # Already handled
@@ -803,11 +891,12 @@ function parse_control_steps(runspec, props, schedule, sys)
                 bad_kw[key] = true
             end
         end
-        push!(all_compdat, deepcopy(compdat))
-        push!(all_controls, deepcopy(controls))
-        push!(all_limits, deepcopy(limits))
-        if !found_time
-            error("Did not find supported time kw in step $ctrl_ix: Keys were $(keys(step))")
+        if found_time
+            push!(all_compdat, deepcopy(compdat))
+            push!(all_controls, deepcopy(controls))
+            push!(all_limits, deepcopy(limits))
+        else
+            @warn "Did not find supported time kw in step $ctrl_ix: Keys were $(keys(step))."
         end
     end
     for k in keys(bad_kw)
@@ -906,7 +995,7 @@ function producer_limits(; bhp = Inf, lrat = Inf, orat = Inf, wrat = Inf, grat =
     return NamedTuple(pairs(lims))
 end
 
-function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = false, kwarg...)
+function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = false, temperature = NaN, kwarg...)
     rho_s = reference_densities(sys)
     phases = get_phases(sys)
 
@@ -1036,7 +1125,7 @@ function select_injector_mixture_spec(sys::Union{ImmiscibleSystem, StandardBlack
         if phase == LiquidPhase()
             v = Float64(type == "OIL")
         elseif phase == AqueousPhase()
-            v = Float64(type == "WATER")
+            v = Float64(type == "WATER" || type == "WAT")
         else
             @assert phase isa VaporPhase
             v = Float64(type == "GAS")
@@ -1044,7 +1133,7 @@ function select_injector_mixture_spec(sys::Union{ImmiscibleSystem, StandardBlack
         rho += rho_ph*v
         push!(mix, v)
     end
-    @assert sum(mix) ≈ 1.0
+    @assert sum(mix) ≈ 1.0 "Expected mixture to sum to 1, was $mix for type $type (declared phases: $phases)"
     return (rho, mix)
 end
 
@@ -1241,4 +1330,47 @@ function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
     @assert sort(sorted) == 1:n "$sorted was not $(1:n)"
     @assert length(sorted) == n
     return sorted
+end
+
+function apply_welopen!(controls, compdat, wk, controls_if_active)
+    name, flag, I, J, K, first_num, last_num = wk
+    # TODO: Handle shut in a better way
+    flag = uppercase(flag)
+    @assert flag in ("OPEN", "SHUT", "STOP")
+    is_open = flag == "OPEN"
+    if I == J == K == first_num == last_num == -1
+        # Applies to well
+        if is_open
+            controls[name] = controls_if_active[name]
+        else
+            controls[name] = DisabledControl()
+        end
+    else
+        cdat = compdat[name]
+        ijk = collect(keys(cdat))
+        nperf = length(ijk)
+        first_num = max(first_num, 1)
+        if last_num < 1
+            last_num = nperf
+        end
+        for i in 1:nperf
+            if i < first_num
+                continue
+            elseif i > last_num
+                continue
+            else
+                I_i, J_i, K_i = ijk[i]
+                current_cdat = cdat[ijk[i]]
+                is_match(ix, ix_i) = ix < 1 || ix_i == ix
+                if is_match(I, I_i) && is_match(J, J_i) && is_match(K, K_i)
+                    c = OrderedDict{Symbol, Any}()
+                    for (k, v) in pairs(current_cdat)
+                        c[k] = v
+                    end
+                    c[:open] = is_open
+                    cdat[ijk[i]] = (; c...)
+                end
+            end
+        end
+    end
 end

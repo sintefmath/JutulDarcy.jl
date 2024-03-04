@@ -1,6 +1,27 @@
 using MultiComponentFlash
 const MINIMUM_COMPOSITIONAL_SATURATION = 1e-10
 
+function properties_present_when_saturation_is_zero(sys::Jutul.JutulSystem)
+    return true
+end
+
+function properties_present_when_saturation_is_zero(sys)
+    return properties_present_when_saturation_is_zero(flow_system(sys))
+end
+
+function properties_present_when_saturation_is_zero(sys::MultiPhaseCompositionalSystemLV)
+    return properties_present_when_saturation_is_zero(sys.equation_of_state)
+end
+
+function properties_present_when_saturation_is_zero(eos::KValuesEOS)
+    return true
+end
+
+function properties_present_when_saturation_is_zero(eos::GenericCubicEOS)
+    return false
+end
+
+
 @inline function is_pure_single_phase(s_immiscible)
     return s_immiscible > 1.0 - MINIMUM_COMPOSITIONAL_SATURATION
 end
@@ -93,8 +114,8 @@ function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::Co
     names = model.system.components
     R = (
         CNV = (errors = e, names = names),
-        increment_dp_abs = (errors = (dp_abs, ), names = (raw"Δp", ), ),
-        increment_dp_rel = (errors = (dp_rel, ), names = (raw"Δp", ), ),
+        increment_dp_abs = (errors = (dp_abs/1e6, ), names = (raw"Δp (abs, MPa)", ), ),
+        increment_dp_rel = (errors = (dp_rel, ), names = (raw"Δp (rel)", ), ),
         increment_dz = (errors = (dz, ), names = (raw"Δz", ), )
         )
     return R
@@ -118,7 +139,15 @@ function pressure_increments(model, state, update_report)
 end
 
 function compositional_increment(model, state, update_report)
-    return update_report[:OverallMoleFractions].max_scaled
+    mf_report = update_report[:OverallMoleFractions]
+    if haskey(mf_report, :max_scaled)
+        v = mf_report.max_scaled
+    elseif haskey(mf_report, :max)
+        v = mf_report.max
+    else
+        v = 1.0
+    end
+    return v
 end
 
 function immiscible_increment(model, state, ::Missing)

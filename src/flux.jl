@@ -63,6 +63,38 @@ function face_average_density(model, state, tpfa, phase)
     return 0.5*(ρ_i + ρ_c)
 end
 
+function face_average_density(model::Union{CompositionalModel, ThermalCompositionalModel}, state, tpfa, phase)
+    sys = flow_system(model.system)
+    ρ = state.PhaseMassDensities
+    l = tpfa.left
+    r = tpfa.right
+    @inbounds ρ_l = ρ[phase, l]
+    @inbounds ρ_r = ρ[phase, r]
+
+    if properties_present_when_saturation_is_zero(sys)
+        # We can safely use the standard approximation
+        ρ_avg = 0.5*(ρ_r + ρ_l)
+    else
+        s = state.Saturations
+        ϵ = MINIMUM_COMPOSITIONAL_SATURATION
+        @inbounds s_l = s[phase, l]
+        @inbounds s_r = s[phase, r]
+
+        s_l_tiny = s_l <= ϵ
+        s_r_tiny = s_r <= ϵ
+        if s_l_tiny && s_r_tiny
+            ρ_avg = zero(s_l)
+        elseif s_l_tiny
+            ρ_avg = ρ_r
+        elseif s_r_tiny
+            ρ_avg = ρ_l
+        else
+            ρ_avg = (s_l*ρ_r + s_r*ρ_l)/(s_l + s_r)
+        end
+    end
+    return ρ_avg
+end
+
 @inline function gradient(X::AbstractVector, tpfa::TPFA)
     return @inbounds X[tpfa.right] - X[tpfa.left]
 end
@@ -80,7 +112,7 @@ function face_average(F, tpfa)
     return 0.5*(F(tpfa.right) + F(tpfa.left))
 end
 
-function phase_face_average(phase_property, tpfa, cell)
+function phase_face_average(phase_property, tpfa, phase)
     F(cell) = @inbounds phase_property[phase, cell]
     return face_average(F, tpfa)
 end

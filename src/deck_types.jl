@@ -8,13 +8,15 @@ abstract type AbstractTablePVT <: AbstractReservoirDeckTable end
 Secondary variable used to evaluate viscosities when a case is generated from a
 input file. Typically not instantiated in user scripts.
 """
-struct DeckPhaseViscosities{T, R} <: DeckPhaseVariables
+struct DeckPhaseViscosities{T, M, R} <: DeckPhaseVariables
     pvt::T
+    thermal::M
     regions::R
-    function DeckPhaseViscosities(pvt; regions = nothing)
+    function DeckPhaseViscosities(pvt; regions = nothing, thermal = nothing)
         check_regions(regions)
         pvt_t = Tuple(pvt)
-        new{typeof(pvt_t), typeof(regions)}(pvt_t, regions)
+        thermal::Union{Nothing, DeckThermalViscosityTable}
+        new{typeof(pvt_t), typeof(thermal), typeof(regions)}(pvt_t, thermal, regions)
     end
 end
 
@@ -24,13 +26,15 @@ end
 Secondary variable used to evaluate densities when a case is generated from a
 input file. Typically not instantiated in user scripts.
 """
-struct DeckPhaseMassDensities{T, R} <: DeckPhaseVariables
+struct DeckPhaseMassDensities{T, W, R} <: DeckPhaseVariables
     pvt::T
+    watdent::W
     regions::R
-    function DeckPhaseMassDensities(pvt; regions = nothing)
+    function DeckPhaseMassDensities(pvt; regions = nothing, watdent = nothing)
         check_regions(regions)
         pvt_t = Tuple(pvt)
-        new{typeof(pvt_t), typeof(regions)}(pvt_t, regions)
+        watdent::Union{Nothing, WATDENT}
+        new{typeof(pvt_t), typeof(watdent), typeof(regions)}(pvt_t, watdent, regions)
     end
 end
 
@@ -40,13 +44,15 @@ DeckShrinkageFactors(pvt, regions = nothing)
 Secondary variable used to evaluate shrinkage factors when a case is generated
 from a input file. Typically not instantiated in user scripts.
 """
-struct DeckShrinkageFactors{T, R} <: DeckPhaseVariables
+struct DeckShrinkageFactors{T, W, R} <: DeckPhaseVariables
     pvt::T
+    watdent::W
     regions::R
-    function DeckShrinkageFactors(pvt; regions = nothing)
+    function DeckShrinkageFactors(pvt; watdent = nothing, regions = nothing)
         check_regions(regions)
         pvt_t = Tuple(pvt)
-        new{typeof(pvt_t), typeof(regions)}(pvt_t, regions)
+        watdent_t = region_wrap(watdent, regions)
+        new{typeof(pvt_t), typeof(watdent_t), typeof(regions)}(pvt_t, watdent, regions)
     end
 end
 
@@ -374,6 +380,52 @@ function PVTW(pvtw::AbstractArray)
     N = length(ct)
     T = typeof(ct[1])
     PVTW{N, T}(ct)
+end
+
+struct DeckThermalViscosityTable{T, V}
+    visc_tab::T
+    p_ref::V
+    rs_ref::V
+end
+
+function DeckThermalViscosityTable(props::AbstractDict, pvt, water, oil, gas)
+    visc_tab = []
+    function tab_to_interp(tab)
+        return map(x -> get_1d_interpolator(x[:, 1] .+ 273.15, x[:, 2]), tab)
+    end
+    if water
+        push!(visc_tab, tab_to_interp(props["WATVISCT"]))
+    end
+    if oil
+        push!(visc_tab, tab_to_interp(props["OILVISCT"]))
+    end
+    if gas
+        push!(visc_tab, tab_to_interp(props["GASVISCT"]))
+    end
+    visc_tab = Tuple(visc_tab)
+    if haskey(props, "VISCREF")
+        vref = props["VISCREF"]
+        rs_ref = map(x -> x[2], vref)
+        p_ref = map(x -> x[1], vref)
+    else
+        nreg = length(first(visc_tab))
+        rs_ref = fill(NaN, nreg)
+        p_ref = fill(NaN, nreg)
+    end
+    return DeckThermalViscosityTable(visc_tab, p_ref, rs_ref)
+end
+
+
+struct WATDENT{N, T} <: AbstractTablePVT
+    tab::NTuple{N, T}
+end
+
+function WATDENT(watdent::AbstractArray)
+    c = map(rec ->  (T = rec[1], c1 = rec[2], c2 = rec[3]), watdent)
+    ct = Tuple(c)
+    N = length(ct)
+    T = typeof(ct[1])
+    return WATDENT{N, T}(ct)
 end
 
 struct PVCDO{N, T} <: AbstractTablePVT

@@ -29,20 +29,28 @@ represents a compact full tensor representation (6 elements in 3D, 3 in 2D).
 
 # Default data and their values
 
-| Name                         | Explanation                              | Unit         | Default |
-|------------------------------|------------------------------------------|--------------|---------|
-| `permeability`               | Rock ability to conduct fluid flow       | ``m^2``      | 100 mD  |
-| `porosity`                   | Rock void fraction open to flow (0 to 1) | -            |  0.3    |
-| `rock_thermal_conductivity`  | Heat conductivity of rock                | ``W/m K``    | 3.0     |
-| `fluid_thermal_conductivity` | Heat conductivity of fluid phases        | ``W/m K``    | 0.6     |
-| `rock_density`               | Mass density of rock                     | ``kg^3/m^3`` | 2000.0  |
+| Name                         | Explanation                                | Unit         | Default |
+|------------------------------|--------------------------------------------|--------------|---------|
+| `permeability`               | Rock ability to conduct fluid flow         | ``m^2``      | 100 mD  |
+| `porosity`                   | Rock void fraction open to flow (0 to 1)   | -            |  0.3    |
+| `rock_density`               | Mass density of rock                       | ``kg^3/m^3`` | 2000.0  |
+| `rock_heat_capacity`         | Specific heat capacity of rock             | ``J/(kg K)`` | 900.0   |
+| `rock_thermal_conductivity`  | Heat conductivity of rock                  | ``W/m K``    | 3.0     |
+| `fluid_thermal_conductivity` | Heat conductivity of fluid phases          | ``W/m K``    | 0.6     |
+| `component_heat_capacity`    | Specific heat capacity of fluid components | ``J/(kg K)`` | 4184.0  |
 
+Note that the default values are taken to be roughly those of water for fluid
+phases and sandstone for those of rock. Choice of values can severely impact
+your simulation results - take care to check the values that your physical
+system makes use of!
 """
 function reservoir_domain(g;
         permeability = convert_to_si(0.1, :darcy),
         porosity = 0.1,
         rock_thermal_conductivity = 3.0, # W/m K (~sandstone)
         fluid_thermal_conductivity = 0.6, # W/m K (~water)
+        rock_heat_capacity = 900.0, # ~sandstone
+        component_heat_capacity = 4184.0, # ~water
         rock_density = 2000.0,
         diffusion = missing,
         kwarg...
@@ -148,6 +156,8 @@ function setup_reservoir_model(reservoir::DataDomain, system;
         p_min = DEFAULT_MINIMUM_PRESSURE,
         p_max = Inf,
         dr_max = Inf,
+        dT_max_rel = nothing,
+        dT_max_abs = nothing,
         parameters = Dict{Symbol, Any}(),
         kwarg...
     )
@@ -173,7 +183,9 @@ function setup_reservoir_model(reservoir::DataDomain, system;
         p_max = p_max,
         dr_max = dr_max,
         ds_max = ds_max,
-        dz_max = dz_max
+        dz_max = dz_max,
+        dT_max_rel = dT_max_rel,
+        dT_max_abs = dT_max_abs
     )
 
     for k in extra_outputs
@@ -212,7 +224,9 @@ function setup_reservoir_model(reservoir::DataDomain, system;
                 p_max = p_max,
                 dr_max = dr_max,
                 ds_max = ds_max,
-                dz_max = dz_max
+                dz_max = dz_max,
+                dT_max_rel = dT_max_rel,
+                dT_max_abs = dT_max_abs
             )
             models[wname] = wmodel
             if split_wells
@@ -240,10 +254,11 @@ function setup_reservoir_model(reservoir::DataDomain, system;
     return out
 end
 
-function set_reservoir_variable_defaults!(model; p_min, p_max, dp_max_abs, dp_max_rel, ds_max, dz_max, dr_max)
+function set_reservoir_variable_defaults!(model; p_min, p_max, dp_max_abs, dp_max_rel, ds_max, dz_max, dr_max, dT_max_rel = nothing, dT_max_abs = nothing)
     # Replace various variables - if they are available
     replace_variables!(model, OverallMoleFractions = OverallMoleFractions(dz_max = dz_max), throw = false)
     replace_variables!(model, Saturations = Saturations(ds_max = ds_max), throw = false)
+    replace_variables!(model, Temperature = Temperature(max_rel = dT_max_rel, max_abs = dT_max_abs), throw = false)
     replace_variables!(model, ImmiscibleSaturation = ImmiscibleSaturation(ds_max = ds_max), throw = false)
     replace_variables!(model, BlackOilUnknown = BlackOilUnknown(ds_max = ds_max, dr_max = dr_max), throw = false)
 
@@ -445,18 +460,25 @@ function simulate_reservoir(state0, model, dt;
         parameters = setup_parameters(model),
         restart = false,
         forces = setup_forces(model),
+        config = missing,
         kwarg...
     )
-    sim, config = setup_reservoir_simulator(model, state0, parameters; kwarg...)
+    sim, config_new = setup_reservoir_simulator(model, state0, parameters; kwarg...)
+    if ismissing(config)
+        config = config_new
+    end
     result = simulate!(sim, dt, forces = forces, config = config, restart = restart);
-    return ReservoirSimResult(model, result, forces)
+    return ReservoirSimResult(model, result, forces; simulator = sim, config = config)
 end
 
-function simulate_reservoir(case::JutulCase; restart = false, kwarg...)
+function simulate_reservoir(case::JutulCase; config = missing, restart = false, kwarg...)
     (; model, forces, state0, parameters, dt) = case
-    sim, config = setup_reservoir_simulator(model, state0, parameters; kwarg...)
+    sim, config_new = setup_reservoir_simulator(model, state0, parameters; kwarg...)
+    if ismissing(config)
+        config = config_new
+    end
     result = simulate!(sim, dt, forces = forces, config = config, restart = restart);
-    return ReservoirSimResult(model, result, forces)
+    return ReservoirSimResult(model, result, forces; simulator = sim, config = config)
 end
 
 function set_default_cnv_mb!(cfg::JutulConfig, sim::JutulSimulator; kwarg...)
@@ -478,6 +500,9 @@ function set_default_cnv_mb_inner!(tol, model;
         inc_tol_dz = Inf
         )
     sys = model.system
+    if model isa Jutul.CompositeModel && hasproperty(model.system.systems, :flow)
+        sys = flow_system(model.system)
+    end
     if sys isa ImmiscibleSystem || sys isa BlackOilSystem || sys isa CompositionalSystem
         is_well = physical_representation(model) isa WellDomain
         if is_well
@@ -704,7 +729,7 @@ function setup_reservoir_state(rmodel::SimulationModel; kwarg...)
         end
         res_init[k] = v
     end
-    handle_alternate_primary_variable_spec!(res_init, found, rmodel.system)
+    handle_alternate_primary_variable_spec!(res_init, found, rmodel, rmodel.system)
     if length(found) != length(pvars)
         missing_primary_variables = setdiff(pvars, found)
         @warn "Not all primary variables were initialized for reservoir model." missing_primary_variables
@@ -712,7 +737,7 @@ function setup_reservoir_state(rmodel::SimulationModel; kwarg...)
     return setup_state(rmodel, res_init)
 end
 
-function handle_alternate_primary_variable_spec!(res_init, found, system)
+function handle_alternate_primary_variable_spec!(res_init, found, rmodel, system)
     # Internal utility to handle non-trivial specification of primary variables
     return res_init
 end
@@ -741,7 +766,7 @@ function setup_reservoir_forces(model::MultiModel; control = nothing, limits = n
     else
         new_forces = Dict{Symbol, Any}()
         for (k, m) in pairs(submodels)
-            if m isa SimpleWellFlowModel || m isa MSWellFlowModel
+            if model_or_domain_is_well(m) && !isnothing(control)
                 ctrl_symbol = Symbol("$(k)_ctrl")
                 @assert haskey(submodels, ctrl_symbol) "Controller for well $k must be present with the name $ctrl_symbol"
                 subctrl = Dict{Symbol, Any}()
@@ -761,6 +786,23 @@ function setup_reservoir_forces(model::MultiModel; control = nothing, limits = n
             end
         end
         out = setup_forces(model; pairs(new_forces)..., kwarg...)
+    end
+    # If the model is a composite model we need to do some extra work to pass on
+    # flow forces with the correct label.
+    #
+    # TODO: At the moment we have no mechanism for setting up forces for thermal
+    # specifically.
+    for (k, m) in pairs(submodels)
+        f = out[k]
+        if m isa Jutul.CompositeModel
+            mkeys = keys(m.system.systems)
+            tmp = Dict{Symbol, Any}()
+            tmp[:flow] = f
+            for mk in mkeys
+                tmp[mk] = nothing
+            end
+            out[k] = (; pairs(tmp)...)
+        end
     end
     return out
 end

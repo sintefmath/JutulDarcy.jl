@@ -1,10 +1,33 @@
 @jutul_secondary function update_deck_viscosity!(mu, μ::DeckPhaseViscosities, model, Pressure, ix)
     pvt, reg = μ.pvt, μ.regions
-    @inbounds for ph in axes(mu, 1)
-        pvt_ph = pvt[ph]
-        for i in ix
-            p = Pressure[i]
+    @inbounds for i in ix
+        p = Pressure[i]
+        for ph in axes(mu, 1)
+            pvt_ph = pvt[ph]
             @inbounds mu[ph, i] = viscosity(pvt_ph, reg, p, i)
+        end
+    end
+end
+
+@jutul_secondary function update_deck_viscosity!(mu, μ::DeckPhaseViscosities{<:Any, Ttab, <:Any}, model, Pressure, Temperature, ix) where Ttab<:DeckThermalViscosityTable
+    pvt, reg = μ.pvt, μ.regions
+    for i in ix
+        r_i = region(μ, i)
+        p = Pressure[i]
+        T = Temperature[i]
+        for ph in axes(mu, 1)
+            pvt_ph = pvt[ph]
+            pvt_thermal = table_by_region(μ.thermal.visc_tab[ph], r_i)
+            p_ref = table_by_region(μ.thermal.p_ref[ph], r_i)
+            mu_thermal = pvt_thermal(T)
+            if isfinite(p_ref)
+                # We have pressure dependence in addition to temperature
+                # dependence.
+                mu_p = viscosity(pvt_ph, reg, p, i)
+                mu_ref = viscosity(pvt_ph, reg, p_ref, i)
+                mu_thermal *= mu_p/mu_ref
+            end
+            mu[ph, i] = mu_thermal
         end
     end
 end
@@ -23,6 +46,33 @@ end
     end
 end
 
+@jutul_secondary function update_deck_density!(rho, ρ::DeckPhaseMassDensities{<:Any, <:WATDENT, <:Any}, model, Pressure, Temperature, ix)
+    rhos = reference_densities(model.system)
+    pvt, reg = ρ.pvt, ρ.regions
+    phases = get_phases(model.system)
+    # Note immiscible assumption
+    for i in ix
+        r_i = region(ρ, i)
+        p = Pressure[i]
+        T = Temperature[i]
+        for ph in axes(rho, 1)
+            rhos_ph = rhos[ph]
+            pvt_ph = pvt[ph]
+            if phases[ph] == AqueousPhase()
+                T_ref, c1, c2 = ρ.watdent.tab[r_i]
+                pvtw = pvt_ph.tab[r_i]
+                p_ref = pvtw.p_ref
+                B_pref = 1.0/shrinkage(pvt_ph, reg, p_ref, i)
+                Δp = pvtw.b_c*(p - p_ref)
+                ΔT = T - T_ref
+                B_w = B_pref*(1.0 - Δp)*(1.0 + c1*ΔT + c2*ΔT^2)
+                rho[ph, i] = rhos_ph/B_w
+            else
+                rho[ph, i] = rhos_ph*shrinkage(pvt_ph, reg, p, i)
+            end
+        end
+    end
+end
 
 @jutul_secondary function update_deck_shrinkage!(b, ρ::DeckShrinkageFactors, model, Pressure, ix)
     pvt, reg = ρ.pvt, ρ.regions

@@ -10,6 +10,7 @@ flow_system(sys::MultiPhaseSystem) = sys
 flow_system(sys::CompositeSystem) = sys.systems.flow
 
 number_of_components(sys::ImmiscibleSystem) = number_of_phases(sys)
+number_of_components(sys::CompositeSystem) = number_of_components(flow_system(sys))
 
 # Single-phase
 
@@ -114,8 +115,7 @@ function Saturations(;ds_max = 0.2)
 end
 
 function default_value(model, ::Saturations)
-    fsys = flow_system(model.system)
-    nph = number_of_phases(fsys)
+    nph = number_of_phases(model.system)
     return 1.0/nph
 end
 
@@ -293,9 +293,11 @@ function select_primary_variables!(S, ::SinglePhaseSystem, model::SimulationMode
     S[:Pressure] = Pressure()
 end
 
-function select_primary_variables!(S, ::ImmiscibleSystem, model::SimulationModel)
+function select_primary_variables!(S, sys::ImmiscibleSystem, model::SimulationModel)
     S[:Pressure] = Pressure()
-    S[:Saturations] = Saturations()
+    if number_of_phases(sys) > 1
+        S[:Saturations] = Saturations()
+    end
 end
 
 function select_equations!(eqs, sys::MultiPhaseSystem, model::SimulationModel)

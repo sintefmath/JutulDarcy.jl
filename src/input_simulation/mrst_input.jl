@@ -365,8 +365,16 @@ function deck_pvt_gas(props; scaling = missing)
 end
 
 function deck_relperm(props; oil, water, gas, satnum = nothing)
+    if (water + oil + gas) == 1
+        # Early return for single-phase.
+        return BrooksCoreyRelativePermeabilities(1)
+    end
     if haskey(props, "SCALECRS")
-        if length(props["SCALECRS"]) == 0 || lowercase(first(props["SCALECRS"])) == "no"
+        scalecrs = props["SCALECRS"]
+        if scalecrs isa String
+            scalecrs = [scalecrs]
+        end
+        if length(scalecrs) == 0 || lowercase(first(scalecrs)) == "no"
             @info "Found two-point rel. perm. scaling"
             scaling = TwoPointKrScale
         else
@@ -485,7 +493,12 @@ function deck_pc(props; oil, water, gas, satnum = nothing)
                 s = s[ix]
             end
             s, pc = saturation_table_handle_defaults(s, pc)
-            interp_ow = get_1d_interpolator(s, pc)
+            if length(T) == 1
+                constant_dx = missing
+            else
+                constant_dx = false
+            end
+            interp_ow = get_1d_interpolator(s, pc, constant_dx = constant_dx)
             push!(PC, interp_ow)
         end
         out = Tuple(PC)
@@ -694,23 +707,75 @@ function model_from_mat_deck(G, data_domain, mrst_data, res_context)
 end
 
 function set_deck_specialization!(model, props, satnum, oil, water, gas)
+    sys = model.system
     svar = model.secondary_variables
     param = model.parameters
-    set_deck_relperm!(svar, param, props; oil = oil, water = water, gas = gas, satnum = satnum)
-    set_deck_pc!(svar, props; oil = oil, water = water, gas = gas, satnum = satnum)
-    set_deck_pvmult!(svar, param, props)
+    if number_of_phases(sys) > 1
+        set_deck_relperm!(svar, param, sys, props; oil = oil, water = water, gas = gas, satnum = satnum)
+        set_deck_pc!(svar, param, sys, props; oil = oil, water = water, gas = gas, satnum = satnum)
+    end
+    set_deck_pvmult!(svar, param, sys, props)
 end
 
-function set_deck_pc!(vars, props; kwarg...)
-    pc = deck_pc(props; kwarg...)
-    if !isnothing(pc)
-        vars[:CapillaryPressure] = pc
+function set_thermal_deck_specialization!(model, props, pvtnum, oil, water, gas)
+    # SPECHEAT - fluid heat capacity F(T)
+    # SPECROCK - rock heat capacity by volume F(T)
+    if haskey(props, "SPECHEAT")
+        ix = Int[]
+        if water
+            push!(ix, 2)
+        end
+        if oil
+            push!(ix, 1)
+        end
+        if gas
+            push!(ix, 3)
+        end
+        tab = []
+        for (i, specheat) in enumerate(props["SPECHEAT"])
+            T = specheat[:, 1] .+ 273.15
+            C_f = specheat[:, ix .+ 1]
+
+            N = length(ix)
+            F = SVector{N, Float64}[]
+            for i in axes(C_f, 1)
+                push!(F, SVector{N, Float64}(C_f[i, :]...))
+            end
+            push!(tab, get_1d_interpolator(T, F))
+        end
+        tab = tuple(tab...)
+        v = TemperatureDependentVariable(tab, regions = pvtnum)
+        v = wrap_reservoir_variable(model.system, v, :thermal)
+        set_secondary_variables!(model, ComponentHeatCapacity = v)
+    end
+
+    if !model_or_domain_is_well(model) && haskey(props, "SPECROCK")
+        rock_density = first(model.data_domain[:rock_density])
+        tab = []
+        for (i, specrock) in enumerate(props["SPECROCK"])
+            T = specrock[:, 1] .+ 273.15
+            # (1 / volume) / (mass / volume) = 1 / mass... Input file does not
+            # know rock density.
+            C_r = specrock[:, 2] ./ rock_density
+            push!(tab, get_1d_interpolator(T, C_r))
+        end
+        tab = tuple(tab...)
+        v = TemperatureDependentVariable(tab, regions = pvtnum)
+        v = wrap_reservoir_variable(model.system, v, :thermal)
+        set_secondary_variables!(model, RockHeatCapacity = v)
     end
 end
 
-function set_deck_relperm!(vars, param, props; kwarg...)
+function set_deck_pc!(vars, param, sys, props; kwarg...)
+    pc = deck_pc(props; kwarg...)
+    if !isnothing(pc)
+        vars[:CapillaryPressure] = wrap_reservoir_variable(sys, pc, :flow)
+    end
+end
+
+function set_deck_relperm!(vars, param, sys, props; kwarg...)
     kr = deck_relperm(props; kwarg...)
-    vars[:RelativePermeabilities] = kr
+    vars[:RelativePermeabilities] = wrap_reservoir_variable(sys, kr, :flow)
     if scaling_type(kr) != NoKrScale
         ph = kr.phases
         @assert ph == :wog
@@ -721,7 +786,7 @@ function set_deck_relperm!(vars, param, props; kwarg...)
     end
 end
 
-function set_deck_pvmult!(vars, param, props)
+function set_deck_pvmult!(vars, param, sys, props)
     # Rock compressibility (if present)
     if haskey(props, "ROCK")
         rock = JutulDarcy.flat_region_expand(props["ROCK"])
@@ -733,9 +798,26 @@ function set_deck_pvmult!(vars, param, props)
             static = param[:FluidVolume]
             delete!(param, :FluidVolume)
             param[:StaticFluidVolume] = static
-            vars[:FluidVolume] = LinearlyCompressiblePoreVolume(reference_pressure = rock[1], expansion = rock[2])
+            ϕ = LinearlyCompressiblePoreVolume(reference_pressure = rock[1], expansion = rock[2])
+            vars[:FluidVolume] = wrap_reservoir_variable(sys, ϕ, :flow)
         end
     end
+end
+
+function wrap_reservoir_variable(sys::CompositeSystem, var::JutulVariables, type::Symbol = :flow)
+    return Pair(type, var)
+end
+
+function wrap_reservoir_variable(sys, var, type::Symbol = :flow)
+    return var
+end
+
+function unwrap_reservoir_variable(var)
+    return var
+end
+
+function unwrap_reservoir_variable(var::Pair)
+    return last(var)
 end
 
 function init_from_mat(mrst_data, model, param)
