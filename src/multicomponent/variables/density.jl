@@ -61,6 +61,7 @@ end
         rho[v, i] = rho_co2
         rho[l, i] = rho_brine
     end
+    @info "Density" value.(extrema(rho))
 end
 
 function co2_brine_mixture_density(T, c1, c2, c3, c4, rho_h2o_pure, X_co2)
