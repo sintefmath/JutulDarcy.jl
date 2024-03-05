@@ -159,7 +159,7 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
     msg("Setting up initial state.")
     state0 = parse_state0(model, datafile)
     msg("Setup complete.")
-    return JutulCase(model, dt, forces, state0 = state0, parameters = parameters)
+    return JutulCase(model, dt, forces, state0 = state0, parameters = parameters, input_data = datafile)
 end
 
 function parse_well_from_compdat(domain, wname, cdat, wspecs, compord; simple_well = true)
