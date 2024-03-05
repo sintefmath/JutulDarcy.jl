@@ -50,7 +50,7 @@ function setup_case_from_data_file(
     return out
 end
 
-function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans = true, verbose = false, kwarg...)
+function setup_case_from_parsed_data(datafile; skip_wells = false, simple_well = true, use_ijk_trans = true, verbose = false, kwarg...)
     function msg(s)
         if verbose
             jutul_message("Setup", s)
@@ -80,6 +80,9 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
     # Parse wells
     msg("Parsing schedule.")
     wells, controls, limits, cstep, dt, well_forces = parse_schedule(domain, flow_sys, datafile; simple_well = simple_well)
+    if skip_wells
+        empty!(wells)
+    end
     msg("Setting up model with $(length(wells)) wells.")
     wells_pvt = Dict()
     wells_systems = []
@@ -319,6 +322,9 @@ function handle_wells_without_active_perforations!(bad_wells, completions, contr
 end
 
 function parse_forces(model, wells, controls, limits, cstep, dt, well_forces)
+    if length(wells) == 0
+        return setup_reservoir_forces(model)
+    end
     forces = []
     @assert length(controls) == length(limits) == length(well_forces)
     i = 0

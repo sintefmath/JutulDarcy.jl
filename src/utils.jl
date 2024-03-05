@@ -751,7 +751,7 @@ function setup_reservoir_forces(model::MultiModel; control = nothing, limits = n
     submodels = model.models
     has_facility = any(x -> isa(x.domain, WellGroup), values(submodels))
     no_well_controls = isnothing(control) && isnothing(limits)
-    @assert no_well_controls || has_facility "Model must have facility."
+    @assert no_well_controls || has_facility "Model must have facility when well controls are provided."
     if haskey(submodels, :Facility)
         # Unified facility for all wells
         facility = model.models.Facility
