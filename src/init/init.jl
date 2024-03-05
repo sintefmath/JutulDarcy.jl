@@ -596,20 +596,24 @@ end
 
 function current_phase_index(z, depths; reverse = true)
     n = length(depths)+1
+    out = -1
     if reverse
         i = current_phase_index(z, Base.reverse(depths), reverse = false)
-        return n - i + 1
+        out = n - i + 1
     else
         if z < depths[1]
-            return 1
+            out = 1
         elseif z > depths[end]
-            return n
+            out = n
         else
             for (i, d) in enumerate(depths)
-                if d > z
-                    return i
+                if d >= z
+                    out = i
+                    break
                 end
             end
         end
     end
+    @assert out > 0
+    return out
 end
