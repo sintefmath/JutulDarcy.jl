@@ -498,8 +498,8 @@ function deck_pc(props; oil, water, gas, satnum = nothing)
             else
                 constant_dx = false
             end
-            interp_ow = get_1d_interpolator(s, pc, constant_dx = constant_dx)
-            push!(PC, interp_ow)
+            interp_phase_pair = get_1d_interpolator(s, pc, constant_dx = constant_dx)
+            push!(PC, interp_phase_pair)
         end
         out = Tuple(PC)
         return (out, found)
