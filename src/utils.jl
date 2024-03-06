@@ -471,11 +471,16 @@ function simulate_reservoir(state0, model, dt;
     return ReservoirSimResult(model, result, forces; simulator = sim, config = config)
 end
 
-function simulate_reservoir(case::JutulCase; config = missing, restart = false, kwarg...)
+function simulate_reservoir(case::JutulCase; config = missing, restart = false, simulator = missing, kwarg...)
     (; model, forces, state0, parameters, dt) = case
-    sim, config_new = setup_reservoir_simulator(model, state0, parameters; kwarg...)
-    if ismissing(config)
-        config = config_new
+    if ismissing(simulator)
+        sim, config_new = setup_reservoir_simulator(model, state0, parameters; kwarg...)
+        if ismissing(config)
+            config = config_new
+        end
+    else
+        sim = simulator
+        @assert !ismissing(config) "If simulator is provided, config must also be provided"
     end
     result = simulate!(sim, dt, forces = forces, config = config, restart = restart);
     return ReservoirSimResult(model, result, forces; simulator = sim, config = config)
