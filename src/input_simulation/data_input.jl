@@ -165,9 +165,12 @@ function setup_case_from_parsed_data(datafile; skip_wells = false, simple_well =
     return JutulCase(model, dt, forces, state0 = state0, parameters = parameters, input_data = datafile)
 end
 
-function parse_well_from_compdat(domain, wname, cdat, wspecs, compord; simple_well = true)
+function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord; simple_well = isnothing(msdata))
     wc, WI, open = compdat_to_connection_factors(domain, wspecs, cdat, sort = true, order = compord)
-
+    @assert isnothing(msdata) || !simple_well
+    if !isnothing(msdata)
+        @warn "MS well fields were declared for $wname but are not supported yet:" msdata
+    end
     rd = wspecs.ref_depth
     if isnan(rd)
         rd = nothing
@@ -226,7 +229,7 @@ end
 function parse_schedule(domain, runspec, props, schedule, sys; simple_well = true)
     G = physical_representation(domain)
 
-    dt, cstep, controls, completions, limits = parse_control_steps(runspec, props, schedule, sys)
+    dt, cstep, controls, completions, msdata, limits = parse_control_steps(runspec, props, schedule, sys)
     completions, bad_wells = filter_inactive_completions!(completions, G)
     @assert length(controls) == length(completions)
     handle_wells_without_active_perforations!(bad_wells, completions, controls, limits)
@@ -242,7 +245,14 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
         for i in eachindex(completions)
             well_forces[i][Symbol(k)] = (mask = nothing, )
         end
-        W, wc_base, WI_base, open = parse_well_from_compdat(domain, k, v, wspec, compord; simple_well = simple_well)
+        if haskey(msdata, k)
+            msdata_k = msdata[k]
+            k_is_simple_well = false
+        else
+            msdata_k = nothing
+            k_is_simple_well = simple_well
+        end
+        W, wc_base, WI_base, open = parse_well_from_compdat(domain, k, v, wspec, msdata_k, compord; simple_well = k_is_simple_well)
         for (i, c) in enumerate(completions)
             compdat = c[k]
             well_is_shut = controls[i][k] isa DisabledControl
@@ -766,18 +776,35 @@ function parse_control_steps(runspec, props, schedule, sys)
         # Prune empty final record
         steps = steps[1:end-1]
     end
-
+    sdict = Dict{String, Any}
 
     tstep = Vector{Float64}()
     cstep = Vector{Int}()
     well_temp = Dict{String, Float64}()
     compdat = Dict{String, OrderedDict}()
-    controls = Dict{String, Any}()
+    controls = sdict()
     # "Hidden" well control mirror used with WELOPEN logic
-    active_controls = Dict{String, Any}()
-    limits = Dict{String, Any}()
-    streams = Dict{String, Any}()
-    well_injection = Dict{String, Any}()
+    active_controls = sdict()
+    limits = sdict()
+    streams = sdict()
+    mswell_kw = sdict()
+    function get_and_create_mswell_kw(k::AbstractString, subkey = missing)
+        if !haskey(mswell_kw, k)
+            mswell_kw[k] = sdict()
+        end
+        D = mswell_kw[k]
+        if ismissing(subkey)
+            out = D
+        else
+            if !haskey(D, subkey)
+                D[subkey] = []
+            end
+            out = D[subkey]
+        end
+        return out
+    end
+
+    well_injection = sdict()
     well_factor = Dict{String, Float64}()
     for k in keys(wells)
         compdat[k] = OrderedDict{NTuple{3, Int}, Any}()
@@ -893,6 +920,12 @@ function parse_control_steps(runspec, props, schedule, sys)
                 end
             elseif key in skip
                 # Already handled
+            elseif key in ("WSEGVALV", "COMPSEGS", "WELSEGS")
+                for val in kword
+                    wname = val[1]
+                    ms_storage = get_and_create_mswell_kw(wname, key)
+                    push!(ms_storage, val)
+                end
             else
                 bad_kw[key] = true
             end
@@ -908,7 +941,7 @@ function parse_control_steps(runspec, props, schedule, sys)
     for k in keys(bad_kw)
         jutul_message("Unsupported keyword", "Keyword $k was present, but is not supported.", color = :yellow)
     end
-    return (dt = tstep, control_step = cstep, controls = all_controls, completions = all_compdat, limits = all_limits)
+    return (dt = tstep, control_step = cstep, controls = all_controls, completions = all_compdat, multisegment = mswell_kw, limits = all_limits)
 end
 
 function parse_well_streams_for_step(step, props)
