@@ -167,24 +167,108 @@ end
 
 function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord; simple_well = isnothing(msdata))
     wc, WI, open = compdat_to_connection_factors(domain, wspecs, cdat, sort = true, order = compord)
-    @assert isnothing(msdata) || !simple_well
-    if !isnothing(msdata)
-        @warn "MS well fields were declared for $wname but are not supported yet:" msdata
+    ref_depth = wspecs.ref_depth
+    if isnan(ref_depth)
+        ref_depth = nothing
     end
-    rd = wspecs.ref_depth
-    if isnan(rd)
-        rd = nothing
-    end
+    accumulator_volume = missing
     if simple_well
-        avol = 0.1*mean(domain[:volumes][wc])*mean(domain[:porosity][wc])
+        @assert isnothing(msdata)
+        accumulator_volume = 0.1*mean(domain[:volumes][wc])*mean(domain[:porosity][wc])
     else
-        avol = missing
+        if !isnothing(msdata)
+            has_welsegs = haskey(msdata, "WELSEGS")
+            has_compsegs = haskey(msdata, "COMPSEGS")
+            if has_welsegs || has_compsegs
+                @assert has_welsegs && has_compsegs "Both COMPSEGS and WELSEGS must be defined"
+                @assert msdata["COMPSEGS"][1] == wname
+                @assert msdata["WELSEGS"][1] == wname
+
+                welsegs = msdata["WELSEGS"][2]
+                header = welsegs.header
+                segments = welsegs.segments
+
+                compsegs = msdata["COMPSEGS"][2]
+
+                top_depth = header[2]
+                if isnothing(ref_depth)
+                    ref_depth = top_depth
+                elseif !(ref_depth ≈ top_depth)
+                    @warn "Reference depths for ms well should coincide with top depth: ref depth $ref_depth != top depth $top_depth"
+                end
+                top_tubing_delta = header[3]
+                accumulator_volume = header[4]
+                segment_increment_type = header[5]
+                top_x = header[8]
+                top_y = header[9]
+                @assert segment_increment_type in ("ABS", "INC")
+                is_inc = segment_increment_type == "INC"
+                max_seg = maximum(x -> x[1], segments, init = 0)
+                num_edges = max_seg-1
+                conn = Tuple{Int, Int}[]
+
+                volumes = zeros(num_edges)
+                diameter = fill(NaN, num_edges)
+
+                top_node = [top_x, top_y, top_depth]
+                centers = zeros(3, num_edges)
+                tubing_depths = zeros(max_seg)
+                tubing_depths[1] = top_tubing_delta
+
+                segment_models = Vector{SegmentWellBoreFrictionHB{Float64}}(undef, num_edges)
+                for segment in segments
+                    start, stop, branch, start_conn,
+                    dist, depth_delta, D, rough, cross_sect, vol, = segment
+                    parts_in_segment = stop - start + 1
+                    tubing_at_start = tubing_depths[start]
+                    if start == 1
+                        depth_at_start = top_depth
+                    else
+                        depth_at_start = centers[3, start-1]
+                    end
+                    if is_inc
+                        L = dist
+                        Δz = depth_delta
+                    else
+                        L = (dist - tubing_at_start)/parts_in_segment
+                        Δz = (depth_delta - depth_at_start)/parts_in_segment
+                    end
+                    if cross_sect <= 0.0
+                        cross_sect = π*(D/2)^2
+                    end
+                    if vol <= 0.0
+                        vol = cross_sect*L
+                    end
+                    Δp = SegmentWellBoreFrictionHB(L, rough, D)
+
+                    push!(conn, (start, start_conn))
+                    current_tubing = tubing_at_start
+                    current_depth = depth_at_start
+                    for (ix, seg_ix) in enumerate(start:stop)
+                        current_tubing += L
+                        current_depth += Δz
+
+                        edge_ix = seg_ix - 1
+                        @assert isnan(diameter[edge_ix]) "Values are being overwritten in ms well - programming error?"
+                        diameter[edge_ix] = D
+                        volumes[edge_ix] = vol
+                        # TODO: Set better x, y
+                        centers[1, edge_ix] = top_x
+                        centers[2, edge_ix] = top_y
+                        centers[3, edge_ix] = current_depth
+                        tubing_depths[seg_ix] = current_tubing
+                    end
+                end
+                W = MultiSegmentWell(reservoir_cells, volumes, centers; WI = WI_computed, dz = dz, reference_depth = reference_depth, kwarg...)
+            end
+            @warn "MS well fields were declared for $wname but are not supported yet:" msdata
+        end
     end
-    W = setup_well(domain, wc,
+    W = setup_well(domain, wc;
         name = Symbol(wname),
-        accumulator_volume = avol,
+        accumulator_volume = accumulator_volume,
         WI = WI,
-        reference_depth = rd,
+        reference_depth = ref_depth,
         simple_well = simple_well
     )
     return (W, wc, WI, open)
