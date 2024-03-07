@@ -171,6 +171,7 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord; s
     if isnan(ref_depth)
         ref_depth = nothing
     end
+    W = missing
     accumulator_volume = missing
     if simple_well
         @assert isnothing(msdata)
@@ -207,11 +208,11 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord; s
                 num_edges = max_seg-1
                 conn = Tuple{Int, Int}[]
 
-                volumes = zeros(num_edges)
-                diameter = fill(NaN, num_edges)
-
                 top_node = [top_x, top_y, top_depth]
                 centers = zeros(3, num_edges)
+                volumes = zeros(num_edges)
+                diameter = fill(NaN, num_edges)
+                branches = zeros(Int, num_edges)
                 tubing_depths = zeros(max_seg)
                 tubing_depths[1] = top_tubing_delta
 
@@ -250,8 +251,10 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord; s
 
                         edge_ix = seg_ix - 1
                         @assert isnan(diameter[edge_ix]) "Values are being overwritten in ms well - programming error?"
+                        segment_models[edge_ix] = Δp
                         diameter[edge_ix] = D
                         volumes[edge_ix] = vol
+                        branches[edge_ix] = branch
                         # TODO: Set better x, y
                         centers[1, edge_ix] = top_x
                         centers[2, edge_ix] = top_y
@@ -259,18 +262,38 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord; s
                         tubing_depths[seg_ix] = current_tubing
                     end
                 end
-                W = MultiSegmentWell(reservoir_cells, volumes, centers; WI = WI_computed, dz = dz, reference_depth = reference_depth, kwarg...)
+                N = zeros(Int, 2, length(conn))
+                for (i, t) in enumerate(conn)
+                    N[:, i] .= t
+                end
+                perforation_cells = zeros(Int, length(compsegs))
+                for compseg in compsegs
+                    I, J, K, branch, tube_start, tube_end, dir, dir_ijk, cdepth, = compseg
+                    @info "?!" I J K branch tube_start tube_end dir dir_ijk cdepth
+                end
+
+                @assert length(keys(cdat)) == length(compsegs) "COMPSEGS length must match COMPDAT for well $wname"
+                W = MultiSegmentWell(wc, volumes, centers;
+                    WI = WI,
+                    dz = dz, # TODO
+                    N = N, # TODO
+                    perforation_cells = perforation_cells,
+                    reference_depth = ref_depth,
+                    segment_models = segment_models,
+                    )
             end
             @warn "MS well fields were declared for $wname but are not supported yet:" msdata
         end
     end
-    W = setup_well(domain, wc;
-        name = Symbol(wname),
-        accumulator_volume = accumulator_volume,
-        WI = WI,
-        reference_depth = ref_depth,
-        simple_well = simple_well
-    )
+    if ismissing(W)
+        W = setup_well(domain, wc;
+            name = Symbol(wname),
+            accumulator_volume = accumulator_volume,
+            WI = WI,
+            reference_depth = ref_depth,
+            simple_well = simple_well
+        )
+    end
     return (W, wc, WI, open)
 end
 
