@@ -924,7 +924,9 @@ function parse_control_steps(runspec, props, schedule, sys)
                 for val in kword
                     wname = val[1]
                     ms_storage = get_and_create_mswell_kw(wname, key)
-                    push!(ms_storage, val)
+                    for v in val
+                        push!(ms_storage, v)
+                    end
                 end
             else
                 bad_kw[key] = true
