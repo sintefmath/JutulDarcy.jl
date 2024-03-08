@@ -204,24 +204,7 @@ function setup_reservoir_model(reservoir::DataDomain, system;
         for w in wells
             w_domain = DataDomain(w)
             wc = w.perforations.reservoir
-            if w isa MultiSegmentWell
-                # TODO: Try to more or less match it up cell by cell. Could be
-                # improved...
-                c = zeros(Int, length(w.volumes))
-                c[w.perforations.self] .= wc
-                for i in 2:length(c)
-                    if c[i] == 0
-                        c[i] = c[i-1]
-                    end
-                end
-                for i in (length(c)-1):-1:1
-                    if c[i] == 0
-                        c[i] = c[i+1]
-                    end
-                end
-            else
-                c = wc[1]
-            end
+            c = map_well_nodes_to_reservoir_cells(w, reservoir)
             for propk in [:temperature, :pvtnum]
                 if haskey(reservoir, propk)
                     w_domain[propk] = reservoir[propk][c]
@@ -708,12 +691,9 @@ function setup_reservoir_state(model::MultiModel; kwarg...)
             wg = physical_representation(W.domain)
             res_c = wg.perforations.reservoir
             if wg isa MultiSegmentWell
-                # Repeat top node. Not fully robust.
-                c = res_c[vcat(1, 1:length(res_c))]
                 init_w[:TotalMassFlux] = 0.0
-            else
-                c = res_c[1]
             end
+            c = map_well_nodes_to_reservoir_cells(wg, rmodel.data_domain)
             for pk in pvars
                 pv = res_state[pk]
                 init_w[pk] = perf_subset(pv, c)
