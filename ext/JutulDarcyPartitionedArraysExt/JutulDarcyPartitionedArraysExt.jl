@@ -1,6 +1,7 @@
 module JutulDarcyPartitionedArraysExt
     using Jutul, JutulDarcy
-    using PrecompileTools, TimerOutputs
+    using TimerOutputs
+    # using PrecompileTools
     # Specific dependencies
     using PartitionedArrays, MPI, HYPRE
     using LinearAlgebra
