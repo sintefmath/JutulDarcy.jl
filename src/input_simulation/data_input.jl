@@ -213,6 +213,7 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord; s
                 volumes = zeros(num_edges)
                 diameter = fill(NaN, num_edges)
                 branches = zeros(Int, num_edges)
+                tubing_lengths = zeros(num_edges)
                 tubing_depths = zeros(max_seg)
                 tubing_depths[1] = top_tubing_delta
 
@@ -255,6 +256,7 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord; s
                         diameter[edge_ix] = D
                         volumes[edge_ix] = vol
                         branches[edge_ix] = branch
+                        tubing_lengths[edge_ix] = L
                         # TODO: Set better x, y
                         centers[1, edge_ix] = top_x
                         centers[2, edge_ix] = top_y
@@ -269,20 +271,38 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord; s
                 perforation_cells = zeros(Int, length(compsegs))
                 for compseg in compsegs
                     I, J, K, branch, tube_start, tube_end, dir, dir_ijk, cdepth, = compseg
-                    @info "?!" I J K branch tube_start tube_end dir dir_ijk cdepth
+                    perf_index = findfirst(isequal((I, J, K)), collect(keys(cdat)))
+                    @assert !isnothing(perf_index) "Perforation $((I, J, K)) not found?"
+                    prev_dist = Inf
+                    closest = -1
+                    for (i, b) in enumerate(branches)
+                        if b == branch
+                            L = tubing_lengths[i]
+                            seg_end = tubing_depths[i+1]
+                            seg_mid = seg_end - L/2
+                            tube_mid = (tube_end + tube_start)/2
+                            dist = abs(seg_mid - tube_mid)
+                            if dist < prev_dist
+                                closest = i
+                                prev_dist = dist
+                            end
+                        end
+                    end
+                    perforation_cells[perf_index] = closest
                 end
-
+                cell_centers = domain[:cell_centroids]
+                dz = vec(cell_centers[3, wc]) - vec(centers[3, perforation_cells])
                 @assert length(keys(cdat)) == length(compsegs) "COMPSEGS length must match COMPDAT for well $wname"
                 W = MultiSegmentWell(wc, volumes, centers;
+                    name = Symbol(wname),
                     WI = WI,
                     dz = dz, # TODO
-                    N = N, # TODO
+                    N = N,
                     perforation_cells = perforation_cells,
                     reference_depth = ref_depth,
                     segment_models = segment_models,
-                    )
+                )
             end
-            @warn "MS well fields were declared for $wname but are not supported yet:" msdata
         end
     end
     if ismissing(W)

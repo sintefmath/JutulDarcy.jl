@@ -205,8 +205,20 @@ function setup_reservoir_model(reservoir::DataDomain, system;
             w_domain = DataDomain(w)
             wc = w.perforations.reservoir
             if w isa MultiSegmentWell
-                # Repeat top node. Not fully robust.
-                c = wc[vcat(1, 1:length(wc))]
+                # TODO: Try to more or less match it up cell by cell. Could be
+                # improved...
+                c = zeros(Int, length(w.volumes))
+                c[w.perforations.self] .= wc
+                for i in 2:length(c)
+                    if c[i] == 0
+                        c[i] = c[i-1]
+                    end
+                end
+                for i in (length(c)-1):-1:1
+                    if c[i] == 0
+                        c[i] = c[i+1]
+                    end
+                end
             else
                 c = wc[1]
             end
