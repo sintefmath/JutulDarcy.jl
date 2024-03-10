@@ -1,4 +1,12 @@
-function simulate_mini_wellcase(::Val{:compositional_2ph_3c}; dims = (3, 1, 1), setuparg = NamedTuple(), output_path = nothing, default_linsolve = true, kwarg...)
+function simulate_mini_wellcase(::Val{:compositional_2ph_3c};
+        dims = (3, 1, 1),
+        setuparg = NamedTuple(),
+        output_path = nothing,
+        default_linsolve = true,
+        nstep = 12*5,
+        total_time = 30.0*si_unit(:day)*nstep,
+        kwarg...
+    )
     # Some useful constants
     day = 3600*24
     bar = 1e5
@@ -26,9 +34,10 @@ function simulate_mini_wellcase(::Val{:compositional_2ph_3c}; dims = (3, 1, 1), 
     model, parameters = setup_reservoir_model(domain, sys, wells = [inj, prod]; kwarg...);
     state0 = setup_reservoir_state(model, Pressure = 150*bar, OverallMoleFractions = [0.5, 0.3, 0.2])
 
-    dt = repeat([30.0]*day, 12*5)
+    dt = fill(total_time/nstep, nstep)
     pv = pore_volume(domain)
-    inj_rate = 0.25*sum(pv)/sum(dt)
+    time_scale = 30.0*12*5*si_unit(:day)
+    inj_rate = 0.25*sum(pv)/time_scale
     rate_target = TotalRateTarget(inj_rate)
     i_mix =  [1.0, 0.0, 0.0]
     I_ctrl = InjectorControl(rate_target, i_mix, density = rhoVS)
@@ -60,7 +69,15 @@ function simulate_mini_wellcase(::Val{:compositional_2ph_3c}; dims = (3, 1, 1), 
     return (states = states, reports = reports, setup = setup)
 end
 
-function simulate_mini_wellcase(::Val{:immiscible_2ph}; dims = (3, 1, 1), setuparg = NamedTuple(), output_path = nothing, permeability = 0.1*9.869232667160130e-13, default_linsolve = true, kwarg...)
+function simulate_mini_wellcase(::Val{:immiscible_2ph};
+        dims = (3, 1, 1),
+        setuparg = NamedTuple(),
+        output_path = nothing,
+        permeability = 0.1*9.869232667160130e-13,
+        nstep = 12*5,
+        total_time = 30.0*si_unit(:day)*nstep,
+        default_linsolve = true,
+        kwarg...)
     # Some useful constants
     day = 3600*24
     bar = 1e5
@@ -87,9 +104,10 @@ function simulate_mini_wellcase(::Val{:immiscible_2ph}; dims = (3, 1, 1), setupa
     ## Set up initial state
     state0 = setup_reservoir_state(model, Pressure = 150*bar, Saturations = [1.0, 0.0])
     ## Set up time-steps
-    dt = repeat([30.0]*day, 12*5)
+    dt = fill(total_time/nstep, nstep)
     pv = pore_volume(model, parameters)
-    inj_rate = sum(pv)/sum(dt)
+    time_scale = 30.0*12*5*si_unit(:day)
+    inj_rate = sum(pv)/time_scale
     rate_target = TotalRateTarget(inj_rate)
     i_mix = [0.0, 1.0]
     I_ctrl = InjectorControl(rate_target, i_mix, density = rhoGS)
@@ -123,7 +141,15 @@ function simulate_mini_wellcase(::Val{:immiscible_2ph}; dims = (3, 1, 1), setupa
     return (states = states, reports = reports, setup = setup)
 end
 
-function simulate_mini_wellcase(::Val{:bo_spe1}; dims = (3, 1, 1), setuparg = NamedTuple(), output_path = nothing, default_linsolve = true, kwarg...)
+function simulate_mini_wellcase(::Val{:bo_spe1};
+        dims = (3, 1, 1),
+        setuparg = NamedTuple(),
+        output_path = nothing,
+        default_linsolve = true,
+        nstep = 12*5,
+        total_time = 30.0*si_unit(:day)*nstep,
+        kwarg...
+    )
     # Some useful constants
     day = 3600*24
     bar = 1e5
@@ -152,9 +178,10 @@ function simulate_mini_wellcase(::Val{:bo_spe1}; dims = (3, 1, 1), setuparg = Na
     bo = BlackOilX(50.0, JutulDarcy.OilOnly, false)
     state0 = setup_reservoir_state(model, Pressure = 200*bar, ImmiscibleSaturation = 0.1, BlackOilUnknown = bo)
     ## Set up time-steps
-    dt = repeat([30.0]*day, 12*5)
+    dt = fill(total_time/nstep, nstep)
     pv = pore_volume(domain)
-    inj_rate = sum(pv)/sum(dt)
+    time_scale = 30.0*12*5*si_unit(:day)
+    inj_rate = sum(pv)/time_scale
     rate_target = TotalRateTarget(inj_rate)
     i_mix = [0.01, 0.05, 0.94]
     I_ctrl = InjectorControl(rate_target, i_mix, density = 1.0)
