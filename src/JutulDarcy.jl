@@ -189,7 +189,7 @@ module JutulDarcy
 
     include("ext.jl")
 
-    include("NLDD/src/NLDD.jl")
+    include("NLDD/NLDD.jl")
 
     @compile_workload begin
         precompile_darcy_multimodels()
