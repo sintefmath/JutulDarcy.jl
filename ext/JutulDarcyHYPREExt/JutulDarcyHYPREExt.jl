@@ -3,7 +3,7 @@ module JutulDarcyHYPREExt
     using HYPRE
     using Jutul
     using SparseArrays
-    using PrecompileTools
+    # using PrecompileTools
     using TimerOutputs
 
     timeit_debug_enabled() = Jutul.timeit_debug_enabled()
