@@ -366,6 +366,7 @@ Additional keyword arguments are passed onto [`simulator_config`](@ref).
 """
 function setup_reservoir_simulator(case::JutulCase;
         mode = :default,
+        method = :newton,
         precond = :cpr,
         linear_solver = :bicgstab,
         max_timestep = si_unit(:year),
@@ -396,11 +397,16 @@ function setup_reservoir_simulator(case::JutulCase;
     set_linear_solver = set_linear_solver || linear_solver isa Symbol
     # Handle old kwarg...
     max_timestep = min(max_dt, max_timestep)
-    if mode == :default
-        sim = Simulator(case, extra_timing = extra_timing_setup)
+    if method == :newton
+        if mode == :default
+            sim = Simulator(case, extra_timing = extra_timing_setup)
+        else
+            b = mode_to_backend(mode)
+            sim = setup_reservoir_simulator_parray(case, b; parray_arg...);
+        end
     else
-        b = mode_to_backend(mode)
-        sim = setup_reservoir_simulator_parray(case, b; parray_arg...);
+        @assert mode == :default
+        sim = NLDD.NLDDSimulator(case, extra_timing = extra_timing_setup)
     end
     t_base = TimestepSelector(initial_absolute = initial_dt, max = max_dt)
     sel = Vector{Any}()
@@ -503,7 +509,6 @@ result = simulate_reservoir(state0, model, dt, output_path = "/some/path", resta
 
 # Start from the beginning (default)
 result = simulate_reservoir(state0, model, dt, output_path = "/some/path", restart = false)
-
 ```
 
 """
@@ -1028,6 +1033,7 @@ function partitioner_input(model, parameters; conn = :trans)
 end
 
 function reservoir_partition(model::MultiModel, p)
+    !haskey(model.models, :Facility) || throw(ArgumentError("Cannot partition model if split_wells = false in setup_reservoir_model"))
     p_res = SimplePartition(p)
     models = model.models
     function model_is_well(m)

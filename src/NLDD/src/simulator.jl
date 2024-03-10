@@ -1,13 +1,21 @@
 function NLDDSimulator(model, partition = missing;
         state0 = setup_state(model),
-        submodels = nothing,
         parameters = setup_parameters(model),
+        kwarg...
+    )
+    case = JutulCase(model, parameters = parameters, state0 = state0)
+    return NLDDSimulator(case, partition; kwarg...)
+end
+
+function NLDDSimulator(case::JutulCase, partition = missing;
+        submodels = nothing,
         check_buffers = false,
         executor = Jutul.default_executor(),
         cells_per_block = missing,
         no_blocks = missing,
         kwarg...
     )
+    (; model, state0, parameters) = case
     if ismissing(partition)
         rmodel = JutulDarcy.reservoir_model(model)
         G = rmodel.domain
