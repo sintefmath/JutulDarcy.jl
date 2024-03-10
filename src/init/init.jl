@@ -261,8 +261,8 @@ function parse_state0_equil(model, datafile)
                     pc = []
                     for (i, f) in enumerate(pc_functions)
                         f = table_by_region(f, sreg)
-                        s = f.X
-                        cap = f.F
+                        s = copy(f.X)
+                        cap = copy(f.F)
                         if s[1] < 0
                             s = s[2:end]
                             cap = cap[2:end]
@@ -596,20 +596,24 @@ end
 
 function current_phase_index(z, depths; reverse = true)
     n = length(depths)+1
+    out = -1
     if reverse
         i = current_phase_index(z, Base.reverse(depths), reverse = false)
-        return n - i + 1
+        out = n - i + 1
     else
         if z < depths[1]
-            return 1
+            out = 1
         elseif z > depths[end]
-            return n
+            out = n
         else
             for (i, d) in enumerate(depths)
-                if d > z
-                    return i
+                if d >= z
+                    out = i
+                    break
                 end
             end
         end
     end
+    @assert out > 0
+    return out
 end

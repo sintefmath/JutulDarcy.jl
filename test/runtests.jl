@@ -48,6 +48,10 @@ end
     include("thermal.jl")
 end
 
+@testitem "NLDD" begin
+    include("nldd.jl")
+end
+
 @run_package_tests
 nothing
 # include("gpu.jl")

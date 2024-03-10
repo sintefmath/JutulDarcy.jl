@@ -147,6 +147,29 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     return W
 end
 
+function map_well_nodes_to_reservoir_cells(w::MultiSegmentWell, reservoir::Union{DataDomain, Missing} = missing)
+    # TODO: Try to more or less match it up cell by cell. Could be
+    # improved...
+    c = zeros(Int, length(w.volumes))
+    c[w.perforations.self] .= w.perforations.reservoir
+    for i in 2:length(c)
+        if c[i] == 0
+            c[i] = c[i-1]
+        end
+    end
+    for i in (length(c)-1):-1:1
+        if c[i] == 0
+            c[i] = c[i+1]
+        end
+    end
+    @assert all(x -> x > 0, c)
+    return c
+end
+
+function map_well_nodes_to_reservoir_cells(w::SimpleWell, reservoir::Union{DataDomain, Missing} = missing)
+    return [w.perforations.reservoir[1]]
+end
+
 function Jutul.plot_primitives(mesh::MultiSegmentWell, plot_type; kwarg...)
     # By default, no plotting is supported
     if plot_type == :lines

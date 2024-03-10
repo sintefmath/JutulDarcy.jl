@@ -69,10 +69,43 @@ struct MuBTable{V, I}
     shrinkage_interp::I
     viscosity::V
     viscosity_interp::I
-    function MuBTable(p::T, b::T, mu::T; extrapolate = true, kwarg...) where T<:AbstractVector
+    function MuBTable(p::T, b::T, mu::T; extrapolate = true, fix = true, kwarg...) where T<:AbstractVector
         @assert length(p) == length(b) == length(mu)
         I_b = get_1d_interpolator(p, b; cap_endpoints = !extrapolate, kwarg...)
         I_mu = get_1d_interpolator(p, mu; cap_endpoints = !extrapolate, kwarg...)
+        all(extrema(b) .> 0) || throw(ArgumentError("b must be positive at at all pressures"))
+        all(extrema(mu) .> 0) || throw(ArgumentError("mu must be positive at at all pressures"))
+        if fix
+            # Define a minimum b factor. Should really not be less than 1 at 1 atm pressure.
+            ϵ = 0.01
+            lowest_possible_b = min(0.99*b[1], 1.0 + ϵ)
+            p0 = DEFAULT_MINIMUM_PRESSURE
+            interval = (p0, p[1])
+            if I_b(p0) <= 0
+                p_intersect = MultiComponentFlash.Roots.find_zero(p -> I_b(p) - lowest_possible_b, interval)
+                if p_intersect == p0
+                    p0 = 0.999*p0
+                end
+                @assert p_intersect > p0
+                jutul_message("PVT", "Fixing table for low pressure conditions.")
+                p = copy(p)
+                b = copy(b)
+                mu = copy(mu)
+                # Next extend the tables with more points
+                pushfirst!(p, p_intersect)
+                pushfirst!(p, p0)
+
+                pushfirst!(b, lowest_possible_b)
+                pushfirst!(b, lowest_possible_b - ϵ)
+
+                mu0 = mu[1]
+                pushfirst!(mu, mu0)
+                pushfirst!(mu, mu0)
+
+                I_b = get_1d_interpolator(p, b; cap_endpoints = !extrapolate, kwarg...)
+                I_mu = get_1d_interpolator(p, mu; cap_endpoints = !extrapolate, kwarg...)
+            end
+        end
         new{T, typeof(I_b)}(p, b, I_b, mu, I_mu)
     end
 end
@@ -184,7 +217,7 @@ function PVTO(pvto::Dict)
     return PVTO(PVTOTable(pvto))
 end
 
-function PVTOTable(d::Dict)
+function PVTOTable(d::Dict; fix = true)
     rs = vec(copy(d["key"]))
     pos = vec(Int64.(d["pos"]))
     data = d["data"]
@@ -200,7 +233,91 @@ function PVTOTable(d::Dict)
     @assert pos[end] == length(p) + 1
     @assert pos[1] == 1
     @assert length(p_sat) == length(rs) == length(pos)-1
-    return PVTOTable{T, V}(pos, rs, p, p_sat, b, mu)
+    tab = PVTOTable{T, V}(pos, rs, p, p_sat, b, mu)
+    if fix
+        tab = extend_pvt_table_for_safe_extrapolation(tab)
+    end
+    return tab
+end
+
+function extend_pvt_table_line(p, mu, b, pos, i, max_p, min_b, min_mu)
+    subs = pos[i]:(pos[i+1]-1)
+    p_i = p[subs]
+    mu_i = mu[subs]
+    b_i = b[subs]
+    if ismissing(min_mu)
+        min_mu = 0.5*minimum(mu_i)
+    end
+
+    F_b = Jutul.get_1d_interpolator(p_i, b_i, cap_endpoints = false)
+    F_mu = Jutul.get_1d_interpolator(p_i, mu_i, cap_endpoints = false)
+    F_b_div_mu = Jutul.get_1d_interpolator(p_i, b_i./mu_i, cap_endpoints = false)
+
+    min_b_div_mu = min_b*min_mu
+    B_div_mu_at_p_max = F_b_div_mu(max_p)
+    if B_div_mu_at_p_max < min_b_div_mu
+        F = p -> F_b_div_mu(p) - min_b_div_mu
+        # TODO: Ugly hack to get root finding available, could really add this
+        # directly to JutulDarcy.
+        p_intersect = MultiComponentFlash.Roots.find_zero(F, (p_i[1], max_p))
+
+        # First point at intersection
+        p_just_before = p_intersect - 0.01*si_unit(:bar)
+        mu_just_before = F_mu(p_just_before)
+        b_just_before = F_b(p_just_before)
+
+        push!(p_i, p_just_before)
+        push!(mu_i, mu_just_before)
+        push!(b_i, b_just_before)
+        # Second point - weak slope
+        mu_intersect = F_mu(p_intersect)
+        b_intersect = F_b(p_intersect)
+        push!(p_i, max_p)
+        push!(mu_i, mu_intersect)
+        push!(b_i, b_intersect)
+
+        @assert issorted(p_i)
+    end
+    return (p_i, mu_i, b_i)
+end
+
+function extend_pvt_table_for_safe_extrapolation(tab)
+    b = tab.shrinkage
+    mu = tab.viscosity
+    p = tab.pressure
+    pos = tab.pos
+    min_b = minimum(b)/10.0
+    min_mu = minimum(mu)
+    max_p = 10*maximum(tab.pressure)
+    N = length(tab.pos) - 1
+
+    new_viscosity = Float64[]
+    new_shrinkage = Float64[]
+    new_pressure = Float64[]
+    new_pos = Int[1]
+    for i in 1:N
+        p_i, mu_i, b_i = extend_pvt_table_line(p, mu, b, pos, i, max_p, min_b, min_mu)
+
+        for j in eachindex(p_i)
+            push!(new_pressure, p_i[j])
+            push!(new_viscosity, mu_i[j])
+            push!(new_shrinkage, b_i[j])
+        end
+        push!(new_pos, new_pos[i] + length(p_i))
+    end
+    if tab isa JutulDarcy.PVTOTable
+        new_tab = JutulDarcy.PVTOTable(
+            new_pos,
+            copy(tab.rs),
+            new_pressure,
+            copy(tab.sat_pressure),
+            new_shrinkage,
+            new_viscosity
+        )
+    else
+        error("$(typeof(tab)) not yet implemented")
+    end
+    return new_tab
 end
 
 function as_printed_table(tab::PVTO, u)

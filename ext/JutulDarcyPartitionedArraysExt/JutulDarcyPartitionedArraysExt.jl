@@ -1,6 +1,7 @@
 module JutulDarcyPartitionedArraysExt
     using Jutul, JutulDarcy
-    using PrecompileTools, TimerOutputs
+    using TimerOutputs
+    using PrecompileTools
     # Specific dependencies
     using PartitionedArrays, MPI, HYPRE
     using LinearAlgebra
@@ -175,7 +176,7 @@ module JutulDarcyPartitionedArraysExt
         return (cpr, preconditioners)
     end
 
-    # @compile_workload begin
+    @compile_workload begin
     #     targets = [(true, :csc), (true, :csr)]
     #     # MPI, trivial partition
     #     JutulDarcy.precompile_darcy_multimodels(targets,
@@ -198,6 +199,6 @@ module JutulDarcyPartitionedArraysExt
     #             ),
     #         split_wells = true
     #     )
-    # end
+    end
 end
 

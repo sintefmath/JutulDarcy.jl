@@ -414,17 +414,29 @@ $FIELDS
 
 """
 function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
-                                                    N = nothing,
-                                                    name = :Well,
-                                                    perforation_cells = nothing,
-                                                    segment_models = nothing,
-                                                    reference_depth = 0,
-                                                    dz = nothing,
-                                                    segment_length = nothing,
-                                                    friction = 1e-4,
-                                                    surface_conditions = default_surface_cond(),
-                                                    accumulator_volume = mean(volumes),
-                                                    kwarg...)
+            accumulator_center = nothing,
+            accumulator_volume = mean(volumes),
+            N = nothing,
+            name = :Well,
+            perforation_cells = nothing,
+            segment_models = nothing,
+            reference_depth = nothing,
+            dz = nothing,
+            segment_length = nothing,
+            friction = 1e-4,
+            surface_conditions = default_surface_cond(),
+            kwarg...
+    )
+    if isnothing(reference_depth)
+        if isnothing(accumulator_center)
+            reference_depth = 0
+        else
+            reference_depth = accumulator_center[3]
+        end
+    end
+    if isnothing(accumulator_center)
+        accumulator_center = [centers[1, 1], centers[2, 1], reference_depth]
+    end
     nv = length(volumes)
     nc = nv + 1
     reservoir_cells = vec(reservoir_cells)
@@ -443,7 +455,7 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
     @assert size(N, 1) == 2
     @assert size(centers, 1) == 3
     volumes = vcat([accumulator_volume], volumes)
-    ext_centers = hcat([centers[1:2, 1]..., reference_depth], centers)
+    ext_centers = hcat(accumulator_center, centers)
     @assert length(volumes) == size(ext_centers, 2)
     if !isnothing(reservoir_cells) && isnothing(perforation_cells)
         @assert length(reservoir_cells) == nv "If no perforation cells are given, we must 1->1 correspondence between well volumes and reservoir cells."

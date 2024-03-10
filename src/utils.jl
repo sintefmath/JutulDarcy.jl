@@ -204,12 +204,7 @@ function setup_reservoir_model(reservoir::DataDomain, system;
         for w in wells
             w_domain = DataDomain(w)
             wc = w.perforations.reservoir
-            if w isa MultiSegmentWell
-                # Repeat top node. Not fully robust.
-                c = wc[vcat(1, 1:length(wc))]
-            else
-                c = wc[1]
-            end
+            c = map_well_nodes_to_reservoir_cells(w, reservoir)
             for propk in [:temperature, :pvtnum]
                 if haskey(reservoir, propk)
                     w_domain[propk] = reservoir[propk][c]
@@ -279,23 +274,20 @@ end
 - `models`: either a single model or a Dict with the key :Reservoir for multimodels
 - `initializer`: used to setup state0, must be compatible with `model`
 - `parameters`: initialized parameters, must be compatible with `model` if provided
-- `linear_solver=:bicgstab`: iterative solver to use (provided model supports it)
-- `precond=:cpr`: preconditioner for iterative solver: Either :cpr or :ilu0.
-- `rtol=1e-3`: relative tolerance for linear solver
-- `initial_dt=3600*24.0`: initial time-step in seconds (one day by default)
-- `target_its=8`: target number of nonlinear iterations per time step
-- `offset_its=1`: dampening parameter for time step selector where larger values lead to more pessimistic estimates.
-- `tol_cnv=1e-3`: maximum allowable point-wise error (volume-balance)
-- `tol_mb=1e-7`: maximum alllowable integrated error (mass-balance)
+
+# Keyword arguments
+- `split_wells`: Add facility model to each well (needed for domain decomposition and MPI solves)
+- `assemble_wells_together`: Option to split wells into multiple sparse matrices (false argument experimental)
 - `specialize=false`: use deep specialization of storage for faster execution, but significantly more compile time
 
-Additional keyword arguments are passed onto [`simulator_config`](@ref).
+Additional keyword arguments are documented in the version of this function that uses `JutulCase` as the input.
 """
 function setup_reservoir_simulator(models, initializer, parameters = nothing;
-                                                        specialize = false,
-                                                        split_wells = false,
-                                                        assemble_wells_together = true,
-                                                        kwarg...)
+        specialize = false,
+        split_wells = false,
+        assemble_wells_together = true,
+        kwarg...
+    )
     if isa(models, SimulationModel)
         DT = Dict{Symbol, Any}
         models = DT(:Reservoir => models)
@@ -331,42 +323,101 @@ function mode_to_backend(mode::Jutul.PArrayBackend)
     return mode
 end
 
+"""
+    setup_reservoir_simulator(case::JutulCase; <keyword arguments>)
+
+# Keyword arguments
+
+## Linear solver options
+
+- `linear_solver=:bicgstab`: iterative solver to use (provided model supports
+  it). Typical options are `:bicgstab` or `:gmres` Can alternatively pass a
+  linear solver instance.
+- `precond=:cpr`: preconditioner for iterative solver: Either :cpr or :ilu0.
+- `rtol=1e-3`: relative tolerance for linear solver
+
+## Timestepping options
+
+- `initial_dt=3600*24.0`: initial time-step in seconds (one day by default)
+- `target_ds=Inf`: target saturation change over a timestep used by timestepper.
+- `target_its=8`: target number of nonlinear iterations per time step
+- `offset_its=1`: dampening parameter for time step selector where larger values
+  lead to more pessimistic estimates.
+- `timesteps=:auto`: Set to `:auto` to use automatic timestepping, `:none` for
+  no autoamtic timestepping (i.e. try to solve exact report steps)
+
+## Convergence criterions
+- `tol_cnv=1e-3`: maximum allowable point-wise error (volume-balance)
+- `tol_mb=1e-7`: maximum alllowable integrated error (mass-balance)
+- `tol_cnv_well=10*tol_cnv`: maximum allowable point-wise error for well node
+  (volume-balance)
+- `tol_mb_well=1e4*tol_mb`: maximum alllowable integrated error for well node
+  (mass-balance)
+
+## Inherited keyword arguments
+
+Additional keyword arguments come from the base Jutul simulation framework. We
+list a few of the most relevant entries here for convenience:
+- `info_level =0`: Output level. Set to 0 for minimal output, -1 for no output
+  and 1 or more for increasing verbosity.
+- `output_path`: Path to write output to.
+
+Additional keyword arguments are passed onto [`simulator_config`](@ref).
+"""
 function setup_reservoir_simulator(case::JutulCase;
-                            mode = :default,
-                            precond = :cpr,
-                            linear_solver = :bicgstab,
-                            max_timestep = si_unit(:year),
-                            max_dt = max_timestep,
-                            rtol = nothing,
-                            initial_dt = 3600.0*24.0,
-                            target_ds = Inf,
-                            target_its = 8,
-                            offset_its = 1,
-                            tol_cnv = 1e-3,
-                            tol_mb = 1e-7,
-                            info_level = 0,
-                            tol_cnv_well = 10*tol_cnv,
-                            tol_mb_well = 1e4*tol_mb,
-                            tol_dp_well = 1e-3,
-                            inc_tol_dp_abs = Inf,
-                            inc_tol_dp_rel = Inf,
-                            failure_cuts_timestep = true,
-                            max_timestep_cuts = 25,
-                            inc_tol_dz = Inf,
-                            set_linear_solver = true,
-                            timesteps = :auto,
-                            parray_arg = NamedTuple(),
-                            linear_solver_arg = NamedTuple(),
-                            extra_timing_setup = false,
-                            kwarg...)
+        mode = :default,
+        method = :newton,
+        precond = :cpr,
+        linear_solver = :bicgstab,
+        max_timestep = si_unit(:year),
+        max_dt = max_timestep,
+        rtol = nothing,
+        initial_dt = 3600.0*24.0,
+        target_ds = Inf,
+        target_its = 8,
+        offset_its = 1,
+        tol_cnv = 1e-3,
+        tol_mb = 1e-7,
+        info_level = 0,
+        tol_cnv_well = 10*tol_cnv,
+        tol_mb_well = 1e4*tol_mb,
+        tol_dp_well = 1e-3,
+        inc_tol_dp_abs = Inf,
+        inc_tol_dp_rel = Inf,
+        failure_cuts_timestep = true,
+        max_timestep_cuts = 25,
+        inc_tol_dz = Inf,
+        set_linear_solver = true,
+        timesteps = :auto,
+        parray_arg = Dict{Symbol, Any}(),
+        linear_solver_arg = Dict{Symbol, Any}(),
+        extra_timing_setup = false,
+        nldd_partition = missing,
+        nldd_arg = Dict{Symbol, Any}(),
+        kwarg...
+    )
     set_linear_solver = set_linear_solver || linear_solver isa Symbol
     # Handle old kwarg...
     max_timestep = min(max_dt, max_timestep)
-    if mode == :default
-        sim = Simulator(case, extra_timing = extra_timing_setup)
+    extra_kwarg = Dict{Symbol, Any}()
+    if method == :newton
+        if mode == :default
+            sim = Simulator(case, extra_timing = extra_timing_setup)
+        else
+            b = mode_to_backend(mode)
+            sim = setup_reservoir_simulator_parray(case, b; parray_arg...);
+        end
     else
-        b = mode_to_backend(mode)
-        sim = setup_reservoir_simulator_parray(case, b; parray_arg...);
+        if mode == :default
+            extra_kwarg[:method] = method
+            sim = NLDD.NLDDSimulator(case, nldd_partition; nldd_arg..., extra_timing = extra_timing_setup)
+        else
+            b = mode_to_backend(mode)
+            sim = setup_reservoir_simulator_parray(case, b;
+                simulator_constructor = (m; kwarg...) -> NLDD.NLDDSimulator(m; kwarg...),
+                primary_buffer = true
+            );
+        end
     end
     t_base = TimestepSelector(initial_absolute = initial_dt, max = max_dt)
     sel = Vector{Any}()
@@ -400,19 +451,18 @@ function setup_reservoir_simulator(case::JutulCase;
         else
             extra_ls = NamedTuple()
         end
-        lsolve = reservoir_linsolve(case.model, precond;
-                                            rtol = rtol,
-                                            extra_ls...,
-                                            linear_solver_arg...,
-                                            )
-        extra_arg = (linear_solver = lsolve, )
+        extra_kwarg[:linear_solver] = reservoir_linsolve(case.model, precond;
+            rtol = rtol,
+            extra_ls...,
+            linear_solver_arg...,
+        )
     elseif isnothing(linear_solver)
-        extra_arg = NamedTuple()
+        # Nothing
     else
-        extra_arg = (linear_solver = linear_solver, )
+        extra_kwarg[:linear_solver] = linear_solver
     end
     cfg = simulator_config(sim;
-        extra_arg...,
+        extra_kwarg...,
         timestep_selectors = sel,
         info_level = info_level,
         max_timestep = max_timestep,
@@ -447,7 +497,8 @@ end
 
 Convenience function for simulating a reservoir model. This function internally
 calls [`setup_reservoir_simulator`](@ref), simulates the problem and returns a
-[`ReservoirSimResult`](@ref).
+[`ReservoirSimResult`](@ref). Keyword arguments are passed onto
+[`setup_reservoir_simulator`](@ref) and are documented in that function.
 
 You can optionally unpack this result into the most typical desired outputs:
 
@@ -455,6 +506,21 @@ You can optionally unpack this result into the most typical desired outputs:
 
 where `wellsols` contains the well results and `states` the reservoir results
 (pressure, saturations and so on, in each cell of the reservoir domain).
+
+# Examples
+You can restart/resume simulations by both providing the `output_path` argument
+and the `restart` argument:
+```
+# Automatically restart from last solved step and returning the outputs if the simulation was already solved.
+result = simulate_reservoir(state0, model, dt, output_path = "/some/path", restart = true)
+
+# Restart from step 5
+result = simulate_reservoir(state0, model, dt, output_path = "/some/path", restart = 5)
+
+# Start from the beginning (default)
+result = simulate_reservoir(state0, model, dt, output_path = "/some/path", restart = false)
+```
+
 """
 function simulate_reservoir(state0, model, dt;
         parameters = setup_parameters(model),
@@ -471,11 +537,16 @@ function simulate_reservoir(state0, model, dt;
     return ReservoirSimResult(model, result, forces; simulator = sim, config = config)
 end
 
-function simulate_reservoir(case::JutulCase; config = missing, restart = false, kwarg...)
+function simulate_reservoir(case::JutulCase; config = missing, restart = false, simulator = missing, kwarg...)
     (; model, forces, state0, parameters, dt) = case
-    sim, config_new = setup_reservoir_simulator(model, state0, parameters; kwarg...)
-    if ismissing(config)
-        config = config_new
+    if ismissing(simulator)
+        sim, config_new = setup_reservoir_simulator(model, state0, parameters; kwarg...)
+        if ismissing(config)
+            config = config_new
+        end
+    else
+        sim = simulator
+        @assert !ismissing(config) "If simulator is provided, config must also be provided"
     end
     result = simulate!(sim, dt, forces = forces, config = config, restart = restart);
     return ReservoirSimResult(model, result, forces; simulator = sim, config = config)
@@ -691,12 +762,9 @@ function setup_reservoir_state(model::MultiModel; kwarg...)
             wg = physical_representation(W.domain)
             res_c = wg.perforations.reservoir
             if wg isa MultiSegmentWell
-                # Repeat top node. Not fully robust.
-                c = res_c[vcat(1, 1:length(res_c))]
                 init_w[:TotalMassFlux] = 0.0
-            else
-                c = res_c[1]
             end
+            c = map_well_nodes_to_reservoir_cells(wg, rmodel.data_domain)
             for pk in pvars
                 pv = res_state[pk]
                 init_w[pk] = perf_subset(pv, c)
@@ -751,7 +819,7 @@ function setup_reservoir_forces(model::MultiModel; control = nothing, limits = n
     submodels = model.models
     has_facility = any(x -> isa(x.domain, WellGroup), values(submodels))
     no_well_controls = isnothing(control) && isnothing(limits)
-    @assert no_well_controls || has_facility "Model must have facility."
+    @assert no_well_controls || has_facility "Model must have facility when well controls are provided."
     if haskey(submodels, :Facility)
         # Unified facility for all wells
         facility = model.models.Facility
@@ -975,6 +1043,7 @@ function partitioner_input(model, parameters; conn = :trans)
 end
 
 function reservoir_partition(model::MultiModel, p)
+    !haskey(model.models, :Facility) || throw(ArgumentError("Cannot partition model if split_wells = false in setup_reservoir_model"))
     p_res = SimplePartition(p)
     models = model.models
     function model_is_well(m)
@@ -1176,7 +1245,7 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
     if neg_count > 0
         tran_tot = length(T_hf)
         perc = round(100*neg_count/tran_tot, digits = 2)
-        @warn "Replaced $neg_count negative half-transmissibilities (out of $tran_tot, $perc%) with their absolute value."
+        jutul_message("Transmissibility", "Replaced $neg_count negative half-transmissibilities (out of $tran_tot, $perc%) with their absolute value.")
     end
     bad_count = 0
     for (i, T_hf_i) in enumerate(T_hf)
@@ -1188,7 +1257,7 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
     if bad_count > 0
         tran_tot = length(T_hf)
         perc = round(100*bad_count/tran_tot, digits = 2)
-        @warn "Replaced $bad_count non-finite half-transmissibilities (out of $tran_tot, $perc%) with zero."
+        jutul_message("Transmissibility", "Replaced $bad_count non-finite half-transmissibilities (out of $tran_tot, $perc%) with zero.")
     end
     if haskey(d, :net_to_gross)
         # Net to gross applies to vertical trans only

@@ -50,7 +50,7 @@ function setup_case_from_data_file(
     return out
 end
 
-function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans = true, verbose = false, kwarg...)
+function setup_case_from_parsed_data(datafile; skip_wells = false, simple_well = true, use_ijk_trans = true, verbose = false, kwarg...)
     function msg(s)
         if verbose
             jutul_message("Setup", s)
@@ -80,6 +80,9 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
     # Parse wells
     msg("Parsing schedule.")
     wells, controls, limits, cstep, dt, well_forces = parse_schedule(domain, flow_sys, datafile; simple_well = simple_well)
+    if skip_wells
+        empty!(wells)
+    end
     msg("Setting up model with $(length(wells)) wells.")
     wells_pvt = Dict()
     wells_systems = []
@@ -159,28 +162,158 @@ function setup_case_from_parsed_data(datafile; simple_well = true, use_ijk_trans
     msg("Setting up initial state.")
     state0 = parse_state0(model, datafile)
     msg("Setup complete.")
-    return JutulCase(model, dt, forces, state0 = state0, parameters = parameters)
+    return JutulCase(model, dt, forces, state0 = state0, parameters = parameters, input_data = datafile)
 end
 
-function parse_well_from_compdat(domain, wname, cdat, wspecs, compord; simple_well = true)
+function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord; simple_well = isnothing(msdata))
     wc, WI, open = compdat_to_connection_factors(domain, wspecs, cdat, sort = true, order = compord)
-
-    rd = wspecs.ref_depth
-    if isnan(rd)
-        rd = nothing
+    ref_depth = wspecs.ref_depth
+    if isnan(ref_depth)
+        ref_depth = nothing
     end
+    W = missing
+    accumulator_volume = missing
     if simple_well
-        avol = 0.1*mean(domain[:volumes][wc])*mean(domain[:porosity][wc])
+        @assert isnothing(msdata)
+        accumulator_volume = 0.1*mean(domain[:volumes][wc])*mean(domain[:porosity][wc])
     else
-        avol = missing
+        if !isnothing(msdata)
+            has_welsegs = haskey(msdata, "WELSEGS")
+            has_compsegs = haskey(msdata, "COMPSEGS")
+            if has_welsegs || has_compsegs
+                @assert has_welsegs && has_compsegs "Both COMPSEGS and WELSEGS must be defined"
+                @assert msdata["COMPSEGS"][1] == wname
+                @assert msdata["WELSEGS"][1] == wname
+
+                welsegs = msdata["WELSEGS"][2]
+                header = welsegs.header
+                segments = welsegs.segments
+
+                compsegs = msdata["COMPSEGS"][2]
+
+                top_depth = header[2]
+                if isnothing(ref_depth)
+                    ref_depth = top_depth
+                elseif !(ref_depth ≈ top_depth)
+                    @warn "Reference depths for ms well should coincide with top depth: ref depth $ref_depth != top depth $top_depth"
+                end
+                top_tubing_delta = header[3]
+                accumulator_volume = header[4]
+                segment_increment_type = header[5]
+                top_x = header[8]
+                top_y = header[9]
+                @assert segment_increment_type in ("ABS", "INC")
+                is_inc = segment_increment_type == "INC"
+                max_seg = maximum(x -> x[1], segments, init = 0)
+                num_edges = max_seg-1
+                conn = Tuple{Int, Int}[]
+
+                top_node = [top_x, top_y, top_depth]
+                centers = zeros(3, num_edges)
+                volumes = zeros(num_edges)
+                diameter = fill(NaN, num_edges)
+                branches = zeros(Int, num_edges)
+                tubing_lengths = zeros(num_edges)
+                tubing_depths = zeros(max_seg)
+                tubing_depths[1] = top_tubing_delta
+
+                segment_models = Vector{SegmentWellBoreFrictionHB{Float64}}(undef, num_edges)
+                for segment in segments
+                    start, stop, branch, start_conn,
+                    dist, depth_delta, D, rough, cross_sect, vol, = segment
+                    parts_in_segment = stop - start + 1
+                    tubing_at_start = tubing_depths[start]
+                    if start == 1
+                        depth_at_start = top_depth
+                    else
+                        depth_at_start = centers[3, start-1]
+                    end
+                    if is_inc
+                        L = dist
+                        Δz = depth_delta
+                    else
+                        L = (dist - tubing_at_start)/parts_in_segment
+                        Δz = (depth_delta - depth_at_start)/parts_in_segment
+                    end
+                    if cross_sect <= 0.0
+                        cross_sect = π*(D/2)^2
+                    end
+                    if vol <= 0.0
+                        vol = cross_sect*L
+                    end
+                    Δp = SegmentWellBoreFrictionHB(L, rough, D)
+
+                    push!(conn, (start, start_conn))
+                    current_tubing = tubing_at_start
+                    current_depth = depth_at_start
+                    for (ix, seg_ix) in enumerate(start:stop)
+                        current_tubing += L
+                        current_depth += Δz
+
+                        edge_ix = seg_ix - 1
+                        @assert isnan(diameter[edge_ix]) "Values are being overwritten in ms well - programming error?"
+                        segment_models[edge_ix] = Δp
+                        diameter[edge_ix] = D
+                        volumes[edge_ix] = vol
+                        branches[edge_ix] = branch
+                        tubing_lengths[edge_ix] = L
+                        # TODO: Set better x, y
+                        centers[1, edge_ix] = top_x
+                        centers[2, edge_ix] = top_y
+                        centers[3, edge_ix] = current_depth
+                        tubing_depths[seg_ix] = current_tubing
+                    end
+                end
+                N = zeros(Int, 2, length(conn))
+                for (i, t) in enumerate(conn)
+                    N[:, i] .= t
+                end
+                perforation_cells = zeros(Int, length(compsegs))
+                for compseg in compsegs
+                    I, J, K, branch, tube_start, tube_end, dir, dir_ijk, cdepth, = compseg
+                    perf_index = findfirst(isequal((I, J, K)), collect(keys(cdat)))
+                    @assert !isnothing(perf_index) "Perforation $((I, J, K)) not found?"
+                    prev_dist = Inf
+                    closest = -1
+                    for (i, b) in enumerate(branches)
+                        if b == branch
+                            L = tubing_lengths[i]
+                            seg_end = tubing_depths[i+1]
+                            seg_mid = seg_end - L/2
+                            tube_mid = (tube_end + tube_start)/2
+                            dist = abs(seg_mid - tube_mid)
+                            if dist < prev_dist
+                                closest = i
+                                prev_dist = dist
+                            end
+                        end
+                    end
+                    perforation_cells[perf_index] = closest
+                end
+                cell_centers = domain[:cell_centroids]
+                dz = vec(cell_centers[3, wc]) - vec(centers[3, perforation_cells])
+                @assert length(keys(cdat)) == length(compsegs) "COMPSEGS length must match COMPDAT for well $wname"
+                W = MultiSegmentWell(wc, volumes, centers;
+                    name = Symbol(wname),
+                    WI = WI,
+                    dz = dz, # TODO
+                    N = N,
+                    perforation_cells = perforation_cells,
+                    reference_depth = ref_depth,
+                    segment_models = segment_models,
+                )
+            end
+        end
     end
-    W = setup_well(domain, wc,
-        name = Symbol(wname),
-        accumulator_volume = avol,
-        WI = WI,
-        reference_depth = rd,
-        simple_well = simple_well
-    )
+    if ismissing(W)
+        W = setup_well(domain, wc;
+            name = Symbol(wname),
+            accumulator_volume = accumulator_volume,
+            WI = WI,
+            reference_depth = ref_depth,
+            simple_well = simple_well
+        )
+    end
     return (W, wc, WI, open)
 end
 
@@ -223,7 +356,7 @@ end
 function parse_schedule(domain, runspec, props, schedule, sys; simple_well = true)
     G = physical_representation(domain)
 
-    dt, cstep, controls, completions, limits = parse_control_steps(runspec, props, schedule, sys)
+    dt, cstep, controls, completions, msdata, limits = parse_control_steps(runspec, props, schedule, sys)
     completions, bad_wells = filter_inactive_completions!(completions, G)
     @assert length(controls) == length(completions)
     handle_wells_without_active_perforations!(bad_wells, completions, controls, limits)
@@ -239,7 +372,14 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
         for i in eachindex(completions)
             well_forces[i][Symbol(k)] = (mask = nothing, )
         end
-        W, wc_base, WI_base, open = parse_well_from_compdat(domain, k, v, wspec, compord; simple_well = simple_well)
+        if haskey(msdata, k)
+            msdata_k = msdata[k]
+            k_is_simple_well = false
+        else
+            msdata_k = nothing
+            k_is_simple_well = simple_well
+        end
+        W, wc_base, WI_base, open = parse_well_from_compdat(domain, k, v, wspec, msdata_k, compord; simple_well = k_is_simple_well)
         for (i, c) in enumerate(completions)
             compdat = c[k]
             well_is_shut = controls[i][k] isa DisabledControl
@@ -319,6 +459,9 @@ function handle_wells_without_active_perforations!(bad_wells, completions, contr
 end
 
 function parse_forces(model, wells, controls, limits, cstep, dt, well_forces)
+    if length(wells) == 0
+        return setup_reservoir_forces(model)
+    end
     forces = []
     @assert length(controls) == length(limits) == length(well_forces)
     i = 0
@@ -760,18 +903,35 @@ function parse_control_steps(runspec, props, schedule, sys)
         # Prune empty final record
         steps = steps[1:end-1]
     end
-
+    sdict = Dict{String, Any}
 
     tstep = Vector{Float64}()
     cstep = Vector{Int}()
     well_temp = Dict{String, Float64}()
     compdat = Dict{String, OrderedDict}()
-    controls = Dict{String, Any}()
+    controls = sdict()
     # "Hidden" well control mirror used with WELOPEN logic
-    active_controls = Dict{String, Any}()
-    limits = Dict{String, Any}()
-    streams = Dict{String, Any}()
-    well_injection = Dict{String, Any}()
+    active_controls = sdict()
+    limits = sdict()
+    streams = sdict()
+    mswell_kw = sdict()
+    function get_and_create_mswell_kw(k::AbstractString, subkey = missing)
+        if !haskey(mswell_kw, k)
+            mswell_kw[k] = sdict()
+        end
+        D = mswell_kw[k]
+        if ismissing(subkey)
+            out = D
+        else
+            if !haskey(D, subkey)
+                D[subkey] = []
+            end
+            out = D[subkey]
+        end
+        return out
+    end
+
+    well_injection = sdict()
     well_factor = Dict{String, Float64}()
     for k in keys(wells)
         compdat[k] = OrderedDict{NTuple{3, Int}, Any}()
@@ -887,6 +1047,14 @@ function parse_control_steps(runspec, props, schedule, sys)
                 end
             elseif key in skip
                 # Already handled
+            elseif key in ("WSEGVALV", "COMPSEGS", "WELSEGS")
+                for val in kword
+                    wname = val[1]
+                    ms_storage = get_and_create_mswell_kw(wname, key)
+                    for v in val
+                        push!(ms_storage, v)
+                    end
+                end
             else
                 bad_kw[key] = true
             end
@@ -902,7 +1070,7 @@ function parse_control_steps(runspec, props, schedule, sys)
     for k in keys(bad_kw)
         jutul_message("Unsupported keyword", "Keyword $k was present, but is not supported.", color = :yellow)
     end
-    return (dt = tstep, control_step = cstep, controls = all_controls, completions = all_compdat, limits = all_limits)
+    return (dt = tstep, control_step = cstep, controls = all_controls, completions = all_compdat, multisegment = mswell_kw, limits = all_limits)
 end
 
 function parse_well_streams_for_step(step, props)

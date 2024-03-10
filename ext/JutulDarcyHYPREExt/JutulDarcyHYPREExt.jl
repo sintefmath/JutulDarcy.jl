@@ -10,7 +10,7 @@ module JutulDarcyHYPREExt
 
     include("cpr.jl")
 
-    # @compile_workload begin
+    @compile_workload begin
     #     targets = [(true, :csc), (true, :csr)]
     #     # MPI, trivial partition
     #     JutulDarcy.precompile_darcy_multimodels(targets,
@@ -18,5 +18,5 @@ module JutulDarcyHYPREExt
     #         precond = :cpr,
     #         amg_type = :hypre
     #     )
-    # end
+    end
 end
