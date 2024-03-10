@@ -33,6 +33,9 @@ function NLDDSimulator(case::JutulCase, partition = missing;
         end
         p = partition_from_N(model, parameters, N)
         partition = reservoir_partition(model, p);
+    elseif partition isa Vector{Int}()
+        # Convert it.
+        partition = reservoir_partition(model, partition)
     end
     partition::Jutul.AbstractDomainPartition
     outer_sim = Simulator(model; state0 = state0, parameters = deepcopy(parameters), executor = executor, kwarg...)
