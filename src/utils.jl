@@ -389,9 +389,11 @@ function setup_reservoir_simulator(case::JutulCase;
         inc_tol_dz = Inf,
         set_linear_solver = true,
         timesteps = :auto,
-        parray_arg = NamedTuple(),
-        linear_solver_arg = NamedTuple(),
+        parray_arg = Dict{Symbol, Any}(),
+        linear_solver_arg = Dict{Symbol, Any}(),
         extra_timing_setup = false,
+        nldd_partition = missing,
+        nldd_arg = Dict{Symbol, Any}(),
         kwarg...
     )
     set_linear_solver = set_linear_solver || linear_solver isa Symbol
@@ -406,9 +408,16 @@ function setup_reservoir_simulator(case::JutulCase;
             sim = setup_reservoir_simulator_parray(case, b; parray_arg...);
         end
     else
-        extra_kwarg[:method] = method
-        @assert mode == :default
-        sim = NLDD.NLDDSimulator(case, extra_timing = extra_timing_setup)
+        if mode == :default
+            extra_kwarg[:method] = method
+            sim = NLDD.NLDDSimulator(case, nldd_partition; nldd_arg..., extra_timing = extra_timing_setup)
+        else
+            b = mode_to_backend(mode)
+            sim = setup_reservoir_simulator_parray(case, b;
+                simulator_constructor = (m; kwarg...) -> NLDD.NLDDSimulator(m; kwarg...),
+                primary_buffer = true
+            );
+        end
     end
     t_base = TimestepSelector(initial_absolute = initial_dt, max = max_dt)
     sel = Vector{Any}()
