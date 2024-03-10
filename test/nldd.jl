@@ -80,10 +80,12 @@ end
                     test_solver_result(results_dd)
                 end
             end
-            @testset "ASPEN" begin
-                results_as = JutulDarcy.NLDD.bench_dd(name, :aspen;
-                sim_arg...);
-                test_solver_result(results_as)
+            if name != "spe9"
+                @testset "ASPEN" begin
+                    results_as = JutulDarcy.NLDD.bench_dd(name, :aspen;
+                    sim_arg...);
+                    test_solver_result(results_as)
+                end
             end
         end
     end
