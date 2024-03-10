@@ -1,7 +1,7 @@
 using Jutul, JutulDarcy, Test, HYPRE, MPI, PartitionedArrays
 
 @testset "NLDD/MPI" begin
-    spe1_pth = JutulDarcy.GeoEnergyIO.test_input_file_path("spe1", "BENCH_SPE1.DATA")
+    f = JutulDarcy.GeoEnergyIO.test_input_file_path("spe1", "BENCH_SPE1.DATA")
     il = -1
     case = setup_case_from_data_file(f, split_wells = true);
     ws_base, = simulate_reservoir(case, method = :newton, info_level = il);
