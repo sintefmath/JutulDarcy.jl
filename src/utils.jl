@@ -274,23 +274,20 @@ end
 - `models`: either a single model or a Dict with the key :Reservoir for multimodels
 - `initializer`: used to setup state0, must be compatible with `model`
 - `parameters`: initialized parameters, must be compatible with `model` if provided
-- `linear_solver=:bicgstab`: iterative solver to use (provided model supports it)
-- `precond=:cpr`: preconditioner for iterative solver: Either :cpr or :ilu0.
-- `rtol=1e-3`: relative tolerance for linear solver
-- `initial_dt=3600*24.0`: initial time-step in seconds (one day by default)
-- `target_its=8`: target number of nonlinear iterations per time step
-- `offset_its=1`: dampening parameter for time step selector where larger values lead to more pessimistic estimates.
-- `tol_cnv=1e-3`: maximum allowable point-wise error (volume-balance)
-- `tol_mb=1e-7`: maximum alllowable integrated error (mass-balance)
+
+# Keyword arguments
+- `split_wells`: Add facility model to each well (needed for domain decomposition and MPI solves)
+- `assemble_wells_together`: Option to split wells into multiple sparse matrices (false argument experimental)
 - `specialize=false`: use deep specialization of storage for faster execution, but significantly more compile time
 
-Additional keyword arguments are passed onto [`simulator_config`](@ref).
+Additional keyword arguments are documented in the version of this function that uses `JutulCase` as the input.
 """
 function setup_reservoir_simulator(models, initializer, parameters = nothing;
-                                                        specialize = false,
-                                                        split_wells = false,
-                                                        assemble_wells_together = true,
-                                                        kwarg...)
+        specialize = false,
+        split_wells = false,
+        assemble_wells_together = true,
+        kwarg...
+    )
     if isa(models, SimulationModel)
         DT = Dict{Symbol, Any}
         models = DT(:Reservoir => models)
@@ -326,34 +323,76 @@ function mode_to_backend(mode::Jutul.PArrayBackend)
     return mode
 end
 
+"""
+    setup_reservoir_simulator(case::JutulCase; <keyword arguments>)
+
+# Keyword arguments
+
+## Linear solver options
+
+- `linear_solver=:bicgstab`: iterative solver to use (provided model supports
+  it). Typical options are `:bicgstab` or `:gmres` Can alternatively pass a
+  linear solver instance.
+- `precond=:cpr`: preconditioner for iterative solver: Either :cpr or :ilu0.
+- `rtol=1e-3`: relative tolerance for linear solver
+
+## Timestepping options
+
+- `initial_dt=3600*24.0`: initial time-step in seconds (one day by default)
+- `target_ds=Inf`: target saturation change over a timestep used by timestepper.
+- `target_its=8`: target number of nonlinear iterations per time step
+- `offset_its=1`: dampening parameter for time step selector where larger values
+  lead to more pessimistic estimates.
+- `timesteps=:auto`: Set to `:auto` to use automatic timestepping, `:none` for
+  no autoamtic timestepping (i.e. try to solve exact report steps)
+
+## Convergence criterions
+- `tol_cnv=1e-3`: maximum allowable point-wise error (volume-balance)
+- `tol_mb=1e-7`: maximum alllowable integrated error (mass-balance)
+- `tol_cnv_well=10*tol_cnv`: maximum allowable point-wise error for well node
+  (volume-balance)
+- `tol_mb_well=1e4*tol_mb`: maximum alllowable integrated error for well node
+  (mass-balance)
+
+## Inherited keyword arguments
+
+Additional keyword arguments come from the base Jutul simulation framework. We
+list a few of the most relevant entries here for convenience:
+- `info_level =0`: Output level. Set to 0 for minimal output, -1 for no output
+  and 1 or more for increasing verbosity.
+- `output_path`: Path to write output to.
+
+Additional keyword arguments are passed onto [`simulator_config`](@ref).
+"""
 function setup_reservoir_simulator(case::JutulCase;
-                            mode = :default,
-                            precond = :cpr,
-                            linear_solver = :bicgstab,
-                            max_timestep = si_unit(:year),
-                            max_dt = max_timestep,
-                            rtol = nothing,
-                            initial_dt = 3600.0*24.0,
-                            target_ds = Inf,
-                            target_its = 8,
-                            offset_its = 1,
-                            tol_cnv = 1e-3,
-                            tol_mb = 1e-7,
-                            info_level = 0,
-                            tol_cnv_well = 10*tol_cnv,
-                            tol_mb_well = 1e4*tol_mb,
-                            tol_dp_well = 1e-3,
-                            inc_tol_dp_abs = Inf,
-                            inc_tol_dp_rel = Inf,
-                            failure_cuts_timestep = true,
-                            max_timestep_cuts = 25,
-                            inc_tol_dz = Inf,
-                            set_linear_solver = true,
-                            timesteps = :auto,
-                            parray_arg = NamedTuple(),
-                            linear_solver_arg = NamedTuple(),
-                            extra_timing_setup = false,
-                            kwarg...)
+        mode = :default,
+        precond = :cpr,
+        linear_solver = :bicgstab,
+        max_timestep = si_unit(:year),
+        max_dt = max_timestep,
+        rtol = nothing,
+        initial_dt = 3600.0*24.0,
+        target_ds = Inf,
+        target_its = 8,
+        offset_its = 1,
+        tol_cnv = 1e-3,
+        tol_mb = 1e-7,
+        info_level = 0,
+        tol_cnv_well = 10*tol_cnv,
+        tol_mb_well = 1e4*tol_mb,
+        tol_dp_well = 1e-3,
+        inc_tol_dp_abs = Inf,
+        inc_tol_dp_rel = Inf,
+        failure_cuts_timestep = true,
+        max_timestep_cuts = 25,
+        inc_tol_dz = Inf,
+        set_linear_solver = true,
+        timesteps = :auto,
+        parray_arg = NamedTuple(),
+        linear_solver_arg = NamedTuple(),
+        extra_timing_setup = false,
+        kwarg...
+    )
     set_linear_solver = set_linear_solver || linear_solver isa Symbol
     # Handle old kwarg...
     max_timestep = min(max_dt, max_timestep)
@@ -442,7 +481,8 @@ end
 
 Convenience function for simulating a reservoir model. This function internally
 calls [`setup_reservoir_simulator`](@ref), simulates the problem and returns a
-[`ReservoirSimResult`](@ref).
+[`ReservoirSimResult`](@ref). Keyword arguments are passed onto
+[`setup_reservoir_simulator`](@ref) and are documented in that function.
 
 You can optionally unpack this result into the most typical desired outputs:
 
@@ -450,6 +490,22 @@ You can optionally unpack this result into the most typical desired outputs:
 
 where `wellsols` contains the well results and `states` the reservoir results
 (pressure, saturations and so on, in each cell of the reservoir domain).
+
+# Examples
+You can restart/resume simulations by both providing the `output_path` argument
+and the `restart` argument:
+```
+# Automatically restart from last solved step and returning the outputs if the simulation was already solved.
+result = simulate_reservoir(state0, model, dt, output_path = "/some/path", restart = true)
+
+# Restart from step 5
+result = simulate_reservoir(state0, model, dt, output_path = "/some/path", restart = 5)
+
+# Start from the beginning (default)
+result = simulate_reservoir(state0, model, dt, output_path = "/some/path", restart = false)
+
+```
+
 """
 function simulate_reservoir(state0, model, dt;
         parameters = setup_parameters(model),
