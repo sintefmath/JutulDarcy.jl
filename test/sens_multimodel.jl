@@ -10,6 +10,8 @@ function solve_adjoint_forward_test_system(casename; block_backend = true, kwarg
     states, reports, setup = JutulDarcy.simulate_mini_wellcase(
         casename;
         kwarg...,
+        total_time = 1.0*si_unit(:day),
+        nstep = 5,
         block_backend = block_backend,
         permeability = 0.65*Darcy
         )
