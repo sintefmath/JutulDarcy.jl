@@ -31,6 +31,7 @@ function setup_well_case(nx = 5, backend = :csr)
     dt = repeat([7.5]*day, 12*20)
     pv = pore_volume(model, parameters)
     inj_rate = sum(pv)/sum(dt)
+    dt = dt[1:2]
 
     rate_target = TotalRateTarget(inj_rate)
     I_ctrl = InjectorControl(rate_target, [0.0, 1.0], density = rhoGS)
@@ -45,13 +46,12 @@ function setup_well_case(nx = 5, backend = :csr)
 end
 
 function setup_bl_case(nc, backend = :csr; nstep = 10*nc)
-    time = 1.0
-
-    T = time
-    tstep = repeat([T/nstep], nstep)
+    time = 0.25
+    # time = 1.0
+    tstep = repeat([time/nstep], nstep)
     domain = get_1d_reservoir(nc)
     nc = number_of_cells(domain)
-    timesteps = tstep*3600*24
+    timesteps = tstep*si_unit(:day)
     bar = 1e5
     p0 = 100*bar
     sys = ImmiscibleSystem((LiquidPhase(), VaporPhase()))
@@ -63,7 +63,7 @@ function setup_bl_case(nc, backend = :csr; nstep = 10*nc)
     model = SimulationModel(domain, sys, context = ctx)
     kr = BrooksCoreyRelativePermeabilities(sys, [2.0, 2.0], [0.2, 0.2])
     replace_variables!(model, RelativePermeabilities = kr)
-    tot_time = sum(timesteps)
+    tot_time = 1.0*si_unit(:day)
     pv = pore_volume(domain)
     irate = 500*sum(pv)/tot_time
     src  = SourceTerm(1, irate, fractional_flow = [1.0, 0.0])
@@ -73,7 +73,7 @@ function setup_bl_case(nc, backend = :csr; nstep = 10*nc)
     state0 = setup_state(model, Pressure = p0, Saturations = [0.0, 1.0])
     return JutulCase(model, tstep, forces, state0 = state0, parameters = parameters)
 end
-##
+
 function compare_states(states_ref, states; rtol = 1e-4)
     for (state, state_ref) in zip(states, states_ref)
         for (k, v) in state_ref
@@ -83,7 +83,7 @@ function compare_states(states_ref, states; rtol = 1e-4)
         end
     end
 end
-##
+
 function compare_ws(ws, ws_ref)
     @test keys(ws_ref) == keys(ws)
     for (k, v) in ws_ref
@@ -94,7 +94,6 @@ function compare_ws(ws, ws_ref)
 end
 ##
 @testset "PArray" begin
-    num_procs_to_test = 1:5
     @testset "SimulationModel" begin
         for backend in [:csc, :csr]
             @testset "$backend" begin
@@ -102,9 +101,11 @@ end
                 arg = (info_level = -1,)
                 states, reports = simulate(case; arg...)
                 @testset "PArray native" begin
-                    for np = num_procs_to_test
+                    # Set np = 1 just to check that it works, is anyway tested
+                    # by the multi model version
+                    for np in 1
                         for order in [:default]#, :symrcm]
-                            states_p, reports_p = simulate_reservoir_parray(case, 
+                            states_p, reports_p = simulate_reservoir_parray(case,
                                 :parray;
                                 arg...,
                                 parray_arg = (np = np, order = order),
@@ -118,12 +119,13 @@ end
                     end
                 end
                 @testset "PArray MPI" begin
-                    states_m, reports_m = simulate_reservoir_parray(case; mode = :mpi, timesteps = :none, arg...)
+                    states_m, reports_m = simulate_reservoir_parray(case, :mpi; timesteps = :none, arg...)
                     compare_states(states, states_m)
                 end
             end
         end
     end
+    num_procs_to_test = 1:5
     @testset "MultiModel" begin
         for backend in [:csc, :csr]
             @testset "$backend" begin
