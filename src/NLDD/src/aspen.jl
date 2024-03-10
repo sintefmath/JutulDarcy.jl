@@ -643,6 +643,15 @@ function transfer_pvar!(buffer, model, state, a, do_delta, pvar::AbstractVector,
             end
         end
     end
+    # TODO: Not 100% robust
+    if haskey(model.secondary_variables, :Rs)
+        boreg = model[:Rs].regions
+    elseif haskey(model.secondary_variables, :Rv)
+        boreg = model[:Rv].regions
+    else
+        boreg = nothing
+    end
+
     @inbounds for (i, cell) in enumerate(a)
         p = value(state.Pressure[cell])
         if haskey(state, :ImmiscibleSaturation)
@@ -650,6 +659,7 @@ function transfer_pvar!(buffer, model, state, a, do_delta, pvar::AbstractVector,
         else
             swi = 0.0
         end
+        reg_i = JutulDarcy.region(boreg, cell)
         v = pvar[cell]
         phases = v.phases_present
         x = value(v.val)
@@ -657,7 +667,8 @@ function transfer_pvar!(buffer, model, state, a, do_delta, pvar::AbstractVector,
             if phases == JutulDarcy.OilOnly
                 rs = x
             elseif phases == JutulDarcy.OilAndGas
-                rs = sys.rs_max(p)
+                rstab = JutulDarcy.table_by_region(model.system.rs_max, reg_i)
+                rs = rstab(p)
             else
                 # Oil only
                 rs = 0.0
@@ -669,7 +680,8 @@ function transfer_pvar!(buffer, model, state, a, do_delta, pvar::AbstractVector,
             if phases == JutulDarcy.GasOnly
                 rv = x
             elseif phases == JutulDarcy.OilAndGas
-                rv = sys.rv_max(p)
+                rvtab = table_by_region(model.system.rs_max, reg_i)
+                rv = rvtab(p)
             else
                 # Gas only
                 rv = 0.0

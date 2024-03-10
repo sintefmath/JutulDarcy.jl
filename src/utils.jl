@@ -397,6 +397,7 @@ function setup_reservoir_simulator(case::JutulCase;
     set_linear_solver = set_linear_solver || linear_solver isa Symbol
     # Handle old kwarg...
     max_timestep = min(max_dt, max_timestep)
+    extra_kwarg = Dict{Symbol, Any}()
     if method == :newton
         if mode == :default
             sim = Simulator(case, extra_timing = extra_timing_setup)
@@ -405,6 +406,7 @@ function setup_reservoir_simulator(case::JutulCase;
             sim = setup_reservoir_simulator_parray(case, b; parray_arg...);
         end
     else
+        extra_kwarg[:method] = method
         @assert mode == :default
         sim = NLDD.NLDDSimulator(case, extra_timing = extra_timing_setup)
     end
@@ -440,19 +442,18 @@ function setup_reservoir_simulator(case::JutulCase;
         else
             extra_ls = NamedTuple()
         end
-        lsolve = reservoir_linsolve(case.model, precond;
-                                            rtol = rtol,
-                                            extra_ls...,
-                                            linear_solver_arg...,
-                                            )
-        extra_arg = (linear_solver = lsolve, )
+        extra_kwarg[:linear_solver] = reservoir_linsolve(case.model, precond;
+            rtol = rtol,
+            extra_ls...,
+            linear_solver_arg...,
+        )
     elseif isnothing(linear_solver)
-        extra_arg = NamedTuple()
+        # Nothing
     else
-        extra_arg = (linear_solver = linear_solver, )
+        extra_kwarg[:linear_solver] = linear_solver
     end
     cfg = simulator_config(sim;
-        extra_arg...,
+        extra_kwarg...,
         timestep_selectors = sel,
         info_level = info_level,
         max_timestep = max_timestep,

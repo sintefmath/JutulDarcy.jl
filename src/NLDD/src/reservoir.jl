@@ -264,8 +264,16 @@ function handle_subdomain_boundary_variable_switching!(state, substorage, model:
     rv_max = sys.rv_max
     disgas = JutulDarcy.has_disgas(sys)
     vapoil = JutulDarcy.has_vapoil(sys)
+    if haskey(model.secondary_variables, :Rs)
+        boreg = model[:Rs].regions
+    elseif haskey(model.secondary_variables, :Rv)
+        boreg = model[:Rv].regions
+    else
+        boreg = nothing
+    end
     for c in cells
         gc = Jutul.global_cell(c, m)
+        reg_i = JutulDarcy.region(boreg, c)
         phases = state.PhaseState[c]
         g_phases = outer_state.PhaseState[gc]
         if phases != g_phases
@@ -295,7 +303,8 @@ function handle_subdomain_boundary_variable_switching!(state, substorage, model:
                 p = state.Pressure[c]
                 # p = outer_state.Pressure[gc]
                 @inbounds if disgas
-                    rs = rs_max(p)
+                    rstab = JutulDarcy.table_by_region(model.system.rs_max, reg_i)
+                    rs = rstab(p)
                     rs0 = value(state.Rs[c])
                     # Rs with value of old value and derivatives of new one
                     new_rs = replace_value(rs, rs0)
@@ -303,7 +312,8 @@ function handle_subdomain_boundary_variable_switching!(state, substorage, model:
                     state.Rs[c] = new_rs
                 end
                 @inbounds if vapoil
-                    rv = rv_max(p)
+                    rvtab = table_by_region(model.system.rs_max, reg_i)
+                    rv = rvtab(p)
                     rv0 = value(state.Rv[c])
                     # new_rv = min(rv0/value(rv), 1.0)*rv
                     new_rv = replace_value(rv, rv0)
