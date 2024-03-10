@@ -189,6 +189,8 @@ module JutulDarcy
 
     include("ext.jl")
 
+    include("NLDD/src/NLDD.jl")
+
     @compile_workload begin
         precompile_darcy_multimodels()
         # We run a tiny MRST case to precompile the .MAT file loading
