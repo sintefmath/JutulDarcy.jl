@@ -251,20 +251,13 @@ function bench_dd(name, method = :fi;
     if do_print
         @info "Reading $name..."
     end
-    nldd_data_path = string(dirname(pathof(NLDD)), "/../data/")
-    base_path = nldd_data_path
     if isfile(name)
         pth = name
-        # Put the name back
-        name, = splitext(last(splitpath(pth)))
     else
-        pth = string(base_path, name, ".mat")
-        has_global_path = haskey(ENV, "JUTUL_MRST_EXPORTS_PATH")
-        if !isfile(pth) && has_global_path
-            base_path = ENV["JUTUL_MRST_EXPORTS_PATH"]
-            pth = joinpath(base_path, "$name.mat")
-        end
+        pth = JutulDarcy.get_mrst_input_path(name)
     end
+    base_path, filename = splitdir(pth)
+    name, = splitext(filename)
     if isnothing(case)
         case, mrst_data = setup_case_from_mrst(pth,
                                         facility_grouping = :perwell,
@@ -351,10 +344,10 @@ function bench_dd(name, method = :fi;
                 p = partition_from_file(model, p_path, do_print)
             end
             # Inside NLDD path folder
-            if isnothing(p)
-                p_path = joinpath(nldd_data_path, p_name)
-                p = partition_from_file(model, p_path, do_print)
-            end
+            # if isnothing(p)
+            #     p_path = joinpath(nldd_data_path, p_name)
+            #     p = partition_from_file(model, p_path, do_print)
+            # end
             # Fall back
             if isnothing(p)
                 N = Int64(max(ceil(nc/1000), 2))

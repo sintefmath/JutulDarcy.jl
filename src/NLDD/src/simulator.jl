@@ -33,7 +33,7 @@ function NLDDSimulator(case::JutulCase, partition = missing;
         end
         p = partition_from_N(model, parameters, N)
         partition = reservoir_partition(model, p);
-    elseif partition isa Vector{Int}()
+    elseif partition isa Vector{Int}
         # Convert it.
         partition = reservoir_partition(model, partition)
     end
@@ -482,7 +482,7 @@ function find_max_interior_pressure(model::MultiModel, state)
 end
 
 function find_max_interior_pressure(model, state)
-    return find_max_interior_pressure(model, state, global_map(sim.model.domain))
+    return find_max_interior_pressure(model, state, global_map(model.domain))
 end
 
 function find_max_interior_pressure(model, state, g_map::Jutul.FiniteVolumeGlobalMap)
