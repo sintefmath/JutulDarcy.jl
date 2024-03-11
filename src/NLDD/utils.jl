@@ -251,14 +251,14 @@ function bench_dd(name, method = :fi;
     if do_print
         @info "Reading $name..."
     end
-    if isfile(name)
-        pth = name
-    else
-        pth = JutulDarcy.get_mrst_input_path(name)
-    end
-    base_path, filename = splitdir(pth)
-    name, = splitext(filename)
     if isnothing(case)
+        if isfile(name)
+            pth = name
+        else
+            pth = JutulDarcy.get_mrst_input_path(name)
+        end
+        base_path, filename = splitdir(pth)
+        name, = splitext(filename)
         case, mrst_data = setup_case_from_mrst(pth,
                                         facility_grouping = :perwell,
                                         ds_max = ds_max,
@@ -267,6 +267,7 @@ function bench_dd(name, method = :fi;
                                         wells = wells,
                                         block_backend = block_backend)
     else
+        base_path = ""
         case = deepcopy(case)
     end
     if do_print
