@@ -222,7 +222,7 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord; s
                     start, stop, branch, start_conn,
                     dist, depth_delta, D, rough, cross_sect, vol, = segment
                     parts_in_segment = stop - start + 1
-                    tubing_at_start = tubing_depths[start]
+                    tubing_at_start = tubing_depths[start-1]
                     if start == 1
                         depth_at_start = top_depth
                     else
