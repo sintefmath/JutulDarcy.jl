@@ -876,6 +876,16 @@ function init_from_mat(mrst_data, model, param)
         disgas = has_disgas(sys)
         black_oil = vapoil || disgas
         if black_oil
+            if has_disgas(sys)
+                rs_var = model[:Rs]
+            else
+                rs_var = nothing
+            end
+            if has_vapoil(sys)
+                rv_var = model[:Rv]
+            else
+                rv_var = nothing
+            end
             # Blackoil
             if size(s, 1) > 2
                 sw = vec(s[1, :])
@@ -910,9 +920,18 @@ function init_from_mat(mrst_data, model, param)
                 else
                     rv = vec(state0["rv"])
                 end
-                init[:BlackOilUnknown] = map(
-                                            (w,  o,   g, r,  v, p) -> blackoil_unknown_init(F_rs, F_rv, w, o, g, r, v, p),
-                                             sw, so, sg, rs, rv, p0)
+                bo = BlackOilX{Float64}[]
+                nc = length(p0)
+                sizehint!(bo, nc)
+                for i in 1:nc
+                    reg_rs = region(rs_var, i)
+                    reg_rv = region(rv_var, i)
+                    F_rs_i = table_by_region(F_rs, reg_rs)
+                    F_rv_i = table_by_region(F_rv, reg_rv)
+                    bo_i = blackoil_unknown_init(F_rs_i, F_rv_i, sw[i], so[i], sg[i], rs[i], rv[i], p0[i])
+                    push!(bo, bo_i)
+                end
+                init[:BlackOilUnknown] = bo
             end
         else
             # Immiscible
