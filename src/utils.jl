@@ -907,12 +907,13 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
     n = length(states)
     d = zeros(n)
 
-    groups = wellgroup_symbols(model)
-    group = nothing
-    for g in groups
-        if well_symbol in model.models[g].domain.well_symbols
-            group = g
+    well_number = 1
+    for (k, m) in pairs(model.models)
+        if k == well_symbol
             break
+        end
+        if model_or_domain_is_well(m)
+            well_number += 1
         end
     end
     rhoS_o = reference_densities(model.models[well_symbol].system)
@@ -923,12 +924,16 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
 
     target_limit = to_target(target)
 
-    pos = get_well_position(model.models[group].domain, well_symbol)
     well_model = model.models[well_symbol]
     for (i, state) = enumerate(states)
         well_state = state[well_symbol]
         well_state = convert_to_immutable_storage(well_state)
-        q_t = state[group][:TotalSurfaceMassRate][pos]
+        ctrl_grp = Symbol("$(well_symbol)_ctrl")
+        if haskey(state, ctrl_grp)
+            q_t = only(state[ctrl_grp][:TotalSurfaceMassRate])
+        else
+            q_t = state[:Facility][:TotalSurfaceMassRate][well_number]
+        end
         if forces isa AbstractVector
             force = forces[i]
         else
