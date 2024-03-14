@@ -63,7 +63,7 @@ function Jutul.prepare_step!(wsol_storage, wsol::PrepareStepWellSolver, storage,
         end
         converged, num_its = solve_well_system_with_fixed_reservoir(
             storage, model, dt, forces, executor,
-            wsol_storage.groups_and_linear_solvers, targets, iteration,
+            wsol_storage.groups_and_linear_solvers, targets, iteration, relaxation,
             il, max_well_iterations, config)
         if converged
             if il > 0
@@ -87,10 +87,12 @@ function Jutul.prepare_step!(wsol_storage, wsol::PrepareStepWellSolver, storage,
     return (nothing, forces)
 end
 
-function solve_well_system_with_fixed_reservoir(storage, model, dt, forces, executor, groups_and_lsolve, targets, iteration, il, max_well_iterations, config)
+function solve_well_system_with_fixed_reservoir(storage, model, dt, forces, executor, groups_and_lsolve, targets, iteration, relaxation, il, max_well_iterations, config)
     for well_it in 1:max_well_iterations
         Jutul.update_state_dependents!(storage, model, dt, forces,
-            update_secondary = well_it > 1, targets = targets)
+            update_secondary = well_it > 1,
+            targets = targets
+        )
         Jutul.update_linearized_system!(storage, model, executor, targets = targets)
         if well_it == max_well_iterations
             tol_factor = config[:well_acceptance_factor]
@@ -105,7 +107,6 @@ function solve_well_system_with_fixed_reservoir(storage, model, dt, forces, exec
             ),
             targets
         )
-        converged = all(ok)
         if il > 0
             jutul_message("Well solver #$well_it/$max_well_iterations", "$(sum(ok))/$(length(ok)) well and facility models are converged.", color = :cyan)
             if il > 1
@@ -116,15 +117,15 @@ function solve_well_system_with_fixed_reservoir(storage, model, dt, forces, exec
                 end
             end
         end
+        if all(ok)
+            return (true, well_it)
+        end
         for (g, lsolve) in groups_and_lsolve
             lsys = storage.LinearizedSystem[g, g]
             recorder = storage.recorder
             linear_solve!(lsys, lsolve, model, storage, dt, recorder, executor)
         end
-        update = Jutul.update_primary_variables!(storage, model; targets = targets)
-        if converged
-            return (true, well_it)
-        end
+        update = Jutul.update_primary_variables!(storage, model; targets = targets, relaxation = relaxation)
     end
     return (false, max_well_iterations)
 end
