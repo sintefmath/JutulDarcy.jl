@@ -67,7 +67,7 @@ function Jutul.prepare_step!(wsol_storage, wsol::PrepareStepWellSolver, storage,
             il, max_well_iterations, config)
         if converged
             if il > 0
-                jutul_message("Well solver", "Converged in $num_its")
+                jutul_message("Well solver", "Converged in $num_its iterations.")
             end
         else
             # TODO: Should only cover non-converged wells.
@@ -79,7 +79,7 @@ function Jutul.prepare_step!(wsol_storage, wsol::PrepareStepWellSolver, storage,
             Jutul.update_state_dependents!(storage, model, dt, forces,
                 update_secondary = true, targets = targets)
             if il > 0
-                jutul_message("Well solver", "Did not converge in $max_well_iterations", color = :yellow)
+                jutul_message("Well solver", "Did not converge in $max_well_iterations iterations.", color = :yellow)
             end
         end
     end
