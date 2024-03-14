@@ -18,12 +18,12 @@ function update_primary_variable!(state, pvar::BlackOilUnknown, state_symbol, mo
     ϵ = (sys.rs_eps, sys.rv_eps, sys.s_eps)
     active = active_entities(model.domain, associated_entity(pvar), for_variables = true)
     if has_disgas(sys)
-        reg_rs = model[:Rs].regions
+        reg_rs = model.secondary_variables[:Rs].regions
     else
         reg_rs = nothing
     end
     if has_vapoil(sys)
-        reg_rv = model[:Rv].regions
+        reg_rv = model.secondary_variables[:Rv].regions
     else
         reg_rv = nothing
     end
