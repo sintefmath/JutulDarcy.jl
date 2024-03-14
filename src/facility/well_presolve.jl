@@ -59,6 +59,31 @@ function Jutul.prepare_step!(wsol_storage, wsol::PrepareStepWellSolver, storage,
             primary[target][k] .= v
         end
     end
+    converged, num_its = solve_well_system_with_fixed_reservoir(
+        storage, model, dt, forces, executor,
+        wsol_storage.groups_and_linear_solvers, targets, iteration,
+        il, max_well_iterations, config)
+    if converged
+        if il > 0
+            jutul_message("Well solver", "Converged in $num_its")
+        end
+    else
+        # TODO: Should only cover non-converged wells.
+        for target in targets
+            for (k, v) in pairs(storage[target].primary_variables)
+                v .= primary[target][k]
+            end
+        end
+        Jutul.update_state_dependents!(storage, model, dt, forces,
+            update_secondary = true, targets = targets)
+        if il > 0
+            jutul_message("Well solver", "Did not converge in $max_well_iterations", color = :yellow)
+        end
+    end
+    return (nothing, forces)
+end
+
+function solve_well_system_with_fixed_reservoir(storage, model, dt, forces, executor, groups_and_lsolve, targets, iteration, il, max_well_iterations, config)
     for well_it in 1:max_well_iterations
         Jutul.update_state_dependents!(storage, model, dt, forces,
             update_secondary = well_it > 1, targets = targets)
@@ -78,31 +103,24 @@ function Jutul.prepare_step!(wsol_storage, wsol::PrepareStepWellSolver, storage,
         )
         converged = all(ok)
         if il > 0
-            Jutul.get_convergence_table(errors, il, well_it, config)
+            jutul_message("Well solver #$well_it/$max_well_iterations", "$(sum(ok))/$(length(ok)) well and facility models are converged.", color = :cyan)
+            if il > 1
+                for (k, ok_i) in zip(targets, ok)
+                    if !ok_i
+                        jutul_message("$k", "Not converged", color = :dark_gray)
+                    end
+                end
+            end
         end
-        for (g, lsolve) in wsol_storage.groups_and_linear_solvers
+        for (g, lsolve) in groups_and_lsolve
             lsys = storage.LinearizedSystem[g, g]
             recorder = storage.recorder
             linear_solve!(lsys, lsolve, model, storage, dt, recorder, executor)
         end
         update = Jutul.update_primary_variables!(storage, model; targets = targets)
         if converged
-            num_its = well_it
-            break
+            return (true, well_it)
         end
     end
-    if il > 0
-        println("Converged in $num_its")
-    else
-        # TODO: Should only cover non-converged wells.
-        for target in targets
-            for (k, v) in pairs(storage[target].primary_variables)
-                v .= primary[target][k]
-            end
-        end
-        Jutul.update_state_dependents!(storage, model, dt, forces,
-            update_secondary = true, targets = targets)
-        println("Did not converge in $max_well_iterations")
-    end
-    return (nothing, forces)
+    return (false, max_well_iterations)
 end
