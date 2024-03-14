@@ -574,3 +574,6 @@ function SurfaceWellConditions(sys::JutulSystem; kwarg...)
     targets = Tuple{Int, Int}[]
     return SurfaceWellConditions(s, cond, targets)
 end
+
+struct PrepareStepWellSolver
+end

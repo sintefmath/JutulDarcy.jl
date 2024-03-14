@@ -389,6 +389,7 @@ function setup_reservoir_simulator(case::JutulCase;
         inc_tol_dz = Inf,
         set_linear_solver = true,
         timesteps = :auto,
+        presolve_wells = false,
         parray_arg = Dict{Symbol, Any}(),
         linear_solver_arg = Dict{Symbol, Any}(),
         extra_timing_setup = false,
@@ -400,25 +401,36 @@ function setup_reservoir_simulator(case::JutulCase;
     # Handle old kwarg...
     max_timestep = min(max_dt, max_timestep)
     extra_kwarg = Dict{Symbol, Any}()
-    if method == :newton
-        if mode == :default
-            sim = Simulator(case, extra_timing = extra_timing_setup)
+    # Setup simulator
+    sim_kwarg = Dict{Symbol, Any}()
+    sim_kwarg[:extra_timing] = extra_timing_setup
+    if presolve_wells
+        sim_kwarg[:prepare_step_handler] = PrepareStepWellSolver()
+    end
+    if mode == :default
+        # Single-process solve
+        if method == :newton
+            sim = Simulator(case; sim_kwarg...)
         else
-            b = mode_to_backend(mode)
-            sim = setup_reservoir_simulator_parray(case, b; parray_arg...);
+            extra_kwarg[:method] = method
+            sim = NLDD.NLDDSimulator(case, nldd_partition; nldd_arg..., sim_kwarg...)
         end
     else
-        if mode == :default
-            extra_kwarg[:method] = method
-            sim = NLDD.NLDDSimulator(case, nldd_partition; nldd_arg..., extra_timing = extra_timing_setup)
+        # MPI/PArray solve
+        if method == :newton
+            make_sim = (m; kwarg...) -> Simulator(m; sim_kwarg..., kwarg...)
+            pbuffer = false
         else
-            b = mode_to_backend(mode)
-            sim = setup_reservoir_simulator_parray(case, b;
-                simulator_constructor = (m; kwarg...) -> NLDD.NLDDSimulator(m; kwarg...),
-                primary_buffer = true
-            );
+            make_sim = (m; kwarg...) -> NLDD.NLDDSimulator(m; nldd_arg..., sim_kwarg..., kwarg...)
+            pbuffer = true
         end
+        b = mode_to_backend(mode)
+        sim = setup_reservoir_simulator_parray(case, b;
+            simulator_constructor = make_sim,
+            primary_buffer = pbuffer
+        );
     end
+
     t_base = TimestepSelector(initial_absolute = initial_dt, max = max_dt)
     sel = Vector{Any}()
     push!(sel, t_base)
