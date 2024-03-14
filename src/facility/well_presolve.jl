@@ -38,6 +38,7 @@ end
 
 function Jutul.simulator_config!(cfg, sim, ::PrepareStepWellSolver, storage)
     add_option!(cfg, :well_iterations, 25, "Well iterations to be performed before step.", types = Int, values = 0:10000)
+    add_option!(cfg, :well_outer_iterations_limit, Inf, "Number of outer iterations for each solve where wells are to be solved.", types = Union{Int, Float64})
     add_option!(cfg, :well_acceptance_factor, 10.0, "Accept well pre-solve results at this relaxed factor.", types = Float64)
     add_option!(cfg, :well_info_level, -1, "Info level for well solver.", types = Int)
 end
@@ -47,39 +48,42 @@ function Jutul.prepare_step!(wsol_storage, wsol::PrepareStepWellSolver, storage,
         iteration = 0,
         relaxation = 1.0
     )
-    converged = false
-    num_its = -1
-    max_well_iterations = config[:well_iterations]
-    targets = wsol_storage.targets
-    il = config[:well_info_level]
+    if iteration <= config[:well_outer_iterations_limit]
+        converged = false
+        num_its = -1
+        max_well_iterations = config[:well_iterations]
+        targets = wsol_storage.targets
+        il = config[:well_info_level]
 
-    primary = wsol_storage.well_primary_variables
-    for target in targets
-        for (k, v) in pairs(storage[target].primary_variables)
-            primary[target][k] .= v
-        end
-    end
-    converged, num_its = solve_well_system_with_fixed_reservoir(
-        storage, model, dt, forces, executor,
-        wsol_storage.groups_and_linear_solvers, targets, iteration,
-        il, max_well_iterations, config)
-    if converged
-        if il > 0
-            jutul_message("Well solver", "Converged in $num_its")
-        end
-    else
-        # TODO: Should only cover non-converged wells.
+        primary = wsol_storage.well_primary_variables
         for target in targets
             for (k, v) in pairs(storage[target].primary_variables)
-                v .= primary[target][k]
+                primary[target][k] .= v
             end
         end
-        Jutul.update_state_dependents!(storage, model, dt, forces,
-            update_secondary = true, targets = targets)
-        if il > 0
-            jutul_message("Well solver", "Did not converge in $max_well_iterations", color = :yellow)
+        converged, num_its = solve_well_system_with_fixed_reservoir(
+            storage, model, dt, forces, executor,
+            wsol_storage.groups_and_linear_solvers, targets, iteration,
+            il, max_well_iterations, config)
+        if converged
+            if il > 0
+                jutul_message("Well solver", "Converged in $num_its")
+            end
+        else
+            # TODO: Should only cover non-converged wells.
+            for target in targets
+                for (k, v) in pairs(storage[target].primary_variables)
+                    v .= primary[target][k]
+                end
+            end
+            Jutul.update_state_dependents!(storage, model, dt, forces,
+                update_secondary = true, targets = targets)
+            if il > 0
+                jutul_message("Well solver", "Did not converge in $max_well_iterations", color = :yellow)
+            end
         end
     end
+
     return (nothing, forces)
 end
 
