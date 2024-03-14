@@ -1,6 +1,22 @@
 function Jutul.prepare_step_storage(p::PrepareStepWellSolver, storage, model::MultiModel)
     @assert !isnothing(model.groups)
     submodels = Jutul.submodel_symbols(model)
+    if false
+        for (k, m) in pairs(model.models)
+            if model_or_domain_is_well(m)
+                ctrl_name = Symbol("$(k)_ctrl")
+                ix = findfirst(isequal(ctrl_name), submodels)
+                if isnothing(ix)
+                    ix = findfirst(isequal(:Facility), submodels)
+                end
+                @assert !isnothing(ix) "No wells for well solver?"
+                facility_label = submodels[ix]
+                facility = model.models[facility_label]
+                pos = findfirst(isequal(k), facility.domain.well_symbols)
+            end
+        end
+    end
+
     targets = setdiff(submodels, (:Reservoir, ))
     groups = Int[]
     for (g, m) in zip(model.groups, submodels)
@@ -14,7 +30,6 @@ function Jutul.prepare_step_storage(p::PrepareStepWellSolver, storage, model::Mu
     for target in targets
         primary[target] = deepcopy(storage[target].primary_variables)
     end
-
     well_solver_storage[:targets] = targets
     well_solver_storage[:well_primary_variables] = primary
     well_solver_storage[:groups_and_linear_solvers] = [(g, LUSolver()) for g in groups]
@@ -24,6 +39,7 @@ end
 function Jutul.simulator_config!(cfg, sim, ::PrepareStepWellSolver, storage)
     add_option!(cfg, :well_iterations, 25, "Well iterations to be performed before step.", types = Int, values = 0:10000)
     add_option!(cfg, :well_acceptance_factor, 10.0, "Accept well pre-solve results at this relaxed factor.", types = Float64)
+    add_option!(cfg, :well_info_level, -1, "Info level for well solver.", types = Int)
 end
 
 function Jutul.prepare_step!(wsol_storage, wsol::PrepareStepWellSolver, storage, model::MultiModel, dt, forces, config;
@@ -34,11 +50,8 @@ function Jutul.prepare_step!(wsol_storage, wsol::PrepareStepWellSolver, storage,
     converged = false
     num_its = -1
     max_well_iterations = config[:well_iterations]
-    @assert !isnothing(model.groups)
-    # TODO: Only work with the non-converged wells.
-    # @info "??" keys(wsol_storage)
     targets = wsol_storage.targets
-    # asm_targets = Jutul.submodel_symbols(model)
+    il = config[:well_info_level]
 
     primary = wsol_storage.well_primary_variables
     for target in targets
@@ -46,24 +59,27 @@ function Jutul.prepare_step!(wsol_storage, wsol::PrepareStepWellSolver, storage,
             primary[target][k] .= v
         end
     end
-    @time for well_it in 1:max_well_iterations
+    for well_it in 1:max_well_iterations
         Jutul.update_state_dependents!(storage, model, dt, forces,
             update_secondary = well_it > 1, targets = targets)
         Jutul.update_linearized_system!(storage, model, executor, targets = targets)
-        converged, e, errors = Jutul.check_convergence(
-                storage,
-                model,
-                config,
-                targets = targets,
+        if well_it == max_well_iterations
+            tol_factor = config[:well_acceptance_factor]
+        else
+            tol_factor = 1.0
+        end
+        ok = map(
+            k -> check_convergence(storage[k], model[k], config[:tolerances][k],
                 iteration = iteration,
                 dt = dt,
-                tol_factor = 1.0,
-                extra_out = true)
-        for k in targets
-            ok_i = check_convergence(storage[k], model[k], config[:tolerances][k])
-            # @info "$k: $ok_i"
+                tol_factor = tol_factor
+            ),
+            targets
+        )
+        converged = all(ok)
+        if il > 0
+            Jutul.get_convergence_table(errors, il, well_it, config)
         end
-        # Jutul.get_convergence_table(errors, 3, well_it, config)
         for (g, lsolve) in wsol_storage.groups_and_linear_solvers
             lsys = storage.LinearizedSystem[g, g]
             recorder = storage.recorder
@@ -75,7 +91,7 @@ function Jutul.prepare_step!(wsol_storage, wsol::PrepareStepWellSolver, storage,
             break
         end
     end
-    if converged
+    if il > 0
         println("Converged in $num_its")
     else
         # TODO: Should only cover non-converged wells.
@@ -85,7 +101,7 @@ function Jutul.prepare_step!(wsol_storage, wsol::PrepareStepWellSolver, storage,
             end
         end
         Jutul.update_state_dependents!(storage, model, dt, forces,
-            update_secondary = update_secondary, targets = targets)
+            update_secondary = true, targets = targets)
         println("Did not converge in $max_well_iterations")
     end
     return (nothing, forces)
