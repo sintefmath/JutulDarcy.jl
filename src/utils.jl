@@ -161,6 +161,9 @@ function setup_reservoir_model(reservoir::DataDomain, system;
         parameters = Dict{Symbol, Any}(),
         kwarg...
     )
+    if !(wells isa AbstractArray)
+        wells = [wells]
+    end
     # List of models (order matters)
     models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()
     reservoir_context, context = Jutul.select_contexts(
@@ -876,11 +879,14 @@ function setup_reservoir_forces(model::MultiModel; control = nothing, limits = n
         f = out[k]
         if m isa Jutul.CompositeModel
             mkeys = keys(m.system.systems)
-            tmp = Dict{Symbol, Any}()
-            for mk in mkeys
-                tmp[mk] = nothing
+            if haskey(f, :flow) && haskey(f, :thermal)
+                tmp = f
+            else
+                tmp = Dict{Symbol, Any}()
+                for mk in mkeys
+                    tmp[mk] = nothing
+                end
             end
-            tmp[:flow] = f
             out[k] = (; pairs(tmp)...)
         end
     end
