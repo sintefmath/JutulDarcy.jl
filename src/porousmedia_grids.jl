@@ -42,10 +42,10 @@ struct MinimalTPFATopology{N} <: ReservoirGrid
     neighborship::N
 end
 
-function MinimalTPFATopology(N::T; ncells = maximum(N)) where T<:AbstractMatrix
+function MinimalTPFATopology(N::T; ncells = maximum(N, init = 1)) where T<:AbstractMatrix
     @assert size(N, 1) == 2
-    @assert maximum(N) <= ncells
-    @assert minimum(N) > 0
+    @assert maximum(N, init = 1) <= ncells
+    @assert minimum(N, init = 1) > 0
     return MinimalTPFATopology{T}(ncells, N)
 end
 
