@@ -877,10 +877,10 @@ function setup_reservoir_forces(model::MultiModel; control = nothing, limits = n
         if m isa Jutul.CompositeModel
             mkeys = keys(m.system.systems)
             tmp = Dict{Symbol, Any}()
-            tmp[:flow] = f
             for mk in mkeys
                 tmp[mk] = nothing
             end
+            tmp[:flow] = f
             out[k] = (; pairs(tmp)...)
         end
     end
