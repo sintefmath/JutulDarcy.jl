@@ -219,7 +219,7 @@ function local_stage(simulator, dt, forces, config, iteration)
     configs = config[:config_subdomains]
     subreports = Vector(undef, n)
 
-    use_threads = config[:threads]
+    use_threads = config[:nldd_threads]
     solve_status = Vector{LocalSolveStatus}(undef, n)
 
     @debug "Solving local systems..."
@@ -318,9 +318,11 @@ function local_stage(simulator, dt, forces, config, iteration)
             end
         end
     end
-    if false
+    if config[:info_level] > 1
         m = sum(x-> !(x == local_solve_skipped), solve_status)
-        @info "Solved $m/$n domains in $(t)s ($(t/m)s average)"
+        tot_str = Jutul.get_tstr(t, 1)
+        avg_str = Jutul.get_tstr(t/m, 1)
+        jutul_message("NLDD", "Solved $m/$n domains in $tot_str ($avg_str average)")
     end
     return subreports, sim_order, t, solve_status, failures
 end
