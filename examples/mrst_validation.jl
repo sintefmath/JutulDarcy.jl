@@ -10,7 +10,7 @@
 # MRST or Eclipse-type of cases to a JutulDarcy-compatible input format. They
 # can then be simulated using [`simulate_mrst_case`](@ref).
 using JutulDarcy, Jutul
-using CairoMakie
+using GLMakie
 
 # ## Define a few utilities for plotting the MRST results
 # We are going to compare well responses against pre-computed results stored

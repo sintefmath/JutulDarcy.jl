@@ -178,7 +178,7 @@ wd, states, t = result
 
 # ## Plot the producer responses
 # We load a plotting package to plot the wells.
-using CairoMakie
+using GLMakie
 # ## Plot the surface rates at the producer
 # We observe that the total rate does not vary much, but the composition changes
 # from liquid to gas as the front propagate through the domain and hits the

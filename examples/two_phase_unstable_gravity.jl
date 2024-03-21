@@ -11,7 +11,7 @@
 # if the defaults are not appropriate.
 using JutulDarcy
 using Jutul
-using CairoMakie
+using GLMakie
 cmap = :seismic
 nx = nz = 100;
 # ## Define the domain

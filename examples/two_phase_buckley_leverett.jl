@@ -66,7 +66,7 @@ print_stats(report_refined)
 # We plot the saturation front for the base case at different times together
 # with the final solution for the refined model. In this case, refining the grid
 # by a factor 10 gave us significantly less smearing of the trailing front.
-using CairoMakie
+using GLMakie
 x = range(0, stop = 1, length = n)
 x_f = range(0, stop = 1, length = n_f)
 f = Figure()

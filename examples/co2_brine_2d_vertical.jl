@@ -22,7 +22,7 @@ mixture = MultiComponentMixture([h2o, co2], A_ij = bic, names = ["H2O", "CO2"])
 eos = GenericCubicEOS(mixture, PengRobinson())
 #-
 # ## Set up domain and wells
-using Jutul, JutulDarcy, CairoMakie
+using Jutul, JutulDarcy, GLMakie
 nx = 50
 ny = 1
 nz = 20
@@ -68,9 +68,8 @@ forces = setup_reservoir_forces(model, control = controls)
 ws, states = simulate_reservoir(state0, model, dt, parameters = parameters, forces = forces)
 # ## Once the simulation is done, we can plot the states
 # Note that this example is intended for static publication in the
-# documentation. For interactive visualization you can replace CairoMakie with
-# GLMakie and use functions like `plot_interactive` to interactively visualize
-# the states.
+# documentation. For interactive visualization you can use functions like
+# `plot_interactive` to interactively visualize the states.
 z = states[end][:OverallMoleFractions][2, :]
 function plot_vertical(x, t)
     data = reshape(x, (nx, nz))
@@ -91,3 +90,7 @@ plot_vertical(sg, "Vapor saturation")
 # ### Plot final pressure
 p = states[end][:Pressure]
 plot_vertical(p./bar, "Pressure [bar]")
+
+#-
+# ### Plot in interactive viewer
+plot_reservoir(model, states)

@@ -45,16 +45,28 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v2
-      - uses: julia-actions/setup-julia@v1
+      - name: Add GLMakie/XFVB dependencies
+        run: sudo apt-get update && sudo apt-get install -y xorg-dev mesa-utils xvfb libgl1 freeglut3-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev libcairo2-dev libfreetype6-dev libffi-dev libjpeg-dev libpng-dev libz-dev
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Julia
+        uses: julia-actions/setup-julia@v1
         with:
           version: '1'
-      - uses: julia-actions/julia-buildpkg@v1
-      - uses: julia-actions/julia-docdeploy@v1
+      - name: Julia cache
+        uses: julia-actions/cache@v1
+      - name: "BuildPkg"
+        uses: julia-actions/julia-buildpkg@v1
+      - name: "docdeploy"
+        uses: julia-actions/julia-docdeploy@v1
+        with:
+          prefix: xvfb-run
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - run: |
-          julia --project=docs -e '
+          DISPLAY: :0
+      - name: Doc build
+        run: |
+          DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --project=docs -e '
             using Documenter: DocMeta, doctest
             using JutulDarcy
             DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy); recursive=true)
