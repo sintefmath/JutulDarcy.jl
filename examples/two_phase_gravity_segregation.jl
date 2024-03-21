@@ -50,7 +50,7 @@ states, report = simulate(state0, model, timesteps, info_level = -1)
 # 2D. We see that the heavy fluid, colored blue, is initially at the top of the
 # domain and the lighter fluid is at the bottom. These gradually switch places
 # until all the heavy fluid is at the lower part of the column.
-using CairoMakie
+using GLMakie
 tmp = vcat(map((x) -> x[:Saturations][1, :]', states)...)
 f = Figure()
 ax = Axis(f[1, 1], xlabel = "Time", ylabel = "Depth", title = "Gravity segregation")

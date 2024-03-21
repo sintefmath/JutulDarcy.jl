@@ -19,7 +19,7 @@ bic = [0.11883 0.00070981 0.00077754 0.01 0.011;
 mixture = MultiComponentMixture([n2_ch4, co2, c2_5, c6_13, c14_24], A_ij = bic, names = ["N2-CH4", "CO2", "C2-5", "C6-13", "C14-24"])
 eos = GenericCubicEOS(mixture, PengRobinson())
 
-using Jutul, JutulDarcy, CairoMakie
+using Jutul, JutulDarcy, GLMakie
 Darcy, bar, kg, meter, Kelvin, day = si_units(:darcy, :bar, :kilogram, :meter, :Kelvin, :day)
 nx = ny = 20
 nz = 2

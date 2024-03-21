@@ -63,7 +63,7 @@ ws, states, report_time = simulate_qfs()
 # We observe a radial flow pattern initially, before coning occurs near the
 # producer well once the fluid has reached the opposite corner. The uniform
 # permeability and porosity gives axial symmetry at ``x=y``.
-using CairoMakie
+using GLMakie
 to_2d(x) = reshape(vec(x), nx, nx)
 get_sat(state) = to_2d(state[:Saturations][2, :])
 nt = length(report_time)
