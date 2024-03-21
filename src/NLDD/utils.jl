@@ -58,7 +58,7 @@ function simulator_config(sim::NLDDSimulator;
     # Subdomain setup
     subsims = sim.subdomain_simulators
     n = length(subsims)
-    subconfigs = Vector{Dict}(undef, n)
+    subconfigs = Vector{JutulConfig}(undef, n)
     for i in 1:n
         subconfigs[i] = simulator_config(subsims[i], max_timestep_cuts = 2,
                                                     min_nonlinear_iterations = 0,
