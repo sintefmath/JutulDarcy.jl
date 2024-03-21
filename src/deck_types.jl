@@ -20,6 +20,12 @@ struct DeckPhaseViscosities{T, M, R} <: DeckPhaseVariables
     end
 end
 
+function Jutul.subvariable(p::DeckPhaseViscosities, map::FiniteVolumeGlobalMap)
+    c = map.cells
+    regions = Jutul.partition_variable_slice(p.regions, c)
+    return DeckPhaseViscosities(p.pvt, regions = regions, thermal = p.thermal)
+end
+
 """
     DeckPhaseMassDensities(pvt, regions = nothing)
 
@@ -38,6 +44,12 @@ struct DeckPhaseMassDensities{T, W, R} <: DeckPhaseVariables
     end
 end
 
+function Jutul.subvariable(p::DeckPhaseMassDensities, map::FiniteVolumeGlobalMap)
+    c = map.cells
+    regions = Jutul.partition_variable_slice(p.regions, c)
+    return DeckPhaseMassDensities(p.pvt, regions = regions, watdent = p.watdent)
+end
+
 """
 DeckShrinkageFactors(pvt, regions = nothing)
 
@@ -54,6 +66,12 @@ struct DeckShrinkageFactors{T, W, R} <: DeckPhaseVariables
         watdent_t = region_wrap(watdent, regions)
         new{typeof(pvt_t), typeof(watdent_t), typeof(regions)}(pvt_t, watdent, regions)
     end
+end
+
+function Jutul.subvariable(p::DeckShrinkageFactors, map::FiniteVolumeGlobalMap)
+    c = map.cells
+    regions = Jutul.partition_variable_slice(p.regions, c)
+    return DeckShrinkageFactors(p.pvt, regions = regions, watdent = p.watdent)
 end
 
 """
