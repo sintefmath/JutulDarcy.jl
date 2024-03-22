@@ -277,7 +277,7 @@ function local_stage(simulator, dt, forces, config, iteration)
         end
         @tic "local solves [GS]" sim_order = gauss_seidel_for_each_subdomain_do(gs_solve, simulator, sub_sims, subreports, config[:gauss_seidel_order])
     else
-        execute = (f) -> for_each_subdomain_do(f, n, use_threads, config[:thread_type])
+        execute = (f) -> for_each_subdomain_do(f, n, use_threads, config[:nldd_thread_type])
         # Jacobi solve
         @tic "prepare local solves" execute(pre)
         if is_aspen
