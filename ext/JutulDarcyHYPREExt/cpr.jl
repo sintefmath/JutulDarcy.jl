@@ -111,17 +111,23 @@ function inner_hypre_p_rhs!(r_p, y, ncomp, bz, w_p, helper)
     @. R_p = 0.0
 end
 
-function JutulDarcy.correct_residual_and_increment_pressure!(y, x, Δp::HYPRE.HYPREVector, bz, buf, A)
-    nvalues = Δp.iupper - Δp.ilower + 1
-    tmp = zeros(nvalues)
-    copy!(tmp, Δp)
-    JutulDarcy.correct_residual_and_increment_pressure!(y, x, tmp, bz, buf, A)
+function JutulDarcy.correct_residual_and_increment_pressure!(y, x, Δp::HYPRE.HYPREVector, bz, buf, A, p_buf = missing)
+    if ismissing(p_buf)
+        nvalues = Δp.iupper - Δp.ilower + 1
+        p_buf = zeros(nvalues)
+    end
+    p_buf::Vector{Float64}
+    copy!(p_buf, Δp)
+    JutulDarcy.correct_residual_and_increment_pressure!(y, x, p_buf, bz, buf, A)
 end
 
-function JutulDarcy.increment_pressure!(x, Δp::HYPRE.HYPREVector, bz)
-    nvalues = Δp.iupper - Δp.ilower + 1
-    tmp = zeros(nvalues)
-    copy!(tmp, Δp)
-    JutulDarcy.increment_pressure!(x, tmp, bz)
+function JutulDarcy.increment_pressure!(x, Δp::HYPRE.HYPREVector, bz, p_buf = missing)
+    if ismissing(p_buf)
+        nvalues = Δp.iupper - Δp.ilower + 1
+        p_buf = zeros(nvalues)
+    end
+    p_buf::Vector{Float64}
+    copy!(p_buf, Δp)
+    JutulDarcy.increment_pressure!(x, p_buf, bz)
 end
 

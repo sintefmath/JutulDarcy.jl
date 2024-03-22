@@ -1,5 +1,5 @@
 
-struct CPRStorage{P, R, S, F, W, V}
+struct CPRStorage{P, R, S, F, W, V, P_v}
     "pressure system"
     A_p::P
     "pressure residual"
@@ -21,9 +21,11 @@ struct CPRStorage{P, R, S, F, W, V}
     number_of_components::Int
     "id for keeping track of usage, typically `objectid` of reservoir jacobian"
     id::UInt64
+    "optional pressure-sized buffer"
+    p_buffer::P_v
 end
 
-function CPRStorage(p_prec, lin_op, full_jac, ncomp = missing)
+function CPRStorage(p_prec, lin_op, full_jac, ncomp = missing; p_buffer::Bool = true)
     T_b = eltype(full_jac)
     @assert T_b<:StaticMatrix
     T = eltype(T_b)
@@ -40,7 +42,12 @@ function CPRStorage(p_prec, lin_op, full_jac, ncomp = missing)
     w_rhs = zeros(ncomp)
     w_rhs[1] = 1
     w_rhs = SVector{ncomp, T}(w_rhs)
-    return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p, w_rhs, np, bz, ncomp, objectid(full_jac))
+    if p_buffer
+        p_buf = zeros(np)
+    else
+        p_buf = missing
+    end
+    return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p, w_rhs, np, bz, ncomp, objectid(full_jac), p_buf)
 end
 
 function CPRStorage(np::Int, bz::Int, lin_op, psys::Tuple, solution, residual, T = Float64, id = zero(UInt64); ncomp = bz)
@@ -49,7 +56,7 @@ function CPRStorage(np::Int, bz::Int, lin_op, psys::Tuple, solution, residual, T
     w_rhs = zeros(ncomp)
     w_rhs[1] = 1
     w_rhs = SVector{bz, T}(w_rhs)
-    return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p, w_rhs, np, bz, ncomp, id)
+    return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p, w_rhs, np, bz, ncomp, id, zeros(T, np))
 end
 
 
@@ -485,7 +492,7 @@ function update_p_rhs!(r_p, y, ncomp, bz, w_p, p_prec)
     end
 end
 
-function correct_residual_and_increment_pressure!(r, x, Δp, bz, buf, A_ps)
+function correct_residual_and_increment_pressure!(r, x, Δp, bz, buf, A_ps, p_buf = missing)
     # x = x' + Δx
     # A (x' + Δx) = y
     # A x' = y'
@@ -508,7 +515,7 @@ end
     end
 end
 
-function increment_pressure!(x, Δp, bz)
+function increment_pressure!(x, Δp, bz, p_buf = missing)
     @inbounds for i in eachindex(Δp)
         x[(i-1)*bz + 1] += Δp[i]
     end

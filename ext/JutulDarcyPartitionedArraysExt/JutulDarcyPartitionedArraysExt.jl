@@ -166,7 +166,7 @@ module JutulDarcyPartitionedArraysExt
             prec.pressure_precond.data[:hypre_system] = (A_p, r_p, x_p)
             if isnothing(prec.storage)
                 w_p = zeros(bz, n)
-                prec.storage = CPRStorage(A_p, r_p, x_p, missing, missing, A_ps, w_p, w_rhs, n, bz, ncomp, rid)
+                prec.storage = CPRStorage(A_p, r_p, x_p, missing, missing, A_ps, w_p, w_rhs, n, bz, ncomp, rid, zeros(n))
             else
                 @assert prec.storage.id == rid
             end
