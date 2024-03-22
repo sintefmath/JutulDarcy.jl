@@ -79,7 +79,7 @@ module JutulDarcyPartitionedArraysExt
 
         @tic "set dp" map(own_values(global_out), own_values(global_cell_vector), preconditioners) do dx, dp, prec
             bz = prec.storage.block_size
-            increment_pressure!(dx, dp, bz)
+            increment_pressure!(dx, dp, bz, prec.storage.p_buffer)
         end
         # End unsafe shenanigans
         if npost > 0

@@ -265,10 +265,10 @@ function apply!(x, cpr::CPRPreconditioner, r, arg...)
     @tic "cpr pressure stage" apply_cpr_pressure_stage!(cpr, cpr_s, r, arg...)
     # postsmooth
     if cpr.npost > 0
-        correct_residual_and_increment_pressure!(r, x, cpr_s.p, bz, buf, cpr_s.A_ps)
+        correct_residual_and_increment_pressure!(r, x, cpr_s.p, bz, buf, cpr_s.A_ps, cpr_s.p_buffer)
         @tic "cpr smoother" apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npost, skip_last = true)
     else
-        @tic "p increment" increment_pressure!(x, cpr_s.p, bz)
+        @tic "p increment" increment_pressure!(x, cpr_s.p, bz, cpr_s.p_buffer)
     end
 end
 
