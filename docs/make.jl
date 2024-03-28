@@ -6,13 +6,13 @@ using Documenter
 using DocumenterCitations
 bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"))
 
-function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
+function build_jutul_darcy_docs(build_format = nothing; build_examples = true, build_notebooks = true)
     DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy; using Jutul); recursive=true)
     DocMeta.setdocmeta!(Jutul, :DocTestSetup, :(using Jutul); recursive=true)
 
     ## Literate pass
     # Base directory
-    jutul_dir = joinpath(dirname(pathof(JutulDarcy)), "..")
+    jutul_dir = joinpath(@__DIR__, "..")
     # Convert examples as .jl files to markdown
     examples = [
         "Gravity segregation" => "two_phase_gravity_segregation",
@@ -29,15 +29,20 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
     function update_footer(content, pth)
         return content*"\n\n # ## Example on GitHub\n "*
         "# If you would like to run this example yourself, it can be downloaded from "*
-        "[the JutulDarcy.jl GitHub repository](https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/$pth.jl)."
+        "the JutulDarcy.jl GitHub repository [as a script](https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/$pth.jl), "*
+        "or as a [Notebook](https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/docs/notebooks/$pth.ipynb)"
     end
     if build_examples
         for (ex, pth) in examples
             in_pth = joinpath(jutul_dir, "examples", "$pth.jl")
-            out_dir = joinpath(jutul_dir, "docs", "src", "examples")
+            out_dir = joinpath(@__DIR__, "src", "examples")
+            out_dir_notebooks = joinpath(@__DIR__, "notebooks")
             push!(examples_markdown, ex => joinpath("examples", "$pth.md"))
             upd(content) = update_footer(content, pth)
             Literate.markdown(in_pth, out_dir, preprocess = upd)
+            if build_notebooks
+                Literate.notebook(in_pth, out_dir_notebooks)
+            end
         end
     end
     ## Docs
