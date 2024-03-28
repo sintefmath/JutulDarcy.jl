@@ -12,7 +12,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
 
     ## Literate pass
     # Base directory
-    jutul_dir = joinpath(@__DIR__, "..")
+    jutul_dir = realpath(joinpath(@__DIR__, ".."))
     # Convert examples as .jl files to markdown
     examples = [
         "Gravity segregation" => "two_phase_gravity_segregation",
