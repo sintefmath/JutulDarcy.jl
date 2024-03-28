@@ -6,7 +6,9 @@ import JutulDarcy: set_default_cnv_mb!
 function simulator_config(sim::NLDDSimulator;
         method = :nldd,
         inner_tol_mul = 1.0,
-        inner_tol_final = 1.0,
+        inner_tol_final = 10.0,
+        inner_max_timestep_cuts = 2,
+        inner_min_nonlinear_iterations = 0,
         tol_cnv = 1e-3,
         tol_mb = 1e-7,
         tol_cnv_well = 1e-2,
@@ -30,11 +32,12 @@ function simulator_config(sim::NLDDSimulator;
         inc_tol_dz = inc_tol_dz
     )
     # Extra options
-    add_option!(cfg, :threads, Threads.nthreads() > 1, "Use threads for local solves", types = Bool)
-    add_option!(cfg, :thread_type, :default, "Type of threads to use", types = Symbol)
-    add_option!(cfg, :gauss_seidel, Threads.nthreads() == 1 && method == :nldd, "Use Gauss-Seidel/multiplicative for local solves", types = Bool)
+    add_option!(cfg, :nldd_threads, false, "Use threads for local solves. Not compatible with Gauss-Seidel.", types = Bool)
+    add_option!(cfg, :nldd_thread_type, :default, "Type of threads to use", types = Symbol)
+    add_option!(cfg, :gauss_seidel, method == :nldd, "Use Gauss-Seidel/multiplicative for local solves. Not compatible with nldd_threads = true", types = Bool)
     add_option!(cfg,
-        :gauss_seidel_order, :pressure,
+        :gauss_seidel_order,
+        :pressure,
         "Order for Gauss-Seidel domain updates",
         types = Symbol,
         values = [:linear, :pressure, :potential, :adaptive]
@@ -58,13 +61,15 @@ function simulator_config(sim::NLDDSimulator;
     # Subdomain setup
     subsims = sim.subdomain_simulators
     n = length(subsims)
-    subconfigs = Vector{Dict}(undef, n)
+    subconfigs = Vector{JutulConfig}(undef, n)
     for i in 1:n
-        subconfigs[i] = simulator_config(subsims[i], max_timestep_cuts = 2,
-                                                    min_nonlinear_iterations = 0,
-                                                    tol_factor_final_iteration = inner_tol_final,
-                                                    check_before_solve = check_before_solve,
-                                                    info_level = -1)
+        subconfigs[i] = simulator_config(subsims[i],
+            max_timestep_cuts = inner_max_timestep_cuts,
+            min_nonlinear_iterations = inner_min_nonlinear_iterations,
+            tol_factor_final_iteration = inner_tol_final,
+            check_before_solve = check_before_solve,
+            info_level = -1
+        )
         # Small hack for reservoir stuff
         set_default_cnv_mb!(subconfigs[i], subsims[i].model, tol_cnv = inner_tol_mul*tol_cnv, 
                                                             tol_mb = inner_tol_mul*tol_mb,
@@ -251,14 +256,14 @@ function bench_dd(name, method = :fi;
     if do_print
         @info "Reading $name..."
     end
-    if isfile(name)
-        pth = name
-    else
-        pth = JutulDarcy.get_mrst_input_path(name)
-    end
-    base_path, filename = splitdir(pth)
-    name, = splitext(filename)
     if isnothing(case)
+        if isfile(name)
+            pth = name
+        else
+            pth = JutulDarcy.get_mrst_input_path(name)
+        end
+        base_path, filename = splitdir(pth)
+        name, = splitext(filename)
         case, mrst_data = setup_case_from_mrst(pth,
                                         facility_grouping = :perwell,
                                         ds_max = ds_max,
@@ -267,6 +272,7 @@ function bench_dd(name, method = :fi;
                                         wells = wells,
                                         block_backend = block_backend)
     else
+        base_path = ""
         case = deepcopy(case)
     end
     if do_print

@@ -161,6 +161,9 @@ function setup_reservoir_model(reservoir::DataDomain, system;
         parameters = Dict{Symbol, Any}(),
         kwarg...
     )
+    if !(wells isa AbstractArray)
+        wells = [wells]
+    end
     # List of models (order matters)
     models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()
     reservoir_context, context = Jutul.select_contexts(
@@ -389,6 +392,7 @@ function setup_reservoir_simulator(case::JutulCase;
         inc_tol_dz = Inf,
         set_linear_solver = true,
         timesteps = :auto,
+        presolve_wells = false,
         parray_arg = Dict{Symbol, Any}(),
         linear_solver_arg = Dict{Symbol, Any}(),
         extra_timing_setup = false,
@@ -400,25 +404,36 @@ function setup_reservoir_simulator(case::JutulCase;
     # Handle old kwarg...
     max_timestep = min(max_dt, max_timestep)
     extra_kwarg = Dict{Symbol, Any}()
-    if method == :newton
-        if mode == :default
-            sim = Simulator(case, extra_timing = extra_timing_setup)
+    # Setup simulator
+    sim_kwarg = Dict{Symbol, Any}()
+    sim_kwarg[:extra_timing] = extra_timing_setup
+    if presolve_wells
+        sim_kwarg[:prepare_step_handler] = PrepareStepWellSolver()
+    end
+    if mode == :default
+        # Single-process solve
+        if method == :newton
+            sim = Simulator(case; sim_kwarg...)
         else
-            b = mode_to_backend(mode)
-            sim = setup_reservoir_simulator_parray(case, b; parray_arg...);
+            extra_kwarg[:method] = method
+            sim = NLDD.NLDDSimulator(case, nldd_partition; nldd_arg..., sim_kwarg...)
         end
     else
-        if mode == :default
-            extra_kwarg[:method] = method
-            sim = NLDD.NLDDSimulator(case, nldd_partition; nldd_arg..., extra_timing = extra_timing_setup)
+        # MPI/PArray solve
+        if method == :newton
+            make_sim = (m; kwarg...) -> Simulator(m; sim_kwarg..., kwarg...)
+            pbuffer = false
         else
-            b = mode_to_backend(mode)
-            sim = setup_reservoir_simulator_parray(case, b;
-                simulator_constructor = (m; kwarg...) -> NLDD.NLDDSimulator(m; kwarg...),
-                primary_buffer = true
-            );
+            make_sim = (m; kwarg...) -> NLDD.NLDDSimulator(m; nldd_arg..., sim_kwarg..., kwarg...)
+            pbuffer = true
         end
+        b = mode_to_backend(mode)
+        sim = setup_reservoir_simulator_parray(case, b;
+            simulator_constructor = make_sim,
+            primary_buffer = pbuffer
+        );
     end
+
     t_base = TimestepSelector(initial_absolute = initial_dt, max = max_dt)
     sel = Vector{Any}()
     push!(sel, t_base)
@@ -864,10 +879,13 @@ function setup_reservoir_forces(model::MultiModel; control = nothing, limits = n
         f = out[k]
         if m isa Jutul.CompositeModel
             mkeys = keys(m.system.systems)
-            tmp = Dict{Symbol, Any}()
-            tmp[:flow] = f
-            for mk in mkeys
-                tmp[mk] = nothing
+            if haskey(f, :flow) && haskey(f, :thermal)
+                tmp = f
+            else
+                tmp = Dict{Symbol, Any}()
+                for mk in mkeys
+                    tmp[mk] = nothing
+                end
             end
             out[k] = (; pairs(tmp)...)
         end
@@ -907,12 +925,13 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
     n = length(states)
     d = zeros(n)
 
-    groups = wellgroup_symbols(model)
-    group = nothing
-    for g in groups
-        if well_symbol in model.models[g].domain.well_symbols
-            group = g
+    well_number = 1
+    for (k, m) in pairs(model.models)
+        if k == well_symbol
             break
+        end
+        if model_or_domain_is_well(m)
+            well_number += 1
         end
     end
     rhoS_o = reference_densities(model.models[well_symbol].system)
@@ -923,12 +942,16 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
 
     target_limit = to_target(target)
 
-    pos = get_well_position(model.models[group].domain, well_symbol)
     well_model = model.models[well_symbol]
     for (i, state) = enumerate(states)
         well_state = state[well_symbol]
         well_state = convert_to_immutable_storage(well_state)
-        q_t = state[group][:TotalSurfaceMassRate][pos]
+        ctrl_grp = Symbol("$(well_symbol)_ctrl")
+        if haskey(state, ctrl_grp)
+            q_t = only(state[ctrl_grp][:TotalSurfaceMassRate])
+        else
+            q_t = state[:Facility][:TotalSurfaceMassRate][well_number]
+        end
         if forces isa AbstractVector
             force = forces[i]
         else

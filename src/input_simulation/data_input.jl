@@ -214,19 +214,20 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord; s
                 diameter = fill(NaN, num_edges)
                 branches = zeros(Int, num_edges)
                 tubing_lengths = zeros(num_edges)
-                tubing_depths = zeros(max_seg)
-                tubing_depths[1] = top_tubing_delta
+                tubing_depths = zeros(num_edges)
+                # tubing_depths[1] = top_tubing_delta
 
                 segment_models = Vector{SegmentWellBoreFrictionHB{Float64}}(undef, num_edges)
                 for segment in segments
                     start, stop, branch, start_conn,
                     dist, depth_delta, D, rough, cross_sect, vol, = segment
                     parts_in_segment = stop - start + 1
-                    tubing_at_start = tubing_depths[start]
-                    if start == 1
+                    if start_conn == 1
                         depth_at_start = top_depth
+                        tubing_at_start = top_tubing_delta
                     else
-                        depth_at_start = centers[3, start-1]
+                        depth_at_start = centers[3, start_conn-1]
+                        tubing_at_start = tubing_depths[start_conn-1]
                     end
                     if is_inc
                         L = dist
@@ -261,7 +262,7 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord; s
                         centers[1, edge_ix] = top_x
                         centers[2, edge_ix] = top_y
                         centers[3, edge_ix] = current_depth
-                        tubing_depths[seg_ix] = current_tubing
+                        tubing_depths[edge_ix] = current_tubing
                     end
                 end
                 N = zeros(Int, 2, length(conn))
@@ -278,7 +279,7 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord; s
                     for (i, b) in enumerate(branches)
                         if b == branch
                             L = tubing_lengths[i]
-                            seg_end = tubing_depths[i+1]
+                            seg_end = tubing_depths[i]
                             seg_mid = seg_end - L/2
                             tube_mid = (tube_end + tube_start)/2
                             dist = abs(seg_mid - tube_mid)
@@ -305,6 +306,7 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord; s
             end
         end
     end
+
     if ismissing(W)
         W = setup_well(domain, wc;
             name = Symbol(wname),

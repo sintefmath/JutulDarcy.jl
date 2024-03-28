@@ -15,7 +15,7 @@ include("wells/wells.jl")
 include("controls.jl")
 include("wellgroups.jl")
 include("cross_terms.jl")
-
+include("well_presolve.jl")
 
 function Jutul.select_minimum_output_variables!(vars, domain::Union{MSWellDomain, SimpleWellDomain}, model::SimulationModel{<:Any, CompositeSystem{:Reservoir, T}, <:Any, <:Any}) where T
     push!(vars, :PhaseMassDensities)
