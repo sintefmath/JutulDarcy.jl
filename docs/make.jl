@@ -5,8 +5,7 @@ using Documenter
 
 using DocumenterCitations
 bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"))
-
-function build_jutul_darcy_docs(build_format = nothing; build_examples = true, build_notebooks = true)
+function build_jutul_darcy_docs(build_format = nothing; build_examples = true, build_notebooks = build_examples, clean = true)
     DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy; using Jutul); recursive=true)
     DocMeta.setdocmeta!(Jutul, :DocTestSetup, :(using Jutul); recursive=true)
 
@@ -32,17 +31,29 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
         "the JutulDarcy.jl GitHub repository [as a script](https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/$pth.jl), "*
         "or as a [Notebook](https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/docs/notebooks/$pth.ipynb)"
     end
-    if build_examples
+    if clean
         for (ex, pth) in examples
-            in_pth = joinpath(jutul_dir, "examples", "$pth.jl")
+            delpath = joinpath(@__DIR__, "src", "examples", "$pth.md")
+            if isfile(delpath)
+                println("Deleting generated example \"$ex\":\n\t$delpath")
+                rm(delpath)
+            else
+                println("Did not find generated example \"$ex\", skipping removal:\n\t$delpath")
+            end
+        end
+    end
+    example_path(pth) = joinpath(jutul_dir, "examples", "$pth.jl")
+    for (ex, pth) in examples
+        in_pth = example_path(pth)
+        if build_examples
             out_dir = joinpath(@__DIR__, "src", "examples")
-            out_dir_notebooks = joinpath(@__DIR__, "notebooks")
             push!(examples_markdown, ex => joinpath("examples", "$pth.md"))
             upd(content) = update_footer(content, pth)
             Literate.markdown(in_pth, out_dir, preprocess = upd)
-            if build_notebooks
-                Literate.notebook(in_pth, out_dir_notebooks)
-            end
+        end
+        if build_notebooks
+            out_dir_notebooks = joinpath(@__DIR__, "notebooks")
+            Literate.notebook(in_pth, out_dir_notebooks)
         end
     end
     ## Docs
