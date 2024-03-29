@@ -944,7 +944,7 @@ end
 """
     setup_case_from_mrst("filename.mat"; kwarg...)
 
-Set up a [`Jutul.SimulationCase`](@ref) from a MRST-exported .mat file.
+Set up a [`Jutul.JutulCase`](@ref) from a MRST-exported .mat file.
 """
 function setup_case_from_mrst(casename; wells = :ms,
                                         backend = :csc,

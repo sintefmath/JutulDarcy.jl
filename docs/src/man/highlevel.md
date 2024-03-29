@@ -40,4 +40,5 @@ setup_reservoir_state
 ```@docs
 simulate_reservoir
 setup_reservoir_simulator
+ReservoirSimResult
 ```
