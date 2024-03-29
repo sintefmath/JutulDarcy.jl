@@ -1,3 +1,14 @@
+"""
+    reservoir_model(model)
+
+Get the reservoir model from a `MultiModel` or return the model itself if it is
+not a `MultiModel`.
+"""
+function reservoir_model
+
+end
+
+
 function reservoir_model(model::SimulationModel; kwarg...)
     return model
 end

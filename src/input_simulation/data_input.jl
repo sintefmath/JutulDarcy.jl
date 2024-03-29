@@ -2,10 +2,11 @@
     simulate_data_file(inp; parse_arg = NamedTuple(), kwarg...)
 
 Simulate standard input file (with extension .DATA). `inp` can either be the
-output from `setup_case_from_parsed_data` or a String for the path of an input file.
+output from the GeoEnergyIO function `parse_data_file` or a `String` for the
+path of an input file with the .DATA extension.
 
-Additional arguments are passed onto `simulate_reservoir`. Extra inputs to the
-parser can be sent as a `parse_arg` `NamedTuple`.
+Additional arguments are passed onto [`simulate_reservoir`](@ref). Extra inputs
+to the parser can be sent as a `setup_arg` `NamedTuple`.
 """
 function simulate_data_file(data; setup_arg = NamedTuple(), kwarg...)
     case = setup_case_from_data_file(data; setup_arg...)
@@ -50,6 +51,12 @@ function setup_case_from_data_file(
     return out
 end
 
+"""
+    setup_case_from_parsed_data(datafile; skip_wells = false, simple_well = true, use_ijk_trans = true, verbose = false, kwarg...)
+
+Set up a case from a parsed input file (in `Dict` format). Internal function,
+not exported. Use [`setup_case_from_data_file`](@ref).
+"""
 function setup_case_from_parsed_data(datafile; skip_wells = false, simple_well = true, use_ijk_trans = true, verbose = false, kwarg...)
     function msg(s)
         if verbose
