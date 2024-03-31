@@ -1,4 +1,4 @@
-# Parallel solution using MPI.jl, PartitionedArrays.jl and HYPRE.jl
+# Multi-threading and MPI support
 
 JutulDarcy can use threads by default, but advanced options can improve performance significantly for larger models.
 
@@ -8,7 +8,7 @@ There are two main ways of exploiting multiple cores in Jutul/JutulDarcy: Thread
 
 ### MPI parallelization
 
-MPI parallelizes all aspects of the solver using domain decomposition and allows a simulation to be divided between multiple nodes in e.g. a supercomputer. It is significantly more cumbersome to use than standard simulations as the program must be launched in MPI mode. This is typically a non-interactive process where you launch your MPI processes and once they complete the simulation the result is available on disk.
+MPI parallelizes all aspects of the solver using domain decomposition and allows a simulation to be divided between multiple nodes in e.g. a supercomputer. It is significantly more cumbersome to use than standard simulations as the program must be launched in MPI mode. This is typically a non-interactive process where you launch your MPI processes and once they complete the simulation the result is available on disk. The MPI parallel option uses a combination of MPI.jl, PartitionedArrays.jl and HYPRE.jl.
 
 ### Thread parallelization
 

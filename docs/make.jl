@@ -4,10 +4,11 @@ using Literate
 using Documenter
 
 using DocumenterCitations
-bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"))
+##
 function build_jutul_darcy_docs(build_format = nothing; build_examples = true, build_notebooks = build_examples, clean = true)
     DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy; using Jutul); recursive=true)
     DocMeta.setdocmeta!(Jutul, :DocTestSetup, :(using Jutul); recursive=true)
+    bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"))
 
     ## Literate pass
     # Base directory
@@ -74,23 +75,25 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
         plugins=[bib],
         format=build_format,
         pages=[
-            "Home" => "index.md",
+            "Introduction" => [
+                "JutulDarcy.jl" => "index.md",
+                "Getting started" =>"man/intro.md"
+                ],
             "Manual" => [
-                "Getting started" =>"man/intro.md",
-                "High-level functions" =>"man/highlevel.md",
-                "Input files" =>"man/input_files.md",
-                "Driving forces" =>"man/forces.md",
-                "Supported physical systems" =>"man/systems.md",
-                "Wells and controls" =>"man/wells.md",
-                "Solving the equations" => "man/solution.md",
-                "Primary variables" => "man/primary.md",
-                "Secondary variables (properties)" => "man/secondary.md",
-                "Parameters" => "man/parameters.md",
-                "Visualization" =>"man/plotting.md",
+                "man/basics/highlevel.md",
+                "man/basics/input_files.md",
+                "man/basics/forces.md",
+                "man/basics/systems.md",
+                "man/basics/wells.md",
+                "man/basics/solution.md",
+                "man/basics/primary.md",
+                "man/basics/secondary.md",
+                "man/basics/parameters.md",
+                "man/basics/plotting.md",
                 ],
             "Advanced usage" => [
-                "Parallel solves with MPI" =>"man/mpi.md",
-                "JutulDarcy.jl compiled app" =>"man/compiled.md"
+                "man/advanced/mpi.md",
+                "man/advanced/compiled.md"
             ],
             "Examples" => examples_markdown,
             "Reference" => [

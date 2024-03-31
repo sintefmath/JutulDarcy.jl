@@ -1,5 +1,5 @@
 
-# Reading input files
+# Input formats
 
 It is also possible to read cases that have been set up in MRST (see [`setup_case_from_mrst`](@ref) and [`simulate_mrst_case`](@ref)) or from .DATA files (see [`setup_case_from_data_file`](@ref) and [`simulate_data_file`](@ref))
 
