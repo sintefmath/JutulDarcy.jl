@@ -77,10 +77,10 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
         pages=[
             "Introduction" => [
                 "JutulDarcy.jl" => "index.md",
-                "Getting started" =>"man/intro.md"
+                "Getting started" =>"man/intro.md",
+                "man/highlevel.md",
                 ],
             "Manual" => [
-                "man/basics/highlevel.md",
                 "man/basics/input_files.md",
                 "man/basics/forces.md",
                 "man/basics/systems.md",
