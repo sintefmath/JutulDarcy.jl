@@ -10,6 +10,11 @@ mutable struct WellGroup <: WellControllerDomain
     can_shut_wells::Bool               # Can temporarily shut wells that try to reach zero rate multiple solves in a row
 end
 
+"""
+    WellGroup(wells::Vector{Symbol}; can_shut_wells = true)
+
+Create a well group that can control the given set of wells.
+"""
 function WellGroup(wells::Vector{Symbol}; can_shut_wells = true)
     return WellGroup(wells, can_shut_wells)
 end

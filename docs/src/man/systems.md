@@ -155,11 +155,10 @@ For additional details, please see Chapter 8 - Compositional Simulation with the
 !!! note "Compositional implementation"
     The [`MultiPhaseCompositionalSystemLV`](@ref) implements the compositional model. The primary variables for the most general case is the reference [`Pressure`](@ref), an [`ImmiscibleSaturation`](@ref) for the optional immiscible phase and ``M-1`` [`OverallMoleFractions`](@ref).
 
-## Thermal flow
-
-Currently experimental and undocumented. See [`ThermalSystem`](@ref) if you are feeling brave.
+## Multi-phase thermal flow
 
 ```@docs
+reservoir_system
 ThermalSystem
 Jutul.CompositeSystem
 ```
