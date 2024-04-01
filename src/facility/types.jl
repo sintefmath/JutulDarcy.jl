@@ -368,22 +368,40 @@ mutable struct WellGroupConfiguration{T, O, L}
     const requested_controls::O # The requested control (which may be different if limits are hit)
     const limits::L             # Operating limits for the wells
     step_index::Int             # Internal book-keeping of what step we are at
-    function WellGroupConfiguration(well_symbols, control = nothing, limits = nothing, step = 0)
-        if isnothing(control)
-            control = Dict{Symbol, WellControlForce}()
-            for s in well_symbols
-                control[s] = DisabledControl()
-            end
-        end
-        requested = deepcopy(control)
-        if isnothing(limits)
-            limits = Dict{Symbol, Any}()
-            for s in well_symbols
-                limits[s] = nothing
-            end
-        end
-        new{typeof(control), typeof(requested), typeof(limits)}(control, requested, limits, step)
+    function WellGroupConfiguration(; operating, limits, requested = operating, step = 0)
+        new{typeof(operating), typeof(requested), typeof(limits)}(operating, requested, limits, step)
     end
+end
+
+function WellGroupConfiguration(well_symbols, control = nothing, limits = nothing, step = 0)
+    if isnothing(control)
+        control = Dict{Symbol, WellControlForce}()
+        for s in well_symbols
+            control[s] = DisabledControl()
+        end
+    end
+    requested = deepcopy(control)
+    if isnothing(limits)
+        limits = Dict{Symbol, Any}()
+        for s in well_symbols
+            limits[s] = nothing
+        end
+    end
+    return WellGroupConfiguration(
+        operating = control,
+        requested = requested,
+        limits = limits,
+        step = step
+    )
+end
+
+function Base.copy(c::WellGroupConfiguration)
+    return WellGroupConfiguration(
+        operating = copy(c.operating_controls),
+        requested = copy(c.requested_controls),
+        limits = copy(c.limits),
+        step = c.step_index
+    )
 end
 
 function Jutul.numerical_type(tc::WellGroupConfiguration)
@@ -391,7 +409,17 @@ function Jutul.numerical_type(tc::WellGroupConfiguration)
 end
 
 function Jutul.update_values!(old::WellGroupConfiguration, new::WellGroupConfiguration)
-    return WellGroupConfiguration(copy(new.operating_controls), copy(new.requested_controls), copy(new.limits), new.step_index)
+    for (k, v) in new.operating_controls
+        old.operating_controls[k] = v
+    end
+    for (k, v) in new.requested_controls
+        old.requested_controls[k] = v
+    end
+    for (k, v) in new.limits
+        old.limits[k] = v
+    end
+    old.step_index = new.step_index
+    return old
 end
 
 operating_control(cfg::WellGroupConfiguration, well::Symbol) = cfg.operating_controls[well]
