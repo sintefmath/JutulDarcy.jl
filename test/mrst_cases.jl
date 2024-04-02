@@ -8,7 +8,7 @@ function test_mrst_case(casename; tol = 0.01, wtol = tol, otol = tol, gtol = tol
         case = result.extra[:case]
         ref = result.extra[:mrst]["extra"][1]["mrst_solution"]
         dt = case.dt
-        ws = full_well_outputs(case.model, result.result.states, case.forces, shortname = true)
+        ws = full_well_outputs(case.model, result.result.states, case.forces)
         output = Dict();
         for k in keys(ws)
             output[k] = Dict()
