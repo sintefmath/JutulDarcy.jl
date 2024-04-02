@@ -8,6 +8,7 @@ Two point approximation with flux for wells
 struct MixedWellSegmentFlow <: WellPotentialFlowDiscretization end
 
 include("separator.jl")
+include("well_results.jl")
 
 """
     TotalMassFlux(scale = si_unit(:day), max_abs = nothing, max_rel = nothing)

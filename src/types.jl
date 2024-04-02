@@ -494,9 +494,21 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
 end
 
 
+struct WellResults
+    "Vector of time offsets that the reports are given at"
+    time::Vector{Float64}
+    "Dict-of-dicts that contains the well outputs"
+    wells::Dict{Symbol, AbstractDict}
+    "Start date for t = 0"
+    start_date::Union{Date, Nothing}
+    function WellResults(time, well_results, start_date = nothing)
+        return new(time, well_results, start_date)
+    end
+end
+
 struct ReservoirSimResult
     "Well results as a Dict (output from [`full_well_outputs`](@ref))"
-    wells::AbstractDict
+    wells::WellResults
     "Reservoir states for each time-step"
     states::AbstractVector
     "The time the states and well solutions are given at"
@@ -523,7 +535,7 @@ ws, states = res_result
 
 $FIELDS
 """
-function ReservoirSimResult(model, result::Jutul.SimResult, forces, extra = Dict(); kwarg...)
+function ReservoirSimResult(model, result::Jutul.SimResult, forces, extra = Dict(); start_date = nothing, kwarg...)
     for (k, v) in kwarg
         extra[k] = v
     end
@@ -531,7 +543,8 @@ function ReservoirSimResult(model, result::Jutul.SimResult, forces, extra = Dict
     res_states = map(x -> x[:Reservoir], states)
     wells = full_well_outputs(model, states, forces)
     report_time = Jutul.report_times(reports)
-    return ReservoirSimResult(wells, res_states, report_time, result, extra)
+    well_result = WellResults(report_time, wells, start_date)
+    return ReservoirSimResult(well_result, res_states, report_time, result, extra)
 end
 
 struct TopConditions{N, R}
@@ -576,5 +589,4 @@ function SurfaceWellConditions(sys::JutulSystem; kwarg...)
     return SurfaceWellConditions(s, cond, targets)
 end
 
-struct PrepareStepWellSolver
-end
+struct PrepareStepWellSolver end
