@@ -516,6 +516,7 @@ function well_target_information(;
         symbol = symbol,
         description = description,
         explanation = explanation,
+        unit_label = unit_label,
         unit_type = unit_type
     )
 end
