@@ -550,20 +550,19 @@ result = simulate_reservoir(state0, model, dt, output_path = "/some/path", resta
 """
 function simulate_reservoir(state0, model, dt;
         parameters = setup_parameters(model),
-        restart = false,
         forces = setup_forces(model),
-        config = missing,
         kwarg...
     )
-    sim, config_new = setup_reservoir_simulator(model, state0, parameters; kwarg...)
-    if ismissing(config)
-        config = config_new
-    end
-    result = simulate!(sim, dt, forces = forces, config = config, restart = restart);
-    return ReservoirSimResult(model, result, forces; simulator = sim, config = config)
+    case = JutulCase(model, dt, forces, state0 = state0, parameters = parameters)
+    return simulate_reservoir(case; kwarg...)
 end
 
-function simulate_reservoir(case::JutulCase; config = missing, restart = false, simulator = missing, kwarg...)
+function simulate_reservoir(case::JutulCase;
+        config = missing,
+        restart = false,
+        simulator = missing,
+        kwarg...
+    )
     (; model, forces, state0, parameters, dt) = case
     if ismissing(simulator)
         sim, config_new = setup_reservoir_simulator(model, state0, parameters; kwarg...)
@@ -601,7 +600,7 @@ function set_default_cnv_mb_inner!(tol, model;
         sys = flow_system(model.system)
     end
     if sys isa ImmiscibleSystem || sys isa BlackOilSystem || sys isa CompositionalSystem
-        is_well = physical_representation(model) isa WellDomain
+        is_well = model_or_domain_is_well(model)
         if is_well
             c = tol_cnv_well
             m = tol_mb_well
