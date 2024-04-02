@@ -144,7 +144,7 @@ end
                                 output_path = tempdir(),
                                 arg...
                             )
-                            compare_ws(ws, ws_d)
+                            compare_ws(ws.wells, ws_d.wells)
                             compare_states(states, states_d)
                         end
                     end
@@ -152,7 +152,7 @@ end
                 @testset "PArray MPI" begin
                     # MPI version
                     ws_m, states_m = simulate_reservoir(case; mode = :mpi, arg...)
-                    compare_ws(ws, ws_m)
+                    compare_ws(ws.wells, ws_m.wells)
                     compare_states(states, states_m)
                 end
             end
