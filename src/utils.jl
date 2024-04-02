@@ -906,23 +906,19 @@ end
 
 
 """
-    full_well_outputs(model, states, forces; targets = available_well_targets(model.models.Reservoir), shortname = false)
+    full_well_outputs(model, states, forces; targets = available_well_targets(model.models.Reservoir))
 
 Get the full set of well outputs after a simulation has occured, for plotting or other post-processing.
 """
-function full_well_outputs(model, states, forces; targets = available_well_targets(model.models.Reservoir), shortname = false)
-    out = Dict()
-    if shortname
-        tm = :mass
-    else
-        tm = Symbol("Total surface mass rate")
-    end
+function full_well_outputs(model, states, forces; targets = available_well_targets(model.models.Reservoir))
+    out = Dict{Symbol, AbstractDict}()
     for w in well_symbols(model)
         out[w] = Dict()
         for t in targets
-            out[w][translate_target_to_symbol(t(1.0), shortname = shortname)] = well_output(model, states, w, forces, t)
+            out[w][translate_target_to_symbol(t(1.0))] = well_output(model, states, w, forces, t)
         end
-        out[w][Symbol(tm)] = well_output(model, states, w, forces, :TotalSurfaceMassRate)
+        out[w][:mass_rate] = well_output(model, states, w, forces, :TotalSurfaceMassRate)
+        out[w][:control] = well_output(model, states, w, forces, :control)
     end
     return out
 end
@@ -934,7 +930,6 @@ Get a specific well output from a valid operational target once a simulation is 
 """
 function well_output(model::MultiModel, states, well_symbol, forces, target = BottomHolePressureTarget)
     n = length(states)
-    d = zeros(n)
 
     well_number = 1
     for (k, m) in pairs(model.models)
@@ -954,48 +949,69 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
     target_limit = to_target(target)
 
     well_model = model.models[well_symbol]
-    for (i, state) = enumerate(states)
-        well_state = state[well_symbol]
-        well_state = convert_to_immutable_storage(well_state)
-        ctrl_grp = Symbol("$(well_symbol)_ctrl")
-        if haskey(state, ctrl_grp)
-            q_t = only(state[ctrl_grp][:TotalSurfaceMassRate])
-        else
-            q_t = state[:Facility][:TotalSurfaceMassRate][well_number]
-        end
-        if forces isa AbstractVector
-            force = forces[i]
-        else
-            force = forces
-        end
-        if haskey(force, :outer)
-            force = force.outer
-        end
-        if haskey(force, :Facility)
-            gforce = force[:Facility]
-        else
-            gforce = force[Symbol("$(well_symbol)_ctrl")]
-        end
-        control = gforce.control[well_symbol]
-        if control isa InjectorControl || control isa ProducerControl
-            q_t *= control.factor
-        end
-        if target == :TotalSurfaceMassRate
-            d[i] = q_t
-        else
-            if q_t == 0
-                current_control = DisabledControl()
-                if target == BottomHolePressureTarget
-                    v = well_state.Pressure[1]
-                else
-                    v = 0.0
-                end
-                d[i] = v
+
+    if target == :control
+        d = Symbol[]
+        for (i, state) = enumerate(states)
+            ctrl_grp = Symbol("$(well_symbol)_ctrl")
+            if haskey(state, ctrl_grp)
+                cfg = state[ctrl_grp][:WellGroupConfiguration]
             else
-                current_control = replace_target(control, BottomHolePressureTarget(1.0))
-                rhoS, S = surface_density_and_volume_fractions(well_state)
-                v = well_target_value(q_t, current_control, target_limit, well_model, well_state, rhoS, S)
-                d[i] = v
+                cfg = state[:Facility][:WellGroupConfiguration]
+            end
+            ctrl = cfg.operating_controls[well_symbol]
+            if ctrl isa DisabledControl
+                t = :disabled
+            else
+                t = translate_target_to_symbol(ctrl.target)
+            end
+            push!(d, t)
+        end
+    else
+        d = zeros(n)
+        for (i, state) = enumerate(states)
+            well_state = state[well_symbol]
+            well_state = convert_to_immutable_storage(well_state)
+            ctrl_grp = Symbol("$(well_symbol)_ctrl")
+            if haskey(state, ctrl_grp)
+                q_t = only(state[ctrl_grp][:TotalSurfaceMassRate])
+            else
+                q_t = state[:Facility][:TotalSurfaceMassRate][well_number]
+            end
+            if forces isa AbstractVector
+                force = forces[i]
+            else
+                force = forces
+            end
+            if haskey(force, :outer)
+                force = force.outer
+            end
+            if haskey(force, :Facility)
+                gforce = force[:Facility]
+            else
+                gforce = force[Symbol("$(well_symbol)_ctrl")]
+            end
+            control = gforce.control[well_symbol]
+            if control isa InjectorControl || control isa ProducerControl
+                q_t *= control.factor
+            end
+            if target == :TotalSurfaceMassRate
+                d[i] = q_t
+            else
+                if q_t == 0
+                    current_control = DisabledControl()
+                    if target == BottomHolePressureTarget
+                        v = well_state.Pressure[1]
+                    else
+                        v = 0.0
+                    end
+                    d[i] = v
+                else
+                    current_control = replace_target(control, BottomHolePressureTarget(1.0))
+                    rhoS, S = surface_density_and_volume_fractions(well_state)
+                    v = well_target_value(q_t, current_control, target_limit, well_model, well_state, rhoS, S)
+                    d[i] = v
+                end
             end
         end
     end
