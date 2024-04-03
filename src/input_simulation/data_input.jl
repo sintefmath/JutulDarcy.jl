@@ -678,6 +678,12 @@ function parse_reservoir(data_file)
         extra_data_arg[:net_to_gross] = ntg
     end
 
+    if haskey(data_file, "EDIT")
+        if haskey(data_file["EDIT"], "PORV")
+            extra_data_arg[:pore_volume_override] = data_file["EDIT"]["PORV"][active_ix]
+        end
+    end
+
     tranmult = ones(nf)
     # TODO: MULTX, ...
     for k in ("GRID", "EDIT")
