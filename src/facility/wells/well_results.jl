@@ -62,7 +62,7 @@ function well_result_dates(wr::WellResults)
     if isnothing(wr.start_date)
         header = (["time"], ["days"])
         data = zeros(n, 1)
-        data .= wr.time
+        data .= wr.time./si_unit(:day)
     else
         header = (["time", "date"], ["days", "-"])
         dates = @. DateTime(wr.start_date) + Second(wr.time)
@@ -180,6 +180,8 @@ end
 function (wr::WellResults)(wells = collect(keys(wr.wells)), outputs = missing; kwarg...)
     if wells isa Symbol
         wells = [wells]
+    elseif wells isa Colon
+        wells = collect(keys(wr.wells))
     end
     if length(wells) > 0
         if ismissing(outputs)

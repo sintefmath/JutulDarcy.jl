@@ -609,6 +609,26 @@ function well_target_information(t::Union{HistoricalReservoirVoidageTarget, Val{
     )
 end
 
+function well_target_information(t::Val{:mass_rate})
+    return well_target_information(
+        symbol = :mass_rate,
+        description = "Total mass rate",
+        explanation = "Total mass rate passing into or out from reservoir from well.",
+        unit_type = :mass,
+        unit_label = "kg/s"
+    )
+end
+
+function well_target_information(t::Val{:control})
+    return well_target_information(
+        symbol = :control,
+        description = "Control",
+        explanation = "Type of control in use by well.",
+        unit_type = :none,
+        unit_label = "-"
+    )
+end
+
 function realize_control_for_reservoir(state, ctrl, model, dt)
     return (ctrl, false)
 end
