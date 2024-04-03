@@ -485,11 +485,11 @@ end
 
 function three_phase_relperm(relperm, c, sw, so, sg, krw, krow, krog, krg, swcon, scalers)
     scaler_w, scaler_ow, scaler_og, scaler_g = scalers
-    return three_point_three_phase_scaling(krw, krow, krog, krg, sw, so, sg, swcon, scaler_w, scaler_ow, scaler_og, scaler_g, c)
+    scaling = scaling_type(relperm)
+    return three_phase_scaling(scaling, krw, krow, krog, krg, sw, so, sg, swcon, scaler_w, scaler_ow, scaler_og, scaler_g, c)
 end
 
-
-function three_point_three_phase_scaling(krw, krow, krog, krg, sw, so, sg, swcon, scaler_w, scaler_ow, scaler_og, scaler_g, c)
+function three_phase_scaling(scaling, krw, krow, krog, krg, sw, so, sg, swcon, scaler_w, scaler_ow, scaler_og, scaler_g, c)
     L_w, CR_w, U_w, KM_w = get_kr_scalers(scaler_w, c)
     L_ow, CR_ow, U_ow, KM_ow = get_kr_scalers(scaler_ow, c)
     L_og, CR_og, U_og, KM_og = get_kr_scalers(scaler_og, c)
@@ -518,22 +518,24 @@ function three_point_three_phase_scaling(krw, krow, krog, krg, sw, so, sg, swcon
     U_og = 1.0 - L_g - L_w
     u_og = 1.0 - l_g - l_w
 
-
-    Krw = three_point_scaling(krw, sw, cr_w, CR_w, u_w, U_w, km_w, KM_w, r_w, R_w)
-    Krow = three_point_scaling(krow, so, cr_ow, CR_ow, u_ow, U_ow, km_ow, KM_ow, r_ow, R_ow)
-    Krog = three_point_scaling(krog, so, cr_og, CR_og, u_og, U_og, km_og, KM_og, r_og, R_og)
-    Krg = three_point_scaling(krg, sg, cr_g, CR_g, u_g, U_g, km_g, KM_g, r_g, R_g)
+    Krw = relperm_scaling(scaling, krw, sw, cr_w, CR_w, u_w, U_w, km_w, KM_w, r_w, R_w)
+    Krow = relperm_scaling(scaling, krow, so, cr_ow, CR_ow, u_ow, U_ow, km_ow, KM_ow, r_ow, R_ow)
+    Krog = relperm_scaling(scaling, krog, so, cr_og, CR_og, u_og, U_og, km_og, KM_og, r_og, R_og)
+    Krg = relperm_scaling(scaling, krg, sg, cr_g, CR_g, u_g, U_g, km_g, KM_g, r_g, R_g)
 
     return (Krw, Krow, Krog, Krg, L_w)
 end
 
-function three_point_scaling(F, s::T, cr, CR, u, U, km, KM, r, R) where T<:Real
-    S = three_saturation_scaling(s, cr, CR, u, U, r, R)
+function relperm_scaling(scaling, F, s::T, cr, CR, u, U, km, KM, r, R) where T<:Real
+    if scaling == ThreePointKrScale
+        S = three_point_saturation_scaling(s, cr, CR, u, U, r, R)
+    else
+        S = two_point_saturation_scaling(s, cr, CR, u, U, r, R)
+    end
     return (KM/km)*F(S)
 end
 
-
-function three_saturation_scaling(s::T, cr, CR, u, U, r, R) where T<:Real
+function three_point_saturation_scaling(s::T, cr, CR, u, U, r, R) where T<:Real
     # @assert r >= cr
     # @assert R >= CR
     # @assert u >= r
