@@ -602,9 +602,13 @@ function set_default_cnv_mb_inner!(tol, model;
     if sys isa ImmiscibleSystem || sys isa BlackOilSystem || sys isa CompositionalSystem
         is_well = model_or_domain_is_well(model)
         if is_well
+            if physical_representation(model) isa SimpleWell
+                m = Inf
+            else
+                tol[:potential_balance] = (AbsMax = tol_dp_well,)
+                m = tol_mb_well
+            end
             c = tol_cnv_well
-            m = tol_mb_well
-            tol[:potential_balance] = (AbsMax = tol_dp_well,)
         else
             c = tol_cnv
             m = tol_mb
