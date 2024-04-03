@@ -24,10 +24,14 @@ sys = ImmiscibleSystem(phases, reference_densities = reference_densities)
 
 model, parameters = setup_reservoir_model(domain, sys, wells = [Injector, Producer])
 c = [1e-6, 1e-4]/bar
-density = ConstantCompressibilityDensities(p_ref = 100*bar, density_ref = rhoS, compressibility = c)
+density = ConstantCompressibilityDensities(
+    p_ref = 100*bar,
+    density_ref = reference_densities,
+    compressibility = c
+)
 kr = BrooksCoreyRelativePermeabilities(sys, [2.0, 3.0])
 
-replace_variables!(model, PhaseMassDensities = ρ, PhaseRelativePermeability = kr);
+replace_variables!(model, PhaseMassDensities = density, PhaseRelativePermeability = kr);
 
 state0 = setup_reservoir_state(model,
     Pressure = 120bar,
