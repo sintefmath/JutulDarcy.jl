@@ -3,7 +3,7 @@ using JutulDarcy, Jutul
 
 Darcy, bar, kg, meter, day = si_units(:darcy, :bar, :kilogram, :meter, :day)
 
-nx = ny = 50
+nx = ny = 25
 nz = 10
 cart_dims = (nx, ny, nz)
 physical_dims = (1000.0, 1000.0, 100.0)
