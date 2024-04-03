@@ -448,6 +448,16 @@ end
     return kr
 end
 
+@jutul_secondary function update_kr_with_scaling!(kr, relperm::ReservoirRelativePermeabilities{<:Any, :wo}, model, Saturations, RelPermScalingW, RelPermScalingOW, ConnateWater, ix)
+    s = Saturations
+    phases = phase_indices(model.system)
+    scalers = (w = RelPermScalingW, ow = RelPermScalingOW)
+    for c in ix
+        @inbounds update_oilwater_phase_relperm!(kr, relperm, phases, s, c, ConnateWater[c], scalers)
+    end
+    return kr
+end
+
 Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relperm, phase_ind, s, c, swcon, scalers)
     w, o, g = phase_ind
     reg = region(relperm.regions, c)
@@ -466,6 +476,21 @@ Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relper
     kr[w, c] = Krw
     kr[o, c] = Kro
     kr[g, c] = Krg
+end
+
+Base.@propagate_inbounds @inline function update_oilwater_phase_relperm!(kr, relperm, phase_ind, s, c, swcon, scalers)
+    w, o = phase_ind
+    reg = region(relperm.regions, c)
+    krw = table_by_region(relperm.krw, reg)
+    krow = table_by_region(relperm.krow, reg)
+
+    sw = s[w, c]
+    so = s[o, c]
+
+    Krw, Krow = two_phase_relperm(relperm, c, sw, so, krw, krow, swcon, scalers)
+
+    kr[w, c] = Krw
+    kr[o, c] = Kro
 end
 
 function get_kr_scalers(kr::PhaseRelativePermeability)
@@ -526,6 +551,34 @@ function three_phase_scaling(scaling, krw, krow, krog, krg, sw, so, sg, swcon, s
     return (Krw, Krow, Krog, Krg, L_w)
 end
 
+function two_phase_relperm(relperm, c, sw, so, krw, krow, swcon, scalers)
+    scaler_w, scaler_ow = scalers
+    scaling = scaling_type(relperm)
+    return two_phase_scaling(scaling, krw, krow, sw, so, swcon, scaler_w, scaler_ow, c)
+end
+
+function two_phase_scaling(scaling, krw, krn, sw, sn, swcon, scaler_w, scaler_n, c)
+    L_n, CR_n, U_n, KM_n = get_kr_scalers(scaler_n, c)
+    l_n, cr_n, u_n, km_n = get_kr_scalers(krn)
+
+    L_w, CR_w, U_w, KM_w = get_kr_scalers(scaler_w, c)
+    l_w, cr_w, u_w, km_w = get_kr_scalers(krw)
+    l_w = max(l_w, zero(l_w))
+
+    R_w = 1.0 - CR_n
+    r_w = 1.0 - cr_n
+
+    R_n = 1.0 - CR_w
+    r_n = 1.0 - cr_w
+    U_n = 1.0 - L_w
+    u_n = 1.0 - l_w
+
+    Krw = relperm_scaling(scaling, krw, sw, cr_w, CR_w, u_w, U_w, km_w, KM_w, r_w, R_w)
+    Krn = relperm_scaling(scaling, krow, sn, cr_n, CR_n, u_n, U_n, km_n, KM_n, r_n, R_n)
+
+    return (Krw, Krn)
+end
+
 function relperm_scaling(scaling, F, s::T, cr, CR, u, U, km, KM, r, R) where T<:Real
     if scaling == ThreePointKrScale
         S = three_point_saturation_scaling(s, cr, CR, u, U, r, R)
@@ -540,6 +593,24 @@ function three_point_saturation_scaling(s::T, cr, CR, u, U, r, R) where T<:Real
     # @assert R >= CR
     # @assert u >= r
     # @assert U >= R
+    if s < CR
+        S = zero(T)
+    elseif s >= CR && s < R
+        S = (s - CR)*(r-cr)/(R-CR) + cr
+    elseif s >= R && s < U
+        S = (s - R)*(u-r)/(U-R) + r
+    else
+        S = one(T)
+    end
+    return S
+end
+
+function two_point_saturation_scaling(s::T, cr, CR, u, U, r, R) where T<:Real
+    # ix1 = sv < p{1};
+    # ix2 = sv >= p{2};
+    # ix  = ~(ix1 | ix2);
+    # s_scale = (ix.*m).*s + (ix.*c + ix2);
+    error("Not implemented.")
     if s < CR
         S = zero(T)
     elseif s >= CR && s < R
