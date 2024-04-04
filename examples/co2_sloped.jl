@@ -1,4 +1,6 @@
 using Jutul, JutulDarcy, HYPRE
+using GLMakie
+
 nx = 100
 nz = 50
 
@@ -24,10 +26,6 @@ for cell in 1:number_of_cells(mesh)
         push!(boundary, cell)
     end
 end
-
-using GLMakie
-plot_mesh(mesh)
-
 ##
 domain = reservoir_domain(mesh, permeability = 1.0Darcy, porosity = 0.3)
 Injector = setup_well(domain, (65, 1, 1), name = :Injector)
@@ -65,4 +63,24 @@ wd, states, t = simulate_reservoir(state0, model, dt,
 )
 ##
 using GLMakie
+
+function plot_co2!(fig, ix, x, title = "")
+    ax = Axis3(fig[ix, 1],
+        zreversed = true,
+        azimuth = -0.51π,
+        elevation = 0.05,
+        aspect = (1.0, 1.0, 0.3),
+        title = title)
+    plt = plot_cell_data!(ax, mesh, x, colormap = :seaborn_icefire_gradient)
+    Colorbar(fig[ix, 2], plt)
+end
+fig = Figure(size = (900, 1200))
+for (i, step) in enumerate([1, 5, nstep, nstep+nstep_shut])
+    plot_co2!(fig, i, states[step][:PhaseMassDensities][1, :], "Brine density report step $step/$(nstep+nstep_shut)")
+end
+
+fig
+
+
+##
 plot_reservoir(model, states)
