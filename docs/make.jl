@@ -15,10 +15,12 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
     jutul_dir = realpath(joinpath(@__DIR__, ".."))
     # Convert examples as .jl files to markdown
     examples = [
+        "Intro" => "intro",
         "Gravity segregation" => "two_phase_gravity_segregation",
         "Two-phase Buckley-Leverett" => "two_phase_buckley_leverett",
         "Gravity circulation with CPR preconditioner" => "two_phase_unstable_gravity",
         "Intro to wells" => "wells_intro",
+        "CO2 injection in saline aquifer" => "co2_sloped",
         "Quarter-five-spot with variation" => "five_spot_ensemble",
         "Intro to compositional flow" => "co2_brine_2d_vertical",
         "Compositional with five components" => "compositional_5components",
