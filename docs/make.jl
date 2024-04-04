@@ -50,15 +50,14 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
     example_path(pth) = joinpath(jutul_dir, "examples", "$pth.jl")
     for (ex, pth) in examples
         in_pth = example_path(pth)
+        out_dir = joinpath(@__DIR__, "src", "examples")
         if build_examples
-            out_dir = joinpath(@__DIR__, "src", "examples")
             push!(examples_markdown, ex => joinpath("examples", "$pth.md"))
             upd(content) = update_footer(content, pth)
             Literate.markdown(in_pth, out_dir, preprocess = upd)
         end
         if build_notebooks
-            out_dir_notebooks = joinpath(@__DIR__, "build", "notebooks")
-            Literate.notebook(in_pth, out_dir_notebooks)
+            Literate.notebook(in_pth, out_dir)
         end
     end
     ## Docs
