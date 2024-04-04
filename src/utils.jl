@@ -148,7 +148,7 @@ created using [`setup_vertical_well`](@ref) and  [`setup_well`](@ref).
 The routine automatically sets up a facility and couples the wells with the
 reservoir and that facility.
 """
-function setup_reservoir_model(reservoir::DataDomain, system;
+function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         wells = [],
         context = DefaultContext(),
         reservoir_context = nothing,
@@ -261,6 +261,10 @@ function setup_reservoir_model(reservoir::DataDomain, system;
         out = model
     end
     return out
+end
+
+function setup_reservoir_model(reservoir::DataDomain, label::Symbol; kwarg...)
+    return setup_reservoir_model(reservoir, Val(label); kwarg...)
 end
 
 function set_reservoir_variable_defaults!(model; p_min, p_max, dp_max_abs, dp_max_rel, ds_max, dz_max, dr_max, dT_max_rel = nothing, dT_max_abs = nothing)

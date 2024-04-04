@@ -1,3 +1,4 @@
+using Jutul, JutulDarcy
 cart_dims = (100, 1, 50)
 physical_dims = (1000.0, 1.0, 100.0)
 mesh = UnstructuredMesh(CartesianMesh(cart_dims, physical_dims))
@@ -10,5 +11,9 @@ for (i, pt) in enumerate(points)
     points[i] = pt + [0, 0, dz]
 end
 
-using GLMakie
-plot_mesh(mesh)
+# using GLMakie
+# plot_mesh(mesh)
+
+##
+domain = reservoir_domain(mesh)
+model, parameters = setup_reservoir_model(domain, :co2brine);
