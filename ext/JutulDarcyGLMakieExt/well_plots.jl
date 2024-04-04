@@ -121,26 +121,25 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         t_l = "Date"
     end
     function response_label_to_unit(s)
-        s = "$s"
-        rate_labels = [
-            "Surface total rate", "rate",
-            "Surface water rate", "wrat",
-            "Surface liquid rate (water + oil)", "lrat",
-            "Surface oil rate", "orat",
-            "Surface gas rate", "grat",
-            "Reservoir voidage rate", "resv",
-            "Historical reservoir voidage rate", "resv"
-        ]
-        if s in rate_labels
-            return "m^3/s"
-        elseif s in ["bhp", "Bottom hole pressure"]
-            return "Pa"
-        else
+        info = JutulDarcy.well_target_information(Symbol(s))
+        if ismissing(info)
             return ""
+        else
+            return info.unit_label
+        end
+    end
+    function response_label_to_descr(s)
+        info = JutulDarcy.well_target_information(Symbol(s))
+        if ismissing(info)
+            return "$s"
+        else
+            return "$(info.description)"
         end
     end
     y_l = Observable(response_label_to_unit(first(responses)))
-    ax = Axis(fig[1, 1], xlabel = t_l, ylabel = y_l)
+    title_l = Observable(response_label_to_descr(first(responses)))
+
+    ax = Axis(fig[1, 1], xlabel = t_l, ylabel = y_l, title = title_l)
 
     if isnothing(cmap)
         if nw > 20
@@ -162,6 +161,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     on(type_menu.selection) do s
         val = findfirst(isequal(s), respstr)
         y_l[] = response_label_to_unit(s)
+        title_l[] = response_label_to_descr(s)
         response_ix[] = val
         autolimits!(ax)
     end
