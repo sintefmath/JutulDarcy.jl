@@ -34,7 +34,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
         return content*"\n\n # ## Example on GitHub\n "*
         "# If you would like to run this example yourself, it can be downloaded from "*
         "the JutulDarcy.jl GitHub repository [as a script](https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/$pth.jl), "*
-        "or as a [Notebook](https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/docs/notebooks/$pth.ipynb)"
+        "or as a [Notebook](https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/notebooks/$pth.ipynb)"
     end
     if clean
         for (ex, pth) in examples
@@ -57,7 +57,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
             Literate.markdown(in_pth, out_dir, preprocess = upd)
         end
         if build_notebooks
-            out_dir_notebooks = joinpath(@__DIR__, "notebooks")
+            out_dir_notebooks = joinpath(@__DIR__, "build", "notebooks")
             Literate.notebook(in_pth, out_dir_notebooks)
         end
     end
