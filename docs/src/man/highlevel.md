@@ -4,6 +4,13 @@
 
 ### Meshes
 
+JutulDarcy can use meshes that supported by Jutul. This includes the Cartesian and Unstructured meshes as well as any meshes in the more general [Meshes.jl](https://github.com/JuliaGeometry/Meshes.jl) package.
+
+```@docs
+Jutul.CartesianMesh
+Jutul.UnstructuredMesh
+```
+
 ### Reservoir
 
 ```@docs
@@ -29,11 +36,7 @@ setup_reservoir_model
 setup_reservoir_state
 ```
 
-#### Why is initialization needed?
-
-#### Simple initialization
-
-#### Hydrostatic equilibriation
+TODO: Write about hydrostatic equilbriation.
 
 ## Simulation
 

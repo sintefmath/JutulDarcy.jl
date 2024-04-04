@@ -346,23 +346,34 @@ end
 
 # Keyword arguments
 
+- `mode=:default`: Mode used for solving. Can be set to `:mpi` if running in MPI
+  mode together with HYPRE, PartitionedArrays and MPI in your environment.
+- `method=:newton`: Can be `:newton`, `:nldd` or `:aspen`. Newton is the most
+  tested approach and `:nldd` can speed up difficult models. The `:nldd` option
+  enables a host of additional options (look at the simulator config for more
+  details).
+- `presolve_wells=false`: Solve wells before each linearization. Can improve
+  convergence for models with multisegment wells.
+
 ## Linear solver options
 
 - `linear_solver=:bicgstab`: iterative solver to use (provided model supports
   it). Typical options are `:bicgstab` or `:gmres` Can alternatively pass a
   linear solver instance.
 - `precond=:cpr`: preconditioner for iterative solver: Either :cpr or :ilu0.
-- `rtol=1e-3`: relative tolerance for linear solver
+- `rtol=1e-3`: relative tolerance for linear solver _ `linear_solver_arg`: Dict
+containing additional linear solver arguments.
 
 ## Timestepping options
 
-- `initial_dt=3600*24.0`: initial time-step in seconds (one day by default)
+- `initial_dt=si_unit(:day)`: initial timestep in seconds (one day by default)
 - `target_ds=Inf`: target saturation change over a timestep used by timestepper.
 - `target_its=8`: target number of nonlinear iterations per time step
 - `offset_its=1`: dampening parameter for time step selector where larger values
   lead to more pessimistic estimates.
 - `timesteps=:auto`: Set to `:auto` to use automatic timestepping, `:none` for
   no autoamtic timestepping (i.e. try to solve exact report steps)
+- `max_timestep=si_unit(:year)`: Maximum internal timestep used in solver.
 
 ## Convergence criterions
 - `tol_cnv=1e-3`: maximum allowable point-wise error (volume-balance)
@@ -371,14 +382,23 @@ end
   (volume-balance)
 - `tol_mb_well=1e4*tol_mb`: maximum alllowable integrated error for well node
   (mass-balance)
+- `inc_tol_dp_abs=Inf`: Maximum allowable pressure change (absolute)
+- `inc_tol_dp_rel=Inf`: Maximum allowable pressure change (absolute)
+- `inc_tol_dz=Inf`: Maximum allowable composition change (compositional only).
 
 ## Inherited keyword arguments
 
 Additional keyword arguments come from the base Jutul simulation framework. We
 list a few of the most relevant entries here for convenience:
-- `info_level =0`: Output level. Set to 0 for minimal output, -1 for no output
+- `info_level = 0`: Output level. Set to 0 for minimal output, -1 for no output
   and 1 or more for increasing verbosity.
 - `output_path`: Path to write output to.
+- `relaxation=Jutul.NoRelaxation`: Dampening used for solves. Can be set to
+  `Jutul.SimpleRelaxation()` for difficult models.
+- `failure_cuts_timestep=true`: Cut timestep instead of throwing an error when
+  numerical issues are encountered (e.g. linear solver divergence).
+- `max_timestep_cuts=25`: Maximum number of timestep cuts before a solver gives
+  up.
 
 Additional keyword arguments are passed onto [`simulator_config`](@ref).
 """
@@ -390,7 +410,7 @@ function setup_reservoir_simulator(case::JutulCase;
         max_timestep = si_unit(:year),
         max_dt = max_timestep,
         rtol = nothing,
-        initial_dt = 3600.0*24.0,
+        initial_dt = si_unit(:day),
         target_ds = Inf,
         target_its = 8,
         offset_its = 1,
