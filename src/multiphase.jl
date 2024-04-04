@@ -330,6 +330,13 @@ function pore_volume(data_domain::DataDomain; throw = true)
             pvmult = data_domain[:pore_volume_multiplier]
         end
         pv = @. vol * poro * ntg * pvmult
+        if haskey(data_domain, :pore_volume_override, Cells())
+            for (i, v) in enumerate(data_domain[:pore_volume_override])
+                if isfinite(v)
+                    pv[i] = v
+                end
+            end
+        end
     else
         pv = missing
         if throw

@@ -188,8 +188,10 @@ module JutulDarcy
     include("formulations/formulations.jl")
 
     include("ext.jl")
-
+    # Nonlinear domain decomposition solvers
     include("NLDD/NLDD.jl")
+    # CO2-brine properties
+    include("CO2Properties/CO2Properties.jl")
 
     @compile_workload begin
         precompile_darcy_multimodels()

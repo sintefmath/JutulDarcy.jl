@@ -31,34 +31,34 @@ end
 function get_mrst_comparison(wdata, ref, wname, t = :bhp)
     yscale = "m³/s"
     if t == :bhp
-        tname = "Bottom hole pressure"
+        tname = :bhp
         mname = "bhp"
         yscale = "Pa"
     elseif t == :qos
-        tname = "Surface oil rate"
+        tname = :orat
         mname = "qOs"
     elseif t == :qws
-        tname = "Surface water rate"
+        tname = :wrat
         mname = "qWs"
     elseif t == :qgs
-        tname = "Surface gas rate"
+        tname = :grat
         mname = "qGs"
     else
         error("Not supported: $t")
     end
-    jutul = wdata[Symbol(tname)]
+    jutul = wdata[tname]
     mrst = ref[mname][:, mrst_well_index(ref, wname)]
 
     return (jutul, mrst, tname, yscale)
 end
 
-function plot_comparison(wells, ref, rep_t, t, wells_keys = keys(wells))
+function plot_comparison(wsol, ref, rep_t, t, wells_keys = keys(wsol.wells))
     fig = Figure()
     ax = Axis(fig[1, 1], xlabel = "time (days)")
     l = ""
     yscale = ""
     T = rep_t./(3600*24.0)
-    for (w, d) in wells
+    for (w, d) in wsol.wells
         if !(w in wells_keys)
             continue
         end

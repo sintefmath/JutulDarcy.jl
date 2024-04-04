@@ -14,9 +14,9 @@ using Jutul, JutulDarcy, Test, HYPRE, MPI, PartitionedArrays
     ws[:mpi], = simulate_reservoir(case, method = :newton, mode = :mpi, info_level = il);
     ws[:nldd_mpi], = simulate_reservoir(case, method = :nldd, mode = :mpi, info_level = il);
 
-    get_prod_rate(x) = x[:PRODUCER][Symbol("Surface total rate")]
-    get_grat(x) = x[:PRODUCER][Symbol("Surface gas rate")]
-    get_prod_bhp(x) = x[:PRODUCER][Symbol("Bottom hole pressure")]
+    get_prod_rate(x) = x[:PRODUCER, :rate]
+    get_grat(x) = x[:PRODUCER, :grat]
+    get_prod_bhp(x) = x[:PRODUCER, :bhp]
 
     for (k, ws_compare) in pairs(ws)
         @testset "$k producer" begin

@@ -8,13 +8,13 @@ function test_mrst_case(casename; tol = 0.01, wtol = tol, otol = tol, gtol = tol
         case = result.extra[:case]
         ref = result.extra[:mrst]["extra"][1]["mrst_solution"]
         dt = case.dt
-        ws = full_well_outputs(case.model, result.result.states, case.forces, shortname = true)
+        ws = full_well_outputs(case.model, result.result.states, case.forces)
         output = Dict();
         for k in keys(ws)
             output[k] = Dict()
             @testset "$k" begin
                 ix = findfirst(isequal("$k"), vec(ref["names"]))
-                w = (abs.(ws[k][:mass]) .> 1e-10).*dt
+                w = (abs.(ws[k][:mass_rate]) .> 1e-10).*dt
                 for wfield in [:bhp, :wrat, :orat, :grat]
                     if haskey(ws[k], wfield)
                         is_bhp = false

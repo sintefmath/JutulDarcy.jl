@@ -8,6 +8,7 @@ Two point approximation with flux for wells
 struct MixedWellSegmentFlow <: WellPotentialFlowDiscretization end
 
 include("separator.jl")
+include("well_results.jl")
 
 """
     TotalMassFlux(scale = si_unit(:day), max_abs = nothing, max_rel = nothing)
@@ -147,9 +148,10 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     return W
 end
 
-function setup_well(g, K, reservoir_cell::Int; kwarg...)
+function setup_well(g, K, reservoir_cell::Union{Int, Tuple, NamedTuple}; kwarg...)
     return setup_well(g, K, [reservoir_cell]; kwarg...)
 end
+
 
 function map_well_nodes_to_reservoir_cells(w::MultiSegmentWell, reservoir::Union{DataDomain, Missing} = missing)
     # TODO: Try to more or less match it up cell by cell. Could be

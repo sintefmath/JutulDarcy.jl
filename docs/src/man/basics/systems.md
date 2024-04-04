@@ -33,14 +33,20 @@ VaporPhase
 
 ### Implementation details
 
-In the above the discrete version of ``M_i`` is implemented in the update function for [`TotalMasses`](@ref) that should by convention be named [`JutulDarcy.update_total_masses!`](@ref). The discrete component fluxes are implemented by [`JutulDarcy.component_mass_fluxes!`](@ref).
+In the above the discrete version of ``M_i`` is implemented in the update function for [`JutulDarcy.TotalMasses`](@ref) that should by convention be named [`JutulDarcy.update_total_masses!`](@ref). The discrete component fluxes are implemented by [`JutulDarcy.component_mass_fluxes!`](@ref).
 
 ```@docs
+JutulDarcy.TotalMasses
 JutulDarcy.update_total_masses!
 JutulDarcy.component_mass_fluxes!
 ```
 
 The source terms are implemented by [`Jutul.apply_forces_to_equation!`](@ref) for boundary conditions and sources, and [`Jutul.update_cross_term_in_entity!`](@ref) for wells. We use Julia's multiple dispatch to pair the right implementation with the right physics system.
+
+```@docs
+Jutul.apply_forces_to_equation!
+Jutul.update_cross_term_in_entity!
+```
 
 ## Single-phase flow
 
@@ -149,6 +155,10 @@ For additional details, please see Chapter 8 - Compositional Simulation with the
 !!! note "Compositional implementation"
     The [`MultiPhaseCompositionalSystemLV`](@ref) implements the compositional model. The primary variables for the most general case is the reference [`Pressure`](@ref), an [`ImmiscibleSaturation`](@ref) for the optional immiscible phase and ``M-1`` [`OverallMoleFractions`](@ref).
 
-## Thermal flow
+## Multi-phase thermal flow
 
-Currently experimental and undocumented. See [`ThermalSystem`](@ref) if you are feeling brave.
+```@docs
+reservoir_system
+ThermalSystem
+Jutul.CompositeSystem
+```

@@ -183,8 +183,8 @@ using GLMakie
 # We observe that the total rate does not vary much, but the composition changes
 # from liquid to gas as the front propagate through the domain and hits the
 # producer well.
-qg = wd[:Producer][Symbol("Surface gas rate")]
-qt = wd[:Producer][Symbol("Surface total rate")]
+qg = wd[:Producer][:grat]
+qt = wd[:Producer][:rate]
 ql = qt - qg
 x = t/day
 fig = Figure()
@@ -200,7 +200,7 @@ fig
 # ## Plot bottom hole pressure of the injector
 # The pressure builds during injection, until the gas breaks through to the
 # other well.
-bh = wd[:Injector][Symbol("Bottom hole pressure")]
+bh = wd[:Injector][:bhp]
 fig = Figure()
 ax = Axis(fig[1, 1], xlabel = "Time (days)",
                      ylabel = "Bottom hole pressure (bar)",

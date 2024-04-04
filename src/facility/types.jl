@@ -10,6 +10,11 @@ mutable struct WellGroup <: WellControllerDomain
     can_shut_wells::Bool               # Can temporarily shut wells that try to reach zero rate multiple solves in a row
 end
 
+"""
+    WellGroup(wells::Vector{Symbol}; can_shut_wells = true)
+
+Create a well group that can control the given set of wells.
+"""
 function WellGroup(wells::Vector{Symbol}; can_shut_wells = true)
     return WellGroup(wells, can_shut_wells)
 end
@@ -321,7 +326,7 @@ struct InjectorControl{T, R, P, M, E} <: WellControlForce
     temperature::R
     enthalpy::E
     factor::R
-    function InjectorControl(target::T, mix; density::R = 1.0, phases = ((1, 1.0),), temperature::R = 273.15, enthalpy = missing, factor::R = 1.0) where {T<:WellTarget, R<:Real}
+    function InjectorControl(target::T, mix; density::R = 1.0, phases = ((1, 1.0),), temperature::R = 293.15, enthalpy = missing, factor::R = 1.0) where {T<:WellTarget, R<:Real}
         @assert isfinite(density) && density > 0.0 "Injector density must be finite and positive"
         @assert isfinite(temperature) && temperature > 0.0 "Injector temperature must be finite and positive"
 
@@ -363,22 +368,40 @@ mutable struct WellGroupConfiguration{T, O, L}
     const requested_controls::O # The requested control (which may be different if limits are hit)
     const limits::L             # Operating limits for the wells
     step_index::Int             # Internal book-keeping of what step we are at
-    function WellGroupConfiguration(well_symbols, control = nothing, limits = nothing, step = 0)
-        if isnothing(control)
-            control = Dict{Symbol, WellControlForce}()
-            for s in well_symbols
-                control[s] = DisabledControl()
-            end
-        end
-        requested = deepcopy(control)
-        if isnothing(limits)
-            limits = Dict{Symbol, Any}()
-            for s in well_symbols
-                limits[s] = nothing
-            end
-        end
-        new{typeof(control), typeof(requested), typeof(limits)}(control, requested, limits, step)
+    function WellGroupConfiguration(; operating, limits, requested = operating, step = 0)
+        new{typeof(operating), typeof(requested), typeof(limits)}(operating, requested, limits, step)
     end
+end
+
+function WellGroupConfiguration(well_symbols, control = nothing, limits = nothing, step = 0)
+    if isnothing(control)
+        control = Dict{Symbol, WellControlForce}()
+        for s in well_symbols
+            control[s] = DisabledControl()
+        end
+    end
+    requested = deepcopy(control)
+    if isnothing(limits)
+        limits = Dict{Symbol, Any}()
+        for s in well_symbols
+            limits[s] = nothing
+        end
+    end
+    return WellGroupConfiguration(
+        operating = control,
+        requested = requested,
+        limits = limits,
+        step = step
+    )
+end
+
+function Base.copy(c::WellGroupConfiguration)
+    return WellGroupConfiguration(
+        operating = copy(c.operating_controls),
+        requested = copy(c.requested_controls),
+        limits = copy(c.limits),
+        step = c.step_index
+    )
 end
 
 function Jutul.numerical_type(tc::WellGroupConfiguration)
@@ -386,7 +409,17 @@ function Jutul.numerical_type(tc::WellGroupConfiguration)
 end
 
 function Jutul.update_values!(old::WellGroupConfiguration, new::WellGroupConfiguration)
-    return WellGroupConfiguration(copy(new.operating_controls), copy(new.requested_controls), copy(new.limits), new.step_index)
+    for (k, v) in new.operating_controls
+        old.operating_controls[k] = v
+    end
+    for (k, v) in new.requested_controls
+        old.requested_controls[k] = v
+    end
+    for (k, v) in new.limits
+        old.limits[k] = v
+    end
+    old.step_index = new.step_index
+    return old
 end
 
 operating_control(cfg::WellGroupConfiguration, well::Symbol) = cfg.operating_controls[well]
@@ -460,15 +493,141 @@ end
 import Base.copy
 Base.copy(m::PerforationMask) = PerforationMask(copy(m.values))
 
-translate_target_to_symbol(t::T; shortname = false) where T = Symbol(T)
-translate_target_to_symbol(t::BottomHolePressureTarget; shortname = false) = shortname ? :bhp : Symbol("Bottom hole pressure")
-translate_target_to_symbol(t::TotalRateTarget; shortname = false) = shortname ? :rate : Symbol("Surface total rate")
-translate_target_to_symbol(t::SurfaceWaterRateTarget; shortname = false) = shortname ? :wrat : Symbol("Surface water rate")
-translate_target_to_symbol(t::SurfaceLiquidRateTarget; shortname = false) = shortname ? :lrat : Symbol("Surface liquid rate (water + oil)")
-translate_target_to_symbol(t::SurfaceOilRateTarget; shortname = false) = shortname ? :orat : Symbol("Surface oil rate")
-translate_target_to_symbol(t::SurfaceGasRateTarget; shortname = false) = shortname ? :grat : Symbol("Surface gas rate")
-translate_target_to_symbol(t::ReservoirVoidageTarget; shortname = false) = shortname ? :resv : Symbol("Reservoir voidage rate")
-translate_target_to_symbol(t::HistoricalReservoirVoidageTarget; shortname = false) = shortname ? :resv_history : Symbol("Historical reservoir voidage rate")
+function translate_target_to_symbol(t::T; shortname = true) where T
+    info = well_target_information(t)
+    if ismissing(info)
+        ret = Symbol(T)
+    elseif shortname
+        ret = info.symbol
+    else
+        ret = Symbol(info.description)
+    end
+    return ret::Symbol
+end
+
+function well_target_information(;
+        symbol::Symbol,
+        description::String,
+        unit_type::Symbol,
+        unit_label::String,
+        explanation::String = description
+    )
+    return (
+        symbol = symbol,
+        description = description,
+        explanation = explanation,
+        unit_label = unit_label,
+        unit_type = unit_type
+    )
+end
+
+function well_target_information(x)
+    return missing
+end
+
+function well_target_information(x::Symbol)
+    return well_target_information(Val(x))
+end
+
+function well_target_information(t::Union{BottomHolePressureTarget, Val{:bhp}})
+    return well_target_information(
+        symbol = :bhp,
+        description = "Bottom hole pressure",
+        explanation = "Pressure at well bottom hole. This is often given at or near the top perforation, but can be manually set to other depths.",
+        unit_type = :pressure,
+        unit_label = "Pa"
+    )
+end
+
+function well_target_information(t::Union{TotalRateTarget, Val{:rate}})
+    return well_target_information(
+        symbol = :rate,
+        description = "Surface total rate",
+        explanation = "Total volumetric rate at surface conditions. This is the sum of all phases. For most models, it is the sum of the mass rates divided by the prescribed surface densities. For compositional models the density is computed using a flash.",
+        unit_type = :surface_volume_per_time,
+        unit_label = "m³/s"
+    )
+end
+
+function well_target_information(t::Union{SurfaceWaterRateTarget, Val{:wrat}})
+    return well_target_information(
+        symbol = :wrat,
+        description = "Surface water rate",
+        explanation = "Water volumetric rate at surface conditions. This is the water mass stream divided by the surface density of water, which is typically around 1000 kg/m³",
+        unit_type = :surface_volume_per_time,
+        unit_label = "m³/s"
+    )
+end
+
+function well_target_information(t::Union{SurfaceLiquidRateTarget, Val{:lrat}})
+    return well_target_information(
+        symbol = :lrat,
+        description = "Surface water rate",
+        explanation = "Liquid volumetric rate at surface conditions. This is the sum of the oil rate and the water rate.",
+        unit_type = :surface_volume_per_time,
+        unit_label = "m³/s"
+    )
+end
+
+function well_target_information(t::Union{SurfaceOilRateTarget, Val{:orat}})
+    return well_target_information(
+        symbol = :orat,
+        description = "Surface oil rate",
+        explanation = "Oil rate at surface conditions. This is oil mass rate divided by the surface density of the oil phase.",
+        unit_type = :surface_volume_per_time,
+        unit_label = "m³/s"
+    )
+end
+
+function well_target_information(t::Union{SurfaceGasRateTarget, Val{:grat}})
+    return well_target_information(
+        symbol = :grat,
+        description = "Surface gas rate",
+        explanation = "Gas rate at surface conditions. This is gas mass rate divided by the surface density of the gas phase.",
+        unit_type = :surface_volume_per_time,
+        unit_label = "m³/s"
+    )
+end
+
+function well_target_information(t::Union{ReservoirVoidageTarget, Val{:resv}})
+    return well_target_information(
+        symbol = :resv,
+        description = "Reservoir voidage rate",
+        explanation = "Reservoir voidage rate corresponds to a rate given at averaged pressure at reservoir conditions.",
+        unit_type = :reservoir_volume_per_time,
+        unit_label = "m³/s"
+    )
+end
+
+function well_target_information(t::Union{HistoricalReservoirVoidageTarget, Val{:resv_history}})
+    return well_target_information(
+        symbol = :resv_history,
+        description = "Historical reservoir voidage rate",
+        explanation = "Historical reservoir voidage rate is a special rate used to match observed production rates.",
+        unit_type = :reservoir_volume_per_time,
+        unit_label = "m³/s"
+    )
+end
+
+function well_target_information(t::Val{:mass_rate})
+    return well_target_information(
+        symbol = :mass_rate,
+        description = "Total mass rate",
+        explanation = "Total mass rate passing into or out from reservoir from well.",
+        unit_type = :mass,
+        unit_label = "kg/s"
+    )
+end
+
+function well_target_information(t::Val{:control})
+    return well_target_information(
+        symbol = :control,
+        description = "Control",
+        explanation = "Type of control in use by well.",
+        unit_type = :none,
+        unit_label = "-"
+    )
+end
 
 function realize_control_for_reservoir(state, ctrl, model, dt)
     return (ctrl, false)

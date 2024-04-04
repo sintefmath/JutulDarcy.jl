@@ -100,7 +100,7 @@ fig = Figure()
 ax = Axis(fig[1, 1])
 for i = 1:N
     ws = wells[i]
-    q = -ws[:Producer][Symbol("Surface oil rate")]
+    q = -ws[:Producer][:orat]
     lines!(ax, report_time, q)
 end
 xlims!(ax, [mean(report_time), report_time[end]])

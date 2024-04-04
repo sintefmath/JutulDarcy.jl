@@ -78,12 +78,12 @@ function well_cells_for_plot(w)
     return w.perforations.reservoir
 end
 
-function JutulDarcy.plot_well_results(well_data::Dict, arg...; name = "Data", kwarg...)
+function JutulDarcy.plot_well_results(well_data, arg...; name = "Data", kwarg...)
     JutulDarcy.plot_well_results([well_data], arg...; names = [name], kwarg...)
 end
 
-function JutulDarcy.plot_well_results(well_data::Vector, time = nothing;
-        start_date = nothing,
+function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
+        start_date = first(well_data).start_date,
         names =["Dataset $i" for i in 1:length(well_data)], 
         linewidth = 3,
         cmap = nothing, 
@@ -96,7 +96,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = nothing;
     # Figure part
     names = Vector{String}(names)
     ndata = length(well_data)
-    wd = first(well_data)
+    wd = first(well_data).wells
     # Selected well
     wells = sort!(collect(keys(wd)))
     nw = length(wells)
@@ -105,6 +105,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = nothing;
     end
     # Type of plot (bhp, rate...)
     responses = collect(keys(wd[first(wells)]))
+    setdiff!(responses, [:control])
     respstr = [String(x) for x in responses]
 
     is_inj = is_injectors(wd)
@@ -120,26 +121,25 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = nothing;
         t_l = "Date"
     end
     function response_label_to_unit(s)
-        s = "$s"
-        rate_labels = [
-            "Surface total rate", "rate",
-            "Surface water rate", "wrat",
-            "Surface liquid rate (water + oil)", "lrat",
-            "Surface oil rate", "orat",
-            "Surface gas rate", "grat",
-            "Reservoir voidage rate", "resv",
-            "Historical reservoir voidage rate", "resv"
-        ]
-        if s in rate_labels
-            return "m^3/s"
-        elseif s in ["bhp", "Bottom hole pressure"]
-            return "Pa"
-        else
+        info = JutulDarcy.well_target_information(Symbol(s))
+        if ismissing(info)
             return ""
+        else
+            return info.unit_label
+        end
+    end
+    function response_label_to_descr(s)
+        info = JutulDarcy.well_target_information(Symbol(s))
+        if ismissing(info)
+            return "$s"
+        else
+            return "$(info.description)"
         end
     end
     y_l = Observable(response_label_to_unit(first(responses)))
-    ax = Axis(fig[1, 1], xlabel = t_l, ylabel = y_l)
+    title_l = Observable(response_label_to_descr(first(responses)))
+
+    ax = Axis(fig[1, 1], xlabel = t_l, ylabel = y_l, title = title_l)
 
     if isnothing(cmap)
         if nw > 20
@@ -161,6 +161,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = nothing;
     on(type_menu.selection) do s
         val = findfirst(isequal(s), respstr)
         y_l[] = response_label_to_unit(s)
+        title_l[] = response_label_to_descr(s)
         response_ix[] = val
         autolimits!(ax)
     end
@@ -215,6 +216,8 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = nothing;
     else
         if eltype(time)<:AbstractFloat# || eltype(time)<:Date
             time = repeat([time], ndata)
+        else
+            time = map(x -> x.time, well_data)
         end
     end
     if !no_time

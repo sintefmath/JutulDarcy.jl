@@ -778,11 +778,19 @@ function set_deck_relperm!(vars, param, sys, props; kwarg...)
     vars[:RelativePermeabilities] = wrap_reservoir_variable(sys, kr, :flow)
     if scaling_type(kr) != NoKrScale
         ph = kr.phases
-        @assert ph == :wog
-        param[:RelPermScalingW] = EndPointScalingCoefficients(:w)
-        param[:RelPermScalingOW] = EndPointScalingCoefficients(:ow)
-        param[:RelPermScalingOG] = EndPointScalingCoefficients(:og)
-        param[:RelPermScalingG] = EndPointScalingCoefficients(:g)
+        has_phase(x) = occursin("$x", "$ph")
+        if has_phase(:w)
+            param[:RelPermScalingW] = EndPointScalingCoefficients(:w)
+        end
+        if has_phase(:wo)
+            param[:RelPermScalingOW] = EndPointScalingCoefficients(:ow)
+        end
+        if has_phase(:og)
+            param[:RelPermScalingOG] = EndPointScalingCoefficients(:og)
+        end
+        if has_phase(:g)
+            param[:RelPermScalingG] = EndPointScalingCoefficients(:g)
+        end
     end
 end
 
@@ -944,7 +952,7 @@ end
 """
     setup_case_from_mrst("filename.mat"; kwarg...)
 
-Set up a [`Jutul.SimulationCase`](@ref) from a MRST-exported .mat file.
+Set up a [`Jutul.JutulCase`](@ref) from a MRST-exported .mat file.
 """
 function setup_case_from_mrst(casename; wells = :ms,
                                         backend = :csc,

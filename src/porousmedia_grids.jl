@@ -68,9 +68,26 @@ function transfer(context::SingleCUDAContext, grid::MinimalTPFAGrid)
     return MinimalTPFAGrid(pv, N)
 end
 
-function get_1d_reservoir(nc; L = 1.0, perm = 9.8692e-14, # 0.1 darcy
-                         poro = 0.1, area = 1.0,
-                         z_max = nothing)
+"""
+    get_1d_reservoir(nc;
+        L = 1.0,
+        perm = 9.8692e-14, # 0.1 darcy
+        poro = 0.1,
+        area = 1.0,
+        z_max = nothing
+    )
+
+Utility function for setting up a 1D reservoir domain with `nc` cells and length
+`L`. The [`reservoir_domain`](@ref) function is generally preferred and this
+function is kept for backwards compatibility.
+"""
+function get_1d_reservoir(nc;
+        L = 1.0,
+        perm = 9.8692e-14, # 0.1 darcy
+        poro = 0.1,
+        area = 1.0,
+        z_max = nothing
+    )
     @assert nc > 1 "Must have at least two cells."
     g = CartesianMesh((nc, 1, 1), (L, sqrt(area), sqrt(area)))
     D = reservoir_domain(g, permeability = perm, porosity = poro)

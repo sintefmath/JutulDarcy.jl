@@ -27,3 +27,4 @@ docs/src/examples/*
 Manifest.toml
 .vscode/settings.json
 *.jld2
+/docs/notebooks

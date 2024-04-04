@@ -1,3 +1,14 @@
+"""
+    reservoir_model(model)
+
+Get the reservoir model from a `MultiModel` or return the model itself if it is
+not a `MultiModel`.
+"""
+function reservoir_model
+
+end
+
+
 function reservoir_model(model::SimulationModel; kwarg...)
     return model
 end
@@ -137,7 +148,7 @@ created using [`setup_vertical_well`](@ref) and  [`setup_well`](@ref).
 The routine automatically sets up a facility and couples the wells with the
 reservoir and that facility.
 """
-function setup_reservoir_model(reservoir::DataDomain, system;
+function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         wells = [],
         context = DefaultContext(),
         reservoir_context = nothing,
@@ -252,6 +263,10 @@ function setup_reservoir_model(reservoir::DataDomain, system;
     return out
 end
 
+function setup_reservoir_model(reservoir::DataDomain, label::Symbol; kwarg...)
+    return setup_reservoir_model(reservoir, Val(label); kwarg...)
+end
+
 function set_reservoir_variable_defaults!(model; p_min, p_max, dp_max_abs, dp_max_rel, ds_max, dz_max, dr_max, dT_max_rel = nothing, dT_max_abs = nothing)
     # Replace various variables - if they are available
     replace_variables!(model, OverallMoleFractions = OverallMoleFractions(dz_max = dz_max), throw = false)
@@ -331,23 +346,34 @@ end
 
 # Keyword arguments
 
+- `mode=:default`: Mode used for solving. Can be set to `:mpi` if running in MPI
+  mode together with HYPRE, PartitionedArrays and MPI in your environment.
+- `method=:newton`: Can be `:newton`, `:nldd` or `:aspen`. Newton is the most
+  tested approach and `:nldd` can speed up difficult models. The `:nldd` option
+  enables a host of additional options (look at the simulator config for more
+  details).
+- `presolve_wells=false`: Solve wells before each linearization. Can improve
+  convergence for models with multisegment wells.
+
 ## Linear solver options
 
 - `linear_solver=:bicgstab`: iterative solver to use (provided model supports
   it). Typical options are `:bicgstab` or `:gmres` Can alternatively pass a
   linear solver instance.
 - `precond=:cpr`: preconditioner for iterative solver: Either :cpr or :ilu0.
-- `rtol=1e-3`: relative tolerance for linear solver
+- `rtol=1e-3`: relative tolerance for linear solver _ `linear_solver_arg`: Dict
+containing additional linear solver arguments.
 
 ## Timestepping options
 
-- `initial_dt=3600*24.0`: initial time-step in seconds (one day by default)
+- `initial_dt=si_unit(:day)`: initial timestep in seconds (one day by default)
 - `target_ds=Inf`: target saturation change over a timestep used by timestepper.
 - `target_its=8`: target number of nonlinear iterations per time step
 - `offset_its=1`: dampening parameter for time step selector where larger values
   lead to more pessimistic estimates.
 - `timesteps=:auto`: Set to `:auto` to use automatic timestepping, `:none` for
   no autoamtic timestepping (i.e. try to solve exact report steps)
+- `max_timestep=si_unit(:year)`: Maximum internal timestep used in solver.
 
 ## Convergence criterions
 - `tol_cnv=1e-3`: maximum allowable point-wise error (volume-balance)
@@ -356,14 +382,23 @@ end
   (volume-balance)
 - `tol_mb_well=1e4*tol_mb`: maximum alllowable integrated error for well node
   (mass-balance)
+- `inc_tol_dp_abs=Inf`: Maximum allowable pressure change (absolute)
+- `inc_tol_dp_rel=Inf`: Maximum allowable pressure change (absolute)
+- `inc_tol_dz=Inf`: Maximum allowable composition change (compositional only).
 
 ## Inherited keyword arguments
 
 Additional keyword arguments come from the base Jutul simulation framework. We
 list a few of the most relevant entries here for convenience:
-- `info_level =0`: Output level. Set to 0 for minimal output, -1 for no output
+- `info_level = 0`: Output level. Set to 0 for minimal output, -1 for no output
   and 1 or more for increasing verbosity.
 - `output_path`: Path to write output to.
+- `relaxation=Jutul.NoRelaxation`: Dampening used for solves. Can be set to
+  `Jutul.SimpleRelaxation()` for difficult models.
+- `failure_cuts_timestep=true`: Cut timestep instead of throwing an error when
+  numerical issues are encountered (e.g. linear solver divergence).
+- `max_timestep_cuts=25`: Maximum number of timestep cuts before a solver gives
+  up.
 
 Additional keyword arguments are passed onto [`simulator_config`](@ref).
 """
@@ -375,7 +410,7 @@ function setup_reservoir_simulator(case::JutulCase;
         max_timestep = si_unit(:year),
         max_dt = max_timestep,
         rtol = nothing,
-        initial_dt = 3600.0*24.0,
+        initial_dt = si_unit(:day),
         target_ds = Inf,
         target_its = 8,
         offset_its = 1,
@@ -539,20 +574,19 @@ result = simulate_reservoir(state0, model, dt, output_path = "/some/path", resta
 """
 function simulate_reservoir(state0, model, dt;
         parameters = setup_parameters(model),
-        restart = false,
         forces = setup_forces(model),
-        config = missing,
         kwarg...
     )
-    sim, config_new = setup_reservoir_simulator(model, state0, parameters; kwarg...)
-    if ismissing(config)
-        config = config_new
-    end
-    result = simulate!(sim, dt, forces = forces, config = config, restart = restart);
-    return ReservoirSimResult(model, result, forces; simulator = sim, config = config)
+    case = JutulCase(model, dt, forces, state0 = state0, parameters = parameters)
+    return simulate_reservoir(case; kwarg...)
 end
 
-function simulate_reservoir(case::JutulCase; config = missing, restart = false, simulator = missing, kwarg...)
+function simulate_reservoir(case::JutulCase;
+        config = missing,
+        restart = false,
+        simulator = missing,
+        kwarg...
+    )
     (; model, forces, state0, parameters, dt) = case
     if ismissing(simulator)
         sim, config_new = setup_reservoir_simulator(model, state0, parameters; kwarg...)
@@ -590,11 +624,15 @@ function set_default_cnv_mb_inner!(tol, model;
         sys = flow_system(model.system)
     end
     if sys isa ImmiscibleSystem || sys isa BlackOilSystem || sys isa CompositionalSystem
-        is_well = physical_representation(model) isa WellDomain
+        is_well = model_or_domain_is_well(model)
         if is_well
+            if physical_representation(model) isa SimpleWell
+                m = Inf
+            else
+                tol[:potential_balance] = (AbsMax = tol_dp_well,)
+                m = tol_mb_well
+            end
             c = tol_cnv_well
-            m = tol_mb_well
-            tol[:potential_balance] = (AbsMax = tol_dp_well,)
         else
             c = tol_cnv
             m = tol_mb
@@ -895,23 +933,19 @@ end
 
 
 """
-    full_well_outputs(model, states, forces; targets = available_well_targets(model.models.Reservoir), shortname = false)
+    full_well_outputs(model, states, forces; targets = available_well_targets(model.models.Reservoir))
 
 Get the full set of well outputs after a simulation has occured, for plotting or other post-processing.
 """
-function full_well_outputs(model, states, forces; targets = available_well_targets(model.models.Reservoir), shortname = false)
-    out = Dict()
-    if shortname
-        tm = :mass
-    else
-        tm = Symbol("Total surface mass rate")
-    end
+function full_well_outputs(model, states, forces; targets = available_well_targets(model.models.Reservoir))
+    out = Dict{Symbol, AbstractDict}()
     for w in well_symbols(model)
         out[w] = Dict()
         for t in targets
-            out[w][translate_target_to_symbol(t(1.0), shortname = shortname)] = well_output(model, states, w, forces, t)
+            out[w][translate_target_to_symbol(t(1.0))] = well_output(model, states, w, forces, t)
         end
-        out[w][Symbol(tm)] = well_output(model, states, w, forces, :TotalSurfaceMassRate)
+        out[w][:mass_rate] = well_output(model, states, w, forces, :TotalSurfaceMassRate)
+        out[w][:control] = well_output(model, states, w, forces, :control)
     end
     return out
 end
@@ -923,7 +957,6 @@ Get a specific well output from a valid operational target once a simulation is 
 """
 function well_output(model::MultiModel, states, well_symbol, forces, target = BottomHolePressureTarget)
     n = length(states)
-    d = zeros(n)
 
     well_number = 1
     for (k, m) in pairs(model.models)
@@ -943,48 +976,69 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
     target_limit = to_target(target)
 
     well_model = model.models[well_symbol]
-    for (i, state) = enumerate(states)
-        well_state = state[well_symbol]
-        well_state = convert_to_immutable_storage(well_state)
-        ctrl_grp = Symbol("$(well_symbol)_ctrl")
-        if haskey(state, ctrl_grp)
-            q_t = only(state[ctrl_grp][:TotalSurfaceMassRate])
-        else
-            q_t = state[:Facility][:TotalSurfaceMassRate][well_number]
-        end
-        if forces isa AbstractVector
-            force = forces[i]
-        else
-            force = forces
-        end
-        if haskey(force, :outer)
-            force = force.outer
-        end
-        if haskey(force, :Facility)
-            gforce = force[:Facility]
-        else
-            gforce = force[Symbol("$(well_symbol)_ctrl")]
-        end
-        control = gforce.control[well_symbol]
-        if control isa InjectorControl || control isa ProducerControl
-            q_t *= control.factor
-        end
-        if target == :TotalSurfaceMassRate
-            d[i] = q_t
-        else
-            if q_t == 0
-                current_control = DisabledControl()
-                if target == BottomHolePressureTarget
-                    v = well_state.Pressure[1]
-                else
-                    v = 0.0
-                end
-                d[i] = v
+
+    if target == :control
+        d = Symbol[]
+        for (i, state) = enumerate(states)
+            ctrl_grp = Symbol("$(well_symbol)_ctrl")
+            if haskey(state, ctrl_grp)
+                cfg = state[ctrl_grp][:WellGroupConfiguration]
             else
-                current_control = replace_target(control, BottomHolePressureTarget(1.0))
-                rhoS, S = surface_density_and_volume_fractions(well_state)
-                v = well_target_value(q_t, current_control, target_limit, well_model, well_state, rhoS, S)
-                d[i] = v
+                cfg = state[:Facility][:WellGroupConfiguration]
+            end
+            ctrl = cfg.operating_controls[well_symbol]
+            if ctrl isa DisabledControl
+                t = :disabled
+            else
+                t = translate_target_to_symbol(ctrl.target)
+            end
+            push!(d, t)
+        end
+    else
+        d = zeros(n)
+        for (i, state) = enumerate(states)
+            well_state = state[well_symbol]
+            well_state = convert_to_immutable_storage(well_state)
+            ctrl_grp = Symbol("$(well_symbol)_ctrl")
+            if haskey(state, ctrl_grp)
+                q_t = only(state[ctrl_grp][:TotalSurfaceMassRate])
+            else
+                q_t = state[:Facility][:TotalSurfaceMassRate][well_number]
+            end
+            if forces isa AbstractVector
+                force = forces[i]
+            else
+                force = forces
+            end
+            if haskey(force, :outer)
+                force = force.outer
+            end
+            if haskey(force, :Facility)
+                gforce = force[:Facility]
+            else
+                gforce = force[Symbol("$(well_symbol)_ctrl")]
+            end
+            control = gforce.control[well_symbol]
+            if control isa InjectorControl || control isa ProducerControl
+                q_t *= control.factor
+            end
+            if target == :TotalSurfaceMassRate
+                d[i] = q_t
+            else
+                if q_t == 0
+                    current_control = DisabledControl()
+                    if target == BottomHolePressureTarget
+                        v = well_state.Pressure[1]
+                    else
+                        v = 0.0
+                    end
+                    d[i] = v
+                else
+                    current_control = replace_target(control, BottomHolePressureTarget(1.0))
+                    rhoS, S = surface_density_and_volume_fractions(well_state)
+                    v = well_target_value(q_t, current_control, target_limit, well_model, well_state, rhoS, S)
+                    d[i] = v
+                end
             end
         end
     end
@@ -1144,7 +1198,8 @@ function Base.show(io::IO, ::MIME"text/plain", sr::ReservoirSimResult)
     print(io, sr)
     print(io, ":\n")
     if n > 0
-        wk = keys(sr.wells)
+        wells = sr.wells.wells
+        wk = keys(wells)
         nw = length(wk)
         print(io, "\n  wells ($nw present):\n")
         if nw > 0
@@ -1152,7 +1207,7 @@ function Base.show(io::IO, ::MIME"text/plain", sr::ReservoirSimResult)
                 print(io, "    :$k\n")
             end
             print(io, "    Results per well:\n")
-            print_keys("       ", sr.wells[first(wk)])
+            print_keys("       ", wells[first(wk)])
         end
         el = first(states)
         print(io, "\n  states (Vector with $n entries, reservoir variables for each state)\n")

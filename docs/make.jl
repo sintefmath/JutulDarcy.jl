@@ -4,40 +4,61 @@ using Literate
 using Documenter
 
 using DocumenterCitations
-bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"))
-
-function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
+##
+cd(@__DIR__)
+function build_jutul_darcy_docs(build_format = nothing; build_examples = true, build_notebooks = build_examples, clean = true)
     DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy; using Jutul); recursive=true)
     DocMeta.setdocmeta!(Jutul, :DocTestSetup, :(using Jutul); recursive=true)
+    bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"))
 
     ## Literate pass
     # Base directory
-    jutul_dir = joinpath(dirname(pathof(JutulDarcy)), "..")
+    jutul_dir = realpath(joinpath(@__DIR__, ".."))
     # Convert examples as .jl files to markdown
     examples = [
+        # "Intro" => "intro_example",
         "Gravity segregation" => "two_phase_gravity_segregation",
         "Two-phase Buckley-Leverett" => "two_phase_buckley_leverett",
         "Gravity circulation with CPR preconditioner" => "two_phase_unstable_gravity",
         "Intro to wells" => "wells_intro",
+        "CO2 injection in saline aquifer" => "co2_sloped",
+        "Simulating Eclipse/DATA input files" => "data_input_file",
         "Quarter-five-spot with variation" => "five_spot_ensemble",
         "Intro to compositional flow" => "co2_brine_2d_vertical",
         "Compositional with five components" => "compositional_5components",
         "Parameter optimization of Buckley-Leverett" => "optimize_simple_bl",
         "Validation of reservoir simulator" => "mrst_validation"
     ]
-    examples_markdown = ["Getting started" => "examples/intro.md"]
+    examples_markdown = []
     function update_footer(content, pth)
         return content*"\n\n # ## Example on GitHub\n "*
         "# If you would like to run this example yourself, it can be downloaded from "*
-        "[the JutulDarcy.jl GitHub repository](https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/$pth.jl)."
+        "the JutulDarcy.jl GitHub repository [as a script](https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/$pth.jl), "*
+        "or as a [Notebook](https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/docs/notebooks/$pth.ipynb)"
     end
-    if build_examples
+    if clean
         for (ex, pth) in examples
-            in_pth = joinpath(jutul_dir, "examples", "$pth.jl")
-            out_dir = joinpath(jutul_dir, "docs", "src", "examples")
+            delpath = joinpath(@__DIR__, "src", "examples", "$pth.md")
+            if isfile(delpath)
+                println("Deleting generated example \"$ex\":\n\t$delpath")
+                rm(delpath)
+            else
+                println("Did not find generated example \"$ex\", skipping removal:\n\t$delpath")
+            end
+        end
+    end
+    example_path(pth) = joinpath(jutul_dir, "examples", "$pth.jl")
+    for (ex, pth) in examples
+        in_pth = example_path(pth)
+        if build_examples
+            out_dir = joinpath(@__DIR__, "src", "examples")
             push!(examples_markdown, ex => joinpath("examples", "$pth.md"))
             upd(content) = update_footer(content, pth)
             Literate.markdown(in_pth, out_dir, preprocess = upd)
+        end
+        if build_notebooks
+            out_dir_notebooks = joinpath(@__DIR__, "notebooks")
+            Literate.notebook(in_pth, out_dir_notebooks)
         end
     end
     ## Docs
@@ -58,25 +79,27 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true)
         plugins=[bib],
         format=build_format,
         pages=[
-            "Home" => "index.md",
-            "Manual" => [
+            "Introduction" => [
+                "JutulDarcy.jl" => "index.md",
                 "Getting started" =>"man/intro.md",
-                "High-level functions" =>"man/highlevel.md",
-                "Input files" =>"man/input_files.md",
-                "Driving forces" =>"man/forces.md",
-                "Supported physical systems" =>"man/systems.md",
-                "Wells and controls" =>"man/wells.md",
-                "Solving the equations" => "man/solution.md",
-                "Primary variables" => "man/primary.md",
-                "Secondary variables (properties)" => "man/secondary.md",
-                "Parameters" => "man/parameters.md",
-                "Visualization" =>"man/plotting.md",
+                ],
+            "Examples" => examples_markdown,
+            "Manual" => [
+                "man/highlevel.md",
+                "man/basics/input_files.md",
+                "man/basics/forces.md",
+                "man/basics/systems.md",
+                "man/basics/wells.md",
+                "man/basics/solution.md",
+                "man/basics/primary.md",
+                "man/basics/secondary.md",
+                "man/basics/parameters.md",
+                "man/basics/plotting.md",
                 ],
             "Advanced usage" => [
-                "Parallel solves with MPI" =>"man/mpi.md",
-                "JutulDarcy.jl compiled app" =>"man/compiled.md"
+                "man/advanced/mpi.md",
+                "man/advanced/compiled.md"
             ],
-            "Examples" => examples_markdown,
             "Reference" => [
                 # "Internals" => "ref/internals.md",
                 "Jutul functions" => "ref/jutul.md"
