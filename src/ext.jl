@@ -3,6 +3,12 @@ function plot_well!
 
 end
 
+"""
+    plot_well_results(wr::WellResults)
+    plot_well_results(v::Vector{WellResults})
+
+Launch interactive viewer for well results. Needs GLMakie to be loaded.
+"""
 function plot_well_results
 
 end
@@ -39,6 +45,11 @@ function plot_reservoir_simulation_result(model::MultiModel, res::ReservoirSimRe
     return fig
 end
 
+"""
+    plot_reservoir(model, states=missing; well_fontsize = 18, well_linewidth = 3, kwarg...)
+
+Launch interactive plotter of reservoir + well trajectories in reservoir. Requires GLMakie.
+"""
 function plot_reservoir(model, arg...; well_fontsize = 18, well_linewidth = 3, kwarg...)
     rmodel = reservoir_model(model)
     data_domain = rmodel.data_domain
@@ -87,6 +98,12 @@ function plot_reservoir(model, arg...; well_fontsize = 18, well_linewidth = 3, k
     return fig
 end
 
+"""
+    simulate_reservoir_parray(case, mode = :mpi; kwarg...)
+
+Run simulation with parray. This function is primarily for testing.
+[`simulate_reservoir`](@ref) can do the same job by passing the correct mode.
+"""
 function simulate_reservoir_parray(case, mode = :mpi; kwarg...)
     sim, cfg = setup_reservoir_simulator(case; mode = mode, kwarg...)
     return simulate!(sim, case.dt, forces = case.forces, config = cfg)
