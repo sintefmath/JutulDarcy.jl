@@ -5,6 +5,7 @@ using Documenter
 
 using DocumenterCitations
 ##
+cd(@__DIR__)
 function build_jutul_darcy_docs(build_format = nothing; build_examples = true, build_notebooks = build_examples, clean = true)
     DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy; using Jutul); recursive=true)
     DocMeta.setdocmeta!(Jutul, :DocTestSetup, :(using Jutul); recursive=true)
@@ -27,7 +28,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
         "Parameter optimization of Buckley-Leverett" => "optimize_simple_bl",
         "Validation of reservoir simulator" => "mrst_validation"
     ]
-    examples_markdown = ["Getting started" => "examples/intro.md"]
+    examples_markdown = []
     function update_footer(content, pth)
         return content*"\n\n # ## Example on GitHub\n "*
         "# If you would like to run this example yourself, it can be downloaded from "*
@@ -80,9 +81,10 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
             "Introduction" => [
                 "JutulDarcy.jl" => "index.md",
                 "Getting started" =>"man/intro.md",
-                "man/highlevel.md",
                 ],
+            "Examples" => examples_markdown,
             "Manual" => [
+                "man/highlevel.md",
                 "man/basics/input_files.md",
                 "man/basics/forces.md",
                 "man/basics/systems.md",
@@ -97,7 +99,6 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
                 "man/advanced/mpi.md",
                 "man/advanced/compiled.md"
             ],
-            "Examples" => examples_markdown,
             "Reference" => [
                 # "Internals" => "ref/internals.md",
                 "Jutul functions" => "ref/jutul.md"
