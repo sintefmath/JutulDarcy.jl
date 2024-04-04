@@ -1,8 +1,10 @@
 [deps]
-GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 DocStringExtensions = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 DocumenterCitations = "daee34ce-89f3-4625-b898-19384cb65244"
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
+GeoEnergyIO = "3b1dd628-313a-45bb-9d8d-8f3c48dcb5d4"
+HYPRE = "b5ffcf37-a2bd-41ab-a3da-4bd9bc8ad771"
 Jutul = "2b460a1a-8a2b-45b2-b125-b5c536396eb9"
 JutulDarcy = "82210473-ab04-4dce-b31b-11573c4f8e0a"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
