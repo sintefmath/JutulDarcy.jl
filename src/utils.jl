@@ -361,8 +361,8 @@ end
   it). Typical options are `:bicgstab` or `:gmres` Can alternatively pass a
   linear solver instance.
 - `precond=:cpr`: preconditioner for iterative solver: Either :cpr or :ilu0.
-- `rtol=1e-3`: relative tolerance for linear solver _ `linear_solver_arg`: Dict
-containing additional linear solver arguments.
+- `rtol=1e-3`: relative tolerance for linear solver
+- `linear_solver_arg`: `Dict` containing additional linear solver arguments.
 
 ## Timestepping options
 
