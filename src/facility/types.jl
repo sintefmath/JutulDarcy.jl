@@ -326,7 +326,7 @@ struct InjectorControl{T, R, P, M, E} <: WellControlForce
     temperature::R
     enthalpy::E
     factor::R
-    function InjectorControl(target::T, mix; density::R = 1.0, phases = ((1, 1.0),), temperature::R = 273.15, enthalpy = missing, factor::R = 1.0) where {T<:WellTarget, R<:Real}
+    function InjectorControl(target::T, mix; density::R = 1.0, phases = ((1, 1.0),), temperature::R = 293.15, enthalpy = missing, factor::R = 1.0) where {T<:WellTarget, R<:Real}
         @assert isfinite(density) && density > 0.0 "Injector density must be finite and positive"
         @assert isfinite(temperature) && temperature > 0.0 "Injector temperature must be finite and positive"
 
