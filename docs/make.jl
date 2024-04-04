@@ -22,6 +22,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
         "Gravity circulation with CPR preconditioner" => "two_phase_unstable_gravity",
         "Intro to wells" => "wells_intro",
         "CO2 injection in saline aquifer" => "co2_sloped",
+        "Simulating Eclipse/DATA input files" => "data_input_file",
         "Quarter-five-spot with variation" => "five_spot_ensemble",
         "Intro to compositional flow" => "co2_brine_2d_vertical",
         "Compositional with five components" => "compositional_5components",
