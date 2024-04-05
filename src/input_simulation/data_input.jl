@@ -854,7 +854,12 @@ function parse_physics_types(datafile; pvt_region = missing)
         else
             eos_type = PengRobinson()
         end
-        eos = GenericCubicEOS(mixture, eos_type)
+        if haskey(props, "SSHIFT")
+            vshift = Tuple(props["SSHIFT"])
+        else
+            vshift = nothing
+        end
+        eos = GenericCubicEOS(mixture, eos_type, volume_shift = vshift)
         sys = MultiPhaseCompositionalSystemLV(eos, phases, reference_densities = rhoS)
     else
         if has_oil
