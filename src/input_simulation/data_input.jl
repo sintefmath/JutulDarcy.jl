@@ -824,7 +824,7 @@ function parse_physics_types(datafile; pvt_region = missing)
         push!(phases, VaporPhase())
         push!(rhoS, rhoGS)
 
-        cnames = props["CNAMES"]
+        cnames = copy(props["CNAMES"])
         acf = props["ACF"]
         mw = props["MW"]
         p_c = props["PCRIT"]
@@ -837,6 +837,7 @@ function parse_physics_types(datafile; pvt_region = missing)
             A_ij = nothing
         end
         mp = MolecularProperty.(mw, p_c, T_c, V_c, acf)
+        @assert length(cnames) == length(mp)
         mixture = MultiComponentMixture(mp, A_ij = A_ij, names = cnames)
         if haskey(props, "EOS")
             eos_str = uppercase(props["EOS"])
