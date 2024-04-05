@@ -393,8 +393,9 @@ list a few of the most relevant entries here for convenience:
 - `info_level = 0`: Output level. Set to 0 for minimal output, -1 for no output
   and 1 or more for increasing verbosity.
 - `output_path`: Path to write output to.
-- `relaxation=Jutul.NoRelaxation`: Dampening used for solves. Can be set to
-  `Jutul.SimpleRelaxation()` for difficult models.
+- `relaxation=Jutul.NoRelaxation()`: Dampening used for solves. Can be set to
+  `Jutul.SimpleRelaxation()` for difficult models. Equivialent option is to set
+  `true` for relaxation and `false` for no relaxation.
 - `failure_cuts_timestep=true`: Cut timestep instead of throwing an error when
   numerical issues are encountered (e.g. linear solver divergence).
 - `max_timestep_cuts=25`: Maximum number of timestep cuts before a solver gives
@@ -427,6 +428,7 @@ function setup_reservoir_simulator(case::JutulCase;
         inc_tol_dz = Inf,
         set_linear_solver = true,
         timesteps = :auto,
+        relaxation = false,
         presolve_wells = false,
         parray_arg = Dict{Symbol, Any}(),
         linear_solver_arg = Dict{Symbol, Any}(),
@@ -511,10 +513,18 @@ function setup_reservoir_simulator(case::JutulCase;
     else
         extra_kwarg[:linear_solver] = linear_solver
     end
+    if relaxation isa Bool
+        if relaxation
+            relaxation = SimpleRelaxation()
+        else
+            relaxation = NoRelaxation()
+        end
+    end
     cfg = simulator_config(sim;
         extra_kwarg...,
         timestep_selectors = sel,
         info_level = info_level,
+        relaxation = relaxation,
         max_timestep = max_timestep,
         failure_cuts_timestep = failure_cuts_timestep,
         max_timestep_cuts = max_timestep_cuts,
