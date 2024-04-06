@@ -89,7 +89,8 @@ function face_average_density(model::Union{CompositionalModel, ThermalCompositio
         elseif s_r_tiny
             ρ_avg = ρ_l
         else
-            ρ_avg = (s_l*ρ_r + s_r*ρ_l)/(s_l + s_r)
+            # alt def: (s_l*ρ_r + s_r*ρ_l)/(s_l + s_r)
+            ρ_avg = 0.5*(ρ_r + ρ_l)
         end
     end
     return ρ_avg
