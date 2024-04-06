@@ -367,7 +367,7 @@ function true_impes!(w, acc, r, n, bz, arg...)
     elseif bz == 8
         true_impes_8!(w, acc, r, n, bz, arg...)
     else
-        true_impes_gen!(w, acc, r, n, bz, arg...)
+        true_impes_gen!(w, acc, r, n, Val(bz), arg...)
     end
 end
 
@@ -447,9 +447,10 @@ function true_impes_8!(w, acc, r, n, bz, s, scaling)
     end
 end
 
-function true_impes_gen!(w, acc, r, n, bz, p_scale, scaling)
+function true_impes_gen!(w, acc, r, n, ::Val{bz}, p_scale, scaling) where bz
     r_p = SVector{bz}(r)
-    A = MMatrix{bz, bz, eltype(r)}(zeros(bz, bz))
+    r_T = eltype(r)
+    A = MMatrix{bz, bz, r_T}(undef)
     for cell in 1:n
         @inbounds for i = 1:bz
             v = acc[i, cell]
@@ -458,7 +459,7 @@ function true_impes_gen!(w, acc, r, n, bz, p_scale, scaling)
                 A[j, i] = v.partials[j]
             end
         end
-        invert_w!(w, A, r_p, cell, bz, scaling)
+        invert_w!(w, SMatrix{bz, bz, r_T}(A), r_p, cell, bz, scaling)
     end
 end
 
