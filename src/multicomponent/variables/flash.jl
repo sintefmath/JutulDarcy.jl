@@ -7,12 +7,23 @@ mutable struct InPlaceFlashBuffer
     end
 end
 
-struct FlashResults <: ScalarVariable
-    storage
-    method
-    update_buffer
+struct FlashResults{F_t, S_t, B_t} <: ScalarVariable
+    storage::S_t
+    method::F_t
+    update_buffer::B_t
     use_threads::Bool
-    function FlashResults(system; method = SSIFlash(), threads = Threads.nthreads() > 1)
+    tolerance::Float64
+    tolerance_bypass::Float64
+    stability_bypass::Bool
+    reuse_guess::Bool
+    function FlashResults(system;
+            method::MultiComponentFlash.AbstractFlash = SSIFlash(),
+            threads = Threads.nthreads() > 1,
+            tolerance = 1e-8,
+            tolerance_bypass = 10,
+            reuse_guess = false,
+            stability_bypass = reuse_guess
+        )
         eos = system.equation_of_state
         nc = MultiComponentFlash.number_of_components(eos)
         if has_other_phase(system)
@@ -35,7 +46,16 @@ struct FlashResults <: ScalarVariable
         end
         storage = tuple(storage...)
         buffers = tuple(buffers...)
-        new(storage, method, buffers, threads)
+        new{typeof(method), typeof(storage), typeof(buffers)}(
+            storage,
+            method,
+            buffers,
+            threads,
+            tolerance,
+            tolerance_bypass,
+            stability_bypass,
+            reuse_guess
+        )
     end
 end
 
@@ -92,7 +112,7 @@ function flash_entity_loop!(flash_results, fr, model, eos, Pressure, Temperature
     buf_z = buf.z
     buf_forces = buf.forces
     @inbounds for i in ix
-        flash_results[i] = internal_flash!(flash_results[i], S, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, sw, i)
+        flash_results[i] = internal_flash!(flash_results[i], S, fr, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, sw, i)
     end
 end
 
@@ -141,7 +161,7 @@ function update_flash_buffer!(buf, eos::KValuesEOS, Pressure, Temperature, Overa
     return nothing
 end
 
-function internal_flash!(f, S, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, sw, i)
+function internal_flash!(f, S, var, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, sw, i)
     @inline function immiscible_sat(::Nothing, i)
         return 0.0
     end
@@ -159,13 +179,27 @@ function internal_flash!(f, S, m, eos, buf_z, buf_forces, Pressure, Temperature,
         K = f.K
         x = f.liquid.mole_fractions
         y = f.vapor.mole_fractions
+        V = f.V
+        b = f.critical_distance
 
-        return update_flash_result(S, m, eos, K, x, y, buf_z, buf_forces, P, T, Z, Sw)
+        return update_flash_result(S, m, eos, K, x, y, buf_z, V, buf_forces, P, T, Z, Sw,
+            critical_distance = b,
+            tolerance = var.tolerance,
+            stability_bypass = var.stability_bypass,
+            reuse_guess = var.reuse_guess,
+            tolerance_bypass = var.tolerance_bypass
+        )
     end
 end
 
 
-function update_flash_result(S, m, eos, K, x, y, z, forces, P, T, Z, Sw = 0.0)
+function update_flash_result(S, m, eos, K, x, y, z, V, forces, P, T, Z, Sw = 0.0;
+        critical_distance::Float64 = NaN,
+        tolerance::Float64 = 1e-8,
+        tolerance_bypass::Float64 = 10.0,
+        stability_bypass::Bool = false,
+        reuse_guess::Bool = false,
+    )
     @. z = max(value(Z), 1e-8)
     # Conditions
     c = (p = value(P), T = value(T), z = z)
