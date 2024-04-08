@@ -172,7 +172,7 @@ function separator_flash!(flash, eos, cond, z)
     Temperature = cond.T
     update_flash_buffer!(buf, eos, Pressure, Temperature, z)
     forces = buf.forces
-    return update_flash_result(fstorage, SSIFlash(), eos, f.K, x, y, buf.z, NaN, forces, Pressure, Temperature, z, 0.0)
+    return update_flash_result(fstorage, SSIFlash(), eos, f.state, f.K, x, y, buf.z, NaN, forces, Pressure, Temperature, z, 0.0)
 end
 
 function flash_stream!(moles::SVector{N, T}, flash, eos, cond) where {N, T}

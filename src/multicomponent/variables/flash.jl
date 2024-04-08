@@ -200,13 +200,15 @@ function internal_flash!(f, S, var, m, eos, buf_z, buf_forces, Pressure, Tempera
 end
 
 
-function update_flash_result(S, m, eos, K, x, y, z, V, forces, P, T, Z, Sw = 0.0;
+function update_flash_result(S, m, eos, phase_state, K, x, y, z, V, forces, P, T, Z, Sw = 0.0;
         critical_distance::Float64 = NaN,
         tolerance::Float64 = 1e-8,
         tolerance_bypass::Float64 = 10.0,
         stability_bypass::Bool = false,
         reuse_guess::Bool = false,
     )
+    # @info "!" V critical_distance
+    # error()
     @. z = max(value(Z), 1e-8)
     # Conditions
     c = (p = value(P), T = value(T), z = z)
