@@ -255,7 +255,9 @@ function update_flash_result(S, m, eos, phase_state, K, p_prev, T_prev, x, y, z,
         end
     else
         # Have to do some kind of flash, could be single or two-phase.
-        if reuse_guess && !was_single_phase
+        was_two_phase = phase_state == MultiComponentFlash.two_phase_lv
+
+        if reuse_guess && was_two_phase
             # We can probably get away with doing a partial flash.
             # TODO: Finish theta K-value from paper.
             vapor_frac, K, stats = flash_2ph!(S, K, eos, c, value(V),
