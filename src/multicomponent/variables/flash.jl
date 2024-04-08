@@ -21,7 +21,7 @@ struct FlashResults{F_t, S_t, B_t} <: ScalarVariable
             threads = Threads.nthreads() > 1,
             tolerance = 1e-8,
             tolerance_bypass = 10,
-            reuse_guess = false,
+            reuse_guess = true,
             stability_bypass = true
         )
         eos = system.equation_of_state
@@ -233,6 +233,7 @@ function update_flash_result(S, m, eos, phase_state, K, p_prev, T_prev, x, y, z,
     @. z = max(value(Z), 1e-8)
     # Conditions
     c = (p = p_val, T = T_val, z = z)
+    did_full_flash = false
     if is_pure_water
         vapor_frac = NaN
         # Set this to make sure that a proper stability test happens if we leave
@@ -245,41 +246,41 @@ function update_flash_result(S, m, eos, phase_state, K, p_prev, T_prev, x, y, z,
         ϵ = tolerance_bypass
 
         b_old = critical_distance
-        z_crit = z_diff ≥ b_old/ϵ
-        p_crit = p_diff ≥ b_old*p_val/ϵ
-        T_crit = T_diff ≥ b_old*ϵ
-        if z_crit && p_crit && T_crit
+        z_crit = z_diff < b_old/ϵ
+        p_crit = p_diff < b_old*p_val/ϵ
+        T_crit = T_diff < b_old*ϵ
+        bypass_safe = z_crit && p_crit && T_crit
+        if bypass_safe
             vapor_frac = NaN
         else
             vapor_frac = do_full_flash()
+            did_full_flash = true
         end
-        @info "" z_diff p_diff T_diff vapor_frac
     else
-        # Have to do a proper flash, could be single or two-phase.
+        # Have to do some kind of flash, could be single or two-phase.
         if reuse_guess && !was_single_phase
+            # We can probably get away with doing a partial flash.
             error()
         else
             vapor_frac = do_full_flash()
-        end
-        if stability_bypass && isnan(vapor_frac)
-            # We ended up in single phase conditions and actually tested for it.
-            # Update critical distance.
-            critical_distance = michelsen_critical_point_measure!(S.bypass, eos, c.p, c.T, z)
-        else
-            # Two-phase condition, set critical distance to NaN to avoid bypassing.
-            critical_distance = NaN
+            did_full_flash = true
         end
     end
     force_coefficients!(forces, eos, (p = P, T = T, z = Z))
     if isnan(vapor_frac)
+        if did_full_flash && stability_bypass
+            # If we did a full flash and single-phase prevailed it is time to
+            # update the critical distance for future reference. Otherwise we
+            # did a skip and we keep the old value implicitly.
+            critical_distance = michelsen_critical_point_measure!(S.bypass, eos, c.p, c.T, z)
+        end
         # Single phase condition. Life is easy.
         Z_L, Z_V, V, phase_state = single_phase_update!(P, T, Z, x, y, forces, eos, c)
-        if stability_bypass && !was_single_phase
-            
-        end
     else
         # Two-phase condition: We have some work to do.
         Z_L, Z_V, V, phase_state = two_phase_update!(S, P, T, Z, x, y, K, vapor_frac, forces, eos, c)
+        # Reset critical distance to NaN since we are now in two-phase region.
+        critical_distance = NaN
     end
     out = FlashedMixture2Phase(phase_state, K, V, x, y, Z_L, Z_V, critical_distance, p_val, T_val)
     return out
