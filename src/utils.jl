@@ -169,6 +169,8 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         dr_max = Inf,
         dT_max_rel = nothing,
         dT_max_abs = nothing,
+        flash_reuse_guess = false,
+        flash_stability_bypass = flash_reuse_guess,
         parameters = Dict{Symbol, Any}(),
         kwarg...
     )
@@ -199,7 +201,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         ds_max = ds_max,
         dz_max = dz_max,
         dT_max_rel = dT_max_rel,
-        dT_max_abs = dT_max_abs
+        dT_max_abs = dT_max_abs,
+        flash_reuse_guess = flash_reuse_guess,
+        flash_stability_bypass = flash_stability_bypass
     )
 
     for k in extra_outputs
@@ -235,7 +239,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
                 ds_max = ds_max,
                 dz_max = dz_max,
                 dT_max_rel = dT_max_rel,
-                dT_max_abs = dT_max_abs
+                dT_max_abs = dT_max_abs,
+                flash_reuse_guess = flash_reuse_guess,
+                flash_stability_bypass = flash_stability_bypass
             )
             models[wname] = wmodel
             if split_wells
@@ -267,7 +273,19 @@ function setup_reservoir_model(reservoir::DataDomain, label::Symbol; kwarg...)
     return setup_reservoir_model(reservoir, Val(label); kwarg...)
 end
 
-function set_reservoir_variable_defaults!(model; p_min, p_max, dp_max_abs, dp_max_rel, ds_max, dz_max, dr_max, dT_max_rel = nothing, dT_max_abs = nothing)
+function set_reservoir_variable_defaults!(model;
+        p_min,
+        p_max,
+        dp_max_abs,
+        dp_max_rel,
+        ds_max,
+        dz_max,
+        dr_max,
+        dT_max_rel = nothing,
+        dT_max_abs = nothing,
+        flash_reuse_guess = false,
+        flash_stability_bypass = flash_reuse_guess
+    )
     # Replace various variables - if they are available
     replace_variables!(model, OverallMoleFractions = OverallMoleFractions(dz_max = dz_max), throw = false)
     replace_variables!(model, Saturations = Saturations(ds_max = ds_max), throw = false)
@@ -275,6 +293,12 @@ function set_reservoir_variable_defaults!(model; p_min, p_max, dp_max_abs, dp_ma
     replace_variables!(model, ImmiscibleSaturation = ImmiscibleSaturation(ds_max = ds_max), throw = false)
     replace_variables!(model, BlackOilUnknown = BlackOilUnknown(ds_max = ds_max, dr_max = dr_max), throw = false)
 
+    rmodel = reservoir_model(model)
+    if rmodel isa CompositionalModel
+        sys = rmodel.system
+        flash = FlashResults(sys, stability_bypass = flash_stability_bypass, reuse_guess = flash_reuse_guess)
+        replace_variables!(model, FlashResults = flash, throw = false)
+    end
     p_def = Pressure(
         max_abs = dp_max_abs,
         max_rel = dp_max_rel,
