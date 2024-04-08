@@ -39,7 +39,14 @@ struct FlashResults{F_t, S_t, B_t} <: ScalarVariable
             N = 1
         end
         for i = 1:N
-            s = flash_storage(eos, method = method, inc_jac = true, diff_externals = true, npartials = n, static_size = true)
+            s = flash_storage(eos,
+                method = method,
+                inc_jac = true,
+                inc_bypass = stability_bypass,
+                diff_externals = true,
+                npartials = n,
+                static_size = true
+            )
             push!(storage, s)
             b = InPlaceFlashBuffer(nc)
             push!(buffers, b)
