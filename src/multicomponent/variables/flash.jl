@@ -207,9 +207,6 @@ function update_flash_result(S, m, eos, phase_state, K, p_prev, T_prev, x, y, z,
         stability_bypass::Bool = false,
         reuse_guess::Bool = false,
     )
-    # @info "!" V critical_distance
-    # error()
-    # Perform flash
     is_pure_water = is_pure_single_phase(Sw)
 
     stability_bypass = stability_bypass && !is_pure_water
@@ -260,7 +257,19 @@ function update_flash_result(S, m, eos, phase_state, K, p_prev, T_prev, x, y, z,
         # Have to do some kind of flash, could be single or two-phase.
         if reuse_guess && !was_single_phase
             # We can probably get away with doing a partial flash.
-            error()
+            # TODO: Finish theta K-value from paper.
+            vapor_frac, K, stats = flash_2ph!(S, K, eos, c, value(V),
+                method = SSINewtonFlash(swap_iter = 2),
+                maxiter = 20,
+                extra_out = true,
+                z_min = nothing,
+                check = false
+            )
+            if !stats.converged
+                vapor_frac = do_full_flash()
+                @warn "Uh oh"
+                did_full_flash = true
+            end
         else
             vapor_frac = do_full_flash()
             did_full_flash = true
