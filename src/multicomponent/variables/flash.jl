@@ -208,39 +208,33 @@ function update_flash_result(S, m, eos, phase_state, K, cond_prev, x, y, z, V, f
         reuse_guess::Bool = false,
     )
 
-    stability_bypass = stability_bypass && !is_pure_water
-    was_single_phase = phase_state == MultiComponentFlash.single_phase_l || phase_state == MultiComponentFlash.single_phase_v
     # We can check for bypass if feature is enabled, we have a critical distance
     # that is finite and we were in single phase previously.
     # do_full_flash(c) = flash_2ph!(S, K, eos, c, NaN, method = m, extra_out = false, z_min = nothing)
 
     p_val = value(P)
     T_val = value(T)
-    @. z = value(Z)
+    @. z = max(value(Z), 1e-8)
 
     new_cond = (p = p_val, T = T_val, z = z)
-    need_flash, critical_distance = single_phase_bypass_check(new_cond, cond_prev, critical_distance, Sw, stability_bypass, tolerance_bypass)
-    #!
-    
+    do_flash, critical_distance = single_phase_bypass_check(new_cond, cond_prev, phase_state, critical_distance, Sw, stability_bypass, tolerance_bypass)
 
-    if need_flash
+    if do_flash
         vapor_frac = two_phase_flash_implementation!(K, S, m, eos, phase_state, new_cond, V, reuse_guess)
         is_single_phase = isnan(vapor_frac)
     else
         is_single_phase = true
     end
     force_coefficients!(forces, eos, (p = P, T = T, z = Z))
+    update_condition = false
     if is_single_phase
         if stability_bypass
-            if did_full_flash
+            if do_flash
                 # If we did a full flash and single-phase prevailed it is time to
                 # update the critical distance for future reference. Otherwise we
                 # did a skip and we keep the old value implicitly.
+                @info new_cond
                 critical_distance = michelsen_critical_point_measure!(S.bypass, eos, new_cond.p, new_cond.T, new_cond.z)
-            else
-                p_val = p_old
-                T_val = T_old
-                # z_val = z_old
             end
         end
         # Single phase condition. Life is easy.
@@ -248,15 +242,21 @@ function update_flash_result(S, m, eos, phase_state, K, cond_prev, x, y, z, V, f
     else
         # Two-phase condition: We have some work to do.
         Z_L, Z_V, V, phase_state = two_phase_update!(S, P, T, Z, x, y, K, vapor_frac, forces, eos, new_cond)
-        # Reset critical distance to NaN since we are now in two-phase region.
+        # Reset critical distance to NaN and set condition to last flash since we are now in two-phase region.
         critical_distance = NaN
+    end
+    # Update the condition if we actually did a flash
+    if do_flash
+        @. cond_prev.z = z
+        cond_prev = (p = p_val, T = T_val, cond_prev.z)
     end
     out = FlashedMixture2Phase(phase_state, K, V, x, y, Z_L, Z_V, critical_distance, cond_prev)
     return out
 end
 
-function single_phase_bypass_check(new_cond, old_cond, Sw, critical_distance, stability_bypass, ϵ)
+function single_phase_bypass_check(new_cond, old_cond, phase_state, Sw, critical_distance, stability_bypass, ϵ)
     is_pure_water = is_pure_single_phase(Sw)
+    was_single_phase = phase_state == MultiComponentFlash.single_phase_l || phase_state == MultiComponentFlash.single_phase_v
 
     if is_pure_water
         # Set this to make sure that a proper stability test happens if we leave
@@ -266,17 +266,15 @@ function single_phase_bypass_check(new_cond, old_cond, Sw, critical_distance, st
     elseif stability_bypass && was_single_phase && isfinite(critical_distance)
         z_diff = p_diff = T_diff = 0.0
         # This is put early while we have the old z values in buffer
-        for i in eachindex(old_cond.z, z)
+        for i in eachindex(old_cond.z, new_cond.z)
             z_diff = max(z_diff, abs(old_cond.z[i] - value(new_cond.z[i])))
         end
         p_diff = abs(new_cond.p - old_cond.p)
         T_diff = abs(new_cond.T - old_cond.T)
 
-        ϵ = tolerance_bypass
-
         b_old = critical_distance
         z_crit = z_diff < b_old/ϵ
-        p_crit = p_diff < b_old*p/ϵ
+        p_crit = p_diff < b_old*new_cond.p/ϵ
         T_crit = T_diff < b_old*ϵ
         bypass_safe = z_crit && p_crit && T_crit
         need_two_phase_flash = !bypass_safe
