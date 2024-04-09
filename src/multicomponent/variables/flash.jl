@@ -21,8 +21,8 @@ struct FlashResults{F_t, S_t, B_t} <: ScalarVariable
             threads = Threads.nthreads() > 1,
             tolerance = 1e-8,
             tolerance_bypass = 10,
-            reuse_guess = true,
-            stability_bypass = true
+            reuse_guess = false,
+            stability_bypass = false
         )
         eos = system.equation_of_state
         nc = MultiComponentFlash.number_of_components(eos)
@@ -189,7 +189,7 @@ function internal_flash!(f, S, var, m, eos, buf_z, buf_forces, Pressure, Tempera
         V = f.V
         b = f.critical_distance
 
-        return update_flash_result(S, m, eos, f.state, K, f.p, f.T, x, y, buf_z, V, buf_forces, P, T, Z, Sw,
+        return update_flash_result(S, m, eos, f.state, K, f.flash_cond, x, y, buf_z, V, buf_forces, P, T, Z, Sw,
             critical_distance = b,
             tolerance = var.tolerance,
             stability_bypass = var.stability_bypass,
@@ -200,7 +200,7 @@ function internal_flash!(f, S, var, m, eos, buf_z, buf_forces, Pressure, Tempera
 end
 
 import MultiComponentFlash: michelsen_critical_point_measure!
-function update_flash_result(S, m, eos, phase_state, K, p_prev, T_prev, x, y, z, V, forces, P, T, Z, Sw = 0.0;
+function update_flash_result(S, m, eos, phase_state, K, cond_prev, x, y, z, V, forces, P, T, Z, Sw = 0.0;
         critical_distance::Float64 = NaN,
         tolerance::Float64 = 1e-8,
         tolerance_bypass::Float64 = 10.0,
@@ -279,11 +279,17 @@ function update_flash_result(S, m, eos, phase_state, K, p_prev, T_prev, x, y, z,
     end
     force_coefficients!(forces, eos, (p = P, T = T, z = Z))
     if isnan(vapor_frac)
-        if did_full_flash && stability_bypass
-            # If we did a full flash and single-phase prevailed it is time to
-            # update the critical distance for future reference. Otherwise we
-            # did a skip and we keep the old value implicitly.
-            critical_distance = michelsen_critical_point_measure!(S.bypass, eos, c.p, c.T, z)
+        if stability_bypass
+            if did_full_flash
+                # If we did a full flash and single-phase prevailed it is time to
+                # update the critical distance for future reference. Otherwise we
+                # did a skip and we keep the old value implicitly.
+                critical_distance = michelsen_critical_point_measure!(S.bypass, eos, c.p, c.T, z)
+            else
+                p_val = p_old
+                T_val = T_old
+                # z_val = z_old
+            end
         end
         # Single phase condition. Life is easy.
         Z_L, Z_V, V, phase_state = single_phase_update!(P, T, Z, x, y, forces, eos, c)
@@ -293,7 +299,7 @@ function update_flash_result(S, m, eos, phase_state, K, p_prev, T_prev, x, y, z,
         # Reset critical distance to NaN since we are now in two-phase region.
         critical_distance = NaN
     end
-    out = FlashedMixture2Phase(phase_state, K, V, x, y, Z_L, Z_V, critical_distance, p_val, T_val)
+    out = FlashedMixture2Phase(phase_state, K, V, x, y, Z_L, Z_V, critical_distance, cond_prev)
     return out
 end
 
