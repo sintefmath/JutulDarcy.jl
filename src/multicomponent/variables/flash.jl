@@ -217,7 +217,7 @@ function update_flash_result(S, m, eos, phase_state, K, cond_prev, x, y, z, V, f
     @. z = max(value(Z), 1e-8)
 
     new_cond = (p = p_val, T = T_val, z = z)
-    do_flash, critical_distance = single_phase_bypass_check(new_cond, cond_prev, phase_state, critical_distance, Sw, stability_bypass, tolerance_bypass)
+    do_flash, critical_distance = single_phase_bypass_check(new_cond, cond_prev, phase_state, Sw, critical_distance, stability_bypass, tolerance_bypass)
 
     if do_flash
         vapor_frac = two_phase_flash_implementation!(K, S, m, eos, phase_state, new_cond, V, reuse_guess)
