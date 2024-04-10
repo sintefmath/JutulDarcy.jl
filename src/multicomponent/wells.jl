@@ -256,5 +256,5 @@ function compositional_surface_densities(state, system, S_l::S_T, S_v::S_T, rho_
     volume[l] = S_l*rem
     volume[v] = S_v*rem
     @assert sum(volume) ≈ 1.0 "Volume should sum to 1, was $(sum(volume))"
-    return (rhoS, volume)
+    return (SVector(rhoS), SVector(volume))
 end
