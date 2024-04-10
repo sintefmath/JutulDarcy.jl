@@ -426,8 +426,8 @@ function filter_inactive_completions!(completions_vector, g)
                 if !haskey(tuple_active, k)
                     ix = cell_index(g, tupl, throw = false)
                     if isnothing(ix)
-                        jutul_message("Removing well",
-                            "Well $well completion $tupl was declared using COMPDAT, but that cell is not active in model. Skipped.",
+                        jutul_message("$well completion",
+                            "Removed COMPDAT as $tupl is not active in processed mesh.",
                             color = :yellow
                         )
                         tuple_active[k] = false
