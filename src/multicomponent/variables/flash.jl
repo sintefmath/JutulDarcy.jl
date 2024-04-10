@@ -343,7 +343,7 @@ function two_phase_flash_implementation!(K, S, m, eos, old_phase_state, x, y, fl
                 z_min = nothing,
                 check = false
             )
-            need_full_flash = !stats.converged
+            need_full_flash = !stats.converged || V < 0 || V > 0
         catch e
             jutul_message("Flash", "Exception ocurred in flash: $(typeof(e)), falling back to SSI with stability test.", color = :red)
         end
