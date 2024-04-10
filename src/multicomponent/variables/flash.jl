@@ -337,10 +337,9 @@ function two_phase_flash_implementation!(K, S, m, eos, old_phase_state, x, y, fl
         z = flash_cond.z
         K = estimate_K_values_from_previous_flash!(K, V, x, y, z)
         try
-            vapor_frac, K, stats = flash_2ph!(S, K, eos, flash_cond, V,
+            vapor_frac, K, stats = MultiComponentFlash.flash_2ph_impl!(S, K, eos, flash_cond, V,
                 method = SSINewtonFlash(swap_iter = 2),
                 maxiter = 20,
-                extra_out = true,
                 z_min = nothing,
                 check = false
             )
@@ -351,9 +350,8 @@ function two_phase_flash_implementation!(K, S, m, eos, old_phase_state, x, y, fl
     end
 
     if need_full_flash
-        vapor_frac, K, stats = flash_2ph!(S, K, eos, flash_cond, NaN,
+        vapor_frac, K, stats = MultiComponentFlash.flash_2ph_impl!(S, K, eos, flash_cond, NaN,
             method = m,
-            extra_out = true,
             z_min = nothing
         )
         code = FLASH_FULL
