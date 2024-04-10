@@ -298,24 +298,26 @@ end
 
 function two_phase_flash_implementation!(K, S, m, eos, old_phase_state, x, y, flash_cond, V, reuse_guess)
     # Have to do some kind of flash, could be single or two-phase.
-    was_two_phase = old_phase_state == MultiComponentFlash.two_phase_lv
-    if reuse_guess && was_two_phase
+    need_full_flash = true
+    if reuse_guess && old_phase_state == MultiComponentFlash.two_phase_lv
         # If the model was previously two-phase and this option is enabled, we
         # can try reusing the previous solution as an initial guess. This
         # follows Rasmussen et al where a theta estimating phase partition is
         # used, adapted to the K-value initial guess used by our flash.
         V = value(V)
         K = estimate_K_values_from_previous_flash!(K, V, x, y)
-        vapor_frac, K, stats = flash_2ph!(S, K, eos, flash_cond, V,
-            method = SSINewtonFlash(swap_iter = 2),
-            maxiter = 20,
-            extra_out = true,
-            z_min = nothing,
-            check = false
-        )
-        need_full_flash = !stats.converged
-    else
-        need_full_flash = true
+        try
+            vapor_frac, K, stats = flash_2ph!(S, K, eos, flash_cond, V,
+                method = SSINewtonFlash(swap_iter = 2),
+                maxiter = 20,
+                extra_out = true,
+                z_min = nothing,
+                check = false
+            )
+            need_full_flash = !stats.converged
+        catch e
+            jutul_message("Flash", "Exception ocurred in flash: $(typeof(e)), falling back to SSI with stability test.", color = :red)
+        end
     end
 
     if need_full_flash
