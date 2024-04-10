@@ -220,7 +220,7 @@ function update_flash_result(S, m, eos, phase_state, K, cond_prev, stability, x,
     do_flash, critical_distance = single_phase_bypass_check(eos, new_cond, cond_prev, phase_state, Sw, critical_distance, stability_bypass, tolerance_bypass)
 
     if do_flash
-        vapor_frac, stability = two_phase_flash_implementation!(K, S, m, eos, phase_state, new_cond, V, reuse_guess)
+        vapor_frac, stability = two_phase_flash_implementation!(K, S, m, eos, phase_state, x, y, new_cond, V, reuse_guess)
         is_single_phase = isnan(vapor_frac)
         if is_single_phase && stability_bypass
             # If we did a full flash and single-phase prevailed outside the
@@ -296,14 +296,17 @@ function single_phase_bypass_check(eos, new_cond, old_cond, phase_state, Sw, cri
     return (need_two_phase_flash, critical_distance)
 end
 
-function two_phase_flash_implementation!(K, S, m, eos, old_phase_state, flash_cond, V, reuse_guess)
+function two_phase_flash_implementation!(K, S, m, eos, old_phase_state, x, y, flash_cond, V, reuse_guess)
     # Have to do some kind of flash, could be single or two-phase.
     was_two_phase = old_phase_state == MultiComponentFlash.two_phase_lv
     if reuse_guess && was_two_phase
-        # We can probably get away with doing a partial flash.
-        # TODO: Finish theta K-value from paper.
-
-        vapor_frac, K, stats = flash_2ph!(S, K, eos, flash_cond, value(V),
+        # If the model was previously two-phase and this option is enabled, we
+        # can try reusing the previous solution as an initial guess. This
+        # follows Rasmussen et al where a theta estimating phase partition is
+        # used, adapted to the K-value initial guess used by our flash.
+        V = value(V)
+        K = estimate_K_values_from_previous_flash!(K, V, x, y)
+        vapor_frac, K, stats = flash_2ph!(S, K, eos, flash_cond, V,
             method = SSINewtonFlash(swap_iter = 2),
             maxiter = 20,
             extra_out = true,
@@ -322,8 +325,19 @@ function two_phase_flash_implementation!(K, S, m, eos, old_phase_state, flash_co
             z_min = nothing
         )
     end
-
     return (vapor_frac, stats.stability)
+end
+
+function estimate_K_values_from_previous_flash!(K, V, x, y)
+    ϵ = MultiComponentFlash.MINIMUM_COMPOSITION
+    for i in eachindex(K)
+        K_i = K[i]
+        x_i = max(value(x[i]), ϵ)
+        y_i = max(value(y[i]), ϵ)
+        θ_i = V*y_i/(V*y_i + (1.0 - V)*x_i)
+        K[i] = θ_i/(1.0 - θ_i)
+    end
+    return K
 end
 
 function get_compressibility_factor(forces, eos, P, T, Z, phase = :unknown)
