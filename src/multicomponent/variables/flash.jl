@@ -309,7 +309,8 @@ function two_phase_flash_implementation!(K, S, m, eos, old_phase_state, x, y, fl
         # follows Rasmussen et al where a theta estimating phase partition is
         # used, adapted to the K-value initial guess used by our flash.
         V = value(V)
-        K = estimate_K_values_from_previous_flash!(K, V, x, y)
+        z = flash_cond.z
+        K = estimate_K_values_from_previous_flash!(K, V, x, y, z)
         try
             vapor_frac, K, stats = flash_2ph!(S, K, eos, flash_cond, V,
                 method = SSINewtonFlash(swap_iter = 2),
@@ -321,6 +322,7 @@ function two_phase_flash_implementation!(K, S, m, eos, old_phase_state, x, y, fl
             need_full_flash = !stats.converged
         catch e
             jutul_message("Flash", "Exception ocurred in flash: $(typeof(e)), falling back to SSI with stability test.", color = :red)
+            # rethrow(e)
         end
     end
 
@@ -334,14 +336,31 @@ function two_phase_flash_implementation!(K, S, m, eos, old_phase_state, x, y, fl
     return (vapor_frac, stats.stability)
 end
 
-function estimate_K_values_from_previous_flash!(K, V, x, y)
+function estimate_K_values_from_previous_flash!(K, V, x, y, z)
     ϵ = MultiComponentFlash.MINIMUM_COMPOSITION
-    for i in eachindex(K)
-        K_i = K[i]
-        x_i = max(value(x[i]), ϵ)
-        y_i = max(value(y[i]), ϵ)
+    x_t = 0.0
+    y_t = 0.0
+    for i in eachindex(z, x, y, K)
+        z_i = z[i]
+        x_i = value(x[i])
+        y_i = value(y[i])
+
+        # x_i = max(x_i, ϵ)
+        # y_i = max(y_i, ϵ)
         θ_i = V*y_i/(V*y_i + (1.0 - V)*x_i)
-        K[i] = θ_i/(1.0 - θ_i)
+        # Use K as working buffer
+        K[i] = θ_i
+        # Sum up molar amounts
+        x_t += (1.0 - θ_i)*z[i]
+        y_t += θ_i*z[i]
+    end
+
+    for i in eachindex(K)
+        # Normalize estimates to mole fractions and get K-values
+        θ_i = K[i]
+        liquid = (1.0 - θ_i)/x_t
+        vapor = θ_i/y_t
+        K[i] = vapor/liquid # y_i / x_i
     end
     return K
 end
