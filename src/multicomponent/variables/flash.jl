@@ -118,6 +118,10 @@ function flash_entity_loop!(flash_results, fr, model, eos, Pressure, Temperature
     update_flash_buffer!(buf, eos, Pressure, Temperature, OverallMoleFractions)
     buf_z = buf.z
     buf_forces = buf.forces
+    flash_entity_loop_impl!(flash_results, ix, S, fr, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, sw)
+end
+
+function flash_entity_loop_impl!(flash_results, ix, S, fr, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, sw)
     @inbounds for i in ix
         flash_results[i] = internal_flash!(flash_results[i], S, fr, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, sw, i)
     end
