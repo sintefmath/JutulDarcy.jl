@@ -217,7 +217,7 @@ function update_flash_result(S, m, eos, phase_state, K, cond_prev, stability, x,
     @. z = max(value(Z), 1e-8)
 
     new_cond = (p = p_val, T = T_val, z = z)
-    do_flash, critical_distance = single_phase_bypass_check(new_cond, cond_prev, phase_state, Sw, critical_distance, stability_bypass, tolerance_bypass)
+    do_flash, critical_distance = single_phase_bypass_check(eos, new_cond, cond_prev, phase_state, Sw, critical_distance, stability_bypass, tolerance_bypass)
 
     if do_flash
         vapor_frac, stability = two_phase_flash_implementation!(K, S, m, eos, phase_state, new_cond, V, reuse_guess)
@@ -228,8 +228,10 @@ function update_flash_result(S, m, eos, phase_state, K, cond_prev, stability, x,
             # future reference.
             if stability.liquid.trivial && stability.vapor.trivial
                 critical_distance = michelsen_critical_point_measure!(S.bypass, eos, new_cond.p, new_cond.T, new_cond.z)
+                # @info "Outside shadow region" critical_distance stability
             else
                 critical_distance = NaN
+                # @info "Inside shadow region" critical_distance stability
             end
         end
     else
@@ -255,7 +257,7 @@ function update_flash_result(S, m, eos, phase_state, K, cond_prev, stability, x,
     return out
 end
 
-function single_phase_bypass_check(new_cond, old_cond, phase_state, Sw, critical_distance, stability_bypass, ϵ)
+function single_phase_bypass_check(eos, new_cond, old_cond, phase_state, Sw, critical_distance, stability_bypass, ϵ)
     is_pure_water = is_pure_single_phase(Sw)
     was_single_phase = phase_state == MultiComponentFlash.single_phase_l || phase_state == MultiComponentFlash.single_phase_v
 
@@ -274,11 +276,20 @@ function single_phase_bypass_check(new_cond, old_cond, phase_state, Sw, critical
         T_diff = abs(new_cond.T - old_cond.T)
 
         b_old = critical_distance
-        z_crit = z_diff < b_old/ϵ
-        p_crit = p_diff < b_old*new_cond.p/ϵ
-        T_crit = T_diff < b_old*ϵ
-        bypass_safe = z_crit && p_crit && T_crit
-        need_two_phase_flash = !bypass_safe
+        z_crit = z_diff ≥ b_old/ϵ
+        p_crit = p_diff ≥ b_old*new_cond.p/ϵ
+        T_crit = T_diff ≥ b_old*ϵ
+        need_two_phase_flash = z_crit || p_crit || T_crit
+        if false && need_two_phase_flash
+            # Hacked in expensive test to check if the stability bypass is ok.
+            # Can be manually activated.
+            V = flash_2ph(eos, new_cond)
+            if isnan(V)
+                println("Bypass OK.")
+            else
+                error("Flash bypass was wrong for conditions $new_cond giving $V")
+            end
+        end
     else
         need_two_phase_flash = true
     end
