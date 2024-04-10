@@ -7,6 +7,7 @@ mutable struct InPlaceFlashBuffer
     end
 end
 
+@enum PERFORMED_FLASH_TYPE FLASH_SINGLE_PHASE_TESTED FLASH_SINGLE_PHASE_BYPASSED FLASH_FULL FLASH_RESTARTED FLASH_PURE_WATER
 struct FlashResults{F_t, S_t, B_t} <: ScalarVariable
     storage::S_t
     method::F_t
@@ -122,8 +123,24 @@ function flash_entity_loop!(flash_results, fr, model, eos, Pressure, Temperature
 end
 
 function flash_entity_loop_impl!(flash_results, ix, S, fr, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, sw)
+    extra_print = false
+    if extra_print
+        code_log = Dict(
+            FLASH_SINGLE_PHASE_TESTED => 0,
+            FLASH_SINGLE_PHASE_BYPASSED => 0,
+            FLASH_FULL => 0,
+            FLASH_RESTARTED => 0,
+            FLASH_PURE_WATER => 0
+        )
+    end
     @inbounds for i in ix
-        flash_results[i] = internal_flash!(flash_results[i], S, fr, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, sw, i)
+        flash_results[i], code = internal_flash!(flash_results[i], S, fr, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, sw, i)
+        if extra_print
+            code_log[code] += 1
+        end
+    end
+    if extra_print
+        @info "Flash is done:" code_log
     end
 end
 
@@ -221,10 +238,10 @@ function update_flash_result(S, m, eos, phase_state, K, cond_prev, stability, x,
     @. z = max(value(Z), 1e-8)
 
     new_cond = (p = p_val, T = T_val, z = z)
-    do_flash, critical_distance = single_phase_bypass_check(eos, new_cond, cond_prev, phase_state, Sw, critical_distance, stability_bypass, tolerance_bypass)
+    do_flash, critical_distance, single_phase_code = single_phase_bypass_check(eos, new_cond, cond_prev, phase_state, Sw, critical_distance, stability_bypass, tolerance_bypass)
 
     if do_flash
-        vapor_frac, stability = two_phase_flash_implementation!(K, S, m, eos, phase_state, x, y, new_cond, V, reuse_guess)
+        vapor_frac, stability, return_code = two_phase_flash_implementation!(K, S, m, eos, phase_state, x, y, new_cond, V, reuse_guess)
         is_single_phase = isnan(vapor_frac)
         if is_single_phase && stability_bypass
             # If we did a full flash and single-phase prevailed outside the
@@ -244,6 +261,7 @@ function update_flash_result(S, m, eos, phase_state, K, cond_prev, stability, x,
         @. cond_prev.z = z
         cond_prev = (p = p_val, T = T_val, cond_prev.z)
     else
+        return_code = single_phase_code
         is_single_phase = true
     end
     force_coefficients!(forces, eos, (p = P, T = T, z = Z))
@@ -258,7 +276,7 @@ function update_flash_result(S, m, eos, phase_state, K, cond_prev, stability, x,
         critical_distance = NaN
     end
     out = FlashedMixture2Phase(phase_state, K, V, x, y, Z_L, Z_V, critical_distance, cond_prev, stability)
-    return out
+    return (out, return_code)
 end
 
 function single_phase_bypass_check(eos, new_cond, old_cond, phase_state, Sw, critical_distance, stability_bypass, ϵ)
@@ -270,6 +288,7 @@ function single_phase_bypass_check(eos, new_cond, old_cond, phase_state, Sw, cri
         # the pure water condition.
         critical_distance = NaN
         need_two_phase_flash = false
+        code = FLASH_PURE_WATER
     elseif stability_bypass && was_single_phase && isfinite(critical_distance)
         z_diff = p_diff = T_diff = 0.0
         # This is put early while we have the old z values in buffer
@@ -284,6 +303,11 @@ function single_phase_bypass_check(eos, new_cond, old_cond, phase_state, Sw, cri
         p_crit = p_diff ≥ b_old*new_cond.p/ϵ
         T_crit = T_diff ≥ b_old*ϵ
         need_two_phase_flash = z_crit || p_crit || T_crit
+        if need_two_phase_flash
+            code = FLASH_SINGLE_PHASE_TESTED
+        else
+            code = FLASH_SINGLE_PHASE_BYPASSED
+        end
         if false && need_two_phase_flash
             # Hacked in expensive test to check if the stability bypass is ok.
             # Can be manually activated.
@@ -296,8 +320,9 @@ function single_phase_bypass_check(eos, new_cond, old_cond, phase_state, Sw, cri
         end
     else
         need_two_phase_flash = true
+        code = FLASH_SINGLE_PHASE_TESTED
     end
-    return (need_two_phase_flash, critical_distance)
+    return (need_two_phase_flash, critical_distance, code)
 end
 
 function two_phase_flash_implementation!(K, S, m, eos, old_phase_state, x, y, flash_cond, V, reuse_guess)
@@ -322,7 +347,6 @@ function two_phase_flash_implementation!(K, S, m, eos, old_phase_state, x, y, fl
             need_full_flash = !stats.converged
         catch e
             jutul_message("Flash", "Exception ocurred in flash: $(typeof(e)), falling back to SSI with stability test.", color = :red)
-            # rethrow(e)
         end
     end
 
@@ -332,8 +356,11 @@ function two_phase_flash_implementation!(K, S, m, eos, old_phase_state, x, y, fl
             extra_out = true,
             z_min = nothing
         )
+        code = FLASH_FULL
+    else
+        code = FLASH_RESTARTED
     end
-    return (vapor_frac, stats.stability)
+    return (vapor_frac, stats.stability, code)
 end
 
 function estimate_K_values_from_previous_flash!(K, V, x, y, z)
