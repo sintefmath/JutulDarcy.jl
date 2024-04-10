@@ -227,13 +227,18 @@ function update_flash_result(S, m, eos, phase_state, K, cond_prev, stability, x,
             # shadow region it is time to update the critical distance for
             # future reference.
             if stability.liquid.trivial && stability.vapor.trivial
+                # Outside shadow region, flash bypass can be enabled
                 critical_distance = michelsen_critical_point_measure!(S.bypass, eos, new_cond.p, new_cond.T, new_cond.z)
-                # @info "Outside shadow region" critical_distance stability
             else
+                # Inside shadow region, we cannot use flash bypass directly
                 critical_distance = NaN
-                # @info "Inside shadow region" critical_distance stability
             end
         end
+        # Update the condition only if we actually did a flash, otherwise we
+        # keep the value where we last flashed around for stability bypass
+        # testing.
+        @. cond_prev.z = z
+        cond_prev = (p = p_val, T = T_val, cond_prev.z)
     else
         is_single_phase = true
     end
@@ -247,11 +252,6 @@ function update_flash_result(S, m, eos, phase_state, K, cond_prev, stability, x,
         Z_L, Z_V, V, phase_state = two_phase_update!(S, P, T, Z, x, y, K, vapor_frac, forces, eos, new_cond)
         # Reset critical distance to NaN and set condition to last flash since we are now in two-phase region.
         critical_distance = NaN
-    end
-    # Update the condition if we actually did a flash
-    if do_flash
-        @. cond_prev.z = z
-        cond_prev = (p = p_val, T = T_val, cond_prev.z)
     end
     out = FlashedMixture2Phase(phase_state, K, V, x, y, Z_L, Z_V, critical_distance, cond_prev, stability)
     return out
