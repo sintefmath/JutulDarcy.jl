@@ -335,7 +335,11 @@ function get_solve_status(rep, ok)
             if length(rep) > 1
                 status = local_solved_in_multiple_steps
             else
-                if length(only(rep)[:steps]) == 0
+                rep = only(rep)
+                nstep = length(rep[:steps])
+                if nstep == 0
+                    status = local_already_converged
+                elseif nstep == 1 && !haskey(rep[:steps][1], :linear_solver)
                     status = local_already_converged
                 else
                     status = local_solved_in_single_step
