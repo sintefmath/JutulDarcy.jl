@@ -677,6 +677,10 @@ function solve_subdomain(sim, i, dt, forces, cfg)
         ok, report = Jutul.solve_timestep!(sim, dt, f, max_iter, cfg,
             finalize = true, prepare = true, update_explicit = false)
     catch e
+        if e isa InterruptException
+            # Don't leave the user trapped...
+            rethrow(e)
+        end
         @warn "Subdomain $i threw exception: $e"
     end
     return (ok, report)
