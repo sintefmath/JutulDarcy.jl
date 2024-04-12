@@ -7,12 +7,24 @@ mutable struct InPlaceFlashBuffer
     end
 end
 
-struct FlashResults <: ScalarVariable
-    storage
-    method
-    update_buffer
+@enum PERFORMED_FLASH_TYPE FLASH_SINGLE_PHASE_TESTED FLASH_SINGLE_PHASE_BYPASSED FLASH_FULL FLASH_RESTARTED FLASH_PURE_WATER
+struct FlashResults{F_t, S_t, B_t} <: ScalarVariable
+    storage::S_t
+    method::F_t
+    update_buffer::B_t
     use_threads::Bool
-    function FlashResults(system; method = SSIFlash(), threads = Threads.nthreads() > 1)
+    tolerance::Float64
+    tolerance_bypass::Float64
+    stability_bypass::Bool
+    reuse_guess::Bool
+    function FlashResults(system;
+            method::MultiComponentFlash.AbstractFlash = SSIFlash(),
+            threads = Threads.nthreads() > 1,
+            tolerance = 1e-8,
+            tolerance_bypass = 10,
+            reuse_guess = false,
+            stability_bypass = false
+        )
         eos = system.equation_of_state
         nc = MultiComponentFlash.number_of_components(eos)
         if has_other_phase(system)
@@ -28,14 +40,30 @@ struct FlashResults <: ScalarVariable
             N = 1
         end
         for i = 1:N
-            s = flash_storage(eos, method = method, inc_jac = true, diff_externals = true, npartials = n, static_size = true)
+            s = flash_storage(eos,
+                method = method,
+                inc_jac = true,
+                inc_bypass = stability_bypass,
+                diff_externals = true,
+                npartials = n,
+                static_size = true
+            )
             push!(storage, s)
             b = InPlaceFlashBuffer(nc)
             push!(buffers, b)
         end
         storage = tuple(storage...)
         buffers = tuple(buffers...)
-        new(storage, method, buffers, threads)
+        new{typeof(method), typeof(storage), typeof(buffers)}(
+            storage,
+            method,
+            buffers,
+            threads,
+            tolerance,
+            tolerance_bypass,
+            stability_bypass,
+            reuse_guess
+        )
     end
 end
 
@@ -91,8 +119,28 @@ function flash_entity_loop!(flash_results, fr, model, eos, Pressure, Temperature
     update_flash_buffer!(buf, eos, Pressure, Temperature, OverallMoleFractions)
     buf_z = buf.z
     buf_forces = buf.forces
+    flash_entity_loop_impl!(flash_results, ix, S, fr, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, sw)
+end
+
+function flash_entity_loop_impl!(flash_results, ix, S, fr, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, sw)
+    extra_print = false
+    if extra_print
+        code_log = Dict(
+            FLASH_SINGLE_PHASE_TESTED => 0,
+            FLASH_SINGLE_PHASE_BYPASSED => 0,
+            FLASH_FULL => 0,
+            FLASH_RESTARTED => 0,
+            FLASH_PURE_WATER => 0
+        )
+    end
     @inbounds for i in ix
-        flash_results[i] = internal_flash!(flash_results[i], S, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, sw, i)
+        flash_results[i], code = internal_flash!(flash_results[i], S, fr, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, sw, i)
+        if extra_print
+            code_log[code] += 1
+        end
+    end
+    if extra_print
+        @info "Flash is done:" code_log
     end
 end
 
@@ -141,7 +189,7 @@ function update_flash_buffer!(buf, eos::KValuesEOS, Pressure, Temperature, Overa
     return nothing
 end
 
-function internal_flash!(f, S, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, sw, i)
+function internal_flash!(f, S, var, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, sw, i)
     @inline function immiscible_sat(::Nothing, i)
         return 0.0
     end
@@ -159,32 +207,187 @@ function internal_flash!(f, S, m, eos, buf_z, buf_forces, Pressure, Temperature,
         K = f.K
         x = f.liquid.mole_fractions
         y = f.vapor.mole_fractions
+        V = f.V
+        b = f.critical_distance
 
-        return update_flash_result(S, m, eos, K, x, y, buf_z, buf_forces, P, T, Z, Sw)
+        return update_flash_result(S, m, eos, f.state, K, f.flash_cond, f.flash_stability, x, y, buf_z, V, buf_forces, P, T, Z, Sw,
+            critical_distance = b,
+            tolerance = var.tolerance,
+            stability_bypass = var.stability_bypass,
+            reuse_guess = var.reuse_guess,
+            tolerance_bypass = var.tolerance_bypass
+        )
     end
 end
 
+import MultiComponentFlash: michelsen_critical_point_measure!
+function update_flash_result(S, m, eos, phase_state, K, cond_prev, stability, x, y, z, V, forces, P, T, Z, Sw = 0.0;
+        critical_distance::Float64 = NaN,
+        tolerance::Float64 = 1e-8,
+        tolerance_bypass::Float64 = 10.0,
+        stability_bypass::Bool = false,
+        reuse_guess::Bool = false,
+    )
 
-function update_flash_result(S, m, eos, K, x, y, z, forces, P, T, Z, Sw = 0.0)
+    # We can check for bypass if feature is enabled, we have a critical distance
+    # that is finite and we were in single phase previously.
+    # do_full_flash(c) = flash_2ph!(S, K, eos, c, NaN, method = m, extra_out = false, z_min = nothing)
+
+    p_val = value(P)
+    T_val = value(T)
     @. z = max(value(Z), 1e-8)
-    # Conditions
-    c = (p = value(P), T = value(T), z = z)
-    # Perform flash
-    if is_pure_single_phase(Sw)
-        vapor_frac = NaN
+
+    new_cond = (p = p_val, T = T_val, z = z)
+    do_flash, critical_distance, single_phase_code = single_phase_bypass_check(eos, new_cond, cond_prev, phase_state, Sw, critical_distance, stability_bypass, tolerance_bypass)
+
+    if do_flash
+        vapor_frac, stability, return_code = two_phase_flash_implementation!(K, S, m, eos, phase_state, x, y, new_cond, V, reuse_guess)
+        is_single_phase = isnan(vapor_frac)
+        if is_single_phase && stability_bypass
+            # If we did a full flash and single-phase prevailed outside the
+            # shadow region it is time to update the critical distance for
+            # future reference.
+            if stability.liquid.trivial && stability.vapor.trivial
+                # Outside shadow region, flash bypass can be enabled
+                critical_distance = michelsen_critical_point_measure!(S.bypass, eos, new_cond.p, new_cond.T, new_cond.z)
+            else
+                # Inside shadow region, we cannot use flash bypass directly
+                critical_distance = NaN
+            end
+        end
+        # Update the condition only if we actually did a flash, otherwise we
+        # keep the value where we last flashed around for stability bypass
+        # testing.
+        @. cond_prev.z = z
+        cond_prev = (p = p_val, T = T_val, cond_prev.z)
     else
-        vapor_frac = flash_2ph!(S, K, eos, c, NaN, method = m, extra_out = false, z_min = nothing)
+        return_code = single_phase_code
+        is_single_phase = true
     end
     force_coefficients!(forces, eos, (p = P, T = T, z = Z))
-    if isnan(vapor_frac)
+    update_condition = false
+    if is_single_phase
         # Single phase condition. Life is easy.
-        Z_L, Z_V, V, phase_state = single_phase_update!(P, T, Z, x, y, forces, eos, c)
+        Z_L, Z_V, V, phase_state = single_phase_update!(P, T, Z, x, y, forces, eos, new_cond)
     else
         # Two-phase condition: We have some work to do.
-        Z_L, Z_V, V, phase_state = two_phase_update!(S, P, T, Z, x, y, K, vapor_frac, forces, eos, c)
+        Z_L, Z_V, V, phase_state = two_phase_update!(S, P, T, Z, x, y, K, vapor_frac, forces, eos, new_cond)
+        # Reset critical distance to NaN and set condition to last flash since we are now in two-phase region.
+        critical_distance = NaN
     end
-    out = FlashedMixture2Phase(phase_state, K, V, x, y, Z_L, Z_V)
-    return out
+    out = FlashedMixture2Phase(phase_state, K, V, x, y, Z_L, Z_V, critical_distance, cond_prev, stability)
+    return (out, return_code)
+end
+
+function single_phase_bypass_check(eos, new_cond, old_cond, phase_state, Sw, critical_distance, stability_bypass, ϵ)
+    is_pure_water = is_pure_single_phase(Sw)
+    was_single_phase = phase_state == MultiComponentFlash.single_phase_l || phase_state == MultiComponentFlash.single_phase_v
+
+    if is_pure_water
+        # Set this to make sure that a proper stability test happens if we leave
+        # the pure water condition.
+        critical_distance = NaN
+        need_two_phase_flash = false
+        code = FLASH_PURE_WATER
+    elseif stability_bypass && was_single_phase && isfinite(critical_distance)
+        z_diff = p_diff = T_diff = 0.0
+        # This is put early while we have the old z values in buffer
+        for i in eachindex(old_cond.z, new_cond.z)
+            z_diff = max(z_diff, abs(old_cond.z[i] - value(new_cond.z[i])))
+        end
+        p_diff = abs(new_cond.p - old_cond.p)
+        T_diff = abs(new_cond.T - old_cond.T)
+
+        b_old = critical_distance
+        z_crit = z_diff ≥ b_old/ϵ
+        p_crit = p_diff ≥ b_old*new_cond.p/ϵ
+        T_crit = T_diff ≥ b_old*ϵ
+        need_two_phase_flash = z_crit || p_crit || T_crit
+        if need_two_phase_flash
+            code = FLASH_SINGLE_PHASE_TESTED
+        else
+            code = FLASH_SINGLE_PHASE_BYPASSED
+        end
+        if false && need_two_phase_flash
+            # Hacked in expensive test to check if the stability bypass is ok.
+            # Can be manually activated.
+            V = flash_2ph(eos, new_cond)
+            if isnan(V)
+                println("Bypass OK.")
+            else
+                error("Flash bypass was wrong for conditions $new_cond giving $V")
+            end
+        end
+    else
+        need_two_phase_flash = true
+        code = FLASH_SINGLE_PHASE_TESTED
+    end
+    return (need_two_phase_flash, critical_distance, code)
+end
+
+function two_phase_flash_implementation!(K, S, m, eos, old_phase_state, x, y, flash_cond, V, reuse_guess)
+    # Have to do some kind of flash, could be single or two-phase.
+    need_full_flash = true
+    if reuse_guess && old_phase_state == MultiComponentFlash.two_phase_lv
+        # If the model was previously two-phase and this option is enabled, we
+        # can try reusing the previous solution as an initial guess. This
+        # follows Rasmussen et al where a theta estimating phase partition is
+        # used, adapted to the K-value initial guess used by our flash.
+        V = value(V)
+        z = flash_cond.z
+        K = estimate_K_values_from_previous_flash!(K, V, x, y, z)
+        try
+            vapor_frac, K, stats = MultiComponentFlash.flash_2ph_impl!(S, K, eos, flash_cond, V,
+                method = SSINewtonFlash(swap_iter = 2),
+                maxiter = 20,
+                z_min = nothing,
+                check = false
+            )
+            need_full_flash = !stats.converged || V <= 0.0 || V >= 1.0
+        catch e
+            jutul_message("Flash", "Exception ocurred in flash: $(typeof(e)), falling back to SSI with stability test.", color = :red)
+        end
+    end
+
+    if need_full_flash
+        vapor_frac, K, stats = MultiComponentFlash.flash_2ph_impl!(S, K, eos, flash_cond, NaN,
+            method = m,
+            z_min = nothing
+        )
+        code = FLASH_FULL
+    else
+        code = FLASH_RESTARTED
+    end
+    return (vapor_frac, stats.stability, code)
+end
+
+function estimate_K_values_from_previous_flash!(K, V, x, y, z)
+    ϵ = MultiComponentFlash.MINIMUM_COMPOSITION
+    x_t = 0.0
+    y_t = 0.0
+    for i in eachindex(z, x, y, K)
+        z_i = z[i]
+        x_i = value(x[i])
+        y_i = value(y[i])
+
+        # x_i = max(x_i, ϵ)
+        # y_i = max(y_i, ϵ)
+        θ_i = V*y_i/(V*y_i + (1.0 - V)*x_i)
+        # Use K as working buffer
+        K[i] = θ_i
+        # Sum up molar amounts
+        x_t += (1.0 - θ_i)*z[i]
+        y_t += θ_i*z[i]
+    end
+
+    for i in eachindex(K)
+        # Normalize estimates to mole fractions and get K-values
+        θ_i = K[i]
+        liquid = (1.0 - θ_i)/x_t
+        vapor = θ_i/y_t
+        K[i] = vapor/liquid # y_i / x_i
+    end
+    return K
 end
 
 function get_compressibility_factor(forces, eos, P, T, Z, phase = :unknown)

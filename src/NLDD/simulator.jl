@@ -335,7 +335,11 @@ function get_solve_status(rep, ok)
             if length(rep) > 1
                 status = local_solved_in_multiple_steps
             else
-                if length(only(rep)[:steps]) == 0
+                rep = only(rep)
+                nstep = length(rep[:steps])
+                if nstep == 0
+                    status = local_already_converged
+                elseif nstep == 1 && !haskey(rep[:steps][1], :linear_solver)
                     status = local_already_converged
                 else
                     status = local_solved_in_single_step
@@ -673,6 +677,10 @@ function solve_subdomain(sim, i, dt, forces, cfg)
         ok, report = Jutul.solve_timestep!(sim, dt, f, max_iter, cfg,
             finalize = true, prepare = true, update_explicit = false)
     catch e
+        if e isa InterruptException
+            # Don't leave the user trapped...
+            rethrow(e)
+        end
         @warn "Subdomain $i threw exception: $e"
     end
     return (ok, report)

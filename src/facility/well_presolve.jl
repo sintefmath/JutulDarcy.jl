@@ -38,7 +38,7 @@ end
 
 function Jutul.simulator_config!(cfg, sim, ::PrepareStepWellSolver, storage)
     add_option!(cfg, :well_iterations, 25, "Well iterations to be performed before step.", types = Int, values = 0:10000)
-    add_option!(cfg, :well_outer_iterations_limit, Inf, "Number of outer iterations for each solve where wells are to be solved.", types = Union{Int, Float64})
+    add_option!(cfg, :well_outer_iterations_limit, 1, "Number of outer iterations for each solve where wells are to be solved.", types = Union{Int, Float64})
     add_option!(cfg, :well_acceptance_factor, 10.0, "Accept well pre-solve results at this relaxed factor.", types = Float64)
     add_option!(cfg, :well_info_level, -1, "Info level for well solver.", types = Int)
 end

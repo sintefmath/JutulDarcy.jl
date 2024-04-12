@@ -172,7 +172,8 @@ function separator_flash!(flash, eos, cond, z)
     Temperature = cond.T
     update_flash_buffer!(buf, eos, Pressure, Temperature, z)
     forces = buf.forces
-    return update_flash_result(fstorage, SSIFlash(), eos, f.K, x, y, buf.z, forces, Pressure, Temperature, z, 0.0)
+    result, code = update_flash_result(fstorage, SSIFlash(), eos, f.state, f.K, f.flash_cond, f.flash_stability, x, y, buf.z, NaN, forces, Pressure, Temperature, z, 0.0)
+    return result
 end
 
 function flash_stream!(moles::SVector{N, T}, flash, eos, cond) where {N, T}
@@ -255,5 +256,5 @@ function compositional_surface_densities(state, system, S_l::S_T, S_v::S_T, rho_
     volume[l] = S_l*rem
     volume[v] = S_v*rem
     @assert sum(volume) ≈ 1.0 "Volume should sum to 1, was $(sum(volume))"
-    return (rhoS, volume)
+    return (SVector(rhoS), SVector(volume))
 end

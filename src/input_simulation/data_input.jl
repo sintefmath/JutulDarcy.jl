@@ -426,8 +426,8 @@ function filter_inactive_completions!(completions_vector, g)
                 if !haskey(tuple_active, k)
                     ix = cell_index(g, tupl, throw = false)
                     if isnothing(ix)
-                        jutul_message("Removing well",
-                            "Well $well completion $tupl was declared using COMPDAT, but that cell is not active in model. Skipped.",
+                        jutul_message("$well completion",
+                            "Removed COMPDAT as $tupl is not active in processed mesh.",
                             color = :yellow
                         )
                         tuple_active[k] = false
@@ -824,7 +824,7 @@ function parse_physics_types(datafile; pvt_region = missing)
         push!(phases, VaporPhase())
         push!(rhoS, rhoGS)
 
-        cnames = props["CNAMES"]
+        cnames = copy(props["CNAMES"])
         acf = props["ACF"]
         mw = props["MW"]
         p_c = props["PCRIT"]
@@ -837,6 +837,7 @@ function parse_physics_types(datafile; pvt_region = missing)
             A_ij = nothing
         end
         mp = MolecularProperty.(mw, p_c, T_c, V_c, acf)
+        @assert length(cnames) == length(mp)
         mixture = MultiComponentMixture(mp, A_ij = A_ij, names = cnames)
         if haskey(props, "EOS")
             eos_str = uppercase(props["EOS"])
@@ -853,7 +854,12 @@ function parse_physics_types(datafile; pvt_region = missing)
         else
             eos_type = PengRobinson()
         end
-        eos = GenericCubicEOS(mixture, eos_type)
+        if haskey(props, "SSHIFT")
+            vshift = Tuple(props["SSHIFT"])
+        else
+            vshift = nothing
+        end
+        eos = GenericCubicEOS(mixture, eos_type, volume_shift = vshift)
         sys = MultiPhaseCompositionalSystemLV(eos, phases, reference_densities = rhoS)
     else
         if has_oil

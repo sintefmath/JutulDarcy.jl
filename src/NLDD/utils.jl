@@ -5,6 +5,7 @@ import JutulDarcy: set_default_cnv_mb!
 
 function simulator_config(sim::NLDDSimulator;
         method = :nldd,
+        subdomain_info_level = -1,
         inner_tol_mul = 1.0,
         inner_tol_final = 10.0,
         inner_max_timestep_cuts = 2,
@@ -19,6 +20,9 @@ function simulator_config(sim::NLDDSimulator;
         inc_tol_dz = Inf,
         kwarg...
     )
+    if subdomain_info_level isa Real
+        subdomain_info_level = i -> i == subdomain_info_level
+    end
     check_before_solve = isinf(inc_tol_dp_abs) && isinf(inc_tol_dp_rel) && isinf(inc_tol_dz)
     cfg = simulator_config(sim.simulator)
     set_default_cnv_mb!(cfg, sim.simulator.model,
@@ -68,7 +72,7 @@ function simulator_config(sim::NLDDSimulator;
             min_nonlinear_iterations = inner_min_nonlinear_iterations,
             tol_factor_final_iteration = inner_tol_final,
             check_before_solve = check_before_solve,
-            info_level = -1
+            info_level = Int(subdomain_info_level(i))
         )
         # Small hack for reservoir stuff
         set_default_cnv_mb!(subconfigs[i], subsims[i].model, tol_cnv = inner_tol_mul*tol_cnv, 

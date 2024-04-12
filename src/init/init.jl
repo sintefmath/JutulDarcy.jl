@@ -5,6 +5,7 @@ function equilibriate_state(model, contacts,
         cells = missing,
         rs = missing,
         rv = missing,
+        composition = missing,
         kwarg...
     )
     model = reservoir_model(model)
@@ -25,7 +26,7 @@ function equilibriate_state(model, contacts,
 
     init = Dict{Symbol, Any}()
     init = equilibriate_state!(init, pts, model, sys, contacts, datum_depth, datum_pressure;
-        cells = cells, rv = rv, rs = rs, kwarg...
+        cells = cells, rv = rv, rs = rs, composition = composition, kwarg...
     )
 
     is_blackoil = sys isa StandardBlackOilSystem
@@ -51,6 +52,21 @@ function equilibriate_state(model, contacts,
             init[:Rv] = Rv
         end
     end
+    is_compositional = sys isa CompositionalSystem
+    if is_compositional
+        @assert !ismissing(composition)
+        has_wat = has_other_phase(sys)
+        nc = length(init[:Pressure])
+        ncomp = number_of_components(sys) - has_wat
+        zmf = zeros(ncomp, nc)
+        for i in 1:nc
+            zmf[:, i] = composition(pts[i])
+        end
+        init[:OverallMoleFractions] = zmf
+        if has_wat
+            init[:ImmiscibleSaturation] = init[:Saturations][1, :]
+        end
+    end
     return init
 end
 
@@ -58,6 +74,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         cells = 1:length(depths),
         rs = missing,
         rv = missing,
+        composition = missing,
         T_z = missing,
         s_min = missing,
         contacts_pc = missing,
@@ -95,24 +112,43 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         relperm = last(relperm)
     end
 
-    pvt = rho.pvt
     reg = Int[pvtnum]
     function density_f(p, z, ph)
-        pvt_i = pvt[ph]
-        if phases[ph] == LiquidPhase() && disgas
-            rs_max = table_by_region(sys.rs_max, pvtnum)
-            Rs = min(rs(z), rs_max(p))
-            b = JutulDarcy.shrinkage(pvt_i, reg, p, Rs, 1)
-            rho = b*(rhoOS + Rs*rhoGS)
-        elseif phases[ph] == VaporPhase() && vapoil
-            rv_max = table_by_region(sys.rv_max, pvtnum)
-            Rv = min(rv(z), rv_max(p))
-            b = JutulDarcy.shrinkage(pvt_i, reg, p, Rv, 1)
-            rho = b*(rhoGS + Rv*rhoOS)
+        if rho isa ThreePhaseCompositionalDensitiesLV || rho isa TwoPhaseCompositionalDensities
+            if phases[ph] == AqueousPhase()
+                phase_density = rho_s[ph]*JutulDarcy.shrinkage(rho.immiscible_pvt, p)
+            else
+                @assert !ismissing(composition) "Composition must be present for equilibrium."
+                @assert !ismissing(T_z) "Temperature must be present for equilibrium."
+                z_i = Vector{Float64}(composition(z))
+                T = T_z(z)
+                eos = model.system.equation_of_state
+                f = MultiComponentFlash.flashed_mixture_2ph(eos, (p = p, T = T, z = z_i))
+                rho_l, rho_v = mass_densities(eos, p, T, f)
+                if phases[ph] == VaporPhase() || rho_l == 0
+                    phase_density = rho_v
+                else
+                    phase_density = rho_l
+                end
+            end
         else
-            rho = rho_s[ph]*JutulDarcy.shrinkage(pvt_i, reg, p, 1)
+            pvt = rho.pvt
+            pvt_i = pvt[ph]
+            if phases[ph] == LiquidPhase() && disgas
+                rs_max = table_by_region(sys.rs_max, pvtnum)
+                Rs = min(rs(z), rs_max(p))
+                b = JutulDarcy.shrinkage(pvt_i, reg, p, Rs, 1)
+                phase_density = b*(rhoOS + Rs*rhoGS)
+            elseif phases[ph] == VaporPhase() && vapoil
+                rv_max = table_by_region(sys.rv_max, pvtnum)
+                Rv = min(rv(z), rv_max(p))
+                b = JutulDarcy.shrinkage(pvt_i, reg, p, Rv, 1)
+                phase_density = b*(rhoGS + Rv*rhoOS)
+            else
+                phase_density = rho_s[ph]*JutulDarcy.shrinkage(pvt_i, reg, p, 1)
+            end
         end
-        return rho
+        return phase_density
     end
     pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_f, contacts_pc)
     if nph > 1
@@ -207,6 +243,8 @@ function parse_state0_equil(model, datafile)
 
     init = Dict{Symbol, Any}()
     sol = datafile["SOLUTION"]
+    props = datafile["PROPS"]
+
     G = physical_representation(model.data_domain)
     nc = number_of_cells(G)
     nph = number_of_phases(model.system)
@@ -220,12 +258,17 @@ function parse_state0_equil(model, datafile)
     npvt = GeoEnergyIO.InputParser.number_of_tables(datafile, :pvtnum)
     nsat = GeoEnergyIO.InputParser.number_of_tables(datafile, :satnum)
 
-    if haskey(sol, "RTEMP")
-        Ti = convert_to_si(only(sol["RTEMP"]), :Celsius)
+    if haskey(sol, "RTEMP") || haskey(props, "RTEMP")
+        if haskey(props, "RTEMP")
+            rtmp = only(props["RTEMP"])
+        else
+            rtmp = only(sol["RTEMP"])
+        end
+        Ti = convert_to_si(rtmp, :Celsius)
         T_z = z -> Ti
-    elseif haskey(sol, "TEMPVD")
-        z = vec(sol["TEMPVD"][:, 1])
-        Tvd = vec(sol["TEMPVD"][:, 2] + 273.15)
+    elseif haskey(props, "TEMPVD")
+        z = vec(props["TEMPVD"][:, 1])
+        Tvd = vec(props["TEMPVD"][:, 2] + 273.15)
         T_z = get_1d_interpolator(z, Tvd)
     else
         T_z = missing
@@ -359,9 +402,34 @@ function parse_state0_equil(model, datafile)
                 else
                     rv = missing
                 end
+                if haskey(props, "ZMFVD")
+                    ztab = props["ZMFVD"][ereg]
+                    N = size(ztab, 2) - 1
+                    Sz = SVector{N, Float64}
+                    ztab_z = Float64[]
+                    ztab_static = Sz[]
+                    for row in size(ztab, 1)
+                        mf_i = Sz(ztab[row, 2:end])
+                        z_i = ztab[row, 1]
+                        push!(ztab_z, z_i)
+                        push!(ztab_static, mf_i)
+                        if row == 1
+                            push!(ztab_z, z_i-1.0)
+                            push!(ztab_static, mf_i)
+                        end
+                        if row == size(ztab, 1)
+                            push!(ztab_z, z_i+1.0)
+                            push!(ztab_static, mf_i)
+                        end
+                    end
+                    composition = get_1d_interpolator(ztab_z, ztab_static)
+                else
+                    composition = missing
+                end
 
                 subinit = equilibriate_state(
                         model, contacts, datum_depth, datum_pressure,
+                        composition = composition,
                         cells = cells,
                         pvtnum = preg,
                         contacts_pc = contacts_pc,

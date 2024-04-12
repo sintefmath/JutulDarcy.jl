@@ -138,8 +138,8 @@ function reservoir_system(; flow = missing, thermal = missing, kwarg...)
 end
 
 """
-    setup_reservoir_model(reservoir, system; wells = [], <keyword arguments>)
-    setup_reservoir_model(reservoir, system; wells = [], context = DefaultContext(), reservoir_context = nothing, backend = :csc, <keyword arguments>)
+    model, parameters = setup_reservoir_model(reservoir, system; wells = [], <keyword arguments>)
+    model, parameters = setup_reservoir_model(reservoir, system; wells = [w1, w2], backend = :csr, <keyword arguments>)
 
 Set up a reservoir `MultiModel` for a given reservoir `DataDomain` typically set
 up from  [`reservoir_domain`](@ref) and an optional vector of wells that are
@@ -147,6 +147,68 @@ created using [`setup_vertical_well`](@ref) and  [`setup_well`](@ref).
 
 The routine automatically sets up a facility and couples the wells with the
 reservoir and that facility.
+
+# Keyword arguments
+
+- `wells=[]`: Vector of wells (e.g. from [`setup_well`](@ref)) that are to be
+  used in the model. Each well must have a unique name.
+- `extra_out=true`: Return both the model and the parameters instead of just the
+  model.
+
+## Advanced model setup
+- `split_wells=false`: Add a facility model for each well instead of one
+  facility model that controls all wells. This must be set to `true` if you want
+  to use MPI or nonlinear domain decomposition.
+- `backend=:csc`: Backend to use. Can be `:csc` for serial compressed sparse
+  column CSC matrix, `:csr` for parallel compressed sparse row matrix. `:csr``
+  is recommended when using MPI.
+- `context=DefaultContext()`: Context used for entire model. Not recommended to
+  set up manually, use `backend` instead.
+- `assemble_wells_together=true`: Assemble wells in a single big matrix rather
+  than many small matrices.
+- `extra_outputs=Symbol[]`: Extra output variables for reservoir model. Defaults
+  to "typical" values seen in reservoir simulation. Valid values: Vector of
+  symbols to be output, `true` for all variables and `false` for the minimal set
+  required to restart simulations (typically only the primary variables)
+
+## Increment and variable options
+These options govern the range of values and the maximum allowable change of
+properties over a single Newton iteration. Changing values for maximum change
+will not change the equations themselves, but the values will change the rate of
+nonlinear solver convergence. Typically, smaller values are more conservative
+and reduce numerical difficulties, but can significantly increase the number of
+iterations and the reduce the length of the average time-step. Setting very
+small values can make it infeasible to solve the problems in a reasonable time.
+
+Note that relative values are usually given relative to the cell value. If your
+expected output values are close to zero (e.g. for near-atmospheric pressure)
+low values can lead to slow convergence.
+
+- `dp_max_abs=nothing`: Maximum allowable pressure change in SI units (Pa)
+- `dp_max_rel=0.2`: Maximum allowable relative pressure change (default is 20%)
+- `dp_max_abs_well=convert_to_si(50, :bar)`: Maximum allowable pressure change
+  for wells in SI units (Pa)
+- `dp_max_rel_well=nothing`: Maximum allowable relative pressure change in well
+- `ds_max=0.2`: Maximum change in saturations
+- `dz_max=`: Maximum change in composition (for compositional models only)
+- `p_min=`: Minimum pressure in model (hard limit)
+- `p_max=`: Maximum pressure in model (hard limit)
+- `dr_max=`: Maximum change in Rs/Rv for blackoil models over a Newton
+  iteration. Taken relative to the saturated value of the cell.
+- `dT_max_rel=`: Maximum relative change in temperature (JutulDarcy uses Kelvin,
+  so comments about changing limits near zero above does not apply to typical
+  reservoir temperatures)
+- `dT_max_abs=`: Maximum absolute change in temperature (in °K/°C)
+- `fast_flash=false`: Shorthand to enable `flash_reuse_guess` and
+  `flash_stability_bypass`. These options can together speed up the time spent
+  in flash solver for compositional models. Options are based on "Increasing the
+  Computational Speed of Flash Calculations With Applications for Compositional,
+  Transient Simulations" by Rasmussen et al (2006).
+- `flash_reuse_guess=fast_flash`: Reuse previous flash guess when a cell remains
+  in two-phase.
+- `flash_stability_bypass=fast_flash`: Bypass stability testing for cells
+  outside the two-phase and shadow region.
+
 """
 function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         wells = [],
@@ -169,6 +231,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         dr_max = Inf,
         dT_max_rel = nothing,
         dT_max_abs = nothing,
+        fast_flash = false,
+        flash_reuse_guess = fast_flash,
+        flash_stability_bypass = fast_flash,
         parameters = Dict{Symbol, Any}(),
         kwarg...
     )
@@ -199,14 +264,25 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         ds_max = ds_max,
         dz_max = dz_max,
         dT_max_rel = dT_max_rel,
-        dT_max_abs = dT_max_abs
+        dT_max_abs = dT_max_abs,
+        flash_reuse_guess = flash_reuse_guess,
+        flash_stability_bypass = flash_stability_bypass
     )
 
-    for k in extra_outputs
-        if haskey(rmodel.secondary_variables, k)
-            push!(rmodel.output_variables, k)
+    if extra_outputs isa Bool
+        if extra_outputs
+            for k in keys(rmodel.secondary_variables)
+                push!(rmodel.output_variables, k)
+            end
+            unique!(rmodel.output_variables)
         end
-        unique!(rmodel.output_variables)
+    else
+        for k in extra_outputs
+            if haskey(rmodel.secondary_variables, k)
+                push!(rmodel.output_variables, k)
+            end
+            unique!(rmodel.output_variables)
+        end
     end
     if haskey(reservoir, :diffusion) || haskey(reservoir, :diffusivity)
         rmodel.parameters[:Diffusivities] = Diffusivities()
@@ -235,7 +311,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
                 ds_max = ds_max,
                 dz_max = dz_max,
                 dT_max_rel = dT_max_rel,
-                dT_max_abs = dT_max_abs
+                dT_max_abs = dT_max_abs,
+                flash_reuse_guess = flash_reuse_guess,
+                flash_stability_bypass = flash_stability_bypass
             )
             models[wname] = wmodel
             if split_wells
@@ -267,7 +345,19 @@ function setup_reservoir_model(reservoir::DataDomain, label::Symbol; kwarg...)
     return setup_reservoir_model(reservoir, Val(label); kwarg...)
 end
 
-function set_reservoir_variable_defaults!(model; p_min, p_max, dp_max_abs, dp_max_rel, ds_max, dz_max, dr_max, dT_max_rel = nothing, dT_max_abs = nothing)
+function set_reservoir_variable_defaults!(model;
+        p_min,
+        p_max,
+        dp_max_abs,
+        dp_max_rel,
+        ds_max,
+        dz_max,
+        dr_max,
+        dT_max_rel = nothing,
+        dT_max_abs = nothing,
+        flash_reuse_guess = false,
+        flash_stability_bypass = flash_reuse_guess
+    )
     # Replace various variables - if they are available
     replace_variables!(model, OverallMoleFractions = OverallMoleFractions(dz_max = dz_max), throw = false)
     replace_variables!(model, Saturations = Saturations(ds_max = ds_max), throw = false)
@@ -275,6 +365,12 @@ function set_reservoir_variable_defaults!(model; p_min, p_max, dp_max_abs, dp_ma
     replace_variables!(model, ImmiscibleSaturation = ImmiscibleSaturation(ds_max = ds_max), throw = false)
     replace_variables!(model, BlackOilUnknown = BlackOilUnknown(ds_max = ds_max, dr_max = dr_max), throw = false)
 
+    rmodel = reservoir_model(model)
+    if rmodel isa CompositionalModel
+        sys = rmodel.system
+        flash = FlashResults(sys, stability_bypass = flash_stability_bypass, reuse_guess = flash_reuse_guess)
+        replace_variables!(model, FlashResults = flash, throw = false)
+    end
     p_def = Pressure(
         max_abs = dp_max_abs,
         max_rel = dp_max_rel,
@@ -393,8 +489,9 @@ list a few of the most relevant entries here for convenience:
 - `info_level = 0`: Output level. Set to 0 for minimal output, -1 for no output
   and 1 or more for increasing verbosity.
 - `output_path`: Path to write output to.
-- `relaxation=Jutul.NoRelaxation`: Dampening used for solves. Can be set to
-  `Jutul.SimpleRelaxation()` for difficult models.
+- `relaxation=Jutul.NoRelaxation()`: Dampening used for solves. Can be set to
+  `Jutul.SimpleRelaxation()` for difficult models. Equivialent option is to set
+  `true` for relaxation and `false` for no relaxation.
 - `failure_cuts_timestep=true`: Cut timestep instead of throwing an error when
   numerical issues are encountered (e.g. linear solver divergence).
 - `max_timestep_cuts=25`: Maximum number of timestep cuts before a solver gives
@@ -427,6 +524,7 @@ function setup_reservoir_simulator(case::JutulCase;
         inc_tol_dz = Inf,
         set_linear_solver = true,
         timesteps = :auto,
+        relaxation = false,
         presolve_wells = false,
         parray_arg = Dict{Symbol, Any}(),
         linear_solver_arg = Dict{Symbol, Any}(),
@@ -511,10 +609,18 @@ function setup_reservoir_simulator(case::JutulCase;
     else
         extra_kwarg[:linear_solver] = linear_solver
     end
+    if relaxation isa Bool
+        if relaxation
+            relaxation = SimpleRelaxation()
+        else
+            relaxation = NoRelaxation()
+        end
+    end
     cfg = simulator_config(sim;
         extra_kwarg...,
         timestep_selectors = sel,
         info_level = info_level,
+        relaxation = relaxation,
         max_timestep = max_timestep,
         failure_cuts_timestep = failure_cuts_timestep,
         max_timestep_cuts = max_timestep_cuts,

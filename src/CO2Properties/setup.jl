@@ -1,10 +1,10 @@
-function setup_reservoir_model_co2_brine(reservoir::DataDomain,
-    T = missing;
-    thermal = false,
-    composite = thermal,
-    kwarg...
+function setup_reservoir_model_co2_brine(reservoir::DataDomain;
+        temperature = missing,
+        thermal = false,
+        composite = thermal,
+        kwarg...
     )
-    tables = co2_brine_property_tables(T)
+    tables = co2_brine_property_tables(temperature)
     rho = JutulDarcy.BrineCO2MixingDensities(tables[:density])
     mu = JutulDarcy.PTViscosities(tables[:viscosity])
     if thermal
