@@ -1340,13 +1340,14 @@ function mrst_well_ctrl(model, wdata, is_comp, rhoS)
 end
 
 """
-    simulate_mrst_case(file_name)
+    ws, states = simulate_mrst_case(file_name)
     simulate_mrst_case(file_name; <keyword arguments>)
 
 Simulate a MRST case from `file_name` as exported by `writeJutulInput` in MRST.
 
 # Arguments
-- `file_name::String`: The path to a `.mat` file that is to be simulated.
+- `file_name::String`: The path to a `.mat` or `.data` file that is to be
+  simulated.
 
 # Keyword arguments
 - `extra_outputs::Vector{Symbol} = [:Saturations]`: Additional variables to
@@ -1395,7 +1396,11 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
                                 plot = false,
                                 linear_solver = :bicgstab,
                                 kwarg...)
-    fn = get_mrst_input_path(fn)
+    ext = lowercase(last(splitext(fn)))
+    is_data = ext == ".data"
+    if !is_data
+        fn = get_mrst_input_path(fn)
+    end
     if split_wells
         fg = :perwell
     else
@@ -1412,20 +1417,46 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
         @info "This is the first call to simulate_mrst_case. Compilation may take some time..." maxlog = 1
     end
     block_backend = linear_solver != :direct && linear_solver != :lu
-    case, mrst_data = setup_case_from_mrst(fn, block_backend = block_backend, steps = steps,
-                                                                            backend = backend,
-                                                                            nthreads = nthreads,
-                                                                            split_wells = split_wells,
-                                                                            facility_grouping = fg,
-                                                                            general_ad = general_ad,
-                                                                            minbatch = minbatch,
-                                                                            wells = wells,
-                                                                            dp_max_abs = dp_max_abs,
-                                                                            dp_max_rel = dp_max_rel,
-                                                                            p_min = p_min,
-                                                                            p_max = p_max,
-                                                                            dz_max = dz_max,
-                                                                            ds_max = ds_max);
+    if is_data
+        case, deck = setup_case_from_data_file(fn,
+            block_backend = block_backend,
+            include_data = true,
+            steps = steps,
+            backend = backend,
+            nthreads = nthreads,
+            split_wells = split_wells,
+            facility_grouping = fg,
+            general_ad = general_ad,
+            minbatch = minbatch,
+            dp_max_abs = dp_max_abs,
+            dp_max_rel = dp_max_rel,
+            p_min = p_min,
+            p_max = p_max,
+            dz_max = dz_max,
+            ds_max = ds_max
+        )
+        # A bit of a hack
+        mrst_data = deck
+    else
+        case, mrst_data = setup_case_from_mrst(fn,
+            block_backend = block_backend,
+            steps = steps,
+            backend = backend,
+            nthreads = nthreads,
+            split_wells = split_wells,
+            facility_grouping = fg,
+            general_ad = general_ad,
+            minbatch = minbatch,
+            wells = wells,
+            dp_max_abs = dp_max_abs,
+            dp_max_rel = dp_max_rel,
+            p_min = p_min,
+            p_max = p_max,
+            dz_max = dz_max,
+            ds_max = ds_max
+        )
+        deck = mrst_data["deck"]
+    end
     model = case.model
     forces = case.forces
     dt = case.dt
@@ -1464,11 +1495,12 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
         output_path = nothing
     end
     sim, cfg = setup_reservoir_simulator(
-        case,
+        case;
         mode = mode,
         linear_solver = linear_solver,
-        output_path = output_path;
-        kwarg...)
+        output_path = output_path,
+        kwarg...
+    )
     M = first(values(models))
     sys = M.system
     if sys isa CompositionalSystem
@@ -1487,7 +1519,7 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
         if verbose
             jutul_message("MRST model", "Starting simulation of $s system with $nc cells and $nph phases and $ncomp components.")
         end
-        rspec = mrst_data["deck"]["RUNSPEC"]
+        rspec = deck["RUNSPEC"]
         if haskey(rspec, "START")
             start = DateTime(0) + Day(rspec["START"])
         else
@@ -1601,7 +1633,7 @@ function write_reservoir_simulator_output_to_mrst(model, states, reports, forces
             end
             states = states[ix]
             reports = reports[ix]
-            wd = full_well_outputs(model, states, forces, shortname = true)
+            wd = full_well_outputs(model, states, forces)
             wd_m = Dict{String, Any}()
             for k in keys(wd)
                 tmp = Dict{String, Any}()

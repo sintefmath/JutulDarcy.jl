@@ -74,3 +74,9 @@ end
 @testset "Egg" begin
     test_mrst_case("egg", otol = 0.02)
 end
+
+@testset "MRST simulations" begin
+    simulate_mrst_case("spe1", write_mrst = true, output_path = joinpath(tempdir(), "spe1"))
+    pth = JutulDarcy.GeoEnergyIO.test_input_file_path("spe1", "BENCH_SPE1.DATA")
+    simulate_mrst_case(pth, write_mrst = true, output_path = joinpath(tempdir(), "spe1_data"))
+end
