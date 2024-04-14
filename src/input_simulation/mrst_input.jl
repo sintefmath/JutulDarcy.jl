@@ -1601,7 +1601,7 @@ function write_reservoir_simulator_output_to_mrst(model, states, reports, forces
             end
             states = states[ix]
             reports = reports[ix]
-            wd = full_well_outputs(model, states, forces, shortname = true)
+            wd = full_well_outputs(model, states, forces)
             wd_m = Dict{String, Any}()
             for k in keys(wd)
                 tmp = Dict{String, Any}()
