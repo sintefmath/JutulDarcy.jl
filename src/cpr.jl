@@ -180,10 +180,12 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
     initialize_cpr_storage!(cpr, lsys, s, bz)
     ps = rmodel.primary_variables[:Pressure].scale
     if do_p_update || cpr.partial_update
+        rmodel = reservoir_model(model)
+        ctx = rmodel.context
         @tic "weights" w_p = update_weights!(cpr, cpr.storage, rmodel, s, A, ps)
         A_p = cpr.storage.A_p
         w_p = cpr.storage.w_p
-        @tic "pressure system" update_pressure_system!(A_p, cpr.pressure_precond, A, w_p, model.context, executor)
+        @tic "pressure system" update_pressure_system!(A_p, cpr.pressure_precond, A, w_p, ctx, executor)
     end
     return do_p_update
 end
@@ -200,18 +202,23 @@ function update_pressure_system!(A_p, p_prec, A, w_p, ctx, executor)
     tb = minbatch(ctx, n)
     ncomp = size(w_p, 1)
     N = Val(ncomp)
+    is_adjoint = Val(Jutul.represented_as_adjoint(matrix_layout(ctx)))
     @batch minbatch=tb for col in 1:n
-        update_row_csc!(nz, A_p, w_p, rows, nz_s, col, N)
+        update_row_csc!(nz, A_p, w_p, rows, nz_s, col, N, is_adjoint)
     end
 end
 
-function update_row_csc!(nz, A_p, w_p, rows, nz_s, col, ::Val{Ncomp}) where Ncomp
+function update_row_csc!(nz, A_p, w_p, rows, nz_s, col, ::Val{Ncomp}, ::Val{adjoint}) where {Ncomp, adjoint}
     @inbounds for j in nzrange(A_p, col)
         row = rows[j]
         Ji = nz_s[j]
         tmp = 0
         @inbounds for b in 1:Ncomp
-            tmp += Ji[b, 1]*w_p[b, row]
+            if adjoint
+                tmp += Ji[1, b]*w_p[b, row]
+            else
+                tmp += Ji[b, 1]*w_p[b, row]
+            end
         end
         nz[j] = tmp
     end
@@ -230,17 +237,23 @@ function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, p_prec, A::
     tb = minbatch(ctx, n)
     ncomp = size(w_p, 1)
     N = Val(ncomp)
+    is_adjoint = Val(Jutul.represented_as_adjoint(matrix_layout(ctx)))
     @batch minbatch=tb for row in 1:n
-        update_row_csr!(nz, A_p, w_p, cols, nz_s, row, N)
+        update_row_csr!(nz, A_p, w_p, cols, nz_s, row, N, is_adjoint)
     end
 end
 
-function update_row_csr!(nz, A_p, w_p, cols, nz_s, row, ::Val{Ncomp}) where Ncomp
+function update_row_csr!(nz, A_p, w_p, cols, nz_s, row, ::Val{Ncomp}, ::Val{adjoint}) where {Ncomp, adjoint}
+    @assert !adjoint
     @inbounds for j in nzrange(A_p, row)
         Ji = nz_s[j]
         tmp = 0
         @inbounds for b = 1:Ncomp
-            tmp += Ji[b, 1]*w_p[b, row]
+            if adjoint
+                tmp += Ji[1, b]*w_p[b, row]
+            else
+                tmp += Ji[b, 1]*w_p[b, row]
+            end
         end
         nz[j] = tmp
     end
