@@ -118,8 +118,8 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
             if phases[ph] == AqueousPhase()
                 phase_density = rho_s[ph]*JutulDarcy.shrinkage(rho.immiscible_pvt, p)
             else
-                @assert !ismissing(composition) "Composition must be present for equilibrium."
-                @assert !ismissing(T_z) "Temperature must be present for equilibrium."
+                @assert !ismissing(composition) "Composition must be present for equilibrium calculations for compositional models."
+                @assert !ismissing(T_z) "Temperature must be present for equilibrium calculations for compositional models."
                 z_i = Vector{Float64}(composition(z))
                 T = T_z(z)
                 eos = model.system.equation_of_state
@@ -258,26 +258,30 @@ function parse_state0_equil(model, datafile)
     npvt = GeoEnergyIO.InputParser.number_of_tables(datafile, :pvtnum)
     nsat = GeoEnergyIO.InputParser.number_of_tables(datafile, :satnum)
 
-    if haskey(sol, "RTEMP") || haskey(props, "RTEMP")
-        if haskey(props, "RTEMP")
-            rtmp = only(props["RTEMP"])
-        else
-            rtmp = only(sol["RTEMP"])
-        end
-        Ti = convert_to_si(rtmp, :Celsius)
-        T_z = z -> Ti
-    elseif haskey(props, "TEMPVD")
-        z = vec(props["TEMPVD"][:, 1])
-        Tvd = vec(props["TEMPVD"][:, 2] + 273.15)
-        T_z = get_1d_interpolator(z, Tvd)
-    else
-        T_z = missing
-    end
-
     @assert length(equil) == nequil
     inits = []
     inits_cells = []
     for ereg in 1:nequil
+        if haskey(sol, "RTEMP") || haskey(props, "RTEMP")
+            if haskey(props, "RTEMP")
+                rtmp = only(props["RTEMP"])
+            else
+                rtmp = only(sol["RTEMP"])
+            end
+            Ti = convert_to_si(rtmp, :Celsius)
+            T_z = z -> Ti
+        elseif haskey(props, "TEMPVD") || haskey(props, "RTEMPVD")
+            if haskey(props, "TEMPVD")
+                tvd_kw = props["TEMPVD"][ereg]
+            else
+                tvd_kw = props["RTEMPVD"][ereg]
+            end
+            z = vec(tvd_kw[:, 1])
+            Tvd = vec(tvd_kw[:, 2] .+ 273.15)
+            T_z = get_1d_interpolator(z, Tvd)
+        else
+            T_z = missing
+        end
         eq = equil[ereg]
         cells_eqlnum = findall(isequal(ereg), eqlnum)
         for sreg in 1:nsat
