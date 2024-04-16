@@ -279,7 +279,6 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord; s
                 perforation_cells = map_compdat_to_multisegment_segments(compsegs, branches, tubing_lengths, tubing_depths, cdat)
                 cell_centers = domain[:cell_centroids]
                 dz = vec(cell_centers[3, wc]) - vec(centers[3, perforation_cells])
-                @assert length(keys(cdat)) == length(compsegs) "COMPSEGS length must match COMPDAT for well $wname"
                 W = MultiSegmentWell(wc, volumes, centers;
                     name = Symbol(wname),
                     WI = WI,
@@ -306,27 +305,34 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord; s
 end
 
 function map_compdat_to_multisegment_segments(compsegs, branches, tubing_lengths, tubing_depths, cdat)
-    perforation_cells = zeros(Int, length(compsegs))
-    for compseg in compsegs
-        I, J, K, branch, tube_start, tube_end, dir, dir_ijk, cdepth, = compseg
-        perf_index = findfirst(isequal((I, J, K)), collect(keys(cdat)))
-        @assert !isnothing(perf_index) "Perforation $((I, J, K)) not found?"
+    completions = keys(cdat)
+    perforation_cells = zeros(Int, length(completions))
+    segment_ijk = map(x -> (x[1], x[2], x[3]), compsegs)
+    for (completion_index, completion) in enumerate(completions)
+        segment_candidates = findall(isequal(completion), segment_ijk)
+        if length(segment_candidates) == 0
+            @warn "No segments found for completion $completion. Expanding search to all segments." segment_ijk
+            segment_candidates = eachindex(compsegs)
+        end
         prev_dist = Inf
         closest = -1
-        for (i, b) in enumerate(branches)
-            if b == branch
-                L = tubing_lengths[i]
-                seg_end = tubing_depths[i]
-                seg_mid = seg_end - L/2
-                tube_mid = (tube_end + tube_start)/2
-                dist = abs(seg_mid - tube_mid)
-                if dist < prev_dist
-                    closest = i
-                    prev_dist = dist
+        for segment_index in segment_candidates
+            I, J, K, branch, tube_start, tube_end, dir, dir_ijk, cdepth, = compsegs[segment_index]
+            for (i, b) in enumerate(branches)
+                if b == branch
+                    L = tubing_lengths[i]
+                    seg_end = tubing_depths[i]
+                    seg_mid = seg_end - L/2
+                    tube_mid = (tube_end + tube_start)/2
+                    dist = abs(seg_mid - tube_mid)
+                    if dist < prev_dist
+                        closest = i
+                        prev_dist = dist
+                    end
                 end
             end
         end
-        perforation_cells[perf_index] = closest
+        perforation_cells[completion_index] = closest
     end
     return perforation_cells
 end
