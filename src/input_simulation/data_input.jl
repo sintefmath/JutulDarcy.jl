@@ -276,28 +276,7 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord; s
                 for (i, t) in enumerate(conn)
                     N[:, i] .= t
                 end
-                perforation_cells = zeros(Int, length(compsegs))
-                for compseg in compsegs
-                    I, J, K, branch, tube_start, tube_end, dir, dir_ijk, cdepth, = compseg
-                    perf_index = findfirst(isequal((I, J, K)), collect(keys(cdat)))
-                    @assert !isnothing(perf_index) "Perforation $((I, J, K)) not found?"
-                    prev_dist = Inf
-                    closest = -1
-                    for (i, b) in enumerate(branches)
-                        if b == branch
-                            L = tubing_lengths[i]
-                            seg_end = tubing_depths[i]
-                            seg_mid = seg_end - L/2
-                            tube_mid = (tube_end + tube_start)/2
-                            dist = abs(seg_mid - tube_mid)
-                            if dist < prev_dist
-                                closest = i
-                                prev_dist = dist
-                            end
-                        end
-                    end
-                    perforation_cells[perf_index] = closest
-                end
+                perforation_cells = map_compdat_to_multisegment_segments(compsegs, branches, tubing_lengths, tubing_depths, cdat)
                 cell_centers = domain[:cell_centroids]
                 dz = vec(cell_centers[3, wc]) - vec(centers[3, perforation_cells])
                 @assert length(keys(cdat)) == length(compsegs) "COMPSEGS length must match COMPDAT for well $wname"
@@ -324,6 +303,32 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord; s
         )
     end
     return (W, wc, WI, open)
+end
+
+function map_compdat_to_multisegment_segments(compsegs, branches, tubing_lengths, tubing_depths, cdat)
+    perforation_cells = zeros(Int, length(compsegs))
+    for compseg in compsegs
+        I, J, K, branch, tube_start, tube_end, dir, dir_ijk, cdepth, = compseg
+        perf_index = findfirst(isequal((I, J, K)), collect(keys(cdat)))
+        @assert !isnothing(perf_index) "Perforation $((I, J, K)) not found?"
+        prev_dist = Inf
+        closest = -1
+        for (i, b) in enumerate(branches)
+            if b == branch
+                L = tubing_lengths[i]
+                seg_end = tubing_depths[i]
+                seg_mid = seg_end - L/2
+                tube_mid = (tube_end + tube_start)/2
+                dist = abs(seg_mid - tube_mid)
+                if dist < prev_dist
+                    closest = i
+                    prev_dist = dist
+                end
+            end
+        end
+        perforation_cells[perf_index] = closest
+    end
+    return perforation_cells
 end
 
 function compdat_to_connection_factors(domain, wspec, v; sort = true, order = "TRACK")
