@@ -761,6 +761,12 @@ function parse_reservoir(data_file)
     if !all(isequal(1.0), tranmult)
         domain[:transmissibility_multiplier, Faces()] = tranmult
     end
+    if haskey(grid, "NNC")
+        nnc = grid["NNC"]
+        if length(nnc) > 0
+            domain[:nnc, nothing] = nnc
+        end
+    end
     return domain
 end
 

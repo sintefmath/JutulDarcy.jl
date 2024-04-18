@@ -1428,6 +1428,7 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
         version = version,
         face_dir = face_dir
     )
+    nf = number_of_faces(d)
     neg_count = 0
     for (i, T_hf_i) in enumerate(T_hf)
         neg_count += T_hf_i < 0
@@ -1452,7 +1453,6 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
     end
     if haskey(d, :net_to_gross)
         # Net to gross applies to vertical trans only
-        nf = number_of_faces(d)
         otag = get_mesh_entity_tag(g, Faces(), :orientation, throw = false)
         if !ismissing(otag)
             # Use tags if provided
@@ -1490,6 +1490,13 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
     if haskey(d, :transmissibility_multiplier, Faces())
         tm = d[:transmissibility_multiplier]
         @. T *= tm
+    end
+    if haskey(d, :nnc)
+        nnc = d[:nnc]
+        num_nnc = length(nnc)
+        for (i, ncon) in enumerate(nnc)
+            T[nf-num_nnc+i] = ncon[7]
+        end
     end
     return T
 end
