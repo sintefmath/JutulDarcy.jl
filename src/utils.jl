@@ -368,8 +368,8 @@ function set_reservoir_variable_defaults!(model;
     rmodel = reservoir_model(model)
     if rmodel isa CompositionalModel
         sys = rmodel.system
-        flash = FlashResults(sys, stability_bypass = flash_stability_bypass, reuse_guess = flash_reuse_guess)
-        replace_variables!(model, FlashResults = flash, throw = false)
+        flash = FlashResults(rmodel, stability_bypass = flash_stability_bypass, reuse_guess = flash_reuse_guess)
+        replace_variables!(rmodel, FlashResults = flash, throw = false)
     end
     p_def = Pressure(
         max_abs = dp_max_abs,

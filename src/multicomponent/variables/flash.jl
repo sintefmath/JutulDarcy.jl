@@ -17,21 +17,18 @@ struct FlashResults{F_t, S_t, B_t} <: ScalarVariable
     tolerance_bypass::Float64
     stability_bypass::Bool
     reuse_guess::Bool
-    function FlashResults(system;
+    function FlashResults(model::SimulationModel;
             method::MultiComponentFlash.AbstractFlash = SSIFlash(),
             threads = Threads.nthreads() > 1,
+            n = degrees_of_freedom_per_entity(model, Cells()),
             tolerance = 1e-8,
             tolerance_bypass = 10,
             reuse_guess = false,
             stability_bypass = false
         )
+        system = flow_system(model.system)
         eos = system.equation_of_state
         nc = MultiComponentFlash.number_of_components(eos)
-        if has_other_phase(system)
-            n = nc + 1
-        else
-            n = nc
-        end
         storage = []
         buffers = []
         if threads

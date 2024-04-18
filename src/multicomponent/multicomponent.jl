@@ -52,7 +52,7 @@ function select_secondary_variables!(S, system::CompositionalSystem, model)
     end
     S[:LiquidMassFractions] = PhaseMassFractions(:liquid)
     S[:VaporMassFractions] = PhaseMassFractions(:vapor)
-    S[:FlashResults] = FlashResults(system)
+    S[:FlashResults] = FlashResults(model)
     S[:Saturations] = Saturations()
 end
 
