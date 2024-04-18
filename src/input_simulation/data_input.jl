@@ -311,7 +311,7 @@ function map_compdat_to_multisegment_segments(compsegs, branches, tubing_lengths
     for (completion_index, completion) in enumerate(completions)
         segment_candidates = findall(isequal(completion), segment_ijk)
         if length(segment_candidates) == 0
-            @warn "No segments found for completion $completion. Expanding search to all segments." segment_ijk
+            @warn "No segments found for completion $completion. Expanding search to all segments."
             segment_candidates = eachindex(compsegs)
         end
         prev_dist = Inf
@@ -403,7 +403,9 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
         for (i, c) in enumerate(completions)
             compdat = c[k]
             well_is_shut = controls[i][k] isa DisabledControl
-            wi_mul = zeros(length(WI_base))
+            n_wi = length(WI_base)
+            wi_mul = zeros(n_wi)
+            wpi_mul = ones(n_wi)
             if !well_is_shut
                 wc, WI, open = compdat_to_connection_factors(domain, wspec, compdat, sort = false)
                 for (c, wi, is_open) in zip(wc, WI, open)
@@ -674,9 +676,12 @@ function parse_reservoir(data_file)
     end
     extra_data_arg = Dict{Symbol, Any}()
     if haskey(grid, "MULTPV")
-        multpv = zeros(nc)
+        multpv = ones(nc)
         for (i, c) in enumerate(active_ix)
-            multpv[i] = grid["MULTPV"][c]
+            v = grid["MULTPV"][c]
+            if isfinite(v)
+                multpv[i] = v
+            end
         end
         extra_data_arg[:pore_volume_multiplier] = multpv
     end
