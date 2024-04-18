@@ -66,7 +66,14 @@ function reservoir_domain(g;
         diffusion = missing,
         kwarg...
     )
+    all(isfinite, permeability) || throw(ArgumentError("Keyword argument permeability has non-finite entries."))
+    all(isfinite, porosity) || throw(ArgumentError("Keyword argument porosity has non-finite entries."))
+    all(isfinite, fluid_thermal_conductivity) || throw(ArgumentError("Keyword argument fluid_thermal_conductivity has non-finite entries."))
+    all(isfinite, rock_heat_capacity) || throw(ArgumentError("Keyword argument rock_heat_capacity has non-finite entries."))
+    all(isfinite, component_heat_capacity) || throw(ArgumentError("Keyword argument component_heat_capacity has non-finite entries."))
+
     if !ismissing(diffusion)
+        all(isfinite, diffusion) || throw(ArgumentError("Keyword argument diffusion has non-finite entries."))
         kwarg = (diffusion = diffusion, kwarg...)
     end
     nk = length(permeability)
