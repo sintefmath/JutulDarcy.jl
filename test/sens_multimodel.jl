@@ -18,10 +18,10 @@ function solve_adjoint_forward_test_system(casename; block_backend = true, kwarg
     return (setup[:model], setup[:state0], states, reports, setup[:parameters], setup[:forces])
 end
 
-function test_optimization_gradient(casename = :immiscible_2ph; use_scaling = true, use_log = false, kwarg...)
+function test_optimization_gradient(casename = :immiscible_2ph; use_scaling = true, use_log = false, parameter_subset = missing, kwarg...)
     model, state0, states, reports, param, forces = solve_adjoint_forward_test_system(casename; kwarg...)
     dt = report_timesteps(reports)
-    ϵ = 1e-3
+    ϵ = 1e-6
     num_tol = 1e-2
 
     G = (model, state, dt, step_no, forces) -> well_test_objective(model, state)
@@ -32,6 +32,13 @@ function test_optimization_gradient(casename = :immiscible_2ph; use_scaling = tr
         for (k, v) in cfg
             for (ki, vi) in v
                 vi[:scaler] = :log
+            end
+        end
+    end
+    if !ismissing(parameter_subset)
+        for (k, v) in cfg
+            for (ki, vi) in v
+                vi[:active] = ki in parameter_subset
             end
         end
     end
@@ -94,10 +101,14 @@ end
                 @testset "$b" begin
                     for ad in [true, false]
                         @testset "scaled (linear)" begin
-                            test_optimization_gradient(use_scaling = true, general_ad = ad, block_backend = block)
+                            test_optimization_gradient(casename, use_scaling = true, general_ad = ad, block_backend = block)
                         end
                         @testset "scaled (log)" begin
-                            test_optimization_gradient(use_scaling = true, use_log = true,  general_ad = ad, block_backend = block)
+                            test_optimization_gradient(casename, use_scaling = true, use_log = true,  general_ad = ad, block_backend = block)
+                        end
+                        @testset "subsets" begin
+                            test_optimization_gradient(casename, parameter_subset = (:WellIndices, :Transmissibilities, :StaticFluidVolume))
+                            test_optimization_gradient(casename, parameter_subset = (:WellIndices, ))
                         end
                     end
                 end
