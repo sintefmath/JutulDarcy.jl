@@ -374,12 +374,14 @@ end
 
 pvt_table_vectors(pvt::PVTOTable) = (pvt.pressure, pvt.rs, pvt.sat_pressure, pvt.pos)
 
-function shrinkage(pvt::PVTO, reg, p::T, rs, cell) where T
+function shrinkage(pvt::PVTO, reg, p, rs, cell)
+    T = Base.promote_type(typeof(p), typeof(rs))
     tbl = table_by_region(pvt.tab, region(reg, cell))
     return interp_pvt(tbl, p, rs, tbl.shrinkage)::T
 end
 
-function viscosity(pvt::PVTO, reg, p::T, rs, cell) where T
+function viscosity(pvt::PVTO, reg, p, rs, cell)
+    T = Base.promote_type(typeof(p), typeof(rs))
     tbl = table_by_region(pvt.tab, region(reg, cell))
     return interp_pvt(tbl, p, rs, tbl.viscosity)::T
 end

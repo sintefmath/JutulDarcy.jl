@@ -83,7 +83,7 @@ function solve_out_of_place(model, state0, states, param, reports, G, forces; kw
 end
 
 @testset "optimization interface with wells" begin
-    for casename in [:compositional_2ph_3c, :immiscible_2ph]
+    for casename in [:compositional_2ph_3c, :immiscible_2ph, :bo_spe1]
         @testset "$casename" begin
             for block in [true, false]
                 if block
