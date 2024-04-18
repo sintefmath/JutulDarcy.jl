@@ -49,7 +49,7 @@ function test_optimization_gradient(casename = :immiscible_2ph; use_scaling = tr
     # Perturb the data in a few different directions and verify
     # the gradients there too. Use the F_and_dF interface, that
     # computes gradients together with the objective
-    for delta in [1.05, 0.85, 0.325, 1.15]
+    for delta in [1.05, 0.85, 0.325, 1.2]
         x_mod = delta.*x0
         dF_mod = similar(dF_initial)
         F_and_dF(NaN, dF_mod, x_mod)
@@ -81,21 +81,25 @@ function solve_out_of_place(model, state0, states, param, reports, G, forces; kw
     forces = forces, state0 = state0, parameters = param; kwarg...)
     return grad_adj
 end
-##
+
 @testset "optimization interface with wells" begin
-    for block in [true, false]
-        if block
-            b = "block"
-        else
-            b = "scalar"
-        end
-        @testset "$b" begin
-            for ad in [true, false]
-                @testset "scaled (linear)" begin
-                    test_optimization_gradient(use_scaling = true, general_ad = ad, block_backend = block)
+    for casename in [:compositional_2ph_3c, :immiscible_2ph]
+        @testset "$casename" begin
+            for block in [true, false]
+                if block
+                    b = "block"
+                else
+                    b = "scalar"
                 end
-                @testset "scaled (log)" begin
-                    test_optimization_gradient(use_scaling = true, use_log = true,  general_ad = ad, block_backend = block)
+                @testset "$b" begin
+                    for ad in [true, false]
+                        @testset "scaled (linear)" begin
+                            test_optimization_gradient(use_scaling = true, general_ad = ad, block_backend = block)
+                        end
+                        @testset "scaled (log)" begin
+                            test_optimization_gradient(use_scaling = true, use_log = true,  general_ad = ad, block_backend = block)
+                        end
+                    end
                 end
             end
         end

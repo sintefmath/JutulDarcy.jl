@@ -170,7 +170,8 @@ function thread_buffers(storage, buffers)
 end
 
 function update_flash_buffer!(buf, eos, Pressure, Temperature, OverallMoleFractions)
-    if isnothing(buf.forces) || eltype(buf.forces.A_ij) != eltype(OverallMoleFractions)
+    maybe_ad_T = Base.promote_type(typeof(Pressure), typeof(Temperature), eltype(OverallMoleFractions))
+    if isnothing(buf.forces) || eltype(buf.forces.A_ij) != maybe_ad_T
         P = Pressure[1]
         T = Temperature[1]
         if isa(OverallMoleFractions, AbstractVector)
