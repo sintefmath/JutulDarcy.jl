@@ -984,7 +984,8 @@ function parse_control_steps(runspec, props, schedule, sys)
         streams[k] = nothing
         well_injection[k] = nothing
         well_factor[k] = 1.0
-        well_temp[k] = 273.15 + 20.0
+        # 0 deg C is strange, but the default for .DATA files.
+        well_temp[k] = 273.15 + 0.0
     end
     all_compdat = []
     all_controls = []
