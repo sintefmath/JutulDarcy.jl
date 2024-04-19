@@ -1,9 +1,12 @@
-function check_regions(regions::AbstractVector)
+function check_regions(regions::AbstractVector, maxreg = missing)
     @assert minimum(regions) > 0
+    if !ismissing(maxreg)
+        @assert maximum(regions) <= maxreg
+    end
     @assert eltype(regions)<:Integer
 end
 
-function check_regions(regions::Nothing)
+function check_regions(regions::Nothing, maxreg = missing)
     # Ok.
 end
 

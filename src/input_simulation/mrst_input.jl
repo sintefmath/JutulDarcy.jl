@@ -714,7 +714,7 @@ function set_deck_specialization!(model, props, satnum, oil, water, gas)
         set_deck_relperm!(svar, param, sys, props; oil = oil, water = water, gas = gas, satnum = satnum)
         set_deck_pc!(svar, param, sys, props; oil = oil, water = water, gas = gas, satnum = satnum)
     end
-    set_deck_pvmult!(svar, param, sys, props)
+    set_deck_pvmult!(svar, param, sys, props, model.data_domain)
 end
 
 function set_thermal_deck_specialization!(model, props, pvtnum, oil, water, gas)
@@ -794,19 +794,36 @@ function set_deck_relperm!(vars, param, sys, props; kwarg...)
     end
 end
 
-function set_deck_pvmult!(vars, param, sys, props)
+function set_deck_pvmult!(vars, param, sys, props, reservoir)
     # Rock compressibility (if present)
     if haskey(props, "ROCK")
-        rock = JutulDarcy.flat_region_expand(props["ROCK"])
-        if length(rock) > 1
-            @warn "Rock has multiple regions, taking the first..." rock
+        rock = props["ROCK"]
+        if rock isa Matrix
+            # Do nothing
+        else
+            rock::Vector
+            rock = collect(hcat(rock...)')
         end
-        rock = first(rock)
-        if rock[2] > 0
+        if size(rock, 1) > 1
+            if haskey(reservoir, :rocknum)
+                regions = reservoir[:rocknum]
+            else
+                regions = reservoir[:pvtnum]
+            end
+        else
+            regions = nothing
+        end
+        p_r = rock[:, 1]
+        c_r = rock[:, 2]
+        if any(x -> x > 0, c_r)
             static = param[:FluidVolume]
             delete!(param, :FluidVolume)
             param[:StaticFluidVolume] = static
-            ϕ = LinearlyCompressiblePoreVolume(reference_pressure = rock[1], expansion = rock[2])
+            ϕ = LinearlyCompressiblePoreVolume(
+                    reference_pressure = p_r,
+                    expansion = c_r,
+                    regions = regions
+            )
             vars[:FluidVolume] = wrap_reservoir_variable(sys, ϕ, :flow)
         end
     end

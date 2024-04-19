@@ -88,9 +88,10 @@ end
 end
 
 @jutul_secondary function update_pore_volume!(pv, Φ::LinearlyCompressiblePoreVolume, model, Pressure, StaticFluidVolume, ix)
-    c_r = Φ.expansion
-    p_r = Φ.reference_pressure
     @inbounds for i in ix
+        reg = region(Φ.regions, i)
+        p_r = table_by_region(Φ.reference_pressure, reg)
+        c_r = table_by_region(Φ.expansion, reg)
         p = Pressure[i]
         x = c_r*(p-p_r)
         mult = 1.0 + x + 0.5*(x^2)
