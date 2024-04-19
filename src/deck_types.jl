@@ -582,7 +582,7 @@ function PVCDO(pvcdo::AbstractArray)
 end
 
 
-struct LinearlyCompressiblePoreVolume{V, R} <: ScalarVariable where {R<:Real}
+struct LinearlyCompressiblePoreVolume{V, R} <: ScalarVariable
     reference_pressure::V
     expansion::V
     regions::R
@@ -591,6 +591,16 @@ struct LinearlyCompressiblePoreVolume{V, R} <: ScalarVariable where {R<:Real}
         reference_pressure = region_wrap(reference_pressure, regions)
         expansion = region_wrap(expansion, regions)
         new{typeof(reference_pressure), typeof(regions)}(reference_pressure, expansion, regions)
+    end
+end
+
+struct TableCompressiblePoreVolume{V, R} <: ScalarVariable
+    tab::V
+    regions::R
+    function TableCompressiblePoreVolume(tab; regions = nothing)
+        check_regions(regions, length(tab))
+        tab = region_wrap(tab, regions)
+        new{typeof(tab), typeof(regions)}(tab, regions)
     end
 end
 

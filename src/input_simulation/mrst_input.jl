@@ -796,7 +796,19 @@ end
 
 function set_deck_pvmult!(vars, param, sys, props, reservoir)
     # Rock compressibility (if present)
-    if haskey(props, "ROCK")
+    if haskey(reservoir, :rocknum)
+        regions = reservoir[:rocknum]
+    elseif haskey(reservoir, :pvtnum)
+        regions = reservoir[:pvtnum]
+    else
+        regions = nothing
+    end
+    ϕ = missing
+
+    if haskey(props, "ROCKTAB")
+        tab = map(x -> get_1d_interpolator(x[:, 1], x[:, 2]), props["ROCKTAB"])
+        ϕ = TableCompressiblePoreVolume(tab, regions = regions)
+    elseif haskey(props, "ROCK")
         rock = props["ROCK"]
         if rock isa Matrix
             # Do nothing
@@ -805,27 +817,23 @@ function set_deck_pvmult!(vars, param, sys, props, reservoir)
             rock = collect(hcat(rock...)')
         end
         if size(rock, 1) > 1
-            if haskey(reservoir, :rocknum)
-                regions = reservoir[:rocknum]
-            else
-                regions = reservoir[:pvtnum]
-            end
-        else
-            regions = nothing
+            !isnothing(regions) || throw(ArgumentError("Must have PVTNUM or ROCKNUM for ROCK"))
         end
         p_r = rock[:, 1]
         c_r = rock[:, 2]
         if any(x -> x > 0, c_r)
-            static = param[:FluidVolume]
-            delete!(param, :FluidVolume)
-            param[:StaticFluidVolume] = static
             ϕ = LinearlyCompressiblePoreVolume(
                     reference_pressure = p_r,
                     expansion = c_r,
                     regions = regions
             )
-            vars[:FluidVolume] = wrap_reservoir_variable(sys, ϕ, :flow)
         end
+    end
+    if !ismissing(ϕ)
+        static = param[:FluidVolume]
+        delete!(param, :FluidVolume)
+        param[:StaticFluidVolume] = static
+        vars[:FluidVolume] = wrap_reservoir_variable(sys, ϕ, :flow)
     end
 end
 
