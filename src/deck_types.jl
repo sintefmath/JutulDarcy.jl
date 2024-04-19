@@ -604,6 +604,25 @@ struct TableCompressiblePoreVolume{V, R} <: ScalarVariable
     end
 end
 
+struct ScalarPressureTable{V, R} <: ScalarVariable
+    tab::V
+    regions::R
+    function ScalarPressureTable(tab; regions = nothing)
+        check_regions(regions, length(tab))
+        tab = region_wrap(tab, regions)
+        new{typeof(tab), typeof(regions)}(tab, regions)
+    end
+end
+
+@jutul_secondary function update_variable!(pv, Φ::ScalarPressureTable, model, Pressure, ix)
+    @inbounds for i in ix
+        reg = region(Φ.regions, i)
+        F = table_by_region(Φ.tab, reg)
+        p = Pressure[i]
+        pv[i] = F(p)
+    end
+end
+
 function add_lower_pvto(data, pos, rs)
     ref_p = 101325.0
     first_offset = pos[2]-1
