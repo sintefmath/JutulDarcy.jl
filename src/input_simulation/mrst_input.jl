@@ -806,10 +806,10 @@ function set_deck_pvmult!(vars, param, sys, props, reservoir)
     ϕ = missing
 
     if haskey(props, "ROCKTAB")
-        tab = map(x -> get_1d_interpolator(x[:, 1], x[:, 2]), props["ROCKTAB"])
+        rt = vec(props["ROCKTAB"])
+        tab = map(x -> get_1d_interpolator(x[:, 1], x[:, 2]), rt)
         ϕ = TableCompressiblePoreVolume(tab, regions = regions)
-
-        tab_perm = map(x -> get_1d_interpolator(x[:, 1], x[:, 3]), props["ROCKTAB"])
+        tab_perm = map(x -> get_1d_interpolator(x[:, 1], x[:, 3]), rt)
         vars[:PermeabilityMultiplier] = ScalarPressureTable(tab_perm, regions = regions)
     elseif haskey(props, "ROCK")
         rock = props["ROCK"]
