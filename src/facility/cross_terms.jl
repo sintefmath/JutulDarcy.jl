@@ -52,6 +52,11 @@ end
 function perforation_phase_potential_difference(conn, state_res, state_well, ix)
     dp = conn.dp
     WI = conn.WI
+    WI, dp = Base.promote(WI, dp)
+    if haskey(state_res, :PermeabilityMultiplier)
+        K_mul = state_res[:PermeabilityMultiplier][conn.reservoir]
+        WI *= K_mul
+    end
     if haskey(state_well, :ConnectionPressureDrop)
         dp += state_well.ConnectionPressureDrop[conn.perforation]
     elseif conn.gdz != 0
