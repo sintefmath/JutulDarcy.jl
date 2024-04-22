@@ -244,7 +244,6 @@ function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, p_prec, A::
 end
 
 function update_row_csr!(nz, A_p, w_p, cols, nz_s, row, ::Val{Ncomp}, ::Val{adjoint}) where {Ncomp, adjoint}
-    @assert !adjoint
     @inbounds for j in nzrange(A_p, row)
         Ji = nz_s[j]
         tmp = 0
