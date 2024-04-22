@@ -465,16 +465,18 @@ end
 
 pvt_table_vectors(pvt::PVTGTable) = (pvt.rv, pvt.pressure, pvt.sat_rv, pvt.pos)
 
-function shrinkage(pvt::PVTG, reg, p::T, rv, cell) where T
+function shrinkage(pvt::PVTG, reg, p, rv, cell)
+    p, rv = Base.promote(p, rv)
     tbl = table_by_region(pvt.tab, region(reg, cell))
     # Note: Reordered arguments!
-    return interp_pvt(tbl, rv, p, tbl.shrinkage)::T
+    return interp_pvt(tbl, rv, p, tbl.shrinkage)::typeof(p)
 end
 
-function viscosity(pvt::PVTG, reg, p::T, rv, cell) where T
+function viscosity(pvt::PVTG, reg, p, rv, cell)
+    p, rv = Base.promote(p, rv)
     tbl = table_by_region(pvt.tab, region(reg, cell))
     # Note: Reordered arguments!
-    return interp_pvt(tbl, rv, p, tbl.viscosity)::T
+    return interp_pvt(tbl, rv, p, tbl.viscosity)::typeof(p)
 end
 
 struct PVDO{T} <: AbstractTablePVT
