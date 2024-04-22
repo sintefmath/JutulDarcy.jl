@@ -242,7 +242,10 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         flash_reuse_guess = fast_flash,
         flash_stability_bypass = fast_flash,
         parameters = Dict{Symbol, Any}(),
-        kwarg...
+        block_backend = true,
+        nthreads = Threads.nthreads(),
+        minbatch = 1000,
+        wells_systems = missing
     )
     if !(wells isa AbstractArray)
         wells = [wells]
@@ -253,7 +256,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         backend; 
         main_context = reservoir_context,
         context = context,
-        kwarg...
+        block_backend = block_backend,
+        nthreads = nthreads,
+        minbatch = minbatch
     )
     # We first set up the reservoir
     rmodel = SimulationModel(
@@ -298,7 +303,12 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     # Then we set up all the wells
     mode = PredictionMode()
     if length(wells) > 0
-        for w in wells
+        for (well_no, w) in enumerate(wells)
+            if ismissing(wells_systems)
+                wsys = wells_systems[well_no]
+            else
+                wsys = system
+            end
             w_domain = DataDomain(w)
             wc = w.perforations.reservoir
             c = map_well_nodes_to_reservoir_cells(w, reservoir)
