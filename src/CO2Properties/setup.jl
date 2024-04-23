@@ -28,7 +28,7 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
     elseif composite
         sys = reservoir_system(flow = sys)
     end
-    model, parameters = setup_reservoir_model(reservoir, sys; reference_densities = rhoS, kwarg...);
+    model, parameters = setup_reservoir_model(reservoir, sys; kwarg...);
 
     outvar = model[:Reservoir].output_variables
     push!(outvar, :Saturations)

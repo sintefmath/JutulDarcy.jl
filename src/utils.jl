@@ -305,9 +305,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     if length(wells) > 0
         for (well_no, w) in enumerate(wells)
             if ismissing(wells_systems)
-                wsys = wells_systems[well_no]
-            else
                 wsys = system
+            else
+                wsys = wells_systems[well_no]
             end
             w_domain = DataDomain(w)
             wc = w.perforations.reservoir
