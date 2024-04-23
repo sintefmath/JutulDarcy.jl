@@ -402,7 +402,7 @@ function check_if_subdomain_needs_solving(buf, sim, cfg, iteration)
     if cfg[:always_solve_wells] && has_wells
         return true
     end
-    if (has_s || has_p || has_mob)
+    if (has_s || has_p || has_mob || has_z)
         if iteration == 1
             do_solve = !cfg[:solve_tol_first_newton]
         else

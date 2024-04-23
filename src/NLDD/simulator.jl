@@ -249,11 +249,18 @@ function local_stage(simulator, dt, forces, config, iteration)
     function solve_and_transfer(i)
         should_solve = do_solve[i]
         sim = sub_sims[i]
+        cfg = configs[i]
+        il_i = cfg[:info_level]
         if should_solve
-            cfg = configs[i]
+            if il_i > 0
+                jutul_message("Subdomain: $i", "Solving subdomain.")
+            end
             # cfg[:always_update_secondary] = true
             ok, rep = solve_subdomain(sim, i, dt, forces, cfg)
         else
+            if il_i > 0
+                jutul_message("Subdomain: $i", "Skipping subdomain.")
+            end
             ok = true
             rep = nothing
         end
