@@ -845,16 +845,19 @@ function parse_physics_types(datafile; pvt_region = missing)
         push!(pvt, missing)
         push!(phases, VaporPhase())
         push!(rhoS, rhoGS)
+        if length(props["MW"]) > 1
+            jutul_message("EOSNUM:", "$(length(props["MW"])) regions active. Only one region supported. Taking the first set of values for all EOS properties.", color = :yellow)
+        end
 
         cnames = copy(props["CNAMES"])
-        acf = props["ACF"]
-        mw = props["MW"]
-        p_c = props["PCRIT"]
-        V_c = props["VCRIT"]
-        T_c = props["TCRIT"]
+        acf = first(props["ACF"])
+        mw = first(props["MW"])
+        p_c = first(props["PCRIT"])
+        V_c = first(props["VCRIT"])
+        T_c = first(props["TCRIT"])
 
         if haskey(props, "BIC")
-            A_ij = props["BIC"]
+            A_ij = first(props["BIC"])
         else
             A_ij = nothing
         end
@@ -862,7 +865,7 @@ function parse_physics_types(datafile; pvt_region = missing)
         @assert length(cnames) == length(mp)
         mixture = MultiComponentMixture(mp, A_ij = A_ij, names = cnames)
         if haskey(props, "EOS")
-            eos_str = uppercase(props["EOS"])
+            eos_str = uppercase(first(props["EOS"]))
             if eos_str == "PR"
                 eos_type = PengRobinson()
             elseif eos_str == "SRK"
@@ -877,7 +880,7 @@ function parse_physics_types(datafile; pvt_region = missing)
             eos_type = PengRobinson()
         end
         if haskey(props, "SSHIFT")
-            vshift = Tuple(props["SSHIFT"])
+            vshift = Tuple(first(props["SSHIFT"]))
         else
             vshift = nothing
         end
