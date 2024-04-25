@@ -694,9 +694,12 @@ function parse_reservoir(data_file)
         extra_data_arg[:net_to_gross] = ntg
     end
 
-    if haskey(data_file, "EDIT")
-        if haskey(data_file["EDIT"], "PORV")
-            extra_data_arg[:pore_volume_override] = data_file["EDIT"]["PORV"][active_ix]
+    for k in ("GRID", "EDIT")
+        # TODO: This is not 100% robust if edit and grid interact.
+        if haskey(data_file, k)
+            if haskey(data_file[k], "PORV")
+                extra_data_arg[:pore_volume_override] = data_file[k]["PORV"][active_ix]
+            end
         end
     end
 
@@ -765,6 +768,11 @@ function parse_reservoir(data_file)
         nnc = grid["NNC"]
         if length(nnc) > 0
             domain[:nnc, nothing] = nnc
+        end
+    end
+    if haskey(grid, "DEPTH")
+        for (i, c) in enumerate(active_ix)
+            domain[:cell_centroids][3, i] = grid["DEPTH"][c]
         end
     end
     return domain
