@@ -389,10 +389,22 @@ function store_reservoir_change_buffer!(buf, sim, cfg)
 end
 
 function get_nldd_solution_change_tolerances(cfg)
-    tol_s = cfg[:solve_tol_saturations]
-    tol_p = cfg[:solve_tol_pressure]
-    tol_mob = cfg[:solve_tol_mobility]
-    tol_z = cfg[:solve_tol_composition]
+    function expand_tol(val::Nothing, avg::Nothing)
+        return nothing
+    end
+    function expand_tol(val::Float64, avg::Nothing)
+        return expand_tol(val, Inf)
+    end
+    function expand_tol(val::Nothing, avg::Float64)
+        return expand_tol(Inf, avg)
+    end
+    function expand_tol(val::Float64, avg::Float64)
+        return (max = val, mean = avg)
+    end
+    tol_s = expand_tol(cfg[:solve_tol_saturations], cfg[:solve_tol_saturations_mean])
+    tol_p = expand_tol(cfg[:solve_tol_pressure], cfg[:solve_tol_pressure_mean])
+    tol_mob = expand_tol(cfg[:solve_tol_mobility], cfg[:solve_tol_mobility_mean])
+    tol_z = expand_tol(cfg[:solve_tol_composition], cfg[:solve_tol_composition_mean])
 
     has_s = !isnothing(tol_s)
     has_p = !isnothing(tol_p)
@@ -469,6 +481,10 @@ function check_subdomain_change_inner(buf, model::MultiModel, state, f, tol, sum
     return check_subdomain_change_inner(buf, model[:Reservoir], state[:Reservoir], f, tol, sum_t)
 end
 
+function check_subdomain_change_inner(buf, model::SimulationModel, state, f, tol::Nothing, sum_t)
+    return false
+end
+
 function check_subdomain_change_inner(buf, model::SimulationModel, state, f, tol, sum_t)
     if isnothing(tol)
         return false # No tolerance - no need to check
@@ -491,33 +507,47 @@ function check_subdomain_change_inner(buf, model::SimulationModel, state, f, tol
     end
 end
 
-function subdomain_delta_absolute(current, old, tol)
+function subdomain_delta_absolute(current, old, tol_tuple)
+    tol = tol_tuple.max
+    tol_avg = tol_tuple.mean
+
+    sumval = 0.0
     for i in eachindex(current)
         c = current[i]
         o = old[i]
         d = abs(value(c) - o)
+        sumval += d
         if d > tol
             return true
         end
     end
-    return false
+    avg = sumval/length(current)
+    return avg > tol_avg
 end
 
-function subdomain_delta_relsum(current, old, tol)
+function subdomain_delta_relsum(current, old, tol_tuple)
+    tol = tol_tuple.max
+    tol_avg = tol_tuple.mean
     n = size(current, 1)
+    sumval = 0.0
     for cell in axes(current, 2)
         mob_total = 0.0
         for i in axes(old, 1)
             mob_total += old[i, cell]/n
         end
+        maxv = 0.0
         for i in axes(old, 1)
             c = current[i, cell]
             o = old[i, cell]
             d = abs(value(c) - o)/mob_total
+            maxv = max(maxv, d)
             if d > tol
                 return true
             end
         end
+        sumval += maxv
     end
-    return false
+    avg = sumval/size(current, 2)
+    return avg > tol_avg
+
 end

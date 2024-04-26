@@ -53,10 +53,20 @@ function simulator_config(sim::NLDDSimulator;
     add_option!(cfg, :strategy, DefaultNLDDStrategy(), "Strategy to use for applying NLDD/ASPEN")
     same_tol = inner_tol_final <= 1.0 && inner_tol_mul <= 1.0
     add_option!(cfg, :subdomain_tol_sufficient, same_tol, "Tolerances in subdomains are at least tight enough to be able to conclude global convergence.", types = Bool)
-    add_option!(cfg, :solve_tol_pressure, nothing, "Local subdomains are solved if maximum pressure change exceeds this value.", types = Union{Float64, Nothing})
-    add_option!(cfg, :solve_tol_saturations, nothing, "Local subdomains are solved if maximum saturation change exceeds this value.", types = Union{Float64, Nothing})
-    add_option!(cfg, :solve_tol_mobility, nothing, "Local subdomains are solved if maximum mobility (relative to to total mobility) exceeds this value.", types = Union{Float64, Nothing})
-    add_option!(cfg, :solve_tol_composition, nothing, "Local subdomains are solved if maximum change in composition exceeds this value.", types = Union{Float64, Nothing})
+
+    # Subdomain tolerances for when to solve a local subdomain
+    add_option!(cfg, :solve_tol_pressure, nothing, "Local subdomains are solved if maximum pressure change at boundary exceeds this value.", types = Union{Float64, Nothing})
+    add_option!(cfg, :solve_tol_pressure_mean, nothing, "Local subdomains are solved if mean of pressure change at boundary exceeds this value.", types = Union{Float64, Nothing})
+
+    add_option!(cfg, :solve_tol_saturations, nothing, "Local subdomains are solved if maximum saturation change at boundary exceeds this value.", types = Union{Float64, Nothing})
+    add_option!(cfg, :solve_tol_saturations_mean, nothing, "Local subdomains are solved if mean of saturation change at boundary exceeds this value.", types = Union{Float64, Nothing})
+
+    add_option!(cfg, :solve_tol_mobility, nothing, "Local subdomains are solved if maximum mobility at boundary (relative to to total mobility) exceeds this value.", types = Union{Float64, Nothing})
+    add_option!(cfg, :solve_tol_mobility_mean, nothing, "Local subdomains are solved if mean of mobility at boundary (relative to to total mobility) exceeds this value.", types = Union{Float64, Nothing})
+
+    add_option!(cfg, :solve_tol_composition, nothing, "Local subdomains are solved if maximum change in composition at boundary exceeds this value.", types = Union{Float64, Nothing})
+    add_option!(cfg, :solve_tol_composition_mean, nothing, "Local subdomains are solved if mean of change in composition at boundary exceeds this value.", types = Union{Float64, Nothing})
+
     add_option!(cfg, :solve_tol_first_newton, true, "Skip local solves for first iteration when tolerances are used.", types = Bool)
 
     add_option!(cfg, :subdomain_failure_throws, false, "Throw exception upon subdomain failure to solve.", types = Bool)
