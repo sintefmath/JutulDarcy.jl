@@ -509,7 +509,7 @@ function k_value_flash!(result::FR, eos, P, T, Z, z) where FR
     end
     V::Num_t
     Z_L = Z_V = convert(Num_t, 1.0)
-    new_result = FlashedMixture2Phase(phase_state, K, V, x, y, Z_L, Z_V)
+    new_result = FlashedMixture2Phase(phase_state, K, V, x, y, Z_L, Z_V, NaN, result.flash_cond)
     return new_result::FR
 end
 
