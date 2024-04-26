@@ -380,9 +380,7 @@ function store_reservoir_change_buffer!(buf, sim, cfg)
     end
 
     tols = get_nldd_solution_change_tolerances(cfg)
-    if !isnothing(tols)
-        store_reservoir_change_buffer_inner!(buf, model, state)
-    end
+    store_reservoir_change_buffer_inner!(buf, tols, model, state)
 end
 
 function get_nldd_solution_change_tolerances(cfg)
@@ -409,10 +407,10 @@ function get_nldd_solution_change_tolerances(cfg)
     has_z = !isnothing(tol_z)
     if has_s || has_p || has_mob || has_z
         out = (
-            s = tol_s,
-            p = tol_p,
-            mob = tol_mob,
-            z = tol_z
+            Saturations = tol_s,
+            Pressure = tol_p,
+            PhaseMobilities = tol_mob,
+            OverallMoleFractions = tol_z
         )
     else
         out = nothing
@@ -442,14 +440,18 @@ end
 
 function check_inner(buf, model, state, tol)
     do_solve = false
-    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :Saturations, tol.s, :abs)
-    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :Pressure, tol.p, :abs)
-    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :PhaseMobilities, tol.mob, :relsum)
-    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :OverallMoleFractions, tol.z, :abs)
+    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :Saturations, tol.Saturations, :abs)
+    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :Pressure, tol.Pressure, :abs)
+    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :PhaseMobilities, tol.PhaseMobilities, :relsum)
+    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :OverallMoleFractions, tol.OverallMoleFractions, :abs)
     return do_solve
 end
 
-function store_reservoir_change_buffer_inner!(buf, model, state)
+function store_reservoir_change_buffer_inner!(buf, tols::Nothing, model, state)
+    # No tolerances, do nothing.
+end
+
+function store_reservoir_change_buffer_inner!(buf, tols, model, state)
     function buf_transfer!(out::Vector, in::Vector, cells)
         for i in eachindex(cells)
             c = cells[i]
@@ -467,6 +469,9 @@ function store_reservoir_change_buffer_inner!(buf, model, state)
     cells = buf.Cells
     for (k, v) in pairs(buf)
         if k == :Cells
+            continue
+        end
+        if isnothing(tols[k])
             continue
         end
         vals = state[k]
