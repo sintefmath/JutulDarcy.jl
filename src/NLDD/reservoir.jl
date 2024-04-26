@@ -461,8 +461,7 @@ function check_inner(buf, model, state, tol)
         (:PhaseMassDensities, :abs),
         )
     for (k, t) in criteria
-        do_solve = do_solve && check_subdomain_change_inner(buf, model, state, k, tol[k], t)
-        @info "Checked $k $do_solve"
+        do_solve = do_solve || check_subdomain_change_inner(buf, model, state, k, tol[k], t)
         if do_solve
             break
         end
