@@ -435,16 +435,14 @@ function gauss_seidel_for_each_subdomain_do(f, sim, simulators, subreports, stra
             sim_order = eachindex(simulators)
         else
             if strategy == :pressure
-                sort_function = x -> find_max_interior_pressure(x)
+                sort_function = x -> -find_max_interior_pressure(x)
             elseif strategy == :potential
-                sort_function = x -> find_block_potential(x)
+                sort_function = x -> -find_block_potential(x)
             else
                 error("Ordering $strategy is not supported.")
             end
-            sim_order = sortperm(
-                simulators, by = sort_function,
-                rev = true
-            )
+            pval = map(sort_function, simulators)
+            sim_order = sortperm(pval)
         end
         for i in sim_order
             f(i)
@@ -473,7 +471,9 @@ function find_injectors(simulators)
         end
     end
     # Sort so that highest pressure comes first
-    sort!(injectors, by = i -> -find_max_interior_pressure(simulators[i]))
+    pval = map(find_max_interior_pressure, simulators)
+    sort!(injectors, by = i -> -pval[i])
+    # sort!(injectors, by = i -> -find_max_interior_pressure(simulators[i]))
     return unique!(injectors)
 end
 
@@ -487,8 +487,9 @@ function find_max_interior_pressure(model::MultiModel, state)
         model_k = model[k]
         state_k = state[k]
         if haskey(state_k, :Pressure)#  && k == :Reservoir
-            p_max_k = find_max_interior_pressure(model_k, state_k, global_map(model_k))
-            p_max = max(p_max, p_max_k)
+            mm = global_map(model_k)::Union{Jutul.FiniteVolumeGlobalMap{Int}, Jutul.TrivialGlobalMap}
+            p_max_k = find_max_interior_pressure(model_k, state_k, mm)::Float64
+            p_max = max(p_max, p_max_k)::Float64
         end
     end
     return p_max
@@ -513,7 +514,7 @@ function find_max_pressure(is_bnd, p)
     p_max = -Inf
     for i in eachindex(p)
         if !is_bnd[i]
-            p_max = max(p_max, value(p[i]))
+            p_max = max(p_max, value(p[i]))::Float64
         end
     end
     return p_max::Float64
