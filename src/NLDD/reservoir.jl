@@ -348,20 +348,22 @@ function reupdate_secondary_variables_bo_specific!(state, model, secondaries, ce
     end
     return state
 end
-
 function reservoir_change_buffers(storage, model)
     bnd_cells = findall(model.domain.global_map.cell_is_boundary)
     n = length(bnd_cells)
     nph = number_of_phases(model.system)
     buf = Dict(
-        :Cells => bnd_cells,
-        :Saturations => zeros(nph, n),
-        :PhaseMobilities => zeros(nph, n),
-        :Pressure => zeros(n)
+            :Cells => bnd_cells,
+            :Saturations => zeros(nph, n),
+            :PhaseMobilities => zeros(nph, n),
+            :PhaseMassDensities => zeros(nph, n),
+            :Pressure => zeros(n)
         )
     if model isa JutulDarcy.CompositionalModel
         ncomp = JutulDarcy.number_of_components(model.system) - Int(JutulDarcy.has_other_phase(model.system))
         buf[:OverallMoleFractions] = zeros(ncomp, n)
+        buf[:LiquidMassFractions] = zeros(ncomp, n)
+        buf[:VaporMassFractions] = zeros(ncomp, n)
     end
     buf = NamedTuple(pairs(buf))
     return buf::NamedTuple
@@ -400,17 +402,25 @@ function get_nldd_solution_change_tolerances(cfg)
     tol_p = expand_tol(cfg[:solve_tol_pressure], cfg[:solve_tol_pressure_mean])
     tol_mob = expand_tol(cfg[:solve_tol_mobility], cfg[:solve_tol_mobility_mean])
     tol_z = expand_tol(cfg[:solve_tol_composition], cfg[:solve_tol_composition_mean])
+    tol_rho = expand_tol(cfg[:solve_tol_densities], cfg[:solve_tol_densities_mean])
+    tol_XY = expand_tol(cfg[:solve_tol_phase_mass_fractions], cfg[:solve_tol_phase_mass_fractions_mean])
 
     has_s = !isnothing(tol_s)
     has_p = !isnothing(tol_p)
     has_mob = !isnothing(tol_mob)
     has_z = !isnothing(tol_z)
-    if has_s || has_p || has_mob || has_z
+    has_XY = !isnothing(tol_XY)
+    has_rho = !isnothing(tol_rho)
+
+    if has_s || has_p || has_mob || has_z || has_XY || has_rho
         out = (
             Saturations = tol_s,
             Pressure = tol_p,
             PhaseMobilities = tol_mob,
-            OverallMoleFractions = tol_z
+            OverallMoleFractions = tol_z,
+            LiquidMassFractions = tol_XY,
+            VaporMassFractions = tol_XY,
+            PhaseMassDensities = tol_rho
         )
     else
         out = nothing
@@ -440,10 +450,23 @@ end
 
 function check_inner(buf, model, state, tol)
     do_solve = false
-    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :Saturations, tol.Saturations, :abs)
-    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :Pressure, tol.Pressure, :abs)
-    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :PhaseMobilities, tol.PhaseMobilities, :relsum)
-    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :OverallMoleFractions, tol.OverallMoleFractions, :abs)
+    criteria = (
+        (:Saturations, :abs),
+        (:Pressure, :abs),
+        (:PhaseMobilities, :relsum),
+        (:OverallMoleFractions, :abs),
+        (:LiquidMassFractions, :abs),
+        (:VaporMassFractions, :abs),
+        (:PhaseMassDensities, :abs),
+        (:PhaseMassDensities, :abs),
+        )
+    for (k, t) in criteria
+        do_solve = do_solve && check_subdomain_change_inner(buf, model, state, k, tol[k], t)
+        @info "Checked $k $do_solve"
+        if do_solve
+            break
+        end
+    end
     return do_solve
 end
 

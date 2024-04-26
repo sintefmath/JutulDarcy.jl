@@ -61,11 +61,17 @@ function simulator_config(sim::NLDDSimulator;
     add_option!(cfg, :solve_tol_saturations, nothing, "Local subdomains are solved if maximum saturation change at boundary exceeds this value.", types = Union{Float64, Nothing})
     add_option!(cfg, :solve_tol_saturations_mean, nothing, "Local subdomains are solved if mean of saturation change at boundary exceeds this value.", types = Union{Float64, Nothing})
 
+    add_option!(cfg, :solve_tol_densities, nothing, "Local subdomains are solved if maximum density change at boundary exceeds this value.", types = Union{Float64, Nothing})
+    add_option!(cfg, :solve_tol_densities_mean, nothing, "Local subdomains are solved if mean of density change at boundary exceeds this value.", types = Union{Float64, Nothing})
+
     add_option!(cfg, :solve_tol_mobility, nothing, "Local subdomains are solved if maximum mobility at boundary (relative to to total mobility) exceeds this value.", types = Union{Float64, Nothing})
     add_option!(cfg, :solve_tol_mobility_mean, nothing, "Local subdomains are solved if mean of mobility at boundary (relative to to total mobility) exceeds this value.", types = Union{Float64, Nothing})
 
     add_option!(cfg, :solve_tol_composition, nothing, "Local subdomains are solved if maximum change in composition at boundary exceeds this value.", types = Union{Float64, Nothing})
     add_option!(cfg, :solve_tol_composition_mean, nothing, "Local subdomains are solved if mean of change in composition at boundary exceeds this value.", types = Union{Float64, Nothing})
+
+    add_option!(cfg, :solve_tol_phase_mass_fractions, nothing, "Local subdomains are solved if maximum change in phase mass fractions at boundary exceeds this value.", types = Union{Float64, Nothing})
+    add_option!(cfg, :solve_tol_phase_mass_fractions_mean, nothing, "Local subdomains are solved if mean of change in phase mass fractions at boundary exceeds this value.", types = Union{Float64, Nothing})
 
     add_option!(cfg, :solve_tol_first_newton, true, "Skip local solves for first iteration when tolerances are used.", types = Bool)
 
