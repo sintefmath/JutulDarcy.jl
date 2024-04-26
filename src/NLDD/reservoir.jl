@@ -350,9 +350,11 @@ function reupdate_secondary_variables_bo_specific!(state, model, secondaries, ce
 end
 
 function reservoir_change_buffers(storage, model)
-    n = number_of_cells(model.domain)
+    bnd_cells = findall(model.domain.global_map.cell_is_boundary)
+    n = length(bnd_cells)
     nph = number_of_phases(model.system)
     buf = Dict(
+        :Cells => bnd_cells,
         :Saturations => zeros(nph, n),
         :PhaseMobilities => zeros(nph, n),
         :Pressure => zeros(n)
@@ -439,14 +441,27 @@ function check_inner(buf, model, state, tol)
 end
 
 function store_reservoir_change_buffer_inner!(buf, model, state)
-    function buf_transfer!(out, in)
-        for i in eachindex(out)
-            @inbounds out[i] = value(in[i])
+    function buf_transfer!(out::Vector, in::Vector, cells)
+        for i in eachindex(cells)
+            c = cells[i]
+            @inbounds out[i] = value(in[c])
         end
     end
+    function buf_transfer!(out::Matrix, in::Matrix, cells)
+        for i in eachindex(cells)
+            c = cells[i]
+            for j in axes(out, 1)
+                @inbounds out[j, i] = value(in[j, c])
+            end
+        end
+    end
+    cells = buf.Cells
     for (k, v) in pairs(buf)
+        if k == :Cells
+            continue
+        end
         vals = state[k]
-        buf_transfer!(v, vals)
+        buf_transfer!(v, vals, cells)
     end
 end
 
@@ -458,7 +473,13 @@ function check_subdomain_change_inner(buf, model::SimulationModel, state, f, tol
     if isnothing(tol)
         return false # No tolerance - no need to check
     else
+        cells = buf.Cells
         current = state[f]
+        if current isa Matrix
+            current = view(current, :, cells)
+        else
+            current = view(current, cells)
+        end
         old = buf[f]
         if sum_t == :relsum
             current::AbstractMatrix
