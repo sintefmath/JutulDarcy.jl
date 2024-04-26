@@ -372,10 +372,6 @@ function reservoir_change_buffers(storage, model::MultiModel)
 end
 
 function store_reservoir_change_buffer!(buf, sim, cfg)
-    tol_s = cfg[:solve_tol_saturations]
-    tol_p = cfg[:solve_tol_pressure]
-    tol_λ = cfg[:solve_tol_mobility]
-    tol_z = cfg[:solve_tol_composition]
     model = sim.model
     state = sim.storage.state
     if model isa MultiModel
@@ -383,7 +379,8 @@ function store_reservoir_change_buffer!(buf, sim, cfg)
         state = state.Reservoir
     end
 
-    if !isnothing(tol_s) || !isnothing(tol_p) || !isnothing(tol_λ) || !isnothing(tol_z)
+    tols = get_nldd_solution_change_tolerances(cfg)
+    if !isnothing(tols)
         store_reservoir_change_buffer_inner!(buf, model, state)
     end
 end
@@ -490,11 +487,11 @@ function check_subdomain_change_inner(buf, model::SimulationModel, state, f, tol
         return false # No tolerance - no need to check
     else
         cells = buf.Cells
-        current = state[f]
-        if current isa Matrix
-            current = view(current, :, cells)
+        state_val = state[f]
+        if state_val isa Matrix
+            current = view(state_val, :, cells)
         else
-            current = view(current, cells)
+            current = view(state_val, cells)
         end
         old = buf[f]
         if sum_t == :relsum
@@ -549,5 +546,4 @@ function subdomain_delta_relsum(current, old, tol_tuple)
     end
     avg = sumval/size(current, 2)
     return avg > tol_avg
-
 end
