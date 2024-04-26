@@ -386,7 +386,7 @@ function store_reservoir_change_buffer!(buf, sim, cfg)
     end
 end
 
-function check_if_subdomain_needs_solving(buf, sim, cfg, iteration)
+function get_nldd_solution_change_tolerances(cfg)
     tol_s = cfg[:solve_tol_saturations]
     tol_p = cfg[:solve_tol_pressure]
     tol_mob = cfg[:solve_tol_mobility]
@@ -396,31 +396,45 @@ function check_if_subdomain_needs_solving(buf, sim, cfg, iteration)
     has_p = !isnothing(tol_p)
     has_mob = !isnothing(tol_mob)
     has_z = !isnothing(tol_z)
+    if has_s || has_p || has_mob || has_z
+        out = (
+            s = tol_s,
+            p = tol_p,
+            mob = tol_mob,
+            z = tol_z
+        )
+    else
+        out = nothing
+    end
+    return out
+end
 
+function check_if_subdomain_needs_solving(buf, sim, cfg, iteration)
+    tol = get_nldd_solution_change_tolerances(cfg)
     model = sim.model
     has_wells = model isa MultiModel && length(model.models) > 1
     if cfg[:always_solve_wells] && has_wells
         return true
     end
-    if (has_s || has_p || has_mob || has_z)
+    if isnothing(tol)
+        do_solve = true
+    else
         if iteration == 1
             do_solve = !cfg[:solve_tol_first_newton]
         else
             state = sim.storage.state
-            do_solve = check_inner(buf, model, state, tol_s, tol_p, tol_z, tol_mob)
+            do_solve = check_inner(buf, model, state, tol)
         end
-    else
-        do_solve = true
     end
     return do_solve
 end
 
-function check_inner(buf, model, state, tol_s, tol_p, tol_z, tol_mob)
+function check_inner(buf, model, state, tol)
     do_solve = false
-    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :Saturations, tol_s, :abs)
-    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :Pressure, tol_p, :abs)
-    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :PhaseMobilities, tol_mob, :relsum)
-    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :OverallMoleFractions, tol_z, :abs)
+    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :Saturations, tol.s, :abs)
+    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :Pressure, tol.p, :abs)
+    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :PhaseMobilities, tol.mob, :relsum)
+    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :OverallMoleFractions, tol.z, :abs)
     return do_solve
 end
 
