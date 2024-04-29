@@ -820,7 +820,10 @@ function set_deck_pvmult!(vars, param, sys, props, reservoir)
             rock = collect(hcat(rock...)')
         end
         if size(rock, 1) > 1
-            !isnothing(regions) || throw(ArgumentError("Must have PVTNUM or ROCKNUM for ROCK"))
+            if isnothing(regions)
+                @warn "Should have PVTNUM or ROCKNUM for multiple entries in ROCK. Taking the first entry." rock
+                rock = rock[1:1, :]
+            end
         end
         p_r = rock[:, 1]
         c_r = rock[:, 2]
