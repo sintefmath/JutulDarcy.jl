@@ -639,7 +639,8 @@ function global_stage(
         end
     elseif config[:subdomain_failure_cuts] && any_failures
         report[:failure] = true
-        return (0.0, false, report)
+        report[:failure_exception] = "Subdomains failed and subdomain_failure_cuts = true"
+        return (1.0, false, report)
     else
         if m == :nldd
             n = length(simulator.subdomain_simulators)
