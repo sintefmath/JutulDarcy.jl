@@ -21,7 +21,8 @@ function simulator_config(sim::NLDDSimulator;
         kwarg...
     )
     if subdomain_info_level isa Real
-        subdomain_info_level = i -> i == subdomain_info_level
+        slvl = subdomain_info_level
+        subdomain_info_level = i -> slvl
     end
     check_before_solve = isinf(inc_tol_dp_abs) && isinf(inc_tol_dp_rel) && isinf(inc_tol_dz)
     cfg = simulator_config(sim.simulator)
