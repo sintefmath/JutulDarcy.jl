@@ -226,6 +226,8 @@ function local_stage(simulator, dt, forces, config, iteration)
     failures = Vector{Int64}()
 
     do_solve = zeros(Bool, n)
+    allow_early_termination = config[:subdomain_failure_cuts]
+
     function pre(i)
         subsim = sub_sims[i]
         change_buffer = simulator.storage.local_changes[i]
@@ -274,17 +276,18 @@ function local_stage(simulator, dt, forces, config, iteration)
             update_subdomain_from_global(sim_global, sim, i, current = true, transfer_secondary = false)
         end
         update_global_from_subdomain(sim_global, sim, i, secondary = true)
+        return ok
     end
     # Now that we have the main functions set up we can do either kind of local solves
     t = @elapsed if is_gauss_seidel
         # Gauss-seidel (non-deterministic if threads are on)
         function gs_solve(i)
             pre(i)
-            solve_and_transfer(i)
+            return solve_and_transfer(i)
         end
-        @tic "local solves [GS]" sim_order = gauss_seidel_for_each_subdomain_do(gs_solve, simulator, sub_sims, subreports, config[:gauss_seidel_order])
+        @tic "local solves [GS]" sim_order = gauss_seidel_for_each_subdomain_do(gs_solve, simulator, sub_sims, subreports, config[:gauss_seidel_order], allow_early_termination)
     else
-        execute = (f) -> for_each_subdomain_do(f, n, use_threads, config[:nldd_thread_type])
+        execute = (f) -> for_each_subdomain_do(f, n, use_threads, config[:nldd_thread_type], allow_early_termination)
         # Jacobi solve
         @tic "prepare local solves" execute(pre)
         if is_aspen
@@ -363,16 +366,22 @@ function get_solve_status(rep, ok)
     return status
 end
 
-function for_each_subdomain_do(f, n, use_threads, thread_type)
+function for_each_subdomain_do(f, n, use_threads, thread_type, early_stop::Bool)
     if use_threads
         if thread_type == :batch
             @batch for i = 1:n
-                f(i)
+                ok_i = f(i)
+                if early_stop && !ok_i
+                    break
+                end
             end
         elseif thread_type == :default
             disable_polyester_threads() do
                 Threads.@threads for i = 1:n
-                    f(i)
+                    ok_i = f(i)
+                    if early_stop && !ok_i
+                        break
+                    end
                 end
             end
         else
@@ -386,12 +395,15 @@ function for_each_subdomain_do(f, n, use_threads, thread_type)
         end
     else
         for i = 1:n
-            f(i)
+            ok_i = f(i)
+            if early_stop && !ok_i
+                break
+            end
         end
     end
 end
 
-function gauss_seidel_for_each_subdomain_do(f, sim, simulators, subreports, strategy::Symbol)
+function gauss_seidel_for_each_subdomain_do(f, sim, simulators, subreports, strategy::Symbol, early_stop::Bool)
     if strategy == :adaptive
         n = length(simulators)
         sim_order = Int[]
@@ -449,7 +461,10 @@ function gauss_seidel_for_each_subdomain_do(f, sim, simulators, subreports, stra
             sim_order = sortperm(pval)
         end
         for i in sim_order
-            f(i)
+            ok_i = f(i)
+            if early_stop && !ok_i
+                break
+            end
         end
     end
     return sim_order
@@ -598,11 +613,14 @@ function global_stage(
     end
     # If all subdomains converged, we can return early
     all_local_converged = true
+    any_failures = false
     if isnothing(subreports)
         all_local_converged = false
     else
         for i in eachindex(subreports)
-            ok_i = solve_status[i] == local_already_converged
+            status_i = solve_status[i]
+            ok_i = status_i == local_already_converged
+            any_failures = any_failures || status_i == local_solve_failure
             all_local_converged = all_local_converged && ok_i
         end
     end
@@ -619,6 +637,9 @@ function global_stage(
             errors = Dict()
             Jutul.get_convergence_table(errors, il, iteration, config)
         end
+    elseif config[:subdomain_failure_cuts] && any_failures
+        report[:failure] = true
+        return (0.0, false, report)
     else
         if m == :nldd
             n = length(simulator.subdomain_simulators)

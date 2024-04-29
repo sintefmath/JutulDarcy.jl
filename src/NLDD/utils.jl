@@ -77,6 +77,8 @@ function simulator_config(sim::NLDDSimulator;
     add_option!(cfg, :solve_tol_first_newton, true, "Skip local solves for first iteration when tolerances are used.", types = Bool)
 
     add_option!(cfg, :subdomain_failure_throws, false, "Throw exception upon subdomain failure to solve.", types = Bool)
+    add_option!(cfg, :subdomain_failure_cuts, false, "Cut outer timestep if any subdomain fails to solve.", types = Bool)
+
     add_option!(cfg, :always_solve_wells, false, "Always solve wells in local subdomain", types = Bool)
 
     # Subdomain setup
