@@ -79,6 +79,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         s_min = missing,
         contacts_pc = missing,
         pvtnum = 1,
+        sw = missing,
         kwarg...
     )
     if ismissing(contacts_pc)
@@ -153,7 +154,17 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_f, contacts_pc)
     if nph > 1
         s, pc = determine_saturations(depths, contacts, pressures; s_min = s_min, kwarg...)
-
+        if !ismissing(sw)
+            for i in axes(s, 2)
+                s[1, i] = sw[i]
+                st = sum(s[2:end, i]) - sw[i]
+                if st < 1e-8
+                    s[2:end, i] .= 0.0
+                else
+                    s[2:end, i] /= st
+                end
+            end
+        end
         nc_total = number_of_cells(model.domain)
         kr = zeros(nph, nc_total)
         s_eval = zeros(nph, nc_total)
@@ -438,6 +449,12 @@ function parse_state0_equil(model, datafile)
                 else
                     composition = missing
                 end
+                if haskey(props, "SWATINIT")
+                    sw = props["SWATINIT"][actnum_ix[cells]]
+                    extra_arg = (sw = sw, )
+                else
+                    extra_arg = NamedTuple()
+                end
 
                 subinit = equilibriate_state(
                         model, contacts, datum_depth, datum_pressure,
@@ -450,7 +467,8 @@ function parse_state0_equil(model, datafile)
                         T_z = T_z,
                         rs = rs,
                         rv = rv,
-                        pc = pc
+                        pc = pc,
+                        sw = sw
                     )
                 push!(inits, subinit)
                 push!(inits_cells, cells)
