@@ -8,7 +8,9 @@ struct PhaseMassFractions{T} <: CompositionalFractions
 end
 
 @jutul_secondary function update_phase_xy!(X, m::PhaseMassFractions, model::SimulationModel{D,S}, FlashResults, ix) where {D,S<:CompositionalSystem}
-    molar_mass = MultiComponentFlash.molar_masses(model.system.equation_of_state)
+    eos = model.system.equation_of_state
+    molar_mass = MultiComponentFlash.molar_masses(eos)
+    n = MultiComponentFlash.number_of_components(eos)
     phase = m.phase
     @inbounds for i in ix
         f = FlashResults[i]
@@ -16,17 +18,17 @@ end
             # X_i = view(X, :, i)
             r = phase_data(f, phase)
             x_i = r.mole_fractions
-            update_mass_fractions!(X, x_i, i, molar_mass)
+            update_mass_fractions!(X, x_i, i, molar_mass, n)
         end
     end
 end
 
-@inline function update_mass_fractions!(X, x, cell, molar_masses)
+@inline function update_mass_fractions!(X, x, cell, molar_masses, n)
     t = zero(eltype(X))
-    @inbounds for i in 1:length(x)
+    @inbounds for i in 1:n
         t += molar_masses[i] * x[i]
     end
-    @inbounds for i in 1:length(x)
+    @inbounds for i in 1:n
         X[i, cell] = molar_masses[i] * x[i] / t
     end
 end
