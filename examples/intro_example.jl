@@ -20,6 +20,26 @@ sys = ImmiscibleSystem(phases, reference_densities = reference_densities)
 
 model, parameters = setup_reservoir_model(domain, sys, wells = [Injector, Producer])
 
+"""
+Machine Learning-based method for computing relative permeabilites
+"""
+struct MLModelRelativePermeabilities{T} <: JutulDarcy.AbstractRelativePermeabilities
+    test_value::T
+    function MLModelRelativePermeabilities(input_test_value)
+        new{typeof(input_test_value)}(input_test_value)
+    end
+end
+
+Jutul.@jutul_secondary function update_kr!(kr, kr_def::MLModelRelativePermeabilities, model, Saturations, ix)
+    test_value = kr_def.test_value
+    for i in ix
+        for ph in axes(kr, 1)
+            S = Saturations[ph, i]
+            kr[ph, i] = S*test_value
+        end
+    end
+    return kr
+end
 
 c = [1e-6, 1e-4]/bar
 density = ConstantCompressibilityDensities(
@@ -27,8 +47,11 @@ density = ConstantCompressibilityDensities(
     density_ref = reference_densities,
     compressibility = c
 )
-kr = BrooksCoreyRelativePermeabilities(sys, [2.0, 3.0])
-replace_variables!(model, PhaseMassDensities = density, PhaseRelativePermeability = kr);
+#kr = BrooksCoreyRelativePermeabilities(sys, [2.0, 3.0])
+#replace_variables!(model, PhaseMassDensities = density, BrooksCoreyRelativePermeabilities = kr);
+kr = MLModelRelativePermeabilities(1.0)
+rmodel = reservoir_model(model)
+replace_variables!(rmodel, RelativePermeabilities =  kr, throw = true)
 
 state0 = setup_reservoir_state(model,
     Pressure = 120bar,
