@@ -715,49 +715,89 @@ function parse_reservoir(data_file)
         end
     end
     mult_keys = ("MULTX", "MULTX-", "MULTY", "MULTY-", "MULTZ", "MULTZ-")
-    has_multxyz = false
+    ijk = map(i -> Jutul.cell_ijk(G, i), 1:nc)
     for k in mult_keys
         if haskey(grid, k)
-            has_multxyz = true
-            break
+            mult_on_active = grid[k][active_ix]
+            if startswith(k, "MULTX")
+                pos = 1
+            elseif startswith(k, "MULTY")
+                pos = 2
+            else
+                @assert startswith(k, "MULTZ")
+                pos = 3
+            end
+            if endswith(k, "-")
+                dir = 1
+            else
+                dir = -1
+            end
+            for fno in 1:nf
+                l, r = G.faces.neighbors[fno]
+                il = ijk[l][pos]
+                ir = ijk[r][pos]
+                if dir == 1
+                    if il < ir
+                        c = l
+                    else
+                        c = r
+                    end
+                else
+                    if il > ir
+                        c = l
+                    else
+                        c = r
+                    end
+                end
+                tranmult[fno] *= mult_on_active[c]
+            end
         end
     end
-    if has_multxyz
-        ijk = map(i -> Jutul.cell_ijk(G, i), 1:nc)
-        for k in mult_keys
-            if haskey(grid, k)
-                mult_on_active = grid[k][active_ix]
-                if startswith(k, "MULTX")
-                    pos = 1
-                elseif startswith(k, "MULTY")
-                    pos = 2
-                else
-                    @assert startswith(k, "MULTZ")
-                    pos = 3
-                end
-                if endswith(k, "-")
-                    dir = 1
-                else
-                    dir = -1
-                end
-                for fno in 1:nf
-                    l, r = G.faces.neighbors[fno]
-                    il = ijk[l][pos]
-                    ir = ijk[r][pos]
-                    if dir == 1
-                        if il < ir
-                            c = l
-                        else
-                            c = r
-                        end
-                    else
-                        if il > ir
-                            c = l
-                        else
-                            c = r
-                        end
+    if haskey(grid, "FLUXNUM")
+        extra_data_arg[:fluxnum] = grid["FLUXNUM"][active_ix]
+    end
+    if haskey(grid, "MULTNUM")
+        extra_data_arg[:multnum] = grid["MULTNUM"][active_ix]
+    end
+    if haskey(grid, "OPERNUM")
+        extra_data_arg[:opernum] = grid["OPERNUM"][active_ix]
+    end
+    multregt = get(grid, "MULTREGT", missing)
+    function tsort(x, y)
+        if x > y
+            return (y, x)
+        else
+            return (x, y)
+        end
+    end
+    if !ismissing(multregt)
+        opernum = get(extra_data_arg, :opernum, ones(Int, nc))
+        multnum = get(extra_data_arg, :multnum, ones(Int, nc))
+        fluxnum = get(extra_data_arg, :fluxnum, ones(Int, nc))
+        for fno in 1:nf
+            l, r = G.faces.neighbors[fno]
+            opernum_pair = tsort(opernum[l], opernum[r])
+            multnum_pair = tsort(multnum[l], multnum[r])
+            fluxnum_pair = tsort(fluxnum[l], fluxnum[r])
+
+            for regt in multregt
+                pairt = tsort(regt[1], regt[2])
+                do_apply = false
+                for (pos, coord) in enumerate(['X', 'Y', 'Z'])
+                    if coord in regt[4] && ijk[l][pos] != ijk[r][pos]
+                        do_apply = true
+                        break
                     end
-                    tranmult[fno] *= mult_on_active[c]
+                end
+                if do_apply
+                    m = regt[3]
+                    if regt[6] == "M" && pairt == multnum_pair
+                        tranmult[fno] *= m
+                    elseif regt[6] == "O" && pairt == opernum_pair
+                        tranmult[fno] *= m
+                    elseif pairt == fluxnum_pair
+                        tranmult[fno] *= m
+                    end
                 end
             end
         end
