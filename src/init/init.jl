@@ -398,11 +398,19 @@ function parse_state0_equil(model, datafile)
                     rs = missing
                 end
                 if vapoil
-                    @assert haskey(sol, "RVVD")
-                    rvvd = sol["RVVD"][ereg]
-                    z = rvvd[:, 1]
-                    Rv = rvvd[:, 2]
-                    rv = Jutul.LinearInterpolant(z, Rv_scale.*Rv)
+                    if haskey(sol, "PDVD")
+                        @warn "PDVD not supported for RV initialization, setting to zero."
+                        rv = z -> 0.0
+                    elseif haskey(sol, "RVVD")
+                        rvvd = sol["RVVD"][ereg]
+                        z = rvvd[:, 1]
+                        Rv = rvvd[:, 2]
+                        rv = Jutul.LinearInterpolant(z, Rv_scale.*Rv)
+                    else
+                        # TODO: Do this in a better way?
+                        @warn "RV initialization not provided as RVVD, setting to zero."
+                        rv = z -> 0.0
+                    end
                 else
                     rv = missing
                 end
