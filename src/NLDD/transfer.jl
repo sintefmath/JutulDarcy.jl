@@ -147,7 +147,7 @@ end
 "Transfer to global - trivial map"
 function transfer_to_global!(glob, loc, M)
     for i in eachindex(loc)
-        @inbounds glob[i] = dd_transfer(loc[i])
+        @inbounds glob[i] = loc[i]
     end
 end
 
@@ -187,22 +187,22 @@ end
 
 "Transfer to global - vector, non-trivial map"
 function transfer_to_global!(glob::AbstractVector, loc::AbstractVector, M::Jutul.FiniteVolumeGlobalMap{R}) where R
-    for c in eachindex(loc)
+    @inbounds for c in eachindex(loc)
         if !Jutul.cell_is_boundary(c, M)
             @inbounds gc = Jutul.global_cell(c, M)::R
-            @inbounds glob[gc] = dd_transfer(loc[c])
+            @inbounds glob[gc] = loc[c]
         end
     end
 end
 
 "Transfer to global - matrix, non-trivial map"
 function transfer_to_global!(glob::AbstractMatrix, loc::AbstractMatrix, M::Jutul.FiniteVolumeGlobalMap{R}) where R
-    for c in axes(loc, 2)
+    @inbounds for c in axes(loc, 2)
         if !Jutul.cell_is_boundary(c, M)
             @inbounds gc = Jutul.global_cell(c, M)::R
             @inbounds for d in axes(loc, 1)
                 val = loc[d, c]
-                glob[d, gc] = dd_transfer(val)
+                glob[d, gc] = val
             end
         end
     end
@@ -211,13 +211,13 @@ end
 "Transfer - trivial mapping"
 function transfer_to_local!(loc, glob, M)
     for i in eachindex(loc)
-        @inbounds loc[i] = dd_transfer(glob[i])
+        @inbounds loc[i] = glob[i]
     end
 end
 
 function transfer_to_local!(loc::Dict, glob::Dict, M::Jutul.TrivialGlobalMap)
     for k in keys(loc)
-        loc[k] = dd_transfer(glob[k])
+        loc[k] = glob[k]
     end
 end
 
@@ -225,7 +225,7 @@ end
 function transfer_to_local!(loc::AbstractVector, glob::AbstractVector, M::Jutul.FiniteVolumeGlobalMap{R}) where R
     for c in eachindex(loc)
         @inbounds gc = Jutul.global_cell(c, M)::R
-        @inbounds loc[c] = dd_transfer(glob[gc])
+        @inbounds loc[c] = glob[gc]
     end
 end
 
@@ -235,10 +235,7 @@ function transfer_to_local!(loc::AbstractMatrix, glob::AbstractMatrix, M::Jutul.
     for c in 1:nc
         @inbounds gc = Jutul.global_cell(c, M)::R
         for d in 1:nd
-            @inbounds loc[d, c] = dd_transfer(glob[d, gc])
+            @inbounds loc[d, c] = glob[d, gc]
         end
     end
 end
-
-# @inline dd_transfer(x) = deepcopy(x)
-@inline dd_transfer(x) = x

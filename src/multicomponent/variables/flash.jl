@@ -459,7 +459,7 @@ end
 
 function k_value_flash!(result::FR, eos, P, T, Z, z) where FR
     Num_t = Base.promote_type(typeof(P), typeof(T), eltype(Z))
-    ncomp = length(z)
+    ncomp = MultiComponentFlash.number_of_components(eos)
     c_ad = (p = P, T = T, z = Z)
     K_ad = eos.K_values_evaluator(c_ad)
     x = result.liquid.mole_fractions
