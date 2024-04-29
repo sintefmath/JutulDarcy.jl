@@ -24,7 +24,7 @@ function update_subdomain_from_global(inner_model, simulator, sim, i; current = 
     var_def_g = s_g.variable_definitions
     var_def_l = s_l.variable_definitions
 
-    primary_to_local!(state_l, state_g, var_def_g, m, M)
+    @tic "primary to local" primary_to_local!(state_l, state_g, var_def_g, m, M)
     handle_secondary(state_l, state_g, var_def_l, var_def_g, m, M; kwarg...)
 end
 
@@ -41,16 +41,16 @@ function update_subdomain_from_global(inner_model::MultiModel, simulator, sim, i
         (state_g, state_l) = state_pair(s_g, s_l, current)
         Ω = m.domain
         M = global_map(Ω)
-        primary_to_local!(state_l, state_g, var_def_g, m, M)
+        @tic "primary to local" primary_to_local!(state_l, state_g, var_def_g, m, M)
         handle_secondary(state_l, state_g, var_def_l, var_def_g, m, M; kwarg...)
     end
 end
 
 function handle_secondary(state_l, state_g, defs_l, defs_g, m, M; transfer_secondary = false)
     if transfer_secondary
-        secondary_to_local!(state_l, state_g, defs_g, m, M)
+        @tic "secondary to local" secondary_to_local!(state_l, state_g, defs_g, m, M)
     else
-        Jutul.update_secondary_variables_state!(state_l, m, defs_l.secondary_variables)
+        @tic "secondary variables" Jutul.update_secondary_variables_state!(state_l, m, defs_l.secondary_variables)
     end
 end
 
@@ -65,9 +65,9 @@ function update_global_from_subdomain(inner_model, simulator, sim, i; secondary 
     M = Ω.global_map
     (state_g, state_l) = state_pair(simulator.storage, sim.storage, true)
     defs = sim.storage.variable_definitions
-    primary_to_global!(state_g, state_l, defs, model, M)
+    @tic "primary to global" primary_to_global!(state_g, state_l, defs, model, M)
     if secondary
-        secondary_to_global!(state_g, state_l, defs, model, M)
+        @tic "secondary to global" secondary_to_global!(state_g, state_l, defs, model, M)
     end
 end
 
@@ -82,9 +82,9 @@ function update_global_from_subdomain(inner_model::MultiModel, simulator, sim, i
         defs = s_g.variable_definitions
 
         (state_g, state_l) = state_pair(s_g, s_l, true)
-        primary_to_global!(state_g, state_l, defs, m, M)
+        @tic "primary to global" primary_to_global!(state_g, state_l, defs, m, M)
         if secondary
-            secondary_to_global!(state_g, state_l, defs, m, M)
+            @tic "secondary to global" secondary_to_global!(state_g, state_l, defs, m, M)
         end
     end
 end
