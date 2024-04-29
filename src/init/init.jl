@@ -155,13 +155,22 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     if nph > 1
         s, pc = determine_saturations(depths, contacts, pressures; s_min = s_min, kwarg...)
         if !ismissing(sw)
+            nph = size(s, 1)
             for i in axes(s, 2)
-                s[1, i] = sw[i]
-                st = sum(s[2:end, i]) - sw[i]
-                if st < 1e-8
-                    s[2:end, i] .= 0.0
-                else
-                    s[2:end, i] /= st
+                s0 = s[:, i]
+                sw_i = max(sw[i], s[1, i])
+                s[1, i] = sw_i
+                s_rem = 0.0
+                for ph in 2:nph
+                    s_rem += s[ph, i]
+                end
+                scale = (1 - sw_i)/max(s_rem, 1e-20)
+                for ph in 2:nph
+                    s[ph, i] *= scale
+                end
+                sT = sum(s[:, i])
+                if !isapprox(sT, 1.0, atol = 1e-8)
+                    @warn "$s0 $(sw[i]) $scale Was $sT, not 1.0"
                 end
             end
         end
