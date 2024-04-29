@@ -220,7 +220,7 @@ function local_stage(simulator, dt, forces, config, iteration)
     subreports = Vector(undef, n)
 
     use_threads = config[:nldd_threads]
-    solve_status = Vector{LocalSolveStatus}(undef, n)
+    solve_status = fill(local_solve_skipped, n)
 
     @debug "Solving local systems..."
     failures = Vector{Int64}()
