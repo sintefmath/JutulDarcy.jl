@@ -704,13 +704,60 @@ function parse_reservoir(data_file)
     end
 
     tranmult = ones(nf)
-    # TODO: MULTX, ...
     for k in ("GRID", "EDIT")
         if haskey(data_file, k)
             if haskey(data_file[k], "MULTFLT")
                 for (fault, vals) in data_file[k]["MULTFLT"]
                     fault_faces = get_mesh_entity_tag(G, Faces(), :faults, Symbol(fault))
                     tranmult[fault_faces] *= vals[1]
+                end
+            end
+        end
+    end
+    mult_keys = ("MULTX", "MULTX-", "MULTY", "MULTY-", "MULTZ", "MULTZ-")
+    has_multxyz = false
+    for k in mult_keys
+        if haskey(grid, k)
+            has_multxyz = true
+            break
+        end
+    end
+    if has_multxyz
+        ijk = map(i -> Jutul.cell_ijk(G, i), 1:nc)
+        for k in mult_keys
+            if haskey(grid, k)
+                mult_on_active = grid[k][active_ix]
+                if startswith(k, "MULTX")
+                    pos = 1
+                elseif startswith(k, "MULTY")
+                    pos = 2
+                else
+                    @assert startswith(k, "MULTZ")
+                    pos = 3
+                end
+                if endswith(k, "-")
+                    dir = 1
+                else
+                    dir = -1
+                end
+                for fno in 1:nf
+                    l, r = G.faces.neighbors[fno]
+                    il = ijk[l][pos]
+                    ir = ijk[r][pos]
+                    if dir == 1
+                        if il < ir
+                            c = l
+                        else
+                            c = r
+                        end
+                    else
+                        if il > ir
+                            c = l
+                        else
+                            c = r
+                        end
+                    end
+                    tranmult[fno] *= mult_on_active[c]
                 end
             end
         end
