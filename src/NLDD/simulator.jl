@@ -29,7 +29,7 @@ function NLDDSimulator(case::JutulCase, partition = missing;
             N = no_blocks
         else
             @assert ismissing(no_blocks)
-            N = Int64(max(ceil(nc/cells_per_block), 2))
+            N = Int64(clamp(ceil(nc/cells_per_block), 1, nc))
         end
         p = partition_from_N(model, parameters, N)
         partition = reservoir_partition(model, p);
