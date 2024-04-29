@@ -348,7 +348,8 @@ function reupdate_secondary_variables_bo_specific!(state, model, secondaries, ce
     end
     return state
 end
-function reservoir_change_buffers(storage, model)
+
+function reservoir_change_buffers(storage, model; extra_cells = Int[])
     bnd_cells = findall(model.domain.global_map.cell_is_boundary)
     n = length(bnd_cells)
     nph = number_of_phases(model.system)
@@ -370,7 +371,15 @@ function reservoir_change_buffers(storage, model)
 end
 
 function reservoir_change_buffers(storage, model::MultiModel)
-    return reservoir_change_buffers(storage[:Reservoir], model[:Reservoir])
+    extra_cells = Int[]
+    for (k, submodel) in pairs(model.models)
+        if JutulDarcy.model_or_domain_is_well(submodel)
+            for c in submodel.domain.representation.perforations.reservoir
+                push!(extra_cells, c)
+            end
+        end
+    end
+    return reservoir_change_buffers(storage[:Reservoir], model[:Reservoir], extra_cells = extra_cells)
 end
 
 function store_reservoir_change_buffer!(buf, sim, cfg)
