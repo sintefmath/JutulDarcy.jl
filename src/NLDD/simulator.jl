@@ -217,7 +217,8 @@ function local_stage(simulator, dt, forces, config, iteration)
     n = length(sub_sims)
 
     configs = config[:config_subdomains]
-    subreports = Vector(undef, n)
+    subreports = Vector{Any}(undef, n)
+    fill!(subreports, nothing)
 
     use_threads = config[:nldd_threads]
     solve_status = fill(local_solve_skipped, n)
