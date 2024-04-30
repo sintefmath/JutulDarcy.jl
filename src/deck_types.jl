@@ -420,7 +420,7 @@ function PVTG(pvtg::Dict; kwarg...)
     return PVTG(PVTGTable(pvtg; kwarg...))
 end
 
-function PVTGTable(d::Dict; fix = false)
+function PVTGTable(d::Dict; fix = true)
     pos = vec(Int64.(d["pos"]))
     data = copy(d["data"])
     for i in 1:length(pos)-1
