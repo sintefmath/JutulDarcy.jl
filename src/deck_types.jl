@@ -416,11 +416,11 @@ function PVTG(pvtg::PVTGTable)
     return PVTG(ct)
 end
 
-function PVTG(pvtg::Dict)
-    return PVTG(PVTGTable(pvtg))
+function PVTG(pvtg::Dict; kwarg...)
+    return PVTG(PVTGTable(pvtg; kwarg...))
 end
 
-function PVTGTable(d::Dict)
+function PVTGTable(d::Dict; fix = false)
     pos = vec(Int64.(d["pos"]))
     data = copy(d["data"])
     for i in 1:length(pos)-1
@@ -434,7 +434,9 @@ function PVTGTable(d::Dict)
         end
     end
     pressure = vec(copy(d["key"]))
-    # data, pos, pressure = add_lower_pvtg(data, pos, pressure)
+    if fix
+        data, pos, pressure = add_lower_pvtg(data, pos, pressure)
+    end
     rv = vec(data[:, 1])
     B = vec(data[:, 2])
     b = 1.0 ./ B
@@ -645,20 +647,16 @@ end
 
 function add_lower_pvtg(data, pos, pressure)
     ref_p = 101325.0
-    first_offset = pos[2]-1
-    start = 1:first_offset
-    new_start = data[start, :]
-    for i in axes(new_start, 1)
-        # new_start[i, 2] *= 0.99
+    if pressure[1] > ref_p
+        first_offset = pos[2]-1
+        start = 1:first_offset
+        new_start = data[start, :]
+        @assert pos[1] == 1
+        @. new_start[:, 3] *= 1.01
+        data = vcat(new_start, data)
+        pos = vcat([1, first_offset+1], pos[2:end] .+ first_offset)
+        pressure = vcat(ref_p, pressure)
     end
-    # dp = ref_p - new_start[1, 1]
-    # for i in axes(new_start, 1)
-        # new_start[i, 1] += dp
-    # end
-    @assert pos[1] == 1
-    data = vcat(new_start, data)
-    pos = vcat([1, first_offset+1], pos[2:end] .+ first_offset)
-    pressure = vcat(ref_p, pressure)
     return (data, pos, pressure)
 end
 
