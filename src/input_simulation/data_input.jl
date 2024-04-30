@@ -840,6 +840,8 @@ function parse_reservoir(data_file)
     pvtnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :pvtnum, active = active_ix)
     eqlnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :eqlnum, active = active_ix)
 
+    set_scaling_arguments!(extra_data_arg, active_ix, data_file)
+
     domain = reservoir_domain(G;
         permeability = perm,
         porosity = poro,
@@ -863,6 +865,52 @@ function parse_reservoir(data_file)
         end
     end
     return domain
+end
+
+function set_scaling_arguments!(out, active, data_file)
+    function set_scaler!(out, props, phase, prefix)
+        phase = uppercase(phase)
+        get_scaler_field = x -> get(props, "$(prefix)$x", missing)
+        connate = get_scaler_field("S$(phase)L")
+        crit = get_scaler_field("S$(phase)CR")
+        maxs = get_scaler_field("S$(phase)U")
+        if phase == "OW" || phase == "OG"
+            maxk = get_scaler_field("KRO")
+        else
+            maxk = get_scaler_field("KR$phase")
+        end
+        raw_scalers = (connate, crit, maxs, maxk)
+        found = any(!ismissing, raw_scalers)
+        nc = length(active)
+
+        if found
+            scaler = fill(NaN, (4, nc))
+            for (scaler_no, val) in enumerate(raw_scalers)
+                if ismissing(val)
+                    continue
+                end
+                for (i, cell) in enumerate(active)
+                    scaler[scaler_no, i] = val[cell]
+                end
+            end
+            if prefix == ""
+                s = "drainage"
+            else
+                s = "imbibition"
+            end
+            out[Symbol("scaler_$(lowercase(phase))_$s")] = scaler
+        end
+    end
+
+    if haskey(data_file, "PROPS")
+        props = data_file["PROPS"]
+        for phase in ["W", "OW", "OG", "G"]
+            for prefix in ["", "I"]
+                set_scaler!(out, props, phase, prefix)
+            end
+        end
+    end
+    return out
 end
 
 function parse_physics_types(datafile; pvt_region = missing)

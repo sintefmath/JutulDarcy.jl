@@ -211,6 +211,17 @@ function Jutul.default_values(model, scalers::EndPointScalingCoefficients{P}) wh
         kscale[3, i] = s_max
         kscale[4, i] = k_max
     end
+    data_domain = model.data_domain
+    k = Symbol("scaler_$(P)_drainage")
+    if haskey(data_domain, k)
+        kscale_model = data_domain[k]
+        for i in eachindex(kscale, kscale_model)
+            override = kscale_model[i]
+            if isfinite(override)
+                kscale[i] = override
+            end
+        end
+    end
     return kscale
 end
 
