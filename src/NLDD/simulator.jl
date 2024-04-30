@@ -311,7 +311,7 @@ function local_stage(simulator, dt, forces, config, iteration)
             if config[:info_level] == 1
                 Jutul.jutul_message("Convergence", msg, color = :light_yellow)
             else
-                @warn "It $iteration: $bad of $n subdomains failed to converge:" failures
+                @warn "$msg:" failures
                 for i in eachindex(subreports)
                     if solve_status[i] == local_solve_failure
                         sr = subreports[i][end][:steps]
