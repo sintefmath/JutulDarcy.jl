@@ -98,6 +98,13 @@ function plot_reservoir(model, arg...; well_fontsize = 18, well_linewidth = 3, k
     return fig
 end
 
+function plot_reservoir(case::JutulCase, arg...; kwarg...)
+    if length(arg) == 0
+        arg = (merge(case.parameters[:Reservoir], case.state0[:Reservoir]),)
+    end
+    return plot_reservoir(case.model, arg...; kwarg...)
+end
+
 """
     simulate_reservoir_parray(case, mode = :mpi; kwarg...)
 
