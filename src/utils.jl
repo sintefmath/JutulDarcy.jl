@@ -1016,7 +1016,7 @@ function setup_reservoir_forces(model::MultiModel; control = nothing, limits = n
                 subctrl = Dict{Symbol, Any}()
                 subctrl[k] = control[k]
                 sublimits = Dict{Symbol, Any}()
-                if haskey(sublimits, k)
+                if haskey(limits, k)
                     sublimits[k] = limits[k]
                 else
                     sublimits[k] = nothing
