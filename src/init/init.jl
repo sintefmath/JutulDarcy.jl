@@ -427,9 +427,10 @@ function parse_state0_equil(model, datafile)
                         Rv = rvvd[:, 2]
                         rv = Jutul.LinearInterpolant(z, Rv_scale.*Rv)
                     else
-                        # TODO: Do this in a better way?
-                        @warn "RV initialization not provided as RVVD, setting to zero."
-                        rv = z -> 0.0
+                        # TODO: Should maybe be the pressure at GOC not datum
+                        # depth, but that isn't computed at this stage.
+                        rv_at_goc = Rv_scale*sys.rv_max[preg](datum_pressure)
+                        rv = z -> rv_at_goc
                     end
                 else
                     rv = missing

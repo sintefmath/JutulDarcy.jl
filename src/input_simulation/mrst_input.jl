@@ -375,10 +375,10 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
             scalecrs = [scalecrs]
         end
         if length(scalecrs) == 0 || lowercase(first(scalecrs)) == "no"
-            @info "Found two-point rel. perm. scaling"
+            Jutul.jutul_message("Rel. Perm. Scaling", "Two-point scaling active.")
             scaling = TwoPointKrScale
         else
-            @info "Found three-point rel. perm. scaling"
+            Jutul.jutul_message("Rel. Perm. Scaling", "Three-point scaling active.")
             scaling = ThreePointKrScale
         end
     else
