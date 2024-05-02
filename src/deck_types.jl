@@ -598,6 +598,16 @@ struct LinearlyCompressiblePoreVolume{V, R} <: ScalarVariable
     end
 end
 
+function Jutul.subvariable(p::LinearlyCompressiblePoreVolume, map::FiniteVolumeGlobalMap)
+    c = map.cells
+    regions = Jutul.partition_variable_slice(p.regions, c)
+    return LinearlyCompressiblePoreVolume(
+        reference_pressure = p.reference_pressure,
+        expansion = p.expansion,
+        regions = regions
+    )
+end
+
 struct TableCompressiblePoreVolume{V, R} <: ScalarVariable
     tab::V
     regions::R
