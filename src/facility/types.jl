@@ -298,7 +298,7 @@ function replace_target
 end
 
 function replace_target(f::DisabledControl, target)
-    target::DisabledTarget()
+    target::DisabledTarget
     return f
 end
 
