@@ -42,12 +42,20 @@ function NLDDSimulator(case::JutulCase, partition = missing;
     np = number_of_subdomains(partition)
     if isnothing(submodels)
         is_distributed_solve = executor isa Jutul.PArrayExecutor
+        executor.mode::Jutul.JutulBackend
         if is_distributed_solve
             n_self = executor.data[:n_self]
             nc = length(executor.data[:partition])
             active_global = [i <= n_self for i in 1:nc]
+            is_mpi = executor.mode isa Jutul.MPI_PArrayBackend
+            if is_mpi
+                maximum_np = Jutul.mpi_scalar_allreduce(np, max, executor)
+            else
+                maximum_np = np
+            end
         else
             active_global = missing
+            maximum_np = np
         end
         submodels = build_submodels(model, partition, active_global = active_global)
 
@@ -110,6 +118,7 @@ function NLDDSimulator(case::JutulCase, partition = missing;
     storage[:boundary_discretizations] = map((s) -> boundary_discretization(outer_sim.storage, outer_sim.model, s.model, s.storage), subsim)
     storage[:solve_log] = NLDDSolveLog()
     storage[:coarse_neighbors] = coarse_neighbors
+    storage[:maximum_number_of_subdomains_globally] = maximum_np
 
     # storage = convert_to_immutable_storage(storage)
     NLDDSimulator(outer_sim, executor, partition, nothing, subsim, storage)
