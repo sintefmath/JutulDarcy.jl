@@ -467,7 +467,7 @@ function parse_state0_equil(model, datafile)
                 end
 
                 subinit = equilibriate_state(
-                        model, contacts, datum_depth, datum_pressure,
+                        model, contacts, datum_depth, datum_pressure;
                         composition = composition,
                         cells = cells,
                         pvtnum = preg,
@@ -478,7 +478,7 @@ function parse_state0_equil(model, datafile)
                         rs = rs,
                         rv = rv,
                         pc = pc,
-                        sw = sw
+                        extra_arg...
                     )
                 push!(inits, subinit)
                 push!(inits_cells, cells)
