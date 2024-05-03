@@ -580,7 +580,8 @@ function setup_reservoir_simulator(case::JutulCase;
         b = mode_to_backend(mode)
         sim = setup_reservoir_simulator_parray(case, b;
             simulator_constructor = make_sim,
-            primary_buffer = pbuffer
+            primary_buffer = pbuffer,
+            parray_arg...
         );
     end
 
