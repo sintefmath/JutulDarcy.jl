@@ -6,19 +6,20 @@ function JutulDarcy.update_pressure_system!(A_p::HYPRE.HYPREMatrix, p_prec, A, w
     end
     helper = D[:assembly_helper]
     I_buf, J_buf, V_buffers, = D[:assembly_helper]
-    update_pressure_system_hypre!(I_buf, J_buf, V_buffers, A_p, A, w_p, executor, helper.n)
+    is_adjoint = Val(Jutul.represented_as_adjoint(matrix_layout(ctx)))
+    update_pressure_system_hypre!(I_buf, J_buf, V_buffers, A_p, A, w_p, executor, helper.n, is_adjoint)
 end
 
-function update_pressure_system_hypre!(single_buf, longer_buf, V_buffers, A_p, A, w_p, executor, n)
+function update_pressure_system_hypre!(single_buf, longer_buf, V_buffers, A_p, A, w_p, executor, n, is_adjoint)
     @assert length(single_buf) == 1
     (; iupper, ilower) = A_p
     @assert n == iupper - ilower + 1 "$(n-1) != $ilower -> $iupper"
     assembler = HYPRE.start_assemble!(A_p)
-    assemble_into_hypre_psystem!(A_p, A, assembler, w_p, single_buf, longer_buf, V_buffers, executor, n)
+    assemble_into_hypre_psystem!(A_p, A, assembler, w_p, single_buf, longer_buf, V_buffers, executor, n, is_adjoint)
     HYPRE.finish_assemble!(assembler)
 end
 
-function assemble_into_hypre_psystem!(A_p::HYPRE.HYPREMatrix, A::Jutul.StaticSparsityMatrixCSR, assembler, w_p, single_buf, longer_buf, V_buffers, executor, n)
+function assemble_into_hypre_psystem!(A_p::HYPRE.HYPREMatrix, A::Jutul.StaticSparsityMatrixCSR, assembler, w_p, single_buf, longer_buf, V_buffers, executor, n, ::Val{is_adjoint}) where is_adjoint
     nzval = SparseArrays.nonzeros(A)
     cols = Jutul.colvals(A)
     for row in 1:n
@@ -34,11 +35,7 @@ function assemble_into_hypre_psystem!(A_p::HYPRE.HYPREMatrix, A::Jutul.StaticSpa
             ri = pos_ix[ki]
             col = cols[ri]
             A_block = nzval[ri]
-            next_value = 0.0
-            for component in axes(w_p, 1)
-                next_value += w_p[component, row]*A_block[component, 1]
-            end
-            V_buf[ki] = next_value
+            V_buf[ki] = JutulDarcy.reduce_to_pressure(A_block, w_p, row, size(A_block, 1), is_adjoint)
             J[ki] = Jutul.executor_index_to_global(executor, col, :column)
             num_added += 1
         end
@@ -46,7 +43,7 @@ function assemble_into_hypre_psystem!(A_p::HYPRE.HYPREMatrix, A::Jutul.StaticSpa
     end
 end
 
-function assemble_into_hypre_psystem!(A_p::HYPRE.HYPREMatrix, A::SparseMatrixCSC, assembler, w_p, single_buf, longer_buf, V_buffers, executor, n)
+function assemble_into_hypre_psystem!(A_p::HYPRE.HYPREMatrix, A::SparseMatrixCSC, assembler, w_p, single_buf, longer_buf, V_buffers, executor, n, ::Val{is_adjoint}) where is_adjoint
     nzval = SparseArrays.nonzeros(A)
     rows = rowvals(A)
     for col in 1:n
@@ -62,11 +59,7 @@ function assemble_into_hypre_psystem!(A_p::HYPRE.HYPREMatrix, A::SparseMatrixCSC
             ri = pos_ix[ki]
             row = rows[ri]
             A_block = nzval[ri]
-            next_value = 0.0
-            for component in axes(w_p, 1)
-                next_value += w_p[component, row]*A_block[component, 1]
-            end
-            V_buf[ki] = next_value
+            V_buf[ki] = JutulDarcy.reduce_to_pressure(A_block, w_p, row, size(A_block, 1), is_adjoint)
             I[ki] = Jutul.executor_index_to_global(executor, row, :row)
             num_added += 1
         end
@@ -90,21 +83,26 @@ function JutulDarcy.create_pressure_system(p_prec::BoomerAMGPreconditioner, J, n
     return (A, r, p)
 end
 
-function JutulDarcy.update_p_rhs!(r_p::HYPRE.HYPREVector, y, ncomp, bz, w_p, p_prec)
+function JutulDarcy.update_p_rhs!(r_p::HYPRE.HYPREVector, y, ncomp, bz, w_p, p_prec, mode)
     helper = p_prec.data[:assembly_helper]
-    inner_hypre_p_rhs!(r_p, y, ncomp, bz, w_p, helper)
+    inner_hypre_p_rhs!(r_p, y, ncomp, bz, w_p, helper, mode)
 end
 
-function inner_hypre_p_rhs!(r_p, y, ncomp, bz, w_p, helper)
+function inner_hypre_p_rhs!(r_p, y, ncomp, bz, w_p, helper, mode)
     R_p = helper.native_zeroed_buffer
     ix = helper.indices
-
-    @inbounds for i in eachindex(R_p)
-        v = 0.0
-        for b = 1:ncomp
-            v += y[(i-1)*bz + b]*w_p[b, i]
+    if mode == :forward
+        @inbounds for i in eachindex(R_p)
+            v = 0.0
+            for b = 1:ncomp
+                v += y[(i-1)*bz + b]*w_p[b, i]
+            end
+            R_p[i] = v
         end
-        R_p[i] = v
+    else
+        @inbounds for i in eachindex(R_p)
+            R_p[i] = y[(i-1)*bz + 1]*w_p[1, i]
+        end
     end
 
     Jutul.local_hypre_copy!(r_p, R_p, ix)
