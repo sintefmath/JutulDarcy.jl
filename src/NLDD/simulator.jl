@@ -751,7 +751,9 @@ function Jutul.reset_previous_state!(sim::NLDDSimulator, state0)
     Jutul.reset_previous_state!(sim.simulator, state0)
 end
 
-Jutul.store_output!(states, reports, step, sim::NLDDSimulator, config, report) = Jutul.store_output!(states, reports, step, sim.simulator, config, report)
+function Jutul.store_output!(states, reports, step, sim::NLDDSimulator, config, report; kwarg...)
+    return Jutul.store_output!(states, reports, step, sim.simulator, config, report; kwarg...)
+end
 
 function Jutul.select_nonlinear_relaxation(sim::NLDDSimulator, rel_type, reports, relaxation)
     return Jutul.select_nonlinear_relaxation(sim.simulator, rel_type, reports, relaxation)
