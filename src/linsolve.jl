@@ -64,7 +64,8 @@ function reservoir_linsolve(model,
             p_solve, s, strategy = cpr_type, 
             update_interval = update_interval,
             partial_update = partial_update,
-            update_interval_partial = update_interval_partial
+            update_interval_partial = update_interval_partial,
+            mode = mode
         )
         default_tol = 1e-3
         max_it = 50

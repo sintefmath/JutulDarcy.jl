@@ -83,6 +83,7 @@ mutable struct CPRPreconditioner{P, S} <: JutulPreconditioner
     p_rtol::Union{Float64, Nothing}
     npre::Int
     npost::Int
+    mode::Symbol
     psolver
 end
 
@@ -97,7 +98,8 @@ function CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner();
         update_interval_partial = :iteration,
         p_rtol = nothing,
         full_system_correction = true,
-        partial_update = update_interval == :once
+        partial_update = update_interval == :once,
+        mode = :forward
     )
     return CPRPreconditioner(
         nothing,
@@ -114,6 +116,7 @@ function CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner();
         p_rtol,
         npre,
         npost,
+        mode,
         nothing
     )
 end
@@ -212,15 +215,7 @@ function update_row_csc!(nz, A_p, w_p, rows, nz_s, col, ::Val{Ncomp}, ::Val{adjo
     @inbounds for j in nzrange(A_p, col)
         row = rows[j]
         Ji = nz_s[j]
-        tmp = 0
-        @inbounds for b in 1:Ncomp
-            if adjoint
-                tmp += Ji[1, b]*w_p[b, row]
-            else
-                tmp += Ji[b, 1]*w_p[b, row]
-            end
-        end
-        nz[j] = tmp
+        nz[j] = reduce_to_pressure(Ji, w_p, col, Ncomp, adjoint)
     end
 end
 
@@ -246,16 +241,20 @@ end
 function update_row_csr!(nz, A_p, w_p, cols, nz_s, row, ::Val{Ncomp}, ::Val{adjoint}) where {Ncomp, adjoint}
     @inbounds for j in nzrange(A_p, row)
         Ji = nz_s[j]
-        tmp = 0
-        @inbounds for b = 1:Ncomp
-            if adjoint
-                tmp += Ji[1, b]*w_p[b, row]
-            else
-                tmp += Ji[b, 1]*w_p[b, row]
-            end
-        end
-        nz[j] = tmp
+        nz[j] = reduce_to_pressure(Ji, w_p, row, Ncomp, adjoint)
     end
+end
+
+function reduce_to_pressure(Ji, w_p, cell, Ncomp, adjoint)
+    out = 0.0
+    @inbounds for b = 1:Ncomp
+        if adjoint
+            out += Ji[1, b]*w_p[b, cell]
+        else
+            out += Ji[b, 1]*w_p[b, cell]
+        end
+    end
+    return out
 end
 
 function operator_nrows(cpr::CPRPreconditioner)
@@ -301,7 +300,7 @@ end
 function apply_cpr_pressure_stage!(cpr::CPRPreconditioner, cpr_s::CPRStorage, r, arg...)
     r_p, w_p, bz, Δp = cpr_s.r_p, cpr_s.w_p, cpr_s.block_size, cpr_s.p
     ncomp = cpr_s.number_of_components
-    @tic "p rhs" update_p_rhs!(r_p, r, ncomp, bz, w_p, cpr.pressure_precond)
+    @tic "p rhs" update_p_rhs!(r_p, r, ncomp, bz, w_p, cpr.pressure_precond, cpr.mode)
     # Apply preconditioner to pressure part
     @tic "p apply" begin
         p_rtol = cpr.p_rtol
@@ -495,13 +494,19 @@ end
     end
 end
 
-function update_p_rhs!(r_p, y, ncomp, bz, w_p, p_prec)
-    @batch minbatch = 1000 for i in eachindex(r_p)
-        v = 0.0
-        @inbounds for b = 1:ncomp
-            v += y[(i-1)*bz + b]*w_p[b, i]
+function update_p_rhs!(r_p, y, ncomp, bz, w_p, p_prec, mode)
+    if mode == :forward
+        @batch minbatch = 1000 for i in eachindex(r_p)
+            v = 0.0
+            @inbounds for b = 1:ncomp
+                v += y[(i-1)*bz + b]*w_p[b, i]
+            end
+            @inbounds r_p[i] = v
         end
-        @inbounds r_p[i] = v
+    else
+        @batch minbatch = 1000 for i in eachindex(r_p)
+            @inbounds r_p[i] = y[(i-1)*bz + 1]*w_p[1, i]
+        end
     end
 end
 
