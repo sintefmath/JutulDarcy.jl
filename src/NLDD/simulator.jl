@@ -40,6 +40,7 @@ function NLDDSimulator(case::JutulCase, partition = missing;
     partition::Jutul.AbstractDomainPartition
     outer_sim = Simulator(model; state0 = state0, parameters = deepcopy(parameters), executor = executor, kwarg...)
     np = number_of_subdomains(partition)
+    maximum_np = np
     if isnothing(submodels)
         is_distributed_solve = executor isa Jutul.PArrayExecutor
         executor.mode::Jutul.JutulBackend
@@ -50,12 +51,9 @@ function NLDDSimulator(case::JutulCase, partition = missing;
             is_mpi = executor.mode isa Jutul.MPI_PArrayBackend
             if is_mpi
                 maximum_np = Jutul.mpi_scalar_allreduce(np, max, executor)
-            else
-                maximum_np = np
             end
         else
             active_global = missing
-            maximum_np = np
         end
         submodels = build_submodels(model, partition, active_global = active_global)
 
