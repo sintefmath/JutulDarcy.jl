@@ -43,7 +43,6 @@ function NLDDSimulator(case::JutulCase, partition = missing;
     maximum_np = np
     if isnothing(submodels)
         is_distributed_solve = executor isa Jutul.PArrayExecutor
-        executor.mode::Jutul.JutulBackend
         if is_distributed_solve
             n_self = executor.data[:n_self]
             nc = length(executor.data[:partition])
