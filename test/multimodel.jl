@@ -129,7 +129,7 @@ end
             for gen_ad in [true, false]
                 for default_linsolve in [false, true]
                     @testset "Block=$b, backend=$b, defaulted linsolve=$default_linsolve" begin
-                        arg = (general_ad = gen_ad, backend = backend, use_blocks = b, default_linsolve = default_linsolve)
+                        arg = (general_ad = gen_ad, backend = backend, block_backend = b, default_linsolve = default_linsolve)
                         test_compositional_with_wells(; arg...)
                         # Disabled test until Jutul is updated.
                         # test_compositional_with_wells(; fast_flash = true, arg...)
