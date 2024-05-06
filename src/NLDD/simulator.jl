@@ -12,6 +12,7 @@ function NLDDSimulator(case::JutulCase, partition = missing;
         check_buffers = false,
         executor = Jutul.default_executor(),
         cells_per_block = missing,
+        mpi_sync_after_solve = true,
         no_blocks = missing,
         kwarg...
     )
@@ -52,6 +53,7 @@ function NLDDSimulator(case::JutulCase, partition = missing;
                 maximum_np = Jutul.mpi_scalar_allreduce(np, max, executor)
             end
         else
+            is_mpi = false
             active_global = missing
         end
         submodels = build_submodels(model, partition, active_global = active_global)
@@ -116,6 +118,8 @@ function NLDDSimulator(case::JutulCase, partition = missing;
     storage[:solve_log] = NLDDSolveLog()
     storage[:coarse_neighbors] = coarse_neighbors
     storage[:maximum_number_of_subdomains_globally] = maximum_np
+    storage[:is_mpi] = is_mpi
+    storage[:mpi_sync_after_solve] = mpi_sync_after_solve
 
     # storage = convert_to_immutable_storage(storage)
     NLDDSimulator(outer_sim, executor, partition, nothing, subsim, storage)
@@ -292,7 +296,14 @@ function local_stage(simulator, dt, forces, config, iteration)
             pre(i)
             return solve_and_transfer(i)
         end
-        @tic "local solves [GS]" sim_order = gauss_seidel_for_each_subdomain_do(gs_solve, simulator, sub_sims, subreports, config[:gauss_seidel_order], allow_early_termination)
+        @tic "local solves [GS]" sim_order = gauss_seidel_for_each_subdomain_do(
+            gs_solve,
+            simulator,
+            sub_sims,
+            subreports,
+            config[:gauss_seidel_order],
+            allow_early_termination
+        )
     else
         execute = (f) -> for_each_subdomain_do(f, n, use_threads, config[:nldd_thread_type], allow_early_termination)
         # Jacobi solve
@@ -411,6 +422,22 @@ function for_each_subdomain_do(f, n, use_threads, thread_type, early_stop::Bool)
 end
 
 function gauss_seidel_for_each_subdomain_do(f, sim, simulators, subreports, strategy::Symbol, early_stop::Bool)
+    is_mpi = sim.storage.is_mpi
+    should_sync = sim.storage.mpi_sync_after_solve
+    has_sync = haskey(sim.executor.data, :distributed_primary_variables_sync_function)
+    if is_mpi && has_sync && should_sync
+        sync_function = sim.executor.data[:distributed_primary_variables_sync_function]
+        n_total = sim.storage[:maximum_number_of_subdomains_globally]
+    else
+        sync_function = (; kwarg...) -> nothing
+        n_total = n
+    end
+    num_solved = 0
+    function solve_gauss_seidel_iteration!(i)
+        f(i)
+        sync_function()
+        num_solved += 1
+    end
     if strategy == :adaptive
         n = length(simulators)
         sim_order = Int[]
@@ -425,7 +452,7 @@ function gauss_seidel_for_each_subdomain_do(f, sim, simulators, subreports, stra
         n_solved = 0
 
         function solve_adaptive(i)
-            f(i)
+            solve_gauss_seidel_iteration!(i)
             push!(sim_order, i)
             subreports_i = subreports[i]
             if !isnothing(subreports_i)
@@ -468,10 +495,16 @@ function gauss_seidel_for_each_subdomain_do(f, sim, simulators, subreports, stra
             sim_order = sortperm(pval)
         end
         for i in sim_order
-            ok_i = f(i)
+            ok_i = solve_gauss_seidel_iteration!(i)
             if early_stop && !ok_i
                 break
             end
+        end
+    end
+    if is_mpi
+        for i in (num_solved+1):n_total
+            # Need to account for other process waiting on a (potentially trivial) sync.
+            sync_function()
         end
     end
     return sim_order
