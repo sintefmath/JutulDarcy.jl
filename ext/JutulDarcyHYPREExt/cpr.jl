@@ -7,19 +7,20 @@ function JutulDarcy.update_pressure_system!(A_p::HYPRE.HYPREMatrix, p_prec, A, w
     helper = D[:assembly_helper]
     I_buf, J_buf, V_buffers, = D[:assembly_helper]
     is_adjoint = Val(Jutul.represented_as_adjoint(matrix_layout(ctx)))
-    update_pressure_system_hypre!(I_buf, J_buf, V_buffers, A_p, A, w_p, executor, helper.n, is_adjoint)
+    ncomp = Val(size(w_p, 1))
+    update_pressure_system_hypre!(I_buf, J_buf, V_buffers, A_p, A, w_p, executor, helper.n, is_adjoint, ncomp)
 end
 
-function update_pressure_system_hypre!(single_buf, longer_buf, V_buffers, A_p, A, w_p, executor, n, is_adjoint)
+function update_pressure_system_hypre!(single_buf, longer_buf, V_buffers, A_p, A, w_p, executor, n, is_adjoint, ncomp)
     @assert length(single_buf) == 1
     (; iupper, ilower) = A_p
     @assert n == iupper - ilower + 1 "$(n-1) != $ilower -> $iupper"
     assembler = HYPRE.start_assemble!(A_p)
-    assemble_into_hypre_psystem!(A_p, A, assembler, w_p, single_buf, longer_buf, V_buffers, executor, n, is_adjoint)
+    assemble_into_hypre_psystem!(A_p, A, assembler, w_p, single_buf, longer_buf, V_buffers, executor, n, is_adjoint, ncomp)
     HYPRE.finish_assemble!(assembler)
 end
 
-function assemble_into_hypre_psystem!(A_p::HYPRE.HYPREMatrix, A::Jutul.StaticSparsityMatrixCSR, assembler, w_p, single_buf, longer_buf, V_buffers, executor, n, ::Val{is_adjoint}) where is_adjoint
+function assemble_into_hypre_psystem!(A_p::HYPRE.HYPREMatrix, A::Jutul.StaticSparsityMatrixCSR, assembler, w_p, single_buf, longer_buf, V_buffers, executor, n, ::Val{is_adjoint}, ::Val{ncomp}) where {is_adjoint, ncomp}
     nzval = SparseArrays.nonzeros(A)
     cols = Jutul.colvals(A)
     for row in 1:n
@@ -35,7 +36,7 @@ function assemble_into_hypre_psystem!(A_p::HYPRE.HYPREMatrix, A::Jutul.StaticSpa
             ri = pos_ix[ki]
             col = cols[ri]
             A_block = nzval[ri]
-            V_buf[ki] = JutulDarcy.reduce_to_pressure(A_block, w_p, row, size(A_block, 1), is_adjoint)
+            V_buf[ki] = JutulDarcy.reduce_to_pressure(A_block, w_p, row, ncomp, is_adjoint)
             J[ki] = Jutul.executor_index_to_global(executor, col, :column)
             num_added += 1
         end
@@ -43,7 +44,7 @@ function assemble_into_hypre_psystem!(A_p::HYPRE.HYPREMatrix, A::Jutul.StaticSpa
     end
 end
 
-function assemble_into_hypre_psystem!(A_p::HYPRE.HYPREMatrix, A::SparseMatrixCSC, assembler, w_p, single_buf, longer_buf, V_buffers, executor, n, ::Val{is_adjoint}) where is_adjoint
+function assemble_into_hypre_psystem!(A_p::HYPRE.HYPREMatrix, A::SparseMatrixCSC, assembler, w_p, single_buf, longer_buf, V_buffers, executor, n, ::Val{is_adjoint}, ::Val{ncomp}) where {is_adjoint, ncomp}
     nzval = SparseArrays.nonzeros(A)
     rows = rowvals(A)
     for col in 1:n
@@ -59,7 +60,7 @@ function assemble_into_hypre_psystem!(A_p::HYPRE.HYPREMatrix, A::SparseMatrixCSC
             ri = pos_ix[ki]
             row = rows[ri]
             A_block = nzval[ri]
-            V_buf[ki] = JutulDarcy.reduce_to_pressure(A_block, w_p, row, size(A_block, 1), is_adjoint)
+            V_buf[ki] = JutulDarcy.reduce_to_pressure(A_block, w_p, row, ncomp, is_adjoint)
             I[ki] = Jutul.executor_index_to_global(executor, row, :row)
             num_added += 1
         end
