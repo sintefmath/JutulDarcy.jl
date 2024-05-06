@@ -422,6 +422,7 @@ function for_each_subdomain_do(f, n, use_threads, thread_type, early_stop::Bool)
 end
 
 function gauss_seidel_for_each_subdomain_do(f, sim, simulators, subreports, strategy::Symbol, early_stop::Bool)
+    n = length(simulators)
     is_mpi = sim.storage.is_mpi
     should_sync = sim.storage.mpi_sync_after_solve
     has_sync = haskey(sim.executor.data, :distributed_primary_variables_sync_function)
@@ -439,7 +440,6 @@ function gauss_seidel_for_each_subdomain_do(f, sim, simulators, subreports, stra
         num_solved += 1
     end
     if strategy == :adaptive
-        n = length(simulators)
         sim_order = Int[]
         coarse_neighbors = sim.storage.coarse_neighbors
         sizehint!(sim_order, n)
