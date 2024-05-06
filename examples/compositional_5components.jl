@@ -28,7 +28,7 @@ dims = (nx, ny, nz)
 g = CartesianMesh(dims, (1000.0, 1000.0, 1.0))
 nc = number_of_cells(g)
 K = repeat([0.05*Darcy], 1, nc)
-res = reservoir_domain(g, porosity = 0.25, permeability = K)
+res = reservoir_domain(g, porosity = 0.25, permeability = K, temperature = 387.45*Kelvin)
 # Set up a vertical well in the first corner, perforated in all layers
 prod = setup_vertical_well(g, K, nx, ny, name = :Producer)
 # Set up an injector in the opposite corner, perforated in all layers
@@ -41,13 +41,12 @@ rhoS = [rhoLS, rhoVS]
 L, V = LiquidPhase(), VaporPhase()
 # Define system and realize on grid
 sys = MultiPhaseCompositionalSystemLV(eos, (L, V))
-model, parameters = setup_reservoir_model(res, sys, wells = [inj, prod], reference_densities = rhoS, block_backend = true);
+model, parameters = setup_reservoir_model(res, sys, wells = [inj, prod], block_backend = true);
 kr = BrooksCoreyRelativePermeabilities(sys, 2.0, 0.0, 1.0)
 model = replace_variables!(model, RelativePermeabilities = kr)
 
 push!(model[:Reservoir].output_variables, :Saturations)
 
-parameters[:Reservoir][:Temperature] = 387.45*Kelvin
 state0 = setup_reservoir_state(model, Pressure = 225*bar, OverallMoleFractions = [0.463, 0.01640, 0.20520, 0.19108, 0.12432]);
 
 dt = repeat([2.0]*day, 365)

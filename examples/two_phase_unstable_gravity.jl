@@ -60,7 +60,7 @@ state0 = setup_reservoir_state(model, Pressure = p0, Saturations = s0)
 μ = parameters[:Reservoir][:PhaseViscosities]
 @. μ[1, :] = 1e-3
 @. μ[2, :] = 5e-3
- # Convert time-steps from days to seconds
+# Convert time-steps from days to seconds
 timesteps = repeat([10.0*3600*24], 20)
 _, states, = simulate_reservoir(state0, model, timesteps, parameters = parameters, info_level = 1);
 # ## Plot results
