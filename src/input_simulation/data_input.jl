@@ -159,7 +159,7 @@ function setup_case_from_parsed_data(datafile; skip_wells = false, simple_well =
     if haskey(props, "SWL")
         G = physical_representation(domain)
         swl = vec(props["SWL"])
-        parameters[:Reservoir][:ConnateWater] .= swl[G.cell_map]
+        # parameters[:Reservoir][:ConnateWater] .= swl[G.cell_map]
     end
     if use_ijk_trans
         parameters[:Reservoir][:Transmissibilities] = reservoir_transmissibility(domain, version = :ijk);
