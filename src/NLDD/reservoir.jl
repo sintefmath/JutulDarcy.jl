@@ -349,31 +349,40 @@ function reupdate_secondary_variables_bo_specific!(state, model, secondaries, ce
     return state
 end
 
-function reservoir_change_buffers(storage, model)
-    n = number_of_cells(model.domain)
+function reservoir_change_buffers(storage, model; extra_cells = Int[])
+    bnd_cells = findall(model.domain.global_map.cell_is_boundary)
+    n = length(bnd_cells)
     nph = number_of_phases(model.system)
     buf = Dict(
-        :Saturations => zeros(nph, n),
-        :PhaseMobilities => zeros(nph, n),
-        :Pressure => zeros(n)
+            :Cells => bnd_cells,
+            :Saturations => zeros(nph, n),
+            :PhaseMobilities => zeros(nph, n),
+            :PhaseMassDensities => zeros(nph, n),
+            :Pressure => zeros(n)
         )
     if model isa JutulDarcy.CompositionalModel
         ncomp = JutulDarcy.number_of_components(model.system) - Int(JutulDarcy.has_other_phase(model.system))
         buf[:OverallMoleFractions] = zeros(ncomp, n)
+        buf[:LiquidMassFractions] = zeros(ncomp, n)
+        buf[:VaporMassFractions] = zeros(ncomp, n)
     end
     buf = NamedTuple(pairs(buf))
     return buf::NamedTuple
 end
 
 function reservoir_change_buffers(storage, model::MultiModel)
-    return reservoir_change_buffers(storage[:Reservoir], model[:Reservoir])
+    extra_cells = Int[]
+    for (k, submodel) in pairs(model.models)
+        if JutulDarcy.model_or_domain_is_well(submodel)
+            for c in submodel.domain.representation.perforations.reservoir
+                push!(extra_cells, c)
+            end
+        end
+    end
+    return reservoir_change_buffers(storage[:Reservoir], model[:Reservoir], extra_cells = extra_cells)
 end
 
 function store_reservoir_change_buffer!(buf, sim, cfg)
-    tol_s = cfg[:solve_tol_saturations]
-    tol_p = cfg[:solve_tol_pressure]
-    tol_λ = cfg[:solve_tol_mobility]
-    tol_z = cfg[:solve_tol_composition]
     model = sim.model
     state = sim.storage.state
     if model isa MultiModel
@@ -381,58 +390,123 @@ function store_reservoir_change_buffer!(buf, sim, cfg)
         state = state.Reservoir
     end
 
-    if !isnothing(tol_s) || !isnothing(tol_p) || !isnothing(tol_λ) || !isnothing(tol_z)
-        store_reservoir_change_buffer_inner!(buf, model, state)
-    end
+    tols = get_nldd_solution_change_tolerances(cfg)
+    store_reservoir_change_buffer_inner!(buf, tols, model, state)
 end
 
-function check_if_subdomain_needs_solving(buf, sim, cfg, iteration)
-    tol_s = cfg[:solve_tol_saturations]
-    tol_p = cfg[:solve_tol_pressure]
-    tol_mob = cfg[:solve_tol_mobility]
-    tol_z = cfg[:solve_tol_composition]
+function get_nldd_solution_change_tolerances(cfg)
+    function expand_tol(val::Nothing, avg::Nothing)
+        return nothing
+    end
+    function expand_tol(val::Float64, avg::Nothing)
+        return expand_tol(val, Inf)
+    end
+    function expand_tol(val::Nothing, avg::Float64)
+        return expand_tol(Inf, avg)
+    end
+    function expand_tol(val::Float64, avg::Float64)
+        return (max = val, mean = avg)
+    end
+    tol_s = expand_tol(cfg[:solve_tol_saturations], cfg[:solve_tol_saturations_mean])
+    tol_p = expand_tol(cfg[:solve_tol_pressure], cfg[:solve_tol_pressure_mean])
+    tol_mob = expand_tol(cfg[:solve_tol_mobility], cfg[:solve_tol_mobility_mean])
+    tol_z = expand_tol(cfg[:solve_tol_composition], cfg[:solve_tol_composition_mean])
+    tol_rho = expand_tol(cfg[:solve_tol_densities], cfg[:solve_tol_densities_mean])
+    tol_XY = expand_tol(cfg[:solve_tol_phase_mass_fractions], cfg[:solve_tol_phase_mass_fractions_mean])
 
     has_s = !isnothing(tol_s)
     has_p = !isnothing(tol_p)
     has_mob = !isnothing(tol_mob)
     has_z = !isnothing(tol_z)
+    has_XY = !isnothing(tol_XY)
+    has_rho = !isnothing(tol_rho)
 
+    if has_s || has_p || has_mob || has_z || has_XY || has_rho
+        out = (
+            Saturations = tol_s,
+            Pressure = tol_p,
+            PhaseMobilities = tol_mob,
+            OverallMoleFractions = tol_z,
+            LiquidMassFractions = tol_XY,
+            VaporMassFractions = tol_XY,
+            PhaseMassDensities = tol_rho
+        )
+    else
+        out = nothing
+    end
+    return out
+end
+
+function check_if_subdomain_needs_solving(buf, sim, cfg, iteration)
+    tol = get_nldd_solution_change_tolerances(cfg)
     model = sim.model
     has_wells = model isa MultiModel && length(model.models) > 1
     if cfg[:always_solve_wells] && has_wells
         return true
     end
-    if (has_s || has_p || has_mob)
+    if isnothing(tol)
+        do_solve = true
+    else
         if iteration == 1
             do_solve = !cfg[:solve_tol_first_newton]
         else
             state = sim.storage.state
-            do_solve = check_inner(buf, model, state, tol_s, tol_p, tol_z, tol_mob)
+            do_solve = check_inner(buf, model, state, tol)
         end
-    else
-        do_solve = true
     end
     return do_solve
 end
 
-function check_inner(buf, model, state, tol_s, tol_p, tol_z, tol_mob)
+function check_inner(buf, model, state, tol)
     do_solve = false
-    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :Saturations, tol_s, :abs)
-    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :Pressure, tol_p, :abs)
-    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :PhaseMobilities, tol_mob, :relsum)
-    do_solve = do_solve || check_subdomain_change_inner(buf, model, state, :OverallMoleFractions, tol_z, :abs)
+    criteria = (
+        (:Saturations, :abs),
+        (:Pressure, :abs),
+        (:PhaseMobilities, :relsum),
+        (:OverallMoleFractions, :abs),
+        (:LiquidMassFractions, :abs),
+        (:VaporMassFractions, :abs),
+        (:PhaseMassDensities, :abs),
+        (:PhaseMassDensities, :abs),
+        )
+    for (k, t) in criteria
+        do_solve = do_solve || check_subdomain_change_inner(buf, model, state, k, tol[k], t)
+        if do_solve
+            break
+        end
+    end
     return do_solve
 end
 
-function store_reservoir_change_buffer_inner!(buf, model, state)
-    function buf_transfer!(out, in)
-        for i in eachindex(out)
-            @inbounds out[i] = value(in[i])
+function store_reservoir_change_buffer_inner!(buf, tols::Nothing, model, state)
+    # No tolerances, do nothing.
+end
+
+function store_reservoir_change_buffer_inner!(buf, tols, model, state)
+    function buf_transfer!(out::Vector, in::Vector, cells)
+        for i in eachindex(cells)
+            c = cells[i]
+            @inbounds out[i] = value(in[c])
         end
     end
+    function buf_transfer!(out::Matrix, in::Matrix, cells)
+        for i in eachindex(cells)
+            c = cells[i]
+            for j in axes(out, 1)
+                @inbounds out[j, i] = value(in[j, c])
+            end
+        end
+    end
+    cells = buf.Cells
     for (k, v) in pairs(buf)
+        if k == :Cells
+            continue
+        end
+        if isnothing(tols[k])
+            continue
+        end
         vals = state[k]
-        buf_transfer!(v, vals)
+        buf_transfer!(v, vals, cells)
     end
 end
 
@@ -440,11 +514,21 @@ function check_subdomain_change_inner(buf, model::MultiModel, state, f, tol, sum
     return check_subdomain_change_inner(buf, model[:Reservoir], state[:Reservoir], f, tol, sum_t)
 end
 
+function check_subdomain_change_inner(buf, model::SimulationModel, state, f, tol::Nothing, sum_t)
+    return false
+end
+
 function check_subdomain_change_inner(buf, model::SimulationModel, state, f, tol, sum_t)
     if isnothing(tol)
         return false # No tolerance - no need to check
     else
-        current = state[f]
+        cells = buf.Cells
+        state_val = state[f]
+        if state_val isa Matrix
+            current = view(state_val, :, cells)
+        else
+            current = view(state_val, cells)
+        end
         old = buf[f]
         if sum_t == :relsum
             current::AbstractMatrix
@@ -456,33 +540,46 @@ function check_subdomain_change_inner(buf, model::SimulationModel, state, f, tol
     end
 end
 
-function subdomain_delta_absolute(current, old, tol)
+function subdomain_delta_absolute(current, old, tol_tuple)
+    tol = tol_tuple.max
+    tol_avg = tol_tuple.mean
+
+    sumval = 0.0
     for i in eachindex(current)
         c = current[i]
         o = old[i]
         d = abs(value(c) - o)
+        sumval += d
         if d > tol
             return true
         end
     end
-    return false
+    avg = sumval/length(current)
+    return avg > tol_avg
 end
 
-function subdomain_delta_relsum(current, old, tol)
+function subdomain_delta_relsum(current, old, tol_tuple)
+    tol = tol_tuple.max
+    tol_avg = tol_tuple.mean
     n = size(current, 1)
+    sumval = 0.0
     for cell in axes(current, 2)
         mob_total = 0.0
         for i in axes(old, 1)
             mob_total += old[i, cell]/n
         end
+        maxv = 0.0
         for i in axes(old, 1)
             c = current[i, cell]
             o = old[i, cell]
             d = abs(value(c) - o)/mob_total
+            maxv = max(maxv, d)
             if d > tol
                 return true
             end
         end
+        sumval += maxv
     end
-    return false
+    avg = sumval/size(current, 2)
+    return avg > tol_avg
 end

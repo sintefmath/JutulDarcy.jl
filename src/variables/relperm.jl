@@ -211,6 +211,17 @@ function Jutul.default_values(model, scalers::EndPointScalingCoefficients{P}) wh
         kscale[3, i] = s_max
         kscale[4, i] = k_max
     end
+    data_domain = model.data_domain
+    k = Symbol("scaler_$(P)_drainage")
+    if haskey(data_domain, k)
+        kscale_model = data_domain[k]
+        for i in eachindex(kscale, kscale_model)
+            override = kscale_model[i]
+            if isfinite(override)
+                kscale[i] = override
+            end
+        end
+    end
     return kscale
 end
 
@@ -583,7 +594,7 @@ function relperm_scaling(scaling, F, s::T, cr, CR, u, U, km, KM, r, R) where T<:
     if scaling == ThreePointKrScale
         S = three_point_saturation_scaling(s, cr, CR, u, U, r, R)
     else
-        S = two_point_saturation_scaling(s, cr, CR, u, U, r, R)
+        S = two_point_saturation_scaling(s, cr, CR, u, U)
     end
     return (KM/km)*F(S)
 end
@@ -605,18 +616,11 @@ function three_point_saturation_scaling(s::T, cr, CR, u, U, r, R) where T<:Real
     return S
 end
 
-function two_point_saturation_scaling(s::T, cr, CR, u, U, r, R) where T<:Real
-    # ix1 = sv < p{1};
-    # ix2 = sv >= p{2};
-    # ix  = ~(ix1 | ix2);
-    # s_scale = (ix.*m).*s + (ix.*c + ix2);
-    error("Not implemented.")
+function two_point_saturation_scaling(s::T, cr, CR, u, U) where T<:Real
     if s < CR
         S = zero(T)
-    elseif s >= CR && s < R
-        S = (s - CR)*(r-cr)/(R-CR) + cr
-    elseif s >= R && s < U
-        S = (s - R)*(u-r)/(U-R) + r
+    elseif s >= CR && s < U
+        S = (s - CR)*(u-cr)/(U-CR) + cr
     else
         S = one(T)
     end

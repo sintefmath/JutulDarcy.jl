@@ -19,6 +19,7 @@ module NLDD
     using SparseArrays, StaticArrays
     using Printf
     import Jutul: @tic
+    timeit_debug_enabled() = Jutul.timeit_debug_enabled()
 
     # All types in module
     include("types.jl")

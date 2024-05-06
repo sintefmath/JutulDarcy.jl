@@ -24,7 +24,7 @@ function update_subdomain_from_global(inner_model, simulator, sim, i; current = 
     var_def_g = s_g.variable_definitions
     var_def_l = s_l.variable_definitions
 
-    primary_to_local!(state_l, state_g, var_def_g, m, M)
+    @tic "primary to local" primary_to_local!(state_l, state_g, var_def_g, m, M)
     handle_secondary(state_l, state_g, var_def_l, var_def_g, m, M; kwarg...)
 end
 
@@ -41,16 +41,16 @@ function update_subdomain_from_global(inner_model::MultiModel, simulator, sim, i
         (state_g, state_l) = state_pair(s_g, s_l, current)
         Ω = m.domain
         M = global_map(Ω)
-        primary_to_local!(state_l, state_g, var_def_g, m, M)
+        @tic "primary to local" primary_to_local!(state_l, state_g, var_def_g, m, M)
         handle_secondary(state_l, state_g, var_def_l, var_def_g, m, M; kwarg...)
     end
 end
 
 function handle_secondary(state_l, state_g, defs_l, defs_g, m, M; transfer_secondary = false)
     if transfer_secondary
-        secondary_to_local!(state_l, state_g, defs_g, m, M)
+        @tic "secondary to local" secondary_to_local!(state_l, state_g, defs_g, m, M)
     else
-        Jutul.update_secondary_variables_state!(state_l, m, defs_l.secondary_variables)
+        @tic "secondary variables" Jutul.update_secondary_variables_state!(state_l, m, defs_l.secondary_variables)
     end
 end
 
@@ -65,9 +65,9 @@ function update_global_from_subdomain(inner_model, simulator, sim, i; secondary 
     M = Ω.global_map
     (state_g, state_l) = state_pair(simulator.storage, sim.storage, true)
     defs = sim.storage.variable_definitions
-    primary_to_global!(state_g, state_l, defs, model, M)
+    @tic "primary to global" primary_to_global!(state_g, state_l, defs, model, M)
     if secondary
-        secondary_to_global!(state_g, state_l, defs, model, M)
+        @tic "secondary to global" secondary_to_global!(state_g, state_l, defs, model, M)
     end
 end
 
@@ -82,9 +82,9 @@ function update_global_from_subdomain(inner_model::MultiModel, simulator, sim, i
         defs = s_g.variable_definitions
 
         (state_g, state_l) = state_pair(s_g, s_l, true)
-        primary_to_global!(state_g, state_l, defs, m, M)
+        @tic "primary to global" primary_to_global!(state_g, state_l, defs, m, M)
         if secondary
-            secondary_to_global!(state_g, state_l, defs, m, M)
+            @tic "secondary to global" secondary_to_global!(state_g, state_l, defs, m, M)
         end
     end
 end
@@ -147,7 +147,7 @@ end
 "Transfer to global - trivial map"
 function transfer_to_global!(glob, loc, M)
     for i in eachindex(loc)
-        @inbounds glob[i] = dd_transfer(loc[i])
+        @inbounds glob[i] = loc[i]
     end
 end
 
@@ -187,22 +187,22 @@ end
 
 "Transfer to global - vector, non-trivial map"
 function transfer_to_global!(glob::AbstractVector, loc::AbstractVector, M::Jutul.FiniteVolumeGlobalMap{R}) where R
-    for c in eachindex(loc)
+    @inbounds for c in eachindex(loc)
         if !Jutul.cell_is_boundary(c, M)
             @inbounds gc = Jutul.global_cell(c, M)::R
-            @inbounds glob[gc] = dd_transfer(loc[c])
+            @inbounds glob[gc] = loc[c]
         end
     end
 end
 
 "Transfer to global - matrix, non-trivial map"
 function transfer_to_global!(glob::AbstractMatrix, loc::AbstractMatrix, M::Jutul.FiniteVolumeGlobalMap{R}) where R
-    for c in axes(loc, 2)
+    @inbounds for c in axes(loc, 2)
         if !Jutul.cell_is_boundary(c, M)
             @inbounds gc = Jutul.global_cell(c, M)::R
             @inbounds for d in axes(loc, 1)
                 val = loc[d, c]
-                glob[d, gc] = dd_transfer(val)
+                glob[d, gc] = val
             end
         end
     end
@@ -211,13 +211,13 @@ end
 "Transfer - trivial mapping"
 function transfer_to_local!(loc, glob, M)
     for i in eachindex(loc)
-        @inbounds loc[i] = dd_transfer(glob[i])
+        @inbounds loc[i] = glob[i]
     end
 end
 
 function transfer_to_local!(loc::Dict, glob::Dict, M::Jutul.TrivialGlobalMap)
     for k in keys(loc)
-        loc[k] = dd_transfer(glob[k])
+        loc[k] = glob[k]
     end
 end
 
@@ -225,7 +225,7 @@ end
 function transfer_to_local!(loc::AbstractVector, glob::AbstractVector, M::Jutul.FiniteVolumeGlobalMap{R}) where R
     for c in eachindex(loc)
         @inbounds gc = Jutul.global_cell(c, M)::R
-        @inbounds loc[c] = dd_transfer(glob[gc])
+        @inbounds loc[c] = glob[gc]
     end
 end
 
@@ -235,10 +235,7 @@ function transfer_to_local!(loc::AbstractMatrix, glob::AbstractMatrix, M::Jutul.
     for c in 1:nc
         @inbounds gc = Jutul.global_cell(c, M)::R
         for d in 1:nd
-            @inbounds loc[d, c] = dd_transfer(glob[d, gc])
+            @inbounds loc[d, c] = glob[d, gc]
         end
     end
 end
-
-# @inline dd_transfer(x) = deepcopy(x)
-@inline dd_transfer(x) = x

@@ -374,12 +374,14 @@ end
 
 pvt_table_vectors(pvt::PVTOTable) = (pvt.pressure, pvt.rs, pvt.sat_pressure, pvt.pos)
 
-function shrinkage(pvt::PVTO, reg, p::T, rs, cell) where T
+function shrinkage(pvt::PVTO, reg, p, rs, cell)
+    T = Base.promote_type(typeof(p), typeof(rs))
     tbl = table_by_region(pvt.tab, region(reg, cell))
     return interp_pvt(tbl, p, rs, tbl.shrinkage)::T
 end
 
-function viscosity(pvt::PVTO, reg, p::T, rs, cell) where T
+function viscosity(pvt::PVTO, reg, p, rs, cell)
+    T = Base.promote_type(typeof(p), typeof(rs))
     tbl = table_by_region(pvt.tab, region(reg, cell))
     return interp_pvt(tbl, p, rs, tbl.viscosity)::T
 end
@@ -414,11 +416,11 @@ function PVTG(pvtg::PVTGTable)
     return PVTG(ct)
 end
 
-function PVTG(pvtg::Dict)
-    return PVTG(PVTGTable(pvtg))
+function PVTG(pvtg::Dict; kwarg...)
+    return PVTG(PVTGTable(pvtg; kwarg...))
 end
 
-function PVTGTable(d::Dict)
+function PVTGTable(d::Dict; fix = true)
     pos = vec(Int64.(d["pos"]))
     data = copy(d["data"])
     for i in 1:length(pos)-1
@@ -432,7 +434,9 @@ function PVTGTable(d::Dict)
         end
     end
     pressure = vec(copy(d["key"]))
-    # data, pos, pressure = add_lower_pvtg(data, pos, pressure)
+    if fix
+        data, pos, pressure = add_lower_pvtg(data, pos, pressure)
+    end
     rv = vec(data[:, 1])
     B = vec(data[:, 2])
     b = 1.0 ./ B
@@ -463,16 +467,18 @@ end
 
 pvt_table_vectors(pvt::PVTGTable) = (pvt.rv, pvt.pressure, pvt.sat_rv, pvt.pos)
 
-function shrinkage(pvt::PVTG, reg, p::T, rv, cell) where T
+function shrinkage(pvt::PVTG, reg, p, rv, cell)
+    p, rv = Base.promote(p, rv)
     tbl = table_by_region(pvt.tab, region(reg, cell))
     # Note: Reordered arguments!
-    return interp_pvt(tbl, rv, p, tbl.shrinkage)::T
+    return interp_pvt(tbl, rv, p, tbl.shrinkage)::typeof(p)
 end
 
-function viscosity(pvt::PVTG, reg, p::T, rv, cell) where T
+function viscosity(pvt::PVTG, reg, p, rv, cell)
+    p, rv = Base.promote(p, rv)
     tbl = table_by_region(pvt.tab, region(reg, cell))
     # Note: Reordered arguments!
-    return interp_pvt(tbl, rv, p, tbl.viscosity)::T
+    return interp_pvt(tbl, rv, p, tbl.viscosity)::typeof(p)
 end
 
 struct PVDO{T} <: AbstractTablePVT
@@ -580,11 +586,54 @@ function PVCDO(pvcdo::AbstractArray)
 end
 
 
-struct LinearlyCompressiblePoreVolume{R} <: ScalarVariable where {R<:Real}
-    reference_pressure::R
-    expansion::R
-    function LinearlyCompressiblePoreVolume(; reference_pressure::T = 101325.0, expansion::T = 1e-10) where T
-        new{T}(reference_pressure, expansion)
+struct LinearlyCompressiblePoreVolume{V, R} <: ScalarVariable
+    reference_pressure::V
+    expansion::V
+    regions::R
+    function LinearlyCompressiblePoreVolume(; reference_pressure = 101325.0, expansion = 1e-10, regions = nothing)
+        check_regions(regions, length(reference_pressure))
+        reference_pressure = region_wrap(reference_pressure, regions)
+        expansion = region_wrap(expansion, regions)
+        new{typeof(reference_pressure), typeof(regions)}(reference_pressure, expansion, regions)
+    end
+end
+
+function Jutul.subvariable(p::LinearlyCompressiblePoreVolume, map::FiniteVolumeGlobalMap)
+    c = map.cells
+    regions = Jutul.partition_variable_slice(p.regions, c)
+    return LinearlyCompressiblePoreVolume(
+        reference_pressure = p.reference_pressure,
+        expansion = p.expansion,
+        regions = regions
+    )
+end
+
+struct TableCompressiblePoreVolume{V, R} <: ScalarVariable
+    tab::V
+    regions::R
+    function TableCompressiblePoreVolume(tab; regions = nothing)
+        check_regions(regions, length(tab))
+        tab = region_wrap(tab, regions)
+        new{typeof(tab), typeof(regions)}(tab, regions)
+    end
+end
+
+struct ScalarPressureTable{V, R} <: ScalarVariable
+    tab::V
+    regions::R
+    function ScalarPressureTable(tab; regions = nothing)
+        check_regions(regions, length(tab))
+        tab = region_wrap(tab, regions)
+        new{typeof(tab), typeof(regions)}(tab, regions)
+    end
+end
+
+@jutul_secondary function update_variable!(pv, Φ::ScalarPressureTable, model, Pressure, ix)
+    @inbounds for i in ix
+        reg = region(Φ.regions, i)
+        F = table_by_region(Φ.tab, reg)
+        p = Pressure[i]
+        pv[i] = F(p)
     end
 end
 
@@ -608,20 +657,16 @@ end
 
 function add_lower_pvtg(data, pos, pressure)
     ref_p = 101325.0
-    first_offset = pos[2]-1
-    start = 1:first_offset
-    new_start = data[start, :]
-    for i in axes(new_start, 1)
-        # new_start[i, 2] *= 0.99
+    if pressure[1] > ref_p
+        first_offset = pos[2]-1
+        start = 1:first_offset
+        new_start = data[start, :]
+        @assert pos[1] == 1
+        @. new_start[:, 3] *= 1.01
+        data = vcat(new_start, data)
+        pos = vcat([1, first_offset+1], pos[2:end] .+ first_offset)
+        pressure = vcat(ref_p, pressure)
     end
-    # dp = ref_p - new_start[1, 1]
-    # for i in axes(new_start, 1)
-        # new_start[i, 1] += dp
-    # end
-    @assert pos[1] == 1
-    data = vcat(new_start, data)
-    pos = vcat([1, first_offset+1], pos[2:end] .+ first_offset)
-    pressure = vcat(ref_p, pressure)
     return (data, pos, pressure)
 end
 

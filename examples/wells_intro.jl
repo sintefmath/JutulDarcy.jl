@@ -183,8 +183,11 @@ using GLMakie
 # We observe that the total rate does not vary much, but the composition changes
 # from liquid to gas as the front propagate through the domain and hits the
 # producer well.
+# Gas rates
 qg = wd[:Producer][:grat]
+# Total rate
 qt = wd[:Producer][:rate]
+# Compute liquid rate and plot
 ql = qt - qg
 x = t/day
 fig = Figure()

@@ -21,7 +21,8 @@ function simulator_config(sim::NLDDSimulator;
         kwarg...
     )
     if subdomain_info_level isa Real
-        subdomain_info_level = i -> i == subdomain_info_level
+        slvl = subdomain_info_level
+        subdomain_info_level = i -> slvl
     end
     check_before_solve = isinf(inc_tol_dp_abs) && isinf(inc_tol_dp_rel) && isinf(inc_tol_dz)
     cfg = simulator_config(sim.simulator)
@@ -53,13 +54,31 @@ function simulator_config(sim::NLDDSimulator;
     add_option!(cfg, :strategy, DefaultNLDDStrategy(), "Strategy to use for applying NLDD/ASPEN")
     same_tol = inner_tol_final <= 1.0 && inner_tol_mul <= 1.0
     add_option!(cfg, :subdomain_tol_sufficient, same_tol, "Tolerances in subdomains are at least tight enough to be able to conclude global convergence.", types = Bool)
-    add_option!(cfg, :solve_tol_pressure, nothing, "Local subdomains are solved if maximum pressure change exceeds this value.", types = Union{Float64, Nothing})
-    add_option!(cfg, :solve_tol_saturations, nothing, "Local subdomains are solved if maximum saturation change exceeds this value.", types = Union{Float64, Nothing})
-    add_option!(cfg, :solve_tol_mobility, nothing, "Local subdomains are solved if maximum mobility (relative to to total mobility) exceeds this value.", types = Union{Float64, Nothing})
-    add_option!(cfg, :solve_tol_composition, nothing, "Local subdomains are solved if maximum change in composition exceeds this value.", types = Union{Float64, Nothing})
+
+    # Subdomain tolerances for when to solve a local subdomain
+    add_option!(cfg, :solve_tol_pressure, nothing, "Local subdomains are solved if maximum pressure change at boundary exceeds this value.", types = Union{Float64, Nothing})
+    add_option!(cfg, :solve_tol_pressure_mean, nothing, "Local subdomains are solved if mean of pressure change at boundary exceeds this value.", types = Union{Float64, Nothing})
+
+    add_option!(cfg, :solve_tol_saturations, nothing, "Local subdomains are solved if maximum saturation change at boundary exceeds this value.", types = Union{Float64, Nothing})
+    add_option!(cfg, :solve_tol_saturations_mean, nothing, "Local subdomains are solved if mean of saturation change at boundary exceeds this value.", types = Union{Float64, Nothing})
+
+    add_option!(cfg, :solve_tol_densities, nothing, "Local subdomains are solved if maximum density change at boundary exceeds this value.", types = Union{Float64, Nothing})
+    add_option!(cfg, :solve_tol_densities_mean, nothing, "Local subdomains are solved if mean of density change at boundary exceeds this value.", types = Union{Float64, Nothing})
+
+    add_option!(cfg, :solve_tol_mobility, nothing, "Local subdomains are solved if maximum mobility at boundary (relative to to total mobility) exceeds this value.", types = Union{Float64, Nothing})
+    add_option!(cfg, :solve_tol_mobility_mean, nothing, "Local subdomains are solved if mean of mobility at boundary (relative to to total mobility) exceeds this value.", types = Union{Float64, Nothing})
+
+    add_option!(cfg, :solve_tol_composition, nothing, "Local subdomains are solved if maximum change in composition at boundary exceeds this value.", types = Union{Float64, Nothing})
+    add_option!(cfg, :solve_tol_composition_mean, nothing, "Local subdomains are solved if mean of change in composition at boundary exceeds this value.", types = Union{Float64, Nothing})
+
+    add_option!(cfg, :solve_tol_phase_mass_fractions, nothing, "Local subdomains are solved if maximum change in phase mass fractions at boundary exceeds this value.", types = Union{Float64, Nothing})
+    add_option!(cfg, :solve_tol_phase_mass_fractions_mean, nothing, "Local subdomains are solved if mean of change in phase mass fractions at boundary exceeds this value.", types = Union{Float64, Nothing})
+
     add_option!(cfg, :solve_tol_first_newton, true, "Skip local solves for first iteration when tolerances are used.", types = Bool)
 
     add_option!(cfg, :subdomain_failure_throws, false, "Throw exception upon subdomain failure to solve.", types = Bool)
+    add_option!(cfg, :subdomain_failure_cuts, false, "Cut outer timestep if any subdomain fails to solve.", types = Bool)
+
     add_option!(cfg, :always_solve_wells, false, "Always solve wells in local subdomain", types = Bool)
 
     # Subdomain setup
@@ -118,10 +137,14 @@ function final_simulation_message(sim::NLDDSimulator, p, rec, t_elapsed, reports
             Jutul.print_timing(stats, title = "Subdomain stats (Total)")
         end
     end
+    n = length(sim.subdomain_simulators)
     failure_count = 0
     count = 0
     nldd_count = 0
     total_count = 0
+    subdomain_skipped = 0
+    subdomain_solves = 0
+    subdomain_total = 0
     for r in reports
         for m in r[:ministeps]
             if haskey(m, :steps)
@@ -138,17 +161,23 @@ function final_simulation_message(sim::NLDDSimulator, p, rec, t_elapsed, reports
                         total_count += 1
                         nldd_count += mr[:local_solves_active]
                     end
+                    if haskey(mr, :solve_status)
+                        for status in mr[:solve_status]
+                            subdomain_skipped += status == local_solve_skipped
+                            subdomain_solves += status != local_already_converged && status != local_solve_skipped
+                            subdomain_total += 1
+                        end
+                    end
                 end
-            else
-                nldd_count = missing
             end
         end
     end
-    if info_level > -1 && !ismissing(nldd_count)
-        Jutul.jutul_message("Adaptive", "$nldd_count/$total_count solves used $(config[:method])")
+    if info_level > -1
+        subdomain_already_conv = subdomain_total-subdomain_solves-subdomain_skipped
+        Jutul.jutul_message("NLDD", "$nldd_count/$total_count solves used $(config[:method]).")
+        Jutul.jutul_message("NLDD", "Subdomain status:\n\t$subdomain_skipped/$subdomain_total local solves were skipped.\n\t$subdomain_already_conv/$subdomain_total local solves were already converged.\n\t$subdomain_solves/$subdomain_total local solves were solved.")
     end
-    if failure_count > 0 && !ismissing(nldd_count)
-        n = length(sim.subdomain_simulators)
+    if failure_count > 0
         @info "$failure_count subdomain solves failed out of $(n*count) total local solves."
     end
     final_simulation_message(sim.simulator, p, rec, t_elapsed, reports, timesteps, config, start_date, aborted)

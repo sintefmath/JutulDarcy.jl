@@ -29,7 +29,7 @@ function NLDDSimulator(case::JutulCase, partition = missing;
             N = no_blocks
         else
             @assert ismissing(no_blocks)
-            N = Int64(max(ceil(nc/cells_per_block), 2))
+            N = Int64(clamp(ceil(nc/cells_per_block), 1, nc))
         end
         p = partition_from_N(model, parameters, N)
         partition = reservoir_partition(model, p);
@@ -40,12 +40,17 @@ function NLDDSimulator(case::JutulCase, partition = missing;
     partition::Jutul.AbstractDomainPartition
     outer_sim = Simulator(model; state0 = state0, parameters = deepcopy(parameters), executor = executor, kwarg...)
     np = number_of_subdomains(partition)
+    maximum_np = np
     if isnothing(submodels)
         is_distributed_solve = executor isa Jutul.PArrayExecutor
         if is_distributed_solve
             n_self = executor.data[:n_self]
             nc = length(executor.data[:partition])
             active_global = [i <= n_self for i in 1:nc]
+            is_mpi = executor.mode isa Jutul.MPI_PArrayBackend
+            if is_mpi
+                maximum_np = Jutul.mpi_scalar_allreduce(np, max, executor)
+            end
         else
             active_global = missing
         end
@@ -110,6 +115,7 @@ function NLDDSimulator(case::JutulCase, partition = missing;
     storage[:boundary_discretizations] = map((s) -> boundary_discretization(outer_sim.storage, outer_sim.model, s.model, s.storage), subsim)
     storage[:solve_log] = NLDDSolveLog()
     storage[:coarse_neighbors] = coarse_neighbors
+    storage[:maximum_number_of_subdomains_globally] = maximum_np
 
     # storage = convert_to_immutable_storage(storage)
     NLDDSimulator(outer_sim, executor, partition, nothing, subsim, storage)
@@ -217,15 +223,18 @@ function local_stage(simulator, dt, forces, config, iteration)
     n = length(sub_sims)
 
     configs = config[:config_subdomains]
-    subreports = Vector(undef, n)
+    subreports = Vector{Any}(undef, n)
+    fill!(subreports, nothing)
 
     use_threads = config[:nldd_threads]
-    solve_status = Vector{LocalSolveStatus}(undef, n)
+    solve_status = fill(local_solve_skipped, n)
 
     @debug "Solving local systems..."
     failures = Vector{Int64}()
 
     do_solve = zeros(Bool, n)
+    allow_early_termination = config[:subdomain_failure_cuts]
+
     function pre(i)
         subsim = sub_sims[i]
         change_buffer = simulator.storage.local_changes[i]
@@ -249,11 +258,18 @@ function local_stage(simulator, dt, forces, config, iteration)
     function solve_and_transfer(i)
         should_solve = do_solve[i]
         sim = sub_sims[i]
+        cfg = configs[i]
+        il_i = cfg[:info_level]
         if should_solve
-            cfg = configs[i]
+            if il_i > 0
+                jutul_message("Subdomain: $i", "Solving subdomain.")
+            end
             # cfg[:always_update_secondary] = true
             ok, rep = solve_subdomain(sim, i, dt, forces, cfg)
         else
+            if il_i > 0
+                jutul_message("Subdomain: $i", "Skipping subdomain.")
+            end
             ok = true
             rep = nothing
         end
@@ -267,17 +283,18 @@ function local_stage(simulator, dt, forces, config, iteration)
             update_subdomain_from_global(sim_global, sim, i, current = true, transfer_secondary = false)
         end
         update_global_from_subdomain(sim_global, sim, i, secondary = true)
+        return ok
     end
     # Now that we have the main functions set up we can do either kind of local solves
     t = @elapsed if is_gauss_seidel
         # Gauss-seidel (non-deterministic if threads are on)
         function gs_solve(i)
             pre(i)
-            solve_and_transfer(i)
+            return solve_and_transfer(i)
         end
-        @tic "local solves [GS]" sim_order = gauss_seidel_for_each_subdomain_do(gs_solve, simulator, sub_sims, subreports, config[:gauss_seidel_order])
+        @tic "local solves [GS]" sim_order = gauss_seidel_for_each_subdomain_do(gs_solve, simulator, sub_sims, subreports, config[:gauss_seidel_order], allow_early_termination)
     else
-        execute = (f) -> for_each_subdomain_do(f, n, use_threads, config[:nldd_thread_type])
+        execute = (f) -> for_each_subdomain_do(f, n, use_threads, config[:nldd_thread_type], allow_early_termination)
         # Jacobi solve
         @tic "prepare local solves" execute(pre)
         if is_aspen
@@ -300,7 +317,7 @@ function local_stage(simulator, dt, forces, config, iteration)
             if config[:info_level] == 1
                 Jutul.jutul_message("Convergence", msg, color = :light_yellow)
             else
-                @warn "It $iteration: $bad of $n subdomains failed to converge:" failures
+                @warn "$msg:" failures
                 for i in eachindex(subreports)
                     if solve_status[i] == local_solve_failure
                         sr = subreports[i][end][:steps]
@@ -320,9 +337,13 @@ function local_stage(simulator, dt, forces, config, iteration)
     end
     if config[:info_level] > 1
         m = sum(x-> !(x == local_solve_skipped), solve_status)
-        tot_str = Jutul.get_tstr(t, 1)
-        avg_str = Jutul.get_tstr(t/m, 1)
-        jutul_message("NLDD", "Solved $m/$n domains in $tot_str ($avg_str average)")
+        if m > 0
+            tot_str = Jutul.get_tstr(t, 1)
+            avg_str = Jutul.get_tstr(t/m, 1)
+            jutul_message("NLDD", "Solved $m/$n domains in $tot_str ($avg_str average)")
+        else
+            jutul_message("NLDD", "Solved no subdomains.")
+        end
     end
     return subreports, sim_order, t, solve_status, failures
 end
@@ -352,16 +373,22 @@ function get_solve_status(rep, ok)
     return status
 end
 
-function for_each_subdomain_do(f, n, use_threads, thread_type)
+function for_each_subdomain_do(f, n, use_threads, thread_type, early_stop::Bool)
     if use_threads
         if thread_type == :batch
             @batch for i = 1:n
-                f(i)
+                ok_i = f(i)
+                if early_stop && !ok_i
+                    break
+                end
             end
         elseif thread_type == :default
             disable_polyester_threads() do
                 Threads.@threads for i = 1:n
-                    f(i)
+                    ok_i = f(i)
+                    if early_stop && !ok_i
+                        break
+                    end
                 end
             end
         else
@@ -375,12 +402,15 @@ function for_each_subdomain_do(f, n, use_threads, thread_type)
         end
     else
         for i = 1:n
-            f(i)
+            ok_i = f(i)
+            if early_stop && !ok_i
+                break
+            end
         end
     end
 end
 
-function gauss_seidel_for_each_subdomain_do(f, sim, simulators, subreports, strategy::Symbol)
+function gauss_seidel_for_each_subdomain_do(f, sim, simulators, subreports, strategy::Symbol, early_stop::Bool)
     if strategy == :adaptive
         n = length(simulators)
         sim_order = Int[]
@@ -428,19 +458,20 @@ function gauss_seidel_for_each_subdomain_do(f, sim, simulators, subreports, stra
             sim_order = eachindex(simulators)
         else
             if strategy == :pressure
-                sort_function = x -> find_max_interior_pressure(x)
+                sort_function = x -> -find_max_interior_pressure(x)
             elseif strategy == :potential
-                sort_function = x -> find_block_potential(x)
+                sort_function = x -> -find_block_potential(x)
             else
                 error("Ordering $strategy is not supported.")
             end
-            sim_order = sortperm(
-                simulators, by = sort_function,
-                rev = true
-            )
+            pval = map(sort_function, simulators)
+            sim_order = sortperm(pval)
         end
         for i in sim_order
-            f(i)
+            ok_i = f(i)
+            if early_stop && !ok_i
+                break
+            end
         end
     end
     return sim_order
@@ -466,7 +497,9 @@ function find_injectors(simulators)
         end
     end
     # Sort so that highest pressure comes first
-    sort!(injectors, by = i -> -find_max_interior_pressure(simulators[i]))
+    pval = map(find_max_interior_pressure, simulators)
+    sort!(injectors, by = i -> -pval[i])
+    # sort!(injectors, by = i -> -find_max_interior_pressure(simulators[i]))
     return unique!(injectors)
 end
 
@@ -480,8 +513,9 @@ function find_max_interior_pressure(model::MultiModel, state)
         model_k = model[k]
         state_k = state[k]
         if haskey(state_k, :Pressure)#  && k == :Reservoir
-            p_max_k = find_max_interior_pressure(model_k, state_k, global_map(model_k))
-            p_max = max(p_max, p_max_k)
+            mm = global_map(model_k)::Union{Jutul.FiniteVolumeGlobalMap{Int}, Jutul.TrivialGlobalMap}
+            p_max_k = find_max_interior_pressure(model_k, state_k, mm)::Float64
+            p_max = max(p_max, p_max_k)::Float64
         end
     end
     return p_max
@@ -506,7 +540,7 @@ function find_max_pressure(is_bnd, p)
     p_max = -Inf
     for i in eachindex(p)
         if !is_bnd[i]
-            p_max = max(p_max, value(p[i]))
+            p_max = max(p_max, value(p[i]))::Float64
         end
     end
     return p_max::Float64
@@ -586,11 +620,14 @@ function global_stage(
     end
     # If all subdomains converged, we can return early
     all_local_converged = true
+    any_failures = false
     if isnothing(subreports)
         all_local_converged = false
     else
         for i in eachindex(subreports)
-            ok_i = solve_status[i] == local_already_converged
+            status_i = solve_status[i]
+            ok_i = status_i == local_already_converged
+            any_failures = any_failures || status_i == local_solve_failure
             all_local_converged = all_local_converged && ok_i
         end
     end
@@ -607,6 +644,10 @@ function global_stage(
             errors = Dict()
             Jutul.get_convergence_table(errors, il, iteration, config)
         end
+    elseif config[:subdomain_failure_cuts] && any_failures
+        report[:failure] = true
+        report[:failure_exception] = "Subdomains failed and subdomain_failure_cuts = true"
+        return (1.0, false, report)
     else
         if m == :nldd
             n = length(simulator.subdomain_simulators)
@@ -707,7 +748,9 @@ function Jutul.reset_previous_state!(sim::NLDDSimulator, state0)
     Jutul.reset_previous_state!(sim.simulator, state0)
 end
 
-Jutul.store_output!(states, reports, step, sim::NLDDSimulator, config, report) = Jutul.store_output!(states, reports, step, sim.simulator, config, report)
+function Jutul.store_output!(states, reports, step, sim::NLDDSimulator, config, report; kwarg...)
+    return Jutul.store_output!(states, reports, step, sim.simulator, config, report; kwarg...)
+end
 
 function Jutul.select_nonlinear_relaxation(sim::NLDDSimulator, rel_type, reports, relaxation)
     return Jutul.select_nonlinear_relaxation(sim.simulator, rel_type, reports, relaxation)

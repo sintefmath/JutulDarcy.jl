@@ -375,10 +375,10 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
             scalecrs = [scalecrs]
         end
         if length(scalecrs) == 0 || lowercase(first(scalecrs)) == "no"
-            @info "Found two-point rel. perm. scaling"
+            Jutul.jutul_message("Rel. Perm. Scaling", "Two-point scaling active.")
             scaling = TwoPointKrScale
         else
-            @info "Found three-point rel. perm. scaling"
+            Jutul.jutul_message("Rel. Perm. Scaling", "Three-point scaling active.")
             scaling = ThreePointKrScale
         end
     else
@@ -714,7 +714,7 @@ function set_deck_specialization!(model, props, satnum, oil, water, gas)
         set_deck_relperm!(svar, param, sys, props; oil = oil, water = water, gas = gas, satnum = satnum)
         set_deck_pc!(svar, param, sys, props; oil = oil, water = water, gas = gas, satnum = satnum)
     end
-    set_deck_pvmult!(svar, param, sys, props)
+    set_deck_pvmult!(svar, param, sys, props, model.data_domain)
 end
 
 function set_thermal_deck_specialization!(model, props, pvtnum, oil, water, gas)
@@ -794,21 +794,52 @@ function set_deck_relperm!(vars, param, sys, props; kwarg...)
     end
 end
 
-function set_deck_pvmult!(vars, param, sys, props)
+function set_deck_pvmult!(vars, param, sys, props, reservoir)
     # Rock compressibility (if present)
-    if haskey(props, "ROCK")
-        rock = JutulDarcy.flat_region_expand(props["ROCK"])
-        if length(rock) > 1
-            @warn "Rock has multiple regions, taking the first..." rock
+    if haskey(reservoir, :rocknum)
+        regions = reservoir[:rocknum]
+    elseif haskey(reservoir, :pvtnum)
+        regions = reservoir[:pvtnum]
+    else
+        regions = nothing
+    end
+    ϕ = missing
+
+    if haskey(props, "ROCKTAB")
+        rt = vec(props["ROCKTAB"])
+        tab = map(x -> get_1d_interpolator(x[:, 1], x[:, 2]), rt)
+        ϕ = TableCompressiblePoreVolume(tab, regions = regions)
+        tab_perm = map(x -> get_1d_interpolator(x[:, 1], x[:, 3]), rt)
+        vars[:PermeabilityMultiplier] = ScalarPressureTable(tab_perm, regions = regions)
+    elseif haskey(props, "ROCK")
+        rock = props["ROCK"]
+        if rock isa Matrix
+            # Do nothing
+        else
+            rock::Vector
+            rock = collect(hcat(rock...)')
         end
-        rock = first(rock)
-        if rock[2] > 0
-            static = param[:FluidVolume]
-            delete!(param, :FluidVolume)
-            param[:StaticFluidVolume] = static
-            ϕ = LinearlyCompressiblePoreVolume(reference_pressure = rock[1], expansion = rock[2])
-            vars[:FluidVolume] = wrap_reservoir_variable(sys, ϕ, :flow)
+        if size(rock, 1) > 1
+            if isnothing(regions)
+                @warn "Should have PVTNUM or ROCKNUM for multiple entries in ROCK. Taking the first entry." rock
+                rock = rock[1:1, :]
+            end
         end
+        p_r = rock[:, 1]
+        c_r = rock[:, 2]
+        if any(x -> x > 0, c_r)
+            ϕ = LinearlyCompressiblePoreVolume(
+                    reference_pressure = p_r,
+                    expansion = c_r,
+                    regions = regions
+            )
+        end
+    end
+    if !ismissing(ϕ)
+        static = param[:FluidVolume]
+        delete!(param, :FluidVolume)
+        param[:StaticFluidVolume] = static
+        vars[:FluidVolume] = wrap_reservoir_variable(sys, ϕ, :flow)
     end
 end
 
@@ -1421,11 +1452,9 @@ function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
         case, deck = setup_case_from_data_file(fn,
             block_backend = block_backend,
             include_data = true,
-            steps = steps,
             backend = backend,
             nthreads = nthreads,
             split_wells = split_wells,
-            facility_grouping = fg,
             general_ad = general_ad,
             minbatch = minbatch,
             dp_max_abs = dp_max_abs,

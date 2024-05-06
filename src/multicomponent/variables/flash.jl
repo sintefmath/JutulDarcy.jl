@@ -17,21 +17,18 @@ struct FlashResults{F_t, S_t, B_t} <: ScalarVariable
     tolerance_bypass::Float64
     stability_bypass::Bool
     reuse_guess::Bool
-    function FlashResults(system;
+    function FlashResults(model::SimulationModel;
             method::MultiComponentFlash.AbstractFlash = SSIFlash(),
             threads = Threads.nthreads() > 1,
+            n = degrees_of_freedom_per_entity(model, Cells()),
             tolerance = 1e-8,
             tolerance_bypass = 10,
             reuse_guess = false,
             stability_bypass = false
         )
+        system = flow_system(model.system)
         eos = system.equation_of_state
         nc = MultiComponentFlash.number_of_components(eos)
-        if has_other_phase(system)
-            n = nc + 1
-        else
-            n = nc
-        end
         storage = []
         buffers = []
         if threads
@@ -173,7 +170,8 @@ function thread_buffers(storage, buffers)
 end
 
 function update_flash_buffer!(buf, eos, Pressure, Temperature, OverallMoleFractions)
-    if isnothing(buf.forces) || eltype(buf.forces.A_ij) != eltype(OverallMoleFractions)
+    maybe_ad_T = Base.promote_type(typeof(Pressure), typeof(Temperature), eltype(OverallMoleFractions))
+    if isnothing(buf.forces) || eltype(buf.forces.A_ij) != maybe_ad_T
         P = Pressure[1]
         T = Temperature[1]
         if isa(OverallMoleFractions, AbstractVector)
@@ -461,7 +459,7 @@ end
 
 function k_value_flash!(result::FR, eos, P, T, Z, z) where FR
     Num_t = Base.promote_type(typeof(P), typeof(T), eltype(Z))
-    ncomp = length(z)
+    ncomp = MultiComponentFlash.number_of_components(eos)
     c_ad = (p = P, T = T, z = Z)
     K_ad = eos.K_values_evaluator(c_ad)
     x = result.liquid.mole_fractions
@@ -511,7 +509,7 @@ function k_value_flash!(result::FR, eos, P, T, Z, z) where FR
     end
     V::Num_t
     Z_L = Z_V = convert(Num_t, 1.0)
-    new_result = FlashedMixture2Phase(phase_state, K, V, x, y, Z_L, Z_V)
+    new_result = FlashedMixture2Phase(phase_state, K, V, x, y, Z_L, Z_V, NaN, result.flash_cond)
     return new_result::FR
 end
 

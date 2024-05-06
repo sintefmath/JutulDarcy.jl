@@ -1,9 +1,39 @@
 import Jutul: compute_half_face_trans, compute_face_trans
 
 function compute_peaceman_index(g::T, K, r, pos; kwarg...) where T<:Jutul.JutulMesh
-    Δ = Jutul.cell_dims(g, pos)
+    Δ = peaceman_cell_dims(g, pos)
     K = Jutul.expand_perm(K, dim(g))
     return compute_peaceman_index(Δ, K, r; kwarg...)
+end
+
+function peaceman_cell_dims(g, pos)
+    horz = get_mesh_entity_tag(g, Faces(), :orientation, :horizontal, throw = false)
+    vert = get_mesh_entity_tag(g, Faces(), :orientation, :vertical, throw = false)
+    if !(g isa UnstructuredMesh) || ismissing(horz) || ismissing(vert) || Jutul.dim(g) < 3
+        Δ = Jutul.cell_dims(g, pos)
+    else
+        index = cell_index(g, pos)
+        xy_min = SVector{2, Float64}(Inf, Inf)
+        xy_max = SVector{2, Float64}(-Inf, -Inf)
+
+        z_min = Inf
+        z_max = -Inf
+        for (e, face_set) in [(Faces(), g.faces), (BoundaryFaces(), g.boundary_faces)]
+            for face in face_set.cells_to_faces[index]
+                face_centroid, = Jutul.compute_centroid_and_measure(g, e, face)
+                if mesh_entity_has_tag(g, e, :orientation, :horizontal, face)
+                    z_min = min.(z_min, face_centroid[3])
+                    z_max = max.(z_max, face_centroid[3])
+                elseif mesh_entity_has_tag(g, e, :orientation, :vertical, face)
+                    xy_min = min.(xy_min, face_centroid[1:2])
+                    xy_max = max.(xy_max, face_centroid[1:2])
+                end
+            end
+        end
+        Δ = (xy_max[1] - xy_min[1], xy_max[2] - xy_min[2], z_max - z_min)
+        @assert all(x -> x > 0, Δ) "Cell dimensions were zero? Computed $Δ for cell $index."
+    end
+    return Δ
 end
 
 function compute_peaceman_index(Δ, K, radius; dir::Symbol = :z, constant = 0.14, Kh = nothing, skin = 0, check = true)

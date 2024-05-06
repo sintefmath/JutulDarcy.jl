@@ -78,6 +78,10 @@ function well_cells_for_plot(w)
     return w.perforations.reservoir
 end
 
+function JutulDarcy.plot_well_results(r::JutulDarcy.ReservoirSimResult; kwarg...)
+    return JutulDarcy.plot_well_results(r.wells; kwarg...)
+end
+
 function JutulDarcy.plot_well_results(well_data, arg...; name = "Data", kwarg...)
     JutulDarcy.plot_well_results([well_data], arg...; names = [name], kwarg...)
 end

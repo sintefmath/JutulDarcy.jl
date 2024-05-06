@@ -163,4 +163,5 @@ plot!(ax1, data[:obj_hist][2:end])
 ax2 = Axis(fig[1, 2], yscale = log10, title = "Outer optimizer", xlabel = "Iterations", ylabel = "Objective")
 t = map(x -> x.value, Optim.trace(results))
 plot!(ax2, t)
-display(fig)
+fig
+

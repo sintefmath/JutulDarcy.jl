@@ -24,10 +24,6 @@ end
     include("sens_bl.jl")
 end
 
-@testitem "Sensitivities (multimodel)" begin
-    include("sens_multimodel.jl")
-end
-
 @testitem "MRST input cases" begin
     include("mrst_cases.jl")
 end
@@ -50,6 +46,10 @@ end
 
 @testitem "NLDD" begin
     include("nldd.jl")
+end
+
+@testitem "Sensitivities (multimodel)" begin
+    include("sens_multimodel.jl")
 end
 
 @run_package_tests

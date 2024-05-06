@@ -79,6 +79,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         s_min = missing,
         contacts_pc = missing,
         pvtnum = 1,
+        sw = missing,
         kwarg...
     )
     if ismissing(contacts_pc)
@@ -118,8 +119,8 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
             if phases[ph] == AqueousPhase()
                 phase_density = rho_s[ph]*JutulDarcy.shrinkage(rho.immiscible_pvt, p)
             else
-                @assert !ismissing(composition) "Composition must be present for equilibrium."
-                @assert !ismissing(T_z) "Temperature must be present for equilibrium."
+                @assert !ismissing(composition) "Composition must be present for equilibrium calculations for compositional models."
+                @assert !ismissing(T_z) "Temperature must be present for equilibrium calculations for compositional models."
                 z_i = Vector{Float64}(composition(z))
                 T = T_z(z)
                 eos = model.system.equation_of_state
@@ -153,7 +154,26 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_f, contacts_pc)
     if nph > 1
         s, pc = determine_saturations(depths, contacts, pressures; s_min = s_min, kwarg...)
-
+        if !ismissing(sw)
+            nph = size(s, 1)
+            for i in axes(s, 2)
+                s0 = s[:, i]
+                sw_i = max(sw[i], s[1, i])
+                s[1, i] = sw_i
+                s_rem = 0.0
+                for ph in 2:nph
+                    s_rem += s[ph, i]
+                end
+                scale = (1 - sw_i)/max(s_rem, 1e-20)
+                for ph in 2:nph
+                    s[ph, i] *= scale
+                end
+                sT = sum(s[:, i])
+                if !isapprox(sT, 1.0, atol = 1e-8)
+                    @warn "$s0 $(sw[i]) $scale Was $sT, not 1.0"
+                end
+            end
+        end
         nc_total = number_of_cells(model.domain)
         kr = zeros(nph, nc_total)
         s_eval = zeros(nph, nc_total)
@@ -258,26 +278,30 @@ function parse_state0_equil(model, datafile)
     npvt = GeoEnergyIO.InputParser.number_of_tables(datafile, :pvtnum)
     nsat = GeoEnergyIO.InputParser.number_of_tables(datafile, :satnum)
 
-    if haskey(sol, "RTEMP") || haskey(props, "RTEMP")
-        if haskey(props, "RTEMP")
-            rtmp = only(props["RTEMP"])
-        else
-            rtmp = only(sol["RTEMP"])
-        end
-        Ti = convert_to_si(rtmp, :Celsius)
-        T_z = z -> Ti
-    elseif haskey(props, "TEMPVD")
-        z = vec(props["TEMPVD"][:, 1])
-        Tvd = vec(props["TEMPVD"][:, 2] + 273.15)
-        T_z = get_1d_interpolator(z, Tvd)
-    else
-        T_z = missing
-    end
-
     @assert length(equil) == nequil
     inits = []
     inits_cells = []
     for ereg in 1:nequil
+        if haskey(sol, "RTEMP") || haskey(props, "RTEMP")
+            if haskey(props, "RTEMP")
+                rtmp = only(props["RTEMP"])
+            else
+                rtmp = only(sol["RTEMP"])
+            end
+            Ti = convert_to_si(rtmp, :Celsius)
+            T_z = z -> Ti
+        elseif haskey(props, "TEMPVD") || haskey(props, "RTEMPVD")
+            if haskey(props, "TEMPVD")
+                tvd_kw = props["TEMPVD"][ereg]
+            else
+                tvd_kw = props["RTEMPVD"][ereg]
+            end
+            z = vec(tvd_kw[:, 1])
+            Tvd = vec(tvd_kw[:, 2] .+ 273.15)
+            T_z = get_1d_interpolator(z, Tvd)
+        else
+            T_z = missing
+        end
         eq = equil[ereg]
         cells_eqlnum = findall(isequal(ereg), eqlnum)
         for sreg in 1:nsat
@@ -394,11 +418,20 @@ function parse_state0_equil(model, datafile)
                     rs = missing
                 end
                 if vapoil
-                    @assert haskey(sol, "RVVD")
-                    rvvd = sol["RVVD"][ereg]
-                    z = rvvd[:, 1]
-                    Rv = rvvd[:, 2]
-                    rv = Jutul.LinearInterpolant(z, Rv_scale.*Rv)
+                    if haskey(sol, "PDVD")
+                        @warn "PDVD not supported for RV initialization, setting to zero."
+                        rv = z -> 0.0
+                    elseif haskey(sol, "RVVD")
+                        rvvd = sol["RVVD"][ereg]
+                        z = rvvd[:, 1]
+                        Rv = rvvd[:, 2]
+                        rv = Jutul.LinearInterpolant(z, Rv_scale.*Rv)
+                    else
+                        # TODO: Should maybe be the pressure at GOC not datum
+                        # depth, but that isn't computed at this stage.
+                        rv_at_goc = Rv_scale*sys.rv_max[preg](datum_pressure)
+                        rv = z -> rv_at_goc
+                    end
                 else
                     rv = missing
                 end
@@ -426,9 +459,15 @@ function parse_state0_equil(model, datafile)
                 else
                     composition = missing
                 end
+                if haskey(props, "SWATINIT")
+                    sw = props["SWATINIT"][actnum_ix[cells]]
+                    extra_arg = (sw = sw, )
+                else
+                    extra_arg = NamedTuple()
+                end
 
                 subinit = equilibriate_state(
-                        model, contacts, datum_depth, datum_pressure,
+                        model, contacts, datum_depth, datum_pressure;
                         composition = composition,
                         cells = cells,
                         pvtnum = preg,
@@ -438,7 +477,8 @@ function parse_state0_equil(model, datafile)
                         T_z = T_z,
                         rs = rs,
                         rv = rv,
-                        pc = pc
+                        pc = pc,
+                        extra_arg...
                     )
                 push!(inits, subinit)
                 push!(inits_cells, cells)

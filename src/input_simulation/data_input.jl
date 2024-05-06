@@ -276,31 +276,9 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord; s
                 for (i, t) in enumerate(conn)
                     N[:, i] .= t
                 end
-                perforation_cells = zeros(Int, length(compsegs))
-                for compseg in compsegs
-                    I, J, K, branch, tube_start, tube_end, dir, dir_ijk, cdepth, = compseg
-                    perf_index = findfirst(isequal((I, J, K)), collect(keys(cdat)))
-                    @assert !isnothing(perf_index) "Perforation $((I, J, K)) not found?"
-                    prev_dist = Inf
-                    closest = -1
-                    for (i, b) in enumerate(branches)
-                        if b == branch
-                            L = tubing_lengths[i]
-                            seg_end = tubing_depths[i]
-                            seg_mid = seg_end - L/2
-                            tube_mid = (tube_end + tube_start)/2
-                            dist = abs(seg_mid - tube_mid)
-                            if dist < prev_dist
-                                closest = i
-                                prev_dist = dist
-                            end
-                        end
-                    end
-                    perforation_cells[perf_index] = closest
-                end
+                perforation_cells = map_compdat_to_multisegment_segments(compsegs, branches, tubing_lengths, tubing_depths, cdat)
                 cell_centers = domain[:cell_centroids]
                 dz = vec(cell_centers[3, wc]) - vec(centers[3, perforation_cells])
-                @assert length(keys(cdat)) == length(compsegs) "COMPSEGS length must match COMPDAT for well $wname"
                 W = MultiSegmentWell(wc, volumes, centers;
                     name = Symbol(wname),
                     WI = WI,
@@ -324,6 +302,39 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord; s
         )
     end
     return (W, wc, WI, open)
+end
+
+function map_compdat_to_multisegment_segments(compsegs, branches, tubing_lengths, tubing_depths, cdat)
+    completions = keys(cdat)
+    perforation_cells = zeros(Int, length(completions))
+    segment_ijk = map(x -> (x[1], x[2], x[3]), compsegs)
+    for (completion_index, completion) in enumerate(completions)
+        segment_candidates = findall(isequal(completion), segment_ijk)
+        if length(segment_candidates) == 0
+            @warn "No segments found for completion $completion. Expanding search to all segments."
+            segment_candidates = eachindex(compsegs)
+        end
+        prev_dist = Inf
+        closest = -1
+        for segment_index in segment_candidates
+            I, J, K, branch, tube_start, tube_end, dir, dir_ijk, cdepth, = compsegs[segment_index]
+            for (i, b) in enumerate(branches)
+                if b == branch
+                    L = tubing_lengths[i]
+                    seg_end = tubing_depths[i]
+                    seg_mid = seg_end - L/2
+                    tube_mid = (tube_end + tube_start)/2
+                    dist = abs(seg_mid - tube_mid)
+                    if dist < prev_dist
+                        closest = i
+                        prev_dist = dist
+                    end
+                end
+            end
+        end
+        perforation_cells[completion_index] = closest
+    end
+    return perforation_cells
 end
 
 function compdat_to_connection_factors(domain, wspec, v; sort = true, order = "TRACK")
@@ -392,7 +403,9 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
         for (i, c) in enumerate(completions)
             compdat = c[k]
             well_is_shut = controls[i][k] isa DisabledControl
-            wi_mul = zeros(length(WI_base))
+            n_wi = length(WI_base)
+            wi_mul = zeros(n_wi)
+            wpi_mul = ones(n_wi)
             if !well_is_shut
                 wc, WI, open = compdat_to_connection_factors(domain, wspec, compdat, sort = false)
                 for (c, wi, is_open) in zip(wc, WI, open)
@@ -663,9 +676,12 @@ function parse_reservoir(data_file)
     end
     extra_data_arg = Dict{Symbol, Any}()
     if haskey(grid, "MULTPV")
-        multpv = zeros(nc)
+        multpv = ones(nc)
         for (i, c) in enumerate(active_ix)
-            multpv[i] = grid["MULTPV"][c]
+            v = grid["MULTPV"][c]
+            if isfinite(v)
+                multpv[i] = v
+            end
         end
         extra_data_arg[:pore_volume_multiplier] = multpv
     end
@@ -678,20 +694,110 @@ function parse_reservoir(data_file)
         extra_data_arg[:net_to_gross] = ntg
     end
 
-    if haskey(data_file, "EDIT")
-        if haskey(data_file["EDIT"], "PORV")
-            extra_data_arg[:pore_volume_override] = data_file["EDIT"]["PORV"][active_ix]
+    for k in ("GRID", "EDIT")
+        # TODO: This is not 100% robust if edit and grid interact.
+        if haskey(data_file, k)
+            if haskey(data_file[k], "PORV")
+                extra_data_arg[:pore_volume_override] = data_file[k]["PORV"][active_ix]
+            end
         end
     end
 
     tranmult = ones(nf)
-    # TODO: MULTX, ...
     for k in ("GRID", "EDIT")
         if haskey(data_file, k)
             if haskey(data_file[k], "MULTFLT")
                 for (fault, vals) in data_file[k]["MULTFLT"]
                     fault_faces = get_mesh_entity_tag(G, Faces(), :faults, Symbol(fault))
                     tranmult[fault_faces] *= vals[1]
+                end
+            end
+        end
+    end
+    mult_keys = ("MULTX", "MULTX-", "MULTY", "MULTY-", "MULTZ", "MULTZ-")
+    ijk = map(i -> Jutul.cell_ijk(G, i), 1:nc)
+    for k in mult_keys
+        if haskey(grid, k)
+            mult_on_active = grid[k][active_ix]
+            if startswith(k, "MULTX")
+                pos = 1
+            elseif startswith(k, "MULTY")
+                pos = 2
+            else
+                @assert startswith(k, "MULTZ")
+                pos = 3
+            end
+            if endswith(k, "-")
+                dir = 1
+            else
+                dir = -1
+            end
+            for fno in 1:nf
+                l, r = G.faces.neighbors[fno]
+                il = ijk[l][pos]
+                ir = ijk[r][pos]
+                if dir == 1
+                    if il < ir
+                        c = l
+                    else
+                        c = r
+                    end
+                else
+                    if il > ir
+                        c = l
+                    else
+                        c = r
+                    end
+                end
+                tranmult[fno] *= mult_on_active[c]
+            end
+        end
+    end
+    if haskey(grid, "FLUXNUM")
+        extra_data_arg[:fluxnum] = grid["FLUXNUM"][active_ix]
+    end
+    if haskey(grid, "MULTNUM")
+        extra_data_arg[:multnum] = grid["MULTNUM"][active_ix]
+    end
+    if haskey(grid, "OPERNUM")
+        extra_data_arg[:opernum] = grid["OPERNUM"][active_ix]
+    end
+    multregt = get(grid, "MULTREGT", missing)
+    function tsort(x, y)
+        if x > y
+            return (y, x)
+        else
+            return (x, y)
+        end
+    end
+    if !ismissing(multregt)
+        opernum = get(extra_data_arg, :opernum, ones(Int, nc))
+        multnum = get(extra_data_arg, :multnum, ones(Int, nc))
+        fluxnum = get(extra_data_arg, :fluxnum, ones(Int, nc))
+        for fno in 1:nf
+            l, r = G.faces.neighbors[fno]
+            opernum_pair = tsort(opernum[l], opernum[r])
+            multnum_pair = tsort(multnum[l], multnum[r])
+            fluxnum_pair = tsort(fluxnum[l], fluxnum[r])
+
+            for regt in multregt
+                pairt = tsort(regt[1], regt[2])
+                do_apply = false
+                for (pos, coord) in enumerate(['X', 'Y', 'Z'])
+                    if coord in regt[4] && ijk[l][pos] != ijk[r][pos]
+                        do_apply = true
+                        break
+                    end
+                end
+                if do_apply
+                    m = regt[3]
+                    if regt[6] == "M" && pairt == multnum_pair
+                        tranmult[fno] *= m
+                    elseif regt[6] == "O" && pairt == opernum_pair
+                        tranmult[fno] *= m
+                    elseif pairt == fluxnum_pair
+                        tranmult[fno] *= m
+                    end
                 end
             end
         end
@@ -734,6 +840,8 @@ function parse_reservoir(data_file)
     pvtnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :pvtnum, active = active_ix)
     eqlnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :eqlnum, active = active_ix)
 
+    set_scaling_arguments!(extra_data_arg, active_ix, data_file)
+
     domain = reservoir_domain(G;
         permeability = perm,
         porosity = poro,
@@ -745,7 +853,64 @@ function parse_reservoir(data_file)
     if !all(isequal(1.0), tranmult)
         domain[:transmissibility_multiplier, Faces()] = tranmult
     end
+    if haskey(grid, "NNC")
+        nnc = grid["NNC"]
+        if length(nnc) > 0
+            domain[:nnc, nothing] = nnc
+        end
+    end
+    if haskey(grid, "DEPTH")
+        for (i, c) in enumerate(active_ix)
+            domain[:cell_centroids][3, i] = grid["DEPTH"][c]
+        end
+    end
     return domain
+end
+
+function set_scaling_arguments!(out, active, data_file)
+    function set_scaler!(out, props, phase, prefix)
+        phase = uppercase(phase)
+        get_scaler_field = x -> get(props, "$(prefix)$x", missing)
+        connate = get_scaler_field("S$(phase)L")
+        crit = get_scaler_field("S$(phase)CR")
+        maxs = get_scaler_field("S$(phase)U")
+        if phase == "OW" || phase == "OG"
+            maxk = get_scaler_field("KRO")
+        else
+            maxk = get_scaler_field("KR$phase")
+        end
+        raw_scalers = (connate, crit, maxs, maxk)
+        found = any(!ismissing, raw_scalers)
+        nc = length(active)
+
+        if found
+            scaler = fill(NaN, (4, nc))
+            for (scaler_no, val) in enumerate(raw_scalers)
+                if ismissing(val)
+                    continue
+                end
+                for (i, cell) in enumerate(active)
+                    scaler[scaler_no, i] = val[cell]
+                end
+            end
+            if prefix == ""
+                s = "drainage"
+            else
+                s = "imbibition"
+            end
+            out[Symbol("scaler_$(lowercase(phase))_$s")] = scaler
+        end
+    end
+
+    if haskey(data_file, "PROPS")
+        props = data_file["PROPS"]
+        for phase in ["W", "OW", "OG", "G"]
+            for prefix in ["", "I"]
+                set_scaler!(out, props, phase, prefix)
+            end
+        end
+    end
+    return out
 end
 
 function parse_physics_types(datafile; pvt_region = missing)
@@ -823,16 +988,19 @@ function parse_physics_types(datafile; pvt_region = missing)
         push!(pvt, missing)
         push!(phases, VaporPhase())
         push!(rhoS, rhoGS)
+        if length(props["MW"]) > 1
+            jutul_message("EOSNUM:", "$(length(props["MW"])) regions active. Only one region supported. Taking the first set of values for all EOS properties.", color = :yellow)
+        end
 
         cnames = copy(props["CNAMES"])
-        acf = props["ACF"]
-        mw = props["MW"]
-        p_c = props["PCRIT"]
-        V_c = props["VCRIT"]
-        T_c = props["TCRIT"]
+        acf = first(props["ACF"])
+        mw = first(props["MW"])
+        p_c = first(props["PCRIT"])
+        V_c = first(props["VCRIT"])
+        T_c = first(props["TCRIT"])
 
         if haskey(props, "BIC")
-            A_ij = props["BIC"]
+            A_ij = first(props["BIC"])
         else
             A_ij = nothing
         end
@@ -840,7 +1008,7 @@ function parse_physics_types(datafile; pvt_region = missing)
         @assert length(cnames) == length(mp)
         mixture = MultiComponentMixture(mp, A_ij = A_ij, names = cnames)
         if haskey(props, "EOS")
-            eos_str = uppercase(props["EOS"])
+            eos_str = uppercase(first(props["EOS"]))
             if eos_str == "PR"
                 eos_type = PengRobinson()
             elseif eos_str == "SRK"
@@ -855,7 +1023,7 @@ function parse_physics_types(datafile; pvt_region = missing)
             eos_type = PengRobinson()
         end
         if haskey(props, "SSHIFT")
-            vshift = Tuple(props["SSHIFT"])
+            vshift = Tuple(first(props["SSHIFT"]))
         else
             vshift = nothing
         end
@@ -962,7 +1130,8 @@ function parse_control_steps(runspec, props, schedule, sys)
         streams[k] = nothing
         well_injection[k] = nothing
         well_factor[k] = 1.0
-        well_temp[k] = 273.15 + 20.0
+        # 0 deg C is strange, but the default for .DATA files.
+        well_temp[k] = 273.15 + 0.0
     end
     all_compdat = []
     all_controls = []

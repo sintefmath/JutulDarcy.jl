@@ -15,8 +15,7 @@ using MultiComponentFlash
 h2o = MolecularProperty(0.018015268, 22.064e6, 647.096, 5.595e-05, 0.3442920843)
 co2 = MolecularProperty(0.0440098, 7.3773e6, 304.1282, 9.412e-05, 0.22394)
 
-bic = [0 0;
-       0 0]
+bic = zeros(2, 2)
 
 mixture = MultiComponentMixture([h2o, co2], A_ij = bic, names = ["H2O", "CO2"])
 eos = GenericCubicEOS(mixture, PengRobinson())
@@ -43,7 +42,7 @@ rhoVS = 126.97*kg/meter^3
 rhoS = [rhoLS, rhoVS]
 L, V = LiquidPhase(), VaporPhase()
 sys = MultiPhaseCompositionalSystemLV(eos, (L, V))
-model, parameters = setup_reservoir_model(res, sys, wells = [inj, prod], reference_densities = rhoS);
+model, parameters = setup_reservoir_model(res, sys, wells = [inj, prod]);
 push!(model[:Reservoir].output_variables, :Saturations)
 kr = BrooksCoreyRelativePermeabilities(sys, 2.0, 0.0, 1.0)
 model = replace_variables!(model, RelativePermeabilities = kr)
@@ -93,4 +92,4 @@ plot_vertical(p./bar, "Pressure [bar]")
 
 #-
 # ### Plot in interactive viewer
-plot_reservoir(model, states)
+plot_reservoir(model, states, step = length(dt), key = :Saturations)

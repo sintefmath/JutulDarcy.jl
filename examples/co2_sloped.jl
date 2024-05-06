@@ -69,7 +69,7 @@ controls = Dict(:Injector => I_ctrl)
 forces_inject = setup_reservoir_forces(model, control = controls)
 # Forces with shut wells
 forces_shut = setup_reservoir_forces(model)
-dt_shut = fill(365.0day, nstep_shut)
+dt_shut = fill(365.0day, nstep_shut);
 # Combine the report steps and forces into vectors of equal length
 dt = vcat(dt_inject, dt_shut)
 forces = vcat(fill(forces_inject, nstep), fill(forces_shut, nstep_shut));

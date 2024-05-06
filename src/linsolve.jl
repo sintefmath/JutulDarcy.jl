@@ -18,21 +18,23 @@ Set up iterative linear solver for a reservoir model from [`setup_reservoir_mode
 
 Additional keywords are passed onto the linear solver constructor.
 """
-function reservoir_linsolve(model,  precond = :cpr;
-                                    rtol = nothing,
-                                    atol = nothing,
-                                    v = 0,
-                                    mode = :forward,
-                                    solver = :bicgstab,
-                                    max_iterations = nothing,
-                                    update_interval = :iteration,
-                                    update_interval_partial = :iteration,
-                                    amg_type = default_amg_symbol(),
-                                    smoother_type = :ilu0,
-                                    max_coarse = 10,
-                                    cpr_type = nothing,
-                                    partial_update = update_interval == :once,
-                                    kwarg...)
+function reservoir_linsolve(model,
+        precond = :cpr;
+        rtol = nothing,
+        atol = nothing,
+        v = 0,
+        mode = :forward,
+        solver = :bicgstab,
+        max_iterations = nothing,
+        update_interval = :iteration,
+        update_interval_partial = :iteration,
+        amg_type = default_amg_symbol(),
+        smoother_type = :ilu0,
+        max_coarse = 10,
+        cpr_type = nothing,
+        partial_update = update_interval == :once,
+        kwarg...
+    )
     model = reservoir_model(model)
     if solver == :lu
         return LUSolver()
@@ -62,7 +64,8 @@ function reservoir_linsolve(model,  precond = :cpr;
             p_solve, s, strategy = cpr_type, 
             update_interval = update_interval,
             partial_update = partial_update,
-            update_interval_partial = update_interval_partial
+            update_interval_partial = update_interval_partial,
+            mode = mode
         )
         default_tol = 1e-3
         max_it = 50
@@ -80,10 +83,20 @@ function reservoir_linsolve(model,  precond = :cpr;
     end
     if isnothing(max_iterations)
         max_iterations = max_it
+        if mode == :adjoint
+            # No outer loop to control - add more iterations.
+            max_iterations *= 4
+        end
     end
-    lsolve = GenericKrylov(solver, verbose = v, preconditioner = prec, 
-            relative_tolerance = rtol, absolute_tolerance = atol,
-            max_iterations = max_iterations; kwarg...)
+    lsolve = GenericKrylov(
+        solver;
+        verbose = v,
+        preconditioner = prec,
+        relative_tolerance = rtol,
+        absolute_tolerance = atol,
+        max_iterations = max_iterations,
+        kwarg...
+    )
     return lsolve
 end
 

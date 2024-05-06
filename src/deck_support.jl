@@ -88,9 +88,10 @@ end
 end
 
 @jutul_secondary function update_pore_volume!(pv, Φ::LinearlyCompressiblePoreVolume, model, Pressure, StaticFluidVolume, ix)
-    c_r = Φ.expansion
-    p_r = Φ.reference_pressure
     @inbounds for i in ix
+        reg = region(Φ.regions, i)
+        p_r = table_by_region(Φ.reference_pressure, reg)
+        c_r = table_by_region(Φ.expansion, reg)
         p = Pressure[i]
         x = c_r*(p-p_r)
         mult = 1.0 + x + 0.5*(x^2)
@@ -104,6 +105,15 @@ function Jutul.line_plot_data(model::SimulationModel, k::LinearlyCompressiblePor
     y = similar(v)
     update_pore_volume!(y, k, model, p, v, eachindex(y))
     Jutul.JutulLinePlotData(p./1e5, y, labels = "Φ", title = "Rock pore volume expansion", xlabel = "Pressure [bar]", ylabel = "Pore-volume multiplier")
+end
+
+@jutul_secondary function update_pore_volume!(pv, Φ::TableCompressiblePoreVolume, model, Pressure, StaticFluidVolume, ix)
+    @inbounds for i in ix
+        reg = region(Φ.regions, i)
+        F = table_by_region(Φ.tab, reg)
+        p = Pressure[i]
+        pv[i] = StaticFluidVolume[i]*F(p)
+    end
 end
 
 function Jutul.line_plot_data(model::SimulationModel, k::DeckPhaseVariables)

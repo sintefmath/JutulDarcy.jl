@@ -66,7 +66,14 @@ function reservoir_domain(g;
         diffusion = missing,
         kwarg...
     )
+    all(isfinite, permeability) || throw(ArgumentError("Keyword argument permeability has non-finite entries."))
+    all(isfinite, porosity) || throw(ArgumentError("Keyword argument porosity has non-finite entries."))
+    all(isfinite, fluid_thermal_conductivity) || throw(ArgumentError("Keyword argument fluid_thermal_conductivity has non-finite entries."))
+    all(isfinite, rock_heat_capacity) || throw(ArgumentError("Keyword argument rock_heat_capacity has non-finite entries."))
+    all(isfinite, component_heat_capacity) || throw(ArgumentError("Keyword argument component_heat_capacity has non-finite entries."))
+
     if !ismissing(diffusion)
+        all(isfinite, diffusion) || throw(ArgumentError("Keyword argument diffusion has non-finite entries."))
         kwarg = (diffusion = diffusion, kwarg...)
     end
     nk = length(permeability)
@@ -235,7 +242,10 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         flash_reuse_guess = fast_flash,
         flash_stability_bypass = fast_flash,
         parameters = Dict{Symbol, Any}(),
-        kwarg...
+        block_backend = true,
+        nthreads = Threads.nthreads(),
+        minbatch = 1000,
+        wells_systems = missing
     )
     if !(wells isa AbstractArray)
         wells = [wells]
@@ -246,7 +256,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         backend; 
         main_context = reservoir_context,
         context = context,
-        kwarg...
+        block_backend = block_backend,
+        nthreads = nthreads,
+        minbatch = minbatch
     )
     # We first set up the reservoir
     rmodel = SimulationModel(
@@ -291,7 +303,12 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     # Then we set up all the wells
     mode = PredictionMode()
     if length(wells) > 0
-        for w in wells
+        for (well_no, w) in enumerate(wells)
+            if ismissing(wells_systems)
+                wsys = system
+            else
+                wsys = wells_systems[well_no]
+            end
             w_domain = DataDomain(w)
             wc = w.perforations.reservoir
             c = map_well_nodes_to_reservoir_cells(w, reservoir)
@@ -368,8 +385,8 @@ function set_reservoir_variable_defaults!(model;
     rmodel = reservoir_model(model)
     if rmodel isa CompositionalModel
         sys = rmodel.system
-        flash = FlashResults(sys, stability_bypass = flash_stability_bypass, reuse_guess = flash_reuse_guess)
-        replace_variables!(model, FlashResults = flash, throw = false)
+        flash = FlashResults(rmodel, stability_bypass = flash_stability_bypass, reuse_guess = flash_reuse_guess)
+        replace_variables!(rmodel, FlashResults = flash, throw = false)
     end
     p_def = Pressure(
         max_abs = dp_max_abs,
@@ -563,7 +580,8 @@ function setup_reservoir_simulator(case::JutulCase;
         b = mode_to_backend(mode)
         sim = setup_reservoir_simulator_parray(case, b;
             simulator_constructor = make_sim,
-            primary_buffer = pbuffer
+            primary_buffer = pbuffer,
+            parray_arg...
         );
     end
 
@@ -999,7 +1017,7 @@ function setup_reservoir_forces(model::MultiModel; control = nothing, limits = n
                 subctrl = Dict{Symbol, Any}()
                 subctrl[k] = control[k]
                 sublimits = Dict{Symbol, Any}()
-                if haskey(sublimits, k)
+                if !isnothing(limits) && haskey(limits, k)
                     sublimits[k] = limits[k]
                 else
                     sublimits[k] = nothing
@@ -1421,6 +1439,7 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
         version = version,
         face_dir = face_dir
     )
+    nf = number_of_faces(d)
     neg_count = 0
     for (i, T_hf_i) in enumerate(T_hf)
         neg_count += T_hf_i < 0
@@ -1445,7 +1464,6 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
     end
     if haskey(d, :net_to_gross)
         # Net to gross applies to vertical trans only
-        nf = number_of_faces(d)
         otag = get_mesh_entity_tag(g, Faces(), :orientation, throw = false)
         if !ismissing(otag)
             # Use tags if provided
@@ -1483,6 +1501,13 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
     if haskey(d, :transmissibility_multiplier, Faces())
         tm = d[:transmissibility_multiplier]
         @. T *= tm
+    end
+    if haskey(d, :nnc)
+        nnc = d[:nnc]
+        num_nnc = length(nnc)
+        for (i, ncon) in enumerate(nnc)
+            T[nf-num_nnc+i] = ncon[7]
+        end
     end
     return T
 end
