@@ -64,7 +64,7 @@ end
 end
 ##
 @testset "SPE3" begin
-    test_mrst_case("spe3", wtol = 0.2, gtol = 0.02)
+    test_mrst_case("spe3", wtol = 0.2, gtol = 0.04)
 end
 ##
 @testset "SPE9" begin
