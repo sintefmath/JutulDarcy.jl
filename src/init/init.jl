@@ -63,9 +63,9 @@ function equilibriate_state(model, contacts,
             zmf[:, i] = composition(pts[i])
         end
         init[:OverallMoleFractions] = zmf
-        if has_wat
-            init[:ImmiscibleSaturation] = init[:Saturations][1, :]
-        end
+    end
+    if (is_compositional || is_blackoil) && has_other_phase(sys)
+        init[:ImmiscibleSaturation] = init[:Saturations][1, :]
     end
     return init
 end
@@ -158,19 +158,24 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
             nph = size(s, 1)
             for i in axes(s, 2)
                 s0 = s[:, i]
-                sw_i = max(sw[i], s[1, i])
+                sw_i = sw[i]
+                # sw_i = max(sw[i], s[1, i])
                 s[1, i] = sw_i
                 s_rem = 0.0
                 for ph in 2:nph
                     s_rem += s[ph, i]
                 end
-                scale = (1 - sw_i)/max(s_rem, 1e-20)
-                for ph in 2:nph
-                    s[ph, i] *= scale
-                end
-                sT = sum(s[:, i])
-                if !isapprox(sT, 1.0, atol = 1e-8)
-                    @warn "$s0 $(sw[i]) $scale Was $sT, not 1.0"
+                if s_rem ≈ 0
+                    s[2:end, i] .= 0.0
+                else
+                    scale = (1 - sw_i)/max(s_rem, 1e-20)
+                    for ph in 2:nph
+                        s[ph, i] *= scale
+                    end
+                    sT = sum(s[:, i])
+                    if !isapprox(sT, 1.0, atol = 1e-8)
+                        @warn "$s0 $(sw[i]) $scale Was $sT, not 1.0"
+                    end
                 end
             end
         end
