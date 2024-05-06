@@ -1452,7 +1452,7 @@ function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_
             # RESV, GRUP, THP
             error("$ctype control not supported")
         end
-        rho, mix = select_injector_mixture_spec(sys, name, streams, type)
+        rho, mix, phases_mix = select_injector_mixture_spec(sys, name, streams, type)
         if is_rate && surf_rate < MIN_ACTIVE_WELL_RATE
             @debug "Disabling injector $name with $ctype ctrl due to zero rate" surf_rate
             well_is_disabled = true
@@ -1462,7 +1462,7 @@ function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_
         ctrl = DisabledControl()
         lims = nothing
     else
-        ctrl = InjectorControl(t, mix; density = rho, kwarg...)
+        ctrl = InjectorControl(t, mix; density = rho, phases = phases_mix, kwarg...)
         if is_hist
             # TODO: This magic number comes from MRST.
             bhp_lim = convert_to_si(6895.0, :bar)
@@ -1479,6 +1479,9 @@ function select_injector_mixture_spec(sys::Union{ImmiscibleSystem, StandardBlack
     phases = get_phases(sys)
     mix = Float64[]
     rho = 0.0
+    nph = number_of_phases(sys)
+    phases_mix = Tuple{Int, Float64}[]
+    ix = 1
     for (phase, rho_ph) in zip(phases, rho_s)
         if phase == LiquidPhase()
             v = Float64(type == "OIL")
@@ -1488,11 +1491,13 @@ function select_injector_mixture_spec(sys::Union{ImmiscibleSystem, StandardBlack
             @assert phase isa VaporPhase
             v = Float64(type == "GAS")
         end
-        rho += rho_ph*v
         push!(mix, v)
+        push!(phases_mix, (ix, v))
+        rho += rho_ph*v
+        ix += 1
     end
     @assert sum(mix) ≈ 1.0 "Expected mixture to sum to 1, was $mix for type $type (declared phases: $phases)"
-    return (rho, mix)
+    return (rho, mix, phases_mix)
 end
 
 function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, type)
@@ -1500,14 +1505,16 @@ function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, t
     props = eos.mixture.properties
     rho_s = reference_densities(sys)
     phases = get_phases(sys)
-    offset = Int(has_other_phase(sys))
+    has_water = has_other_phase(sys)
+    offset = Int(has_water)
     ncomp = number_of_components(sys)
     # Well stream will be molar fractions.
     mix = zeros(Float64, ncomp)
-    if uppercase(type) == "WATER"
-        has_other_phase(sys) || throw(ArgumentError("Cannot have WATER injector without water phase."))
+    if uppercase(type) == "WATER" || uppercase(type) == "WAT"
+        has_water || throw(ArgumentError("Cannot have WATER injector without water phase."))
         mix[1] = 1.0
         rho = rho_s[1]
+        phases_mix = ((1, 1.0), (2, 0.0), (3, 0.0))
     else
         if !haskey(streams.wells, name)
             throw(ArgumentError("Well $name does not have a stream declared with well type $type."))
@@ -1535,8 +1542,18 @@ function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, t
         rho_l, rho_v = MultiComponentFlash.mass_densities(eos, cond.p, cond.T, flash)
         S_l, S_v = MultiComponentFlash.phase_saturations(eos, cond.p, cond.T, flash)
         rho = S_l*rho_l + S_v*rho_v
+        if uppercase(type) == "GAS"
+            sg = 1.0
+        else
+            sg = 0.0
+        end
+        if has_water
+            phases_mix = ((1, 1.0), (2, 1.0-sg), (3, sg))
+        else
+            phases_mix = ((2, 1.0-sg), (3, sg))
+        end
     end
-    return (rho, mix)
+    return (rho, mix, phases_mix)
 end
 
 function keyword_to_control(sys, streams, kw, ::Val{:WCONINJE}; kwarg...)
