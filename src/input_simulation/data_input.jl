@@ -863,8 +863,32 @@ function parse_reservoir(data_file)
         for (i, c) in enumerate(active_ix)
             domain[:cell_centroids][3, i] = grid["DEPTH"][c]
         end
+    elseif haskey(grid, "ZCORN") && false
+        # Option to use ZCORN points to set depths
+        z = get_zcorn_cell_depths(G, grid)
+        @. domain[:cell_centroids][3, :] = z
     end
     return domain
+end
+
+function get_zcorn_cell_depths(g, grid)
+    nc = number_of_cells(g)
+    z = zeros(nc)
+    cartdims = grid["cartDims"]
+    zcorn = grid["ZCORN"]
+    for c in 1:nc
+        i, j, k = cell_ijk(g, c)
+        linear_ix = GeoEnergyIO.CornerPointGrid.ijk_to_linear(i, j, k, cartdims)
+        get_zcorn(I1, I2, I3) = zcorn[GeoEnergyIO.CornerPointGrid.corner_index(linear_ix, (I1, I2, I3), cartdims)]
+        get_pair(I, J) = (get_zcorn(I, J, 0), get_zcorn(I, J, 1))
+        l_11, t_11 = get_pair(0, 0)
+        l_12, t_12 = get_pair(0, 1)
+        l_21, t_21 = get_pair(1, 0)
+        l_22, t_22 = get_pair(1, 1)
+
+        z[c] = (1.0/8.0)*(l_11 + t_11 + l_12 + t_12 + l_21 + t_21 + l_22 + t_22)
+    end
+    return z
 end
 
 function set_scaling_arguments!(out, active, data_file)
