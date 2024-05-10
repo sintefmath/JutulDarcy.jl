@@ -779,6 +779,20 @@ function parse_reservoir(data_file)
             return (x, y)
         end
     end
+    function pair_matchex(pair_kw, pair_reg)
+        wildcard1 = pair_kw[1] < 1
+        wildcard2 = pair_kw[2] < 1
+        if wildcard1 && wilcard2
+            return true
+        elseif wildcard1
+            return pair_kw[2] == pair_reg[2]
+        elseif wildcard2
+            return pair_kw[1] == pair_reg[1]
+        else
+            return pair_kw == pair_reg
+        end
+    end
+
     if !ismissing(multregt)
         opernum = get(extra_data_arg, :opernum, ones(Int, nc))
         multnum = get(extra_data_arg, :multnum, ones(Int, nc))
@@ -792,7 +806,7 @@ function parse_reservoir(data_file)
             for regt in multregt
                 pairt = tsort(regt[1], regt[2])
                 do_apply = false
-                for (pos, coord) in enumerate(['X', 'Y', 'Z'])
+                for (pos, coord) in enumerate(('X', 'Y', 'Z'))
                     if coord in regt[4] && ijk[l][pos] != ijk[r][pos]
                         do_apply = true
                         break
@@ -800,11 +814,13 @@ function parse_reservoir(data_file)
                 end
                 if do_apply
                     m = regt[3]
-                    if regt[6] == "M" && pairt == multnum_pair
+                    region_type = regt[6]
+                    if region_type == "M" && pair_matchex(pairt, multnum_pair)
                         tranmult[fno] *= m
-                    elseif regt[6] == "O" && pairt == opernum_pair
+                    elseif region_type == "O" && pair_matchex(pairt, opernum_pair)
                         tranmult[fno] *= m
-                    elseif pairt == fluxnum_pair
+                    elseif pair_matchex(pairt, fluxnum_pair)
+                        @assert region_type == "F"
                         tranmult[fno] *= m
                     end
                 end
