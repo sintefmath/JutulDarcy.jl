@@ -736,6 +736,15 @@ function parse_reservoir(data_file)
                 l, r = G.faces.neighbors[fno]
                 il = ijk[l][pos]
                 ir = ijk[r][pos]
+                ok = true
+                for i in 1:3
+                    # Exclude faces that do not match the other logical indices
+                    # (i.e. NNC or fault related)
+                    if i == pos
+                        continue
+                    end
+                    ok = ok && ijk[l][i] == ijk[r][i]
+                end
                 if dir == 1
                     if il < ir
                         c = l
