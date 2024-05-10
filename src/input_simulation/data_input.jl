@@ -783,7 +783,7 @@ function parse_reservoir(data_file)
         wildcard1 = pair_kw[1] < 1
         wildcard2 = pair_kw[2] < 1
         if wildcard1 && wilcard2
-            return true
+            return pair_reg[1] != pair_reg[2]
         elseif wildcard1
             return pair_kw[2] == pair_reg[2]
         elseif wildcard2
