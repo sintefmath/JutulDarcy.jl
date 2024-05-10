@@ -727,11 +727,6 @@ function parse_reservoir(data_file)
                 @assert startswith(k, "MULTZ")
                 pos = 3
             end
-            if endswith(k, "-")
-                dir = 1
-            else
-                dir = -1
-            end
             for fno in 1:nf
                 l, r = G.faces.neighbors[fno]
                 il = ijk[l][pos]
@@ -741,24 +736,29 @@ function parse_reservoir(data_file)
                     # Exclude faces that do not match the other logical indices
                     # (i.e. NNC or fault related)
                     if i == pos
-                        continue
+                        ok = ok && il != ir
+                    else
+                        ok = ok && ijk[l][i] == ijk[r][i]
                     end
-                    ok = ok && ijk[l][i] == ijk[r][i]
                 end
-                if dir == 1
+                if ok
                     if il < ir
-                        c = l
+                        low, hi = l, r
                     else
-                        c = r
+                        hi, low = l, r
                     end
-                else
-                    if il > ir
-                        c = l
+                    if endswith(k, "-")
+                        # Value at current index modifies e.g. K to K-1
+                        c = hi
                     else
-                        c = r
+                        # Value at current index modifies e.g. K to K+1 Pick the
+                        # lowest cell value (in the sense of the current IJK index)
+                        # for the face to select a cell-wise MULTX/MULTY/MULTZ for
+                        # this face.
+                        c = low
                     end
+                    tranmult[fno] *= mult_on_active[c]
                 end
-                tranmult[fno] *= mult_on_active[c]
             end
         end
     end
@@ -814,13 +814,13 @@ function parse_reservoir(data_file)
                 end
                 if do_apply
                     m = regt[3]
-                    region_type = regt[6]
-                    if region_type == "M" && pair_matchex(pairt, multnum_pair)
+                    region_type = only(lowercase(regt[6]))
+                    if region_type == 'm' && pair_matchex(pairt, multnum_pair)
                         tranmult[fno] *= m
-                    elseif region_type == "O" && pair_matchex(pairt, opernum_pair)
+                    elseif region_type == 'o' && pair_matchex(pairt, opernum_pair)
                         tranmult[fno] *= m
                     elseif pair_matchex(pairt, fluxnum_pair)
-                        @assert region_type == "F"
+                        @assert region_type == 'f'
                         tranmult[fno] *= m
                     end
                 end

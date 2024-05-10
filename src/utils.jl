@@ -1485,10 +1485,8 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
                 return abs(nz) < max(abs(nx), abs(ny))
             end
         end
-        count = 0
         for (c, ntg) in enumerate(d[:net_to_gross])
             if !(ntg ≈ 1.0)
-                count += 1
                 for fp in facepos[c]:(facepos[c+1]-1)
                     if face_is_vertical[faces[fp]]
                         T_hf[fp] *= ntg
