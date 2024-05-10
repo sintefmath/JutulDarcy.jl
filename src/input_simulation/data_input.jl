@@ -57,7 +57,14 @@ end
 Set up a case from a parsed input file (in `Dict` format). Internal function,
 not exported. Use [`setup_case_from_data_file`](@ref).
 """
-function setup_case_from_parsed_data(datafile; skip_wells = false, simple_well = true, use_ijk_trans = true, verbose = false, kwarg...)
+function setup_case_from_parsed_data(datafile;
+        skip_wells = false,
+        simple_well = true,
+        use_ijk_trans = true,
+        verbose = false,
+        zcorn_depths = true,
+        kwarg...
+    )
     function msg(s)
         if verbose
             jutul_message("Setup", s)
@@ -81,7 +88,7 @@ function setup_case_from_parsed_data(datafile; skip_wells = false, simple_well =
     end
 
     msg("Parsing reservoir domain.")
-    domain = parse_reservoir(datafile)
+    domain = parse_reservoir(datafile, zcorn_depths = zcorn_depths)
     pvt_reg = reservoir_regions(domain, :pvtnum)
     has_pvt = isnothing(pvt_reg)
     # Parse wells
@@ -658,7 +665,7 @@ function parse_state0_direct_assignment(model, datafile)
     return init
 end
 
-function parse_reservoir(data_file)
+function parse_reservoir(data_file; zcorn_depths = true)
     grid = data_file["GRID"]
     cartdims = grid["cartDims"]
     G = mesh_from_grid_section(grid)
@@ -888,7 +895,7 @@ function parse_reservoir(data_file)
         for (i, c) in enumerate(active_ix)
             domain[:cell_centroids][3, i] = grid["DEPTH"][c]
         end
-    elseif haskey(grid, "ZCORN") && false
+    elseif haskey(grid, "ZCORN") && zcorn_depths
         # Option to use ZCORN points to set depths
         z = get_zcorn_cell_depths(G, grid)
         @. domain[:cell_centroids][3, :] = z
