@@ -539,12 +539,14 @@ function parse_state0_equil(model, datafile)
         for i in 1:nc
             sw_i = sw[i]
             pc_actual = pcval[1, i]
-            pc_eql = pressure_eql[2, i] - pressure_eql[1, i]
-            if abs(pc_actual) ≈ 0.0 || pc_eql < 0.0
+            pw = pressure_eql[1, i]
+            po = pressure_eql[2, i]
+            pc_eql = pw - po
+            if abs(pc_actual) ≈ 0.0 || po < pw
                 continue
             end
-            # p_o - pc_ow = p_w
-            # -> p_o - p_w = pc_ow
+            # p_o + pc_ow = p_w
+            # -> p_w - p_o = pc_ow
             pc_scale[1, i] = pc_eql/pc_actual
         end
         model.secondary_variables[:CapillaryPressure] = ScaledCapillaryPressure(pc.pc, pc_scale, regions = pc.regions)
