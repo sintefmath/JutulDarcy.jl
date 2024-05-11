@@ -80,6 +80,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         contacts_pc = missing,
         pvtnum = 1,
         sw = missing,
+        output_pressures = false,
         kwarg...
     )
     if ismissing(contacts_pc)
@@ -206,6 +207,10 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         init[:Pressure] = p
         init[:Saturations] = ones(1, length(p))
     end
+    if output_pressures
+        init[:EquilibriationPressures] = pressures
+    end
+
     if !ismissing(T_z)
         init[:Temperature] = T_z.(depths)
     end
@@ -483,6 +488,7 @@ function parse_state0_equil(model, datafile)
                         rs = rs,
                         rv = rv,
                         pc = pc,
+                        output_pressures = true,
                         extra_arg...
                     )
                 push!(inits, subinit)
@@ -519,6 +525,28 @@ function parse_state0_equil(model, datafile)
         end
         @assert all(touched) "Some cells are not initialized by equil: $(findall(!, touched))"
     end
+    if haskey(props, "SWATINIT") && nph > 1 && haskey(model.secondary_variables, :CapillaryPressure)
+        sw = props["SWATINIT"][actnum_ix]
+        pc = model.secondary_variables[:CapillaryPressure]
+
+        pcval = zeros(nph-1, nc)
+        update_pc!(pcval, pc, model, init[:Saturations], 1:nc)
+        pressure_eql = init[:EquilibriationPressures]
+        pc_scale = zeros(nph-1, nc)
+        for i in 1:nc
+            sw_i = sw[i]
+            pc_actual = pcval[1, i]
+            pc_eql = pressure_eql[2, i] - pressure_eql[1, i]
+            if abs(pc_actual) ≈ 0.0
+                continue
+            end
+            # p_o - pc_ow = p_w
+            # -> p_o - p_w = pc_ow
+            pc_scale[1, i] = pc_eql/pc_actual
+        end
+        model.secondary_variables[:CapillaryPressure] = ScaledCapillaryPressure(pc.pc, pc_scale, regions = pc.regions)
+    end
+    delete!(init, :EquilibriationPressures)
     return init
 end
 
