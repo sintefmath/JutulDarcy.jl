@@ -158,6 +158,9 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         if !ismissing(sw)
             nph = size(s, 1)
             for i in axes(s, 2)
+                if pressures[2, i] - pressures[1, i] < 0.0
+                    continue
+                end
                 s0 = s[:, i]
                 sw_i = sw[i]
                 # sw_i = max(sw[i], s[1, i])
@@ -532,12 +535,12 @@ function parse_state0_equil(model, datafile)
         pcval = zeros(nph-1, nc)
         update_pc!(pcval, pc, model, init[:Saturations], 1:nc)
         pressure_eql = init[:EquilibriationPressures]
-        pc_scale = zeros(nph-1, nc)
+        pc_scale = ones(nph-1, nc)
         for i in 1:nc
             sw_i = sw[i]
             pc_actual = pcval[1, i]
             pc_eql = pressure_eql[2, i] - pressure_eql[1, i]
-            if abs(pc_actual) ≈ 0.0
+            if abs(pc_actual) ≈ 0.0 || pc_eql < 0.0
                 continue
             end
             # p_o - pc_ow = p_w
