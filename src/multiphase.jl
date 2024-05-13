@@ -198,7 +198,9 @@ function Jutul.default_parameter_values(data_domain, model, param::Transmissibil
     else
         error(":permeability or :transmissibilities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
-    replace_bad_trans!(T, symb)
+    if eltype(T)<:AbstractFloat
+        replace_bad_trans!(T, symb)
+    end
     return T
 end
 

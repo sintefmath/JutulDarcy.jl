@@ -582,7 +582,7 @@ function setup_reservoir_simulator(case::JutulCase;
             simulator_constructor = make_sim,
             primary_buffer = pbuffer,
             parray_arg...
-        );
+        )
     end
 
     t_base = TimestepSelector(initial_absolute = initial_dt, max = max_dt)
@@ -1452,7 +1452,7 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
     end
     bad_count = 0
     for (i, T_hf_i) in enumerate(T_hf)
-        if !isfinite(T_hf_i)
+        if T_hf_i isa AbstractFloat && !isfinite(T_hf_i)
             bad_count += 1
             T_hf[i] = 0.0
         end
@@ -1486,11 +1486,12 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
             end
         end
         for (c, ntg) in enumerate(d[:net_to_gross])
-            if !(ntg ≈ 1.0)
-                for fp in facepos[c]:(facepos[c+1]-1)
-                    if face_is_vertical[faces[fp]]
-                        T_hf[fp] *= ntg
-                    end
+            if ntg isa AbstractFloat && ntg ≈ 1.0
+                continue
+            end
+            for fp in facepos[c]:(facepos[c+1]-1)
+                if face_is_vertical[faces[fp]]
+                    T_hf[fp] *= ntg
                 end
             end
         end
