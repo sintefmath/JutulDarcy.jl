@@ -425,7 +425,11 @@ function gauss_seidel_for_each_subdomain_do(f, sim, simulators, subreports, stra
     n = length(simulators)
     is_mpi = sim.storage.is_mpi
     should_sync = sim.storage.mpi_sync_after_solve
-    has_sync = haskey(sim.executor.data, :distributed_primary_variables_sync_function)
+    if sim.executor isa Jutul.PArrayExecutor
+        has_sync = haskey(sim.executor.data, :distributed_primary_variables_sync_function)
+    else
+        has_sync = false
+    end
     if is_mpi && has_sync && should_sync
         sync_function = sim.executor.data[:distributed_primary_variables_sync_function]
         n_total = sim.storage[:maximum_number_of_subdomains_globally]
