@@ -18,6 +18,8 @@ function simulator_config(sim::NLDDSimulator;
         inc_tol_dp_abs = Inf,
         inc_tol_dp_rel = Inf,
         inc_tol_dz = Inf,
+        use_julia_amg = false,
+        subdomain_precond = :ilu0,
         kwarg...
     )
     if subdomain_info_level isa Real
@@ -81,29 +83,40 @@ function simulator_config(sim::NLDDSimulator;
 
     add_option!(cfg, :always_solve_wells, false, "Always solve wells in local subdomain", types = Bool)
 
+    is_mpi = sim.storage.is_mpi
     # Subdomain setup
     subsims = sim.subdomain_simulators
     n = length(subsims)
     subconfigs = Vector{JutulConfig}(undef, n)
     for i in 1:n
+        if is_mpi && use_julia_amg
+            # Avoid nesting HYPRE calls?
+            amg_type = :smoothed_aggregation
+        else
+            amg_type = JutulDarcy.default_amg_symbol()
+        end
+        submodel = subsims[i].model
+        linear_solver = reservoir_linsolve(submodel, subdomain_precond)
         subconfigs[i] = simulator_config(subsims[i],
             max_timestep_cuts = inner_max_timestep_cuts,
             min_nonlinear_iterations = inner_min_nonlinear_iterations,
             tol_factor_final_iteration = inner_tol_final,
             check_before_solve = check_before_solve,
+            linear_solver = linear_solver,
             info_level = Int(subdomain_info_level(i))
         )
         # Small hack for reservoir stuff
-        set_default_cnv_mb!(subconfigs[i], subsims[i].model, tol_cnv = inner_tol_mul*tol_cnv, 
-                                                            tol_mb = inner_tol_mul*tol_mb,
-                                                            inc_tol_dp_abs = inner_tol_mul*inc_tol_dp_abs,
-                                                            inc_tol_dp_rel = inner_tol_mul*inc_tol_dp_rel,
-                                                            inc_tol_dz = inner_tol_mul*inc_tol_dz,
-                                                            tol_dp_well = inner_tol_mul*tol_dp_well,
-                                                            tol_cnv_well = inner_tol_mul*tol_cnv_well,
-                                                            tol_mb_well = inner_tol_mul*tol_mb_well)
+        set_default_cnv_mb!(subconfigs[i], submodel,
+            tol_cnv = inner_tol_mul*tol_cnv,
+            tol_mb = inner_tol_mul*tol_mb,
+            inc_tol_dp_abs = inner_tol_mul*inc_tol_dp_abs,
+            inc_tol_dp_rel = inner_tol_mul*inc_tol_dp_rel,
+            inc_tol_dz = inner_tol_mul*inc_tol_dz,
+            tol_dp_well = inner_tol_mul*tol_dp_well,
+            tol_cnv_well = inner_tol_mul*tol_cnv_well,
+            tol_mb_well = inner_tol_mul*tol_mb_well
+        )
         subconfigs[i][:id] = "Ω_$i"
-        # subconfigs[i][:info_level] = 4*Int(i == 1)
     end
     add_option!(cfg, :config_subdomains, subconfigs, "Configs for subdomains")
     Jutul.overwrite_by_kwargs(cfg; check_before_solve = check_before_solve, kwarg...)
