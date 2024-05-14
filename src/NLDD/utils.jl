@@ -121,6 +121,11 @@ function simulator_config(sim::NLDDSimulator;
     end
     add_option!(cfg, :config_subdomains, subconfigs, "Configs for subdomains")
     Jutul.overwrite_by_kwargs(cfg; check_before_solve = check_before_solve, kwarg...)
+    for i in 1:n
+        for k in [:failure_cuts_timestep, :relaxation]
+            subconfigs[i][k] = cfg[k]
+        end
+    end
     cfg[:end_report] = cfg[:info_level] > -1
     return cfg
 end
