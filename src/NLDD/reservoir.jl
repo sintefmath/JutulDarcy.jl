@@ -520,8 +520,8 @@ end
 
 function check_subdomain_change_inner(buf, model::SimulationModel, state, f, tol, sum_t)
     if isnothing(tol)
-        return false # No tolerance - no need to check
-    else
+        out = false # No tolerance - no need to check
+    elseif haskey(state, f)
         cells = buf.Cells
         state_val = state[f]
         if state_val isa Matrix
@@ -532,12 +532,16 @@ function check_subdomain_change_inner(buf, model::SimulationModel, state, f, tol
         old = buf[f]
         if sum_t == :relsum
             current::AbstractMatrix
-            return subdomain_delta_relsum(current, old, tol)
+            out = subdomain_delta_relsum(current, old, tol)
         else
             @assert sum_t == :abs
-            return subdomain_delta_absolute(current, old, tol)
+            out = subdomain_delta_absolute(current, old, tol)
         end
+    else
+        # Field does not exist, nothing to check.
+        out = false
     end
+    return out
 end
 
 function subdomain_delta_absolute(current, old, tol_tuple)
