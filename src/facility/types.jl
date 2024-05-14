@@ -303,7 +303,7 @@ function replace_target(f::DisabledControl, target)
 end
 
 """
-    InjectorControl(target, mix, [density])
+    InjectorControl(target, mix, density = 1.0, phases = ((1, 1.0)), temperature = 293.15)
 
 Well control that specifies injection into the reservoir. `target` specifies the type of target and `mix` defines the
 injection mass fractions for all species in the model during injection. 
@@ -626,6 +626,16 @@ function well_target_information(t::Val{:control})
         explanation = "Type of control in use by well.",
         unit_type = :none,
         unit_label = "-"
+    )
+end
+
+function well_target_information(t::Val{:temperature})
+    return well_target_information(
+        symbol = :temperature,
+        description = "Well temperature",
+        explanation = "Temperature at well bottom hole. This is often given at or near the top perforation, but can be manually set to other depths.",
+        unit_type = :absolute_temperature,
+        unit_label = "°K"
     )
 end
 
