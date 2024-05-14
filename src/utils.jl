@@ -215,6 +215,10 @@ low values can lead to slow convergence.
   in two-phase.
 - `flash_stability_bypass=fast_flash`: Bypass stability testing for cells
   outside the two-phase and shadow region.
+- `can_shut_wells=true`: Configure facility to allow shutting wells that
+  repeatedly get rates with the wrong side. Disabling this can make certain
+  models infeasible to simulate, but it can be useful to do so for simple models
+  where you know that the wells should be operational.
 
 """
 function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
@@ -239,6 +243,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         dT_max_rel = nothing,
         dT_max_abs = nothing,
         fast_flash = false,
+        can_shut_wells = true,
         flash_reuse_guess = fast_flash,
         flash_stability_bypass = fast_flash,
         parameters = Dict{Symbol, Any}(),
@@ -334,14 +339,14 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             )
             models[wname] = wmodel
             if split_wells
-                wg = WellGroup([wname])
+                wg = WellGroup([wname], can_shut_wells = can_shut_wells)
                 F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
                 models[Symbol(string(wname)*string(:_ctrl))] = F
             end
         end
         # Add facility that gorups the wells
         if !split_wells
-            wg = WellGroup(map(x -> x.name, wells))
+            wg = WellGroup(map(x -> x.name, wells), can_shut_wells = can_shut_wells)
             F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
             models[:Facility] = F
         end
