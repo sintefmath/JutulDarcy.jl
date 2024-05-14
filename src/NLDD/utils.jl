@@ -38,6 +38,8 @@ function simulator_config(sim::NLDDSimulator;
         inc_tol_dp_rel = inc_tol_dp_rel,
         inc_tol_dz = inc_tol_dz
     )
+    is_mpi = sim.storage.is_mpi
+
     # Extra options
     add_option!(cfg, :nldd_threads, false, "Use threads for local solves. Not compatible with Gauss-Seidel.", types = Bool)
     add_option!(cfg, :nldd_thread_type, :default, "Type of threads to use", types = Symbol)
@@ -55,7 +57,7 @@ function simulator_config(sim::NLDDSimulator;
     add_option!(cfg, :aspen_full_increment, false, "Solve full ASPEN update", types = Bool)
     add_option!(cfg, :strategy, DefaultNLDDStrategy(), "Strategy to use for applying NLDD/ASPEN")
     same_tol = inner_tol_final <= 1.0 && inner_tol_mul <= 1.0
-    add_option!(cfg, :subdomain_tol_sufficient, same_tol, "Tolerances in subdomains are at least tight enough to be able to conclude global convergence.", types = Bool)
+    add_option!(cfg, :subdomain_tol_sufficient, same_tol && !is_mpi, "Tolerances in subdomains are at least tight enough to be able to conclude global convergence.", types = Bool)
 
     # Subdomain tolerances for when to solve a local subdomain
     add_option!(cfg, :solve_tol_pressure, nothing, "Local subdomains are solved if maximum pressure change at boundary exceeds this value.", types = Union{Float64, Nothing})
@@ -83,7 +85,6 @@ function simulator_config(sim::NLDDSimulator;
 
     add_option!(cfg, :always_solve_wells, false, "Always solve wells in local subdomain", types = Bool)
 
-    is_mpi = sim.storage.is_mpi
     # Subdomain setup
     subsims = sim.subdomain_simulators
     n = length(subsims)
