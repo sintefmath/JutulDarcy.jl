@@ -219,7 +219,7 @@ function Jutul.default_values(model, scalers::EndPointScalingCoefficients{P}) wh
         kscale[3, i] = s_max
         kscale[4, i] = k_max
     end
-    my_isfinite(x) = x
+    my_isfinite(x) = isfinite(x)
     my_isfinite(x::Jutul.ST.ADval) = isfinite(x.val)
     if haskey(data_domain, k)
         kscale_model = data_domain[k]
