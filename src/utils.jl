@@ -1066,7 +1066,12 @@ end
 
 Get the full set of well outputs after a simulation has occured, for plotting or other post-processing.
 """
-function full_well_outputs(model, states, forces; targets = available_well_targets(model.models.Reservoir))
+function full_well_outputs(model, states, forces; targets = missing)
+    rmodel = reservoir_model(model)
+    if ismissing(targets)
+        targets = available_well_targets(rmodel)
+    end
+    has_temperature = length(states) > 0 && haskey(first(states)[:Reservoir], :Temperature)
     out = Dict{Symbol, AbstractDict}()
     for w in well_symbols(model)
         out[w] = Dict()
@@ -1075,6 +1080,9 @@ function full_well_outputs(model, states, forces; targets = available_well_targe
         end
         out[w][:mass_rate] = well_output(model, states, w, forces, :TotalSurfaceMassRate)
         out[w][:control] = well_output(model, states, w, forces, :control)
+        if has_temperature
+            out[w][:temperature] = map(s -> s[w][:Temperature][well_top_node()], states)
+        end
     end
     return out
 end

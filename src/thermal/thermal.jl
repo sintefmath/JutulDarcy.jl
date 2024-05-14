@@ -294,6 +294,7 @@ end
 
 function select_minimum_output_variables!(out, system::ThermalSystem, model)
     push!(out, :TotalThermalEnergy)
+    push!(out, :FluidEnthalpy)
 end
 
 include("variables.jl")
