@@ -26,6 +26,7 @@ const ThermalModel = SimulationModel{<:JutulDomain, <:ThermalSystem, <:Any, <:An
 const ThermalCompositionalModel = SimulationModel{<:JutulDomain, <:ThermalSystem{<:Any, <:CompositionalSystem}, <:Any, <:Any}
 const ThermalBlackOilModel = SimulationModel{<:JutulDomain, <:ThermalSystem{<:Any, <:StandardBlackOilModel}, <:Any, <:Any}
 const ThermalImmiscibleModel = SimulationModel{<:JutulDomain, <:ThermalSystem{<:Any, <:ImmiscibleSystem}, <:Any, <:Any}
+const ThermalSinglePhaseModel = SimulationModel{<:JutulDomain, <:ThermalSystem{<:Any, <:SinglePhaseSystem}, <:Any, <:Any}
 
 struct BulkVolume <: ScalarVariable end
 function Jutul.default_values(model, ::BulkVolume)
