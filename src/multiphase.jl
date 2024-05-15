@@ -12,27 +12,23 @@ flow_system(sys::CompositeSystem) = sys.systems.flow
 number_of_components(sys::ImmiscibleSystem) = number_of_phases(sys)
 number_of_components(sys::CompositeSystem) = number_of_components(flow_system(sys))
 
-# Single-phase
+"""
+    component_names(sys)
 
-phase_names(system) = get_name.(get_phases(system))
+Get a list of the component names (as Strings)
+"""
+component_names(sys::Union{SinglePhaseSystem, ImmiscibleSystem}) = phase_names(sys)
+component_names(sys::CompositeSystem) = phase_names(sys.systems.flow)
+
+phase_names(system) = phase_name.(get_phases(system))
 
 get_phases(sys::SinglePhaseSystem) = (sys.phase, )
 
 phase_indices(sys::SinglePhaseSystem) = 1
 phase_indices(sys::ImmiscibleSystem) = tuple(eachindex(sys.phases)...)
 
-
 number_of_phases(::SinglePhaseSystem) = 1
 number_of_phases(sys::CompositeSystem) = number_of_phases(sys.systems.flow)
-
-## Phases
-function get_short_name(phase::AbstractPhase)
-    return get_name(phase)[]
-end
-
-function subscript(prefix::String, phase::AbstractPhase)
-    return string(prefix, "_", get_short_name(phase))
-end
 
 """
     AqueousPhase()
@@ -40,7 +36,7 @@ end
 `AbstractPhase` subtype for water-like phases.
 """
 struct AqueousPhase <: AbstractPhase end
-get_name(::AqueousPhase) = "Aqueous"
+phase_name(::AqueousPhase) = "Aqueous"
 
 """
     LiquidPhase()
@@ -48,7 +44,7 @@ get_name(::AqueousPhase) = "Aqueous"
 `AbstractPhase` subtype for liquid-like phases.
 """
 struct LiquidPhase <: AbstractPhase end
-get_name(::LiquidPhase) = "Liquid"
+phase_name(::LiquidPhase) = "Liquid"
 
 """
     VaporPhase()
@@ -56,7 +52,7 @@ get_name(::LiquidPhase) = "Liquid"
 `AbstractPhase` subtype for vapor or gaseous phases.
 """
 struct VaporPhase <: AbstractPhase end
-get_name(::VaporPhase) = "Vapor"
+phase_name(::VaporPhase) = "Vapor"
 
 ## Main implementation
 # Primary variable logic

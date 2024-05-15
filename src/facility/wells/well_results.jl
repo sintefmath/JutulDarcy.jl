@@ -80,10 +80,18 @@ function well_result_output_legend_table(wr::WellResults, outputs = missing)
     for (i, output) in enumerate(outputs)
         info = JutulDarcy.well_target_information(output)
         if ismissing(info)
-            data[i, 1] = output
-            data[i, 2] = "?"
-            data[i, 3] = "?"
-            data[i, 4] = "?"
+            if endswith("$output", "_mass_rate")
+                cname = "$output"[1:end-10]
+                data[i, 1] = cname
+                data[i, 2] = "Component mass rate for $cname."
+                data[i, 3] = "kg/s"
+                data[i, 4] = "mass"
+            else
+                data[i, 1] = output
+                data[i, 2] = "?"
+                data[i, 3] = "?"
+                data[i, 4] = "?"
+            end
         else
             data[i, 1] = info.symbol
             data[i, 2] = info.description

@@ -1071,6 +1071,7 @@ function full_well_outputs(model, states, forces; targets = missing)
     if ismissing(targets)
         targets = available_well_targets(rmodel)
     end
+    cnames = component_names(rmodel.system)
     has_temperature = length(states) > 0 && haskey(first(states)[:Reservoir], :Temperature)
     out = Dict{Symbol, AbstractDict}()
     for w in well_symbols(model)
@@ -1082,6 +1083,9 @@ function full_well_outputs(model, states, forces; targets = missing)
         out[w][:control] = well_output(model, states, w, forces, :control)
         if has_temperature
             out[w][:temperature] = map(s -> s[w][:Temperature][well_top_node()], states)
+        end
+        for (i, cname) in enumerate(cnames)
+            out[w][Symbol("$(cname)_mass_rate")] = well_output(model, states, w, forces, i)
         end
     end
     return out
@@ -1104,16 +1108,15 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
             well_number += 1
         end
     end
-    rhoS_o = reference_densities(model.models[well_symbol].system)
+    well_model = model.models[well_symbol]
+    rhoS_o = reference_densities(well_model.system)
 
     to_target(t::DataType) = t(1.0)
     to_target(t::Type) = t(1.0)
     to_target(t::Symbol) = t
+    to_target(t::Int) = t
 
     target_limit = to_target(target)
-
-    well_model = model.models[well_symbol]
-
     if target == :control
         d = Symbol[]
         for (i, state) = enumerate(states)
@@ -1161,6 +1164,15 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
             end
             if target == :TotalSurfaceMassRate
                 d[i] = q_t
+            elseif target isa Int
+                # Shorthand for component mass rate
+                if control isa InjectorControl
+                    mix = control.injection_mixture[target]
+                else
+                    totmass = well_state[:TotalMasses][:, 1]
+                    mix = totmass[target]/sum(totmass)
+                end
+                d[i] = q_t*mix
             else
                 if q_t == 0
                     current_control = DisabledControl()
