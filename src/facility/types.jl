@@ -526,7 +526,17 @@ function well_target_information(x)
 end
 
 function well_target_information(x::Symbol)
-    return well_target_information(Val(x))
+    if endswith("$x", "_mass_rate")
+        cname = "$x"[1:end-10]
+        out = well_target_information(
+            symbol = x,
+            description = "Component mass rate for $cname component",
+            unit_type = :mass,
+            unit_label = "kg/s"
+        )
+    else
+        well_target_information(Val(x))
+    end
 end
 
 function well_target_information(t::Union{BottomHolePressureTarget, Val{:bhp}})
