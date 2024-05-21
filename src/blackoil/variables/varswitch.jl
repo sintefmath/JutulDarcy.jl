@@ -279,8 +279,6 @@ end
         phases = X.phases_present
         if phases == OilOnly
             r = X.val
-        elseif phases == GasOnly
-            r = zero(T)
         else
             p = @inbounds Pressure[i]
             reg_i = region(ph.regions, i)
@@ -298,8 +296,6 @@ end
         phases = X.phases_present
         if X.phases_present == GasOnly
             r = X.val
-        elseif phases == OilOnly
-            r = zero(T)
         else
             p = @inbounds Pressure[i]
             reg_i = region(ph.regions, i)
