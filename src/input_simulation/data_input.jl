@@ -726,46 +726,23 @@ function parse_reservoir(data_file; zcorn_depths = true)
     for k in mult_keys
         if haskey(grid, k)
             mult_on_active = grid[k][active_ix]
-            if startswith(k, "MULTX")
-                pos = 1
-            elseif startswith(k, "MULTY")
-                pos = 2
-            else
-                @assert startswith(k, "MULTZ")
-                pos = 3
-            end
-            for fno in 1:nf
-                l, r = G.faces.neighbors[fno]
-                il = ijk[l][pos]
-                ir = ijk[r][pos]
-                ok = true
-                for i in 1:3
-                    # Exclude faces that do not match the other logical indices
-                    # (i.e. NNC or fault related)
-                    if i == pos
-                        ok = ok && il != ir
-                    else
-                        ok = ok && ijk[l][i] == ijk[r][i]
-                    end
+            apply_mult_xyz!(tranmult, k, mult_on_active, G, ijk)
+        end
+    end
+    if haskey(data_file, "EDIT")
+        edit = data_file["EDIT"]
+        for k in ["MULTRANX", "MULTRANY", "MULTRANZ"]
+            if haskey(edit, k)
+                fake_mult = ones(cartdims)
+                direction = k[end]
+                for (I_pair, J_pair, K_pair, val) in edit[k]
+                    @. fake_mult[
+                        I_pair[1]:I_pair[2],
+                        J_pair[1]:J_pair[2],
+                        K_pair[1]:K_pair[2]
+                    ] *= val
                 end
-                if ok
-                    if il < ir
-                        low, hi = l, r
-                    else
-                        hi, low = l, r
-                    end
-                    if endswith(k, "-")
-                        # Value at current index modifies e.g. K to K-1
-                        c = hi
-                    else
-                        # Value at current index modifies e.g. K to K+1 Pick the
-                        # lowest cell value (in the sense of the current IJK index)
-                        # for the face to select a cell-wise MULTX/MULTY/MULTZ for
-                        # this face.
-                        c = low
-                    end
-                    tranmult[fno] *= mult_on_active[c]
-                end
+                apply_mult_xyz!(tranmult, "MULT$(direction)", fake_mult[active_ix], G, ijk)
             end
         end
     end
@@ -901,6 +878,52 @@ function parse_reservoir(data_file; zcorn_depths = true)
         @. domain[:cell_centroids][3, :] = z
     end
     return domain
+end
+
+function apply_mult_xyz!(tranmult, k, mult_on_active, G, ijk)
+    nf = length(tranmult)
+    if startswith(k, "MULTX")
+        pos = 1
+    elseif startswith(k, "MULTY")
+        pos = 2
+    else
+        @assert startswith(k, "MULTZ")
+        pos = 3
+    end
+    for fno in 1:nf
+        l, r = G.faces.neighbors[fno]
+        il = ijk[l][pos]
+        ir = ijk[r][pos]
+        ok = true
+        for i in 1:3
+            # Exclude faces that do not match the other logical indices
+            # (i.e. NNC or fault related)
+            if i == pos
+                ok = ok && il != ir
+            else
+                ok = ok && ijk[l][i] == ijk[r][i]
+            end
+        end
+        if ok
+            if il < ir
+                low, hi = l, r
+            else
+                hi, low = l, r
+            end
+            if endswith(k, "-")
+                # Value at current index modifies e.g. K to K-1
+                c = hi
+            else
+                # Value at current index modifies e.g. K to K+1 Pick the
+                # lowest cell value (in the sense of the current IJK index)
+                # for the face to select a cell-wise MULTX/MULTY/MULTZ for
+                # this face.
+                c = low
+            end
+            tranmult[fno] *= mult_on_active[c]
+        end
+    end
+    return tranmult
 end
 
 function get_zcorn_cell_depths(g, grid)
