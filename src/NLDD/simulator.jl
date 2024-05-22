@@ -122,7 +122,7 @@ function NLDDSimulator(case::JutulCase, partition = missing;
     storage[:mpi_sync_after_solve] = mpi_sync_after_solve
 
     # storage = convert_to_immutable_storage(storage)
-    NLDDSimulator(outer_sim, executor, partition, nothing, subsim, storage)
+    return NLDDSimulator(outer_sim, executor, partition, nothing, subsim, storage)
 end
 
 @enum LocalSolveStatus begin

@@ -124,6 +124,8 @@ end
 function default_psolve(; max_levels = 10, max_coarse = 10, type = default_amg_symbol(), kwarg...)
     if type == :hypre
         amg = BoomerAMGPreconditioner(; kwarg...)
+    elseif type == :amgcl
+        amg = Jutul.AMGCLPreconditioner(; kwarg...)
     else
         gs_its = 1
         cyc = AlgebraicMultigrid.V()
