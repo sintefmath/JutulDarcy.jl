@@ -121,11 +121,29 @@ function CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner();
     )
 end
 
-function default_psolve(; max_levels = 10, max_coarse = 10, type = default_amg_symbol(), kwarg...)
+function default_psolve(; max_levels = 10, max_coarse = 10, amgcl_type = :amg, type = default_amg_symbol(), kwarg...)
     if type == :hypre
         amg = BoomerAMGPreconditioner(; kwarg...)
     elseif type == :amgcl
-        amg = Jutul.AMGCLPreconditioner(; kwarg...)
+        if length(kwarg) == 0 && amgcl_type == :amg
+            # Some reasonable defaults for reservoir system
+            kwarg = (
+                coarsening = (
+                    type = "aggregation",
+                    over_interp = 1.0,
+                    aggr = (
+                        eps_strong = 0.08,
+                    )
+                ),
+                npre = 3,
+                npost = 3,
+                ncycle = 1,
+                relax = (
+                    type = "spai0",
+                )
+            )
+        end
+        amg = Jutul.AMGCLPreconditioner(amgcl_type; kwarg...)
     else
         gs_its = 1
         cyc = AlgebraicMultigrid.V()
