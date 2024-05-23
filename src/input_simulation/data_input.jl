@@ -1629,7 +1629,7 @@ function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, t
         if has_water
             phases_mix = ((1, 1.0), (2, 1.0-sg), (3, sg))
         else
-            phases_mix = ((2, 1.0-sg), (3, sg))
+            phases_mix = ((1, 1.0-sg), (2, sg))
         end
     end
     return (rho, mix, phases_mix)

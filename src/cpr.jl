@@ -138,6 +138,7 @@ function default_psolve(; max_levels = 10, max_coarse = 10, amgcl_type = :amg, t
                 npre = 3,
                 npost = 3,
                 ncycle = 1,
+                coarse_enough = 1000,
                 pre_cycles = 1,
                 relax = (
                     type = "spai0",
