@@ -341,7 +341,15 @@ function two_phase_flash_implementation!(K, S, m, eos, old_phase_state, x, y, fl
                 z_min = nothing,
                 check = false
             )
-            need_full_flash = !stats.converged || V <= 0.0 || V >= 1.0
+            ϵ = 1e-6
+            # Check for trivial solutions (i.e. phases are equal) and close to
+            # single phase solutions. These are not valid flash results.
+            trivial = true
+            for k in K
+                trivial = trivial && (abs(k-1.0) < ϵ)
+            end
+            tended_to_single_phase = vapor_frac <= ϵ || vapor_frac >= 1.0 - ϵ
+            need_full_flash = !stats.converged || tended_to_single_phase || !isfinite(V) || trivial
         catch e
             jutul_message("Flash", "Exception ocurred in flash: $(typeof(e)), falling back to SSI with stability test.", color = :red)
         end
