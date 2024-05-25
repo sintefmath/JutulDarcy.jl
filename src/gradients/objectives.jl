@@ -1,3 +1,25 @@
+function compute_well_qoi(model::MultiModel, state, forces, well::Symbol, target::WellTarget)
+    well_model = model[well]
+    rhoS = reference_densities(well_model.system)
+
+    if haskey(model.models, :Facility)
+        pos = get_well_position(model.models[:Facility].domain, well)
+        ctrl = forces[:Facility].control[well]
+    else
+        pos = 1
+        ctrl = forces[Symbol("$(well)_ctrl")].control[well]
+    end
+
+    translate_target_to_symbol
+    if ctrl isa DisabledControl
+        qoi = 0.0
+    else
+        ctrl = replace_target(ctrl, target)
+        qoi = compute_well_qoi(well_model, state, well::Symbol, pos, rhoS, ctrl)
+    end
+    return qoi
+end
+
 function compute_well_qoi(well_model, state, well::Symbol, pos, rhoS, control)
     well_state = state[well]
     well_state = convert_to_immutable_storage(well_state)

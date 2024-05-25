@@ -109,6 +109,21 @@ function plot_reservoir(model, arg...;
     return fig
 end
 
+function plot_reservoir(d::DataDomain, arg...;
+        aspect = (1.0, 1.0, 1/3),
+        gui = true,
+        kwarg...
+    )
+    if gui
+        fig = plot_interactive(d, arg...; z_is_depth = true, aspect = aspect, kwarg...)
+        ax = fig.current_axis[]
+    else
+        g = physical_representation(d)
+        fig, ax, plt = plot_cell_data(g, arg...; z_is_depth = true, kwarg...)
+    end
+    return fig
+end
+
 function plot_reservoir(case::JutulCase, arg...; kwarg...)
     if length(arg) == 0
         arg = (merge(case.parameters[:Reservoir], case.state0[:Reservoir]),)
