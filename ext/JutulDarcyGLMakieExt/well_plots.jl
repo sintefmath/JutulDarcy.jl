@@ -5,6 +5,7 @@ function JutulDarcy.plot_well!(ax, g, w;
         linewidth = 3,
         top_factor = 0.2,
         fontsize = 18,
+        glowwidth = 5.0,
         transparency = true,
         bounds_z = missing,
         cell_centroids = missing,
@@ -50,6 +51,8 @@ function JutulDarcy.plot_well!(ax, g, w;
             transparency = transparency,
             color = textcolor,
             align = (:center, :baseline),
+            glowcolor = (:white, 1.0),
+            glowwidth = glowwidth,
             fontsize = fontsize
         )
     end
