@@ -1,4 +1,4 @@
-function compute_well_qoi(model::MultiModel, state, forces, well::Symbol, target::WellTarget)
+function compute_well_qoi(model::MultiModel, state, forces, well::Symbol, target::Union{WellTarget, Type})
     well_model = model[well]
     rhoS = reference_densities(well_model.system)
 
@@ -14,6 +14,18 @@ function compute_well_qoi(model::MultiModel, state, forces, well::Symbol, target
     if ctrl isa DisabledControl
         qoi = 0.0
     else
+        if target isa Type
+            if target<:SurfaceVolumeTarget
+                if ctrl isa InjectorControl
+                    tv = 1.0
+                else
+                    tv = -1.0
+                end
+            else
+                tv = 100e5
+            end
+            target = target(tv)
+        end
         ctrl = replace_target(ctrl, target)
         qoi = compute_well_qoi(well_model, state, well::Symbol, pos, rhoS, ctrl)
     end
