@@ -229,10 +229,16 @@ number_of_components(sys::SinglePhaseSystem) = 1
 struct PhaseRelativePermeability{T, N}
     k::T
     label::Symbol
+    "Connate saturation"
     connate::N
+    "The saturation at which rel. perm. becomes positive"
     critical::N
+    "Maximum saturation at which rel. perm. is k_max"
     s_max::N
+    "Largest value of rel. perm."
     k_max::N
+    "Largest s value in input saturations"
+    input_s_max::N
 end
 
 
@@ -263,6 +269,7 @@ function PhaseRelativePermeability(s, k; label = :w, connate = s[1], epsilon = 1
             end
         end
     end
+    s_max_table = s[end]
     k_max, ix = findmax(k)
     s_max = s[ix]
     # Last immobile point in table
@@ -271,7 +278,7 @@ function PhaseRelativePermeability(s, k; label = :w, connate = s[1], epsilon = 1
     s, k = JutulDarcy.add_missing_endpoints(s, k)
     JutulDarcy.ensure_endpoints!(s, k, epsilon)
     kr = get_1d_interpolator(s, k, cap_endpoints = false, constant_dx = false)
-    return PhaseRelativePermeability(kr, label, connate, crit, s_max, k_max)
+    return PhaseRelativePermeability(kr, label, connate, crit, s_max, k_max, s_max_table)
 end
 
 (kr::PhaseRelativePermeability)(S) = kr.k(S)
