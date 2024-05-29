@@ -372,9 +372,15 @@ function compdat_to_connection_factors(domain, wspec, v; sort = true, order = "T
             if drainage_radius <= 0.0
                 drainage_radius = nothing
             end
+            if haskey(domain, :net_to_gross)
+                ntg = domain[:net_to_gross][c]
+            else
+                ntg = 1.0
+            end
             WI[i] = compute_peaceman_index(G, k_i, d[i]/2, c,
                 skin = skin[i],
                 Kh = Kh[i],
+                net_to_gross = ntg,
                 dir = Symbol(dir[i]),
                 drainage_radius = drainage_radius
             )
