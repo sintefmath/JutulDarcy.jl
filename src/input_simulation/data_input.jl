@@ -368,7 +368,16 @@ function compdat_to_connection_factors(domain, wspec, v; sort = true, order = "T
             else
                 k_i = K[:, c]
             end
-            WI[i] = compute_peaceman_index(G, k_i, d[i]/2, c, skin = skin[i], Kh = Kh[i], dir = Symbol(dir[i]))
+            drainage_radius = wspec.drainage_radius
+            if drainage_radius <= 0.0
+                drainage_radius = nothing
+            end
+            WI[i] = compute_peaceman_index(G, k_i, d[i]/2, c,
+                skin = skin[i],
+                Kh = Kh[i],
+                dir = Symbol(dir[i]),
+                drainage_radius = drainage_radius
+            )
         end
     end
     if sort
