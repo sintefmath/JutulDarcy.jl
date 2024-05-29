@@ -380,7 +380,7 @@ function parse_state0_equil(model, datafile)
                             swcon = fill(krw.connate, ncells_reg)
                         end
                         push!(s_min, swcon)
-                        push!(s_max, ones(ncells_reg))
+                        push!(s_max, fill(krw.s_max, ncells_reg))
                         @. non_connate -= swcon
                     end
                     if has_oil
