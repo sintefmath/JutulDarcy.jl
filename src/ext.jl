@@ -58,8 +58,12 @@ function plot_reservoir(model, arg...;
         aspect = (1.0, 1.0, 1/3),
         well_top_factor_scale = 1.0,
         well_arg = NamedTuple(),
+        force_glmakie = true,
         kwarg...
     )
+    if force_glmakie
+        @assert Jutul.plotting_check_interactive(warn = true) "Function requires interactive plotting. Set force_glmakie = false to override."
+    end
     rmodel = reservoir_model(model)
     data_domain = rmodel.data_domain
     cell_centroids = data_domain[:cell_centroids]
