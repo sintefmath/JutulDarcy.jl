@@ -513,6 +513,8 @@ struct WellResults
     end
 end
 
+Base.pairs(wr::WellResults) = pairs(wr.wells)
+
 struct ReservoirSimResult
     "Well results as a Dict (output from [`full_well_outputs`](@ref))"
     wells::WellResults
