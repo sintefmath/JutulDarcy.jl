@@ -20,7 +20,7 @@ function equilibriate_state(model, contacts,
     end
 
     if ismissing(datum_depth)
-        datum_depth = pmin
+        datum_depth = minimum(pts)
     end
     sys = flow_system(model.system)
 
@@ -109,10 +109,6 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     if rho isa Pair
         rho = last(rho)
     end
-    relperm = model.secondary_variables[:RelativePermeabilities]
-    if relperm isa Pair
-        relperm = last(relperm)
-    end
 
     reg = Int[pvtnum]
     function density_f(p, z, ph)
@@ -154,6 +150,10 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     end
     pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_f, contacts_pc)
     if nph > 1
+        relperm = model.secondary_variables[:RelativePermeabilities]
+        if relperm isa Pair
+            relperm = last(relperm)
+        end
         s, pc = determine_saturations(depths, contacts, pressures; s_min = s_min, kwarg...)
         if !ismissing(sw)
             nph = size(s, 1)
