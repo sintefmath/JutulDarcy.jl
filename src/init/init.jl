@@ -655,10 +655,12 @@ function phase_pressure_depth_table(depth, zmin, zmax, datum_pressure, density_f
     end
     z = vcat(z_up, z_down)
     p = vcat(p_up, p_down)
-    return Jutul.LinearInterpolant(z, p)
+    i = unique(i -> z[i], eachindex(z))
+    return Jutul.LinearInterpolant(z[i], p[i])
 end
 
 function integrate_phase_density(z_datum, z_end, p0, density_f, phase; n = 1000, g = Jutul.gravity_constant)
+    @assert isfinite(p0) "Pressure at contact must be finite"
     dz = (z_end - z_datum)/n
     pressure = zeros(n+1)
     z = zeros(n+1)
@@ -668,7 +670,9 @@ function integrate_phase_density(z_datum, z_end, p0, density_f, phase; n = 1000,
     for i in 2:(n+1)
         p = pressure[i-1]
         depth = z[i-1] + dz
-        pressure[i] = p + dz*density_f(p, depth, phase)*g
+        dens = density_f(p, depth, phase)
+        pressure[i] = p + dz*dens*g
+        @assert isfinite(pressure[i]) "Equilibriation returned non-finite pressures."
         z[i] = depth
     end
     return (z, pressure)
