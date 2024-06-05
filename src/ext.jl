@@ -62,7 +62,7 @@ function plot_reservoir(model, arg...;
         kwarg...
     )
     if force_glmakie
-        # @assert Jutul.plotting_check_interactive(warn = true) "Function requires interactive plotting. Set force_glmakie = false to override."
+        @assert Jutul.plotting_check_interactive(warn = true) "Function requires interactive plotting. Set force_glmakie = false to override."
     end
     rmodel = reservoir_model(model)
     data_domain = rmodel.data_domain
