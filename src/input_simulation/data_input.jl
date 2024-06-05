@@ -8,9 +8,12 @@ path of an input file with the .DATA extension.
 Additional arguments are passed onto [`simulate_reservoir`](@ref). Extra inputs
 to the parser can be sent as a `setup_arg` `NamedTuple`.
 """
-function simulate_data_file(data; setup_arg = NamedTuple(), kwarg...)
+function simulate_data_file(data; setup_arg = missing, mode = :default, kwarg...)
+    if ismissing(setup_arg)
+        setup_arg = (split_wells = mode != :default, )
+    end
     case = setup_case_from_data_file(data; setup_arg...)
-    result = simulate_reservoir(case; kwarg...)
+    result = simulate_reservoir(case; mode = mode, kwarg...)
     result.extra[:case] = case
     return result
 end
