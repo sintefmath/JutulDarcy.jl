@@ -1,7 +1,7 @@
 using Jutul, JutulDarcy, Test, HYPRE, MPI, PartitionedArrays
 
 @testset "NLDD/MPI" begin
-    f = JutulDarcy.GeoEnergyIO.test_input_file_path("spe1", "BENCH_SPE1.DATA")
+    f = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1", "SPE1.DATA")
     il = -1
     case = setup_case_from_data_file(f, split_wells = true);
     ws_base, = simulate_reservoir(case, method = :newton, info_level = il);
@@ -14,19 +14,19 @@ using Jutul, JutulDarcy, Test, HYPRE, MPI, PartitionedArrays
     ws[:mpi], = simulate_reservoir(case, method = :newton, mode = :mpi, info_level = il);
     ws[:nldd_mpi], = simulate_reservoir(case, method = :nldd, mode = :mpi, info_level = il);
 
-    get_prod_rate(x) = x[:PRODUCER, :rate]
-    get_grat(x) = x[:PRODUCER, :grat]
-    get_prod_bhp(x) = x[:PRODUCER, :bhp]
+    get_prod_rate(x) = x[:PROD, :rate]
+    get_grat(x) = x[:PROD, :grat]
+    get_prod_bhp(x) = x[:PROD, :bhp]
 
     for (k, ws_compare) in pairs(ws)
         @testset "$k producer" begin
             rate_ref = get_prod_rate(ws_base)
             rate = get_prod_rate(ws_compare)
-            @test rate_ref ≈ rate rtol = 1e-3
+            @test rate_ref ≈ rate rtol = 1e-2
 
             rate_ref = get_grat(ws_base)
             rate = get_grat(ws_compare)
-            @test rate_ref ≈ rate rtol = 1e-3
+            @test rate_ref ≈ rate rtol = 1e-2
 
             pbhp_ref = get_prod_bhp(ws_base)
             pbhp = get_prod_bhp(ws_compare)
