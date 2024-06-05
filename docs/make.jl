@@ -27,12 +27,12 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
         "Intro to compositional flow" => "co2_brine_2d_vertical",
         "Compositional with five components" => "compositional_5components",
         "Parameter optimization of Buckley-Leverett" => "optimize_simple_bl",
-        "Validation: SPE1" => "validation/spe1_validation",
-        "Validation: SPE9" => "validation/spe9_validation",
-        "Validation: Egg" => "validation/egg_validation",
-        "Validation: OLYMPUS 1" => "validation/olympus_1_validation",
-        "Validation: Norne" => "validation/norne_nohyst_validation",
-        "Validation on MRST input files" => "validation/mrst_validation"
+        "Validation: SPE1" => "validation_spe1",
+        "Validation: SPE9" => "validation_spe9",
+        "Validation: Egg" => "validation_egg",
+        "Validation: OLYMPUS 1" => "validation_olympus_1",
+        "Validation: Norne" => "validation_norne_nohyst",
+        "Validation: MRST input files" => "validation_mrst"
     ]
     examples_markdown = []
     function update_footer(content, pth)
