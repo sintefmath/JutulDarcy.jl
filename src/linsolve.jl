@@ -33,6 +33,7 @@ function reservoir_linsolve(model,
         max_coarse = 10,
         cpr_type = nothing,
         partial_update = update_interval == :once,
+        amg_arg = NamedTuple(),
         kwarg...
     )
     model = reservoir_model(model)
@@ -52,7 +53,7 @@ function reservoir_linsolve(model,
                 cpr_type = :true_impes
             end
         end
-        p_solve = default_psolve(max_coarse = max_coarse, type = amg_type)
+        p_solve = default_psolve(; max_coarse = max_coarse, type = amg_type, amg_arg...)
         if smoother_type == :ilu0
             s = ILUZeroPreconditioner()
         elseif smoother_type == :jacobi

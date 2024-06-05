@@ -5,6 +5,8 @@ function JutulDarcy.plot_well!(ax, g, w;
         linewidth = 3,
         top_factor = 0.2,
         fontsize = 18,
+        glowwidth = 5.0,
+        markersize = 10.0,
         transparency = true,
         bounds_z = missing,
         cell_centroids = missing,
@@ -50,14 +52,24 @@ function JutulDarcy.plot_well!(ax, g, w;
             transparency = transparency,
             color = textcolor,
             align = (:center, :baseline),
+            glowcolor = (:white, 1.0),
+            glowwidth = glowwidth,
             fontsize = fontsize
         )
     end
+    x = pts[1, :]
+    y = pts[2, :]
+    z = pts[3, :]
 
-    lines!(ax, vec(pts[1, :]), vec(pts[2, :]), vec(pts[3, :]),
+    npts = length(x)
+    spts = fill(markersize, npts)
+    spts[1] = 0
+    scatterlines!(ax, x, y, z,
         transparency = transparency,
         linewidth = linewidth,
         color = color,
+        markersize = spts,
+        alpha = 0.9,
         kwarg...
     )
 end

@@ -140,21 +140,39 @@ end
 function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::ConservationLaw{:TotalThermalEnergy, <:WellSegmentFlow}, model, dt, ldisc = local_discretization(eq, self_cell)) where T_e
     (; cells, faces, signs) = ldisc
     nph = number_of_phases(model.system)
+    mass = state.TotalMasses
     energy = state.TotalThermalEnergy
     energy0 = state0.TotalThermalEnergy
+    density = state.PhaseMassDensities
+    S = state.Saturations
     H_f = state.FluidEnthalpy
     v = state.TotalMassFlux
 
     eq = (energy[self_cell] - energy0[self_cell])/dt
+    m_t_self = total_density(S, density, self_cell)
+
     for (cell, face, sgn) in zip(cells, faces, signs)
         v_f = sgn*v[face]
         for ph in 1:nph
-            H_other = H_f[ph, cell]
-            H_self = H_f[ph, self_cell]
-            eq += v_f*upw_flux(v_f, H_self, H_other)
+            # Compute mass fraction of phase, then weight by enthalpy.
+            m_t_other = total_density(S, density, cell)
+            f_self = density[ph, self_cell]*S[ph, self_cell]/m_t_self
+            f_other = density[ph, cell]*S[ph, cell]/m_t_other
+
+            ME_other = H_f[ph, cell]*f_other
+            ME_self = H_f[ph, self_cell]*f_self
+            eq += v_f*upw_flux(v_f, ME_self, ME_other)
         end
     end
     eq_buf[] = eq
+end
+
+function total_density(s, rho, cell)
+    rho_tot = 0.0
+    for ph in 1:size(rho, 1)
+        rho_tot += rho[ph, cell]*s[ph, cell]
+    end
+    return rho_tot
 end
 
 function component_sum(mass, i)

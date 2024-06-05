@@ -50,6 +50,10 @@ get_phases(sys::StandardBlackOilSystem) = sys.phases
 number_of_components(sys::StandardBlackOilSystem) = length(get_phases(sys))
 phase_indices(sys::StandardBlackOilSystem) = sys.phase_indices
 
+function component_names(sys::StandardBlackOilSystem)
+    return phase_names(sys)
+end
+
 has_vapoil(::Any) = false
 has_disgas(::Any) = false
 

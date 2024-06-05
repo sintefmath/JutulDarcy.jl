@@ -8,9 +8,12 @@ path of an input file with the .DATA extension.
 Additional arguments are passed onto [`simulate_reservoir`](@ref). Extra inputs
 to the parser can be sent as a `setup_arg` `NamedTuple`.
 """
-function simulate_data_file(data; setup_arg = NamedTuple(), kwarg...)
+function simulate_data_file(data; setup_arg = missing, mode = :default, kwarg...)
+    if ismissing(setup_arg)
+        setup_arg = (split_wells = mode != :default, )
+    end
     case = setup_case_from_data_file(data; setup_arg...)
-    result = simulate_reservoir(case; kwarg...)
+    result = simulate_reservoir(case; mode = mode, kwarg...)
     result.extra[:case] = case
     return result
 end
@@ -57,7 +60,14 @@ end
 Set up a case from a parsed input file (in `Dict` format). Internal function,
 not exported. Use [`setup_case_from_data_file`](@ref).
 """
-function setup_case_from_parsed_data(datafile; skip_wells = false, simple_well = true, use_ijk_trans = true, verbose = false, kwarg...)
+function setup_case_from_parsed_data(datafile;
+        skip_wells = false,
+        simple_well = true,
+        use_ijk_trans = true,
+        verbose = false,
+        zcorn_depths = true,
+        kwarg...
+    )
     function msg(s)
         if verbose
             jutul_message("Setup", s)
@@ -81,7 +91,7 @@ function setup_case_from_parsed_data(datafile; skip_wells = false, simple_well =
     end
 
     msg("Parsing reservoir domain.")
-    domain = parse_reservoir(datafile)
+    domain = parse_reservoir(datafile, zcorn_depths = zcorn_depths)
     pvt_reg = reservoir_regions(domain, :pvtnum)
     has_pvt = isnothing(pvt_reg)
     # Parse wells
@@ -159,7 +169,7 @@ function setup_case_from_parsed_data(datafile; skip_wells = false, simple_well =
     if haskey(props, "SWL")
         G = physical_representation(domain)
         swl = vec(props["SWL"])
-        parameters[:Reservoir][:ConnateWater] .= swl[G.cell_map]
+        # parameters[:Reservoir][:ConnateWater] .= swl[G.cell_map]
     end
     if use_ijk_trans
         parameters[:Reservoir][:Transmissibilities] = reservoir_transmissibility(domain, version = :ijk);
@@ -361,7 +371,22 @@ function compdat_to_connection_factors(domain, wspec, v; sort = true, order = "T
             else
                 k_i = K[:, c]
             end
-            WI[i] = compute_peaceman_index(G, k_i, d[i]/2, c, skin = skin[i], Kh = Kh[i], dir = Symbol(dir[i]))
+            drainage_radius = wspec.drainage_radius
+            if drainage_radius <= 0.0
+                drainage_radius = nothing
+            end
+            if haskey(domain, :net_to_gross)
+                ntg = domain[:net_to_gross][c]
+            else
+                ntg = 1.0
+            end
+            WI[i] = compute_peaceman_index(G, k_i, d[i]/2, c,
+                skin = skin[i],
+                Kh = Kh[i],
+                net_to_gross = ntg,
+                dir = Symbol(dir[i]),
+                drainage_radius = drainage_radius
+            )
         end
     end
     if sort
@@ -658,7 +683,7 @@ function parse_state0_direct_assignment(model, datafile)
     return init
 end
 
-function parse_reservoir(data_file)
+function parse_reservoir(data_file; zcorn_depths = true)
     grid = data_file["GRID"]
     cartdims = grid["cartDims"]
     G = mesh_from_grid_section(grid)
@@ -719,37 +744,23 @@ function parse_reservoir(data_file)
     for k in mult_keys
         if haskey(grid, k)
             mult_on_active = grid[k][active_ix]
-            if startswith(k, "MULTX")
-                pos = 1
-            elseif startswith(k, "MULTY")
-                pos = 2
-            else
-                @assert startswith(k, "MULTZ")
-                pos = 3
-            end
-            if endswith(k, "-")
-                dir = 1
-            else
-                dir = -1
-            end
-            for fno in 1:nf
-                l, r = G.faces.neighbors[fno]
-                il = ijk[l][pos]
-                ir = ijk[r][pos]
-                if dir == 1
-                    if il < ir
-                        c = l
-                    else
-                        c = r
-                    end
-                else
-                    if il > ir
-                        c = l
-                    else
-                        c = r
-                    end
+            apply_mult_xyz!(tranmult, k, mult_on_active, G, ijk)
+        end
+    end
+    if haskey(data_file, "EDIT")
+        edit = data_file["EDIT"]
+        for k in ["MULTRANX", "MULTRANY", "MULTRANZ"]
+            if haskey(edit, k)
+                fake_mult = ones(cartdims)
+                direction = k[end]
+                for (I_pair, J_pair, K_pair, val) in edit[k]
+                    @. fake_mult[
+                        I_pair[1]:I_pair[2],
+                        J_pair[1]:J_pair[2],
+                        K_pair[1]:K_pair[2]
+                    ] *= val
                 end
-                tranmult[fno] *= mult_on_active[c]
+                apply_mult_xyz!(tranmult, "MULT$(direction)", fake_mult[active_ix], G, ijk)
             end
         end
     end
@@ -770,6 +781,20 @@ function parse_reservoir(data_file)
             return (x, y)
         end
     end
+    function pair_matchex(pair_kw, pair_reg)
+        wildcard1 = pair_kw[1] < 1
+        wildcard2 = pair_kw[2] < 1
+        if wildcard1 && wilcard2
+            return pair_reg[1] != pair_reg[2]
+        elseif wildcard1
+            return pair_kw[2] == pair_reg[2]
+        elseif wildcard2
+            return pair_kw[1] == pair_reg[1]
+        else
+            return pair_kw == pair_reg
+        end
+    end
+
     if !ismissing(multregt)
         opernum = get(extra_data_arg, :opernum, ones(Int, nc))
         multnum = get(extra_data_arg, :multnum, ones(Int, nc))
@@ -783,7 +808,7 @@ function parse_reservoir(data_file)
             for regt in multregt
                 pairt = tsort(regt[1], regt[2])
                 do_apply = false
-                for (pos, coord) in enumerate(['X', 'Y', 'Z'])
+                for (pos, coord) in enumerate(('X', 'Y', 'Z'))
                     if coord in regt[4] && ijk[l][pos] != ijk[r][pos]
                         do_apply = true
                         break
@@ -791,11 +816,13 @@ function parse_reservoir(data_file)
                 end
                 if do_apply
                     m = regt[3]
-                    if regt[6] == "M" && pairt == multnum_pair
+                    region_type = only(lowercase(regt[6]))
+                    if region_type == 'm' && pair_matchex(pairt, multnum_pair)
                         tranmult[fno] *= m
-                    elseif regt[6] == "O" && pairt == opernum_pair
+                    elseif region_type == 'o' && pair_matchex(pairt, opernum_pair)
                         tranmult[fno] *= m
-                    elseif pairt == fluxnum_pair
+                    elseif pair_matchex(pairt, fluxnum_pair)
+                        @assert region_type == 'f'
                         tranmult[fno] *= m
                     end
                 end
@@ -863,8 +890,78 @@ function parse_reservoir(data_file)
         for (i, c) in enumerate(active_ix)
             domain[:cell_centroids][3, i] = grid["DEPTH"][c]
         end
+    elseif haskey(grid, "ZCORN") && zcorn_depths
+        # Option to use ZCORN points to set depths
+        z = get_zcorn_cell_depths(G, grid)
+        @. domain[:cell_centroids][3, :] = z
     end
     return domain
+end
+
+function apply_mult_xyz!(tranmult, k, mult_on_active, G, ijk)
+    nf = length(tranmult)
+    if startswith(k, "MULTX")
+        pos = 1
+    elseif startswith(k, "MULTY")
+        pos = 2
+    else
+        @assert startswith(k, "MULTZ")
+        pos = 3
+    end
+    for fno in 1:nf
+        l, r = G.faces.neighbors[fno]
+        il = ijk[l][pos]
+        ir = ijk[r][pos]
+        ok = true
+        for i in 1:3
+            # Exclude faces that do not match the other logical indices
+            # (i.e. NNC or fault related)
+            if i == pos
+                ok = ok && il != ir
+            else
+                ok = ok && ijk[l][i] == ijk[r][i]
+            end
+        end
+        if ok
+            if il < ir
+                low, hi = l, r
+            else
+                hi, low = l, r
+            end
+            if endswith(k, "-")
+                # Value at current index modifies e.g. K to K-1
+                c = hi
+            else
+                # Value at current index modifies e.g. K to K+1 Pick the
+                # lowest cell value (in the sense of the current IJK index)
+                # for the face to select a cell-wise MULTX/MULTY/MULTZ for
+                # this face.
+                c = low
+            end
+            tranmult[fno] *= mult_on_active[c]
+        end
+    end
+    return tranmult
+end
+
+function get_zcorn_cell_depths(g, grid)
+    nc = number_of_cells(g)
+    z = zeros(nc)
+    cartdims = grid["cartDims"]
+    zcorn = grid["ZCORN"]
+    for c in 1:nc
+        i, j, k = cell_ijk(g, c)
+        linear_ix = GeoEnergyIO.CornerPointGrid.ijk_to_linear(i, j, k, cartdims)
+        get_zcorn(I1, I2, I3) = zcorn[GeoEnergyIO.CornerPointGrid.corner_index(linear_ix, (I1, I2, I3), cartdims)]
+        get_pair(I, J) = (get_zcorn(I, J, 0), get_zcorn(I, J, 1))
+        l_11, t_11 = get_pair(0, 0)
+        l_12, t_12 = get_pair(0, 1)
+        l_21, t_21 = get_pair(1, 0)
+        l_22, t_22 = get_pair(1, 1)
+
+        z[c] = (1.0/8.0)*(l_11 + t_11 + l_12 + t_12 + l_21 + t_21 + l_22 + t_22)
+    end
+    return z
 end
 
 function set_scaling_arguments!(out, active, data_file)
@@ -1452,7 +1549,7 @@ function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_
             # RESV, GRUP, THP
             error("$ctype control not supported")
         end
-        rho, mix = select_injector_mixture_spec(sys, name, streams, type)
+        rho, mix, phases_mix = select_injector_mixture_spec(sys, name, streams, type)
         if is_rate && surf_rate < MIN_ACTIVE_WELL_RATE
             @debug "Disabling injector $name with $ctype ctrl due to zero rate" surf_rate
             well_is_disabled = true
@@ -1462,7 +1559,7 @@ function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_
         ctrl = DisabledControl()
         lims = nothing
     else
-        ctrl = InjectorControl(t, mix; density = rho, kwarg...)
+        ctrl = InjectorControl(t, mix; density = rho, phases = phases_mix, kwarg...)
         if is_hist
             # TODO: This magic number comes from MRST.
             bhp_lim = convert_to_si(6895.0, :bar)
@@ -1479,6 +1576,9 @@ function select_injector_mixture_spec(sys::Union{ImmiscibleSystem, StandardBlack
     phases = get_phases(sys)
     mix = Float64[]
     rho = 0.0
+    nph = number_of_phases(sys)
+    phases_mix = Tuple{Int, Float64}[]
+    ix = 1
     for (phase, rho_ph) in zip(phases, rho_s)
         if phase == LiquidPhase()
             v = Float64(type == "OIL")
@@ -1488,11 +1588,13 @@ function select_injector_mixture_spec(sys::Union{ImmiscibleSystem, StandardBlack
             @assert phase isa VaporPhase
             v = Float64(type == "GAS")
         end
-        rho += rho_ph*v
         push!(mix, v)
+        push!(phases_mix, (ix, v))
+        rho += rho_ph*v
+        ix += 1
     end
     @assert sum(mix) ≈ 1.0 "Expected mixture to sum to 1, was $mix for type $type (declared phases: $phases)"
-    return (rho, mix)
+    return (rho, mix, phases_mix)
 end
 
 function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, type)
@@ -1500,14 +1602,16 @@ function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, t
     props = eos.mixture.properties
     rho_s = reference_densities(sys)
     phases = get_phases(sys)
-    offset = Int(has_other_phase(sys))
+    has_water = has_other_phase(sys)
+    offset = Int(has_water)
     ncomp = number_of_components(sys)
     # Well stream will be molar fractions.
     mix = zeros(Float64, ncomp)
-    if uppercase(type) == "WATER"
-        has_other_phase(sys) || throw(ArgumentError("Cannot have WATER injector without water phase."))
+    if uppercase(type) == "WATER" || uppercase(type) == "WAT"
+        has_water || throw(ArgumentError("Cannot have WATER injector without water phase."))
         mix[1] = 1.0
         rho = rho_s[1]
+        phases_mix = ((1, 1.0), (2, 0.0), (3, 0.0))
     else
         if !haskey(streams.wells, name)
             throw(ArgumentError("Well $name does not have a stream declared with well type $type."))
@@ -1535,8 +1639,18 @@ function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, t
         rho_l, rho_v = MultiComponentFlash.mass_densities(eos, cond.p, cond.T, flash)
         S_l, S_v = MultiComponentFlash.phase_saturations(eos, cond.p, cond.T, flash)
         rho = S_l*rho_l + S_v*rho_v
+        if uppercase(type) == "GAS"
+            sg = 1.0
+        else
+            sg = 0.0
+        end
+        if has_water
+            phases_mix = ((1, 1.0), (2, 1.0-sg), (3, sg))
+        else
+            phases_mix = ((1, 1.0-sg), (2, sg))
+        end
     end
-    return (rho, mix)
+    return (rho, mix, phases_mix)
 end
 
 function keyword_to_control(sys, streams, kw, ::Val{:WCONINJE}; kwarg...)

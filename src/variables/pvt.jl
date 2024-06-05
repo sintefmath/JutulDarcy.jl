@@ -162,11 +162,12 @@ Jutul.default_value(model, T::Temperature) = 303.15 # 30.15 C°
 function Jutul.default_parameter_values(data_domain, model, param::Temperature, symb)
     T_default = Jutul.default_value(model, param)
     nc = number_of_cells(data_domain)
-    T = fill(T_default, nc)
     if haskey(data_domain, :temperature)
         T_domain = data_domain[:temperature]
         @assert length(T_domain) == nc
-        T .= T_domain
+        T = copy(T_domain)
+    else
+        T = fill(T_default, nc)
     end
     return T
 end

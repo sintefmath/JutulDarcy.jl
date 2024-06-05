@@ -28,7 +28,7 @@ density = ConstantCompressibilityDensities(
     compressibility = c
 )
 kr = BrooksCoreyRelativePermeabilities(sys, [2.0, 3.0])
-replace_variables!(model, PhaseMassDensities = density, PhaseRelativePermeability = kr);
+replace_variables!(model, PhaseMassDensities = density, RelativePermeabilities = kr);
 
 state0 = setup_reservoir_state(model,
     Pressure = 120bar,

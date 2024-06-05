@@ -197,11 +197,19 @@ end
 Jutul.degrees_of_freedom_per_entity(model, ::EndPointScalingCoefficients) = 4
 
 function Jutul.default_values(model, scalers::EndPointScalingCoefficients{P}) where P
-    nc = number_of_cells(model.domain)
+    k = Symbol("scaler_$(P)_drainage")
+    data_domain = model.data_domain
+    nc = number_of_cells(data_domain)
     relperm = Jutul.get_variable(model, :RelativePermeabilities)
     kr = relperm[P]
     n = degrees_of_freedom_per_entity(model, scalers)
-    kscale = zeros(n, nc)
+    if haskey(data_domain, k)
+        kscale_model = data_domain[k]
+        T = eltype(kscale_model)
+    else
+        T = Float64
+    end
+    kscale = zeros(T, n, nc)
     for i in 1:nc
         reg = JutulDarcy.region(relperm.regions, i)
         kr_i = JutulDarcy.table_by_region(kr, reg)
@@ -211,13 +219,13 @@ function Jutul.default_values(model, scalers::EndPointScalingCoefficients{P}) wh
         kscale[3, i] = s_max
         kscale[4, i] = k_max
     end
-    data_domain = model.data_domain
-    k = Symbol("scaler_$(P)_drainage")
+    my_isfinite(x) = isfinite(x)
+    my_isfinite(x::Jutul.ST.ADval) = isfinite(x.val)
     if haskey(data_domain, k)
         kscale_model = data_domain[k]
         for i in eachindex(kscale, kscale_model)
             override = kscale_model[i]
-            if isfinite(override)
+            if my_isfinite(override)
                 kscale[i] = override
             end
         end

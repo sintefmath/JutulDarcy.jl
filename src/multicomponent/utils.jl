@@ -1,6 +1,6 @@
 
-get_components(sys::MultiComponentSystem) = sys.components
-number_of_components(sys::MultiComponentSystem) = length(get_components(sys))
+component_names(sys::MultiComponentSystem) = copy(sys.components)
+number_of_components(sys::MultiComponentSystem) = length(component_names(sys))
 
 liquid_phase_index(sys::MultiPhaseCompositionalSystemLV) = phase_index(sys, LiquidPhase())
 vapor_phase_index(sys::MultiPhaseCompositionalSystemLV) = phase_index(sys, VaporPhase())
@@ -8,6 +8,14 @@ other_phase_index(sys::MultiPhaseCompositionalSystemLV{E, T, O}) where {E, T, O}
 
 function number_of_components(sys::MultiPhaseCompositionalSystemLV{E, T, O, G, N}) where {E, T, O, G, N}
     return N + has_other_phase(sys)
+end
+
+function component_names(sys::MultiPhaseCompositionalSystemLV{E, T, O, G, N}) where {E, T, O, G, N}
+    names = copy(sys.components)
+    if has_other_phase(sys)
+        push!(names, phase_name(O()))
+    end
+    return names
 end
 
 phase_index(sys, phase) = only(findfirst(isequal(phase), sys.phases))

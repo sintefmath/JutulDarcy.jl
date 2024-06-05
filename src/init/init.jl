@@ -20,7 +20,7 @@ function equilibriate_state(model, contacts,
     end
 
     if ismissing(datum_depth)
-        datum_depth = pmin
+        datum_depth = minimum(pts)
     end
     sys = flow_system(model.system)
 
@@ -63,9 +63,9 @@ function equilibriate_state(model, contacts,
             zmf[:, i] = composition(pts[i])
         end
         init[:OverallMoleFractions] = zmf
-        if has_wat
-            init[:ImmiscibleSaturation] = init[:Saturations][1, :]
-        end
+    end
+    if (is_compositional || is_blackoil) && has_other_phase(sys)
+        init[:ImmiscibleSaturation] = init[:Saturations][1, :]
     end
     return init
 end
@@ -80,6 +80,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         contacts_pc = missing,
         pvtnum = 1,
         sw = missing,
+        output_pressures = false,
         kwarg...
     )
     if ismissing(contacts_pc)
@@ -107,10 +108,6 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     rho = model.secondary_variables[:PhaseMassDensities]
     if rho isa Pair
         rho = last(rho)
-    end
-    relperm = model.secondary_variables[:RelativePermeabilities]
-    if relperm isa Pair
-        relperm = last(relperm)
     end
 
     reg = Int[pvtnum]
@@ -153,24 +150,36 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     end
     pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_f, contacts_pc)
     if nph > 1
+        relperm = model.secondary_variables[:RelativePermeabilities]
+        if relperm isa Pair
+            relperm = last(relperm)
+        end
         s, pc = determine_saturations(depths, contacts, pressures; s_min = s_min, kwarg...)
         if !ismissing(sw)
             nph = size(s, 1)
             for i in axes(s, 2)
+                if pressures[2, i] - pressures[1, i] < 0.0
+                    continue
+                end
                 s0 = s[:, i]
-                sw_i = max(sw[i], s[1, i])
+                sw_i = sw[i]
+                # sw_i = max(sw[i], s[1, i])
                 s[1, i] = sw_i
                 s_rem = 0.0
                 for ph in 2:nph
                     s_rem += s[ph, i]
                 end
-                scale = (1 - sw_i)/max(s_rem, 1e-20)
-                for ph in 2:nph
-                    s[ph, i] *= scale
-                end
-                sT = sum(s[:, i])
-                if !isapprox(sT, 1.0, atol = 1e-8)
-                    @warn "$s0 $(sw[i]) $scale Was $sT, not 1.0"
+                if s_rem ≈ 0
+                    s[2:end, i] .= 0.0
+                else
+                    scale = (1 - sw_i)/max(s_rem, 1e-20)
+                    for ph in 2:nph
+                        s[ph, i] *= scale
+                    end
+                    sT = sum(s[:, i])
+                    if !isapprox(sT, 1.0, atol = 1e-8)
+                        @warn "$s0 $(sw[i]) $scale Was $sT, not 1.0"
+                    end
                 end
             end
         end
@@ -201,6 +210,10 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         init[:Pressure] = p
         init[:Saturations] = ones(1, length(p))
     end
+    if output_pressures
+        init[:EquilibriationPressures] = pressures
+    end
+
     if !ismissing(T_z)
         init[:Temperature] = T_z.(depths)
     end
@@ -367,7 +380,7 @@ function parse_state0_equil(model, datafile)
                             swcon = fill(krw.connate, ncells_reg)
                         end
                         push!(s_min, swcon)
-                        push!(s_max, ones(ncells_reg))
+                        push!(s_max, fill(krw.input_s_max, ncells_reg))
                         @. non_connate -= swcon
                     end
                     if has_oil
@@ -478,6 +491,7 @@ function parse_state0_equil(model, datafile)
                         rs = rs,
                         rv = rv,
                         pc = pc,
+                        output_pressures = true,
                         extra_arg...
                     )
                 push!(inits, subinit)
@@ -514,6 +528,30 @@ function parse_state0_equil(model, datafile)
         end
         @assert all(touched) "Some cells are not initialized by equil: $(findall(!, touched))"
     end
+    if haskey(props, "SWATINIT") && nph > 1 && haskey(model.secondary_variables, :CapillaryPressure)
+        sw = props["SWATINIT"][actnum_ix]
+        pc = model.secondary_variables[:CapillaryPressure]
+
+        pcval = zeros(nph-1, nc)
+        update_pc!(pcval, pc, model, init[:Saturations], 1:nc)
+        pressure_eql = init[:EquilibriationPressures]
+        pc_scale = ones(nph-1, nc)
+        for i in 1:nc
+            sw_i = sw[i]
+            pc_actual = pcval[1, i]
+            pw = pressure_eql[1, i]
+            po = pressure_eql[2, i]
+            pc_eql = pw - po
+            if abs(pc_actual) ≈ 0.0 || po < pw
+                continue
+            end
+            # p_o + pc_ow = p_w
+            # -> p_w - p_o = pc_ow
+            pc_scale[1, i] = pc_eql/pc_actual
+        end
+        model.secondary_variables[:CapillaryPressure] = ScaledCapillaryPressure(pc.pc, pc_scale, regions = pc.regions)
+    end
+    delete!(init, :EquilibriationPressures)
     return init
 end
 
@@ -617,10 +655,12 @@ function phase_pressure_depth_table(depth, zmin, zmax, datum_pressure, density_f
     end
     z = vcat(z_up, z_down)
     p = vcat(p_up, p_down)
-    return Jutul.LinearInterpolant(z, p)
+    i = unique(i -> z[i], eachindex(z))
+    return Jutul.LinearInterpolant(z[i], p[i])
 end
 
 function integrate_phase_density(z_datum, z_end, p0, density_f, phase; n = 1000, g = Jutul.gravity_constant)
+    @assert isfinite(p0) "Pressure at contact must be finite"
     dz = (z_end - z_datum)/n
     pressure = zeros(n+1)
     z = zeros(n+1)
@@ -630,7 +670,9 @@ function integrate_phase_density(z_datum, z_end, p0, density_f, phase; n = 1000,
     for i in 2:(n+1)
         p = pressure[i-1]
         depth = z[i-1] + dz
-        pressure[i] = p + dz*density_f(p, depth, phase)*g
+        dens = density_f(p, depth, phase)
+        pressure[i] = p + dz*dens*g
+        @assert isfinite(pressure[i]) "Equilibriation returned non-finite pressures."
         z[i] = depth
     end
     return (z, pressure)

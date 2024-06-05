@@ -7,7 +7,7 @@
 #
 # We begin by loading the SPE9 dataset via the GeoEnergyIO package.
 using JutulDarcy
-pth = JutulDarcy.GeoEnergyIO.test_input_file_path("spe9", "SPE9_CP.DATA", base = "opm-tests")
+pth = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE9", "SPE9.DATA")
 # ## Set up and run a simulation
 # If we do not need the case, we could also have done:
 # ws, states = simulate_data_file(pth)

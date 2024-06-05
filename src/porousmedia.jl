@@ -36,16 +36,26 @@ function peaceman_cell_dims(g, pos)
     return Δ
 end
 
-function compute_peaceman_index(Δ, K, radius; dir::Symbol = :z, constant = 0.14, Kh = nothing, skin = 0, check = true)
+function compute_peaceman_index(Δ, K, radius;
+        dir::Symbol = :z,
+        net_to_gross = 1.0,
+        constant = 0.14,
+        Kh = nothing,
+        drainage_radius = nothing,
+        skin = 0,
+        check = true
+    )
     K_d = diag(K)
+    Δx, Δy, Δz = Δ
+    Δz *= net_to_gross
     if dir == :x || dir == :X
-        L, d1, d2 = Δ
+        L, d1, d2 = Δx, Δy, Δz
         i, j = 2, 3
     elseif dir == :y || dir == :Y
-        d1, L, d2 = Δ
+        d1, L, d2 = Δx, Δy, Δz
         i, j = 1, 3
     else
-        d1, d2, L = Δ
+        d1, d2, L = Δx, Δy, Δz
         i, j = 1, 2
         @assert dir == :z || dir == :Z "dir must be either :x, :y or :z (was :$dir)"
     end
@@ -64,12 +74,14 @@ function compute_peaceman_index(Δ, K, radius; dir::Symbol = :z, constant = 0.14
     end
     k21 = kratio(k2, k1)
     k12 = kratio(k1, k2)
-
-    re1 = 2 * constant * sqrt((d1^2)*sqrt(k21) + (d2^2)*sqrt(k12))
-    re2 = k21^(1/4) + k12^(1/4)
-
-    re  = kratio(re1, re2)
     ke  = sqrt(k1*k2)
+    if isnothing(drainage_radius)
+        re1 = 2 * constant * sqrt((d1^2)*sqrt(k21) + (d2^2)*sqrt(k12))
+        re2 = k21^(1/4) + k12^(1/4)
+        re = kratio(re1, re2)
+    else
+        re = drainage_radius
+    end
 
     if isnothing(Kh) || isnan(Kh)
         Kh = L*ke

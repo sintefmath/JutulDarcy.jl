@@ -215,6 +215,10 @@ low values can lead to slow convergence.
   in two-phase.
 - `flash_stability_bypass=fast_flash`: Bypass stability testing for cells
   outside the two-phase and shadow region.
+- `can_shut_wells=true`: Configure facility to allow shutting wells that
+  repeatedly get rates with the wrong side. Disabling this can make certain
+  models infeasible to simulate, but it can be useful to do so for simple models
+  where you know that the wells should be operational.
 
 """
 function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
@@ -239,6 +243,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         dT_max_rel = nothing,
         dT_max_abs = nothing,
         fast_flash = false,
+        can_shut_wells = true,
         flash_reuse_guess = fast_flash,
         flash_stability_bypass = fast_flash,
         parameters = Dict{Symbol, Any}(),
@@ -334,14 +339,14 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             )
             models[wname] = wmodel
             if split_wells
-                wg = WellGroup([wname])
+                wg = WellGroup([wname], can_shut_wells = can_shut_wells)
                 F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
                 models[Symbol(string(wname)*string(:_ctrl))] = F
             end
         end
         # Add facility that gorups the wells
         if !split_wells
-            wg = WellGroup(map(x -> x.name, wells))
+            wg = WellGroup(map(x -> x.name, wells), can_shut_wells = can_shut_wells)
             F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
             models[:Facility] = F
         end
@@ -582,7 +587,7 @@ function setup_reservoir_simulator(case::JutulCase;
             simulator_constructor = make_sim,
             primary_buffer = pbuffer,
             parray_arg...
-        );
+        )
     end
 
     t_base = TimestepSelector(initial_absolute = initial_dt, max = max_dt)
@@ -603,7 +608,6 @@ function setup_reservoir_simulator(case::JutulCase;
         end
     else
         @assert isnothing(timesteps) || timesteps == :none
-        push!(sel, t_base)
     end
     # Config: Linear solver, timestep selection defaults, etc...
     if set_linear_solver
@@ -1061,7 +1065,13 @@ end
 
 Get the full set of well outputs after a simulation has occured, for plotting or other post-processing.
 """
-function full_well_outputs(model, states, forces; targets = available_well_targets(model.models.Reservoir))
+function full_well_outputs(model, states, forces; targets = missing)
+    rmodel = reservoir_model(model)
+    if ismissing(targets)
+        targets = available_well_targets(rmodel)
+    end
+    cnames = component_names(rmodel.system)
+    has_temperature = length(states) > 0 && haskey(first(states)[:Reservoir], :Temperature)
     out = Dict{Symbol, AbstractDict}()
     for w in well_symbols(model)
         out[w] = Dict()
@@ -1070,6 +1080,12 @@ function full_well_outputs(model, states, forces; targets = available_well_targe
         end
         out[w][:mass_rate] = well_output(model, states, w, forces, :TotalSurfaceMassRate)
         out[w][:control] = well_output(model, states, w, forces, :control)
+        if has_temperature
+            out[w][:temperature] = map(s -> s[w][:Temperature][well_top_node()], states)
+        end
+        for (i, cname) in enumerate(cnames)
+            out[w][Symbol("$(cname)_mass_rate")] = well_output(model, states, w, forces, i)
+        end
     end
     return out
 end
@@ -1091,16 +1107,15 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
             well_number += 1
         end
     end
-    rhoS_o = reference_densities(model.models[well_symbol].system)
+    well_model = model.models[well_symbol]
+    rhoS_o = reference_densities(well_model.system)
 
     to_target(t::DataType) = t(1.0)
     to_target(t::Type) = t(1.0)
     to_target(t::Symbol) = t
+    to_target(t::Int) = t
 
     target_limit = to_target(target)
-
-    well_model = model.models[well_symbol]
-
     if target == :control
         d = Symbol[]
         for (i, state) = enumerate(states)
@@ -1148,6 +1163,15 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
             end
             if target == :TotalSurfaceMassRate
                 d[i] = q_t
+            elseif target isa Int
+                # Shorthand for component mass rate
+                if control isa InjectorControl
+                    mix = control.injection_mixture[target]
+                else
+                    totmass = well_state[:TotalMasses][:, 1]
+                    mix = totmass[target]/sum(totmass)
+                end
+                d[i] = q_t*mix
             else
                 if q_t == 0
                     current_control = DisabledControl()
@@ -1452,7 +1476,7 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
     end
     bad_count = 0
     for (i, T_hf_i) in enumerate(T_hf)
-        if !isfinite(T_hf_i)
+        if T_hf_i isa AbstractFloat && !isfinite(T_hf_i)
             bad_count += 1
             T_hf[i] = 0.0
         end
@@ -1485,14 +1509,13 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
                 return abs(nz) < max(abs(nx), abs(ny))
             end
         end
-        count = 0
         for (c, ntg) in enumerate(d[:net_to_gross])
-            if !(ntg ≈ 1.0)
-                count += 1
-                for fp in facepos[c]:(facepos[c+1]-1)
-                    if face_is_vertical[faces[fp]]
-                        T_hf[fp] *= ntg
-                    end
+            if ntg isa AbstractFloat && ntg ≈ 1.0
+                continue
+            end
+            for fp in facepos[c]:(facepos[c+1]-1)
+                if face_is_vertical[faces[fp]]
+                    T_hf[fp] *= ntg
                 end
             end
         end

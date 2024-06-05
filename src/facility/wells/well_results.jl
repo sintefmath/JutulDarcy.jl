@@ -75,7 +75,7 @@ function well_result_output_legend_table(wr::WellResults, outputs = missing)
     if ismissing(outputs)
         outputs = collect(keys(wr.wells[first(keys(wr.wells))]))
     end
-
+    sort!(outputs, by = x -> "$x")
     data = Matrix{Any}(undef, length(outputs), 4)
     for (i, output) in enumerate(outputs)
         info = JutulDarcy.well_target_information(output)
@@ -165,6 +165,7 @@ function print_well_result_table(io::IO, wr::WellResults, wells, arg...; legend 
         Jutul.PrettyTables.pretty_table(io, tab.data,
             header = tab.header,
             title = tab.title,
+            alignment = :l,
         )
     end
     if wells_is_iterable && outputs_is_iterable
@@ -186,6 +187,7 @@ function (wr::WellResults)(wells = collect(keys(wr.wells)), outputs = missing; k
     if length(wells) > 0
         if ismissing(outputs)
             outputs = collect(keys(wr.wells[first(wells)]))
+            sort!(outputs, by = x -> "$x")
         elseif outputs isa Symbol
             outputs = [outputs]
         end

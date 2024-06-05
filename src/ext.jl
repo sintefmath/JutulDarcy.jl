@@ -50,7 +50,20 @@ end
 
 Launch interactive plotter of reservoir + well trajectories in reservoir. Requires GLMakie.
 """
-function plot_reservoir(model, arg...; well_fontsize = 18, well_linewidth = 3, kwarg...)
+function plot_reservoir(model, arg...;
+        gui = true,
+        well_fontsize = 18,
+        well_linewidth = 3,
+        well_color = :darkred,
+        aspect = (1.0, 1.0, 1/3),
+        well_top_factor_scale = 1.0,
+        well_arg = NamedTuple(),
+        force_glmakie = true,
+        kwarg...
+    )
+    if force_glmakie
+        @assert Jutul.plotting_check_interactive(warn = true) "Function requires interactive plotting. Set force_glmakie = false to override."
+    end
     rmodel = reservoir_model(model)
     data_domain = rmodel.data_domain
     cell_centroids = data_domain[:cell_centroids]
@@ -70,9 +83,14 @@ function plot_reservoir(model, arg...; well_fontsize = 18, well_linewidth = 3, k
     else
         bounds_z = missing
     end
-    fig = plot_interactive(data_domain, arg...; z_is_depth = true, kwarg...)
     g = physical_representation(data_domain)
-    ax = fig.current_axis[]
+
+    if gui
+        fig = plot_interactive(data_domain, arg...; z_is_depth = true, aspect = aspect, kwarg...)
+        ax = fig.current_axis[]
+    else
+        fig, ax, plt = plot_cell_data(g, arg...; z_is_depth = true, kwarg...)
+    end
     wells = Dict{Symbol, Any}()
     if model isa MultiModel
         for (k, m) in pairs(model.models)
@@ -85,15 +103,38 @@ function plot_reservoir(model, arg...; well_fontsize = 18, well_linewidth = 3, k
         i = 1
         n = length(wells)
         for (k, w) in pairs(wells)
-            tf =  0.2 + 0.1*(i/n)
-            plot_well!(ax.scene, g, w,
+            tf = 0.2 + 0.1*(i/n)
+            if well_color isa AbstractDict
+                well_color_k = get(well_color, k, :darkred)
+            else
+                well_color_k = well_color
+            end
+            plot_well!(ax.scene, g, w;
                 fontsize = well_fontsize,
-                top_factor = tf,
+                top_factor = well_top_factor_scale*tf,
                 bounds_z = bounds_z,
+                color = well_color_k,
                 linewidth = well_linewidth,
-                cell_centroids = cell_centroids)
+                cell_centroids = cell_centroids,
+                well_arg...
+            )
             i += 1
         end
+    end
+    return fig
+end
+
+function plot_reservoir(d::DataDomain, arg...;
+        aspect = (1.0, 1.0, 1/3),
+        gui = true,
+        kwarg...
+    )
+    if gui
+        fig = plot_interactive(d, arg...; z_is_depth = true, aspect = aspect, kwarg...)
+        ax = fig.current_axis[]
+    else
+        g = physical_representation(d)
+        fig, ax, plt = plot_cell_data(g, arg...; z_is_depth = true, kwarg...)
     end
     return fig
 end
