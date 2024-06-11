@@ -182,8 +182,8 @@ function setup_case_from_parsed_data(datafile;
     return JutulCase(model, dt, forces, state0 = state0, parameters = parameters, input_data = datafile)
 end
 
-function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord; simple_well = isnothing(msdata))
-    wc, WI, open = compdat_to_connection_factors(domain, wspecs, cdat, sort = true, order = compord)
+function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, step; simple_well = isnothing(msdata))
+    wc, WI, open, = compdat_to_connection_factors(domain, wspecs, cdat, step, sort = true, order = compord)
     ref_depth = wspecs.ref_depth
     if isnan(ref_depth)
         ref_depth = nothing
@@ -347,7 +347,7 @@ function map_compdat_to_multisegment_segments(compsegs, branches, tubing_lengths
     return perforation_cells
 end
 
-function compdat_to_connection_factors(domain, wspec, v; sort = true, order = "TRACK")
+function compdat_to_connection_factors(domain, wspec, v, step; sort = true, order = "TRACK")
     G = physical_representation(domain)
     K = domain[:permeability]
 
@@ -361,6 +361,7 @@ function compdat_to_connection_factors(domain, wspec, v; sort = true, order = "T
     WI = getf(:WI)
     skin = getf(:skin)
     dir = getf(:dir)
+    fresh = map(x -> v[x].ctrl == step, ij_ix)
 
     for i in eachindex(WI)
         W_i = WI[i]
@@ -394,8 +395,9 @@ function compdat_to_connection_factors(domain, wspec, v; sort = true, order = "T
         wc = wc[ix]
         WI = WI[ix]
         open = open[ix]
+        fresh = fresh[ix]
     end
-    return (wc, WI, open)
+    return (wc, WI, open, fresh)
 end
 
 function parse_schedule(domain, runspec, props, schedule, sys; simple_well = true)
@@ -424,22 +426,27 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
             msdata_k = nothing
             k_is_simple_well = simple_well
         end
-        W, wc_base, WI_base, open = parse_well_from_compdat(domain, k, v, wspec, msdata_k, compord; simple_well = k_is_simple_well)
+        W, wc_base, WI_base, open = parse_well_from_compdat(domain, k, v, wspec, msdata_k, compord, length(completions); simple_well = k_is_simple_well)
+        n_wi = length(WI_base)
         wpi_mul = ones(n_wi)
         for (i, c) in enumerate(completions)
             compdat = c[k]
             well_is_shut = controls[i][k] isa DisabledControl
-            n_wi = length(WI_base)
             wi_mul = zeros(n_wi)
             if !well_is_shut
-                wc, WI, open = compdat_to_connection_factors(domain, wspec, compdat, sort = false)
-                for (c, wi, is_open) in zip(wc, WI, open)
+                wc, WI, open, fresh = compdat_to_connection_factors(domain, wspec, compdat, i, sort = false)
+                for (c, wi, is_open, is_fresh) in zip(wc, WI, open, fresh)
                     compl_idx = findfirst(isequal(c), wc_base)
                     if isnothing(compl_idx)
                         # This perforation is missing, leave at zero.
                         continue
                     end
-                    wi_mul[compl_idx] = wi*is_open/WI_base[compl_idx]
+                    if is_fresh
+                        # TODO: Make sure that WPIMULT is actually handled, this
+                        # is half-finished and does not have impact.
+                        wpi_mul[compl_idx] = 1.0
+                    end
+                    wi_mul[compl_idx] = wpi_mul[compl_idx]*wi*is_open/WI_base[compl_idx]
                 end
             end
             if all(isapprox(1.0), wi_mul)
