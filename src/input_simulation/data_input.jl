@@ -425,12 +425,12 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
             k_is_simple_well = simple_well
         end
         W, wc_base, WI_base, open = parse_well_from_compdat(domain, k, v, wspec, msdata_k, compord; simple_well = k_is_simple_well)
+        wpi_mul = ones(n_wi)
         for (i, c) in enumerate(completions)
             compdat = c[k]
             well_is_shut = controls[i][k] isa DisabledControl
             n_wi = length(WI_base)
             wi_mul = zeros(n_wi)
-            wpi_mul = ones(n_wi)
             if !well_is_shut
                 wc, WI, open = compdat_to_connection_factors(domain, wspec, compdat, sort = false)
                 for (c, wi, is_open) in zip(wc, WI, open)
@@ -1498,9 +1498,9 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
             self_symbol = translate_target_to_symbol(t, shortname = true)
             # Put pressure slightly above 1 atm to avoid hard limit.
             if self_symbol == :resv_history
-                lims = (; :bhp => 1.001*si_unit(:atm))
+                lims = (; :bhp => 1.01*si_unit(:atm))
             else
-                lims = (; :bhp => 1.001*si_unit(:atm), self_symbol => self_val)
+                lims = (; :bhp => 1.01*si_unit(:atm), self_symbol => self_val)
             end
         else
             lims = producer_limits(bhp = bhp, orat = orat, wrat = wrat, grat = grat, lrat = lrat)
