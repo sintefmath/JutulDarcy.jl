@@ -462,7 +462,7 @@ function saturated_table(p, r)
         p = vcat([-1.0, 0.0], p)
         r = vcat([0.0, 0.0], r)
     end
-    return get_1d_interpolator(p, r, cap_end = false)
+    return get_1d_interpolator(p, r, cap_end = true)
 end
 
 pvt_table_vectors(pvt::PVTGTable) = (pvt.rv, pvt.pressure, pvt.sat_rv, pvt.pos)
