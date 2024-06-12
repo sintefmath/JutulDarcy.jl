@@ -361,6 +361,7 @@ function compdat_to_connection_factors(domain, wspec, v, step; sort = true, orde
     WI = getf(:WI)
     skin = getf(:skin)
     dir = getf(:dir)
+    mul = getf(:mul)
     fresh = map(x -> v[x].ctrl == step, ij_ix)
 
     for i in eachindex(WI)
@@ -397,7 +398,7 @@ function compdat_to_connection_factors(domain, wspec, v, step; sort = true, orde
         open = open[ix]
         fresh = fresh[ix]
     end
-    return (wc, WI, open, fresh)
+    return (wc, WI, open, mul, fresh)
 end
 
 function parse_schedule(domain, runspec, props, schedule, sys; simple_well = true)
@@ -434,18 +435,23 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
             well_is_shut = controls[i][k] isa DisabledControl
             wi_mul = zeros(n_wi)
             if !well_is_shut
-                wc, WI, open, fresh = compdat_to_connection_factors(domain, wspec, compdat, i, sort = false)
-                for (c, wi, is_open, is_fresh) in zip(wc, WI, open, fresh)
+                wc, WI, open, multipliers, fresh = compdat_to_connection_factors(domain, wspec, compdat, i, sort = false)
+                for (c, wi, is_open, is_fresh, mul) in zip(wc, WI, open, fresh, multipliers)
                     compl_idx = findfirst(isequal(c), wc_base)
                     if isnothing(compl_idx)
                         # This perforation is missing, leave at zero.
                         continue
                     end
-                    if is_fresh
-                        # TODO: Make sure that WPIMULT is actually handled, this
-                        # is half-finished and does not have impact.
-                        wpi_mul[compl_idx] = 1.0
+                    if !is_fresh
+                        # Perforation is not fresh and could have previously
+                        # gotten a WPIMULT applied. TODO: Some of the logic
+                        # around WPIMULT is not 100% clear. The current
+                        # implementation should be fine up to the stage where
+                        # many different keywords start to interact for the same
+                        # timestep.
+                        mul *= wpi_mul[compl_idx]
                     end
+                    wpi_mul[compl_idx] = mul
                     wi_mul[compl_idx] = wpi_mul[compl_idx]*wi*is_open/WI_base[compl_idx]
                 end
             end
@@ -1256,7 +1262,7 @@ function parse_control_steps(runspec, props, schedule, sys)
         push!(cstep, ctrl_ix)
     end
 
-    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP")
+    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP", "WPIMULT")
     bad_kw = Dict{String, Bool}()
     for (ctrl_ix, step) in enumerate(steps)
         found_time = false
@@ -1316,6 +1322,32 @@ function parse_control_steps(runspec, props, schedule, sys)
                     end
                     entry = compdat[wname]
                     for K in K1:K2
+                        perf_mult = 1.0
+                        current_completion_index = length(keys(entry)) + 1
+                        if haskey(step, "WPIMULT")
+                            for wpimult in step["WPIMULT"]
+                                wname_wpi, mul_i, I_wpi, J_wpi, K_wpi, start_wpi, end_wpi = wpimult
+                                if wname_wpi != wname
+                                    continue
+                                end
+                                if I != I_wpi && I_wpi > 0
+                                    continue
+                                end
+                                if J != J_wpi && J_wpi > 0
+                                    continue
+                                end
+                                if K != K_wpi && K_wpi > 0
+                                    continue
+                                end
+                                if start_wpi > current_completion_index && start_wpi > 0
+                                    continue
+                                end
+                                if end_wpi < current_completion_index && end_wpi > 0
+                                    continue
+                                end
+                                perf_mult *= mul_i
+                            end
+                        end
                         entry[(I, J, K)] = (
                             open = flag == "OPEN",
                             satnum = satnum,
@@ -1324,6 +1356,7 @@ function parse_control_steps(runspec, props, schedule, sys)
                             Kh = Kh,
                             skin = skin,
                             dir = dir,
+                            mul = perf_mult,
                             ctrl = ctrl_ix)
                     end
                 end
