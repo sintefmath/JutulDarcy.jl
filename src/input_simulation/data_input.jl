@@ -830,12 +830,15 @@ function parse_reservoir(data_file; zcorn_depths = true)
                 if do_apply
                     m = regt[3]
                     region_type = only(lowercase(regt[6]))
-                    if region_type == 'm' && pair_matchex(pairt, multnum_pair)
-                        tranmult[fno] *= m
-                    elseif region_type == 'o' && pair_matchex(pairt, opernum_pair)
-                        tranmult[fno] *= m
-                    elseif pair_matchex(pairt, fluxnum_pair)
-                        @assert region_type == 'f'
+                    if region_type == 'm'
+                        pair_to_match = multnum_pair
+                    elseif region_type == 'o'
+                        pair_to_match = opernum_pair
+                    else
+                        @assert region_type == 'f' "Region type was expected to be m, o or f, was $region_type"
+                        pair_to_match = fluxnum_pair
+                    end
+                    if pair_matchex(pairt, pair_to_match)
                         tranmult[fno] *= m
                     end
                 end
