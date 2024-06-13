@@ -298,14 +298,16 @@ function operator_nrows(cpr::CPRPreconditioner)
 end
 
 using Krylov
-function apply!(x, cpr::CPRPreconditioner, r, arg...)
+function apply!(x, cpr::CPRPreconditioner, r0, arg...)
     cpr_s = cpr.storage
-    buf = cpr_s.r_ps
-    # x = cpr_s.x_ps
+    # Get buffers and set working values
+    r = cpr_s.r_ps
+    @. r  = r0
+    buf = cpr_s.x_ps
     A_ps = cpr_s.A_ps
     smoother = cpr.system_precond
     bz = cpr_s.block_size
-    # Zero out buffer, just in case
+    # Zero out buffer, just in case (assumed by some solvers)
     @. x = 0.0
     # presmooth
     @tic "cpr smoother" apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npre)
