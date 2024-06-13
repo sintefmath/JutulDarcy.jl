@@ -369,12 +369,17 @@ function deck_relperm(props; oil, water, gas, satnum = nothing)
         # Early return for single-phase.
         return BrooksCoreyRelativePermeabilities(1)
     end
-    if haskey(props, "SCALECRS")
-        scalecrs = props["SCALECRS"]
-        if scalecrs isa String
-            scalecrs = [scalecrs]
+    if haskey(props, "ENDSCALE")
+        if haskey(props, "SCALECRS")
+            scalecrs = props["SCALECRS"]
+            if scalecrs isa String
+                scalecrs = [scalecrs]
+            end
+            two_point_scaling = length(scalecrs) == 0 || lowercase(first(scalecrs)) == "no"
+        else
+            two_point_scaling = true
         end
-        if length(scalecrs) == 0 || lowercase(first(scalecrs)) == "no"
+        if two_point_scaling
             Jutul.jutul_message("Rel. Perm. Scaling", "Two-point scaling active.")
             scaling = TwoPointKrScale
         else
