@@ -163,7 +163,6 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
                 end
                 s0 = s[:, i]
                 sw_i = sw[i]
-                # sw_i = max(sw[i], s[1, i])
                 s[1, i] = sw_i
                 s_rem = 0.0
                 for ph in 2:nph
@@ -188,21 +187,16 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         s_eval = zeros(nph, nc_total)
         s_eval[:, cells] .= s
         phases = get_phases(sys)
-        if scaling_type(relperm) == NoKrScale
-            if length(phases) == 3 && AqueousPhase() in phases
-                swcon = zeros(nc_total)
-                if !ismissing(s_min)
-                    swcon[cells] .= s_min[1]
-                end
-                JutulDarcy.update_kr!(kr, relperm, model, s_eval, swcon, cells)
-            else
-                JutulDarcy.update_kr!(kr, relperm, model, s_eval, cells)
+        if length(phases) == 3 && AqueousPhase() in phases
+            swcon = zeros(nc_total)
+            if !ismissing(s_min)
+                swcon[cells] .= s_min[1]
             end
-            kr = kr[:, cells]
+            evaluate_relative_permeability_no_scaling!(kr, relperm, model, s_eval, cells, swcon)
         else
-            # TODO: Improve this.
-            kr = s
+            JutulDarcy.update_kr!(kr, relperm, model, s_eval, cells)
         end
+        kr = kr[:, cells]
         init[:Saturations] = s
         init[:Pressure] = init_reference_pressure(pressures, contacts, kr, pc, 2)
     else

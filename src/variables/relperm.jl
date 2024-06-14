@@ -409,23 +409,11 @@ end
 end
 
 @jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeabilities{NoKrScale, :og}, model, Saturations, ix)
-    s = Saturations
-    regions = relperm.regions
-    indices = phase_indices(model.system)
-    for c in ix
-        @inbounds two_phase_relperm!(kr, s, regions, relperm.krg, relperm.krog, reverse(indices), c)
-    end
-    return kr
+    return evaluate_relative_permeability_no_scaling!(kr, relperm, model, Saturations, ix)
 end
 
 @jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeabilities{NoKrScale, :wg}, model, Saturations, ix)
-    s = Saturations
-    regions = relperm.regions
-    indices = phase_indices(model.system)
-    for c in ix
-        @inbounds two_phase_relperm!(kr, s, regions, relperm.krw, relperm.krg, indices, c)
-    end
-    return kr
+    return evaluate_relative_permeability_no_scaling!(kr, relperm, model, Saturations, ix)
 end
 
 function evaluate_relative_permeability_no_scaling!(kr, relperm::ReservoirRelativePermeabilities{<:Any, ph}, model, Saturations, ix, ConnateWater = missing) where ph
