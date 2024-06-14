@@ -401,22 +401,11 @@ end
 end
 
 @jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeabilities{NoKrScale, :wog}, model, Saturations, ConnateWater, ix)
-    s = Saturations
-    phases = phase_indices(model.system)
-    for c in ix
-        @inbounds update_three_phase_relperm!(kr, relperm, phases, s, c, ConnateWater[c], nothing)
-    end
-    return kr
+    return evaluate_relative_permeability_no_scaling!(kr, relperm, model, Saturations, ix, ConnateWater)
 end
 
 @jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeabilities{NoKrScale, :wo}, model, Saturations, ix)
-    s = Saturations
-    regions = relperm.regions
-    indices = phase_indices(model.system)
-    for c in ix
-        @inbounds two_phase_relperm!(kr, s, regions, relperm.krw, relperm.krow, indices, c)
-    end
-    return kr
+    return evaluate_relative_permeability_no_scaling!(kr, relperm, model, Saturations, ix)
 end
 
 @jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeabilities{NoKrScale, :og}, model, Saturations, ix)
@@ -435,6 +424,32 @@ end
     indices = phase_indices(model.system)
     for c in ix
         @inbounds two_phase_relperm!(kr, s, regions, relperm.krw, relperm.krg, indices, c)
+    end
+    return kr
+end
+
+function evaluate_relative_permeability_no_scaling!(kr, relperm::ReservoirRelativePermeabilities{<:Any, ph}, model, Saturations, ix, ConnateWater = missing) where ph
+    s = Saturations
+    regions = relperm.regions
+    phases = phase_indices(model.system)
+    if ph == :wog
+        @assert !ismissing(ConnateWater)
+        for c in ix
+            @inbounds update_three_phase_relperm!(kr, relperm, phases, s, c, ConnateWater[c], nothing)
+        end
+    elseif ph == :wo
+        for c in ix
+            @inbounds two_phase_relperm!(kr, s, regions, relperm.krw, relperm.krow, phases, c)
+        end
+    elseif ph == :og
+        for c in ix
+            @inbounds two_phase_relperm!(kr, s, regions, relperm.krg, relperm.krog, reverse(phases), c)
+        end
+    else
+        @assert ph == :wg
+        for c in ix
+            @inbounds two_phase_relperm!(kr, s, regions, relperm.krw, relperm.krg, phases, c)
+        end
     end
     return kr
 end
