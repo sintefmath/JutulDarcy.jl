@@ -426,7 +426,7 @@ function parse_state0_equil(model, datafile)
                         pb = vec(pbvd[:, 2])
                         Rs = sys.rs_max[preg].(pb)
                     end
-                    rs = Jutul.LinearInterpolant(z, Rs_scale.*Rs)
+                    rs = get_1d_interpolator(z, Rs_scale.*Rs)
                 else
                     rs = missing
                 end
@@ -438,7 +438,7 @@ function parse_state0_equil(model, datafile)
                         rvvd = sol["RVVD"][ereg]
                         z = rvvd[:, 1]
                         Rv = rvvd[:, 2]
-                        rv = Jutul.LinearInterpolant(z, Rv_scale.*Rv)
+                        rv = get_1d_interpolator(z, Rv_scale.*Rv)
                     else
                         # TODO: Should maybe be the pressure at GOC not datum
                         # depth, but that isn't computed at this stage.
