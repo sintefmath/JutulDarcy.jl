@@ -291,9 +291,9 @@ function parse_state0_equil(model, datafile)
     for ereg in 1:nequil
         if haskey(sol, "RTEMP") || haskey(props, "RTEMP")
             if haskey(props, "RTEMP")
-                rtmp = only(props["RTEMP"])
+                rtmp = props["RTEMP"][1]
             else
-                rtmp = only(sol["RTEMP"])
+                rtmp = sol["RTEMP"][1]
             end
             Ti = convert_to_si(rtmp, :Celsius)
             T_z = z -> Ti
@@ -450,6 +450,7 @@ function parse_state0_equil(model, datafile)
                     ztab_static = Sz[]
                     for row in size(ztab, 1)
                         mf_i = Sz(ztab[row, 2:end])
+                        mf_i = mf_i./sum(mf_i)
                         z_i = ztab[row, 1]
                         push!(ztab_z, z_i)
                         push!(ztab_static, mf_i)
