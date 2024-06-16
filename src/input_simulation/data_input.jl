@@ -1102,7 +1102,7 @@ function parse_physics_types(datafile; pvt_region = missing)
         push!(phases, VaporPhase())
         push!(rhoS, rhoGS)
         if length(props["MW"]) > 1
-            jutul_message("EOSNUM:", "$(length(props["MW"])) regions active. Only one region supported. Taking the first set of values for all EOS properties.", color = :yellow)
+            jutul_message("EOSNUM", "$(length(props["MW"])) regions active. Only one region supported. Taking the first set of values for all EOS properties.", color = :yellow)
         end
 
         cnames = copy(props["CNAMES"])
@@ -1267,9 +1267,10 @@ function parse_control_steps(runspec, props, schedule, sys)
 
     skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP", "WPIMULT")
     bad_kw = Dict{String, Bool}()
+    streams = setup_well_streams()
     for (ctrl_ix, step) in enumerate(steps)
         found_time = false
-        streams = parse_well_streams_for_step(step, props)
+        streams = parse_well_streams_for_step!(streams, step, props)
         if haskey(step, "WEFAC")
             for wk in step["WEFAC"]
                 well_factor[wk[1]] = wk[2]
@@ -1403,7 +1404,13 @@ function parse_control_steps(runspec, props, schedule, sys)
     return (dt = tstep, control_step = cstep, controls = all_controls, completions = all_compdat, multisegment = mswell_kw, limits = all_limits)
 end
 
-function parse_well_streams_for_step(step, props)
+function setup_well_streams()
+    return (streams = Dict{String, Any}(), wells = Dict{String, String}())
+end
+
+function parse_well_streams_for_step!(streams, step, props)
+    well_streams = streams.wells
+    streams = streams.streams
     if haskey(props, "STCOND")
         std = props["STCOND"]
         T = convert_to_si(std[1], :Celsius)
@@ -1414,8 +1421,6 @@ function parse_well_streams_for_step(step, props)
         p = convert_to_si(1.0, :atm)
     end
 
-    streams = Dict{String, Any}()
-    well_streams = Dict{String, String}()
     if haskey(step, "WELLSTRE")
         for stream in step["WELLSTRE"]
             mix = Float64.(stream[2:end])
@@ -1672,7 +1677,7 @@ function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, t
             z, props
         )
         z_mass /= sum(z_mass)
-        for i in 1:ncomp
+        for i in eachindex(z_mass)
             mix[i+offset] = z_mass[i]
         end
         @assert sum(mix) ≈ 1.0 "Sum of mixture was $(sum(mix)) != 1 for mole mixture $(z) as mass $z_mass"
