@@ -1362,7 +1362,7 @@ function mrst_well_ctrl(model, wdata, is_comp, rhoS)
                 ct = comp_i
             end
             if haskey(wdata, "rhoS") && length(wdata["rhoS"]) > 0
-                rhoSw = tuple(wdata["rhoS"]...)
+                rhoSw = tuple(wdata["rhoS"][1:nph]...)
             else
                 rhoSw = rhoS
             end
