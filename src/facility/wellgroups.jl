@@ -25,8 +25,8 @@ function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, s
     end
     function do_update!(wcfg, s, v, dx, ctrl::InjectorControl)
         limit_rate = MIN_INITIAL_WELL_RATE
-            jutul_message("$s", "Approaching zero rate, disabling injector for current step", color = :red)
         if v <= limit_rate && v + dx < limit_rate && model.domain.can_shut_injectors
+            jutul_message("$s", "Approaching zero rate, disabling injector for current step", color = :red)
             wcfg.operating_controls[s] = DisabledControl()
             next = Jutul.update_value(v, -value(v))
         else
