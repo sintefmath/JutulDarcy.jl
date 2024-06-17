@@ -364,12 +364,12 @@ function deck_pvt_gas(props; scaling = missing)
     return pvt
 end
 
-function deck_relperm(props; oil, water, gas, satnum = nothing)
+function deck_relperm(runspec, props; oil, water, gas, satnum = nothing)
     if (water + oil + gas) == 1
         # Early return for single-phase.
         return BrooksCoreyRelativePermeabilities(1)
     end
-    if haskey(props, "ENDSCALE")
+    if haskey(runspec, "ENDSCALE")
         if haskey(props, "SCALECRS")
             scalecrs = props["SCALECRS"]
             if scalecrs isa String
@@ -652,7 +652,7 @@ function model_from_mat_deck(G, data_domain, mrst_data, res_context)
         if length(unique(T)) == 1
             T = T[1]
         end
-        set_deck_specialization!(model, props, satnum, has_oil, has_wat, has_gas)
+        set_deck_specialization!(model, runspec, props, satnum, has_oil, has_wat, has_gas)
         param = setup_parameters(model, Temperature = T)
     else
         if has_wat
@@ -685,7 +685,7 @@ function model_from_mat_deck(G, data_domain, mrst_data, res_context)
         end
         mu = DeckPhaseViscosities(pvt)
         set_secondary_variables!(model, PhaseViscosities = mu, PhaseMassDensities = rho)
-        set_deck_specialization!(model, props, satnum, has_oil, has_wat, has_gas)
+        set_deck_specialization!(model, runspec, props, satnum, has_oil, has_wat, has_gas)
         param = setup_parameters(model)
     end
 
@@ -711,12 +711,12 @@ function model_from_mat_deck(G, data_domain, mrst_data, res_context)
     return (model, param)
 end
 
-function set_deck_specialization!(model, props, satnum, oil, water, gas)
+function set_deck_specialization!(model, runspec, props, satnum, oil, water, gas)
     sys = model.system
     svar = model.secondary_variables
     param = model.parameters
     if number_of_phases(sys) > 1
-        set_deck_relperm!(svar, param, sys, props; oil = oil, water = water, gas = gas, satnum = satnum)
+        set_deck_relperm!(svar, param, sys, runspec, props; oil = oil, water = water, gas = gas, satnum = satnum)
         set_deck_pc!(svar, param, sys, props; oil = oil, water = water, gas = gas, satnum = satnum)
     end
     set_deck_pvmult!(svar, param, sys, props, model.data_domain)
@@ -778,8 +778,8 @@ function set_deck_pc!(vars, param, sys, props; kwarg...)
     end
 end
 
-function set_deck_relperm!(vars, param, sys, props; kwarg...)
-    kr = deck_relperm(props; kwarg...)
+function set_deck_relperm!(vars, param, sys, runspec,  props; kwarg...)
+    kr = deck_relperm(runspec, props; kwarg...)
     vars[:RelativePermeabilities] = wrap_reservoir_variable(sys, kr, :flow)
     if scaling_type(kr) != NoKrScale
         ph = kr.phases

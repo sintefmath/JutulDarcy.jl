@@ -160,7 +160,7 @@ function setup_case_from_parsed_data(datafile;
                 set_thermal_deck_specialization!(submodel, props, domain[:pvtnum], oil, water, gas)
             end
             if k == :Reservoir
-                set_deck_specialization!(submodel, props, domain[:satnum], oil, water, gas)
+                set_deck_specialization!(submodel, rs, props, domain[:satnum], oil, water, gas)
             end
         end
     end
