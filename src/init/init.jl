@@ -194,7 +194,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
             end
             evaluate_relative_permeability_no_scaling!(kr, relperm, model, s_eval, cells, swcon)
         else
-            JutulDarcy.update_kr!(kr, relperm, model, s_eval, cells)
+            evaluate_relative_permeability_no_scaling!(kr, relperm, model, s_eval, cells)
         end
         kr = kr[:, cells]
         init[:Saturations] = s
