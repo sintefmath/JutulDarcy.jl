@@ -14,12 +14,9 @@ end
     phase = m.phase
     @inbounds for i in ix
         f = FlashResults[i]
-        if phase_is_present(phase, f.state)
-            # X_i = view(X, :, i)
-            r = phase_data(f, phase)
-            x_i = r.mole_fractions
-            update_mass_fractions!(X, x_i, i, molar_mass, n)
-        end
+        r = phase_data(f, phase)
+        x_i = r.mole_fractions
+        update_mass_fractions!(X, x_i, i, molar_mass, n)
     end
 end
 
