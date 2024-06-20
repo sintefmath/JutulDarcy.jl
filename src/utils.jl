@@ -971,7 +971,7 @@ function setup_reservoir_state(rmodel::SimulationModel; kwarg...)
         I = findfirst(isequal(k), pvars)
         if isnothing(I)
             if !(k in svars)
-                @warn "Recieved primary variable $k, but this is not known to reservoir model... Adding anyway."
+                jutul_message("setup_reservoir_state", "Recieved primary variable $k, but this is not known to reservoir model.")
             end
         else
             push!(found, k)
@@ -1158,9 +1158,7 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
                 gforce = force[Symbol("$(well_symbol)_ctrl")]
             end
             control = gforce.control[well_symbol]
-            if control isa InjectorControl || control isa ProducerControl
-                q_t *= control.factor
-            end
+            q_t = effective_surface_rate(q_t, control)
             if target == :TotalSurfaceMassRate
                 d[i] = q_t
             elseif target isa Int

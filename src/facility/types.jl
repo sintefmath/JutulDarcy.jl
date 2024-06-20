@@ -366,6 +366,9 @@ function replace_target(f::ProducerControl, target)
     return ProducerControl(target, factor = f.factor)
 end
 
+effective_surface_rate(qts, ::DisabledControl) = qts
+effective_surface_rate(qts, c::Union{InjectorControl, ProducerControl}) = qts*c.factor
+
 mutable struct WellGroupConfiguration{T, O, L}
     const operating_controls::T # Currently operating control
     const requested_controls::O # The requested control (which may be different if limits are hit)

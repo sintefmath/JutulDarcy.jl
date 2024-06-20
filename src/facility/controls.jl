@@ -198,9 +198,14 @@ function check_limit(current_control, target_limit, target, is_lower::Bool, q_t,
 end
 
 
-function facility_surface_mass_rate_for_well(model::SimulationModel, wsym, fstate)
+function facility_surface_mass_rate_for_well(model::SimulationModel, wsym, fstate; effective::Bool = false)
     pos = get_well_position(model.domain, wsym)
-    return fstate.TotalSurfaceMassRate[pos]
+    q_t = fstate.TotalSurfaceMassRate[pos]
+    if effective
+        control = fstate.WellGroupConfiguration.operating_controls[wsym]
+        q_t = effective_surface_rate(q_t, control)
+    end
+    return q_t
 end
 
 bottom_hole_pressure(ws) = ws.Pressure[1]
