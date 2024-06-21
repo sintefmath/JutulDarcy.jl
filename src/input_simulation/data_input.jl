@@ -1368,14 +1368,17 @@ function parse_control_steps(runspec, props, schedule, sys)
                 for wk in kword
                     name = wk[1]
                     controls[name], limits[name] = keyword_to_control(sys, streams, wk, key, factor = well_factor[name], temperature = well_temp[name])
-                    if !(controls[name] isa DisabledControl)
-                        active_controls[name] = controls[name]
-                    end
                 end
+                set_active_controls!(active_controls, controls)
             elseif key == "WELOPEN"
                 for wk in kword
                     apply_welopen!(controls, compdat, wk, active_controls)
                 end
+            elseif key == "WELTARG"
+                for wk in kword
+                    controls, limits = apply_weltarg!(controls, limits, wk)
+                end
+                set_active_controls!(active_controls, controls)
             elseif key in skip
                 # Already handled
             elseif key in ("WSEGVALV", "COMPSEGS", "WELSEGS")
@@ -1401,7 +1404,24 @@ function parse_control_steps(runspec, props, schedule, sys)
     for k in keys(bad_kw)
         jutul_message("Unsupported keyword", "Keyword $k was present, but is not supported.", color = :yellow)
     end
-    return (dt = tstep, control_step = cstep, controls = all_controls, completions = all_compdat, multisegment = mswell_kw, limits = all_limits)
+    return (
+        dt = tstep,
+        control_step = cstep,
+        controls = all_controls,
+        completions = all_compdat,
+        multisegment = mswell_kw,
+        limits = all_limits
+    )
+end
+
+function set_active_controls!(active_controls, controls)
+    for (name, ctrl) in pairs(controls)
+        if ctrl isa DisabledControl
+            continue
+        end
+        active_controls[name] = ctrl
+    end
+    return active_controls
 end
 
 function setup_well_streams()
@@ -1850,6 +1870,43 @@ function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
     @assert sort(sorted) == 1:n "$sorted was not $(1:n)"
     @assert length(sorted) == n
     return sorted
+end
+
+function apply_weltarg!(controls, limits, wk)
+    well, ctype, value = wk
+    ctype = lowercase(ctype)
+    ctrl = controls[well]
+    @assert !(ctrl isa DisabledControl) "Cannot use WELTARG on disabled well."
+    is_injector = ctrl isa InjectorControl
+    limit = limits[well]
+    limit = OrderedDict{Symbol, Float64}(pairs(limit))
+    if ctype == "bhp"
+        new_target = BottomHolePressureTarget(value)
+        limit[Symbol(ctype)] = value
+    else
+        if is_injector
+            rate_target = value
+        else
+            rate_target = -value
+        end
+        if ctype == "orat"
+            new_target = SurfaceOilRateTarget(rate_target)
+        elseif ctype == "grat"
+            new_target = SurfaceGasRateTarget(rate_target)
+        elseif ctype == "wrat"
+            new_target = SurfaceWaterRateTarget(rate_target)
+        elseif ctype == "rate"
+            new_target = TotalRateTarget(rate_target)
+        elseif ctype == "lrat"
+            new_target = SurfaceLiquidRateTarget(rate_target)
+        else
+            error("WELTARG $ctype is not yet supported.")
+        end
+        limit[Symbol(ctype)] = rate_target
+    end
+    limits[well] = convert_to_immutable_storage(limit)
+    controls[well] = replace_target(ctrl, new_target)
+    return (controls, limits)
 end
 
 function apply_welopen!(controls, compdat, wk, controls_if_active)
