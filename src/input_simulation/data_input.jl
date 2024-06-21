@@ -432,7 +432,8 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
         wpi_mul = ones(n_wi)
         for (i, c) in enumerate(completions)
             compdat = c[k]
-            well_is_shut = controls[i][k] isa DisabledControl
+            well_control = controls[i][k]
+            well_is_shut = well_control isa DisabledControl
             wi_mul = zeros(n_wi)
             if !well_is_shut
                 wc, WI, open, multipliers, fresh = compdat_to_connection_factors(domain, wspec, compdat, i, sort = false)
@@ -454,6 +455,11 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
                     wpi_mul[compl_idx] = mul
                     wi_mul[compl_idx] = wpi_mul[compl_idx]*wi*is_open/WI_base[compl_idx]
                 end
+            end
+            if !well_is_shut
+                # Multiply by well factor to account for downtime in
+                # pressure drop when well is not always active
+                @. wi_mul *= well_control.factor
             end
             if all(isapprox(1.0), wi_mul)
                 mask = nothing

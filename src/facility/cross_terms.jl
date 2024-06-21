@@ -114,7 +114,7 @@ function Jutul.prepare_cross_term_in_entity!(i,
         limits = current_limits(cfg, well_symbol)
         if !isnothing(limits)
             rhoS, S = surface_density_and_volume_fractions(state_well)
-            q_t = facility_surface_mass_rate_for_well(facility, well_symbol, state_facility, effective = true)
+            q_t = facility_surface_mass_rate_for_well(facility, well_symbol, state_facility, effective = false)
             apply_well_limit!(cfg, target, well, state_well, well_symbol, rhoS, S, value(q_t), limits)
         end
     end
@@ -137,7 +137,12 @@ function update_cross_term_in_entity!(out, i,
     ctrl = operating_control(cfg, well_symbol)
 
     target = ctrl.target
-    q_t = facility_surface_mass_rate_for_well(facility, well_symbol, state_facility, effective = true)
+    q_t = facility_surface_mass_rate_for_well(
+        facility,
+        well_symbol,
+        state_facility,
+        effective = false
+    )
     t, t_num = target_actual_pair(target, well, state_well, q_t, ctrl)
     t += 0*bottom_hole_pressure(state_well) + 0*q_t
     scale = target_scaling(target)
@@ -188,7 +193,12 @@ function update_cross_term_in_entity!(out, i,
 
     cfg = state_facility.WellGroupConfiguration
     ctrl = operating_control(cfg, well_symbol)
-    q_t = facility_surface_mass_rate_for_well(facility, well_symbol, state_facility, effective = true)
+    q_t = facility_surface_mass_rate_for_well(
+        facility,
+        well_symbol,
+        state_facility,
+        effective = true
+    )
     # Hack for sparsity detection
     q_t += 0*bottom_hole_pressure(state_well)
 
@@ -309,7 +319,7 @@ function update_cross_term_in_entity!(out, i,
 
     cfg = state_facility.WellGroupConfiguration
     ctrl = operating_control(cfg, well_symbol)
-    qT = state_facility.TotalSurfaceMassRate[pos] 
+    qT = state_facility.TotalSurfaceMassRate[pos]
     # Hack for sparsity detection
     qT += 0*bottom_hole_pressure(state_well)
 

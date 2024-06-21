@@ -1158,7 +1158,6 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
                 gforce = force[Symbol("$(well_symbol)_ctrl")]
             end
             control = gforce.control[well_symbol]
-            q_t = effective_surface_rate(q_t, control)
             if target == :TotalSurfaceMassRate
                 d[i] = q_t
             elseif target isa Int
