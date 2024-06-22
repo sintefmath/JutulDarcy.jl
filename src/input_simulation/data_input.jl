@@ -404,7 +404,7 @@ end
 function parse_schedule(domain, runspec, props, schedule, sys; simple_well = true)
     G = physical_representation(domain)
 
-    dt, cstep, controls, completions, msdata, limits = parse_control_steps(runspec, props, schedule, sys)
+    dt, cstep, controls, status, completions, msdata, limits = parse_control_steps(runspec, props, schedule, sys)
     completions, bad_wells = filter_inactive_completions!(completions, G)
     @assert length(controls) == length(completions)
     handle_wells_without_active_perforations!(bad_wells, completions, controls, limits)
@@ -433,6 +433,7 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
         for (i, c) in enumerate(completions)
             compdat = c[k]
             well_control = controls[i][k]
+            flag = status[i][k]
             well_is_shut = well_control isa DisabledControl
             wi_mul = zeros(n_wi)
             if !well_is_shut
@@ -460,6 +461,9 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
                 # Multiply by well factor to account for downtime in
                 # pressure drop when well is not always active
                 @. wi_mul *= well_control.factor
+            end
+            if flag == "SHUT"
+                @. wi_mul = 0.0
             end
             if all(isapprox(1.0), wi_mul)
                 mask = nothing
@@ -1222,7 +1226,8 @@ function parse_control_steps(runspec, props, schedule, sys)
     active_controls = sdict()
     limits = sdict()
     streams = sdict()
-    mswell_kw = sdict()
+    status = sdict()
+    mswell_kw = Dict{String, String}()
     function get_and_create_mswell_kw(k::AbstractString, subkey = missing)
         if !haskey(mswell_kw, k)
             mswell_kw[k] = sdict()
@@ -1247,6 +1252,7 @@ function parse_control_steps(runspec, props, schedule, sys)
         active_controls[k] = DisabledControl()
         limits[k] = nothing
         streams[k] = nothing
+        status[k] = "SHUT"
         well_injection[k] = nothing
         well_factor[k] = 1.0
         # 0 deg C is strange, but the default for .DATA files.
@@ -1255,6 +1261,7 @@ function parse_control_steps(runspec, props, schedule, sys)
     all_compdat = []
     all_controls = []
     all_limits = []
+    all_status = []
 
     if haskey(runspec, "START")
         start_date = runspec["START"]
@@ -1373,7 +1380,7 @@ function parse_control_steps(runspec, props, schedule, sys)
             elseif key in ("WCONINJE", "WCONPROD", "WCONHIST", "WCONINJ", "WCONINJH")
                 for wk in kword
                     name = wk[1]
-                    controls[name], limits[name] = keyword_to_control(sys, streams, wk, key, factor = well_factor[name], temperature = well_temp[name])
+                    controls[name], limits[name], status[name] = keyword_to_control(sys, streams, wk, key, factor = well_factor[name], temperature = well_temp[name])
                 end
                 set_active_controls!(active_controls, controls)
             elseif key == "WELOPEN"
@@ -1403,6 +1410,7 @@ function parse_control_steps(runspec, props, schedule, sys)
             push!(all_compdat, deepcopy(compdat))
             push!(all_controls, deepcopy(controls))
             push!(all_limits, deepcopy(limits))
+            push!(all_status, deepcopy(status))
         else
             @warn "Did not find supported time kw in step $ctrl_ix: Keys were $(keys(step))."
         end
@@ -1414,6 +1422,7 @@ function parse_control_steps(runspec, props, schedule, sys)
         dt = tstep,
         control_step = cstep,
         controls = all_controls,
+        status = all_status,
         completions = all_compdat,
         multisegment = mswell_kw,
         limits = all_limits
@@ -1580,7 +1589,7 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
             lims = producer_limits(bhp = bhp, orat = orat, wrat = wrat, grat = grat, lrat = lrat)
         end
     end
-    return (ctrl, lims)
+    return (ctrl, lims, flag)
 end
 
 function injector_limits(; bhp = Inf, surface_rate = Inf, reservoir_rate = Inf)
@@ -1642,7 +1651,7 @@ function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_
         end
         lims = injector_limits(bhp = bhp_lim, surface_rate = surf_rate, reservoir_rate = res_rate)
     end
-    return (ctrl, lims)
+    return (ctrl, lims, flag)
 end
 
 function select_injector_mixture_spec(sys::Union{ImmiscibleSystem, StandardBlackOilSystem}, name, streams, type)
