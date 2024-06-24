@@ -66,6 +66,7 @@ function setup_case_from_parsed_data(datafile;
         use_ijk_trans = true,
         verbose = false,
         zcorn_depths = true,
+        normalize = true,
         kwarg...
     )
     function msg(s)
@@ -177,7 +178,7 @@ function setup_case_from_parsed_data(datafile;
     msg("Setting up forces.")
     forces = parse_forces(model, wells, controls, limits, cstep, dt, well_forces)
     msg("Setting up initial state.")
-    state0 = parse_state0(model, datafile)
+    state0 = parse_state0(model, datafile, normalize = normalize)
     msg("Setup complete.")
     return JutulCase(model, dt, forces, state0 = state0, parameters = parameters, input_data = datafile)
 end
@@ -558,13 +559,13 @@ function parse_forces(model, wells, controls, limits, cstep, dt, well_forces)
     return forces[cstep]
 end
 
-function parse_state0(model, datafile)
+function parse_state0(model, datafile; normalize = true)
     rmodel = reservoir_model(model)
     init = Dict{Symbol, Any}()
     sol = datafile["SOLUTION"]
 
     if haskey(sol, "EQUIL")
-        init = parse_state0_equil(rmodel, datafile)
+        init = parse_state0_equil(rmodel, datafile; normalize = normalize)
     else
         init = parse_state0_direct_assignment(rmodel, datafile)
     end
@@ -1227,7 +1228,7 @@ function parse_control_steps(runspec, props, schedule, sys)
     limits = sdict()
     streams = sdict()
     status = sdict()
-    mswell_kw = Dict{String, String}()
+    mswell_kw = Dict{String, sdict}()
     function get_and_create_mswell_kw(k::AbstractString, subkey = missing)
         if !haskey(mswell_kw, k)
             mswell_kw[k] = sdict()

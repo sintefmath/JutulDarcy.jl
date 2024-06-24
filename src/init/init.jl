@@ -216,7 +216,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
 end
 
 
-function parse_state0_equil(model, datafile)
+function parse_state0_equil(model, datafile; normalize = :sum)
     has_water = haskey(datafile["RUNSPEC"], "WATER")
     has_oil = haskey(datafile["RUNSPEC"], "OIL")
     has_gas = haskey(datafile["RUNSPEC"], "GAS")
@@ -448,9 +448,20 @@ function parse_state0_equil(model, datafile)
                     Sz = SVector{N, Float64}
                     ztab_z = Float64[]
                     ztab_static = Sz[]
-                    for row in size(ztab, 1)
+                    num_renormalized = 0
+                    for row in 1:size(ztab, 1)
                         mf_i = Sz(ztab[row, 2:end])
-                        mf_i = mf_i./sum(mf_i)
+                        if maximum(mf_i) > 1.0 || minimum(mf) < 0 || !(sum(mf_i) ≈ 1.0)
+                            num_renormalized += 1
+                        end
+                        if normalize == :sum || normalize == true
+                            mf_i = mf_i./sum(mf_i)
+                        elseif normalize == :clampsum
+                            mf_i = clamp.(mf_i, 0.0, 1.0)
+                            mf_i = mf_i./sum(mf_i)
+                        else
+                            @assert normalize == false
+                        end
                         z_i = ztab[row, 1]
                         push!(ztab_z, z_i)
                         push!(ztab_static, mf_i)
@@ -462,6 +473,9 @@ function parse_state0_equil(model, datafile)
                             push!(ztab_z, z_i+1.0)
                             push!(ztab_static, mf_i)
                         end
+                    end
+                    if num_renormalized > 0 && normalize != false
+                        jutul_message("Initialization", "$num_renormalized entries ZMFVD were normalized in equilibriation region $ereg.")
                     end
                     composition = get_1d_interpolator(ztab_z, ztab_static)
                 else
