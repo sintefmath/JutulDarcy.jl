@@ -52,9 +52,10 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
     for wname in model.domain.well_symbols
         wmodel = model_g[wname]
         wstate = storage_g[wname].state
+        mask = forces_g[wname].mask
         rmodel = model_g[:Reservoir]
         rstate = storage_g.Reservoir.state
-        update_before_step_well!(wstate, wmodel, rstate, rmodel, op_ctrls[wname], update_explicit = update_explicit)
+        update_before_step_well!(wstate, wmodel, rstate, rmodel, op_ctrls[wname], mask, update_explicit = update_explicit)
     end
 end
 

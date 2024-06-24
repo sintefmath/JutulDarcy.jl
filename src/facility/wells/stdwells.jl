@@ -81,14 +81,14 @@ end
 well_has_explicit_pressure_drop(m::SimpleWellFlowModel) = well_has_explicit_pressure_drop(physical_representation(m.domain))
 well_has_explicit_pressure_drop(w::SimpleWell) = w.explicit_dp
 
-function update_before_step_well!(well_state, well_model::SimpleWellFlowModel, res_state, res_model, ctrl; update_explicit = true)
+function update_before_step_well!(well_state, well_model::SimpleWellFlowModel, res_state, res_model, ctrl, mask; update_explicit = true)
     if well_has_explicit_pressure_drop(well_model) && update_explicit
         dp = well_state.ConnectionPressureDrop
-        update_connection_pressure_drop!(dp, well_state, well_model, res_state, res_model, ctrl)
+        update_connection_pressure_drop!(dp, well_state, well_model, res_state, res_model, ctrl, mask)
     end
 end
 
-function update_connection_pressure_drop!(dp, well_state, well_model, res_state, res_model, ctrl::InjectorControl)
+function update_connection_pressure_drop!(dp, well_state, well_model, res_state, res_model, ctrl::InjectorControl, mask)
     # Traverse down the well, using the phase notion encoded in ctrl and then
     # just accumulate pressure drop as we go assuming no cross flow
     phases = ctrl.phases
@@ -118,7 +118,7 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
     end
 end
 
-function update_connection_pressure_drop!(dp, well_state, well_model, res_state, res_model, ctrl)
+function update_connection_pressure_drop!(dp, well_state, well_model, res_state, res_model, ctrl, mask)
     # Well is either disabled or producing. Loop over well from the bottom,
     # aggregating mixture density as we go. Then traverse down from the top and
     # accumulate the actual pressure drop due to hydrostatic assumptions.
@@ -129,21 +129,31 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
     WI = as_value(well_state.WellIndices)
     ρ = as_value(res_state.PhaseMassDensities)
     mob = as_value(res_state.PhaseMobilities)
-
+    p = as_value(res_state.Pressure)
+    bhp = value(well_state.Pressure[1])
     # Integrate up, adding weighted density into well bore and keeping track of
     # current weight
     current_weight = 0.0
     current_density = 0.0
+    first_step = all(isequal(0.0), dp)
     for i in reverse(eachindex(dp))
         rc = res_cells[i]
         wi = WI[i]
-
+        if !isnothing(mask)
+            wi *= mask.values[i]
+        end
+        if first_step
+            pot = 1.0
+        else
+            pot = abs(bhp + dp[i] - p[rc])
+        end
+        q_perf = wi*pot
         # Mixture density along well bore
         local_density = 0
         local_weight = 0
         for ph in axes(ρ, 1)
             λ = mob[ph, rc]
-            weight_ph = wi*λ
+            weight_ph = q_perf*λ
             local_weight += weight_ph
             local_density += weight_ph*ρ[ph, rc]
         end
