@@ -239,7 +239,7 @@ end
 
 include("mswells_equations.jl")
 
-function update_before_step_well!(well_state, well_model, res_state, res_model, ctrl; kwarg...)
+function update_before_step_well!(well_state, well_model, res_state, res_model, ctr, mask; kwarg...)
 
 end
 
