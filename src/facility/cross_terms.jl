@@ -114,7 +114,7 @@ function Jutul.prepare_cross_term_in_entity!(i,
         limits = current_limits(cfg, well_symbol)
         if !isnothing(limits)
             rhoS, S = surface_density_and_volume_fractions(state_well)
-            q_t = facility_surface_mass_rate_for_well(facility, well_symbol, state_facility)
+            q_t = facility_surface_mass_rate_for_well(facility, well_symbol, state_facility, effective = false)
             apply_well_limit!(cfg, target, well, state_well, well_symbol, rhoS, S, value(q_t), limits)
         end
     end
@@ -137,7 +137,12 @@ function update_cross_term_in_entity!(out, i,
     ctrl = operating_control(cfg, well_symbol)
 
     target = ctrl.target
-    q_t = facility_surface_mass_rate_for_well(facility, well_symbol, state_facility)
+    q_t = facility_surface_mass_rate_for_well(
+        facility,
+        well_symbol,
+        state_facility,
+        effective = false
+    )
     t, t_num = target_actual_pair(target, well, state_well, q_t, ctrl)
     t += 0*bottom_hole_pressure(state_well) + 0*q_t
     scale = target_scaling(target)
@@ -188,17 +193,17 @@ function update_cross_term_in_entity!(out, i,
 
     cfg = state_facility.WellGroupConfiguration
     ctrl = operating_control(cfg, well_symbol)
-    qT = state_facility.TotalSurfaceMassRate[pos] 
+    q_t = facility_surface_mass_rate_for_well(
+        facility,
+        well_symbol,
+        state_facility,
+        effective = true
+    )
     # Hack for sparsity detection
-    qT += 0*bottom_hole_pressure(state_well)
-    if ctrl isa DisabledControl
-        factor = 1.0
-    else
-        factor = ctrl.factor
-    end
-    qT *= factor
+    q_t += 0*bottom_hole_pressure(state_well)
+
     if isa(ctrl, InjectorControl)
-        if value(qT) < 0
+        if value(q_t) < 0
             @warn "Injector $well_symbol is producing?"
         end
         mix = ctrl.injection_mixture
@@ -206,7 +211,7 @@ function update_cross_term_in_entity!(out, i,
         ncomp = number_of_components(flow_system(well.system))
         @assert nmix == ncomp "Injection composition length ($nmix) must match number of components ($ncomp)."
     else
-        if value(qT) > 0 && ctrl isa ProducerControl
+        if value(q_t) > 0 && ctrl isa ProducerControl
             @warn "Producer $well_symbol is injecting?"
         end
         if haskey(state_well, :MassFractions)
@@ -218,7 +223,7 @@ function update_cross_term_in_entity!(out, i,
         end
     end
     for i in eachindex(out)
-        @inbounds out[i] = -mix[i]*qT
+        @inbounds out[i] = -mix[i]*q_t
     end
 end
 
@@ -314,7 +319,7 @@ function update_cross_term_in_entity!(out, i,
 
     cfg = state_facility.WellGroupConfiguration
     ctrl = operating_control(cfg, well_symbol)
-    qT = state_facility.TotalSurfaceMassRate[pos] 
+    qT = state_facility.TotalSurfaceMassRate[pos]
     # Hack for sparsity detection
     qT += 0*bottom_hole_pressure(state_well)
 

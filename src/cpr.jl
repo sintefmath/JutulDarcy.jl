@@ -298,14 +298,16 @@ function operator_nrows(cpr::CPRPreconditioner)
 end
 
 using Krylov
-function apply!(x, cpr::CPRPreconditioner, r, arg...)
+function apply!(x, cpr::CPRPreconditioner, r0, arg...)
     cpr_s = cpr.storage
-    buf = cpr_s.r_ps
-    # x = cpr_s.x_ps
+    # Get buffers and set working values
+    r = cpr_s.r_ps
+    @. r  = r0
+    buf = cpr_s.x_ps
     A_ps = cpr_s.A_ps
     smoother = cpr.system_precond
     bz = cpr_s.block_size
-    # Zero out buffer, just in case
+    # Zero out buffer, just in case (assumed by some solvers)
     @. x = 0.0
     # presmooth
     @tic "cpr smoother" apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npre)
@@ -378,7 +380,8 @@ function update_weights!(cpr, cpr_storage::CPRStorage, model, res_storage, J, ps
     r = cpr_storage.w_rhs
     ncomp = size(w, 1)
     scaling = cpr.weight_scaling
-    if cpr.strategy == :true_impes
+    strategy = cpr.strategy
+    if strategy == :true_impes
         eq_s = res_storage.equations[:mass_conservation]
         if eq_s isa ConservationLawTPFAStorage
             acc = eq_s.accumulation.entries
@@ -388,15 +391,15 @@ function update_weights!(cpr, cpr_storage::CPRStorage, model, res_storage, J, ps
             ps = 1.0
         end
         true_impes!(w, acc, r, n, ncomp, ps, scaling)
-    elseif cpr.strategy == :analytical
+    elseif strategy == :analytical
         rstate = res_storage.state
         cpr_weights_no_partials!(w, model, rstate, r, n, ncomp, scaling)
-    elseif cpr.strategy == :quasi_impes
+    elseif strategy == :quasi_impes
         quasi_impes!(w, J, r, n, ncomp, scaling)
-    elseif cpr.strategy == :none
+    elseif strategy == :none
         # Do nothing. Already set to one.
     else
-        error("Unsupported strategy $(cpr.strategy)")
+        error("Unsupported strategy $(strategy)")
     end
     return w
 end

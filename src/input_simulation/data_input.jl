@@ -66,6 +66,7 @@ function setup_case_from_parsed_data(datafile;
         use_ijk_trans = true,
         verbose = false,
         zcorn_depths = true,
+        normalize = true,
         kwarg...
     )
     function msg(s)
@@ -160,7 +161,7 @@ function setup_case_from_parsed_data(datafile;
                 set_thermal_deck_specialization!(submodel, props, domain[:pvtnum], oil, water, gas)
             end
             if k == :Reservoir
-                set_deck_specialization!(submodel, props, domain[:satnum], oil, water, gas)
+                set_deck_specialization!(submodel, rs, props, domain[:satnum], oil, water, gas)
             end
         end
     end
@@ -177,13 +178,13 @@ function setup_case_from_parsed_data(datafile;
     msg("Setting up forces.")
     forces = parse_forces(model, wells, controls, limits, cstep, dt, well_forces)
     msg("Setting up initial state.")
-    state0 = parse_state0(model, datafile)
+    state0 = parse_state0(model, datafile, normalize = normalize)
     msg("Setup complete.")
     return JutulCase(model, dt, forces, state0 = state0, parameters = parameters, input_data = datafile)
 end
 
-function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord; simple_well = isnothing(msdata))
-    wc, WI, open = compdat_to_connection_factors(domain, wspecs, cdat, sort = true, order = compord)
+function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, step; simple_well = isnothing(msdata))
+    wc, WI, open, = compdat_to_connection_factors(domain, wspecs, cdat, step, sort = true, order = compord)
     ref_depth = wspecs.ref_depth
     if isnan(ref_depth)
         ref_depth = nothing
@@ -347,7 +348,7 @@ function map_compdat_to_multisegment_segments(compsegs, branches, tubing_lengths
     return perforation_cells
 end
 
-function compdat_to_connection_factors(domain, wspec, v; sort = true, order = "TRACK")
+function compdat_to_connection_factors(domain, wspec, v, step; sort = true, order = "TRACK")
     G = physical_representation(domain)
     K = domain[:permeability]
 
@@ -361,6 +362,8 @@ function compdat_to_connection_factors(domain, wspec, v; sort = true, order = "T
     WI = getf(:WI)
     skin = getf(:skin)
     dir = getf(:dir)
+    mul = getf(:mul)
+    fresh = map(x -> v[x].ctrl == step, ij_ix)
 
     for i in eachindex(WI)
         W_i = WI[i]
@@ -394,14 +397,15 @@ function compdat_to_connection_factors(domain, wspec, v; sort = true, order = "T
         wc = wc[ix]
         WI = WI[ix]
         open = open[ix]
+        fresh = fresh[ix]
     end
-    return (wc, WI, open)
+    return (wc, WI, open, mul, fresh)
 end
 
 function parse_schedule(domain, runspec, props, schedule, sys; simple_well = true)
     G = physical_representation(domain)
 
-    dt, cstep, controls, completions, msdata, limits = parse_control_steps(runspec, props, schedule, sys)
+    dt, cstep, controls, status, completions, msdata, limits = parse_control_steps(runspec, props, schedule, sys)
     completions, bad_wells = filter_inactive_completions!(completions, G)
     @assert length(controls) == length(completions)
     handle_wells_without_active_perforations!(bad_wells, completions, controls, limits)
@@ -424,23 +428,43 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
             msdata_k = nothing
             k_is_simple_well = simple_well
         end
-        W, wc_base, WI_base, open = parse_well_from_compdat(domain, k, v, wspec, msdata_k, compord; simple_well = k_is_simple_well)
+        W, wc_base, WI_base, open = parse_well_from_compdat(domain, k, v, wspec, msdata_k, compord, length(completions); simple_well = k_is_simple_well)
+        n_wi = length(WI_base)
+        wpi_mul = ones(n_wi)
         for (i, c) in enumerate(completions)
             compdat = c[k]
-            well_is_shut = controls[i][k] isa DisabledControl
-            n_wi = length(WI_base)
+            well_control = controls[i][k]
+            flag = status[i][k]
+            well_is_shut = well_control isa DisabledControl
             wi_mul = zeros(n_wi)
-            wpi_mul = ones(n_wi)
             if !well_is_shut
-                wc, WI, open = compdat_to_connection_factors(domain, wspec, compdat, sort = false)
-                for (c, wi, is_open) in zip(wc, WI, open)
+                wc, WI, open, multipliers, fresh = compdat_to_connection_factors(domain, wspec, compdat, i, sort = false)
+                for (c, wi, is_open, is_fresh, mul) in zip(wc, WI, open, fresh, multipliers)
                     compl_idx = findfirst(isequal(c), wc_base)
                     if isnothing(compl_idx)
                         # This perforation is missing, leave at zero.
                         continue
                     end
-                    wi_mul[compl_idx] = wi*is_open/WI_base[compl_idx]
+                    if !is_fresh
+                        # Perforation is not fresh and could have previously
+                        # gotten a WPIMULT applied. TODO: Some of the logic
+                        # around WPIMULT is not 100% clear. The current
+                        # implementation should be fine up to the stage where
+                        # many different keywords start to interact for the same
+                        # timestep.
+                        mul *= wpi_mul[compl_idx]
+                    end
+                    wpi_mul[compl_idx] = mul
+                    wi_mul[compl_idx] = wpi_mul[compl_idx]*wi*is_open/WI_base[compl_idx]
                 end
+            end
+            if !well_is_shut
+                # Multiply by well factor to account for downtime in
+                # pressure drop when well is not always active
+                @. wi_mul *= well_control.factor
+            end
+            if flag == "SHUT"
+                @. wi_mul = 0.0
             end
             if all(isapprox(1.0), wi_mul)
                 mask = nothing
@@ -535,13 +559,13 @@ function parse_forces(model, wells, controls, limits, cstep, dt, well_forces)
     return forces[cstep]
 end
 
-function parse_state0(model, datafile)
+function parse_state0(model, datafile; normalize = true)
     rmodel = reservoir_model(model)
     init = Dict{Symbol, Any}()
     sol = datafile["SOLUTION"]
 
     if haskey(sol, "EQUIL")
-        init = parse_state0_equil(rmodel, datafile)
+        init = parse_state0_equil(rmodel, datafile; normalize = normalize)
     else
         init = parse_state0_direct_assignment(rmodel, datafile)
     end
@@ -817,12 +841,15 @@ function parse_reservoir(data_file; zcorn_depths = true)
                 if do_apply
                     m = regt[3]
                     region_type = only(lowercase(regt[6]))
-                    if region_type == 'm' && pair_matchex(pairt, multnum_pair)
-                        tranmult[fno] *= m
-                    elseif region_type == 'o' && pair_matchex(pairt, opernum_pair)
-                        tranmult[fno] *= m
-                    elseif pair_matchex(pairt, fluxnum_pair)
-                        @assert region_type == 'f'
+                    if region_type == 'm'
+                        pair_to_match = multnum_pair
+                    elseif region_type == 'o'
+                        pair_to_match = opernum_pair
+                    else
+                        @assert region_type == 'f' "Region type was expected to be m, o or f, was $region_type"
+                        pair_to_match = fluxnum_pair
+                    end
+                    if pair_matchex(pairt, pair_to_match)
                         tranmult[fno] *= m
                     end
                 end
@@ -1086,7 +1113,7 @@ function parse_physics_types(datafile; pvt_region = missing)
         push!(phases, VaporPhase())
         push!(rhoS, rhoGS)
         if length(props["MW"]) > 1
-            jutul_message("EOSNUM:", "$(length(props["MW"])) regions active. Only one region supported. Taking the first set of values for all EOS properties.", color = :yellow)
+            jutul_message("EOSNUM", "$(length(props["MW"])) regions active. Only one region supported. Taking the first set of values for all EOS properties.", color = :yellow)
         end
 
         cnames = copy(props["CNAMES"])
@@ -1200,7 +1227,8 @@ function parse_control_steps(runspec, props, schedule, sys)
     active_controls = sdict()
     limits = sdict()
     streams = sdict()
-    mswell_kw = sdict()
+    status = sdict()
+    mswell_kw = Dict{String, sdict}()
     function get_and_create_mswell_kw(k::AbstractString, subkey = missing)
         if !haskey(mswell_kw, k)
             mswell_kw[k] = sdict()
@@ -1225,6 +1253,7 @@ function parse_control_steps(runspec, props, schedule, sys)
         active_controls[k] = DisabledControl()
         limits[k] = nothing
         streams[k] = nothing
+        status[k] = "SHUT"
         well_injection[k] = nothing
         well_factor[k] = 1.0
         # 0 deg C is strange, but the default for .DATA files.
@@ -1233,6 +1262,7 @@ function parse_control_steps(runspec, props, schedule, sys)
     all_compdat = []
     all_controls = []
     all_limits = []
+    all_status = []
 
     if haskey(runspec, "START")
         start_date = runspec["START"]
@@ -1249,11 +1279,12 @@ function parse_control_steps(runspec, props, schedule, sys)
         push!(cstep, ctrl_ix)
     end
 
-    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP")
+    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP", "WPIMULT")
     bad_kw = Dict{String, Bool}()
+    streams = setup_well_streams()
     for (ctrl_ix, step) in enumerate(steps)
         found_time = false
-        streams = parse_well_streams_for_step(step, props)
+        streams = parse_well_streams_for_step!(streams, step, props)
         if haskey(step, "WEFAC")
             for wk in step["WEFAC"]
                 well_factor[wk[1]] = wk[2]
@@ -1309,6 +1340,32 @@ function parse_control_steps(runspec, props, schedule, sys)
                     end
                     entry = compdat[wname]
                     for K in K1:K2
+                        perf_mult = 1.0
+                        current_completion_index = length(keys(entry)) + 1
+                        if haskey(step, "WPIMULT")
+                            for wpimult in step["WPIMULT"]
+                                wname_wpi, mul_i, I_wpi, J_wpi, K_wpi, start_wpi, end_wpi = wpimult
+                                if wname_wpi != wname
+                                    continue
+                                end
+                                if I != I_wpi && I_wpi > 0
+                                    continue
+                                end
+                                if J != J_wpi && J_wpi > 0
+                                    continue
+                                end
+                                if K != K_wpi && K_wpi > 0
+                                    continue
+                                end
+                                if start_wpi > current_completion_index && start_wpi > 0
+                                    continue
+                                end
+                                if end_wpi < current_completion_index && end_wpi > 0
+                                    continue
+                                end
+                                perf_mult *= mul_i
+                            end
+                        end
                         entry[(I, J, K)] = (
                             open = flag == "OPEN",
                             satnum = satnum,
@@ -1317,21 +1374,25 @@ function parse_control_steps(runspec, props, schedule, sys)
                             Kh = Kh,
                             skin = skin,
                             dir = dir,
+                            mul = perf_mult,
                             ctrl = ctrl_ix)
                     end
                 end
             elseif key in ("WCONINJE", "WCONPROD", "WCONHIST", "WCONINJ", "WCONINJH")
                 for wk in kword
                     name = wk[1]
-                    controls[name], limits[name] = keyword_to_control(sys, streams, wk, key, factor = well_factor[name], temperature = well_temp[name])
-                    if !(controls[name] isa DisabledControl)
-                        active_controls[name] = controls[name]
-                    end
+                    controls[name], limits[name], status[name] = keyword_to_control(sys, streams, wk, key, factor = well_factor[name], temperature = well_temp[name])
                 end
+                set_active_controls!(active_controls, controls)
             elseif key == "WELOPEN"
                 for wk in kword
                     apply_welopen!(controls, compdat, wk, active_controls)
                 end
+            elseif key == "WELTARG"
+                for wk in kword
+                    controls, limits = apply_weltarg!(controls, limits, wk)
+                end
+                set_active_controls!(active_controls, controls)
             elseif key in skip
                 # Already handled
             elseif key in ("WSEGVALV", "COMPSEGS", "WELSEGS")
@@ -1350,6 +1411,7 @@ function parse_control_steps(runspec, props, schedule, sys)
             push!(all_compdat, deepcopy(compdat))
             push!(all_controls, deepcopy(controls))
             push!(all_limits, deepcopy(limits))
+            push!(all_status, deepcopy(status))
         else
             @warn "Did not find supported time kw in step $ctrl_ix: Keys were $(keys(step))."
         end
@@ -1357,10 +1419,34 @@ function parse_control_steps(runspec, props, schedule, sys)
     for k in keys(bad_kw)
         jutul_message("Unsupported keyword", "Keyword $k was present, but is not supported.", color = :yellow)
     end
-    return (dt = tstep, control_step = cstep, controls = all_controls, completions = all_compdat, multisegment = mswell_kw, limits = all_limits)
+    return (
+        dt = tstep,
+        control_step = cstep,
+        controls = all_controls,
+        status = all_status,
+        completions = all_compdat,
+        multisegment = mswell_kw,
+        limits = all_limits
+    )
 end
 
-function parse_well_streams_for_step(step, props)
+function set_active_controls!(active_controls, controls)
+    for (name, ctrl) in pairs(controls)
+        if ctrl isa DisabledControl
+            continue
+        end
+        active_controls[name] = ctrl
+    end
+    return active_controls
+end
+
+function setup_well_streams()
+    return (streams = Dict{String, Any}(), wells = Dict{String, String}())
+end
+
+function parse_well_streams_for_step!(streams, step, props)
+    well_streams = streams.wells
+    streams = streams.streams
     if haskey(props, "STCOND")
         std = props["STCOND"]
         T = convert_to_si(std[1], :Celsius)
@@ -1371,8 +1457,6 @@ function parse_well_streams_for_step(step, props)
         p = convert_to_si(1.0, :atm)
     end
 
-    streams = Dict{String, Any}()
-    well_streams = Dict{String, String}()
     if haskey(step, "WELLSTRE")
         for stream in step["WELLSTRE"]
             mix = Float64.(stream[2:end])
@@ -1498,15 +1582,15 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
             self_symbol = translate_target_to_symbol(t, shortname = true)
             # Put pressure slightly above 1 atm to avoid hard limit.
             if self_symbol == :resv_history
-                lims = (; :bhp => 1.001*si_unit(:atm))
+                lims = (; :bhp => 1.01*si_unit(:atm))
             else
-                lims = (; :bhp => 1.001*si_unit(:atm), self_symbol => self_val)
+                lims = (; :bhp => 1.01*si_unit(:atm), self_symbol => self_val)
             end
         else
             lims = producer_limits(bhp = bhp, orat = orat, wrat = wrat, grat = grat, lrat = lrat)
         end
     end
-    return (ctrl, lims)
+    return (ctrl, lims, flag)
 end
 
 function injector_limits(; bhp = Inf, surface_rate = Inf, reservoir_rate = Inf)
@@ -1568,7 +1652,7 @@ function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_
         end
         lims = injector_limits(bhp = bhp_lim, surface_rate = surf_rate, reservoir_rate = res_rate)
     end
-    return (ctrl, lims)
+    return (ctrl, lims, flag)
 end
 
 function select_injector_mixture_spec(sys::Union{ImmiscibleSystem, StandardBlackOilSystem}, name, streams, type)
@@ -1629,7 +1713,7 @@ function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, t
             z, props
         )
         z_mass /= sum(z_mass)
-        for i in 1:ncomp
+        for i in eachindex(z_mass)
             mix[i+offset] = z_mass[i]
         end
         @assert sum(mix) ≈ 1.0 "Sum of mixture was $(sum(mix)) != 1 for mole mixture $(z) as mass $z_mass"
@@ -1802,6 +1886,43 @@ function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
     @assert sort(sorted) == 1:n "$sorted was not $(1:n)"
     @assert length(sorted) == n
     return sorted
+end
+
+function apply_weltarg!(controls, limits, wk)
+    well, ctype, value = wk
+    ctype = lowercase(ctype)
+    ctrl = controls[well]
+    @assert !(ctrl isa DisabledControl) "Cannot use WELTARG on disabled well."
+    is_injector = ctrl isa InjectorControl
+    limit = limits[well]
+    limit = OrderedDict{Symbol, Float64}(pairs(limit))
+    if ctype == "bhp"
+        new_target = BottomHolePressureTarget(value)
+        limit[Symbol(ctype)] = value
+    else
+        if is_injector
+            rate_target = value
+        else
+            rate_target = -value
+        end
+        if ctype == "orat"
+            new_target = SurfaceOilRateTarget(rate_target)
+        elseif ctype == "grat"
+            new_target = SurfaceGasRateTarget(rate_target)
+        elseif ctype == "wrat"
+            new_target = SurfaceWaterRateTarget(rate_target)
+        elseif ctype == "rate"
+            new_target = TotalRateTarget(rate_target)
+        elseif ctype == "lrat"
+            new_target = SurfaceLiquidRateTarget(rate_target)
+        else
+            error("WELTARG $ctype is not yet supported.")
+        end
+        limit[Symbol(ctype)] = rate_target
+    end
+    limits[well] = convert_to_immutable_storage(limit)
+    controls[well] = replace_target(ctrl, new_target)
+    return (controls, limits)
 end
 
 function apply_welopen!(controls, compdat, wk, controls_if_active)

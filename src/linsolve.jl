@@ -43,7 +43,7 @@ function reservoir_linsolve(model,
     if !Jutul.is_cell_major(matrix_layout(model.context))
         return nothing
     end
-    default_tol = 0.005
+    default_tol = 0.01
     max_it = 200
     if precond == :cpr
         if isnothing(cpr_type)
@@ -68,7 +68,7 @@ function reservoir_linsolve(model,
             update_interval_partial = update_interval_partial,
             mode = mode
         )
-        default_tol = 1e-3
+        default_tol = 0.005
         max_it = 50
     elseif precond == :ilu0
         prec = ILUZeroPreconditioner()

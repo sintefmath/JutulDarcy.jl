@@ -11,11 +11,7 @@ function number_of_components(sys::MultiPhaseCompositionalSystemLV{E, T, O, G, N
 end
 
 function component_names(sys::MultiPhaseCompositionalSystemLV{E, T, O, G, N}) where {E, T, O, G, N}
-    names = copy(sys.components)
-    if has_other_phase(sys)
-        push!(names, phase_name(O()))
-    end
-    return names
+    return copy(sys.components)
 end
 
 phase_index(sys, phase) = only(findfirst(isequal(phase), sys.phases))

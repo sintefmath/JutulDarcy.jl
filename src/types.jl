@@ -39,7 +39,7 @@ const LVCompositionalModel3Phase = SimulationModel{D, S, F, C} where {D, S<:LVCo
 Set up a compositional system for a given `equation_of_state` from `MultiComponentFlash`.
 """
 function MultiPhaseCompositionalSystemLV(equation_of_state, phases = (LiquidPhase(), VaporPhase()); reference_densities = ones(length(phases)), other_name = "Water")
-    c = MultiComponentFlash.component_names(equation_of_state)
+    c = copy(MultiComponentFlash.component_names(equation_of_state))
     N = length(c)
     phases = tuple(phases...)
     T = typeof(phases)
@@ -60,16 +60,18 @@ function MultiPhaseCompositionalSystemLV(equation_of_state, phases = (LiquidPhas
 end
 
 function Base.show(io::IO, sys::MultiPhaseCompositionalSystemLV)
+    components = copy(sys.components)
     n = number_of_components(sys)
     if has_other_phase(sys)
-        name = "(with water)"
+        name = "(three-phase)"
+        components[end] = "and $(components[end]) as immiscible phase"
         n = n - 1
     else
-        name = "(no water)"
+        name = "(two-phase)"
     end
     eos = sys.equation_of_state
-    cnames = join(MultiComponentFlash.component_names(eos), ", ")
-    print(io, "MultiPhaseCompositionalSystemLV $name with $(MultiComponentFlash.eostype(eos)) EOS with $n components: $cnames")
+    cnames = join(components, ", ")
+    print(io, "MultiPhaseCompositionalSystemLV $name with $(MultiComponentFlash.eostype(eos)) EOS with $n EOS components: $cnames")
 end
 
 struct StandardBlackOilSystem{D, V, W, R, F, T, P, Num} <: BlackOilSystem

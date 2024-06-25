@@ -163,7 +163,6 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
                 end
                 s0 = s[:, i]
                 sw_i = sw[i]
-                # sw_i = max(sw[i], s[1, i])
                 s[1, i] = sw_i
                 s_rem = 0.0
                 for ph in 2:nph
@@ -188,21 +187,16 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         s_eval = zeros(nph, nc_total)
         s_eval[:, cells] .= s
         phases = get_phases(sys)
-        if scaling_type(relperm) == NoKrScale
-            if length(phases) == 3 && AqueousPhase() in phases
-                swcon = zeros(nc_total)
-                if !ismissing(s_min)
-                    swcon[cells] .= s_min[1]
-                end
-                JutulDarcy.update_kr!(kr, relperm, model, s_eval, swcon, cells)
-            else
-                JutulDarcy.update_kr!(kr, relperm, model, s_eval, cells)
+        if length(phases) == 3 && AqueousPhase() in phases
+            swcon = zeros(nc_total)
+            if !ismissing(s_min)
+                swcon[cells] .= s_min[1]
             end
-            kr = kr[:, cells]
+            evaluate_relative_permeability_no_scaling!(kr, relperm, model, s_eval, cells, swcon)
         else
-            # TODO: Improve this.
-            kr = s
+            evaluate_relative_permeability_no_scaling!(kr, relperm, model, s_eval, cells)
         end
+        kr = kr[:, cells]
         init[:Saturations] = s
         init[:Pressure] = init_reference_pressure(pressures, contacts, kr, pc, 2)
     else
@@ -222,7 +216,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
 end
 
 
-function parse_state0_equil(model, datafile)
+function parse_state0_equil(model, datafile; normalize = :sum)
     has_water = haskey(datafile["RUNSPEC"], "WATER")
     has_oil = haskey(datafile["RUNSPEC"], "OIL")
     has_gas = haskey(datafile["RUNSPEC"], "GAS")
@@ -297,9 +291,9 @@ function parse_state0_equil(model, datafile)
     for ereg in 1:nequil
         if haskey(sol, "RTEMP") || haskey(props, "RTEMP")
             if haskey(props, "RTEMP")
-                rtmp = only(props["RTEMP"])
+                rtmp = props["RTEMP"][1]
             else
-                rtmp = only(sol["RTEMP"])
+                rtmp = sol["RTEMP"][1]
             end
             Ti = convert_to_si(rtmp, :Celsius)
             T_z = z -> Ti
@@ -426,7 +420,7 @@ function parse_state0_equil(model, datafile)
                         pb = vec(pbvd[:, 2])
                         Rs = sys.rs_max[preg].(pb)
                     end
-                    rs = Jutul.LinearInterpolant(z, Rs_scale.*Rs)
+                    rs = get_1d_interpolator(z, Rs_scale.*Rs)
                 else
                     rs = missing
                 end
@@ -438,7 +432,7 @@ function parse_state0_equil(model, datafile)
                         rvvd = sol["RVVD"][ereg]
                         z = rvvd[:, 1]
                         Rv = rvvd[:, 2]
-                        rv = Jutul.LinearInterpolant(z, Rv_scale.*Rv)
+                        rv = get_1d_interpolator(z, Rv_scale.*Rv)
                     else
                         # TODO: Should maybe be the pressure at GOC not datum
                         # depth, but that isn't computed at this stage.
@@ -454,8 +448,20 @@ function parse_state0_equil(model, datafile)
                     Sz = SVector{N, Float64}
                     ztab_z = Float64[]
                     ztab_static = Sz[]
-                    for row in size(ztab, 1)
+                    num_renormalized = 0
+                    for row in 1:size(ztab, 1)
                         mf_i = Sz(ztab[row, 2:end])
+                        if maximum(mf_i) > 1.0 || minimum(mf) < 0 || !(sum(mf_i) ≈ 1.0)
+                            num_renormalized += 1
+                        end
+                        if normalize == :sum || normalize == true
+                            mf_i = mf_i./sum(mf_i)
+                        elseif normalize == :clampsum
+                            mf_i = clamp.(mf_i, 0.0, 1.0)
+                            mf_i = mf_i./sum(mf_i)
+                        else
+                            @assert normalize == false
+                        end
                         z_i = ztab[row, 1]
                         push!(ztab_z, z_i)
                         push!(ztab_static, mf_i)
@@ -467,6 +473,9 @@ function parse_state0_equil(model, datafile)
                             push!(ztab_z, z_i+1.0)
                             push!(ztab_static, mf_i)
                         end
+                    end
+                    if num_renormalized > 0 && normalize != false
+                        jutul_message("Initialization", "$num_renormalized entries ZMFVD were normalized in equilibriation region $ereg.")
                     end
                     composition = get_1d_interpolator(ztab_z, ztab_static)
                 else

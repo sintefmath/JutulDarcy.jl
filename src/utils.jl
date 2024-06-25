@@ -205,7 +205,7 @@ low values can lead to slow convergence.
 - `dT_max_rel=`: Maximum relative change in temperature (JutulDarcy uses Kelvin,
   so comments about changing limits near zero above does not apply to typical
   reservoir temperatures)
-- `dT_max_abs=`: Maximum absolute change in temperature (in °K/°C)
+- `dT_max_abs=50.0`: Maximum absolute change in temperature (in °K/°C)
 - `fast_flash=false`: Shorthand to enable `flash_reuse_guess` and
   `flash_stability_bypass`. These options can together speed up the time spent
   in flash solver for compositional models. Options are based on "Increasing the
@@ -241,7 +241,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         p_max = Inf,
         dr_max = Inf,
         dT_max_rel = nothing,
-        dT_max_abs = nothing,
+        dT_max_abs = 50.0,
         fast_flash = false,
         can_shut_wells = true,
         flash_reuse_guess = fast_flash,
@@ -971,7 +971,7 @@ function setup_reservoir_state(rmodel::SimulationModel; kwarg...)
         I = findfirst(isequal(k), pvars)
         if isnothing(I)
             if !(k in svars)
-                @warn "Recieved primary variable $k, but this is not known to reservoir model... Adding anyway."
+                jutul_message("setup_reservoir_state", "Recieved primary variable $k, but this is not known to reservoir model.")
             end
         else
             push!(found, k)
@@ -1158,9 +1158,6 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
                 gforce = force[Symbol("$(well_symbol)_ctrl")]
             end
             control = gforce.control[well_symbol]
-            if control isa InjectorControl || control isa ProducerControl
-                q_t *= control.factor
-            end
             if target == :TotalSurfaceMassRate
                 d[i] = q_t
             elseif target isa Int

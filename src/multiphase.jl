@@ -57,7 +57,7 @@ phase_name(::VaporPhase) = "Vapor"
 ## Main implementation
 # Primary variable logic
 
-const DEFAULT_MINIMUM_PRESSURE = 101325.0
+const DEFAULT_MINIMUM_PRESSURE = 10000.0 # 0.1 MPa
 
 struct Pressure <: ScalarVariable
     max_abs::Union{Float64, Nothing}

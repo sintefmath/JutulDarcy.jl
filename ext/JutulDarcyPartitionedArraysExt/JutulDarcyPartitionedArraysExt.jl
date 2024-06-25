@@ -5,6 +5,7 @@ module JutulDarcyPartitionedArraysExt
     # Specific dependencies
     using PartitionedArrays, MPI, HYPRE
     using LinearAlgebra
+    using SparseArrays
 
     import Jutul: JutulCase, PArrayBackend, JutulConfig, BoomerAMGPreconditioner
     import Jutul: PArraySimulator, MPISimulator, PArrayExecutor
@@ -17,6 +18,8 @@ module JutulDarcyPartitionedArraysExt
         number_of_components
 
     timeit_debug_enabled() = Jutul.timeit_debug_enabled()
+
+    include("cpr.jl")
 
     function setup_reservoir_simulator_parray(
             case::JutulCase,

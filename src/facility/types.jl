@@ -7,7 +7,10 @@ abstract type SurfaceFacilityDomain <: JutulDomain end
 abstract type WellControllerDomain <: SurfaceFacilityDomain end
 mutable struct WellGroup <: WellControllerDomain
     const well_symbols::Vector{Symbol} # Controlled wells
-    can_shut_wells::Bool               # Can temporarily shut wells that try to reach zero rate multiple solves in a row
+    "Can temporarily shut producers that try to reach zero rate multiple solves in a row"
+    can_shut_producers::Bool
+    "Can temporarily shut injectors that try to reach zero rate multiple solves in a row"
+    can_shut_injectors::Bool
 end
 
 """
@@ -15,8 +18,8 @@ end
 
 Create a well group that can control the given set of wells.
 """
-function WellGroup(wells::Vector{Symbol}; can_shut_wells = true)
-    return WellGroup(wells, can_shut_wells)
+function WellGroup(wells::Vector{Symbol}; can_shut_wells = true, can_shut_injectors = can_shut_wells, can_shut_producers = can_shut_wells)
+    return WellGroup(wells, can_shut_producers, can_shut_injectors)
 end
 
 const WellGroupModel = SimulationModel{WellGroup, <:Any, <:Any, <:Any}
@@ -362,6 +365,9 @@ default_limits(f::ProducerControl{T}) where T<:BottomHolePressureTarget = merge(
 function replace_target(f::ProducerControl, target)
     return ProducerControl(target, factor = f.factor)
 end
+
+effective_surface_rate(qts, ::DisabledControl) = qts
+effective_surface_rate(qts, c::Union{InjectorControl, ProducerControl}) = qts*c.factor
 
 mutable struct WellGroupConfiguration{T, O, L}
     const operating_controls::T # Currently operating control
