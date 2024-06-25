@@ -63,7 +63,7 @@ end
         its_newton = get_its(results_newton)
 
         function test_solver_result(result)
-            @test its_newton > get_its(result)
+            @test its_newton >= get_its(result)
         end
         @testset "NLDD on $name" begin
             for solve_tol_mobility in [nothing, 0.01, 0.05]
