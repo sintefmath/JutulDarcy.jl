@@ -53,10 +53,10 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
         wmodel = model_g[wname]
         wstate = storage_g[wname].state
         forces_w = forces_g[wname]
-        if isnothing(forces_w)
+        if isnothing(forces_w) || !haskey(forces_w, :mask)
             mask = nothing
         else
-            mask = forces_g[wname].mask
+            mask = forces_w.mask
         end
         rmodel = model_g[:Reservoir]
         rstate = storage_g.Reservoir.state
