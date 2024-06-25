@@ -462,7 +462,9 @@ function saturated_table(p, r)
         p = vcat([-1.0, 0.0], p)
         r = vcat([0.0, 0.0], r)
     end
-    return get_1d_interpolator(p, r, cap_end = true)
+    # TODO: This is a bit unclear if it is a good idea, but it is required for
+    # the SPE1 test case.
+    return get_1d_interpolator(p, r, cap_end = false)
 end
 
 pvt_table_vectors(pvt::PVTGTable) = (pvt.rv, pvt.pressure, pvt.sat_rv, pvt.pos)
