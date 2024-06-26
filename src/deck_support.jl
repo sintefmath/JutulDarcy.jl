@@ -1,22 +1,25 @@
-@jutul_secondary function update_deck_viscosity!(mu, μ::DeckPhaseViscosities, model, Pressure, ix)
-    pvt, reg = μ.pvt, μ.regions
-    @inbounds for i in ix
-        p = Pressure[i]
-        for ph in axes(mu, 1)
-            pvt_ph = pvt[ph]
-            @inbounds mu[ph, i] = viscosity(pvt_ph, reg, p, i)
+@jutul_secondary function update_deck_viscosity!(b, ρ::DeckPhaseViscosities, model, Pressure, ix)
+    pvt, reg = ρ.pvt, ρ.regions
+    # Note immiscible assumption
+    nph = number_of_phases(model.system)
+    for ph in 1:nph
+        pvt_ph = pvt[ph]
+        for i in ix
+            p = Pressure[i]
+            @inbounds b[ph, i] = viscosity(pvt_ph, reg, p, i)
         end
     end
 end
 
 @jutul_secondary function update_deck_viscosity!(mu, μ::DeckPhaseViscosities{<:Any, Ttab, <:Any}, model, Pressure, Temperature, ix) where Ttab<:DeckThermalViscosityTable
     pvt, reg = μ.pvt, μ.regions
-    for i in ix
-        r_i = region(μ, i)
-        p = Pressure[i]
-        T = Temperature[i]
-        for ph in axes(mu, 1)
-            pvt_ph = pvt[ph]
+    nph = number_of_phases(model.system)
+    for ph in 1:nph
+        pvt_ph = pvt[ph]
+        for i in ix
+            r_i = region(μ, i)
+            p = Pressure[i]
+            T = Temperature[i]
             pvt_thermal = table_by_region(μ.thermal.visc_tab[ph], r_i)
             p_ref = table_by_region(μ.thermal.p_ref[ph], r_i)
             mu_thermal = pvt_thermal(T)
@@ -35,8 +38,9 @@ end
 @jutul_secondary function update_deck_density!(rho, ρ::DeckPhaseMassDensities, model, Pressure, ix)
     rhos = reference_densities(model.system)
     pvt, reg = ρ.pvt, ρ.regions
+    nph = number_of_phases(model.system)
     # Note immiscible assumption
-    @inbounds for ph in axes(rho, 1)
+    @inbounds for ph in 1:nph
         rhos_ph = rhos[ph]
         pvt_ph = pvt[ph]
         @inbounds for i in ix
