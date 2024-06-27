@@ -451,7 +451,7 @@ function parse_state0_equil(model, datafile; normalize = :sum)
                     num_renormalized = 0
                     for row in 1:size(ztab, 1)
                         mf_i = Sz(ztab[row, 2:end])
-                        if maximum(mf_i) > 1.0 || minimum(mf) < 0 || !(sum(mf_i) ≈ 1.0)
+                        if maximum(mf_i) > 1.0 || minimum(mf_i) < 0 || !(sum(mf_i) ≈ 1.0)
                             num_renormalized += 1
                         end
                         if normalize == :sum || normalize == true
