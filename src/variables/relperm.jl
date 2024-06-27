@@ -512,7 +512,7 @@ Base.@propagate_inbounds @inline function update_oilwater_phase_relperm!(kr, rel
     Krw, Krow = two_phase_relperm(relperm, c, sw, so, krw, krow, swcon, scalers)
 
     kr[w, c] = Krw
-    kr[o, c] = Kro
+    kr[o, c] = Krow
 end
 
 function get_kr_scalers(kr::PhaseRelativePermeability)
@@ -596,7 +596,7 @@ function two_phase_scaling(scaling, krw, krn, sw, sn, swcon, scaler_w, scaler_n,
     u_n = 1.0 - l_w
 
     Krw = relperm_scaling(scaling, krw, sw, cr_w, CR_w, u_w, U_w, km_w, KM_w, r_w, R_w)
-    Krn = relperm_scaling(scaling, krow, sn, cr_n, CR_n, u_n, U_n, km_n, KM_n, r_n, R_n)
+    Krn = relperm_scaling(scaling, krn, sn, cr_n, CR_n, u_n, U_n, km_n, KM_n, r_n, R_n)
 
     return (Krw, Krn)
 end
