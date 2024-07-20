@@ -3,7 +3,7 @@
 ## General
 
 ```@docs
-FluidVolume
+JutulDarcy.FluidVolume
 ```
 
 ## Reservoir parameters
@@ -15,20 +15,20 @@ JutulDarcy.Transmissibilities
 ```
 
 ```@docs
-reservoir_transmissibility
+JutulDarcy.reservoir_transmissibility
 ```
 
 ### Other
 
 ```@docs
-TwoPointGravityDifference
-ConnateWater
-EndPointScalingCoefficients
+JutulDarcy.TwoPointGravityDifference
+JutulDarcy.ConnateWater
+JutulDarcy.EndPointScalingCoefficients
 ```
 
 ## Well parameters
 
 ```@docs
-WellIndices
-PerforationGravityDifference
+JutulDarcy.WellIndices
+JutulDarcy.PerforationGravityDifference
 ```
