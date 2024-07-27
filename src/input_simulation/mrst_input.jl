@@ -396,7 +396,7 @@ function deck_relperm(runspec, props; oil, water, gas, satnum = nothing)
         KROG = []
         if haskey(props, "SWOF") && haskey(props, "SGOF")
             for (swof, sgof) in zip(props["SWOF"], props["SGOF"])
-                krw, krow = table_to_relperm(swof, first_label = :o, second_label = :ow)
+                krw, krow = table_to_relperm(swof, first_label = :w, second_label = :ow)
                 swcon = krw.connate
                 krg, krog = table_to_relperm(sgof, swcon = swcon, first_label = :g, second_label = :og)
 
