@@ -21,13 +21,20 @@ function saturation_table_handle_defaults(s, f)
 end
 
 function add_missing_endpoints(s, kr)
+    copied = false
     if s[1] > 0.0
+        copied = true
         s = vcat(0.0, s)
         kr = vcat(0.0, kr)
     end
     if s[end] < 1.0
+        copied = true
         s = vcat(s, 1.0)
         kr = vcat(kr, kr[end])
+    end
+    if !copied
+        s = copy(s)
+        kr = copy(kr)
     end
     return (s, kr)
 end
