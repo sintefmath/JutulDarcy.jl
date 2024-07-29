@@ -48,6 +48,34 @@ end
 
 scaling_type(::AbstractRelativePermeabilities) = NoKrScale
 
+function add_scaling_parameters!(model::MultiModel)
+    add_scaling_parameters!(reservoir_model(model))
+end
+
+function add_scaling_parameters!(model::SimulationModel)
+    add_scaling_parameters!(model.parameters, model[:RelativePermeabilities])
+end
+
+function add_scaling_parameters!(param, kr::AbstractRelativePermeabilities)
+    if scaling_type(kr) != NoKrScale
+        ph = kr.phases
+        has_phase(x) = occursin("$x", "$ph")
+        if has_phase(:w)
+            param[:RelPermScalingW] = EndPointScalingCoefficients(:w)
+        end
+        if has_phase(:wo)
+            param[:RelPermScalingOW] = EndPointScalingCoefficients(:ow)
+        end
+        if has_phase(:og)
+            param[:RelPermScalingOG] = EndPointScalingCoefficients(:og)
+        end
+        if has_phase(:g)
+            param[:RelPermScalingG] = EndPointScalingCoefficients(:g)
+        end
+    end
+    return param
+end
+
 function get_kr_scalers(kr::PhaseRelativePermeability)
     return (kr.connate, kr.critical, kr.s_max, kr.k_max)
 end

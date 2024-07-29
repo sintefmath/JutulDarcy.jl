@@ -781,22 +781,7 @@ end
 function set_deck_relperm!(vars, param, sys, runspec,  props; kwarg...)
     kr = deck_relperm(runspec, props; kwarg...)
     vars[:RelativePermeabilities] = wrap_reservoir_variable(sys, kr, :flow)
-    if scaling_type(kr) != NoKrScale
-        ph = kr.phases
-        has_phase(x) = occursin("$x", "$ph")
-        if has_phase(:w)
-            param[:RelPermScalingW] = EndPointScalingCoefficients(:w)
-        end
-        if has_phase(:wo)
-            param[:RelPermScalingOW] = EndPointScalingCoefficients(:ow)
-        end
-        if has_phase(:og)
-            param[:RelPermScalingOG] = EndPointScalingCoefficients(:og)
-        end
-        if has_phase(:g)
-            param[:RelPermScalingG] = EndPointScalingCoefficients(:g)
-        end
-    end
+    add_scaling_parameters!(param, kr)
 end
 
 function set_deck_pvmult!(vars, param, sys, props, reservoir)
