@@ -1,4 +1,4 @@
-struct ReservoirRelativePermeabilities{Scaling, ph, O, OW, OG, G, R} <: AbstractRelativePermeabilities
+struct ReservoirRelativePermeabilities{Scaling, ph, O, OW, OG, G, R, H} <: AbstractRelativePermeabilities
     "Water relative permeability as a function of water saturation: ``k_{rw}(S_w)``"
     krw::O
     "Oil relative permeability (in the presence of water) as a function of oil saturation: ``k_{row}(S_o)``"
@@ -11,6 +11,8 @@ struct ReservoirRelativePermeabilities{Scaling, ph, O, OW, OG, G, R} <: Abstract
     regions::R
     "Symbol designating the type of system, :wog for three-phase, :og for oil-gas, :wg for water-gas, etc."
     phases::Symbol
+    "Hysteresis model for each phase"
+    hysteresis::H
 end
 
 
@@ -27,7 +29,17 @@ phase pair relative permeabilites for the oil phase.
 
 $FIELDS
 """
-function ReservoirRelativePermeabilities(; w = nothing, g = nothing, ow = nothing, og = nothing, scaling = NoKrScale, regions = nothing)
+function ReservoirRelativePermeabilities(;
+        w = nothing,
+        g = nothing,
+        ow = nothing,
+        og = nothing,
+        scaling = NoKrScale,
+        regions = nothing,
+        hysteresis_w = NoHysteresis(),
+        hysteresis_o = NoHysteresis(),
+        hysteresis_g = NoHysteresis()
+    )
     has_w = !isnothing(w)
     has_g = !isnothing(g)
     has_og = !isnothing(og)
@@ -36,19 +48,24 @@ function ReservoirRelativePermeabilities(; w = nothing, g = nothing, ow = nothin
     if has_w && has_g && has_o
         @assert has_ow && has_og
         phases = :wog
+        hyst = (hysteresis_w, hysteresis_o, hysteresis_g)
     elseif has_w
         if has_g
             phases = :wg
+            hyst = (hysteresis_w, hysteresis_g)
         else
             @assert has_ow
             phases = :wo
+            hyst = (hysteresis_w, hysteresis_o)
         end
     elseif has_g
         if has_w
             phases = :wg
+            hyst = (hysteresis_w, hysteresis_g)
         else
             @assert has_og
             phases = :og
+            hyst = (hysteresis_o, hysteresis_g)
         end
     else
         error("ReservoirRelativePermeabilities only implements two-phase (WO, OG, WG) or three-phase (WOG)")
@@ -60,7 +77,7 @@ function ReservoirRelativePermeabilities(; w = nothing, g = nothing, ow = nothin
     krog = F(og)
     krg = F(g)
 
-    return ReservoirRelativePermeabilities{scaling, phases, typeof(krw), typeof(krow), typeof(krog), typeof(krg), typeof(regions)}(krw, krow, krog, krg, regions, phases)
+    return ReservoirRelativePermeabilities{scaling, phases, typeof(krw), typeof(krow), typeof(krog), typeof(krg), typeof(regions), typeof(hyst)}(krw, krow, krog, krg, regions, phases, hyst)
 end
 
 function Jutul.get_dependencies(kr::ReservoirRelativePermeabilities, model)
@@ -132,7 +149,6 @@ function update_secondary_variable!(kr, relperm::ReservoirRelativePermeabilities
                 w = state.RelPermScalingW,
                 ow = state.RelPermScalingOW
             )
-
             for c in ix
                 @inbounds update_oilwater_phase_relperm!(kr, relperm, phases, s, c, state.ConnateWater[c], scalers)
             end
