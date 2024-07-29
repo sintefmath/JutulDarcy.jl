@@ -231,6 +231,26 @@ end
     return kr
 end
 
+@jutul_secondary function update_kr_with_scaling!(kr, relperm::ReservoirRelativePermeabilities{<:Any, :wg}, model, Saturations, RelPermScalingW, RelPermScalingG, ConnateWater, ix)
+    s = Saturations
+    phases = phase_indices(model.system)
+    scalers = (w = RelPermScalingW, g = RelPermScalingG)
+    for c in ix
+        @inbounds update_gaswater_phase_relperm!(kr, relperm, phases, s, c, ConnateWater[c], scalers)
+    end
+    return kr
+end
+
+@jutul_secondary function update_kr_with_scaling!(kr, relperm::ReservoirRelativePermeabilities{<:Any, :og}, model, Saturations, RelPermScalingOG, RelPermScalingG, ix)
+    s = Saturations
+    phases = phase_indices(model.system)
+    scalers = (og = RelPermScalingOG, g = RelPermScalingG)
+    for c in ix
+        @inbounds update_oilgas_phase_relperm!(kr, relperm, phases, s, c, scalers)
+    end
+    return kr
+end
+
 Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relperm, phase_ind, s, c, swcon, scalers)
     w, o, g = phase_ind
     reg = region(relperm.regions, c)
@@ -264,6 +284,36 @@ Base.@propagate_inbounds @inline function update_oilwater_phase_relperm!(kr, rel
 
     kr[w, c] = Krw
     kr[o, c] = Krow
+end
+
+Base.@propagate_inbounds @inline function update_gaswater_phase_relperm!(kr, relperm, phase_ind, s, c, swcon, scalers)
+    w, g = phase_ind
+    reg = region(relperm.regions, c)
+    krw = table_by_region(relperm.krw, reg)
+    krg = table_by_region(relperm.krg, reg)
+
+    sw = s[w, c]
+    sg = s[g, c]
+
+    Krw, Krg = two_phase_relperm(relperm, c, sw, sg, krw, krg, swcon, scalers)
+
+    kr[w, c] = Krw
+    kr[g, c] = Krg
+end
+
+Base.@propagate_inbounds @inline function update_oilgas_phase_relperm!(kr, relperm, phase_ind, s, c, scalers)
+    o, g = phase_ind
+    reg = region(relperm.regions, c)
+    krog = table_by_region(relperm.krog, reg)
+    krg = table_by_region(relperm.krg, reg)
+
+    so = s[o, c]
+    sg = s[g, c]
+
+    Krog, Krg = two_phase_relperm(relperm, c, so, sg, krog, krg, missing, scalers)
+
+    kr[o, c] = Krog
+    kr[g, c] = Krg
 end
 
 
