@@ -63,6 +63,101 @@ function ReservoirRelativePermeabilities(; w = nothing, g = nothing, ow = nothin
     return ReservoirRelativePermeabilities{scaling, phases, typeof(krw), typeof(krow), typeof(krog), typeof(krg), typeof(regions)}(krw, krow, krog, krg, regions, phases)
 end
 
+function Jutul.get_dependencies(kr::ReservoirRelativePermeabilities, model)
+    scaling = scaling_type(kr)
+    deps = Symbol[:Saturations]
+    phases = get_phases(model.system)
+    has_scaling = scaling != NoKrScale
+    has_water = AqueousPhase() in phases
+    has_oil = LiquidPhase() in phases
+    has_gas = VaporPhase() in phases
+
+    if has_water && (length(phases) > 2 || has_scaling)
+        push!(deps, :ConnateWater)
+    end
+    if has_scaling
+        if has_water
+            push!(deps, :RelPermScalingW)
+            if has_oil
+                push!(deps, :RelPermScalingOW)
+            end
+        end
+        if has_gas
+            push!(deps, :RelPermScalingG)
+            if has_oil
+                push!(deps, :RelPermScalingOG)
+            end
+        end
+    end
+    out = tuple(deps...)
+    return out
+end
+
+function update_secondary_variable!(kr, relperm::ReservoirRelativePermeabilities{scaling_t, ph}, model, state, ix = entity_eachindex(kr)) where {scaling_t, ph}
+    s = state.Saturations
+    regions = relperm.regions
+    phases = phase_indices(model.system)
+    if scaling_t == NoKrScale
+        if ph == :wog
+            for c in ix
+                @inbounds update_three_phase_relperm!(kr, relperm, phases, s, c, state.ConnateWater[c], nothing)
+            end
+        elseif ph == :wo
+            for c in ix
+                @inbounds two_phase_relperm!(kr, s, regions, relperm.krw, relperm.krow, phases, c)
+            end
+        elseif ph == :og
+            for c in ix
+                @inbounds two_phase_relperm!(kr, s, regions, relperm.krg, relperm.krog, reverse(phases), c)
+            end
+        else
+            @assert ph == :wg
+            for c in ix
+                @inbounds two_phase_relperm!(kr, s, regions, relperm.krw, relperm.krg, phases, c)
+            end
+        end
+    else
+        if ph == :wog
+            scalers = (
+                w = state.RelPermScalingW,
+                ow = state.RelPermScalingOW,
+                og = state.RelPermScalingOG,
+                g = state.RelPermScalingG
+            )
+            for c in ix
+                @inbounds update_three_phase_relperm!(kr, relperm, phases, s, c, state.ConnateWater[c], scalers)
+            end
+        elseif ph == :wo
+            scalers = (
+                w = state.RelPermScalingW,
+                ow = state.RelPermScalingOW
+            )
+
+            for c in ix
+                @inbounds update_oilwater_phase_relperm!(kr, relperm, phases, s, c, state.ConnateWater[c], scalers)
+            end
+        elseif ph == :og
+            scalers = (
+                og = state.RelPermScalingOG,
+                g = state.RelPermScalingG
+                )
+            for c in ix
+                @inbounds update_oilgas_phase_relperm!(kr, relperm, phases, s, c, scalers)
+            end
+        else
+            @assert ph == :wg
+            scalers = (
+                w = state.RelPermScalingW,
+                g = state.RelPermScalingG
+            )
+            for c in ix
+                @inbounds update_gaswater_phase_relperm!(kr, relperm, phases, s, c, state.ConnateWater[c], scalers)
+            end
+        end
+    end
+    return kr
+end
+
 function Base.getindex(m::ReservoirRelativePermeabilities, s::Symbol)
     if s == :w
         return m.krw
@@ -135,7 +230,6 @@ function Base.show(io::IO, t::MIME"text/plain", kr::ReservoirRelativePermeabilit
     println(io, "  functions:")
     for f in [:krw, :krow, :krog, :krg]
         k = getfield(kr, f)
-        # @info k
         if isnothing(k)
             s = "(not defined)"
         else
@@ -149,48 +243,6 @@ function Base.show(io::IO, t::MIME"text/plain", kr::ReservoirRelativePermeabilit
         println(io, "\n  regions: $(unique(kr.regions)...).")
     end
     println(io, "\n  scaling: $(scaling_type(kr))")
-end
-
-@jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeabilities{NoKrScale, :wog}, model, Saturations, ConnateWater, ix)
-    return evaluate_relative_permeability_no_scaling!(kr, relperm, model, Saturations, ix, ConnateWater)
-end
-
-@jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeabilities{NoKrScale, :wo}, model, Saturations, ix)
-    return evaluate_relative_permeability_no_scaling!(kr, relperm, model, Saturations, ix)
-end
-
-@jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeabilities{NoKrScale, :og}, model, Saturations, ix)
-    return evaluate_relative_permeability_no_scaling!(kr, relperm, model, Saturations, ix)
-end
-
-@jutul_secondary function update_kr!(kr, relperm::ReservoirRelativePermeabilities{NoKrScale, :wg}, model, Saturations, ix)
-    return evaluate_relative_permeability_no_scaling!(kr, relperm, model, Saturations, ix)
-end
-
-function evaluate_relative_permeability_no_scaling!(kr, relperm::ReservoirRelativePermeabilities{<:Any, ph}, model, Saturations, ix, ConnateWater = missing) where ph
-    s = Saturations
-    regions = relperm.regions
-    phases = phase_indices(model.system)
-    if ph == :wog
-        @assert !ismissing(ConnateWater)
-        for c in ix
-            @inbounds update_three_phase_relperm!(kr, relperm, phases, s, c, ConnateWater[c], nothing)
-        end
-    elseif ph == :wo
-        for c in ix
-            @inbounds two_phase_relperm!(kr, s, regions, relperm.krw, relperm.krow, phases, c)
-        end
-    elseif ph == :og
-        for c in ix
-            @inbounds two_phase_relperm!(kr, s, regions, relperm.krg, relperm.krog, reverse(phases), c)
-        end
-    else
-        @assert ph == :wg
-        for c in ix
-            @inbounds two_phase_relperm!(kr, s, regions, relperm.krw, relperm.krg, phases, c)
-        end
-    end
-    return kr
 end
 
 Base.@propagate_inbounds @inline function three_phase_oil_relperm(Krow, Krog, swcon, sg, sw)
@@ -209,46 +261,6 @@ Base.@propagate_inbounds function two_phase_relperm!(kr, s, regions, Kr_1, Kr_2,
 
     kr[i1, c] = evaluate_table_by_region(Kr_1, reg, sw)
     kr[i2, c] = evaluate_table_by_region(Kr_2, reg, sg)
-end
-
-@jutul_secondary function update_kr_with_scaling!(kr, relperm::ReservoirRelativePermeabilities{<:Any, :wog}, model, Saturations, RelPermScalingW, RelPermScalingOW, RelPermScalingOG, RelPermScalingG, ConnateWater, ix)
-    s = Saturations
-    phases = phase_indices(model.system)
-    scalers = (w = RelPermScalingW, ow = RelPermScalingOW, og = RelPermScalingOG, g = RelPermScalingG)
-    for c in ix
-        @inbounds update_three_phase_relperm!(kr, relperm, phases, s, c, ConnateWater[c], scalers)
-    end
-    return kr
-end
-
-@jutul_secondary function update_kr_with_scaling!(kr, relperm::ReservoirRelativePermeabilities{<:Any, :wo}, model, Saturations, RelPermScalingW, RelPermScalingOW, ConnateWater, ix)
-    s = Saturations
-    phases = phase_indices(model.system)
-    scalers = (w = RelPermScalingW, ow = RelPermScalingOW)
-    for c in ix
-        @inbounds update_oilwater_phase_relperm!(kr, relperm, phases, s, c, ConnateWater[c], scalers)
-    end
-    return kr
-end
-
-@jutul_secondary function update_kr_with_scaling!(kr, relperm::ReservoirRelativePermeabilities{<:Any, :wg}, model, Saturations, RelPermScalingW, RelPermScalingG, ConnateWater, ix)
-    s = Saturations
-    phases = phase_indices(model.system)
-    scalers = (w = RelPermScalingW, g = RelPermScalingG)
-    for c in ix
-        @inbounds update_gaswater_phase_relperm!(kr, relperm, phases, s, c, ConnateWater[c], scalers)
-    end
-    return kr
-end
-
-@jutul_secondary function update_kr_with_scaling!(kr, relperm::ReservoirRelativePermeabilities{<:Any, :og}, model, Saturations, RelPermScalingOG, RelPermScalingG, ix)
-    s = Saturations
-    phases = phase_indices(model.system)
-    scalers = (og = RelPermScalingOG, g = RelPermScalingG)
-    for c in ix
-        @inbounds update_oilgas_phase_relperm!(kr, relperm, phases, s, c, scalers)
-    end
-    return kr
 end
 
 Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relperm, phase_ind, s, c, swcon, scalers)
