@@ -124,12 +124,15 @@ end
 function endpoint_scaling_model(::AbstractRelativePermeabilities)
     return NoKrScale()
 end
+
 function endpoint_scaling_is_active(x::AbstractRelativePermeabilities)
     return endpoint_scaling_is_active(endpoint_scaling_model(x))
 end
+
 function endpoint_scaling_is_active(x::AbstractKrScale)
     return true
 end
+
 function endpoint_scaling_is_active(x::NoKrScale)
     return false
 end
@@ -209,4 +212,43 @@ function two_point_saturation_scaling(s::T, cr, CR, u, U) where T<:Real
         S = one(T)
     end
     return S
+end
+
+
+function get_endpoint_scalers(state, scaling::NoKrScale, ph)
+    return nothing
+end
+
+function get_endpoint_scalers(state, scaling::Union{TwoPointKrScale, ThreePointKrScale}, ::Val{:wog})
+    scalers = (
+        w = state.RelPermScalingW,
+        ow = state.RelPermScalingOW,
+        og = state.RelPermScalingOG,
+        g = state.RelPermScalingG
+    )
+    return scalers
+end
+
+function get_endpoint_scalers(state, scaling::Union{TwoPointKrScale, ThreePointKrScale}, ::Val{:wo})
+    scalers = (
+        w = state.RelPermScalingW,
+        ow = state.RelPermScalingOW
+    )
+    return scalers
+end
+
+function get_endpoint_scalers(state, scaling::Union{TwoPointKrScale, ThreePointKrScale}, ::Val{:og})
+    scalers = (
+        og = state.RelPermScalingOG,
+        g = state.RelPermScalingG
+        )
+    return scalers
+end
+
+function get_endpoint_scalers(state, scaling::Union{TwoPointKrScale, ThreePointKrScale}, ::Val{:wg})
+    scalers = (
+        w = state.RelPermScalingW,
+        g = state.RelPermScalingG
+    )
+    return scalers
 end

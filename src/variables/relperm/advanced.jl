@@ -132,61 +132,22 @@ function update_secondary_variable!(kr, relperm::ReservoirRelativePermeabilities
     s = state.Saturations
     regions = relperm.regions
     phases = phase_indices(model.system)
-    if !endpoint_scaling_is_active(relperm)
-        if ph == :wog
-            for c in ix
-                @inbounds update_three_phase_relperm!(kr, relperm, phases, s, c, state.ConnateWater[c], nothing)
-            end
-        elseif ph == :wo
-            for c in ix
-                @inbounds two_phase_relperm!(kr, s, regions, relperm.krw, relperm.krow, phases, c)
-            end
-        elseif ph == :og
-            for c in ix
-                @inbounds two_phase_relperm!(kr, s, regions, relperm.krg, relperm.krog, reverse(phases), c)
-            end
-        else
-            @assert ph == :wg
-            for c in ix
-                @inbounds two_phase_relperm!(kr, s, regions, relperm.krw, relperm.krg, phases, c)
-            end
+    scalers = get_endpoint_scalers(state, endpoint_scaling_model(relperm), Val(ph))
+    if ph == :wog
+        for c in ix
+            @inbounds update_three_phase_relperm!(kr, relperm, phases, s, c, state.ConnateWater[c], scalers)
         end
     else
-        if ph == :wog
-            scalers = (
-                w = state.RelPermScalingW,
-                ow = state.RelPermScalingOW,
-                og = state.RelPermScalingOG,
-                g = state.RelPermScalingG
-            )
-            for c in ix
-                @inbounds update_three_phase_relperm!(kr, relperm, phases, s, c, state.ConnateWater[c], scalers)
-            end
-        elseif ph == :wo
-            scalers = (
-                w = state.RelPermScalingW,
-                ow = state.RelPermScalingOW
-            )
-            for c in ix
-                @inbounds update_oilwater_phase_relperm!(kr, relperm, phases, s, c, state.ConnateWater[c], scalers)
-            end
+        if ph == :wo
+            kr1, kr2 = relperm.krw, relperm.krow
         elseif ph == :og
-            scalers = (
-                og = state.RelPermScalingOG,
-                g = state.RelPermScalingG
-                )
-            for c in ix
-                @inbounds update_oilgas_phase_relperm!(kr, relperm, phases, s, c, scalers)
-            end
+            kr1, kr2 = relperm.krog, relperm.krg
         else
             @assert ph == :wg
-            scalers = (
-                w = state.RelPermScalingW,
-                g = state.RelPermScalingG
-            )
-            for c in ix
-                @inbounds update_gaswater_phase_relperm!(kr, relperm, phases, s, c, state.ConnateWater[c], scalers)
-            end
+            kr1, kr2 = relperm.krw, relperm.krg
+        end
+        for c in ix
+            @inbounds update_two_phase_relperm!(kr, relperm, kr1, kr2, phases, s, c, scalers)
         end
     end
     return kr
@@ -307,74 +268,47 @@ Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relper
     krog = table_by_region(relperm.krog, reg)
     krow = table_by_region(relperm.krow, reg)
 
+    if !isnothing(scalers)
+        swcon = scalers.w[1, c]
+    end
+    Krw, Krow, Krog, Krg = get_three_phase_relperms(relperm, c, krw, krow, krog, krg, swcon, scalers)
+
     sw = s[w, c]
     so = s[o, c]
     sg = s[g, c]
 
-    Krw, Krow, Krog, Krg, swcon = three_phase_relperm(relperm, c, sw, so, sg, krw, krow, krog, krg, swcon, scalers)
 
     kr[w, c] = Krw(sw)
     kr[o, c] = three_phase_oil_relperm(Krow(so), Krog(so), swcon, sg, sw)
     kr[g, c] = Krg(sg)
 end
 
-Base.@propagate_inbounds @inline function update_oilwater_phase_relperm!(kr, relperm, phase_ind, s, c, swcon, scalers)
-    w, o = phase_ind
+Base.@propagate_inbounds @inline function update_two_phase_relperm!(kr, relperm, krw, krn, phase_ind, s, c, scalers)
+    w, n = phase_ind
     reg = region(relperm.regions, c)
-    krw = table_by_region(relperm.krw, reg)
-    krow = table_by_region(relperm.krow, reg)
+    krw = table_by_region(krw, reg)
+    krn = table_by_region(krn, reg)
+
+    Krw, Krow = get_two_phase_relperms(relperm, c, krw, krn, scalers)
 
     sw = s[w, c]
-    so = s[o, c]
+    sn = s[n, c]
 
-    Krw, Krow = two_phase_relperm(relperm, c, sw, so, krw, krow, swcon, scalers)
-
-    kr[w, c] = Krw
-    kr[o, c] = Krow
+    kr[w, c] = Krw(sw)
+    kr[n, c] = Krow(sn)
 end
 
-Base.@propagate_inbounds @inline function update_gaswater_phase_relperm!(kr, relperm, phase_ind, s, c, swcon, scalers)
-    w, g = phase_ind
-    reg = region(relperm.regions, c)
-    krw = table_by_region(relperm.krw, reg)
-    krg = table_by_region(relperm.krg, reg)
-
-    sw = s[w, c]
-    sg = s[g, c]
-
-    Krw, Krg = two_phase_relperm(relperm, c, sw, sg, krw, krg, swcon, scalers)
-
-    kr[w, c] = Krw
-    kr[g, c] = Krg
+@inline function get_three_phase_relperms(relperm, c, krw, krow, krog, krg, swcon, ::Nothing)
+    return (krw, krow, krog, krg)
 end
 
-Base.@propagate_inbounds @inline function update_oilgas_phase_relperm!(kr, relperm, phase_ind, s, c, scalers)
-    o, g = phase_ind
-    reg = region(relperm.regions, c)
-    krog = table_by_region(relperm.krog, reg)
-    krg = table_by_region(relperm.krg, reg)
-
-    so = s[o, c]
-    sg = s[g, c]
-
-    Krog, Krg = two_phase_relperm(relperm, c, so, sg, krog, krg, missing, scalers)
-
-    kr[o, c] = Krog
-    kr[g, c] = Krg
-end
-
-
-@inline function three_phase_relperm(relperm, c, sw, so, sg, krw, krow, krog, krg, swcon, ::Nothing)
-    return (krw, krow, krog, krg, swcon)
-end
-
-function three_phase_relperm(relperm, c, sw, so, sg, krw, krow, krog, krg, swcon, scalers)
+function get_three_phase_relperms(relperm, c, krw, krow, krog, krg, swcon, scalers)
     scaler_w, scaler_ow, scaler_og, scaler_g = scalers
     scaling = endpoint_scaling_model(relperm)
-    return three_phase_scaling(scaling, krw, krow, krog, krg, sw, so, sg, swcon, scaler_w, scaler_ow, scaler_og, scaler_g, c)
+    return get_three_phase_scaled_relperms(scaling, krw, krow, krog, krg, swcon, scaler_w, scaler_ow, scaler_og, scaler_g, c)
 end
 
-function three_phase_scaling(scaling, krw, krow, krog, krg, sw, so, sg, swcon, scaler_w, scaler_ow, scaler_og, scaler_g, c)
+function get_three_phase_scaled_relperms(scaling, krw, krow, krog, krg, swcon, scaler_w, scaler_ow, scaler_og, scaler_g, c)
     L_w, CR_w, U_w, KM_w = get_kr_scalers(scaler_w, c)
     L_ow, CR_ow, U_ow, KM_ow = get_kr_scalers(scaler_ow, c)
     L_og, CR_og, U_og, KM_og = get_kr_scalers(scaler_og, c)
@@ -405,26 +339,25 @@ function three_phase_scaling(scaling, krw, krow, krog, krg, sw, so, sg, swcon, s
     U_og = 1.0 - L_g - L_w
     u_og = 1.0 - l_g - l_w
 
-    # Krw = relperm_scaling(scaling, krw, sw, cr_w, CR_w, u_w, U_w, km_w, KM_w, r_w, R_w)
-    # Krow = relperm_scaling(scaling, krow, so, cr_ow, CR_ow, u_ow, U_ow, km_ow, KM_ow, r_ow, R_ow)
-    # Krog = relperm_scaling(scaling, krog, so, cr_og, CR_og, u_og, U_og, km_og, KM_og, r_og, R_og)
-    # Krg = relperm_scaling(scaling, krg, sg, cr_g, CR_g, u_g, U_g, km_g, KM_g, r_g, R_g)
-
     Krw = ScaledPhaseRelativePermeability(krw, scaling, connate = L_w, critical = CR_w, k_max = KM_w, s_max = U_w, residual = R_w, residual_base = r_w)
     Krg = ScaledPhaseRelativePermeability(krg, scaling, connate = L_g, critical = CR_g, k_max = KM_g, s_max = U_g, residual = R_g, residual_base = r_g)
     Krow = ScaledPhaseRelativePermeability(krow, scaling, connate = L_ow, critical = CR_ow, k_max = KM_ow, s_max = U_ow, residual = R_ow, residual_base = r_ow)
     Krog = ScaledPhaseRelativePermeability(krog, scaling, connate = L_og, critical = CR_og, k_max = KM_og, s_max = U_og, residual = R_og, residual_base = r_og)
 
-    return (Krw, Krow, Krog, Krg, L_w)
+    return (Krw, Krow, Krog, Krg)
 end
 
-function two_phase_relperm(relperm, c, sw, so, krw, krow, swcon, scalers)
+function get_two_phase_relperms(relperm, c, krw, krow, scalers::Nothing)
+    return (krw, krow)
+end
+
+function get_two_phase_relperms(relperm, c, krw, krow, scalers)
     scaler_w, scaler_ow = scalers
     scaling = endpoint_scaling_model(relperm)
-    return two_phase_scaling(scaling, krw, krow, sw, so, swcon, scaler_w, scaler_ow, c)
+    return get_two_phase_scaled_relperms(scaling, krw, krow, scaler_w, scaler_ow, c)
 end
 
-function two_phase_scaling(scaling, krw, krn, sw, sn, swcon, scaler_w, scaler_n, c)
+function get_two_phase_scaled_relperms(scaling, krw, krn, scaler_w, scaler_n, c)
     L_n, CR_n, U_n, KM_n = get_kr_scalers(scaler_n, c)
     l_n, cr_n, u_n, km_n = get_kr_scalers(krn)
 
@@ -440,8 +373,8 @@ function two_phase_scaling(scaling, krw, krn, sw, sn, swcon, scaler_w, scaler_n,
     U_n = 1.0 - L_w
     u_n = 1.0 - l_w
 
-    Krw = relperm_scaling(scaling, krw, sw, cr_w, CR_w, u_w, U_w, km_w, KM_w, r_w, R_w)
-    Krn = relperm_scaling(scaling, krn, sn, cr_n, CR_n, u_n, U_n, km_n, KM_n, r_n, R_n)
+    Krw = ScaledPhaseRelativePermeability(krw, scaling, connate = L_w, critical = CR_w, k_max = KM_w, s_max = U_w, residual = R_w, residual_base = r_w)
+    Krn = ScaledPhaseRelativePermeability(krn, scaling, connate = L_n, critical = CR_n, k_max = KM_n, s_max = U_n, residual = R_n, residual_base = r_n)
 
     return (Krw, Krn)
 end
