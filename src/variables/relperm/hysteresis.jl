@@ -10,7 +10,11 @@ struct JargonHysteresis <: AbstractHysteresis end
 
 struct NoHysteresis <: AbstractHysteresis end
 
-##
+
+function hysteresis_is_active(x::AbstractRelativePermeabilities)
+    return false
+end
+
 function kr_hysteresis(t, drain, imb, s, s_max)
     if s > s_max
         kr = drain(s)
@@ -22,6 +26,7 @@ end
 
 function hysteresis_impl(t::CarlsonHysteresis, drain, imb, s, s_max)
     kr_at_max = drain.k(s_max)
+    # TODO: Generalize this for endscale
     s_meet = Jutul.linear_interp(imb.k.F, imb.k.X, kr_at_max)
     s_shifted = s + s_meet - s_max
     return imb.k(s_shifted)

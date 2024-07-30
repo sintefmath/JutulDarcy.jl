@@ -171,6 +171,10 @@ function endpoint_scaling_model(x::ReservoirRelativePermeabilities)
     return x.scaling
 end
 
+function hysteresis_is_active(x::ReservoirRelativePermeabilities)
+    return !(kr.hysteresis isa NTuple{<:Any, JutulDarcy.NoHysteresis})
+end
+
 function Jutul.line_plot_data(model::SimulationModel, k::ReservoirRelativePermeabilities)
     s = collect(0:0.01:1)
     has_reg = !isnothing(k.regions)
