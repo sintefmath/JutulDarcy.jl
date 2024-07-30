@@ -194,7 +194,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
                 swcon[cells] .= s_min[1]
             end
             for c in cells
-                update_three_phase_relperm!(kr, relperm, phase_ind, s_eval, c, swcon[c], nothing)
+                update_three_phase_relperm!(kr, relperm, phase_ind, s_eval, nothing, c, swcon[c], nothing, nothing)
             end
         else
             ph = relperm.phases
@@ -207,7 +207,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
                 kr1, kr2 = relperm.krw, relperm.krg
             end
             for c in cells
-                update_two_phase_relperm!(kr, relperm, kr1, kr2, phase_ind, s_eval, c, nothing)
+                update_two_phase_relperm!(kr, relperm, kr1, kr2, phase_ind, s_eval, nothing, c, nothing, nothing)
             end
         end
         kr = kr[:, cells]
