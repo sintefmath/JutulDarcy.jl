@@ -116,14 +116,26 @@ function Jutul.get_dependencies(kr::ReservoirRelativePermeabilities, model)
     if has_scaling
         if has_water
             push!(deps, :RelPermScalingW)
+            if has_hyst
+                push!(deps, :RelPermScalingWi)
+            end
             if has_oil
                 push!(deps, :RelPermScalingOW)
+                if has_hyst
+                    push!(deps, :RelPermScalingOWi)
+                end
             end
         end
         if has_gas
             push!(deps, :RelPermScalingG)
+            if has_hyst
+                push!(deps, :RelPermScalingGi)
+            end
             if has_oil
                 push!(deps, :RelPermScalingOG)
+                if has_hyst
+                    push!(deps, :RelPermScalingOGi)
+                end
             end
         end
     end
@@ -311,9 +323,8 @@ Base.@propagate_inbounds @inline function update_two_phase_relperm!(kr, relperm,
         sn_max = s_max[n, c]
 
         H = relperm.hysteresis
-        imb_reg = 2*reg
-        krwi = table_by_region(krw, imb_reg)
-        krni = table_by_region(krn, imb_reg)
+        krwi = imbibition_table_by_region(krw, reg)
+        krni = imbibition_table_by_region(krn, reg)
         Krwi, Krni = get_two_phase_relperms(relperm, c, krwi, krni, scalersi)
 
         val_w = kr_hysteresis(H[w], krwd, krwi, sw, sw_max)
@@ -324,6 +335,16 @@ Base.@propagate_inbounds @inline function update_two_phase_relperm!(kr, relperm,
     end
     kr[w, c] = val_w
     kr[n, c] = val_n
+end
+
+function imbibition_table_by_region(f, reg)
+    if length(f) == 1
+        @assert reg == 1
+        ix = 1
+    else
+        ix = reg + (length(f) ÷ 2)
+    end
+    return f[ix]
 end
 
 @inline function get_three_phase_relperms(relperm, c, krw, krow, krog, krg, swcon, ::Nothing)

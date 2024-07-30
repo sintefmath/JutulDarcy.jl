@@ -76,16 +76,21 @@ function (kr::ScaledPhaseRelativePermeability{T, N, S})(s) where {T, N, S<:Three
 end
 
 struct EndPointScalingCoefficients{phases} <: VectorVariables
+    drainage::Bool
 end
 
-function EndPointScalingCoefficients(phases::Symbol)
-    return EndPointScalingCoefficients{phases}()
+function EndPointScalingCoefficients(phases::Symbol; drainage = true)
+    return EndPointScalingCoefficients{phases}(drainage)
 end
 
 Jutul.degrees_of_freedom_per_entity(model, ::EndPointScalingCoefficients) = 4
 
 function Jutul.default_values(model, scalers::EndPointScalingCoefficients{P}) where P
-    k = Symbol("scaler_$(P)_drainage")
+    if scalers.drainage
+        k = Symbol("scaler_$(P)_drainage")
+    else
+        k = Symbol("scaler_$(P)_imbibition")
+    end
     data_domain = model.data_domain
     nc = number_of_cells(data_domain)
     relperm = Jutul.get_variable(model, :RelativePermeabilities)
@@ -100,7 +105,11 @@ function Jutul.default_values(model, scalers::EndPointScalingCoefficients{P}) wh
     kscale = zeros(T, n, nc)
     for i in 1:nc
         reg = JutulDarcy.region(relperm.regions, i)
-        kr_i = JutulDarcy.table_by_region(kr, reg)
+        if scalers.drainage
+            kr_i = table_by_region(kr, reg)
+        else
+            kr_i = imbibition_table_by_region(kr, reg)
+        end
         (; connate, critical, s_max, k_max) = kr_i
         kscale[1, i] = connate
         kscale[2, i] = critical
@@ -149,20 +158,32 @@ end
 
 function add_scaling_parameters!(param, kr::AbstractRelativePermeabilities)
     if endpoint_scaling_is_active(kr)
-        @assert !hysteresis_is_active(kr) "Not implemented yet."
+        hyst = hysteresis_is_active(kr)
         ph = kr.phases
         has_phase(x) = occursin("$x", "$ph")
         if has_phase(:w)
-            param[:RelPermScalingW] = EndPointScalingCoefficients(:w)
+            param[:RelPermScalingW] = EndPointScalingCoefficients(:w, drainage = true)
+            if hyst
+                param[:RelPermScalingWi] = EndPointScalingCoefficients(:w, drainage = false)
+            end
         end
         if has_phase(:wo)
-            param[:RelPermScalingOW] = EndPointScalingCoefficients(:ow)
+            param[:RelPermScalingOW] = EndPointScalingCoefficients(:ow, drainage = true)
+            if hyst
+                param[:RelPermScalingOWi] = EndPointScalingCoefficients(:ow, drainage = false)
+            end
         end
         if has_phase(:og)
-            param[:RelPermScalingOG] = EndPointScalingCoefficients(:og)
+            param[:RelPermScalingOG] = EndPointScalingCoefficients(:og, drainage = true)
+            if hyst
+                param[:RelPermScalingOGi] = EndPointScalingCoefficients(:og, drainage = false)
+            end
         end
         if has_phase(:g)
-            param[:RelPermScalingG] = EndPointScalingCoefficients(:g)
+            param[:RelPermScalingG] = EndPointScalingCoefficients(:g, drainage = true)
+            if hyst
+                param[:RelPermScalingGi] = EndPointScalingCoefficients(:g, drainage = false)
+            end
         end
     end
     return param
@@ -223,36 +244,66 @@ function get_endpoint_scalers(state, scaling::NoKrScale, ph; drainage::Bool = tr
 end
 
 function get_endpoint_scalers(state, scaling::Union{TwoPointKrScale, ThreePointKrScale}, ::Val{:wog}; drainage::Bool = true)
-    scalers = (
-        w = state.RelPermScalingW,
-        ow = state.RelPermScalingOW,
-        og = state.RelPermScalingOG,
-        g = state.RelPermScalingG
-    )
+    if drainage
+        scalers = (
+            w = state.RelPermScalingW,
+            ow = state.RelPermScalingOW,
+            og = state.RelPermScalingOG,
+            g = state.RelPermScalingG
+        )
+    else
+        scalers = (
+            w = state.RelPermScalingWi,
+            ow = state.RelPermScalingOWi,
+            og = state.RelPermScalingOGi,
+            g = state.RelPermScalingGi
+        )
+    end
     return scalers
 end
 
 function get_endpoint_scalers(state, scaling::Union{TwoPointKrScale, ThreePointKrScale}, ::Val{:wo}; drainage::Bool = true)
-    scalers = (
-        w = state.RelPermScalingW,
-        ow = state.RelPermScalingOW
-    )
+    if drainage
+        scalers = (
+            w = state.RelPermScalingW,
+            ow = state.RelPermScalingOW
+        )
+    else
+        scalers = (
+            w = state.RelPermScalingWi,
+            ow = state.RelPermScalingOWi
+        )
+    end
     return scalers
 end
 
 function get_endpoint_scalers(state, scaling::Union{TwoPointKrScale, ThreePointKrScale}, ::Val{:og}; drainage::Bool = true)
-    scalers = (
-        og = state.RelPermScalingOG,
-        g = state.RelPermScalingG
+    if drainage
+        scalers = (
+            og = state.RelPermScalingOG,
+            g = state.RelPermScalingG
+            )
+    else
+        scalers = (
+            og = state.RelPermScalingOGi,
+            g = state.RelPermScalingGi
         )
+    end
     return scalers
 end
 
 function get_endpoint_scalers(state, scaling::Union{TwoPointKrScale, ThreePointKrScale}, ::Val{:wg}; drainage::Bool = true)
-    scalers = (
-        w = state.RelPermScalingW,
-        g = state.RelPermScalingG
-    )
+    if drainage
+        scalers = (
+            w = state.RelPermScalingW,
+            g = state.RelPermScalingG
+        )
+    else
+        scalers = (
+            w = state.RelPermScalingWi,
+            g = state.RelPermScalingGi
+        )
+    end
     return scalers
 end
 
