@@ -139,14 +139,17 @@ end
 
 function add_scaling_parameters!(model::MultiModel)
     add_scaling_parameters!(reservoir_model(model))
+    return model
 end
 
 function add_scaling_parameters!(model::SimulationModel)
     add_scaling_parameters!(model.parameters, model[:RelativePermeabilities])
+    return model
 end
 
 function add_scaling_parameters!(param, kr::AbstractRelativePermeabilities)
     if endpoint_scaling_is_active(kr)
+        @assert !hysteresis_is_active(kr) "Not implemented yet."
         ph = kr.phases
         has_phase(x) = occursin("$x", "$ph")
         if has_phase(:w)

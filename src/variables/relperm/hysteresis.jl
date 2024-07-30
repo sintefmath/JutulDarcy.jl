@@ -10,6 +10,19 @@ struct JargonHysteresis <: AbstractHysteresis end
 
 struct NoHysteresis <: AbstractHysteresis end
 
+struct MaxSaturations <: PhaseVariables end
+
+function Jutul.update_parameter_before_step!(s_max, ::MaxSaturations, storage, model, dt, forces)
+    s = storage.state.s
+    for i in eachindex(s_max, s)
+        s_prev = s_max[i]
+        s_now = s[i]
+        if s_now > s_prev
+            s_max[i] = replace_value(s_prev, s_now)
+        end
+    end
+    return s_max
+end
 
 function hysteresis_is_active(x::AbstractRelativePermeabilities)
     return false
@@ -53,4 +66,21 @@ function hysteresis_impl(h_model::JargonHysteresis, drain, imb, S, S_max)
     S_norm = S_crit_drainage + (S - S_crit_drainage)*(kr_s_max - S_crit_drainage)/(S_max - S_crit_drainage)
     kr = (imb.k(S_norm)/drain.k(S_norm))*drain.k(S)
     return kr
+end
+
+function add_hysteresis_parameters!(model::MultiModel)
+    add_hysteresis_parameters!(reservoir_model(model))
+    return model
+end
+
+function add_hysteresis_parameters!(model::SimulationModel)
+    add_hysteresis_parameters!(model.parameters, model[:RelativePermeabilities])
+    return model
+end
+
+function add_hysteresis_parameters!(param, kr::AbstractRelativePermeabilities)
+    if hysteresis_is_active(kr)
+        param[:MaxSaturations] = MaxSaturations()
+    end
+    return param
 end

@@ -172,7 +172,7 @@ function endpoint_scaling_model(x::ReservoirRelativePermeabilities)
 end
 
 function hysteresis_is_active(x::ReservoirRelativePermeabilities)
-    return !(kr.hysteresis isa NTuple{<:Any, JutulDarcy.NoHysteresis})
+    return !(x.hysteresis isa NTuple{<:Any, JutulDarcy.NoHysteresis})
 end
 
 function Jutul.line_plot_data(model::SimulationModel, k::ReservoirRelativePermeabilities)
@@ -320,4 +320,20 @@ function get_two_phase_relperms(relperm, c, krw, krow, scalers)
     scaler_w, scaler_ow = scalers
     scaling = endpoint_scaling_model(relperm)
     return get_two_phase_scaled_relperms(scaling, krw, krow, scaler_w, scaler_ow, c)
+end
+
+function add_relperm_parameters!(model::MultiModel)
+    add_relperm_parameters!(reservoir_model(model))
+    return model
+end
+
+function add_relperm_parameters!(model::SimulationModel)
+    add_relperm_parameters!(model.parameters, model[:RelativePermeabilities])
+    return model
+end
+
+function add_relperm_parameters!(param, kr::AbstractRelativePermeabilities)
+    add_hysteresis_parameters!(param, kr)
+    add_scaling_parameters!(param, kr)
+    return param
 end
