@@ -312,11 +312,10 @@ Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relper
     sg = s[g, c]
 
     Krw, Krow, Krog, Krg, swcon = three_phase_relperm(relperm, c, sw, so, sg, krw, krow, krog, krg, swcon, scalers)
-    Kro = three_phase_oil_relperm(Krow, Krog, swcon, sg, sw)
 
-    kr[w, c] = Krw
-    kr[o, c] = Kro
-    kr[g, c] = Krg
+    kr[w, c] = Krw(sw)
+    kr[o, c] = three_phase_oil_relperm(Krow(so), Krog(so), swcon, sg, sw)
+    kr[g, c] = Krg(sg)
 end
 
 Base.@propagate_inbounds @inline function update_oilwater_phase_relperm!(kr, relperm, phase_ind, s, c, swcon, scalers)
@@ -366,7 +365,7 @@ end
 
 
 @inline function three_phase_relperm(relperm, c, sw, so, sg, krw, krow, krog, krg, swcon, ::Nothing)
-    return (krw(sw), krow(so), krog(so), krg(sg), swcon)
+    return (krw, krow, krog, krg, swcon)
 end
 
 function three_phase_relperm(relperm, c, sw, so, sg, krw, krow, krog, krg, swcon, scalers)
@@ -406,13 +405,16 @@ function three_phase_scaling(scaling, krw, krow, krog, krg, sw, so, sg, swcon, s
     U_og = 1.0 - L_g - L_w
     u_og = 1.0 - l_g - l_w
 
-    Krw = relperm_scaling(scaling, krw, sw, cr_w, CR_w, u_w, U_w, km_w, KM_w, r_w, R_w)
-    Krow = relperm_scaling(scaling, krow, so, cr_ow, CR_ow, u_ow, U_ow, km_ow, KM_ow, r_ow, R_ow)
-    Krog = relperm_scaling(scaling, krog, so, cr_og, CR_og, u_og, U_og, km_og, KM_og, r_og, R_og)
-    Krg = relperm_scaling(scaling, krg, sg, cr_g, CR_g, u_g, U_g, km_g, KM_g, r_g, R_g)
+    # Krw = relperm_scaling(scaling, krw, sw, cr_w, CR_w, u_w, U_w, km_w, KM_w, r_w, R_w)
+    # Krow = relperm_scaling(scaling, krow, so, cr_ow, CR_ow, u_ow, U_ow, km_ow, KM_ow, r_ow, R_ow)
+    # Krog = relperm_scaling(scaling, krog, so, cr_og, CR_og, u_og, U_og, km_og, KM_og, r_og, R_og)
+    # Krg = relperm_scaling(scaling, krg, sg, cr_g, CR_g, u_g, U_g, km_g, KM_g, r_g, R_g)
 
+    Krw = ScaledPhaseRelativePermeability(krw, scaling, connate = L_w, critical = CR_w, k_max = KM_w, s_max = U_w, residual = R_w, residual_base = r_w)
+    Krg = ScaledPhaseRelativePermeability(krg, scaling, connate = L_g, critical = CR_g, k_max = KM_g, s_max = U_g, residual = R_g, residual_base = r_g)
+    Krow = ScaledPhaseRelativePermeability(krow, scaling, connate = L_ow, critical = CR_ow, k_max = KM_ow, s_max = U_ow, residual = R_ow, residual_base = r_ow)
+    Krog = ScaledPhaseRelativePermeability(krog, scaling, connate = L_og, critical = CR_og, k_max = KM_og, s_max = U_og, residual = R_og, residual_base = r_og)
 
-    ScaledPhaseRelativePermeability(krw, scaling, connate = L_w, critical = CR_w, k_max = KM_w, s_max = U_w)
     return (Krw, Krow, Krog, Krg, L_w)
 end
 

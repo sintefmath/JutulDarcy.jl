@@ -14,11 +14,30 @@ struct ScaledPhaseRelativePermeability{T, N, S<:AbstractKrScale} <: AbstractPhas
     k_max::N # Used 
     "Maximum saturation at which rel. perm. is k_max"
     s_max::N
+    residual::N
+    residual_base::N
 end
 
-function ScaledPhaseRelativePermeability(kr::PhaseRelativePermeability{T, M}, scaling::AbstractKrScale; connate, critical, s_max, k_max) where {T, M}
+function ScaledPhaseRelativePermeability(
+        kr::PhaseRelativePermeability{T, M},
+        scaling::AbstractKrScale;
+        connate,
+        critical,
+        s_max,
+        k_max,
+        residual,
+        residual_base
+    ) where {T, M}
     # Promote types
-    N = promote_type(M, typeof(connate), typeof(critical), typeof(s_max), typeof(k_max))
+    N = promote_type(
+        M,
+        typeof(connate),
+        typeof(critical),
+        typeof(s_max),
+        typeof(k_max),
+        typeof(residual),
+        typeof(residual_base)
+    )
     kr_conv = PhaseRelativePermeability{T, N}(
         kr.k,
         kr.label,
@@ -34,8 +53,26 @@ function ScaledPhaseRelativePermeability(kr::PhaseRelativePermeability{T, M}, sc
         N(connate),
         N(critical),
         N(k_max),
-        N(s_max)
+        N(s_max),
+        N(residual),
+        N(residual_base)
     )
+end
+
+function (kr::ScaledPhaseRelativePermeability{T, N, S})(Sat) where {T, N, S<:NoKrScale}
+    return kr.unscaled_kr(Sat)
+end
+
+function (kr::ScaledPhaseRelativePermeability{T, N, S})(s) where {T, N, S<:TwoPointKrScale}
+    kr0 = kr.unscaled_kr
+    s_scale = two_point_saturation_scaling(s, kr0.critical, kr.critical, kr0.s_max, kr.s_max)
+    return (kr.k_max/kr0.k_max)*kr0(s_scale)
+end
+
+function (kr::ScaledPhaseRelativePermeability{T, N, S})(s) where {T, N, S<:ThreePointKrScale}
+    kr0 = kr.unscaled_kr
+    s_scale = three_point_saturation_scaling(s, kr0.critical, kr.critical, kr0.s_max, kr.s_max, kr.residual_base, kr.residual)
+    return (kr.k_max/kr0.k_max)*kr0(s_scale)
 end
 
 struct EndPointScalingCoefficients{phases} <: VectorVariables
