@@ -285,27 +285,54 @@ Base.@propagate_inbounds function two_phase_relperm!(kr, s, regions, Kr_1, Kr_2,
     kr[i2, c] = evaluate_table_by_region(Kr_2, reg, sg)
 end
 
-Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relperm, phase_ind, s, c, swcon, scalers)
+Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relperm, phase_ind, s, s_max, c, swcon, scalers, scalersi)
     w, o, g = phase_ind
     reg = region(relperm.regions, c)
-    krw = table_by_region(relperm.krw, reg)
-    krg = table_by_region(relperm.krg, reg)
-    krog = table_by_region(relperm.krog, reg)
-    krow = table_by_region(relperm.krow, reg)
+    krw_base = table_by_region(relperm.krw, reg)
+    krg_base = table_by_region(relperm.krg, reg)
+    krog_base = table_by_region(relperm.krog, reg)
+    krow_base = table_by_region(relperm.krow, reg)
 
     if !isnothing(scalers)
         swcon = scalers.w[1, c]
     end
-    Krw, Krow, Krog, Krg = get_three_phase_relperms(relperm, c, krw, krow, krog, krg, swcon, scalers)
+    krwd, krowd, krogd, krgd = get_three_phase_relperms(relperm, c, krw_base, krow_base, krog_base, krg_base, swcon, scalers)
 
     sw = s[w, c]
     so = s[o, c]
     sg = s[g, c]
 
+    if hysteresis_is_active(relperm) && !isnothing(s_max)
+        sw_max = s_max[w, c]
+        so_max = s_max[o, c]
+        sg_max = s_max[g, c]
 
-    kr[w, c] = Krw(sw)
-    kr[o, c] = three_phase_oil_relperm(Krow(so), Krog(so), swcon, sg, sw)
-    kr[g, c] = Krg(sg)
+        krwi_base = imbibition_table_by_region(relperm.krw, reg)
+        krgi_base = imbibition_table_by_region(relperm.krg, reg)
+        krogi_base = imbibition_table_by_region(relperm.krog, reg)
+        krowi_base = imbibition_table_by_region(relperm.krow, reg)
+
+        if isnothing(scalersi)
+            swconi = swcon
+        else
+            swconi = scalersi.w[1, c]
+        end
+        krwi, krowi, krogi, krgi = get_three_phase_relperms(relperm, c, krwi_base, krowi_base, krogi_base, krgi_base, swconi, scalersi)
+        H = relperm.hysteresis
+        val_w = kr_hysteresis(H[w], krwd, krwi, sw, sw_max)
+        val_ow = kr_hysteresis(H[o], krowd, krowi, so, so_max)
+        val_og = kr_hysteresis(H[o], krogd, krogi, so, so_max)
+        val_g = kr_hysteresis(H[g], krgd, krgi, sg, sg_max)
+    else
+        val_w = krwd(sw)
+        val_ow = krowd(so)
+        val_og = krogd(so)
+        val_g = krgd(sg)
+    end
+
+    kr[w, c] = val_w
+    kr[o, c] = three_phase_oil_relperm(val_ow, val_og, swcon, sg, sw)
+    kr[g, c] = val_g
 end
 
 Base.@propagate_inbounds @inline function update_two_phase_relperm!(kr, relperm, krw, krn, phase_ind, s, s_max, c, scalers, scalersi)
@@ -318,7 +345,7 @@ Base.@propagate_inbounds @inline function update_two_phase_relperm!(kr, relperm,
     sw = s[w, c]
     sn = s[n, c]
 
-    if hysteresis_is_active(relperm)
+    if hysteresis_is_active(relperm) && !isnothing(s_max)
         sw_max = s_max[w, c]
         sn_max = s_max[n, c]
 
