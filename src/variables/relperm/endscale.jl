@@ -3,6 +3,41 @@ struct NoKrScale <: AbstractKrScale end
 struct TwoPointKrScale <: AbstractKrScale end
 struct ThreePointKrScale <: AbstractKrScale end
 
+struct ScaledPhaseRelativePermeability{T, N, S<:AbstractKrScale} <: AbstractPhaseRelativePermeability{T, N}
+    scaling::S
+    unscaled_kr::PhaseRelativePermeability{T, N}
+    "Connate saturation"
+    connate::N
+    "The saturation at which rel. perm. becomes positive"
+    critical::N # Used
+    "Largest value of rel. perm."
+    k_max::N # Used 
+    "Maximum saturation at which rel. perm. is k_max"
+    s_max::N
+end
+
+function ScaledPhaseRelativePermeability(kr::PhaseRelativePermeability{T, M}, scaling::AbstractKrScale; connate, critical, s_max, k_max) where {T, M}
+    # Promote types
+    N = promote_type(M, typeof(connate), typeof(critical), typeof(s_max), typeof(k_max))
+    kr_conv = PhaseRelativePermeability{T, N}(
+        kr.k,
+        kr.label,
+        N(kr.connate),
+        N(kr.critical),
+        N(kr.s_max),
+        N(kr.k_max),
+        N(kr.input_s_max)
+    )
+    return ScaledPhaseRelativePermeability{T, N, typeof(scaling)}(
+        scaling,
+        kr_conv,
+        N(connate),
+        N(critical),
+        N(k_max),
+        N(s_max)
+    )
+end
+
 struct EndPointScalingCoefficients{phases} <: VectorVariables
 end
 

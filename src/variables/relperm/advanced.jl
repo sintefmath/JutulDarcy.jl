@@ -388,19 +388,21 @@ function three_phase_scaling(scaling, krw, krow, krog, krg, sw, so, sg, swcon, s
     l_og, cr_og, u_og, km_og = get_kr_scalers(krog)
     l_g, cr_g, u_g, km_g = get_kr_scalers(krg)
 
+    # Residual water
     R_w = 1.0 - CR_ow - L_g
     r_w = 1.0 - cr_ow - l_g
-
+    # Residual gas
     R_g = 1.0 - CR_og - L_w
     r_g = 1.0 - cr_og - l_w
-
+    # Residual oil
     R_ow = 1.0 - CR_w - L_g
     r_ow = 1.0 - cr_w - l_g
-    U_ow = 1.0 - L_w - L_g
-    u_ow = 1.0 - l_w - l_g
-
     R_og = 1.0 - CR_g - L_w
     r_og = 1.0 - cr_w - l_w
+    # Maximum saturation oil (in persence of water)
+    U_ow = 1.0 - L_w - L_g
+    u_ow = 1.0 - l_w - l_g
+    # Maximum saturation oil (in persence of gas)
     U_og = 1.0 - L_g - L_w
     u_og = 1.0 - l_g - l_w
 
@@ -409,6 +411,8 @@ function three_phase_scaling(scaling, krw, krow, krog, krg, sw, so, sg, swcon, s
     Krog = relperm_scaling(scaling, krog, so, cr_og, CR_og, u_og, U_og, km_og, KM_og, r_og, R_og)
     Krg = relperm_scaling(scaling, krg, sg, cr_g, CR_g, u_g, U_g, km_g, KM_g, r_g, R_g)
 
+
+    ScaledPhaseRelativePermeability(krw, scaling, connate = L_w, critical = CR_w, k_max = KM_w, s_max = U_w)
     return (Krw, Krow, Krog, Krg, L_w)
 end
 

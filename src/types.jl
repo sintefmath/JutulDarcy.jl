@@ -228,7 +228,9 @@ end
 
 number_of_components(sys::SinglePhaseSystem) = 1
 
-struct PhaseRelativePermeability{T, N}
+abstract type AbstractPhaseRelativePermeability{T, N} end
+
+struct PhaseRelativePermeability{T, N} <: AbstractPhaseRelativePermeability{T, N}
     k::T
     label::Symbol
     "Connate saturation"
