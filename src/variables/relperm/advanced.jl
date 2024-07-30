@@ -311,10 +311,10 @@ end
 Base.@propagate_inbounds @inline function update_two_phase_relperm!(kr, relperm, krw, krn, phase_ind, s, s_max, c, scalers, scalersi)
     w, n = phase_ind
     reg = region(relperm.regions, c)
-    krwd = table_by_region(krw, reg)
-    krnd = table_by_region(krn, reg)
+    krwd_base = table_by_region(krw, reg)
+    krnd_base = table_by_region(krn, reg)
 
-    Krw, Krn = get_two_phase_relperms(relperm, c, krwd, krnd, scalers)
+    krwd, krnd = get_two_phase_relperms(relperm, c, krwd_base, krnd_base, scalers)
     sw = s[w, c]
     sn = s[n, c]
 
@@ -323,15 +323,15 @@ Base.@propagate_inbounds @inline function update_two_phase_relperm!(kr, relperm,
         sn_max = s_max[n, c]
 
         H = relperm.hysteresis
-        krwi = imbibition_table_by_region(krw, reg)
-        krni = imbibition_table_by_region(krn, reg)
-        Krwi, Krni = get_two_phase_relperms(relperm, c, krwi, krni, scalersi)
+        krwi_base = imbibition_table_by_region(krw, reg)
+        krni_base = imbibition_table_by_region(krn, reg)
+        krwi, krni = get_two_phase_relperms(relperm, c, krwi_base, krni_base, scalersi)
 
         val_w = kr_hysteresis(H[w], krwd, krwi, sw, sw_max)
         val_n = kr_hysteresis(H[n], krnd, krni, sn, sn_max)
     else
-        val_w = Krw(sw)
-        val_n = Krn(sn)
+        val_w = krwd(sw)
+        val_n = krnd(sn)
     end
     kr[w, c] = val_w
     kr[n, c] = val_n

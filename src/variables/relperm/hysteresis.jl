@@ -42,11 +42,16 @@ function kr_hysteresis(t, drain, imb, s, s_max, ϵ = 1e-8)
 end
 
 function hysteresis_impl(t::CarlsonHysteresis, drain, imb, s, s_max)
-    kr_at_max = drain.k(s_max)
-    # TODO: Generalize this for endscale
-    s_meet = Jutul.linear_interp(imb.k.F, imb.k.X, kr_at_max)
+    kr_at_max = drain(s_max)
+    if imb isa PhaseRelativePermeability
+        s_meet = Jutul.linear_interp(imb.k.F, imb.k.X, kr_at_max)
+    else
+        # TODO: Avoid this module hack by integrating Roots in package.
+        s_meet0 = JutulDarcy.MultiComponentFlash.Roots.find_zero(s -> imb(s) - kr_at_max, (0.0, 1.0))
+        s_meet = replace_value(s, s_meet0)
+    end
     s_shifted = s + s_meet - s_max
-    return imb.k(s_shifted)
+    return imb(s_shifted)
 end
 
 function hysteresis_impl(h_model::KilloughHysteresis, drain, imb, S, S_max)
@@ -58,7 +63,7 @@ function hysteresis_impl(h_model::KilloughHysteresis, drain, imb, S, S_max)
     M = 1.0 + h_model.tol*(kr_s_max - S_max)
     S_crit = S_crit_drainage + (S_max - S_crit_drainage)/(M + K*(S_max - S_crit_drainage))
     S_norm = S_crit_imbibition + (S - S_crit)*(kr_s_max - S_crit_imbibition)/(S_max - S_crit)
-    kr = imb.k(S_norm)*drain.k(S_max)/drain.k(kr_s_max)
+    kr = imb(S_norm)*drain(S_max)/drain(kr_s_max)
     return kr
 end
 
@@ -68,7 +73,7 @@ function hysteresis_impl(h_model::JargonHysteresis, drain, imb, S, S_max)
     # TODO: Check that this matches that of imbibition?
     kr_s_max = drain.s_max
     S_norm = S_crit_drainage + (S - S_crit_drainage)*(kr_s_max - S_crit_drainage)/(S_max - S_crit_drainage)
-    kr = (imb.k(S_norm)/drain.k(S_norm))*drain.k(S)
+    kr = (imb(S_norm)/drain(S_norm))*drain(S)
     return kr
 end
 
