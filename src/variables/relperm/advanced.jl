@@ -102,11 +102,14 @@ function Jutul.get_dependencies(kr::ReservoirRelativePermeabilities, model)
     scaling = endpoint_scaling_model(kr)
     deps = Symbol[:Saturations]
     phases = get_phases(model.system)
+    has_hyst = hysteresis_is_active(kr)
     has_scaling = endpoint_scaling_is_active(kr)
     has_water = AqueousPhase() in phases
     has_oil = LiquidPhase() in phases
     has_gas = VaporPhase() in phases
-
+    if has_hyst
+        push!(deps, :MaxSaturations)
+    end
     if has_water && (length(phases) > 2 || has_scaling)
         push!(deps, :ConnateWater)
     end
@@ -132,10 +135,16 @@ function update_secondary_variable!(kr, relperm::ReservoirRelativePermeabilities
     s = state.Saturations
     regions = relperm.regions
     phases = phase_indices(model.system)
-    scalers = get_endpoint_scalers(state, endpoint_scaling_model(relperm), Val(ph))
+    scalers = get_endpoint_scalers(state, endpoint_scaling_model(relperm), Val(ph), drainage = true)
+    if hysteresis_is_active(relperm)
+        imb_scalers = get_endpoint_scalers(state, endpoint_scaling_model(relperm), Val(ph), drainage = false)
+        s_max = state.MaxSaturations
+    else
+        imb_scalers = s_max = nothing
+    end
     if ph == :wog
         for c in ix
-            @inbounds update_three_phase_relperm!(kr, relperm, phases, s, c, state.ConnateWater[c], scalers)
+            @inbounds update_three_phase_relperm!(kr, relperm, phases, s, s_max, c, state.ConnateWater[c], scalers, imb_scalers)
         end
     else
         if ph == :wo
@@ -147,7 +156,7 @@ function update_secondary_variable!(kr, relperm::ReservoirRelativePermeabilities
             kr1, kr2 = relperm.krw, relperm.krg
         end
         for c in ix
-            @inbounds update_two_phase_relperm!(kr, relperm, kr1, kr2, phases, s, c, scalers)
+            @inbounds update_two_phase_relperm!(kr, relperm, kr1, kr2, phases, s, s_max, c, scalers, imb_scalers)
         end
     end
     return kr
@@ -287,19 +296,34 @@ Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relper
     kr[g, c] = Krg(sg)
 end
 
-Base.@propagate_inbounds @inline function update_two_phase_relperm!(kr, relperm, krw, krn, phase_ind, s, c, scalers)
+Base.@propagate_inbounds @inline function update_two_phase_relperm!(kr, relperm, krw, krn, phase_ind, s, s_max, c, scalers, scalersi)
     w, n = phase_ind
     reg = region(relperm.regions, c)
-    krw = table_by_region(krw, reg)
-    krn = table_by_region(krn, reg)
+    krwd = table_by_region(krw, reg)
+    krnd = table_by_region(krn, reg)
 
-    Krw, Krow = get_two_phase_relperms(relperm, c, krw, krn, scalers)
-
+    Krw, Krn = get_two_phase_relperms(relperm, c, krwd, krnd, scalers)
     sw = s[w, c]
     sn = s[n, c]
 
-    kr[w, c] = Krw(sw)
-    kr[n, c] = Krow(sn)
+    if hysteresis_is_active(relperm)
+        sw_max = s_max[w, c]
+        sn_max = s_max[n, c]
+
+        H = relperm.hysteresis
+        imb_reg = 2*reg
+        krwi = table_by_region(krw, imb_reg)
+        krni = table_by_region(krn, imb_reg)
+        Krwi, Krni = get_two_phase_relperms(relperm, c, krwi, krni, scalersi)
+
+        val_w = kr_hysteresis(H[w], krwd, krwi, sw, sw_max)
+        val_n = kr_hysteresis(H[n], krnd, krni, sn, sn_max)
+    else
+        val_w = Krw(sw)
+        val_n = Krn(sn)
+    end
+    kr[w, c] = val_w
+    kr[n, c] = val_n
 end
 
 @inline function get_three_phase_relperms(relperm, c, krw, krow, krog, krg, swcon, ::Nothing)

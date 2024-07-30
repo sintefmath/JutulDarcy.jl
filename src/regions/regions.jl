@@ -45,7 +45,7 @@ function region_wrap(x::Nothing, regions = missing)
 end
 
 function region_wrap(x::Tuple, regions::Nothing)
-    @assert length(x) == 1
+    @assert length(x) >= 1
     return x
 end
 

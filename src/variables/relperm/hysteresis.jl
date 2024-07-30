@@ -13,10 +13,10 @@ struct NoHysteresis <: AbstractHysteresis end
 struct MaxSaturations <: PhaseVariables end
 
 function Jutul.update_parameter_before_step!(s_max, ::MaxSaturations, storage, model, dt, forces)
-    s = storage.state.s
+    s = storage.state.Saturations
     for i in eachindex(s_max, s)
         s_prev = s_max[i]
-        s_now = s[i]
+        s_now = value(s[i])
         if s_now > s_prev
             s_max[i] = replace_value(s_prev, s_now)
         end

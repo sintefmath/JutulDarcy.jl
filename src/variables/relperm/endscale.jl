@@ -218,11 +218,11 @@ function two_point_saturation_scaling(s::T, cr, CR, u, U) where T<:Real
 end
 
 
-function get_endpoint_scalers(state, scaling::NoKrScale, ph)
+function get_endpoint_scalers(state, scaling::NoKrScale, ph; drainage::Bool = true)
     return nothing
 end
 
-function get_endpoint_scalers(state, scaling::Union{TwoPointKrScale, ThreePointKrScale}, ::Val{:wog})
+function get_endpoint_scalers(state, scaling::Union{TwoPointKrScale, ThreePointKrScale}, ::Val{:wog}; drainage::Bool = true)
     scalers = (
         w = state.RelPermScalingW,
         ow = state.RelPermScalingOW,
@@ -232,7 +232,7 @@ function get_endpoint_scalers(state, scaling::Union{TwoPointKrScale, ThreePointK
     return scalers
 end
 
-function get_endpoint_scalers(state, scaling::Union{TwoPointKrScale, ThreePointKrScale}, ::Val{:wo})
+function get_endpoint_scalers(state, scaling::Union{TwoPointKrScale, ThreePointKrScale}, ::Val{:wo}; drainage::Bool = true)
     scalers = (
         w = state.RelPermScalingW,
         ow = state.RelPermScalingOW
@@ -240,7 +240,7 @@ function get_endpoint_scalers(state, scaling::Union{TwoPointKrScale, ThreePointK
     return scalers
 end
 
-function get_endpoint_scalers(state, scaling::Union{TwoPointKrScale, ThreePointKrScale}, ::Val{:og})
+function get_endpoint_scalers(state, scaling::Union{TwoPointKrScale, ThreePointKrScale}, ::Val{:og}; drainage::Bool = true)
     scalers = (
         og = state.RelPermScalingOG,
         g = state.RelPermScalingG
@@ -248,7 +248,7 @@ function get_endpoint_scalers(state, scaling::Union{TwoPointKrScale, ThreePointK
     return scalers
 end
 
-function get_endpoint_scalers(state, scaling::Union{TwoPointKrScale, ThreePointKrScale}, ::Val{:wg})
+function get_endpoint_scalers(state, scaling::Union{TwoPointKrScale, ThreePointKrScale}, ::Val{:wg}; drainage::Bool = true)
     scalers = (
         w = state.RelPermScalingW,
         g = state.RelPermScalingG
