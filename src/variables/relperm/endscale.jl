@@ -1,4 +1,7 @@
-@enum KrScale NoKrScale TwoPointKrScale ThreePointKrScale
+abstract type AbstractKrScale end
+struct NoKrScale <: AbstractKrScale end
+struct TwoPointKrScale <: AbstractKrScale end
+struct ThreePointKrScale <: AbstractKrScale end
 
 struct EndPointScalingCoefficients{phases} <: VectorVariables
 end
@@ -46,7 +49,18 @@ function Jutul.default_values(model, scalers::EndPointScalingCoefficients{P}) wh
     return kscale
 end
 
-scaling_type(::AbstractRelativePermeabilities) = NoKrScale
+function endpoint_scaling_model(::AbstractRelativePermeabilities)
+    return NoKrScale()
+end
+function endpoint_scaling_is_active(x::AbstractRelativePermeabilities)
+    return endpoint_scaling_is_active(endpoint_scaling_model(x))
+end
+function endpoint_scaling_is_active(x::AbstractKrScale)
+    return true
+end
+function endpoint_scaling_is_active(x::NoKrScale)
+    return false
+end
 
 function add_scaling_parameters!(model::MultiModel)
     add_scaling_parameters!(reservoir_model(model))
@@ -57,7 +71,7 @@ function add_scaling_parameters!(model::SimulationModel)
 end
 
 function add_scaling_parameters!(param, kr::AbstractRelativePermeabilities)
-    if scaling_type(kr) != NoKrScale
+    if endpoint_scaling_is_active(kr)
         ph = kr.phases
         has_phase(x) = occursin("$x", "$ph")
         if has_phase(:w)
@@ -89,7 +103,7 @@ function get_kr_scalers(scaler::AbstractMatrix, c)
 end
 
 function relperm_scaling(scaling, F, s::T, cr, CR, u, U, km, KM, r, R) where T<:Real
-    if scaling == ThreePointKrScale
+    if scaling isa ThreePointKrScale
         S = three_point_saturation_scaling(s, cr, CR, u, U, r, R)
     else
         S = two_point_saturation_scaling(s, cr, CR, u, U)

@@ -13,13 +13,23 @@ struct ReservoirRelativePermeabilities{Scaling, ph, O, OW, OG, G, R, H} <: Abstr
     phases::Symbol
     "Hysteresis model for each phase"
     hysteresis::H
+    "Endpoint scaling model"
+    scaling::Scaling
 end
 
 
 """
     ReservoirRelativePermeabilities(
-        w = nothing, g = nothing, ow = nothing, og = nothing,
-        scaling = NoKrScale, regions = nothing)
+        w = nothing,
+        g = nothing,
+        ow = nothing,
+        og = nothing,
+        scaling = NoKrScale(),
+        regions = nothing
+        hysteresis_w = NoHysteresis(),
+        hysteresis_o = NoHysteresis(),
+        hysteresis_g = NoHysteresis()
+    )
 
 Relative permeability with advanced features for reservoir simulation. Includes
 features like rel. perm. endpoint scaling, connate water adjustment and separate
@@ -28,17 +38,25 @@ phase pair relative permeabilites for the oil phase.
 # Fields
 
 $FIELDS
+
+# Examples
+```julia
+s = collect(range(0, 1, 100))
+krw = PhaseRelativePermeability(s, s)
+krog = PhaseRelativePermeability(s, s.^3)
+kr_def = ReservoirRelativePermeabilities(krw = krw, krog = krog)
+```
 """
 function ReservoirRelativePermeabilities(;
         w = nothing,
         g = nothing,
         ow = nothing,
         og = nothing,
-        scaling = NoKrScale,
-        regions = nothing,
-        hysteresis_w = NoHysteresis(),
-        hysteresis_o = NoHysteresis(),
-        hysteresis_g = NoHysteresis()
+        scaling::AbstractKrScale = NoKrScale(),
+        regions::Union{Vector{Int}, Nothing} = nothing,
+        hysteresis_w::AbstractHysteresis = NoHysteresis(),
+        hysteresis_o::AbstractHysteresis = NoHysteresis(),
+        hysteresis_g::AbstractHysteresis = NoHysteresis()
     )
     has_w = !isnothing(w)
     has_g = !isnothing(g)
@@ -77,14 +95,14 @@ function ReservoirRelativePermeabilities(;
     krog = F(og)
     krg = F(g)
 
-    return ReservoirRelativePermeabilities{scaling, phases, typeof(krw), typeof(krow), typeof(krog), typeof(krg), typeof(regions), typeof(hyst)}(krw, krow, krog, krg, regions, phases, hyst)
+    return ReservoirRelativePermeabilities{typeof(scaling), phases, typeof(krw), typeof(krow), typeof(krog), typeof(krg), typeof(regions), typeof(hyst)}(krw, krow, krog, krg, regions, phases, hyst, scaling)
 end
 
 function Jutul.get_dependencies(kr::ReservoirRelativePermeabilities, model)
-    scaling = scaling_type(kr)
+    scaling = endpoint_scaling_model(kr)
     deps = Symbol[:Saturations]
     phases = get_phases(model.system)
-    has_scaling = scaling != NoKrScale
+    has_scaling = endpoint_scaling_is_active(kr)
     has_water = AqueousPhase() in phases
     has_oil = LiquidPhase() in phases
     has_gas = VaporPhase() in phases
@@ -114,7 +132,7 @@ function update_secondary_variable!(kr, relperm::ReservoirRelativePermeabilities
     s = state.Saturations
     regions = relperm.regions
     phases = phase_indices(model.system)
-    if scaling_t == NoKrScale
+    if !endpoint_scaling_is_active(relperm)
         if ph == :wog
             for c in ix
                 @inbounds update_three_phase_relperm!(kr, relperm, phases, s, c, state.ConnateWater[c], nothing)
@@ -188,7 +206,9 @@ function Base.getindex(m::ReservoirRelativePermeabilities, s::Symbol)
     end
 end
 
-scaling_type(::ReservoirRelativePermeabilities{T}) where T = T
+function endpoint_scaling_model(x::ReservoirRelativePermeabilities)
+    return x.scaling
+end
 
 function Jutul.line_plot_data(model::SimulationModel, k::ReservoirRelativePermeabilities)
     s = collect(0:0.01:1)
@@ -237,7 +257,7 @@ end
 function Jutul.subvariable(k::ReservoirRelativePermeabilities, map::FiniteVolumeGlobalMap)
     c = map.cells
     regions = Jutul.partition_variable_slice(k.regions, c)
-    scaling = scaling_type(k)
+    scaling = endpoint_scaling_model(k)
     return ReservoirRelativePermeabilities(; w = k.krw, ow = k.krow, og = k.krog, g = k.krg, regions = regions, scaling = scaling)
 end
 
@@ -258,7 +278,7 @@ function Base.show(io::IO, t::MIME"text/plain", kr::ReservoirRelativePermeabilit
     else
         println(io, "\n  regions: $(unique(kr.regions)...).")
     end
-    println(io, "\n  scaling: $(scaling_type(kr))")
+    println(io, "\n  scaling: $(endpoint_scaling_model(kr))")
 end
 
 Base.@propagate_inbounds @inline function three_phase_oil_relperm(Krow, Krog, swcon, sg, sw)
@@ -351,7 +371,7 @@ end
 
 function three_phase_relperm(relperm, c, sw, so, sg, krw, krow, krog, krg, swcon, scalers)
     scaler_w, scaler_ow, scaler_og, scaler_g = scalers
-    scaling = scaling_type(relperm)
+    scaling = endpoint_scaling_model(relperm)
     return three_phase_scaling(scaling, krw, krow, krog, krg, sw, so, sg, swcon, scaler_w, scaler_ow, scaler_og, scaler_g, c)
 end
 
@@ -394,7 +414,7 @@ end
 
 function two_phase_relperm(relperm, c, sw, so, krw, krow, swcon, scalers)
     scaler_w, scaler_ow = scalers
-    scaling = scaling_type(relperm)
+    scaling = endpoint_scaling_model(relperm)
     return two_phase_scaling(scaling, krw, krow, sw, so, swcon, scaler_w, scaler_ow, c)
 end
 

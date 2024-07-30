@@ -381,13 +381,13 @@ function deck_relperm(runspec, props; oil, water, gas, satnum = nothing)
         end
         if two_point_scaling
             Jutul.jutul_message("Rel. Perm. Scaling", "Two-point scaling active.")
-            scaling = TwoPointKrScale
+            scaling = TwoPointKrScale()
         else
             Jutul.jutul_message("Rel. Perm. Scaling", "Three-point scaling active.")
-            scaling = ThreePointKrScale
+            scaling = ThreePointKrScale()
         end
     else
-        scaling = NoKrScale
+        scaling = NoKrScale()
     end
     if water && oil && gas
         KRW = []
