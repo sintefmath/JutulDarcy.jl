@@ -308,45 +308,6 @@ function get_three_phase_relperms(relperm, c, krw, krow, krog, krg, swcon, scale
     return get_three_phase_scaled_relperms(scaling, krw, krow, krog, krg, swcon, scaler_w, scaler_ow, scaler_og, scaler_g, c)
 end
 
-function get_three_phase_scaled_relperms(scaling, krw, krow, krog, krg, swcon, scaler_w, scaler_ow, scaler_og, scaler_g, c)
-    L_w, CR_w, U_w, KM_w = get_kr_scalers(scaler_w, c)
-    L_ow, CR_ow, U_ow, KM_ow = get_kr_scalers(scaler_ow, c)
-    L_og, CR_og, U_og, KM_og = get_kr_scalers(scaler_og, c)
-    L_g, CR_g, U_g, KM_g = get_kr_scalers(scaler_g, c)
-
-    _, cr_w, u_w, km_w = get_kr_scalers(krw)
-    l_w = swcon
-
-    l_ow, cr_ow, u_ow, km_ow = get_kr_scalers(krow)
-    l_og, cr_og, u_og, km_og = get_kr_scalers(krog)
-    l_g, cr_g, u_g, km_g = get_kr_scalers(krg)
-
-    # Residual water
-    R_w = 1.0 - CR_ow - L_g
-    r_w = 1.0 - cr_ow - l_g
-    # Residual gas
-    R_g = 1.0 - CR_og - L_w
-    r_g = 1.0 - cr_og - l_w
-    # Residual oil
-    R_ow = 1.0 - CR_w - L_g
-    r_ow = 1.0 - cr_w - l_g
-    R_og = 1.0 - CR_g - L_w
-    r_og = 1.0 - cr_w - l_w
-    # Maximum saturation oil (in persence of water)
-    U_ow = 1.0 - L_w - L_g
-    u_ow = 1.0 - l_w - l_g
-    # Maximum saturation oil (in persence of gas)
-    U_og = 1.0 - L_g - L_w
-    u_og = 1.0 - l_g - l_w
-
-    Krw = ScaledPhaseRelativePermeability(krw, scaling, connate = L_w, critical = CR_w, k_max = KM_w, s_max = U_w, residual = R_w, residual_base = r_w)
-    Krg = ScaledPhaseRelativePermeability(krg, scaling, connate = L_g, critical = CR_g, k_max = KM_g, s_max = U_g, residual = R_g, residual_base = r_g)
-    Krow = ScaledPhaseRelativePermeability(krow, scaling, connate = L_ow, critical = CR_ow, k_max = KM_ow, s_max = U_ow, residual = R_ow, residual_base = r_ow)
-    Krog = ScaledPhaseRelativePermeability(krog, scaling, connate = L_og, critical = CR_og, k_max = KM_og, s_max = U_og, residual = R_og, residual_base = r_og)
-
-    return (Krw, Krow, Krog, Krg)
-end
-
 function get_two_phase_relperms(relperm, c, krw, krow, scalers::Nothing)
     return (krw, krow)
 end
@@ -356,26 +317,3 @@ function get_two_phase_relperms(relperm, c, krw, krow, scalers)
     scaling = endpoint_scaling_model(relperm)
     return get_two_phase_scaled_relperms(scaling, krw, krow, scaler_w, scaler_ow, c)
 end
-
-function get_two_phase_scaled_relperms(scaling, krw, krn, scaler_w, scaler_n, c)
-    L_n, CR_n, U_n, KM_n = get_kr_scalers(scaler_n, c)
-    l_n, cr_n, u_n, km_n = get_kr_scalers(krn)
-
-    L_w, CR_w, U_w, KM_w = get_kr_scalers(scaler_w, c)
-    l_w, cr_w, u_w, km_w = get_kr_scalers(krw)
-    l_w = max(l_w, zero(l_w))
-
-    R_w = 1.0 - CR_n
-    r_w = 1.0 - cr_n
-
-    R_n = 1.0 - CR_w
-    r_n = 1.0 - cr_w
-    U_n = 1.0 - L_w
-    u_n = 1.0 - l_w
-
-    Krw = ScaledPhaseRelativePermeability(krw, scaling, connate = L_w, critical = CR_w, k_max = KM_w, s_max = U_w, residual = R_w, residual_base = r_w)
-    Krn = ScaledPhaseRelativePermeability(krn, scaling, connate = L_n, critical = CR_n, k_max = KM_n, s_max = U_n, residual = R_n, residual_base = r_n)
-
-    return (Krw, Krn)
-end
-
