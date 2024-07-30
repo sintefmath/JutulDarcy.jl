@@ -28,8 +28,12 @@ function hysteresis_is_active(x::AbstractRelativePermeabilities)
     return false
 end
 
-function kr_hysteresis(t, drain, imb, s, s_max)
-    if s > s_max
+function kr_hysteresis(t::NoHysteresis, drain, imb, s, s_max, ϵ = 1e-8)
+    return drain(s)
+end
+
+function kr_hysteresis(t, drain, imb, s, s_max, ϵ = 1e-8)
+    if s >= s_max - ϵ
         kr = drain(s)
     else
         kr = hysteresis_impl(t, drain, imb, s, s_max)
