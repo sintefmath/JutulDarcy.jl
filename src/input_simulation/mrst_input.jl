@@ -389,12 +389,13 @@ function deck_relperm(runspec, props; oil, water, gas, satnum = nothing)
     else
         scaling = NoKrScale()
     end
+    relperm_given_as_sxof_tables = haskey(props, "SWOF") || haskey(props, "SGOF")
     if water && oil && gas
         KRW = []
         KRG = []
         KROW = []
         KROG = []
-        if haskey(props, "SWOF") && haskey(props, "SGOF")
+        if relperm_given_as_sxof_tables
             for (swof, sgof) in zip(props["SWOF"], props["SGOF"])
                 krw, krow = table_to_relperm(swof, first_label = :w, second_label = :ow)
                 swcon = krw.connate
@@ -435,30 +436,78 @@ function deck_relperm(runspec, props; oil, water, gas, satnum = nothing)
         KROG = Tuple(KROG)
         krarg = (w = KRW, g = KRG, ow = KROW, og = KROG)
     else
-        if water && oil
-            sat_table = props["SWOF"]
-            first_label = :w
-            second_label = :ow
-        else
-            sat_table = props["SGOF"]
-            first_label = :g
-            second_label = :og
-        end
-        kr_1 = []
-        kr_2 = []
-        @assert length(sat_table) == 1 || !isnothing(satnum) "Saturation region must be provided for multiple saturation tables"
-        for kr_from_deck in sat_table
-            I_1, I_2 = table_to_relperm(kr_from_deck, first_label = first_label, second_label = second_label)
+        if relperm_given_as_sxof_tables
+            if water && oil
+                sat_table = props["SWOF"]
+                first_label = :w
+                second_label = :ow
+            else
+                @assert water && gas
+                sat_table = props["SGOF"]
+                first_label = :g
+                second_label = :og
+            end
+            kr_1 = []
+            kr_2 = []
+            @assert length(sat_table) == 1 || !isnothing(satnum) "Saturation region must be provided for multiple saturation tables"
+            for kr_from_deck in sat_table
+                I_1, I_2 = table_to_relperm(kr_from_deck, first_label = first_label, second_label = second_label)
 
-            push!(kr_1, I_1)
-            push!(kr_2, I_2)
-        end
-        kr_1 = tuple(kr_1...)
-        kr_2 = tuple(kr_2...)
-        if water && oil
-            krarg = (w = kr_1, ow = kr_2)
+                push!(kr_1, I_1)
+                push!(kr_2, I_2)
+            end
+            kr_1 = tuple(kr_1...)
+            kr_2 = tuple(kr_2...)
+            if water && oil
+                krarg = (w = kr_1, ow = kr_2)
+            else
+                krarg = (g = kr_1, og = kr_2)
+            end
         else
-            krarg = (g = kr_1, og = kr_2)
+            KRW = []
+            KRG = []
+            KROW = []
+            KROG = []
+            if oil
+                for sof3 in props["SOF3"]
+                    # Oil pairs
+                    so = sof3[:, 1]
+                    krow_t = sof3[:, 2]
+                    krog_t = sof3[:, 3]
+                    krow = PhaseRelativePermeability(so, krow_t, label = :ow)
+                    krog = PhaseRelativePermeability(so, krog_t, label = :og)
+
+                    push!(KROW, krow)
+                    push!(KROG, krog)
+                end
+                KROW = tuple(KROW...)
+                KROG = tuple(KROG...)
+            else
+                KROW = KROG = nothing
+            end
+
+            if water
+                for swfn in props["SWFN"]
+                    # Water
+                    krw = PhaseRelativePermeability(swfn[:, 1], swfn[:, 2], label = :w)
+                    push!(KRW, krw)
+                end
+                KRW = tuple(KRW...)
+            else
+                KRW = nothing
+            end
+
+            if gas
+                for sgfn in props["SGFN"]
+                    # Gas
+                    krg = PhaseRelativePermeability(sgfn[:, 1], sgfn[:, 2], label = :g)
+                    push!(KRG, krg)
+                end
+                KRG = tuple(KRG...)
+            else
+                KRG = nothing
+            end
+            krarg = (w = KRW, ow = KROW, og = KROG, g = KRG)
         end
     end
     return ReservoirRelativePermeabilities(; krarg..., regions = satnum, scaling = scaling)
