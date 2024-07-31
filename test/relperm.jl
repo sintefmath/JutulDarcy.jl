@@ -167,7 +167,8 @@ function solve_1d_kr(phases;
         og = krog,
         scaling = scaling,
         hysteresis_w = wetting_hysteresis,
-        hysteresis_o = non_wetting_hysteresis,
+        hysteresis_ow = non_wetting_hysteresis,
+        hysteresis_og = non_wetting_hysteresis,
         hysteresis_g = non_wetting_hysteresis
     )
     replace_variables!(model, RelativePermeabilities = kr)

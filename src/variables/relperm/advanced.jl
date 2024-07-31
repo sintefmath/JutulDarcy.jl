@@ -1,4 +1,4 @@
-struct ReservoirRelativePermeabilities{Scaling, ph, O, OW, OG, G, R, H} <: AbstractRelativePermeabilities
+struct ReservoirRelativePermeabilities{Scaling, ph, O, OW, OG, G, R, HW, HOW, HOG, HG} <: AbstractRelativePermeabilities
     "Water relative permeability as a function of water saturation: ``k_{rw}(S_w)``"
     krw::O
     "Oil relative permeability (in the presence of water) as a function of oil saturation: ``k_{row}(S_o)``"
@@ -11,8 +11,14 @@ struct ReservoirRelativePermeabilities{Scaling, ph, O, OW, OG, G, R, H} <: Abstr
     regions::R
     "Symbol designating the type of system, :wog for three-phase, :og for oil-gas, :wg for water-gas, etc."
     phases::Symbol
-    "Hysteresis model for each phase"
-    hysteresis::H
+    "Hysteresis model for water rel. perm."
+    hysteresis_w::HW
+    "Hysteresis model for oil-water rel. perm."
+    hysteresis_ow::HOW
+    "Hysteresis model for oil-gas rel. perm."
+    hysteresis_og::HOG
+    "Hysteresis model for gas rel. perm."
+    hysteresis_g::HG
     "Endpoint scaling model"
     scaling::Scaling
 end
@@ -27,7 +33,8 @@ end
         scaling = NoKrScale(),
         regions = nothing
         hysteresis_w = NoHysteresis(),
-        hysteresis_o = NoHysteresis(),
+        hysteresis_ow = NoHysteresis(),
+        hysteresis_og = NoHysteresis(),
         hysteresis_g = NoHysteresis()
     )
 
@@ -55,7 +62,8 @@ function ReservoirRelativePermeabilities(;
         scaling::AbstractKrScale = NoKrScale(),
         regions::Union{Vector{Int}, Nothing} = nothing,
         hysteresis_w::AbstractHysteresis = NoHysteresis(),
-        hysteresis_o::AbstractHysteresis = NoHysteresis(),
+        hysteresis_ow::AbstractHysteresis = NoHysteresis(),
+        hysteresis_og::AbstractHysteresis = NoHysteresis(),
         hysteresis_g::AbstractHysteresis = NoHysteresis()
     )
     has_w = !isnothing(w)
@@ -66,24 +74,19 @@ function ReservoirRelativePermeabilities(;
     if has_w && has_g && has_o
         @assert has_ow && has_og
         phases = :wog
-        hyst = (hysteresis_w, hysteresis_o, hysteresis_g)
     elseif has_w
         if has_g
             phases = :wg
-            hyst = (hysteresis_w, hysteresis_g)
         else
             @assert has_ow
             phases = :wo
-            hyst = (hysteresis_w, hysteresis_o)
         end
     elseif has_g
         if has_w
             phases = :wg
-            hyst = (hysteresis_w, hysteresis_g)
         else
             @assert has_og
             phases = :og
-            hyst = (hysteresis_o, hysteresis_g)
         end
     else
         error("ReservoirRelativePermeabilities only implements two-phase (WO, OG, WG) or three-phase (WOG)")
@@ -95,7 +98,19 @@ function ReservoirRelativePermeabilities(;
     krog = F(og)
     krg = F(g)
 
-    return ReservoirRelativePermeabilities{typeof(scaling), phases, typeof(krw), typeof(krow), typeof(krog), typeof(krg), typeof(regions), typeof(hyst)}(krw, krow, krog, krg, regions, phases, hyst, scaling)
+    return ReservoirRelativePermeabilities{
+        typeof(scaling),
+        phases,
+        typeof(krw),
+        typeof(krow),
+        typeof(krog),
+        typeof(krg),
+        typeof(regions),
+        typeof(hysteresis_w),
+        typeof(hysteresis_ow),
+        typeof(hysteresis_og),
+        typeof(hysteresis_g)
+        }(krw, krow, krog, krg, regions, phases, hysteresis_w, hysteresis_ow, hysteresis_og, hysteresis_g, scaling)
 end
 
 function Jutul.get_dependencies(kr::ReservoirRelativePermeabilities, model)
@@ -161,14 +176,17 @@ function update_secondary_variable!(kr, relperm::ReservoirRelativePermeabilities
     else
         if ph == :wo
             kr1, kr2 = relperm.krw, relperm.krow
+            H1, H2 = relperm.hysteresis_w, relperm.hysteresis_ow
         elseif ph == :og
             kr1, kr2 = relperm.krog, relperm.krg
+            H1, H2 = relperm.hysteresis_og, relperm.hysteresis_g
         else
             @assert ph == :wg
             kr1, kr2 = relperm.krw, relperm.krg
+            H1, H2 = relperm.hysteresis_w, relperm.hysteresis_g
         end
         for c in ix
-            @inbounds update_two_phase_relperm!(kr, relperm, kr1, kr2, phases, s, s_max, c, scalers, imb_scalers)
+            @inbounds update_two_phase_relperm!(kr, relperm, kr1, kr2, H1, H2, phases, s, s_max, c, scalers, imb_scalers)
         end
     end
     return kr
@@ -193,7 +211,11 @@ function endpoint_scaling_model(x::ReservoirRelativePermeabilities)
 end
 
 function hysteresis_is_active(x::ReservoirRelativePermeabilities)
-    return !(x.hysteresis isa NTuple{<:Any, JutulDarcy.NoHysteresis})
+    disabled_w = x.hysteresis_w isa NoHysteresis
+    disabled_ow = x.hysteresis_ow isa NoHysteresis
+    disabled_og = x.hysteresis_og isa NoHysteresis
+    disabled_g = x.hysteresis_g isa NoHysteresis
+    return !disabled_w || !disabled_ow || !disabled_og || !disabled_g
 end
 
 function Jutul.line_plot_data(model::SimulationModel, k::ReservoirRelativePermeabilities)
@@ -318,11 +340,10 @@ Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relper
             swconi = scalersi.w[1, c]
         end
         krwi, krowi, krogi, krgi = get_three_phase_relperms(relperm, c, krwi_base, krowi_base, krogi_base, krgi_base, swconi, scalersi)
-        H = relperm.hysteresis
-        val_w = kr_hysteresis(H[w], krwd, krwi, sw, sw_max)
-        val_ow = kr_hysteresis(H[o], krowd, krowi, so, so_max)
-        val_og = kr_hysteresis(H[o], krogd, krogi, so, so_max)
-        val_g = kr_hysteresis(H[g], krgd, krgi, sg, sg_max)
+        val_w = kr_hysteresis(relperm.hysteresis_w, krwd, krwi, sw, sw_max)
+        val_ow = kr_hysteresis(relperm.hysteresis_ow, krowd, krowi, so, so_max)
+        val_og = kr_hysteresis(relperm.hysteresis_og, krogd, krogi, so, so_max)
+        val_g = kr_hysteresis(relperm.hysteresis_g, krgd, krgi, sg, sg_max)
     else
         val_w = krwd(sw)
         val_ow = krowd(so)
@@ -335,7 +356,7 @@ Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relper
     kr[g, c] = val_g
 end
 
-Base.@propagate_inbounds @inline function update_two_phase_relperm!(kr, relperm, krw, krn, phase_ind, s, s_max, c, scalers, scalersi)
+Base.@propagate_inbounds @inline function update_two_phase_relperm!(kr, relperm, krw, krn, H_w, H_n, phase_ind, s, s_max, c, scalers, scalersi)
     w, n = phase_ind
     reg = region(relperm.regions, c)
     krwd_base = table_by_region(krw, reg)
@@ -349,13 +370,12 @@ Base.@propagate_inbounds @inline function update_two_phase_relperm!(kr, relperm,
         sw_max = s_max[w, c]
         sn_max = s_max[n, c]
 
-        H = relperm.hysteresis
         krwi_base = imbibition_table_by_region(krw, reg)
         krni_base = imbibition_table_by_region(krn, reg)
         krwi, krni = get_two_phase_relperms(relperm, c, krwi_base, krni_base, scalersi)
 
-        val_w = kr_hysteresis(H[w], krwd, krwi, sw, sw_max)
-        val_n = kr_hysteresis(H[n], krnd, krni, sn, sn_max)
+        val_w = kr_hysteresis(H_w, krwd, krwi, sw, sw_max)
+        val_n = kr_hysteresis(H_n, krnd, krni, sn, sn_max)
     else
         val_w = krwd(sw)
         val_n = krnd(sn)

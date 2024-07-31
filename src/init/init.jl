@@ -207,7 +207,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
                 kr1, kr2 = relperm.krw, relperm.krg
             end
             for c in cells
-                update_two_phase_relperm!(kr, relperm, kr1, kr2, phase_ind, s_eval, nothing, c, nothing, nothing)
+                update_two_phase_relperm!(kr, relperm, kr1, kr2, nothing, nothing, phase_ind, s_eval, nothing, c, nothing, nothing)
             end
         end
         kr = kr[:, cells]
