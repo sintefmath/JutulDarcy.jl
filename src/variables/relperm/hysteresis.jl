@@ -10,6 +10,8 @@ struct JargonHysteresis <: AbstractHysteresis end
 
 struct NoHysteresis <: AbstractHysteresis end
 
+struct ImbibitionOnlyHysteresis <: AbstractHysteresis end
+
 struct MaxSaturations <: PhaseVariables end
 
 function Jutul.update_parameter_before_step!(s_max, ::MaxSaturations, storage, model, dt, forces)
@@ -30,6 +32,10 @@ end
 
 function kr_hysteresis(t::NoHysteresis, drain, imb, s, s_max, ϵ = 1e-8)
     return drain(s)
+end
+
+function kr_hysteresis(t::ImbibitionOnlyHysteresis, drain, imb, s, s_max, ϵ = 1e-8)
+    return imb(s)
 end
 
 function kr_hysteresis(t, drain, imb, s, s_max, ϵ = 1e-8)

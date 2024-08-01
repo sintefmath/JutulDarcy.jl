@@ -240,6 +240,7 @@ end
 @testset "ReservoirRelativePermeability" begin
     all_hyst = [
         JutulDarcy.NoHysteresis(),
+        JutulDarcy.ImbibitionOnlyHysteresis(),
         JutulDarcy.KilloughHysteresis(),
         JutulDarcy.CarlsonHysteresis(),
         JutulDarcy.JargonHysteresis()
