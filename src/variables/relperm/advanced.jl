@@ -272,12 +272,13 @@ end
 function Base.show(io::IO, t::MIME"text/plain", kr::ReservoirRelativePermeabilities)
     println(io, "ReservoirRelativePermeabilities")
     println(io, "  functions:")
-    for f in [:krw, :krow, :krog, :krg]
-        k = getfield(kr, f)
+    for f in [:w, :ow, :og, :g]
+        k = getfield(kr, Symbol("kr$f"))
         if isnothing(k)
             s = "(not defined)"
         else
-            s = "$(length(k)) functions"
+            hy = getfield(kr, Symbol("hysteresis_$f"))
+            s = "$(length(k)) functions with $hy"
         end
         println(io, "    - $f: $s" )
     end
