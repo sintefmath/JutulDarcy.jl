@@ -17,6 +17,11 @@ struct MaxSaturations <: PhaseVariables end
 
 function Jutul.update_parameter_before_step!(s_max, ::MaxSaturations, storage, model, dt, forces)
     s = storage.state.Saturations
+    update_max_saturations!(s_max, s)
+    return s_max
+end
+
+function update_max_saturations!(s_max, s)
     for i in eachindex(s_max, s)
         s_prev = s_max[i]
         s_now = value(s[i])
@@ -24,7 +29,6 @@ function Jutul.update_parameter_before_step!(s_max, ::MaxSaturations, storage, m
             s_max[i] = replace_value(s_prev, s_now)
         end
     end
-    return s_max
 end
 
 function hysteresis_is_active(x::AbstractRelativePermeabilities)
