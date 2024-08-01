@@ -21,6 +21,10 @@ struct ReservoirRelativePermeabilities{Scaling, ph, O, OW, OG, G, R, HW, HOW, HO
     hysteresis_g::HG
     "Endpoint scaling model"
     scaling::Scaling
+    "Threshold for hysteresis to be active"
+    hysteresis_s_threshold::Float64
+    "Small epsilon used in hysteresis activation check"
+    hysteresis_s_eps::Float64
 end
 
 
@@ -35,7 +39,9 @@ end
         hysteresis_w = NoHysteresis(),
         hysteresis_ow = NoHysteresis(),
         hysteresis_og = NoHysteresis(),
-        hysteresis_g = NoHysteresis()
+        hysteresis_g = NoHysteresis(),
+        hysteresis_s_threshold = 0.0,
+        hysteresis_s_eps = 1e-10
     )
 
 Relative permeability with advanced features for reservoir simulation. Includes
@@ -64,7 +70,9 @@ function ReservoirRelativePermeabilities(;
         hysteresis_w::AbstractHysteresis = NoHysteresis(),
         hysteresis_ow::AbstractHysteresis = NoHysteresis(),
         hysteresis_og::AbstractHysteresis = NoHysteresis(),
-        hysteresis_g::AbstractHysteresis = NoHysteresis()
+        hysteresis_g::AbstractHysteresis = NoHysteresis(),
+        hysteresis_s_threshold = 0.0,
+        hysteresis_s_eps = 1e-10
     )
     has_w = !isnothing(w)
     has_g = !isnothing(g)
@@ -110,7 +118,7 @@ function ReservoirRelativePermeabilities(;
         typeof(hysteresis_ow),
         typeof(hysteresis_og),
         typeof(hysteresis_g)
-        }(krw, krow, krog, krg, regions, phases, hysteresis_w, hysteresis_ow, hysteresis_og, hysteresis_g, scaling)
+        }(krw, krow, krog, krg, regions, phases, hysteresis_w, hysteresis_ow, hysteresis_og, hysteresis_g, scaling, hysteresis_s_threshold, hysteresis_s_eps)
 end
 
 function Jutul.get_dependencies(kr::ReservoirRelativePermeabilities, model)
@@ -341,10 +349,14 @@ Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relper
             swconi = scalersi.w[1, c]
         end
         krwi, krowi, krogi, krgi = get_three_phase_relperms(relperm, c, krwi_base, krowi_base, krogi_base, krgi_base, swconi, scalersi)
-        val_w = kr_hysteresis(relperm.hysteresis_w, krwd, krwi, sw, sw_max)
-        val_ow = kr_hysteresis(relperm.hysteresis_ow, krowd, krowi, so, so_max)
-        val_og = kr_hysteresis(relperm.hysteresis_og, krogd, krogi, so, so_max)
-        val_g = kr_hysteresis(relperm.hysteresis_g, krgd, krgi, sg, sg_max)
+
+        ϵ = relperm.hysteresis_s_eps
+        s_th = relperm.hysteresis_s_threshold
+
+        val_w = kr_hysteresis(relperm.hysteresis_w, krwd, krwi, sw, sw_max, ϵ, th)
+        val_ow = kr_hysteresis(relperm.hysteresis_ow, krowd, krowi, so, so_max, ϵ, th)
+        val_og = kr_hysteresis(relperm.hysteresis_og, krogd, krogi, so, so_max, ϵ, th)
+        val_g = kr_hysteresis(relperm.hysteresis_g, krgd, krgi, sg, sg_max, ϵ, th)
     else
         val_w = krwd(sw)
         val_ow = krowd(so)
@@ -375,8 +387,11 @@ Base.@propagate_inbounds @inline function update_two_phase_relperm!(kr, relperm,
         krni_base = imbibition_table_by_region(krn, reg)
         krwi, krni = get_two_phase_relperms(relperm, c, krwi_base, krni_base, scalersi)
 
-        val_w = kr_hysteresis(H_w, krwd, krwi, sw, sw_max)
-        val_n = kr_hysteresis(H_n, krnd, krni, sn, sn_max)
+        ϵ = relperm.hysteresis_s_eps
+        s_th = relperm.hysteresis_s_threshold
+
+        val_w = kr_hysteresis(H_w, krwd, krwi, sw, sw_max, ϵ, s_th)
+        val_n = kr_hysteresis(H_n, krnd, krni, sn, sn_max, ϵ, s_th)
     else
         val_w = krwd(sw)
         val_n = krnd(sn)
