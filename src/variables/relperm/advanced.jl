@@ -353,10 +353,10 @@ Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relper
         ϵ = relperm.hysteresis_s_eps
         s_th = relperm.hysteresis_s_threshold
 
-        val_w = kr_hysteresis(relperm.hysteresis_w, krwd, krwi, sw, sw_max, ϵ, th)
-        val_ow = kr_hysteresis(relperm.hysteresis_ow, krowd, krowi, so, so_max, ϵ, th)
-        val_og = kr_hysteresis(relperm.hysteresis_og, krogd, krogi, so, so_max, ϵ, th)
-        val_g = kr_hysteresis(relperm.hysteresis_g, krgd, krgi, sg, sg_max, ϵ, th)
+        val_w = kr_hysteresis(relperm.hysteresis_w, krwd, krwi, sw, sw_max, ϵ, s_th)
+        val_ow = kr_hysteresis(relperm.hysteresis_ow, krowd, krowi, so, so_max, ϵ, s_th)
+        val_og = kr_hysteresis(relperm.hysteresis_og, krogd, krogi, so, so_max, ϵ, s_th)
+        val_g = kr_hysteresis(relperm.hysteresis_g, krgd, krgi, sg, sg_max, ϵ, s_th)
     else
         val_w = krwd(sw)
         val_ow = krowd(so)
