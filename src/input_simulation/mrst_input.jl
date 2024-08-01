@@ -389,31 +389,46 @@ function deck_relperm(runspec, props; oil, water, gas, satnum = nothing)
     else
         scaling = NoKrScale()
     end
-    relperm_given_as_sxof_tables = haskey(props, "SWOF") || haskey(props, "SGOF")
-    if water && oil && gas
-        KRW = []
-        KRG = []
-        KROW = []
-        KROG = []
-        if relperm_given_as_sxof_tables
-            for (swof, sgof) in zip(props["SWOF"], props["SGOF"])
-                krw, krow = table_to_relperm(swof, first_label = :w, second_label = :ow)
-                swcon = krw.connate
-                krg, krog = table_to_relperm(sgof, swcon = swcon, first_label = :g, second_label = :og)
 
-                push!(KRW, krw)
-                push!(KRG, krg)
-                push!(KROW, krow)
-                push!(KROG, krog)
-            end
+
+    tables_krw = []
+    tables_krow = []
+    tables_krog = []
+    tables_krg = []
+
+    function get_swcon(x, reg)
+        if length(x) == 0
+            out = 0.0
         else
-            @assert haskey(props, "SOF3")
-            @assert haskey(props, "SWFN")
-            @assert haskey(props, "SGFN")
-            for (sof3, swfn, sgfn) in zip(props["SOF3"], props["SWFN"], props["SGFN"])
-                # Water
+            out = x[reg].connate
+        end
+        return out
+    end
+    if haskey(props, "SWOF") || haskey(props, "SGOF")
+        if haskey(props, "SWOF")
+            for swof in props["SWOF"]
+                krw, krow = table_to_relperm(swof, first_label = :w, second_label = :ow)
+                push!(tables_krw, krw)
+                push!(tables_krow, krow)
+            end
+        end
+        if haskey(props, "SGOF")
+            for (reg, sgof) in enumerate(props["SGOF"])
+                swcon = get_swcon(tables_krw, reg)
+                krg, krog = table_to_relperm(sgof, swcon = swcon, first_label = :g, second_label = :og)
+                push!(tables_krg, krg)
+                push!(tables_krog, krog)
+            end
+        end
+    else
+        if haskey(props, "SWFN")
+            for swfn in props["SWFN"]
                 krw = PhaseRelativePermeability(swfn[:, 1], swfn[:, 2], label = :w)
-
+                push!(tables_krw, krw)
+            end
+        end
+        if haskey(props, "SOF3")
+            for sof3 in props["SOF3"]
                 # Oil pairs
                 so = sof3[:, 1]
                 krow_t = sof3[:, 2]
@@ -421,96 +436,48 @@ function deck_relperm(runspec, props; oil, water, gas, satnum = nothing)
                 krow = PhaseRelativePermeability(so, krow_t, label = :ow)
                 krog = PhaseRelativePermeability(so, krog_t, label = :og)
 
+                push!(tables_krow, krow)
+                push!(tables_krog, krog)
+            end
+        end
+        if haskey(props, "SGFN")
+            for sgfn in props["SGFN"]
                 # Gas
                 krg = PhaseRelativePermeability(sgfn[:, 1], sgfn[:, 2], label = :g)
-
-                push!(KRW, krw)
-                push!(KRG, krg)
-                push!(KROW, krow)
-                push!(KROG, krog)
+                push!(tables_krg, krg)
             end
-        end
-        KRW = Tuple(KRW)
-        KRG = Tuple(KRG)
-        KROW = Tuple(KROW)
-        KROG = Tuple(KROG)
-        krarg = (w = KRW, g = KRG, ow = KROW, og = KROG)
-    else
-        if relperm_given_as_sxof_tables
-            if water && oil
-                sat_table = props["SWOF"]
-                first_label = :w
-                second_label = :ow
-            else
-                @assert water && gas
-                sat_table = props["SGOF"]
-                first_label = :g
-                second_label = :og
-            end
-            kr_1 = []
-            kr_2 = []
-            @assert length(sat_table) == 1 || !isnothing(satnum) "Saturation region must be provided for multiple saturation tables"
-            for kr_from_deck in sat_table
-                I_1, I_2 = table_to_relperm(kr_from_deck, first_label = first_label, second_label = second_label)
-
-                push!(kr_1, I_1)
-                push!(kr_2, I_2)
-            end
-            kr_1 = tuple(kr_1...)
-            kr_2 = tuple(kr_2...)
-            if water && oil
-                krarg = (w = kr_1, ow = kr_2)
-            else
-                krarg = (g = kr_1, og = kr_2)
-            end
-        else
-            KRW = []
-            KRG = []
-            KROW = []
-            KROG = []
-            if oil
-                for sof3 in props["SOF3"]
-                    # Oil pairs
-                    so = sof3[:, 1]
-                    krow_t = sof3[:, 2]
-                    krog_t = sof3[:, 3]
-                    krow = PhaseRelativePermeability(so, krow_t, label = :ow)
-                    krog = PhaseRelativePermeability(so, krog_t, label = :og)
-
-                    push!(KROW, krow)
-                    push!(KROG, krog)
-                end
-                KROW = tuple(KROW...)
-                KROG = tuple(KROG...)
-            else
-                KROW = KROG = nothing
-            end
-
-            if water
-                for swfn in props["SWFN"]
-                    # Water
-                    krw = PhaseRelativePermeability(swfn[:, 1], swfn[:, 2], label = :w)
-                    push!(KRW, krw)
-                end
-                KRW = tuple(KRW...)
-            else
-                KRW = nothing
-            end
-
-            if gas
-                for sgfn in props["SGFN"]
-                    # Gas
-                    krg = PhaseRelativePermeability(sgfn[:, 1], sgfn[:, 2], label = :g)
-                    push!(KRG, krg)
-                end
-                KRG = tuple(KRG...)
-            else
-                KRG = nothing
-            end
-            krarg = (w = KRW, ow = KROW, og = KROG, g = KRG)
         end
     end
-    return ReservoirRelativePermeabilities(; krarg..., regions = satnum, scaling = scaling)
+    function convert_to_tuple_or_nothing(x)
+        if length(x) == 0
+            out = nothing
+        else
+            out = tuple(x...)
+        end
+    end
+    function check(phase, table, phasename, krname)
+        if phase && isnothing(table)
+            @warn "$phase was enabled but relperm $krname was not defined through any keyword."
+        end
+    end
+    check(water, tables_krw, "gas", "KRW")
+    check(gas && oil, tables_krog, "Phases gas and oil", "KROG")
+    check(water && oil, tables_krow, "Phases water and oil", "KROW")
+    check(gas, tables_krg, "Phase gas", "KRG")
+
+    tables_krw = convert_to_tuple_or_nothing(tables_krw)
+    tables_krow = convert_to_tuple_or_nothing(tables_krow)
+    tables_krog = convert_to_tuple_or_nothing(tables_krog)
+    tables_krg = convert_to_tuple_or_nothing(tables_krg)
+
+    return ReservoirRelativePermeabilities(;
+        w = tables_krw,
+        ow = tables_krow,
+        og = tables_krog,
+        g = tables_krg,
+        regions = satnum,
+        scaling = scaling
+    )
 end
 
 function flat_region_expand(x::AbstractMatrix, n = nothing)
