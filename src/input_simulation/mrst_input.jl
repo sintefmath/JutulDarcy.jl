@@ -393,67 +393,72 @@ function deck_relperm(runspec, props; oil, water, gas, satnum = nothing)
     hysteresis_w = hysteresis_ow = hysteresis_og = hysteresis_g = NoHysteresis()
     if haskey(props, "EHYSTR") && !haskey(runspec, "NOHYST")
         pc_curve, hyst_type, kr_curve, killough_tol, hyst_krpc_active, hyst_flag, _, wetting_og, = props["EHYSTR"]
-        killough = KilloughHysteresis(tol = killough_tol)
-        if wetting_og == "DEFAULT"
-            oil_is_wetting_for_og = true
-        else
-            oil_is_wetting_for_og = wetting_og == "OIL"
+        if hyst_krpc_active == "PC" || hyst_krpc_active == "BOTH"
+            jutul_message("EHYSTR", "Capillary pressure hysteresis is not supported and will be ignored.", color = :yellow)
         end
-        if hyst_type in (5, 6, 7)
-            # Special case, oil wet models
-            if hyst_type == 5
-                hysteresis_g = CarlsonHysteresis()
-                hysteresis_w = CarlsonHysteresis()
-            elseif hyst_type == 6
-                hysteresis_g = killough
-                hysteresis_w = killough
+        if hyst_krpc_active != "PC"
+            killough = KilloughHysteresis(tol = killough_tol)
+            if wetting_og == "DEFAULT"
+                oil_is_wetting_for_og = true
             else
-                @assert hyst_type == 7
-                hysteresis_g = killough
-                hysteresis_w = killough
-                jutul_message("EHYSTR", "Option 7 for positional argument 2: This option may not be correctly implemented.", color = :yellow)
+                oil_is_wetting_for_og = wetting_og == "OIL"
             end
-        else
-            if hyst_type == 0
-                # Carlson for non-wetting, drainage for wetting
-                nw_hyst = CarlsonHysteresis()
-                w_hyst = NoHysteresis()
-            elseif hyst_type == 1
-                # Carlson for non-wetting, imbibition for wetting
-                nw_hyst = CarlsonHysteresis()
-                w_hyst = ImbibitionOnlyHysteresis()
-            elseif hyst_type == 2
-                nw_hyst = killough
-                w_hyst = NoHysteresis()
-            elseif hyst_type == 3
-                nw_hyst = killough
-                w_hyst = ImbibitionOnlyHysteresis()
-            elseif hyst_type == 4
-                # TODO: Killough for wetting may require some additional modifications.
-                jutul_message("EHYSTR", "Option 4 for positional argument 2: Wetting-phase Killough hysteresis is not fully featured and uses same format as non-wetting.", color = :yellow)
-                nw_hyst = killough
-                w_hyst = killough
-            elseif hyst_type == 8
-                nw_hyst = JargonHysteresis()
-                w_hyst = NoHysteresis()
-            elseif hyst_type == 9
-                nw_hyst = JargonHysteresis()
-                w_hyst = ImbibitionOnlyHysteresis()
-            elseif hyst_type == -1
-                nw_hyst = ImbibitionOnlyHysteresis()
-                w_hyst = ImbibitionOnlyHysteresis()
+            if hyst_type in (5, 6, 7)
+                # Special case, oil wet models
+                if hyst_type == 5
+                    hysteresis_g = CarlsonHysteresis()
+                    hysteresis_w = CarlsonHysteresis()
+                elseif hyst_type == 6
+                    hysteresis_g = killough
+                    hysteresis_w = killough
+                else
+                    @assert hyst_type == 7
+                    hysteresis_g = killough
+                    hysteresis_w = killough
+                    jutul_message("EHYSTR", "Option 7 for positional argument 2: This option may not be correctly implemented.", color = :yellow)
+                end
             else
-                error("Hysteresis type $hyst_type (argument 2 to EHYSTR) is not supported.")
+                if hyst_type == 0
+                    # Carlson for non-wetting, drainage for wetting
+                    nw_hyst = CarlsonHysteresis()
+                    w_hyst = NoHysteresis()
+                elseif hyst_type == 1
+                    # Carlson for non-wetting, imbibition for wetting
+                    nw_hyst = CarlsonHysteresis()
+                    w_hyst = ImbibitionOnlyHysteresis()
+                elseif hyst_type == 2
+                    nw_hyst = killough
+                    w_hyst = NoHysteresis()
+                elseif hyst_type == 3
+                    nw_hyst = killough
+                    w_hyst = ImbibitionOnlyHysteresis()
+                elseif hyst_type == 4
+                    # TODO: Killough for wetting may require some additional modifications.
+                    jutul_message("EHYSTR", "Option 4 for positional argument 2: Wetting-phase Killough hysteresis is not fully featured and uses same format as non-wetting.", color = :yellow)
+                    nw_hyst = killough
+                    w_hyst = killough
+                elseif hyst_type == 8
+                    nw_hyst = JargonHysteresis()
+                    w_hyst = NoHysteresis()
+                elseif hyst_type == 9
+                    nw_hyst = JargonHysteresis()
+                    w_hyst = ImbibitionOnlyHysteresis()
+                elseif hyst_type == -1
+                    nw_hyst = ImbibitionOnlyHysteresis()
+                    w_hyst = ImbibitionOnlyHysteresis()
+                else
+                    error("Hysteresis type $hyst_type (argument 2 to EHYSTR) is not supported.")
+                end
+                if oil_is_wetting_for_og
+                    hysteresis_og = w_hyst
+                    hysteresis_g = nw_hyst
+                else
+                    hysteresis_og = nw_hyst
+                    hysteresis_g = w_hyst
+                end
+                hysteresis_w = w_hyst
+                hysteresis_ow = nw_hyst
             end
-            if oil_is_wetting_for_og
-                hysteresis_og = w_hyst
-                hysteresis_g = nw_hyst
-            else
-                hysteresis_og = nw_hyst
-                hysteresis_g = w_hyst
-            end
-            hysteresis_w = w_hyst
-            hysteresis_ow = nw_hyst
         end
     end
     tables_krw = []
