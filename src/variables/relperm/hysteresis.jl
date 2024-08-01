@@ -52,15 +52,17 @@ function kr_hysteresis(t, drain, imb, s, s_max, ϵ = 1e-10, s_min = 0.0)
     return kr
 end
 
+import JutulDarcy.MultiComponentFlash.Roots: find_zero
 function hysteresis_impl(t::CarlsonHysteresis, drain, imb, s, s_max)
     kr_at_max = drain(s_max)
     if imb isa PhaseRelativePermeability
         s_meet = Jutul.linear_interp(imb.k.F, imb.k.X, kr_at_max)
     else
-        ϵ = 1e-8
+        ϵ = 1e-6
         # TODO: Avoid this module hack by integrating Roots in package.
-        s_meet = JutulDarcy.MultiComponentFlash.Roots.find_zero(
-            s -> imb(s) - kr_at_max,
+        F = s -> imb(s) - kr_at_max
+        s_meet = find_zero(
+            F,
             (0.0, 1.0),
             xatol = ϵ,
             rtol = ϵ
