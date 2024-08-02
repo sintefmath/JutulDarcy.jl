@@ -1,16 +1,50 @@
 abstract type AbstractHysteresis end
 
+"""
+    KilloughHysteresis(tol = 0.1, s_min = 0.0)
+
+Killough hysteresis model. `tol` is a parameter for numerical stability and
+`s_min` a minimum threshold for when hysteresis is activated. Larger values for
+both of these parameters reduce numerical difficulties.
+
+Reference: https://doi.org/10.2118/5106-PA
+"""
 Base.@kwdef struct KilloughHysteresis <: AbstractHysteresis
     tol::Float64 = 0.1
     s_min::Float64 = 0.0
 end
 
-struct CarlsonHysteresis <: AbstractHysteresis end
+"""
+    CarlsonHysteresis()
 
+Carlson's hysteresis model.
+
+Note that this model requires an intersection between drainage and imbibition
+relative permeability that comes at some cost during simulation.
+"""
 struct JargonHysteresis <: AbstractHysteresis end
 
+"""
+    CarlsonHysteresis()
+
+Jargon's hystersis model.
+"""
+struct JargonHysteresis <: AbstractHysteresis end
+
+"""
+    NoHysteresis()
+
+Type to indicate that no hysteresis is active, and the drainage curve will
+always be used.
+"""
 struct NoHysteresis <: AbstractHysteresis end
 
+"""
+    ImbibitionOnlyHysteresis()
+
+Type to indicate that the hysteresis does not make use of the drainage curve,
+and the imbibition curve will always be used.
+"""
 struct ImbibitionOnlyHysteresis <: AbstractHysteresis end
 
 struct MaxSaturations <: PhaseVariables end
