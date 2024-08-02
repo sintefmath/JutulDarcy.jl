@@ -1,5 +1,5 @@
 include("capillary.jl")
-include("relperm.jl")
+include("relperm/relperm.jl")
 include("pvt.jl")
 include("utils.jl")
 include("viscosity.jl")

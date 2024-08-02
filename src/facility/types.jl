@@ -216,6 +216,23 @@ end
 Base.show(io::IO, t::TotalRateTarget) = print(io, "TotalRateTarget with value $(t.value) [m^3/s]")
 
 """
+    TotalReservoirRateTarget(q)
+
+Well target of specified total rate (sum of all phases) with value `q` at reservoir
+conditions.
+
+Often used for both [`InjectorControl`](@ref) [`ProducerControl`](@ref).
+"""
+struct TotalReservoirRateTarget{T} <: WellTarget where T<:AbstractFloat
+    value::T
+    function TotalReservoirRateTarget(v::T) where T
+        isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))'
+        return new{T}(v)
+    end
+end
+Base.show(io::IO, t::TotalReservoirRateTarget) = print(io, "TotalReservoirRateTarget with value $(t.value) [m^3/s]")
+
+"""
     HistoricalReservoirVoidageTarget(q, weights)
 
 Historical RESV target for history matching cases. See
@@ -561,6 +578,17 @@ function well_target_information(t::Union{TotalRateTarget, Val{:rate}})
         description = "Surface total rate",
         explanation = "Total volumetric rate at surface conditions. This is the sum of all phases. For most models, it is the sum of the mass rates divided by the prescribed surface densities. For compositional models the density is computed using a flash.",
         unit_type = :surface_volume_per_time,
+        unit_label = "m³/s"
+    )
+end
+
+
+function well_target_information(t::Union{TotalReservoirRateTarget, Val{:resv_rate}})
+    return well_target_information(
+        symbol = :resv_rate,
+        description = "Surface total rate",
+        explanation = "Total volumetric rate at reservoir conditions. This is the sum of all phases. For most models, it is the sum of the mass rates divided by the prescribed surface densities.",
+        unit_type = :reservoir_volume_per_time,
         unit_label = "m³/s"
     )
 end

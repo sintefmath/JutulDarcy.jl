@@ -256,6 +256,16 @@ function Jutul.default_parameter_values(data_domain, model, param::Diffusivities
     return T
 end
 
+"""
+    TwoPointGravityDifference()
+
+Parameter representing the difference in gravity on an instance of `Faces`
+between two `Cells`. If the phase flux is written as
+
+``v = - K \\nabla (p + \\rho g \\nabla z)``
+
+this term represent the discretized analogue of ``\\rho g \\nabla z``.
+"""
 struct TwoPointGravityDifference <: ScalarVariable end
 
 Jutul.associated_entity(::TwoPointGravityDifference) = Faces()

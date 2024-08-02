@@ -187,14 +187,28 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         s_eval = zeros(nph, nc_total)
         s_eval[:, cells] .= s
         phases = get_phases(sys)
-        if length(phases) == 3 && AqueousPhase() in phases
+        phase_ind = phase_indices(model.system)
+        if length(phases) == 3
             swcon = zeros(nc_total)
-            if !ismissing(s_min)
+            if AqueousPhase() in phases && !ismissing(s_min)
                 swcon[cells] .= s_min[1]
             end
-            evaluate_relative_permeability_no_scaling!(kr, relperm, model, s_eval, cells, swcon)
+            for c in cells
+                update_three_phase_relperm!(kr, relperm, phase_ind, s_eval, nothing, c, swcon[c], nothing, nothing)
+            end
         else
-            evaluate_relative_permeability_no_scaling!(kr, relperm, model, s_eval, cells)
+            ph = relperm.phases
+            if ph == :wo
+                kr1, kr2 = relperm.krw, relperm.krow
+            elseif ph == :og
+                kr1, kr2 = relperm.krog, relperm.krg
+            else
+                @assert ph == :wg
+                kr1, kr2 = relperm.krw, relperm.krg
+            end
+            for c in cells
+                update_two_phase_relperm!(kr, relperm, kr1, kr2, nothing, nothing, phase_ind, s_eval, nothing, c, nothing, nothing)
+            end
         end
         kr = kr[:, cells]
         init[:Saturations] = s

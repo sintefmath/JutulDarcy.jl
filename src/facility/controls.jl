@@ -179,8 +179,11 @@ function translate_limit(control::InjectorControl, name, val)
         # Lower limit, total volumetric surface rate
         target_limit = TotalRateTarget(val)
         is_lower = true
+    elseif name == :resv_rate
+        # Upper limit, total volumetric reservoir rate
+        target_limit = TotalReservoirRateTarget(val)
     else
-        error("$name limit not supported for well acting as producer.")
+        error("$name limit not supported for well acting as injector.")
     end
     return (target_limit, is_lower)
 end
@@ -244,6 +247,20 @@ function well_target(control::InjectorControl, target::SurfaceVolumeTarget, well
         end
     end
     return t/control.mixture_density
+end
+
+
+"""
+Well target contribution from well itself (reservoir volume, injector)
+"""
+function well_target(control::InjectorControl, target::TotalReservoirRateTarget, well_model, well_state, surface_densities, surface_volume_fractions)
+    w_phases = get_phases(flow_system(well_model.system))
+    t = 0.0
+    rho = well_state.PhaseMassDensities
+    for (ix, mix) in control.phases
+        t += mix/rho[ix, 1]
+    end
+    return t
 end
 
 """

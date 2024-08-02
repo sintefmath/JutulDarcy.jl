@@ -1601,8 +1601,8 @@ function injector_limits(; bhp = Inf, surface_rate = Inf, reservoir_rate = Inf)
     if isfinite(surface_rate)
         lims[:rate] = surface_rate
     end
-    if !isinf(reservoir_rate)
-        @warn "Non-defaulted reservoir rate limit not supported: $reservoir_rate"
+    if isfinite(reservoir_rate)
+        lims[:resv_rate] = reservoir_rate
     end
     return NamedTuple(pairs(lims))
 end
@@ -1626,6 +1626,13 @@ function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_
             is_rate = false
             if isfinite(bhp)
                 t = BottomHolePressureTarget(bhp)
+            else
+                well_is_disabled = true
+            end
+        elseif ctype == "RESV"
+            is_rate = false
+            if isfinite(res_rate) && res_rate > MIN_ACTIVE_WELL_RATE
+                t = TotalReservoirRateTarget(res_rate)
             else
                 well_is_disabled = true
             end

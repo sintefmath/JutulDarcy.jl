@@ -381,38 +381,125 @@ function deck_relperm(runspec, props; oil, water, gas, satnum = nothing)
         end
         if two_point_scaling
             Jutul.jutul_message("Rel. Perm. Scaling", "Two-point scaling active.")
-            scaling = TwoPointKrScale
+            scaling = TwoPointKrScale()
         else
             Jutul.jutul_message("Rel. Perm. Scaling", "Three-point scaling active.")
-            scaling = ThreePointKrScale
+            scaling = ThreePointKrScale()
         end
     else
-        scaling = NoKrScale
+        scaling = NoKrScale()
     end
-    if water && oil && gas
-        KRW = []
-        KRG = []
-        KROW = []
-        KROG = []
-        if haskey(props, "SWOF") && haskey(props, "SGOF")
-            for (swof, sgof) in zip(props["SWOF"], props["SGOF"])
-                krw, krow = table_to_relperm(swof, first_label = :o, second_label = :ow)
-                swcon = krw.connate
-                krg, krog = table_to_relperm(sgof, swcon = swcon, first_label = :g, second_label = :og)
 
-                push!(KRW, krw)
-                push!(KRG, krg)
-                push!(KROW, krow)
-                push!(KROG, krog)
+    hysteresis_w = hysteresis_ow = hysteresis_og = hysteresis_g = NoHysteresis()
+    if haskey(props, "EHYSTR") && !haskey(runspec, "NOHYST")
+        ehystr = props["EHYSTR"]
+        pc_curve, hyst_type, kr_curve, killough_tol, hyst_krpc_active, hyst_flag, _, wetting_og, = props["EHYSTR"]
+        if hyst_krpc_active == "PC" || hyst_krpc_active == "BOTH"
+            jutul_message("EHYSTR", "Capillary pressure hysteresis is not supported and will be ignored.", color = :yellow)
+        end
+        if hyst_krpc_active != "PC"
+            killough = KilloughHysteresis(tol = killough_tol, s_min = ehystr[12])
+            if wetting_og == "DEFAULT"
+                oil_is_wetting_for_og = true
+            else
+                oil_is_wetting_for_og = wetting_og == "OIL"
             end
-        else
-            @assert haskey(props, "SOF3")
-            @assert haskey(props, "SWFN")
-            @assert haskey(props, "SGFN")
-            for (sof3, swfn, sgfn) in zip(props["SOF3"], props["SWFN"], props["SGFN"])
-                # Water
-                krw = PhaseRelativePermeability(swfn[:, 1], swfn[:, 2], label = :w)
+            if hyst_type in (5, 6, 7)
+                # Special case, oil wet models
+                if hyst_type == 5
+                    hysteresis_g = CarlsonHysteresis()
+                    hysteresis_w = CarlsonHysteresis()
+                elseif hyst_type == 6
+                    hysteresis_g = killough
+                    hysteresis_w = killough
+                else
+                    @assert hyst_type == 7
+                    hysteresis_g = killough
+                    hysteresis_w = killough
+                    jutul_message("EHYSTR", "Option 7 for positional argument 2: This option may not be correctly implemented.", color = :yellow)
+                end
+            else
+                if hyst_type == 0
+                    # Carlson for non-wetting, drainage for wetting
+                    nw_hyst = CarlsonHysteresis()
+                    w_hyst = NoHysteresis()
+                elseif hyst_type == 1
+                    # Carlson for non-wetting, imbibition for wetting
+                    nw_hyst = CarlsonHysteresis()
+                    w_hyst = ImbibitionOnlyHysteresis()
+                elseif hyst_type == 2
+                    nw_hyst = killough
+                    w_hyst = NoHysteresis()
+                elseif hyst_type == 3
+                    nw_hyst = killough
+                    w_hyst = ImbibitionOnlyHysteresis()
+                elseif hyst_type == 4
+                    # TODO: Killough for wetting may require some additional modifications.
+                    jutul_message("EHYSTR", "Option 4 for positional argument 2: Wetting-phase Killough hysteresis is not fully featured and uses same format as non-wetting.", color = :yellow)
+                    nw_hyst = killough
+                    w_hyst = killough
+                elseif hyst_type == 8
+                    nw_hyst = JargonHysteresis()
+                    w_hyst = NoHysteresis()
+                elseif hyst_type == 9
+                    nw_hyst = JargonHysteresis()
+                    w_hyst = ImbibitionOnlyHysteresis()
+                elseif hyst_type == -1
+                    nw_hyst = ImbibitionOnlyHysteresis()
+                    w_hyst = ImbibitionOnlyHysteresis()
+                else
+                    error("Hysteresis type $hyst_type (argument 2 to EHYSTR) is not supported.")
+                end
+                if oil_is_wetting_for_og
+                    hysteresis_og = w_hyst
+                    hysteresis_g = nw_hyst
+                else
+                    hysteresis_og = nw_hyst
+                    hysteresis_g = w_hyst
+                end
+                hysteresis_w = w_hyst
+                hysteresis_ow = nw_hyst
+            end
+        end
+    end
+    tables_krw = []
+    tables_krow = []
+    tables_krog = []
+    tables_krg = []
 
+    function get_swcon(x, reg)
+        if length(x) == 0
+            out = 0.0
+        else
+            out = x[reg].connate
+        end
+        return out
+    end
+    if haskey(props, "SWOF") || haskey(props, "SGOF")
+        if haskey(props, "SWOF")
+            for swof in props["SWOF"]
+                krw, krow = table_to_relperm(swof, first_label = :w, second_label = :ow)
+                push!(tables_krw, krw)
+                push!(tables_krow, krow)
+            end
+        end
+        if haskey(props, "SGOF")
+            for (reg, sgof) in enumerate(props["SGOF"])
+                swcon = get_swcon(tables_krw, reg)
+                krg, krog = table_to_relperm(sgof, swcon = swcon, first_label = :g, second_label = :og)
+                push!(tables_krg, krg)
+                push!(tables_krog, krog)
+            end
+        end
+    else
+        if haskey(props, "SWFN")
+            for swfn in props["SWFN"]
+                krw = PhaseRelativePermeability(swfn[:, 1], swfn[:, 2], label = :w)
+                push!(tables_krw, krw)
+            end
+        end
+        if haskey(props, "SOF3")
+            for sof3 in props["SOF3"]
                 # Oil pairs
                 so = sof3[:, 1]
                 krow_t = sof3[:, 2]
@@ -420,48 +507,52 @@ function deck_relperm(runspec, props; oil, water, gas, satnum = nothing)
                 krow = PhaseRelativePermeability(so, krow_t, label = :ow)
                 krog = PhaseRelativePermeability(so, krog_t, label = :og)
 
-                # Gas
-                krg = PhaseRelativePermeability(sgfn[:, 1], sgfn[:, 2], label = :g)
-
-                push!(KRW, krw)
-                push!(KRG, krg)
-                push!(KROW, krow)
-                push!(KROG, krog)
+                push!(tables_krow, krow)
+                push!(tables_krog, krog)
             end
         end
-        KRW = Tuple(KRW)
-        KRG = Tuple(KRG)
-        KROW = Tuple(KROW)
-        KROG = Tuple(KROG)
-        krarg = (w = KRW, g = KRG, ow = KROW, og = KROG)
-    else
-        if water && oil
-            sat_table = props["SWOF"]
-            first_label = :w
-            second_label = :ow
-        else
-            sat_table = props["SGOF"]
-            first_label = :g
-            second_label = :og
-        end
-        kr_1 = []
-        kr_2 = []
-        @assert length(sat_table) == 1 || !isnothing(satnum) "Saturation region must be provided for multiple saturation tables"
-        for kr_from_deck in sat_table
-            I_1, I_2 = table_to_relperm(kr_from_deck, first_label = first_label, second_label = second_label)
-
-            push!(kr_1, I_1)
-            push!(kr_2, I_2)
-        end
-        kr_1 = tuple(kr_1...)
-        kr_2 = tuple(kr_2...)
-        if water && oil
-            krarg = (w = kr_1, ow = kr_2)
-        else
-            krarg = (g = kr_1, og = kr_2)
+        if haskey(props, "SGFN")
+            for sgfn in props["SGFN"]
+                # Gas
+                krg = PhaseRelativePermeability(sgfn[:, 1], sgfn[:, 2], label = :g)
+                push!(tables_krg, krg)
+            end
         end
     end
-    return ReservoirRelativePermeabilities(; krarg..., regions = satnum, scaling = scaling)
+    function convert_to_tuple_or_nothing(x)
+        if length(x) == 0
+            out = nothing
+        else
+            out = tuple(x...)
+        end
+    end
+    function check(phase, table, phasename, krname)
+        if phase && isnothing(table)
+            @warn "$phase was enabled but relperm $krname was not defined through any keyword."
+        end
+    end
+    check(water, tables_krw, "gas", "KRW")
+    check(gas && oil, tables_krog, "Phases gas and oil", "KROG")
+    check(water && oil, tables_krow, "Phases water and oil", "KROW")
+    check(gas, tables_krg, "Phase gas", "KRG")
+
+    tables_krw = convert_to_tuple_or_nothing(tables_krw)
+    tables_krow = convert_to_tuple_or_nothing(tables_krow)
+    tables_krog = convert_to_tuple_or_nothing(tables_krog)
+    tables_krg = convert_to_tuple_or_nothing(tables_krg)
+
+    return ReservoirRelativePermeabilities(;
+        w = tables_krw,
+        ow = tables_krow,
+        og = tables_krog,
+        g = tables_krg,
+        regions = satnum,
+        scaling = scaling,
+        hysteresis_w = hysteresis_w,
+        hysteresis_ow = hysteresis_ow,
+        hysteresis_og = hysteresis_og,
+        hysteresis_g = hysteresis_g
+    )
 end
 
 function flat_region_expand(x::AbstractMatrix, n = nothing)
@@ -781,22 +872,7 @@ end
 function set_deck_relperm!(vars, param, sys, runspec,  props; kwarg...)
     kr = deck_relperm(runspec, props; kwarg...)
     vars[:RelativePermeabilities] = wrap_reservoir_variable(sys, kr, :flow)
-    if scaling_type(kr) != NoKrScale
-        ph = kr.phases
-        has_phase(x) = occursin("$x", "$ph")
-        if has_phase(:w)
-            param[:RelPermScalingW] = EndPointScalingCoefficients(:w)
-        end
-        if has_phase(:wo)
-            param[:RelPermScalingOW] = EndPointScalingCoefficients(:ow)
-        end
-        if has_phase(:og)
-            param[:RelPermScalingOG] = EndPointScalingCoefficients(:og)
-        end
-        if has_phase(:g)
-            param[:RelPermScalingG] = EndPointScalingCoefficients(:g)
-        end
-    end
+    add_relperm_parameters!(param, kr)
 end
 
 function set_deck_pvmult!(vars, param, sys, props, reservoir)

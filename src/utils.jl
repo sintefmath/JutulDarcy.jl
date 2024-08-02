@@ -1434,9 +1434,17 @@ end
 
 """
     reservoir_transmissibility(d::DataDomain)
+    reservoir_transmissibility(d::DataDomain; version = :xyz)
 
 Special transmissibility function for reservoir simulation that handles
-additional complexity present in industry grade models.
+additional complexity present in industry grade models such as fault
+multipliers, net-to-gross etc. The input should be a `DataDomain` instance
+returned from [`reservoir_domain`](@ref)
+
+The keyword argument `version` can be `:xyz` for permeability tensors that are
+aligned with coordinate directions or `:ijk` to interpreted the permeability as
+a diagonal tensor aligned with the logical grid directions. The latter choice is
+only meaningful for a diagonal tensor.
 """
 function reservoir_transmissibility(d::DataDomain; version = :xyz)
     g = physical_representation(d)
