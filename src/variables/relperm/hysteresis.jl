@@ -44,10 +44,9 @@ function kr_hysteresis(t::ImbibitionOnlyHysteresis, drain, imb, s, s_max, ϵ = 1
 end
 
 function kr_hysteresis(t, drain, imb, s, s_max, ϵ = 1e-10, s_min = 0.0)
-    s_max_close = s_max - ϵ
-    if s >= s_max_close || s <= s_min
+    if s >= s_max - ϵ || s <= s_min
         kr = drain(s)
-    elseif s_max_close >= imb.s_max
+    elseif s_max >= imb.s_max - ϵ
         kr = imb(s)
     else
         kr = hysteresis_impl(t, drain, imb, s, s_max)
