@@ -22,7 +22,7 @@ Carlson's hysteresis model.
 Note that this model requires an intersection between drainage and imbibition
 relative permeability that comes at some cost during simulation.
 """
-struct JargonHysteresis <: AbstractHysteresis end
+struct CarlsonHysteresis <: AbstractHysteresis end
 
 """
     JargonHysteresis()
