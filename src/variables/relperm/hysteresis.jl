@@ -25,7 +25,7 @@ relative permeability that comes at some cost during simulation.
 struct JargonHysteresis <: AbstractHysteresis end
 
 """
-    CarlsonHysteresis()
+    JargonHysteresis()
 
 Jargon's hystersis model.
 """
