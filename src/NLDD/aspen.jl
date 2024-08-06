@@ -403,7 +403,7 @@ function primary_variable_positions(outer_sim, sim, buffers, i, partition)
 end
 
 function primary_variable_positions(model_g::MultiModel, model::MultiModel, storage, buffers::Vector{Vector{Float64}}, i, partition)
-    sym = Jutul.submodel_symbols(model_g)
+    sym = Jutul.submodels_symbols(model_g)
     groups = model_g.groups
     single_group = isnothing(groups)
     if single_group

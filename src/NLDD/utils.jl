@@ -247,7 +247,7 @@ end
 
 import JutulDarcy: reservoir_partition
 
-function build_submodels(model, partition; active_global = missing)
+function build_submodels(model, partition; active_global = missing, specialize = false)
     np = number_of_subdomains(partition)
     submodels = Vector{Any}(undef, np)
     p = Progress(np, desc = "Building $np submodels ")
@@ -257,7 +257,11 @@ function build_submodels(model, partition; active_global = missing)
     fpos = get_facepos(N)
 
     for i = 1:np
-        submodels[i] = submodel(model, partition, i, buffer = 1, minbatch = 1_000_000_000, active_global = active_global, facepos = fpos)
+        sm = submodel(model, partition, i, buffer = 1, minbatch = 1_000_000_000, active_global = active_global, facepos = fpos)
+        if specialize
+            sm = convert_to_immutable_storage(sm)
+        end
+        submodels[i] = sm
         next!(p)
     end
     return submodels
@@ -501,7 +505,7 @@ function partition_from_N(model, parameters, N)
         p = nothing
     else
         p = partition_internal_metis(model, parameters, N)
-        @info "N = $N provided, calling Metis."
+        jutul_message("NLDD-partitioner", "N = $N provided, calling Metis.")
     end
     return p
 end
@@ -511,7 +515,7 @@ function partition_from_mrst(model, mrst_data, do_print = true)
     if haskey(mrst_data, "extra") && length(mrst_data["extra"]) > 0
         e = first(mrst_data["extra"])
         if do_print
-            @info "Partition found in MRST export."
+            jutul_message("NLDD-partitioner", "Partition found in MRST export.")
         end
         if haskey(e, "partition")
             p = vec(Int64.(e["partition"]))
@@ -519,14 +523,14 @@ function partition_from_mrst(model, mrst_data, do_print = true)
                 p = nothing
             else
                 if do_print
-                    @info "Partition found in MRST export (under extra)."
+                    jutul_message("NLDD-partitioner", "Partition found in MRST export (under extra).")
                 end
             end
         end
     elseif haskey(mrst_data, "partition")
         p = vec(Int64.(mrst_data["partition"]))
         if do_print
-            @info "Partition found in MRST export."
+            jutul_message("NLDD-partitioner", "Partition found in MRST export.")
         end
     else
         p = nothing

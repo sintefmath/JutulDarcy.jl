@@ -250,6 +250,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         block_backend = true,
         nthreads = Threads.nthreads(),
         minbatch = 1000,
+        immutable_model = false,
         wells_systems = missing
     )
     if !(wells isa AbstractArray)
@@ -344,7 +345,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
                 models[Symbol(string(wname)*string(:_ctrl))] = F
             end
         end
-        # Add facility that gorups the wells
+        # Add facility that groups the wells
         if !split_wells
             wg = WellGroup(map(x -> x.name, wells), can_shut_wells = can_shut_wells)
             F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
@@ -353,7 +354,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     end
 
     # Put it all together as multimodel
-    model = reservoir_multimodel(models, split_wells = split_wells, assemble_wells_together = assemble_wells_together)
+    model = reservoir_multimodel(models, split_wells = split_wells, assemble_wells_together = assemble_wells_together, immutable_model = immutable_model)
     if extra_out
         parameters = setup_parameters(model, parameters)
         out = (model, parameters)
@@ -840,7 +841,12 @@ function reservoir_multimodel(model::MultiModel; kwarg...)
     return model
 end
 
-function reservoir_multimodel(models::AbstractDict; specialize = false, split_wells = false, assemble_wells_together = haskey(models, :Facility))
+function reservoir_multimodel(models::AbstractDict;
+        specialize = false,
+        split_wells = false,
+        immutable_model = false,
+        assemble_wells_together = haskey(models, :Facility)
+    )
     res_model = models[:Reservoir]
     is_block(x) = Jutul.is_cell_major(matrix_layout(x.context))
     block_backend = is_block(res_model)
@@ -902,6 +908,9 @@ function reservoir_multimodel(models::AbstractDict; specialize = false, split_we
     models = convert_to_immutable_storage(models)
     model = MultiModel(models, groups = groups, context = outer_context, reduction = red, specialize = specialize)
     setup_reservoir_cross_terms!(model)
+    if immutable_model
+        model = convert_to_immutable_storage(model)
+    end
     return model
 end
 

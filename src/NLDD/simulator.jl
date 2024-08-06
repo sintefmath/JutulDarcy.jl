@@ -14,6 +14,7 @@ function NLDDSimulator(case::JutulCase, partition = missing;
         cells_per_block = missing,
         mpi_sync_after_solve = true,
         no_blocks = missing,
+        specialize_submodels = false,
         kwarg...
     )
     (; model, state0, parameters) = case
@@ -60,7 +61,7 @@ function NLDDSimulator(case::JutulCase, partition = missing;
         else
             active_global = missing
         end
-        submodels = build_submodels(model, partition, active_global = active_global)
+        submodels = build_submodels(model, partition, active_global = active_global, specialize = specialize_submodels)
 
         if is_distributed_solve && false
             categorized = zeros(Int, nc)
@@ -550,7 +551,7 @@ end
 
 function find_max_interior_pressure(model::MultiModel, state)
     p_max = -Inf
-    for k in Jutul.submodel_symbols(model)
+    for k in Jutul.submodels_symbols(model)
         model_k = model[k]
         state_k = state[k]
         if haskey(state_k, :Pressure)#  && k == :Reservoir
