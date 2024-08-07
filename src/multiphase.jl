@@ -125,6 +125,8 @@ function initialize_primary_variable_ad!(state, model, pvar::Saturations, state_
     return state
 end
 
+Jutul.parameter_is_differentiable(::Saturations, model) = false
+
 struct ConnateWater <: ScalarVariable end
 
 function Jutul.default_values(model, ::ConnateWater)
