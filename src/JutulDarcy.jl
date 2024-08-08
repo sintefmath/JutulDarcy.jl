@@ -142,6 +142,10 @@ module JutulDarcy
     using PrecompileTools
     using Dates
     using GeoEnergyIO
+    # Artifacts
+    using Artifacts
+    using LazyArtifacts
+
     import DataStructures: OrderedDict
     using DocStringExtensions
 

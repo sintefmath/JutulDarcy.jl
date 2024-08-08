@@ -59,8 +59,9 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
     return (model, parameters)
 end
 
-function co2_brine_property_tables(T = missing)
-    getpth(n) = joinpath(@__DIR__, "tables", n)
+function co2_brine_property_tables(T = missing; basepath = joinpath(artifact"CO2Tables_CSP11", "csp11"))
+    ispath(basepath) || throw(ArgumentError("basepath $basepath does not exist."))
+    getpth(n) = joinpath(basepath, n)
 
     co2 = read_component_table(getpth("co2values.csv"))
     h2o = read_component_table(getpth("h2ovalues.csv"))
