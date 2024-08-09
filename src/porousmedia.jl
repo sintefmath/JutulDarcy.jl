@@ -97,7 +97,7 @@ function compute_peaceman_index(Δ, K, radius;
     return WI
 end
 
-function Jutul.discretize_domain(d::DataDomain, system::Union{MultiPhaseSystem, CompositeSystem{:Reservoir, T}}, ::Val{:default}; kwarg...) where T
+function Jutul.discretize_domain(d::DataDomain, system::Union{MultiPhaseSystem, ThermalSystem, CompositeSystem{:Reservoir, T}}, ::Val{:default}; kwarg...) where T
     return discretized_domain_tpfv_flow(d; kwarg...)
 end
 
