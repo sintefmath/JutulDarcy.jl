@@ -1,6 +1,6 @@
 
 
-using JutulDarcy, Jutul
+using JutulDarcy, Jutul, Flux, BSON, CUDA
 Darcy, bar, kg, meter, day = si_units(:darcy, :bar, :kilogram, :meter, :day)
 nx = ny = 25
 nz = 10
@@ -23,21 +23,29 @@ model, parameters = setup_reservoir_model(domain, sys, wells = [Injector, Produc
 """
 Machine Learning-based method for computing relative permeabilites
 """
-struct MLModelRelativePermeabilities{T} <: JutulDarcy.AbstractRelativePermeabilities
-    test_value::T
-    function MLModelRelativePermeabilities(input_test_value)
-        new{typeof(input_test_value)}(input_test_value)
+
+struct MLModelRelativePermeabilities{M} <: JutulDarcy.AbstractRelativePermeabilities
+    ML_model::M
+    function MLModelRelativePermeabilities(input_ML_model)
+        new{typeof(input_ML_model)}(input_ML_model)
     end
 end
 
 Jutul.@jutul_secondary function update_kr!(kr, kr_def::MLModelRelativePermeabilities, model, Saturations, ix)
-    test_value = kr_def.test_value
-    for i in ix
-        for ph in axes(kr, 1)
-            S = Saturations[ph, i]
-            kr[ph, i] = S*test_value
-        end
+    ML_model = kr_def.ML_model
+    for ph in axes(kr, 1)
+        # processing all the cells in one batch on the gpu
+        sat_batch = reshape(Saturations[ph, :], 1, :) |> gpu  # Reshape to 1 x n matrix
+        kr[ph, :] = vec(ML_model(sat_batch)) |> cpu
     end
+    # use analytical function
+    #for i in ix
+    #    for ph in axes(kr, 1)
+    #        S = [Saturations[ph, i]]
+    #        result = JutulDarcy.brooks_corey_relperm(S[1], 2.0, 0.2, 1.0, 0.4)
+    #        kr[ph, i] = result[1]
+    #    end
+    #end
     return kr
 end
 
@@ -47,9 +55,15 @@ density = ConstantCompressibilityDensities(
     density_ref = reference_densities,
     compressibility = c
 )
-#kr = BrooksCoreyRelativePermeabilities(sys, [2.0, 3.0])
-#replace_variables!(model, PhaseMassDensities = density, BrooksCoreyRelativePermeabilities = kr);
-kr = MLModelRelativePermeabilities(1.0)
+
+jutul_dir = realpath(joinpath(@__DIR__, ".."))
+model_path = joinpath(jutul_dir, "examples", "BrooksCoreyMLModel.bson")
+BSON.@load model_path BrooksCoreyMLModel
+
+BrooksCoreyMLModel = BrooksCoreyMLModel |> gpu  # move model to gpu
+
+
+kr = MLModelRelativePermeabilities(BrooksCoreyMLModel)
 rmodel = reservoir_model(model)
 replace_variables!(rmodel, RelativePermeabilities =  kr, throw = true)
 
