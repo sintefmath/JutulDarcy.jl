@@ -724,6 +724,10 @@ function simulate_reservoir(case::JutulCase;
         end
     else
         sim = simulator
+        # May have been passed kwarg that should be accounted for
+        for (k, v) in kwarg
+            config[k] = v
+        end
         @assert !ismissing(config) "If simulator is provided, config must also be provided"
     end
     result = simulate!(sim, dt, forces = forces, config = config, restart = restart);
