@@ -97,17 +97,23 @@ function compute_peaceman_index(Δ, K, radius;
     return WI
 end
 
-function Jutul.discretize_domain(d::DataDomain, system::Union{MultiPhaseSystem, ThermalSystem, CompositeSystem{:Reservoir, T}}, ::Val{:default}; kwarg...) where T
+function Jutul.discretize_domain(d::DataDomain, system::Union{MultiPhaseSystem, CompositeSystem{:Reservoir, T}}, ::Val{:default}; kwarg...) where T
     return discretized_domain_tpfv_flow(d; kwarg...)
 end
 
 
-function discretized_domain_tpfv_flow(domain::Jutul.DataDomain; general_ad = false)
+function discretized_domain_tpfv_flow(domain::Jutul.DataDomain; general_ad = false, kgrad = nothing, upwind = nothing)
     N = domain[:neighbors]
     nc = number_of_cells(physical_representation(domain))
     if general_ad
-        d = PotentialFlow(N, nc)
+        d = PotentialFlow(N, nc, kgrad = kgrad, upwind = upwind)
     else
+        if !isnothing(kgrad)
+            @assert eltype(kgrad) == TPFA
+        end
+        if !isnothing(upwind)
+            @assert eltype(upwind) == SPU
+        end
         d = TwoPointPotentialFlowHardCoded(N, nc)
     end
     disc = (mass_flow = d, heat_flow = d)
