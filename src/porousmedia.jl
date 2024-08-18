@@ -102,18 +102,37 @@ function Jutul.discretize_domain(d::DataDomain, system::Union{MultiPhaseSystem, 
 end
 
 
-function discretized_domain_tpfv_flow(domain::Jutul.DataDomain; general_ad = false, kgrad = nothing, upwind = nothing)
+function discretized_domain_tpfv_flow(domain::Jutul.DataDomain;
+        general_ad = false,
+        kgrad = nothing,
+        upwind = nothing
+    )
     N = domain[:neighbors]
-    nc = number_of_cells(physical_representation(domain))
+    g = physical_representation(domain)
+    nc = number_of_cells(g)
+    # defaulted_disc = isnothing(kgrad) && isnothing(upwind)
+    kgrad_is_tpfa = (isnothing(kgrad) || eltype(kgrad) == TPFA)
+    upw_is_tpfa = (isnothing(upwind) || eltype(upwind) == SPU)
+
+    is_tpfa = kgrad_is_tpfa && upw_is_tpfa
+    if !general_ad && !is_tpfa
+        general_ad = true
+        jutul_message("Discretization", "Non-defaulted discretization detected, falling back to general AD.")
+    end
     if general_ad
+        if kgrad isa Symbol
+            if kgrad == :tpfa
+                kgrad = nothing
+            else
+                K = domain[:permeability]
+                g = UnstructuredMesh(g)
+                kgrad = Jutul.NFVM.ntpfa_decompose_faces(g, K, kgrad)
+            end
+        else
+            @assert isnothing(kgrad) || kgrad isa AbstractVector
+        end
         d = PotentialFlow(N, nc, kgrad = kgrad, upwind = upwind)
     else
-        if !isnothing(kgrad)
-            @assert eltype(kgrad) == TPFA
-        end
-        if !isnothing(upwind)
-            @assert eltype(upwind) == SPU
-        end
         d = TwoPointPotentialFlowHardCoded(N, nc)
     end
     disc = (mass_flow = d, heat_flow = d)
