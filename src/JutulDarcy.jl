@@ -171,6 +171,8 @@ module JutulDarcy
     include("facility/facility.jl")
 
     include("flux.jl")
+    include("flux_nfvm.jl")
+
     include("porousmedia.jl")
     # MRST inputs and test cases that use MRST input
     # and .DATA file simulation
