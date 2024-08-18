@@ -250,6 +250,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         block_backend = true,
         nthreads = Threads.nthreads(),
         minbatch = 1000,
+        kgrad = nothing,
         immutable_model = false,
         wells_systems = missing
     )
@@ -269,9 +270,10 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     # We first set up the reservoir
     rmodel = SimulationModel(
         reservoir,
-        system,
+        system;
         context = reservoir_context,
-        general_ad = general_ad
+        general_ad = general_ad,
+        kgrad = kgrad
     )
     set_reservoir_variable_defaults!(rmodel,
         dp_max_abs = dp_max_abs,
