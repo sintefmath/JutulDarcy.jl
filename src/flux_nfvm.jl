@@ -10,20 +10,35 @@ function darcy_phase_kgrad_potential(face, phase, state, model, flux_type, mpfa:
     # gΔz = tpfa.face_sign*grav[face]
     grav = state.TwoPointGravityDifference[face]
     pc, ref_index = capillary_pressure(model, state)
-    if grav == 0.0 && isnothing(pc)
-        p = state.Pressure
+    p = state.Pressure
+    if abs(grav) > 1e-15 && isnothing(pc)
         K∇p = pressure_gradient(p, mpfa)
         q = -K∇p
     else
         # TODO: Sign, potential split magic, etc.
-        error("Not implemented - fixme.")
-        ρ_avg = face_average_density(model, state, tpfa, phase)
-        Δpc = capillary_gradient(pc, l, r, phase, ref_index)
+        l, r = Jutul.NFVM.cell_pair(mpfa)
+        xyz = model.data_domain[:cell_centroids]
+        xyz::Matrix{Float64}
+        z = view(xyz, 3, :)
+        p = state.Pressure
+        rho = state.PhaseMassDensities
+        g = gravity_constant
+        @assert isnothing(pc) "Pc not implemented."
+        function dens(c)
+            return rho[phase, c]
+        end
+        function pot(c)
+            return p[c] + g*dens(c)*z[c]
+        end
+        ∇pot = pressure_gradient(pot, mpfa)
+        # grad(p + rho g z) = grad(p) + grad(rho) g z + rho g grad(z)
+        # -> grad(p) + rho g grad(z) = grad(p + rho g z) - grad(rho) g z
+        ∇rho = pressure_gradient(dens, mpfa)
+        z_avg = (z[l] + z[r])/2.0
+        q = -(∇pot - ∇rho*g*z_avg)
+        # ρ_avg = face_average_density(model, state, tpfa, phase)
+        # Δpc = capillary_gradient(pc, l, r, phase, ref_index)
     end
-    # ∇p, T_f, gΔz = common
-    # l = tpfa.left
-    # r = tpfa.right
-
     if haskey(state, :PermeabilityMultiplier)
         K_mul = state.PermeabilityMultiplier
         m = face_average(c -> K_mul[c], tpfa)
