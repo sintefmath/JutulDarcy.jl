@@ -12,14 +12,14 @@ function darcy_phase_kgrad_potential(face, phase, state, model, flux_type, mpfa:
         pot = state.PhasePotentials
         dens = state.PhaseMassDensities
         z = state.CellDepths
-        # grad(p + rho g z) = grad(p) + grad(rho) g z + rho g grad(z)
-        # -> grad(p) + rho g grad(z) = grad(p + rho g z) - grad(rho) g z
+        # grad(p - rho g z) = grad(p) - grad(rho) g z - rho g grad(z)
+        # -> grad(p) - rho g grad(z) = grad(p - rho g z) + grad(rho) g z
         ∇pot = Jutul.NFVM.evaluate_flux(pot, mpfa, phase)
         ∇rho = Jutul.NFVM.evaluate_flux(dens, mpfa, phase)
 
         l, r = Jutul.NFVM.cell_pair(mpfa)
         z_avg = (z[l] + z[r])/2.0
-        q = -(∇pot - ∇rho*g*z_avg)
+        q = -(∇pot + ∇rho*g*z_avg)
     else
         # If missing potential, just do everything here.
         K∇p = Jutul.NFVM.evaluate_flux(p, mpfa, phase)
@@ -40,7 +40,7 @@ end
             z = CellDepths[i]
             p = Pressure[i]
             rho = PhaseMassDensities[ph, i]
-            pot[ph, i] = p + g*z*rho
+            pot[ph, i] = p - g*z*rho
         end
     end
     return pot
