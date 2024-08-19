@@ -12,40 +12,14 @@ function darcy_phase_kgrad_potential(face, phase, state, model, flux_type, mpfa:
         pot = state.PhasePotentials
         dens = state.PhaseMassDensities
         z = state.CellDepths
-    
+        # grad(p + rho g z) = grad(p) + grad(rho) g z + rho g grad(z)
+        # -> grad(p) + rho g grad(z) = grad(p + rho g z) - grad(rho) g z
         ∇pot = Jutul.NFVM.evaluate_flux(pot, mpfa, phase)
         ∇rho = Jutul.NFVM.evaluate_flux(dens, mpfa, phase)
 
         l, r = Jutul.NFVM.cell_pair(mpfa)
         z_avg = (z[l] + z[r])/2.0
         q = -(∇pot - ∇rho*g*z_avg)
-
-        if false
-            error()
-            # TODO: Sign, potential split magic, etc.
-            l, r = Jutul.NFVM.cell_pair(mpfa)
-            xyz = model.data_domain[:cell_centroids]
-            xyz::Matrix{Float64}
-            z = view(xyz, 3, :)
-            p = state.Pressure
-            rho = state.PhaseMassDensities
-            g = gravity_constant
-            @assert isnothing(pc) "Pc not implemented."
-            function dens(c)
-                return rho[phase, c]
-            end
-            function pot(c)
-                return p[c] + g*dens(c)*z[c]
-            end
-            ∇pot = pressure_gradient(pot, mpfa)
-            # grad(p + rho g z) = grad(p) + grad(rho) g z + rho g grad(z)
-            # -> grad(p) + rho g grad(z) = grad(p + rho g z) - grad(rho) g z
-            ∇rho = pressure_gradient(dens, mpfa)
-            z_avg = (z[l] + z[r])/2.0
-            q = -(∇pot - ∇rho*g*z_avg)
-            # ρ_avg = face_average_density(model, state, tpfa, phase)
-            # Δpc = capillary_gradient(pc, l, r, phase, ref_index)
-        end
     else
         # If missing potential, just do everything here.
         K∇p = Jutul.NFVM.evaluate_flux(p, mpfa, phase)
