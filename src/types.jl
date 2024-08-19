@@ -606,3 +606,14 @@ function SurfaceWellConditions(sys::JutulSystem; kwarg...)
 end
 
 struct PrepareStepWellSolver end
+
+
+struct PhasePotentials{has_pc} <: PhaseVariables
+    function PhasePotentials(; pc::Bool = false)
+        return new{pc}()
+    end
+end
+
+struct CellDepths <: ScalarVariable
+
+end

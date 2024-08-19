@@ -42,7 +42,7 @@ end
     return kgrad_common(face, state, model, tpfa)
 end
 
-@inline function darcy_phase_kgrad_potential(face, phase, state, model, flux_type, tpfa::TPFA, upw, common = flux_primitives(face, state, model, flux_type, upw, tpfa))
+@inline function darcy_phase_kgrad_potential(face, phase, state, model, flux_type, tpfa::TPFA{T}, upw, common = flux_primitives(face, state, model, flux_type, upw, tpfa)) where T
     pc, ref_index = capillary_pressure(model, state)
     ∇p, T_f, gΔz = common
     l = tpfa.left
