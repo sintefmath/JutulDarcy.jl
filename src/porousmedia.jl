@@ -126,7 +126,8 @@ function discretized_domain_tpfv_flow(domain::Jutul.DataDomain;
             else
                 K = domain[:permeability]
                 g = UnstructuredMesh(g)
-                kgrad = Jutul.NFVM.ntpfa_decompose_faces(g, K, kgrad)
+                T_base = reservoir_transmissibility(domain)
+                kgrad = Jutul.NFVM.ntpfa_decompose_faces(g, K, kgrad, tpfa_trans = T_base)
             end
         else
             @assert isnothing(kgrad) || kgrad isa AbstractVector
