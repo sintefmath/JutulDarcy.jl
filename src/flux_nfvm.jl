@@ -33,6 +33,16 @@ function darcy_phase_kgrad_potential(face, phase, state, model, flux_type, mpfa:
     return q
 end
 
+@inline function JutulDarcy.gradient(X::AbstractVector, hf::Jutul.NFVM.NFVMDiscretization)
+    l, r = Jutul.NFVM.cell_pair(hf)
+    return @inbounds X[r] - X[l]
+end
+
+@inline function JutulDarcy.gradient(X::AbstractMatrix, i, hf::Jutul.NFVM.NFVMDiscretization)
+    l, r = Jutul.NFVM.cell_pair(hf)
+    return @inbounds X[i, r] - X[i, l]
+end
+
 function Jutul.get_dependencies(pot::PhasePotentials, model)
     deps = Symbol[:Pressure, :CellDepths, :PhaseMassDensities]
     has_pc = !isnothing(get_variable(model, :CapillaryPressure, throw = false))
