@@ -608,10 +608,8 @@ end
 struct PrepareStepWellSolver end
 
 
-struct PhasePotentials{has_pc} <: PhaseVariables
-    function PhasePotentials(; pc::Bool = false)
-        return new{pc}()
-    end
+struct PhasePotentials <: PhaseVariables
+
 end
 
 struct CellDepths <: ScalarVariable

@@ -33,21 +33,36 @@ function darcy_phase_kgrad_potential(face, phase, state, model, flux_type, mpfa:
     return q
 end
 
-@jutul_secondary function update_phase_potentials!(pot, pot_def::PhasePotentials{false}, model, Pressure, CellDepths, PhaseMassDensities, ix)
+function Jutul.get_dependencies(pot::PhasePotentials, model)
+    deps = Symbol[:Pressure, :CellDepths, :PhaseMassDensities]
+    has_pc = !isnothing(get_variable(model, :CapillaryPressure, throw = false))
+    if has_pc
+        push!(deps, :CapillaryPressure)
+    end
+    return tuple(deps...)
+end
+
+function update_secondary_variable!(pot, pot_def::PhasePotentials, model, state, ix = entity_eachindex(kr))
+    pc, ref_index = capillary_pressure(model, state)
+    CellDepths = state.CellDepths
+    Pressure = state.Pressure
+    PhaseMassDensities = state.PhaseMassDensities
     g = gravity_constant
     for i in ix
         for ph in axes(pot, 1)
             z = CellDepths[i]
             p = Pressure[i]
             rho = PhaseMassDensities[ph, i]
-            pot[ph, i] = p - g*z*rho
+            if isnothing(pc) || ref_index == ph
+                p_ph = p
+            else
+                pos = ph - (ph > ph_ref)
+                p_ph = p + pc[pos, i]
+            end
+            pot[ph, i] = p_ph - g*z*rho
         end
     end
     return pot
-end
-
-@jutul_secondary function update_phase_potentials!(pot, pot_def::PhasePotentials{true}, model, Pressure, CellDepths, PhaseMassDensities, CapillaryPressure, ix)
-    error("Not supported yet")
 end
 
 function Jutul.default_values(model, ::CellDepths)

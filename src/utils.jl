@@ -1612,7 +1612,7 @@ function set_discretization_variables!(model::MultiModel)
     return model
 end
 
-function set_discretization_variables!(model)
+function set_discretization_variables!(model; ntpfa_potential = true)
     disc = model.domain.discretizations
     flow = model.domain.discretizations.mass_flow
     if flow isa PotentialFlow
@@ -1627,8 +1627,8 @@ function set_discretization_variables!(model)
             else
                 has_gravity = false
             end
-            if has_gravity || has_pc
-                set_secondary_variables!(model, PhasePotentials = PhasePotentials(pc = has_pc))
+            if ntpfa_potential || has_gravity || has_pc
+                set_secondary_variables!(model, PhasePotentials = PhasePotentials())
                 set_parameters!(model, CellDepths = CellDepths())
             end
         end
