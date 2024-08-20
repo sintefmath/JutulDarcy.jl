@@ -56,7 +56,7 @@ function update_secondary_variable!(pot, pot_def::PhasePotentials, model, state,
             if isnothing(pc) || ref_index == ph
                 p_ph = p
             else
-                pos = ph - (ph > ph_ref)
+                pos = ph - (ph > ref_index)
                 p_ph = p + pc[pos, i]
             end
             pot[ph, i] = p_ph - g*z*rho
