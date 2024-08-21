@@ -116,10 +116,17 @@ function discretized_domain_tpfv_flow(domain::Jutul.DataDomain;
 
     is_tpfa = kgrad_is_tpfa && upw_is_tpfa
     if !general_ad && !is_tpfa
-        general_ad = true
+        # general_ad = true
         jutul_message("Discretization", "Non-defaulted discretization detected, falling back to general AD.")
     end
-    if general_ad
+    # if tpfa:
+    if is_tpfa
+        if general_ad
+            d = TwoPointPotentialFlowHardCoded(N, nc)
+        else
+            d = PotentialFlow(N, nc)
+        end
+    else
         if kgrad isa Symbol
             if kgrad == :tpfa
                 kgrad = nothing
@@ -132,9 +139,12 @@ function discretized_domain_tpfv_flow(domain::Jutul.DataDomain;
         else
             @assert isnothing(kgrad) || kgrad isa AbstractVector
         end
-        d = PotentialFlow(N, nc, kgrad = kgrad, upwind = upwind)
-    else
-        d = TwoPointPotentialFlowHardCoded(N, nc)
+        if general_ad
+            ad_flag = :generic
+        else
+            ad_flag = :fvm
+        end
+        d = PotentialFlow(N, nc, kgrad = kgrad, upwind = upwind, ad = ad_flag)
     end
     disc = (mass_flow = d, heat_flow = d)
     G = MinimalTPFATopology(N, ncells = nc)
