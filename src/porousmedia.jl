@@ -111,8 +111,8 @@ function discretized_domain_tpfv_flow(domain::Jutul.DataDomain;
     g = physical_representation(domain)
     nc = number_of_cells(g)
     # defaulted_disc = isnothing(kgrad) && isnothing(upwind)
-    kgrad_is_tpfa = (isnothing(kgrad) || eltype(kgrad) == TPFA)
-    upw_is_tpfa = (isnothing(upwind) || eltype(upwind) == SPU)
+    kgrad_is_tpfa = (isnothing(kgrad) || eltype(kgrad) == TPFA || kgrad == :tpfa)
+    upw_is_tpfa = (isnothing(upwind) || eltype(upwind) == SPU || upwind == :spu)
 
     is_tpfa = kgrad_is_tpfa && upw_is_tpfa
     if !general_ad && !is_tpfa
