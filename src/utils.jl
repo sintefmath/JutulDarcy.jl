@@ -1629,7 +1629,7 @@ function set_discretization_variables!(model; ntpfa_potential = true)
             end
             if ntpfa_potential || has_gravity || has_pc
                 set_secondary_variables!(model, PhasePotentials = PhasePotentials())
-                set_parameters!(model, CellDepths = CellDepths())
+                set_parameters!(model, AdjustedCellDepths = AdjustedCellDepths())
             end
         end
     end

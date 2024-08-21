@@ -612,6 +612,6 @@ struct PhasePotentials <: PhaseVariables
 
 end
 
-struct CellDepths <: ScalarVariable
+struct AdjustedCellDepths <: ScalarVariable
 
 end
