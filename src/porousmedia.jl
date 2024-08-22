@@ -115,11 +115,6 @@ function discretized_domain_tpfv_flow(domain::Jutul.DataDomain;
     upw_is_tpfa = (isnothing(upwind) || eltype(upwind) == SPU || upwind == :spu)
 
     is_tpfa = kgrad_is_tpfa && upw_is_tpfa
-    if !general_ad && !is_tpfa
-        # general_ad = true
-        jutul_message("Discretization", "Non-defaulted discretization detected, falling back to general AD.")
-    end
-    # if tpfa:
     if is_tpfa
         if general_ad
             d = TwoPointPotentialFlowHardCoded(N, nc)
@@ -127,6 +122,10 @@ function discretized_domain_tpfv_flow(domain::Jutul.DataDomain;
             d = PotentialFlow(N, nc)
         end
     else
+        if kgrad == :tpfa_test
+            # Fallback version - use generic FVM assembly with TPFA.
+            kgrad = nothing
+        end
         if kgrad isa Symbol
             if kgrad == :tpfa
                 kgrad = nothing
