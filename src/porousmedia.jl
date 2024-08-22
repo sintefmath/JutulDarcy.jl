@@ -117,9 +117,9 @@ function discretized_domain_tpfv_flow(domain::Jutul.DataDomain;
     is_tpfa = kgrad_is_tpfa && upw_is_tpfa
     if is_tpfa
         if general_ad
-            d = TwoPointPotentialFlowHardCoded(N, nc)
-        else
             d = PotentialFlow(N, nc)
+        else
+            d = TwoPointPotentialFlowHardCoded(N, nc)
         end
     else
         if kgrad == :tpfa_test
