@@ -86,7 +86,6 @@ module JutulDarcy
     export StandardVolumeSource, VolumeSource, MassSource
     export OverallMoleFractions
     export ImmiscibleSaturation
-    export ThermalSystem
     export PhaseMassDensities, ConstantCompressibilityDensities
     export BrooksCoreyRelativePermeabilities, TabulatedSimpleRelativePermeabilities
 
