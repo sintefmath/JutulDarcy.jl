@@ -303,6 +303,12 @@ function Jutul.subcrossterm(ct::ReservoirFromWellThermalCT, ctp, m_t, m_s, map_r
     return ReservoirFromWellThermalCT(copy(CI), copy(WI), rc, copy(well_cells))
 end
 
+function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellThermalCT, target, source, model, storage, dt, force::PerforationMask; time = time)
+    mask = force.values
+    apply_perforation_mask!(ct_s.target, mask)
+    apply_perforation_mask!(ct_s.source, mask)
+end
+
 struct WellFromFacilityThermalCT <: Jutul.AdditiveCrossTerm
     well::Symbol
 end
