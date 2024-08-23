@@ -235,8 +235,6 @@ function add_thermal_to_model!(model)
         RockDensity = RockDensity(),
         BulkVolume = BulkVolume(),
         ComponentHeatCapacity = ComponentHeatCapacity(),
-        RockThermalConductivities = RockThermalConductivities(),
-        FluidThermalConductivities = FluidThermalConductivities()
     )
     set_secondary_variables!(model,
         FluidInternalEnergy = FluidInternalEnergy(),
@@ -244,6 +242,13 @@ function add_thermal_to_model!(model)
         RockInternalEnergy = RockInternalEnergy(),
         TotalThermalEnergy = TotalThermalEnergy()
     )
+    is_reservoir = !model_or_domain_is_well(model)
+    if is_reservoir
+        set_parameters!(model,
+            RockThermalConductivities = RockThermalConductivities(),
+            FluidThermalConductivities = FluidThermalConductivities()
+        )
+    end
     disc = model.domain.discretizations.heat_flow
     model.equations[:energy_conservation] = ConservationLaw(disc, :TotalThermalEnergy, 1)
 
