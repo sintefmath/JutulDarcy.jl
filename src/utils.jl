@@ -227,6 +227,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         reservoir_context = nothing,
         general_ad = false,
         backend = :csc,
+        thermal = false,
         extra_outputs = [:LiquidMassFractions, :VaporMassFractions, :Rs, :Rv, :Saturations],
         split_wells = false,
         assemble_wells_together = true,
@@ -275,6 +276,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         general_ad = general_ad,
         kgrad = kgrad
     )
+    if thermal
+        rmodel = add_thermal_to_model!(rmodel)
+    end
     set_discretization_variables!(rmodel)
     set_reservoir_variable_defaults!(rmodel,
         dp_max_abs = dp_max_abs,
@@ -328,6 +332,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             end
             wname = w.name
             wmodel = SimulationModel(w_domain, system, context = context)
+            if thermal
+                wmodel = add_thermal_to_model!(wmodel)
+            end
             set_reservoir_variable_defaults!(wmodel,
                 dp_max_abs = dp_max_abs_well,
                 dp_max_rel = dp_max_rel_well,
@@ -792,18 +799,11 @@ end
 function setup_reservoir_cross_terms!(model::MultiModel)
     rmodel = reservoir_model(model)
     has_composite = rmodel isa Jutul.CompositeModel
-    if has_composite
-        systems = rmodel.system.systems
-        has_flow = haskey(systems, :flow)
-        has_thermal = haskey(systems, :thermal)
-        conservation = Pair(:flow, :mass_conservation)
-        energy = Pair(:thermal, :energy_conservation)
-    else
-        has_flow = rmodel.system isa MultiPhaseSystem
-        has_thermal = !has_flow
-        conservation = :mass_conservation
-        energy = :energy_conservation
-    end
+
+    has_flow = rmodel.system isa MultiPhaseSystem
+    has_thermal = haskey(rmodel.equations, :energy_conservation)
+    conservation = :mass_conservation
+    energy = :energy_conservation
     for (k, m) in pairs(model.models)
         if k == :Reservoir
             # These are set up from wells via symmetry

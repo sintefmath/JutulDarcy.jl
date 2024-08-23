@@ -241,7 +241,7 @@ function update_cross_term_in_entity!(out, i,
     model_res, model_well,
     ct::ReservoirFromWellThermalCT, eq, dt, ldisc = local_discretization(ct, i))
     # Unpack properties
-    sys = thermal_system(model_res.system)
+    sys = model_res.system
     nph = number_of_phases(sys)
     @inbounds begin 
         reservoir_cell = ct.reservoir_cells[i]
@@ -301,6 +301,12 @@ function Jutul.subcrossterm(ct::ReservoirFromWellThermalCT, ctp, m_t, m_s, map_r
         c -> Jutul.local_cell(c, map_res),
         reservoir_cells)
     return ReservoirFromWellThermalCT(copy(CI), copy(WI), rc, copy(well_cells))
+end
+
+function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellThermalCT, target, source, model, storage, dt, force::PerforationMask; time = time)
+    mask = force.values
+    apply_perforation_mask!(ct_s.target, mask)
+    apply_perforation_mask!(ct_s.source, mask)
 end
 
 struct WellFromFacilityThermalCT <: Jutul.AdditiveCrossTerm
