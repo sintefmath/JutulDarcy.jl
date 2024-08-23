@@ -250,6 +250,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         block_backend = true,
         nthreads = Threads.nthreads(),
         minbatch = 1000,
+        kgrad = nothing,
         immutable_model = false,
         wells_systems = missing
     )
@@ -269,10 +270,12 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     # We first set up the reservoir
     rmodel = SimulationModel(
         reservoir,
-        system,
+        system;
         context = reservoir_context,
-        general_ad = general_ad
+        general_ad = general_ad,
+        kgrad = kgrad
     )
+    set_discretization_variables!(rmodel)
     set_reservoir_variable_defaults!(rmodel,
         dp_max_abs = dp_max_abs,
         dp_max_rel = dp_max_rel,
@@ -1009,10 +1012,18 @@ end
 
 Set up driving forces for a reservoir model with wells
 """
-function setup_reservoir_forces(model::MultiModel; control = nothing, limits = nothing, set_default_limits = true, kwarg...)
+function setup_reservoir_forces(model::MultiModel;
+        control = nothing,
+        limits = nothing,
+        set_default_limits = true,
+        bc = nothing,
+        sources = nothing,
+        kwarg...
+    )
     submodels = model.models
     has_facility = any(x -> isa(x.domain, WellGroup), values(submodels))
     no_well_controls = isnothing(control) && isnothing(limits)
+    reservoir_forces = Dict(:bc => bc, :sources => sources)
     @assert no_well_controls || has_facility "Model must have facility when well controls are provided."
     if haskey(submodels, :Facility)
         # Unified facility for all wells
@@ -1024,7 +1035,7 @@ function setup_reservoir_forces(model::MultiModel; control = nothing, limits = n
             set_default_limits = set_default_limits
         )
         # Set up forces for the whole model.
-        out = setup_forces(model, Facility = surface_forces; kwarg...)
+        out = setup_forces(model, Facility = surface_forces; kwarg..., Reservoir = reservoir_forces)
     else
         new_forces = Dict{Symbol, Any}()
         for (k, m) in pairs(submodels)
@@ -1047,7 +1058,7 @@ function setup_reservoir_forces(model::MultiModel; control = nothing, limits = n
                 )
             end
         end
-        out = setup_forces(model; pairs(new_forces)..., kwarg...)
+        out = setup_forces(model; pairs(new_forces)..., kwarg..., Reservoir = reservoir_forces)
     end
     # If the model is a composite model we need to do some extra work to pass on
     # flow forces with the correct label.
@@ -1594,4 +1605,39 @@ function reservoir_regions(d::DataDomain, type = :pvtnum)
         out = nothing
     end
     return out
+end
+
+function set_discretization_variables!(model::MultiModel)
+    set_discretization_variables!(reservoir_model(model))
+    return model
+end
+
+function set_discretization_variables!(model; ntpfa_potential = true)
+    disc = model.domain.discretizations
+    flow = model.domain.discretizations.mass_flow
+    if flow isa PotentialFlow
+        if eltype(flow.kgrad) != TPFA
+            has_pc = !isnothing(get_variable(model, :CapillaryPressure, throw = false))
+            # Potential, z on faces
+            xyz = model.data_domain[:cell_centroids]
+            if size(xyz, 1) == 3
+                z = xyz[3, :]
+                zmin, zmax = extrema(z)
+                has_gravity = abs(zmax - zmin) > 1e-10
+            else
+                has_gravity = false
+            end
+            if ntpfa_potential || has_gravity || has_pc
+                pp = PhasePotentials()
+                acd = AdjustedCellDepths()
+                if model.system isa CompositeSystem
+                    pp = Pair(:flow, pp)
+                    acd = Pair(:flow, acd)
+                end
+                set_secondary_variables!(model, PhasePotentials = pp)
+                set_parameters!(model, AdjustedCellDepths = acd)
+            end
+        end
+    end
+    return model
 end
