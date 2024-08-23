@@ -1628,8 +1628,14 @@ function set_discretization_variables!(model; ntpfa_potential = true)
                 has_gravity = false
             end
             if ntpfa_potential || has_gravity || has_pc
-                set_secondary_variables!(model, PhasePotentials = PhasePotentials())
-                set_parameters!(model, AdjustedCellDepths = AdjustedCellDepths())
+                pp = PhasePotentials()
+                acd = AdjustedCellDepths()
+                if model.system isa CompositeSystem
+                    pp = Pair(:flow, pp)
+                    acd = Pair(:flow, acd)
+                end
+                set_secondary_variables!(model, PhasePotentials = pp)
+                set_parameters!(model, AdjustedCellDepths = acd)
             end
         end
     end
