@@ -799,18 +799,11 @@ end
 function setup_reservoir_cross_terms!(model::MultiModel)
     rmodel = reservoir_model(model)
     has_composite = rmodel isa Jutul.CompositeModel
-    if has_composite
-        systems = rmodel.system.systems
-        has_flow = haskey(systems, :flow)
-        has_thermal = haskey(systems, :thermal)
-        conservation = Pair(:flow, :mass_conservation)
-        energy = Pair(:thermal, :energy_conservation)
-    else
-        has_flow = rmodel.system isa MultiPhaseSystem
-        has_thermal = !has_flow
-        conservation = :mass_conservation
-        energy = :energy_conservation
-    end
+
+    has_flow = rmodel.system isa MultiPhaseSystem
+    has_thermal = haskey(rmodel.equations, :energy_conservation)
+    conservation = :mass_conservation
+    energy = :energy_conservation
     for (k, m) in pairs(model.models)
         if k == :Reservoir
             # These are set up from wells via symmetry

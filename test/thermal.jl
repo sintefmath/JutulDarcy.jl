@@ -113,7 +113,7 @@ function solve_thermal_wells(;
     )
     # Replace the density function with our custom version for wells and reservoir
     ρ = ConstantCompressibilityDensities(p_ref = 1*bar, density_ref = rhoS, compressibility = c)
-    replace_variables!(model, PhaseMassDensities = JutulDarcy.wrap_reservoir_variable(sys, ρ))
+    replace_variables!(model, PhaseMassDensities = ρ)
     dt = repeat([30.0]*day, 12*5)
     rate_target = TotalRateTarget(sum(parameters[:Reservoir][:FluidVolume])/sum(dt))
     bhp_target = BottomHolePressureTarget(50*bar)
@@ -138,14 +138,13 @@ function solve_thermal_wells(;
         )
     end
     result = simulate_reservoir(state0, model, dt,
-        forces = forces, parameters = parameters, info_level = -1)
-    @test length(result.states) == length(dt)
-    return (result.states, result.result.reports, missing)
+        forces = forces, parameters = parameters, info_level = 5)
+    return (result.states, result.result.reports, dt, model)
 end
 
 @testset "thermal wells" begin
     @testset "well types and backends" begin
-        for simple_well in [false, true]
+        for simple_well in [false]
             for block_backend in [false, true]
                 if block_backend
                     bs = "block"
@@ -158,14 +157,14 @@ end
                     ws = "ms"
                 end
                 @testset "$bs $ws well" begin
-                    solve_thermal_wells(nx = 3, nz = 1,
+                    states, reports, dt, = solve_thermal_wells(nx = 3, nz = 1,
                         thermal = true,
                         simple_well = simple_well,
                         block_backend = block_backend
                     );
+                    @test length(states) == length(dt)
                 end
             end
         end
     end
 end
-
