@@ -79,7 +79,7 @@ function setup_case_from_parsed_data(datafile;
     flow_sys = flow_system(sys)
     is_blackoil = flow_sys isa StandardBlackOilSystem
     is_compositional = flow_sys isa CompositionalSystem
-    is_thermal = sys isa CompositeSystem && haskey(sys.systems, :thermal)
+    is_thermal = haskey(datafile["RUNSPEC"], "THERMAL")
 
     rs = datafile["RUNSPEC"]
     oil = haskey(rs, "OIL")
@@ -116,7 +116,13 @@ function setup_case_from_parsed_data(datafile;
         push!(wells_systems, sys_w)
     end
 
-    model = setup_reservoir_model(domain, sys; wells = wells, extra_out = false, wells_systems = wells_systems, kwarg...)
+    model = setup_reservoir_model(domain, sys;
+        thermal = is_thermal,
+        wells = wells,
+        extra_out = false,
+        wells_systems = wells_systems,
+        kwarg...
+    )
     for (k, submodel) in pairs(model.models)
         if model_or_domain_is_well(submodel) || k == :Reservoir
             # Modify secondary variables
@@ -1166,9 +1172,6 @@ function parse_physics_types(datafile; pvt_region = missing)
             push!(rhoS, rhoGS)
         end
         sys = pick_system_from_pvt(pvt, rhoS, phases, is_immiscible)
-    end
-    if has("THERMAL")
-        sys = reservoir_system(flow = sys, thermal = ThermalSystem(sys))
     end
     return (system = sys, pvt = pvt)
 end
