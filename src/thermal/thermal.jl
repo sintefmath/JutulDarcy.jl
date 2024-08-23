@@ -255,6 +255,7 @@ function add_thermal_to_model!(model)
     out = model.output_variables
     push!(out, :TotalThermalEnergy)
     push!(out, :FluidEnthalpy)
+    push!(out, :Temperature)
 
     unique!(out)
     return model
