@@ -25,10 +25,7 @@ function solve_thermal(;
     s0[1, 2] = 0.0
 
     # Define system and realize on grid
-    sys_f = ImmiscibleSystem((LiquidPhase(), VaporPhase()))
-    sys_t = ThermalSystem(sys_f)
-
-    sys = reservoir_system(flow = sys_f, thermal = sys_t)
+    sys = ImmiscibleSystem((LiquidPhase(), VaporPhase()))
     D = discretized_domain_tpfv_flow(G)
     if use_blocks
         l = BlockMajorLayout()
@@ -38,11 +35,11 @@ function solve_thermal(;
     ctx = DefaultContext(matrix_layout = l)
 
     model = SimulationModel(D, sys, data_domain = G, context = ctx)
+    JutulDarcy.add_thermal_to_model!(model)
     push!(model.output_variables, :Temperature)
     kr = BrooksCoreyRelativePermeabilities(2, [2.0, 2.0])
-    replace_variables!(model, RelativePermeabilities = JutulDarcy.wrap_reservoir_variable(sys, kr))
-    forces_f = nothing
-    forces = setup_forces(model, flow = forces_f)
+    replace_variables!(model, RelativePermeabilities = kr)
+    forces = setup_forces(model)
 
     parameters = setup_parameters(model,
                                 PhaseViscosities = [1e-3, 1e-3],
@@ -80,7 +77,6 @@ function solve_thermal_wells(;
         block_backend = false,
         thermal = true,
         simple_well = false,
-        composite = thermal,
         single_phase = false
     )
     day = 3600*24
@@ -95,7 +91,7 @@ function solve_thermal_wells(;
     rhoWS = 1000.0
     rhoGS = 700.0
     if single_phase
-        sys_f = SinglePhaseSystem(AqueousPhase(), reference_density = rhoWS)
+        sys = SinglePhaseSystem(AqueousPhase(), reference_density = rhoWS)
         nph = 1
         i_mix = [1.0]
         rhoS = [rhoWS]
@@ -104,27 +100,17 @@ function solve_thermal_wells(;
         # Set up a two-phase immiscible system
         phases = (AqueousPhase(), VaporPhase())
         rhoS = [rhoWS, rhoGS]
-        sys_f = ImmiscibleSystem(phases, reference_densities = rhoS)
+        sys = ImmiscibleSystem(phases, reference_densities = rhoS)
         nph = 2
         i_mix = [0.0, 1.0]
         c = [1e-6/bar, 1e-5/bar]
     end
-    sys_t = ThermalSystem(sys_f)
-    if composite
-        if thermal
-            sys = reservoir_system(flow = sys_f, thermal = sys_t)
-        else
-            sys = reservoir_system(flow = sys_f)
-        end
-    else
-        if thermal
-            sys = sys_t
-        else
-            sys = sys_f
-        end
-    end
     wells = [I, P]
-    model, parameters = setup_reservoir_model(res, sys, wells = wells, block_backend = block_backend)
+    model, parameters = setup_reservoir_model(res, sys,
+        thermal = thermal,
+        wells = wells,
+        block_backend = block_backend
+    )
     # Replace the density function with our custom version for wells and reservoir
     ρ = ConstantCompressibilityDensities(p_ref = 1*bar, density_ref = rhoS, compressibility = c)
     replace_variables!(model, PhaseMassDensities = JutulDarcy.wrap_reservoir_variable(sys, ρ))
@@ -156,24 +142,16 @@ function solve_thermal_wells(;
     @test length(result.states) == length(dt)
     return (result.states, result.result.reports, missing)
 end
-##
 
 @testset "thermal wells" begin
-    @testset "basic composite system" begin
-        # Check that composite system gives same result before adding thermal
-        states, reports, sim = solve_thermal_wells(nx = 3, thermal = false, composite = false);
-        states_c, reports_c, sim_c = solve_thermal_wells(nx = 3, thermal = false, composite = true);
-        using Test
-        rstate = states[end]
-        rstate_c = states_c[end]
-        @test norm(rstate[:Pressure]-rstate_c[:Pressure])/norm(rstate[:Pressure]) < 1e-8
-        @test norm(rstate[:Saturations]-rstate_c[:Saturations])/norm(rstate[:Saturations]) < 1e-6
-    end
     @testset "well types and backends" begin
         for simple_well in [false, true]
             for block_backend in [false, true]
                 solve_thermal_wells(nx = 3, nz = 1,
-                    thermal = true, composite = true, simple_well = simple_well, block_backend = block_backend);
+                    thermal = true,
+                    simple_well = simple_well,
+                    block_backend = block_backend
+                );
             end
         end
     end

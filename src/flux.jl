@@ -68,7 +68,7 @@ function face_average_density(model, state, tpfa, phase)
     return 0.5*(ρ_i + ρ_c)
 end
 
-function face_average_density(model::Union{CompositionalModel, ThermalCompositionalModel}, state, tpfa, phase)
+function face_average_density(model::CompositionalModel, state, tpfa, phase)
     sys = flow_system(model.system)
     ρ = state.PhaseMassDensities
     l = tpfa.left

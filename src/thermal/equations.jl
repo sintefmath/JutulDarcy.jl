@@ -1,9 +1,4 @@
-function select_equations!(eqs, sys::ThermalSystem, model::SimulationModel)
-    disc = model.domain.discretizations.heat_flow
-    eqs[:energy_conservation] = ConservationLaw(disc, :TotalThermalEnergy, 1)
-end
-
-@inline function Jutul.face_flux!(Q, left, right, face, face_sign, eq::ConservationLaw{:TotalThermalEnergy, <:Any}, state, model::ThermalModel, dt, flow_disc::TwoPointPotentialFlowHardCoded)
+@inline function Jutul.face_flux!(Q, left, right, face, face_sign, eq::ConservationLaw{:TotalThermalEnergy, <:Any}, state, model, dt, flow_disc::TwoPointPotentialFlowHardCoded)
     # Specific version for tpfa flux
     # TODO: Add general version for thermal
     grad = TPFA(left, right, face_sign)
@@ -14,7 +9,7 @@ end
     return setindex(Q, q, 1)
 end
 
-@inline function Jutul.face_flux!(q_i, face, eq::ConservationLaw{:TotalThermalEnergy, <:Any}, state, model::ThermalModel, dt, flow_disc::PotentialFlow, ldisc)
+@inline function Jutul.face_flux!(q_i, face, eq::ConservationLaw{:TotalThermalEnergy, <:Any}, state, model, dt, flow_disc::PotentialFlow, ldisc)
     # Inner version, for generic flux
     kgrad, upw = ldisc.face_disc(face)
     ft = Jutul.flux_type(eq)

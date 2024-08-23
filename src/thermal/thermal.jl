@@ -1,33 +1,3 @@
-
-
-"""
-    ThermalSystem(flow_system, formulation = :Temperature)
-
-Geothermal system that defines heat transfer through fluid advection and through
-the rock itself. Can be combined with a multiphase system using
-[`Jutul.CompositeSystem`](@ref).
-"""
-struct ThermalSystem{T, F} <: JutulSystem
-    flow_system::F
-    function ThermalSystem(sys::T;
-            formulation = :Temperature
-        ) where T<:Union{MultiPhaseSystem, Missing}
-        @assert formulation == :Temperature
-        new{formulation, T}(sys)
-    end
-end
-
-thermal_system(sys::ThermalSystem) = sys
-thermal_system(sys::CompositeSystem) = sys.systems.thermal
-flow_system(sys::ThermalSystem) = sys.flow_system
-
-const ThermalModel = SimulationModel{<:JutulDomain, <:ThermalSystem, <:Any, <:Any}
-
-const ThermalCompositionalModel = SimulationModel{<:JutulDomain, <:ThermalSystem{<:Any, <:CompositionalSystem}, <:Any, <:Any}
-const ThermalBlackOilModel = SimulationModel{<:JutulDomain, <:ThermalSystem{<:Any, <:StandardBlackOilModel}, <:Any, <:Any}
-const ThermalImmiscibleModel = SimulationModel{<:JutulDomain, <:ThermalSystem{<:Any, <:ImmiscibleSystem}, <:Any, <:Any}
-const ThermalSinglePhaseModel = SimulationModel{<:JutulDomain, <:ThermalSystem{<:Any, <:SinglePhaseSystem}, <:Any, <:Any}
-
 struct BulkVolume <: ScalarVariable end
 function Jutul.default_values(model, ::BulkVolume)
     return 1.0
@@ -168,7 +138,7 @@ function Jutul.values_per_entity(model, ::PressureTemperatureDependentEnthalpy{T
     return N
 end
 
-@jutul_secondary function update_temperature_dependent_enthalpy!(H_phases, var::PressureTemperatureDependentEnthalpy{T, R, N}, model::ThermalCompositionalModel, Pressure, Temperature, LiquidMassFractions, VaporMassFractions, PhaseMassDensities, ix) where {T, R, N}
+@jutul_secondary function update_temperature_dependent_enthalpy!(H_phases, var::PressureTemperatureDependentEnthalpy{T, R, N}, model::CompositionalModel, Pressure, Temperature, LiquidMassFractions, VaporMassFractions, PhaseMassDensities, ix) where {T, R, N}
     fsys = flow_system(model.system)
     @assert !has_other_phase(fsys)
     @assert N == number_of_components(fsys)
@@ -249,52 +219,40 @@ function Jutul.default_parameter_values(data_domain, model, param::RockThermalCo
     return T
 end
 
-number_of_phases(t::ThermalSystem) = number_of_phases(flow_system(t))
-number_of_components(t::ThermalSystem) = number_of_components(flow_system(t))
-
-function select_primary_variables!(S, system::ThermalSystem, model)
-    S[:Temperature] = Temperature()
-end
-
-function select_parameters!(S, system::ThermalSystem, model)
-    nph = number_of_phases(system)
-    # Rock itself
-    S[:RockHeatCapacity] = RockHeatCapacity()
-    S[:RockDensity] = RockDensity()
-    S[:BulkVolume] = BulkVolume()
-    # Fluid heat related parameters
-    S[:ComponentHeatCapacity] = ComponentHeatCapacity()
-    S[:FluidVolume] = FluidVolume()
-    # Fluid flow related parameters
-    S[:PhaseMassDensities] = ConstantCompressibilityDensities(nph)
-    S[:Pressure] = Pressure()
-    S[:Saturations] = Saturations()
-    S[:PhaseViscosities] = PhaseViscosities()
-    if !model_or_domain_is_well(model)
-        S[:PhaseMassMobilities] = PhaseMassMobilities()
-        S[:RelativePermeabilities] = RelativePermeabilitiesParameter()
+function add_thermal_to_model!(model::MultiModel)
+    for (k, m) in pairs(model.models)
+        if m.system isa MultiPhaseSystem
+            add_thermal_to_model!(m)
+        end
     end
+    return m
 end
 
-function select_parameters!(prm, disc::D, model::ThermalModel) where D<:Union{TwoPointPotentialFlowHardCoded, Jutul.PotentialFlow}
-    if !model_or_domain_is_well(model)
-        prm[:FluidThermalConductivities] = FluidThermalConductivities()
-        prm[:RockThermalConductivities] = RockThermalConductivities()
-        prm[:Transmissibilities] = Transmissibilities()
-        prm[:TwoPointGravityDifference] = TwoPointGravityDifference()
-    end
-end
+function add_thermal_to_model!(model)
+    set_primary_variables!(model, Temperature = Temperature())
+    set_parameters!(model,
+        RockHeatCapacity = RockHeatCapacity(),
+        RockDensity = RockDensity(),
+        BulkVolume = BulkVolume(),
+        ComponentHeatCapacity = ComponentHeatCapacity(),
+        RockThermalConductivities = RockThermalConductivities(),
+        FluidThermalConductivities = FluidThermalConductivities()
+    )
+    set_secondary_variables!(model,
+        FluidInternalEnergy = FluidInternalEnergy(),
+        FluidEnthalpy = FluidEnthalpy(),
+        RockInternalEnergy = RockInternalEnergy(),
+        TotalThermalEnergy = TotalThermalEnergy()
+    )
+    disc = model.domain.discretizations.heat_flow
+    model.equations[:energy_conservation] = ConservationLaw(disc, :TotalThermalEnergy, 1)
 
-function select_secondary_variables!(S, system::ThermalSystem, model)
-    S[:FluidInternalEnergy] = FluidInternalEnergy()
-    S[:FluidEnthalpy] = FluidEnthalpy()
-    S[:RockInternalEnergy] = RockInternalEnergy()
-    S[:TotalThermalEnergy] = TotalThermalEnergy()
-end
-
-function select_minimum_output_variables!(out, system::ThermalSystem, model)
+    out = model.output_variables
     push!(out, :TotalThermalEnergy)
     push!(out, :FluidEnthalpy)
+
+    unique!(out)
+    return model
 end
 
 include("variables.jl")

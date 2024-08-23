@@ -1,4 +1,4 @@
-@jutul_secondary function update_fluid_internal_energy!(U, fe::FluidInternalEnergy, model::ThermalImmiscibleModel, Temperature, ComponentHeatCapacity, ix)
+@jutul_secondary function update_fluid_internal_energy!(U, fe::FluidInternalEnergy, model, Temperature, ComponentHeatCapacity, ix)
     C = ComponentHeatCapacity
     @assert size(U) == size(C) "This fluid internal energy implementation assumes immiscible phases."
     for i in ix
@@ -9,7 +9,7 @@
     end
 end
 
-@jutul_secondary function update_fluid_internal_energy!(U, fe::FluidInternalEnergy, model::ThermalSinglePhaseModel, Temperature, ComponentHeatCapacity, ix)
+@jutul_secondary function update_fluid_internal_energy!(U, fe::FluidInternalEnergy, model::SinglePhaseModel, Temperature, ComponentHeatCapacity, ix)
     C = ComponentHeatCapacity
     @assert size(U) == size(C) "This fluid internal energy implementation assumes immiscible phases."
     for i in ix
@@ -20,7 +20,7 @@ end
     end
 end
 
-@jutul_secondary function update_fluid_internal_energy!(U, fe::FluidInternalEnergy, model::ThermalCompositionalModel, Temperature, ComponentHeatCapacity, LiquidMassFractions, VaporMassFractions, ix)
+@jutul_secondary function update_fluid_internal_energy!(U, fe::FluidInternalEnergy, model::CompositionalModel, Temperature, ComponentHeatCapacity, LiquidMassFractions, VaporMassFractions, ix)
     fsys = flow_system(model.system)
     C = ComponentHeatCapacity
     X = LiquidMassFractions
@@ -50,7 +50,7 @@ end
     end
 end
 
-@jutul_secondary function update_fluid_enthalpy!(H, fe::FluidEnthalpy, model::ThermalModel, FluidInternalEnergy, Pressure, PhaseMassDensities, ix)
+@jutul_secondary function update_fluid_enthalpy!(H, fe::FluidEnthalpy, model, FluidInternalEnergy, Pressure, PhaseMassDensities, ix)
     for i in ix
         p = Pressure[i]
         for ph in axes(H, 1)
@@ -59,13 +59,13 @@ end
     end
 end
 
-@jutul_secondary function update_rock_internal_energy!(U_r, e::RockInternalEnergy, model::ThermalModel, RockHeatCapacity, Temperature, ix)
+@jutul_secondary function update_rock_internal_energy!(U_r, e::RockInternalEnergy, model, RockHeatCapacity, Temperature, ix)
     for i in ix
         U_r[i] = RockHeatCapacity[i]*Temperature[i]
     end
 end
 
-@jutul_secondary function update_total_thermal_energy!(E_total, te::TotalThermalEnergy, model::ThermalModel, Saturations, PhaseMassDensities, FluidInternalEnergy, RockDensity, RockInternalEnergy, BulkVolume, FluidVolume, ix)
+@jutul_secondary function update_total_thermal_energy!(E_total, te::TotalThermalEnergy, model, Saturations, PhaseMassDensities, FluidInternalEnergy, RockDensity, RockInternalEnergy, BulkVolume, FluidVolume, ix)
     U_f = FluidInternalEnergy
     U_r = RockInternalEnergy
     ρ_f = PhaseMassDensities

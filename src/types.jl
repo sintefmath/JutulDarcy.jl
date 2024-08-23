@@ -214,6 +214,8 @@ struct SinglePhaseSystem{P, F} <: MultiPhaseSystem where {P, F<:AbstractFloat}
     rho_ref::F
 end
 
+const ImmiscibleModel = SimulationModel{D, S, F, C} where {D, S<:ImmiscibleSystem, F, C}
+
 """
     SinglePhaseSystem(phase = LiquidPhase(); reference_density = 1.0)
 
@@ -225,6 +227,8 @@ function SinglePhaseSystem(phase = LiquidPhase(); reference_density = 1.0)
     end
     return SinglePhaseSystem{typeof(phase), typeof(reference_density)}(phase, reference_density)
 end
+
+const SinglePhaseModel = SimulationModel{D, S, F, C} where {D, S<:SinglePhaseSystem, F, C}
 
 number_of_components(sys::SinglePhaseSystem) = 1
 
