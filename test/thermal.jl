@@ -147,11 +147,23 @@ end
     @testset "well types and backends" begin
         for simple_well in [false, true]
             for block_backend in [false, true]
-                solve_thermal_wells(nx = 3, nz = 1,
-                    thermal = true,
-                    simple_well = simple_well,
-                    block_backend = block_backend
-                );
+                if block_backend
+                    bs = "block"
+                else
+                    bs = "scalar"
+                end
+                if simple_well
+                    ws = "simple"
+                else
+                    ws = "ms"
+                end
+                @testset "$bs $ws well" begin
+                    solve_thermal_wells(nx = 3, nz = 1,
+                        thermal = true,
+                        simple_well = simple_well,
+                        block_backend = block_backend
+                    );
+                end
             end
         end
     end
