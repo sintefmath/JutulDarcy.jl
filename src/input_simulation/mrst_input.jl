@@ -499,6 +499,7 @@ function deck_relperm(runspec, props; oil, water, gas, satnum = nothing)
             end
         end
         if haskey(props, "SOF3")
+            @assert !haskey(props, "SOF2") "SOF2 and SOF3 simultaneously is not supported."
             for sof3 in props["SOF3"]
                 # Oil pairs
                 so = sof3[:, 1]
@@ -506,6 +507,18 @@ function deck_relperm(runspec, props; oil, water, gas, satnum = nothing)
                 krog_t = sof3[:, 3]
                 krow = PhaseRelativePermeability(so, krow_t, label = :ow)
                 krog = PhaseRelativePermeability(so, krog_t, label = :og)
+
+                push!(tables_krow, krow)
+                push!(tables_krog, krog)
+            end
+        end
+        if haskey(props, "SOF2")
+            for sof2 in props["SOF2"]
+                # Oil pairs
+                so = sof2[:, 1]
+                kro_t = sof2[:, 2]
+                krow = PhaseRelativePermeability(so, kro_t, label = :ow)
+                krog = PhaseRelativePermeability(so, kro_t, label = :og)
 
                 push!(tables_krow, krow)
                 push!(tables_krog, krog)

@@ -417,44 +417,48 @@ function parse_state0_equil(model, datafile; normalize = :sum)
                     contacts_pc = (-woc_pc, goc_pc)
                 end
 
-                rhoGS = map(x -> x[3], datafile["PROPS"]["DENSITY"])
-                rhoOS = map(x -> x[1], datafile["PROPS"]["DENSITY"])
+                if disgas || vapoil
+                    rhoGS = map(x -> x[3], datafile["PROPS"]["DENSITY"])
+                    rhoOS = map(x -> x[1], datafile["PROPS"]["DENSITY"])
 
-                Rs_scale = (rhoGS[preg]/rhoGS[1])*(rhoOS[preg]/rhoOS[1])
-                Rv_scale = 1.0/Rs_scale
-                if disgas
-                    if haskey(sol, "RSVD")
-                        rsvd = sol["RSVD"][ereg]
-                        z = rsvd[:, 1]
-                        Rs = rsvd[:, 2]
+                    Rs_scale = (rhoGS[preg]/rhoGS[1])*(rhoOS[preg]/rhoOS[1])
+                    Rv_scale = 1.0/Rs_scale
+                    if disgas
+                        if haskey(sol, "RSVD")
+                            rsvd = sol["RSVD"][ereg]
+                            z = rsvd[:, 1]
+                            Rs = rsvd[:, 2]
+                        else
+                            @assert haskey(sol, "PBVD")
+                            pbvd = sol["PBVD"][ereg]
+                            z = pbvd[:, 1]
+                            pb = vec(pbvd[:, 2])
+                            Rs = sys.rs_max[preg].(pb)
+                        end
+                        rs = get_1d_interpolator(z, Rs_scale.*Rs)
                     else
-                        @assert haskey(sol, "PBVD")
-                        pbvd = sol["PBVD"][ereg]
-                        z = pbvd[:, 1]
-                        pb = vec(pbvd[:, 2])
-                        Rs = sys.rs_max[preg].(pb)
+                        rs = missing
                     end
-                    rs = get_1d_interpolator(z, Rs_scale.*Rs)
-                else
-                    rs = missing
-                end
-                if vapoil
-                    if haskey(sol, "PDVD")
-                        @warn "PDVD not supported for RV initialization, setting to zero."
-                        rv = z -> 0.0
-                    elseif haskey(sol, "RVVD")
-                        rvvd = sol["RVVD"][ereg]
-                        z = rvvd[:, 1]
-                        Rv = rvvd[:, 2]
-                        rv = get_1d_interpolator(z, Rv_scale.*Rv)
+                    if vapoil
+                        if haskey(sol, "PDVD")
+                            @warn "PDVD not supported for RV initialization, setting to zero."
+                            rv = z -> 0.0
+                        elseif haskey(sol, "RVVD")
+                            rvvd = sol["RVVD"][ereg]
+                            z = rvvd[:, 1]
+                            Rv = rvvd[:, 2]
+                            rv = get_1d_interpolator(z, Rv_scale.*Rv)
+                        else
+                            # TODO: Should maybe be the pressure at GOC not datum
+                            # depth, but that isn't computed at this stage.
+                            rv_at_goc = Rv_scale*sys.rv_max[preg](datum_pressure)
+                            rv = z -> rv_at_goc
+                        end
                     else
-                        # TODO: Should maybe be the pressure at GOC not datum
-                        # depth, but that isn't computed at this stage.
-                        rv_at_goc = Rv_scale*sys.rv_max[preg](datum_pressure)
-                        rv = z -> rv_at_goc
+                        rv = missing
                     end
                 else
-                    rv = missing
+                    rs = rv = missing
                 end
                 if haskey(props, "ZMFVD")
                     ztab = props["ZMFVD"][ereg]

@@ -1054,7 +1054,7 @@ function parse_physics_types(datafile; pvt_region = missing)
     has_thermal = has("THERMAL")
     if has("JUTUL_CO2BRINE")
         # Early termination since this model does not need any PVT specification.
-        @assert has_wat && has_gas
+        @assert (has_oil && has_gas) "JUTUL_CO2BRINE currently assumes oil(liquid)-gas systems"
         return (system = :co2brine, pvt = (missing, missing))
     end
 
