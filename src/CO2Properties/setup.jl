@@ -9,9 +9,6 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
     mu = JutulDarcy.PTViscosities(tables[:viscosity])
     if thermal
         c_v = JutulDarcy.PressureTemperatureDependentVariable(tables[:heat_capacity_constant_volume])
-        rho = Pair(:flow, rho)
-        mu = Pair(:flow, mu)
-        c_v = Pair(:thermal, c_v)
     end
     mixture = MultiComponentMixture(["Water", "CarbonDioxide"], name = "CSP11BC-mixture")
     mixture.component_names[1] = "H₂O"
@@ -23,12 +20,7 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
     rhoS = [rhoSurfaceBrine, rhoSurfaceCO2]
     L, V = LiquidPhase(), VaporPhase()
     sys = MultiPhaseCompositionalSystemLV(keos, (L, V), reference_densities = rhoS)
-    if thermal
-        sys = reservoir_system(flow = sys, thermal = ThermalSystem(sys))
-    elseif composite
-        sys = reservoir_system(flow = sys)
-    end
-    model, parameters = setup_reservoir_model(reservoir, sys; kwarg...);
+    model, parameters = setup_reservoir_model(reservoir, sys; thermal = thermal, kwarg...);
 
     outvar = model[:Reservoir].output_variables
     push!(outvar, :Saturations)

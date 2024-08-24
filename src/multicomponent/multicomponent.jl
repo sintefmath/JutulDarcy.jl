@@ -61,7 +61,7 @@ function select_parameters!(prm, system::CompositionalSystem, model)
     prm[:Temperature] = Temperature()
 end
 
-function convergence_criterion(model::CompositionalModel, storage, eq::ConservationLaw, eq_s, r; dt = 1.0, update_report = missing)
+function convergence_criterion(model::CompositionalModel, storage, eq::ConservationLaw{:TotalMasses}, eq_s, r; dt = 1.0, update_report = missing)
     tm = storage.state0.TotalMasses
     a = active_entities(model.domain, Cells())
     function scale(i)
