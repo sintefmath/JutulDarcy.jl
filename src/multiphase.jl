@@ -2,6 +2,8 @@
 # Abstract multiphase system
 
 get_phases(sys::MultiPhaseSystem) = sys.phases
+get_phases(s::Symbol) = get_phases(Val(s))
+
 @inline number_of_phases(sys::MultiPhaseSystem) = length(get_phases(sys))
 @inline reference_densities(sys::MultiPhaseSystem) = sys.rho_ref
 @inline reference_densities(sys::CompositeSystem) = reference_densities(flow_system(sys))

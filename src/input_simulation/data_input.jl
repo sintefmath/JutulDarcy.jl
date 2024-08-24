@@ -76,9 +76,8 @@ function setup_case_from_parsed_data(datafile;
     end
     msg("Parsing physics and system.")
     sys, pvt = parse_physics_types(datafile, pvt_region = 1)
-    flow_sys = flow_system(sys)
-    is_blackoil = flow_sys isa StandardBlackOilSystem
-    is_compositional = flow_sys isa CompositionalSystem
+    is_blackoil = sys isa StandardBlackOilSystem
+    is_compositional = sys isa CompositionalSystem
     is_thermal = haskey(datafile["RUNSPEC"], "THERMAL")
 
     rs = datafile["RUNSPEC"]
@@ -97,7 +96,7 @@ function setup_case_from_parsed_data(datafile;
     has_pvt = isnothing(pvt_reg)
     # Parse wells
     msg("Parsing schedule.")
-    wells, controls, limits, cstep, dt, well_forces = parse_schedule(domain, flow_sys, datafile; simple_well = simple_well)
+    wells, controls, limits, cstep, dt, well_forces = parse_schedule(domain, sys, datafile; simple_well = simple_well)
     if skip_wells
         empty!(wells)
     end
@@ -1053,9 +1052,14 @@ function parse_physics_types(datafile; pvt_region = missing)
     has_disgas = has("DISGAS")
     has_vapoil = has("VAPOIL")
     has_thermal = has("THERMAL")
+    if has("JUTUL_CO2BRINE")
+        # Early termination since this model does not need any PVT specification.
+        @assert has_wat && has_gas
+        return (system = :co2brine, pvt = (missing, missing))
+    end
 
     is_immiscible = !has_disgas && !has_vapoil
-    is_compositional = haskey(runspec, "COMPS")
+    is_compositional = has("COMPS")
 
     phases = []
     rhoS = Vector{Float64}()
@@ -1745,6 +1749,10 @@ function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, t
         end
     end
     return (rho, mix, phases_mix)
+end
+
+function select_injector_mixture_spec(sys::Symbol, name, streams, type)
+    return select_injector_mixture_spec(Val(sys), name, streams, type)
 end
 
 function keyword_to_control(sys, streams, kw, ::Val{:WCONINJE}; kwarg...)
