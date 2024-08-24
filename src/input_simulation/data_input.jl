@@ -181,7 +181,7 @@ function setup_case_from_parsed_data(datafile;
         parameters[:Reservoir][:Transmissibilities] = reservoir_transmissibility(domain, version = :ijk);
     end
     msg("Setting up forces.")
-    forces = parse_forces(model, wells, controls, limits, cstep, dt, well_forces)
+    forces = parse_forces(model, datafile, sys, wells, controls, limits, cstep, dt, well_forces)
     msg("Setting up initial state.")
     state0 = parse_state0(model, datafile, normalize = normalize)
     msg("Setup complete.")
@@ -534,9 +534,10 @@ function handle_wells_without_active_perforations!(bad_wells, completions, contr
     end
 end
 
-function parse_forces(model, wells, controls, limits, cstep, dt, well_forces)
+function parse_forces(model, datafile, sys, wells, controls, limits, cstep, dt, well_forces)
+    bc, sources = parse_aquifer_bc(model, datafile, sys)
     if length(wells) == 0
-        return setup_reservoir_forces(model)
+        return setup_reservoir_forces(mode, bc = bc, sources = sources)
     end
     forces = []
     @assert length(controls) == length(limits) == length(well_forces)
@@ -558,7 +559,12 @@ function parse_forces(model, wells, controls, limits, cstep, dt, well_forces)
         for (k, v) in pairs(lim)
             lim_s[Symbol(k)] = v
         end
-        f = setup_reservoir_forces(model; control = ctrl_s, limits = lim_s, pairs(wforce)...)
+        f = setup_reservoir_forces(model;
+            bc = bc,
+            sources = sources,
+            control = ctrl_s,
+            limits = lim_s,
+            pairs(wforce)...)
         push!(forces, f)
     end
     return forces[cstep]
@@ -1984,4 +1990,140 @@ function apply_welopen!(controls, compdat, wk, controls_if_active)
             end
         end
     end
+end
+
+function parse_aquifer_bc(model, datafile, sys)
+    bc = nothing
+    sources = nothing
+    sol = datafile["SOLUTION"]
+    aquchwat = get(sol, "AQUCHWAT", nothing)
+    reservoir = reservoir_domain(model)
+    g = physical_representation(reservoir)
+    grav = gravity_constant
+    if isnothing(aquchwat)
+        bc = nothing
+    else
+        rho, mix, = select_injector_mixture_spec(sys, "AQUIFER", missing, "WATER")
+        mix = tuple(mix...)
+        bc = FlowBoundaryCondition{Int, Float64, typeof(mix)}[]
+        acon = sol["AQUANCON"]
+        aquifers = unique(map(first, acon))
+        for aqno in aquifers
+            aquifer = aquchwat[aqno]
+            datum = aquifer[2]
+            bc_type = aquifer[3]
+            datum_val = aquifer[4]
+            if bc_type == "HEAD"
+                p_datum = si_unit(:atmosphere) + grav*rho*(datum_val - datum)
+            else
+                p_datum = datum_val
+            end
+            PI = aquifer[5]
+            minv, maxv = aquifer[8:9]
+            if isfinite(minv) || isfinite(maxv)
+                jutul_message("Aquifer $aqno", "Non-defaulted pressure limits ($minv,$maxv) detected. They will be ignored.")
+            end
+            ignore_depth = aquifer[13] == "NO"
+            temperature = aquifer[15]
+            if isnan(temperature)
+                temperature = 273.15
+            end
+            # Areas, cells, faces of candidates
+            areas = Float64[]
+            multipliers = Float64[]
+            cells = Int[]
+            for con in acon
+                if con[1] != aqno
+                    continue
+                end
+                multiplier = con[10]
+                area = con[9]
+                bfaces, bcells = aquifer_connections_to_boundary_faces(g, con[2], con[3], con[4], con[5], con[6], con[7], con[8])
+                for c in bcells
+                    push!(cells, c)
+                    push!(multipliers, multiplier)
+                end
+                if isnan(area)
+                    for f in bfaces
+                        push!(areas, reservoir[:boundary_areas][f])
+                    end
+                else
+                    for _ in bfaces
+                        push!(areas, area)
+                    end
+                end
+            end
+            area_total = sum(areas)
+            @. areas /= area_total
+            # Scale by typical water viscosity
+            scale = 0.01*si_unit(:poise)
+            PI_actual = PI.*scale.*areas.*multipliers
+            cc = reservoir[:cell_centroids]
+            for (c, PI_c) in zip(cells, PI_actual)
+                depth = cc[3, c]
+                p = p_datum + grav*rho*(depth - datum)
+                bc_c = FlowBoundaryCondition(c, p, temperature,
+                    trans_flow = PI_c,
+                    trans_thermal = 0.0, # Maybe not correct?
+                    density = rho,
+                    fractional_flow = mix
+                )
+                push!(bc, bc_c)
+            end
+        end
+        if length(bc) == 0
+            bc = nothing
+        end
+    end
+    # TODO: Check that there are no aquifers in schedule since this is not
+    # handled.
+
+    return (bc, sources)
+end
+
+function aquifer_connections_to_boundary_faces(g, Imin, Imax, Jmin, Jmax, Kmin, Kmax, type)
+    if Imax == -1
+        Imax = typemax(Int)
+    end
+    if Jmax == -1
+        Jmax = typemax(Int)
+    end
+    if Kmax == -1
+        Kmax = typemax(Int)
+    end
+    if type in ("I+", "X+")
+        t = :right
+    elseif type in ("I-", "X-")
+        t = :left
+    elseif type in ("J+", "Y+")
+        t = :upper
+    elseif type in ("J-", "Y-")
+        t = :lower
+    elseif type in ("K+", "Z+")
+        t = :bottom
+    elseif type in ("K-", "Z-")
+        t = :top
+    else
+        error("Bad face type $type")
+    end
+    candidates = get_mesh_entity_tag(g, BoundaryFaces(), :direction, t)
+    cells = g.boundary_faces.neighbors[candidates]
+    bfaces = Int[]
+    bcells = Int[]
+
+    for (f, c) in zip(candidates, cells)
+        i, j, k = cell_ijk(g, c)
+        if i < Imin || i > Imax
+            continue
+        end
+        if j < Jmin || j > Jmax
+            continue
+        end
+        if k < Kmin || k > Kmax
+            continue
+        end
+        push!(bfaces, f)
+        push!(bcells, c)
+    end
+    return (bfaces, bcells)
 end

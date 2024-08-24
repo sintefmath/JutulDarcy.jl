@@ -13,7 +13,7 @@ Dirchlet boundary condition for constant values (pressure/temperature) at some i
 """
 function FlowBoundaryCondition(
     cell,
-    pressure = DEFAULT_MINIMUM_PRESSURE, 
+    pressure = DEFAULT_MINIMUM_PRESSURE,
     temperature = 298.15;
     fractional_flow = nothing,
     density = nothing,
