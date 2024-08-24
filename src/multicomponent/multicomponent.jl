@@ -79,7 +79,7 @@ function convergence_criterion(model::CompositionalModel, storage, eq::Conservat
 end
 
 
-function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::ConservationLaw, eq_s, r; dt = 1.0, update_report = missing) where S<:MultiPhaseCompositionalSystemLV
+function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::ConservationLaw{:TotalMasses}, eq_s, r; dt = 1.0, update_report = missing) where S<:MultiPhaseCompositionalSystemLV
     sys = model.system
     state = storage.state
     active = active_entities(model.domain, Cells())
