@@ -125,7 +125,7 @@ function setup_case_from_parsed_data(datafile;
     for (k, submodel) in pairs(model.models)
         if model_or_domain_is_well(submodel) || k == :Reservoir
             # Modify secondary variables
-            if !is_compositional
+            if !is_compositional && !(sys isa Symbol)
                 svar = submodel.secondary_variables
                 pvt_reg_i = reservoir_regions(submodel.data_domain, :pvtnum)
                 if model_or_domain_is_well(submodel)

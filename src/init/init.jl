@@ -129,6 +129,9 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
                     phase_density = rho_l
                 end
             end
+        elseif rho isa BrineCO2MixingDensities
+            T = T_z(z)
+            phase_density = rho.tab(p, T)[ph]
         else
             pvt = rho.pvt
             pvt_i = pvt[ph]
