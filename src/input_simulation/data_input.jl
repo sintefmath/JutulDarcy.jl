@@ -2060,8 +2060,12 @@ function parse_aquifer_bc(model, datafile, sys)
             PI_actual = PI.*scale.*areas.*multipliers
             cc = reservoir[:cell_centroids]
             for (c, PI_c) in zip(cells, PI_actual)
-                depth = cc[3, c]
-                p = p_datum + grav*rho*(depth - datum)
+                if ignore_depth
+                    p = p_datum
+                else
+                    depth = cc[3, c]
+                    p = p_datum + grav*rho*(depth - datum)
+                end
                 bc_c = FlowBoundaryCondition(c, p, temperature,
                     trans_flow = PI_c,
                     trans_thermal = 0.0, # Maybe not correct?

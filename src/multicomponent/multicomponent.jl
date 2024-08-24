@@ -30,6 +30,7 @@ include("variables/variables.jl")
 include("utils.jl")
 include("flux.jl")
 include("sources.jl")
+include("bc.jl")
 include("wells.jl")
 
 function select_primary_variables!(S, system::CompositionalSystem, model)
