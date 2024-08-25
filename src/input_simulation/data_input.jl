@@ -170,6 +170,10 @@ function setup_case_from_parsed_data(datafile;
             end
         end
     end
+    msg("Setting up forces.")
+    forces = parse_forces(model, datafile, sys, wells, controls, limits, cstep, dt, well_forces)
+    msg("Setting up initial state.")
+    state0 = parse_state0(model, datafile, normalize = normalize)
     msg("Setting up parameters.")
     parameters = setup_parameters(model)
     if haskey(props, "SWL")
@@ -180,10 +184,6 @@ function setup_case_from_parsed_data(datafile;
     if use_ijk_trans
         parameters[:Reservoir][:Transmissibilities] = reservoir_transmissibility(domain, version = :ijk);
     end
-    msg("Setting up forces.")
-    forces = parse_forces(model, datafile, sys, wells, controls, limits, cstep, dt, well_forces)
-    msg("Setting up initial state.")
-    state0 = parse_state0(model, datafile, normalize = normalize)
     msg("Setup complete.")
     return JutulCase(model, dt, forces, state0 = state0, parameters = parameters, input_data = datafile)
 end
@@ -580,7 +580,16 @@ function parse_state0(model, datafile; normalize = true)
     else
         init = parse_state0_direct_assignment(rmodel, datafile)
     end
+    if haskey(init, :Temperature)
+        # Temperature can be set during equil, write it to data domain for
+        # parameter initialization.
+        rmodel.data_domain[:temperature] = init[:Temperature]
+        if !haskey(rmodel.primary_variables, :Temperature)
+            delete!(init, :Temperature)
+        end
+    end
     state0 = setup_reservoir_state(model, init)
+    return state0
 end
 
 function parse_state0_direct_assignment(model, datafile)
