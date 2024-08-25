@@ -1051,7 +1051,7 @@ end
 function parse_physics_types(datafile; pvt_region = missing)
     runspec = datafile["RUNSPEC"]
     props = datafile["PROPS"]
-    has(name) = haskey(runspec, name) && runspec[name]
+    has(name) = haskey(runspec, name) && runspec[name] == true
     has_wat = has("WATER")
     has_oil = has("OIL")
     has_gas = has("GAS")
@@ -1062,6 +1062,8 @@ function parse_physics_types(datafile; pvt_region = missing)
         # Early termination since this model does not need any PVT specification.
         @assert (has_oil && has_gas) "JUTUL_CO2BRINE currently assumes oil(liquid)-gas systems"
         return (system = :co2brine, pvt = (missing, missing))
+    elseif has("CO2STORE")
+        error("CO2STORE is not directly supported in JutulDarcy. You can try the converter:\ndata = JutulDarcy.convert_co2store_to_co2_brine(data)")
     end
 
     is_immiscible = !has_disgas && !has_vapoil
@@ -1107,7 +1109,7 @@ function parse_physics_types(datafile; pvt_region = missing)
         rhoWS = deck_density[2]
         rhoGS = deck_density[3]
     else
-        @assert is_compositional
+        @assert is_compositional "DENSITY can only be omitted for compositional models."
         rhoOS = rhoWS = rhoGS = 1.0
         has_oil = true
         has_gas = true
