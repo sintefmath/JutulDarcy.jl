@@ -74,6 +74,7 @@ function phase_diffused_mass(D, ρ, α, S, face, grad)
     @inbounds D_α = D[α, face]
     den_α = cell -> @inbounds ρ[α, cell]
     # Take minimum - diffusion should not cross phase boundaries.
-    S = min(S[α, grad.left], S[α, grad.right])
+    left, right = Jutul.cell_pair(grad)
+    S = min(S[α, left], S[α, right])
     return -D_α*S*face_average(den_α, grad)
 end

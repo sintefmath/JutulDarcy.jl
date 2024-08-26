@@ -115,7 +115,8 @@ end
 end
 
 function face_average(F, tpfa)
-    return 0.5*(F(tpfa.right) + F(tpfa.left))
+    l, r = Jutul.cell_pair(tpfa)
+    return 0.5*(F(r) + F(l))
 end
 
 function phase_face_average(phase_property, tpfa, phase)

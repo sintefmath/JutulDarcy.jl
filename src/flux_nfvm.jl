@@ -21,7 +21,7 @@ function darcy_phase_kgrad_potential(face, phase, state, model, flux_type, mpfa:
         ∇pot = Jutul.NFVM.evaluate_flux(pot, mpfa, phase)
         ∇rho = Jutul.NFVM.evaluate_flux(dens, mpfa, phase)
 
-        l, r = Jutul.NFVM.cell_pair(mpfa)
+        l, r = Jutul.cell_pair(mpfa)
         z_avg = (z[l] + z[r])/2.0
         q = -(∇pot + ∇rho*g*z_avg)
     else
@@ -38,12 +38,12 @@ function darcy_phase_kgrad_potential(face, phase, state, model, flux_type, mpfa:
 end
 
 @inline function JutulDarcy.gradient(X::AbstractVector, hf::Jutul.NFVM.NFVMDiscretization)
-    l, r = Jutul.NFVM.cell_pair(hf)
+    l, r = Jutul.cell_pair(hf)
     return @inbounds X[r] - X[l]
 end
 
 @inline function JutulDarcy.gradient(X::AbstractMatrix, i, hf::Jutul.NFVM.NFVMDiscretization)
-    l, r = Jutul.NFVM.cell_pair(hf)
+    l, r = Jutul.cell_pair(hf)
     return @inbounds X[i, r] - X[i, l]
 end
 
