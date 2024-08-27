@@ -625,14 +625,15 @@ function deck_pc(props; oil, water, gas, satnum = nothing, is_co2 = false)
         found_pcow = false
     end
     if oil && gas
-        if is_co2 && (oil + gas + water) == 2
-            # CO2 store models may act was oil-gas but they are really
-            # representing water-co2 and the capillary pressure should be
-            # p_g = p_o + p_og
-            reverse = false
-        else
-            reverse = !water
-        end
+        # if is_co2 && (oil + gas + water) == 2
+        #     # CO2 store models may act was oil-gas but they are really
+        #     # representing water-co2 and the capillary pressure should be
+        #     # p_g = p_o + p_og
+        #     reverse = false
+        # else
+        #     reverse = !water
+        # end
+        reverse = !water
         if haskey(props, "SGOF")
             interp_og, found_pcog = get_pc(props["SGOF"], 4, reverse)
         else
