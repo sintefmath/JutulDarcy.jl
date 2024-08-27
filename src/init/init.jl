@@ -151,7 +151,9 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         end
         return phase_density
     end
-    pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_f, contacts_pc)
+    # Find the reference phase. It is either liquid
+    ref_phase = find_reference_phase(model.system)
+    pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_f, contacts_pc, ref_phase)
     if nph > 1
         relperm = model.secondary_variables[:RelativePermeabilities]
         if relperm isa Pair
@@ -215,7 +217,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         end
         kr = kr[:, cells]
         init[:Saturations] = s
-        init[:Pressure] = init_reference_pressure(pressures, contacts, kr, pc, 2)
+        init[:Pressure] = init_reference_pressure(pressures, contacts, kr, pc, ref_phase)
     else
         p = copy(vec(pressures))
         init[:Pressure] = p
@@ -230,6 +232,31 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     end
 
     return init
+end
+
+function find_reference_phase(system)
+    mphases = get_phases(system)
+    function find_phase(k)
+        ix = 0
+        for (i, ph) in enumerate(mphases)
+            if ph isa LiquidPhase
+                ix = i
+                break
+            end
+        end
+        return ix
+    end
+    l = find_phase(LiquidPhase)
+    a = find_phase(AqueousPhase)
+    if l > 0
+        phase = l
+    elseif a > 0
+        phase = a
+    else
+        # Last phase is water or something custom, send out 1.
+        phase = 1
+    end
+    return phase
 end
 
 
@@ -642,10 +669,12 @@ function init_reference_pressure(pressures, contacts, kr, pc, ref_ix = 2)
     return p
 end
 
-function determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_f, contacts_pc)
+function determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_f, contacts_pc, ref_ix = 0)
     nc = length(depths)
     nph = length(contacts) + 1
-    ref_ix = min(2, nph)
+    if ref_ix == 0
+        ref_ix = min(2, nph)
+    end
     I_ref = phase_pressure_depth_table(depth, zmin, zmax, datum_pressure, density_f, ref_ix)
     pressures = zeros(nph, nc)
     pos = 1
