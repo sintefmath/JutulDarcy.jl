@@ -12,8 +12,8 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
         c_v = JutulDarcy.PressureTemperatureDependentVariable(tables[:heat_capacity_constant_volume])
     end
     mixture = MultiComponentMixture(["Water", "CarbonDioxide"], name = "CSP11BC-mixture")
-    mixture.component_names[1] = "H₂O"
-    mixture.component_names[2] = "CO₂"
+    mixture.component_names[1] = "H2O"
+    mixture.component_names[2] = "CO2"
     keos = KValuesEOS(tables[:K], mixture)
     # Densities
     rhoS = JutulDarcy.reference_densities(:co2brine)
