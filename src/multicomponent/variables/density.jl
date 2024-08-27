@@ -48,8 +48,8 @@ end
     eos = sys.equation_of_state
     cnames = eos.mixture.component_names
     # TODO: This is hard coded.
-    @assert cnames[1] == raw"H₂O" "First component was $(cnames[1]), expected H₂O"
-    @assert cnames[2] == raw"CO₂" "Second component was $(cnames[2]), expected CO₂"
+    @assert cnames[1] == raw"H2O" "First component was $(cnames[1]), expected H2O"
+    @assert cnames[2] == raw"CO2" "Second component was $(cnames[2]), expected CO2"
     @assert length(cnames) == 2
     l, v = phase_indices(sys)
     for i in ix
