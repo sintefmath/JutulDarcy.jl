@@ -2034,7 +2034,7 @@ function parse_aquifer_bc(model, datafile, sys)
             if isfinite(minv) || isfinite(maxv)
                 jutul_message("Aquifer $aqno", "Non-defaulted pressure limits ($minv,$maxv) detected. They will be ignored.")
             end
-            ignore_depth = aquifer[13] == "NO"
+            ignore_depth = aquifer[13] == "YES"
             temperature = aquifer[15]
             if isnan(temperature)
                 temperature = 273.15
