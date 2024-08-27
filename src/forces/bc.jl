@@ -65,38 +65,54 @@ end
 
 function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw{:TotalMasses}, eq_s, force::V, time) where {V <: AbstractVector{<:FlowBoundaryCondition}, D, S<:MultiPhaseSystem}
     state = storage.state
-    p = state.Pressure
+    nph = number_of_phases(reservoir_model(model).system)
     for bc in force
         c = bc.cell
-        T_f = bc.trans_flow
-        Δp = p[c] - bc.pressure
-        q = T_f*Δp
         acc_i = view(acc, :, c)
+        q = compute_bc_mass_fluxes(bc, state, nph)
         apply_flow_bc!(acc_i, q, bc, model, state, time)
     end
 end
 
-function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, time) where T<:Union{ImmiscibleSystem, SinglePhaseSystem}
-    mu = state.PhaseViscosities
-    kr = state.RelativePermeabilities
-    rho = state.PhaseMassDensities
-    nph = length(acc)
-    @assert size(kr, 1) == nph
+function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw{:TotalThermalEnergy}, eq_s, force::V, time) where {V <: AbstractVector{<:FlowBoundaryCondition}, D, S<:MultiPhaseSystem}
+    state = storage.state
+    nph = number_of_phases(reservoir_model(model).system)
+    for bc in force
+        c = bc.cell
+        acc_i = view(acc, :, c)
+        qh_adv, qh_cond = compute_bc_heat_fluxes(bc, state, nph)
+        apply_flow_bc!(acc_i, qh_adv + qh_cond, bc, model, state, time)
+    end
+end
 
+function compute_bc_mass_fluxes(bc, state, nph)
+    
+    # Get reservoir properties
+    p   = state.Pressure
+    mu  = state.PhaseViscosities
+    kr  = state.RelativePermeabilities
+    rho = state.PhaseMassDensities
+    @assert size(kr, 1) == nph
+    # Get boundary properties
+    c       = bc.cell
+    T_f     = bc.trans_flow
     rho_inj = bc.density
-    f_inj = bc.fractional_flow
-    c = bc.cell
-    if q > 0
+    f_inj   = bc.fractional_flow
+    # Compute total mass flux
+    Δp = p[c] - bc.pressure
+    q_tot = T_f*Δp
+
+    q = Vector{typeof(q_tot)}(undef, nph)
+    if q_tot > 0
         # Pressure inside is higher than outside, flow out from domain
-        for ph in eachindex(acc)
+        for ph in 1:nph
             # Immiscible: Density * total flow rate * mobility for each phase
-            q_i = q*rho[ph, c]*kr[ph, c]/mu[ph, c]
-            acc[ph] += q_i
+            q[ph] = q_tot*rho[ph, c]*kr[ph, c]/mu[ph, c]
         end
     else
         # Injection of mass
         λ_t = 0.0
-        for ph in eachindex(acc)
+        for ph in 1:nph
             λ_t += kr[ph, c]/mu[ph, c]
         end
         if isnothing(rho_inj)
@@ -116,16 +132,81 @@ function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, tim
             end
             for ph in 1:nph
                 F = state.TotalMasses[ph, c]/total
-                acc[ph] += q*rho_inj*λ_t*F
+                q[ph] = q_tot*rho_inj*λ_t*F
             end
         else
             @assert length(f_inj) == nph
             for ph in 1:nph
                 F = f_inj[ph]
-                acc[ph] += q*rho_inj*λ_t*F
+                q[ph] = q_tot*rho_inj*λ_t*F
             end
         end
     end
+
+    return q
+
+end
+
+function compute_bc_heat_fluxes(bc, state, nph)
+    
+    q = compute_bc_mass_fluxes(bc, state, nph)
+    c = bc.cell
+
+    # Get reservoir properties
+    p = state.Pressure
+    T = state.Temperature
+    s = state.Saturations
+    h = state.FluidEnthalpy
+    u = state.FluidInternalEnergy
+    rho = state.PhaseMassDensities
+    
+    # Get boundary properties
+    T_h    = bc.trans_thermal
+    p_bc   = bc.pressure
+    T_bc   = bc.temperature
+    rho_bc = bc.density
+    
+    qh_advective = 0
+    for ph in 1:nph
+        if q[ph] > 0
+            # Flow out from domain
+            h_ph = h[ph,c]
+        else
+            Cp = u[ph,c]/T[c]
+            if isnothing(rho_bc)
+                # Density not provided, take saturation average from what we
+                # have in the inside of the domain
+                rho_bc = 0.0
+                for ph in 1:nph
+                    rho_bc += state.Saturations[ph,c]*rho[ph,c]
+                end
+            end
+            h_ph = Cp*T_bc + p_bc/rho_bc
+        end
+        qh_advective += h_ph*q[ph]
+    end
+
+    ΔT = T[c] - T_bc
+    qh_conductive = T_h*ΔT
+
+    return qh_advective, qh_conductive
+
+end
+
+function compute_bc_heat_fluxes(bc, state)
+    c = bc.cell
+    T_f = bc.trans_flow
+    Δp = p[c] - bc.pressure
+    q = T_f*Δp
+    return q
+end
+
+function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, time) where T<:Union{ImmiscibleSystem, SinglePhaseSystem}
+
+    for ph in eachindex(acc)
+        acc[ph] += q[ph]
+    end
+
 end
 
 function Jutul.vectorization_length(bc::FlowBoundaryCondition, variant)
