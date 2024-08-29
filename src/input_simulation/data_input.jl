@@ -1076,7 +1076,7 @@ function parse_physics_types(datafile; pvt_region = missing)
     end
 
     is_immiscible = !has_disgas && !has_vapoil
-    is_compositional = has("COMPS")
+    is_compositional = haskey(runspec, "COMPS")
 
     phases = []
     rhoS = Vector{Float64}()
