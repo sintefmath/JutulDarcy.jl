@@ -1,3 +1,17 @@
+function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{<:Any, T}, eq::ConservationLaw{:TotalMasses}, eq_s, force::V, time) where {T<:MultiPhaseCompositionalSystemLV, V <: AbstractVector{<:FlowBoundaryCondition}}
+    state = storage.state
+    p = state.Pressure
+    for bc in force
+        c = bc.cell
+        acc_i = view(acc, :, c)
+        T_f = bc.trans_flow
+        Δp = p[c] - bc.pressure
+        q = T_f*Δp
+        apply_flow_bc!(acc_i, q, bc, model, state, time)
+    end
+end
+
+
 function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, time) where T<:MultiPhaseCompositionalSystemLV
     mob = state.PhaseMobilities
     rho = state.PhaseMassDensities
