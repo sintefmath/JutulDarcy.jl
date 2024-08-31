@@ -14,7 +14,7 @@ function properties_present_when_saturation_is_zero(sys::MultiPhaseCompositional
 end
 
 function properties_present_when_saturation_is_zero(eos::KValuesEOS)
-    return true
+    return false
 end
 
 function properties_present_when_saturation_is_zero(eos::GenericCubicEOS)
