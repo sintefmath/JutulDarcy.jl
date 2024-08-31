@@ -24,8 +24,7 @@ for (i, pt) in enumerate(points)
     x, y, z = pt
     x_u = 2*π*x/1000.0
     w = 0.2
-    dz = 0.05*x + 0.05*abs(x - 500.0)+ w*(30*sin(2.0*x_u) + 20*sin(5.0*x_u))# + 10*sin(10.0*x_u) + 5*sin(25.0*x_u))
-    # dz = 0.05*x + w*(30*sin(2.0*x_u) + 20*sin(5.0*x_u) + 10*sin(10.0*x_u) + 5*sin(25.0*x_u))
+    dz = 0.05*x + 0.05*abs(x - 500.0)+ w*(30*sin(2.0*x_u) + 20*sin(5.0*x_u))
     points[i] = pt + [0, 0, dz]
 end
 # ## Find and plot cells intersected by a deviated injector well
