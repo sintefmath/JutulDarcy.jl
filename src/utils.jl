@@ -161,22 +161,45 @@ reservoir and that facility.
   used in the model. Each well must have a unique name.
 - `extra_out=true`: Return both the model and the parameters instead of just the
   model.
+- `kgrad=nothing`: Type of spatial discretization to use:
+    - `:tpfa` or `nothing` gives standard two-point flux approximation (TPFA) with hard-coded
+      two-point assembly
+    - `:tpfa_test` gives TPFA with specialized finite-volume assembly. Should be
+      similar in performance to `:tpfa`, but does not make use of threads.
+    - `:avgmpfa` gives a consistent linear MPFA scheme that is more accurate for
+      meshes with anisotropic perm or non-orthogonal cells than `:tpfa`.
+    - `:ntpfa` gives a consistent nonlinear MPFA scheme (nonlinear version of
+      `:avgmpfa` that preserves monotonicity)
+- `extra_outputs=Symbol[]`: Extra output variables for reservoir model. Defaults
+  to "typical" values seen in reservoir simulation. Valid values: Vector of
+  symbols to be output, `true` for all variables and `false` for the minimal set
+  required to restart simulations (typically only the primary variables and mass
+  of each component)
 
 ## Advanced model setup
+Advanced options govern internals of the simulator, like type of automatic
+differentation, how equations are linearized and so on. These should not impact
+simulation results beyond what is allowed for the model tolerances, but can
+impact simulation speed.
+
 - `split_wells=false`: Add a facility model for each well instead of one
   facility model that controls all wells. This must be set to `true` if you want
   to use MPI or nonlinear domain decomposition.
 - `backend=:csc`: Backend to use. Can be `:csc` for serial compressed sparse
-  column CSC matrix, `:csr` for parallel compressed sparse row matrix. `:csr``
-  is recommended when using MPI.
+  column CSC matrix, `:csr` for parallel compressed sparse row matrix. `:csr` is
+  a bit faster and is recommended when using MPI, HYPRE or multiple threads.
 - `context=DefaultContext()`: Context used for entire model. Not recommended to
   set up manually, use `backend` instead.
 - `assemble_wells_together=true`: Assemble wells in a single big matrix rather
   than many small matrices.
-- `extra_outputs=Symbol[]`: Extra output variables for reservoir model. Defaults
-  to "typical" values seen in reservoir simulation. Valid values: Vector of
-  symbols to be output, `true` for all variables and `false` for the minimal set
-  required to restart simulations (typically only the primary variables)
+- `block_backend=true`: Use block sparse representation. This is needed by the
+  iterative solvers and corresponding preconditioners. Setting this to `false`
+  will result in a direct solver being used. In addition, equations will be
+  assembled in an order similar to that of MRST (equation major instead of cell
+  major).
+- `general_ad=false`: Use more general form of AD. Will result in slower
+  execution speed than if set to true, but can be useful when working with
+  custom discretizations.
 
 ## Increment and variable options
 These options govern the range of values and the maximum allowable change of
@@ -197,12 +220,12 @@ low values can lead to slow convergence.
   for wells in SI units (Pa)
 - `dp_max_rel_well=nothing`: Maximum allowable relative pressure change in well
 - `ds_max=0.2`: Maximum change in saturations
-- `dz_max=`: Maximum change in composition (for compositional models only)
-- `p_min=`: Minimum pressure in model (hard limit)
-- `p_max=`: Maximum pressure in model (hard limit)
-- `dr_max=`: Maximum change in Rs/Rv for blackoil models over a Newton
+- `dz_max=0.2`: Maximum change in composition (for compositional models only)
+- `p_min=JutulDarcy.DEFAULT_MINIMUM_PRESSURE`: Minimum pressure in model (hard limit)
+- `p_max=Inf`: Maximum pressure in model (hard limit)
+- `dr_max=Inf`: Maximum change in Rs/Rv for blackoil models over a Newton
   iteration. Taken relative to the saturated value of the cell.
-- `dT_max_rel=`: Maximum relative change in temperature (JutulDarcy uses Kelvin,
+- `dT_max_rel=nothing`: Maximum relative change in temperature (JutulDarcy uses Kelvin,
   so comments about changing limits near zero above does not apply to typical
   reservoir temperatures)
 - `dT_max_abs=50.0`: Maximum absolute change in temperature (in °K/°C)
@@ -501,7 +524,7 @@ end
 - `offset_its=1`: dampening parameter for time step selector where larger values
   lead to more pessimistic estimates.
 - `timesteps=:auto`: Set to `:auto` to use automatic timestepping, `:none` for
-  no autoamtic timestepping (i.e. try to solve exact report steps)
+  no automatic timestepping (i.e. try to solve exact report steps)
 - `max_timestep=si_unit(:year)`: Maximum internal timestep used in solver.
 
 ## Convergence criterions
@@ -528,7 +551,9 @@ list a few of the most relevant entries here for convenience:
 - `failure_cuts_timestep=true`: Cut timestep instead of throwing an error when
   numerical issues are encountered (e.g. linear solver divergence).
 - `max_timestep_cuts=25`: Maximum number of timestep cuts before a solver gives
-  up.
+  up. Note that when using dynamic timestepping, this in practice defines a
+  minimal timestep, with more than the prescribed number of cuts being allowed
+  if the timestep is dynamically increased after cutting.
 
 Additional keyword arguments are passed onto [`simulator_config`](@ref).
 """
