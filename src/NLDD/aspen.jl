@@ -737,7 +737,7 @@ end
 
 function store_primary_variables!(model::MultiModel, storage, buffers, extra; offset = 0, do_delta = false)
     @assert offset == 0
-    sym = Jutul.submodel_symbols(model)
+    sym = Jutul.submodels_symbols(model)
     groups = model.groups
     if isnothing(groups)
         groups = ones(Int64, length(sym))
