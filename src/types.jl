@@ -262,6 +262,8 @@ Optionally, a label for the phase, the connate saturation and a small epsilon
 value used to avoid extrapolation can be specified.
 """
 function PhaseRelativePermeability(s, k; label = :w, connate = s[1], epsilon = 1e-16)
+    s = collect(s)
+    k = collect(k)
     msg(i) = "k = $(k[i]) at entry $i corresponding to saturation $(s[i])"
     s, k = saturation_table_handle_defaults(s, k)
     for i in eachindex(s)

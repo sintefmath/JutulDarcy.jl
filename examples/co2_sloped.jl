@@ -60,7 +60,56 @@ fig
 domain = reservoir_domain(mesh, permeability = 0.3Darcy, porosity = 0.3, temperature = convert_to_si(30.0, :Celsius))
 Injector = setup_well(domain, wc, name = :Injector, simple_well = true)
 
-model, parameters = setup_reservoir_model(domain, :co2brine, wells = Injector);
+model = setup_reservoir_model(domain, :co2brine, wells = Injector, extra_out = false);
+# ## Customize model by adding relative permeability with hysteresis
+# We define three relative permeability functions: kro(so) for the brine/liquid
+# phase and krg(g) for both drainage and imbibition. Here we limit the
+# hysteresis to only the non-wetting gas phase, but either combination of
+# wetting or non-wetting hysteresis is supported.
+#
+# Note that we import a few utilities from JutulDarcy that are not exported by
+# default since hysteresis falls under advanced functionality.
+import JutulDarcy: table_to_relperm, add_relperm_parameters!, brooks_corey_relperm
+so = range(0, 1, 10)
+krog_t = so.^2
+krog = PhaseRelativePermeability(so, krog_t, label = :og)
+
+# Higher resolution for second table
+sg = range(0, 1, 50)
+
+# Evaluate Brooks-Corey to generate tables
+tab_krg_drain = brooks_corey_relperm.(sg, n = 2, residual = 0.1)
+tab_krg_imb = brooks_corey_relperm.(sg, n = 3, residual = 0.25)
+
+krg_drain  = PhaseRelativePermeability(sg, tab_krg_drain, label = :g)
+krg_imb  = PhaseRelativePermeability(sg, tab_krg_imb, label = :g)
+
+fig, ax, plt = lines(sg, tab_krg_drain, label = "krg drainage")
+lines!(ax, sg, tab_krg_imb, label = "krg imbibition")
+lines!(ax, 1 .- so, krog_t, label = "kro")
+axislegend()
+fig
+## Define a relative permeability variable
+# JutulDarcy uses type instances to define how different variables inside the
+# simulation are evaluated. The `ReservoirRelativePermeabilities` type has
+# support for up to three phases with w, ow, og and g relative permeabilities
+# specified as a function of their respective phases. It also supports
+# saturation regions.
+#
+# Note: If regions are used, all drainage curves come first followed by equal
+# number of imbibition curves. Since we only have a single (implicit) saturation
+# region, the krg input should have two entries: One for drainage, and one for
+# imbibition.
+#
+# We also call `add_relperm_parameters` to the model. This makes sure that when
+# hysteresis is enabled, we track maximum saturation for hysteresis in each
+# reservoir cell.
+import JutulDarcy: KilloughHysteresis, ReservoirRelativePermeabilities
+krg = (krg_drain, krg_imb) 
+H_g = KilloughHysteresis() # Other options: CarlsonHysteresis, JargonHysteresis
+relperm = ReservoirRelativePermeabilities(g = krg, og = krog, hysteresis_g = H_g)
+replace_variables!(model, RelativePermeabilities = relperm)
+add_relperm_parameters!(model)
 # ## Define approximate hydrostatic pressure
 # The initial pressure of the water-filled domain is assumed to be at
 # hydrostatic equilibrium.
@@ -69,6 +118,12 @@ p0 = zeros(nc)
 depth = domain[:cell_centroids][3, :]
 g = Jutul.gravity_constant
 @. p0 = 200bar + depth*g*1000.0
+# ## Set up initial state and parameters
+state0 = setup_reservoir_state(model,
+    Pressure = p0,
+    OverallMoleFractions = [1.0, 0.0],
+)
+parameters = setup_parameters(model)
 
 # ## Find the boundary and apply a constant pressureboundary condition
 # We find cells on the left and right boundary of the model and set a constant
@@ -112,11 +167,10 @@ forces = vcat(
     fill(forces_inject, nstep),
     fill(forces_shut, nstep_shut)
 );
-# ## Set up initial state
-state0 = setup_reservoir_state(model,
-    Pressure = p0,
-    OverallMoleFractions = [1.0, 0.0],
-)
+# ## Add some more outputs for plotting
+rmodel = reservoir_model(model)
+push!(rmodel.output_variables, :RelativePermeabilities)
+push!(rmodel.output_variables, :PhaseViscosities)
 # ## Simulate the schedule
 # We set a maximum internal time-step of 30 days to ensure smooth convergence
 # and reduce numerical diffusion.
@@ -146,5 +200,30 @@ for (i, step) in enumerate([1, 5, nstep, nstep+nstep_shut])
     plot_co2!(fig, i, log10.(states[step][:OverallMoleFractions][2, :]), "log10 of CO2 mole fraction at report step $step/$(nstep+nstep_shut)")
 end
 fig
+# ## Plot all relative permeabilities for all time-steps
+# We can plot all relative permeability evaluations. This both verifies that the
+# hysteresis model is active, but also gives an indication to how many cells are
+# exhibiting imbibition during the simulation.
+kro_val = Float64[]
+krg_val = Float64[]
+sg_val = Float64[]
+for state in states
+    kr_state = state[:RelativePermeabilities]
+    s_state = state[:Saturations]
+    for c in 1:nc
+        push!(kro_val, kr_state[1, c])
+        push!(krg_val, kr_state[2, c])
+        push!(sg_val, s_state[2, c])
+    end
+end
+
+fig = Figure()
+ax = Axis(fig[1, 1], title = "Relative permeability during simulation")
+fig, ax, plt = scatter(sg_val, kro_val, label = "kro", alpha = 0.3)
+scatter!(ax, sg_val, krg_val, label = "krg", alpha = 0.3)
+axislegend()
+fig
 # ## Plot result in interactive viewer
+# If you have interactive plotting available, you can explore the results
+# yourself.
 plot_reservoir(model, states)
