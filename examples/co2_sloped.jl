@@ -28,15 +28,38 @@ for (i, pt) in enumerate(points)
     # dz = 0.05*x + w*(30*sin(2.0*x_u) + 20*sin(5.0*x_u) + 10*sin(10.0*x_u) + 5*sin(25.0*x_u))
     points[i] = pt + [0, 0, dz]
 end
+# ## Find and plot cells intersected by a deviated injector well
+# We place a single injector well. This well was unfortunately not drilled
+# completely straight, so we cannot directly use `add_vertical_well` based on
+# logical indices. We instead define a matrix with three columns x, y, z that
+# lie on the well trajectory and use utilities from `Jutul` to find the cells
+# intersected by the trajectory.
+import Jutul: find_enclosing_cells, plot_mesh_edges
+trajectory = [
+    745.0 0.5 45;    # First point
+    760.0 0.5 70;    # Second point
+    810.0 0.5 100.0  # Third point
+]
+
+wc = find_enclosing_cells(mesh, trajectory)
+
+fig, ax, plt = plot_mesh_edges(mesh, z_is_depth = true)
+plot_mesh!(ax, mesh, cells = wc, transparency = true, alpha = 0.3)
+lines!(ax, trajectory', color = :red)
+fig
+
 # ## Set up simulation model
 # We set up a domain and a single injector. We pass the special :co2brine
 # argument in place of the system to the reservoir model setup routine. This
 # will automatically set up a compositional two-component CO2-H2O model with the
 # appropriate functions for density, viscosity and miscibility.
 #
-# Note that this model can be run with a thermal mode by setting 
+# Note that this model by default is isothermal, but we still need to specify a
+# temperature when setting up the model. This is because the properties of CO2
+# strongly depend on temperature, even when thermal transport is not solved.
 domain = reservoir_domain(mesh, permeability = 0.3Darcy, porosity = 0.3, temperature = convert_to_si(30.0, :Celsius))
-Injector = setup_well(domain, (65, 1, 1), name = :Injector)
+Injector = setup_well(domain, wc, name = :Injector, simple_well = true)
+
 model, parameters = setup_reservoir_model(domain, :co2brine, wells = Injector);
 # ## Define approximate hydrostatic pressure
 # The initial pressure of the water-filled domain is assumed to be at
@@ -60,7 +83,6 @@ for cell in 1:nc
     end
 end
 bc = flow_boundary_condition(boundary, domain, p0[boundary], fractional_flow = [1.0, 0.0])
-
 
 # ## Plot the model
 plot_reservoir(model)
@@ -103,9 +125,11 @@ wd, states, t = simulate_reservoir(state0, model, dt,
     forces = forces,
     max_timestep = 90day
 )
-# ## Plot the density of brine
-# The density of brine depends on the CO2 concentration and gives a good
-# visualization of where the mass of CO2 exists.
+# ## Plot the CO2 mole fraction
+# We plot log10 of the CO2 mole fraction. We use log10 to account for the fact
+# that the mole fraction in cells made up of only the aqueous phase is much
+# smaller than that of cells with only the gaseous phase, where there is almost
+# just CO2.
 using GLMakie
 function plot_co2!(fig, ix, x, title = "")
     ax = Axis3(fig[ix, 1],
