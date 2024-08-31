@@ -2,6 +2,7 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
         temperature = missing,
         thermal = false,
         composite = thermal,
+        extra_out = true,
         kwarg...
     )
     tables = co2_brine_property_tables(temperature)
@@ -9,26 +10,23 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
     mu = JutulDarcy.PTViscosities(tables[:viscosity])
     if thermal
         c_v = JutulDarcy.PressureTemperatureDependentVariable(tables[:heat_capacity_constant_volume])
-        rho = Pair(:flow, rho)
-        mu = Pair(:flow, mu)
-        c_v = Pair(:thermal, c_v)
     end
     mixture = MultiComponentMixture(["Water", "CarbonDioxide"], name = "CSP11BC-mixture")
-    mixture.component_names[1] = "H₂O"
-    mixture.component_names[2] = "CO₂"
+    mixture.component_names[1] = "H2O"
+    mixture.component_names[2] = "CO2"
     keos = KValuesEOS(tables[:K], mixture)
     # Densities
-    rhoSurfaceBrine = 998.207150
-    rhoSurfaceCO2 = 1.868048
-    rhoS = [rhoSurfaceBrine, rhoSurfaceCO2]
-    L, V = LiquidPhase(), VaporPhase()
-    sys = MultiPhaseCompositionalSystemLV(keos, (L, V), reference_densities = rhoS)
-    if thermal
-        sys = reservoir_system(flow = sys, thermal = ThermalSystem(sys))
-    elseif composite
-        sys = reservoir_system(flow = sys)
+    rhoS = JutulDarcy.reference_densities(:co2brine)
+    phases = JutulDarcy.get_phases(:co2brine)
+    sys = MultiPhaseCompositionalSystemLV(keos, phases, reference_densities = rhoS)
+
+    tmp = setup_reservoir_model(reservoir, sys; thermal = thermal, kwarg...);
+    out = setup_reservoir_model(reservoir, sys; thermal = thermal, extra_out = extra_out, kwarg...)
+    if extra_out
+        model = out[1]
+    else
+        model = out
     end
-    model, parameters = setup_reservoir_model(reservoir, sys; kwarg...);
 
     outvar = model[:Reservoir].output_variables
     push!(outvar, :Saturations)
@@ -56,11 +54,23 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
             end
         end
     end
-    return (model, parameters)
+    return out
 end
 
-function co2_brine_property_tables(T = missing)
-    getpth(n) = joinpath(@__DIR__, "tables", n)
+function JutulDarcy.reference_densities(::Val{:co2brine})
+    rhoSurfaceBrine = 998.207150
+    rhoSurfaceCO2 = 1.868048
+    return (rhoSurfaceBrine, rhoSurfaceCO2)
+end
+
+function JutulDarcy.get_phases(::Val{:co2brine})
+    return (LiquidPhase(), VaporPhase())
+end
+
+
+function co2_brine_property_tables(T = missing; basepath = joinpath(artifact"CO2Tables_CSP11", "csp11"))
+    ispath(basepath) || throw(ArgumentError("basepath $basepath does not exist."))
+    getpth(n) = joinpath(basepath, n)
 
     co2 = read_component_table(getpth("co2values.csv"))
     h2o = read_component_table(getpth("h2ovalues.csv"))
@@ -90,4 +100,18 @@ function co2_brine_property_tables(T = missing)
         :phase_conductivity => phase_conductivity,
         :solubility_table => sol
     )
+end
+
+function JutulDarcy.select_injector_mixture_spec(sys::Val{:co2brine}, name, streams, type)
+    rho_w, rho_co2 = JutulDarcy.reference_densities(sys)
+    if lowercase(type) == "gas"
+        rho = rho_co2
+        mix = [0.0, 1.0]
+        phases_mix = ((1, 0.0), (2, 1.0))
+    else
+        rho = rho_w
+        mix = [1.0, 0.0]
+        phases_mix = ((1, 1.0), (2, 0.0))
+    end
+    return (rho, mix, phases_mix)
 end

@@ -2,6 +2,8 @@
 # Abstract multiphase system
 
 get_phases(sys::MultiPhaseSystem) = sys.phases
+get_phases(s::Symbol) = get_phases(Val(s))
+
 @inline number_of_phases(sys::MultiPhaseSystem) = length(get_phases(sys))
 @inline reference_densities(sys::MultiPhaseSystem) = sys.rho_ref
 @inline reference_densities(sys::CompositeSystem) = reference_densities(flow_system(sys))
@@ -124,6 +126,8 @@ function initialize_primary_variable_ad!(state, model, pvar::Saturations, state_
     state[state_symbol] = Jutul.unit_sum_init(v, model, npartials, nph; kwarg...)
     return state
 end
+
+Jutul.parameter_is_differentiable(::Saturations, model) = false
 
 struct ConnateWater <: ScalarVariable end
 
@@ -434,7 +438,7 @@ end
 #     @tullio acc[ph, ix[i]] = acc[ph, ix[i]] - phase_source(sources[i].cell, sources[i], rhoS[ph], kr, mu, ph)
 # end
 
-function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw, eq_s, r; dt = 1, update_report = missing) where {D, S<:MultiPhaseSystem}
+function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw{:TotalMasses}, eq_s, r; dt = 1, update_report = missing) where {D, S<:MultiPhaseSystem}
     M = global_map(model.domain)
     v = x -> as_value(Jutul.active_view(x, M, for_variables = false))
     Φ = v(storage.state.FluidVolume)

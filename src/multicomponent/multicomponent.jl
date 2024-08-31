@@ -1,27 +1,6 @@
 using MultiComponentFlash
 const MINIMUM_COMPOSITIONAL_SATURATION = 1e-10
 
-function properties_present_when_saturation_is_zero(sys::Jutul.JutulSystem)
-    return true
-end
-
-function properties_present_when_saturation_is_zero(sys)
-    return properties_present_when_saturation_is_zero(flow_system(sys))
-end
-
-function properties_present_when_saturation_is_zero(sys::MultiPhaseCompositionalSystemLV)
-    return properties_present_when_saturation_is_zero(sys.equation_of_state)
-end
-
-function properties_present_when_saturation_is_zero(eos::KValuesEOS)
-    return true
-end
-
-function properties_present_when_saturation_is_zero(eos::GenericCubicEOS)
-    return false
-end
-
-
 @inline function is_pure_single_phase(s_immiscible)
     return s_immiscible > 1.0 - MINIMUM_COMPOSITIONAL_SATURATION
 end
@@ -30,6 +9,7 @@ include("variables/variables.jl")
 include("utils.jl")
 include("flux.jl")
 include("sources.jl")
+include("bc.jl")
 include("wells.jl")
 
 function select_primary_variables!(S, system::CompositionalSystem, model)
@@ -61,7 +41,7 @@ function select_parameters!(prm, system::CompositionalSystem, model)
     prm[:Temperature] = Temperature()
 end
 
-function convergence_criterion(model::CompositionalModel, storage, eq::ConservationLaw, eq_s, r; dt = 1.0, update_report = missing)
+function convergence_criterion(model::CompositionalModel, storage, eq::ConservationLaw{:TotalMasses}, eq_s, r; dt = 1.0, update_report = missing)
     tm = storage.state0.TotalMasses
     a = active_entities(model.domain, Cells())
     function scale(i)
@@ -79,7 +59,7 @@ function convergence_criterion(model::CompositionalModel, storage, eq::Conservat
 end
 
 
-function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::ConservationLaw, eq_s, r; dt = 1.0, update_report = missing) where S<:MultiPhaseCompositionalSystemLV
+function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::ConservationLaw{:TotalMasses}, eq_s, r; dt = 1.0, update_report = missing) where S<:MultiPhaseCompositionalSystemLV
     sys = model.system
     state = storage.state
     active = active_entities(model.domain, Cells())
@@ -110,15 +90,28 @@ function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::Co
     vol = as_value(state.FluidVolume)
 
     w = MultiComponentFlash.molar_masses(sys.equation_of_state)
-    e = compositional_criterion(state, dt, active, r, nc, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
+    total_mass = domain_total_mass(state.TotalMasses, active)
+
+    e, r = compositional_criterion(state, dt, active, r, nc, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol, total_mass)
     names = model.system.components
     R = (
         CNV = (errors = e, names = names),
+        MB = (errors = r, names = names),
         increment_dp_abs = (errors = (dp_abs/1e6, ), names = (raw"Δp (abs, MPa)", ), ),
         increment_dp_rel = (errors = (dp_rel, ), names = (raw"Δp (rel)", ), ),
         increment_dz = (errors = (dz, ), names = (raw"Δz", ), )
         )
     return R
+end
+
+function domain_total_mass(tm, active)
+    total_mass = 0.0
+    for i in active
+        for c in axes(tm, 1)
+            total_mass += value(tm[c, i])
+        end
+    end
+    return total_mass
 end
 
 function compositional_increment(model, state, update_report::Missing)
@@ -183,31 +176,41 @@ function compositional_residual_scale(cell, dt, w, sl, liquid_density, sv, vapor
     return scale
 end
 
-function compositional_criterion(state, dt, active, r, nc, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
-    e = fill(-Inf, nc)
+function compositional_criterion(state, dt, active, r, nc, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol, total_mass)
+    e = zeros(nc)
+    mb = zeros(nc)
     for (ix, i) in enumerate(active)
         scaling = compositional_residual_scale(i, dt, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
         for c in 1:(nc-1)
-            val = scaling*abs(r[c, ix])
+            r_c = r[c, ix]
+            val = scaling*abs(r_c)
             if val > e[c]
-                e[c] = val
+                e[c] = abs(val)
             end
+            mb[c] += r_c
         end
-        valw = dt*abs(r[end, ix])/(water_density[i]*vol[i])
+        valw = dt*r[end, ix]/(water_density[i]*vol[i])
         if valw > e[end]
-            e[end] = valw
+            e[end] = abs(valw)
+            mb[end] += valw
         end
     end
-    return e
+    @. mb = dt*abs(mb)/total_mass
+    return (e, mb)
 end
 
-function compositional_criterion(state, dt, active, r, nc, w, sl, liquid_density, sv, vapor_density, sw::Nothing, water_density::Nothing, vol)
+function compositional_criterion(state, dt, active, r, nc, w, sl, liquid_density, sv, vapor_density, sw::Nothing, water_density::Nothing, vol, total_mass)
     e = zeros(nc)
+    mb = zeros(nc)
     for (ix, i) in enumerate(active)
         scaling = compositional_residual_scale(i, dt, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol)
         for c in 1:nc
-            e[c] = max(e[c], scaling*abs(r[c, ix]))
+            r_c = r[c, ix]
+            val = scaling*r[c, ix]
+            e[c] = max(e[c], abs(val))
+            mb[c] += r_c
         end
     end
-    return e
+    @. mb = dt*abs(mb)/total_mass
+    return (e, mb)
 end

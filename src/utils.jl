@@ -161,22 +161,45 @@ reservoir and that facility.
   used in the model. Each well must have a unique name.
 - `extra_out=true`: Return both the model and the parameters instead of just the
   model.
+- `kgrad=nothing`: Type of spatial discretization to use:
+    - `:tpfa` or `nothing` gives standard two-point flux approximation (TPFA) with hard-coded
+      two-point assembly
+    - `:tpfa_test` gives TPFA with specialized finite-volume assembly. Should be
+      similar in performance to `:tpfa`, but does not make use of threads.
+    - `:avgmpfa` gives a consistent linear MPFA scheme that is more accurate for
+      meshes with anisotropic perm or non-orthogonal cells than `:tpfa`.
+    - `:ntpfa` gives a consistent nonlinear MPFA scheme (nonlinear version of
+      `:avgmpfa` that preserves monotonicity)
+- `extra_outputs=Symbol[]`: Extra output variables for reservoir model. Defaults
+  to "typical" values seen in reservoir simulation. Valid values: Vector of
+  symbols to be output, `true` for all variables and `false` for the minimal set
+  required to restart simulations (typically only the primary variables and mass
+  of each component)
 
 ## Advanced model setup
+Advanced options govern internals of the simulator, like type of automatic
+differentation, how equations are linearized and so on. These should not impact
+simulation results beyond what is allowed for the model tolerances, but can
+impact simulation speed.
+
 - `split_wells=false`: Add a facility model for each well instead of one
   facility model that controls all wells. This must be set to `true` if you want
   to use MPI or nonlinear domain decomposition.
 - `backend=:csc`: Backend to use. Can be `:csc` for serial compressed sparse
-  column CSC matrix, `:csr` for parallel compressed sparse row matrix. `:csr``
-  is recommended when using MPI.
+  column CSC matrix, `:csr` for parallel compressed sparse row matrix. `:csr` is
+  a bit faster and is recommended when using MPI, HYPRE or multiple threads.
 - `context=DefaultContext()`: Context used for entire model. Not recommended to
   set up manually, use `backend` instead.
 - `assemble_wells_together=true`: Assemble wells in a single big matrix rather
   than many small matrices.
-- `extra_outputs=Symbol[]`: Extra output variables for reservoir model. Defaults
-  to "typical" values seen in reservoir simulation. Valid values: Vector of
-  symbols to be output, `true` for all variables and `false` for the minimal set
-  required to restart simulations (typically only the primary variables)
+- `block_backend=true`: Use block sparse representation. This is needed by the
+  iterative solvers and corresponding preconditioners. Setting this to `false`
+  will result in a direct solver being used. In addition, equations will be
+  assembled in an order similar to that of MRST (equation major instead of cell
+  major).
+- `general_ad=false`: Use more general form of AD. Will result in slower
+  execution speed than if set to true, but can be useful when working with
+  custom discretizations.
 
 ## Increment and variable options
 These options govern the range of values and the maximum allowable change of
@@ -197,12 +220,12 @@ low values can lead to slow convergence.
   for wells in SI units (Pa)
 - `dp_max_rel_well=nothing`: Maximum allowable relative pressure change in well
 - `ds_max=0.2`: Maximum change in saturations
-- `dz_max=`: Maximum change in composition (for compositional models only)
-- `p_min=`: Minimum pressure in model (hard limit)
-- `p_max=`: Maximum pressure in model (hard limit)
-- `dr_max=`: Maximum change in Rs/Rv for blackoil models over a Newton
+- `dz_max=0.2`: Maximum change in composition (for compositional models only)
+- `p_min=JutulDarcy.DEFAULT_MINIMUM_PRESSURE`: Minimum pressure in model (hard limit)
+- `p_max=Inf`: Maximum pressure in model (hard limit)
+- `dr_max=Inf`: Maximum change in Rs/Rv for blackoil models over a Newton
   iteration. Taken relative to the saturated value of the cell.
-- `dT_max_rel=`: Maximum relative change in temperature (JutulDarcy uses Kelvin,
+- `dT_max_rel=nothing`: Maximum relative change in temperature (JutulDarcy uses Kelvin,
   so comments about changing limits near zero above does not apply to typical
   reservoir temperatures)
 - `dT_max_abs=50.0`: Maximum absolute change in temperature (in °K/°C)
@@ -227,6 +250,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         reservoir_context = nothing,
         general_ad = false,
         backend = :csc,
+        thermal = false,
         extra_outputs = [:LiquidMassFractions, :VaporMassFractions, :Rs, :Rv, :Saturations],
         split_wells = false,
         assemble_wells_together = true,
@@ -250,6 +274,8 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         block_backend = true,
         nthreads = Threads.nthreads(),
         minbatch = 1000,
+        kgrad = nothing,
+        immutable_model = false,
         wells_systems = missing
     )
     if !(wells isa AbstractArray)
@@ -268,10 +294,15 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     # We first set up the reservoir
     rmodel = SimulationModel(
         reservoir,
-        system,
+        system;
         context = reservoir_context,
-        general_ad = general_ad
+        general_ad = general_ad,
+        kgrad = kgrad
     )
+    if thermal
+        rmodel = add_thermal_to_model!(rmodel)
+    end
+    set_discretization_variables!(rmodel)
     set_reservoir_variable_defaults!(rmodel,
         dp_max_abs = dp_max_abs,
         dp_max_rel = dp_max_rel,
@@ -324,6 +355,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             end
             wname = w.name
             wmodel = SimulationModel(w_domain, system, context = context)
+            if thermal
+                wmodel = add_thermal_to_model!(wmodel)
+            end
             set_reservoir_variable_defaults!(wmodel,
                 dp_max_abs = dp_max_abs_well,
                 dp_max_rel = dp_max_rel_well,
@@ -344,7 +378,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
                 models[Symbol(string(wname)*string(:_ctrl))] = F
             end
         end
-        # Add facility that gorups the wells
+        # Add facility that groups the wells
         if !split_wells
             wg = WellGroup(map(x -> x.name, wells), can_shut_wells = can_shut_wells)
             F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
@@ -353,7 +387,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     end
 
     # Put it all together as multimodel
-    model = reservoir_multimodel(models, split_wells = split_wells, assemble_wells_together = assemble_wells_together)
+    model = reservoir_multimodel(models, split_wells = split_wells, assemble_wells_together = assemble_wells_together, immutable_model = immutable_model)
     if extra_out
         parameters = setup_parameters(model, parameters)
         out = (model, parameters)
@@ -490,7 +524,7 @@ end
 - `offset_its=1`: dampening parameter for time step selector where larger values
   lead to more pessimistic estimates.
 - `timesteps=:auto`: Set to `:auto` to use automatic timestepping, `:none` for
-  no autoamtic timestepping (i.e. try to solve exact report steps)
+  no automatic timestepping (i.e. try to solve exact report steps)
 - `max_timestep=si_unit(:year)`: Maximum internal timestep used in solver.
 
 ## Convergence criterions
@@ -517,7 +551,9 @@ list a few of the most relevant entries here for convenience:
 - `failure_cuts_timestep=true`: Cut timestep instead of throwing an error when
   numerical issues are encountered (e.g. linear solver divergence).
 - `max_timestep_cuts=25`: Maximum number of timestep cuts before a solver gives
-  up.
+  up. Note that when using dynamic timestepping, this in practice defines a
+  minimal timestep, with more than the prescribed number of cuts being allowed
+  if the timestep is dynamically increased after cutting.
 
 Additional keyword arguments are passed onto [`simulator_config`](@ref).
 """
@@ -723,6 +759,13 @@ function simulate_reservoir(case::JutulCase;
         end
     else
         sim = simulator
+        # May have been passed kwarg that should be accounted for
+        if length(kwarg) > 0
+            config = copy(config)
+            for (k, v) in kwarg
+                config[k] = v
+            end
+        end
         @assert !ismissing(config) "If simulator is provided, config must also be provided"
     end
     result = simulate!(sim, dt, forces = forces, config = config, restart = restart);
@@ -784,18 +827,11 @@ end
 function setup_reservoir_cross_terms!(model::MultiModel)
     rmodel = reservoir_model(model)
     has_composite = rmodel isa Jutul.CompositeModel
-    if has_composite
-        systems = rmodel.system.systems
-        has_flow = haskey(systems, :flow)
-        has_thermal = haskey(systems, :thermal)
-        conservation = Pair(:flow, :mass_conservation)
-        energy = Pair(:thermal, :energy_conservation)
-    else
-        has_flow = rmodel.system isa MultiPhaseSystem
-        has_thermal = !has_flow
-        conservation = :mass_conservation
-        energy = :energy_conservation
-    end
+
+    has_flow = rmodel.system isa MultiPhaseSystem
+    has_thermal = haskey(rmodel.equations, :energy_conservation)
+    conservation = :mass_conservation
+    energy = :energy_conservation
     for (k, m) in pairs(model.models)
         if k == :Reservoir
             # These are set up from wells via symmetry
@@ -840,7 +876,12 @@ function reservoir_multimodel(model::MultiModel; kwarg...)
     return model
 end
 
-function reservoir_multimodel(models::AbstractDict; specialize = false, split_wells = false, assemble_wells_together = haskey(models, :Facility))
+function reservoir_multimodel(models::AbstractDict;
+        specialize = false,
+        split_wells = false,
+        immutable_model = false,
+        assemble_wells_together = haskey(models, :Facility)
+    )
     res_model = models[:Reservoir]
     is_block(x) = Jutul.is_cell_major(matrix_layout(x.context))
     block_backend = is_block(res_model)
@@ -902,6 +943,9 @@ function reservoir_multimodel(models::AbstractDict; specialize = false, split_we
     models = convert_to_immutable_storage(models)
     model = MultiModel(models, groups = groups, context = outer_context, reduction = red, specialize = specialize)
     setup_reservoir_cross_terms!(model)
+    if immutable_model
+        model = convert_to_immutable_storage(model)
+    end
     return model
 end
 
@@ -996,10 +1040,18 @@ end
 
 Set up driving forces for a reservoir model with wells
 """
-function setup_reservoir_forces(model::MultiModel; control = nothing, limits = nothing, set_default_limits = true, kwarg...)
+function setup_reservoir_forces(model::MultiModel;
+        control = nothing,
+        limits = nothing,
+        set_default_limits = true,
+        bc = nothing,
+        sources = nothing,
+        kwarg...
+    )
     submodels = model.models
     has_facility = any(x -> isa(x.domain, WellGroup), values(submodels))
     no_well_controls = isnothing(control) && isnothing(limits)
+    reservoir_forces = (bc = bc, sources = sources)
     @assert no_well_controls || has_facility "Model must have facility when well controls are provided."
     if haskey(submodels, :Facility)
         # Unified facility for all wells
@@ -1011,7 +1063,7 @@ function setup_reservoir_forces(model::MultiModel; control = nothing, limits = n
             set_default_limits = set_default_limits
         )
         # Set up forces for the whole model.
-        out = setup_forces(model, Facility = surface_forces; kwarg...)
+        out = setup_forces(model, Facility = surface_forces; kwarg..., Reservoir = reservoir_forces)
     else
         new_forces = Dict{Symbol, Any}()
         for (k, m) in pairs(submodels)
@@ -1034,7 +1086,7 @@ function setup_reservoir_forces(model::MultiModel; control = nothing, limits = n
                 )
             end
         end
-        out = setup_forces(model; pairs(new_forces)..., kwarg...)
+        out = setup_forces(model; pairs(new_forces)..., kwarg..., Reservoir = reservoir_forces)
     end
     # If the model is a composite model we need to do some extra work to pass on
     # flow forces with the correct label.
@@ -1581,4 +1633,39 @@ function reservoir_regions(d::DataDomain, type = :pvtnum)
         out = nothing
     end
     return out
+end
+
+function set_discretization_variables!(model::MultiModel)
+    set_discretization_variables!(reservoir_model(model))
+    return model
+end
+
+function set_discretization_variables!(model; ntpfa_potential = true)
+    disc = model.domain.discretizations
+    flow = model.domain.discretizations.mass_flow
+    if flow isa PotentialFlow
+        if eltype(flow.kgrad) != TPFA
+            has_pc = !isnothing(get_variable(model, :CapillaryPressure, throw = false))
+            # Potential, z on faces
+            xyz = model.data_domain[:cell_centroids]
+            if size(xyz, 1) == 3
+                z = xyz[3, :]
+                zmin, zmax = extrema(z)
+                has_gravity = abs(zmax - zmin) > 1e-10
+            else
+                has_gravity = false
+            end
+            if ntpfa_potential || has_gravity || has_pc
+                pp = PhasePotentials()
+                acd = AdjustedCellDepths()
+                if model.system isa CompositeSystem
+                    pp = Pair(:flow, pp)
+                    acd = Pair(:flow, acd)
+                end
+                set_secondary_variables!(model, PhasePotentials = pp)
+                set_parameters!(model, AdjustedCellDepths = acd)
+            end
+        end
+    end
+    return model
 end

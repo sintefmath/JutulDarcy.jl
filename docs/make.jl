@@ -71,6 +71,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
             prettyurls=get(ENV, "CI", "false") == "true",
             canonical="https://sintefmath.github.io/JutulDarcy.jl",
             edit_link="main",
+            size_threshold_ignore = ["ref/jutul.md", "docstrings.md"],
             assets=String["assets/citations.css"],
         )
     end

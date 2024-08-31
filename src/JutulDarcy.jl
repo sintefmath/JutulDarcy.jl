@@ -86,7 +86,6 @@ module JutulDarcy
     export StandardVolumeSource, VolumeSource, MassSource
     export OverallMoleFractions
     export ImmiscibleSaturation
-    export ThermalSystem
     export PhaseMassDensities, ConstantCompressibilityDensities
     export BrooksCoreyRelativePermeabilities, TabulatedSimpleRelativePermeabilities
 
@@ -142,6 +141,10 @@ module JutulDarcy
     using PrecompileTools
     using Dates
     using GeoEnergyIO
+    # Artifacts
+    using Artifacts
+    using LazyArtifacts
+
     import DataStructures: OrderedDict
     using DocStringExtensions
 
@@ -167,6 +170,8 @@ module JutulDarcy
     include("facility/facility.jl")
 
     include("flux.jl")
+    include("flux_nfvm.jl")
+
     include("porousmedia.jl")
     # MRST inputs and test cases that use MRST input
     # and .DATA file simulation

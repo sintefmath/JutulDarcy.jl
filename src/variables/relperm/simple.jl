@@ -173,6 +173,12 @@ end
     return kr
 end
 
+function brooks_corey_relperm(s; n = 2, residual = 0, kr_max = 1.0, residual_total = residual)
+    @assert s <= 1.0
+    @assert s >= 0.0
+    return brooks_corey_relperm(s, n, residual, kr_max, residual_total)
+end
+
 function brooks_corey_relperm(s::T, n::Real, sr::Real, kwm::Real, sr_tot::Real) where T
     den = 1 - sr_tot
     sat = (s - sr) / den

@@ -40,7 +40,7 @@ end
     return (q = V_t/λ_t, T = T_f, gdz = gΔz, V_t = V_t, λ = λ)
 end
 
-@inline function darcy_phase_kgrad_potential(face, phase, state, model, flux_type::TotalSaturationFlux, tpfa::TPFA, upw, common = flux_primitives(face, state, model, flux_type, upw, tpfa))
+@inline function darcy_phase_kgrad_potential(face, phase, state, model, flux_type::TotalSaturationFlux, tpfa::TPFA{T}, upw, common = flux_primitives(face, state, model, flux_type, upw, tpfa)) where T
     ρ = state.PhaseMassDensities
     pc, ref_index = capillary_pressure(model, state)
     V_t, T_f, gΔz = common

@@ -1,0 +1,7 @@
+[CO2Tables_CSP11]
+git-tree-sha1 = "fe3911cdbf4fe04bdc36628f687b50b79f309e6a"
+lazy = true
+
+    [[CO2Tables_CSP11.download]]
+    sha256 = "b20fd6fbffdc9e2ab6f6e147e799ecc57fd2b8b5888923ccad3b4d437eab3479"
+    url = "https://github.com/sintefmath/JutulDarcy.jl/releases/download/v0.2.27/csp11.tar.gz"

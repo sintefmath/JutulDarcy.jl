@@ -1,6 +1,6 @@
 function Jutul.prepare_step_storage(p::PrepareStepWellSolver, storage, model::MultiModel)
     @assert !isnothing(model.groups)
-    submodels = Jutul.submodel_symbols(model)
+    submodels = Jutul.submodels_symbols(model)
     if false
         for (k, m) in pairs(model.models)
             if model_or_domain_is_well(m)

@@ -499,6 +499,7 @@ function deck_relperm(runspec, props; oil, water, gas, satnum = nothing)
             end
         end
         if haskey(props, "SOF3")
+            @assert !haskey(props, "SOF2") "SOF2 and SOF3 simultaneously is not supported."
             for sof3 in props["SOF3"]
                 # Oil pairs
                 so = sof3[:, 1]
@@ -506,6 +507,18 @@ function deck_relperm(runspec, props; oil, water, gas, satnum = nothing)
                 krog_t = sof3[:, 3]
                 krow = PhaseRelativePermeability(so, krow_t, label = :ow)
                 krog = PhaseRelativePermeability(so, krog_t, label = :og)
+
+                push!(tables_krow, krow)
+                push!(tables_krog, krog)
+            end
+        end
+        if haskey(props, "SOF2")
+            for sof2 in props["SOF2"]
+                # Oil pairs
+                so = sof2[:, 1]
+                kro_t = sof2[:, 2]
+                krow = PhaseRelativePermeability(so, kro_t, label = :ow)
+                krog = PhaseRelativePermeability(so, kro_t, label = :og)
 
                 push!(tables_krow, krow)
                 push!(tables_krog, krog)
@@ -574,7 +587,7 @@ function flat_region_expand(x::Vector, n = nothing)
     return x
 end
 
-function deck_pc(props; oil, water, gas, satnum = nothing)
+function deck_pc(props; oil, water, gas, satnum = nothing, is_co2 = false)
     function get_pc(T, pc_ix, reverse = false)
         found = false
         PC = []
@@ -612,6 +625,14 @@ function deck_pc(props; oil, water, gas, satnum = nothing)
         found_pcow = false
     end
     if oil && gas
+        # if is_co2 && (oil + gas + water) == 2
+        #     # CO2 store models may act was oil-gas but they are really
+        #     # representing water-co2 and the capillary pressure should be
+        #     # p_g = p_o + p_og
+        #     reverse = false
+        # else
+        #     reverse = !water
+        # end
         reverse = !water
         if haskey(props, "SGOF")
             interp_og, found_pcog = get_pc(props["SGOF"], 4, reverse)
@@ -806,9 +827,10 @@ function set_deck_specialization!(model, runspec, props, satnum, oil, water, gas
     sys = model.system
     svar = model.secondary_variables
     param = model.parameters
+    is_co2 = haskey(runspec, "CO2STORE") || haskey(runspec, "JUTUL_CO2BRINE")
     if number_of_phases(sys) > 1
         set_deck_relperm!(svar, param, sys, runspec, props; oil = oil, water = water, gas = gas, satnum = satnum)
-        set_deck_pc!(svar, param, sys, props; oil = oil, water = water, gas = gas, satnum = satnum)
+        set_deck_pc!(svar, param, sys, props; oil = oil, water = water, gas = gas, satnum = satnum, is_co2 = is_co2)
     end
     set_deck_pvmult!(svar, param, sys, props, model.data_domain)
 end

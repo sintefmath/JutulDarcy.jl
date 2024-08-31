@@ -159,6 +159,5 @@ For additional details, please see Chapter 8 - Compositional Simulation with the
 
 ```@docs
 reservoir_system
-ThermalSystem
-Jutul.CompositeSystem
+JutulDarcy.add_thermal_to_model!
 ```

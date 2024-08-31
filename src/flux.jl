@@ -42,7 +42,7 @@ end
     return kgrad_common(face, state, model, tpfa)
 end
 
-@inline function darcy_phase_kgrad_potential(face, phase, state, model, flux_type, tpfa::TPFA, upw, common = flux_primitives(face, state, model, flux_type, upw, tpfa))
+@inline function darcy_phase_kgrad_potential(face, phase, state, model, flux_type, tpfa::TPFA{T}, upw, common = flux_primitives(face, state, model, flux_type, upw, tpfa)) where T
     pc, ref_index = capillary_pressure(model, state)
     ∇p, T_f, gΔz = common
     l = tpfa.left
@@ -68,7 +68,7 @@ function face_average_density(model, state, tpfa, phase)
     return 0.5*(ρ_i + ρ_c)
 end
 
-function face_average_density(model::Union{CompositionalModel, ThermalCompositionalModel}, state, tpfa, phase)
+function face_average_density(model::CompositionalModel, state, tpfa, phase)
     sys = flow_system(model.system)
     ρ = state.PhaseMassDensities
     l = tpfa.left
@@ -76,27 +76,22 @@ function face_average_density(model::Union{CompositionalModel, ThermalCompositio
     @inbounds ρ_l = ρ[phase, l]
     @inbounds ρ_r = ρ[phase, r]
 
-    if properties_present_when_saturation_is_zero(sys)
-        # We can safely use the standard approximation
-        ρ_avg = 0.5*(ρ_r + ρ_l)
-    else
-        s = state.Saturations
-        ϵ = MINIMUM_COMPOSITIONAL_SATURATION
-        @inbounds s_l = s[phase, l]
-        @inbounds s_r = s[phase, r]
+    s = state.Saturations
+    ϵ = MINIMUM_COMPOSITIONAL_SATURATION
+    @inbounds s_l = s[phase, l]
+    @inbounds s_r = s[phase, r]
 
-        s_l_tiny = s_l <= ϵ
-        s_r_tiny = s_r <= ϵ
-        if s_l_tiny && s_r_tiny
-            ρ_avg = zero(s_l)
-        elseif s_l_tiny
-            ρ_avg = ρ_r
-        elseif s_r_tiny
-            ρ_avg = ρ_l
-        else
-            # alt def: (s_l*ρ_r + s_r*ρ_l)/(s_l + s_r)
-            ρ_avg = 0.5*(ρ_r + ρ_l)
-        end
+    s_l_tiny = s_l <= ϵ
+    s_r_tiny = s_r <= ϵ
+    if s_l_tiny && s_r_tiny
+        ρ_avg = zero(s_l)
+    elseif s_l_tiny
+        ρ_avg = ρ_r
+    elseif s_r_tiny
+        ρ_avg = ρ_l
+    else
+        # alt def: (s_l*ρ_r + s_r*ρ_l)/(s_l + s_r)
+        ρ_avg = 0.5*(ρ_r + ρ_l)
     end
     return ρ_avg
 end
@@ -115,7 +110,8 @@ end
 end
 
 function face_average(F, tpfa)
-    return 0.5*(F(tpfa.right) + F(tpfa.left))
+    l, r = Jutul.cell_pair(tpfa)
+    return 0.5*(F(r) + F(l))
 end
 
 function phase_face_average(phase_property, tpfa, phase)

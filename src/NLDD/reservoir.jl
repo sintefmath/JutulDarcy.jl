@@ -7,6 +7,9 @@ function boundary_discretization(storage_g, model_g, submodel, storage, tag = no
     d = submodel.domain
     M = global_map(d)
     mass_flow = d.discretizations.mass_flow
+    if !(mass_flow isa TwoPointPotentialFlowHardCoded)
+        return missing
+    end
     mf = reverse_bnd(mass_flow, M)
 
     # Deal with storage for the reversed fluxes

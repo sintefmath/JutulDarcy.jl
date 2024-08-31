@@ -1,12 +1,13 @@
 function read_solubility_table(name; fix = true)
     x, header = DelimitedFiles.readdlm(name, ',', header = true, skipstart = 7)
+    header = map(strip, header)
     if fix
         new_header = Symbol[]
         lookup = Dict(
             "# temperature [°C]" => :T,
-            " phase pressure [Pa]" => :p,
-            "         x_CO2 [-]" => :x_co2,
-            "         y_H2O [-]" => :y_h2o,
+            "phase pressure [Pa]" => :p,
+            "x_CO2 [mol/mol]" => :x_co2,
+            "y_H2O [mol/mol]" => :y_h2o,
         )
         for label in header
             push!(new_header, lookup[label])

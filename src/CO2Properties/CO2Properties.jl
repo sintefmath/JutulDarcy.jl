@@ -1,5 +1,5 @@
 module CO2Properties
-    using Jutul, JutulDarcy, StaticArrays, MultiComponentFlash, DelimitedFiles
+    using Jutul, JutulDarcy, StaticArrays, MultiComponentFlash, DelimitedFiles, Artifacts, LazyArtifacts
     include("kvalues.jl")
     include("props.jl")
     include("reading.jl")

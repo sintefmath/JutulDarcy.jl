@@ -63,7 +63,7 @@ has_disgas(::StandardBlackOilSystem) = true
 has_vapoil(::DisgasBlackOilSystem) = false
 has_disgas(::VapoilBlackOilSystem) = false
 
-function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw, eq_s, r; dt = 1.0, update_report = missing) where {D, S<:StandardBlackOilSystem}
+function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw{:TotalMasses}, eq_s, r; dt = 1.0, update_report = missing) where {D, S<:StandardBlackOilSystem}
     M = global_map(model.domain)
     v = x -> as_value(Jutul.active_view(x, M, for_variables = false))
     Φ = v(storage.state.FluidVolume)

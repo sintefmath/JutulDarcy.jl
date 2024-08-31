@@ -102,13 +102,48 @@ function Jutul.discretize_domain(d::DataDomain, system::Union{MultiPhaseSystem, 
 end
 
 
-function discretized_domain_tpfv_flow(domain::Jutul.DataDomain; general_ad = false)
+function discretized_domain_tpfv_flow(domain::Jutul.DataDomain;
+        general_ad = false,
+        kgrad = nothing,
+        upwind = nothing
+    )
     N = domain[:neighbors]
-    nc = number_of_cells(physical_representation(domain))
-    if general_ad
-        d = PotentialFlow(N, nc)
+    g = physical_representation(domain)
+    nc = number_of_cells(g)
+    # defaulted_disc = isnothing(kgrad) && isnothing(upwind)
+    kgrad_is_tpfa = (isnothing(kgrad) || eltype(kgrad) == TPFA || kgrad == :tpfa)
+    upw_is_tpfa = (isnothing(upwind) || eltype(upwind) == SPU || upwind == :spu)
+
+    is_tpfa = kgrad_is_tpfa && upw_is_tpfa
+    if is_tpfa
+        if general_ad
+            d = PotentialFlow(N, nc)
+        else
+            d = TwoPointPotentialFlowHardCoded(N, nc)
+        end
     else
-        d = TwoPointPotentialFlowHardCoded(N, nc)
+        if kgrad == :tpfa_test
+            # Fallback version - use generic FVM assembly with TPFA.
+            kgrad = nothing
+        end
+        if kgrad isa Symbol
+            if kgrad == :tpfa
+                kgrad = nothing
+            else
+                K = domain[:permeability]
+                g = UnstructuredMesh(g)
+                T_base = reservoir_transmissibility(domain)
+                kgrad = Jutul.NFVM.ntpfa_decompose_faces(g, K, kgrad, tpfa_trans = T_base)
+            end
+        else
+            @assert isnothing(kgrad) || kgrad isa AbstractVector
+        end
+        if general_ad
+            ad_flag = :generic
+        else
+            ad_flag = :fvm
+        end
+        d = PotentialFlow(N, nc, kgrad = kgrad, upwind = upwind, ad = ad_flag)
     end
     disc = (mass_flow = d, heat_flow = d)
     G = MinimalTPFATopology(N, ncells = nc)
