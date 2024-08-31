@@ -12,7 +12,7 @@
 Dirchlet boundary condition for constant values (pressure/temperature) at some inflow boundary
 """
 function FlowBoundaryCondition(
-    cell,
+    cell::Int,
     pressure = DEFAULT_MINIMUM_PRESSURE,
     temperature = 298.15;
     fractional_flow = nothing,
@@ -31,6 +31,85 @@ function FlowBoundaryCondition(
     @assert pressure >= DEFAULT_MINIMUM_PRESSURE
     @assert temperature >= 0.0
     return FlowBoundaryCondition(cell, pressure, temperature, trans_flow, trans_thermal, f, density)
+end
+
+function FlowBoundaryCondition(
+        domain::DataDomain,
+        cell::Int,
+        pressure = DEFAULT_MINIMUM_PRESSURE,
+        temperature = 298.15;
+        dir = :x,
+        kwarg...
+    )
+    G = physical_representation(domain)
+    D = Jutul.dim(G)
+    dir in (:x, :y, :z) || dir in 1:3 || throw(ArgumentError("Direction argument `dir` must be either :x, :y, :z or 1, 2, 3"))
+    G = physical_representation(domain)
+    if dir isa Symbol
+        dir = findfirst(isequal(dir), (:x, :y, :z))
+    end
+    dist = cell_dims(G, cell)[dir]
+    K = domain[:permeability]
+    cond = domain[:rock_thermal_conductivity]
+
+    function local_trans(perm_or_c)
+        if perm_or_c isa Vector
+            ki = perm_or_c[cell]
+        else
+            ki = perm_or_c[:, cell]
+        end
+        # Take the diagonal
+        ki = Jutul.expand_perm(ki, D)[dir, dir]
+        # Distance to boundary is half the cell width
+        return ki*(dist/2.0)
+    end
+
+    T_flow = local_trans(K)
+    T_heat = local_trans(cond)
+    return FlowBoundaryCondition(cell, pressure, temperature;
+        trans_flow = T_flow,
+        trans_thermal = T_heat,
+        kwarg...
+    )
+end
+
+export flow_boundary_condition
+"""
+    flow_boundary_condition(cells, domain, pressures, temperatures = 298.15; kwarg...)
+
+Add flow boundary conditions to a vector of `cells` for a given `domain` coming
+from `reservoir_domain`. The input arguments `pressures` and `temperatures` can
+either be scalars or one value per cell. Other keyword arguments are passed onto
+the `FlowBoundaryCondition` constructor.
+
+The output of this function is a `Vector` of boundary conditions that can be
+passed on the form `forces = setup_reservoir_forces(model, bc = bc)`.
+"""
+function flow_boundary_condition(cells, domain, pressures, temperatures = 298.15; fractional_flow = nothing, kwarg...)
+    if fractional_flow isa Vector
+        fractional_flow = tuple(fractional_flow...)
+    end
+    bc = FlowBoundaryCondition{Int, Float64, typeof(fractional_flow)}[]
+    flow_boundary_condition!(bc, domain, cells, pressures, temperatures; fractional_flow = fractional_flow, kwarg...)
+    return bc
+end
+
+function flow_boundary_condition!(bc, domain, cells, pressures, temperatures = 298.15; kwarg...)
+    n = length(cells)
+    if temperatures isa Real
+        temperatures = fill(temperatures, n)
+    end
+    if pressures isa Real
+        pressures = fill(pressures, n)
+    end
+    length(temperatures) == n || throw(ArgumentError("Mismatch in length of cells and temperatures arrays"))
+    length(pressures) == n || throw(ArgumentError("Mismatch in length of cells and pressures arrays"))
+
+    for (cell, pressure, temperature) in zip(cells, pressures, temperatures)
+        bc_c = FlowBoundaryCondition(domain, cell, pressure, temperature; kwarg...)
+        push!(bc, bc_c)
+    end
+    return bc
 end
 
 function Jutul.subforce(s::AbstractVector{S}, model) where S<:FlowBoundaryCondition

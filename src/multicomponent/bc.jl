@@ -16,6 +16,7 @@ function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, tim
     mob = state.PhaseMobilities
     rho = state.PhaseMassDensities
     ncomp = length(acc)
+    nph = size(rho, 1)
 
     rho_inj = bc.density
     f_inj = bc.fractional_flow
