@@ -76,27 +76,22 @@ function face_average_density(model::CompositionalModel, state, tpfa, phase)
     @inbounds ρ_l = ρ[phase, l]
     @inbounds ρ_r = ρ[phase, r]
 
-    if properties_present_when_saturation_is_zero(sys)
-        # We can safely use the standard approximation
-        ρ_avg = 0.5*(ρ_r + ρ_l)
-    else
-        s = state.Saturations
-        ϵ = MINIMUM_COMPOSITIONAL_SATURATION
-        @inbounds s_l = s[phase, l]
-        @inbounds s_r = s[phase, r]
+    s = state.Saturations
+    ϵ = MINIMUM_COMPOSITIONAL_SATURATION
+    @inbounds s_l = s[phase, l]
+    @inbounds s_r = s[phase, r]
 
-        s_l_tiny = s_l <= ϵ
-        s_r_tiny = s_r <= ϵ
-        if s_l_tiny && s_r_tiny
-            ρ_avg = zero(s_l)
-        elseif s_l_tiny
-            ρ_avg = ρ_r
-        elseif s_r_tiny
-            ρ_avg = ρ_l
-        else
-            # alt def: (s_l*ρ_r + s_r*ρ_l)/(s_l + s_r)
-            ρ_avg = 0.5*(ρ_r + ρ_l)
-        end
+    s_l_tiny = s_l <= ϵ
+    s_r_tiny = s_r <= ϵ
+    if s_l_tiny && s_r_tiny
+        ρ_avg = zero(s_l)
+    elseif s_l_tiny
+        ρ_avg = ρ_r
+    elseif s_r_tiny
+        ρ_avg = ρ_l
+    else
+        # alt def: (s_l*ρ_r + s_r*ρ_l)/(s_l + s_r)
+        ρ_avg = 0.5*(ρ_r + ρ_l)
     end
     return ρ_avg
 end

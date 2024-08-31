@@ -1,27 +1,6 @@
 using MultiComponentFlash
 const MINIMUM_COMPOSITIONAL_SATURATION = 1e-10
 
-function properties_present_when_saturation_is_zero(sys::Jutul.JutulSystem)
-    return true
-end
-
-function properties_present_when_saturation_is_zero(sys)
-    return properties_present_when_saturation_is_zero(flow_system(sys))
-end
-
-function properties_present_when_saturation_is_zero(sys::MultiPhaseCompositionalSystemLV)
-    return properties_present_when_saturation_is_zero(sys.equation_of_state)
-end
-
-function properties_present_when_saturation_is_zero(eos::KValuesEOS)
-    return false
-end
-
-function properties_present_when_saturation_is_zero(eos::GenericCubicEOS)
-    return false
-end
-
-
 @inline function is_pure_single_phase(s_immiscible)
     return s_immiscible > 1.0 - MINIMUM_COMPOSITIONAL_SATURATION
 end
