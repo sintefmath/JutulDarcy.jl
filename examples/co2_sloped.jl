@@ -144,11 +144,11 @@ println("Boundary condition added to $(length(bc)) cells.")
 # ## Plot the model
 plot_reservoir(model)
 # ## Set up schedule
-# We set up 25 years of injection and 25 years of migration where the well is
+# We set up 25 years of injection and 1000 years of migration where the well is
 # shut. The density of the injector is set to 900 kg/m^3, which is roughly
 # the density of CO2 at in-situ conditions.
 nstep = 25
-nstep_shut = 25
+nstep_shut = 475
 dt_inject = fill(365.0day, nstep)
 pv = pore_volume(model, parameters)
 inj_rate = 0.05*sum(pv)/sum(dt_inject)
