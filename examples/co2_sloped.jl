@@ -26,7 +26,7 @@ for (i, pt) in enumerate(points)
     w = 0.2
     dz = 0.05*x + 0.05*abs(x - 500.0)+ w*(30*sin(2.0*x_u) + 20*sin(5.0*x_u))
     points[i] = pt + [0, 0, dz]
-end
+end;
 # ## Find and plot cells intersected by a deviated injector well
 # We place a single injector well. This well was unfortunately not drilled
 # completely straight, so we cannot directly use `add_vertical_well` based on
@@ -43,7 +43,10 @@ trajectory = [
 wc = find_enclosing_cells(mesh, trajectory)
 
 fig, ax, plt = plot_mesh_edges(mesh, z_is_depth = true)
-plot_mesh!(ax, mesh, cells = wc, transparency = true, alpha = 0.3)
+plot_mesh!(ax, mesh, cells = wc, transparency = true, alpha = 0.4)
+# View from the side
+ax.azimuth[] = 1.5*π
+ax.elevation[] = 0.0
 lines!(ax, trajectory', color = :red)
 fig
 
@@ -108,8 +111,8 @@ krg = (krg_drain, krg_imb)
 H_g = KilloughHysteresis() # Other options: CarlsonHysteresis, JargonHysteresis
 relperm = ReservoirRelativePermeabilities(g = krg, og = krog, hysteresis_g = H_g)
 replace_variables!(model, RelativePermeabilities = relperm)
-add_relperm_parameters!(model)
-# ## Define approximate hydrostatic pressure
+add_relperm_parameters!(model);
+# ## Define approximate hydrostatic pressure and set up initial state
 # The initial pressure of the water-filled domain is assumed to be at
 # hydrostatic equilibrium.
 nc = number_of_cells(mesh)
@@ -117,7 +120,7 @@ p0 = zeros(nc)
 depth = domain[:cell_centroids][3, :]
 g = Jutul.gravity_constant
 @. p0 = 200bar + depth*g*1000.0
-# ## Set up initial state and parameters
+# Set up initial state and parameters
 state0 = setup_reservoir_state(model,
     Pressure = p0,
     OverallMoleFractions = [1.0, 0.0],
@@ -137,7 +140,7 @@ for cell in 1:nc
     end
 end
 bc = flow_boundary_condition(boundary, domain, p0[boundary], fractional_flow = [1.0, 0.0])
-
+println("Boundary condition added to $(length(bc)) cells.")
 # ## Plot the model
 plot_reservoir(model)
 # ## Set up schedule
@@ -165,7 +168,8 @@ dt = vcat(dt_inject, dt_shut)
 forces = vcat(
     fill(forces_inject, nstep),
     fill(forces_shut, nstep_shut)
-);
+)
+println("$nstep report steps with injection, $nstep_shut report steps with migration.")
 # ## Add some more outputs for plotting
 rmodel = reservoir_model(model)
 push!(rmodel.output_variables, :RelativePermeabilities)
@@ -226,3 +230,17 @@ fig
 # If you have interactive plotting available, you can explore the results
 # yourself.
 plot_reservoir(model, states)
+## Calculate and display inventory of CO2
+# We can classify and plot the status of the CO2 in the reservoir. We use a
+# fairly standard classification where CO2 is divided into:
+#
+# - dissolved CO2 (dissolution trapping)
+# - residual CO2 (immobile due to zero relative permeability, residual trapping)
+# - mobile CO2 (mobile but still inside domain)
+# - outside domain (left the simulation model and migrated outside model)
+#
+# We also note that some of the mobile CO2 could be considered to be
+# structurally trapped, but this is not classified in our inventory.
+
+inventory = co2_inventory(model, wd, states, t)
+JutulDarcy.plot_co2_inventory(t, inventory)

@@ -160,3 +160,7 @@ end
 function setup_reservoir_simulator_parray
 
 end
+
+function plot_co2_inventory
+
+end

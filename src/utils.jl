@@ -1669,3 +1669,156 @@ function set_discretization_variables!(model; ntpfa_potential = true)
     end
     return model
 end
+
+export co2_inventory
+
+function co2_inventory(model, ws, states, t; cells = missing, co2_name = "CO2")
+    dt = diff(vcat(0, t))
+    @assert all(dt .> 0.0) "Fourth argument t should be time from simulation start. Maybe you passed timesteps?"
+    rmodel = reservoir_model(model)
+    domain = reservoir_domain(rmodel)
+    nc = number_of_cells(domain)
+    if ismissing(cells)
+        cells = 1:nc
+    end
+    # Map component to index and do some checking on system
+    sys = rmodel.system
+    cnames = component_names(sys)
+    co2_index = findfirst(isequal(co2_name), cnames)
+    @assert !isnothing(co2_index) "Did not find $co2_name in component_names: "
+    phases = get_phases(sys)
+    @assert length(phases) == 2 "This routine is only implemented for two phases"
+    vapor = findfirst(isequal(VaporPhase()), phases)
+    @assert !isnothing(vapor) "Did not find VaporPhase in get_phases: $phases"
+    aqua = findfirst(isequal(AqueousPhase()), phases)
+    liq = findfirst(isequal(LiquidPhase()), phases)
+    if isnothing(aqua)
+        aqua = liq
+    end
+    @assert !isnothing(aqua)
+    phasepair = (aqua, vapor)
+
+    rate_name = Symbol("$(co2_name)_mass_rate")
+    # Accumulate up well results
+    nstep = length(dt)
+    injected = zeros(nstep)
+    produced = zeros(nstep)
+    for (wk, wres) in pairs(ws.wells)
+        q_co2 = wres[rate_name]
+        for (i, v) in enumerate(q_co2)
+            if v > 0
+                injected[i] += v
+            else
+                injected[i] += abs(v)
+            end
+        end
+    end
+    relperm = rmodel[:RelativePermeabilities]
+    relperm::ReservoirRelativePermeabilities
+
+    return map(
+        i -> co2_inventory_for_step(states, dt, injected, produced, i, relperm, co2_name, co2_index, phasepair, cells),
+        eachindex(states, dt)
+    )
+end
+
+function co2_inventory(model, result::ReservoirSimResult; kwarg...)
+    ws, states, t = result
+    return co2_inventory(model, ws, states, t; kwarg...)
+end
+
+function co2_inventory_for_step(states, timesteps, injected, produced, step_no, relperm, co2_name, co2_c_index, phases, cells)
+    liquid, vapor = phases
+    is_hyst = hysteresis_is_active(relperm)
+    state = states[step_no]
+    dt = timesteps[step_no]
+    # Sum up injected up to this point
+    inj_tot = 0.0
+    # Sum up produced up to this point
+    prod_tot = 0.0
+    for i in 1:step_no
+        dt_i = timesteps[i]
+        inj_tot += injected[i]*dt_i
+        prod_tot += produced[i]*dt_i
+    end
+    mass_inside = 0.0
+    mass_outside = 0.0
+    residual_trapped = 0.0
+    dissolution_trapped = 0.0
+    mobile = 0.0
+
+    S = state[:Saturations]
+    rho = state[:PhaseMassDensities]
+    X = state[:LiquidMassFractions]
+    Y = state[:VaporMassFractions]
+    total_masses = state[:TotalMasses]
+
+    krg = relperm.krg
+    bad_cells = Int[]
+    for c in cells
+        total_mass = 0.0
+        for i in axes(total_masses, 1)
+            total_mass += total_masses[i, c]
+        end
+        reg = region(relperm.regions, c)
+        if is_hyst
+            krg_cell = imbibition_table_by_region(krg, reg)
+        else
+            krg_cell = table_by_region(krg, reg)
+        end
+        # Liquid values
+        sl = S[liquid, c]
+        rho_l = rho[liquid, c]
+        X_co2 = X[co2_c_index, c]
+
+        # Gas values
+        sg_crit = krg_cell.critical
+        sg = S[vapor, c]
+        rho_v = rho[vapor, c]
+        Y_co2 = Y[co2_c_index, c]
+
+        # Estimate PV from total mass + 2 phase assumption
+        pv = total_mass/(sg*rho_v + sl*rho_l)
+
+        sg_r = min(sg, sg_crit)
+        sg_m = sg - sg_r
+
+        # Trapped but in vapor phase
+        co2_density_in_vapor = rho_v*Y_co2*pv
+        res = sg_r*co2_density_in_vapor
+        free = sg_m*co2_density_in_vapor
+        # Solubility
+        diss = rho_l*X_co2*sl*pv
+        # Total and check
+        total = total_masses[co2_c_index, c]
+        val = free + res + diss
+
+        if total > 1e-3 && abs(val - total)/max(total, 1e-3) > 1e-3
+            push!(bad_cells, c)
+        end
+
+        residual_trapped += res
+        mobile += free
+        dissolution_trapped += diss
+        mass_inside += total
+    end
+    if length(bad_cells) > 0
+        jutul_message("CO2 Inventory", "Inconsistent masses in $(length(bad_cells)) cells for step $step_no. Maybe tolerances were relaxed?", color = :yellow)
+    end
+
+    total_co2_mass = 0.0
+    for c in axes(total_masses, 2)
+        total_co2_mass += total_masses[co2_c_index, c]
+    end
+    return Dict(
+        :residual => residual_trapped,
+        :mobile => mobile,
+        :dissolved => dissolution_trapped,
+        :inside_total => mass_inside,
+        :outside_total => total_co2_mass - mass_inside,
+        :domain_total => total_co2_mass,
+        :outside_domain => inj_tot - total_co2_mass - prod_tot,
+        :injected => inj_tot,
+        :produced => prod_tot
+    )
+end
