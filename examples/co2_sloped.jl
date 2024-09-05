@@ -4,6 +4,12 @@
 # a realization of the description in [11th SPE Comparative Solutions
 # Project](https://spe.org/en/csp/). Simulation of CO2 can be challenging, and
 # we load the HYPRE package to improve performance.
+#
+# The model also has an option to run immiscible simulations with otherwise
+# identical PVT behavior. This is often faster to run, but lacks the dissolution
+# model present in the compositional version (i.e. no solubility of CO2 in
+# brine, and no vaporization of water in the vapor phase).
+use_immiscible = false
 using Jutul, JutulDarcy
 using HYPRE
 using GLMakie
@@ -62,7 +68,12 @@ fig
 domain = reservoir_domain(mesh, permeability = 0.3Darcy, porosity = 0.3, temperature = convert_to_si(30.0, :Celsius))
 Injector = setup_well(domain, wc, name = :Injector, simple_well = true)
 
-model = setup_reservoir_model(domain, :co2brine, wells = Injector, extra_out = false);
+if use_immiscible
+    physics = :immiscible
+else
+    physics = :kvalue
+end
+model = setup_reservoir_model(domain, :co2brine, wells = Injector, extra_out = false, co2_physics = physics);
 # ## Customize model by adding relative permeability with hysteresis
 # We define three relative permeability functions: kro(so) for the brine/liquid
 # phase and krg(g) for both drainage and imbibition. Here we limit the
@@ -114,17 +125,29 @@ replace_variables!(model, RelativePermeabilities = relperm)
 add_relperm_parameters!(model);
 # ## Define approximate hydrostatic pressure and set up initial state
 # The initial pressure of the water-filled domain is assumed to be at
-# hydrostatic equilibrium.
+# hydrostatic equilibrium. If we use an immiscible model, we must provide the
+# initial saturations. If we are using a compositional model, we should instead
+# provide the overall mole fractions. Note that since both are fractions, and
+# the CO2 model has correspondence between phase ordering and component ordering
+# (i.e. solves for liquid and vapor, and H2O and CO2), we can use the same input
+# value.
 nc = number_of_cells(mesh)
 p0 = zeros(nc)
 depth = domain[:cell_centroids][3, :]
 g = Jutul.gravity_constant
 @. p0 = 200bar + depth*g*1000.0
 # Set up initial state and parameters
-state0 = setup_reservoir_state(model,
-    Pressure = p0,
-    OverallMoleFractions = [1.0, 0.0],
-)
+if use_immiscible
+    state0 = setup_reservoir_state(model,
+        Pressure = p0,
+        Saturations = [1.0, 0.0],
+    )
+else
+    state0 = setup_reservoir_state(model,
+        Pressure = p0,
+        OverallMoleFractions = [1.0, 0.0],
+    )
+end
 parameters = setup_parameters(model)
 
 # ## Find the boundary and apply a constant pressureboundary condition
@@ -200,7 +223,11 @@ function plot_co2!(fig, ix, x, title = "")
 end
 fig = Figure(size = (900, 1200))
 for (i, step) in enumerate([1, 5, nstep, nstep+nstep_shut])
-    plot_co2!(fig, i, log10.(states[step][:OverallMoleFractions][2, :]), "log10 of CO2 mole fraction at report step $step/$(nstep+nstep_shut)")
+    if use_immiscible
+        plot_co2!(fig, i, states[step][:Saturations][2, :], "CO2 plume saturation at report step $step/$(nstep+nstep_shut)")
+    else
+        plot_co2!(fig, i, log10.(states[step][:OverallMoleFractions][2, :]), "log10 of CO2 mole fraction at report step $step/$(nstep+nstep_shut)")
+    end
 end
 fig
 # ## Plot all relative permeabilities for all time-steps

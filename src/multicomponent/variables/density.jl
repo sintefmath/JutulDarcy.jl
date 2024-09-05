@@ -73,3 +73,15 @@ function co2_brine_mixture_density(T, c1, c2, c3, c4, rho_h2o_pure, X_co2)
     # Return as density
     return 1.0/vol
 end
+
+@jutul_secondary function update_density!(rho, rho_def::BrineCO2MixingDensities, model::SimulationModel{D, S}, Pressure, Temperature, ix) where {D, S<:ImmiscibleSystem}
+    sys = model.system
+    l, v = phase_indices(sys)
+    for i in ix
+        p = Pressure[i]
+        T = Temperature[i]
+        rho_brine, rho_co2 = rho_def.tab(p, T)
+        rho[v, i] = rho_co2
+        rho[l, i] = rho_brine
+    end
+end

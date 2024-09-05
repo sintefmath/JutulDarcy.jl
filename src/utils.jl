@@ -1683,9 +1683,7 @@ function co2_inventory(model, ws, states, t; cells = missing, co2_name = "CO2")
     end
     # Map component to index and do some checking on system
     sys = rmodel.system
-    cnames = component_names(sys)
-    co2_index = findfirst(isequal(co2_name), cnames)
-    @assert !isnothing(co2_index) "Did not find $co2_name in component_names: "
+    # Figure out phases
     phases = get_phases(sys)
     @assert length(phases) == 2 "This routine is only implemented for two phases"
     vapor = findfirst(isequal(VaporPhase()), phases)
@@ -1698,6 +1696,16 @@ function co2_inventory(model, ws, states, t; cells = missing, co2_name = "CO2")
     @assert !isnothing(aqua)
     phasepair = (aqua, vapor)
 
+    immiscible = sys isa ImmiscibleSystem
+    if immiscible
+        cnames = component_names(sys)
+        co2_index = vapor
+        co2_name = cnames[co2_index]
+    else
+        cnames = component_names(sys)
+        co2_index = findfirst(isequal(co2_name), cnames)
+        @assert !isnothing(co2_index) "Did not find $co2_name in component_names: "
+    end
     rate_name = Symbol("$(co2_name)_mass_rate")
     # Accumulate up well results
     nstep = length(dt)
@@ -1749,8 +1757,13 @@ function co2_inventory_for_step(states, timesteps, injected, produced, step_no, 
 
     S = state[:Saturations]
     rho = state[:PhaseMassDensities]
-    X = state[:LiquidMassFractions]
-    Y = state[:VaporMassFractions]
+    immiscible = !haskey(state, :LiquidMassFractions) && !haskey(state, :VaporMassFractions)
+    if immiscible
+        X = Y = missing
+    else
+        X = state[:LiquidMassFractions]
+        Y = state[:VaporMassFractions]
+    end
     total_masses = state[:TotalMasses]
 
     krg = relperm.krg
@@ -1769,13 +1782,18 @@ function co2_inventory_for_step(states, timesteps, injected, produced, step_no, 
         # Liquid values
         sl = S[liquid, c]
         rho_l = rho[liquid, c]
-        X_co2 = X[co2_c_index, c]
 
         # Gas values
         sg_crit = krg_cell.critical
         sg = S[vapor, c]
         rho_v = rho[vapor, c]
-        Y_co2 = Y[co2_c_index, c]
+        if immiscible
+            Y_co2 = 1.0
+            X_co2 = 0.0
+        else
+            Y_co2 = Y[co2_c_index, c]
+            X_co2 = X[co2_c_index, c]
+        end
 
         # Estimate PV from total mass + 2 phase assumption
         pv = total_mass/(sg*rho_v + sl*rho_l)
