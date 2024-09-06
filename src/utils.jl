@@ -1297,11 +1297,21 @@ function partitioner_input(model, parameters; conn = :trans)
 
     N = grid.neighborship
     trans = parameters[:Transmissibilities]
-    if conn == :trans
-        T = copy(trans)
-    else
-        @assert conn == :unit
+    if conn == :unit
         T = ones(Int, length(trans))
+    else
+        if conn == :trans
+            T = copy(trans)
+            T = length(T)*T./sum(T)
+            T = Int.(ceil.(T))
+        elseif conn == :logtrans
+            T = log10.(trans)
+            offset = maximum(abs, T) + 1
+            @. T += offset
+            T = Int.(ceil.(T))
+        else
+            error("conn must be one of :trans, :unit or :logtrans, was $conn")
+        end
     end
     groups = Vector{Vector{Int}}()
     if model isa MultiModel
