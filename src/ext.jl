@@ -161,6 +161,28 @@ function setup_reservoir_simulator_parray
 
 end
 
+"""
+    fig = JutulDarcy.plot_co2_inventory(t, inventory, plot_type = :stack)
+
+Plots the CO2 inventory over time or steps, with options for stacked or line
+plots. `inventory` is the output from `co2_inventory` while `t` can either be
+omitted, be a list of reporting time in seconds or a index list of steps where
+the solution is given.
+
+# Arguments
+- `t`: A vector representing time or steps. If `t` is of type `Float64`, it is
+  assumed to represent time in seconds and will be converted to years.
+- `inventory`: A vector of dictionaries, where each dictionary contains CO2 mass
+  data for different categories (e.g., `:dissolved`, `:mobile`, `:residual`,
+  etc.).
+- `plot_type`: (Optional) A symbol specifying the type of plot. Can be `:stack`
+  for stacked plots or `:lines` for line plots. Default is `:stack`.
+
+# Notes
+
+This function is only available if Makie is loaded (through for example GLMakie
+or CairoMakie)
+"""
 function plot_co2_inventory
 
 end

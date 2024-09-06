@@ -67,6 +67,7 @@ function setup_case_from_parsed_data(datafile;
         verbose = false,
         zcorn_depths = true,
         normalize = true,
+        convert_co2store = true,
         kwarg...
     )
     function msg(s)
@@ -75,12 +76,16 @@ function setup_case_from_parsed_data(datafile;
         end
     end
     msg("Parsing physics and system.")
+    rs = datafile["RUNSPEC"]
+    if convert_co2store && haskey(rs, "CO2STORE")
+        msg("CO2STORE found, calling converter...")
+        datafile = convert_co2store_to_co2_brine(datafile)
+    end
     sys, pvt = parse_physics_types(datafile, pvt_region = 1)
     is_blackoil = sys isa StandardBlackOilSystem
     is_compositional = sys isa CompositionalSystem
     is_thermal = haskey(datafile["RUNSPEC"], "THERMAL")
 
-    rs = datafile["RUNSPEC"]
     oil = haskey(rs, "OIL")
     water = haskey(rs, "WATER")
     gas = haskey(rs, "GAS")
