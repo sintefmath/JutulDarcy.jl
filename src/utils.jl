@@ -1751,11 +1751,6 @@ function co2_inventory_for_step(states, timesteps, injected, produced, step_no, 
         inj_tot += injected[i]*dt_i
         prod_tot += produced[i]*dt_i
     end
-    mass_inside = 0.0
-    mass_outside = 0.0
-    residual_trapped = 0.0
-    dissolution_trapped = 0.0
-    mobile = 0.0
 
     S = state[:Saturations]
     rho = state[:PhaseMassDensities]
@@ -1769,50 +1764,34 @@ function co2_inventory_for_step(states, timesteps, injected, produced, step_no, 
     total_masses = state[:TotalMasses]
 
     krg = relperm.krg
+    regions = relperm.regions
+
+    residual_trapped, mobile, dissolution_trapped, mass_inside = sum_co2_inventory(total_masses, krg, regions, X, Y, S, rho, cells, is_hyst, immiscible, liquid, vapor, co2_c_index)
+
+    total_co2_mass = sum(view(total_masses, co2_c_index, :))
+    return Dict(
+        :residual => residual_trapped,
+        :mobile => mobile,
+        :dissolved => dissolution_trapped,
+        :inside_total => mass_inside,
+        :outside_total => total_co2_mass - mass_inside,
+        :domain_total => total_co2_mass,
+        :outside_domain => inj_tot - total_co2_mass - prod_tot,
+        :injected => inj_tot,
+        :produced => prod_tot
+    )
+end
+
+function sum_co2_inventory(total_masses, krg, regions, X, Y, S, rho, cells, is_hyst, immiscible, liquid, vapor, co2_c_index)
+    mass_inside = 0.0
+    mass_outside = 0.0
+    residual_trapped = 0.0
+    dissolution_trapped = 0.0
+    mobile = 0.0
+
     bad_cells = Int[]
     for c in cells
-        total_mass = 0.0
-        for i in axes(total_masses, 1)
-            total_mass += total_masses[i, c]
-        end
-        reg = region(relperm.regions, c)
-        if is_hyst
-            krg_cell = imbibition_table_by_region(krg, reg)
-        else
-            krg_cell = table_by_region(krg, reg)
-        end
-        # Liquid values
-        sl = S[liquid, c]
-        rho_l = rho[liquid, c]
-
-        # Gas values
-        sg_crit = krg_cell.critical
-        sg = S[vapor, c]
-        rho_v = rho[vapor, c]
-        if immiscible
-            Y_co2 = 1.0
-            X_co2 = 0.0
-        else
-            Y_co2 = Y[co2_c_index, c]
-            X_co2 = X[co2_c_index, c]
-        end
-
-        # Estimate PV from total mass + 2 phase assumption
-        pv = total_mass/(sg*rho_v + sl*rho_l)
-
-        sg_r = min(sg, sg_crit)
-        sg_m = sg - sg_r
-
-        # Trapped but in vapor phase
-        co2_density_in_vapor = rho_v*Y_co2*pv
-        res = sg_r*co2_density_in_vapor
-        free = sg_m*co2_density_in_vapor
-        # Solubility
-        diss = rho_l*X_co2*sl*pv
-        # Total and check
-        total = total_masses[co2_c_index, c]
-        val = free + res + diss
-
+        res, free, diss, total, val = co2_inventory_for_cell(total_masses, krg, regions, X, Y, S, rho, c, is_hyst, immiscible, liquid, vapor, co2_c_index)
         if total > 1e-3 && abs(val - total)/max(total, 1e-3) > 1e-3
             push!(bad_cells, c)
         end
@@ -1825,20 +1804,50 @@ function co2_inventory_for_step(states, timesteps, injected, produced, step_no, 
     if length(bad_cells) > 0
         jutul_message("CO2 Inventory", "Inconsistent masses in $(length(bad_cells)) cells for step $step_no. Maybe tolerances were relaxed?", color = :yellow)
     end
+    return (residual_trapped, mobile, dissolution_trapped, mass_inside)
+end
 
-    total_co2_mass = 0.0
-    for c in axes(total_masses, 2)
-        total_co2_mass += total_masses[co2_c_index, c]
+function co2_inventory_for_cell(total_masses, krg, regions, X, Y, S, rho, c, is_hyst, immiscible, liquid, vapor, co2_c_index)
+    total_mass = 0.0
+    for i in axes(total_masses, 1)
+        total_mass += total_masses[i, c]
     end
-    return Dict(
-        :residual => residual_trapped,
-        :mobile => mobile,
-        :dissolved => dissolution_trapped,
-        :inside_total => mass_inside,
-        :outside_total => total_co2_mass - mass_inside,
-        :domain_total => total_co2_mass,
-        :outside_domain => inj_tot - total_co2_mass - prod_tot,
-        :injected => inj_tot,
-        :produced => prod_tot
-    )
+    reg = region(regions, c)
+    if is_hyst
+        krg_cell = imbibition_table_by_region(krg, reg)
+    else
+        krg_cell = table_by_region(krg, reg)
+    end
+    # Liquid values
+    sl = S[liquid, c]
+    rho_l = rho[liquid, c]
+
+    # Gas values
+    sg_crit = krg_cell.critical
+    sg = S[vapor, c]
+    rho_v = rho[vapor, c]
+    if immiscible
+        Y_co2 = 1.0
+        X_co2 = 0.0
+    else
+        Y_co2 = Y[co2_c_index, c]
+        X_co2 = X[co2_c_index, c]
+    end
+
+    # Estimate PV from total mass + 2 phase assumption
+    pv = total_mass/(sg*rho_v + sl*rho_l)
+
+    sg_r = min(sg, sg_crit)
+    sg_m = sg - sg_r
+
+    # Trapped but in vapor phase
+    co2_density_in_vapor = rho_v*Y_co2*pv
+    res = sg_r*co2_density_in_vapor
+    free = sg_m*co2_density_in_vapor
+    # Solubility
+    diss = rho_l*X_co2*sl*pv
+    # Total and check
+    total = total_masses[co2_c_index, c]
+    val = free + res + diss
+    return (res, free, diss, total, val)
 end
