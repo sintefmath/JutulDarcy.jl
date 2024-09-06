@@ -1526,7 +1526,9 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
         neg_count += T_hf_i < 0
         T_hf[i] = abs(T_hf_i)
     end
-    if neg_count > 0
+    # We only warn for significant amounts of negative transmissibilities, since
+    # a few negative values is normal for reservoir grids.
+    if neg_count > 0.1*length(T_hf)
         tran_tot = length(T_hf)
         perc = round(100*neg_count/tran_tot, digits = 2)
         jutul_message("Transmissibility", "Replaced $neg_count negative half-transmissibilities (out of $tran_tot, $perc%) with their absolute value.")
