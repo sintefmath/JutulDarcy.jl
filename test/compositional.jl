@@ -1,6 +1,7 @@
 using JutulDarcy
 using Jutul
 using Test
+using LinearAlgebra
 
 @testset "SIMPLE_COMP validation" begin
     dpth = JutulDarcy.GeoEnergyIO.test_input_file_path("SIMPLE_COMP")
