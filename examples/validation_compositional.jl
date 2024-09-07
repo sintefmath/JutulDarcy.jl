@@ -94,7 +94,6 @@ fig = with_theme(theme_latexfonts()) do
     cmap = :tableau_hue_circle
     mt = :circle
     fig = Figure(size = (800, 400))
-    # ax = Axis(fig[2, 1], xlabel = "Cell center / m", ylabel = L"\text{sign}(x) \log_{10}|x|")
     normalize = x -> x./(maximum(x) - minimum(x))
     logscale = x -> sign.(x).*log10.(abs.(x))
 

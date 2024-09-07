@@ -183,7 +183,6 @@ function myplot!(fig, I, J, title, vals; is_grad = false, is_log = false, colorr
         if ismissing(colorrange)
             colorrange = extrema(vals)
         end
-        # cmap = :berlin
         cmap = :seaborn_icefire_gradient
     end
     hidedecorations!(ax)
