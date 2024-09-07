@@ -1903,6 +1903,8 @@ function generate_jutuldarcy_examples(
     if !isnothing(makie)
         replace_makie_calls!(dest, makie)
     end
+    proj_location = joinpath(jdir, "..", "docs", "Project.toml")
+    cp(ex_dir, proj_location, force = true)
     return dest
 end
 
