@@ -5,7 +5,6 @@ using Test
 @testset "SIMPLE_COMP validation" begin
     dpth = JutulDarcy.GeoEnergyIO.test_input_file_path("SIMPLE_COMP")
     data_path = joinpath(dpth, "SIMPLE_COMP.DATA")
-    ws, states = result;
     ref_path = joinpath(dpth, "reference.jld2")
     ref = Jutul.JLD2.load(ref_path)
     states_cmp = ref["e300"]
