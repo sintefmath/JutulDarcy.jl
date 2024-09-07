@@ -188,6 +188,8 @@ impact simulation speed.
 - `backend=:csc`: Backend to use. Can be `:csc` for serial compressed sparse
   column CSC matrix, `:csr` for parallel compressed sparse row matrix. `:csr` is
   a bit faster and is recommended when using MPI, HYPRE or multiple threads.
+  `:csc` uses the default Julia format and is interoperable with other Julia
+  libraries.
 - `context=DefaultContext()`: Context used for entire model. Not recommended to
   set up manually, use `backend` instead.
 - `assemble_wells_together=true`: Assemble wells in a single big matrix rather
@@ -545,6 +547,10 @@ list a few of the most relevant entries here for convenience:
 - `info_level = 0`: Output level. Set to 0 for minimal output, -1 for no output
   and 1 or more for increasing verbosity.
 - `output_path`: Path to write output to.
+- `max_nonlinear_iterations=15`: Maximum Newton iterations before a time-step is
+  cut.
+- `min_nonlinear_iterations=1`: Minimum number of Newtons to perform before
+  checking convergence.
 - `relaxation=Jutul.NoRelaxation()`: Dampening used for solves. Can be set to
   `Jutul.SimpleRelaxation()` for difficult models. Equivialent option is to set
   `true` for relaxation and `false` for no relaxation.
@@ -554,8 +560,16 @@ list a few of the most relevant entries here for convenience:
   up. Note that when using dynamic timestepping, this in practice defines a
   minimal timestep, with more than the prescribed number of cuts being allowed
   if the timestep is dynamically increased after cutting.
+- `timestep_max_increase=10.0`: Max allowable factor to increase time-step by.
+  Overrides any choices made in dynamic step selection.
+- `timestep_max_decrease=0.1`: Max allowable factor to decrease time-step by.
+  Overrides any choices made in dynamic step selection.
+- `tol_factor_final_iteration=1.0`: If set to a value larger than 1.0, the final
+  convergence check before a time-step is cut is relaxed by multiplying all
+  tolerances with this value. Warning: Setting it to a large value can have
+  severe impact on numerical accuracy. A value of 1 to 10 is typically safe if
+  your default tolerances are strict.
 
-Additional keyword arguments are passed onto [`simulator_config`](@ref).
 """
 function setup_reservoir_simulator(case::JutulCase;
         mode = :default,
