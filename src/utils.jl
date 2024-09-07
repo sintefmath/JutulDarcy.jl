@@ -1861,3 +1861,67 @@ function co2_inventory_for_cell(total_masses, krg, regions, X, Y, S, rho, c, is_
     val = free + res + diss
     return (res, free, diss, total, val)
 end
+
+export generate_jutuldarcy_examples
+
+"""
+    generate_jutuldarcy_examples(
+        pth = pwd(),
+        name = "jutuldarcy_examples";
+        makie = nothing,
+        force = false
+    )
+
+Make a copy of all JutulDarcy examples in `pth` in a subfolder
+`jutuldarcy_examples`. An error is thrown if the folder already exists, unless
+the `force=true`, in which case the folder will be overwritten and the existing
+contents will be permanently lost.
+
+The `makie` argument allows replacing the calls to GLMakie in the examples with
+another backend specified by a `String`. There are no checks performed if the
+replacement is the name of a valid Makie backend.
+"""
+function generate_jutuldarcy_examples(
+        pth = pwd(),
+        name = "jutuldarcy_examples";
+        makie = nothing,
+        force = false
+    )
+    if !ispath(pth)
+        error("Destionation $pth does not exist. Specify a folder.")
+    end
+    dest = joinpath(pth, name)
+    jdir, = splitdir(pathof(JutulDarcy))
+    ex_dir = joinpath(jdir, "..", "examples")
+
+    if ispath(dest)
+        if !force
+            error("Folder $name already already exists in $pth. Specify force = true, or choose another name.")
+        end
+    end
+    cp(ex_dir, dest, force = force)
+    if !isnothing(makie)
+        replace_makie_calls!(dest, makie)
+    end
+    return dest
+end
+
+function replace_makie_calls!(dest, makie)
+    makie::Union{Symbol, AbstractString}
+    makie_str = "$makie"
+    for (root, dirs, files) in walkdir(dest)
+        for ex in files
+            ex_pth = joinpath(root, ex)
+            ex_lines = readlines(ex_pth, keep=true)
+            f = open(ex_pth, "w")
+            for line in ex_lines
+                newline = replace(line, "GLMakie" => makie_str)
+                print(f, newline)
+            end
+            close(f)
+        end
+        for dir in dirs
+            replace_makie_calls!(joinpath(root, dir), makie)
+        end
+    end
+end
