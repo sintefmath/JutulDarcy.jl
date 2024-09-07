@@ -83,7 +83,7 @@ function setup_case_from_parsed_data(datafile;
     end
     sys, pvt = parse_physics_types(datafile, pvt_region = 1)
     is_blackoil = sys isa StandardBlackOilSystem
-    is_compositional = sys isa CompositionalSystem
+    is_compositional = sys isa CompositionalSystem || sys == :co2brine
     is_thermal = haskey(datafile["RUNSPEC"], "THERMAL")
 
     water = haskey(rs, "WATER")
@@ -134,7 +134,7 @@ function setup_case_from_parsed_data(datafile;
     for (k, submodel) in pairs(model.models)
         if model_or_domain_is_well(submodel) || k == :Reservoir
             # Modify secondary variables
-            if !is_compositional && !(sys isa Symbol)
+            if !is_compositional
                 svar = submodel.secondary_variables
                 pvt_reg_i = reservoir_regions(submodel.data_domain, :pvtnum)
                 if model_or_domain_is_well(submodel)

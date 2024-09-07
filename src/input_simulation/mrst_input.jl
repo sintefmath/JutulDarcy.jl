@@ -890,7 +890,7 @@ function set_deck_pc!(vars, param, sys, props; kwarg...)
     end
 end
 
-function set_deck_relperm!(vars, param, sys, runspec,  props; kwarg...)
+function set_deck_relperm!(vars, param, sys, runspec, props; kwarg...)
     kr = deck_relperm(runspec, props; kwarg...)
     vars[:RelativePermeabilities] = kr
     add_relperm_parameters!(param, kr)
