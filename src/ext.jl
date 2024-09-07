@@ -1,4 +1,8 @@
+"""
+    plot_well!(ax, mesh, w; color = :darkred)
 
+Plot a given well that exists in mesh in Axis.
+"""
 function plot_well!
 
 end
@@ -144,6 +148,27 @@ function plot_reservoir(case::JutulCase, arg...; kwarg...)
         arg = (merge(case.parameters[:Reservoir], case.state0[:Reservoir]),)
     end
     return plot_reservoir(case.model, arg...; kwarg...)
+end
+
+export plot_faults!
+function plot_faults!(ax, domain::DataDomain; kwarg...)
+    return plot_faults!(ax, physical_representation(domain); kwarg...)
+end
+
+function plot_faults!(ax, mesh::UnstructuredMesh; kwarg...)
+    faults = get_mesh_entity_tag(mesh, Faces(), :faults, throw = false)
+    if !ismissing(faults)
+        n = length(keys(faults))
+        i = 1
+        for (k, v) in faults
+            if length(v) == 0
+                continue
+            end
+            plot_mesh!(ax, mesh; faces = v, color = i, colorrange = (1, n), kwarg...)
+            i += 1
+        end
+    end
+    ax
 end
 
 """

@@ -119,6 +119,27 @@ function reservoir_system(flow::MultiPhaseSystem; kwarg...)
     reservoir_system(;flow = flow, kwarg...)
 end
 
+export get_model_wells
+
+function get_model_wells(case::JutulCase)
+    return get_model_wlels(case.model)
+end
+
+"""
+    get_model_wells(model_or_case)
+
+Get a `Dict` containing all wells in the model or simulation case.
+"""
+function get_model_wells(model::MultiModel)
+    wells = Dict{Symbol, Any}()
+    for (k, m) in pairs(model.models)
+        if model_or_domain_is_well(m)
+            wells[k] = physical_representation(m.data_domain)
+        end
+    end
+    return wells
+end
+
 """
     reservoir_system(flow = flow_system, thermal = thermal_system)
 

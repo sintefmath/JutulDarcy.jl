@@ -4,22 +4,49 @@
 # omissions being removal of hysteresis and threshold pressures between
 # equilibriation reqgions. For more details, see the [OPM data
 # webpage](https://opm-project.org/?page_id=559)
-using Jutul, JutulDarcy, GLMakie, DelimitedFiles, HYPRE
-norne_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("NORNE_NOHYST")
-case = setup_case_from_data_file(joinpath(norne_dir, "NORNE_NOHYST.DATA"))
+using Jutul, JutulDarcy, GLMakie, DelimitedFiles, HYPRE, GeoEnergyIO
+norne_dir = GeoEnergyIO.test_input_file_path("NORNE_NOHYST")
+data_pth = joinpath(norne_dir, "NORNE_NOHYST.DATA")
+data = parse_data_file(data_pth)
+case = setup_case_from_data_file(data)
+# ## Unpack the case to see basic data structures
+model = case.model
+parameters = case.parameters
+forces = case.forces
+dt = case.dt;
+# ## Plot the reservoir mesh, wells and faults
+# We compose a few different plotting calls together to make a plot that shows
+# the outline of the mesh, the fault structures and the well trajectories.
+import Jutul: plot_mesh_edges!
+reservoir = reservoir_domain(model)
+mesh = physical_representation(reservoir)
+wells = get_model_wells(model)
+fig = Figure(size = (1200, 800))
+ax = Axis3(fig[1, 1], zreversed = true)
+plot_mesh_edges!(ax, mesh, alpha = 0.5)
+for (k, w) in wells
+    plot_well!(ax, mesh, w)
+end
+plot_faults!(ax, mesh, alpha = 0.5)
+ax.azimuth[] = -3.0
+ax.elevation[] = 0.5
+fig
+# ## Plot the reservoir static properties in interactive viewer
+fig = plot_reservoir(model, key = :porosity)
+ax = fig.current_axis[]
+plot_faults!(ax, mesh, alpha = 0.5)
+ax.azimuth[] = -3.0
+ax.elevation[] = 0.5
+fig
+# ## Simulate the model
 ws, states = simulate_reservoir(case, output_substates = true)
 # ## Plot the reservoir solution
-fig = plot_reservoir(case.model, states, step = 247, key = :Saturations)
+fig = plot_reservoir(model, states, step = 247, key = :Saturations)
 ax = fig.current_axis[]
 ax.azimuth[] = -3.0
 ax.elevation[] = 0.5
 fig
-# ## Plot the reservoir static properties
-fig = plot_reservoir(case.model, key = :porosity)
-ax = fig.current_axis[]
-ax.azimuth[] = -3.0
-ax.elevation[] = 0.5
-fig
+
 # ## Load reference and set up plotting
 csv_path = joinpath(norne_dir, "REFERENCE.CSV")
 data, header = readdlm(csv_path, ',', header = true)
