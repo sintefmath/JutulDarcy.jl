@@ -11,6 +11,7 @@ using Test
     for fast_flash in (false, true)
         case = setup_case_from_data_file(data_path, fast_flash = fast_flash)
         result = simulate_reservoir(case, info_level = -1)
+        ws, states = result
         @testset "OverallMoleFractions" begin
             for i in 1:500
                 rstate = states_cmp[i]
