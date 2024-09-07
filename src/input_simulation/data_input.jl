@@ -86,9 +86,13 @@ function setup_case_from_parsed_data(datafile;
     is_compositional = sys isa CompositionalSystem
     is_thermal = haskey(datafile["RUNSPEC"], "THERMAL")
 
-    oil = haskey(rs, "OIL")
     water = haskey(rs, "WATER")
-    gas = haskey(rs, "GAS")
+    if is_compositional
+        oil = gas = true
+    else
+        oil = haskey(rs, "OIL")
+        gas = haskey(rs, "GAS")
+    end
     if haskey(datafile, "PROPS")
         props = datafile["PROPS"]
     else
