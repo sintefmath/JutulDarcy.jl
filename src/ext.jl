@@ -1,4 +1,8 @@
+"""
+    plot_well!(ax, mesh, w; color = :darkred)
 
+Plot a given well that exists in mesh in Axis.
+"""
 function plot_well!
 
 end
@@ -146,6 +150,27 @@ function plot_reservoir(case::JutulCase, arg...; kwarg...)
     return plot_reservoir(case.model, arg...; kwarg...)
 end
 
+export plot_faults!
+function plot_faults!(ax, domain::DataDomain; kwarg...)
+    return plot_faults!(ax, physical_representation(domain); kwarg...)
+end
+
+function plot_faults!(ax, mesh::UnstructuredMesh; kwarg...)
+    faults = get_mesh_entity_tag(mesh, Faces(), :faults, throw = false)
+    if !ismissing(faults)
+        n = length(keys(faults))
+        i = 1
+        for (k, v) in faults
+            if length(v) == 0
+                continue
+            end
+            plot_mesh!(ax, mesh; faces = v, color = i, colorrange = (1, n), kwarg...)
+            i += 1
+        end
+    end
+    ax
+end
+
 """
     simulate_reservoir_parray(case, mode = :mpi; kwarg...)
 
@@ -158,5 +183,31 @@ function simulate_reservoir_parray(case, mode = :mpi; kwarg...)
 end
 
 function setup_reservoir_simulator_parray
+
+end
+
+"""
+    fig = JutulDarcy.plot_co2_inventory(t, inventory, plot_type = :stack)
+
+Plots the CO2 inventory over time or steps, with options for stacked or line
+plots. `inventory` is the output from `co2_inventory` while `t` can either be
+omitted, be a list of reporting time in seconds or a index list of steps where
+the solution is given.
+
+# Arguments
+- `t`: A vector representing time or steps. If `t` is of type `Float64`, it is
+  assumed to represent time in seconds and will be converted to years.
+- `inventory`: A vector of dictionaries, where each dictionary contains CO2 mass
+  data for different categories (e.g., `:dissolved`, `:mobile`, `:residual`,
+  etc.).
+- `plot_type`: (Optional) A symbol specifying the type of plot. Can be `:stack`
+  for stacked plots or `:lines` for line plots. Default is `:stack`.
+
+# Notes
+
+This function is only available if Makie is loaded (through for example GLMakie
+or CairoMakie)
+"""
+function plot_co2_inventory
 
 end

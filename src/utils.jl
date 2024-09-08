@@ -119,6 +119,27 @@ function reservoir_system(flow::MultiPhaseSystem; kwarg...)
     reservoir_system(;flow = flow, kwarg...)
 end
 
+export get_model_wells
+
+function get_model_wells(case::JutulCase)
+    return get_model_wlels(case.model)
+end
+
+"""
+    get_model_wells(model_or_case)
+
+Get a `Dict` containing all wells in the model or simulation case.
+"""
+function get_model_wells(model::MultiModel)
+    wells = Dict{Symbol, Any}()
+    for (k, m) in pairs(model.models)
+        if model_or_domain_is_well(m)
+            wells[k] = physical_representation(m.data_domain)
+        end
+    end
+    return wells
+end
+
 """
     reservoir_system(flow = flow_system, thermal = thermal_system)
 
@@ -188,6 +209,8 @@ impact simulation speed.
 - `backend=:csc`: Backend to use. Can be `:csc` for serial compressed sparse
   column CSC matrix, `:csr` for parallel compressed sparse row matrix. `:csr` is
   a bit faster and is recommended when using MPI, HYPRE or multiple threads.
+  `:csc` uses the default Julia format and is interoperable with other Julia
+  libraries.
 - `context=DefaultContext()`: Context used for entire model. Not recommended to
   set up manually, use `backend` instead.
 - `assemble_wells_together=true`: Assemble wells in a single big matrix rather
@@ -545,6 +568,10 @@ list a few of the most relevant entries here for convenience:
 - `info_level = 0`: Output level. Set to 0 for minimal output, -1 for no output
   and 1 or more for increasing verbosity.
 - `output_path`: Path to write output to.
+- `max_nonlinear_iterations=15`: Maximum Newton iterations before a time-step is
+  cut.
+- `min_nonlinear_iterations=1`: Minimum number of Newtons to perform before
+  checking convergence.
 - `relaxation=Jutul.NoRelaxation()`: Dampening used for solves. Can be set to
   `Jutul.SimpleRelaxation()` for difficult models. Equivialent option is to set
   `true` for relaxation and `false` for no relaxation.
@@ -554,8 +581,16 @@ list a few of the most relevant entries here for convenience:
   up. Note that when using dynamic timestepping, this in practice defines a
   minimal timestep, with more than the prescribed number of cuts being allowed
   if the timestep is dynamically increased after cutting.
+- `timestep_max_increase=10.0`: Max allowable factor to increase time-step by.
+  Overrides any choices made in dynamic step selection.
+- `timestep_max_decrease=0.1`: Max allowable factor to decrease time-step by.
+  Overrides any choices made in dynamic step selection.
+- `tol_factor_final_iteration=1.0`: If set to a value larger than 1.0, the final
+  convergence check before a time-step is cut is relaxed by multiplying all
+  tolerances with this value. Warning: Setting it to a large value can have
+  severe impact on numerical accuracy. A value of 1 to 10 is typically safe if
+  your default tolerances are strict.
 
-Additional keyword arguments are passed onto [`simulator_config`](@ref).
 """
 function setup_reservoir_simulator(case::JutulCase;
         mode = :default,
@@ -1297,11 +1332,21 @@ function partitioner_input(model, parameters; conn = :trans)
 
     N = grid.neighborship
     trans = parameters[:Transmissibilities]
-    if conn == :trans
-        T = copy(trans)
-    else
-        @assert conn == :unit
+    if conn == :unit
         T = ones(Int, length(trans))
+    else
+        if conn == :trans
+            T = copy(trans)
+            T = length(T)*T./sum(T)
+            T = Int.(ceil.(T))
+        elseif conn == :logtrans
+            T = log10.(trans)
+            offset = maximum(abs, T) + 1
+            @. T += offset
+            T = Int.(ceil.(T))
+        else
+            error("conn must be one of :trans, :unit or :logtrans, was $conn")
+        end
     end
     groups = Vector{Vector{Int}}()
     if model isa MultiModel
@@ -1526,7 +1571,9 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
         neg_count += T_hf_i < 0
         T_hf[i] = abs(T_hf_i)
     end
-    if neg_count > 0
+    # We only warn for significant amounts of negative transmissibilities, since
+    # a few negative values is normal for reservoir grids.
+    if neg_count > 0.1*length(T_hf)
         tran_tot = length(T_hf)
         perc = round(100*neg_count/tran_tot, digits = 2)
         jutul_message("Transmissibility", "Replaced $neg_count negative half-transmissibilities (out of $tran_tot, $perc%) with their absolute value.")
@@ -1668,4 +1715,250 @@ function set_discretization_variables!(model; ntpfa_potential = true)
         end
     end
     return model
+end
+
+export co2_inventory
+
+function co2_inventory(model, ws, states, t; cells = missing, co2_name = "CO2")
+    dt = diff(vcat(0, t))
+    @assert all(dt .> 0.0) "Fourth argument t should be time from simulation start. Maybe you passed timesteps?"
+    rmodel = reservoir_model(model)
+    domain = reservoir_domain(rmodel)
+    nc = number_of_cells(domain)
+    if ismissing(cells)
+        cells = 1:nc
+    end
+    # Map component to index and do some checking on system
+    sys = rmodel.system
+    # Figure out phases
+    phases = get_phases(sys)
+    @assert length(phases) == 2 "This routine is only implemented for two phases"
+    vapor = findfirst(isequal(VaporPhase()), phases)
+    @assert !isnothing(vapor) "Did not find VaporPhase in get_phases: $phases"
+    aqua = findfirst(isequal(AqueousPhase()), phases)
+    liq = findfirst(isequal(LiquidPhase()), phases)
+    if isnothing(aqua)
+        aqua = liq
+    end
+    @assert !isnothing(aqua)
+    phasepair = (aqua, vapor)
+
+    immiscible = sys isa ImmiscibleSystem
+    if immiscible
+        cnames = component_names(sys)
+        co2_index = vapor
+        co2_name = cnames[co2_index]
+    else
+        cnames = component_names(sys)
+        co2_index = findfirst(isequal(co2_name), cnames)
+        @assert !isnothing(co2_index) "Did not find $co2_name in component_names: "
+    end
+    rate_name = Symbol("$(co2_name)_mass_rate")
+    # Accumulate up well results
+    nstep = length(dt)
+    injected = zeros(nstep)
+    produced = zeros(nstep)
+    for (wk, wres) in pairs(ws.wells)
+        q_co2 = wres[rate_name]
+        for (i, v) in enumerate(q_co2)
+            if v > 0
+                injected[i] += v
+            else
+                injected[i] += abs(v)
+            end
+        end
+    end
+    relperm = rmodel[:RelativePermeabilities]
+    relperm::ReservoirRelativePermeabilities
+
+    return map(
+        i -> co2_inventory_for_step(states, dt, injected, produced, i, relperm, co2_name, co2_index, phasepair, cells),
+        eachindex(states, dt)
+    )
+end
+
+function co2_inventory(model, result::ReservoirSimResult; kwarg...)
+    ws, states, t = result
+    return co2_inventory(model, ws, states, t; kwarg...)
+end
+
+function co2_inventory_for_step(states, timesteps, injected, produced, step_no, relperm, co2_name, co2_c_index, phases, cells)
+    liquid, vapor = phases
+    is_hyst = hysteresis_is_active(relperm)
+    state = states[step_no]
+    dt = timesteps[step_no]
+    # Sum up injected up to this point
+    inj_tot = 0.0
+    # Sum up produced up to this point
+    prod_tot = 0.0
+    for i in 1:step_no
+        dt_i = timesteps[i]
+        inj_tot += injected[i]*dt_i
+        prod_tot += produced[i]*dt_i
+    end
+
+    S = state[:Saturations]
+    rho = state[:PhaseMassDensities]
+    immiscible = !haskey(state, :LiquidMassFractions) && !haskey(state, :VaporMassFractions)
+    if immiscible
+        X = Y = missing
+    else
+        X = state[:LiquidMassFractions]
+        Y = state[:VaporMassFractions]
+    end
+    total_masses = state[:TotalMasses]
+
+    krg = relperm.krg
+    regions = relperm.regions
+
+    residual_trapped, mobile, dissolution_trapped, mass_inside = sum_co2_inventory(total_masses, krg, regions, X, Y, S, rho, cells, is_hyst, immiscible, liquid, vapor, co2_c_index)
+
+    total_co2_mass = sum(view(total_masses, co2_c_index, :))
+    return Dict(
+        :residual => residual_trapped,
+        :mobile => mobile,
+        :dissolved => dissolution_trapped,
+        :inside_total => mass_inside,
+        :outside_total => total_co2_mass - mass_inside,
+        :domain_total => total_co2_mass,
+        :outside_domain => inj_tot - total_co2_mass - prod_tot,
+        :injected => inj_tot,
+        :produced => prod_tot
+    )
+end
+
+function sum_co2_inventory(total_masses, krg, regions, X, Y, S, rho, cells, is_hyst, immiscible, liquid, vapor, co2_c_index)
+    mass_inside = 0.0
+    mass_outside = 0.0
+    residual_trapped = 0.0
+    dissolution_trapped = 0.0
+    mobile = 0.0
+
+    bad_cells = Int[]
+    for c in cells
+        res, free, diss, total, val = co2_inventory_for_cell(total_masses, krg, regions, X, Y, S, rho, c, is_hyst, immiscible, liquid, vapor, co2_c_index)
+        if total > 1e-3 && abs(val - total)/max(total, 1e-3) > 1e-3
+            push!(bad_cells, c)
+        end
+
+        residual_trapped += res
+        mobile += free
+        dissolution_trapped += diss
+        mass_inside += total
+    end
+    if length(bad_cells) > 0
+        jutul_message("CO2 Inventory", "Inconsistent masses in $(length(bad_cells)) cells for step $step_no. Maybe tolerances were relaxed?", color = :yellow)
+    end
+    return (residual_trapped, mobile, dissolution_trapped, mass_inside)
+end
+
+function co2_inventory_for_cell(total_masses, krg, regions, X, Y, S, rho, c, is_hyst, immiscible, liquid, vapor, co2_c_index)
+    total_mass = 0.0
+    for i in axes(total_masses, 1)
+        total_mass += total_masses[i, c]
+    end
+    reg = region(regions, c)
+    if is_hyst
+        krg_cell = imbibition_table_by_region(krg, reg)
+    else
+        krg_cell = table_by_region(krg, reg)
+    end
+    # Liquid values
+    sl = S[liquid, c]
+    rho_l = rho[liquid, c]
+
+    # Gas values
+    sg_crit = krg_cell.critical
+    sg = S[vapor, c]
+    rho_v = rho[vapor, c]
+    if immiscible
+        Y_co2 = 1.0
+        X_co2 = 0.0
+    else
+        Y_co2 = Y[co2_c_index, c]
+        X_co2 = X[co2_c_index, c]
+    end
+
+    # Estimate PV from total mass + 2 phase assumption
+    pv = total_mass/(sg*rho_v + sl*rho_l)
+
+    sg_r = min(sg, sg_crit)
+    sg_m = sg - sg_r
+
+    # Trapped but in vapor phase
+    co2_density_in_vapor = rho_v*Y_co2*pv
+    res = sg_r*co2_density_in_vapor
+    free = sg_m*co2_density_in_vapor
+    # Solubility
+    diss = rho_l*X_co2*sl*pv
+    # Total and check
+    total = total_masses[co2_c_index, c]
+    val = free + res + diss
+    return (res, free, diss, total, val)
+end
+
+export generate_jutuldarcy_examples
+
+"""
+    generate_jutuldarcy_examples(
+        pth = pwd(),
+        name = "jutuldarcy_examples";
+        makie = nothing,
+        force = false
+    )
+
+Make a copy of all JutulDarcy examples in `pth` in a subfolder
+`jutuldarcy_examples`. An error is thrown if the folder already exists, unless
+the `force=true`, in which case the folder will be overwritten and the existing
+contents will be permanently lost.
+
+The `makie` argument allows replacing the calls to GLMakie in the examples with
+another backend specified by a `String`. There are no checks performed if the
+replacement is the name of a valid Makie backend.
+"""
+function generate_jutuldarcy_examples(
+        pth = pwd(),
+        name = "jutuldarcy_examples";
+        makie = nothing,
+        force = false
+    )
+    if !ispath(pth)
+        error("Destionation $pth does not exist. Specify a folder.")
+    end
+    dest = joinpath(pth, name)
+    jdir, = splitdir(pathof(JutulDarcy))
+    ex_dir = joinpath(jdir, "..", "examples")
+
+    if ispath(dest)
+        if !force
+            error("Folder $name already already exists in $pth. Specify force = true, or choose another name.")
+        end
+    end
+    cp(ex_dir, dest, force = force)
+    if !isnothing(makie)
+        replace_makie_calls!(dest, makie)
+    end
+    proj_location = joinpath(jdir, "..", "docs", "Project.toml")
+    cp(ex_dir, proj_location, force = true)
+    return dest
+end
+
+function replace_makie_calls!(dest, makie)
+    makie::Union{Symbol, AbstractString}
+    makie_str = "$makie"
+    for (root, dirs, files) in walkdir(dest)
+        for ex in files
+            ex_pth = joinpath(root, ex)
+            ex_lines = readlines(ex_pth, keep=true)
+            f = open(ex_pth, "w")
+            for line in ex_lines
+                newline = replace(line, "GLMakie" => makie_str)
+                print(f, newline)
+            end
+            close(f)
+        end
+        for dir in dirs
+            replace_makie_calls!(joinpath(root, dir), makie)
+        end
+    end
 end

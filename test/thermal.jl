@@ -138,7 +138,7 @@ function solve_thermal_wells(;
         )
     end
     result = simulate_reservoir(state0, model, dt,
-        forces = forces, parameters = parameters, info_level = 5)
+        forces = forces, parameters = parameters, info_level = -1)
     return (result.states, result.result.reports, dt, model)
 end
 

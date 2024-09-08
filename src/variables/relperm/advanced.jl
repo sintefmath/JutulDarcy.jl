@@ -288,7 +288,7 @@ function Base.show(io::IO, t::MIME"text/plain", kr::ReservoirRelativePermeabilit
             hy = getfield(kr, Symbol("hysteresis_$f"))
             s = "$(length(k)) functions with $hy"
         end
-        println(io, "    - $f: $s" )
+        println(io, "    - kr$f: $s" )
     end
     if isnothing(kr.regions)
         println(io, "\n  regions: No regions defined.")

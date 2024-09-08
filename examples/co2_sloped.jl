@@ -4,12 +4,18 @@
 # a realization of the description in [11th SPE Comparative Solutions
 # Project](https://spe.org/en/csp/). Simulation of CO2 can be challenging, and
 # we load the HYPRE package to improve performance.
+#
+# The model also has an option to run immiscible simulations with otherwise
+# identical PVT behavior. This is often faster to run, but lacks the dissolution
+# model present in the compositional version (i.e. no solubility of CO2 in
+# brine, and no vaporization of water in the vapor phase).
+use_immiscible = false
 using Jutul, JutulDarcy
 using HYPRE
 using GLMakie
 nx = 100
 nz = 50
-Darcy, bar, kg, meter, day = si_units(:darcy, :bar, :kilogram, :meter, :day)
+Darcy, bar, kg, meter, day, yr = si_units(:darcy, :bar, :kilogram, :meter, :day, :year)
 # ## Set up a 2D aquifer model
 # We set up a Cartesian mesh that is then transformed into an unstructured mesh.
 # We can then modify the coordinates to create a domain with a undulating top
@@ -26,7 +32,7 @@ for (i, pt) in enumerate(points)
     w = 0.2
     dz = 0.05*x + 0.05*abs(x - 500.0)+ w*(30*sin(2.0*x_u) + 20*sin(5.0*x_u))
     points[i] = pt + [0, 0, dz]
-end
+end;
 # ## Find and plot cells intersected by a deviated injector well
 # We place a single injector well. This well was unfortunately not drilled
 # completely straight, so we cannot directly use `add_vertical_well` based on
@@ -43,10 +49,45 @@ trajectory = [
 wc = find_enclosing_cells(mesh, trajectory)
 
 fig, ax, plt = plot_mesh_edges(mesh, z_is_depth = true)
-plot_mesh!(ax, mesh, cells = wc, transparency = true, alpha = 0.3)
+plot_mesh!(ax, mesh, cells = wc, transparency = true, alpha = 0.4)
+# View from the side
+ax.azimuth[] = 1.5*π
+ax.elevation[] = 0.0
 lines!(ax, trajectory', color = :red)
 fig
 
+# ## Define permeability and porosity
+# We loop over all cells and define three layered regions by the K index of each
+# cell. We can then set a corresponding diagonal permeability tensor (3 values)
+# and porosity (scalar) to introduce variation between the layers.
+
+nc = number_of_cells(mesh)
+perm = zeros(3, nc)
+poro = fill(0.3, nc)
+region = zeros(Int, nc)
+for cell in 1:nc
+    I, J, K = cell_ijk(mesh, cell)
+    if K < 0.3*nz
+        reg = 1
+        permxy = 0.3*Darcy
+        phi = 0.2
+    elseif K < 0.7*nz
+        reg = 2
+        permxy = 1.2*Darcy
+        phi = 0.35
+    else
+        reg = 3
+        permxy = 0.1*Darcy
+        phi = 0.1
+    end
+    permz = 0.5*permxy
+    perm[1, cell] = perm[2, cell] = permxy
+    perm[3, cell] = permz
+    poro[cell] = phi
+    region[cell] = reg
+end
+
+plot_cell_data(mesh, poro)
 # ## Set up simulation model
 # We set up a domain and a single injector. We pass the special :co2brine
 # argument in place of the system to the reservoir model setup routine. This
@@ -56,10 +97,16 @@ fig
 # Note that this model by default is isothermal, but we still need to specify a
 # temperature when setting up the model. This is because the properties of CO2
 # strongly depend on temperature, even when thermal transport is not solved.
-domain = reservoir_domain(mesh, permeability = 0.3Darcy, porosity = 0.3, temperature = convert_to_si(30.0, :Celsius))
+
+domain = reservoir_domain(mesh, permeability = perm, porosity = poro, temperature = convert_to_si(30.0, :Celsius))
 Injector = setup_well(domain, wc, name = :Injector, simple_well = true)
 
-model = setup_reservoir_model(domain, :co2brine, wells = Injector, extra_out = false);
+if use_immiscible
+    physics = :immiscible
+else
+    physics = :kvalue
+end
+model = setup_reservoir_model(domain, :co2brine, wells = Injector, extra_out = false, co2_physics = physics);
 # ## Customize model by adding relative permeability with hysteresis
 # We define three relative permeability functions: kro(so) for the brine/liquid
 # phase and krg(g) for both drainage and imbibition. Here we limit the
@@ -108,20 +155,32 @@ krg = (krg_drain, krg_imb)
 H_g = KilloughHysteresis() # Other options: CarlsonHysteresis, JargonHysteresis
 relperm = ReservoirRelativePermeabilities(g = krg, og = krog, hysteresis_g = H_g)
 replace_variables!(model, RelativePermeabilities = relperm)
-add_relperm_parameters!(model)
-# ## Define approximate hydrostatic pressure
+add_relperm_parameters!(model);
+# ## Define approximate hydrostatic pressure and set up initial state
 # The initial pressure of the water-filled domain is assumed to be at
-# hydrostatic equilibrium.
+# hydrostatic equilibrium. If we use an immiscible model, we must provide the
+# initial saturations. If we are using a compositional model, we should instead
+# provide the overall mole fractions. Note that since both are fractions, and
+# the CO2 model has correspondence between phase ordering and component ordering
+# (i.e. solves for liquid and vapor, and H2O and CO2), we can use the same input
+# value.
 nc = number_of_cells(mesh)
 p0 = zeros(nc)
 depth = domain[:cell_centroids][3, :]
 g = Jutul.gravity_constant
 @. p0 = 200bar + depth*g*1000.0
-# ## Set up initial state and parameters
-state0 = setup_reservoir_state(model,
-    Pressure = p0,
-    OverallMoleFractions = [1.0, 0.0],
-)
+# Set up initial state and parameters
+if use_immiscible
+    state0 = setup_reservoir_state(model,
+        Pressure = p0,
+        Saturations = [1.0, 0.0],
+    )
+else
+    state0 = setup_reservoir_state(model,
+        Pressure = p0,
+        OverallMoleFractions = [1.0, 0.0],
+    )
+end
 parameters = setup_parameters(model)
 
 # ## Find the boundary and apply a constant pressureboundary condition
@@ -137,15 +196,15 @@ for cell in 1:nc
     end
 end
 bc = flow_boundary_condition(boundary, domain, p0[boundary], fractional_flow = [1.0, 0.0])
-
+println("Boundary condition added to $(length(bc)) cells.")
 # ## Plot the model
 plot_reservoir(model)
 # ## Set up schedule
-# We set up 25 years of injection and 25 years of migration where the well is
+# We set up 25 years of injection and 1000 years of migration where the well is
 # shut. The density of the injector is set to 900 kg/m^3, which is roughly
 # the density of CO2 at in-situ conditions.
 nstep = 25
-nstep_shut = 25
+nstep_shut = 475
 dt_inject = fill(365.0day, nstep)
 pv = pore_volume(model, parameters)
 inj_rate = 0.05*sum(pv)/sum(dt_inject)
@@ -165,7 +224,8 @@ dt = vcat(dt_inject, dt_shut)
 forces = vcat(
     fill(forces_inject, nstep),
     fill(forces_shut, nstep_shut)
-);
+)
+println("$nstep report steps with injection, $nstep_shut report steps with migration.")
 # ## Add some more outputs for plotting
 rmodel = reservoir_model(model)
 push!(rmodel.output_variables, :RelativePermeabilities)
@@ -196,7 +256,11 @@ function plot_co2!(fig, ix, x, title = "")
 end
 fig = Figure(size = (900, 1200))
 for (i, step) in enumerate([1, 5, nstep, nstep+nstep_shut])
-    plot_co2!(fig, i, log10.(states[step][:OverallMoleFractions][2, :]), "log10 of CO2 mole fraction at report step $step/$(nstep+nstep_shut)")
+    if use_immiscible
+        plot_co2!(fig, i, states[step][:Saturations][2, :], "CO2 plume saturation at report step $step/$(nstep+nstep_shut)")
+    else
+        plot_co2!(fig, i, log10.(states[step][:OverallMoleFractions][2, :]), "log10 of CO2 mole fraction at report step $step/$(nstep+nstep_shut)")
+    end
 end
 fig
 # ## Plot all relative permeabilities for all time-steps
@@ -226,3 +290,78 @@ fig
 # If you have interactive plotting available, you can explore the results
 # yourself.
 plot_reservoir(model, states)
+## Calculate and display inventory of CO2
+# We can classify and plot the status of the CO2 in the reservoir. We use a
+# fairly standard classification where CO2 is divided into:
+#
+# - dissolved CO2 (dissolution trapping)
+# - residual CO2 (immobile due to zero relative permeability, residual trapping)
+# - mobile CO2 (mobile but still inside domain)
+# - outside domain (left the simulation model and migrated outside model)
+#
+# We also note that some of the mobile CO2 could be considered to be
+# structurally trapped, but this is not classified in our inventory.
+
+inventory = co2_inventory(model, wd, states, t)
+JutulDarcy.plot_co2_inventory(t, inventory)
+# ## Pick a region to investigate the CO2
+# We can also specify a region to the CO2 inventory. This will introduce
+# additional categories to distinguish between outside and inside the region of
+# interest.
+cells = findall(region .== 2)
+inventory = co2_inventory(model, wd, states, t, cells = cells)
+JutulDarcy.plot_co2_inventory(t, inventory)
+
+# ## Define a region of interest using geometry
+# Another alternative to determine a region of interest is to use geometry. We
+# pick all cells within an ellipsoid a bit away from the injection point.
+is_inside = fill(false, nc)
+centers = domain[:cell_centroids]
+for cell in 1:nc
+    x, y, z = centers[:, cell]
+    is_inside[cell] = sqrt((x - 720.0)^2 + 20*(z-70.0)^2) < 75
+end
+plot_cell_data(mesh, is_inside)
+# ## Plot inventory in ellipsoid
+# Note that a small mobile dip can be seen when free CO2 passes through this region.
+inventory = co2_inventory(model, wd, states, t, cells = findall(is_inside))
+JutulDarcy.plot_co2_inventory(t, inventory)
+# ## Plot the average pressure in the ellipsoid region
+# Now that we know what cells are within the region of interest, we can easily
+# apply a function over all time-steps to figure out what the average pressure
+# value was.
+using Statistics
+p_avg = map(
+    state -> mean(state[:Pressure][is_inside])./bar,
+    states
+)
+lines(t./yr, p_avg,
+    axis = (
+        title = "Average pressure in region",
+        xlabel = "Years", ylabel = "Pressure (bar)"
+    )
+)
+# ## Make a composite plot to correlate CO2 mass in region with spatial distribution
+# We create a pair of plots that combine both 2D and 3D plots to simultaneously
+# show the ellipsoid, the mass of CO2 in that region for a specific step, and
+# the time series of the CO2 in the same region.
+
+stepno = 100
+co2_mass_in_region = map(
+    state -> sum(state[:TotalMasses][2, is_inside])/1e3,
+    states
+)
+fig = Figure(size = (1200, 600))
+ax1 = Axis(fig[1, 1],
+    title = "Mass of CO2 in region",
+    xlabel = "Years",
+    ylabel = "Tonnes CO2"
+)
+lines!(ax1, t./yr, co2_mass_in_region)
+scatter!(ax1, t[stepno]./yr, co2_mass_in_region[stepno], markersize = 12, color = :red)
+ax2 = Axis3(fig[1, 2], zreversed = true)
+plot_cell_data!(ax2, mesh, states[stepno][:TotalMasses][2, :])
+plot_mesh!(ax2, mesh, cells = findall(is_inside), alpha = 0.5)
+ax2.azimuth[] = 1.5*π
+ax2.elevation[] = 0.0
+fig

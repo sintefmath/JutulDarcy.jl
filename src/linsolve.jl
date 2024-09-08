@@ -34,6 +34,7 @@ function reservoir_linsolve(model,
         cpr_type = nothing,
         partial_update = update_interval == :once,
         amg_arg = NamedTuple(),
+        precond_side = missing,
         kwarg...
     )
     model = reservoir_model(model)
@@ -89,6 +90,13 @@ function reservoir_linsolve(model,
             max_iterations *= 4
         end
     end
+    if ismissing(precond_side)
+        if mode == :forward
+            precond_side = :right
+        else
+            precond_side = :left
+        end
+    end
     lsolve = GenericKrylov(
         solver;
         verbose = v,
@@ -96,6 +104,7 @@ function reservoir_linsolve(model,
         relative_tolerance = rtol,
         absolute_tolerance = atol,
         max_iterations = max_iterations,
+        precond_side = precond_side,
         kwarg...
     )
     return lsolve

@@ -532,8 +532,8 @@ function deck_relperm(runspec, props; oil, water, gas, satnum = nothing)
             end
         end
     end
-    function convert_to_tuple_or_nothing(x)
-        if length(x) == 0
+    function convert_to_tuple_or_nothing(x, keep)
+        if !keep || length(x) == 0
             out = nothing
         else
             out = tuple(x...)
@@ -549,10 +549,10 @@ function deck_relperm(runspec, props; oil, water, gas, satnum = nothing)
     check(water && oil, tables_krow, "Phases water and oil", "KROW")
     check(gas, tables_krg, "Phase gas", "KRG")
 
-    tables_krw = convert_to_tuple_or_nothing(tables_krw)
-    tables_krow = convert_to_tuple_or_nothing(tables_krow)
-    tables_krog = convert_to_tuple_or_nothing(tables_krog)
-    tables_krg = convert_to_tuple_or_nothing(tables_krg)
+    tables_krw = convert_to_tuple_or_nothing(tables_krw, water)
+    tables_krow = convert_to_tuple_or_nothing(tables_krow, water && oil)
+    tables_krog = convert_to_tuple_or_nothing(tables_krog, gas && oil)
+    tables_krg = convert_to_tuple_or_nothing(tables_krg, gas)
 
     return ReservoirRelativePermeabilities(;
         w = tables_krw,
@@ -715,7 +715,6 @@ function model_from_mat_deck(G, data_domain, mrst_data, res_context)
         mixture = mrst_data["mixture"]
         comps = mixture["components"]
         names = copy(vec(mixture["names"]))
-    
         components = map(x -> MolecularProperty(x["mw"], x["pc"], x["Tc"], x["Vc"], x["acf"]), comps)
         if haskey(mrst_data, "eos")
             eosm = mrst_data["eos"]
@@ -891,9 +890,9 @@ function set_deck_pc!(vars, param, sys, props; kwarg...)
     end
 end
 
-function set_deck_relperm!(vars, param, sys, runspec,  props; kwarg...)
+function set_deck_relperm!(vars, param, sys, runspec, props; kwarg...)
     kr = deck_relperm(runspec, props; kwarg...)
-    vars[:RelativePermeabilities] = wrap_reservoir_variable(sys, kr, :flow)
+    vars[:RelativePermeabilities] = kr
     add_relperm_parameters!(param, kr)
 end
 

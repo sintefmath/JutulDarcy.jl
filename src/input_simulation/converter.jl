@@ -1,7 +1,24 @@
-function convert_co2store_to_co2_brine(data; kwarg...)
-    return convert_co2store_to_co2_brine!(deepcopy(data); kwarg...)
+"""
+    convert_co2store_to_co2_brine(data; verbose = true)
+
+Converts a CO2STORE data file to a co2-brine model. The conversion should be
+close to equivialent for models without salt. The data will be copied if
+modifications are necessary.
+"""
+function convert_co2store_to_co2_brine(data; verbose = true, kwarg...)
+    if haskey(data, "RUNSPEC") && haskey(data["RUNSPEC"], "CO2STORE")
+        data = convert_co2store_to_co2_brine!(deepcopy(data); verbose = verbose, kwarg...)
+    else
+        jutul_message("CO2STORE converter", "Model does not contain CO2STORE in RUNSPEC, will not convert.", color = :green)
+    end
+    return data
 end
 
+"""
+    convert_co2store_to_co2_brine!(data; verbose = true)
+
+Mutating version of `convert_co2store_to_co2_brine`.
+"""
 function convert_co2store_to_co2_brine!(data; verbose = true)
     function cstrip(z::AbstractVector)
         z = z[1:2]
