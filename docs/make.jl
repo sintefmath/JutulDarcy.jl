@@ -64,7 +64,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
             Literate.markdown(in_pth, out_dir, preprocess = upd)
         end
         if build_notebooks
-            Literate.notebook(in_pth, out_dir)
+            Literate.notebook(in_pth, out_dir, execute = false)
         end
     end
     ## Docs
