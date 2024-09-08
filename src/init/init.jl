@@ -265,6 +265,7 @@ function parse_state0_equil(model, datafile; normalize = :sum)
     has_oil = haskey(datafile["RUNSPEC"], "OIL")
     has_gas = haskey(datafile["RUNSPEC"], "GAS")
 
+    is_co2 = has_gas = haskey(datafile["RUNSPEC"], "JUTUL_CO2BRINE")
     is_single_phase = (has_water + has_oil + has_gas) == 1
 
     sys = model.system
@@ -435,7 +436,12 @@ function parse_state0_equil(model, datafile; normalize = :sum)
                     contacts = []
                     contacts_pc = []
                 elseif nph == 2
-                    if has_oil && has_gas
+                    if is_co2
+                        contacts = (woc, )
+                        # TODO: Check sign here. Usually these models are
+                        # initialized without CO2.
+                        contacts_pc = (woc_pc, )
+                    elseif has_oil && has_gas
                         contacts = (goc, )
                         contacts_pc = (goc_pc, )
                     else
