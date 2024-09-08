@@ -265,7 +265,7 @@ function parse_state0_equil(model, datafile; normalize = :sum)
     has_oil = haskey(datafile["RUNSPEC"], "OIL")
     has_gas = haskey(datafile["RUNSPEC"], "GAS")
 
-    is_co2 = has_gas = haskey(datafile["RUNSPEC"], "JUTUL_CO2BRINE")
+    is_co2 = haskey(datafile["RUNSPEC"], "JUTUL_CO2BRINE")
     is_single_phase = (has_water + has_oil + has_gas) == 1
 
     sys = model.system
