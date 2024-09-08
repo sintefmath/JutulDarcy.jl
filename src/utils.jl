@@ -1335,6 +1335,7 @@ function partitioner_input(model, parameters; conn = :trans)
     if conn == :unit
         T = ones(Int, length(trans))
     else
+        trans = max.(trans, 1e-20)
         if conn == :trans
             T = copy(trans)
             T = length(T)*T./sum(T)
