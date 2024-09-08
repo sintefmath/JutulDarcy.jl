@@ -165,7 +165,6 @@ function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D,
 end
 
 function compute_bc_mass_fluxes(bc, state, nph)
-    
     # Get reservoir properties
     p   = state.Pressure
     mu  = state.PhaseViscosities
@@ -181,7 +180,8 @@ function compute_bc_mass_fluxes(bc, state, nph)
     Δp = p[c] - bc.pressure
     q_tot = T_f*Δp
 
-    q = Vector{typeof(q_tot)}(undef, nph)
+    num_t = Base.promote_type(typeof(q_tot), eltype(kr), eltype(mu), eltype(rho))
+    q = zeros(MVector{nph, num_t})
     if q_tot > 0
         # Pressure inside is higher than outside, flow out from domain
         for ph in 1:nph
@@ -222,12 +222,10 @@ function compute_bc_mass_fluxes(bc, state, nph)
         end
     end
 
-    return q
-
+    return SVector{nph, num_t}(q)
 end
 
 function compute_bc_heat_fluxes(bc, state, nph)
-    
     q = compute_bc_mass_fluxes(bc, state, nph)
     c = bc.cell
 

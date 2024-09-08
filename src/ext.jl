@@ -164,7 +164,7 @@ function plot_faults!(ax, mesh::UnstructuredMesh; kwarg...)
             if length(v) == 0
                 continue
             end
-            plot_mesh!(ax, mesh; faces = v, color = i, colorrange = (1, n), kwarg...)
+            plot_mesh!(ax, mesh; faces = v, color = i, colorrange = (1, max(n, 2)), kwarg...)
             i += 1
         end
     end
