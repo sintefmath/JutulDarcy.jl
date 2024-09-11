@@ -544,10 +544,12 @@ end
 Create a specific reservoir simulation results that contains well curves,
 reservoir states, and so on. This is the return type from `simulate_reservoir`.
 
-A `ReservoirSimResult` can be unpacked into well solutions and reservoir states:
+A `ReservoirSimResult` can be unpacked into well solutions, reservoir states and
+reporting times:
+
 ```julia
 res_result::ReservoirSimResult
-ws, states = res_result
+ws, states, t = res_result
 ```
 
 # Fields

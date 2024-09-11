@@ -1905,13 +1905,16 @@ export generate_jutuldarcy_examples
         pth = pwd(),
         name = "jutuldarcy_examples";
         makie = nothing,
+        project = true,
         force = false
     )
 
 Make a copy of all JutulDarcy examples in `pth` in a subfolder
 `jutuldarcy_examples`. An error is thrown if the folder already exists, unless
 the `force=true`, in which case the folder will be overwritten and the existing
-contents will be permanently lost.
+contents will be permanently lost. If `project=true`, a `Project.toml` file will
+be generated with the same dependencies as that of the doc build system that
+contains everything needed to run the examples.
 
 The `makie` argument allows replacing the calls to GLMakie in the examples with
 another backend specified by a `String`. There are no checks performed if the
@@ -1921,6 +1924,7 @@ function generate_jutuldarcy_examples(
         pth = pwd(),
         name = "jutuldarcy_examples";
         makie = nothing,
+        project = true,
         force = false
     )
     if !ispath(pth)
@@ -1941,6 +1945,7 @@ function generate_jutuldarcy_examples(
     end
     proj_location = joinpath(jdir, "..", "docs", "Project.toml")
     cp(ex_dir, proj_location, force = true)
+    chmod(ex_dir, 0o777, recursive = true)
     return dest
 end
 
@@ -1949,6 +1954,10 @@ function replace_makie_calls!(dest, makie)
     makie_str = "$makie"
     for (root, dirs, files) in walkdir(dest)
         for ex in files
+            if !endswith(lowercase(ex), ".jl")
+                # Don't mess with Project.toml
+                continue
+            end
             ex_pth = joinpath(root, ex)
             ex_lines = readlines(ex_pth, keep=true)
             f = open(ex_pth, "w")
