@@ -34,9 +34,14 @@ const LVCompositionalModel2Phase = SimulationModel{D, S, F, C} where {D, S<:LVCo
 const LVCompositionalModel3Phase = SimulationModel{D, S, F, C} where {D, S<:LVCompositional3PhaseSystem, F, C}
 
 """
+    MultiPhaseCompositionalSystemLV(equation_of_state)
     MultiPhaseCompositionalSystemLV(equation_of_state, phases = (LiquidPhase(), VaporPhase()); reference_densities = ones(length(phases)), other_name = "Water")
 
-Set up a compositional system for a given `equation_of_state` from `MultiComponentFlash`.
+Set up a compositional system for a given `equation_of_state` from
+`MultiComponentFlash` with two or three phases. If three phases are provided,
+the phase that is not a liquid or a vapor phase will be treated as immiscible in
+subsequent simulations and given the name from `other_name` when listed as a
+component.
 """
 function MultiPhaseCompositionalSystemLV(equation_of_state, phases = (LiquidPhase(), VaporPhase()); reference_densities = ones(length(phases)), other_name = "Water")
     c = copy(MultiComponentFlash.component_names(equation_of_state))
