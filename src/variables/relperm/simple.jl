@@ -173,7 +173,15 @@ end
     return kr
 end
 
-function brooks_corey_relperm(s; n = 2, residual = 0, kr_max = 1.0, residual_total = residual)
+"""
+    brooks_corey_relperm(s; n = 2.0, residual = 0.0, kr_max = 1.0, residual_total = residual)
+
+Evaluate Brooks-Corey relative permeability function at saturation `s` for
+exponent `n` and a given residual and maximum relative permeability value. If
+considering a two-phase system, the total residual value over both phases should
+also be passed if the other phase has a non-zero residual value.
+"""
+function brooks_corey_relperm(s; n = 2.0, residual = 0.0, kr_max = 1.0, residual_total = residual)
     @assert s <= 1.0
     @assert s >= 0.0
     return brooks_corey_relperm(s, n, residual, kr_max, residual_total)
