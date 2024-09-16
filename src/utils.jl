@@ -1630,11 +1630,28 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
         tm = d[:transmissibility_multiplier]
         @. T *= tm
     end
+    num_aquifer_faces = 0
+    if haskey(d, :numerical_aquifers)
+        aquifers = d[:numerical_aquifers]
+        bnd_areas = d[:boundary_areas]
+        for (aq_id, aqprm) in pairs(aquifers)
+            for (bface, face) in zip(aqprm.boundary_faces, aqprm.added_faces)
+                A = bnd_areas[bface]
+
+                num_aquifer_faces += 1
+            end
+        end
+        error("Implementation not finished.")
+    end
+
     if haskey(d, :nnc)
         nnc = d[:nnc]
         num_nnc = length(nnc)
+        # Aquifers come at the end, and NNC are just before the aquifer faces.
+        # TODO: Do this in a less brittle way, e.g. by tags.
+        offset = nf - num_nnc - num_aquifer_faces
         for (i, ncon) in enumerate(nnc)
-            T[nf-num_nnc+i] = ncon[7]
+            T[i + offset] = ncon[7]
         end
     end
     return T

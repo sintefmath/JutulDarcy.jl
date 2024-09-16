@@ -740,6 +740,12 @@ function parse_reservoir(data_file; zcorn_depths = true)
     grid = data_file["GRID"]
     cartdims = grid["cartDims"]
     G = mesh_from_grid_section(grid)
+
+    # Handle numerical aquifers
+    aqunum = get(grid, "AQUNUM", missing)
+    aqucon = get(grid, "AQUCON", missing)
+    # TODO: Export this properly
+    aquifers = GeoEnergyIO.CornerPointGrid.mesh_add_numerical_aquifers!(G, aqunum, aqucon)
     active_ix = G.cell_map
     nc = number_of_cells(G)
     nf = number_of_faces(G)
@@ -759,6 +765,12 @@ function parse_reservoir(data_file; zcorn_depths = true)
             v = grid["MULTPV"][c]
             if isfinite(v)
                 multpv[i] = v
+            end
+        end
+        if !isnothing(aquifers)
+            # Avoid MULTPV for aquifer cells
+            for (aq_id, aqprm) in pairs(aquifers)
+                multpv[aqprm.cell] = 1.0
             end
         end
         extra_data_arg[:pore_volume_multiplier] = multpv
@@ -923,6 +935,18 @@ function parse_reservoir(data_file; zcorn_depths = true)
     pvtnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :pvtnum, active = active_ix)
     eqlnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :eqlnum, active = active_ix)
 
+    if !isnothing(aquifers)
+        for (aq_id, aqprm) in pairs(aquifers)
+            # Set satnum, pvtnum, static props and verify that cell is present.
+            cell = aqprm.cell
+            @assert cell <= nc "Numerical aquifer with id $aq_id exceeds number of cells $nc in mesh. Possible failure in aquifer processing."
+            satnum[cell] = aqprm.satnum
+            pvtnum[cell] = aqprm.pvtnum
+            perm[:, cell] .= aqprm.permeability
+            poro[cell] = aqprm.porosity
+        end
+    end
+
     set_scaling_arguments!(extra_data_arg, active_ix, data_file)
 
     domain = reservoir_domain(G;
@@ -950,6 +974,20 @@ function parse_reservoir(data_file; zcorn_depths = true)
         # Option to use ZCORN points to set depths
         z = get_zcorn_cell_depths(G, grid)
         @. domain[:cell_centroids][3, :] = z
+    end
+
+    if !isnothing(aquifers)
+        domain[:numerical_aquifers, nothing] = aquifers
+        vol = domain[:volumes]
+        centroids = domain[:cell_centroids]
+        for (aq_id, aqprm) in pairs(aquifers)
+            cell = aqprm.cell
+            A = aqprm.area
+            L = aqprm.length
+            D = aqprm.depth
+            vol[cell] = A*L
+            centroids[3, cell] = D
+        end
     end
     return domain
 end
