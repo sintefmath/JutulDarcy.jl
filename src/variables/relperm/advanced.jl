@@ -401,11 +401,14 @@ Base.@propagate_inbounds @inline function update_two_phase_relperm!(kr, relperm,
 end
 
 function imbibition_table_by_region(f, reg)
-    if length(f) == 1
+    nkr = length(f)
+    if nkr == 1
         @assert reg == 1
         ix = 1
     else
-        ix = reg + (length(f) ÷ 2)
+        # Don't go outside table range. In the case of values beyond the range,
+        # some cells may use imbibiton for both curves.
+        ix = min(reg + (nkr ÷ 2), nkr)
     end
     return f[ix]
 end
