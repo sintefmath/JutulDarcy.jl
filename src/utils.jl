@@ -1048,6 +1048,11 @@ function setup_reservoir_state(rmodel::SimulationModel; kwarg...)
     res_init = Dict{Symbol, Any}()
     for (k, v) in kwarg
         I = findfirst(isequal(k), pvars)
+        if eltype(v)<:AbstractFloat
+            if !all(isfinite, v)
+                jutul_message("setup_reservoir_state", "Non-finite entries found in initializer for $k.", color = :red)
+            end
+        end
         if isnothing(I)
             if !(k in svars)
                 jutul_message("setup_reservoir_state", "Recieved primary variable $k, but this is not known to reservoir model.")
@@ -1649,6 +1654,7 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
             aquifers,
             reinterpret(point_t, cell_centroids),
             reinterpret(point_t, bnd_centroids),
+            g.boundary_faces.neighbors,
             bnd_areas
         )
     else
@@ -1668,10 +1674,10 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
     return T
 end
 
-function set_aquifer_transmissibilities!(T, mesh, perm, ntg, aquifers, cell_centroids, bnd_centroids, bnd_areas)
+function set_aquifer_transmissibilities!(T, mesh, perm, ntg, aquifers, cell_centroids, bnd_centroids, bnd_neighbors, bnd_areas)
     num_aquifer_faces = 0
     for (aq_id, aqprm) in pairs(aquifers)
-        cell = aqprm.cell
+        aquifer_cell = aqprm.cell
         R = aqprm.length/2.0
         for (bface, face, opt, tmult) in zip(
                     aqprm.boundary_faces,
@@ -1680,7 +1686,8 @@ function set_aquifer_transmissibilities!(T, mesh, perm, ntg, aquifers, cell_cent
                     aqprm.boundary_transmult
                 )
             area_reservoir = bnd_areas[bface]
-            dist = norm(bnd_centroids[bface] - cell_centroids[cell])
+            reservoir_cell = bnd_neighbors[bface]
+            dist = norm(bnd_centroids[bface] - cell_centroids[reservoir_cell])
             num_aquifer_faces += 1
             is_vertical = mesh_entity_has_tag(mesh, BoundaryFaces(), :orientation, :vertical, bface)
 
@@ -1692,11 +1699,11 @@ function set_aquifer_transmissibilities!(T, mesh, perm, ntg, aquifers, cell_cent
                 dir = 1
             end
             if is_vertical
-                ntg_face = ntg[cell]
+                ntg_face = ntg[reservoir_cell]
             else
                 ntg_face = 1.0
             end
-            T_reservoir = perm[dir, cell]*area_reservoir*ntg_face/dist
+            T_reservoir = perm[dir, reservoir_cell]*area_reservoir*ntg_face/dist
 
             if opt == 0
                 area_aquifer = aqprm.area
@@ -1705,7 +1712,13 @@ function set_aquifer_transmissibilities!(T, mesh, perm, ntg, aquifers, cell_cent
                 area_aquifer = area_reservoir
             end
             T_aquifer = area_aquifer*aqprm.permeability/R
-            T[face] = tmult/(1.0/T_reservoir + 1.0/T_aquifer)
+            effective_trans = tmult/(1.0/T_reservoir + 1.0/T_aquifer)
+            if isfinite(effective_trans)
+                T[face] = effective_trans
+            else
+                @error "Non-finite aquifer transmissibility for numerical aquifer $aq_id, setting to zero" T_aquifer T_reservoir aqprm
+                T[face] = 0.0
+            end
         end
     end
     return (T, num_aquifer_faces)

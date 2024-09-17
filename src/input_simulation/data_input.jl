@@ -784,7 +784,10 @@ function initialize_numerical_aquifers!(init, rmodel, aquifers)
 
     for (id, aquifer) in pairs(aquifers)
         cell = aquifer.cell
-        p[cell] = aquifer.pressure
+        pa = aquifer.pressure
+        if isfinite(pa) && pa > DEFAULT_MINIMUM_PRESSURE
+            p[cell] = pa
+        end
     end
     return init
 end
