@@ -293,7 +293,8 @@ function Base.show(io::IO, t::MIME"text/plain", kr::ReservoirRelativePermeabilit
     if isnothing(kr.regions)
         println(io, "\n  regions: No regions defined.")
     else
-        println(io, "\n  regions: $(unique(kr.regions)...).")
+        regstr = join(unique(kr.regions), ", ")
+        println(io, "\n  regions: $regstr.")
     end
     println(io, "\n  scaling: $(endpoint_scaling_model(kr))")
 end
