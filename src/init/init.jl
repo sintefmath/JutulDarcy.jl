@@ -261,15 +261,20 @@ end
 
 
 function parse_state0_equil(model, datafile; normalize = :sum)
+    sys = model.system
+    d = model.data_domain
+
     has_water = haskey(datafile["RUNSPEC"], "WATER")
-    has_oil = haskey(datafile["RUNSPEC"], "OIL")
-    has_gas = haskey(datafile["RUNSPEC"], "GAS")
+    if sys isa CompositionalSystem
+        has_oil = has_gas = true
+    else
+        has_oil = haskey(datafile["RUNSPEC"], "OIL")
+        has_gas = haskey(datafile["RUNSPEC"], "GAS")
+    end
 
     is_co2 = haskey(datafile["RUNSPEC"], "JUTUL_CO2BRINE")
     is_single_phase = (has_water + has_oil + has_gas) == 1
 
-    sys = model.system
-    d = model.data_domain
     has_sat_reg = haskey(d, :satnum)
     ncells = number_of_cells(d)
     if has_sat_reg
