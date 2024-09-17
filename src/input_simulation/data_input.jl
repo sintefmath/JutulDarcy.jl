@@ -581,6 +581,7 @@ end
 
 function parse_state0(model, datafile; normalize = true)
     rmodel = reservoir_model(model)
+    reservoir = reservoir_domain(rmodel)
     init = Dict{Symbol, Any}()
     sol = datafile["SOLUTION"]
 
@@ -589,6 +590,11 @@ function parse_state0(model, datafile; normalize = true)
     else
         init = parse_state0_direct_assignment(rmodel, datafile)
     end
+    if haskey(reservoir, :numerical_aquifers)
+        # Aquifers are a special case
+        initialize_numerical_aquifers!(init, rmodel, reservoir[:numerical_aquifers])
+    end
+
     if haskey(init, :Temperature)
         # Temperature can be set during equil, write it to data domain for
         # parameter initialization.
@@ -732,6 +738,53 @@ function parse_state0_direct_assignment(model, datafile)
             end
         end
         init[:Saturations] = sat
+    end
+    return init
+end
+
+function initialize_numerical_aquifers!(init, rmodel, aquifers)
+    p = init[:Pressure]
+    sys = rmodel.system
+    if haskey(init, :OverallMoleFractions)
+        # Compositional
+        cnames = lowercase.(component_names(sys))
+        pos = findfirst(isequal("h2o"), cnames)
+        if isnothing(pos)
+            pos = findfirst(isequal("water"), cnames)
+        end
+        if isnothing(pos)
+            jutul_message("Did not find water component for aquifers, will not change composition", color = :yellow)
+        else
+            z = init[:OverallMoleFractions]
+            for (id, aquifer) in pairs(aquifers)
+                cell = aquifer.cell
+                @. z[:, cell] = 0.0
+                z[pos, cell] = 1.0
+            end
+        end
+    elseif haskey(init, :ImmiscibleSaturation)
+        # Black-oil
+        sw = init[:ImmiscibleSaturation]
+        for (id, aquifer) in pairs(aquifers)
+            cell = aquifer.cell
+            sw[cell] = 1.0
+        end
+    else
+        # Immiscible model
+        ix = findfirst(isequal(AqueousPhase()), get_phases(sys))
+        if isnothing(ix)
+            s = init[:Saturations]
+            for (id, aquifer) in pairs(aquifers)
+                cell = aquifer.cell
+                s[:, cell] = 0.0
+                s[ix, cell] = 1.0
+            end
+        end
+    end
+
+    for (id, aquifer) in pairs(aquifers)
+        cell = aquifer.cell
+        p[cell] = aquifer.pressure
     end
     return init
 end

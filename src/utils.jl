@@ -1705,7 +1705,7 @@ function set_aquifer_transmissibilities!(T, mesh, perm, ntg, aquifers, cell_cent
                 area_aquifer = area_reservoir
             end
             T_aquifer = area_aquifer*aqprm.permeability/R
-            T[face] = 1.0/(1.0/T_reservoir + 1.0/T_aquifer)
+            T[face] = tmult/(1.0/T_reservoir + 1.0/T_aquifer)
         end
     end
     return (T, num_aquifer_faces)
