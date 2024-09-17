@@ -1630,18 +1630,29 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
         tm = d[:transmissibility_multiplier]
         @. T *= tm
     end
-    num_aquifer_faces = 0
     if haskey(d, :numerical_aquifers)
         aquifers = d[:numerical_aquifers]
         bnd_areas = d[:boundary_areas]
-        for (aq_id, aqprm) in pairs(aquifers)
-            for (bface, face) in zip(aqprm.boundary_faces, aqprm.added_faces)
-                A = bnd_areas[bface]
+        bnd_centroids = d[:boundary_centroids]
+        cell_centroids = d[:cell_centroids]
+        D = size(cell_centroids, 1)
+        point_t = SVector{D, eltype(cell_centroids)}
 
-                num_aquifer_faces += 1
-            end
+        if haskey(d, :net_to_gross)
+            ntg = d[:net_to_gross]
+        else
+            ntg = ones(nc)
         end
-        error("Implementation not finished.")
+        T, num_aquifer_faces = set_aquifer_transmissibilities!(
+            T,
+            g, d[:permeability], ntg,
+            aquifers,
+            reinterpret(point_t, cell_centroids),
+            reinterpret(point_t, bnd_centroids),
+            bnd_areas
+        )
+    else
+        num_aquifer_faces = 0
     end
 
     if haskey(d, :nnc)
@@ -1655,6 +1666,49 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
         end
     end
     return T
+end
+
+function set_aquifer_transmissibilities!(T, mesh, perm, ntg, aquifers, cell_centroids, bnd_centroids, bnd_areas)
+    num_aquifer_faces = 0
+    for (aq_id, aqprm) in pairs(aquifers)
+        cell = aqprm.cell
+        R = aqprm.length/2.0
+        for (bface, face, opt, tmult) in zip(
+                    aqprm.boundary_faces,
+                    aqprm.added_faces,
+                    aqprm.trans_option,
+                    aqprm.boundary_transmult
+                )
+            area_reservoir = bnd_areas[bface]
+            dist = norm(bnd_centroids[bface] - cell_centroids[cell])
+            num_aquifer_faces += 1
+            is_vertical = mesh_entity_has_tag(mesh, BoundaryFaces(), :orientation, :vertical, bface)
+
+            if mesh_entity_has_tag(mesh, BoundaryFaces(), :ijk_orientation, :j, bface)
+                dir = 2
+            elseif mesh_entity_has_tag(mesh, BoundaryFaces(), :ijk_orientation, :k, bface)
+                dir = 3
+            else
+                dir = 1
+            end
+            if is_vertical
+                ntg_face = ntg[cell]
+            else
+                ntg_face = 1.0
+            end
+            T_reservoir = perm[dir, cell]*area_reservoir*ntg_face/dist
+
+            if opt == 0
+                area_aquifer = aqprm.area
+            else
+                @assert opt == 1 "Option for aquifer transmissibility expected to be 1 or 0, was $opt"
+                area_aquifer = area_reservoir
+            end
+            T_aquifer = area_aquifer*aqprm.permeability/R
+            T[face] = 1.0/(1.0/T_reservoir + 1.0/T_aquifer)
+        end
+    end
+    return (T, num_aquifer_faces)
 end
 
 function get_ijk_face_dir(g, N)
