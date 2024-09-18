@@ -1001,6 +1001,15 @@ function parse_reservoir(data_file; zcorn_depths = true)
             perm[:, cell] .= aqprm.permeability
             poro[cell] = aqprm.porosity
         end
+        for (k, v) in extra_data_arg
+            if k == :net_to_gross
+                for (aq_id, aqprm) in pairs(aquifers)
+                    cell = aqprm.cell
+                    # Net to gross should not be set for aquifers?
+                    v[cell] = 1.0
+                end
+            end
+        end
     end
 
     set_scaling_arguments!(extra_data_arg, active_ix, data_file)
