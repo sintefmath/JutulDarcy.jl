@@ -76,6 +76,7 @@ function reservoir_domain(g;
         all(isfinite, diffusion) || throw(ArgumentError("Keyword argument diffusion has non-finite entries."))
         kwarg = (diffusion = diffusion, kwarg...)
     end
+    minimum(permeability) >= 0 || throw(ArgumentError("All permeability values must be non-negative."))
     nk = length(permeability)
     nc = number_of_cells(g)
     if nk != nc && permeability isa AbstractVector
@@ -84,7 +85,8 @@ function reservoir_domain(g;
             permeability = repeat(permeability, 1, nc)
         end
     end
-    return DataDomain(g;
+
+    reservoir = DataDomain(g;
         permeability = permeability,
         porosity = porosity,
         rock_thermal_conductivity = rock_thermal_conductivity,
@@ -92,6 +94,13 @@ function reservoir_domain(g;
         rock_density = rock_density,
         kwarg...
     )
+    for k in [:porosity, :net_to_gross]
+        if haskey(reservoir, k)
+            val = reservoir[k]
+            minimum(val) > 0 || throw(ArgumentError("Keyword argument $k must have positive entries."))
+        end
+    end
+    return reservoir
 end
 
 """
