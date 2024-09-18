@@ -152,7 +152,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         return phase_density
     end
     # Find the reference phase. It is either liquid
-    ref_phase = find_reference_phase(model.system)
+    ref_phase = get_reference_phase_index(model.system)
     pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_f, contacts_pc, ref_phase)
     if nph > 1
         relperm = model.secondary_variables[:RelativePermeabilities]
@@ -233,32 +233,6 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
 
     return init
 end
-
-function find_reference_phase(system)
-    mphases = get_phases(system)
-    function find_phase(k)
-        ix = 0
-        for (i, ph) in enumerate(mphases)
-            if ph isa LiquidPhase
-                ix = i
-                break
-            end
-        end
-        return ix
-    end
-    l = find_phase(LiquidPhase)
-    a = find_phase(AqueousPhase)
-    if l > 0
-        phase = l
-    elseif a > 0
-        phase = a
-    else
-        # Last phase is water or something custom, send out 1.
-        phase = 1
-    end
-    return phase
-end
-
 
 function parse_state0_equil(model, datafile; normalize = :sum)
     sys = model.system

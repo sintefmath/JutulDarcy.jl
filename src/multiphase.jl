@@ -495,12 +495,46 @@ end
 
 function capillary_pressure(model, s)
     pck = :CapillaryPressure
+    ref_index = get_reference_phase_index(model.system)
     if haskey(s, pck)
         pc = s[pck]
-        ref_index = min(2, number_of_phases(model.system))
     else
         pc = nothing
-        ref_index = 1
     end
     return(pc, ref_index)
+end
+
+get_reference_phase_index(::SinglePhaseSystem) = 1
+
+function get_reference_phase_index(system::JutulSystem)
+    mphases = get_phases(system)
+    return get_reference_phase_index(mphases)
+end
+
+function get_reference_phase_index(sys::MultiPhaseSystem)
+    return sys.reference_phase_index
+end
+
+function get_reference_phase_index(mphases)
+    function find_phase(k)
+        ix = 0
+        for (i, ph) in enumerate(mphases)
+            if ph isa LiquidPhase
+                ix = i
+                break
+            end
+        end
+        return ix
+    end
+    l = find_phase(LiquidPhase)
+    a = find_phase(AqueousPhase)
+    if l > 0
+        phase = l
+    elseif a > 0
+        phase = a
+    else
+        # Last phase is water or something custom, send out 1.
+        phase = 1
+    end
+    return phase
 end

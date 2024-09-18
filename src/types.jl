@@ -24,6 +24,7 @@ struct MultiPhaseCompositionalSystemLV{E, T, O, R, N} <: CompositionalSystem whe
     components::Vector{String}
     equation_of_state::E
     rho_ref::R
+    reference_phase_index::Int
 end
 
 const LVCompositional2PhaseSystem = MultiPhaseCompositionalSystemLV{<:Any, <:Any, Nothing, <:Any, <:Any}
@@ -43,7 +44,13 @@ the phase that is not a liquid or a vapor phase will be treated as immiscible in
 subsequent simulations and given the name from `other_name` when listed as a
 component.
 """
-function MultiPhaseCompositionalSystemLV(equation_of_state, phases = (LiquidPhase(), VaporPhase()); reference_densities = ones(length(phases)), other_name = "Water")
+function MultiPhaseCompositionalSystemLV(
+        equation_of_state,
+        phases = (LiquidPhase(), VaporPhase());
+        reference_densities = ones(length(phases)),
+        other_name = "Water",
+        reference_phase_index = get_reference_phase_index(phases)
+    )
     c = copy(MultiComponentFlash.component_names(equation_of_state))
     N = length(c)
     phases = tuple(phases...)
@@ -61,7 +68,7 @@ function MultiPhaseCompositionalSystemLV(equation_of_state, phases = (LiquidPhas
     end
     only(findall(isequal(LiquidPhase()), phases))
     only(findall(isequal(VaporPhase()), phases))
-    return MultiPhaseCompositionalSystemLV{typeof(equation_of_state), T, O, typeof(reference_densities), N}(phases, c, equation_of_state, reference_densities)
+    return MultiPhaseCompositionalSystemLV{typeof(equation_of_state), T, O, typeof(reference_densities), N}(phases, c, equation_of_state, reference_densities, reference_phase_index)
 end
 
 function Base.show(io::IO, sys::MultiPhaseCompositionalSystemLV)
@@ -90,6 +97,7 @@ struct StandardBlackOilSystem{D, V, W, R, F, T, P, Num} <: BlackOilSystem
     rs_eps::Num
     rv_eps::Num
     s_eps::Num
+    reference_phase_index::Int
 end
 
 """
@@ -117,13 +125,18 @@ function StandardBlackOilSystem(;
         eps_s = 1e-5,
         eps_rs = nothing,
         eps_rv = nothing,
-        formulation::Symbol = :varswitch
+        formulation::Symbol = :varswitch,
+        reference_phase_index = missing
     )
     rs_max = region_wrap(rs_max)
     rv_max = region_wrap(rv_max)
     RS = typeof(rs_max)
     RV = typeof(rv_max)
     phases = tuple(phases...)
+    if ismissing(reference_phase_index)
+        reference_phase_index = get_reference_phase_index(phases)
+    end
+    reference_phase_index::Int
     nph = length(phases)
     if nph == 2 && length(reference_densities) == 3
         reference_densities = reference_densities[2:3]
@@ -151,7 +164,7 @@ function StandardBlackOilSystem(;
         end
     end
     @assert formulation == :varswitch || formulation == :zg
-    return StandardBlackOilSystem{RS, RV, has_water, typeof(reference_densities), formulation, typeof(phase_ind), typeof(phases), Float64}(rs_max, rv_max, reference_densities, phase_ind, phases, saturated_chop, keep_bubble_flag, eps_rs, eps_rv, eps_s)
+    return StandardBlackOilSystem{RS, RV, has_water, typeof(reference_densities), formulation, typeof(phase_ind), typeof(phases), Float64}(rs_max, rv_max, reference_densities, phase_ind, phases, saturated_chop, keep_bubble_flag, eps_rs, eps_rv, eps_s, reference_phase_index)
 end
 
 @inline function rs_max_function(sys::StandardBlackOilSystem, region = 1)
@@ -190,6 +203,7 @@ const StandardBlackOilModelWithWater = SimulationModel{<:Any, <:StandardBlackOil
 struct ImmiscibleSystem{T, F} <: MultiPhaseSystem where {T<:Tuple, F<:NTuple}
     phases::T
     rho_ref::F
+    reference_phase_index::Int
 end
 
 """
@@ -205,10 +219,13 @@ densitites. This system is easy to specify with [Pressure](@ref) and
 that there is no mass transfer between phases and that a phase is uniform in
 composition.
 """
-function ImmiscibleSystem(phases; reference_densities = ones(length(phases)))
+function ImmiscibleSystem(phases; reference_densities = ones(length(phases)), reference_phase_index = missing)
     phases = tuple(phases...)
+    if ismissing(reference_phase_index)
+        reference_phase_index = get_reference_phase_index(phases)
+    end
     reference_densities = tuple(reference_densities...)
-    return ImmiscibleSystem(phases, reference_densities)
+    return ImmiscibleSystem(phases, reference_densities, reference_phase_index)
 end
 
 Base.show(io::IO, t::ImmiscibleSystem) = print(io, "ImmiscibleSystem with $(join([typeof(p) for p in t.phases], ", "))")
