@@ -72,7 +72,7 @@ end
                 reg = region(pc.regions, c)
                 pcow_c = table_by_region(pcow, reg)
                 sw = Saturations[1, c]
-                Δp[1, c] = -pcow_c(sw)
+                Δp[1, c] = pcow_c(sw)
                 Δp[2, c] = 0
             end
         else
@@ -82,7 +82,8 @@ end
                 pcog_c = table_by_region(pcog, reg)
                 sw = Saturations[1, c]
                 sg = Saturations[3, c]
-                Δp[1, c] = -pcow_c(sw)
+                # Note: Negative sign already taken care of in input
+                Δp[1, c] = pcow_c(sw)
                 Δp[2, c] = pcog_c(sg)
             end
         end

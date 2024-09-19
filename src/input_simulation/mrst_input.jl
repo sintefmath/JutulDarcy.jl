@@ -588,7 +588,7 @@ function flat_region_expand(x::Vector, n = nothing)
 end
 
 function deck_pc(props; oil, water, gas, satnum = nothing, is_co2 = false)
-    function get_pc(T, pc_ix, reverse = false)
+    function get_pc(T, pc_ix; reverse = false, sgn = 1.0)
         found = false
         PC = []
         for tab in T
@@ -601,6 +601,7 @@ function deck_pc(props; oil, water, gas, satnum = nothing, is_co2 = false)
                 pc = -pc[ix]
                 s = s[ix]
             end
+            @. pc = sgn*pc
             s, pc = saturation_table_handle_defaults(s, pc)
             if length(T) == 1
                 constant_dx = missing
@@ -616,28 +617,19 @@ function deck_pc(props; oil, water, gas, satnum = nothing, is_co2 = false)
     pc_impl = Vector{Any}()
     if water && oil
         if haskey(props, "SWOF")
-            interp_ow, found_pcow = get_pc(props["SWOF"], 4)
+            interp_ow, found_pcow = get_pc(props["SWOF"], 4, sgn = -1)
         else
-            interp_ow, found_pcow = get_pc(props["SWFN"], 3)
+            interp_ow, found_pcow = get_pc(props["SWFN"], 3, sgn = -1)
         end
         push!(pc_impl, interp_ow)
     else
         found_pcow = false
     end
     if oil && gas
-        # if is_co2 && (oil + gas + water) == 2
-        #     # CO2 store models may act was oil-gas but they are really
-        #     # representing water-co2 and the capillary pressure should be
-        #     # p_g = p_o + p_og
-        #     reverse = false
-        # else
-        #     reverse = !water
-        # end
-        reverse = !water
         if haskey(props, "SGOF")
-            interp_og, found_pcog = get_pc(props["SGOF"], 4, reverse)
+            interp_og, found_pcog = get_pc(props["SGOF"], 4)
         else
-            interp_og, found_pcog = get_pc(props["SGFN"], 3, reverse)
+            interp_og, found_pcog = get_pc(props["SGFN"], 3)
         end
         push!(pc_impl, interp_og)
     else

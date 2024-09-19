@@ -371,9 +371,6 @@ function parse_state0_equil(model, datafile; normalize = :sum)
                             cap = cap[2:end]
                         end
                         ix = unique(i -> cap[i], 1:length(cap))
-                        if i == 1 && get_phases(model.system)[1] isa AqueousPhase
-                            @. cap *= -1
-                        end
                         s = s[ix]
                         cap = cap[ix]
                         if length(s) == 1
@@ -425,11 +422,11 @@ function parse_state0_equil(model, datafile; normalize = :sum)
                         contacts_pc = (goc_pc, )
                     else
                         contacts = (woc, )
-                        contacts_pc = (-woc_pc, )
+                        contacts_pc = (woc_pc, )
                     end
                 else
                     contacts = (woc, goc)
-                    contacts_pc = (-woc_pc, goc_pc)
+                    contacts_pc = (woc_pc, goc_pc)
                 end
 
                 if disgas || vapoil
