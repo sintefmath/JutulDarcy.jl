@@ -49,8 +49,10 @@ end
 @jutul_secondary function update_pc!(Δp, pc::SimpleCapillaryPressure, model, Saturations, ix)
     cap = pc.pc
     npc = size(Δp, 1)
+    reference_ph = get_reference_phase_index(model.system)
     if npc == 1
         pcow = only(cap)
+        @assert reference_ph == 1
         @inbounds for c in ix
             reg = region(pc.regions, c)
             pcow_c = table_by_region(pcow, reg)
@@ -58,6 +60,7 @@ end
             Δp[1, c] = pcow_c(sw)
         end
     elseif npc == 2
+        @assert reference_ph == 2
         pcow, pcog = cap
         if isnothing(pcow)
             @inbounds for c in ix
