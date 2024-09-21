@@ -1685,15 +1685,17 @@ end
 
 function set_aquifer_transmissibilities!(T, mesh, perm, ntg, aquifers, cell_centroids, bnd_centroids, bnd_neighbors, bnd_areas)
     num_aquifer_faces = 0
-    for (aq_id, aqprm) in pairs(aquifers)
+    # Connections to the reservoir
+    for (aq_id, aquifer) in pairs(aquifers)
+        aqprm = aquifer.aquifer_cells[1]
         aquifer_cell = aqprm.cell
         R = aqprm.length/2.0
         for (bface, face, opt, tmult) in zip(
-                    aqprm.boundary_faces,
-                    aqprm.added_faces,
-                    aqprm.trans_option,
-                    aqprm.boundary_transmult
-                )
+                aquifer.boundary_faces,
+                aquifer.added_faces,
+                aquifer.trans_option,
+                aquifer.boundary_transmult
+            )
             area_reservoir = bnd_areas[bface]
             reservoir_cell = bnd_neighbors[bface]
             dist = norm(bnd_centroids[bface] - cell_centroids[reservoir_cell])
@@ -1728,6 +1730,19 @@ function set_aquifer_transmissibilities!(T, mesh, perm, ntg, aquifers, cell_cent
                 @error "Non-finite aquifer transmissibility for numerical aquifer $aq_id, setting to zero" T_aquifer T_reservoir aqprm
                 T[face] = 0.0
             end
+        end
+    end
+    # Aquifer internal connections
+    for (aq_id, aquifer) in pairs(aquifers)
+        aqprms = aquifer.aquifer_cells
+        @assert length(aquifer.aquifer_faces) == length(aqprms)-1
+        for (i, face) in enumerate(aquifer.aquifer_faces)
+            num_aquifer_faces += 1
+            curr = aqprms[i]
+            next = aqprms[i+1]
+            T_c = curr.area*curr.permeability/(curr.length/2.0)
+            T_n = next.area*next.permeability/(next.length/2.0)
+            T[face] = 1.0/(1.0/T_c + 1.0/T_n)
         end
     end
     return (T, num_aquifer_faces)
