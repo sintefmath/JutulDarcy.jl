@@ -757,9 +757,9 @@ function initialize_numerical_aquifers!(init, rmodel, aquifers)
         else
             z = init[:OverallMoleFractions]
             for (id, aquifer) in pairs(aquifers)
-                cell = aquifer.cell
-                @. z[:, cell] = 0.0
-                z[pos, cell] = 1.0
+                cells = map(x -> x.cell, aquifer.aquifer_cells)
+                @. z[:, cells] = 0.0
+                @. z[pos, cells] = 1.0
             end
         end
     elseif haskey(init, :ImmiscibleSaturation)
