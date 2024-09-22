@@ -63,10 +63,21 @@ function common_well_setup(nr; dz = nothing, WI = nothing, gravity = gravity_con
 end
 
 """
-    setup_well(D::DataDomain, reservoir_cells; skin = 0.0, Kh = nothing, radius = 0.1, dir = :z)
+    setup_well(D::DataDomain, reservoir_cells; skin = 0.0, Kh = nothing, radius = 0.1, dir = :z, name = :Well)
+    w = setup_well(D, 1, name = :MyWell)         # Cell 1 in the grid
+    w = setup_well(D, (2, 5, 1), name = :MyWell) # Position (2, 5, 1) in logically structured mesh
+    w2 = setup_well(D, [1, 2, 3], name = :MyOtherWell)
+
 
 Set up a well in `reservoir_cells` with given skin factor and radius. The order
 of cells matter as it is treated as a trajectory.
+
+The `name` keyword argument can be left defaulted if your model will only have a
+single well (named `:Well`). It is highly recommended to provide this whenever a
+well is set up.
+
+`reservoir_cells` can be one of the following: A Vector of cells, a single cell,
+a Vector of `(I, J, K)` Tuples or a single Tuple of the same type.
 """
 function setup_well(D::DataDomain, reservoir_cells; cell_centers = D[:cell_centroids], kwarg...)
     K = D[:permeability]
@@ -205,10 +216,12 @@ function Jutul.plot_primitives(mesh::MultiSegmentWell, plot_type; kwarg...)
 end
 
 """
-    setup_vertical_well(D::DataDomain, i, j; <kwarg>)
+    setup_vertical_well(D::DataDomain, i, j; name = :MyWell, <kwarg>)
 
-Set up a vertical well with a `DataDomain` input that represents the porous
-medium / reservoir where the wells it to be placed.
+Set up a vertical well with a [`DataDomain`](@ref) input that represents the porous
+medium / reservoir where the wells it to be placed. See [`SimpleWell`](@ref),
+[`MultiSegmentWell`](@ref) and [`setup_well`](@ref) for more details about possible keyword
+arguments.
 """
 function setup_vertical_well(D::DataDomain, i, j; cell_centers = D[:cell_centroids], kwarg...)
     K = D[:permeability]

@@ -23,7 +23,8 @@ Darcy, bar, kg, meter, day, yr = si_units(:darcy, :bar, :kilogram, :meter, :day,
 # surface has a large impact on where the CO2 migrates.
 cart_dims = (nx, 1, nz)
 physical_dims = (1000.0, 1.0, 50.0)
-mesh = UnstructuredMesh(CartesianMesh(cart_dims, physical_dims))
+cart_mesh = CartesianMesh(cart_dims, physical_dims)
+mesh = UnstructuredMesh(cart_mesh)
 
 points = mesh.node_points
 for (i, pt) in enumerate(points)
@@ -200,9 +201,9 @@ println("Boundary condition added to $(length(bc)) cells.")
 # ## Plot the model
 plot_reservoir(model)
 # ## Set up schedule
-# We set up 25 years of injection and 1000 years of migration where the well is
-# shut. The density of the injector is set to 900 kg/m^3, which is roughly
-# the density of CO2 at in-situ conditions.
+# We set up 25 years of injection and 475 years of migration where the well is
+# shut. The density of the injector is set to 900 kg/m^3, which is roughly the
+# density of CO2 at these high-pressure in-situ conditions.
 nstep = 25
 nstep_shut = 475
 dt_inject = fill(365.0day, nstep)
@@ -239,10 +240,10 @@ wd, states, t = simulate_reservoir(state0, model, dt,
     max_timestep = 90day
 )
 # ## Plot the CO2 mole fraction
-# We plot log10 of the CO2 mole fraction. We use log10 to account for the fact
-# that the mole fraction in cells made up of only the aqueous phase is much
-# smaller than that of cells with only the gaseous phase, where there is almost
-# just CO2.
+# We plot the overall CO2 mole fraction. We scale the color range to account for
+# the fact that the mole fraction in cells made up of only the aqueous phase is
+# much smaller than that of cells with only the gaseous phase, where there is
+# almost just CO2.
 using GLMakie
 function plot_co2!(fig, ix, x, title = "")
     ax = Axis3(fig[ix, 1],
@@ -251,7 +252,7 @@ function plot_co2!(fig, ix, x, title = "")
         elevation = 0.05,
         aspect = (1.0, 1.0, 0.3),
         title = title)
-    plt = plot_cell_data!(ax, mesh, x, colormap = :seaborn_icefire_gradient)
+    plt = plot_cell_data!(ax, mesh, x, colormap = :seaborn_icefire_gradient, colorrange = (0.0, 0.1))
     Colorbar(fig[ix, 2], plt)
 end
 fig = Figure(size = (900, 1200))
@@ -259,7 +260,7 @@ for (i, step) in enumerate([1, 5, nstep, nstep+nstep_shut])
     if use_immiscible
         plot_co2!(fig, i, states[step][:Saturations][2, :], "CO2 plume saturation at report step $step/$(nstep+nstep_shut)")
     else
-        plot_co2!(fig, i, log10.(states[step][:OverallMoleFractions][2, :]), "log10 of CO2 mole fraction at report step $step/$(nstep+nstep_shut)")
+        plot_co2!(fig, i, states[step][:OverallMoleFractions][2, :], "CO2 mole fraction at report step $step/$(nstep+nstep_shut)")
     end
 end
 fig

@@ -620,6 +620,15 @@ struct TableCompressiblePoreVolume{V, R} <: ScalarVariable
     end
 end
 
+function Jutul.subvariable(p::TableCompressiblePoreVolume, map::FiniteVolumeGlobalMap)
+    c = map.cells
+    regions = Jutul.partition_variable_slice(p.regions, c)
+    return TableCompressiblePoreVolume(
+        p.tab,
+        regions = regions
+    )
+end
+
 struct ScalarPressureTable{V, R} <: ScalarVariable
     tab::V
     regions::R
@@ -628,6 +637,15 @@ struct ScalarPressureTable{V, R} <: ScalarVariable
         tab = region_wrap(tab, regions)
         new{typeof(tab), typeof(regions)}(tab, regions)
     end
+end
+
+function Jutul.subvariable(p::ScalarPressureTable, map::FiniteVolumeGlobalMap)
+    c = map.cells
+    regions = Jutul.partition_variable_slice(p.regions, c)
+    return ScalarPressureTable(
+        p.tab,
+        regions = regions
+    )
 end
 
 @jutul_secondary function update_variable!(pv, Φ::ScalarPressureTable, model, Pressure, ix)

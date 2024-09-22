@@ -581,6 +581,7 @@ end
 
 function parse_state0(model, datafile; normalize = true)
     rmodel = reservoir_model(model)
+    reservoir = reservoir_domain(rmodel)
     init = Dict{Symbol, Any}()
     sol = datafile["SOLUTION"]
 
@@ -589,6 +590,11 @@ function parse_state0(model, datafile; normalize = true)
     else
         init = parse_state0_direct_assignment(rmodel, datafile)
     end
+    if haskey(reservoir, :numerical_aquifers)
+        # Aquifers are a special case
+        initialize_numerical_aquifers!(init, rmodel, reservoir[:numerical_aquifers])
+    end
+
     if haskey(init, :Temperature)
         # Temperature can be set during equil, write it to data domain for
         # parameter initialization.
@@ -736,10 +742,68 @@ function parse_state0_direct_assignment(model, datafile)
     return init
 end
 
+function initialize_numerical_aquifers!(init, rmodel, aquifers)
+    p = init[:Pressure]
+    sys = rmodel.system
+    if haskey(init, :OverallMoleFractions)
+        # Compositional
+        cnames = lowercase.(component_names(sys))
+        pos = findfirst(isequal("h2o"), cnames)
+        if isnothing(pos)
+            pos = findfirst(isequal("water"), cnames)
+        end
+        if isnothing(pos)
+            jutul_message("Did not find water component for aquifers, will not change composition", color = :yellow)
+        else
+            z = init[:OverallMoleFractions]
+            for (id, aquifer) in pairs(aquifers)
+                cells = map(x -> x.cell, aquifer.aquifer_cells)
+                @. z[:, cells] = 0.0
+                @. z[pos, cells] = 1.0
+            end
+        end
+    elseif haskey(init, :ImmiscibleSaturation)
+        # Black-oil
+        sw = init[:ImmiscibleSaturation]
+        for (id, aquifer) in pairs(aquifers)
+            cells = map(x -> x.cell, aquifer.aquifer_cells)
+            sw[cells] .= 1.0
+        end
+    else
+        # Immiscible model
+        ix = findfirst(isequal(AqueousPhase()), get_phases(sys))
+        if isnothing(ix)
+            s = init[:Saturations]
+            for (id, aquifer) in pairs(aquifers)
+                cells = map(x -> x.cell, aquifer.aquifer_cells)
+                s[:, cells] .= 0.0
+                s[ix, cells] .= 1.0
+            end
+        end
+    end
+
+    for (id, aquifer) in pairs(aquifers)
+        for aqprm in aquifer.aquifer_cells
+            cell = aqprm.cell
+            pa = aqprm.pressure
+            if isfinite(pa) && pa > DEFAULT_MINIMUM_PRESSURE
+                p[cell] = pa
+            end
+        end
+    end
+    return init
+end
+
 function parse_reservoir(data_file; zcorn_depths = true)
     grid = data_file["GRID"]
     cartdims = grid["cartDims"]
     G = mesh_from_grid_section(grid)
+
+    # Handle numerical aquifers
+    aqunum = get(grid, "AQUNUM", missing)
+    aqucon = get(grid, "AQUCON", missing)
+    # TODO: Export this properly
+    aquifers = GeoEnergyIO.CornerPointGrid.mesh_add_numerical_aquifers!(G, aqunum, aqucon)
     active_ix = G.cell_map
     nc = number_of_cells(G)
     nf = number_of_faces(G)
@@ -759,6 +823,12 @@ function parse_reservoir(data_file; zcorn_depths = true)
             v = grid["MULTPV"][c]
             if isfinite(v)
                 multpv[i] = v
+            end
+        end
+        if !isnothing(aquifers)
+            # Avoid MULTPV for aquifer cells
+            for (aq_id, aqprm) in pairs(aquifers)
+                multpv[aqprm.cell] = 1.0
             end
         end
         extra_data_arg[:pore_volume_multiplier] = multpv
@@ -923,6 +993,31 @@ function parse_reservoir(data_file; zcorn_depths = true)
     pvtnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :pvtnum, active = active_ix)
     eqlnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :eqlnum, active = active_ix)
 
+    if !isnothing(aquifers)
+        for (aq_id, aquifer) in pairs(aquifers)
+            for aqprm in aquifer.aquifer_cells
+                # Set satnum, pvtnum, static props and verify that cell is present.
+                cell = aqprm.cell
+                @assert cell <= nc "Numerical aquifer with id $aq_id exceeds number of cells $nc in mesh. Possible failure in aquifer processing."
+                satnum[cell] = aqprm.satnum
+                pvtnum[cell] = aqprm.pvtnum
+                perm[:, cell] .= aqprm.permeability
+                poro[cell] = aqprm.porosity
+            end
+        end
+        for (k, v) in extra_data_arg
+            if k == :net_to_gross
+                for (aq_id, aquifer) in pairs(aquifers)
+                    for aqprm in aquifer.aquifer_cells
+                        cell = aqprm.cell
+                        # Net to gross should not be set for aquifers?
+                        v[cell] = 1.0
+                    end
+                end
+            end
+        end
+    end
+
     set_scaling_arguments!(extra_data_arg, active_ix, data_file)
 
     domain = reservoir_domain(G;
@@ -950,6 +1045,22 @@ function parse_reservoir(data_file; zcorn_depths = true)
         # Option to use ZCORN points to set depths
         z = get_zcorn_cell_depths(G, grid)
         @. domain[:cell_centroids][3, :] = z
+    end
+
+    if !isnothing(aquifers)
+        domain[:numerical_aquifers, nothing] = aquifers
+        vol = domain[:volumes]
+        centroids = domain[:cell_centroids]
+        for (aq_id, aquifer) in pairs(aquifers)
+            for aqprm in aquifer.aquifer_cells
+                cell = aqprm.cell
+                A = aqprm.area
+                L = aqprm.length
+                D = aqprm.depth
+                vol[cell] = A*L
+                centroids[3, cell] = D
+            end
+        end
     end
     return domain
 end

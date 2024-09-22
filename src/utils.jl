@@ -76,6 +76,7 @@ function reservoir_domain(g;
         all(isfinite, diffusion) || throw(ArgumentError("Keyword argument diffusion has non-finite entries."))
         kwarg = (diffusion = diffusion, kwarg...)
     end
+    minimum(permeability) >= 0 || throw(ArgumentError("All permeability values must be non-negative."))
     nk = length(permeability)
     nc = number_of_cells(g)
     if nk != nc && permeability isa AbstractVector
@@ -84,7 +85,8 @@ function reservoir_domain(g;
             permeability = repeat(permeability, 1, nc)
         end
     end
-    return DataDomain(g;
+
+    reservoir = DataDomain(g;
         permeability = permeability,
         porosity = porosity,
         rock_thermal_conductivity = rock_thermal_conductivity,
@@ -92,6 +94,13 @@ function reservoir_domain(g;
         rock_density = rock_density,
         kwarg...
     )
+    for k in [:porosity, :net_to_gross]
+        if haskey(reservoir, k)
+            val = reservoir[k]
+            minimum(val) > 0 || throw(ArgumentError("Keyword argument $k must have positive entries."))
+        end
+    end
+    return reservoir
 end
 
 """
@@ -1048,6 +1057,11 @@ function setup_reservoir_state(rmodel::SimulationModel; kwarg...)
     res_init = Dict{Symbol, Any}()
     for (k, v) in kwarg
         I = findfirst(isequal(k), pvars)
+        if eltype(v)<:AbstractFloat
+            if !all(isfinite, v)
+                jutul_message("setup_reservoir_state", "Non-finite entries found in initializer for $k.", color = :red)
+            end
+        end
         if isnothing(I)
             if !(k in svars)
                 jutul_message("setup_reservoir_state", "Recieved primary variable $k, but this is not known to reservoir model.")
@@ -1630,14 +1644,108 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
         tm = d[:transmissibility_multiplier]
         @. T *= tm
     end
+    if haskey(d, :numerical_aquifers)
+        aquifers = d[:numerical_aquifers]
+        bnd_areas = d[:boundary_areas]
+        bnd_centroids = d[:boundary_centroids]
+        cell_centroids = d[:cell_centroids]
+        D = size(cell_centroids, 1)
+        point_t = SVector{D, eltype(cell_centroids)}
+
+        if haskey(d, :net_to_gross)
+            ntg = d[:net_to_gross]
+        else
+            ntg = ones(nc)
+        end
+        T, num_aquifer_faces = set_aquifer_transmissibilities!(
+            T,
+            g, d[:permeability], ntg,
+            aquifers,
+            reinterpret(point_t, cell_centroids),
+            reinterpret(point_t, bnd_centroids),
+            g.boundary_faces.neighbors,
+            bnd_areas
+        )
+    else
+        num_aquifer_faces = 0
+    end
+
     if haskey(d, :nnc)
         nnc = d[:nnc]
         num_nnc = length(nnc)
+        # Aquifers come at the end, and NNC are just before the aquifer faces.
+        # TODO: Do this in a less brittle way, e.g. by tags.
+        offset = nf - num_nnc - num_aquifer_faces
         for (i, ncon) in enumerate(nnc)
-            T[nf-num_nnc+i] = ncon[7]
+            T[i + offset] = ncon[7]
         end
     end
     return T
+end
+
+function set_aquifer_transmissibilities!(T, mesh, perm, ntg, aquifers, cell_centroids, bnd_centroids, bnd_neighbors, bnd_areas)
+    num_aquifer_faces = 0
+    # Connections to the reservoir
+    for (aq_id, aquifer) in pairs(aquifers)
+        aqprm = aquifer.aquifer_cells[1]
+        aquifer_cell = aqprm.cell
+        R = aqprm.length/2.0
+        for (bface, face, opt, tmult) in zip(
+                aquifer.boundary_faces,
+                aquifer.added_faces,
+                aquifer.trans_option,
+                aquifer.boundary_transmult
+            )
+            area_reservoir = bnd_areas[bface]
+            reservoir_cell = bnd_neighbors[bface]
+            dist = norm(bnd_centroids[bface] - cell_centroids[reservoir_cell])
+            num_aquifer_faces += 1
+            is_vertical = mesh_entity_has_tag(mesh, BoundaryFaces(), :orientation, :vertical, bface)
+
+            if mesh_entity_has_tag(mesh, BoundaryFaces(), :ijk_orientation, :j, bface)
+                dir = 2
+            elseif mesh_entity_has_tag(mesh, BoundaryFaces(), :ijk_orientation, :k, bface)
+                dir = 3
+            else
+                dir = 1
+            end
+            if is_vertical
+                ntg_face = ntg[reservoir_cell]
+            else
+                ntg_face = 1.0
+            end
+            T_reservoir = perm[dir, reservoir_cell]*area_reservoir*ntg_face/dist
+
+            if opt == 0
+                area_aquifer = aqprm.area
+            else
+                @assert opt == 1 "Option for aquifer transmissibility expected to be 1 or 0, was $opt"
+                area_aquifer = area_reservoir
+            end
+            T_aquifer = area_aquifer*aqprm.permeability/R
+            effective_trans = tmult/(1.0/T_reservoir + 1.0/T_aquifer)
+            if isfinite(effective_trans)
+                T[face] = effective_trans
+            else
+                @error "Non-finite aquifer transmissibility for numerical aquifer $aq_id, setting to zero" T_aquifer T_reservoir aqprm
+                T[face] = 0.0
+            end
+        end
+    end
+    # Aquifer internal connections
+    for (aq_id, aquifer) in pairs(aquifers)
+        aqprms = aquifer.aquifer_cells
+        @assert length(aquifer.aquifer_faces) == length(aqprms)-1
+        for (i, face) in enumerate(aquifer.aquifer_faces)
+            num_aquifer_faces += 1
+            curr = aqprms[i]
+            next = aqprms[i+1]
+            T_c = curr.area*curr.permeability/(curr.length/2.0)
+            T_n = next.area*next.permeability/(next.length/2.0)
+            T[face] = 1.0/(1.0/T_c + 1.0/T_n)
+        end
+    end
+    return (T, num_aquifer_faces)
 end
 
 function get_ijk_face_dir(g, N)
@@ -1720,6 +1828,18 @@ end
 
 export co2_inventory
 
+"""
+    inventory = co2_inventory(model, ws, states, t; cells = missing, co2_name = "CO2")
+    inventory = co2_inventory(model, result::ReservoirSimResult; cells = missing)
+
+Compute CO2 inventory for each step for a given `model`, well results `ws` and
+reporting times t. If provided, the keyword argument `cells` will compute
+inventory inside the region defined by the cells, and let any additional CO2 be
+categorized as "outside region".
+
+The inventory will be a Vector of Dicts where each entry contains a breakdown of
+the status of the CO2 at that time, including residual and dissolution trapping.
+"""
 function co2_inventory(model, ws, states, t; cells = missing, co2_name = "CO2")
     dt = diff(vcat(0, t))
     @assert all(dt .> 0.0) "Fourth argument t should be time from simulation start. Maybe you passed timesteps?"
@@ -1905,13 +2025,16 @@ export generate_jutuldarcy_examples
         pth = pwd(),
         name = "jutuldarcy_examples";
         makie = nothing,
+        project = true,
         force = false
     )
 
 Make a copy of all JutulDarcy examples in `pth` in a subfolder
 `jutuldarcy_examples`. An error is thrown if the folder already exists, unless
 the `force=true`, in which case the folder will be overwritten and the existing
-contents will be permanently lost.
+contents will be permanently lost. If `project=true`, a `Project.toml` file will
+be generated with the same dependencies as that of the doc build system that
+contains everything needed to run the examples.
 
 The `makie` argument allows replacing the calls to GLMakie in the examples with
 another backend specified by a `String`. There are no checks performed if the
@@ -1921,6 +2044,7 @@ function generate_jutuldarcy_examples(
         pth = pwd(),
         name = "jutuldarcy_examples";
         makie = nothing,
+        project = true,
         force = false
     )
     if !ispath(pth)
@@ -1941,6 +2065,7 @@ function generate_jutuldarcy_examples(
     end
     proj_location = joinpath(jdir, "..", "docs", "Project.toml")
     cp(ex_dir, proj_location, force = true)
+    chmod(ex_dir, 0o777, recursive = true)
     return dest
 end
 
@@ -1949,6 +2074,10 @@ function replace_makie_calls!(dest, makie)
     makie_str = "$makie"
     for (root, dirs, files) in walkdir(dest)
         for ex in files
+            if !endswith(lowercase(ex), ".jl")
+                # Don't mess with Project.toml
+                continue
+            end
             ex_pth = joinpath(root, ex)
             ex_lines = readlines(ex_pth, keep=true)
             f = open(ex_pth, "w")

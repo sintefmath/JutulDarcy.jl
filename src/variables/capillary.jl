@@ -49,21 +49,38 @@ end
 @jutul_secondary function update_pc!(Δp, pc::SimpleCapillaryPressure, model, Saturations, ix)
     cap = pc.pc
     npc = size(Δp, 1)
+    nph = size(Saturations, 1)
+    @assert npc == nph - 1
+    reference_ph = get_reference_phase_index(model.system)
     if npc == 1
+        if reference_ph == 1
+            w = 2
+        else
+            w = 1
+        end
         pcow = only(cap)
+        @assert reference_ph == 1
         @inbounds for c in ix
             reg = region(pc.regions, c)
             pcow_c = table_by_region(pcow, reg)
-            sw = Saturations[1, c]
+            sw = Saturations[w, c]
             Δp[1, c] = pcow_c(sw)
         end
     elseif npc == 2
+        if reference_ph == 1
+            w, g = 2, 3
+        elseif reference_ph == 2
+            w, g = 1, 3
+        else
+            @assert reference_ph == 3
+            w, g = 1, 2
+        end
         pcow, pcog = cap
         if isnothing(pcow)
             @inbounds for c in ix
                 reg = region(pc.regions, c)
                 pcog_c = table_by_region(pcog, reg)
-                sg = Saturations[3, c]
+                sg = Saturations[g, c]
                 Δp[1, c] = 0
                 Δp[2, c] = pcog_c(sg)
             end
@@ -71,8 +88,8 @@ end
             @inbounds for c in ix
                 reg = region(pc.regions, c)
                 pcow_c = table_by_region(pcow, reg)
-                sw = Saturations[1, c]
-                Δp[1, c] = -pcow_c(sw)
+                sw = Saturations[w, c]
+                Δp[1, c] = pcow_c(sw)
                 Δp[2, c] = 0
             end
         else
@@ -80,9 +97,10 @@ end
                 reg = region(pc.regions, c)
                 pcow_c = table_by_region(pcow, reg)
                 pcog_c = table_by_region(pcog, reg)
-                sw = Saturations[1, c]
-                sg = Saturations[3, c]
-                Δp[1, c] = -pcow_c(sw)
+                sw = Saturations[w, c]
+                sg = Saturations[g, c]
+                # Note: Negative sign already taken care of in input
+                Δp[1, c] = pcow_c(sw)
                 Δp[2, c] = pcog_c(sg)
             end
         end
