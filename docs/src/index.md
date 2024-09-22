@@ -22,7 +22,6 @@ generate_jutuldarcy_examples()
 
 Alternatively, a folder can be specified if you want the examples to be placed outside your present working directory:
 
-
 ```julia
 using JutulDarcy
 generate_jutuldarcy_examples("/home/username/")
@@ -37,5 +36,6 @@ JutulDarcy
 ```
 
 ## Index
+
 ```@index
 ```

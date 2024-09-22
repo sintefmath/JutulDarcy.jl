@@ -4,6 +4,8 @@ using Literate
 using Documenter
 
 using DocumenterCitations
+using DocumenterVitepress
+
 ##
 cd(@__DIR__)
 function build_jutul_darcy_docs(build_format = nothing; build_examples = true, build_notebooks = build_examples, clean = true)
@@ -69,13 +71,19 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
     end
     ## Docs
     if isnothing(build_format)
-        build_format = Documenter.HTML(;
-            prettyurls=get(ENV, "CI", "false") == "true",
-            canonical="https://sintefmath.github.io/JutulDarcy.jl",
-            edit_link="main",
-            size_threshold_ignore = ["ref/jutul.md", "docstrings.md"],
-            assets=String["assets/citations.css"],
-        )
+        if false
+            build_format = Documenter.HTML(;
+                prettyurls=get(ENV, "CI", "false") == "true",
+                canonical="https://sintefmath.github.io/JutulDarcy.jl",
+                edit_link="main",
+                size_threshold_ignore = ["ref/jutul.md", "docstrings.md"],
+                assets=String["assets/citations.css"],
+            )
+        else
+            build_format = DocumenterVitepress.MarkdownVitepress(
+                repo = "https://github.com/sintefmath/JutulDarcy.jl",
+            )
+        end
     end
     makedocs(;
         modules=[JutulDarcy, Jutul],
@@ -88,32 +96,32 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
         pages=[
             "Introduction" => [
                 "JutulDarcy.jl" => "index.md",
-                "Getting started" =>"man/intro.md",
+                "Getting started" =>"intro.md",
                 ],
             "Examples" => examples_markdown,
             "Manual" => [
-                "man/highlevel.md",
-                "man/basics/input_files.md",
-                "man/basics/forces.md",
-                "man/basics/systems.md",
-                "man/basics/wells.md",
-                "man/basics/solution.md",
-                "man/basics/primary.md",
-                "man/basics/secondary.md",
-                "man/basics/parameters.md",
-                "man/basics/plotting.md",
+                "highlevel.md",
+                "input_files.md",
+                "forces.md",
+                "systems.md",
+                "wells.md",
+                "solution.md",
+                "primary.md",
+                "secondary.md",
+                "parameters.md",
+                "plotting.md",
                 ],
             "Advanced usage" => [
-                "man/advanced/mpi.md",
-                "man/advanced/compiled.md"
+                "mpi.md",
+                "compiled.md"
             ],
             "Reference" => [
                 # "Internals" => "ref/internals.md",
-                "Jutul functions" => "ref/jutul.md"
+                "Jutul functions" => "jutul.md"
             ],
             "Additional information "=> [
-                "References" => "extras/refs.md",
-                "FAQ" => "extras/faq.md"
+                "References" => "refs.md",
+                "FAQ" => "faq.md"
             ]
         ],
     )
@@ -121,10 +129,13 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
     deploydocs(;
         repo="github.com/sintefmath/JutulDarcy.jl.git",
         devbranch="main",
+        target = "build", # this is where Vitepress stores its output
+        branch = "gh-pages",
+        push_preview = true
     )
 end
 ##
-build_jutul_darcy_docs()
+build_jutul_darcy_docs(build_examples = false)
 
 # ```@autodocs
 # Modules = [JutulDarcy]
