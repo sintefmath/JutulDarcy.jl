@@ -7,7 +7,7 @@ hero:
   name: JutulDarcy
   text: Re-thinking reservoir simulation in Julia
   image:
-    src: /assets/icon_pad.png
+    src: logo.png
     alt: JutulDarcy
   tagline: High-performance porous media and reservoir simulator based on automatic differentiation
   actions:
