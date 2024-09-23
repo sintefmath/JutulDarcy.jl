@@ -4,8 +4,11 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
         co2_physics = :kvalue,
         co2_table_directory = missing,
         extra_out = true,
+        salt_names = missing,
+        salt_mole_fractions = missing,
         kwarg...
     )
+    @assert ismissing(salt_names) "Not implemented."
     tables = co2_brine_property_tables(temperature, basepath = co2_table_directory)
     rho = JutulDarcy.BrineCO2MixingDensities(tables[:density])
     mu = JutulDarcy.PTViscosities(tables[:viscosity])

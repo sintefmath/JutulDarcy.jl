@@ -82,6 +82,7 @@ function setup_case_from_parsed_data(datafile;
     if convert_co2store && haskey(rs, "CO2STORE")
         msg("CO2STORE found, calling converter...")
         datafile = convert_co2store_to_co2_brine(datafile)
+        rs = datafile["RUNSPEC"]
     end
     sys, pvt = parse_physics_types(datafile, pvt_region = 1)
     is_blackoil = sys isa StandardBlackOilSystem
@@ -126,12 +127,19 @@ function setup_case_from_parsed_data(datafile;
         push!(wells_systems, sys_w)
     end
 
+    extra_arg = Dict{Symbol, Any}()
+    if haskey(rs, "SALTS")
+        extra_arg[:salt_mole_fractions] = rs["SALT_MOLE_FRACTIONS"]
+        extra_arg[:salt_names] = rs["SALTS"]
+    end
+
     model = setup_reservoir_model(domain, sys;
         thermal = is_thermal,
         wells = wells,
         extra_out = false,
         wells_systems = wells_systems,
-        kwarg...
+        kwarg...,
+        extra_arg...
     )
     for (k, submodel) in pairs(model.models)
         if model_or_domain_is_well(submodel) || k == :Reservoir
