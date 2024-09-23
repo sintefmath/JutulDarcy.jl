@@ -4,7 +4,6 @@ using Literate
 using Documenter
 
 using DocumenterCitations
-using DocumenterVitepress
 ##
 cd(@__DIR__)
 function build_jutul_darcy_docs(build_format = nothing; build_examples = true, build_notebooks = build_examples, clean = true)
@@ -70,19 +69,13 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
     end
     ## Docs
     if isnothing(build_format)
-        if false
-            build_format = Documenter.HTML(;
-                prettyurls=get(ENV, "CI", "false") == "true",
-                canonical="https://sintefmath.github.io/JutulDarcy.jl",
-                edit_link="main",
-                size_threshold_ignore = ["ref/jutul.md", "docstrings.md"],
-                assets=String["assets/citations.css"],
-            )
-        else
-            build_format = DocumenterVitepress.MarkdownVitepress(
-                repo = "https://github.com/sintefmath/JutulDarcy.jl",
-            )
-        end
+        build_format = Documenter.HTML(;
+            prettyurls=get(ENV, "CI", "false") == "true",
+            canonical="https://sintefmath.github.io/JutulDarcy.jl",
+            edit_link="main",
+            size_threshold_ignore = ["ref/jutul.md", "docstrings.md"],
+            assets=String["assets/citations.css"],
+        )
     end
     makedocs(;
         modules=[JutulDarcy, Jutul],
@@ -128,13 +121,10 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
     deploydocs(;
         repo="github.com/sintefmath/JutulDarcy.jl.git",
         devbranch="main",
-        target = "build", # this is where Vitepress stores its output
-        branch = "gh-pages",
-        push_preview = true
     )
 end
 ##
-build_jutul_darcy_docs(build_examples = false)
+build_jutul_darcy_docs()
 
 # ```@autodocs
 # Modules = [JutulDarcy]

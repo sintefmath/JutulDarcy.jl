@@ -29,3 +29,5 @@ Manifest.toml
 *.jld2
 /docs/notebooks
 /docs/node_modules
+docs/package-lock.json
+docs/package.json
