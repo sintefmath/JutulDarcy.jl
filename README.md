@@ -5,7 +5,8 @@
 
 [![Jutul Darcy logo](https://github.com/sintefmath/JutulDarcy.jl/raw/main/docs/src/assets/logo_wide.png)](https://sintefmath.github.io/JutulDarcy.jl/dev/)
 
-*Clicking the logo sends you to the docs!*
+> [!TIP]
+> Visit the docs at https://sintefmath.github.io/JutulDarcy.jl/dev/
 
 # Reservoir simulation in Julia
 

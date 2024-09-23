@@ -5,11 +5,11 @@ layout: home
 
 hero:
   name: JutulDarcy
-  text:
-  tagline: Reservoir simulation and porous media flow in Julia
+  text: Re-thinking reservoir simulation in Julia
   image:
-    src: assets/logo.png
+    src: assets/icon_pad.png
     alt: JutulDarcy
+  tagline: High-performance porous media and reservoir simulator based on automatic differentiation
   actions:
     - theme: brand
       text: Getting started
@@ -18,20 +18,43 @@ hero:
       text: View on Github
       link: https://github.com/sintefmath/JutulDarcy.jl
     - theme: alt
-      text: API Reference
-      link: /api
+      text: Run .DATA file
+      link: /examples/data_input_file
+
+features:
+  - icon: 💥
+    title: Physical systems
+    details: Immiscible, compositional, geothermal and black-oil flow
+    link: /man/basics/systems
+
+  - icon: ⚙️
+    title: Differentiability
+    details: Compute sensitivities of parameters with high-performance adjoint method
+    link: /examples/intro_sensitivites
+
+  - icon: 🏃
+    title: High performance 
+    details: Fast execution with support for MPI and thread parallelism
+    link: /man/advanced/mpi
 ---
 ````
 
-# Welcome to the JutulDarcy.jl documentation
+## What is this?
 
-JutulDarcy.jl: Darcy-scale and subsurface flow (CO2 sequestration, gas/H2 storage, oil/gas fields) using [Jutul.jl](https://github.com/sintefmath/Jutul.jl) developed by the [Applied Computational Science group](https://www.sintef.no/en/digital/departments-new/applied-mathematics/applied-computational-sciences/) at [SINTEF Digital](https://www.sintef.no/en/digital/).
+JutulDarcy.jl is a general high-performance purpose porous media simulator toolbox (CO2 sequestration, gas/H2 storage, oil/gas fields) written in [Julia](https://julialang.org/) based on [Jutul.jl](https://github.com/sintefmath/Jutul.jl), developed by the [Applied Computational Science group](https://www.sintef.no/en/digital/departments-new/applied-mathematics/applied-computational-sciences/) at [SINTEF Digital](https://www.sintef.no/en/digital/).
 
-## Getting started
+A few highlights:
 
-[Getting started](man/intro) is the main setup guide that includes the basics of installing Julia and creating a Julia environment for `JutulDarcy.jl`.
+- Immiscible, black-oil, compositional, CO2-brine and geothermal systems
+- Fully differentiable through adjoint method
+- High performance, with optional support for compiling MPI parallel binaries
+- Consistent discretizations
+- Industry standard input formats - or make your own model as a script
+- 3D visualization and tools for post-processing of simulation results
 
 ## Quick start guide
+
+[Getting started](man/intro) is the main setup guide that includes the basics of installing Julia and creating a Julia environment for `JutulDarcy.jl`, written for users who may not already be familiar with Julia package management.
 
 If you want to get started quickly: Install [Julia](https://julialang.org/) and add the following packages together
 with a Makie backend library to your environment of choice using Julia's package manager `Pkg`:
