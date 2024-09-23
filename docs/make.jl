@@ -147,7 +147,8 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
     )
 end
 ##
-build_jutul_darcy_docs(build_examples = false, build_validation_examples = false)
+# build_jutul_darcy_docs(build_examples = false, build_validation_examples = false)
+build_jutul_darcy_docs()
 
 # ```@autodocs
 # Modules = [JutulDarcy]
