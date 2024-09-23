@@ -7,7 +7,7 @@ using DocumenterCitations
 using DocumenterVitepress
 ##
 cd(@__DIR__)
-function build_jutul_darcy_docs(build_format = nothing; build_examples = true, build_notebooks = build_examples, clean = true)
+function build_jutul_darcy_docs(build_format = nothing; build_examples = true, build_validation_examples = build_examples, build_notebooks = build_examples, clean = true)
     DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy; using Jutul); recursive=true)
     DocMeta.setdocmeta!(Jutul, :DocTestSetup, :(using Jutul); recursive=true)
     bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"))
@@ -38,6 +38,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
         "Validation: MRST input files" => "validation_mrst"
     ]
     examples_markdown = []
+    validation_markdown = []
     function update_footer(content, pth)
         return content*"\n\n # ## Example on GitHub\n "*
         "# If you would like to run this example yourself, it can be downloaded from "*
@@ -59,8 +60,16 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
     for (ex, pth) in examples
         in_pth = example_path(pth)
         out_dir = joinpath(@__DIR__, "src", "examples")
-        if build_examples
-            push!(examples_markdown, ex => joinpath("examples", "$pth.md"))
+        is_validation = startswith(pth, "validation_")
+        if is_validation
+            ex_dest = validation_markdown
+            do_build = build_validation_examples
+        else
+            ex_dest = examples_markdown
+            do_build = build_examples
+        end
+        if do_build
+            push!(ex_dest, ex => joinpath("examples", "$pth.md"))
             upd(content) = update_footer(content, pth)
             Literate.markdown(in_pth, out_dir, preprocess = upd)
         end
@@ -98,6 +107,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
                 "Getting started" =>"man/intro.md",
                 ],
             "Examples" => examples_markdown,
+            "Validation" => validation_markdown,
             "Manual" => [
                 "man/highlevel.md",
                 "man/basics/input_files.md",
@@ -134,7 +144,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
     )
 end
 ##
-build_jutul_darcy_docs(build_examples = false)
+build_jutul_darcy_docs(build_examples = true, build_validation_examples = false)
 
 # ```@autodocs
 # Modules = [JutulDarcy]
