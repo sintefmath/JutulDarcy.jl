@@ -68,6 +68,8 @@ function setup_case_from_parsed_data(datafile;
         zcorn_depths = true,
         normalize = true,
         convert_co2store = true,
+        repair_zcorn = true,
+        process_pinch = false,
         kwarg...
     )
     function msg(s)
@@ -100,7 +102,7 @@ function setup_case_from_parsed_data(datafile;
     end
 
     msg("Parsing reservoir domain.")
-    domain = parse_reservoir(datafile, zcorn_depths = zcorn_depths)
+    domain = parse_reservoir(datafile, zcorn_depths = zcorn_depths, repair_zcorn = repair_zcorn, process_pinch = process_pinch)
     pvt_reg = reservoir_regions(domain, :pvtnum)
     has_pvt = isnothing(pvt_reg)
     # Parse wells
@@ -794,10 +796,10 @@ function initialize_numerical_aquifers!(init, rmodel, aquifers)
     return init
 end
 
-function parse_reservoir(data_file; zcorn_depths = true)
+function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, process_pinch = false)
     grid = data_file["GRID"]
     cartdims = grid["cartDims"]
-    G = mesh_from_grid_section(grid)
+    G = mesh_from_grid_section(grid, missing, repair_zcorn, process_pinch)
 
     # Handle numerical aquifers
     aqunum = get(grid, "AQUNUM", missing)
