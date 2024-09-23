@@ -83,7 +83,7 @@ Cases with CPR used hypre as the AMG solver. OYMPUS1 refers to realization 1 fro
 
 The main paper describing `JutulDarcy.jl` is *JutulDarcy.jl - a Fully Differentiable High-Performance Reservoir Simulator Based on Automatic Differentiation*:
 
-```latex
+```bibtex
 @article{jutuldarcy_ecmor_2024,
    author = "M{\o}yner, O.",
    title = "JutulDarcy.jl - a Fully Differentiable High-Performance Reservoir Simulator Based on Automatic Differentiation", 

@@ -1,12 +1,6 @@
 
 """
 $(README)
-
----
-##  Module exports:
-
-$(EXPORTS)
-
 """
 module JutulDarcy
     export MultiPhaseSystem, ImmiscibleSystem, SinglePhaseSystem
