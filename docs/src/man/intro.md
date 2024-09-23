@@ -2,7 +2,7 @@
 
 ## Installing JutulDarcy
 
-To get started with JutulDarcy, you must install Julia (1.9+ recommended) and the package itself. Julia uses environments to manage packages. If you are not familiar with this concept, we recommend the [Pkg documentation](https://pkgdocs.julialang.org/v1/environments/).
+To get started with JutulDarcy, you must install [the Julia programming language](https://julialang.org/). We recommend the latest stable release, but at least version 1.9 is required. Julia uses environments to manage packages. If you are not familiar with this concept, we recommend the [Pkg documentation](https://pkgdocs.julialang.org/v1/environments/).
 
 ### Setting up an environment
 

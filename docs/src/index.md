@@ -27,9 +27,13 @@ hero:
 
 JutulDarcy.jl: Darcy-scale and subsurface flow (CO2 sequestration, gas/H2 storage, oil/gas fields) using [Jutul.jl](https://github.com/sintefmath/Jutul.jl) developed by the [Applied Computational Science group](https://www.sintef.no/en/digital/departments-new/applied-mathematics/applied-computational-sciences/) at [SINTEF Digital](https://www.sintef.no/en/digital/).
 
-## Installation
+## Getting started
 
-Install [Julia](https://julialang.org/) and add the following packages together
+[Getting started](man/intro) is the main setup guide that includes the basics of installing Julia and creating a Julia environment for `JutulDarcy.jl`.
+
+## Quick start guide
+
+If you want to get started quickly: Install [Julia](https://julialang.org/) and add the following packages together
 with a Makie backend library to your environment of choice using Julia's package manager `Pkg`:
 
 ```julia
@@ -39,16 +43,7 @@ Pkg.add("Jutul")      # Base package
 Pkg.add("JutulDarcy") # Reservoir simulator
 ```
 
-You can then run any of the examples in the [`examples`](https://github.com/sintefmath/JutulDarcy.jl/tree/main/examples) directory by including them. The examples are sorted by complexity. We suggest you start with [Intro: Gravity segregation example](Intro: Gravity segregation example).
-
-To generate a folder that contains the examples locally, you can run the following code to create a folder `jutuldarcy_examples` in your current working directory:
-
-```julia
-using JutulDarcy
-generate_jutuldarcy_examples()
-```
-
-If you want a quick start, we also have a minimal example that runs a industry standard input file and produces interactive plots:
+To verify that everything is working, we have a minimal example that runs a industry standard input file and produces interactive plots. Note that interactive plotting requires `GLMakie`, which may not work if you are running Julia over SSH.
 
 ::: details Show me the code
 
@@ -62,7 +57,14 @@ plot_reservoir_simulation_result(case.model, result)
 ```
 :::
 
-Note that interactive plotting requires `GLMakie`, which may not work if you are running Julia over SSH.
+To get access to all the examples, you can generate a folder that contains the examples locally, you can run the following code to create a folder `jutuldarcy_examples` in your current working directory:
+
+```julia
+using JutulDarcy
+generate_jutuldarcy_examples()
+```
+
+These examples can then be run using `include("jutuldarcy_examples/example_name.jl")` or opened in an editor to be run line by line. Alternatively, you can download all examples as [Jupyter Notebooks](https://github.com/sintefmath/JutulDarcy.jl/tree/gh-pages/dev/examples).
 
 ## Citing JutulDarcy
 
