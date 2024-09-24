@@ -60,7 +60,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
     example_path(pth) = joinpath(jutul_dir, "examples", "$pth.jl")
     for (ex, pth) in examples
         in_pth = example_path(pth)
-        out_dir = joinpath(@__DIR__, "src", "examples")
+        out_dir = joinpath(@__DIR__, "build", "examples")
         is_validation = startswith(ex, "Validation:")
         is_intro = startswith(ex, "Intro: ")
         is_example = !(is_intro || is_validation)
