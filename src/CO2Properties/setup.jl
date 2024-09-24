@@ -12,26 +12,10 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
     tables = co2_brine_property_tables(temperature, basepath = co2_table_directory)
     if co2_source == :salo24 || length(salt_names) > 0
         @assert length(salt_mole_fractions) == length(salt_names) "salt_names ($salt_names) and salt_mole_fractions ($salt_mole_fractions) must have equal length."
-        dens = tables[:density]
-
-        p = dens.X
-        T = dens.Y
-        for (i, p_i) in enumerate(p)
-            if i == 1 || i == length(p)
-                continue
-            end
-            for (j, T_i) in enumerate(T)
-                if j == 1 || j == length(T)
-                    continue
-                end
-                props = compute_co2_brine_props(p_i, T_i, salt_mole_fractions, salt_names, check = false)
-            end
-        end
-        # replace density
-        # replace viscosity
-        # replace K values
-        # compute_co2_brine_props(p_pascal, T_K, salt_mole_fractions = Float64[], salt_names
-        error()
+        dens = tables[:density]::Jutul.BilinearInterpolant
+        visc = tables[:viscosity]::Jutul.BilinearInterpolant
+        K = tables[:K].K::Jutul.BilinearInterpolant
+        replace_co2_brine_properties!(dens, visc, K, salt_mole_fractions, salt_names)
     else
         @assert co2_source == :csp11 "co2_source argument must be either :csp11 or :salo24"
     end
@@ -100,6 +84,30 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
         end
     end
     return out
+end
+
+function replace_co2_brine_properties!(dens, visc, K, salt_mole_fractions, salt_names)
+    p = dens.X
+    T = dens.Y
+
+    for (i, p_i) in enumerate(p)
+        if i == 1
+            p_i = p[2]
+        elseif i == length(p)
+            p_i = p[end-1]
+        end
+        for (j, T_i) in enumerate(T)
+            if j == 1
+                T_i = T[2]
+            elseif j == length(T)
+                T_i = T[end-1]
+            end
+            props = compute_co2_brine_props(p_i, T_i, salt_mole_fractions, salt_names, check = false)
+            dens.F[i, j] = props[:density]
+            visc.F[i, j] = props[:viscosity]
+            K.F[i, j] = props[:K]
+        end
+    end
 end
 
 function JutulDarcy.reference_densities(::Val{:co2brine})
