@@ -68,6 +68,8 @@ function setup_case_from_parsed_data(datafile;
         zcorn_depths = true,
         normalize = true,
         convert_co2store = true,
+        repair_zcorn = true,
+        process_pinch = false,
         kwarg...
     )
     function msg(s)
@@ -80,6 +82,7 @@ function setup_case_from_parsed_data(datafile;
     if convert_co2store && haskey(rs, "CO2STORE")
         msg("CO2STORE found, calling converter...")
         datafile = convert_co2store_to_co2_brine(datafile)
+        rs = datafile["RUNSPEC"]
     end
     sys, pvt = parse_physics_types(datafile, pvt_region = 1)
     is_blackoil = sys isa StandardBlackOilSystem
@@ -100,7 +103,7 @@ function setup_case_from_parsed_data(datafile;
     end
 
     msg("Parsing reservoir domain.")
-    domain = parse_reservoir(datafile, zcorn_depths = zcorn_depths)
+    domain = parse_reservoir(datafile, zcorn_depths = zcorn_depths, repair_zcorn = repair_zcorn, process_pinch = process_pinch)
     pvt_reg = reservoir_regions(domain, :pvtnum)
     has_pvt = isnothing(pvt_reg)
     # Parse wells
@@ -124,12 +127,19 @@ function setup_case_from_parsed_data(datafile;
         push!(wells_systems, sys_w)
     end
 
+    extra_arg = Dict{Symbol, Any}()
+    if haskey(rs, "SALTS")
+        extra_arg[:salt_mole_fractions] = rs["SALT_MOLE_FRACTIONS"]
+        extra_arg[:salt_names] = rs["SALTS"]
+    end
+
     model = setup_reservoir_model(domain, sys;
         thermal = is_thermal,
         wells = wells,
         extra_out = false,
         wells_systems = wells_systems,
-        kwarg...
+        kwarg...,
+        extra_arg...
     )
     for (k, submodel) in pairs(model.models)
         if model_or_domain_is_well(submodel) || k == :Reservoir
@@ -794,10 +804,10 @@ function initialize_numerical_aquifers!(init, rmodel, aquifers)
     return init
 end
 
-function parse_reservoir(data_file; zcorn_depths = true)
+function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, process_pinch = false)
     grid = data_file["GRID"]
     cartdims = grid["cartDims"]
-    G = mesh_from_grid_section(grid)
+    G = mesh_from_grid_section(grid, missing, repair_zcorn, process_pinch)
 
     # Handle numerical aquifers
     aqunum = get(grid, "AQUNUM", missing)

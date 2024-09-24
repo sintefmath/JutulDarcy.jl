@@ -64,7 +64,31 @@ function convert_co2store_to_co2_brine!(data; verbose = true)
             local_warn("Second component $c2 is assumed to be CO2.")
         end
         if length(cnames) > 2
-            local_warn("More than two components were declared. Salts $(cnames[3:end]) will be ignored.")
+            salts = cnames[3:end]
+            local_warn("More than two components were declared. Salts $(salts) will be used to adjust properties, but will not be present as individual components.")
+            remap = Dict(
+                "nacl" => "NaCl",
+                "kcl" => "KCl",
+                "caso4" => "CaSO4",
+                "cacl2" => "CaCl2",
+                "mgso4" => "MgSO4",
+                "mgcl2" => "MgCl2"
+            )
+            new_salts = map(x -> remap[lowercase(x)], salts)
+            if haskey(data["PROPS"], "ZMFVD")
+                zmfvd = data["PROPS"]["ZMFVD"]
+                if length(zmfvd) > 1
+                    local_warn("Using first ZMFVD region for salts...")
+                end
+                if size(zmfvd, 1) > 1
+                    local_warn("Using first ZMFVD entry for salts...")
+                end
+                zi = first(zmfvd)[1, 4:end]
+                rs["SALTS"] = new_salts
+                rs["SALT_MOLE_FRACTIONS"] = zi
+            else
+                local_warn("ZMFVD not found, will not use salts.")
+            end
         end
         delete!(props, "CNAMES")
     end

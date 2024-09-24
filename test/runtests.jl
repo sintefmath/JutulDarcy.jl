@@ -56,6 +56,10 @@ end
     include("compositional.jl")
 end
 
+@testitem "CO2 props" begin
+    include("co2props.jl")
+end
+
 @run_package_tests
 nothing
 # include("gpu.jl")
