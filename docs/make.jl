@@ -59,7 +59,8 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
     end
     example_path(pth) = joinpath(jutul_dir, "examples", "$pth.jl")
     out_dir = joinpath(@__DIR__, "src", "examples")
-    notebook_dir = joinpath(@__DIR__, "build", "notebooks")
+    # https://luxdl.github.io/DocumenterVitepress.jl/dev/render_pipeline#finalization
+    notebook_dir = joinpath(@__DIR__, "build", "final_site", "notebooks")
     if build_notebooks
         mkpath(notebook_dir)
     end
