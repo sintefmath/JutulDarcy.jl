@@ -6,18 +6,22 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
         extra_out = true,
         salt_names = String[],
         salt_mole_fractions = Float64[],
-        co2_source = :salo24,
+        co2_source = ifelse(ismissing(co2_table_directory), :salo24, :table),
         kwarg...
     )
+    length(salt_mole_fractions) == length(salt_names) || throw(ArgumentError("salt_names ($salt_names) and salt_mole_fractions ($salt_mole_fractions) must have equal length."))
     tables = co2_brine_property_tables(temperature, basepath = co2_table_directory)
     if co2_source == :salo24 || length(salt_names) > 0
-        @assert length(salt_mole_fractions) == length(salt_names) "salt_names ($salt_names) and salt_mole_fractions ($salt_mole_fractions) must have equal length."
         dens = tables[:density]::Jutul.BilinearInterpolant
         visc = tables[:viscosity]::Jutul.BilinearInterpolant
         K = tables[:K].K::Jutul.BilinearInterpolant
         replace_co2_brine_properties!(dens, visc, K, salt_mole_fractions, salt_names)
+    elseif co2_source == :table
+        if length(salt_mole_fractions) > 0
+            jutul_message("Salts $salt_names were provided but table was also provided as $co2_table_directory. Salts will not be accounted for.", color = :yellow)
+        end
     else
-        @assert co2_source == :csp11 "co2_source argument must be either :csp11 or :salo24"
+        co2_source == :csp11 || throw(ArgumentError("co2_source argument must be either :csp11, :table or :salo24"))
     end
     rho = JutulDarcy.BrineCO2MixingDensities(tables[:density])
     mu = JutulDarcy.PTViscosities(tables[:viscosity])
