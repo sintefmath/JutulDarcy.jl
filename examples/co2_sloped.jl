@@ -24,7 +24,7 @@ Darcy, bar, kg, meter, day, yr = si_units(:darcy, :bar, :kilogram, :meter, :day,
 cart_dims = (nx, 1, nz)
 physical_dims = (1000.0, 1.0, 50.0)
 cart_mesh = CartesianMesh(cart_dims, physical_dims)
-mesh = UnstructuredMesh(cart_mesh)
+mesh = UnstructuredMesh(cart_mesh, z_is_depth = true)
 
 points = mesh.node_points
 for (i, pt) in enumerate(points)
@@ -42,14 +42,14 @@ end;
 # intersected by the trajectory.
 import Jutul: find_enclosing_cells, plot_mesh_edges
 trajectory = [
-    745.0 0.5 45;    # First point
-    760.0 0.5 70;    # Second point
-    810.0 0.5 100.0  # Third point
+    645.0 0.5 75;    # First point
+    660.0 0.5 85;    # Second point
+    710.0 0.5 100.0  # Third point
 ]
 
 wc = find_enclosing_cells(mesh, trajectory)
 
-fig, ax, plt = plot_mesh_edges(mesh, z_is_depth = true)
+fig, ax, plt = plot_mesh_edges(mesh)
 plot_mesh!(ax, mesh, cells = wc, transparency = true, alpha = 0.4)
 # View from the side
 ax.azimuth[] = 1.5*π
@@ -88,7 +88,8 @@ for cell in 1:nc
     region[cell] = reg
 end
 
-plot_cell_data(mesh, poro)
+fig, ax, plt = plot_cell_data(mesh, poro)
+fig
 # ## Set up simulation model
 # We set up a domain and a single injector. We pass the special :co2brine
 # argument in place of the system to the reservoir model setup routine. This
@@ -98,8 +99,12 @@ plot_cell_data(mesh, poro)
 # Note that this model by default is isothermal, but we still need to specify a
 # temperature when setting up the model. This is because the properties of CO2
 # strongly depend on temperature, even when thermal transport is not solved.
+#
+# The model also accounts for a constant, reservoir-wide salinity. We input mole
+# fractions of salts in the brine so that the solubilities, densities and
+# viscosities for brine cells are corrected in the property model.
 
-domain = reservoir_domain(mesh, permeability = perm, porosity = poro, temperature = convert_to_si(30.0, :Celsius))
+domain = reservoir_domain(mesh, permeability = perm, porosity = poro, temperature = convert_to_si(60.0, :Celsius))
 Injector = setup_well(domain, wc, name = :Injector, simple_well = true)
 
 if use_immiscible
@@ -107,7 +112,13 @@ if use_immiscible
 else
     physics = :kvalue
 end
-model = setup_reservoir_model(domain, :co2brine, wells = Injector, extra_out = false, co2_physics = physics);
+model = setup_reservoir_model(domain, :co2brine,
+    wells = Injector,
+    extra_out = false,
+    salt_names = ["NaCl", "KCl", "CaSO4", "CaCl2", "MgSO4", "MgCl2"],
+    salt_mole_fractions = [0.01, 0.005, 0.005, 0.001, 0.0002, 1e-5],
+    co2_physics = physics
+);
 # ## Customize model by adding relative permeability with hysteresis
 # We define three relative permeability functions: kro(so) for the brine/liquid
 # phase and krg(g) for both drainage and imbibition. Here we limit the
@@ -121,10 +132,10 @@ so = range(0, 1, 10)
 krog_t = so.^2
 krog = PhaseRelativePermeability(so, krog_t, label = :og)
 
-# Higher resolution for second table
+# Higher resolution for second table:
 sg = range(0, 1, 50)
 
-# Evaluate Brooks-Corey to generate tables
+# Evaluate Brooks-Corey to generate tables:
 tab_krg_drain = brooks_corey_relperm.(sg, n = 2, residual = 0.1)
 tab_krg_imb = brooks_corey_relperm.(sg, n = 3, residual = 0.25)
 
@@ -169,7 +180,9 @@ nc = number_of_cells(mesh)
 p0 = zeros(nc)
 depth = domain[:cell_centroids][3, :]
 g = Jutul.gravity_constant
-@. p0 = 200bar + depth*g*1000.0
+@. p0 = 160bar + depth*g*1000.0
+fig, ax, plt = plot_cell_data(mesh, p0)
+fig
 # Set up initial state and parameters
 if use_immiscible
     state0 = setup_reservoir_state(model,
@@ -202,17 +215,17 @@ println("Boundary condition added to $(length(bc)) cells.")
 plot_reservoir(model)
 # ## Set up schedule
 # We set up 25 years of injection and 475 years of migration where the well is
-# shut. The density of the injector is set to 900 kg/m^3, which is roughly the
-# density of CO2 at these high-pressure in-situ conditions.
+# shut. The density of the injector is set to 630 kg/m^3, which is roughly the
+# density of CO2 at the in-situ conditions.
 nstep = 25
 nstep_shut = 475
 dt_inject = fill(365.0day, nstep)
 pv = pore_volume(model, parameters)
-inj_rate = 0.05*sum(pv)/sum(dt_inject)
+inj_rate = 0.075*sum(pv)/sum(dt_inject)
 
 rate_target = TotalRateTarget(inj_rate)
 I_ctrl = InjectorControl(rate_target, [0.0, 1.0],
-    density = 900.0,
+    density = 630.0,
 )
 # Set up forces for use in injection
 controls = Dict(:Injector => I_ctrl)
@@ -240,10 +253,14 @@ wd, states, t = simulate_reservoir(state0, model, dt,
     max_timestep = 90day
 )
 # ## Plot the CO2 mole fraction
-# We plot the overall CO2 mole fraction. We scale the color range to account for
-# the fact that the mole fraction in cells made up of only the aqueous phase is
-# much smaller than that of cells with only the gaseous phase, where there is
-# almost just CO2.
+# We plot the overall CO2 mole fraction. We scale the color range to log10 to
+# account for the fact that the mole fraction in cells made up of only the
+# aqueous phase is much smaller than that of cells with only the gaseous phase,
+# where there is almost just CO2.
+#
+# The aquifer gives some degree of passive flow through the domain, ensuring
+# that much of the dissolved CO2 will leave the reservoir by the end of the
+# injection period.
 using GLMakie
 function plot_co2!(fig, ix, x, title = "")
     ax = Axis3(fig[ix, 1],
@@ -252,15 +269,15 @@ function plot_co2!(fig, ix, x, title = "")
         elevation = 0.05,
         aspect = (1.0, 1.0, 0.3),
         title = title)
-    plt = plot_cell_data!(ax, mesh, x, colormap = :seaborn_icefire_gradient, colorrange = (0.0, 0.1))
+    plt = plot_cell_data!(ax, mesh, x, colormap = :seaborn_icefire_gradient)
     Colorbar(fig[ix, 2], plt)
 end
 fig = Figure(size = (900, 1200))
-for (i, step) in enumerate([1, 5, nstep, nstep+nstep_shut])
+for (i, step) in enumerate([5, nstep, nstep + Int(floor(nstep_shut/2)), nstep+nstep_shut])
     if use_immiscible
         plot_co2!(fig, i, states[step][:Saturations][2, :], "CO2 plume saturation at report step $step/$(nstep+nstep_shut)")
     else
-        plot_co2!(fig, i, states[step][:OverallMoleFractions][2, :], "CO2 mole fraction at report step $step/$(nstep+nstep_shut)")
+        plot_co2!(fig, i, log10.(states[step][:OverallMoleFractions][2, :]), "log10 of CO2 mole fraction at report step $step/$(nstep+nstep_shut)")
     end
 end
 fig
@@ -347,7 +364,7 @@ lines(t./yr, p_avg,
 # show the ellipsoid, the mass of CO2 in that region for a specific step, and
 # the time series of the CO2 in the same region.
 
-stepno = 100
+stepno = 30
 co2_mass_in_region = map(
     state -> sum(state[:TotalMasses][2, is_inside])/1e3,
     states
