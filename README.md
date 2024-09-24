@@ -5,7 +5,8 @@
 
 [![Jutul Darcy logo](https://github.com/sintefmath/JutulDarcy.jl/raw/main/docs/src/assets/logo_wide.png)](https://sintefmath.github.io/JutulDarcy.jl/dev/)
 
-*Clicking the logo sends you to the docs!*
+> [!TIP]
+> Visit the docs at https://sintefmath.github.io/JutulDarcy.jl/dev/
 
 # Reservoir simulation in Julia
 
@@ -83,7 +84,7 @@ Cases with CPR used hypre as the AMG solver. OYMPUS1 refers to realization 1 fro
 
 The main paper describing `JutulDarcy.jl` is *JutulDarcy.jl - a Fully Differentiable High-Performance Reservoir Simulator Based on Automatic Differentiation*:
 
-```latex
+```bibtex
 @article{jutuldarcy_ecmor_2024,
    author = "M{\o}yner, O.",
    title = "JutulDarcy.jl - a Fully Differentiable High-Performance Reservoir Simulator Based on Automatic Differentiation", 
