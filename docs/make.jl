@@ -44,7 +44,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
         return content*"\n\n # ## Example on GitHub\n "*
         "# If you would like to run this example yourself, it can be downloaded from "*
         "the JutulDarcy.jl GitHub repository [as a script](https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/$pth.jl), "*
-        "or as a [Notebook](https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/notebooks/$pth.ipynb)"
+        "or as a [Notebook](https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/$pth.ipynb)"
     end
     if clean
         for (ex, pth) in examples
@@ -59,11 +59,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
     end
     example_path(pth) = joinpath(jutul_dir, "examples", "$pth.jl")
     out_dir = joinpath(@__DIR__, "src", "examples")
-    # https://luxdl.github.io/DocumenterVitepress.jl/dev/render_pipeline#finalization
-    notebook_dir = joinpath(@__DIR__, "build", "final_site", "notebooks")
-    if build_notebooks
-        mkpath(notebook_dir)
-    end
+    notebook_dir = joinpath(@__DIR__, "assets")
     for (ex, pth) in examples
         in_pth = example_path(pth)
         is_validation = startswith(ex, "Validation:")
