@@ -83,7 +83,7 @@ function convert_co2store_to_co2_brine!(data; verbose = true)
                 if size(zmfvd, 1) > 1
                     local_warn("Using first ZMFVD entry for salts...")
                 end
-                zi = first(zmfvd)[1, 3:end]
+                zi = first(zmfvd)[1, 4:end]
                 rs["SALTS"] = new_salts
                 rs["SALT_MOLE_FRACTIONS"] = zi
             else

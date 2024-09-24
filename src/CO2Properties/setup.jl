@@ -4,12 +4,37 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
         co2_physics = :kvalue,
         co2_table_directory = missing,
         extra_out = true,
-        salt_names = missing,
-        salt_mole_fractions = missing,
+        salt_names = String[],
+        salt_mole_fractions = Float64[],
+        co2_source = :salo24,
         kwarg...
     )
-    @assert ismissing(salt_names) "Not implemented."
     tables = co2_brine_property_tables(temperature, basepath = co2_table_directory)
+    if co2_source == :salo24 || length(salt_names) > 0
+        @assert length(salt_mole_fractions) == length(salt_names) "salt_names ($salt_names) and salt_mole_fractions ($salt_mole_fractions) must have equal length."
+        dens = tables[:density]
+
+        p = dens.X
+        T = dens.Y
+        for (i, p_i) in enumerate(p)
+            if i == 1 || i == length(p)
+                continue
+            end
+            for (j, T_i) in enumerate(T)
+                if j == 1 || j == length(T)
+                    continue
+                end
+                props = compute_co2_brine_props(p_i, T_i, salt_mole_fractions, salt_names, check = false)
+            end
+        end
+        # replace density
+        # replace viscosity
+        # replace K values
+        # compute_co2_brine_props(p_pascal, T_K, salt_mole_fractions = Float64[], salt_names
+        error()
+    else
+        @assert co2_source == :csp11 "co2_source argument must be either :csp11 or :salo24"
+    end
     rho = JutulDarcy.BrineCO2MixingDensities(tables[:density])
     mu = JutulDarcy.PTViscosities(tables[:viscosity])
     if thermal

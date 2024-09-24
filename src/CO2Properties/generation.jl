@@ -74,7 +74,7 @@ Hassanzadeh et al., IJGGC (2008).
 
     - mu: Dynamic viscosity in Pa*s
 """
-function viscosity_co2_Fenghour1998(T, rho)
+function viscosity_co2_Fenghour1998(T, rho; check = true)
 
     # Check if T, P conditions are within range
 
@@ -189,13 +189,21 @@ to 600 bar, for (1) CO2 compressibility factor, (2) CO2 fugacity coefficient and
     - rhox: Scalar with density in [mol/m^3]
     - rho: Scalar with density in [kg/m^3]
 """
-function pvt_co2_RedlichKwong1949(T, P, a_m=7.54 * 10^7 - 4.13 * 10^4 * T, b_m=27.8)
+function pvt_co2_RedlichKwong1949(T, P, a_m=7.54 * 10^7 - 4.13 * 10^4 * T, b_m=27.8; check = true)
     # Check if T, P conditions are within range
-    if P > 600
-        jutul_message("pvt_co2_RedlichKwong1949", "Pressure $P out of tested range", color = :yellow)
-    end
-    if T < 283.15 || T > 373.15
-        jutul_message("pvt_co2_RedlichKwong1949", "Temperature $T out of tested range", color = :yellow)
+    if check
+        if P > 600
+            jutul_message("pvt_co2_RedlichKwong1949", "Pressure $P out of tested range", color = :yellow)
+        end
+        if P < 0.0
+            error("Negative pressure $P")
+        end
+        if T < 0.0
+            error("Negative temperature $T")
+        end
+        if T < 283.15 || T > 373.15
+            jutul_message("pvt_co2_RedlichKwong1949", "Temperature $T out of tested range", color = :yellow)
+        end
     end
 
     # Ideal gas constant
@@ -224,15 +232,16 @@ function pvt_co2_RedlichKwong1949(T, P, a_m=7.54 * 10^7 - 4.13 * 10^4 * T, b_m=2
         end
     end
     if length(V_m) > 1
-        V_gas = max(V_m)                                 # V gas phase  
-        V_liq = min(V_m)                                 # V of liquid phase
+        epsval = 1e-12
+        V_gas = maximum(V_m)                                 # V gas phase  
+        V_liq = minimum(V_m)                                 # V of liquid phase
         w1 = P * (V_gas - V_liq)
         w21 = R * T * log((V_gas - b_m) / (V_liq - b_m))
         w22 = a_m / (b_m * T^0.5) * log(((V_gas + b_m) * V_liq) / ((V_liq + b_m) * V_gas))
         w2 = w21 + w22
-        if w2 - w1 > 0 + eps
+        if w2 - w1 > 0 + epsval
             V_m = V_gas
-        elseif w2 - w1 < 0 - eps
+        elseif w2 - w1 < 0 - epsval
             V_m = V_liq
         else
             V_m = V_gas
@@ -549,15 +558,17 @@ function compute_co2_brine_props(p_pascal, T_K, salt_mole_fractions = Float64[],
     P_bar_s = 1.013529
 
     if sum(m_salt[2:end]) ≈ 0.0
-        rho_b_fcn = pvt_brine_RoweChou1970
+        pvt_brine = pvt_brine_RoweChou1970
     else
-        rho_b_fcn = pvt_brine_BatzleWang1992
+        pvt_brine = pvt_brine_BatzleWang1992
     end
-    rho_co2_fcn = pvt_co2_RedlichKwong1949
+    rho_b_fcn(arg...) = pvt_brine(arg...; check = check)
+
+    rho_co2_fcn(arg...) = pvt_co2_RedlichKwong1949(arg...; check = check)
     rho_gas_fcn(Mw_gas, V) = Mw_gas / V
-    mu_aq_fcn = viscosity_brine_co2_mixture_IC2012
-    mu_gas_fcn = viscosity_gas_mixture_Davidson1993
-    mu_co2_fcn = viscosity_co2_Fenghour1998
+    mu_aq_fcn(arg...) = viscosity_brine_co2_mixture_IC2012(arg...; check = check)
+    mu_gas_fcn(arg...) = viscosity_gas_mixture_Davidson1993(arg...; check = check)
+    mu_co2_fcn(arg...) = viscosity_co2_Fenghour1998(arg...; check = check)
 
 
     if check
@@ -627,7 +638,6 @@ function compute_co2_brine_props(p_pascal, T_K, salt_mole_fractions = Float64[],
     V_phi = V_phi / 10^6                                     # [m^3/mol]
 
     # CO2 and brine molar densities at standard conditions
-    _, rhox_co2_s, rho_co2_s = pvt_co2_RedlichKwong1949(T_K_s, P_bar_s)   # [mol/m^3]
     Y0_h2o = 0
     Y_h2o_out = 0
     Y0_co2 = 1
@@ -645,7 +655,7 @@ function compute_co2_brine_props(p_pascal, T_K, salt_mole_fractions = Float64[],
         b_m = Y0_co2 * b_co2 + Y0_h2o * b_h2o
 
         # 1. Gas molar volume (Redlich and Kwong (1949) EoS, = RK EoS)
-        V, _, rho_co2 = pvt_co2_RedlichKwong1949(T_K, P, a_m, b_m)              # [cm^3/mol, ~, kg/m^3]
+        V, _, rho_co2 = pvt_co2_RedlichKwong1949(T_K, P, a_m, b_m, check = check)              # [cm^3/mol, ~, kg/m^3]
 
         # 2. Gas compressibility factor
         Z = P * V / (R * T_K)                                              # [-]
