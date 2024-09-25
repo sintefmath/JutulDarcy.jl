@@ -556,7 +556,7 @@ end
 function parse_forces(model, datafile, sys, wells, controls, limits, cstep, dt, well_forces)
     bc, sources = parse_aquifer_bc(model, datafile, sys)
     if length(wells) == 0
-        return setup_reservoir_forces(mode, bc = bc, sources = sources)
+        return setup_reservoir_forces(model, bc = bc, sources = sources)
     end
     forces = []
     @assert length(controls) == length(limits) == length(well_forces)
