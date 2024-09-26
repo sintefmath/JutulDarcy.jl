@@ -3,26 +3,20 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
         thermal = false,
         co2_physics = :kvalue,
         co2_table_directory = missing,
+        co2_source = missing,
+        co2_density = :nist,
         extra_out = true,
         salt_names = String[],
         salt_mole_fractions = Float64[],
-        co2_source = ifelse(ismissing(co2_table_directory), :salo24, :table),
         kwarg...
     )
-    length(salt_mole_fractions) == length(salt_names) || throw(ArgumentError("salt_names ($salt_names) and salt_mole_fractions ($salt_mole_fractions) must have equal length."))
-    tables = co2_brine_property_tables(temperature, basepath = co2_table_directory)
-    if co2_source == :salo24 || length(salt_names) > 0
-        dens = tables[:density]::Jutul.BilinearInterpolant
-        visc = tables[:viscosity]::Jutul.BilinearInterpolant
-        K = tables[:K].K::Jutul.BilinearInterpolant
-        replace_co2_brine_properties!(dens, visc, K, salt_mole_fractions, salt_names)
-    elseif co2_source == :table
-        if length(salt_mole_fractions) > 0
-            jutul_message("Salts $salt_names were provided but table was also provided as $co2_table_directory. Salts will not be accounted for.", color = :yellow)
-        end
-    else
-        co2_source == :csp11 || throw(ArgumentError("co2_source argument must be either :csp11, :table or :salo24"))
-    end
+    tables = co2_brine_property_tables(temperature,
+        basepath = co2_table_directory,
+        salt_names = salt_names,
+        salt_mole_fractions = salt_mole_fractions,
+        co2_source = co2_source,
+        co2_density = co2_density
+    )
     rho = JutulDarcy.BrineCO2MixingDensities(tables[:density])
     mu = JutulDarcy.PTViscosities(tables[:viscosity])
     if thermal
@@ -90,10 +84,15 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
     return out
 end
 
-function replace_co2_brine_properties!(dens, visc, K, salt_mole_fractions, salt_names)
+function replace_co2_brine_properties!(dens, visc, K, salt_mole_fractions, salt_names; co2_density::Symbol, T_value)
     p = dens.X
-    T = dens.Y
-
+    if ismissing(T_value)
+        T = dens.Y
+    else
+        T = [T_value]
+    end
+    co2_density in (:rk, :nist) || throw(ArgumentError("co2_density argument must be :rk (for Redlich-Kwong) or :nist (for NIST tables)"))
+    replace_co2 = co2_density != :nist
     for (i, p_i) in enumerate(p)
         if i == 1
             p_i = p[2]
@@ -101,12 +100,24 @@ function replace_co2_brine_properties!(dens, visc, K, salt_mole_fractions, salt_
             p_i = p[end-1]
         end
         for (j, T_i) in enumerate(T)
-            if j == 1
-                T_i = T[2]
-            elseif j == length(T)
-                T_i = T[end-1]
+            if length(T) == 1
+                T_i = only(T)
+            else
+                if j == 1
+                    T_i = T[2]
+                elseif j == length(T)
+                    T_i = T[end-1]
+                end
             end
             props = compute_co2_brine_props(p_i, T_i, salt_mole_fractions, salt_names, check = false)
+            dens_calc = props[:density]
+            if replace_co2
+                dens.F[i, j] = dens_calc
+            else
+                pair_type = eltype(dens.F)
+                v_co2 = dens.F[i, j][2]
+                dens.F[i, j] = pair_type(dens_calc[1], v_co2)
+            end
             dens.F[i, j] = props[:density]
             visc.F[i, j] = props[:viscosity]
             K.F[i, j] = props[:K]
@@ -124,11 +135,47 @@ function JutulDarcy.get_phases(::Val{:co2brine})
     return (LiquidPhase(), VaporPhase())
 end
 
+"""
+    co2_brine_property_tables(T = missing;
+        basepath = missing,
+        salt_names = salt_names,
+        salt_mole_fractions = salt_mole_fractions,
+        co2_source = missing,
+        co2_density = :rk
+    )
 
-function co2_brine_property_tables(T = missing; basepath = missing)
+Set up brine-CO2 property tables for a wide range of p, T. If a single
+temperature value `T` is provided, an isothermal table will be generated for
+that temperature.
+
+
+Keyword arguments:
+
+    - `basepath`: Path to folder containing tables. This can be used to override the default tables.
+    - `salt_names`: Names of salts to in include (passed onto `compute_co2_brine_props`)
+    - `salt_mole_fractions`: Corresponding salt mole fractions (same length as `salt_names`)
+    - `co2_source = missing`: Source of CO2 values. Can be:
+        - `:table`: Use table directly.
+        - `:salo24`: Use correlations implemented in paper by Salo et al (support for salts)
+        - `:csp11`: Use values exactly as given in CSP11 benchmark (no salts)
+    - `co2_density=:rk`: How to obtain density of pure CO2 phase. Can be `:nist` for NIST tables or `:rk` for adjusted Redlich-Kwong from Spycher paper.
+
+"""
+function co2_brine_property_tables(T = missing;
+        basepath = missing,
+        salt_names = String[],
+        salt_mole_fractions = Float64[],
+        co2_source = missing,
+        co2_density = :rk
+    )
+    if ismissing(co2_source)
+        co2_source = ifelse(ismissing(basepath), :salo24, :table)
+    end
     if ismissing(basepath)
         basepath = joinpath(artifact"CO2Tables_CSP11", "csp11")
     end
+    length(salt_mole_fractions) == length(salt_names) || throw(ArgumentError("salt_names ($salt_names) and salt_mole_fractions ($salt_mole_fractions) must have equal length."))
+
     ispath(basepath) || throw(ArgumentError("basepath $basepath does not exist."))
     getpth(n) = joinpath(basepath, n)
 
@@ -138,16 +185,26 @@ function co2_brine_property_tables(T = missing; basepath = missing)
 
     prop_tab = [h2o, co2]
     K_pT = co2brine_K_values(sol, T)
-    rho_pT = co2brine_phase_property_table(prop_tab, :density, T)
-    mu_pT = co2brine_phase_property_table(prop_tab, :viscosity, T)
-    H_pT = co2brine_phase_property_table(prop_tab, :H, T)
-    C_v = co2brine_phase_property_table(prop_tab, :cv, T)
-    C_p = co2brine_phase_property_table(prop_tab, :cp, T)
-    E = co2brine_phase_property_table(prop_tab, :E, T)
+    get_tab(k::Symbol) = co2brine_phase_property_table(prop_tab, k, T)
+    rho_pT = get_tab(:density)
+    mu_pT = get_tab(:viscosity)
+    H_pT = get_tab(:H)
+    C_v = get_tab(:cv)
+    C_p = get_tab(:cp)
+    E = get_tab(:E)
+    phase_conductivity = get_tab(:phase_conductivity)
 
-    phase_conductivity = co2brine_phase_property_table(prop_tab, :phase_conductivity, T)
+    if co2_source == :table
+        if length(salt_mole_fractions) > 0
+            jutul_message("Salts $salt_names were provided but table was also provided as $base_dir. Salts will not be accounted for.", color = :yellow)
+        end
+    elseif co2_source == :salo24 || length(salt_names) > 0
+        replace_co2_brine_properties!(rho_pT, mu_pT, K_pT.K, salt_mole_fractions, salt_names, co2_density = co2_density, T_value = T)
+    else
+        co2_source == :csp11 || throw(ArgumentError("co2_source argument must be either :csp11, :table or :salo24"))
+    end
 
-    return Dict(
+    tables = Dict(
         :K => K_pT,
         :density => rho_pT,
         :viscosity => mu_pT,
@@ -160,6 +217,7 @@ function co2_brine_property_tables(T = missing; basepath = missing)
         :phase_conductivity => phase_conductivity,
         :solubility_table => sol
     )
+    return tables
 end
 
 function JutulDarcy.select_injector_mixture_spec(sys::Val{:co2brine}, name, streams, type)
