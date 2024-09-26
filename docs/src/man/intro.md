@@ -63,7 +63,10 @@ After a bit of time has passed compiling the packages, you are now ready to use 
 
 ### Setting up the domain
 
-We set up a simple Cartesian Mesh that is converted into a reservoir domain with permeability and porosity values. We then use this domain to set up two wells: One vertical well for injection and a single perforation producer:
+We set up a simple Cartesian Mesh that is converted into a reservoir domain with
+static properties permeability and porosity values together with geometry
+information. We then use this domain to set up two wells: One vertical well for
+injection and a single perforation producer.
 
 ````@example intro_ex
 using JutulDarcy, Jutul
@@ -82,7 +85,9 @@ domain
 
 ### Setting up a fluid system
 
-We select a two-phase immicible system by declaring that the liquid and vapor phases are present in the model. These are assumed to have fixed densitys of 1000 and 100 kilograms per meters cubed at some reference pressure and temperature conditions.
+We select a two-phase immicible system by declaring that the liquid and vapor
+phases are present in the model. These are assumed to have densities of 1000 and
+100 kilograms per meters cubed at reference pressure and temperature conditions.
 
 ````@example intro_ex
 phases = (LiquidPhase(), VaporPhase())
@@ -94,7 +99,11 @@ sys = ImmiscibleSystem(phases, reference_densities = reference_densities)
 
 ### Setting up the model
 
-We now have everything we need to set up a model. We call the setup function and get out the model together with the parameters - numerical input values that are static throughout the simulation. These are automatically computed from the domain's geometry, permeability and porosity.
+We now have everything we need to set up a model. We call the reservoir model
+setup function and get out the model together with the parameters. Parameter
+represent numerical input values that are static throughout the simulation.
+These are automatically computed from the domain's geometry, permeability and
+porosity.
 
 ````@example intro_ex
 model, parameters = setup_reservoir_model(domain, sys, wells = [Injector, Producer])
@@ -117,13 +126,17 @@ density = ConstantCompressibilityDensities(
     compressibility = c
 )
 kr = BrooksCoreyRelativePermeabilities(sys, [2.0, 3.0])
-replace_variables!(model, PhaseMassDensities = density, PhaseRelativePermeability = kr)
+replace_variables!(model, PhaseMassDensities = density, RelativePermeabilities = kr)
 nothing #hide
 ````
 
-### Initial state
+### Initial state: Pressure and saturations
 
-Now that we are happy with our model setup, we can designate an initial state. For simplicity, we set up a constant pressure reservoir filled with the liquid phase.
+Now that we are happy with our model setup, we can designate an initial state.
+Equilibriation of reservoirs can be a complicated affair, but here we set up a
+constant pressure reservoir filled with the liquid phase. The inputs must match
+the primary variables of the model, which in this case is pressure and
+saturations in every cell.
 
 ````@example intro_ex
 state0 = setup_reservoir_state(model,
@@ -134,12 +147,11 @@ state0 = setup_reservoir_state(model,
 
 ### Setting up timesteps and well controls
 
-We set up reporting timesteps. These are the intervals that the simulator gives out outputs. The simulator may use shorter steps internally, but will always hit these points in the output.
+We set up reporting timesteps. These are the intervals that the simulator gives out outputs. The simulator may use shorter steps internally, but will always hit these points in the output. Here, we report every year for 25 years.
 
 ````@example intro_ex
 nstep = 25
-dt = fill(365.0day, nstep)
-nothing #hide
+dt = fill(365.0day, nstep);
 ````
 
 We next set up a rate target with a high amount of gas injected into the model. This is not fully realistic, but will give some nice and dramatic plots for our example later on.
@@ -162,8 +174,7 @@ We can finally set up forces for the model. Note that while JutulDarcy supports 
 I_ctrl = InjectorControl(rate_target, [0.0, 1.0], density = rhoGS)
 P_ctrl = ProducerControl(bhp_target)
 controls = Dict(:Injector => I_ctrl, :Producer => P_ctrl)
-forces = setup_reservoir_forces(model, control = controls)
-nothing #hide
+forces = setup_reservoir_forces(model, control = controls);
 ````
 
 ### Simulate and analyze results
