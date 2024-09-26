@@ -543,9 +543,10 @@ calculation) and can any subset of the following names provided:
 
 """
 function compute_co2_brine_props(p_pascal, T_K, salt_mole_fractions = Float64[], salt_names = String[];
-        check=true,
-        iterate=false,
-        maxits=15,
+        check = true,
+        iterate = false,
+        verbose = false,
+        maxits = 15,
         ionized = false
     )
     # TODO: Salt var name
@@ -740,7 +741,7 @@ function compute_co2_brine_props(p_pascal, T_K, salt_mole_fractions = Float64[],
             Y0_h2o = Y_h2o
             Y0_co2 = Y_co2
             if res < 1e-6
-                println("Iterations at p=$P bar: $it")
+                verbose && println("Iterations at p=$P bar: $it")
                 done = true
             elseif it == maxits
                 error("Iterative loop did not converge")
