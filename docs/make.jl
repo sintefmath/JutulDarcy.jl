@@ -44,7 +44,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
         return content*"\n\n # ## Example on GitHub\n "*
         "# If you would like to run this example yourself, it can be downloaded from "*
         "the JutulDarcy.jl GitHub repository [as a script](https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/$pth.jl), "*
-        "or as a [Notebook](https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/$pth.ipynb)"
+        "or as a [Notebook](https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/notebooks/$pth.ipynb)"
     end
     if clean
         for (ex, pth) in examples
@@ -59,7 +59,6 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
     end
     example_path(pth) = joinpath(jutul_dir, "examples", "$pth.jl")
     out_dir = joinpath(@__DIR__, "src", "examples")
-    notebook_dir = joinpath(@__DIR__, "assets")
     for (ex, pth) in examples
         in_pth = example_path(pth)
         is_validation = startswith(ex, "Validation:")
@@ -80,9 +79,6 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
             push!(ex_dest, ex => joinpath("examples", "$pth.md"))
             upd(content) = update_footer(content, pth)
             Literate.markdown(in_pth, out_dir, preprocess = upd)
-        end
-        if build_notebooks
-            Literate.notebook(in_pth, notebook_dir, execute = false)
         end
     end
     ## Docs
@@ -138,7 +134,14 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
             ]
         ],
     )
-
+    if build_notebooks
+        notebook_dir = joinpath(@__DIR__, "src", "notebooks")
+        mkpath(notebook_dir)
+        for (ex, pth) in examples
+            in_pth = example_path(pth)
+            Literate.notebook(in_pth, notebook_dir, execute = false)
+        end
+    end
     deploydocs(;
         repo="github.com/sintefmath/JutulDarcy.jl.git",
         devbranch="main",
