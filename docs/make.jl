@@ -26,6 +26,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
         "Intro: Compositional flow" => "co2_brine_2d_vertical",
         "Quarter-five-spot with variation" => "five_spot_ensemble",
         "Gravity circulation with CPR preconditioner" => "two_phase_unstable_gravity",
+        "CO2 property calculations" => "co2_props",
         "CO2 injection in saline aquifer" => "co2_sloped",
         "Compositional with five components" => "compositional_5components",
         "Parameter matching of Buckley-Leverett" => "optimize_simple_bl",
