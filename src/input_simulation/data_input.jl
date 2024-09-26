@@ -69,7 +69,7 @@ function setup_case_from_parsed_data(datafile;
         normalize = true,
         convert_co2store = true,
         repair_zcorn = true,
-        process_pinch = false,
+        process_pinch = true,
         kwarg...
     )
     function msg(s)
@@ -804,10 +804,10 @@ function initialize_numerical_aquifers!(init, rmodel, aquifers)
     return init
 end
 
-function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, process_pinch = false)
+function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, process_pinch = true)
     grid = data_file["GRID"]
     cartdims = grid["cartDims"]
-    G = mesh_from_grid_section(grid, missing, repair_zcorn, process_pinch)
+    G = mesh_from_grid_section(grid; repair_zcorn = repair_zcorn, process_pinch = process_pinch)
 
     # Handle numerical aquifers
     aqunum = get(grid, "AQUNUM", missing)
@@ -1057,6 +1057,7 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
         @. domain[:cell_centroids][3, :] = z
     end
 
+    # pinch_face = get_mesh_entity_tag(G, Faces(), :cpgrid_connection_type, :pinched, throw = false)
     if !isnothing(aquifers)
         domain[:numerical_aquifers, nothing] = aquifers
         vol = domain[:volumes]
