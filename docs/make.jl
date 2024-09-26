@@ -114,10 +114,9 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
             "Introduction" => [
                 "JutulDarcy.jl" => "index.md",
                 "Getting started" =>"man/intro.md",
-                "References" => "extras/refs.md",
-                "FAQ" => "extras/faq.md",
-                "Jutul functions" => "ref/jutul.md"
-                ],
+                "Your first JutulDarcy.jl simulation" => "man/first_ex.md",
+                "FAQ" => "extras/faq.md"
+            ],
             "Manual" => [
                     "man/highlevel.md",
                     "man/basics/input_files.md",
@@ -130,13 +129,15 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
                     "man/basics/parameters.md",
                     "man/basics/plotting.md",
                     ],
+            "Further reading" => [
+                "man/advanced/mpi.md",
+                "man/advanced/compiled.md",
+                "Jutul functions" => "ref/jutul.md",
+                "Bibliography" => "extras/refs.md"
+            ],
             "Examples: Introduction" => intros_markdown,
             "Examples: Usage" => examples_markdown,
-            "Examples: Validation" => validation_markdown,
-            "Advanced usage" => [
-                "man/advanced/mpi.md",
-                "man/advanced/compiled.md"
-            ]
+            "Examples: Validation" => validation_markdown
         ],
     )
 
