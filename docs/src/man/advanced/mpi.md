@@ -16,9 +16,32 @@ JutulDarcy also supports threads. By defualt, this only parallelizes property ev
 
 An experimental thread-parallel backend for matrices and linear algebra can be enabled by setting `backend=:csr` in the call to [`setup_reservoir_model`](@ref). This backend provides additional features such as a parallel zero-overlap ILU(0) implementation and parallel apply for AMG, but these features are still work in progress.
 
+Starting Julia with multiple threads (for example `julia --project. --threads=4`) will allow `JutulDarcy` to make use of threads to speed up calculations
+
+- The default behavior is to only speed up assembly of equations
+- The linear solver is often the most expensive part -- as mentioned above, parts can be parallelized by choosing `csr` backend when setting up the model
+- Running with a parallel preconditioner can lead to higher iteration counts since the ILU(0) preconditioner changes in parallel
+- Heavy compositional models benefit a lot from using threads
+
+Threads are easy to use and can give a bit of benefit for large models.
+
+
 ### Mixed-mode parallelism
 
 You can mix the two approaches: Adding multiple threads to each MPI process can use threads to speed up assembly and property evaluations.
+
+### Tips for parallel runs
+
+A few hints when you are looking at performance:
+
+- Reservoir simulations are memory bound, cannot expect that 10 threads = 10x performance
+- CPUs can often boost single-core performance when resources are available
+- MPI in JutulDarcy is less tested than single-process simulations, but is natural for larger models
+- There is always some cost to parallelism: If running a large ensemble with limited compute, many serial runs handled by Julia's task system is usually a better option
+- Adding the maximum number of processes does not always give the best performance. Typically you want at least 10 000 cells per process. Can be case dependent.
+
+Example: 200k cell model on laptop: 1 process 235 s -> 4 processes 145s
+
 
 ## Solving with MPI in practice
 
