@@ -41,7 +41,7 @@ You can restart the simulation with different options for timestepping or tolera
 
 ### How do I decide where output is stored?
 
-`Jutul.jl` contains a system for managing output folders. It is highly recommended that you amend your `startup.jl` file to include `ENV["JUTUL_OUTPUT_PATH"]` that points to where you want output to be stored.
+`Jutul.jl` contains a system for managing output folders. It is highly recommended that you amend your `startup.jl` file to include `ENV["JUTUL_OUTPUT_PATH"]` that points to where you want output to be stored. For example, on Windows usage of the output path mechanism may look something like this:
 
 ```julia
 julia> ENV["JUTUL_OUTPUT_PATH"]
@@ -60,6 +60,26 @@ julia> jutul_output_path("mycase", subfolder = missing)
 "D:/jutul_output/mycase"
 ```
 
+Or equivialent on a Linux system:
+
+```julia
+julia> ENV["JUTUL_OUTPUT_PATH"]
+"/home/username/jutul_output/"
+
+julia> jutul_output_path() # Randomly generated file name
+"/home/username/jutul_output/jutul/jl_DwpAvQTiLo"
+
+julia> jutul_output_path("mycase")
+"/home/username/jutul_output/jutul/mycase"
+
+julia> jutul_output_path("mycase", subfolder = "ensemble_name")
+"/home/username/jutul_output/ensemble_name/mycase"
+
+julia> jutul_output_path("mycase", subfolder = missing)
+"/home/username/jutul_output/mycase"
+```
+
+You can also just specify a full path and keep track of output folders yourself, but using the `jutul_output_path` mechanism will make it easier to write a script that can be run on another computer with different folder structure.
 
 ### How do you get out more output from a simulation?
 
@@ -109,7 +129,7 @@ added as needed for ongoing projects where the simulator is in use. Posting an
 issue, especially if you have a clear reference to how something should be
 implemented is still very useful. It is also possible to fund the development
 for a specific feature, or to implement the feature yourself by asking for
-pointers to get started.
+pointers on how to get started.
 
 ### What units does JutulDarcy.jl use?
 
