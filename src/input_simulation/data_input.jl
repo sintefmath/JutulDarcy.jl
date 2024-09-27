@@ -2058,7 +2058,7 @@ function apply_weltarg!(controls, limits, wk)
     well, ctype, value = wk
     ctype = lowercase(ctype)
     ctrl = controls[well]
-    @assert !(ctrl isa DisabledControl) "Cannot use WELTARG on disabled well."
+    @assert !(ctrl isa DisabledControl) "Cannot use WELTARG $ctype = $value on disabled well $well."
     is_injector = ctrl isa InjectorControl
     limit = limits[well]
     limit = OrderedDict{Symbol, Float64}(pairs(limit))
