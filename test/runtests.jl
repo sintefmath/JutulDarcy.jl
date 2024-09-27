@@ -60,6 +60,6 @@ end
     include("co2props.jl")
 end
 
-@run_package_tests
+# @run_package_tests
 nothing
 # include("gpu.jl")

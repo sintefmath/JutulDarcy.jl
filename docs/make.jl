@@ -7,7 +7,13 @@ using DocumenterCitations
 using DocumenterVitepress
 ##
 cd(@__DIR__)
-function build_jutul_darcy_docs(build_format = nothing; build_examples = true, build_validation_examples = build_examples, build_notebooks = build_examples, clean = true)
+function build_jutul_darcy_docs(build_format = nothing;
+        build_examples = true,
+        build_validation_examples = build_examples,
+        build_notebooks = true,
+        clean = true,
+        deploy = true
+    )
     DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy; using Jutul); recursive=true)
     DocMeta.setdocmeta!(Jutul, :DocTestSetup, :(using Jutul); recursive=true)
     bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"))
@@ -135,24 +141,27 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
         ],
     )
     if build_notebooks
-        notebook_dir = joinpath(@__DIR__, "src", "notebooks")
+        notebook_dir = joinpath(@__DIR__, "src", "notebooks_build")
         mkpath(notebook_dir)
         for (ex, pth) in examples
             in_pth = example_path(pth)
+            @info "$ex Writing notebook to $notebook_dir"
             Literate.notebook(in_pth, notebook_dir, execute = false)
         end
     end
-    deploydocs(;
-        repo="github.com/sintefmath/JutulDarcy.jl.git",
-        devbranch="main",
-        target = "build", # this is where Vitepress stores its output
-        branch = "gh-pages",
-        push_preview = true
-    )
+    if deploy
+        deploydocs(;
+            repo="github.com/sintefmath/JutulDarcy.jl.git",
+            devbranch="main",
+            target = "build", # this is where Vitepress stores its output
+            branch = "gh-pages",
+            push_preview = true
+        )
+    end
 end
 ##
-# build_jutul_darcy_docs(build_examples = false, build_validation_examples = false)
-build_jutul_darcy_docs()
+build_jutul_darcy_docs(build_examples = false, build_validation_examples = false, deploy = true)
+# build_jutul_darcy_docs()
 
 # ```@autodocs
 # Modules = [JutulDarcy]
