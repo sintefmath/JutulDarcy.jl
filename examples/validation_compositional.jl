@@ -17,7 +17,8 @@
 # and the other well producing at 50 bar. The model is isothermal and contains a
 # phase transition from the initial two-phase mixture to single-phase gas as
 # injected CO$_2$ eventually displaces the resident fluids. For further details
-# on this setup, see Møyner and Tchelepi (SPE J. 2018).
+# on this setup, see Møyner and Tchelepi (SPE J. 2018)
+# [moyner_tchelepi_2018](@cite).
 using JutulDarcy
 using Jutul
 using GLMakie

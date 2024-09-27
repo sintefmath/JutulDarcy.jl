@@ -1,5 +1,11 @@
 # # OLYMPUS_1 model
-# Model from the [ISAPP Optimization challenge](https://www.isapp2.com/optimization-challenge/reservoir-model-description.html)
+# Model from the [ISAPP Optimization
+# challenge](https://www.isapp2.com/optimization-challenge/reservoir-model-description.html)
+#
+# Two-phase complex corner-point model with primary and secondary production.
+#
+# For more details, see [olympus](@cite)
+#
 using Jutul, JutulDarcy, GLMakie, DelimitedFiles, HYPRE
 using Test #src
 olympus_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("OLYMPUS_1")
