@@ -148,6 +148,22 @@ function build_jutul_darcy_docs(build_format = nothing;
             @info "$ex Writing notebook to $notebook_dir"
             Literate.notebook(in_pth, notebook_dir, execute = false)
         end
+        # Try assets folder too
+        notebook_dir = joinpath(@__DIR__, "src", "assets")
+        mkpath(notebook_dir)
+        for (ex, pth) in examples
+            in_pth = example_path(pth)
+            @info "$ex Writing notebook to $notebook_dir"
+            Literate.notebook(in_pth, notebook_dir, execute = false)
+        end
+        # And also build folder to test
+        notebook_dir = joinpath(@__DIR__, "build", "final_site")
+        mkpath(notebook_dir)
+        for (ex, pth) in examples
+            in_pth = example_path(pth)
+            @info "$ex Writing notebook to $notebook_dir"
+            Literate.notebook(in_pth, notebook_dir, execute = false)
+        end
     end
     if deploy
         deploydocs(;
@@ -161,6 +177,7 @@ function build_jutul_darcy_docs(build_format = nothing;
 end
 ##
 build_jutul_darcy_docs(build_examples = false, build_validation_examples = false, deploy = true)
+build_jutul_darcy_docs(build_examples = false, build_validation_examples = false, deploy = false)
 # build_jutul_darcy_docs()
 
 # ```@autodocs
