@@ -225,6 +225,14 @@ function Jutul.default_parameter_values(data_domain, model, param::RockThermalCo
     return T
 end
 
+"""
+    add_thermal_to_model!(model::MultiModel)
+
+Add energy conservation equation and thermal primary variable together with
+standard set of parameters to existing flow model. Note that more complex models
+require additional customization after this function call to get correct
+results.
+"""
 function add_thermal_to_model!(model::MultiModel)
     for (k, m) in pairs(model.models)
         if m.system isa MultiPhaseSystem

@@ -79,6 +79,13 @@ struct EndPointScalingCoefficients{phases} <: VectorVariables
     drainage::Bool
 end
 
+"""
+    EndPointScalingCoefficients(phases::Symbol; drainage = true)
+
+Parameters that represent end-point scaling for a relative permeability phase
+(drainage or imbibition) as parametrized by four points (connate, critical,
+saturation at which maximum kr first occurs and maximum kr).
+"""
 function EndPointScalingCoefficients(phases::Symbol; drainage = true)
     return EndPointScalingCoefficients{phases}(drainage)
 end

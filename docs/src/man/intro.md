@@ -19,7 +19,7 @@ using Pkg
 Pkg.add("JutulDarcy")
 ```
 
-You can then run any of the examples in the [`examples`](https://github.com/sintefmath/JutulDarcy.jl/tree/main/examples) directory by including them. The examples are sorted by complexity. We suggest you start with [Gravity segregation example](Intro: Gravity segregation example).
+You can then run any of the examples in the [`examples`](https://github.com/sintefmath/JutulDarcy.jl/tree/main/examples) directory by including them. The examples are sorted by complexity. We suggest you start with [Intro: Gravity segregation](Intro: Gravity segregation example).
 
 To generate a folder that contains the examples locally, you can run the following code to create a folder `jutuldarcy_examples` in your current working directory:
 
@@ -33,6 +33,10 @@ Alternatively, a folder can be specified if you want the examples to be placed o
 ```julia
 using JutulDarcy
 generate_jutuldarcy_examples("/home/username/")
+```
+
+```@docs
+generate_jutuldarcy_examples
 ```
 
 ### Adding additional packages

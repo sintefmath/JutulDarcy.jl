@@ -157,7 +157,12 @@ For additional details, please see Chapter 8 - Compositional Simulation with the
 
 ## Multi-phase thermal flow
 
+Thermal effects are modelled as an additional residual equation that comes in addition to the flow equations.
+
+```math
+r_i = \frac{\partial}{\partial t}\Bigl(\rho_r U_r (1-\phi) + \sum_\alpha \rho_\alpha S_\alpha U_\alpha \phi \Bigr) + \nabla \cdot \left (\sum_\alpha ( H_\alpha \rho_\alpha v_\alpha - S_\alpha \lambda_\alpha \nabla T)-\lambda_r \nabla T \right) - Q_e
+```
+
 ```@docs
-reservoir_system
 JutulDarcy.add_thermal_to_model!
 ```

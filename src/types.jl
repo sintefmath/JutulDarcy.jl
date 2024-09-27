@@ -368,6 +368,9 @@ end
 abstract type PorousMediumDomain <: JutulMesh end
 abstract type ReservoirGrid <: PorousMediumDomain end
 
+"""
+Abstract supertype for all well domains.
+"""
 abstract type WellDomain <: PorousMediumDomain
     # Wells are not porous themselves per se, but they are discretizing
     # part of a porous medium.

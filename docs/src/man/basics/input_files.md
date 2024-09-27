@@ -28,6 +28,7 @@ If you want to directly simulate a file from disk, you can sue the high level fu
 simulate_data_file
 setup_case_from_data_file
 JutulDarcy.setup_case_from_parsed_data
+JutulDarcy.convert_co2store_to_co2_brine
 ```
 
 Reservoir simulator input files are highly complex and contain a great number of

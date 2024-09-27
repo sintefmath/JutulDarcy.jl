@@ -9,7 +9,18 @@
 ```@docs
 BrooksCoreyRelativePermeabilities
 RelativePermeabilities
+JutulDarcy.TabulatedSimpleRelativePermeabilities
 JutulDarcy.ReservoirRelativePermeabilities
+```
+
+The `ReservoirRelativePermeabilities` type also supports hysteresis for either phase.
+
+```@docs
+JutulDarcy.NoHysteresis
+JutulDarcy.CarlsonHysteresis
+JutulDarcy.KilloughHysteresis
+JutulDarcy.JargonHysteresis
+JutulDarcy.ImbibitionOnlyHysteresis
 ```
 
 ```@docs
@@ -24,15 +35,19 @@ EndPointScalingCoefficients
 
 ```@docs
 DeckPhaseViscosities
+JutulDarcy.ConstMuBTable
+JutulDarcy.MuBTable
 ```
 
 ```@docs
 PhaseMassDensities
 ```
 
-### Immiscible flow
-
 #### Phase densities
+
+```@docs
+JutulDarcy.DeckPhaseMassDensities
+```
 
 #### Shrinkage factors
 
@@ -53,6 +68,7 @@ ConstantCompressibilityDensities
 
 ```@docs
 PhaseMassFractions
+JutulDarcy.KValueWrapper
 ```
 
 ## Wells
