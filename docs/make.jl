@@ -7,7 +7,13 @@ using DocumenterCitations
 using DocumenterVitepress
 ##
 cd(@__DIR__)
-function build_jutul_darcy_docs(build_format = nothing; build_examples = true, build_validation_examples = build_examples, build_notebooks = true, clean = true)
+function build_jutul_darcy_docs(build_format = nothing;
+        build_examples = true,
+        build_validation_examples = build_examples,
+        build_notebooks = true,
+        clean = true,
+        deploy = true
+    )
     DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy; using Jutul); recursive=true)
     DocMeta.setdocmeta!(Jutul, :DocTestSetup, :(using Jutul); recursive=true)
     bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"))
