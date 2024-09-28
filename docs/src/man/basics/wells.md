@@ -23,6 +23,8 @@ JutulDarcy.SimpleWell
 ```@docs
 WellDomain
 MultiSegmentWell
+JutulDarcy.SegmentWellBoreFrictionHB
+JutulDarcy.PotentialDropBalanceWell
 ```
 
 ## Well controls and limits
@@ -53,16 +55,30 @@ TotalRateTarget
 HistoricalReservoirVoidageTarget
 ReservoirVoidageTarget
 DisabledTarget
+JutulDarcy.TotalReservoirRateTarget
+```
+
+### Implementation of well controls
+
+```@docs
+JutulDarcy.well_target
+```
+
+### Well outputs
+
+```@docs
+JutulDarcy.print_well_result_table
 ```
 
 ### Imposing limits on wells (multiple constraints)
 
 ## Well forces
 
-### Changing perforations
+### Perforations and WI adjustments
 
 ```@docs
 PerforationMask
+JutulDarcy.Perforations
 ```
 
 ### Other forces

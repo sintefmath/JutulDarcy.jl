@@ -129,6 +129,12 @@ end
 
 Jutul.parameter_is_differentiable(::Saturations, model) = false
 
+"""
+    ConnateWater()
+
+Parameter for connate water per cell. Used in some three-phase relative
+permeability evaluators.
+"""
 struct ConnateWater <: ScalarVariable end
 
 function Jutul.default_values(model, ::ConnateWater)

@@ -32,3 +32,9 @@ JutulDarcy.EndPointScalingCoefficients
 JutulDarcy.WellIndices
 JutulDarcy.PerforationGravityDifference
 ```
+
+## Thermal
+
+```@docs
+JutulDarcy.FluidThermalConductivities
+```

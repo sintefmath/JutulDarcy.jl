@@ -92,8 +92,11 @@ function plot_well_comparison(response, well_names, reponse_name = "$response")
     fig
 end
 # ## Well responses and comparison
-# ### Water production rates
-plot_well_comparison(:wrat, prod, "Water surface rate")
-# ### Oil production rates
-plot_well_comparison(:orat, prod, "Oil surface rate")
+# As the case is a two-phase model with water injection, we limit the results to
+# plots of the producer water and oil rates.
 
+# ### Water production rates
+plot_well_comparison(:wrat, prod, "Producer water surface rate")
+
+# ### Oil production rates
+plot_well_comparison(:orat, prod, "Producer oil surface rate")

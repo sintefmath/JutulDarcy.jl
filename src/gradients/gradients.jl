@@ -33,15 +33,26 @@ function reservoir_sensitivities(case::JutulCase, rsr::ReservoirSimResult, objec
     return reservoir_sensitivities(case, rsr.result, objective; kwarg...)
 end
 
-function reservoir_sensitivities(case::JutulCase, result::Jutul.SimResult, obj; include_parameters = false, adjoint_arg = NamedTuple(), kwarg...)
+function reservoir_sensitivities(case::JutulCase, result::Jutul.SimResult, obj;
+        include_parameters = false,
+        include_state0 = false,
+        adjoint_arg = (include_state0 = include_state0, ),
+        kwarg...)
     sens = solve_adjoint_sensitivities(case, result, obj; adjoint_arg...)
     rmodel = reservoir_model(case.model)
     if haskey(sens, :Reservoir)
         sens = sens[:Reservoir]
     end
     data_domain_with_gradients = Jutul.data_domain_to_parameters_gradient(rmodel, sens; kwarg...)
+    vars_to_add = []
     if include_parameters
-        for (k, pdef) in pairs(Jutul.get_parameters(rmodel))
+        push!(vars_to_add, Jutul.get_parameters(rmodel))
+    end
+    if include_state0
+        push!(vars_to_add, Jutul.get_primary_variables(rmodel))
+    end
+    for vars in vars_to_add
+        for (k, pdef) in pairs(vars)
             u = associated_entity(pdef)
             data_domain_with_gradients[k, u] = sens[k]
         end

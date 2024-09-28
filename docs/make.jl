@@ -7,7 +7,13 @@ using DocumenterCitations
 using DocumenterVitepress
 ##
 cd(@__DIR__)
-function build_jutul_darcy_docs(build_format = nothing; build_examples = true, build_validation_examples = build_examples, build_notebooks = build_examples, clean = true)
+function build_jutul_darcy_docs(build_format = nothing;
+        build_examples = true,
+        build_validation_examples = build_examples,
+        build_notebooks = true,
+        clean = true,
+        deploy = true
+    )
     DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy; using Jutul); recursive=true)
     DocMeta.setdocmeta!(Jutul, :DocTestSetup, :(using Jutul); recursive=true)
     bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"))
@@ -26,6 +32,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
         "Intro: Compositional flow" => "co2_brine_2d_vertical",
         "Quarter-five-spot with variation" => "five_spot_ensemble",
         "Gravity circulation with CPR preconditioner" => "two_phase_unstable_gravity",
+        "CO2 property calculations" => "co2_props",
         "CO2 injection in saline aquifer" => "co2_sloped",
         "Compositional with five components" => "compositional_5components",
         "Parameter matching of Buckley-Leverett" => "optimize_simple_bl",
@@ -44,7 +51,7 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
         return content*"\n\n # ## Example on GitHub\n "*
         "# If you would like to run this example yourself, it can be downloaded from "*
         "the JutulDarcy.jl GitHub repository [as a script](https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/$pth.jl), "*
-        "or as a [Notebook](https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/$pth.ipynb)"
+        "or as a [Jupyter Notebook](https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/final_site/notebooks/$pth.ipynb)"
     end
     if clean
         for (ex, pth) in examples
@@ -81,25 +88,20 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
             upd(content) = update_footer(content, pth)
             Literate.markdown(in_pth, out_dir, preprocess = upd)
         end
-        if build_notebooks
-            Literate.notebook(in_pth, notebook_dir, execute = false)
-        end
     end
     ## Docs
     if isnothing(build_format)
-        if false
-            build_format = Documenter.HTML(;
-                prettyurls=get(ENV, "CI", "false") == "true",
-                canonical="https://sintefmath.github.io/JutulDarcy.jl",
-                edit_link="main",
-                size_threshold_ignore = ["ref/jutul.md", "docstrings.md"],
-                assets=String["assets/citations.css"],
-            )
-        else
-            build_format = DocumenterVitepress.MarkdownVitepress(
-                repo = "https://github.com/sintefmath/JutulDarcy.jl",
-            )
-        end
+        # Old Documenter code in case we want to go back.
+        # build_format = Documenter.HTML(;
+        #     prettyurls=get(ENV, "CI", "false") == "true",
+        #     canonical="https://sintefmath.github.io/JutulDarcy.jl",
+        #     edit_link="main",
+        #     size_threshold_ignore = ["ref/jutul.md", "docstrings.md"],
+        #     assets=String["assets/citations.css"],
+        # )
+        build_format = DocumenterVitepress.MarkdownVitepress(
+            repo = "https://github.com/sintefmath/JutulDarcy.jl",
+        )
     end
     makedocs(;
         modules=[JutulDarcy, Jutul],
@@ -113,10 +115,9 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
             "Introduction" => [
                 "JutulDarcy.jl" => "index.md",
                 "Getting started" =>"man/intro.md",
-                "References" => "extras/refs.md",
-                "FAQ" => "extras/faq.md",
-                "Jutul functions" => "ref/jutul.md"
-                ],
+                "Your first JutulDarcy.jl simulation" => "man/first_ex.md",
+                "FAQ" => "extras/faq.md"
+            ],
             "Manual" => [
                     "man/highlevel.md",
                     "man/basics/input_files.md",
@@ -128,24 +129,38 @@ function build_jutul_darcy_docs(build_format = nothing; build_examples = true, b
                     "man/basics/secondary.md",
                     "man/basics/parameters.md",
                     "man/basics/plotting.md",
+                    "man/basics/utilities.md",
                     ],
+            "Further reading" => [
+                "man/advanced/mpi.md",
+                "man/advanced/compiled.md",
+                "Jutul functions" => "ref/jutul.md",
+                "Bibliography" => "extras/refs.md"
+            ],
             "Examples: Introduction" => intros_markdown,
             "Examples: Usage" => examples_markdown,
-            "Examples: Validation" => validation_markdown,
-            "Advanced usage" => [
-                "man/advanced/mpi.md",
-                "man/advanced/compiled.md"
-            ]
+            "Examples: Validation" => validation_markdown
         ],
     )
-
-    deploydocs(;
-        repo="github.com/sintefmath/JutulDarcy.jl.git",
-        devbranch="main",
-        target = "build", # this is where Vitepress stores its output
-        branch = "gh-pages",
-        push_preview = true
-    )
+    if build_notebooks
+        # Subfolder of final site build folder
+        notebook_dir = joinpath(@__DIR__, "build", "final_site", "notebooks")
+        mkpath(notebook_dir)
+        for (ex, pth) in examples
+            in_pth = example_path(pth)
+            @info "$ex Writing notebook to $notebook_dir"
+            Literate.notebook(in_pth, notebook_dir, execute = false)
+        end
+    end
+    if deploy
+        deploydocs(;
+            repo="github.com/sintefmath/JutulDarcy.jl.git",
+            devbranch="main",
+            target = "build", # this is where Vitepress stores its output
+            branch = "gh-pages",
+            push_preview = true
+        )
+    end
 end
 ##
 # build_jutul_darcy_docs(build_examples = false, build_validation_examples = false)

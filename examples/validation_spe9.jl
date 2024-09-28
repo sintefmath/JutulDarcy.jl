@@ -3,6 +3,8 @@
 # of black-oil simulation. In SPE Reservoir Simulation Symposium,  12-15
 # February 1995, San Antonio, Texas. SPE 29110-MS]
 # (http://dx.doi.org/10.2118/29110-MS)
+# [spe9](@cite)
+
 using Jutul, JutulDarcy, GLMakie, DelimitedFiles
 spe9_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE9")
 case = setup_case_from_data_file(joinpath(spe9_dir, "SPE9.DATA"))

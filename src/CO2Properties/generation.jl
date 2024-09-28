@@ -278,16 +278,18 @@ of excess Gibbs energy.
     - rhox: Scalar with density in [mol/m^3]
     - rho: Scalar with density in [kg/m^3]
 """
-function activity_co2_DS2003(T, P, m_io)
-    # Check if T, P conditions are within range
-    if P > 2000
-        jutul_message("activity_co2_DS2003", "Pressure out of tested range", color = :yellow)
-    end
-    if T < 273 || T > 533
-        jutul_message("activity_co2_DS2003", "Temperature out of tested range", color = :yellow)
-    end
-    if maximum(m_io) > 4.3
-        jutul_message("activity_co2_DS2003", "Ionic strength out of tested range", color = :yellow)
+function activity_co2_DS2003(T, P, m_io; check = true)
+    if check
+        # Check if T, P conditions are within range
+        if P > 2000
+            jutul_message("activity_co2_DS2003", "Pressure out of tested range", color = :yellow)
+        end
+        if T < 273 || T > 533
+            jutul_message("activity_co2_DS2003", "Temperature out of tested range", color = :yellow)
+        end
+        if maximum(m_io) > 4.3
+            jutul_message("activity_co2_DS2003", "Ionic strength out of tested range", color = :yellow)
+        end
     end
 
     # Interaction parameter constants
@@ -543,9 +545,10 @@ calculation) and can any subset of the following names provided:
 
 """
 function compute_co2_brine_props(p_pascal, T_K, salt_mole_fractions = Float64[], salt_names = String[];
-        check=true,
-        iterate=false,
-        maxits=15,
+        check = true,
+        iterate = false,
+        verbose = false,
+        maxits = 15,
         ionized = false
     )
     # TODO: Salt var name
@@ -709,7 +712,7 @@ function compute_co2_brine_props(p_pascal, T_K, salt_mole_fractions = Float64[],
         # 5. CO2 molality in saline solution at P, T conditions (m_co2)
         #   5.1 CO2 activity coefficient (Duan and Sun, 2003, as in Spycher
         #   & Pruess, 2005; typos in Hassanzadeh et al., 2008)
-        gamma_co2 = activity_co2_DS2003(T_K, P, m_io)
+        gamma_co2 = activity_co2_DS2003(T_K, P, m_io, check = check)
 
         #   5.2 CO2 molality
         m_co2 = m0_co2 / gamma_co2
@@ -740,7 +743,7 @@ function compute_co2_brine_props(p_pascal, T_K, salt_mole_fractions = Float64[],
             Y0_h2o = Y_h2o
             Y0_co2 = Y_co2
             if res < 1e-6
-                println("Iterations at p=$P bar: $it")
+                verbose && println("Iterations at p=$P bar: $it")
                 done = true
             elseif it == maxits
                 error("Iterative loop did not converge")

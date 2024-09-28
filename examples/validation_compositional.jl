@@ -1,18 +1,35 @@
 # # Validation of equation-of-state compositiona simulator
-# This example solves a 1D problem and compares against existing simulators
-# (E300, AD-GPRS) to verify correctness.
+# This example solves a 1D two-phase, three component miscible displacement
+# problem and compares against existing simulators (E300, AD-GPRS) to verify
+# correctness.
 #
 # The case is loaded from an input file that can be run in other simulators. For
-# convenience, we provide solutions from the other simulators as a binary file.
+# convenience, we provide solutions from the other simulators as a binary file
+# to perform a comparison without having to run and convert results from other
+# the simulators.
+#
+# This case is a small compositional problem inspired by the examples in Voskov
+# et al (JPSE, 2012). A 1D reservoir of 1,000 meters length is discretized into
+# 1,000 cells. The model initially contains a mixture made up of 0.6 parts C10,
+# 0.1 parts CO2, and 0.3 parts C1 by moles at 150 degrees C and 75 bar pressure.
+# Wells are placed in the leftmost and rightmost cells of the domain, with the
+# leftmost well injecting pure CO$_2$ at a fixed bottom-hole pressure of 100 bar
+# and the other well producing at 50 bar. The model is isothermal and contains a
+# phase transition from the initial two-phase mixture to single-phase gas as
+# injected CO$_2$ eventually displaces the resident fluids. For further details
+# on this setup, see Møyner and Tchelepi (SPE J. 2018)
+# [moyner_tchelepi_2018](@cite).
 using JutulDarcy
 using Jutul
 using GLMakie
 dpth = JutulDarcy.GeoEnergyIO.test_input_file_path("SIMPLE_COMP")
 data_path = joinpath(dpth, "SIMPLE_COMP.DATA")
 case = setup_case_from_data_file(data_path)
-result = simulate_reservoir(case)
+result = simulate_reservoir(case, info_level = 1)
 ws, states = result;
 # ## Plot solutions and compare
+# The 1D displacement can be plotted as a line plot. We pick a step midway
+# through the simulation and plot compositions, saturations and pressure.
 cmap = :tableau_hue_circle
 ref_path = joinpath(dpth, "reference.jld2")
 ref = Jutul.JLD2.load(ref_path)

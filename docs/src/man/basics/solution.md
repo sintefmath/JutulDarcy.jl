@@ -69,7 +69,7 @@ This block system has several advantages:
 
 ##### Constrained Pressure Residual
 
-The CPR preconditioner [wallis-cpr, cao-cpr](@cite) [`CPRPreconditioner`](@ref) is a multi-stage physics-informed preconditioner that seeks to decouple the global pressure part of the system from the local  transport part. In the limits of incompressible flow without gravity it can be thought of as an elliptic / hyperbolic splitting.
+The CPR preconditioner [wallis-cpr, cao-cpr](@cite) [`CPRPreconditioner`](@ref) is a multi-stage physics-informed preconditioner that seeks to decouple the global pressure part of the system from the local  transport part. In the limits of incompressible flow without gravity it can be thought of as an elliptic / hyperbolic splitting. We also implement a special variant for the adjoint system that is similar to the treatment described in [adjoint_cpr](@cite).
 
 ```@docs
 CPRPreconditioner

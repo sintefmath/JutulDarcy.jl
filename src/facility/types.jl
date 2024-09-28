@@ -59,7 +59,15 @@ cells.
 """
 struct Perforations <: JutulEntity end
 
+"""
+    WellIndices()
+
+Parameter for the connection strength between a well and the reservoir for a
+given perforation. Typical values come from a combination of Peaceman's formula,
+upscaling and/or history matching.
+"""
 struct WellIndices <: ScalarVariable end
+
 Jutul.minimum_value(::WellIndices) = 0.0
 Jutul.variable_scale(::WellIndices) = 1e-10
 
@@ -69,6 +77,12 @@ function Jutul.default_values(model, ::WellIndices)
     return vec(copy(w.perforations.WI))
 end
 
+"""
+    PerforationGravityDifference()
+
+Parameter for the height difference from the wellbore and the connected node in
+the well.
+"""
 struct PerforationGravityDifference <: ScalarVariable end
 
 Jutul.associated_entity(::PerforationGravityDifference) = Perforations()
