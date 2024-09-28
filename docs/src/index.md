@@ -87,7 +87,7 @@ using JutulDarcy
 generate_jutuldarcy_examples()
 ```
 
-These examples can then be run using `include("jutuldarcy_examples/example_name.jl")` or opened in an editor to be run line by line. Alternatively, you can download all examples as [Jupyter Notebooks](https://github.com/sintefmath/JutulDarcy.jl/tree/gh-pages/dev/examples).
+These examples can then be run using `include("jutuldarcy_examples/example_name.jl")` or opened in an editor to be run line by line. Alternatively, you can download all examples as [Jupyter Notebooks](https://github.com/sintefmath/JutulDarcy.jl/tree/gh-pages/dev/final_site/notebooks).
 
 ## Citing JutulDarcy
 
