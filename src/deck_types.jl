@@ -629,6 +629,25 @@ function Jutul.subvariable(p::TableCompressiblePoreVolume, map::FiniteVolumeGlob
     )
 end
 
+struct HystereticTableCompressiblePoreVolume{V, R} <: ScalarVariable
+    tab::V
+    regions::R
+    function HystereticTableCompressiblePoreVolume(tab; regions = nothing)
+        check_regions(regions, length(tab))
+        tab = region_wrap(tab, regions)
+        new{typeof(tab), typeof(regions)}(tab, regions)
+    end
+end
+
+function Jutul.subvariable(p::HystereticTableCompressiblePoreVolume, map::FiniteVolumeGlobalMap)
+    c = map.cells
+    regions = Jutul.partition_variable_slice(p.regions, c)
+    return HystereticTableCompressiblePoreVolume(
+        p.tab,
+        regions = regions
+    )
+end
+
 struct ScalarPressureTable{V, R} <: ScalarVariable
     tab::V
     regions::R
