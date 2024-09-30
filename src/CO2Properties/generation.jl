@@ -11,14 +11,14 @@ P <= 35 MPa
 
 # Arguments:
 
-    - T: Scalar with temperature value in Kelvin
-    - P: Scalar with pressure value in bar
-    - S: Salt mass fraction
+  - T: Scalar with temperature value in Kelvin
+  - P: Scalar with pressure value in bar
+  - S: Salt mass fraction
 
 # Outputs
 
-    - rho_brine:    Scalar with density value in kg/m3
-    - c_brine:      Scalar with compressibility value in 1/kPa
+  - rho_brine:    Scalar with density value in kg/m3
+  - c_brine:      Scalar with compressibility value in 1/kPa
 
 """
 function pvt_brine_RoweChou1970(T, P, S; check::Bool = true)
@@ -67,12 +67,12 @@ Hassanzadeh et al., IJGGC (2008).
 
 # Arguments:
 
-    - T: Scalar of temperature value in Kelvin
-    - rho: Scalar of density value in kg/m^3
+  - T: Scalar of temperature value in Kelvin
+  - rho: Scalar of density value in kg/m^3
 
 # Outputs
 
-    - mu: Dynamic viscosity in Pa*s
+  - mu: Dynamic viscosity in Pa*s
 """
 function viscosity_co2_Fenghour1998(T, rho; check = true)
 
@@ -119,12 +119,13 @@ These authors used the data of Rowe and Chou (1970), Zarembo & Fedorov
 P valid from 5 to 100 MPa, T from 20 to 350 C (Adams & Bachu, 2002)
 
 # Arguments
-    - T: Temperature value in Kelvin
-    - P: Pressure value in bar
-    - w_nacl: Salt (NaCl) mass fraction
+
+  - T: Temperature value in Kelvin
+  - P: Pressure value in bar
+  - w_nacl: Salt (NaCl) mass fraction
 
 # Outputs 
-    - rho_b: Scalar with brine density in kg/m3
+  - rho_b: Scalar with brine density in kg/m3
 """
 function pvt_brine_BatzleWang1992(T, P, w_nacl; check::Bool = true)
 
@@ -175,19 +176,19 @@ to 600 bar, for (1) CO2 compressibility factor, (2) CO2 fugacity coefficient and
 
 # Arguments
 
-    - T: Scalar with temperature value in Kelvin
-    - P: Scalar with pressure value in bar
+  - T: Scalar with temperature value in Kelvin
+  - P: Scalar with pressure value in bar
 
 # Optional arguments:
 
-    - a_m: Intermolecular attraction constant (of the mixture) in bar*cm^6*K^0.5/mol^2
-    - b_m: Intermolecular repulsion constant (of the mixture) in cm^3/mol
+  - a_m: Intermolecular attraction constant (of the mixture) in bar*cm^6*K^0.5/mol^2
+  - b_m: Intermolecular repulsion constant (of the mixture) in cm^3/mol
 
 # Outputs
 
-    - V_m: Scalar with molar volume in [cm^3/mol]
-    - rhox: Scalar with density in [mol/m^3]
-    - rho: Scalar with density in [kg/m^3]
+  - V_m: Scalar with molar volume in [cm^3/mol]
+  - rhox: Scalar with density in [mol/m^3]
+  - rho: Scalar with density in [kg/m^3]
 """
 function pvt_co2_RedlichKwong1949(T, P, a_m=7.54 * 10^7 - 4.13 * 10^4 * T, b_m=27.8; check = true)
     # Check if T, P conditions are within range
@@ -266,17 +267,17 @@ Calculate a CO2 pseudo activity coefficient based on a virial expansion
 of excess Gibbs energy.
 
 # Arguments
-    - T: Scalar with temperature value in Kelvin
-    - P: Scalar with pressure value in bar
-    - m_io: Vector where each entry corresponds to the
+  - T: Scalar with temperature value in Kelvin
+  - P: Scalar with pressure value in bar
+  - m_io: Vector where each entry corresponds to the
     molality of a particular ion in the initial brine solution. The
     order is as follows:
     [ Na(+),   K(+),  Ca(2+), Mg(2+), Cl(-), SO4(2-)]
 
 # Outputs 
-    - V_m: Scalar with molar volume in [cm^3/mol]
-    - rhox: Scalar with density in [mol/m^3]
-    - rho: Scalar with density in [kg/m^3]
+  - V_m: Scalar with molar volume in [cm^3/mol]
+  - rhox: Scalar with density in [mol/m^3]
+  - rho: Scalar with density in [kg/m^3]
 """
 function activity_co2_DS2003(T, P, m_io; check = true)
     if check
@@ -351,7 +352,6 @@ function compute_salinity(inp_mole_fractions=Float64[], names=String[])
     # mass_salt = sum(mass_fractions)
     # 1000*mass_salt/(1.0 - mass_salt)
     w_salt = mass_salt ./ (h2o_mass + mass_salt)
-
     # TODO: Check this part.
     # m_salt is molality of species k in solution (mol k / kg solvent)
     # % w_k          mass fraction of species k in aqueous phase
@@ -381,14 +381,14 @@ who provided experimental data up to P = 200 bar, T extrapolated to
 
 # Arguments
 
-    - T: Scalar with temperature value in Kelvin
-    - P: Scalar with pressure value in bar
-    - m_nacl: Salt molality (NaCl) in mol/kg solvent
-    - w_co2: Mass fraction of CO2 in the aqueous solution (i.e. brine)
+  - T: Scalar with temperature value in Kelvin
+  - P: Scalar with pressure value in bar
+  - m_nacl: Salt molality (NaCl) in mol/kg solvent
+  - w_co2: Mass fraction of CO2 in the aqueous solution (i.e. brine)
 
 # Outputs
 
-    - mu_b_co2: Scalar with dynamic viscosity in Pa*s
+  - mu_b_co2: Scalar with dynamic viscosity in Pa*s
 
 """
 function viscosity_brine_co2_mixture_IC2012(T, P, m_nacl, w_co2; check=true)
@@ -474,16 +474,16 @@ viscosities are valid.
 
 Arguments:
 
-    - x: Mole fraction of each component
-    - M: Molar mass of each component
-    - mu: Viscosity of each component in user chosen units
+  - x: Mole fraction of each component
+  - M: Molar mass of each component
+  - mu: Viscosity of each component in user chosen units
 
 Each input should be a Float64 Vector of length n where n is the total
 number of components
 
 # Outputs
 
-    - viscMixture: Scalar viscosity of the mixture in same units as mu
+  - viscMixture: Scalar viscosity of the mixture in same units as mu
 """
 function viscosity_gas_mixture_Davidson1993(x, M, mu)
 
