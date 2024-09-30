@@ -902,18 +902,20 @@ function set_deck_pvmult!(vars, runspec, param, sys, props, reservoir)
     if haskey(props, "ROCKTAB")
         rt = vec(props["ROCKTAB"])
         tab = map(x -> get_1d_interpolator(x[:, 1], x[:, 2]), rt)
+        tab_perm = map(x -> get_1d_interpolator(x[:, 1], x[:, 3]), rt)
         rockcomp = get(runspec, "ROCKCOMP", ["REVERS", 1, "NO", "CZ", 0.0])
         if rockcomp[1] == "REVERS"
             ϕ = TableCompressiblePoreVolume(tab, regions = regions)
+            Kfn = ScalarPressureTable(tab_perm, regions = regions)
         else
             if rockcomp[1] != "IRREVERS"
                 jutul_message("ROCKCOMP", "Only IRREVERS and REVERS are supported, using IRREVERS fallback for $(rockcomp[1])")
             end
             ϕ = HystereticTableCompressiblePoreVolume(tab, regions = regions)
+            Kfn = HystereticScalarPressureTable(tab_perm, regions = regions)
             param[:MaxPressure] = MaxPressure()
         end
-        tab_perm = map(x -> get_1d_interpolator(x[:, 1], x[:, 3]), rt)
-        vars[:PermeabilityMultiplier] = ScalarPressureTable(tab_perm, regions = regions)
+        vars[:PermeabilityMultiplier] = Kfn
     elseif haskey(props, "ROCK")
         rock = props["ROCK"]
         if rock isa Matrix

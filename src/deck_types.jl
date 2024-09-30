@@ -676,6 +676,35 @@ end
     end
 end
 
+struct HystereticScalarPressureTable{V, R} <: ScalarVariable
+    tab::V
+    regions::R
+    function HystereticScalarPressureTable(tab; regions = nothing)
+        check_regions(regions, length(tab))
+        tab = region_wrap(tab, regions)
+        new{typeof(tab), typeof(regions)}(tab, regions)
+    end
+end
+
+function Jutul.subvariable(p::HystereticScalarPressureTable, map::FiniteVolumeGlobalMap)
+    c = map.cells
+    regions = Jutul.partition_variable_slice(p.regions, c)
+    return HystereticScalarPressureTable(
+        p.tab,
+        regions = regions
+    )
+end
+
+
+@jutul_secondary function update_variable!(pv, Φ::HystereticScalarPressureTable, model, MaxPressure, Pressure, ix)
+    @inbounds for i in ix
+        reg = region(Φ.regions, i)
+        F = table_by_region(Φ.tab, reg)
+        p = max(Pressure[i], MaxPressure[i])
+        pv[i] = F(p)
+    end
+end
+
 function add_lower_pvto(data, pos, rs)
     ref_p = 101325.0
     first_offset = pos[2]-1
