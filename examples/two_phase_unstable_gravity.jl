@@ -62,7 +62,7 @@ state0 = setup_reservoir_state(model, Pressure = p0, Saturations = s0)
 @. μ[2, :] = 5e-3
 # Convert time-steps from days to seconds
 timesteps = repeat([10.0*3600*24], 20)
-_, states, = simulate_reservoir(state0, model, timesteps, parameters = parameters, info_level = 1);
+_, states, = simulate_reservoir(state0, model, timesteps, parameters = parameters, info_level = -1);
 # ## Plot results
 # Plot initial saturation
 tmp = reshape(state0[:Reservoir][:Saturations][1, :], nx, nz)

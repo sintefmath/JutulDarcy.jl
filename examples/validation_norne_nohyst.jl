@@ -8,7 +8,7 @@ using Jutul, JutulDarcy, GLMakie, DelimitedFiles, HYPRE, GeoEnergyIO
 norne_dir = GeoEnergyIO.test_input_file_path("NORNE_NOHYST")
 data_pth = joinpath(norne_dir, "NORNE_NOHYST.DATA")
 data = parse_data_file(data_pth)
-case = setup_case_from_data_file(data)
+case = setup_case_from_data_file(data);
 # ## Unpack the case to see basic data structures
 model = case.model
 parameters = case.parameters
