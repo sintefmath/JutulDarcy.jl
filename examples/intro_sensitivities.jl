@@ -138,7 +138,7 @@ controls[:Producer] = P_ctrl
 
 forces = setup_reservoir_forces(model, control = controls)
 case = JutulCase(model, dt, forces, parameters = parameters, state0 = state0)
-result = simulate_reservoir(case, output_substates = true);
+result = simulate_reservoir(case, output_substates = true, info_level = -1);
 ##
 ws, states = result
 ws(:Producer, :grat)

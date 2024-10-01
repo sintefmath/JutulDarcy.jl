@@ -120,6 +120,15 @@ end
     end
 end
 
+@jutul_secondary function update_pore_volume!(pv, Φ::HystereticTableCompressiblePoreVolume, model, MaxPressure, Pressure, StaticFluidVolume, ix)
+    @inbounds for i in ix
+        reg = region(Φ.regions, i)
+        F = table_by_region(Φ.tab, reg)
+        p = max(Pressure[i], MaxPressure[i])
+        pv[i] = StaticFluidVolume[i]*F(p)
+    end
+end
+
 function Jutul.line_plot_data(model::SimulationModel, k::DeckPhaseVariables)
     deck_pvt_type(::DeckShrinkageFactors) = :shrinkage
     deck_pvt_type(::DeckPhaseMassDensities) = :density

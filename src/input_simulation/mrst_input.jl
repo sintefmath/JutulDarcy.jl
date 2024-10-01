@@ -823,7 +823,7 @@ function set_deck_specialization!(model, runspec, props, satnum, oil, water, gas
         set_deck_relperm!(svar, param, sys, runspec, props; oil = oil, water = water, gas = gas, satnum = satnum)
         set_deck_pc!(svar, param, sys, props; oil = oil, water = water, gas = gas, satnum = satnum, is_co2 = is_co2)
     end
-    set_deck_pvmult!(svar, param, sys, props, model.data_domain)
+    set_deck_pvmult!(svar, runspec, param, sys, props, model.data_domain)
 end
 
 function set_thermal_deck_specialization!(model, props, pvtnum, oil, water, gas)
@@ -888,7 +888,7 @@ function set_deck_relperm!(vars, param, sys, runspec, props; kwarg...)
     add_relperm_parameters!(param, kr)
 end
 
-function set_deck_pvmult!(vars, param, sys, props, reservoir)
+function set_deck_pvmult!(vars, runspec, param, sys, props, reservoir)
     # Rock compressibility (if present)
     if haskey(reservoir, :rocknum)
         regions = reservoir[:rocknum]
@@ -902,9 +902,20 @@ function set_deck_pvmult!(vars, param, sys, props, reservoir)
     if haskey(props, "ROCKTAB")
         rt = vec(props["ROCKTAB"])
         tab = map(x -> get_1d_interpolator(x[:, 1], x[:, 2]), rt)
-        ϕ = TableCompressiblePoreVolume(tab, regions = regions)
         tab_perm = map(x -> get_1d_interpolator(x[:, 1], x[:, 3]), rt)
-        vars[:PermeabilityMultiplier] = ScalarPressureTable(tab_perm, regions = regions)
+        rockcomp = get(runspec, "ROCKCOMP", ["REVERS", 1, "NO", "CZ", 0.0])
+        if rockcomp[1] == "REVERS"
+            ϕ = TableCompressiblePoreVolume(tab, regions = regions)
+            Kfn = ScalarPressureTable(tab_perm, regions = regions)
+        else
+            if rockcomp[1] != "IRREVERS"
+                jutul_message("ROCKCOMP", "Only IRREVERS and REVERS are supported, using IRREVERS fallback for $(rockcomp[1])")
+            end
+            ϕ = HystereticTableCompressiblePoreVolume(tab, regions = regions)
+            Kfn = HystereticScalarPressureTable(tab_perm, regions = regions)
+            param[:MaxPressure] = MaxPressure()
+        end
+        vars[:PermeabilityMultiplier] = Kfn
     elseif haskey(props, "ROCK")
         rock = props["ROCK"]
         if rock isa Matrix
@@ -933,7 +944,7 @@ function set_deck_pvmult!(vars, param, sys, props, reservoir)
         static = param[:FluidVolume]
         delete!(param, :FluidVolume)
         param[:StaticFluidVolume] = static
-        vars[:FluidVolume] = wrap_reservoir_variable(sys, ϕ, :flow)
+        vars[:FluidVolume] = ϕ
     end
 end
 

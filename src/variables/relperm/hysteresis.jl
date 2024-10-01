@@ -51,16 +51,24 @@ struct MaxSaturations <: PhaseVariables end
 
 function Jutul.update_parameter_before_step!(s_max, ::MaxSaturations, storage, model, dt, forces)
     s = storage.state.Saturations
-    update_max_saturations!(s_max, s)
+    update_max_hysteresis_value!(s_max, s)
     return s_max
 end
 
-function update_max_saturations!(s_max, s)
-    for i in eachindex(s_max, s)
-        s_prev = s_max[i]
-        s_now = value(s[i])
-        if s_now > s_prev
-            s_max[i] = replace_value(s_prev, s_now)
+struct MaxPressure <: ScalarVariable end
+
+function Jutul.update_parameter_before_step!(p_max, ::MaxPressure, storage, model, dt, forces)
+    p = storage.state.Pressure
+    update_max_hysteresis_value!(p_max, p)
+    return p_max
+end
+
+function update_max_hysteresis_value!(v_max, v)
+    for i in eachindex(v_max, v)
+        v_prev = v_max[i]
+        v_now = value(v[i])
+        if v_now > v_prev
+            v_max[i] = replace_value(v_prev, v_now)
         end
     end
 end
