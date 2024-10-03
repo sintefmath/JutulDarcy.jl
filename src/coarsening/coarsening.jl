@@ -20,7 +20,7 @@ function coarsen_reservoir_model(m::MultiModel, partition; functions = Dict(), w
     coarse_model, coarse_parameters = setup_reservoir_model(creservoir, sys;
         wells = cwells,
         split_wells = split_wells,
-        context = fine_reservoir_model.context,
+        # context = fine_reservoir_model.context,
         kwarg...
     )
     coarse_reservoir_model = reservoir_model(coarse_model)
