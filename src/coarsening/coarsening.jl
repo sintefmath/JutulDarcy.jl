@@ -17,7 +17,7 @@ function coarsen_reservoir_model(m::MultiModel, partition; functions = Dict(), w
     fine_reservoir_model = reservoir_model(m)
     sys = fine_reservoir_model.system
 
-    coarse_model, coarse_parameters = setup_reservoir_model(creservoir, sys;
+    coarse_model, = setup_reservoir_model(creservoir, sys;
         wells = cwells,
         split_wells = split_wells,
         # context = fine_reservoir_model.context,
@@ -46,11 +46,13 @@ function coarsen_reservoir_model(m::MultiModel, partition; functions = Dict(), w
         for vartype in [:parameters, :primary, :secondary]
             vars = Jutul.get_variables_by_type(fine_reservoir_model, vartype)
             cvars = Jutul.get_variables_by_type(coarse_reservoir_model, vartype)
+            empty!(cvars)
             for (k, var) in pairs(vars)
                 cvars[k] = Jutul.subvariable(var, fmap)
             end
         end
     end
+    coarse_parameters = setup_parameters(coarse_model)
     return (coarse_model, coarse_parameters)
 end
 
