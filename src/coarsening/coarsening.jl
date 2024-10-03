@@ -79,3 +79,45 @@ function coarsen_well(well, creservoir::DataDomain, reservoir::DataDomain, parti
         kwarg...
     )
 end
+
+struct CoarsenByPoreVolume <: Jutul.AbstractCoarseningFunction
+    fine_pv::Vector{Float64}
+end
+
+function Jutul.inner_apply_coarsening_function!(finevals, fine_indices, op::CoarsenByPoreVolume, coarse, fine, name, entity)
+    subvols = op.fine_pv[fine_indices]
+    return sum(finevals.*subvols)/sum(subvols)
+end
+
+function coarsen_reservoir_state(coarse_model, fine_model, fine_state0; functions = Dict(), default = missing)
+    coarse_state0 = Dict{Symbol, Any}()
+
+    if haskey(fine_state0, :Reservoir)
+        # We ignore the wells, better to re-initialize
+        fine_state0 = fine_state0[:Reservoir]
+    end
+    coarse_rmodel = reservoir_model(coarse_model)
+    fine_rmodel = reservoir_model(fine_model)
+
+    coarse_reservoir = reservoir_domain(coarse_rmodel)
+    fine_reservoir = reservoir_domain(fine_rmodel)
+
+    if ismissing(default)
+        pv = pore_volume(fine_reservoir)
+        default = CoarsenByPoreVolume(pv)
+    end
+
+    ncoarse = number_of_cells(coarse_reservoir)
+    for (k, v) in pairs(fine_state0)
+        if associated_entity(fine_rmodel[k]) == Cells() && eltype(v)<:AbstractFloat
+            if v isa AbstractVector
+                coarseval = zeros(ncoarse)
+            else
+                coarseval = zeros(size(v, 1), ncoarse)
+            end
+            f = get(functions, k, default)
+            coarse_state0[k] = Jutul.apply_coarsening_function!(coarseval, v, f, coarse_reservoir, fine_reservoir, k, Cells())
+        end
+    end
+    return setup_reservoir_state(coarse_model, coarse_state0)
+end
