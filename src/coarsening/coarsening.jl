@@ -1,8 +1,8 @@
-function coarsen_reservoir_model(m::MultiModel, partition; functions = Dict(), well_arg = Dict(), kwarg...)
-    reservoir = reservoir_domain(m)
+function coarsen_reservoir_model(fine_model::MultiModel, partition; functions = Dict(), well_arg = Dict(), kwarg...)
+    reservoir = reservoir_domain(fine_model)
     creservoir = coarsen_reservoir(reservoir, partition, functions = functions)
 
-    wells = get_model_wells(m)
+    wells = get_model_wells(fine_model)
     cwells = []
     for (k, well) in pairs(wells)
         if haskey(well_arg, k)
@@ -12,9 +12,9 @@ function coarsen_reservoir_model(m::MultiModel, partition; functions = Dict(), w
         end
         push!(cwells, coarsen_well(well, creservoir, reservoir, partition; wkw...))
     end
-    split_wells = !haskey(m.models, :Facility)
+    split_wells = !haskey(fine_model.models, :Facility)
 
-    fine_reservoir_model = reservoir_model(m)
+    fine_reservoir_model = reservoir_model(fine_model)
     sys = fine_reservoir_model.system
 
     coarse_model, = setup_reservoir_model(creservoir, sys;
@@ -31,21 +31,24 @@ function coarsen_reservoir_model(m::MultiModel, partition; functions = Dict(), w
         subcells[i] = findfirst(isequal(i), partition)
     end
     coarse_keys = keys(coarse_model.models)
-    fine_keys = keys(m.models)
+    fine_keys = keys(fine_model.models)
     @assert sort([coarse_keys...]) == sort([fine_keys...]) "Coarse keys $coarse_keys does not match fine keys $fine_keys"
-    for (mkey, m) in pairs(coarse_model.models)
+    for mkey in keys(coarse_model.models)
+        cm = coarse_model.models[mkey]
+        fm = fine_model.models[mkey]
         if mkey == :Reservoir
             fmap = FiniteVolumeGlobalMap(subcells, Int[])
+            fmap::FiniteVolumeGlobalMap
         elseif mkey in keys(wells)
             # A bit hackish to get this working for wells
-            nnode = length(unique(m.domain.representation.perforations.self))
+            nnode = length(unique(cm.domain.representation.perforations.self))
             fmap = FiniteVolumeGlobalMap(ones(Int, nnode), Int[])
         else
             fmap = TrivialGlobalMap()
         end
         for vartype in [:parameters, :primary, :secondary]
-            vars = Jutul.get_variables_by_type(fine_reservoir_model, vartype)
-            cvars = Jutul.get_variables_by_type(coarse_reservoir_model, vartype)
+            vars = Jutul.get_variables_by_type(fm, vartype)
+            cvars = Jutul.get_variables_by_type(cm, vartype)
             empty!(cvars)
             for (k, var) in pairs(vars)
                 cvars[k] = Jutul.subvariable(var, fmap)
