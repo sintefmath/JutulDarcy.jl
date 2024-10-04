@@ -310,7 +310,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
             d = @lift(get_data(time, i, $response_ix, dix, $is_accum, $is_abs))
             style = styles[dix]
             if style == :scatter
-                h = scatter!(ax, T, d, color = cmap[i], linewidth = linewidth, marker = :circle)
+                h = scatter!(ax, T, d, color = cmap[i], marker = :circle)
             else
                 if style == :dash || style == :dashdot
                     lw = dashwidth
