@@ -89,7 +89,7 @@ struct CoarsenByPoreVolume <: Jutul.AbstractCoarseningFunction
     fine_pv::Vector{Float64}
 end
 
-function Jutul.inner_apply_coarsening_function!(finevals, fine_indices, op::CoarsenByPoreVolume, coarse, fine, name, entity)
+function Jutul.inner_apply_coarsening_function(finevals, fine_indices, op::CoarsenByPoreVolume, coarse, fine, name, entity)
     subvols = op.fine_pv[fine_indices]
     return sum(finevals.*subvols)/sum(subvols)
 end
