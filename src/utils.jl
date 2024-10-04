@@ -137,10 +137,10 @@ end
 """
     get_model_wells(model_or_case)
 
-Get a `Dict` containing all wells in the model or simulation case.
+Get a `OrderedDict` containing all wells in the model or simulation case.
 """
 function get_model_wells(model::MultiModel)
-    wells = Dict{Symbol, Any}()
+    wells = OrderedDict{Symbol, Any}()
     for (k, m) in pairs(model.models)
         if model_or_domain_is_well(m)
             wells[k] = physical_representation(m.data_domain)
