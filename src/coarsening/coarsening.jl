@@ -128,10 +128,11 @@ function coarsen_reservoir_state(coarse_model, fine_model, fine_state0; function
 end
 
 function partition_reservoir(case::JutulCase, coarsedim, method = missing; kwarg...)
-    return partition_reservoir(case.model, coarsedim, method; kwarg...)
+    return partition_reservoir(case.model, coarsedim, method; parameters = case.parameters, kwarg...)
 end
 
 function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, method = missing;
+        parameters = missing,
         wells_in_single_block = false,
         partitioner_conn_type = :trans
     )
@@ -140,6 +141,7 @@ function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, me
 
     if coarsedim isa Int
         method = :metis
+        coarsedim > 0 || throw(ArgumentError("Number of blocks must be positive, was $coarsedim."))
     else
         length(coarsedim) == dim(mesh) || throw(ArgumentError("coarsedim argument must be tuple of equal length to dimension of grid (e.g. (5, 5, 5) for 3D)"))
         if ismissing(method)
@@ -161,14 +163,17 @@ function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, me
         else
             partitioner = method
         end
-        method::Jutul.JutulPartitioner
+        partitioner::Jutul.JutulPartitioner
+        if ismissing(parameters)
+            parameters = setup_parameters(model)
+        end
         N, T, well_groups = partitioner_input(model, parameters, conn = partitioner_conn_type)
         if wells_in_single_block
             groups = well_groups
         else
             groups = Vector{Vector{Int}}()
         end
-        p = Jutul.partition_hypergraph(N, np, partitioner, groups = groups)
+        p = Jutul.partition_hypergraph(N, coarsedim, partitioner, groups = groups)
         p = Int64.(p)
     end
     # TODO: Process partition for connectivity...
