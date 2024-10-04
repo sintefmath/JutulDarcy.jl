@@ -101,11 +101,11 @@ end
 function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         start_date = first(well_data).start_date,
         names =["Dataset $i" for i in 1:length(well_data)], 
-        linewidth = 3,
+        linewidth = 1.5,
         cmap = nothing, 
         dashwidth = 1,
         new_window = false,
-        styles = [:solid, :scatter, :dash, :dashdot, :dot, :dashdotdot],
+        styles = [:solid, :dash, :scatter, :dashdot, :dot, :dashdotdot],
         resolution = (1600, 900),
         kwarg...
     )
