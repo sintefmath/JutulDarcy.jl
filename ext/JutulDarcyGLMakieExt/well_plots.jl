@@ -109,6 +109,10 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         resolution = (1600, 900),
         kwarg...
     )
+    response_ix = Observable(1)
+    is_accum = Observable(false)
+    is_abs = Observable(false)
+
     # Figure part
     names = Vector{String}(names)
     ndata = length(well_data)
@@ -136,12 +140,16 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     else
         t_l = "Date"
     end
-    function response_label_to_unit(s)
+    function response_label_to_unit(s, is_accumulated)
         info = JutulDarcy.well_target_information(Symbol(s))
         if ismissing(info)
             return ""
         else
-            return info.unit_label
+            lbl = info.unit_label
+            if is_accumulated[]
+                lbl = lbl[1:end-2]
+            end
+            return lbl
         end
     end
     function response_label_to_descr(s)
@@ -152,7 +160,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
             return "$(info.description)"
         end
     end
-    y_l = Observable(response_label_to_unit(first(responses)))
+    y_l = Observable(response_label_to_unit(first(responses), is_accum))
     title_l = Observable(response_label_to_descr(first(responses)))
 
     ax = Axis(fig[1, 1], xlabel = t_l, ylabel = y_l, title = title_l)
@@ -169,14 +177,11 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     end
     wellstr = [String(x) for x in wells]
 
-    response_ix = Observable(1)
-    is_accum = Observable(false)
-    is_abs = Observable(false)
     type_menu = Menu(fig, options = respstr, prompt = respstr[1])
 
     on(type_menu.selection) do s
         val = findfirst(isequal(s), respstr)
-        y_l[] = response_label_to_unit(s)
+        y_l[] = response_label_to_unit(s, is_accum)
         title_l[] = response_label_to_descr(s)
         response_ix[] = val
         autolimits!(ax)
@@ -215,6 +220,8 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     fig[2, 1] = buttongrid
     function get_data(time, wix, rix, dataix, use_accum, use_abs)
         tmp = well_data[dataix][wells[wix]][responses[rix]]
+        s = responses[response_ix[]]
+        y_l[] = response_label_to_unit(s, use_accum)
         if use_accum && respstr[dataix] != "Bottom hole pressure"
             T = [0.0, time[dataix]...]
             tmp = cumsum(tmp.*diff(T))
