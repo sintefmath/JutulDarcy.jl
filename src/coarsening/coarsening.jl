@@ -126,3 +126,66 @@ function coarsen_reservoir_state(coarse_model, fine_model, fine_state0; function
     end
     return setup_reservoir_state(coarse_model, coarse_state0)
 end
+
+function partition_reservoir(case::JutulCase, coarsedim, method = missing; kwarg...)
+    return partition_reservoir(case.model, coarsedim, method; kwarg...)
+end
+
+function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, method = missing;
+        wells_in_single_block = false,
+        partitioner_conn_type = :trans
+    )
+    domain = model |> reservoir_model |> reservoir_domain
+    mesh = physical_representation(domain)
+
+    if coarsedim isa Int
+        method = :metis
+    else
+        length(coarsedim) == dim(mesh) || throw(ArgumentError("coarsedim argument must be tuple of equal length to dimension of grid (e.g. (5, 5, 5) for 3D)"))
+        if ismissing(method)
+            method = :centroids
+        else
+            method in (:ijk, :centroids) || throw(ArgumentError("When coarsedim is a tuple, method must be either :ijk or :centroids"))
+        end
+    end
+
+    if method in (:ijk, :centroids)
+        p = Jutul.cartesian_partition(domain, coarsedim, method)
+    else
+        if method == :metis
+            partitioner = Jutul.MetisPartitioner()
+        elseif method == :linear
+            partitioner = Jutul.LinearPartitioner()
+        elseif method == :kahypar
+            partitioner = Jutul.KaHyParPartitioner()
+        else
+            partitioner = method
+        end
+        method::Jutul.JutulPartitioner
+        N, T, well_groups = partitioner_input(model, parameters, conn = partitioner_conn_type)
+        if wells_in_single_block
+            groups = well_groups
+        else
+            groups = Vector{Vector{Int}}()
+        end
+        p = Jutul.partition_hypergraph(N, np, partitioner, groups = groups)
+        p = Int64.(p)
+    end
+    # TODO: Process partition for connectivity...
+    p = Jutul.compress_partition(p)
+    return p
+end
+
+function coarsen_reservoir_case(case, coarsedim; method = missing, partitioner_arg = NamedTuple(), kwarg...)
+    if coarsedim isa Vector
+        p = coarsedim
+    else
+        p = partition_reservoir(case, coarsedim, method; partitioner_arg...)
+    end
+    (; model, forces, dt, parameters, state0) = case
+    coarse_model, coarse_parameters = JutulDarcy.coarsen_reservoir_model(model, p, block_backend = true);
+    coarse_state0 = JutulDarcy.coarsen_reservoir_state(coarse_model, model, state0)
+    coarse_forces = deepcopy(forces)
+    coarse_dt = deepcopy(dt)
+    return JutulCase(coarse_model, coarse_dt, coarse_forces, parameters = coarse_parameters, state0 = coarse_state0)
+end

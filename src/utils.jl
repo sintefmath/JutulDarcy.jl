@@ -131,7 +131,7 @@ end
 export get_model_wells
 
 function get_model_wells(case::JutulCase)
-    return get_model_wlels(case.model)
+    return get_model_wells(case.model)
 end
 
 """
