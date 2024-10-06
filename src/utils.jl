@@ -17,6 +17,10 @@ function reservoir_model(model::MultiModel; kwarg...)
     return reservoir_model(model.models.Reservoir; kwarg...)
 end
 
+function reservoir_model(case::JutulCase; kwarg...)
+    return reservoir_model(case.model; kwarg...)
+end
+
 function reservoir_model(model::Jutul.CompositeModel; type = missing)
     if !ismissing(type)
         model = Jutul.composite_submodel(model, type)
