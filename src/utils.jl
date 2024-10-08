@@ -1932,7 +1932,7 @@ function co2_inventory_for_step(states, timesteps, injected, produced, step_no, 
     krg = relperm.krg
     regions = relperm.regions
 
-    residual_trapped, mobile, dissolution_trapped, mass_inside = sum_co2_inventory(total_masses, krg, regions, X, Y, S, rho, cells, is_hyst, immiscible, liquid, vapor, co2_c_index)
+    residual_trapped, mobile, dissolution_trapped, mass_inside = sum_co2_inventory(total_masses, krg, regions, X, Y, S, rho, cells, is_hyst, immiscible, liquid, vapor, co2_c_index, step_no)
 
     total_co2_mass = sum(view(total_masses, co2_c_index, :))
     return Dict(
@@ -1948,7 +1948,7 @@ function co2_inventory_for_step(states, timesteps, injected, produced, step_no, 
     )
 end
 
-function sum_co2_inventory(total_masses, krg, regions, X, Y, S, rho, cells, is_hyst, immiscible, liquid, vapor, co2_c_index)
+function sum_co2_inventory(total_masses, krg, regions, X, Y, S, rho, cells, is_hyst, immiscible, liquid, vapor, co2_c_index, step_no)
     mass_inside = 0.0
     mass_outside = 0.0
     residual_trapped = 0.0
