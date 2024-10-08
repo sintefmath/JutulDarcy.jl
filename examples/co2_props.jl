@@ -130,7 +130,7 @@ plot_property(:viscosity, tab_water, :CO2, "Pure phase viscosity, no salts")
 # ``y_i = K_i(p, T) x_i``
 #
 plot_property(:K, tab_water, :CO2, "K value of CO2 component in aqueous phase, no salts")
-# ## Compare viscosity with and without salts
-plot_brine_comparison(:density, 30.0, tab_water, tab_brine, :H2O, "Pure phase viscosity with salts")
 # ## Compare K value with and without salts
 plot_brine_comparison(:K, 30.0, tab_water, tab_brine, :CO2, "K value of CO2 component in aqueous phase")
+# ## Compare density with and without salts
+plot_brine_comparison(:density, 30.0, tab_water, tab_brine, :H2O, "Pure phase density")
