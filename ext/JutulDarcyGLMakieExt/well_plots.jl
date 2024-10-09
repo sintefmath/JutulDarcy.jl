@@ -265,10 +265,12 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         s = responses[response_ix[]]
         lbl = response_label_to_unit(s, use_accum)
         info = JutulDarcy.well_target_information(Symbol(s))
-        is_rate = endswith(info.unit_label, "/s")
-        lbl = replace(info.unit_label, "/s" => "")
 
-        if !ismissing(info)
+        if ismissing(info)
+            is_rate = false
+        else
+            is_rate = endswith(info.unit_label, "/s")
+            lbl = replace(info.unit_label, "/s" => "")
             @assert info.is_rate == is_rate
             f_u, lbl = well_unit_conversion(unit_sys[], lbl, info)
             if f_u isa Symbol

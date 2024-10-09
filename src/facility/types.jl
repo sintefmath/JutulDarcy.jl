@@ -703,6 +703,28 @@ function well_target_information(t::Val{:temperature})
     )
 end
 
+function well_target_information(t::Val{:gor})
+    return well_target_information(
+        symbol = :gor,
+        description = "Gas-oil-ratio",
+        explanation = "Gas-oil ratio of production stream at surface conditions",
+        unit_type = :id,
+        unit_label = "",
+        is_rate = false
+    )
+end
+
+function well_target_information(t::Val{:wcut})
+    return well_target_information(
+        symbol = :wcut,
+        description = "Water cut",
+        explanation = "Volume fraction water in liquid production stream at surface conditions",
+        unit_type = :id,
+        unit_label = "",
+        is_rate = false
+    )
+end
+
 function realize_control_for_reservoir(state, ctrl, model, dt)
     return (ctrl, false)
 end
