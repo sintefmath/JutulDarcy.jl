@@ -109,6 +109,8 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         resolution = (1600, 900),
         kwarg...
     )
+    LEFT_COLUMN_WIDTH = 180
+    LEFT_COLUMN_ITEM_WIDTH = LEFT_COLUMN_WIDTH - 10
     response_ix = Observable(1)
     is_accum = Observable(false)
     is_abs = Observable(false)
@@ -177,7 +179,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     end
     wellstr = [String(x) for x in wells]
 
-    type_menu = Menu(fig, options = respstr, prompt = respstr[1])
+    type_menu = Menu(fig, options = respstr, prompt = respstr[1], width = LEFT_COLUMN_ITEM_WIDTH)
 
     on(type_menu.selection) do s
         val = findfirst(isequal(s), respstr)
@@ -187,11 +189,11 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         autolimits!(ax)
     end
 
-    b_xlim = Button(fig, label = "Reset x")
+    b_xlim = Button(fig, label = "Reset x axis", width = LEFT_COLUMN_ITEM_WIDTH)
     on(b_xlim.clicks) do n
         reset_limits!(ax; xauto = true, yauto = false)
     end
-    b_ylim = Button(fig, label = "Reset y")
+    b_ylim = Button(fig, label = "Reset y axis", width = LEFT_COLUMN_ITEM_WIDTH)
     on(b_ylim.clicks) do n
         reset_limits!(ax; xauto = false, yauto = true)
     end
@@ -199,12 +201,13 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     connect!(is_abs, toggle_abs.checked)
     toggle_accum = Checkbox(fig, checked  = false)
     connect!(is_accum, toggle_accum.checked)
-    buttongrid = GridLayout(tellwidth = false)
-
-    buttongrid = GridLayout(tellwidth = true, tellheight = false, valign = :top)
+    buttongrid = GridLayout(width = LEFT_COLUMN_WIDTH, tellheight = false, valign = :top)
     button_ix = 1
 
-    buttongrid[button_ix, 1:2] = Label(fig, "Plot selection")
+    buttongrid[button_ix, 1:2] = Label(
+        fig, "Plot selection",
+        font = :bold
+    )
     button_ix += 1
     buttongrid[button_ix, 1:2] = type_menu
     button_ix += 1
@@ -213,10 +216,10 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     buttongrid[button_ix, 1:2] = b_ylim
     button_ix += 1
     buttongrid[button_ix, 1] = toggle_abs
-    buttongrid[button_ix, 2] = Label(fig, "Absolute", halign = :left)
+    buttongrid[button_ix, 2] = Label(fig, "Absolute value", halign = :left)
     button_ix += 1
     buttongrid[button_ix, 1] = toggle_accum
-    buttongrid[button_ix, 2] = Label(fig, "Cumulative", halign = :left)
+    buttongrid[button_ix, 2] = Label(fig, "Cumulative sum", halign = :left)
     button_ix += 1
 
 
@@ -286,7 +289,10 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
 
     use_two_cols = nw > 20
     leg_layout = fig[1, 1] = GridLayout()
-    wsel_label = Label(fig, "Well selection")
+    wsel_label = Label(
+        fig, "Well selection",
+        font = :bold
+    )
     if use_two_cols
         M = div(N, 2, RoundUp)
         leg_layout[2, 1] = grid!(bgrid[1:M, :], tellheight = false)
@@ -296,13 +302,17 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     end
     leg_layout[1, :] = wsel_label
 
-    b_prod_on = Button(fig, label = "✔️ P")
-    b_inj_on = Button(fig, label = "Toggle injectors", tellwidth = true)
-    b_all_on = Button(fig, label = "Toggle all", tellwidth = true)
+    b_prod_on = Button(fig, label = "Producers")
+    b_inj_on = Button(fig, label = "Injectors")
+    b_all_on = Button(fig, label = "All")
 
-    leg_layout[3, :] = b_inj_on
-    leg_layout[4, :] = b_prod_on
-    leg_layout[5, :] = b_all_on
+    well_toggle_group = GridLayout(tellwidth = true)
+    well_toggle_group[2, 1] = b_prod_on
+    well_toggle_group[2, 2] = b_inj_on
+    well_toggle_group[2, 3] = b_all_on
+    well_toggle_group[1, :] = Label(fig, "Toggle wells")
+
+    leg_layout[3, :] = well_toggle_group
 
     function toggle_wells(wtype)
         do_injectors = wtype == :injectors
