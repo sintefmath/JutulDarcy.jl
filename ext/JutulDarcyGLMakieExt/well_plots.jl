@@ -105,7 +105,6 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         cmap = nothing, 
         dashwidth = 1,
         new_window = false,
-        markersize = 7,
         styles = [:solid, :dash, :scatter, :dashdot, :dot, :dashdotdot],
         resolution = (1600, 900),
         kwarg...
@@ -115,7 +114,6 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     response_ix = Observable(1)
     is_accum = Observable(false)
     is_abs = Observable(false)
-    is_marker = Observable(false)
     is_line = Observable(true)
 
     # Figure part
@@ -225,12 +223,6 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     connect!(is_accum, toggle_accum.checked)
     buttongrid[button_ix, 1] = toggle_accum
     buttongrid[button_ix, 2] = Label(fig, "Cumulative sum", halign = :left)
-    button_ix += 1
-
-    toggle_marker = Checkbox(fig, checked = false)
-    connect!(is_marker, toggle_marker.checked)
-    buttongrid[button_ix, 1] = toggle_marker
-    buttongrid[button_ix, 2] = Label(fig, "Markers", halign = :left)
     button_ix += 1
 
     toggle_line = Checkbox(fig, checked = true)
@@ -371,14 +363,12 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
                 else
                     lw = linewidth
                 end
-                mz = @lift $is_marker*markersize
                 lw = @lift $is_line*linewidth
 
-                h = scatterlines!(ax, T, d,
+                h = lines!(ax, T, d,
                     linewidth = lw,
                     linestyle = style,
-                    color = cmap[i],
-                    markersize = mz
+                    color = cmap[i]
                 )
             end
             t = toggles[i]
