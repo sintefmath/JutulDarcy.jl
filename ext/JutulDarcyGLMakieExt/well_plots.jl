@@ -163,7 +163,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     y_l = Observable(response_label_to_unit(first(responses), is_accum))
     title_l = Observable(response_label_to_descr(first(responses)))
 
-    ax = Axis(fig[1, 1], xlabel = t_l, ylabel = y_l, title = title_l)
+    ax = Axis(fig[1, 2], xlabel = t_l, ylabel = y_l, title = title_l)
 
     if isnothing(cmap)
         if nw > 20
@@ -186,9 +186,6 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         response_ix[] = val
         autolimits!(ax)
     end
-    use_two_cols = nw > 5
-    fig[2, 2] = hgrid!(
-        type_menu)
 
     b_xlim = Button(fig, label = "Reset x")
     on(b_xlim.clicks) do n
@@ -202,17 +199,26 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     connect!(is_abs, toggle_abs.checked)
     toggle_accum = Checkbox(fig, checked  = false)
     connect!(is_accum, toggle_accum.checked)
-
     buttongrid = GridLayout(tellwidth = false)
-    buttongrid[1, 1] = toggle_abs
-    buttongrid[1, 2] = Label(fig, "Absolute", halign = :left)
-    buttongrid[1, 3] = toggle_accum
-    buttongrid[1, 4] = Label(fig, "Cumulative", halign = :left)
-    buttongrid[1, 5] = b_xlim
-    buttongrid[1, 6] = b_ylim
+
+    button_ix = 1
+    buttongrid = GridLayout(tellwidth = true, tellheight = false, valign = :top)
+    buttongrid[button_ix, 1:2] = type_menu
+    button_ix += 1
+    buttongrid[button_ix, 1:2] = b_xlim
+    button_ix += 1
+    buttongrid[button_ix, 1:2] = b_ylim
+    button_ix += 1
+    buttongrid[button_ix, 1] = toggle_abs
+    buttongrid[button_ix, 2] = Label(fig, "Absolute", halign = :left)
+    button_ix += 1
+    buttongrid[button_ix, 1] = toggle_accum
+    buttongrid[button_ix, 2] = Label(fig, "Cumulative", halign = :left)
+    button_ix += 1
+
 
     # Lay out and do plotting
-    fig[2, 1] = buttongrid
+    fig[1, 3] = buttongrid
     function get_data(time, wix, rix, dataix, use_accum, use_abs)
         tmp = well_data[dataix][wells[wix]][responses[rix]]
         s = responses[response_ix[]]
@@ -268,21 +274,34 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         ]
     # toggles = Vector{Any}([Toggle(fig, active = true, buttoncolor = cmap[i], framecolor_active = lighten(cmap[i])) for i in eachindex(wells)])
 
-    b_inj_on = Button(fig, label = "✔️ I")
-    b_inj_off = Button(fig, label = "❌ I")
 
     labels = Vector{Any}([Label(fig, w) for w in wellstr])
 
+    tmp = hcat(toggles, labels)
+    bgrid = tmp
+    N = size(bgrid, 1)
+
+    use_two_cols = nw > 20
+    leg_layout = fig[1, 1] = GridLayout()
+    wsel_label = Label(fig, "Well selection")
+    if use_two_cols
+        M = div(N, 2, RoundUp)
+        leg_layout[2, 1] = grid!(bgrid[1:M, :], tellheight = false)
+        leg_layout[2, 2] = grid!(bgrid[(M+1):N, :], tellheight = false)
+    else
+        leg_layout[2, 1] = grid!(bgrid, tellheight = false)
+    end
+    leg_layout[1, :] = wsel_label
+
+
     b_prod_on = Button(fig, label = "✔️ P")
-    b_prod_off = Button(fig, label = "❌ P")
+    b_inj_on = Button(fig, label = "✔️ I")
 
-    buttongrid[1, 7] = b_inj_on
-    buttongrid[1, 8] = b_inj_off
-    buttongrid[1, 9] = b_prod_on
-    buttongrid[1, 10] = b_prod_off
+    leg_layout[3, :] = b_inj_on
+    leg_layout[4, :] = b_prod_on
 
-
-    function toggle_wells(do_injectors, status)
+    function toggle_wells(do_injectors)
+        @info "Hey ho"
         for (i, w) in enumerate(wellstr)
             if is_inj[Symbol(w)] == do_injectors
                 toggles[i].checked[] = status
@@ -290,29 +309,12 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         end
     end
     on(b_inj_on.clicks) do n
-        toggle_wells(true, true)
-    end
-    on(b_inj_off.clicks) do n
-        toggle_wells(true, false)
+        toggle_wells(true)
     end
     on(b_prod_on.clicks) do n
-        toggle_wells(false, true)
+        toggle_wells(true)
     end
-    on(b_prod_off.clicks) do n
-        toggle_wells(false, false)
-    end
-    tmp = hcat(toggles, labels)
-    bgrid = tmp
-    N = size(bgrid, 1)
 
-    leg_layout = fig[1, 2] = GridLayout()
-    if use_two_cols
-        M = div(N, 2, RoundUp)
-        leg_layout[1, 1] = grid!(bgrid[1:M, :], tellheight = false)
-        leg_layout[1, 2] = grid!(bgrid[(M+1):N, :], tellheight = false)
-    else
-        leg_layout[1, 3] = grid!(bgrid, tellheight = false)
-    end
 
     lineh = []
     for dix = 1:ndata
