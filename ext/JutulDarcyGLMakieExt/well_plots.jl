@@ -237,7 +237,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         tmp = well_data[dataix][wells[wix]][responses[rix]]
         s = responses[response_ix[]]
         y_l[] = response_label_to_unit(s, use_accum)
-        if use_accum && respstr[dataix] != "Bottom hole pressure"
+        if use_accum && s != :bhp
             T = [0.0, time[dataix]...]
             tmp = cumsum(tmp.*diff(T))*si_unit(:day)
         end
