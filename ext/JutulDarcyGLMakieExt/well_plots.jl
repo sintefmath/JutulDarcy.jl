@@ -524,3 +524,75 @@ function well_unit_conversion(unit_sys, lbl, info)
     end
     return (u, lbl)
 end
+
+function JutulDarcy.plot_reservoir_measurables(arg...; type = :field, kwarg...)
+    fieldvals = JutulDarcy.reservoir_measurables(arg..., type = type)
+    fig = Figure(size = (1200, 800))
+
+    t = fieldvals[:time]/si_unit(:day)
+    n = length(t)
+    function get_data(k)
+        if k == "none"
+            out = fill(NaN, n)
+        else
+            out = fieldvals[Symbol(k)].values
+        end
+        return out
+    end
+    lcolor = :blue
+    rcolor = :red
+
+    mkeys = String.(setdiff(collect(keys(fieldvals)), (:time, )))
+    push!(mkeys, "none")
+
+    bg = GridLayout(tellheight = true)
+    fig[1, 1] = bg
+    # Plotting axis
+    left_default = first(mkeys)
+    ax1 = Axis(fig[2, 1],
+        yticklabelcolor = lcolor,
+        xlabel = "days",
+        ylabel = fieldvals[Symbol(left_default)].legend
+    )
+    ax2 = Axis(fig[2, 1], yticklabelcolor = rcolor, yaxisposition = :right)
+    hidespines!(ax2)
+    hidexdecorations!(ax2)
+
+    # Left side menu
+    left_selection = Observable(left_default)
+    lmenu = Menu(fig, default = left_selection[], options = mkeys)
+    on(lmenu.selection) do s
+        left_selection[] = s
+        if s == "none"
+            ylims!(ax2, (0.0, 1.0))
+            ax1.ylabel[] = ""
+        else
+            ax1.ylabel[] = fieldvals[Symbol(s)].legend
+        end
+        autolimits!(ax1)
+    end
+    bg[1, 1] = lmenu
+    # Right side menu
+    right_selection = Observable("none")
+    rmenu = Menu(fig, default = right_selection[], options = mkeys)
+    bg[1, 2] = rmenu
+    on(rmenu.selection) do s
+        right_selection[] = s
+        if s == "none"
+            ylims!(ax2, (0.0, 1.0))
+            ax2.ylabel[] = ""
+        else
+            ax2.ylabel[] = fieldvals[Symbol(s)].legend
+        end
+        autolimits!(ax2)
+    end
+
+    d_l = @lift(get_data($left_selection))
+    d_r = @lift(get_data($right_selection))
+
+    lines!(ax1, t, d_l, color = lcolor)
+    lines!(ax2, t, d_r, color = rcolor)
+
+    return fig
+end
+
