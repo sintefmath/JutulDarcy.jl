@@ -2104,3 +2104,151 @@ function replace_makie_calls!(dest, makie)
         end
     end
 end
+
+function reservoir_measurables(case::JutulCase, ws, states; kwarg...)
+    return reservoir_measurables(case.model, ws, states; kwarg...)
+end
+
+function reservoir_measurables(case::JutulCase, result::ReservoirSimResult; kwarg...)
+    ws, states = result
+    return reservoir_measurables(case.model, ws, states; kwarg...)
+end
+
+function reservoir_measurables(model, result::ReservoirSimResult; kwarg...)
+    ws, states = result
+    return reservoir_measurables(model, ws, states; kwarg...)
+end
+
+function reservoir_measurables(model, ws, states = missing; type = :field)
+    @assert type == :field
+    wells = ws.wells
+    time = ws.time
+
+    out = Dict{Symbol, Any}(:time => time)
+
+    model = reservoir_model(model)
+    reservoir = reservoir_domain(model)
+    pv = pore_volume(reservoir)
+    pv_t = sum(pv)
+    sys = model.system
+    is_blackoil = sys isa ImmiscibleSystem || sys isa StandardBlackOilSystem
+    phases = get_phases(model.system)
+    wix = findfirst(isequal(AqueousPhase()), phases)
+    oix = findfirst(isequal(LiquidPhase()), phases)
+    gix = findfirst(isequal(VaporPhase()), phases)
+
+    has_water = !isnothing(wix)
+    has_oil = !isnothing(oix)
+    has_gas = !isnothing(gix)
+    n = length(time)
+
+    function add_entry(name, legend, unit = :id)
+        values = zeros(n)
+        out[name] = (values = values, legend = legend, unit_type = unit)
+        return values
+    end
+    # Production of different types
+    flpr = add_entry(:flpr, "Field liquid production rate (oil + water)", :liquid_volume_surface)
+    fwpr = add_entry(:fwpr, "Field water production rate", :liquid_volume_surface)
+    fopr = add_entry(:fopr, "Field oil production rate", :liquid_volume_surface)
+    fgpr = add_entry(:fgpr, "Field gas production rate", :gas_volume_surface)
+
+    # Injection types
+    fwir = add_entry(:fwir, "Field water injection rate", :liquid_volume_surface)
+    foir = add_entry(:foir, "Field oil injection rate", :liquid_volume_surface)
+    fgir = add_entry(:fgir, "Field gas injection rate", :gas_volume_surface)
+
+    # Reservoir values
+    if is_blackoil
+        fwip = add_entry(:fwip, "Field water component in place (surface volumes)", :liquid_volume_surface)
+        foip = add_entry(:foip, "Field oil component in place (surface volumes)", :liquid_volume_surface)
+        fgip = add_entry(:fgip, "Field gas component in place (surface volumes)", :gas_volume_surface)
+    end
+
+    fwipr = add_entry(:fwipr, "Field water in place (reservoir volumes)", :liquid_volume_reservoir)
+    foipr = add_entry(:foipr, "Field oil in place (reservoir volumes)", :liquid_volume_reservoir)
+    fgipr = add_entry(:fgipr, "Field gas in place (reservoir volumes)", :gas_volume_reservoir)
+
+    fprh = add_entry(:fprh, "Field average pressure (hydrocarbon volume weighted)", :pressure)
+    pres = add_entry(:pres, "Field average pressure", :pressure)
+
+    function sum_well_rates!(vals, k::Symbol; is_prod::Bool)
+        for (wk, wval) in pairs(wells)
+            if is_prod
+                for (i, v) in enumerate(wval[k])
+                    vals[i] -= min(0.0, v)
+                end
+            else
+                for (i, v) in enumerate(wval[k])
+                    vals[i] += max(0.0, v)
+                end
+            end
+        end
+        return vals
+    end
+    if has_water
+        sum_well_rates!(flpr, :wrat, is_prod = true)
+        sum_well_rates!(fwpr, :wrat, is_prod = true)
+        sum_well_rates!(fwir, :wrat, is_prod = false)
+    end
+    if has_oil
+        sum_well_rates!(flpr, :orat, is_prod = true)
+        sum_well_rates!(fopr, :orat, is_prod = true)
+        sum_well_rates!(foir, :orat, is_prod = false)
+    end
+    if has_gas
+        sum_well_rates!(fgpr, :grat, is_prod = true)
+        sum_well_rates!(fgir, :grat, is_prod = false)
+    end
+    if !ismissing(states)
+        if haskey(states[1], :Reservoir)
+            states = map(x -> x[:Reservoir], states)
+        end
+        for (i, state) in enumerate(states)
+            p = state[:Pressure]
+            s = state[:Saturations]
+            tm = state[:TotalMasses]
+            if is_blackoil
+                fwip[i] = sum(tm[wix, :])
+                foip[i] = sum(tm[oix, :])
+                fgip[i] = sum(tm[gix, :])
+            end
+            if has_water
+                fwipr[i] = sum(ix -> pv[ix]*s[wix, ix], eachindex(pv))
+                if is_blackoil
+                    fwip[i] = sum(tm[wix, :])
+                end
+            end
+            if has_oil
+                foipr[i] = sum(ix -> pv[ix]*s[oix, ix], eachindex(pv))
+                if is_blackoil
+                    foip[i] = sum(tm[oix, :])
+                end
+            end
+            if has_gas
+                fgipr[i] = sum(ix -> pv[ix]*s[gix, ix], eachindex(pv))
+                if is_blackoil
+                    fgip[i] = sum(tm[gix, :])
+                end
+            end
+
+            mean_p = sum(ix -> pv[ix]*p[ix], eachindex(p, pv))/pv_t
+            if has_water
+                hc_p = sum(ix -> pv[ix]*p[ix]*(1.0 - s[wix, ix]), eachindex(p, pv))
+                pv_hc = sum(ix -> pv[ix]*(1.0 - s[wix, ix]), eachindex(p, pv))
+                hc_mean_p = hc_p/pv_hc
+            else
+                hc_mean_p = mean_p
+            end
+            fprh[i] = hc_mean_p
+            pres[i] = mean_p
+        end
+    end
+    # Derived quantities
+    fwct = add_entry(:fwct, "Field water production cut")
+    @. fwct = fwpr./flpr
+    fgor = add_entry(:fgor, "Field gas-oil production ratio")
+    @. fgor = fgpr./max.(fopr, 1e-12)
+
+    return out
+end
