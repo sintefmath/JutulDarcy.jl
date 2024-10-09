@@ -105,6 +105,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         cmap = nothing, 
         dashwidth = 1,
         new_window = false,
+        markersize = 7,
         styles = [:solid, :dash, :scatter, :dashdot, :dot, :dashdotdot],
         resolution = (1600, 900),
         kwarg...
@@ -114,6 +115,8 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     response_ix = Observable(1)
     is_accum = Observable(false)
     is_abs = Observable(false)
+    is_marker = Observable(false)
+    is_line = Observable(true)
 
     # Figure part
     names = Vector{String}(names)
@@ -197,10 +200,6 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     on(b_ylim.clicks) do n
         reset_limits!(ax; xauto = false, yauto = true)
     end
-    toggle_abs = Checkbox(fig, checked = true)
-    connect!(is_abs, toggle_abs.checked)
-    toggle_accum = Checkbox(fig, checked  = false)
-    connect!(is_accum, toggle_accum.checked)
     buttongrid = GridLayout(width = LEFT_COLUMN_WIDTH, tellheight = false, valign = :top)
     button_ix = 1
 
@@ -215,13 +214,30 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     button_ix += 1
     buttongrid[button_ix, 1:2] = b_ylim
     button_ix += 1
+
+    toggle_abs = Checkbox(fig, checked = true)
+    connect!(is_abs, toggle_abs.checked)
     buttongrid[button_ix, 1] = toggle_abs
     buttongrid[button_ix, 2] = Label(fig, "Absolute value", halign = :left)
     button_ix += 1
+
+    toggle_accum = Checkbox(fig, checked = false)
+    connect!(is_accum, toggle_accum.checked)
     buttongrid[button_ix, 1] = toggle_accum
     buttongrid[button_ix, 2] = Label(fig, "Cumulative sum", halign = :left)
     button_ix += 1
 
+    toggle_marker = Checkbox(fig, checked = false)
+    connect!(is_marker, toggle_marker.checked)
+    buttongrid[button_ix, 1] = toggle_marker
+    buttongrid[button_ix, 2] = Label(fig, "Markers", halign = :left)
+    button_ix += 1
+
+    toggle_line = Checkbox(fig, checked = true)
+    connect!(is_line, toggle_line.checked)
+    buttongrid[button_ix, 1] = toggle_line
+    buttongrid[button_ix, 2] = Label(fig, "Line", halign = :left)
+    button_ix += 1
 
     # Lay out and do plotting
     fig[1, 3] = buttongrid
@@ -355,7 +371,15 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
                 else
                     lw = linewidth
                 end
-                h = lines!(ax, T, d, linewidth = linewidth, linestyle = style, color = cmap[i])
+                mz = @lift $is_marker*markersize
+                lw = @lift $is_line*linewidth
+
+                h = scatterlines!(ax, T, d,
+                    linewidth = lw,
+                    linestyle = style,
+                    color = cmap[i],
+                    markersize = mz
+                )
             end
             t = toggles[i]
             connect!(h.visible, t.checked)
