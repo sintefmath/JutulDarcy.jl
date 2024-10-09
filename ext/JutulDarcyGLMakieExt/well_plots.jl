@@ -147,7 +147,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         else
             lbl = info.unit_label
             if is_accumulated[]
-                lbl = lbl[1:end-2]
+                lbl = replace(lbl, "/s" => "")
             end
             return lbl
         end
