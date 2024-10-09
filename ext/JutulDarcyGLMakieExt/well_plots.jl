@@ -239,7 +239,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         y_l[] = response_label_to_unit(s, use_accum)
         if use_accum && respstr[dataix] != "Bottom hole pressure"
             T = [0.0, time[dataix]...]
-            tmp = cumsum(tmp.*diff(T))
+            tmp = cumsum(tmp.*diff(T))*si_unit(:day)
         end
         if use_abs
             tmp = abs.(tmp)
@@ -268,7 +268,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
             if eltype(T)<:AbstractFloat
                 # Scale to days
                 if isnothing(start_date)
-                    @. T /= (3600*24)
+                    @. T /= si_unit(:day)
                 else
                     T = @. Microsecond(ceil(T*1e6)) + start_date
                 end
