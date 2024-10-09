@@ -187,12 +187,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         autolimits!(ax)
     end
     use_two_cols = nw > 5
-    if use_two_cols
-        right_block = 2:3
-    else
-        right_block = 2:2
-    end
-    fig[2, right_block] = hgrid!(
+    fig[2, 2] = hgrid!(
         type_menu)
 
     b_xlim = Button(fig, label = "Reset x")
@@ -310,12 +305,13 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     bgrid = tmp
     N = size(bgrid, 1)
 
+    leg_layout = fig[1, 2] = GridLayout()
     if use_two_cols
         M = div(N, 2, RoundUp)
-        fig[1, 2] = grid!(bgrid[1:M, :], tellheight = false)
-        fig[1, 3] = grid!(bgrid[(M+1):N, :], tellheight = false)
+        leg_layout[1, 1] = grid!(bgrid[1:M, :], tellheight = false)
+        leg_layout[1, 2] = grid!(bgrid[(M+1):N, :], tellheight = false)
     else
-        fig[1, 2] = grid!(bgrid, tellheight = false)
+        leg_layout[1, 3] = grid!(bgrid, tellheight = false)
     end
 
     lineh = []
