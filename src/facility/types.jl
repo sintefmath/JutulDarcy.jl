@@ -547,14 +547,16 @@ function well_target_information(;
         description::String,
         unit_type::Symbol,
         unit_label::String,
-        explanation::String = description
+        explanation::String = description,
+        is_rate::Bool = true
     )
     return (
         symbol = symbol,
         description = description,
         explanation = explanation,
         unit_label = unit_label,
-        unit_type = unit_type
+        unit_type = unit_type,
+        is_rate = is_rate
     )
 end
 
@@ -569,7 +571,8 @@ function well_target_information(x::Symbol)
             symbol = x,
             description = "Component mass rate for $cname component",
             unit_type = :mass,
-            unit_label = "kg/s"
+            unit_label = "kg/s",
+            is_rate = true
         )
     else
         well_target_information(Val(x))
@@ -582,7 +585,8 @@ function well_target_information(t::Union{BottomHolePressureTarget, Val{:bhp}})
         description = "Bottom hole pressure",
         explanation = "Pressure at well bottom hole. This is often given at or near the top perforation, but can be manually set to other depths.",
         unit_type = :pressure,
-        unit_label = "Pa"
+        unit_label = "Pa",
+        is_rate = false
     )
 end
 
@@ -683,7 +687,8 @@ function well_target_information(t::Val{:control})
         description = "Control",
         explanation = "Type of control in use by well.",
         unit_type = :none,
-        unit_label = "-"
+        unit_label = "-",
+        is_rate = false
     )
 end
 
@@ -693,7 +698,8 @@ function well_target_information(t::Val{:temperature})
         description = "Well temperature",
         explanation = "Temperature at well bottom hole. This is often given at or near the top perforation, but can be manually set to other depths.",
         unit_type = :absolute_temperature,
-        unit_label = "°K"
+        unit_label = "°K",
+        is_rate = false
     )
 end
 

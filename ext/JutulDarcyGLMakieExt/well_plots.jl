@@ -236,10 +236,21 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     function get_data(time, wix, rix, dataix, use_accum, use_abs)
         tmp = well_data[dataix][wells[wix]][responses[rix]]
         s = responses[response_ix[]]
-        y_l[] = response_label_to_unit(s, use_accum)
+        lbl = response_label_to_unit(s, use_accum)
+        info = JutulDarcy.well_target_information(Symbol(s))
+        if ismissing(info)
+            is_rate = endswith(lbl, "/s")
+        else
+            is_rate = info.is_rate
+        end
+        if is_rate
+            tmp = tmp.*si_unit(:day)
+            lbl = replace(lbl, "/s" => "/day")
+        end
+        y_l[] = lbl
         if use_accum && s != :bhp
             T = [0.0, time[dataix]...]
-            tmp = cumsum(tmp.*diff(T))*si_unit(:day)
+            tmp = cumsum(tmp.*diff(T))
         end
         if use_abs
             tmp = abs.(tmp)
