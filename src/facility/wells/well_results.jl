@@ -89,7 +89,12 @@ function well_result_output_legend_table(wr::WellResults, outputs = missing)
             data[i, 2] = info.description
             # data[i, 3] = info.explanation
             data[i, 3] = info.unit_label
-            data[i, 4] = "$(info.unit_type)"
+            if info.is_rate
+                ut = "$(info.unit_type) per time"
+            else
+                ut = "$(info.unit_type)"
+            end
+            data[i, 4] = ut
         end
     end
 

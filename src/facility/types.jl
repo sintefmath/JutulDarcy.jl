@@ -595,7 +595,7 @@ function well_target_information(t::Union{TotalRateTarget, Val{:rate}})
         symbol = :rate,
         description = "Surface total rate",
         explanation = "Total volumetric rate at surface conditions. This is the sum of all phases. For most models, it is the sum of the mass rates divided by the prescribed surface densities. For compositional models the density is computed using a flash.",
-        unit_type = :surface_volume_per_time,
+        unit_type = :liquid_volume_surface,
         unit_label = "m³/s"
     )
 end
@@ -606,7 +606,7 @@ function well_target_information(t::Union{TotalReservoirRateTarget, Val{:resv_ra
         symbol = :resv_rate,
         description = "Surface total rate",
         explanation = "Total volumetric rate at reservoir conditions. This is the sum of all phases. For most models, it is the sum of the mass rates divided by the prescribed surface densities.",
-        unit_type = :reservoir_volume_per_time,
+        unit_type = :liquid_volume_reservoir,
         unit_label = "m³/s"
     )
 end
@@ -616,7 +616,7 @@ function well_target_information(t::Union{SurfaceWaterRateTarget, Val{:wrat}})
         symbol = :wrat,
         description = "Surface water rate",
         explanation = "Water volumetric rate at surface conditions. This is the water mass stream divided by the surface density of water, which is typically around 1000 kg/m³",
-        unit_type = :surface_volume_per_time,
+        unit_type = :liquid_volume_surface,
         unit_label = "m³/s"
     )
 end
@@ -626,7 +626,7 @@ function well_target_information(t::Union{SurfaceLiquidRateTarget, Val{:lrat}})
         symbol = :lrat,
         description = "Surface water rate",
         explanation = "Liquid volumetric rate at surface conditions. This is the sum of the oil rate and the water rate.",
-        unit_type = :surface_volume_per_time,
+        unit_type = :liquid_volume_surface,
         unit_label = "m³/s"
     )
 end
@@ -636,7 +636,7 @@ function well_target_information(t::Union{SurfaceOilRateTarget, Val{:orat}})
         symbol = :orat,
         description = "Surface oil rate",
         explanation = "Oil rate at surface conditions. This is oil mass rate divided by the surface density of the oil phase.",
-        unit_type = :surface_volume_per_time,
+        unit_type = :liquid_volume_surface,
         unit_label = "m³/s"
     )
 end
@@ -646,7 +646,7 @@ function well_target_information(t::Union{SurfaceGasRateTarget, Val{:grat}})
         symbol = :grat,
         description = "Surface gas rate",
         explanation = "Gas rate at surface conditions. This is gas mass rate divided by the surface density of the gas phase.",
-        unit_type = :surface_volume_per_time,
+        unit_type = :gas_volume_surface,
         unit_label = "m³/s"
     )
 end
@@ -656,7 +656,7 @@ function well_target_information(t::Union{ReservoirVoidageTarget, Val{:resv}})
         symbol = :resv,
         description = "Reservoir voidage rate",
         explanation = "Reservoir voidage rate corresponds to a rate given at averaged pressure at reservoir conditions.",
-        unit_type = :reservoir_volume_per_time,
+        unit_type = :liquid_volume_reservoir,
         unit_label = "m³/s"
     )
 end
@@ -666,7 +666,7 @@ function well_target_information(t::Union{HistoricalReservoirVoidageTarget, Val{
         symbol = :resv_history,
         description = "Historical reservoir voidage rate",
         explanation = "Historical reservoir voidage rate is a special rate used to match observed production rates.",
-        unit_type = :reservoir_volume_per_time,
+        unit_type = :liquid_volume_reservoir,
         unit_label = "m³/s"
     )
 end
