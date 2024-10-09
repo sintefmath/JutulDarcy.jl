@@ -203,7 +203,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     on(b_ylim.clicks) do n
         reset_limits!(ax; xauto = false, yauto = true)
     end
-    toggle_abs = Checkbox(fig, checked = false)
+    toggle_abs = Checkbox(fig, checked = true)
     connect!(is_abs, toggle_abs.checked)
     toggle_accum = Checkbox(fig, checked  = false)
     connect!(is_accum, toggle_accum.checked)
