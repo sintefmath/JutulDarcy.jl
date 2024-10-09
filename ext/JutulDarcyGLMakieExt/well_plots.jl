@@ -201,8 +201,11 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     connect!(is_accum, toggle_accum.checked)
     buttongrid = GridLayout(tellwidth = false)
 
-    button_ix = 1
     buttongrid = GridLayout(tellwidth = true, tellheight = false, valign = :top)
+    button_ix = 1
+
+    buttongrid[button_ix, 1:2] = Label(fig, "Plot selection")
+    button_ix += 1
     buttongrid[button_ix, 1:2] = type_menu
     button_ix += 1
     buttongrid[button_ix, 1:2] = b_xlim
@@ -293,28 +296,40 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     end
     leg_layout[1, :] = wsel_label
 
-
     b_prod_on = Button(fig, label = "✔️ P")
-    b_inj_on = Button(fig, label = "✔️ I")
+    b_inj_on = Button(fig, label = "Toggle injectors", tellwidth = true)
+    b_all_on = Button(fig, label = "Toggle all", tellwidth = true)
 
     leg_layout[3, :] = b_inj_on
     leg_layout[4, :] = b_prod_on
+    leg_layout[5, :] = b_all_on
 
-    function toggle_wells(do_injectors)
-        @info "Hey ho"
+    function toggle_wells(wtype)
+        do_injectors = wtype == :injectors
+        do_all = wtype == :all
+        num_active = 0
+        crit(w) = is_inj[Symbol(w)] == do_injectors || do_all
         for (i, w) in enumerate(wellstr)
-            if is_inj[Symbol(w)] == do_injectors
+            if crit(w)
+                num_active += toggles[i].checked[]
+            end
+        end
+        status = num_active == 0
+        for (i, w) in enumerate(wellstr)
+            if crit(w)
                 toggles[i].checked[] = status
             end
         end
     end
     on(b_inj_on.clicks) do n
-        toggle_wells(true)
+        toggle_wells(:injectors)
     end
     on(b_prod_on.clicks) do n
-        toggle_wells(true)
+        toggle_wells(:producers)
     end
-
+    on(b_all_on.clicks) do n
+        toggle_wells(:all)
+    end
 
     lineh = []
     for dix = 1:ndata
