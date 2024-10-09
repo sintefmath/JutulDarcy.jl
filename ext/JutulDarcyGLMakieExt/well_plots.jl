@@ -115,6 +115,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     is_accum = Observable(false)
     is_abs = Observable(false)
     is_line = Observable(true)
+    unit_sys = Observable("Metric")
 
     # Figure part
     names = Vector{String}(names)
@@ -139,7 +140,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         t_l = "Time-step"
         @assert isnothing(start_date) "start_date does not make sense in the absence of time-steps"
     elseif isnothing(start_date)
-        t_l = "Time [days]"
+        t_l = "days"
     else
         t_l = "Date"
     end
@@ -190,6 +191,14 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         autolimits!(ax)
     end
 
+    unit_menu = Menu(fig, options = ["Metric", "SI", "Field"], prompt = unit_sys[], width = LEFT_COLUMN_ITEM_WIDTH)
+
+    on(unit_menu.selection) do s
+        unit_sys[] = s
+        notify(response_ix)
+        autolimits!(ax)
+    end
+
     b_xlim = Button(fig, label = "Reset x axis", width = LEFT_COLUMN_ITEM_WIDTH)
     on(b_xlim.clicks) do n
         reset_limits!(ax; xauto = true, yauto = false)
@@ -205,8 +214,25 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         fig, "Plot selection",
         font = :bold
     )
+    # Select well response
+    button_ix += 1
+    buttongrid[button_ix, 1:2] = Label(
+        fig, "Well response"
+    )
     button_ix += 1
     buttongrid[button_ix, 1:2] = type_menu
+    button_ix += 1
+    # Select unit system
+    buttongrid[button_ix, 1:2] = Label(
+        fig, "Unit system"
+    )
+    button_ix += 1
+    buttongrid[button_ix, 1:2] = unit_menu
+    button_ix += 1
+    # Reset limits
+    buttongrid[button_ix, 1:2] = Label(
+        fig, "Reset limits"
+    )
     button_ix += 1
     buttongrid[button_ix, 1:2] = b_xlim
     button_ix += 1
@@ -225,37 +251,48 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     buttongrid[button_ix, 2] = Label(fig, "Cumulative sum", halign = :left)
     button_ix += 1
 
-    toggle_line = Checkbox(fig, checked = true)
-    connect!(is_line, toggle_line.checked)
-    buttongrid[button_ix, 1] = toggle_line
-    buttongrid[button_ix, 2] = Label(fig, "Line", halign = :left)
-    button_ix += 1
+    # toggle_line = Checkbox(fig, checked = true)
+    # connect!(is_line, toggle_line.checked)
+    # buttongrid[button_ix, 1] = toggle_line
+    # buttongrid[button_ix, 2] = Label(fig, "Line", halign = :left)
+    # button_ix += 1
 
     # Lay out and do plotting
     fig[1, 3] = buttongrid
     function get_data(time, wix, rix, dataix, use_accum, use_abs)
-        tmp = well_data[dataix][wells[wix]][responses[rix]]
+        qoi_val = well_data[dataix][wells[wix]][responses[rix]]
+        factor = 1.0
         s = responses[response_ix[]]
         lbl = response_label_to_unit(s, use_accum)
         info = JutulDarcy.well_target_information(Symbol(s))
-        if ismissing(info)
-            is_rate = endswith(lbl, "/s")
-        else
-            is_rate = info.is_rate
+        is_rate = endswith(info.unit_label, "/s")
+        lbl = replace(info.unit_label, "/s" => "")
+
+        if !ismissing(info)
+            @assert info.is_rate == is_rate
+            f_u, lbl = well_unit_conversion(unit_sys[], lbl, info)
+            if f_u isa Symbol
+                qoi_val = convert_from_si.(qoi_val, f_u)
+            else
+                factor *= f_u
+            end
         end
         if is_rate
-            tmp = tmp.*si_unit(:day)
-            lbl = replace(lbl, "/s" => "/day")
+            if !use_accum
+                lbl *= "/day"
+            end
+            factor = factor.*si_unit(:day)
         end
         y_l[] = lbl
-        if use_accum && s != :bhp
+        qoi_val = factor.*qoi_val
+        if use_accum && is_rate
             T = [0.0, time[dataix]...]
-            tmp = cumsum(tmp.*diff(T))
+            qoi_val = cumsum(qoi_val.*diff(T))
         end
         if use_abs
-            tmp = abs.(tmp)
+            qoi_val = abs.(qoi_val)
         end
-        return tmp
+        return qoi_val
     end
 
     sample = map(x -> get_data([], 1, 1, x, false, false), 1:ndata)
@@ -433,3 +470,55 @@ function is_injectors(well_data)
     return D
 end
 
+function well_unit_conversion(unit_sys, lbl, info)
+    @assert unit_sys in ("Metric", "SI", "Field")
+    t = info.unit_type
+    u = 1.0
+    if unit_sys == "Metric"
+        if t == :gas_volume_surface
+            lbl = "m³"
+        elseif t == :gas_volume_reservoir
+            lbl = "m³"
+        elseif t == :liquid_volume_surface
+            lbl = "m³"
+        elseif t == :liquid_volume_reservoir
+            lbl = "m³"
+        elseif t == :pressure
+            u = :bar
+            lbl = "bar"
+        elseif t == :absolute_temperature
+            u = :Celsius
+            lbl = "°C"
+        elseif t == :relative_temperature
+            u = :Kelvin
+            lbl = "°K"
+        end
+    elseif unit_sys == "Field"
+        if t == :gas_volume_surface
+            u = si_unit(:kilo)*si_unit(:feet)^3
+            lbl = "MScf"
+        elseif t == :gas_volume_reservoir
+            u = :stb
+            lbl = "bbl"
+        elseif t == :liquid_volume_surface
+            u = :stb
+            lbl = "bbl"
+        elseif t == :liquid_volume_reservoir
+            u = :stb
+            lbl = "bbl"
+        elseif t == :pressure
+            u = :psi
+            lbl = "psi"
+        elseif t == :absolute_temperature
+            u = :Rankine
+            lbl = "°R"
+        elseif t == :relative_temperature
+            u = :Fahrenheit
+            lbl = "°F"
+        elseif t == :mass
+            u = :pound
+            lbl = "pound"
+        end
+    end
+    return (u, lbl)
+end
