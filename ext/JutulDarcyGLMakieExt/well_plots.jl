@@ -203,16 +203,16 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     on(b_ylim.clicks) do n
         reset_limits!(ax; xauto = false, yauto = true)
     end
-    toggle_abs = Toggle(fig, active = false)
-    connect!(is_abs, toggle_abs.active)
-    toggle_accum = Toggle(fig, active = false)
-    connect!(is_accum, toggle_accum.active)
+    toggle_abs = Checkbox(fig, checked = false)
+    connect!(is_abs, toggle_abs.checked)
+    toggle_accum = Checkbox(fig, checked  = false)
+    connect!(is_accum, toggle_accum.checked)
 
     buttongrid = GridLayout(tellwidth = false)
     buttongrid[1, 1] = toggle_abs
-    buttongrid[1, 2] = Label(fig, "Absolute")
+    buttongrid[1, 2] = Label(fig, "Absolute", halign = :left)
     buttongrid[1, 3] = toggle_accum
-    buttongrid[1, 4] = Label(fig, "Cumulative")
+    buttongrid[1, 4] = Label(fig, "Cumulative", halign = :left)
     buttongrid[1, 5] = b_xlim
     buttongrid[1, 6] = b_ylim
 
@@ -263,7 +263,15 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         time = newtime
     end
     lighten(x) = GLMakie.ARGB(x.r, x.g, x.b, 0.2)
-    toggles = Vector{Any}([Toggle(fig, active = true, buttoncolor = cmap[i], framecolor_active = lighten(cmap[i])) for i in eachindex(wells)])
+    toggles = [
+            Checkbox(fig,
+            checked = true,
+            checkboxstrokecolor_checked = lighten(cmap[i]),
+            checkboxstrokecolor_unchecked = cmap[i],
+            checkboxcolor_checked = cmap[i]
+            ) for i in eachindex(wells)
+        ]
+    # toggles = Vector{Any}([Toggle(fig, active = true, buttoncolor = cmap[i], framecolor_active = lighten(cmap[i])) for i in eachindex(wells)])
 
     b_inj_on = Button(fig, label = "✔️ I")
     b_inj_off = Button(fig, label = "❌ I")
@@ -282,7 +290,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     function toggle_wells(do_injectors, status)
         for (i, w) in enumerate(wellstr)
             if is_inj[Symbol(w)] == do_injectors
-                toggles[i].active[] = status
+                toggles[i].checked[] = status
             end
         end
     end
@@ -327,7 +335,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
                 h = lines!(ax, T, d, linewidth = linewidth, linestyle = style, color = cmap[i])
             end
             t = toggles[i]
-            connect!(h.visible, t.active)
+            connect!(h.visible, t.checked)
             push!(lineh, h)
         end
     end
