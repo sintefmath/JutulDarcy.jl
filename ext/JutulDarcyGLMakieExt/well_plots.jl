@@ -575,9 +575,6 @@ function JutulDarcy.plot_reservoir_measurables(arg...; type = :field, kwarg...)
     hidespines!(ax2)
     hidexdecorations!(ax2)
 
-    # Left side menu
-    left_selection = Observable(left_default)
-
     function selection_function(sel, s, ax, label)
         sel[] = s
         if s == "none"
@@ -589,9 +586,9 @@ function JutulDarcy.plot_reservoir_measurables(arg...; type = :field, kwarg...)
         autolimits!(ax)
     end
 
-    function setup_menu(ax, selection, pos)
+    function setup_menu(ax, default, pos, color)
+        selection = Observable(default)
         lmenu = Menu(fig, default = selection[], options = mkeys, tellwidth = false)
-        default = selection[]
         if default == "none"
             init = ""
         else
@@ -613,17 +610,17 @@ function JutulDarcy.plot_reservoir_measurables(arg...; type = :field, kwarg...)
         end
         lgroup[1, 4] = reset_left
         bg[2, pos] = lgroup
+
+        # Actual plotting
+        d = @lift(get_data($selection))
+        lines!(ax, t, d, color = color)
     end
-    setup_menu(ax1, left_selection, 1)
+
+    # Left side menu
+    setup_menu(ax1, left_default, 1, lcolor)
+
     # Right side menu
-    right_selection = Observable("none")
-    setup_menu(ax2, right_selection, 2)
-
-    d_l = @lift(get_data($left_selection))
-    d_r = @lift(get_data($right_selection))
-
-    lines!(ax1, t, d_l, color = lcolor)
-    lines!(ax2, t, d_r, color = rcolor)
+    setup_menu(ax2, "none", 2, rcolor)
 
     return fig
 end
