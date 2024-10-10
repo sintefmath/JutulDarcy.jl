@@ -521,6 +521,24 @@ function well_unit_conversion(unit_sys, lbl, info)
             u = :pound
             lbl = "pound"
         end
+    elseif unit_sys == "SI"
+        if t == :gas_volume_surface
+            lbl = "m³"
+        elseif t == :gas_volume_reservoir
+            lbl = "m³"
+        elseif t == :liquid_volume_surface
+            lbl = "m³"
+        elseif t == :liquid_volume_reservoir
+            lbl = "m³"
+        elseif t == :pressure
+            lbl = "Pa"
+        elseif t == :absolute_temperature
+            lbl = "°K"
+        elseif t == :relative_temperature
+            lbl = "°C"
+        elseif t == :mass
+            lbl = "kg"
+        end
     end
     return (u, lbl)
 end
@@ -559,38 +577,47 @@ function JutulDarcy.plot_reservoir_measurables(arg...; type = :field, kwarg...)
 
     # Left side menu
     left_selection = Observable(left_default)
-    lmenu = Menu(fig, default = left_selection[], options = mkeys, tellwidth = false)
-    l_label = Label(fig, fieldvals[Symbol(left_default)].legend, tellwidth = false)
-    on(lmenu.selection) do s
-        left_selection[] = s
+
+    function selection_function(sel, s, ax, label)
+        sel[] = s
         if s == "none"
-            ylims!(ax2, (0.0, 1.0))
-            l_label.text[] = ""
-            # ax1.ylabel[] = ""
+            ylims!(ax, (0.0, 1.0))
+            label.text[] = ""
         else
-            l_label.text[] = fieldvals[Symbol(s)].legend
-            # ax1.ylabel[] = fieldvals[Symbol(s)].legend
+            label.text[] = fieldvals[Symbol(s)].legend
         end
-        autolimits!(ax1)
+        autolimits!(ax)
     end
-    bg[1, 1] = lmenu
-    bg[2, 1] = l_label
+
+    function setup_menu(ax, selection, pos)
+        lmenu = Menu(fig, default = selection[], options = mkeys, tellwidth = false)
+        default = selection[]
+        if default == "none"
+            init = ""
+        else
+            init = fieldvals[Symbol(selection[])].legend
+        end
+        l_label = Label(fig, init, tellwidth = false)
+        l_accum = Checkbox(fig)
+        on(lmenu.selection) do s
+            selection_function(selection, s, ax, l_label)
+        end
+        bg[1, pos] = lmenu
+        lgroup = GridLayout()
+        lgroup[1, 1] = l_label
+        lgroup[1, 2] = l_accum
+        lgroup[1, 3] = Label(fig, "Accumulated")
+        reset_left = Button(fig, label = "Reset axis")
+        on(reset_left.clicks) do _
+            autolimits!(ax)
+        end
+        lgroup[1, 4] = reset_left
+        bg[2, pos] = lgroup
+    end
+    setup_menu(ax1, left_selection, 1)
     # Right side menu
     right_selection = Observable("none")
-    r_label = Label(fig, "", tellwidth = false)
-    rmenu = Menu(fig, default = right_selection[], options = mkeys, tellwidth = false)
-    bg[1, 2] = rmenu
-    bg[2, 2] = r_label
-    on(rmenu.selection) do s
-        right_selection[] = s
-        if s == "none"
-            ylims!(ax2, (0.0, 1.0))
-            r_label.text[] = ""
-        else
-            r_label.text[] = fieldvals[Symbol(s)].legend
-        end
-        autolimits!(ax2)
-    end
+    setup_menu(ax2, right_selection, 2)
 
     d_l = @lift(get_data($left_selection))
     d_r = @lift(get_data($right_selection))
