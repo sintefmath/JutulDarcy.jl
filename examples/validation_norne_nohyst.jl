@@ -139,3 +139,7 @@ plot_well_comparison(:bhp, prod, "Bottom hole pressure")
 plot_well_comparison(:orat, prod, "Oil surface production rate")
 # ## Gas production rates
 plot_well_comparison(:grat, prod, "Gas surface production rate")
+# ## Interactive plotting of field statistics
+plot_reservoir_measurables(case, ws, states, left = :fgpr, right = :pres)
+# ## Plot wells
+plot_well_results(ws)
