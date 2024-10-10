@@ -2142,21 +2142,21 @@ function reservoir_measurables(model, ws, states = missing; type = :field)
     has_gas = !isnothing(gix)
     n = length(time)
 
-    function add_entry(name, legend, unit = :id)
+    function add_entry(name, legend, unit = :id; is_rate = false)
         values = zeros(n)
-        out[name] = (values = values, legend = legend, unit_type = unit)
+        out[name] = (values = values, legend = legend, unit_type = unit, is_rate = is_rate)
         return values
     end
     # Production of different types
-    flpr = add_entry(:flpr, "Field liquid production rate (oil + water)", :liquid_volume_surface)
-    fwpr = add_entry(:fwpr, "Field water production rate", :liquid_volume_surface)
-    fopr = add_entry(:fopr, "Field oil production rate", :liquid_volume_surface)
-    fgpr = add_entry(:fgpr, "Field gas production rate", :gas_volume_surface)
+    flpr = add_entry(:flpr, "Field liquid production rate (oil + water)", :liquid_volume_surface, is_rate = true)
+    fwpr = add_entry(:fwpr, "Field water production rate", :liquid_volume_surface, is_rate = true)
+    fopr = add_entry(:fopr, "Field oil production rate", :liquid_volume_surface, is_rate = true)
+    fgpr = add_entry(:fgpr, "Field gas production rate", :gas_volume_surface, is_rate = true)
 
     # Injection types
-    fwir = add_entry(:fwir, "Field water injection rate", :liquid_volume_surface)
-    foir = add_entry(:foir, "Field oil injection rate", :liquid_volume_surface)
-    fgir = add_entry(:fgir, "Field gas injection rate", :gas_volume_surface)
+    fwir = add_entry(:fwir, "Field water injection rate", :liquid_volume_surface, is_rate = true)
+    foir = add_entry(:foir, "Field oil injection rate", :liquid_volume_surface, is_rate = true)
+    fgir = add_entry(:fgir, "Field gas injection rate", :gas_volume_surface, is_rate = true)
 
     # Reservoir values
     if is_blackoil

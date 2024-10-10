@@ -551,8 +551,7 @@ function JutulDarcy.plot_reservoir_measurables(arg...; type = :field, kwarg...)
     left_default = first(mkeys)
     ax1 = Axis(fig[2, 1],
         yticklabelcolor = lcolor,
-        xlabel = "days",
-        ylabel = fieldvals[Symbol(left_default)].legend
+        xlabel = "days"
     )
     ax2 = Axis(fig[2, 1], yticklabelcolor = rcolor, yaxisposition = :right)
     hidespines!(ax2)
@@ -560,29 +559,35 @@ function JutulDarcy.plot_reservoir_measurables(arg...; type = :field, kwarg...)
 
     # Left side menu
     left_selection = Observable(left_default)
-    lmenu = Menu(fig, default = left_selection[], options = mkeys)
+    lmenu = Menu(fig, default = left_selection[], options = mkeys, tellwidth = false)
+    l_label = Label(fig, fieldvals[Symbol(left_default)].legend, tellwidth = false)
     on(lmenu.selection) do s
         left_selection[] = s
         if s == "none"
             ylims!(ax2, (0.0, 1.0))
-            ax1.ylabel[] = ""
+            l_label.text[] = ""
+            # ax1.ylabel[] = ""
         else
-            ax1.ylabel[] = fieldvals[Symbol(s)].legend
+            l_label.text[] = fieldvals[Symbol(s)].legend
+            # ax1.ylabel[] = fieldvals[Symbol(s)].legend
         end
         autolimits!(ax1)
     end
     bg[1, 1] = lmenu
+    bg[2, 1] = l_label
     # Right side menu
     right_selection = Observable("none")
-    rmenu = Menu(fig, default = right_selection[], options = mkeys)
+    r_label = Label(fig, "", tellwidth = false)
+    rmenu = Menu(fig, default = right_selection[], options = mkeys, tellwidth = false)
     bg[1, 2] = rmenu
+    bg[2, 2] = r_label
     on(rmenu.selection) do s
         right_selection[] = s
         if s == "none"
             ylims!(ax2, (0.0, 1.0))
-            ax2.ylabel[] = ""
+            r_label.text[] = ""
         else
-            ax2.ylabel[] = fieldvals[Symbol(s)].legend
+            r_label.text[] = fieldvals[Symbol(s)].legend
         end
         autolimits!(ax2)
     end
