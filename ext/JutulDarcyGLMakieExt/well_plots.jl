@@ -543,24 +543,52 @@ function well_unit_conversion(unit_sys, lbl, info)
     return (u, lbl)
 end
 
-function JutulDarcy.plot_reservoir_measurables(arg...; type = :field, kwarg...)
+function JutulDarcy.plot_reservoir_measurables(arg...;
+        type = :field,
+        kwarg...
+    )
     fieldvals = JutulDarcy.reservoir_measurables(arg..., type = type)
     fig = Figure(size = (1200, 800))
 
     t = fieldvals[:time]/si_unit(:day)
+    dt = diff([0.0, t...])
     n = length(t)
-    function get_data(k)
+    function get_field_data(ax, k, accumulated, usel)
         if k == "none"
             out = fill(NaN, n)
+            u = ""
         else
-            out = fieldvals[Symbol(k)].values
+            data = fieldvals[to_key(k)]
+            out = data.values
+            factor, u = well_unit_conversion(usel, "", data)
+            if factor isa Symbol
+                out = convert_from_si.(out, factor)
+            else
+                factor *= factor
+            end
+            if data.is_rate
+                out = out.*si_unit(:day)
+                if accumulated
+                    out = cumsum(out .* dt)
+                else
+                    u *= "/day"
+                end
+            end
         end
+        ax.ylabel[] = u
         return out
     end
-    lcolor = :blue
-    rcolor = :red
+    colors = Makie.wong_colors()
+    lcolor = colors[1]
+    rcolor = colors[6]
 
-    mkeys = String.(setdiff(collect(keys(fieldvals)), (:time, )))
+    mkeys = String[]
+    for (k, v) in pairs(fieldvals)
+        if k == :time
+            continue
+        end
+        push!(mkeys, "$k - $(fieldvals[k].legend)")
+    end
     push!(mkeys, "none")
 
     bg = GridLayout(tellheight = true)
@@ -569,19 +597,29 @@ function JutulDarcy.plot_reservoir_measurables(arg...; type = :field, kwarg...)
     left_default = first(mkeys)
     ax1 = Axis(fig[2, 1],
         yticklabelcolor = lcolor,
-        xlabel = "days"
+        xlabel = "days",
+        ylabelcolor = lcolor
     )
-    ax2 = Axis(fig[2, 1], yticklabelcolor = rcolor, yaxisposition = :right)
+    ax2 = Axis(fig[2, 1],
+        yticklabelcolor = rcolor,
+        yaxisposition = :right,
+        ylabelcolor = rcolor
+    )
     hidespines!(ax2)
     hidexdecorations!(ax2)
+    ax2.xgridvisible = false
+    ax2.ygridvisible = false
+    deactivate_interaction!(ax2, :rectanglezoom)
 
-    function selection_function(sel, s, ax, label)
+    function to_key(x::String)
+        xs, = split(x, " - ")
+        return Symbol(xs)
+    end
+
+    function selection_function(sel, s, ax)
         sel[] = s
         if s == "none"
             ylims!(ax, (0.0, 1.0))
-            label.text[] = ""
-        else
-            label.text[] = fieldvals[Symbol(s)].legend
         end
         autolimits!(ax)
     end
@@ -592,28 +630,36 @@ function JutulDarcy.plot_reservoir_measurables(arg...; type = :field, kwarg...)
         if default == "none"
             init = ""
         else
-            init = fieldvals[Symbol(selection[])].legend
+            init = fieldvals[to_key(selection[])].legend
         end
-        l_label = Label(fig, init, tellwidth = false)
         l_accum = Checkbox(fig)
+        is_accum = Observable(false)
+        connect!(is_accum, l_accum.checked)
+
         on(lmenu.selection) do s
-            selection_function(selection, s, ax, l_label)
+            selection_function(selection, s, ax)
         end
         bg[1, pos] = lmenu
         lgroup = GridLayout()
-        lgroup[1, 1] = l_label
-        lgroup[1, 2] = l_accum
-        lgroup[1, 3] = Label(fig, "Accumulated")
+        unit_menu = Menu(fig,
+            options = ["Metric", "SI", "Field"],
+            prompt = "Metric"
+        )
+        lgroup[1, 1] = unit_menu
         reset_left = Button(fig, label = "Reset axis")
         on(reset_left.clicks) do _
             autolimits!(ax)
         end
-        lgroup[1, 4] = reset_left
+
+        lgroup[1, 2] = reset_left
+        lgroup[1, 3] = l_accum
+        lgroup[1, 4] = Label(fig, "Accumulated")
         bg[2, pos] = lgroup
 
         # Actual plotting
-        d = @lift(get_data($selection))
-        lines!(ax, t, d, color = color)
+        usel = unit_menu.selection
+        d = @lift(get_field_data(ax, $selection, $is_accum, $usel))
+        lines!(ax, t, d; color = color, kwarg...)
     end
 
     # Left side menu
