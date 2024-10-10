@@ -2105,6 +2105,8 @@ function replace_makie_calls!(dest, makie)
     end
 end
 
+export reservoir_measurables
+
 function reservoir_measurables(case::JutulCase, ws, states; kwarg...)
     return reservoir_measurables(case.model, ws, states; kwarg...)
 end

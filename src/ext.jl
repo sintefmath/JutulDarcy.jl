@@ -18,6 +18,7 @@ function plot_well_results
 end
 
 
+export plot_reservoir_measurables
 """
     plot_reservoir_measurables(case::JutulCase, result::ReservoirSimResult)
 

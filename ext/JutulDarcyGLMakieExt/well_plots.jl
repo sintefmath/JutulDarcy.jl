@@ -545,6 +545,8 @@ end
 
 function JutulDarcy.plot_reservoir_measurables(arg...;
         type = :field,
+        left = missing,
+        right = "none",
         kwarg...
     )
     fieldvals = JutulDarcy.reservoir_measurables(arg..., type = type)
@@ -583,18 +585,32 @@ function JutulDarcy.plot_reservoir_measurables(arg...;
     rcolor = colors[6]
 
     mkeys = String[]
+    left_found = right_found = false
     for (k, v) in pairs(fieldvals)
         if k == :time
             continue
         end
-        push!(mkeys, "$k - $(fieldvals[k].legend)")
+        next = "$k - $(fieldvals[k].legend)"
+        push!(mkeys, next)
+        if !ismissing(left) && "$k" == "$left"
+            left = next
+            left_found = true
+        end
+        if !ismissing(right) && "$k" == "$right"
+            right = next
+            right_found = true
+        end
     end
     push!(mkeys, "none")
-
+    if ismissing(right) || !right_found
+        right = mkeys[1]
+    end
+    if ismissing(left) || !left_found
+        left = mkeys[1]
+    end
     bg = GridLayout(tellheight = true)
     fig[1, 1] = bg
     # Plotting axis
-    left_default = first(mkeys)
     ax1 = Axis(fig[2, 1],
         yticklabelcolor = lcolor,
         xlabel = "days",
@@ -663,10 +679,10 @@ function JutulDarcy.plot_reservoir_measurables(arg...;
     end
 
     # Left side menu
-    setup_menu(ax1, left_default, 1, lcolor)
+    setup_menu(ax1, left, 1, lcolor)
 
     # Right side menu
-    setup_menu(ax2, "none", 2, rcolor)
+    setup_menu(ax2, right, 2, rcolor)
 
     return fig
 end
