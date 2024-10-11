@@ -444,11 +444,13 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
             end
             push!(elems, el)
         end
-        fig[1, 1] = Legend(fig, elems, names,
-                        tellheight = false,
-                        tellwidth = false,
-                        margin = (10, 10, 10, 10),
-                        halign = :left, valign = :top, orientation = :horizontal
+        fig[1, 2] = Legend(fig, elems, names,
+            tellheight = false,
+            tellwidth = false,
+            margin = (10, 10, 10, 10),
+            halign = :left,
+            valign = :top,
+            orientation = :horizontal
         )
     end
     if new_window
@@ -549,12 +551,17 @@ function JutulDarcy.plot_reservoir_measurables(arg...;
         right = "none",
         lcolor = Makie.wong_colors()[1],
         rcolor = Makie.wong_colors()[6],
-        left_accumulated = false,
-        right_accumulated = false,
+        accumulated = false,
+        left_accumulated = accumulated,
+        right_accumulated = accumulated,
         unit_system = "Metric",
         kwarg...
     )
-    fieldvals = JutulDarcy.reservoir_measurables(arg..., type = type)
+    if length(arg) == 1
+        fieldvals = only(arg)
+    else
+        fieldvals = JutulDarcy.reservoir_measurables(arg..., type = type)
+    end
     fig = Figure(size = (1200, 800))
 
     t = fieldvals[:time]/si_unit(:day)
