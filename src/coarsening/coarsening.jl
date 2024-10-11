@@ -17,10 +17,12 @@ function coarsen_reservoir_model(fine_model::MultiModel, partition; functions = 
     fine_reservoir_model = reservoir_model(fine_model)
     sys = fine_reservoir_model.system
 
+    thermal = haskey(Jutul.get_primary_variables(fine_reservoir_model), :Temperature)
+
     coarse_model, = setup_reservoir_model(creservoir, sys;
         wells = cwells,
         split_wells = split_wells,
-        # context = fine_reservoir_model.context,
+        thermal = thermal,
         kwarg...
     )
     coarse_reservoir_model = reservoir_model(coarse_model)
@@ -89,7 +91,7 @@ struct CoarsenByPoreVolume <: Jutul.AbstractCoarseningFunction
     fine_pv::Vector{Float64}
 end
 
-function Jutul.inner_apply_coarsening_function(finevals, fine_indices, op::CoarsenByPoreVolume, coarse, fine, name, entity)
+function Jutul.inner_apply_coarsening_function(finevals, fine_indices, op::CoarsenByPoreVolume, coarse, fine, row, name, entity)
     subvols = op.fine_pv[fine_indices]
     return sum(finevals.*subvols)/sum(subvols)
 end
@@ -176,20 +178,32 @@ function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, me
         p = Jutul.partition_hypergraph(N, coarsedim, partitioner, groups = groups)
         p = Int64.(p)
     end
-    # TODO: Process partition for connectivity...
+    p = Jutul.process_partition(mesh, p)
     p = Jutul.compress_partition(p)
     return p
 end
 
-function coarsen_reservoir_case(case, coarsedim; method = missing, partitioner_arg = NamedTuple(), kwarg...)
+export coarsen_reservoir_case
+
+"""
+    coarsen_reservoir_case(case, coarsedim; method = missing, partitioner_arg = NamedTuple(), kwarg...)
+
+TBW
+"""
+function coarsen_reservoir_case(case, coarsedim;
+        method = missing,
+        partitioner_arg = NamedTuple(),
+        setup_arg = NamedTuple(),
+        state_arg = NamedTuple()
+    )
     if coarsedim isa Vector
         p = coarsedim
     else
         p = partition_reservoir(case, coarsedim, method; partitioner_arg...)
     end
     (; model, forces, dt, parameters, state0) = case
-    coarse_model, coarse_parameters = JutulDarcy.coarsen_reservoir_model(model, p, block_backend = true);
-    coarse_state0 = JutulDarcy.coarsen_reservoir_state(coarse_model, model, state0)
+    coarse_model, coarse_parameters = coarsen_reservoir_model(model, p; setup_arg...)
+    coarse_state0 = coarsen_reservoir_state(coarse_model, model, state0; state_arg...)
     coarse_forces = deepcopy(forces)
     coarse_dt = deepcopy(dt)
     return JutulCase(coarse_model, coarse_dt, coarse_forces, parameters = coarse_parameters, state0 = coarse_state0)
