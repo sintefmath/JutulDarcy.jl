@@ -195,6 +195,8 @@ reservoir and that facility.
   used in the model. Each well must have a unique name.
 - `extra_out=true`: Return both the model and the parameters instead of just the
   model.
+- `thermal = false`: Add additional equations for conservation of energy and
+  temperature as a primary variable.
 - `kgrad=nothing`: Type of spatial discretization to use:
     - `:tpfa` or `nothing` gives standard two-point flux approximation (TPFA) with hard-coded
       two-point assembly
