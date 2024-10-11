@@ -167,7 +167,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
             return "$(info.description)"
         end
     end
-    if !(field in responses)
+    if ismissing(field) || !(field in responses)
         field = first(responses)
     end
     y_l = Observable(response_label_to_unit(field, is_accum))
