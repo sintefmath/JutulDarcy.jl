@@ -547,6 +547,11 @@ function JutulDarcy.plot_reservoir_measurables(arg...;
         type = :field,
         left = missing,
         right = "none",
+        lcolor = Makie.wong_colors()[1],
+        rcolor = Makie.wong_colors()[6],
+        left_accumulated = false,
+        right_accumulated = false,
+        unit_system = "Metric",
         kwarg...
     )
     fieldvals = JutulDarcy.reservoir_measurables(arg..., type = type)
@@ -580,9 +585,6 @@ function JutulDarcy.plot_reservoir_measurables(arg...;
         ax.ylabel[] = u
         return out
     end
-    colors = Makie.wong_colors()
-    lcolor = colors[1]
-    rcolor = colors[6]
 
     mkeys = String[]
     left_found = right_found = false
@@ -601,6 +603,7 @@ function JutulDarcy.plot_reservoir_measurables(arg...;
             right_found = true
         end
     end
+    sort!(mkeys)
     push!(mkeys, "none")
     if ismissing(right) || !right_found
         right = mkeys[1]
@@ -640,7 +643,7 @@ function JutulDarcy.plot_reservoir_measurables(arg...;
         autolimits!(ax)
     end
 
-    function setup_menu(ax, default, pos, color)
+    function setup_menu(ax, default, pos, color, is_accumulated)
         selection = Observable(default)
         lmenu = Menu(fig, default = selection[], options = mkeys, tellwidth = false)
         if default == "none"
@@ -648,8 +651,8 @@ function JutulDarcy.plot_reservoir_measurables(arg...;
         else
             init = fieldvals[to_key(selection[])].legend
         end
-        l_accum = Checkbox(fig)
-        is_accum = Observable(false)
+        l_accum = Checkbox(fig, checked = is_accumulated)
+        is_accum = Observable(is_accumulated)
         connect!(is_accum, l_accum.checked)
 
         on(lmenu.selection) do s
@@ -659,7 +662,7 @@ function JutulDarcy.plot_reservoir_measurables(arg...;
         lgroup = GridLayout()
         unit_menu = Menu(fig,
             options = ["Metric", "SI", "Field"],
-            prompt = "Metric"
+            prompt = unit_system,
         )
         lgroup[1, 1] = unit_menu
         reset_left = Button(fig, label = "Reset axis")
@@ -679,10 +682,10 @@ function JutulDarcy.plot_reservoir_measurables(arg...;
     end
 
     # Left side menu
-    setup_menu(ax1, left, 1, lcolor)
+    setup_menu(ax1, left, 1, lcolor, left_accumulated)
 
     # Right side menu
-    setup_menu(ax2, right, 2, rcolor)
+    setup_menu(ax2, right, 2, rcolor, right_accumulated)
 
     return fig
 end

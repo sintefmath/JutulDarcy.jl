@@ -2210,11 +2210,6 @@ function reservoir_measurables(model, ws, states = missing; type = :field)
             p = state[:Pressure]
             s = state[:Saturations]
             tm = state[:TotalMasses]
-            if is_blackoil
-                fwip[i] = sum(tm[wix, :])
-                foip[i] = sum(tm[oix, :])
-                fgip[i] = sum(tm[gix, :])
-            end
             if has_water
                 fwipr[i] = sum(ix -> pv[ix]*s[wix, ix], eachindex(pv))
                 if is_blackoil
@@ -2247,7 +2242,7 @@ function reservoir_measurables(model, ws, states = missing; type = :field)
         end
     end
     # Derived quantities
-    fwct = add_entry(:fwct, "Field water production cut")
+    fwct = add_entry(:fwct, "Field production water cut")
     @. fwct = fwpr./flpr
     fgor = add_entry(:fgor, "Field gas-oil production ratio")
     @. fgor = fgpr./max.(fopr, 1e-12)
