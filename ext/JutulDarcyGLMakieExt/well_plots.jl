@@ -100,10 +100,13 @@ end
 
 function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         start_date = first(well_data).start_date,
-        names =["Dataset $i" for i in 1:length(well_data)], 
+        names = ["Dataset $i" for i in 1:length(well_data)],
         linewidth = 1.5,
-        cmap = nothing, 
+        cmap = nothing,
         dashwidth = 1,
+        field = missing,
+        accumulated = false,
+        unit_sys = "Metric",
         new_window = false,
         styles = [:solid, :dash, :scatter, :dashdot, :dot, :dashdotdot],
         resolution = (1600, 900),
@@ -112,10 +115,10 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     LEFT_COLUMN_WIDTH = 180
     LEFT_COLUMN_ITEM_WIDTH = LEFT_COLUMN_WIDTH - 10
     response_ix = Observable(1)
-    is_accum = Observable(false)
+    is_accum = Observable(accumulated)
     is_abs = Observable(false)
     is_line = Observable(true)
-    unit_sys = Observable("Metric")
+    unit_sys = Observable(unit_sys)
 
     # Figure part
     names = Vector{String}(names)
@@ -164,8 +167,11 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
             return "$(info.description)"
         end
     end
-    y_l = Observable(response_label_to_unit(first(responses), is_accum))
-    title_l = Observable(response_label_to_descr(first(responses)))
+    if !(field in responses)
+        field = first(responses)
+    end
+    y_l = Observable(response_label_to_unit(field, is_accum))
+    title_l = Observable(response_label_to_descr(field))
 
     ax = Axis(fig[1, 2], xlabel = t_l, ylabel = y_l, title = title_l)
 
@@ -245,7 +251,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     buttongrid[button_ix, 2] = Label(fig, "Absolute value", halign = :left)
     button_ix += 1
 
-    toggle_accum = Checkbox(fig, checked = false)
+    toggle_accum = Checkbox(fig, checked = is_accum[])
     connect!(is_accum, toggle_accum.checked)
     buttongrid[button_ix, 1] = toggle_accum
     buttongrid[button_ix, 2] = Label(fig, "Cumulative sum", halign = :left)
