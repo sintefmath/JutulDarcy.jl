@@ -213,10 +213,10 @@ end
 """
     let_relperm(s; L = 1.0, E = 1.0, T = 1.0, residual = 0.0, kr_max = 1.0, residual_total = residual)
 
-Evaluate LET relative permeability function at saturation `s` for exponent `n`
-and a given residual and maximum relative permeability value. If considering a
-two-phase system, the total residual value over both phases should also be
-passed if the other phase has a non-zero residual value.
+Evaluate LET relative permeability function at saturation `s` for exponents `L`,
+`E` and `T`, and a given residual and maximum relative permeability value. If
+considering a two-phase system, the total residual value over both phases should
+also be passed if the other phase has a non-zero residual value.
 
 Reference: Lomeland, Frode, Einar Ebeltoft, and Wibeke Hammervold Thomas. "A new
 versatile relative permeability correlation." International symposium of the
