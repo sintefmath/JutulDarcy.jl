@@ -1106,6 +1106,12 @@ function setup_reservoir_forces(model::MultiModel;
     submodels = model.models
     has_facility = any(x -> isa(x.domain, WellGroup), values(submodels))
     no_well_controls = isnothing(control) && isnothing(limits)
+    if !isnothing(bc) && !(bc isa AbstractVector)
+        bc = [bc]
+    end
+    if !isnothing(sources) && !(sources isa AbstractVector)
+        sources = [sources]
+    end
     reservoir_forces = (bc = bc, sources = sources)
     @assert no_well_controls || has_facility "Model must have facility when well controls are provided."
     if haskey(submodels, :Facility)
