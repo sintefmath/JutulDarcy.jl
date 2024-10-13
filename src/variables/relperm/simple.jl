@@ -238,3 +238,58 @@ function let_relperm(s::Te, L, E, T, residual, kr_max, residual_total) where Te
     end
     return kr
 end
+
+struct ParametricLETRelativePermeabilities <: AbstractRelativePermeabilities
+
+end
+
+struct CriticalKrPoints <: ScalarVariable end
+
+Jutul.minimum_value(::CriticalKrPoints) = 1e-10
+Jutul.maximum_value(::CriticalKrPoints) = 1.0
+Jutul.default_value(model, x::MaxRelPermPoints) = Jutul.minimum_value(x)
+
+struct MaxRelPermPoints <: ScalarVariable end
+
+Jutul.minimum_value(::MaxRelPermPoints) = 1e-2
+Jutul.maximum_value(::MaxRelPermPoints) = 10.0
+Jutul.default_value(model, ::MaxRelPermPoints) = 1.0
+
+struct LETCoefficients <: JutulVariables end
+
+Jutul.values_per_entity(model, ::LETCoefficients) = 3
+Jutul.minimum_value(::LETCoefficients) = 1/20.0
+Jutul.maximum_value(::LETCoefficients) = 20.0
+Jutul.default_value(model, ::LETCoefficients) = 1.0
+
+@jutul_secondary function update_kr!(kr, relperm::ParametricLETRelativePermeabilities, model, Saturations, WettingLET, NonWettingLET, WettingCritical, NonWettingCritical, WettingKrMax, NonWettingKrMax, ix)
+    @assert size(Saturations, 1) == 2
+    for c in ix
+        sw, snw = Saturations[:, c]
+
+        Lw, Ew, Tw = WettingLET[:, c]
+        Lnw, Enw, Tnw = NonWettingLET[:, c]
+
+        rw = WettingCritical[c]
+        rnw = NonWettingCritical[c]
+
+        kr_max_w = WettingKrMax[c]
+        kr_max_nw = NonWettingKrMax[c]
+
+        residual_total = rw + rnw
+
+        kr[1, c] = let_relperm(sw, Lw, Ew, Tw, rw, kr_max_w, residual_total)
+        kr[2, c] = let_relperm(snw, Lnw, Enw, Tnw, rnw, kr_max_nw, residual_total)
+    end
+    return kr
+end
+
+function add_relperm_parameters!(param, kr::ParametricLETRelativePermeabilities)
+    param[:WettingLET] = LETCoefficients()
+    param[:NonWettingLET] = LETCoefficients()
+    param[:WettingCritical] = CriticalKrPoints()
+    param[:NonWettingCritical] = CriticalKrPoints()
+    param[:WettingKrMax] = MaxRelPermPoints()
+    param[:NonWettingKrMax] = MaxRelPermPoints()
+    return param
+end
