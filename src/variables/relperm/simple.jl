@@ -239,23 +239,13 @@ function let_relperm(s::Te, L, E, T, residual, kr_max, residual_total) where Te
     return kr
 end
 
-struct ParametricLETRelativePermeabilities <: AbstractRelativePermeabilities
-
-end
-
-struct CriticalKrPoints <: ScalarVariable end
-
 Jutul.minimum_value(::CriticalKrPoints) = 1e-10
 Jutul.maximum_value(::CriticalKrPoints) = 1.0
 Jutul.default_value(model, x::MaxRelPermPoints) = Jutul.minimum_value(x)
 
-struct MaxRelPermPoints <: ScalarVariable end
-
 Jutul.minimum_value(::MaxRelPermPoints) = 1e-2
 Jutul.maximum_value(::MaxRelPermPoints) = 10.0
 Jutul.default_value(model, ::MaxRelPermPoints) = 1.0
-
-struct LETCoefficients <: JutulVariables end
 
 Jutul.values_per_entity(model, ::LETCoefficients) = 3
 Jutul.minimum_value(::LETCoefficients) = 1/20.0
