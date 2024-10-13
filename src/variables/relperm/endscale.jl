@@ -92,6 +92,9 @@ end
 
 Jutul.degrees_of_freedom_per_entity(model, ::EndPointScalingCoefficients) = 4
 
+Jutul.minimum_value(::EndPointScalingCoefficients) = 0.0
+Jutul.maximum_value(::EndPointScalingCoefficients) = 1.0
+
 function Jutul.default_values(model, scalers::EndPointScalingCoefficients{P}) where P
     if scalers.drainage
         k = Symbol("scaler_$(P)_drainage")
@@ -201,10 +204,15 @@ function get_kr_scalers(kr::PhaseRelativePermeability)
 end
 
 function get_kr_scalers(scaler::AbstractMatrix, c)
+    ϵ = 1e-4
     @inbounds L = scaler[1, c]
     @inbounds CR = scaler[2, c]
     @inbounds U = scaler[3, c]
     @inbounds KM = scaler[4, c]
+    U = max(U, 2*ϵ)
+    CR = min(CR, U - ϵ)
+    L = min(L, CR - ϵ)
+    KM = max(KM, 2*ϵ)
     return (L, CR, U, KM)
 end
 
