@@ -188,10 +188,15 @@ function brooks_corey_relperm(s; n = 2.0, residual = 0.0, kr_max = 1.0, residual
 end
 
 function brooks_corey_relperm(s::T, n::Real, sr::Real, kwm::Real, sr_tot::Real) where T
-    den = 1 - sr_tot
+    s = normalized_saturation(s, sr, sr_tot)
+    return kwm*s^n
+end
+
+function normalized_saturation(s::T, sr, sr_tot) where T
+    den = 1.0 - sr_tot
     sat = (s - sr) / den
-    sat = clamp(sat, zero(T), one(T))
-    return kwm*sat^n
+    s_nrm = clamp(sat, zero(T), one(T))
+    return s_nrm
 end
 
 @jutul_secondary function update_kr!(kr, kr_def::TabulatedSimpleRelativePermeabilities, model, Saturations, ix)
@@ -201,6 +206,35 @@ end
             s = Saturations[j, c]
             kr[j, c] = I[j](s)
         end
+    end
+    return kr
+end
+
+"""
+    let_relperm(s; L = 1.0, E = 1.0, T = 1.0, residual = 0.0, kr_max = 1.0, residual_total = residual)
+
+Evaluate LET relative permeability function at saturation `s` for exponent `n`
+and a given residual and maximum relative permeability value. If considering a
+two-phase system, the total residual value over both phases should also be
+passed if the other phase has a non-zero residual value.
+
+Reference: Lomeland, Frode, Einar Ebeltoft, and Wibeke Hammervold Thomas. "A new
+versatile relative permeability correlation." International symposium of the
+society of core analysts, Toronto, Canada. Vol. 112. 2005.
+
+"""
+function let_relperm(s; L = 1.0, E = 1.0, T = 1.0, residual = 0.0, kr_max = 1.0, residual_total = residual)
+    @assert s <= 1.0
+    @assert s >= 0.0
+    return let_relperm(s, L, E, T, residual, kr_max, residual_total)
+end
+
+function let_relperm(s::Te, L, E, T, residual, kr_max, residual_total) where Te
+    if s <= residual
+        kr = zero(Te)
+    else
+        sn = normalized_saturation(s, residual, residual_total)
+        kr = kr_max*(sn^L)/(sn^L + E*(one(Te) - sn)^T)
     end
     return kr
 end
