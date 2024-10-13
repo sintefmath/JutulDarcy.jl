@@ -11,7 +11,7 @@ fine_mesh = physical_representation(fine_reservoir)
 ##
 ws, states = simulate_reservoir(fine_case)
 ##
-coarse_case = coarsen_reservoir_case(fine_case, (10, 10, 1), method = :ijk)
+coarse_case = coarsen_reservoir_case(fine_case, (20, 20, 2), method = :ijk)
 coarse_model = coarse_case.model
 coarse_reservoir = reservoir_domain(coarse_case)
 coarse_mesh = physical_representation(coarse_reservoir)
@@ -19,6 +19,20 @@ coarse_mesh = physical_representation(coarse_reservoir)
 p = coarse_mesh.partition
 
 plot_cell_data(fine_mesh, p, colormap = :lipariS)
+##
+K_f = fine_reservoir[:permeability][1, :]
+K_c = coarse_reservoir[:permeability][1, :]
+
+kcaxis = extrema(K_f)
+
+fig = Figure(size = (1200, 500))
+axf = Axis3(fig[1, 1], title = "Fine scale permeability", zreversed = true)
+plot_cell_data!(axf, fine_mesh, K_f, colorrange = kcaxis, colormap = :turbo)
+
+axc = Axis3(fig[1, 2], title = "Coarse scale permeability", zreversed = true)
+plt = plot_cell_data!(axc, coarse_mesh, K_c, colorrange = kcaxis, colormap = :turbo)
+Colorbar(fig[1, 3], plt)
+fig
 ##
 ws_c, states_c = simulate_reservoir(coarse_case)
 ##
@@ -30,20 +44,22 @@ p_f = states[end][:Pressure]
 
 caxis = extrema([extrema(p_c)..., extrema(p_f)...])
 
-fig = Figure()
+fig = Figure(size = (1200, 500))
 axf = Axis3(fig[1, 1], title = "Fine scale", zreversed = true)
-plot_cell_data!(axf, fine_mesh, p_f, colorrange = caxis)
+plot_cell_data!(axf, fine_mesh, p_f, colorrange = caxis, colormap = :turbo)
 
 for (k, w) in wells
     plot_well!(axf, fine_mesh, w, fontsize = 0)
 end
 
 axc = Axis3(fig[1, 2], title = "Coarse scale", zreversed = true)
-plot_cell_data!(axc, coarse_mesh, p_c, colorrange = caxis)
+plt = plot_cell_data!(axc, coarse_mesh, p_c, colorrange = caxis, colormap = :turbo)
 
 for (k, w) in wells
     plot_well!(axc, fine_mesh, w, fontsize = 0)
 end
+Colorbar(fig[1, 3], plt)
+fig
 ##
 
 fig = Figure()
@@ -68,8 +84,8 @@ plot_reservoir_measurables(m, left = :fopr, right = :coarse_fopr, accumulated = 
 ##
 
 partition_variants = [
-    (:ijk, (5, 5, 1)),
     (:centroids, (3, 3, 2)),
+    (:ijk, (5, 5, 1)),
     (:metis, 10),
     (:metis, 50)
 ]
@@ -102,10 +118,8 @@ for (no, variant) in enumerate(partition_variants)
     for (k, w) in wells
         plot_well!(axp, fine_mesh, w, fontsize = 0)
     end
-    plot_cell_data!(axp, m, pres, colorrange = caxis)
+    plot_cell_data!(axp, m, pres, colorrange = caxis, colormap = :turbo)
 
     layout[row, 2*(pix-1) + 2] = axp
 end
 fig
-##
-##
