@@ -666,10 +666,6 @@ struct AdjustedCellDepths <: ScalarVariable
 
 end
 
-struct ParametricLETRelativePermeabilities <: AbstractRelativePermeabilities
-
-end
-
 struct CriticalKrPoints <: ScalarVariable end
 
 struct MaxRelPermPoints <: ScalarVariable end
