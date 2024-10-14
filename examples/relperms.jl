@@ -88,8 +88,58 @@ krw = let_relperm.(sw, L = 3.0, E = 2.0, T = 1.0, residual = swi, residual_total
 krow = let_relperm.(so, L = 2.0, E = 1.0, T = 2.0, residual = srow, residual_total = r_tot)
 
 simulate_and_plot(sw, krw, krow, L"\text{LET relperm}")
+##
+using Optim
+
+s_to_match  = [0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+kr_to_match = [0.0, 0.0, 0.01, 0.025, 0.1, 0.2, 0.4, 0.6, 0.90, 0.90, 0.90]
+
+function relperm_mismatch(x)
+    L, E, T, r, kr_max = x
+    kr = let_relperm.(s_to_match, L = L, E = E, T = T, residual = r, kr_max = kr_max)
+    return sum((kr .- kr_to_match).^2)
+end
+
+x0 = [1.0, 1.0, 1.0, 0.0, 1.0]
+lower = [0.0, 0.0, 0.0, 0.0, 0.1]
+upper = [20, 20, 20, 0.5, 1.0]
+res = optimize(relperm_mismatch, lower, upper, x0, NelderMead(), Optim.Options(iterations = 100000))
+L, E, T, r, kr_max = Optim.minimizer(res)
+
+fig = Figure(size = (800, 600))
+ax = Axis(fig[1, 1], title = "Optimized LET Relative Permeability")
+
+s_fine = range(0, 1, 100)
+initial_kr = let_relperm.(s_fine, L = x0[1], E = x0[2], T = x0[3], residual = x0[4], kr_max = x0[5])
+optimized_kr = let_relperm.(s_fine, L = L, E = E, T = T, residual = r, kr_max = kr_max)
+scatter!(ax, s_to_match, kr_to_match, label = "Data")
+lines!(ax, s_fine, optimized_kr, label = "Optimized LET")
+lines!(ax, s_fine, initial_kr, label = "Initial LET")
+axislegend(position = :ct)
+fig
 
 ##
+function simulate_and_plot_two_regions(sw, krw1, krow1, krw2, krow2, name)
+    fig = Figure(size = (1200, 800))
+    ax = Axis(fig[1, 1], title = name)
+    lines!(ax, sw, krw, label = L"K_{rw}")
+    lines!(ax, sw, krow, label = L"K_{row}")
+    axislegend(position = :ct)
+
+    krdef = define_relperm_single_region(krw, krow, sw)
+    ax = Axis(fig[2, 1], title = L"\text{Injection front at 0.75 PVI}")
+
+    for mu_ratio in [10, 5, 1, 0.2, 0.1]
+        println("Simulating with mu_ratio = $mu_ratio")
+        model, parameters = setup_model_with_relperm(krdef, mu_ratio = mu_ratio)
+        water_front = simulate_bl(model, parameters)
+        lines!(ax, water_front, label = L"\mu_w/\mu_o=%$mu_ratio")
+    end
+    axislegend()
+    fig
+end
+
+
 
 # TODOs:
 # Example with regions
