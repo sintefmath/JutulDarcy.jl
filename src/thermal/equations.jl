@@ -17,6 +17,22 @@ end
     return setindex(q_i, q, 1)
 end
 
+"""
+    thermal_heat_flux(face, state, model, grad, upw, flux_type)
+
+Calculate the thermal heat flux for a given face in a thermal model.
+
+# Arguments
+- `face`: The face for which the heat flux is being calculated.
+- `state`: The current state of the system.
+- `model`: The thermal model being used.
+- `grad`: The gradient operator.
+- `upw`: Upwind scheme operator.
+- `flux_type`: The type of flux calculation to be used.
+
+# Returns
+- The calculated thermal heat flux for the given face.
+"""
 function thermal_heat_flux(face, state, model, grad, upw, flux_type)
     T = state.Temperature
     H_f = state.FluidEnthalpy
@@ -42,6 +58,23 @@ function thermal_heat_flux(face, state, model, grad, upw, flux_type)
 end
 
 
+"""
+    Jutul.convergence_criterion(model, storage, eq::ConservationLaw{:TotalThermalEnergy}, eq_s, r; dt = 1.0, update_report = missing)
+
+Calculate the convergence criterion for the total thermal energy conservation law.
+
+# Arguments
+- `model`: The model object containing the simulation parameters and state.
+- `storage`: The storage object used to keep track of intermediate results.
+- `eq::ConservationLaw{:TotalThermalEnergy}`: The conservation law for total thermal energy.
+- `eq_s`: The storage of the conservation law equation.
+- `r`: The residual of the conservation law equation.
+- `dt`: The time step size in seconds (default is 1.0).
+- `update_report`: An optional argument for updating the report (default is `missing`).
+
+# Returns
+- The convergence criterion values for the total thermal energy conservation law (maximum).
+"""
 function Jutul.convergence_criterion(model, storage, eq::ConservationLaw{:TotalThermalEnergy}, eq_s, r; dt = 1.0, update_report = missing)
     a = active_entities(model.domain, Cells())
     E0 = storage.state0.TotalThermalEnergy
