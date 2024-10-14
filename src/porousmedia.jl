@@ -1,11 +1,40 @@
 import Jutul: compute_half_face_trans, compute_face_trans
 
+"""
+    compute_peaceman_index(g::T, K, r, pos; kwarg...) where T<:Jutul.JutulMesh
+
+Compute the Peaceman index for a given mesh.
+
+# Arguments
+- `g::JutulMesh`: Reservoir mesh
+- `K`: Permeability tensor or scalar.
+- `r`: Well radius.
+- `pos`: Position of the well (index of cell or IJK truplet).
+- `kwarg...`: Additional keyword arguments passed onto inner version of
+  function.
+
+# Returns
+- The computed Peaceman index.
+
+"""
 function compute_peaceman_index(g::T, K, r, pos; kwarg...) where T<:Jutul.JutulMesh
     Δ = peaceman_cell_dims(g, pos)
     K = Jutul.expand_perm(K, dim(g))
     return compute_peaceman_index(Δ, K, r; kwarg...)
 end
 
+"""
+    peaceman_cell_dims(g, pos)
+
+Calculate the dimensions of a cell in a grid for purposes of calculating the Peaceman index.
+
+# Arguments
+- `g`: The grid object containing the cell.
+- `pos`: The position of the cell within the grid.
+
+# Returns
+- A tuple containing the dimensions of the Peaceman cell.
+"""
 function peaceman_cell_dims(g, pos)
     horz = get_mesh_entity_tag(g, Faces(), :orientation, :horizontal, throw = false)
     vert = get_mesh_entity_tag(g, Faces(), :orientation, :vertical, throw = false)
@@ -36,6 +65,29 @@ function peaceman_cell_dims(g, pos)
     return Δ
 end
 
+"""
+    compute_peaceman_index(Δ, K, radius; kwargs...)
+
+Compute the Peaceman well index for a given grid block.
+
+# Arguments
+- `Δ`: The grid block size as a tuple `(dx, dy, dz)`
+- `K`: The permeability of the medium (Matrix for full tensor, or scalar).
+- `radius`: The well radius.
+
+# Keyword Arguments
+- `dir::Symbol = :z`: Direction of the well, can be `:x`, `:y`, or `:z`.
+- `net_to_gross = 1.0`: Net-to-gross ratio, used to scale the value for vertical directions.
+- `constant = 0.14`: Constant used in the calculation of the equivalent radius. TPFA specific.
+- `Kh = nothing`: Horizontal permeability, if not provided, it will be computed.
+- `drainage_radius = nothing`: Drainage radius, if not provided, it will be computed.
+- `skin = 0`: Skin factor, used to account for near-wellbore effects.
+- `check = true`: Flag to check for negative well index values.
+
+# Returns
+- `Float64`: The computed Peaceman well index.
+
+"""
 function compute_peaceman_index(Δ, K, radius;
         dir::Symbol = :z,
         net_to_gross = 1.0,
@@ -100,7 +152,6 @@ end
 function Jutul.discretize_domain(d::DataDomain, system::Union{MultiPhaseSystem, CompositeSystem{:Reservoir, T}}, ::Val{:default}; kwarg...) where T
     return discretized_domain_tpfv_flow(d; kwarg...)
 end
-
 
 function discretized_domain_tpfv_flow(domain::Jutul.DataDomain;
         general_ad = false,
