@@ -3,19 +3,26 @@ using JutulDarcy, Jutul
 import JutulDarcy: table_to_relperm, PhaseRelativePermeability, brooks_corey_relperm, let_relperm, ReservoirRelativePermeabilities
 
 
-function simulate_bl(kr; nc = 100, time = 1.0, nstep = nc, mu_ratio = 1.0, pvi = 0.75)
-    tstep = fill(time/nstep, nstep)
+function setup_model_with_relperm(kr; mu_ratio = 1.0)
     mesh = CartesianMesh(1000, 1000.0)
     domain = reservoir_domain(mesh)
     nc = number_of_cells(domain)
-    timesteps = tstep*3600*24
-    bar = 1e5
-    p0 = 100*bar
     sys = ImmiscibleSystem((LiquidPhase(), VaporPhase()), reference_densities = [1000.0, 700.0])
-    model, parameters = setup_reservoir_model(domain, sys)
-    parameters[:Reservoir][:PhaseViscosities] = repeat([mu_ratio*1e-3, 1e-3], 1, nc)
+    model,  = setup_reservoir_model(domain, sys)
     rmodel = reservoir_model(model)
     replace_variables!(rmodel, RelativePermeabilities = kr)
+    JutulDarcy.add_relperm_parameters!(rmodel)
+    parameters = setup_parameters(model)
+    parameters[:Reservoir][:PhaseViscosities] = repeat([mu_ratio*1e-3, 1e-3], 1, nc)
+    return (model, parameters)
+end
+
+function simulate_bl(model, parameters; pvi = 0.75)
+    domain = reservoir_domain(model)
+    nc = number_of_cells(domain)
+    nstep = nc
+    timesteps = fill(3600*24/nstep, nstep)
+    p0 = 100*si_unit(:bar)
     tot_time = sum(timesteps)
     pv = pore_volume(domain)
     irate = pvi*sum(pv)/tot_time
@@ -45,7 +52,9 @@ function simulate_and_plot(sw, krw, krow, name)
     ax = Axis(fig[2, 1], title = L"\text{Injection front at 0.75 PVI}")
 
     for mu_ratio in [10, 5, 1, 0.2, 0.1]
-        water_front = simulate_bl(krdef, mu_ratio = mu_ratio)
+        println("Simulating with mu_ratio = $mu_ratio")
+        model, parameters = setup_model_with_relperm(krdef, mu_ratio = mu_ratio)
+        water_front = simulate_bl(model, parameters)
         lines!(ax, water_front, label = L"\mu_w/\mu_o=%$mu_ratio")
     end
     axislegend()
@@ -80,6 +89,13 @@ krow = let_relperm.(so, L = 2.0, E = 1.0, T = 2.0, residual = srow, residual_tot
 
 simulate_and_plot(sw, krw, krow, L"\text{LET relperm}")
 
+##
+
 # TODOs:
 # Example with regions
 # Example with SWOF table
+##
+LET = JutulDarcy.ParametricLETRelativePermeabilities()
+
+sfront = simulate_bl(LET)
+lines(sfront)
