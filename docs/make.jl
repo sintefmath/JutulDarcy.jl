@@ -35,6 +35,7 @@ function build_jutul_darcy_docs(build_format = nothing;
         "CO2 property calculations" => "co2_props",
         "Relative permeability" => "relperms",
         "Model coarsening" => "model_coarsening",
+        "History matching a coarse model - CGNet" => "cgnet_egg",
         "CO2 injection in saline aquifer" => "co2_sloped",
         "Compositional with five components" => "compositional_5components",
         "Parameter matching of Buckley-Leverett" => "optimize_simple_bl",
