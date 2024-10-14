@@ -194,8 +194,8 @@ end
 
 function normalized_saturation(s::T, sr, sr_tot) where T
     den = 1.0 - sr_tot
-    sat = (s - sr) / den
-    s_nrm = clamp(sat, zero(T), one(T))
+    s_nrm = (s - sr) / den
+    s_nrm = clamp(s_nrm, zero(T), one(T))
     return s_nrm
 end
 
