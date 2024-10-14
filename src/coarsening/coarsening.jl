@@ -1,3 +1,18 @@
+"""
+    coarsen_reservoir_model(fine_model::MultiModel, partition; functions = Dict(), well_arg = Dict(), kwarg...)
+
+Coarsens a fine reservoir model based on the provided partitioning scheme.
+
+# Arguments
+- `fine_model::MultiModel`: The fine-scale reservoir model to be coarsened.
+- `partition`: The vector used to coarsen the model.
+- `functions`: A dictionary of functions to be applied during the coarsening process. Defaults to an empty dictionary.
+- `well_arg`: A dictionary of well arguments to be considered during coarsening. Defaults to an empty dictionary.
+- `kwarg...`: Additional keyword arguments that are passed onto (`setup_reservoir_model`)[@ref].
+
+# Returns
+- A coarsened reservoir model.
+"""
 function coarsen_reservoir_model(fine_model::MultiModel, partition; functions = Dict(), well_arg = Dict(), kwarg...)
     reservoir = reservoir_domain(fine_model)
     creservoir = coarsen_reservoir(reservoir, partition, functions = functions)
@@ -96,6 +111,21 @@ function Jutul.inner_apply_coarsening_function(finevals, fine_indices, op::Coars
     return sum(finevals.*subvols)/sum(subvols)
 end
 
+"""
+    coarsen_reservoir_state(coarse_model, fine_model, fine_state0; functions = Dict(), default = missing)
+
+Coarsens the reservoir state from a fine model to a coarse model.
+
+# Arguments
+- `coarse_model`: The coarse model to which the state will be coarsened.
+- `fine_model`: The fine model from which the state will be coarsened.
+- `fine_state0`: The initial state of the fine model.
+- `functions`: A dictionary of functions to apply during the coarsening process. Defaults to an empty dictionary.
+- `default`: The default value to use if no function is provided for a specific operation. Defaults to `missing`.
+
+# Returns
+- The coarsened state of the reservoir.
+"""
 function coarsen_reservoir_state(coarse_model, fine_model, fine_state0; functions = Dict(), default = missing)
     coarse_state0 = Dict{Symbol, Any}()
 
@@ -133,6 +163,22 @@ function partition_reservoir(case::JutulCase, coarsedim, method = missing; kwarg
     return partition_reservoir(case.model, coarsedim, method; parameters = case.parameters, kwarg...)
 end
 
+"""
+    partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, method = missing)
+
+Partition the reservoir model into coarser grids.
+
+# Arguments
+- `model::JutulModel`: The reservoir model to be partitioned.
+- `coarsedim::Union{Tuple, Int}`: The dimensions for the coarser grid. Can be a
+  tuple specifying dimensions or an integer to specify the total number of
+  desired coarse blocks.
+- `method`: Optional. The method to use for partitioning. Defaults to `missing`.
+
+# Returns
+- A partitioned version of the reservoir model.
+
+"""
 function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, method = missing;
         parameters = missing,
         wells_in_single_block = false,
@@ -185,10 +231,25 @@ end
 
 export coarsen_reservoir_case
 
-"""
-    coarsen_reservoir_case(case, coarsedim; method = missing, partitioner_arg = NamedTuple(), kwarg...)
 
-TBW
+"""
+    coarsen_reservoir_case(case, coarsedim; kwargs...)
+
+Coarsens the given reservoir case to the specified dimensions.
+
+# Arguments
+- `case`: The reservoir case to be coarsened.
+- `coarsedim`: The target dimensions for the coarsened reservoir.
+
+# Keyword Arguments
+- `method`: The method to use for partitioning. Defaults to `missing`.
+- `partitioner_arg`: A named tuple of arguments to be passed to the partitioner.
+- `setup_arg`: A named tuple of arguments to be passed to `coarsen_reservoir_model`.
+- `state_arg`: A named tuple of arguments to be passed to the state coarsening function.
+
+# Returns
+- A coarsened version of the reservoir case.
+
 """
 function coarsen_reservoir_case(case, coarsedim;
         method = missing,
