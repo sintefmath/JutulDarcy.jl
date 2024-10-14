@@ -9,6 +9,10 @@ struct ParametricLETRelativePermeabilities <: AbstractRelativePermeabilities
 
 end
 
+struct ParametricCoreyRelativePermeabilities <: AbstractRelativePermeabilities
+
+end
+
 include("hysteresis.jl")
 include("endscale.jl")
 include("simple.jl")

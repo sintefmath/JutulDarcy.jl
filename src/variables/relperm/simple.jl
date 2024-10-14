@@ -250,7 +250,7 @@ Jutul.default_value(model, ::MaxRelPermPoints) = 1.0
 Jutul.values_per_entity(model, ::LETCoefficients) = 3
 Jutul.minimum_value(::LETCoefficients) = 1/20.0
 Jutul.maximum_value(::LETCoefficients) = 20.0
-Jutul.default_value(model, ::LETCoefficients) = 1.0
+Jutul.default_value(model, ::LETCoefficients) = 2.0
 
 @jutul_secondary function update_kr!(kr, relperm::ParametricLETRelativePermeabilities, model, Saturations, WettingLET, NonWettingLET, WettingCritical, NonWettingCritical, WettingKrMax, NonWettingKrMax, ix)
     @assert size(Saturations, 1) == 2
@@ -281,5 +281,41 @@ function add_relperm_parameters!(param, kr::ParametricLETRelativePermeabilities)
     param[:NonWettingCritical] = CriticalKrPoints()
     param[:WettingKrMax] = MaxRelPermPoints()
     param[:NonWettingKrMax] = MaxRelPermPoints()
+    return param
+end
+
+@jutul_secondary function update_kr!(kr, relperm::ParametricCoreyRelativePermeabilities, model, Saturations, WettingKrExponent, NonWettingKrExponent, WettingCritical, NonWettingCritical, WettingKrMax, NonWettingKrMax, ix)
+    @assert size(Saturations, 1) == 2
+    for c in ix
+        sw, snw = Saturations[:, c]
+
+        e_w = WettingKrExponent[c]
+        e_nw = NonWettingKrExponent[c]
+
+        rw = WettingCritical[c]
+        rnw = NonWettingCritical[c]
+
+        kr_max_w = WettingKrMax[c]
+        kr_max_nw = NonWettingKrMax[c]
+
+        residual_total = rw + rnw
+
+        kr[1, c] = brooks_corey_relperm(sw, e_w, rw, kr_max_w, residual_total)
+        kr[2, c] = brooks_corey_relperm(snw, e_nw, rnw, kr_max_nw, residual_total)
+    end
+    return kr
+end
+
+Jutul.minimum_value(::CoreyExponentKrPoints) = 1.0
+Jutul.maximum_value(::CoreyExponentKrPoints) = 20.0
+Jutul.default_value(model, ::CoreyExponentKrPoints) = 2.0
+
+function add_relperm_parameters!(param, kr::ParametricCoreyRelativePermeabilities)
+    param[:WettingCritical] = CriticalKrPoints()
+    param[:NonWettingCritical] = CriticalKrPoints()
+    param[:WettingKrMax] = MaxRelPermPoints()
+    param[:NonWettingKrMax] = MaxRelPermPoints()
+    param[:WettingKrExponent] = CoreyExponentKrPoints()
+    param[:NonWettingKrExponent] = CoreyExponentKrPoints()
     return param
 end

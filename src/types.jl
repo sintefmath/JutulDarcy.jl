@@ -671,3 +671,5 @@ struct CriticalKrPoints <: ScalarVariable end
 struct MaxRelPermPoints <: ScalarVariable end
 
 struct LETCoefficients <: JutulVariables end
+
+struct CoreyExponentKrPoints <: ScalarVariable end
