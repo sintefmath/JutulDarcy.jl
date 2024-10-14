@@ -1,4 +1,25 @@
 
+"""
+    equilibriate_state(model, contacts)
+
+Equilibrates the state of the given model based on the provided contacts.
+
+# Arguments
+- `model`: The model whose state needs to be equilibrated.
+- `contacts`: The nph contact depths.
+
+# Keyword Arguments
+- `datum_depth`: The reference depth for the datum.
+- `datum_pressure`: The pressure at the datum depth.
+- `cells`: The cells to be equilibrated.
+- `rs`: Solution gas-oil ratio (blackoil).
+- `rv`: Vapor-oil ratio (blackoil).
+- `composition`: The composition vs depth (compositional).
+- `kwarg`: Additional keyword arguments.
+
+# Returns
+- The equilibrated state of the model.
+"""
 function equilibriate_state(model, contacts,
         datum_depth = missing,
         datum_pressure = JutulDarcy.DEFAULT_MINIMUM_PRESSURE;

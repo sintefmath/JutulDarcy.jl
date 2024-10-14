@@ -22,11 +22,15 @@ Jutul.UnstructuredMesh
 
 ### Reservoir
 
+Once a mesh has been set up, we can turn it into a reservoir with static properties:
+
 ```@docs
 reservoir_domain
 ```
 
 ### Wells
+
+Wells are most easily created using utilities that act directly on a reservoir domain:
 
 ```@docs
 setup_well
@@ -35,19 +39,26 @@ setup_vertical_well
 
 ### Model
 
+A single, option-heavy function is used to set up the reservoir model and default parameters:
+
 ```@docs
 setup_reservoir_model
 ```
 
 ### Initial state
 
+The initial state can be set up by explicitly setting all primary variables. JutulDarcy also contains functionality for initial hydrostatic equilibriation of the state, but this is at the moment most easily set up using input files with the `EQUIL` keyword.
+
 ```@docs
 setup_reservoir_state
+JutulDarcy.equilibriate_state
 ```
 
-TODO: Write about hydrostatic equilbriation.
-
 ## Simulation
+
+Simulating is done by either setting up a reservoir simulator and then simulating, or by using the convenience function that automatically sets up a simulator for you.
+
+There are a number of different options available to tweak the tolerances, timestepping and behavior of the simulation. It is advised to read through the documentation in detail before running very large simulations.
 
 ```@docs
 simulate_reservoir
