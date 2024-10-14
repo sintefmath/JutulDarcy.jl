@@ -174,6 +174,8 @@ Partition the reservoir model into coarser grids.
   tuple specifying dimensions or an integer to specify the total number of
   desired coarse blocks.
 - `method`: Optional. The method to use for partitioning. Defaults to `missing`.
+- `partitioner_conn_type`: Optional. The type of connection to use for the
+  partition. Can be :trans, :logtrans or :unit.
 
 # Returns
 - A partitioned version of the reservoir model.
