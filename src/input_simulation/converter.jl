@@ -98,6 +98,17 @@ function convert_co2store_to_co2_brine!(data; verbose = true)
         end
         delete!(props, "CNAMES")
     end
+    if haskey(data["PROPS"], "SALINITY")
+        salinity = data["PROPS"]["SALINITY"]
+        if haskey(rs, "SALTS") && salinity > 0.0
+            local_warn("Both SALINITY and salts declared as COMPS are present. COMPS will be used.")
+        else
+            local_msg("Converting SALINITY to NaCL salt.")
+            salt_mf = CO2Properties.convert_salinity_to_mole_fractions(salinity)
+            data["PROPS"]["SALTS"] = ["NaCl"]
+            data["PROPS"]["SALT_MOLE_FRACTIONS"] = salt_mf
+        end
+    end
     # ZMFVD (convert)
     zmfvd = get(props, "ZMFVD", nothing)
     if isnothing(zmfvd)
