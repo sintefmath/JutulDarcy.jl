@@ -20,15 +20,14 @@ using GLMakie
 using GeoEnergyIO
 data_dir = GeoEnergyIO.test_input_file_path("EGG")
 data_pth = joinpath(data_dir, "EGG.DATA")
-fine_case = setup_case_from_data_file(data_pth)
-
+fine_case = setup_case_from_data_file(data_pth);
 # ## Simulate the base case
 # We simulate the fine case to get a reference solution to compare against. We
 # also extract the mesh and reservoir for plotting.
 fine_model = fine_case.model
 fine_reservoir = reservoir_domain(fine_model)
 fine_mesh = physical_representation(fine_reservoir)
-ws, states = simulate_reservoir(fine_case)
+ws, states = simulate_reservoir(fine_case, info_level = 1);
 # ## Coarsen the model and plot partition
 # We coarsen the model using a partition size of 20x20x2 and the IJK method
 # where the underlying structure of the mesh is used to subdivide the blocks.
@@ -44,7 +43,8 @@ coarse_mesh = physical_representation(coarse_reservoir)
 
 p = coarse_mesh.partition
 
-plot_cell_data(fine_mesh, p, colormap = :lipariS)
+fig, = plot_cell_data(fine_mesh, p, colormap = :lipariS)
+fig
 # ### Compare fine-scale and coarse-scale permeability
 # The fine-scale and coarse-scale permeability fields are compared visually. The
 # coarsening uses a static upscaling, where the permeability is harmonically
@@ -69,7 +69,7 @@ fig
 # ### Simulate the coarse-scale model
 # The coarse scale model can be simulated just as the fine-scale model was, but
 # the runtime should be significantly reduced down to around a second.
-ws_c, states_c = simulate_reservoir(coarse_case)
+@time ws_c, states_c = simulate_reservoir(coarse_case, info_level = -1);
 # ### Plot and compare the coarse-scale and fine-scale solutions
 # We plot the pressure field for the fine-scale and coarse-scale models. The
 # model has little pressure variation, but we see that there are substantial
@@ -131,6 +131,8 @@ lines!(axf_p, map(x -> mean(x[:Pressure])/1e5, states_c), label = "Coarse")
 axislegend()
 fig
 # ### Plot the wells interactively
+# We can plot the well results in the interactive viewer using the comparison
+# feature that allows multiple results to be superimposed in the same figure.
 plot_well_results([ws, ws_c], names = ["Fine", "Coarse"], field = :orat, accumulated = true)
 # ### Plot field scale measurables over time interactively
 # The field-scale quantities match fairly well between the coarse-scale and

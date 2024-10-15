@@ -15,11 +15,11 @@ data_pth = joinpath(egg_dir, "EGG.DATA")
 
 fine_case = setup_case_from_data_file(data_pth)
 simulated_fine = simulate_reservoir(fine_case)
-plot_reservoir(fine_case, simulated_fine.states)
+plot_reservoir(fine_case, simulated_fine.states, key = :Saturations, step = 100)
 # ## Create initial coarse model and simulate
 coarse_case = JutulDarcy.coarsen_reservoir_case(fine_case, (25, 25, 5), method = :ijk)
-simulated_coarse = simulate_reservoir(coarse_case)
-plot_reservoir(coarse_case, simulated_coarse.states)
+simulated_coarse = simulate_reservoir(coarse_case, info_level = -1)
+plot_reservoir(coarse_case, simulated_coarse.states, key = :Saturations, step = 100)
 # ## Setup optimization
 # We set up the optimization problem by defining the objective function as a sum
 # of squared mismatches for all well observations, for all time-steps. We also
@@ -159,7 +159,7 @@ data = opt_setup.data
 devectorize_variables!(param_c, model_c, final_x, data[:mapper], config = data[:config])
 
 
-simulated_tuned = simulate_reservoir(tuned_case);
+simulated_tuned = simulate_reservoir(tuned_case, info_level = -1);
 # ### Plot the results interactively
 using GLMakie
 
@@ -231,7 +231,6 @@ ax1 = Axis(fig[1, 1], title = "Scaled parameters", ylabel = "Scaled value")
 scatter!(ax1, setup[:x0], label = "Initial X")
 scatter!(ax1, final_x, label = "Final X", markersize = 5)
 lines!(ax1, setup[:lower], label = "Lower bound")
-# lines!(ax1, setup[:upper], label = "Upper bound")
 axislegend()
 
 trans = data[:mapper][:Reservoir][:Transmissibilities]
