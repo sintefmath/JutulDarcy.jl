@@ -86,18 +86,18 @@ end
 # The Brooks-Corey model is a simple model that can be used to generate relative
 # permeabilities. The model is defined in the mobile region as:
 #
-# $$ k_{rw} = k_{max,w} \bar{S}_w $$
+# ``k_{rw} = k_{max,w} \bar{S}_w``
 #
-# $$ k_{ro} = k_{max,o} \bar{S}_o $$
+# ``k_{ro} = k_{max,o} \bar{S}_o``
 #
 # where $k_{max,w}$ is the maximum relative permeability, $\bar{S}_w$
 # is the normalized saturation for the water phase,
 #
-# $$ \bar{S}_w = \frac{S_w - S_{wi}}{1 - S_{wi} - S_{ro}} $$
+# `` \bar{S}_w = \frac{S_w - S_{wi}}{1 - S_{wi} - S_{ro}}``
 #
 # and, similarly, for the oil phase:
 # 
-# $$ \bar{S}_o = \frac{S_o - S_{ro}}{1 - S_{wi} - S_{ro}} $$
+# ``\bar{S}_o = \frac{S_o - S_{ro}}{1 - S_{wi} - S_{ro}}``
 #
 # JutulDarcy contains a function `brooks_corey_relperm` that can be used to
 # evaluate the values for a given saturation range:
@@ -125,14 +125,14 @@ simulate_and_plot(sw, krw, krow, L"\text{Brooks-Corey} (N_w = 4, N_{ow} = 1.5)")
 # additional parameters to more easily control the shape of the curve. It is
 # defined as:
 #
-# $$ k_{rw} = k_{max,w} \frac{\bar{S}_w^L_w}{\bar{S}_w^L_w + E_w(1 - \bar{S}_w)^T_w} $$
+# ``k_{rw} = k_{max,w} \frac{\bar{S}_w^L_w}{\bar{S}_w^L_w + E_w(1 - \bar{S}_w)^T_w}``
 #
 # The oil phase is defined analogously. The LET model has three exponents $L$,
 # $E$, and $T$ that together define the shape of the curve.
 
 # ### LET table as fully linear
 # We can use the `let_relperm` function to generate a fully linear relative
-# permeability curve, i.e. $$ k_{rw} = S_w $$ and $$ k_{ro} = S_o $$. This is
+# permeability curve, i.e. ``k_{rw} = S_w`` and ``k_{ro} = S_o``. This is
 # overkill for the LET model, but it is a good way to verify that the function
 # works as expected and that the linear model can be captured by LET functions.
 
