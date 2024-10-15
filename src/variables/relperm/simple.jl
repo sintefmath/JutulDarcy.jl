@@ -188,10 +188,15 @@ function brooks_corey_relperm(s; n = 2.0, residual = 0.0, kr_max = 1.0, residual
 end
 
 function brooks_corey_relperm(s::T, n::Real, sr::Real, kwm::Real, sr_tot::Real) where T
-    den = 1 - sr_tot
-    sat = (s - sr) / den
-    sat = clamp(sat, zero(T), one(T))
-    return kwm*sat^n
+    s = normalized_saturation(s, sr, sr_tot)
+    return kwm*s^n
+end
+
+function normalized_saturation(s::T, sr, sr_tot) where T
+    den = 1.0 - sr_tot
+    s_nrm = (s - sr) / den
+    s_nrm = clamp(s_nrm, zero(T), one(T))
+    return s_nrm
 end
 
 @jutul_secondary function update_kr!(kr, kr_def::TabulatedSimpleRelativePermeabilities, model, Saturations, ix)
@@ -203,4 +208,114 @@ end
         end
     end
     return kr
+end
+
+"""
+    let_relperm(s; L = 1.0, E = 1.0, T = 1.0, residual = 0.0, kr_max = 1.0, residual_total = residual)
+
+Evaluate LET relative permeability function at saturation `s` for exponents `L`,
+`E` and `T`, and a given residual and maximum relative permeability value. If
+considering a two-phase system, the total residual value over both phases should
+also be passed if the other phase has a non-zero residual value.
+
+Reference: Lomeland, Frode, Einar Ebeltoft, and Wibeke Hammervold Thomas. "A new
+versatile relative permeability correlation." International symposium of the
+society of core analysts, Toronto, Canada. Vol. 112. 2005.
+
+"""
+function let_relperm(s; L = 1.0, E = 1.0, T = 1.0, residual = 0.0, kr_max = 1.0, residual_total = residual)
+    @assert s <= 1.0
+    @assert s >= 0.0
+    return let_relperm(s, L, E, T, residual, kr_max, residual_total)
+end
+
+function let_relperm(s::Te, L, E, T, residual, kr_max, residual_total) where Te
+    if s <= residual
+        kr = zero(Te)
+    else
+        sn = normalized_saturation(s, residual, residual_total)
+        kr = kr_max*(sn^L)/(sn^L + E*(one(Te) - sn)^T)
+    end
+    return kr
+end
+
+Jutul.minimum_value(::CriticalKrPoints) = 1e-10
+Jutul.maximum_value(::CriticalKrPoints) = 1.0
+Jutul.default_value(model, x::CriticalKrPoints) = Jutul.minimum_value(x)
+
+Jutul.minimum_value(::MaxRelPermPoints) = 1e-2
+Jutul.maximum_value(::MaxRelPermPoints) = 10.0
+Jutul.default_value(model, ::MaxRelPermPoints) = 1.0
+
+Jutul.values_per_entity(model, ::LETCoefficients) = 3
+Jutul.minimum_value(::LETCoefficients) = 1/20.0
+Jutul.maximum_value(::LETCoefficients) = 20.0
+Jutul.default_value(model, ::LETCoefficients) = 2.0
+
+@jutul_secondary function update_kr!(kr, relperm::ParametricLETRelativePermeabilities, model, Saturations, WettingLET, NonWettingLET, WettingCritical, NonWettingCritical, WettingKrMax, NonWettingKrMax, ix)
+    @assert size(Saturations, 1) == 2
+    for c in ix
+        sw, snw = Saturations[:, c]
+
+        Lw, Ew, Tw = WettingLET[:, c]
+        Lnw, Enw, Tnw = NonWettingLET[:, c]
+
+        rw = WettingCritical[c]
+        rnw = NonWettingCritical[c]
+
+        kr_max_w = WettingKrMax[c]
+        kr_max_nw = NonWettingKrMax[c]
+
+        residual_total = rw + rnw
+
+        kr[1, c] = let_relperm(sw, Lw, Ew, Tw, rw, kr_max_w, residual_total)
+        kr[2, c] = let_relperm(snw, Lnw, Enw, Tnw, rnw, kr_max_nw, residual_total)
+    end
+    return kr
+end
+
+function add_relperm_parameters!(param, kr::ParametricLETRelativePermeabilities)
+    param[:WettingLET] = LETCoefficients()
+    param[:NonWettingLET] = LETCoefficients()
+    param[:WettingCritical] = CriticalKrPoints()
+    param[:NonWettingCritical] = CriticalKrPoints()
+    param[:WettingKrMax] = MaxRelPermPoints()
+    param[:NonWettingKrMax] = MaxRelPermPoints()
+    return param
+end
+
+@jutul_secondary function update_kr!(kr, relperm::ParametricCoreyRelativePermeabilities, model, Saturations, WettingKrExponent, NonWettingKrExponent, WettingCritical, NonWettingCritical, WettingKrMax, NonWettingKrMax, ix)
+    @assert size(Saturations, 1) == 2
+    for c in ix
+        sw, snw = Saturations[:, c]
+
+        e_w = WettingKrExponent[c]
+        e_nw = NonWettingKrExponent[c]
+
+        rw = WettingCritical[c]
+        rnw = NonWettingCritical[c]
+
+        kr_max_w = WettingKrMax[c]
+        kr_max_nw = NonWettingKrMax[c]
+
+        residual_total = rw + rnw
+
+        kr[1, c] = brooks_corey_relperm(sw, e_w, rw, kr_max_w, residual_total)
+        kr[2, c] = brooks_corey_relperm(snw, e_nw, rnw, kr_max_nw, residual_total)
+    end
+    return kr
+end
+
+Jutul.minimum_value(::CoreyExponentKrPoints) = 1.0
+Jutul.maximum_value(::CoreyExponentKrPoints) = 20.0
+Jutul.default_value(model, ::CoreyExponentKrPoints) = 2.0
+
+function add_relperm_parameters!(param, kr::ParametricCoreyRelativePermeabilities)
+    param[:WettingCritical] = CriticalKrPoints()
+    param[:NonWettingCritical] = CriticalKrPoints()
+    param[:WettingKrMax] = MaxRelPermPoints()
+    param[:NonWettingKrMax] = MaxRelPermPoints()
+    param[:WettingKrExponent] = CoreyExponentKrPoints()
+    param[:NonWettingKrExponent] = CoreyExponentKrPoints()
+    return param
 end

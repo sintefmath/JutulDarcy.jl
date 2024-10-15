@@ -126,6 +126,28 @@ function check_active_limits(control, target, limits, wmodel, wstate, well::Symb
     return (target, changed, cval, tval, lim_type)
 end
 
+"""
+    translate_limit(control::ProducerControl, name, val)
+
+Translates the limit for a given control parameter in a `ProducerControl`.
+
+# Arguments
+- `control::ProducerControl`: The control object containing the parameters to be translated into limit.
+- `name`: The name of the parameter whose limit is to be translated.
+    - `:bhp`: Bottom hole pressure.
+    - `:orat`: Surface oil rate.
+    - `:lrat`: Surface liquid (water + oil) rate.
+    - `:grat`: Surface gas rate.
+    - `:wrat`: Surface water rate.
+    - `:rate`: Total volumetric surface rate (upper limit).
+    - `:rate_upper`: Total volumetric surface rate (upper limit).
+    - `:rate_lower`: Total volumetric surface rate (lower limit).
+    - `:resv`: Reservoir voidage.
+- `val`: The value to which the limit is to be translated.
+
+# Returns
+- The translated limit value for the specified control parameter.
+"""
 function translate_limit(control::ProducerControl, name, val)
     # Note: Negative sign convention for production.
     # A lower absolute bound on a rate
@@ -167,6 +189,24 @@ function translate_limit(control::ProducerControl, name, val)
     return (target_limit, is_lower)
 end
 
+"""
+    translate_limit(control::InjectorControl, name, val)
+
+Translate the limit for a given `InjectorControl` object.
+
+# Arguments
+- `control::InjectorControl`: The control object for which the limit is being translated.
+- `name`: The name of the limit to be translated.
+    - `:bhp`: Bottom hole pressure.
+    - `:rate`: Total volumetric surface rate (upper limit).
+    - `:rate_upper`: Total volumetric surface rate (upper limit).
+    - `:rate_lower`: Total volumetric surface rate (lower limit).
+    - `:resv_rate`: Total volumetric reservoir rate.
+- `val`: The value associated with the limit.
+
+# Returns
+- The translated limit value.
+"""
 function translate_limit(control::InjectorControl, name, val)
     is_lower = false
     if name == :bhp

@@ -17,6 +17,18 @@ function plot_well_results
 
 end
 
+
+export plot_reservoir_measurables
+"""
+    plot_reservoir_measurables(case::JutulCase, result::ReservoirSimResult)
+
+Launch interactive viewer for reservoir measurables. Needs GLMakie to be loaded.
+"""
+function plot_reservoir_measurables
+
+end
+
+
 """
     plot_reservoir_simulation_result(model::MultiModel, res::ReservoirSimResult; wells = true, reservoir = true)
 

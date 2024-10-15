@@ -394,6 +394,7 @@ struct SimpleWell{SC, P, V} <: WellDomain where {SC, P}
     surface::SC
     name::Symbol
     explicit_dp::Bool
+    reference_depth::Float64
 end
 
 """
@@ -416,14 +417,16 @@ function SimpleWell(
         name = :Well,
         explicit_dp = true,
         surface_conditions = default_surface_cond(),
+        reference_depth = 0,
         volume = 1000.0, # Regularization volume for well, not a real volume
         kwarg...
     )
     nr = length(reservoir_cells)
     WI, gdz = common_well_setup(nr; kwarg...)
     perf = (self = ones(Int64, nr), reservoir = vec(reservoir_cells), WI = WI, gdz = gdz)
-    return SimpleWell(volume, perf, surface_conditions, name, explicit_dp)
+    return SimpleWell(volume, perf, surface_conditions, name, explicit_dp, reference_depth)
 end
+
 struct MultiSegmentWell{V, P, N, A, C, SC, S} <: WellDomain
     "One of volumes per node (cell)"
     volumes::V
@@ -662,3 +665,11 @@ end
 struct AdjustedCellDepths <: ScalarVariable
 
 end
+
+struct CriticalKrPoints <: ScalarVariable end
+
+struct MaxRelPermPoints <: ScalarVariable end
+
+struct LETCoefficients <: JutulVariables end
+
+struct CoreyExponentKrPoints <: ScalarVariable end

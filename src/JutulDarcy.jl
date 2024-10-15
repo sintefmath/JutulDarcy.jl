@@ -185,6 +185,7 @@ module JutulDarcy
     include("forces/forces.jl")
 
     include("formulations/formulations.jl")
+    include("coarsening/coarsening.jl")
 
     include("ext.jl")
     # Nonlinear domain decomposition solvers

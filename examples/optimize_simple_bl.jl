@@ -73,10 +73,12 @@ end
 @assert Jutul.evaluate_objective(mass_mismatch, model, states_ref, tstep, forces) == 0.0
 @assert Jutul.evaluate_objective(mass_mismatch, model, states, tstep, forces) > 0.0
 #-
-# ## Set up a configuration for the optimization. This by default enables all parameters for
-# optimization, with relative box limits 0.1 and 10 specified here. If
-# use_scaling is enabled the variables in the optimization are scaled so that
-# their actual limits are approximately box limits.
+# ## Set up a configuration for the optimization
+#
+# The optimization code enables all parameters for optimization by default, with
+# relative box limits 0.1 and 10 specified here. If use_scaling is enabled the
+# variables in the optimization are scaled so that their actual limits are
+# approximately box limits.
 #
 # We are not interested in matching gravity effects or viscosity here.
 # Transmissibilities are derived from permeability and varies significantly. We
@@ -94,7 +96,8 @@ for (ki, vi) in cfg
 end
 print_obj = 100
 #-
-# ## Set up parameter optimization.
+# ## Set up parameter optimization
+#
 # This gives us a set of function handles together with initial guess and limits.
 # Generally calling either of the functions will mutate the data Dict. The options are:
 # F_o(x) -> evaluate objective

@@ -1,3 +1,19 @@
+"""
+    compute_well_qoi(model::MultiModel, state, forces, well::Symbol, target::Union{WellTarget, Type})
+
+Compute the quantity of interest (QoI) for a specified well in a reservoir simulation.
+
+# Arguments
+- `model::MultiModel`: The simulation model (from `setup_reservoir_model`).
+- `state`: The current state of the simulation.
+- `forces`: The forces applied in the simulation.
+- `well::Symbol`: The symbol representing the well for which the QoI is computed.
+- `target::Union{WellTarget, Type}`: The target type or specific well target for the QoI computation.
+
+# Returns
+- The computed QoI for the specified well.
+
+"""
 function compute_well_qoi(model::MultiModel, state, forces, well::Symbol, target::Union{WellTarget, Type})
     well_model = model[well]
     rhoS = reference_densities(well_model.system)

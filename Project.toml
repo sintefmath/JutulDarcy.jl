@@ -1,7 +1,7 @@
 name = "JutulDarcy"
 uuid = "82210473-ab04-4dce-b31b-11573c4f8e0a"
 authors = ["Olav Møyner <olav.moyner@gmail.com>"]
-version = "0.2.34"
+version = "0.2.35"
 
 [deps]
 AlgebraicMultigrid = "2169fc97-5a83-5252-b627-83903c6c433c"
@@ -53,10 +53,10 @@ Dates = "1"
 DelimitedFiles = "1.6"
 DocStringExtensions = "0.9.3"
 ForwardDiff = "0.10.30"
-GLMakie = "0.10.0"
+GLMakie = "0.10.13"
 GeoEnergyIO = "1.1.12"
-HYPRE = "1.6.0"
-Jutul = "0.2.39"
+HYPRE = "1.6.0, 1.7"
+Jutul = "0.2.40"
 Krylov = "0.9.1"
 LazyArtifacts = "1"
 LinearAlgebra = "1"

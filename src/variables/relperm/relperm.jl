@@ -5,6 +5,14 @@ function Jutul.default_value(model, v::AbstractRelativePermeabilities)
     return 1.0/number_of_phases(model.system)
 end
 
+struct ParametricLETRelativePermeabilities <: AbstractRelativePermeabilities
+
+end
+
+struct ParametricCoreyRelativePermeabilities <: AbstractRelativePermeabilities
+
+end
+
 include("hysteresis.jl")
 include("endscale.jl")
 include("simple.jl")

@@ -196,7 +196,7 @@ function co2_brine_property_tables(T = missing;
 
     if co2_source == :table
         if length(salt_mole_fractions) > 0
-            jutul_message("Salts $salt_names were provided but table was also provided as $base_dir. Salts will not be accounted for.", color = :yellow)
+            jutul_message("CO2-Brine", "Salts $salt_names were provided but table was also provided as $basepath (or use of table without modificatiosn was specified by setting co2_source = :table). Table will not be adjusted for salinity.", color = :yellow)
         end
     elseif co2_source == :salo24 || length(salt_names) > 0
         replace_co2_brine_properties!(rho_pT, mu_pT, K_pT.K, salt_mole_fractions, salt_names, co2_density = co2_density, T_value = T)

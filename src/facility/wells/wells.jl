@@ -86,17 +86,18 @@ function setup_well(D::DataDomain, reservoir_cells; cell_centers = D[:cell_centr
 end
 
 function setup_well(g, K, reservoir_cells::AbstractVector;
-                                        reference_depth = nothing, 
-                                        cell_centers = nothing,
-                                        skin = 0.0,
-                                        Kh = nothing,
-                                        radius = 0.1,
-                                        accumulator_volume = missing,
-                                        simple_well = false,
-                                        simple_well_regularization = 1.0,
-                                        WI = missing,
-                                        dir = :z,
-                                        kwarg...)
+        reference_depth = nothing,
+        cell_centers = nothing,
+        skin = 0.0,
+        Kh = nothing,
+        radius = 0.1,
+        accumulator_volume = missing,
+        simple_well = false,
+        simple_well_regularization = 1.0,
+        WI = missing,
+        dir = :z,
+        kwarg...
+    )
     n = length(reservoir_cells)
     # Make sure these are cell indices
     reservoir_cells = map(i -> cell_index(g, i), reservoir_cells)
@@ -150,7 +151,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         if ismissing(accumulator_volume)
             accumulator_volume = simple_well_regularization*maximum(volumes)
         end
-        W = SimpleWell(reservoir_cells; WI = WI_computed, volume = accumulator_volume, dz = dz, kwarg...)
+        W = SimpleWell(reservoir_cells; WI = WI_computed, volume = accumulator_volume, dz = dz, reference_depth = reference_depth, kwarg...)
     else
         # Depth differences are taken care of via centers.
         dz *= 0.0

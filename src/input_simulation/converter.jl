@@ -6,10 +6,11 @@ close to equivialent for models without salt. The data will be copied if
 modifications are necessary.
 """
 function convert_co2store_to_co2_brine(data; verbose = true, kwarg...)
-    if haskey(data, "RUNSPEC") && haskey(data["RUNSPEC"], "CO2STORE")
+    rs = get(data, "RUNSPEC", Dict())
+    if haskey(rs, "CO2STORE") || haskey(rs, "CO2STOR")
         data = convert_co2store_to_co2_brine!(deepcopy(data); verbose = verbose, kwarg...)
     else
-        jutul_message("CO2STORE converter", "Model does not contain CO2STORE in RUNSPEC, will not convert.", color = :green)
+        jutul_message("CO2STORE converter", "Model does not contain CO2STORE/CO2STOR in RUNSPEC, will not convert.", color = :green)
     end
     return data
 end
@@ -43,8 +44,13 @@ function convert_co2store_to_co2_brine!(data; verbose = true)
         jutul_message("CO2STORE converter", x, color = :yellow)
     end
     rs = data["RUNSPEC"]
-    haskey(rs, "CO2STORE") || throw(ArgumentError("Cannot convert if RUNSPEC is missing CO2STORE keyword."))
+    has_co2store = haskey(rs, "CO2STORE")
+    has_co2stor = haskey(rs, "CO2STOR")
+    if !(has_co2store || has_co2stor)
+        throw(ArgumentError("Cannot convert if RUNSPEC is missing CO2STORE/CO2STOR keyword."))
+    end
     delete!(rs, "CO2STORE")
+    delete!(rs, "CO2STOR")
     delete!(rs, "COMPS")
     rs["JUTUL_CO2BRINE"] = true
     rs["OIL"] = true
@@ -92,9 +98,23 @@ function convert_co2store_to_co2_brine!(data; verbose = true)
         end
         delete!(props, "CNAMES")
     end
+    if haskey(data["PROPS"], "SALINITY")
+        salinity = data["PROPS"]["SALINITY"]
+        if haskey(rs, "SALTS") && salinity > 0.0
+            local_warn("Both SALINITY and salts declared as COMPS are present. COMPS will be used.")
+        else
+            local_msg("Converting SALINITY to NaCL salt.")
+            salt_mf = CO2Properties.convert_salinity_to_mole_fractions(salinity)
+            data["PROPS"]["SALTS"] = ["NaCl"]
+            data["PROPS"]["SALT_MOLE_FRACTIONS"] = salt_mf
+        end
+    end
     # ZMFVD (convert)
     zmfvd = get(props, "ZMFVD", nothing)
-    if !isnothing(zmfvd)
+    if isnothing(zmfvd)
+        # We can default it to be water-filled.
+        props["ZMFVD"] = [[-100000.0 1.0 0.0; 100000 1.0 0.0]]
+    else
         for (i, z_i) in enumerate(zmfvd)
             depth = z_i[:, 1]
             z = cstrip(z_i[:, 2:end])

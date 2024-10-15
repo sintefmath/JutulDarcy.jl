@@ -1,4 +1,25 @@
 
+"""
+    equilibriate_state(model, contacts)
+
+Equilibrates the state of the given model based on the provided contacts.
+
+# Arguments
+- `model`: The model whose state needs to be equilibrated.
+- `contacts`: The nph contact depths.
+
+# Keyword Arguments
+- `datum_depth`: The reference depth for the datum.
+- `datum_pressure`: The pressure at the datum depth.
+- `cells`: The cells to be equilibrated.
+- `rs`: Solution gas-oil ratio (blackoil).
+- `rv`: Vapor-oil ratio (blackoil).
+- `composition`: The composition vs depth (compositional).
+- `kwarg`: Additional keyword arguments.
+
+# Returns
+- The equilibrated state of the model.
+"""
 function equilibriate_state(model, contacts,
         datum_depth = missing,
         datum_pressure = JutulDarcy.DEFAULT_MINIMUM_PRESSURE;
@@ -313,6 +334,7 @@ function parse_state0_equil(model, datafile; normalize = :sum)
     inits = []
     inits_cells = []
     for ereg in 1:nequil
+        T_z = missing
         if haskey(sol, "RTEMP") || haskey(props, "RTEMP")
             if haskey(props, "RTEMP")
                 rtmp = props["RTEMP"][1]
@@ -321,17 +343,19 @@ function parse_state0_equil(model, datafile; normalize = :sum)
             end
             Ti = convert_to_si(rtmp, :Celsius)
             T_z = z -> Ti
-        elseif haskey(props, "TEMPVD") || haskey(props, "RTEMPVD")
-            if haskey(props, "TEMPVD")
-                tvd_kw = props["TEMPVD"][ereg]
-            else
-                tvd_kw = props["RTEMPVD"][ereg]
-            end
-            z = vec(tvd_kw[:, 1])
-            Tvd = vec(tvd_kw[:, 2] .+ 273.15)
-            T_z = get_1d_interpolator(z, Tvd)
         else
-            T_z = missing
+            for sect in [props, sol]
+                if haskey(sect, "TEMPVD") || haskey(sect, "RTEMPVD")
+                    if haskey(sect, "TEMPVD")
+                        tvd_kw = sect["TEMPVD"][ereg]
+                    else
+                        tvd_kw = sect["RTEMPVD"][ereg]
+                    end
+                    z = vec(tvd_kw[:, 1])
+                    Tvd = vec(tvd_kw[:, 2] .+ 273.15)
+                    T_z = get_1d_interpolator(z, Tvd)
+                end
+            end
         end
         eq = equil[ereg]
         cells_eqlnum = findall(isequal(ereg), eqlnum)

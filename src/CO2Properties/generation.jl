@@ -322,6 +322,14 @@ function activity_co2_DS2003(T, P, m_io; check = true)
     return gamma_co2
 end
 
+function convert_salinity_to_mole_fractions(salinity)
+    mw_h2o = 0.01801528
+    moles_nacal = 1e3*salinity*1.0
+    moles_water = 1000.0/mw_h2o
+    mf_nacl = moles_nacal/(moles_nacal + moles_water)
+    return mf_nacl
+end
+
 function compute_salinity(inp_mole_fractions=Float64[], names=String[])
     @assert sum(inp_mole_fractions) < 0.9 "Should be mass fractions without water"
     saltSpecies = ("NaCl", "KCl", "CaSO4", "CaCl2", "MgSO4", "MgCl2")
@@ -342,19 +350,12 @@ function compute_salinity(inp_mole_fractions=Float64[], names=String[])
         mole_fractions[ix] = inp_mole_fractions[i]
     end
 
-    # Mass of salts ??
     mass_salts = mole_fractions .* Mw_salt
     mass_salt = sum(mass_salts)
     h2o_mass = (1.0 - sum(mole_fractions)) * Mw_h2o
 
-    # mass_fractions = m_salt./(sum(m_salt) + h2o_mass)
-    # @info "??" h2o_mass m_salt mass_fractions
-    # mass_salt = sum(mass_fractions)
-    # 1000*mass_salt/(1.0 - mass_salt)
     w_salt = mass_salt ./ (h2o_mass + mass_salt)
-    # TODO: Check this part.
     # m_salt is molality of species k in solution (mol k / kg solvent)
-    # % w_k          mass fraction of species k in aqueous phase
     m_salt = mole_fractions ./ h2o_mass
     m_io = (m_salt[1], m_salt[2], m_salt[3] + m_salt[4], m_salt[5] + m_salt[6], sum(m_salt[1:2]) + 2 * (m_salt[4] + m_salt[6]), m_salt[3] + m_salt[5])
     return (m_salt, m_io, nu, Mw_salt, Mw_io, w_salt)

@@ -17,6 +17,10 @@ function reservoir_model(model::MultiModel; kwarg...)
     return reservoir_model(model.models.Reservoir; kwarg...)
 end
 
+function reservoir_model(case::JutulCase; kwarg...)
+    return reservoir_model(case.model; kwarg...)
+end
+
 function reservoir_model(model::Jutul.CompositeModel; type = missing)
     if !ismissing(type)
         model = Jutul.composite_submodel(model, type)
@@ -131,16 +135,16 @@ end
 export get_model_wells
 
 function get_model_wells(case::JutulCase)
-    return get_model_wlels(case.model)
+    return get_model_wells(case.model)
 end
 
 """
     get_model_wells(model_or_case)
 
-Get a `Dict` containing all wells in the model or simulation case.
+Get a `OrderedDict` containing all wells in the model or simulation case.
 """
 function get_model_wells(model::MultiModel)
-    wells = Dict{Symbol, Any}()
+    wells = OrderedDict{Symbol, Any}()
     for (k, m) in pairs(model.models)
         if model_or_domain_is_well(m)
             wells[k] = physical_representation(m.data_domain)
@@ -191,6 +195,8 @@ reservoir and that facility.
   used in the model. Each well must have a unique name.
 - `extra_out=true`: Return both the model and the parameters instead of just the
   model.
+- `thermal = false`: Add additional equations for conservation of energy and
+  temperature as a primary variable.
 - `kgrad=nothing`: Type of spatial discretization to use:
     - `:tpfa` or `nothing` gives standard two-point flux approximation (TPFA) with hard-coded
       two-point assembly
@@ -1100,6 +1106,12 @@ function setup_reservoir_forces(model::MultiModel;
     submodels = model.models
     has_facility = any(x -> isa(x.domain, WellGroup), values(submodels))
     no_well_controls = isnothing(control) && isnothing(limits)
+    if !isnothing(bc) && !(bc isa AbstractVector)
+        bc = [bc]
+    end
+    if !isnothing(sources) && !(sources isa AbstractVector)
+        sources = [sources]
+    end
     reservoir_forces = (bc = bc, sources = sources)
     @assert no_well_controls || has_facility "Model must have facility when well controls are provided."
     if haskey(submodels, :Facility)
@@ -1173,20 +1185,28 @@ function full_well_outputs(model, states, forces; targets = missing)
     end
     cnames = component_names(rmodel.system)
     has_temperature = length(states) > 0 && haskey(first(states)[:Reservoir], :Temperature)
-    out = Dict{Symbol, AbstractDict}()
+    well_t = Dict{Symbol, Union{Vector{Float64}, Vector{Symbol}}}
+    out = Dict{Symbol, well_t}()
     for w in well_symbols(model)
-        out[w] = Dict()
+        outw = well_t()
         for t in targets
-            out[w][translate_target_to_symbol(t(1.0))] = well_output(model, states, w, forces, t)
+            outw[translate_target_to_symbol(t(1.0))] = well_output(model, states, w, forces, t)
         end
-        out[w][:mass_rate] = well_output(model, states, w, forces, :TotalSurfaceMassRate)
-        out[w][:control] = well_output(model, states, w, forces, :control)
+        outw[:mass_rate] = well_output(model, states, w, forces, :TotalSurfaceMassRate)
+        outw[:control] = well_output(model, states, w, forces, :control)
         if has_temperature
-            out[w][:temperature] = map(s -> s[w][:Temperature][well_top_node()], states)
+            outw[:temperature] = map(s -> s[w][:Temperature][well_top_node()], states)
         end
         for (i, cname) in enumerate(cnames)
-            out[w][Symbol("$(cname)_mass_rate")] = well_output(model, states, w, forces, i)
+            outw[Symbol("$(cname)_mass_rate")] = well_output(model, states, w, forces, i)
         end
+        if haskey(outw, :lrat) && haskey(outw, :wrat)
+            outw[:wcut] = outw[:wrat]./outw[:lrat]
+        end
+        if haskey(outw, :orat) && haskey(outw, :grat)
+            outw[:gor] = abs.(outw[:grat])./max.(abs.(outw[:orat]), 1e-12)
+        end
+        out[w] = outw
     end
     return out
 end
@@ -2091,4 +2111,149 @@ function replace_makie_calls!(dest, makie)
             replace_makie_calls!(joinpath(root, dir), makie)
         end
     end
+end
+
+export reservoir_measurables
+
+function reservoir_measurables(case::JutulCase, ws, states; kwarg...)
+    return reservoir_measurables(case.model, ws, states; kwarg...)
+end
+
+function reservoir_measurables(case::JutulCase, result::ReservoirSimResult; kwarg...)
+    ws, states = result
+    return reservoir_measurables(case.model, ws, states; kwarg...)
+end
+
+function reservoir_measurables(model, result::ReservoirSimResult; kwarg...)
+    ws, states = result
+    return reservoir_measurables(model, ws, states; kwarg...)
+end
+
+function reservoir_measurables(model, ws, states = missing; type = :field)
+    @assert type == :field
+    wells = ws.wells
+    time = ws.time
+
+    out = Dict{Symbol, Any}(:time => time)
+
+    model = reservoir_model(model)
+    reservoir = reservoir_domain(model)
+    pv = pore_volume(reservoir)
+    pv_t = sum(pv)
+    sys = model.system
+    is_blackoil = sys isa ImmiscibleSystem || sys isa StandardBlackOilSystem
+    phases = get_phases(model.system)
+    wix = findfirst(isequal(AqueousPhase()), phases)
+    oix = findfirst(isequal(LiquidPhase()), phases)
+    gix = findfirst(isequal(VaporPhase()), phases)
+
+    has_water = !isnothing(wix)
+    has_oil = !isnothing(oix)
+    has_gas = !isnothing(gix)
+    n = length(time)
+
+    function add_entry(name, legend, unit = :id; is_rate = false)
+        values = zeros(n)
+        out[name] = (values = values, legend = legend, unit_type = unit, is_rate = is_rate)
+        return values
+    end
+    # Production of different types
+    flpr = add_entry(:flpr, "Field liquid production rate (oil + water)", :liquid_volume_surface, is_rate = true)
+    fwpr = add_entry(:fwpr, "Field water production rate", :liquid_volume_surface, is_rate = true)
+    fopr = add_entry(:fopr, "Field oil production rate", :liquid_volume_surface, is_rate = true)
+    fgpr = add_entry(:fgpr, "Field gas production rate", :gas_volume_surface, is_rate = true)
+
+    # Injection types
+    fwir = add_entry(:fwir, "Field water injection rate", :liquid_volume_surface, is_rate = true)
+    foir = add_entry(:foir, "Field oil injection rate", :liquid_volume_surface, is_rate = true)
+    fgir = add_entry(:fgir, "Field gas injection rate", :gas_volume_surface, is_rate = true)
+
+    # Reservoir values
+    if is_blackoil
+        fwip = add_entry(:fwip, "Field water component in place (surface volumes)", :liquid_volume_surface)
+        foip = add_entry(:foip, "Field oil component in place (surface volumes)", :liquid_volume_surface)
+        fgip = add_entry(:fgip, "Field gas component in place (surface volumes)", :gas_volume_surface)
+    end
+
+    fwipr = add_entry(:fwipr, "Field water in place (reservoir volumes)", :liquid_volume_reservoir)
+    foipr = add_entry(:foipr, "Field oil in place (reservoir volumes)", :liquid_volume_reservoir)
+    fgipr = add_entry(:fgipr, "Field gas in place (reservoir volumes)", :gas_volume_reservoir)
+
+    fprh = add_entry(:fprh, "Field average pressure (hydrocarbon volume weighted)", :pressure)
+    pres = add_entry(:pres, "Field average pressure", :pressure)
+
+    function sum_well_rates!(vals, k::Symbol; is_prod::Bool)
+        for (wk, wval) in pairs(wells)
+            if is_prod
+                for (i, v) in enumerate(wval[k])
+                    vals[i] -= min(0.0, v)
+                end
+            else
+                for (i, v) in enumerate(wval[k])
+                    vals[i] += max(0.0, v)
+                end
+            end
+        end
+        return vals
+    end
+    if has_water
+        sum_well_rates!(flpr, :wrat, is_prod = true)
+        sum_well_rates!(fwpr, :wrat, is_prod = true)
+        sum_well_rates!(fwir, :wrat, is_prod = false)
+    end
+    if has_oil
+        sum_well_rates!(flpr, :orat, is_prod = true)
+        sum_well_rates!(fopr, :orat, is_prod = true)
+        sum_well_rates!(foir, :orat, is_prod = false)
+    end
+    if has_gas
+        sum_well_rates!(fgpr, :grat, is_prod = true)
+        sum_well_rates!(fgir, :grat, is_prod = false)
+    end
+    if !ismissing(states)
+        if haskey(states[1], :Reservoir)
+            states = map(x -> x[:Reservoir], states)
+        end
+        for (i, state) in enumerate(states)
+            p = state[:Pressure]
+            s = state[:Saturations]
+            tm = state[:TotalMasses]
+            if has_water
+                fwipr[i] = sum(ix -> pv[ix]*s[wix, ix], eachindex(pv))
+                if is_blackoil
+                    fwip[i] = sum(tm[wix, :])
+                end
+            end
+            if has_oil
+                foipr[i] = sum(ix -> pv[ix]*s[oix, ix], eachindex(pv))
+                if is_blackoil
+                    foip[i] = sum(tm[oix, :])
+                end
+            end
+            if has_gas
+                fgipr[i] = sum(ix -> pv[ix]*s[gix, ix], eachindex(pv))
+                if is_blackoil
+                    fgip[i] = sum(tm[gix, :])
+                end
+            end
+
+            mean_p = sum(ix -> pv[ix]*p[ix], eachindex(p, pv))/pv_t
+            if has_water
+                hc_p = sum(ix -> pv[ix]*p[ix]*(1.0 - s[wix, ix]), eachindex(p, pv))
+                pv_hc = sum(ix -> pv[ix]*(1.0 - s[wix, ix]), eachindex(p, pv))
+                hc_mean_p = hc_p/pv_hc
+            else
+                hc_mean_p = mean_p
+            end
+            fprh[i] = hc_mean_p
+            pres[i] = mean_p
+        end
+    end
+    # Derived quantities
+    fwct = add_entry(:fwct, "Field production water cut")
+    @. fwct = fwpr./flpr
+    fgor = add_entry(:fgor, "Field gas-oil production ratio")
+    @. fgor = fgpr./max.(fopr, 1e-12)
+
+    return out
 end
