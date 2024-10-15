@@ -79,8 +79,9 @@ function setup_case_from_parsed_data(datafile;
     end
     msg("Parsing physics and system.")
     rs = datafile["RUNSPEC"]
-    if convert_co2store && haskey(rs, "CO2STORE")
-        msg("CO2STORE found, calling converter...")
+    can_convert_co2 = haskey(rs, "CO2STORE") || haskey(rs, "CO2STOR")
+    if convert_co2store && can_convert_co2
+        msg("CO2STORE/CO2STOR found, calling converter...")
         datafile = convert_co2store_to_co2_brine(datafile)
         rs = datafile["RUNSPEC"]
     end
