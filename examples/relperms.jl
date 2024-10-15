@@ -125,7 +125,7 @@ simulate_and_plot(sw, krw, krow, L"\text{Brooks-Corey} (N_w = 4, N_{ow} = 1.5)")
 # additional parameters to more easily control the shape of the curve. It is
 # defined as:
 #
-# ``k_{rw} = k_{max,w} \frac{\bar{S}_w^L_w}{\bar{S}_w^L_w + E_w(1 - \bar{S}_w)^T_w}``
+# ``k_{rw} = k_{max,w} \frac{\bar{S}_w^{L_w}}{\bar{S}_w^{L_w} + E_w(1 - \bar{S}_w)^{T_w}}``
 #
 # The oil phase is defined analogously. The LET model has three exponents $L$,
 # $E$, and $T$ that together define the shape of the curve.
@@ -278,11 +278,11 @@ swof = hcat(
     reverse(range(0, 1, length=10)), 
     zeros(10)
 )
-println("SWOF data:")
-display(swof)
-krw, krow = table_to_relperm(swof)
 
-display(krw)
+# ### Convert to relperm objects and show
+krw, krow = table_to_relperm(swof)
+krw
+
 # ### Feed SWOF table to simulation
 krdef = ReservoirRelativePermeabilities(w = krw, ow = krow)
 
@@ -301,9 +301,9 @@ lines(simulate_bl(model, prm), axis = (title = "SWOF simulation",))
 #
 # Using parametric functions has a few advantages:
 #  1. The relative permeability functions are analytical, which can be more
-#    favorable for numerical convergence when compared to standard tables.
+#     favorable for numerical convergence when compared to standard tables.
 #  2. Exposing the parameters through Jutul's parameter system makes it possible
-# to perform gradient-based history matching.
+#     to perform gradient-based history matching.
 #  3. The parameters can vary from cell to cell, which can be useful for
 #     reduced-order modelling where the link between relative permeabilities and
 #     rock types is disregarded.
