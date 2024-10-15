@@ -241,7 +241,7 @@ end
 
 Jutul.minimum_value(::CriticalKrPoints) = 1e-10
 Jutul.maximum_value(::CriticalKrPoints) = 1.0
-Jutul.default_value(model, x::MaxRelPermPoints) = Jutul.minimum_value(x)
+Jutul.default_value(model, x::CriticalKrPoints) = Jutul.minimum_value(x)
 
 Jutul.minimum_value(::MaxRelPermPoints) = 1e-2
 Jutul.maximum_value(::MaxRelPermPoints) = 10.0
