@@ -208,10 +208,8 @@ fig
 # We set up utility functions for setting up a two-region relative permeability
 # and then demonstrate this with a simple example that uses Brooks-Corey.
 function define_relperm_two_regions(krw_t1, krow_t1, krw_t2, krow_t2, sw_t, reg)
-    # Region 1
     krow1 = PhaseRelativePermeability(reverse(1.0 .- sw), reverse(krow_t1), label = :ow)
     krw1 = PhaseRelativePermeability(sw, krw_t1, label = :ow)
-    # Region 2
     krow2 = PhaseRelativePermeability(reverse(1.0 .- sw), reverse(krow_t2), label = :ow)
     krw2 = PhaseRelativePermeability(sw, krw_t2, label = :ow)
 
