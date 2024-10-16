@@ -1664,6 +1664,13 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
         tm = d[:transmissibility_multiplier]
         @. T *= tm
     end
+    if haskey(d, :transmissibility_override, Faces())
+        for (f, v) in enumerate(d[:transmissibility_override])
+            if isfinite(v)
+                T[f] = v
+            end
+        end
+    end
     if haskey(d, :numerical_aquifers)
         aquifers = d[:numerical_aquifers]
         bnd_areas = d[:boundary_areas]
