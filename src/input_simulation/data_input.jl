@@ -845,49 +845,67 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
         extra_data_arg[:pore_volume_multiplier] = multpv
     end
 
-    if haskey(grid, "NTG")
-        ntg = zeros(nc)
-        for (i, c) in enumerate(active_ix)
-            ntg[i] = grid["NTG"][c]
-        end
-        extra_data_arg[:net_to_gross] = ntg
-    end
 
-    for k in ("GRID", "EDIT")
-        # TODO: This is not 100% robust if edit and grid interact.
-        if haskey(data_file, k)
-            if haskey(data_file[k], "PORV")
-                extra_data_arg[:pore_volume_override] = data_file[k]["PORV"][active_ix]
-            end
-        end
-    end
+
 
     tranmult = ones(nf)
-    for k in ("GRID", "EDIT")
-        if haskey(data_file, k)
-            if haskey(data_file[k], "MULTFLT")
-                for (fault, vals) in data_file[k]["MULTFLT"]
-                    fault_faces = get_mesh_entity_tag(G, Faces(), :faults, Symbol(fault))
-                    tranmult[fault_faces] *= vals[1]
+    tran_override = fill(NaN, nf)
+    ijk = map(i -> Jutul.cell_ijk(G, i), 1:nc)
+    for (secname, section) in pairs(data_file)
+        if haskey(section, "NTG")
+            ntg = zeros(nc)
+            for (i, c) in enumerate(active_ix)
+                ntg[i] = section["NTG"][c]
+            end
+            extra_data_arg[:net_to_gross] = ntg
+        end
+        # TODO: This is not 100% robust if edit and grid interact.
+        if haskey(section, "PORV")
+            extra_data_arg[:pore_volume_override] = section["PORV"][active_ix]
+        end
+        # Explicit trans given as cell values
+        for k in ["TRANX", "TRANY", "TRANZ"]
+            if haskey(section, k)
+                d = findfirst(isequal(k[end]), ('X', 'Y', 'Z'))
+                for (c, val) in enumerate(section[k][active_ix])
+                    ijk_c = ijk[c][d]
+                    if !isfinite(val) || val < 0.0
+                        continue
+                    end
+                    for face in G.faces.cells_to_faces[c]
+                        l, r = G.faces.neighbors[face]
+                        if l == c
+                            ijk_other = ijk[r][d]
+                        else
+                            @assert r == c
+                            ijk_other = ijk[l][d]
+                        end
+                        if ijk_other != ijk_c
+                            tran_override[face] = val
+                        end
+                    end
                 end
             end
         end
-    end
-    mult_keys = ("MULTX", "MULTX-", "MULTY", "MULTY-", "MULTZ", "MULTZ-")
-    ijk = map(i -> Jutul.cell_ijk(G, i), 1:nc)
-    for k in mult_keys
-        if haskey(grid, k)
-            mult_on_active = grid[k][active_ix]
-            apply_mult_xyz!(tranmult, k, mult_on_active, G, ijk)
+
+        if haskey(section, "MULTFLT")
+            for (fault, vals) in section["MULTFLT"]
+                fault_faces = get_mesh_entity_tag(G, Faces(), :faults, Symbol(fault))
+                tranmult[fault_faces] *= vals[1]
+            end
         end
-    end
-    if haskey(data_file, "EDIT")
-        edit = data_file["EDIT"]
+        mult_keys = ("MULTX", "MULTX-", "MULTY", "MULTY-", "MULTZ", "MULTZ-")
+        for k in mult_keys
+            if haskey(section, k)
+                mult_on_active = section[k][active_ix]
+                apply_mult_xyz!(tranmult, k, mult_on_active, G, ijk)
+            end
+        end
         for k in ["MULTRANX", "MULTRANY", "MULTRANZ"]
-            if haskey(edit, k)
+            if haskey(section, k)
                 fake_mult = ones(cartdims)
                 direction = k[end]
-                for (I_pair, J_pair, K_pair, val) in edit[k]
+                for (I_pair, J_pair, K_pair, val) in section[k]
                     @. fake_mult[
                         I_pair[1]:I_pair[2],
                         J_pair[1]:J_pair[2],
@@ -1042,15 +1060,26 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
     if !all(isequal(1.0), tranmult)
         domain[:transmissibility_multiplier, Faces()] = tranmult
     end
+    if any(isfinite, tran_override)
+        domain[:transmissibility_override, Faces()] = tran_override
+    end
     if haskey(grid, "NNC")
         nnc = grid["NNC"]
         if length(nnc) > 0
             domain[:nnc, nothing] = nnc
         end
     end
+    edit = get(data_file, "EDIT", Dict())
     if haskey(grid, "DEPTH")
         for (i, c) in enumerate(active_ix)
             domain[:cell_centroids][3, i] = grid["DEPTH"][c]
+        end
+    elseif haskey(edit, "DEPTH")
+        for (i, c) in enumerate(active_ix)
+            val = edit["DEPTH"][c]
+            if isfinite(val)
+                domain[:cell_centroids][3, i] = val
+            end
         end
     elseif haskey(grid, "ZCORN") && zcorn_depths
         # Option to use ZCORN points to set depths
