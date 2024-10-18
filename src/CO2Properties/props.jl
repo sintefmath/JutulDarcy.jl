@@ -37,6 +37,25 @@ function co2brine_phase_property_table(data::NamedTuple, name, T = missing)
     return co2brine_phase_property_table((data, ), name, T)
 end
 
+"""
+    co2brine_phase_property_table(tables, name::Symbol, T = missing)
+
+Generates a phase property table for CO₂-brine mixtures.
+
+# Arguments
+- `tables`: The data tables containing the phase properties.
+- `name`::Symbol
+    The name of the property to be extracted. Possible choices for `name` include:
+    - `:density`: The density of the CO2.
+    - `:viscosity`: The viscosity of the CO2.
+    - `:thermal_conductivity`: The thermal conductivity of the CO2.
+    - `:specific_heat`: The specific heat capacity of the CO2.
+- `:compressibility`: The compressibility factor of the CO2.
+- `T`: Optional temperature value. If not provided, defaults to `missing`.
+
+# Returns
+A table containing the phase properties for the specified CO₂-brine mixture.
+"""
 function co2brine_phase_property_table(tables, name::Symbol, T = missing)
     choices = (:density, :viscosity, :H, :E, :cv, :cp, :phase_conductivity)
     name in choices || throw(ArgumentError("Property name must be one of $choices, was $name"))
