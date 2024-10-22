@@ -112,14 +112,15 @@ replace_variables!(ref_model, RelativePermeabilities = kr);
 
 # We then set up the initial state with constant pressure and liquid-filled reservoir.
 # The inputs (pressure and saturations) must match the model's primary variables.
-# We can now run the simulation.
+# We can now run the simulation (where we first run a warmup step to avoid JIT compilation overhead).
 
 ref_state0 = setup_reservoir_state(ref_model,
     Pressure = 120bar,
     Saturations = [1.0, 0.0]
 )
 
-ref_wd, ref_states, ref_t = simulate_reservoir(ref_state0, ref_model, ref_dt, parameters = ref_parameters, forces = ref_forces);
+simulate_reservoir(ref_state0, ref_model, ref_dt, parameters = ref_parameters, forces = ref_forces, info_level = -1);
+ref_wd, ref_states, ref_t = simulate_reservoir(ref_state0, ref_model, ref_dt, parameters = ref_parameters, forces = ref_forces, info_level = 1);
 
 
 # ## Training a neural network to compute relative permeability
@@ -179,29 +180,32 @@ lr = 0.0005;
 # - parameters - the learnable parameters of the model
 # - states - the state of the model, e.g. the hidden states of the recurrent model
 # - optimiser state - the state of the optimiser, e.g. the momentum
+
 # In addition, we need to define a rule for automatic differentiation. Here we use Zygote.
 
-rng = MersenneTwister(42)
+rng = Random.default_rng()
 Random.seed!(rng, 42)
 
-function train_model(BrooksCoreyMLModel, training_sat, rel_perm_analytical, epochs, lr)
-    rng = MersenneTwister(42)
-    Random.seed!(rng, 42)
-    opt = Optimisers.Adam(lr)
-    ps, st = Lux.setup(rng, BrooksCoreyMLModel)
-    ps = ps |> f64
-    tstate = Lux.Training.TrainState(BrooksCoreyMLModel, ps, st, opt)
-    vjp_rule = ADTypes.AutoZygote()
-    loss_function = Lux.MSELoss()
+function train_model(ml_model, training_sat, rel_perm_analytical, epochs, lr)
+    opt = Optimisers.Adam(lr);
+    ps, st = Lux.setup(rng, ml_model);
+    ps = ps |> f64;
+    tstate = Lux.Training.TrainState(ml_model, ps, st, opt);
+    vjp_rule = ADTypes.AutoZygote();
+    loss_function = Lux.MSELoss();
 
-    losses = []
-    for epoch in 1:epochs
-        epoch_losses = []
-        _, loss, _, tstate = Lux.Training.single_train_step!(vjp_rule, loss_function, (training_sat, rel_perm_analytical), tstate)
-        push!(epoch_losses, loss)
-        append!(losses, epoch_losses)
-        if epoch % 1000 == 1 || epoch == epochs
-            println("Epoch: $(lpad(epoch, 3)) \t Loss: $(round(mean(epoch_losses), sigdigits=5))")
+    warmup_data = rand(Float64, 1, 1);
+    Training.compute_gradients(vjp_rule, loss_function, (warmup_data, warmup_data), tstate)
+    @time begin
+        losses = []
+        for epoch in 1:epochs
+            epoch_losses = []
+            _, loss, _, tstate = Lux.Training.single_train_step!(vjp_rule, loss_function, (training_sat, rel_perm_analytical), tstate);
+            push!(epoch_losses, loss)
+            append!(losses, epoch_losses)
+            if epoch % 1000 == 0 || epoch == epochs
+                println("Epoch: $(lpad(epoch, 3)) \t Loss: $(round(mean(epoch_losses), sigdigits=5))")
+            end
         end
     end
 
@@ -262,10 +266,10 @@ Jutul.@jutul_secondary function update_kr!(kr, kr_def::MLModelRelativePermeabili
 end
 
 # Since JutulDarcy uses automatic differentiation, our new realtive permeability model needs to be differentiable.
-# This is not a problem for our neural network model, since differentiatiability is a necessary condition for machine learning models.
+# This is inherently satisfied by our neural network model, as differentiability is a core requirement for machine learning models.
 # One thing to note, is that we are using Lux with Zygote.jl for automatic differentiation, while Jutul uses ForwardDiff.jl.
-# This is not a problem, as the gradient of our simple neural network is fully compatible with ForwardDiff.jl, so no middlelayer is needed.
-# We can now replace the default relative permeability model with our new model.
+# This is not a problem, as the gradient of our simple neural network is fully compatible with ForwardDiff.jl, so no middleware is needed for this integration.
+# We can now replace the default relative permeability model with our new neural network-based model.
 
 
 ml_model, ml_parameters, ml_forces, ml_sys, ml_dt = setup_simulation_case()
@@ -285,7 +289,8 @@ ml_state0 = setup_reservoir_state(ml_model,
     Saturations = [1.0, 0.0]
 )
 
-ml_wd, ml_states, ml_t = simulate_reservoir(ml_state0, ml_model, ml_dt, parameters = ml_parameters, forces = ml_forces)
+simulate_reservoir(ml_state0, ml_model, ml_dt, parameters = ml_parameters, forces = ml_forces, info_level = -1)
+ml_wd, ml_states, ml_t = simulate_reservoir(ml_state0, ml_model, ml_dt, parameters = ml_parameters, forces = ml_forces, info_level = 1)
 
 
 # ### Compare results
@@ -331,3 +336,58 @@ plot_reservoir(ml_model, ml_states, key = :Saturations, step = 3)
 # permeability into a reservoir simulation using JutulDarcy.jl. While we used a
 # simple Brooks-Corey model for demonstration, this approach can be extended to
 # more complex scenarios where analytical models may not be sufficient.
+
+
+# ## Bonus: Improving performance with SimpleChains.jl
+#
+# When inspecting the simulation results, we observe that using the ML model is slower than the analytical model.
+# This is not surprising, since we are comparing a 593 parameters neural network on a CPU with a simple analytical function.
+
+# Many popular machine learning libraries prioritize optimization for large neural networks and GPU processing,
+# often at the expense of performance for smaller models and CPU-based computations.
+# For instance, these libraries might use memory allocations to achieve more efficient matrix multiplications,
+# which is beneficial when matrix operations dominate the computation time.
+
+# However, in our scenario with a relatively small network running on a CPU, we can leverage a specialised library
+# to improve performance. SimpleChains.jl is designed specifically for optimising small neural networks on CPUs.
+# It offers significant performance improvements over traditional deep learning frameworks in such scenarios.
+
+# Advantages of SimpleChains.jl include:
+# 1. Efficient utilisation of CPU resources, including SIMD vectorisation.
+# 2. Minimal memory allocations during forward and backward passes.
+# 3. Compile-time optimisations specifically for small, fixed-size networks.
+
+# By using SimpleChains.jl, we can potentially reduce the training time and achieve performance closer to that of the analytical model.
+
+# Fortunately, Lux.jl makes it straightforward to use SimpleChains as a backend. We simply need to convert
+# our model to a SimpleChains model using the `ToSimpleChainsAdaptor`. This allows us to utilise the
+# SimpleChains backend while still using the Lux training API.
+
+# (Note: Lux also supports Flux.jl models through a similar adaptor approach.)
+
+using SimpleChains
+adaptor = ToSimpleChainsAdaptor(static(1));
+
+BrooksCoreyMLModel_sc = adaptor(BrooksCoreyMLModel);
+
+# We can now train the model using the SimpleChains backend, with the Lux training API.
+
+tstate_sc, losses_sc = train_model(BrooksCoreyMLModel_sc, training_sat, rel_perm_analytical, epochs, lr);
+
+# The training time should be significantly reduced, since SimpleChains is optimised for small networks.
+# With the trained model, we can now replace the relative permeability model in the simulation case, and run the simulation.
+
+ml_sc_model, ml_sc_parameters, ml_sc_forces, ml_sc_sys, ml_sc_dt = setup_simulation_case()
+
+ml_sc_kr = MLModelRelativePermeabilities(BrooksCoreyMLModel_sc, tstate_sc.parameters, tstate_sc.states)
+replace_variables!(ml_sc_model, RelativePermeabilities = ml_sc_kr);
+
+ml_sc_state0 = setup_reservoir_state(ml_sc_model,
+    Pressure = 120bar,
+    Saturations = [1.0, 0.0]
+)
+
+simulate_reservoir(ml_sc_state0, ml_sc_model, ml_sc_dt, parameters = ml_sc_parameters, forces = ml_sc_forces, info_level = -1);
+ml_sc_wd, ml_sc_states, ml_sc_t = simulate_reservoir(ml_sc_state0, ml_sc_model, ml_sc_dt, parameters = ml_sc_parameters, forces = ml_sc_forces, info_level = 1);
+
+# From the simulation results, we should observe a performance improvement when using the SimpleChains model.
