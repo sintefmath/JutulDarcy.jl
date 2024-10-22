@@ -14,9 +14,10 @@
 # ## Preliminaries
 
 # First, let's import the necessary packages.
-# We will use Flux for the neural network model.
+# We will use Lux for the neural network model, due to its explicit representation of the model and the ability to use different optimisers, ideal for integration with Jutul.
+# However, Flux.jl would work just as well for this simple example.
 
-using JutulDarcy, Jutul, Flux, ProgressMeter, Plots
+using JutulDarcy, Jutul, Lux, ADTypes, Zygote, Optimisers, Random, Plots, Statistics
 
 # ## Set up the simulation case
 # We set up a reference simulation case following the [Your first JutulDarcy.jl simulation](https://sintefmath.github.io/JutulDarcy.jl/dev/man/first_ex) example:
@@ -156,46 +157,65 @@ plot(vec(training_sat), vec(rel_perm_analytical), label="Brooks-Corey RelPerm", 
 # - Glorot normal initialization for weights
 # - Use GPU for faster training (if available)
 
-MLP = f64(Chain(
-    Dense(1 => 16, tanh; init=Flux.glorot_normal),
-    Dense(16 => 16, tanh; init=Flux.glorot_normal),
-    Dense(16 => 16, tanh; init=Flux.glorot_normal),
-    Dense(16 => 1, sigmoid; init=Flux.glorot_normal)))
-
-BrooksCoreyMLModel = f64(MLP)
+BrooksCoreyMLModel = Chain(
+    Dense(1 => 16, tanh),
+    Dense(16 => 16, tanh),
+    Dense(16 => 16, tanh),
+    Dense(16 => 1, sigmoid)
+)
 
 # Define training parameters
 # We train the model using the Adam optimizer with a learning rate of 0.0005. For a total of 10 epochs.
 # The `optim` object will store the optimiser momentum, etc.
 
-epochs = 20000
-batchsize = 1000
-lr = 0.0005
-loader = Flux.DataLoader((training_sat, rel_perm_analytical), batchsize=batchsize, shuffle=true);
-optim = Flux.setup(Flux.Adam(lr), BrooksCoreyMLModel);
+epochs = 20000;
+lr = 0.0005;
 
 # Training loop, using the whole data set epochs number of times:
-# Evaluate model and loss inside gradient context
-# logging, outside gradient context.
-losses = []
-@showprogress for epoch in 1:epochs
-    for (x, y) in loader
-        loss, grads = Flux.withgradient(BrooksCoreyMLModel) do m
-            y_hat = m(x)
-            Flux.mse(y_hat, y)
+# We use Adam for the optimiser, set the random seed and initialise the parameters.
+# Lux defaults to float32 precision, so we need to convert the parameters to float64.
+# Lux uses a stateless, explicit representation of the model. It consists of four parts:
+# - model - the model architecture
+# - parameters - the learnable parameters of the model
+# - states - the state of the model, e.g. the hidden states of the recurrent model
+# - optimiser state - the state of the optimiser, e.g. the momentum
+# In addition, we need to define a rule for automatic differentiation. Here we use Zygote.
+
+rng = MersenneTwister(42)
+Random.seed!(rng, 42)
+
+function train_model(BrooksCoreyMLModel, training_sat, rel_perm_analytical, epochs, lr)
+    rng = MersenneTwister(42)
+    Random.seed!(rng, 42)
+    opt = Optimisers.Adam(lr)
+    ps, st = Lux.setup(rng, BrooksCoreyMLModel)
+    ps = ps |> f64
+    tstate = Lux.Training.TrainState(BrooksCoreyMLModel, ps, st, opt)
+    vjp_rule = ADTypes.AutoZygote()
+    loss_function = Lux.MSELoss()
+
+    losses = []
+    for epoch in 1:epochs
+        epoch_losses = []
+        _, loss, _, tstate = Lux.Training.single_train_step!(vjp_rule, loss_function, (training_sat, rel_perm_analytical), tstate)
+        push!(epoch_losses, loss)
+        append!(losses, epoch_losses)
+        if epoch % 1000 == 1 || epoch == epochs
+            println("Epoch: $(lpad(epoch, 3)) \t Loss: $(round(mean(epoch_losses), sigdigits=5))")
         end
-        Flux.update!(optim, BrooksCoreyMLModel, grads[1])
-        push!(losses, loss)
     end
+
+    return tstate, losses
 end
+
+tstate, losses = train_model(BrooksCoreyMLModel, training_sat, rel_perm_analytical, epochs, lr);
 
 # The loss function is plotted to show that the model is learning.
 
-plot(losses; xaxis=(:log10, "iteration"),
-    yaxis=(:log10, "loss"), label="per batch")
-n = length(loader)
-plot!(n:n:length(losses), mean.(Iterators.partition(losses, n)),
-    label="epoch mean", dpi=200)
+plot(losses, xlabel="Iteration", ylabel="Loss", label="per batch", yscale=:log10)
+plot!(epochs:epochs:length(losses), mean.(Iterators.partition(losses, epochs)),
+label="epoch mean", dpi=200)
+title!("Training Loss")
 
 
 # To test the trained model , we generate some test data, different to the training set
@@ -205,7 +225,7 @@ testing_sat = reshape(testing_sat, 1, :)
 
 # Next, we calculate the analytical solution and predicted values with the trained model.
 test_y = JutulDarcy.brooks_corey_relperm.(testing_sat, n = exponent, residual = sr_g, residual_total = r_tot)
-pred_y = BrooksCoreyMLModel(testing_sat)
+pred_y = Lux.apply(BrooksCoreyMLModel, testing_sat, tstate.parameters, tstate.states)[1]
 
 plot(vec(testing_sat), vec(test_y), label="Brooks-Corey RelPerm", xlabel="Saturation", ylabel="Relative Permeability", title="Saturation vs. Relative Permeability")
 plot!(vec(testing_sat), vec(pred_y), label="ML model RelPerm", xlabel="Saturation", ylabel="Relative Permeability", title="Saturation vs. Relative Permeability")
@@ -221,31 +241,36 @@ plot!(vec(testing_sat), vec(pred_y), label="ML model RelPerm", xlabel="Saturatio
 # This function is called by the simulator to update the relative permeability values for the liquid and vapour phase.
 # A potential benefit of using a neural network, is that we can compute all the cells in parallel, and access to highly optimised GPU acceleration is trivial.
 
-struct MLModelRelativePermeabilities{M} <: JutulDarcy.AbstractRelativePermeabilities
+struct MLModelRelativePermeabilities{M, P, S} <: JutulDarcy.AbstractRelativePermeabilities
     ML_model::M
-    function MLModelRelativePermeabilities(input_ML_model)
-        new{typeof(input_ML_model)}(input_ML_model)
+    parameters::P
+    states::S
+    function MLModelRelativePermeabilities(input_ML_model, parameters, states)
+        new{typeof(input_ML_model), typeof(parameters), typeof(states)}(input_ML_model, parameters, states)
     end
 end
 
 Jutul.@jutul_secondary function update_kr!(kr, kr_def::MLModelRelativePermeabilities, model, Saturations, ix)
     ML_model = kr_def.ML_model
+    ps = kr_def.parameters
+    st = kr_def.states
     for ph in axes(kr, 1)
-        sat_batch = reshape(Saturations[ph, :], 1, :)
-        kr[ph, :] .= vec(ML_model(sat_batch))
+        sat_batch = reshape(Saturations[ph, :], 1, length(Saturations[ph, :]))
+        kr_pred, st = Lux.apply(ML_model, sat_batch, ps, st)
+        @inbounds kr[ph, :] .= vec(kr_pred)
     end
 end
 
 # Since JutulDarcy uses automatic differentiation, our new realtive permeability model needs to be differentiable.
 # This is not a problem for our neural network model, since differentiatiability is a necessary condition for machine learning models.
-# One thing to note, is that the machine learning library Flux uses Zygote.jl for automatic differentiation, while Jutul uses ForwardDiff.jl.
+# One thing to note, is that we are using Lux with Zygote.jl for automatic differentiation, while Jutul uses ForwardDiff.jl.
 # This is not a problem, as the gradient of our simple neural network is fully compatible with ForwardDiff.jl, so no middlelayer is needed.
 # We can now replace the default relative permeability model with our new model.
 
 
 ml_model, ml_parameters, ml_forces, ml_sys, ml_dt = setup_simulation_case()
 
-ml_kr = MLModelRelativePermeabilities(BrooksCoreyMLModel)
+ml_kr = MLModelRelativePermeabilities(BrooksCoreyMLModel, tstate.parameters, tstate.states)
 replace_variables!(ml_model, RelativePermeabilities = ml_kr);
 
 # We can now inspect the model to see that the relative permeability model has been replaced.
