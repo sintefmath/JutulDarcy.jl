@@ -187,7 +187,7 @@ module JutulDarcy
     include("formulations/formulations.jl")
     include("coarsening/coarsening.jl")
 
-    include("ext.jl")
+    include("ext/ext.jl")
     # Nonlinear domain decomposition solvers
     include("NLDD/NLDD.jl")
     # CO2-brine properties

@@ -184,21 +184,6 @@ function plot_faults!(ax, mesh::UnstructuredMesh; kwarg...)
 end
 
 """
-    simulate_reservoir_parray(case, mode = :mpi; kwarg...)
-
-Run simulation with parray. This function is primarily for testing.
-[`simulate_reservoir`](@ref) can do the same job by passing the correct mode.
-"""
-function simulate_reservoir_parray(case, mode = :mpi; kwarg...)
-    sim, cfg = setup_reservoir_simulator(case; mode = mode, kwarg...)
-    return simulate!(sim, case.dt, forces = case.forces, config = cfg)
-end
-
-function setup_reservoir_simulator_parray
-
-end
-
-"""
     fig = JutulDarcy.plot_co2_inventory(t, inventory, plot_type = :stack)
 
 Plots the CO2 inventory over time or steps, with options for stacked or line
