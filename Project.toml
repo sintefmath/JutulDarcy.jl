@@ -34,6 +34,7 @@ TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 Tullio = "bc48ee85-29a4-5162-ae0b-a64e1601d4bc"
 
 [weakdeps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 HYPRE = "b5ffcf37-a2bd-41ab-a3da-4bd9bc8ad771"
 MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
@@ -41,6 +42,7 @@ Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 PartitionedArrays = "5a9dfac6-5c52-46f7-8278-5e2210713be9"
 
 [extensions]
+JutulDarcyCUDAExt = "CUDA"
 JutulDarcyGLMakieExt = "GLMakie"
 JutulDarcyMakieExt = "Makie"
 JutulDarcyPartitionedArraysExt = ["PartitionedArrays", "MPI", "HYPRE"]
@@ -48,6 +50,7 @@ JutulDarcyPartitionedArraysExt = ["PartitionedArrays", "MPI", "HYPRE"]
 [compat]
 AlgebraicMultigrid = "0.5.1, 0.6.0"
 Artifacts = "1"
+CUDA = "5"
 DataStructures = "0.18.13"
 Dates = "1"
 DelimitedFiles = "1.6"
@@ -78,6 +81,7 @@ Tullio = "0.3.4"
 julia = "1.7"
 
 [extras]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 HYPRE = "b5ffcf37-a2bd-41ab-a3da-4bd9bc8ad771"
 MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
@@ -87,4 +91,4 @@ TestItemRunner = "f8b46487-2199-4994-9208-9a1283c18c0a"
 TestItems = "1c621080-faea-4a02-84b6-bbd5e436b8fe"
 
 [targets]
-test = ["Test", "TestItemRunner", "TestItems", "HYPRE", "MPI", "PartitionedArrays"]
+test = ["Test", "CUDA", "TestItemRunner", "TestItems", "HYPRE", "MPI", "PartitionedArrays"]
