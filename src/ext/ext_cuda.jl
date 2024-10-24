@@ -31,7 +31,7 @@ function Jutul.linear_solve!(lsys::Jutul.LSystem,
 
     atol = convert(Tv, atol)
     rtol = convert(Tv, rtol)
-    t_prep0 = @elapsed Jutul.prepare_linear_solve!(lsys)
+    t_prep0 = @elapsed @tic "prepare" Jutul.prepare_linear_solve!(lsys)
 
     is_single_linear_system = lsys isa LinearizedSystem
 
@@ -45,7 +45,7 @@ function Jutul.linear_solve!(lsys::Jutul.LSystem,
     n, m = sz
     @assert n == m
     is_first = !haskey(krylov.data, :J)
-    t_setup = @elapsed if is_first
+    t_setup = @elapsed @tic "initial_gpu" if is_first
         krylov.data[:J], krylov.data[:r] = build_gpu_block_system(Ti, Tv, sz, bz, J.At.colptr, J.At.rowval, csr_block_buffer, r)
         krylov.data[:schur] = build_gpu_schur_system(Ti, Tv, bz, lsys)
         krylov.data[:dx_cpu] = zeros(n*bz)
@@ -55,7 +55,7 @@ function Jutul.linear_solve!(lsys::Jutul.LSystem,
     schur = krylov.data[:schur]
     dx_cpu = krylov.data[:dx_cpu]
 
-    t_gpu_update = @elapsed begin
+    t_gpu_update = @elapsed @tic "to_gpu" begin
         if !is_first
             update_gpu_block_residual!(r_cu, bz, r)
             update_gpu_block_system!(J_bsr, bz, csr_block_buffer)
@@ -65,7 +65,7 @@ function Jutul.linear_solve!(lsys::Jutul.LSystem,
     t_prep = t_gpu_update + t_setup + t_prep0
     max_it = krylov.config.max_iterations
 
-    Jutul.update_preconditioner!(krylov.preconditioner, J_bsr, r_cu, model.context, executor)
+    @tic "precond" Jutul.update_preconditioner!(krylov.preconditioner, J_bsr, r_cu, model.context, executor)
     prec_op = Jutul.preconditioner(krylov, lsys, model, storage, recorder, Tv)
     if cfg.precond_side == :right
         preconditioner_arg = (N = prec_op, )
@@ -74,7 +74,7 @@ function Jutul.linear_solve!(lsys::Jutul.LSystem,
     end
     operator = gpu_system_linear_operator(J_bsr, schur, Tv)
     solve_f, F = Jutul.krylov_jl_solve_function(krylov, operator, r_cu)
-    solve_f(F, operator, r_cu;
+    @tic "solve" solve_f(F, operator, r_cu;
         itmax = max_it,
         preconditioner_arg...,
         verbose = 0,
@@ -85,9 +85,10 @@ function Jutul.linear_solve!(lsys::Jutul.LSystem,
     )
     dx_gpu, stats = (krylov.storage.x, krylov.storage.stats)
 
-    copyto!(dx_cpu, dx_gpu)
-    Jutul.update_dx_from_vector!(lsys, dx_cpu, dx = dx)
-    # @. dx = -dx
+    @tic "update dx" begin
+        copyto!(dx_cpu, dx_gpu)
+        Jutul.update_dx_from_vector!(lsys, dx_cpu, dx = dx)
+    end
 
     res = stats.residuals
     solved = stats.solved

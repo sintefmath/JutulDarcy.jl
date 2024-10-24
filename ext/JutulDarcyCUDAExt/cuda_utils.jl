@@ -102,7 +102,7 @@ function copy_to_gpu(x::Vector{Tvc}, Tv, Ti) where {Tvc}
 end
 
 function JutulDarcy.schur_mul_gpu!(y, x, α, β, J, C, D, buf::CuVector, buf1_cpu::Vector, buf2_cpu::Vector, E_factor)
-    @sync begin 
+    @tic "schur apply" @sync begin 
         # Working on GPU
         @async mul!(y, J, x, α, β)
         mul!(buf, D, x)
