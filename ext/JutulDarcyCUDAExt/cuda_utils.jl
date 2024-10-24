@@ -74,6 +74,10 @@ function JutulDarcy.build_gpu_schur_system(Ti, Tv, bz, lsys::MultiLinearizedSyst
     )
 end
 
+function JutulDarcy.update_gpu_schur_system!(schur::Nothing, lsys)
+    return schur
+end
+
 function JutulDarcy.update_gpu_schur_system!(schur, lsys)
     C_cpu = lsys[1, 2].jac
     copyto!(schur[:C].nzVal, C_cpu.nzval)

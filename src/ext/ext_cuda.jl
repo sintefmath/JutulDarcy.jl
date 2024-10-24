@@ -70,8 +70,9 @@ function Jutul.linear_solve!(lsys::Jutul.LSystem,
     else
         preconditioner_arg = (M = prec_op, )
     end
-    solve_f, F = Jutul.krylov_jl_solve_function(krylov, J_bsr, r_cu)
-    solve_f(F, J_bsr, r_cu;
+    operator = gpu_system_linear_operator(J_bsr, schur, Tv)
+    solve_f, F = Jutul.krylov_jl_solve_function(krylov, operator, r_cu)
+    solve_f(F, operator, r_cu;
         itmax = max_it,
         preconditioner_arg...,
         verbose = 0,
@@ -104,6 +105,31 @@ function Base.show(io::IO, krylov::CUDAReservoirKrylov)
     rtol = linear_solver_tolerance(krylov.config, :relative)
     atol = linear_solver_tolerance(krylov.config, :absolute)
     print(io, "CUDAReservoirKrylov using $(krylov.solver) (ϵₐ=$atol, ϵ=$rtol) with prec = $(typeof(krylov.preconditioner))")
+end
+
+function gpu_system_linear_operator(J, schur::Nothing, Tv)
+    return Jutul.LinearOperators.LinearOperator(J)
+end
+
+function gpu_system_linear_operator(J, schur, Tv)
+    n, m = size(J)
+    C = schur[:C]
+    D = schur[:D]
+    E_L = schur[:E_L]
+    E_U = schur[:E_U]
+    buf_1 = schur[:buf_1]
+    buf_2 = schur[:buf_2]
+    mul!(x, y) = schur_mul_gpu!(x, y, J, C, D, buf_1, buf_2, E_L, E_U)
+    return Jutul.LinearOperators.LinearOperator(Tv, n, m, false, false, mul!)
+end
+
+function schur_mul_gpu!(x, y, J, C, D, buf_1, buf_2, E_L, E_U)
+    mul!(buf_2, D, x)
+    ldiv!(buf_1, E_L, buf_2)
+    ldiv!(buf_2, E_U, buf_1)
+    mul!(res, C, buf_2, -α, true)
+
+    error()
 end
 
 function build_gpu_block_system
