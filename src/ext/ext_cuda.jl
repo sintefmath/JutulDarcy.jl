@@ -15,7 +15,7 @@ function CUDAReservoirKrylov(solver = :gmres, prec = ILUZeroPreconditioner();
     CUDAReservoirKrylov{Float_t, Int_t}(solver, cfg, prec, Dict{Symbol, Any}(), nothing)
 end
 
-function Jutul.linear_solve!(lsys::Jutul.LinearizedSystem,
+function Jutul.linear_solve!(lsys::Jutul.LSystem,
         krylov::CUDAReservoirKrylov{Tv, Ti},
         model,
         storage = nothing,
@@ -36,21 +36,22 @@ function Jutul.linear_solve!(lsys::Jutul.LinearizedSystem,
     L = lsys[1,1]
     J = L.jac
     J::Jutul.StaticSparsityMatrixCSR
-    r0 = L.r_buffer
-    bz = Jutul.block_size(lsys)
+    csr_block_buffer = L.jac_buffer
+
+    bz = Jutul.block_size(L)
     sz = size(J)
     n, m = sz
     @assert n == m
     is_first = !haskey(krylov.data, :J)
     t_setup = @elapsed if is_first
-        krylov.data[:J], krylov.data[:r] = build_gpu_block_system(Ti, Tv, sz, bz, J.At.colptr, J.At.rowval, L.jac_buffer, r0)
+        krylov.data[:J], krylov.data[:r] = build_gpu_block_system(Ti, Tv, sz, bz, J.At.colptr, J.At.rowval, csr_block_buffer, r)
     end
     J_bsr = krylov.data[:J]
     r_cu = krylov.data[:r]
 
     t_gpu_update = @elapsed begin
-        update_gpu_block_residual!(r_cu, bz, r0)
-        update_gpu_block_system!(J_bsr, bz, L.jac_buffer)
+        update_gpu_block_residual!(r_cu, bz, r)
+        update_gpu_block_system!(J_bsr, bz, csr_block_buffer)
     end
     t_prep = t_gpu_update + t_setup + t_prep0
     max_it = krylov.config.max_iterations
