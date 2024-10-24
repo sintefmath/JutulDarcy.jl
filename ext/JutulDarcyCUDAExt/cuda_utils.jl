@@ -103,3 +103,13 @@ end
 function copy_to_gpu(x::Vector{Tvc}, Tv, Ti) where {Tvc}
     return convert(CuVector{Tv}, x)
 end
+
+function JutulDarcy.schur_mul_gpu!(x, y, α, β, J, C, D, buf_1, buf_2, E_L, E_U)
+    mul!(buf_2, D, x)
+    # ldiv!(buf_1, E_L, buf_2)
+    CUDA.CUSPARSE.sv2!('N', 'L', 'N', 1.0, E_L, buf_2, 'O')
+    # ldiv!(buf_2, E_U, buf_1)
+    CUDA.CUSPARSE.sv2!('N', 'L', 'N', 1.0, E_U, buf_2, 'O')
+    mul!(res, C, buf_2, -α, true)
+    error()
+end
