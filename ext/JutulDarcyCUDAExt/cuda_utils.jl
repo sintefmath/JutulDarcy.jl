@@ -102,14 +102,16 @@ function copy_to_gpu(x::Vector{Tvc}, Tv, Ti) where {Tvc}
 end
 
 function JutulDarcy.schur_mul_gpu!(y, x, α, β, J, C, D, buf::CuVector, buf1_cpu::Vector, buf2_cpu::Vector, E_factor)
-    # Working on GPU
-    mul!(y, J, x, α, β)
-    mul!(buf, D, x)
-    # Move over to CPU for this part
-    copyto!(buf1_cpu, buf)
-    ldiv!(buf2_cpu, E_factor, buf1_cpu)
-    # Back to GPU for the big array...
-    copyto!(buf, buf2_cpu)
+    @sync begin 
+        # Working on GPU
+        @async mul!(y, J, x, α, β)
+        mul!(buf, D, x)
+        # Move over to CPU for this part
+        copyto!(buf1_cpu, buf)
+        ldiv!(buf2_cpu, E_factor, buf1_cpu)
+        # Back to GPU for the big array...
+        copyto!(buf, buf2_cpu)
+    end
     mul!(y, C, buf, -α, true)
     return y
 end
