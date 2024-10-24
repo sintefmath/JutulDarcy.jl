@@ -33,6 +33,8 @@ function Jutul.linear_solve!(lsys::Jutul.LSystem,
     rtol = convert(Tv, rtol)
     t_prep0 = @elapsed Jutul.prepare_linear_solve!(lsys)
 
+    is_single_linear_system = lsys isa LinearizedSystem
+
     L = lsys[1,1]
     J = L.jac
     J::Jutul.StaticSparsityMatrixCSR
@@ -45,6 +47,7 @@ function Jutul.linear_solve!(lsys::Jutul.LSystem,
     is_first = !haskey(krylov.data, :J)
     t_setup = @elapsed if is_first
         krylov.data[:J], krylov.data[:r] = build_gpu_block_system(Ti, Tv, sz, bz, J.At.colptr, J.At.rowval, csr_block_buffer, r)
+        krylov.data[:schur] = build_gpu_schur_system(Ti, Tv, bz, lsys)
     end
     J_bsr = krylov.data[:J]
     r_cu = krylov.data[:r]
@@ -104,6 +107,10 @@ function build_gpu_block_system
 end
 
 function update_gpu_block_system!
+
+end
+
+function build_gpu_schur_system
 
 end
 
