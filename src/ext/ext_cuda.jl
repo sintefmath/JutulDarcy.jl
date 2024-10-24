@@ -51,10 +51,14 @@ function Jutul.linear_solve!(lsys::Jutul.LSystem,
     end
     J_bsr = krylov.data[:J]
     r_cu = krylov.data[:r]
+    schur = krylov.data[:schur]
 
     t_gpu_update = @elapsed begin
-        update_gpu_block_residual!(r_cu, bz, r)
-        update_gpu_block_system!(J_bsr, bz, csr_block_buffer)
+        if !is_first
+            update_gpu_block_residual!(r_cu, bz, r)
+            update_gpu_block_system!(J_bsr, bz, csr_block_buffer)
+            update_gpu_schur_system!(schur, lsys)
+        end
     end
     t_prep = t_gpu_update + t_setup + t_prep0
     max_it = krylov.config.max_iterations
@@ -115,5 +119,9 @@ function build_gpu_schur_system
 end
 
 function update_gpu_block_residual!
+
+end
+
+function update_gpu_schur_system!
 
 end
