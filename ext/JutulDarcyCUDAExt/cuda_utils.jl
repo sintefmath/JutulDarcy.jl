@@ -39,10 +39,10 @@ function JutulDarcy.build_gpu_schur_system(Ti, Tv, bz, lsys::MultiLinearizedSyst
     @assert length(lsys.schur_buffer) == 2
     buf_full_cpu = lsys.schur_buffer[1]
     buf_1_cpu, buf_2_cpu = lsys.schur_buffer[2]
-    B_cpu = lsys[1, 1].jac # Already transferred, not needed
+    # B_cpu = lsys[1, 1].jac # Already transferred, not needed
     C_cpu = lsys[1, 2].jac
     D_cpu = lsys[2, 1].jac
-    E_cpu = lsys[2, 2].jac
+    # E_cpu = lsys[2, 2].jac # Only factorization needed I think.
 
     E_factor = only(lsys.factor.factor)
     E_L_cpu = E_factor.L
@@ -72,6 +72,17 @@ function JutulDarcy.build_gpu_schur_system(Ti, Tv, bz, lsys::MultiLinearizedSyst
         :E_L => E_L,
         :E_U => E_U
     )
+end
+
+function JutulDarcy.update_gpu_schur_system!(schur, lsys)
+    C_cpu = lsys[1, 2].jac
+    copyto!(schur[:C].nzVal, C_cpu.nzval)
+    D_cpu = lsys[2, 1].jac
+    copyto!(schur[:D].nzVal, D_cpu.nzval)
+    E_factor = only(lsys.factor.factor)
+    copyto!(schur[:E_L].nzVal, E_factor.L.nzval)
+    copyto!(schur[:E_U].nzVal, E_factor.U.nzval)
+    return schur
 end
 
 function copy_to_gpu(x, Ti, Tv)
