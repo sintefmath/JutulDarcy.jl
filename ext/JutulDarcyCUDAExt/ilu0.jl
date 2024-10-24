@@ -1,4 +1,4 @@
-function ilu0_invert!(y, A, Tv, c_char, data)
+function ilu0_invert!(y, A::CUDA.CUSPARSE.CuSparseMatrixBSR, Tv, c_char, data)
     if Tv == Float32
         bname = CUDA.CUSPARSE.cusparseSbsrsv2_bufferSize
         aname = CUDA.CUSPARSE.cusparseSbsrsv2_analysis
