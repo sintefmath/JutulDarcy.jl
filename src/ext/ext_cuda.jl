@@ -119,17 +119,12 @@ function gpu_system_linear_operator(J, schur, Tv)
     E_U = schur[:E_U]
     buf_1 = schur[:buf_1]
     buf_2 = schur[:buf_2]
-    mul!(x, y) = schur_mul_gpu!(x, y, J, C, D, buf_1, buf_2, E_L, E_U)
+    mul!(x, y, α, β) = schur_mul_gpu!(x, y, α, β, J, C, D, buf_1, buf_2, E_L, E_U)
     return Jutul.LinearOperators.LinearOperator(Tv, n, m, false, false, mul!)
 end
 
-function schur_mul_gpu!(x, y, J, C, D, buf_1, buf_2, E_L, E_U)
-    mul!(buf_2, D, x)
-    ldiv!(buf_1, E_L, buf_2)
-    ldiv!(buf_2, E_U, buf_1)
-    mul!(res, C, buf_2, -α, true)
+function schur_mul_gpu!
 
-    error()
 end
 
 function build_gpu_block_system
