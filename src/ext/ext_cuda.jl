@@ -48,10 +48,12 @@ function Jutul.linear_solve!(lsys::Jutul.LSystem,
     t_setup = @elapsed if is_first
         krylov.data[:J], krylov.data[:r] = build_gpu_block_system(Ti, Tv, sz, bz, J.At.colptr, J.At.rowval, csr_block_buffer, r)
         krylov.data[:schur] = build_gpu_schur_system(Ti, Tv, bz, lsys)
+        krylov.data[:dx_cpu] = zeros(n*bz)
     end
     J_bsr = krylov.data[:J]
     r_cu = krylov.data[:r]
     schur = krylov.data[:schur]
+    dx_cpu = krylov.data[:dx_cpu]
 
     t_gpu_update = @elapsed begin
         if !is_first
@@ -83,8 +85,9 @@ function Jutul.linear_solve!(lsys::Jutul.LSystem,
     )
     dx_gpu, stats = (krylov.storage.x, krylov.storage.stats)
 
-    copyto!(dx, dx_gpu)
-    @. dx = -dx
+    copyto!(dx_cpu, dx_gpu)
+    Jutul.update_dx_from_vector!(lsys, dx_cpu, dx = dx)
+    # @. dx = -dx
 
     res = stats.residuals
     solved = stats.solved
@@ -115,11 +118,12 @@ function gpu_system_linear_operator(J, schur, Tv)
     n, m = size(J)
     C = schur[:C]
     D = schur[:D]
-    E_L = schur[:E_L]
-    E_U = schur[:E_U]
-    buf_1 = schur[:buf_1]
-    buf_2 = schur[:buf_2]
-    mul!(x, y, α, β) = schur_mul_gpu!(x, y, α, β, J, C, D, buf_1, buf_2, E_L, E_U)
+    E_factor = schur[:E_factor]
+    buf = schur[:buf]
+    buf_1 = schur[:buf_1_cpu]
+    buf_2 = schur[:buf_2_cpu]
+
+    mul!(x, y, α, β) = schur_mul_gpu!(x, y, α, β, J, C, D, buf, buf_1, buf_2, E_factor)
     return Jutul.LinearOperators.LinearOperator(Tv, n, m, false, false, mul!)
 end
 

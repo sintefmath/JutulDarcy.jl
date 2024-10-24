@@ -45,18 +45,18 @@ function JutulDarcy.build_gpu_schur_system(Ti, Tv, bz, lsys::MultiLinearizedSyst
     # E_cpu = lsys[2, 2].jac # Only factorization needed I think.
 
     E_factor = only(lsys.factor.factor)
-    E_L_cpu = E_factor.L
-    E_U_cpu = E_factor.U
+    # E_L_cpu = E_factor.L
+    # E_U_cpu = E_factor.U
 
     to_gpu(x) = copy_to_gpu(x, Tv, Ti)
 
     D = to_gpu(D_cpu)
-    E_L = to_gpu(E_L_cpu)
-    E_U = to_gpu(E_U_cpu)
+    # E_L = to_gpu(E_L_cpu)
+    # E_U = to_gpu(E_U_cpu)
     C = to_gpu(C_cpu)
 
-    buf_1 = to_gpu(buf_1_cpu)
-    buf_2 = to_gpu(buf_2_cpu)
+    buf = to_gpu(buf_1_cpu)
+    # buf_2 = to_gpu(buf_2_cpu)
     # Operations and format:
     # B C
     # D E
@@ -67,10 +67,10 @@ function JutulDarcy.build_gpu_schur_system(Ti, Tv, bz, lsys::MultiLinearizedSyst
     return Dict(
         :C => C,
         :D => D,
-        :buf_1 => buf_1,
-        :buf_2 => buf_2,
-        :E_L => E_L,
-        :E_U => E_U
+        :buf => buf,
+        :buf_1_cpu => buf_1_cpu,
+        :buf_2_cpu => buf_2_cpu,
+        :E_factor => E_factor
     )
 end
 
@@ -83,9 +83,6 @@ function JutulDarcy.update_gpu_schur_system!(schur, lsys)
     copyto!(schur[:C].nzVal, C_cpu.nzval)
     D_cpu = lsys[2, 1].jac
     copyto!(schur[:D].nzVal, D_cpu.nzval)
-    E_factor = only(lsys.factor.factor)
-    copyto!(schur[:E_L].nzVal, E_factor.L.nzval)
-    copyto!(schur[:E_U].nzVal, E_factor.U.nzval)
     return schur
 end
 
@@ -104,12 +101,15 @@ function copy_to_gpu(x::Vector{Tvc}, Tv, Ti) where {Tvc}
     return convert(CuVector{Tv}, x)
 end
 
-function JutulDarcy.schur_mul_gpu!(x, y, α, β, J, C, D, buf_1, buf_2, E_L, E_U)
-    mul!(buf_2, D, x)
-    # ldiv!(buf_1, E_L, buf_2)
-    CUDA.CUSPARSE.sv2!('N', 'L', 'N', 1.0, E_L, buf_2, 'O')
-    # ldiv!(buf_2, E_U, buf_1)
-    CUDA.CUSPARSE.sv2!('N', 'L', 'N', 1.0, E_U, buf_2, 'O')
-    mul!(res, C, buf_2, -α, true)
-    error()
+function JutulDarcy.schur_mul_gpu!(y, x, α, β, J, C, D, buf::CuVector, buf1_cpu::Vector, buf2_cpu::Vector, E_factor)
+    # Working on GPU
+    mul!(y, J, x, α, β)
+    mul!(buf, D, x)
+    # Move over to CPU for this part
+    copyto!(buf1_cpu, buf)
+    ldiv!(buf2_cpu, E_factor, buf1_cpu)
+    # Back to GPU for the big array...
+    copyto!(buf, buf2_cpu)
+    mul!(y, C, buf, -α, true)
+    return y
 end
