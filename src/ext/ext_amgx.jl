@@ -15,21 +15,31 @@ function AMGXPreconditioner(; kwarg...)
     return AMGXPreconditioner(settings)
 end
 
+const AMGXCPR = CPRPreconditioner{JutulDarcy.AMGXPreconditioner, <:Any}
+
 function update_preconditioner!(amg::AMGXPreconditioner, A::Jutul.StaticSparsityMatrixCSR, b, context::ParallelCSRContext, executor)
     # Intentionally do nothing - a bit hackish
 end
 
-function JutulDarcy.gpu_update_preconditioner!(cpr::CPRPreconditioner{JutulDarcy.AMGXPreconditioner, <:Any}, lsys, model, storage, recorder, executor, krylov, J_bsr, r_cu)
-    Jutul.update_preconditioner!(cpr, lsys, model, storage, recorder, executor)
-    
+function JutulDarcy.gpu_update_preconditioner!(cpr::AMGXCPR, lsys, model, storage, recorder, executor, krylov, J_bsr, r_cu)
+    Jutul.update_preconditioner!(cpr, lsys, model, storage, recorder, executor, update_system_precond = false)
+    # Transfer pressure system to GPU
     JutulDarcy.update_amgx_pressure_system!(cpr.pressure_precond, cpr.storage.A_p)
-    # Next transfer the coarse system to GPU
-    # Update if needed
-    # Then do the whole apply here
-    error()
-    # Jutul.update_preconditioner!(krylov.preconditioner, J_bsr, r_cu, model.context, executor)
 end
 
 function update_amgx_pressure_system!
 
+end
+
+function Jutul.apply!(x, cpr::AMGXCPR, r)
+    # Apply smoother
+    cpr_s = cpr.storage
+    bz = cpr_s.block_size
+
+    Jutul.apply!(x, cpr.system_precond, r)
+    # Correct the residual
+    # Construct pressure residual
+    # Apply pressure preconditioner
+    # Update increments for pressure
+    error()
 end
