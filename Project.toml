@@ -43,7 +43,7 @@ Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 PartitionedArrays = "5a9dfac6-5c52-46f7-8278-5e2210713be9"
 
 [extensions]
-JutulDarcyAMGXExt = ["AMGX", "CUDA"]
+JutulDarcyAMGXExt = "AMGX"
 JutulDarcyCUDAExt = "CUDA"
 JutulDarcyGLMakieExt = "GLMakie"
 JutulDarcyMakieExt = "Makie"
