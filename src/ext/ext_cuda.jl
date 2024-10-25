@@ -65,14 +65,15 @@ function Jutul.linear_solve!(lsys::Jutul.LSystem,
     t_prep = t_gpu_update + t_setup + t_prep0
     max_it = krylov.config.max_iterations
 
-    @tic "precond" gpu_update_preconditioner!(krylov.preconditioner, lsys, model, storage, recorder, executor, krylov, J_bsr, r_cu)
+    operator = gpu_system_linear_operator(J_bsr, schur, Tv)
+
+    @tic "precond" gpu_update_preconditioner!(krylov.preconditioner, lsys, model, storage, recorder, executor, krylov, J_bsr, r_cu, operator)
     prec_op = Jutul.preconditioner(krylov, lsys, model, storage, recorder, Tv)
     if cfg.precond_side == :right
         preconditioner_arg = (N = prec_op, )
     else
         preconditioner_arg = (M = prec_op, )
     end
-    operator = gpu_system_linear_operator(J_bsr, schur, Tv)
     solve_f, F = Jutul.krylov_jl_solve_function(krylov, operator, r_cu)
     @tic "solve" solve_f(F, operator, r_cu;
         itmax = max_it,
@@ -153,5 +154,9 @@ function update_gpu_block_residual!
 end
 
 function update_gpu_schur_system!
+
+end
+
+function gpu_reduce_residual!
 
 end

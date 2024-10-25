@@ -7,4 +7,5 @@ module JutulDarcyCUDAExt
     include("ilu0.jl")
     include("krylov.jl")
     include("cuda_utils.jl")
+    include("cpr.jl")
 end
