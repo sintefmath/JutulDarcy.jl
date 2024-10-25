@@ -38,23 +38,25 @@ function gpu_cpr_setup_buffers!
 
 end
 
+function gpu_amgx_solve!
+
+end
+
 function Jutul.apply!(x, cpr::AMGXCPR, r)
     # Apply smoother
-
     Jutul.apply!(x, cpr.system_precond, r)
     # Correct the residual
     A_ps = cpr.pressure_precond.data[:operator]
     # buf = cpr.pressure_precond.data[:buffer_full]
-    # buf_p = cpr.pressure_precond.data[:buffer_p]
     JutulDarcy.correct_residual!(r, A_ps, x)
     # Construct pressure residual
     r_p = cpr.pressure_precond.data[:buffer_p]
     w_p = cpr.pressure_precond.data[:w_p]
     ncomp, ncell = size(w_p)
     gpu_reduce_residual!(r_p, w_p, r)
-    # @info "??" typeof(r_p) typeof(w_p) typeof(r)
-    # @tullio r_p[cell] = w_p[comp, cell] * r_tmp[comp, cell]
     # Apply pressure preconditioner
+    amgx = cpr.pressure_precond
+    dp = gpu_amgx_solve!(amgx, r_p)
     # Update increments for pressure
-    error()
+    gpu_increment_pressure!(x, dp)
 end

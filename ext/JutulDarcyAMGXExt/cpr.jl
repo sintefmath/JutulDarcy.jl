@@ -2,6 +2,8 @@ function JutulDarcy.update_amgx_pressure_system!(amgx::AMGXPreconditioner, A_p::
     data = amgx.data
     initialize_amgx_structure!(amgx, A_p, Tv)
     update_pressure_system!(amgx, A_p)
+    s = amgx.data[:storage]
+    AMGX.setup!(s.solver, s.matrix)
     return amgx
 end
 
@@ -38,9 +40,20 @@ mutable struct AMGXStorage{C, R, V, M, S}
 end
 
 function update_pressure_system!(amgx, A_cpu)
-    A_gpu = amgx.data[:storage].matrix
+    s = amgx.data[:storage]
+    A_gpu = s.matrix
     AMGX.replace_coefficients!(A_gpu, A_cpu.At.nzval)
     return amgx
+end
+
+function JutulDarcy.gpu_amgx_solve!(amgx::AMGXPreconditioner, r_p)
+    s = amgx.data[:storage]
+    n = length(r_p)
+    AMGX.upload!(s.r, r_p)
+    AMGX.set_zero!(s.x, n)
+    AMGX.solve!(s.x, s.solver, s.r)
+    AMGX.download!(r_p, s.x)
+    return r_p
 end
 
 function initialize_amgx_structure!(amgx::AMGXPreconditioner, A::Jutul.StaticCSR.StaticSparsityMatrixCSR, Tv)
