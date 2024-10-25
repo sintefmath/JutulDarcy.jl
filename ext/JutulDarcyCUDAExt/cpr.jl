@@ -38,7 +38,7 @@ function gpu_increment_pressure_kernel!(x, dp, bz)
     index = threadIdx().x
     stride = blockDim().x
     for cell in index:stride:length(dp)
-        x[(cell-1)*bz + 1] = dp[cell]
+        x[(cell-1)*bz + 1] += dp[cell]
     end
     return nothing
 end
