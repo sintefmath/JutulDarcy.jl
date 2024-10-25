@@ -90,10 +90,10 @@ end
 function JutulDarcy.gpu_cpr_setup_buffers!(cpr, J_bsr, r_cu, op)
     # TODO: Rename this.
     data = cpr.pressure_precond.data
+    cpr_s = cpr.storage
     if !haskey(data, :w_p)
         Tv = eltype(r_cu)
         n = length(r_cu)
-        cpr_s = cpr.storage
         bz = cpr_s.block_size
 
         # cpr.pressure_precond.data[:buffer_full] = AMGX.CUDA.CuVector{Tv}(undef, n)
