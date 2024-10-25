@@ -47,7 +47,15 @@ function Jutul.apply!(x, cpr::AMGXCPR, r)
     Jutul.apply!(x, cpr.system_precond, r)
     # Correct the residual
     A_ps = cpr.pressure_precond.data[:operator]
-    # buf = cpr.pressure_precond.data[:buffer_full]
+    if false
+        if !haskey(cpr.pressure_precond.data, :buffer_full)
+            cpr.pressure_precond.data[:buffer_full] = copy(r)
+        end
+        buf = cpr.pressure_precond.data[:buffer_full]
+        copyto!(buf, r)
+        r = buf
+    end
+    # r = copy(r)
     JutulDarcy.correct_residual!(r, A_ps, x)
     # Construct pressure residual
     r_p = cpr.pressure_precond.data[:buffer_p]
