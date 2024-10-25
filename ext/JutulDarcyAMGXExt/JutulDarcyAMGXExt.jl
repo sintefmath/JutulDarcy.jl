@@ -1,12 +1,14 @@
 module JutulDarcyAMGXExt
-    using Jutul, JutulDarcy, CUDA, LinearAlgebra, SparseArrays, AMGX
+    using JutulDarcy, Jutul, AMGX, AMGX.CUDA, LinearAlgebra, SparseArrays
+    import JutulDarcy: AMGXPreconditioner
     import Jutul: @tic
 
     timeit_debug_enabled() = Jutul.timeit_debug_enabled()
 
-    function JutulDarcy.gpu_update_preconditioner!(prec::CPRPreconditioner{JutulDarcy.AMGXPreconditioner, <:Any}, sys, model, storage, recorder, executor, krylov, J_bsr, r_cu)
-        error()
-        Jutul.update_preconditioner!(krylov.preconditioner, J_bsr, r_cu, model.context, executor)
-    end
+    include("cpr.jl")
 
+    function __init__()
+        # TODO: Figure out a way to not always do this?
+        AMGX.initialize()
+    end
 end
