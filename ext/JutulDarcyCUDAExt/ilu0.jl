@@ -162,5 +162,9 @@ function Jutul.apply!(y::CuVector{Tv}, f::ILUZeroPreconditioner, x::CuVector{Tv}
     P = f.factor[:ilu0_gpu]
     ilu0_invert!(y, P, Tv, 'L', f.factor)
     ilu0_invert!(y, P, Tv, 'U', f.factor)
-    CUDA.synchronize()
+    # CUDA.synchronize()
+end
+
+function JutulDarcy.gpu_update_preconditioner!(prec::ILUZeroPreconditioner, sys, model, storage, recorder, executor, krylov, J_bsr, r_cu)
+    Jutul.update_preconditioner!(krylov.preconditioner, J_bsr, r_cu, model.context, executor)
 end
