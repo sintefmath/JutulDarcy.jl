@@ -165,6 +165,6 @@ function Jutul.apply!(y::CuVector{Tv}, f::ILUZeroPreconditioner, x::CuVector{Tv}
     # CUDA.synchronize()
 end
 
-function JutulDarcy.gpu_update_preconditioner!(prec::ILUZeroPreconditioner, sys, model, storage, recorder, executor, krylov, J_bsr, r_cu)
-    Jutul.update_preconditioner!(krylov.preconditioner, J_bsr, r_cu, model.context, executor)
+function JutulDarcy.gpu_update_preconditioner!(prec::ILUZeroPreconditioner, sys, model, storage, recorder, executor, krylov, J_bsr, r_cu, op)
+    Jutul.update_preconditioner!(prec, J_bsr, r_cu, model.context, executor)
 end

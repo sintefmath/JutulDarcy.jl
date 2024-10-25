@@ -1,6 +1,6 @@
-function JutulDarcy.update_amgx_pressure_system!(amgx::AMGXPreconditioner, A_p::Jutul.StaticCSR.StaticSparsityMatrixCSR)
+function JutulDarcy.update_amgx_pressure_system!(amgx::AMGXPreconditioner, A_p::Jutul.StaticCSR.StaticSparsityMatrixCSR, Tv)
     data = amgx.data
-    initialize_amgx_structure!(amgx, A_p)
+    initialize_amgx_structure!(amgx, A_p, Tv)
     update_pressure_system!(amgx, A_p)
     return amgx
 end
@@ -43,14 +43,13 @@ function update_pressure_system!(amgx, A_cpu)
     return amgx
 end
 
-function initialize_amgx_structure!(amgx::AMGXPreconditioner, A::Jutul.StaticCSR.StaticSparsityMatrixCSR{Tv, <:Any}) where Tv
+function initialize_amgx_structure!(amgx::AMGXPreconditioner, A::Jutul.StaticCSR.StaticSparsityMatrixCSR, Tv)
     if !haskey(amgx.data, :storage)
         if Tv == Float64
             amgx_mode = AMGX.dDDI
         else
             amgx_mode = AMGX.dFFI
         end
-        # TODO: Tv isn't really coming from the matrix, it should be set beforehand in the krylov solver.
         n, m = size(A)
         @assert n == m
         config = AMGX.Config(amgx.settings)
@@ -70,7 +69,31 @@ function initialize_amgx_structure!(amgx::AMGXPreconditioner, A::Jutul.StaticCSR
             nzval
         )
         amgx.data[:storage] = s
+        amgx.data[:buffer_p] = AMGX.CUDA.CuVector{Tv}(undef, n)
     end
     return amgx
 end
 
+function JutulDarcy.gpu_cpr_setup_buffers!(cpr, J_bsr, r_cu, op)
+    # TODO: Rename this.
+    data = cpr.pressure_precond.data
+    if !haskey(data, :w_p)
+        Tv = eltype(r_cu)
+        n = length(r_cu)
+        cpr_s = cpr.storage
+        bz = cpr_s.block_size
+
+        # cpr.pressure_precond.data[:buffer_full] = AMGX.CUDA.CuVector{Tv}(undef, n)
+        bz_w, n_w = size(cpr_s.w_p)
+        @assert n == bz*n_w
+        data[:w_p] = AMGX.CUDA.CuMatrix{Tv}(undef, bz_w, n_w)
+        data[:main_system] = J_bsr
+        data[:operator] = op
+    end
+    # Put updated weights on GPU
+    w_p_cpu = cpr_s.w_p
+    w_p_gpu = data[:w_p]
+    @assert size(w_p_cpu) == size(w_p_gpu)
+    copyto!(w_p_gpu, w_p_cpu)
+    return cpr
+end
