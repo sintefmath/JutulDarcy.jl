@@ -1,10 +1,8 @@
 function JutulDarcy.update_amgx_pressure_system!(amgx::AMGXPreconditioner, A_p::Jutul.StaticCSR.StaticSparsityMatrixCSR)
     data = amgx.data
-    is_first = !haskey(data, :A_p)
-    if is_first
-        initialize_amgx_structure!(amgx, A_p)
-    end
-    error()
+    initialize_amgx_structure!(amgx, A_p)
+    update_pressure_system!(amgx, A_p)
+    return amgx
 end
 
 mutable struct AMGXStorage{C, R, V, M, S}
@@ -39,33 +37,40 @@ mutable struct AMGXStorage{C, R, V, M, S}
     end
 end
 
+function update_pressure_system!(amgx, A_cpu)
+    A_gpu = amgx.data[:storage].matrix
+    AMGX.replace_coefficients!(A_gpu, A_cpu.At.nzval)
+    return amgx
+end
+
 function initialize_amgx_structure!(amgx::AMGXPreconditioner, A::Jutul.StaticCSR.StaticSparsityMatrixCSR{Tv, <:Any}) where Tv
-    if Tv == Float64
-        amgx_mode = AMGX.dDDI
-    else
-        amgx_mode = AMGX.dFFI
+    if !haskey(amgx.data, :storage)
+        if Tv == Float64
+            amgx_mode = AMGX.dDDI
+        else
+            amgx_mode = AMGX.dFFI
+        end
+        # TODO: Tv isn't really coming from the matrix, it should be set beforehand in the krylov solver.
+        n, m = size(A)
+        @assert n == m
+        config = AMGX.Config(amgx.settings)
+        s = AMGXStorage(config, amgx_mode)
+        # RHS and solution vectors to right size just in case
+        AMGX.set_zero!(s.x, n)
+        AMGX.set_zero!(s.r, n)
+
+        row_ptr = Cint.(A.At.colptr .- 1)
+        colval = Cint.(A.At.rowval .- 1)
+        nzval = A.At.nzval
+        nzval = Tv.(nzval)
+
+        AMGX.upload!(s.matrix, 
+            row_ptr,
+            colval,
+            nzval
+        )
+        amgx.data[:storage] = s
     end
-    # TODO: Tv isn't really coming from the matrix, it should be set beforehand in the krylov solver.
-    n, m = size(A)
-    @assert n == m
-    config = AMGX.Config(amgx.settings)
-    s = AMGXStorage(config, amgx_mode)
-    # RHS and solution vectors to right size just in case
-    AMGX.set_zero!(s.x, n)
-    AMGX.set_zero!(s.r, n)
-
-    row_ptr = Cint.(A.At.colptr .- 1)
-    colval = Cint.(A.At.rowval .- 1)
-    nzval = A.At.nzval
-    nzval = Tv.(nzval)
-
-    AMGX.upload!(s.matrix, 
-        row_ptr,
-        colval,
-        nzval
-    )
-
-    amgx.data[:storage] = s
     return amgx
 end
 

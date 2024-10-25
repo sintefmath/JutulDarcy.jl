@@ -168,11 +168,13 @@ function default_psolve(; max_levels = 10, max_coarse = 10, amgcl_type = :amg, t
     end
 end
 
-function update_preconditioner!(cpr::CPRPreconditioner, lsys, model, storage, recorder, executor)
+function update_preconditioner!(cpr::CPRPreconditioner, lsys, model, storage, recorder, executor; update_system_precond = true)
     rmodel = reservoir_model(model, type = :flow)
     ctx = rmodel.context
     update_p = update_cpr_internals!(cpr, lsys, model, storage, recorder, executor)
-    @tic "s-precond" update_preconditioner!(cpr.system_precond, lsys, model, storage, recorder, executor)
+    if update_system_precond
+        @tic "s-precond" update_preconditioner!(cpr.system_precond, lsys, model, storage, recorder, executor)
+    end
     if update_p
         @tic "p-precond" update_preconditioner!(cpr.pressure_precond, cpr.storage.A_p, cpr.storage.r_p, ctx, executor)
     elseif should_update_cpr(cpr, recorder, :partial)
