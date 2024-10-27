@@ -38,6 +38,8 @@ mutable struct AMGXStorage{C, R, V, M, S}
 end
 
 function JutulDarcy.gpu_amgx_solve!(amgx::AMGXPreconditioner, r_p)
+    # TODO: This sync call is maybe needd?
+    AMGX.CUDA.synchronize()
     s = amgx.data[:storage]
     n = length(r_p)
     AMGX.upload!(s.r, r_p)
