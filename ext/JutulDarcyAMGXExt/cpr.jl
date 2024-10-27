@@ -1,9 +1,6 @@
 function JutulDarcy.update_amgx_pressure_system!(amgx::AMGXPreconditioner, A_p::Jutul.StaticCSR.StaticSparsityMatrixCSR, Tv)
     data = amgx.data
-    initialize_amgx_structure!(amgx, A_p, Tv)
-    update_pressure_system!(amgx, A_p)
-    s = amgx.data[:storage]
-    AMGX.setup!(s.solver, s.matrix)
+    update_pressure_system!(amgx, A_p, Tv)
     return amgx
 end
 
@@ -21,6 +18,7 @@ mutable struct AMGXStorage{C, R, V, M, S}
         matrix = AMGX.AMGXMatrix(resources, amgx_mode)
         solver = AMGX.Solver(resources, amgx_mode, config)
         function finalize_storage!(amgx_s::AMGXStorage)
+            @async println("Finalizing AMGXStorage")
             close(amgx_s.solver)
             close(amgx_s.matrix)
             close(amgx_s.r)
@@ -39,13 +37,6 @@ mutable struct AMGXStorage{C, R, V, M, S}
     end
 end
 
-function update_pressure_system!(amgx, A_cpu)
-    s = amgx.data[:storage]
-    A_gpu = s.matrix
-    AMGX.replace_coefficients!(A_gpu, A_cpu.At.nzval)
-    return amgx
-end
-
 function JutulDarcy.gpu_amgx_solve!(amgx::AMGXPreconditioner, r_p)
     s = amgx.data[:storage]
     n = length(r_p)
@@ -56,7 +47,7 @@ function JutulDarcy.gpu_amgx_solve!(amgx::AMGXPreconditioner, r_p)
     return r_p
 end
 
-function initialize_amgx_structure!(amgx::AMGXPreconditioner, A::Jutul.StaticCSR.StaticSparsityMatrixCSR, Tv)
+function update_pressure_system!(amgx::AMGXPreconditioner, A::Jutul.StaticCSR.StaticSparsityMatrixCSR, Tv)
     if !haskey(amgx.data, :storage)
         if Tv == Float64
             amgx_mode = AMGX.dDDI
@@ -74,16 +65,23 @@ function initialize_amgx_structure!(amgx::AMGXPreconditioner, A::Jutul.StaticCSR
         row_ptr = Cint.(A.At.colptr .- 1)
         colval = Cint.(A.At.rowval .- 1)
         nzval = A.At.nzval
-        nzval = Tv.(nzval)
-
-        AMGX.upload!(s.matrix, 
+        # TODO: Support for other types than Float64, should be done in setup of
+        # pressure system
+        AMGX.pin_memory(nzval)
+        AMGX.upload!(s.matrix,
             row_ptr,
             colval,
             nzval
         )
         amgx.data[:storage] = s
         amgx.data[:buffer_p] = AMGX.CUDA.CuVector{Tv}(undef, n)
+    else
+        s = amgx.data[:storage]
+        A_gpu = s.matrix
+        @assert nnz(A) == nnz(A_gpu)
+        AMGX.replace_coefficients!(A_gpu, A.At.nzval)
     end
+    AMGX.setup!(s.solver, s.matrix)
     return amgx
 end
 
