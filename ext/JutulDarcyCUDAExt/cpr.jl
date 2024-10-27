@@ -30,7 +30,6 @@ function JutulDarcy.gpu_increment_pressure!(x, dp)
     bz = div(n, length(dp))
     @assert bz > 0
     CUDA.@cuda gpu_increment_pressure_kernel!(x, dp, bz)
-    CUDA.synchronize()
     return x
 end
 

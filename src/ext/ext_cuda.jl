@@ -12,7 +12,7 @@ function CUDAReservoirKrylov(solver = :gmres, prec = ILUZeroPreconditioner();
         kwarg...
     )
     cfg = IterativeSolverConfig(; kwarg...)
-    CUDAReservoirKrylov{Float_t, Int_t}(solver, cfg, prec, Dict{Symbol, Any}(), nothing)
+    return CUDAReservoirKrylov{Float_t, Int_t}(solver, cfg, prec, Dict{Symbol, Any}(), nothing)
 end
 
 function Jutul.linear_solve!(lsys::Jutul.LSystem,
@@ -111,8 +111,8 @@ function gpu_update_preconditioner!
 end
 
 function Base.show(io::IO, krylov::CUDAReservoirKrylov)
-    rtol = linear_solver_tolerance(krylov.config, :relative)
-    atol = linear_solver_tolerance(krylov.config, :absolute)
+    rtol = Jutul.linear_solver_tolerance(krylov.config, :relative)
+    atol = Jutul.linear_solver_tolerance(krylov.config, :absolute)
     print(io, "CUDAReservoirKrylov using $(krylov.solver) (ϵₐ=$atol, ϵ=$rtol) with prec = $(typeof(krylov.preconditioner))")
 end
 
