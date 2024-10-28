@@ -417,10 +417,12 @@ function SimpleWell(
         name = :Well,
         explicit_dp = true,
         surface_conditions = default_surface_cond(),
-        reference_depth = 0,
+        reference_depth = 0.0,
         volume = 1000.0, # Regularization volume for well, not a real volume
         kwarg...
     )
+    reference_depth = convert(Float64, reference_depth)
+    volume = convert(Float64, volume)
     nr = length(reservoir_cells)
     WI, gdz = common_well_setup(nr; kwarg...)
     perf = (self = ones(Int64, nr), reservoir = vec(reservoir_cells), WI = WI, gdz = gdz)
