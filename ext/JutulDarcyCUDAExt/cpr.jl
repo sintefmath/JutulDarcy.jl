@@ -1,9 +1,12 @@
 function JutulDarcy.gpu_reduce_residual!(r_p, w_p, r)
-    # TODO: Actually use CUDA threads here.
     @assert eltype(r_p) == eltype(w_p) == eltype(r)
     @assert length(w_p) == length(r)
     @assert size(w_p, 2) == length(r_p)
-    CUDA.@cuda reduce_residual_kernel!(r_p, w_p, r)
+    kernel = CUDA.@cuda launch = false reduce_residual_kernel!(r_p, w_p, r)
+    threads, blocks = kernel_helper(kernel, r_p)
+    CUDA.@sync begin
+        kernel(r_p, w_p, r; threads, blocks)
+    end
     return r_p
 end
 
@@ -29,12 +32,11 @@ function JutulDarcy.gpu_increment_pressure!(x, dp)
     n = length(x)
     bz = div(n, length(dp))
     @assert bz > 0
-    CUDA.@sync CUDA.@cuda gpu_increment_pressure_kernel!(x, dp, bz)
-    # kernel = CUDA.@cuda launch=false gpu_increment_pressure_kernel!(x, dp, bz)
-    # threads, blocks = kernel_helper(kernel, x)
-    # CUDA.@sync begin
-    #    kernel(x, dp, bz; threads, blocks)
-    # end
+    kernel = CUDA.@cuda launch=false gpu_increment_pressure_kernel!(x, dp, bz)
+    threads, blocks = kernel_helper(kernel, dp)
+    CUDA.@sync begin
+       kernel(x, dp, bz; threads, blocks)
+    end
     return x
 end
 
@@ -42,7 +44,7 @@ function gpu_increment_pressure_kernel!(x, dp, bz)
     index = threadIdx().x
     stride = blockDim().x
     for cell in index:stride:length(dp)
-        @inbounds x[(cell-1)*bz + 1] += dp[cell]
+        x[(cell-1)*bz + 1] += dp[cell]
     end
     return nothing
 end
