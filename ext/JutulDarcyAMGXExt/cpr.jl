@@ -38,15 +38,7 @@ mutable struct AMGXStorage{C, R, V, M, S}
 end
 
 function JutulDarcy.gpu_amgx_solve!(amgx::AMGXPreconditioner, r_p)
-    # TODO: This sync call is maybe needd?
-    AMGX.CUDA.synchronize()
-    s = amgx.data[:storage]
-    n = length(r_p)
-    AMGX.upload!(s.r, r_p)
-    AMGX.set_zero!(s.x, n)
-    AMGX.solve!(s.x, s.solver, s.r)
-    AMGX.download!(r_p, s.x)
-    return r_p
+    Jutul.apply!(r_p, amgx, r_p)
 end
 
 function update_pressure_system!(amgx::AMGXPreconditioner, A::Jutul.StaticCSR.StaticSparsityMatrixCSR, Tv)
@@ -76,6 +68,8 @@ function update_pressure_system!(amgx::AMGXPreconditioner, A::Jutul.StaticCSR.St
             nzval
         )
         amgx.data[:storage] = s
+        amgx.data[:block_size] = 1
+        amgx.data[:n] = n
         amgx.data[:buffer_p] = AMGX.CUDA.CuVector{Tv}(undef, n)
     else
         pb = amgx.data[:buffer_p]

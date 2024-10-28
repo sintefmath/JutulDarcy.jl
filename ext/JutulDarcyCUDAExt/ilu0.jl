@@ -85,6 +85,7 @@ function ilu0_gpu_update!(A, Tv, data)
     end
     mb = div(size(A, 1), A.blockDim)
     ilu0_is_analyzed = haskey(data, :ilu0)
+    ilu0_is_analyzed = false
     if ilu0_is_analyzed
         info, desc = data[:ilu0]
     else
