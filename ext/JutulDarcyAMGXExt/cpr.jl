@@ -20,9 +20,9 @@ mutable struct AMGXStorage{C, R, V, M, S}
         function finalize_storage!(amgx_s::AMGXStorage)
             @async println("Finalizing AMGXStorage")
             close(amgx_s.solver)
-            close(amgx_s.matrix)
             close(amgx_s.r)
             close(amgx_s.x)
+            close(amgx_s.matrix)
             close(amgx_s.resources)
             close(amgx_s.config)
         end
