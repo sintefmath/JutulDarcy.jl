@@ -32,10 +32,17 @@ function JutulDarcy.gpu_increment_pressure!(x, dp)
     n = length(x)
     bz = div(n, length(dp))
     @assert bz > 0
-    kernel = CUDA.@cuda launch=false gpu_increment_pressure_kernel!(x, dp, bz)
-    threads, blocks = kernel_helper(kernel, dp)
-    CUDA.@sync begin
-       kernel(x, dp, bz; threads, blocks)
+    if false
+        kernel = CUDA.@cuda launch=false gpu_increment_pressure_kernel!(x, dp, bz)
+        threads, blocks = kernel_helper(kernel, dp)
+        threads = blocks = 1
+
+        CUDA.@sync begin
+        kernel(x, dp, bz; threads, blocks)
+        end
+    else
+        x_view = view(x, 1:bz:(n+1-bz))
+        @. x_view += dp
     end
     return x
 end
