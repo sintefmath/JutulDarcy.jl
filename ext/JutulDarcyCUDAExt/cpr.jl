@@ -16,11 +16,11 @@ function reduce_residual_kernel!(r_p, w_p, r_ps)
         v = zero(T)
         for comp in 1:ncomp
             ix = (cell-1)*ncomp + comp
-            wi = w_p[comp, cell]
-            ri = r_ps[ix]
+            @inbounds wi = w_p[comp, cell]
+            @inbounds ri = r_ps[ix]
             v += wi*ri
         end
-        r_p[cell] = v
+        @inbounds r_p[cell] = v
     end
     return nothing
 end
@@ -29,7 +29,12 @@ function JutulDarcy.gpu_increment_pressure!(x, dp)
     n = length(x)
     bz = div(n, length(dp))
     @assert bz > 0
-    CUDA.@cuda gpu_increment_pressure_kernel!(x, dp, bz)
+    CUDA.@sync CUDA.@cuda gpu_increment_pressure_kernel!(x, dp, bz)
+    # kernel = CUDA.@cuda launch=false gpu_increment_pressure_kernel!(x, dp, bz)
+    # threads, blocks = kernel_helper(kernel, x)
+    # CUDA.@sync begin
+    #    kernel(x, dp, bz; threads, blocks)
+    # end
     return x
 end
 
@@ -37,7 +42,15 @@ function gpu_increment_pressure_kernel!(x, dp, bz)
     index = threadIdx().x
     stride = blockDim().x
     for cell in index:stride:length(dp)
-        x[(cell-1)*bz + 1] += dp[cell]
+        @inbounds x[(cell-1)*bz + 1] += dp[cell]
     end
     return nothing
+end
+
+function kernel_helper(kernel, V)
+    config = launch_configuration(kernel.fun)
+    threads = min(length(V), config.threads)
+    blocks = cld(length(V), threads)
+
+    return (threads, blocks)
 end
