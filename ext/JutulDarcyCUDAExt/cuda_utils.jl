@@ -19,7 +19,7 @@ function JutulDarcy.update_gpu_block_system!(J, blockDim, nzval, ϵ = 1e-12)
                 else
                     v = ϵ
                 end
-                nzval[i] = v
+                @inbounds nzval[i] = v
             end
         end
     end
