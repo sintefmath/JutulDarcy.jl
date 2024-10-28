@@ -39,6 +39,7 @@ function build_jutul_darcy_docs(build_format = nothing;
         "CO2 injection in saline aquifer" => "co2_sloped",
         "Compositional with five components" => "compositional_5components",
         "Parameter matching of Buckley-Leverett" => "optimize_simple_bl",
+        "Hybrid simulation with relative permeability" => "hybrid_simulation_relperm",
         "Validation: SPE1" => "validation_spe1",
         "Validation: SPE9" => "validation_spe9",
         "Validation: Compositional" => "validation_compositional",
