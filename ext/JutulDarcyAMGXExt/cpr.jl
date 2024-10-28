@@ -78,6 +78,7 @@ function update_pressure_system!(amgx::AMGXPreconditioner, A::Jutul.StaticCSR.St
         amgx.data[:storage] = s
         amgx.data[:buffer_p] = AMGX.CUDA.CuVector{Tv}(undef, n)
     else
+        pb = amgx.data[:buffer_p]
         s = amgx.data[:storage]
         A_gpu = s.matrix
         @assert nnz(A) == nnz(A_gpu)
