@@ -165,8 +165,6 @@ fig
 # - Use of tanh activation in hidden layers for smooth first derivatives
 # - Sigmoid in the final layer to constrain output to [0, 1] range
 # - Float64 precision to match JutulDarcy's numerical precision
-# - Glorot normal initialization for weights
-# - Use GPU for faster training (if available)
 
 BrooksCoreyMLModel = Chain(
     Dense(1 => 16, tanh),
@@ -176,13 +174,13 @@ BrooksCoreyMLModel = Chain(
 )
 
 # Define training parameters
-# We train the model using the Adam optimizer with a learning rate of 0.0005. For a total of 10 epochs.
+# We train the model using the Adam optimizer with a learning rate of 0.0005. For a total of 20 000 epochs.
 # The `optim` object will store the optimiser momentum, etc.
 
 epochs = 20000;
 lr = 0.0005;
 
-# Training loop, using the whole data set epochs number of times:
+# Training loop, using the whole data set epochs number of times.
 # We use Adam for the optimiser, set the random seed and initialise the parameters.
 # Lux defaults to float32 precision, so we need to convert the parameters to float64.
 # Lux uses a stateless, explicit representation of the model. It consists of four parts:
@@ -319,8 +317,8 @@ ml_state0 = setup_reservoir_state(ml_model,
     Saturations = [1.0, 0.0]
 )
 
-simulate_reservoir(ml_state0, ml_model, ml_dt, parameters = ml_parameters, forces = ml_forces, info_level = -1)
-ml_wd, ml_states, ml_t = simulate_reservoir(ml_state0, ml_model, ml_dt, parameters = ml_parameters, forces = ml_forces, info_level = 1)
+simulate_reservoir(ml_state0, ml_model, ml_dt, parameters = ml_parameters, forces = ml_forces, info_level = -1);
+ml_wd, ml_states, ml_t = simulate_reservoir(ml_state0, ml_model, ml_dt, parameters = ml_parameters, forces = ml_forces, info_level = 1);
 
 
 # ### Compare results
