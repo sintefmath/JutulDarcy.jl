@@ -6,6 +6,7 @@ module JutulDarcyAMGXExt
     timeit_debug_enabled() = Jutul.timeit_debug_enabled()
 
     include("cpr.jl")
+    include("precond.jl")
 
     function __init__()
         # TODO: Figure out a way to not always do this?

@@ -11,7 +11,7 @@ function JutulDarcy.build_gpu_block_system(Ti, Tv, sz::Tuple{Int, Int}, blockDim
 end
 
 function JutulDarcy.update_gpu_block_system!(J, blockDim, nzval, ϵ = 1e-12)
-    if ϵ > 0.0
+    if ϵ > 0.0 && false
         for (i, v) in enumerate(nzval)
             if abs(v) < ϵ
                 if v > 0
