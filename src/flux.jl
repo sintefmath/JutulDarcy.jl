@@ -61,11 +61,7 @@ end
 
 @inline function face_average_density(model, state, tpfa, phase)
     ρ = state.PhaseMassDensities
-    l = tpfa.left
-    r = tpfa.right
-    @inbounds ρ_c = ρ[phase, l]
-    @inbounds ρ_i = ρ[phase, r]
-    return 0.5*(ρ_i + ρ_c)
+    return phase_face_average(ρ, tpfa, phase)
 end
 
 @inline function face_average_density(model::CompositionalModel, state, tpfa, phase)
