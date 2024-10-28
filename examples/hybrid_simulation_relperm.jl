@@ -17,7 +17,7 @@
 # We will use Lux for the neural network model, due to its explicit representation of the model and the ability to use different optimisers, ideal for integration with Jutul.
 # However, Flux.jl would work just as well for this simple example.
 
-using JutulDarcy, Jutul, Lux, ADTypes, Zygote, Optimisers, Random, Plots, Statistics
+using JutulDarcy, Jutul, Lux, ADTypes, Zygote, Optimisers, Random, Statistics, GLMakie
 
 # ## Set up the simulation case
 # We set up a reference simulation case following the [Your first JutulDarcy.jl simulation](https://sintefmath.github.io/JutulDarcy.jl/dev/man/first_ex) example:
@@ -137,7 +137,17 @@ training_sat = collect(range(Float64(0), stop=Float64(1), length=train_samples))
 training_sat = reshape(training_sat, 1, :)
 
 rel_perm_analytical = JutulDarcy.brooks_corey_relperm.(training_sat, n = exponent, residual = sr_g, residual_total = r_tot)
-plot(vec(training_sat), vec(rel_perm_analytical), label="Brooks-Corey RelPerm", xlabel="Saturation", ylabel="Relative Permeability", title="Saturation vs. Relative Permeability")
+fig = Figure()
+ax = Axis(fig[1,1],
+    xlabel = "Saturation",
+    ylabel = "Relative Permeability",
+    title = "Saturation vs. Relative Permeability",
+    xticks = 0:0.25:1,
+    yticks = 0:0.25:1
+)
+lines!(ax, vec(training_sat), vec(rel_perm_analytical), label="Brooks-Corey RelPerm")
+axislegend(ax, position = :lt)
+fig
 
 # ### Define the neural network architecture
 # Next we define the neural network architecture. The model takes in a saturation value and outputs a relative permeability value.
@@ -216,10 +226,20 @@ tstate, losses = train_model(BrooksCoreyMLModel, training_sat, rel_perm_analytic
 
 # The loss function is plotted to show that the model is learning.
 
-plot(losses, xlabel="Iteration", ylabel="Loss", label="per batch", yscale=:log10)
-plot!(epochs:epochs:length(losses), mean.(Iterators.partition(losses, epochs)),
-label="epoch mean", dpi=200)
-title!("Training Loss")
+fig = Figure()
+ax = Axis(fig[1,1],
+    xlabel = "Iteration",
+    ylabel = "Loss",
+    title = "Training Loss",
+    yscale = log10
+)
+lines!(ax, losses, label="per batch")
+lines!(ax, epochs:epochs:length(losses),
+    mean.(Iterators.partition(losses, epochs)),
+    label="epoch mean"
+)
+axislegend()
+fig
 
 
 # To test the trained model , we generate some test data, different to the training set
@@ -231,8 +251,18 @@ testing_sat = reshape(testing_sat, 1, :)
 test_y = JutulDarcy.brooks_corey_relperm.(testing_sat, n = exponent, residual = sr_g, residual_total = r_tot)
 pred_y = Lux.apply(BrooksCoreyMLModel, testing_sat, tstate.parameters, tstate.states)[1]
 
-plot(vec(testing_sat), vec(test_y), label="Brooks-Corey RelPerm", xlabel="Saturation", ylabel="Relative Permeability", title="Saturation vs. Relative Permeability")
-plot!(vec(testing_sat), vec(pred_y), label="ML model RelPerm", xlabel="Saturation", ylabel="Relative Permeability", title="Saturation vs. Relative Permeability")
+fig = Figure()
+ax = Axis(fig[1,1],
+    xlabel = "Saturation",
+    ylabel = "Relative Permeability",
+    title = "Saturation vs. Relative Permeability",
+    xticks = 0:0.25:1,
+    yticks = 0:0.25:1
+)
+lines!(ax, vec(testing_sat), vec(test_y), label="Brooks-Corey RelPerm")
+lines!(ax, vec(testing_sat), vec(pred_y), label="ML model RelPerm")
+axislegend(ax, position = :lt)
+fig
 
 # The plot demonstrates that our neural network has successfully learned to approximate the Brooks-Corey relative permeability curve.
 # This close match between the analytical solution and the ML model's predictions indicates that we can use this trained neural network in our simulation model.
@@ -297,7 +327,6 @@ ml_wd, ml_states, ml_t = simulate_reservoir(ml_state0, ml_model, ml_dt, paramete
 
 
 # We can now compare the results of the reference simulation and the simulation with the neural network-based relative permeability model.
-using GLMakie
 function plot_comparison(ref_wd, ml_wd, ref_t, ml_t)
     fig = Figure(size = (1200, 800))
 
