@@ -634,13 +634,16 @@ function setup_reservoir_simulator(case::JutulCase;
         relaxation = false,
         presolve_wells = false,
         parray_arg = Dict{Symbol, Any}(),
-        set_linear_solver = linear_solver isa Symbol || ismissing(linear_solver),
+        set_linear_solver = missing,
         linear_solver_arg = Dict{Symbol, Any}(),
         extra_timing_setup = false,
         nldd_partition = missing,
         nldd_arg = Dict{Symbol, Any}(),
         kwarg...
     )
+    if ismissing(set_linear_solver)
+        set_linear_solver = linear_solver isa Symbol || ismissing(linear_solver)
+    end
     # Handle old kwarg...
     max_timestep = min(max_dt, max_timestep)
     extra_kwarg = Dict{Symbol, Any}()
