@@ -2,7 +2,6 @@ function simulate_mini_wellcase(::Val{:compositional_2ph_3c};
         dims = (3, 1, 1),
         setuparg = NamedTuple(),
         output_path = nothing,
-        default_linsolve = true,
         nstep = 12*5,
         total_time = 30.0*si_unit(:day)*nstep,
         kwarg...
@@ -52,7 +51,6 @@ function simulate_mini_wellcase(::Val{:compositional_2ph_3c};
     sim, config = setup_reservoir_simulator(
         model, state0, parameters;
         info_level = -1,
-        set_linear_solver = !default_linsolve,
         error_on_incomplete = true,
         output_path = output_path,
         setuparg...,
@@ -76,7 +74,6 @@ function simulate_mini_wellcase(::Val{:immiscible_2ph};
         permeability = 0.1*9.869232667160130e-13,
         nstep = 12*5,
         total_time = 30.0*si_unit(:day)*nstep,
-        default_linsolve = true,
         kwarg...)
     # Some useful constants
     day = 3600*24
@@ -125,7 +122,6 @@ function simulate_mini_wellcase(::Val{:immiscible_2ph};
     sim, config = setup_reservoir_simulator(
         model, state0, parameters;
         info_level = -1,
-        set_linear_solver = !default_linsolve,
         output_path = output_path,
         error_on_incomplete = true,
         setuparg...
@@ -145,7 +141,6 @@ function simulate_mini_wellcase(::Val{:bo_spe1};
         dims = (3, 1, 1),
         setuparg = NamedTuple(),
         output_path = nothing,
-        default_linsolve = true,
         nstep = 12*5,
         total_time = 30.0*si_unit(:day)*nstep,
         kwarg...
@@ -199,7 +194,6 @@ function simulate_mini_wellcase(::Val{:bo_spe1};
     sim, config = setup_reservoir_simulator(
         model, state0, parameters;
         info_level = -1,
-        set_linear_solver = !default_linsolve,
         output_path = output_path,
         error_on_incomplete = true,
         setuparg...
