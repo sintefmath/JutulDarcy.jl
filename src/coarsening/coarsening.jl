@@ -227,6 +227,15 @@ function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, me
         p = Int64.(p)
     end
     p = Jutul.process_partition(mesh, p)
+    if wells_in_single_block
+        # Could have split up things that are actually connected by wells.
+        for group in partitioner_well_groups(model)
+            group_t = unique!(p[group])
+            for i in 2:length(group_t)
+                p[findall(isequal(group_t[i]), p)] .= group_t[1]
+            end
+        end
+    end
     p = Jutul.compress_partition(p)
     return p
 end
