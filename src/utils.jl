@@ -1387,17 +1387,24 @@ function partitioner_input(model, parameters; conn = :trans)
             error("conn must be one of :trans, :unit or :logtrans, was $conn")
         end
     end
+    groups = partitioner_well_groups(model)
+    return (N, T, groups)
+end
+
+function partitioner_well_groups(model::MultiModel)
     groups = Vector{Vector{Int}}()
-    if model isa MultiModel
-        for (k, m) in pairs(model.models)
-            wg = physical_representation(m.domain)
-            if wg isa WellDomain
-                rcells = vec(Int.(wg.perforations.reservoir))
-                push!(groups, rcells)
-            end
+    for (k, m) in pairs(model.models)
+        wg = physical_representation(m.domain)
+        if wg isa WellDomain
+            rcells = vec(Int.(wg.perforations.reservoir))
+            push!(groups, rcells)
         end
     end
-    return (N, T, groups)
+    return groups
+end
+
+function partitioner_well_groups(model)
+    return Vector{Vector{Int}}()
 end
 
 function reservoir_partition(model::MultiModel, p)
