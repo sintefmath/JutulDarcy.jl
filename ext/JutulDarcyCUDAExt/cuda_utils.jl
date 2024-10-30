@@ -1,4 +1,5 @@
 function JutulDarcy.build_gpu_block_system(Ti, Tv, sz::Tuple{Int, Int}, blockDim::Int, rowptr, colval, nzval, r0)
+    ensure_minimum_block_values!(nzval, blockDim)
     rowPtr = CuVector{Ti}(rowptr)
     colVal = CuVector{Ti}(colval)
     nzVal = CuVector{Tv}(nzval)
@@ -10,8 +11,13 @@ function JutulDarcy.build_gpu_block_system(Ti, Tv, sz::Tuple{Int, Int}, blockDim
     return (J_bsr, r_cu)
 end
 
-function JutulDarcy.update_gpu_block_system!(J, blockDim, nzval, ϵ = 1e-12)
-    if ϵ > 0.0 && false
+function JutulDarcy.update_gpu_block_system!(J, blockDim, nzval)
+    ensure_minimum_block_values!(nzval, blockDim)
+    copyto!(J.nzVal, nzval)
+end
+
+function ensure_minimum_block_values!(nzval, blockDim, ϵ = 1e-12)
+    if ϵ > 0.0
         for (i, v) in enumerate(nzval)
             if abs(v) < ϵ
                 if v > 0
@@ -23,7 +29,7 @@ function JutulDarcy.update_gpu_block_system!(J, blockDim, nzval, ϵ = 1e-12)
             end
         end
     end
-    copyto!(J.nzVal, nzval)
+    return nzval
 end
 
 function JutulDarcy.update_gpu_block_residual!(r_cu, blockDim, r)
