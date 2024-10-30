@@ -568,13 +568,6 @@ end
 function aspen_forces(forces, submodels)
     return (outer = forces, subdomains = map(x -> subforces(forces, x), submodels))
 end
-function partition_internal_metis(model, parameters, np, do_print = true)
-    if do_print
-        jutul_message("Partition", "Generating $np coarse blocks using Metis.")
-    end
-    N, T, groups = JutulDarcy.partitioner_input(model, parameters, conn = :unit)
-    return Jutul.partition_hypergraph(N, np, groups = groups)
-end
 
 function Jutul.progress_recorder(sim::NLDDSimulator)
     return sim.simulator.storage.recorder
