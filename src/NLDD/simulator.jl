@@ -14,6 +14,8 @@ function NLDDSimulator(case::JutulCase, partition = missing;
         cells_per_block = missing,
         mpi_sync_after_solve = true,
         no_blocks = missing,
+        partitioner_type = :metis,
+        partitioner_arg = (partitioner_conn_type = :unit,),
         specialize_submodels = false,
         kwarg...
     )
@@ -33,7 +35,8 @@ function NLDDSimulator(case::JutulCase, partition = missing;
             @assert ismissing(no_blocks)
             N = Int64(clamp(ceil(nc/cells_per_block), 1, nc))
         end
-        p = partition_from_N(model, parameters, N)
+        jutul_message("Partition", "Generating $N coarse blocks using $partitioner_type.")
+        p = JutulDarcy.partition_reservoir(case, N, partitioner_type; partitioner_arg..., wells_in_single_block = true)
         partition = reservoir_partition(model, p);
     elseif partition isa Vector{Int}
         # Convert it.
