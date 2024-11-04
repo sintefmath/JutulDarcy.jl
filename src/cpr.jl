@@ -639,7 +639,7 @@ function should_update_cpr(cpr, rec, type = :amg)
             crit = it == 1
         elseif interval == :step
             n = outer_step
-            crit = it == 1
+            crit = it == 1 && ministep == 1
         else
             error("Bad parameter update_frequency: $interval")
         end
