@@ -156,6 +156,8 @@ function Jutul.perform_step!(
     strategy = config[:strategy]
 
     base_arg = (simulator, dt, forces, config, iteration)
+    s = simulator.simulator
+    @tic "secondary variables" Jutul.update_secondary_variables!(s.storage, s.model)
     if executor isa Jutul.DefaultExecutor
         # This means we are not in MPI and we must call this part manually. This
         # contains the entire local stage of the algorithm.
@@ -258,12 +260,7 @@ function local_stage(simulator, dt, forces, config, iteration)
         # Update state0
         # state0 should have the right secondary variables since it comes from a converged state.
         update_subdomain_from_global(sim_global, subsim, i, current = false, transfer_secondary = true)
-        # We do not transfer the secondaries. This means that they are
-        # updated/recomputed locally. The current primary variables in the
-        # global state have been updated by the last global stage and the
-        # secondary variables are then "out of sync". The local solvers do the
-        # work of recomputing them.
-        update_subdomain_from_global(sim_global, subsim, i, current = true, transfer_secondary = iteration == 1)
+        update_subdomain_from_global(sim_global, subsim, i, current = true, transfer_secondary = true)
         should_solve = check_if_subdomain_needs_solving(change_buffer, subsim, config, iteration)
         do_solve[i] = should_solve
     end
@@ -288,13 +285,13 @@ function local_stage(simulator, dt, forces, config, iteration)
         subreports[i] = rep
         solve_status[i] = get_solve_status(rep, ok)
         # Still need to transfer over secondary variables
-        if !ok
+        if ok
+            update_global_from_subdomain(sim_global, sim, i, secondary = true)
+        else
             if config[:info_level] > 0
                 Jutul.jutul_message("Failure $i", color = :red)
             end
-            update_subdomain_from_global(sim_global, sim, i, current = true, transfer_secondary = false)
         end
-        update_global_from_subdomain(sim_global, sim, i, secondary = true)
         return ok
     end
     # Now that we have the main functions set up we can do either kind of local solves
