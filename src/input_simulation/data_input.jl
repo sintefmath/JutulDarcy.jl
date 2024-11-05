@@ -1683,8 +1683,9 @@ function keyword_to_control(sys, streams, kw, ::Val{:WCONPROD}; kwarg...)
     wrat = kw[5]
     grat = kw[6]
     lrat = kw[7]
+    resv = kw[8]
     bhp = kw[9]
-    return producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; kwarg...)
+    return producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; resv = resv, kwarg...)
 end
 
 function keyword_to_control(sys, streams, kw, ::Val{:WCONHIST}; kwarg...)
@@ -1724,7 +1725,7 @@ function producer_limits(; bhp = Inf, lrat = Inf, orat = Inf, wrat = Inf, grat =
     return NamedTuple(pairs(lims))
 end
 
-function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = false, temperature = NaN, kwarg...)
+function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = false, temperature = NaN, resv = 0.0, kwarg...)
     rho_s = reference_densities(sys)
     phases = get_phases(sys)
 
@@ -1751,12 +1752,14 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
             t = BottomHolePressureTarget(self_val)
             is_rate = false
         elseif ctrl == "RESV"
-            self_val = -(wrat + orat + grat)
-            w = [wrat, orat, grat]
-            w = w./sum(w)
             if is_hist
+                self_val = -(wrat + orat + grat)
+                w = [wrat, orat, grat]
+                w = w./sum(w)
                 t = HistoricalReservoirVoidageTarget(self_val, w)
             else
+                self_val = resv
+                w = [1.0, 1.0, 1.0]
                 t = ReservoirVoidageTarget(self_val, w)
             end
         else
