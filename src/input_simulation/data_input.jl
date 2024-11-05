@@ -998,9 +998,6 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
         end
         extra_data_arg[:temperature] = temperature
     end
-    if haskey(grid, "THCROCK")
-        extra_data_arg[:rock_thermal_conductivity] = grid["THCROCK"][active_ix]
-    end
     has(name) = haskey(data_file["RUNSPEC"], name) && data_file["RUNSPEC"][name]
 
     if has("THERMAL")
@@ -1008,11 +1005,19 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
         o = has("OIL")
         g = has("GAS")
         fluid_conductivity = zeros(w+o+g, nc)
-        pos = 1
-        for phase in ("WATER", "OIL", "GAS")
-            if has(phase)
-                fluid_conductivity[pos, :] .= grid["THC$phase"][active_ix]
-                pos += 1
+        if haskey(grid, "THCONR")
+            @assert !haskey(grid, "THCROCK") "THCONR and THCROCK should not be used together."
+            extra_data_arg[:rock_thermal_conductivity] = grid["THCONR"][active_ix]
+        else
+            pos = 1
+            for phase in ("WATER", "OIL", "GAS")
+                if has(phase)
+                    fluid_conductivity[pos, :] .= grid["THC$phase"][active_ix]
+                    pos += 1
+                end
+            end
+            if haskey(grid, "THCROCK")
+                extra_data_arg[:rock_thermal_conductivity] = grid["THCROCK"][active_ix]
             end
         end
         extra_data_arg[:fluid_thermal_conductivity] = fluid_conductivity
