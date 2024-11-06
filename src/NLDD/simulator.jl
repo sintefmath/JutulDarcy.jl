@@ -122,7 +122,11 @@ function NLDDSimulator(case::JutulCase, partition = missing;
         storage[:black_oil_primary_buffers] = map(s -> black_oil_primary_buffers(s.storage, s.model), subsim)
     end
     # storage[:local_changes] = map(s -> reservoir_change_buffers(s.storage, s.model), subsim)
-    storage[:state_mirror] = deepcopy(outer_sim.storage.state0)
+    state_mirror = outer_sim.storage.state0
+    if haskey(state_mirror, :Reservoir)
+        state_mirror = state_mirror[:Reservoir]
+    end
+    storage[:state_mirror] = deepcopy(state_mirror)
     storage[:boundary_discretizations] = map((s) -> boundary_discretization(outer_sim.storage, outer_sim.model, s.model, s.storage), subsim)
     storage[:solve_log] = NLDDSolveLog()
     storage[:coarse_neighbors] = coarse_neighbors
@@ -913,7 +917,10 @@ function Jutul.perform_step_per_process_initial_update!(simulator::NLDDSimulator
         failures = []
         status = [local_solve_skipped for i in eachindex(simulator.subdomain_simulators)]
     end
-    update_state_mirror!(simulator.storage.state_mirror, s.storage.state, s.model)
+    solve_tol = get_nldd_solution_change_tolerances(config)
+    if !isnothing(solve_tol)
+        update_state_mirror!(simulator.storage.state_mirror, s.storage.state, s.model, keys(solve_tol))
+    end
 
     report[:subdomains] = subreports
     report[:time_subdomains] = t_sub
@@ -924,12 +931,20 @@ function Jutul.perform_step_per_process_initial_update!(simulator::NLDDSimulator
     return report
 end
 
-function update_state_mirror!(state_mirror, state, m::SimulationModel)
-    Jutul.replace_values!(state_mirror, state)
+function update_state_mirror!(state_mirror, state, m::SimulationModel, flds)
+    for k in flds
+        if haskey(state_mirror, k)
+            nldd_unsafe_replace!(state_mirror[k], state[k])
+        end
+    end
 end
 
-function update_state_mirror!(state_mirror, state, m::MultiModel)
-    for k in Jutul.submodels_symbols(m)
-        update_state_mirror!(state_mirror[k], state[k], m[k])
+function nldd_unsafe_replace!(x, y)
+    for i in eachindex(x, y)
+        @inbounds x[i] = value(y[i])
     end
+end
+
+function update_state_mirror!(state_mirror, state, m::MultiModel, flds)
+    update_state_mirror!(state_mirror, state[:Reservoir], m[:Reservoir], flds)
 end

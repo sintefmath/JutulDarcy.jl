@@ -470,7 +470,7 @@ function check_inner(prev_state, model, state, tol, cells)
 end
 
 function check_subdomain_change_inner(prev_state, cells, model::MultiModel, state, f, tol, sum_t)
-    return check_subdomain_change_inner(prev_state[:Reservoir], cells, model[:Reservoir], state[:Reservoir], f, tol, sum_t)
+    return check_subdomain_change_inner(prev_state, cells, model[:Reservoir], state[:Reservoir], f, tol, sum_t)
 end
 
 function check_subdomain_change_inner(prev_state, cells, model::SimulationModel, state, f, tol::Nothing, sum_t)
