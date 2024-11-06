@@ -922,7 +922,7 @@ function Jutul.perform_step_per_process_initial_update!(simulator::NLDDSimulator
     end
     solve_tol = get_nldd_solution_change_tolerances(config)
     if !isnothing(solve_tol)
-        update_state_mirror!(simulator.storage.state_mirror, s.storage.state, s.model, keys(solve_tol))
+        update_state_mirror!(simulator.storage.state_mirror, s.storage.state, s.model, solve_tol)
     end
 
     report[:subdomains] = subreports
@@ -935,8 +935,8 @@ function Jutul.perform_step_per_process_initial_update!(simulator::NLDDSimulator
 end
 
 function update_state_mirror!(state_mirror, state, m::SimulationModel, flds)
-    for k in flds
-        if haskey(state_mirror, k)
+    for (k, v) in pairs(flds)
+        if !isnothing(v) && haskey(state_mirror, k)
             nldd_unsafe_replace!(state_mirror[k], state[k])
         end
     end
