@@ -102,5 +102,6 @@ function JutulDarcy.gpu_cpr_setup_buffers!(cpr, J_bsr, r_cu, op)
     w_p_gpu = data[:w_p]
     @assert size(w_p_cpu) == size(w_p_gpu)
     copyto!(w_p_gpu, w_p_cpu)
+    AMGX.CUDA.synchronize()
     return cpr
 end
