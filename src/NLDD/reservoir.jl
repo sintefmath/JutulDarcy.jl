@@ -385,18 +385,6 @@ function reservoir_change_buffers(storage, model::MultiModel)
     return reservoir_change_buffers(storage[:Reservoir], model[:Reservoir], extra_cells = extra_cells)
 end
 
-function store_reservoir_change_buffer!(buf, sim, cfg)
-    model = sim.model
-    state = sim.storage.state
-    if model isa MultiModel
-        model = model[:Reservoir]
-        state = state.Reservoir
-    end
-
-    tols = get_nldd_solution_change_tolerances(cfg)
-    store_reservoir_change_buffer_inner!(buf, tols, model, state)
-end
-
 function get_nldd_solution_change_tolerances(cfg)
     function expand_tol(val::Nothing, avg::Nothing)
         return nothing
@@ -440,7 +428,7 @@ function get_nldd_solution_change_tolerances(cfg)
     return out
 end
 
-function check_if_subdomain_needs_solving(buf, sim, cfg, iteration)
+function check_if_subdomain_needs_solving(prev_state, state, sim, cfg, iteration)
     tol = get_nldd_solution_change_tolerances(cfg)
     model = sim.model
     has_wells = model isa MultiModel && length(model.models) > 1
@@ -453,14 +441,14 @@ function check_if_subdomain_needs_solving(buf, sim, cfg, iteration)
         if iteration == 1
             do_solve = !cfg[:solve_tol_first_newton]
         else
-            state = sim.storage.state
-            do_solve = check_inner(buf, model, state, tol)
+            cells = reservoir_model(sim.model).domain.global_map.cells
+            do_solve = check_inner(prev_state, model, state, tol, cells)
         end
     end
     return do_solve
 end
 
-function check_inner(buf, model, state, tol)
+function check_inner(prev_state, model, state, tol, cells)
     do_solve = false
     criteria = (
         (:Saturations, :abs),
@@ -473,7 +461,7 @@ function check_inner(buf, model, state, tol)
         (:PhaseMassDensities, :abs),
         )
     for (k, t) in criteria
-        do_solve = do_solve || check_subdomain_change_inner(buf, model, state, k, tol[k], t)
+        do_solve = do_solve || check_subdomain_change_inner(prev_state, cells, model, state, k, tol[k], t)
         if do_solve
             break
         end
@@ -481,58 +469,27 @@ function check_inner(buf, model, state, tol)
     return do_solve
 end
 
-function store_reservoir_change_buffer_inner!(buf, tols::Nothing, model, state)
-    # No tolerances, do nothing.
+function check_subdomain_change_inner(prev_state, cells, model::MultiModel, state, f, tol, sum_t)
+    return check_subdomain_change_inner(prev_state[:Reservoir], cells, model[:Reservoir], state[:Reservoir], f, tol, sum_t)
 end
 
-function store_reservoir_change_buffer_inner!(buf, tols, model, state)
-    function buf_transfer!(out::Vector, in::Vector, cells)
-        for i in eachindex(cells)
-            c = cells[i]
-            @inbounds out[i] = value(in[c])
-        end
-    end
-    function buf_transfer!(out::Matrix, in::Matrix, cells)
-        for i in eachindex(cells)
-            c = cells[i]
-            for j in axes(out, 1)
-                @inbounds out[j, i] = value(in[j, c])
-            end
-        end
-    end
-    cells = buf.Cells
-    for (k, v) in pairs(buf)
-        if k == :Cells
-            continue
-        end
-        if isnothing(tols[k])
-            continue
-        end
-        vals = state[k]
-        buf_transfer!(v, vals, cells)
-    end
-end
-
-function check_subdomain_change_inner(buf, model::MultiModel, state, f, tol, sum_t)
-    return check_subdomain_change_inner(buf, model[:Reservoir], state[:Reservoir], f, tol, sum_t)
-end
-
-function check_subdomain_change_inner(buf, model::SimulationModel, state, f, tol::Nothing, sum_t)
+function check_subdomain_change_inner(prev_state, cells, model::SimulationModel, state, f, tol::Nothing, sum_t)
     return false
 end
 
-function check_subdomain_change_inner(buf, model::SimulationModel, state, f, tol, sum_t)
+function check_subdomain_change_inner(prev_state, cells, model::SimulationModel, state, f, tol, sum_t)
     if isnothing(tol)
         out = false # No tolerance - no need to check
     elseif haskey(state, f)
-        cells = buf.Cells
         state_val = state[f]
+        prev_state_val = prev_state[f]
         if state_val isa Matrix
             current = view(state_val, :, cells)
+            old = view(prev_state_val, :, cells)
         else
             current = view(state_val, cells)
+            old = view(prev_state_val, cells)
         end
-        old = buf[f]
         if sum_t == :relsum
             current::AbstractMatrix
             out = subdomain_delta_relsum(current, old, tol)
