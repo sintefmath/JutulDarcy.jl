@@ -121,7 +121,8 @@ function NLDDSimulator(case::JutulCase, partition = missing;
     if reservoir_model(model) isa JutulDarcy.StandardBlackOilModel
         storage[:black_oil_primary_buffers] = map(s -> black_oil_primary_buffers(s.storage, s.model), subsim)
     end
-    storage[:local_changes] = map(s -> reservoir_change_buffers(s.storage, s.model), subsim)
+    # storage[:local_changes] = map(s -> reservoir_change_buffers(s.storage, s.model), subsim)
+    storage[:state_mirror] = deepcopy(outer_sim.storage.state0)
     storage[:boundary_discretizations] = map((s) -> boundary_discretization(outer_sim.storage, outer_sim.model, s.model, s.storage), subsim)
     storage[:solve_log] = NLDDSolveLog()
     storage[:coarse_neighbors] = coarse_neighbors
@@ -154,10 +155,8 @@ function Jutul.perform_step!(
     )
     log = simulator.storage[:solve_log]
     strategy = config[:strategy]
-
     base_arg = (simulator, dt, forces, config, iteration)
     s = simulator.simulator
-    @tic "secondary variables" Jutul.update_secondary_variables!(s.storage, s.model)
     if executor isa Jutul.DefaultExecutor
         # This means we are not in MPI and we must call this part manually. This
         # contains the entire local stage of the algorithm.
@@ -248,21 +247,21 @@ function local_stage(simulator, dt, forces, config, iteration)
 
     do_solve = zeros(Bool, n)
     allow_early_termination = config[:subdomain_failure_cuts]
+    global_state_mirror = simulator.storage.state_mirror
+    global_state = sim_global.storage.state
 
     function pre(i)
         subsim = sub_sims[i]
-        change_buffer = simulator.storage.local_changes[i]
-        store_reservoir_change_buffer!(change_buffer, subsim, config)
         # Make sure that recorder is updated to match global context
         rec_global = sim_global.storage.recorder
         rec_local = subsim.storage.recorder
         Jutul.reset!(rec_local, rec_global)
-        # Update state0
-        # state0 should have the right secondary variables since it comes from a converged state.
-        update_subdomain_from_global(sim_global, subsim, i, current = false, transfer_secondary = true)
-        update_subdomain_from_global(sim_global, subsim, i, current = true, transfer_secondary = true)
-        should_solve = check_if_subdomain_needs_solving(change_buffer, subsim, config, iteration)
+        should_solve = check_if_subdomain_needs_solving(global_state_mirror, global_state, subsim, config, iteration)
         do_solve[i] = should_solve
+        if should_solve
+            update_subdomain_from_global(sim_global, subsim, i, current = false, transfer_secondary = true)
+            update_subdomain_from_global(sim_global, subsim, i, current = true, transfer_secondary = true)
+        end
     end
     function solve_and_transfer(i)
         should_solve = do_solve[i]
@@ -275,6 +274,10 @@ function local_stage(simulator, dt, forces, config, iteration)
             end
             # cfg[:always_update_secondary] = true
             ok, rep = solve_subdomain(sim, i, dt, forces, cfg)
+            if ok
+                # Still need to transfer over secondary variables
+                update_global_from_subdomain(sim_global, sim, i, secondary = true)
+            end
         else
             if il_i > 0
                 jutul_message("Subdomain: $i", "Skipping subdomain.")
@@ -284,13 +287,8 @@ function local_stage(simulator, dt, forces, config, iteration)
         end
         subreports[i] = rep
         solve_status[i] = get_solve_status(rep, ok)
-        # Still need to transfer over secondary variables
-        if ok
-            update_global_from_subdomain(sim_global, sim, i, secondary = true)
-        else
-            if config[:info_level] > 0
-                Jutul.jutul_message("Failure $i", color = :red)
-            end
+        if !ok && config[:info_level] > 0
+            Jutul.jutul_message("Failure $i", color = :red)
         end
         return ok
     end
@@ -895,6 +893,9 @@ function Jutul.perform_step_per_process_initial_update!(simulator::NLDDSimulator
     strategy = config[:strategy]
     e = NaN
     converged = false
+    s = simulator.simulator
+    t_secondary = @elapsed @tic "secondary variables" Jutul.update_secondary_variables!(s.storage, s.model)
+    report[:secondary_time] += t_secondary
 
     base_arg = (simulator, dt, forces, config, iteration)
     if iteration == 1
@@ -912,12 +913,23 @@ function Jutul.perform_step_per_process_initial_update!(simulator::NLDDSimulator
         failures = []
         status = [local_solve_skipped for i in eachindex(simulator.subdomain_simulators)]
     end
+    update_state_mirror!(simulator.storage.state_mirror, s.storage.state, s.model)
+
     report[:subdomains] = subreports
     report[:time_subdomains] = t_sub
     report[:subdomain_failures] = failures
     report[:local_solves_active] = active
     report[:solve_order] = solve_order
     report[:solve_status] = status
-
     return report
+end
+
+function update_state_mirror!(state_mirror, state, m::SimulationModel)
+    Jutul.replace_values!(state_mirror, state)
+end
+
+function update_state_mirror!(state_mirror, state, m::MultiModel)
+    for k in Jutul.submodels_symbols(m)
+        update_state_mirror!(state_mirror[k], state[k], m[k])
+    end
 end
