@@ -38,7 +38,6 @@ function Jutul.linear_solve!(lsys::Jutul.LSystem,
     L = lsys[1,1]
     J = L.jac
     J::Jutul.StaticSparsityMatrixCSR
-    csr_block_buffer = L.jac_buffer
 
     bz = Jutul.block_size(L)
     sz = size(J)
@@ -46,10 +45,13 @@ function Jutul.linear_solve!(lsys::Jutul.LSystem,
     @assert n == m
     is_first = !haskey(krylov.data, :J)
     t_setup = @elapsed @tic "initial_gpu" if is_first
+        csr_block_buffer = pin_cpu_memory(L.jac_buffer)
+        krylov.data[:csr_buffer] = csr_block_buffer
         krylov.data[:J], krylov.data[:r] = build_gpu_block_system(Ti, Tv, sz, bz, J.At.colptr, J.At.rowval, csr_block_buffer, r)
         krylov.data[:schur] = build_gpu_schur_system(Ti, Tv, bz, lsys)
-        krylov.data[:dx_cpu] = zeros(n*bz)
+        krylov.data[:dx_cpu] = pin_cpu_memory(zeros(n*bz))
     end
+    csr_block_buffer = krylov.data[:csr_buffer]
     J_bsr = krylov.data[:J]
     r_cu = krylov.data[:r]
     schur = krylov.data[:schur]
@@ -106,6 +108,10 @@ function Jutul.linear_solve!(lsys::Jutul.LSystem,
 end
 
 function gpu_update_preconditioner!
+
+end
+
+function pin_cpu_memory
 
 end
 

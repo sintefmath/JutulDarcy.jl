@@ -42,7 +42,7 @@ end
 
 function Jutul.apply!(x, amgx::JutulDarcy.AMGXPreconditioner, r)
     # TODO: This sync call is maybe needd?
-    AMGX.CUDA.synchronize()
+    # AMGX.CUDA.synchronize()
     s = amgx.data[:storage]
     bz = amgx.data[:block_size]::Int
     n = amgx.data[:n]::Int

@@ -70,13 +70,17 @@ function JutulDarcy.build_gpu_schur_system(Ti, Tv, bz, lsys::MultiLinearizedSyst
     # ldiv!(b_buf_1, E_i, b_buf_2)
     # mul!(res, C_i, b_buf_1, -α, true)
 
+    D_nzval = CUDA.pin(D_cpu.nzval)
+    C_nzval = CUDA.pin(C_cpu.nzval)
     return Dict(
         :C => C,
         :D => D,
         :buf => buf,
-        :buf_1_cpu => buf_1_cpu,
-        :buf_2_cpu => buf_2_cpu,
-        :E_factor => E_factor
+        :buf_1_cpu => CUDA.pin(buf_1_cpu),
+        :buf_2_cpu => CUDA.pin(buf_2_cpu),
+        :E_factor => E_factor,
+        :D_nzval => D_nzval,
+        :C_nzval => C_nzval
     )
 end
 
@@ -86,9 +90,9 @@ end
 
 function JutulDarcy.update_gpu_schur_system!(schur, lsys)
     C_cpu = lsys[1, 2].jac
-    copyto!(schur[:C].nzVal, C_cpu.nzval)
+    copyto!(schur[:C].nzVal, schur[:C_nzval])
     D_cpu = lsys[2, 1].jac
-    copyto!(schur[:D].nzVal, D_cpu.nzval)
+    copyto!(schur[:D].nzVal, schur[:D_nzval])
     return schur
 end
 
@@ -120,4 +124,8 @@ function JutulDarcy.schur_mul_gpu!(y, x, α, β, J, C, D, buf::CuVector, buf1_cp
     end
     mul!(y, C, buf, -α, true)
     return y
+end
+
+function JutulDarcy.pin_cpu_memory(x)
+    return CUDA.pin(x)
 end

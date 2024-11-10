@@ -87,6 +87,7 @@ function JutulDarcy.gpu_cpr_setup_buffers!(cpr, J_bsr, r_cu, op)
     data = cpr.pressure_precond.data
     cpr_s = cpr.storage
     if !haskey(data, :w_p)
+        data[:w_p_cpu] = CUDA.pin(cpr_s.w_p)
         Tv = eltype(r_cu)
         n = length(r_cu)
         bz = cpr_s.block_size
@@ -97,11 +98,11 @@ function JutulDarcy.gpu_cpr_setup_buffers!(cpr, J_bsr, r_cu, op)
         data[:main_system] = J_bsr
         data[:operator] = op
     end
+    w_p_cpu = data[:w_p_cpu]
     # Put updated weights on GPU
-    w_p_cpu = cpr_s.w_p
     w_p_gpu = data[:w_p]
     @assert size(w_p_cpu) == size(w_p_gpu)
     copyto!(w_p_gpu, w_p_cpu)
-    AMGX.CUDA.synchronize()
+    # AMGX.CUDA.synchronize()
     return cpr
 end
