@@ -22,10 +22,10 @@ function update_preconditioner!(amg::AMGXPreconditioner, A::Jutul.StaticSparsity
 end
 
 function JutulDarcy.gpu_update_preconditioner!(cpr::AMGXCPR, lsys, model, storage, recorder, executor, krylov, J_bsr, r_cu, op)
-    Jutul.update_preconditioner!(cpr, lsys, model, storage, recorder, executor, update_system_precond = false)
+    @tic "CPU cpr work" Jutul.update_preconditioner!(cpr, lsys, model, storage, recorder, executor, update_system_precond = false)
     # Transfer pressure system to GPU
-    JutulDarcy.gpu_update_preconditioner!(cpr.system_precond, lsys, model, storage, recorder, executor, krylov, J_bsr, r_cu, op)
-    JutulDarcy.update_amgx_pressure_system!(cpr.pressure_precond, cpr.storage.A_p, eltype(J_bsr))
+    @tic "update system precond" JutulDarcy.gpu_update_preconditioner!(cpr.system_precond, lsys, model, storage, recorder, executor, krylov, J_bsr, r_cu, op)
+    @tic "update pressure system" JutulDarcy.update_amgx_pressure_system!(cpr.pressure_precond, cpr.storage.A_p, eltype(J_bsr))
     # How to get the linear operator in here?
     gpu_cpr_setup_buffers!(cpr, J_bsr, r_cu, op)
 end
@@ -44,19 +44,19 @@ end
 
 function Jutul.apply!(x, cpr::AMGXCPR, r)
     # Apply smoother
-    Jutul.apply!(x, cpr.system_precond, r)
+    @tic "system precond apply" Jutul.apply!(x, cpr.system_precond, r)
     # Correct the residual
     A_ps = cpr.pressure_precond.data[:operator]
     r_corrected = cpr.pressure_precond.data[:buffer_full]
-    JutulDarcy.correct_residual!(r_corrected, A_ps, x)
+    @tic "residual correction" JutulDarcy.correct_residual!(r_corrected, A_ps, x)
     # Construct pressure residual
     r_p = cpr.pressure_precond.data[:buffer_p]
     w_p = cpr.pressure_precond.data[:w_p]
     ncomp, ncell = size(w_p)
-    gpu_reduce_residual!(r_p, w_p, r)
+    @tic "residual reduction" gpu_reduce_residual!(r_p, w_p, r)
     # Apply pressure preconditioner
     amgx = cpr.pressure_precond
-    dp = gpu_amgx_solve!(amgx, r_p)
+    @tic "AMGX apply" dp = gpu_amgx_solve!(amgx, r_p)
     # Update increments for pressure
-    gpu_increment_pressure!(x, dp)
+    @tic "increment pressure" gpu_increment_pressure!(x, dp)
 end

@@ -76,9 +76,9 @@ function update_pressure_system!(amgx::AMGXPreconditioner, A::Jutul.StaticCSR.St
         s = amgx.data[:storage]
         A_gpu = s.matrix
         @assert nnz(A) == nnz(A_gpu)
-        AMGX.replace_coefficients!(A_gpu, A.At.nzval)
+        @tic "AMGX coefficients" AMGX.replace_coefficients!(A_gpu, A.At.nzval)
     end
-    AMGX.setup!(s.solver, s.matrix)
+    @tic "AMGX setup" AMGX.setup!(s.solver, s.matrix)
     return amgx
 end
 
@@ -102,7 +102,7 @@ function JutulDarcy.gpu_cpr_setup_buffers!(cpr, J_bsr, r_cu, op)
     # Put updated weights on GPU
     w_p_gpu = data[:w_p]
     @assert size(w_p_cpu) == size(w_p_gpu)
-    copyto!(w_p_gpu, w_p_cpu)
+    @tic "weights to gpu" copyto!(w_p_gpu, w_p_cpu)
     # AMGX.CUDA.synchronize()
     return cpr
 end
