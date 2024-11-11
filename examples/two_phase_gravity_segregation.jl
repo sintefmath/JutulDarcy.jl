@@ -25,26 +25,30 @@ rhoVS = 100.0*kg/meter^3
 cl, cv = 1e-5/bar, 1e-4/bar
 L, V = LiquidPhase(), VaporPhase()
 sys = ImmiscibleSystem([L, V])
-model = SimulationModel(domain, sys)
+model = SimulationModel(domain, sys);
 #-
 # ### Definition for phase mass densities
 # Replace default density with a constant compressibility function that uses the
 # reference values at the initial pressure.
 density = ConstantCompressibilityDensities(sys, p0, [rhoLS, rhoVS], [cl, cv])
-set_secondary_variables!(model, PhaseMassDensities = density)
+set_secondary_variables!(model, PhaseMassDensities = density);
 # ### Set up initial state
 # Put heavy phase on top and light phase on bottom. Saturations have one value
 # per phase, per cell and consequently a per-cell instantiation will require a
-# two by number of cells matrix as input.
+# two by number of cells matrix as input. We also set up time-steps for the
+# simulation, using the provided conversion factor to convert days into seconds.
 nl = nc ÷ 2
 sL = vcat(ones(nl), zeros(nc - nl))'
 s0 = vcat(sL, 1 .- sL)
 state0 = setup_state(model, Pressure = p0, Saturations = s0)
-# Convert time-steps from days to seconds
-timesteps = repeat([0.02]*day, 150)
+timesteps = repeat([0.02]*day, 150);
 #-
 ## Perform simulation
-states, report = simulate(state0, model, timesteps, info_level = -1)
+# We simulate the system using the default linear solver and otherwise default
+# options. Using `simulate` with the default options means that no dynamic
+# timestepping will be used, and the simulation will report on the exact 150
+# steps defined above.
+states, report = simulate(state0, model, timesteps, info_level = -1);
 # ## Plot results
 # The 1D nature of the problem allows us to plot all timesteps simultaneously in
 # 2D. We see that the heavy fluid, colored blue, is initially at the top of the
