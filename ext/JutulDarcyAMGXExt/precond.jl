@@ -4,6 +4,7 @@ function JutulDarcy.gpu_update_preconditioner!(prec::JutulDarcy.AMGXPrecondition
     if haskey(prec.data, :storage)
         s = prec.data[:storage]
         AMGX.replace_coefficients!(s.matrix, nzval)
+        AMGX.resetup!(s.solver, s.matrix)
     else
         Tv = eltype(J_bsr)
         if Tv == Float64
@@ -32,8 +33,9 @@ function JutulDarcy.gpu_update_preconditioner!(prec::JutulDarcy.AMGXPrecondition
         prec.data[:storage] = s
         prec.data[:n] = N
         prec.data[:block_size] = bz
+        AMGX.setup!(s.solver, s.matrix)
     end
-    AMGX.setup!(s.solver, s.matrix)
+    return prec
 end
 
 function Jutul.operator_nrows(prec::JutulDarcy.AMGXPreconditioner)

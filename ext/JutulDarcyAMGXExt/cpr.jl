@@ -1,6 +1,7 @@
 function JutulDarcy.update_amgx_pressure_system!(amgx::AMGXPreconditioner, A::Jutul.StaticCSR.StaticSparsityMatrixCSR, Tv, cpr::JutulDarcy.CPRPreconditioner, recorder)
     do_p_update = JutulDarcy.should_update_cpr(cpr, recorder, :amg)
-    if haskey(amgx.data, :storage)
+    already_setup = haskey(amgx.data, :storage)
+    if already_setup
         if do_p_update || cpr.partial_update
             pb = amgx.data[:buffer_p]
             s = amgx.data[:storage]
@@ -39,7 +40,11 @@ function JutulDarcy.update_amgx_pressure_system!(amgx::AMGXPreconditioner, A::Ju
         amgx.data[:buffer_p] = AMGX.CUDA.CuVector{Tv}(undef, n)
     end
     if do_p_update
-        @tic "AMGX setup" AMGX.setup!(s.solver, s.matrix)
+        @tic "AMGX setup" if already_setup
+            AMGX.resetup!(s.solver, s.matrix)
+        else
+            AMGX.setup!(s.solver, s.matrix)
+        end
     end
     return amgx
 end
