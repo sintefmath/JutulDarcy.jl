@@ -25,9 +25,9 @@ function JutulDarcy.gpu_update_preconditioner!(cpr::AMGXCPR, lsys, model, storag
     @tic "CPU cpr work" Jutul.update_preconditioner!(cpr, lsys, model, storage, recorder, executor, update_system_precond = false)
     # Transfer pressure system to GPU
     @tic "update system precond" JutulDarcy.gpu_update_preconditioner!(cpr.system_precond, lsys, model, storage, recorder, executor, krylov, J_bsr, r_cu, op)
-    @tic "update pressure system" JutulDarcy.update_amgx_pressure_system!(cpr.pressure_precond, cpr.storage.A_p, eltype(J_bsr))
+    @tic "update pressure system" JutulDarcy.update_amgx_pressure_system!(cpr.pressure_precond, cpr.storage.A_p, eltype(J_bsr), cpr, recorder)
     # How to get the linear operator in here?
-    gpu_cpr_setup_buffers!(cpr, J_bsr, r_cu, op)
+    gpu_cpr_setup_buffers!(cpr, J_bsr, r_cu, op, recorder)
 end
 
 function update_amgx_pressure_system!
