@@ -14,7 +14,6 @@ Darcy, bar, kg, meter, day = si_units(:darcy, :bar, :kilogram, :meter, :day)
 
 g = CartesianMesh((1, 1, nc), (1.0, 1.0, 10.0))
 domain = reservoir_domain(g, permeability = 1.0*Darcy)
-#-
 # ## Fluid properties
 # Define two phases liquid and vapor with a 10-1 ratio reference densities and
 # set up the simulation model.
@@ -26,7 +25,6 @@ cl, cv = 1e-5/bar, 1e-4/bar
 L, V = LiquidPhase(), VaporPhase()
 sys = ImmiscibleSystem([L, V])
 model = SimulationModel(domain, sys);
-#-
 # ### Definition for phase mass densities
 # Replace default density with a constant compressibility function that uses the
 # reference values at the initial pressure.
@@ -42,8 +40,7 @@ sL = vcat(ones(nl), zeros(nc - nl))'
 s0 = vcat(sL, 1 .- sL)
 state0 = setup_state(model, Pressure = p0, Saturations = s0)
 timesteps = repeat([0.02]*day, 150);
-#-
-## Perform simulation
+# ## Perform simulation
 # We simulate the system using the default linear solver and otherwise default
 # options. Using `simulate` with the default options means that no dynamic
 # timestepping will be used, and the simulation will report on the exact 150
