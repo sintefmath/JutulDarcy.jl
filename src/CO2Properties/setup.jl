@@ -6,6 +6,7 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
         co2_source = missing,
         co2_density = :nist,
         extra_out = true,
+        parameters = Dict{Symbol, Any}(),
         salt_names = String[],
         salt_mole_fractions = Float64[],
         kwarg...
@@ -40,12 +41,7 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
         error("Unknown physics argument for co2_physics: $co2_physics is not one of :kvalue or :immiscible.")
     end
 
-    out = setup_reservoir_model(reservoir, sys; thermal = thermal, extra_out = extra_out, kwarg...)
-    if extra_out
-        model = out[1]
-    else
-        model = out
-    end
+    model = setup_reservoir_model(reservoir, sys; thermal = thermal, extra_out = false, kwarg...)
 
     outvar = model[:Reservoir].output_variables
     push!(outvar, :Saturations)
@@ -80,6 +76,12 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
                 set_parameters!(m, Temperature = JutulDarcy.Temperature())
             end
         end
+    end
+    if extra_out
+        parameters = setup_parameters(model, parameters)
+        out = (model, parameters)
+    else
+        out = model
     end
     return out
 end

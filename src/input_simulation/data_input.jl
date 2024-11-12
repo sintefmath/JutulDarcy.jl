@@ -845,49 +845,67 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
         extra_data_arg[:pore_volume_multiplier] = multpv
     end
 
-    if haskey(grid, "NTG")
-        ntg = zeros(nc)
-        for (i, c) in enumerate(active_ix)
-            ntg[i] = grid["NTG"][c]
-        end
-        extra_data_arg[:net_to_gross] = ntg
-    end
 
-    for k in ("GRID", "EDIT")
-        # TODO: This is not 100% robust if edit and grid interact.
-        if haskey(data_file, k)
-            if haskey(data_file[k], "PORV")
-                extra_data_arg[:pore_volume_override] = data_file[k]["PORV"][active_ix]
-            end
-        end
-    end
+
 
     tranmult = ones(nf)
-    for k in ("GRID", "EDIT")
-        if haskey(data_file, k)
-            if haskey(data_file[k], "MULTFLT")
-                for (fault, vals) in data_file[k]["MULTFLT"]
-                    fault_faces = get_mesh_entity_tag(G, Faces(), :faults, Symbol(fault))
-                    tranmult[fault_faces] *= vals[1]
+    tran_override = fill(NaN, nf)
+    ijk = map(i -> Jutul.cell_ijk(G, i), 1:nc)
+    for (secname, section) in pairs(data_file)
+        if haskey(section, "NTG")
+            ntg = zeros(nc)
+            for (i, c) in enumerate(active_ix)
+                ntg[i] = section["NTG"][c]
+            end
+            extra_data_arg[:net_to_gross] = ntg
+        end
+        # TODO: This is not 100% robust if edit and grid interact.
+        if haskey(section, "PORV")
+            extra_data_arg[:pore_volume_override] = section["PORV"][active_ix]
+        end
+        # Explicit trans given as cell values
+        for k in ["TRANX", "TRANY", "TRANZ"]
+            if haskey(section, k)
+                d = findfirst(isequal(k[end]), ('X', 'Y', 'Z'))
+                for (c, val) in enumerate(section[k][active_ix])
+                    ijk_c = ijk[c][d]
+                    if !isfinite(val) || val < 0.0
+                        continue
+                    end
+                    for face in G.faces.cells_to_faces[c]
+                        l, r = G.faces.neighbors[face]
+                        if l == c
+                            ijk_other = ijk[r][d]
+                        else
+                            @assert r == c
+                            ijk_other = ijk[l][d]
+                        end
+                        if ijk_other != ijk_c
+                            tran_override[face] = val
+                        end
+                    end
                 end
             end
         end
-    end
-    mult_keys = ("MULTX", "MULTX-", "MULTY", "MULTY-", "MULTZ", "MULTZ-")
-    ijk = map(i -> Jutul.cell_ijk(G, i), 1:nc)
-    for k in mult_keys
-        if haskey(grid, k)
-            mult_on_active = grid[k][active_ix]
-            apply_mult_xyz!(tranmult, k, mult_on_active, G, ijk)
+
+        if haskey(section, "MULTFLT")
+            for (fault, vals) in section["MULTFLT"]
+                fault_faces = get_mesh_entity_tag(G, Faces(), :faults, Symbol(fault))
+                tranmult[fault_faces] *= vals[1]
+            end
         end
-    end
-    if haskey(data_file, "EDIT")
-        edit = data_file["EDIT"]
+        mult_keys = ("MULTX", "MULTX-", "MULTY", "MULTY-", "MULTZ", "MULTZ-")
+        for k in mult_keys
+            if haskey(section, k)
+                mult_on_active = section[k][active_ix]
+                apply_mult_xyz!(tranmult, k, mult_on_active, G, ijk)
+            end
+        end
         for k in ["MULTRANX", "MULTRANY", "MULTRANZ"]
-            if haskey(edit, k)
+            if haskey(section, k)
                 fake_mult = ones(cartdims)
                 direction = k[end]
-                for (I_pair, J_pair, K_pair, val) in edit[k]
+                for (I_pair, J_pair, K_pair, val) in section[k]
                     @. fake_mult[
                         I_pair[1]:I_pair[2],
                         J_pair[1]:J_pair[2],
@@ -980,9 +998,6 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
         end
         extra_data_arg[:temperature] = temperature
     end
-    if haskey(grid, "THCROCK")
-        extra_data_arg[:rock_thermal_conductivity] = grid["THCROCK"][active_ix]
-    end
     has(name) = haskey(data_file["RUNSPEC"], name) && data_file["RUNSPEC"][name]
 
     if has("THERMAL")
@@ -990,11 +1005,19 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
         o = has("OIL")
         g = has("GAS")
         fluid_conductivity = zeros(w+o+g, nc)
-        pos = 1
-        for phase in ("WATER", "OIL", "GAS")
-            if has(phase)
-                fluid_conductivity[pos, :] .= grid["THC$phase"][active_ix]
-                pos += 1
+        if haskey(grid, "THCONR")
+            @assert !haskey(grid, "THCROCK") "THCONR and THCROCK should not be used together."
+            extra_data_arg[:rock_thermal_conductivity] = grid["THCONR"][active_ix]
+        else
+            pos = 1
+            for phase in ("WATER", "OIL", "GAS")
+                if has(phase)
+                    fluid_conductivity[pos, :] .= grid["THC$phase"][active_ix]
+                    pos += 1
+                end
+            end
+            if haskey(grid, "THCROCK")
+                extra_data_arg[:rock_thermal_conductivity] = grid["THCROCK"][active_ix]
             end
         end
         extra_data_arg[:fluid_thermal_conductivity] = fluid_conductivity
@@ -1042,15 +1065,26 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
     if !all(isequal(1.0), tranmult)
         domain[:transmissibility_multiplier, Faces()] = tranmult
     end
+    if any(isfinite, tran_override)
+        domain[:transmissibility_override, Faces()] = tran_override
+    end
     if haskey(grid, "NNC")
         nnc = grid["NNC"]
         if length(nnc) > 0
             domain[:nnc, nothing] = nnc
         end
     end
+    edit = get(data_file, "EDIT", Dict())
     if haskey(grid, "DEPTH")
         for (i, c) in enumerate(active_ix)
             domain[:cell_centroids][3, i] = grid["DEPTH"][c]
+        end
+    elseif haskey(edit, "DEPTH")
+        for (i, c) in enumerate(active_ix)
+            val = edit["DEPTH"][c]
+            if isfinite(val)
+                domain[:cell_centroids][3, i] = val
+            end
         end
     elseif haskey(grid, "ZCORN") && zcorn_depths
         # Option to use ZCORN points to set depths
@@ -1649,8 +1683,9 @@ function keyword_to_control(sys, streams, kw, ::Val{:WCONPROD}; kwarg...)
     wrat = kw[5]
     grat = kw[6]
     lrat = kw[7]
+    resv = kw[8]
     bhp = kw[9]
-    return producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; kwarg...)
+    return producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; resv = resv, kwarg...)
 end
 
 function keyword_to_control(sys, streams, kw, ::Val{:WCONHIST}; kwarg...)
@@ -1690,7 +1725,7 @@ function producer_limits(; bhp = Inf, lrat = Inf, orat = Inf, wrat = Inf, grat =
     return NamedTuple(pairs(lims))
 end
 
-function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = false, temperature = NaN, kwarg...)
+function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = false, temperature = NaN, resv = 0.0, kwarg...)
     rho_s = reference_densities(sys)
     phases = get_phases(sys)
 
@@ -1717,12 +1752,14 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
             t = BottomHolePressureTarget(self_val)
             is_rate = false
         elseif ctrl == "RESV"
-            self_val = -(wrat + orat + grat)
-            w = [wrat, orat, grat]
-            w = w./sum(w)
             if is_hist
+                self_val = -(wrat + orat + grat)
+                w = [wrat, orat, grat]
+                w = w./sum(w)
                 t = HistoricalReservoirVoidageTarget(self_val, w)
             else
+                self_val = resv
+                w = [1.0, 1.0, 1.0]
                 t = ReservoirVoidageTarget(self_val, w)
             end
         else

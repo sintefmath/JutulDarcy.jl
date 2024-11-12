@@ -221,7 +221,7 @@ impact simulation speed.
 - `split_wells=false`: Add a facility model for each well instead of one
   facility model that controls all wells. This must be set to `true` if you want
   to use MPI or nonlinear domain decomposition.
-- `backend=:csc`: Backend to use. Can be `:csc` for serial compressed sparse
+- `backend=:csr`: Backend to use. Can be `:csc` for serial compressed sparse
   column CSC matrix, `:csr` for parallel compressed sparse row matrix. `:csr` is
   a bit faster and is recommended when using MPI, HYPRE or multiple threads.
   `:csc` uses the default Julia format and is interoperable with other Julia
@@ -287,7 +287,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         context = DefaultContext(),
         reservoir_context = nothing,
         general_ad = false,
-        backend = :csc,
+        backend = :csr,
         thermal = false,
         extra_outputs = [:LiquidMassFractions, :VaporMassFractions, :Rs, :Rv, :Saturations],
         split_wells = false,
@@ -612,6 +612,7 @@ function setup_reservoir_simulator(case::JutulCase;
         method = :newton,
         precond = :cpr,
         linear_solver = :bicgstab,
+        linear_solver_backend = :cpu,
         max_timestep = si_unit(:year),
         max_dt = max_timestep,
         rtol = nothing,
@@ -630,18 +631,20 @@ function setup_reservoir_simulator(case::JutulCase;
         failure_cuts_timestep = true,
         max_timestep_cuts = 25,
         inc_tol_dz = Inf,
-        set_linear_solver = true,
         timesteps = :auto,
         relaxation = false,
         presolve_wells = false,
         parray_arg = Dict{Symbol, Any}(),
+        set_linear_solver = missing,
         linear_solver_arg = Dict{Symbol, Any}(),
         extra_timing_setup = false,
         nldd_partition = missing,
         nldd_arg = Dict{Symbol, Any}(),
         kwarg...
     )
-    set_linear_solver = set_linear_solver || linear_solver isa Symbol
+    if ismissing(set_linear_solver)
+        set_linear_solver = linear_solver isa Symbol || ismissing(linear_solver)
+    end
     # Handle old kwarg...
     max_timestep = min(max_dt, max_timestep)
     extra_kwarg = Dict{Symbol, Any}()
@@ -699,6 +702,8 @@ function setup_reservoir_simulator(case::JutulCase;
     if set_linear_solver
         if info_level < 1
             v = -1
+        elseif info_level > 4
+            v = 1
         else
             v = 0
         end
@@ -708,6 +713,7 @@ function setup_reservoir_simulator(case::JutulCase;
             extra_ls = NamedTuple()
         end
         extra_kwarg[:linear_solver] = reservoir_linsolve(case.model, precond;
+            backend = linear_solver_backend,
             rtol = rtol,
             extra_ls...,
             linear_solver_arg...,
@@ -1383,17 +1389,24 @@ function partitioner_input(model, parameters; conn = :trans)
             error("conn must be one of :trans, :unit or :logtrans, was $conn")
         end
     end
+    groups = partitioner_well_groups(model)
+    return (N, T, groups)
+end
+
+function partitioner_well_groups(model::MultiModel)
     groups = Vector{Vector{Int}}()
-    if model isa MultiModel
-        for (k, m) in pairs(model.models)
-            wg = physical_representation(m.domain)
-            if wg isa WellDomain
-                rcells = vec(Int.(wg.perforations.reservoir))
-                push!(groups, rcells)
-            end
+    for (k, m) in pairs(model.models)
+        wg = physical_representation(m.domain)
+        if wg isa WellDomain
+            rcells = vec(Int.(wg.perforations.reservoir))
+            push!(groups, rcells)
         end
     end
-    return (N, T, groups)
+    return groups
+end
+
+function partitioner_well_groups(model)
+    return Vector{Vector{Int}}()
 end
 
 function reservoir_partition(model::MultiModel, p)
@@ -1663,6 +1676,13 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
     if haskey(d, :transmissibility_multiplier, Faces())
         tm = d[:transmissibility_multiplier]
         @. T *= tm
+    end
+    if haskey(d, :transmissibility_override, Faces())
+        for (f, v) in enumerate(d[:transmissibility_override])
+            if isfinite(v)
+                T[f] = v
+            end
+        end
     end
     if haskey(d, :numerical_aquifers)
         aquifers = d[:numerical_aquifers]

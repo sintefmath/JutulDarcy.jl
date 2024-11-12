@@ -27,7 +27,7 @@ fine_case = setup_case_from_data_file(data_pth);
 fine_model = fine_case.model
 fine_reservoir = reservoir_domain(fine_model)
 fine_mesh = physical_representation(fine_reservoir)
-ws, states = simulate_reservoir(fine_case, info_level = 1);
+ws, states = simulate_reservoir(fine_case, info_level = -1);
 # ## Coarsen the model and plot partition
 # We coarsen the model using a partition size of 20x20x2 and the IJK method
 # where the underlying structure of the mesh is used to subdivide the blocks.

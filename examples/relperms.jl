@@ -316,7 +316,6 @@ lines(simulate_bl(model, prm), axis = (title = "Parametric LET function simulati
 # ### Check out the parameters
 # The LET parameters are now numerical parameters in the reservoir:
 rmodel = reservoir_model(model)
-display(rmodel)
 
 # ## Conclusion
 # We have explored a few aspects of relative permeabilities in JutulDarcy. There

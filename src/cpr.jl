@@ -124,6 +124,8 @@ end
 function default_psolve(; max_levels = 10, max_coarse = 10, amgcl_type = :amg, type = default_amg_symbol(), kwarg...)
     if type == :hypre
         amg = BoomerAMGPreconditioner(; kwarg...)
+    elseif type == :amgx
+        amg = AMGXPreconditioner(; kwarg...)
     elseif type == :amgcl
         if length(kwarg) == 0
             # Some reasonable defaults for reservoir system
@@ -168,11 +170,13 @@ function default_psolve(; max_levels = 10, max_coarse = 10, amgcl_type = :amg, t
     end
 end
 
-function update_preconditioner!(cpr::CPRPreconditioner, lsys, model, storage, recorder, executor)
+function update_preconditioner!(cpr::CPRPreconditioner, lsys, model, storage, recorder, executor; update_system_precond = true)
     rmodel = reservoir_model(model, type = :flow)
     ctx = rmodel.context
     update_p = update_cpr_internals!(cpr, lsys, model, storage, recorder, executor)
-    @tic "s-precond" update_preconditioner!(cpr.system_precond, lsys, model, storage, recorder, executor)
+    if update_system_precond
+        @tic "s-precond" update_preconditioner!(cpr.system_precond, lsys, model, storage, recorder, executor)
+    end
     if update_p
         @tic "p-precond" update_preconditioner!(cpr.pressure_precond, cpr.storage.A_p, cpr.storage.r_p, ctx, executor)
     elseif should_update_cpr(cpr, recorder, :partial)
@@ -269,6 +273,10 @@ function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, p_prec, A::
     ncomp = size(w_p, 1)
     N = Val(ncomp)
     is_adjoint = Val(Jutul.represented_as_adjoint(matrix_layout(ctx)))
+    update_rows_csr(nz, A_p, w_p, cols, nz_s, N, is_adjoint, n, tb)
+end
+
+function update_rows_csr(nz, A_p, w_p, cols, nz_s, N, is_adjoint, n, tb)
     @batch minbatch=tb for row in 1:n
         update_row_csr!(nz, A_p, w_p, cols, nz_s, row, N, is_adjoint)
     end
@@ -633,7 +641,7 @@ function should_update_cpr(cpr, rec, type = :amg)
             crit = it == 1
         elseif interval == :step
             n = outer_step
-            crit = it == 1
+            crit = it == 1 && ministep == 1
         else
             error("Bad parameter update_frequency: $interval")
         end

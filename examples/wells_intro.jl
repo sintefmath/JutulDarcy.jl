@@ -11,7 +11,7 @@ using JutulDarcy, Jutul
 # `JutulDarcy` uses SI units internally. It is therefore convenient to define a
 # few constants at the start of the script to have more managable numbers later
 # on.
-Darcy, bar, kg, meter, day = si_units(:darcy, :bar, :kilogram, :meter, :day)
+Darcy, bar, kg, meter, day = si_units(:darcy, :bar, :kilogram, :meter, :day);
 
 # ## Defining a porous medium
 # We start by defining the static part of our simulation problem -- the porous medium itself.
@@ -44,10 +44,10 @@ g = CartesianMesh(dims, (2000.0, 1500.0, 50.0))
 # are also automatically added:
 nlayer = nx*ny # Cells in each layer
 K = vcat(
-    repeat([0.65], nlayer),
-    repeat([0.3], nlayer),
-    repeat([0.5], nlayer),
-    repeat([0.2], nlayer)
+    fill(0.65, nlayer),
+    fill(0.3, nlayer),
+    fill(0.5, nlayer),
+    fill(0.2, nlayer)
     )*Darcy
 
 domain = reservoir_domain(g, permeability = K, porosity = 0.2)
@@ -166,7 +166,7 @@ forces = setup_reservoir_forces(model, control = controls)
 # We are finally ready to simulate the model for the given initial state
 # `state0`, report steps `dt`, `parameters` and forces. As the model is small,
 # barring any compilation time, this should run in about 300 ms.
-result = simulate_reservoir(state0, model, dt, parameters = parameters, forces = forces)
+result = simulate_reservoir(state0, model, dt, parameters = parameters, forces = forces);
 # ### Unpacking the result
 # The result contains a lot of data. This can be unpacked to get the most
 # typical desired outputs: Well responses, reservoir states and the time they
@@ -184,29 +184,32 @@ using GLMakie
 # from liquid to gas as the front propagate through the domain and hits the
 # producer well.
 # Gas rates
-qg = wd[:Producer][:grat]
+qg = wd[:Producer][:grat];
 # Total rate
-qt = wd[:Producer][:rate]
+qt = wd[:Producer][:rate];
 # Compute liquid rate and plot
 ql = qt - qg
 x = t/day
 fig = Figure()
-ax = Axis(fig[1, 1], xlabel = "Time (days)",
-                     ylabel = "Rate (m³/day)",
-                     title = "Well production rates")
+ax = Axis(fig[1, 1],
+    xlabel = "Time (days)",
+    ylabel = "Rate (m³/day)",
+    title = "Well production rates"
+)
 lines!(ax, x, abs.(qg).*day, label = "Gas")
 lines!(ax, x, abs.(ql).*day, label = "Liquid")
 lines!(ax, x, abs.(qt).*day, label = "Total")
 axislegend(position = :rb)
 fig
-#-
 # ## Plot bottom hole pressure of the injector
 # The pressure builds during injection, until the gas breaks through to the
 # other well.
 bh = wd[:Injector][:bhp]
 fig = Figure()
-ax = Axis(fig[1, 1], xlabel = "Time (days)",
-                     ylabel = "Bottom hole pressure (bar)",
-                     title = "Injector bottom hole pressure")
+ax = Axis(fig[1, 1],
+    xlabel = "Time (days)",
+    ylabel = "Bottom hole pressure (bar)",
+    title = "Injector bottom hole pressure"
+)
 lines!(ax, x, bh./bar)
 fig

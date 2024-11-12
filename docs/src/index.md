@@ -33,8 +33,8 @@ features:
     link: /examples/intro_sensitivities
 
   - icon: 🏃
-    title: High performance 
-    details: Fast execution with support for MPI and thread parallelism
+    title: High performance on CPU & GPU
+    details: Fast execution with support for MPI, CUDA and thread parallelism
     link: /man/advanced/mpi
 ---
 ````

@@ -14,6 +14,8 @@ function NLDDSimulator(case::JutulCase, partition = missing;
         cells_per_block = missing,
         mpi_sync_after_solve = true,
         no_blocks = missing,
+        partitioner_type = :metis,
+        partitioner_arg = (partitioner_conn_type = :unit,),
         specialize_submodels = false,
         kwarg...
     )
@@ -33,7 +35,8 @@ function NLDDSimulator(case::JutulCase, partition = missing;
             @assert ismissing(no_blocks)
             N = Int64(clamp(ceil(nc/cells_per_block), 1, nc))
         end
-        p = partition_from_N(model, parameters, N)
+        jutul_message("Partition", "Generating $N coarse blocks using $partitioner_type.")
+        p = JutulDarcy.partition_reservoir(case, N, partitioner_type; partitioner_arg..., wells_in_single_block = true)
         partition = reservoir_partition(model, p);
     elseif partition isa Vector{Int}
         # Convert it.
@@ -118,7 +121,12 @@ function NLDDSimulator(case::JutulCase, partition = missing;
     if reservoir_model(model) isa JutulDarcy.StandardBlackOilModel
         storage[:black_oil_primary_buffers] = map(s -> black_oil_primary_buffers(s.storage, s.model), subsim)
     end
-    storage[:local_changes] = map(s -> reservoir_change_buffers(s.storage, s.model), subsim)
+    # storage[:local_changes] = map(s -> reservoir_change_buffers(s.storage, s.model), subsim)
+    state_mirror = outer_sim.storage.state0
+    if haskey(state_mirror, :Reservoir)
+        state_mirror = state_mirror[:Reservoir]
+    end
+    storage[:state_mirror] = deepcopy(state_mirror)
     storage[:boundary_discretizations] = map((s) -> boundary_discretization(outer_sim.storage, outer_sim.model, s.model, s.storage), subsim)
     storage[:solve_log] = NLDDSolveLog()
     storage[:coarse_neighbors] = coarse_neighbors
@@ -151,8 +159,8 @@ function Jutul.perform_step!(
     )
     log = simulator.storage[:solve_log]
     strategy = config[:strategy]
-
     base_arg = (simulator, dt, forces, config, iteration)
+    s = simulator.simulator
     if executor isa Jutul.DefaultExecutor
         # This means we are not in MPI and we must call this part manually. This
         # contains the entire local stage of the algorithm.
@@ -243,26 +251,21 @@ function local_stage(simulator, dt, forces, config, iteration)
 
     do_solve = zeros(Bool, n)
     allow_early_termination = config[:subdomain_failure_cuts]
+    global_state_mirror = simulator.storage.state_mirror
+    global_state = sim_global.storage.state
 
     function pre(i)
         subsim = sub_sims[i]
-        change_buffer = simulator.storage.local_changes[i]
-        store_reservoir_change_buffer!(change_buffer, subsim, config)
         # Make sure that recorder is updated to match global context
         rec_global = sim_global.storage.recorder
         rec_local = subsim.storage.recorder
         Jutul.reset!(rec_local, rec_global)
-        # Update state0
-        # state0 should have the right secondary variables since it comes from a converged state.
-        update_subdomain_from_global(sim_global, subsim, i, current = false, transfer_secondary = true)
-        # We do not transfer the secondaries. This means that they are
-        # updated/recomputed locally. The current primary variables in the
-        # global state have been updated by the last global stage and the
-        # secondary variables are then "out of sync". The local solvers do the
-        # work of recomputing them.
-        update_subdomain_from_global(sim_global, subsim, i, current = true, transfer_secondary = iteration == 1)
-        should_solve = check_if_subdomain_needs_solving(change_buffer, subsim, config, iteration)
+        should_solve = check_if_subdomain_needs_solving(global_state_mirror, global_state, subsim, config, iteration)
         do_solve[i] = should_solve
+        if should_solve
+            update_subdomain_from_global(sim_global, subsim, i, current = false, transfer_secondary = true)
+            update_subdomain_from_global(sim_global, subsim, i, current = true, transfer_secondary = true)
+        end
     end
     function solve_and_transfer(i)
         should_solve = do_solve[i]
@@ -275,6 +278,10 @@ function local_stage(simulator, dt, forces, config, iteration)
             end
             # cfg[:always_update_secondary] = true
             ok, rep = solve_subdomain(sim, i, dt, forces, cfg)
+            if ok
+                # Still need to transfer over secondary variables
+                update_global_from_subdomain(sim_global, sim, i, secondary = true)
+            end
         else
             if il_i > 0
                 jutul_message("Subdomain: $i", "Skipping subdomain.")
@@ -284,14 +291,9 @@ function local_stage(simulator, dt, forces, config, iteration)
         end
         subreports[i] = rep
         solve_status[i] = get_solve_status(rep, ok)
-        # Still need to transfer over secondary variables
-        if !ok
-            if config[:info_level] > 0
-                Jutul.jutul_message("Failure $i", color = :red)
-            end
-            update_subdomain_from_global(sim_global, sim, i, current = true, transfer_secondary = false)
+        if !ok && config[:info_level] > 0
+            Jutul.jutul_message("Failure $i", color = :red)
         end
-        update_global_from_subdomain(sim_global, sim, i, secondary = true)
         return ok
     end
     # Now that we have the main functions set up we can do either kind of local solves
@@ -647,6 +649,8 @@ function global_stage(
     )
     # @warn "Starting global stage"
     m = config[:method]
+    t_secondary = report[:secondary_time]
+    report[:secondary_time] = 0.0
     g_forces = global_forces(forces)
     s = simulator.simulator
     function solve_fi(do_solve = solve)
@@ -674,11 +678,11 @@ function global_stage(
         end
     end
     if all_local_converged && (iteration > config[:min_nonlinear_iterations]) && config[:subdomain_tol_sufficient]
-        report[:secondary_time] = 0.0
-        report[:equations_time] = 0.0
-        report[:linear_system_time] = 0.0
+        # report[:secondary_time] = 0.0
+        # report[:equations_time] = 0.0
+        # report[:linear_system_time] = 0.0
         report[:converged] = true
-        report[:convergence_time] = 0.0
+        # report[:convergence_time] = 0.0
         Jutul.extra_debug_output!(report, s.storage, s.model, config, iteration, dt)
         out = (0.0, true, report)
         il = config[:info_level]
@@ -713,6 +717,7 @@ function global_stage(
             error("Method must be either :aspen or :nldd. Method was: :$m")
         end
     end
+    report[:secondary_time] += t_secondary
     check_locals_after = config[:debug_checks]
     if check_locals_after && out[2] == true
         if simulator.simulator.storage.LinearizedSystem isa MultiLinearizedSystem
@@ -895,6 +900,9 @@ function Jutul.perform_step_per_process_initial_update!(simulator::NLDDSimulator
     strategy = config[:strategy]
     e = NaN
     converged = false
+    s = simulator.simulator
+    t_secondary = @elapsed @tic "secondary variables" Jutul.update_secondary_variables!(s.storage, s.model)
+    report[:secondary_time] += t_secondary
 
     base_arg = (simulator, dt, forces, config, iteration)
     if iteration == 1
@@ -912,12 +920,34 @@ function Jutul.perform_step_per_process_initial_update!(simulator::NLDDSimulator
         failures = []
         status = [local_solve_skipped for i in eachindex(simulator.subdomain_simulators)]
     end
+    solve_tol = get_nldd_solution_change_tolerances(config)
+    if !isnothing(solve_tol)
+        update_state_mirror!(simulator.storage.state_mirror, s.storage.state, s.model, solve_tol)
+    end
+
     report[:subdomains] = subreports
     report[:time_subdomains] = t_sub
     report[:subdomain_failures] = failures
     report[:local_solves_active] = active
     report[:solve_order] = solve_order
     report[:solve_status] = status
-
     return report
+end
+
+function update_state_mirror!(state_mirror, state, m::SimulationModel, flds)
+    for (k, v) in pairs(flds)
+        if !isnothing(v) && haskey(state_mirror, k)
+            nldd_unsafe_replace!(state_mirror[k], state[k])
+        end
+    end
+end
+
+function nldd_unsafe_replace!(x, y)
+    for i in eachindex(x, y)
+        @inbounds x[i] = value(y[i])
+    end
+end
+
+function update_state_mirror!(state_mirror, state, m::MultiModel, flds)
+    update_state_mirror!(state_mirror, state[:Reservoir], m[:Reservoir], flds)
 end

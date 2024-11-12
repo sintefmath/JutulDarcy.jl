@@ -137,6 +137,7 @@ function build_jutul_darcy_docs(build_format = nothing;
                     ],
             "Further reading" => [
                 "man/advanced/mpi.md",
+                "man/advanced/gpu.md",
                 "man/advanced/compiled.md",
                 "Jutul functions" => "ref/jutul.md",
                 "Bibliography" => "extras/refs.md"
