@@ -20,6 +20,7 @@ Additional keywords are passed onto the linear solver constructor.
 """
 function reservoir_linsolve(model,
         precond = :cpr;
+        backend = :cpu,
         rtol = nothing,
         atol = nothing,
         v = 0,
@@ -38,12 +39,37 @@ function reservoir_linsolve(model,
         kwarg...
     )
     model = reservoir_model(model)
-    if solver == :lu
-        return LUSolver()
+    is_equation_major = !Jutul.is_cell_major(matrix_layout(model.context))
+    backend in (:cpu, :cuda) || throw(ArgumentError("Backend $backend not supported, must be :cpu or :cuda."))
+    if backend == :cuda
+        # Check assumptions
+        !is_equation_major || throw(ArgumentError("Equation-major storage not supported for CUDA backend."))
+        solver != :lu || throw(ArgumentError("LU direct solver not supported for CUDA backend."))
+        has_cuda = !isnothing(Base.get_extension(JutulDarcy, :JutulDarcyCUDAExt))
+        has_cuda || throw(ArgumentError("CUDA backend not available. You must run \"using CUDA\" before using this function."))
+        has_amgx = !isnothing(Base.get_extension(JutulDarcy, :JutulDarcyAMGXExt))
+        # Make sure that options are compatible with CUDA backend
+        if precond == :cpr && !has_amgx
+            jutul_message("AMGX", "AMGX not available, disabling CPR and falling back to ILU(0) preconditioner.")
+            precond = :ilu0
+        else
+            amg_type = :amgx
+        end
+        if smoother_type != :ilu0
+            jutul_message("CUDA", "Smoother $smoother_type not supported for CUDA, falling back to ILU(0).")
+            smoother_type = :ilu0
+        end
+        krylov_constructor = CUDAReservoirKrylov
+    else
+        if solver == :lu
+            return LUSolver()
+        end
+        if is_equation_major
+            return nothing
+        end
+        krylov_constructor = GenericKrylov
     end
-    if !Jutul.is_cell_major(matrix_layout(model.context))
-        return nothing
-    end
+
     default_tol = 0.01
     max_it = 200
     if precond == :cpr
@@ -97,7 +123,7 @@ function reservoir_linsolve(model,
             precond_side = :left
         end
     end
-    lsolve = GenericKrylov(
+    lsolve = krylov_constructor(
         solver;
         verbose = v,
         preconditioner = prec,

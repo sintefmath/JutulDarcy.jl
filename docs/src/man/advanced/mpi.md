@@ -4,7 +4,7 @@ JutulDarcy can use threads by default, but advanced options can improve performa
 
 ## Overview of parallel support
 
-There are two main ways of exploiting multiple cores in Jutul/JutulDarcy: Threads are automatically used for assembly and can be used for parts of the linear solve. If you require the best performance, you have to go to MPI where the linear solvers can use a parallel [BoomerAMG preconditioner](https://hypre.readthedocs.io/en/latest/solvers-boomeramg.html) via [HYPRE.jl](https://github.com/fredrikekre/HYPRE.jl).
+There are two main ways of exploiting multiple cores in Jutul/JutulDarcy: Threads are automatically used for assembly and can be used for parts of the linear solve. If you require the best performance, you have to go to MPI where the linear solvers can use a parallel [BoomerAMG preconditioner](https://hypre.readthedocs.io/en/latest/solvers-boomeramg.html) via [HYPRE.jl](https://github.com/fredrikekre/HYPRE.jl). In addition, there is experimental GPU support described in [GPU support](@ref).
 
 ### MPI parallelization
 
@@ -25,7 +25,6 @@ Starting Julia with multiple threads (for example `julia --project. --threads=4`
 
 Threads are easy to use and can give a bit of benefit for large models.
 
-
 ### Mixed-mode parallelism
 
 You can mix the two approaches: Adding multiple threads to each MPI process can use threads to speed up assembly and property evaluations.
@@ -41,7 +40,6 @@ A few hints when you are looking at performance:
 - Adding the maximum number of processes does not always give the best performance. Typically you want at least 10 000 cells per process. Can be case dependent.
 
 Example: 200k cell model on laptop: 1 process 235 s -> 4 processes 145s
-
 
 ## Solving with MPI in practice
 

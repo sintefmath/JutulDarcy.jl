@@ -6,13 +6,14 @@ mutable struct CUDAReservoirKrylov{Tv, Ti} <: Jutul.AbstractKrylov
     storage
 end
 
-function CUDAReservoirKrylov(solver = :gmres, prec = ILUZeroPreconditioner();
+function CUDAReservoirKrylov(solver = :gmres;
+        preconditioner = ILUZeroPreconditioner(),
         Float_t = Float64,
         Int_t = Int32,
         kwarg...
     )
     cfg = IterativeSolverConfig(; kwarg...)
-    return CUDAReservoirKrylov{Float_t, Int_t}(solver, cfg, prec, Dict{Symbol, Any}(), nothing)
+    return CUDAReservoirKrylov{Float_t, Int_t}(solver, cfg, preconditioner, Dict{Symbol, Any}(), nothing)
 end
 
 function Jutul.linear_solve!(lsys::Jutul.LSystem,

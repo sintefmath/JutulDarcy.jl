@@ -612,6 +612,7 @@ function setup_reservoir_simulator(case::JutulCase;
         method = :newton,
         precond = :cpr,
         linear_solver = :bicgstab,
+        linear_solver_backend = :cpu,
         max_timestep = si_unit(:year),
         max_dt = max_timestep,
         rtol = nothing,
@@ -712,6 +713,7 @@ function setup_reservoir_simulator(case::JutulCase;
             extra_ls = NamedTuple()
         end
         extra_kwarg[:linear_solver] = reservoir_linsolve(case.model, precond;
+            backend = linear_solver_backend,
             rtol = rtol,
             extra_ls...,
             linear_solver_arg...,

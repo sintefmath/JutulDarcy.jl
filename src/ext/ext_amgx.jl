@@ -30,12 +30,15 @@ function AMGXPreconditioner(;
         presweeps = 3,
         postsweeps = presweeps,
         strength_threshold = 0.5,
+        max_iters = 1,
         kwarg...
     )
     settings = Dict{String, Any}()
     for (k, v) in kwarg
         settings["$k"] = v
     end
+    # Needed to act as a preconditioner
+    settings["max_iters"] = max_iters
     if solver == "AMG"
         settings["solver"] = solver
         settings["algorithm"] = algorithm

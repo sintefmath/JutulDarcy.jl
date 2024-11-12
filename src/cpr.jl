@@ -124,6 +124,8 @@ end
 function default_psolve(; max_levels = 10, max_coarse = 10, amgcl_type = :amg, type = default_amg_symbol(), kwarg...)
     if type == :hypre
         amg = BoomerAMGPreconditioner(; kwarg...)
+    elseif type == :amgx
+        amg = AMGXPreconditioner(; kwarg...)
     elseif type == :amgcl
         if length(kwarg) == 0
             # Some reasonable defaults for reservoir system
