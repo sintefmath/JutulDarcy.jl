@@ -17,7 +17,7 @@ nx = nz = 100;
 # ## Define the domain
 D = 10.0
 g = CartesianMesh((nx, 1, nz), (D, 1.0, D))
-domain = reservoir_domain(g)
+domain = reservoir_domain(g);
 # ## Set up model and properties
 Darcy, bar, kg, meter, day = si_units(:darcy, :bar, :kilogram, :meter, :day)
 p0 = 100*bar

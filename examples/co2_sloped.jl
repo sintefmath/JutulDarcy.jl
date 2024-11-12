@@ -133,7 +133,7 @@ krog_t = so.^2
 krog = PhaseRelativePermeability(so, krog_t, label = :og)
 
 # Higher resolution for second table:
-sg = range(0, 1, 50)
+sg = range(0, 1, 50);
 
 # Evaluate Brooks-Corey to generate tables:
 tab_krg_drain = brooks_corey_relperm.(sg, n = 2, residual = 0.1)
@@ -251,7 +251,7 @@ wd, states, t = simulate_reservoir(state0, model, dt,
     parameters = parameters,
     forces = forces,
     max_timestep = 90day
-)
+);
 # ## Plot the CO2 mole fraction
 # We plot the overall CO2 mole fraction. We scale the color range to log10 to
 # account for the fact that the mole fraction in cells made up of only the
@@ -339,7 +339,8 @@ for cell in 1:nc
     x, y, z = centers[:, cell]
     is_inside[cell] = sqrt((x - 720.0)^2 + 20*(z-70.0)^2) < 75
 end
-plot_cell_data(mesh, is_inside)
+fig, ax, plt = plot_cell_data(mesh, is_inside)
+fig
 # ## Plot inventory in ellipsoid
 # Note that a small mobile dip can be seen when free CO2 passes through this region.
 inventory = co2_inventory(model, wd, states, t, cells = findall(is_inside))

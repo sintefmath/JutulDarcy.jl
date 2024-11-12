@@ -4,8 +4,7 @@
 # injector in one corner and the producer in the opposing corner, with a
 # significant volume of fluids injected into the domain.
 using JutulDarcy, Jutul
-nx = 50
-#-
+nx = 50;
 # ## Setup
 # We define a function that, for a given porosity field, computes a solution
 # with an estimated permeability field. For assumptions and derivation of the
@@ -55,10 +54,9 @@ function simulate_qfs(porosity = 0.2)
     forces = setup_reservoir_forces(model, control = controls)
     return simulate_reservoir(state0, model, dt, parameters = parameters, forces = forces, info_level = -1)
 end
-#-
 # ## Simulate base case
 # This will give the solution with uniform porosity of 0.2.
-ws, states, report_time = simulate_qfs()
+ws, states, report_time = simulate_qfs();
 # ### Plot the solution of the base case
 # We observe a radial flow pattern initially, before coning occurs near the
 # producer well once the fluid has reached the opposite corner. The uniform
@@ -75,7 +73,6 @@ ax = Axis(fig[1, 2])
 h = contourf!(ax, get_sat(states[nt]))
 Colorbar(fig[1, end+1], h)
 fig
-#-
 # ## Create 10 realizations
 # We create a small set of realizations of the same model, with porosity that is
 # uniformly varying between 0.05 and 0.3. This is not especially sophisticated
@@ -89,11 +86,10 @@ wells = []
 report_step = nt
 for i = 1:N
     poro = 0.05 .+ 0.25*rand(Float64, (nx*nx))
-    ws, states, rt = simulate_qfs(poro)
-    push!(wells, ws)
-    push!(saturations, get_sat(states[report_step]))
+    ws_i, states_i, rt = simulate_qfs(poro)
+    push!(wells, ws_i)
+    push!(saturations, get_sat(states_i[report_step]))
 end
-#-
 # ### Plot the oil rate at the producer over the ensemble
 using Statistics
 fig = Figure()
@@ -106,7 +102,6 @@ end
 xlims!(ax, [mean(report_time), report_time[end]])
 ylims!(ax, 0, 0.0075)
 fig
-#-
 # ### Plot the average saturation over the ensemble
 avg = mean(saturations)
 fig = Figure()
@@ -114,7 +109,6 @@ h = nothing
 ax = Axis(fig[1, 1])
 h = contourf!(ax, avg)
 fig
-#-
 # ### Plot the isocontour lines over the ensemble
 fig = Figure()
 h = nothing
