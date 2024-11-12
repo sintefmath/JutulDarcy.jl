@@ -8,10 +8,38 @@ struct AMGXPreconditioner <: Jutul.JutulPreconditioner
     end
 end
 
-function AMGXPreconditioner(; resetup = true, kwarg...)
+"""
+    amgx = AMGXPreconditioner()
+    amgx = AMGXPreconditioner(selector = "SIZE_4", algorithm = "AGGREGATION")
+    amgx = AMGXPreconditioner(selector = "PMIS", algorithm = "CLASSICAL")
+
+AMGX preconditioner primarily used for algebraic multigrid implementation on
+CUDA-capable GPUs.
+"""
+function AMGXPreconditioner(;
+        resetup = true,
+        solver = "AMG",
+        algorithm = "CLASSICAL",
+        interpolator = "D2",
+        selector = "PMIS",
+        strength_threshold = 0.5,
+        kwarg...
+    )
     settings = Dict{String, Any}()
     for (k, v) in kwarg
         settings["$k"] = v
+    end
+    if solver == "AMG"
+        settings["solver"] = solver
+        settings["algorithm"] = algorithm
+        if algorithm == "CLASSICAL"
+            selector in ("PMIS", "HMIS") || throw(ArgumentError("Invalid selector $selector for CLASSICAL, must be PMIS or HMIS"))
+        else
+            selector in ("SIZE_2", "SIZE_4", "SIZE_8") || throw(ArgumentError("Invalid selector $selector for AGGREGATION, must be SIZE_X where X is 2, 4 or 8"))
+        end
+        settings["interpolator"] = interpolator
+        settings["selector"] = selector
+        settings["strength_threshold"] = strength_threshold
     end
     return AMGXPreconditioner(settings, resetup = resetup)
 end
