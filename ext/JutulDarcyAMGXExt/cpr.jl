@@ -17,8 +17,7 @@ function JutulDarcy.update_amgx_pressure_system!(amgx::AMGXPreconditioner, A::Ju
         end
         n, m = size(A)
         @assert n == m
-        config = AMGX.Config(amgx.settings)
-        s = AMGXStorage(config, amgx_mode)
+        s = AMGXStorage(amgx.settings, amgx_mode)
         # RHS and solution vectors to right size just in case
         AMGX.set_zero!(s.x, n)
         AMGX.set_zero!(s.r, n)
@@ -34,13 +33,14 @@ function JutulDarcy.update_amgx_pressure_system!(amgx::AMGXPreconditioner, A::Ju
             colval,
             nzval
         )
+        amgx.data[:nzval] = A.At.nzval
         amgx.data[:storage] = s
         amgx.data[:block_size] = 1
         amgx.data[:n] = n
         amgx.data[:buffer_p] = AMGX.CUDA.CuVector{Tv}(undef, n)
     end
     if do_p_update
-        @tic "AMGX setup" if already_setup
+        @tic "AMGX setup" if already_setup && amgx.resetup
             AMGX.resetup!(s.solver, s.matrix)
         else
             AMGX.setup!(s.solver, s.matrix)
@@ -56,17 +56,17 @@ mutable struct AMGXStorage{C, R, V, M, S}
     x::V
     matrix::M
     solver::S
-    function AMGXStorage(config, amgx_mode = AMGX.dDDI)
+    function AMGXStorage(settings::AbstractDict, amgx_mode = AMGX.dDDI)
+        config = AMGX.Config(settings)
         resources = AMGX.Resources(config)
         r = AMGX.AMGXVector(resources, amgx_mode)
         x = AMGX.AMGXVector(resources, amgx_mode)
         matrix = AMGX.AMGXMatrix(resources, amgx_mode)
         solver = AMGX.Solver(resources, amgx_mode, config)
         function finalize_storage!(amgx_s::AMGXStorage)
-            @async println("Finalizing AMGXStorage")
             close(amgx_s.solver)
-            close(amgx_s.r)
             close(amgx_s.x)
+            close(amgx_s.r)
             close(amgx_s.matrix)
             close(amgx_s.resources)
             close(amgx_s.config)
@@ -105,12 +105,11 @@ function JutulDarcy.gpu_cpr_setup_buffers!(cpr, J_bsr, r_cu, op, recorder)
     end
     do_p_update = JutulDarcy.should_update_cpr(cpr, recorder, :amg)
     if is_first || do_p_update || cpr.partial_update
-        w_p_cpu = data[:w_p_cpu]
         # Put updated weights on GPU
+        w_p_cpu = data[:w_p_cpu]
         w_p_gpu = data[:w_p]
         @assert size(w_p_cpu) == size(w_p_gpu)
         @tic "weights to gpu" copyto!(w_p_gpu, w_p_cpu)
     end
-    # AMGX.CUDA.synchronize()
     return cpr
 end

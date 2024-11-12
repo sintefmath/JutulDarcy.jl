@@ -1,18 +1,19 @@
 struct AMGXPreconditioner <: Jutul.JutulPreconditioner
     settings::Dict{String, Any}
     data::Dict{Symbol, Any}
-    function AMGXPreconditioner(settings::Dict{String, Any})
+    resetup::Bool
+    function AMGXPreconditioner(settings::Dict{String, Any}; resetup = true)
         data = Dict{Symbol, Any}()
-        new(settings, data)
+        new(settings, data, resetup)
     end
 end
 
-function AMGXPreconditioner(; kwarg...)
+function AMGXPreconditioner(; resetup = true, kwarg...)
     settings = Dict{String, Any}()
     for (k, v) in kwarg
         settings["$k"] = v
     end
-    return AMGXPreconditioner(settings)
+    return AMGXPreconditioner(settings, resetup = resetup)
 end
 
 const AMGXCPR = CPRPreconditioner{JutulDarcy.AMGXPreconditioner, <:Any}
@@ -48,12 +49,15 @@ function Jutul.apply!(x, cpr::AMGXCPR, r)
     # Correct the residual
     A_ps = cpr.pressure_precond.data[:operator]
     r_corrected = cpr.pressure_precond.data[:buffer_full]
-    @tic "residual correction" JutulDarcy.correct_residual!(r_corrected, A_ps, x)
+    @tic "residual correction" begin
+        copyto!(r_corrected, r)
+        JutulDarcy.correct_residual!(r_corrected, A_ps, x)
+    end
     # Construct pressure residual
     r_p = cpr.pressure_precond.data[:buffer_p]
     w_p = cpr.pressure_precond.data[:w_p]
     ncomp, ncell = size(w_p)
-    @tic "residual reduction" gpu_reduce_residual!(r_p, w_p, r)
+    @tic "residual reduction" gpu_reduce_residual!(r_p, w_p, r_corrected)
     # Apply pressure preconditioner
     amgx = cpr.pressure_precond
     @tic "AMGX apply" dp = gpu_amgx_solve!(amgx, r_p)

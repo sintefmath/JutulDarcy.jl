@@ -1,10 +1,10 @@
 function JutulDarcy.gpu_update_preconditioner!(prec::JutulDarcy.AMGXPreconditioner, lsys, model, storage, recorder, executor, krylov, J_bsr, r_cu, op)
     nzval = nonzeros(J_bsr)
     bz = Jutul.block_size(lsys[1, 1])
-    if haskey(prec.data, :storage)
+    already_setup = haskey(prec.data, :storage)
+    if already_setup
         s = prec.data[:storage]
         AMGX.replace_coefficients!(s.matrix, nzval)
-        AMGX.resetup!(s.solver, s.matrix)
     else
         Tv = eltype(J_bsr)
         if Tv == Float64
@@ -33,6 +33,10 @@ function JutulDarcy.gpu_update_preconditioner!(prec::JutulDarcy.AMGXPrecondition
         prec.data[:storage] = s
         prec.data[:n] = N
         prec.data[:block_size] = bz
+    end
+    if already_setup && prec.resetup
+        AMGX.resetup!(s.solver, s.matrix)
+    else
         AMGX.setup!(s.solver, s.matrix)
     end
     return prec
@@ -43,8 +47,6 @@ function Jutul.operator_nrows(prec::JutulDarcy.AMGXPreconditioner)
 end
 
 function Jutul.apply!(x, amgx::JutulDarcy.AMGXPreconditioner, r)
-    # TODO: This sync call is maybe needd?
-    # AMGX.CUDA.synchronize()
     s = amgx.data[:storage]
     bz = amgx.data[:block_size]::Int
     n = amgx.data[:n]::Int
