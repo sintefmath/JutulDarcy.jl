@@ -273,10 +273,9 @@ function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, p_prec, A::
     ncomp = size(w_p, 1)
     N = Val(ncomp)
     is_adjoint = Val(Jutul.represented_as_adjoint(matrix_layout(ctx)))
-    update_rows_csr(nz, A_p, w_p, cols, nz_s, N, is_adjoint, n)
+    update_rows_csr(nz, A_p, w_p, cols, nz_s, N, is_adjoint, n, tb)
 end
 
-function update_rows_csr(nz, A_p, w_p, cols, nz_s, N, is_adjoint, n)
     @batch minbatch=tb for row in 1:n
         update_row_csr!(nz, A_p, w_p, cols, nz_s, row, N, is_adjoint)
     end
