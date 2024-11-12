@@ -44,22 +44,22 @@ end
         end
         ds_max = 0.1
         reports_dd = states = states_as = states_gs = []
-        case, mrst_data = setup_case_from_mrst(name,
+        case, = setup_case_from_mrst(name,
             split_wells = true,
             ds_max = 0.1,
             block_backend = b
         );
+        if steps != :full
+            case = case[steps]
+        end
         push!(case.model[:Reservoir].output_variables, :Saturations)
         sim_arg = (
-                    info_level = -1,
-                    steps = steps,
-                    block_backend = b,
-                    maxstep = Inf,
-                    timestepping = :iteration,
-                    error_on_incomplete = true,
-                    case = case, mrst_data = mrst_data
+            info_level = -1,
+            max_timestep = Inf,
+            timesteps = :iteration,
+            error_on_incomplete = true
         );
-        results_newton = JutulDarcy.NLDD.bench_dd(name, :fi; sim_arg...);
+        results_newton = simulate_reservoir(case, method = :newton; sim_arg...);
         its_newton = get_its(results_newton)
 
         function test_solver_result(result)
@@ -68,13 +68,13 @@ end
         @testset "NLDD on $name" begin
             for solve_tol_mobility in [nothing, 0.01, 0.05]
                 @testset "Gauss-seidel λ_t = $solve_tol_mobility" begin
-                    results_gs = JutulDarcy.NLDD.bench_dd(name, :nldd; sim_arg...,
+                    results_gs = simulate_reservoir(case, method = :nldd; sim_arg...,
                         gauss_seidel = true,
                         solve_tol_mobility = solve_tol_mobility);
                     test_solver_result(results_gs)
                 end
                 @testset "Jacobi λ_t = $solve_tol_mobility" begin
-                    results_dd = JutulDarcy.NLDD.bench_dd(name, :nldd; sim_arg...,
+                    results_dd = simulate_reservoir(case, method = :nldd; sim_arg...,
                         gauss_seidel = false,
                         solve_tol_mobility = solve_tol_mobility);
                     test_solver_result(results_dd)
@@ -82,7 +82,7 @@ end
             end
             if name != "spe9"
                 @testset "ASPEN" begin
-                    results_as = JutulDarcy.NLDD.bench_dd(name, :aspen;
+                    results_as = simulate_reservoir(case, method = :aspen;
                     sim_arg...);
                     test_solver_result(results_as)
                 end
