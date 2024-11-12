@@ -27,6 +27,8 @@ function AMGXPreconditioner(;
         algorithm = "CLASSICAL",
         interpolator = "D2",
         selector = "PMIS",
+        presweeps = 3,
+        postsweeps = presweeps,
         strength_threshold = 0.5,
         kwarg...
     )
@@ -45,6 +47,8 @@ function AMGXPreconditioner(;
         settings["interpolator"] = interpolator
         settings["selector"] = selector
         settings["strength_threshold"] = strength_threshold
+        settings["presweeps"] = presweeps
+        settings["postsweeps"] = postsweeps
     end
     return AMGXPreconditioner(settings, resetup = resetup)
 end
