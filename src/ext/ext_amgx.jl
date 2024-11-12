@@ -4,7 +4,12 @@ struct AMGXPreconditioner <: Jutul.JutulPreconditioner
     resetup::Bool
     function AMGXPreconditioner(settings::Dict{String, Any}; resetup = true)
         data = Dict{Symbol, Any}()
-        new(settings, data, resetup)
+        function finalize_data!(data)
+            if haskey(data, :nzval)
+                AMGX.unpin_memory(data[:nzval])
+            end
+        end
+        new(settings, finalizer(finalize_data!, data), resetup)
     end
 end
 
