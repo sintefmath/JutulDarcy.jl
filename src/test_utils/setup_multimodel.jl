@@ -217,11 +217,11 @@ function precompile_darcy_multimodels(targets = missing; kwarg...)
     if ismissing(targets)
         targets = []
         # Block backend, CSC (CPR)
-        push!(targets, (true, :csc))
+        # push!(targets, (true, :csc))
         # Scalar blackend, CSC (direct solver)
         # push!(targets, (false, :csc))
         # Block backend, CSR (CPR)
-        # push!(targets, (true, :csr))
+        push!(targets, (true, :csr))
     end
     wellcases = [:bo_spe1, :immiscible_2ph, :compositional_2ph_3c]
     for (block_backend, backend) in targets

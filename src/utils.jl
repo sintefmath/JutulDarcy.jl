@@ -221,7 +221,7 @@ impact simulation speed.
 - `split_wells=false`: Add a facility model for each well instead of one
   facility model that controls all wells. This must be set to `true` if you want
   to use MPI or nonlinear domain decomposition.
-- `backend=:csc`: Backend to use. Can be `:csc` for serial compressed sparse
+- `backend=:csr`: Backend to use. Can be `:csc` for serial compressed sparse
   column CSC matrix, `:csr` for parallel compressed sparse row matrix. `:csr` is
   a bit faster and is recommended when using MPI, HYPRE or multiple threads.
   `:csc` uses the default Julia format and is interoperable with other Julia
@@ -287,7 +287,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         context = DefaultContext(),
         reservoir_context = nothing,
         general_ad = false,
-        backend = :csc,
+        backend = :csr,
         thermal = false,
         extra_outputs = [:LiquidMassFractions, :VaporMassFractions, :Rs, :Rv, :Saturations],
         split_wells = false,
