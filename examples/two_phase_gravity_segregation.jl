@@ -7,13 +7,13 @@
 # ## Problem set up
 # We define a simple 1D gravity column with an approximate 10-1 ratio in density
 # between the two compressible phases and let it simulate until equilibrium is
-# reached.
+# reached. We begin by defining the reservoir domain itself.
 using JutulDarcy, Jutul
 nc = 100
 Darcy, bar, kg, meter, day = si_units(:darcy, :bar, :kilogram, :meter, :day)
 
 g = CartesianMesh((1, 1, nc), (1.0, 1.0, 10.0))
-domain = reservoir_domain(g, permeability = 1.0*Darcy)
+domain = reservoir_domain(g, permeability = 1.0*Darcy);
 # ## Fluid properties
 # Define two phases liquid and vapor with a 10-1 ratio reference densities and
 # set up the simulation model.
