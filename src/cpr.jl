@@ -73,6 +73,7 @@ mutable struct CPRPreconditioner{P, S} <: JutulPreconditioner
     pressure_precond::P
     system_precond::S
     strategy::Symbol
+    variant::Symbol
     weight_scaling::Symbol
     update_frequency::Int             # Update frequency for AMG hierarchy (and pressure part if partial_update = false)
     update_interval::Symbol           # iteration, ministep, step, ...
@@ -89,6 +90,7 @@ end
 
 function CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner();
         strategy = :true_impes,
+        variant = :cpr,
         weight_scaling = :unit,
         npre = 0,
         npost = 1,
@@ -106,6 +108,7 @@ function CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner();
         p,
         s,
         strategy,
+        variant,
         weight_scaling,
         update_frequency,
         update_interval,

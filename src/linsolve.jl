@@ -20,6 +20,7 @@ Additional keywords are passed onto the linear solver constructor.
 """
 function reservoir_linsolve(model,
         precond = :cpr;
+        cpr_variant = :cpr,
         backend = :cpu,
         rtol = nothing,
         atol = nothing,
@@ -41,6 +42,7 @@ function reservoir_linsolve(model,
     model = reservoir_model(model)
     is_equation_major = !Jutul.is_cell_major(matrix_layout(model.context))
     backend in (:cpu, :cuda) || throw(ArgumentError("Backend $backend not supported, must be :cpu or :cuda."))
+    is_cpr = precond == :cpr || precond == :cprw
     if backend == :cuda
         # Check assumptions
         !is_equation_major || throw(ArgumentError("Equation-major storage not supported for CUDA backend."))
@@ -49,7 +51,7 @@ function reservoir_linsolve(model,
         has_cuda || throw(ArgumentError("CUDA backend not available. You must run \"using CUDA\" before using this function."))
         has_amgx = !isnothing(Base.get_extension(JutulDarcy, :JutulDarcyAMGXExt))
         # Make sure that options are compatible with CUDA backend
-        if precond == :cpr && !has_amgx
+        if is_cpr && !has_amgx
             jutul_message("AMGX", "AMGX not available, disabling CPR and falling back to ILU(0) preconditioner.")
             precond = :ilu0
         else
@@ -72,7 +74,7 @@ function reservoir_linsolve(model,
 
     default_tol = 0.01
     max_it = 200
-    if precond == :cpr
+    if is_cpr
         if isnothing(cpr_type)
             if isa(model.system, ImmiscibleSystem)
                 cpr_type = :analytical
@@ -89,7 +91,9 @@ function reservoir_linsolve(model,
             error("Smoother :$smoother_type not supported for CPR.")
         end
         prec = CPRPreconditioner(
-            p_solve, s, strategy = cpr_type, 
+            p_solve, s,
+            strategy = cpr_type,
+            variant = precond,
             update_interval = update_interval,
             partial_update = partial_update,
             update_interval_partial = update_interval_partial,
