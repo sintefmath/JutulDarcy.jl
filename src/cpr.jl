@@ -216,7 +216,10 @@ function initialize_cpr_storage!(cpr, model, lsys, s, bz)
         else
             op = linear_operator(lsys[1,1])
         end
-        cpr.storage = CPRStorage(cpr.pressure_precond, op, J, bz, well_reservoir_map = well_reservoir_map)
+        cpr.storage = CPRStorage(cpr.pressure_precond, op, J, bz,
+            well_reservoir_map = well_reservoir_map,
+            lsys = lsys
+        )
     end
 end
 
@@ -254,24 +257,18 @@ function pressure_matrix_from_global_jacobian(sys_jac::Jutul.StaticSparsityMatri
     for row in 1:ncell
         for j in nzrange(sys_jac, row)
             col = Jutul.StaticCSR.colvals(sys_jac)[j]
-            found = false
-            for k in nzrange(A_p, row)
-                col_p = Jutul.StaticCSR.colvals(A_p)[k]
-                found = col == col_p
-                if found
-                    nzmap_reservoir[j] = k
-                    break
-                end
-            end
-            @assert found "Could not find $row, $col in pressure system"
+            nzmap_reservoir[j] = find_sparse_position(A_p, row, col)
         end
     end
     # Well to well
     nzmap_well = well_reservoir_map.nzmap_well
+    resize!(nzmap_well, length(well_reservoir_map.map_22))
     J_22 = lsys[2, 2].jac
-
     for w in 1:nwell
-
+        for j in nzrange(J_22, w)
+            row = rowvals(J_22)[j]
+            nzmap_well[j] = find_sparse_position(A_p, row, ncell + w)
+        end
     end
     # Align well to reservoir variables
     nzmap_12 = well_reservoir_map.nzmap_12
