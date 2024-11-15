@@ -41,7 +41,11 @@ function CPRStorage(p_prec, lin_op, full_jac, ncomp = missing;
     end
     # TODO: Update the sizes here from well_map if it exists.
     @assert T<:Real
-    np = size(full_jac, 1)
+    if isnothing(well_reservoir_map)
+        np = size(full_jac, 1)
+    else
+        np = well_reservoir_map.np
+    end
     bz = size(T_b, 1)
     if ismissing(ncomp)
         ncomp = bz
@@ -217,20 +221,37 @@ function initialize_cpr_storage!(cpr, model, lsys, s, bz)
 end
 
 function pressure_matrix_from_global_jacobian(J::SparseMatrixCSC, T, lsys, well_reservoir_map::Nothing)
-    nzval = zeros(nnz(J))
+    nzval = zeros(T, nnz(J))
     n = size(J, 2)
     return SparseMatrixCSC(n, n, J.colptr, J.rowval, nzval)
 end
 
-function pressure_matrix_from_global_jacobian(J::Jutul.StaticSparsityMatrixCSR, T, lsys, well_reservoir_map)
-    nzval = zeros(nnz(J))
+function pressure_matrix_from_global_jacobian(J::Jutul.StaticSparsityMatrixCSR, T, lsys, well_reservoir_map::Nothing)
+    nzval = zeros(T, nnz(J))
     n = size(J, 2)
     # Assume symmetry in sparse pattern, but not values.
     return Jutul.StaticSparsityMatrixCSR(n, n, J.At.colptr, Jutul.colvals(J), nzval, nthreads = J.nthreads, minbatch = J.minbatch)
 end
 
+function pressure_matrix_from_global_jacobian(sys_jac::Jutul.StaticSparsityMatrixCSR, T, lsys, well_reservoir_map)
+    n = well_reservoir_map.np
+    I = well_reservoir_map.I
+    J = well_reservoir_map.J
+    @assert length(I) == length(J)
+    V = zeros(T, length(I))
+    n::Integer
+    A = sparse(J, I, V, n, n)
+    A_p = Jutul.StaticSparsityMatrixCSR(A;
+        nthreads = sys_jac.nthreads,
+        minbatch = sys_jac.minbatch
+    )
+    # TODO: Align here.
+    return A_p
+end
+
 function create_pressure_system(p_prec, J, lsys, n, T, well_reservoir_map)
-    return (pressure_matrix_from_global_jacobian(J, T, lsys, well_reservoir_map), zeros(T, n), zeros(T, n))
+    J_p = pressure_matrix_from_global_jacobian(J, T, lsys, well_reservoir_map)
+    return (J_p, zeros(T, n), zeros(T, n))
 end
 
 function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, recorder, executor)
@@ -768,13 +789,14 @@ function cpr_construct_well_reservoir_map(model, lsys, bz)
     well_reservoir_map = (
         I = I,
         J = J,
+        np = ncell + num_simple_wells,
         map_12 = map_12,
         map_21 = map_21,
         map_22 = map_22,
         nzmap_reservoir = nzmap_reservoir,
         nzmap_12 = nzmap_12,
         nzmap_21 = nzmap_21,
-        nzmap_well = nzmap_well
+        nzmap_well = nzmap_well,
     )
     return well_reservoir_map
 end
