@@ -265,7 +265,7 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
     if do_p_update || cpr.partial_update
         rmodel = reservoir_model(model)
         ctx = rmodel.context
-        @tic "weights" w_p = update_weights!(cpr, cpr.storage, rmodel, s, A, ps)
+        @tic "weights" w_p = update_weights!(cpr, cpr.storage, rmodel, s, storage, A, ps)
         A_p = cpr.storage.A_p
         w_p = cpr.storage.w_p
         @tic "pressure system" update_pressure_system!(A_p, cpr.pressure_precond, A, w_p, ctx, executor)
@@ -421,8 +421,10 @@ function reservoir_jacobian(lsys::MultiLinearizedSystem)
     return lsys[1, 1].jac
 end
 
-function update_weights!(cpr, cpr_storage::CPRStorage, model, res_storage, J, ps)
-    n = cpr_storage.np
+function update_weights!(cpr, cpr_storage::CPRStorage, model, res_storage, storage, J, ps)
+    np = cpr_storage.np
+    nc = number_of_cells(reservoir_model(model).domain)
+    n = min(np, nc)
     bz = cpr_storage.block_size
     w = cpr_storage.w_p
     r = cpr_storage.w_rhs
@@ -448,6 +450,17 @@ function update_weights!(cpr, cpr_storage::CPRStorage, model, res_storage, J, ps
         # Do nothing. Already set to one.
     else
         error("Unsupported strategy $(strategy)")
+    end
+    if np > nc
+        wr_map = cpr_storage.well_reservoir_map
+        @assert !isnothing(wr_map)
+        for i in 1:(np-nc)
+            wno = nc+i
+            w_i = view(w, :, wno)
+            well = wr_map.wells[i]
+            acc_i = storage[well].state.TotalMasses
+            true_impes!(w_i, acc_i, r, 1, ncomp, ps, scaling)
+        end
     end
     return w
 end
@@ -787,6 +800,7 @@ function cpr_construct_well_reservoir_map(model, lsys, bz)
     nzmap_well = Int[]
 
     well_reservoir_map = (
+        wells = simple_well_keys,
         I = I,
         J = J,
         np = ncell + num_simple_wells,
