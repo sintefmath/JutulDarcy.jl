@@ -87,7 +87,7 @@ function model_or_domain_is_well(m)
     if domain isa DiscretizedDomain
         is_well = physical_representation(domain) isa WellDomain
     else
-        is_well = false
+        is_well = m isa WellDomain
     end
     return is_well
 end

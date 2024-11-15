@@ -314,10 +314,30 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         minbatch = 1000,
         kgrad = nothing,
         immutable_model = false,
-        wells_systems = missing
+        wells_systems = missing,
+        wells_as_cells = false
     )
+    # Deal with wells, make sure that multisegment wells come last.
     if !(wells isa AbstractArray)
         wells = [wells]
+    end
+    old_wells = wells
+    mswells = []
+    stdwells = []
+    for (i, w) in enumerate(wells)
+        model_or_domain_is_well(w) || throw(ArgumentError("Well $i was not a WellDomain instance (SimpleWell/MultiSegmentWell)."))
+        if w isa SimpleWell
+            push!(stdwells, w)
+        else
+            push!(mswells, w)
+        end
+    end
+    wells = []
+    for w in stdwells
+        push!(wells, w)
+    end
+    for w in mswells
+        push!(wells, w)
     end
     # List of models (order matters)
     models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()
@@ -383,6 +403,11 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             else
                 wsys = wells_systems[well_no]
             end
+            if wells_as_cells && w isa SimpleWell
+                well_context = reservoir_context
+            else
+                well_context = context
+            end
             w_domain = DataDomain(w)
             wc = w.perforations.reservoir
             c = map_well_nodes_to_reservoir_cells(w, reservoir)
@@ -392,7 +417,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
                 end
             end
             wname = w.name
-            wmodel = SimulationModel(w_domain, system, context = context)
+            wmodel = SimulationModel(w_domain, system, context = well_context)
             if thermal
                 wmodel = add_thermal_to_model!(wmodel)
             end
@@ -425,7 +450,11 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     end
 
     # Put it all together as multimodel
-    model = reservoir_multimodel(models, split_wells = split_wells, assemble_wells_together = assemble_wells_together, immutable_model = immutable_model)
+    model = reservoir_multimodel(models,
+        split_wells = split_wells,
+        assemble_wells_together = assemble_wells_together,
+        immutable_model = immutable_model,
+    )
     if extra_out
         parameters = setup_parameters(model, parameters)
         out = (model, parameters)
