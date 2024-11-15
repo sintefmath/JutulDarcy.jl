@@ -28,7 +28,12 @@ struct CPRStorage{P, R, S, F, W, V, P_v, M}
     float_type::DataType
 end
 
-function CPRStorage(p_prec, lin_op, full_jac, ncomp = missing; T = missing, p_buffer::Bool = true, well_reservoir_map = nothing)
+function CPRStorage(p_prec, lin_op, full_jac, ncomp = missing;
+        T = missing,
+        p_buffer::Bool = true,
+        well_reservoir_map = nothing,
+        lsys = missing
+    )
     T_b = eltype(full_jac)
     @assert T_b<:StaticMatrix
     if ismissing(T)
@@ -41,7 +46,7 @@ function CPRStorage(p_prec, lin_op, full_jac, ncomp = missing; T = missing, p_bu
     if ismissing(ncomp)
         ncomp = bz
     end
-    A_p, r_p, p = create_pressure_system(p_prec, full_jac, np)
+    A_p, r_p, p = create_pressure_system(p_prec, full_jac, lsys, np, T, well_reservoir_map)
     solution = zeros(T, np*bz)
     residual = zeros(T, np*bz)
     w_p = zeros(T, ncomp, np)
@@ -211,21 +216,21 @@ function initialize_cpr_storage!(cpr, model, lsys, s, bz)
     end
 end
 
-function pressure_matrix_from_global_jacobian(J::SparseMatrixCSC)
+function pressure_matrix_from_global_jacobian(J::SparseMatrixCSC, T, lsys, well_reservoir_map::Nothing)
     nzval = zeros(nnz(J))
     n = size(J, 2)
     return SparseMatrixCSC(n, n, J.colptr, J.rowval, nzval)
 end
 
-function pressure_matrix_from_global_jacobian(J::Jutul.StaticSparsityMatrixCSR)
+function pressure_matrix_from_global_jacobian(J::Jutul.StaticSparsityMatrixCSR, T, lsys, well_reservoir_map)
     nzval = zeros(nnz(J))
     n = size(J, 2)
     # Assume symmetry in sparse pattern, but not values.
     return Jutul.StaticSparsityMatrixCSR(n, n, J.At.colptr, Jutul.colvals(J), nzval, nthreads = J.nthreads, minbatch = J.minbatch)
 end
 
-function create_pressure_system(p_prec, J, n)
-    return (pressure_matrix_from_global_jacobian(J), zeros(n), zeros(n))
+function create_pressure_system(p_prec, J, lsys, n, T, well_reservoir_map)
+    return (pressure_matrix_from_global_jacobian(J, T, lsys, well_reservoir_map), zeros(T, n), zeros(T, n))
 end
 
 function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, recorder, executor)
@@ -701,7 +706,7 @@ function cpr_construct_well_reservoir_map(model, lsys, bz)
         return map(i -> weq_positions(lsys_block.jac, bz*(wcells[i]-1)+1, bz*(wperf[i]-1)+1, vbz, layout), eachindex(wcells))
     end
 
-    function well_positions(wcells, wperf, lsys::LinearizedSystem, bz) where R
+    function well_positions(wcells, wperf, lsys::LinearizedSystem, bz)
         vbz = Val(bz)
         layout = lsys.matrix_layout
         return map(i -> weq_positions(lsys.jac, bz*(wcells[i]-1)+1, bz*(wperf[i]-1)+1, vbz, layout), eachindex(wcells))
@@ -764,7 +769,12 @@ function cpr_construct_well_reservoir_map(model, lsys, bz)
         I = I,
         J = J,
         map_12 = map_12,
-        map_21 = map_21
+        map_21 = map_21,
+        map_22 = map_22,
+        nzmap_reservoir = nzmap_reservoir,
+        nzmap_12 = nzmap_12,
+        nzmap_21 = nzmap_21,
+        nzmap_well = nzmap_well
     )
     return well_reservoir_map
 end
