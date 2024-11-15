@@ -1,5 +1,5 @@
 
-struct CPRStorage{P, R, S, F, W, V, P_v}
+struct CPRStorage{P, R, S, F, W, V, P_v, M}
     "pressure system"
     A_p::P
     "pressure residual"
@@ -23,12 +23,18 @@ struct CPRStorage{P, R, S, F, W, V, P_v}
     id::UInt64
     "optional pressure-sized buffer"
     p_buffer::P_v
+    "optional well+reservoir mappings for CPRW"
+    well_reservoir_map::M
+    float_type::DataType
 end
 
-function CPRStorage(p_prec, lin_op, full_jac, ncomp = missing; p_buffer::Bool = true)
+function CPRStorage(p_prec, lin_op, full_jac, ncomp = missing; T = missing, p_buffer::Bool = true, well_reservoir_map = nothing)
     T_b = eltype(full_jac)
     @assert T_b<:StaticMatrix
-    T = eltype(T_b)
+    if ismissing(T)
+        T = eltype(T_b)
+    end
+    # TODO: Update the sizes here from well_map if it exists.
     @assert T<:Real
     np = size(full_jac, 1)
     bz = size(T_b, 1)
@@ -47,7 +53,7 @@ function CPRStorage(p_prec, lin_op, full_jac, ncomp = missing; p_buffer::Bool = 
     else
         p_buf = missing
     end
-    return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p, w_rhs, np, bz, ncomp, objectid(full_jac), p_buf)
+    return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p, w_rhs, np, bz, ncomp, objectid(full_jac), p_buf, well_reservoir_map, T)
 end
 
 function CPRStorage(np::Int, bz::Int, lin_op, psys::Tuple, solution, residual, T = Float64, id = zero(UInt64); ncomp = bz)
@@ -187,16 +193,21 @@ function update_preconditioner!(cpr::CPRPreconditioner, lsys, model, storage, re
     end
 end
 
-function initialize_cpr_storage!(cpr, lsys, s, bz)
+function initialize_cpr_storage!(cpr, model, lsys, s, bz)
     J = reservoir_jacobian(lsys)
     do_setup = isnothing(cpr.storage) || cpr.storage.id != objectid(J)
     if do_setup
+        if cpr.variant == :cprw
+            well_reservoir_map = cpr_construct_well_reservoir_map(model, lsys, bz)
+        else
+            well_reservoir_map = nothing
+        end
         if cpr.full_system_correction
             op = linear_operator(lsys)
         else
             op = linear_operator(lsys[1,1])
         end
-        cpr.storage = CPRStorage(cpr.pressure_precond, op, J, bz)
+        cpr.storage = CPRStorage(cpr.pressure_precond, op, J, bz, well_reservoir_map = well_reservoir_map)
     end
 end
 
@@ -223,7 +234,7 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
     A = reservoir_jacobian(lsys)
     rmodel = reservoir_model(model, type = :flow)
     bz = number_of_components(rmodel.system)
-    initialize_cpr_storage!(cpr, lsys, s, bz)
+    initialize_cpr_storage!(cpr, model, lsys, s, bz)
     ps = rmodel.primary_variables[:Pressure].scale
     if do_p_update || cpr.partial_update
         rmodel = reservoir_model(model)
@@ -652,4 +663,108 @@ function should_update_cpr(cpr, rec, type = :amg)
         update = crit && (uf == 1 || (n % uf) == 1)
     end
     return update
+end
+
+function cpr_construct_well_reservoir_map(model, lsys, bz)
+    num_simple_wells = 0
+    simple_well_keys = Symbol[]
+    for (k, m) in pairs(model.models)
+        if k == :Reservoir
+            continue
+        end
+        stop = true
+        if model_or_domain_is_well(m)
+            if physical_representation(m.domain) isa SimpleWell
+                num_simple_wells += 1
+                push!(simple_well_keys, k)
+                stop = false
+            end
+        end
+        if stop
+            break
+        end
+    end
+
+    function weq_positions(J, cell_i, cell_j, ::Val{bz}, layout) where bz
+        out = @MMatrix zeros(Int64, bz, bz)
+        for eq in 1:bz
+            for der in 1:bz
+                out[eq, der] = find_sparse_position(J, cell_i+eq-1, cell_j+der-1, layout)
+            end
+        end
+        return SMatrix{bz, bz, Int64, bz*bz}(out)
+    end
+
+    function well_positions(wcells, wperf, lsys_block::Jutul.LinearizedBlock{R}, bz) where R
+        vbz = Val(bz)
+        layout = R()
+        return map(i -> weq_positions(lsys_block.jac, bz*(wcells[i]-1)+1, bz*(wperf[i]-1)+1, vbz, layout), eachindex(wcells))
+    end
+
+    function well_positions(wcells, wperf, lsys::LinearizedSystem, bz) where R
+        vbz = Val(bz)
+        layout = lsys.matrix_layout
+        return map(i -> weq_positions(lsys.jac, bz*(wcells[i]-1)+1, bz*(wperf[i]-1)+1, vbz, layout), eachindex(wcells))
+    end
+
+
+    # For each well find the list of cells and corresponding sparsity + indices
+    # since these are not blocks.
+    J_rr = lsys[1, 1].jac
+    if J_rr isa Jutul.StaticSparsityMatrixCSR
+        # TODO: Add this method to CSR
+        J, I, = findnz(J_rr.At)
+    else
+        I, J, = findnz(J_rr)
+    end
+    ncell = size(J_rr, 1)
+
+    map_T = Vector{Vector{SMatrix{bz, bz, Int64, bz*bz}}}
+    map_12 = map_T()
+    map_21 = map_T()
+    map_22 = map_T()
+    map_well = map_T()
+
+    for (i, k) in enumerate(simple_well_keys)
+        wmodel = model.models[k]
+        # layout = matrix_layout(wmodel.context)
+        w = physical_representation(wmodel.domain)
+        wc = w.perforations.reservoir
+        vbz = Val(bz)
+
+        wno = fill(i, length(wc))
+        # Reservoir differentiated with respect to wells
+        pos_12 = well_positions(wc, wno, lsys[1, 2], bz)
+        push!(map_12, pos_12)
+        # Wells differentiated with respect to reservoir
+        pos_21 = well_positions(wno, wc, lsys[2, 1], bz)
+        push!(map_21, pos_21)
+        # Wells differentiated with respect to wells
+        pos_22 = well_positions(wno, wno, lsys[2, 2], bz)
+        push!(map_22, pos_22)
+        # Extend sparsity to include well cells
+        for c in wc
+            push!(I, c)
+            push!(J, i + ncell)
+
+            push!(J, c)
+            push!(I, i + ncell)
+
+            push!(I, i + ncell)
+            push!(J, i + ncell)
+        end
+    end
+
+    nzmap_reservoir = Int[]
+    nzmap_12 = Int[]
+    nzmap_21 = Int[]
+    nzmap_well = Int[]
+
+    well_reservoir_map = (
+        I = I,
+        J = J,
+        map_12 = map_12,
+        map_21 = map_21
+    )
+    return well_reservoir_map
 end
