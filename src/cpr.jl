@@ -245,7 +245,43 @@ function pressure_matrix_from_global_jacobian(sys_jac::Jutul.StaticSparsityMatri
         nthreads = sys_jac.nthreads,
         minbatch = sys_jac.minbatch
     )
-    # TODO: Align here.
+    # Align reservoir variables
+    nzmap_reservoir = well_reservoir_map.nzmap_reservoir
+    resize!(nzmap_reservoir, nnz(sys_jac))
+    ix_in_pnzval = 1
+    ncell = size(sys_jac, 1)
+    nwell = size(A_p, 1) - ncell
+    for row in 1:ncell
+        for j in nzrange(sys_jac, row)
+            col = Jutul.StaticCSR.colvals(sys_jac)[j]
+            found = false
+            for k in nzrange(A_p, row)
+                col_p = Jutul.StaticCSR.colvals(A_p)[k]
+                found = col == col_p
+                if found
+                    nzmap_reservoir[j] = k
+                    break
+                end
+            end
+            @assert found "Could not find $row, $col in pressure system"
+        end
+    end
+    # Well to well
+    nzmap_well = well_reservoir_map.nzmap_well
+    J_22 = lsys[2, 2].jac
+
+    for w in 1:nwell
+
+    end
+    # Align well to reservoir variables
+    nzmap_12 = well_reservoir_map.nzmap_12
+    nzmap_21 = well_reservoir_map.nzmap_21
+    J_12 = lsys[1, 2].jac
+    J_21 = lsys[2, 1].jac
+    for well in 1:nwell
+        
+    end
+    @info "?!" ncell nwell
     return A_p
 end
 
@@ -268,14 +304,14 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
         @tic "weights" w_p = update_weights!(cpr, cpr.storage, rmodel, s, storage, A, ps)
         A_p = cpr.storage.A_p
         w_p = cpr.storage.w_p
-        @tic "pressure system" update_pressure_system!(A_p, cpr.pressure_precond, A, w_p, ctx, executor)
+        rw_map = cpr.storage.well_reservoir_map
+        @tic "pressure system" update_pressure_system!(A_p, cpr.pressure_precond, A, w_p, ctx, executor, rw_map)
     end
     return do_p_update
 end
 
 # CSC (default) version
-
-function update_pressure_system!(A_p, p_prec, A, w_p, ctx, executor)
+function update_pressure_system!(A_p, p_prec, A, w_p, ctx, executor, ::Nothing)
     nz = nonzeros(A_p)
     nz_s = nonzeros(A)
     rows = rowvals(A_p)
@@ -300,8 +336,7 @@ function update_row_csc!(nz, A_p, w_p, rows, nz_s, col, ::Val{Ncomp}, ::Val{adjo
 end
 
 # CSR version
-
-function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, p_prec, A::Jutul.StaticSparsityMatrixCSR, w_p, ctx, executor)
+function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, p_prec, A::Jutul.StaticSparsityMatrixCSR, w_p, ctx, executor, ::Nothing)
     T_p = eltype(A_p)
     nz = nonzeros(A_p)
     nz_s = nonzeros(A)
