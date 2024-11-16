@@ -807,7 +807,11 @@ function should_update_cpr(cpr, rec, type = :amg)
     return update
 end
 
-function cpr_construct_well_reservoir_map(model, lsys, bz)
+function cpr_construct_well_reservoir_map(model::SimulationModel, lsys, bz)
+    return nothing
+end
+
+function cpr_construct_well_reservoir_map(model::MultiModel, lsys, bz)
     num_simple_wells = 0
     simple_well_keys = Symbol[]
     for (k, m) in pairs(model.models)
