@@ -579,8 +579,18 @@ end
 - `linear_solver=:bicgstab`: iterative solver to use (provided model supports
   it). Typical options are `:bicgstab` or `:gmres` Can alternatively pass a
   linear solver instance.
-- `precond=:cpr`: preconditioner for iterative solver: Either :cpr or :ilu0.
-- `rtol=1e-3`: relative tolerance for linear solver
+- `precond=:cpr`: preconditioner for iterative solver. For larger problems, CPR
+  variants are recommended. In order of strength and cost:
+   - `:cpr` standard Constrained-Pressure-Residual with ILU(0) second stage
+     (strong preconditioner)
+   - `:cprw` CPRW with ILU(0) second stage. Faster for problems with wells
+     (strong preconditioner)
+   - `:ilu0` block-incomplete-LU (intermediate strength preconditioner)
+   - `:spai0`: Sparse Approximate Inverse of lowest order (weak preconditioner)
+   - `jacobi`: Jacobi preconditioner (weak preconditioner)
+- `rtol=nothing`: relative tolerance for linear solver. If set to `nothing`, the
+  default tolerance for the preconditioner is used, which is 5e-3 for CPR
+  variants and 1e-2 for smoothers.
 - `linear_solver_arg`: `Dict` containing additional linear solver arguments.
 
 ## Timestepping options

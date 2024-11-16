@@ -36,6 +36,7 @@ function reservoir_linsolve(model,
         partial_update = update_interval == :once,
         amg_arg = NamedTuple(),
         precond_side = missing,
+        float_type = Float64,
         kwarg...
     )
     model = reservoir_model(model)
@@ -61,6 +62,7 @@ function reservoir_linsolve(model,
             smoother_type = :ilu0
         end
         krylov_constructor = CUDAReservoirKrylov
+        krylov_arg = (Float_t = float_type, )
     else
         if solver == :lu
             return LUSolver()
@@ -69,6 +71,8 @@ function reservoir_linsolve(model,
             return nothing
         end
         krylov_constructor = GenericKrylov
+        krylov_arg = NamedTuple()
+        @assert float_type == Float64 "Only Float64 supported for CPU backend."
     end
 
     default_tol = 0.01
@@ -134,6 +138,7 @@ function reservoir_linsolve(model,
         absolute_tolerance = atol,
         max_iterations = max_iterations,
         precond_side = precond_side,
+        krylov_arg...,
         kwarg...
     )
     return lsolve
