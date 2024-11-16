@@ -41,8 +41,9 @@ function CPRStorage(p_prec, lin_op, full_jac, ncomp = missing;
     end
     # TODO: Update the sizes here from well_map if it exists.
     @assert T<:Real
+    ncell = size(full_jac, 1)
     if isnothing(well_reservoir_map)
-        np = size(full_jac, 1)
+        np = ncell
     else
         np = well_reservoir_map.np
     end
@@ -51,8 +52,8 @@ function CPRStorage(p_prec, lin_op, full_jac, ncomp = missing;
         ncomp = bz
     end
     A_p, r_p, p = create_pressure_system(p_prec, full_jac, lsys, np, T, well_reservoir_map)
-    solution = zeros(T, np*bz)
-    residual = zeros(T, np*bz)
+    solution = zeros(T, ncell*bz)
+    residual = zeros(T, ncell*bz)
     w_p = zeros(T, ncomp, np)
     w_rhs = zeros(ncomp)
     w_rhs[1] = 1
@@ -439,7 +440,7 @@ function reduce_to_pressure(Ji, w_p, cell, Ncomp, adjoint)
 end
 
 function operator_nrows(cpr::CPRPreconditioner)
-    return size(cpr.storage.w_p, 2)*cpr.storage.block_size
+    return size(cpr.storage.A_ps, 1)
 end
 
 using Krylov
