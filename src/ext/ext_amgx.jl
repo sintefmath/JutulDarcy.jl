@@ -63,7 +63,8 @@ function update_preconditioner!(amg::AMGXPreconditioner, A::Jutul.StaticSparsity
 end
 
 function JutulDarcy.gpu_update_preconditioner!(cpr::AMGXCPR, lsys, model, storage, recorder, executor, krylov, J_bsr, r_cu, op)
-    @tic "CPU cpr work" Jutul.update_preconditioner!(cpr, lsys, model, storage, recorder, executor, update_system_precond = false)
+    T = eltype(J_bsr)
+    @tic "CPU cpr work" Jutul.update_preconditioner!(cpr, lsys, model, storage, recorder, executor, update_system_precond = false, T = T)
     # Transfer pressure system to GPU
     @tic "update system precond" JutulDarcy.gpu_update_preconditioner!(cpr.system_precond, lsys, model, storage, recorder, executor, krylov, J_bsr, r_cu, op)
     @tic "update pressure system" JutulDarcy.update_amgx_pressure_system!(cpr.pressure_precond, cpr.storage.A_p, eltype(J_bsr), cpr, recorder)
@@ -102,5 +103,5 @@ function Jutul.apply!(x, cpr::AMGXCPR, r)
     amgx = cpr.pressure_precond
     @tic "AMGX apply" dp = gpu_amgx_solve!(amgx, r_p)
     # Update increments for pressure
-    @tic "increment pressure" gpu_increment_pressure!(x, dp)
+    @tic "increment pressure" gpu_increment_pressure!(x, dp, cpr.storage.block_size)
 end

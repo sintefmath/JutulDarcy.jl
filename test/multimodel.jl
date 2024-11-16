@@ -138,4 +138,26 @@ end
         end
     end
     test_perforation_mask()
+
+    @testset "Preconditioners" begin
+        # CSR is the default, do exhaustive testing
+        arg = (
+            general_ad = false,
+            backend = :csr,
+            block_backend = true
+        )
+        for lsolve in [:bicgstab, :gmres]
+            for prec in [:cpr, :cprw, :ilu0, :jacobi, :spai0]
+                @testset "$lsolve:$prec" begin
+                    lsolve_arg = (
+                        precond = prec,
+                        linear_solver = lsolve,
+                    )
+                    test_compositional_with_wells(; setuparg = lsolve_arg, arg...)
+                    test_immiscible_with_wells(; setuparg = lsolve_arg, arg...)
+                    test_blackoil_with_wells(; setuparg = lsolve_arg, arg...)
+                end
+            end
+        end
+    end
 end

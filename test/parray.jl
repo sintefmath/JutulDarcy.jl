@@ -98,7 +98,7 @@ end
         for backend in [:csc, :csr]
             @testset "$backend" begin
                 case = setup_bl_case(50, backend)
-                arg = (info_level = -1,)
+                arg = (info_level = -1, failure_cuts_timestep = false)
                 states, reports = simulate(case; arg...)
                 @testset "PArray native" begin
                     # Set np = 1 just to check that it works, is anyway tested
@@ -130,7 +130,7 @@ end
         for backend in [:csc, :csr]
             @testset "$backend" begin
                 case = setup_well_case(50, backend)
-                arg = (info_level = -1, timesteps = :none)
+                arg = (info_level = -1, failure_cuts_timestep = false, timesteps = :none)
                 # Test basic version
                 ws, states = simulate_reservoir(case; mode = :default, arg...)
                 # Basic version (multiproc faked)

@@ -51,7 +51,18 @@ In short, load `AMGX` and `CUDA` and run `simulate_reservoir(case, linear_solver
 
 ## Technical details and limitations
 
-The GPU implementation relies on assembly on CPU and pinned memory to transfer onto the CPU. This means that the performance can be significantly improved by launching Julia with multiple threads to speed up the non-GPU parts of the code. AMGX is currently single-GPU only and does not work with MPI. Currently, only `Float64` is supported for CPR, but pure ILU(0) solves support `Float32` as well.
+The GPU implementation relies on assembly on CPU and pinned memory to transfer onto the CPU. This means that the performance can be significantly improved by launching Julia with multiple threads to speed up the non-GPU parts of the code. AMGX is currently single-GPU only and does not work with MPI. To make use of lower precision, specify `Float32` in the `float_type` argument to the linear solver. Additional arguments to `AMGX` can also be specified this way. For example, we can solve using aggregation AMG in single precision by doing the following:
+
+```julia
+simulate_reservoir(case,
+    linear_solver_backend = :cuda,
+    linear_solver_arg = (
+        float_type = Float32,
+        algorithm = "AGGREGATION",
+        selector = "SIZE_8"
+        )
+    )
+```
 
 !!! warning "Experimental status"
     Multiple successive runs with different `AMGX` instances have resulted in crashes when old instances are garbage collected. This part of the code is still considered experimental, with contributions welcome if you are using it.

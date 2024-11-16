@@ -314,10 +314,30 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         minbatch = 1000,
         kgrad = nothing,
         immutable_model = false,
-        wells_systems = missing
+        wells_systems = missing,
+        wells_as_cells = false
     )
+    # Deal with wells, make sure that multisegment wells come last.
     if !(wells isa AbstractArray)
         wells = [wells]
+    end
+    old_wells = wells
+    mswells = []
+    stdwells = []
+    for (i, w) in enumerate(wells)
+        model_or_domain_is_well(w) || throw(ArgumentError("Well $i was not a WellDomain instance (SimpleWell/MultiSegmentWell)."))
+        if w isa SimpleWell
+            push!(stdwells, w)
+        else
+            push!(mswells, w)
+        end
+    end
+    wells = []
+    for w in stdwells
+        push!(wells, w)
+    end
+    for w in mswells
+        push!(wells, w)
     end
     # List of models (order matters)
     models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()
@@ -377,11 +397,17 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     # Then we set up all the wells
     mode = PredictionMode()
     if length(wells) > 0
+        facility_to_add = OrderedDict()
         for (well_no, w) in enumerate(wells)
             if ismissing(wells_systems)
                 wsys = system
             else
                 wsys = wells_systems[well_no]
+            end
+            if wells_as_cells && w isa SimpleWell
+                well_context = reservoir_context
+            else
+                well_context = context
             end
             w_domain = DataDomain(w)
             wc = w.perforations.reservoir
@@ -392,7 +418,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
                 end
             end
             wname = w.name
-            wmodel = SimulationModel(w_domain, system, context = context)
+            wmodel = SimulationModel(w_domain, system, context = well_context)
             if thermal
                 wmodel = add_thermal_to_model!(wmodel)
             end
@@ -413,11 +439,16 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             if split_wells
                 wg = WellGroup([wname], can_shut_wells = can_shut_wells)
                 F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
-                models[Symbol(string(wname)*string(:_ctrl))] = F
+                facility_to_add[Symbol(string(wname)*string(:_ctrl))] = F
             end
         end
         # Add facility that groups the wells
-        if !split_wells
+        if split_wells
+            # We have been gathering these above, put them at the end.
+            for (k, v) in pairs(facility_to_add)
+                models[k] = v
+            end
+        else
             wg = WellGroup(map(x -> x.name, wells), can_shut_wells = can_shut_wells)
             F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
             models[:Facility] = F
@@ -425,7 +456,11 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     end
 
     # Put it all together as multimodel
-    model = reservoir_multimodel(models, split_wells = split_wells, assemble_wells_together = assemble_wells_together, immutable_model = immutable_model)
+    model = reservoir_multimodel(models,
+        split_wells = split_wells,
+        assemble_wells_together = assemble_wells_together,
+        immutable_model = immutable_model,
+    )
     if extra_out
         parameters = setup_parameters(model, parameters)
         out = (model, parameters)
@@ -550,8 +585,18 @@ end
 - `linear_solver=:bicgstab`: iterative solver to use (provided model supports
   it). Typical options are `:bicgstab` or `:gmres` Can alternatively pass a
   linear solver instance.
-- `precond=:cpr`: preconditioner for iterative solver: Either :cpr or :ilu0.
-- `rtol=1e-3`: relative tolerance for linear solver
+- `precond=:cpr`: preconditioner for iterative solver. For larger problems, CPR
+  variants are recommended. In order of strength and cost:
+   - `:cpr` standard Constrained-Pressure-Residual with ILU(0) second stage
+     (strong preconditioner)
+   - `:cprw` CPRW with ILU(0) second stage. Faster for problems with wells
+     (strong preconditioner)
+   - `:ilu0` block-incomplete-LU (intermediate strength preconditioner)
+   - `:spai0`: Sparse Approximate Inverse of lowest order (weak preconditioner)
+   - `jacobi`: Jacobi preconditioner (weak preconditioner)
+- `rtol=nothing`: relative tolerance for linear solver. If set to `nothing`, the
+  default tolerance for the preconditioner is used, which is 5e-3 for CPR
+  variants and 1e-2 for smoothers.
 - `linear_solver_arg`: `Dict` containing additional linear solver arguments.
 
 ## Timestepping options

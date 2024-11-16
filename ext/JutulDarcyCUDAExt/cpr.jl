@@ -1,11 +1,16 @@
 function JutulDarcy.gpu_reduce_residual!(r_p, w_p, r)
+    ncomp, np = size(w_p)
     @assert eltype(r_p) == eltype(w_p) == eltype(r)
-    @assert length(w_p) == length(r)
-    @assert size(w_p, 2) == length(r_p)
+    # @assert length(w_p) == length(r)
+    @assert np == length(r_p)
+    ncell = length(r) ÷ ncomp
     kernel = CUDA.@cuda launch = false reduce_residual_kernel!(r_p, w_p, r)
     threads, blocks = kernel_helper(kernel, r_p)
     CUDA.@sync begin
         kernel(r_p, w_p, r; threads, blocks)
+    end
+    if np > ncell
+        @. r_p[ncell+1:end] = 0
     end
     return r_p
 end
@@ -15,7 +20,7 @@ function reduce_residual_kernel!(r_p, w_p, r_ps)
     stride = blockDim().x
     T = eltype(r_p)
     ncomp = size(w_p, 1)
-    for cell in index:stride:length(r_p)
+    for cell in index:stride:(length(r_ps)÷ncomp)
         v = zero(T)
         for comp in 1:ncomp
             ix = (cell-1)*ncomp + comp
@@ -28,32 +33,17 @@ function reduce_residual_kernel!(r_p, w_p, r_ps)
     return nothing
 end
 
-function JutulDarcy.gpu_increment_pressure!(x, dp)
+function JutulDarcy.gpu_increment_pressure!(x, dp, bz)
     n = length(x)
-    bz = div(n, length(dp))
     @assert bz > 0
-    if false
-        kernel = CUDA.@cuda launch=false gpu_increment_pressure_kernel!(x, dp, bz)
-        threads, blocks = kernel_helper(kernel, dp)
-        threads = blocks = 1
-
-        CUDA.@sync begin
-        kernel(x, dp, bz; threads, blocks)
-        end
+    x_view = view(x, 1:bz:(n+1-bz))
+    if length(dp)*bz > n
+        dp = view(dp, 1:(n÷bz))
+        @. x_view += dp
     else
-        x_view = view(x, 1:bz:(n+1-bz))
         @. x_view += dp
     end
     return x
-end
-
-function gpu_increment_pressure_kernel!(x, dp, bz)
-    index = threadIdx().x
-    stride = blockDim().x
-    for cell in index:stride:length(dp)
-        x[(cell-1)*bz + 1] += dp[cell]
-    end
-    return nothing
 end
 
 function kernel_helper(kernel, V)

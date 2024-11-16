@@ -55,9 +55,11 @@ setups = [
 
                     end
                     @testset "Block assembly, CPR" begin
-                        for strategy in [:quasi_impes, :true_impes]
-                            prec = CPRPreconditioner(strategy = strategy)
-                            @test test_multiphase(setup = setup, context = bctx, linear_solver = GenericKrylov(preconditioner = prec))
+                        for variant in [:cpr, :cprw]
+                            for strategy in [:quasi_impes, :true_impes]
+                                prec = CPRPreconditioner(strategy = strategy, variant = variant)
+                                @test test_multiphase(setup = setup, context = bctx, linear_solver = GenericKrylov(preconditioner = prec))
+                            end
                         end
                     end
                     @testset "Block assembly, auto" begin

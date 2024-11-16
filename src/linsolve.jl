@@ -36,11 +36,13 @@ function reservoir_linsolve(model,
         partial_update = update_interval == :once,
         amg_arg = NamedTuple(),
         precond_side = missing,
+        float_type = Float64,
         kwarg...
     )
     model = reservoir_model(model)
     is_equation_major = !Jutul.is_cell_major(matrix_layout(model.context))
     backend in (:cpu, :cuda) || throw(ArgumentError("Backend $backend not supported, must be :cpu or :cuda."))
+    is_cpr = precond == :cpr || precond == :cprw
     if backend == :cuda
         # Check assumptions
         !is_equation_major || throw(ArgumentError("Equation-major storage not supported for CUDA backend."))
@@ -49,7 +51,7 @@ function reservoir_linsolve(model,
         has_cuda || throw(ArgumentError("CUDA backend not available. You must run \"using CUDA\" before using this function."))
         has_amgx = !isnothing(Base.get_extension(JutulDarcy, :JutulDarcyAMGXExt))
         # Make sure that options are compatible with CUDA backend
-        if precond == :cpr && !has_amgx
+        if is_cpr && !has_amgx
             jutul_message("AMGX", "AMGX not available, disabling CPR and falling back to ILU(0) preconditioner.")
             precond = :ilu0
         else
@@ -60,6 +62,7 @@ function reservoir_linsolve(model,
             smoother_type = :ilu0
         end
         krylov_constructor = CUDAReservoirKrylov
+        krylov_arg = (Float_t = float_type, )
     else
         if solver == :lu
             return LUSolver()
@@ -68,11 +71,13 @@ function reservoir_linsolve(model,
             return nothing
         end
         krylov_constructor = GenericKrylov
+        krylov_arg = NamedTuple()
+        @assert float_type == Float64 "Only Float64 supported for CPU backend."
     end
 
     default_tol = 0.01
     max_it = 200
-    if precond == :cpr
+    if is_cpr
         if isnothing(cpr_type)
             if isa(model.system, ImmiscibleSystem)
                 cpr_type = :analytical
@@ -89,7 +94,9 @@ function reservoir_linsolve(model,
             error("Smoother :$smoother_type not supported for CPR.")
         end
         prec = CPRPreconditioner(
-            p_solve, s, strategy = cpr_type, 
+            p_solve, s,
+            strategy = cpr_type,
+            variant = precond,
             update_interval = update_interval,
             partial_update = partial_update,
             update_interval_partial = update_interval_partial,
@@ -131,6 +138,7 @@ function reservoir_linsolve(model,
         absolute_tolerance = atol,
         max_iterations = max_iterations,
         precond_side = precond_side,
+        krylov_arg...,
         kwarg...
     )
     return lsolve
