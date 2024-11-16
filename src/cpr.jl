@@ -364,7 +364,8 @@ function update_row_csr!(nz, A_p, w_p, cols, nz_s, row, ::Val{Ncomp}, ::Val{adjo
 end
 
 function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, p_prec, A_s::Jutul.StaticSparsityMatrixCSR, w_p, ctx, executor, well_reservoir_map)
-    (; map_12, map_21, map_22, nzmap_11, nzmap_12, nzmap_21, nzmap_22) = well_reservoir_map
+    # CPRW has a different sparsity pattern than the reservoir matrix, so we
+    # have to do some extra work to get everything in the right spots.
     T_p = eltype(A_p)
     nz_p = nonzeros(A_p)
     nz_s = nonzeros(A_s)
@@ -372,16 +373,20 @@ function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, p_prec, A_s
     np = size(A_p, 1)
     ncells = size(A_s, 1)
     @assert np == well_reservoir_map.np
-    # Update the pressure system with the same pattern in-place
     tb = minbatch(ctx, np)
     ncomp = size(w_p, 1)
     N = Val(ncomp)
     is_adjoint = Val(Jutul.represented_as_adjoint(matrix_layout(ctx)))
-    is_adjoint = false
+    cprw_update_pressure_system!(nz_p, nz_s, A_s, A_p, w_p, well_reservoir_map, tb, ncells, np, N, is_adjoint)
+    return A_p
+end
+
+function cprw_update_pressure_system!(nz_p, nz_s, A_s, A_p, w_p, well_reservoir_map, tb, ncells, np,::Val{ncomp}, ::Val{is_adjoint}) where {ncomp, is_adjoint}
+    (; map_12, map_21, map_22, nzmap_11, nzmap_12, nzmap_21, nzmap_22) = well_reservoir_map
     # Reservoir internal connections
     @assert length(nzmap_11) == length(nz_s)
-    for cell in 1:ncells
-        for pos_s in nzrange(A_s, cell)
+    @batch minbatch=tb for cell in 1:ncells
+        @inbounds for pos_s in nzrange(A_s, cell)
             pos_p = nzmap_11[pos_s]
             Ji = nz_s[pos_s]
             nz_p[pos_p] = reduce_to_pressure(Ji, w_p, cell, ncomp, is_adjoint)
@@ -390,11 +395,11 @@ function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, p_prec, A_s
     # Reservoir differentiated wrt wells
     nz_12 = well_reservoir_map.nzval_12
     ix = 1
-    for i in eachindex(map_12)
+    @inbounds for i in eachindex(map_12)
         map_12_i = map_12[i]
         wc = well_reservoir_map.well_cells[i]
         # nzmap_12_i = nzmap_12[i]
-        for j in eachindex(map_12_i)
+        @inbounds for j in eachindex(map_12_i)
             cell = wc[j]
             Ji = nz_12[map_12_i[j]]
             nz_p[nzmap_12[ix]] = reduce_to_pressure(Ji, w_p, cell, ncomp, is_adjoint)
@@ -404,9 +409,9 @@ function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, p_prec, A_s
     # Wells differentiated wrt reservoir
     nz_21 = well_reservoir_map.nzval_21
     ix = 1
-    for i in eachindex(map_21)
+    @inbounds for i in eachindex(map_21)
         map_21_i = map_21[i]
-        for j in eachindex(map_21_i)
+        @inbounds for j in eachindex(map_21_i)
             well = i + ncells
             Ji = nz_21[map_21_i[j]]
             nz_p[nzmap_21[ix]] = reduce_to_pressure(Ji, w_p, well, ncomp, is_adjoint)
@@ -416,15 +421,16 @@ function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, p_prec, A_s
     # Wells differentiated wrt wells
     nz_22 = well_reservoir_map.nzval_22
     ix = 1
-    for i in eachindex(map_22, nzmap_22)
+    @inbounds for i in eachindex(map_22, nzmap_22)
         map_22_i = map_22[i]
-        for j in eachindex(map_22_i)
+        @inbounds for j in eachindex(map_22_i)
             well = i + ncells
             Ji = nz_22[map_22_i[j]]
             nz_p[nzmap_22[ix]] = reduce_to_pressure(Ji, w_p, well, ncomp, is_adjoint)
             ix += 1
         end
     end
+    return nz_p
 end
 
 function reduce_to_pressure(Ji, w_p, cell, Ncomp, adjoint)
