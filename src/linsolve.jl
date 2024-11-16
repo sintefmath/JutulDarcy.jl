@@ -20,7 +20,6 @@ Additional keywords are passed onto the linear solver constructor.
 """
 function reservoir_linsolve(model,
         precond = :cpr;
-        cpr_variant = :cpr,
         backend = :cpu,
         rtol = nothing,
         atol = nothing,

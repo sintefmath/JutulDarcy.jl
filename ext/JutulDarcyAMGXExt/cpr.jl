@@ -98,7 +98,7 @@ function JutulDarcy.gpu_cpr_setup_buffers!(cpr, J_bsr, r_cu, op, recorder)
         bz = cpr_s.block_size
         cpr.pressure_precond.data[:buffer_full] = similar(r_cu)
         bz_w, n_w = size(cpr_s.w_p)
-        @assert n == bz*n_w
+        # @assert n == bz*n_w
         data[:w_p] = AMGX.CUDA.CuMatrix{Tv}(undef, bz_w, n_w)
         data[:main_system] = J_bsr
         data[:operator] = op

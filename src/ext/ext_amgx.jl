@@ -103,5 +103,5 @@ function Jutul.apply!(x, cpr::AMGXCPR, r)
     amgx = cpr.pressure_precond
     @tic "AMGX apply" dp = gpu_amgx_solve!(amgx, r_p)
     # Update increments for pressure
-    @tic "increment pressure" gpu_increment_pressure!(x, dp)
+    @tic "increment pressure" gpu_increment_pressure!(x, dp, cpr.storage.block_size)
 end
