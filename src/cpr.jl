@@ -390,7 +390,7 @@ function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, p_prec, A_s
     # Reservoir differentiated wrt wells
     nz_12 = well_reservoir_map.nzval_12
     ix = 1
-    for i in eachindex(map_12, nzmap_12)
+    for i in eachindex(map_12)
         map_12_i = map_12[i]
         wc = well_reservoir_map.well_cells[i]
         # nzmap_12_i = nzmap_12[i]
@@ -404,7 +404,7 @@ function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, p_prec, A_s
     # Wells differentiated wrt reservoir
     nz_21 = well_reservoir_map.nzval_21
     ix = 1
-    for i in eachindex(map_21, nzmap_21)
+    for i in eachindex(map_21)
         map_21_i = map_21[i]
         for j in eachindex(map_21_i)
             well = i + ncells
@@ -693,8 +693,9 @@ end
 end
 
 function update_p_rhs!(r_p, y, ncomp, bz, w_p, p_prec, mode)
+    n = length(y)÷bz
     if mode == :forward
-        @batch minbatch = 1000 for i in eachindex(r_p)
+        @batch minbatch = 1000 for i in 1:n
             v = 0.0
             @inbounds for b = 1:ncomp
                 v += y[(i-1)*bz + b]*w_p[b, i]
@@ -702,9 +703,12 @@ function update_p_rhs!(r_p, y, ncomp, bz, w_p, p_prec, mode)
             @inbounds r_p[i] = v
         end
     else
-        @batch minbatch = 1000 for i in eachindex(r_p)
+        @batch minbatch = 1000 for i in 1:n
             @inbounds r_p[i] = y[(i-1)*bz + 1]*w_p[1, i]
         end
+    end
+    for i in (n+1):length(r_p)
+        r_p[i] = 0.0
     end
 end
 
@@ -715,7 +719,8 @@ function correct_residual_and_increment_pressure!(r, x, Δp, bz, buf, A_ps, p_bu
     # y' = y - A*Δx
     # x = A \ y' + Δx
     @. buf = 0
-    @tic "p increment" @inbounds for i in eachindex(Δp)
+    n = length(r)÷bz
+    @tic "p increment" @inbounds for i in 1:n
         ix = (i-1)*bz + 1
         p_i = Δp[i]
         buf[ix] = p_i
@@ -879,7 +884,7 @@ function cpr_construct_well_reservoir_map(model, lsys, bz)
         pos_21 = well_positions(wno, wc, lsys[2, 1], bz)
         push!(map_21, pos_21)
         # Wells differentiated with respect to wells
-        pos_22 = well_positions(wno, wno, lsys[2, 2], bz)
+        pos_22 = well_positions([i], [i], lsys[2, 2], bz)
         push!(map_22, pos_22)
         # Extend sparsity to include well cells
         for c in wc
