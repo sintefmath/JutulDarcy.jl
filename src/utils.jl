@@ -397,6 +397,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     # Then we set up all the wells
     mode = PredictionMode()
     if length(wells) > 0
+        facility_to_add = OrderedDict()
         for (well_no, w) in enumerate(wells)
             if ismissing(wells_systems)
                 wsys = system
@@ -438,11 +439,16 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             if split_wells
                 wg = WellGroup([wname], can_shut_wells = can_shut_wells)
                 F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
-                models[Symbol(string(wname)*string(:_ctrl))] = F
+                facility_to_add[Symbol(string(wname)*string(:_ctrl))] = F
             end
         end
         # Add facility that groups the wells
-        if !split_wells
+        if split_wells
+            # We have been gathering these above, put them at the end.
+            for (k, v) in pairs(facility_to_add)
+                models[k] = v
+            end
+        else
             wg = WellGroup(map(x -> x.name, wells), can_shut_wells = can_shut_wells)
             F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
             models[:Facility] = F
