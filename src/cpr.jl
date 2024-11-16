@@ -249,7 +249,7 @@ function pressure_matrix_from_global_jacobian(sys_jac::Jutul.StaticSparsityMatri
         minbatch = sys_jac.minbatch
     )
     # Align reservoir variables
-    nzmap_reservoir = well_reservoir_map.nzmap_reservoir
+    nzmap_reservoir = well_reservoir_map.nzmap_11
     resize!(nzmap_reservoir, nnz(sys_jac))
     ix_in_pnzval = 1
     ncell = size(sys_jac, 1)
@@ -261,24 +261,25 @@ function pressure_matrix_from_global_jacobian(sys_jac::Jutul.StaticSparsityMatri
         end
     end
     # Well to well
-    nzmap_well = well_reservoir_map.nzmap_well
-    resize!(nzmap_well, length(well_reservoir_map.map_22))
-    J_22 = lsys[2, 2].jac
+    nzmap_well = well_reservoir_map.nzmap_22
     for w in 1:nwell
-        for j in nzrange(J_22, w)
-            row = rowvals(J_22)[j]
-            nzmap_well[j] = find_sparse_position(A_p, row, ncell + w)
-        end
+        ix = find_sparse_position(A_p, ncell + w, ncell + w)
+        push!(nzmap_well, ix)
     end
+
     # Align well to reservoir variables
     nzmap_12 = well_reservoir_map.nzmap_12
     nzmap_21 = well_reservoir_map.nzmap_21
     J_12 = lsys[1, 2].jac
     J_21 = lsys[2, 1].jac
-    for well in 1:nwell
-        
+    for w in 1:nwell
+        for (i, cell) in enumerate(well_reservoir_map.well_cells[w])
+            ix_12 = find_sparse_position(A_p, cell, ncell + w)
+            push!(nzmap_12, ix_12)
+            ix_21 = find_sparse_position(A_p, ncell + w, cell)
+            push!(nzmap_21, ix_21)
+        end
     end
-    @info "?!" ncell nwell
     return A_p
 end
 
@@ -358,6 +359,70 @@ function update_row_csr!(nz, A_p, w_p, cols, nz_s, row, ::Val{Ncomp}, ::Val{adjo
     @inbounds for j in nzrange(A_p, row)
         Ji = nz_s[j]
         nz[j] = reduce_to_pressure(Ji, w_p, row, Ncomp, adjoint)
+    end
+end
+
+function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, p_prec, A_s::Jutul.StaticSparsityMatrixCSR, w_p, ctx, executor, well_reservoir_map)
+    (; map_12, map_21, map_22, nzmap_11, nzmap_12, nzmap_21, nzmap_22) = well_reservoir_map
+    T_p = eltype(A_p)
+    nz_p = nonzeros(A_p)
+    nz_s = nonzeros(A_s)
+    cols = Jutul.colvals(A_s)
+    np = size(A_p, 1)
+    ncells = size(A_s, 1)
+    @assert np == well_reservoir_map.np
+    # Update the pressure system with the same pattern in-place
+    tb = minbatch(ctx, np)
+    ncomp = size(w_p, 1)
+    N = Val(ncomp)
+    is_adjoint = Val(Jutul.represented_as_adjoint(matrix_layout(ctx)))
+    is_adjoint = false
+    # Reservoir internal connections
+    @assert length(nzmap_11) == length(nz_s)
+    for cell in 1:ncells
+        for pos_s in nzrange(A_s, cell)
+            pos_p = nzmap_11[pos_s]
+            Ji = nz_s[pos_s]
+            nz_p[pos_p] = reduce_to_pressure(Ji, w_p, cell, ncomp, is_adjoint)
+        end
+    end
+    # Reservoir differentiated wrt wells
+    nz_12 = well_reservoir_map.nzval_12
+    ix = 1
+    for i in eachindex(map_12, nzmap_12)
+        map_12_i = map_12[i]
+        wc = well_reservoir_map.well_cells[i]
+        # nzmap_12_i = nzmap_12[i]
+        for j in eachindex(map_12_i)
+            cell = wc[j]
+            Ji = nz_12[map_12_i[j]]
+            nz_p[nzmap_12[ix]] = reduce_to_pressure(Ji, w_p, cell, ncomp, is_adjoint)
+            ix += 1
+        end
+    end
+    # Wells differentiated wrt reservoir
+    nz_21 = well_reservoir_map.nzval_21
+    ix = 1
+    for i in eachindex(map_21, nzmap_21)
+        map_21_i = map_21[i]
+        for j in eachindex(map_21_i)
+            well = i + ncells
+            Ji = nz_21[map_21_i[j]]
+            nz_p[nzmap_21[ix]] = reduce_to_pressure(Ji, w_p, well, ncomp, is_adjoint)
+            ix += 1
+        end
+    end
+    # Wells differentiated wrt wells
+    nz_22 = well_reservoir_map.nzval_22
+    ix = 1
+    for i in eachindex(map_22, nzmap_22)
+        map_22_i = map_22[i]
+        for j in eachindex(map_22_i)
+            well = i + ncells
+            Ji = nz_22[map_22_i[j]]
+            nz_p[nzmap_22[ix]] = reduce_to_pressure(Ji, w_p, well, ncomp, is_adjoint)
+            ix += 1
+        end
     end
 end
 
@@ -790,6 +855,7 @@ function cpr_construct_well_reservoir_map(model, lsys, bz)
     end
     ncell = size(J_rr, 1)
 
+    well_cells = Vector{Int64}[]
     map_T = Vector{Vector{SMatrix{bz, bz, Int64, bz*bz}}}
     map_12 = map_T()
     map_21 = map_T()
@@ -801,6 +867,7 @@ function cpr_construct_well_reservoir_map(model, lsys, bz)
         # layout = matrix_layout(wmodel.context)
         w = physical_representation(wmodel.domain)
         wc = w.perforations.reservoir
+        push!(well_cells, wc)
         vbz = Val(bz)
 
         wno = fill(i, length(wc))
@@ -836,13 +903,17 @@ function cpr_construct_well_reservoir_map(model, lsys, bz)
         I = I,
         J = J,
         np = ncell + num_simple_wells,
+        well_cells = well_cells,
         map_12 = map_12,
         map_21 = map_21,
         map_22 = map_22,
-        nzmap_reservoir = nzmap_reservoir,
+        nzmap_11 = nzmap_reservoir,
         nzmap_12 = nzmap_12,
         nzmap_21 = nzmap_21,
-        nzmap_well = nzmap_well,
+        nzmap_22 = nzmap_well,
+        nzval_12 = nonzeros(lsys[1, 2].jac),
+        nzval_21 = nonzeros(lsys[2, 1].jac),
+        nzval_22 = nonzeros(lsys[2, 2].jac)
     )
     return well_reservoir_map
 end
