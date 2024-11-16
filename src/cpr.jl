@@ -72,7 +72,7 @@ function CPRStorage(np::Int, bz::Int, lin_op, psys::Tuple, solution, residual, T
     w_rhs = zeros(ncomp)
     w_rhs[1] = 1
     w_rhs = SVector{bz, T}(w_rhs)
-    return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p, w_rhs, np, bz, ncomp, id, zeros(T, np))
+    return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p, w_rhs, np, bz, ncomp, id, zeros(T, np), nothing, T)
 end
 
 
