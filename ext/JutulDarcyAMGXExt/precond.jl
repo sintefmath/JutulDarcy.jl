@@ -55,3 +55,9 @@ function Jutul.apply!(x, amgx::JutulDarcy.AMGXPreconditioner, r)
     AMGX.solve!(s.x, s.solver, s.r)
     AMGX.download!(x, s.x)
 end
+
+function JutulDarcy.amgx_finalize!(data::AbstractDict)
+    if haskey(data, :nzval)
+        AMGX.unpin_memory(data[:nzval])
+    end
+end

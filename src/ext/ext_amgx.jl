@@ -4,12 +4,7 @@ struct AMGXPreconditioner <: Jutul.JutulPreconditioner
     resetup::Bool
     function AMGXPreconditioner(settings::Dict{String, Any}; resetup = true)
         data = Dict{Symbol, Any}()
-        function finalize_data!(data)
-            if haskey(data, :nzval)
-                AMGX.unpin_memory(data[:nzval])
-            end
-        end
-        new(settings, finalizer(finalize_data!, data), resetup)
+        new(settings, finalizer(amgx_finalize!, data), resetup)
     end
 end
 
@@ -81,6 +76,10 @@ function gpu_cpr_setup_buffers!
 end
 
 function gpu_amgx_solve!
+
+end
+
+function amgx_finalize!
 
 end
 
