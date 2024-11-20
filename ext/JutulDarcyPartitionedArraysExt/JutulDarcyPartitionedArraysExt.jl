@@ -164,6 +164,7 @@ module JutulDarcyPartitionedArraysExt
             storage = Jutul.get_simulator_storage(sim)
             model = Jutul.get_simulator_model(sim)
             sys = storage.LinearizedSystem
+            ctx = model.context
             rsys = JutulDarcy.reservoir_jacobian(sys)
             rid = objectid(rsys)
             prec.pressure_precond.data[:hypre_system] = (A_p, r_p, x_p)
@@ -173,7 +174,7 @@ module JutulDarcyPartitionedArraysExt
             else
                 @assert prec.storage.id == rid
             end
-            Jutul.update_preconditioner!(prec, sys, model, storage, recorder, sim.executor)
+            Jutul.update_preconditioner!(prec, sys, ctx, model, storage, recorder, sim.executor)
             prec
         end
         return (cpr, preconditioners)
