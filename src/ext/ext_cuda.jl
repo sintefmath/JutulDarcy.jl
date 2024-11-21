@@ -18,6 +18,7 @@ end
 
 function Jutul.linear_solve!(lsys::Jutul.LSystem,
         krylov::CUDAReservoirKrylov{Tv, Ti},
+        context,
         model,
         storage = nothing,
         dt = nothing,

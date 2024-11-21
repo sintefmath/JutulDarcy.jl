@@ -70,16 +70,17 @@ if CUDA.functional()
     @testset "High-level CUDA" begin
         spe1_pth = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1", "SPE1.DATA")
         case = setup_case_from_data_file(spe1_pth)
+        sim_kwarg = (info_level = -1, failure_cuts_timestep = false)
         @testset "CuSPARSE-ILU(0)" begin
-            res_ilu = simulate_reservoir(case, info_level = -1, precond = :ilu0)
-            res_cuilu = simulate_reservoir(case, linear_solver_backend = :cuda, precond = :ilu0, info_level = -1);
+            res_ilu = simulate_reservoir(case; precond = :ilu0, sim_kwarg...)
+            res_cuilu = simulate_reservoir(case; linear_solver_backend = :cuda, precond = :ilu0, sim_kwarg...);
             spe1_gpu_compare(res_ilu, res_cuilu)
         end
         if Sys.islinux()
             @testset "AMGX-CPR" begin
                 using AMGX
-                res_cpr = simulate_reservoir(case, info_level = -1, precond = :cpr)
-                res_cucpr = simulate_reservoir(case, linear_solver_backend = :cuda, precond = :cpr, info_level = -1);
+                res_cpr = simulate_reservoir(case; precond = :cpr, sim_kwarg...)
+                res_cucpr = simulate_reservoir(case; linear_solver_backend = :cuda, precond = :cpr, sim_kwarg...);
                 spe1_gpu_compare(res_cpr, res_cucpr)
             end
         end
