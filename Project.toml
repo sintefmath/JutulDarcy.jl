@@ -1,7 +1,7 @@
 name = "JutulDarcy"
 uuid = "82210473-ab04-4dce-b31b-11573c4f8e0a"
 authors = ["Olav Møyner <olav.moyner@gmail.com>"]
-version = "0.2.37"
+version = "0.2.38"
 
 [deps]
 AlgebraicMultigrid = "2169fc97-5a83-5252-b627-83903c6c433c"
@@ -62,7 +62,7 @@ ForwardDiff = "0.10.30"
 GLMakie = "0.10.13"
 GeoEnergyIO = "1.1.12"
 HYPRE = "1.6.0, 1.7"
-Jutul = "0.2.42"
+Jutul = "0.3"
 Krylov = "0.9.1"
 LazyArtifacts = "1"
 LinearAlgebra = "1"
@@ -95,4 +95,4 @@ TestItemRunner = "f8b46487-2199-4994-9208-9a1283c18c0a"
 TestItems = "1c621080-faea-4a02-84b6-bbd5e436b8fe"
 
 [targets]
-test = ["Test", "CUDA", "TestItemRunner", "TestItems", "HYPRE", "MPI", "PartitionedArrays"]
+test = ["Test", "AMGX", "CUDA", "TestItemRunner", "TestItems", "HYPRE", "MPI", "PartitionedArrays"]

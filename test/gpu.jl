@@ -57,4 +57,31 @@ if CUDA.functional()
             end
         end
     end
+    function spe1_gpu_compare(ref, cusolve)
+        @test ref.wells[:PROD][:grat] ≈ cusolve.wells[:PROD][:grat] rtol = 1e-2
+        @test ref.wells[:PROD][:bhp] ≈ cusolve.wells[:PROD][:bhp] rtol = 1e-2
+        newtons = report_stats(ref.result.reports).newtons
+        newtons_cu = report_stats(cusolve.result.reports).newtons
+        @test newtons_cu < newtons + 5
+        linits = report_stats(ref.result.reports).linear_iterations
+        linits_cu = report_stats(cusolve.result.reports).linear_iterations
+        @test linits_cu < linits + 20
+    end
+    @testset "High-level CUDA" begin
+        spe1_pth = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1", "SPE1.DATA")
+        case = setup_case_from_data_file(spe1_pth)
+        @testset "CuSPARSE-ILU(0)" begin
+            res_ilu = simulate_reservoir(case, info_level = -1, precond = :ilu0)
+            res_cuilu = simulate_reservoir(case, linear_solver_backend = :cuda, precond = :ilu0, info_level = -1);
+            spe1_gpu_compare(res_ilu, res_cuilu)
+        end
+        if Sys.islinux()
+            @testset "AMGX-CPR" begin
+                using AMGX
+                res_cpr = simulate_reservoir(case, info_level = -1, precond = :cpr)
+                res_cucpr = simulate_reservoir(case, linear_solver_backend = :cuda, precond = :cpr, info_level = -1);
+                spe1_gpu_compare(res_cpr, res_cucpr)
+            end
+        end
+    end
 end
