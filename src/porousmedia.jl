@@ -189,6 +189,13 @@ function discretized_domain_tpfv_flow(domain::Jutul.DataDomain;
         else
             @assert isnothing(kgrad) || kgrad isa AbstractVector
         end
+        if upwind isa Symbol
+            if upwind == :spu
+                upwind = nothing
+            else
+                upwind = Jutul.WENO.weno_discretize(domain)
+            end
+        end
         if general_ad
             ad_flag = :generic
         else

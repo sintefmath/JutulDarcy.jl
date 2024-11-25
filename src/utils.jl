@@ -313,6 +313,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         nthreads = Threads.nthreads(),
         minbatch = 1000,
         kgrad = nothing,
+        upwind = nothing,
         immutable_model = false,
         wells_systems = missing,
         wells_as_cells = false
@@ -355,7 +356,8 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         system;
         context = reservoir_context,
         general_ad = general_ad,
-        kgrad = kgrad
+        kgrad = kgrad,
+        upwind = upwind
     )
     if thermal
         rmodel = add_thermal_to_model!(rmodel)
