@@ -192,8 +192,10 @@ function discretized_domain_tpfv_flow(domain::Jutul.DataDomain;
         if upwind isa Symbol
             if upwind == :spu
                 upwind = nothing
-            else
+            elseif upwind == :weno
                 upwind = Jutul.WENO.weno_discretize(domain)
+            else
+                error("Unknown upwind scheme $upwind, must be :spu or :weno")
             end
         end
         if general_ad
