@@ -156,7 +156,10 @@ end
 function discretized_domain_tpfv_flow(domain::Jutul.DataDomain;
         general_ad = false,
         kgrad = nothing,
-        upwind = nothing
+        upwind = nothing,
+        weno_threshold = 0.0,
+        weno_do_clamp = false,
+        weno_epsilon = 1e-10
     )
     N = domain[:neighbors]
     g = physical_representation(domain)
@@ -188,6 +191,19 @@ function discretized_domain_tpfv_flow(domain::Jutul.DataDomain;
             end
         else
             @assert isnothing(kgrad) || kgrad isa AbstractVector
+        end
+        if upwind isa Symbol
+            if upwind == :spu
+                upwind = nothing
+            elseif upwind == :weno
+                upwind = Jutul.WENO.weno_discretize(domain,
+                    threshold = weno_threshold,
+                    do_clamp = weno_do_clamp,
+                    epsilon = weno_epsilon
+                )
+            else
+                error("Unknown upwind scheme $upwind, must be :spu or :weno")
+            end
         end
         if general_ad
             ad_flag = :generic

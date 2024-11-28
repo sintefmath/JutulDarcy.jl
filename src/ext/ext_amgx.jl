@@ -59,7 +59,8 @@ end
 
 function JutulDarcy.gpu_update_preconditioner!(cpr::AMGXCPR, lsys, model, storage, recorder, executor, krylov, J_bsr, r_cu, op)
     T = eltype(J_bsr)
-    @tic "CPU cpr work" Jutul.update_preconditioner!(cpr, lsys, model, storage, recorder, executor, update_system_precond = false, T = T)
+    ctx = model.context
+    @tic "CPU cpr work" Jutul.update_preconditioner!(cpr, lsys, ctx, model, storage, recorder, executor, update_system_precond = false, T = T)
     # Transfer pressure system to GPU
     @tic "update system precond" JutulDarcy.gpu_update_preconditioner!(cpr.system_precond, lsys, model, storage, recorder, executor, krylov, J_bsr, r_cu, op)
     @tic "update pressure system" JutulDarcy.update_amgx_pressure_system!(cpr.pressure_precond, cpr.storage.A_p, eltype(J_bsr), cpr, recorder)

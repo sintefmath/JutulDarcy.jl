@@ -492,7 +492,7 @@ function cpr_weights_no_partials!(w, model::SimulationModel{R, S}, state, r, n, 
     tb = minbatch(model.context, nc)
     M = global_map(model.domain)
     density = Jutul.active_view(ρ, M, for_variables = false)
-    @batch minbatch = tb for i in axes(w, 2)
+    @batch minbatch = tb for i in 1:n
         for ph in axes(w, 1)
             @inbounds w[ph, i] = 1/value(density[ph, i])
         end

@@ -191,6 +191,9 @@ reservoir and that facility.
 
 # Keyword arguments
 
+
+## Basic model setup
+
 - `wells=[]`: Vector of wells (e.g. from [`setup_well`](@ref)) that are to be
   used in the model. Each well must have a unique name.
 - `extra_out=true`: Return both the model and the parameters instead of just the
@@ -206,6 +209,9 @@ reservoir and that facility.
       meshes with anisotropic perm or non-orthogonal cells than `:tpfa`.
     - `:ntpfa` gives a consistent nonlinear MPFA scheme (nonlinear version of
       `:avgmpfa` that preserves monotonicity)
+- `upwind=nothing`: Type of upwinding to use. Can be `:spu` or `nothing` for
+  standard upwinding or `:weno` for a second-order weighted essentially
+  non-oscillatory scheme.
 - `extra_outputs=Symbol[]`: Extra output variables for reservoir model. Defaults
   to "typical" values seen in reservoir simulation. Valid values: Vector of
   symbols to be output, `true` for all variables and `false` for the minimal set
@@ -238,6 +244,8 @@ impact simulation speed.
 - `general_ad=false`: Use more general form of AD. Will result in slower
   execution speed than if set to true, but can be useful when working with
   custom discretizations.
+- `discretization_arg=NamedTuple()`: Additional keyword arguments passed onto
+  `discretized_domain_tpfv_flow` when setting up discretizations.
 
 ## Increment and variable options
 These options govern the range of values and the maximum allowable change of
@@ -313,9 +321,11 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         nthreads = Threads.nthreads(),
         minbatch = 1000,
         kgrad = nothing,
+        upwind = nothing,
         immutable_model = false,
         wells_systems = missing,
-        wells_as_cells = false
+        wells_as_cells = false,
+        discretization_arg = NamedTuple()
     )
     # Deal with wells, make sure that multisegment wells come last.
     if !(wells isa AbstractArray)
@@ -355,7 +365,8 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         system;
         context = reservoir_context,
         general_ad = general_ad,
-        kgrad = kgrad
+        kgrad = kgrad,
+        upwind = upwind
     )
     if thermal
         rmodel = add_thermal_to_model!(rmodel)
@@ -603,6 +614,8 @@ end
 
 - `initial_dt=si_unit(:day)`: initial timestep in seconds (one day by default)
 - `target_ds=Inf`: target saturation change over a timestep used by timestepper.
+- `target_dz=Inf`: target mole fraction change over a timestep used by
+  timestepper (compositional only).
 - `target_its=8`: target number of nonlinear iterations per time step
 - `offset_its=1`: dampening parameter for time step selector where larger values
   lead to more pessimistic estimates.
@@ -663,6 +676,7 @@ function setup_reservoir_simulator(case::JutulCase;
         rtol = nothing,
         initial_dt = si_unit(:day),
         target_ds = Inf,
+        target_dz = Inf,
         target_its = 8,
         offset_its = 1,
         tol_cnv = 1e-3,
@@ -737,6 +751,13 @@ function setup_reservoir_simulator(case::JutulCase;
             @assert mode == :default "target_ds is only supported in serial."
             t_sat = VariableChangeTimestepSelector(
                 :Saturations, target_ds, relative = false, reduction = :max, model = :Reservoir
+                )
+            push!(sel, t_sat)
+        end
+        if isfinite(target_dz)
+            @assert mode == :default "target_dz is only supported in serial."
+            t_sat = VariableChangeTimestepSelector(
+                :OverallMoleFractions, target_dz, relative = false, reduction = :max, model = :Reservoir
                 )
             push!(sel, t_sat)
         end
