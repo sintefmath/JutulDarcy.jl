@@ -108,7 +108,11 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     centers = cell_centers[:, reservoir_cells]
 
     if isnothing(reference_depth)
-        reference_depth = centers[3, 1]
+        if size(centers, 1) == 2
+            reference_depth = 0.0
+        else
+            reference_depth = centers[3, 1]
+        end
     end
     volumes = zeros(n)
     WI_computed = zeros(n)
