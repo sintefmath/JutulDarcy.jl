@@ -563,8 +563,13 @@ function update_weights!(cpr, cpr_storage::CPRStorage, model, res_storage, stora
             wno = nc+i
             w_i = view(w, :, wno)
             well = wr_map.wells[i]
-            acc_i = storage[well].state.TotalMasses
-            true_impes!(w_i, acc_i, r, 1, ncomp, ps, scaling)
+            wstate = storage[well].state
+            if strategy == :analytical
+                cpr_weights_no_partials!(w_i, model, wstate, nothing, 1, ncomp, scaling)
+            else
+                acc_i = wstate.TotalMasses
+                true_impes!(w_i, acc_i, r, 1, ncomp, ps, scaling)
+            end
         end
     end
     return w
