@@ -614,6 +614,8 @@ end
 
 - `initial_dt=si_unit(:day)`: initial timestep in seconds (one day by default)
 - `target_ds=Inf`: target saturation change over a timestep used by timestepper.
+- `target_dz=Inf`: target mole fraction change over a timestep used by
+  timestepper (compositional only).
 - `target_its=8`: target number of nonlinear iterations per time step
 - `offset_its=1`: dampening parameter for time step selector where larger values
   lead to more pessimistic estimates.
@@ -674,6 +676,7 @@ function setup_reservoir_simulator(case::JutulCase;
         rtol = nothing,
         initial_dt = si_unit(:day),
         target_ds = Inf,
+        target_dz = Inf,
         target_its = 8,
         offset_its = 1,
         tol_cnv = 1e-3,
@@ -748,6 +751,13 @@ function setup_reservoir_simulator(case::JutulCase;
             @assert mode == :default "target_ds is only supported in serial."
             t_sat = VariableChangeTimestepSelector(
                 :Saturations, target_ds, relative = false, reduction = :max, model = :Reservoir
+                )
+            push!(sel, t_sat)
+        end
+        if isfinite(target_dz)
+            @assert mode == :default "target_dz is only supported in serial."
+            t_sat = VariableChangeTimestepSelector(
+                :OverallMoleFractions, target_dz, relative = false, reduction = :max, model = :Reservoir
                 )
             push!(sel, t_sat)
         end
