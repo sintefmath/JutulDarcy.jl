@@ -18,8 +18,8 @@ function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, s
     cfg = state.WellGroupConfiguration
     # Injectors can only have strictly positive injection rates,
     # producers can only have strictly negative and disabled controls give zero rate.
-    rel_max = Jutul.absolute_increment_limit(massrate)
-    abs_max = Jutul.relative_increment_limit(massrate)
+    abs_max = Jutul.absolute_increment_limit(massrate)
+    rel_max = Jutul.relative_increment_limit(massrate)
     function do_update!(wcfg, s, v, dx, ctrl)
         return Jutul.update_value(v, dx)
     end
