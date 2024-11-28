@@ -49,6 +49,13 @@ function FlowBoundaryCondition(
         dir = findfirst(isequal(dir), (:x, :y, :z))
     end
     dist = cell_dims(G, cell)[dir]
+    # Approximate area since we don't know the face.
+    A = 1.0
+    for i in 1:D
+        if i != dir
+            A *= cell_dims(G, cell)[i]
+        end
+    end
     K = domain[:permeability]
     cond = domain[:rock_thermal_conductivity]
 
@@ -61,7 +68,7 @@ function FlowBoundaryCondition(
         # Take the diagonal
         ki = Jutul.expand_perm(ki, D)[dir, dir]
         # Distance to boundary is half the cell width
-        return ki*(dist/2.0)
+        return A*ki/(dist/2.0)
     end
 
     T_flow = local_trans(K)
