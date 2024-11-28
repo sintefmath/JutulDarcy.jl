@@ -1,4 +1,4 @@
-# # Plotting CO2 properties used in compositional model
+# # CO2-brine correlations with salinity
 # JutulDarcy includes a set of pre-generated tables for simulation of CO2
 # storage in saline aquifers, as well as functions for calculating PVT and
 # solubility properties of CO2-brine mixtures with varying degrees of salinity.
