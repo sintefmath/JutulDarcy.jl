@@ -26,6 +26,8 @@
 # default TPFA scheme.
 using Jutul
 using JutulDarcy
+using LinearAlgebra
+using GLMakie
 using Test #src
 
 sys = SinglePhaseSystem()
@@ -48,8 +50,7 @@ nc = number_of_cells(g)
 domain = reservoir_domain(g, permeability = 0.1*si_unit(:darcy))
 
 fig = Figure()
-ax = Axis(fig[1, 1])
-Jutul.plot_mesh_edges!(ax, g)
+Jutul.plot_mesh_edges!(Axis(fig[1, 1]), g)
 fig
 # ## Create a test problem function
 # We set up a problem for our given domain with left and right boundary boundary
@@ -100,8 +101,6 @@ end
 # Note that the color axis varies between error plots. As the grid is quite
 # skewed, we observe significant errors for the TPFA scheme, with no significant
 # error for the consistent schemes.
-using GLMakie
-using Statistics
 x = domain[:cell_centroids][1, :]
 get_ref(x) = x*1e5 + 1e5
 x_distinct = sort(unique(x))
