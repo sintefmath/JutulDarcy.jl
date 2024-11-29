@@ -127,7 +127,6 @@ pressure_gradient(state, disc) = gradient(state.Pressure, disc)
     return F(up)
 end
 
-
 @inline function upwind(upw::SPU, X::AbstractArray, q)
     flag = q < zero(q)
     if flag
@@ -141,6 +140,10 @@ end
 @inline function phase_upwind(upw, m::AbstractMatrix, phase::Integer, q)
     F(cell) = @inbounds m[phase, cell]
     return upwind(upw, F, q)
+end
+
+@inline function upwind(upw::Jutul.WENO.WENOFaceDiscretization, F, q)
+    return Jutul.WENO.weno_upwind(upw, F, q)
 end
 
 @inline capillary_gradient(::Nothing, c_l, c_r, ph, ph_ref) = 0.0
