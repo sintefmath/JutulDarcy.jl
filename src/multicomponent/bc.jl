@@ -65,7 +65,7 @@ function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, tim
             end
             for i in 1:ncomp
                 F = state.TotalMasses[i, c]/total
-                acc[ph] += q*rho_inj*λ_t*F
+                acc[c] += q*rho_inj*λ_t*F
             end
         else
             @assert length(f_inj) == ncomp
