@@ -101,13 +101,13 @@ function reservoir_domain_from_mrst(name::String; extraout = false, convert_grid
 end
 
 function get_well_from_mrst_data(
-    mrst_data, system, ix;
-    volume = 1e-3,
-    extraout = false,
-    use_lengths = false,
-    well_type = :simple,
-    W_data = mrst_data["W"],
-    kwarg...
+        mrst_data, system, ix;
+        volume = 1e-3,
+        extraout = false,
+        use_lengths = false,
+        well_type = :simple,
+        W_data = mrst_data["W"],
+        kwarg...
     )
     W_mrst = W_data[ix]
     if haskey(W_mrst, "isMS") && W_mrst["isMS"]
@@ -1090,25 +1090,27 @@ end
 
 Set up a [`Jutul.JutulCase`](@ref) from a MRST-exported .mat file.
 """
-function setup_case_from_mrst(casename; wells = :simple,
-                                        backend = :csc,
-                                        block_backend = true,
-                                        split_wells = false,
-                                        use_well_lengths = false,
-                                        facility_grouping = missing,
-                                        minbatch = 1000,
-                                        steps = :full,
-                                        nthreads = Threads.nthreads(),
-                                        legacy_output = false,
-                                        convert_grid = false,
-                                        ds_max = 0.2,
-                                        dz_max = 0.2,
-                                        dp_max_abs = nothing,
-                                        dp_max_rel = 0.2,
-                                        p_min = DEFAULT_MINIMUM_PRESSURE,
-                                        p_max = Inf,
-                                        dr_max = Inf,
-                                        kwarg...)
+function setup_case_from_mrst(casename;
+        wells = :simple,
+        backend = :csr,
+        block_backend = true,
+        split_wells = false,
+        use_well_lengths = false,
+        facility_grouping = missing,
+        minbatch = 1000,
+        steps = :full,
+        nthreads = Threads.nthreads(),
+        legacy_output = false,
+        convert_grid = false,
+        ds_max = 0.2,
+        dz_max = 0.2,
+        dp_max_abs = nothing,
+        dp_max_rel = 0.2,
+        p_min = DEFAULT_MINIMUM_PRESSURE,
+        p_max = Inf,
+        dr_max = Inf,
+        kwarg...
+    )
     data_domain, mrst_data = reservoir_domain_from_mrst(casename, extraout = true, convert_grid = convert_grid)
     G = discretized_domain_tpfv_flow(data_domain; kwarg...)
     if ismissing(facility_grouping)
@@ -1507,31 +1509,33 @@ Additional input arguments are passed onto, [`setup_case_from_mrst`](@ref),
 [`setup_reservoir_simulator`](@ref) and [`simulator_config`](@ref) if
 applicable.
 """
-function simulate_mrst_case(fn; extra_outputs::Vector{Symbol} = [:Saturations],
-                                output_path = nothing,
-                                backend = :csc,
-                                mode = :default,
-                                nthreads = Threads.nthreads(),
-                                minbatch = 1000,
-                                split_wells = false,
-                                write_mrst = false,
-                                write_output = true,
-                                ds_max = 0.2,
-                                dz_max = 0.2,
-                                dp_max_abs = nothing,
-                                dp_max_rel = 0.2,
-                                p_min = DEFAULT_MINIMUM_PRESSURE,
-                                p_max = Inf,
-                                verbose = true,
-                                do_sim = true,
-                                steps = :full,
-                                general_ad = false,
-                                legacy_output = false,
-                                restart = false,
-                                wells = :ms,
-                                plot = false,
-                                linear_solver = :bicgstab,
-                                kwarg...)
+function simulate_mrst_case(fn;
+        extra_outputs::Vector{Symbol} = [:Saturations],
+        output_path = nothing,
+        backend = :csr,
+        mode = :default,
+        nthreads = Threads.nthreads(),
+        minbatch = 1000,
+        split_wells = false,
+        write_mrst = false,
+        write_output = true,
+        ds_max = 0.2,
+        dz_max = 0.2,
+        dp_max_abs = nothing,
+        dp_max_rel = 0.2,
+        p_min = DEFAULT_MINIMUM_PRESSURE,
+        p_max = Inf,
+        verbose = true,
+        do_sim = true,
+        steps = :full,
+        general_ad = false,
+        legacy_output = false,
+        restart = false,
+        wells = :simple,
+        plot = false,
+        linear_solver = :bicgstab,
+        kwarg...
+    )
     ext = lowercase(last(splitext(fn)))
     is_data = ext == ".data"
     if !is_data
