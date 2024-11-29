@@ -92,7 +92,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         Kh = nothing,
         radius = 0.1,
         accumulator_volume = missing,
-        simple_well = false,
+        simple_well = true,
         simple_well_regularization = 1.0,
         WI = missing,
         dir = :z,

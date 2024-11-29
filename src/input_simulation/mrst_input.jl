@@ -105,7 +105,7 @@ function get_well_from_mrst_data(
     volume = 1e-3,
     extraout = false,
     use_lengths = false,
-    well_type = :ms,
+    well_type = :simple,
     W_data = mrst_data["W"],
     kwarg...
     )
@@ -1090,7 +1090,7 @@ end
 
 Set up a [`Jutul.JutulCase`](@ref) from a MRST-exported .mat file.
 """
-function setup_case_from_mrst(casename; wells = :ms,
+function setup_case_from_mrst(casename; wells = :simple,
                                         backend = :csc,
                                         block_backend = true,
                                         split_wells = false,
