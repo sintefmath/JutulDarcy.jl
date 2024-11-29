@@ -53,9 +53,9 @@ function compute_well_qoi(well_model, state, well::Symbol, pos, rhoS, control)
     well_state = convert_to_immutable_storage(well_state)
 
     if haskey(well_state, :Facility)
-        fstate = well_state[:Facility]
+        fstate = state[:Facility]
     else
-        fstate = well_state[Symbol("$(well)_ctrl")]
+        fstate = state[Symbol("$(well)_ctrl")]
         @assert pos == 1
     end
     q_t = fstate[:TotalSurfaceMassRate][pos]
