@@ -238,6 +238,8 @@ fig = Figure(size = (1200, 800))
 function plot_sat!(i, j, name)
     sg = all_results[name].states[75][:Saturations][1, :]
     ax = Axis(fig[i,j])
+    hidespines!(ax)
+    hidedecorations!(ax)
     plot_cell_data!(ax, g, sg, colormap = :seaborn_icefire_gradient)
     Jutul.plot_mesh_edges!(ax, g)
 end
