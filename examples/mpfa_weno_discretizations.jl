@@ -230,3 +230,25 @@ compare_contours("WENO with AverageMPFA", "SPU with TPFA", "High resolution + co
 # rates deteriorate and shorter timesteps may be required. They are accessible
 # in JutulDarcy through the high-level interface and can be applied to any mesh
 # and physics combination supported by the rest of the solvers.
+#
+# We plot a summary of the saturation fields for all combinations of a pair of
+# consistent and a pair of inconsistent discretizations to demonstrate the key
+# differences.
+fig = Figure(size = (1200, 800))
+function plot_sat!(i, j, name)
+    sg = all_results[name].states[75][:Saturations][1, :]
+    ax = Axis(fig[i,j])
+    plot_cell_data!(ax, g, sg, colormap = :seaborn_icefire_gradient)
+    Jutul.plot_mesh_edges!(ax, g)
+end
+Label(fig[0, 1], "Single-point upwind", fontsize = 30, tellheight = true, tellwidth = false)
+Label(fig[0, 2], "High resolution", fontsize = 30, tellheight = true, tellwidth = false)
+
+Label(fig[1, 0], "TPFA", fontsize = 30, rotation = pi/2, tellheight = false, tellwidth = true)
+Label(fig[2, 0], "AverageMPFA", fontsize = 30, rotation = pi/2, tellheight = false, tellwidth = true)
+
+plot_sat!(1, 1, "SPU with TPFA")
+plot_sat!(2, 1, "SPU with AverageMPFA")
+plot_sat!(1, 2, "WENO with TPFA")
+plot_sat!(2, 2, "WENO with AverageMPFA")
+fig
