@@ -240,8 +240,9 @@ function plot_sat!(i, j, name)
     ax = Axis(fig[i,j])
     hidespines!(ax)
     hidedecorations!(ax)
-    plot_cell_data!(ax, g, sg, colormap = :seaborn_icefire_gradient)
+    plt = plot_cell_data!(ax, g, sg, colormap = :seaborn_icefire_gradient, colorrange = (0.0, 1.0))
     Jutul.plot_mesh_edges!(ax, g)
+    return plt
 end
 Label(fig[0, 1], "Single-point upwind", fontsize = 30, tellheight = true, tellwidth = false)
 Label(fig[0, 2], "High resolution", fontsize = 30, tellheight = true, tellwidth = false)
@@ -252,5 +253,6 @@ Label(fig[2, 0], "AverageMPFA", fontsize = 30, rotation = pi/2, tellheight = fal
 plot_sat!(1, 1, "SPU with TPFA")
 plot_sat!(2, 1, "SPU with AverageMPFA")
 plot_sat!(1, 2, "WENO with TPFA")
-plot_sat!(2, 2, "WENO with AverageMPFA")
+plt = plot_sat!(2, 2, "WENO with AverageMPFA")
+Colorbar(fig[:, 3], plt)
 fig
