@@ -4,7 +4,7 @@ using Test
 import JutulDarcy: simulate_mini_wellcase
 
 function test_compositional_with_wells(; kwarg...)
-    states, = simulate_mini_wellcase(Val(:compositional_2ph_3c); kwarg...)
+    states, = simulate_mini_wellcase(Val(:compositional_2ph_3c); simple_well = false, kwarg...)
     @testset "Compositional with wells" begin
         @testset "Reservoir" begin
             res = states[end][:Reservoir]
@@ -33,7 +33,7 @@ function test_compositional_with_wells(; kwarg...)
 end
 
 function test_immiscible_with_wells(; kwarg...)
-    states, = simulate_mini_wellcase(Val(:immiscible_2ph); kwarg...)
+    states, = simulate_mini_wellcase(Val(:immiscible_2ph); simple_well = false, kwarg...)
     @testset "Immiscible with wells" begin
         @testset "Reservoir" begin
             res = states[end][:Reservoir]
@@ -55,7 +55,7 @@ function test_immiscible_with_wells(; kwarg...)
 end
 
 function test_blackoil_with_wells(; kwarg...)
-    states, = simulate_mini_wellcase(Val(:bo_spe1); kwarg...)
+    states, = simulate_mini_wellcase(Val(:bo_spe1); simple_well = false, kwarg...)
     @testset "Blackoil with SPE1 PVT" begin
         @testset "Reservoir" begin
             res = states[end][:Reservoir]
@@ -86,7 +86,7 @@ function test_perforation_mask()
     g = CartesianMesh(dims, (2000.0, 1500.0, 50.0))
     Darcy = 9.869232667160130e-13
     domain = reservoir_domain(g, permeability = 0.1*Darcy, porosity = 0.1)
-    P = setup_vertical_well(domain, 1, 1, name = :Producer);
+    P = setup_vertical_well(domain, 1, 1, name = :Producer, simple_well = false);
     phases = (LiquidPhase(), VaporPhase())
     rhoLS = 1000.0
     rhoGS = 100.0

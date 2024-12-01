@@ -4,6 +4,7 @@ function simulate_mini_wellcase(::Val{:compositional_2ph_3c};
         output_path = nothing,
         nstep = 12*5,
         total_time = 30.0*si_unit(:day)*nstep,
+        simple_well = true,
         kwarg...
     )
     # Some useful constants
@@ -14,9 +15,9 @@ function simulate_mini_wellcase(::Val{:compositional_2ph_3c};
     g = CartesianMesh(dims, (2000.0, 1500.0, 50.0))
     domain = reservoir_domain(g, permeability = 1e-13, porosity = 0.1)
     ## Set up a vertical well in the first corner, perforated in all layers
-    prod = setup_vertical_well(domain, nx, 1, name = :Producer);
+    prod = setup_vertical_well(domain, nx, 1, name = :Producer, simple_well = simple_well);
     ## Set up an injector in the upper left corner
-    inj = setup_vertical_well(domain, 1, 1, name = :Injector);
+    inj = setup_vertical_well(domain, 1, 1, name = :Injector, simple_well = simple_well);
 
     co2 = MolecularProperty(0.0440, 7.38e6, 304.1, 9.412e-5, 0.224)
     c1 = MolecularProperty(0.0160, 4.60e6, 190.6, 9.863e-5, 0.011)
@@ -74,6 +75,7 @@ function simulate_mini_wellcase(::Val{:immiscible_2ph};
         permeability = 0.1*9.869232667160130e-13,
         nstep = 12*5,
         total_time = 30.0*si_unit(:day)*nstep,
+        simple_well = true,
         kwarg...)
     # Some useful constants
     day = 3600*24
@@ -83,9 +85,9 @@ function simulate_mini_wellcase(::Val{:immiscible_2ph};
     g = CartesianMesh(dims, (2000.0, 1500.0, 50.0))
     domain = reservoir_domain(g, permeability = permeability, porosity = 0.1)
     ## Set up a vertical well in the first corner, perforated in all layers
-    P = setup_vertical_well(domain, 1, 1, name = :Producer);
+    P = setup_vertical_well(domain, 1, 1, name = :Producer, simple_well = simple_well);
     ## Set up an injector in the upper left corner
-    I = setup_well(domain, [(nx, ny, 1)], name = :Injector);
+    I = setup_well(domain, [(nx, ny, 1)], name = :Injector, simple_well = simple_well);
     ## Set up a two-phase immiscible system and define a density secondary variable
     phases = (LiquidPhase(), VaporPhase())
     rhoLS = 1000.0
@@ -143,6 +145,7 @@ function simulate_mini_wellcase(::Val{:bo_spe1};
         output_path = nothing,
         nstep = 12*5,
         total_time = 30.0*si_unit(:day)*nstep,
+        simple_well = true,
         kwarg...
     )
     # Some useful constants
@@ -155,9 +158,9 @@ function simulate_mini_wellcase(::Val{:bo_spe1};
     Darcy = 9.869232667160130e-13
     domain = reservoir_domain(g, permeability = 0.1*Darcy, porosity = 0.1)
     ## Set up a vertical well in the first corner, perforated in all layers
-    P = setup_vertical_well(domain, 1, 1, name = :Producer);
+    P = setup_vertical_well(domain, 1, 1, name = :Producer, simple_well = simple_well);
     ## Set up an injector in the upper left corner
-    I = setup_well(domain, [(nx, ny, 1)], name = :Injector);
+    I = setup_well(domain, [(nx, ny, 1)], name = :Injector, simple_well = simple_well);
     ## Set up a two-phase immiscible system and define a density secondary variable
     setup = JutulDarcy.blackoil_bench_pvt(:spe1)
     pvt = setup[:pvt]
