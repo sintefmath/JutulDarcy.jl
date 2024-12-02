@@ -139,7 +139,7 @@ controls[:Producer] = P_ctrl
 forces = setup_reservoir_forces(model, control = controls)
 case = JutulCase(model, dt, forces, parameters = parameters, state0 = state0)
 result = simulate_reservoir(case, output_substates = true, info_level = -1);
-##
+# ## Print the gas saturation
 ws, states = result
 ws(:Producer, :grat)
 # ## Define objective function
@@ -208,7 +208,7 @@ myplot!(fig, 1, 2, "Gas saturation", sg, colorrange = (0, 1), colorbar = false)
 sg = states[end][:Saturations][2, :]
 myplot!(fig, 1, 3, "Gas saturation", sg, colorrange = (0, 1))
 fig
-## ## Plot the sensitivity of the objective with respect to permeability
+# ## Plot the sensitivity of the objective with respect to permeability
 if big
     cr = (-0.001, 0.001)
     cticks = [-0.001, -0.0005, 0.0005, 0.001]
@@ -218,14 +218,14 @@ else
 end
 
 myplot("perm_sens", ∂K.*darcy, is_grad = true, ticks = cticks, colorrange = cr)
-## ## Plot the sensitivity of the objective with respect to porosity
+# ## Plot the sensitivity of the objective with respect to porosity
 if big
     cr = (-0.00001, 0.00001)
 else
     cr = (-0.00025, 0.00025)
 end
 myplot("porosity_sens", ∂ϕ, is_grad = true, colorrange = cr)
-##
+# ## Gradient with respect to cell centroids
 ∂xyz = data_domain_with_gradients[:cell_centroids]
 ∂x = ∂xyz[1, :]
 ∂y = ∂xyz[2, :]
