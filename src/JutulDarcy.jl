@@ -1,3 +1,4 @@
+__precompile__(false)
 
 """
 $(README)
@@ -29,7 +30,6 @@ module JutulDarcy
     export SourceTerm
     export Pressure, Saturations, TotalMasses, TotalMass
     export fluid_volume, pore_volume
-    export MinimalTPFAGrid
     export compute_peaceman_index
     export discretized_domain_tpfv_flow
     export discretized_domain_well

@@ -120,6 +120,6 @@ Jutul builds upon many of the excellent packages in the Julia ecosystem. Here ar
 
 # Additional examples and further reading
 
-The [documentation](https://sintefmath.github.io/JutulDarcy.jl/dev/) is still work in progress, but contains a fair bit of useful information. In addition, see the [examples](examples/) folder for more information. Some functionality is also demonstrated in the [tests](https://github.com/sintefmath/JutulDarcy.jl/tree/main/test).
+The [documentation](https://sintefmath.github.io/JutulDarcy.jl/dev/) is still work in progress, but contains a fair bit of useful information. In addition, see the [examples](https://github.com/sintefmath/JutulDarcy.jl/tree/main/examples) folder for more information. Some functionality is also demonstrated in the [tests](https://github.com/sintefmath/JutulDarcy.jl/tree/main/test).
 
 *Internals and undocumented functions are subject to change at this time. However, the main interface for the reservoir simulator itself seen in the examples should be fairly stable.*
