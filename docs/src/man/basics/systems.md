@@ -31,6 +31,12 @@ AqueousPhase
 VaporPhase
 ```
 
+The phases are used by subtypes of the abstract superclass for multiphase flow systems:
+
+```@docs
+JutulDarcy.MultiPhaseSystem
+```
+
 ### Implementation details
 
 In the above the discrete version of ``M_i`` is implemented in the update function for [`JutulDarcy.TotalMasses`](@ref) that should by convention be named [`JutulDarcy.update_total_masses!`](@ref). The discrete component fluxes are implemented by [`JutulDarcy.component_mass_fluxes!`](@ref).

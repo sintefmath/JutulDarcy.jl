@@ -15,7 +15,7 @@ function build_jutul_darcy_docs(build_format = nothing;
         deploy = true,
         use_vitepress = !Sys.iswindows()
     )
-    DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy; using Jutul); recursive=true)
+    DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy); recursive=true)
     DocMeta.setdocmeta!(Jutul, :DocTestSetup, :(using Jutul); recursive=true)
     bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"))
 
@@ -107,7 +107,11 @@ function build_jutul_darcy_docs(build_format = nothing;
                 prettyurls=get(ENV, "CI", "false") == "true",
                 canonical="https://sintefmath.github.io/JutulDarcy.jl",
                 edit_link="main",
-                size_threshold_ignore = ["ref/jutul.md", "docstrings.md"],
+                size_threshold_ignore = [
+                    "ref/jutul.md",
+                    "docstrings.md",
+                    "man/first_ex.md"
+                ],
                 assets=String["assets/citations.css"],
             )
         end
@@ -140,6 +144,7 @@ function build_jutul_darcy_docs(build_format = nothing;
                     "man/basics/parameters.md",
                     "man/basics/plotting.md",
                     "man/basics/utilities.md",
+                    "man/basics/package.md"
                     ],
             "Further reading" => [
                 "man/advanced/mpi.md",

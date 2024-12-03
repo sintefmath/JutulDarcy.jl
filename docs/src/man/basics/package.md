@@ -1,0 +1,5 @@
+# Package docstring
+
+```@docs
+JutulDarcy
+```

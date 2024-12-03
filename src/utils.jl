@@ -139,8 +139,6 @@ function reservoir_domain(case::JutulCase)
     return reservoir_domain(case.model)
 end
 
-export reservoir_system
-
 function reservoir_system(flow::MultiPhaseSystem; kwarg...)
     reservoir_system(;flow = flow, kwarg...)
 end

@@ -25,6 +25,7 @@ WellDomain
 MultiSegmentWell
 JutulDarcy.SegmentWellBoreFrictionHB
 JutulDarcy.PotentialDropBalanceWell
+MixedWellSegmentFlow
 ```
 
 ## Well controls and limits
@@ -79,6 +80,7 @@ JutulDarcy.print_well_result_table
 ```@docs
 PerforationMask
 JutulDarcy.Perforations
+compute_peaceman_index
 ```
 
 ### Other forces
