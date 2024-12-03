@@ -12,7 +12,8 @@ function build_jutul_darcy_docs(build_format = nothing;
         build_validation_examples = build_examples,
         build_notebooks = true,
         clean = true,
-        deploy = true
+        deploy = true,
+        use_vitepress = !Sys.iswindows()
     )
     DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy; using Jutul); recursive=true)
     DocMeta.setdocmeta!(Jutul, :DocTestSetup, :(using Jutul); recursive=true)
@@ -97,17 +98,19 @@ function build_jutul_darcy_docs(build_format = nothing;
     end
     ## Docs
     if isnothing(build_format)
-        # Old Documenter code in case we want to go back.
-        # build_format = Documenter.HTML(;
-        #     prettyurls=get(ENV, "CI", "false") == "true",
-        #     canonical="https://sintefmath.github.io/JutulDarcy.jl",
-        #     edit_link="main",
-        #     size_threshold_ignore = ["ref/jutul.md", "docstrings.md"],
-        #     assets=String["assets/citations.css"],
-        # )
-        build_format = DocumenterVitepress.MarkdownVitepress(
-            repo = "https://github.com/sintefmath/JutulDarcy.jl",
-        )
+        if use_vitepress
+            build_format = DocumenterVitepress.MarkdownVitepress(
+                repo = "https://github.com/sintefmath/JutulDarcy.jl",
+            )
+        else
+            build_format = Documenter.HTML(;
+                prettyurls=get(ENV, "CI", "false") == "true",
+                canonical="https://sintefmath.github.io/JutulDarcy.jl",
+                edit_link="main",
+                size_threshold_ignore = ["ref/jutul.md", "docstrings.md"],
+                assets=String["assets/citations.css"],
+            )
+        end
     end
     makedocs(;
         modules=[JutulDarcy, Jutul],
@@ -171,7 +174,12 @@ function build_jutul_darcy_docs(build_format = nothing;
     end
 end
 ##
-# build_jutul_darcy_docs(build_examples = false, build_validation_examples = false)
+# build_jutul_darcy_docs(
+#     build_examples = false,
+#     build_validation_examples = false,
+#     build_notebooks = false,
+#     deploy = false
+# )
 build_jutul_darcy_docs()
 
 # ```@autodocs

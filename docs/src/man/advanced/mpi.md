@@ -60,7 +60,6 @@ Write your script as usual. The following options must then be set:
 You must then run the file using the approprioate `mpiexec` as described in the MPI.jl documentation. Specialized functions will be called by `simulate_reservoir` when this is the case. We document them here, even if we recommend using the high level version of this interface:
 
 ```@docs
-JutulDarcy.setup_reservoir_simulator_parray
 JutulDarcy.simulate_reservoir_parray
 ```
 

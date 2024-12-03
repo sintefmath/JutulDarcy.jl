@@ -28,8 +28,21 @@ function reservoir_model(model::Jutul.CompositeModel; type = missing)
     return model
 end
 
-reservoir_storage(model, storage) = storage
-reservoir_storage(model::MultiModel, storage) = storage.Reservoir
+"""
+    rstorage = reservoir_storage(model, storage)
+
+Get the reservoir storage for a simulator storage. If the model is a reservoir
+model, this will return `storage` directly, otherwise (in the case of a
+`MultiModel` with wells and reservoir) it will return the subfield
+`storage.Reservoir`.
+"""
+function reservoir_storage(model, storage)
+    return storage
+end
+
+function reservoir_storage(model::MultiModel, storage)
+    return storage.Reservoir
+end
 
 
 """

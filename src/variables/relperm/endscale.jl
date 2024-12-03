@@ -75,6 +75,10 @@ function (kr::ScaledPhaseRelativePermeability{T, N, S})(s) where {T, N, S<:Three
     return (kr.k_max/kr0.k_max)*kr0(s_scale)
 end
 
+"""
+Type that defines endpoint scaling parameters for relative permeabilities
+(either drainage or imbibiton).
+"""
 struct EndPointScalingCoefficients{phases} <: VectorVariables
     drainage::Bool
 end
