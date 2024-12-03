@@ -20,11 +20,14 @@ function compute_well_qoi(model::MultiModel, state, forces, well::Symbol, target
 
     if haskey(model.models, :Facility)
         pos = get_well_position(model.models[:Facility].domain, well)
-        ctrl = forces[:Facility].control[well]
+        fk = :Facility
     else
         pos = 1
-        ctrl = forces[Symbol("$(well)_ctrl")].control[well]
+        fk = Symbol("$(well)_ctrl")
     end
+    ctrl = forces[fk].control[well]
+    fstate = state[fk]
+    wstate = state[well]
 
     translate_target_to_symbol
     if ctrl isa DisabledControl
@@ -43,21 +46,13 @@ function compute_well_qoi(model::MultiModel, state, forces, well::Symbol, target
             target = target(tv)
         end
         ctrl = replace_target(ctrl, target)
-        qoi = compute_well_qoi(well_model, state, well::Symbol, pos, rhoS, ctrl)
+        qoi = compute_well_qoi(well_model, wstate, fstate, well::Symbol, pos, rhoS, ctrl)
     end
     return qoi
 end
 
-function compute_well_qoi(well_model, state, well::Symbol, pos, rhoS, control)
-    well_state = state[well]
+function compute_well_qoi(well_model, wstate, fstate, well::Symbol, pos, rhoS, control)
     well_state = convert_to_immutable_storage(well_state)
-
-    if haskey(well_state, :Facility)
-        fstate = state[:Facility]
-    else
-        fstate = state[Symbol("$(well)_ctrl")]
-        @assert pos == 1
-    end
     q_t = fstate[:TotalSurfaceMassRate][pos]
     target = control.target
 
