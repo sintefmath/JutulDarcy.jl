@@ -1,42 +1,10 @@
 
 import Base.eltype
 
-# TPFA grid
-"""
-    MinimalTPFAGrid(ϕ, N)
-
-Generate a minimal grid suitable only for two-point flux discretization (TPFA) for given
-pore-volumes `ϕ` and a neighborship matrix `N` with size `(2, n)` where `n` is the number
-of internal faces.
-"""
-struct MinimalTPFAGrid{V, N} <: ReservoirGrid
-    pore_volumes::V
-    trans::V
-    gdz::V
-    neighborship::N
-    function MinimalTPFAGrid(pv::V, N::M; trans::V = ones(size(N, 2)), gdz::V = zeros(size(N, 2))) where {V<:AbstractVector, M<:AbstractMatrix}
-        nc = length(pv)
-        pv::AbstractVector
-        @assert size(N, 1) == 2  "Two neighbors per face"
-        if length(N) > 0
-            @assert minimum(N) > 0   "Neighborship entries must be positive."
-            @assert maximum(N) <= nc "Neighborship must be limited to number of cells."
-        end
-        @assert all(pv .> 0)     "Pore volumes must be positive"
-        new{V, M}(pv, trans, gdz, N)
-    end
-end
-Base.show(io::IO, g::MinimalTPFAGrid) = print(io, "MinimalTPFAGrid ($(number_of_cells(g)) cells, $(number_of_faces(g)) faces)")
-
 function number_of_cells(G::ReservoirGrid)
     return length(G.pore_volumes)
 end
 
-function declare_entities(G::MinimalTPFAGrid)
-    c = (entity = Cells(), count = number_of_cells(G)) # Cells equal to number of pore volumes
-    f = (entity = Faces(), count = number_of_faces(G)) # Faces
-    return [c, f]
-end
 struct MinimalTPFATopology{N} <: ReservoirGrid
     nc::Int
     neighborship::N
@@ -59,13 +27,6 @@ function declare_entities(G::MinimalTPFATopology)
     c = (entity = Cells(), count = number_of_cells(G)) # Cells equal to number of pore volumes
     f = (entity = Faces(), count = number_of_faces(G)) # Faces
     return [c, f]
-end
-
-function transfer(context::SingleCUDAContext, grid::MinimalTPFAGrid)
-    pv = transfer(context, grid.pore_volumes)
-    N = transfer(context, grid.neighborship)
-
-    return MinimalTPFAGrid(pv, N)
 end
 
 """
@@ -119,12 +80,6 @@ function subgrid_renumber_neighborship(g, cells, faces)
         N_new[i] = new
     end
     return N_new
-end
-
-function Jutul.subgrid(g::MinimalTPFAGrid; cells = nothing, faces = nothing)
-    pv = g.pore_volumes
-    N_new = subgrid_renumber_neighborship(g, cells, faces)
-    return MinimalTPFAGrid(pv[cells], N_new)
 end
 
 function Jutul.subgrid(g::MinimalTPFATopology; cells, faces)
