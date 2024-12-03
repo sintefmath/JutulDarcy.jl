@@ -39,6 +39,10 @@ struct SimpleCapillaryPressure{T, R} <: AbstractCapillaryPressure
     end
 end
 
+function SimpleCapillaryPressure(pc::Jutul.LinearInterpolant; kwarg...)
+    return SimpleCapillaryPressure((pc, ); kwarg...)
+end
+
 function Jutul.subvariable(p::SimpleCapillaryPressure, map::FiniteVolumeGlobalMap)
     c = map.cells
     regions = Jutul.partition_variable_slice(p.regions, c)
@@ -190,4 +194,51 @@ end
     else
         error("Only implemented for two and three-phase flow.")
     end
+end
+
+
+"""
+    pc = brooks_corey_pc(s;
+        p_entry = 2e5,
+        n = 2.0,
+        p_max = Inf,
+        p_min = -Inf,
+        residual = 0.0,
+        residual_total = residual
+    )
+
+Compute the capillary pressure for a given saturation using the Brooks-Corey model.
+
+# Arguments
+- `s::Real`: Saturation
+
+# Keyword Arguments
+- `p_entry::Real`: Entry pressure
+- `n::Real`: Corey exponent
+- `p_max::Real`: Maximum capillary pressure
+- `residual::Real`: Residual saturation
+- `residual_total::Real`: Total residual saturation
+"""
+function brooks_corey_pc(s;
+        p_entry = 2e5,
+        n = 2.0,
+        p_max = Inf,
+        residual = 0.0,
+        residual_total = residual
+    )
+    @assert s <= 1.0
+    @assert s >= 0.0
+    @assert residual <= 1.0
+    @assert residual >= 0.0
+    @assert residual_total <= 1.0
+    @assert residual_total >= 0.0
+
+    @assert residual <= residual_total
+    @assert isfinite(p_entry)
+    return brooks_corey_pc(s, p_entry, n, residual, residual_total, p_max)
+end
+
+function brooks_corey_pc(s, p_e, n, residual, residual_total, p_max = Inf)
+    s_norm = normalized_saturation(s, residual, residual_total)
+    return min(p_e*s^(-1.0/n), p_max)
 end
