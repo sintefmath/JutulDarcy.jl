@@ -51,7 +51,7 @@ function compute_well_qoi(model::MultiModel, state, forces, well::Symbol, target
     return qoi
 end
 
-function compute_well_qoi(well_model, wstate, fstate, well::Symbol, pos, rhoS, control)
+function compute_well_qoi(well_model, well_state, fstate, well::Symbol, pos, rhoS, control)
     well_state = convert_to_immutable_storage(well_state)
     q_t = fstate[:TotalSurfaceMassRate][pos]
     target = control.target
