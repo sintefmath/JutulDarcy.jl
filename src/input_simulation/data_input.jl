@@ -1313,8 +1313,19 @@ function parse_physics_types(datafile; pvt_region = missing)
         acf = first(props["ACF"])
         mw = first(props["MW"])
         p_c = first(props["PCRIT"])
-        V_c = first(props["VCRIT"])
         T_c = first(props["TCRIT"])
+        if haskey(props, "VCRIT")
+            V_c = first(props["VCRIT"])
+            if haskey(props, "ZCRIT")
+                jutul_message("ZCRIT/VCRIT", "Both VCRIT and ZCRIT found. Using VCRIT for critical volume.", color = :yellow)
+            end
+        else
+            Z_c = first(props["ZCRIT"])
+            # J / (mol K)
+            # TODO: Double check units
+            R = 8.314462618
+            V_c = @. Z_c.*R*T_c/p_c
+        end
 
         if haskey(props, "BIC")
             A_ij = first(props["BIC"])
