@@ -54,7 +54,7 @@ A few highlights:
 
 ## Quick start guide
 
-[Getting started](man/intro) is the main setup guide that includes the basics of installing Julia and creating a Julia environment for `JutulDarcy.jl`, written for users who may not already be familiar with Julia package management.
+[Getting started](@ref) is the main setup guide that includes the basics of installing Julia and creating a Julia environment for `JutulDarcy.jl`, written for users who may not already be familiar with Julia package management.
 
 If you want to get started quickly: Install [Julia](https://julialang.org/) and add the following packages together
 with a Makie backend library to your environment of choice using Julia's package manager `Pkg`:

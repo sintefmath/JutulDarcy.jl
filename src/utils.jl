@@ -28,8 +28,21 @@ function reservoir_model(model::Jutul.CompositeModel; type = missing)
     return model
 end
 
-reservoir_storage(model, storage) = storage
-reservoir_storage(model::MultiModel, storage) = storage.Reservoir
+"""
+    rstorage = reservoir_storage(model, storage)
+
+Get the reservoir storage for a simulator storage. If the model is a reservoir
+model, this will return `storage` directly, otherwise (in the case of a
+`MultiModel` with wells and reservoir) it will return the subfield
+`storage.Reservoir`.
+"""
+function reservoir_storage(model, storage)
+    return storage
+end
+
+function reservoir_storage(model::MultiModel, storage)
+    return storage.Reservoir
+end
 
 
 """
@@ -125,8 +138,6 @@ Get reservoir domain from a reservoir simulation case.
 function reservoir_domain(case::JutulCase)
     return reservoir_domain(case.model)
 end
-
-export reservoir_system
 
 function reservoir_system(flow::MultiPhaseSystem; kwarg...)
     reservoir_system(;flow = flow, kwarg...)

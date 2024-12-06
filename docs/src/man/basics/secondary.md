@@ -27,10 +27,6 @@ JutulDarcy.ImbibitionOnlyHysteresis
 PhaseRelativePermeability
 ```
 
-```@docs
-EndPointScalingCoefficients
-```
-
 #### Phase viscosities
 
 ```@docs

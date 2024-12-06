@@ -42,9 +42,24 @@ JutulDarcy.reservoir_storage
 JutulDarcy.well_symbols
 ```
 
+## Model reduction
+
+```@docs
+coarsen_reservoir_case
+```
+
 ## Adjoints and gradients
 
 ```@docs
 JutulDarcy.reservoir_sensitivities
 JutulDarcy.well_mismatch
+Jutul.LBFGS.unit_box_bfgs
+```
+
+## Well outputs
+
+```@docs
+get_model_wells
+well_output
+full_well_outputs
 ```

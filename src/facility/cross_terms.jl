@@ -14,6 +14,15 @@ end
 Jutul.symmetry(::AbstractReservoirFromWellCT) = Jutul.CTSkewSymmetry()
 Jutul.can_impact_cross_term(force_t::PerforationMask, cross_term::AbstractReservoirFromWellCT) = true
 
+"""
+    update_cross_term_in_entity!(out, i,
+    state_t, state0_t,
+    state_s, state0_s, 
+    model_t, model_s,
+    ct::ReservoirFromWellFlowCT, eq, dt, ldisc = local_discretization(ct, i))
+
+Update mass flow between reservoir and well.
+"""
 function update_cross_term_in_entity!(out, i,
     state_t, state0_t,
     state_s, state0_s, 
@@ -126,6 +135,15 @@ function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellFlo
     apply_perforation_mask!(ct_s.source, mask)
 end
 
+"""
+    update_cross_term_in_entity!(out, i,
+    state_facility, state0_facility,
+    state_well, state0_well,
+    facility, well,
+    ct::FacilityFromWellFlowCT, eq, dt, ldisc = local_discretization(ct, i))
+
+Update the control equation of the facility based on the current well state.
+"""
 function update_cross_term_in_entity!(out, i,
     state_facility, state0_facility,
     state_well, state0_well,
@@ -182,6 +200,17 @@ end
 
 Jutul.cross_term_entities(ct::WellFromFacilityFlowCT, eq::ConservationLaw, model) = [well_top_node()]
 
+"""
+    update_cross_term_in_entity!(out, i,
+    state_well, state0_well,
+    state_facility, state0_facility,
+    well, facility,
+    ct::WellFromFacilityFlowCT, eq, dt, ldisc = local_discretization(ct, i))
+
+Update the cross-term of the well based on the current facility state. This is
+done by adding a source term to the well equation based on the current facility
+status (injecting or producing).
+"""
 function update_cross_term_in_entity!(out, i,
     state_well, state0_well,
     state_facility, state0_facility,
@@ -235,6 +264,17 @@ struct ReservoirFromWellThermalCT{T<:AbstractVector, I<:AbstractVector} <: Abstr
     well_cells::I
 end
 
+"""
+    update_cross_term_in_entity!(out, i,
+    state_res, state0_res,
+    state_well, state0_well, 
+    model_res, model_well,
+    ct::ReservoirFromWellThermalCT, eq, dt, ldisc = local_discretization(ct, i))
+
+Update the cross term between a well and reservoir for thermal equations. This
+computes the energy transfer into or out from the well bore and the reservoir,
+including both the effect of advection and conduction.
+"""
 function update_cross_term_in_entity!(out, i,
     state_res, state0_res,
     state_well, state0_well, 
@@ -315,6 +355,15 @@ end
 
 Jutul.cross_term_entities(ct::WellFromFacilityThermalCT, eq::ConservationLaw, model) = [well_top_node()]
 
+"""
+    update_cross_term_in_entity!(out, i,
+    state_well, state0_well,
+    state_facility, state0_facility,
+    well, facility,
+    ct::WellFromFacilityThermalCT, eq, dt, ldisc = local_discretization(ct, i))
+
+Update the cross term between a well and facility for thermal equations.
+"""
 function update_cross_term_in_entity!(out, i,
     state_well, state0_well,
     state_facility, state0_facility,
