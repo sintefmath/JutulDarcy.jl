@@ -16,16 +16,19 @@ end
     @inbounds for i in ix
         S_other = ImmiscibleSaturation[i]
         fr = FlashResults[i]
-        rem = one(T) - S_other + 0*MINIMUM_COMPOSITIONAL_SATURATION
+        S_eos = one(T) - S_other
         if fr.state == MultiComponentFlash.two_phase_lv
-            S_v_pure = MultiComponentFlash.two_phase_vapor_saturation(eos, Pressure[i], Temperature[i], fr)
-            S_v = rem*S_v_pure
+            S_l_pure, S_v_pure = phase_saturations(eos, Pressure[i], Temperature[i], fr)
         elseif fr.state == MultiComponentFlash.single_phase_v
-            S_v = rem
+            S_l_pure = zero(T)
+            S_v_pure = one(T)
         else
-            S_v = zero(T)
+            S_l_pure = one(T)
+            S_v_pure = zero(T)
         end
-        S_l = rem - S_v
+        S_v = S_eos*S_v_pure
+        S_l = S_eos*S_l_pure
+
         Sat[l, i] = S_l
         Sat[v, i] = S_v
         Sat[a, i] = S_other
