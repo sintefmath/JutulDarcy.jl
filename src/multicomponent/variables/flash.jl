@@ -233,7 +233,7 @@ function update_flash_result(S, m, eos, phase_state, K, cond_prev, stability, x,
 
     p_val = value(P)
     T_val = value(T)
-    @. z = max(value(Z), 1e-8)
+    @. z = max(value(Z), MultiComponentFlash.MINIMUM_COMPOSITION)
 
     new_cond = (p = p_val, T = T_val, z = z)
     do_flash, critical_distance, single_phase_code = single_phase_bypass_check(eos, new_cond, cond_prev, phase_state, Sw, critical_distance, stability_bypass, tolerance_bypass)
