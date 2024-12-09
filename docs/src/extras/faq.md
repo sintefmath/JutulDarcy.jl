@@ -108,7 +108,11 @@ reservoir_model(model2).output_variables
  :PhaseMassMobilities
 ```
 
-Can also pass `extra_outputs = [:PhaseMobilities]`  to output specific variables.
+You can also pass `extra_outputs = [:PhaseMobilities]` as a keyword argument to `setup_reservoir_model` to make the resulting model output specific variables.
+
+### What is the unit and sign convention for well rates?
+
+Well results are given in strict SI, which means that rates are generally given in ``m^3/s``. Rates are positive for injection (mass entering the reservoir domain) and negative for production (leaving the reservoir domain).
 
 ## Plotting
 
