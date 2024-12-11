@@ -525,7 +525,7 @@ function get_reference_phase_index(mphases)
     function find_phase(k)
         ix = 0
         for (i, ph) in enumerate(mphases)
-            if ph isa LiquidPhase
+            if ph isa k
                 ix = i
                 break
             end
