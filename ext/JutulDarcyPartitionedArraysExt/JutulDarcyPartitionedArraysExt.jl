@@ -24,7 +24,7 @@ module JutulDarcyPartitionedArraysExt
     function setup_reservoir_simulator_parray(
             case::JutulCase,
             backend::PArrayBackend;
-            conn = :unit,
+            conn = :logtrans,
             np = missing,
             kwarg...
         )
