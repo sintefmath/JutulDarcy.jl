@@ -61,8 +61,8 @@ function add_diffusive_component_flux(q, S, ρ, X, Y, D, face, grad, lv)
 
     @inbounds for i in eachindex(q)
         q_i = q[i]
-        dX = gradient(X, l, grad)
-        dY = gradient(Y, l, grad)
+        dX = gradient(X, i, grad)
+        dY = gradient(Y, i, grad)
 
         q_i += diff_mass_l*dX + diff_mass_v*dY
         q = setindex(q, q_i, i)
