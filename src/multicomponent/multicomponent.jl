@@ -192,8 +192,8 @@ function compositional_criterion(state, dt, active, r, nc, w, sl, liquid_density
         valw = dt*r[end, ix]/(water_density[i]*vol[i])
         if valw > e[end]
             e[end] = abs(valw)
-            mb[end] += valw
         end
+        mb[end] += valw
     end
     @. mb = dt*abs(mb)/total_mass
     return (e, mb)

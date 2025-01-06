@@ -510,8 +510,17 @@ function capillary_pressure(model, s)
     return(pc, ref_index)
 end
 
-get_reference_phase_index(::SinglePhaseSystem) = 1
+function get_reference_phase_index(::SinglePhaseSystem)
+    return 1
+end
 
+"""
+    get_reference_phase_index(system::JutulSystem)
+
+Get the index of the reference phase in the system. The reference phase is the
+pressure for which the pressure is given in the system. For single-phase systems
+and models without capillary pressure this is unambigious.
+"""
 function get_reference_phase_index(system::JutulSystem)
     mphases = get_phases(system)
     return get_reference_phase_index(mphases)
@@ -521,11 +530,18 @@ function get_reference_phase_index(sys::MultiPhaseSystem)
     return sys.reference_phase_index
 end
 
+"""
+    get_reference_phase_index(mphases)
+
+Get the index of the reference phase for a set of phases. The reference phase is
+selected as the liquid phase if present, otherwise the aqueous phase. If neither
+is present the first phase is selected.
+"""
 function get_reference_phase_index(mphases)
     function find_phase(k)
         ix = 0
         for (i, ph) in enumerate(mphases)
-            if ph isa LiquidPhase
+            if ph isa k
                 ix = i
                 break
             end

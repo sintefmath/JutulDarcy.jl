@@ -1904,7 +1904,7 @@ function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, t
     mix = zeros(Float64, ncomp)
     if uppercase(type) == "WATER" || uppercase(type) == "WAT"
         has_water || throw(ArgumentError("Cannot have WATER injector without water phase."))
-        mix[1] = 1.0
+        mix[end] = 1.0
         rho = rho_s[1]
         phases_mix = ((1, 1.0), (2, 0.0), (3, 0.0))
     else
@@ -1925,7 +1925,7 @@ function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, t
         )
         z_mass /= sum(z_mass)
         for i in eachindex(z_mass)
-            mix[i+offset] = z_mass[i]
+            mix[i] = z_mass[i]
         end
         @assert sum(mix) ≈ 1.0 "Sum of mixture was $(sum(mix)) != 1 for mole mixture $(z) as mass $z_mass"
 
