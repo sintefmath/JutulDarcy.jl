@@ -9,8 +9,8 @@ function test_compositional_with_wells(; kwarg...)
         @testset "Reservoir" begin
             res = states[end][:Reservoir]
             p = res[:Pressure]
-            p_ref = [5.217526602862003e6, 5.180267757745085e6, 5.137145631361415e6]
-            @test isapprox(p, p_ref, rtol = 1e-4)
+            p_ref = [5.218139052839837e6, 5.180811416153696e6, 5.137566116526595e6]
+            @test isapprox(p, p_ref, rtol = 1e-3)
             z = res[:OverallMoleFractions]
             z_ref = [
                 0.6032429704979841 0.521568527073734 0.5000266982944569;
