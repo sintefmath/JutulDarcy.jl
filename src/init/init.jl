@@ -280,9 +280,13 @@ function parse_state0_equil(model, datafile; normalize = :sum)
     if haskey(d, :pvtnum)
         pvtnum = d[:pvtnum]
     else
-        pvtnum = ones(Int, nc)
+        pvtnum = ones(Int, ncells)
     end
-    eqlnum = model.data_domain[:eqlnum]
+    if haskey(d, :eqlnum)
+        eqlnum = d[:eqlnum]
+    else
+        eqlnum = ones(Int, ncells)
+    end
 
     if is_single_phase
         has_pc = false
@@ -321,6 +325,9 @@ function parse_state0_equil(model, datafile; normalize = :sum)
     nc = number_of_cells(G)
     nph = number_of_phases(model.system)
     actnum_ix = G.cell_map
+    if isnothing(actnum_ix)
+        actnum_ix = 1:nc
+    end
     is_blackoil = sys isa StandardBlackOilSystem
     disgas = JutulDarcy.has_disgas(model.system)
     vapoil = JutulDarcy.has_vapoil(model.system)
