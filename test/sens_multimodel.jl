@@ -115,3 +115,118 @@ end
         end
     end
 end
+
+@testset "Egg sensitivities" begin
+    egg_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("EGG");
+    data_pth = joinpath(egg_dir, "EGG.DATA");
+
+    case_f   = setup_case_from_data_file(data_pth)[1:20];
+    result_f = simulate_reservoir(case_f, info_level = -1);
+
+    case_c   = JutulDarcy.coarsen_reservoir_case(case_f, (6, 6, 1), method = :ijk);
+    result_c = simulate_reservoir(case_c, info_level = -1, tol_cnv = 1e-6);
+
+    states_f = result_f.result.states;
+    model_f  = case_f.model;
+
+    states_c = result_c.result.states;
+    model_c  = case_c.model;
+    state0_c = setup_state(model_c, case_c.state0);
+    param_c  = setup_parameters(model_c)
+    forces_c = case_c.forces;
+    dt       = case_c.dt;
+
+    bhp = JutulDarcy.BottomHolePressureTarget(1.0);
+    wells = collect(keys(JutulDarcy.get_model_wells(case_f)));
+
+    day = si_unit(:day);
+    wrat_scale = (1/150)*day;
+    orat_scale = (1/80) *day;
+    grat_scale = (1/1000)*day;
+    bhp_scale  = 1/(20*si_unit(:bar));
+
+    w = [];
+    matches = [];
+    signs = [];
+    sys = reservoir_model(model_f).system;
+    wrat = SurfaceWaterRateTarget(-1.0);
+    orat = SurfaceOilRateTarget(-1.0);
+    grat = SurfaceGasRateTarget(-1.0);
+
+    push!(matches, bhp);
+    push!(w, bhp_scale);
+    push!(signs, 0);
+
+    for phase in JutulDarcy.get_phases(sys)
+        if phase == LiquidPhase()
+            push!(matches, orat)
+            push!(w, orat_scale)
+            push!(signs, -1)
+
+        elseif phase == VaporPhase()
+            push!(matches, grat)
+            push!(w, grat_scale)
+            push!(signs, -1)
+        else
+            @assert phase == AqueousPhase()
+            push!(matches, wrat)
+            push!(w, wrat_scale)
+            push!(signs, -1)
+        end
+    end
+    o_scale = 1.0 / (sum(dt) * length(wells));
+    G = (model_c, state_c, dt, step_no, forces) -> well_mismatch(
+        matches, wells, model_f, states_f, model_c, state_c, dt, step_no,
+        forces, weights = w, scale = o_scale, signs = signs
+    );
+
+    @test Jutul.evaluate_objective(G, model_c, states_c, dt, case_c.forces) > 0.0
+    @test Jutul.evaluate_objective(G, model_f, states_f, dt, case_f.forces) ≈ 0.0
+
+    function get_sens(model, state0, parameters, tstep, forces, G)
+        sim = Simulator(model, state0 = state0, parameters = parameters)
+        states, reports = simulate(sim, tstep, forces=forces, info_level = -1)
+
+        grad_adj = solve_adjoint_sensitivities(
+            model, states, reports, G,
+            forces = forces,
+            state0 = state0,
+            parameters = parameters,
+            raw_output = false
+        )
+
+        grad_numeric = Dict{Symbol,Any}()
+
+        is_multi = isa(model, MultiModel)
+        if is_multi
+            grad_adj = grad_adj[:Reservoir]
+        end
+        for k in keys(grad_adj)
+            if is_multi
+                target = (:Reservoir, k)
+            else
+                target = k
+            end
+            grad_numeric[k] = Jutul.solve_numerical_sensitivities(model, states, reports, G, target,
+                forces = forces,
+                state0 = state0,
+                parameters = parameters,
+                epsilon = 1e-6
+            )
+        end
+        return grad_adj, grad_numeric
+    end
+
+    adj, num = get_sens(model_c, state0_c, param_c, dt, forces_c, G);
+    for k in [:Transmissibilities, :FluidVolume, :TwoPointGravityDifference]
+        numgrad = num[k]
+        adjgrad = adj[k]
+        if k == :Transmissibilities
+            # Natural scaling of transmissibilities is large in strict SI units (m/s)
+            scale = 1e12
+        else
+            scale = 1.0
+        end
+        @test norm(adjgrad - numgrad)/scale < 1e-6
+    end
+end
