@@ -275,5 +275,20 @@ function add_thermal_to_model!(model)
     return model
 end
 
+"""
+    model_is_thermal(model)
+
+Utility function to check if a model has thermal equations.
+"""
+function model_is_thermal(model::MultiModel)
+    m = reservoir_model(model)
+    return model_is_thermal(m)
+end
+
+function model_is_thermal(model::SimulationModel)
+    pvars = Jutul.get_primary_variables(model)
+    return haskey(pvars, :Temperature)
+end
+
 include("variables.jl")
 include("equations.jl")
