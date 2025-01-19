@@ -1135,6 +1135,10 @@ function setup_reservoir_state(model::MultiModel; kwarg...)
 end
 
 function setup_reservoir_state(model, init)
+    if haskey(init, :Reservoir) && model isa MultiModel
+        # Could be output from a previous call to the same routine
+        init = init[:Reservoir]
+    end
     return setup_reservoir_state(model; pairs(init)...)
 end
 
