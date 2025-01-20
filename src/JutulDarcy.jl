@@ -141,6 +141,12 @@ module JutulDarcy
     using DocStringExtensions
 
     timeit_debug_enabled() = Jutul.timeit_debug_enabled()
+    function __init__()
+        if !haskey(ENV, "JUTULDARCY_PRESERVE_ENV")
+            ENV["OPENBLAS_NUM_THREADS"] = 1
+            BLAS.set_num_threads(1)
+        end
+    end
 
     include("types.jl")
     include("deck_types.jl")
