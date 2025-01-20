@@ -496,6 +496,143 @@ function setup_reservoir_model(reservoir::DataDomain, label::Symbol; kwarg...)
     return setup_reservoir_model(reservoir, Val(label); kwarg...)
 end
 
+
+function setup_reservoir_model(model_template::MultiModel; kwarg...)
+    return setup_reservoir_model(missing, model_template; kwarg...)
+end
+
+"""
+    setup_reservoir_model(reservoir::DataDomain, model_template::MultiModel; wells = [])
+    setup_reservoir_model(model_template::MultiModel; wells = [])
+
+Set up a reservoir model with another model as a template. The template model is
+used to define the parameters and variables so that the resulting model is as
+similar to the original model as possible. The main purpose of this model is to
+"resetup" a model with for example a new set of wells.
+
+It is also possible to pass a `reservoir` domain to set up the model with a new
+domain and new wells, copying over properties and secondary variables.
+
+Note that the transfer process is not perfect and some variables might not be
+copied correctly if you are using a highly customized model. For instance, the
+treatment of regions is quite simple as it is based on the field name `region`
+that is initialized to one for each cell.
+"""
+function setup_reservoir_model(reservoir::Union{DataDomain, Missing, Nothing}, model_template::MultiModel;
+        wells = [],
+        extra_out = true,
+        thermal = model_is_thermal(model_template),
+        reservoir_only = missing,
+        parameters = missing,
+        kwarg...
+    )
+    rmodel_template = reservoir_model(model_template)
+    function welltype(x::SimulationModel)
+        repr = x.domain.representation
+        repr::WellDomain
+        return typeof(repr)
+    end
+
+    function all_variable_names(x)
+        pvarkeys = keys(Jutul.get_primary_variables(x))
+        svarkeys = keys(Jutul.get_secondary_variables(x))
+        prmkeys = keys(Jutul.get_parameters(x))
+        return Symbol[pvarkeys..., svarkeys..., prmkeys...]
+    end
+    # Store the wells by type and name for lookup
+    wells_by_type = Dict{Type, Any}()
+    wells_by_name = Dict{Symbol, Any}()
+    for (name, submodel) in pairs(model_template.models)
+        if model_or_domain_is_well(submodel)
+            dtype = welltype(submodel)
+            if !haskey(wells_by_type, dtype)
+                wells_by_type[dtype] = submodel
+            end
+            wells_by_name[name] = submodel
+        end
+    end
+    if ismissing(reservoir_only)
+        if length(keys(wells_by_name)) == 0
+            reservoir_only = Symbol[]
+        else
+            present_in_wells = Symbol[]
+            for (k, v) in pairs(wells_by_name)
+                for name in all_variable_names(v)
+                    push!(present_in_wells, name)
+                end
+            end
+            unique!(present_in_wells)
+            reservoir_only = setdiff(all_variable_names(rmodel_template), present_in_wells)
+        end
+        push!(reservoir_only, :FluidVolume)
+        push!(reservoir_only, :StaticFluidVolume)
+        push!(reservoir_only, :Transmissibilities)
+    end
+    if ismissing(reservoir) || isnothing(reservoir)
+        reservoir = reservoir_domain(rmodel_template)
+    end
+    sys = rmodel_template.system
+
+    model = setup_reservoir_model(reservoir, sys;
+        wells = wells,
+        thermal = thermal,
+        extra_out = false,
+        kwarg...
+    )
+
+    # Copy over variables and parameters from the template model
+    rmodel = reservoir_model(model)
+    transfer_variables_and_parameters!(rmodel, rmodel_template)
+
+    if length(wells) > 0
+        # Rule:
+        # 1. If type matches and name matches, use the old well as template
+        # 2. If name matches, but type does not, use the well with the same type in old wells
+        # 3. Otherwise, if there are wells of the same type, use a sample well of that type
+        # 4. If neither apply or there are no wells we should just copy the matching
+        #    variables from the reservoir model, taking care to not copy over
+        #    FluidVolume since that is strictly speaking a rock property. Other
+        #    exceptions could be added to this list.
+        for well in wells
+            well::WellDomain
+            wname = well.name
+            wtype = typeof(well)
+            if haskey(wells_by_name, wname)
+                template = wells_by_name[wname]
+                by_name = welltype(template) == wtype
+            else
+                by_name = false
+            end
+            add_new = true
+            if by_name
+                template = wells_by_name[wname]
+            elseif haskey(wells_by_type, wtype)
+                template = wells_by_type[wtype]
+            else
+                template = rmodel_template
+                add_new = false
+            end
+            transfer_variables_and_parameters!(model[wname], template,
+                add_new = true,
+                skip = reservoir_only,
+                check_type = add_new
+            )
+        end
+    end
+    if extra_out
+        prm = setup_parameters(model)
+        if !ismissing(parameters)
+            for (k, v) in parameters[:Reservoir]
+                prm[:Reservoir][k] = deepcopy(v)
+            end
+        end
+        retval = (model, prm)
+    else
+        retval = model
+    end
+    return retval
+end
+
 function set_reservoir_variable_defaults!(model;
         p_min,
         p_max,
@@ -2357,4 +2494,64 @@ function reservoir_measurables(model, ws, states = missing; type = :field)
     @. fgor = fgpr./max.(fopr, 1e-12)
 
     return out
+end
+
+
+# Utility to transfer one type of variables or parameters from one model to another
+function transfer_variables_or_parameters!(vars, new_model::SimulationModel, replacements; skip = Symbol[], add_new = true)
+    for (varname, vardef) in pairs(replacements)
+        if !haskey(vars, varname) && !add_new
+            continue
+        end
+        if varname in skip
+            continue
+        end
+        Jutul.delete_variable!(new_model, varname)
+        vardef = deepcopy(vardef)
+        if hasproperty(vardef, :regions) && !isnothing(vardef)
+            entity = Jutul.associated_entity(vardef)
+            n = count_entities(new_model.domain.representation, entity)
+            empty!(vardef.regions)
+            for i in 1:n
+                push!(vardef.regions, 1)
+            end
+        end
+        vars[varname] = vardef
+    end
+    return vars
+end
+
+# Utility to transfer variables and parameters from one model to another
+function transfer_variables_and_parameters!(new_model, old_model;
+        primary = true,
+        secondary = true,
+        parameters = true,
+        add_new = true,
+        check_type = true,
+        skip = Symbol[]
+    )
+    if check_type
+        new_type = typeof(new_model)
+        old_type = typeof(old_model)
+        @assert new_type == old_type "Models must be of the same type ($new_type ≠ $old_type)"
+    end
+    function transfer!(x)
+        transfer_variables_or_parameters!(
+            getproperty(new_model, x),
+            new_model,
+            getproperty(old_model, x),
+            skip = skip,
+            add_new = add_new
+        )
+    end
+    if primary
+        transfer!(:primary_variables)
+    end
+    if secondary
+        transfer!(:secondary_variables)
+    end
+    if parameters
+        transfer!(:parameters)
+    end
+    return new_model
 end
