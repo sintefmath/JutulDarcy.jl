@@ -168,6 +168,11 @@ function setup_well(g, K, reservoir_cell::Union{Int, Tuple, NamedTuple}; kwarg..
     return setup_well(g, K, [reservoir_cell]; kwarg...)
 end
 
+function setup_well_from_trajectory(D::DataDomain, traj; traj_arg = NamedTuple(), kwarg...)
+    G = D |> physical_representation |> UnstructuredMesh
+    cells = Jutul.find_enclosing_cells(G, traj; traj_arg...)
+    return setup_well(D, cells; kwarg...)
+end
 
 function map_well_nodes_to_reservoir_cells(w::MultiSegmentWell, reservoir::Union{DataDomain, Missing} = missing)
     # TODO: Try to more or less match it up cell by cell. Could be
