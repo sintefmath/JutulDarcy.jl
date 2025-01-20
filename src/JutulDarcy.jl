@@ -68,7 +68,7 @@ module JutulDarcy
     export Perforations
     export MixedWellSegmentFlow
     export segment_pressure_drop
-    export setup_well, setup_vertical_well
+    export setup_well, setup_vertical_well, setup_well_from_trajectory
     export well_mismatch
     export simulate_data_file, setup_case_from_data_file
     export get_test_setup, get_well_from_mrst_data
