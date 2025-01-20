@@ -77,6 +77,7 @@ function plot_reservoir(model, arg...;
         force_glmakie = true,
         kwarg...
     )
+    Jutul.check_plotting_availability()
     if force_glmakie
         @assert Jutul.plotting_check_interactive(warn = true) "Function requires interactive plotting. Set force_glmakie = false to override."
     end
