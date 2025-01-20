@@ -32,6 +32,7 @@ function build_jutul_darcy_docs(build_format = nothing;
         "Intro: Sensitivities in JutulDarcy" => "intro_sensitivities",
         "Intro: Compositional flow" => "co2_brine_2d_vertical",
         "CO2 injection in saline aquifer" => "co2_sloped",
+        "Adding new wells to an existing model" => "adding_new_wells",
         "Consistent discretizations: Average MPFA and nonlinear TPFA" => "consistent_avgmpfa",
         "High resolution and consistency: WENO, NTPFA and AvgMPFA" => "mpfa_weno_discretizations",
         "Quarter-five-spot with variation" => "five_spot_ensemble",
