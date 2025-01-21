@@ -208,35 +208,40 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
                 end
             end
         end
-        nc_total = number_of_cells(model.domain)
-        kr = zeros(nph, nc_total)
-        s_eval = zeros(nph, nc_total)
-        s_eval[:, cells] .= s
-        phases = get_phases(sys)
-        phase_ind = phase_indices(model.system)
-        if length(phases) == 3
-            swcon = zeros(nc_total)
-            if AqueousPhase() in phases && !ismissing(s_min)
-                swcon[cells] .= s_min[1]
-            end
-            for c in cells
-                update_three_phase_relperm!(kr, relperm, phase_ind, s_eval, nothing, c, swcon[c], nothing, nothing)
-            end
-        else
-            ph = relperm.phases
-            if ph == :wo
-                kr1, kr2 = relperm.krw, relperm.krow
-            elseif ph == :og
-                kr1, kr2 = relperm.krog, relperm.krg
+        if relperm isa ReservoirRelativePermeabilities
+            nc_total = number_of_cells(model.domain)
+            kr = zeros(nph, nc_total)
+            s_eval = zeros(nph, nc_total)
+            s_eval[:, cells] .= s
+            phases = get_phases(sys)
+            phase_ind = phase_indices(model.system)
+            if length(phases) == 3
+                swcon = zeros(nc_total)
+                if AqueousPhase() in phases && !ismissing(s_min)
+                    swcon[cells] .= s_min[1]
+                end
+                for c in cells
+                    update_three_phase_relperm!(kr, relperm, phase_ind, s_eval, nothing, c, swcon[c], nothing, nothing)
+                end
             else
-                @assert ph == :wg
-                kr1, kr2 = relperm.krw, relperm.krg
+                ph = relperm.phases
+                if ph == :wo
+                    kr1, kr2 = relperm.krw, relperm.krow
+                elseif ph == :og
+                    kr1, kr2 = relperm.krog, relperm.krg
+                else
+                    @assert ph == :wg
+                    kr1, kr2 = relperm.krw, relperm.krg
+                end
+                for c in cells
+                    update_two_phase_relperm!(kr, relperm, kr1, kr2, nothing, nothing, phase_ind, s_eval, nothing, c, nothing, nothing)
+                end
             end
-            for c in cells
-                update_two_phase_relperm!(kr, relperm, kr1, kr2, nothing, nothing, phase_ind, s_eval, nothing, c, nothing, nothing)
-            end
+            kr = kr[:, cells]
+        else
+            jutul_message("Initialization", "Rel. perm. is not a ReservoirRelativePermeabilities, skipping mobility check for reference pressure.")
+            kr = copy(s)
         end
-        kr = kr[:, cells]
         init[:Saturations] = s
         init[:Pressure] = init_reference_pressure(pressures, contacts, kr, pc, ref_phase)
     else
@@ -306,11 +311,15 @@ function parse_state0_equil(model, datafile; normalize = :sum)
         end
 
         if has_water
-            kr_var = unwrap_reservoir_variable(model.secondary_variables[:RelativePermeabilities])
-            krw_fn = kr_var.krw
-            if has_sat_reg
-                @assert !isnothing(kr_var.regions)
-                @assert kr_var.regions == satnum
+            kr_var = model.secondary_variables[:RelativePermeabilities]
+            if kr_var isa ReservoirRelativePermeabilities
+                krw_fn = kr_var.krw
+                if has_sat_reg
+                    @assert !isnothing(kr_var.regions)
+                    @assert kr_var.regions == satnum
+                end
+            else
+                krw_fn = missing
             end
         else
             krw_fn = missing
@@ -418,16 +427,21 @@ function parse_state0_equil(model, datafile; normalize = :sum)
                     push!(s_max, ones(ncells_reg))
                 else
                     if has_water
-                        krw = table_by_region(krw_fn, sreg)
-                        if haskey(datafile, "PROPS") && haskey(datafile["PROPS"], "SWL")
-                            swl = vec(datafile["PROPS"]["SWL"])
-                            swcon = swl[actnum_ix_for_reg]
+                        if ismissing(krw_fn)
+                            push!(s_min, zeros(ncells_reg))
+                            push!(s_max, ones(ncells_reg))
                         else
-                            swcon = fill(krw.connate, ncells_reg)
+                            krw = table_by_region(krw_fn, sreg)
+                            if haskey(datafile, "PROPS") && haskey(datafile["PROPS"], "SWL")
+                                swl = vec(datafile["PROPS"]["SWL"])
+                                swcon = swl[actnum_ix_for_reg]
+                            else
+                                swcon = fill(krw.connate, ncells_reg)
+                            end
+                            push!(s_min, swcon)
+                            push!(s_max, fill(krw.input_s_max, ncells_reg))
+                            @. non_connate -= swcon
                         end
-                        push!(s_min, swcon)
-                        push!(s_max, fill(krw.input_s_max, ncells_reg))
-                        @. non_connate -= swcon
                     end
                     if has_oil
                         push!(s_min, zeros(ncells_reg))
