@@ -10,7 +10,7 @@ Base.@kwdef struct ParametricLETRelativePermeabilities <: AbstractRelativePermea
     wetting_critical::Symbol = :WettingCritical
     wetting_krmax::Symbol = :WettingKrMax
     nonwetting_let::Symbol = :NonWettingLET
-    nonwetting_critical::Symbol = NonWettingCritical
+    nonwetting_critical::Symbol = :NonWettingCritical
     nonwetting_krmax::Symbol = :NonWettingKrMax
 end
 

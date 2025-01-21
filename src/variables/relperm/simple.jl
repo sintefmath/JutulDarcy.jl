@@ -292,10 +292,10 @@ end
 function add_relperm_parameters!(param, kr::ParametricLETRelativePermeabilities)
     param[kr.wetting_let] = LETCoefficients()
     param[kr.wetting_critical] = CriticalKrPoints()
-    param[kr.wetting_kr_max] = MaxRelPermPoints()
+    param[kr.wetting_krmax] = MaxRelPermPoints()
     param[kr.nonwetting_let] = LETCoefficients()
     param[kr.nonwetting_critical] = CriticalKrPoints()
-    param[kr.nonwetting_kr_max] = MaxRelPermPoints()
+    param[kr.nonwetting_krmax] = MaxRelPermPoints()
     return param
 end
 
