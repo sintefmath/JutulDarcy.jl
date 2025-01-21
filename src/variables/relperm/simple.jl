@@ -259,14 +259,14 @@ function Jutul.update_secondary_variable!(
         state,
         ix = Jutul.entity_eachindex(x)
     )
-    @assert size(Saturations, 1) == 2
     Saturations = state[:Saturations]
+    @assert size(Saturations, 1) == 2
     # Wetting phase
-    WettingLET = state[relperm.wettling_let]
+    WettingLET = state[relperm.wetting_let]
     WettingCritical = state[relperm.wetting_critical]
     WettingKrMax = state[relperm.wetting_krmax]
     # Non-wetting phase
-    NonWettingLET = state[relperm.nonwettling_let]
+    NonWettingLET = state[relperm.nonwetting_let]
     NonWettingCritical = state[relperm.nonwetting_critical]
     NonWettingKrMax = state[relperm.nonwetting_krmax]
     for c in ix
