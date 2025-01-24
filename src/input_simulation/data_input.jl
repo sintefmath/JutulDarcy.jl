@@ -62,6 +62,7 @@ not exported. Use [`setup_case_from_data_file`](@ref).
 """
 function setup_case_from_parsed_data(datafile;
         skip_wells = false,
+        skip_forces = skip_wells,
         simple_well = true,
         use_ijk_trans = true,
         verbose = false,
@@ -109,9 +110,15 @@ function setup_case_from_parsed_data(datafile;
     has_pvt = isnothing(pvt_reg)
     # Parse wells
     msg("Parsing schedule.")
-    wells, controls, limits, cstep, dt, well_forces = parse_schedule(domain, sys, datafile; simple_well = simple_well)
-    if skip_wells
-        empty!(wells)
+    if skip_forces
+        wells = []
+        controls = limits = cstep = well_forces = missing
+        dt = [1.0]
+    else
+        wells, controls, limits, cstep, dt, well_forces = parse_schedule(domain, sys, datafile; simple_well = simple_well)
+        if skip_wells
+            empty!(wells)
+        end
     end
     msg("Setting up model with $(length(wells)) wells.")
     wells_pvt = Dict()
@@ -191,7 +198,11 @@ function setup_case_from_parsed_data(datafile;
         end
     end
     msg("Setting up forces.")
-    forces = parse_forces(model, datafile, sys, wells, controls, limits, cstep, dt, well_forces)
+    if skip_forces
+        forces = setup_reservoir_forces(model)
+    else
+        forces = parse_forces(model, datafile, sys, wells, controls, limits, cstep, dt, well_forces)
+    end
     msg("Setting up initial state.")
     state0 = parse_state0(model, datafile, normalize = normalize)
     msg("Setting up parameters.")
@@ -2107,36 +2118,41 @@ function apply_weltarg!(controls, limits, wk)
     well, ctype, value = wk
     ctype = lowercase(ctype)
     ctrl = controls[well]
-    @assert !(ctrl isa DisabledControl) "Cannot use WELTARG $ctype = $value on disabled well $well."
-    is_injector = ctrl isa InjectorControl
-    limit = limits[well]
-    limit = OrderedDict{Symbol, Float64}(pairs(limit))
-    if ctype == "bhp"
-        new_target = BottomHolePressureTarget(value)
-        limit[Symbol(ctype)] = value
+    if ctrl isa DisabledControl
+        jutul_message("$well control", "Cannot use WELTARG $ctype = $value on disabled well $well.", color = :red)
     else
-        if is_injector
-            rate_target = value
+        is_injector = ctrl isa InjectorControl
+        limit = limits[well]
+        limit = OrderedDict{Symbol, Float64}(pairs(limit))
+        if ctype == "bhp"
+            new_target = BottomHolePressureTarget(value)
+            limit[Symbol(ctype)] = value
         else
-            rate_target = -value
+            if is_injector
+                rate_target = value
+            else
+                rate_target = -value
+            end
+            if ctype == "orat"
+                new_target = SurfaceOilRateTarget(rate_target)
+            elseif ctype == "grat"
+                new_target = SurfaceGasRateTarget(rate_target)
+            elseif ctype == "wrat"
+                new_target = SurfaceWaterRateTarget(rate_target)
+            elseif ctype == "rate"
+                new_target = TotalRateTarget(rate_target)
+            elseif ctype == "lrat"
+                new_target = SurfaceLiquidRateTarget(rate_target)
+            elseif ctype == "resv"
+                new_target = TotalReservoirRateTarget(rate_target)
+            else
+                error("WELTARG $ctype is not yet supported.")
+            end
+            limit[Symbol(ctype)] = rate_target
         end
-        if ctype == "orat"
-            new_target = SurfaceOilRateTarget(rate_target)
-        elseif ctype == "grat"
-            new_target = SurfaceGasRateTarget(rate_target)
-        elseif ctype == "wrat"
-            new_target = SurfaceWaterRateTarget(rate_target)
-        elseif ctype == "rate"
-            new_target = TotalRateTarget(rate_target)
-        elseif ctype == "lrat"
-            new_target = SurfaceLiquidRateTarget(rate_target)
-        else
-            error("WELTARG $ctype is not yet supported.")
-        end
-        limit[Symbol(ctype)] = rate_target
+        limits[well] = convert_to_immutable_storage(limit)
+        controls[well] = replace_target(ctrl, new_target)
     end
-    limits[well] = convert_to_immutable_storage(limit)
-    controls[well] = replace_target(ctrl, new_target)
     return (controls, limits)
 end
 
