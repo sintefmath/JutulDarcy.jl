@@ -336,6 +336,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         immutable_model = false,
         wells_systems = missing,
         wells_as_cells = false,
+        tracers = nothing,
         discretization_arg = NamedTuple()
     )
     # Deal with wells, make sure that multisegment wells come last.
@@ -1300,6 +1301,10 @@ function setup_reservoir_state(rmodel::SimulationModel; kwarg...)
             push!(found, k)
         end
         res_init[k] = v
+    end
+    if !haskey(res_init, :TracerMasses)
+        # Tracers are usually safe to default = 0
+        res_init[:TracerMasses] = Jutul.default_values(rmodel, rmodel.primary_variables[:TracerMasses])
     end
     handle_alternate_primary_variable_spec!(res_init, found, rmodel, rmodel.system)
     if length(found) != length(pvars)
