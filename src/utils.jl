@@ -1305,6 +1305,7 @@ function setup_reservoir_state(rmodel::SimulationModel; kwarg...)
     if !haskey(res_init, :TracerMasses)
         # Tracers are usually safe to default = 0
         res_init[:TracerMasses] = Jutul.default_values(rmodel, rmodel.primary_variables[:TracerMasses])
+        push!(found, :TracerMasses)
     end
     handle_alternate_primary_variable_spec!(res_init, found, rmodel, rmodel.system)
     if length(found) != length(pvars)
