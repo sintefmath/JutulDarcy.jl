@@ -361,7 +361,14 @@ struct InjectorControl{T, R, P, M, E, TR} <: WellControlForce
     enthalpy::E
     factor::R
     tracers::TR
-    function InjectorControl(target::T, mix; density::R = 1.0, phases = ((1, 1.0),), temperature::R = 293.15, enthalpy = missing, tracers = missing, factor::R = 1.0) where {T<:WellTarget, R<:Real}
+    function InjectorControl(target::T, mix;
+            density::R = 1.0,
+            phases = ((1, 1.0),),
+            temperature::R = 293.15,
+            enthalpy = missing,
+            tracers = missing,
+            factor::R = 1.0
+        ) where {T<:WellTarget, R<:Real}
         @assert isfinite(density) && density > 0.0 "Injector density must be finite and positive"
         @assert isfinite(temperature) && temperature > 0.0 "Injector temperature must be finite and positive"
 
@@ -373,7 +380,7 @@ struct InjectorControl{T, R, P, M, E, TR} <: WellControlForce
         if isa(tracers, Real)
             tracers = [tracers]
         end
-        new{T, R, typeof(phases), typeof(mix), typeof(enthalpy), typeof(tracers)}(target, mix, density, phases, temperature, enthalpy, factor)
+        new{T, R, typeof(phases), typeof(mix), typeof(enthalpy), typeof(tracers)}(target, mix, density, phases, temperature, enthalpy, factor, tracers)
     end
 end
 replace_target(f::InjectorControl, target) = InjectorControl(target, f.injection_mixture, density = f.mixture_density, phases = f.phases, factor = f.factor)
