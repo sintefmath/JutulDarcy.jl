@@ -303,6 +303,7 @@ low values can lead to slow convergence.
 """
 function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         wells = [],
+        tracers = [],
         context = DefaultContext(),
         reservoir_context = nothing,
         general_ad = false,
@@ -336,14 +337,15 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         immutable_model = false,
         wells_systems = missing,
         wells_as_cells = false,
-        tracers = nothing,
         discretization_arg = NamedTuple()
     )
     # Deal with wells, make sure that multisegment wells come last.
     if !(wells isa AbstractArray)
         wells = [wells]
     end
-    old_wells = wells
+    if !(tracers isa AbstractArray)
+        tracers = [tracers]
+    end
     mswells = []
     stdwells = []
     for (i, w) in enumerate(wells)
@@ -484,6 +486,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         assemble_wells_together = assemble_wells_together,
         immutable_model = immutable_model,
     )
+    if length(tracers) > 0
+        add_tracers_to_model!(model, tracers)
+    end
     if extra_out
         parameters = setup_parameters(model, parameters)
         out = (model, parameters)
