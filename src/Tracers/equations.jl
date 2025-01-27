@@ -32,3 +32,19 @@ function tracer_flux(Q, face, state, model, kgrad, upw, ft::TracerFluxType)
     end
     return Q
 end
+
+function Jutul.convergence_criterion(model, storage, eq::ConservationLaw{:TracerMasses}, eq_s, r; dt = 1.0, update_report = missing)
+    a = active_entities(model.domain, Cells())
+    V = storage.state0.FluidVolume
+    nt = size(r, 1)
+    e = zeros(nt)
+    for c in a
+        scale = dt/V[c]
+        for t in 1:nt
+            v = abs(r[t, c])*scale
+            e[t] = max(e[t], v)
+        end
+    end
+    cnames = model.equations[:tracers].flux_type.names
+    return (Max = (errors = e, names = cnames), )
+end
