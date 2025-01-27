@@ -198,7 +198,7 @@ module JutulDarcy
     include("CO2Properties/CO2Properties.jl")
     # Tracers
     include("Tracers/Tracers.jl")
-    using .Tracers
+    import JutulDarcy.Tracers: SinglePhaseTracer, MultiPhaseTracer, add_tracers_to_model!, number_of_tracers
     export SinglePhaseTracer, MultiPhaseTracer, add_tracers_to_model!, number_of_tracers
 
     @compile_workload begin

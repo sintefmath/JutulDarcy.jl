@@ -56,6 +56,11 @@ function MultiPhaseTracer(system::MultiPhaseSystem, target_phases::AbstractArray
     return MultiPhaseTracer{N}(tuple(vals...))
 end
 
+function MultiPhaseTracer(system::MultiPhaseSystem)
+    N = number_of_phases(system)
+    return MultiPhaseTracer{N}(tuple((1:N)...))
+end
+
 tracer_phase_indices(t::MultiPhaseTracer) = t.phase_indices
 
 struct TracerFluxType{T, N} <: Jutul.FluxType
