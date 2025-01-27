@@ -196,6 +196,10 @@ module JutulDarcy
     include("NLDD/NLDD.jl")
     # CO2-brine properties
     include("CO2Properties/CO2Properties.jl")
+    # Tracers
+    include("Tracers/Tracers.jl")
+    using .Tracers
+    export SinglePhaseTracer, MultiPhaseTracer, add_tracers_to_model!, number_of_tracers
 
     @compile_workload begin
         try
