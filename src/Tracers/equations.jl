@@ -25,7 +25,7 @@ function tracer_flux(Q, face, state, model, kgrad, upw, ft::TracerFluxType)
         v = zero(T)
         for phase in tracer_phase_indices(tracer)
             q_ph = phase_mass_fluxes[phase]
-            C_iface = phase_upwind(upw, C, phase, q_ph)
+            C_iface = phase_upwind(upw, C, i, q_ph)
             v += C_iface*q_ph
         end
         Q = setindex(Q, v, i)
