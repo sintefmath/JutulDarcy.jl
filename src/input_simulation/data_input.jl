@@ -140,6 +140,19 @@ function setup_case_from_parsed_data(datafile;
         extra_arg[:salt_mole_fractions] = rs["SALT_MOLE_FRACTIONS"]
         extra_arg[:salt_names] = rs["SALTS"]
     end
+    tracers = data_file_active_tracers(datafile)
+    if length(tracers) > 0
+        tracer_types = []
+        for t in tracers
+            if t == "POLYMER"
+                push!(tracer_types, PolymerTracer(sys, datafile["PROPS"]))
+            else
+                error("Tracer $t not supported.")
+            end
+        end
+        extra_arg[:tracers] = [t for t in tracer_types]
+    end
+    error(tracers)
 
     model = setup_reservoir_model(domain, sys;
         thermal = is_thermal,
