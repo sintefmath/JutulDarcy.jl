@@ -17,6 +17,14 @@ struct PolymerConcentration <: Jutul.ScalarVariable
     tracer_ix::Int
 end
 
+struct MaxPolymerConcentration <: Jutul.ScalarVariable end
+
+function Jutul.update_parameter_before_step!(s_max, ::MaxPolymerConcentration, storage, model, dt, forces)
+    s = storage.state.PolymerConcentration
+    update_max_hysteresis_value!(s_max, s)
+    return s_max
+end
+
 Jutul.@jutul_secondary function update_polymer_concentration(vals, def::PolymerConcentration, model, TracerConcentrations, Saturations, ix)
     a = first(phase_indices(model.system))
     for i in ix
@@ -52,6 +60,7 @@ function set_polymer_model!(model, datafile)
     tracer_ix = findfirst(x -> isa(x, PolymerTracer), model.equations[:tracers].flux_type.tracers)
     @assert !isnothing(tracer_ix) "No polymer tracer found in model"
     set_secondary_variables!(model, PolymerConcentration = PolymerConcentration(tracer_ix))
+    set_parameters!(model, MaxPolymerConcentration = MaxPolymerConcentration())
     # Set up to manage the accumulation term
 
     # Set up to manage the adsorption term
