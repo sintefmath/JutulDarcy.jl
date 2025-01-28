@@ -485,14 +485,20 @@ function parse_state0_equil(model, datafile; normalize = :sum)
                             rsvd = sol["RSVD"][ereg]
                             z = rsvd[:, 1]
                             Rs = rsvd[:, 2]
-                        else
-                            @assert haskey(sol, "PBVD")
+                        elseif haskey(sol, "PBVD")
                             pbvd = sol["PBVD"][ereg]
                             z = pbvd[:, 1]
                             pb = vec(pbvd[:, 2])
                             Rs = sys.rs_max[preg].(pb)
+                        else
+                            Rs = missing
                         end
-                        rs = get_1d_interpolator(z, Rs_scale.*Rs)
+                        if ismissing(Rs)
+                            # TODO: Check if this is correct
+                            rs = z -> 0.0
+                        else
+                            rs = get_1d_interpolator(z, Rs_scale.*Rs)
+                        end
                     else
                         rs = missing
                     end
