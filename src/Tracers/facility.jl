@@ -39,7 +39,6 @@ function Jutul.update_cross_term_in_entity!(out, i,
                 for phase in tracer_phase_indices(tracers[i])
                     mass += masses[phase]
                 end
-                # @info "???" S_local tracer_phase_indices(tracers[i]) i tracers[i] S[:, wc] S_local > TRACER_TOL
                 if mass > TRACER_TOL
                     F = mass/mass_tot
                     v = -qT*F*ctrl.tracers[i]

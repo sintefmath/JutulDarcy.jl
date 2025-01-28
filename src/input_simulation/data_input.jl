@@ -145,14 +145,14 @@ function setup_case_from_parsed_data(datafile;
         tracer_types = []
         for t in tracers
             if t == "POLYMER"
-                push!(tracer_types, PolymerTracer(sys, datafile["PROPS"]))
+                push!(tracer_types, Tracers.PolymerTracer(sys))
+                # push!(tracer_types, MultiPhaseTracer(sys))
             else
                 error("Tracer $t not supported.")
             end
         end
         extra_arg[:tracers] = [t for t in tracer_types]
     end
-    error(tracers)
 
     model = setup_reservoir_model(domain, sys;
         thermal = is_thermal,
@@ -209,6 +209,9 @@ function setup_case_from_parsed_data(datafile;
                 set_deck_specialization!(submodel, rs, props, domain[:satnum], oil, water, gas)
             end
         end
+    end
+    if "POLYMER" in tracers
+        Tracers.set_polymer_model!(model, datafile)
     end
     msg("Setting up forces.")
     if skip_forces

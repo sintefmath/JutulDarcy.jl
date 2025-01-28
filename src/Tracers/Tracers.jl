@@ -10,4 +10,5 @@ module Tracers
     include("equations.jl")
     include("facility.jl")
     include("api.jl")
+    include("polymer.jl")
 end
