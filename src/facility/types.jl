@@ -383,7 +383,11 @@ struct InjectorControl{T, R, P, M, E, TR} <: WellControlForce
         new{T, R, typeof(phases), typeof(mix), typeof(enthalpy), typeof(tracers)}(target, mix, density, phases, temperature, enthalpy, factor, tracers)
     end
 end
-replace_target(f::InjectorControl, target) = InjectorControl(target, f.injection_mixture, density = f.mixture_density, phases = f.phases, factor = f.factor)
+
+function replace_target(f::InjectorControl, target)
+    return InjectorControl(target, f.injection_mixture, density = f.mixture_density, phases = f.phases, factor = f.factor, tracers = f.tracers)
+end
+
 default_limits(f::InjectorControl{T}) where T<:BottomHolePressureTarget = merge((rate_lower = MIN_ACTIVE_WELL_RATE, ), as_limit(f.target))
 
 """
