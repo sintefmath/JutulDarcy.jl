@@ -86,8 +86,26 @@ function set_polymer_model!(model, datafile)
     )
     set_parameters!(model,
         MaxPolymerConcentration = MaxPolymerConcentration(),
-        BulkVolume = JutulDarcy.BulkVolume() # TODO: Make sure that this variable does not overwrite a rpevious definition
     )
+    vars = Jutul.get_variables_by_type(model, :all)
+    if !haskey(vars, :BulkVolume)
+        set_parameters!(model,
+            BulkVolume = JutulDarcy.BulkVolume()
+        )
+    end
+    prms = Jutul.get_variables_by_type(model, :parameters)
+    svars = Jutul.get_variables_by_type(model, :secondary)
+    if haskey(prms, :PhaseViscosities)
+        prms[:BasePhaseViscosities] = plyvisc
+        mu = prms[:PhaseViscosities]
+        delete!(prms, :PhaseViscosities)
+    else
+        @assert haskey(svars, :PhaseViscosities) "PhaseViscosities not found in secondary variables or parameters, cannot setup polymer model."
+        svars[:BasePhaseViscosities] = plyvisc
+        mu = svars[:PhaseViscosities]
+        delete!(svars, :PhaseViscosities)
+    end
+
     # Set up to manage the accumulation term
 
     # Set up to manage the adsorption term
