@@ -16,20 +16,68 @@ end
 tracer_phase_indices(t::PolymerTracer) = (t.ix, )
 
 function tracer_total_mass_outer(tracer::PolymerTracer, model, state, concentration, resident_mass_density, vol, cell, index)
-    error()
-    water_mass = resident_mass
-    # TODO: Dependencies
-    # flowing = water_mass*
-    # return concentration*resident_mass
+    if resident_mass_density <= TRACER_TOL
+        v = vol*Jutul.replace_value(concentration, 0.0)
+    else
+        v = tracer_total_mass(tracer, model, state, concentration, resident_mass_density, vol, cell, index)
+    end
+    if JutulDarcy.model_or_domain_is_well(model)
+        mass = v
+    else
+        rock_density = state.PolymerRockDensity[cell]
+        dps = state.DeadPoreSpace[cell]
+        bulk_vol = state.BulkVolume[cell]
+        ads = state.AdsorbedPolymerConcentration[cell]
+        mass = v*(1 - dps) + (vol - bulk_vol)*rock_density*ads
+    end
+    return mass
 end
 
+function Jutul.get_dependencies(tracer::PolymerTracer, model)
+    if JutulDarcy.model_or_domain_is_well(model)
+        out = Symbol[]
+    else
+        out = [
+            :AdsorbedPolymerConcentration,
+            :PolymerConcentration,
+            :BulkVolume,
+            :DeadPoreSpace,
+            :PolymerRockDensity
+        ]
+    end
+    return out
+end
 
 struct MaxPolymerConcentration <: Jutul.ScalarVariable end
 
 function Jutul.update_parameter_before_step!(s_max, ::MaxPolymerConcentration, storage, model, dt, forces)
     s = storage.state.PolymerConcentration
-    update_max_hysteresis_value!(s_max, s)
+    JutulDarcy.update_max_hysteresis_value!(s_max, s)
     return s_max
+end
+
+struct DeadPoreSpace{R} <: Jutul.ScalarVariable
+    default_dps::Vector{R}
+end
+
+function Jutul.default_values(model, var::DeadPoreSpace)
+    ne = number_of_entities(model, var)
+    dps = var.default_dps
+    @assert length(dps) == ne "Number of default values does not match number of entities"
+    return copy(dps)
+end
+
+struct PolymerRockDensity{R} <: Jutul.ScalarVariable
+    default_rho::Vector{R}
+end
+
+function Jutul.default_values(model, var::PolymerRockDensity)
+    # Note: In principle this could be different than the regular rock density
+    # used in thermal. We duplicate it just in case.
+    ne = number_of_entities(model, var)
+    dps = var.default_rho
+    @assert length(dps) == ne "Number of default values does not match number of entities"
+    return copy(dps)
 end
 
 struct PolymerConcentration <: Jutul.ScalarVariable
@@ -174,21 +222,23 @@ function set_polymer_model!(outer_model, datafile)
     # Handle polymer concentration
     tracer_ix = findfirst(x -> isa(x, PolymerTracer), model.equations[:tracers].flux_type.tracers)
     @assert !isnothing(tracer_ix) "No polymer tracer found in model"
-    @info "???" plyads plyrock plmixpar plymax
     set_secondary_variables!(model,
         PolymerConcentration = PolymerConcentration(tracer_ix),
         # PolymerTotalMass = PolymerTotalMass(plyrock, plyads, satnum),
         AdsorbedPolymerConcentration = AdsorbedPolymerConcentration(plyrock, plyads, satnum)
     )
     set_parameters!(model,
-        MaxPolymerConcentration = MaxPolymerConcentration()
+        MaxPolymerConcentration = MaxPolymerConcentration(),
+        DeadPoreSpace = DeadPoreSpace(map(x -> x.dps, plyrock[satnum])),
+        PolymerRockDensity = PolymerRockDensity(map(x -> x.rho_rock, plyrock[satnum]))
     )
     vars = Jutul.get_variables_by_type(model, :all)
     if !haskey(vars, :BulkVolume)
         set_parameters!(model,
-            BulkVolume = JutulDarcy.BulkVolume()
+            BulkVolume = JutulDarcy.BulkVolume(),
         )
     end
+
     prms = Jutul.get_variables_by_type(model, :parameters)
     svars = Jutul.get_variables_by_type(model, :secondary)
     if haskey(prms, :PhaseViscosities)
@@ -211,7 +261,6 @@ function set_polymer_model!(outer_model, datafile)
         rock_regions = pvtnum,
         viscosity_regions = satnum
     )
-    # error()
     return outer_model
 end
 
