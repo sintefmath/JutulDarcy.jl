@@ -22,12 +22,22 @@ number_of_tracers(t::TracerFluxType) = length(t.tracers)
     - `model`: Model object.
     - `state`: Current state
     - `concentration`: Tracer concentration.
-    - `resident_mass`: Resident mass (i.e. total mass of all associated phases)
+    - `resident_mass_density`: Resident mass density (i.e. total mass density of all associated phases where the tracer is present)
+    - `volume`: Fluid volume in cell.
     - `cell`: Cell index.
     - `index`: Index of tracer in the list of tracers
 """
-function tracer_total_mass(tracer::AbstractTracer, model, state, concentration, resident_mass, cell, index)
-    return concentration*resident_mass
+function tracer_total_mass(tracer::AbstractTracer, model, state, concentration, resident_mass_density, volume, cell, index)
+    return concentration*resident_mass_density*volume
+end
+
+function tracer_total_mass_outer(tracer::AbstractTracer, model, state, concentration, resident_mass_density, vol, cell, index)
+    if resident_mass_density <= TRACER_TOL
+        v = vol*Jutul.replace_value(concentration, 0.0)
+    else
+        v = tracer_total_mass(tracer, model, state, concentration, resident_mass_density, vol, cell, index)
+    end
+    return v
 end
 
 """

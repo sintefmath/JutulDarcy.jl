@@ -24,19 +24,14 @@ function Jutul.update_secondary_variable!(tracer_mass, tm::TracerMasses, model, 
         vol = FluidVolume[cell]
         for i in 1:N
             tracer = tracers[i]
-            resident_mass = zero(T)
+            resident_mass_density = zero(T)
             c = TracerConcentrations[i, cell]
             for phase in tracer_phase_indices(tracer)
                 S = Saturations[phase, cell]
                 den = PhaseMassDensities[phase, cell]
-                resident_mass += S*den
+                resident_mass_density += S*den
             end
-            if resident_mass <= TRACER_TOL
-                v = Jutul.replace_value(c, 0.0)
-            else
-                v = tracer_total_mass(tracer, model, state, c, resident_mass, cell, i)
-            end
-            tracer_mass[i, cell] = v*vol
+            tracer_mass[i, cell] = tracer_total_mass_outer(tracer, model, state, c, resident_mass_density, vol, cell, i)
         end
     end
     return tracer_mass

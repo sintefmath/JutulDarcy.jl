@@ -13,6 +13,15 @@ end
 
 tracer_phase_indices(t::PolymerTracer) = (t.phase_index, )
 
+function tracer_total_mass_outer(tracer::PolymerTracer, model, state, concentration, resident_mass_density, vol, cell, index)
+    error()
+    water_mass = resident_mass
+    # flowing = water_mass*
+    # return concentration*resident_mass
+end
+
+
+
 struct PolymerConcentration <: Jutul.ScalarVariable
     tracer_ix::Int
 end
