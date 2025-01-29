@@ -1131,8 +1131,8 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                     add_cross_term!(model, ct, target = :Reservoir, source = k, equation = conservation)
                 end
                 if has_thermal
-                    CI = 1000 .* WI
-                    ct = ReservoirFromWellThermalCT(CI, WI, rc, wc)
+                    WIth = vec(g.perforations.WIth)
+                    ct = ReservoirFromWellThermalCT(WIth, WI, rc, wc)
                     add_cross_term!(model, ct, target = :Reservoir, source = k, equation = energy)
                 end
             end

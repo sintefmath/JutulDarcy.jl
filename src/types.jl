@@ -424,8 +424,8 @@ function SimpleWell(
     reference_depth = convert(Float64, reference_depth)
     volume = convert(Float64, volume)
     nr = length(reservoir_cells)
-    WI, gdz = common_well_setup(nr; kwarg...)
-    perf = (self = ones(Int64, nr), reservoir = vec(reservoir_cells), WI = WI, gdz = gdz)
+    WI, WIth, gdz = common_well_setup(nr; kwarg...)
+    perf = (self = ones(Int64, nr), reservoir = vec(reservoir_cells), WI = WI, WIth = WIth, gdz = gdz)
     return SimpleWell(volume, perf, surface_conditions, name, explicit_dp, reference_depth)
 end
 
@@ -548,8 +548,8 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
         dz = centers[3, :] - reference_depth
     end
     @assert length(perforation_cells) == nr
-    WI, gdz = common_well_setup(nr; dz = dz, kwarg...)
-    perf = (self = perforation_cells, reservoir = reservoir_cells, WI = WI, gdz = gdz)
+    WI, WIth, gdz = common_well_setup(nr; dz = dz, kwarg...)
+    perf = (self = perforation_cells, reservoir = reservoir_cells, WI = WI, WIth = WIth, gdz = gdz)
     accumulator = (reference_depth = reference_depth, )
     MultiSegmentWell{typeof(volumes), typeof(perf), typeof(N), typeof(accumulator), typeof(ext_centers), typeof(surface_conditions), typeof(segment_models)}(volumes, perf, N, accumulator, ext_centers, surface_conditions, name, segment_models)
 end
