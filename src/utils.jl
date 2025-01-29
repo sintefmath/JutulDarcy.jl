@@ -1102,6 +1102,7 @@ function setup_reservoir_cross_terms!(model::MultiModel)
     has_thermal = haskey(rmodel.equations, :energy_conservation)
     conservation = :mass_conservation
     energy = :energy_conservation
+    handled_btes_cts = Vector{String}(undef, 0)
     for (k, m) in pairs(model.models)
         if k == :Reservoir
             # These are set up from wells via symmetry
@@ -1134,6 +1135,27 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                     WIth = vec(g.perforations.WIth)
                     ct = ReservoirFromWellThermalCT(WIth, WI, rc, wc)
                     add_cross_term!(model, ct, target = :Reservoir, source = k, equation = energy)
+                end
+                is_btes = g isa MultiSegmentWell && 
+                    m.data_domain.representation.type == :btes
+                if is_btes
+                    # TODO: Check that pair cross terms are not added twice
+                    name = string(k)
+                    (this, other) = contains(name, "supply") ? ("supply", "return") : ("return", "supply")
+                    btes_name = replace(name, "_"*this => "")
+                    if btes_name in handled_btes_cts
+                        continue
+                    end
+
+                    this = Symbol(btes_name*"_"*this)
+                    other = Symbol(btes_name*"_"*other)
+
+                    ct_mass = JutulDarcy.BTESWellSupplyToReturnMassCT(wc[end])
+                    ct_energy = JutulDarcy.BTESWellSupplyToReturnEnergyCT(wc[end])
+                    add_cross_term!(model, ct_mass, target = other, source = this, equation = conservation)
+                    add_cross_term!(model, ct_energy, target = other, source = this, equation = energy)
+                    
+                    push!(handled_btes_cts, btes_name)
                 end
             end
         end

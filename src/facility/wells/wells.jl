@@ -405,6 +405,7 @@ end
 
 include("mswells.jl")
 include("stdwells.jl")
+include("btes.jl")
 
 include("stdwells_equations.jl")
 
