@@ -48,6 +48,18 @@ Jutul.@jutul_secondary function update_polymer_concentration(vals, def::PolymerC
     return vals
 end
 
+
+struct PolymerTotalMass{R, A, V} <: Jutul.ScalarVariable
+    plyrock::R
+    plyads::A
+    regions::V
+    function PolymerTotalMass(plyrock, plyads, satnum = nothing)
+        @assert length(plyrock) == length(plyads)
+        JutulDarcy.check_regions(satnum, length(plyrock))
+        return new{typeof(plyrock), typeof(plyads), typeof(satnum)}(plyrock, plyads, satnum)
+    end
+end
+
 function set_polymer_model!(model, datafile)
     model = reservoir_model(model)
     reservoir = reservoir_domain(model)
@@ -68,8 +80,14 @@ function set_polymer_model!(model, datafile)
     # Handle polymer concentration
     tracer_ix = findfirst(x -> isa(x, PolymerTracer), model.equations[:tracers].flux_type.tracers)
     @assert !isnothing(tracer_ix) "No polymer tracer found in model"
-    set_secondary_variables!(model, PolymerConcentration = PolymerConcentration(tracer_ix))
-    set_parameters!(model, MaxPolymerConcentration = MaxPolymerConcentration())
+    set_secondary_variables!(model,
+        PolymerConcentration = PolymerConcentration(tracer_ix),
+        PolymerTotalMass = PolymerTotalMass(plyrock, plyads, satnum),
+    )
+    set_parameters!(model,
+        MaxPolymerConcentration = MaxPolymerConcentration(),
+        BulkVolume = JutulDarcy.BulkVolume() # TODO: Make sure that this variable does not overwrite a rpevious definition
+    )
     # Set up to manage the accumulation term
 
     # Set up to manage the adsorption term
