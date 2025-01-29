@@ -16,18 +16,12 @@ function tracer_flux(Q, face, state, model, kgrad, upw, ft::TracerFluxType)
     flow_common = kgrad_common(face, state, model, kgrad)
     phase_mass_fluxes = map(α -> darcy_phase_mass_flux(face, α, state, model, ft, kgrad, upw, flow_common), phases)
 
-    C = state.TracerConcentrations
     tracers = ft.tracers
     N = length(tracers)
     T = eltype(Q)
     for i in 1:N
         tracer = tracers[i]
-        v = zero(T)
-        for phase in tracer_phase_indices(tracer)
-            q_ph = phase_mass_fluxes[phase]
-            C_iface = phase_upwind(upw, C, i, q_ph)
-            v += C_iface*q_ph
-        end
+        v = tracer_total_mass_flux(tracer, model, state, phase_mass_fluxes, i, upw)
         Q = setindex(Q, v, i)
     end
     return Q

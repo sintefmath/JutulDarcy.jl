@@ -14,6 +14,44 @@ end
 
 number_of_tracers(t::TracerFluxType) = length(t.tracers)
 
+"""
+    tracer_total_mass(tracer::AbstractTracer, model, state, concentration, resident_mass, cell, index)
+
+# Arguments:
+    - `tracer::AbstractTracer`: Tracer in question
+    - `model`: Model object.
+    - `state`: Current state
+    - `concentration`: Tracer concentration.
+    - `resident_mass`: Resident mass (i.e. total mass of all associated phases)
+    - `cell`: Cell index.
+    - `index`: Index of tracer in the list of tracers
+"""
+function tracer_total_mass(tracer::AbstractTracer, model, state, concentration, resident_mass, cell, index)
+    return concentration*resident_mass
+end
+
+"""
+    tracer_total_mass_flux(tracer, model, state, phase_mass_fluxes, C, index, upw, T = eltype(phase_mass_fluxes))
+
+# Arguments:
+    - `tracer`: Tracer in question
+    - `model`: Model object.
+    - `state`: Current state
+    - `phase_mass_fluxes`: Mass fluxes for each phase
+    - `C`: Tracer concentrations (as a matrix with the tracers in each cell as the columns)
+    - `index`: Index of tracer in the list of tracers
+    - `upw`: Upwind scheme
+    - `T`: Type of the tracer concentrations
+"""
+function tracer_total_mass_flux(tracer, model, state, phase_mass_fluxes, index, upw, C = state.TracerConcentrations, T = eltype(C))
+    v = zero(T)
+    for phase in tracer_phase_indices(tracer)
+        q_ph = phase_mass_fluxes[phase]
+        C_iface = phase_upwind(upw, C, index, q_ph)
+        v += C_iface*q_ph
+    end
+    return v
+end
 
 function add_tracers_to_model!(model::MultiModel, tracers; names = missing, kwarg...)
     if !isnothing(tracers)

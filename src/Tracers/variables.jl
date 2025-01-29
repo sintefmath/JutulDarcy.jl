@@ -33,9 +33,8 @@ function Jutul.update_secondary_variable!(tracer_mass, tm::TracerMasses, model, 
             end
             if resident_mass <= TRACER_TOL
                 v = Jutul.replace_value(c, 0.0)
-                # v = c*value(resident_mass)
             else
-                v = c*resident_mass
+                v = tracer_total_mass(tracer, model, state, c, resident_mass, cell, i)
             end
             tracer_mass[i, cell] = v*vol
         end
