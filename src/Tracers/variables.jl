@@ -11,7 +11,12 @@ end
 
 Jutul.values_per_entity(model, t::TracerMasses) = number_of_tracers(t.flux_type)
 
-Jutul.@jutul_secondary function update_tracer_masses!(tracer_mass, tm::TracerMasses, model, TracerConcentrations, Saturations, PhaseMassDensities, FluidVolume, ix)
+function Jutul.update_secondary_variable!(tracer_mass, tm::TracerMasses, model, state, ix)
+    TracerConcentrations = state.TracerConcentrations
+    Saturations = state.Saturations
+    PhaseMassDensities = state.PhaseMassDensities
+    FluidVolume = state.FluidVolume
+
     tracers = tm.flux_type.tracers
     N = length(tracers)
     T = eltype(tracer_mass)
@@ -36,4 +41,19 @@ Jutul.@jutul_secondary function update_tracer_masses!(tracer_mass, tm::TracerMas
         end
     end
     return tracer_mass
+end
+
+function Jutul.get_dependencies(var::TracerMasses, model)
+    out = Symbol[
+        :TracerConcentrations,
+        :Saturations,
+        :PhaseMassDensities,
+        :FluidVolume
+    ]
+    for tracer in var.flux_type.tracers
+        for dep in Jutul.get_dependencies(tracer, model)
+            push!(out, dep)
+        end
+    end
+    return unique!(out)
 end
