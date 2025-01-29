@@ -429,7 +429,8 @@ function SimpleWell(
     return SimpleWell(volume, perf, surface_conditions, name, explicit_dp, reference_depth)
 end
 
-struct MultiSegmentWell{V, P, N, A, C, SC, S} <: WellDomain
+struct MultiSegmentWell{type, V, P, N, A, C, SC, S} <: WellDomain
+    type::Symbol
     "One of volumes per node (cell)"
     volumes::V
     "(self -> local cells, reservoir -> reservoir cells, WI -> connection factor)"
@@ -475,6 +476,7 @@ $FIELDS
 
 """
 function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
+            type = :ms,
             accumulator_center = nothing,
             accumulator_volume = mean(volumes),
             N = nothing,
@@ -551,7 +553,7 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
     WI, WIth, gdz = common_well_setup(nr; dz = dz, kwarg...)
     perf = (self = perforation_cells, reservoir = reservoir_cells, WI = WI, WIth = WIth, gdz = gdz)
     accumulator = (reference_depth = reference_depth, )
-    MultiSegmentWell{typeof(volumes), typeof(perf), typeof(N), typeof(accumulator), typeof(ext_centers), typeof(surface_conditions), typeof(segment_models)}(volumes, perf, N, accumulator, ext_centers, surface_conditions, name, segment_models)
+    MultiSegmentWell{typeof(type), typeof(volumes), typeof(perf), typeof(N), typeof(accumulator), typeof(ext_centers), typeof(surface_conditions), typeof(segment_models)}(type, volumes, perf, N, accumulator, ext_centers, surface_conditions, name, segment_models)
 end
 
 
