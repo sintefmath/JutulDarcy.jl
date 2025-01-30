@@ -1543,6 +1543,12 @@ function parse_control_steps(runspec, props, schedule, sys)
                 well_temp[wnm] = convert_to_si(wt, :Celsius)
             end
         end
+        if haskey(step, "WPOLYMER")
+            for wk in step["WPOLYMER"]
+                name, polymer_concentration = wk
+                polymer[name] = polymer_concentration
+            end
+        end
         for (key, kword) in pairs(step)
             if key == "DATES"
                 if ismissing(start_date)
@@ -1636,11 +1642,6 @@ function parse_control_steps(runspec, props, schedule, sys)
                     )
                 end
                 set_active_controls!(active_controls, controls)
-            elseif key == "WPOLYMER"
-                for wk in kword
-                    name, polymer_concentration = wk
-                    polymer[name] = polymer_concentration
-                end
             elseif key == "WELOPEN"
                 for wk in kword
                     apply_welopen!(controls, compdat, wk, active_controls)
@@ -1652,7 +1653,7 @@ function parse_control_steps(runspec, props, schedule, sys)
                 set_active_controls!(active_controls, controls)
             elseif key in skip
                 # Already handled
-            elseif key in ("WSEGVALV", "COMPSEGS", "WELSEGS")
+            elseif key in ("WSEGVALV", "COMPSEGS", "WELSEGS", "WPOLYMER")
                 for val in kword
                     wname = val[1]
                     ms_storage = get_and_create_mswell_kw(wname, key)
