@@ -1141,17 +1141,19 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                 if is_btes
                     # TODO: Check that pair cross terms are not added twice
                     name = string(k)
-                    (this, other) = contains(name, "supply") ? ("supply", "return") : ("return", "supply")
-                    btes_name = replace(name, "_"*this => "")
+                    if !contains(name, "_supply")
+                        continue
+                    end
+                    btes_name = replace(name, "_supply" => "")
                     if btes_name in handled_btes_cts
                         continue
                     end
 
-                    this = Symbol(btes_name*"_"*this)
-                    other = Symbol(btes_name*"_"*other)
+                    this = Symbol(btes_name*"_supply")
+                    other = Symbol(btes_name*"_return")
 
-                    ct_mass = JutulDarcy.BTESWellSupplyToReturnMassCT(wc[end])
-                    ct_energy = JutulDarcy.BTESWellSupplyToReturnEnergyCT(wc[end])
+                    ct_mass = JutulDarcy.BTESWellSupplyToReturnMassCT([wc[end]])
+                    ct_energy = JutulDarcy.BTESWellSupplyToReturnEnergyCT([wc[end]])
                     add_cross_term!(model, ct_mass, target = other, source = this, equation = conservation)
                     add_cross_term!(model, ct_energy, target = other, source = this, equation = energy)
                     
