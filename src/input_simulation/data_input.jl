@@ -1526,7 +1526,7 @@ function parse_control_steps(runspec, props, schedule, sys)
         push!(cstep, ctrl_ix)
     end
 
-    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP", "WPIMULT")
+    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP", "WPIMULT", "WPOLYMER")
     bad_kw = Dict{String, Bool}()
     streams = setup_well_streams()
     for (ctrl_ix, step) in enumerate(steps)
@@ -1653,7 +1653,7 @@ function parse_control_steps(runspec, props, schedule, sys)
                 set_active_controls!(active_controls, controls)
             elseif key in skip
                 # Already handled
-            elseif key in ("WSEGVALV", "COMPSEGS", "WELSEGS", "WPOLYMER")
+            elseif key in ("WSEGVALV", "COMPSEGS", "WELSEGS")
                 for val in kword
                     wname = val[1]
                     ms_storage = get_and_create_mswell_kw(wname, key)
