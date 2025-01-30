@@ -191,18 +191,8 @@ Jutul.@jutul_secondary function update_mixed_polymer_viscosity!(vals, def::Polym
     return vals
 end
 
-# struct PolymerTotalMass{R, A, V} <: Jutul.ScalarVariable
-#     plyrock::R
-#     plyads::A
-#     regions::V
-#     function PolymerTotalMass(plyrock, plyads, satnum = nothing)
-#         @assert length(plyrock) == length(plyads)
-#         JutulDarcy.check_regions(satnum, length(plyrock))
-#         return new{typeof(plyrock), typeof(plyads), typeof(satnum)}(plyrock, plyads, satnum)
-#     end
-# end
-
 function set_polymer_model!(outer_model, datafile)
+    Jutul.jutul_message("POLYMER", "Polymer model is in early development. Use with caution.", color = :yellow)
     model = reservoir_model(outer_model)
     reservoir = reservoir_domain(model)
     haskey(datafile["RUNSPEC"], "POLYMER") || throw(ArgumentError("POLYMER keyword not found in RUNSPEC section of datafile"))
