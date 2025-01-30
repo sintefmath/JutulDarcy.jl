@@ -393,6 +393,8 @@ function parse_state0_equil(model, datafile; normalize = :sum)
                 woc_pc = eq[4]
                 goc = eq[5]
                 goc_pc = eq[6]
+                rs_method = eq[7]
+                rv_method = eq[8]
                 # Contact depths
                 s_max = 1.0
                 s_min = 0.0
@@ -481,35 +483,45 @@ function parse_state0_equil(model, datafile; normalize = :sum)
                     Rs_scale = (rhoGS[preg]/rhoGS[1])*(rhoOS[preg]/rhoOS[1])
                     Rv_scale = 1.0/Rs_scale
                     if disgas
-                        if haskey(sol, "RSVD")
-                            rsvd = sol["RSVD"][ereg]
-                            z = rsvd[:, 1]
-                            Rs = rsvd[:, 2]
+                        if rs_method <= 0
+                            rs_max_at_contact = sys.rs_max[preg](datum_pressure)
+                            rs = z -> rs_max_at_contact
                         else
-                            @assert haskey(sol, "PBVD")
-                            pbvd = sol["PBVD"][ereg]
-                            z = pbvd[:, 1]
-                            pb = vec(pbvd[:, 2])
-                            Rs = sys.rs_max[preg].(pb)
+                            if haskey(sol, "RSVD")
+                                rsvd = sol["RSVD"][ereg]
+                                z = rsvd[:, 1]
+                                Rs = rsvd[:, 2]
+                            else
+                                @assert haskey(sol, "PBVD")
+                                pbvd = sol["PBVD"][ereg]
+                                z = pbvd[:, 1]
+                                pb = vec(pbvd[:, 2])
+                                Rs = sys.rs_max[preg].(pb)
+                            end
+                            rs = get_1d_interpolator(z, Rs_scale.*Rs)
                         end
-                        rs = get_1d_interpolator(z, Rs_scale.*Rs)
                     else
                         rs = missing
                     end
                     if vapoil
-                        if haskey(sol, "PDVD")
-                            @warn "PDVD not supported for RV initialization, setting to zero."
-                            rv = z -> 0.0
-                        elseif haskey(sol, "RVVD")
-                            rvvd = sol["RVVD"][ereg]
-                            z = rvvd[:, 1]
-                            Rv = rvvd[:, 2]
-                            rv = get_1d_interpolator(z, Rv_scale.*Rv)
+                        if rv_method <= 0
+                            rv_max_at_contact = sys.rv_max[preg](datum_pressure)
+                            rv = z -> rv_max_at_contact
                         else
-                            # TODO: Should maybe be the pressure at GOC not datum
-                            # depth, but that isn't computed at this stage.
-                            rv_at_goc = Rv_scale*sys.rv_max[preg](datum_pressure)
-                            rv = z -> rv_at_goc
+                            if haskey(sol, "PDVD")
+                                @warn "PDVD not supported for RV initialization, setting to zero."
+                                rv = z -> 0.0
+                            elseif haskey(sol, "RVVD")
+                                rvvd = sol["RVVD"][ereg]
+                                z = rvvd[:, 1]
+                                Rv = rvvd[:, 2]
+                                rv = get_1d_interpolator(z, Rv_scale.*Rv)
+                            else
+                                # TODO: Should maybe be the pressure at GOC not datum
+                                # depth, but that isn't computed at this stage.
+                                rv_at_goc = Rv_scale*sys.rv_max[preg](datum_pressure)
+                                rv = z -> rv_at_goc
+                            end
                         end
                     else
                         rv = missing

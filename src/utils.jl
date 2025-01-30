@@ -303,6 +303,7 @@ low values can lead to slow convergence.
 """
 function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         wells = [],
+        tracers = [],
         context = DefaultContext(),
         reservoir_context = nothing,
         general_ad = false,
@@ -342,7 +343,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     if !(wells isa AbstractArray)
         wells = [wells]
     end
-    old_wells = wells
+    if !(tracers isa AbstractArray)
+        tracers = [tracers]
+    end
     mswells = []
     stdwells = []
     for (i, w) in enumerate(wells)
@@ -483,6 +486,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         assemble_wells_together = assemble_wells_together,
         immutable_model = immutable_model,
     )
+    if length(tracers) > 0
+        add_tracers_to_model!(model, tracers)
+    end
     if extra_out
         parameters = setup_parameters(model, parameters)
         out = (model, parameters)
@@ -1300,6 +1306,12 @@ function setup_reservoir_state(rmodel::SimulationModel; kwarg...)
             push!(found, k)
         end
         res_init[k] = v
+    end
+    tc = get(rmodel.primary_variables, :TracerConcentrations, nothing)
+    if  !isnothing(tc) && !haskey(res_init, :TracerConcentrations)
+        # Tracers are usually safe to default = 0
+        res_init[:TracerConcentrations] = Jutul.default_values(rmodel, tc)
+        push!(found, :TracerConcentrations)
     end
     handle_alternate_primary_variable_spec!(res_init, found, rmodel, rmodel.system)
     if length(found) != length(pvars)
