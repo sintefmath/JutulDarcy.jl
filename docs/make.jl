@@ -128,33 +128,39 @@ function build_jutul_darcy_docs(build_format = nothing;
         plugins=[bib],
         format=build_format,
         pages=[
-            "Introduction" => [
-                "JutulDarcy.jl" => "index.md",
-                "Getting started" =>"man/intro.md",
-                "Your first JutulDarcy.jl simulation" => "man/first_ex.md",
-                "FAQ" => "extras/faq.md"
-            ],
             "Manual" => [
-                    "man/highlevel.md",
-                    "man/basics/input_files.md",
-                    "man/basics/forces.md",
-                    "man/basics/systems.md",
-                    "man/basics/wells.md",
-                    "man/basics/solution.md",
-                    "man/basics/primary.md",
-                    "man/basics/secondary.md",
-                    "man/basics/parameters.md",
-                    "man/basics/plotting.md",
-                    "man/basics/utilities.md",
-                    "man/basics/package.md"
+                    "Introduction" => [
+                        "JutulDarcy.jl" => "index.md",
+                        "Getting started" =>"man/intro.md",
+                        "Your first JutulDarcy.jl simulation" => "man/first_ex.md",
+                        "FAQ" => "extras/faq.md",
                     ],
-            "Further reading" => [
-                "man/advanced/mpi.md",
-                "man/advanced/gpu.md",
-                "man/advanced/compiled.md",
-                "Jutul functions" => "ref/jutul.md",
-                "Bibliography" => "extras/refs.md"
-            ],
+                    "Fundamentals" => [
+                        "man/highlevel.md",
+                        "man/basics/input_files.md",
+                        "man/basics/systems.md",
+                        "man/basics/solution.md",
+                    ],
+                    "Detailed API" => [
+                        "man/basics/forces.md",
+                        "man/basics/wells.md",
+                        "man/basics/primary.md",
+                        "man/basics/secondary.md",
+                        "man/basics/parameters.md",
+                        "man/basics/plotting.md",
+                        "man/basics/utilities.md",
+                    ],
+                    "Parallelism and compilation" => [
+                        "man/advanced/mpi.md",
+                        "man/advanced/gpu.md",
+                        "man/advanced/compiled.md"
+                    ],
+                    "References" => [
+                        "man/basics/package.md",
+                        "Jutul functions" => "ref/jutul.md",
+                        "Bibliography" => "extras/refs.md"
+                    ],
+                ],
             "Examples: Introduction" => intros_markdown,
             "Examples: Usage" => examples_markdown,
             "Examples: Validation" => validation_markdown
@@ -180,6 +186,8 @@ function build_jutul_darcy_docs(build_format = nothing;
         )
     end
 end
+# To preview, go to the docs folder and run:
+# # DocumenterVitepress.dev_docs("build")
 ##
 # build_jutul_darcy_docs(
 #     build_examples = false,
