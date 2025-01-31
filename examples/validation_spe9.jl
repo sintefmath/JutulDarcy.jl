@@ -1,4 +1,4 @@
-# # The SPE9 model
+# # SPE9: Black-oil depletion with dissolved gas
 # [Killough, J. E. 1995. Ninth SPE comparative solution project: A reexamination
 # of black-oil simulation. In SPE Reservoir Simulation Symposium,  12-15
 # February 1995, San Antonio, Texas. SPE 29110-MS]

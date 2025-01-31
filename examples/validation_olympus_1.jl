@@ -1,4 +1,4 @@
-# # OLYMPUS_1 model
+# # The OLYMPUS benchmark model: Two-phase corner-point reservoir
 # Model from the [ISAPP Optimization
 # challenge](https://www.isapp2.com/optimization-challenge/reservoir-model-description.html)
 #
