@@ -156,7 +156,10 @@ function build_jutul_darcy_docs(
                 ],
             ],
         "Examples" => examples_markdown,
-        "Validation" => validation_markdown
+        "Validation" => [
+            "man/validation.md",
+            "Models" => validation_markdown,
+        ]
     ]
     # for (k, subpages) in build_pages
     #     println("$k")
