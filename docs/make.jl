@@ -2,12 +2,14 @@ using JutulDarcy
 using Jutul
 using Literate
 using Documenter
+using OrderedCollections
 
 using DocumenterCitations
 using DocumenterVitepress
 ##
 cd(@__DIR__)
-function build_jutul_darcy_docs(build_format = nothing;
+function build_jutul_darcy_docs(
+        build_format = nothing;
         build_examples = true,
         build_validation_examples = build_examples,
         build_notebooks = true,
@@ -25,37 +27,36 @@ function build_jutul_darcy_docs(build_format = nothing;
     # Convert examples as .jl files to markdown
     examples = [
         # "Intro" => "intro_example",
-        "Intro: Gravity segregation" => "two_phase_gravity_segregation",
-        "Intro: Two-phase Buckley-Leverett" => "two_phase_buckley_leverett",
-        "Intro: Wells" => "wells_intro",
-        "Intro: Simulating Eclipse/DATA input files" => "data_input_file",
-        "Intro: Sensitivities in JutulDarcy" => "intro_sensitivities",
-        "Intro: Compositional flow" => "co2_brine_2d_vertical",
-        "CO2 injection in saline aquifer" => "co2_sloped",
-        "Adding new wells to an existing model" => "adding_new_wells",
-        "Consistent discretizations: Average MPFA and nonlinear TPFA" => "consistent_avgmpfa",
-        "High resolution and consistency: WENO, NTPFA and AvgMPFA" => "mpfa_weno_discretizations",
-        "Quarter-five-spot with variation" => "five_spot_ensemble",
-        "Gravity circulation with CPR preconditioner" => "two_phase_unstable_gravity",
-        "Properties: CO2-brine correlations with salinity" => "co2_props",
-        "Properties: Relative Permeabilities in JutulDarcy" => "relperms",
-        "Model coarsening" => "model_coarsening",
-        "History matching a coarse model - CGNet" => "cgnet_egg",
-        "Compositional with five components" => "compositional_5components",
-        "Parameter matching of Buckley-Leverett" => "optimize_simple_bl",
-        "Hybrid simulation with relative permeability" => "hybrid_simulation_relperm",
-        "Tracer simulation" => "tracers_two_wells",
-        "Validation: SPE1" => "validation_spe1",
-        "Validation: SPE9" => "validation_spe9",
-        "Validation: Compositional" => "validation_compositional",
-        "Validation: Egg" => "validation_egg",
-        "Validation: OLYMPUS 1" => "validation_olympus_1",
-        "Validation: Norne" => "validation_norne_nohyst",
-        "Validation: MRST input files" => "validation_mrst"
+        "Intro" => "two_phase_gravity_segregation",
+        "Intro" => "two_phase_buckley_leverett",
+        "Intro" => "wells_intro",
+        "Intro" => "data_input_file",
+        "Intro" => "intro_sensitivities",
+        "General" => "five_spot_ensemble",
+        "General" => "two_phase_unstable_gravity",
+        "Workflow" => "co2_sloped",
+        "Workflow" => "adding_new_wells",
+        "Workflow" => "model_coarsening",
+        "Workflow" => "hybrid_simulation_relperm",
+        "Workflow" => "tracers_two_wells",
+        "Data assimilation" => "cgnet_egg",
+        "Data assimilation" => "optimize_simple_bl",
+        "Compositional" => "co2_brine_2d_vertical",
+        "Compositional" => "compositional_5components",
+        "Discretizations" => "consistent_avgmpfa",
+        "Discretizations" => "mpfa_weno_discretizations",
+        "Properties" => "co2_props",
+        "Properties" => "relperms",
+        "Validation" => "validation_spe1",
+        "Validation" => "validation_spe9",
+        "Validation" => "validation_compositional",
+        "Validation" => "validation_egg",
+        "Validation" => "validation_olympus_1",
+        "Validation" => "validation_norne_nohyst",
+        "Validation" => "validation_mrst"
     ]
-    examples_markdown = []
     validation_markdown = []
-    intros_markdown = []
+    examples_by_name = OrderedDict{String, Any}()
     function update_footer(content, pth)
         return content*"\n\n # ## Example on GitHub\n "*
         "# If you would like to run this example yourself, it can be downloaded from "*
@@ -76,20 +77,17 @@ function build_jutul_darcy_docs(build_format = nothing;
     example_path(pth) = joinpath(jutul_dir, "examples", "$pth.jl")
     out_dir = joinpath(@__DIR__, "src", "examples")
     notebook_dir = joinpath(@__DIR__, "assets")
-    for (ex, pth) in examples
+    for (category, pth) in examples
         in_pth = example_path(pth)
-        is_validation = startswith(ex, "Validation:")
-        is_intro = startswith(ex, "Intro: ")
-        is_example = !(is_intro || is_validation)
+        is_validation = category == "Validation"
         if is_validation
             ex_dest = validation_markdown
             do_build = build_validation_examples
         else
-            if is_intro
-                ex_dest = intros_markdown
-            else
-                ex_dest = examples_markdown
+            if !haskey(examples_by_name, category)
+                examples_by_name[category] = []
             end
+            ex_dest = examples_by_name[category]
             do_build = build_examples
         end
         if do_build
@@ -98,6 +96,11 @@ function build_jutul_darcy_docs(build_format = nothing;
             Literate.markdown(in_pth, out_dir, preprocess = upd)
         end
     end
+    examples_markdown = []
+    for (k, v) in pairs(examples_by_name)
+        push!(examples_markdown, k => v)
+    end
+
     ## Docs
     if isnothing(build_format)
         if use_vitepress
@@ -118,53 +121,57 @@ function build_jutul_darcy_docs(build_format = nothing;
             )
         end
     end
-    makedocs(;
-        modules=[JutulDarcy, Jutul],
-        authors="Olav Møyner <olav.moyner@sintef.no> and contributors",
-        repo="https://github.com/sintefmath/JutulDarcy.jl/blob/{commit}{path}#{line}",
-        sitename="JutulDarcy.jl",
-        warnonly=false,
-        checkdocs=:exports,
-        plugins=[bib],
-        format=build_format,
-        pages=[
-            "Manual" => [
-                    "Introduction" => [
-                        "JutulDarcy.jl" => "index.md",
-                        "Getting started" =>"man/intro.md",
-                        "Your first JutulDarcy.jl simulation" => "man/first_ex.md",
-                        "FAQ" => "extras/faq.md",
-                    ],
-                    "Fundamentals" => [
-                        "man/highlevel.md",
-                        "man/basics/input_files.md",
-                        "man/basics/systems.md",
-                        "man/basics/solution.md",
-                    ],
-                    "Detailed API" => [
-                        "man/basics/forces.md",
-                        "man/basics/wells.md",
-                        "man/basics/primary.md",
-                        "man/basics/secondary.md",
-                        "man/basics/parameters.md",
-                        "man/basics/plotting.md",
-                        "man/basics/utilities.md",
-                    ],
-                    "Parallelism and compilation" => [
-                        "man/advanced/mpi.md",
-                        "man/advanced/gpu.md",
-                        "man/advanced/compiled.md"
-                    ],
-                    "References" => [
-                        "man/basics/package.md",
-                        "Jutul functions" => "ref/jutul.md",
-                        "Bibliography" => "extras/refs.md"
-                    ],
+    build_pages = [
+        "Manual" => [
+                "Introduction" => [
+                    "JutulDarcy.jl" => "index.md",
+                    "Getting started" =>"man/intro.md",
+                    "Your first JutulDarcy.jl simulation" => "man/first_ex.md",
+                    "FAQ" => "extras/faq.md",
                 ],
-            "Examples: Introduction" => intros_markdown,
-            "Examples: Usage" => examples_markdown,
-            "Examples: Validation" => validation_markdown
-        ],
+                "Fundamentals" => [
+                    "man/highlevel.md",
+                    "man/basics/input_files.md",
+                    "man/basics/systems.md",
+                    "man/basics/solution.md",
+                ],
+                "Detailed API" => [
+                    "man/basics/forces.md",
+                    "man/basics/wells.md",
+                    "man/basics/primary.md",
+                    "man/basics/secondary.md",
+                    "man/basics/parameters.md",
+                    "man/basics/plotting.md",
+                    "man/basics/utilities.md",
+                ],
+                "Parallelism and compilation" => [
+                    "man/advanced/mpi.md",
+                    "man/advanced/gpu.md",
+                    "man/advanced/compiled.md"
+                ],
+                "References" => [
+                    "man/basics/package.md",
+                    "Jutul functions" => "ref/jutul.md",
+                    "Bibliography" => "extras/refs.md"
+                ],
+            ],
+        "Examples" => examples_markdown,
+        "Validation" => validation_markdown
+    ]
+    # for (k, subpages) in build_pages
+    #     println("$k")
+    #     @info "$k" subpages
+    # end
+    makedocs(;
+        modules = [JutulDarcy, Jutul],
+        authors = "Olav Møyner <olav.moyner@sintef.no> and contributors",
+        repo = "https://github.com/sintefmath/JutulDarcy.jl/blob/{commit}{path}#{line}",
+        sitename = "Documentation | JutulDarcy.jl",
+        warnonly = false,
+        checkdocs = :exports,
+        plugins = [bib],
+        format = build_format,
+        pages = build_pages,
     )
     if build_notebooks
         # Subfolder of final site build folder
