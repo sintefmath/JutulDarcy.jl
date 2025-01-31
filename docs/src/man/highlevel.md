@@ -13,7 +13,7 @@ The basic outline of building a reservoir simulation problem consists of:
 
 ### Meshes
 
-JutulDarcy can use meshes that supported by Jutul. This includes the Cartesian ([`Jutul.CartesianMesh`](@ref)) and Unstructured meshes ([`Jutul.CartesianMesh`](@ref)) as well as any meshes in the more general [Meshes.jl](https://github.com/JuliaGeometry/Meshes.jl) package.
+JutulDarcy can use meshes that supported by Jutul. This includes the Cartesian ([`Jutul.CartesianMesh`](@ref)) and Unstructured meshes ([`Jutul.CartesianMesh`](@ref)), meshes from Gmsh ([`Jutul.mesh_from_gmsh`](@ref)), meshes from [MRST](https://www.mrst.no) ([`Jutul.MRSTWrapMesh`](@ref)), and meshes from the [Meshes.jl](https://github.com/JuliaGeometry/Meshes.jl) package.
 
 ### Reservoir
 

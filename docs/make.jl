@@ -93,7 +93,7 @@ function build_jutul_darcy_docs(build_format = nothing;
             do_build = build_examples
         end
         if do_build
-            push!(ex_dest, ex => joinpath("examples", "$pth.md"))
+            push!(ex_dest, joinpath("examples", "$pth.md"))
             upd(content) = update_footer(content, pth)
             Literate.markdown(in_pth, out_dir, preprocess = upd)
         end
