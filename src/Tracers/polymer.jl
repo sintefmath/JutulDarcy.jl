@@ -171,29 +171,33 @@ Jutul.degrees_of_freedom_per_entity(model, ::PolymerViscosityMultipliers) = 2
 
 Jutul.@jutul_secondary function update_polymer_multipliers!(vals, def::PolymerViscosityMultipliers, model, PolymerConcentration, AdsorbedPolymerConcentration, ix)
     water_ind = first(JutulDarcy.phase_indices(model.system))
-    mixpar = def.mixpar
-    c_max = def.max_concentration
-    nph = size(vals, 1)
     for cell in ix
-        reg_rock = region(def.rock_regions, cell)
-        rrf = table_by_region(def.rrf, reg_rock)
-        ads_max = table_by_region(def.ads_max, reg_rock)
-        reg_visc = region(def.viscosity_regions, cell)
-        mu = table_by_region(def.mixed_polymer_viscosity, reg_visc)
-
         c = PolymerConcentration[cell]
         ads = AdsorbedPolymerConcentration[cell]
-        ads_adjustment = 1.0 + (rrf - 1.0)*ads/ads_max
-        c_norm = c/c_max
-        α = mu(c_max)^(1.0 - mixpar)
-        β = 1.0/(1.0 - c_norm + c_norm/α)
-        mu_w_mult = ads_adjustment*β*mu(c)^mixpar
-        mu_p_mult = α + (1.0-α)*c_norm
 
+        mu_w_mult, mu_p_mult = polymer_multipliers(def, c, ads, cell)
         vals[1, cell] = mu_w_mult
         vals[2, cell] = mu_p_mult
     end
     return vals
+end
+
+function polymer_multipliers(def::PolymerViscosityMultipliers, c, ads, cell)
+    mixpar = def.mixpar
+    c_max = def.max_concentration
+    reg_rock = region(def.rock_regions, cell)
+    rrf = table_by_region(def.rrf, reg_rock)
+    ads_max = table_by_region(def.ads_max, reg_rock)
+    reg_visc = region(def.viscosity_regions, cell)
+    mu = table_by_region(def.mixed_polymer_viscosity, reg_visc)
+
+    ads_adjustment = 1.0 + (rrf - 1.0)*ads/ads_max
+    c_norm = c/c_max
+    α = mu(c_max)^(1.0 - mixpar)
+    β = 1.0/(1.0 - c_norm + c_norm/α)
+    mu_w_mult = ads_adjustment*β*mu(c)^mixpar
+    mu_p_mult = α + (1.0-α)*c_norm
+    return (mu_w_mult, mu_p_mult)
 end
 
 struct PolymerAdjustedViscosities <: JutulDarcy.PhaseVariables
