@@ -70,6 +70,9 @@ function add_tracers_to_model!(model::MultiModel, tracers; names = missing, kwar
         add_tracers_to_model!(rmodel, tracers; kwarg...)
         for (k, m) in pairs(model.models)
             if JutulDarcy.model_or_domain_is_well(m)
+                # TODO: Add support for tracer for multisegment wells by
+                # specializing the equation update.
+                physical_representation(m.domain)::JutulDarcy.SimpleWell
                 add_tracers_to_model!(m, tracers; kwarg...)
             end
         end
