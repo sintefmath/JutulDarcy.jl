@@ -51,6 +51,7 @@ states, report = simulate(state0, model, timesteps, info_level = -1);
 # initial, unstable state, an intermediate state where fluid exchange between
 # the top and bottom is initiated, and the final equilibrium state where the
 # phases have swapped places.
+using GLMakie
 fig = Figure()
 function plot_sat!(ax, state)
     plot_cell_data!(ax, g, state[:Saturations][1, :],
@@ -73,7 +74,6 @@ fig
 # 2D. We see that the heavy fluid, colored blue, is initially at the top of the
 # domain and the lighter fluid is at the bottom. These gradually switch places
 # until all the heavy fluid is at the lower part of the column.
-using GLMakie
 tmp = vcat(map((x) -> x[:Saturations][1, :]', states)...)
 f = Figure()
 ax = Axis(f[1, 1], xlabel = "Time", ylabel = "Depth", title = "Gravity segregation")
