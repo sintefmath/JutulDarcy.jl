@@ -167,7 +167,7 @@ struct PolymerViscosityMultipliers{T, R, RREG, VREG} <: Jutul.VectorVariables
     end
 end
 
-Jutul.degrees_of_freedom_per_entity(model, ::PolymerViscosityMultipliers) = 2
+Jutul.degrees_of_freedom_per_entity(model, ::PolymerViscosityMultipliers) = 3
 
 Jutul.@jutul_secondary function update_polymer_multipliers!(vals, def::PolymerViscosityMultipliers, model, PolymerConcentration, AdsorbedPolymerConcentration, ix)
     water_ind = first(JutulDarcy.phase_indices(model.system))
@@ -175,9 +175,10 @@ Jutul.@jutul_secondary function update_polymer_multipliers!(vals, def::PolymerVi
         c = PolymerConcentration[cell]
         ads = AdsorbedPolymerConcentration[cell]
 
-        mu_w_mult, mu_p_mult = polymer_multipliers(def, c, ads, cell)
+        mu_w_mult, mu_p_mult, cmult = polymer_multipliers(def, c, ads, cell)
         vals[1, cell] = mu_w_mult
         vals[2, cell] = mu_p_mult
+        vals[3, cell] = cmult
     end
     return vals
 end
@@ -199,7 +200,7 @@ function polymer_multipliers(def::PolymerViscosityMultipliers, c, ads, cell)
     β = 1.0/(1.0 - c_norm + c_norm/α)
     mu_w_mult = ads_adjustment*β*mult^mixpar
     mu_p_mult = α + (1.0-α)*c_norm
-    return (mu_w_mult, mu_p_mult)
+    return (mu_w_mult, mu_p_mult, mult)
 end
 
 struct PolymerAdjustedViscosities <: JutulDarcy.PhaseVariables
