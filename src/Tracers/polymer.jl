@@ -190,12 +190,14 @@ function polymer_multipliers(def::PolymerViscosityMultipliers, c, ads, cell)
     ads_max = table_by_region(def.ads_max, reg_rock)
     reg_visc = region(def.viscosity_regions, cell)
     mu = table_by_region(def.mixed_polymer_viscosity, reg_visc)
-
     ads_adjustment = 1.0 + (rrf - 1.0)*ads/ads_max
     c_norm = c/c_max
-    α = mu(c_max)^(1.0 - mixpar)
+    mult = mu(c)
+    mult_max = mu(c_max)
+
+    α = mult_max^(1.0 - mixpar)
     β = 1.0/(1.0 - c_norm + c_norm/α)
-    mu_w_mult = ads_adjustment*β*mu(c)^mixpar
+    mu_w_mult = ads_adjustment*β*mult^mixpar
     mu_p_mult = α + (1.0-α)*c_norm
     return (mu_w_mult, mu_p_mult)
 end
