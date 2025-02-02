@@ -181,7 +181,7 @@ function perforation_reservoir_mobilities(state_res, sys, rc)
             if ph == water
                 old = state_res.PolymerViscosityMultipliers[1, rc]
                 pure = state_res.PolymerViscosityMultipliers[3, rc]
-                m *= pure/old
+                m *= old/pure
             end
             return m
         end
