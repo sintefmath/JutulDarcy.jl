@@ -250,7 +250,8 @@ push!(rmodel.output_variables, :PhaseViscosities)
 wd, states, t = simulate_reservoir(state0, model, dt,
     parameters = parameters,
     forces = forces,
-    max_timestep = 90day
+    max_timestep = 90day,
+    info_level = -1
 );
 # ## Plot the CO2 mole fraction
 # We plot the overall CO2 mole fraction. We scale the color range to log10 to

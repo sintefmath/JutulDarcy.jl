@@ -57,7 +57,8 @@ print_stats(report)
 # increase the number of cells at the cost of increasing the runtime a bit. Note
 # that most of the time is spent in the linear solver, which uses a direct
 # sparse LU factorization by default. For larger problems it is recommended to
-# use an iterative solver.
+# use an iterative solver. The high-level interface used in later examples
+# automatically sets up an iterative solver with the appropriate preconditioner.
 states_refined, _, report_refined = solve_bl(nc = n_f);
 print_stats(report_refined)
 # ## Plot results
@@ -68,7 +69,7 @@ using GLMakie
 x = range(0, stop = 1, length = n)
 x_f = range(0, stop = 1, length = n_f)
 f = Figure()
-ax = Axis(f[1, 1], ylabel = "Saturation", title = "Buckley-Leverett")
+ax = Axis(f[1, 1], ylabel = "Saturation", title = "Buckley-Leverett displacement")
 for i in 1:6:length(states)
     lines!(ax, x, states[i][:Saturations][1, :], color = :darkgray)
 end

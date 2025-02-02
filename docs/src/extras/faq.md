@@ -1,6 +1,6 @@
 # Frequently asked questions
 
-Here are a few common questions and possible answers.
+Here are a few common questions and possible answers. You may also want to have a look at the [GitHub issues](https://github.com/sintefmath/JutulDarcy.jl/issues) and [the GitHub discussions page](https://github.com/sintefmath/JutulDarcy.jl/discussions).
 
 ## Input and output
 
@@ -127,7 +127,7 @@ For more details on the backends, see the[`Makie.jl` docs](https://docs.makie.or
 ### Can you add feature X or format Y?
 
 If you have a feature you'd like to have supported, please file an
-[issue](https://github.com/JuliaIO/JLD2.jl/issues) with details on the format.
+[issue](https://github.com/sintefmath/JutulDarcy.jl/issues) with details on the format.
 `JutulDarcy` is developed primarily through contract research, so features are
 added as needed for ongoing projects where the simulator is in use. Posting an
 issue, especially if you have a clear reference to how something should be
@@ -165,6 +165,10 @@ units can in principle use any consistent unit system. Some default scaling
 of variables assume that the magnitude pressures and velocities roughly
 match that of strict SI (e.g. Pascals and cubic meters per second). These
 scaling factors are primarily used when iterative linear solvers are used.
+
+### Who develops JutulDarcy.jl?
+
+The module is developed and maintained by the [Applied Computational Sciences group](https://www.sintef.no/en/digital/departments-new/department-of-mathematics-and-cybernetics/research-group-applied-computational-science/) at [SINTEF Digital](https://www.sintef.no/sintef-digital/). SINTEF is one of Europe's largest independent research organizations and is organized as a not-for-profit institute. [Olav Møyner](https://www.sintef.no/en/all-employees/employee/olav.moyner/) is the primary maintainer.
 
 ### Why write a new reservoir simulation code in Julia?
 

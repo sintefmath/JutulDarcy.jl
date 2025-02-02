@@ -1,4 +1,4 @@
-# # Validation of equation-of-state compositional simulator
+# # Validation of equation-of-state compositional flow
 # This example solves a 1D two-phase, three component miscible displacement
 # problem and compares against existing simulators (E300, AD-GPRS) to verify
 # correctness.
