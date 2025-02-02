@@ -173,10 +173,24 @@ end
 
 function perforation_reservoir_mobilities(state_res, sys, rc)
     λ = state_res.PhaseMobilities
-    return map(
-        x -> λ[x, rc], 
-        phase_indices(sys)
-    )
+    phases = phase_indices(sys)
+    if haskey(state_res, :PolymerViscosityMultipliers)
+        water = phases[1]
+        function F(ph)
+            m = λ[ph, rc]
+            if ph == water
+                old = state_res.PolymerViscosityMultipliers[1, rc]
+                pure = state_res.PolymerViscosityMultipliers[3, rc]
+                m *= pure/old
+            end
+            return m
+        end
+
+    else
+        F = ph -> λ[ph, rc]
+    end
+    mob = map(F, phases)
+    return mob
 end
 
 
