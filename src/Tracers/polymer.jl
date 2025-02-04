@@ -236,66 +236,86 @@ Jutul.@jutul_secondary function update_mixed_polymer_viscosity!(vals, def::Polym
     return vals
 end
 
-function set_polymer_model!(outer_model, datafile)
+function set_polymer_model!(outer_model::MultiModel, datafile; is_well = false)
+    rmodel = reservoir_model(outer_model)
+    set_polymer_model!(rmodel, datafile, is_well = false)
+    for (mname, model) in pairs(outer_model.models)
+        @info mname
+        if JutulDarcy.model_or_domain_is_well(model)
+            set_polymer_model!(model, datafile, is_well = true)
+        end
+    end
+    return outer_model
+end
+
+function set_polymer_model!(model::SimulationModel, datafile; is_well = false)
     Jutul.jutul_message("POLYMER", "Polymer model is in early development. Use with caution.", color = :yellow)
-    model = reservoir_model(outer_model)
-    reservoir = reservoir_domain(model)
     haskey(datafile["RUNSPEC"], "POLYMER") || throw(ArgumentError("POLYMER keyword not found in RUNSPEC section of datafile"))
-
-    pvtnum = reservoir[:pvtnum]
-    satnum = reservoir[:satnum]
-    satnum_max = maximum(satnum)
-
     plyvisc = map(plyvisc_table, datafile["PROPS"]["PLYVISC"])
-    @assert maximum(pvtnum) <= length(plyvisc) "PVTNUM values exceed number of PLYVISC tables"
     plyrock = map(plyrock_table, datafile["PROPS"]["PLYROCK"])
-    @assert satnum_max <= length(plyrock) "SATNUM values exceed number of PLYROCK tables"
     plyads = map(plyads_table, datafile["PROPS"]["PLYADS"])
-    @assert satnum_max <= length(plyads) "SATNUM values exceed number of PLYADS tables"
     plmixpar = plmixpar_parse(datafile["PROPS"]["PLMIXPAR"])
     plymax = plymax_table(datafile["PROPS"]["PLYMAX"])
+
+    if is_well
+        satnum = ones(Int, number_of_cells(model.domain))
+    else
+        # Do the checks only for reservoir model
+        reservoir = reservoir_domain(model)
+        pvtnum = reservoir[:pvtnum]
+        satnum = reservoir[:satnum]
+        satnum_max = maximum(satnum)
+        @assert maximum(pvtnum) <= length(plyvisc) "PVTNUM values exceed number of PLYVISC tables"
+        @assert satnum_max <= length(plyrock) "SATNUM values exceed number of PLYROCK tables"
+        @assert satnum_max <= length(plyads) "SATNUM values exceed number of PLYADS tables"    
+    end
+
     # Handle polymer concentration
     tracer_ix = findfirst(x -> isa(x, PolymerTracer), model.equations[:tracers].flux_type.tracers)
     @assert !isnothing(tracer_ix) "No polymer tracer found in model"
     set_secondary_variables!(model,
         PolymerConcentration = PolymerConcentration(tracer_ix),
         FullyMixedPolymerViscosityMultiplier = FullyMixedPolymerViscosityMultiplier(plyvisc, plymax, satnum),
-        AdsorbedPolymerConcentration = AdsorbedPolymerConcentration(plyrock, plyads, satnum)
     )
-    set_parameters!(model,
-        MaxPolymerConcentration = MaxPolymerConcentration(),
-        DeadPoreSpace = DeadPoreSpace(map(x -> x.dps, plyrock[satnum])),
-        PolymerRockDensity = PolymerRockDensity(map(x -> x.rho_rock, plyrock[satnum]))
-    )
-    vars = Jutul.get_variables_by_type(model, :all)
-    if !haskey(vars, :BulkVolume)
-        set_parameters!(model,
-            BulkVolume = JutulDarcy.BulkVolume(),
+    if !is_well
+        set_secondary_variables!(model,
+            AdsorbedPolymerConcentration = AdsorbedPolymerConcentration(plyrock, plyads, satnum)
         )
-    end
+        set_parameters!(model,
+            MaxPolymerConcentration = MaxPolymerConcentration(),
+            DeadPoreSpace = DeadPoreSpace(map(x -> x.dps, plyrock[satnum])),
+            PolymerRockDensity = PolymerRockDensity(map(x -> x.rho_rock, plyrock[satnum]))
+        )
+        vars = Jutul.get_variables_by_type(model, :all)
+        if !haskey(vars, :BulkVolume)
+            set_parameters!(model,
+                BulkVolume = JutulDarcy.BulkVolume(),
+            )
+        end
 
-    prms = Jutul.get_variables_by_type(model, :parameters)
-    svars = Jutul.get_variables_by_type(model, :secondary)
-    if haskey(prms, :PhaseViscosities)
-        mu = prms[:PhaseViscosities]
-        prms[:BasePhaseViscosities] = mu
-        delete!(prms, :PhaseViscosities)
-    else
-        @assert haskey(svars, :PhaseViscosities) "PhaseViscosities not found in secondary variables or parameters, cannot setup polymer model."
-        mu = svars[:PhaseViscosities]
-        svars[:BasePhaseViscosities] = mu
-        delete!(svars, :PhaseViscosities)
-    end
+        prms = Jutul.get_variables_by_type(model, :parameters)
+        svars = Jutul.get_variables_by_type(model, :secondary)
+        if haskey(prms, :PhaseViscosities)
+            mu = prms[:PhaseViscosities]
+            prms[:BasePhaseViscosities] = mu
+            delete!(prms, :PhaseViscosities)
+        else
+            @assert haskey(svars, :PhaseViscosities) "PhaseViscosities not found in secondary variables or parameters, cannot setup polymer model."
+            mu = svars[:PhaseViscosities]
+            svars[:BasePhaseViscosities] = mu
+            delete!(svars, :PhaseViscosities)
+        end
 
-    svars[:EffectivePolymerViscosityMultipliers] = EffectivePolymerViscosityMultipliers(
-        mixpar = plmixpar,
-        rrf = map(x -> x.rrf, plyrock),
-        ads_max = map(x -> x.ads_max, plyrock),
-        max_concentration = plymax[1],
-        regions = pvtnum
-    )
-    svars[:PhaseViscosities] = PolymerAdjustedViscosities()
-    return outer_model
+        svars[:EffectivePolymerViscosityMultipliers] = EffectivePolymerViscosityMultipliers(
+            mixpar = plmixpar,
+            rrf = map(x -> x.rrf, plyrock),
+            ads_max = map(x -> x.ads_max, plyrock),
+            max_concentration = plymax[1],
+            regions = pvtnum
+        )
+        svars[:PhaseViscosities] = PolymerAdjustedViscosities()
+    end
+    return model
 end
 
 function plyvisc_table(tab)
