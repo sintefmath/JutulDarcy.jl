@@ -240,7 +240,6 @@ function set_polymer_model!(outer_model::MultiModel, datafile; is_well = false)
     rmodel = reservoir_model(outer_model)
     set_polymer_model!(rmodel, datafile, is_well = false)
     for (mname, model) in pairs(outer_model.models)
-        @info mname
         if JutulDarcy.model_or_domain_is_well(model)
             set_polymer_model!(model, datafile, is_well = true)
         end
