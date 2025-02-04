@@ -54,7 +54,7 @@ Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::
         L, V = phase_ix
     end
 
-    λ_res = perforation_reservoir_mobilities(state_res, sys, reservoir_cell)
+    λ_res = perforation_reservoir_mobilities(state_res, state_well, sys, rc, wc)
     mob(ph) = λ_res[ph]
     λ_t = sum(λ_res)
 

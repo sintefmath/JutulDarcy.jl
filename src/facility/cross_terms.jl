@@ -302,13 +302,10 @@ function update_cross_term_in_entity!(out, i,
         )
     end
 
-    # p_well = state_well.Pressure[well_cell]
-    # p_res = state_res.Pressure[reservoir_cell]
-
     kr = state_res.RelativePermeabilities
     mu = state_res.PhaseViscosities
 
-    λ_t = sum(perforation_reservoir_mobilities(state_res, sys, reservoir_cell))
+    λ_t = sum(perforation_reservoir_mobilities(state_res, state_well, sys, reservoir_cell, well_cell))
     advective_heat_flux = 0
     for ph in 1:nph
         q_ph = perforation_phase_mass_flux(λ_t, conn, state_res, state_well, ph)
