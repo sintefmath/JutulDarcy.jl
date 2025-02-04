@@ -15,11 +15,11 @@ end
 
 tracer_phase_indices(t::PolymerTracer) = (t.ix, )
 
-function tracer_total_mass_outer(tracer::PolymerTracer, model, state, concentration, resident_mass_density, vol, cell, index)
+function tracer_total_mass_outer(tracer::PolymerTracer, model, state, concentration, resident_mass_density, pore_vol, cell, index)
     if resident_mass_density <= TRACER_TOL
-        v = vol*Jutul.replace_value(concentration, 0.0)
+        v = pore_vol*Jutul.replace_value(concentration, 0.0)
     else
-        v = tracer_total_mass(tracer, model, state, concentration, resident_mass_density, vol, cell, index)
+        v = tracer_total_mass(tracer, model, state, concentration, resident_mass_density, pore_vol, cell, index)
     end
     if JutulDarcy.model_or_domain_is_well(model)
         mass = v
@@ -27,8 +27,9 @@ function tracer_total_mass_outer(tracer::PolymerTracer, model, state, concentrat
         rock_density = state.PolymerRockDensity[cell]
         dps = state.DeadPoreSpace[cell]
         bulk_vol = state.BulkVolume[cell]
+        rock_vol = bulk_vol - pore_vol
         ads = state.AdsorbedPolymerConcentration[cell]
-        mass = v*(1 - dps) + (vol - bulk_vol)*rock_density*ads
+        mass = v*(1.0 - dps) + rock_vol*rock_density*ads
     end
     return mass
 end
