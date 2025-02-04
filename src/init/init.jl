@@ -841,7 +841,7 @@ function determine_saturations(depths, contacts, pressures; s_min = missing, s_m
             end
         end
         if length(bad_cells) > 0
-            @warn "Negative saturation in $(length(bad_cells)) cells for phase $ref_ix. Normalizing."
+            jutul_message("Initialization", "Negative saturation in $(length(bad_cells)) cells for phase $ref_ix. Normalizing.", color = :yellow)
         end
     end
     return (sat, sat_pc)

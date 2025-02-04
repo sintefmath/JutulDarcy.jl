@@ -249,7 +249,6 @@ function set_polymer_model!(outer_model::MultiModel, datafile; is_well = false)
 end
 
 function set_polymer_model!(model::SimulationModel, datafile; is_well = false)
-    Jutul.jutul_message("POLYMER", "Polymer model is in early development. Use with caution.", color = :yellow)
     haskey(datafile["RUNSPEC"], "POLYMER") || throw(ArgumentError("POLYMER keyword not found in RUNSPEC section of datafile"))
     plyvisc = map(plyvisc_table, datafile["PROPS"]["PLYVISC"])
     plyrock = map(plyrock_table, datafile["PROPS"]["PLYROCK"])
@@ -261,6 +260,7 @@ function set_polymer_model!(model::SimulationModel, datafile; is_well = false)
         satnum = ones(Int, number_of_cells(model.domain))
     else
         # Do the checks only for reservoir model
+        Jutul.jutul_message("POLYMER", "Polymer model is in early development. Use with caution.", color = :yellow)
         reservoir = reservoir_domain(model)
         pvtnum = reservoir[:pvtnum]
         satnum = reservoir[:satnum]
