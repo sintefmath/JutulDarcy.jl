@@ -68,8 +68,6 @@ Pkg.add("JutulDarcy") # Reservoir simulator
 
 To verify that everything is working, we have a minimal example that runs a industry standard input file and produces interactive plots. Note that interactive plotting requires `GLMakie`, which may not work if you are running Julia over SSH.
 
-::: details Show me the code
-
 ```@example
 using JutulDarcy, GLMakie
 spe9_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE9")
@@ -78,7 +76,6 @@ case = setup_case_from_data_file(file_path)
 result = simulate_reservoir(case)
 plot_reservoir_simulation_result(case.model, result)
 ```
-:::
 
 To get access to all the examples, you can generate a folder that contains the examples locally, you can run the following code to create a folder `jutuldarcy_examples` in your current working directory:
 
