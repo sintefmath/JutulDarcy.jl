@@ -27,15 +27,23 @@ function tracer_flux(Q, face, state, model, kgrad, upw, ft::TracerFluxType)
     return Q
 end
 
+function tracer_scale(model, tracer::AbstractTracer)
+    # Assume density of roughly 100.0 This function reduces the convergence
+    # criterion by this factor. Higher values means slacker criterion.
+    return 100.0
+end
+
 function Jutul.convergence_criterion(model, storage, eq::ConservationLaw{:TracerMasses}, eq_s, r; dt = 1.0, update_report = missing)
     a = active_entities(model.domain, Cells())
     V = storage.state0.FluidVolume
     nt = size(r, 1)
     e = zeros(nt)
+    tracers = eq.flux_type.tracers
+    tscale = map(t -> tracer_scale(model, t), tracers)
     for c in a
         scale = dt/V[c]
         for t in 1:nt
-            v = abs(r[t, c])*scale
+            v = abs(r[t, c])*scale/tscale[t]
             e[t] = max(e[t], v)
         end
     end

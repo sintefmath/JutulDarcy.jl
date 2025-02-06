@@ -1,4 +1,4 @@
-import JutulDarcy: region, table_by_region
+import JutulDarcy: region, table_by_region, model_or_domain_is_well, phase_indices, reference_densities, upwind
 
 struct PolymerTracer <: AbstractTracer
     ix::Int
@@ -15,26 +15,31 @@ end
 
 tracer_phase_indices(t::PolymerTracer) = (t.ix, )
 
-function tracer_total_mass_outer(tracer::PolymerTracer, model, state, concentration, resident_mass_density, vol, cell, index)
+function tracer_total_mass_outer(tracer::PolymerTracer, model, state, concentration, resident_mass_density, pore_vol, cell, index)
     if resident_mass_density <= TRACER_TOL
-        v = vol*Jutul.replace_value(concentration, 0.0)
+        v = pore_vol*Jutul.replace_value(concentration, 0.0)
     else
-        v = tracer_total_mass(tracer, model, state, concentration, resident_mass_density, vol, cell, index)
+        v = tracer_total_mass(tracer, model, state, concentration, resident_mass_density, pore_vol, cell, index)
     end
-    if JutulDarcy.model_or_domain_is_well(model)
+    if model_or_domain_is_well(model)
         mass = v
     else
+        sys = model.system
+        phase_ix = phase_indices(sys)
+        a = first(phase_ix)
+        rhows = reference_densities(sys)[a]
         rock_density = state.PolymerRockDensity[cell]
         dps = state.DeadPoreSpace[cell]
         bulk_vol = state.BulkVolume[cell]
+        rock_vol = bulk_vol - pore_vol
         ads = state.AdsorbedPolymerConcentration[cell]
-        mass = v*(1 - dps) + (vol - bulk_vol)*rock_density*ads
+        mass = v*(1.0 - dps) + rhows*rock_vol*rock_density*ads
     end
     return mass
 end
 
 function Jutul.get_dependencies(tracer::PolymerTracer, model)
-    if JutulDarcy.model_or_domain_is_well(model)
+    if model_or_domain_is_well(model)
         out = Symbol[]
     else
         out = [
@@ -51,9 +56,9 @@ end
 function tracer_total_mass_flux(tracer::PolymerTracer, model, state, phase_mass_fluxes, index, upw, C = state.TracerConcentrations, T = eltype(C))
     phase = tracer.ix
     q_ph = phase_mass_fluxes[phase]
-    M = state.PolymerViscosityMultipliers
+    M = state.EffectivePolymerViscosityMultipliers
     F = cell -> C[index, cell]/M[2, cell]
-    C_iface = JutulDarcy.upwind(upw, F, q_ph)
+    C_iface = upwind(upw, F, q_ph)
     return C_iface*q_ph
 end
 
@@ -135,65 +140,80 @@ Jutul.@jutul_secondary function update_polymer_adsorption!(vals, def::AdsorbedPo
     return vals
 end
 
-struct PolymerViscosityMultipliers{T, R, RREG, VREG} <: Jutul.VectorVariables
+struct FullyMixedPolymerViscosityMultiplier{T, C, R} <: Jutul.JutulVariables
     mixed_polymer_viscosity::T
-    mixpar::R
-    max_concentration::R
-    rrf::Vector{R}
-    ads_max::Vector{R}
-    rock_regions::RREG
-    viscosity_regions::VREG
-    function PolymerViscosityMultipliers(
-        mixed_polymer_viscosity::T;
-        max_concentration::R,
-        mixpar::R,
-        rrf::Vector{R},
-        ads_max::Vector{R},
-        rock_regions = nothing,
-        viscosity_regions = nothing
-        ) where {T, R}
+    max_mixed_multiplier::C
+    regions::R
+    function FullyMixedPolymerViscosityMultiplier(mixed_polymer_viscosity::T, max_concentration, viscosity_regions::R = nothing) where {T, R}
         JutulDarcy.check_regions(viscosity_regions, length(mixed_polymer_viscosity))
-        JutulDarcy.check_regions(rock_regions, length(rrf))
+        max_mixed_multiplier = map((f, c) -> f(c), mixed_polymer_viscosity, max_concentration)
+        return new{T, typeof(max_mixed_multiplier), R}(mixed_polymer_viscosity, max_mixed_multiplier, viscosity_regions)
+    end
+end
 
-        return new{T, R, typeof(rock_regions), typeof(viscosity_regions)}(
-            mixed_polymer_viscosity,
+Jutul.degrees_of_freedom_per_entity(model, ::FullyMixedPolymerViscosityMultiplier) = 2
+
+
+Jutul.@jutul_secondary function update_polymer_viscosity!(vals, def::FullyMixedPolymerViscosityMultiplier, model, PolymerConcentration, ix)
+    for cell in ix
+        c = PolymerConcentration[cell]
+        r = region(def.regions, cell)
+        F = table_by_region(def.mixed_polymer_viscosity, r)
+        vals[1, cell] = F(c)
+        vals[2, cell] = def.max_mixed_multiplier[r]
+    end
+    return vals
+end
+
+struct EffectivePolymerViscosityMultipliers{F, R} <: Jutul.VectorVariables
+    mixpar::F
+    max_concentration::F
+    rrf::Vector{F}
+    ads_max::Vector{F}
+    regions::R
+    function EffectivePolymerViscosityMultipliers(;
+            max_concentration::F,
+            mixpar::F,
+            rrf::Vector{F},
+            ads_max::Vector{F},
+            regions = nothing,
+        ) where F
+        JutulDarcy.check_regions(regions, length(rrf))
+
+        return new{F, typeof(regions)}(
             mixpar,
             max_concentration,
             rrf,
             ads_max,
-            rock_regions,
-            viscosity_regions
+            regions,
         )
     end
 end
 
-Jutul.degrees_of_freedom_per_entity(model, ::PolymerViscosityMultipliers) = 2
+Jutul.degrees_of_freedom_per_entity(model, ::EffectivePolymerViscosityMultipliers) = 2
 
-Jutul.@jutul_secondary function update_polymer_multipliers!(vals, def::PolymerViscosityMultipliers, model, PolymerConcentration, AdsorbedPolymerConcentration, ix)
+Jutul.@jutul_secondary function update_polymer_multipliers!(vals, def::EffectivePolymerViscosityMultipliers, model, FullyMixedPolymerViscosityMultiplier, PolymerConcentration, AdsorbedPolymerConcentration, ix)
     water_ind = first(JutulDarcy.phase_indices(model.system))
     for cell in ix
         c = PolymerConcentration[cell]
         ads = AdsorbedPolymerConcentration[cell]
-
-        mu_w_mult, mu_p_mult = polymer_multipliers(def, c, ads, cell)
+        mult = FullyMixedPolymerViscosityMultiplier[1, cell]
+        mult_max = FullyMixedPolymerViscosityMultiplier[2, cell]
+        mu_w_mult, mu_p_mult = polymer_multipliers(def, c, mult, mult_max, ads, cell)
         vals[1, cell] = mu_w_mult
         vals[2, cell] = mu_p_mult
     end
     return vals
 end
 
-function polymer_multipliers(def::PolymerViscosityMultipliers, c, ads, cell)
+function polymer_multipliers(def::EffectivePolymerViscosityMultipliers, c, mult, mult_max, ads, cell)
     mixpar = def.mixpar
     c_max = def.max_concentration
-    reg_rock = region(def.rock_regions, cell)
+    reg_rock = region(def.regions, cell)
     rrf = table_by_region(def.rrf, reg_rock)
     ads_max = table_by_region(def.ads_max, reg_rock)
-    reg_visc = region(def.viscosity_regions, cell)
-    mu = table_by_region(def.mixed_polymer_viscosity, reg_visc)
     ads_adjustment = 1.0 + (rrf - 1.0)*ads/ads_max
     c_norm = c/c_max
-    mult = mu(c)
-    mult_max = mu(c_max)
 
     α = mult_max^(1.0 - mixpar)
     β = 1.0/(1.0 - c_norm + c_norm/α)
@@ -205,7 +225,7 @@ end
 struct PolymerAdjustedViscosities <: JutulDarcy.PhaseVariables
 end
 
-Jutul.@jutul_secondary function update_mixed_polymer_viscosity!(vals, def::PolymerAdjustedViscosities, model, BasePhaseViscosities, PolymerViscosityMultipliers, ix)
+Jutul.@jutul_secondary function update_mixed_polymer_viscosity!(vals, def::PolymerAdjustedViscosities, model, BasePhaseViscosities, EffectivePolymerViscosityMultipliers, ix)
     water_ind = first(JutulDarcy.phase_indices(model.system))
     nph = size(vals, 1)
 
@@ -213,7 +233,7 @@ Jutul.@jutul_secondary function update_mixed_polymer_viscosity!(vals, def::Polym
         for ph in 1:nph
             val_phase = BasePhaseViscosities[ph, cell]
             if ph == water_ind
-                val_phase *= PolymerViscosityMultipliers[1, cell]
+                val_phase *= EffectivePolymerViscosityMultipliers[1, cell]
             end
             vals[ph, cell] = val_phase
         end
@@ -221,68 +241,85 @@ Jutul.@jutul_secondary function update_mixed_polymer_viscosity!(vals, def::Polym
     return vals
 end
 
-function set_polymer_model!(outer_model, datafile)
-    Jutul.jutul_message("POLYMER", "Polymer model is in early development. Use with caution.", color = :yellow)
-    model = reservoir_model(outer_model)
-    reservoir = reservoir_domain(model)
+function set_polymer_model!(outer_model::MultiModel, datafile; is_well = false)
+    rmodel = reservoir_model(outer_model)
+    set_polymer_model!(rmodel, datafile, is_well = false)
+    for (mname, model) in pairs(outer_model.models)
+        if JutulDarcy.model_or_domain_is_well(model)
+            set_polymer_model!(model, datafile, is_well = true)
+        end
+    end
+    return outer_model
+end
+
+function set_polymer_model!(model::SimulationModel, datafile; is_well = false)
     haskey(datafile["RUNSPEC"], "POLYMER") || throw(ArgumentError("POLYMER keyword not found in RUNSPEC section of datafile"))
-
-    pvtnum = reservoir[:pvtnum]
-    satnum = reservoir[:satnum]
-    satnum_max = maximum(satnum)
-
     plyvisc = map(plyvisc_table, datafile["PROPS"]["PLYVISC"])
-    @assert maximum(pvtnum) <= length(plyvisc) "PVTNUM values exceed number of PLYVISC tables"
     plyrock = map(plyrock_table, datafile["PROPS"]["PLYROCK"])
-    @assert satnum_max <= length(plyrock) "SATNUM values exceed number of PLYROCK tables"
     plyads = map(plyads_table, datafile["PROPS"]["PLYADS"])
-    @assert satnum_max <= length(plyads) "SATNUM values exceed number of PLYADS tables"
     plmixpar = plmixpar_parse(datafile["PROPS"]["PLMIXPAR"])
     plymax = plymax_table(datafile["PROPS"]["PLYMAX"])
+
+    if is_well
+        satnum = ones(Int, number_of_cells(model.domain))
+    else
+        # Do the checks only for reservoir model
+        Jutul.jutul_message("POLYMER", "Polymer model is in early development. Use with caution.", color = :yellow)
+        reservoir = reservoir_domain(model)
+        pvtnum = reservoir[:pvtnum]
+        satnum = reservoir[:satnum]
+        satnum_max = maximum(satnum)
+        @assert maximum(pvtnum) <= length(plyvisc) "PVTNUM values exceed number of PLYVISC tables"
+        @assert satnum_max <= length(plyrock) "SATNUM values exceed number of PLYROCK tables"
+        @assert satnum_max <= length(plyads) "SATNUM values exceed number of PLYADS tables"    
+    end
+
     # Handle polymer concentration
     tracer_ix = findfirst(x -> isa(x, PolymerTracer), model.equations[:tracers].flux_type.tracers)
     @assert !isnothing(tracer_ix) "No polymer tracer found in model"
     set_secondary_variables!(model,
         PolymerConcentration = PolymerConcentration(tracer_ix),
-        # PolymerTotalMass = PolymerTotalMass(plyrock, plyads, satnum),
-        AdsorbedPolymerConcentration = AdsorbedPolymerConcentration(plyrock, plyads, satnum)
+        FullyMixedPolymerViscosityMultiplier = FullyMixedPolymerViscosityMultiplier(plyvisc, plymax, satnum),
     )
-    set_parameters!(model,
-        MaxPolymerConcentration = MaxPolymerConcentration(),
-        DeadPoreSpace = DeadPoreSpace(map(x -> x.dps, plyrock[satnum])),
-        PolymerRockDensity = PolymerRockDensity(map(x -> x.rho_rock, plyrock[satnum]))
-    )
-    vars = Jutul.get_variables_by_type(model, :all)
-    if !haskey(vars, :BulkVolume)
-        set_parameters!(model,
-            BulkVolume = JutulDarcy.BulkVolume(),
+    if !is_well
+        set_secondary_variables!(model,
+            AdsorbedPolymerConcentration = AdsorbedPolymerConcentration(plyrock, plyads, satnum)
         )
-    end
+        set_parameters!(model,
+            MaxPolymerConcentration = MaxPolymerConcentration(),
+            DeadPoreSpace = DeadPoreSpace(map(x -> x.dps, plyrock[satnum])),
+            PolymerRockDensity = PolymerRockDensity(map(x -> x.rho_rock, plyrock[satnum]))
+        )
+        vars = Jutul.get_variables_by_type(model, :all)
+        if !haskey(vars, :BulkVolume)
+            set_parameters!(model,
+                BulkVolume = JutulDarcy.BulkVolume(),
+            )
+        end
 
-    prms = Jutul.get_variables_by_type(model, :parameters)
-    svars = Jutul.get_variables_by_type(model, :secondary)
-    if haskey(prms, :PhaseViscosities)
-        mu = prms[:PhaseViscosities]
-        prms[:BasePhaseViscosities] = mu
-        delete!(prms, :PhaseViscosities)
-    else
-        @assert haskey(svars, :PhaseViscosities) "PhaseViscosities not found in secondary variables or parameters, cannot setup polymer model."
-        mu = svars[:PhaseViscosities]
-        svars[:BasePhaseViscosities] = mu
-        delete!(svars, :PhaseViscosities)
-    end
+        prms = Jutul.get_variables_by_type(model, :parameters)
+        svars = Jutul.get_variables_by_type(model, :secondary)
+        if haskey(prms, :PhaseViscosities)
+            mu = prms[:PhaseViscosities]
+            prms[:BasePhaseViscosities] = mu
+            delete!(prms, :PhaseViscosities)
+        else
+            @assert haskey(svars, :PhaseViscosities) "PhaseViscosities not found in secondary variables or parameters, cannot setup polymer model."
+            mu = svars[:PhaseViscosities]
+            svars[:BasePhaseViscosities] = mu
+            delete!(svars, :PhaseViscosities)
+        end
 
-    svars[:PolymerViscosityMultipliers] = PolymerViscosityMultipliers(
-        plyvisc,
-        mixpar = plmixpar,
-        rrf = map(x -> x.rrf, plyrock),
-        ads_max = map(x -> x.ads_max, plyrock),
-        max_concentration = plymax[1],
-        rock_regions = pvtnum,
-        viscosity_regions = satnum
-    )
-    svars[:PhaseViscosities] = PolymerAdjustedViscosities()
-    return outer_model
+        svars[:EffectivePolymerViscosityMultipliers] = EffectivePolymerViscosityMultipliers(
+            mixpar = plmixpar,
+            rrf = map(x -> x.rrf, plyrock),
+            ads_max = map(x -> x.ads_max, plyrock),
+            max_concentration = plymax[1],
+            regions = pvtnum
+        )
+        svars[:PhaseViscosities] = PolymerAdjustedViscosities()
+    end
+    return model
 end
 
 function plyvisc_table(tab)
@@ -320,4 +357,9 @@ function plymax_table(tab)
     end
     v1, v2 = tab[1]
     return return (v1, v2)
+end
+
+function tracer_scale(model, tracer::PolymerTracer)
+    # Water density
+    return 1000.0
 end
