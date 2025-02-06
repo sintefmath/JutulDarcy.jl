@@ -55,13 +55,13 @@ function common_well_setup(nr; dz = nothing, WI = nothing, WIth = nothing, gravi
     end
     if isnothing(WI)
         @warn "No well indices provided. Using 1e-12."
-        WI = repeat(1e-12, nr)
+        WI = fill(1e-12, nr)
     else
         @assert length(WI) == nr  "Must have one well index per perforated cell ($(length(WI)) well indices, $nr reservoir cells))"
     end
     if isnothing(WIth)
         @warn "No thermal well indices provided. Using 1."
-        WIth = repeat(1.0, nr)
+        WIth = fill(1.0, nr)
     else
         @assert length(WIth) == nr  "Must have one thermal well index per perforated cell ($(length(WIth)) thermal well indices, $nr reservoir cells))"
     end
