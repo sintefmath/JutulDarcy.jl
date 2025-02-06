@@ -143,6 +143,25 @@ function reservoir_system(flow::MultiPhaseSystem; kwarg...)
     reservoir_system(;flow = flow, kwarg...)
 end
 
+function well_domain(g; kwarg...)
+
+    if !isa(g, MultiSegmentWell)
+        wd = DataDomain(g; kwarg...)
+    else
+        λ = g.material_thermal_conductivity
+        if length(λ) == 1
+            λ = fill(λ, number_of_faces(g))
+        end
+        wd = DataDomain(g;
+            material_thermal_conductivity = (λ, Faces()),
+            kwarg...
+        )
+    end
+
+    return wd
+    
+end
+
 export get_model_wells
 
 function get_model_wells(case::JutulCase)
@@ -431,7 +450,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             else
                 well_context = context
             end
-            w_domain = DataDomain(w)
+            w_domain = well_domain(w)
             wc = w.perforations.reservoir
             c = map_well_nodes_to_reservoir_cells(w, reservoir)
             for propk in [:temperature, :pvtnum]
@@ -1139,7 +1158,13 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                 is_btes = g isa MultiSegmentWell && 
                     m.data_domain.representation.type == :btes
                 if is_btes
-                    # TODO: Check that pair cross terms are not added twice
+                    WIth_grout = vec(g.perforations.WIth_grout)
+                    # TODO: Avoid hard-coded index
+                    if length(wc) < number_of_cells(g)
+                        btes_bottom_cell = wc[1]-1
+                    else
+                        btes_bottom_cell = wc[end]
+                    end
                     name = string(k)
                     if !contains(name, "_supply")
                         continue
@@ -1152,10 +1177,12 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                     this = Symbol(btes_name*"_supply")
                     other = Symbol(btes_name*"_return")
 
-                    ct_mass = JutulDarcy.BTESWellSupplyToReturnMassCT([wc[end]])
-                    ct_energy = JutulDarcy.BTESWellSupplyToReturnEnergyCT([wc[end]])
+                    ct_mass = JutulDarcy.BTESWellSupplyToReturnMassCT([btes_bottom_cell])
+                    ct_energy = JutulDarcy.BTESWellSupplyToReturnEnergyCT([btes_bottom_cell])
+                    ct_grout = JutulDarcy.BTESWellGroutEnergyCT(WIth_grout, wc)
                     add_cross_term!(model, ct_mass, target = other, source = this, equation = conservation)
                     add_cross_term!(model, ct_energy, target = other, source = this, equation = energy)
+                    add_cross_term!(model, ct_grout, target = other, source = this, equation = energy)
                     
                     push!(handled_btes_cts, btes_name)
                 end
