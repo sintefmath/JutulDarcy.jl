@@ -429,7 +429,7 @@ function SimpleWell(
     return SimpleWell(volume, perf, surface_conditions, name, explicit_dp, reference_depth)
 end
 
-struct MultiSegmentWell{type, V, P, N, A, C, SC, S} <: WellDomain
+struct MultiSegmentWell{type, V, P, N, A, C, SC, S, M} <: WellDomain
     type::Symbol
     "One of volumes per node (cell)"
     volumes::V
@@ -447,6 +447,8 @@ struct MultiSegmentWell{type, V, P, N, A, C, SC, S} <: WellDomain
     name::Symbol
     "Pressure drop model for seg well segment"
     segment_models::S
+    "Thermal conductivity of well material"
+    material_thermal_conductivity::M
 end
 
 """
@@ -488,6 +490,8 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
             segment_length = nothing,
             friction = 1e-4,
             surface_conditions = default_surface_cond(),
+            material_thermal_conductivity = 0.0,
+            extra_perforation_props = NamedTuple(),
             kwarg...
     )
     if isnothing(reference_depth)
@@ -508,7 +512,7 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
         @debug "No connectivity. Assuming nicely ordered linear well."
         N = vcat((1:nv)', (2:nc)')
     elseif maximum(N) == nv
-        N = vcat([1, 2], N+1)
+        N = hcat([1, 2], N.+1)
     end
     if length(size(centers)) == 3
         @assert size(centers, 3) == 1
@@ -547,13 +551,15 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
         @assert length(segment_models) == nseg
     end
     if isnothing(dz)
-        dz = centers[3, :] - reference_depth
+        dz = centers[3, :] .- reference_depth
     end
     @assert length(perforation_cells) == nr
     WI, WIth, gdz = common_well_setup(nr; dz = dz, kwarg...)
     perf = (self = perforation_cells, reservoir = reservoir_cells, WI = WI, WIth = WIth, gdz = gdz)
+    perf = merge(perf, extra_perforation_props)
     accumulator = (reference_depth = reference_depth, )
-    MultiSegmentWell{typeof(type), typeof(volumes), typeof(perf), typeof(N), typeof(accumulator), typeof(ext_centers), typeof(surface_conditions), typeof(segment_models)}(type, volumes, perf, N, accumulator, ext_centers, surface_conditions, name, segment_models)
+    MultiSegmentWell{typeof(type), typeof(volumes), typeof(perf), typeof(N), typeof(accumulator), typeof(ext_centers), typeof(surface_conditions), typeof(segment_models), typeof(material_thermal_conductivity)}(
+        type, volumes, perf, N, accumulator, ext_centers, surface_conditions, name, segment_models, material_thermal_conductivity)
 end
 
 
