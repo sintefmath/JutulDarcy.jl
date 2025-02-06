@@ -1,4 +1,4 @@
-import JutulDarcy: region, table_by_region
+import JutulDarcy: region, table_by_region, model_or_domain_is_well, phase_indices, reference_densities, upwind
 
 struct PolymerTracer <: AbstractTracer
     ix::Int
@@ -21,21 +21,25 @@ function tracer_total_mass_outer(tracer::PolymerTracer, model, state, concentrat
     else
         v = tracer_total_mass(tracer, model, state, concentration, resident_mass_density, pore_vol, cell, index)
     end
-    if JutulDarcy.model_or_domain_is_well(model)
+    if model_or_domain_is_well(model)
         mass = v
     else
+        sys = model.system
+        phase_ix = phase_indices(sys)
+        a = first(phase_ix)
+        rhows = reference_densities(sys)[a]
         rock_density = state.PolymerRockDensity[cell]
         dps = state.DeadPoreSpace[cell]
         bulk_vol = state.BulkVolume[cell]
         rock_vol = bulk_vol - pore_vol
         ads = state.AdsorbedPolymerConcentration[cell]
-        mass = v*(1.0 - dps) + rock_vol*rock_density*ads
+        mass = v*(1.0 - dps) + rhows*rock_vol*rock_density*ads
     end
     return mass
 end
 
 function Jutul.get_dependencies(tracer::PolymerTracer, model)
-    if JutulDarcy.model_or_domain_is_well(model)
+    if model_or_domain_is_well(model)
         out = Symbol[]
     else
         out = [
@@ -54,7 +58,7 @@ function tracer_total_mass_flux(tracer::PolymerTracer, model, state, phase_mass_
     q_ph = phase_mass_fluxes[phase]
     M = state.EffectivePolymerViscosityMultipliers
     F = cell -> C[index, cell]/M[2, cell]
-    C_iface = JutulDarcy.upwind(upw, F, q_ph)
+    C_iface = upwind(upw, F, q_ph)
     return C_iface*q_ph
 end
 
