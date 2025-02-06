@@ -358,3 +358,8 @@ function plymax_table(tab)
     v1, v2 = tab[1]
     return return (v1, v2)
 end
+
+function tracer_scale(model, tracer::PolymerTracer)
+    # Water density
+    return 1000.0
+end
