@@ -264,14 +264,13 @@ function set_polymer_model!(model::SimulationModel, datafile; is_well = false)
         satnum = ones(Int, number_of_cells(model.domain))
     else
         # Do the checks only for reservoir model
-        Jutul.jutul_message("POLYMER", "Polymer model is in early development. Use with caution.", color = :yellow)
         reservoir = reservoir_domain(model)
         pvtnum = reservoir[:pvtnum]
         satnum = reservoir[:satnum]
         satnum_max = maximum(satnum)
         @assert maximum(pvtnum) <= length(plyvisc) "PVTNUM values exceed number of PLYVISC tables"
         @assert satnum_max <= length(plyrock) "SATNUM values exceed number of PLYROCK tables"
-        @assert satnum_max <= length(plyads) "SATNUM values exceed number of PLYADS tables"    
+        @assert satnum_max <= length(plyads) "SATNUM values exceed number of PLYADS tables"
     end
 
     # Handle polymer concentration
