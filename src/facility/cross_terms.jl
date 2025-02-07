@@ -286,7 +286,7 @@ function update_cross_term_in_entity!(out, i,
     @inbounds begin 
         reservoir_cell = ct.reservoir_cells[i]
         well_cell = ct.well_cells[i]
-        WIth = ct.WIth[i]
+        WIth = state_well.WellIndicesThermal[i]
         WI = state_well.WellIndices[i]
         gdz = state_well.PerforationGravityDifference[i]
         p_well = state_well.Pressure
