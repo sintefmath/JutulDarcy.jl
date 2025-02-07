@@ -429,7 +429,7 @@ function SimpleWell(
     return SimpleWell(volume, perf, surface_conditions, name, explicit_dp, reference_depth)
 end
 
-struct MultiSegmentWell{type, V, P, N, A, C, SC, S, M} <: WellDomain
+struct MultiSegmentWell{V, P, N, A, C, SC, S, M} <: WellDomain
     type::Symbol
     "One of volumes per node (cell)"
     volumes::V
@@ -557,8 +557,11 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
     WI, WIth, gdz = common_well_setup(nr; dz = dz, kwarg...)
     perf = (self = perforation_cells, reservoir = reservoir_cells, WI = WI, WIth = WIth, gdz = gdz)
     perf = merge(perf, extra_perforation_props)
+    for (k, v) in zip(keys(perf), perf)
+        @assert length(v) == nr "Perforation property $k must have length equal to number of reservoir cells"
+    end
     accumulator = (reference_depth = reference_depth, )
-    MultiSegmentWell{typeof(type), typeof(volumes), typeof(perf), typeof(N), typeof(accumulator), typeof(ext_centers), typeof(surface_conditions), typeof(segment_models), typeof(material_thermal_conductivity)}(
+    MultiSegmentWell{typeof(volumes), typeof(perf), typeof(N), typeof(accumulator), typeof(ext_centers), typeof(surface_conditions), typeof(segment_models), typeof(material_thermal_conductivity)}(
         type, volumes, perf, N, accumulator, ext_centers, surface_conditions, name, segment_models, material_thermal_conductivity)
 end
 
