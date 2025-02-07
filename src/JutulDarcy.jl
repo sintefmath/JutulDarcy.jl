@@ -196,6 +196,12 @@ module JutulDarcy
     include("NLDD/NLDD.jl")
     # CO2-brine properties
     include("CO2Properties/CO2Properties.jl")
+    # Geithermal
+    include("Geothermal/Geothermal.jl")
+    import JutulDarcy.Geothermal: setup_btes_well, setup_vertical_btes_well
+    import JutulDarcy.Geothermal: BTESWellSupplyToReturnMassCT, BTESWellSupplyToReturnEnergyCT, BTESWellGroutEnergyCT
+    import JutulDarcy.Geothermal: update_cross_term_in_entity!
+    export setup_btes_well, setup_vertical_btes_well
 
     @compile_workload begin
         try
