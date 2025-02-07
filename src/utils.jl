@@ -143,23 +143,32 @@ function reservoir_system(flow::MultiPhaseSystem; kwarg...)
     reservoir_system(;flow = flow, kwarg...)
 end
 
-function well_domain(g; kwarg...)
+"""
+    well_domain(w::SimpleWell; kwarg...)
+    well_domain(w::MultiSegmentWell; kwarg...)
+    well_domain(w::DataDomain; kwarg...)
 
-    if !isa(g, MultiSegmentWell)
-        wd = DataDomain(g; kwarg...)
-    else
-        λ = g.material_thermal_conductivity
-        if length(λ) == 1
-            λ = fill(λ, number_of_faces(g))
-        end
-        wd = DataDomain(g;
-            material_thermal_conductivity = (λ, Faces()),
-            kwarg...
-        )
+Set up a `DataDomain` instance for a well
+"""
+function well_domain(w::SimpleWell; kwarg...)
+    return DataDomain(w; kwarg...)
+end
+
+function well_domain(w::MultiSegmentWell; kwarg...)
+    λ = w.material_thermal_conductivity
+    if length(λ) == 1
+        λ = fill(λ, number_of_faces(w))
     end
-
+    wd = DataDomain(w;
+        material_thermal_conductivity = (λ, Faces()),
+        kwarg...
+    )
     return wd
-    
+
+end
+
+function well_domain(w::DataDomain; kwarg...)
+    return w
 end
 
 export get_model_wells
@@ -1159,8 +1168,8 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                     m.data_domain.representation.type == :btes
                 if is_btes
                     WIth_grout = vec(g.perforations.WIth_grout)
-                    # TODO: Avoid hard-coded index
-                    if length(wc) < number_of_cells(g)
+                    # TODO: Avoid hard-coded index for BTES bottom cell
+                    if length(wc) < number_of_cells(g)-1
                         btes_bottom_cell = wc[1]-1
                     else
                         btes_bottom_cell = wc[end]
