@@ -2320,7 +2320,7 @@ function generate_jutuldarcy_examples(
         force = false
     )
     if !ispath(pth)
-        error("Destionation $pth does not exist. Specify a folder.")
+        error("Destination $pth does not exist. Specify a folder.")
     end
     dest = joinpath(pth, name)
     jdir, = splitdir(pathof(JutulDarcy))
@@ -2357,7 +2357,7 @@ function generate_jutuldarcy_examples(
         println("using Pkg; Pkg.add([$modules_str])\n")
     end
     println("You can also manually add the modules required by any given example by looking at the using statement at top of each file.")
-    chmod(ex_dir, 0o777, recursive = true)
+    chmod(dest, 0o777, recursive = true)
     return dest
 end
 
