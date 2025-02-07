@@ -196,12 +196,19 @@ module JutulDarcy
     include("NLDD/NLDD.jl")
     # CO2-brine properties
     include("CO2Properties/CO2Properties.jl")
-    # Geithermal
+
+    # Geothermal
     include("Geothermal/Geothermal.jl")
     import JutulDarcy.Geothermal: setup_btes_well, setup_vertical_btes_well
     import JutulDarcy.Geothermal: BTESWellSupplyToReturnMassCT, BTESWellSupplyToReturnEnergyCT, BTESWellGroutEnergyCT
     import JutulDarcy.Geothermal: update_cross_term_in_entity!
     export setup_btes_well, setup_vertical_btes_well
+
+    # Tracers
+    include("Tracers/Tracers.jl")
+    import JutulDarcy.Tracers: SinglePhaseTracer, MultiPhaseTracer, add_tracers_to_model!, number_of_tracers
+    export SinglePhaseTracer, MultiPhaseTracer, add_tracers_to_model!, number_of_tracers
+
 
     @compile_workload begin
         try

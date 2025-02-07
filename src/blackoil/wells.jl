@@ -4,7 +4,7 @@ Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::
     if has_other_phase(sys)
         a, l, v = phase_indices(sys)
         dp_a, dp_l, dp_v = res_dp(conn, state_res, state_well, sys)
-        λ_a, λ_l, λ_v = res_mobility(state_res, sys, rc)
+        λ_a, λ_l, λ_v = perforation_reservoir_mobilities(state_res, state_well, sys, rc, wc)
         λ_t = λ_a + λ_l + λ_v
         a, l, v, rhoGS, rhoOS = well_pvt_bo(sys)
         b, b_w, ρ, ρ_w, s_w = well_volumes_bo(state_res, state_well)
@@ -20,7 +20,7 @@ Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::
     else
         l, v = phase_indices(sys)
         dp_l, dp_v = res_dp(conn, state_res, state_well, sys)
-        λ_l, λ_v = res_mobility(state_res, sys, rc)
+        λ_l, λ_v = perforation_reservoir_mobilities(state_res, state_well, sys, rc, wc)
         λ_t = λ_l + λ_v
         l, v, rhoGS, rhoOS = well_pvt_bo_2ph(sys)
         b, b_w, ρ, ρ_w, s_w = well_volumes_bo(state_res, state_well)
@@ -79,7 +79,7 @@ Base.@propagate_inbounds function simple_well_perforation_flux!(out, sys::Standa
     if has_other_phase(sys)
         a, l, v = phase_indices(sys)
         dp_a, dp_l, dp_v = res_dp(conn, state_res, state_well, sys)
-        λ_a, λ_l, λ_v = res_mobility(state_res, sys, rc)
+        λ_a, λ_l, λ_v = perforation_reservoir_mobilities(state_res, state_well, sys, rc, wc)
         λ_t = λ_a + λ_l + λ_v
 
         a, l, v, rhoGS, rhoOS = well_pvt_bo(sys)
@@ -94,7 +94,7 @@ Base.@propagate_inbounds function simple_well_perforation_flux!(out, sys::Standa
     else
         l, v = phase_indices(sys)
         dp_l, dp_v = res_dp(conn, state_res, state_well, sys)
-        λ_l, λ_v = res_mobility(state_res, sys, rc)
+        λ_l, λ_v = perforation_reservoir_mobilities(state_res, state_well, sys, rc, wc)
         λ_t = λ_l + λ_v
         l, v, rhoGS, rhoOS = well_pvt_bo_2ph(sys)
     end
@@ -171,12 +171,27 @@ function well_pvt_bo_2ph(sys)
 end
 
 
-function res_mobility(state_res, sys, rc)
+function perforation_reservoir_mobilities(state_res, state_well, sys, rc, wc)
     λ = state_res.PhaseMobilities
-    return map(
-        x -> λ[x, rc], 
-        phase_indices(sys)
-    )
+    phases = phase_indices(sys)
+    if haskey(state_res, :FullyMixedPolymerViscosityMultiplier)
+        water = phases[1]
+        function F(ph)
+            m = λ[ph, rc]
+            if ph == water
+                m0 = m
+                old = state_res.FullyMixedPolymerViscosityMultiplier[1, rc]
+                pure = state_well.FullyMixedPolymerViscosityMultiplier[1, wc]
+                m *= old/pure
+            end
+            return m
+        end
+
+    else
+        F = ph -> λ[ph, rc]
+    end
+    mob = map(F, phases)
+    return mob
 end
 
 

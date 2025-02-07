@@ -1,4 +1,4 @@
-# # Example with wells
+# # Introduction to wells
 
 # This example demonstrates how to set up a 3D domain with a layered
 # permeability field, define wells and solve a simple production-injection
@@ -166,12 +166,12 @@ forces = setup_reservoir_forces(model, control = controls)
 # We are finally ready to simulate the model for the given initial state
 # `state0`, report steps `dt`, `parameters` and forces. As the model is small,
 # barring any compilation time, this should run in about 300 ms.
-result = simulate_reservoir(state0, model, dt, parameters = parameters, forces = forces);
+result = simulate_reservoir(state0, model, dt, parameters = parameters, forces = forces, info_level = -1);
 # ### Unpacking the result
 # The result contains a lot of data. This can be unpacked to get the most
 # typical desired outputs: Well responses, reservoir states and the time they
 # correspond to. 
-wd, states, t = result
+wd, states, t = result;
 # We could in fact equally well have written
 # `wd, states, t = simulate_reservoir(...)`
 # to arrive at the same result.
@@ -183,11 +183,11 @@ using GLMakie
 # We observe that the total rate does not vary much, but the composition changes
 # from liquid to gas as the front propagate through the domain and hits the
 # producer well.
-# Gas rates
+# Gas rates:
 qg = wd[:Producer][:grat];
-# Total rate
+# Total rate:
 qt = wd[:Producer][:rate];
-# Compute liquid rate and plot
+# Compute liquid rate and plot:
 ql = qt - qg
 x = t/day
 fig = Figure()
@@ -213,3 +213,8 @@ ax = Axis(fig[1, 1],
 )
 lines!(ax, x, bh./bar)
 fig
+# ## Plot the well results in the interactive viewer
+# Note that this will open a new window with the plot.
+plot_well_results(wd, resolution = (800, 500))
+# ## Plot the reservoir and final gas saturation field
+plot_cell_data(g, states[end][:Saturations][1, :], colormap = :seismic)

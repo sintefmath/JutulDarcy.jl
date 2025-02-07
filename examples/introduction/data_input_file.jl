@@ -14,10 +14,14 @@
 using JutulDarcy, GeoEnergyIO
 pth = GeoEnergyIO.test_input_file_path("SPE9", "SPE9.DATA");
 # ## Set up and run a simulation
-# If we do not need the case, we could also have done:
-# ws, states = simulate_data_file(pth)
+# We have supressed the output of the simulation to avoid cluttering the
+# documentation, but we can set the `info_level` to a higher value to see the
+# output.
+#
+# If we do not need the case, we could also have simulated by passing the path:
+# `ws, states = simulate_data_file(pth)`
 case = setup_case_from_data_file(pth)
-ws, states = simulate_reservoir(case);
+ws, states = simulate_reservoir(case, info_level = -1);
 # ## Show the input data
 # The input data takes the form of a Dict:
 case.input_data

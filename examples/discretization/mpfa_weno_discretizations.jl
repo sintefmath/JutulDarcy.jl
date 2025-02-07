@@ -1,4 +1,4 @@
-# # Alternative discretizations: WENO, NTPFA and AvgMPFA
+# # Consistent and high-resolution: WENO, NTPFA and AvgMPFA
 # The following example demonstrates how to set up a reservoir model with
 # different discretizations for flow and transport for a skewed grid. The model
 # setup is taken from 6.1.2 in the MRST book [mrst-book-i](@cite).

@@ -24,8 +24,15 @@ end
 
 @inline function darcy_phase_mass_flux(face, phase, state, model, flux_type, kgrad, upw, arg...)
     Q = darcy_phase_kgrad_potential(face, phase, state, model, flux_type, kgrad, upw, arg...)
-    ρλ = state.PhaseMassMobilities
-    ρλ_f = phase_upwind(upw, ρλ, phase, Q)
+    if haskey(state, :PhaseMassMobilities)
+        ρλ = state.PhaseMassMobilities
+        ρλ_f = phase_upwind(upw, ρλ, phase, Q)
+    else
+        rho = state.PhaseMassDensities
+        λ = state.PhaseMobilities
+        F = cell -> λ[phase, cell]*rho[phase, cell]
+        ρλ_f = upwind(upw, F, Q)
+    end
     return ρλ_f*Q
 end
 

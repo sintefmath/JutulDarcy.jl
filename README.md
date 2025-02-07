@@ -2,6 +2,9 @@
 [![Zenodo](https://zenodo.org/badge/477727603.svg)](https://zenodo.org/badge/latestdoi/477727603)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://sintefmath.github.io/JutulDarcy.jl/dev/)
 [![Build Status](https://github.com/sintefmath/JutulDarcy.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/sintefmath/JutulDarcy.jl/actions/workflows/CI.yml?query=branch%3Amain)
+[![Downloads](https://img.shields.io/badge/dynamic/json?url=http%3A%2F%2Fjuliapkgstats.com%2Fapi%2Fv1%2Fmonthly_downloads%2FJutulDarcy&query=total_requests&suffix=%2Fmonth&label=Downloads&color=green)](https://juliapkgstats.com/pkg/JutulDarcy)
+[![Downloads](https://img.shields.io/badge/dynamic/json?url=http%3A%2F%2Fjuliapkgstats.com%2Fapi%2Fv1%2Ftotal_downloads%2FJutulDarcy&query=total_requests&&label=Total%20Downloads&color=green)](https://juliapkgstats.com/pkg/JutulDarcy)
+
 
 [![Jutul Darcy logo](https://github.com/sintefmath/JutulDarcy.jl/raw/main/docs/src/assets/logo_wide.png)](https://sintefmath.github.io/JutulDarcy.jl/dev/)
 

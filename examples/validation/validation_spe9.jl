@@ -1,14 +1,18 @@
-# # The SPE1 model (gas injection)
-# [Odeh, A.S. 1981. Comparison of Solutions to a Three-Dimensional Black-Oil
-# Reservoir Simulation Problem. J Pet Technol 33 (1): 13–25.
-# SPE-9723-PA](http://dx.doi.org/10.2118/9723-PA)
+# # SPE9: Black-oil depletion with dissolved gas
+# [Killough, J. E. 1995. Ninth SPE comparative solution project: A reexamination
+# of black-oil simulation. In SPE Reservoir Simulation Symposium,  12-15
+# February 1995, San Antonio, Texas. SPE 29110-MS]
+# (http://dx.doi.org/10.2118/29110-MS)
+# [spe9](@cite)
+
 using Jutul, JutulDarcy, GLMakie, DelimitedFiles
-spe1_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1")
-case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"))
+spe9_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE9")
+case = setup_case_from_data_file(joinpath(spe9_dir, "SPE9.DATA"))
 ws, states = simulate_reservoir(case, output_substates = true)
-# # Load reference
-csv_path = joinpath(spe1_dir, "REFERENCE.CSV")
+##
+csv_path = joinpath(spe9_dir, "REFERENCE.CSV")
 data, header = readdlm(csv_path, ',', header = true)
+##
 time_ref = data[:, 1]
 time_jutul = deepcopy(ws.time)
 wells = deepcopy(ws.wells)
@@ -83,14 +87,15 @@ function plot_well_comparison(response, well_names, reponse_name = "$response")
     l2 = LineElement(color = :black, linestyle = :dash)
 
     Legend(fig[1:3, 2], linehandles, linelabels, nbanks = 3)
-    Legend(fig[4, 2], [l1, l2], ["JutulDarcy.jl", "OPM Flow"])
+    Legend(fig[4, 2], [l1, l2], ["JutulDarcy.jl", "E100"])
     fig
 end
-# ## Injector BHP
-plot_well_comparison(:bhp, inj, "Bottom hole pressure")
 # ## Producer BHP
 plot_well_comparison(:bhp, prod, "Bottom hole pressure")
-# ## Producer oil rate
+# ## Producer water rate
+plot_well_comparison(:wrat, prod, "Water surface rate")
+# ## Injector water rate
+plot_well_comparison(:wrat, inj, "Water surface rate")
+# ## Oil produciton rate
 plot_well_comparison(:orat, prod, "Oil surface rate")
-# ## Producer gas rate
-plot_well_comparison(:grat, prod, "Gas surface rate")
+

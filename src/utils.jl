@@ -331,6 +331,7 @@ low values can lead to slow convergence.
 """
 function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         wells = [],
+        tracers = [],
         context = DefaultContext(),
         reservoir_context = nothing,
         general_ad = false,
@@ -370,7 +371,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     if !(wells isa AbstractArray)
         wells = [wells]
     end
-    old_wells = wells
+    if !(tracers isa AbstractArray)
+        tracers = [tracers]
+    end
     mswells = []
     stdwells = []
     for (i, w) in enumerate(wells)
@@ -511,6 +514,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         assemble_wells_together = assemble_wells_together,
         immutable_model = immutable_model,
     )
+    if length(tracers) > 0
+        add_tracers_to_model!(model, tracers)
+    end
     if extra_out
         parameters = setup_parameters(model, parameters)
         out = (model, parameters)
@@ -1360,6 +1366,12 @@ function setup_reservoir_state(rmodel::SimulationModel; kwarg...)
             push!(found, k)
         end
         res_init[k] = v
+    end
+    tc = get(rmodel.primary_variables, :TracerConcentrations, nothing)
+    if  !isnothing(tc) && !haskey(res_init, :TracerConcentrations)
+        # Tracers are usually safe to default = 0
+        res_init[:TracerConcentrations] = Jutul.default_values(rmodel, tc)
+        push!(found, :TracerConcentrations)
     end
     handle_alternate_primary_variable_spec!(res_init, found, rmodel, rmodel.system)
     if length(found) != length(pvars)
@@ -2344,6 +2356,7 @@ export generate_jutuldarcy_examples
         name = "jutuldarcy_examples";
         makie = nothing,
         project = true,
+        print = true,
         force = false
     )
 
@@ -2362,15 +2375,16 @@ function generate_jutuldarcy_examples(
         pth = pwd(),
         name = "jutuldarcy_examples";
         makie = nothing,
-        project = true,
+        project = false,
+        print = true,
         force = false
     )
     if !ispath(pth)
-        error("Destionation $pth does not exist. Specify a folder.")
+        error("Destination $pth does not exist. Specify a folder.")
     end
     dest = joinpath(pth, name)
     jdir, = splitdir(pathof(JutulDarcy))
-    ex_dir = joinpath(jdir, "..", "examples")
+    ex_dir = realpath(joinpath(jdir, "..", "examples"))
 
     if ispath(dest)
         if !force
@@ -2381,9 +2395,29 @@ function generate_jutuldarcy_examples(
     if !isnothing(makie)
         replace_makie_calls!(dest, makie)
     end
-    proj_location = joinpath(jdir, "..", "docs", "Project.toml")
-    cp(ex_dir, proj_location, force = true)
-    chmod(ex_dir, 0o777, recursive = true)
+    proj_location = realpath(joinpath(jdir, "..", "docs", "Project.toml"))
+    if project
+        cp(proj_location, joinpath(dest, "Project.toml"), force = true)
+    end
+    if print
+        jutul_message("Examples", "Examples successfully written! Path to examples:\n\t$ex_dir", color = :green)
+        println("The examples may require additional packages to run. If you want to add all packages required by any example you may run the following Julia command:\n")
+        modules = String[]
+        for line in readlines(proj_location)
+            modname = line |> split |> first
+            if startswith(modname, '[')
+                continue
+            end
+            if !isnothing(makie) && modname == "GLMakie"
+                modname = makie
+            end
+            push!(modules, modname)
+        end
+        modules_str = join(map(x -> "\"$x\"", modules), ',')
+        println("using Pkg; Pkg.add([$modules_str])\n")
+    end
+    println("You can also manually add the modules required by any given example by looking at the using statement at top of each file.")
+    chmod(dest, 0o777, recursive = true)
     return dest
 end
 

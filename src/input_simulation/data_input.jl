@@ -140,6 +140,19 @@ function setup_case_from_parsed_data(datafile;
         extra_arg[:salt_mole_fractions] = rs["SALT_MOLE_FRACTIONS"]
         extra_arg[:salt_names] = rs["SALTS"]
     end
+    tracers = data_file_active_tracers(datafile)
+    if length(tracers) > 0
+        tracer_types = []
+        for t in tracers
+            if t == "POLYMER"
+                push!(tracer_types, Tracers.PolymerTracer(sys))
+                # push!(tracer_types, MultiPhaseTracer(sys))
+            else
+                error("Tracer $t not supported.")
+            end
+        end
+        extra_arg[:tracers] = [t for t in tracer_types]
+    end
 
     model = setup_reservoir_model(domain, sys;
         thermal = is_thermal,
@@ -196,6 +209,9 @@ function setup_case_from_parsed_data(datafile;
                 set_deck_specialization!(submodel, rs, props, domain[:satnum], oil, water, gas)
             end
         end
+    end
+    if "POLYMER" in tracers
+        Tracers.set_polymer_model!(model, datafile)
     end
     msg("Setting up forces.")
     if skip_forces
@@ -1412,6 +1428,22 @@ function pick_system_from_pvt(pvt, rhoS, phases, is_immiscible)
     return sys
 end
 
+function data_file_active_tracers(datafile_or_runspec)
+    if haskey(datafile_or_runspec, "RUNSPEC")
+        rs = datafile_or_runspec["RUNSPEC"]
+    else
+        rs = datafile_or_runspec
+    end
+    out = String[]
+    possible_tracers = ("POLYMER",)
+    for t in possible_tracers
+        if haskey(rs, t)
+            push!(out, t)
+        end
+    end
+    return out
+end
+
 function parse_schedule(domain, sys, datafile; kwarg...)
     schedule = datafile["SCHEDULE"]
     props = datafile["PROPS"]
@@ -1424,6 +1456,7 @@ function parse_control_steps(runspec, props, schedule, sys)
 
     wells = schedule["WELSPECS"]
     steps = schedule["STEPS"]
+    active_tracers = data_file_active_tracers(runspec)
     if length(keys(steps[end])) == 0
         # Prune empty final record
         steps = steps[1:end-1]
@@ -1439,6 +1472,7 @@ function parse_control_steps(runspec, props, schedule, sys)
     active_controls = sdict()
     limits = sdict()
     streams = sdict()
+    polymer = sdict()
     status = sdict()
     mswell_kw = Dict{String, sdict}()
     function get_and_create_mswell_kw(k::AbstractString, subkey = missing)
@@ -1466,6 +1500,7 @@ function parse_control_steps(runspec, props, schedule, sys)
         limits[k] = nothing
         streams[k] = nothing
         status[k] = "SHUT"
+        polymer[k] = 0.0
         well_injection[k] = nothing
         well_factor[k] = 1.0
         # 0 deg C is strange, but the default for .DATA files.
@@ -1491,7 +1526,7 @@ function parse_control_steps(runspec, props, schedule, sys)
         push!(cstep, ctrl_ix)
     end
 
-    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP", "WPIMULT")
+    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP", "WPIMULT", "WPOLYMER")
     bad_kw = Dict{String, Bool}()
     streams = setup_well_streams()
     for (ctrl_ix, step) in enumerate(steps)
@@ -1506,6 +1541,12 @@ function parse_control_steps(runspec, props, schedule, sys)
             for wk in step["WTEMP"]
                 wnm, wt = wk
                 well_temp[wnm] = convert_to_si(wt, :Celsius)
+            end
+        end
+        if haskey(step, "WPOLYMER")
+            for wk in step["WPOLYMER"]
+                name, polymer_concentration = wk
+                polymer[name] = polymer_concentration
             end
         end
         for (key, kword) in pairs(step)
@@ -1593,7 +1634,12 @@ function parse_control_steps(runspec, props, schedule, sys)
             elseif key in ("WCONINJE", "WCONPROD", "WCONHIST", "WCONINJ", "WCONINJH")
                 for wk in kword
                     name = wk[1]
-                    controls[name], limits[name], status[name] = keyword_to_control(sys, streams, wk, key, factor = well_factor[name], temperature = well_temp[name])
+                    controls[name], limits[name], status[name] = keyword_to_control(sys, streams, wk, key,
+                        factor = well_factor[name],
+                        temperature = well_temp[name],
+                        polymer = polymer[name],
+                        tracers = active_tracers
+                    )
                 end
                 set_active_controls!(active_controls, controls)
             elseif key == "WELOPEN"
@@ -1747,7 +1793,7 @@ function producer_limits(; bhp = Inf, lrat = Inf, orat = Inf, wrat = Inf, grat =
     return NamedTuple(pairs(lims))
 end
 
-function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = false, temperature = NaN, resv = 0.0, kwarg...)
+function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = false, temperature = NaN, resv = 0.0, tracers = String[], polymer = 0.0, kwarg...)
     rho_s = reference_densities(sys)
     phases = get_phases(sys)
 
@@ -1822,7 +1868,7 @@ function injector_limits(; bhp = Inf, surface_rate = Inf, reservoir_rate = Inf)
     return NamedTuple(pairs(lims))
 end
 
-function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp; is_hist = false, kwarg...)
+function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp; is_hist = false, tracers = String[], polymer = 0.0, kwarg...)
     if occursin('*', flag)
         # This is a bit of a hack.
         flag = "OPEN"
@@ -1865,7 +1911,20 @@ function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_
         ctrl = DisabledControl()
         lims = nothing
     else
-        ctrl = InjectorControl(t, mix; density = rho, phases = phases_mix, kwarg...)
+        ntracers = length(tracers)
+        if ntracers > 0
+            tracer_vals = zeros(ntracers)
+            for (i, t) in enumerate(tracers)
+                if t == "POLYMER"
+                    tracer_vals[i] = polymer
+                else
+                    error("Tracer $t not supported.")
+                end
+            end
+        else
+            tracer_vals = missing
+        end
+        ctrl = InjectorControl(t, mix; density = rho, phases = phases_mix, tracers = tracer_vals, kwarg...)
         if is_hist
             # TODO: This magic number comes from MRST.
             bhp_lim = convert_to_si(6895.0, :bar)
