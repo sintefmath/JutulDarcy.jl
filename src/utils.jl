@@ -2296,6 +2296,7 @@ export generate_jutuldarcy_examples
         name = "jutuldarcy_examples";
         makie = nothing,
         project = true,
+        print = true,
         force = false
     )
 
@@ -2314,7 +2315,8 @@ function generate_jutuldarcy_examples(
         pth = pwd(),
         name = "jutuldarcy_examples";
         makie = nothing,
-        project = true,
+        project = false,
+        print = true,
         force = false
     )
     if !ispath(pth)
@@ -2322,7 +2324,7 @@ function generate_jutuldarcy_examples(
     end
     dest = joinpath(pth, name)
     jdir, = splitdir(pathof(JutulDarcy))
-    ex_dir = joinpath(jdir, "..", "examples")
+    ex_dir = realpath(joinpath(jdir, "..", "examples"))
 
     if ispath(dest)
         if !force
@@ -2333,8 +2335,28 @@ function generate_jutuldarcy_examples(
     if !isnothing(makie)
         replace_makie_calls!(dest, makie)
     end
-    proj_location = joinpath(jdir, "..", "docs", "Project.toml")
-    cp(ex_dir, proj_location, force = true)
+    proj_location = realpath(joinpath(jdir, "..", "docs", "Project.toml"))
+    if project
+        cp(proj_location, joinpath(dest, "Project.toml"), force = true)
+    end
+    if print
+        jutul_message("Examples", "Examples successfully written! Path to examples:\n\t$ex_dir", color = :green)
+        println("The examples may require additional packages to run. If you want to add all packages required by any example you may run the following Julia command:\n")
+        modules = String[]
+        for line in readlines(proj_location)
+            modname = line |> split |> first
+            if startswith(modname, '[')
+                continue
+            end
+            if !isnothing(makie) && modname == "GLMakie"
+                modname = makie
+            end
+            push!(modules, modname)
+        end
+        modules_str = join(map(x -> "\"$x\"", modules), ',')
+        println("using Pkg; Pkg.add([$modules_str])\n")
+    end
+    println("You can also manually add the modules required by any given example by looking at the using statement at top of each file.")
     chmod(ex_dir, 0o777, recursive = true)
     return dest
 end
