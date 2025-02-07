@@ -49,7 +49,7 @@ examples = get_example_paths()
 function update_footer(content, subdir, exname)
     return content*"\n\n # ## Example on GitHub\n "*
     "# If you would like to run this example yourself, it can be downloaded from "*
-    "the JutulDarcy.jl GitHub repository [as a script](https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples$subdir/$exname.jl), "*
+    "the JutulDarcy.jl GitHub repository [as a script](https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/$subdir/$exname.jl), "*
     "or as a [Jupyter Notebook](https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/final_site/notebooks/$subdir/$exname.ipynb)"
 end
 
