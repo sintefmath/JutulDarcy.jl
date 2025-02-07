@@ -483,6 +483,17 @@ function deck_relperm(runspec, props; oil, water, gas, satnum = nothing)
                 push!(tables_krow, krow)
             end
         end
+        if haskey(props, "SLGOF")
+            for (reg, slgof) in enumerate(props["SLGOF"])
+                swcon = get_swcon(tables_krw, reg)
+                sgof = copy(slgof)
+                sgof[:, 1] = 1.0 .- sgof[:, 1]
+                sgof = sgof[end:-1:1, :]
+                krg, krog = table_to_relperm(sgof, swcon = swcon, first_label = :g, second_label = :og)
+                push!(tables_krg, krg)
+                push!(tables_krog, krog)
+            end
+        end
         if haskey(props, "SGOF")
             for (reg, sgof) in enumerate(props["SGOF"])
                 swcon = get_swcon(tables_krw, reg)
@@ -628,6 +639,8 @@ function deck_pc(props; oil, water, gas, satnum = nothing, is_co2 = false)
     if oil && gas
         if haskey(props, "SGOF")
             interp_og, found_pcog = get_pc(props["SGOF"], 4)
+        elseif haskey(props, "SLGOF")
+            interp_og, found_pcog = get_pc(props["SLGOF"], 4, sgn = -1)
         else
             interp_og, found_pcog = get_pc(props["SGFN"], 3)
         end

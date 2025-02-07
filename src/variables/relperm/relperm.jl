@@ -5,8 +5,13 @@ function Jutul.default_value(model, v::AbstractRelativePermeabilities)
     return 1.0/number_of_phases(model.system)
 end
 
-struct ParametricLETRelativePermeabilities <: AbstractRelativePermeabilities
-
+Base.@kwdef struct ParametricLETRelativePermeabilities <: AbstractRelativePermeabilities
+    wetting_let::Symbol = :WettingLET
+    wetting_critical::Symbol = :WettingCritical
+    wetting_krmax::Symbol = :WettingKrMax
+    nonwetting_let::Symbol = :NonWettingLET
+    nonwetting_critical::Symbol = :NonWettingCritical
+    nonwetting_krmax::Symbol = :NonWettingKrMax
 end
 
 struct ParametricCoreyRelativePermeabilities <: AbstractRelativePermeabilities

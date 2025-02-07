@@ -54,11 +54,9 @@ Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::
         L, V = phase_ix
     end
 
-    mob(ph) = kr[ph, rc]/μ[ph, rc]
-    λ_t = zero(eltype(kr))
-    for ph in 1:nph
-        λ_t += mob(ph)
-    end
+    λ_res = perforation_reservoir_mobilities(state_res, state_well, sys, rc, wc)
+    mob(ph) = λ_res[ph]
+    λ_t = sum(λ_res)
 
     function phase_mass_flux(ph)
         dp = perforation_phase_potential_difference(conn, state_res, state_well, ph)

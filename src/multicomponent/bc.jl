@@ -45,7 +45,7 @@ function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, tim
         # TODO: This is duplicated code, factor out...
         # Injection of mass
         λ_t = 0.0
-        for ph in eachindex(acc)
+        for ph in 1:nph
             λ_t += mob[ph, c]
         end
         if isnothing(rho_inj)

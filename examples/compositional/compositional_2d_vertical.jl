@@ -1,5 +1,4 @@
-
-# # Example demonstrating compositional flow
+# # Intro to compositional flow
 # This is a simple conceptual example demonstrating how to solve compositional
 # flow. This example uses a two-component water-CO2 system. Note that the
 # default Peng-Robinson is not accurate for this system without adjustments to
@@ -62,7 +61,7 @@ controls = Dict()
 controls[:Injector] = I_ctrl
 controls[:Producer] = P_ctrl
 forces = setup_reservoir_forces(model, control = controls)
-ws, states = simulate_reservoir(state0, model, dt, parameters = parameters, forces = forces)
+ws, states = simulate_reservoir(state0, model, dt, parameters = parameters, forces = forces, info_level = -1);
 # ## Once the simulation is done, we can plot the states
 # Note that this example is intended for static publication in the
 # documentation. For interactive visualization you can use functions like
@@ -75,8 +74,7 @@ function plot_vertical(x, t)
     ax.title = t
     Colorbar(fig[1, 2], plot)
     fig
-end
-
+end;
 # ### Plot final CO2 mole fraction
 plot_vertical(z, "CO2")
 

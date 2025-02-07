@@ -1,10 +1,11 @@
-# # Validation of Jutul against existing reservoir simulators
-# This example contains validation of Jutul against [MRST](https://www.mrst.no).
-# In general, minor differences are observed. These can be traced back to a
-# combination of different internal timestepping done by the simulators and that
-# JutulDarcy by default uses a multisegment well formulation while MRST uses a
-# standard instantaneous equilibrium model without well bore storage terms.
-# These differences are most evident when simulators start up.
+# # Comparison between JutulDarcy.jl and MRST
+# This example contains validation of JutulDarcy.jl against
+# [MRST](https://www.mrst.no). In general, minor differences are observed. These
+# can be traced back to a combination of different internal timestepping done by
+# the simulators and that JutulDarcy by default uses a multisegment well
+# formulation while MRST uses a standard instantaneous equilibrium model without
+# well bore storage terms. These differences are most evident when simulators
+# start up.
 #
 # These cases have been exported using the MRST `jutul` module which can export
 # MRST or Eclipse-type of cases to a JutulDarcy-compatible input format. They

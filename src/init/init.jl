@@ -208,35 +208,40 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
                 end
             end
         end
-        nc_total = number_of_cells(model.domain)
-        kr = zeros(nph, nc_total)
-        s_eval = zeros(nph, nc_total)
-        s_eval[:, cells] .= s
-        phases = get_phases(sys)
-        phase_ind = phase_indices(model.system)
-        if length(phases) == 3
-            swcon = zeros(nc_total)
-            if AqueousPhase() in phases && !ismissing(s_min)
-                swcon[cells] .= s_min[1]
-            end
-            for c in cells
-                update_three_phase_relperm!(kr, relperm, phase_ind, s_eval, nothing, c, swcon[c], nothing, nothing)
-            end
-        else
-            ph = relperm.phases
-            if ph == :wo
-                kr1, kr2 = relperm.krw, relperm.krow
-            elseif ph == :og
-                kr1, kr2 = relperm.krog, relperm.krg
+        if relperm isa ReservoirRelativePermeabilities
+            nc_total = number_of_cells(model.domain)
+            kr = zeros(nph, nc_total)
+            s_eval = zeros(nph, nc_total)
+            s_eval[:, cells] .= s
+            phases = get_phases(sys)
+            phase_ind = phase_indices(model.system)
+            if length(phases) == 3
+                swcon = zeros(nc_total)
+                if AqueousPhase() in phases && !ismissing(s_min)
+                    swcon[cells] .= s_min[1]
+                end
+                for c in cells
+                    update_three_phase_relperm!(kr, relperm, phase_ind, s_eval, nothing, c, swcon[c], nothing, nothing)
+                end
             else
-                @assert ph == :wg
-                kr1, kr2 = relperm.krw, relperm.krg
+                ph = relperm.phases
+                if ph == :wo
+                    kr1, kr2 = relperm.krw, relperm.krow
+                elseif ph == :og
+                    kr1, kr2 = relperm.krog, relperm.krg
+                else
+                    @assert ph == :wg
+                    kr1, kr2 = relperm.krw, relperm.krg
+                end
+                for c in cells
+                    update_two_phase_relperm!(kr, relperm, kr1, kr2, nothing, nothing, phase_ind, s_eval, nothing, c, nothing, nothing)
+                end
             end
-            for c in cells
-                update_two_phase_relperm!(kr, relperm, kr1, kr2, nothing, nothing, phase_ind, s_eval, nothing, c, nothing, nothing)
-            end
+            kr = kr[:, cells]
+        else
+            jutul_message("Initialization", "Rel. perm. is not a ReservoirRelativePermeabilities, skipping mobility check for reference pressure.")
+            kr = copy(s)
         end
-        kr = kr[:, cells]
         init[:Saturations] = s
         init[:Pressure] = init_reference_pressure(pressures, contacts, kr, pc, ref_phase)
     else
@@ -306,11 +311,15 @@ function parse_state0_equil(model, datafile; normalize = :sum)
         end
 
         if has_water
-            kr_var = unwrap_reservoir_variable(model.secondary_variables[:RelativePermeabilities])
-            krw_fn = kr_var.krw
-            if has_sat_reg
-                @assert !isnothing(kr_var.regions)
-                @assert kr_var.regions == satnum
+            kr_var = model.secondary_variables[:RelativePermeabilities]
+            if kr_var isa ReservoirRelativePermeabilities
+                krw_fn = kr_var.krw
+                if has_sat_reg
+                    @assert !isnothing(kr_var.regions)
+                    @assert kr_var.regions == satnum
+                end
+            else
+                krw_fn = missing
             end
         else
             krw_fn = missing
@@ -384,6 +393,8 @@ function parse_state0_equil(model, datafile; normalize = :sum)
                 woc_pc = eq[4]
                 goc = eq[5]
                 goc_pc = eq[6]
+                rs_method = eq[7]
+                rv_method = eq[8]
                 # Contact depths
                 s_max = 1.0
                 s_min = 0.0
@@ -418,16 +429,21 @@ function parse_state0_equil(model, datafile; normalize = :sum)
                     push!(s_max, ones(ncells_reg))
                 else
                     if has_water
-                        krw = table_by_region(krw_fn, sreg)
-                        if haskey(datafile, "PROPS") && haskey(datafile["PROPS"], "SWL")
-                            swl = vec(datafile["PROPS"]["SWL"])
-                            swcon = swl[actnum_ix_for_reg]
+                        if ismissing(krw_fn)
+                            push!(s_min, zeros(ncells_reg))
+                            push!(s_max, ones(ncells_reg))
                         else
-                            swcon = fill(krw.connate, ncells_reg)
+                            krw = table_by_region(krw_fn, sreg)
+                            if haskey(datafile, "PROPS") && haskey(datafile["PROPS"], "SWL")
+                                swl = vec(datafile["PROPS"]["SWL"])
+                                swcon = swl[actnum_ix_for_reg]
+                            else
+                                swcon = fill(krw.connate, ncells_reg)
+                            end
+                            push!(s_min, swcon)
+                            push!(s_max, fill(krw.input_s_max, ncells_reg))
+                            @. non_connate -= swcon
                         end
-                        push!(s_min, swcon)
-                        push!(s_max, fill(krw.input_s_max, ncells_reg))
-                        @. non_connate -= swcon
                     end
                     if has_oil
                         push!(s_min, zeros(ncells_reg))
@@ -467,35 +483,45 @@ function parse_state0_equil(model, datafile; normalize = :sum)
                     Rs_scale = (rhoGS[preg]/rhoGS[1])*(rhoOS[preg]/rhoOS[1])
                     Rv_scale = 1.0/Rs_scale
                     if disgas
-                        if haskey(sol, "RSVD")
-                            rsvd = sol["RSVD"][ereg]
-                            z = rsvd[:, 1]
-                            Rs = rsvd[:, 2]
+                        if rs_method <= 0
+                            rs_max_at_contact = sys.rs_max[preg](datum_pressure)
+                            rs = z -> rs_max_at_contact
                         else
-                            @assert haskey(sol, "PBVD")
-                            pbvd = sol["PBVD"][ereg]
-                            z = pbvd[:, 1]
-                            pb = vec(pbvd[:, 2])
-                            Rs = sys.rs_max[preg].(pb)
+                            if haskey(sol, "RSVD")
+                                rsvd = sol["RSVD"][ereg]
+                                z = rsvd[:, 1]
+                                Rs = rsvd[:, 2]
+                            else
+                                @assert haskey(sol, "PBVD")
+                                pbvd = sol["PBVD"][ereg]
+                                z = pbvd[:, 1]
+                                pb = vec(pbvd[:, 2])
+                                Rs = sys.rs_max[preg].(pb)
+                            end
+                            rs = get_1d_interpolator(z, Rs_scale.*Rs)
                         end
-                        rs = get_1d_interpolator(z, Rs_scale.*Rs)
                     else
                         rs = missing
                     end
                     if vapoil
-                        if haskey(sol, "PDVD")
-                            @warn "PDVD not supported for RV initialization, setting to zero."
-                            rv = z -> 0.0
-                        elseif haskey(sol, "RVVD")
-                            rvvd = sol["RVVD"][ereg]
-                            z = rvvd[:, 1]
-                            Rv = rvvd[:, 2]
-                            rv = get_1d_interpolator(z, Rv_scale.*Rv)
+                        if rv_method <= 0
+                            rv_max_at_contact = sys.rv_max[preg](datum_pressure)
+                            rv = z -> rv_max_at_contact
                         else
-                            # TODO: Should maybe be the pressure at GOC not datum
-                            # depth, but that isn't computed at this stage.
-                            rv_at_goc = Rv_scale*sys.rv_max[preg](datum_pressure)
-                            rv = z -> rv_at_goc
+                            if haskey(sol, "PDVD")
+                                @warn "PDVD not supported for RV initialization, setting to zero."
+                                rv = z -> 0.0
+                            elseif haskey(sol, "RVVD")
+                                rvvd = sol["RVVD"][ereg]
+                                z = rvvd[:, 1]
+                                Rv = rvvd[:, 2]
+                                rv = get_1d_interpolator(z, Rv_scale.*Rv)
+                            else
+                                # TODO: Should maybe be the pressure at GOC not datum
+                                # depth, but that isn't computed at this stage.
+                                rv_at_goc = Rv_scale*sys.rv_max[preg](datum_pressure)
+                                rv = z -> rv_at_goc
+                            end
                         end
                     else
                         rv = missing
@@ -815,7 +841,7 @@ function determine_saturations(depths, contacts, pressures; s_min = missing, s_m
             end
         end
         if length(bad_cells) > 0
-            @warn "Negative saturation in $(length(bad_cells)) cells for phase $ref_ix. Normalizing."
+            jutul_message("Initialization", "Negative saturation in $(length(bad_cells)) cells for phase $ref_ix. Normalizing.", color = :yellow)
         end
     end
     return (sat, sat_pc)

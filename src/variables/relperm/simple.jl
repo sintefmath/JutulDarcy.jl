@@ -252,8 +252,23 @@ Jutul.minimum_value(::LETCoefficients) = 1/20.0
 Jutul.maximum_value(::LETCoefficients) = 20.0
 Jutul.default_value(model, ::LETCoefficients) = 2.0
 
-@jutul_secondary function update_kr!(kr, relperm::ParametricLETRelativePermeabilities, model, Saturations, WettingLET, NonWettingLET, WettingCritical, NonWettingCritical, WettingKrMax, NonWettingKrMax, ix)
+function Jutul.update_secondary_variable!(
+        kr,
+        relperm::ParametricLETRelativePermeabilities,
+        model,
+        state,
+        ix = Jutul.entity_eachindex(x)
+    )
+    Saturations = state[:Saturations]
     @assert size(Saturations, 1) == 2
+    # Wetting phase
+    WettingLET = state[relperm.wetting_let]
+    WettingCritical = state[relperm.wetting_critical]
+    WettingKrMax = state[relperm.wetting_krmax]
+    # Non-wetting phase
+    NonWettingLET = state[relperm.nonwetting_let]
+    NonWettingCritical = state[relperm.nonwetting_critical]
+    NonWettingKrMax = state[relperm.nonwetting_krmax]
     for c in ix
         sw, snw = Saturations[:, c]
 
@@ -275,12 +290,12 @@ Jutul.default_value(model, ::LETCoefficients) = 2.0
 end
 
 function add_relperm_parameters!(param, kr::ParametricLETRelativePermeabilities)
-    param[:WettingLET] = LETCoefficients()
-    param[:NonWettingLET] = LETCoefficients()
-    param[:WettingCritical] = CriticalKrPoints()
-    param[:NonWettingCritical] = CriticalKrPoints()
-    param[:WettingKrMax] = MaxRelPermPoints()
-    param[:NonWettingKrMax] = MaxRelPermPoints()
+    param[kr.wetting_let] = LETCoefficients()
+    param[kr.wetting_critical] = CriticalKrPoints()
+    param[kr.wetting_krmax] = MaxRelPermPoints()
+    param[kr.nonwetting_let] = LETCoefficients()
+    param[kr.nonwetting_critical] = CriticalKrPoints()
+    param[kr.nonwetting_krmax] = MaxRelPermPoints()
     return param
 end
 

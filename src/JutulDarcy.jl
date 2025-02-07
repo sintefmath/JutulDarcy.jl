@@ -68,7 +68,7 @@ module JutulDarcy
     export Perforations
     export MixedWellSegmentFlow
     export segment_pressure_drop
-    export setup_well, setup_vertical_well
+    export setup_well, setup_vertical_well, setup_well_from_trajectory
     export well_mismatch
     export simulate_data_file, setup_case_from_data_file
     export get_test_setup, get_well_from_mrst_data
@@ -141,6 +141,12 @@ module JutulDarcy
     using DocStringExtensions
 
     timeit_debug_enabled() = Jutul.timeit_debug_enabled()
+    function __init__()
+        if !haskey(ENV, "JUTULDARCY_PRESERVE_ENV")
+            ENV["OPENBLAS_NUM_THREADS"] = 1
+            BLAS.set_num_threads(1)
+        end
+    end
 
     include("types.jl")
     include("deck_types.jl")
@@ -190,6 +196,10 @@ module JutulDarcy
     include("NLDD/NLDD.jl")
     # CO2-brine properties
     include("CO2Properties/CO2Properties.jl")
+    # Tracers
+    include("Tracers/Tracers.jl")
+    import JutulDarcy.Tracers: SinglePhaseTracer, MultiPhaseTracer, add_tracers_to_model!, number_of_tracers
+    export SinglePhaseTracer, MultiPhaseTracer, add_tracers_to_model!, number_of_tracers
 
     @compile_workload begin
         try

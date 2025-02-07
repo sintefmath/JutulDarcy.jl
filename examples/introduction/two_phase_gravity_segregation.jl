@@ -47,11 +47,33 @@ timesteps = repeat([0.02]*day, 150);
 # steps defined above.
 states, report = simulate(state0, model, timesteps, info_level = -1);
 # ## Plot results
+# Plot the saturations of the liquid phase at three different timesteps: The
+# initial, unstable state, an intermediate state where fluid exchange between
+# the top and bottom is initiated, and the final equilibrium state where the
+# phases have swapped places.
+using GLMakie
+fig = Figure()
+function plot_sat!(ax, state)
+    plot_cell_data!(ax, g, state[:Saturations][1, :],
+        colorrange = (0.0, 1.0),
+        colormap = :seismic
+    )
+end
+ax1 = Axis3(fig[1, 1], title = "Initial state", aspect = (1, 1, 4.0))
+plot_sat!(ax1, state0)
+
+ax2 = Axis3(fig[1, 2], title = "Intermediate state", aspect = (1, 1, 4.0))
+plot_sat!(ax2, states[25])
+
+ax3 = Axis3(fig[1, 3], title = "Final state", aspect = (1, 1, 4.0))
+plt = plot_sat!(ax3, states[end])
+Colorbar(fig[1, 4], plt)
+fig
+# ### Plot time series
 # The 1D nature of the problem allows us to plot all timesteps simultaneously in
 # 2D. We see that the heavy fluid, colored blue, is initially at the top of the
 # domain and the lighter fluid is at the bottom. These gradually switch places
 # until all the heavy fluid is at the lower part of the column.
-using GLMakie
 tmp = vcat(map((x) -> x[:Saturations][1, :]', states)...)
 f = Figure()
 ax = Axis(f[1, 1], xlabel = "Time", ylabel = "Depth", title = "Gravity segregation")

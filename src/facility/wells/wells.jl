@@ -135,7 +135,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         r_i = get_entry(radius, i)
         s_i = get_entry(skin, i)
         if ismissing(WI_i) || isnan(WI_i)
-            WI_i = compute_peaceman_index(g, k_i, r_i, c, skin = s_i, Kh = Kh_i)
+            WI_i = compute_peaceman_index(g, k_i, r_i, c, skin = s_i, Kh = Kh_i, dir = dir)
         end
         WI_i::AbstractFloat
         WI_computed[i] = WI_i
@@ -168,6 +168,11 @@ function setup_well(g, K, reservoir_cell::Union{Int, Tuple, NamedTuple}; kwarg..
     return setup_well(g, K, [reservoir_cell]; kwarg...)
 end
 
+function setup_well_from_trajectory(D::DataDomain, traj; traj_arg = NamedTuple(), kwarg...)
+    G = D |> physical_representation |> UnstructuredMesh
+    cells = Jutul.find_enclosing_cells(G, traj; traj_arg...)
+    return setup_well(D, cells; kwarg...)
+end
 
 function map_well_nodes_to_reservoir_cells(w::MultiSegmentWell, reservoir::Union{DataDomain, Missing} = missing)
     # TODO: Try to more or less match it up cell by cell. Could be
@@ -303,10 +308,7 @@ Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::
     rc = conn.reservoir
     wc = conn.well
     nph = number_of_phases(sys)
-    λ_t = 0
-    for ph in 1:nph
-        λ_t += state_res.PhaseMobilities[ph, rc]
-    end
+    λ_t = sum(perforation_reservoir_mobilities(state_res, state_well, sys, rc, wc))
     for ph in 1:nph
         out[ph] = perforation_phase_mass_flux(λ_t, conn, state_res, state_well, ph)
     end
