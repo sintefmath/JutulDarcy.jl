@@ -187,6 +187,7 @@ function Jutul.default_parameter_values(data_domain, model, param::FluidThermalC
     elseif haskey(data_domain, :fluid_thermal_conductivity, Cells())
         nph = number_of_phases(model.system)
         C = data_domain[:fluid_thermal_conductivity]
+        phi = data_domain[:porosity]
         if C isa Vector
             T = compute_face_trans(data_domain, C)
             T = repeat(T', nph, 1)
@@ -195,7 +196,7 @@ function Jutul.default_parameter_values(data_domain, model, param::FluidThermalC
             nf = number_of_faces(data_domain)
             T = zeros(nph, nf)
             for ph in 1:nph
-                T[ph, :] = compute_face_trans(data_domain, C[ph, :])
+                T[ph, :] = compute_face_trans(data_domain, phi.*C[ph, :])
             end
         end
     else
@@ -217,8 +218,9 @@ function Jutul.default_parameter_values(data_domain, model, param::RockThermalCo
         T = copy(data_domain[:rock_thermal_conductivities])
     elseif haskey(data_domain, :rock_thermal_conductivity, Cells())
         nph = number_of_phases(model.system)
+        phi = data_domain[:porosity]
         C = data_domain[:rock_thermal_conductivity]
-        T = compute_face_trans(data_domain, C)
+        T = compute_face_trans(data_domain, (1.0 .- phi).*C)
     else
         error(":rock_thermal_conductivities or :rock_thermal_conductivities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
