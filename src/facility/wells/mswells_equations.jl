@@ -23,6 +23,8 @@ function is_laminar_flow(f::SegmentWellBoreFrictionHB, Re)
     return !f.assume_turbulent && Re <= f.laminar_limit
 end
 
+well_segment_is_closed(::SegmentWellBoreFrictionHB) = false
+
 function segment_pressure_drop(f::SegmentWellBoreFrictionHB, v, ρ, μ)
     D⁰, Dⁱ = f.D_outer, f.D_inner
     R, L = f.roughness, f.L
@@ -56,6 +58,12 @@ function segment_pressure_drop(f::SegmentWellBoreFrictionHB, v, ρ, μ)
     return Δp
 end
 
+struct ClosedSegment
+
+end
+
+well_segment_is_closed(::ClosedSegment) = true
+
 """
     PotentialDropBalanceWell(discretization)
 
@@ -83,17 +91,20 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
     s = state.Saturations
     p = state.Pressure
 
-    rho_l, mu_l = saturation_mixed(s, densities, μ, left)
-    rho_r, mu_r = saturation_mixed(s, densities, μ, right)
-
-    rho = 0.5*(rho_l + rho_r)
-    μ_mix = 0.5*(mu_l + mu_r)
-
     w = physical_representation(model.domain)
     seg_model = w.segment_models[face]
-    Δp = segment_pressure_drop(seg_model, V, rho, μ_mix)
-    Δθ = two_point_potential_drop(p[left], p[right], gdz, rho_l, rho_r)
-    eq_buf[] = Δθ + Δp - 1e-12*V
+    if well_segment_is_closed(seg_model)
+        eq = V
+    else
+        rho_l, mu_l = saturation_mixed(s, densities, μ, left)
+        rho_r, mu_r = saturation_mixed(s, densities, μ, right)
+        rho = 0.5*(rho_l + rho_r)
+        μ_mix = 0.5*(mu_l + mu_r)
+        Δp = segment_pressure_drop(seg_model, V, rho, μ_mix)
+        Δθ = two_point_potential_drop(p[left], p[right], gdz, rho_l, rho_r)
+        eq = Δθ + Δp - 1e-12*V
+    end
+    eq_buf[] = eq
 end
 
 function saturation_mixed(saturations, densities, viscosities, ix)

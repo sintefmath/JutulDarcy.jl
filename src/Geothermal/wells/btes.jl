@@ -153,21 +153,17 @@ function setup_btes_well_u1(D::DataDomain, reservoir_cells;
     nr = length(reservoir_cells)
     material_thermal_conductivity = zeros(nseg)
     material_thermal_conductivity[grout_cells] .= λpg
-
     for seg in 1:nseg
         l, r = N[:, seg]
         L = norm(ext_centers[:, l] - ext_centers[:, r], 2)
         if seg <= nc_pipe+1
             # Pipe segments use standard wellbore friction model
             Do, Di = 2*radius_pipe_inner, 0.0
+            seg_model = SegmentWellBoreFrictionHB(L, friction, Do; D_inner = Di)
         else
-            # All other segments: hack to ensure no mass_flow
-            # TODO: Change to trivial model ensuring zero mass flow
-            L = (L == 0) ? pipe_spacing : L
-            Do, Di = 2*radius_pipe_inner, 2*radius_pipe_inner*0.99
+            seg_model = JutulDarcy.ClosedSegment()
         end
-        Δp = SegmentWellBoreFrictionHB(L, friction, Do; D_inner = Di)
-        push!(segment_models, Δp)
+        push!(segment_models, seg_model)
     end
     dz = cell_centers[3, reservoir_cells] .- reference_depth
 
