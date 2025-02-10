@@ -34,8 +34,7 @@ function setup_reservoir_model_geothermal(
         error("Multiphase geothermal is not implemented")
     end
     # TODO: make this dynamic
-    cond_f = JutulDarcy.PressureTemperatureDependentVariable(tables[:phase_conductivity])
-    cond_water = cond_f(1*si_unit(:atm), 273.15 + 20.0)
+    cond_water = tables[:phase_conductivity](1*si_unit(:atm), 273.15 + 20.0)
     if update_reservoir
         reservoir[:fluid_thermal_conductivity] .= cond_water
     end
