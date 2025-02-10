@@ -220,7 +220,7 @@ function Jutul.default_parameter_values(data_domain, model, param::RockThermalCo
         C = data_domain[:rock_thermal_conductivity]
         T = compute_face_trans(data_domain, C)
     else
-        error(":fluid_thermal_conductivities or :fluid_thermal_conductivities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+        error(":rock_thermal_conductivities or :rock_thermal_conductivities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
     return T
 end
@@ -261,6 +261,10 @@ function add_thermal_to_model!(model)
         set_parameters!(model,
             RockThermalConductivities = RockThermalConductivities(),
             FluidThermalConductivities = FluidThermalConductivities()
+        )
+    else
+        set_parameters!(model,
+            MaterialThermalConductivities = MaterialThermalConductivities(),
         )
     end
     disc = model.domain.discretizations.heat_flow

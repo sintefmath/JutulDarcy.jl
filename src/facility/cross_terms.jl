@@ -258,7 +258,7 @@ end
 
 # Thermal
 struct ReservoirFromWellThermalCT{T<:AbstractVector, I<:AbstractVector} <: AbstractReservoirFromWellCT
-    CI::T
+    WIth::T
     WI::T
     reservoir_cells::I
     well_cells::I
@@ -286,7 +286,7 @@ function update_cross_term_in_entity!(out, i,
     @inbounds begin 
         reservoir_cell = ct.reservoir_cells[i]
         well_cell = ct.well_cells[i]
-        CI = ct.CI[i]
+        WIth = state_well.WellIndicesThermal[i]
         WI = state_well.WellIndices[i]
         gdz = state_well.PerforationGravityDifference[i]
         p_well = state_well.Pressure
@@ -320,21 +320,21 @@ function update_cross_term_in_entity!(out, i,
     T_well = state_well.Temperature[well_cell]
     T_res = state_res.Temperature[reservoir_cell]
 
-    conductive_heat_flux = -CI*(T_well - T_res)
+    conductive_heat_flux = -WIth*(T_well - T_res)
     out[] = advective_heat_flux + conductive_heat_flux
 end
 
 function Base.show(io::IO, d::ReservoirFromWellThermalCT)
-    n = length(d.CI)
+    n = length(d.WIth)
     print(io, "ReservoirFromWellThermalCT ($n connections)")
 end
 
 function Jutul.subcrossterm(ct::ReservoirFromWellThermalCT, ctp, m_t, m_s, map_res::FiniteVolumeGlobalMap, ::TrivialGlobalMap, partition)
-    (; CI, WI, reservoir_cells, well_cells) = ct
+    (; WIth, WI, reservoir_cells, well_cells) = ct
     rc = map(
         c -> Jutul.local_cell(c, map_res),
         reservoir_cells)
-    return ReservoirFromWellThermalCT(copy(CI), copy(WI), rc, copy(well_cells))
+    return ReservoirFromWellThermalCT(copy(WIth), copy(WI), rc, copy(well_cells))
 end
 
 function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellThermalCT, target, source, model, storage, dt, force::PerforationMask; time = time)

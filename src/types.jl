@@ -424,12 +424,13 @@ function SimpleWell(
     reference_depth = convert(Float64, reference_depth)
     volume = convert(Float64, volume)
     nr = length(reservoir_cells)
-    WI, gdz = common_well_setup(nr; kwarg...)
-    perf = (self = ones(Int64, nr), reservoir = vec(reservoir_cells), WI = WI, gdz = gdz)
+    WI, WIth, gdz = common_well_setup(nr; kwarg...)
+    perf = (self = ones(Int64, nr), reservoir = vec(reservoir_cells), WI = WI, WIth = WIth, gdz = gdz)
     return SimpleWell(volume, perf, surface_conditions, name, explicit_dp, reference_depth)
 end
 
-struct MultiSegmentWell{V, P, N, A, C, SC, S} <: WellDomain
+struct MultiSegmentWell{V, P, N, A, C, SC, S, M} <: WellDomain
+    type::Symbol
     "One of volumes per node (cell)"
     volumes::V
     "(self -> local cells, reservoir -> reservoir cells, WI -> connection factor)"
@@ -446,6 +447,8 @@ struct MultiSegmentWell{V, P, N, A, C, SC, S} <: WellDomain
     name::Symbol
     "Pressure drop model for seg well segment"
     segment_models::S
+    "Thermal conductivity of well material"
+    material_thermal_conductivity::M
 end
 
 """
@@ -475,6 +478,7 @@ $FIELDS
 
 """
 function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
+            type = :ms,
             accumulator_center = nothing,
             accumulator_volume = mean(volumes),
             N = nothing,
@@ -486,6 +490,8 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
             segment_length = nothing,
             friction = 1e-4,
             surface_conditions = default_surface_cond(),
+            material_thermal_conductivity = 0.0,
+            extra_perforation_props = NamedTuple(),
             kwarg...
     )
     if isnothing(reference_depth)
@@ -506,7 +512,7 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
         @debug "No connectivity. Assuming nicely ordered linear well."
         N = vcat((1:nv)', (2:nc)')
     elseif maximum(N) == nv
-        N = vcat([1, 2], N+1)
+        N = hcat([1, 2], N.+1)
     end
     if length(size(centers)) == 3
         @assert size(centers, 3) == 1
@@ -545,13 +551,18 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
         @assert length(segment_models) == nseg
     end
     if isnothing(dz)
-        dz = centers[3, :] - reference_depth
+        dz = centers[3, :] .- reference_depth
     end
     @assert length(perforation_cells) == nr
-    WI, gdz = common_well_setup(nr; dz = dz, kwarg...)
-    perf = (self = perforation_cells, reservoir = reservoir_cells, WI = WI, gdz = gdz)
+    WI, WIth, gdz = common_well_setup(nr; dz = dz, kwarg...)
+    perf = (self = perforation_cells, reservoir = reservoir_cells, WI = WI, WIth = WIth, gdz = gdz)
+    perf = merge(perf, extra_perforation_props)
+    for (k, v) in zip(keys(perf), perf)
+        @assert length(v) == nr "Perforation property $k must have length equal to number of reservoir cells"
+    end
     accumulator = (reference_depth = reference_depth, )
-    MultiSegmentWell{typeof(volumes), typeof(perf), typeof(N), typeof(accumulator), typeof(ext_centers), typeof(surface_conditions), typeof(segment_models)}(volumes, perf, N, accumulator, ext_centers, surface_conditions, name, segment_models)
+    MultiSegmentWell{typeof(volumes), typeof(perf), typeof(N), typeof(accumulator), typeof(ext_centers), typeof(surface_conditions), typeof(segment_models), typeof(material_thermal_conductivity)}(
+        type, volumes, perf, N, accumulator, ext_centers, surface_conditions, name, segment_models, material_thermal_conductivity)
 end
 
 
