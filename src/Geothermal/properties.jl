@@ -18,13 +18,29 @@ function setup_reservoir_model_geothermal(
         table_arg...
     )
 
-    function water_only_table(t::Jutul.BilinearInterpolant)
+    function water_only_table(tabs, k)
+        t = tabs[k]
+        t::Jutul.BilinearInterpolant
         F = map(first, t.F)
+        if k == :density
+            # Density is a bit special, want to make sure that there exists some
+            # derivatives in the table at low pressure and temperature since
+            # otherwise the system is singular.
+            for i in axes(F, 1)
+                F[i, 1] *= 0.9999
+            end
+            for j in axes(F, 2)
+                if j == 1
+                    continue
+                end
+                F[1, j] *= 0.9999
+            end
+        end
         return Jutul.BilinearInterpolant(t.X, t.Y, F)
     end
     tables = Dict()
     for k in [:density, :heat_capacity_constant_volume, :viscosity, :phase_conductivity]
-        tables[k] = water_only_table(tables_with_co2[k])
+        tables[k] = water_only_table(tables_with_co2, k)
     end
 
     rhoWS = first(JutulDarcy.reference_densities(:co2brine))
