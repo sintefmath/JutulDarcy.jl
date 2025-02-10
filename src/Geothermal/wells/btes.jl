@@ -47,6 +47,7 @@ end
 function setup_btes_well_simple(D::DataDomain, reservoir_cells;
     name = :BTES,
     WIth_grout = missing,
+    radius_pipe = 16e-3 - 2.9e-3,
     kwarg...)
 
     # Set thermal conductivities between supply and return
@@ -59,6 +60,7 @@ function setup_btes_well_simple(D::DataDomain, reservoir_cells;
     args = (
         WI = 0.0,
         extra_perforation_props = (WIth_grout = WIth_grout, ),
+        radius = radius_pipe,
         simple_well = false,
         type = :btes
     )
@@ -78,12 +80,12 @@ end
 function setup_btes_well_u1(D::DataDomain, reservoir_cells;
     cell_centers = D[:cell_centroids],
     name = :BTES,
-    radius_grout = 60e-3,
-    radius_pipe_inner = 20e-3,
-    radius_pipe_outer = radius_pipe_inner + 5e-3,
-    pipe_spacing = radius_grout,
-    thermal_conductivity_grout = 2.0,
-    thermal_conductivity_pipe = 2.0,
+    radius_grout = 65e-3,
+    radius_pipe_outer = 16e-3,
+    radius_pipe_inner = radius_pipe_outer - 2.9e-3,
+    pipe_spacing = 60e-3,
+    thermal_conductivity_grout = 2.3,
+    thermal_conductivity_pipe = 0.38,
     friction = 1e-4,
     dir = :z,
     kwarg...)
@@ -156,7 +158,7 @@ function setup_btes_well_u1(D::DataDomain, reservoir_cells;
     for seg in 1:nseg
         l, r = N[:, seg]
         L = norm(ext_centers[:, l] - ext_centers[:, r], 2)
-        if seg <= nc_pipe+1
+        if seg <= nc_pipe
             # Pipe segments use standard wellbore friction model
             Do, Di = 2*radius_pipe_inner, 0.0
             seg_model = SegmentWellBoreFrictionHB(L, friction, Do; D_inner = Di)
@@ -204,7 +206,7 @@ function btes_volume(type::BTESTypeU1, g, reservoir_cell, dir, radius_grout, rad
 
     # Compute pipe and grout volume
     rg, rp_in, rp_out = radius_grout, radius_pipe_inner, radius_pipe_outer
-    vol_p = π*(rp_out^2 - rp_in^2)*L
+    vol_p = π*rp_in^2*L
     vol_g = π*rg^2*L/2 - vol_p
 
     return vol_p, vol_g, L
@@ -213,8 +215,7 @@ end
 
 function btes_thermal_conductivity(type::BTESTypeU1, 
     radius_grout, radius_pipe_inner, radius_pipe_outer, pipe_spacing, length,
-    thermal_conductivity_pipe, thermal_conductivity_grout)
-
+    thermal_conductivity_grout, thermal_conductivity_pipe)
     # Conveient short-hand notation
     rg, rp_in, rp_out, w, L = 
         radius_grout, radius_pipe_inner, radius_pipe_outer, pipe_spacing, length
