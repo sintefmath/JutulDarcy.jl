@@ -62,6 +62,7 @@ end
 function select_parameters!(prm, s::SimpleWellDomain, model::SimpleWellFlowModel)
     prm[:FluidVolume] = FluidVolume()
     prm[:WellIndices] = WellIndices()
+    prm[:WellIndicesThermal] = WellIndicesThermal()
     prm[:PerforationGravityDifference] = PerforationGravityDifference()
 end
 

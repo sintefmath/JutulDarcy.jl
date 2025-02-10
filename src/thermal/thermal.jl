@@ -264,7 +264,7 @@ function add_thermal_to_model!(model)
             RockThermalConductivities = RockThermalConductivities(),
             FluidThermalConductivities = FluidThermalConductivities()
         )
-    else
+    elseif physical_representation(model.domain) isa MultiSegmentWell
         set_parameters!(model,
             MaterialThermalConductivities = MaterialThermalConductivities(),
         )

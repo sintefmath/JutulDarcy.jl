@@ -144,7 +144,7 @@ end
 
 @testset "thermal wells" begin
     @testset "well types and backends" begin
-        for simple_well in [false]
+        for simple_well in [true, false]
             for block_backend in [false, true]
                 if block_backend
                     bs = "block"
