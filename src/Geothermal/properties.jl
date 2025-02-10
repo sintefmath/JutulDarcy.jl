@@ -1,0 +1,69 @@
+function setup_reservoir_model_geothermal(
+        reservoir::DataDomain;
+        thermal = false,
+        extra_out = true,
+        parameters = Dict{Symbol, Any}(),
+        salt_mole_fractions = Float64[],
+        salt_names = String[],
+        table_arg = NamedTuple(),
+        single_phase = true,
+        kwarg...
+    )
+    thermal || throw(ArgumentError("Cannot setup geothermal reservoir model with thermal = false"))
+    tables_with_co2 = JutulDarcy.CO2Properties.co2_brine_property_tables(
+        missing;
+        salt_names = salt_names,
+        salt_mole_fractions = salt_mole_fractions,
+        table_arg...
+    )
+
+    function water_only_table(t::Jutul.BilinearInterpolant)
+        F = map(first, t.F)
+        return Jutul.BilinearInterpolant(t.X, t.Y, F)
+    end
+    tables = Dict()
+    for k in [:density, :heat_capacity_constant_volume, :viscosity]
+        tables[k] = water_only_table(tables_with_co2[k])
+    end
+
+    rhoWS = first(JutulDarcy.reference_densities(:co2brine))
+    if single_phase
+        sys = SinglePhaseSystem(AqueousPhase(), reference_density = rhoWS)
+    else
+        error("Multiphase geothermal is not implemented")
+    end
+    model = setup_reservoir_model(reservoir, sys; thermal = true, extra_out = false, kwarg...)
+
+    rho = JutulDarcy.PressureTemperatureDependentVariable(tables[:density])
+    c_v = JutulDarcy.PressureTemperatureDependentVariable(tables[:heat_capacity_constant_volume])
+    mu = JutulDarcy.PTViscosities(tables[:viscosity])
+
+    for (k, m) in pairs(model.models)
+        for (k, m) in pairs(model.models)
+            if k == :Reservoir || JutulDarcy.model_or_domain_is_well(m)
+                set_secondary_variables!(m;
+                    PhaseMassDensities = rho,
+                    PhaseViscosities = mu,
+                    ComponentHeatCapacity = c_v
+                )
+            end
+        end
+    end
+    rmodel = reservoir_model(model)
+    outvar = rmodel.output_variables
+
+    push!(outvar, :PhaseMassDensities)
+    push!(outvar, :RockInternalEnergy)
+    push!(outvar, :FluidInternalEnergy)
+    push!(outvar, :TotalThermalEnergy)
+
+    unique!(outvar)
+
+    if extra_out
+        parameters = setup_parameters(model, parameters)
+        out = (model, parameters)
+    else
+        out = model
+    end
+    return out
+end
