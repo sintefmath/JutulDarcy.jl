@@ -201,7 +201,6 @@ module JutulDarcy
     include("Geothermal/Geothermal.jl")
     import JutulDarcy.Geothermal: setup_btes_well, setup_vertical_btes_well
     import JutulDarcy.Geothermal: BTESWellSupplyToReturnMassCT, BTESWellSupplyToReturnEnergyCT, BTESWellGroutEnergyCT
-    import JutulDarcy.Geothermal: update_cross_term_in_entity!
     export setup_btes_well, setup_vertical_btes_well
 
     # Tracers
