@@ -7,6 +7,7 @@ function setup_reservoir_model_geothermal(
         salt_names = String[],
         table_arg = NamedTuple(),
         single_phase = true,
+        update_reservoir = true,
         kwarg...
     )
     thermal || throw(ArgumentError("Cannot setup geothermal reservoir model with thermal = false"))
@@ -22,7 +23,7 @@ function setup_reservoir_model_geothermal(
         return Jutul.BilinearInterpolant(t.X, t.Y, F)
     end
     tables = Dict()
-    for k in [:density, :heat_capacity_constant_volume, :viscosity]
+    for k in [:density, :heat_capacity_constant_volume, :viscosity, :phase_conductivity]
         tables[k] = water_only_table(tables_with_co2[k])
     end
 
@@ -32,8 +33,14 @@ function setup_reservoir_model_geothermal(
     else
         error("Multiphase geothermal is not implemented")
     end
+    # TODO: make this dynamic
+    cond_f = JutulDarcy.PressureTemperatureDependentVariable(tables[:phase_conductivity])
+    cond_water = cond_f(1*si_unit(:atm), 273.15 + 20.0)
+    if update_reservoir
+        reservoir[:fluid_thermal_conductivity] .= cond_water
+    end
     model = setup_reservoir_model(reservoir, sys; thermal = true, extra_out = false, kwarg...)
-
+    # Tables
     rho = JutulDarcy.PressureTemperatureDependentVariable(tables[:density])
     c_v = JutulDarcy.PressureTemperatureDependentVariable(tables[:heat_capacity_constant_volume])
     mu = JutulDarcy.PTViscosities(tables[:viscosity])
