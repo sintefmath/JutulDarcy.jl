@@ -355,6 +355,10 @@ function add_thermal_to_model!(model)
         set_secondary_variables!(model,
             MaterialInternalEnergy = MaterialInternalEnergy()
         )
+    elseif physical_representation(model.domain) isa SimpleWell
+        set_secondary_variables!(model,
+            RockInternalEnergy = RockInternalEnergy()
+    )
     end
     disc = model.domain.discretizations.heat_flow
     model.equations[:energy_conservation] = ConservationLaw(disc, :TotalThermalEnergy, 1)
