@@ -78,44 +78,6 @@ function Jutul.default_values(model, ::WellIndices)
 end
 
 """
-    WellIndicesThermal()
-
-Parameter for the thermal connection strength between a well and the reservoir
-for a given perforation. Typical values come from a combination of Peaceman's
-formula with thermal conducivity in place of permeability, upscaling and/or
-history matching.
-"""
-struct WellIndicesThermal <: ScalarVariable end
-
-Jutul.minimum_value(::WellIndicesThermal) = 0.0
-Jutul.variable_scale(::WellIndicesThermal) = 1.0
-Jutul.associated_entity(::WellIndicesThermal) = Perforations()
-function Jutul.default_values(model, ::WellIndicesThermal)
-    w = physical_representation(model.domain)
-    return vec(copy(w.perforations.WIth))
-end
-
-"""
-    MaterialThermalConductivities()
-
-Parameter for the thermal conductivities of the materials in the well.
-"""
-struct MaterialThermalConductivities <: ScalarVariable end
-
-Jutul.variable_scale(::MaterialThermalConductivities) = 1e-10
-Jutul.minimum_value(::MaterialThermalConductivities) = 0.0
-Jutul.associated_entity(::MaterialThermalConductivities) = Faces()
-
-function Jutul.default_parameter_values(data_domain, model, param::MaterialThermalConductivities, symb)
-    if haskey(data_domain, :material_thermal_conductivity, Faces())
-        T = copy(data_domain[:material_thermal_conductivity])
-    else
-        error(":material_thermal_conductivity or :material_thermal_conductivity symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
-    end
-    return T
-end
-
-"""
     PerforationGravityDifference()
 
 Parameter for the height difference from the wellbore and the connected node in
