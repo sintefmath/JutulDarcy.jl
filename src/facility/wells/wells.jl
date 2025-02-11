@@ -305,7 +305,7 @@ function update_before_step_well!(well_state, well_model, res_state, res_model, 
 end
 
 function domain_fluid_volume(grid::WellDomain)
-    return grid.volumes
+    return grid.volumes.*grid.void_fraction
 end
 
 function domain_fluid_volume(grid::SimpleWell)
