@@ -189,7 +189,7 @@ function Jutul.default_parameter_values(data_domain, model, param::FluidThermalC
         C = data_domain[:fluid_thermal_conductivity]
         phi = data_domain[:porosity]
         if C isa Vector
-            T = compute_face_trans(data_domain, C)
+            T = compute_face_trans(data_domain, phi.*C)
             T = repeat(T', nph, 1)
         else
             @assert size(C, 1) == nph
@@ -337,8 +337,7 @@ function add_thermal_to_model!(model)
     set_secondary_variables!(model,
         FluidInternalEnergy = FluidInternalEnergy(),
         FluidEnthalpy = FluidEnthalpy(),
-        # RockInternalEnergy = RockInternalEnergy(),
-        TotalThermalEnergy = TotalThermalEnergy()
+        TotalThermalEnergy = TotalThermalEnergy(),
     )
     is_reservoir = !model_or_domain_is_well(model)
     if is_reservoir
