@@ -155,9 +155,10 @@ function well_domain(w::SimpleWell; kwarg...)
 end
 
 function well_domain(w::MultiSegmentWell; kwarg...)
+
     # Well material properties
-    λ = w.material_thermal_conductivity
-    λ = (length(λ) == 1) ? fill(λ, number_of_faces(w)) : λ
+    λm = w.material_thermal_conductivity
+    λm = (length(λm) == 1) ? fill(λm, number_of_faces(w)) : λm
     
     ρ = w.material_density
     ρ = (length(ρ) == 1) ? fill(ρ, number_of_cells(w)) : ρ
@@ -169,7 +170,7 @@ function well_domain(w::MultiSegmentWell; kwarg...)
     ϕ = (length(ϕ) == 1) ? fill(ϕ, number_of_cells(w)) : ϕ
     
     wd = DataDomain(w;
-        material_thermal_conductivity = (λ, Faces()),
+        material_thermal_conductivity = (λm, Faces()),
         material_density = (ρ, Cells()),
         material_heat_capacity = (C, Cells()),
         void_fraction = (ϕ, Cells()),

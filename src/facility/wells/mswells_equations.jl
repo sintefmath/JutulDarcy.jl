@@ -151,7 +151,7 @@ end
 function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::ConservationLaw{:TotalThermalEnergy, <:WellSegmentFlow}, model, dt, ldisc = local_discretization(eq, self_cell)) where T_e
     (; cells, faces, signs) = ldisc
     nph = number_of_phases(model.system)
-    λ = state.MaterialThermalConductivities
+    λm = state.MaterialThermalConductivities
     mass = state.TotalMasses
     energy = state.TotalThermalEnergy
     energy0 = state0.TotalThermalEnergy
@@ -176,9 +176,10 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
             ME_self = H_f[ph, self_cell]*f_self
             eq += v_f*upw_flux(v_f, ME_self, ME_other)
         end
-        if λ[face] > 0
+
+        if λm[face] > 0
             # Account for heat conduction in well material
-            eq += -λ[face]*(T[cell] - T[self_cell])
+            eq += -λm[face]*(T[cell] - T[self_cell])
         end
     end
 
