@@ -15,12 +15,13 @@ function dir_to_doc_name(x::String)
     return x
 end
 
-function get_example_paths()
+function get_example_paths(; check_empty = true)
     basepth = joinpath(@__DIR__, "..", "examples")
     examples = OrderedDict()
     examples["introduction"] = []
     examples["workflow"] = []
     examples["data_assimilation"] = []
+    examples["geothermal"] = []
     examples["compositional"] = []
     examples["discretization"] = []
     examples["properties"] = []
@@ -38,13 +39,13 @@ function get_example_paths()
             end
         end
     end
-    for (k, v) in pairs(examples)
-        @assert length(examples[k]) > 0 "No examples found for category $k"
+    if check_empty
+        for (k, v) in pairs(examples)
+            @assert length(examples[k]) > 0 "No examples found for category $k"
+        end
     end
     return examples
 end
-
-examples = get_example_paths()
 
 function update_footer(content, subdir, exname)
     return content*"\n\n # ## Example on GitHub\n "*
@@ -59,10 +60,19 @@ function build_jutul_darcy_docs(
         build_docs = true,
         build_validation_examples = build_examples,
         build_notebooks = true,
+        examples_explicit_list = missing,
         clean = true,
         deploy = true,
         use_vitepress = !Sys.iswindows()
     )
+    if examples_explicit_list isa String
+        examples_explicit_list = [examples_explicit_list]
+    end
+    examples_explicit_list::Union{Vector{String}, Missing}
+    has_explicit_list = !ismissing(examples_explicit_list)
+    if has_explicit_list
+        @info "Building only examples as examples_explicit_list was specified" examples_explicit_list
+    end
     DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy); recursive=true)
     DocMeta.setdocmeta!(Jutul, :DocTestSetup, :(using Jutul); recursive=true)
     bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"))
@@ -71,7 +81,7 @@ function build_jutul_darcy_docs(
     # Base directory
     jutul_dir = realpath(joinpath(@__DIR__, ".."))
     # Convert examples as .jl files to markdown
-    examples = get_example_paths()
+    examples = get_example_paths(check_empty = !has_explicit_list)
     validation_markdown = []
     examples_by_name = OrderedDict{String, Any}()
     if clean
@@ -100,12 +110,23 @@ function build_jutul_darcy_docs(
             do_build = build_examples
         end
         for exname in example_set
-            in_pth = example_path(category, exname)
-            if do_build
-                push!(ex_dest, joinpath("examples", category, "$exname.md"))
-                upd(content) = update_footer(content, category, exname)
-                Literate.markdown(in_pth, joinpath(out_dir, category), preprocess = upd)
+            if has_explicit_list
+                if exname in examples_explicit_list
+                    jutul_message("Examples", "$category/$exname added to build from explicit list.", color = :green)
+                else
+                    jutul_message("Examples", "$category/$exname not in explicit list, skipping.", color = :yellow)
+                    continue
+                end
+            elseif do_build
+                jutul_message("Examples", "$category/$exname was added.", color = :green)
+            else
+                jutul_message("Examples", "$category/$exname was skipped.", color = :blue)
+                continue
             end
+            in_pth = example_path(category, exname)
+            push!(ex_dest, joinpath("examples", category, "$exname.md"))
+            upd(content) = update_footer(content, category, exname)
+            Literate.markdown(in_pth, joinpath(out_dir, category), preprocess = upd)
         end
     end
     examples_markdown = []
@@ -215,14 +236,29 @@ function build_jutul_darcy_docs(
 end
 # To preview, go to the docs folder and run:
 # # DocumenterVitepress.dev_docs("build")
-# build_jutul_darcy_docs(
-#     build_examples = false,
-#     build_validation_examples = false,
-#     build_notebooks = false,
-#     deploy = false
-# )
-build_jutul_darcy_docs()
+# To only build some examples you can set
+# ENV["JUTULDARCY_DOCS_EXAMPLES_SKIP"] = 1
+# You can also enable build after (Linux only):
+# ENV["JUTULDARCY_RUN_VITEPRESS"] = 1
+if get(ENV, "JUTULDARCY_DOCS_EXAMPLES_SKIP", "0") == "1"
+    # You can add a list of examples to build by running
+    # examples_to_build = ["geothermal_1well"]
+    if isdefined(Main, :examples_to_build)
+        ex_list = examples_to_build
+    else
+        ex_list = missing
+    end
+    build_jutul_darcy_docs(
+        build_examples = false,
+        build_validation_examples = false,
+        build_notebooks = false,
+        examples_explicit_list = ex_list,
+        deploy = false
+    )
+else
+    build_jutul_darcy_docs()
+end
 
-# ```@autodocs
-# Modules = [JutulDarcy]
-# ```
+if get(ENV, "JUTULDARCY_RUN_VITEPRESS", "0") == "1" && !Sys.iswindows()
+    DocumenterVitepress.dev_docs("build")
+end
