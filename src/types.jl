@@ -449,6 +449,12 @@ struct MultiSegmentWell{V, P, N, A, C, SC, S, M} <: WellDomain
     segment_models::S
     "Thermal conductivity of well material"
     material_thermal_conductivity::M
+    "Density of well material"
+    material_density::M
+    "Specific heat capacity of well material"
+    material_heat_capacity::M
+    "Well void fraction"
+    void_fraction::M
 end
 
 """
@@ -491,6 +497,9 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
             friction = 1e-4,
             surface_conditions = default_surface_cond(),
             material_thermal_conductivity = 0.0,
+            material_heat_capacity = 420.0,
+            material_density = 8000.0,
+            void_fraction = 1.0,
             extra_perforation_props = NamedTuple(),
             kwarg...
     )
@@ -530,6 +539,32 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
     end
     perforation_cells = vec(perforation_cells)
 
+    # Process well material properties
+    if length(material_thermal_conductivity) == 1
+        material_thermal_conductivity = fill(material_thermal_conductivity, nseg)
+    end
+    @assert length(material_thermal_conductivity) == nseg 
+        "Material thermal conductivity must have length equal to number of segments"
+
+    if length(material_heat_capacity) == 1
+        material_heat_capacity = fill(material_heat_capacity, nc)
+    end
+    @assert length(material_heat_capacity) == nc
+        "Material heat capacity must have length equal to number of cells (including accumulator node)"
+
+    if length(material_density) == 1
+        material_density = fill(material_density, nc)
+    end
+    @assert length(material_density) == nc
+        "Material density must have length equal to number of cells (including accumulator node)"
+
+    if length(void_fraction) == 1
+        void_fraction = vcat(1.0, fill(void_fraction, nc-1))
+    end
+    @assert length(void_fraction) == nc
+        "Void fraction must have length equal to number of cells (including accumulator node)"
+    @assert void_fraction[1] == 1.0 "Void fraction for accumulator node must be 1.0"
+
     if isnothing(segment_models)
         segment_models = Vector{SegmentWellBoreFrictionHB{Float64}}()
         for seg in 1:nseg
@@ -562,7 +597,9 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
     end
     accumulator = (reference_depth = reference_depth, )
     MultiSegmentWell{typeof(volumes), typeof(perf), typeof(N), typeof(accumulator), typeof(ext_centers), typeof(surface_conditions), typeof(segment_models), typeof(material_thermal_conductivity)}(
-        type, volumes, perf, N, accumulator, ext_centers, surface_conditions, name, segment_models, material_thermal_conductivity)
+        type, volumes, perf, N, accumulator, ext_centers, surface_conditions,
+        name, segment_models, material_thermal_conductivity,
+        material_density, material_heat_capacity, void_fraction)
 end
 
 
