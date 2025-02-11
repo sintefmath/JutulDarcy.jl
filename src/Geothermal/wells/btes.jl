@@ -86,6 +86,9 @@ function setup_btes_well_u1(D::DataDomain, reservoir_cells;
     pipe_spacing = 60e-3,
     thermal_conductivity_grout = 2.3,
     thermal_conductivity_pipe = 0.38,
+    # thermal_conductivity_pipe = 2.0,
+    heat_capacity_grout = 420.0,
+    density_grout = 1500.0,
     friction = 1e-4,
     dir = :z,
     kwarg...)
@@ -153,8 +156,7 @@ function setup_btes_well_u1(D::DataDomain, reservoir_cells;
 
     # Set material thermal conducivities
     nr = length(reservoir_cells)
-    material_thermal_conductivity = zeros(nseg)
-    material_thermal_conductivity[grout_cells] .= λpg
+
     for seg in 1:nseg
         l, r = N[:, seg]
         L = norm(ext_centers[:, l] - ext_centers[:, r], 2)
@@ -169,6 +171,13 @@ function setup_btes_well_u1(D::DataDomain, reservoir_cells;
     end
     dz = cell_centers[3, reservoir_cells] .- reference_depth
 
+    material_thermal_conductivity = zeros(nseg)
+    material_thermal_conductivity[grout_cells] .= λpg
+
+    nc = nc_pipe + nc_grout + 1
+    void_fraction = ones(nc)
+    void_fraction[grout_cells .+ 1] .= 0.0
+
     ## Set up supply and return wells
     args = (
         type = :btes,
@@ -177,8 +186,11 @@ function setup_btes_well_u1(D::DataDomain, reservoir_cells;
         WIth = λgr,
         extra_perforation_props = (WIth_grout = λgg, ),
         material_thermal_conductivity = material_thermal_conductivity,
+        material_heat_capacity = fill(heat_capacity_grout, nc),
+        material_density = fill(density_grout, nc),
+        void_fraction = void_fraction,
         dz = dz,
-        perforation_cells = collect(grout_cells),
+        perforation_cells = collect(grout_cells.+1),
         segment_models = segment_models,
     )
 
