@@ -134,6 +134,7 @@ q_store = q.*storage
 q_prod = q.*(.!storage)
 stored_energy = well_temp.*q_store.*c_p_water.*dt
 produced_energy = -well_temp.*q_prod.*c_p_water.*dt
+η_cumulative = cumsum(produced_energy)./cumsum(stored_energy)
 t = cumsum(dt)./si_unit(:day)
 
 η, T = zeros(num_years), zeros(num_years)
