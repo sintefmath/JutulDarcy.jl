@@ -11,8 +11,12 @@ end
 
 function select_parameters!(prm, domain::MSWellDomain, model::MSWellFlowModel)
     prm[:WellIndices] = WellIndices()
-    prm[:WellIndicesThermal] = WellIndicesThermal()
     prm[:PerforationGravityDifference] = PerforationGravityDifference()
+    # TODO: Only add these params if model has thermal
+    prm[:WellIndicesThermal] = WellIndicesThermal()
+    prm[:MaterialThermalConductivities] = MaterialThermalConductivities()
+    prm[:MaterialHeatCapacities] = MaterialHeatCapacities()
+    prm[:MaterialDensities] = MaterialDensities()
 end
 
 function Jutul.select_minimum_output_variables!(vars, domain::DiscretizedDomain, model::MSWellFlowModel)
