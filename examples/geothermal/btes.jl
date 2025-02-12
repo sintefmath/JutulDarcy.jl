@@ -234,7 +234,7 @@ simulator, config = setup_reservoir_simulator(case;
     target_its = 5,
     max_nonlinear_iterations = 8,
     relaxation = true,
-    info_level = 0,
+    info_level = -1,
 )
 results = simulate_reservoir(case, simulator=simulator, config=config);
 
@@ -249,6 +249,6 @@ plot_well_results(results.wells, field = :temperature)
 temp = convert_from_si.(results.wells[:B1_return][:temperature], :Celsius)
 time = cumsum(case.dt)/month
 fig = Figure()
-ax = Axis(fig[1, 1], title = "BTES well coordinates", aspect = 1.0)
+ax = Axis(fig[1, 1], title = "Center BTES temperature", xlabel = "Time (months)")
 lines!(ax, time, temp)
 fig

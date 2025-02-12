@@ -30,7 +30,8 @@ reservoir = reservoir_domain(g,
     fluid_thermal_conductivity = 0.6
 )
 
-depth = reservoir[:cell_centroids][3, :]
+depth = reservoir[:cell_centroids][3, :];
+
 # ## Define wells and model
 di = Int(ceil(nx/4))
 k = Int(ceil(nz/2))
@@ -53,13 +54,15 @@ for cell in 1:number_of_cells(g)
     end
 end
 
-bc = flow_boundary_condition(bcells, reservoir, pressure_res[bcells], temperature_res[bcells])
+bc = flow_boundary_condition(bcells, reservoir, pressure_res[bcells], temperature_res[bcells]);
+
 # ## Set up the schedule
 
 # ### Set up forces
 
-# We assume we have a supply amounting to 90 C at 25 l/s for storage. During the
-# rest period, we assume the same discharge rate and a temperature of 10 C.
+# We assume we have a supply amounting to 90°C. at 25 l/s for storage. During
+# the discharge period, we assume the same discharge rate and a temperature of
+# 10°C.
 charge_rate = 25litre/second
 discharge_rate = charge_rate
 temperature_charge = temperature_top + 50.0
@@ -105,13 +108,13 @@ for year in 1:num_years
 end
 
 # ## Set up initial state
-state0 = setup_reservoir_state(model, Pressure = pressure_res, Temperature = temperature_res)
+state0 = setup_reservoir_state(model, Pressure = pressure_res, Temperature = temperature_res);
 # ## Simulate the case
 ws, states = simulate_reservoir(state0, model, dt,
     forces = forces,
     parameters = parameters,
-    info_level = 0
-)
+    info_level = -1
+);
 
 # ## Plot the reservoir states in the interactive viewer
 using GLMakie

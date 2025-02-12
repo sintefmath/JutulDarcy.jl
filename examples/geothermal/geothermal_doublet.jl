@@ -16,7 +16,7 @@ meter, kilogram, bar, year = si_units(:meter, :kilogram, :bar, :year)
 egg_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("EGG")
 data_pth = joinpath(egg_dir, "EGG.DATA")
 case0 = setup_case_from_data_file(data_pth)
-domain = reservoir_model(case0.model).data_domain
+domain = reservoir_model(case0.model).data_domain;
 
 # Make setup function
 function setup_doublet(sys)
@@ -64,16 +64,16 @@ end
 rhoWS = 1000.0kilogram/meter^3
 sys = SinglePhaseSystem(AqueousPhase(), reference_density = rhoWS)
 case_simple = setup_doublet(sys)
-results_simple = simulate_reservoir(case_simple)
+results_simple = simulate_reservoir(case_simple, info_level = -1);
 # Interactive plot of the reservoir state
 plot_reservoir(case_simple.model, results_simple.states)
 
 # ## Realistic fluid physics
 # Next, we repeat the simulation with more realistic fluid physics. We use a
-# formulaiton from (INSERT REFERENCE) where density, viscosity and heat capacity
-# depend on pressure and temperature. 
+# formulation from [NIST](https://webbook.nist.gov/chemistry/fluid/) where
+# density, viscosity and heat capacity depend on pressure and temperature. 
 case_real = setup_doublet(:geothermal)
-results_real = simulate_reservoir(case_real)
+results_real = simulate_reservoir(case_real, info_level = -1);
 # Interactive plot of the reservoir state
 plot_reservoir(case_real.model, results_real.states)
 
@@ -86,13 +86,16 @@ plot_reservoir(case_real.model, results_real.states)
 # water viscosty is not affected by temperature in the simple PVT model, water
 # movement is much faster in this scenario, thereby grossly underestimating the
 # lifespan of the doublet compared to the realistic PVT. This effect is further
-# amplified by the thermal shrinkage due to colling.
+# amplified by the thermal shrinkage due to colling present in the realistic PVT
+# model.
 plot_well_results([results_simple.wells, results_real.wells]; names = ["Simple", "Realistic"])
 
 # Finally, we plot the density to see how the two simulations differ. As density
-# in the the simple PVT is only dependent on pressure, the density is largely
-# constant except from in the vicinity of the wells, where pressure gradients
-# are larger.
+# in the the simple PVT is only dependent on pressure, it is largely constant
+# except from in the vicinity of the wells, where pressure gradients are larger.
+# In the realistic PVT, where density is a function of both pressure and
+# temperature, we see that it is affected in all regions swept by the injected
+# cold water.
 ρ_simple = map(s -> s[:PhaseMassDensities], results_simple.states)
 ρ_real = map(s -> s[:PhaseMassDensities], results_real.states)
 Δρ = map(Δρ -> Dict(:DensityDifference => Δρ), ρ_simple .- ρ_real)
