@@ -1115,7 +1115,8 @@ function set_default_cnv_mb_inner!(tol, model;
     if model isa Jutul.CompositeModel && hasproperty(model.system.systems, :flow)
         sys = flow_system(model.system)
     end
-    if sys isa ImmiscibleSystem || sys isa BlackOilSystem || sys isa CompositionalSystem
+    if sys isa SinglePhaseSystem || sys isa ImmiscibleSystem || 
+        sys isa BlackOilSystem || sys isa CompositionalSystem
         is_well = model_or_domain_is_well(model)
         if is_well
             if physical_representation(model) isa SimpleWell
