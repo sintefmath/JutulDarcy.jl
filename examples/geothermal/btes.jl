@@ -1,12 +1,13 @@
 # # Borehole Thermal Energy Storage (BTES)
 # This script demonstrates how to model a borehole thermal energy storage (BTES)
-# using JutulDarcy. We will set up a BTES system with 50 wells, and simulate 10
-# year of operation with 6 months of charging followed by 6 months of
-# discharging.
+# system using JutulDarcy. We will set up a BTES system with 50 wells, and
+# simulate five year of operation with 6 months of charging followed by 6 months
+# of discharging.
 using Jutul, JutulDarcy
 using HYPRE
 using GLMakie
 using Gmsh
+import Dates: monthname
 
 atm, kilogram, meter, Kelvin, joule, watt, litre, year, second, darcy =
     si_units(:atm, :kilogram, :meter, :Kelvin, :joule, :watt, :litre, :year, :second, :darcy)
@@ -16,9 +17,9 @@ atm, kilogram, meter, Kelvin, joule, watt, litre, year, second, darcy =
 # that they are uniformy distributed over the domain.
 num_wells = 50
 radius = 15.0meter
-φ = (1 + sqrt(5)) / 2 # Golden ratio
-Δθ = 2 * π / φ^2
-p = (k) -> radius .* sqrt(k / num_wells) .* (cos(k * Δθ), sin(k * Δθ))
+φ = (1 + sqrt(5))/2 # Golden ratio
+Δθ = 2*π/φ^2
+p = (k) -> radius .* sqrt(k/num_wells) .* (cos(k*Δθ), sin(k*Δθ))
 well_coords = [p(k) for k = 0:num_wells-1]
 # Plot well coordinates in horizontal plane
 scene = scatter(well_coords, markersize=10)
@@ -28,31 +29,25 @@ scene = scatter(well_coords, markersize=10)
 # 2D with refinement around the wells, and then extruded to create a 3D mesh.
 function create_btes_mesh(xw, radius, depth, h_min, h_max, h_z)
 
-    # Set outer radius sufficiently far away from BTES wells
-    radius_outer = radius * 5
+    radius_outer = radius*5
 
-    # Clear all models and create a new one
     gmsh.initialize()
     gmsh.clear()
     gmsh.model.add("btes_mesh")
 
-    # Make boundary
     perimeter = 2*π*radius_outer
     n = Int(ceil(perimeter / h_max))
     Δθ = 2*π/n
     for i = 1:n
-        x, y = radius_outer * cos(i*Δθ), radius_outer * sin(i*Δθ)
+        x, y = radius_outer*cos(i*Δθ), radius_outer*sin(i*Δθ)
         gmsh.model.geo.addPoint(x, y, 0.0, h_max, i)
     end
-    # Line segments along boundary
     for i = 1:n
         gmsh.model.geo.addLine(i, mod(i, n) + 1, i)
     end
     gmsh.model.geo.addCurveLoop(collect(1:n), 1)
-    # Top surface
     gmsh.model.geo.addPlaneSurface([1], 1)
 
-    # Add well points
     for (i, x) in enumerate(xw)
         gmsh.model.geo.addPoint(x[1], x[2], 0.0, h_min, n + i)
     end
@@ -61,32 +56,24 @@ function create_btes_mesh(xw, radius, depth, h_min, h_max, h_z)
     gmsh.model.mesh.embed(0, collect(n+1:n+length(xw)), 2, 1)
     gmsh.model.geo.addPoint(0.0, 0.0, 0.0, h_min, n + nw + 1)
 
-    # Set resolution
-    # Distance field
     gmsh.model.mesh.field.add("Distance", 1)
     gmsh.model.mesh.field.setNumbers(1, "PointsList", [n + nw + 1])
-    # Threshold field
     gmsh.model.mesh.field.add("Threshold", 2)
     gmsh.model.mesh.field.setNumber(2, "InField", 1)
     gmsh.model.mesh.field.setNumber(2, "SizeMin", h_min)
     gmsh.model.mesh.field.setNumber(2, "SizeMax", h_max)
-    gmsh.model.mesh.field.setNumber(2, "DistMin", 1.1 * radius)
-    gmsh.model.mesh.field.setNumber(2, "DistMax", 1.5 * radius)
-    # Background field
+    gmsh.model.mesh.field.setNumber(2, "DistMin", 1.1*radius)
+    gmsh.model.mesh.field.setNumber(2, "DistMax", 1.5*radius)
     gmsh.model.mesh.field.setAsBackgroundMesh(2)
 
-    # Quads instead of triangles
     gmsh.model.geo.mesh.setRecombine(2, 1)
 
-    # Extrude
     num_elements = Int(ceil(depth/h_z))
     gmsh.model.geo.extrude([(2, 1)], 0, 0, depth, [num_elements], [1.0], true)
     gmsh.model.geo.synchronize()
 
-    # Generate mesh
     gmsh.model.mesh.generate(3)
-    
-    # Read into Jutul mesh format
+
     mesh = Jutul.mesh_from_gmsh(z_is_depth=true)
 
     return mesh
@@ -102,9 +89,13 @@ depth = 50.0meter # Depth of the BTES system
 h_min, h_max, h_z = 1.0meter, 25.0meter, 5.0meter
 mesh = create_btes_mesh(well_coords, radius, depth, h_min, h_max, h_z)
 
-# ## Create reservoir domain
-# Next, we construct a reservoir domain with rock with properties similar to
-# that of granite
+# ## Create reservoir model
+# We construct a simulation model with shallow bedrock posed on the mesh we just
+# created and add the BTES wells.
+
+# ### Reservoir domain
+# The eservoir domain is populated with rock properties similar to that of
+# granite
 domain = reservoir_domain(mesh,
     permeability = 1e-6darcy,
     porosity = 0.011,
@@ -114,12 +105,12 @@ domain = reservoir_domain(mesh,
     component_heat_capacity = 4.278e3joule/kilogram/Kelvin
 )
 
-# ## Make model
-# We set up a model with a geothermal system and the BTES wells. We model each
-# BTES well as a U-tube system, wher the supply and return pipes run parallel
-# inside a larger borehole filled with grout. Pipe dimensions and material
-# thermal properties have reasonable defaults, and can be adjusted as needed --
-# see setup_btes_well for details.
+# ### Set up BTES wells
+# The BTES well have a U-tube configuration, where the supply and return pipes
+# run parallel inside a larger borehole filled with grout. We model this using
+# two mutlisegment wells, one for the supply and one for the return. Pipe
+# dimensions and material thermal properties have reasonable defaults, and can
+# be adjusted as needed -- see setup_btes_well for details.
 grid = physical_representation(domain)
 well_models = []
 for (wno, xw) in enumerate(well_coords)
@@ -133,34 +124,32 @@ for (wno, xw) in enumerate(well_coords)
     push!(well_models, w_sup, w_ret)
 end
 
+# ### Make the model
 model, parameters = setup_reservoir_model(
     domain, :geothermal,
     wells=well_models
 )
-
-# Inspect model
+# Inspect
 plot_reservoir(model)
 
 # ## Initial state and boundary conditions
-# We impose fixed boundary conditions at the top surface, enforcing a constant
-# pressure of 1 atm and a temperature of 10°C.
+# The model is initialized at 1 atm and 10°C.
 state0 = setup_reservoir_state(model,
     Pressure=1atm,
     Temperature=convert_to_si(10.0, :Celsius)
 )
-
+# We impose fixed boundary conditions at the top surface, enforcing a constant
+# pressure of 1 atm and a temperature of 10°C.
 geo = tpfv_geometry(mesh)
 z_f = geo.boundary_centroids[3, :]
 top_f = findall(v -> isapprox(v, minimum(z_f)), z_f)
 top = mesh.boundary_faces.neighbors[top_f]
-
 bc = FlowBoundaryCondition.(top, 1atm, convert_to_si(10.0, :Celsius))
 
 # ## Controls
-# Each BTES well is modelled using two mutlisegment wells, one for the supply
-# and one for the return. The supply well is controlled by a rate target, while
-# the return well is controlled by a BHP target. The supply and return wells
-# communicate through their bottom cell.
+# The supply well of each BTES is controlled by a rate target, while the return
+# well is controlled by a BHP target. The supply and return wells communicate
+# through their bottom cell.
 
 # Rate control for supply side
 rate = 0.5litre/second
@@ -174,7 +163,7 @@ ctrl_discharge = InjectorControl(rate_target, [1.0], density=1000.0, temperature
 bhp_target = BottomHolePressureTarget(1atm)
 ctrl_prod = ProducerControl(bhp_target)
 
-# Assemble forces
+# Set up forces
 control_charge = Dict()
 control_discharge = Dict()
 for well in well_models
@@ -186,27 +175,70 @@ for well in well_models
         control_discharge[well.name] = ctrl_prod
     end
 end
-
-# Set up 6 months of charging, followed by 6 months of discharging
-month = year / 12
-n_step = 6
-dt = fill(month, n_step) # Report every month
-
 forces_charge = setup_reservoir_forces(model, control=control_charge, bc=bc)
 forces_discharge = setup_reservoir_forces(model, control=control_discharge, bc=bc)
-forces = vcat(fill(forces_charge, n_step), fill(forces_discharge, n_step))
-dt = repeat(dt, 2)
 
-n_cycles = 10
-forces = repeat(forces, n_cycles)
-dt = repeat(dt, n_cycles)
+# ### Assemble schedule
+# The BTES system is fist charged for an entire year, after which it is operated
+# cyclically with 6 months of charging followed by 6 months of discharging.
+num_years = 5
+dt_vec = Float64[]
+forces = []
+month = year/12
 
-# ## Pack simulation case and simulate
-case = JutulCase(model, dt, forces, state0=state0, parameters=parameters)
-results = simulate_reservoir(case)
+# Swictching from charging to discharging is challenging introduces complicated
+# dynamics in the BTES wells which are challenging to resolve for the nonlinear
+# solver. To help the nonlinear solution process, we start each charge/discharge
+# switch using a very small timstep that is gradually increased
+dt = 1.0month
+α = 3.0
+n_ramp = 10
+dt0 = 2*dt/(α^n_ramp-1)
+dt_ramp = [dt0*α^k for k in 0:n_ramp-1]
+
+push!(dt_vec, dt_ramp..., fill(dt, 11)...)
+push!(forces, fill(forces_charge, n_ramp + 11)...)
+
+# The system is charged from April to September, and discharged from October to
+# March
+for year in 1:num_years
+    for mno in vcat(10:12, 1:9)
+        mname = monthname(mno)
+        if mname == "October"
+            push!(dt_vec, dt_ramp...)
+            push!(forces, fill(forces_discharge, n_ramp)...)
+        elseif mname in ("November", "December", "January", "February", "March")
+            push!(dt_vec, dt)
+            push!(forces, forces_discharge)
+        elseif mname == "April"
+            push!(dt_vec, dt_ramp...)
+            push!(forces, fill(forces_charge, n_ramp)...)
+        elseif mname in ("May", "June", "July", "August", "September")
+            push!(dt_vec, dt)
+            push!(forces, forces_charge)
+        end
+    end
+end
+
+# ## Set simulator and run
+# Pack simulation case
+case = JutulCase(model, dt_vec, forces, state0=state0, parameters=parameters)
+# We set somewhat relaxed tolerances and use relaxation of the Newton updates to
+# speed up the simulation
+simulator, config = setup_reservoir_simulator(case;
+    tol_cnv = 1e-2,
+    tol_mb = 1e-6,
+    timesteps = :auto,
+    target_its = 5,
+    max_nonlinear_iterations = 8,
+    relaxation = true,
+    info_level = 0,
+);
+# Simulate
+results = simulate_reservoir(case, simulator=simulator, config=config)
 
 # ## Inspect reservoir states
 plot_reservoir(model, results.states)
 
 # ## Inspect well solutions
-plot_well_results(results.wells)
+plot_well_results(results.wells, field = :temperature)

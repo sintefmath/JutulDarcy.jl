@@ -21,12 +21,10 @@ domain = reservoir_model(case0.model).data_domain
 # Make setup function
 function setup_doublet(sys)
 
-    # Set up wells
     inj_well = setup_vertical_well(domain, 45, 15, name = :Injector, simple_well = false)
     prod_well = setup_vertical_well(domain, 15, 45, name = :Producer, simple_well = false)
 
-    # Make reservoir model
-    model, parameters = setup_reservoir_model(
+    model, _ = setup_reservoir_model(
         domain, sys,
         thermal = true,
         wells = [inj_well, prod_well],
@@ -34,33 +32,28 @@ function setup_doublet(sys)
     rmodel = reservoir_model(model)
     push!(rmodel.output_variables, :PhaseMassDensities, :PhaseViscosities)
 
-    # Set up initial state
-    p0 = 10.0bar
     state0 = setup_reservoir_state(model,
         Pressure = 50bar,
         Temperature = convert_to_si(90, :Celsius)
     )
 
-    # Set up controls
     time = 50year
-    # Rate control for injector
     pv_tot = sum(pore_volume(reservoir_model(model).data_domain))
     rate = 2*pv_tot/time
     rate_target = TotalRateTarget(rate)
     ctrl_inj  = InjectorControl(rate_target, [1.0],
         density = 1000.0, temperature = convert_to_si(10.0, :Celsius))
-    # Bottom hole pressure control for producer
+
     bhp_target = BottomHolePressureTarget(25bar)
     ctrl_prod = ProducerControl(bhp_target)
-    # Define control dictionary
+
     control = Dict(:Injector => ctrl_inj, :Producer => ctrl_prod)
-    # Define time steps
+    
     dt = 4year/12
     dt = fill(dt, Int(time/dt))
-    # Reservoir forces
+    
     forces = setup_reservoir_forces(model, control = control)
 
-    # Create Jutul case
     return JutulCase(model, dt, forces, state0 = state0)
 
 end

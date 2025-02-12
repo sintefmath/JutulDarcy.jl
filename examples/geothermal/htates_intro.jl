@@ -1,5 +1,5 @@
-# # Geothermal with a single well
-# This example demonstrates how to simulate a high-temperature aquifer thermal
+# # High-temperature Aquifer Thermal Energy Storage (HT-ATES)
+# This example demonstrates how to simulate high-temperature aquifer thermal
 # energy storage. We set up a simple case describing a vertical slice of a
 # reservoir with an a main (hot) well near the left boundary, and a supporting
 # (cold) well near the right boundary. The reservoir has boundarys condition
