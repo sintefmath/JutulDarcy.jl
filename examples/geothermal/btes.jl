@@ -4,9 +4,10 @@
 # simulate five year of operation with 6 months of charging followed by 6 months
 # of discharging.
 using Jutul, JutulDarcy
+using LinearAlgebra
 using HYPRE
 using GLMakie
-using Gmsh
+import Gmsh: gmsh
 import Dates: monthname
 
 atm, kilogram, meter, Kelvin, joule, watt, litre, year, second, darcy =
@@ -20,9 +21,12 @@ radius = 15.0meter
 φ = (1 + sqrt(5))/2 # Golden ratio
 Δθ = 2*π/φ^2
 p = (k) -> radius .* sqrt(k/num_wells) .* (cos(k*Δθ), sin(k*Δθ))
-well_coords = [p(k) for k = 0:num_wells-1]
+well_coords = [p(k) for k = 0:num_wells-1];
 # Plot well coordinates in horizontal plane
-scene = scatter(well_coords, markersize=10)
+fig = Figure()
+ax = Axis(fig[1, 1], title = "BTES well coordinates", aspect = 1.0)
+scatter!(ax, well_coords, markersize=10)
+fig
 
 # ## Set up mesh function
 # We create a mesh for the BTES system using Gmsh. The mesh is first created in
@@ -84,7 +88,7 @@ end
 # The following mesh size parameters will give a mesh with approximately 15k
 # cells, and can be adjusted to make the mesh coarser or finer.
 # NB: Note that not all mesh sizes will give a valid mesh.
-depth = 50.0meter # Depth of the BTES system
+depth = 50.0meter; # Depth of the BTES system
 # Horizontal minimum/maximum and vertical mesh size
 h_min, h_max, h_z = 1.0meter, 25.0meter, 5.0meter
 mesh = create_btes_mesh(well_coords, radius, depth, h_min, h_max, h_z)
@@ -103,14 +107,14 @@ domain = reservoir_domain(mesh,
     rock_heat_capacity = 790joule/kilogram/Kelvin,
     rock_thermal_conductivity = 3.0watt/meter/Kelvin,
     component_heat_capacity = 4.278e3joule/kilogram/Kelvin
-)
+);
 
 # ### Set up BTES wells
 # The BTES well have a U-tube configuration, where the supply and return pipes
 # run parallel inside a larger borehole filled with grout. We model this using
 # two mutlisegment wells, one for the supply and one for the return. Pipe
 # dimensions and material thermal properties have reasonable defaults, and can
-# be adjusted as needed -- see setup_btes_well for details.
+# be adjusted as needed -- see `setup_btes_well` for detail.
 grid = physical_representation(domain)
 well_models = []
 for (wno, xw) in enumerate(well_coords)
@@ -128,7 +132,7 @@ end
 model, parameters = setup_reservoir_model(
     domain, :geothermal,
     wells=well_models
-)
+);
 # Inspect
 plot_reservoir(model)
 
@@ -137,31 +141,31 @@ plot_reservoir(model)
 state0 = setup_reservoir_state(model,
     Pressure=1atm,
     Temperature=convert_to_si(10.0, :Celsius)
-)
+);
 # We impose fixed boundary conditions at the top surface, enforcing a constant
 # pressure of 1 atm and a temperature of 10°C.
 geo = tpfv_geometry(mesh)
 z_f = geo.boundary_centroids[3, :]
 top_f = findall(v -> isapprox(v, minimum(z_f)), z_f)
 top = mesh.boundary_faces.neighbors[top_f]
-bc = FlowBoundaryCondition.(top, 1atm, convert_to_si(10.0, :Celsius))
+bc = FlowBoundaryCondition.(top, 1atm, convert_to_si(10.0, :Celsius));
 
 # ## Controls
 # The supply well of each BTES is controlled by a rate target, while the return
 # well is controlled by a BHP target. The supply and return wells communicate
 # through their bottom cell.
 
-# Rate control for supply side
+# Rate control for supply side:
 rate = 0.5litre/second
 temperature_charge = convert_to_si(80.0, :Celsius)
 temperature_discharge = convert_to_si(10.0, :Celsius)
 rate_target = TotalRateTarget(rate)
 ctrl_charge = InjectorControl(rate_target, [1.0], density=1000.0, temperature=temperature_charge)
-ctrl_discharge = InjectorControl(rate_target, [1.0], density=1000.0, temperature=temperature_discharge)
+ctrl_discharge = InjectorControl(rate_target, [1.0], density=1000.0, temperature=temperature_discharge);
 
-# BHP control for return side
+# BHP control for return side:
 bhp_target = BottomHolePressureTarget(1atm)
-ctrl_prod = ProducerControl(bhp_target)
+ctrl_prod = ProducerControl(bhp_target);
 
 # Set up forces
 control_charge = Dict()
@@ -176,28 +180,26 @@ for well in well_models
     end
 end
 forces_charge = setup_reservoir_forces(model, control=control_charge, bc=bc)
-forces_discharge = setup_reservoir_forces(model, control=control_discharge, bc=bc)
+forces_discharge = setup_reservoir_forces(model, control=control_discharge, bc=bc);
 
 # ### Assemble schedule
 # The BTES system is fist charged for an entire year, after which it is operated
 # cyclically with 6 months of charging followed by 6 months of discharging.
-num_years = 5
-dt_vec = Float64[]
-forces = []
-month = year/12
-
+#
 # Swictching from charging to discharging is challenging introduces complicated
 # dynamics in the BTES wells which are challenging to resolve for the nonlinear
 # solver. To help the nonlinear solution process, we start each charge/discharge
 # switch using a very small timstep that is gradually increased
+num_years = 5
+dt_vec, forces = Float64[], []
+month = year/12
 dt = 1.0month
-α = 3.0
-n_ramp = 10
+α, n_ramp = 3.0, 10
 dt0 = 2*dt/(α^n_ramp-1)
 dt_ramp = [dt0*α^k for k in 0:n_ramp-1]
 
 push!(dt_vec, dt_ramp..., fill(dt, 11)...)
-push!(forces, fill(forces_charge, n_ramp + 11)...)
+push!(forces, fill(forces_charge, n_ramp + 11)...);
 
 # The system is charged from April to September, and discharged from October to
 # March
@@ -222,7 +224,7 @@ end
 
 # ## Set simulator and run
 # Pack simulation case
-case = JutulCase(model, dt_vec, forces, state0=state0, parameters=parameters)
+case = JutulCase(model, dt_vec, forces, state0=state0, parameters=parameters);
 # We set somewhat relaxed tolerances and use relaxation of the Newton updates to
 # speed up the simulation
 simulator, config = setup_reservoir_simulator(case;
@@ -233,12 +235,20 @@ simulator, config = setup_reservoir_simulator(case;
     max_nonlinear_iterations = 8,
     relaxation = true,
     info_level = 0,
-);
-# Simulate
-results = simulate_reservoir(case, simulator=simulator, config=config)
+)
+results = simulate_reservoir(case, simulator=simulator, config=config);
 
 # ## Inspect reservoir states
-plot_reservoir(model, results.states)
+plot_reservoir(model, results.states, key = :Temperature, step = length(results.states))
+
 
 # ## Inspect well solutions
+# Interactive plot:
 plot_well_results(results.wells, field = :temperature)
+# Return temperatures of center well vs time
+temp = convert_from_si.(results.wells[:B1_return][:temperature], :Celsius)
+time = cumsum(case.dt)/month
+fig = Figure()
+ax = Axis(fig[1, 1], title = "BTES well coordinates", aspect = 1.0)
+lines!(ax, time, temp)
+fig
