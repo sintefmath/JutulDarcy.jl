@@ -44,6 +44,10 @@ end
     include("thermal.jl")
 end
 
+@testitem "Geothermal" begin
+    include("geothermal.jl")
+end
+
 @testitem "NLDD" begin
     include("nldd.jl")
 end
