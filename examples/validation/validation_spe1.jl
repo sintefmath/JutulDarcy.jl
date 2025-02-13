@@ -3,7 +3,6 @@
 # Reservoir Simulation Problem. J Pet Technol 33 (1): 13–25.
 # SPE-9723-PA](http://dx.doi.org/10.2118/9723-PA)
 using Jutul, JutulDarcy, GLMakie, DelimitedFiles
-GLMakie.closeall() #hide
 spe1_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1")
 case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"))
 ws, states = simulate_reservoir(case, output_substates = true)

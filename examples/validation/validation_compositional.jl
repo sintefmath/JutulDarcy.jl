@@ -22,7 +22,6 @@
 using JutulDarcy
 using Jutul
 using GLMakie
-GLMakie.closeall() #hide
 dpth = JutulDarcy.GeoEnergyIO.test_input_file_path("SIMPLE_COMP")
 data_path = joinpath(dpth, "SIMPLE_COMP.DATA")
 case = setup_case_from_data_file(data_path)

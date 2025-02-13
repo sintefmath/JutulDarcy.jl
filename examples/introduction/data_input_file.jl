@@ -12,7 +12,6 @@
 # file included here is taken from the [OPM
 # tests](https://github.com/OPM/opm-tests) repository.
 using JutulDarcy, GeoEnergyIO
-GLMakie.closeall() #hide
 pth = GeoEnergyIO.test_input_file_path("SPE9", "SPE9.DATA");
 # ## Set up and run a simulation
 # We have supressed the output of the simulation to avoid cluttering the

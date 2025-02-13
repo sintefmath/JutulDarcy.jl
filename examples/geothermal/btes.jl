@@ -9,7 +9,6 @@ using HYPRE
 using GLMakie
 import Gmsh: gmsh
 import Dates: monthname
-GLMakie.closeall() #hide
 
 atm, kilogram, meter, Kelvin, joule, watt, litre, year, second, darcy =
     si_units(:atm, :kilogram, :meter, :Kelvin, :joule, :watt, :litre, :year, :second, :darcy)

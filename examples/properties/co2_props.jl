@@ -13,7 +13,6 @@
 
 using Jutul, JutulDarcy, GLMakie
 import JutulDarcy.CO2Properties: co2_brine_property_tables
-GLMakie.closeall() #hide
 
 # ## Define plotting functions
 # We define a plotting function that varies temperature, and one that compares

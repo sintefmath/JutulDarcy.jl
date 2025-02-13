@@ -17,7 +17,6 @@
 # model.
 
 using GeoEnergyIO, Jutul, JutulDarcy, GLMakie, DelimitedFiles
-GLMakie.closeall() #hide
 pth = JutulDarcy.GeoEnergyIO.test_input_file_path("BOPOLYMER_NOSHEAR", "BOPOLYMER_NOSHEAR.DATA")
 data = parse_data_file(pth)
 case = setup_case_from_data_file(data)

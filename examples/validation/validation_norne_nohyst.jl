@@ -5,7 +5,6 @@
 # equilibriation reqgions. For more details, see the [OPM data
 # webpage](https://opm-project.org/?page_id=559)
 using Jutul, JutulDarcy, GLMakie, DelimitedFiles, HYPRE, GeoEnergyIO
-GLMakie.closeall() #hide
 norne_dir = GeoEnergyIO.test_input_file_path("NORNE_NOHYST")
 data_pth = joinpath(norne_dir, "NORNE_NOHYST.DATA")
 data = parse_data_file(data_pth)

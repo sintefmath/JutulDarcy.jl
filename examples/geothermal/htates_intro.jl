@@ -10,7 +10,6 @@
 using JutulDarcy, Jutul, HYPRE
 import Dates: monthname
 darcy, litre, year, second = si_units(:darcy, :litre, :year, :second)
-GLMakie.closeall() #hide
 
 nx = 100
 nz = 100
