@@ -177,9 +177,10 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
             eq += v_f*upw_flux(v_f, ME_self, ME_other)
         end
 
-        if λm[face] > 0.0
+        λm_f = λm[face]
+        if λm_f >= 0.0
             # Account for heat conduction in well material
-            eq += -λm[face]*(T[cell] - T[self_cell])
+            eq += -λm_f*(T[cell] - T[self_cell])
         end
     end
 
