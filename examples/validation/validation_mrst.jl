@@ -12,6 +12,7 @@
 # can then be simulated using [`simulate_mrst_case`](@ref).
 using JutulDarcy, Jutul
 using GLMakie
+GLMakie.closeall() #hide
 
 # ## Define a few utilities for plotting the MRST results
 # We are going to compare well responses against pre-computed results stored

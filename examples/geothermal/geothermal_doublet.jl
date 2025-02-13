@@ -5,6 +5,7 @@
 # simulations.
 using Jutul, JutulDarcy, HYPRE, GeoEnergyIO, GLMakie
 meter, kilogram, bar, year = si_units(:meter, :kilogram, :bar, :year)
+GLMakie.closeall() #hide
 
 # ## Make setup function
 # We use the synthethic EGG model [egg_model](@cite) to emulate realistic

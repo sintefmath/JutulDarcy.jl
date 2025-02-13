@@ -6,8 +6,8 @@
 #
 # [Jansen, Jan-Dirk, et al. "The egg model–a geological ensemble for reservoir
 # simulation." Geoscience Data Journal 1.2 (2014): 192-195.](https://doi.org/10.1002/gdj3.21)
-
 using Jutul, JutulDarcy, GLMakie, DelimitedFiles, HYPRE
+GLMakie.closeall() #hide
 egg_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("EGG")
 case = setup_case_from_data_file(joinpath(egg_dir, "EGG.DATA"))
 ws, states = simulate_reservoir(case, output_substates = true)
