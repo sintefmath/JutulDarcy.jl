@@ -61,6 +61,7 @@ function build_jutul_darcy_docs(
         build_validation_examples = build_examples,
         build_notebooks = true,
         examples_explicit_list = missing,
+        skip_examples = ["btes"],
         clean = true,
         deploy = true,
         use_vitepress = !Sys.iswindows()
@@ -117,7 +118,7 @@ function build_jutul_darcy_docs(
                     jutul_message("Examples", "$category/$exname not in explicit list, skipping.", color = :yellow)
                     continue
                 end
-            elseif do_build
+            elseif do_build && !(exname in skip_examples)
                 jutul_message("Examples", "$category/$exname was added.", color = :green)
             else
                 jutul_message("Examples", "$category/$exname was skipped.", color = :blue)
