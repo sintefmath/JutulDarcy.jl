@@ -6,6 +6,7 @@
 using GLMakie
 using JutulDarcy, Jutul
 import JutulDarcy: table_to_relperm, PhaseRelativePermeability, brooks_corey_relperm, let_relperm, ReservoirRelativePermeabilities
+GLMakie.closeall() #hide
 
 # ## Define helper functions
 # The following functions are used to set up a simple reservoir model with a

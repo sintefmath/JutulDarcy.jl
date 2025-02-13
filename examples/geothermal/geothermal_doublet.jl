@@ -49,10 +49,10 @@ function setup_doublet(sys)
     ctrl_prod = ProducerControl(bhp_target)
 
     control = Dict(:Injector => ctrl_inj, :Producer => ctrl_prod)
-    
+
     dt = 4year/12
     dt = fill(dt, Int(time/dt))
-    
+
     forces = setup_reservoir_forces(model, control = control)
 
     return JutulCase(model, dt, forces, state0 = state0)

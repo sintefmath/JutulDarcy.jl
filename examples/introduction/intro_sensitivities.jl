@@ -13,6 +13,7 @@
 # Differentiation](https://doi.org/10.3997/2214-4609.202437111).
 using Jutul, JutulDarcy, GLMakie, HYPRE
 darcy, kg, meter, year, day, bar = si_units(:darcy, :kilogram, :meter, :year, :day, :bar)
+GLMakie.closeall() #hide
 
 L = 1000.0meter
 H = 100.0meter
