@@ -26,14 +26,17 @@ function setup_reservoir_model_geothermal(
             # Density is a bit special, want to make sure that there exists some
             # derivatives in the table at low pressure and temperature since
             # otherwise the system is singular.
+            ϵ = 0.0001
             for i in axes(F, 1)
-                F[i, 1] *= 0.9999
+                F[i, 1] *= 1.0 - ϵ
+                F[i, end] *= 1.0 + ϵ
             end
             for j in axes(F, 2)
                 if j == 1
                     continue
                 end
-                F[1, j] *= 0.9999
+                F[1, j] *= 1.0 - ϵ
+                F[end, j] *= 1.0 + ϵ
             end
         end
         return Jutul.BilinearInterpolant(t.X, t.Y, F)
