@@ -79,7 +79,7 @@ function create_btes_mesh(xw, radius, depth, h_min, h_max, h_z)
     gmsh.model.mesh.generate(3)
 
     mesh = Jutul.mesh_from_gmsh(z_is_depth=true)
-
+    gmsh.finalize()
     return mesh
 
 end
