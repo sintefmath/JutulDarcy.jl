@@ -92,7 +92,16 @@ function setup_well(D::DataDomain, reservoir_cells; cell_centers = D[:cell_centr
     Λ_f = D[:fluid_thermal_conductivity]
     Λ_r = D[:rock_thermal_conductivity]
     ϕ = D[:porosity]
-    Λ = ϕ.*Λ_f + (1.0 .- ϕ).*Λ_r
+    Λ_r = vec(Λ_r)
+    ϕ = vec(ϕ)
+    if size(Λ_f, 1) == 1 || A_f isa Vector
+        Λ_f = vec(Λ_f)
+        Λ = ϕ.*Λ_f + (1.0 .- ϕ).*Λ_r
+    else
+        # TODO: This is a bit of a hack. We should really have a proper way to
+        # do this inside the equations for multiphase flow.
+        Λ = Λ_r
+    end
     # Get grid
     g = physical_representation(D)
     return setup_well(g, K, reservoir_cells; thermal_conductivity = Λ, cell_centers = cell_centers, kwarg...)
