@@ -187,15 +187,16 @@ function Jutul.default_parameter_values(data_domain, model, param::FluidThermalC
     elseif haskey(data_domain, :fluid_thermal_conductivity, Cells())
         nph = number_of_phases(model.system)
         C = data_domain[:fluid_thermal_conductivity]
+        phi = data_domain[:porosity]
         if C isa Vector
-            T = compute_face_trans(data_domain, C)
+            T = compute_face_trans(data_domain, phi.*C)
             T = repeat(T', nph, 1)
         else
             @assert size(C, 1) == nph
             nf = number_of_faces(data_domain)
             T = zeros(nph, nf)
             for ph in 1:nph
-                T[ph, :] = compute_face_trans(data_domain, C[ph, :])
+                T[ph, :] = compute_face_trans(data_domain, phi.*C[ph, :])
             end
         end
     else
@@ -217,13 +218,96 @@ function Jutul.default_parameter_values(data_domain, model, param::RockThermalCo
         T = copy(data_domain[:rock_thermal_conductivities])
     elseif haskey(data_domain, :rock_thermal_conductivity, Cells())
         nph = number_of_phases(model.system)
+        phi = data_domain[:porosity]
         C = data_domain[:rock_thermal_conductivity]
-        T = compute_face_trans(data_domain, C)
+        T = compute_face_trans(data_domain, (1.0 .- phi).*C)
     else
         error(":rock_thermal_conductivities or :rock_thermal_conductivities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
     return T
 end
+
+
+"""
+    WellIndicesThermal()
+
+Parameter for the thermal connection strength between a well and the reservoir
+for a given perforation. Typical values come from a combination of Peaceman's
+formula with thermal conducivity in place of permeability, upscaling and/or
+history matching.
+"""
+struct WellIndicesThermal <: ScalarVariable end
+
+Jutul.minimum_value(::WellIndicesThermal) = 0.0
+Jutul.variable_scale(::WellIndicesThermal) = 1.0
+Jutul.associated_entity(::WellIndicesThermal) = Perforations()
+function Jutul.default_values(model, ::WellIndicesThermal)
+    w = physical_representation(model.domain)
+    return vec(copy(w.perforations.WIth))
+end
+
+"""
+    MaterialThermalConductivities()
+
+Parameter for the thermal conductivities of the materials in the well.
+"""
+struct MaterialThermalConductivities <: ScalarVariable end
+
+Jutul.variable_scale(::MaterialThermalConductivities) = 1e-10
+Jutul.minimum_value(::MaterialThermalConductivities) = 0.0
+Jutul.associated_entity(::MaterialThermalConductivities) = Faces()
+
+function Jutul.default_parameter_values(data_domain, model, param::MaterialThermalConductivities, symb)
+    if haskey(data_domain, :material_thermal_conductivity, Faces())
+        T = copy(data_domain[:material_thermal_conductivity])
+    else
+        error(":material_thermal_conductivity or :material_thermal_conductivity symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+    end
+    return T
+end
+
+"""
+    MaterialDensity()
+
+Parameter well material density.
+"""
+struct MaterialDensities <: ScalarVariable end
+
+Jutul.variable_scale(::MaterialDensities) = 1.0
+Jutul.minimum_value(::MaterialDensities) = 0.0
+Jutul.associated_entity(::MaterialDensities) = Cells()
+
+function Jutul.default_parameter_values(data_domain, model, param::MaterialDensities, symb)
+    if haskey(data_domain, :material_density, Cells())
+        T = copy(data_domain[:material_density])
+    else
+        error(":material_density or :material_density symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+    end
+    return T
+end
+
+"""
+    MaterialHeatCapacities()
+
+Parameter heat capacitiy of the well material.
+"""
+struct MaterialHeatCapacities <: ScalarVariable end
+
+Jutul.variable_scale(::MaterialHeatCapacities) = 1.0
+Jutul.minimum_value(::MaterialHeatCapacities) = 0.0
+Jutul.associated_entity(::MaterialHeatCapacities) = Cells()
+
+function Jutul.default_parameter_values(data_domain, model, param::MaterialHeatCapacities, symb)
+    if haskey(data_domain, :material_heat_capacity, Cells())
+        T = copy(data_domain[:material_heat_capacity])
+    else
+        error(":material_heat_capacity or :material_heat_capacity symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+    end
+    return T
+end
+
+
+struct MaterialInternalEnergy <: ScalarVariable end
 
 """
     add_thermal_to_model!(model::MultiModel)
@@ -253,8 +337,7 @@ function add_thermal_to_model!(model)
     set_secondary_variables!(model,
         FluidInternalEnergy = FluidInternalEnergy(),
         FluidEnthalpy = FluidEnthalpy(),
-        RockInternalEnergy = RockInternalEnergy(),
-        TotalThermalEnergy = TotalThermalEnergy()
+        TotalThermalEnergy = TotalThermalEnergy(),
     )
     is_reservoir = !model_or_domain_is_well(model)
     if is_reservoir
@@ -262,10 +345,33 @@ function add_thermal_to_model!(model)
             RockThermalConductivities = RockThermalConductivities(),
             FluidThermalConductivities = FluidThermalConductivities()
         )
-    else
-        set_parameters!(model,
-            MaterialThermalConductivities = MaterialThermalConductivities(),
+        set_secondary_variables!(model,
+            RockInternalEnergy = RockInternalEnergy()
         )
+    else
+        if model_or_domain_is_well(model)
+            w = physical_representation(model.domain)
+
+            set_parameters!(model,
+                WellIndicesThermal = WellIndicesThermal(),
+            )
+            if w isa MultiSegmentWell
+                set_parameters!(model,
+                    MaterialThermalConductivities = MaterialThermalConductivities(),
+                    MaterialHeatCapacities = MaterialHeatCapacities(),
+                    MaterialDensities = MaterialDensities()
+                )
+                set_secondary_variables!(model,
+                    MaterialInternalEnergy = MaterialInternalEnergy()
+                )
+
+            else
+                w::SimpleWell
+                set_secondary_variables!(model,
+                    RockInternalEnergy = RockInternalEnergy()
+                )
+            end
+        end
     end
     disc = model.domain.discretizations.heat_flow
     model.equations[:energy_conservation] = ConservationLaw(disc, :TotalThermalEnergy, 1)

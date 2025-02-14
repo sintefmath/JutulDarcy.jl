@@ -152,7 +152,7 @@ function Jutul.default_parameter_values(data_domain, model, param::FluidVolume, 
 end
 
 Base.@kwdef struct Temperature{T} <: ScalarVariable
-    min::T = 0.0
+    min::T = 273.15
     max::T = 1e6
     max_rel::Union{T, Nothing} = nothing
     max_abs::Union{T, Nothing} = nothing

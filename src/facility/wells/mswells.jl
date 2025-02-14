@@ -11,7 +11,6 @@ end
 
 function select_parameters!(prm, domain::MSWellDomain, model::MSWellFlowModel)
     prm[:WellIndices] = WellIndices()
-    prm[:WellIndicesThermal] = WellIndicesThermal()
     prm[:PerforationGravityDifference] = PerforationGravityDifference()
 end
 

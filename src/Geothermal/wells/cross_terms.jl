@@ -76,10 +76,10 @@ Base.@propagate_inbounds function btes_supply_return_massflux(state_supply, stat
     p_s = state_supply.Pressure[cell]
     p_t = state_return.Pressure[cell]
     dp = p_s - p_t
-    
+
     T = 1.0e-10
     Ψ = -T.*dp
-    
+
     ρ = state_supply.PhaseMassDensities[ph,cell]
     s = state_supply.Saturations[ph,cell]
     μ = state_supply.PhaseViscosities[ph,cell]
@@ -87,7 +87,6 @@ Base.@propagate_inbounds function btes_supply_return_massflux(state_supply, stat
     q_ph = s.*ρ./μ.*Ψ
 
     return q_ph
-        
 end
 
 function JutulDarcy.update_cross_term_in_entity!(out, i,
@@ -108,5 +107,4 @@ function JutulDarcy.update_cross_term_in_entity!(out, i,
     end
 
     out[] = q
-
 end
