@@ -61,7 +61,7 @@ function build_jutul_darcy_docs(
         build_validation_examples = build_examples,
         build_notebooks = true,
         examples_explicit_list = missing,
-        skip_examples = ["btes"],
+        skip_examples = String[],
         clean = true,
         deploy = true,
         use_vitepress = !Sys.iswindows()
