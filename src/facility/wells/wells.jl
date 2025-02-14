@@ -94,7 +94,7 @@ function setup_well(D::DataDomain, reservoir_cells; cell_centers = D[:cell_centr
     ϕ = D[:porosity]
     Λ_r = vec(Λ_r)
     ϕ = vec(ϕ)
-    if size(Λ_f, 1) == 1 || A_f isa Vector
+    if size(Λ_f, 1) == 1 || Λ_f isa Vector
         Λ_f = vec(Λ_f)
         Λ = ϕ.*Λ_f + (1.0 .- ϕ).*Λ_r
     else
