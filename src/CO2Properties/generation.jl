@@ -735,7 +735,7 @@ function compute_co2_brine_props(p_pascal, T_K, salt_mole_fractions = Float64[],
         V, _, rho_co2 = rho_co2_fcn(T_K, P, a_m, b_m)
         rho_brine, = rho_b_fcn(T_K, P, w_salt)
         rho_gas = rho_gas_fcn(Mw_co2, V / 10^6)
-        mu_brine = mu_aq_fcn(T_K, P, 0, 0)
+        mu_brine = mu_aq_fcn(T_K, P, w_salt, 0)
         mu_gas = mu_co2_fcn(T_K, rho_co2)
 
         done = false
