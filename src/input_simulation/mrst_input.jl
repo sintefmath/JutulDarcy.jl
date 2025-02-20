@@ -926,8 +926,8 @@ function set_deck_pvmult!(vars, runspec, param, sys, props, reservoir)
                 jutul_message("ROCKCOMP", "Only IRREVERS and REVERS are supported, using IRREVERS fallback for $(rockcomp[1])")
             end
             ϕ = HystereticTableCompressiblePoreVolume(tab, regions = regions)
-            Kfn = HystereticScalarPressureTable(tab_perm, regions = regions)
-            param[:MaxPressure] = MaxPressure()
+            Kfn = HystereticScalarPressureTableMin(tab_perm, regions = regions)
+            param[:MinPressure] = MinPressure()
         end
         vars[:PermeabilityMultiplier] = Kfn
     elseif haskey(props, "ROCK")
