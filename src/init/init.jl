@@ -109,6 +109,9 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     end
     zmin = minimum(depths)
     zmax = maximum(depths)
+    if abs(zmax - zmin) < 0.01
+        zmin -= 1.0
+    end
 
     nph = number_of_phases(sys)
 
