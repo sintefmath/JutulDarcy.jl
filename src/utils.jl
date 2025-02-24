@@ -2486,6 +2486,7 @@ function reservoir_measurables(model, ws, states = missing; type = :field)
     @assert type == :field
     wells = ws.wells
     time = ws.time
+    dt = diff([0.0, time...])
 
     out = Dict{Symbol, Any}(:time => time)
 
@@ -2608,6 +2609,19 @@ function reservoir_measurables(model, ws, states = missing; type = :field)
     fgor = add_entry(:fgor, "Field gas-oil production ratio")
     @. fgor = fgpr./max.(fopr, 1e-12)
 
+    fwir = add_entry(:fwit, "Field water injection total", :liquid_volume_surface, is_rate = false)
+    fwir .= cumsum(fwir.*dt)
+    foir = add_entry(:foit, "Field oil injection total", :liquid_volume_surface, is_rate = false)
+    foir .= cumsum(foir.*dt)
+    fgir = add_entry(:fgit, "Field gas injection total", :gas_volume_surface, is_rate = false)
+    fgir .= cumsum(fgir.*dt)
+
+    fwir = add_entry(:fwpt, "Field water production total", :liquid_volume_surface, is_rate = false)
+    fwir .= cumsum(fwir.*dt)
+    foir = add_entry(:fopt, "Field oil production total", :liquid_volume_surface, is_rate = false)
+    foir .= cumsum(foir.*dt)
+    fgir = add_entry(:fgpt, "Field gas production total", :gas_volume_surface, is_rate = false)
+    fgir .= cumsum(fgir.*dt)
     return out
 end
 
