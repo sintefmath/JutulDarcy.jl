@@ -2482,7 +2482,11 @@ function reservoir_measurables(model, result::ReservoirSimResult; kwarg...)
     return reservoir_measurables(model, ws, states; kwarg...)
 end
 
-function reservoir_measurables(model, ws, states = missing; type = :field)
+function reservoir_measurables(model, ws, states = missing;
+        type = :field,
+        include_reservoir = !ismissing(states),
+        well_subset = missing
+    )
     @assert type == :field
     wells = ws.wells
     time = ws.time
@@ -2522,22 +2526,11 @@ function reservoir_measurables(model, ws, states = missing; type = :field)
     foir = add_entry(:foir, "Field oil injection rate", :liquid_volume_surface, is_rate = true)
     fgir = add_entry(:fgir, "Field gas injection rate", :gas_volume_surface, is_rate = true)
 
-    # Reservoir values
-    if is_blackoil
-        fwip = add_entry(:fwip, "Field water component in place (surface volumes)", :liquid_volume_surface)
-        foip = add_entry(:foip, "Field oil component in place (surface volumes)", :liquid_volume_surface)
-        fgip = add_entry(:fgip, "Field gas component in place (surface volumes)", :gas_volume_surface)
-    end
-
-    fwipr = add_entry(:fwipr, "Field water in place (reservoir volumes)", :liquid_volume_reservoir)
-    foipr = add_entry(:foipr, "Field oil in place (reservoir volumes)", :liquid_volume_reservoir)
-    fgipr = add_entry(:fgipr, "Field gas in place (reservoir volumes)", :gas_volume_reservoir)
-
-    fprh = add_entry(:fprh, "Field average pressure (hydrocarbon volume weighted)", :pressure)
-    pres = add_entry(:pres, "Field average pressure", :pressure)
-
     function sum_well_rates!(vals, k::Symbol; is_prod::Bool)
         for (wk, wval) in pairs(wells)
+            if !ismissing(well_subset) && wk ∉ well_subset
+                continue
+            end
             if is_prod
                 for (i, v) in enumerate(wval[k])
                     vals[i] -= min(0.0, v)
@@ -2564,7 +2557,21 @@ function reservoir_measurables(model, ws, states = missing; type = :field)
         sum_well_rates!(fgpr, :grat, is_prod = true)
         sum_well_rates!(fgir, :grat, is_prod = false)
     end
-    if !ismissing(states)
+    if include_reservoir
+        # Reservoir values
+        if is_blackoil
+            fwip = add_entry(:fwip, "Field water component in place (surface volumes)", :liquid_volume_surface)
+            foip = add_entry(:foip, "Field oil component in place (surface volumes)", :liquid_volume_surface)
+            fgip = add_entry(:fgip, "Field gas component in place (surface volumes)", :gas_volume_surface)
+        end
+
+        fwipr = add_entry(:fwipr, "Field water in place (reservoir volumes)", :liquid_volume_reservoir)
+        foipr = add_entry(:foipr, "Field oil in place (reservoir volumes)", :liquid_volume_reservoir)
+        fgipr = add_entry(:fgipr, "Field gas in place (reservoir volumes)", :gas_volume_reservoir)
+
+        fprh = add_entry(:fprh, "Field average pressure (hydrocarbon volume weighted)", :pressure)
+        pres = add_entry(:pres, "Field average pressure", :pressure)
+
         if haskey(states[1], :Reservoir)
             states = map(x -> x[:Reservoir], states)
         end
