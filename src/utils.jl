@@ -2661,7 +2661,25 @@ function reservoir_measurables(model, wellresult, states = missing;
         bhp = add_entry(:bhp, "bottom-hole pressure", :pressure)
         bhp .= ws[only(wells)][:bhp]
     end
-    # Derived quantities
+
+    if units != :si
+        # TODO: These should be exported + documented.
+        usys_from = GeoEnergyIO.InputParser.DeckUnitSystem(:si)
+        usys_to = GeoEnergyIO.InputParser.DeckUnitSystem(units)
+        systems = (to = usys_to, from = usys_from)
+        d = si_unit(:day)
+        for (k, x) in pairs(out)
+            if x isa Vector
+                continue
+            end
+            GeoEnergyIO.InputParser.swap_unit_system!(x.values, systems, x.unit_type)
+            if x.is_rate
+                @. x.values *= d
+            end
+        end
+    end
+
+    # Derived quantities - done at the end to avoid double unit conversion
     fwct = add_entry(:wct, "production water cut")
     @. fwct = fwpr./max.(flpr, 1e-12)
     fgor = add_entry(:gor, "gas-oil production ratio")
@@ -2681,22 +2699,6 @@ function reservoir_measurables(model, wellresult, states = missing;
     fgir = add_entry(:gpt, "gas production total", :gas_volume_surface, is_rate = false)
     fgir .= cumsum(fgir.*dt)
 
-    if units != :si
-        # TODO: These should be exported + documented.
-        usys_from = GeoEnergyIO.InputParser.DeckUnitSystem(:si)
-        usys_to = GeoEnergyIO.InputParser.DeckUnitSystem(units)
-        systems = (to = usys_to, from = usys_from)
-        d = si_unit(:day)
-        for (k, x) in pairs(out)
-            if x isa Vector
-                continue
-            end
-            GeoEnergyIO.InputParser.swap_unit_system!(x.values, systems, x.unit_type)
-            if x.is_rate
-                @. x.values *= d
-            end
-        end
-    end
     return out
 end
 
