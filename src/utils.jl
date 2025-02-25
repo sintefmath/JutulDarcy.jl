@@ -2486,6 +2486,7 @@ function reservoir_measurables(model, wellresult, states = missing;
         type::Symbol = :field,
         wells = missing,
         include_reservoir = !ismissing(states) && type == :field,
+        units = :si,
         prefix_str = missing
     )
     if wells isa Symbol
@@ -2679,6 +2680,19 @@ function reservoir_measurables(model, wellresult, states = missing;
     foir .= cumsum(foir.*dt)
     fgir = add_entry(:gpt, "gas production total", :gas_volume_surface, is_rate = false)
     fgir .= cumsum(fgir.*dt)
+
+    if units != :si
+        # TODO: These should be exported + documented.
+        usys_from = GeoEnergyIO.InputParser.DeckUnitSystem(:si)
+        usys_to = GeoEnergyIO.InputParser.DeckUnitSystem(units)
+        systems = (to = usys_to, from = usys_from)
+        for (k, x) in pairs(out)
+            if x isa Vector
+                continue
+            end
+            GeoEnergyIO.InputParser.swap_unit_system!(x.values, systems, x.unit_type)
+        end
+    end
     return out
 end
 
