@@ -2686,11 +2686,15 @@ function reservoir_measurables(model, wellresult, states = missing;
         usys_from = GeoEnergyIO.InputParser.DeckUnitSystem(:si)
         usys_to = GeoEnergyIO.InputParser.DeckUnitSystem(units)
         systems = (to = usys_to, from = usys_from)
+        d = si_unit(:day)
         for (k, x) in pairs(out)
             if x isa Vector
                 continue
             end
             GeoEnergyIO.InputParser.swap_unit_system!(x.values, systems, x.unit_type)
+            if x.is_rate
+                @. x.values *= d
+            end
         end
     end
     return out
