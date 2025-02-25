@@ -2482,16 +2482,55 @@ function reservoir_measurables(model, result::ReservoirSimResult; kwarg...)
     return reservoir_measurables(model, ws, states; kwarg...)
 end
 
-function reservoir_measurables(model, ws, states = missing;
-        type = :field,
-        include_reservoir = !ismissing(states),
-        well_subset = missing,
-        prefix::Char = 'f',
-        prefix_str = "Field"
+function reservoir_measurables(model, wellresult, states = missing;
+        type::Symbol = :field,
+        wells = missing,
+        include_reservoir = !ismissing(states) && type == :field,
+        prefix_str = missing
     )
-    @assert type == :field
-    wells = ws.wells
-    time = ws.time
+    if wells isa Symbol
+        wells = [wells]
+    elseif ismissing(wells)
+        wells = keys(wellresult.wells)
+    elseif wells isa String
+        wells = [Symbol(wells)]
+    end
+    prefix = 'x'
+    if type == :field
+        prefix = 'f'
+        include_reservoir = !ismissing(states)
+        if ismissing(prefix_str)
+            prefix_str = "Field"
+        end
+    elseif type == :group
+        prefix = 'g'
+        if ismissing(prefix_str)
+            prefix_str = "Group"
+        end
+    elseif type == :well
+        prefix = 'w'
+        if ismissing(prefix_str)
+            prefix_str = "Well"
+        end
+        !ismissing(wells) || error("Well subset must be provided for prefix = 'w'")
+        length(wells) == 1 || error("Well subset must be a single well for prefix = 'w'")
+    elseif type == :region
+        error("Region not yet supported.")
+        prefix = 'r'
+        if ismissing(prefix_str)
+            prefix_str = "Region"
+        end
+    elseif type == :value
+        # Used for whatever else
+        if ismissing(prefix_str)
+            prefix_str = "Value"
+        end
+    end
+    ws = wellresult.wells
+    for w in wells
+        haskey(ws, w) || error("Well $w not found in well results")
+    end
+    time = wellresult.time
     dt = diff([0.0, time...])
 
     out = Dict{Symbol, Any}(:time => time)
@@ -2532,8 +2571,8 @@ function reservoir_measurables(model, ws, states = missing;
     fgir = add_entry(:gir, "gas injection rate", :gas_volume_surface, is_rate = true)
 
     function sum_well_rates!(vals, k::Symbol; is_prod::Bool)
-        for (wk, wval) in pairs(wells)
-            if !ismissing(well_subset) && wk ∉ well_subset
+        for (wk, wval) in pairs(ws)
+            if !ismissing(wells) && wk ∉ wells
                 continue
             end
             if is_prod
@@ -2562,8 +2601,8 @@ function reservoir_measurables(model, ws, states = missing;
         sum_well_rates!(fgpr, :grat, is_prod = true)
         sum_well_rates!(fgir, :grat, is_prod = false)
     end
+    # Reservoir values
     if include_reservoir
-        # Reservoir values
         if is_blackoil
             fwip = add_entry(:wip, "water component in place (surface volumes)", :liquid_volume_surface)
             foip = add_entry(:oip, "oil component in place (surface volumes)", :liquid_volume_surface)
@@ -2614,6 +2653,11 @@ function reservoir_measurables(model, ws, states = missing;
             fprh[i] = hc_mean_p
             pres[i] = mean_p
         end
+    end
+    # Well values
+    if prefix == 'w'
+        bhp = add_entry(:bhp, "bottom-hole pressure", :pressure)
+        bhp .= ws[only(wells)][:bhp]
     end
     # Derived quantities
     fwct = add_entry(:wct, "production water cut")
