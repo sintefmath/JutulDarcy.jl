@@ -245,7 +245,7 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
     accumulator_volume = missing
     if simple_well
         @assert isnothing(msdata)
-        accumulator_volume = 0.1*mean(domain[:volumes][wc])*mean(domain[:porosity][wc])
+        accumulator_volume = 0.05*mean(domain[:volumes][wc])*mean(domain[:porosity][wc])
     else
         if !isnothing(msdata)
             has_welsegs = haskey(msdata, "WELSEGS")
