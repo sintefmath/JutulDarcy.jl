@@ -2495,7 +2495,6 @@ function reservoir_measurables(model, wellresult, states = missing;
     elseif wells isa String
         wells = [Symbol(wells)]
     end
-    prefix = 'x'
     if type == :field
         prefix = 'f'
         include_reservoir = !ismissing(states)
@@ -2520,8 +2519,10 @@ function reservoir_measurables(model, wellresult, states = missing;
         if ismissing(prefix_str)
             prefix_str = "Region"
         end
-    elseif type == :value
+    else
+        type == :value || error("Unknown type $type")
         # Used for whatever else
+        prefix = 'x'
         if ismissing(prefix_str)
             prefix_str = "Value"
         end
@@ -2661,7 +2662,7 @@ function reservoir_measurables(model, wellresult, states = missing;
     end
     # Derived quantities
     fwct = add_entry(:wct, "production water cut")
-    @. fwct = fwpr./flpr
+    @. fwct = fwpr./max.(flpr, 1e-12)
     fgor = add_entry(:gor, "gas-oil production ratio")
     @. fgor = fgpr./max.(fopr, 1e-12)
 
