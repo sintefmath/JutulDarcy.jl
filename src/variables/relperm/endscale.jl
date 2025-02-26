@@ -100,7 +100,9 @@ Jutul.minimum_value(::EndPointScalingCoefficients) = 0.0
 Jutul.maximum_value(::EndPointScalingCoefficients) = 1.0
 
 function Jutul.default_values(model, scalers::EndPointScalingCoefficients{P}) where P
-    function set_kscale_defaults!(kscale, relperm, kr, nc)
+    function set_kscale_defaults!(kscale, kscale_model, relperm, kr, nc)
+        my_isfinite(x) = isfinite(x)
+        my_isfinite(x::Jutul.ST.ADval) = isfinite(x.val)
         # In a function closure for performance
         for i in 1:nc
             reg = JutulDarcy.region(relperm.regions, i)
@@ -114,6 +116,14 @@ function Jutul.default_values(model, scalers::EndPointScalingCoefficients{P}) wh
             kscale[2, i] = critical
             kscale[3, i] = s_max
             kscale[4, i] = k_max
+        end
+        if !ismissing(kscale_model)
+            for i in eachindex(kscale, kscale_model)
+                override = kscale_model[i]
+                if my_isfinite(override)
+                    kscale[i] = override
+                end
+            end
         end
     end
     if scalers.drainage
@@ -133,18 +143,12 @@ function Jutul.default_values(model, scalers::EndPointScalingCoefficients{P}) wh
         T = Float64
     end
     kscale = zeros(T, n, nc)
-    set_kscale_defaults!(kscale, relperm, kr, nc)
-    my_isfinite(x) = isfinite(x)
-    my_isfinite(x::Jutul.ST.ADval) = isfinite(x.val)
     if haskey(data_domain, k)
         kscale_model = data_domain[k]
-        for i in eachindex(kscale, kscale_model)
-            override = kscale_model[i]
-            if my_isfinite(override)
-                kscale[i] = override
-            end
-        end
+    else
+        kscale_model = missing
     end
+    set_kscale_defaults!(kscale, kscale_model, relperm, kr, nc)
     return kscale
 end
 
