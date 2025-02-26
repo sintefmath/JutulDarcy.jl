@@ -953,63 +953,11 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
         extra_data_arg[:opernum] = grid["OPERNUM"][active_ix]
     end
     multregt = get(grid, "MULTREGT", missing)
-    function tsort(x, y)
-        if x > y
-            return (y, x)
-        else
-            return (x, y)
-        end
-    end
-    function pair_matchex(pair_kw, pair_reg)
-        wildcard1 = pair_kw[1] < 1
-        wildcard2 = pair_kw[2] < 1
-        if wildcard1 && wilcard2
-            return pair_reg[1] != pair_reg[2]
-        elseif wildcard1
-            return pair_kw[2] == pair_reg[2]
-        elseif wildcard2
-            return pair_kw[1] == pair_reg[1]
-        else
-            return pair_kw == pair_reg
-        end
-    end
-
     if !ismissing(multregt)
         opernum = get(extra_data_arg, :opernum, ones(Int, nc))
         multnum = get(extra_data_arg, :multnum, ones(Int, nc))
         fluxnum = get(extra_data_arg, :fluxnum, ones(Int, nc))
-        for fno in 1:nf
-            l, r = G.faces.neighbors[fno]
-            opernum_pair = tsort(opernum[l], opernum[r])
-            multnum_pair = tsort(multnum[l], multnum[r])
-            fluxnum_pair = tsort(fluxnum[l], fluxnum[r])
-
-            for regt in multregt
-                pairt = tsort(regt[1], regt[2])
-                do_apply = false
-                for (pos, coord) in enumerate(('X', 'Y', 'Z'))
-                    if coord in regt[4] && ijk[l][pos] != ijk[r][pos]
-                        do_apply = true
-                        break
-                    end
-                end
-                if do_apply
-                    m = regt[3]
-                    region_type = only(lowercase(regt[6]))
-                    if region_type == 'm'
-                        pair_to_match = multnum_pair
-                    elseif region_type == 'o'
-                        pair_to_match = opernum_pair
-                    else
-                        @assert region_type == 'f' "Region type was expected to be m, o or f, was $region_type"
-                        pair_to_match = fluxnum_pair
-                    end
-                    if pair_matchex(pairt, pair_to_match)
-                        tranmult[fno] *= m
-                    end
-                end
-            end
-        end
+        parser_set_multregt!(tranmult, G, opernum, multnum, fluxnum, multregt, ijk)
     end
 
     sol = data_file["SOLUTION"]
@@ -1136,6 +1084,62 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
         end
     end
     return domain
+end
+
+function parser_set_multregt!(tranmult, G, opernum, multnum, fluxnum, multregt, ijk)
+    function tsort(x, y)
+        if x > y
+            return (y, x)
+        else
+            return (x, y)
+        end
+    end
+    function pair_matchex(pair_kw, pair_reg)
+        wildcard1 = pair_kw[1] < 1
+        wildcard2 = pair_kw[2] < 1
+        if wildcard1 && wilcard2
+            return pair_reg[1] != pair_reg[2]
+        elseif wildcard1
+            return pair_kw[2] == pair_reg[2]
+        elseif wildcard2
+            return pair_kw[1] == pair_reg[1]
+        else
+            return pair_kw == pair_reg
+        end
+    end
+    for fno in eachindex(tranmult)
+        l, r = G.faces.neighbors[fno]
+        opernum_pair = tsort(opernum[l], opernum[r])
+        multnum_pair = tsort(multnum[l], multnum[r])
+        fluxnum_pair = tsort(fluxnum[l], fluxnum[r])
+
+        for regt in multregt
+            pairt = tsort(regt[1], regt[2])
+            do_apply = false
+            for (pos, coord) in enumerate(('X', 'Y', 'Z'))
+                if coord in regt[4] && ijk[l][pos] != ijk[r][pos]
+                    do_apply = true
+                    break
+                end
+            end
+            if do_apply
+                m = regt[3]
+                region_type = only(lowercase(regt[6]))
+                if region_type == 'm'
+                    pair_to_match = multnum_pair
+                elseif region_type == 'o'
+                    pair_to_match = opernum_pair
+                else
+                    @assert region_type == 'f' "Region type was expected to be m, o or f, was $region_type"
+                    pair_to_match = fluxnum_pair
+                end
+                if pair_matchex(pairt, pair_to_match)
+                    tranmult[fno] *= m
+                end
+            end
+        end
+    end
+    return tranmult
 end
 
 function apply_mult_xyz!(tranmult, k, mult_on_active, G, ijk)
