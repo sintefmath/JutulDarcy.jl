@@ -400,12 +400,15 @@ function map_compdat_to_multisegment_segments(compsegs, branches, tubing_lengths
     return perforation_cells
 end
 
-function compdat_to_connection_factors(domain, wspec, v, step; sort = true, order = "TRACK")
+function compdat_to_connection_factors(domain, wspec, v, step; sort = true, order = "TRACK", ijk_lookup = missing)
     G = physical_representation(domain)
+    if ismissing(ijk_lookup)
+        ijk_lookup = ijk_lookup_dict(G)
+    end
     K = domain[:permeability]
 
     ij_ix = collect(keys(v))
-    wc = map(i -> cell_index(G, i), ij_ix)
+    wc = map(i -> ijk_lookup[i], ij_ix)
 
     getf(k) = map(x -> v[x][k], ij_ix)
     open = getf(:open)
@@ -456,9 +459,9 @@ end
 
 function parse_schedule(domain, runspec, props, schedule, sys; simple_well = true)
     G = physical_representation(domain)
-
+    ijk_lookup = ijk_lookup_dict(G)
     dt, cstep, controls, status, completions, msdata, limits = parse_control_steps(runspec, props, schedule, sys)
-    completions, bad_wells = filter_inactive_completions!(completions, G)
+    completions, bad_wells = filter_inactive_completions!(completions, G, ijk_lookup)
     @assert length(controls) == length(completions)
     handle_wells_without_active_perforations!(bad_wells, completions, controls, limits)
     ncomp = length(completions)
@@ -490,7 +493,7 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
             well_is_shut = well_control isa DisabledControl
             wi_mul = zeros(n_wi)
             if !well_is_shut
-                wc, WI, open, multipliers, fresh = compdat_to_connection_factors(domain, wspec, compdat, i, sort = false)
+                wc, WI, open, multipliers, fresh = compdat_to_connection_factors(domain, wspec, compdat, i, ijk_lookup = ijk_lookup, sort = false)
                 for (c, wi, is_open, is_fresh, mul) in zip(wc, WI, open, fresh, multipliers)
                     compl_idx = findfirst(isequal(c), wc_base)
                     if isnothing(compl_idx)
@@ -531,22 +534,30 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
     return (wells, controls, limits, cstep, dt, well_forces)
 end
 
-function filter_inactive_completions!(completions_vector, g)
+function ijk_lookup_dict(G)
+    ijk_lookup = Dict{Tuple{Int, Int, Int}, Int}()
+    for i in 1:number_of_cells(G)
+        ijk = cell_ijk(G, i)
+        ijk_lookup[ijk] = i
+    end
+    return ijk_lookup
+end
+
+function filter_inactive_completions!(completions_vector, g, ijk_lookup)
     tuple_active = Dict{Tuple{String, NTuple{3, Int}}, Bool}()
     for completions in completions_vector
         for (well, completion_set) in pairs(completions)
             for tupl in keys(completion_set)
                 k = (well, tupl)
                 if !haskey(tuple_active, k)
-                    ix = cell_index(g, tupl, throw = false)
-                    if isnothing(ix)
+                    if haskey(ijk_lookup, tupl)
+                        tuple_active[k] = true
+                    else
                         jutul_message("$well completion",
                             "Removed COMPDAT as $tupl is not active in processed mesh.",
                             color = :yellow
                         )
                         tuple_active[k] = false
-                    else
-                        tuple_active[k] = true
                     end
                 end
                 if !tuple_active[k]
