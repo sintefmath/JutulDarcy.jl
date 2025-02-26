@@ -1903,6 +1903,48 @@ a diagonal tensor aligned with the logical grid directions. The latter choice is
 only meaningful for a diagonal tensor.
 """
 function reservoir_transmissibility(d::DataDomain; version = :xyz)
+    function apply_ntg!(T_hf, ntg, facepos, face_is_vertical)
+        for (c, ntg) in enumerate(ntg)
+            if ntg isa AbstractFloat && ntg ≈ 1.0
+                continue
+            end
+            for fp in facepos[c]:(facepos[c+1]-1)
+                if face_is_vertical[faces[fp]]
+                    T_hf[fp] *= ntg
+                end
+            end
+        end
+    end
+    function fig_negative_trans!(T_hf)
+        neg_count = 0
+        for (i, T_hf_i) in enumerate(T_hf)
+            neg_count += T_hf_i < 0
+            T_hf[i] = abs(T_hf_i)
+        end
+        # We only warn for significant amounts of negative transmissibilities, since
+        # a few negative values is normal for reservoir grids.
+        if neg_count > 0.1*length(T_hf)
+            tran_tot = length(T_hf)
+            perc = round(100*neg_count/tran_tot, digits = 2)
+            jutul_message("Transmissibility", "Replaced $neg_count negative half-transmissibilities (out of $tran_tot, $perc%) with their absolute value.")
+        end
+        return T_hf
+    end
+    function fix_bad_trans!(T_hf)
+        bad_count = 0
+        for (i, T_hf_i) in enumerate(T_hf)
+            if T_hf_i isa AbstractFloat && !isfinite(T_hf_i)
+                bad_count += 1
+                T_hf[i] = 0.0
+            end
+        end
+        if bad_count > 0
+            tran_tot = length(T_hf)
+            perc = round(100*bad_count/tran_tot, digits = 2)
+            jutul_message("Transmissibility", "Replaced $bad_count non-finite half-transmissibilities (out of $tran_tot, $perc%) with zero.")
+        end
+        return T_hf
+    end
     g = physical_representation(d)
     N = d[:neighbors]
     nc = number_of_cells(d)
@@ -1925,30 +1967,8 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
         face_dir = face_dir
     )
     nf = number_of_faces(d)
-    neg_count = 0
-    for (i, T_hf_i) in enumerate(T_hf)
-        neg_count += T_hf_i < 0
-        T_hf[i] = abs(T_hf_i)
-    end
-    # We only warn for significant amounts of negative transmissibilities, since
-    # a few negative values is normal for reservoir grids.
-    if neg_count > 0.1*length(T_hf)
-        tran_tot = length(T_hf)
-        perc = round(100*neg_count/tran_tot, digits = 2)
-        jutul_message("Transmissibility", "Replaced $neg_count negative half-transmissibilities (out of $tran_tot, $perc%) with their absolute value.")
-    end
-    bad_count = 0
-    for (i, T_hf_i) in enumerate(T_hf)
-        if T_hf_i isa AbstractFloat && !isfinite(T_hf_i)
-            bad_count += 1
-            T_hf[i] = 0.0
-        end
-    end
-    if bad_count > 0
-        tran_tot = length(T_hf)
-        perc = round(100*bad_count/tran_tot, digits = 2)
-        jutul_message("Transmissibility", "Replaced $bad_count non-finite half-transmissibilities (out of $tran_tot, $perc%) with zero.")
-    end
+    fig_negative_trans!(T_hf)
+    fix_bad_trans!(T_hf)
     if haskey(d, :net_to_gross)
         # Net to gross applies to vertical trans only
         otag = get_mesh_entity_tag(g, Faces(), :orientation, throw = false)
@@ -1972,16 +1992,7 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
                 return abs(nz) < max(abs(nx), abs(ny))
             end
         end
-        for (c, ntg) in enumerate(d[:net_to_gross])
-            if ntg isa AbstractFloat && ntg ≈ 1.0
-                continue
-            end
-            for fp in facepos[c]:(facepos[c+1]-1)
-                if face_is_vertical[faces[fp]]
-                    T_hf[fp] *= ntg
-                end
-            end
-        end
+        apply_ntg!(T_hf, d[:net_to_gross], facepos, face_is_vertical)
     end
     T = compute_face_trans(T_hf, N)
     if haskey(d, :transmissibility_multiplier, Faces())
