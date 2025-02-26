@@ -957,7 +957,12 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
         opernum = get(extra_data_arg, :opernum, ones(Int, nc))
         multnum = get(extra_data_arg, :multnum, ones(Int, nc))
         fluxnum = get(extra_data_arg, :fluxnum, ones(Int, nc))
-        parser_set_multregt!(tranmult, G, opernum, multnum, fluxnum, multregt, ijk)
+        # Make the table concrete for looping over
+        multregt_tab = map(
+            x -> (x[1], x[2], x[3], x[4], x[5], only(lowercase(x[6]))),
+            multregt
+        )
+        parser_set_multregt!(tranmult, G, opernum, multnum, fluxnum, multregt_tab, ijk)
     end
 
     sol = data_file["SOLUTION"]
@@ -1124,7 +1129,7 @@ function parser_set_multregt!(tranmult, G, opernum, multnum, fluxnum, multregt, 
             end
             if do_apply
                 m = regt[3]
-                region_type = only(lowercase(regt[6]))
+                region_type = regt[6]
                 if region_type == 'm'
                     pair_to_match = multnum_pair
                 elseif region_type == 'o'
