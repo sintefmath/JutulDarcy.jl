@@ -2616,7 +2616,7 @@ function reservoir_measurables(model, wellresult, states = missing;
         fgipr = add_entry(:gipr, "gas in place (reservoir volumes)", :gas_volume_reservoir)
 
         fprh = add_entry(:prh, "average pressure (hydrocarbon volume weighted)", :pressure)
-        pres = add_entry(:pres, "average pressure", :pressure, use_prefix = false)
+        pres = add_entry(:pr, "average pressure", :pressure)
 
         if haskey(states[1], :Reservoir)
             states = map(x -> x[:Reservoir], states)
@@ -2685,19 +2685,19 @@ function reservoir_measurables(model, wellresult, states = missing;
     fgor = add_entry(:gor, "gas-oil production ratio")
     @. fgor = fgpr./max.(fopr, 1e-12)
 
-    fwir = add_entry(:wit, "water injection total", :liquid_volume_surface, is_rate = false)
-    fwir .= cumsum(fwir.*dt)
-    foir = add_entry(:oit, "oil injection total", :liquid_volume_surface, is_rate = false)
-    foir .= cumsum(foir.*dt)
-    fgir = add_entry(:git, "gas injection total", :gas_volume_surface, is_rate = false)
-    fgir .= cumsum(fgir.*dt)
+    fwit = add_entry(:wit, "water injection total", :liquid_volume_surface, is_rate = false)
+    fwit .= cumsum(fwir.*dt)
+    foit = add_entry(:oit, "oil injection total", :liquid_volume_surface, is_rate = false)
+    foit .= cumsum(foir.*dt)
+    fgit = add_entry(:git, "gas injection total", :gas_volume_surface, is_rate = false)
+    fgit .= cumsum(fgir.*dt)
 
-    fwir = add_entry(:wpt, "water production total", :liquid_volume_surface, is_rate = false)
-    fwir .= cumsum(fwir.*dt)
-    foir = add_entry(:opt, "oil production total", :liquid_volume_surface, is_rate = false)
-    foir .= cumsum(foir.*dt)
-    fgir = add_entry(:gpt, "gas production total", :gas_volume_surface, is_rate = false)
-    fgir .= cumsum(fgir.*dt)
+    fwit = add_entry(:wpt, "water production total", :liquid_volume_surface, is_rate = false)
+    fwit .= cumsum(fwpr.*dt)
+    foit = add_entry(:opt, "oil production total", :liquid_volume_surface, is_rate = false)
+    foit .= cumsum(fopr.*dt)
+    fgit = add_entry(:gpt, "gas production total", :gas_volume_surface, is_rate = false)
+    fgit .= cumsum(fgpr.*dt)
 
     return out
 end
