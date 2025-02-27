@@ -3,8 +3,10 @@ struct EquilibriumRegion{R}
     datum_depth::R
     woc::R
     goc::R
+    wgc::R
     pc_woc::R
     pc_goc::R
+    pc_wgc::R
     composition_vs_depth::Union{Function, Missing}
     rs_vs_depth::Union{Function, Missing}
     rv_vs_depth::Union{Function, Missing}
@@ -17,8 +19,10 @@ function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = 
         datum_depth = missing;
         woc = missing,
         goc = missing,
+        wgc = missing,
         pc_woc = missing,
         pc_goc = missing,
+        pc_wgc = missing,
         temperature = missing,
         temperature_vs_depth = missing,
         composition = missing,
