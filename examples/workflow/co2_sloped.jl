@@ -1,4 +1,4 @@
-# # Carbon dioxoide injection in aquifer
+# # CO2 injection in saline aquifer with storage inventory
 # This example demonstrates a custom K-value compositional model for the
 # injection of CO2 into a saline aquifer. The physical model for flow of CO2 is
 # a realization of the description in [11th SPE Comparative Solutions
