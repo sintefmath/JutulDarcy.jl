@@ -454,14 +454,15 @@ end
 function check_inner(prev_state, model, state, tol, cells)
     do_solve = false
     criteria = (
-        (:Saturations, :abs),
-        (:Pressure, :abs),
-        (:PhaseMobilities, :relsum),
-        (:OverallMoleFractions, :abs),
-        (:LiquidMassFractions, :abs),
-        (:VaporMassFractions, :abs),
-        (:PhaseMassDensities, :abs),
-        (:PhaseMassDensities, :abs),
+            (:Saturations, :abs),
+            (:Pressure, :abs),
+            (:PhaseMobilities, :relsum),
+            (:OverallMoleFractions, :abs),
+            (:LiquidMassFractions, :abs),
+            (:VaporMassFractions, :abs),
+            (:PhaseMassDensities, :abs),
+            (:PhaseMassDensities, :abs),
+            (:Temperature, :abs),
         )
     for (k, t) in criteria
         do_solve = do_solve || check_subdomain_change_inner(prev_state, cells, model, state, k, tol[k], t)
