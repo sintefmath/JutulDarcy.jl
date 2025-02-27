@@ -92,6 +92,22 @@ function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = 
             end
         end
     end
+    return EquilibriumRegion(
+        p_datum,
+        datum_depth,
+        woc,
+        goc,
+        wgc,
+        pc_woc,
+        pc_goc,
+        pc_wgc,
+        composition_vs_depth,
+        rs_vs_depth,
+        rv_vs_depth,
+        temperature_vs_depth,
+        cells,
+        pvtnum
+    )
 end
 
 """
