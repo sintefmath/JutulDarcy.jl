@@ -1358,12 +1358,12 @@ function setup_reservoir_state(model::MultiModel; kwarg...)
     return state
 end
 
-function setup_reservoir_state(model, init)
+function setup_reservoir_state(model, init::AbstractDict; kwarg...)
     if haskey(init, :Reservoir) && model isa MultiModel
         # Could be output from a previous call to the same routine
         init = init[:Reservoir]
     end
-    return setup_reservoir_state(model; pairs(init)...)
+    return setup_reservoir_state(model; pairs(init)..., kwarg...)
 end
 
 function setup_reservoir_state(rmodel::SimulationModel; kwarg...)
