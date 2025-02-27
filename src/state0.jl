@@ -152,13 +152,50 @@ end
 
 function setup_reservoir_state(
         rmodel::SimulationModel,
-        equil::Union{Missing, Vector, EquilibriumRegion} = missing;
+        equil_regs::Union{Missing, Vector, EquilibriumRegion} = missing;
         kwarg...
     )
-    if ismissing(equil)
+    if ismissing(equil_regs)
         init = kwarg
     else
-        init = Dict()
+        if equil_regs isa EquilibriumRegion
+            equil_regs = [equil_regs]
+        end
+        inits = []
+        for equil in equil_regs
+            subinit = equilibriate_state(rmodel,
+                [equil.woc, equil.goc],
+            )
+            push!(inits, subinit)
+        end
+        if length(inits) == 1
+            init = only(inits)
+        else
+            # Handle multiple regions by merging each init
+            init = Dict{Symbol, Any}()
+            nc = number_of_cells(model.domain)
+            touched = [false for i in 1:nc]
+            for (k, v) in first(inits)
+                if v isa AbstractVector
+                    init[k] = zeros(nc)
+                else
+                    @assert v isa AbstractMatrix
+                    init[k] = zeros(size(v, 1), nc)
+                end
+            end
+            for (subinit, cells) in zip(inits, inits_cells)
+                for c in cells
+                    if touched[c]
+                        @warn "Equils overlap for cell $c?"
+                    end
+                    touched[c] = true
+                end
+                for (k, v) in subinit
+                    fill_subinit!(init[k], cells, v)
+                end
+            end
+            @assert all(touched) "Some cells are not initialized by equil: $(findall(!, touched))"
+        end
         for (k, v) in kwarg
             init[k] = v
         end
