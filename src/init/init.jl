@@ -91,6 +91,21 @@ function equilibriate_state(model, contacts,
     return init
 end
 
+function equilibriate_state(model, equil::EquilibriumRegion)
+    model = reservoir_model(model)
+    init = equilibriate_state(model,
+        [equil.woc, equil.goc],
+        equil.datum_depth,
+        equil.p_datum,
+        T_z = equil.temperature_vs_depth,
+        rs = equil.rs_vs_depth,
+        rv = equil.rv_vs_depth,
+        composition = equil.composition_vs_depth,
+        cells = equil.cells,
+    )
+    return init
+end
+
 function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pressure;
         cells = 1:length(depths),
         rs = missing,

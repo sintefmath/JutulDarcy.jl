@@ -183,9 +183,7 @@ function setup_reservoir_state(
         end
         inits = []
         for equil in equil_regs
-            subinit = equilibriate_state(rmodel,
-                [equil.woc, equil.goc],
-            )
+            subinit = equilibriate_state(rmodel, equil)
             push!(inits, subinit)
         end
         if length(inits) == 1
