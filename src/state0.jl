@@ -14,6 +14,7 @@ struct EquilibriumRegion{R}
     temperature_vs_depth::Union{Function, Missing}
     cells::Union{Vector{Int}, Missing}
     pvtnum::Int
+    satnum::Int
 end
 
 function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = missing,
@@ -38,6 +39,7 @@ function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = 
         rv = 0.0,
         rv_vs_depth = missing,
         pvtnum = 1,
+        satnum = 1,
         cells = missing
     )
     function handle_depth_or_value(x, xvd, xname; num = 0, is_density = false)
@@ -112,7 +114,8 @@ function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = 
         rv_vs_depth,
         temperature_vs_depth,
         cells,
-        pvtnum
+        pvtnum,
+        satnum
     )
 end
 

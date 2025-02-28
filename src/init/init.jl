@@ -126,7 +126,9 @@ function equilibriate_state(model, equil::EquilibriumRegion)
         rv = equil.rv_vs_depth,
         composition = equil.composition_vs_depth,
         cells = equil.cells,
-        density_function = equil.density_function
+        density_function = equil.density_function,
+        pvtnum = equil.pvtnum,
+        satnum = equil.satnum
     )
     init[:Saturations] = init[:Saturations][phase_ix, :]
     return init
@@ -136,16 +138,41 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         cells = 1:length(depths),
         rs = missing,
         rv = missing,
+        pc = missing,
         composition = missing,
         T_z = missing,
         s_min = missing,
         contacts_pc = missing,
         pvtnum = 1,
+        satnum = 1,
         sw = missing,
         output_pressures = false,
         density_function = missing,
         kwarg...
     )
+    if ismissing(pc)
+        pc_def = get(model.secondary_variables, :CapillaryPressure, nothing)
+        if !isnothing(pc_def)
+            pc = []
+            for (i, f) in enumerate(pc_def.pc)
+                f = table_by_region(f, satnum)
+                s = copy(f.X)
+                cap = copy(f.F)
+                if s[1] < 0
+                    s = s[2:end]
+                    cap = cap[2:end]
+                end
+                ix = unique(i -> cap[i], 1:length(cap))
+                s = s[ix]
+                cap = cap[ix]
+                if length(s) == 1
+                    push!(s, s[end])
+                    push!(cap, cap[end]+1.0)
+                end
+                push!(pc, (s = s, pc = cap))
+            end
+        end
+    end
     if ismissing(contacts_pc)
         contacts_pc = zeros(number_of_phases(sys)-1)
     end
@@ -240,7 +267,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         if relperm isa Pair
             relperm = last(relperm)
         end
-        s, pc = determine_saturations(depths, contacts, pressures; s_min = s_min, kwarg...)
+        s, pc = determine_saturations(depths, contacts, pressures; pc = pc, s_min = s_min, kwarg...)
         if !ismissing(sw)
             nph = size(s, 1)
             for i in axes(s, 2)
@@ -836,7 +863,7 @@ function integrate_phase_density(z_datum, z_end, p0, density_f, phase; n = 1000,
     return (z, pressure)
 end
 
-function determine_saturations(depths, contacts, pressures; s_min = missing, s_max = missing, pc = nothing)
+function determine_saturations(depths, contacts, pressures; s_min = missing, s_max = missing, pc = missing)
     nc = length(depths)
     nph = length(contacts) + 1
     if ismissing(s_min)
@@ -847,7 +874,7 @@ function determine_saturations(depths, contacts, pressures; s_min = missing, s_m
     end
     sat = zeros(nph, nc)
     sat_pc = similar(sat)
-    if isnothing(pc)
+    if isnothing(pc) || ismissing(pc)
         for i in eachindex(depths)
             z = depths[i]
             ph = current_phase_index(z, contacts)
