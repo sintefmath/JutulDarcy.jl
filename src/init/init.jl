@@ -132,6 +132,16 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     end
 
     reg = Int[pvtnum]
+    # Set up a mock state for evaluation
+    if haskey(model.data_domain, :pvtnum)
+        fake_cell_ix = [findfirst(isequal(pvtnum), model.data_domain[:pvtnum])]
+    else
+        fake_cell_ix = [1]
+    end
+    fake_state = JutulStorage()
+    fake_state[:Pressure] = [NaN]
+    fake_state[:PhaseMassDensities] = zeros(nph, 1)
+
     function density_f(p, z, ph)
         if rho isa ThreePhaseCompositionalDensitiesLV || rho isa TwoPhaseCompositionalDensities
             if phases[ph] == AqueousPhase()
@@ -153,7 +163,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         elseif rho isa BrineCO2MixingDensities
             T = T_z(z)
             phase_density = rho.tab(p, T)[ph]
-        else
+        elseif rho isa DeckPhaseMassDensities
             pvt = rho.pvt
             pvt_i = pvt[ph]
             if phases[ph] == LiquidPhase() && disgas
@@ -169,6 +179,11 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
             else
                 phase_density = rho_s[ph]*JutulDarcy.shrinkage(pvt_i, reg, p, 1)
             end
+        else
+            rho_val = fake_state[:PhaseMassDensities]
+            fake_state[:Pressure][1] = p
+            Jutul.update_secondary_variable!(rho_val, rho, model, fake_state, fake_cell_ix)
+            phase_density = rho_val[ph]
         end
         return phase_density
     end
