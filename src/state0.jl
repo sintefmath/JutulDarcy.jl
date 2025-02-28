@@ -17,12 +17,12 @@ end
 
 function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = missing,
         datum_depth = missing;
-        woc = missing,
-        goc = missing,
-        wgc = missing,
-        pc_woc = missing,
-        pc_goc = missing,
-        pc_wgc = missing,
+        woc = NaN,
+        goc = NaN,
+        wgc = NaN,
+        pc_woc = 0.0,
+        pc_goc = 0.0,
+        pc_wgc = 0.0,
         temperature = missing,
         temperature_vs_depth = missing,
         composition = missing,
@@ -58,12 +58,12 @@ function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = 
     reservoir = reservoir_domain(model)
     rmesh = physical_representation(reservoir)
     # Checks for various compositions vs depth
-    sys = rmodel.system
-    is_compositional = sys isa MultiPhaseCompositionalSystem
-    if has_disgas
+    sys = model.system
+    is_compositional = sys isa MultiPhaseCompositionalSystemLV
+    if has_disgas(sys)
         rs_vs_depth = handle_depth_or_value(rs, rs_vs_depth, "rs")
     end
-    if has_vapoil
+    if has_vapoil(sys)
         rv_vs_depth = handle_depth_or_value(rv, rv_vs_depth, "rv")
     end
     if is_compositional
@@ -76,7 +76,7 @@ function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = 
             composition_vs_depth = handle_depth_or_value(composition, composition_vs_depth, "composition", num = n_hc)
         end
     end
-    vars = get_variables_by_type(model, :all)
+    vars = Jutul.get_variables_by_type(model, :all)
     if haskey(vars, :Temperature)
         temperature_vs_depth = handle_depth_or_value(temperature, temperature_vs_depth, "temperature")
     end
