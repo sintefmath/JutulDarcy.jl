@@ -92,17 +92,43 @@ function equilibriate_state(model, contacts,
 end
 
 function equilibriate_state(model, equil::EquilibriumRegion)
+    sys = model.system
+    phases = get_phases(sys)
+    phase_ix = [i for i in phase_indices(sys)]
+    nph = length(phases)
+    nph in (1, 2, 3) || error("Only 1, 2, or 3 phases are supported for equilibriation with EquilibriumRegion.")
+
+    has_water = AqueousPhase() in phases
+    has_oil = LiquidPhase() in phases
+    has_gas = VaporPhase() in phases
+
+    contacts = Float64[]
+    contacts_pc = Float64[]
+    if has_water && has_oil
+        push!(contacts, equil.woc)
+        push!(contacts_pc, equil.pc_woc)
+    elseif has_water && has_gas
+        push!(contacts, equil.wgc)
+        push!(contacts_pc, equil.pc_wgc)
+    end
+    if has_oil && has_gas
+        push!(contacts, equil.goc)
+        push!(contacts_pc, equil.pc_goc)
+    end
     model = reservoir_model(model)
     init = equilibriate_state(model,
-        [equil.woc, equil.goc],
+        contacts,
         equil.datum_depth,
-        equil.p_datum,
+        equil.datum_pressure,
+        contacts_pc = contacts_pc,
         T_z = equil.temperature_vs_depth,
         rs = equil.rs_vs_depth,
         rv = equil.rv_vs_depth,
         composition = equil.composition_vs_depth,
         cells = equil.cells,
+        density_function = equil.density_function
     )
+    init[:Saturations] = init[:Saturations][phase_ix, :]
     return init
 end
 
@@ -117,6 +143,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         pvtnum = 1,
         sw = missing,
         output_pressures = false,
+        density_function = missing,
         kwarg...
     )
     if ismissing(contacts_pc)
@@ -204,7 +231,10 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     end
     # Find the reference phase. It is either liquid
     ref_phase = get_reference_phase_index(model.system)
-    pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_f, contacts_pc, ref_phase)
+    if ismissing(density_function)
+        density_function = density_f
+    end
+    pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_function, contacts_pc, ref_phase)
     if nph > 1
         relperm = model.secondary_variables[:RelativePermeabilities]
         if relperm isa Pair

@@ -1,5 +1,5 @@
 struct EquilibriumRegion{R}
-    p_datum::R
+    datum_pressure::R
     datum_depth::R
     woc::R
     goc::R
@@ -7,6 +7,7 @@ struct EquilibriumRegion{R}
     pc_woc::R
     pc_goc::R
     pc_wgc::R
+    density_function::Union{Function, Missing}
     composition_vs_depth::Union{Function, Missing}
     rs_vs_depth::Union{Function, Missing}
     rv_vs_depth::Union{Function, Missing}
@@ -31,17 +32,19 @@ function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = 
         liquid_composition_vs_depth = missing,
         vapor_composition = missing,
         vapor_composition_vs_depth = missing,
-        rs = missing,
+        density_function = missing,
+        rs = 0.0,
         rs_vs_depth = missing,
-        rv = missing,
+        rv = 0.0,
         rv_vs_depth = missing,
         pvtnum = 1,
         cells = missing
     )
-    function handle_depth_or_value(x, xvd, xname; num = 0)
+    function handle_depth_or_value(x, xvd, xname; num = 0, is_density = false)
         if ismissing(x) && ismissing(xvd)
             error("Either $xname or $(xname)_vs_depth must be provided")
-        elseif ismissing(x)
+        elseif !ismissing(xvd)
+            # Note: vs depth tables take precedence
             xvd isa Function || error("$(xname)_vs_depth must be a function on the form z -> val")
             F = xvd
         else
@@ -60,20 +63,22 @@ function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = 
     # Checks for various compositions vs depth
     sys = model.system
     is_compositional = sys isa MultiPhaseCompositionalSystemLV
-    if has_disgas(sys)
-        rs_vs_depth = handle_depth_or_value(rs, rs_vs_depth, "rs")
-    end
-    if has_vapoil(sys)
-        rv_vs_depth = handle_depth_or_value(rv, rv_vs_depth, "rv")
-    end
-    if is_compositional
-        n_hc = MultiComponentFlash.number_of_components(sys.equation_of_state)
-        if ismissing(composition_vs_depth) && ismissing(composition)
-            x_vs_depth = handle_depth_or_value(liquid_composition, liquid_composition_vs_depth, "liquid_composition", num = n_hc)
-            y_vs_depth = handle_depth_or_value(vapor_composition, vapor_composition_vs_depth, "vapor_composition", num = n_hc)
-            composition_vs_depth = z -> ifelse(z > woc, x_vs_depth(z), y_vs_depth(z))
-        else
-            composition_vs_depth = handle_depth_or_value(composition, composition_vs_depth, "composition", num = n_hc)
+    if ismissing(density_function)
+        if has_disgas(sys)
+            rs_vs_depth = handle_depth_or_value(rs, rs_vs_depth, "rs")
+        end
+        if has_vapoil(sys)
+            rv_vs_depth = handle_depth_or_value(rv, rv_vs_depth, "rv")
+        end
+        if is_compositional
+            n_hc = MultiComponentFlash.number_of_components(sys.equation_of_state)
+            if ismissing(composition_vs_depth) && ismissing(composition)
+                x_vs_depth = handle_depth_or_value(liquid_composition, liquid_composition_vs_depth, "liquid_composition", num = n_hc)
+                y_vs_depth = handle_depth_or_value(vapor_composition, vapor_composition_vs_depth, "vapor_composition", num = n_hc)
+                composition_vs_depth = z -> ifelse(z > woc, x_vs_depth(z), y_vs_depth(z))
+            else
+                composition_vs_depth = handle_depth_or_value(composition, composition_vs_depth, "composition", num = n_hc)
+            end
         end
     end
     vars = Jutul.get_variables_by_type(model, :all)
@@ -101,6 +106,7 @@ function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = 
         pc_woc,
         pc_goc,
         pc_wgc,
+        density_function,
         composition_vs_depth,
         rs_vs_depth,
         rv_vs_depth,
