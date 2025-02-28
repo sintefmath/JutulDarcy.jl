@@ -77,7 +77,7 @@ function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = 
             if ismissing(composition_vs_depth) && ismissing(composition)
                 x_vs_depth = handle_depth_or_value(liquid_composition, liquid_composition_vs_depth, "liquid_composition", num = n_hc)
                 y_vs_depth = handle_depth_or_value(vapor_composition, vapor_composition_vs_depth, "vapor_composition", num = n_hc)
-                composition_vs_depth = z -> ifelse(z > woc, x_vs_depth(z), y_vs_depth(z))
+                composition_vs_depth = z -> ifelse(z > goc, x_vs_depth(z), y_vs_depth(z))
             else
                 composition_vs_depth = handle_depth_or_value(composition, composition_vs_depth, "composition", num = n_hc)
             end
