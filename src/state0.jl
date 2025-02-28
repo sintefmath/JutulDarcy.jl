@@ -199,8 +199,9 @@ function setup_reservoir_state(
             init = only(inits)
         else
             # Handle multiple regions by merging each init
+            inits_cells = map(x -> x.cells, equil_regs)
             init = Dict{Symbol, Any}()
-            nc = number_of_cells(model.domain)
+            nc = number_of_cells(rmodel.domain)
             touched = [false for i in 1:nc]
             for (k, v) in first(inits)
                 if v isa AbstractVector
