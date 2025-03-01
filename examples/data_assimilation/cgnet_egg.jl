@@ -7,6 +7,8 @@
 # real field observations.
 #
 # ## Load and simulate Egg base case
+# We take a subset of the first 60 steps (1350 days) since not much happens after
+# that in terms of well behavior.
 using Jutul, JutulDarcy, HYPRE, GeoEnergyIO, GLMakie
 import LBFGSB as lb
 
@@ -14,16 +16,20 @@ egg_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("EGG")
 data_pth = joinpath(egg_dir, "EGG.DATA")
 
 fine_case = setup_case_from_data_file(data_pth)
+fine_case = fine_case[1:60]
 simulated_fine = simulate_reservoir(fine_case)
-plot_reservoir(fine_case, simulated_fine.states, key = :Saturations, step = 100)
+plot_reservoir(fine_case, simulated_fine.states, key = :Saturations, step = 60)
 # ## Create initial coarse model and simulate
 coarse_case = JutulDarcy.coarsen_reservoir_case(fine_case, (25, 25, 5), method = :ijk)
 simulated_coarse = simulate_reservoir(coarse_case)
-plot_reservoir(coarse_case, simulated_coarse.states, key = :Saturations, step = 100)
+plot_reservoir(coarse_case, simulated_coarse.states, key = :Saturations, step = 60)
 # ## Setup optimization
 # We set up the optimization problem by defining the objective function as a sum
 # of squared mismatches for all well observations, for all time-steps. We also
 # define limits for the parameters, and set up the optimization problem.
+#
+# We also limit the number of function evaluations since this example runs as a
+# part of continuous integration and we want to keep the runtime short.
 function setup_optimization_cgnet(case_c, case_f, result_f)
     states_f = result_f.result.states
     wells_results, = result_f
@@ -138,8 +144,8 @@ function optimize_cgnet(opt_setup)
     results, final_x = lb.lbfgsb(f!, g!, x0, lb=lower, ub=upper,
         iprint = prt,
         factr = 1e12,
-        maxfun = 50,
-        maxiter = 50,
+        maxfun = 20,
+        maxiter = 20,
         m = 20
     )
     return (final_x, results, setup)
