@@ -15,6 +15,7 @@ struct EquilibriumRegion{R}
     cells::Union{Vector{Int}, Missing}
     pvtnum::Int
     satnum::Int
+    kwarg::Any
 end
 
 function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = missing,
@@ -40,7 +41,8 @@ function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = 
         rv_vs_depth = missing,
         pvtnum = 1,
         satnum = 1,
-        cells = missing
+        cells = missing,
+        kwarg...
     )
     function handle_depth_or_value(x, xvd, xname; num = 0, is_density = false)
         if ismissing(x) && ismissing(xvd)
@@ -115,7 +117,8 @@ function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = 
         temperature_vs_depth,
         cells,
         pvtnum,
-        satnum
+        satnum,
+        kwarg
     )
 end
 
@@ -192,7 +195,7 @@ function setup_reservoir_state(
         end
         inits = []
         for equil in equil_regs
-            subinit = equilibriate_state(rmodel, equil)
+            subinit = equilibriate_state(rmodel, equil; equil.kwarg...)
             push!(inits, subinit)
         end
         if length(inits) == 1
