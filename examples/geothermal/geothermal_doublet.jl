@@ -64,7 +64,7 @@ end
 rhoWS = 1000.0kilogram/meter^3
 sys = SinglePhaseSystem(AqueousPhase(), reference_density = rhoWS)
 case_simple = setup_doublet(sys)
-results_simple = simulate_reservoir(case_simple, info_level = -1);
+results_simple = simulate_reservoir(case_simple);
 # Interactive plot of the reservoir state
 plot_reservoir(case_simple.model, results_simple.states)
 
@@ -73,7 +73,7 @@ plot_reservoir(case_simple.model, results_simple.states)
 # formulation from [NIST](https://webbook.nist.gov/chemistry/fluid/) where
 # density, viscosity and heat capacity depend on pressure and temperature. 
 case_real = setup_doublet(:geothermal)
-results_real = simulate_reservoir(case_real, info_level = -1);
+results_real = simulate_reservoir(case_real);
 # Interactive plot of the reservoir state
 plot_reservoir(case_real.model, results_real.states)
 

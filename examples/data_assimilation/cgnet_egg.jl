@@ -18,7 +18,7 @@ simulated_fine = simulate_reservoir(fine_case)
 plot_reservoir(fine_case, simulated_fine.states, key = :Saturations, step = 100)
 # ## Create initial coarse model and simulate
 coarse_case = JutulDarcy.coarsen_reservoir_case(fine_case, (25, 25, 5), method = :ijk)
-simulated_coarse = simulate_reservoir(coarse_case, info_level = -1)
+simulated_coarse = simulate_reservoir(coarse_case)
 plot_reservoir(coarse_case, simulated_coarse.states, key = :Saturations, step = 100)
 # ## Setup optimization
 # We set up the optimization problem by defining the objective function as a sum
@@ -159,7 +159,7 @@ data = opt_setup.data
 devectorize_variables!(param_c, model_c, final_x, data[:mapper], config = data[:config])
 
 
-simulated_tuned = simulate_reservoir(tuned_case, info_level = -1);
+simulated_tuned = simulate_reservoir(tuned_case);
 # ### Plot the results interactively
 using GLMakie
 

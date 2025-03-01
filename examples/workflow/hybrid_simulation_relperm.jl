@@ -119,7 +119,7 @@ ref_state0 = setup_reservoir_state(ref_model,
     Saturations = [1.0, 0.0]
 )
 
-simulate_reservoir(ref_state0, ref_model, ref_dt, parameters = ref_parameters, forces = ref_forces, info_level = -1);
+simulate_reservoir(ref_state0, ref_model, ref_dt, parameters = ref_parameters, forces = ref_forces);
 ref_wd, ref_states, ref_t = simulate_reservoir(ref_state0, ref_model, ref_dt, parameters = ref_parameters, forces = ref_forces, info_level = 1);
 
 
