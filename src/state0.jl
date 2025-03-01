@@ -161,7 +161,7 @@ end
 function Base.show(io::IO, eql::EquilibriumRegion{R}) where R
     nc = length(eql.cells)
     println(io, "EquilibriumRegion{$R} for $(nc) cells with datum pressure $(eql.datum_pressure) Pa at depth $(eql.datum_depth) m")
-    print("Water-Oil Contact: $(eql.woc) m, Gas-Oil Contact: $(eql.goc) m, Water-Gas Contact: $(eql.wgc) m\n")
+    print(io, "Water-Oil Contact: $(eql.woc) m, Gas-Oil Contact: $(eql.goc) m, Water-Gas Contact: $(eql.wgc) m\n")
 end
 
 """
