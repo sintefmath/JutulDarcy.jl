@@ -48,40 +48,19 @@ function get_example_paths(; check_empty = true)
 end
 
 function post_run_variables_gc(str)
-    # Post-processing to GC some objects in temporary @example modules
-    varnames = [
-        "case",
-        "g",
-        "sys",
-        "model",
-        "parameters",
-        "state0",
-        "forces",
-        "dt",
-        "reservoir",
-        "mesh",
-        "wells",
-        "fig",
-        "ax",
-        "states",
-        "result",
-        "simulated",
-        "new_model",
-        "new_parameters",
-        "case_simple",
-        "case_real",
-        "ws",
-        "results_simple",
-        "results_real",
-        "data",
-        "data_domain_with_gradients"
-    ]
-    tmp = "\n"
-    for varname in varnames
-        tmp *= "$varname = nothing #src\n"
-    end
-    tmp *= "GC.gc(); #src\n"
-    return str * tmp
+    # Attempt of post-processing to GC some objects in temporary @example modules
+    # https://discourse.julialang.org/t/delete-a-module/62226
+    clear_str = "\nfunction clear_module!(M::Module) #src\n"*
+    "    for name ∈ names(M, all=true) #src\n"*
+    "        if !isconst(M, name) #src\n"*
+    raw"            @eval M $name = $nothing #src"*
+    "\n        end #src\n"*
+    "    end #src\n"*
+    "end #src\n"*
+    "clear_module!(@__MODULE__) #src\n"*
+    "GC.gc(); #src\n"
+
+    return str * clear_str
 end
 
 function update_footer(content, subdir, exname)
