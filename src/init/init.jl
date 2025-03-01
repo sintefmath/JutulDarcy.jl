@@ -102,24 +102,33 @@ function equilibriate_state(model, equil::EquilibriumRegion)
     has_oil = LiquidPhase() in phases
     has_gas = VaporPhase() in phases
 
+    function check_pair(c, pc_c, name)
+        !isnan(c) || throw(ArgumentError("$name cannot be defaulted for this system."))
+        isfinite(pc_c) || throw(ArgumentError("Capillary pressure at contact (pc_$name) is not finite."))
+    end
+
     contacts = Float64[]
     contacts_pc = Float64[]
     if has_water && has_oil
         push!(contacts, equil.woc)
         push!(contacts_pc, equil.pc_woc)
+        check_pair(equil.woc, equil.pc_woc, "woc")
     elseif has_water && has_gas
         push!(contacts, equil.wgc)
         push!(contacts_pc, equil.pc_wgc)
+        check_pair(equil.wgc, equil.pc_wgc, "wgc")
     end
     if has_oil && has_gas
+        goc = equil.goc
         push!(contacts, equil.goc)
         push!(contacts_pc, equil.pc_goc)
+        check_pair(equil.goc, equil.pc_goc, "goc")
     end
     model = reservoir_model(model)
     init = equilibriate_state(model,
         contacts,
         equil.datum_depth,
-        equil.datum_pressure,
+        equil.datum_pressure;
         contacts_pc = contacts_pc,
         T_z = equil.temperature_vs_depth,
         rs = equil.rs_vs_depth,
@@ -128,7 +137,8 @@ function equilibriate_state(model, equil::EquilibriumRegion)
         cells = equil.cells,
         density_function = equil.density_function,
         pvtnum = equil.pvtnum,
-        satnum = equil.satnum
+        satnum = equil.satnum,
+        equil.kwarg...
     )
     init[:Saturations] = init[:Saturations][phase_ix, :]
     return init

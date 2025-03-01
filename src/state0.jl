@@ -18,6 +18,42 @@ struct EquilibriumRegion{R}
     kwarg::Any
 end
 
+"""
+    EquilibriumRegion(model, p_datum = missing,
+        datum_depth = missing;
+        woc = NaN,
+        goc = NaN,
+        wgc = NaN,
+        pc_woc = 0.0,
+        pc_goc = 0.0,
+        pc_wgc = 0.0,
+        temperature = missing,
+        temperature_vs_depth = missing,
+        composition = missing,
+        composition_vs_depth = missing,
+        liquid_composition = missing,
+        liquid_composition_vs_depth = missing,
+        vapor_composition = missing,
+        vapor_composition_vs_depth = missing,
+        density_function = missing,
+        rs = 0.0,
+        rs_vs_depth = missing,
+        rv = 0.0,
+        rv_vs_depth = missing,
+        pvtnum = 1,
+        satnum = 1,
+        cells = missing,
+        kwarg...
+    )
+
+Set uip equilibriation region for a reservoir model. The region is defined by
+the datum pressure and depth, and the water-oil, gas-oil, and water-gas
+contacts. The contacts will be used to determine the phase distribution and
+initial pressure in the region. The region can be further specified by
+temperature, composition, density, and rs/rv functions. Most entries can either
+be specified as a function of depth or as a constant value. Additional keyword
+arguments are passed onto the `equilibriate_state` function.
+"""
 function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = missing,
         datum_depth = missing;
         woc = NaN,
@@ -122,6 +158,12 @@ function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = 
     )
 end
 
+function Base.show(io::IO, eql::EquilibriumRegion{R}) where R
+    nc = length(eql.cells)
+    println(io, "EquilibriumRegion{$R} for $(nc) cells with datum pressure $(eql.datum_pressure) Pa at depth $(eql.datum_depth) m")
+    print("Water-Oil Contact: $(eql.woc) m, Gas-Oil Contact: $(eql.goc) m, Water-Gas Contact: $(eql.wgc) m\n")
+end
+
 """
     setup_reservoir_state(model, <keyword arguments>)
     # Ex: For immiscible two-phase
@@ -193,11 +235,7 @@ function setup_reservoir_state(
         if equil_regs isa EquilibriumRegion
             equil_regs = [equil_regs]
         end
-        inits = []
-        for equil in equil_regs
-            subinit = equilibriate_state(rmodel, equil; equil.kwarg...)
-            push!(inits, subinit)
-        end
+        inits = map(equil -> equilibriate_state(rmodel, equil), equil_regs)
         if length(inits) == 1
             init = only(inits)
         else
