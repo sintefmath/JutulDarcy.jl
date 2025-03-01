@@ -47,7 +47,45 @@ function get_example_paths(; check_empty = true)
     return examples
 end
 
+function post_run_variables_gc(str)
+    # Post-processing to GC some objects in temporary @example modules
+    varnames = [
+        "case",
+        "g",
+        "sys",
+        "model",
+        "parameters",
+        "state0",
+        "forces",
+        "dt",
+        "reservoir",
+        "mesh",
+        "wells",
+        "fig",
+        "ax",
+        "states",
+        "result",
+        "simulated",
+        "new_model",
+        "new_parameters",
+        "case_simple",
+        "case_real",
+        "ws",
+        "results_simple",
+        "results_real",
+        "data",
+        "data_domain_with_gradients"
+    ]
+    tmp = "\n"
+    for varname in varnames
+        tmp *= "$varname = nothing #src\n"
+    end
+    tmp *= "GC.gc(); #src\n"
+    return str * tmp
+end
+
 function update_footer(content, subdir, exname)
+    content = post_run_variables_gc(content)
     return content*"\n\n # ## Example on GitHub\n "*
     "# If you would like to run this example yourself, it can be downloaded from "*
     "the JutulDarcy.jl GitHub repository [as a script](https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/$subdir/$exname.jl), "*
