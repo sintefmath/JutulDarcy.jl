@@ -47,6 +47,13 @@ function get_example_paths(; check_empty = true)
     return examples
 end
 
+function timer_str()
+    start = "example_t_start = time_ns(); # hide\n"
+    stop_1 = "t_s = (time_ns() - example_t_start) / 1e9 # hide\n"
+    stop = stop_1*"println(\"Example run in "*raw"$t_s"*" seconds.\") # hide"
+    return (start, stop)
+end
+
 function post_run_variables_gc()
     # Attempt of post-processing to GC some objects in temporary @example modules
     # https://discourse.julialang.org/t/delete-a-module/62226
@@ -72,7 +79,8 @@ end
 function update_footer(content, subdir, exname)
     info_footer = example_info_footer(subdir, exname)
     gc_footer = post_run_variables_gc()
-    new_content = string(content, info_footer, gc_footer)
+    start, stop = timer_str()
+    new_content = string(content, info_footer, start, stop, gc_footer)
     # print(new_content)
     return new_content
 end
