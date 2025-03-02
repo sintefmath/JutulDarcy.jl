@@ -70,7 +70,7 @@ function post_run_variables_gc()
 end
 
 function example_info_footer(subdir, exname)
-    return "\n\n # ## Example on GitHub\n "*
+    return "\n\n# ## Example on GitHub\n"*
     "# If you would like to run this example yourself, it can be downloaded from "*
     "the JutulDarcy.jl GitHub repository [as a script](https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/$subdir/$exname.jl), "*
     "or as a [Jupyter Notebook](https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/final_site/notebooks/$subdir/$exname.ipynb)"
