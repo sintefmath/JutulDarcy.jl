@@ -60,6 +60,9 @@ function simulator_config(sim::NLDDSimulator;
     add_option!(cfg, :subdomain_tol_sufficient, same_tol && !is_mpi, "Tolerances in subdomains are at least tight enough to be able to conclude global convergence.", types = Bool)
 
     # Subdomain tolerances for when to solve a local subdomain
+    add_option!(cfg, :solve_tol_temperature, nothing, "Local subdomains are solved if maximum temperature change at boundary exceeds this value.", types = Union{Float64, Nothing})
+    add_option!(cfg, :solve_tol_temperature_mean, nothing, "Local subdomains are solved if mean of temperature change at boundary exceeds this value.", types = Union{Float64, Nothing})
+
     add_option!(cfg, :solve_tol_pressure, nothing, "Local subdomains are solved if maximum pressure change at boundary exceeds this value.", types = Union{Float64, Nothing})
     add_option!(cfg, :solve_tol_pressure_mean, nothing, "Local subdomains are solved if mean of pressure change at boundary exceeds this value.", types = Union{Float64, Nothing})
 

@@ -45,7 +45,7 @@ timesteps = repeat([0.02]*day, 150);
 # options. Using `simulate` with the default options means that no dynamic
 # timestepping will be used, and the simulation will report on the exact 150
 # steps defined above.
-states, report = simulate(state0, model, timesteps, info_level = -1);
+states, report = simulate(state0, model, timesteps);
 # ## Plot results
 # Plot the saturations of the liquid phase at three different timesteps: The
 # initial, unstable state, an intermediate state where fluid exchange between

@@ -73,6 +73,26 @@ function update_max_hysteresis_value!(v_max, v)
     end
 end
 
+struct MinPressure <: ScalarVariable end
+
+Jutul.default_value(model, ::MinPressure) = 1e100 
+
+function Jutul.update_parameter_before_step!(p_min, ::MinPressure, storage, model, dt, forces)
+    p = storage.state.Pressure
+    update_min_hysteresis_value!(p_min, p)
+    return p_min
+end
+
+function update_min_hysteresis_value!(v_min, v)
+    for i in eachindex(v_min, v)
+        v_prev = v_min[i]
+        v_now = value(v[i])
+        if v_now < v_prev
+            v_min[i] = replace_value(v_prev, v_now)
+        end
+    end
+end
+
 function hysteresis_is_active(x::AbstractRelativePermeabilities)
     return false
 end

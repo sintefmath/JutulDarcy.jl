@@ -363,7 +363,7 @@ end
 
 
 """
-    mu_b_co2 = viscosity_brine_co2_mixture_IC2012(T, P, m_nacl, w_co2)
+    mu_co2 = viscosity_brine_co2_mixture_IC2012(T, P, m_nacl, w_co2)
 
 Calculate the dynamic viscosity of a solution of H2O + NaCl (brine) with
 dissolved CO2.
@@ -735,7 +735,7 @@ function compute_co2_brine_props(p_pascal, T_K, salt_mole_fractions = Float64[],
         V, _, rho_co2 = rho_co2_fcn(T_K, P, a_m, b_m)
         rho_brine, = rho_b_fcn(T_K, P, w_salt)
         rho_gas = rho_gas_fcn(Mw_co2, V / 10^6)
-        mu_brine = mu_aq_fcn(T_K, P, 0, 0)
+        mu_brine = mu_aq_fcn(T_K, P, m_salt[1], 0)
         mu_gas = mu_co2_fcn(T_K, rho_co2)
 
         done = false

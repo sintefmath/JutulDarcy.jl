@@ -91,24 +91,103 @@ function equilibriate_state(model, contacts,
     return init
 end
 
+function equilibriate_state(model, equil::EquilibriumRegion)
+    sys = model.system
+    phases = get_phases(sys)
+    phase_ix = [i for i in phase_indices(sys)]
+    nph = length(phases)
+    nph in (1, 2, 3) || error("Only 1, 2, or 3 phases are supported for equilibriation with EquilibriumRegion.")
+
+    has_water = AqueousPhase() in phases
+    has_oil = LiquidPhase() in phases
+    has_gas = VaporPhase() in phases
+
+    function check_pair(c, pc_c, name)
+        !isnan(c) || throw(ArgumentError("$name cannot be defaulted for this system."))
+        isfinite(pc_c) || throw(ArgumentError("Capillary pressure at contact (pc_$name) is not finite."))
+    end
+
+    contacts = Float64[]
+    contacts_pc = Float64[]
+    if has_water && has_oil
+        push!(contacts, equil.woc)
+        push!(contacts_pc, equil.pc_woc)
+        check_pair(equil.woc, equil.pc_woc, "woc")
+    elseif has_water && has_gas
+        push!(contacts, equil.wgc)
+        push!(contacts_pc, equil.pc_wgc)
+        check_pair(equil.wgc, equil.pc_wgc, "wgc")
+    end
+    if has_oil && has_gas
+        goc = equil.goc
+        push!(contacts, equil.goc)
+        push!(contacts_pc, equil.pc_goc)
+        check_pair(equil.goc, equil.pc_goc, "goc")
+    end
+    model = reservoir_model(model)
+    init = equilibriate_state(model,
+        contacts,
+        equil.datum_depth,
+        equil.datum_pressure;
+        contacts_pc = contacts_pc,
+        T_z = equil.temperature_vs_depth,
+        rs = equil.rs_vs_depth,
+        rv = equil.rv_vs_depth,
+        composition = equil.composition_vs_depth,
+        cells = equil.cells,
+        density_function = equil.density_function,
+        pvtnum = equil.pvtnum,
+        satnum = equil.satnum,
+        equil.kwarg...
+    )
+    init[:Saturations] = init[:Saturations][phase_ix, :]
+    return init
+end
+
 function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pressure;
         cells = 1:length(depths),
         rs = missing,
         rv = missing,
+        pc = missing,
         composition = missing,
         T_z = missing,
         s_min = missing,
         contacts_pc = missing,
         pvtnum = 1,
+        satnum = 1,
         sw = missing,
         output_pressures = false,
+        density_function = missing,
         kwarg...
     )
+    if ismissing(pc)
+        pc_def = get(model.secondary_variables, :CapillaryPressure, nothing)
+        if !isnothing(pc_def)
+            pc = []
+            for (i, f) in enumerate(pc_def.pc)
+                f = table_by_region(f, satnum)
+                s = copy(f.X)
+                cap = copy(f.F)
+                if s[1] < 0
+                    s = s[2:end]
+                    cap = cap[2:end]
+                end
+                ix = unique(i -> cap[i], 1:length(cap))
+                s = s[ix]
+                cap = cap[ix]
+                if length(s) == 1
+                    push!(s, s[end])
+                    push!(cap, cap[end]+1.0)
+                end
+                push!(pc, (s = s, pc = cap))
+            end
+        end
+    end
     if ismissing(contacts_pc)
         contacts_pc = zeros(number_of_phases(sys)-1)
     end
-    zmin = minimum(depths)
-    zmax = maximum(depths)
+    zmin = minimum(depths) - 1.0
+    zmax = maximum(depths) + 1.0
 
     nph = number_of_phases(sys)
 
@@ -132,6 +211,16 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     end
 
     reg = Int[pvtnum]
+    # Set up a mock state for evaluation
+    if haskey(model.data_domain, :pvtnum)
+        fake_cell_ix = [findfirst(isequal(pvtnum), model.data_domain[:pvtnum])]
+    else
+        fake_cell_ix = [1]
+    end
+    fake_state = JutulStorage()
+    fake_state[:Pressure] = [NaN]
+    fake_state[:PhaseMassDensities] = zeros(nph, 1)
+
     function density_f(p, z, ph)
         if rho isa ThreePhaseCompositionalDensitiesLV || rho isa TwoPhaseCompositionalDensities
             if phases[ph] == AqueousPhase()
@@ -153,7 +242,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         elseif rho isa BrineCO2MixingDensities
             T = T_z(z)
             phase_density = rho.tab(p, T)[ph]
-        else
+        elseif rho isa DeckPhaseMassDensities
             pvt = rho.pvt
             pvt_i = pvt[ph]
             if phases[ph] == LiquidPhase() && disgas
@@ -169,18 +258,26 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
             else
                 phase_density = rho_s[ph]*JutulDarcy.shrinkage(pvt_i, reg, p, 1)
             end
+        else
+            rho_val = fake_state[:PhaseMassDensities]
+            fake_state[:Pressure][1] = p
+            Jutul.update_secondary_variable!(rho_val, rho, model, fake_state, fake_cell_ix)
+            phase_density = rho_val[ph]
         end
         return phase_density
     end
     # Find the reference phase. It is either liquid
     ref_phase = get_reference_phase_index(model.system)
-    pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_f, contacts_pc, ref_phase)
+    if ismissing(density_function)
+        density_function = density_f
+    end
+    pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_function, contacts_pc, ref_phase)
     if nph > 1
         relperm = model.secondary_variables[:RelativePermeabilities]
         if relperm isa Pair
             relperm = last(relperm)
         end
-        s, pc = determine_saturations(depths, contacts, pressures; s_min = s_min, kwarg...)
+        s, pc = determine_saturations(depths, contacts, pressures; pc = pc, s_min = s_min, kwarg...)
         if !ismissing(sw)
             nph = size(s, 1)
             for i in axes(s, 2)
@@ -776,7 +873,7 @@ function integrate_phase_density(z_datum, z_end, p0, density_f, phase; n = 1000,
     return (z, pressure)
 end
 
-function determine_saturations(depths, contacts, pressures; s_min = missing, s_max = missing, pc = nothing)
+function determine_saturations(depths, contacts, pressures; s_min = missing, s_max = missing, pc = missing)
     nc = length(depths)
     nph = length(contacts) + 1
     if ismissing(s_min)
@@ -787,7 +884,7 @@ function determine_saturations(depths, contacts, pressures; s_min = missing, s_m
     end
     sat = zeros(nph, nc)
     sat_pc = similar(sat)
-    if isnothing(pc)
+    if isnothing(pc) || ismissing(pc)
         for i in eachindex(depths)
             z = depths[i]
             ph = current_phase_index(z, contacts)

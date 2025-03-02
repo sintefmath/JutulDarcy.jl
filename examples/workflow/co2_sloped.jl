@@ -1,4 +1,4 @@
-# # Carbon dioxoide injection in aquifer
+# # CO2 injection in saline aquifer with storage inventory
 # This example demonstrates a custom K-value compositional model for the
 # injection of CO2 into a saline aquifer. The physical model for flow of CO2 is
 # a realization of the description in [11th SPE Comparative Solutions
@@ -250,8 +250,7 @@ push!(rmodel.output_variables, :PhaseViscosities)
 wd, states, t = simulate_reservoir(state0, model, dt,
     parameters = parameters,
     forces = forces,
-    max_timestep = 90day,
-    info_level = -1
+    max_timestep = 90day
 );
 # ## Plot the CO2 mole fraction
 # We plot the overall CO2 mole fraction. We scale the color range to log10 to
