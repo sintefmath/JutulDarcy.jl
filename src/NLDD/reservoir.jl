@@ -400,6 +400,7 @@ function get_nldd_solution_change_tolerances(cfg)
     end
     tol_s = expand_tol(cfg[:solve_tol_saturations], cfg[:solve_tol_saturations_mean])
     tol_p = expand_tol(cfg[:solve_tol_pressure], cfg[:solve_tol_pressure_mean])
+    tol_T = expand_tol(cfg[:solve_tol_temperature], cfg[:solve_tol_temperature_mean])
     tol_mob = expand_tol(cfg[:solve_tol_mobility], cfg[:solve_tol_mobility_mean])
     tol_z = expand_tol(cfg[:solve_tol_composition], cfg[:solve_tol_composition_mean])
     tol_rho = expand_tol(cfg[:solve_tol_densities], cfg[:solve_tol_densities_mean])
@@ -411,8 +412,9 @@ function get_nldd_solution_change_tolerances(cfg)
     has_z = !isnothing(tol_z)
     has_XY = !isnothing(tol_XY)
     has_rho = !isnothing(tol_rho)
+    has_T = !isnothing(tol_T)
 
-    if has_s || has_p || has_mob || has_z || has_XY || has_rho
+    if has_s || has_p || has_mob || has_z || has_XY || has_rho || has_T
         out = (
             Saturations = tol_s,
             Pressure = tol_p,
@@ -420,7 +422,8 @@ function get_nldd_solution_change_tolerances(cfg)
             OverallMoleFractions = tol_z,
             LiquidMassFractions = tol_XY,
             VaporMassFractions = tol_XY,
-            PhaseMassDensities = tol_rho
+            PhaseMassDensities = tol_rho,
+            Temperature = tol_T
         )
     else
         out = nothing
@@ -451,14 +454,15 @@ end
 function check_inner(prev_state, model, state, tol, cells)
     do_solve = false
     criteria = (
-        (:Saturations, :abs),
-        (:Pressure, :abs),
-        (:PhaseMobilities, :relsum),
-        (:OverallMoleFractions, :abs),
-        (:LiquidMassFractions, :abs),
-        (:VaporMassFractions, :abs),
-        (:PhaseMassDensities, :abs),
-        (:PhaseMassDensities, :abs),
+            (:Saturations, :abs),
+            (:Pressure, :abs),
+            (:PhaseMobilities, :relsum),
+            (:OverallMoleFractions, :abs),
+            (:LiquidMassFractions, :abs),
+            (:VaporMassFractions, :abs),
+            (:PhaseMassDensities, :abs),
+            (:PhaseMassDensities, :abs),
+            (:Temperature, :abs),
         )
     for (k, t) in criteria
         do_solve = do_solve || check_subdomain_change_inner(prev_state, cells, model, state, k, tol[k], t)

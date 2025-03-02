@@ -30,7 +30,7 @@ features:
   - icon: ⚙️
     title: Differentiability
     details: Compute sensitivities of parameters with high-performance adjoint method
-    link: /examples/intro_sensitivities
+    link: /examples/introduction/intro_sensitivities
 
   - icon: 🏃
     title: High performance on CPU & GPU

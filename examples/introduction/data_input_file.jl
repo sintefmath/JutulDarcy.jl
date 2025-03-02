@@ -21,7 +21,7 @@ pth = GeoEnergyIO.test_input_file_path("SPE9", "SPE9.DATA");
 # If we do not need the case, we could also have simulated by passing the path:
 # `ws, states = simulate_data_file(pth)`
 case = setup_case_from_data_file(pth)
-ws, states = simulate_reservoir(case, info_level = -1);
+ws, states = simulate_reservoir(case);
 # ## Show the input data
 # The input data takes the form of a Dict:
 case.input_data

@@ -28,7 +28,7 @@ using Jutul
 using JutulDarcy
 using LinearAlgebra
 using GLMakie
-using Test #src
+using Test # hide
 
 sys = SinglePhaseSystem()
 nx = nz = 100
@@ -122,8 +122,8 @@ for (i, (m, s)) in enumerate(results)
     crange = (-largest, largest)
     plt = plot_cell_data!(ax2, g, Δ, colorrange = crange, colormap = :seismic)
     Colorbar(fig[3, i], plt, vertical = false)
-    if m != :tpfa  #src
-        @test err < 1e-4 #src
-    end  #src
+    if m != :tpfa  # hide
+        @test err < 1e-4 # hide
+    end  # hide
 end
 fig

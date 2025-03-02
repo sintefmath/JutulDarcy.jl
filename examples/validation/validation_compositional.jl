@@ -25,7 +25,7 @@ using GLMakie
 dpth = JutulDarcy.GeoEnergyIO.test_input_file_path("SIMPLE_COMP")
 data_path = joinpath(dpth, "SIMPLE_COMP.DATA")
 case = setup_case_from_data_file(data_path)
-result = simulate_reservoir(case, info_level = -1)
+result = simulate_reservoir(case)
 ws, states = result;
 # ## Plot solutions and compare
 # The 1D displacement can be plotted as a line plot. We pick a step midway

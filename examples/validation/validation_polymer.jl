@@ -24,7 +24,7 @@ push!(case.model[:Reservoir].output_variables, :PolymerConcentration)
 push!(case.model[:Reservoir].output_variables, :PhaseViscosities)
 push!(case.model[:Reservoir].output_variables, :AdsorbedPolymerConcentration)
 
-ws, states, time = simulate_reservoir(case, info_level = -1)
+ws, states, time = simulate_reservoir(case)
 # ## Load the reference solution and set up plotting
 ref_pth = JutulDarcy.GeoEnergyIO.test_input_file_path("BOPOLYMER_NOSHEAR", "result.txt")
 tab, header = DelimitedFiles.readdlm(ref_pth, header = true)

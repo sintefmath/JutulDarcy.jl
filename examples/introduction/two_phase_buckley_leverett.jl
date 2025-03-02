@@ -42,8 +42,8 @@ function solve_bl(;nc = 100, time = 1.0, nstep = nc)
     forces = setup_forces(model, sources = src, bc = bc)
     parameters = setup_parameters(model, PhaseViscosities = [1e-3, 5e-3]) # 1 and 5 cP
     state0 = setup_state(model, Pressure = p0, Saturations = [0.0, 1.0])
-    states, report = simulate(state0, model, timesteps, 
-        forces = forces, parameters = parameters, info_level = -1)
+    states, report = simulate(state0, model, timesteps,
+        forces = forces, parameters = parameters)
     return states, model, report
 end
 

@@ -10,7 +10,7 @@ using Jutul, JutulDarcy, GLMakie
 spe1_pth = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1", "SPE1.DATA")
 case = setup_case_from_data_file(spe1_pth)
 (; model, state0, forces, parameters, dt) = case
-ws, states = simulate_reservoir(case, info_level = -1)
+ws, states = simulate_reservoir(case)
 # ## Replacing the existing wells with new wells with the same name
 # The simplest way to replace a well is to create a new well with the same name
 # so that the new well replaces the old one. This is done by calling the setup
@@ -90,7 +90,7 @@ new_limits[:PROD_NEW] = plims
 new_forces = setup_reservoir_forces(new_model, control = new_control, limits = new_limits)
 
 # ## Simulate the new case
-new_ws, new_states = simulate_reservoir(new_state0, new_model, dt, forces = new_forces, parameters = new_parameters, info_level = -1)
+new_ws, new_states = simulate_reservoir(new_state0, new_model, dt, forces = new_forces, parameters = new_parameters)
 
 # ## Visualize the results
 # We can visualize the results of the new model and the old model

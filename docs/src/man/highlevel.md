@@ -43,10 +43,11 @@ setup_reservoir_model
 
 ### Initial state
 
-The initial state can be set up by explicitly setting all primary variables. JutulDarcy also contains functionality for initial hydrostatic equilibriation of the state, but this is at the moment most easily set up using input files with the `EQUIL` keyword.
+The initial state can be set up by explicitly setting all primary variables. JutulDarcy also contains functionality for initial hydrostatic equilibriation of the state, which is either done by setting up `EquilibriumRegion` instances that are passed to `setup_reservoir_state`, or by using an input file with the `EQUIL` keyword.
 
 ```@docs
 setup_reservoir_state
+EquilibriumRegion
 JutulDarcy.equilibriate_state
 ```
 
