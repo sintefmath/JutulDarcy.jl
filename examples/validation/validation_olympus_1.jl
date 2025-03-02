@@ -7,7 +7,7 @@
 # For more details, see [olympus](@cite)
 #
 using Jutul, JutulDarcy, GLMakie, DelimitedFiles, HYPRE
-using Test #src
+using Test # hide
 olympus_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("OLYMPUS_1")
 case = setup_case_from_data_file(joinpath(olympus_dir, "OLYMPUS_1.DATA"), backend = :csr)
 ws, states = simulate_reservoir(case, output_substates = true)
@@ -63,9 +63,9 @@ function plot_well_comparison(response, well_names, reponse_name = "$response"; 
         qoi = copy(well[response]).*ys
         qoi_ref = data[:, ref_pos].*ys
 
-        val = sum(qoi.*diff([0; time_jutul]))       #src
-        val_ref = sum(qoi_ref.*diff([0; time_ref])) #src
-        @test abs(val - val_ref)/abs(val) < 0.03    #src
+        val = sum(qoi.*diff([0; time_jutul]))       # hide
+        val_ref = sum(qoi_ref.*diff([0; time_ref])) # hide
+        @test abs(val - val_ref)/abs(val) < 0.03    # hide
 
         tot_rate = copy(well[:rate])
         @. qoi[tot_rate == 0] = NaN

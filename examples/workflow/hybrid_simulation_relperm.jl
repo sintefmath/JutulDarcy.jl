@@ -293,7 +293,7 @@ Jutul.@jutul_secondary function update_kr!(kr, kr_def::MLModelRelativePermeabili
     end
 end
 
-# Since JutulDarcy uses automatic differentiation, our new realtive permeability model needs to be differentiable.
+# Since JutulDarcy uses automatic differentiation, our new relative permeability model needs to be differentiable.
 # This is inherently satisfied by our neural network model, as differentiability is a core requirement for machine learning models.
 # One thing to note, is that we are using Lux with Zygote.jl for automatic differentiation, while Jutul uses ForwardDiff.jl.
 # This is not a problem, as the gradient of our simple neural network is fully compatible with ForwardDiff.jl, so no middleware is needed for this integration.
