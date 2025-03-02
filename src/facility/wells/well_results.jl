@@ -37,6 +37,10 @@ function Base.getindex(wr::WellResults, well::Symbol, outputs::Base.AbstractVecO
     return ret
 end
 
+function Base.getindex(wr::WellResults, wells::Base.Colon, output::Symbol)
+    return Base.getindex(wr, collect(keys(wr.wells)), output)
+end
+
 function Base.getindex(wr::WellResults, wells::Base.AbstractVecOrTuple, output::Symbol)
     # Multiple wells, single output
     n = length(wr.time)
