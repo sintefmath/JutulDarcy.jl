@@ -49,7 +49,7 @@ end
 
 function timer_str()
     start = "example_t_start = time_ns(); # hide\n"
-    stop_1 = "t_s = (time_ns() - example_t_start) / 1e9 # hide\n"
+    stop_1 = "\nt_s = (time_ns() - example_t_start) / 1e9 # hide\n"
     stop = stop_1*"println(\"This example took "*raw"$t_s"*" seconds to complete.\") # hide"
     return (start, stop)
 end
@@ -80,7 +80,7 @@ function update_footer(content, subdir, exname)
     info_footer = example_info_footer(subdir, exname)
     gc_footer = post_run_variables_gc()
     start, stop = timer_str()
-    new_content = string(content, info_footer, start, stop, gc_footer)
+    new_content = string(start, content, info_footer, stop, gc_footer)
     # print(new_content)
     return new_content
 end
