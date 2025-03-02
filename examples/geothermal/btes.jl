@@ -233,8 +233,7 @@ simulator, config = setup_reservoir_simulator(case;
     timesteps = :auto,
     target_its = 5,
     max_nonlinear_iterations = 8,
-    relaxation = true,
-    info_level = -1,
+    relaxation = true
 )
 results = simulate_reservoir(case, simulator=simulator, config=config);
 

@@ -80,6 +80,7 @@ module JutulDarcy
     export ImmiscibleSaturation
     export PhaseMassDensities, ConstantCompressibilityDensities
     export BrooksCoreyRelativePermeabilities, TabulatedSimpleRelativePermeabilities
+    export EquilibriumRegion
 
     import Jutul:
         number_of_cells, number_of_faces,
@@ -152,6 +153,7 @@ module JutulDarcy
     include("deck_types.jl")
     include("porousmedia_grids.jl")
     include("utils.jl")
+    include("state0.jl")
     include("interpolation.jl")
     # Definitions for multiphase flow
     include("multiphase.jl")

@@ -40,10 +40,10 @@ poro_ref = 0.1
 perm_ref = 9.8692e-14
 # ## Set up and simulate reference
 model_ref, state0_ref, parameters_ref, forces, tstep = setup_bl(nc = N, nstep = Nt, poro = poro_ref, perm = perm_ref)
-states_ref, = simulate(state0_ref, model_ref, tstep, parameters = parameters_ref, forces = forces, info_level = -1);
+states_ref, = simulate(state0_ref, model_ref, tstep, parameters = parameters_ref, forces = forces);
 # ## Set up another case where the porosity is different
 model, state0, parameters, = setup_bl(nc = N, nstep = Nt, poro = 2*poro_ref, perm = 1.0*perm_ref)
-states, rep = simulate(state0, model, tstep, parameters = parameters, forces = forces, info_level = -1);
+states, rep = simulate(state0, model, tstep, parameters = parameters, forces = forces);
 # ## Plot the results
 fig = Figure()
 ax = Axis(fig[1, 1], title = "Saturation")
@@ -129,7 +129,7 @@ parameters_t = deepcopy(parameters)
 devectorize_variables!(parameters_t, model, x, data[:mapper], config = data[:config])
 x_truth = vectorize_variables(model_ref, parameters_ref, data[:mapper], config = data[:config])
 
-states_tuned, = simulate(state0, model, tstep, parameters = parameters_t, forces = forces, info_level = -1);
+states_tuned, = simulate(state0, model, tstep, parameters = parameters_t, forces = forces);
 nothing
 #-
 # ## Plot final parameter spread

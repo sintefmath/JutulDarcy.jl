@@ -59,7 +59,7 @@ controls = Dict()
 controls[:Injector] = I_ctrl
 controls[:Producer] = P_ctrl
 forces = setup_reservoir_forces(model, control = controls)
-ws, states = simulate_reservoir(state0, model, dt, parameters = parameters, forces = forces, info_level = -1);
+ws, states = simulate_reservoir(state0, model, dt, parameters = parameters, forces = forces);
 # ## Once the simulation is done, we can plot the states
 # ### CO2 mole fraction
 sg = states[end][:OverallMoleFractions][2, :]

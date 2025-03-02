@@ -47,11 +47,42 @@ function get_example_paths(; check_empty = true)
     return examples
 end
 
-function update_footer(content, subdir, exname)
-    return content*"\n\n # ## Example on GitHub\n "*
+function timer_str()
+    start = "example_t_start = time_ns(); # hide\n"
+    stop_1 = "\nt_s = (time_ns() - example_t_start) / 1e9 # hide\n"
+    stop = stop_1*"println(\"This example took "*raw"$t_s"*" seconds to complete.\") # hide"
+    return (start, stop)
+end
+
+function post_run_variables_gc()
+    # Attempt of post-processing to GC some objects in temporary @example modules
+    # https://discourse.julialang.org/t/delete-a-module/62226
+    s =  "\nfunction clear_module!(M::Module)        # hide\n"*
+    "    for name ∈ names(M, all=true)        # hide\n"*
+    "        if !isconst(M, name)             # hide\n"*
+    raw"            @eval M $name = $nothing     # hide"*
+    "\n        end                              # hide\n"*
+    "    end                                  # hide\n"*
+    "end                                      # hide\n"*
+    "clear_module!(@__MODULE__)               # hide\n"*
+    "GC.gc();                                 # hide\n"
+    return s
+end
+
+function example_info_footer(subdir, exname)
+    return "\n\n # ## Example on GitHub\n "*
     "# If you would like to run this example yourself, it can be downloaded from "*
     "the JutulDarcy.jl GitHub repository [as a script](https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/$subdir/$exname.jl), "*
     "or as a [Jupyter Notebook](https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/final_site/notebooks/$subdir/$exname.ipynb)"
+end
+
+function update_footer(content, subdir, exname)
+    info_footer = example_info_footer(subdir, exname)
+    gc_footer = post_run_variables_gc()
+    start, stop = timer_str()
+    new_content = string(start, content, info_footer, stop, gc_footer)
+    # print(new_content)
+    return new_content
 end
 
 function build_jutul_darcy_docs(
