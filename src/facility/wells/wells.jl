@@ -306,7 +306,7 @@ function setup_vertical_well(g, K, i, j; heel = 1, toe = grid_dims_ijk(g)[3], kw
         if isnothing(cell_ix)
             jutul_message("Well", "Cell ($i, $j, $k) not found in active set, skipping.", color = :yellow)
         else
-            push!(reservoir_cells, ix)
+            push!(reservoir_cells, cell_ix)
         end
     end
     length(reservoir_cells) > 0 || error("No cells found for well.")
