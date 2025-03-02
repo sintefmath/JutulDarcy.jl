@@ -50,7 +50,7 @@ end
 function timer_str()
     start = "example_t_start = time_ns(); # hide\n"
     stop_1 = "t_s = (time_ns() - example_t_start) / 1e9 # hide\n"
-    stop = stop_1*"println(\"Example run in "*raw"$t_s"*" seconds.\") # hide"
+    stop = stop_1*"println(\"This example took "*raw"$t_s"*" seconds to complete.\") # hide"
     return (start, stop)
 end
 
