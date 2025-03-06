@@ -85,9 +85,11 @@ function reservoir_domain(g;
     )
     all(isfinite, permeability) || throw(ArgumentError("Keyword argument permeability has non-finite entries."))
     all(isfinite, porosity) || throw(ArgumentError("Keyword argument porosity has non-finite entries."))
+    all(isfinite, rock_thermal_conductivity) || throw(ArgumentError("Keyword argument rock_thermal_conductivity has non-finite entries."))
     all(isfinite, fluid_thermal_conductivity) || throw(ArgumentError("Keyword argument fluid_thermal_conductivity has non-finite entries."))
     all(isfinite, rock_heat_capacity) || throw(ArgumentError("Keyword argument rock_heat_capacity has non-finite entries."))
     all(isfinite, component_heat_capacity) || throw(ArgumentError("Keyword argument component_heat_capacity has non-finite entries."))
+    all(isfinite, rock_density) || throw(ArgumentError("Keyword argument rock_density has non-finite entries."))
 
     if !ismissing(diffusion)
         all(isfinite, diffusion) || throw(ArgumentError("Keyword argument diffusion has non-finite entries."))
@@ -108,6 +110,8 @@ function reservoir_domain(g;
         porosity = porosity,
         rock_thermal_conductivity = rock_thermal_conductivity,
         fluid_thermal_conductivity = fluid_thermal_conductivity,
+        rock_heat_capacity = rock_heat_capacity,
+        component_heat_capacity = component_heat_capacity,
         rock_density = rock_density,
         kwarg...
     )
