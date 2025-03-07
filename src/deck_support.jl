@@ -120,11 +120,11 @@ end
     end
 end
 
-@jutul_secondary function update_pore_volume!(pv, Φ::HystereticTableCompressiblePoreVolume, model, MaxPressure, Pressure, StaticFluidVolume, ix)
+@jutul_secondary function update_pore_volume!(pv, Φ::HystereticTableCompressiblePoreVolume, model, MinPressure, Pressure, StaticFluidVolume, ix)
     @inbounds for i in ix
         reg = region(Φ.regions, i)
         F = table_by_region(Φ.tab, reg)
-        p = max(Pressure[i], MaxPressure[i])
+        p = min(Pressure[i], MinPressure[i])
         pv[i] = StaticFluidVolume[i]*F(p)
     end
 end

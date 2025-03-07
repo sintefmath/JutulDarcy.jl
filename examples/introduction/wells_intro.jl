@@ -166,7 +166,7 @@ forces = setup_reservoir_forces(model, control = controls)
 # We are finally ready to simulate the model for the given initial state
 # `state0`, report steps `dt`, `parameters` and forces. As the model is small,
 # barring any compilation time, this should run in about 300 ms.
-result = simulate_reservoir(state0, model, dt, parameters = parameters, forces = forces, info_level = -1);
+result = simulate_reservoir(state0, model, dt, parameters = parameters, forces = forces);
 # ### Unpacking the result
 # The result contains a lot of data. This can be unpacked to get the most
 # typical desired outputs: Well responses, reservoir states and the time they

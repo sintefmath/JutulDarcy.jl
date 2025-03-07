@@ -695,12 +695,39 @@ function Jutul.subvariable(p::HystereticScalarPressureTable, map::FiniteVolumeGl
     )
 end
 
-
 @jutul_secondary function update_variable!(pv, Φ::HystereticScalarPressureTable, model, MaxPressure, Pressure, ix)
     @inbounds for i in ix
         reg = region(Φ.regions, i)
         F = table_by_region(Φ.tab, reg)
         p = max(Pressure[i], MaxPressure[i])
+        pv[i] = F(p)
+    end
+end
+
+struct HystereticScalarPressureTableMin{V, R} <: ScalarVariable
+    tab::V
+    regions::R
+    function HystereticScalarPressureTableMin(tab; regions = nothing)
+        check_regions(regions, length(tab))
+        tab = region_wrap(tab, regions)
+        new{typeof(tab), typeof(regions)}(tab, regions)
+    end
+end
+
+function Jutul.subvariable(p::HystereticScalarPressureTableMin, map::FiniteVolumeGlobalMap)
+    c = map.cells
+    regions = Jutul.partition_variable_slice(p.regions, c)
+    return HystereticScalarPressureTableMin(
+        p.tab,
+        regions = regions
+    )
+end
+
+@jutul_secondary function update_variable!(pv, Φ::HystereticScalarPressureTableMin, model, MinPressure, Pressure, ix)
+    @inbounds for i in ix
+        reg = region(Φ.regions, i)
+        F = table_by_region(Φ.tab, reg)
+        p = min(Pressure[i], MinPressure[i])
         pv[i] = F(p)
     end
 end

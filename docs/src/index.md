@@ -19,7 +19,7 @@ hero:
       link: https://github.com/sintefmath/JutulDarcy.jl
     - theme: alt
       text: Run .DATA file
-      link: /examples/data_input_file
+      link: /examples/introduction/data_input_file
 
 features:
   - icon: 💥
@@ -30,7 +30,7 @@ features:
   - icon: ⚙️
     title: Differentiability
     details: Compute sensitivities of parameters with high-performance adjoint method
-    link: /examples/intro_sensitivities
+    link: /examples/introduction/intro_sensitivities
 
   - icon: 🏃
     title: High performance on CPU & GPU
@@ -109,3 +109,23 @@ If you use JutulDarcy for a scientific publication, please cite [the main paper]
 ```
 
 :::
+
+## A few of the packages used by JutulDarcy
+
+JutulDarcy.jl builds upon many of the excellent packages in the Julia ecosystem. Here are a few of them, and what they are used for:
+
+- [ForwardDiff.jl](https://github.com/JuliaDiff/ForwardDiff.jl) implements the Dual number class used throughout the code
+- [SparsityTracing.jl](https://github.com/PALEOtoolkit/SparsityTracing.jl/) provides sparsity detection inside Jutul
+- [Krylov.jl](https://github.com/JuliaSmoothOptimizers/Krylov.jl) provides the iterative linear solvers
+- [ILUZero.jl](https://github.com/mcovalt/ILUZero.jl/blob/master/src/ILUZero.jl) for ILU(0) preconditioners
+- [AlgebraicMultigrid.jl](https://github.com/JuliaLinearAlgebra/AlgebraicMultigrid.jl) for AMG preconditioners
+- [HYPRE.jl](https://github.com/fredrikekre/HYPRE.jl) for robust AMG preconditioners with MPI support
+- [PartitionedArrays.jl](https://github.com/fverdugo/PartitionedArrays.jl) for MPI assembly and linear solve
+- [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) for CUDA-GPU support
+- [AMGX.jl](https://github.com/JuliaGPU/AMGX.jl) for AMG on CUDA GPUs
+- [Tullio.jl](https://github.com/mcabbott/Tullio.jl) for automatically optimized loops and [Polyester.jl](https://github.com/JuliaSIMD/Polyester.jl) for lightweight threads
+- [TimerOutputs.jl](https://github.com/KristofferC/TimerOutputs.jl) and [ProgressMeter.jl](https://github.com/timholy/ProgressMeter.jl) gives nice output to terminal.
+- [Makie.jl](https://makie.juliaplots.org/) is used for the visualization features
+- [MultiComponentFlash.jl](https://github.com/moyner/MultiComponentFlash.jl) provides many of the compositional features
+
+...and many more directly, and indirectly - see the Project.toml and Manifest files for a full list!

@@ -80,6 +80,12 @@ struct TemperatureDependentVariable{T, R, N} <: VectorVariables
     end
 end
 
+function Jutul.subvariable(p::TemperatureDependentVariable, map::FiniteVolumeGlobalMap)
+    c = map.cells
+    regions = Jutul.partition_variable_slice(p.regions, c)
+    return TemperatureDependentVariable(p.tab, regions = regions)
+end
+
 function Jutul.values_per_entity(model, ::TemperatureDependentVariable{T, R, N}) where {T, R, N}
     return N
 end

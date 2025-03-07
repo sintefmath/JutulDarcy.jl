@@ -300,10 +300,16 @@ function setup_vertical_well(g, K, i, j; heel = 1, toe = grid_dims_ijk(g)[3], kw
     k_range = heel:toe
     n = length(k_range)
     @assert n > 0
-    reservoir_cells = zeros(Int64, n)
+    reservoir_cells = Int[]
     for (ix, k) in enumerate(k_range)
-        reservoir_cells[ix] = cell_index(g, (i, j, k))
+        cell_ix = cell_index(g, (i, j, k), throw = false)
+        if isnothing(cell_ix)
+            jutul_message("Well", "Cell ($i, $j, $k) not found in active set, skipping.", color = :yellow)
+        else
+            push!(reservoir_cells, cell_ix)
+        end
     end
+    length(reservoir_cells) > 0 || error("No cells found for well.")
     return setup_well(g, K, reservoir_cells; kwarg...)
 end
 

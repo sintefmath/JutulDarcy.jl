@@ -112,8 +112,7 @@ state0 = setup_reservoir_state(model, Pressure = pressure_res, Temperature = tem
 # ## Simulate the case
 ws, states = simulate_reservoir(state0, model, dt,
     forces = forces,
-    parameters = parameters,
-    info_level = -1
+    parameters = parameters
 );
 
 # ## Plot the reservoir states in the interactive viewer

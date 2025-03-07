@@ -1311,107 +1311,6 @@ function reservoir_multimodel(models::AbstractDict;
 end
 
 """
-    setup_reservoir_state(model, <keyword arguments>)
-    # Ex: For immiscible two-phase
-    setup_reservoir_state(model, Pressure = 1e5, Saturations = [0.2, 0.8])
-
-Convenience constructor that initializes a state for a `MultiModel` set up using
-[`setup_reservoir_model`](@ref). The main convenience over [`setup_state`](@ref)
-is only the reservoir initialization values need be provided: wells are
-automatically initialized from the connected reservoir cells.
-
-As an alternative to passing keyword arguments, a `Dict{Symbol, Any}` instance
-can be sent in as a second, non-keyword argument.
-"""
-function setup_reservoir_state(model::MultiModel; kwarg...)
-    rmodel = reservoir_model(model)
-    pvars = collect(keys(Jutul.get_primary_variables(rmodel)))
-    res_state = setup_reservoir_state(rmodel; kwarg...)
-    # Next, we initialize the wells.
-    init = Dict(:Reservoir => res_state)
-    perf_subset(v::AbstractVector, i) = v[i]
-    perf_subset(v::AbstractMatrix, i) = v[:, i]
-    perf_subset(v, i) = v
-    for k in keys(model.models)
-        if k == :Reservoir
-            # Already done
-            continue
-        end
-        W = model.models[k]
-        if W.domain isa WellGroup
-            # Facility or well group
-            init_w = setup_state(W, TotalSurfaceMassRate = 0.0)
-        else
-            # Wells
-            init_w = Dict{Symbol, Any}()
-            W = model.models[k]
-            wg = physical_representation(W.domain)
-            res_c = wg.perforations.reservoir
-            if wg isa MultiSegmentWell
-                init_w[:TotalMassFlux] = 0.0
-            end
-            c = map_well_nodes_to_reservoir_cells(wg, rmodel.data_domain)
-            for pk in pvars
-                pv = res_state[pk]
-                init_w[pk] = perf_subset(pv, c)
-            end
-        end
-        init[k] = init_w
-    end
-    state = setup_state(model, init)
-    return state
-end
-
-function setup_reservoir_state(model, init)
-    if haskey(init, :Reservoir) && model isa MultiModel
-        # Could be output from a previous call to the same routine
-        init = init[:Reservoir]
-    end
-    return setup_reservoir_state(model; pairs(init)...)
-end
-
-function setup_reservoir_state(rmodel::SimulationModel; kwarg...)
-    pvars = collect(keys(Jutul.get_primary_variables(rmodel)))
-    svars = collect(keys(Jutul.get_secondary_variables(rmodel)))
-    np = length(pvars)
-    found = Symbol[]
-    res_init = Dict{Symbol, Any}()
-    for (k, v) in kwarg
-        I = findfirst(isequal(k), pvars)
-        if eltype(v)<:AbstractFloat
-            if !all(isfinite, v)
-                jutul_message("setup_reservoir_state", "Non-finite entries found in initializer for $k.", color = :red)
-            end
-        end
-        if isnothing(I)
-            if !(k in svars)
-                jutul_message("setup_reservoir_state", "Recieved primary variable $k, but this is not known to reservoir model.")
-            end
-        else
-            push!(found, k)
-        end
-        res_init[k] = v
-    end
-    tc = get(rmodel.primary_variables, :TracerConcentrations, nothing)
-    if  !isnothing(tc) && !haskey(res_init, :TracerConcentrations)
-        # Tracers are usually safe to default = 0
-        res_init[:TracerConcentrations] = Jutul.default_values(rmodel, tc)
-        push!(found, :TracerConcentrations)
-    end
-    handle_alternate_primary_variable_spec!(res_init, found, rmodel, rmodel.system)
-    if length(found) != length(pvars)
-        missing_primary_variables = setdiff(pvars, found)
-        @warn "Not all primary variables were initialized for reservoir model." missing_primary_variables
-    end
-    return setup_state(rmodel, res_init)
-end
-
-function handle_alternate_primary_variable_spec!(res_init, found, rmodel, system)
-    # Internal utility to handle non-trivial specification of primary variables
-    return res_init
-end
-
-"""
     setup_reservoir_forces(model; control = nothing, limits = nothing, set_default_limits = true, <keyword arguments>)
 
 Set up driving forces for a reservoir model with wells
@@ -1907,6 +1806,48 @@ a diagonal tensor aligned with the logical grid directions. The latter choice is
 only meaningful for a diagonal tensor.
 """
 function reservoir_transmissibility(d::DataDomain; version = :xyz)
+    function apply_ntg!(T_hf, ntg, facepos, face_is_vertical)
+        for (c, ntg) in enumerate(ntg)
+            if ntg isa AbstractFloat && ntg ≈ 1.0
+                continue
+            end
+            for fp in facepos[c]:(facepos[c+1]-1)
+                if face_is_vertical[faces[fp]]
+                    T_hf[fp] *= ntg
+                end
+            end
+        end
+    end
+    function fig_negative_trans!(T_hf)
+        neg_count = 0
+        for (i, T_hf_i) in enumerate(T_hf)
+            neg_count += T_hf_i < 0
+            T_hf[i] = abs(T_hf_i)
+        end
+        # We only warn for significant amounts of negative transmissibilities, since
+        # a few negative values is normal for reservoir grids.
+        if neg_count > 0.1*length(T_hf)
+            tran_tot = length(T_hf)
+            perc = round(100*neg_count/tran_tot, digits = 2)
+            jutul_message("Transmissibility", "Replaced $neg_count negative half-transmissibilities (out of $tran_tot, $perc%) with their absolute value.")
+        end
+        return T_hf
+    end
+    function fix_bad_trans!(T_hf)
+        bad_count = 0
+        for (i, T_hf_i) in enumerate(T_hf)
+            if T_hf_i isa AbstractFloat && !isfinite(T_hf_i)
+                bad_count += 1
+                T_hf[i] = 0.0
+            end
+        end
+        if bad_count > 0
+            tran_tot = length(T_hf)
+            perc = round(100*bad_count/tran_tot, digits = 2)
+            jutul_message("Transmissibility", "Replaced $bad_count non-finite half-transmissibilities (out of $tran_tot, $perc%) with zero.")
+        end
+        return T_hf
+    end
     g = physical_representation(d)
     N = d[:neighbors]
     nc = number_of_cells(d)
@@ -1929,30 +1870,8 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
         face_dir = face_dir
     )
     nf = number_of_faces(d)
-    neg_count = 0
-    for (i, T_hf_i) in enumerate(T_hf)
-        neg_count += T_hf_i < 0
-        T_hf[i] = abs(T_hf_i)
-    end
-    # We only warn for significant amounts of negative transmissibilities, since
-    # a few negative values is normal for reservoir grids.
-    if neg_count > 0.1*length(T_hf)
-        tran_tot = length(T_hf)
-        perc = round(100*neg_count/tran_tot, digits = 2)
-        jutul_message("Transmissibility", "Replaced $neg_count negative half-transmissibilities (out of $tran_tot, $perc%) with their absolute value.")
-    end
-    bad_count = 0
-    for (i, T_hf_i) in enumerate(T_hf)
-        if T_hf_i isa AbstractFloat && !isfinite(T_hf_i)
-            bad_count += 1
-            T_hf[i] = 0.0
-        end
-    end
-    if bad_count > 0
-        tran_tot = length(T_hf)
-        perc = round(100*bad_count/tran_tot, digits = 2)
-        jutul_message("Transmissibility", "Replaced $bad_count non-finite half-transmissibilities (out of $tran_tot, $perc%) with zero.")
-    end
+    fig_negative_trans!(T_hf)
+    fix_bad_trans!(T_hf)
     if haskey(d, :net_to_gross)
         # Net to gross applies to vertical trans only
         otag = get_mesh_entity_tag(g, Faces(), :orientation, throw = false)
@@ -1976,16 +1895,7 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
                 return abs(nz) < max(abs(nx), abs(ny))
             end
         end
-        for (c, ntg) in enumerate(d[:net_to_gross])
-            if ntg isa AbstractFloat && ntg ≈ 1.0
-                continue
-            end
-            for fp in facepos[c]:(facepos[c+1]-1)
-                if face_is_vertical[faces[fp]]
-                    T_hf[fp] *= ntg
-                end
-            end
-        end
+        apply_ntg!(T_hf, d[:net_to_gross], facepos, face_is_vertical)
     end
     T = compute_face_trans(T_hf, N)
     if haskey(d, :transmissibility_multiplier, Faces())
@@ -2486,10 +2396,58 @@ function reservoir_measurables(model, result::ReservoirSimResult; kwarg...)
     return reservoir_measurables(model, ws, states; kwarg...)
 end
 
-function reservoir_measurables(model, ws, states = missing; type = :field)
-    @assert type == :field
-    wells = ws.wells
-    time = ws.time
+function reservoir_measurables(model, wellresult, states = missing;
+        type::Symbol = :field,
+        wells = missing,
+        include_reservoir = !ismissing(states) && type == :field,
+        units = :si,
+        prefix_str = missing
+    )
+    if wells isa Symbol
+        wells = [wells]
+    elseif ismissing(wells)
+        wells = keys(wellresult.wells)
+    elseif wells isa String
+        wells = [Symbol(wells)]
+    end
+    if type == :field
+        prefix = 'f'
+        include_reservoir = !ismissing(states)
+        if ismissing(prefix_str)
+            prefix_str = "Field"
+        end
+    elseif type == :group
+        prefix = 'g'
+        if ismissing(prefix_str)
+            prefix_str = "Group"
+        end
+    elseif type == :well
+        prefix = 'w'
+        if ismissing(prefix_str)
+            prefix_str = "Well"
+        end
+        !ismissing(wells) || error("Well subset must be provided for prefix = 'w'")
+        length(wells) == 1 || error("Well subset must be a single well for prefix = 'w'")
+    elseif type == :region
+        error("Region not yet supported.")
+        prefix = 'r'
+        if ismissing(prefix_str)
+            prefix_str = "Region"
+        end
+    else
+        type == :value || error("Unknown type $type")
+        # Used for whatever else
+        prefix = 'x'
+        if ismissing(prefix_str)
+            prefix_str = "Value"
+        end
+    end
+    ws = wellresult.wells
+    for w in wells
+        haskey(ws, w) || error("Well $w not found in well results")
+    end
+    time = wellresult.time
+    dt = diff([0.0, time...])
 
     out = Dict{Symbol, Any}(:time => time)
 
@@ -2509,38 +2467,30 @@ function reservoir_measurables(model, ws, states = missing; type = :field)
     has_gas = !isnothing(gix)
     n = length(time)
 
-    function add_entry(name, legend, unit = :id; is_rate = false)
+    function add_entry(name::Symbol, legend, unit = :id; is_rate = false, use_prefix = true)
         values = zeros(n)
-        out[name] = (values = values, legend = legend, unit_type = unit, is_rate = is_rate)
+        if use_prefix
+            name = Symbol(prefix, name)
+        end
+        out[name] = (values = values, legend = "$prefix_str legend", unit_type = unit, is_rate = is_rate)
         return values
     end
     # Production of different types
-    flpr = add_entry(:flpr, "Field liquid production rate (oil + water)", :liquid_volume_surface, is_rate = true)
-    fwpr = add_entry(:fwpr, "Field water production rate", :liquid_volume_surface, is_rate = true)
-    fopr = add_entry(:fopr, "Field oil production rate", :liquid_volume_surface, is_rate = true)
-    fgpr = add_entry(:fgpr, "Field gas production rate", :gas_volume_surface, is_rate = true)
+    flpr = add_entry(:lpr, "liquid production rate (oil + water)", :liquid_volume_surface, is_rate = true)
+    fwpr = add_entry(:wpr, "water production rate", :liquid_volume_surface, is_rate = true)
+    fopr = add_entry(:opr, "oil production rate", :liquid_volume_surface, is_rate = true)
+    fgpr = add_entry(:gpr, "gas production rate", :gas_volume_surface, is_rate = true)
 
     # Injection types
-    fwir = add_entry(:fwir, "Field water injection rate", :liquid_volume_surface, is_rate = true)
-    foir = add_entry(:foir, "Field oil injection rate", :liquid_volume_surface, is_rate = true)
-    fgir = add_entry(:fgir, "Field gas injection rate", :gas_volume_surface, is_rate = true)
-
-    # Reservoir values
-    if is_blackoil
-        fwip = add_entry(:fwip, "Field water component in place (surface volumes)", :liquid_volume_surface)
-        foip = add_entry(:foip, "Field oil component in place (surface volumes)", :liquid_volume_surface)
-        fgip = add_entry(:fgip, "Field gas component in place (surface volumes)", :gas_volume_surface)
-    end
-
-    fwipr = add_entry(:fwipr, "Field water in place (reservoir volumes)", :liquid_volume_reservoir)
-    foipr = add_entry(:foipr, "Field oil in place (reservoir volumes)", :liquid_volume_reservoir)
-    fgipr = add_entry(:fgipr, "Field gas in place (reservoir volumes)", :gas_volume_reservoir)
-
-    fprh = add_entry(:fprh, "Field average pressure (hydrocarbon volume weighted)", :pressure)
-    pres = add_entry(:pres, "Field average pressure", :pressure)
+    fwir = add_entry(:wir, "water injection rate", :liquid_volume_surface, is_rate = true)
+    foir = add_entry(:oir, "oil injection rate", :liquid_volume_surface, is_rate = true)
+    fgir = add_entry(:gir, "gas injection rate", :gas_volume_surface, is_rate = true)
 
     function sum_well_rates!(vals, k::Symbol; is_prod::Bool)
-        for (wk, wval) in pairs(wells)
+        for (wk, wval) in pairs(ws)
+            if !ismissing(wells) && wk ∉ wells
+                continue
+            end
             if is_prod
                 for (i, v) in enumerate(wval[k])
                     vals[i] -= min(0.0, v)
@@ -2567,7 +2517,21 @@ function reservoir_measurables(model, ws, states = missing; type = :field)
         sum_well_rates!(fgpr, :grat, is_prod = true)
         sum_well_rates!(fgir, :grat, is_prod = false)
     end
-    if !ismissing(states)
+    # Reservoir values
+    if include_reservoir
+        if is_blackoil
+            fwip = add_entry(:wip, "water component in place (surface volumes)", :liquid_volume_surface)
+            foip = add_entry(:oip, "oil component in place (surface volumes)", :liquid_volume_surface)
+            fgip = add_entry(:gip, "gas component in place (surface volumes)", :gas_volume_surface)
+        end
+
+        fwipr = add_entry(:wipr, "water in place (reservoir volumes)", :liquid_volume_reservoir)
+        foipr = add_entry(:oipr, "oil in place (reservoir volumes)", :liquid_volume_reservoir)
+        fgipr = add_entry(:gipr, "gas in place (reservoir volumes)", :gas_volume_reservoir)
+
+        fprh = add_entry(:prh, "average pressure (hydrocarbon volume weighted)", :pressure)
+        pres = add_entry(:pr, "average pressure", :pressure)
+
         if haskey(states[1], :Reservoir)
             states = map(x -> x[:Reservoir], states)
         end
@@ -2606,11 +2570,48 @@ function reservoir_measurables(model, ws, states = missing; type = :field)
             pres[i] = mean_p
         end
     end
-    # Derived quantities
-    fwct = add_entry(:fwct, "Field production water cut")
-    @. fwct = fwpr./flpr
-    fgor = add_entry(:fgor, "Field gas-oil production ratio")
+    # Well values
+    if prefix == 'w'
+        bhp = add_entry(:bhp, "bottom-hole pressure", :pressure)
+        bhp .= ws[only(wells)][:bhp]
+    end
+
+    if units != :si
+        # TODO: These should be exported + documented.
+        usys_from = GeoEnergyIO.InputParser.DeckUnitSystem(:si)
+        usys_to = GeoEnergyIO.InputParser.DeckUnitSystem(units)
+        systems = (to = usys_to, from = usys_from)
+        d = si_unit(:day)
+        for (k, x) in pairs(out)
+            if x isa Vector
+                continue
+            end
+            GeoEnergyIO.InputParser.swap_unit_system!(x.values, systems, x.unit_type)
+            if x.is_rate
+                @. x.values *= d
+            end
+        end
+    end
+
+    # Derived quantities - done at the end to avoid double unit conversion
+    fwct = add_entry(:wct, "production water cut")
+    @. fwct = fwpr./max.(flpr, 1e-12)
+    fgor = add_entry(:gor, "gas-oil production ratio")
     @. fgor = fgpr./max.(fopr, 1e-12)
+
+    fwit = add_entry(:wit, "water injection total", :liquid_volume_surface, is_rate = false)
+    fwit .= cumsum(fwir.*dt)
+    foit = add_entry(:oit, "oil injection total", :liquid_volume_surface, is_rate = false)
+    foit .= cumsum(foir.*dt)
+    fgit = add_entry(:git, "gas injection total", :gas_volume_surface, is_rate = false)
+    fgit .= cumsum(fgir.*dt)
+
+    fwit = add_entry(:wpt, "water production total", :liquid_volume_surface, is_rate = false)
+    fwit .= cumsum(fwpr.*dt)
+    foit = add_entry(:opt, "oil production total", :liquid_volume_surface, is_rate = false)
+    foit .= cumsum(fopr.*dt)
+    fgit = add_entry(:gpt, "gas production total", :gas_volume_surface, is_rate = false)
+    fgit .= cumsum(fgpr.*dt)
 
     return out
 end

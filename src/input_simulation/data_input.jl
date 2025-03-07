@@ -245,7 +245,7 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
     accumulator_volume = missing
     if simple_well
         @assert isnothing(msdata)
-        accumulator_volume = 0.1*mean(domain[:volumes][wc])*mean(domain[:porosity][wc])
+        accumulator_volume = 0.05*mean(domain[:volumes][wc])*mean(domain[:porosity][wc])
     else
         if !isnothing(msdata)
             has_welsegs = haskey(msdata, "WELSEGS")
@@ -400,12 +400,15 @@ function map_compdat_to_multisegment_segments(compsegs, branches, tubing_lengths
     return perforation_cells
 end
 
-function compdat_to_connection_factors(domain, wspec, v, step; sort = true, order = "TRACK")
+function compdat_to_connection_factors(domain, wspec, v, step; sort = true, order = "TRACK", ijk_lookup = missing)
     G = physical_representation(domain)
+    if ismissing(ijk_lookup)
+        ijk_lookup = ijk_lookup_dict(G)
+    end
     K = domain[:permeability]
 
     ij_ix = collect(keys(v))
-    wc = map(i -> cell_index(G, i), ij_ix)
+    wc = map(i -> ijk_lookup[i], ij_ix)
 
     getf(k) = map(x -> v[x][k], ij_ix)
     open = getf(:open)
@@ -456,9 +459,9 @@ end
 
 function parse_schedule(domain, runspec, props, schedule, sys; simple_well = true)
     G = physical_representation(domain)
-
+    ijk_lookup = ijk_lookup_dict(G)
     dt, cstep, controls, status, completions, msdata, limits = parse_control_steps(runspec, props, schedule, sys)
-    completions, bad_wells = filter_inactive_completions!(completions, G)
+    completions, bad_wells = filter_inactive_completions!(completions, G, ijk_lookup)
     @assert length(controls) == length(completions)
     handle_wells_without_active_perforations!(bad_wells, completions, controls, limits)
     ncomp = length(completions)
@@ -490,7 +493,7 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
             well_is_shut = well_control isa DisabledControl
             wi_mul = zeros(n_wi)
             if !well_is_shut
-                wc, WI, open, multipliers, fresh = compdat_to_connection_factors(domain, wspec, compdat, i, sort = false)
+                wc, WI, open, multipliers, fresh = compdat_to_connection_factors(domain, wspec, compdat, i, ijk_lookup = ijk_lookup, sort = false)
                 for (c, wi, is_open, is_fresh, mul) in zip(wc, WI, open, fresh, multipliers)
                     compl_idx = findfirst(isequal(c), wc_base)
                     if isnothing(compl_idx)
@@ -531,22 +534,30 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
     return (wells, controls, limits, cstep, dt, well_forces)
 end
 
-function filter_inactive_completions!(completions_vector, g)
+function ijk_lookup_dict(G)
+    ijk_lookup = Dict{Tuple{Int, Int, Int}, Int}()
+    for i in 1:number_of_cells(G)
+        ijk = cell_ijk(G, i)
+        ijk_lookup[ijk] = i
+    end
+    return ijk_lookup
+end
+
+function filter_inactive_completions!(completions_vector, g, ijk_lookup)
     tuple_active = Dict{Tuple{String, NTuple{3, Int}}, Bool}()
     for completions in completions_vector
         for (well, completion_set) in pairs(completions)
             for tupl in keys(completion_set)
                 k = (well, tupl)
                 if !haskey(tuple_active, k)
-                    ix = cell_index(g, tupl, throw = false)
-                    if isnothing(ix)
+                    if haskey(ijk_lookup, tupl)
+                        tuple_active[k] = true
+                    else
                         jutul_message("$well completion",
                             "Removed COMPDAT as $tupl is not active in processed mesh.",
                             color = :yellow
                         )
                         tuple_active[k] = false
-                    else
-                        tuple_active[k] = true
                     end
                 end
                 if !tuple_active[k]
@@ -953,63 +964,16 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
         extra_data_arg[:opernum] = grid["OPERNUM"][active_ix]
     end
     multregt = get(grid, "MULTREGT", missing)
-    function tsort(x, y)
-        if x > y
-            return (y, x)
-        else
-            return (x, y)
-        end
-    end
-    function pair_matchex(pair_kw, pair_reg)
-        wildcard1 = pair_kw[1] < 1
-        wildcard2 = pair_kw[2] < 1
-        if wildcard1 && wilcard2
-            return pair_reg[1] != pair_reg[2]
-        elseif wildcard1
-            return pair_kw[2] == pair_reg[2]
-        elseif wildcard2
-            return pair_kw[1] == pair_reg[1]
-        else
-            return pair_kw == pair_reg
-        end
-    end
-
     if !ismissing(multregt)
         opernum = get(extra_data_arg, :opernum, ones(Int, nc))
         multnum = get(extra_data_arg, :multnum, ones(Int, nc))
         fluxnum = get(extra_data_arg, :fluxnum, ones(Int, nc))
-        for fno in 1:nf
-            l, r = G.faces.neighbors[fno]
-            opernum_pair = tsort(opernum[l], opernum[r])
-            multnum_pair = tsort(multnum[l], multnum[r])
-            fluxnum_pair = tsort(fluxnum[l], fluxnum[r])
-
-            for regt in multregt
-                pairt = tsort(regt[1], regt[2])
-                do_apply = false
-                for (pos, coord) in enumerate(('X', 'Y', 'Z'))
-                    if coord in regt[4] && ijk[l][pos] != ijk[r][pos]
-                        do_apply = true
-                        break
-                    end
-                end
-                if do_apply
-                    m = regt[3]
-                    region_type = only(lowercase(regt[6]))
-                    if region_type == 'm'
-                        pair_to_match = multnum_pair
-                    elseif region_type == 'o'
-                        pair_to_match = opernum_pair
-                    else
-                        @assert region_type == 'f' "Region type was expected to be m, o or f, was $region_type"
-                        pair_to_match = fluxnum_pair
-                    end
-                    if pair_matchex(pairt, pair_to_match)
-                        tranmult[fno] *= m
-                    end
-                end
-            end
-        end
+        # Make the table concrete for looping over
+        multregt_tab = map(
+            x -> (x[1], x[2], x[3], x[4], x[5], only(lowercase(x[6]))),
+            multregt
+        )
+        parser_set_multregt!(tranmult, G, opernum, multnum, fluxnum, multregt_tab, ijk)
     end
 
     sol = data_file["SOLUTION"]
@@ -1136,6 +1100,62 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
         end
     end
     return domain
+end
+
+function parser_set_multregt!(tranmult, G, opernum, multnum, fluxnum, multregt, ijk)
+    function tsort(x, y)
+        if x > y
+            return (y, x)
+        else
+            return (x, y)
+        end
+    end
+    function pair_matchex(pair_kw, pair_reg)
+        wildcard1 = pair_kw[1] < 1
+        wildcard2 = pair_kw[2] < 1
+        if wildcard1 && wilcard2
+            return pair_reg[1] != pair_reg[2]
+        elseif wildcard1
+            return pair_kw[2] == pair_reg[2]
+        elseif wildcard2
+            return pair_kw[1] == pair_reg[1]
+        else
+            return pair_kw == pair_reg
+        end
+    end
+    for fno in eachindex(tranmult)
+        l, r = G.faces.neighbors[fno]
+        opernum_pair = tsort(opernum[l], opernum[r])
+        multnum_pair = tsort(multnum[l], multnum[r])
+        fluxnum_pair = tsort(fluxnum[l], fluxnum[r])
+
+        for regt in multregt
+            pairt = tsort(regt[1], regt[2])
+            do_apply = false
+            for (pos, coord) in enumerate(('X', 'Y', 'Z'))
+                if coord in regt[4] && ijk[l][pos] != ijk[r][pos]
+                    do_apply = true
+                    break
+                end
+            end
+            if do_apply
+                m = regt[3]
+                region_type = regt[6]
+                if region_type == 'm'
+                    pair_to_match = multnum_pair
+                elseif region_type == 'o'
+                    pair_to_match = opernum_pair
+                else
+                    @assert region_type == 'f' "Region type was expected to be m, o or f, was $region_type"
+                    pair_to_match = fluxnum_pair
+                end
+                if pair_matchex(pairt, pair_to_match)
+                    tranmult[fno] *= m
+                end
+            end
+        end
+    end
+    return tranmult
 end
 
 function apply_mult_xyz!(tranmult, k, mult_on_active, G, ijk)
