@@ -49,7 +49,7 @@ function Jutul.subforce(s::AbstractVector{S}, model) where S<:SourceTerm
     return s[keep]
 end
 
-function Jutul.vectorization_length(src::SourceTerm, variant)
+function Jutul.vectorization_length(src::SourceTerm, model, variant)
     n = 1
     if variant == :all
         f = src.fractional_flow

@@ -302,7 +302,7 @@ function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, tim
 
 end
 
-function Jutul.vectorization_length(bc::FlowBoundaryCondition, variant)
+function Jutul.vectorization_length(bc::FlowBoundaryCondition, model, variant)
     if variant == :all
         n = 4 # pressure, temperature, T_flow, T_thermal
         f = bc.fractional_flow
