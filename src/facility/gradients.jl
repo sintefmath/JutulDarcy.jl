@@ -129,7 +129,7 @@ function Jutul.devectorize_force(control_or_limits::Tcl, model::FacilityModel, X
     if name == :control
         for (wname, ctrl) in pairs(control_or_limits)
             if ctrl isa DisabledControl
-                continue
+                out[wname] = ctrl
             else
                 if supp.target
                     val = X[offset+1]
@@ -175,13 +175,13 @@ function Jutul.devectorize_force(control_or_limits::Tcl, model::FacilityModel, X
         end
     elseif name == :limits
         if supp.limits
-            error()
-            for (k, limdict) in pairs(controls_or_limits)
+            for (k, limdict) in pairs(control_or_limits)
+                new_limdict = OrderedDict()
                 for (lim_k, lim_v) in pairs(limdict)
                     offset += 1
-                    v[offset] = lim_v
-                    push!(names, Symbol("limit_$k$lim_k"))
+                    new_limdict[lim_k] = X[offset]
                 end
+                out[k] = (; pairs(new_limdict)...)
             end
         end
     else
