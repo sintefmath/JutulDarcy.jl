@@ -187,8 +187,14 @@ function compute_bc_mass_fluxes(bc, state, nph)
     Δp = p[c] - bc.pressure
     q_tot = T_f*Δp
 
-    num_t = Base.promote_type(typeof(q_tot), eltype(kr), eltype(mu), eltype(rho))
-    q = zeros(MVector{nph, num_t})
+    num_t = Base.promote_type(typeof(q_tot), eltype(kr), eltype(mu), eltype(rho), typeof(q_tot))
+    isbits_out = isbitstype(num_t)
+    if isbits_out
+        V_t = MVector{nph, num_t}
+    else
+        V_t = SizedVector{nph, num_t}
+    end
+    q = zeros(V_t)
     if q_tot > 0
         # Pressure inside is higher than outside, flow out from domain
         for ph in 1:nph
@@ -228,8 +234,12 @@ function compute_bc_mass_fluxes(bc, state, nph)
             end
         end
     end
-
-    return SVector{nph, num_t}(q)
+    if isbits_out
+        out = SVector{nph, num_t}(q)
+    else
+        out = q
+    end
+    return q
 end
 
 function compute_bc_heat_fluxes(bc, state, nph)
