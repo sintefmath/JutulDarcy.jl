@@ -828,6 +828,7 @@ end
 - `timesteps=:auto`: Set to `:auto` to use automatic timestepping, `:none` for
   no automatic timestepping (i.e. try to solve exact report steps)
 - `max_timestep=si_unit(:year)`: Maximum internal timestep used in solver.
+- `min_timestep=0.0`: Minimum internal timestep used in solver.
 
 ## Convergence criterions
 - `tol_cnv=1e-3`: maximum allowable point-wise error (volume-balance)
@@ -878,6 +879,7 @@ function setup_reservoir_simulator(case::JutulCase;
         linear_solver = :bicgstab,
         linear_solver_backend = :cpu,
         max_timestep = si_unit(:year),
+        min_timestep = 0.0,
         max_dt = max_timestep,
         rtol = nothing,
         initial_dt = si_unit(:day),
@@ -1008,6 +1010,7 @@ function setup_reservoir_simulator(case::JutulCase;
         info_level = info_level,
         relaxation = relaxation,
         max_timestep = max_timestep,
+        min_timestep = min_timestep,
         failure_cuts_timestep = failure_cuts_timestep,
         max_timestep_cuts = max_timestep_cuts,
         kwarg...
