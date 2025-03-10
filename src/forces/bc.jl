@@ -253,13 +253,13 @@ function compute_bc_heat_fluxes(bc, state, nph)
     h = state.FluidEnthalpy
     u = state.FluidInternalEnergy
     rho = state.PhaseMassDensities
-    
+
     # Get boundary properties
     T_h    = bc.trans_thermal
     p_bc   = bc.pressure
     T_bc   = bc.temperature
     rho_bc = bc.density
-    
+
     qh_advective = 0
     for ph in 1:nph
         if q[ph] > 0
@@ -284,7 +284,6 @@ function compute_bc_heat_fluxes(bc, state, nph)
     qh_conductive = T_h*ΔT
 
     return qh_advective, qh_conductive
-
 end
 
 function compute_bc_heat_fluxes(bc, state)
@@ -321,7 +320,7 @@ function Jutul.vectorization_length(bc::FlowBoundaryCondition, variant)
     end
 end
 
-function Jutul.vectorize_force!(v, bc::FlowBoundaryCondition, variant)
+function Jutul.vectorize_force!(v, model::SimulationModel, bc::FlowBoundaryCondition, variant)
     names = []
     if variant == :all
         v[1] = bc.pressure
@@ -355,7 +354,7 @@ function Jutul.vectorize_force!(v, bc::FlowBoundaryCondition, variant)
     return (names = names, )
 end
 
-function Jutul.devectorize_force(bc::FlowBoundaryCondition, X, meta, variant)
+function Jutul.devectorize_force(bc::FlowBoundaryCondition, model::SimulationModel, X, meta, variant)
     p = X[1]
     T = bc.temperature
     trans_flow = bc.trans_flow

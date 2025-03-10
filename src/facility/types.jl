@@ -3,6 +3,8 @@ abstract type FacilitySystem <: JutulSystem end
 struct PredictionMode <: FacilitySystem end
 struct HistoryMode <: FacilitySystem end
 
+const FacilityModel = SimulationModel{<:Any, <:FacilitySystem, <:Any, <:Any}
+
 abstract type SurfaceFacilityDomain <: JutulDomain end
 abstract type WellControllerDomain <: SurfaceFacilityDomain end
 mutable struct WellGroup <: WellControllerDomain
