@@ -151,7 +151,9 @@ bottom-hole-pressure constraint.
 struct SurfaceLiquidRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
     function SurfaceLiquidRateTarget(v::T) where T
-        isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))'
+        if T == Float64
+            isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))
+        end
         return new{T}(v)
     end
 end
@@ -168,7 +170,9 @@ rarely injected into the subsurface. Abbreviated as ORAT in some settings.
 struct SurfaceOilRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
     function SurfaceOilRateTarget(v::T) where T
-        isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))'
+        if T == Float64
+            isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))
+        end
         return new{T}(v)
     end
 end
@@ -188,7 +192,9 @@ present.
 struct SurfaceGasRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
     function SurfaceGasRateTarget(v::T) where T
-        isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))'
+        if T == Float64
+            isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))
+        end
         return new{T}(v)
     end
 end
@@ -207,7 +213,9 @@ become very high if there is little water present.
 struct SurfaceWaterRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
     function SurfaceWaterRateTarget(v::T) where T
-        isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))'
+        if T == Float64
+            isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))
+        end
         return new{T}(v)
     end
 end
@@ -225,7 +233,9 @@ Often used for both [`InjectorControl`](@ref) [`ProducerControl`](@ref).
 struct TotalRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
     function TotalRateTarget(v::T) where T
-        isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))'
+        if T == Float64
+            isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))
+        end
         return new{T}(v)
     end
 end
@@ -242,7 +252,9 @@ Often used for both [`InjectorControl`](@ref) [`ProducerControl`](@ref).
 struct TotalReservoirRateTarget{T} <: WellTarget where T<:AbstractFloat
     value::T
     function TotalReservoirRateTarget(v::T) where T
-        isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))'
+        if T == Float64
+            isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))
+        end
         return new{T}(v)
     end
 end
@@ -371,14 +383,15 @@ struct InjectorControl{T, R, P, M, E, TR} <: WellControlForce
             tracers = missing,
             factor::R = 1.0
         ) where {T<:WellTarget, R<:Real}
-        @assert isfinite(density) && density > 0.0 "Injector density must be finite and positive"
-        @assert isfinite(temperature) && temperature > 0.0 "Injector temperature must be finite and positive"
-
         if isa(mix, Real)
             mix = [mix]
         end
         mix = vec(mix)
-        @assert sum(mix) ≈ 1
+        if R == Float64
+            @assert sum(mix) ≈ 1
+            @assert isfinite(density) && density > 0.0 "Injector density must be finite and positive"
+            @assert isfinite(temperature) && temperature > 0.0 "Injector temperature must be finite and positive"
+        end
         if isa(tracers, Real)
             tracers = [tracers]
         end
