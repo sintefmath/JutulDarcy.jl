@@ -5,11 +5,13 @@ function Jutul.vectorization_length(controls_or_limits::Dict, model::FacilityMod
         include_mixture_density = true
         include_injection_mixture = true
         include_target = true
+        include_limits = true
     elseif variant == :control
         include_temperature = false
         include_mixture_density = false
         include_injection_mixture = false
         include_target = true
+        include_limits = false
     else
         error("Variant $variant not supported")
     end
@@ -38,6 +40,14 @@ function Jutul.vectorization_length(controls_or_limits::Dict, model::FacilityMod
                 end
             end
         end
+    elseif name == :limits
+        if include_limits
+            for (k, v) in pairs(controls_or_limits)
+                for (lim_k, lim_v) in pairs(v)
+                    n += 1
+                end
+            end
+        end
     else
         error("$name $variant not supported")
     end
@@ -51,11 +61,13 @@ function Jutul.vectorize_force!(v, model::FacilityModel, controls_or_limits::Dic
         include_mixture_density = true
         include_injection_mixture = true
         include_target = true
+        include_limits = true
     elseif variant == :control
         include_temperature = false
         include_mixture_density = false
         include_injection_mixture = false
         include_target = true
+        include_limits = false
     else
         error("Variant $variant not supported")
     end
@@ -95,8 +107,18 @@ function Jutul.vectorize_force!(v, model::FacilityModel, controls_or_limits::Dic
                 end
             end
         end
+    elseif name == :limits
+        if include_limits
+            for (k, limdict) in pairs(controls_or_limits)
+                for (lim_k, lim_v) in pairs(limdict)
+                    offset += 1
+                    v[offset] = lim_v
+                    push!(names, Symbol("limit_$k$lim_k"))
+                end
+            end
+        end
     else
-        error("$name not supported")
+        error("$name $variant not supported")
     end
 
     return (names = names, )
