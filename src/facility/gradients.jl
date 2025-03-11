@@ -165,7 +165,8 @@ function Jutul.devectorize_force(control_or_limits::Tcl, model::FacilityModel, X
                         factor = T(ctrl.factor),
                         enthalpy = ctrl.enthalpy,
                         tracers = ctrl.tracers,
-                        phases = ctrl.phases
+                        phases = ctrl.phases,
+                        check = false
                     )
                 else
                     @assert ctrl isa ProducerControl

@@ -381,13 +381,14 @@ struct InjectorControl{T, R, P, M, E, TR} <: WellControlForce
             temperature::R = 293.15,
             enthalpy = missing,
             tracers = missing,
+            check = true,
             factor::R = 1.0
         ) where {T<:WellTarget, R<:Real}
         if isa(mix, Real)
             mix = [mix]
         end
         mix = vec(mix)
-        if R == Float64
+        if check && R == Float64
             @assert sum(mix) ≈ 1
             @assert isfinite(density) && density > 0.0 "Injector density must be finite and positive"
             @assert isfinite(temperature) && temperature > 0.0 "Injector temperature must be finite and positive"
