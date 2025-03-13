@@ -38,12 +38,17 @@ function numerical_diff_bl(model, state0, parameters, forces, tstep, G)
     s0, = simulate(state0, model, tstep, forces = forces, parameters = parameters, info_level = -1)
     obj0 = Jutul.evaluate_objective(G, model, s0, tstep, forces)
     ϵ = 1e-6
-    for fno in eachindex(forces)
-        x, cfg = Jutul.vectorize_forces(forces[fno], model)
+    unique_forces, to_step = Jutul.unique_forces_and_mapping(forces, tstep)
+    for fno in eachindex(unique_forces)
+        x, cfg = Jutul.vectorize_forces(unique_forces[fno], model)
         for i in eachindex(x)
             x_delta = copy(x)
             x_delta[i] += ϵ
-            new_forces = Jutul.devectorize_forces(forces[fno], model, x_delta, cfg)
+            new_force = Jutul.devectorize_forces(unique_forces[fno], model, x_delta, cfg)
+            new_forces = deepcopy(forces)
+            for j in to_step[fno]
+                new_forces[j] = new_force
+            end
             s, r = simulate(state0, model, tstep, forces = new_forces, parameters = parameters, info_level = -1)
             obj = Jutul.evaluate_objective(G, model, s, tstep, new_forces)
             push!(dx, (obj - obj0)/ϵ)
