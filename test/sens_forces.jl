@@ -37,12 +37,16 @@ function numerical_diff_bl(model, state0, parameters, forces, tstep, G)
     dx = Vector{Float64}[]
     s0, = simulate(state0, model, tstep, forces = forces, parameters = parameters, info_level = -1)
     obj0 = Jutul.evaluate_objective(G, model, s0, tstep, forces)
-    ϵ = 1e-6
     unique_forces, to_step = Jutul.unique_forces_and_mapping(forces, tstep)
     for fno in eachindex(unique_forces)
         x, cfg = Jutul.vectorize_forces(unique_forces[fno], model)
         dx_i = Float64[]
         for i in eachindex(x)
+            if i < 4
+                ϵ = 1e-6
+            else
+                ϵ = 1e-18
+            end
             x_delta = copy(x)
             x_delta[i] += ϵ
             new_force = Jutul.devectorize_forces(unique_forces[fno], model, x_delta, cfg)
@@ -70,6 +74,9 @@ states, reports = simulate(state0, model, tstep, forces = forces, parameters = p
 dforces, grad_adj = Jutul.solve_adjoint_forces(model, states, reports, G, forces,
                 state0 = state0, parameters = parameters)
 
+for i in eachindex(dx, grad_adj)
+    @test isapprox(dx[i], grad_adj[i], atol = 1e-3, rtol = 1e-3)
+end
 
 # case = JutulCase(model, tstep, forces, state0 = state0, parameters = parameters)
 ## opt_config = Jutul.forces_optimization_config(model, forces, tstep, :all, abs_min = 0.0)
