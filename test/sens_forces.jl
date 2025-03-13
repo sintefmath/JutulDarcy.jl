@@ -78,6 +78,10 @@ for i in eachindex(dx, grad_adj)
     @test isapprox(dx[i], grad_adj[i], atol = 1e-3, rtol = 1e-3)
 end
 
-# case = JutulCase(model, tstep, forces, state0 = state0, parameters = parameters)
-## opt_config = Jutul.forces_optimization_config(model, forces, tstep, :all, abs_min = 0.0)
-# x0, xmin, xmax, f, g!, out = Jutul.setup_force_optimization(case, G, opt_config)
+case = JutulCase(model, tstep, forces, state0 = state0, parameters = parameters)
+opt_config = Jutul.forces_optimization_config(model, forces, tstep, :all, abs_min = 0.0)
+x0, xmin, xmax, f, g!, out = Jutul.setup_force_optimization(case, G, opt_config);
+
+der = g!(similar(x0), x0)
+
+@test vcat(grad_adj...) ≈ der
