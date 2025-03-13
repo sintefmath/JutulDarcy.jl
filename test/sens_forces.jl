@@ -34,13 +34,14 @@ function setup_bl_twoforces(;nc = 100, time = 1.0, nstep = 100)
 end
 
 function numerical_diff_bl(model, state0, parameters, forces, tstep, G)
-    dx = Float64[]
+    dx = Vector{Float64}[]
     s0, = simulate(state0, model, tstep, forces = forces, parameters = parameters, info_level = -1)
     obj0 = Jutul.evaluate_objective(G, model, s0, tstep, forces)
     ϵ = 1e-6
     unique_forces, to_step = Jutul.unique_forces_and_mapping(forces, tstep)
     for fno in eachindex(unique_forces)
         x, cfg = Jutul.vectorize_forces(unique_forces[fno], model)
+        dx_i = Float64[]
         for i in eachindex(x)
             x_delta = copy(x)
             x_delta[i] += ϵ
@@ -51,8 +52,9 @@ function numerical_diff_bl(model, state0, parameters, forces, tstep, G)
             end
             s, r = simulate(state0, model, tstep, forces = new_forces, parameters = parameters, info_level = -1)
             obj = Jutul.evaluate_objective(G, model, s, tstep, new_forces)
-            push!(dx, (obj - obj0)/ϵ)
+            push!(dx_i, (obj - obj0)/ϵ)
         end
+        push!(dx, dx_i)
     end
     return dx
 end
