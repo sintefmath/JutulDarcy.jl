@@ -45,7 +45,22 @@ function test_force_vectorization(forces, tstep, model)
         for (k, v) in uf
             @testset "$k" begin
                 for fkey in keys(v)
-                    @test new_force[k][fkey] == v[fkey]
+                    @testset "$fkey" begin
+                        @test haskey(new_force, k)
+                        f_new = new_force[k][fkey]
+                        f_old = v[fkey]
+
+                        if f_new isa Dict && f_old isa Dict
+                            for (k2, v2) in pairs(f_old)
+                                @testset "$k2" begin
+                                    @test haskey(f_new, k2)
+                                    @test f_new[k2] == v2
+                                end
+                            end
+                        else
+                            @test f_new == f_old
+                        end
+                    end
                 end
             end
         end
