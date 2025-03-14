@@ -54,11 +54,11 @@ function test_force_vectorization(forces, tstep, model)
                             for (k2, v2) in pairs(f_old)
                                 @testset "$k2" begin
                                     @test haskey(f_new, k2)
-                                    @test f_new[k2] == v2
+                                    @test isequal(f_new[k2], v2)
                                 end
                             end
                         else
-                            @test f_new == f_old
+                            @test isequal(f_new, f_old)
                         end
                     end
                 end
@@ -126,9 +126,3 @@ end
 spe1_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1")
 case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"))
 test_force_vectorization(case.forces, case.dt, case.model)
-
-
-##
-
-#
-# numerical_diff_forces(case.model, case.state0, case.parameters, case.forces, case.dt, G)

@@ -406,6 +406,26 @@ end
 
 default_limits(f::InjectorControl{T}) where T<:BottomHolePressureTarget = merge((rate_lower = MIN_ACTIVE_WELL_RATE, ), as_limit(f.target))
 
+function Base.isequal(f::InjectorControl, g::InjectorControl)
+    @info "Hey ho"
+    t_eq = f.target == g.target 
+    mix_eq = f.injection_mixture == g.injection_mixture
+    den_eq = f.mixture_density == g.mixture_density
+    phases_eq = f.phases == g.phases
+    t_eq = f.temperature == g.temperature
+    f_eq = f.factor == g.factor
+    if ismissing(f.enthalpy)
+        e_eq = ismissing(g.enthalpy)
+    else
+        e_eq = f.enthalpy == g.enthalpy
+    end
+    if ismissing(f.tracers)
+        tr_eq = ismissing(g.tracers)
+    else
+        tr_eq = f.tracers == g.tracers
+    end
+    return t_eq && mix_eq && den_eq && phases_eq && t_eq && f_eq && e_eq && tr_eq
+end
 """
     ProducerControl(target)
 
