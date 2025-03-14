@@ -126,3 +126,8 @@ end
 spe1_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1")
 case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"))
 test_force_vectorization(case.forces, case.dt, case.model)
+
+
+G = (model, state, dt, step_no, forces) -> dt*(sum(state.Reservoir.Rs .- 100))^2
+dx = numerical_diff_forces(case.model, case.state0, case.parameters, case.forces, case.dt, G)
+

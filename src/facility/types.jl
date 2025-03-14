@@ -407,7 +407,6 @@ end
 default_limits(f::InjectorControl{T}) where T<:BottomHolePressureTarget = merge((rate_lower = MIN_ACTIVE_WELL_RATE, ), as_limit(f.target))
 
 function Base.isequal(f::InjectorControl, g::InjectorControl)
-    @info "Hey ho"
     t_eq = f.target == g.target 
     mix_eq = f.injection_mixture == g.injection_mixture
     den_eq = f.mixture_density == g.mixture_density
@@ -426,6 +425,7 @@ function Base.isequal(f::InjectorControl, g::InjectorControl)
     end
     return t_eq && mix_eq && den_eq && phases_eq && t_eq && f_eq && e_eq && tr_eq
 end
+
 """
     ProducerControl(target)
 
