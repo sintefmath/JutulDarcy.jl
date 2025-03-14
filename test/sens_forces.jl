@@ -33,7 +33,16 @@ function setup_bl_twoforces(;nc = 100, time = 1.0, nstep = 100)
     return (model, state0, parameters, forces, tstep)
 end
 
-function numerical_diff_bl(model, state0, parameters, forces, tstep, G)
+function test_force_vectorization(forces, tstep, model)
+    unique_forces, to_step = Jutul.unique_forces_and_mapping(forces, tstep)
+    for uf in unique_forces
+        x, cfg = Jutul.vectorize_forces(uf, model)
+        new_force = Jutul.devectorize_forces(uf, model, x, cfg)
+        @test new_force == uf
+    end
+end
+
+function numerical_diff_forces(model, state0, parameters, forces, tstep, G)
     dx = Vector{Float64}[]
     s0, = simulate(state0, model, tstep, forces = forces, parameters = parameters, info_level = -1)
     obj0 = Jutul.evaluate_objective(G, model, s0, tstep, forces)
@@ -65,8 +74,10 @@ end
 
 @testset "bc and source force gradients" begin
     model, state0, parameters, forces, tstep = setup_bl_twoforces(nc = 10, nstep = 10)
+    test_force_vectorization(forces, tstep, model)
+
     G = (model, state, dt, step_no, forces) -> dt*(sum(state[:Saturations][1, :] .- 0.5))^2
-    dx = numerical_diff_bl(model, state0, parameters, forces, tstep, G)
+    dx = numerical_diff_forces(model, state0, parameters, forces, tstep, G)
     states, reports = simulate(state0, model, tstep, forces = forces, parameters = parameters)
     # Check numerical gradients
     dforces, grad_adj = Jutul.solve_adjoint_forces(model, states, reports, G, forces,
@@ -84,3 +95,11 @@ end
 
     @test vcat(grad_adj...) ≈ der atol = 1e-3 rtol = 1e-3
 end
+##
+
+
+spe1_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1")
+case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"))
+test_force_vectorization(case.forces, case.dt, case.model)
+##
+numerical_diff_forces(case.model, case.state0, case.parameters, case.forces, case.dt, G)
