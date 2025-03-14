@@ -38,7 +38,15 @@ function test_force_vectorization(forces, tstep, model)
     for uf in unique_forces
         x, cfg = Jutul.vectorize_forces(uf, model)
         new_force = Jutul.devectorize_forces(uf, model, x, cfg)
-        @test new_force == uf
+        if model isa SimulationModel
+            uf = Dict(:Model => uf)
+            new_force = Dict(:Model => new_force)
+        end
+        for (k, v) in uf
+            @testset "$k" begin
+                @test new_force[k] == v
+            end
+        end
     end
 end
 
@@ -101,5 +109,5 @@ end
 spe1_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1")
 case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"))
 test_force_vectorization(case.forces, case.dt, case.model)
-##
-numerical_diff_forces(case.model, case.state0, case.parameters, case.forces, case.dt, G)
+#
+# numerical_diff_forces(case.model, case.state0, case.parameters, case.forces, case.dt, G)
