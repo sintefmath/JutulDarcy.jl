@@ -35,7 +35,7 @@ end
 
 function test_force_vectorization(forces, tstep, model)
     unique_forces, to_step = Jutul.unique_forces_and_mapping(forces, tstep)
-    for uf in unique_forces
+    for (i, uf) in enumerate(unique_forces)
         x, cfg = Jutul.vectorize_forces(uf, model)
         new_force = Jutul.devectorize_forces(uf, model, x, cfg)
         if model isa SimulationModel
@@ -43,7 +43,7 @@ function test_force_vectorization(forces, tstep, model)
             new_force = Dict(:Model => new_force)
         end
         for (k, v) in uf
-            @testset "$k" begin
+            @testset "$k force set $i" begin
                 for fkey in keys(v)
                     @testset "$fkey" begin
                         @test haskey(new_force, k)
@@ -126,5 +126,9 @@ end
 spe1_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1")
 case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"))
 test_force_vectorization(case.forces, case.dt, case.model)
+
+
+##
+
 #
 # numerical_diff_forces(case.model, case.state0, case.parameters, case.forces, case.dt, G)
