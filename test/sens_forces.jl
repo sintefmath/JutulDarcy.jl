@@ -44,7 +44,9 @@ function test_force_vectorization(forces, tstep, model)
         end
         for (k, v) in uf
             @testset "$k" begin
-                @test new_force[k] == v
+                for fkey in keys(v)
+                    @test new_force[k][fkey] == v[fkey]
+                end
             end
         end
     end
