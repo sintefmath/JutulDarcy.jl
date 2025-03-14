@@ -63,25 +63,24 @@ function numerical_diff_bl(model, state0, parameters, forces, tstep, G)
     return dx
 end
 
+@testset "bc and source force gradients" begin
+    model, state0, parameters, forces, tstep = setup_bl_twoforces(nc = 10, nstep = 10)
+    G = (model, state, dt, step_no, forces) -> dt*(sum(state[:Saturations][1, :] .- 0.5))^2
+    dx = numerical_diff_bl(model, state0, parameters, forces, tstep, G)
+    states, reports = simulate(state0, model, tstep, forces = forces, parameters = parameters)
+    # Check numerical gradients
+    dforces, grad_adj = Jutul.solve_adjoint_forces(model, states, reports, G, forces,
+                    state0 = state0, parameters = parameters)
 
-model, state0, parameters, forces, tstep = setup_bl_twoforces(nc = 10, nstep = 10)
-G = (model, state, dt, step_no, forces) -> dt*(sum(state[:Saturations][1, :] .- 0.5))^2
+    for i in eachindex(dx, grad_adj)
+        @test isapprox(dx[i], grad_adj[i], atol = 1e-3, rtol = 1e-3)
+    end
+    # Check optimization interface
+    case = JutulCase(model, tstep, forces, state0 = state0, parameters = parameters)
+    opt_config = Jutul.forces_optimization_config(model, forces, tstep, :all, abs_min = 0.0)
+    x0, xmin, xmax, f, g!, out = Jutul.setup_force_optimization(case, G, opt_config);
 
-dx = numerical_diff_bl(model, state0, parameters, forces, tstep, G)
+    der = g!(similar(x0), x0)
 
-states, reports = simulate(state0, model, tstep, forces = forces, parameters = parameters)
-
-dforces, grad_adj = Jutul.solve_adjoint_forces(model, states, reports, G, forces,
-                state0 = state0, parameters = parameters)
-
-for i in eachindex(dx, grad_adj)
-    @test isapprox(dx[i], grad_adj[i], atol = 1e-3, rtol = 1e-3)
+    @test vcat(grad_adj...) ≈ der atol = 1e-3 rtol = 1e-3
 end
-
-case = JutulCase(model, tstep, forces, state0 = state0, parameters = parameters)
-opt_config = Jutul.forces_optimization_config(model, forces, tstep, :all, abs_min = 0.0)
-x0, xmin, xmax, f, g!, out = Jutul.setup_force_optimization(case, G, opt_config);
-
-der = g!(similar(x0), x0)
-
-@test vcat(grad_adj...) ≈ der
