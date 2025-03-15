@@ -131,10 +131,12 @@ function rs_obj(model, state, dt, step_no, forces)
     val = 0
     for i in 1:length(rs)
         val += (rs[i] - 100)^2
+        # val += state.Reservoir.Pressure[i]
     end
     return dt*(val/(Rs0*t_tot))^2
 end
-dx = numerical_diff_forces(case.model, case.state0, case.parameters, case.forces, case.dt, rs_obj, 1e-4)
+dx = numerical_diff_forces(case.model, case.state0, case.parameters, case.forces, case.dt,
+    rs_obj, 1e-3)
 ##
 states, reports = simulate(case)
 # Check numerical gradients
