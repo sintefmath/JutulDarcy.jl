@@ -67,7 +67,7 @@ function test_force_vectorization(forces, tstep, model)
     end
 end
 
-function numerical_diff_forces(model, state0, parameters, forces, tstep, G)
+function numerical_diff_forces(model, state0, parameters, forces, tstep, G, eps = 1e-6)
     dx = Vector{Float64}[]
     s0, = simulate(state0, model, tstep, forces = forces, parameters = parameters, info_level = -1)
     obj0 = Jutul.evaluate_objective(G, model, s0, tstep, forces)
@@ -77,7 +77,7 @@ function numerical_diff_forces(model, state0, parameters, forces, tstep, G)
         dx_i = Float64[]
         for i in eachindex(x)
             x_delta = copy(x)
-            ϵ = max(1e-18, 1e-4*abs(x[i]))
+            ϵ = max(1e-18, eps*abs(x[i]))
             x_delta[i] += ϵ
             new_force = Jutul.devectorize_forces(unique_forces[fno], model, x_delta, cfg)
             new_forces = deepcopy(forces)
@@ -134,7 +134,7 @@ function rs_obj(model, state, dt, step_no, forces)
     end
     return dt*(val/(Rs0*t_tot))^2
 end
-dx = numerical_diff_forces(case.model, case.state0, case.parameters, case.forces, case.dt, rs_obj)
+dx = numerical_diff_forces(case.model, case.state0, case.parameters, case.forces, case.dt, rs_obj, 1e-4)
 ##
 states, reports = simulate(case)
 # Check numerical gradients
