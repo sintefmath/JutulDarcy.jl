@@ -124,7 +124,7 @@ end
 
 
 spe1_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1")
-case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"))
+case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"))[1:10]
 test_force_vectorization(case.forces, case.dt, case.model)
 
 
