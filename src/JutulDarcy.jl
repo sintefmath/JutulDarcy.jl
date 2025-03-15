@@ -81,6 +81,7 @@ module JutulDarcy
     export PhaseMassDensities, ConstantCompressibilityDensities
     export BrooksCoreyRelativePermeabilities, TabulatedSimpleRelativePermeabilities
     export EquilibriumRegion
+    export ControlChangeTimestepSelector, setup_control_change_timestep_selector
 
     import Jutul:
         number_of_cells, number_of_faces,
@@ -198,6 +199,8 @@ module JutulDarcy
     include("NLDD/NLDD.jl")
     # CO2-brine properties
     include("CO2Properties/CO2Properties.jl")
+    # Timestepping
+    include("timesteps.jl")
 
     # Geothermal
     include("Geothermal/Geothermal.jl")
