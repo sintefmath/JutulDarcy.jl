@@ -76,12 +76,8 @@ function numerical_diff_forces(model, state0, parameters, forces, tstep, G)
         x, cfg = Jutul.vectorize_forces(unique_forces[fno], model)
         dx_i = Float64[]
         for i in eachindex(x)
-            if i < 4
-                ϵ = 1e-6
-            else
-                ϵ = 1e-18
-            end
             x_delta = copy(x)
+            ϵ = max(1e-18, 1e-4*abs(x[i]))
             x_delta[i] += ϵ
             new_force = Jutul.devectorize_forces(unique_forces[fno], model, x_delta, cfg)
             new_forces = deepcopy(forces)
