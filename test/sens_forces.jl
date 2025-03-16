@@ -128,7 +128,7 @@ end
     spe1_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1")
     case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"), block_backend = false)[1:10]
     test_force_vectorization(case.forces, case.dt, case.model)
-    states, reports = simulate(case, output_substates = true)
+    states, reports = simulate(case, output_substates = true, info_level = -1)
     ##
 
     Rs0 = sum(case.state0[:Reservoir][:Rs])
@@ -144,7 +144,6 @@ end
     end
 
     function orat_obj(model, state, dt, step_no, forces)
-        # orat = state.Facility.TotalSurfaceMassRate[2]
         orat = JutulDarcy.compute_well_qoi(model, state, forces, :PROD, SurfaceOilRateTarget)
         return dt*orat/t_tot
     end
@@ -159,18 +158,22 @@ end
         return p
     end
 
-    for obj in [cell_pressure_obj, rs_obj, prod_bhp_obj]
+    function test_grad(obj; kwarg...)
         grad_eps = 1e-3
-        dx = numerical_diff_forces(case.model, case.state0, case.parameters, case.forces, case.dt,
-            obj, grad_eps)
-        dforces, grad_adj = Jutul.solve_adjoint_forces(case.model, states, reports, obj, case.forces,
+        dx = numerical_diff_forces(case.model, case.state0, case.parameters, case.forces, case.dt, obj, grad_eps; kwarg...)
+        dforces, grad_adj = Jutul.solve_adjoint_forces(case.model, states, reports, obj, case.forces;
             state0 = case.state0,
-            parameters = case.parameters
+            parameters = case.parameters,
+            kwarg...
         )
         for i in eachindex(dx, grad_adj)
             @test isapprox(dx[i], grad_adj[i], atol = 1e-3, rtol = 1e-3)
             @test norm(grad_adj, 2) ≈ norm(dx, 2) atol = 1e-3 rtol = 1e-3
         end
+    end
+
+    for (objno, obj) in enumerate([cell_pressure_obj, rs_obj, prod_bhp_obj])
+        test_grad(obj)
     end
 end
 ##
