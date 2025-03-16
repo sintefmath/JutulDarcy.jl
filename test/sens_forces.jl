@@ -86,6 +86,7 @@ function numerical_diff_forces(model, state0, parameters, forces, tstep, G, eps 
             end
             s, r = simulate(state0, model, tstep, forces = new_forces, parameters = parameters, info_level = -1)
             obj = Jutul.evaluate_objective(G, model, s, tstep, new_forces)
+            @info "Objective change: $(obj - obj0) from $obj"
             push!(dx_i, (obj - obj0)/ϵ)
         end
         push!(dx, dx_i)
@@ -138,7 +139,8 @@ function rs_obj(model, state, dt, step_no, forces)
 end
 
 function orat_obj(model, state, dt, step_no, forces)
-    orat = JutulDarcy.compute_well_qoi(model, state, forces, :PROD, SurfaceOilRateTarget)
+    orat = state.Facility.TotalSurfaceMassRate[2]
+    # orat = JutulDarcy.compute_well_qoi(model, state, forces, :PROD, BottomHolePressureTarget)
     return dt*orat/t_tot
 end
 
