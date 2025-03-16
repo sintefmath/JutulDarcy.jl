@@ -150,7 +150,14 @@ function prod_bhp_obj(model, state, dt, step_no, forces)
     return dt*bhp/t_tot
 end
 
-obj = rs_obj
+function cell_pressure_obj(model, state, dt, step_no, forces)
+    p = state.Reservoir.Pressure[end]
+    # orat = JutulDarcy.compute_well_qoi(model, state, forces, :PROD, BottomHolePressureTarget)
+    return dt*p/t_tot
+end
+
+obj = cell_pressure_obj
+# obj = rs_obj
 # obj = orat_obj
 # obj = prod_bhp_obj
 
