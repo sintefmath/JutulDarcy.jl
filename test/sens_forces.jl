@@ -122,7 +122,8 @@ end
 spe1_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1")
 case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"))# [1:10]
 test_force_vectorization(case.forces, case.dt, case.model)
-
+states, reports = simulate(case)
+##
 
 Rs0 = sum(case.state0[:Reservoir][:Rs])
 t_tot = sum(case.dt)
@@ -135,12 +136,22 @@ function rs_obj(model, state, dt, step_no, forces)
     end
     return dt*(val/(Rs0*t_tot))^2
 end
+
+function orat_obj(model, state, dt, step_no, forces)
+    orat = JutulDarcy.compute_well_qoi(model, state, forces, :PROD, SurfaceOilRateTarget)
+    return dt*orat/t_tot
+end
+
+obj = rs_obj
+# obj = orat_obj
+
+
+grad_eps = 1e-2
+# grad_eps = 1e-5
 dx = numerical_diff_forces(case.model, case.state0, case.parameters, case.forces, case.dt,
-    rs_obj, 1e-2)
-##
-states, reports = simulate(case)
+    rs_obj, grad_eps)
 # Check numerical gradients
-dforces, grad_adj = Jutul.solve_adjoint_forces(case.model, states, reports, rs_obj, case.forces,
+dforces, grad_adj = Jutul.solve_adjoint_forces(case.model, states, reports, obj, case.forces,
                 state0 = case.state0, parameters = case.parameters)
 for i in eachindex(dx, grad_adj)
     @test isapprox(dx[i], grad_adj[i], atol = 1e-2, rtol = 1e-3)
