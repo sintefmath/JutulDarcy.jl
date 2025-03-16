@@ -31,7 +31,8 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
         is_new_step = cfg.step_index != current_step
         disabled = DisabledControl()
         well_was_disabled = op_ctrls[key] == disabled && newctrl != disabled
-        if (is_new_step && newctrl != oldctrl) || well_was_disabled
+        is_new_type = typeof(newctrl) != typeof(oldctrl)
+        if (is_new_step && newctrl != oldctrl) || well_was_disabled || is_new_type
             # We have a new control. Any previous control change is invalid.
             # Set both operating and requested control to the new one.
             @debug "Well $key switching from $oldctrl to $newctrl"
