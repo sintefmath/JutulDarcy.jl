@@ -122,70 +122,59 @@ end
 
     @test vcat(grad_adj...) ≈ der atol = 1e-3 rtol = 1e-3
 end
-##
 
+@testset "force gradients reservoir and wells" begin
+    spe1_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1")
+    case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"), block_backend = false)[1:10]
+    test_force_vectorization(case.forces, case.dt, case.model)
+    states, reports = simulate(case, output_substates = true)
+    ##
 
-spe1_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1")
-case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"), block_backend = false)[1:10]
-test_force_vectorization(case.forces, case.dt, case.model)
-states, reports = simulate(case, output_substates = true)
-##
-
-Rs0 = sum(case.state0[:Reservoir][:Rs])
-t_tot = sum(case.dt)
-function rs_obj(model, state, dt, step_no, forces)
-    rs = state.Reservoir.Rs
-    val = 0
-    for i in 1:length(rs)
-        val += (rs[i] - 100)^2
-        # val += state.Reservoir.Pressure[i]
+    Rs0 = sum(case.state0[:Reservoir][:Rs])
+    t_tot = sum(case.dt)
+    function rs_obj(model, state, dt, step_no, forces)
+        rs = state.Reservoir.Rs
+        val = 0
+        for i in 1:length(rs)
+            val += (rs[i] - 100)^2
+            # val += state.Reservoir.Pressure[i]
+        end
+        return dt*(val/(Rs0*t_tot))^2
     end
-    return dt*(val/(Rs0*t_tot))^2
-end
 
-function orat_obj(model, state, dt, step_no, forces)
-    orat = state.Facility.TotalSurfaceMassRate[2]
-    # orat = JutulDarcy.compute_well_qoi(model, state, forces, :PROD, BottomHolePressureTarget)
-    return dt*orat/t_tot
-end
+    function orat_obj(model, state, dt, step_no, forces)
+        orat = state.Facility.TotalSurfaceMassRate[2]
+        # orat = JutulDarcy.compute_well_qoi(model, state, forces, :PROD, BottomHolePressureTarget)
+        return dt*orat/t_tot
+    end
 
-function prod_bhp_obj(model, state, dt, step_no, forces)
-    bhp = state.PROD.Pressure[1]
-    # orat = JutulDarcy.compute_well_qoi(model, state, forces, :PROD, BottomHolePressureTarget)
-    return dt*bhp/t_tot
-end
+    function prod_bhp_obj(model, state, dt, step_no, forces)
+        bhp = state.PROD.Pressure[1]
+        # orat = JutulDarcy.compute_well_qoi(model, state, forces, :PROD, BottomHolePressureTarget)
+        return dt*bhp/t_tot
+    end
 
-function cell_pressure_obj(model, state, dt, step_no, forces)
-    p = state.Reservoir.Pressure[300]
-    p = state.Reservoir.Pressure[1]
-    # orat = JutulDarcy.compute_well_qoi(model, state, forces, :PROD, BottomHolePressureTarget)
-    return p#dt*p/t_tot
-end
+    function cell_pressure_obj(model, state, dt, step_no, forces)
+        p = state.Reservoir.Pressure[300]
+        return p
+    end
 
-obj = cell_pressure_obj
-obj = rs_obj
-# obj = orat_obj
-# obj = prod_bhp_obj
-
-grad_eps = 1e-3
-# grad_eps = 10
-# grad_eps = 1e-5
-dx = numerical_diff_forces(case.model, case.state0, case.parameters, case.forces, case.dt,
-    obj, grad_eps)
-## Check numerical gradients
-# targets = Jutul.force_targets(case.model)
-# targets[:Facility][:limits] = nothing
-dforces, grad_adj = Jutul.solve_adjoint_forces(case.model, states, reports, obj, case.forces,
-    state0 = case.state0,
-    parameters = case.parameters,
-    # targets = targets
-)
-for i in eachindex(dx, grad_adj)
-    @test isapprox(dx[i], grad_adj[i], atol = 1e-3, rtol = 1e-3)
-    @test norm(grad_adj, 2) ≈ norm(dx, 2) atol = 1e-3 rtol = 1e-3
+    for obj in [cell_pressure_obj, rs_obj, prod_bhp_obj]
+        grad_eps = 1e-3
+        dx = numerical_diff_forces(case.model, case.state0, case.parameters, case.forces, case.dt,
+            obj, grad_eps)
+        dforces, grad_adj = Jutul.solve_adjoint_forces(case.model, states, reports, obj, case.forces,
+            state0 = case.state0,
+            parameters = case.parameters
+        )
+        for i in eachindex(dx, grad_adj)
+            @test isapprox(dx[i], grad_adj[i], atol = 1e-3, rtol = 1e-3)
+            @test norm(grad_adj, 2) ≈ norm(dx, 2) atol = 1e-3 rtol = 1e-3
+        end
+    end
 end
 ##
-opt_config = Jutul.forces_optimization_config(case.model[:Facility], map(x -> x[:Facility], case.forces), case.dt, abs_min = 0.0)
+# opt_config = Jutul.forces_optimization_config(case.model[:Facility], map(x -> x[:Facility], case.forces), case.dt, abs_min = 0.0)
 ##
 # using GLMakie
 # ws, s = simulate_reservoir(case)
