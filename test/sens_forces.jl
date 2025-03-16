@@ -78,7 +78,6 @@ function numerical_diff_forces(model, state0, parameters, forces, tstep, G, eps 
         for i in eachindex(x)
             x_delta = copy(x)
             ϵ = max(1e-18, eps*abs(x[i]))
-            @info "??" ϵ
             x_delta[i] += ϵ
             new_force = Jutul.devectorize_forces(unique_forces[fno], model, x_delta, cfg)
             new_forces = deepcopy(forces)
@@ -110,7 +109,7 @@ end
     end
     # Check optimization interface
     case = JutulCase(model, tstep, forces, state0 = state0, parameters = parameters)
-    opt_config = Jutul.forces_optimization_config(model, forces, tstep, :all, abs_min = 0.0)
+    opt_config = Jutul.forces_optimization_config(model, forces, tstep, abs_min = 0.0)
     x0, xmin, xmax, f, g!, out = Jutul.setup_force_optimization(case, G, opt_config);
 
     der = g!(similar(x0), x0)
