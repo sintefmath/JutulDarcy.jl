@@ -121,7 +121,7 @@ end
 
 
 spe1_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1")
-case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"))# [1:10]
+case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"))[1:1]# [1:10]
 test_force_vectorization(case.forces, case.dt, case.model)
 states, reports = simulate(case)
 ##
@@ -151,9 +151,10 @@ function prod_bhp_obj(model, state, dt, step_no, forces)
 end
 
 function cell_pressure_obj(model, state, dt, step_no, forces)
-    p = state.Reservoir.Pressure[end]
+    p = state.Reservoir.Pressure[300]
+    p = state.Reservoir.Pressure[1]
     # orat = JutulDarcy.compute_well_qoi(model, state, forces, :PROD, BottomHolePressureTarget)
-    return dt*p/t_tot
+    return p#dt*p/t_tot
 end
 
 obj = cell_pressure_obj
@@ -162,9 +163,10 @@ obj = cell_pressure_obj
 # obj = prod_bhp_obj
 
 grad_eps = 1e-2
+# grad_eps = 10
 # grad_eps = 1e-5
 dx = numerical_diff_forces(case.model, case.state0, case.parameters, case.forces, case.dt,
-    rs_obj, grad_eps)
+    obj, grad_eps)
 ## Check numerical gradients
 dforces, grad_adj = Jutul.solve_adjoint_forces(case.model, states, reports, obj, case.forces,
                 state0 = case.state0, parameters = case.parameters)
@@ -175,6 +177,6 @@ end
 ##
 opt_config = Jutul.forces_optimization_config(case.model[:Facility], map(x -> x[:Facility], case.forces), case.dt, abs_min = 0.0)
 ##
-using GLMakie
-ws, s = simulate_reservoir(case)
-plot_well_results(ws)
+# using GLMakie
+# ws, s = simulate_reservoir(case)
+# plot_well_results(ws)
