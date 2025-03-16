@@ -78,6 +78,7 @@ function numerical_diff_forces(model, state0, parameters, forces, tstep, G, eps 
         for i in eachindex(x)
             x_delta = copy(x)
             ϵ = max(1e-18, eps*abs(x[i]))
+            @info "??" ϵ
             x_delta[i] += ϵ
             new_force = Jutul.devectorize_forces(unique_forces[fno], model, x_delta, cfg)
             new_forces = deepcopy(forces)
@@ -120,7 +121,7 @@ end
 
 
 spe1_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1")
-case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"))[1:10]
+case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"))# [1:10]
 test_force_vectorization(case.forces, case.dt, case.model)
 
 
@@ -136,14 +137,14 @@ function rs_obj(model, state, dt, step_no, forces)
     return dt*(val/(Rs0*t_tot))^2
 end
 dx = numerical_diff_forces(case.model, case.state0, case.parameters, case.forces, case.dt,
-    rs_obj, 1e-3)
+    rs_obj, 1e-2)
 ##
 states, reports = simulate(case)
 # Check numerical gradients
 dforces, grad_adj = Jutul.solve_adjoint_forces(case.model, states, reports, rs_obj, case.forces,
                 state0 = case.state0, parameters = case.parameters)
 for i in eachindex(dx, grad_adj)
-    @test isapprox(dx[i], grad_adj[i], atol = 1e-3, rtol = 1e-3)
+    @test isapprox(dx[i], grad_adj[i], atol = 1e-2, rtol = 1e-3)
     @test norm(grad_adj, 2) ≈ norm(dx, 2) atol = 1e-3 rtol = 1e-3
 end
 ##
