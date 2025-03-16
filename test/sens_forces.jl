@@ -126,7 +126,7 @@ end
 
 
 spe1_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1")
-case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"), block_backend = false)
+case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"), block_backend = false)[1:10]
 test_force_vectorization(case.forces, case.dt, case.model)
 states, reports = simulate(case, output_substates = true)
 ##
@@ -163,7 +163,7 @@ function cell_pressure_obj(model, state, dt, step_no, forces)
 end
 
 obj = cell_pressure_obj
-# obj = rs_obj
+obj = rs_obj
 # obj = orat_obj
 # obj = prod_bhp_obj
 
@@ -181,7 +181,7 @@ dforces, grad_adj = Jutul.solve_adjoint_forces(case.model, states, reports, obj,
     # targets = targets
 )
 for i in eachindex(dx, grad_adj)
-    @test isapprox(dx[i], grad_adj[i], atol = 1e-2, rtol = 1e-2)
+    @test isapprox(dx[i], grad_adj[i], atol = 1e-3, rtol = 1e-3)
     @test norm(grad_adj, 2) ≈ norm(dx, 2) atol = 1e-3 rtol = 1e-3
 end
 ##
