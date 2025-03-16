@@ -144,15 +144,21 @@ function orat_obj(model, state, dt, step_no, forces)
     return dt*orat/t_tot
 end
 
+function prod_bhp_obj(model, state, dt, step_no, forces)
+    bhp = state.PROD.Pressure[1]
+    # orat = JutulDarcy.compute_well_qoi(model, state, forces, :PROD, BottomHolePressureTarget)
+    return dt*bhp/t_tot
+end
+
 obj = rs_obj
 # obj = orat_obj
-
+# obj = prod_bhp_obj
 
 grad_eps = 1e-2
 # grad_eps = 1e-5
 dx = numerical_diff_forces(case.model, case.state0, case.parameters, case.forces, case.dt,
     rs_obj, grad_eps)
-# Check numerical gradients
+## Check numerical gradients
 dforces, grad_adj = Jutul.solve_adjoint_forces(case.model, states, reports, obj, case.forces,
                 state0 = case.state0, parameters = case.parameters)
 for i in eachindex(dx, grad_adj)
@@ -161,3 +167,7 @@ for i in eachindex(dx, grad_adj)
 end
 ##
 opt_config = Jutul.forces_optimization_config(case.model[:Facility], map(x -> x[:Facility], case.forces), case.dt, abs_min = 0.0)
+##
+using GLMakie
+ws, s = simulate_reservoir(case)
+plot_well_results(ws)
