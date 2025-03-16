@@ -68,7 +68,7 @@ function test_force_vectorization(forces, tstep, model)
 end
 
 function numerical_diff_forces(model, state0, parameters, forces, tstep, G, eps = 1e-6)
-    function perturb(x, i, ϵ, F, cfg, ix)
+    function perturb(sim, x, i, ϵ, F, cfg, ix)
         x_delta = copy(x)
         x_delta[i] += ϵ
         new_force = Jutul.devectorize_forces(F, model, x_delta, cfg)
@@ -76,11 +76,12 @@ function numerical_diff_forces(model, state0, parameters, forces, tstep, G, eps 
         for j in ix
             new_forces[j] = new_force
         end
-        s, r = simulate(state0, model, tstep, forces = new_forces, parameters = parameters, info_level = -1)
+        s, r = simulate!(sim, tstep, state0 = state0, forces = new_forces, parameters = parameters, info_level = -1)
         return Jutul.evaluate_objective(G, model, s, tstep, new_forces)
     end
     dx = Vector{Float64}[]
-    s0, = simulate(state0, model, tstep, forces = forces, parameters = parameters, info_level = -1)
+    sim = Simulator(model, state0 = state0)
+    s0, = simulate!(sim, tstep, state0 = state0, forces = forces, parameters = parameters, info_level = -1)
     obj0 = Jutul.evaluate_objective(G, model, s0, tstep, forces)
     unique_forces, to_step = Jutul.unique_forces_and_mapping(forces, tstep)
     for fno in eachindex(unique_forces)
@@ -90,8 +91,8 @@ function numerical_diff_forces(model, state0, parameters, forces, tstep, G, eps 
         for i in eachindex(x)
             ϵ = max(1e-18, eps*abs(x[i]))
             stepix = to_step[fno]
-            obj_plus = perturb(x, i, ϵ, F, cfg, stepix)
-            obj_minus = perturb(x, i, -ϵ, F, cfg, stepix)
+            obj_plus = perturb(sim, x, i, ϵ, F, cfg, stepix)
+            obj_minus = perturb(sim, x, i, -ϵ, F, cfg, stepix)
             push!(dx_i, (obj_plus - obj_minus)/(2*ϵ))
         end
         push!(dx, dx_i)
@@ -122,7 +123,7 @@ end
 
     @test vcat(grad_adj...) ≈ der atol = 1e-3 rtol = 1e-3
 end
-
+##
 @testset "force gradients reservoir and wells" begin
     spe1_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1")
     case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"), block_backend = false)[1:10]
@@ -143,14 +144,13 @@ end
     end
 
     function orat_obj(model, state, dt, step_no, forces)
-        orat = state.Facility.TotalSurfaceMassRate[2]
-        # orat = JutulDarcy.compute_well_qoi(model, state, forces, :PROD, BottomHolePressureTarget)
+        # orat = state.Facility.TotalSurfaceMassRate[2]
+        orat = JutulDarcy.compute_well_qoi(model, state, forces, :PROD, SurfaceOilRateTarget)
         return dt*orat/t_tot
     end
 
     function prod_bhp_obj(model, state, dt, step_no, forces)
         bhp = state.PROD.Pressure[1]
-        # orat = JutulDarcy.compute_well_qoi(model, state, forces, :PROD, BottomHolePressureTarget)
         return dt*bhp/t_tot
     end
 
