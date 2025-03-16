@@ -67,7 +67,7 @@ function test_force_vectorization(forces, tstep, model)
     end
 end
 
-function numerical_diff_forces(model, state0, parameters, forces, tstep, G, eps = 1e-6)
+function numerical_diff_forces(model, state0, parameters, forces, tstep, G, eps = 1e-6; eachstep = false)
     function perturb(sim, x, i, ϵ, F, cfg, ix)
         x_delta = copy(x)
         x_delta[i] += ϵ
@@ -83,7 +83,7 @@ function numerical_diff_forces(model, state0, parameters, forces, tstep, G, eps 
     sim = Simulator(model, state0 = state0)
     s0, = simulate!(sim, tstep, state0 = state0, forces = forces, parameters = parameters, info_level = -1)
     obj0 = Jutul.evaluate_objective(G, model, s0, tstep, forces)
-    unique_forces, to_step = Jutul.unique_forces_and_mapping(forces, tstep)
+    unique_forces, to_step = Jutul.unique_forces_and_mapping(forces, tstep, eachstep = eachstep)
     for fno in eachindex(unique_forces)
         F = unique_forces[fno]
         x, cfg = Jutul.vectorize_forces(F, model)
@@ -117,7 +117,7 @@ end
     # Check optimization interface
     case = JutulCase(model, tstep, forces, state0 = state0, parameters = parameters)
     opt_config = Jutul.forces_optimization_config(model, forces, tstep, abs_min = 0.0)
-    x0, xmin, xmax, f, g!, out = Jutul.setup_force_optimization(case, G, opt_config);
+    x0, xmin, xmax, f, g!, out = Jutul.setup_force_optimization(case, G, opt_config, print = false);
 
     der = g!(similar(x0), x0)
 
@@ -174,6 +174,10 @@ end
 
     for (objno, obj) in enumerate([cell_pressure_obj, rs_obj, prod_bhp_obj])
         test_grad(obj)
+        if objno == 1
+            # No need to do this for every combo
+            test_grad(obj, eachstep = true)
+        end
     end
 end
 ##
