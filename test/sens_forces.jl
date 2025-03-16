@@ -147,4 +147,4 @@ for i in eachindex(dx, grad_adj)
     @test norm(grad_adj, 2) ≈ norm(dx, 2) atol = 1e-3 rtol = 1e-3
 end
 ##
-opt_config = Jutul.forces_optimization_config(case.model[:Facility], map(x -> x[:Facility], case.forces), case.dt, :all, abs_min = 0.0)
+opt_config = Jutul.forces_optimization_config(case.model[:Facility], map(x -> x[:Facility], case.forces), case.dt, abs_min = 0.0)
