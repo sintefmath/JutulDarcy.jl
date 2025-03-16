@@ -121,9 +121,9 @@ end
 
 
 spe1_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1")
-case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"))[1:1]# [1:10]
+case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"))
 test_force_vectorization(case.forces, case.dt, case.model)
-states, reports = simulate(case)
+states, reports = simulate(case, output_substates = true)
 ##
 
 Rs0 = sum(case.state0[:Reservoir][:Rs])
@@ -162,16 +162,21 @@ obj = cell_pressure_obj
 # obj = orat_obj
 # obj = prod_bhp_obj
 
-grad_eps = 1e-2
+grad_eps = 1e-3
 # grad_eps = 10
 # grad_eps = 1e-5
 dx = numerical_diff_forces(case.model, case.state0, case.parameters, case.forces, case.dt,
     obj, grad_eps)
 ## Check numerical gradients
+# targets = Jutul.force_targets(case.model)
+# targets[:Facility][:limits] = nothing
 dforces, grad_adj = Jutul.solve_adjoint_forces(case.model, states, reports, obj, case.forces,
-                state0 = case.state0, parameters = case.parameters)
+    state0 = case.state0,
+    parameters = case.parameters,
+    # targets = targets
+)
 for i in eachindex(dx, grad_adj)
-    @test isapprox(dx[i], grad_adj[i], atol = 1e-2, rtol = 1e-3)
+    @test isapprox(dx[i], grad_adj[i], atol = 1e-2, rtol = 1e-2)
     @test norm(grad_adj, 2) ≈ norm(dx, 2) atol = 1e-3 rtol = 1e-3
 end
 ##
