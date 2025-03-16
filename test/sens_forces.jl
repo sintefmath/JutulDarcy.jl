@@ -68,26 +68,31 @@ function test_force_vectorization(forces, tstep, model)
 end
 
 function numerical_diff_forces(model, state0, parameters, forces, tstep, G, eps = 1e-6)
+    function perturb(x, i, ϵ, F, cfg, ix)
+        x_delta = copy(x)
+        x_delta[i] += ϵ
+        new_force = Jutul.devectorize_forces(F, model, x_delta, cfg)
+        new_forces = deepcopy(forces)
+        for j in ix
+            new_forces[j] = new_force
+        end
+        s, r = simulate(state0, model, tstep, forces = new_forces, parameters = parameters, info_level = -1)
+        return Jutul.evaluate_objective(G, model, s, tstep, new_forces)
+    end
     dx = Vector{Float64}[]
     s0, = simulate(state0, model, tstep, forces = forces, parameters = parameters, info_level = -1)
     obj0 = Jutul.evaluate_objective(G, model, s0, tstep, forces)
     unique_forces, to_step = Jutul.unique_forces_and_mapping(forces, tstep)
     for fno in eachindex(unique_forces)
-        x, cfg = Jutul.vectorize_forces(unique_forces[fno], model)
+        F = unique_forces[fno]
+        x, cfg = Jutul.vectorize_forces(F, model)
         dx_i = Float64[]
         for i in eachindex(x)
-            x_delta = copy(x)
             ϵ = max(1e-18, eps*abs(x[i]))
-            x_delta[i] += ϵ
-            new_force = Jutul.devectorize_forces(unique_forces[fno], model, x_delta, cfg)
-            new_forces = deepcopy(forces)
-            for j in to_step[fno]
-                new_forces[j] = new_force
-            end
-            s, r = simulate(state0, model, tstep, forces = new_forces, parameters = parameters, info_level = -1)
-            obj = Jutul.evaluate_objective(G, model, s, tstep, new_forces)
-            @info "Objective change: $(obj - obj0) from $obj"
-            push!(dx_i, (obj - obj0)/ϵ)
+            stepix = to_step[fno]
+            obj_plus = perturb(x, i, ϵ, F, cfg, stepix)
+            obj_minus = perturb(x, i, -ϵ, F, cfg, stepix)
+            push!(dx_i, (obj_plus - obj_minus)/(2*ϵ))
         end
         push!(dx, dx_i)
     end
