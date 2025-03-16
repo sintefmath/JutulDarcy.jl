@@ -126,7 +126,7 @@ end
 
 
 spe1_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1")
-case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"))
+case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"), block_backend = false)
 test_force_vectorization(case.forces, case.dt, case.model)
 states, reports = simulate(case, output_substates = true)
 ##
@@ -190,3 +190,4 @@ opt_config = Jutul.forces_optimization_config(case.model[:Facility], map(x -> x[
 # using GLMakie
 # ws, s = simulate_reservoir(case)
 # plot_well_results(ws)
+#  [9.029521704929319e7, 0.0, 7.891695546088347e10, 0.0, 0.0, 31.913481782537318, 0.0]
