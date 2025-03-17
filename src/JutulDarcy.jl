@@ -81,7 +81,6 @@ module JutulDarcy
     export PhaseMassDensities, ConstantCompressibilityDensities
     export BrooksCoreyRelativePermeabilities, TabulatedSimpleRelativePermeabilities
     export EquilibriumRegion
-    export ControlChangeTimestepSelector, setup_control_change_timestep_selector
 
     import Jutul:
         number_of_cells, number_of_faces,
