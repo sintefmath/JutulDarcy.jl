@@ -3,13 +3,13 @@ mutable struct ControlChangeTimestepSelector <: Jutul.AbstractTimestepSelector
     dt_after_change::Float64
     include_temperature::Bool
     prev_controls
-    function ControlChangeTimestepSelector(thresholds, dt_after_change; include_temperature = false)
+    function ControlChangeTimestepSelector(thresholds::Dict, dt_after_change; include_temperature = false)
         new(thresholds, dt_after_change, include_temperature, nothing)
     end
 
 end
 
-function setup_control_change_timestep_selector(model, threshold = 0.25, dt_after_change = 5.0si_unit(:hour); wells = :all)
+function ControlChangeTimestepSelector(model::MultiModel, threshold = 0.25, dt_after_change = 5.0si_unit(:hour); wells = :all)
 
     all_wells = well_symbols(model)
     if wells == :all
@@ -32,8 +32,10 @@ function setup_control_change_timestep_selector(model, threshold = 0.25, dt_afte
     rmodel = reservoir_model(model)
     include_temperature = haskey(rmodel.primary_variables, :Temperature)
 
-    ControlChangeTimestepSelector(
+    sel = ControlChangeTimestepSelector(
         thresholds, dt_after_change, include_temperature = include_temperature)
+
+    return sel
 
 end
 
@@ -43,7 +45,7 @@ function Jutul.pick_next_timestep(sel::ControlChangeTimestepSelector,
     curr_controls = forces[:Facility].control
     if isnothing(sel.prev_controls)
         sel.prev_controls = curr_controls
-        return dT
+        return sel.dt_after_change
     end
     change = false
     wells = keys(sel.thresholds)
