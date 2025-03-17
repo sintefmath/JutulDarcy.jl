@@ -187,8 +187,14 @@ function compute_bc_mass_fluxes(bc, state, nph)
     Δp = p[c] - bc.pressure
     q_tot = T_f*Δp
 
-    num_t = Base.promote_type(typeof(q_tot), eltype(kr), eltype(mu), eltype(rho))
-    q = zeros(MVector{nph, num_t})
+    num_t = Base.promote_type(typeof(q_tot), eltype(kr), eltype(mu), eltype(rho), typeof(q_tot))
+    isbits_out = isbitstype(num_t)
+    if isbits_out
+        V_t = MVector{nph, num_t}
+    else
+        V_t = SizedVector{nph, num_t}
+    end
+    q = zeros(V_t)
     if q_tot > 0
         # Pressure inside is higher than outside, flow out from domain
         for ph in 1:nph
@@ -228,8 +234,12 @@ function compute_bc_mass_fluxes(bc, state, nph)
             end
         end
     end
-
-    return SVector{nph, num_t}(q)
+    if isbits_out
+        out = SVector{nph, num_t}(q)
+    else
+        out = q
+    end
+    return q
 end
 
 function compute_bc_heat_fluxes(bc, state, nph)
@@ -243,13 +253,13 @@ function compute_bc_heat_fluxes(bc, state, nph)
     h = state.FluidEnthalpy
     u = state.FluidInternalEnergy
     rho = state.PhaseMassDensities
-    
+
     # Get boundary properties
     T_h    = bc.trans_thermal
     p_bc   = bc.pressure
     T_bc   = bc.temperature
     rho_bc = bc.density
-    
+
     qh_advective = 0
     for ph in 1:nph
         if q[ph] > 0
@@ -274,7 +284,6 @@ function compute_bc_heat_fluxes(bc, state, nph)
     qh_conductive = T_h*ΔT
 
     return qh_advective, qh_conductive
-
 end
 
 function compute_bc_heat_fluxes(bc, state)
@@ -293,7 +302,7 @@ function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, tim
 
 end
 
-function Jutul.vectorization_length(bc::FlowBoundaryCondition, variant)
+function Jutul.vectorization_length(bc::FlowBoundaryCondition, model, name, variant)
     if variant == :all
         n = 4 # pressure, temperature, T_flow, T_thermal
         f = bc.fractional_flow
@@ -311,7 +320,7 @@ function Jutul.vectorization_length(bc::FlowBoundaryCondition, variant)
     end
 end
 
-function Jutul.vectorize_force!(v, bc::FlowBoundaryCondition, variant)
+function Jutul.vectorize_force!(v, model::SimulationModel, bc::FlowBoundaryCondition, name, variant)
     names = []
     if variant == :all
         v[1] = bc.pressure
@@ -345,7 +354,7 @@ function Jutul.vectorize_force!(v, bc::FlowBoundaryCondition, variant)
     return (names = names, )
 end
 
-function Jutul.devectorize_force(bc::FlowBoundaryCondition, X, meta, variant)
+function Jutul.devectorize_force(bc::FlowBoundaryCondition, model::SimulationModel, X, meta, name, variant)
     p = X[1]
     T = bc.temperature
     trans_flow = bc.trans_flow

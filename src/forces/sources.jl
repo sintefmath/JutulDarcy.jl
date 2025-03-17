@@ -49,7 +49,7 @@ function Jutul.subforce(s::AbstractVector{S}, model) where S<:SourceTerm
     return s[keep]
 end
 
-function Jutul.vectorization_length(src::SourceTerm, variant)
+function Jutul.vectorization_length(src::SourceTerm, model, name, variant)
     n = 1
     if variant == :all
         f = src.fractional_flow
@@ -64,7 +64,7 @@ function Jutul.vectorization_length(src::SourceTerm, variant)
     return n
 end
 
-function Jutul.vectorize_force!(v, src::SourceTerm, variant)
+function Jutul.vectorize_force!(v, model::SimulationModel, src::SourceTerm, name, variant)
     v[1] = src.value
     names = [:value]
     if variant == :all
@@ -85,7 +85,7 @@ function Jutul.vectorize_force!(v, src::SourceTerm, variant)
     return (names = names, )
 end
 
-function Jutul.devectorize_force(src::SourceTerm, X, meta, variant)
+function Jutul.devectorize_force(src::SourceTerm, model::SimulationModel, X, meta, name, variant)
     val = X[1]
     f = src.fractional_flow
     if variant == :all

@@ -3,6 +3,8 @@ abstract type FacilitySystem <: JutulSystem end
 struct PredictionMode <: FacilitySystem end
 struct HistoryMode <: FacilitySystem end
 
+const FacilityModel = SimulationModel{<:Any, <:FacilitySystem, <:Any, <:Any}
+
 abstract type SurfaceFacilityDomain <: JutulDomain end
 abstract type WellControllerDomain <: SurfaceFacilityDomain end
 mutable struct WellGroup <: WellControllerDomain
@@ -149,7 +151,9 @@ bottom-hole-pressure constraint.
 struct SurfaceLiquidRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
     function SurfaceLiquidRateTarget(v::T) where T
-        isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))'
+        if T == Float64
+            isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))
+        end
         return new{T}(v)
     end
 end
@@ -166,7 +170,9 @@ rarely injected into the subsurface. Abbreviated as ORAT in some settings.
 struct SurfaceOilRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
     function SurfaceOilRateTarget(v::T) where T
-        isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))'
+        if T == Float64
+            isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))
+        end
         return new{T}(v)
     end
 end
@@ -186,7 +192,9 @@ present.
 struct SurfaceGasRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
     function SurfaceGasRateTarget(v::T) where T
-        isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))'
+        if T == Float64
+            isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))
+        end
         return new{T}(v)
     end
 end
@@ -205,7 +213,9 @@ become very high if there is little water present.
 struct SurfaceWaterRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
     function SurfaceWaterRateTarget(v::T) where T
-        isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))'
+        if T == Float64
+            isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))
+        end
         return new{T}(v)
     end
 end
@@ -223,7 +233,9 @@ Often used for both [`InjectorControl`](@ref) [`ProducerControl`](@ref).
 struct TotalRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     value::T
     function TotalRateTarget(v::T) where T
-        isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))'
+        if T == Float64
+            isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))
+        end
         return new{T}(v)
     end
 end
@@ -240,7 +252,9 @@ Often used for both [`InjectorControl`](@ref) [`ProducerControl`](@ref).
 struct TotalReservoirRateTarget{T} <: WellTarget where T<:AbstractFloat
     value::T
     function TotalReservoirRateTarget(v::T) where T
-        isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))'
+        if T == Float64
+            isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))
+        end
         return new{T}(v)
     end
 end
@@ -367,16 +381,18 @@ struct InjectorControl{T, R, P, M, E, TR} <: WellControlForce
             temperature::R = 293.15,
             enthalpy = missing,
             tracers = missing,
+            check = true,
             factor::R = 1.0
         ) where {T<:WellTarget, R<:Real}
-        @assert isfinite(density) && density > 0.0 "Injector density must be finite and positive"
-        @assert isfinite(temperature) && temperature > 0.0 "Injector temperature must be finite and positive"
-
         if isa(mix, Real)
             mix = [mix]
         end
         mix = vec(mix)
-        @assert sum(mix) ≈ 1
+        if check && R == Float64
+            @assert sum(mix) ≈ 1
+            @assert isfinite(density) && density > 0.0 "Injector density must be finite and positive"
+            @assert isfinite(temperature) && temperature > 0.0 "Injector temperature must be finite and positive"
+        end
         if isa(tracers, Real)
             tracers = [tracers]
         end
@@ -389,6 +405,26 @@ function replace_target(f::InjectorControl, target)
 end
 
 default_limits(f::InjectorControl{T}) where T<:BottomHolePressureTarget = merge((rate_lower = MIN_ACTIVE_WELL_RATE, ), as_limit(f.target))
+
+function Base.isequal(f::InjectorControl, g::InjectorControl)
+    t_eq = f.target == g.target 
+    mix_eq = f.injection_mixture == g.injection_mixture
+    den_eq = f.mixture_density == g.mixture_density
+    phases_eq = f.phases == g.phases
+    t_eq = f.temperature == g.temperature
+    f_eq = f.factor == g.factor
+    if ismissing(f.enthalpy)
+        e_eq = ismissing(g.enthalpy)
+    else
+        e_eq = f.enthalpy == g.enthalpy
+    end
+    if ismissing(f.tracers)
+        tr_eq = ismissing(g.tracers)
+    else
+        tr_eq = f.tracers == g.tracers
+    end
+    return t_eq && mix_eq && den_eq && phases_eq && t_eq && f_eq && e_eq && tr_eq
+end
 
 """
     ProducerControl(target)

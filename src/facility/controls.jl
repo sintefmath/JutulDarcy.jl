@@ -31,7 +31,8 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
         is_new_step = cfg.step_index != current_step
         disabled = DisabledControl()
         well_was_disabled = op_ctrls[key] == disabled && newctrl != disabled
-        if (is_new_step && newctrl != oldctrl) || well_was_disabled
+        is_new_type = typeof(newctrl) != typeof(oldctrl)
+        if (is_new_step && newctrl != oldctrl) || well_was_disabled || is_new_type
             # We have a new control. Any previous control change is invalid.
             # Set both operating and requested control to the new one.
             @debug "Well $key switching from $oldctrl to $newctrl"
@@ -39,7 +40,9 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
             op_ctrls[key] = newctrl
         end
         pos = get_well_position(model.domain, key)
-        q_t[pos] = valid_surface_rate_for_control(q_t[pos], newctrl)
+        if q_t isa Vector
+            q_t[pos] = valid_surface_rate_for_control(q_t[pos], newctrl)
+        end
         if changed
             if isnothing(cfg.limits[key])
                 cfg.limits[key] = as_limit(newctrl.target)
