@@ -56,6 +56,10 @@ end
     include("sens_multimodel.jl")
 end
 
+@testitem "Sensitivities (forces)" begin
+    include("sens_forces.jl")
+end
+
 @testitem "Compositional validation" begin
     include("compositional.jl")
 end

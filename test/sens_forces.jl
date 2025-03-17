@@ -1,5 +1,4 @@
-using Jutul, JutulDarcy, Test
-# import SparsityTracing as ST
+using Jutul, JutulDarcy, Test, LinearAlgebra
 function setup_bl_twoforces(;nc = 100, time = 1.0, nstep = 100)
     T = time
     tstep = repeat([T/nstep], nstep)
@@ -106,9 +105,9 @@ end
 
     G = (model, state, dt, step_no, forces) -> dt*(sum(state[:Saturations][1, :] .- 0.5))^2
     dx = numerical_diff_forces(model, state0, parameters, forces, tstep, G)
-    states, reports = simulate(state0, model, tstep, forces = forces, parameters = parameters)
+    states, reports = simulate(state0, model, tstep, forces = forces, parameters = parameters, info_level = -1)
     # Check numerical gradients
-    dforces, grad_adj = Jutul.solve_adjoint_forces(model, states, reports, G, forces,
+    dforces, t_to_f, grad_adj = Jutul.solve_adjoint_forces(model, states, reports, G, forces,
                     state0 = state0, parameters = parameters)
 
     for i in eachindex(dx, grad_adj)
@@ -116,8 +115,8 @@ end
     end
     # Check optimization interface
     case = JutulCase(model, tstep, forces, state0 = state0, parameters = parameters)
-    opt_config = Jutul.forces_optimization_config(model, forces, tstep, abs_min = 0.0)
-    x0, xmin, xmax, f, g!, out = Jutul.setup_force_optimization(case, G, opt_config, print = false);
+    opt_config = Jutul.forces_optimization_config(model, forces, tstep, abs_min = 0.0, verbose = false)
+    x0, xmin, xmax, f, g!, out = Jutul.setup_force_optimization(case, G, opt_config, verbose = false);
 
     der = g!(similar(x0), x0)
 
@@ -161,7 +160,7 @@ end
     function test_grad(obj; kwarg...)
         grad_eps = 1e-3
         dx = numerical_diff_forces(case.model, case.state0, case.parameters, case.forces, case.dt, obj, grad_eps; kwarg...)
-        dforces, grad_adj = Jutul.solve_adjoint_forces(case.model, states, reports, obj, case.forces;
+        dforces, t_to_f, grad_adj = Jutul.solve_adjoint_forces(case.model, states, reports, obj, case.forces;
             state0 = case.state0,
             parameters = case.parameters,
             kwarg...
