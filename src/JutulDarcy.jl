@@ -198,6 +198,8 @@ module JutulDarcy
     include("NLDD/NLDD.jl")
     # CO2-brine properties
     include("CO2Properties/CO2Properties.jl")
+    # Timestepping
+    include("timesteps.jl")
 
     # Geothermal
     include("Geothermal/Geothermal.jl")
