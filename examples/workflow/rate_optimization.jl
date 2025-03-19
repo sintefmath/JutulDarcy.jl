@@ -53,8 +53,7 @@ function optimize_rates(steps)
     obj_best, x_best, hist = Jutul.unit_box_bfgs(setup.x0,
     setup.obj,
         maximize = true,
-        lin_eq = setup.lin_eq,
-        # lbfgs_num = 20
+        lin_eq = setup.lin_eq
     )
     return (setup.case, hist.val, x_best)
 end
@@ -73,7 +72,7 @@ ax.xticks = eachindex(x1)
 fig
 # ### Optimize with varying rates per time-step
 case2, hist2, x2 = optimize_rates(:each);
-##
+# ### Plot rate allocation per well
 allocs = reshape(x2, length(x1), :)
 fig = Figure()
 ax = Axis(fig[1, 1], xlabel = "Report step", ylabel = "Rate fraction (of max injection rate)")

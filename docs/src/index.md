@@ -46,7 +46,7 @@ JutulDarcy.jl is a general high-performance purpose porous media simulator toolb
 A few highlights:
 
 - Immiscible, black-oil, compositional, CO2-brine and geothermal systems
-- Fully differentiable through adjoint method
+- Fully differentiable through adjoint method (history matching of parameters, optimization of well controls)
 - High performance, with optional support for compiling MPI parallel binaries
 - Consistent discretizations
 - Industry standard input formats - or make your own model as a script
