@@ -401,7 +401,17 @@ struct InjectorControl{T, R, P, M, E, TR} <: WellControlForce
 end
 
 function replace_target(f::InjectorControl, target)
-    return InjectorControl(target, f.injection_mixture, density = f.mixture_density, phases = f.phases, factor = f.factor, tracers = f.tracers)
+    _, fact, den, T = Base.promote(target.value, f.factor, f.mixture_density, f.temperature)
+    return InjectorControl(
+        target,
+        f.injection_mixture,
+        temperature = T,
+        enthalpy = f.enthalpy,
+        density = den,
+        phases = f.phases,
+        factor = fact,
+        tracers = f.tracers
+    )
 end
 
 default_limits(f::InjectorControl{T}) where T<:BottomHolePressureTarget = merge((rate_lower = MIN_ACTIVE_WELL_RATE, ), as_limit(f.target))

@@ -185,4 +185,3 @@ end
 # using GLMakie
 # ws, s = simulate_reservoir(case)
 # plot_well_results(ws)
-#  [9.029521704929319e7, 0.0, 7.891695546088347e10, 0.0, 0.0, 31.913481782537318, 0.0]

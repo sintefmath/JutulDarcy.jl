@@ -129,7 +129,7 @@ function Jutul.update_cross_term_in_entity!(out, i,
 end
 
 function Base.show(io::IO, d::ReservoirFromWellTracerCT)
-    n = length(d.CI)
+    n = length(d.WI)
     print(io, "ReservoirFromWellTracerCT ($n connections)")
 end
 
