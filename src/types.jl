@@ -501,6 +501,7 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
             material_density = 8000.0,
             void_fraction = 1.0,
             extra_perforation_props = NamedTuple(),
+            segment_radius = 0.05,
             kwarg...
     )
     if isnothing(reference_depth)
@@ -538,6 +539,10 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
         perforation_cells = collect(2:nc)
     end
     perforation_cells = vec(perforation_cells)
+    if segment_radius isa Real
+        segment_radius = fill(segment_radius, nseg)
+    end
+    @assert length(segment_radius) == nseg "Segment radius must have length equal to number of segments"
 
     # Process well material properties
     if length(material_thermal_conductivity) == 1
@@ -578,7 +583,8 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
                     L = segment_length[seg]
                 end
             end
-            Δp = SegmentWellBoreFrictionHB(L, friction, 0.1)
+            diameter = segment_radius[seg]*2
+            Δp = SegmentWellBoreFrictionHB(L, friction, diameter)
             push!(segment_models, Δp)
         end
     else
