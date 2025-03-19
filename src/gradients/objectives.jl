@@ -115,3 +115,261 @@ function well_mismatch(qoi, wells, model_f, states_f, model_c, state_c, dt, step
     end
     return scale*dt*obj
 end
+
+
+"""
+    setup_rate_optimization_objective(case, base_rate;
+        max_rate_factor = 5,
+        steps = :first,
+        injectors = missing,
+        producers = missing,
+        verbose = true,
+        constraint = :total_sum_injected,
+        kwarg...
+    )
+
+Setup the rate optimization objective and functions for a given case. The
+objective is to maximize the NPV of the reservoir simulation by optimizing the
+rates of the injectors. It is assumed that all injectors are initially set to
+the same injection rate (`base_rate`). The largest value (if used in a
+box-constrained setting) will be `max_rate_factor*base_rate`.
+
+Additional keyword arguments will be passed to the `npv_objective` function.
+"""
+function setup_rate_optimization_objective(case, base_rate;
+        max_rate_factor = 5,
+        steps = :first,
+        injectors = missing,
+        producers = missing,
+        verbose = true,
+        constraint = :total_sum_injected,
+        kwarg...
+    )
+    steps in (:first, :each) || error("Invalid steps argument, must be :first or :each")
+    function myprint(x)
+        if verbose
+            jutul_message("Rate optimization", x)
+        end
+    end
+    max_rate = max_rate_factor*base_rate
+    forces = case.forces
+    eachstep = steps == :each
+    nstep = length(case.dt)
+
+    if forces isa Vector
+        forces = deepcopy(forces)
+    else
+        forces = [deepcopy(forces) for i in 1:nstep]
+    end
+
+    case = JutulCase(case.model, case.dt, forces, state0 = case.state0, parameters = case.parameters)
+    if eachstep
+        myprint("steps=:$steps selected, optimizing controls for all $nstep steps separately.")
+    else
+        myprint("steps=:$steps selected, optimizing one set of controls for all steps.")
+        for i in eachindex(case.forces)
+            case.forces[i] = case.forces[1]
+            lims = case.forces[i][:Facility].limits
+        end
+    end
+    wells = well_symbols(case.model)
+
+    function find_wells(ctrl_t)
+        out = Symbol[]
+        for f in forces
+            for w in wells
+                ctrl = f[:Facility][:control][w]
+                if ctrl isa ctrl_t
+                    push!(out, w)
+                end
+            end
+        end
+        return unique(out)
+    end
+    if ismissing(injectors)
+        injectors = find_wells(InjectorControl)
+    end
+    if ismissing(producers)
+        producers = find_wells(ProducerControl)
+    end
+    ninj = length(injectors)
+
+    length(injectors) > 0 || error("No injectors found")
+    length(producers) > 0 || error("No producers found")
+    is_both = intersect(injectors, producers)
+    length(is_both) == 0 || error("Wells were both producers and injectors in forces? $is_both")
+    function npv_obj(model, state, dt, step_no, forces)
+        return npv_objective(model, state, dt, step_no, forces;
+            injectors = injectors,
+            producers = producers,
+            timesteps = case.dt,
+            kwarg...
+        )
+    end
+    myprint("$ninj injectors and $(length(producers)) producers selected.")
+    storage = Jutul.setup_adjoint_forces_storage(case.model, case.forces, case.dt;
+        state0 = case.state0,
+        parameters = case.parameters,
+        eachstep = eachstep
+    )
+
+    function f!(x)
+        nstep = length(case.dt)
+        if eachstep
+            nstep_unique = nstep
+        else
+            nstep_unique = 1
+        end
+        x = reshape(x, ninj, nstep_unique)
+        for stepno in eachindex(case.forces)
+            for (inj_no, inj) in enumerate(injectors)
+                if eachstep
+                    x_i = x[inj_no, stepno]
+                else
+                    x_i = x[inj_no, 1]
+                end
+                new_rate = max(x_i*max_rate, MIN_INITIAL_WELL_RATE)
+                f_forces = case.forces[stepno][:Facility]
+                ctrl = f_forces.control[inj]
+                lims = f_forces.limits[inj]
+                new_target = TotalRateTarget(new_rate)
+                f_forces.control[inj] = replace_target(ctrl, new_target)
+                f_forces.limits[inj] = merge(lims, as_limit(new_target))
+            end
+        end
+        simulated = simulate_reservoir(case, info_level = -1)
+        r = simulated.result
+        obj = Jutul.evaluate_objective(npv_obj, case.model, r.states, case.dt, case.forces)
+        dforces, t_to_f, grad_adj = Jutul.solve_adjoint_forces!(storage, case.model, r.states, r.reports, npv_obj, forces,
+            eachstep = eachstep,
+            state0 = case.state0,
+            parameters = parameters = case.parameters
+        )
+
+        df = zeros(ninj, nstep_unique)
+        for stepno in 1:nstep_unique
+            for i in 1:ninj
+                do_dq = dforces[stepno][:Facility].control[injectors[i]].target.value
+                df[i, stepno] = do_dq/max_rate
+            end
+        end
+        return (obj, vec(df))
+    end
+
+    if constraint == :total_sum_injected
+        if eachstep
+            # TODO: This requires updates in lbfgs
+            # A = spzeros(nstep, ninj*nstep)
+            A = zeros(nstep, ninj*nstep)
+            for i in 1:nstep
+                offset = (i-1)*ninj
+                A[i, (offset+1):(offset+ninj)] .= 1
+            end
+            b = fill(ninj*base_rate/max_rate, nstep)
+            x0 = fill(base_rate/max_rate, ninj*nstep)
+        else
+            A = ones(1, length(injectors))
+            b = [ninj*base_rate/max_rate]
+            x0 = fill(base_rate/max_rate, ninj)
+        end
+        lin_eq = (A=A, b=b)
+    else
+        @assert constraint == :none || isnothing(constraint) "Constraint must be :total_sum_injected or :none"
+        lin_eq = NamedTuple()
+    end
+    return (
+        x0 = x0,
+        lin_eq = lin_eq,
+        obj = f!,
+        case = case
+    )
+end
+
+
+"""
+    npv_objective(model, state, dt, step_no, forces;
+        timesteps,
+        injectors,
+        producers,
+        oil_price = 60.0,
+        gas_price = 10.0,
+        water_price = -3.0,
+        water_cost = 5.0,
+        oil_cost = oil_price,
+        gas_cost = gas_price,
+        liquid_unit = si_unit(:stb),
+        gas_unit = si_unit(:kilo)*si_unit(:feet)^3,
+        discount_rate = 0.025,
+        discount_unit = si_unit(:year)
+    )
+
+Evaluate the contribution to net-present-value for a given step, with the given
+costs and prices for oil, gas, and water and discount rate. Costs are assumed to
+be the cost of injecting a given fluid and prices are the revenue from producing
+the corresponding fluids. Prices and costs can be set to negative (e.g. to
+account for water being a cost when produced).
+"""
+function npv_objective(model, state, dt, step_no, forces;
+        timesteps,
+        injectors,
+        producers,
+        oil_price = 60.0,
+        gas_price = 10.0,
+        water_price = -3.0,
+        water_cost = 5.0,
+        oil_cost = oil_price,
+        gas_cost = gas_price,
+        liquid_unit = si_unit(:stb),
+        gas_unit = si_unit(:kilo)*si_unit(:feet)^3,
+        discount_rate = 0.025,
+        discount_unit = si_unit(:year)
+    )
+    phases = get_phases(reservoir_model(model).system)
+    has_wat = AqueousPhase() in phases
+    has_gas = VaporPhase() in phases
+    has_oil = LiquidPhase() in phases
+
+    obj = 0.0
+    for w in producers
+        if has_oil
+            orat = -compute_well_qoi(model, state, forces, w, SurfaceOilRateTarget)/liquid_unit
+        else
+            orat = 0.0
+        end
+        if has_gas
+            grat = -compute_well_qoi(model, state, forces, w, SurfaceGasRateTarget)/gas_unit
+        else
+            grat = 0.0
+        end
+        if has_wat
+            wrat = -compute_well_qoi(model, state, forces, w, SurfaceWaterRateTarget)/liquid_unit
+        else
+            wrat = 0.0
+        end
+        obj += oil_price*orat + gas_price*grat + water_price*wrat
+    end
+    for w in injectors
+        if has_oil
+            orat = compute_well_qoi(model, state, forces, w, SurfaceOilRateTarget)/liquid_unit
+        else
+            orat = 0.0
+        end
+        if has_gas
+            grat = compute_well_qoi(model, state, forces, w, SurfaceGasRateTarget)/gas_unit
+        else
+            grat = 0.0
+        end
+        if has_wat
+            wrat = compute_well_qoi(model, state, forces, w, SurfaceWaterRateTarget)/liquid_unit
+        else
+            wrat = 0.0
+        end
+        obj -= (oil_cost*orat + gas_cost*grat + water_cost*wrat)
+    end
+    time = 0.0
+    for i in 1:step_no
+        time += timesteps[i]
+    end
+
+    return dt*obj*(1.0+discount_rate)^(-time/discount_unit)
+end
