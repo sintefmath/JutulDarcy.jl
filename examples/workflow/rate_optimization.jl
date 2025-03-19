@@ -11,7 +11,7 @@
 # process. If you want to run the optimization for all timesteps on the fine
 # model directly, you can remove the slicing of the case and replace the coarse
 # case with the fine case.
-using Jutul, JutulDarcy, GLMakie, GeoEnergyIO
+using Jutul, JutulDarcy, GLMakie, GeoEnergyIO, HYPRE
 data_dir = GeoEnergyIO.test_input_file_path("EGG")
 data_pth = joinpath(data_dir, "EGG.DATA")
 fine_case = setup_case_from_data_file(data_pth)
