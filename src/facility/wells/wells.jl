@@ -150,6 +150,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     function get_entry(x, i)
         return x
     end
+    segment_radius = Float64[]
     for (i, c) in enumerate(reservoir_cells)
         if K isa AbstractVector
             k_i = K[c]
@@ -178,6 +179,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
             end
             WIth_i::AbstractFloat
         end
+        push!(segment_radius, r_i)
         WIth_computed[i] = WIth_i
         center = vec(centers[:, i])
         dz[i] = center[3] - reference_depth
@@ -199,7 +201,10 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     else
         # Depth differences are taken care of via centers.
         dz *= 0.0
-        W = MultiSegmentWell(reservoir_cells, volumes, centers; WI = WI_computed, WIth = WIth_computed, dz = dz, reference_depth = reference_depth, kwarg...)
+        W = MultiSegmentWell(reservoir_cells, volumes, centers; 
+            WI = WI_computed, WIth = WIth_computed, dz = dz, 
+            reference_depth = reference_depth, segment_radius = segment_radius, 
+            kwarg...)
     end
     return W
 end
