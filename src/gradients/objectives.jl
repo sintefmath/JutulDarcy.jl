@@ -198,14 +198,6 @@ function setup_rate_optimization_objective(case, base_rate;
     length(producers) > 0 || error("No producers found")
     is_both = intersect(injectors, producers)
     length(is_both) == 0 || error("Wells were both producers and injectors in forces? $is_both")
-    function npv_obj(model, state, dt, step_no, forces)
-        return npv_objective(model, state, dt, step_no, forces;
-            injectors = injectors,
-            producers = producers,
-            timesteps = case.dt,
-            kwarg...
-        )
-    end
     myprint("$ninj injectors and $(length(producers)) producers selected.")
     storage = Jutul.setup_adjoint_forces_storage(case.model, case.forces, case.dt;
         state0 = case.state0,
@@ -237,20 +229,30 @@ function setup_rate_optimization_objective(case, base_rate;
                 f_forces.limits[inj] = merge(lims, as_limit(new_target))
             end
         end
-        simulated = simulate_reservoir(case, info_level = -1)
+        simulated = simulate_reservoir(case, output_substates = true, info_level = -1)
         r = simulated.result
+        dt_mini = report_timesteps(r.reports, ministeps = true)
+        function npv_obj(model, state, dt, step_no, forces)
+            return npv_objective(model, state, dt, step_no, forces;
+                injectors = injectors,
+                producers = producers,
+                timesteps = dt_mini,
+                kwarg...
+            )
+        end
+
         obj = Jutul.evaluate_objective(npv_obj, case.model, r.states, case.dt, case.forces)
         dforces, t_to_f, grad_adj = Jutul.solve_adjoint_forces!(storage, case.model, r.states, r.reports, npv_obj, forces,
             eachstep = eachstep,
             state0 = case.state0,
-            parameters = parameters = case.parameters
+            parameters = case.parameters
         )
 
         df = zeros(ninj, nstep_unique)
         for stepno in 1:nstep_unique
-            for i in 1:ninj
-                do_dq = dforces[stepno][:Facility].control[injectors[i]].target.value
-                df[i, stepno] = do_dq/max_rate
+            for (inj_no, inj) in enumerate(injectors)
+                do_dq = dforces[stepno][:Facility].control[inj].target.value
+                df[inj_no, stepno] = do_dq/max_rate
             end
         end
         return (obj, vec(df))
