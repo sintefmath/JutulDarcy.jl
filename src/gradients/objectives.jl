@@ -206,7 +206,7 @@ function setup_rate_optimization_objective(case, base_rate;
         eachstep = eachstep
     )
 
-    function f!(x)
+    function f!(x; grad = true)
         nstep = length(case.dt)
         if eachstep
             nstep_unique = nstep
@@ -241,22 +241,26 @@ function setup_rate_optimization_objective(case, base_rate;
                 kwarg...
             )
         end
-
         obj = Jutul.evaluate_objective(npv_obj, case.model, r.states, case.dt, case.forces)
-        dforces, t_to_f, grad_adj = Jutul.solve_adjoint_forces!(storage, case.model, r.states, r.reports, npv_obj, forces,
-            eachstep = eachstep,
-            state0 = case.state0,
-            parameters = case.parameters
-        )
+        if grad
+            dforces, t_to_f, grad_adj = Jutul.solve_adjoint_forces!(storage, case.model, r.states, r.reports, npv_obj, forces,
+                eachstep = eachstep,
+                state0 = case.state0,
+                parameters = case.parameters
+            )
 
-        df = zeros(ninj, nstep_unique)
-        for stepno in 1:nstep_unique
-            for (inj_no, inj) in enumerate(injectors)
-                do_dq = dforces[stepno][:Facility].control[inj].target.value
-                df[inj_no, stepno] = do_dq/max_rate
+            df = zeros(ninj, nstep_unique)
+            for stepno in 1:nstep_unique
+                for (inj_no, inj) in enumerate(injectors)
+                    do_dq = dforces[stepno][:Facility].control[inj].target.value
+                    df[inj_no, stepno] = do_dq/max_rate
+                end
             end
+            out = (obj, vec(df))
+        else
+            out = obj
         end
-        return (obj, vec(df))
+        return out
     end
 
     if constraint == :total_sum_injected
@@ -280,10 +284,30 @@ function setup_rate_optimization_objective(case, base_rate;
         @assert constraint == :none || isnothing(constraint) "Constraint must be :total_sum_injected or :none"
         lin_eq = NamedTuple()
     end
+    # Get just objective
+    function F!(x)
+        return f!(x, grad = false)
+    end
+    # Get objective and update gradient in-place
+    function F_and_dF!(dFdx, x)
+        obj, grad = f!(x, grad = true)
+        dFdx .= grad
+        return obj
+    end
+    # Get just the gradient
+    function dF!(dFdx, x)
+        obj, grad = f!(x, grad = true)
+        dFdx .= grad
+        return dFdx
+    end
+
     return (
         x0 = x0,
         lin_eq = lin_eq,
         obj = f!,
+        F_and_dF! = F_and_dF!,
+        dF! = dF!,
+        F! = F!,
         case = case
     )
 end
