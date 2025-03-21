@@ -48,6 +48,10 @@ function optimize_rates(steps)
         water_price = -10.0,
         water_cost = 5.0,
         discount_rate = 0.05,
+        sim_arg = (
+            rtol = 1e-5,
+            tol_cnv = 1e-5
+        ),
         steps = steps
     )
     obj_best, x_best, hist = Jutul.unit_box_bfgs(setup.x0,

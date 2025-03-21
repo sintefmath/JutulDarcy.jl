@@ -143,6 +143,7 @@ function setup_rate_optimization_objective(case, base_rate;
         producers = missing,
         verbose = true,
         constraint = :total_sum_injected,
+        sim_arg = NamedTuple(),
         kwarg...
     )
     steps in (:first, :each) || error("Invalid steps argument, must be :first or :each")
@@ -229,7 +230,7 @@ function setup_rate_optimization_objective(case, base_rate;
                 f_forces.limits[inj] = merge(lims, as_limit(new_target))
             end
         end
-        simulated = simulate_reservoir(case, output_substates = true, info_level = -1)
+        simulated = simulate_reservoir(case; output_substates = true, info_level = -1, sim_arg...)
         r = simulated.result
         dt_mini = report_timesteps(r.reports, ministeps = true)
         function npv_obj(model, state, dt, step_no, forces)
