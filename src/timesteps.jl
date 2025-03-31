@@ -41,14 +41,27 @@ end
 
 function Jutul.pick_next_timestep(sel::ControlChangeTimestepSelector, 
     sim, config, dt_prev, dT, forces, reports, current_reports, step_index, new_step)
+
+    change = false
+    wells = keys(sel.thresholds)
+
     # Get the current controls
-    curr_controls = forces[:Facility].control
+    if haskey(forces, :Facility)
+        curr_controls = forces[:Facility].control
+    else
+        curr_controls = Dict()
+        for well in wells
+            ctrl_name = Symbol(String(well)*"_ctrl")
+            curr_controls[well] = forces[ctrl_name].control[well]
+        end
+    end
+
+    # Get the previous controls
     if isnothing(sel.prev_controls)
         sel.prev_controls = curr_controls
         return sel.dt_after_change
     end
-    change = false
-    wells = keys(sel.thresholds)
+    
     for well in wells
         # Check if the control type has changed
         ctrl0 = sel.prev_controls[well]
