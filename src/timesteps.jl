@@ -1,7 +1,7 @@
 """
     ControlChangeTimestepSelector
     
-Timstep selector that limits timstep when well controls change more than
+Timestep selector that limits timestep when well controls change more than
 prescribed threshold. See constructor below.
 """
 mutable struct ControlChangeTimestepSelector <: Jutul.AbstractTimestepSelector
