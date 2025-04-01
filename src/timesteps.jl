@@ -1,3 +1,9 @@
+"""
+    ControlChangeTimestepSelector
+    
+Timstep selector that limits timstep when well controls change more than
+prescribed threshold. See constructor below.
+"""
 mutable struct ControlChangeTimestepSelector <: Jutul.AbstractTimestepSelector
     thresholds::Dict
     dt_after_change::Float64
@@ -9,6 +15,16 @@ mutable struct ControlChangeTimestepSelector <: Jutul.AbstractTimestepSelector
 
 end
 
+"""
+    ControlChangeTimestepSelector(model::MultiModel, threshold = 0.25, dt_after_change = 5.0si_unit(:hour); wells = :all)
+
+Limit timestep if well controls change more than a threshold. The timestep is
+limited to `dt_after_change` if the control type or target value of any or the
+wells in `wells` changes more than `threshold`. The timestep selector can be
+configured to monitor a subset of the model wells with keyword argument `wells`.
+By default, `wells` is set to :all, in which case all wells in the model are
+used.
+"""
 function ControlChangeTimestepSelector(model::MultiModel, threshold = 0.25, dt_after_change = 5.0si_unit(:hour); wells = :all)
 
     all_wells = well_symbols(model)
@@ -39,6 +55,13 @@ function ControlChangeTimestepSelector(model::MultiModel, threshold = 0.25, dt_a
 
 end
 
+"""
+    Jutul.pick_next_timestep(sel::ControlChangeTimestepSelector, 
+    sim, config, dt_prev, dT, forces, reports, current_reports, step_index, new_step)
+
+Pick next timestep for the simulation based on changes in well controls. See
+`ControlChangeTimestepSelector` for details.
+"""
 function Jutul.pick_next_timestep(sel::ControlChangeTimestepSelector, 
     sim, config, dt_prev, dT, forces, reports, current_reports, step_index, new_step)
 
@@ -100,6 +123,7 @@ function Jutul.pick_next_timestep(sel::ControlChangeTimestepSelector,
             break
         end
     end
+
     # Update the previous controls
     sel.prev_controls = curr_controls
     # Update timetep if change has occured
@@ -108,6 +132,12 @@ function Jutul.pick_next_timestep(sel::ControlChangeTimestepSelector,
     
 end
 
+"""
+    Jutul.pick_next_timestep(sel::ControlChangeTimestepSelector, 
+    sim::NLDD.NLDDSimulator, config, dt_prev, dT, forces, reports, current_reports, step_index, new_step)
+
+Wrapper for NLDDSimulator.
+"""
 function Jutul.pick_next_timestep(sel::ControlChangeTimestepSelector, 
     sim::NLDD.NLDDSimulator, config, dt_prev, dT, forces, reports, current_reports, step_index, new_step)
 
