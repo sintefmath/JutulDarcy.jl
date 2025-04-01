@@ -107,3 +107,12 @@ function Jutul.pick_next_timestep(sel::ControlChangeTimestepSelector,
     return ΔT
     
 end
+
+function Jutul.pick_next_timestep(sel::ControlChangeTimestepSelector, 
+    sim::NLDD.NLDDSimulator, config, dt_prev, dT, forces, reports, current_reports, step_index, new_step)
+
+    return Jutul.pick_next_timestep(
+        sel, sim.simulator, config, dt_prev, dT, forces.outer, reports, 
+        current_reports, step_index, new_step)
+
+end
