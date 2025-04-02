@@ -5,7 +5,7 @@
     return tracer_flux(Q, face, state, model, kgrad, upw, flux_type)
 end
 
-@inline function Jutul.face_flux!(q_i, face, eq::ConservationLaw{:TracerMasses, <:Any}, state, model, dt, flow_disc::PotentialFlow, ldisc)
+@inline function Jutul.face_flux!(Q, face, eq::ConservationLaw{:TracerMasses, <:Any}, state, model, dt, flow_disc::PotentialFlow, ldisc)
     kgrad, upw = ldisc.face_disc(face)
     ft = Jutul.flux_type(eq)
     return tracer_flux(Q, face, state, model, kgrad, upw, ft)
