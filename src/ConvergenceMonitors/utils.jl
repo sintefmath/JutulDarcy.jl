@@ -31,12 +31,13 @@ function get_model_residuals(report)
             rsd = criterions[res_norm].errors
             tol = tolerances[res_norm]
             nms = criterions[res_norm].names
-            for (r, ϵ, α) in zip(rsd, tol, nms)
+            for i in eachindex(rsd)
+                α, r = nms[i], rsd[i]
                 α = process_name(α)
                 if !haskey(equation_residuals, α)
                     equation_residuals[α] = Dict()
                 end
-                equation_residuals[α][res_norm] = r/ϵ
+                equation_residuals[α][res_norm] = r/tol
             end
 
         end
