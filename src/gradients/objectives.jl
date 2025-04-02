@@ -253,7 +253,7 @@ function setup_rate_optimization_objective(case, base_rate;
             for stepno in 1:nstep_unique
                 for (inj_no, inj) in enumerate(injectors)
                     do_dq = dforces[stepno][:Facility].control[inj].target.value
-                    df[inj_no, stepno] = do_dq/max_rate
+                    df[inj_no, stepno] = do_dq*max_rate
                 end
             end
             out = (obj, vec(df))
