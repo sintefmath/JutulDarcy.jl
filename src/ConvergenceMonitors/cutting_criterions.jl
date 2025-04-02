@@ -15,7 +15,7 @@
 
 end
 
-function set_contraction_factor_cutting_criterion!(config; max_nonlinear_iterations = 5, kwargs...)
+function set_contraction_factor_cutting_criterion!(config; max_nonlinear_iterations = 50, kwargs...)
 
     cc = ContractionFactorCuttingCriterion(; kwargs...)
     config[:cutting_criterion] = cc
@@ -26,10 +26,10 @@ end
 function Jutul.cutting_criterion(cc::ContractionFactorCuttingCriterion, sim, dt, forces, it, max_iter, cfg, e, step_reports, relaxation)
     
     early_cut = false
-    N = max(max_it - it + 1, 2)
-    
+    N = max(max_iter - it + 1, 2)
+
     report = step_reports[end][:errors]
-    dist = cc.distance_function(report)
+    dist, = cc.distance_function(report)
 
     (it == 1) ? reset!(cc, dist, max_iter) : nothing
 
@@ -37,9 +37,12 @@ function Jutul.cutting_criterion(cc::ContractionFactorCuttingCriterion, sim, dt,
     cc.history[:distance][it] = dist
 
     it0 = max(it - cc.residual_history_length, 1)
-    Θ, Θ_target = compute_contraction_factor(cc.distances[it0:it], N)
+    Θ, Θ_target = compute_contraction_factor(cc.history[:distance][it0:it], N)
+    cc.history[:contraction_factor][it] = Θ
+    cc.history[:contraction_factor_target][it] = Θ_target
 
     is_oscillating = oscillation(cc.history[:contraction_factor], cc.slow)
+    cc.history[:oscillation][it] = is_oscillating
     
     good = all(Θ .<= max(Θ_target, cc.fast)) && !is_oscillating
     ok = all(Θ .<= cc.slow)
@@ -57,9 +60,11 @@ function Jutul.cutting_criterion(cc::ContractionFactorCuttingCriterion, sim, dt,
         cc.num_violations += 1
         status = :bad
     else
-        # Sanity check - this should not happen
-        error()
+        # First iteration
+        @assert it == 1
+        status = :none
     end
+    cc.num_violations = max(0, cc.num_violations)
     cc.history[:status][it] = status
 
     early_cut = cc.num_violations > cc.num_violations_cut
@@ -76,29 +81,33 @@ end
 function reset!(cc::ContractionFactorCuttingCriterion, template, max_iter)
 
     cc.num_violations = 0
+    n = max_iter + 1
 
     history = Dict()
-    history[:distance] = Array{typeof(template[1])}(undef, max_iter, length(template))
-    history[:contraction_factor] = Array{typeof(template[1])}(undef, max_iter, length(template))
-    history[:contraction_factor_target] = Array{typeof(template[1])}(undef, max_iter, length(template))
-    history[:status] = Array{Symbol}(undef, max_iter, length(template))
+    history[:distance] = Array{typeof(template[1])}(undef, n, length(template))
+    history[:contraction_factor] = Array{typeof(template[1])}(undef, n, length(template))
+    history[:contraction_factor_target] = Array{typeof(template[1])}(undef, n, length(template))
+    history[:status] = Array{Symbol}(undef, n, length(template))
+    history[:oscillation] = Array{Bool}(undef, n, length(template))
 
     history[:contraction_factor][1] = NaN
     history[:contraction_factor_target][1] = NaN
     history[:status][1] = :none
+    history[:oscillation][1] = false
     cc.history = history
 
 end
 
-function print_progress(cc::ContractionFactorCuttingCriterion, it, max_iter)
+function print_progress(cc::ContractionFactorCuttingCriterion, it)
 
-    round_local = x -> round(x; digits = 3)
+    round_local(x) = round(x; digits = 2)
 
     θ = cc.history[:contraction_factor][it]
     θ_target = cc.history[:contraction_factor_target][it]
     θ_slow = cc.slow
     θ_fast = cc.fast
     status = cc.history[:status][it]
+    oscillation = cc.history[:oscillation][it]
 
     θ = round_local(θ)
     θ_target = round_local(θ_target)
@@ -106,21 +115,31 @@ function print_progress(cc::ContractionFactorCuttingCriterion, it, max_iter)
     θ_fast = round_local(θ_fast)
     
     if status == :good
-        θ_upper = max(θ_target, θ_fast)
+        if θ_target < θ_fast
+            inequality = "Θ = $θ ≤ $θ_fast = Θ_fast, "
+        else
+            inequality = "Θ = $θ ≤ $θ_target = Θ_target, "
+        end
+        color = :green
     elseif status == :ok
-
+        inequality = "θ_target = $θ_target < Θ = $θ ≤ $θ_slow = Θ_slow, "
+        color = :yellow
     elseif status == :bad
-
+        inequality = "Θ = $θ > $θ_slow = Θ_slow, "
+        color = :red
     else
-        error("Unknown status")
+        inequality = ""
+        color = :light_blue
     end
 
-    msg = "Convergence monitor (it = $it): "
+    if oscillation
+        inequality *= "(oscillation detected). "
+    end
+
+    msg = "(it = $it): "
     msg *= "status = $(cc.history[:status][it]), "
+    msg *= inequality
     msg *= "violations = $(cc.num_violations), "
-    msg *= "violations = $(cc.num_violations), "
-    msg *= "distance = $(cc.history[:distance][it]), "
-    msg *= "contraction factor = $(cc.history[:contraction_factor][it])"
-    Jutul.jutul_message("Convergence monitor", msg)
+    Jutul.jutul_message("Convergence monitor", msg, color = color)
 
 end
