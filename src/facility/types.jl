@@ -410,7 +410,8 @@ function replace_target(f::InjectorControl, target)
         density = den,
         phases = f.phases,
         factor = fact,
-        tracers = f.tracers
+        tracers = f.tracers,
+        check = false
     )
 end
 

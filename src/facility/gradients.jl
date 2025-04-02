@@ -2,10 +2,8 @@ function facility_vectorization(variant::Symbol)
     @assert variant in (:all, :control)
     if variant == :all
         include_temperature = true
-        # TODO: These two should be enabled when the sparsity detection for
-        # forces handles cross terms.
-        include_mixture_density = false
-        include_injection_mixture = false
+        include_mixture_density = true
+        include_injection_mixture = true
         include_target = true
         include_limits = true
     elseif variant == :control
