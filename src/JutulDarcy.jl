@@ -200,6 +200,10 @@ module JutulDarcy
     include("CO2Properties/CO2Properties.jl")
     # Timestepping
     include("timesteps.jl")
+    # Convergence monitors
+    include("ConvergenceMonitors/ConvergenceMonitors.jl")
+    import JutulDarcy.ConvergenceMonitors: ContractionFactorCuttingCriterion
+    import JutulDarcy.ConvergenceMonitors: set_contraction_factor_cutting_criterion!
 
     # Geothermal
     include("Geothermal/Geothermal.jl")
