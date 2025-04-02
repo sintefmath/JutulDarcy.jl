@@ -83,7 +83,7 @@ function Jutul.vectorize_force!(v, model::FacilityModel, controls_or_limits::Abs
                         for (i, x_i) in enumerate(ctrl.injection_mixture)
                             offset += 1
                             v[offset] = x_i
-                            push!(names, Symbol("injection_mixture_$wname$i"))
+                            push!(names, Symbol("injection_mixture_$(wname)_$i"))
                         end
                     end
                     if supp.mixture_density
