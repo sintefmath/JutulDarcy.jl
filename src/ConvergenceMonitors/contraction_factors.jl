@@ -27,7 +27,7 @@ end
 function oscillation(contraction_factors, tol)
 
     θ = contraction_factors
-    (length(θ) < 2) ? (return false) : nothing
+    (length(θ) < 3) ? (return false) : nothing
 
     θ_1 = θ[end-2]
     θ_2 = θ[end-1]
