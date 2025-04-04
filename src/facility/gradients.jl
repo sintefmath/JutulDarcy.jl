@@ -1,9 +1,10 @@
 function facility_vectorization(variant::Symbol)
     @assert variant in (:all, :control)
     if variant == :all
+        # Default behavior
         include_temperature = true
-        include_mixture_density = true
-        include_injection_mixture = true
+        include_mixture_density = false
+        include_injection_mixture = false
         include_target = true
         include_limits = true
     elseif variant == :control
@@ -12,6 +13,12 @@ function facility_vectorization(variant::Symbol)
         include_injection_mixture = false
         include_target = true
         include_limits = false
+    elseif variant == :extended
+        include_temperature = true
+        include_mixture_density = true
+        include_injection_mixture = true
+        include_target = true
+        include_limits = true
     else
         error("Variant $variant not supported")
     end
