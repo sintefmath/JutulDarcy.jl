@@ -183,9 +183,3 @@ end
         end
     end
 end
-##
-# opt_config = Jutul.forces_optimization_config(case.model[:Facility], map(x -> x[:Facility], case.forces), case.dt, abs_min = 0.0)
-##
-# using GLMakie
-# ws, s = simulate_reservoir(case)
-# plot_well_results(ws)
