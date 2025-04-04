@@ -45,7 +45,9 @@ function compute_well_qoi(model::MultiModel, state, forces, well::Symbol, target
             end
             target = target(tv)
         end
-        ctrl = replace_target(ctrl, target)
+        if well_target_information(target).symbol != well_target_information(ctrl.target).symbol
+            ctrl = replace_target(ctrl, target)
+        end
         qoi = compute_well_qoi(well_model, wstate, fstate, well::Symbol, pos, rhoS, ctrl)
     end
     return qoi
