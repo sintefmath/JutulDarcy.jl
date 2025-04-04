@@ -346,11 +346,16 @@ costs and prices for oil, gas, and water and discount rate. Costs are assumed to
 be the cost of injecting a given fluid and prices are the revenue from producing
 the corresponding fluids. Prices and costs can be set to negative (e.g. to
 account for water being a cost when produced).
+
+Setting `maximize` to false will make the objective function negative-valued,
+with larger negative values corresponding to better results. This is useful for
+some optimizers.
 """
 function npv_objective(model, state, dt, step_no, forces;
         timesteps,
         injectors,
         producers,
+        maximize = true,
         oil_price = 60.0,
         gas_price = 10.0,
         water_price = -3.0,
@@ -408,6 +413,11 @@ function npv_objective(model, state, dt, step_no, forces;
     for i in 1:step_no
         time += timesteps[i]
     end
+    if maximize
+        sgn = 1
+    else
+        sgn = -1
+    end
 
-    return dt*obj*(1.0+discount_rate)^(-time/discount_unit)
+    return sgn*dt*obj*(1.0+discount_rate)^(-time/discount_unit)
 end

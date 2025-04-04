@@ -48,6 +48,7 @@ function optimize_rates(steps; use_box_bfgs = true)
         water_price = -10.0,
         water_cost = 5.0,
         discount_rate = 0.05,
+        maximize = use_box_bfgs,
         sim_arg = (
             rtol = 1e-5,
             tol_cnv = 1e-5
