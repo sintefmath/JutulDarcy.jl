@@ -124,6 +124,7 @@ end
         injectors = missing,
         producers = missing,
         verbose = true,
+        limits_enabled = true,
         constraint = :total_sum_injected,
         kwarg...
     )
@@ -132,7 +133,9 @@ Setup the rate optimization objective and functions for a given case. The
 objective is to maximize the NPV of the reservoir simulation by optimizing the
 rates of the injectors. It is assumed that all injectors are initially set to
 the same injection rate (`base_rate`). The largest value (if used in a
-box-constrained setting) will be `max_rate_factor*base_rate`.
+box-constrained setting) will be `max_rate_factor*base_rate`. If
+`limits_enabled` is set to false, any well constraints will be ignored (other
+than injectors switching to producers and vice versa).
 
 Additional keyword arguments will be passed to the `npv_objective` function.
 """
@@ -142,6 +145,7 @@ function setup_rate_optimization_objective(case, base_rate;
         injectors = missing,
         producers = missing,
         verbose = true,
+        limits_enabled = true,
         constraint = :total_sum_injected,
         sim_arg = NamedTuple(),
         kwarg...
@@ -170,7 +174,14 @@ function setup_rate_optimization_objective(case, base_rate;
         myprint("steps=:$steps selected, optimizing one set of controls for all steps.")
         for i in eachindex(case.forces)
             case.forces[i] = case.forces[1]
-            lims = case.forces[i][:Facility].limits
+        end
+    end
+    if !limits_enabled
+        for force in case.forces
+            f_force = force[:Facility]
+            for (ckey, ctrl) in f_force.control
+                f_force.limits[ckey] = default_limits(ctrl)
+            end
         end
     end
     wells = well_symbols(case.model)
