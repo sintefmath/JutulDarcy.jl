@@ -338,7 +338,8 @@ end
         liquid_unit = si_unit(:stb),
         gas_unit = si_unit(:kilo)*si_unit(:feet)^3,
         discount_rate = 0.025,
-        discount_unit = si_unit(:year)
+        discount_unit = si_unit(:year),
+        scale = 1.0
     )
 
 Evaluate the contribution to net-present-value for a given step, with the given
@@ -365,7 +366,8 @@ function npv_objective(model, state, dt, step_no, forces;
         liquid_unit = si_unit(:stb),
         gas_unit = si_unit(:kilo)*si_unit(:feet)^3,
         discount_rate = 0.025,
-        discount_unit = si_unit(:year)
+        discount_unit = si_unit(:year),
+        scale = 1.0
     )
     phases = get_phases(reservoir_model(model).system)
     has_wat = AqueousPhase() in phases
@@ -419,5 +421,5 @@ function npv_objective(model, state, dt, step_no, forces;
         sgn = -1
     end
 
-    return sgn*dt*obj*(1.0+discount_rate)^(-time/discount_unit)
+    return sgn*dt*obj*((1.0+discount_rate)^(-time/discount_unit))/scale
 end
