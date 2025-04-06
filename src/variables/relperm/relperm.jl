@@ -14,8 +14,13 @@ Base.@kwdef struct ParametricLETRelativePermeabilities <: AbstractRelativePermea
     nonwetting_krmax::Symbol = :NonWettingKrMax
 end
 
-struct ParametricCoreyRelativePermeabilities <: AbstractRelativePermeabilities
-
+Base.@kwdef struct ParametricCoreyRelativePermeabilities <: AbstractRelativePermeabilities
+    wetting_exponent::Symbol = :WettingKrExponent
+    wetting_critical::Symbol = :WettingCritical
+    wetting_krmax::Symbol = :WettingKrMax
+    nonwetting_exponent::Symbol = :NonWettingKrExponent
+    nonwetting_critical::Symbol = :NonWettingCritical
+    nonwetting_krmax::Symbol = :NonWettingKrMax
 end
 
 include("hysteresis.jl")
