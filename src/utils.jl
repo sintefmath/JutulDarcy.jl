@@ -1114,6 +1114,7 @@ function simulate_reservoir(case::JutulCase;
         if ismissing(config)
             config = config_new
         end
+        extra_arg = NamedTuple()
     else
         sim = simulator
         # May have been passed kwarg that should be accounted for
@@ -1123,9 +1124,10 @@ function simulate_reservoir(case::JutulCase;
                 config[k] = v
             end
         end
+        extra_arg = (state0 = case.state0, parameters = case.parameters)
         @assert !ismissing(config) "If simulator is provided, config must also be provided"
     end
-    result = simulate!(sim, dt, forces = forces, config = config, restart = restart);
+    result = simulate!(sim, dt; forces = forces, config = config, restart = restart, extra_arg...)
     return ReservoirSimResult(model, result, forces; simulator = sim, config = config)
 end
 
