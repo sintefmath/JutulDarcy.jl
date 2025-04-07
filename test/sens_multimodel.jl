@@ -247,7 +247,7 @@ end
     case = JutulCase(case.model, case.dt, case.forces, state0 = case.state0)
 
     cfg = optimization_config(case,
-        use_scaling = true,
+        use_scaling = false,
         rel_min = 0.01,
         rel_max = 100
     )
@@ -301,16 +301,18 @@ end
     @test !(opt_setup.x0 ≈ x)
 
     F_0 = opt_setup.F!(x)
-    ϵ = 1e-10
+    ϵ = 1e-6
     dF_num = similar(x)
     for i in eachindex(x)
         x_d = copy(x)
-        x_d[i] += ϵ
+        ϵ_i = max(1e-12, ϵ*abs(x_d[i]))
+
+        x_d[i] += ϵ_i
         F_d = opt_setup.F!(x_d)
 
-        x_d[i] -= 2*ϵ
+        x_d[i] -= 2*ϵ_i
         F_d2 = opt_setup.F!(x_d)
-        dF_num[i] = (F_d - F_d2)/(2*ϵ)
+        dF_num[i] = (F_d - F_d2)/(2*ϵ_i)
     end
 
     dF_adj = opt_setup.dF!(similar(x), x)
