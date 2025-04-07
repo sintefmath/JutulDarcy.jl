@@ -16,7 +16,7 @@ import LBFGSB as lb
 nx = 20
 g = CartesianMesh((nx, nx, 1), (100.0, 100.0, 10.0))
 nc = number_of_cells(g)
-reservoir = reservoir_domain(g)
+reservoir = reservoir_domain(g);
 # ## Define the rock types
 # We define a model with two rock types, with the middle of the domain
 # containing the second rock type. We also set up a simple plotting function to
@@ -142,7 +142,8 @@ state0 = setup_reservoir_state(model_base, Pressure = 90barsa, Saturations = [0.
 
 simulated_base = simulate_reservoir(state0, model_base, dt,
     forces = forces, parameters = prm_base,
-    output_substates = true
+    output_substates = true,
+    info_level = -1
 )
 ws, states = simulated_base
 step_to_plot = 34
@@ -190,7 +191,7 @@ mismatch_objective = (model, state, dt, step_no, forces) -> well_mismatch(
 # simulation produces a different saturation front and objective.
 prm_untuned = setup_parameters(model_base)
 case_untuned = JutulCase(model_base, dt, forces, state0 = state0, parameters = prm_untuned)
-simulated_untuned = simulate_reservoir(case_untuned, output_substates = true)
+simulated_untuned = simulate_reservoir(case_untuned, output_substates = true, info_level = -1)
 ws_untuned, states_untuned = simulated_untuned
 
 obj0 = Jutul.evaluate_objective(mismatch_objective, model_base, simulated_untuned.result.states, dt, forces)
@@ -255,7 +256,7 @@ for (mkey, mcfg) in pairs(cfg)
     end
 end
 
-opt_setup = JutulDarcy.setup_reservoir_parameter_optimization(case_untuned, mismatch_objective, cfg);
+opt_setup = JutulDarcy.setup_reservoir_parameter_optimization(case_untuned, mismatch_objective, cfg, print = 10);
 # ## Set up optimization solver and solve the first set of parameters
 # We use the LBFGSB solver to solve the optimization problem. We set up a fairly
 # long optimization with 100 function evaluations since we know that the model
@@ -268,7 +269,7 @@ function solve_optimization(setup)
     upper = setup.limits.max
     x0 = setup.x0
     results, final_x = lb.lbfgsb(f!, g!, x0, lb=lower, ub=upper,
-        iprint = 1,
+        iprint = 0,
         factr = 1e7,
         pgtol = 1e-10,
         maxfun = 100,
@@ -282,7 +283,7 @@ function solve_optimization(setup)
 end
 
 prm_tune1 = solve_optimization(opt_setup)
-ws_tune1, states_tune1 = simulate_reservoir(state0, model_base, dt, forces = forces, parameters = prm_tune1);
+ws_tune1, states_tune1 = simulate_reservoir(state0, model_base, dt, forces = forces, parameters = prm_tune1, info_level = -1);
 # ### Setup plotting for the results
 # We set up a simple plotting function that will plot the results for the three
 # producers. This is a good way to verify that our objective function is
@@ -318,7 +319,10 @@ plot_sat_match(states_tune1, "Gradient-based match 1")
 # ### Plot one of the tuned parameters
 # We can also plot the tuned parameters to see how they look. The tuned
 # parameters vary more or less continously, even though the truth case has
-# distinct regions in place.
+# distinct regions in place. When the optimization process is conditioned on
+# data from the wells, the optimizer will tend to make the most drastic changes
+# in the near-well region, as these values often have the highest initial
+# gradient.
 plot_2d(prm_tune1[:Reservoir][:NonWettingKrExponent], "Tuned Wetting Kr exponent")
 # ## Set up a second optimization
 # Let us set up a second optimization problem where we instead of letting the
@@ -354,7 +358,7 @@ opt_setup_lump = JutulDarcy.setup_reservoir_parameter_optimization(case_untuned,
 prm_tune2 = solve_optimization(opt_setup_lump)
 # ### Plot the results
 # We again see excellent match against the reference well solutions.
-ws_tune2, states_tune2 = simulate_reservoir(state0, model_base, dt, forces = forces, parameters = prm_tune2);
+ws_tune2, states_tune2 = simulate_reservoir(state0, model_base, dt, forces = forces, parameters = prm_tune2, info_level = -1);
 plot_match(ws_tune2, "Gradient-based match (regions as prior)")
 # ### Plot the saturation front
 # The saturation front is also a good match to the truth case as the prior
@@ -570,7 +574,7 @@ end
 plot_blending(prm_tune3[:Reservoir][:BlendingParameter])
 # ### Verify match
 # We again see good match against the truth case.
-ws_tune3, states_tune3 = simulate_reservoir(state0_blend, model_blend, dt, forces = forces, parameters = prm_tune3);
+ws_tune3, states_tune3 = simulate_reservoir(state0_blend, model_blend, dt, forces = forces, parameters = prm_tune3, info_level = -1);
 plot_match(ws_tune3, "Gradient-based match (blended regions)")
 # ### Plot the saturation front
 plot_sat_match(states_tune3, "Gradient-based match 3 (blended regions)")
@@ -580,13 +584,14 @@ plot_sat_match(states_tune3, "Gradient-based match 3 (blended regions)")
 # firmly in one region or the other, we can expect that the match remains good.
 prm_tune3_trunc = deepcopy(prm_tune3)
 prm_tune3_trunc[:Reservoir][:BlendingParameter] = round.(prm_tune3[:Reservoir][:BlendingParameter])
-ws_tune3_trunc, = simulate_reservoir(state0_blend, model_blend, dt, forces = forces, parameters = prm_tune3_trunc);
+ws_tune3_trunc, = simulate_reservoir(state0_blend, model_blend, dt, forces = forces, parameters = prm_tune3_trunc, info_level = -1);
 plot_match(ws_tune3_trunc, "Gradient-based match (blended, truncated)")
 # ## Optimize regions and parameters at the same time
 # Finally, we can also optimize the regions and the parameters at the same time.
 # This is a weaker assumption than the two preceeding cases, as the only prior
 # information for the relative permeabilities are the bounds for the parameters
-# and the fact that there are two regions.
+# and the fact that there are two regions. Consequently, we expect a worse match
+# than in the previous case when looking at saturations and regions.
 cfg4 = optimization_config(model_blend, prm_blend_outer)
 
 equal_lumping = ones(Int, nc)
@@ -617,7 +622,7 @@ end
 opt_setup_lump2 = JutulDarcy.setup_reservoir_parameter_optimization(case_lump, mismatch_objective, cfg4)
 prm_tune4 = solve_optimization(opt_setup_lump2)
 # ### Plot the match
-ws_tune4, states_tune4 = simulate_reservoir(state0_blend, model_blend, dt, forces = forces, parameters = prm_tune4);
+ws_tune4, states_tune4 = simulate_reservoir(state0_blend, model_blend, dt, forces = forces, parameters = prm_tune4, info_level = -1);
 plot_match(ws_tune4, "Gradient-based match")
 # ### Plot the saturations
 plot_sat_match(states_tune4, "Gradient-based match 4")
