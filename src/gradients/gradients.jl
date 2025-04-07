@@ -82,7 +82,8 @@ function setup_reservoir_parameter_optimization(case::JutulCase, objective, opt_
     if ismissing(simulator) || ismissing(config)
         sim, cfg = setup_reservoir_simulator(case;
             output_substates = true,
-            simulator_arg...
+            simulator_arg...,
+            info_level = -1
         )
         if ismissing(simulator)
             simulator = sim
@@ -94,9 +95,9 @@ function setup_reservoir_parameter_optimization(case::JutulCase, objective, opt_
     return Jutul.setup_parameter_optimization(
         case,
         objective,
-        opt_cfg,
+        opt_cfg;
         simulator = simulator,
         config = config,
-        kwarg...,
+        kwarg...
     )
 end
