@@ -164,7 +164,7 @@ function setup_rate_optimization_objective(case, base_rate;
     nstep = length(case.dt)
 
     if forces isa Vector
-        forces = deepcopy(forces)
+        forces = [deepcopy(force) for force in forces]
     else
         forces = [deepcopy(forces) for i in 1:nstep]
     end
