@@ -1,4 +1,5 @@
 module JutulDarcyMakieExt
-    using JutulDarcy, Makie
+    using JutulDarcy, Jutul, Makie
     include("co2_plots.jl")
+    include("faults.jl")
 end
