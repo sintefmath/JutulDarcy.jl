@@ -556,8 +556,8 @@ opt_setup_lump = JutulDarcy.setup_reservoir_parameter_optimization(case_lump, mi
 prm_tune3 = solve_optimization(opt_setup_lump)
 # ### Plot the results
 # We plot the blending parameter both as a smooth parameter (what the optimizer
-# works with) and the parameter when rounded (which could be input to a
-# conventional simulator after the fact).
+# works with) and the parameter rounded to a integer (which can then be input to
+# a standard simulator that does not support the blending trick).
 function plot_blending(vals)
     vals = reshape(vals, nx, nx)
     fig = Figure(size = (1800, 600))
