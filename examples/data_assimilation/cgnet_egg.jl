@@ -242,8 +242,8 @@ axislegend()
 trans = data[:mapper][:Reservoir][:Transmissibilities]
 
 function plot_bracket(v, k)
-    start = v.offset+1
-    stop = v.offset+v.n
+    start = v.offset_x+1
+    stop = v.offset_x+v.n_x
     y0 = setup[:lower][start]
     y1 = setup[:lower][stop]
     bracket!(ax1, start, y0, stop, y1,

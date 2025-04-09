@@ -1,9 +1,8 @@
 function facility_vectorization(variant::Symbol)
     @assert variant in (:all, :control)
     if variant == :all
+        # Default behavior
         include_temperature = true
-        # TODO: These two should be enabled when the sparsity detection for
-        # forces handles cross terms.
         include_mixture_density = false
         include_injection_mixture = false
         include_target = true
@@ -14,6 +13,12 @@ function facility_vectorization(variant::Symbol)
         include_injection_mixture = false
         include_target = true
         include_limits = false
+    elseif variant == :extended
+        include_temperature = true
+        include_mixture_density = true
+        include_injection_mixture = true
+        include_target = true
+        include_limits = true
     else
         error("Variant $variant not supported")
     end
@@ -85,7 +90,7 @@ function Jutul.vectorize_force!(v, model::FacilityModel, controls_or_limits::Abs
                         for (i, x_i) in enumerate(ctrl.injection_mixture)
                             offset += 1
                             v[offset] = x_i
-                            push!(names, Symbol("injection_mixture_$wname$i"))
+                            push!(names, Symbol("injection_mixture_$(wname)_$i"))
                         end
                     end
                     if supp.mixture_density

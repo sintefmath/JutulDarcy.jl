@@ -17,8 +17,18 @@ function JutulDarcy.plot_well!(ax, g, w;
     end
     c = well_cells_for_plot(w)
     if ismissing(cell_centroids)
-        geometry = tpfv_geometry(g)
-        centers = geometry.cell_centroids
+        if g isa DataDomain
+            centers = g[:cell_centroids]
+            if ismissing(bounds_z) && haskey(g, :boundary_centroids)
+                fc = g[:boundary_centroids]
+                if size(fc, 1) == 3
+                    bounds_z = extrema(view(fc, 3, :))
+                end
+            end
+        else
+            geometry = tpfv_geometry(g)
+            centers = geometry.cell_centroids
+        end
     else
         centers = cell_centroids
     end

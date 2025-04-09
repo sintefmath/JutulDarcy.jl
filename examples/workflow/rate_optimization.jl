@@ -11,7 +11,7 @@
 # process. If you want to run the optimization for all timesteps on the fine
 # model directly, you can remove the slicing of the case and replace the coarse
 # case with the fine case.
-using Jutul, JutulDarcy, GLMakie, GeoEnergyIO, HYPRE
+using Jutul, JutulDarcy, GLMakie, GeoEnergyIO, HYPRE, LBFGSB
 data_dir = GeoEnergyIO.test_input_file_path("EGG")
 data_pth = joinpath(data_dir, "EGG.DATA")
 fine_case = setup_case_from_data_file(data_pth)
@@ -41,21 +41,42 @@ coarse_case = coarsen_reservoir_case(fine_case, (20, 20, 3), method = :ijk);
 # over the entire simulation period.
 ctrl = coarse_case.forces[1][:Facility].control
 base_rate = ctrl[:INJECT1].target.value
-function optimize_rates(steps)
+function optimize_rates(steps; use_box_bfgs = true)
     setup = JutulDarcy.setup_rate_optimization_objective(coarse_case, base_rate,
         max_rate_factor = 10,
         oil_price = 100.0,
         water_price = -10.0,
         water_cost = 5.0,
         discount_rate = 0.05,
+        maximize = use_box_bfgs,
+        sim_arg = (
+            rtol = 1e-5,
+            tol_cnv = 1e-5
+        ),
         steps = steps
     )
-    obj_best, x_best, hist = Jutul.unit_box_bfgs(setup.x0,
-    setup.obj,
-        maximize = true,
-        lin_eq = setup.lin_eq
-    )
-    return (setup.case, hist.val, x_best)
+    if use_box_bfgs
+        obj_best, x_best, hist = Jutul.unit_box_bfgs(setup.x0,
+        setup.obj,
+            maximize = true,
+            lin_eq = setup.lin_eq
+        )
+        H = hist.val
+    else
+        lower = zeros(length(setup.x0))
+        upper = ones(length(setup.x0))
+        results, x_best = lbfgsb(setup.F!, setup.dF!, setup.x0,
+            lb=lower,
+            ub=upper,
+            iprint = 1,
+            factr = 1e12,
+            maxfun = 20,
+            maxiter = 20,
+            m = 20
+        )
+        H = results
+    end
+    return (setup.case, H, x_best)
 end
 # ## Optimize the rates
 # We optimize the rates for two different strategies. The first strategy is to

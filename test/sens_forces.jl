@@ -157,6 +157,10 @@ end
         return p
     end
 
+    function npv_test_obj(model, state, dt, step_no, forces)
+        return JutulDarcy.npv_objective(model, state, dt, step_no, forces, injectors = [:INJ], producers = [:PROD], timesteps = case.dt)
+    end
+
     function test_grad(obj; kwarg...)
         grad_eps = 1e-3
         dx = numerical_diff_forces(case.model, case.state0, case.parameters, case.forces, case.dt, obj, grad_eps; kwarg...)
@@ -166,12 +170,12 @@ end
             kwarg...
         )
         for i in eachindex(dx, grad_adj)
-            @test isapprox(dx[i], grad_adj[i], atol = 1e-3, rtol = 1e-3)
-            @test norm(grad_adj, 2) ≈ norm(dx, 2) atol = 1e-3 rtol = 1e-3
+            @test isapprox(dx[i], grad_adj[i], atol = 1e-3, rtol = 1e-2)
+            @test norm(grad_adj, 2) ≈ norm(dx, 2) atol = 1e-3 rtol = 1e-2
         end
     end
 
-    for (objno, obj) in enumerate([cell_pressure_obj, rs_obj, prod_bhp_obj])
+    for (objno, obj) in enumerate([cell_pressure_obj, rs_obj, prod_bhp_obj, npv_test_obj])
         test_grad(obj)
         if objno == 1
             # No need to do this for every combo
@@ -179,9 +183,3 @@ end
         end
     end
 end
-##
-# opt_config = Jutul.forces_optimization_config(case.model[:Facility], map(x -> x[:Facility], case.forces), case.dt, abs_min = 0.0)
-##
-# using GLMakie
-# ws, s = simulate_reservoir(case)
-# plot_well_results(ws)

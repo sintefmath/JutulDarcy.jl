@@ -289,6 +289,18 @@ function Jutul.update_secondary_variable!(
     return kr
 end
 
+function Jutul.get_dependencies(model, kr::ParametricLETRelativePermeabilities)
+    return [
+        kr.wetting_let,
+        kr.wetting_critical,
+        kr.wetting_krmax,
+        kr.nonwetting_let,
+        kr.nonwetting_critical,
+        kr.nonwetting_krmax,
+        :Saturations
+    ]
+end
+
 function add_relperm_parameters!(param, kr::ParametricLETRelativePermeabilities)
     param[kr.wetting_let] = LETCoefficients()
     param[kr.wetting_critical] = CriticalKrPoints()
@@ -299,7 +311,15 @@ function add_relperm_parameters!(param, kr::ParametricLETRelativePermeabilities)
     return param
 end
 
-@jutul_secondary function update_kr!(kr, relperm::ParametricCoreyRelativePermeabilities, model, Saturations, WettingKrExponent, NonWettingKrExponent, WettingCritical, NonWettingCritical, WettingKrMax, NonWettingKrMax, ix)
+function Jutul.update_secondary_variable!(kr, relperm::ParametricCoreyRelativePermeabilities, model, state, ix)
+    Saturations = state[:Saturations]
+    WettingKrExponent = state[relperm.wetting_exponent]
+    WettingCritical = state[relperm.wetting_critical]
+    WettingKrMax = state[relperm.wetting_krmax]
+    NonWettingKrExponent = state[relperm.nonwetting_exponent]
+    NonWettingCritical = state[relperm.nonwetting_critical]
+    NonWettingKrMax = state[relperm.nonwetting_krmax]
+
     @assert size(Saturations, 1) == 2
     for c in ix
         sw, snw = Saturations[:, c]
@@ -325,12 +345,24 @@ Jutul.minimum_value(::CoreyExponentKrPoints) = 1.0
 Jutul.maximum_value(::CoreyExponentKrPoints) = 20.0
 Jutul.default_value(model, ::CoreyExponentKrPoints) = 2.0
 
+function Jutul.get_dependencies(model, kr::ParametricCoreyRelativePermeabilities)
+    return [
+        kr.wetting_exponent,
+        kr.wetting_critical,
+        kr.wetting_krmax,
+        kr.nonwetting_exponent,
+        kr.nonwetting_critical,
+        kr.nonwetting_krmax,
+        :Saturations
+    ]
+end
+
 function add_relperm_parameters!(param, kr::ParametricCoreyRelativePermeabilities)
-    param[:WettingCritical] = CriticalKrPoints()
-    param[:NonWettingCritical] = CriticalKrPoints()
-    param[:WettingKrMax] = MaxRelPermPoints()
-    param[:NonWettingKrMax] = MaxRelPermPoints()
-    param[:WettingKrExponent] = CoreyExponentKrPoints()
-    param[:NonWettingKrExponent] = CoreyExponentKrPoints()
+    param[kr.nonwetting_critical] = CriticalKrPoints()
+    param[kr.wetting_critical] = CriticalKrPoints()
+    param[kr.nonwetting_krmax] = MaxRelPermPoints()
+    param[kr.wetting_krmax] = MaxRelPermPoints()
+    param[kr.nonwetting_exponent] = CoreyExponentKrPoints()
+    param[kr.wetting_exponent] = CoreyExponentKrPoints()
     return param
 end

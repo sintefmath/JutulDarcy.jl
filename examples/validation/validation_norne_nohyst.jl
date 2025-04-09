@@ -49,8 +49,8 @@ fig
 
 # ## Load reference and set up plotting
 csv_path = joinpath(norne_dir, "REFERENCE.CSV")
-data, header = readdlm(csv_path, ',', header = true)
-time_ref = data[:, 1]
+data_ref, header = readdlm(csv_path, ',', header = true)
+time_ref = data_ref[:, 1]
 time_jutul = deepcopy(ws.time)
 wells = deepcopy(ws.wells)
 wnames = collect(keys(wells))
@@ -69,20 +69,32 @@ for (wellname, well) in pairs(wells)
     end
 end
 
-function plot_well_comparison(response, well_names, reponse_name = "$response")
+function plot_well_comparison(response, well_names, reponse_name = "$response"; cumulative = false)
     fig = Figure(size = (1000, 400))
     if response == :bhp
         ys = 1/si_unit(:bar)
         yl = "Bottom hole pressure / Bar"
     elseif response == :wrat
         ys = si_unit(:day)
-        yl = "Surface water rate / m³/day"
+        if cumulative
+            yl = "Cumulative water rate / m³"
+        else
+            yl = "Water rate / m³/day"
+        end
     elseif response == :grat
         ys = si_unit(:day)/1e6
-        yl = "Surface gas rate / 10⁶ m³/day"
+        if cumulative
+            yl = "Cumulative gas rate / 10⁶ m³"
+        else
+            yl = "Gas rate / 10⁶ m³/day"
+        end
     elseif response == :orat
         ys = si_unit(:day)/(1000*si_unit(:stb))
-        yl = "Surface oil rate / 10³ stb/day"
+        if cumulative
+            yl = "Cumulative oil rate / 10³ stb"
+        else
+            yl = "Oil rate / 10³ stb/day"
+        end
     else
         error("$response not ready.")
     end
@@ -96,14 +108,21 @@ function plot_well_comparison(response, well_names, reponse_name = "$response")
         label_in_csv = "$well_name:$response"
         ref_pos = findfirst(x -> x == label_in_csv, vec(header))
         qoi = copy(well[response]).*ys
-        qoi_ref = data[:, ref_pos].*ys
+        qoi_ref = data_ref[:, ref_pos].*ys
         tot_rate = copy(well[:rate])
-        @. qoi[tot_rate == 0] = NaN
-        grat_ref = data[:, findfirst(x -> x == "$well_name:grat", vec(header))]
-        orat_ref = data[:, findfirst(x -> x == "$well_name:orat", vec(header))]
-        wrat_ref = data[:, findfirst(x -> x == "$well_name:wrat", vec(header))]
+        grat_ref = data_ref[:, findfirst(x -> x == "$well_name:grat", vec(header))]
+        orat_ref = data_ref[:, findfirst(x -> x == "$well_name:orat", vec(header))]
+        wrat_ref = data_ref[:, findfirst(x -> x == "$well_name:wrat", vec(header))]
         tot_rate_ref = grat_ref + orat_ref + wrat_ref
-        @. qoi_ref[tot_rate_ref == 0] = NaN
+        if cumulative
+            @. qoi_ref[tot_rate_ref == 0] = 0
+            @. qoi[tot_rate == 0] = 0
+            qoi_ref = cumsum(qoi_ref.*diff([0, time_ref...]./day))
+            qoi = cumsum(qoi.*diff([0, time_jutul...]./day))
+        else
+            @. qoi_ref[tot_rate_ref == 0] = NaN
+            @. qoi[tot_rate == 0] = NaN
+        end
         crange = (1, max(length(well_names), 2))
         lh = lines!(ax, time_jutul./day, abs.(qoi),
             color = i,
@@ -130,15 +149,32 @@ end
 # ## Injector bhp
 plot_well_comparison(:bhp, inj, "Bottom hole pressure")
 # ## Gas injection rates
+# ### Rates
 plot_well_comparison(:grat, inj, "Gas surface injection rate")
+# ## Cumulative gas injection rates
+plot_well_comparison(:grat, inj, "Cumulative gas surface injection rate", cumulative = true)
 # ## Water injection rates
+# ### Rates
 plot_well_comparison(:wrat, inj, "Water surface injection rate")
+# ### Cumulative rates
+plot_well_comparison(:wrat, inj, "Cumulative water surface injection rate", cumulative = true)
 # ## Producer bhp
 plot_well_comparison(:bhp, prod, "Bottom hole pressure")
 # ## Oil production rates
+# ### Rates
 plot_well_comparison(:orat, prod, "Oil surface production rate")
+# ### Cumulative rates
+plot_well_comparison(:orat, prod, "Cumulative oil surface production rate", cumulative = true)
 # ## Gas production rates
+# ### Rates
 plot_well_comparison(:grat, prod, "Gas surface production rate")
+# ### Cumulative rates
+plot_well_comparison(:grat, prod, "Cumulative gas surface production rate", cumulative = true)
+# ## Water production rates
+# ### Rates
+plot_well_comparison(:wrat, prod, "Water surface production rate")
+# ### Cumulative rates
+plot_well_comparison(:wrat, prod, "Cumulative water surface production rate", cumulative = true)
 # ## Interactive plotting of field statistics
 plot_reservoir_measurables(case, ws, states, left = :fgpr, right = :pres)
 # ## Plot wells

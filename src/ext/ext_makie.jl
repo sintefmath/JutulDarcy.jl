@@ -165,23 +165,7 @@ end
 
 export plot_faults!
 function plot_faults!(ax, domain::DataDomain; kwarg...)
-    return plot_faults!(ax, physical_representation(domain); kwarg...)
-end
-
-function plot_faults!(ax, mesh::UnstructuredMesh; kwarg...)
-    faults = get_mesh_entity_tag(mesh, Faces(), :faults, throw = false)
-    if !ismissing(faults)
-        n = length(keys(faults))
-        i = 1
-        for (k, v) in faults
-            if length(v) == 0
-                continue
-            end
-            plot_mesh!(ax, mesh; faces = v, color = i, colorrange = (1, max(n, 2)), kwarg...)
-            i += 1
-        end
-    end
-    ax
+    return plot_faults!(ax, physical_representation(domain); domain = domain, kwarg...)
 end
 
 """

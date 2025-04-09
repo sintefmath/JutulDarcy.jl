@@ -60,7 +60,7 @@ represents a compact full tensor representation (6 elements in 3D, 3 in 2D).
 | Name                         | Explanation                                | Unit         | Default |
 |------------------------------|--------------------------------------------|--------------|---------|
 | `permeability`               | Rock ability to conduct fluid flow         | ``m^2``      | 100 mD  |
-| `porosity`                   | Rock void fraction open to flow (0 to 1)   | -            |  0.3    |
+| `porosity`                   | Rock void fraction open to flow (0 to 1)   | -            | 0.3     |
 | `rock_density`               | Mass density of rock                       | ``kg^3/m^3`` | 2000.0  |
 | `rock_heat_capacity`         | Specific heat capacity of rock             | ``J/(kg K)`` | 900.0   |
 | `rock_thermal_conductivity`  | Heat conductivity of rock                  | ``W/m K``    | 3.0     |
@@ -71,6 +71,24 @@ Note that the default values are taken to be roughly those of water for fluid
 phases and sandstone for those of rock. Choice of values can severely impact
 your simulation results - take care to check the values that your physical
 system makes use of!
+
+# Optional values
+| Name                         | Explanation                                | Unit         | Default |
+|------------------------------|--------------------------------------------|--------------|---------|
+| `net_to_gross`               | Magnitude of porosity available to flow    | -            | 1.0     |
+| `diffusion`                  | Diffusion coefficient for each component   | ``m^2/s``    | 0.0     |
+| `transmissibility_override`  | Transmissibility override for each face    | ``m^2``      | NaN     |
+| `transmissibility_multiplier`| Transmissibility multiplier for each face  | -            | 1.0     |
+
+These values are optional and will only be added if specified. For e.g.
+net-to-gross and transmissibility multipliers a default value of 1.0 will be
+assumed in the code if it is not present.
+
+The transmissibility override can be used to override the transmissibility
+calculated from geometry and other properties. This is useful for example if you
+have an externally computed model. The values must be given for every face on
+the mesh. Values that are NaN or Inf will be treated as missing and the standard
+transmissibility calculator will be used instead for those faces.
 """
 function reservoir_domain(g;
         permeability = convert_to_si(0.1, :darcy),
@@ -80,6 +98,8 @@ function reservoir_domain(g;
         rock_heat_capacity = 900.0, # ~sandstone
         component_heat_capacity = 4184.0, # ~water
         rock_density = 2000.0,
+        transmissibility_override = missing,
+        transmissibility_multiplier = missing,
         diffusion = missing,
         kwarg...
     )
@@ -120,6 +140,12 @@ function reservoir_domain(g;
             val = reservoir[k]
             minimum(val) > 0 || throw(ArgumentError("Keyword argument $k must have positive entries."))
         end
+    end
+    if !ismissing(transmissibility_multiplier)
+        reservoir[:transmissibility_multiplier, Faces()] = transmissibility_multiplier
+    end
+    if !ismissing(transmissibility_override)
+        reservoir[:transmissibility_override, Faces()] = transmissibility_override
     end
     return reservoir
 end
@@ -1088,6 +1114,7 @@ function simulate_reservoir(case::JutulCase;
         if ismissing(config)
             config = config_new
         end
+        extra_arg = NamedTuple()
     else
         sim = simulator
         # May have been passed kwarg that should be accounted for
@@ -1097,9 +1124,10 @@ function simulate_reservoir(case::JutulCase;
                 config[k] = v
             end
         end
+        extra_arg = (state0 = case.state0, parameters = case.parameters)
         @assert !ismissing(config) "If simulator is provided, config must also be provided"
     end
-    result = simulate!(sim, dt, forces = forces, config = config, restart = restart);
+    result = simulate!(sim, dt; forces = forces, config = config, restart = restart, extra_arg...)
     return ReservoirSimResult(model, result, forces; simulator = sim, config = config)
 end
 

@@ -1,4 +1,4 @@
-using Jutul, JutulDarcy, Test, LinearAlgebra, HYPRE
+using Jutul, JutulDarcy, Test, LinearAlgebra, HYPRE, GeoEnergyIO
 
 function well_test_objective(model, state)
     q = state[:Facility][:TotalSurfaceMassRate]
@@ -228,5 +228,96 @@ end
             scale = 1.0
         end
         @test norm(adjgrad - numgrad)/scale < 1e-6
+    end
+end
+
+@testset "Lumping and LET" begin
+    data_dir = GeoEnergyIO.test_input_file_path("EGG")
+    data_pth = joinpath(data_dir, "EGG.DATA")
+    fine_case = setup_case_from_data_file(data_pth)
+    fine_case = fine_case[1:10];
+    case = coarsen_reservoir_case(fine_case, (5, 5, 1), method = :ijk)#, setup_arg = (block_backend = false, ));
+
+
+    rmodel = reservoir_model(case.model)
+    kr = JutulDarcy.ParametricLETRelativePermeabilities()
+    set_secondary_variables!(rmodel, RelativePermeabilities = kr)
+    JutulDarcy.add_relperm_parameters!(rmodel)
+
+    case = JutulCase(case.model, case.dt, case.forces, state0 = case.state0)
+
+    cfg = optimization_config(case,
+        use_scaling = false,
+        rel_min = 0.01,
+        rel_max = 100
+    )
+
+    num_cells = number_of_cells(physical_representation(rmodel))
+    num_half = Int(ceil(num_cells/2))
+    cell_lumping = vcat(fill(2, num_half), fill(1, Int(num_cells - num_half)))
+    for (mkey, mcfg) in pairs(cfg)
+        for (ki, vi) in pairs(mcfg)
+            if ki == :WettingCritical
+                vi[:active] = true
+                vi[:lumping] = cell_lumping  # 1 entry per cell
+            elseif ki == :NonWettingCritical
+                vi[:active] = true
+                vi[:lumping] = cell_lumping  # 1 entry per cell
+            elseif ki == :WettingKrMax
+                vi[:active] = true
+                vi[:lumping] = cell_lumping  # 1 entry per cell
+            elseif ki == :NonWettingKrMax
+                vi[:active] = false
+            elseif ki == :WettingLET 
+                vi[:active] = true
+                vi[:lumping] = cell_lumping
+            elseif ki == :NonWettingLET
+                vi[:active] = true
+                vi[:lumping] = cell_lumping
+            else
+                vi[:active] = false
+            end
+        end
+    end
+
+    G = (m, s, dt, step_no, forces) -> s.Reservoir.Pressure[end]
+
+    opt_setup = setup_parameter_optimization(case, G, cfg, print = false)
+
+    # Perturb and check that the vector is different, and that it vectorizes/devectorizes properly
+    x = deepcopy(opt_setup.x0)
+    for i in eachindex(x)
+        x[i] += 1e-1*rand()
+    end
+    @test !(opt_setup.x0 ≈ x)
+
+    case_delta = deepcopy(opt_setup.data[:case])
+    model = case.model
+    param_d = case_delta.parameters
+    data = opt_setup.data
+    devectorize_variables!(param_d, model, x, data[:mapper], config = data[:config])
+    x_new = vectorize_variables(model, param_d, data[:mapper], config = data[:config])
+    @test x_new ≈ x
+    @test !(opt_setup.x0 ≈ x)
+
+    F_0 = opt_setup.F!(x)
+    ϵ = 1e-6
+    dF_num = similar(x)
+    for i in eachindex(x)
+        x_d = copy(x)
+        ϵ_i = max(1e-12, ϵ*abs(x_d[i]))
+
+        x_d[i] += ϵ_i
+        F_d = opt_setup.F!(x_d)
+
+        x_d[i] -= 2*ϵ_i
+        F_d2 = opt_setup.F!(x_d)
+        dF_num[i] = (F_d - F_d2)/(2*ϵ_i)
+    end
+
+    dF_adj = opt_setup.dF!(similar(x), x)
+    for i in eachindex(dF_num, dF_adj)
+        # println("$(i): $(dF_num[i]), $(dF_adj[i])")
+        @test isapprox(dF_num[i], dF_adj[i], atol = 0.1, rtol = 0.1)
     end
 end

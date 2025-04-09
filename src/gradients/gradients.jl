@@ -59,3 +59,45 @@ function reservoir_sensitivities(case::JutulCase, result::Jutul.SimResult, obj;
     end
     return data_domain_with_gradients
 end
+
+"""
+    setup_reservoir_parameter_optimization(case, objective, opt_cfg = missing; <kwarg>)
+
+Convenience function for setting up parameter optimization for a reservoir
+simulation. The function will set up the simulator and the optimization
+configuration with a "standard" reservoir simulator. The objective should be on
+the form of sum over all steps, where each element of the sum is evaluated by
+`model, state, dt, step_no, forces`. 
+"""
+
+function setup_reservoir_parameter_optimization(case::JutulCase, objective, opt_cfg = missing;
+        simulator = missing,
+        config = missing,
+        simulator_arg = NamedTuple(),
+        kwarg...
+    )
+    if ismissing(opt_cfg)
+        opt_cfg = Jutul.optimization_config(case.model, case.parameters)
+    end
+    if ismissing(simulator) || ismissing(config)
+        sim, cfg = setup_reservoir_simulator(case;
+            output_substates = true,
+            simulator_arg...,
+            info_level = -1
+        )
+        if ismissing(simulator)
+            simulator = sim
+        end
+        if ismissing(config)
+            config = cfg
+        end
+    end
+    return Jutul.setup_parameter_optimization(
+        case,
+        objective,
+        opt_cfg;
+        simulator = simulator,
+        config = config,
+        kwarg...
+    )
+end

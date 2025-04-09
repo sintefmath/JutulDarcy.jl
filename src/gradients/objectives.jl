@@ -45,7 +45,9 @@ function compute_well_qoi(model::MultiModel, state, forces, well::Symbol, target
             end
             target = target(tv)
         end
-        ctrl = replace_target(ctrl, target)
+        if well_target_information(target).symbol != well_target_information(ctrl.target).symbol
+            ctrl = replace_target(ctrl, target)
+        end
         qoi = compute_well_qoi(well_model, wstate, fstate, well::Symbol, pos, rhoS, ctrl)
     end
     return qoi
@@ -124,6 +126,7 @@ end
         injectors = missing,
         producers = missing,
         verbose = true,
+        limits_enabled = true,
         constraint = :total_sum_injected,
         kwarg...
     )
@@ -132,7 +135,9 @@ Setup the rate optimization objective and functions for a given case. The
 objective is to maximize the NPV of the reservoir simulation by optimizing the
 rates of the injectors. It is assumed that all injectors are initially set to
 the same injection rate (`base_rate`). The largest value (if used in a
-box-constrained setting) will be `max_rate_factor*base_rate`.
+box-constrained setting) will be `max_rate_factor*base_rate`. If
+`limits_enabled` is set to false, any well constraints will be ignored (other
+than injectors switching to producers and vice versa).
 
 Additional keyword arguments will be passed to the `npv_objective` function.
 """
@@ -142,7 +147,9 @@ function setup_rate_optimization_objective(case, base_rate;
         injectors = missing,
         producers = missing,
         verbose = true,
+        limits_enabled = true,
         constraint = :total_sum_injected,
+        sim_arg = NamedTuple(),
         kwarg...
     )
     steps in (:first, :each) || error("Invalid steps argument, must be :first or :each")
@@ -157,7 +164,7 @@ function setup_rate_optimization_objective(case, base_rate;
     nstep = length(case.dt)
 
     if forces isa Vector
-        forces = deepcopy(forces)
+        forces = [deepcopy(force) for force in forces]
     else
         forces = [deepcopy(forces) for i in 1:nstep]
     end
@@ -169,7 +176,14 @@ function setup_rate_optimization_objective(case, base_rate;
         myprint("steps=:$steps selected, optimizing one set of controls for all steps.")
         for i in eachindex(case.forces)
             case.forces[i] = case.forces[1]
-            lims = case.forces[i][:Facility].limits
+        end
+    end
+    if !limits_enabled
+        for force in case.forces
+            f_force = force[:Facility]
+            for (ckey, ctrl) in f_force.control
+                f_force.limits[ckey] = default_limits(ctrl)
+            end
         end
     end
     wells = well_symbols(case.model)
@@ -198,14 +212,6 @@ function setup_rate_optimization_objective(case, base_rate;
     length(producers) > 0 || error("No producers found")
     is_both = intersect(injectors, producers)
     length(is_both) == 0 || error("Wells were both producers and injectors in forces? $is_both")
-    function npv_obj(model, state, dt, step_no, forces)
-        return npv_objective(model, state, dt, step_no, forces;
-            injectors = injectors,
-            producers = producers,
-            timesteps = case.dt,
-            kwarg...
-        )
-    end
     myprint("$ninj injectors and $(length(producers)) producers selected.")
     storage = Jutul.setup_adjoint_forces_storage(case.model, case.forces, case.dt;
         state0 = case.state0,
@@ -213,7 +219,7 @@ function setup_rate_optimization_objective(case, base_rate;
         eachstep = eachstep
     )
 
-    function f!(x)
+    function f!(x; grad = true)
         nstep = length(case.dt)
         if eachstep
             nstep_unique = nstep
@@ -237,23 +243,37 @@ function setup_rate_optimization_objective(case, base_rate;
                 f_forces.limits[inj] = merge(lims, as_limit(new_target))
             end
         end
-        simulated = simulate_reservoir(case, info_level = -1)
+        simulated = simulate_reservoir(case; output_substates = true, info_level = -1, sim_arg...)
         r = simulated.result
-        obj = Jutul.evaluate_objective(npv_obj, case.model, r.states, case.dt, case.forces)
-        dforces, t_to_f, grad_adj = Jutul.solve_adjoint_forces!(storage, case.model, r.states, r.reports, npv_obj, forces,
-            eachstep = eachstep,
-            state0 = case.state0,
-            parameters = parameters = case.parameters
-        )
-
-        df = zeros(ninj, nstep_unique)
-        for stepno in 1:nstep_unique
-            for i in 1:ninj
-                do_dq = dforces[stepno][:Facility].control[injectors[i]].target.value
-                df[i, stepno] = do_dq/max_rate
-            end
+        dt_mini = report_timesteps(r.reports, ministeps = true)
+        function npv_obj(model, state, dt, step_no, forces)
+            return npv_objective(model, state, dt, step_no, forces;
+                injectors = injectors,
+                producers = producers,
+                timesteps = dt_mini,
+                kwarg...
+            )
         end
-        return (obj, vec(df))
+        obj = Jutul.evaluate_objective(npv_obj, case.model, r.states, case.dt, case.forces)
+        if grad
+            dforces, t_to_f, grad_adj = Jutul.solve_adjoint_forces!(storage, case.model, r.states, r.reports, npv_obj, forces,
+                eachstep = eachstep,
+                state0 = case.state0,
+                parameters = case.parameters
+            )
+
+            df = zeros(ninj, nstep_unique)
+            for stepno in 1:nstep_unique
+                for (inj_no, inj) in enumerate(injectors)
+                    do_dq = dforces[stepno][:Facility].control[inj].target.value
+                    df[inj_no, stepno] = do_dq*max_rate
+                end
+            end
+            out = (obj, vec(df))
+        else
+            out = obj
+        end
+        return out
     end
 
     if constraint == :total_sum_injected
@@ -277,10 +297,30 @@ function setup_rate_optimization_objective(case, base_rate;
         @assert constraint == :none || isnothing(constraint) "Constraint must be :total_sum_injected or :none"
         lin_eq = NamedTuple()
     end
+    # Get just objective
+    function F!(x)
+        return f!(x, grad = false)
+    end
+    # Get objective and update gradient in-place
+    function F_and_dF!(dFdx, x)
+        obj, grad = f!(x, grad = true)
+        dFdx .= grad
+        return obj
+    end
+    # Get just the gradient
+    function dF!(dFdx, x)
+        obj, grad = f!(x, grad = true)
+        dFdx .= grad
+        return dFdx
+    end
+
     return (
         x0 = x0,
         lin_eq = lin_eq,
         obj = f!,
+        F_and_dF! = F_and_dF!,
+        dF! = dF!,
+        F! = F!,
         case = case
     )
 end
@@ -300,7 +340,8 @@ end
         liquid_unit = si_unit(:stb),
         gas_unit = si_unit(:kilo)*si_unit(:feet)^3,
         discount_rate = 0.025,
-        discount_unit = si_unit(:year)
+        discount_unit = si_unit(:year),
+        scale = 1.0
     )
 
 Evaluate the contribution to net-present-value for a given step, with the given
@@ -308,11 +349,16 @@ costs and prices for oil, gas, and water and discount rate. Costs are assumed to
 be the cost of injecting a given fluid and prices are the revenue from producing
 the corresponding fluids. Prices and costs can be set to negative (e.g. to
 account for water being a cost when produced).
+
+Setting `maximize` to false will make the objective function negative-valued,
+with larger negative values corresponding to better results. This is useful for
+some optimizers.
 """
 function npv_objective(model, state, dt, step_no, forces;
         timesteps,
         injectors,
         producers,
+        maximize = true,
         oil_price = 60.0,
         gas_price = 10.0,
         water_price = -3.0,
@@ -322,7 +368,8 @@ function npv_objective(model, state, dt, step_no, forces;
         liquid_unit = si_unit(:stb),
         gas_unit = si_unit(:kilo)*si_unit(:feet)^3,
         discount_rate = 0.025,
-        discount_unit = si_unit(:year)
+        discount_unit = si_unit(:year),
+        scale = 1.0
     )
     phases = get_phases(reservoir_model(model).system)
     has_wat = AqueousPhase() in phases
@@ -370,6 +417,11 @@ function npv_objective(model, state, dt, step_no, forces;
     for i in 1:step_no
         time += timesteps[i]
     end
+    if maximize
+        sgn = 1
+    else
+        sgn = -1
+    end
 
-    return dt*obj*(1.0+discount_rate)^(-time/discount_unit)
+    return sgn*dt*obj*((1.0+discount_rate)^(-time/discount_unit))/scale
 end
