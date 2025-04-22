@@ -559,13 +559,23 @@ prm_tune3 = solve_optimization(opt_setup_lump)
 # works with) and the parameter rounded to a integer (which can then be input to
 # a standard simulator that does not support the blending trick).
 function plot_blending(vals)
+    vik_cmap = to_colormap(:vik)
+    new_cmap = Vector{eltype(vik_cmap)}()
+    Npad = 5
+    for i in 1:Npad
+        push!(new_cmap, vik_cmap[1])
+    end
+    push!(new_cmap, vik_cmap[Int(floor(length(vik_cmap)/2))])
+    for i in 1:Npad
+        push!(new_cmap, vik_cmap[end])
+    end
     vals = reshape(vals, nx, nx)
     fig = Figure(size = (1800, 600))
     ax = Axis(fig[1, 1], title = "Tuned parameter")
-    plt = heatmap!(ax, vals, colorrange = (1.0, 2.0), colormap = :vik)
+    plt = heatmap!(ax, vals, colorrange = (1.0, 2.0), colormap = new_cmap)
     Colorbar(fig[1, 2], plt)
     ax = Axis(fig[1, 3], title = "Effective region")
-    heatmap!(ax, round.(vals), colorrange = (1.0, 2.0), colormap = :vik)
+    heatmap!(ax, round.(vals), colorrange = (1.0, 2.0), colormap = new_cmap)
     ax = Axis(fig[1, 4], title = "Truth region")
     plt = heatmap!(ax, reshape(rocktype, nx, nx), colorrange = (1.0, 2.0), colormap = Categorical(:vik))
     Colorbar(fig[1, 5], plt)
