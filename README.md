@@ -17,6 +17,7 @@ JutulDarcy.jl: Darcy-scale and subsurface flow (CO2 sequestration, geothermal re
 
 ## Getting started
 
+### Julia
 Install [Julia](https://julialang.org/) and add the package to your environment of choice:
 
 ```julia
@@ -40,6 +41,19 @@ plot_reservoir_simulation_result(case.model, result)
 ```
 
 Note that interactive plotting requires `GLMakie`, which may not work if you are running Julia over SSH.
+
+### Python
+
+There is also a Python interface. You can install JutulDarcy using pip:
+```bash
+pip install jutuldarcy
+```
+
+See the repository [PyJutulDarcy](https://github.com/sintefmath/PyJutulDarcy) for more information.
+
+### Compiled executable
+
+It is also possible to build an executable. See [the JutulDarcyApps.jl repository](https://github.com/sintefmath/JutulDarcyApps.jl/tree/master/mpi_simulator) for more information.
 
 ## Key features
 
@@ -88,16 +102,15 @@ Cases with CPR used hypre as the AMG solver. OYMPUS1 refers to realization 1 fro
 The main paper describing `JutulDarcy.jl` is *JutulDarcy.jl - a Fully Differentiable High-Performance Reservoir Simulator Based on Automatic Differentiation*:
 
 ```bibtex
-@article{jutuldarcy_ecmor_2024,
-   author = "M{\o}yner, O.",
-   title = "JutulDarcy.jl - a Fully Differentiable High-Performance Reservoir Simulator Based on Automatic Differentiation", 
-   year = "2024",
-   volume = "2024",
-   number = "1",
-   pages = "1-9",
-   doi = "https://doi.org/10.3997/2214-4609.202437111",
-   publisher = "European Association of Geoscientists \& Engineers",
-   issn = "2214-4609",
+@inproceedings{jutuldarcy_ecmor,
+  title = {{JutulDarcy.jl} -- a Fully Differentiable High-Performance Reservoir Simulator based on Automatic Differentiation},
+  url = {http://dx.doi.org/10.3997/2214-4609.202437111},
+  DOI = {10.3997/2214-4609.202437111},
+  booktitle = {ECMOR 2024},
+  publisher = {European Association of Geoscientists \& Engineers},
+  author = {Olav Møyner},
+  year = {2024},
+  pages = {1–37}
 }
 ```
 
