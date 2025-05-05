@@ -72,7 +72,7 @@ function Jutul.align_to_jacobian!(
     kwarg...
     )
     ct = ct_p.parent
-    k = Symbol(entity)
+    k = Jutul.entity_as_symbol(entity)
     has_pos = !isnothing(positions)
     if haskey(eq_s, k)
         cache = eq_s[k]
