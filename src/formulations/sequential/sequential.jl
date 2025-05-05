@@ -134,7 +134,9 @@ function Jutul.simulator_config(
     return cfg
 end
 
-
+function Jutul.simulator_executor(sim::SequentialSimulator)
+    return Jutul.simulator_executor(sim.pressure)
+end
 
 function Jutul.select_linear_solver(sim::SequentialSimulator; kwarg...)
     return nothing
@@ -163,7 +165,9 @@ function Jutul.perform_step!(
         iteration = NaN,
         relaxation = 1.0,
         update_secondary = true,
-        solve = true
+        solve = true,
+        executor = default_executor(),
+        prev_report = missing
     )
     psim = simulator.pressure
     pstate = psim.storage.state
@@ -280,13 +284,13 @@ function Jutul.perform_step!(
     end
     report[:pressure] = report_p
     for k in [
-        :secondary_time,
-        :equations_time,
-        :linear_system_time,
-        :convergence_time,
-        :linear_solve_time,
-        :update_time,
-        :linear_iterations
+            :secondary_time,
+            :equations_time,
+            :linear_system_time,
+            :convergence_time,
+            :linear_solve_time,
+            :update_time,
+            :linear_iterations
         ]
         v = 0
         for R in [report_p, report_t]
@@ -298,6 +302,25 @@ function Jutul.perform_step!(
         end
         report[k] = v
     end
+    t_prep = 0.0
+    t_precond = 0.0
+    precond_count = 0
+    for R in [report_p, report_t]
+        for step in R[:steps]
+            lsol = get(step, :linear_solver, nothing)
+            if !isnothing(lsol)
+                t_prep += lsol.prepare
+                t_precond += lsol.precond
+                precond_count += lsol.precond_count
+            end
+        end
+    end
+    report[:linear_solver] = (
+        stats = nothing,
+        prepare = t_prep,
+        precond = t_precond,
+        precond_count = precond_count
+    )
     # Return convergence criterion for outer loop if SFI
     sfi = config[:sfi]
     if sfi
