@@ -79,7 +79,7 @@ function fill_pressure_eq_cell!(nz, r, cell, weights::Matrix{T}, acc, cell_flux,
     for i = start:stop
         v_p = zero(T)
         for e in 1:N_comp
-            v_p += weights[e, cell]*Jutul.get_entry(cell_flux, i, e)
+            v_p -= weights[e, cell]*Jutul.get_entry(cell_flux, i, e)
         end
         eq -= v_p
 
