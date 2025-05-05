@@ -8,10 +8,17 @@ function Jutul.select_equations!(eqs, ::PressureFormulation, model::PressureMode
     delete!(eqs, :mass_conservation)
 end
 
-function Jutul.setup_equation_storage(model, eq::PressureEquation, storage; extra_sparsity = nothing, kwarg...)
-    s = ConservationLawTPFAStorage(model, eq.conservation; kwarg...)
-    w = storage[:state][:PressureReductionFactors]
-    return (conservation = s, weights = w)
+function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::PressureEquation, model::SimpleWellModel, Δt, ldisc = local_discretization(eq, self_cell)) where T_e
+    w = state.PressureReductionFactors
+    @assert size(w, 2) == 1
+    conserved = conserved_symbol(eq.conservation)
+    M₀ = state0[conserved]
+    M = state[conserved]
+    val = zero(eltype(eq_buf))
+    for i in axes(M, 1)
+        val += w[i, 1]*(M[i, 1] - M₀[i, 1])
+    end
+    eq_buf[1] = val/Δt
 end
 
 function Jutul.update_equation!(eq_s, p::PressureEquation, storage, model, dt)
