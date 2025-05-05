@@ -17,6 +17,7 @@ function Jutul.update_cross_term_in_entity!(out, i,
     nph = number_of_phases(sys)
     # TODO: This is wrong for compositional.
     out_full = zeros(eltype(out), nph)
+    @assert !haskey(state_s, :MassFractions)
     q = multisegment_well_perforation_flux!(out_full, sys, state_t, state_s, rhoS, conn)
     out[1] = sum(out_full)
 end
