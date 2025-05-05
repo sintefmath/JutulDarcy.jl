@@ -12,7 +12,7 @@ function convert_to_sequential(model; avg_mobility = false, pressure = true)
         model.system,
         data_domain = model.data_domain,
         formulation = f
-        )
+    )
     for (skey, svar) in model.secondary_variables
         seqmodel.secondary_variables[skey] = svar
     end
