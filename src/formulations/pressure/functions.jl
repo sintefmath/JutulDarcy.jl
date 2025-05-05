@@ -24,7 +24,11 @@ function store_total_fluxes!(vT, model, state)
     return vT
 end
 
-function store_total_fluxes(model, state)
+function store_total_fluxes(model, state::AbstractDict)
+    return store_total_fluxes(model, JutulStorage(state))
+end
+
+function store_total_fluxes(model, state::Union{JutulStorage, NamedTuple})
     nf = number_of_faces(model.data_domain)
     vT = zeros(nf)
     return store_total_fluxes!(vT, model, state)
