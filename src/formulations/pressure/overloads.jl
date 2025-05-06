@@ -33,7 +33,7 @@ end
 
 function Jutul.update_equation!(eq_s::PressureEquationTPFAStorage, eq_p::PressureEquation, storage, model, dt)
     pressure_update_accumulation!(eq_s, eq_p, storage, model, dt)
-    error()
+    pressure_update_half_face_flux!(eq_s, eq_p, storage.state, model, dt, eq_p.conservation.flow_discretization)
 end
 
 function pressure_update_accumulation!(eq_s, eq_p, storage, model, dt)
@@ -54,6 +54,49 @@ function pressure_update_accumulation_inner!(acc, m, m0, dt, w)
         acc[1, cell] = val
     end
     return acc
+end
+
+function pressure_update_half_face_flux!(eq_s::PressureEquationTPFAStorage, eq_p::PressureEquation, state, model, dt, flow_disc)
+    flux_c = get_entries(eq_s.half_face_flux_cells)
+
+    T = eltype(flux_c)
+    N = number_of_components(model.system)
+    T = SVector{N, T}
+    zero_flux = zero(T)
+    # N, M = size(flux_c)
+    # # flux_static = reinterpret(SVector{N, T}, flux_c)
+    # flux_static = unsafe_reinterpret(SVector{N, T}, flux_c, M)
+    state_c = Jutul.local_ad(state, 1, T)
+    w = state.PressureReductionFactors
+    pressure_update_half_face_flux_tpfa!(flux_c, zero_flux, eq_p, state_c, w, model, dt, flow_disc, Cells())
+end
+
+function pressure_update_half_face_flux_tpfa!(hf_cells, zero_flux::SVector{N, T}, eq, state::S, w, model, dt, flow_disc, ::Cells) where {T, N, S<:Jutul.LocalStateAD}
+    conn_data = flow_disc.conn_data
+    conn_pos = flow_disc.conn_pos
+    M = global_map(model.domain)
+    nc = length(conn_pos)-1
+    eq_cons = eq.conservation
+    @tic "flux (cells)" for c in 1:nc
+        self = Jutul.full_cell(c, M)
+        state_c = Jutul.new_entity_index(state, self)
+        pressure_update_half_face_flux_tpfa_internal!(hf_cells, zero_flux, eq_cons, state_c, w, model, dt, flow_disc, conn_pos, conn_data, c)
+    end
+end
+
+function pressure_update_half_face_flux_tpfa_internal!(hf_cells, zero_flux, eq, state, w, model, dt, flow_disc, conn_pos, conn_data, c) where T
+    start = @inbounds conn_pos[c]
+    stop = @inbounds conn_pos[c+1]-1
+    for i in start:stop
+        (; self, other, face, face_sign) = @inbounds conn_data[i]
+        @assert self == c
+        q = Jutul.face_flux!(zero_flux, self, other, face, face_sign, eq, state, model, dt, flow_disc)
+        val = zero(eltype(hf_cells))
+        for j in 1:length(q)
+            val += q[j]*w[j, c]
+        end
+        @inbounds hf_cells[i] = val
+    end
 end
 
 function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::PressureEquation, model::SimpleWellModel, Δt, ldisc = local_discretization(eq, self_cell)) where T_e
