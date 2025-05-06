@@ -101,7 +101,7 @@ function Jutul.declare_pattern(model, peq::PressureEquation{ConservationLaw{A, B
         # Fluxes
         I = map(x -> x.self, hfd)
         J = map(x -> x.other, hfd)
-        I, J = map_ij_to_active(I, J, model.domain, entity)
+        I, J = Jutul.map_ij_to_active(I, J, model.domain, entity)
         I = vcat(I, diagonals)
         J = vcat(J, diagonals)
     else
@@ -111,27 +111,26 @@ function Jutul.declare_pattern(model, peq::PressureEquation{ConservationLaw{A, B
     return (I, J)
 end
 
-# function Jutul.align_to_jacobian!(p_eq_s, p_eq::PressureEquation, jac, model, u::Cells; equation_offset = 0, variable_offset = 0)
-#     eq_s = p_eq_s.conservation
-#     eq = p_eq.conservation
-#     fd = eq.flow_discretization
-#     M = global_map(model.domain)
+function Jutul.align_to_jacobian!(eq_s::PressureEquationTPFAStorage, p_eq::PressureEquation, jac, model, u::Cells; equation_offset = 0, variable_offset = 0)
+    eq = p_eq.conservation
+    fd = eq.flow_discretization
+    M = global_map(model.domain)
 
-#     acc = eq_s.accumulation
-#     hflux_cells = eq_s.half_face_flux_cells
-#     nu, = Jutul.ad_dims(acc)
-#     dims = (nu, 1, 1) # Assume 1 eq, 1 pressure atm
-#     Jutul.diagonal_alignment!(acc, eq, jac, u, model.context,
-#         target_offset = equation_offset,
-#         source_offset = variable_offset,
-#         dims = dims
-#     )
-#     Jutul.half_face_flux_cells_alignment!(hflux_cells, acc, jac, model.context, M, fd,
-#         target_offset = equation_offset,
-#         source_offset = variable_offset,
-#         dims = dims
-#     )
-# end
+    acc = eq_s.accumulation
+    hflux_cells = eq_s.half_face_flux_cells
+    nu, = Jutul.ad_dims(acc)
+    dims = (nu, 1, 1) # Assume 1 eq, 1 pressure atm
+    Jutul.diagonal_alignment!(acc, eq, jac, u, model.context,
+        target_offset = equation_offset,
+        source_offset = variable_offset,
+        dims = dims
+    )
+    Jutul.half_face_flux_cells_alignment!(hflux_cells, acc, jac, model.context, M, fd,
+        target_offset = equation_offset,
+        source_offset = variable_offset,
+        dims = dims
+    )
+end
 
 # function Jutul.get_diagonal_entries(eq_p::PressureEquation, eq_s)
 #     return Jutul.get_diagonal_entries(eq_p.conservation, eq_s.conservation)
