@@ -12,7 +12,7 @@ function Jutul.local_discretization(eq::PressureEquation, self_cell)
     return Jutul.local_discretization(eq.conservation, self_cell)
 end
 
-function update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::PressureEquation, model, Δt, ldisc = local_discretization(eq, self_cell)) where T_e
+function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::PressureEquation, model, Δt, ldisc = local_discretization(eq, self_cell)) where T_e
     # Compute accumulation term
     ceq = eq.conservation
     conserved = conserved_symbol(ceq)
@@ -31,6 +31,31 @@ function update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, stat
     end
 end
 
+function Jutul.update_equation!(eq_s::PressureEquationTPFAStorage, eq_p::PressureEquation, storage, model, dt)
+    pressure_update_accumulation!(eq_s, eq_p, storage, model, dt)
+    error()
+end
+
+function pressure_update_accumulation!(eq_s, eq_p, storage, model, dt)
+    conserved = eq_s.accumulation_symbol
+    acc = Jutul.get_entries(eq_s.accumulation)
+    m0, m = Jutul.state_pair(storage, conserved, model)
+    w = storage.state.PressureReductionFactors
+    pressure_update_accumulation_inner!(acc, m, m0, dt, w)
+    return acc
+end
+
+function pressure_update_accumulation_inner!(acc, m, m0, dt, w)
+    for cell in axes(m, 1)
+        val = zero(eltype(acc))
+        for i in axes(m, 1)
+            val += w[i, cell]*Jutul.accumulation_term(m, m0, dt, i, cell)
+        end
+        acc[1, cell] = val
+    end
+    return acc
+end
+
 function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::PressureEquation, model::SimpleWellModel, Δt, ldisc = local_discretization(eq, self_cell)) where T_e
     w = state.PressureReductionFactors
     @assert size(w, 2) == 1
@@ -42,49 +67,6 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
         val += w[i, 1]*(M[i, 1] - M₀[i, 1])
     end
     eq_buf[1] = val/Δt
-end
-
-struct PressureEquationTPFAStorage{A, HC}
-    accumulation::A
-    accumulation_symbol::Symbol
-    half_face_flux_cells::HC
-end
-
-function PressureEquationTPFAStorage(model, eq::PressureEquation; kwarg...)
-    ceq = eq.conservation
-    ceq.flow_discretization::TwoPointPotentialFlowHardCoded
-    number_of_equations = 1
-    D, ctx = model.domain, model.context
-    cell_entity = Cells()
-    face_entity = Faces()
-    nc = count_active_entities(D, cell_entity, for_variables = false)
-    nf = count_active_entities(D, face_entity, for_variables = false)
-    nhf = number_of_half_faces(ceq.flow_discretization)
-    face_partials = degrees_of_freedom_per_entity(model, face_entity)
-    @assert face_partials == 0 "Only supported for cell-centered discretization"
-    alloc = (n, entity, n_entities_pos) -> CompactAutoDiffCache(number_of_equations, n, model,
-                                                                                entity = entity, n_entities_pos = n_entities_pos, 
-                                                                                context = ctx; kwarg...)
-    # Accumulation terms
-    acc = alloc(nc, cell_entity, nc)
-    # Source terms - as sparse matrix
-    t_acc = eltype(acc.entries)
-    # src = sparse(zeros(0), zeros(0), zeros(t_acc, 0), size(acc.entries)...)
-    # Half face fluxes - differentiated with respect to pairs of cells
-    hf_cells = alloc(nhf, cell_entity, nhf)
-    # # Half face fluxes - differentiated with respect to the faces
-    # if face_partials > 0
-    #     hf_faces = alloc(nf, face_entity, nhf)
-    # else
-    #     hf_faces = nothing
-    # end
-    return PressureEquationTPFAStorage(acc, conserved_symbol(ceq), hf_cells)
-end
-
-function Jutul.setup_equation_storage(model,
-        eq::PressureEquation{ConservationLaw{A, B, C, D}}, storage; extra_sparsity = nothing, kwarg...
-        ) where {A, B<:TwoPointPotentialFlowHardCoded, C, D}
-    return PressureEquationTPFAStorage(model, eq; kwarg...)
 end
 
 # function Jutul.update_equation!(eq_s, p::PressureEquation, storage, model, dt)
