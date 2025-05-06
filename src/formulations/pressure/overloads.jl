@@ -81,7 +81,9 @@ function PressureEquationTPFAStorage(model, eq::PressureEquation; kwarg...)
     return PressureEquationTPFAStorage(acc, conserved_symbol(ceq), hf_cells)
 end
 
-function Jutul.setup_equation_storage(model, eq::PressureEquation{ConservationLaw{A, B, C, D}}, storage; extra_sparsity = nothing, kwarg...) where {A, B<:TwoPointPotentialFlowHardCoded, C, D}
+function Jutul.setup_equation_storage(model,
+        eq::PressureEquation{ConservationLaw{A, B, C, D}}, storage; extra_sparsity = nothing, kwarg...
+        ) where {A, B<:TwoPointPotentialFlowHardCoded, C, D}
     return PressureEquationTPFAStorage(model, eq; kwarg...)
 end
 
@@ -89,9 +91,25 @@ end
 #     Jutul.update_equation!(eq_s.conservation, p.conservation, storage, model, dt)
 # end
 
-# function Jutul.declare_pattern(model, p::PressureEquation, e_s, entity)
-#     Jutul.declare_pattern(model, p.conservation, e_s.conservation, entity)
-# end
+function Jutul.declare_pattern(model, peq::PressureEquation{ConservationLaw{A, B, C, D}}, e_s, entity::Cells) where {A, B<:TwoPointPotentialFlowHardCoded, C, D}
+    df = peq.conservation.flow_discretization
+    hfd = Array(df.conn_data)
+    n = number_of_entities(model, peq)
+    # Diagonals
+    diagonals = [i for i in 1:n]
+    if length(hfd) > 0
+        # Fluxes
+        I = map(x -> x.self, hfd)
+        J = map(x -> x.other, hfd)
+        I, J = map_ij_to_active(I, J, model.domain, entity)
+        I = vcat(I, diagonals)
+        J = vcat(J, diagonals)
+    else
+        I = collect(diagonals)
+        J = collect(diagonals)
+    end
+    return (I, J)
+end
 
 # function Jutul.align_to_jacobian!(p_eq_s, p_eq::PressureEquation, jac, model, u::Cells; equation_offset = 0, variable_offset = 0)
 #     eq_s = p_eq_s.conservation
