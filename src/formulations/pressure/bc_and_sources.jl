@@ -15,12 +15,14 @@ function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D,
     nph = number_of_phases(reservoir_model(model).system)
     for bc in force
         c = bc.cell
-        @. acc_i = 0.0
         q = compute_bc_mass_fluxes(bc, state, nph)
+        @. acc_i = 0.0
         apply_flow_bc!(acc_i, q, bc, model, state, time)
+        val = zero(eltype(acc_i))
         for i in eachindex(acc_i)
-            acc[i] += w[i, c]*acc_i[i]
+            val += w[i, c]*acc_i[i]
         end
+        acc[c] += val
     end
     return acc
 end
@@ -37,9 +39,11 @@ function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D,
     M = global_map(model.domain)
     for src in force
         c = Jutul.full_cell(src.cell, M)
+        val = zero(eltype(acc))
         for ph = 1:nph
             q_ph = phase_source(c, src, rhoS[ph], kr, mu, ph)
-            @inbounds acc[src.cell] -= w[ph, src.cell]*q_ph
+            val -= w[ph, src.cell]*q_ph
         end
+        @inbounds acc[src.cell] += val
     end
 end
