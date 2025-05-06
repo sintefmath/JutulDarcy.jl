@@ -61,11 +61,7 @@ function pressure_update_half_face_flux!(eq_s::PressureEquationTPFAStorage, eq_p
 
     T = eltype(flux_c)
     N = number_of_components(model.system)
-    T = SVector{N, T}
-    zero_flux = zero(T)
-    # N, M = size(flux_c)
-    # # flux_static = reinterpret(SVector{N, T}, flux_c)
-    # flux_static = unsafe_reinterpret(SVector{N, T}, flux_c, M)
+    zero_flux = zero(SVector{N, T})
     state_c = Jutul.local_ad(state, 1, T)
     w = state.PressureReductionFactors
     pressure_update_half_face_flux_tpfa!(flux_c, zero_flux, eq_p, state_c, w, model, dt, flow_disc, Cells())
