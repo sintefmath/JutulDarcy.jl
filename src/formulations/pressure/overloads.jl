@@ -44,6 +44,11 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
     eq_buf[1] = val/Δt
 end
 
+function Jutul.setup_equation_storage(model, eq::PressureEquation{ConservationLaw{A, B, C, D}}, storage; extra_sparsity = nothing, kwarg...) where {A, B<:TwoPointPotentialFlowHardCoded, C, D}
+    error()
+    return ConservationLawTPFAStorage(model, eq; kwarg...)
+end
+
 # function Jutul.update_equation!(eq_s, p::PressureEquation, storage, model, dt)
 #     Jutul.update_equation!(eq_s.conservation, p.conservation, storage, model, dt)
 # end
