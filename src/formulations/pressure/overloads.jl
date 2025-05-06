@@ -84,7 +84,7 @@ function pressure_update_half_face_flux_tpfa!(hf_cells, zero_flux::SVector{N, T}
     end
 end
 
-function pressure_update_half_face_flux_tpfa_internal!(hf_cells, zero_flux, eq, state, w, model, dt, flow_disc, conn_pos, conn_data, c) where T
+function pressure_update_half_face_flux_tpfa_internal!(hf_cells, zero_flux, eq, state, w, model, dt, flow_disc, conn_pos, conn_data, c)
     start = @inbounds conn_pos[c]
     stop = @inbounds conn_pos[c+1]-1
     for i in start:stop
