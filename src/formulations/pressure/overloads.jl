@@ -99,6 +99,14 @@ function pressure_update_half_face_flux_tpfa_internal!(hf_cells, zero_flux, eq, 
     end
 end
 
+function Jutul.update_linearized_system_equation!(nz, r, model, peq::PressureEquation, eq_s::PressureEquationTPFAStorage)
+    acc = eq_s.accumulation
+    cell_flux = eq_s.half_face_flux_cells
+    cpos = peq.conservation.flow_discretization.conn_pos
+    ctx = model.context
+    Jutul.update_linearized_system_subset_conservation_accumulation!(nz, r, model, acc, cell_flux, cpos, ctx)
+end
+
 function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::PressureEquation, model::SimpleWellModel, Δt, ldisc = local_discretization(eq, self_cell)) where T_e
     w = state.PressureReductionFactors
     @assert size(w, 2) == 1
@@ -156,6 +164,11 @@ function Jutul.align_to_jacobian!(eq_s::PressureEquationTPFAStorage, p_eq::Press
         dims = dims
     )
 end
+
+function Jutul.get_diagonal_entries(eq::PressureEquation, eq_s::PressureEquationTPFAStorage)
+    return eq_s.accumulation.entries
+end
+
 
 # function Jutul.get_diagonal_entries(eq_p::PressureEquation, eq_s)
 #     return Jutul.get_diagonal_entries(eq_p.conservation, eq_s.conservation)
