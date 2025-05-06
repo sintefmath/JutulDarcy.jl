@@ -10,10 +10,11 @@ struct PressureEquation{T} <: JutulEquation where T<:ConservationLaw
     conservation::T
 end
 
-struct PressureEquationTPFAStorage{A, HC}
+struct PressureEquationTPFAStorage{A, HC, B}
     accumulation::A
     accumulation_symbol::Symbol
     half_face_flux_cells::HC
+    buf::B
 end
 
 function PressureEquationTPFAStorage(model, eq::PressureEquation; kwarg...)
@@ -44,7 +45,8 @@ function PressureEquationTPFAStorage(model, eq::PressureEquation; kwarg...)
     # else
     #     hf_faces = nothing
     # end
-    return PressureEquationTPFAStorage(acc, conserved_symbol(ceq), hf_cells)
+    buf = zeros(t_acc, number_of_components(model.system))
+    return PressureEquationTPFAStorage(acc, conserved_symbol(ceq), hf_cells, buf)
 end
 
 function Jutul.setup_equation_storage(model,
@@ -58,4 +60,5 @@ Jutul.discretization(eq::PressureEquation) = Jutul.discretization(eq.conservatio
 include("variables.jl")
 include("overloads.jl")
 include("functions.jl")
+include("bc_and_sources.jl")
 include("multimodel/multimodel_pressure.jl")
