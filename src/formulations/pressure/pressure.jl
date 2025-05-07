@@ -4,7 +4,9 @@ end
 
 const PressureModel = SimulationModel{<:Any, <:Any, PressureFormulation, <:Any}
 
-struct PressureReductionFactors <: JutulDarcy.PhaseVariables end
+struct PressureReductionFactors <: Jutul.VectorVariables end
+
+Jutul.values_per_entity(model::PressureModel, ::PressureReductionFactors) = number_of_components(model.system)
 
 struct PressureEquation{T} <: JutulEquation where T<:ConservationLaw
     conservation::T

@@ -1,4 +1,4 @@
-struct PressureReservoirFromWellFlowCT{T} <: Jutul.CrossTerm
+struct PressureReservoirFromWellFlowCT{T} <: Jutul.AdditiveCrossTerm
     parent::T
 end
 
@@ -14,9 +14,8 @@ function Jutul.update_cross_term_in_entity!(out, i,
     rhoS = reference_densities(sys)
     conn = cross_term_perforation_get_conn(ct.parent, i, state_s, state_t)
 
-    nph = number_of_phases(sys)
-    # TODO: This is wrong for compositional.
-    out_full = zeros(eltype(out), nph)
+    ncomp = number_of_components(sys)
+    out_full = zeros(eltype(out), ncomp)
     @assert !haskey(state_s, :MassFractions)
     q = multisegment_well_perforation_flux!(out_full, sys, state_t, state_s, rhoS, conn)
     out[1] = sum(out_full)
