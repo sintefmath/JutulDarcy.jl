@@ -185,8 +185,12 @@ function Jutul.perform_step!(
         executor = default_executor(),
         prev_report = missing
     )
-    function get_reservoir_state(sim)
-        model_state = sim.storage.state
+    function get_reservoir_state(sim, current = true)
+        if current
+            model_state = sim.storage.state
+        else
+            model_state = sim.storage.state0
+        end
         if sim.model isa MultiModel
             model_state = model_state.Reservoir
         end
@@ -225,7 +229,8 @@ function Jutul.perform_step!(
     end
     if iteration == 1
         if isnan(mob[1, 1])
-            mob_t0 = tsim.storage.state0.PhaseMobilities
+            tstate0 = get_reservoir_state(tsim, false)
+            mob_t0 = tstate0.PhaseMobilities
             @. mob = value(mob_t0)
         else
             # Initial guess from end of last time-step
