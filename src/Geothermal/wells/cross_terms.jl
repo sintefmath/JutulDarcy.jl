@@ -1,30 +1,51 @@
 ## Abstract types for BTES cross terms
 
-abstract type AbstractBTESCT <: Jutul.AdditiveCrossTerm end
+abstract type AbstractClosedLoopCT <: Jutul.AdditiveCrossTerm end
 
-Jutul.symmetry(::AbstractBTESCT) = Jutul.CTSkewSymmetry()
+Jutul.symmetry(::AbstractClosedLoopCT) = Jutul.CTSkewSymmetry()
 
-function Jutul.cross_term_entities(ct::AbstractBTESCT, eq::ConservationLaw, model)
-    return ct.btes_cells
+function Jutul.cross_term_entities(ct::AbstractClosedLoopCT, eq::ConservationLaw, model)
+    return ct.return_nodes
 end
 
-function Jutul.cross_term_entities_source(ct::AbstractBTESCT, eq::ConservationLaw, model)
-    return ct.btes_cells
+function Jutul.cross_term_entities_source(ct::AbstractClosedLoopCT, eq::ConservationLaw, model)
+    return ct.supply_nodes
 end
 
 ## Cross terms types for BTES wells (supply-return mass/energy, grout-grout energy)
 
-struct BTESWellSupplyToReturnMassCT <: AbstractBTESCT
-    btes_cells::Vector{Int64}
+struct ClosedLoopSupplyToReturnMassCT <: AbstractClosedLoopCT
+    supply_nodes::Vector{Int64}
+    return_nodes::Vector{Int64}
+    function ClosedLoopSupplyToReturnMassCT(supply_nodes::Vector{Int64}, return_nodes::Vector{Int64})
+        if length(supply_nodes) != length(return_nodes)
+            throw(ArgumentError("Supply and return nodes must have the same length"))
+        end
+        new(supply_nodes, return_nodes)
+    end
 end
 
-struct BTESWellSupplyToReturnEnergyCT <: AbstractBTESCT
-    btes_cells::Vector{Int64}
+struct ClosedLoopSupplyToReturnEnergyCT <: AbstractClosedLoopCT
+    supply_nodes::Vector{Int64}
+    return_nodes::Vector{Int64}
+    function ClosedLoopSupplyToReturnEnergyCT(supply_nodes::Vector{Int64}, return_nodes::Vector{Int64})
+        if length(supply_nodes) != length(return_nodes)
+            throw(ArgumentError("Supply and return nodes must have the same length"))
+        end
+        new(supply_nodes, return_nodes)
+    end
 end
 
-struct BTESWellGroutEnergyCT <: AbstractBTESCT
+struct BTESWellGroutEnergyCT <: AbstractClosedLoopCT
     WIth_grout::Vector{Float64}
-    btes_cells::Vector{Int64}
+    supply_nodes::Vector{Int64}
+    return_nodes::Vector{Int64}
+    function BTESWellGroutEnergyCT(WIth_grout::Vector{Float64}, supply_nodes::Vector{Int64}, return_nodes::Vector{Int64})
+        if length(supply_nodes) != length(return_nodes)
+            throw(ArgumentError("Supply and return nodes must have the same length"))
+        end
+        new(WIth_grout, supply_nodes, return_nodes)
+    end
 end
 
 ## Cross term calculations for BTES wells
@@ -33,15 +54,16 @@ function JutulDarcy.update_cross_term_in_entity!(out, i,
     state_t, state0_t,
     state_s, state0_s, 
     model_t, model_s,
-    ct::BTESWellSupplyToReturnMassCT, eq, dt, ldisc = JutulDarcy.local_discretization(ct, i))
+    ct::ClosedLoopSupplyToReturnMassCT, eq, dt, ldisc = JutulDarcy.local_discretization(ct, i))
 
     # Unpack properties
     sys = JutulDarcy.flow_system(model_t.system)
     @inbounds begin 
-        btes_cell = ct.btes_cells[i]
+        supply_node = ct.supply_nodes[i]
+        return_node = ct.return_nodes[i]
         nph = number_of_phases(sys)
         for ph in 1:nph
-            q_ph = btes_supply_return_massflux(state_s, state_t, btes_cell, ph)
+            q_ph = btes_supply_return_massflux(state_s, state_t, supply_node, return_node, ph)
             out[ph] = q_ph
         end
 
@@ -53,17 +75,18 @@ function JutulDarcy.update_cross_term_in_entity!(out, i,
     state_t, state0_t,
     state_s, state0_s, 
     model_t, model_s,
-    ct::BTESWellSupplyToReturnEnergyCT, eq, dt, ldisc = JutulDarcy.local_discretization(ct, i))
+    ct::ClosedLoopSupplyToReturnEnergyCT, eq, dt, ldisc = JutulDarcy.local_discretization(ct, i))
 
     # Unpack properties
     sys = JutulDarcy.flow_system(model_t.system)
     @inbounds begin 
-        btes_cell = ct.btes_cells[i]
+        supply_node = ct.supply_nodes[i]
+        return_node = ct.return_nodes[i]
         nph = number_of_phases(sys)
         q = 0.0
         for ph in 1:nph
-            q_ph = btes_supply_return_massflux(state_s, state_t, btes_cell, ph)
-            h_ph = state_s.FluidEnthalpy[ph,btes_cell]
+            q_ph = btes_supply_return_massflux(state_s, state_t, supply_node, return_node, ph)
+            h_ph = state_s.FluidEnthalpy[ph, supply_node]
             q += q_ph.*h_ph
         end
     end
@@ -71,18 +94,18 @@ function JutulDarcy.update_cross_term_in_entity!(out, i,
 
 end
 
-Base.@propagate_inbounds function btes_supply_return_massflux(state_supply, state_return, cell, ph)
+Base.@propagate_inbounds function btes_supply_return_massflux(state_supply, state_return, supply_node, return_node, ph)
 
-    p_s = state_supply.Pressure[cell]
-    p_t = state_return.Pressure[cell]
+    p_s = state_supply.Pressure[supply_node]
+    p_t = state_return.Pressure[return_node]
     dp = p_s - p_t
 
     T = 1.0e-10
     Ψ = -T.*dp
 
-    ρ = state_supply.PhaseMassDensities[ph,cell]
-    s = state_supply.Saturations[ph,cell]
-    μ = state_supply.PhaseViscosities[ph,cell]
+    ρ = state_supply.PhaseMassDensities[ph, supply_node]
+    s = state_supply.Saturations[ph, supply_node]
+    μ = state_supply.PhaseViscosities[ph, supply_node]
 
     q_ph = s.*ρ./μ.*Ψ
 
@@ -98,10 +121,11 @@ function JutulDarcy.update_cross_term_in_entity!(out, i,
     # Unpack properties
     sys = JutulDarcy.flow_system(model_t.system)
     @inbounds begin 
-        btes_cell = ct.btes_cells[i]
+        supply_node = ct.supply_nodes[i]
+        return_node = ct.return_nodes[i]
         λ = ct.WIth_grout[i]
-        T_s = state_s.Temperature[btes_cell]
-        T_t = state_t.Temperature[btes_cell]
+        T_s = state_s.Temperature[supply_node]
+        T_t = state_t.Temperature[return_node]
         λ = ct.WIth_grout[i]
         q = -λ.*(T_t - T_s)
     end
