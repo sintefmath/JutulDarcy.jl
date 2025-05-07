@@ -58,12 +58,24 @@ function SequentialSimulator(model; state0 = setup_state(model), parameters = se
     # @info "!" seq_state
     # error()
     S = JutulStorage()
-    setup_sequential_storage!(S, PSim.model, TSim.model)
+    S[:transfer] = JutulStorage()
+    setup_sequential_storage!(S[:transfer], PSim.model, TSim.model)
     S[:recorder] = ProgressRecorder()
     # S[:state] = seq_state
     # S[:state0] = deepcopy(seq_state)
     # S[:primary_variables] = seq_state
     return SequentialSimulator(model, PSim, TSim, S)
+end
+
+function setup_sequential_storage!(S, p_model::MultiModel, t_model::MultiModel)
+    for k in Jutul.submodels_symbols(p_model)
+        p_submodel = p_model[k]
+        t_submodel = t_model[k]
+        if k == :Reservoir || model_or_domain_is_well(p_submodel)
+            S[k] = JutulStorage()
+            setup_sequential_storage!(S[k], p_submodel, t_submodel)
+        end
+    end
 end
 
 function setup_sequential_storage!(S, p_model::SimulationModel, t_model::SimulationModel)
@@ -173,30 +185,49 @@ function Jutul.perform_step!(
         executor = default_executor(),
         prev_report = missing
     )
+    function get_reservoir_state(sim)
+        s = sim.storage.state
+        if sim.model isa MultiModel
+            s = s.Reservoir
+        end
+        return s
+    end
+
     psim = simulator.pressure
     pstate = psim.storage.state
     pstate0 = psim.storage.state0
+    storage = simulator.storage
 
+    is_multi_model = psim.model isa MultiModel
     tsim = simulator.transport
     tstate = tsim.storage.state
 
-    transfer_keys = simulator.storage.transfer_keys
+    # transfer_keys = simulator.storage.transfer_keys
     # Solve pressure
     # Copy over variables to parameters for both solves
     if iteration > 1
         # We need to transfer from pressure
-        for k in transfer_keys[:pressure]
-            update_values!(pstate[k], tstate[k])
-        end
+        # sequential_sync_values!(pstate, tstate, psim.model, storage.transfer, :pressure)
+        sequential_sync_values!(simulator, to_key = :pressure)
+        # for k in transfer_keys[:pressure]
+            # update_values!(pstate[k], tstate[k])
+        # end
     end
     report = Jutul.setup_ministep_report()
     config_p = config[:pressure]
     max_iter_p = config_p[:max_nonlinear_iterations]
-    mob_p = psim.storage.state.PhaseMobilities
-    mob_t = tsim.storage.state.PhaseMobilities
-    mob = simulator.storage.mobility
-    mob_prev = simulator.storage.mobility_prev
-    total_saturation = tsim.storage.state.TotalSaturation
+    mob_p = get_reservoir_state(psim).PhaseMobilities
+    mob_t = get_reservoir_state(tsim).PhaseMobilities
+
+    transfer_storage = simulator.storage.transfer
+    if is_multi_model
+        mob = transfer_storage.Reservoir.mobility
+        mob_prev = transfer_storage.Reservoir.mobility_prev
+    else
+        mob = transfer_storage.mobility
+        mob_prev = transfer_storage.mobility_prev
+    end
+    total_saturation = get_reservoir_state(tsim).TotalSaturation
     if iteration == 1
         if isnan(mob[1, 1])
             mob_t0 = tsim.storage.state0.PhaseMobilities
@@ -221,15 +252,16 @@ function Jutul.perform_step!(
 
         vT = tsim.storage.state.TotalVolumetricFlux
         store_total_fluxes!(vT, model_p, as_value(pstate))
-        for k in transfer_keys[:transport]
-            update_values!(tstate[k], pstate[k])
-        end
+        sequential_sync_values!(simulator, to_key = :transport)
+        # sequential_sync_values!(tstate, pstate, psim.model, storage.transfer, :transport)
+        #for k in transfer_keys[:transport]
+        #    update_values!(tstate[k], pstate[k])
+        # end
         nsub = config[:transport_substeps]
         config_t = config[:transport]
         max_iter_t = config_t[:max_nonlinear_iterations]
         # TODO: Store initial guesses here for SFI
 
-        
         function store_mobility!(mob, mob_t, w, cell_weight)
             cw(::Nothing, i) = 1.0
             cw(x, i) = value(x[i])
@@ -381,6 +413,34 @@ function Jutul.perform_step!(
     return (err, converged, report)
 end
 
+function sequential_sync_values!(sim::SequentialSimulator; to_key::Symbol = :pressure)
+    @assert to_key in (:pressure, :transport)
+    pstate = sim.pressure.storage.state
+    tstate = sim.transport.storage.state
+    if to_key == :pressure
+        dest = pstate
+        src = tstate
+        model = sim.transport.model
+    else
+        dest = tstate
+        src = pstate
+        model = sim.pressure.model
+    end
+    sequential_sync_values!(dest, src, model, sim.storage.transfer, to_key)
+end
+
+function sequential_sync_values!(dest, src, model::SimulationModel, storage_transfer, dest_key)
+    for k in storage_transfer.transfer_keys[dest_key]
+        update_values!(dest[k], src[k])
+    end
+end
+
+function sequential_sync_values!(dest, src, model::MultiModel, storage_transfer, k)
+    for modname in keys(storage_transfer)
+        sequential_sync_values!(dest[modname], src[modname], model[modname], storage_transfer[modname], k)
+    end
+end
+
 # function Jutul.update_after_step!(sim::SequentialSimulator, dt, forces; kwarg...)
 #     report = Dict{Symbol, Any}()
 #     report[:pressure] = Jutul.update_after_step!(sim.pressure, dt, forces; kwarg...)
@@ -458,11 +518,7 @@ function Jutul.update_after_step!(sim::SequentialSimulator, dt, forces; kwarg...
     Jutul.update_after_step!(sim.transport, dt, forces; kwarg...)
     # NOTE: This part must be done carefully so that the pressure contains the
     # final solution from the last transport solve.
-    pstate = sim.pressure.storage.state
-    tstate = sim.transport.storage.state
-    for k in sim.storage.init_keys.pressure
-        update_values!(pstate[k], tstate[k])
-    end
+    sequential_sync_values!(sim, to_key = :pressure)
     Jutul.update_after_step!(sim.pressure, dt, forces; kwarg...)
 end
 
