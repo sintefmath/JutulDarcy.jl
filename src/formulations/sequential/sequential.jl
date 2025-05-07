@@ -41,49 +41,6 @@ function SequentialSimulator(model; state0 = setup_state(model), parameters = se
     PSim = subsimulator(pmodel)
     TSim = subsimulator(tmodel)
 
-    function seq_output_keys(m)
-        return copy(m.output_variables)
-    end
-    # Transfer rule: All parameters present in other that are not parameters both places.
-    function transfer_keys(target, source)
-        prm_t = keys(Jutul.get_parameters(target))
-        prm_s = keys(Jutul.get_parameters(source))
-
-        all_t = keys(Jutul.get_variables_by_type(target, :all))
-        all_s = keys(Jutul.get_variables_by_type(source, :all))
-
-        return intersect(all_s, setdiff(prm_t, prm_s))
-    end
-    transfer_keys_transport = transfer_keys(TSim.model, PSim.model)
-    transfer_keys_pressure = transfer_keys(PSim.model, TSim.model)
-    # Init rule: Transfer over everything that is present from transport state.
-    function init_keys(target, source)
-        all_t = keys(Jutul.get_variables_by_type(target, :all))
-        all_s = keys(Jutul.get_variables_by_type(source, :all))
-
-        return intersect(all_t, all_s)
-    end
-    # init_keys_transport = init_keys(TSim.model)
-    init_keys_pressure = init_keys(PSim.model, TSim.model)
-
-    transfer_keys = JutulStorage()
-    transfer_keys[:pressure] = transfer_keys_pressure
-    transfer_keys[:transport] = transfer_keys_transport
-
-    init_keys = JutulStorage()
-    init_keys[:pressure] = init_keys_pressure
-    # init_keys[:transport] = init_keys_transport
-
-    S = JutulStorage()
-    S[:init_keys] = init_keys
-    S[:transfer_keys] = transfer_keys
-
-    nph = number_of_phases(sys)
-    nc = number_of_cells(model.domain)
-    λ = zeros(nph, nc)
-    @. λ = NaN
-    S[:mobility] = λ
-    S[:mobility_prev] = similar(λ)
 
     # @info "Keys" transfer_keys_pressure transfer_keys_transport init_keys_transport init_keys_pressure
 
@@ -100,12 +57,59 @@ function SequentialSimulator(model; state0 = setup_state(model), parameters = se
     # end
     # @info "!" seq_state
     # error()
-
+    S = JutulStorage()
+    setup_sequential_storage!(S, PSim.model, TSim.model)
     S[:recorder] = ProgressRecorder()
     # S[:state] = seq_state
     # S[:state0] = deepcopy(seq_state)
     # S[:primary_variables] = seq_state
     return SequentialSimulator(model, PSim, TSim, S)
+end
+
+function setup_sequential_storage!(S, p_model::SimulationModel, t_model::SimulationModel)
+    function seq_output_keys(m)
+        return copy(m.output_variables)
+    end
+    # Transfer rule: All parameters present in other that are not parameters both places.
+    function transfer_keys(target, source)
+        prm_t = keys(Jutul.get_parameters(target))
+        prm_s = keys(Jutul.get_parameters(source))
+
+        all_t = keys(Jutul.get_variables_by_type(target, :all))
+        all_s = keys(Jutul.get_variables_by_type(source, :all))
+
+        return intersect(all_s, setdiff(prm_t, prm_s))
+    end
+    transfer_keys_transport = transfer_keys(t_model, p_model)
+    transfer_keys_pressure = transfer_keys(p_model, t_model)
+    # Init rule: Transfer over everything that is present from transport state.
+    function init_keys(target, source)
+        all_t = keys(Jutul.get_variables_by_type(target, :all))
+        all_s = keys(Jutul.get_variables_by_type(source, :all))
+
+        return intersect(all_t, all_s)
+    end
+    # init_keys_transport = init_keys(TSim.model)
+    init_keys_pressure = init_keys(p_model, t_model)
+
+    transfer_keys = JutulStorage()
+    transfer_keys[:pressure] = transfer_keys_pressure
+    transfer_keys[:transport] = transfer_keys_transport
+
+    init_keys = JutulStorage()
+    init_keys[:pressure] = init_keys_pressure
+    # init_keys[:transport] = init_keys_transport
+
+    S[:init_keys] = init_keys
+    S[:transfer_keys] = transfer_keys
+
+    nph = number_of_phases(t_model.system)
+    nc = number_of_cells(t_model.domain)
+    λ = zeros(nph, nc)
+    @. λ = NaN
+    S[:mobility] = λ
+    S[:mobility_prev] = similar(λ)
+    return S
 end
 
 function Jutul.simulator_config(
