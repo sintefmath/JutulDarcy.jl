@@ -61,8 +61,9 @@ function setup_btes_well_simple(D::DataDomain, reservoir_cells;
         WI = 0.0,
         extra_perforation_props = (WIth_grout = WIth_grout, ),
         radius = radius_pipe,
+        end_nodes = [length(reservoir_cells)+1],
         simple_well = false,
-        type = :btes
+        type = :closed_loop
     )
 
     # Set up supply and return wells
@@ -180,7 +181,7 @@ function setup_btes_well_u1(D::DataDomain, reservoir_cells;
 
     ## Set up supply and return wells
     args = (
-        type = :btes,
+        type = :closed_loop,
         N = N0,
         WI = fill(0.0, nr),
         WIth = λgr,
@@ -191,6 +192,7 @@ function setup_btes_well_u1(D::DataDomain, reservoir_cells;
         void_fraction = void_fraction,
         dz = dz,
         perforation_cells = collect(grout_cells.+1),
+        end_nodes = [nc_pipe+1],
         segment_models = segment_models,
     )
 
