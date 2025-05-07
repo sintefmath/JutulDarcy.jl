@@ -23,12 +23,14 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
     disc = ceq.flow_discretization
     flux(face) = Jutul.face_flux(face, ceq, state, model, Δt, disc, ldisc, Val(T_e))
     div_v = ldisc.div(flux)
-    eq_buf[1] = zero(eltype(eq_buf))
+    val = zero(eltype(eq_buf))
     for i in eachindex(div_v)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, i, self_cell)
         w_i = w[i, self_cell]
-        @inbounds eq_buf[1] += w_i*(∂M∂t + div_v[i])
+        @inbounds val += w_i*(∂M∂t + div_v[i])
     end
+    error("Generic AD pressure equation is not yet functional")
+    eq_buf[1] = val
 end
 
 function Jutul.update_equation!(eq_s::PressureEquationTPFAStorage, eq_p::PressureEquation, storage, model, dt)
@@ -46,7 +48,7 @@ function pressure_update_accumulation!(eq_s, eq_p, storage, model, dt)
 end
 
 function pressure_update_accumulation_inner!(acc, m, m0, dt, w)
-    for cell in axes(m, 1)
+    for cell in axes(m, 2)
         val = zero(eltype(acc))
         for i in axes(m, 1)
             val += w[i, cell]*Jutul.accumulation_term(m, m0, dt, i, cell)
