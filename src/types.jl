@@ -439,6 +439,8 @@ struct MultiSegmentWell{V, P, N, A, C, SC, S, M} <: WellDomain
     neighborship::N
     "Top node where scalar well quantities live"
     top::A
+    "End node(s) for the well"
+    end_nodes::Vector{Int64}
     "Coordinate centers of nodes"
     centers::C
     "pressure and temperature conditions at surface"
@@ -488,6 +490,7 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
             accumulator_center = nothing,
             accumulator_volume = mean(volumes),
             N = nothing,
+            end_nodes = missing,
             name = :Well,
             perforation_cells = nothing,
             segment_models = nothing,
@@ -523,6 +526,11 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
         N = vcat((1:nv)', (2:nc)')
     elseif maximum(N) == nv
         N = hcat([1, 2], N.+1)
+    end
+    if ismissing(end_nodes)
+        from_nodes = unique(N[1, :])
+        to_nodes = unique(N[2,:])
+        end_nodes = setdiff(to_nodes, from_nodes)
     end
     if length(size(centers)) == 3
         @assert size(centers, 3) == 1
@@ -603,7 +611,7 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
     end
     accumulator = (reference_depth = reference_depth, )
     MultiSegmentWell{typeof(volumes), typeof(perf), typeof(N), typeof(accumulator), typeof(ext_centers), typeof(surface_conditions), typeof(segment_models), typeof(material_thermal_conductivity)}(
-        type, volumes, perf, N, accumulator, ext_centers, surface_conditions,
+        type, volumes, perf, N, accumulator, end_nodes, ext_centers, surface_conditions,
         name, segment_models, material_thermal_conductivity,
         material_density, material_heat_capacity, void_fraction)
 end
