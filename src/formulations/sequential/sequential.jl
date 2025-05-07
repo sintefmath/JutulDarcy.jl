@@ -99,9 +99,13 @@ function setup_sequential_storage!(S, p_model::SimulationModel, t_model::Simulat
         all_t = keys(Jutul.get_variables_by_type(target, :all))
         all_s = keys(Jutul.get_variables_by_type(source, :all))
 
-        return intersect(all_t, all_s)
+        # return intersect(all_t, all_s)
+
+        secondary_s = keys(Jutul.get_variables_by_type(source, :secondary))
+        tkeys = setdiff(intersect(all_t, all_s), secondary_s)
+        push!(tkeys, :TotalMasses)
+        return tkeys
     end
-    # init_keys_transport = init_keys(TSim.model)
     init_keys_pressure = init_keys(p_model, t_model)
 
     transfer_keys = JutulStorage()
@@ -309,10 +313,10 @@ function Jutul.perform_step!(
             end
             @. mob /= dt
         end
-        report[:transport] = report_t
-
     else
-        error("Pressure failure not implemented")
+        report[:failure] = true
+        report_t = missing
+        # error("Pressure failure not implemented")
     end
     report[:pressure] = report_p
     for k in [
@@ -326,6 +330,9 @@ function Jutul.perform_step!(
         ]
         v = 0
         for R in [report_p, report_t]
+            if ismissing(R)
+                continue
+            end
             for step in R[:steps]
                 if haskey(step, k)
                     v += step[k]
@@ -338,6 +345,9 @@ function Jutul.perform_step!(
     t_precond = 0.0
     precond_count = 0
     for R in [report_p, report_t]
+        if ismissing(R)
+            continue
+        end
         for step in R[:steps]
             lsol = get(step, :linear_solver, nothing)
             if !isnothing(lsol)
@@ -484,6 +494,9 @@ function Jutul.final_simulation_message(simulator::SequentialSimulator, p, rec, 
         for ministep in rep[:ministeps]
             for step in ministep[:steps]
                 for k in [:pressure, :transport]
+                    if !haskey(step, k)
+                        continue
+                    end
                     for sstep in step[k][:steps]
                         if haskey(sstep, :update)
                             stats[k][:iterations] += 1
