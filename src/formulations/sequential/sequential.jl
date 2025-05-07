@@ -254,8 +254,9 @@ function Jutul.perform_step!(
             Jutul.reset_state_to_previous_state!(tsim)
         end
 
-        vT = tsim.storage.state.TotalVolumetricFlux
-        store_total_fluxes!(vT, model_p, as_value(pstate))
+        vT = get_reservoir_state(tsim).TotalVolumetricFlux
+        pstate_res = get_reservoir_state(psim)
+        store_total_fluxes!(vT, reservoir_model(model_p), as_value(pstate_res))
         sequential_sync_values!(simulator, to_key = :transport)
         nsub = config[:transport_substeps]
         config_t = config[:transport]
