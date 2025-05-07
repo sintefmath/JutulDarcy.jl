@@ -89,10 +89,15 @@ function convert_to_sequential(model::MultiModel; pressure = true, kwarg...)
         end
     end
 
+    if isnothing(model.groups)
+        g = nothing
+    else
+        g = copy(model.groups)
+    end
     seqmodel = MultiModel(
         models,
         cross_terms = ct,
-        groups = copy(model.groups),
+        groups = g,
         context = model.context,
         reduction = model.reduction
         )
