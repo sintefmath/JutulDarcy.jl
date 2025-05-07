@@ -20,16 +20,23 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
     M = state[conserved]
     w = state.PressureReductionFactors
     # Compute ∇⋅V
-    disc = ceq.flow_discretization
-    flux(face) = Jutul.face_flux(face, ceq, state, model, Δt, disc, ldisc, Val(T_e))
-    div_v = ldisc.div(flux)
-    val = zero(eltype(eq_buf))
-    for i in eachindex(div_v)
-        ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, i, self_cell)
-        w_i = w[i, self_cell]
-        @inbounds val += w_i*(∂M∂t + div_v[i])
+    if false
+        disc = ceq.flow_discretization
+        flux(face) = Jutul.face_flux(face, ceq, state, model, Δt, disc, ldisc, Val(T_e))
+        div_v = ldisc.div(flux)
+        val = zero(eltype(eq_buf))
+        for i in eachindex(div_v)
+            ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, i, self_cell)
+            w_i = w[i, self_cell]
+            @inbounds val += w_i*(∂M∂t + div_v[i])
+        end
+    else
+        tmp = zeros(eltype(eq_buf), size(M, 1))
+        Jutul.update_equation_in_entity!(tmp, self_cell, state, state0, ceq, model, Δt, ldisc)
+        val = sum(w[:, self_cell].*tmp)
     end
-    error("Generic AD pressure equation is not yet functional")
+    @assert length(eq_buf) == 1
+    # error("Generic AD pressure equation is not yet functional")
     eq_buf[1] = val
 end
 
