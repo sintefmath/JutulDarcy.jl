@@ -1192,7 +1192,7 @@ function setup_reservoir_cross_terms!(model::MultiModel)
     has_thermal = haskey(rmodel.equations, :energy_conservation)
     conservation = :mass_conservation
     energy = :energy_conservation
-    handled_btes_cts = Vector{String}(undef, 0)
+    handled_closed_loops = Vector{String}(undef, 0)
     for (k, m) in pairs(model.models)
         if k == :Reservoir
             # These are set up from wells via symmetry
@@ -1226,21 +1226,21 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                     ct = ReservoirFromWellThermalCT(WIth, WI, rc, wc)
                     add_cross_term!(model, ct, target = :Reservoir, source = k, equation = energy)
                 end
-                is_btes = g isa MultiSegmentWell && 
+                is_closed_loop = g isa MultiSegmentWell && 
                     m.data_domain.representation.type == :closed_loop
-                if is_btes
+                if is_closed_loop
                     # TODO: Avoid hard-coded index for BTES bottom cell
                     name = string(k)
                     if !contains(name, "_supply")
                         continue
                     end
-                    btes_name = replace(name, "_supply" => "")
-                    if btes_name in handled_btes_cts
+                    cl_name = replace(name, "_supply" => "")
+                    if cl_name in handled_closed_loops
                         continue
                     end
 
-                    supply_well = Symbol(btes_name*"_supply")
-                    return_well = Symbol(btes_name*"_return")
+                    supply_well = Symbol(cl_name*"_supply")
+                    return_well = Symbol(cl_name*"_return")
                     supply_nodes = g.end_nodes
                     g_return = physical_representation(model.models[return_well])
                     return_nodes = g_return.end_nodes
@@ -1256,7 +1256,7 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                         add_cross_term!(model, ct_grout, target = return_well, source = supply_well, equation = energy)
                     end
                     
-                    push!(handled_btes_cts, btes_name)
+                    push!(handled_closed_loops, cl_name)
                 end
             end
         end
