@@ -200,6 +200,7 @@ function Jutul.perform_step!(
         end
         return model_state
     end
+    il = config[:info_level]
 
     psim = simulator.pressure
     pstate = psim.storage.state
@@ -244,7 +245,9 @@ function Jutul.perform_step!(
 
     @. mob_p = mob
     @. mob_prev = mob
-
+    if il > 1
+        jutul_message("Sequential it $iteration", "Solving pressure")
+    end
     done_p, report_p = Jutul.solve_ministep(psim, dt, forces, max_iter_p, config_p, finalize = false)
     if done_p
         # Copy over values for pressure and fluxes into parameters for second simulator
@@ -281,6 +284,9 @@ function Jutul.perform_step!(
         end
         report_t = nothing
         @. mob = 0
+        if il > 1
+            jutul_message("Sequential it $iteration", "Solving transport with $nsub substeps")
+        end
         if nsub == 1
             # Then transport
             done_t, report_t = Jutul.solve_ministep(tsim, dt, forces, max_iter_t, config_t)
@@ -317,7 +323,6 @@ function Jutul.perform_step!(
     else
         report[:failure] = true
         report_t = missing
-        # error("Pressure failure not implemented")
     end
     report[:pressure] = report_p
     for k in [
@@ -366,7 +371,11 @@ function Jutul.perform_step!(
     )
     # Return convergence criterion for outer loop if SFI
     sfi = config[:sfi]
-    if sfi
+    if !done_p
+        report[:failure_exception] = ErrorException("Pressure solve failed to converge.")
+        converged = false
+        err = Inf
+    elseif sfi
         tol_s = 1e-2
         tol_mob = 1e-2
         tol_mob = config[:mobility_tol]
