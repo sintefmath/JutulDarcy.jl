@@ -42,6 +42,13 @@ Base.@kwdef struct TotalSurfaceMassRate <: ScalarVariable
     max_relative_change::Union{Float64, Nothing} = nothing
 end
 
+Base.@kwdef struct SurfaceTemperature <: ScalarVariable
+    "Maximum absolute change betweeen two Newton updates (nominally K)"
+    max_absolute_change::Union{Float64, Nothing} = nothing
+    "Maximum relative change between two Newton updates."
+    max_relative_change::Union{Float64, Nothing} = nothing
+end
+
 function Jutul.absolute_increment_limit(q::TotalSurfaceMassRate)
     return q.max_absolute_change
 end
@@ -528,6 +535,10 @@ struct ControlEquationWell <: JutulEquation
     # Equation:
     #        q_t - target = 0
     #        p|top cell - target = 0
+end
+
+struct SurfaceTemperatureEquation <:JutulEquation
+    
 end
 
 struct WellSegmentFlow{C, T<:AbstractVector} <: Jutul.FlowDiscretization

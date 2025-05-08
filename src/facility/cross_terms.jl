@@ -410,3 +410,21 @@ function well_top_node_enthalpy(ctrl, model, state_well, cell)
     end
     return H_w
 end
+
+struct FacilityFromWellTemperatureCT <: Jutul.AdditiveCrossTerm
+    well::Symbol
+end
+
+Jutul.cross_term_entities(ct::FacilityFromWellTemperatureCT, eq::SurfaceTemperatureEquation, model) = get_well_position(model.domain, ct.well)
+
+function update_cross_term_in_entity!(out, i,
+    state_facility, state0_facility,
+    state_well, state0_well,
+    facility, well,
+    ct::FacilityFromWellTemperatureCT, eq, dt, ldisc = local_discretization(ct, i))
+
+    # pos = get_well_position(facility.domain, well_symbol)
+    T = state_well[:Temperature][well_top_node()]
+    out[] = T
+
+end
