@@ -11,6 +11,7 @@ function get_well_position(d, symbol)
 end
 
 function Jutul.associated_entity(::TotalSurfaceMassRate) Wells() end
+function Jutul.associated_entity(::SurfaceTemperature) Wells() end
 
 function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, state_symbol, model, dx, w)
     v = state[state_symbol]
@@ -72,9 +73,17 @@ function Jutul.update_equation_in_entity!(v, i, state, state0, eq::ControlEquati
     v[] = 0*state.TotalSurfaceMassRate[i]
 end
 
+Jutul.associated_entity(::SurfaceTemperatureEquation) = Wells()
+Jutul.local_discretization(::SurfaceTemperatureEquation, i) = nothing
+function Jutul.update_equation_in_entity!(v, i, state, state0, eq::SurfaceTemperatureEquation, model, dt, ldisc = local_discretization(eq, i))
+    v[] = state.SurfaceTemperature[i]
+end
+
+
 # Selection of primary variables
 function select_primary_variables!(S, domain::WellGroup, model)
     S[:TotalSurfaceMassRate] = TotalSurfaceMassRate()
+    S[:SurfaceTemperature] = SurfaceTemperature()
 end
 
 function select_primary_variables!(S, system::PredictionMode, model)
@@ -83,6 +92,7 @@ end
 
 function select_equations!(eqs, domain::WellGroup, model::SimulationModel)
     eqs[:control_equation] = ControlEquationWell()
+    eqs[:temperature_equation] = SurfaceTemperatureEquation()
 end
 
 function setup_forces(model::SimulationModel{D}; control = nothing, limits = nothing, set_default_limits = true) where {D <: WellGroup}

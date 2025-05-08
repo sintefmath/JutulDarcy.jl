@@ -1208,6 +1208,8 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                 if has_thermal
                     ct = WellFromFacilityThermalCT(target_well)
                     add_cross_term!(model, ct, target = target_well, source = k, equation = energy)
+                    ct = FacilityFromWellTemperatureCT(target_well)
+                    add_cross_term!(model, ct, target = k, source = target_well, equation = :temperature_equation)
                 end
             end
         else
