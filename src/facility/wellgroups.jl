@@ -76,9 +76,10 @@ end
 Jutul.associated_entity(::SurfaceTemperatureEquation) = Wells()
 Jutul.local_discretization(::SurfaceTemperatureEquation, i) = nothing
 function Jutul.update_equation_in_entity!(v, i, state, state0, eq::SurfaceTemperatureEquation, model, dt, ldisc = local_discretization(eq, i))
+    # Set equal to surface temperature. corresponding well temperatures will be
+    # subtracted using corss terms
     v[] = state.SurfaceTemperature[i]
 end
-
 
 # Selection of primary variables
 function select_primary_variables!(S, domain::WellGroup, model)
