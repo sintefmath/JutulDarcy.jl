@@ -423,8 +423,8 @@ function update_cross_term_in_entity!(out, i,
     facility, well,
     ct::FacilityFromWellTemperatureCT, eq, dt, ldisc = local_discretization(ct, i))
 
-    # pos = get_well_position(facility.domain, well_symbol)
-    T = state_well[:Temperature][well_top_node()]
-    out[] = T
-
+    pos = get_well_position(facility.domain, ct.well)
+    T = 0*state_facility[:SurfaceTemperature][pos]
+    T += state_well[:Temperature][well_top_node()]
+    out[1] = -T
 end
