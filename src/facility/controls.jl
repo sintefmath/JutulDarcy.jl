@@ -371,6 +371,11 @@ function well_target(control::ProducerControl, target::ReservoirVoidageTarget, w
     return w/ρ_tot
 end
 
+function well_target(control::InjectorControl, target::ReinjectionTarget, well_model, well_state, surface_densities, surface_volume_fractions)
+    w = 1.0/control.mixture_density
+    return w
+end
+
 function well_target_value(q_t, control, target, source_model, well_state, rhoS, S)
     v = well_target(control, target, source_model, well_state, rhoS, S)
     if rate_weighted(target)

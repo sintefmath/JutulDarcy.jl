@@ -302,6 +302,11 @@ struct ReservoirVoidageTarget{T, K} <: WellTarget where {T<:AbstractFloat, K<:Tu
     weights::K
 end
 
+struct ReinjectionTarget <: WellTarget
+    value::Float64
+    wells::Vector{Symbol}
+end
+
 """
     DisabledTarget(q)
 
@@ -326,6 +331,7 @@ as_limit(target) = NamedTuple([Pair(translate_target_to_symbol(target, shortname
 as_limit(T::DisabledTarget) = nothing
 as_limit(T::HistoricalReservoirVoidageTarget) = nothing
 as_limit(target::ReservoirVoidageTarget) = NamedTuple([Pair(translate_target_to_symbol(target, shortname = true), (target.value, target.weights))])
+as_limit(target::ReinjectionTarget) = NamedTuple([Pair(translate_target_to_symbol(target, shortname = true), (Inf))])
 
 """
     DisabledControl()
@@ -357,6 +363,26 @@ end
 function replace_target(f::DisabledControl, target)
     target::DisabledTarget
     return f
+end
+
+function update_contol!(control, target, state_facility, state_well, facility)
+    nothing
+end
+
+function update_control!(control, target::ReinjectionTarget, state_facility, state_well, facility)
+
+    a = 1
+    q = 0.0
+    qh = 0.0
+    @assert length(target.wells) == 1
+    for w in target.wells
+        pos = get_well_position(facility.domain, w)
+        q += state_facility.TotalSurfaceMassRate[pos]
+        qh += q.*state_facility.SurfaceTemperature[pos]
+    end
+    target.value = q
+    target.temperature = qh./q
+
 end
 
 """
