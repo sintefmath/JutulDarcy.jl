@@ -14,17 +14,14 @@ end
 end
 
 @inline function component_mass_fluxes!(q, face, state, model, flux_type, kgrad, upw)
-    phase_fluxes = darcy_phase_mass_fluxes(face, state, model, flux_type, kgrad, upw)
-    for ph in eachindex(phase_fluxes)
-        @inbounds q = setindex(q, phase_fluxes[ph], ph)
-    end
-    return q
+    return darcy_phase_mass_fluxes(face, state, model, flux_type, kgrad, upw)
 end
 
 @inline function darcy_phase_mass_fluxes(face, state, model, flux_type, kgrad, upw, phases = eachphase(model.system))
     dpot = darcy_permeability_potential_differences(face, state, model, flux_type, kgrad, upw, phases)
+    F(phase) = darcy_phase_mass_flux(face, phase, state, model, flux_type, kgrad, upw, dpot[phase])
     return map(
-        phase -> darcy_phase_mass_flux(face, phase, state, model, flux_type, kgrad, upw, dpot[phase]),
+        F,
         phases
     )
 end
