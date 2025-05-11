@@ -99,19 +99,21 @@ end
     return map(phase_pot, phases)
 end
 
-function effective_transmissibility(state, face, kgrad)
+@inline function effective_transmissibility(state, face, kgrad)
     @inbounds T_f = state.Transmissibilities[face]
     if haskey(state, :PermeabilityMultiplier)
         K_mul = state.PermeabilityMultiplier
-        m = face_average(c -> K_mul[c], kgrad)
+        m = face_average(c -> @inbounds K_mul[c], kgrad)
         T_f *= m
     end
     return T_f
 end
 
-function effective_gravity_difference(state, face, kgrad::TPFA)
+function effective_gravity_difference(state, face, kgrad)
     grav = state.TwoPointGravityDifference
-    @inbounds gΔz = kgrad.face_sign*grav[face]
+    face_sign(::Any) = 1
+    face_sign(x::TPFA) = x.face_sign
+    @inbounds gΔz = face_sign(kgrad)*grav[face]
     return gΔz
 end
 

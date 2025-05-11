@@ -6,35 +6,48 @@
 #     return nothing
 # end
 
-function darcy_phase_kgrad_potential(face, phase, state, model, flux_type, mpfa::D, upw, common = nothing) where {D<:Jutul.NFVM.NFVMDiscretization}
-    # gΔz = tpfa.face_sign*grav[face]
-    grav = state.TwoPointGravityDifference[face]
+function darcy_permeability_potential_differences(
+        face,
+        state,
+        model,
+        flux_type,
+        mpfa::D,
+        upw,
+        phases = eachphase(model.system)
+    ) where {D<:Jutul.NFVM.NFVMDiscretization}
     pc, ref_index = capillary_pressure(model, state)
     p = state.Pressure
-    if haskey(state, :PhasePotentials)
-        g = gravity_constant
+    if haskey(state, :PermeabilityMultiplier)
+        K_mul = state.PermeabilityMultiplier
+        m = face_average(c -> @inbounds K_mul[c], mpfa)
+    else
+        m = 1.0
+    end
+    if haskey(state, :PhasePotentials) && false
         pot = state.PhasePotentials
         dens = state.PhaseMassDensities
         z = state.AdjustedCellDepths
         # grad(p - rho g z) = grad(p) - grad(rho) g z - rho g grad(z)
         # -> grad(p) - rho g grad(z) = grad(p - rho g z) + grad(rho) g z
-        ∇pot = Jutul.NFVM.evaluate_flux(pot, mpfa, phase)
-        ∇rho = Jutul.NFVM.evaluate_flux(dens, mpfa, phase)
-
         l, r = Jutul.cell_pair(mpfa)
         z_avg = (z[l] + z[r])/2.0
-        q = -(∇pot + ∇rho*g*z_avg)
+
+        q = map(ph -> nfvm_potential_difference(pot, dens, z_avg, mpfa, ph, m), phases)
     else
         # If missing potential, just do everything here.
-        K∇p = Jutul.NFVM.evaluate_flux(p, mpfa, phase)
+        K∇p = Jutul.NFVM.evaluate_flux(p, mpfa, 1)
         q = -K∇p
+        return map(i -> q, phases)
     end
-    if haskey(state, :PermeabilityMultiplier)
-        K_mul = state.PermeabilityMultiplier
-        m = face_average(c -> K_mul[c], tpfa)
-        q *= m
-    end
+
     return q
+end
+
+function nfvm_potential_difference(pot, dens, z_avg, mpfa, phase, m = 1.0)
+    g = gravity_constant
+    ∇pot = Jutul.NFVM.evaluate_flux(pot, mpfa, phase)
+    ∇rho = Jutul.NFVM.evaluate_flux(dens, mpfa, phase)
+    return -m*(∇pot + ∇rho*g*z_avg)
 end
 
 @inline function JutulDarcy.gradient(X::AbstractVector, hf::Jutul.NFVM.NFVMDiscretization)
