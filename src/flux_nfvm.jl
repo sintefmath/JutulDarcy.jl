@@ -23,7 +23,7 @@ function darcy_permeability_potential_differences(
     else
         m = 1.0
     end
-    if haskey(state, :PhasePotentials) && false
+    if haskey(state, :PhasePotentials)
         pot = state.PhasePotentials
         dens = state.PhaseMassDensities
         z = state.AdjustedCellDepths
