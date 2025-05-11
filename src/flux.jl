@@ -22,8 +22,14 @@ end
     return q
 end
 
-@inline function darcy_phase_mass_flux(face, phase, state, model, flux_type, kgrad, upw, arg...)
-    Q = darcy_phase_kgrad_potential(face, phase, state, model, flux_type, kgrad, upw, arg...)
+@inline function darcy_phase_mass_fluxes(face, state, model, flux_type, kgrad, upw, phases = eachphase(model.system))
+    error()
+end
+
+@inline function darcy_phase_mass_flux(face, phase, state, model, flux_type, kgrad, upw, Q = missing)
+    if ismissing(Q)
+        Q = darcy_phase_kgrad_potential(face, phase, state, model, flux_type, kgrad, upw, phase)
+    end
     if haskey(state, :PhaseMassMobilities)
         ρλ = state.PhaseMassMobilities
         ρλ_f = phase_upwind(upw, ρλ, phase, Q)
@@ -36,34 +42,87 @@ end
     return ρλ_f*Q
 end
 
-@inline function kgrad_common(face, state, model, tpfa::TPFA)
+# @inline function kgrad_common(face, state, model, tpfa::TPFA)
+#     ∇p = pressure_gradient(state, tpfa)
+#     trans = state.Transmissibilities
+#     grav = state.TwoPointGravityDifference
+#     @inbounds T_f = trans[face]
+#     @inbounds gΔz = tpfa.face_sign*grav[face]
+#     return (∇p, T_f, gΔz)
+# end
+
+# @inline function flux_primitives(face, state, model, flux_type::Jutul.DefaultFlux, tpfa::TPFA, upw)
+#     return kgrad_common(face, state, model, tpfa)
+# end
+
+# @inline function darcy_phase_kgrad_potential(face, phase, state, model, flux_type, tpfa::TPFA{T}, upw, common = flux_primitives(face, state, model, flux_type, upw, tpfa)) where T
+#     error()
+#     pc, ref_index = capillary_pressure(model, state)
+#     ∇p, T_f, gΔz = common
+#     l = tpfa.left
+#     r = tpfa.right
+
+#     Δpc = capillary_gradient(pc, l, r, phase, ref_index)
+#     ρ_avg = face_average_density(model, state, tpfa, phase)
+#     if haskey(state, :PermeabilityMultiplier)
+#         K_mul = state.PermeabilityMultiplier
+#         m = face_average(c -> K_mul[c], tpfa)
+#         T_f *= m
+#     end
+#     q = -T_f*(∇p + Δpc + gΔz*ρ_avg)
+#     return q
+# end
+
+@inline function darcy_permeability_potential_differences(
+        face,
+        state,
+        model,
+        flux_type,
+        tpfa::TPFA{T},
+        upw,
+        phases = eachphase(model.system)
+    ) where T
     ∇p = pressure_gradient(state, tpfa)
     trans = state.Transmissibilities
     grav = state.TwoPointGravityDifference
     @inbounds T_f = trans[face]
-    @inbounds gΔz = tpfa.face_sign*grav[face]
-    return (∇p, T_f, gΔz)
-end
-
-@inline function flux_primitives(face, state, model, flux_type::Jutul.DefaultFlux, tpfa::TPFA, upw)
-    return kgrad_common(face, state, model, tpfa)
-end
-
-@inline function darcy_phase_kgrad_potential(face, phase, state, model, flux_type, tpfa::TPFA{T}, upw, common = flux_primitives(face, state, model, flux_type, upw, tpfa)) where T
-    pc, ref_index = capillary_pressure(model, state)
-    ∇p, T_f, gΔz = common
-    l = tpfa.left
-    r = tpfa.right
-
-    Δpc = capillary_gradient(pc, l, r, phase, ref_index)
-    ρ_avg = face_average_density(model, state, tpfa, phase)
     if haskey(state, :PermeabilityMultiplier)
         K_mul = state.PermeabilityMultiplier
         m = face_average(c -> K_mul[c], tpfa)
         T_f *= m
     end
-    q = -T_f*(∇p + Δpc + gΔz*ρ_avg)
-    return q
+    @inbounds gΔz = tpfa.face_sign*grav[face]
+    pc, ref_index = capillary_pressure(model, state)
+    l = tpfa.left
+    r = tpfa.right
+
+    @inline function phase_pot(phase)
+        Δpc = capillary_gradient(pc, l, r, phase, ref_index)
+        ρ_avg = face_average_density(model, state, tpfa, phase)
+        return -T_f*(∇p + Δpc + gΔz*ρ_avg)
+    end
+    return map(phase_pot, phases)
+end
+
+@inline function darcy_permeability_potential_difference(
+        face,
+        state,
+        model,
+        flux_type,
+        kgrad,
+        upw,
+        phase::Int
+    )
+    dpots = darcy_permeability_potential_differences(
+        face,
+        state,
+        model,
+        flux_type,
+        kgrad,
+        upw,
+        (phase, )
+    )
+    return dpots[1]
 end
 
 @inline function face_average_density(model, state, tpfa, phase)

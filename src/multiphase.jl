@@ -33,6 +33,14 @@ number_of_phases(::SinglePhaseSystem) = 1
 number_of_phases(sys::CompositeSystem) = number_of_phases(sys.systems.flow)
 
 """
+    eachphase(sys::MultiPhaseSystem)
+
+Get tuple of the phases (1,...,Nph). Convenient when you want statically
+known compile time iteration, for example by use of `map`.
+"""
+eachphase(sys::MultiPhaseSystem) = tuple(eachindex(sys.phases)...)
+
+"""
     AqueousPhase()
 
 `AbstractPhase` subtype for water-like phases.
