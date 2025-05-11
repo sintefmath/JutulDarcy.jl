@@ -39,6 +39,7 @@ Get tuple of the phases (1,...,Nph). Convenient when you want statically
 known compile time iteration, for example by use of `map`.
 """
 eachphase(sys::MultiPhaseSystem) = tuple(eachindex(sys.phases)...)
+eachphase(sys::SinglePhaseSystem) = (1,)
 
 """
     AqueousPhase()
