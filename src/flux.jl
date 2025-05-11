@@ -23,7 +23,7 @@ end
 end
 
 @inline function darcy_phase_mass_fluxes(face, state, model, flux_type, kgrad, upw, phases = eachphase(model.system))
-    error()
+    
 end
 
 @inline function darcy_phase_mass_flux(face, phase, state, model, flux_type, kgrad, upw, Q = missing)
@@ -78,11 +78,15 @@ end
         state,
         model,
         flux_type,
-        kgrad::TPFA,
+        kgrad,
         upw,
         phases = eachphase(model.system)
     )
-    T_f, ∇p, gΔz, pc, ref_index = darcy_potential_difference_primitives(model, state, kgrad, face)
+    T_f = effective_transmissibility(state, face, kgrad)
+    gΔz = effective_gravity_difference(state, face, kgrad)
+    pc, ref_index = capillary_pressure(model, state)
+
+    ∇p = pressure_gradient(state, kgrad)
 
     @inline function phase_pot(phase)
         Δpc = capillary_gradient(pc, kgrad, phase, ref_index)
@@ -92,19 +96,20 @@ end
     return map(phase_pot, phases)
 end
 
-function darcy_potential_difference_primitives(model, state, tpfa, face)
-    ∇p = pressure_gradient(state, tpfa)
-    trans = state.Transmissibilities
-    grav = state.TwoPointGravityDifference
-    @inbounds T_f = trans[face]
+function effective_transmissibility(state, face, kgrad)
+    @inbounds T_f = state.Transmissibilities[face]
     if haskey(state, :PermeabilityMultiplier)
         K_mul = state.PermeabilityMultiplier
-        m = face_average(c -> K_mul[c], tpfa)
+        m = face_average(c -> K_mul[c], kgrad)
         T_f *= m
     end
-    @inbounds gΔz = tpfa.face_sign*grav[face]
-    pc, ref_index = capillary_pressure(model, state)
-    return (T_f, ∇p, gΔz, pc, ref_index)
+    return T_f
+end
+
+function effective_gravity_difference(state, face, kgrad::TPFA)
+    grav = state.TwoPointGravityDifference
+    @inbounds gΔz = kgrad.face_sign*grav[face]
+    return gΔz
 end
 
 @inline function darcy_permeability_potential_difference(
