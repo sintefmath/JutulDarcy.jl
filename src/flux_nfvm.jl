@@ -17,29 +17,19 @@ function darcy_permeability_potential_differences(
     ) where {D<:Jutul.NFVM.NFVMDiscretization}
     pc, ref_index = capillary_pressure(model, state)
     p = state.Pressure
-    if haskey(state, :PermeabilityMultiplier)
-        K_mul = state.PermeabilityMultiplier
-        m = face_average(c -> @inbounds K_mul[c], mpfa)
-    else
-        m = 1.0
-    end
-    if haskey(state, :PhasePotentials)
-        pot = state.PhasePotentials
-        dens = state.PhaseMassDensities
-        z = state.AdjustedCellDepths
-        # grad(p - rho g z) = grad(p) - grad(rho) g z - rho g grad(z)
-        # -> grad(p) - rho g grad(z) = grad(p - rho g z) + grad(rho) g z
-        l, r = Jutul.cell_pair(mpfa)
-        z_avg = (z[l] + z[r])/2.0
-
-        q = map(ph -> nfvm_potential_difference(pot, dens, z_avg, mpfa, ph, m), phases)
-    else
-        # If missing potential, just do everything here.
-        K∇p = Jutul.NFVM.evaluate_flux(p, mpfa, 1)
-        q = -K∇p
-        return map(i -> q, phases)
-    end
-
+    # if haskey(state, :PermeabilityMultiplier)
+    #     K_mul = state.PermeabilityMultiplier
+    #     m = face_average(c -> @inbounds K_mul[c], mpfa)
+    # end
+    m = 1.0
+    pot = state.PhasePotentials
+    dens = state.PhaseMassDensities
+    z = state.AdjustedCellDepths
+    # grad(p - rho g z) = grad(p) - grad(rho) g z - rho g grad(z)
+    # -> grad(p) - rho g grad(z) = grad(p - rho g z) + grad(rho) g z
+    l, r = Jutul.cell_pair(mpfa)
+    z_avg = (z[l] + z[r])/2.0
+    q = map(ph -> nfvm_potential_difference(pot, dens, z_avg, mpfa, ph, m), phases)
     return q
 end
 
