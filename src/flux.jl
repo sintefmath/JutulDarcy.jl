@@ -14,16 +14,19 @@ end
 end
 
 @inline function component_mass_fluxes!(q, face, state, model, flux_type, kgrad, upw)
-    disc = flux_primitives(face, state, model, flux_type, kgrad, upw)
-    for ph in eachindex(q)
-        q_i = darcy_phase_mass_flux(face, ph, state, model, flux_type, kgrad, upw, disc)
-        @inbounds q = setindex(q, q_i, ph)
+    phase_fluxes = darcy_phase_mass_fluxes(face, state, model, flux_type, kgrad, upw)
+    for ph in eachindex(phase_fluxes)
+        @inbounds q = setindex(q, phase_fluxes[ph], ph)
     end
     return q
 end
 
 @inline function darcy_phase_mass_fluxes(face, state, model, flux_type, kgrad, upw, phases = eachphase(model.system))
-    
+    dpot = darcy_permeability_potential_differences(face, state, model, flux_type, kgrad, upw, phases)
+    return map(
+        phase -> darcy_phase_mass_flux(face, phase, state, model, flux_type, kgrad, upw, dpot[phase]),
+        phases
+    )
 end
 
 @inline function darcy_phase_mass_flux(face, phase, state, model, flux_type, kgrad, upw, Q = missing)
@@ -36,7 +39,7 @@ end
     else
         rho = state.PhaseMassDensities
         λ = state.PhaseMobilities
-        F = cell -> λ[phase, cell]*rho[phase, cell]
+        F = cell -> @inbounds λ[phase, cell]*rho[phase, cell]
         ρλ_f = upwind(upw, F, Q)
     end
     return ρλ_f*Q
