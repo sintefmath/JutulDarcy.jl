@@ -78,10 +78,21 @@ end
         state,
         model,
         flux_type,
-        tpfa::TPFA{T},
+        kgrad::TPFA,
         upw,
         phases = eachphase(model.system)
-    ) where T
+    )
+    T_f, ∇p, gΔz, pc, ref_index = darcy_potential_difference_primitives(model, state, kgrad, face)
+
+    @inline function phase_pot(phase)
+        Δpc = capillary_gradient(pc, kgrad, phase, ref_index)
+        ρ_avg = face_average_density(model, state, kgrad, phase)
+        return -T_f*(∇p + Δpc + gΔz*ρ_avg)
+    end
+    return map(phase_pot, phases)
+end
+
+function darcy_potential_difference_primitives(model, state, tpfa, face)
     ∇p = pressure_gradient(state, tpfa)
     trans = state.Transmissibilities
     grav = state.TwoPointGravityDifference
@@ -93,15 +104,7 @@ end
     end
     @inbounds gΔz = tpfa.face_sign*grav[face]
     pc, ref_index = capillary_pressure(model, state)
-    l = tpfa.left
-    r = tpfa.right
-
-    @inline function phase_pot(phase)
-        Δpc = capillary_gradient(pc, l, r, phase, ref_index)
-        ρ_avg = face_average_density(model, state, tpfa, phase)
-        return -T_f*(∇p + Δpc + gΔz*ρ_avg)
-    end
-    return map(phase_pot, phases)
+    return (T_f, ∇p, gΔz, pc, ref_index)
 end
 
 @inline function darcy_permeability_potential_difference(
@@ -125,14 +128,12 @@ end
     return dpots[1]
 end
 
-@inline function face_average_density(model, state, tpfa, phase)
-    ρ = state.PhaseMassDensities
+@inline function face_average_density(model, state, tpfa, phase, ρ = state.PhaseMassDensities)
     return phase_face_average(ρ, tpfa, phase)
 end
 
-@inline function face_average_density(model::CompositionalModel, state, tpfa, phase)
+@inline function face_average_density(model::CompositionalModel, state, tpfa, phase, ρ = state.PhaseMassDensities)
     sys = flow_system(model.system)
-    ρ = state.PhaseMassDensities
     l = tpfa.left
     r = tpfa.right
     @inbounds ρ_l = ρ[phase, l]
@@ -212,7 +213,14 @@ end
     return Jutul.WENO.weno_upwind(upw, F, q)
 end
 
-@inline capillary_gradient(::Nothing, c_l, c_r, ph, ph_ref) = 0.0
+@inline function capillary_gradient(pc, tpfa::TPFA, ph, ph_ref)
+    return capillary_gradient(pc, tpfa.left, tpfa.right, ph, ph_ref)
+end
+
+@inline function capillary_gradient(::Nothing, c_l, c_r, ph, ph_ref)
+    return 0.0
+end
+
 @inline function capillary_gradient(pc, c_l, c_r, ph, ph_ref)
     if ph == ph_ref
         Δp_c = zero(eltype(pc))
