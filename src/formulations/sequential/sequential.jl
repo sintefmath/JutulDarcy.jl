@@ -66,7 +66,6 @@ module Sequential
         setup_state,
         setup_state_and_parameters,
         local_discretization,
-        darcy_permeability_potential_differences,
         value,
         as_value,
         cell_pair,
