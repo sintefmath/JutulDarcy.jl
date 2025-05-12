@@ -49,6 +49,25 @@ end
     return ρλ_f*Q
 end
 
+@inline function darcy_phase_volume_fluxes(face, state, model, flux_type, kgrad, upw, phases = eachphase(model.system))
+    dpot = darcy_permeability_potential_differences(face, state, model, flux_type, kgrad, upw, phases)
+    F(phase) = darcy_phase_volume_flux(face, phase, state, model, flux_type, kgrad, upw, dpot[phase])
+    return map(
+        F,
+        phases
+    )
+end
+
+@inline function darcy_phase_volume_flux(face, phase, state, model, flux_type, kgrad, upw, Q = missing)
+    if ismissing(Q)
+        Q = darcy_phase_kgrad_potential(face, phase, state, model, flux_type, kgrad, upw, phase)
+    end
+    λ = state.PhaseMobilities
+    F = cell -> @inbounds λ[phase, cell]
+    ρλ_f = upwind(upw, F, Q)
+    return ρλ_f*Q
+end
+
 # @inline function kgrad_common(face, state, model, tpfa::TPFA)
 #     ∇p = pressure_gradient(state, tpfa)
 #     trans = state.Transmissibilities
