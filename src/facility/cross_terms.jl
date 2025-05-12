@@ -155,6 +155,7 @@ function update_cross_term_in_entity!(out, i,
     ctrl = operating_control(cfg, well_symbol)
 
     target = ctrl.target
+    update_target!(target, state_facility, state_well, facility)
     q_t = facility_surface_mass_rate_for_well(
         facility,
         well_symbol,
@@ -373,14 +374,31 @@ function update_cross_term_in_entity!(out, i,
     qT += 0*bottom_hole_pressure(state_well)
 
     cell = well_top_node()
-    H = well_top_node_enthalpy(ctrl, well, state_well, cell)
+
+    T = get_target_temperature(ctrl, ctrl.target, facility, state_facility)
+    H = well_top_node_enthalpy(ctrl, well, state_well, T, cell)
     out[] = -qT*H
 end
 
-function well_top_node_enthalpy(ctrl::InjectorControl, model, state_well, cell)
+function get_target_temperature(ctrl, target, facility, state_facility)
+    return missing
+end
+
+function get_target_temperature(ctrl::InjectorControl, target, facility, state_facility)
+    return ctrl.temperature
+end
+
+function get_target_temperature(ctrl::InjectorControl, target::ReinjectionTarget, facility, state_facility)
+    source_well = target.wells[1]
+    pos = get_well_position(facility.domain, source_well)
+    T = state_facility.SurfaceTemperature[pos]
+    return T
+end
+
+function well_top_node_enthalpy(ctrl::InjectorControl, model, state_well, T, cell)
     p = state_well.Pressure[cell]
     # density = ctrl.mixture_density
-    T = ctrl.temperature
+    # T = ctrl.temperature
     H_w = ctrl.enthalpy
     if ismissing(H_w)
         H = 0.0
@@ -401,7 +419,7 @@ function well_top_node_enthalpy(ctrl::InjectorControl, model, state_well, cell)
     return H
 end
 
-function well_top_node_enthalpy(ctrl, model, state_well, cell)
+function well_top_node_enthalpy(ctrl, model, state_well, T, cell)
     H = state_well.FluidEnthalpy
     S = state_well.Saturations
     H_w = 0.0
