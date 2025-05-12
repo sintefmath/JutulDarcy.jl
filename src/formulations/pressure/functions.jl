@@ -35,9 +35,6 @@ function store_phase_fluxes!(v_phases, model, state)
 
     @assert size(v_phases, 1) == nph
     @assert size(v_phases, 2) == size(N, 2)
-
-    μ = state.PhaseViscosities
-    kr = state.RelativePermeabilities
     for face in axes(v_phases, 2)
         l = N[1, face]
         r = N[2, face]
