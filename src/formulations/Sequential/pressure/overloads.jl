@@ -76,7 +76,7 @@ function pressure_update_half_face_flux!(eq_s::PressureEquationTPFAStorage, eq_p
     pressure_update_half_face_flux_tpfa!(flux_c, zero_flux, eq_p, state_c, w, model, dt, flow_disc, Cells())
 end
 
-function pressure_update_half_face_flux_tpfa!(hf_cells, zero_flux::SVector{N, T}, eq, state::S, w, model, dt, flow_disc, ::Cells) where {T, N, S<:Jutul.LocalStateAD}
+function pressure_update_half_face_flux_tpfa!(hf_cells, zero_flux::SVector{N, T}, eq, state::S, w, model, dt, flow_disc, ::Cells) where {T, N, S<:LocalStateAD}
     conn_data = flow_disc.conn_data
     conn_pos = flow_disc.conn_pos
     M = global_map(model.domain)

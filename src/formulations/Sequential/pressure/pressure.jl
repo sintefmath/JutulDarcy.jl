@@ -1,4 +1,4 @@
-struct PressureFormulation <: Jutul.JutulFormulation
+struct PressureFormulation <: JutulFormulation
 
 end
 
