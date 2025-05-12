@@ -28,7 +28,7 @@ end
         upw,
         phases = eachphase(model.system)
     )
-    # error()
+    error()
     T_f = effective_transmissibility(state, face, kgrad)
     gΔz = effective_gravity_difference(state, face, kgrad)
     pc, ref_index = capillary_pressure(model, state)
