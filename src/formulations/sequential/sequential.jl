@@ -1,5 +1,7 @@
 module Sequential
     import Jutul
+    import JutulDarcy
+
     import JutulDarcy:
         MultiPhaseSystem,
         SourceTerm,
@@ -19,6 +21,11 @@ module Sequential
         darcy_phase_volume_fluxes,
         cross_term_perforation_get_conn,
         multisegment_well_perforation_flux!,
+        effective_transmissibility,
+        effective_gravity_difference,
+        face_average_density,
+        capillary_pressure,
+        capillary_gradient,
         model_or_domain_is_well
 
     import Jutul:
@@ -59,8 +66,10 @@ module Sequential
         setup_state,
         setup_state_and_parameters,
         local_discretization,
+        darcy_permeability_potential_differences,
         value,
         as_value,
+        cell_pair,
         update_values!,
         jutul_message
 
