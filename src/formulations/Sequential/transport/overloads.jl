@@ -19,7 +19,7 @@ function Jutul.select_equations!(eqs, ::TransportFormulation, model::TransportMo
     eqs[lbl] = ConservationLaw(eq.flow_discretization, s, N, flux = TotalSaturationFlux())
 end
 
-@inline function darcy_permeability_potential_differences(
+@inline function JutulDarcy.darcy_permeability_potential_differences(
         face,
         state,
         model,
@@ -28,21 +28,63 @@ end
         upw,
         phases = eachphase(model.system)
     )
-    error()
+    V_t = kgrad.face_sign*state.TotalVolumetricFlux[face]
+    N = length(phases)
+    @assert N == number_of_phases(model.system)
+    l, r = Jutul.cell_pair(upw)
+
+    left_mob = map(phase -> state.PhaseMobilities[phase, l], phases)
+    right_mob = map(phase -> state.PhaseMobilities[phase, r], phases)
+
     T_f = effective_transmissibility(state, face, kgrad)
     gΔz = effective_gravity_difference(state, face, kgrad)
     pc, ref_index = capillary_pressure(model, state)
 
-    ∇p = pressure_gradient(state, kgrad)
-
-    @inline function phase_pot(phase)
+    @inline function bouyancy_and_capillary_term(phase)
         Δpc = capillary_gradient(pc, kgrad, phase, ref_index)
         ρ_avg = face_average_density(model, state, kgrad, phase)
-        return -T_f*(∇p + Δpc + gΔz*ρ_avg)
+        return -(gΔz*ρ_avg + Δpc)
+        # return -T_f*(∇p + Δpc + gΔz*ρ_avg)
     end
-    return map(phase_pot, phases)
+
+    G = map(bouyancy_and_capillary_term, phases)
+    flags = phase_potential_upwind_fixed_flux(V_t, T_f, G, left_mob, right_mob)
+    mob = simple_upwind(left_mob, right_mob, flags)
+    mobT = sum(mob)
+
+    if N == 2
+        G_1, G_2 = G
+        mob_1, mob_2 = mob
+
+        q_1 = mob_1/mobT*(V_t + T_f*(G_1 - G_2)*mob_2)
+        q_2 = mob_2/mobT*(V_t + T_f*(G_2 - G_1)*mob_1)
+        phase_fluxes = (q_1, q_2)
+    else
+        @assert N == 3
+    end
+
+    # ∇p = pressure_gradient(state, kgrad)
+
+    # @inline function phase_pot(phase)
+    #     Δpc = capillary_gradient(pc, kgrad, phase, ref_index)
+    #     ρ_avg = face_average_density(model, state, kgrad, phase)
+    #     return -T_f*(∇p + Δpc + gΔz*ρ_avg)
+    # end
+    return phase_fluxes
 end
 
+function simple_upwind(l, r, flag::Bool)
+    if flag
+        v = r
+    else
+        v = l
+    end
+    return v
+end
+
+function simple_upwind(l::NTuple, r::NTuple, flag::NTuple)
+    return map(simple_upwind, l, r, flag)
+end
 
 # @inline function flux_primitives(face, state, model, flux_type::TotalSaturationFlux, tpfa::TPFA, upw)
 #     trans = state.Transmissibilities

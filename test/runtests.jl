@@ -72,6 +72,10 @@ end
     include("discretizations.jl")
 end
 
+@testitem "Sequential schemes" begin
+    include("sequential.jl")
+end
+
 @testitem "GPU" begin
     include("gpu.jl")
 end
