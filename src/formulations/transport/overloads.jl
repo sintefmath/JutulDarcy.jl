@@ -19,42 +19,67 @@ function Jutul.select_equations!(eqs, ::TransportFormulation, model::TransportMo
     eqs[lbl] = ConservationLaw(eq.flow_discretization, s, N, flux = TotalSaturationFlux())
 end
 
-@inline function flux_primitives(face, state, model, flux_type::TotalSaturationFlux, tpfa::TPFA, upw)
-    trans = state.Transmissibilities
-    grav = state.TwoPointGravityDifference
-    kr = state.RelativePermeabilities
-    mu = state.PhaseViscosities
-
-    @inbounds T_f = trans[face]
-    @inbounds gΔz = tpfa.face_sign*grav[face]
-    V_t = tpfa.face_sign*state.TotalVolumetricFlux[face]
-
-    ix = phase_indices(model.system)
-    l = upw.left
-    r = upw.right
-    c = upwind_cell(V_t, l, r)
-    λ = map(ph -> kr[ph, c]/mu[ph, c], ix)
-    λ_t = sum(λ)
-
-    # TODO: Phase upwind and fractional flow here
-    return (q = V_t/λ_t, T = T_f, gdz = gΔz, V_t = V_t, λ = λ)
-end
-
-@inline function darcy_phase_kgrad_potential(face, phase, state, model, flux_type::TotalSaturationFlux, tpfa::TPFA{T}, upw, common = flux_primitives(face, state, model, flux_type, upw, tpfa)) where T
-    ρ = state.PhaseMassDensities
-    pc, ref_index = capillary_pressure(model, state)
-    V_t, T_f, gΔz = common
-
-    l = tpfa.left
-    r = tpfa.right
-    pc::Nothing
-    @assert gΔz == 0
-    # Δpc = capillary_gradient(pc, l, r, phase, ref_index)
-    # @inbounds ρ_c = ρ[phase, l]
-    # @inbounds ρ_i = ρ[phase, r]
-    ## ρ_avg = 0.5*(ρ_i + ρ_c)
-    # q = -T_f*(∇p + Δpc + gΔz*ρ_avg)
+@inline function darcy_permeability_potential_differences(
+        face,
+        state,
+        model,
+        flux_type::TotalSaturationFlux,
+        kgrad::TPFA,
+        upw,
+        phases = eachphase(model.system)
+    )
     # error()
-    q = V_t
-    return q
+    T_f = effective_transmissibility(state, face, kgrad)
+    gΔz = effective_gravity_difference(state, face, kgrad)
+    pc, ref_index = capillary_pressure(model, state)
+
+    ∇p = pressure_gradient(state, kgrad)
+
+    @inline function phase_pot(phase)
+        Δpc = capillary_gradient(pc, kgrad, phase, ref_index)
+        ρ_avg = face_average_density(model, state, kgrad, phase)
+        return -T_f*(∇p + Δpc + gΔz*ρ_avg)
+    end
+    return map(phase_pot, phases)
 end
+
+
+# @inline function flux_primitives(face, state, model, flux_type::TotalSaturationFlux, tpfa::TPFA, upw)
+#     trans = state.Transmissibilities
+#     grav = state.TwoPointGravityDifference
+#     kr = state.RelativePermeabilities
+#     mu = state.PhaseViscosities
+
+#     @inbounds T_f = trans[face]
+#     @inbounds gΔz = tpfa.face_sign*grav[face]
+#     V_t = tpfa.face_sign*state.TotalVolumetricFlux[face]
+
+#     ix = phase_indices(model.system)
+#     l = upw.left
+#     r = upw.right
+#     c = upwind_cell(V_t, l, r)
+#     λ = map(ph -> kr[ph, c]/mu[ph, c], ix)
+#     λ_t = sum(λ)
+
+#     # TODO: Phase upwind and fractional flow here
+#     return (q = V_t/λ_t, T = T_f, gdz = gΔz, V_t = V_t, λ = λ)
+# end
+
+# @inline function darcy_phase_kgrad_potential(face, phase, state, model, flux_type::TotalSaturationFlux, tpfa::TPFA{T}, upw, common = flux_primitives(face, state, model, flux_type, upw, tpfa)) where T
+#     ρ = state.PhaseMassDensities
+#     pc, ref_index = capillary_pressure(model, state)
+#     V_t, T_f, gΔz = common
+
+#     l = tpfa.left
+#     r = tpfa.right
+#     pc::Nothing
+#     @assert gΔz == 0
+#     # Δpc = capillary_gradient(pc, l, r, phase, ref_index)
+#     # @inbounds ρ_c = ρ[phase, l]
+#     # @inbounds ρ_i = ρ[phase, r]
+#     ## ρ_avg = 0.5*(ρ_i + ρ_c)
+#     # q = -T_f*(∇p + Δpc + gΔz*ρ_avg)
+#     # error()
+#     q = V_t
+#     return q
+# end
