@@ -44,13 +44,13 @@ function Jutul.update_secondary_variable!(w, var::PressureReductionFactors, mode
         pv = state.FluidVolume[cell]
         if has_water
             denw = rho[phase_ix.a, cell]
-            w[phase_ix.a, cell] = 1.0/(pv*denw)
+            w[phase_ix.a, cell] = 1.0/denw
         end
         bO = bfactors[phase_ix.l, cell]
         bG = bfactors[phase_ix.v, cell]
         w_o, w_g = blackoil_true_impes_og!(cellval(Rs, cell), cellval(Rv, cell), bO, bG, rhoOS, rhoGS)
-        w[phase_ix.l, cell] = w_o/pv
-        w[phase_ix.v, cell] = w_g/pv
+        w[phase_ix.l, cell] = w_o
+        w[phase_ix.v, cell] = w_g
     end
     return w
 end

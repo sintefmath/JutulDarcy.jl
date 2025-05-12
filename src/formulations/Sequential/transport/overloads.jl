@@ -26,7 +26,7 @@ end
         flux_type::TotalSaturationFlux,
         kgrad::TPFA,
         upw,
-        phases = eachphase(model.system)
+        phases = JutulDarcy.eachphase(model.system)
     )
     V_t = kgrad.face_sign*state.TotalVolumetricFlux[face]
     N = length(phases)
@@ -61,6 +61,13 @@ end
         phase_potential_differences = (dpot_1, dpot_2)
     else
         @assert N == 3
+        G_1, G_2, G_3 = G
+        mob_1, mob_2, mob_3 = mob
+
+        dpot_1 = 1.0/mobT*(V_t + T_f*(G_1 - G_2)*mob_2 + T_f*(G_1 - G_3)*mob_3)
+        dpot_2 = 1.0/mobT*(V_t + T_f*(G_2 - G_1)*mob_1 + T_f*(G_2 - G_3)*mob_3)
+        dpot_3 = 1.0/mobT*(V_t + T_f*(G_3 - G_1)*mob_1 + T_f*(G_3 - G_2)*mob_2)
+        phase_potential_differences = (dpot_1, dpot_2, dpot_3)
     end
 
     # ∇p = pressure_gradient(state, kgrad)
