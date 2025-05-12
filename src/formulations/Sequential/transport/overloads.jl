@@ -56,9 +56,9 @@ end
         G_1, G_2 = G
         mob_1, mob_2 = mob
 
-        q_1 = mob_1/mobT*(V_t + T_f*(G_1 - G_2)*mob_2)
-        q_2 = mob_2/mobT*(V_t + T_f*(G_2 - G_1)*mob_1)
-        phase_fluxes = (q_1, q_2)
+        dpot_1 = 1.0/mobT*(V_t + T_f*(G_1 - G_2)*mob_2)
+        dpot_2 = 1.0/mobT*(V_t + T_f*(G_2 - G_1)*mob_1)
+        phase_potential_differences = (dpot_1, dpot_2)
     else
         @assert N == 3
     end
@@ -70,7 +70,7 @@ end
     #     ρ_avg = face_average_density(model, state, kgrad, phase)
     #     return -T_f*(∇p + Δpc + gΔz*ρ_avg)
     # end
-    return phase_fluxes
+    return phase_potential_differences
 end
 
 function simple_upwind(l, r, flag::Bool)
