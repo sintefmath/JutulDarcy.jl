@@ -303,7 +303,7 @@ struct ReservoirVoidageTarget{T, K} <: WellTarget where {T<:AbstractFloat, K<:Tu
 end
 
 struct ReinjectionTarget <: WellTarget
-    value::Float64
+    value::Union{Float64, ForwardDiff.Dual}
     wells::Vector{Symbol}
 end
 
@@ -365,23 +365,19 @@ function replace_target(f::DisabledControl, target)
     return f
 end
 
-function update_contol!(control, target, state_facility, state_well, facility)
+function update_target!(target, state_facility, state_well, facility)
     nothing
 end
 
-function update_control!(control, target::ReinjectionTarget, state_facility, state_well, facility)
+function update_target!(target::ReinjectionTarget, state_facility, state_well, facility)
 
-    a = 1
     q = 0.0
-    qh = 0.0
     @assert length(target.wells) == 1
     for w in target.wells
         pos = get_well_position(facility.domain, w)
         q += state_facility.TotalSurfaceMassRate[pos]
-        qh += q.*state_facility.SurfaceTemperature[pos]
     end
     target.value = q
-    target.temperature = qh./q
 
 end
 
