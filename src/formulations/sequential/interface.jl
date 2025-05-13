@@ -2,7 +2,8 @@
 function convert_to_sequential(model; avg_mobility = false, pressure = true)
     if pressure
         f = PressureFormulation()
-        ctx = ParallelCSRContext(matrix_layout = EquationMajorLayout())
+        T_ctx = typeof(model.context)
+        ctx = T_ctx(matrix_layout = EquationMajorLayout())
     else
         f = TransportFormulation()
         ctx = model.context
@@ -96,7 +97,6 @@ function convert_to_sequential(model::MultiModel; pressure = true, kwarg...)
     else
         g = copy(model.groups)
     end
-    @info g
     seqmodel = MultiModel(
         models,
         cross_terms = ct,
