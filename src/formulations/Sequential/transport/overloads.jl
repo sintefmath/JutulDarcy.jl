@@ -61,9 +61,9 @@ end
 
 function simple_upwind(l, r, flag::Bool)
     if flag
-        v = r
-    else
         v = l
+    else
+        v = r
     end
     return v
 end
