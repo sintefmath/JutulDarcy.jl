@@ -155,7 +155,7 @@ function update_cross_term_in_entity!(out, i,
     ctrl = operating_control(cfg, well_symbol)
 
     target = ctrl.target
-    update_target!(target, state_facility, state_well, facility)
+    update_target!(ctrl, target, state_facility, state_well, facility)
     q_t = facility_surface_mass_rate_for_well(
         facility,
         well_symbol,
@@ -389,9 +389,20 @@ function get_target_temperature(ctrl::InjectorControl, target, facility, state_f
 end
 
 function get_target_temperature(ctrl::InjectorControl, target::ReinjectionTarget, facility, state_facility)
-    source_well = target.wells[1]
-    pos = get_well_position(facility.domain, source_well)
-    T = state_facility.SurfaceTemperature[pos]
+
+    # TODO: This currently assumes constant fluid heat capacity and equal
+    # pressures. Should ideally be replaced by enthalpy, which requires
+    # FluidEnthaly to be a Facility variable
+    q, qh = 0.0, 0.0
+    for w in target.wells
+        pos = get_well_position(facility.domain, w)
+        qw = state_facility.TotalSurfaceMassRate[pos]
+        Tw = state_facility.SurfaceTemperature[pos]
+        q += qw
+        qh += qw.*Tw
+    end
+    T = qh./q
+
     return T
 end
 
