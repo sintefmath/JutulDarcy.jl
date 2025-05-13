@@ -302,7 +302,7 @@ struct ReservoirVoidageTarget{T, K} <: WellTarget where {T<:AbstractFloat, K<:Tu
     weights::K
 end
 
-struct ReinjectionTarget <: WellTarget
+mutable struct ReinjectionTarget <: WellTarget
     value::Union{Float64, ForwardDiff.Dual}
     wells::Vector{Symbol}
 end
@@ -365,19 +365,21 @@ function replace_target(f::DisabledControl, target)
     return f
 end
 
-function update_target!(target, state_facility, state_well, facility)
+function update_target!(ctrl, target, state_facility, state_well, facility)
     nothing
 end
 
-function update_target!(target::ReinjectionTarget, state_facility, state_well, facility)
+function update_target!(ctrl, target::ReinjectionTarget, state_facility, state_well, facility)
 
     q = 0.0
-    @assert length(target.wells) == 1
     for w in target.wells
         pos = get_well_position(facility.domain, w)
-        q += state_facility.TotalSurfaceMassRate[pos]
+        qw = state_facility.TotalSurfaceMassRate[pos]
+        @assert qw <= 0.0
+        q -= qw
     end
-    target.value = q
+    ρ = ctrl.mixture_density
+    target.value = q./ρ
 
 end
 
