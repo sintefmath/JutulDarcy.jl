@@ -47,10 +47,9 @@ function phase_potential_r_index(thetas...)
 end
 
 function phase_potential_upwind_fixed_flux(q, K, g::NTuple{N, T}, k_l::NTuple{N, V}, k_r::NTuple{N, V}, debug::Bool = false) where {T, N, V}
-    debug = false
-    # debug = true
     if N == 1
-        flags = q < zero(q)
+        flag = q < zero(q)
+        flags = (q,)
     else
         vals = q .+ K.*g
         indices = sort_tuple(vals)
@@ -88,4 +87,29 @@ function phase_potential_upwind_fixed_flux(q, K, g::NTuple{N, T}, k_l::NTuple{N,
         flags = indices .<= r
     end
     return flags
+end
+
+function phase_potential_upwind_potential_differences(V_t, T_f, G::NTuple{N, T}, left_mob, right_mob) where {N, T}
+    flags = phase_potential_upwind_fixed_flux(V_t, T_f, G, left_mob, right_mob)
+    mob = simple_upwind(left_mob, right_mob, flags)
+    mobT = sum(mob)
+
+    if N == 2
+        G_1, G_2 = G
+        mob_1, mob_2 = mob
+
+        dpot_1 = 1.0/mobT*(V_t + T_f*(G_1 - G_2)*mob_2)
+        dpot_2 = 1.0/mobT*(V_t + T_f*(G_2 - G_1)*mob_1)
+        phase_potential_differences = (dpot_1, dpot_2)
+    else
+        @assert N == 3
+        G_1, G_2, G_3 = G
+        mob_1, mob_2, mob_3 = mob
+
+        dpot_1 = 1.0/mobT*(V_t + T_f*(G_1 - G_2)*mob_2 + T_f*(G_1 - G_3)*mob_3)
+        dpot_2 = 1.0/mobT*(V_t + T_f*(G_2 - G_1)*mob_1 + T_f*(G_2 - G_3)*mob_3)
+        dpot_3 = 1.0/mobT*(V_t + T_f*(G_3 - G_1)*mob_1 + T_f*(G_3 - G_2)*mob_2)
+        phase_potential_differences = (dpot_1, dpot_2, dpot_3)
+    end
+    return phase_potential_differences
 end
