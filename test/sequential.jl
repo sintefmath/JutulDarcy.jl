@@ -1,5 +1,9 @@
 
-import JutulDarcy.Sequential: phase_potential_r_index, phase_potential_upwind_fixed_flux, sort_tuple
+import JutulDarcy.Sequential:
+    phase_potential_r_index,
+    phase_potential_upwind_fixed_flux,
+    phase_potential_upwind_potential_differences,
+    sort_tuple
 using Test
 @testset "sequential_upwind" begin
     @testset "sort_tuple" begin
@@ -49,6 +53,10 @@ using Test
             end
             push!(vals, val)
         end
+        vals2 = phase_potential_upwind_potential_differences(q, K, g_ph, mob_l, mob_r)
+
+        vals = vals2
+        # @test vals == vals2
         for (i, val) in enumerate(vals)
             if val > 0
                 @test flags[i] == false

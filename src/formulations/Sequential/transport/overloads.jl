@@ -48,27 +48,6 @@ end
     end
 
     G = map(bouyancy_and_capillary_term, phases)
-    flags = phase_potential_upwind_fixed_flux(V_t, T_f, G, left_mob, right_mob)
-    mob = simple_upwind(left_mob, right_mob, flags)
-    mobT = sum(mob)
-
-    if N == 2
-        G_1, G_2 = G
-        mob_1, mob_2 = mob
-
-        dpot_1 = 1.0/mobT*(V_t + T_f*(G_1 - G_2)*mob_2)
-        dpot_2 = 1.0/mobT*(V_t + T_f*(G_2 - G_1)*mob_1)
-        phase_potential_differences = (dpot_1, dpot_2)
-    else
-        @assert N == 3
-        G_1, G_2, G_3 = G
-        mob_1, mob_2, mob_3 = mob
-
-        dpot_1 = 1.0/mobT*(V_t + T_f*(G_1 - G_2)*mob_2 + T_f*(G_1 - G_3)*mob_3)
-        dpot_2 = 1.0/mobT*(V_t + T_f*(G_2 - G_1)*mob_1 + T_f*(G_2 - G_3)*mob_3)
-        dpot_3 = 1.0/mobT*(V_t + T_f*(G_3 - G_1)*mob_1 + T_f*(G_3 - G_2)*mob_2)
-        phase_potential_differences = (dpot_1, dpot_2, dpot_3)
-    end
 
     # ∇p = pressure_gradient(state, kgrad)
 
@@ -77,7 +56,7 @@ end
     #     ρ_avg = face_average_density(model, state, kgrad, phase)
     #     return -T_f*(∇p + Δpc + gΔz*ρ_avg)
     # end
-    return phase_potential_differences
+    return phase_potential_upwind_potential_differences(V_t, T_f, G, left_mob, right_mob)
 end
 
 function simple_upwind(l, r, flag::Bool)
