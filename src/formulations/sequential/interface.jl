@@ -8,7 +8,6 @@ function convert_to_sequential(model; avg_mobility = false, pressure = true)
         ctx = model.context
     end
     transport = !pressure
-    # TODO: Figure out context
     seqmodel = SimulationModel(
         model.domain,
         model.system,
@@ -85,8 +84,8 @@ function convert_to_sequential(model::MultiModel; pressure = true, kwarg...)
         if k == :Reservoir
             models[k] = smodel
         else
-            if v.system isa MultiPhaseSystem && pressure
-                v = convert_to_sequential(v; pressure = true, kwarg...)
+            if v.system isa MultiPhaseSystem# && pressure
+                v = convert_to_sequential(v; pressure = pressure, kwarg...)
             end
             models[k] = deepcopy(v)
         end
@@ -97,6 +96,7 @@ function convert_to_sequential(model::MultiModel; pressure = true, kwarg...)
     else
         g = copy(model.groups)
     end
+    @info g
     seqmodel = MultiModel(
         models,
         cross_terms = ct,

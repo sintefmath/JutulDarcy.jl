@@ -73,7 +73,11 @@ function SequentialSimulator(model; state0 = setup_state(model), parameters = se
         end
     end
     function add_total_saturation!(m::MultiModel, state0)
-        add_total_saturation!(m[:Reservoir], state0[:Reservoir])
+        for (k, m) in pairs(m.models) 
+            if m.system isa MultiPhaseSystem
+                add_total_saturation!(m, state0[k])
+            end
+        end
     end
     add_total_saturation!(model, state0)
 
@@ -82,7 +86,11 @@ function SequentialSimulator(model; state0 = setup_state(model), parameters = se
     end
     function merge_initial_state(m::MultiModel, state0, parameters)
         init = copy(state0)
-        init[:Reservoir] = merge(state0[:Reservoir], parameters[:Reservoir])
+        for (k, m) in pairs(m.models) 
+            if m.system isa MultiPhaseSystem
+                init[k] = merge(state0[k], parameters[k])
+            end
+        end
         return init
     end
     init = merge_initial_state(model, state0, parameters)
