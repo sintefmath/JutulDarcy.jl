@@ -2,8 +2,10 @@
 function convert_to_sequential(model; avg_mobility = false, pressure = true)
     if pressure
         f = PressureFormulation()
+        ctx = ParallelCSRContext(matrix_layout = EquationMajorLayout())
     else
         f = TransportFormulation()
+        ctx = model.context
     end
     transport = !pressure
     # TODO: Figure out context
@@ -11,7 +13,8 @@ function convert_to_sequential(model; avg_mobility = false, pressure = true)
         model.domain,
         model.system,
         data_domain = model.data_domain,
-        formulation = f
+        formulation = f,
+        context = ctx
     )
     for (skey, svar) in model.secondary_variables
         seqmodel.secondary_variables[skey] = svar
@@ -102,4 +105,8 @@ function convert_to_sequential(model::MultiModel; pressure = true, kwarg...)
         reduction = model.reduction
         )
     return seqmodel
+end
+
+function JutulDarcy.reservoir_linsolve(model::PressureModel, arg...; kwarg...)
+    error()
 end

@@ -18,8 +18,7 @@ Set up iterative linear solver for a reservoir model from [`setup_reservoir_mode
 
 Additional keywords are passed onto the linear solver constructor.
 """
-function reservoir_linsolve(model,
-        precond = :cpr;
+function reservoir_linsolve(model, precond = :cpr;
         backend = :cpu,
         rtol = nothing,
         atol = nothing,
@@ -39,7 +38,6 @@ function reservoir_linsolve(model,
         float_type = Float64,
         kwarg...
     )
-    model = reservoir_model(model)
     is_equation_major = !Jutul.is_cell_major(matrix_layout(model.context))
     backend in (:cpu, :cuda) || throw(ArgumentError("Backend $backend not supported, must be :cpu or :cuda."))
     is_cpr = precond == :cpr || precond == :cprw
@@ -142,6 +140,11 @@ function reservoir_linsolve(model,
         kwarg...
     )
     return lsolve
+end
+
+function reservoir_linsolve(model::MultiModel, arg...; kwarg...)
+    rmodel = reservoir_model(model)
+    return reservoir_linsolve(rmodel, arg...; kwarg...)
 end
 
 function default_amg_symbol()

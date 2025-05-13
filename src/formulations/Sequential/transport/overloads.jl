@@ -59,18 +59,6 @@ end
     return phase_potential_upwind_potential_differences(V_t, T_f, G, left_mob, right_mob)
 end
 
-function simple_upwind(l, r, flag::Bool)
-    if flag
-        v = l
-    else
-        v = r
-    end
-    return v
-end
-
-function simple_upwind(l::NTuple, r::NTuple, flag::NTuple)
-    return map(simple_upwind, l, r, flag)
-end
 
 # @inline function flux_primitives(face, state, model, flux_type::TotalSaturationFlux, tpfa::TPFA, upw)
 #     trans = state.Transmissibilities
