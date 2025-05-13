@@ -91,7 +91,17 @@ end
 
 function phase_potential_upwind_potential_differences(V_t, T_f, G::NTuple{N, T}, left_mob, right_mob) where {N, T}
     flags = phase_potential_upwind_fixed_flux(V_t, T_f, G, left_mob, right_mob)
-    mob = simple_upwind(left_mob, right_mob, flags)
+
+    function simple_upwind(l, r, flag::Bool)
+        if flag
+            v = l
+        else
+            v = r
+        end
+        return v
+    end
+
+    mob = map(simple_upwind, left_mob, right_mob, flags)
     mobT = sum(mob)
 
     if N == 2
