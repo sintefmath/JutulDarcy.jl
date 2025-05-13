@@ -107,6 +107,15 @@ function convert_to_sequential(model::MultiModel; pressure = true, kwarg...)
     return seqmodel
 end
 
-function JutulDarcy.reservoir_linsolve(model::PressureModel, arg...; kwarg...)
-    error()
+function JutulDarcy.reservoir_linsolve(model::PressureModel, pname = :amg;
+        solver = :bicgstab,
+        kwarg...
+    )
+    if pname == :amg
+        prec = default_psolve()
+        lsolve = GenericKrylov(solver, preconditioner = prec)
+    else
+        lsolve = nothing
+    end
+    return lsolve
 end
