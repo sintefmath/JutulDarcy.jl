@@ -379,7 +379,9 @@ function update_target!(ctrl, target::ReinjectionTarget, state_facility, state_w
         q -= qw
     end
     ρ = ctrl.mixture_density
-    target.value = q./ρ
+
+    value = max(q./ρ, 1e-6)
+    target.value = value
 
 end
 
