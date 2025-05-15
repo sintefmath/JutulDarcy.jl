@@ -29,15 +29,23 @@ Jutul.relative_increment_limit(st::TotalSaturation) = st.max_rel
 struct TotalVolumetricFlux <: Jutul.ScalarVariable end
 Jutul.associated_entity(::TotalVolumetricFlux) = Faces()
 
-struct TotalSaturationCorrectedVariable <: PhaseVariables
+
+struct TotalSaturationCorrectedScalarVariable <: Jutul.ScalarVariable
     uncorrected_label::Symbol
 end
 
-function Jutul.get_dependencies(ts::TotalSaturationCorrectedVariable, model::TransportModel)
+struct TotalSaturationCorrectedVariable <: Jutul.VectorVariables
+    uncorrected_label::Symbol
+    values_per_entity::Int
+end
+
+Jutul.values_per_entity(model, ts::TotalSaturationCorrectedVariable) = ts.values_per_entity
+
+function Jutul.get_dependencies(ts::Union{TotalSaturationCorrectedVariable, TotalSaturationCorrectedScalarVariable}, model::TransportModel)
     return (:TotalSaturation, ts.uncorrected_label)
 end
 
-function Jutul.update_secondary_variable!(v, ts::TotalSaturationCorrectedVariable, model, state, ix = entity_eachindex(v))
+function Jutul.update_secondary_variable!(v, ts::Union{TotalSaturationCorrectedVariable, TotalSaturationCorrectedScalarVariable}, model, state, ix = entity_eachindex(v))
     # Get the uncorrected variable
     UncorrectedVariable = state[ts.uncorrected_label]
     # Get the total saturation
@@ -52,5 +60,12 @@ function total_sat_correction(v, ts::TotalSaturationCorrectedVariable, model::Tr
         for j in axes(v, 1)
             v[j, i] = sT*UncorrectedVariable[j, i]
         end
+    end
+end
+
+function total_sat_correction(v, ts::TotalSaturationCorrectedScalarVariable, model::TransportModel, UncorrectedVariable, TotalSaturation, ix)
+    for i in ix
+        sT = TotalSaturation[i]
+        v[i] = sT*UncorrectedVariable[i]
     end
 end
