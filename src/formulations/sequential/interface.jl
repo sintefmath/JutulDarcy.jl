@@ -37,7 +37,8 @@ function convert_to_sequential(model; avg_mobility = false, pressure = true)
     if transport
         vars = seqmodel.secondary_variables
         prm = seqmodel.parameters
-        if true
+        nph = number_of_phases(seqmodel.system)
+        if false
             if haskey(vars, :ShrinkageFactors)
                 k = :ShrinkageFactors
             else
@@ -45,7 +46,7 @@ function convert_to_sequential(model; avg_mobility = false, pressure = true)
             end
             @assert haskey(vars, k)
             vars[:UncorrectedVariable] = vars[k]
-            vars[k] = TotalSaturationCorrectedVariable(:UncorrectedVariable)
+            vars[k] = TotalSaturationCorrectedVariable(:UncorrectedVariable, nph)
         else
             if haskey(vars, :PhaseMassMobilities)
                 k = :PhaseMassMobilities
@@ -54,12 +55,14 @@ function convert_to_sequential(model; avg_mobility = false, pressure = true)
             end
             @assert haskey(vars, k)
             vars[:UncorrectedVariable] = vars[k]
-            vars[k] = TotalSaturationCorrectedVariable()
-            if haskey(prm, :FluidVolume)
-                
+            vars[k] = TotalSaturationCorrectedVariable(:UncorrectedVariable, nph)
+            if haskey(prm, :StaticFluidVolume)
+                pv_key = :StaticFluidVolume
             else
-
+                pv_key = :FluidVolume
             end
+            prm[:UncorrectedFluidVolume] = prm[pv_key]
+            vars[pv_key] = TotalSaturationCorrectedScalarVariable(:UncorrectedFluidVolume)
         end
         push!(seqmodel.output_variables, :Pressure)
     end
