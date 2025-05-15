@@ -56,6 +56,12 @@ end
     #     ρ_avg = face_average_density(model, state, kgrad, phase)
     #     return -T_f*(∇p + Δpc + gΔz*ρ_avg)
     # end
+    if true
+        mob_1 = JutulDarcy.phase_upwind(upw, state.PhaseMobilities, 1, V_t)
+        mob_2 = JutulDarcy.phase_upwind(upw, state.PhaseMobilities, 2, V_t)
+        mob_t = mob_1 + mob_2
+        return (1/mob_t*V_t, 1/mob_t*V_t)
+    end
     return phase_potential_upwind_potential_differences(V_t, T_f, G, left_mob, right_mob)
 end
 
