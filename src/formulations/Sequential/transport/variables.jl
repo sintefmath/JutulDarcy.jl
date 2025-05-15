@@ -29,9 +29,24 @@ Jutul.relative_increment_limit(st::TotalSaturation) = st.max_rel
 struct TotalVolumetricFlux <: Jutul.ScalarVariable end
 Jutul.associated_entity(::TotalVolumetricFlux) = Faces()
 
-struct TotalSaturationCorrectedVariable <: PhaseVariables end
+struct TotalSaturationCorrectedVariable <: PhaseVariables
+    uncorrected_label::Symbol
+end
 
-@jutul_secondary function total_sat_correction(v, ts::TotalSaturationCorrectedVariable, model::TransportModel, UncorrectedVariable, TotalSaturation, ix)
+function Jutul.get_dependencies(ts::TotalSaturationCorrectedVariable, model::TransportModel)
+    return (:TotalSaturation, ts.uncorrected_label)
+end
+
+function Jutul.update_secondary_variable!(v, ts::TotalSaturationCorrectedVariable, model, state, ix = entity_eachindex(v))
+    # Get the uncorrected variable
+    UncorrectedVariable = state[ts.uncorrected_label]
+    # Get the total saturation
+    TotalSaturation = state.TotalSaturation
+    # Update the total saturation corrected variable
+    total_sat_correction(v, ts, model, UncorrectedVariable, TotalSaturation, ix)
+end
+
+function total_sat_correction(v, ts::TotalSaturationCorrectedVariable, model::TransportModel, UncorrectedVariable, TotalSaturation, ix)
     for i in ix
         sT = TotalSaturation[i]
         for j in axes(v, 1)
