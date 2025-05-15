@@ -1,5 +1,5 @@
 
-function convert_to_sequential(model; avg_mobility = false, pressure = true)
+function convert_to_sequential(model; avg_mobility = false, pressure = true, correction = :volume)
     if pressure
         f = PressureFormulation()
         T_ctx = typeof(model.context)
@@ -38,7 +38,7 @@ function convert_to_sequential(model; avg_mobility = false, pressure = true)
         vars = seqmodel.secondary_variables
         prm = seqmodel.parameters
         nph = number_of_phases(seqmodel.system)
-        if false
+        if correction == :density
             if haskey(vars, :ShrinkageFactors)
                 k = :ShrinkageFactors
             else
@@ -48,6 +48,7 @@ function convert_to_sequential(model; avg_mobility = false, pressure = true)
             vars[:UncorrectedVariable] = vars[k]
             vars[k] = TotalSaturationCorrectedVariable(:UncorrectedVariable, nph)
         else
+            correction == :volume || throw(ArgumentError("Unknown correction type $correction"))
             if haskey(vars, :PhaseMassMobilities)
                 k = :PhaseMassMobilities
             else

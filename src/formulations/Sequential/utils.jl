@@ -308,9 +308,11 @@ function Jutul.perform_step!(
         report[:failure_exception] = ErrorException("Pressure solve failed to converge.")
         converged = false
         err = Inf
+    elseif !done_t
+        report[:failure_exception] = ErrorException("Transport solve failed to converge.")
+        converged = false
+        err = Inf
     elseif sfi
-        tol_s = 1e-2
-        tol_mob = 1e-2
         tol_mob = config[:mobility_tol]
         tol_s = config[:saturation_tol]
         il = config[:info_level]
@@ -349,10 +351,10 @@ function Jutul.perform_step!(
         # ]
         if il > 1 # || true
             jutul_message("#$iteration", "|S_t - 1| = $e_s, |Δλ| = $e_mob")
-           # Jutul.get_convergence_table(errors, il, iteration, config)
+            # Jutul.get_convergence_table(errors, il, iteration, config)
         end
     else
-        converged = done_t
+        converged = true
         err = 0.0
     end
     report[:converged] = converged
