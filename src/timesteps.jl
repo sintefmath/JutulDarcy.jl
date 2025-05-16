@@ -126,7 +126,7 @@ function Jutul.pick_next_timestep(sel::ControlChangeTimestepSelector,
 
     # Update the previous controls
     sel.prev_controls = curr_controls
-    # Update timetep if change has occured
+    # Update timetep if change has occurred
     ΔT = change ? sel.dt_after_change : dT
     return ΔT
     

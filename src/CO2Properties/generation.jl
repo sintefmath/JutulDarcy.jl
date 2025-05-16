@@ -536,7 +536,7 @@ end
 
 Get pure phase properties (density, viscosity) and equilibrium constants for
 brine and water. This functions and the functions used in this function are
-heavily based on comparable code in the the co2lab-mit MRST module developed by
+heavily based on comparable code in the co2lab-mit MRST module developed by
 Lluis Salo.
 
 The salt mole fractions are of the total brine (i.e. including H2O in the

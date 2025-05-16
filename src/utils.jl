@@ -242,7 +242,7 @@ end
     reservoir_system(flow = flow_system, thermal = thermal_system)
 
 Set up a [`Jutul.CompositeSystem`](@ref) that combines multiple systems
-together. In some terminologies this is refered to as a multi-physics system.
+together. In some terminologies this is referred to as a multi-physics system.
 The classical example is to combine a flow system and a thermal system to create
 a coupled flow and heat system.
 """
@@ -1427,7 +1427,7 @@ end
 """
     full_well_outputs(model, states, forces; targets = available_well_targets(model.models.Reservoir))
 
-Get the full set of well outputs after a simulation has occured, for plotting or other post-processing.
+Get the full set of well outputs after a simulation has occurred, for plotting or other post-processing.
 """
 function full_well_outputs(model, states, forces; targets = missing)
     rmodel = reservoir_model(model)

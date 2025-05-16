@@ -66,7 +66,7 @@ Pkg.add("Jutul")      # Base package
 Pkg.add("JutulDarcy") # Reservoir simulator
 ```
 
-To verify that everything is working, we have a minimal example that runs a industry standard input file and produces interactive plots. Note that interactive plotting requires `GLMakie`, which may not work if you are running Julia over SSH.
+To verify that everything is working, we have a minimal example that runs an industry standard input file and produces interactive plots. Note that interactive plotting requires `GLMakie`, which may not work if you are running Julia over SSH.
 
 ```@example
 using JutulDarcy, GLMakie
