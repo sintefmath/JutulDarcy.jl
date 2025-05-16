@@ -174,7 +174,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
             else
                 Λ_i = Λ[:, c]
             end
-            if ismissing(WIth) || isnan(WIth)
+            if ismissing(WIth) || isnan(WIth_i)
                 WIth_i = compute_peaceman_index(g, Λ_i, r_i, c, dir = dir)
             end
             WIth_i::AbstractFloat
