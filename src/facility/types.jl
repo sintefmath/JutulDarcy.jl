@@ -435,8 +435,8 @@ struct InjectorControl{T, R, P, M, E, TR} <: WellControlForce
     end
 end
 
-function replace_target(f::InjectorControl, target)
-    _, fact, den, T = Base.promote(target.value, f.factor, f.mixture_density, f.temperature)
+function replace_target(f::InjectorControl, target, temperature = f.temperature)
+    _, fact, den, T = Base.promote(target.value, f.factor, f.mixture_density, temperature)
     return InjectorControl(
         target,
         f.injection_mixture,
