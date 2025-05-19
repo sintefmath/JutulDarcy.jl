@@ -237,7 +237,7 @@ function Jutul.select_primary_variables!(pvar, ::PressureFormulation, model::Pre
     end
 end
 
-function convergence_criterion(model, storage, eq::PressureEquation, eq_s, r; dt = 1.0, update_report = missing)
+function Jutul.convergence_criterion(model, storage, eq::PressureEquation, eq_s, r; dt = 1.0, update_report = missing)
     M = global_map(model.domain)
     v = x -> as_value(Jutul.active_view(x, M, for_variables = false))
     Φ = v(storage.state.FluidVolume)
