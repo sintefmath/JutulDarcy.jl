@@ -238,11 +238,16 @@ function Jutul.select_primary_variables!(pvar, ::PressureFormulation, model::Pre
 end
 
 function Jutul.convergence_criterion(model, storage, eq::PressureEquation, eq_s, r; dt = 1.0, update_report = missing)
-    M = global_map(model.domain)
-    v = x -> as_value(Jutul.active_view(x, M, for_variables = false))
-    Φ = v(storage.state.FluidVolume)
+    # M = global_map(model.domain)
+    # v = x -> as_value(Jutul.active_view(x, M, for_variables = false))
+    # Φ = v(storage.state.FluidVolume)
+    # p_res = dt*sum(abs, r)/sum(Φ)
+    # R = (Residual = (errors = (p_res,), names = (:L1, )),)
 
-    p_res = dt*sum(abs, r)/sum(Φ)
-    R = (Residual = (errors = (p_res,), names = (:L1, )),)
+    dp_abs, dp_rel = JutulDarcy.pressure_increments(model, storage.state, update_report)
+    R = (
+        increment_dp_abs = (errors = (dp_abs/1e6, ), names = (raw"Δp (abs, MPa)", ), ),
+        increment_dp_rel = (errors = (dp_rel, ), names = (raw"Δp (rel)", ), ),
+    )
     return R
 end
