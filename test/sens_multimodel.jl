@@ -285,39 +285,39 @@ end
     opt_setup = setup_parameter_optimization(case, G, cfg, print = false)
 
     # Perturb and check that the vector is different, and that it vectorizes/devectorizes properly
-    x = deepcopy(opt_setup.x0)
-    for i in eachindex(x)
-        x[i] += 1e-1*rand()
+    x_perturb = deepcopy(opt_setup.x0)
+    for i in eachindex(x_perturb)
+        x_perturb[i] += 1e-1*rand()
     end
-    @test !(opt_setup.x0 ≈ x)
+    @test !(opt_setup.x0 ≈ x_perturb)
 
     case_delta = deepcopy(opt_setup.data[:case])
     model = case.model
     param_d = case_delta.parameters
     data = opt_setup.data
-    devectorize_variables!(param_d, model, x, data[:mapper], config = data[:config])
+    devectorize_variables!(param_d, model, x_perturb, data[:mapper], config = data[:config])
     x_new = vectorize_variables(model, param_d, data[:mapper], config = data[:config])
-    @test x_new ≈ x
-    @test !(opt_setup.x0 ≈ x)
+    @test x_new ≈ x_perturb
+    @test !(opt_setup.x0 ≈ x_perturb)
 
+    x = deepcopy(opt_setup.x0)
     F_0 = opt_setup.F!(x)
-    ϵ = 1e-6
+    ϵ = 1e-8
     dF_num = similar(x)
     for i in eachindex(x)
         x_d = copy(x)
-        ϵ_i = max(1e-12, ϵ*abs(x_d[i]))
 
-        x_d[i] += ϵ_i
+        x_d[i] += ϵ
         F_d = opt_setup.F!(x_d)
 
-        x_d[i] -= 2*ϵ_i
+        x_d[i] -= 2*ϵ
         F_d2 = opt_setup.F!(x_d)
-        dF_num[i] = (F_d - F_d2)/(2*ϵ_i)
+        dF_num[i] = (F_d - F_d2)/(2*ϵ)
     end
 
     dF_adj = opt_setup.dF!(similar(x), x)
     for i in eachindex(dF_num, dF_adj)
-        # println("$(i): $(dF_num[i]), $(dF_adj[i])")
+        # println("$(i): $(dF_num[i]), $(dF_adj[i]) x = $(x[i])")
         @test isapprox(dF_num[i], dF_adj[i], atol = 0.1, rtol = 0.1)
     end
 end
