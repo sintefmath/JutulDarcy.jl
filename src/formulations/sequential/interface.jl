@@ -51,19 +51,23 @@ function convert_to_sequential(model; avg_mobility = false, pressure = true, cor
             correction == :volume || throw(ArgumentError("Unknown correction type $correction"))
             if haskey(vars, :PhaseMassMobilities)
                 k = :PhaseMassMobilities
-            else
+            elseif haskey(vars, :PhaseMobilities)
                 k = :SurfaceVolumeMobilities
+            else
+                k = :Saturations
             end
-            @assert haskey(vars, k)
+            @assert haskey(vars, k) "Expected $k in $(keys(vars))"
             vars[:UncorrectedVariable] = vars[k]
             vars[k] = TotalSaturationCorrectedVariable(:UncorrectedVariable, nph)
-            if haskey(prm, :StaticFluidVolume)
-                pv_key = :StaticFluidVolume
-            else
-                pv_key = :FluidVolume
+            if k != :Saturations
+                if haskey(prm, :StaticFluidVolume)
+                    pv_key = :StaticFluidVolume
+                else
+                    pv_key = :FluidVolume
+                end
+                prm[:UncorrectedFluidVolume] = prm[pv_key]
+                vars[pv_key] = TotalSaturationCorrectedScalarVariable(:UncorrectedFluidVolume)
             end
-            prm[:UncorrectedFluidVolume] = prm[pv_key]
-            vars[pv_key] = TotalSaturationCorrectedScalarVariable(:UncorrectedFluidVolume)
         end
         push!(seqmodel.output_variables, :Pressure)
     end
