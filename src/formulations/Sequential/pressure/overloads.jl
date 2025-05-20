@@ -251,3 +251,25 @@ function Jutul.convergence_criterion(model, storage, eq::PressureEquation, eq_s,
     )
     return R
 end
+
+@jutul_secondary function update_rs!(rs, ph::Rs, model::SimulationModel{D, S, F}, Pressure, BlackOilUnknown, ix)  where {D, S<:BlackOilVariableSwitchingSystem, F<:PressureFormulation}
+    T = eltype(rs)
+    @inbounds for i in ix
+        X = BlackOilUnknown[i]
+        phases = X.phases_present
+        p = @inbounds Pressure[i]
+        reg_i = JutulDarcy.region(ph.regions, i)
+        rs_max = JutulDarcy.table_by_region(model.system.rs_max, reg_i)
+        rs_max_val = rs_max(p)
+
+        if phases == JutulDarcy.OilOnly
+            r = X.val
+            if r >= rs_max_val
+                r = rs_max_val
+            end
+        else
+            r = rs_max_val
+        end
+        rs[i] = r
+    end
+end
