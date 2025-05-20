@@ -60,8 +60,10 @@ function Jutul.vectorization_length(controls_or_limits::AbstractDict, model::Fac
     elseif name == :limits
         if supp.limits
             for (k, v) in pairs(controls_or_limits)
-                for (lim_k, lim_v) in pairs(v)
-                    n += 1
+                if !isnothing(v)
+                    for (lim_k, lim_v) in pairs(v)
+                        n += 1
+                    end
                 end
             end
         end
@@ -111,6 +113,9 @@ function Jutul.vectorize_force!(v, model::FacilityModel, controls_or_limits::Abs
     elseif name == :limits
         if supp.limits
             for (k, limdict) in pairs(controls_or_limits)
+                if isnothing(limdict)
+                    continue
+                end
                 for (lim_k, lim_v) in pairs(limdict)
                     offset += 1
                     v[offset] = lim_v
