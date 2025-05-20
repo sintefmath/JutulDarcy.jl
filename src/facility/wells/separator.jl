@@ -10,7 +10,10 @@ end
 
 function initialize_variable_value(model, pvar::SurfaceWellConditions, val::Vector; need_value = false)
     @assert need_value == false
-    @assert length(val) == 1 "Expected a single value, got $(length(val))"
+    if length(val) > 1 
+        @warn "Expected a single value, got $(length(val))"
+        val = val[1:1]
+    end
     return val
 end
 
