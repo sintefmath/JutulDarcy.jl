@@ -18,7 +18,7 @@ function partial_update_state_dependents(sim_dd, storage, model::MultiModel, dt,
     end
     # Then update the cross terms
     Jutul.update_cross_terms!(storage, model, dt, targets = all_models, sources = all_models)
-    # Apply cross terms + bc to other equations than those of the the main model
+    # Apply cross terms + bc to other equations than those of the main model
     Jutul.apply_forces!(storage, model, dt, forces, time = time, targets = targets)
     Jutul.apply_forces_to_cross_terms!(storage, model, dt, forces; time = time, targets = all_models, sources = all_models)
     Jutul.apply_boundary_conditions!(storage, model, targets = targets)

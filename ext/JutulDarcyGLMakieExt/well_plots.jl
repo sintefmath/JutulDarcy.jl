@@ -330,7 +330,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
             T = copy(time[i])
             nt = length(T)
             ns = nsample[i]
-            @assert nt == ns "Series $i: Recieved $nt steps, but wells had $ns results."
+            @assert nt == ns "Series $i: Received $nt steps, but wells had $ns results."
             if eltype(T)<:AbstractFloat
                 # Scale to days
                 if isnothing(start_date)

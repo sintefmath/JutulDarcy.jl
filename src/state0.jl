@@ -284,7 +284,7 @@ function setup_reservoir_state(
         end
         if isnothing(I)
             if !(k in svars)
-                jutul_message("setup_reservoir_state", "Recieved primary variable $k, but this is not known to reservoir model.")
+                jutul_message("setup_reservoir_state", "Received primary variable $k, but this is not known to reservoir model.")
             end
         else
             push!(found, k)

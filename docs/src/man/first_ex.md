@@ -26,7 +26,7 @@ domain
 
 ## Setting up a fluid system
 
-We select a two-phase immicible system by declaring that the liquid and vapor
+We select a two-phase immiscible system by declaring that the liquid and vapor
 phases are present in the model. These are assumed to have densities of 1000 and
 100 kilograms per meters cubed at reference pressure and temperature conditions.
 
@@ -74,7 +74,7 @@ nothing #hide
 ## Initial state: Pressure and saturations
 
 Now that we are happy with our model setup, we can designate an initial state.
-Equilibriation of reservoirs can be a complicated affair, but here we set up a
+Equilibration of reservoirs can be a complicated affair, but here we set up a
 constant pressure reservoir filled with the liquid phase. The inputs must match
 the primary variables of the model, which in this case is pressure and
 saturations in every cell.

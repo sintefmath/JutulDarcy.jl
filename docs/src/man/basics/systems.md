@@ -66,7 +66,7 @@ The simplest form of porous media flow is the single-phase system.
 r(p) = \frac{\partial}{\partial t}( \rho \phi) + \nabla \cdot (\rho \vec{v}) - \rho q
 ```
 
-``\rho`` is the phase mass density and ``\phi`` the apparent porosity of the medium, i.e. the void space in the rock available to flow. Where the velocity ``\vec{v}`` is given by Darcy's law that relates the the pressure gradient ``\nabla p`` and hydrostatic head to the velocity field:
+``\rho`` is the phase mass density and ``\phi`` the apparent porosity of the medium, i.e. the void space in the rock available to flow. Where the velocity ``\vec{v}`` is given by Darcy's law that relates to the pressure gradient ``\nabla p`` and hydrostatic head to the velocity field:
 
 ```math
 \vec{v} = - \frac{\mathbf{K}}{\mu} (\nabla p + \rho g \nabla z)

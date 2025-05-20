@@ -53,7 +53,7 @@ If you want the plotting used in the examples, you need this:
 Pkg.add("GLMakie") # 3D and interactive visualization
 ```
 
-Some examples and functionaltiy also make use of additional packages:
+Some examples and functionalites also make use of additional packages:
 
 ```julia
 Pkg.add("Optim") # Optimization library

@@ -12,7 +12,7 @@ MPI parallelizes all aspects of the solver using domain decomposition and allows
 
 ### Thread parallelization
 
-JutulDarcy also supports threads. By defualt, this only parallelizes property evaluations and assembly of the linear system. For many problems, the linear solve is the limiting factor for performance.Using threads is automatic if you start Julia with multiple threads.
+JutulDarcy also supports threads. By default, this only parallelizes property evaluations and assembly of the linear system. For many problems, the linear solve is the limiting factor for performance. Using threads is automatic if you start Julia with multiple threads.
 
 An experimental thread-parallel backend for matrices and linear algebra can be enabled by setting `backend=:csr` in the call to [`setup_reservoir_model`](@ref). This backend provides additional features such as a parallel zero-overlap ILU(0) implementation and parallel apply for AMG, but these features are still work in progress.
 
@@ -57,7 +57,7 @@ Write your script as usual. The following options must then be set:
 - [`setup_reservoir_model`](@ref) should have the extra keyword argument `split_wells=true`. We also recommend `backend=:csr` for the best performance.
 - [`simulate_reservoir`](@ref) or [`setup_reservoir_simulator`](@ref) should get the optional argument `mode = :mpi`
 
-You must then run the file using the approprioate `mpiexec` as described in the MPI.jl documentation. Specialized functions will be called by `simulate_reservoir` when this is the case. We document them here, even if we recommend using the high level version of this interface:
+You must then run the file using the appropriate `mpiexec` as described in the MPI.jl documentation. Specialized functions will be called by `simulate_reservoir` when this is the case. We document them here, even if we recommend using the high level version of this interface:
 
 ```@docs
 JutulDarcy.simulate_reservoir_parray

@@ -29,7 +29,7 @@ Pkg.add("JutulDarcy")
 
 You can then run any of the examples in the [`examples`](https://github.com/sintefmath/JutulDarcy.jl/tree/main/examples) directory by including them.
 
-For a minimal example that runs a industry standard input file and produces interactive plots:
+For a minimal example that runs an industry standard input file and produces interactive plots:
 
 ```julia
 using JutulDarcy, GLMakie

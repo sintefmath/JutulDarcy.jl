@@ -189,7 +189,7 @@ function Jutul.perform_step!(
         store_metadata_nldd_logger!(log, report, active)
     catch excptn
         if config[:failure_cuts_timestep]
-            @warn "Exception occured in NLDD solve: $excptn. Attempting to cut time-step since failure_cuts_timestep = true."
+            @warn "Exception occurred in NLDD solve: $excptn. Attempting to cut time-step since failure_cuts_timestep = true."
             report[:failure_exception] = excptn
         else
             rethrow(excptn)
@@ -830,7 +830,7 @@ function check_primary_variable_positions(model::MultiModel, positions)
 end
 
 
-function debug_comparision(sim_g, sim, i)
+function debug_comparison(sim_g, sim, i)
     @info "Checking $i" keys(sim.model.models)
     m = JutulDarcy.reservoir_model(sim.model)
     m_g = JutulDarcy.reservoir_model(sim_g.model)

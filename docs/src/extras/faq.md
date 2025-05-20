@@ -26,10 +26,10 @@ pth = jutul_output_path("My_test_case")
 simulate_reservoir(case, output_path = pth)
 ```
 
-If a output path is set, you can restart simulations:
+If an output path is set, you can restart simulations:
 
 ```julia
-# Restart from the last succesfully solved step, or return output if everything is simulated
+# Restart from the last successfully solved step, or return output if everything is simulated
 ws, states = simulate_reservoir(case, output_path = pth, restart = true)
 # Start from the beginning, overwriting files if already present
 ws, states = simulate_reservoir(case, output_path = pth, restart = false)
@@ -60,7 +60,7 @@ julia> jutul_output_path("mycase", subfolder = missing)
 "D:/jutul_output/mycase"
 ```
 
-Or equivialent on a Linux system:
+Or equivalent on a Linux system:
 
 ```julia
 julia> ENV["JUTUL_OUTPUT_PATH"]
