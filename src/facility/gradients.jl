@@ -143,8 +143,14 @@ function Jutul.devectorize_force(control_or_limits::Tcl, model::FacilityModel, X
             else
                 if supp.target
                     val = X[offset+1]
-                    Tt = Base.typename(typeof(ctrl.target)).wrapper
-                    target = Tt(val)
+                    if ctrl.target isa ReinjectionTarget
+                        target = deepcopy(ctrl.target)
+                        target.value = val
+                    else
+                        Tt = Base.typename(typeof(ctrl.target)).wrapper
+                        # TODO: Ugly hack...
+                        target = Tt(val)
+                    end
                     offset += 1
                 else
                     target = T(ctrl.target)
@@ -188,6 +194,9 @@ function Jutul.devectorize_force(control_or_limits::Tcl, model::FacilityModel, X
         if supp.limits
             for (k, limdict) in pairs(control_or_limits)
                 new_limdict = OrderedDict()
+                if isnothing(limdict)
+                    continue
+                end
                 for (lim_k, lim_v) in pairs(limdict)
                     offset += 1
                     new_limdict[lim_k] = X[offset]
