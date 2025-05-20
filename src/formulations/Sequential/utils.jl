@@ -183,6 +183,7 @@ function Jutul.perform_step!(
     end
     done_p, report_p = Jutul.solve_ministep(psim, dt, forces, max_iter_p, config_p, finalize = false)
     if done_p
+        t_forces = deepcopy(forces)
         # Copy over values for pressure and fluxes into parameters for second simulator
         model_p = psim.model
         if iteration > 1
@@ -222,12 +223,12 @@ function Jutul.perform_step!(
         end
         if nsub == 1
             # Then transport
-            done_t, report_t = Jutul.solve_ministep(tsim, dt, forces, max_iter_t, config_t)
+            done_t, report_t = Jutul.solve_ministep(tsim, dt, t_forces, max_iter_t, config_t)
             store_mobility!(mob, mob_t, 1.0, nothing)
         else
             for stepno = 1:nsub
                 dt_i = dt/nsub
-                done_t, subreport_t = Jutul.solve_ministep(tsim, dt_i, forces, max_iter_t, config_t)
+                done_t, subreport_t = Jutul.solve_ministep(tsim, dt_i, t_forces, max_iter_t, config_t)
                 if stepno == nsub
                     w_i = nothing
                 else
