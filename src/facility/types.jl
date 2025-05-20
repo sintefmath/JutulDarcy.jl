@@ -303,7 +303,7 @@ struct ReservoirVoidageTarget{T, K} <: WellTarget where {T<:AbstractFloat, K<:Tu
 end
 
 mutable struct ReinjectionTarget <: WellTarget
-    value::Union{Float64, ForwardDiff.Dual}
+    value
     wells::Vector{Symbol}
 end
 
