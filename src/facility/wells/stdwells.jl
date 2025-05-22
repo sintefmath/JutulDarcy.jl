@@ -66,10 +66,10 @@ function select_parameters!(prm, s::SimpleWellDomain, model::SimpleWellFlowModel
     prm[:PerforationGravityDifference] = PerforationGravityDifference()
 end
 
-function Jutul.initialize_extra_state_fields!(state, d::DiscretizedDomain, m::SimpleWellFlowModel)
+function Jutul.initialize_extra_state_fields!(state, d::DiscretizedDomain, m::SimpleWellFlowModel; T = Float64)
     if well_has_explicit_pressure_drop(m)
         nc = count_entities(d, Perforations())
-        state[:ConnectionPressureDrop] = zeros(nc)
+        state[:ConnectionPressureDrop] = zeros(T, nc)
     end
 end
 
