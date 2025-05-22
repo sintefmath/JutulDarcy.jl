@@ -257,7 +257,7 @@ function build_jutul_darcy_docs(
         end
     end
     if deploy
-        deploydocs(;
+        DocumenterVitepress.deploydocs(;
             repo="github.com/sintefmath/JutulDarcy.jl.git",
             devbranch="main",
             target = "build", # this is where Vitepress stores its output
