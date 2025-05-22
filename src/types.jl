@@ -682,6 +682,12 @@ struct TopConditions{N, R}
 end
 
 function TopConditions(n::Int, R::DataType = Float64; density = missing, volume_fractions = missing)
+    if !ismissing(density)
+        R = promote_type(map(typeof, density)..., R)
+    end
+    if !ismissing(volume_fractions)
+        R = promote_type(map(typeof, volume_fractions)..., R)
+    end
     return TopConditions(Val(n), Val(R), density, volume_fractions)
 end
 
