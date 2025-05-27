@@ -354,7 +354,7 @@ Setting `maximize` to false will make the objective function negative-valued,
 with larger negative values corresponding to better results. This is useful for
 some optimizers.
 """
-function npv_objective(model, state, dt, step_no, forces;
+function npv_objective(model, state, dt, step_info, forces;
         timesteps,
         injectors,
         producers,
@@ -371,6 +371,7 @@ function npv_objective(model, state, dt, step_no, forces;
         discount_unit = si_unit(:year),
         scale = 1.0
     )
+    step_no = step_info[:step]
     phases = get_phases(reservoir_model(model).system)
     has_wat = AqueousPhase() in phases
     has_gas = VaporPhase() in phases
