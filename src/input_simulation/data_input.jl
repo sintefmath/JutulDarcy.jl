@@ -873,7 +873,7 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
     poro = zeros(T, nc)
     for (i, c) in enumerate(active_ix)
         perm[1, i] = permx[c]
-        perm[2, i] = perm[c]
+        perm[2, i] = permy[c]
         perm[3, i] = permz[c]
         poro[i] = gporo[c]
     end
