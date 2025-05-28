@@ -84,7 +84,6 @@ end
 # Selection of primary variables
 function select_primary_variables!(S, domain::WellGroup, model)
     S[:TotalSurfaceMassRate] = TotalSurfaceMassRate()
-    S[:SurfaceTemperature] = SurfaceTemperature()
 end
 
 function select_primary_variables!(S, system::PredictionMode, model)
@@ -93,7 +92,6 @@ end
 
 function select_equations!(eqs, domain::WellGroup, model::SimulationModel)
     eqs[:control_equation] = ControlEquationWell()
-    eqs[:temperature_equation] = SurfaceTemperatureEquation()
 end
 
 function setup_forces(model::SimulationModel{D}; control = nothing, limits = nothing, set_default_limits = true) where {D <: WellGroup}
