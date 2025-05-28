@@ -541,6 +541,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             if split_wells
                 wg = WellGroup([wname], can_shut_wells = can_shut_wells)
                 F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
+                if thermal
+                    add_thermal_to_facility!(F)
+                end
                 facility_to_add[Symbol(string(wname)*string(:_ctrl))] = F
             end
         end
@@ -553,6 +556,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         else
             wg = WellGroup(map(x -> x.name, wells), can_shut_wells = can_shut_wells)
             F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
+            if thermal
+                add_thermal_to_facility!(F)
+            end
             models[:Facility] = F
         end
     end

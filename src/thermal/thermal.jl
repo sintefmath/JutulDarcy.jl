@@ -327,6 +327,8 @@ function add_thermal_to_model!(model::MultiModel)
     for (k, m) in pairs(model.models)
         if m.system isa MultiPhaseSystem
             add_thermal_to_model!(m)
+        elseif m.system isa FacilitySystem
+            add_thermal_to_facility!(m)
         end
     end
     return m
@@ -389,6 +391,15 @@ function add_thermal_to_model!(model)
 
     unique!(out)
     return model
+end
+
+function add_thermal_to_facility!(facility)
+    set_primary_variables!(facility, SurfaceTemperature = SurfaceTemperature())
+    facility.equations[:temperature_equation] = SurfaceTemperatureEquation()
+    out = facility.output_variables
+    push!(out, :SurfaceTemperature)
+    unique!(out)
+    return facility
 end
 
 """
