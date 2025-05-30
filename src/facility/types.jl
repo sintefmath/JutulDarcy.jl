@@ -42,6 +42,15 @@ Base.@kwdef struct TotalSurfaceMassRate <: ScalarVariable
     max_relative_change::Union{Float64, Nothing} = nothing
 end
 
+Base.@kwdef struct SurfaceTemperature <: ScalarVariable
+    "Maximum absolute change betweeen two Newton updates (nominally K)"
+    max_absolute_change::Union{Float64, Nothing} = nothing
+    "Maximum relative change between two Newton updates."
+    max_relative_change::Union{Float64, Nothing} = nothing
+    min = 273.15
+    max = 1e6
+end
+
 function Jutul.absolute_increment_limit(q::TotalSurfaceMassRate)
     return q.max_absolute_change
 end
@@ -293,6 +302,11 @@ struct ReservoirVoidageTarget{T, K} <: WellTarget where {T<:AbstractFloat, K<:Tu
     weights::K
 end
 
+mutable struct ReinjectionTarget <: WellTarget
+    value
+    wells::Vector{Symbol}
+end
+
 """
     DisabledTarget(q)
 
@@ -317,6 +331,7 @@ as_limit(target) = NamedTuple([Pair(translate_target_to_symbol(target, shortname
 as_limit(T::DisabledTarget) = nothing
 as_limit(T::HistoricalReservoirVoidageTarget) = nothing
 as_limit(target::ReservoirVoidageTarget) = NamedTuple([Pair(translate_target_to_symbol(target, shortname = true), (target.value, target.weights))])
+as_limit(target::ReinjectionTarget) = NamedTuple([Pair(translate_target_to_symbol(target, shortname = true), (Inf))])
 
 """
     DisabledControl()
@@ -348,6 +363,26 @@ end
 function replace_target(f::DisabledControl, target)
     target::DisabledTarget
     return f
+end
+
+function update_target!(ctrl, target, state_facility, state_well, facility)
+    nothing
+end
+
+function update_target!(ctrl, target::ReinjectionTarget, state_facility, state_well, facility)
+
+    q = 0.0
+    for w in target.wells
+        pos = get_well_position(facility.domain, w)
+        qw = state_facility.TotalSurfaceMassRate[pos]
+        @assert qw <= 0.0
+        q -= qw
+    end
+    ρ = ctrl.mixture_density
+
+    value = max(q./ρ, 1e-10)
+    target.value = value
+
 end
 
 """
@@ -400,8 +435,8 @@ struct InjectorControl{T, R, P, M, E, TR} <: WellControlForce
     end
 end
 
-function replace_target(f::InjectorControl, target)
-    _, fact, den, T = Base.promote(target.value, f.factor, f.mixture_density, f.temperature)
+function replace_target(f::InjectorControl, target, temperature = f.temperature)
+    _, fact, den, T = Base.promote(target.value, f.factor, f.mixture_density, temperature)
     return InjectorControl(
         target,
         f.injection_mixture,
@@ -528,6 +563,11 @@ struct ControlEquationWell <: JutulEquation
     # Equation:
     #        q_t - target = 0
     #        p|top cell - target = 0
+end
+
+struct SurfaceTemperatureEquation <:JutulEquation
+    # Equation:
+    #        T_surf - T|top_cell = 0
 end
 
 struct WellSegmentFlow{C, T<:AbstractVector} <: Jutul.FlowDiscretization

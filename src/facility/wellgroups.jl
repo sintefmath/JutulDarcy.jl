@@ -11,6 +11,7 @@ function get_well_position(d, symbol)
 end
 
 function Jutul.associated_entity(::TotalSurfaceMassRate) Wells() end
+function Jutul.associated_entity(::SurfaceTemperature) Wells() end
 
 function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, state_symbol, model, dx, w)
     v = state[state_symbol]
@@ -70,6 +71,14 @@ Jutul.local_discretization(::ControlEquationWell, i) = nothing
 function Jutul.update_equation_in_entity!(v, i, state, state0, eq::ControlEquationWell, model, dt, ldisc = local_discretization(eq, i))
     # Set to zero, do actual control via cross terms
     v[] = 0*state.TotalSurfaceMassRate[i]
+end
+
+Jutul.associated_entity(::SurfaceTemperatureEquation) = Wells()
+Jutul.local_discretization(::SurfaceTemperatureEquation, i) = nothing
+function Jutul.update_equation_in_entity!(v, i, state, state0, eq::SurfaceTemperatureEquation, model, dt, ldisc = local_discretization(eq, i))
+    # Set equal to surface temperature. corresponding well temperatures will be
+    # subtracted using corss terms
+    v[] = state.SurfaceTemperature[i]
 end
 
 # Selection of primary variables

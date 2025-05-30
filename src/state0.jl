@@ -186,6 +186,7 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
     perf_subset(v::AbstractVector, i) = v[i]
     perf_subset(v::AbstractMatrix, i) = v[:, i]
     perf_subset(v, i) = v
+    is_thermal = model_is_thermal(rmodel)
     for k in keys(model.models)
         if k == :Reservoir
             # Already done
@@ -194,7 +195,12 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
         W = model.models[k]
         if W.domain isa WellGroup
             # Facility or well group
-            init_w = setup_state(W, TotalSurfaceMassRate = 0.0)
+            if !is_thermal
+                init_w = setup_state(W; TotalSurfaceMassRate = 0.0)
+            else
+                T0 = convert_to_si(20.0, :Celsius)
+                init_w = setup_state(W; TotalSurfaceMassRate = 0.0, SurfaceTemperature = T0)
+            end
         else
             # Wells
             init_w = Dict{Symbol, Any}()

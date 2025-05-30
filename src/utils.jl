@@ -541,6 +541,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             if split_wells
                 wg = WellGroup([wname], can_shut_wells = can_shut_wells)
                 F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
+                if thermal
+                    add_thermal_to_facility!(F)
+                end
                 facility_to_add[Symbol(string(wname)*string(:_ctrl))] = F
             end
         end
@@ -553,6 +556,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         else
             wg = WellGroup(map(x -> x.name, wells), can_shut_wells = can_shut_wells)
             F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
+            if thermal
+                add_thermal_to_facility!(F)
+            end
             models[:Facility] = F
         end
     end
@@ -1192,7 +1198,7 @@ function setup_reservoir_cross_terms!(model::MultiModel)
     has_thermal = haskey(rmodel.equations, :energy_conservation)
     conservation = :mass_conservation
     energy = :energy_conservation
-    handled_btes_cts = Vector{String}(undef, 0)
+    handled_closed_loops = Vector{String}(undef, 0)
     for (k, m) in pairs(model.models)
         if k == :Reservoir
             # These are set up from wells via symmetry
@@ -1208,6 +1214,8 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                 if has_thermal
                     ct = WellFromFacilityThermalCT(target_well)
                     add_cross_term!(model, ct, target = target_well, source = k, equation = energy)
+                    ct = FacilityFromWellTemperatureCT(target_well)
+                    add_cross_term!(model, ct, target = k, source = target_well, equation = :temperature_equation)
                 end
             end
         else
@@ -1226,36 +1234,37 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                     ct = ReservoirFromWellThermalCT(WIth, WI, rc, wc)
                     add_cross_term!(model, ct, target = :Reservoir, source = k, equation = energy)
                 end
-                is_btes = g isa MultiSegmentWell && 
-                    m.data_domain.representation.type == :btes
-                if is_btes
-                    WIth_grout = vec(g.perforations.WIth_grout)
+                is_closed_loop = g isa MultiSegmentWell && 
+                    m.data_domain.representation.type == :closed_loop
+                if is_closed_loop
                     # TODO: Avoid hard-coded index for BTES bottom cell
-                    if length(wc) < number_of_cells(g)-1
-                        btes_bottom_cell = wc[1]-1
-                    else
-                        btes_bottom_cell = wc[end]
-                    end
                     name = string(k)
                     if !contains(name, "_supply")
                         continue
                     end
-                    btes_name = replace(name, "_supply" => "")
-                    if btes_name in handled_btes_cts
+                    cl_name = replace(name, "_supply" => "")
+                    if cl_name in handled_closed_loops
                         continue
                     end
 
-                    this = Symbol(btes_name*"_supply")
-                    other = Symbol(btes_name*"_return")
+                    supply_well = Symbol(cl_name*"_supply")
+                    return_well = Symbol(cl_name*"_return")
+                    supply_nodes = g.end_nodes
+                    g_return = physical_representation(model.models[return_well])
+                    return_nodes = g_return.end_nodes
+                    wc_return = vec(g_return.perforations.self)
+                    ct_mass = JutulDarcy.ClosedLoopSupplyToReturnMassCT(supply_nodes, return_nodes)
+                    ct_energy = JutulDarcy.ClosedLoopSupplyToReturnEnergyCT(supply_nodes, return_nodes)
+                    add_cross_term!(model, ct_mass, target = return_well, source = supply_well, equation = conservation)
+                    add_cross_term!(model, ct_energy, target = return_well, source = supply_well, equation = energy)
 
-                    ct_mass = JutulDarcy.BTESWellSupplyToReturnMassCT([btes_bottom_cell])
-                    ct_energy = JutulDarcy.BTESWellSupplyToReturnEnergyCT([btes_bottom_cell])
-                    ct_grout = JutulDarcy.BTESWellGroutEnergyCT(WIth_grout, wc)
-                    add_cross_term!(model, ct_mass, target = other, source = this, equation = conservation)
-                    add_cross_term!(model, ct_energy, target = other, source = this, equation = energy)
-                    add_cross_term!(model, ct_grout, target = other, source = this, equation = energy)
+                    if haskey(g.perforations, :WIth_grout)
+                        WIth_grout = vec(g.perforations.WIth_grout)
+                        ct_grout = JutulDarcy.BTESWellGroutEnergyCT(WIth_grout, wc, wc_return)
+                        add_cross_term!(model, ct_grout, target = return_well, source = supply_well, equation = energy)
+                    end
                     
-                    push!(handled_btes_cts, btes_name)
+                    push!(handled_closed_loops, cl_name)
                 end
             end
         end
