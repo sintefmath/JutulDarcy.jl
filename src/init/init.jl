@@ -553,8 +553,8 @@ function parse_state0_equil(model, datafile; normalize = :sum)
                 end
 
                 if nph == 1
-                    contacts = []
-                    contacts_pc = []
+                    contacts = Float64[]
+                    contacts_pc = Float64[]
                 elseif nph == 2
                     if is_co2
                         contacts = (woc, )
