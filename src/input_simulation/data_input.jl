@@ -406,16 +406,20 @@ function compdat_to_connection_factors(domain, wspec, v, step; sort = true, orde
         ijk_lookup = ijk_lookup_dict(G)
     end
     K = domain[:permeability]
+    T = eltype(K)
+    if haskey(domain, :net_to_gross)
+        T = promote_type(T, eltype(domain[:net_to_gross]))
+    end
 
     ij_ix = collect(keys(v))
     wc = map(i -> ijk_lookup[i], ij_ix)
 
     getf(k) = map(x -> v[x][k], ij_ix)
     open = getf(:open)
-    d = getf(:diameter)
-    Kh = getf(:Kh)
-    WI = getf(:WI)
-    skin = getf(:skin)
+    d = T.(getf(:diameter))
+    Kh = T.(getf(:Kh))
+    WI = T.(getf(:WI))
+    skin = T.(getf(:skin))
     dir = getf(:dir)
     mul = getf(:mul)
     fresh = map(x -> v[x].ctrl == step, ij_ix)
@@ -485,13 +489,14 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
         end
         W, wc_base, WI_base, open = parse_well_from_compdat(domain, k, v, wspec, msdata_k, compord, length(completions); simple_well = k_is_simple_well)
         n_wi = length(WI_base)
-        wpi_mul = ones(n_wi)
+        T = eltype(WI_base)
+        wpi_mul = ones(T, n_wi)
         for (i, c) in enumerate(completions)
             compdat = c[k]
             well_control = controls[i][k]
             flag = status[i][k]
             well_is_shut = well_control isa DisabledControl
-            wi_mul = zeros(n_wi)
+            wi_mul = zeros(T, n_wi)
             if !well_is_shut
                 wc, WI, open, multipliers, fresh = compdat_to_connection_factors(domain, wspec, compdat, i, ijk_lookup = ijk_lookup, sort = false)
                 for (c, wi, is_open, is_fresh, mul) in zip(wc, WI, open, fresh, multipliers)
@@ -856,20 +861,27 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
     active_ix = G.cell_map
     nc = number_of_cells(G)
     nf = number_of_faces(G)
+
+    permx = grid["PERMX"]
+    permy = grid["PERMY"]
+    permz = grid["PERMZ"]
+    gporo = grid["PORO"]
+    gmultpv = get(grid, "MULTPV", Float64[])
+    T = promote_type(eltype(permx), eltype(permy), eltype(permz), eltype(gporo), eltype(gmultpv))
     # TODO: PERMYY etc for full tensor perm
-    perm = zeros(3, nc)
-    poro = zeros(nc)
+    perm = zeros(T, 3, nc)
+    poro = zeros(T, nc)
     for (i, c) in enumerate(active_ix)
-        perm[1, i] = grid["PERMX"][c]
-        perm[2, i] = grid["PERMY"][c]
-        perm[3, i] = grid["PERMZ"][c]
-        poro[i] = grid["PORO"][c]
+        perm[1, i] = permx[c]
+        perm[2, i] = permy[c]
+        perm[3, i] = permz[c]
+        poro[i] = gporo[c]
     end
     extra_data_arg = Dict{Symbol, Any}()
-    if haskey(grid, "MULTPV")
-        multpv = ones(nc)
+    if length(gmultpv) > 0
+        multpv = ones(T, nc)
         for (i, c) in enumerate(active_ix)
-            v = grid["MULTPV"][c]
+            v = gmultpv[c]
             if isfinite(v)
                 multpv[i] = v
             end

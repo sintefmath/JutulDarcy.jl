@@ -103,7 +103,7 @@ end
     model, state0, parameters, forces, tstep = setup_bl_twoforces(nc = 10, nstep = 10)
     test_force_vectorization(forces, tstep, model)
 
-    G = (model, state, dt, step_no, forces) -> dt*(sum(state[:Saturations][1, :] .- 0.5))^2
+    G = (model, state, dt, step_info, forces) -> dt*(sum(state[:Saturations][1, :] .- 0.5))^2
     dx = numerical_diff_forces(model, state0, parameters, forces, tstep, G)
     states, reports = simulate(state0, model, tstep, forces = forces, parameters = parameters, info_level = -1)
     # Check numerical gradients
@@ -132,7 +132,7 @@ end
 
     Rs0 = sum(case.state0[:Reservoir][:Rs])
     t_tot = sum(case.dt)
-    function rs_obj(model, state, dt, step_no, forces)
+    function rs_obj(model, state, dt, step_info, forces)
         rs = state.Reservoir.Rs
         val = 0
         for i in 1:length(rs)
@@ -142,23 +142,23 @@ end
         return dt*(val/(Rs0*t_tot))^2
     end
 
-    function orat_obj(model, state, dt, step_no, forces)
+    function orat_obj(model, state, dt, step_info, forces)
         orat = JutulDarcy.compute_well_qoi(model, state, forces, :PROD, SurfaceOilRateTarget)
         return dt*orat/t_tot
     end
 
-    function prod_bhp_obj(model, state, dt, step_no, forces)
+    function prod_bhp_obj(model, state, dt, step_info, forces)
         bhp = state.PROD.Pressure[1]
         return dt*bhp/t_tot
     end
 
-    function cell_pressure_obj(model, state, dt, step_no, forces)
+    function cell_pressure_obj(model, state, dt, step_info, forces)
         p = state.Reservoir.Pressure[300]
         return p
     end
 
-    function npv_test_obj(model, state, dt, step_no, forces)
-        return JutulDarcy.npv_objective(model, state, dt, step_no, forces, injectors = [:INJ], producers = [:PROD], timesteps = case.dt)
+    function npv_test_obj(model, state, dt, step_info, forces)
+        return JutulDarcy.npv_objective(model, state, dt, step_info, forces, injectors = [:INJ], producers = [:PROD], timesteps = case.dt)
     end
 
     function test_grad(obj; kwarg...)

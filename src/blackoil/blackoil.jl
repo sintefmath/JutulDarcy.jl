@@ -154,7 +154,8 @@ function handle_alternate_primary_variable_spec!(init, found, rmodel, sys::Stand
             rv_var = nothing
         end
         so = @. 1.0 - sw - sg
-        bo = Vector{BlackOilX{Float64}}()
+        T = promote_type(eltype(S), eltype(pressure))
+        bo = Vector{BlackOilX{T}}()
         sizehint!(bo, nc)
         for i in 1:nc
             reg_rs = region(rs_var, i)

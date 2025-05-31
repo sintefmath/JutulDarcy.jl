@@ -553,8 +553,8 @@ function parse_state0_equil(model, datafile; normalize = :sum)
                 end
 
                 if nph == 1
-                    contacts = []
-                    contacts_pc = []
+                    contacts = Float64[]
+                    contacts_pc = Float64[]
                 elseif nph == 2
                     if is_co2
                         contacts = (woc, )
@@ -788,7 +788,8 @@ end
 
 function init_reference_pressure(pressures, contacts, kr, pc, ref_ix = 2)
     nph, nc = size(kr)
-    p = zeros(nc)
+    T = promote_type(eltype(pressures), eltype(contacts), eltype(kr))
+    p = zeros(T, nc)
     ϵ = 1e-12
     for i in eachindex(p)
         p[i] = pressures[ref_ix, i]
@@ -806,13 +807,14 @@ function init_reference_pressure(pressures, contacts, kr, pc, ref_ix = 2)
 end
 
 function determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_f, contacts_pc, ref_ix = 0)
+    T = promote_type(eltype(depths), typeof(depth), typeof(zmin), typeof(zmax), eltype(contacts), typeof(datum_pressure))
     nc = length(depths)
     nph = length(contacts) + 1
     if ref_ix == 0
         ref_ix = min(2, nph)
     end
     I_ref = phase_pressure_depth_table(depth, zmin, zmax, datum_pressure, density_f, ref_ix)
-    pressures = zeros(nph, nc)
+    pressures = zeros(T, nph, nc)
     pos = 1
     for ph in 1:nph
         if ph == ref_ix
@@ -856,9 +858,11 @@ end
 
 function integrate_phase_density(z_datum, z_end, p0, density_f, phase; n = 1000, g = Jutul.gravity_constant)
     @assert isfinite(p0) "Pressure at contact must be finite"
+    z_datum, z_end, p0, g = promote(z_datum, z_end, p0, g)
+    T = typeof(p0)
     dz = (z_end - z_datum)/n
-    pressure = zeros(n+1)
-    z = zeros(n+1)
+    pressure = zeros(T, n+1)
+    z = zeros(T, n+1)
     pressure[1] = p0
     z[1] = z_datum
 

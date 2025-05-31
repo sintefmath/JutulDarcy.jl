@@ -122,6 +122,8 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         dir = :z,
         kwarg...
     )
+    T = promote_type(eltype(K), typeof(skin), typeof(radius), typeof(simple_well_regularization))
+    T = promote_type(T, Jutul.float_type(g))
     n = length(reservoir_cells)
     # Make sure these are cell indices
     reservoir_cells = map(i -> cell_index(g, i), reservoir_cells)
@@ -138,11 +140,11 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
             reference_depth = centers[3, 1]
         end
     end
-    volumes = zeros(n)
-    WI_computed = zeros(n)
-    WIth_computed = zeros(n)
+    volumes = zeros(T, n)
+    WI_computed = zeros(T, n)
+    WIth_computed = zeros(T, n)
     Λ = thermal_conductivity
-    dz = zeros(n)
+    dz = zeros(T, n)
 
     function get_entry(x::AbstractVector, i)
         return x[i]
@@ -164,7 +166,6 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         if ismissing(WI_i) || isnan(WI_i)
             WI_i = compute_peaceman_index(g, k_i, r_i, c, skin = s_i, Kh = Kh_i, dir = dir)
         end
-        WI_i::AbstractFloat
         WI_computed[i] = WI_i
         WIth_i = 0.0
         if !ismissing(Λ)
@@ -177,7 +178,6 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
             if ismissing(WIth) || isnan(WIth_i)
                 WIth_i = compute_peaceman_index(g, Λ_i, r_i, c, dir = dir)
             end
-            WIth_i::AbstractFloat
         end
         push!(segment_radius, r_i)
         WIth_computed[i] = WIth_i

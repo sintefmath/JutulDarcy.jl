@@ -66,7 +66,7 @@ end
 
 default_value(model, ::FlashResults) = FlashedMixture2Phase(model.system.equation_of_state)
 
-function initialize_variable_value(model, pvar::FlashResults, val::AbstractDict; need_value = false)
+function initialize_variable_value(model, pvar::FlashResults, val::AbstractDict; need_value = false, T = Jutul.float_type(model.context))
     @assert need_value == false
     n = number_of_entities(model, pvar)
     v = default_value(model, pvar)

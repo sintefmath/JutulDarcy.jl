@@ -79,7 +79,7 @@ function setup_optimization_cgnet(case_c, case_f, result_f)
     end
     signs = zeros(Int, length(signs))
     o_scale = 1.0/(sum(dt)*length(wells))
-    G = (model_c, state_c, dt, step_no, forces) -> well_mismatch(
+    G = (model_c, state_c, dt, step_info, forces) -> well_mismatch(
         matches,
         wells,
         model_f,
@@ -87,7 +87,7 @@ function setup_optimization_cgnet(case_c, case_f, result_f)
         model_c,
         state_c,
         dt,
-        step_no,
+        step_info,
         forces,
         weights = w,
         scale = o_scale,

@@ -169,7 +169,7 @@ push!(w, (1/50)*day)
 
 wnames = map(x -> x.name, wells)
 o_scale = 1.0/(sum(dt)*length(wnames))
-mismatch_objective = (model, state, dt, step_no, forces) -> well_mismatch(
+mismatch_objective = (model, state, dt, step_info, forces) -> well_mismatch(
     matches,
     wnames,
     model_base,
@@ -177,7 +177,7 @@ mismatch_objective = (model, state, dt, step_no, forces) -> well_mismatch(
     model,
     state,
     dt,
-    step_no,
+    step_info,
     forces,
     weights = w,
     scale = o_scale,

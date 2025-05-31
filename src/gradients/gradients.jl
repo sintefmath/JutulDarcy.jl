@@ -67,7 +67,7 @@ Convenience function for setting up parameter optimization for a reservoir
 simulation. The function will set up the simulator and the optimization
 configuration with a "standard" reservoir simulator. The objective should be on
 the form of sum over all steps, where each element of the sum is evaluated by
-`model, state, dt, step_no, forces`. 
+`model, state, dt, step_info, forces`. 
 """
 
 function setup_reservoir_parameter_optimization(case::JutulCase, objective, opt_cfg = missing;

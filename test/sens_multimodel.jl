@@ -23,7 +23,7 @@ function test_optimization_gradient(casename = :immiscible_2ph; use_scaling = tr
     ϵ = 1e-6
     num_tol = 1e-2
 
-    G = (model, state, dt, step_no, forces) -> well_test_objective(model, state)
+    G = (model, state, dt, step_info, forces) -> well_test_objective(model, state)
 
     active = nothing
     cfg = optimization_config(model, param, active, use_scaling = use_scaling, rel_min = 0.5, rel_max = 2.0)
@@ -175,8 +175,8 @@ end
         end
     end
     o_scale = 1.0 / (sum(dt) * length(wells));
-    G = (model_c, state_c, dt, step_no, forces) -> well_mismatch(
-        matches, wells, model_f, states_f, model_c, state_c, dt, step_no,
+    G = (model_c, state_c, dt, step_info, forces) -> well_mismatch(
+        matches, wells, model_f, states_f, model_c, state_c, dt, step_info,
         forces, weights = w, scale = o_scale, signs = signs
     );
 
@@ -280,7 +280,7 @@ end
         end
     end
 
-    G = (m, s, dt, step_no, forces) -> s.Reservoir.Pressure[end]
+    G = (m, s, dt, step_info, forces) -> s.Reservoir.Pressure[end]
 
     opt_setup = setup_parameter_optimization(case, G, cfg, print = false)
 

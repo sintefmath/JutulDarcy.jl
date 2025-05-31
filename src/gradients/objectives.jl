@@ -68,17 +68,18 @@ end
 
 
 """
-    well_mismatch(qoi, wells, model_f, states_f, model_c, state_c, dt, step_no, forces; <keyword arguments>)
+    well_mismatch(qoi, wells, model_f, states_f, model_c, state_c, dt, step_info, forces; <keyword arguments>)
 
 Compute well mismatch for a set of qoi's (well targets) and a set of well symbols.
 """
-function well_mismatch(qoi, wells, model_f, states_f, model_c, state_c, dt, step_no, forces; weights = ones(length(qoi)), scale = 1.0, signs = nothing)
+function well_mismatch(qoi, wells, model_f, states_f, model_c, state_c, dt, step_info, forces; weights = ones(length(qoi)), scale = 1.0, signs = nothing)
     if !(qoi isa AbstractArray)
         qoi = [qoi]
     end
     if !(wells isa AbstractArray)
         wells = [wells]
     end
+    step_no = step_info[:step]
     obj = 0.0
     @assert length(weights) == length(qoi)
     for well in wells
@@ -246,8 +247,8 @@ function setup_rate_optimization_objective(case, base_rate;
         simulated = simulate_reservoir(case; output_substates = true, info_level = -1, sim_arg...)
         r = simulated.result
         dt_mini = report_timesteps(r.reports, ministeps = true)
-        function npv_obj(model, state, dt, step_no, forces)
-            return npv_objective(model, state, dt, step_no, forces;
+        function npv_obj(model, state, dt, step_info, forces)
+            return npv_objective(model, state, dt, step_info, forces;
                 injectors = injectors,
                 producers = producers,
                 timesteps = dt_mini,
@@ -327,7 +328,7 @@ end
 
 
 """
-    npv_objective(model, state, dt, step_no, forces;
+    npv_objective(model, state, dt, step_info, forces;
         timesteps,
         injectors,
         producers,
@@ -354,7 +355,7 @@ Setting `maximize` to false will make the objective function negative-valued,
 with larger negative values corresponding to better results. This is useful for
 some optimizers.
 """
-function npv_objective(model, state, dt, step_no, forces;
+function npv_objective(model, state, dt, step_info, forces;
         timesteps,
         injectors,
         producers,
@@ -371,6 +372,7 @@ function npv_objective(model, state, dt, step_no, forces;
         discount_unit = si_unit(:year),
         scale = 1.0
     )
+    step_no = step_info[:step]
     phases = get_phases(reservoir_model(model).system)
     has_wat = AqueousPhase() in phases
     has_gas = VaporPhase() in phases

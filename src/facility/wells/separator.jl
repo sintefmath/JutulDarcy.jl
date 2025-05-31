@@ -3,12 +3,12 @@ function default_value(model, ::SurfaceWellConditions)
     return TopConditions(length(rho), density = rho, volume_fractions = missing)
 end
 
-function initialize_variable_value(model, pvar::SurfaceWellConditions, val::AbstractDict; need_value = false)
+function initialize_variable_value(model, pvar::SurfaceWellConditions, val::AbstractDict; need_value = false, T = Jutul.float_type(model.context))
     @assert need_value == false
-    initialize_variable_value(model, pvar, [default_value(model, pvar)])
+    initialize_variable_value(model, pvar, [default_value(model, pvar)], T = T)
 end
 
-function initialize_variable_value(model, pvar::SurfaceWellConditions, val::Vector; need_value = false)
+function initialize_variable_value(model, pvar::SurfaceWellConditions, val::Vector; need_value = false, T = Jutul.float_type(model.context))
     @assert need_value == false
     if length(val) > 1 
         @warn "Expected a single value, got $(length(val))"

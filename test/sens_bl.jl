@@ -61,16 +61,16 @@ end
             forces = Dict(:Dummy => forces, :Reservoir => forces)
             parameters = Dict(:Dummy => parameters, :Reservoir => parameters)
             state0 = Dict(:Dummy => state0, :Reservoir => state0)
-            G = (m, state, dt, step_no, forces) -> dt*state[:Reservoir][:Saturations][2, end]
+            G = (m, state, dt, step_info, forces) -> dt*state[:Reservoir][:Saturations][2, end]
         elseif model_type == :multi || model_type == :multi_spec
             model = MultiModel(Dict(:Reservoir => model), specialize = model_type == :multi_spec)
             forces = Dict(:Reservoir => forces)
             parameters = Dict(:Reservoir => parameters)
             state0 = Dict(:Reservoir => state0)
-            G = (m, state, dt, step_no, forces) -> dt*state[:Reservoir][:Saturations][2, end]
+            G = (m, state, dt, step_info, forces) -> dt*state[:Reservoir][:Saturations][2, end]
         else
             @assert model_type == :single
-            G = (model, state, dt, step_no, forces) -> dt*state[:Saturations][2, end]
+            G = (model, state, dt, step_info, forces) -> dt*state[:Saturations][2, end]
         end
         adj, num = get_sens(model, state0, parameters, tstep, forces, G)
         @testset "$model_type" begin

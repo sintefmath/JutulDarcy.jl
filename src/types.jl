@@ -394,7 +394,7 @@ struct SimpleWell{SC, P, V} <: WellDomain where {SC, P}
     surface::SC
     name::Symbol
     explicit_dp::Bool
-    reference_depth::Float64
+    reference_depth::V
 end
 
 """
@@ -421,10 +421,14 @@ function SimpleWell(
         volume = 1000.0, # Regularization volume for well, not a real volume
         kwarg...
     )
-    reference_depth = convert(Float64, reference_depth)
-    volume = convert(Float64, volume)
     nr = length(reservoir_cells)
     WI, WIth, gdz = common_well_setup(nr; kwarg...)
+    T = promote_type(typeof(reference_depth), typeof(volume), eltype(WI), eltype(WIth), eltype(gdz))
+    reference_depth = convert(T, reference_depth)
+    volume = convert(T, volume)
+    WI = T.(WI)
+    WIth = T.(WIth)
+    gdz = T.(gdz)
     perf = (self = ones(Int64, nr), reservoir = vec(reservoir_cells), WI = WI, WIth = WIth, gdz = gdz)
     return SimpleWell(volume, perf, surface_conditions, name, explicit_dp, reference_depth)
 end
@@ -686,6 +690,12 @@ struct TopConditions{N, R}
 end
 
 function TopConditions(n::Int, R::DataType = Float64; density = missing, volume_fractions = missing)
+    if !ismissing(density)
+        R = promote_type(map(typeof, density)..., R)
+    end
+    if !ismissing(volume_fractions)
+        R = promote_type(map(typeof, volume_fractions)..., R)
+    end
     return TopConditions(Val(n), Val(R), density, volume_fractions)
 end
 
