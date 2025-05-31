@@ -60,7 +60,8 @@ fig
 # Define objective as mismatch between water saturation in current state and
 # reference state. The objective function is currently a sum over all time
 # steps. We implement a function for one term of this sum.
-function mass_mismatch(m, state, dt, step_no, forces)
+function mass_mismatch(m, state, dt, step_info, forces)
+    step_no = step_info[:step]
     state_ref = states_ref[step_no]
     fld = :Saturations
     val = state[fld]
