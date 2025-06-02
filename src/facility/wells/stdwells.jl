@@ -113,7 +113,7 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
             local_density += mix*ρ[ph, rc]
         end
         dp_current += local_density*Δgdz
-        dp[i] = value(dp_current)
+        dp[i] = ForwardDiff.value(dp_current)
 
         # Onto next one
         gdz_current = gdz_next
@@ -166,7 +166,9 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
         else
             next_dp = 0.0
         end
-        dp[i] = value(next_dp)
+        # NOTE: This is a real hack - should be fixed higher up in the
+        # initialization of the parameter.
+        dp[i] = ForwardDiff.value(next_dp)
     end
     # Integrate down, using the mixture densities (temporarily stored in dp) to
     # calculate the pressure drop from the top.
@@ -180,6 +182,6 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
         dp_current += local_density*Δgdz
         gdz_current = gdz_next
 
-        dp[i] = value(dp_current)
+        dp[i] = ForwardDiff.value(dp_current)
     end
 end
