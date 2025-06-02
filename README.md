@@ -79,7 +79,7 @@ All solvers can incorporate general multisegment wells with rigorous mass balanc
 ### Input/output and workflow tools
 
 - Support for reading in and running .DATA files with corner point grids, with support for non-conformal faults and inactive cells.
-- Unstructured grids and complex cases input from [the Matlab Reservoir Simulation Toolbox (MRST)](https://www.mrst.no) using the `jutul` module
+- Unstructured grids and complex cases input from [the Matlab Reservoir Simulation Toolbox (MRST)](https://www.sintef.no/projectweb/mrst/) using the `jutul` module
 - 3D visualization of grids and wells by loading a [Makie.jl](https://docs.makie.org/stable/) backend (requires Julia 1.9, `GLMakie` for interactivity)
 - Interactive plotting of well curves
 
