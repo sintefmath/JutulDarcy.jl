@@ -554,6 +554,13 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
     if segment_radius isa Real
         segment_radius = fill(segment_radius, nseg)
     end
+    if length(segment_radius) < nseg
+        @assert length(segment_radius) == nv
+        # We are provided one radius per cell - compute segment radii as the
+        # average of its to associated cells segment radii
+        pushfirst!(segment_radius, segment_radius[1])
+        segment_radius = mean(segment_radius[N], dims=1)
+    end
     @assert length(segment_radius) == nseg "Segment radius must have length equal to number of segments"
 
     # Process well material properties
