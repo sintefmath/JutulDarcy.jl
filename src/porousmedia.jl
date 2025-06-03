@@ -149,7 +149,7 @@ function compute_peaceman_index(Δ, K, radius;
     return WI
 end
 
-function compute_well_thermal_index(g::T, thermal_cond, radius, pos; 
+function compute_well_thermal_index(g::T, thermal_conductivity, radius, pos; 
         radius_outer = nothing,
         thermal_conductivity_casing = 20,
         radius_grout = nothing,
@@ -171,7 +171,7 @@ function compute_well_thermal_index(g::T, thermal_cond, radius, pos;
 
     # Readable notation
     ri, ro, rg = radius, radius_outer, radius_grout
-    λr, λc, λg = thermal_cond, thermal_conductivity_casing, thermal_conductivity_grout
+    λr, λc, λg = thermal_conductivity, thermal_conductivity_casing, thermal_conductivity_grout
     U = 0.0
     # Conduction through casing
     if !isnothing(ro)
