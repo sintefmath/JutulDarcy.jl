@@ -119,10 +119,11 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         WI = missing,
         WIth = missing,
         thermal_conductivity = missing,
+        thermal_index_args = NamedTuple(),
         dir = :z,
         kwarg...
     )
-    T = promote_type(eltype(K), typeof(skin), typeof(radius), typeof(simple_well_regularization))
+    T = promote_type(eltype(K), eltype(skin), eltype(radius), typeof(simple_well_regularization))
     T = promote_type(T, Jutul.float_type(g))
     n = length(reservoir_cells)
     # Make sure these are cell indices
@@ -175,8 +176,9 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
             else
                 Λ_i = Λ[:, c]
             end
-            if ismissing(WIth) || isnan(WIth_i)
-                WIth_i = compute_peaceman_index(g, Λ_i, r_i, c, dir = dir)
+            if ismissing(WIth_i) || isnan(WIth_i)
+                WIth_i = compute_well_thermal_index(g, Λ_i, r_i, c; 
+                    dir = dir, thermal_index_args...)
             end
         end
         push!(segment_radius, r_i)
