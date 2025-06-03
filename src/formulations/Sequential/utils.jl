@@ -377,11 +377,26 @@ function store_perforation_fluxes!(tsim, psim, pmodel)
 end
 
 function store_perforation_fluxes!(tsim, psim, pmodel::MultiModel)
-    for (label, submodel) in pairs(pmodel.models)
-        if JutulDarcy.model_or_domain_is_well(submodel)
+    model_r = reservoir_model(pmodel)
+    for ct in pmodel.cross_terms
+        if ct.cross_term isa PressureReservoirFromWellFlowCT
+            @assert ct.target == :Reservoir "Expected target to be :Reservoir, was $(ct.target) (source = $(ct.source))"
+            label = ct.source
             q = tsim.storage[label].parameters[:PerforationTotalVolumetricFlux]
             # TODO: Call perforation_phase_potential_difference here
+            ct_mphase = ct.cross_term.parent
+            store_perforation_fluxes!(q, ct_mphase, pmodel[label], model_r, psim.storage.state[label], psim.storage.state[:Reservoir])
         end
+    end
+    error()
+end
+
+function store_perforation_fluxes!(q, ct, wmodel, resmodel, wstate, rstate)
+    for i in eachindex(q)
+        conn = cross_term_perforation_get_conn(ct, i, wstate, rstate)
+        ph = 1
+        pot = JutulDarcy.perforation_phase_potential_difference(conn, rstate, wstate, ph)
+        @info "Calculated" pot i
     end
     error()
 end
