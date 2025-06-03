@@ -26,7 +26,7 @@ struct PressureEquationTPFAStorage{A, HC, B}
     buf::B
 end
 
-function PressureEquationTPFAStorage(model, eq::PressureEquation; kwarg...)
+function PressureEquationTPFAStorage(model, eq::PressureEquation; ad = true, kwarg...)
     ceq = eq.conservation
     ceq.flow_discretization::TwoPointPotentialFlowHardCoded
     number_of_equations = 1

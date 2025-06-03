@@ -29,6 +29,9 @@ Jutul.relative_increment_limit(st::TotalSaturation) = st.max_rel
 struct TotalVolumetricFlux <: Jutul.ScalarVariable end
 Jutul.associated_entity(::TotalVolumetricFlux) = Faces()
 
+struct PerforationTotalVolumetricFlux <: Jutul.ScalarVariable end
+Jutul.associated_entity(::PerforationTotalVolumetricFlux) = JutulDarcy.Perforations()
+
 
 struct TotalSaturationCorrectedScalarVariable <: Jutul.ScalarVariable
     uncorrected_label::Symbol

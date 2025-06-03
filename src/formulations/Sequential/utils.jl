@@ -110,6 +110,18 @@ function Jutul.initialize_before_first_timestep!(sim::SequentialSimulator, dt; k
     Jutul.initialize_before_first_timestep!(sim.pressure, dt; kwarg...)
 end
 
+function get_reservoir_state(sim, current = true)
+    if current
+        model_state = sim.storage.state
+    else
+        model_state = sim.storage.state0
+    end
+    if sim.model isa MultiModel
+        model_state = model_state.Reservoir
+    end
+    return model_state
+end
+
 function Jutul.perform_step!(
         simulator::SequentialSimulator,
         dt,
@@ -122,17 +134,6 @@ function Jutul.perform_step!(
         executor = default_executor(),
         prev_report = missing
     )
-    function get_reservoir_state(sim, current = true)
-        if current
-            model_state = sim.storage.state
-        else
-            model_state = sim.storage.state0
-        end
-        if sim.model isa MultiModel
-            model_state = model_state.Reservoir
-        end
-        return model_state
-    end
     il = config[:info_level]
 
     psim = simulator.pressure
@@ -183,6 +184,7 @@ function Jutul.perform_step!(
     end
     done_p, report_p = Jutul.solve_ministep(psim, dt, forces, max_iter_p, config_p, finalize = false)
     if done_p
+        # t_forces = transport_forces(tsim,)
         t_forces = deepcopy(forces)
         # Copy over values for pressure and fluxes into parameters for second simulator
         model_p = psim.model
@@ -190,10 +192,7 @@ function Jutul.perform_step!(
             Jutul.reset_previous_state!(tsim, pstate0)
             Jutul.reset_state_to_previous_state!(tsim)
         end
-
-        vT = get_reservoir_state(tsim).TotalVolumetricFlux
-        pstate_res = get_reservoir_state(psim)
-        store_total_fluxes!(vT, reservoir_model(model_p), as_value(pstate_res))
+        store_fluxes!(tsim, psim)
         sequential_sync_values!(simulator, to_key = :transport)
         nsub = config[:transport_substeps]
         config_t = config[:transport]
@@ -363,6 +362,28 @@ function Jutul.perform_step!(
         Jutul.update_after_step!(psim, dt, forces)
     end
     return (err, converged, report)
+end
+
+function store_fluxes!(tsim, psim)
+    pmodel = psim.model
+    vT = get_reservoir_state(tsim).TotalVolumetricFlux
+    pstate_res = get_reservoir_state(psim)
+    store_total_fluxes!(vT, reservoir_model(pmodel), as_value(pstate_res))
+    store_perforation_fluxes!(tsim, psim, pmodel)
+end
+
+function store_perforation_fluxes!(tsim, psim, pmodel)
+    nothing
+end
+
+function store_perforation_fluxes!(tsim, psim, pmodel::MultiModel)
+    for (label, submodel) in pairs(pmodel.models)
+        if JutulDarcy.model_or_domain_is_well(submodel)
+            q = tsim.storage[label].parameters[:PerforationTotalVolumetricFlux]
+            # TODO: Call perforation_phase_potential_difference here
+        end
+    end
+    error()
 end
 
 function sequential_sync_values!(sim::SequentialSimulator; to_key::Symbol = :pressure, kind = :transfer_keys)

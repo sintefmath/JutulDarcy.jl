@@ -5,7 +5,11 @@ end
 
 function Jutul.select_parameters!(vars, ::TransportFormulation, model::TransportModel)
     vars[:Pressure] = Pressure()
-    vars[:TotalVolumetricFlux] = TotalVolumetricFlux()
+    if JutulDarcy.model_or_domain_is_well(model)
+        vars[:PerforationTotalVolumetricFlux] = PerforationTotalVolumetricFlux()
+    else
+        vars[:TotalVolumetricFlux] = TotalVolumetricFlux()
+    end
 end
 
 function Jutul.select_equations!(eqs, ::TransportFormulation, model::TransportModel)
