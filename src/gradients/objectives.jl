@@ -256,14 +256,21 @@ function setup_rate_optimization_objective(case, base_rate;
             )
         end
         obj = Jutul.evaluate_objective(npv_obj, case.model, r.states, case.dt, case.forces)
+        cache = Dict()
         if grad
             # dforces, t_to_f, grad_adj = Jutul.solve_adjoint_forces!(storage, case.model, r.states, r.reports, npv_obj, forces,
             #     eachstep = eachstep,
             #     state0 = case.state0,
             #     parameters = case.parameters
             # ),
-            dforces, t_to_f, grad_adj = Jutul.solve_adjoint_forces(case.model, r.states, r.reports, npv_obj, forces,
-                eachstep = eachstep,
+            if !haskey(cache, :storage)
+                cache[:storage] = Jutul.setup_adjoint_forces_storage(case.model, r.states, forces, case.dt, npv_obj;
+                    state0 = case.state0,
+                    parameters = case.parameters,
+                    eachstep = eachstep
+                )
+            end
+            dforces, t_to_f, grad_adj = Jutul.solve_adjoint_forces!(cache[:storage], case.model, r.states, r.reports, npv_obj, forces,
                 state0 = case.state0,
                 parameters = case.parameters
             )
