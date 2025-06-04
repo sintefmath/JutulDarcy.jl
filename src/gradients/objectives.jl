@@ -214,11 +214,7 @@ function setup_rate_optimization_objective(case, base_rate;
     is_both = intersect(injectors, producers)
     length(is_both) == 0 || error("Wells were both producers and injectors in forces? $is_both")
     myprint("$ninj injectors and $(length(producers)) producers selected.")
-    # storage = Jutul.setup_adjoint_forces_storage(case.model, case.forces, case.dt;
-    #     state0 = case.state0,
-    #     parameters = case.parameters,
-    #     eachstep = eachstep
-    # )
+    cache = Dict()
 
     function f!(x; grad = true)
         nstep = length(case.dt)
@@ -256,13 +252,7 @@ function setup_rate_optimization_objective(case, base_rate;
             )
         end
         obj = Jutul.evaluate_objective(npv_obj, case.model, r.states, case.dt, case.forces)
-        cache = Dict()
         if grad
-            # dforces, t_to_f, grad_adj = Jutul.solve_adjoint_forces!(storage, case.model, r.states, r.reports, npv_obj, forces,
-            #     eachstep = eachstep,
-            #     state0 = case.state0,
-            #     parameters = case.parameters
-            # ),
             if !haskey(cache, :storage)
                 cache[:storage] = Jutul.setup_adjoint_forces_storage(case.model, r.states, forces, case.dt, npv_obj;
                     state0 = case.state0,
@@ -428,10 +418,7 @@ function npv_objective(model, state, dt, step_info, forces;
         end
         obj -= (oil_cost*orat + gas_cost*grat + water_cost*wrat)
     end
-    time = 0.0
-    for i in 1:step_no
-        time += timesteps[i]
-    end
+    time = step_info[:time] + dt
     if maximize
         sgn = 1
     else
