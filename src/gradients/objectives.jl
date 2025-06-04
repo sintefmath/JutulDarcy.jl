@@ -214,11 +214,11 @@ function setup_rate_optimization_objective(case, base_rate;
     is_both = intersect(injectors, producers)
     length(is_both) == 0 || error("Wells were both producers and injectors in forces? $is_both")
     myprint("$ninj injectors and $(length(producers)) producers selected.")
-    storage = Jutul.setup_adjoint_forces_storage(case.model, case.forces, case.dt;
-        state0 = case.state0,
-        parameters = case.parameters,
-        eachstep = eachstep
-    )
+    # storage = Jutul.setup_adjoint_forces_storage(case.model, case.forces, case.dt;
+    #     state0 = case.state0,
+    #     parameters = case.parameters,
+    #     eachstep = eachstep
+    # )
 
     function f!(x; grad = true)
         nstep = length(case.dt)
@@ -257,16 +257,21 @@ function setup_rate_optimization_objective(case, base_rate;
         end
         obj = Jutul.evaluate_objective(npv_obj, case.model, r.states, case.dt, case.forces)
         if grad
-            dforces, t_to_f, grad_adj = Jutul.solve_adjoint_forces!(storage, case.model, r.states, r.reports, npv_obj, forces,
+            # dforces, t_to_f, grad_adj = Jutul.solve_adjoint_forces!(storage, case.model, r.states, r.reports, npv_obj, forces,
+            #     eachstep = eachstep,
+            #     state0 = case.state0,
+            #     parameters = case.parameters
+            # ),
+            dforces, t_to_f, grad_adj = Jutul.solve_adjoint_forces(case.model, r.states, r.reports, npv_obj, forces,
                 eachstep = eachstep,
                 state0 = case.state0,
                 parameters = case.parameters
             )
-
             df = zeros(ninj, nstep_unique)
             for stepno in 1:nstep_unique
                 for (inj_no, inj) in enumerate(injectors)
-                    do_dq = dforces[stepno][:Facility].control[inj].target.value
+                    ctrl = dforces[stepno][:Facility].control[inj]
+                    do_dq = ctrl.target.value
                     df[inj_no, stepno] = do_dq*max_rate
                 end
             end
