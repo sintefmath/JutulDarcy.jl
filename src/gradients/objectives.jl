@@ -252,10 +252,14 @@ function setup_rate_optimization_objective(case, base_rate;
             )
         end
         obj = Jutul.evaluate_objective(npv_obj, case.model, r.states, case.dt, case.forces)
+        targets = Jutul.force_targets(case.model)
+        targets[:Facility][:control] = :control
+        targets[:Facility][:limits] = nothing
         if grad
             if !haskey(cache, :storage)
                 cache[:storage] = Jutul.setup_adjoint_forces_storage(case.model, r.states, forces, case.dt, npv_obj;
                     state0 = case.state0,
+                    # targets = targets,
                     parameters = case.parameters,
                     eachstep = eachstep,
                     di_sparse = false
