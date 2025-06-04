@@ -35,7 +35,7 @@ using Jutul, JutulDarcy, GeoEnergyIO, Test
     );
 
     opt_setup = setup_parameter_optimization(case, obj_func, cfg;
-        print = true,
+        print = 0,
         param_obj = true,
         config = sim_cfg
     );
