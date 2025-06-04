@@ -148,6 +148,7 @@ function setup_rate_optimization_objective(case, base_rate;
         injectors = missing,
         producers = missing,
         verbose = true,
+        use_ministeps = false,
         limits_enabled = true,
         constraint = :total_sum_injected,
         sim_arg = NamedTuple(),
@@ -240,9 +241,9 @@ function setup_rate_optimization_objective(case, base_rate;
                 f_forces.limits[inj] = merge(lims, as_limit(new_target))
             end
         end
-        simulated = simulate_reservoir(case; output_substates = true, info_level = -1, sim_arg...)
+        simulated = simulate_reservoir(case; output_substates = use_ministeps, info_level = -1, sim_arg...)
         r = simulated.result
-        dt_mini = report_timesteps(r.reports, ministeps = true)
+        dt_mini = report_timesteps(r.reports, ministeps = use_ministeps)
         function npv_obj(model, state, dt, step_info, forces)
             return npv_objective(model, state, dt, step_info, forces;
                 injectors = injectors,
