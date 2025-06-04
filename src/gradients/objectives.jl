@@ -267,7 +267,8 @@ function setup_rate_optimization_objective(case, base_rate;
                 cache[:storage] = Jutul.setup_adjoint_forces_storage(case.model, r.states, forces, case.dt, npv_obj;
                     state0 = case.state0,
                     parameters = case.parameters,
-                    eachstep = eachstep
+                    eachstep = eachstep,
+                    di_sparse = false
                 )
             end
             dforces, t_to_f, grad_adj = Jutul.solve_adjoint_forces!(cache[:storage], case.model, r.states, r.reports, npv_obj, forces,
