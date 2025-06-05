@@ -148,6 +148,7 @@ function setup_rate_optimization_objective(case, base_rate;
         injectors = missing,
         producers = missing,
         verbose = true,
+        use_ministeps = true,
         limits_enabled = true,
         constraint = :total_sum_injected,
         sim_arg = NamedTuple(),
@@ -214,11 +215,7 @@ function setup_rate_optimization_objective(case, base_rate;
     is_both = intersect(injectors, producers)
     length(is_both) == 0 || error("Wells were both producers and injectors in forces? $is_both")
     myprint("$ninj injectors and $(length(producers)) producers selected.")
-    storage = Jutul.setup_adjoint_forces_storage(case.model, case.forces, case.dt;
-        state0 = case.state0,
-        parameters = case.parameters,
-        eachstep = eachstep
-    )
+    cache = Dict()
 
     function f!(x; grad = true)
         nstep = length(case.dt)
@@ -244,9 +241,9 @@ function setup_rate_optimization_objective(case, base_rate;
                 f_forces.limits[inj] = merge(lims, as_limit(new_target))
             end
         end
-        simulated = simulate_reservoir(case; output_substates = true, info_level = -1, sim_arg...)
+        simulated = simulate_reservoir(case; output_substates = use_ministeps, info_level = -1, sim_arg...)
         r = simulated.result
-        dt_mini = report_timesteps(r.reports, ministeps = true)
+        dt_mini = report_timesteps(r.reports, ministeps = use_ministeps)
         function npv_obj(model, state, dt, step_info, forces)
             return npv_objective(model, state, dt, step_info, forces;
                 injectors = injectors,
@@ -256,17 +253,28 @@ function setup_rate_optimization_objective(case, base_rate;
             )
         end
         obj = Jutul.evaluate_objective(npv_obj, case.model, r.states, case.dt, case.forces)
+        targets = Jutul.force_targets(case.model)
+        targets[:Facility][:control] = :control
+        targets[:Facility][:limits] = nothing
         if grad
-            dforces, t_to_f, grad_adj = Jutul.solve_adjoint_forces!(storage, case.model, r.states, r.reports, npv_obj, forces,
-                eachstep = eachstep,
+            if !haskey(cache, :storage)
+                cache[:storage] = Jutul.setup_adjoint_forces_storage(case.model, r.states, forces, case.dt, npv_obj;
+                    state0 = case.state0,
+                    targets = targets,
+                    parameters = case.parameters,
+                    eachstep = eachstep,
+                    di_sparse = true
+                )
+            end
+            dforces, t_to_f, grad_adj = Jutul.solve_adjoint_forces!(cache[:storage], case.model, r.states, r.reports, npv_obj, forces,
                 state0 = case.state0,
                 parameters = case.parameters
             )
-
             df = zeros(ninj, nstep_unique)
             for stepno in 1:nstep_unique
                 for (inj_no, inj) in enumerate(injectors)
-                    do_dq = dforces[stepno][:Facility].control[inj].target.value
+                    ctrl = dforces[stepno][:Facility].control[inj]
+                    do_dq = ctrl.target.value
                     df[inj_no, stepno] = do_dq*max_rate
                 end
             end
@@ -287,16 +295,19 @@ function setup_rate_optimization_objective(case, base_rate;
                 A[i, (offset+1):(offset+ninj)] .= 1
             end
             b = fill(ninj*base_rate/max_rate, nstep)
-            x0 = fill(base_rate/max_rate, ninj*nstep)
         else
             A = ones(1, length(injectors))
             b = [ninj*base_rate/max_rate]
-            x0 = fill(base_rate/max_rate, ninj)
         end
         lin_eq = (A=A, b=b)
     else
         @assert constraint == :none || isnothing(constraint) "Constraint must be :total_sum_injected or :none"
         lin_eq = NamedTuple()
+    end
+    if eachstep
+        x0 = fill(base_rate/max_rate, ninj*nstep)
+    else
+        x0 = fill(base_rate/max_rate, ninj)
     end
     # Get just objective
     function F!(x)
@@ -415,10 +426,7 @@ function npv_objective(model, state, dt, step_info, forces;
         end
         obj -= (oil_cost*orat + gas_cost*grat + water_cost*wrat)
     end
-    time = 0.0
-    for i in 1:step_no
-        time += timesteps[i]
-    end
+    time = step_info[:time] + dt
     if maximize
         sgn = 1
     else

@@ -56,8 +56,7 @@ function optimize_rates(steps; use_box_bfgs = true)
         steps = steps
     )
     if use_box_bfgs
-        obj_best, x_best, hist = Jutul.unit_box_bfgs(setup.x0,
-        setup.obj,
+        obj_best, x_best, hist = Jutul.unit_box_bfgs(setup.x0, setup.obj,
             maximize = true,
             lin_eq = setup.lin_eq
         )
