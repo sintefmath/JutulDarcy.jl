@@ -295,16 +295,19 @@ function setup_rate_optimization_objective(case, base_rate;
                 A[i, (offset+1):(offset+ninj)] .= 1
             end
             b = fill(ninj*base_rate/max_rate, nstep)
-            x0 = fill(base_rate/max_rate, ninj*nstep)
         else
             A = ones(1, length(injectors))
             b = [ninj*base_rate/max_rate]
-            x0 = fill(base_rate/max_rate, ninj)
         end
         lin_eq = (A=A, b=b)
     else
         @assert constraint == :none || isnothing(constraint) "Constraint must be :total_sum_injected or :none"
         lin_eq = NamedTuple()
+    end
+    if eachstep
+        x0 = fill(base_rate/max_rate, ninj*nstep)
+    else
+        x0 = fill(base_rate/max_rate, ninj)
     end
     # Get just objective
     function F!(x)
