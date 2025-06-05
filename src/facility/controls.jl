@@ -33,9 +33,11 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
         oldctrl = req_ctrls[key]
         is_new_step = cfg.step_index != current_step
         disabled = DisabledControl()
-        well_was_disabled = op_ctrls[key] == disabled && newctrl != disabled
+        new_is_disabled = newctrl isa DisabledControl
+        old_is_disabled = oldctrl isa DisabledControl
+        well_was_disabled = op_ctrls[key] == disabled && !new_is_disabled
         changed = (is_new_step && newctrl != oldctrl) || well_was_disabled
-        if !changed && !well_was_disabled
+        if !changed && !well_was_disabled && !(new_is_disabled || old_is_disabled)
             # Handle the case where controls may be identical, but a higher type
             # might be incoming (e.g. use of AD)
             changed = changed || value_has_promoted_type(newctrl.target.value, oldctrl.target.value)

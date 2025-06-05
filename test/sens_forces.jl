@@ -134,7 +134,7 @@ end
                 injectors = [:INJ]
                 producers = [:PROD]
             elseif cases == "egg"
-                data_pth = joinpath(data_dir, "EGG.DATA")
+                data_pth = JutulDarcy.GeoEnergyIO.test_input_file_path("EGG", "EGG.DATA")
                 case = setup_case_from_data_file(data_pth)
                 case = case[1:10];
                 case = coarsen_reservoir_case(case, (4, 4, 3), method = :ijk);
