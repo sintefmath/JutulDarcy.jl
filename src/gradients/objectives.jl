@@ -148,7 +148,7 @@ function setup_rate_optimization_objective(case, base_rate;
         injectors = missing,
         producers = missing,
         verbose = true,
-        use_ministeps = false,
+        use_ministeps = true,
         limits_enabled = true,
         constraint = :total_sum_injected,
         sim_arg = NamedTuple(),
@@ -260,7 +260,7 @@ function setup_rate_optimization_objective(case, base_rate;
             if !haskey(cache, :storage)
                 cache[:storage] = Jutul.setup_adjoint_forces_storage(case.model, r.states, forces, case.dt, npv_obj;
                     state0 = case.state0,
-                    # targets = targets,
+                    targets = targets,
                     parameters = case.parameters,
                     eachstep = eachstep,
                     di_sparse = true
