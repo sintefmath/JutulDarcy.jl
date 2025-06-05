@@ -125,7 +125,9 @@ end
 ##
 @testset "force gradients reservoir and wells" begin
     spe1_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1")
-    case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"), block_backend = false)[1:10]
+    block_backend = false
+    case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"), block_backend = block_backend)[1:10]
+    case = coarsen_reservoir_case(case, (3, 3, 3), setup_arg = (block_backend = block_backend,))
     test_force_vectorization(case.forces, case.dt, case.model)
     states, reports = simulate(case, output_substates = true, info_level = -1)
     ##
@@ -153,7 +155,7 @@ end
     end
 
     function cell_pressure_obj(model, state, dt, step_info, forces)
-        p = state.Reservoir.Pressure[300]
+        p = state.Reservoir.Pressure[end]
         return p
     end
 
