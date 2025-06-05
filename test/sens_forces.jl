@@ -158,9 +158,9 @@ end
                 return dt*bhp/t_tot
             end
 
-            function cell_pressure_obj(model, state, dt, step_info, forces)
-                p = state.Reservoir.Pressure[end]
-                return p
+            function cell_saturation_obj(model, state, dt, step_info, forces)
+                s = state.Reservoir.Saturations[end, end]
+                return dt*s/t_tot
             end
 
             function npv_test_obj(model, state, dt, step_info, forces)
@@ -184,7 +184,7 @@ end
                     @test norm(grad_adj, 2) ≈ norm(dx, 2) atol = 1e-3 rtol = 1e-2
                 end
             end
-            objectives = [cell_pressure_obj, prod_bhp_obj, npv_test_obj]
+            objectives = [cell_saturation_obj, prod_bhp_obj, npv_test_obj]
             if reservoir_model(case.model).system isa StandardBlackOilSystem
                 Rs0 = sum(case.state0[:Reservoir][:Rs])
 
@@ -193,7 +193,6 @@ end
                     val = 0
                     for i in 1:length(rs)
                         val += (rs[i] - 100)^2
-                        # val += state.Reservoir.Pressure[i]
                     end
                     return dt*(val/(Rs0*t_tot))^2
                 end
