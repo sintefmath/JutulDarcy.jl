@@ -124,64 +124,92 @@ end
 end
 ##
 @testset "force gradients reservoir and wells" begin
-    spe1_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1")
-    block_backend = false
-    case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"), block_backend = block_backend)[1:10]
-    case = coarsen_reservoir_case(case, (3, 3, 3), setup_arg = (block_backend = block_backend,))
-    test_force_vectorization(case.forces, case.dt, case.model)
-    states, reports = simulate(case, output_substates = true, info_level = -1)
-    ##
+    for cases in ["spe1", "egg"]
+        @testset "$cases" begin
+            if cases == "spe1"
+                spe1_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1")
+                block_backend = false
+                case = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"), block_backend = block_backend)[1:10]
+                case = coarsen_reservoir_case(case, (3, 3, 3), setup_arg = (block_backend = block_backend,))
+                injectors = [:INJ]
+                producers = [:PROD]
+            elseif cases == "egg"
+                data_pth = joinpath(data_dir, "EGG.DATA")
+                case = setup_case_from_data_file(data_pth)
+                case = case[1:10];
+                case = coarsen_reservoir_case(case, (4, 4, 3), method = :ijk);
+                injectors = [:INJECT1, :INJECT2, :INJECT3, :INJECT4, :INJECT5, :INJECT6, :INJECT7, :INJECT8]
+                producers = [:PROD1, :PROD2, :PROD3, :PROD4]
+            else
+                error("Unknown case $cases")
+            end
+            prod_name = producers[end]
+            test_force_vectorization(case.forces, case.dt, case.model)
+            states, reports = simulate(case, output_substates = true, info_level = -1)
+            t_tot = sum(case.dt)
 
-    Rs0 = sum(case.state0[:Reservoir][:Rs])
-    t_tot = sum(case.dt)
-    function rs_obj(model, state, dt, step_info, forces)
-        rs = state.Reservoir.Rs
-        val = 0
-        for i in 1:length(rs)
-            val += (rs[i] - 100)^2
-            # val += state.Reservoir.Pressure[i]
-        end
-        return dt*(val/(Rs0*t_tot))^2
-    end
+            function orat_obj(model, state, dt, step_info, forces)
+                orat = JutulDarcy.compute_well_qoi(model, state, forces, prod_name, SurfaceOilRateTarget)
+                return dt*orat/t_tot
+            end
 
-    function orat_obj(model, state, dt, step_info, forces)
-        orat = JutulDarcy.compute_well_qoi(model, state, forces, :PROD, SurfaceOilRateTarget)
-        return dt*orat/t_tot
-    end
+            function prod_bhp_obj(model, state, dt, step_info, forces)
+                bhp = state[prod_name].Pressure[1]
+                return dt*bhp/t_tot
+            end
 
-    function prod_bhp_obj(model, state, dt, step_info, forces)
-        bhp = state.PROD.Pressure[1]
-        return dt*bhp/t_tot
-    end
+            function cell_pressure_obj(model, state, dt, step_info, forces)
+                p = state.Reservoir.Pressure[end]
+                return p
+            end
 
-    function cell_pressure_obj(model, state, dt, step_info, forces)
-        p = state.Reservoir.Pressure[end]
-        return p
-    end
+            function npv_test_obj(model, state, dt, step_info, forces)
+                return JutulDarcy.npv_objective(model, state, dt, step_info, forces,
+                    injectors = injectors,
+                    producers = producers,
+                    timesteps = case.dt
+                )
+            end
 
-    function npv_test_obj(model, state, dt, step_info, forces)
-        return JutulDarcy.npv_objective(model, state, dt, step_info, forces, injectors = [:INJ], producers = [:PROD], timesteps = case.dt)
-    end
+            function test_grad(obj; kwarg...)
+                grad_eps = 1e-3
+                dx = numerical_diff_forces(case.model, case.state0, case.parameters, case.forces, case.dt, obj, grad_eps; kwarg...)
+                dforces, t_to_f, grad_adj = Jutul.solve_adjoint_forces(case.model, states, reports, obj, case.forces;
+                    state0 = case.state0,
+                    parameters = case.parameters,
+                    kwarg...
+                )
+                for i in eachindex(dx, grad_adj)
+                    @test isapprox(dx[i], grad_adj[i], atol = 1e-3, rtol = 1e-2)
+                    @test norm(grad_adj, 2) ≈ norm(dx, 2) atol = 1e-3 rtol = 1e-2
+                end
+            end
+            objectives = [cell_pressure_obj, prod_bhp_obj, npv_test_obj]
+            if reservoir_model(case.model).system isa StandardBlackOilSystem
+                Rs0 = sum(case.state0[:Reservoir][:Rs])
 
-    function test_grad(obj; kwarg...)
-        grad_eps = 1e-3
-        dx = numerical_diff_forces(case.model, case.state0, case.parameters, case.forces, case.dt, obj, grad_eps; kwarg...)
-        dforces, t_to_f, grad_adj = Jutul.solve_adjoint_forces(case.model, states, reports, obj, case.forces;
-            state0 = case.state0,
-            parameters = case.parameters,
-            kwarg...
-        )
-        for i in eachindex(dx, grad_adj)
-            @test isapprox(dx[i], grad_adj[i], atol = 1e-3, rtol = 1e-2)
-            @test norm(grad_adj, 2) ≈ norm(dx, 2) atol = 1e-3 rtol = 1e-2
-        end
-    end
+                function rs_obj(model, state, dt, step_info, forces)
+                    rs = state.Reservoir.Rs
+                    val = 0
+                    for i in 1:length(rs)
+                        val += (rs[i] - 100)^2
+                        # val += state.Reservoir.Pressure[i]
+                    end
+                    return dt*(val/(Rs0*t_tot))^2
+                end
 
-    for (objno, obj) in enumerate([cell_pressure_obj, rs_obj, prod_bhp_obj, npv_test_obj])
-        test_grad(obj)
-        if objno == 1
-            # No need to do this for every combo
-            test_grad(obj, eachstep = true)
+                push!(objectives, rs_obj)
+            end
+
+            for (objno, obj) in enumerate(objectives)
+                @testset "Objective $obj" begin
+                    test_grad(obj)
+                    if objno == 1
+                        # No need to do this for every combo
+                        test_grad(obj, eachstep = true)
+                    end
+                end
+            end
         end
     end
 end
