@@ -53,7 +53,7 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
         if q_t isa Vector
             q_t[pos] = valid_surface_rate_for_control(q_t[pos], newctrl)
         end
-        if changed
+        if changed && !new_is_disabled
             if isnothing(cfg.limits[key])
                 cfg.limits[key] = as_limit(newctrl.target)
             else
