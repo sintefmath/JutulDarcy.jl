@@ -1218,9 +1218,9 @@ end
 
 function get_zcorn_cell_depths(g, grid)
     nc = number_of_cells(g)
-    z = zeros(nc)
     cartdims = grid["cartDims"]
     zcorn = grid["ZCORN"]
+    z = zeros(eltype(zcorn), nc)
     for c in 1:nc
         i, j, k = cell_ijk(g, c)
         linear_ix = GeoEnergyIO.CornerPointGrid.ijk_to_linear(i, j, k, cartdims)

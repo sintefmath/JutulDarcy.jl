@@ -250,8 +250,9 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         end
         if relperm isa ReservoirRelativePermeabilities
             nc_total = number_of_cells(model.domain)
-            kr = zeros(nph, nc_total)
-            s_eval = zeros(nph, nc_total)
+            T_S = eltype(s)
+            kr = zeros(T_S, nph, nc_total)
+            s_eval = zeros(T_S, nph, nc_total)
             s_eval[:, cells] .= s
             phases = get_phases(sys)
             phase_ind = phase_indices(model.system)
@@ -887,14 +888,15 @@ end
 
 function determine_saturations(depths, contacts, pressures; s_min = missing, s_max = missing, pc = missing)
     nc = length(depths)
+    T = promote_type(eltype(depths), eltype(pressures), eltype(contacts))
     nph = length(contacts) + 1
     if ismissing(s_min)
-        s_min = [zeros(nc) for i in 1:nph]
+        s_min = [zeros(T, nc) for i in 1:nph]
     end
     if ismissing(s_max)
-        s_max = [ones(nc) for i in 1:nph]
+        s_max = [ones(T, nc) for i in 1:nph]
     end
-    sat = zeros(nph, nc)
+    sat = zeros(T, nph, nc)
     sat_pc = similar(sat)
     if isnothing(pc) || ismissing(pc)
         for i in eachindex(depths)
