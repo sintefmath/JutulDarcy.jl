@@ -96,6 +96,6 @@ plot_well_comparison(:bhp, prod, "Bottom hole pressure")
 plot_well_comparison(:wrat, prod, "Water surface rate")
 # ## Injector water rate
 plot_well_comparison(:wrat, inj, "Water surface rate")
-# ## Oil produciton rate
+# ## Oil production rate
 plot_well_comparison(:orat, prod, "Oil surface rate")
 

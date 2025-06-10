@@ -16,7 +16,7 @@ cdata, cheader = readdlm(joinpath(basepth, "cells.txt"), ',', header = true)
 case = setup_case_from_data_file(data)
 ws, states, t_seconds = simulate_reservoir(case, info_level = 1);
 # ## Plot the reservoir and monitor points
-# We will monitor points close to the warm and cold wells for comparsion with a
+# We will monitor points close to the warm and cold wells for comparison with a
 # commercial simulator. These can be identified by their IJK triplets, and we
 # plot these in orange and blue.
 reservoir = reservoir_domain(case)
