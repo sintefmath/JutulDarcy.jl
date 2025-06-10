@@ -406,20 +406,22 @@ function compdat_to_connection_factors(domain, wspec, v, step; sort = true, orde
         ijk_lookup = ijk_lookup_dict(G)
     end
     K = domain[:permeability]
-    T = eltype(K)
+    ij_ix = collect(keys(v))
+    wc = map(i -> ijk_lookup[i], ij_ix)
+    getf(k) = map(x -> v[x][k], ij_ix)
+
+    d = getf(:diameter)
+    Kh = getf(:Kh)
+    WI = getf(:WI)
+    skin = getf(:skin)
+
+    T = promote_type(Jutul.float_type(G), eltype(K), eltype(d), eltype(Kh), eltype(WI), eltype(skin))
     if haskey(domain, :net_to_gross)
         T = promote_type(T, eltype(domain[:net_to_gross]))
     end
+    WI = T.(WI)
 
-    ij_ix = collect(keys(v))
-    wc = map(i -> ijk_lookup[i], ij_ix)
-
-    getf(k) = map(x -> v[x][k], ij_ix)
     open = getf(:open)
-    d = T.(getf(:diameter))
-    Kh = T.(getf(:Kh))
-    WI = T.(getf(:WI))
-    skin = T.(getf(:skin))
     dir = getf(:dir)
     mul = getf(:mul)
     fresh = map(x -> v[x].ctrl == step, ij_ix)

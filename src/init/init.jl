@@ -730,10 +730,11 @@ function parse_state0_equil(model, datafile; normalize = :sum)
         sw = props["SWATINIT"][actnum_ix]
         pc = model.secondary_variables[:CapillaryPressure]
 
-        pcval = zeros(nph-1, nc)
-        update_pc!(pcval, pc, model, init[:Saturations], 1:nc)
+        sat = init[:Saturations]
+        pcval = zeros(eltype(sat), nph-1, nc)
+        update_pc!(pcval, pc, model, sat, 1:nc)
         pressure_eql = init[:EquilibriationPressures]
-        pc_scale = ones(nph-1, nc)
+        pc_scale = ones(eltype(sat), nph-1, nc)
         for i in 1:nc
             sw_i = sw[i]
             pc_actual = pcval[1, i]
