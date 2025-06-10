@@ -855,7 +855,12 @@ function phase_pressure_depth_table(depth, zmin, zmax, datum_pressure, density_f
     end
     z = vcat(z_up, z_down)
     p = vcat(p_up, p_down)
-    i = unique(i -> z[i], eachindex(z))
+    if eltype(z)<:AbstractFloat
+        i = unique(i -> z[i], eachindex(z))
+    else
+        # Fallback for AD tracing...
+        i = eachindex(z)
+    end
     return Jutul.LinearInterpolant(z[i], p[i])
 end
 
