@@ -903,7 +903,7 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
     ijk = map(i -> Jutul.cell_ijk(G, i), 1:nc)
     for (secname, section) in pairs(data_file)
         if haskey(section, "NTG")
-            ntg = zeros(nc)
+            ntg = zeros(eltype(section["NTG"]), nc)
             for (i, c) in enumerate(active_ix)
                 ntg[i] = section["NTG"][c]
             end

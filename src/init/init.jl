@@ -704,11 +704,12 @@ function parse_state0_equil(model, datafile; normalize = :sum)
         nc = number_of_cells(model.domain)
         touched = [false for i in 1:nc]
         for (k, v) in first(inits)
+            T_v = eltype(v)
             if v isa AbstractVector
-                init[k] = zeros(nc)
+                init[k] = zeros(T_v, nc)
             else
                 @assert v isa AbstractMatrix
-                init[k] = zeros(size(v, 1), nc)
+                init[k] = zeros(T_v, size(v, 1), nc)
             end
         end
         for (subinit, cells) in zip(inits, inits_cells)
