@@ -192,19 +192,6 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     nph = number_of_phases(sys)
 
     @assert length(contacts) == nph-1
-
-    rho_s = JutulDarcy.reference_densities(sys)
-    phases = JutulDarcy.get_phases(sys)
-    disgas = JutulDarcy.has_disgas(sys)
-    vapoil = JutulDarcy.has_vapoil(sys)
-
-    if disgas || vapoil
-        if JutulDarcy.has_other_phase(sys)
-            _, rhoOS, rhoGS = rho_s
-        else
-            rhoOS, rhoGS = rho_s
-        end
-    end
     rho = model.secondary_variables[:PhaseMassDensities]
     if rho isa Pair
         rho = last(rho)
@@ -221,51 +208,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     fake_state[:Pressure] = [NaN]
     fake_state[:PhaseMassDensities] = zeros(nph, 1)
 
-    function density_f(p, z, ph)
-        if rho isa ThreePhaseCompositionalDensitiesLV || rho isa TwoPhaseCompositionalDensities
-            if phases[ph] == AqueousPhase()
-                phase_density = rho_s[ph]*JutulDarcy.shrinkage(rho.immiscible_pvt, p)
-            else
-                @assert !ismissing(composition) "Composition must be present for equilibrium calculations for compositional models."
-                @assert !ismissing(T_z) "Temperature must be present for equilibrium calculations for compositional models."
-                z_i = Vector{Float64}(composition(z))
-                T = T_z(z)
-                eos = model.system.equation_of_state
-                f = MultiComponentFlash.flashed_mixture_2ph(eos, (p = p, T = T, z = z_i))
-                rho_l, rho_v = mass_densities(eos, p, T, f)
-                if phases[ph] == VaporPhase() || rho_l == 0
-                    phase_density = rho_v
-                else
-                    phase_density = rho_l
-                end
-            end
-        elseif rho isa BrineCO2MixingDensities
-            T = T_z(z)
-            phase_density = rho.tab(p, T)[ph]
-        elseif rho isa DeckPhaseMassDensities
-            pvt = rho.pvt
-            pvt_i = pvt[ph]
-            if phases[ph] == LiquidPhase() && disgas
-                rs_max = table_by_region(sys.rs_max, pvtnum)
-                Rs = min(rs(z), rs_max(p))
-                b = JutulDarcy.shrinkage(pvt_i, reg, p, Rs, 1)
-                phase_density = b*(rhoOS + Rs*rhoGS)
-            elseif phases[ph] == VaporPhase() && vapoil
-                rv_max = table_by_region(sys.rv_max, pvtnum)
-                Rv = min(rv(z), rv_max(p))
-                b = JutulDarcy.shrinkage(pvt_i, reg, p, Rv, 1)
-                phase_density = b*(rhoGS + Rv*rhoOS)
-            else
-                phase_density = rho_s[ph]*JutulDarcy.shrinkage(pvt_i, reg, p, 1)
-            end
-        else
-            rho_val = fake_state[:PhaseMassDensities]
-            fake_state[:Pressure][1] = p
-            Jutul.update_secondary_variable!(rho_val, rho, model, fake_state, fake_cell_ix)
-            phase_density = rho_val[ph]
-        end
-        return phase_density
-    end
+    density_f(p, z, ph) = equilibrium_phase_density(p, z, ph, rho, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg)
     # Find the reference phase. It is either liquid
     ref_phase = get_reference_phase_index(model.system)
     if ismissing(density_function)
@@ -355,6 +298,66 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     end
 
     return init
+end
+
+function equilibrium_phase_density(p, z, ph, rho, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg)
+    pvtnum = only(reg)
+    sys = model.system
+    rho_s = JutulDarcy.reference_densities(sys)
+    phases = JutulDarcy.get_phases(sys)
+    disgas = JutulDarcy.has_disgas(sys)
+    vapoil = JutulDarcy.has_vapoil(sys)
+
+    if disgas || vapoil
+        if JutulDarcy.has_other_phase(sys)
+            _, rhoOS, rhoGS = rho_s
+        else
+            rhoOS, rhoGS = rho_s
+        end
+    end
+    if rho isa ThreePhaseCompositionalDensitiesLV || rho isa TwoPhaseCompositionalDensities
+        if phases[ph] == AqueousPhase()
+            phase_density = rho_s[ph]*JutulDarcy.shrinkage(rho.immiscible_pvt, p)
+        else
+            @assert !ismissing(composition) "Composition must be present for equilibrium calculations for compositional models."
+            @assert !ismissing(T_z) "Temperature must be present for equilibrium calculations for compositional models."
+            z_i = Vector{Float64}(composition(z))
+            T = T_z(z)
+            eos = model.system.equation_of_state
+            f = MultiComponentFlash.flashed_mixture_2ph(eos, (p = p, T = T, z = z_i))
+            rho_l, rho_v = mass_densities(eos, p, T, f)
+            if phases[ph] == VaporPhase() || rho_l == 0
+                phase_density = rho_v
+            else
+                phase_density = rho_l
+            end
+        end
+    elseif rho isa BrineCO2MixingDensities
+        T = T_z(z)
+        phase_density = rho.tab(p, T)[ph]
+    elseif rho isa DeckPhaseMassDensities
+        pvt = rho.pvt
+        pvt_i = pvt[ph]
+        if phases[ph] == LiquidPhase() && disgas
+            rs_max = table_by_region(sys.rs_max, pvtnum)
+            Rs = min(rs(z), rs_max(p))
+            b = JutulDarcy.shrinkage(pvt_i, reg, p, Rs, 1)
+            phase_density = b*(rhoOS + Rs*rhoGS)
+        elseif phases[ph] == VaporPhase() && vapoil
+            rv_max = table_by_region(sys.rv_max, pvtnum)
+            Rv = min(rv(z), rv_max(p))
+            b = JutulDarcy.shrinkage(pvt_i, reg, p, Rv, 1)
+            phase_density = b*(rhoGS + Rv*rhoOS)
+        else
+            phase_density = rho_s[ph]*JutulDarcy.shrinkage(pvt_i, reg, p, 1)
+        end
+    else
+        rho_val = fake_state[:PhaseMassDensities]
+        fake_state[:Pressure][1] = p
+        Jutul.update_secondary_variable!(rho_val, rho, model, fake_state, fake_cell_ix)
+        phase_density = rho_val[ph]
+    end
+    return phase_density
 end
 
 function parse_state0_equil(model, datafile; normalize = :sum)
