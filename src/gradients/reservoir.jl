@@ -1,5 +1,8 @@
+function setup_reservoir_dict_optimization(F, dict)
+    return (DictParameters(dict), F)
+end
 
-function setup_reservoir_parameter_optimization_generic(case::JutulCase;
+function setup_reservoir_dict_optimization(case::JutulCase;
         use_trans = false,
         use_pore_volume = false,
         strict = false,
@@ -34,7 +37,14 @@ function setup_reservoir_parameter_optimization_generic(case::JutulCase;
         :boundary_normals,
         :boundary_neighbors,
     ]
-
+    is_thermal = model_is_thermal(case.model)
+    if !is_thermal
+        push!(skip_list, :rock_heat_capacity)
+        push!(skip_list, :component_heat_capacity)
+        push!(skip_list, :rock_heat_capacity)
+        push!(skip_list, :fluid_thermal_conductivity)
+        push!(skip_list, :rock_thermal_conductivity)
+    end
     DT = OrderedDict{Symbol, Any}
     opt_dict = DT()
     if use_trans
@@ -58,7 +68,7 @@ function setup_reservoir_parameter_optimization_generic(case::JutulCase;
                 subdict = DT()
                 subprm = case.parameters[k]
                 subdict[:WellIndices] = subprm[:WellIndices]
-                if haskey(subprm, :WellIndicesThermal)
+                if haskey(subprm, :WellIndicesThermal) && is_thermal
                     subdict[:WellIndicesThermal] = subprm[:WellIndicesThermal]
                 end
                 opt_dict[k] = subdict
@@ -70,3 +80,11 @@ function setup_reservoir_parameter_optimization_generic(case::JutulCase;
     return (dp, F)
 end
 
+function optimize_reservoir(dopt, objective, setup_fn;
+        simulator_arg = NamedTuple(),
+        kwarg...
+    )
+    case0 = setup_fn(dopt.parameters, missing)
+    sim, cfg = setup_reservoir_simulator(case0; simulator_arg...)
+    return Jutul.optimize(dopt, objective, setup_fn; kwarg...)
+end
