@@ -207,6 +207,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     fake_state = JutulStorage()
     fake_state[:Pressure] = [NaN]
     fake_state[:PhaseMassDensities] = zeros(nph, 1)
+    fake_state[:Temperature] = [NaN]
 
     density_f(p, z, ph) = equilibrium_phase_density(p, z, ph, rho, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg)
     # Find the reference phase. It is either liquid
@@ -355,6 +356,7 @@ function equilibrium_phase_density(p, z, ph, rho, T_z, fake_state, model, rs, rv
     else
         rho_val = fake_state[:PhaseMassDensities]
         fake_state[:Pressure][1] = p
+        fake_state[:Temperature][1] = T_z(z)
         Jutul.update_secondary_variable!(rho_val, rho, model, fake_state, fake_cell_ix)
         phase_density = rho_val[ph]
     end
