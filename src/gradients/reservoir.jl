@@ -6,6 +6,7 @@ function setup_reservoir_dict_optimization(case::JutulCase;
         use_trans = false,
         use_pore_volume = false,
         strict = false,
+        do_copy = true,
         kwarg...
     )
     is_multimodel = case.model isa MultiModel
@@ -49,20 +50,22 @@ function setup_reservoir_dict_optimization(case::JutulCase;
     opt_dict = DT()
     prm_dict = DT()
     dd_dict = DT()
-    state0_dict = DT()
-    w_dict = DT()
     opt_dict[:model] = dd_dict
     opt_dict[:parameters] = prm_dict
-    opt_dict[:state0] = state0_dict
-    opt_dict[:wells] = w_dict
     if use_trans
-        opt_dict[:Transmissibilities] = copy(rparameters[:Transmissibilities])
+        prm_dict[:Transmissibilities] = copy(rparameters[:Transmissibilities])
         push!(skip_list, :permeability)
     end
     if use_pore_volume
-        opt_dict[:pore_volume] = pore_volume(rdomain)
+        if haskey(rparameters, :StaticFluidVolume)
+            k = :StaticFluidVolume
+        else
+            k = :FluidVolume
+        end
+        dd_dict[:pore_volume] = rparameters[k]
         push!(skip_list, :porosity)
         push!(skip_list, :net_to_gross)
+        push!(skip_list_parameters, k)
     end
     for k in setdiff(keys(rdomain), skip_list)
         v = rdomain[k]
@@ -70,6 +73,9 @@ function setup_reservoir_dict_optimization(case::JutulCase;
             dd_dict[k] = v
         end
     end
+    # Wells
+    w_dict = DT()
+    opt_dict[:wells] = w_dict
     if is_multimodel
         for (k, submodel) in pairs(case.model.models)
             if model_or_domain_is_well(submodel)
@@ -83,10 +89,58 @@ function setup_reservoir_dict_optimization(case::JutulCase;
             end
         end
     end
-    # Initial conditions...
-    # TODO: Write F
-    F = missing
+    # state0
+    state0_dict = DT()
+    opt_dict[:state0] = state0_dict
+    F(D, step_info = missing) = optimization_resetup_reservoir(D, case, step_info, do_copy = do_copy)
     return DictParameters(opt_dict, F, strict = strict)
+end
+
+function optimization_resetup_reservoir(opt_dict::AbstractDict, case::JutulCase, step_info; do_copy = true)
+    if do_copy
+        case = deepcopy(case)
+    end
+    (; model, state0, forces, parameters, dt) = case
+    is_multimodel = case.model isa MultiModel
+
+    dd_dict = opt_dict[:model]
+    domain = reservoir_domain(model)
+    changed_dd = false
+    for (k, v) in pairs(dd_dict)
+        if haskey(domain, k)
+            changed_dd = true
+            domain[k] = v
+        end
+    end
+    if changed_dd
+        # Now we call the setup again
+        parameters = setup_parameters(model)
+    end
+    if is_multimodel
+        rparameters = parameters[:Reservoir]
+        state0_r = state0[:Reservoir]
+    else
+        rparameters = parameters
+        state0_r = state0
+    end
+    if haskey(dd_dict, :pore_volume)
+        if haskey(rparameters, :StaticFluidVolume)
+            k = :StaticFluidVolume
+        else
+            k = :FluidVolume
+        end
+        rparameters[k] = dd_dict[:pore_volume]
+    end
+    if is_multimodel
+        for (w, wsub) in pairs(opt_dict[:wells])
+            for (k, v) in pairs(wsub)
+                @assert haskey(parameters[w], k)
+                @assert size(parameters[w][k]) == size(v)
+                parameters[w][k] = v
+            end
+        end
+    end
+    return JutulCase(model, dt, forces, parameters = parameters, state0 = state0)
 end
 
 function optimize_reservoir(dopt, objective, setup_fn = dopt.setup_function;
