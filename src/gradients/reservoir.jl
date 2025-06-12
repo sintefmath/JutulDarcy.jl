@@ -92,11 +92,11 @@ function setup_reservoir_dict_optimization(case::JutulCase;
     # state0
     state0_dict = DT()
     opt_dict[:state0] = state0_dict
-    F(D, step_info = missing) = optimization_resetup_reservoir(D, case, step_info, do_copy = do_copy)
+    F(D, step_info = missing) = optimization_resetup_reservoir_case(D, case, step_info, do_copy = do_copy)
     return DictParameters(opt_dict, F, strict = strict)
 end
 
-function optimization_resetup_reservoir(opt_dict::AbstractDict, case::JutulCase, step_info; do_copy = true)
+function optimization_resetup_reservoir_case(opt_dict::AbstractDict, case::JutulCase, step_info; do_copy = true)
     if do_copy
         case = deepcopy(case)
     end
@@ -140,11 +140,12 @@ function optimization_resetup_reservoir(opt_dict::AbstractDict, case::JutulCase,
             end
         end
     end
-    return JutulCase(model, dt, forces, parameters = parameters, state0 = state0)
+    new_case = JutulCase(model, dt, forces, parameters = parameters, state0 = state0)
+    return new_case
 end
 
 function optimize_reservoir(dopt, objective, setup_fn = dopt.setup_function;
-        simulator_arg = (output_substates = false, ),
+        simulator_arg = (output_substates = true, ),
         kwarg...
     )
     if ismissing(setup_fn)
@@ -156,7 +157,7 @@ function optimize_reservoir(dopt, objective, setup_fn = dopt.setup_function;
 end
 
 function parameters_gradient_reservoir(dopt, objective, setup_fn = dopt.setup_function;
-        simulator_arg = (output_substates = false, ),
+        simulator_arg = (output_substates = true, ),
         kwarg...
     )
     if ismissing(setup_fn)
