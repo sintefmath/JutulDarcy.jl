@@ -112,8 +112,8 @@ end
 function handle_alternate_primary_variable_spec!(init, found, rmodel, sys::StandardBlackOilSystem)
     # Internal utility to handle non-trivial specification of primary variables
     nph = number_of_phases(sys)
-    @assert haskey(init, :Pressure)
-    @assert haskey(init, :Saturations) || haskey(init, :BlackOilUnknown)
+    haskey(init, :Pressure) || error("Primary variable :Pressure is missing from the initial state.")
+    haskey(init, :Saturations) || haskey(init, :BlackOilUnknown) || error("Primary variable :Saturations or :BlackOilUnknown is missing from the initial state.")
 
     if nph == 3 && !haskey(init, :ImmiscibleSaturation)
         S = init[:Saturations]

@@ -101,17 +101,21 @@ function setup_reservoir_dict_optimization(case::JutulCase;
     end
     # state0
     state0_dict = DT()
+    function set_if_present(k)
+        if haskey(state0_r, k)
+            v = copy(state0_r[k])
+            state0_dict[k] = v
+        end
+    end
     for (k, var) in pairs(rmodel.primary_variables)
         if k == :BlackOilUnknown
-            rs = get(state0_r, :Rs, missing) # Rs is not a primary variable
-            rv = get(state0_r, :Rv, missing) # Rv is not a primary variable
-            sw = get(state0_r, :ImmiscibleSaturation, missing)
-        elseif var isa Jutul.FractionVariables
-
+            set_if_present(:Rs)
+            set_if_present(:Rv)
+            set_if_present(:ImmiscibleSaturation)
+            state0_dict[:Saturations] = copy(state0_r[:Saturations])
         else
-
+            state0_dict[k] = copy(state0_r[k])
         end
-        @info "??" k
     end
     opt_dict[:state0] = state0_dict
     F(D, step_info = missing) = optimization_resetup_reservoir_case(D, case, step_info, do_copy = do_copy)
@@ -122,7 +126,7 @@ function optimization_resetup_reservoir_case(opt_dict::AbstractDict, case::Jutul
     if do_copy
         case = deepcopy(case)
     end
-    (; model, state0, forces, parameters, dt) = case
+    (; model, forces, parameters, dt) = case
     is_multimodel = case.model isa MultiModel
 
     dd_dict = opt_dict[:model]
@@ -140,10 +144,8 @@ function optimization_resetup_reservoir_case(opt_dict::AbstractDict, case::Jutul
     end
     if is_multimodel
         rparameters = parameters[:Reservoir]
-        state0_r = state0[:Reservoir]
     else
         rparameters = parameters
-        state0_r = state0
     end
     if haskey(dd_dict, :pore_volume)
         if haskey(rparameters, :StaticFluidVolume)
@@ -165,6 +167,25 @@ function optimization_resetup_reservoir_case(opt_dict::AbstractDict, case::Jutul
             end
         end
     end
+    init = opt_dict[:state0]
+    rmodel = reservoir_model(model)
+    for (k, var) in pairs(rmodel.primary_variables)
+        if var isa Jutul.FractionVariables
+            val = init[k]
+            for i in axes(val, 2)
+                v = zero(eltype(val))
+                for j in axes(val, 1)
+                    v += val[j, i]
+                end
+                if v == 0.0
+                    val[:, i] .= 1.0 / size(val, 1)
+                else
+                    val[:, i] ./= v
+                end
+            end
+        end
+    end
+    state0 = setup_reservoir_state(model, init)
     new_case = JutulCase(model, dt, forces, parameters = parameters, state0 = state0)
     return new_case
 end
