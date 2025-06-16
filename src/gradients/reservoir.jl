@@ -7,6 +7,7 @@ function setup_reservoir_dict_optimization(case::JutulCase;
         use_pore_volume = false,
         strict = false,
         do_copy = true,
+        parameters = Symbol[],
         kwarg...
     )
     is_multimodel = case.model isa MultiModel
@@ -62,7 +63,7 @@ function setup_reservoir_dict_optimization(case::JutulCase;
         else
             k = :FluidVolume
         end
-        dd_dict[:pore_volume] = rparameters[k]
+        dd_dict[:pore_volume] = copy(rparameters[k])
         push!(skip_list, :porosity)
         push!(skip_list, :net_to_gross)
         push!(skip_list_parameters, k)
@@ -70,7 +71,16 @@ function setup_reservoir_dict_optimization(case::JutulCase;
     for k in setdiff(keys(rdomain), skip_list)
         v = rdomain[k]
         if eltype(v)<:AbstractFloat
-            dd_dict[k] = v
+            dd_dict[k] = copy(v)
+        end
+    end
+    # Regular parameters - requested
+    for k in setdiff(parameters, skip_list_parameters)
+        if haskey(rparameters, k)
+            v = copy(rparameters[k])
+            prm_dict[k] = v
+        else
+            @warn "Parameter $k not found in reservoir model parameters."
         end
     end
     # Wells
@@ -91,6 +101,18 @@ function setup_reservoir_dict_optimization(case::JutulCase;
     end
     # state0
     state0_dict = DT()
+    for (k, var) in pairs(rmodel.primary_variables)
+        if k == :BlackOilUnknown
+            rs = get(state0_r, :Rs, missing) # Rs is not a primary variable
+            rv = get(state0_r, :Rv, missing) # Rv is not a primary variable
+            sw = get(state0_r, :ImmiscibleSaturation, missing)
+        elseif var isa Jutul.FractionVariables
+
+        else
+
+        end
+        @info "??" k
+    end
     opt_dict[:state0] = state0_dict
     F(D, step_info = missing) = optimization_resetup_reservoir_case(D, case, step_info, do_copy = do_copy)
     return DictParameters(opt_dict, F, strict = strict)
@@ -130,6 +152,9 @@ function optimization_resetup_reservoir_case(opt_dict::AbstractDict, case::Jutul
             k = :FluidVolume
         end
         rparameters[k] = dd_dict[:pore_volume]
+    end
+    for (k, v) in pairs(opt_dict[:parameters])
+        rparameters[k] = v
     end
     if is_multimodel
         for (w, wsub) in pairs(opt_dict[:wells])
