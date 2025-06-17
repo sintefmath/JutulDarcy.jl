@@ -1,11 +1,3 @@
-# function flux_primitives(face, state, model, flux_type::Jutul.DefaultFlux, tpfa::Jutul.NFVM.NFVMDiscretization, upw)
-#     return nothing
-# end
-
-# function kgrad_common(face, state, model, tpfa::Jutul.NFVM.NFVMDiscretization)
-#     return nothing
-# end
-
 function darcy_permeability_potential_differences(
         face,
         state,

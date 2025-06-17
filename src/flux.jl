@@ -67,37 +67,6 @@ end
     return ρλ_f*Q
 end
 
-# @inline function kgrad_common(face, state, model, tpfa::TPFA)
-#     ∇p = pressure_gradient(state, tpfa)
-#     trans = state.Transmissibilities
-#     grav = state.TwoPointGravityDifference
-#     @inbounds T_f = trans[face]
-#     @inbounds gΔz = tpfa.face_sign*grav[face]
-#     return (∇p, T_f, gΔz)
-# end
-
-# @inline function flux_primitives(face, state, model, flux_type::Jutul.DefaultFlux, tpfa::TPFA, upw)
-#     return kgrad_common(face, state, model, tpfa)
-# end
-
-# @inline function darcy_phase_kgrad_potential(face, phase, state, model, flux_type, tpfa::TPFA{T}, upw, common = flux_primitives(face, state, model, flux_type, upw, tpfa)) where T
-#     error()
-#     pc, ref_index = capillary_pressure(model, state)
-#     ∇p, T_f, gΔz = common
-#     l = tpfa.left
-#     r = tpfa.right
-
-#     Δpc = capillary_gradient(pc, l, r, phase, ref_index)
-#     ρ_avg = face_average_density(model, state, tpfa, phase)
-#     if haskey(state, :PermeabilityMultiplier)
-#         K_mul = state.PermeabilityMultiplier
-#         m = face_average(c -> K_mul[c], tpfa)
-#         T_f *= m
-#     end
-#     q = -T_f*(∇p + Δpc + gΔz*ρ_avg)
-#     return q
-# end
-
 @inline function darcy_permeability_potential_differences(
         face,
         state,
