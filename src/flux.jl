@@ -35,7 +35,7 @@ end
 
 @inline function darcy_phase_mass_flux(face, phase, state, model, flux_type, kgrad, upw, Q = missing)
     if ismissing(Q)
-        Q = darcy_phase_kgrad_potential(face, phase, state, model, flux_type, kgrad, upw, phase)
+        Q = darcy_permeability_potential_differences(face, phase, state, model, flux_type, kgrad, upw, phase)[phase]
     end
     if haskey(state, :PhaseMassMobilities)
         ρλ = state.PhaseMassMobilities
