@@ -383,22 +383,31 @@ function store_perforation_fluxes!(tsim, psim, pmodel::MultiModel)
             @assert ct.target == :Reservoir "Expected target to be :Reservoir, was $(ct.target) (source = $(ct.source))"
             label = ct.source
             q = tsim.storage[label].parameters[:PerforationTotalVolumetricFlux]
-            # TODO: Call perforation_phase_potential_difference here
             ct_mphase = ct.cross_term.parent
             store_perforation_fluxes!(q, ct_mphase, pmodel[label], model_r, psim.storage.state[label], psim.storage.state[:Reservoir])
         end
     end
-    error()
+    return tsim
 end
 
 function store_perforation_fluxes!(q, ct, wmodel, resmodel, wstate, rstate)
+    T = eltype(q)
+    nph = number_of_phases(wmodel.system)
+    mob = rstate.PhaseMobilities
     for i in eachindex(q)
         conn = cross_term_perforation_get_conn(ct, i, wstate, rstate)
-        ph = 1
-        pot = JutulDarcy.perforation_phase_potential_difference(conn, rstate, wstate, ph)
-        @info "Calculated" pot i
+        total_mobility = zero(T)
+        for ph in 1:nph
+            total_mobility += value(mob[ph, conn.reservoir])
+        end
+        total_flux = zero(T)
+        for ph in 1:nph
+            pot = value(JutulDarcy.perforation_phase_potential_difference(conn, rstate, wstate, ph))
+            total_flux += pot*total_mobility
+        end
+        q[i] = total_flux
     end
-    error()
+    return q
 end
 
 function sequential_sync_values!(sim::SequentialSimulator; to_key::Symbol = :pressure, kind = :transfer_keys)
