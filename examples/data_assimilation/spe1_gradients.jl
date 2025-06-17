@@ -6,6 +6,7 @@
 using Jutul, JutulDarcy, GeoEnergyIO, GLMakie
 data_pth = joinpath(GeoEnergyIO.test_input_file_path("SPE1"), "SPE1.DATA")
 data = parse_data_file(data_pth);
+case = setup_case_from_data_file(data);
 # ## Set up a function to set up the case with custom porosity
 # We create a setup function that takes in a parameter dictionary `prm` and
 # returns a case with the porosity set to the value in `prm["poro"]`. This is a
@@ -62,7 +63,6 @@ fig
 # set of "typical" tunable parameters for any reservoir model. This saves us the
 # hassle of writing this function ourselves when we want to optimize e.g.
 # permeability, porosity and well indices.
-case = setup_case_from_data_file(data)
 dprm_case = setup_reservoir_dict_optimization(case)
 free_optimization_parameters!(dprm_case)
 dprm_grad = parameters_gradient_reservoir(dprm_case, mismatch_objective);
