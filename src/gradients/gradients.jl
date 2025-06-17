@@ -1,4 +1,5 @@
 include("objectives.jl")
+include("reservoir.jl")
 
 """
     result, sens = reservoir_sensitivities(case::JutulCase, objective::Function; sim_arg = NamedTuple(), kwarg...)

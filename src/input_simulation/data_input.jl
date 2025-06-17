@@ -406,20 +406,22 @@ function compdat_to_connection_factors(domain, wspec, v, step; sort = true, orde
         ijk_lookup = ijk_lookup_dict(G)
     end
     K = domain[:permeability]
-    T = eltype(K)
+    ij_ix = collect(keys(v))
+    wc = map(i -> ijk_lookup[i], ij_ix)
+    getf(k) = map(x -> v[x][k], ij_ix)
+
+    d = getf(:diameter)
+    Kh = getf(:Kh)
+    WI = getf(:WI)
+    skin = getf(:skin)
+
+    T = promote_type(Jutul.float_type(G), eltype(K), eltype(d), eltype(Kh), eltype(WI), eltype(skin))
     if haskey(domain, :net_to_gross)
         T = promote_type(T, eltype(domain[:net_to_gross]))
     end
+    WI = T.(WI)
 
-    ij_ix = collect(keys(v))
-    wc = map(i -> ijk_lookup[i], ij_ix)
-
-    getf(k) = map(x -> v[x][k], ij_ix)
     open = getf(:open)
-    d = T.(getf(:diameter))
-    Kh = T.(getf(:Kh))
-    WI = T.(getf(:WI))
-    skin = T.(getf(:skin))
     dir = getf(:dir)
     mul = getf(:mul)
     fresh = map(x -> v[x].ctrl == step, ij_ix)
@@ -903,7 +905,7 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
     ijk = map(i -> Jutul.cell_ijk(G, i), 1:nc)
     for (secname, section) in pairs(data_file)
         if haskey(section, "NTG")
-            ntg = zeros(nc)
+            ntg = zeros(eltype(section["NTG"]), nc)
             for (i, c) in enumerate(active_ix)
                 ntg[i] = section["NTG"][c]
             end
@@ -1218,9 +1220,9 @@ end
 
 function get_zcorn_cell_depths(g, grid)
     nc = number_of_cells(g)
-    z = zeros(nc)
     cartdims = grid["cartDims"]
     zcorn = grid["ZCORN"]
+    z = zeros(eltype(zcorn), nc)
     for c in 1:nc
         i, j, k = cell_ijk(g, c)
         linear_ix = GeoEnergyIO.CornerPointGrid.ijk_to_linear(i, j, k, cartdims)

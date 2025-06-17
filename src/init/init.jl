@@ -207,6 +207,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     fake_state = JutulStorage()
     fake_state[:Pressure] = [NaN]
     fake_state[:PhaseMassDensities] = zeros(nph, 1)
+    fake_state[:Temperature] = [NaN]
 
     density_f(p, z, ph) = equilibrium_phase_density(p, z, ph, rho, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg)
     # Find the reference phase. It is either liquid
@@ -250,8 +251,9 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         end
         if relperm isa ReservoirRelativePermeabilities
             nc_total = number_of_cells(model.domain)
-            kr = zeros(nph, nc_total)
-            s_eval = zeros(nph, nc_total)
+            T_S = eltype(s)
+            kr = zeros(T_S, nph, nc_total)
+            s_eval = zeros(T_S, nph, nc_total)
             s_eval[:, cells] .= s
             phases = get_phases(sys)
             phase_ind = phase_indices(model.system)
@@ -354,6 +356,9 @@ function equilibrium_phase_density(p, z, ph, rho, T_z, fake_state, model, rs, rv
     else
         rho_val = fake_state[:PhaseMassDensities]
         fake_state[:Pressure][1] = p
+        if !ismissing(T_z)
+            fake_state[:Temperature][1] = T_z(z)
+        end
         Jutul.update_secondary_variable!(rho_val, rho, model, fake_state, fake_cell_ix)
         phase_density = rho_val[ph]
     end
@@ -703,11 +708,12 @@ function parse_state0_equil(model, datafile; normalize = :sum)
         nc = number_of_cells(model.domain)
         touched = [false for i in 1:nc]
         for (k, v) in first(inits)
+            T_v = eltype(v)
             if v isa AbstractVector
-                init[k] = zeros(nc)
+                init[k] = zeros(T_v, nc)
             else
                 @assert v isa AbstractMatrix
-                init[k] = zeros(size(v, 1), nc)
+                init[k] = zeros(T_v, size(v, 1), nc)
             end
         end
         for (subinit, cells) in zip(inits, inits_cells)
@@ -728,10 +734,11 @@ function parse_state0_equil(model, datafile; normalize = :sum)
         sw = props["SWATINIT"][actnum_ix]
         pc = model.secondary_variables[:CapillaryPressure]
 
-        pcval = zeros(nph-1, nc)
-        update_pc!(pcval, pc, model, init[:Saturations], 1:nc)
+        sat = init[:Saturations]
+        pcval = zeros(eltype(sat), nph-1, nc)
+        update_pc!(pcval, pc, model, sat, 1:nc)
         pressure_eql = init[:EquilibriationPressures]
-        pc_scale = ones(nph-1, nc)
+        pc_scale = ones(eltype(sat), nph-1, nc)
         for i in 1:nc
             sw_i = sw[i]
             pc_actual = pcval[1, i]
@@ -855,7 +862,12 @@ function phase_pressure_depth_table(depth, zmin, zmax, datum_pressure, density_f
     end
     z = vcat(z_up, z_down)
     p = vcat(p_up, p_down)
-    i = unique(i -> z[i], eachindex(z))
+    if eltype(z)<:AbstractFloat
+        i = unique(i -> z[i], eachindex(z))
+    else
+        # Fallback for AD tracing...
+        i = eachindex(z)
+    end
     return Jutul.LinearInterpolant(z[i], p[i])
 end
 
@@ -882,14 +894,15 @@ end
 
 function determine_saturations(depths, contacts, pressures; s_min = missing, s_max = missing, pc = missing)
     nc = length(depths)
+    T = promote_type(eltype(depths), eltype(pressures), eltype(contacts))
     nph = length(contacts) + 1
     if ismissing(s_min)
-        s_min = [zeros(nc) for i in 1:nph]
+        s_min = [zeros(T, nc) for i in 1:nph]
     end
     if ismissing(s_max)
-        s_max = [ones(nc) for i in 1:nph]
+        s_max = [ones(T, nc) for i in 1:nph]
     end
-    sat = zeros(nph, nc)
+    sat = zeros(T, nph, nc)
     sat_pc = similar(sat)
     if isnothing(pc) || ismissing(pc)
         for i in eachindex(depths)

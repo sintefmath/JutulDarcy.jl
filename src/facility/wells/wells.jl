@@ -451,6 +451,22 @@ function setup_forces(model::SimulationModel{D, S}; mask = nothing) where {D <: 
     return (mask = mask,)
 end
 
+function apply_perforation_mask!(M::AbstractVector, mask::AbstractVector)
+    for i in eachindex(mask)
+        M[i] *= mask[i]
+    end
+    return M
+end
+
+function apply_perforation_mask!(M::AbstractMatrix, mask::AbstractVector)
+    for j in eachindex(mask)
+        for i in axes(M, 1)
+            M[i, j] *= mask[j]
+        end
+    end
+    return M
+end
+
 function apply_perforation_mask!(storage::NamedTuple, mask::AbstractVector)
     function mask_row!(M::AbstractMatrix, m, ix)
         for i in axes(M, 1)

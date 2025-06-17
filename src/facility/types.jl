@@ -411,14 +411,16 @@ struct InjectorControl{T, R, P, M, E, TR} <: WellControlForce
     factor::R
     tracers::TR
     function InjectorControl(target::T, mix;
-            density::R = 1.0,
+            density::Real = 1.0,
             phases = ((1, 1.0),),
-            temperature::R = 293.15,
+            temperature::Real = 293.15,
             enthalpy = missing,
             tracers = missing,
             check = true,
-            factor::R = 1.0
-        ) where {T<:WellTarget, R<:Real}
+            factor::Real = 1.0
+        ) where {T<:WellTarget}
+        density, temperature, factor = promote(density, temperature, factor)
+        R = typeof(density)
         if isa(mix, Real)
             mix = [mix]
         end
