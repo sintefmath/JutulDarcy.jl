@@ -116,11 +116,11 @@ dF_initial = dF_o(similar(x0), x0)
 #
 # LBFGS is a good choice for this problem, as Jutul provides sensitivities via
 # adjoints that are inexpensive to compute.
-using Optim
+import Optim
 lower, upper = lims
-inner_optimizer = LBFGS()
+inner_optimizer = Optim.LBFGS()
 opts = Optim.Options(store_trace = true, show_trace = true, time_limit = 30)
-results = optimize(Optim.only_fg!(F_and_dF), lower, upper, x0, Fminbox(inner_optimizer), opts)
+results = Optim.optimize(Optim.only_fg!(F_and_dF), lower, upper, x0, Optim.Fminbox(inner_optimizer), opts)
 x = results.minimizer
 display(results)
 F_final = F_o(x)
