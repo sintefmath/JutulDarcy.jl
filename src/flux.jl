@@ -18,7 +18,6 @@ end
     phase_fluxes = darcy_phase_mass_fluxes(face, state, model, flux_type, kgrad, upw)
     for ph in eachindex(phase_fluxes)
         q_ph = phase_fluxes[ph]
-        q_ph::T
         @inbounds q = setindex(q, q_ph, ph)
     end
     return q
