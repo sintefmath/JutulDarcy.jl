@@ -137,7 +137,7 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
     # current weight
     current_weight = 0.0
     current_density = 0.0
-    first_step = all(isequal(0.0), dp)
+    first_step = all(isequal(zero(eltype(dp))), dp)
     for i in reverse(eachindex(dp))
         rc = res_cells[i]
         wi = WI[i]
@@ -166,6 +166,8 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
         else
             next_dp = 0.0
         end
+        # NOTE: This is a real hack - should be fixed higher up in the
+        # initialization of the parameter.
         dp[i] = value(next_dp)
     end
     # Integrate down, using the mixture densities (temporarily stored in dp) to

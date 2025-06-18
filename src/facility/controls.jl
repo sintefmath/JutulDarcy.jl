@@ -8,6 +8,9 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
         recorder = ProgressRecorder(),
         update_explicit = true
     )
+    function value_has_promoted_type(newval::T1, oldval::T2) where {T1, T2}
+        return T1 != T2 && promote_type(T1, T2) == T1
+    end
     forces = forces_g[key]
     # Set control to whatever is on the forces
     storage = storage_g[key]
@@ -30,9 +33,16 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
         oldctrl = req_ctrls[key]
         is_new_step = cfg.step_index != current_step
         disabled = DisabledControl()
-        well_was_disabled = op_ctrls[key] == disabled && newctrl != disabled
-        is_new_type = typeof(newctrl) != typeof(oldctrl)
-        if (is_new_step && newctrl != oldctrl) || well_was_disabled || is_new_type
+        new_is_disabled = newctrl isa DisabledControl
+        old_is_disabled = oldctrl isa DisabledControl
+        well_was_disabled = op_ctrls[key] == disabled && !new_is_disabled
+        changed = (is_new_step && newctrl != oldctrl) || well_was_disabled
+        if !changed && !well_was_disabled && !(new_is_disabled || old_is_disabled)
+            # Handle the case where controls may be identical, but a higher type
+            # might be incoming (e.g. use of AD)
+            changed = changed || value_has_promoted_type(newctrl.target.value, oldctrl.target.value)
+        end
+        if changed
             # We have a new control. Any previous control change is invalid.
             # Set both operating and requested control to the new one.
             @debug "Well $key switching from $oldctrl to $newctrl"
@@ -43,7 +53,7 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
         if q_t isa Vector
             q_t[pos] = valid_surface_rate_for_control(q_t[pos], newctrl)
         end
-        if changed
+        if changed && !new_is_disabled
             if isnothing(cfg.limits[key])
                 cfg.limits[key] = as_limit(newctrl.target)
             else

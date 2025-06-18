@@ -718,6 +718,10 @@ function JutulDarcy.TopConditions{N, T}(tc::JutulDarcy.TopConditions{N, F}) wher
     return TopConditions(density, volume_fractions)
 end
 
+function Base.convert(::Type{TopConditions{N, R}}, tc::TopConditions{N, Float64}) where {N, R}
+    return TopConditions(convert.(R, tc.density), convert.(R, tc.volume_fractions))
+end
+
 struct SurfaceWellConditions{T, R} <: ScalarVariable
     storage::T
     separator_conditions::Vector{NamedTuple{(:p, :T), Tuple{R, R}}}

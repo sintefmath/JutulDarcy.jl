@@ -60,6 +60,10 @@ end
     include("sens_forces.jl")
 end
 
+@testitem "Sensitivities (state0)" begin
+    include("sens_state0.jl")
+end
+
 @testitem "Compositional validation" begin
     include("compositional.jl")
 end
