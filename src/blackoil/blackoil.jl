@@ -139,8 +139,13 @@ function handle_alternate_primary_variable_spec!(init, found, rmodel, sys::Stand
 
         F_rs = sys.rs_max
         F_rv = sys.rv_max
+        T = promote_type(eltype(S), eltype(pressure))
+        if haskey(init, :ImmiscibleSaturation)
+            T = promote_type(T, eltype(init[:ImmiscibleSaturation]))
+        end
         if has_disgas(sys)
             rs = init[:Rs]
+            T = promote_type(eltype(rs), T)
             rs_var = rmodel[:Rs]
         else
             rs = zeros(nc)
@@ -148,13 +153,13 @@ function handle_alternate_primary_variable_spec!(init, found, rmodel, sys::Stand
         end
         if has_vapoil(sys)
             rv = init[:Rv]
+            T = promote_type(eltype(rv), T)
             rv_var = rmodel[:Rv]
         else
             rv = zeros(nc)
             rv_var = nothing
         end
         so = @. 1.0 - sw - sg
-        T = promote_type(eltype(S), eltype(pressure))
         bo = Vector{BlackOilX{T}}()
         sizehint!(bo, nc)
         for i in 1:nc
@@ -162,7 +167,8 @@ function handle_alternate_primary_variable_spec!(init, found, rmodel, sys::Stand
             reg_rv = region(rv_var, i)
             F_rs_i = table_by_region(F_rs, reg_rs)
             F_rv_i = table_by_region(F_rv, reg_rv)
-            v = blackoil_unknown_init(F_rs_i, F_rv_i, sw[i], so[i], sg[i], rs[i], rv[i], pressure[i])
+            sw_i, so_i, sg_i, rs_i, rv_i, pressure_i = promote(sw[i], so[i], sg[i], rs[i], rv[i], pressure[i])
+            v = blackoil_unknown_init(F_rs_i, F_rv_i, sw_i, so_i, sg_i, rs_i, rv_i, pressure_i)
             push!(bo, v)
         end
         init[:BlackOilUnknown] = bo
