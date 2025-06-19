@@ -82,7 +82,7 @@ end
 # We perturb each layer a bit by multiplying with a constant factor to create a
 # case where the pressure matches.
 perm_truth = vec(data["GRID"]["PERMX"])
-factors = [1.5, 2.0, 1.3]
+factors = [1.5, 2.0, 5.0]
 prm = Dict(
     "perm" => perm_truth.*factors[layerno],
 )
@@ -117,9 +117,7 @@ fig, ax, plt = barplot(catval, kval,
 labels = ["Truth", "Initial guess", "Optimized"]
 elements = [PolyElement(polycolor = colors[i]) for i in 1:length(labels)]
 title = "Categories"
-
 Legend(fig[1,2], elements, labels, title)
-
 fig
 # ## Compute sensitivities outside the optimization
 # We can also compute the sensitivities outside the optimization process. As our
