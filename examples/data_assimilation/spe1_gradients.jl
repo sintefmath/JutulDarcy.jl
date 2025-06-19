@@ -56,6 +56,43 @@ fig = Figure()
 ax = Axis(fig[1, 1], xlabel = "LBFGS iteration", ylabel = "Objective function", yscale = log10)
 scatter!(ax, dprm.history.val)
 fig
+# ## Use lumping to match permeability
+function F_perm(prm, step_info = missing)
+    data_c = deepcopy(data)
+    data_c["GRID"]["PERMX"] = prm["permx"]
+    data_c["GRID"]["PERMY"] = prm["permy"]
+    data_c["GRID"]["PERMZ"] = prm["permz"]
+    case = setup_case_from_data_file(data_c)
+    return case
+end
+
+rmesh = physical_representation(reservoir_domain(case.model))
+
+permx_truth = vec(data["GRID"]["PERMX"])
+permy_truth = vec(data["GRID"]["PERMY"])
+permz_truth = vec(data["GRID"]["PERMZ"])
+
+darcy = si_unit(:darcy)
+
+layerno = map(i -> cell_ijk(rmesh, i)[3], 1:number_of_cells(rmesh))
+
+factors = [0.2, 0.7, 1.5]
+prm = Dict(
+    "permx" => permx_truth.*factors[layerno],
+    "permy" => permy_truth .+ 0.1*darcy,
+    "permz" => permz_truth .+ 0.1*darcy
+)
+perm_opt = setup_reservoir_dict_optimization(prm, F_perm)
+free_optimization_parameter!(perm_opt, "permx", rel_min = 0.1, rel_max = 10.0, lumping = layerno, scaler = :log)
+free_optimization_parameter!(perm_opt, "permy", rel_min = 0.1, rel_max = 10.0, lumping = layerno, scaler = :log)
+free_optimization_parameter!(perm_opt, "permz", rel_min = 0.1, rel_max = 10.0, lumping = layerno, scaler = :log)
+perm_opt
+##
+parameters_tuned = optimize_reservoir(perm_opt, mismatch_objective, max_it = 1);
+perm_opt
+
+
+
 # ## Compute sensitivities outside the optimization
 # We can also compute the sensitivities outside the optimization process. As our
 # previous setup funciton only has a single parameter (the porosity), we instead
