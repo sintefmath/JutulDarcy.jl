@@ -33,12 +33,13 @@ function pdiff(p, p0)
 end
 
 step_times = cumsum(case.dt)
+total_time = step_times[end]
 function mismatch_objective(m, s, dt, step_info, forces)
     t = step_info[:time] + dt
     step = findmin(x -> abs(x - t), step_times)[2]
     p = s[:Reservoir][:Pressure]
     v = pdiff(p, states[step][:Pressure])
-    return dt*(v/(si_unit(:bar)*100)^2)
+    return (dt/total_time)*(v/(si_unit(:bar)*100)^2)
 end
 # ## Create a perturbed initial guess and optimize
 # We create a perturbed initial guess for the porosity and optimize the case
@@ -57,6 +58,16 @@ ax = Axis(fig[1, 1], xlabel = "LBFGS iteration", ylabel = "Objective function", 
 scatter!(ax, dprm.history.val)
 fig
 # ## Use lumping to match permeability
+# The model contains three layers with different permeability. We can perturb
+# the permeability in each layer a bit and use the lumping and scaling
+# functionality in the optimizer to recover the original values.
+#
+# We first define the setup function which expands a permeability value in each
+# cell to PERMX, PERMY and PERMZ, as these are equal for the base model.
+rmesh = physical_representation(reservoir_domain(case.model))
+layerno = map(i -> cell_ijk(rmesh, i)[3], 1:number_of_cells(rmesh))
+darcy = si_unit(:darcy)
+
 function F_perm(prm, step_info = missing)
     data_c = deepcopy(data)
     sz = size(data_c["GRID"]["PERMX"])
@@ -67,29 +78,49 @@ function F_perm(prm, step_info = missing)
     case = setup_case_from_data_file(data_c)
     return case
 end
-
-rmesh = physical_representation(reservoir_domain(case.model))
-
+# ### Define the starting point
+# We perturb each layer a bit by multiplying with a constant factor to create a
+# case where the pressure matches.
 perm_truth = vec(data["GRID"]["PERMX"])
-
-darcy = si_unit(:darcy)
-
-layerno = map(i -> cell_ijk(rmesh, i)[3], 1:number_of_cells(rmesh))
-
-factors = [0.2, 0.7, 0.3]
+factors = [1.5, 2.0, 1.3]
 prm = Dict(
     "perm" => perm_truth.*factors[layerno],
 )
+# ### Optimize with lumping
+# We can lump parameters of the same name together. In this case, "perm" has one
+# value per cell. We would like to exploit the fact that we know that there
+# should be one unique value per layer as a prior assumption.
+#
+# We already have a vector with one entry per cell that defines the layers, so we
+# can use this as the lumping parameter directly.
 perm_opt = setup_reservoir_dict_optimization(prm, F_perm)
-scaler = :log
-free_optimization_parameter!(perm_opt, "perm", rel_min = 0.1, rel_max = 10.0, lumping = layerno, scaler = scaler)
+free_optimization_parameter!(perm_opt, "perm", rel_min = 0.1, rel_max = 10.0, lumping = layerno)
+perm_tuned = optimize_reservoir(perm_opt, mismatch_objective);
 perm_opt
-##
-parameters_tuned = optimize_reservoir(perm_opt, mismatch_objective);
-perm_opt
+# ### Plot the recovered permeability
+first_entry = map(i -> findfirst(isequal(i), layerno), 1:3)
+kval = [perm_truth[first_entry]..., prm["perm"][first_entry]..., perm_tuned["perm"][first_entry]...]
+kval = 1000.0.*kval./si_unit(:darcy)
+catval = [1, 2, 3, 1, 2, 3, 1, 2, 3]
+group = [1, 1, 1, 2, 2, 2, 3, 3, 3]
 
+colors = Makie.wong_colors()
+fig, ax, plt = barplot(catval, kval,
+    dodge = group,
+    color = colors[group],
+    axis = (
+        xticks = (1:3, ["Layer 1", "Layer 2", "Layer 3"]),
+        ylabel = "Permeability / md",
+        title = "Tuned permeability layers"
+    ),
+)
+labels = ["Truth", "Initial guess", "Optimized"]
+elements = [PolyElement(polycolor = colors[i]) for i in 1:length(labels)]
+title = "Categories"
 
+Legend(fig[1,2], elements, labels, title)
 
+fig
 # ## Compute sensitivities outside the optimization
 # We can also compute the sensitivities outside the optimization process. As our
 # previous setup funciton only has a single parameter (the porosity), we instead
