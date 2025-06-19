@@ -132,8 +132,8 @@ function setup_reservoir_dict_optimization(case::JutulCase;
                 JutulDarcy.update_saturations!(s, satdef, rmodel, bo_unknown, ix)
                 l, v = phase_indices(rmodel.system)
             end
-            state0_dict[:so] = s[l, :]
-            state0_dict[:sg] = s[v, :]
+            state0_dict[:LiquidSaturation] = s[l, :]
+            state0_dict[:VaporSaturation] = s[v, :]
         else
             state0_dict[k] = copy(state0_r[k])
         end

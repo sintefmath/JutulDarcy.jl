@@ -118,8 +118,8 @@ function handle_alternate_primary_variable_spec!(init, found, rmodel, sys::Stand
     # Check required inputs to define the "black oil unknown"
     has_sat = haskey(init, :Saturations)
     has_box = haskey(init, :BlackOilUnknown)
-    has_sosg = haskey(init, :so) && haskey(init, :sg)
-    has_sat || has_box || has_sosg || error("Primary variable :Saturations, :so+:sg or :BlackOilUnknown is missing from the initial state.")
+    has_sosg = haskey(init, :LiquidSaturation) && haskey(init, :VaporSaturation)
+    has_sat || has_box || has_sosg || error("Primary variable :Saturations, :LiquidSaturation+:VaporSaturation or :BlackOilUnknown is missing from the initial state.")
 
     if nph == 3 && !haskey(init, :ImmiscibleSaturation)
         S = init[:Saturations]
@@ -141,8 +141,8 @@ function handle_alternate_primary_variable_spec!(init, found, rmodel, sys::Stand
         end
     end
     if has_sosg
-        so = init[:so]
-        sg = init[:sg]
+        so = init[:LiquidSaturation]
+        sg = init[:VaporSaturation]
     else
         so = init[:Saturations][l, :]
         sg = init[:Saturations][v, :]
