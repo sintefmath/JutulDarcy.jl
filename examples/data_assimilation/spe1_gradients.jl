@@ -59,36 +59,33 @@ fig
 # ## Use lumping to match permeability
 function F_perm(prm, step_info = missing)
     data_c = deepcopy(data)
-    data_c["GRID"]["PERMX"] = prm["permx"]
-    data_c["GRID"]["PERMY"] = prm["permy"]
-    data_c["GRID"]["PERMZ"] = prm["permz"]
+    sz = size(data_c["GRID"]["PERMX"])
+    permxyz = reshape(prm["perm"], sz)
+    data_c["GRID"]["PERMX"] = permxyz
+    data_c["GRID"]["PERMY"] = permxyz
+    data_c["GRID"]["PERMZ"] = permxyz
     case = setup_case_from_data_file(data_c)
     return case
 end
 
 rmesh = physical_representation(reservoir_domain(case.model))
 
-permx_truth = vec(data["GRID"]["PERMX"])
-permy_truth = vec(data["GRID"]["PERMY"])
-permz_truth = vec(data["GRID"]["PERMZ"])
+perm_truth = vec(data["GRID"]["PERMX"])
 
 darcy = si_unit(:darcy)
 
 layerno = map(i -> cell_ijk(rmesh, i)[3], 1:number_of_cells(rmesh))
 
-factors = [0.2, 0.7, 1.5]
+factors = [0.2, 0.7, 0.3]
 prm = Dict(
-    "permx" => permx_truth.*factors[layerno],
-    "permy" => permy_truth .+ 0.1*darcy,
-    "permz" => permz_truth .+ 0.1*darcy
+    "perm" => perm_truth.*factors[layerno],
 )
 perm_opt = setup_reservoir_dict_optimization(prm, F_perm)
-free_optimization_parameter!(perm_opt, "permx", rel_min = 0.1, rel_max = 10.0, lumping = layerno, scaler = :log)
-free_optimization_parameter!(perm_opt, "permy", rel_min = 0.1, rel_max = 10.0, lumping = layerno, scaler = :log)
-free_optimization_parameter!(perm_opt, "permz", rel_min = 0.1, rel_max = 10.0, lumping = layerno, scaler = :log)
+scaler = :log
+free_optimization_parameter!(perm_opt, "perm", rel_min = 0.1, rel_max = 10.0, lumping = layerno, scaler = scaler)
 perm_opt
 ##
-parameters_tuned = optimize_reservoir(perm_opt, mismatch_objective, max_it = 1);
+parameters_tuned = optimize_reservoir(perm_opt, mismatch_objective);
 perm_opt
 
 
