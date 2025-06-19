@@ -113,7 +113,13 @@ function handle_alternate_primary_variable_spec!(init, found, rmodel, sys::Stand
     # Internal utility to handle non-trivial specification of primary variables
     nph = number_of_phases(sys)
     haskey(init, :Pressure) || error("Primary variable :Pressure is missing from the initial state.")
-    haskey(init, :Saturations) || haskey(init, :BlackOilUnknown) || error("Primary variable :Saturations or :BlackOilUnknown is missing from the initial state.")
+    pressure = init[:Pressure]
+    nc = length(pressure)
+    # Check required inputs to define the "black oil unknown"
+    has_sat = haskey(init, :Saturations)
+    has_box = haskey(init, :BlackOilUnknown)
+    has_sosg = haskey(init, :so) && haskey(init, :sg)
+    has_sat || has_box || has_sosg || error("Primary variable :Saturations, :so+:sg or :BlackOilUnknown is missing from the initial state.")
 
     if nph == 3 && !haskey(init, :ImmiscibleSaturation)
         S = init[:Saturations]
@@ -123,26 +129,29 @@ function handle_alternate_primary_variable_spec!(init, found, rmodel, sys::Stand
         push!(found, :ImmiscibleSaturation)
     end
 
-    if !haskey(init, :BlackOilUnknown)
-        S = init[:Saturations]
-        pressure = init[:Pressure]
-        nc = length(pressure)
-        if nph == 2
-            sw = zeros(nc)
-            l, v = phase_indices(sys)
-        else
-            a, l, v = phase_indices(sys)
-            sw = S[a, :]
+    if nph == 2
+        sw = zeros(nc)
+        l, v = phase_indices(sys)
+    else
+        a, l, v = phase_indices(sys)
+        if haskey(init, :ImmiscibleSaturation)
+            sw = init[:ImmiscibleSaturation]
+        elseif haskey(init, :Saturations)
+            sw = init[:Saturations][a, :]
         end
-        so = S[l, :]
-        sg = S[v, :]
+    end
+    if has_sosg
+        so = init[:so]
+        sg = init[:sg]
+    else
+        so = init[:Saturations][l, :]
+        sg = init[:Saturations][v, :]
+    end
 
+    if !haskey(init, :BlackOilUnknown)
         F_rs = sys.rs_max
         F_rv = sys.rv_max
-        T = promote_type(eltype(S), eltype(pressure))
-        if haskey(init, :ImmiscibleSaturation)
-            T = promote_type(T, eltype(init[:ImmiscibleSaturation]))
-        end
+        T = promote_type(eltype(so), eltype(sg), eltype(sw), eltype(pressure))
         if has_disgas(sys)
             rs = init[:Rs]
             T = promote_type(eltype(rs), T)
