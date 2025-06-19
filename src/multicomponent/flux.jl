@@ -12,27 +12,27 @@
     else
         D = nothing
     end
-    kdisc = flux_primitives(face, state, model, flux_type, kgrad, upw)
-    q = compositional_fluxes!(q, face, state, S, ρ, X, Y, D, model, flux_type, kgrad, kdisc, upw, aqua, ph_ix)
+    mass_fluxes = darcy_phase_mass_fluxes(face, state, model, flux_type, kgrad, upw)
+    q = compositional_fluxes!(q, face, state, S, ρ, X, Y, D, model, flux_type, kgrad, mass_fluxes, upw, aqua, ph_ix)
     return q
 end
 
-@inline function compositional_fluxes!(q, face, state, S, ρ, X, Y, D, model, flux_type, kgrad, kdisc, upw, aqua::Val{false}, phase_ix)
+@inline function compositional_fluxes!(q, face, state, S, ρ, X, Y, D, model, flux_type, kgrad, mass_fluxes, upw, aqua::Val{false}, phase_ix)
     nc = size(X, 1)
     l, v = phase_ix
-    q_l = darcy_phase_mass_flux(face, l, state, model, flux_type, kgrad, upw, kdisc)
-    q_v = darcy_phase_mass_flux(face, v, state, model, flux_type, kgrad, upw, kdisc)
+    q_l = mass_fluxes[l]
+    q_v = mass_fluxes[v]
 
     q = inner_compositional!(q, S, ρ, X, Y, D, q_l, q_v, face, kgrad, upw, nc, phase_ix)
     return q
 end
 
-@inline function compositional_fluxes!(q, face, state, S, ρ, X, Y, D, model, flux_type, kgrad, kdisc, upw, aqua::Val{true}, phase_ix)
+@inline function compositional_fluxes!(q, face, state, S, ρ, X, Y, D, model, flux_type, kgrad, mass_fluxes, upw, aqua::Val{true}, phase_ix)
     nc = size(X, 1)
     a, l, v = phase_ix
-    q_a = darcy_phase_mass_flux(face, a, state, model, flux_type, kgrad, upw, kdisc)
-    q_l = darcy_phase_mass_flux(face, l, state, model, flux_type, kgrad, upw, kdisc)
-    q_v = darcy_phase_mass_flux(face, v, state, model, flux_type, kgrad, upw, kdisc)
+    q_a = mass_fluxes[a]
+    q_l = mass_fluxes[l]
+    q_v = mass_fluxes[v]
 
     q = inner_compositional!(q, S, ρ, X, Y, D, q_l, q_v, face, kgrad, upw, nc, (l, v))
     q = setindex(q, q_a, nc+1)

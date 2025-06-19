@@ -10,4 +10,4 @@ struct TotalSaturationFlux <: SequentialFlux end
 
 include("variables.jl")
 include("overloads.jl")
-include("functions.jl")
+include("upwind.jl")

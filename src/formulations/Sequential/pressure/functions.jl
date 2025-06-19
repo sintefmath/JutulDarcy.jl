@@ -11,20 +11,18 @@ function store_total_fluxes!(vT, model, state)
         tpfa = TPFA(l, r, 1)
         upw = SPU(l, r)
         f_t = Jutul.DefaultFlux()
-        common = flux_primitives(face, state, model, f_t, tpfa, upw)
-        v = 0
-        for ph in 1:nph
-            mob = ix -> kr[ph, ix]/μ[ph, ix]
-            q = darcy_phase_kgrad_potential(face, ph, state, model, f_t, tpfa, upw, common)
-            λ_f = upwind(upw, mob, q)
-            v += λ_f * q
-        end
-        vT[face] = v
+        # TODO: This assumes the default discretizations.
+        v_phases = darcy_phase_volume_fluxes(face, state, model, f_t, tpfa, upw)
+        vT[face] = sum(v_phases)
     end
     return vT
 end
 
-function store_total_fluxes(model, state)
+function store_total_fluxes(model, state::AbstractDict)
+    return store_total_fluxes(model, JutulStorage(state))
+end
+
+function store_total_fluxes(model, state::Union{JutulStorage, NamedTuple})
     nf = number_of_faces(model.data_domain)
     vT = zeros(nf)
     return store_total_fluxes!(vT, model, state)
@@ -37,9 +35,6 @@ function store_phase_fluxes!(v_phases, model, state)
 
     @assert size(v_phases, 1) == nph
     @assert size(v_phases, 2) == size(N, 2)
-
-    μ = state.PhaseViscosities
-    kr = state.RelativePermeabilities
     for face in axes(v_phases, 2)
         l = N[1, face]
         r = N[2, face]

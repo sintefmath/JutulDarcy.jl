@@ -12,9 +12,7 @@ end
 end
 
 function tracer_flux(Q, face, state, model, kgrad, upw, ft::TracerFluxType)
-    phases = tuple(1:number_of_phases(model.system)...)
-    flow_common = kgrad_common(face, state, model, kgrad)
-    phase_mass_fluxes = map(α -> darcy_phase_mass_flux(face, α, state, model, ft, kgrad, upw, flow_common), phases)
+    phase_mass_fluxes = JutulDarcy.darcy_phase_mass_fluxes(face, state, model, ft, kgrad, upw)
 
     tracers = ft.tracers
     N = length(tracers)

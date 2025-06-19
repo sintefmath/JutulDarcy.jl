@@ -42,9 +42,9 @@ function thermal_heat_flux(face, state, model, grad, upw, flux_type)
     nph = number_of_phases(model.system)
 
     convective_flux = 0.0
-    flow_common = kgrad_common(face, state, model, grad)
+    mass_fluxes = darcy_phase_mass_fluxes(face, state, model, flux_type, grad, upw)
     for α in 1:nph
-        F_α = darcy_phase_mass_flux(face, α, state, model, flux_type, grad, upw, flow_common)
+        F_α = mass_fluxes[α]
         H_face_α = phase_upwind(upw, H_f, α, F_α)
         convective_flux += H_face_α*F_α
     end
