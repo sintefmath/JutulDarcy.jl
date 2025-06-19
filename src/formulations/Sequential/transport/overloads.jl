@@ -110,3 +110,21 @@ end
 #     q = V_t
 #     return q
 # end
+
+function Jutul.update_cross_term_in_entity!(out, i,
+        state_t, state0_t,
+        state_s, state0_s, 
+        model_t::TransportModel, model_s::TransportModel,
+        ct::ReservoirFromWellFlowCT, eq, dt, ldisc = local_discretization(ct, i)
+    )
+    error("This function is not implemented for TransportModel.")
+    sys = model_t.system
+    rhoS = reference_densities(sys)
+    conn = cross_term_perforation_get_conn(ct, i, state_s, state_t)
+    # Call smaller interface that is easy to specialize
+    if haskey(state_s, :MassFractions)
+        @inbounds simple_well_perforation_flux!(out, sys, state_t, state_s, rhoS, conn)
+    else
+        @inbounds multisegment_well_perforation_flux!(out, sys, state_t, state_s, rhoS, conn)
+    end
+end
