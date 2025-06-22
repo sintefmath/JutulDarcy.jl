@@ -101,18 +101,39 @@ function setup_reservoir_dict_optimization(case::JutulCase;
     end
     # state0
     state0_dict = DT()
-    function set_if_present(k)
-        if haskey(state0_r, k)
-            v = copy(state0_r[k])
-            state0_dict[k] = v
-        end
-    end
     for (k, var) in pairs(rmodel.primary_variables)
         if k == :BlackOilUnknown
-            set_if_present(:Rs)
-            set_if_present(:Rv)
-            set_if_present(:ImmiscibleSaturation)
-            state0_dict[:Saturations] = copy(state0_r[:Saturations])
+            bo_unknown = state0_r[k]
+            swat = get(state0_r, :ImmiscibleSaturation, missing)
+            sw_fun(x::Missing, i) = 0.0
+            sw_fun(x, i) = x[i]
+            p = state0_r[:Pressure]
+            nc = length(p)
+            ix = eachindex(p)
+            if has_disgas(rmodel.system)
+                rsdef = rmodel.secondary_variables[:Rs]
+                rs = similar(p)
+                JutulDarcy.update_rs!(rs, rsdef, rmodel, p, bo_unknown, ix)
+                state0_dict[:Rs] = rs
+            end
+            if has_vapoil(rmodel.system)
+                rvdef = rmodel.secondary_variables[:Rv]
+                rv = similar(p)
+                JutulDarcy.update_rv!(rv, rvdef, rmodel, p, bo_unknown, ix)
+                state0_dict[:Rv] = rv
+            end
+            satdef = rmodel.secondary_variables[:Saturations]
+            nph = number_of_phases(rmodel.system)
+            s = zeros(nph, nc)
+            if nph == 3
+                JutulDarcy.update_saturations!(s, satdef, rmodel, bo_unknown, state0_r[:ImmiscibleSaturation], ix)
+                _, l, v = phase_indices(rmodel.system)
+            else
+                JutulDarcy.update_saturations!(s, satdef, rmodel, bo_unknown, ix)
+                l, v = phase_indices(rmodel.system)
+            end
+            state0_dict[:LiquidSaturation] = s[l, :]
+            state0_dict[:VaporSaturation] = s[v, :]
         else
             state0_dict[k] = copy(state0_r[k])
         end
