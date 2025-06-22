@@ -140,15 +140,15 @@ function handle_alternate_primary_variable_spec!(init, found, rmodel, sys::Stand
             sw = init[:Saturations][a, :]
         end
     end
-    if has_sosg
-        so = init[:LiquidSaturation]
-        sg = init[:VaporSaturation]
-    else
-        so = init[:Saturations][l, :]
-        sg = init[:Saturations][v, :]
-    end
 
     if !haskey(init, :BlackOilUnknown)
+        if has_sosg
+            so = init[:LiquidSaturation]
+            sg = init[:VaporSaturation]
+        else
+            so = init[:Saturations][l, :]
+            sg = init[:Saturations][v, :]
+        end
         F_rs = sys.rs_max
         F_rv = sys.rv_max
         T = promote_type(eltype(so), eltype(sg), eltype(sw), eltype(pressure))
