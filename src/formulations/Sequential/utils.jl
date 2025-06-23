@@ -1,46 +1,17 @@
-struct SequentialSimulator{M, P, T, S} <: Jutul.JutulSimulator
-    model::M
-    pressure::P
-    transport::T
-    storage::S
-end
 
-function SequentialSimulator(case::JutulCase; kwarg...)
-    return SequentialSimulator(case.model; state0 = case.state0, parameters = case.parameters)
-end
 
-function SequentialSimulator(model; state0 = setup_state(model), parameters = setup_parameters(model), avg_mobility = false)
-    rmodel = reservoir_model(model)
-    sys = rmodel.system
-    pmodel = convert_to_sequential(model, pressure = true, avg_mobility = avg_mobility)
-    tmodel = convert_to_sequential(model, pressure = false)
-    function add_total_saturation!(m, state0)
-        if !haskey(state0, :TotalSaturation)
-            state0[:TotalSaturation] = ones(number_of_cells(m.domain))
+function setup_sequential_storage!(S, p_model::MultiModel, t_model::MultiModel)
+    for k in Jutul.submodels_symbols(p_model)
+        p_submodel = p_model[k]
+        t_submodel = t_model[k]
+        if k == :Reservoir || model_or_domain_is_well(p_submodel)
+            S[k] = JutulStorage()
+            setup_sequential_storage!(S[k], p_submodel, t_submodel)
         end
     end
-    function add_total_saturation!(m::MultiModel, state0)
-        add_total_saturation!(m[:Reservoir], state0[:Reservoir])
-    end
-    add_total_saturation!(model, state0)
+end
 
-    function merge_initial_state(m, state0, parameters)
-        return merge(state0, parameters)
-    end
-    function merge_initial_state(m::MultiModel, state0, parameters)
-        init = copy(state0)
-        init[:Reservoir] = merge(state0[:Reservoir], parameters[:Reservoir])
-        return init
-    end
-    init = merge_initial_state(model, state0, parameters)
-    function subsimulator(m)
-        s0, prm = setup_state_and_parameters(m, init)
-        return Simulator(m, state0 = s0, parameters = prm)
-    end
-
-    PSim = subsimulator(pmodel)
-    TSim = subsimulator(tmodel)
-
+function setup_sequential_storage!(S, p_model::SimulationModel, t_model::SimulationModel)
     function seq_output_keys(m)
         return copy(m.output_variables)
     end
@@ -54,17 +25,21 @@ function SequentialSimulator(model; state0 = setup_state(model), parameters = se
 
         return intersect(all_s, setdiff(prm_t, prm_s))
     end
-    transfer_keys_transport = transfer_keys(TSim.model, PSim.model)
-    transfer_keys_pressure = transfer_keys(PSim.model, TSim.model)
+    transfer_keys_transport = transfer_keys(t_model, p_model)
+    transfer_keys_pressure = transfer_keys(p_model, t_model)
     # Init rule: Transfer over everything that is present from transport state.
     function init_keys(target, source)
         all_t = keys(Jutul.get_variables_by_type(target, :all))
         all_s = keys(Jutul.get_variables_by_type(source, :all))
 
-        return intersect(all_t, all_s)
+        # return intersect(all_t, all_s)
+
+        secondary_s = keys(Jutul.get_variables_by_type(source, :secondary))
+        tkeys = setdiff(intersect(all_t, all_s), secondary_s)
+        push!(tkeys, :TotalMasses)
+        return tkeys
     end
-    # init_keys_transport = init_keys(TSim.model)
-    init_keys_pressure = init_keys(PSim.model, TSim.model)
+    init_keys_pressure = init_keys(p_model, t_model)
 
     transfer_keys = JutulStorage()
     transfer_keys[:pressure] = transfer_keys_pressure
@@ -74,38 +49,16 @@ function SequentialSimulator(model; state0 = setup_state(model), parameters = se
     init_keys[:pressure] = init_keys_pressure
     # init_keys[:transport] = init_keys_transport
 
-    S = JutulStorage()
     S[:init_keys] = init_keys
     S[:transfer_keys] = transfer_keys
 
-    nph = number_of_phases(sys)
-    nc = number_of_cells(model.domain)
+    nph = number_of_phases(t_model.system)
+    nc = number_of_cells(t_model.domain)
     λ = zeros(nph, nc)
     @. λ = NaN
     S[:mobility] = λ
     S[:mobility_prev] = similar(λ)
-
-    # @info "Keys" transfer_keys_pressure transfer_keys_transport init_keys_transport init_keys_pressure
-
-
-    # all_keys = union(seq_output_keys(PSim.model), seq_output_keys(TSim.model))
-    # seq_state = JutulStorage()
-    # for s in [PSim, TSim]
-    #     s0 = s.storage.state0
-    #     for k in seq_output_keys(s.model)
-    #         if haskey(s0, k)
-    #             seq_state[k] = similar(s0[k])
-    #         end
-    #     end
-    # end
-    # @info "!" seq_state
-    # error()
-
-    S[:recorder] = ProgressRecorder()
-    # S[:state] = seq_state
-    # S[:state0] = deepcopy(seq_state)
-    # S[:primary_variables] = seq_state
-    return SequentialSimulator(model, PSim, TSim, S)
+    return S
 end
 
 function Jutul.simulator_config(
@@ -134,7 +87,9 @@ function Jutul.simulator_config(
     return cfg
 end
 
-
+function Jutul.simulator_executor(sim::SequentialSimulator)
+    return Jutul.simulator_executor(sim.pressure)
+end
 
 function Jutul.select_linear_solver(sim::SequentialSimulator; kwarg...)
     return nothing
@@ -155,6 +110,18 @@ function Jutul.initialize_before_first_timestep!(sim::SequentialSimulator, dt; k
     Jutul.initialize_before_first_timestep!(sim.pressure, dt; kwarg...)
 end
 
+function get_reservoir_state(sim, current = true)
+    if current
+        model_state = sim.storage.state
+    else
+        model_state = sim.storage.state0
+    end
+    if sim.model isa MultiModel
+        model_state = model_state.Reservoir
+    end
+    return model_state
+end
+
 function Jutul.perform_step!(
         simulator::SequentialSimulator,
         dt,
@@ -163,35 +130,46 @@ function Jutul.perform_step!(
         iteration = NaN,
         relaxation = 1.0,
         update_secondary = true,
-        solve = true
+        solve = true,
+        executor = default_executor(),
+        prev_report = missing
     )
+    il = config[:info_level]
+
     psim = simulator.pressure
     pstate = psim.storage.state
     pstate0 = psim.storage.state0
+    storage = simulator.storage
 
+    is_multi_model = psim.model isa MultiModel
     tsim = simulator.transport
     tstate = tsim.storage.state
 
-    transfer_keys = simulator.storage.transfer_keys
     # Solve pressure
     # Copy over variables to parameters for both solves
     if iteration > 1
         # We need to transfer from pressure
-        for k in transfer_keys[:pressure]
-            update_values!(pstate[k], tstate[k])
-        end
+        sequential_sync_values!(simulator, to_key = :pressure)
     end
     report = Jutul.setup_ministep_report()
     config_p = config[:pressure]
     max_iter_p = config_p[:max_nonlinear_iterations]
-    mob_p = psim.storage.state.PhaseMobilities
-    mob_t = tsim.storage.state.PhaseMobilities
-    mob = simulator.storage.mobility
-    mob_prev = simulator.storage.mobility_prev
-    total_saturation = tsim.storage.state.TotalSaturation
+    mob_p = get_reservoir_state(psim).PhaseMobilities
+    mob_t = get_reservoir_state(tsim).PhaseMobilities
+    total_saturation = get_reservoir_state(tsim).TotalSaturation
+
+    transfer_storage = simulator.storage.transfer
+    if is_multi_model
+        mob = transfer_storage.Reservoir.mobility
+        mob_prev = transfer_storage.Reservoir.mobility_prev
+    else
+        mob = transfer_storage.mobility
+        mob_prev = transfer_storage.mobility_prev
+    end
     if iteration == 1
         if isnan(mob[1, 1])
-            mob_t0 = tsim.storage.state0.PhaseMobilities
+            tstate0 = get_reservoir_state(tsim, false)
+            mob_t0 = tstate0.PhaseMobilities
             @. mob = value(mob_t0)
         else
             # Initial guess from end of last time-step
@@ -201,27 +179,26 @@ function Jutul.perform_step!(
 
     @. mob_p = mob
     @. mob_prev = mob
-
+    if il > 1
+        jutul_message("Sequential it $iteration", "Solving pressure")
+    end
     done_p, report_p = Jutul.solve_ministep(psim, dt, forces, max_iter_p, config_p, finalize = false)
     if done_p
+        # t_forces = transport_forces(tsim,)
+        t_forces = deepcopy(forces)
         # Copy over values for pressure and fluxes into parameters for second simulator
         model_p = psim.model
         if iteration > 1
             Jutul.reset_previous_state!(tsim, pstate0)
             Jutul.reset_state_to_previous_state!(tsim)
         end
-
-        vT = tsim.storage.state.TotalVolumetricFlux
-        store_total_fluxes!(vT, model_p, as_value(pstate))
-        for k in transfer_keys[:transport]
-            update_values!(tstate[k], pstate[k])
-        end
+        store_fluxes!(tsim, psim)
+        sequential_sync_values!(simulator, to_key = :transport)
         nsub = config[:transport_substeps]
         config_t = config[:transport]
         max_iter_t = config_t[:max_nonlinear_iterations]
         # TODO: Store initial guesses here for SFI
 
-        
         function store_mobility!(mob, mob_t, w, cell_weight)
             cw(::Nothing, i) = 1.0
             cw(x, i) = value(x[i])
@@ -240,14 +217,17 @@ function Jutul.perform_step!(
         end
         report_t = nothing
         @. mob = 0
+        if il > 1
+            jutul_message("Sequential it $iteration", "Solving transport with $nsub substeps")
+        end
         if nsub == 1
             # Then transport
-            done_t, report_t = Jutul.solve_ministep(tsim, dt, forces, max_iter_t, config_t)
+            done_t, report_t = Jutul.solve_ministep(tsim, dt, t_forces, max_iter_t, config_t)
             store_mobility!(mob, mob_t, 1.0, nothing)
         else
             for stepno = 1:nsub
                 dt_i = dt/nsub
-                done_t, subreport_t = Jutul.solve_ministep(tsim, dt_i, forces, max_iter_t, config_t)
+                done_t, subreport_t = Jutul.solve_ministep(tsim, dt_i, t_forces, max_iter_t, config_t)
                 if stepno == nsub
                     w_i = nothing
                 else
@@ -273,23 +253,25 @@ function Jutul.perform_step!(
             end
             @. mob /= dt
         end
-        report[:transport] = report_t
-
     else
-        error("Pressure failure not implemented")
+        report[:failure] = true
+        report_t = missing
     end
     report[:pressure] = report_p
     for k in [
-        :secondary_time,
-        :equations_time,
-        :linear_system_time,
-        :convergence_time,
-        :linear_solve_time,
-        :update_time,
-        :linear_iterations
+            :secondary_time,
+            :equations_time,
+            :linear_system_time,
+            :convergence_time,
+            :linear_solve_time,
+            :update_time,
+            :linear_iterations
         ]
         v = 0
         for R in [report_p, report_t]
+            if ismissing(R)
+                continue
+            end
             for step in R[:steps]
                 if haskey(step, k)
                     v += step[k]
@@ -298,11 +280,39 @@ function Jutul.perform_step!(
         end
         report[k] = v
     end
+    t_prep = 0.0
+    t_precond = 0.0
+    precond_count = 0
+    for R in [report_p, report_t]
+        if ismissing(R)
+            continue
+        end
+        for step in R[:steps]
+            lsol = get(step, :linear_solver, nothing)
+            if !isnothing(lsol)
+                t_prep += lsol.prepare
+                t_precond += lsol.precond
+                precond_count += lsol.precond_count
+            end
+        end
+    end
+    report[:linear_solver] = (
+        stats = nothing,
+        prepare = t_prep,
+        precond = t_precond,
+        precond_count = precond_count
+    )
     # Return convergence criterion for outer loop if SFI
     sfi = config[:sfi]
-    if sfi
-        tol_s = 1e-2
-        tol_mob = 1e-2
+    if !done_p
+        report[:failure_exception] = ErrorException("Pressure solve failed to converge.")
+        converged = false
+        err = Inf
+    elseif !done_t
+        report[:failure_exception] = ErrorException("Transport solve failed to converge.")
+        converged = false
+        err = Inf
+    elseif sfi
         tol_mob = config[:mobility_tol]
         tol_s = config[:saturation_tol]
         il = config[:info_level]
@@ -341,10 +351,10 @@ function Jutul.perform_step!(
         # ]
         if il > 1 # || true
             jutul_message("#$iteration", "|S_t - 1| = $e_s, |Δλ| = $e_mob")
-           # Jutul.get_convergence_table(errors, il, iteration, config)
+            # Jutul.get_convergence_table(errors, il, iteration, config)
         end
     else
-        converged = done_t
+        converged = true
         err = 0.0
     end
     report[:converged] = converged
@@ -352,6 +362,80 @@ function Jutul.perform_step!(
         Jutul.update_after_step!(psim, dt, forces)
     end
     return (err, converged, report)
+end
+
+function store_fluxes!(tsim, psim)
+    pmodel = psim.model
+    vT = get_reservoir_state(tsim).TotalVolumetricFlux
+    pstate_res = get_reservoir_state(psim)
+    store_total_fluxes!(vT, reservoir_model(pmodel), as_value(pstate_res))
+    store_perforation_fluxes!(tsim, psim, pmodel)
+end
+
+function store_perforation_fluxes!(tsim, psim, pmodel)
+    nothing
+end
+
+function store_perforation_fluxes!(tsim, psim, pmodel::MultiModel)
+    model_r = reservoir_model(pmodel)
+    for ct in pmodel.cross_terms
+        if ct.cross_term isa PressureReservoirFromWellFlowCT
+            @assert ct.target == :Reservoir "Expected target to be :Reservoir, was $(ct.target) (source = $(ct.source))"
+            label = ct.source
+            q = tsim.storage[label].parameters[:PerforationTotalVolumetricFlux]
+            ct_mphase = ct.cross_term.parent
+            store_perforation_fluxes!(q, ct_mphase, pmodel[label], model_r, psim.storage.state[label], psim.storage.state[:Reservoir])
+        end
+    end
+    return tsim
+end
+
+function store_perforation_fluxes!(q, ct, wmodel, resmodel, wstate, rstate)
+    T = eltype(q)
+    nph = number_of_phases(wmodel.system)
+    mob = rstate.PhaseMobilities
+    for i in eachindex(q)
+        conn = cross_term_perforation_get_conn(ct, i, wstate, rstate)
+        total_mobility = zero(T)
+        for ph in 1:nph
+            total_mobility += value(mob[ph, conn.reservoir])
+        end
+        total_flux = zero(T)
+        for ph in 1:nph
+            pot = value(JutulDarcy.perforation_phase_potential_difference(conn, rstate, wstate, ph))
+            total_flux += pot*total_mobility
+        end
+        q[i] = total_flux
+    end
+    return q
+end
+
+function sequential_sync_values!(sim::SequentialSimulator; to_key::Symbol = :pressure, kind = :transfer_keys)
+    @assert to_key in (:pressure, :transport)
+    pstate = sim.pressure.storage.state
+    tstate = sim.transport.storage.state
+    if to_key == :pressure
+        dest = pstate
+        src = tstate
+        model = sim.transport.model
+    else
+        dest = tstate
+        src = pstate
+        model = sim.pressure.model
+    end
+    sequential_sync_values!(dest, src, model, sim.storage.transfer, to_key, kind)
+end
+
+function sequential_sync_values!(dest, src, model::SimulationModel, storage_transfer, dest_key, kind)
+    for k in storage_transfer[kind][dest_key]
+        update_values!(dest[k], src[k])
+    end
+end
+
+function sequential_sync_values!(dest, src, model::MultiModel, storage_transfer, k, kind)
+    for modname in keys(storage_transfer)
+        sequential_sync_values!(dest[modname], src[modname], model[modname], storage_transfer[modname], k, kind)
+    end
 end
 
 # function Jutul.update_after_step!(sim::SequentialSimulator, dt, forces; kwarg...)
@@ -401,6 +485,9 @@ function Jutul.final_simulation_message(simulator::SequentialSimulator, p, rec, 
         for ministep in rep[:ministeps]
             for step in ministep[:steps]
                 for k in [:pressure, :transport]
+                    if !haskey(step, k)
+                        continue
+                    end
                     for sstep in step[k][:steps]
                         if haskey(sstep, :update)
                             stats[k][:iterations] += 1
@@ -431,11 +518,7 @@ function Jutul.update_after_step!(sim::SequentialSimulator, dt, forces; kwarg...
     Jutul.update_after_step!(sim.transport, dt, forces; kwarg...)
     # NOTE: This part must be done carefully so that the pressure contains the
     # final solution from the last transport solve.
-    pstate = sim.pressure.storage.state
-    tstate = sim.transport.storage.state
-    for k in sim.storage.init_keys.pressure
-        update_values!(pstate[k], tstate[k])
-    end
+    sequential_sync_values!(sim, to_key = :pressure, kind = :init_keys)
     Jutul.update_after_step!(sim.pressure, dt, forces; kwarg...)
 end
 
