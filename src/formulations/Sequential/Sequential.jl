@@ -1,6 +1,7 @@
 module Sequential
     import Jutul
     import JutulDarcy
+    import OrderedCollections: OrderedDict
 
     import JutulDarcy:
         MultiPhaseSystem,

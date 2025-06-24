@@ -105,7 +105,7 @@ function convert_to_sequential(model::MultiModel; pressure = true, kwarg...)
         push!(ct, ctp)
     end
     smodel = convert_to_sequential(model[:Reservoir]; pressure = pressure, kwarg...)
-    models = Dict{Symbol, Any}()
+    models = OrderedDict{Symbol, Any}()
     for (k, v) in pairs(model.models)
         if k == :Reservoir
             models[k] = smodel
