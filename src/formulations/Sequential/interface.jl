@@ -38,8 +38,13 @@ function convert_to_sequential(model; avg_mobility = false, pressure = true, cor
         vars = seqmodel.secondary_variables
         prm = seqmodel.parameters
         nph = number_of_phases(seqmodel.system)
-        if !haskey(vars, :Saturations)
-            correction = :density
+        has_mobility = haskey(vars, :PhaseMassMobilities)
+        has_mass_mobility = haskey(vars, :PhaseMassMobilities)
+        has_saturations = haskey(vars, :Saturations)
+        if correction == :volume
+            if !has_mobility && !has_mass_mobility && !has_saturations
+                correction = :density
+            end
         end
         if correction == :density
             if haskey(vars, :ShrinkageFactors)
@@ -52,11 +57,11 @@ function convert_to_sequential(model; avg_mobility = false, pressure = true, cor
             vars[k] = TotalSaturationCorrectedVariable(:UncorrectedVariable, nph)
         else
             correction == :volume || throw(ArgumentError("Unknown correction type $correction"))
-            if haskey(vars, :PhaseMassMobilities)
+            if has_mass_mobility
                 k = :PhaseMassMobilities
-            elseif haskey(vars, :PhaseMobilities)
+            elseif has_mobility
                 k = :SurfaceVolumeMobilities
-            elseif haskey(vars, :Saturations)
+            elseif has_saturations
                 k = :Saturations
             end
             @assert haskey(vars, k) "Expected $k in $(keys(vars))"
