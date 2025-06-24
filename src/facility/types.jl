@@ -779,6 +779,16 @@ function well_target_information(t::Union{HistoricalReservoirVoidageTarget, Val{
     )
 end
 
+function well_target_information(t::Union{ReservoirVolumeRateTarget, Val{:rvolrat}})
+    return well_target_information(
+        symbol = :rvolrat,
+        description = "Reservoir rate",
+        explanation = "Total volumetric rate at BHP conditions. This is the sum of all phases.",
+        unit_type = :liquid_volume_reservoir,
+        unit_label = "m³/s"
+    )
+end
+
 function well_target_information(t::Val{:mass_rate})
     return well_target_information(
         symbol = :mass_rate,

@@ -188,6 +188,8 @@ function translate_limit(control::ProducerControl, name, val)
     elseif name == :rate || name == :rate_upper
         # Upper limit, total volumetric surface rate
         target_limit = TotalRateTarget(val)
+    elseif name == :rvolrat
+        target_limit = ReservoirVolumeRateTarget(val)
     elseif name == :rate_lower
         # Lower limit, total volumetric surface rate. This is useful
         # disabling producers if they would otherwise start to inject.
@@ -379,6 +381,16 @@ function well_target(control::ProducerControl, target::ReservoirVoidageTarget, w
         w += S*target.weights[i]
     end
     return w/ρ_tot
+end
+
+function well_target(control::ProducerControl, target::ReservoirVolumeRateTarget, well_model, well_state, surface_densities, surface_volume_fractions)
+    rho = well_state.PhaseMassDensities
+    s = well_state.Saturations
+    total_density = zero(eltype(rho))
+    for ph in axes(rho, 1)
+        total_density += rho[ph, 1]*s[ph, 1]
+    end
+    return 1.0/total_density
 end
 
 function well_target(control::InjectorControl, target::ReinjectionTarget, well_model, well_state, surface_densities, surface_volume_fractions)

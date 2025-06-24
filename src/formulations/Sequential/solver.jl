@@ -329,5 +329,7 @@ function compute_well_volumetric_rate_at_bhp(wstate, well_mass_rate)
     for ph in axes(rho, 1)
         total_density += Jutul.value(rho[ph, 1])*Jutul.value(s[ph, 1])
     end
-    return well_mass_rate/total_density
+    q_vol = Jutul.value(well_mass_rate)/total_density
+    q_vol::Float64
+    return q_vol
 end
