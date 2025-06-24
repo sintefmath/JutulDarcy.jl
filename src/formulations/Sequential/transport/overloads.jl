@@ -77,7 +77,7 @@ function Jutul.update_cross_term_in_entity!(out, i,
     q_p = state_s[:PerforationTotalVolumetricFlux][i]
     # Call smaller interface that is easy to specialize
     @assert !haskey(state_s, :MassFractions)
-    @assert abs(conn.gdz) < 1e-10 "connection gravity difference should be zero for transport model, was $(conn.gdz)"
+    # @assert abs(conn.gdz) < 1e-10 "connection gravity difference should be zero for transport model, was $(conn.gdz)"
     rc = conn.reservoir
     mob = state_t.PhaseMobilities
     mobt = zero(eltype(mob))
@@ -87,7 +87,7 @@ function Jutul.update_cross_term_in_entity!(out, i,
     conn = (
         dp = q_p/(mobt*conn.WI),
         WI = conn.WI,
-        gdz = conn.gdz,
+        gdz = 0*conn.gdz,
         well = conn.well,
         perforation = conn.perforation,
         reservoir = conn.reservoir

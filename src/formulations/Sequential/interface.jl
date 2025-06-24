@@ -38,6 +38,9 @@ function convert_to_sequential(model; avg_mobility = false, pressure = true, cor
         vars = seqmodel.secondary_variables
         prm = seqmodel.parameters
         nph = number_of_phases(seqmodel.system)
+        if !haskey(vars, :Saturations)
+            correction = :density
+        end
         if correction == :density
             if haskey(vars, :ShrinkageFactors)
                 k = :ShrinkageFactors
@@ -53,7 +56,7 @@ function convert_to_sequential(model; avg_mobility = false, pressure = true, cor
                 k = :PhaseMassMobilities
             elseif haskey(vars, :PhaseMobilities)
                 k = :SurfaceVolumeMobilities
-            else
+            elseif haskey(vars, :Saturations)
                 k = :Saturations
             end
             @assert haskey(vars, k) "Expected $k in $(keys(vars))"
