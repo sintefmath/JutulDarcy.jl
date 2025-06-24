@@ -117,14 +117,26 @@ function Jutul.update_cross_term_in_entity!(out, i,
         model_t::TransportModel, model_s::TransportModel,
         ct::ReservoirFromWellFlowCT, eq, dt, ldisc = local_discretization(ct, i)
     )
-    error("This function is not implemented for TransportModel.")
     sys = model_t.system
     rhoS = reference_densities(sys)
     conn = cross_term_perforation_get_conn(ct, i, state_s, state_t)
+    q_p = state_s[:PerforationTotalVolumetricFlux][i]
     # Call smaller interface that is easy to specialize
-    if haskey(state_s, :MassFractions)
-        @inbounds simple_well_perforation_flux!(out, sys, state_t, state_s, rhoS, conn)
-    else
-        @inbounds multisegment_well_perforation_flux!(out, sys, state_t, state_s, rhoS, conn)
+    @assert !haskey(state_s, :MassFractions)
+    @assert abs(conn.gdz) < 1e-10 "connection gravity difference should be zero for transport model, was $(conn.gdz)"
+    rc = conn.reservoir
+    mob = state_t.PhaseMobilities
+    mobt = zero(eltype(mob))
+    for ph in axes(mob, 1)
+        mobt += mob[ph, rc]
     end
+    conn = (
+        dp = q_p/(mobt*conn.WI),
+        WI = conn.WI,
+        gdz = conn.gdz,
+        well = conn.well,
+        perforation = conn.perforation,
+        reservoir = conn.reservoir
+    )
+    JutulDarcy.multisegment_well_perforation_flux!(out, sys, state_t, state_s, rhoS, conn)
 end
