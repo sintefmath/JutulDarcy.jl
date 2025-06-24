@@ -53,63 +53,17 @@ end
 
     G = map(bouyancy_and_capillary_term, phases)
 
-    # ∇p = pressure_gradient(state, kgrad)
-
-    # @inline function phase_pot(phase)
-    #     Δpc = capillary_gradient(pc, kgrad, phase, ref_index)
-    #     ρ_avg = face_average_density(model, state, kgrad, phase)
-    #     return -T_f*(∇p + Δpc + gΔz*ρ_avg)
-    # end
     if false
+        @assert number_of_phases(model.system) == 2 "This debug option is only implemented for two phases"
         mob_1 = JutulDarcy.phase_upwind(upw, state.PhaseMobilities, 1, V_t)
         mob_2 = JutulDarcy.phase_upwind(upw, state.PhaseMobilities, 2, V_t)
         mob_t = mob_1 + mob_2
-        @info "???" V_t mob_1 mob_2
         return (1/mob_t*V_t, 1/mob_t*V_t)
     end
     return phase_potential_upwind_potential_differences(V_t, T_f, G, left_mob, right_mob)
 end
 
 
-# @inline function flux_primitives(face, state, model, flux_type::TotalSaturationFlux, tpfa::TPFA, upw)
-#     trans = state.Transmissibilities
-#     grav = state.TwoPointGravityDifference
-#     kr = state.RelativePermeabilities
-#     mu = state.PhaseViscosities
-
-#     @inbounds T_f = trans[face]
-#     @inbounds gΔz = tpfa.face_sign*grav[face]
-#     V_t = tpfa.face_sign*state.TotalVolumetricFlux[face]
-
-#     ix = phase_indices(model.system)
-#     l = upw.left
-#     r = upw.right
-#     c = upwind_cell(V_t, l, r)
-#     λ = map(ph -> kr[ph, c]/mu[ph, c], ix)
-#     λ_t = sum(λ)
-
-#     # TODO: Phase upwind and fractional flow here
-#     return (q = V_t/λ_t, T = T_f, gdz = gΔz, V_t = V_t, λ = λ)
-# end
-
-# @inline function darcy_phase_kgrad_potential(face, phase, state, model, flux_type::TotalSaturationFlux, tpfa::TPFA{T}, upw, common = flux_primitives(face, state, model, flux_type, upw, tpfa)) where T
-#     ρ = state.PhaseMassDensities
-#     pc, ref_index = capillary_pressure(model, state)
-#     V_t, T_f, gΔz = common
-
-#     l = tpfa.left
-#     r = tpfa.right
-#     pc::Nothing
-#     @assert gΔz == 0
-#     # Δpc = capillary_gradient(pc, l, r, phase, ref_index)
-#     # @inbounds ρ_c = ρ[phase, l]
-#     # @inbounds ρ_i = ρ[phase, r]
-#     ## ρ_avg = 0.5*(ρ_i + ρ_c)
-#     # q = -T_f*(∇p + Δpc + gΔz*ρ_avg)
-#     # error()
-#     q = V_t
-#     return q
-# end
 
 function Jutul.update_cross_term_in_entity!(out, i,
         state_t, state0_t,
