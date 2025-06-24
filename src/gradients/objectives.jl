@@ -21,6 +21,7 @@ Possible targets (as symbols):
 - :wrat (Surface Water Rate)
 - :orat (Surface Oil Rate)
 - :grat (Surface Gas Rate)
+- :rate (Total volumetric rate at surface conditions)
 
 # Returns
 - The computed QoI for the specified well.
@@ -64,6 +65,8 @@ function compute_well_qoi(model::MultiModel, state, forces, well::Symbol, target
             target = SurfaceGasRateTarget
         elseif target == :bhp
             target = BottomHolePressureTarget
+        elseif target == :rate
+            target = TotalRateTarget
         else
             error("Unsupported QoI symbol $target.")
         end

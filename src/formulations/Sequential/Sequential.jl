@@ -91,6 +91,7 @@ module Sequential
 
     include("types.jl")
     include("utils.jl")
+    include("solver.jl")
     include("pressure/pressure.jl")
     include("transport/transport.jl")
 end

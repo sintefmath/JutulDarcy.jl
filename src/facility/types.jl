@@ -105,7 +105,7 @@ end
 Base.show(io::IO, t::SurfaceVolumeTarget) = print(io, "$(typeof(t)) with value $(t.value) [m^3/s] for $(join([typeof(p) for p in lumped_phases(t)], ", "))")
 
 """
-    BottomHolePressureTarget(q, phase)
+    BottomHolePressureTarget(`bhp`)
 
 Bottom-hole pressure (bhp) target with target pressure value `bhp`. A well
 operating under a bhp constraint will keep the well pressure at the bottom hole
@@ -300,6 +300,10 @@ This constraint is typically set up from .DATA files for black-oil and immiscibl
 struct ReservoirVoidageTarget{T, K} <: WellTarget where {T<:AbstractFloat, K<:Tuple}
     value::T
     weights::K
+end
+
+struct ReservoirVolumeRateTarget{T} <: WellTarget where {T<:AbstractFloat}
+    value::T
 end
 
 mutable struct ReinjectionTarget <: WellTarget
