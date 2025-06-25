@@ -28,7 +28,7 @@ function convert_to_sequential(model; avg_mobility = false, pressure = true, cor
         if avg_mobility
             mob = :PhaseMobilities
             if haskey(seqmodel.secondary_variables, mob)
-                seqmodel.parameters[mob] = PhaseMobilities()
+                seqmodel.parameters[mob] = JutulDarcy.PhaseMobilities()
                 delete!(seqmodel.secondary_variables, mob)
             end
         end
@@ -122,7 +122,7 @@ function convert_to_sequential(model::MultiModel; pressure = true, kwarg...)
         if k == :Reservoir
             models[k] = smodel
         else
-            if v.system isa MultiPhaseSystem# && pressure
+            if v.system isa MultiPhaseSystem
                 v = convert_to_sequential(v; pressure = pressure, kwarg...)
             end
             models[k] = deepcopy(v)
