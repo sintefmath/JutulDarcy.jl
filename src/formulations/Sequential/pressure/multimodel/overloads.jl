@@ -10,19 +10,10 @@ function Jutul.update_cross_term_in_entity!(out, i,
         eq::PressureEquation, dt, ldisc = local_discretization(ct, i)
     )
     # Target is reservoir, source is well
+    model_s::SimpleWellModel
     sys = model_t.system
-    rhoS = reference_densities(sys)
-    conn = cross_term_perforation_get_conn(ct.parent, i, state_s, state_t)
-
-    ncomp = number_of_components(sys)
-    out_full = zeros(eltype(out), ncomp)
-    @assert !haskey(state_s, :MassFractions)
-    q = multisegment_well_perforation_flux!(out_full, sys, state_t, state_s, rhoS, conn)
-    val = zero(eltype(out))
-    for i in eachindex(q)
-        val += q[i]*state_t.PressureReductionFactors[i, conn.reservoir]
-    end
-    out[1] = val
+    T = eltype(out)
+    out[1] = pressure_perforation_flux(T, ct.parent, i, state_t, state_t, state_s, sys)
 end
 
 struct PressureWellFromReservoirFlowCT{T} <: Jutul.AdditiveCrossTerm
@@ -37,18 +28,23 @@ function Jutul.update_cross_term_in_entity!(out, i,
         eq::PressureEquation, dt, ldisc = local_discretization(ct, i)
     )
     # Target is well, source is reservoir
+    model_t::SimpleWellModel
     sys = model_t.system
-    rhoS = reference_densities(sys)
-    conn = cross_term_perforation_get_conn(ct.parent, i, state_t, state_s)
+    out[1] = -pressure_perforation_flux(eltype(out), ct.parent, i, state_t, state_s, state_t, sys)
+end
 
+function pressure_perforation_flux(T, ct, i, state_dest, state_res, state_well, sys)
+    conn = cross_term_perforation_get_conn(ct, i, state_well, state_res)
+    rhoS = reference_densities(sys)
     ncomp = number_of_components(sys)
-    out_full = zeros(eltype(out), ncomp)
-    q = multisegment_well_perforation_flux!(out_full, sys, state_s, state_t, rhoS, conn)
-    val = zero(eltype(out))
+    out_full = zeros(T, ncomp)
+    q = multisegment_well_perforation_flux!(out_full, sys, state_res, state_well, rhoS, conn)
+    val = zero(T)
+    @assert length(q) == size(state_dest.PressureReductionFactors, 1)
     for i in eachindex(q)
-        val += q[i]*state_t.PressureReductionFactors[i, conn.well]
+        val += q[i]*state_dest.PressureReductionFactors[i, conn.well]
     end
-    out[1] = -val
+    return val
 end
 
 function Jutul.cross_term_entities(ct::PressureReservoirFromWellFlowCT, eq::PressureEquation, model)
