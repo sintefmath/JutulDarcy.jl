@@ -40,11 +40,11 @@ function pressure_perforation_flux(T, ct, i, state_dest, state_res, state_well, 
     conn = cross_term_perforation_get_conn(ct, i, state_well, state_res)
     rhoS = reference_densities(sys)
     ncomp = number_of_components(sys)
-    out_full = zeros(T, ncomp)
-    q = multisegment_well_perforation_flux!(out_full, sys, state_res, state_well, rhoS, conn)
+    q = zeros(T, ncomp)
+    multisegment_well_perforation_flux!(q, sys, state_res, state_well, rhoS, conn)
     val = zero(T)
     w = state_dest.PressureReductionFactors
-    @assert length(q) == size(w, 1)
+    @assert length(q) == size(w, 1) "Size mismatch: expected $(size(w, 1)), got $(length(q)) for $ncomp components."
     if is_well
         ix = conn.well
     else
