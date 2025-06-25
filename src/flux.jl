@@ -94,7 +94,8 @@ end
     @inbounds T_f = state.Transmissibilities[face]
     if haskey(state, :PermeabilityMultiplier)
         K_mul = state.PermeabilityMultiplier
-        m = face_average(c -> @inbounds K_mul[c], kgrad)
+        get_kval(c) = @inbounds K_mul[c]
+        m = face_average(get_kval, kgrad)
         T_f *= m
     end
     return T_f
