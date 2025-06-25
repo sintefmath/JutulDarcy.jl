@@ -70,17 +70,19 @@ function perforation_phase_potential_difference(conn, state_res, state_well, ix)
         K_mul = state_res[:PermeabilityMultiplier][conn.reservoir]
         WI *= K_mul
     end
-    if haskey(state_well, :ConnectionPressureDrop)
-        dp += state_well.ConnectionPressureDrop[conn.perforation]
-    elseif conn.gdz != 0
-        ρ_r = state_res.PhaseMassDensities[ix, conn.reservoir]
-        if haskey(state_well, :PhaseMassDensities)
-            ρ_w = state_well.PhaseMassDensities[ix, conn.well]
-            ρ = 0.5*(ρ_r + ρ_w)
+    if conn.gdz != 0.0
+        if haskey(state_well, :ConnectionPressureDrop)
+            dp += state_well.ConnectionPressureDrop[conn.perforation]
         else
-            ρ = ρ_r
+            ρ_r = state_res.PhaseMassDensities[ix, conn.reservoir]
+            if haskey(state_well, :PhaseMassDensities)
+                ρ_w = state_well.PhaseMassDensities[ix, conn.well]
+                ρ = 0.5*(ρ_r + ρ_w)
+            else
+                ρ = ρ_r
+            end
+            dp += ρ*conn.gdz
         end
-        dp += ρ*conn.gdz
     end
     return -WI*dp
 end
