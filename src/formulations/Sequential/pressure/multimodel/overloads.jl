@@ -3,17 +3,18 @@ struct PressureReservoirFromWellFlowCT{T} <: Jutul.AdditiveCrossTerm
 end
 
 function Jutul.update_cross_term_in_entity!(out, i,
-        state_t, state0_t,
-        state_s, state0_s, 
-        model_t, model_s,
+        state_res, state0_res,
+        state_well, state0_well, 
+        model_res, model_well,
         ct::PressureReservoirFromWellFlowCT,
         eq::PressureEquation, dt, ldisc = local_discretization(ct, i)
     )
     # Target is reservoir, source is well
-    model_s::SimpleWellModel
-    sys = model_t.system
+    model_well::SimpleWellModel
+    sys = model_res.system
+    dest = state_res
     T = eltype(out)
-    out[1] = pressure_perforation_flux(T, ct.parent, i, state_t, state_t, state_s, sys, false)
+    out[1] = pressure_perforation_flux(T, ct.parent, i, dest, state_res, state_well, sys, false)
 end
 
 struct PressureWellFromReservoirFlowCT{T} <: Jutul.AdditiveCrossTerm
@@ -21,16 +22,18 @@ struct PressureWellFromReservoirFlowCT{T} <: Jutul.AdditiveCrossTerm
 end
 
 function Jutul.update_cross_term_in_entity!(out, i,
-        state_t, state0_t,
-        state_s, state0_s, 
-        model_t, model_s,
+        state_well, state0_t,
+        state_res, state0_s, 
+        model_well, model_res,
         ct::PressureWellFromReservoirFlowCT,
         eq::PressureEquation, dt, ldisc = local_discretization(ct, i)
     )
     # Target is well, source is reservoir
-    model_t::SimpleWellModel
-    sys = model_t.system
-    out[1] = -pressure_perforation_flux(eltype(out), ct.parent, i, state_t, state_s, state_t, sys, true)
+    model_well::SimpleWellModel
+    sys = model_well.system
+    dest = state_well
+    T = eltype(out)
+    out[1] = -pressure_perforation_flux(T, ct.parent, i, dest, state_res, state_well, sys, true)
 end
 
 function pressure_perforation_flux(T, ct, i, state_dest, state_res, state_well, sys, is_well)
