@@ -106,9 +106,13 @@ function convert_to_sequential(model::MultiModel; pressure = true, kwarg...)
                 target_equation = :pressure
             end
             if target_is_cons && source_is_cons && cross_term isa ReservoirFromWellFlowCT
+                cross_term_reversed = PressureWellFromReservoirFlowCT(cross_term)
+                ctp_reversed = Jutul.CrossTermPair(source, target, source_equation, target_equation, cross_term_reversed)
+                push!(ct, ctp_reversed)
                 cross_term = PressureReservoirFromWellFlowCT(cross_term)
             end
             ctp = Jutul.CrossTermPair(target, source, target_equation, source_equation, cross_term)
+
         end
         push!(ct, ctp)
     end
@@ -153,19 +157,3 @@ function JutulDarcy.reservoir_linsolve(model::PressureModel, pname = :amg;
     end
     return lsolve
 end
-
-
-function JutulDarcy.reservoir_linsolve(model::TransportModel, pname = :ilu0;
-        rtol = 1e-3,
-        solver = :bicgstab,
-        kwarg...
-    )
-    if pname == :ilu0
-        prec = Jutul.ILUZeroPreconditioner()
-        lsolve = GenericKrylov(solver; preconditioner = prec, rtol = rtol, kwarg...)
-    else
-        error("Preconditioner $pname not supported for transport model")
-    end
-    return lsolve
-end
-

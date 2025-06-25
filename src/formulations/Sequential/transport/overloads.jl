@@ -94,3 +94,18 @@ function Jutul.update_cross_term_in_entity!(out, i,
     )
     JutulDarcy.multisegment_well_perforation_flux!(out, sys, state_t, state_s, rhoS, conn)
 end
+
+function JutulDarcy.reservoir_linsolve(model::TransportModel, pname = :ilu0;
+        rtol = 1e-3,
+        solver = :bicgstab,
+        kwarg...
+    )
+    if pname == :ilu0
+        prec = Jutul.ILUZeroPreconditioner()
+        lsolve = GenericKrylov(solver; preconditioner = prec, rtol = rtol, kwarg...)
+    else
+        error("Preconditioner $pname not supported for transport model")
+    end
+    return lsolve
+end
+
