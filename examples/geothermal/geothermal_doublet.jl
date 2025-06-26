@@ -81,7 +81,7 @@ plot_reservoir(case_real.model, results_real.states)
 # A key performace metric for geothermal doublets is the time it takes before
 # the cold water injected to uphold pressure reaches the producer. At this
 # point, production temperature will rapidly decline, so that the breakthrough
-# time effectivelt defines the lifespan of the doublet. We plot the well results
+# time effectively defines the lifespan of the doublet. We plot the well results
 # for the two simulations to compare the two different PVT formulations. Since
 # water viscosty is not affected by temperature in the simple PVT model, water
 # movement is much faster in this scenario, thereby grossly underestimating the

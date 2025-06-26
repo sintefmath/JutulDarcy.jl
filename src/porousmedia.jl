@@ -149,6 +149,50 @@ function compute_peaceman_index(Δ, K, radius;
     return WI
 end
 
+function compute_well_thermal_index(g::T, thermal_conductivity, radius, pos; 
+        radius_outer = nothing,
+        thermal_conductivity_casing = 20,
+        radius_grout = nothing,
+        thermal_conductivity_grout = 2.3,
+        dir::Symbol = :z,
+    ) where T<:Jutul.JutulMesh
+
+    # Get segment lengths
+    Δ = peaceman_cell_dims(g, pos)
+    Δx, Δy, Δz = Δ
+    if dir == :x || dir == :X
+        L = Δx
+    elseif dir == :y || dir == :Y
+        L = Δy
+    else
+        L = Δz
+        @assert dir == :z || dir == :Z "dir must be either :x, :y or :z (was :$dir)"
+    end
+
+    # Readable notation
+    ri, ro, rg = radius, radius_outer, radius_grout
+    λr, λc, λg = thermal_conductivity, thermal_conductivity_casing, thermal_conductivity_grout
+    U = 0.0
+    # Conduction through casing
+    if !isnothing(ro)
+        U += log(ri/ro)/λc
+    end
+    # Conduction through grouting
+    if !isnothing(rg)
+        U += log(rg/ro)/λg
+    end
+    # Conduction into reservoir
+    WIth0 = compute_peaceman_index(g::T, λr, radius, pos; constant = 2*0.14)
+    U += 1/(WIth0/(2π*L))
+    #TODO: Implement flow-dependent conduction from bulk flow to pipe wall
+
+    # Convert to thermal indices
+    WIth = 2π*L/U
+    
+    return WIth
+
+end
+
 function Jutul.discretize_domain(d::DataDomain, system::Union{MultiPhaseSystem, CompositeSystem{:Reservoir, T}}, ::Val{:default}; kwarg...) where T
     return discretized_domain_tpfv_flow(d; kwarg...)
 end
