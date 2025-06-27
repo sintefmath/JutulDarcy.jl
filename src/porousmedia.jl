@@ -154,7 +154,7 @@ end
         kwargs...
     )
 
-Compute the Peaceman well index for a given grid block when the well is not aligned with one of the grid axis
+Compute the Peaceman well index for a given grid block when the well is not aligned with one of the grid axes
 
 # Arguments
 As for `compute_peaceman_index(Δ, K, radius, dir::Symbol = :z; ...)`, except:
