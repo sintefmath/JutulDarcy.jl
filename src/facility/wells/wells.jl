@@ -163,9 +163,10 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         WI_i = get_entry(WI, i)
         Kh_i = get_entry(Kh, i)
         r_i = get_entry(radius, i)
+        dir_i = get_entry(dir, i)
         s_i = get_entry(skin, i)
         if ismissing(WI_i) || isnan(WI_i)
-            WI_i = compute_peaceman_index(g, k_i, r_i, c, dir; skin = s_i, Kh = Kh_i)
+            WI_i = compute_peaceman_index(g, k_i, r_i, c, dir_i; skin = s_i, Kh = Kh_i)
         end
         WI_computed[i] = WI_i
         WIth_i = 0.0
@@ -177,22 +178,21 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
                 Λ_i = Λ[:, c]
             end
             if ismissing(WIth_i) || isnan(WIth_i)
-                WIth_i = compute_well_thermal_index(g, Λ_i, r_i, c; 
-                    dir = dir, thermal_index_args...)
+                WIth_i = compute_well_thermal_index(g, Λ_i, r_i, c, dir_i; 
+                    thermal_index_args...)
             end
         end
         push!(segment_radius, r_i)
         WIth_computed[i] = WIth_i
         center = vec(centers[:, i])
         dz[i] = center[3] - reference_depth
-        if dir isa Symbol
-            d = dir
+        if dir_i isa Symbol
+            Δ = cell_dims(g, c)
+            d_index = findfirst(isequal(dir_i), [:x, :y, :z])
+            h = Δ[d_index]
         else
-            d = dir[i]
+            h = norm(dir_i, 2)
         end
-        Δ = cell_dims(g, c)
-        d_index = findfirst(isequal(d), [:x, :y, :z])
-        h = Δ[d_index]
         volumes[i] = h*π*r_i^2
     end
     if simple_well
@@ -217,8 +217,9 @@ end
 
 function setup_well_from_trajectory(D::DataDomain, traj; traj_arg = NamedTuple(), kwarg...)
     G = D |> physical_representation |> UnstructuredMesh
-    cells = Jutul.find_enclosing_cells(G, traj; traj_arg...)
-    return setup_well(D, cells; kwarg...)
+    cells, extra = Jutul.find_enclosing_cells(G, traj; extra_out = true, traj_arg...)
+    dir = Vector.(extra[:direction].*extra[:lengths])
+    return setup_well(D, cells; dir = dir, kwarg...)
 end
 
 function map_well_nodes_to_reservoir_cells(w::MultiSegmentWell, reservoir::Union{DataDomain, Missing} = missing)
