@@ -7,7 +7,7 @@ Here are a few common questions and possible answers. You may also want to have 
 ### What input formats can JutulDarcy.jl use?
 
 1. DATA files (used by Eclipse, OPM Flow, tNavigator, Echelon and others) provided that the grid is given either as a corner-point GRDECL file or in TOPS format. As with most reservoir simulators, not all features of the original format are supported, but the code will let you know when unsupported features are encountered.
-2. Cases written out from [MRST](https://www.mrst.no/) through the `jutul` module.
+2. Cases written out from [MRST](https://www.sintef.no/projectweb/mrst/) through the `jutul` module.
 3. Cases written entirely in Julia using the basic `Jutul` and `JutulDarcy` data structures, as seen in the examples of the module.
 
 ### What output formats does JutulDarcy.jl have?
@@ -172,7 +172,7 @@ The module is developed and maintained by the [Applied Computational Sciences gr
 
 ### Why write a new reservoir simulation code in Julia?
 
-We believe that reservoir simulation should be a *library* and not necessarily an application by itself. The future of porous media simulation is deeply integrated into other workflows, and not as an application that simply writes files to disk. As a part of experimentation in differentiable and flexible solvers using automatic differentiation that started with [MRST](https://www.mrst.no), Julia was the natural next step.
+We believe that reservoir simulation should be a *library* and not necessarily an application by itself. The future of porous media simulation is deeply integrated into other workflows, and not as an application that simply writes files to disk. As a part of experimentation in differentiable and flexible solvers using automatic differentiation that started with [MRST](https://www.sintef.no/projectweb/mrst/), Julia was the natural next step.
 
 ### What is the license of JutulDarcy.jl?
 
