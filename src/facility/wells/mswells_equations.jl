@@ -102,7 +102,11 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
         μ_mix = 0.5*(mu_l + mu_r)
         Δp = segment_pressure_drop(seg_model, V, rho, μ_mix)
         Δθ = two_point_potential_drop(p[left], p[right], gdz, rho_l, rho_r)
-        eq = Δθ + Δp - 1e-12*V
+        # We rewrite the term so that for very small friction, the model reduces
+        # to a high trans darcy flux Note that the SI units make this sensible
+        # since dp is very large (Pa) and v is small (m/s).
+        # Normally the V term is neglible.
+        eq = 1e-3*(Δθ + Δp) - V
     end
     eq_buf[] = eq
 end
