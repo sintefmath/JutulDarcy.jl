@@ -180,7 +180,7 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
         λm_f = λm[face]
         if λm_f >= 0.0
             # Account for heat conduction in well material
-            eq += -λm_f*(T[cell] - T[self_cell])
+            eq -= λm_f*(T[cell] - T[self_cell])
         end
     end
 
@@ -189,7 +189,7 @@ end
 
 function total_density(s, rho, cell)
     rho_tot = 0.0
-    for ph in 1:size(rho, 1)
+    for ph in axes(rho, 1)
         rho_tot += rho[ph, cell]*s[ph, cell]
     end
     return rho_tot
