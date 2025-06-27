@@ -162,10 +162,11 @@ As for `compute_peaceman_index(Δ, K, radius, dir::Symbol = :z; ...)`, except:
 
 """
 function compute_peaceman_index(Δ, K, radius, dir::Vector;
+        direction_is_normed = false,
         kwargs...
     )
 
-    normed_dir = dir./Δ
+    normed_dir = direction_is_normed ? dir : dir./Δ
     WI_squared = 0.0
     for (dno, d) in enumerate([:x, :y, :z])
         WI_d = compute_peaceman_index(Δ, K, radius, d; kwargs...)
@@ -177,24 +178,20 @@ function compute_peaceman_index(Δ, K, radius, dir::Vector;
 
 end
 
-function compute_well_thermal_index(g::T, thermal_conductivity, radius, pos; 
+function compute_well_thermal_index(g::T, thermal_conductivity, radius, pos, dir=:z; 
         radius_outer = nothing,
         thermal_conductivity_casing = 20,
         radius_grout = nothing,
         thermal_conductivity_grout = 2.3,
-        dir::Symbol = :z,
+        kwargs...
     ) where T<:Jutul.JutulMesh
 
-    # Get segment lengths
-    Δ = peaceman_cell_dims(g, pos)
-    Δx, Δy, Δz = Δ
-    if dir == :x || dir == :X
-        L = Δx
-    elseif dir == :y || dir == :Y
-        L = Δy
+    if dir isa Symbol
+        Δ = cell_dims(g, pos)
+        d_index = findfirst(isequal(dir), [:x, :y, :z])
+        L = Δ[d_index]
     else
-        L = Δz
-        @assert dir == :z || dir == :Z "dir must be either :x, :y or :z (was :$dir)"
+        L = norm(dir, 2)
     end
 
     # Readable notation
@@ -210,7 +207,7 @@ function compute_well_thermal_index(g::T, thermal_conductivity, radius, pos;
         U += log(rg/ro)/λg
     end
     # Conduction into reservoir
-    WIth0 = compute_peaceman_index(g::T, λr, radius, pos; constant = 2*0.14)
+    WIth0 = compute_peaceman_index(g::T, λr, radius, pos, dir; constant = 2*0.14)
     U += 1/(WIth0/(2π*L))
     #TODO: Implement flow-dependent conduction from bulk flow to pipe wall
 
