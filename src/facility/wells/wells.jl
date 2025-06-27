@@ -165,7 +165,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         r_i = get_entry(radius, i)
         s_i = get_entry(skin, i)
         if ismissing(WI_i) || isnan(WI_i)
-            WI_i = compute_peaceman_index(g, k_i, r_i, c, skin = s_i, Kh = Kh_i, dir = dir)
+            WI_i = compute_peaceman_index(g, k_i, r_i, c, dir; skin = s_i, Kh = Kh_i)
         end
         WI_computed[i] = WI_i
         WIth_i = 0.0

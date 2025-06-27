@@ -10,6 +10,7 @@ Compute the Peaceman index for a given mesh.
 - `K`: Permeability tensor or scalar.
 - `r`: Well radius.
 - `pos`: Position of the well (index of cell or IJK truplet).
+- `dir=:z`: Direction of the well, can be `:x`, `:y`, or `:z`.
 - `kwarg...`: Additional keyword arguments passed onto inner version of
   function.
 
@@ -17,10 +18,10 @@ Compute the Peaceman index for a given mesh.
 - The computed Peaceman index.
 
 """
-function compute_peaceman_index(g::T, K, r, pos; kwarg...) where T<:Jutul.JutulMesh
+function compute_peaceman_index(g::T, K, r, pos, dir=:z; kwarg...) where T<:Jutul.JutulMesh
     Δ = peaceman_cell_dims(g, pos)
     K = Jutul.expand_perm(K, dim(g))
-    return compute_peaceman_index(Δ, K, r; kwarg...)
+    return compute_peaceman_index(Δ, K, r, dir; kwarg...)
 end
 
 """
@@ -74,9 +75,9 @@ Compute the Peaceman well index for a given grid block.
 - `Δ`: The grid block size as a tuple `(dx, dy, dz)`
 - `K`: The permeability of the medium (Matrix for full tensor, or scalar).
 - `radius`: The well radius.
+- `dir::Symbol=:z`: Direction of the well, can be `:x`, `:y`, or `:z`.
 
 # Keyword Arguments
-- `dir::Symbol = :z`: Direction of the well, can be `:x`, `:y`, or `:z`.
 - `net_to_gross = 1.0`: Net-to-gross ratio, used to scale the value for vertical directions.
 - `constant = 0.14`: Constant used in the calculation of the equivalent radius. TPFA specific.
 - `Kh = nothing`: Horizontal permeability, if not provided, it will be computed.
@@ -88,8 +89,7 @@ Compute the Peaceman well index for a given grid block.
 - `Float64`: The computed Peaceman well index.
 
 """
-function compute_peaceman_index(Δ, K, radius;
-        dir::Symbol = :z,
+function compute_peaceman_index(Δ, K, radius, dir::Symbol = :z;
         net_to_gross = 1.0,
         constant = 0.14,
         Kh = nothing,
@@ -147,6 +147,34 @@ function compute_peaceman_index(Δ, K, radius;
         end
     end
     return WI
+end
+
+"""
+    compute_peaceman_index(Δ, K, radius, dir::Vector = [0.0, 0.0, 1.0];
+        kwargs...
+    )
+
+Compute the Peaceman well index for a given grid block when the well is not aligned with one of the grid axis
+
+# Arguments
+As for `compute_peaceman_index(Δ, K, radius, dir::Symbol = :z; ...)`, except:
+- `dir::Vector`: Direction of the well segment through the cell block, weighted by segment length
+
+"""
+function compute_peaceman_index(Δ, K, radius, dir::Vector;
+        kwargs...
+    )
+
+    normed_dir = dir./Δ
+    WI_squared = 0.0
+    for (dno, d) in enumerate([:x, :y, :z])
+        WI_d = compute_peaceman_index(Δ, K, radius, d; kwargs...)
+        WI_squared += (WI_d*normed_dir[dno])^2
+    end
+    WI = sqrt(WI_squared)
+
+    return WI
+
 end
 
 function compute_well_thermal_index(g::T, thermal_conductivity, radius, pos; 
