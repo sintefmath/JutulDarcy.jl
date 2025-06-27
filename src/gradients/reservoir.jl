@@ -213,13 +213,11 @@ end
 
 function optimize_reservoir(dopt, objective, setup_fn = dopt.setup_function;
         simulator_arg = (output_substates = true, ),
+        simulator = missing,
+        config = missing,
         kwarg...
     )
-    if ismissing(setup_fn)
-        error("Setup function was not found in DictParameters struct or as last positional argument.")
-    end
-    case0 = setup_fn(dopt.parameters, missing)
-    sim, cfg = setup_reservoir_simulator(case0; info_level = -1, simulator_arg...)
+    sim, cfg = setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg)
     return Jutul.optimize(dopt, objective, setup_fn; simulator = sim, config = cfg, kwarg...)
 end
 
@@ -227,10 +225,21 @@ function parameters_gradient_reservoir(dopt, objective, setup_fn = dopt.setup_fu
         simulator_arg = (output_substates = true, ),
         kwarg...
     )
+    sim, cfg = setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg)
+    return Jutul.parameters_gradient(dopt, objective, setup_fn; simulator = sim, config = cfg, kwarg...)
+end
+
+function setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg)
     if ismissing(setup_fn)
         error("Setup function was not found in DictParameters struct or as last positional argument.")
     end
-    case0 = setup_fn(dopt.parameters, missing)
-    sim, cfg = setup_reservoir_simulator(case0; info_level = -1, simulator_arg...)
-    return Jutul.parameters_gradient(dopt, objective, setup_fn; simulator = sim, config = cfg, kwarg...)
+    has_sim = !ismissing(simulator)
+    has_cfg = !ismissing(config)
+    if !has_sim && !has_cfg
+        case0 = setup_fn(dopt.parameters, missing)
+        simulator, config = setup_reservoir_simulator(case0; info_level = -1, simulator_arg...)
+    else
+        has_sim == has_cfg || error("Simulator and config must be provided together")
+    end
+    return (simulator, config)
 end
