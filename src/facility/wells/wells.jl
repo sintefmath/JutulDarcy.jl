@@ -144,6 +144,8 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     volumes = zeros(T, n)
     WI_computed = zeros(T, n)
     WIth_computed = zeros(T, n)
+    segment_radius = zeros(T, n)
+
     Λ = thermal_conductivity
     dz = zeros(T, n)
 
@@ -153,7 +155,6 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     function get_entry(x, i)
         return x
     end
-    segment_radius = Float64[]
     for (i, c) in enumerate(reservoir_cells)
         if K isa AbstractVector
             k_i = K[c]
@@ -182,7 +183,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
                     thermal_index_args...)
             end
         end
-        push!(segment_radius, r_i)
+        segment_radius[i] = r_i
         WIth_computed[i] = WIth_i
         center = vec(centers[:, i])
         dz[i] = center[3] - reference_depth
