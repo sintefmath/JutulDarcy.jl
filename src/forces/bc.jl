@@ -12,24 +12,29 @@
 Dirchlet boundary condition for constant values (pressure/temperature) at some inflow boundary
 """
 function FlowBoundaryCondition(
-    cell::Int,
-    pressure = DEFAULT_MINIMUM_PRESSURE,
-    temperature = 298.15;
-    fractional_flow = nothing,
-    density = nothing,
-    trans_flow = 1e-12,
-    trans_thermal = 1e-6
+        cell::Int,
+        pressure = DEFAULT_MINIMUM_PRESSURE,
+        temperature = 298.15;
+        fractional_flow = nothing,
+        density = nothing,
+        trans_flow = 1e-12,
+        trans_thermal = 1e-6
     )
-    @assert isnothing(density) || density > 0.0 "Density, if provided, must be positive"
+    pressure >= DEFAULT_MINIMUM_PRESSURE || throw(ArgumentError("Pressure must be at least $DEFAULT_MINIMUM_PRESSURE"))
+    temperature >= 0.0 || throw(ArgumentError("Temperature must be at least 0.0 K"))
+
+    isnothing(density) || density > 0.0 || error("Density, if provided, must be positive")
     if isnothing(fractional_flow)
         f = fractional_flow
     else
+        T = promote_type(eltype(fractional_flow), typeof(pressure))
+        fractional_flow = convert.(T, fractional_flow)
+        pressure = convert(T, pressure)
         f = Tuple(fractional_flow)
-        @assert all(f .>= 0) "Fractional flow must be non-negative: $f"
-        @assert sum(f) == 1.0 "Fractional flow for boundary condition in cell $cell must sum to 1."
+        all(f .>= 0) || error("Fractional flow must be non-negative: $f")
+        sum(f) == 1.0 || error("Fractional flow for boundary condition in cell $cell must sum to 1.")
     end
-    @assert pressure >= DEFAULT_MINIMUM_PRESSURE
-    @assert temperature >= 0.0
+    pressure, temperature, trans_flow, trans_thermal = promote(pressure, temperature, trans_flow, trans_thermal)
     return FlowBoundaryCondition(cell, pressure, temperature, trans_flow, trans_thermal, f, density)
 end
 
@@ -112,10 +117,10 @@ function flow_boundary_condition!(bc, domain, cells, pressures, temperatures = 2
     length(temperatures) == n || throw(ArgumentError("Mismatch in length of cells and temperatures arrays"))
     length(pressures) == n || throw(ArgumentError("Mismatch in length of cells and pressures arrays"))
 
-    for (cell, pressure, temperature) in zip(cells, pressures, temperatures)
-        bc_c = FlowBoundaryCondition(domain, cell, pressure, temperature; kwarg...)
-        push!(bc, bc_c)
-    end
+    bc = map(
+        (c, p, t) -> FlowBoundaryCondition(domain, c, p, t; kwarg...),
+        cells, pressures, temperatures
+    )
     return bc
 end
 
