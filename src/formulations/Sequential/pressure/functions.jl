@@ -1,10 +1,6 @@
 function store_total_fluxes!(vT, model, state)
-    sys = model.system
-    nph = number_of_phases(sys)
     N = model.domain.representation.neighborship
     @assert length(vT) == size(N, 2) "vT must have the same length (was $(length(vT))) as the number of faces $(size(N, 2))"
-    μ = state.PhaseViscosities
-    kr = state.RelativePermeabilities
     for face in eachindex(vT)
         l = N[1, face]
         r = N[2, face]
