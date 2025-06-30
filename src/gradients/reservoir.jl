@@ -223,6 +223,8 @@ end
 
 function parameters_gradient_reservoir(dopt, objective, setup_fn = dopt.setup_function;
         simulator_arg = (output_substates = true, ),
+        simulator = missing,
+        config = missing,
         kwarg...
     )
     sim, cfg = setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg)
