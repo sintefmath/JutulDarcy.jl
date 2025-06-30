@@ -444,11 +444,10 @@ function compdat_to_connection_factors(domain, wspec, v, step; sort = true, orde
             else
                 ntg = 1.0
             end
-            WI[i] = compute_peaceman_index(G, k_i, d[i]/2, c,
+            WI[i] = compute_peaceman_index(G, k_i, d[i]/2, c, Symbol(dir[i]);
                 skin = skin[i],
                 Kh = Kh[i],
                 net_to_gross = ntg,
-                dir = Symbol(dir[i]),
                 drainage_radius = drainage_radius
             )
         end
