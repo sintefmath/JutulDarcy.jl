@@ -1,7 +1,7 @@
 import Jutul: compute_half_face_trans, compute_face_trans
 
 """
-    compute_peaceman_index(g::T, K, r, pos; kwarg...) where T<:Jutul.JutulMesh
+    compute_peaceman_index(g::T, K, r, pos, dir; kwarg...) where T<:Jutul.JutulMesh
 
 Compute the Peaceman index for a given mesh.
 
@@ -67,7 +67,7 @@ function peaceman_cell_dims(g, pos)
 end
 
 """
-    compute_peaceman_index(Δ, K, radius; kwargs...)
+    compute_peaceman_index(Δ, K, radius, dir; kwargs...)
 
 Compute the Peaceman well index for a given grid block.
 
@@ -150,7 +150,7 @@ function compute_peaceman_index(Δ, K, radius, dir::Symbol = :z;
 end
 
 """
-    compute_peaceman_index(Δ, K, radius, dir::Vector = [0.0, 0.0, 1.0];
+    compute_peaceman_index(Δ, K, radius, dir::Vector;
         kwargs...
     )
 
