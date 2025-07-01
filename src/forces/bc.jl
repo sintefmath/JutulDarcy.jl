@@ -117,10 +117,11 @@ function flow_boundary_condition!(bc, domain, cells, pressures, temperatures = 2
     length(temperatures) == n || throw(ArgumentError("Mismatch in length of cells and temperatures arrays"))
     length(pressures) == n || throw(ArgumentError("Mismatch in length of cells and pressures arrays"))
 
-    bc = map(
-        (c, p, t) -> FlowBoundaryCondition(domain, c, p, t; kwarg...),
-        cells, pressures, temperatures
-    )
+    for (cell, pressure, temperature) in zip(cells, pressures, temperatures)
+        bc_c = FlowBoundaryCondition(domain, cell, pressure, temperature; kwarg...)
+        push!(bc, bc_c)
+    end
+
     return bc
 end
 
