@@ -91,9 +91,9 @@ function setup_reservoir_dict_optimization(case::JutulCase;
             if model_or_domain_is_well(submodel)
                 subdict = DT()
                 subprm = case.parameters[k]
-                subdict[:WellIndices] = subprm[:WellIndices]
+                subdict[:WellIndices] = copy(subprm[:WellIndices])
                 if haskey(subprm, :WellIndicesThermal) && is_thermal
-                    subdict[:WellIndicesThermal] = subprm[:WellIndicesThermal]
+                    subdict[:WellIndicesThermal] = copy(subprm[:WellIndicesThermal])
                 end
                 w_dict[k] = subdict
             end
