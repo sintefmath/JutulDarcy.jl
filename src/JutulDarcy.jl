@@ -81,6 +81,7 @@ module JutulDarcy
     export PhaseMassDensities, ConstantCompressibilityDensities
     export BrooksCoreyRelativePermeabilities, TabulatedSimpleRelativePermeabilities
     export EquilibriumRegion
+    export setup_reservoir_dict_optimization, optimize_reservoir, parameters_gradient_reservoir
 
     import Jutul:
         number_of_cells, number_of_faces,

@@ -37,7 +37,7 @@ function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, tim
             l, v = phase_ix
         end
         q_l = rho[l, c]*mob[l, c]*q
-        q_v = rho[l, c]*mob[l, c]*q
+        q_v = rho[v, c]*mob[v, c]*q
         for i in 1:ncomp_mix
             acc[i] += q_l*X[i, c] + q_v*Y[i, c]
         end
@@ -65,7 +65,7 @@ function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, tim
             end
             for i in 1:ncomp
                 F = state.TotalMasses[i, c]/total
-                acc[c] += q*rho_inj*λ_t*F
+                acc[i] += q*rho_inj*λ_t*F
             end
         else
             @assert length(f_inj) == ncomp

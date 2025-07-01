@@ -28,8 +28,18 @@ function update_cross_term_in_entity!(out, i,
     state_s, state0_s, 
     model_t, model_s,
     ct::ReservoirFromWellFlowCT, eq, dt, ldisc = local_discretization(ct, i))
-    # Unpack properties
-    sys = flow_system(model_t.system)
+    sys = model_t.system
+    rhoS = reference_densities(sys)
+    conn = cross_term_perforation_get_conn(ct, i, state_s, state_t)
+    # Call smaller interface that is easy to specialize
+    if haskey(state_s, :MassFractions)
+        @inbounds simple_well_perforation_flux!(out, sys, state_t, state_s, rhoS, conn)
+    else
+        @inbounds multisegment_well_perforation_flux!(out, sys, state_t, state_s, rhoS, conn)
+    end
+end
+
+function cross_term_perforation_get_conn(ct, i, state_s, state_t)
     @inbounds begin 
         reservoir_cell = ct.reservoir_cells[i]
         well_cell = ct.well_cells[i]
@@ -39,7 +49,6 @@ function update_cross_term_in_entity!(out, i,
         p_res = state_t.Pressure
         dp = p_well[well_cell] - p_res[reservoir_cell]
     end
-    rhoS = reference_densities(sys)
 
     # Wrap the key connection data in tuple for easy extension later
     conn = (
@@ -50,12 +59,7 @@ function update_cross_term_in_entity!(out, i,
         perforation = i,
         reservoir = reservoir_cell
     )
-    # Call smaller interface that is easy to specialize
-    if haskey(state_s, :MassFractions)
-        @inbounds simple_well_perforation_flux!(out, sys, state_t, state_s, rhoS, conn)
-    else
-        @inbounds multisegment_well_perforation_flux!(out, sys, state_t, state_s, rhoS, conn)
-    end
+    return conn
 end
 
 function perforation_phase_potential_difference(conn, state_res, state_well, ix)
@@ -392,7 +396,12 @@ function get_target_temperature(ctrl::InjectorControl, target::ReinjectionTarget
 
     # TODO: This currently assumes constant fluid heat capacity and equal
     # pressures. Should ideally be replaced by enthalpy, which requires
-    # FluidEnthaly to be a Facility variable
+    # FluidEnthalpy to be a Facility variable
+
+    if !isnan(ctrl.temperature)
+        return ctrl.temperature
+    end
+
     q, qh = 0.0, 0.0
     for w in target.wells
         pos = get_well_position(facility.domain, w)

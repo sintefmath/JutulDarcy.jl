@@ -14,66 +14,128 @@ end
 end
 
 @inline function component_mass_fluxes!(q, face, state, model, flux_type, kgrad, upw)
-    disc = flux_primitives(face, state, model, flux_type, kgrad, upw)
-    for ph in eachindex(q)
-        q_i = darcy_phase_mass_flux(face, ph, state, model, flux_type, kgrad, upw, disc)
-        @inbounds q = setindex(q, q_i, ph)
+    T = eltype(q)
+    phase_fluxes = darcy_phase_mass_fluxes(face, state, model, flux_type, kgrad, upw)
+    for ph in eachindex(phase_fluxes)
+        q_ph = phase_fluxes[ph]
+        @inbounds q = setindex(q, q_ph, ph)
     end
     return q
 end
 
-@inline function darcy_phase_mass_flux(face, phase, state, model, flux_type, kgrad, upw, arg...)
-    Q = darcy_phase_kgrad_potential(face, phase, state, model, flux_type, kgrad, upw, arg...)
+@inline function darcy_phase_mass_fluxes(face, state, model, flux_type, kgrad, upw, phases = eachphase(model.system))
+    dpot = darcy_permeability_potential_differences(face, state, model, flux_type, kgrad, upw, phases)
+    F(phase) = darcy_phase_mass_flux(face, phase, state, model, flux_type, kgrad, upw, dpot[phase])
+    return map(
+        F,
+        phases
+    )
+end
+
+@inline function darcy_phase_mass_flux(face, phase, state, model, flux_type, kgrad, upw, Q = missing)
+    if ismissing(Q)
+        Q = darcy_permeability_potential_differences(face, phase, state, model, flux_type, kgrad, upw, phase)[phase]
+    end
     if haskey(state, :PhaseMassMobilities)
         ρλ = state.PhaseMassMobilities
         ρλ_f = phase_upwind(upw, ρλ, phase, Q)
     else
         rho = state.PhaseMassDensities
         λ = state.PhaseMobilities
-        F = cell -> λ[phase, cell]*rho[phase, cell]
+        F = cell -> @inbounds λ[phase, cell]*rho[phase, cell]
         ρλ_f = upwind(upw, F, Q)
     end
     return ρλ_f*Q
 end
 
-@inline function kgrad_common(face, state, model, tpfa::TPFA)
-    ∇p = pressure_gradient(state, tpfa)
-    trans = state.Transmissibilities
-    grav = state.TwoPointGravityDifference
-    @inbounds T_f = trans[face]
-    @inbounds gΔz = tpfa.face_sign*grav[face]
-    return (∇p, T_f, gΔz)
+@inline function darcy_phase_volume_fluxes(face, state, model, flux_type, kgrad, upw, phases = eachphase(model.system))
+    dpot = darcy_permeability_potential_differences(face, state, model, flux_type, kgrad, upw, phases)
+    F(phase) = darcy_phase_volume_flux(face, phase, state, model, flux_type, kgrad, upw, dpot[phase])
+    return map(
+        F,
+        phases
+    )
 end
 
-@inline function flux_primitives(face, state, model, flux_type::Jutul.DefaultFlux, tpfa::TPFA, upw)
-    return kgrad_common(face, state, model, tpfa)
+@inline function darcy_phase_volume_flux(face, phase, state, model, flux_type, kgrad, upw, Q = missing)
+    if ismissing(Q)
+        Q = darcy_phase_kgrad_potential(face, phase, state, model, flux_type, kgrad, upw, phase)
+    end
+    λ = state.PhaseMobilities
+    F = cell -> @inbounds λ[phase, cell]
+    ρλ_f = upwind(upw, F, Q)
+    return ρλ_f*Q
 end
 
-@inline function darcy_phase_kgrad_potential(face, phase, state, model, flux_type, tpfa::TPFA{T}, upw, common = flux_primitives(face, state, model, flux_type, upw, tpfa)) where T
+@inline function darcy_permeability_potential_differences(
+        face,
+        state,
+        model,
+        flux_type,
+        kgrad,
+        upw,
+        phases = eachphase(model.system)
+    )
+    T_f = effective_transmissibility(state, face, kgrad)
+    gΔz = effective_gravity_difference(state, face, kgrad)
     pc, ref_index = capillary_pressure(model, state)
-    ∇p, T_f, gΔz = common
-    l = tpfa.left
-    r = tpfa.right
 
-    Δpc = capillary_gradient(pc, l, r, phase, ref_index)
-    ρ_avg = face_average_density(model, state, tpfa, phase)
+    ∇p = pressure_gradient(state, kgrad)
+
+    @inline function phase_pot(phase)
+        Δpc = capillary_gradient(pc, kgrad, phase, ref_index)
+        ρ_avg = face_average_density(model, state, kgrad, phase)
+        return -T_f*(∇p + Δpc + gΔz*ρ_avg)
+    end
+    return map(phase_pot, phases)
+end
+
+@inline function effective_transmissibility(state, face, kgrad)
+    @inbounds T_f = state.Transmissibilities[face]
     if haskey(state, :PermeabilityMultiplier)
         K_mul = state.PermeabilityMultiplier
-        m = face_average(c -> K_mul[c], tpfa)
+        get_kval(c) = @inbounds K_mul[c]
+        m = face_average(get_kval, kgrad)
         T_f *= m
     end
-    q = -T_f*(∇p + Δpc + gΔz*ρ_avg)
-    return q
+    return T_f
 end
 
-@inline function face_average_density(model, state, tpfa, phase)
-    ρ = state.PhaseMassDensities
+function effective_gravity_difference(state, face, kgrad)
+    grav = state.TwoPointGravityDifference
+    face_sign(::Any) = 1
+    face_sign(x::TPFA) = x.face_sign
+    @inbounds gΔz = face_sign(kgrad)*grav[face]
+    return gΔz
+end
+
+@inline function darcy_permeability_potential_difference(
+        face,
+        state,
+        model,
+        flux_type,
+        kgrad,
+        upw,
+        phase::Int
+    )
+    dpots = darcy_permeability_potential_differences(
+        face,
+        state,
+        model,
+        flux_type,
+        kgrad,
+        upw,
+        (phase, )
+    )
+    return dpots[1]
+end
+
+@inline function face_average_density(model, state, tpfa, phase, ρ = state.PhaseMassDensities)
     return phase_face_average(ρ, tpfa, phase)
 end
 
-@inline function face_average_density(model::CompositionalModel, state, tpfa, phase)
+@inline function face_average_density(model::CompositionalModel, state, tpfa, phase, ρ = state.PhaseMassDensities)
     sys = flow_system(model.system)
-    ρ = state.PhaseMassDensities
     l = tpfa.left
     r = tpfa.right
     @inbounds ρ_l = ρ[phase, l]
@@ -153,7 +215,14 @@ end
     return Jutul.WENO.weno_upwind(upw, F, q)
 end
 
-@inline capillary_gradient(::Nothing, c_l, c_r, ph, ph_ref) = 0.0
+@inline function capillary_gradient(pc, tpfa::TPFA, ph, ph_ref)
+    return capillary_gradient(pc, tpfa.left, tpfa.right, ph, ph_ref)
+end
+
+@inline function capillary_gradient(::Nothing, c_l, c_r, ph, ph_ref)
+    return 0.0
+end
+
 @inline function capillary_gradient(pc, c_l, c_r, ph, ph_ref)
     if ph == ph_ref
         Δp_c = zero(eltype(pc))

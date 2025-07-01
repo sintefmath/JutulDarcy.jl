@@ -20,16 +20,14 @@ Compute the component mass fluxes for a given face in a black oil model.
     ix = phase_indices(sys)
     (; l, v) = ix
     rhoS = reference_densities(sys)
-    kdisc = flux_primitives(face, state, model, flux_type, kgrad, upw)
-
     # Get the potentials since the flux is more complicated for miscible phases
-    potential_difference(phase) = darcy_phase_kgrad_potential(face, phase, state, model, flux_type, kgrad, upw, kdisc)
+    potential_differences = darcy_permeability_potential_differences(face, state, model, flux_type, kgrad, upw)
 
     b_mob = state.SurfaceVolumeMobilities
     # Water component is the aqueous phase only
     if has_other_phase(sys)
         a = ix.a
-        ∇ψ_a = potential_difference(a)
+        ∇ψ_a = potential_differences[a]
         rhoAS = rhoS[a]
         λb_a = phase_upwind(upw, b_mob, a, ∇ψ_a)
         q_a = rhoAS*λb_a*∇ψ_a
@@ -39,10 +37,10 @@ Compute the component mass fluxes for a given face in a black oil model.
     rhoLS = rhoS[l]
     rhoVS = rhoS[v]
     # Oil mobility
-    ∇ψ_l = potential_difference(l)
+    ∇ψ_l = potential_differences[l]
     λb_l = phase_upwind(upw, b_mob, l, ∇ψ_l)
     # Gas mobility
-    ∇ψ_v = potential_difference(v)
+    ∇ψ_v = potential_differences[v]
     λb_v = phase_upwind(upw, b_mob, v, ∇ψ_v)
     if has_vapoil(sys)
         # Rv (vaporized oil) upwinded by vapor potential

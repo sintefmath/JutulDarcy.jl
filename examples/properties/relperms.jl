@@ -162,7 +162,7 @@ simulate_and_plot(sw, krw, krow, L"\text{LET relperm (nonlinear)}")
 #
 # The optimizer is provided lower limits for the parameters to avoid numerical
 # issues. The initial guess is a completely linear LET function.
-using Optim
+import Optim
 
 s_to_match  = [0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 kr_to_match = [0.0, 0.0, 0.015, 0.025, 0.1, 0.2, 0.4, 0.6, 0.90, 0.90, 0.90]
@@ -176,7 +176,7 @@ end
 x0 = [1.0, 1.0, 1.0, 0.0, 1.0]
 lower = [0.0, 0.0, 0.0, 0.0, 0.1]
 upper = [20, 20, 20, 0.5, 1.0]
-res = optimize(relperm_mismatch, lower, upper, x0, NelderMead(), Optim.Options(iterations = 100000))
+res = Optim.optimize(relperm_mismatch, lower, upper, x0, Optim.NelderMead(), Optim.Options(iterations = 100000))
 L, E, T, r, kr_max = Optim.minimizer(res)
 res
 # ### Plot the matched function

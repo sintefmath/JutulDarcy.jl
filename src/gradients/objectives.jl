@@ -8,13 +8,25 @@ Compute the quantity of interest (QoI) for a specified well in a reservoir simul
 - `state`: The current state of the simulation.
 - `forces`: The forces applied in the simulation.
 - `well::Symbol`: The symbol representing the well for which the QoI is computed.
-- `target::Union{WellTarget, Type}`: The target type or specific well target for the QoI computation.
+- `target::Union{WellTarget, Type, Symbol}`: The target type (as type or symbol)
+  or specific well target for the QoI computation.
+
+Possible targets (as symbols):
+- :gor (Gas-to-Oil Ratio)
+- :wcut (Water Cut)
+- :temperature (Well Temperature)
+- :mass_rate (Total Surface Mass Rate)
+- :bhp (Bottom Hole Pressure)
+- :lrat (Surface Liquid Rate)
+- :wrat (Surface Water Rate)
+- :orat (Surface Oil Rate)
+- :grat (Surface Gas Rate)
 
 # Returns
 - The computed QoI for the specified well.
 
 """
-function compute_well_qoi(model::MultiModel, state, forces, well::Symbol, target::Union{WellTarget, Type})
+function compute_well_qoi(model::MultiModel, state, forces, well::Symbol, target::Union{WellTarget, Type, Symbol})
     well_model = model[well]
     rhoS = reference_densities(well_model.system)
 
@@ -28,6 +40,34 @@ function compute_well_qoi(model::MultiModel, state, forces, well::Symbol, target
     ctrl = forces[fk].control[well]
     fstate = state[fk]
     wstate = state[well]
+
+    if target isa Symbol
+        if target == :gor
+            grat = compute_well_qoi(model, state, forces, well, :grat)
+            orat = compute_well_qoi(model, state, forces, well, :orat)
+            return grat/max(orat, 1e-12)
+        elseif target == :wcut
+            wrat = compute_well_qoi(model, state, forces, well, :wrat)
+            lrat = compute_well_qoi(model, state, forces, well, :lrat)
+            return wrat/lrat
+        elseif target == :temperature
+            return wstate[:Temperature][1]
+        elseif target == :mass_rate
+            return fstate[:TotalSurfaceMassRate][pos]
+        elseif target == :lrat
+            target = SurfaceLiquidRateTarget
+        elseif target == :wrat
+            target = SurfaceWaterRateTarget
+        elseif target == :orat
+            target = SurfaceOilRateTarget
+        elseif target == :grat
+            target = SurfaceGasRateTarget
+        elseif target == :bhp
+            target = BottomHolePressureTarget
+        else
+            error("Unsupported QoI symbol $target.")
+        end
+    end
 
     translate_target_to_symbol
     if ctrl isa DisabledControl
