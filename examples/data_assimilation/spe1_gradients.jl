@@ -120,22 +120,23 @@ title = "Categories"
 Legend(fig[1,2], elements, labels, title)
 fig
 # ## Compute sensitivities outside the optimization
+# Note: This part of the example is temporarily disabled.
 # We can also compute the sensitivities outside the optimization process. As our
 # previous setup funciton only has a single parameter (the porosity), we instead
 # switch to the `setup_reservoir_dict_optimization` function that can set up a
 # set of "typical" tunable parameters for any reservoir model. This saves us the
 # hassle of writing this function ourselves when we want to optimize e.g.
 # permeability, porosity and well indices.
-dprm_case = setup_reservoir_dict_optimization(case)
-free_optimization_parameters!(dprm_case)
-dprm_grad = parameters_gradient_reservoir(dprm_case, mismatch_objective);
+# dprm_case = setup_reservoir_dict_optimization(case)
+# free_optimization_parameters!(dprm_case)
+# dprm_grad = parameters_gradient_reservoir(dprm_case, mismatch_objective);
 # ## Plot the gradient of the mismatch objective with respect to the porosity
 # We see, as expected, that the gradient is largest in magnitude around the
 # wells and near the front of the displacement.
-m = physical_representation(reservoir_domain(case.model))
-fig, ax, plt = plot_cell_data(m, dprm_grad[:model][:porosity])
-ax.title[] = "Gradient of mismatch objective with respect to porosity"
-fig
+# m = physical_representation(reservoir_domain(case.model))
+# fig, ax, plt = plot_cell_data(m, dprm_grad[:model][:porosity])
+# ax.title[] = "Gradient of mismatch objective with respect to porosity"
+# fig
 # ## Plot the sensitivities in the interactive viewer
 # If you are running the example yourself, you can now explore the sensitivities
 # in the interactive viewer. This is useful for understanding how the model
