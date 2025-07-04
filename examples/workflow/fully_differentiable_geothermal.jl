@@ -324,7 +324,7 @@ fig
 # of produced heat. To make the optimization problem non-trivial, the cost of
 # additional water (or higher temperature water) is significantly higher than
 # the value of produced water with the same temperature.
-temperature_injection_cost = 15.0
+temperature_injection_cost = 20.0
 temperature_production_value = 8.0
 
 function optimization_objective(m, s, dt, step_info, forces)
