@@ -185,7 +185,7 @@ ws, states = simulate_reservoir(case_truth)
 # We use the `get_1d_interpolator` function to create interpolators for the
 # reference values, since we cannot assume that the simulator will use exactly
 # the same time-steps as the reference values.
-prod_rate = ws.wells[:Producer][:mass_rate]
+prod_rate = ws.wells[:Producer][:wrat]
 prod_temp = ws.wells[:Producer][:temperature]
 inj_bhp = ws.wells[:Injector][:bhp]
 
@@ -198,16 +198,16 @@ function mismatch_objective(m, s, dt, step_info, forces)
     current_time = step_info[:time] + dt
     ## Current values
     T_at_prod = compute_well_qoi(m, s, forces, :Producer, :temperature)
-    mass_rate = compute_well_qoi(m, s, forces, :Producer, :mass_rate)
+    rate = compute_well_qoi(m, s, forces, :Producer, :wrat)
     bhp = compute_well_qoi(m, s, forces, :Injector, :bhp)
     ## Reference values
     T_at_prod_ref = prod_temp_by_time(current_time)
-    mass_rate_ref = prod_rate_by_time(current_time)
+    rate_ref = prod_rate_by_time(current_time)
     bhp_ref = inj_pressure_by_time(current_time)
     ## Define mismatch by scaling each term
-    T_mismatch = (T_at_prod_ref - T_at_prod)*100.0
-    rate_mismatch = (mass_rate_ref - mass_rate)
-    bhp_mismatch = (bhp - bhp_ref)/(50*bar)
+    T_mismatch = (T_at_prod_ref - T_at_prod)
+    rate_mismatch = (rate_ref - rate)*1000
+    bhp_mismatch = (bhp - bhp_ref)/bar
     return dt * sqrt(T_mismatch^2 + rate_mismatch^2 + bhp_mismatch^2) / total_time
 end
 # ### Pick an initial guess
@@ -220,7 +220,7 @@ prm_guess = Dict(
     "injection_temperature_C" => fill(base_temp, num_intervals),
     "layer_porosities" => [0.2, 0.2, 0.2],
     "layer_perm" => [0.2, 0.2, 0.2].*darcy,
-    "layer_heat_capacity" => [300.0, 200.0, 400.0]
+    "layer_heat_capacity" => [400.0, 400.0, 400.0]
 )
 case_guess = setup_doublet_case(prm_guess)
 ws_guess, states_guess = simulate_reservoir(case_guess)
@@ -234,8 +234,8 @@ opt = JutulDarcy.setup_reservoir_dict_optimization(prm_guess, setup_doublet_case
 # need to explicitly make them free/active and specify a range for each
 # parameter before we can optimize them. We use wide absolute limits for each entry.
 free_optimization_parameter!(opt, "layer_perm", abs_max = 1.5*darcy, abs_min = 0.01*darcy)
-free_optimization_parameter!(opt, "layer_heat_capacity", abs_max = 1000.0, abs_min = 100.0)
-free_optimization_parameter!(opt, "layer_porosities", abs_max = 0.5, abs_min = 0.05)
+free_optimization_parameter!(opt, "layer_heat_capacity", abs_max = 1000.0, abs_min = 400.0)
+free_optimization_parameter!(opt, "layer_porosities", abs_max = 0.35, abs_min = 0.05)
 # ### Call the optimizer
 # Now that we have freed a few parameters, we can call the optimizer with the
 # objective function. The defaults for the optimizer are fairly reasonable, so
@@ -245,7 +245,7 @@ free_optimization_parameter!(opt, "layer_porosities", abs_max = 0.5, abs_min = 0
 # minimize the objective function, which is the case for a history match. By
 # passing for example `lbfgs_num = 1, max_it = 50` it is possible to obtain a
 # better match, but this is not necessary for the purpose of this example.
-prm_opt = JutulDarcy.optimize_reservoir(opt, mismatch_objective);
+prm_opt = JutulDarcy.optimize_reservoir(opt, mismatch_objective, max_it = 50);
 # ### Print the optimization overview
 # If we display the optimization overview, we can see that there are now
 # additional columns indicating the optimized values. Note that while the
@@ -257,10 +257,42 @@ opt
 # ### Simulate the optimized case
 case_opt = setup_doublet_case(prm_opt)
 ws_opt, states_opt = simulate_reservoir(case_opt)
-# ### Plot the results
-# We plot the results for the truth case, the initial guess, and the optimized
-# case. The temperature is plotted in Celsius and we use the same color scale
-# for all steps.
+# #### Plot the well responses
+# We plot the well responses for the producer temperature, producer water rate,
+# and injector bottom hole pressure. These values represent the data used in the
+# objective function. We observe good match, which is consistent with the
+# reduction in the objective function valeu during the optimization.
+get_wtime(w) = convert_from_si.(w.time, :day)
+get_prod_temp(w) = convert_from_si.(w[:Producer, :temperature], :Celsius)
+get_prod_rate(w) = -w[:Producer, :wrat]/si_unit(:liter)
+get_inj_bhp(w) = convert_from_si.(w[:Injector, :bhp], :bar)
+
+fig = Figure(size = (1200, 800))
+ax = Axis(fig[1, 1], title = "Producer temperature", ylabel = "Temperature (°C)", xlabel = "Time (days)")
+scatter!(ax, get_wtime(ws), get_prod_temp(ws), label = "Truth")
+lines!(ax, get_wtime(ws_guess), get_prod_temp(ws_guess), label = "Initial guess")
+lines!(ax, get_wtime(ws_opt), get_prod_temp(ws_opt), label = "Optimized")
+axislegend(position = :rc)
+ax = Axis(fig[2, 1], title = "Producer water rate", ylabel = "Liter / s", xlabel = "Time (days)")
+scatter!(ax, get_wtime(ws), get_prod_rate(ws), label = "Truth")
+lines!(ax, get_wtime(ws_guess), get_prod_rate(ws_guess), label = "Initial guess")
+lines!(ax, get_wtime(ws_opt), get_prod_rate(ws_opt), label = "Optimized")
+axislegend(position = :rc)
+ax = Axis(fig[3, 1], title = "Producer bottom hole pressure", ylabel = "Pressure (bar)", xlabel = "Time (days)")
+scatter!(ax, get_wtime(ws), get_inj_bhp(ws), label = "Truth")
+lines!(ax, get_wtime(ws_guess), get_inj_bhp(ws_guess), label = "Initial guess")
+lines!(ax, get_wtime(ws_opt), get_inj_bhp(ws_opt), label = "Optimized")
+axislegend(position = :rc)
+fig
+# #### Plot the spatial results
+# We plot the spatial results for the truth case, the initial guess, and the
+# optimized case. The temperature is plotted in Celsius and we use the same
+# color scale for all steps. Note that in terms of the optimizer itself, this is
+# hidden data: The objective function only matches the well responses. Getting a
+# good match in the spatial distribution of temperature is a side-effect of the
+# physics and parametrization of the model, as different physics or a different
+# parameterization could lead to good match in terms of the objective function,
+# even without good match for the spatial distribution.
 step = 80
 cmap = :heat
 fig = Figure(size = (1200, 400))
