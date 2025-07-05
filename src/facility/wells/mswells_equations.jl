@@ -10,7 +10,8 @@ struct SegmentWellBoreFrictionHB{R}
     assume_turbulent::Bool
     laminar_limit::R
     turbulent_limit::R
-    function SegmentWellBoreFrictionHB(L, roughness, D_outer; D_inner = 0, assume_turbulent = false, laminar_limit = 2000.0, turbulent_limit = 4000.0)
+    function SegmentWellBoreFrictionHB(L, roughness, D_outer; D_inner = 0.0, assume_turbulent = false, laminar_limit = 2000.0, turbulent_limit = 4000.0)
+        L, roughness, D_outer, D_inner = promote(L, roughness, D_outer, D_inner)
         new{typeof(L)}(L, roughness, D_outer, D_inner, assume_turbulent, laminar_limit, turbulent_limit)
     end
 end
@@ -102,7 +103,11 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
         μ_mix = 0.5*(mu_l + mu_r)
         Δp = segment_pressure_drop(seg_model, V, rho, μ_mix)
         Δθ = two_point_potential_drop(p[left], p[right], gdz, rho_l, rho_r)
-        eq = Δθ + Δp - 1e-12*V
+        # We rewrite the term so that for very small friction, the model reduces
+        # to a high trans darcy flux Note that the SI units make this sensible
+        # since dp is very large (Pa) and v is small (m/s).
+        # Normally the V term is neglible.
+        eq = 1e-3*(Δθ + Δp) - V
     end
     eq_buf[] = eq
 end
@@ -180,7 +185,7 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
         λm_f = λm[face]
         if λm_f >= 0.0
             # Account for heat conduction in well material
-            eq += -λm_f*(T[cell] - T[self_cell])
+            eq -= λm_f*(T[cell] - T[self_cell])
         end
     end
 
@@ -189,7 +194,7 @@ end
 
 function total_density(s, rho, cell)
     rho_tot = 0.0
-    for ph in 1:size(rho, 1)
+    for ph in axes(rho, 1)
         rho_tot += rho[ph, cell]*s[ph, cell]
     end
     return rho_tot

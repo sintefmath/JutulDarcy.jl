@@ -8,43 +8,11 @@ function setup_reservoir_model_geothermal(
         table_arg = NamedTuple(),
         single_phase = true,
         update_reservoir = true,
+        table_cache = Dict(),
         kwarg...
     )
     thermal || throw(ArgumentError("Cannot setup geothermal reservoir model with thermal = false"))
-    tables_with_co2 = JutulDarcy.CO2Properties.co2_brine_property_tables(
-        missing;
-        salt_names = salt_names,
-        salt_mole_fractions = salt_mole_fractions,
-        table_arg...
-    )
-
-    function water_only_table(tabs, k)
-        t = tabs[k]
-        t::Jutul.BilinearInterpolant
-        F = map(first, t.F)
-        if k == :density
-            # Density is a bit special, want to make sure that there exists some
-            # derivatives in the table at low pressure and temperature since
-            # otherwise the system is singular.
-            ϵ = 0.0001
-            for i in axes(F, 1)
-                F[i, 1] *= 1.0 - ϵ
-                F[i, end] *= 1.0 + ϵ
-            end
-            for j in axes(F, 2)
-                if j == 1
-                    continue
-                end
-                F[1, j] *= 1.0 - ϵ
-                F[end, j] *= 1.0 + ϵ
-            end
-        end
-        return Jutul.BilinearInterpolant(t.X, t.Y, F)
-    end
-    tables = Dict()
-    for k in [:density, :heat_capacity_constant_pressure, :viscosity, :phase_conductivity]
-        tables[k] = water_only_table(tables_with_co2, k)
-    end
+    tables = geothermal_setup_tables(table_cache, salt_names, salt_mole_fractions, table_arg)
 
     rhoWS = first(JutulDarcy.reference_densities(:co2brine))
     if single_phase
@@ -92,4 +60,47 @@ function setup_reservoir_model_geothermal(
         out = model
     end
     return out
+end
+
+function geothermal_setup_tables(table_cache, salt_names, salt_mole_fractions, table_arg)
+    tabkey = (salt_names, salt_mole_fractions, table_arg)
+    tables = get!(table_cache, tabkey, missing)
+    if ismissing(tables)
+        tables_with_co2 = JutulDarcy.CO2Properties.co2_brine_property_tables(
+            missing;
+            salt_names = salt_names,
+            salt_mole_fractions = salt_mole_fractions,
+            table_arg...
+        )
+
+        function water_only_table(tabs, k)
+            t = tabs[k]
+            t::Jutul.BilinearInterpolant
+            F = map(first, t.F)
+            if k == :density
+                # Density is a bit special, want to make sure that there exists some
+                # derivatives in the table at low pressure and temperature since
+                # otherwise the system is singular.
+                ϵ = 0.0001
+                for i in axes(F, 1)
+                    F[i, 1] *= 1.0 - ϵ
+                    F[i, end] *= 1.0 + ϵ
+                end
+                for j in axes(F, 2)
+                    if j == 1
+                        continue
+                    end
+                    F[1, j] *= 1.0 - ϵ
+                    F[end, j] *= 1.0 + ϵ
+                end
+            end
+            return Jutul.BilinearInterpolant(t.X, t.Y, F)
+        end
+        tables = Dict()
+        for k in [:density, :heat_capacity_constant_pressure, :viscosity, :phase_conductivity]
+            tables[k] = water_only_table(tables_with_co2, k)
+        end
+        table_cache[tabkey] = tables
+    end
+    return tables
 end

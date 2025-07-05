@@ -101,13 +101,13 @@ Base.@propagate_inbounds function btes_supply_return_massflux(state_supply, stat
     dp = p_s - p_t
 
     T = 1.0e-10
-    Ψ = -T.*dp
+    Ψ = -T*dp
 
     ρ = state_supply.PhaseMassDensities[ph, supply_node]
     s = state_supply.Saturations[ph, supply_node]
     μ = state_supply.PhaseViscosities[ph, supply_node]
 
-    q_ph = s.*ρ./μ.*Ψ
+    q_ph = (s*ρ/μ)*Ψ
 
     return q_ph
 end
