@@ -9,7 +9,7 @@ function test_compositional_with_wells(; kwarg...)
         @testset "Reservoir" begin
             res = states[end][:Reservoir]
             p = res[:Pressure]
-            p_ref = [5.218139052839837e6, 5.180811416153696e6, 5.137566116526595e6]
+            p_ref = [5.223784741350676e6, 5.186108408110314e6, 5.1421978150419425e6]
             @test isapprox(p, p_ref, rtol = 1e-3)
             z = res[:OverallMoleFractions]
             z_ref = [
@@ -23,7 +23,7 @@ function test_compositional_with_wells(; kwarg...)
         @testset "Injector" begin
             inj = states[end][:Injector]
             p = inj[:Pressure]
-            p_ref = [5.332306160997921e6, 5.332306160997921e6]
+            p_ref = [5.341063285051076e6, 5.338652019430578e6]
             @test isapprox(p, p_ref, rtol = 1e-3)
             z = inj[:OverallMoleFractions]
             z_ref = repeat([1.0, 0.0, 0.0], 1, 2)
@@ -38,14 +38,14 @@ function test_immiscible_with_wells(; kwarg...)
         @testset "Reservoir" begin
             res = states[end][:Reservoir]
             p = res[:Pressure]
-            p_ref = [2.8349045684888966e7, 3.67188418184439e7, 4.50238389828125e7]
+            p_ref = [2.8396404068236608e7, 3.6766067601973645e7, 4.507082012446882e7]
             @test isapprox(p, p_ref, rtol = 1e-4)
         end
 
         @testset "Injector" begin
             inj = states[end][:Injector]
             p = inj[:Pressure]
-            p_ref = [6.753641685512246e7, 6.753793670867026e7]
+            p_ref = [6.758644922653224e7, 6.757680416480392e7]
             @test isapprox(p, p_ref, rtol = 1e-4)
             s = inj[:Saturations]
             s_ref = repeat([0.0, 1.0], 1, 2)
@@ -60,7 +60,7 @@ function test_blackoil_with_wells(; kwarg...)
         @testset "Reservoir" begin
             res = states[end][:Reservoir]
             p = res[:Pressure]
-            p_ref = [5.305212867881992e6, 5.409995957652735e6, 5.472027929725644e6]
+            p_ref = [5.305880225484623e6, 5.410620732970448e6, 5.472603930435868e6]
             @test isapprox(p, p_ref, rtol = 1e-4)
 
             sw = res[:ImmiscibleSaturation]
