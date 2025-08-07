@@ -763,6 +763,12 @@ function parse_state0_direct_assignment(model, datafile)
             end
             if haskey(sol, "ZMF")
                 z = get_mole_fraction("ZMF")
+            elseif haskey(datafile, "PROPS") && haskey(datafile["PROPS"], "ZI")
+                zi = datafile["PROPS"]["ZI"]
+                if length(zi) > 1
+                    @warn "ZI in PROPS has more than one value, using first value only."
+                end
+                z = zi[1]
             else
                 x = get_mole_fraction("XMF")
                 y = get_mole_fraction("YMF")
