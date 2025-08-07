@@ -99,22 +99,21 @@ Cases with CPR used hypre as the AMG solver. OYMPUS1 refers to realization 1 fro
 
 ## Paper and citing
 
-The main paper describing `JutulDarcy.jl` is *JutulDarcy.jl - a Fully Differentiable High-Performance Reservoir Simulator Based on Automatic Differentiation*:
+The main paper describing `JutulDarcy.jl` is [*JutulDarcy.jl - a Fully Differentiable High-Performance Reservoir Simulator Based on Automatic Differentiation*, available as open access from Springer](https://link.springer.com/article/10.1007/s10596-025-10366-6#citeas):
 
 ```bibtex
-@inproceedings{jutuldarcy_ecmor,
-  title = {{JutulDarcy.jl} -- a Fully Differentiable High-Performance Reservoir Simulator based on Automatic Differentiation},
-  url = {http://dx.doi.org/10.3997/2214-4609.202437111},
-  DOI = {10.3997/2214-4609.202437111},
-  booktitle = {ECMOR 2024},
-  publisher = {European Association of Geoscientists \& Engineers},
-  author = {Olav Møyner},
-  year = {2024},
-  pages = {1–37}
+@article{jutuldarcy,
+  title={JutulDarcy.jl - a fully differentiable high-performance reservoir simulator based on automatic differentiation},
+  author={M{\o}yner, Olav},
+  journal={Computational Geosciences},
+  volume={29},
+  number={30},
+  year={2025},
+  publisher={Springer}
 }
 ```
 
-[Paper is available from EAGE.](https://doi.org/10.3997/2214-4609.202437111) If you use JutulDarcy in your work, please cite this paper.
+[DOI link to open access paper.](https://doi.org/10.1007/s10596-025-10366-6) If you use JutulDarcy in your work, please cite this paper.
 
 ## A few of the packages used by Jutul and JutulDarcy
 
@@ -123,6 +122,7 @@ Jutul builds upon many of the excellent packages in the Julia ecosystem. Here ar
 - [ForwardDiff.jl](https://github.com/JuliaDiff/ForwardDiff.jl) implements the Dual number class used throughout the code
 - [SparsityTracing.jl](https://github.com/PALEOtoolkit/SparsityTracing.jl/) provides sparsity detection inside Jutul
 - [Krylov.jl](https://github.com/JuliaSmoothOptimizers/Krylov.jl) provides the iterative linear solvers
+- [DifferentiationInterface.jl](https://github.com/JuliaDiff/DifferentiationInterface.jl) provides gradients of setup functions for the adjoint method
 - [ILUZero.jl](https://github.com/mcovalt/ILUZero.jl/blob/master/src/ILUZero.jl) for ILU(0) preconditioners
 - [AlgebraicMultigrid.jl](https://github.com/JuliaLinearAlgebra/AlgebraicMultigrid.jl) for AMG preconditioners
 - [HYPRE.jl](https://github.com/fredrikekre/HYPRE.jl) for robust AMG preconditioners with MPI support
@@ -138,4 +138,4 @@ Jutul builds upon many of the excellent packages in the Julia ecosystem. Here ar
 
 The [documentation](https://sintefmath.github.io/JutulDarcy.jl/dev/) is the main source of information, [including published versions of the examples](https://sintefmath.github.io/JutulDarcy.jl/dev/examples/introduction/wells_intro). In addition, see the [examples](https://github.com/sintefmath/JutulDarcy.jl/tree/main/examples) folder for more information. Some functionality is also demonstrated in the [tests](https://github.com/sintefmath/JutulDarcy.jl/tree/main/test).
 
-*Internals and undocumented functions are subject to change at this time. However, the main interface for the reservoir simulator itself seen in the examples should be fairly stable.*
+*Internals and undocumented functions are subject to change at this time. However, the main interface for the reservoir simulator itself seen in the examples should be fairly stable and follows semantic versioning for breakage.*
