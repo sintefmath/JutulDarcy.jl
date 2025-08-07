@@ -168,4 +168,20 @@ end
             end
         end
     end
+    @testset "MRST case" begin
+        r = simulate_mrst_case("spe1";
+            output_path = tempdir(),
+            parray_arg = (np = 2,),
+            mode = :parray,
+            write_mrst = true,
+            info_level = -1,
+            failure_cuts_timestep = false,
+            precond = :ilu0,
+            split_wells = true,
+            timesteps = :none,
+            verbose = false
+        )
+        @test length(r.states) == 120
+    end
 end
+
