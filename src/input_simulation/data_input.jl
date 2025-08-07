@@ -90,10 +90,12 @@ function setup_case_from_parsed_data(datafile;
     is_blackoil = sys isa StandardBlackOilSystem
     is_compositional = sys isa CompositionalSystem || sys == :co2brine
     is_thermal = haskey(datafile["RUNSPEC"], "THERMAL")
+    is_wg = haskey(datafile["RUNSPEC"], "GASWAT")
 
-    water = haskey(rs, "WATER")
+    water = haskey(rs, "WATER") || is_wg
     if is_compositional
-        oil = gas = true
+        oil = !is_wg
+        gas = true
     else
         oil = haskey(rs, "OIL")
         gas = haskey(rs, "GAS")
