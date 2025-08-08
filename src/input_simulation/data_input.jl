@@ -90,10 +90,12 @@ function setup_case_from_parsed_data(datafile;
     is_blackoil = sys isa StandardBlackOilSystem
     is_compositional = sys isa CompositionalSystem || sys == :co2brine
     is_thermal = haskey(datafile["RUNSPEC"], "THERMAL")
+    is_wg = haskey(datafile["RUNSPEC"], "GASWAT")
 
-    water = haskey(rs, "WATER")
+    water = haskey(rs, "WATER") || is_wg
     if is_compositional
-        oil = gas = true
+        oil = !is_wg
+        gas = true
     else
         oil = haskey(rs, "OIL")
         gas = haskey(rs, "GAS")
@@ -666,6 +668,7 @@ function parse_state0_direct_assignment(model, datafile)
     sys = model.system
     init = Dict{Symbol, Any}()
     sol = datafile["SOLUTION"]
+    props = get(datafile, "PROPS", Dict{String, Any}())
     G = physical_representation(model.data_domain)
     nc = number_of_cells(G)
     ix = G.cell_map
@@ -761,6 +764,12 @@ function parse_state0_direct_assignment(model, datafile)
             end
             if haskey(sol, "ZMF")
                 z = get_mole_fraction("ZMF")
+            elseif haskey(datafile, "PROPS") && haskey(datafile["PROPS"], "ZI")
+                zi = datafile["PROPS"]["ZI"]
+                if length(zi) > 1
+                    @warn "ZI in PROPS has more than one value, using first value only."
+                end
+                z = zi[1]
             else
                 x = get_mole_fraction("XMF")
                 y = get_mole_fraction("YMF")
@@ -779,6 +788,15 @@ function parse_state0_direct_assignment(model, datafile)
                 end
             end
             init[:OverallMoleFractions] = z
+            if haskey(sol, "RTEMP") || haskey(props, "RTEMP")
+                if haskey(props, "RTEMP")
+                    rtmp = props["RTEMP"][1]
+                else
+                    rtmp = sol["RTEMP"][1]
+                end
+                Ti = convert_to_si(rtmp, :Celsius)
+                init[:Temperature] = fill(Ti, nc)
+            end
         end
     else
         sat = zeros(nph, nc)
