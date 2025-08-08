@@ -668,6 +668,7 @@ function parse_state0_direct_assignment(model, datafile)
     sys = model.system
     init = Dict{Symbol, Any}()
     sol = datafile["SOLUTION"]
+    props = get(datafile, "PROPS", Dict{String, Any}())
     G = physical_representation(model.data_domain)
     nc = number_of_cells(G)
     ix = G.cell_map
@@ -787,6 +788,15 @@ function parse_state0_direct_assignment(model, datafile)
                 end
             end
             init[:OverallMoleFractions] = z
+            if haskey(sol, "RTEMP") || haskey(props, "RTEMP")
+                if haskey(props, "RTEMP")
+                    rtmp = props["RTEMP"][1]
+                else
+                    rtmp = sol["RTEMP"][1]
+                end
+                Ti = convert_to_si(rtmp, :Celsius)
+                init[:Temperature] = fill(Ti, nc)
+            end
         end
     else
         sat = zeros(nph, nc)
