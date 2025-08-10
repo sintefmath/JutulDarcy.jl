@@ -9,7 +9,7 @@ Compute the Peaceman index for a given mesh.
 - `g::JutulMesh`: Reservoir mesh
 - `K`: Permeability tensor or scalar.
 - `r`: Well radius.
-- `pos`: Position of the well (index of cell or IJK truplet).
+- `pos`: Position of the well (index of cell or IJK triplet).
 - `dir=:z`: Direction of the well, can be `:x`, `:y`, or `:z`.
 - `kwarg...`: Additional keyword arguments passed onto inner version of
   function.

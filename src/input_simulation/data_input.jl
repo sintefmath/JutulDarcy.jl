@@ -1311,6 +1311,7 @@ function parse_physics_types(datafile; pvt_region = missing)
     has_disgas = has("DISGAS")
     has_vapoil = has("VAPOIL")
     has_thermal = has("THERMAL")
+    has_wg = has("GASWAT")
     if has("JUTUL_CO2BRINE")
         # Early termination since this model does not need any PVT specification.
         @assert (has_oil && has_gas) "JUTUL_CO2BRINE currently assumes oil(liquid)-gas systems"
@@ -1427,6 +1428,9 @@ function parse_physics_types(datafile; pvt_region = missing)
             end
         else
             eos_type = PengRobinson()
+        end
+        if eos_type isa PengRobinson && has_wg
+            eos_type = MultiComponentFlash.SoreideWhitson(cnames)
         end
         if haskey(props, "SSHIFT")
             vshift = Tuple(first(props["SSHIFT"]))

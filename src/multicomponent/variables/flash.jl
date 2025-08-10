@@ -397,10 +397,10 @@ function estimate_K_values_from_previous_flash!(K, V, x, y, z)
 end
 
 function get_compressibility_factor(forces, eos, P, T, Z, phase = :unknown)
-    ∂cond = (p = P, T = T, z = Z)
+    ∂cond = (p = P, T = T, z = Z, phase = phase)
     force_coefficients!(forces, eos, ∂cond)
     scalars = force_scalars(eos, ∂cond, forces)
-    return mixture_compressibility_factor(eos, ∂cond, forces, scalars, phase)
+    return mixture_compressibility_factor(eos, ∂cond, forces, scalars)
 end
 
 @inline function single_phase_update!(P, T, Z, x, y, forces, eos, c)
