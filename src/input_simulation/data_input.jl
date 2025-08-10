@@ -2052,14 +2052,20 @@ function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, t
         for i in eachindex(z_mass)
             mix[i] = z_mass[i]
         end
+        is_vapor = uppercase(type) == "GAS"
         @assert sum(mix) ≈ 1.0 "Sum of mixture was $(sum(mix)) != 1 for mole mixture $(z) as mass $z_mass"
 
-        flash_cond = (p = cond.p, T = cond.T, z = z)
+        if is_vapor
+            phase = :vapor
+        else
+            phase = :liquid
+        end
+        flash_cond = (p = cond.p, T = cond.T, z = z, phase = phase)
         flash = MultiComponentFlash.flashed_mixture_2ph(eos, flash_cond)
         rho_l, rho_v = MultiComponentFlash.mass_densities(eos, cond.p, cond.T, flash)
         S_l, S_v = MultiComponentFlash.phase_saturations(eos, cond.p, cond.T, flash)
         rho = S_l*rho_l + S_v*rho_v
-        if uppercase(type) == "GAS"
+        if is_vapor
             sg = 1.0
         else
             sg = 0.0

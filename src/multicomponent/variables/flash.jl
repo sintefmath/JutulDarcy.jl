@@ -179,7 +179,7 @@ function update_flash_buffer!(buf, eos, Pressure, Temperature, OverallMoleFracti
         else
             Z = OverallMoleFractions[:, 1]
         end
-        buf.forces = force_coefficients(eos, (p = P, T = T, z = Z), static_size = true)
+        buf.forces = force_coefficients(eos, (p = P, T = T, z = Z, phase = :liquid), static_size = true)
     end
 end
 
