@@ -119,11 +119,26 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         WI = missing,
         WIth = missing,
         thermal_conductivity = missing,
+        thermal_index_args = NamedTuple(),
         dir = :z,
         kwarg...
     )
-    T = promote_type(eltype(K), typeof(skin), typeof(radius), typeof(simple_well_regularization))
+    T = promote_type(eltype(K), eltype(skin), eltype(radius), typeof(simple_well_regularization))
     T = promote_type(T, Jutul.float_type(g))
+    if !ismissing(WI)
+        if WI isa AbstractArray
+            T = promote_type(T, eltype(WI))
+        else
+            T = promote_type(T, typeof(WI))
+        end
+    end
+    if !ismissing(WIth)
+        if WIth isa AbstractArray
+            T = promote_type(T, eltype(WIth))
+        else
+            T = promote_type(T, typeof(WIth))
+        end
+    end
     n = length(reservoir_cells)
     # Make sure these are cell indices
     reservoir_cells = map(i -> cell_index(g, i), reservoir_cells)
@@ -143,6 +158,8 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     volumes = zeros(T, n)
     WI_computed = zeros(T, n)
     WIth_computed = zeros(T, n)
+    segment_radius = zeros(T, n)
+
     Λ = thermal_conductivity
     dz = zeros(T, n)
 
@@ -152,7 +169,6 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     function get_entry(x, i)
         return x
     end
-    segment_radius = Float64[]
     for (i, c) in enumerate(reservoir_cells)
         if K isa AbstractVector
             k_i = K[c]
@@ -162,9 +178,10 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         WI_i = get_entry(WI, i)
         Kh_i = get_entry(Kh, i)
         r_i = get_entry(radius, i)
+        dir_i = get_entry(dir, i)
         s_i = get_entry(skin, i)
         if ismissing(WI_i) || isnan(WI_i)
-            WI_i = compute_peaceman_index(g, k_i, r_i, c, skin = s_i, Kh = Kh_i, dir = dir)
+            WI_i = compute_peaceman_index(g, k_i, r_i, c, dir_i; skin = s_i, Kh = Kh_i)
         end
         WI_computed[i] = WI_i
         WIth_i = 0.0
@@ -175,22 +192,22 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
             else
                 Λ_i = Λ[:, c]
             end
-            if ismissing(WIth) || isnan(WIth_i)
-                WIth_i = compute_peaceman_index(g, Λ_i, r_i, c, dir = dir)
+            if ismissing(WIth_i) || isnan(WIth_i)
+                WIth_i = compute_well_thermal_index(g, Λ_i, r_i, c, dir_i; 
+                    thermal_index_args...)
             end
         end
-        push!(segment_radius, r_i)
+        segment_radius[i] = r_i
         WIth_computed[i] = WIth_i
         center = vec(centers[:, i])
         dz[i] = center[3] - reference_depth
-        if dir isa Symbol
-            d = dir
+        if dir_i isa Symbol
+            Δ = cell_dims(g, c)
+            d_index = findfirst(isequal(dir_i), [:x, :y, :z])
+            h = Δ[d_index]
         else
-            d = dir[i]
+            h = norm(dir_i, 2)
         end
-        Δ = cell_dims(g, c)
-        d_index = findfirst(isequal(d), [:x, :y, :z])
-        h = Δ[d_index]
         volumes[i] = h*π*r_i^2
     end
     if simple_well
@@ -215,8 +232,9 @@ end
 
 function setup_well_from_trajectory(D::DataDomain, traj; traj_arg = NamedTuple(), kwarg...)
     G = D |> physical_representation |> UnstructuredMesh
-    cells = Jutul.find_enclosing_cells(G, traj; traj_arg...)
-    return setup_well(D, cells; kwarg...)
+    cells, extra = Jutul.find_enclosing_cells(G, traj; extra_out = true, traj_arg...)
+    dir = Vector.(extra[:direction].*extra[:lengths])
+    return setup_well(D, cells; dir = dir, kwarg...)
 end
 
 function map_well_nodes_to_reservoir_cells(w::MultiSegmentWell, reservoir::Union{DataDomain, Missing} = missing)

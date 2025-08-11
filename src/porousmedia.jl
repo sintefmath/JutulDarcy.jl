@@ -1,7 +1,7 @@
 import Jutul: compute_half_face_trans, compute_face_trans
 
 """
-    compute_peaceman_index(g::T, K, r, pos; kwarg...) where T<:Jutul.JutulMesh
+    compute_peaceman_index(g::T, K, r, pos, dir; kwarg...) where T<:Jutul.JutulMesh
 
 Compute the Peaceman index for a given mesh.
 
@@ -10,6 +10,7 @@ Compute the Peaceman index for a given mesh.
 - `K`: Permeability tensor or scalar.
 - `r`: Well radius.
 - `pos`: Position of the well (index of cell or IJK truplet).
+- `dir=:z`: Direction of the well, can be `:x`, `:y`, or `:z`.
 - `kwarg...`: Additional keyword arguments passed onto inner version of
   function.
 
@@ -17,10 +18,10 @@ Compute the Peaceman index for a given mesh.
 - The computed Peaceman index.
 
 """
-function compute_peaceman_index(g::T, K, r, pos; kwarg...) where T<:Jutul.JutulMesh
+function compute_peaceman_index(g::T, K, r, pos, dir=:z; kwarg...) where T<:Jutul.JutulMesh
     Δ = peaceman_cell_dims(g, pos)
     K = Jutul.expand_perm(K, dim(g))
-    return compute_peaceman_index(Δ, K, r; kwarg...)
+    return compute_peaceman_index(Δ, K, r, dir; kwarg...)
 end
 
 """
@@ -66,7 +67,7 @@ function peaceman_cell_dims(g, pos)
 end
 
 """
-    compute_peaceman_index(Δ, K, radius; kwargs...)
+    compute_peaceman_index(Δ, K, radius, dir; kwargs...)
 
 Compute the Peaceman well index for a given grid block.
 
@@ -74,9 +75,9 @@ Compute the Peaceman well index for a given grid block.
 - `Δ`: The grid block size as a tuple `(dx, dy, dz)`
 - `K`: The permeability of the medium (Matrix for full tensor, or scalar).
 - `radius`: The well radius.
+- `dir::Symbol=:z`: Direction of the well, can be `:x`, `:y`, or `:z`.
 
 # Keyword Arguments
-- `dir::Symbol = :z`: Direction of the well, can be `:x`, `:y`, or `:z`.
 - `net_to_gross = 1.0`: Net-to-gross ratio, used to scale the value for vertical directions.
 - `constant = 0.14`: Constant used in the calculation of the equivalent radius. TPFA specific.
 - `Kh = nothing`: Horizontal permeability, if not provided, it will be computed.
@@ -88,8 +89,7 @@ Compute the Peaceman well index for a given grid block.
 - `Float64`: The computed Peaceman well index.
 
 """
-function compute_peaceman_index(Δ, K, radius;
-        dir::Symbol = :z,
+function compute_peaceman_index(Δ, K, radius, dir::Symbol = :z;
         net_to_gross = 1.0,
         constant = 0.14,
         Kh = nothing,
@@ -147,6 +147,75 @@ function compute_peaceman_index(Δ, K, radius;
         end
     end
     return WI
+end
+
+"""
+    compute_peaceman_index(Δ, K, radius, dir::Vector;
+        kwargs...
+    )
+
+Compute the Peaceman well index for a given grid block when the well is not aligned with one of the grid axes
+
+# Arguments
+As for `compute_peaceman_index(Δ, K, radius, dir::Symbol = :z; ...)`, except:
+- `dir::Vector`: Direction of the well segment through the cell block, weighted by segment length
+
+"""
+function compute_peaceman_index(Δ, K, radius, dir::Vector;
+        direction_is_normed = false,
+        kwargs...
+    )
+
+    normed_dir = direction_is_normed ? dir : dir./Δ
+    WI_squared = 0.0
+    for (dno, d) in enumerate([:x, :y, :z])
+        WI_d = compute_peaceman_index(Δ, K, radius, d; kwargs...)
+        WI_squared += (WI_d*normed_dir[dno])^2
+    end
+    WI = sqrt(WI_squared)
+
+    return WI
+
+end
+
+function compute_well_thermal_index(g::T, thermal_conductivity, radius, pos, dir=:z; 
+        radius_outer = nothing,
+        thermal_conductivity_casing = 20,
+        radius_grout = nothing,
+        thermal_conductivity_grout = 2.3,
+        kwargs...
+    ) where T<:Jutul.JutulMesh
+
+    if dir isa Symbol
+        Δ = cell_dims(g, pos)
+        d_index = findfirst(isequal(dir), [:x, :y, :z])
+        L = Δ[d_index]
+    else
+        L = norm(dir, 2)
+    end
+
+    # Readable notation
+    ri, ro, rg = radius, radius_outer, radius_grout
+    λr, λc, λg = thermal_conductivity, thermal_conductivity_casing, thermal_conductivity_grout
+    U = 0.0
+    # Conduction through casing
+    if !isnothing(ro)
+        U += log(ri/ro)/λc
+    end
+    # Conduction through grouting
+    if !isnothing(rg)
+        U += log(rg/ro)/λg
+    end
+    # Conduction into reservoir
+    WIth0 = compute_peaceman_index(g::T, λr, radius, pos, dir; constant = 2*0.14)
+    U += 1/(WIth0/(2π*L))
+    #TODO: Implement flow-dependent conduction from bulk flow to pipe wall
+
+    # Convert to thermal indices
+    WIth = 2π*L/U
+    
+    return WIth
+
 end
 
 function Jutul.discretize_domain(d::DataDomain, system::Union{MultiPhaseSystem, CompositeSystem{:Reservoir, T}}, ::Val{:default}; kwarg...) where T

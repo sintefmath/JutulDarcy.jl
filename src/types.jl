@@ -554,7 +554,26 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
     if segment_radius isa Real
         segment_radius = fill(segment_radius, nseg)
     end
+    if length(segment_radius) < nseg
+        @assert length(segment_radius) == nv
+        # We are provided one radius per cell - compute segment radii as the
+        # average of its to associated cells segment values
+        pushfirst!(segment_radius, segment_radius[1])
+        segment_radius = mean(segment_radius[N], dims=1)
+    end
     @assert length(segment_radius) == nseg "Segment radius must have length equal to number of segments"
+
+    if friction isa Real
+        friction = fill(friction, nseg)
+    end
+    if length(friction) < nseg
+        @assert length(friction) == nv
+        # We are provided one friction factor per cell - compute segment
+        # friction factors as the average of its to associated cells segment
+        # values
+        pushfirst!(friction, friction[1])
+        friction = mean(friction[N], dims=1)
+    end
 
     # Process well material properties
     if length(material_thermal_conductivity) == 1
@@ -583,8 +602,7 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
     @assert void_fraction[1] == 1.0 "Void fraction for accumulator node must be 1.0"
 
     if isnothing(segment_models)
-        segment_models = Vector{SegmentWellBoreFrictionHB{Float64}}()
-        for seg in 1:nseg
+        function setup_wbfriction(seg)
             l, r = N[:, seg]
             if isnothing(segment_length)
                 L = norm(ext_centers[:, l] - ext_centers[:, r], 2)
@@ -596,9 +614,9 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
                 end
             end
             diameter = segment_radius[seg]*2
-            Δp = SegmentWellBoreFrictionHB(L, friction, diameter)
-            push!(segment_models, Δp)
+            return SegmentWellBoreFrictionHB(L, friction[seg], diameter)
         end
+        segment_models = map(setup_wbfriction, 1:nseg)
     else
         segment_models::AbstractVector
         @assert length(segment_models) == nseg

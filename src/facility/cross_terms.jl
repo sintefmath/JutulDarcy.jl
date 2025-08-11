@@ -398,7 +398,12 @@ function get_target_temperature(ctrl::InjectorControl, target::ReinjectionTarget
 
     # TODO: This currently assumes constant fluid heat capacity and equal
     # pressures. Should ideally be replaced by enthalpy, which requires
-    # FluidEnthaly to be a Facility variable
+    # FluidEnthalpy to be a Facility variable
+
+    if !isnan(ctrl.temperature)
+        return ctrl.temperature
+    end
+
     q, qh = 0.0, 0.0
     for w in target.wells
         pos = get_well_position(facility.domain, w)
