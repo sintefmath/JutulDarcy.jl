@@ -2717,11 +2717,11 @@ function transfer_variables_and_parameters!(new_model, old_model;
 end
 
 
-function reservoir_fluxes(model::SimulationModel, states::AbstractVector; kwarg...)
-    return map(x -> reservoir_fluxes(model, x; kwarg...), states)
+function reservoir_fluxes(model::SimulationModel, states::AbstractVector, kind = :volumetric; kwarg...)
+    return map(x -> reservoir_fluxes(model, x, kind; kwarg...), states)
 end
 
-function reservoir_fluxes(model::MultiModel, state_or_states;
+function reservoir_fluxes(model::MultiModel, state_or_states, kind = :volumetric;
         parameters = setup_parameters(model),
         simulator = missing,
         kwarg...
@@ -2743,12 +2743,11 @@ function reservoir_fluxes(model::MultiModel, state_or_states;
     if ismissing(simulator)
         simulator = HelperSimulator(rmodel, state0 = state_or_states[1], parameters = rparam)
     end
-    return reservoir_fluxes(rmodel, state_or_states; parameters = rparam, simulator = simulator, kwarg...)
+    return reservoir_fluxes(rmodel, state_or_states, kind; parameters = rparam, simulator = simulator, kwarg...)
 end
 
-function reservoir_fluxes(model, state;
+function reservoir_fluxes(model, state, kind = :volumetric;
         parameters = setup_parameters(model),
-        kind = :volumetric,
         total = false,
         internal = true,
         dt = NaN,
