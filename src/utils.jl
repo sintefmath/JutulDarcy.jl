@@ -2757,6 +2757,7 @@ function reservoir_fluxes(model, state;
     )
     storage = Jutul.get_simulator_storage(simulator)
     update_state_dependents!(storage, model, 1.0, forces; update_secondary = true)
+    internal || error("Boundary fluxes not supported in this function yet, set internal = true to compute internal fluxes")
     if kind == :volumetric
         if total
             V = Sequential.store_total_fluxes(model, storage.state)
@@ -2764,6 +2765,6 @@ function reservoir_fluxes(model, state;
             V = Sequential.store_phase_fluxes(model, storage.state)
         end
     else
-        
+        error("Unknown flux kind $kind")
     end
 end
