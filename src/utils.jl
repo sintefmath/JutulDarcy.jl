@@ -2751,12 +2751,13 @@ function reservoir_fluxes(model, state;
         kind = :volumetric,
         total = false,
         internal = true,
+        dt = NaN,
         forces = setup_forces(model),
-        extra_out = true,
+        extra_out = false,
         simulator = HelperSimulator(model, state0 = state, parameters = parameters)
     )
     storage = Jutul.get_simulator_storage(simulator)
-    update_state_dependents!(storage, model, 1.0, forces; update_secondary = true)
+    update_state_dependents!(storage, model, dt, forces; update_secondary = true)
     if kind == :volumetric
         is_mass = false
     elseif kind == :mass
@@ -2770,5 +2771,12 @@ function reservoir_fluxes(model, state;
     else
         V = Sequential.store_phase_fluxes(model, storage.state, is_mass)
     end
-    return V
+    if extra_out
+        rdomain = reservoir_domain(model)
+        rmesh = physical_representation(rdomain)
+        out = (V, get_neighborship(rmesh))
+    else
+        out = V
+    end
+    return out
 end
