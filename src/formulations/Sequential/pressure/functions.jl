@@ -34,15 +34,14 @@ function store_phase_fluxes!(v_phases, model, state)
     for face in axes(v_phases, 2)
         l = N[1, face]
         r = N[2, face]
+        # TODO: This assumes the default discretizations.
+        # This should be generalized to allow for different flux types.
         tpfa = TPFA(l, r, 1)
         upw = SPU(l, r)
         f_t = Jutul.DefaultFlux()
-        common = flux_primitives(face, state, model, f_t, tpfa, upw)
+        v_face = JutulDarcy.darcy_phase_volume_fluxes(face, state, model, f_t, tpfa, upw)
         for ph in 1:nph
-            mob = ix -> kr[ph, ix]/μ[ph, ix]
-            q = darcy_phase_kgrad_potential(face, ph, state, model, f_t, tpfa, upw, common)
-            λ_f = upwind(upw, mob, q)
-            v_phases[ph, face] = λ_f * q
+            v_phases[ph, face] = v_face[ph]
         end
     end
     return v_phases

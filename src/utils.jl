@@ -2715,3 +2715,55 @@ function transfer_variables_and_parameters!(new_model, old_model;
     end
     return new_model
 end
+
+
+function reservoir_fluxes(model::SimulationModel, states::AbstractVector; kwarg...)
+    return map(x -> reservoir_fluxes(model, x; kwarg...), states)
+end
+
+function reservoir_fluxes(model::MultiModel, state_or_states;
+        parameters = setup_parameters(model),
+        simulator = missing,
+        kwarg...
+    )
+    function get_rstate(x)
+        if haskey(x, :Reservoir)
+            return x[:Reservoir]
+        else
+            return x
+        end
+    end
+    if state_or_states isa AbstractVector
+        state_or_states = map(get_rstate, state_or_states)
+    else
+        state_or_states = get_rstate(state_or_states)
+    end
+    rmodel = reservoir_model(model)
+    rparam = parameters[:Reservoir]
+    if ismissing(simulator)
+        simulator = HelperSimulator(rmodel, state0 = state_or_states[1], parameters = rparam)
+    end
+    return reservoir_fluxes(rmodel, state_or_states; parameters = rparam, simulator = simulator, kwarg...)
+end
+
+function reservoir_fluxes(model, state;
+        parameters = setup_parameters(model),
+        kind = :volumetric,
+        total = false,
+        internal = true,
+        forces = setup_forces(model),
+        extra_out = true,
+        simulator = HelperSimulator(model, state0 = state, parameters = parameters)
+    )
+    storage = Jutul.get_simulator_storage(simulator)
+    update_state_dependents!(storage, model, 1.0, forces; update_secondary = true)
+    if kind == :volumetric
+        if total
+            V = Sequential.store_total_fluxes(model, storage.state)
+        else
+            V = Sequential.store_phase_fluxes(model, storage.state)
+        end
+    else
+        
+    end
+end
