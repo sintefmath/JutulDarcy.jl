@@ -97,7 +97,7 @@ function pressure_update_half_face_flux_tpfa_internal!(hf_cells, zero_flux, eq, 
         @assert self == c
         q = Jutul.face_flux!(zero_flux, self, other, face, face_sign, eq, state, model, dt, flow_disc)
         val = zero(eltype(hf_cells))
-        for j in 1:length(q)
+        for j in eachindex(q)
             val += q[j]*w[j, c]
         end
         @inbounds hf_cells[i] = val
