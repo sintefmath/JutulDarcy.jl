@@ -219,10 +219,11 @@ done by adding a source term to the well equation based on the current facility
 status (injecting or producing).
 """
 function update_cross_term_in_entity!(out, i,
-    state_well, state0_well,
-    state_facility, state0_facility,
-    well, facility,
-    ct::WellFromFacilityFlowCT, eq, dt, ldisc = local_discretization(ct, i))
+        state_well, state0_well,
+        state_facility, state0_facility,
+        well, facility,
+        ct::WellFromFacilityFlowCT, eq, dt, ldisc = local_discretization(ct, i)
+    )
 
     well_symbol = ct.well
     pos = get_well_position(facility.domain, well_symbol)
@@ -258,8 +259,17 @@ function update_cross_term_in_entity!(out, i,
             mix = masses./mass
         end
     end
-    for i in eachindex(out, mix)
-        @inbounds out[i] = -mix[i]*q_t
+    if haskey(state_well, :PressureReductionFactors) && length(out) == 1
+        # Pressure equation
+        val = zero(eltype(out))
+        for i in eachindex(mix)
+            val += mix[i]*state_well.PressureReductionFactors[i, well_top_node()]
+        end
+        out[1] = -val*q_t
+    else
+        for i in eachindex(out, mix)
+            @inbounds out[i] = -mix[i]*q_t
+        end
     end
 end
 
