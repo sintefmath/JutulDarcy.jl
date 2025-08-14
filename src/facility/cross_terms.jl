@@ -271,6 +271,7 @@ function update_cross_term_in_entity!(out, i,
             @inbounds out[i] = -mix[i]*q_t
         end
     end
+    return out
 end
 
 # Thermal
