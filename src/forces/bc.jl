@@ -161,7 +161,7 @@ function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D,
     for bc in force
         c = bc.cell
         acc_i = view(acc, :, c)
-        q = compute_bc_mass_fluxes(bc, state, nph)
+        q = compute_bc_mass_fluxes(bc, global_map(model), state, nph)
         apply_flow_bc!(acc_i, q, bc, model, state, time)
     end
 end
@@ -172,12 +172,12 @@ function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D,
     for bc in force
         c = bc.cell
         acc_i = view(acc, :, c)
-        qh_adv, qh_cond = compute_bc_heat_fluxes(bc, state, nph)
+        qh_adv, qh_cond = compute_bc_heat_fluxes(bc, global_map(model), state, nph)
         apply_flow_bc!(acc_i, qh_adv + qh_cond, bc, model, state, time)
     end
 end
 
-function compute_bc_mass_fluxes(bc, state, nph)
+function compute_bc_mass_fluxes(bc, gmap, state, nph)
     # Get reservoir properties
     p   = state.Pressure
     mu  = state.PhaseViscosities
@@ -185,7 +185,7 @@ function compute_bc_mass_fluxes(bc, state, nph)
     rho = state.PhaseMassDensities
     @assert size(kr, 1) == nph
     # Get boundary properties
-    c       = bc.cell
+    c       = Jutul.full_cell(bc.cell, gmap)
     T_f     = bc.trans_flow
     rho_inj = bc.density
     f_inj   = bc.fractional_flow
@@ -248,9 +248,9 @@ function compute_bc_mass_fluxes(bc, state, nph)
     return q
 end
 
-function compute_bc_heat_fluxes(bc, state, nph)
-    q = compute_bc_mass_fluxes(bc, state, nph)
-    c = bc.cell
+function compute_bc_heat_fluxes(bc, gmap, state, nph)
+    q = compute_bc_mass_fluxes(bc, gmap, state, nph)
+    c = Jutul.full_cell(bc.cell, gmap)
 
     # Get reservoir properties
     p = state.Pressure
@@ -292,13 +292,13 @@ function compute_bc_heat_fluxes(bc, state, nph)
     return qh_advective, qh_conductive
 end
 
-function compute_bc_heat_fluxes(bc, state)
-    c = bc.cell
-    T_f = bc.trans_flow
-    Δp = p[c] - bc.pressure
-    q = T_f*Δp
-    return q
-end
+# function compute_bc_heat_fluxes(bc, state)
+#     c = bc.cell
+#     T_f = bc.trans_flow
+#     Δp = p[c] - bc.pressure
+#     q = T_f*Δp
+#     return q
+# end
 
 function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, time) where T<:Union{ImmiscibleSystem, SinglePhaseSystem}
 
