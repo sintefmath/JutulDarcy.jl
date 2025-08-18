@@ -51,9 +51,9 @@ function store_flux_helper(face, N, state, model, is_mass::Bool)
     f_t = Jutul.DefaultFlux()
 
     if is_mass
-        v_face = JutulDarcy.darcy_phase_volume_fluxes(face, state, model, f_t, tpfa, upw)
-    else
         v_face = JutulDarcy.darcy_phase_mass_fluxes(face, state, model, f_t, tpfa, upw)
+    else
+        v_face = JutulDarcy.darcy_phase_volume_fluxes(face, state, model, f_t, tpfa, upw)
     end
     return v_face
 end
