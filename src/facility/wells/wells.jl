@@ -414,13 +414,11 @@ Base.@propagate_inbounds function simple_well_perforation_flux!(out, sys::Union{
     rc = conn.reservoir
     # Reservoir quantities
     ρ = state_res.PhaseMassDensities
-    # Extra mobility needed
-    kr = state_res.RelativePermeabilities
-    μ = state_res.PhaseViscosities
+    mob = state_res.PhaseMobilities
     nph = size(ρ, 1)
-    ρλ_t = 0
+    ρλ_t = zero(eltype(mob))
     for ph in 1:nph
-        ρλ_t += ρ[ph, rc]*kr[ph, rc]/μ[ph, rc]
+        ρλ_t += ρ[ph, rc]*mob[ph, rc]
     end
     X = state_well.MassFractions
     for ph in 1:nph
@@ -431,7 +429,7 @@ Base.@propagate_inbounds function simple_well_perforation_flux!(out, sys::Union{
             out[ph] = X[ph]*ψ*ρλ_t
         else
             # Production
-            λ = kr[ph, rc]/μ[ph, rc]
+            λ = mob[ph, rc]
             out[ph] = λ*ρ[ph, rc]*ψ
         end
     end
