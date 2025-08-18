@@ -85,7 +85,7 @@ function Jutul.update_cross_term_in_entity!(out, i,
         mobt += mob[ph, rc]
     end
     conn = (
-        dp = q_p/(mobt*conn.WI),
+        dp = -q_p/(mobt*conn.WI),
         WI = conn.WI,
         gdz = 0*conn.gdz,
         well = conn.well,
@@ -93,6 +93,7 @@ function Jutul.update_cross_term_in_entity!(out, i,
         reservoir = conn.reservoir
     )
     JutulDarcy.multisegment_well_perforation_flux!(out, sys, state_t, state_s, rhoS, conn)
+    return out
 end
 
 function JutulDarcy.reservoir_linsolve(model::TransportModel, pname = :ilu0;

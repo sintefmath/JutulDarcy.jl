@@ -278,7 +278,8 @@ function store_perforation_fluxes!(q, ct, wmodel, resmodel, wstate, rstate)
         end
         # Assume that simple wells are used (i.e. equal potential difference for all phases)
         WI_dp = JutulDarcy.perforation_phase_potential_difference(conn, rstate, wstate, 1)
-        q[i] = value(WI_dp)*total_mobility
+        # Positive flux into reservoir
+        q[i] = -value(WI_dp)*total_mobility
     end
     return q
 end

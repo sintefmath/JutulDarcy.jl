@@ -37,6 +37,7 @@ function update_cross_term_in_entity!(out, i,
     else
         @inbounds multisegment_well_perforation_flux!(out, sys, state_t, state_s, rhoS, conn)
     end
+    return out
 end
 
 function cross_term_perforation_get_conn(ct, i, state_s, state_t)

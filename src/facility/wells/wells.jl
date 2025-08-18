@@ -397,15 +397,15 @@ function perforation_phase_mass_flux(λ_t, conn, state_res, state_well, ph)
     if ψ < 0
         wc = conn.well
         # Injection
-        ρ_w = state_well.PhaseMassDensities
-        s_w = state_well.Saturations
-        q_ph = s_w[ph, wc]*ρ_w[ph, wc]*ψ*λ_t
+        ρ_w = state_well.PhaseMassDensities[ph, wc]
+        s_w = state_well.Saturations[ph, wc]
+        q_ph = s_w*ρ_w*ψ*λ_t
     else
         rc = conn.reservoir
         # Production
-        ρ = state_res.PhaseMassDensities
+        ρ = state_res.PhaseMassDensities[ph, rc]
         λ = state_res.PhaseMobilities[ph, rc]
-        q_ph = λ*ρ[ph, rc]*ψ
+        q_ph = λ*ρ*ψ
     end
     return q_ph
 end
