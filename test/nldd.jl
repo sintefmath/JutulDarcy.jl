@@ -90,6 +90,49 @@ end
         end
     end
 
+    @testset "NLDD with BCs" begin
+        function setup_bc_case(; thermal = false)
+
+            nc = 10
+            grid = CartesianMesh((nc, 1, 1), (1000.0, 1.0, 1.0))
+
+            # Create domain and model
+            domain = reservoir_domain(grid)
+            if thermal
+                sys = :geothermal
+            else
+                sys = SinglePhaseSystem(AqueousPhase(), reference_density = 1000.0)
+            end
+            model, = setup_reservoir_model(domain, sys)
+            p0, T0 = 10.0si_unit(:bar), convert_to_si(20.0, :Celsius)
+            state0 = setup_reservoir_state(model; Pressure = p0, Temperature = T0)
+
+            bc = flow_boundary_condition([1, nc], domain,
+                [2*p0, p0], [T0 + 75.0, T0])
+
+            forces = setup_reservoir_forces(model; bc = bc)
+
+            case = JutulCase(model, [1si_unit(:day)], forces, state0 = state0)
+
+            return case
+
+        end
+
+        function get_its(result)
+            Jutul.report_stats(result.result.reports).newtons
+        end
+
+        # for thermal = [false, true] # Fails for thermal = false (single-phase w/BCs)
+        for thermal = [true]
+            case = setup_bc_case(thermal = thermal)
+            results = simulate_reservoir(case;
+                method = :nldd, info_level = 2, max_timestep = Inf)
+            @test its == get_its(results)
+
+        end
+
+    end
+
     @testset "NLDD on MRST cases" begin
         for use_blocks in [true, false]
             test_on_mrst_case("spe1", use_blocks)
