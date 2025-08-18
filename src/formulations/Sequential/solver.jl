@@ -276,12 +276,9 @@ function store_perforation_fluxes!(q, ct, wmodel, resmodel, wstate, rstate)
         for ph in 1:nph
             total_mobility += value(mob[ph, conn.reservoir])
         end
-        total_flux = zero(T)
-        for ph in 1:nph
-            pot = value(JutulDarcy.perforation_phase_potential_difference(conn, rstate, wstate, ph))
-            total_flux += pot*total_mobility
-        end
-        q[i] = total_flux
+        # Assume that simple wells are used (i.e. equal potential difference for all phases)
+        WI_dp = JutulDarcy.perforation_phase_potential_difference(conn, rstate, wstate, 1)
+        q[i] = value(WI_dp)*total_mobility
     end
     return q
 end
