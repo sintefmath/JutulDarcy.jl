@@ -85,7 +85,7 @@ function Jutul.update_cross_term_in_entity!(out, i,
         mobt += mob[ph, rc]
     end
     conn = (
-        dp = -q_p/(mobt*conn.WI),
+        dp = q_p/(mobt*conn.WI),
         WI = conn.WI,
         gdz = 0*conn.gdz,
         well = conn.well,
