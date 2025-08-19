@@ -91,10 +91,10 @@ end
     end
 
     @testset "NLDD with BCs" begin
+        nc = 6
         function setup_bc_case(; thermal = false)
 
-            nc = 10
-            grid = CartesianMesh((nc, 1, 1), (1000.0, 1.0, 1.0))
+            grid = CartesianMesh((nc, 1, nc), (1000.0, 1.0, 1000.0))
 
             # Create domain and model
             domain = reservoir_domain(grid)
@@ -107,7 +107,7 @@ end
             p0, T0 = 10.0si_unit(:bar), convert_to_si(20.0, :Celsius)
             state0 = setup_reservoir_state(model; Pressure = p0, Temperature = T0)
 
-            bc = flow_boundary_condition([1, nc], domain,
+            bc = flow_boundary_condition([1, nc^2], domain,
                 [2*p0, p0], [T0 + 75.0, T0])
 
             forces = setup_reservoir_forces(model; bc = bc)
