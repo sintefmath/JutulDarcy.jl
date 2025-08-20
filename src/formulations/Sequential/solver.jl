@@ -288,9 +288,12 @@ function transport_forces(tsim, psim, forces)
     t_forces = deepcopy(forces)
     tmodel = tsim.model
     pmodel = psim.model
-    if tmodel isa MultiModel
-        fkey = :Facility
-        @assert haskey(t_forces, fkey) "Transport forces does not have key $fkey"
+    fkey = :Facility
+
+    has_facility = pmodel isa MultiModel && haskey(pmodel.models, :Facility)
+    haskey(t_forces, fkey) == has_facility || error("Transport forces does not have key $fkey")
+
+    if has_facility
         facility_model = tsim.model[fkey]
         fstate = psim.storage[fkey].state
         new_controls = Dict{Symbol, Any}()
@@ -315,7 +318,7 @@ function transport_forces(tsim, psim, forces)
             end
             new_controls[wname] = new_ctrl
         end
-        t_forces[:Facility] = Jutul.setup_forces(facility_model, control = new_controls, set_default_limits = false)
+        t_forces[fkey] = Jutul.setup_forces(facility_model, control = new_controls, set_default_limits = false)
     end
     return t_forces
 end
