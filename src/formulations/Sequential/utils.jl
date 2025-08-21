@@ -4,26 +4,38 @@ function setup_sequential_storage!(S, p_model::MultiModel, t_model::MultiModel)
     for k in Jutul.submodels_symbols(p_model)
         p_submodel = p_model[k]
         t_submodel = t_model[k]
-        if k == :Reservoir || model_or_domain_is_well(p_submodel)
-            S[k] = JutulStorage()
-            setup_sequential_storage!(S[k], p_submodel, t_submodel)
-        end
+        is_reservoir = k == :Reservoir
+        S[k] = JutulStorage()
+        setup_sequential_storage!(S[k], p_submodel, t_submodel,
+            is_reservoir = is_reservoir,
+            is_well = model_or_domain_is_well(p_submodel)
+        )
     end
 end
 
-function setup_sequential_storage!(S, p_model::SimulationModel, t_model::SimulationModel)
+function setup_sequential_storage!(S, p_model::SimulationModel, t_model::SimulationModel;
+        is_reservoir = true,
+        is_well = !is_reservoir
+    )
     function seq_output_keys(m)
         return copy(m.output_variables)
     end
-    # Transfer rule: All parameters present in other that are not parameters both places.
+    # Transfer rule: All parameters present in other that are not parameters
+    # both places and all primary variables that are primary in both models.
     function transfer_keys(target, source)
         prm_t = keys(Jutul.get_parameters(target))
         prm_s = keys(Jutul.get_parameters(source))
 
-        all_t = keys(Jutul.get_variables_by_type(target, :all))
+        # all_t = keys(Jutul.get_variables_by_type(target, :all))
         all_s = keys(Jutul.get_variables_by_type(source, :all))
 
-        return intersect(all_s, setdiff(prm_t, prm_s))
+        parameter_overlap = intersect(all_s, setdiff(prm_t, prm_s))
+
+        pvar_t = keys(Jutul.get_variables_by_type(target, :primary))
+        pvar_s = keys(Jutul.get_variables_by_type(source, :primary))
+
+        primary_overlap = intersect(pvar_t, pvar_s)
+        return [parameter_overlap..., primary_overlap...]
     end
     transfer_keys_transport = transfer_keys(t_model, p_model)
     transfer_keys_pressure = transfer_keys(p_model, t_model)
@@ -36,7 +48,9 @@ function setup_sequential_storage!(S, p_model::SimulationModel, t_model::Simulat
 
         secondary_s = keys(Jutul.get_variables_by_type(source, :secondary))
         tkeys = setdiff(intersect(all_t, all_s), secondary_s)
-        push!(tkeys, :TotalMasses)
+        if is_well || is_reservoir
+            push!(tkeys, :TotalMasses)
+        end
         return tkeys
     end
     init_keys_pressure = init_keys(p_model, t_model)
@@ -52,12 +66,14 @@ function setup_sequential_storage!(S, p_model::SimulationModel, t_model::Simulat
     S[:init_keys] = init_keys
     S[:transfer_keys] = transfer_keys
 
-    nph = number_of_phases(t_model.system)
-    nc = number_of_cells(t_model.domain)
-    λ = zeros(nph, nc)
-    @. λ = NaN
-    S[:mobility] = λ
-    S[:mobility_prev] = similar(λ)
+    if is_reservoir
+        nph = number_of_phases(t_model.system)
+        nc = number_of_cells(t_model.domain)
+        λ = zeros(nph, nc)
+        @. λ = NaN
+        S[:mobility] = λ
+        S[:mobility_prev] = similar(λ)
+    end
     return S
 end
 
@@ -141,6 +157,7 @@ end
 
 function sequential_sync_values!(dest, src, model::SimulationModel, storage_transfer, dest_key, kind)
     for k in storage_transfer[kind][dest_key]
+        # @info "Syncing $k from $dest_key" src[k]
         update_values!(dest[k], src[k])
     end
 end

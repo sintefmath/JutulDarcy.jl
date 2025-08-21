@@ -62,7 +62,7 @@ function Jutul.perform_step!(
     if done_p
         # t_forces = deepcopy(forces)
         # Copy over values for pressure and fluxes into parameters for second simulator
-        model_p = psim.model
+        # model_p = psim.model
         if iteration > 1
             Jutul.reset_previous_state!(tsim, pstate0)
             Jutul.reset_state_to_previous_state!(tsim)
