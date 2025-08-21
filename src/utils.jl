@@ -2737,13 +2737,15 @@ function reservoir_fluxes(model::MultiModel, state_or_states, kind = :volumetric
     end
     if state_or_states isa AbstractVector
         state_or_states = map(get_rstate, state_or_states)
+        single_state = state_or_states[1]
     else
         state_or_states = get_rstate(state_or_states)
+        single_state = state_or_states
     end
     rmodel = reservoir_model(model)
     rparam = parameters[:Reservoir]
     if ismissing(simulator)
-        simulator = HelperSimulator(rmodel, state0 = state_or_states[1], parameters = rparam)
+        simulator = HelperSimulator(rmodel, state0 = single_state, parameters = rparam)
     end
     return reservoir_fluxes(rmodel, state_or_states, kind; parameters = rparam, simulator = simulator, kwarg...)
 end
