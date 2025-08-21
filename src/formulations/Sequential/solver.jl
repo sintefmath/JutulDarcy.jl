@@ -327,8 +327,9 @@ function compute_well_volumetric_rate_at_bhp(wstate, well_mass_rate)
     rho = wstate.PhaseMassDensities
     s = wstate.Saturations
     total_density = 0.0
+    c = JutulDarcy.well_top_node()
     for ph in axes(rho, 1)
-        total_density += Jutul.value(rho[ph, 1])*Jutul.value(s[ph, 1])
+        total_density += Jutul.value(rho[ph, c])*Jutul.value(s[ph, c])
     end
     q_vol = Jutul.value(well_mass_rate)/total_density
     q_vol::Float64

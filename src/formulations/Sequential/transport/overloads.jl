@@ -93,6 +93,9 @@ function Jutul.update_cross_term_in_entity!(out, i,
         reservoir = conn.reservoir
     )
     JutulDarcy.multisegment_well_perforation_flux!(out, sys, state_t, state_s, rhoS, conn)
+    # Add in a hack to ensure that sparsity gets properly detected.
+    dp = state_t.TotalSaturation[conn.reservoir] - state_s.TotalSaturation[conn.well]
+    out[1] += 0.0*dp
     return out
 end
 
