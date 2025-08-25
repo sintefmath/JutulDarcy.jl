@@ -47,35 +47,10 @@ function convert_to_sequential(model; avg_mobility = false, pressure = true, cor
             end
         end
         if correction == :density
-            if haskey(vars, :ShrinkageFactors)
-                k = :ShrinkageFactors
-            else
-                k = :PhaseMassDensities
-            end
-            @assert haskey(vars, k)
-            vars[:UncorrectedVariable] = vars[k]
-            vars[k] = TotalSaturationCorrectedVariable(:UncorrectedVariable, nph)
+            set_density_correction!(vars, prm, nph)
         else
             correction == :volume || throw(ArgumentError("Unknown correction type $correction"))
-            if has_mass_mobility
-                k = :PhaseMassMobilities
-            elseif has_mobility
-                k = :SurfaceVolumeMobilities
-            elseif has_saturations
-                k = :Saturations
-            end
-            @assert haskey(vars, k) "Expected $k in $(keys(vars))"
-            vars[:UncorrectedVariable] = vars[k]
-            vars[k] = TotalSaturationCorrectedVariable(:UncorrectedVariable, nph)
-            if k != :Saturations
-                if haskey(prm, :StaticFluidVolume)
-                    pv_key = :StaticFluidVolume
-                else
-                    pv_key = :FluidVolume
-                end
-                prm[:UncorrectedFluidVolume] = prm[pv_key]
-                vars[pv_key] = TotalSaturationCorrectedScalarVariable(:UncorrectedFluidVolume)
-            end
+            set_volume_correction!(vars, prm, nph)
         end
         push!(seqmodel.output_variables, :Pressure)
     end
@@ -90,6 +65,44 @@ function convert_to_sequential(model; avg_mobility = false, pressure = true, cor
     return seqmodel
 end
 
+function set_density_correction!(vars, prm, nph)
+    if haskey(vars, :ShrinkageFactors)
+        k = :ShrinkageFactors
+    else
+        k = :PhaseMassDensities
+    end
+    @assert haskey(vars, k)
+    vars[:UncorrectedVariable] = vars[k]
+    vars[k] = TotalSaturationCorrectedVariable(:UncorrectedVariable, nph)
+    return vars
+end
+
+function set_volume_correction!(vars, prm, nph)
+    has_mobility = haskey(vars, :PhaseMassMobilities)
+    has_mass_mobility = haskey(vars, :PhaseMassMobilities)
+    has_saturations = haskey(vars, :Saturations)
+
+    if has_mass_mobility
+        k = :PhaseMassMobilities
+    elseif has_mobility
+        k = :SurfaceVolumeMobilities
+    elseif has_saturations
+        k = :Saturations
+    end
+    @assert haskey(vars, k) "Expected $k in $(keys(vars))"
+    vars[:UncorrectedVariable] = vars[k]
+    vars[k] = TotalSaturationCorrectedVariable(:UncorrectedVariable, nph)
+    if k != :Saturations
+        if haskey(prm, :StaticFluidVolume)
+            pv_key = :StaticFluidVolume
+        else
+            pv_key = :FluidVolume
+        end
+        prm[:UncorrectedFluidVolume] = prm[pv_key]
+        vars[pv_key] = TotalSaturationCorrectedScalarVariable(:UncorrectedFluidVolume)
+    end
+    return vars
+end
 
 function convert_to_sequential(model::MultiModel; pressure = true, kwarg...)
     ct = Vector{Jutul.CrossTermPair}()
