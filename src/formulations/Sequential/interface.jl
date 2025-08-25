@@ -1,12 +1,18 @@
 
-function convert_to_sequential(model; avg_mobility = false, pressure = true, correction = :volume)
+function convert_to_sequential(model; avg_mobility = false, pressure = true, correction = missing)
     if pressure
         f = PressureFormulation()
         T_ctx = typeof(model.context)
         ctx = T_ctx(matrix_layout = EquationMajorLayout())
     else
+        @assert ismissing(correction)
         f = TransportFormulation()
         ctx = model.context
+        if model_or_domain_is_well(model)
+            correction = :well
+        else
+            correction = :volume
+        end
     end
     transport = !pressure
     seqmodel = SimulationModel(
@@ -38,16 +44,17 @@ function convert_to_sequential(model; avg_mobility = false, pressure = true, cor
         vars = seqmodel.secondary_variables
         prm = seqmodel.parameters
         nph = number_of_phases(seqmodel.system)
-        has_mobility = haskey(vars, :PhaseMassMobilities)
-        has_mass_mobility = haskey(vars, :PhaseMassMobilities)
-        has_saturations = haskey(vars, :Saturations)
-        if correction == :volume
-            if !has_mobility && !has_mass_mobility && !has_saturations
-                correction = :density
-            end
-        end
+        # has_mobility = haskey(vars, :PhaseMassMobilities)
+        # has_mass_mobility = haskey(vars, :PhaseMassMobilities)
+        #   # if correction == :volume
+        #     if !has_mobility && !has_mass_mobility && !has_saturations
+        #         correction = :density
+        #     end
+        # end has_saturations = haskey(vars, :Saturations)
         if correction == :density
             set_density_correction!(vars, prm, nph)
+        elseif correction == :well
+            set_well_correction!(vars, prm, nph)
         else
             correction == :volume || throw(ArgumentError("Unknown correction type $correction"))
             set_volume_correction!(vars, prm, nph)
@@ -101,6 +108,17 @@ function set_volume_correction!(vars, prm, nph)
         prm[:UncorrectedFluidVolume] = prm[pv_key]
         vars[pv_key] = TotalSaturationCorrectedScalarVariable(:UncorrectedFluidVolume)
     end
+    return vars
+end
+
+function set_well_correction!(vars, prm, nph)
+    if haskey(prm, :StaticFluidVolume)
+        pv_key = :StaticFluidVolume
+    else
+        pv_key = :FluidVolume
+    end
+    prm[:UncorrectedFluidVolume] = prm[pv_key]
+    vars[pv_key] = TotalSaturationCorrectedScalarVariable(:UncorrectedFluidVolume)
     return vars
 end
 
