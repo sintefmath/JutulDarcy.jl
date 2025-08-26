@@ -84,6 +84,10 @@ function Jutul.update_cross_term_in_entity!(out, i,
     for ph in axes(mob, 1)
         mobt += mob[ph, rc]
     end
+    injecting = q_p > 0.0
+    if injecting
+        q_p *= state_s.TotalSaturation[i]
+    end
     conn = (
         dp = q_p/(mobt*conn.WI),
         WI = conn.WI,
