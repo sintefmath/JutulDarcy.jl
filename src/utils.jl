@@ -957,6 +957,8 @@ function setup_reservoir_simulator(case::JutulCase;
         # Single-process solve
         if method == :newton
             sim = Simulator(case; sim_kwarg...)
+        elseif method == :sequential
+            sim = JutulDarcy.Sequential.SequentialSimulator(case; sim_kwarg...)
         else
             extra_kwarg[:method] = method
             sim = NLDD.NLDDSimulator(case, nldd_partition; nldd_arg..., sim_kwarg...)
