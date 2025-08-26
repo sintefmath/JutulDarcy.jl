@@ -308,7 +308,7 @@ function transport_forces(tsim, psim, forces)
                     new_ctrl = ctrl
                 end
             elseif ctrl isa JutulDarcy.ProducerControl
-                q_w_perf = -compute_well_volumetric_rate_at_bhp(wstate, fstate.TotalSurfaceMassRate[wno])
+                q_w_perf = compute_well_volumetric_rate_at_bhp(wstate, fstate.TotalSurfaceMassRate[wno])
                 new_target = JutulDarcy.ReservoirVolumeRateTarget(q_w_perf)
                 new_ctrl = JutulDarcy.replace_target(ctrl, new_target)
             elseif ctrl isa JutulDarcy.DisabledControl
