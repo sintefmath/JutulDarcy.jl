@@ -387,8 +387,13 @@ function well_target(control::ProducerControl, target::ReservoirVolumeRateTarget
     rho = well_state.PhaseMassDensities
     s = well_state.Saturations
     total_density = zero(eltype(rho))
+    wc = JutulDarcy.well_top_node()
     for ph in axes(rho, 1)
-        total_density += rho[ph, 1]*s[ph, 1]
+        total_density += rho[ph, wc]*s[ph, wc]
+    end
+    if haskey(well_state, :TotalSaturation)
+        sT = well_state.TotalSaturation[wc]
+        total_density *= sT
     end
     return 1.0/total_density
 end
