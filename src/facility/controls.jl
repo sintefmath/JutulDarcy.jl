@@ -392,8 +392,8 @@ function well_target(control::ProducerControl, target::ReservoirVolumeRateTarget
         total_density += rho[ph, wc]*s[ph, wc]
     end
     if haskey(well_state, :TotalSaturation)
-        sT = well_state.TotalSaturation[wc]
-        total_density *= sT
+        # sT = well_state.TotalSaturation[wc]
+        # total_density *= sT
     end
     return 1.0/total_density
 end
