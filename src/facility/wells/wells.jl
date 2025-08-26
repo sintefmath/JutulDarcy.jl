@@ -403,9 +403,8 @@ function perforation_phase_mass_flux(λ_t, conn, state_res, state_well, ph)
     else
         rc = conn.reservoir
         # Production
-        ρ = state_res.PhaseMassDensities[ph, rc]
-        λ = state_res.PhaseMobilities[ph, rc]
-        q_ph = λ*ρ*ψ
+        ρλ = state_res.PhaseMassMobilities[ph, rc]
+        q_ph = ρλ*ψ
     end
     return q_ph
 end
