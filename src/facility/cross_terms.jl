@@ -238,7 +238,9 @@ function update_cross_term_in_entity!(out, i,
         effective = true
     )
     # Hack for sparsity detection
-    q_t += 0*bottom_hole_pressure(state_well)
+    bhp = bottom_hole_pressure(state_well)
+    total_mass = state_well.TotalMasses[1, well_top_node()]
+    q_t += 0*bhp + 0*total_mass
 
     if isa(ctrl, InjectorControl)
         if value(q_t) < 0
