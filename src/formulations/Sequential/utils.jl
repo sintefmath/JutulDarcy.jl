@@ -82,7 +82,7 @@ function Jutul.simulator_config(
         transport_substeps = 1,
         saturation_tol = 1e-2,
         mobility_tol = 1e-2,
-        sfi = true,
+        sfi = false,
         linear_solver = missing,
         kwarg...
     )

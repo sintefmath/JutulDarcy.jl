@@ -72,15 +72,21 @@ function convert_to_sequential(model; avg_mobility = false, pressure = true, cor
     return seqmodel
 end
 
+function transport_set_corrected_phase_variable!(vars, k, nph)
+    sym = Symbol(k, :Uncorrected)
+    @assert haskey(vars, k) "Cannot correct $k, not present in variables: $(keys(vars))"
+    vars[sym] = vars[k]
+    vars[k] = TotalSaturationCorrectedVariable(sym, nph)
+    return vars
+end
+
 function set_density_correction!(vars, prm, nph)
     if haskey(vars, :ShrinkageFactors)
         k = :ShrinkageFactors
     else
         k = :PhaseMassDensities
     end
-    @assert haskey(vars, k)
-    vars[:UncorrectedVariable] = vars[k]
-    vars[k] = TotalSaturationCorrectedVariable(:UncorrectedVariable, nph)
+    transport_set_corrected_phase_variable!(vars, k, nph)
     return vars
 end
 
@@ -89,13 +95,9 @@ function set_volume_correction!(vars, prm, nph)
     has_mass_mobility = haskey(vars, :PhaseMassMobilities)
     has_saturations = haskey(vars, :Saturations)
 
-    function correct_phase_variable!(k)
-        sym = Symbol(k, "Uncorrected")
-        vars[sym] = vars[k]
-        vars[k] = TotalSaturationCorrectedVariable(sym, nph)
-    end
+
     if haskey(vars, :SurfaceMassMobilities)
-        correct_phase_variable!(:SurfaceMassMobilities)
+        transport_set_corrected_phase_variable!(vars, :SurfaceMassMobilities, nph)
     end
     if has_mass_mobility
         k = :PhaseMassMobilities
@@ -103,7 +105,7 @@ function set_volume_correction!(vars, prm, nph)
         k = :Saturations
     end
     @assert haskey(vars, k) "Expected $k in $(keys(vars))"
-    correct_phase_variable!(k)
+    transport_set_corrected_phase_variable!(vars, k, nph)
 
     if k != :Saturations
         if haskey(prm, :StaticFluidVolume)
