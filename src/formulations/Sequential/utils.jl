@@ -83,6 +83,7 @@ function Jutul.simulator_config(
         saturation_tol = 1e-2,
         mobility_tol = 1e-2,
         sfi = true,
+        linear_solver = missing,
         kwarg...
     )
     cfg = Jutul.JutulConfig("Simulator config")
