@@ -60,7 +60,8 @@ end
         mob_t = mob_1 + mob_2
         return (1/mob_t*V_t, 1/mob_t*V_t)
     end
-    return phase_potential_upwind_potential_differences(V_t, T_f, G, left_mob, right_mob)
+    # TODO: Why is the mobility order swapped here? Sign bug/convetion somewhere?
+    return phase_potential_upwind_potential_differences(V_t, T_f, G, right_mob, left_mob)
 end
 
 
