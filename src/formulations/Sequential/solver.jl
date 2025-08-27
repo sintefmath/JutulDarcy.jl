@@ -303,7 +303,7 @@ function transport_forces(tsim, psim, forces)
             if ctrl isa JutulDarcy.InjectorControl
                 if ctrl.target isa JutulDarcy.BottomHolePressureTarget
                     q_w = JutulDarcy.compute_well_qoi(pmodel, psim.storage.state, forces, wname, :rate)
-                    new_ctrl = JutulDarcy.replace_target(ctrl, TotalRateTarget(q_w))
+                    new_ctrl = JutulDarcy.replace_target(ctrl, JutulDarcy.TotalRateTarget(q_w))
                 else
                     new_ctrl = ctrl
                 end
