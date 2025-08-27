@@ -11,7 +11,8 @@ function convert_to_sequential(model; avg_mobility = false, pressure = true, cor
         if model_or_domain_is_well(model)
             correction = :well
         else
-            correction = :volume
+            # correction = :volume
+            correction = :density
         end
     end
     transport = !pressure

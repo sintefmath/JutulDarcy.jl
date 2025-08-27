@@ -86,7 +86,7 @@ function Jutul.update_cross_term_in_entity!(out, i,
     end
     injecting = q_p > 0.0
     if injecting
-        q_p *= state_s.TotalSaturation[conn.well]
+        # q_p *= state_s.TotalSaturation[conn.well]
     end
     conn = (
         dp = q_p/(mobt*conn.WI),
