@@ -70,6 +70,10 @@ function convert_to_sequential(model; avg_mobility = false, pressure = true, cor
             delete!(seqmodel.parameters, pkey)
         end
     end
+    for k in model.output_variables
+        push!(seqmodel.output_variables, k)
+    end
+    unique!(seqmodel.output_variables)
     return seqmodel
 end
 
