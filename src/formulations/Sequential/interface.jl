@@ -89,16 +89,22 @@ function set_volume_correction!(vars, prm, nph)
     has_mass_mobility = haskey(vars, :PhaseMassMobilities)
     has_saturations = haskey(vars, :Saturations)
 
+    function correct_phase_variable!(k)
+        sym = Symbol(k, "Uncorrected")
+        vars[sym] = vars[k]
+        vars[k] = TotalSaturationCorrectedVariable(sym, nph)
+    end
+    if haskey(vars, :SurfaceMassMobilities)
+        correct_phase_variable!(:SurfaceMassMobilities)
+    end
     if has_mass_mobility
         k = :PhaseMassMobilities
-    elseif has_mobility
-        k = :SurfaceVolumeMobilities
     elseif has_saturations
         k = :Saturations
     end
     @assert haskey(vars, k) "Expected $k in $(keys(vars))"
-    vars[:UncorrectedVariable] = vars[k]
-    vars[k] = TotalSaturationCorrectedVariable(:UncorrectedVariable, nph)
+    correct_phase_variable!(k)
+
     if k != :Saturations
         if haskey(prm, :StaticFluidVolume)
             pv_key = :StaticFluidVolume
