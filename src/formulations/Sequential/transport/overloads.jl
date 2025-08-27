@@ -37,8 +37,9 @@ end
     @assert N == number_of_phases(model.system)
     l, r = Jutul.cell_pair(upw)
 
-    left_mob = map(phase -> state.PhaseMobilities[phase, l], phases)
-    right_mob = map(phase -> state.PhaseMobilities[phase, r], phases)
+    mob(phase, c) = @inbounds state.PhaseMobilities[phase, c]
+    left_mob = map(phase -> mob(phase, l), phases)
+    right_mob = map(phase -> mob(phase, r), phases)
 
     T_f = effective_transmissibility(state, face, kgrad)
     gΔz = effective_gravity_difference(state, face, kgrad)
