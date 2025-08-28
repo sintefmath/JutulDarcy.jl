@@ -64,6 +64,8 @@ function compute_well_qoi(model::MultiModel, state, forces, well::Symbol, target
             target = SurfaceGasRateTarget
         elseif target == :bhp
             target = BottomHolePressureTarget
+        elseif target == :rate
+            target = TotalRateTarget
         else
             error("Unsupported QoI symbol $target.")
         end

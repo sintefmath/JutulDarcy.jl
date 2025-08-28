@@ -12,24 +12,29 @@
 Dirchlet boundary condition for constant values (pressure/temperature) at some inflow boundary
 """
 function FlowBoundaryCondition(
-    cell::Int,
-    pressure = DEFAULT_MINIMUM_PRESSURE,
-    temperature = 298.15;
-    fractional_flow = nothing,
-    density = nothing,
-    trans_flow = 1e-12,
-    trans_thermal = 1e-6
+        cell::Int,
+        pressure = DEFAULT_MINIMUM_PRESSURE,
+        temperature = 298.15;
+        fractional_flow = nothing,
+        density = nothing,
+        trans_flow = 1e-12,
+        trans_thermal = 1e-6
     )
-    @assert isnothing(density) || density > 0.0 "Density, if provided, must be positive"
+    pressure >= DEFAULT_MINIMUM_PRESSURE || throw(ArgumentError("Pressure must be at least $DEFAULT_MINIMUM_PRESSURE"))
+    temperature >= 0.0 || throw(ArgumentError("Temperature must be at least 0.0 K"))
+
+    isnothing(density) || density > 0.0 || error("Density, if provided, must be positive")
     if isnothing(fractional_flow)
         f = fractional_flow
     else
+        T = promote_type(eltype(fractional_flow), typeof(pressure))
+        fractional_flow = convert.(T, fractional_flow)
+        pressure = convert(T, pressure)
         f = Tuple(fractional_flow)
-        @assert all(f .>= 0) "Fractional flow must be non-negative: $f"
-        @assert sum(f) == 1.0 "Fractional flow for boundary condition in cell $cell must sum to 1."
+        all(f .>= 0) || error("Fractional flow must be non-negative: $f")
+        sum(f) == 1.0 || error("Fractional flow for boundary condition in cell $cell must sum to 1.")
     end
-    @assert pressure >= DEFAULT_MINIMUM_PRESSURE
-    @assert temperature >= 0.0
+    pressure, temperature, trans_flow, trans_thermal = promote(pressure, temperature, trans_flow, trans_thermal)
     return FlowBoundaryCondition(cell, pressure, temperature, trans_flow, trans_thermal, f, density)
 end
 
@@ -116,6 +121,7 @@ function flow_boundary_condition!(bc, domain, cells, pressures, temperatures = 2
         bc_c = FlowBoundaryCondition(domain, cell, pressure, temperature; kwarg...)
         push!(bc, bc_c)
     end
+
     return bc
 end
 
@@ -155,7 +161,7 @@ function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D,
     for bc in force
         c = bc.cell
         acc_i = view(acc, :, c)
-        q = compute_bc_mass_fluxes(bc, state, nph)
+        q = compute_bc_mass_fluxes(bc, global_map(model), state, nph)
         apply_flow_bc!(acc_i, q, bc, model, state, time)
     end
 end
@@ -166,12 +172,12 @@ function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D,
     for bc in force
         c = bc.cell
         acc_i = view(acc, :, c)
-        qh_adv, qh_cond = compute_bc_heat_fluxes(bc, state, nph)
+        qh_adv, qh_cond = compute_bc_heat_fluxes(bc, global_map(model), state, nph)
         apply_flow_bc!(acc_i, qh_adv + qh_cond, bc, model, state, time)
     end
 end
 
-function compute_bc_mass_fluxes(bc, state, nph)
+function compute_bc_mass_fluxes(bc, gmap, state, nph)
     # Get reservoir properties
     p   = state.Pressure
     mu  = state.PhaseViscosities
@@ -179,7 +185,7 @@ function compute_bc_mass_fluxes(bc, state, nph)
     rho = state.PhaseMassDensities
     @assert size(kr, 1) == nph
     # Get boundary properties
-    c       = bc.cell
+    c       = Jutul.full_cell(bc.cell, gmap)
     T_f     = bc.trans_flow
     rho_inj = bc.density
     f_inj   = bc.fractional_flow
@@ -242,9 +248,9 @@ function compute_bc_mass_fluxes(bc, state, nph)
     return q
 end
 
-function compute_bc_heat_fluxes(bc, state, nph)
-    q = compute_bc_mass_fluxes(bc, state, nph)
-    c = bc.cell
+function compute_bc_heat_fluxes(bc, gmap, state, nph)
+    q = compute_bc_mass_fluxes(bc, gmap, state, nph)
+    c = Jutul.full_cell(bc.cell, gmap)
 
     # Get reservoir properties
     p = state.Pressure
@@ -284,14 +290,6 @@ function compute_bc_heat_fluxes(bc, state, nph)
     qh_conductive = T_h*ΔT
 
     return qh_advective, qh_conductive
-end
-
-function compute_bc_heat_fluxes(bc, state)
-    c = bc.cell
-    T_f = bc.trans_flow
-    Δp = p[c] - bc.pressure
-    q = T_f*Δp
-    return q
 end
 
 function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, time) where T<:Union{ImmiscibleSystem, SinglePhaseSystem}

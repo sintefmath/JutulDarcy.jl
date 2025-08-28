@@ -602,8 +602,7 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
     @assert void_fraction[1] == 1.0 "Void fraction for accumulator node must be 1.0"
 
     if isnothing(segment_models)
-        segment_models = Vector{SegmentWellBoreFrictionHB{Float64}}()
-        for seg in 1:nseg
+        function setup_wbfriction(seg)
             l, r = N[:, seg]
             if isnothing(segment_length)
                 L = norm(ext_centers[:, l] - ext_centers[:, r], 2)
@@ -615,9 +614,9 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
                 end
             end
             diameter = segment_radius[seg]*2
-            Δp = SegmentWellBoreFrictionHB(L, friction[seg], diameter)
-            push!(segment_models, Δp)
+            return SegmentWellBoreFrictionHB(L, friction[seg], diameter)
         end
+        segment_models = map(setup_wbfriction, 1:nseg)
     else
         segment_models::AbstractVector
         @assert length(segment_models) == nseg

@@ -543,6 +543,26 @@ function deck_relperm(runspec, props; oil, water, gas, satnum = nothing)
                 push!(tables_krg, krg)
             end
         end
+        if haskey(props, "GSF")
+            # SG, KRG, PCWG
+            for gsf in props["GSF"]
+                # Gas
+                sg = gsf[:, 1]
+                krg_t = gsf[:, 2]
+                krg = PhaseRelativePermeability(sg, krg_t, label = :g)
+                push!(tables_krg, krg)
+            end
+        end
+        if haskey(props, "WSF")
+            # SW, KRW
+            for wsf in props["WSF"]
+                # Gas
+                sw = wsf[:, 1]
+                krw_t = wsf[:, 2]
+                krw = PhaseRelativePermeability(sw, krw_t, label = :w)
+                push!(tables_krw, krw)
+            end
+        end
     end
     function convert_to_tuple_or_nothing(x, keep)
         if !keep || length(x) == 0
@@ -648,6 +668,19 @@ function deck_pc(props; oil, water, gas, satnum = nothing, is_co2 = false)
         push!(pc_impl, interp_og)
     else
         found_pcog = false
+    end
+    if water && gas && !oil
+        if haskey(props, "WSF") && false
+            interp_wg, found_pcwg = get_pc(props["WSF"], 3, sgn = -1)
+            if found_pcwg
+                jutul_message("WSF", "WSF capillary pressure is not well tested.", color = :yellow)
+            end
+            push!(pc_impl, interp_wg)
+        else
+            found_pcwg = false
+        end
+    else
+        found_pcwg = false
     end
     found = found_pcow || found_pcog
     if found
