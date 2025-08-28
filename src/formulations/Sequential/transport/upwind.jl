@@ -49,7 +49,7 @@ end
 function phase_potential_upwind_fixed_flux(q, K, g::NTuple{N, T}, k_l::NTuple{N, V}, k_r::NTuple{N, V}, debug::Bool = false) where {T, N, V}
     if N == 1
         flag = q < zero(q)
-        flags = (q,)
+        flags = (flag,)
     else
         vals = q .+ K.*g
         indices = sort_tuple(vals)
