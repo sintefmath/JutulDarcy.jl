@@ -16,7 +16,8 @@ end
 
 # C_max::Float64 
 # This parameter is defined to prevent excessive accumulation of surfactant in the gas/liquid phase 
-# For example: When injecting both gas and surfactant with a small k_d, it could lead to unreasonably high surfactant concentrations in liquid phase.
+# For example: When injecting both gas and gas-soluable surfactant with a small k_d, it could lead to unreasonably high surfactant concentrations in liquid phase.
+#
 # Surfactant Tracer Transport Model
 #
 # This implementation models the transport of a surfactant tracer in a multiphase flow system.
@@ -89,10 +90,6 @@ end
 
 Tracers.tracer_phase_indices(t::SurfactantTracer) = t.phase_indices
 
-function number_of_surfactant(t::TracerFluxType)
-    return count(tracer -> isa(tracer, SurfactantTracer), t.tracers)
-end
-
 
 struct LiquidSurfConcentration<: Jutul.ScalarVariable
     tracer_ix::Int
@@ -108,14 +105,11 @@ function Jutul.update_secondary_variable!(cl, def::LiquidSurfConcentration, mode
     k_d=surf_tracer.k_d
     Concentration_limit=surf_tracer.Concentration_limit
     cg=state.GasSurfConcentration
-    old_cl= state.OldCl
-    factor=model.parameters[:OldCl].factor
     for cell in ix
         ceff = TracerConcentrations[def.tracer_ix, cell]
         (liquid_mass, gas_mass)=compute_phase_masses(surf_tracer, state, cell, gas_index)
         if ismissing(Concentration_limit) || Concentration_limit == "Liquid"
-            cl_new=ceff*(gas_mass+liquid_mass)/(k_d*gas_mass+liquid_mass)
-            cl[cell]=min(cl_new*(1-factor)+old_cl[cell]*factor,C_max)
+            cl[cell]=min(ceff*(gas_mass+liquid_mass)/(k_d*gas_mass+liquid_mass),C_max)
         else
             if liquid_mass > 0
                 cl[cell]=(ceff*(gas_mass+liquid_mass)-cg[cell]*gas_mass)/liquid_mass
@@ -142,14 +136,13 @@ function Jutul.update_secondary_variable!(cg, def::GasSurfConcentration, model, 
     C_max= surf_tracer.C_max # Wanted max tracerconcentration in liquid phase
     gas_index = findfirst(ph -> ph == VaporPhase(), get_phases(model.system))
     k_d=surf_tracer.k_d
-    #just want avoid tracer concentration in liquid get a too big value
     cl=state.LiquidSurfConcentration
     Concentration_limit=surf_tracer.Concentration_limit
     for cell in ix
         ceff = TracerConcentrations[def.tracer_ix, cell]
         (liquid_mass, gas_mass)=compute_phase_masses(surf_tracer, state, cell, gas_index)
         if !ismissing(Concentration_limit) && Concentration_limit == "Gas"
-            cg[cell]=min(ceff*(gas_mass+liquid_mass)*k_d)/(k_d*gas_mass+liquid_mass,C_max)
+            cg[cell]=min((ceff*(gas_mass+liquid_mass)*k_d)/(k_d*gas_mass+liquid_mass),C_max)
         else
             if gas_mass > 0
                 cg[cell] = (ceff*(gas_mass+liquid_mass) - liquid_mass*cl[cell]) / gas_mass
@@ -178,32 +171,6 @@ function compute_phase_masses(surf_tracer, state, cell, gas_index)
 end
 
 
-
-
-struct OldCl <: ScalarVariable 
-    factor::Float64
-    #Used for acquire LiquidSurfConcentration in the last step
-end
-
-function Jutul.default_value(model, v::OldCl)
-    return 0.0
-end 
-
-
-function OldCl(;factor = 0.5)
-    return OldCl(factor)
-end
-
-
-function Jutul.update_parameter_before_step!(cl, ::OldCl, storage, model, dt, forces)
-    current_cl = storage.state.LiquidSurfConcentration
-    for i in eachindex(cl)
-        old_val = cl[i]
-        new_val = Jutul.value(current_cl[i])  # 提取 Dual 类型的真实值
-        cl[i] = Jutul.replace_value(old_val, new_val)
-    end
-    return cl
-end
 
 
 
@@ -259,6 +226,12 @@ function phase_diffused_mass(D_phase, state, face, kgrad,phase)
     return -D_phase*Sa*face_average(den, kgrad)
 end
 
+    
+
+#CMG-STARS surfactant model
+#Fmfactor should works on gas relative permeability
+#But in this model Fmfactor works on gas viscosity
+
 
 struct FmFactor{V}<:Jutul.ScalarVariable
     epdry::V
@@ -272,9 +245,6 @@ end
 
 function FmFactor(; epdry=500.0, fmdry=0.25, fmsurf=2.5, epsurf=1.0, fommb=500.0)
     return FmFactor(epdry, fmdry, fmsurf, epsurf, fommb)
-    #CMG-STARS surfactant model
-    #Fmfactor should works on gas relative permeability
-    #But in this model Fmfactor works on gas viscosity
 end
 
 
@@ -283,14 +253,11 @@ function Jutul.default_value(model, v::FmFactor)
 end 
 
 
-@jutul_secondary function update_Fmfactor!(fm, Fm_def::FmFactor, model, ClVolumetricConcentration, Saturations, CellNeighbors, OldCsw, OldSaturation, cells)
+@jutul_secondary function update_Fmfactor!(fm, Fm_def::FmFactor, model, ClVolumetricConcentration, Saturations, cells)
     epdry, fmdry, fmsurf, epsurf, fommb = Fm_def.epdry, Fm_def.fmdry, Fm_def.fmsurf, Fm_def.epsurf, Fm_def.fommb
     phases = get_phases(model.system)
     gas_index = findfirst(ph -> ph == VaporPhase(), phases)
-    factor_space = model.parameters[:CellNeighbors].space_factor
-    factor_csw = model.parameters[:OldCsw].factor
-    factor_sl = model.parameters[:OldSaturation].factor
-    
+
     if length(phases) != 2 || gas_index === nothing
         error("This Fmfactor only work for two-phase system with VaporPhase present")
     end
@@ -298,55 +265,14 @@ end
     liquid_index = 3 - gas_index
     
     for i in cells
-
-        Csw = apply_time_weighting(ClVolumetricConcentration[i], OldCsw[i], factor_csw)
-        sl = apply_time_weighting(Saturations[liquid_index, i], OldSaturation[liquid_index, i], factor_sl )
-        
-        if factor_space  != 1.0 && !isempty(CellNeighbors[i])
-            sum_Csw = 0.0
-            sum_sl = 0.0
-            sum_weight = 0.0
-            count = 0
-            for (j, nb) in enumerate(CellNeighbors[i])
-  
-                time_weighted_Csw = apply_time_weighting(ClVolumetricConcentration[nb], OldCsw[nb], factor_csw)
-                time_weighted_sl = apply_time_weighting(Saturations[liquid_index, nb], OldSaturation[liquid_index, nb], factor_sl )
-                
-                sum_Csw+=time_weighted_Csw
-                sum_sl +=time_weighted_sl
-                count += 1
-
-            end
-            
-            Csw_neighbors_mean = sum_Csw / count
-            sl_neighbors_mean = sum_sl / count
-        else
-            Csw_neighbors_mean = Csw
-            sl_neighbors_mean = sl
-        end
-    
-        # 应用空间加权
-        Csw = factor_space * Csw + (1 - factor_space ) * Csw_neighbors_mean
-        sl = factor_space  * sl + (1 - factor_space ) * sl_neighbors_mean
-        
-        # 计算Fm因子
+        Csw = ClVolumetricConcentration[i]
+        sl = Saturations[liquid_index, i]
         F_dry = get_F_dry(sl, epdry, fmdry)
         F_surf = get_F_surfactant(Csw, fmsurf, epsurf)
         fm[i] = 1 / (1 + fommb * F_dry * F_surf)
     end
     
     return fm
-end
-
-
-function apply_time_weighting(current_val, old_val, factor)
-    if factor == 1.0
-        return current_val
-    elseif factor == 0.0
-        return old_val
-    else
-        return current_val * factor + old_val *(1-factor) 
-    end
 end
 
 
@@ -392,83 +318,6 @@ function Jutul.update_secondary_variable!(cl_vol, def::ClVolumetricConcentration
     return cl_vol
 end
 
-
-struct OldCsw <: ScalarVariable 
-    factor::Float64
-    #Used for acquire LiquidSurfConcentration in the last step
-end
-
-function Jutul.default_value(model, v::OldCsw)
-    return 0.0
-end 
-
-function OldCsw(;factor = 1.0)
-    return OldCsw(factor)
-end
-
-
-function Jutul.update_parameter_before_step!(csw, ::OldCsw, storage, model, dt, forces)
-    current_csw = storage.state.ClVolumetricConcentration
-    for i in eachindex(csw)
-        old_val = csw[i]
-        new_val = Jutul.value(current_csw[i])  # 提取 Dual 类型的真实值
-        csw[i] = Jutul.replace_value(old_val, new_val)
-    end
-    return csw
-end
-
-
-
-struct OldSaturation <: PhaseVariables 
-    factor::Float64
-    #Used for acquire LiquidSurfConcentration in the last step
-end
-
-function OldSaturation(;factor = 1.0)
-    return OldSaturation(factor)
-end
-
-
-function Jutul.update_parameter_before_step!(sat, ::OldSaturation, storage, model, dt, forces)
-    current_sat = storage.state.Saturations
-    for i in eachindex(sat)
-        old_val = sat[i]
-        new_val = Jutul.value(current_sat[i])  # 提取 Dual 类型的真实值
-        sat[i] = Jutul.replace_value(old_val, new_val)
-    end
-    return sat
-end
-
-
-struct CellNeighbors <: Jutul.ScalarVariable
-    space_factor::Float64
-end
-
-function CellNeighbors(;space_factor=1.0)
-    return CellNeighbors(space_factor)
-end
-
-function Jutul.default_values(model, var::CellNeighbors)
-    nc = number_of_entities(model, var)
-    domain = model.domain
-    neighborship = domain.representation.neighborship
-    neighbors = Vector{Vector{Int}}(undef, nc)
-    for i in 1:nc
-        neighbors[i] = find_neighbors(neighborship, i)
-    end
-    return neighbors
-end
-
-function find_neighbors(neighborship::AbstractMatrix, cell_id::Integer)
-    neighbors = Int[]
-    for pair in eachcol(neighborship)
-        i, j = pair
-        i == cell_id && push!(neighbors, j)
-        j == cell_id && push!(neighbors, i)
-    end
-    unique!(sort!(neighbors))  # 可选排序，保持结果一致性
-    return neighbors
-end
 
 
 
@@ -537,18 +386,9 @@ function set_surfactant_model!(model::SimulationModel;is_well=false)
     ClVolumetricConcentration=ClVolumetricConcentration()
     )
 
-    set_parameters!(model,
-    OldCsw=OldCsw(),
-    OldCl=OldCl())
-
     if !is_well
         prms = Jutul.get_variables_by_type(model, :parameters)
         svars = Jutul.get_variables_by_type(model, :secondary)
-        set_parameters!(model,
-        CellNeighbors = CellNeighbors(),
-        OldSaturation=OldSaturation(),
-        )
-
         set_secondary_variables!(model,
         FmFactor=FmFactor(),)
         if haskey(prms, :PhaseViscosities)

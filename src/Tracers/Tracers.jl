@@ -11,5 +11,5 @@ module Tracers
     include("facility.jl")
     include("api.jl")
     include("polymer.jl")
-    include("tracer_surfactant_new.jl")
+    include("tracer_surfactant.jl")
 end
