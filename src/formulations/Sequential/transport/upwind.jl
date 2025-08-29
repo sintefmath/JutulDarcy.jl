@@ -1,4 +1,4 @@
-function sort_tuple(vals::NTuple{2, T}) where T
+function sort_tuple_indices(vals::NTuple{2, T}) where T
     a, b = vals
     if a < b
         ix = (1, 2)
@@ -8,7 +8,7 @@ function sort_tuple(vals::NTuple{2, T}) where T
     return ix
 end
 
-function sort_tuple(vals::NTuple{3, T}) where T
+function sort_tuple_indices(vals::NTuple{3, T}) where T
     v1, v2, v3 = vals
     if v1 < v2
         if v1 < v3
@@ -52,7 +52,7 @@ function phase_potential_upwind_fixed_flux(q, K, g::NTuple{N, T}, k_l::NTuple{N,
         flags = (flag,)
     else
         vals = q .+ K.*g
-        indices = sort_tuple(vals)
+        indices = sort_tuple_indices(vals)
         if N == 2
             i1, i2 = indices
             Δg = g[i1] - g[i2]

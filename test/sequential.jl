@@ -3,25 +3,27 @@ import JutulDarcy.Sequential:
     phase_potential_r_index,
     phase_potential_upwind_fixed_flux,
     phase_potential_upwind_potential_differences,
-    sort_tuple
+    sort_tuple_indices
 using Test
 @testset "sequential_upwind" begin
     @testset "sort_tuple" begin
-        @test sort_tuple((10.0, 5.0)) == (2, 1)
-        @test sort_tuple((5.0, 10.0)) == (1, 2)
+        @test sort_tuple_indices((10.0, 5.0)) == (2, 1)
+        @test sort_tuple_indices((5.0, 10.0)) == (1, 2)
 
-        combos = [
-            ((1, 2, 3), (1, 2, 3)),
-            ((1, 3, 2), (1, 3, 2)),
-            ((2, 1, 3), (2, 1, 3)),
-            ((2, 3, 1), (3, 1, 2)),
-            ((3, 1, 2), (2, 3, 1)),
-            ((3, 2, 1), (3, 2, 1))
+        tups = [
+            (1, 2, 3),
+            (1, 3, 2),
+            (2, 1, 3),
+            (2, 3, 1),
+            (3, 1, 2),
+            (3, 2, 1)
         ]
 
         vals = [10.0, 50.0, 500.0]
-        for (ix, ref) in combos
-            @test sort_tuple((vals[ix[1]], vals[ix[2]], vals[ix[3]])) == ref
+        for ix in tups
+            V = (vals[ix[1]], vals[ix[2]], vals[ix[3]])
+            ref = sort(eachindex(V), by = i -> V[i])
+            @test sort_tuple_indices(V) == Tuple(ref)
         end
     end
 
