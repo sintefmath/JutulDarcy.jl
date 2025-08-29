@@ -958,7 +958,9 @@ function setup_reservoir_simulator(case::JutulCase;
         if method == :newton
             sim = Simulator(case; sim_kwarg...)
         elseif method == :sequential || method == :si || method == :sfi
-            extra_kwarg[:sfi] = method == :sfi
+            if method == :si || method == :sfi
+                extra_kwarg[:sfi] = method == :sfi
+            end
             sim = JutulDarcy.Sequential.SequentialSimulator(case; sim_kwarg...)
         else
             extra_kwarg[:method] = method
