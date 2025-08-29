@@ -58,8 +58,6 @@ function phase_potential_upwind_fixed_flux(q, K, g::NTuple{N, T}, k_l::NTuple{N,
             Δg = g[i1] - g[i2]
             θ_1 = q + K*Δg*k_r[i2]
             θ_2 = q - K*Δg*k_l[i1]
-            pos_1 = θ_1 >= 0
-            pos_2 = θ_2 >= 0
             r = phase_potential_r_index(θ_1, θ_2)
             if debug
                 @info "" q θ_1 θ_2 r k_l k_r g indices
@@ -72,10 +70,6 @@ function phase_potential_upwind_fixed_flux(q, K, g::NTuple{N, T}, k_l::NTuple{N,
             θ_1 = q + K*(Δg_12*k_r[i2] + Δg_13*k_r[i3])
             θ_2 = q + K*(-Δg_12*k_l[i1] + Δg_23*k_r[i3])
             θ_3 = q + K*(-Δg_13*k_l[i1] - Δg_23*k_l[i2])
-
-            pos_1 = θ_1 >= 0
-            pos_2 = θ_2 >= 0
-            pos_3 = θ_3 >= 0
 
             r = phase_potential_r_index(θ_1, θ_2, θ_3)
             if debug
@@ -104,21 +98,22 @@ function phase_potential_upwind_potential_differences(V_t, T_f, G::NTuple{N, T},
     mob = map(simple_upwind, left_mob, right_mob, flags)
     mobT = sum(mob)
 
+    F = 1.0/mobT
     if N == 2
         G_1, G_2 = G
         mob_1, mob_2 = mob
 
-        dpot_1 = 1.0/mobT*(V_t + T_f*(G_1 - G_2)*mob_2)
-        dpot_2 = 1.0/mobT*(V_t + T_f*(G_2 - G_1)*mob_1)
+        dpot_1 = F*(V_t + T_f*(G_1 - G_2)*mob_2)
+        dpot_2 = F*(V_t + T_f*(G_2 - G_1)*mob_1)
         phase_potential_differences = (dpot_1, dpot_2)
     else
         @assert N == 3
         G_1, G_2, G_3 = G
         mob_1, mob_2, mob_3 = mob
 
-        dpot_1 = 1.0/mobT*(V_t + T_f*(G_1 - G_2)*mob_2 + T_f*(G_1 - G_3)*mob_3)
-        dpot_2 = 1.0/mobT*(V_t + T_f*(G_2 - G_1)*mob_1 + T_f*(G_2 - G_3)*mob_3)
-        dpot_3 = 1.0/mobT*(V_t + T_f*(G_3 - G_1)*mob_1 + T_f*(G_3 - G_2)*mob_2)
+        dpot_1 = F*(V_t + T_f*(G_1 - G_2)*mob_2 + T_f*(G_1 - G_3)*mob_3)
+        dpot_2 = F*(V_t + T_f*(G_2 - G_1)*mob_1 + T_f*(G_2 - G_3)*mob_3)
+        dpot_3 = F*(V_t + T_f*(G_3 - G_1)*mob_1 + T_f*(G_3 - G_2)*mob_2)
         phase_potential_differences = (dpot_1, dpot_2, dpot_3)
     end
     return phase_potential_differences
