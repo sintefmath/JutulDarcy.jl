@@ -250,6 +250,24 @@ struct TotalRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
 end
 Base.show(io::IO, t::TotalRateTarget) = print(io, "TotalRateTarget with value $(t.value) [m^3/s]")
 
+
+
+"""
+    TotalProductionMassRateTarget(q)
+
+Well target of specified  mass rate with value `q`  (kg/s).
+
+"""
+struct  TotalProductionMassRateTarget{T} <: WellTarget where T<:AbstractFloat
+    value::T
+    function TotalProductionMassRateTarget(v::T) where T
+        if T == Float64
+            isfinite(v) || throw(ArgumentError("Mass rate must be finite, was $v"))
+        end
+        return new{T}(v)
+    end
+end
+
 """
     TotalReservoirRateTarget(q)
 
@@ -490,6 +508,7 @@ struct ProducerControl{T, R} <: WellControlForce
 end
 
 default_limits(f::ProducerControl{T}) where T<:SurfaceVolumeTarget = merge((bhp = DEFAULT_MINIMUM_PRESSURE,), as_limit(f.target)) # 1 atm
+default_limits(f::ProducerControl{T}) where T<:TotalProductionMassRateTarget = merge((bhp = DEFAULT_MINIMUM_PRESSURE,), as_limit(f.target)) # 1 atm
 default_limits(f::ProducerControl{T}) where T<:BottomHolePressureTarget = merge((rate_lower = -MIN_ACTIVE_WELL_RATE,), as_limit(f.target))
 
 function replace_target(f::ProducerControl, target)

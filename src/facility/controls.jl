@@ -365,6 +365,19 @@ function well_target(control::ProducerControl, target::SurfaceVolumeTarget, well
     return w
 end
 
+
+"""
+Well target contribution for a producer with TotalProductionMassRateTarget.
+Always returns 1.0 so that `t = q_t` in `target_actual_pair`, i.e., the residual
+directly compares the actual total mass flow (kg/s) with the target value.
+"""
+
+function well_target(control::ProducerControl, target::TotalProductionMassRateTarget,
+                     well_model, well_state, surface_densities, surface_volume_fractions)
+    return 1.0
+end
+
+
 """
 Well target contribution from well itself (RESV, producer)
 """
