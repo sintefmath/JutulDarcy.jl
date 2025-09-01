@@ -273,3 +273,9 @@ end
         rs[i] = r
     end
 end
+
+function JutulDarcy.set_default_cnv_mb!(config::Jutul.JutulConfig, sim::SequentialSimulator; kwarg...)
+    JutulDarcy.set_default_cnv_mb!(config[:pressure], sim.pressure; kwarg...)
+    JutulDarcy.set_default_cnv_mb!(config[:transport], sim.transport; kwarg...)
+    return config
+end

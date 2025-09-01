@@ -863,14 +863,25 @@ end
 - `min_timestep=0.0`: Minimum internal timestep used in solver.
 
 ## Convergence criterions
+The main numerical tolerances that govern the accuracy of the simulation. The
+default values are quite strict and can be relaxed for faster simulation. The
+main tolerance to adjust is the `tol_cnv` value, which is the maximum point-wise
+error allowed for the volume balance. The mass-balance tolerance (`tol_mb`) is
+typically much smaller and should not be adjusted unless you have a very good
+reason to do so.
+
+Pressure tolerances are at the moment only implemented for compositional and
+pressure models. The default value is `Inf` for compositional, and sensible
+values for pressure models.
+
 - `tol_cnv=1e-3`: maximum allowable point-wise error (volume-balance)
 - `tol_mb=1e-7`: maximum alllowable integrated error (mass-balance)
 - `tol_cnv_well=10*tol_cnv`: maximum allowable point-wise error for well node
   (volume-balance)
 - `tol_mb_well=1e4*tol_mb`: maximum alllowable integrated error for well node
   (mass-balance)
-- `inc_tol_dp_abs=Inf`: Maximum allowable pressure change (absolute)
-- `inc_tol_dp_rel=Inf`: Maximum allowable pressure change (absolute)
+- `inc_tol_dp_abs=missing`: Maximum allowable pressure change (absolute)
+- `inc_tol_dp_rel=missing`: Maximum allowable pressure change (relative)
 - `inc_tol_dz=Inf`: Maximum allowable composition change (compositional only).
 
 ## Inherited keyword arguments
@@ -925,8 +936,8 @@ function setup_reservoir_simulator(case::JutulCase;
         tol_cnv_well = 10*tol_cnv,
         tol_mb_well = 1e4*tol_mb,
         tol_dp_well = 1e-3,
-        inc_tol_dp_abs = Inf,
-        inc_tol_dp_rel = Inf,
+        inc_tol_dp_abs = missing,
+        inc_tol_dp_rel = missing,
         failure_cuts_timestep = true,
         max_timestep_cuts = 25,
         inc_tol_dz = Inf,
@@ -1156,10 +1167,25 @@ function set_default_cnv_mb_inner!(tol, model;
         tol_mb_well = 1e-3,
         tol_cnv_well = 1e-2,
         tol_dp_well = 1e-3,
-        inc_tol_dp_abs = Inf,
-        inc_tol_dp_rel = Inf,
+        inc_tol_dp_abs = missing,
+        inc_tol_dp_rel = missing,
         inc_tol_dz = Inf
-        )
+    )
+    is_pressure_model = haskey(model.equations, :pressure)
+    if ismissing(inc_tol_dp_abs)
+        if is_pressure_model
+            inc_tol_dp_abs = 0.1 # 0.1 MPa = 1 bar
+        else
+            inc_tol_dp_abs = Inf
+        end
+    end
+    if ismissing(inc_tol_dp_rel)
+        if is_pressure_model
+            inc_tol_dp_rel = 1e-3
+        else
+            inc_tol_dp_rel = Inf
+        end
+    end
     sys = model.system
     if model isa Jutul.CompositeModel && hasproperty(model.system.systems, :flow)
         sys = flow_system(model.system)
