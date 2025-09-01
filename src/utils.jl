@@ -1602,7 +1602,7 @@ end
 
 function available_well_targets(model)
     phases = get_phases(flow_system(model.system))
-    targets = [BottomHolePressureTarget, SurfaceLiquidRateTarget, TotalRateTarget]
+    targets = [BottomHolePressureTarget, SurfaceLiquidRateTarget, TotalRateTarget, TotalMassRateTarget]
     if AqueousPhase() in phases
         push!(targets, SurfaceLiquidRateTarget)
         push!(targets, SurfaceWaterRateTarget)

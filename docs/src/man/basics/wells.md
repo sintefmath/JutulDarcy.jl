@@ -57,6 +57,7 @@ HistoricalReservoirVoidageTarget
 ReservoirVoidageTarget
 DisabledTarget
 JutulDarcy.TotalReservoirRateTarget
+TotalMassRateTarget
 ```
 
 ### Implementation of well controls
