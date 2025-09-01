@@ -54,7 +54,7 @@ module JutulDarcy
     export DisabledControl
     export Wells
     export TotalMassVelocityMassFractionsFlow
-    export BottomHolePressureTarget, TotalRateTarget
+    export BottomHolePressureTarget, TotalRateTarget, TotalProductionMassRateTarget
     export SinglePhaseRateTarget, DisabledTarget
     export SurfaceLiquidRateTarget, SurfaceOilRateTarget
     export SurfaceWaterRateTarget, SurfaceGasRateTarget

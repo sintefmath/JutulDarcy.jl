@@ -196,6 +196,9 @@ function translate_limit(control::ProducerControl, name, val)
     elseif name == :resv
         v, w = val
         target_limit = ReservoirVoidageTarget(v, w)
+    elseif name == :pmrat
+        # Upper limit, total mass rate
+        target_limit = TotalProductionMassRateTarget(val)
     else
         error("$name limit not supported for well acting as producer.")
     end

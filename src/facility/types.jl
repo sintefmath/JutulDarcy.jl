@@ -255,7 +255,7 @@ Base.show(io::IO, t::TotalRateTarget) = print(io, "TotalRateTarget with value $(
 """
     TotalProductionMassRateTarget(q)
 
-Well target of specified  mass rate with value `q`  (kg/s).
+Well target of specified production mass rate with value `q`  (kg/s).
 
 """
 struct  TotalProductionMassRateTarget{T} <: WellTarget where T<:AbstractFloat
@@ -847,6 +847,18 @@ function well_target_information(t::Val{:wcut})
         is_rate = false
     )
 end
+
+function well_target_information(t::Union{TotalProductionMassRateTarget, Val{:pmrat}})
+    return well_target_information(
+        symbol = :pmrat,
+        description = "Total production mass rate",
+        explanation = "Total mass rate of fluids produced by the well.",
+        unit_type = :mass,
+        unit_label = "kg/s",
+        is_rate = true
+    )
+end
+
 
 function realize_control_for_reservoir(state, ctrl, model, dt)
     return (ctrl, false)
