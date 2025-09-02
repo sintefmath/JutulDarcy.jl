@@ -298,7 +298,9 @@ function transport_forces(tsim, psim, forces)
         fstate = psim.storage[fkey].state
         new_controls = Dict{Symbol, Any}()
         for (wno, wname) in enumerate(tsim.model[fkey].domain.well_symbols)
-            ctrl = t_forces[fkey].control[wname]
+            # Note: To handle well switches we need to take the current control from the pressure solver.
+            # ctrl = t_forces[fkey].control[wname]
+            ctrl = fstate.WellGroupConfiguration.operating_controls[wname]
             wstate = psim.storage.state[wname]
             if ctrl isa JutulDarcy.InjectorControl
                 if ctrl.target isa JutulDarcy.BottomHolePressureTarget
