@@ -2545,7 +2545,7 @@ function reservoir_measurables(model, wellresult, states = missing;
         if use_prefix
             name = Symbol(prefix, name)
         end
-        out[name] = (values = values, legend = "$prefix_str legend", unit_type = unit, is_rate = is_rate)
+        out[name] = (values = values, legend = "$prefix_str $legend", unit_type = unit, is_rate = is_rate)
         return values
     end
     # Production of different types
