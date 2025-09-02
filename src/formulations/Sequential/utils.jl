@@ -246,11 +246,26 @@ end
 
 function Jutul.update_after_step!(sim::SequentialSimulator, dt, forces; kwarg...)
     # First, sync up state and state0 for transport
-    Jutul.update_after_step!(sim.transport, dt, forces; kwarg...)
+    r_t = Jutul.update_after_step!(sim.transport, dt, forces; kwarg...)
     # NOTE: This part must be done carefully so that the pressure contains the
     # final solution from the last transport solve.
     sequential_sync_values!(sim, to_key = :pressure, kind = :init_keys)
-    Jutul.update_after_step!(sim.pressure, dt, forces; kwarg...)
+    r_p = Jutul.update_after_step!(sim.pressure, dt, forces; kwarg...)
+    function merge_rep(m, p, t)
+        for (k, v) in pairs(p)
+            if k == :Pressure
+                t[k] = v
+            end
+        end
+        return t
+    end
+    function merge_rep(m::Jutul.MultiModel, p, t)
+        for k in Jutul.submodels_symbols(m)
+            t[k] = merge_rep(m[k], p[k], t[k])
+        end
+        return t
+    end
+    return merge_rep(sim.transport.model, r_p, r_t)
 end
 
 
