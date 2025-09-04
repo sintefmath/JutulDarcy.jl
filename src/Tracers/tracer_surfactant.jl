@@ -1,11 +1,9 @@
 
-import JutulDarcy: Tracers, get_phases,model_or_domain_is_well,phase_indices,upwind,face_average,gradient
-
-using Jutul
+import JutulDarcy: get_phases,model_or_domain_is_well,phase_indices,upwind,face_average,gradient
 import JutulDarcy: PhaseVariables
 
 
-struct SurfactantTracer{N} <: Tracers.AbstractTracer
+struct SurfactantTracer{N} <: AbstractTracer
     phase_indices::NTuple{N, Int64}
     k_d::Float64   #Cg=k_d*Cl, where Cl is the surfactant concentration in liquid
     Concentration_limit::Union{String, Missing}
@@ -88,7 +86,7 @@ function SurfactantTracer(system::MultiPhaseSystem;k_d=1.0,Concentration_limit=m
     return SurfactantTracer{N}(tuple((1:N)...),k_d,Concentration_limit,C_max,D)
 end
 
-Tracers.tracer_phase_indices(t::SurfactantTracer) = t.phase_indices
+tracer_phase_indices(t::SurfactantTracer) = t.phase_indices
 
 
 struct LiquidSurfConcentration<: Jutul.ScalarVariable
@@ -158,7 +156,7 @@ end
 function compute_phase_masses(surf_tracer, state, cell, gas_index)
     liquid_mass = 0.0
     gas_mass = 0.0
-    for phase in Tracers.tracer_phase_indices(surf_tracer)
+    for phase in tracer_phase_indices(surf_tracer)
         S = state.Saturations[phase, cell]
         den = state.PhaseMassDensities[phase, cell]
         if phase == gas_index

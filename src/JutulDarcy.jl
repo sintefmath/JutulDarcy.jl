@@ -210,8 +210,8 @@ module JutulDarcy
 
     # Tracers
     include("Tracers/Tracers.jl")
-    import JutulDarcy.Tracers: SinglePhaseTracer, MultiPhaseTracer, add_tracers_to_model!, number_of_tracers
-    export SinglePhaseTracer, MultiPhaseTracer, add_tracers_to_model!, number_of_tracers
+    import JutulDarcy.Tracers: SinglePhaseTracer, MultiPhaseTracer, add_tracers_to_model!, number_of_tracers, SurfactantTracer, FmFactor, set_surfactant_model!
+    export SinglePhaseTracer, MultiPhaseTracer, add_tracers_to_model!, number_of_tracers, SurfactantTracer, FmFactor, set_surfactant_model!
 
 
     @compile_workload begin
