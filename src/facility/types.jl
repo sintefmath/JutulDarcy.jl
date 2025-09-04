@@ -250,6 +250,28 @@ struct TotalRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
 end
 Base.show(io::IO, t::TotalRateTarget) = print(io, "TotalRateTarget with value $(t.value) [m^3/s]")
 
+
+
+"""
+    TotalMassRateTarget(q)
+
+Well target of specified mass rate with value `q` (kg/s).
+
+- `q < 0` for production control
+- `q > 0` for injection control
+
+"""
+struct  TotalMassRateTarget{T} <: WellTarget where T<:AbstractFloat
+    value::T
+    function TotalMassRateTarget(v::T) where T
+        if T == Float64
+            isfinite(v) || throw(ArgumentError("Mass rate must be finite, was $v"))
+        end
+        return new{T}(v)
+    end
+end
+Base.show(io::IO, t::TotalMassRateTarget) = print(io, "TotalMassRateTarget with value $(t.value) [kg/s]")
+
 """
     TotalReservoirRateTarget(q)
 
@@ -490,6 +512,7 @@ struct ProducerControl{T, R} <: WellControlForce
 end
 
 default_limits(f::ProducerControl{T}) where T<:SurfaceVolumeTarget = merge((bhp = DEFAULT_MINIMUM_PRESSURE,), as_limit(f.target)) # 1 atm
+default_limits(f::ProducerControl{T}) where T<:TotalMassRateTarget = merge((bhp = DEFAULT_MINIMUM_PRESSURE,), as_limit(f.target)) # 1 atm
 default_limits(f::ProducerControl{T}) where T<:BottomHolePressureTarget = merge((rate_lower = -MIN_ACTIVE_WELL_RATE,), as_limit(f.target))
 
 function replace_target(f::ProducerControl, target)
@@ -828,6 +851,18 @@ function well_target_information(t::Val{:wcut})
         is_rate = false
     )
 end
+
+function well_target_information(t::Union{TotalMassRateTarget, Val{:mrat}})
+    return well_target_information(
+        symbol = :mrat,
+        description = "Total mass rate",
+        explanation = "Total mass rate of fluids for the well. Can be used both for production wells (specifying produced mass flow) and injection wells (specifying injected mass flow).",
+        unit_type = :mass,
+        unit_label = "kg/s",
+        is_rate = true
+    )
+end
+
 
 function realize_control_for_reservoir(state, ctrl, model, dt)
     return (ctrl, false)
