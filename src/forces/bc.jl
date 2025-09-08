@@ -292,14 +292,6 @@ function compute_bc_heat_fluxes(bc, gmap, state, nph)
     return qh_advective, qh_conductive
 end
 
-# function compute_bc_heat_fluxes(bc, state)
-#     c = bc.cell
-#     T_f = bc.trans_flow
-#     Δp = p[c] - bc.pressure
-#     q = T_f*Δp
-#     return q
-# end
-
 function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, time) where T<:Union{ImmiscibleSystem, SinglePhaseSystem}
 
     for ph in eachindex(acc)
