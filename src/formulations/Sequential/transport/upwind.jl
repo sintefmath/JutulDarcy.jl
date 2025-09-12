@@ -47,13 +47,17 @@ function phase_potential_r_index(thetas...)
 end
 
 function phase_potential_upwind_fixed_flux(q, K, g::NTuple{N, T}, k_l::NTuple{N, V}, k_r::NTuple{N, V}, debug::Bool = false) where {T, N, V}
+    checks = true
     if N == 1
         flag = q < zero(q)
         flags = (flag,)
     else
-        # vals = q .+ K.*g
         # indices = sort_tuple_indices(vals)
         indices = sort_tuple_indices(g)
+        if checks
+            vals = q .+ K.*g
+            @assert issorted(map(i -> vals[i], indices))
+        end
         if N == 2
             i1, i2 = indices
             Δg = g[i1] - g[i2]
