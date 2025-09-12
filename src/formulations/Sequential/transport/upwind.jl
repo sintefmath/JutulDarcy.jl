@@ -78,7 +78,8 @@ function phase_potential_upwind_fixed_flux(q, K, g::NTuple{N, T}, k_l::NTuple{N,
         else
             error("Not implemented for more than 3 phases")
         end
-        flags = indices .<= r
+        # flags = indices .<= r
+        flags = indices .> r
     end
     return flags
 end
@@ -88,9 +89,9 @@ function phase_potential_upwind_potential_differences(V_t, T_f, G::NTuple{N, T},
 
     function simple_upwind(l, r, flag::Bool)
         if flag
-            v = l
-        else
             v = r
+        else
+            v = l
         end
         return v
     end

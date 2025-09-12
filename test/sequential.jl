@@ -41,29 +41,29 @@ using Test
         flags = phase_potential_upwind_fixed_flux(q, K, g_ph, mob_l, mob_r, print)
         N = length(g_ph)
         vals = Float64[]
-        for i in 1:N
+        for l in 1:N
             val = q
             for j in 1:N
-                if i != j
+                if l != j
                     if flags[j]
-                        mob = mob_l[j]
-                    else
                         mob = mob_r[j]
+                    else
+                        mob = mob_l[j]
                     end
-                    val += K*(g_ph[i] - g_ph[j])*mob
+                    val += K*(g_ph[l] - g_ph[j])*mob
                 end
             end
             push!(vals, val)
         end
         vals2 = phase_potential_upwind_potential_differences(q, K, g_ph, mob_l, mob_r)
 
-        vals = vals2
+        # vals = vals2
         # @test vals == vals2
         for (i, val) in enumerate(vals)
             if val > 0
-                @test flags[i] == false
-            elseif val < 0
                 @test flags[i] == true
+            elseif val < 0
+                @test flags[i] == false
             end
         end
     end
