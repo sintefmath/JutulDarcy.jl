@@ -51,8 +51,9 @@ function phase_potential_upwind_fixed_flux(q, K, g::NTuple{N, T}, k_l::NTuple{N,
         flag = q < zero(q)
         flags = (flag,)
     else
-        vals = q .+ K.*g
-        indices = sort_tuple_indices(vals)
+        # vals = q .+ K.*g
+        # indices = sort_tuple_indices(vals)
+        indices = sort_tuple_indices(g)
         if N == 2
             i1, i2 = indices
             Δg = g[i1] - g[i2]
