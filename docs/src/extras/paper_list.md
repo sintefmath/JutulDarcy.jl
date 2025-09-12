@@ -29,7 +29,7 @@ This page lists papers that use JutulDarcy.jl. Do you have a paper that is not l
 1. [Proxy Models for Rapid Simulation of Underground Thermal Energy Storage. Ø. Klemetsdal, O. Andersen. EAGE GET (2024)](https://doi.org/10.3997/2214-4609.202421075)
 1. [Enhancing Performance of Complex Reservoir Models via Convergence Monitors. K-A. Lie, O. Møyner, Ø. Klemetsdal, B. Skaflestad, A. Moncorgé and V. Kippe, ECMOR 2024 (2024)](https://doi.org/10.3997/2214-4609.202437057)
 1. [Inference of CO2 flow patterns -- a feasibility study. A.P. Gahlot, H.T- Erdinc, R- Orozco, Z. Yin, F.J. Herrmann. NeurIPS 2023 Workshop - Tackling Climate Change with Machine Learning (2023)](https://arxiv.org/pdf/2311.00290)
-1. [Well Control Optimization with Output Constraint Handling by Means of a Derivative-Free Trust Region Algorithm]
+1. [Well Control Optimization with Output Constraint Handling by Means of a Derivative-Free Trust Region Algorithm. M. Hannanu, T. L. Silva, E. Camponogara, M. Hovd. ADIPEC (2023)](https://doi.org/10.2118/216962-MS)
 1. [An Adaptive Newton–ASPEN Solver for Complex Reservoir Models. K-A. Lie, O. Møyner and Ø. Klemetsdal. SPE Reservoir Simulation Conference, Galveston, Texas, USA, March (2023)](https://doi.org/10.2118/212199-MS)
 
 ## Preprints
