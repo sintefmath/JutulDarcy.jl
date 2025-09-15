@@ -73,6 +73,7 @@ function convert_to_sequential(model; avg_mobility = false, pressure = true, cor
     for k in model.output_variables
         push!(seqmodel.output_variables, k)
     end
+    push!(seqmodel.output_variables, :TotalVolumetricFlux)
     unique!(seqmodel.output_variables)
     return seqmodel
 end
