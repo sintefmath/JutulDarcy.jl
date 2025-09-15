@@ -61,8 +61,8 @@ function phase_potential_upwind_fixed_flux(q, K, g::NTuple{N, T}, k_l::NTuple{N,
         if N == 2
             i1, i2 = indices
             Δg = g[i1] - g[i2]
-            θ_1 = q + K*Δg*k_r[i2]
-            θ_2 = q - K*Δg*k_l[i1]
+            θ_1 = q + K*Δg*k_l[i2]
+            θ_2 = q - K*Δg*k_r[i1]
             r = phase_potential_r_index(θ_1, θ_2)
             if debug
                 @info "" q θ_1 θ_2 r k_l k_r g indices
@@ -72,9 +72,10 @@ function phase_potential_upwind_fixed_flux(q, K, g::NTuple{N, T}, k_l::NTuple{N,
             Δg_12 = g[i1] - g[i2]
             Δg_13 = g[i1] - g[i3]
             Δg_23 = g[i2] - g[i3]
-            θ_1 = q + K*(+Δg_12*k_r[i2] + Δg_13*k_r[i3])
-            θ_2 = q + K*(-Δg_12*k_l[i1] + Δg_23*k_r[i3])
-            θ_3 = q + K*(-Δg_13*k_l[i1] - Δg_23*k_l[i2])
+            # k_r = b
+            θ_1 = q + K*(+Δg_12*k_l[i2] + Δg_13*k_l[i3])
+            θ_2 = q + K*(-Δg_12*k_r[i1] + Δg_23*k_l[i3])
+            θ_3 = q + K*(-Δg_13*k_r[i1] - Δg_23*k_r[i2])
 
             r = phase_potential_r_index(θ_1, θ_2, θ_3)
             if debug
@@ -83,8 +84,9 @@ function phase_potential_upwind_fixed_flux(q, K, g::NTuple{N, T}, k_l::NTuple{N,
         else
             error("Not implemented for more than 3 phases")
         end
+        # In paper: pick A (left) if l > r.
+        # Our flags have opposite meaning: pick right if flag is true
         flags = indices .<= r
-        # flags = indices .> r
     end
     return flags
 end

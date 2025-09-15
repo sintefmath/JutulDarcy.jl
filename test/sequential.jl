@@ -60,9 +60,9 @@ using Test
         # @test vals == vals2
         for (i, val) in enumerate(vals)
             if val > 0
-                @test flags[i] == true
-            elseif val < 0
                 @test flags[i] == false
+            elseif val < 0
+                @test flags[i] == true
             end
         end
     end
