@@ -37,8 +37,8 @@ using Test
 
     simple_upwind(l, r, flag) = ifelse(flag, r, l)
 
-    function test_flux(q, K, g_ph, mob_l, mob_r; print = false)
-        flags = phase_potential_upwind_fixed_flux(q, K, g_ph, mob_l, mob_r, print)
+    function test_flux(q, K, g_ph, mob_l, mob_r)
+        flags = phase_potential_upwind_fixed_flux(q, K, g_ph, mob_l, mob_r)
         N = length(g_ph)
         vals = Float64[]
         mobT = 0.0

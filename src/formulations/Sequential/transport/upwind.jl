@@ -46,27 +46,18 @@ function phase_potential_r_index(thetas...)
     return r
 end
 
-function phase_potential_upwind_fixed_flux(q, K, g::NTuple{N, T}, k_l::NTuple{N, V}, k_r::NTuple{N, V}, debug::Bool = false) where {T, N, V}
-    checks = true
+function phase_potential_upwind_fixed_flux(q, K, g::NTuple{N, T}, k_l::NTuple{N, V}, k_r::NTuple{N, V}) where {T, N, V}
     if N == 1
         flag = q < zero(q)
         flags = (flag,)
     else
-        # indices = sort_tuple_indices(vals)
         indices = sort_tuple_indices(g)
-        if checks
-            vals = q .+ K.*g
-            @assert issorted(map(i -> vals[i], indices))
-        end
         if N == 2
             i1, i2 = indices
             Δg = g[i1] - g[i2]
             θ_1 = q + K*Δg*k_l[i2]
             θ_2 = q - K*Δg*k_r[i1]
             r = phase_potential_r_index(θ_1, θ_2)
-            if debug
-                @info "" q θ_1 θ_2 r k_l k_r g indices
-            end
         elseif N == 3
             i1, i2, i3 = indices
             Δg_12 = g[i1] - g[i2]
@@ -78,9 +69,6 @@ function phase_potential_upwind_fixed_flux(q, K, g::NTuple{N, T}, k_l::NTuple{N,
             θ_3 = q + K*(-Δg_13*k_r[i1] - Δg_23*k_r[i2])
 
             r = phase_potential_r_index(θ_1, θ_2, θ_3)
-            if debug
-                @info "" q θ_1 θ_2 θ_3 r k_l k_r g indices
-            end
         else
             error("Not implemented for more than 3 phases")
         end
