@@ -48,24 +48,12 @@ end
     @inline function bouyancy_and_capillary_term(phase)
         Δpc = capillary_gradient(pc, kgrad, phase, ref_index)
         ρ_avg = face_average_density(model, state, kgrad, phase)
+        # Reference:  -T_f*(∇p + Δpc + gΔz*ρ_avg) for fully coupled flux
         return -(gΔz*ρ_avg + Δpc)
-        # return -T_f*(∇p + Δpc + gΔz*ρ_avg)
     end
-
     G = map(bouyancy_and_capillary_term, phases)
-
-    if false
-        @assert number_of_phases(model.system) == 2 "This debug option is only implemented for two phases"
-        mob_1 = JutulDarcy.phase_upwind(upw, state.PhaseMobilities, 1, V_t)
-        mob_2 = JutulDarcy.phase_upwind(upw, state.PhaseMobilities, 2, V_t)
-        mob_t = mob_1 + mob_2
-        return (1/mob_t*V_t, 1/mob_t*V_t)
-    end
-    # TODO: Why is the mobility order swapped here? Sign bug/convetion somewhere?
-    return phase_potential_upwind_potential_differences(V_t, T_f, G, right_mob, left_mob)
+    return phase_potential_upwind_potential_differences(V_t, T_f, G, left_mob, right_mob)
 end
-
-
 
 function Jutul.update_cross_term_in_entity!(out, i,
         state_t, state0_t,
