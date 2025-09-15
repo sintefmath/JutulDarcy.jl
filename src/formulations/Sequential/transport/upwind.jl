@@ -72,7 +72,7 @@ function phase_potential_upwind_fixed_flux(q, K, g::NTuple{N, T}, k_l::NTuple{N,
             Δg_12 = g[i1] - g[i2]
             Δg_13 = g[i1] - g[i3]
             Δg_23 = g[i2] - g[i3]
-            θ_1 = q + K*(Δg_12*k_r[i2] + Δg_13*k_r[i3])
+            θ_1 = q + K*(+Δg_12*k_r[i2] + Δg_13*k_r[i3])
             θ_2 = q + K*(-Δg_12*k_l[i1] + Δg_23*k_r[i3])
             θ_3 = q + K*(-Δg_13*k_l[i1] - Δg_23*k_l[i2])
 
@@ -83,8 +83,8 @@ function phase_potential_upwind_fixed_flux(q, K, g::NTuple{N, T}, k_l::NTuple{N,
         else
             error("Not implemented for more than 3 phases")
         end
-        # flags = indices .<= r
-        flags = indices .> r
+        flags = indices .<= r
+        # flags = indices .> r
     end
     return flags
 end
