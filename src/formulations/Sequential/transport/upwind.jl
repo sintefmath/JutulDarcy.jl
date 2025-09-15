@@ -99,17 +99,21 @@ function phase_potential_upwind_potential_differences(V_t, T_f, G::NTuple{N, T},
         G_1, G_2 = G
         mob_1, mob_2 = mob
 
-        dpot_1 = F*(V_t + T_f*(G_1 - G_2)*mob_2)
-        dpot_2 = F*(V_t + T_f*(G_2 - G_1)*mob_1)
+        ΔG_12 = G_1 - G_2
+        dpot_1 = F*(V_t + T_f*ΔG_12*mob_2)
+        dpot_2 = F*(V_t - T_f*ΔG_12*mob_1)
         phase_potential_differences = (dpot_1, dpot_2)
     else
         @assert N == 3
         G_1, G_2, G_3 = G
         mob_1, mob_2, mob_3 = mob
 
-        dpot_1 = F*(V_t + T_f*(G_1 - G_2)*mob_2 + T_f*(G_1 - G_3)*mob_3)
-        dpot_2 = F*(V_t + T_f*(G_2 - G_1)*mob_1 + T_f*(G_2 - G_3)*mob_3)
-        dpot_3 = F*(V_t + T_f*(G_3 - G_1)*mob_1 + T_f*(G_3 - G_2)*mob_2)
+        ΔG_12 = G_1 - G_2
+        ΔG_13 = G_1 - G_3
+        ΔG_23 = G_2 - G_3
+        dpot_1 = F*(V_t + T_f*ΔG_12*mob_2 + T_f*ΔG_13*mob_3)
+        dpot_2 = F*(V_t - T_f*ΔG_12*mob_1 + T_f*ΔG_23*mob_3)
+        dpot_3 = F*(V_t - T_f*ΔG_13*mob_1 - T_f*ΔG_23*mob_2)
         phase_potential_differences = (dpot_1, dpot_2, dpot_3)
     end
     return phase_potential_differences
