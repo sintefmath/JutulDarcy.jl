@@ -159,7 +159,11 @@ function Jutul.perform_step!(
     t_prep = 0.0
     t_precond = 0.0
     precond_count = 0
-    for R in [report_p, report_t]
+    report[:post_update_seq] = Dict{Symbol, Any}(
+        :pressure => missing,
+        :transport => missing
+    )
+    for (label, R) in [(:pressure, report_p), (:transport, report_t)]
         if ismissing(R)
             continue
         end
@@ -170,6 +174,9 @@ function Jutul.perform_step!(
                 t_precond += lsol.precond
                 precond_count += lsol.precond_count
             end
+        end
+        if haskey(R, :post_update)
+            report[:post_update_seq][label] = R[:post_update]
         end
     end
     report[:linear_solver] = (
