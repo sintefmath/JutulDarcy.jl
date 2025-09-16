@@ -71,7 +71,8 @@ function plot_reservoir(model, arg...;
         well_fontsize = 18,
         well_linewidth = 3,
         well_color = :darkred,
-        aspect = (1.0, 1.0, 1/3),
+        zaspect = 1/3,
+        aspect = missing,
         well_top_factor_scale = 1.0,
         well_arg = NamedTuple(),
         force_glmakie = true,
@@ -82,9 +83,21 @@ function plot_reservoir(model, arg...;
     if force_glmakie
         @assert Jutul.plotting_check_interactive(warn = true) "Function requires interactive plotting. Set force_glmakie = false to override."
     end
-    rmodel = reservoir_model(model)
-    data_domain = rmodel.data_domain
+    if model isa DataDomain
+        data_domain = model
+        model = missing
+    else
+        rmodel = reservoir_model(model)
+        data_domain = rmodel.data_domain
+    end
     cell_centroids = data_domain[:cell_centroids]
+    if ismissing(aspect)
+        x = cell_centroids[1, :]
+        y = cell_centroids[2, :]
+        xrng = maximum(x) - minimum(x)
+        yrng = maximum(y) - minimum(y)
+        aspect = (1.0, yrng/xrng, zaspect)
+    end
     if haskey(data_domain, :boundary_centroids)
         bc = data_domain[:boundary_centroids]
         if size(bc, 1) == 3
@@ -119,6 +132,12 @@ function plot_reservoir(model, arg...;
                 end
             end
         end
+    elseif wells isa AbstractVector
+        ws = Dict{Symbol, Any}()
+        for w in wells
+            ws[w.name] = w
+        end
+        wells = ws
     end
 
     i = 1
@@ -144,20 +163,20 @@ function plot_reservoir(model, arg...;
     return fig
 end
 
-function plot_reservoir(d::DataDomain, arg...;
-        aspect = (1.0, 1.0, 1/3),
-        gui = true,
-        kwarg...
-    )
-    if gui
-        fig = plot_interactive(d, arg...; z_is_depth = true, aspect = aspect, kwarg...)
-        ax = fig.current_axis[]
-    else
-        g = physical_representation(d)
-        fig, ax, plt = plot_cell_data(g, arg...; z_is_depth = true, kwarg...)
-    end
-    return fig
-end
+# function plot_reservoir(d::DataDomain, arg...;
+#         aspect = (1.0, 1.0, 1/3),
+#         gui = true,
+#         kwarg...
+#     )
+#     if gui
+#         fig = plot_interactive(d, arg...; z_is_depth = true, aspect = aspect, kwarg...)
+#         ax = fig.current_axis[]
+#     else
+#         g = physical_representation(d)
+#         fig, ax, plt = plot_cell_data(g, arg...; z_is_depth = true, kwarg...)
+#     end
+#     return fig
+# end
 
 function plot_reservoir(case::JutulCase, arg...; kwarg...)
     if length(arg) == 0
