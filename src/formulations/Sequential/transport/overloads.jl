@@ -67,7 +67,6 @@ end
         if scheme == :ppu_nopc || all(G_cap .== 0.0)
             out = pot_den
         else
-            # TODO: This is not a correct implementation of hybrid since we do not split the upwinded terms
             pot_pc = phase_potential_upwind_potential_differences(zero(V_t), T_f, G_cap, left_mob, right_mob)
             out = MultiPotential(pot_den, pot_pc)
         end
