@@ -113,6 +113,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         skin = 0.0,
         Kh = nothing,
         radius = 0.1,
+        net_to_gross = 1.0,
         accumulator_volume = missing,
         simple_well = true,
         simple_well_regularization = 1.0,
@@ -180,8 +181,9 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         r_i = get_entry(radius, i)
         dir_i = get_entry(dir, i)
         s_i = get_entry(skin, i)
+        ntg_i = get_entry(net_to_gross, i)
         if ismissing(WI_i) || isnan(WI_i)
-            WI_i = compute_peaceman_index(g, k_i, r_i, c, dir_i; skin = s_i, Kh = Kh_i)
+            WI_i = compute_peaceman_index(g, k_i, r_i, c, dir_i; skin = s_i, Kh = Kh_i, net_to_gross = ntg_i)
         end
         WI_computed[i] = WI_i
         WIth_i = 0.0
@@ -214,7 +216,14 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         if ismissing(accumulator_volume)
             accumulator_volume = simple_well_regularization*maximum(volumes)
         end
-        W = SimpleWell(reservoir_cells; WI = WI_computed, WIth = WIth_computed, volume = accumulator_volume, dz = dz, reference_depth = reference_depth, kwarg...)
+        W = SimpleWell(reservoir_cells;
+            WI = WI_computed,
+            WIth = WIth_computed,
+            volume = accumulator_volume,
+            dz = dz,
+            reference_depth = reference_depth,
+            kwarg...
+        )
     else
         # Depth differences are taken care of via centers.
         dz *= 0.0

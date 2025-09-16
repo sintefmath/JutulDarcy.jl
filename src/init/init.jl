@@ -183,6 +183,25 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
             end
         end
     end
+    if ismissing(s_min)
+        kr_def = get(model.secondary_variables, :RelativePermeabilities, nothing)
+        if kr_def isa ReservoirRelativePermeabilities
+            phases = get_phases(sys)
+            nph = length(phases)
+            water_ix = findfirst(x -> x isa AqueousPhase, get_phases(sys))
+            if !isnothing(water_ix)
+                swcon = map(x -> x.connate, kr_def.krw)
+                s_min = Vector{Vector{Float64}}()
+                for _ in 1:nph
+                    push!(s_min, zeros(length(cells)))
+                end
+                for (i, c) in enumerate(cells)
+                    reg = region(kr_def.regions, c)
+                    s_min[water_ix][i] = swcon[reg]
+                end
+            end
+        end
+    end
     if ismissing(contacts_pc)
         contacts_pc = zeros(number_of_phases(sys)-1)
     end
@@ -886,7 +905,9 @@ function integrate_phase_density(z_datum, z_end, p0, density_f, phase; n = 1000,
         depth = z[i-1] + dz
         dens = density_f(p, depth, phase)
         pressure[i] = p + dz*dens*g
-        @assert isfinite(pressure[i]) "Equilibriation returned non-finite pressures."
+        if !isfinite(pressure[i])
+            error("Equilibriation returned non-finite pressures for density $dens at pressure $p Pa and depth $depth m for node $(i-1).")
+        end
         z[i] = depth
     end
     return (z, pressure)

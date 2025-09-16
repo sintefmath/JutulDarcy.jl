@@ -675,7 +675,8 @@ function well_target_information(;
         unit_type::Symbol,
         unit_label::String,
         explanation::String = description,
-        is_rate::Bool = true
+        is_rate::Bool = true,
+        type = missing
     )
     return (
         symbol = symbol,
@@ -683,7 +684,8 @@ function well_target_information(;
         explanation = explanation,
         unit_label = unit_label,
         unit_type = unit_type,
-        is_rate = is_rate
+        is_rate = is_rate,
+        type = type
     )
 end
 
@@ -713,7 +715,8 @@ function well_target_information(t::Union{BottomHolePressureTarget, Val{:bhp}})
         explanation = "Pressure at well bottom hole. This is often given at or near the top perforation, but can be manually set to other depths.",
         unit_type = :pressure,
         unit_label = "Pa",
-        is_rate = false
+        is_rate = false,
+        type = BottomHolePressureTarget
     )
 end
 
@@ -723,7 +726,8 @@ function well_target_information(t::Union{TotalRateTarget, Val{:rate}})
         description = "Surface total rate",
         explanation = "Total volumetric rate at surface conditions. This is the sum of all phases. For most models, it is the sum of the mass rates divided by the prescribed surface densities. For compositional models the density is computed using a flash.",
         unit_type = :liquid_volume_surface,
-        unit_label = "m³/s"
+        unit_label = "m³/s",
+        type = TotalRateTarget
     )
 end
 
@@ -734,7 +738,8 @@ function well_target_information(t::Union{TotalReservoirRateTarget, Val{:resv_ra
         description = "Surface total rate",
         explanation = "Total volumetric rate at reservoir conditions. This is the sum of all phases. For most models, it is the sum of the mass rates divided by the prescribed surface densities.",
         unit_type = :liquid_volume_reservoir,
-        unit_label = "m³/s"
+        unit_label = "m³/s",
+        type = TotalReservoirRateTarget
     )
 end
 
@@ -744,7 +749,8 @@ function well_target_information(t::Union{SurfaceWaterRateTarget, Val{:wrat}})
         description = "Surface water rate",
         explanation = "Water volumetric rate at surface conditions. This is the water mass stream divided by the surface density of water, which is typically around 1000 kg/m³",
         unit_type = :liquid_volume_surface,
-        unit_label = "m³/s"
+        unit_label = "m³/s",
+        type = SurfaceWaterRateTarget
     )
 end
 
@@ -754,7 +760,8 @@ function well_target_information(t::Union{SurfaceLiquidRateTarget, Val{:lrat}})
         description = "Surface water rate",
         explanation = "Liquid volumetric rate at surface conditions. This is the sum of the oil rate and the water rate.",
         unit_type = :liquid_volume_surface,
-        unit_label = "m³/s"
+        unit_label = "m³/s",
+        type = SurfaceLiquidRateTarget
     )
 end
 
@@ -764,7 +771,8 @@ function well_target_information(t::Union{SurfaceOilRateTarget, Val{:orat}})
         description = "Surface oil rate",
         explanation = "Oil rate at surface conditions. This is oil mass rate divided by the surface density of the oil phase.",
         unit_type = :liquid_volume_surface,
-        unit_label = "m³/s"
+        unit_label = "m³/s",
+        type = SurfaceOilRateTarget
     )
 end
 
@@ -774,7 +782,8 @@ function well_target_information(t::Union{SurfaceGasRateTarget, Val{:grat}})
         description = "Surface gas rate",
         explanation = "Gas rate at surface conditions. This is gas mass rate divided by the surface density of the gas phase.",
         unit_type = :gas_volume_surface,
-        unit_label = "m³/s"
+        unit_label = "m³/s",
+        type = SurfaceGasRateTarget
     )
 end
 
@@ -794,7 +803,8 @@ function well_target_information(t::Union{HistoricalReservoirVoidageTarget, Val{
         description = "Historical reservoir voidage rate",
         explanation = "Historical reservoir voidage rate is a special rate used to match observed production rates.",
         unit_type = :liquid_volume_reservoir,
-        unit_label = "m³/s"
+        unit_label = "m³/s",
+        type = HistoricalReservoirVoidageTarget
     )
 end
 
@@ -859,7 +869,8 @@ function well_target_information(t::Union{TotalMassRateTarget, Val{:mrat}})
         explanation = "Total mass rate of fluids for the well. Can be used both for production wells (specifying produced mass flow) and injection wells (specifying injected mass flow).",
         unit_type = :mass,
         unit_label = "kg/s",
-        is_rate = true
+        is_rate = true,
+        type = TotalMassRateTarget
     )
 end
 

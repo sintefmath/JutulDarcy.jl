@@ -395,6 +395,10 @@ struct SimpleWell{SC, P, V} <: WellDomain where {SC, P}
     name::Symbol
     explicit_dp::Bool
     reference_depth::V
+    "Extra properties to attach to perforations"
+    perforation_parameters::Dict{Symbol, Any}
+    "Extra properties to attach to segments"
+    segment_parameters::Dict{Symbol, Any}
 end
 
 """
@@ -430,7 +434,16 @@ function SimpleWell(
     WIth = T.(WIth)
     gdz = T.(gdz)
     perf = (self = ones(Int64, nr), reservoir = vec(reservoir_cells), WI = WI, WIth = WIth, gdz = gdz)
-    return SimpleWell(volume, perf, surface_conditions, name, explicit_dp, reference_depth)
+    return SimpleWell(
+        volume,
+        perf,
+        surface_conditions,
+        name,
+        explicit_dp,
+        reference_depth,
+        Dict{Symbol, Any}(),
+        Dict{Symbol, Any}()
+    )
 end
 
 struct MultiSegmentWell{V, P, N, A, C, SC, S, M} <: WellDomain
@@ -461,20 +474,24 @@ struct MultiSegmentWell{V, P, N, A, C, SC, S, M} <: WellDomain
     material_heat_capacity::M
     "Well void fraction"
     void_fraction::M
+    "Extra properties to attach to perforations"
+    perforation_parameters::Dict{Symbol, Any}
+    "Extra properties to attach to segments"
+    segment_parameters::Dict{Symbol, Any}
 end
 
 """
     MultiSegmentWell(reservoir_cells, volumes, centers;
-                    N = nothing,
-                    name = :Well,
-                    perforation_cells = nothing,
-                    segment_models = nothing,
-                    segment_length = nothing,
-                    reference_depth = 0,
-                    dz = nothing,
-                    surface_conditions = default_surface_cond(),
-                    accumulator_volume = mean(volumes),
-                    )
+        N = nothing,
+        name = :Well,
+        perforation_cells = nothing,
+        segment_models = nothing,
+        segment_length = nothing,
+        reference_depth = 0,
+        dz = nothing,
+        surface_conditions = default_surface_cond(),
+        accumulator_volume = mean(volumes),
+    )
 
 Create well perforated in a vector of `reservoir_cells` with corresponding
 `volumes` and cell `centers`.
@@ -490,26 +507,26 @@ $FIELDS
 
 """
 function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
-            type = :ms,
-            accumulator_center = nothing,
-            accumulator_volume = mean(volumes),
-            N = nothing,
-            end_nodes = missing,
-            name = :Well,
-            perforation_cells = nothing,
-            segment_models = nothing,
-            reference_depth = nothing,
-            dz = nothing,
-            segment_length = nothing,
-            friction = 1e-4,
-            surface_conditions = default_surface_cond(),
-            material_thermal_conductivity = 0.0,
-            material_heat_capacity = 420.0,
-            material_density = 8000.0,
-            void_fraction = 1.0,
-            extra_perforation_props = NamedTuple(),
-            segment_radius = 0.05,
-            kwarg...
+        type = :ms,
+        accumulator_center = nothing,
+        accumulator_volume = mean(volumes),
+        N = nothing,
+        end_nodes = missing,
+        name = :Well,
+        perforation_cells = nothing,
+        segment_models = nothing,
+        reference_depth = nothing,
+        dz = nothing,
+        segment_length = nothing,
+        friction = 1e-4,
+        surface_conditions = default_surface_cond(),
+        material_thermal_conductivity = 0.0,
+        material_heat_capacity = 420.0,
+        material_density = 8000.0,
+        void_fraction = 1.0,
+        extra_perforation_props = NamedTuple(),
+        segment_radius = 0.05,
+        kwarg...
     )
     if isnothing(reference_depth)
         if isnothing(accumulator_center)
@@ -632,10 +649,33 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
         @assert length(v) == nr "Perforation property $k must have length equal to number of reservoir cells"
     end
     accumulator = (reference_depth = reference_depth, )
-    MultiSegmentWell{typeof(volumes), typeof(perf), typeof(N), typeof(accumulator), typeof(ext_centers), typeof(surface_conditions), typeof(segment_models), typeof(material_thermal_conductivity)}(
-        type, volumes, perf, N, accumulator, end_nodes, ext_centers, surface_conditions,
-        name, segment_models, material_thermal_conductivity,
-        material_density, material_heat_capacity, void_fraction)
+    MultiSegmentWell{
+        typeof(volumes),
+        typeof(perf),
+        typeof(N),
+        typeof(accumulator),
+        typeof(ext_centers),
+        typeof(surface_conditions),
+        typeof(segment_models),
+        typeof(material_thermal_conductivity)
+    }(
+        type,
+        volumes,
+        perf,
+        N,
+        accumulator,
+        end_nodes,
+        ext_centers,
+        surface_conditions,
+        name,
+        segment_models,
+        material_thermal_conductivity,
+        material_density,
+        material_heat_capacity,
+        void_fraction,
+        Dict{Symbol, Any}(),
+        Dict{Symbol, Any}()
+    )
 end
 
 

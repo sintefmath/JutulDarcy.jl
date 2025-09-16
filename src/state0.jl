@@ -137,6 +137,10 @@ function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = 
             end
         end
     end
+    if ismissing(datum_depth)
+        z = reservoir[:cell_centroids][end, cells]
+        datum_depth = minimum(z)
+    end
     return EquilibriumRegion(
         p_datum,
         datum_depth,
