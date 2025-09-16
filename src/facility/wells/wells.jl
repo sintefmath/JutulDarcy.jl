@@ -220,8 +220,8 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
             WI = WI_computed,
             WIth = WIth_computed,
             volume = accumulator_volume,
-            dz = dz, 
-            eference_depth = reference_depth,
+            dz = dz,
+            reference_depth = reference_depth,
             kwarg...
         )
     else
