@@ -54,6 +54,24 @@ function pressure_update_accumulation!(eq_s, eq_p, storage, model, dt)
     return acc
 end
 
+function Jutul.update_cross_term_in_entity!(out, i,
+        state_well, state0_well,
+        state_facility, state0_facility,
+        well::PressureModel, facility,
+        ct::JutulDarcy.WellFromFacilityFlowCT, eq, dt, ldisc = local_discretization(ct, i)
+    )
+    well_symbol = ct.well
+    q_t, mix = JutulDarcy.cross_term_total_surface_mass_rate_and_mixture(facility, well, state_facility, state_well, well_symbol)
+    @assert length(out) == 1
+    val = zero(eltype(out))
+    top_node = JutulDarcy.well_top_node()
+    for i in eachindex(mix)
+        val += mix[i]*state_well.PressureReductionFactors[i, top_node]
+    end
+    out[1] = -val*q_t
+    return out
+end
+
 function pressure_update_accumulation_inner!(acc, m, m0, dt, w)
     for cell in axes(m, 2)
         val = zero(eltype(acc))

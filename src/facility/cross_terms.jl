@@ -225,8 +225,15 @@ function update_cross_term_in_entity!(out, i,
         well, facility,
         ct::WellFromFacilityFlowCT, eq, dt, ldisc = local_discretization(ct, i)
     )
-
     well_symbol = ct.well
+    q_t, mix = cross_term_total_surface_mass_rate_and_mixture(facility, well, state_facility, state_well, well_symbol)
+    for i in eachindex(out, mix)
+        @inbounds out[i] = -mix[i]*q_t
+    end
+    return out
+end
+
+function cross_term_total_surface_mass_rate_and_mixture(facility, well, state_facility, state_well, well_symbol)
     pos = get_well_position(facility.domain, well_symbol)
 
     cfg = state_facility.WellGroupConfiguration
@@ -262,19 +269,7 @@ function update_cross_term_in_entity!(out, i,
             mix = masses./mass
         end
     end
-    if haskey(state_well, :PressureReductionFactors) && length(out) == 1
-        # Pressure equation
-        val = zero(eltype(out))
-        for i in eachindex(mix)
-            val += mix[i]*state_well.PressureReductionFactors[i, well_top_node()]
-        end
-        out[1] = -val*q_t
-    else
-        for i in eachindex(out, mix)
-            @inbounds out[i] = -mix[i]*q_t
-        end
-    end
-    return out
+    return (q_t, mix)
 end
 
 # Thermal
