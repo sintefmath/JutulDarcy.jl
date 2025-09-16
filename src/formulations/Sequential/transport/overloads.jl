@@ -62,13 +62,13 @@ end
         G_den = map(bouyancy_term, phases)
         G_cap = map(capillary_term, phases)
         pot_den = phase_potential_upwind_potential_differences(V_t, T_f, G_den, left_mob, right_mob)
-        if scheme == :ppu_nopc || all(G_cap .== 0.0)
+
+        if scheme == :ppu_nopc # || all(G_cap .== 0.0)
             out = pot_den
         else
-            # hybrid
             # TODO: This is not a correct implementation of hybrid since we do not split the upwinded terms
             pot_pc = phase_potential_upwind_potential_differences(zero(V_t), T_f, G_cap, left_mob, right_mob)
-            out = pot_den .+ pot_pc
+            out = MultiPotential(pot_den, pot_pc)
         end
     end
     return out

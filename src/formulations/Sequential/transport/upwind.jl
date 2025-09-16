@@ -118,3 +118,62 @@ function phase_potential_upwind_potential_differences(V_t, T_f, G::NTuple{N, T},
     end
     return phase_potential_differences
 end
+
+function JutulDarcy.upwind(upw::SPU, F::AbstractArray, q::MultiPotential)
+    new_pot = map(p -> JutulDarcy.upwind(upw, F, p), q.potentials)
+    return MultiPotential(new_pot)
+end
+
+function JutulDarcy.phase_upwind(upw, m::AbstractMatrix, phase::Integer, q::MultiPotential)
+    new_pot = map(p -> JutulDarcy.phase_upwind(upw, m, phase, p), q.potentials)
+    return MultiPotential(new_pot)
+end
+
+function collapse_potentials(x::MultiPotential)
+    val = x.potentials[1]
+    for p in x.potentials[2:end]
+        val += p
+    end
+    return val
+end
+
+import Base.*
+
+function (*)(q::MultiPotential, α::MultiPotential)
+    new_pot = map((p, a) -> p*a, q.potentials, α.potentials)
+    return MultiPotential(new_pot)
+end
+
+function (*)(q::MultiPotential, α::Number)
+    new_pot = map(p -> p*α, q.potentials)
+    return MultiPotential(new_pot)
+end
+
+function (*)(α::Number, q::MultiPotential)
+    return q*α
+end
+
+import Base.+
+
+function (+)(q::MultiPotential, p::MultiPotential)
+    new_pot = map(+, q.potentials, p.potentials)
+    return MultiPotential(new_pot)
+end
+
+function (+)(q::MultiPotential, α::Number)
+    new_pot = map(p -> p + α, q.potentials)
+    return MultiPotential(new_pot)
+end
+
+function (+)(α::Number, q::MultiPotential)
+    return q + α
+end
+
+function Base.convert(t::Type{Float64}, q::MultiPotential)
+    return convert(t, collapse_potentials(q))
+end
+
+using ForwardDiff
+function Base.convert(t::Type{ForwardDiff.Dual{T, V, N}}, q::MultiPotential) where {T, V, N}
+    return convert(t, collapse_potentials(q))
+end

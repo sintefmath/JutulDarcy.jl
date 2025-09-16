@@ -117,3 +117,13 @@ function SequentialSimulator(model;
     S[:state0] = deepcopy(TSim.storage.state0)
     return SequentialSimulator(model, PSim, TSim, S)
 end
+
+struct MultiPotential{T}
+    potentials::T
+end
+
+Base.getindex(mp::MultiPotential, i::Int) = MultiPotential(map(p -> p[i], mp.potentials))
+
+function MultiPotential(potentials...)
+    return MultiPotential(potentials)
+end
