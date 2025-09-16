@@ -4,7 +4,7 @@ import JutulDarcy.Sequential:
     phase_potential_upwind_fixed_flux,
     phase_potential_upwind_potential_differences,
     sort_tuple_indices
-using Test
+using Test, Jutul
 @testset "sequential_upwind" begin
     @testset "sort_tuple" begin
         @test sort_tuple_indices((10.0, 5.0)) == (2, 1)
@@ -130,5 +130,53 @@ using Test
                 end
             end
         end
+    end
+end
+
+##
+@testset "Sequential interface" begin+
+    file_path = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1", "SPE1.DATA")
+    case = setup_case_from_data_file(file_path, 
+        extra_outputs = [:PhaseMobilities, :PhaseMassDensities, :SurfaceVolumeMobilities, :Rs]
+    )
+    r_seq = simulate_reservoir(case,
+        method = :sequential,
+        target_ds = 0.1,
+        info_level = -1
+    );
+    ix = length(r_seq.states)
+    state = r_seq.states[ix]
+    state = deepcopy(state)
+    state = merge!(state, case.parameters[:Reservoir])
+    state[:TotalSaturation] .= 1.0
+    state = JutulStorage(state)
+    rmodel = reservoir_model(case.model)
+    nf = number_of_faces(rmodel.domain)
+    neighbors = rmodel.data_domain[:neighbors]
+    nph = number_of_phases(rmodel.system)
+
+    v_total = JutulDarcy.Sequential.store_total_fluxes(rmodel, state)
+    state[:TotalVolumetricFlux] = v_total
+    faces = 1:nf
+    flux = zeros(nph, length(faces))
+    flux_s = zeros(nph, length(faces))
+    for (i, face) in enumerate(faces)
+        l, r = neighbors[:, face]
+        q = Jutul.StaticArrays.@MVector zeros(3)
+        flux_type = Jutul.DefaultFlux()
+        flux_type_s = JutulDarcy.Sequential.TotalSaturationFlux()
+        upw = Jutul.SPU(l, r)
+        kgrad = Jutul.TPFA(l, r, 1)
+        flux[:, i] = JutulDarcy.component_mass_fluxes!(q, face, state, rmodel, flux_type, kgrad, upw)
+        flux_s[:, i] = JutulDarcy.component_mass_fluxes!(q, face, state, rmodel, flux_type_s, kgrad, upw)
+    end
+
+    for ph in 1:nph
+        f = flux[ph, :]
+        err_scaled = abs.(f - flux_s[ph, :])/norm(f, 2)
+        err = norm(err_scaled, 2)
+        @test err < 1e-14
+        # ix = findmax(err_scaled)[2]
+        # println("Phase $ph: rel err = $err (worst value: $(f[ix]) vs $(flux_s[ph, ix]) at face $ix)")
     end
 end

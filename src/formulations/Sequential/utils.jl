@@ -180,63 +180,42 @@ function Jutul.get_output_state(sim::SequentialSimulator)
     Jutul.get_output_state(sim.transport)
 end
 
-function Jutul.final_simulation_message(simulator::SequentialSimulator, p, rec, t_elapsed, reports, arg...)
-    Jutul.jutul_message("Sequential", "Total timing, per SFI iteration")
-    Jutul.final_simulation_message(simulator.pressure, p, rec, t_elapsed, reports, arg...)
+function Jutul.final_simulation_message(simulator::SequentialSimulator, p, rec, t_elapsed, reports, timesteps, config, arg...)
+    info_level = config[:info_level]
+    print_end_report = config[:end_report]
+    verbose = info_level >= 0
+    do_print = verbose || print_end_report
+    if do_print
+        Jutul.jutul_message("Sequential", "Total timing, per SFI iteration")
+        Jutul.final_simulation_message(simulator.pressure, p, rec, t_elapsed, reports, arg...)
+        stats = Dict()
+        stats[:pressure] = Dict(:iterations => 0, :linear_iterations => 0)
+        stats[:transport] = Dict(:iterations => 0, :linear_iterations => 0)
 
-    # function make_sub_report(reports, typ)
-    #     reports_seq = Vector{Any}()
-    #     for rep in reports
-    #         rep_seq = similar(rep)
-    #         for (k, v) in rep
-    #             if k == :ministeps
-    #                 @info "?!" v
-    #                 rep_inner = Vector{Any}()
-    #                 for ministep in v
-    #                     @info ministep rep_inner
-    #                 end
-
-    #                 rep_seq[k] = rep_inner
-    #             else
-    #                 rep_seq[k] = v
-    #             end
-    #         end
-    #         push!(reports_seq, rep_seq)
-    #     end
-    #     return reports_seq
-    # end
-    # @info "Hey" make_sub_report(reports, :pressure)
-
-
-    stats = Dict()
-    stats[:pressure] = Dict(:iterations => 0, :linear_iterations => 0)
-    stats[:transport] = Dict(:iterations => 0, :linear_iterations => 0)
-
-    for rep in reports
-        for ministep in rep[:ministeps]
-            for step in ministep[:steps]
-                for k in [:pressure, :transport]
-                    if !haskey(step, k)
-                        continue
-                    end
-                    for sstep in step[k][:steps]
-                        if haskey(sstep, :update)
-                            stats[k][:iterations] += 1
-                            stats[k][:linear_iterations] += sstep[:linear_iterations]
+        for rep in reports
+            for ministep in rep[:ministeps]
+                for step in ministep[:steps]
+                    for k in [:pressure, :transport]
+                        if !haskey(step, k)
+                            continue
+                        end
+                        for sstep in step[k][:steps]
+                            if haskey(sstep, :update)
+                                stats[k][:iterations] += 1
+                                stats[k][:linear_iterations] += sstep[:linear_iterations]
+                            end
                         end
                     end
                 end
             end
         end
+        for k in [:pressure, :transport]
+            s = stats[k]
+            i = s[:iterations]
+            li = s[:linear_iterations]
+            Jutul.jutul_message(titlecase("$k"), "$i iterations, $li linear iterations")
+        end
     end
-    for k in [:pressure, :transport]
-        s = stats[k]
-        i = s[:iterations]
-        li = s[:linear_iterations]
-        Jutul.jutul_message(titlecase("$k"), "$i iterations, $li linear iterations")
-    end
-    # Jutul.jutul_message("Transport")
-    # Jutul.final_simulation_message(simulator.transport, arg...)
 end
 
 function Jutul.update_before_step!(sim::SequentialSimulator, dt, forces; kwarg...)
