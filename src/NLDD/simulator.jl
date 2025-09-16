@@ -195,6 +195,12 @@ function Jutul.perform_step!(
             rethrow(excptn)
         end
     end
+
+    # post_hook = config[:post_iteration_hook]
+    # if !ismissing(post_hook)
+    #     converged = post_hook(converged, report, storage, model, dt, forces, config, iteration)
+    # end
+    
     return (e, converged, report)
 end
 
@@ -446,9 +452,11 @@ function gauss_seidel_for_each_subdomain_do(f, sim, simulators, subreports, stra
     end
     num_solved = 0
     function solve_gauss_seidel_iteration!(i)
-        f(i)
+        println("Solving subdomain $i")
+        ok = f(i)
         sync_function()
         num_solved += 1
+        return ok
     end
     if strategy == :adaptive
         sim_order = Int[]
@@ -505,6 +513,7 @@ function gauss_seidel_for_each_subdomain_do(f, sim, simulators, subreports, stra
             pval = map(sort_function, simulators)
             sim_order = sortperm(pval)
         end
+        println("sim_order is $sim_order")
         for i in sim_order
             ok_i = solve_gauss_seidel_iteration!(i)
             if early_stop && !ok_i
