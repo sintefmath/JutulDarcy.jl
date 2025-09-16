@@ -130,11 +130,7 @@ function JutulDarcy.phase_upwind(upw, m::AbstractMatrix, phase::Integer, q::Mult
 end
 
 function collapse_potentials(x::MultiPotential)
-    val = x.potentials[1]
-    for p in x.potentials[2:end]
-        val += p
-    end
-    return val
+    return sum(x.potentials)
 end
 
 import Base.*

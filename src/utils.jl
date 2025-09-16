@@ -947,7 +947,7 @@ function setup_reservoir_simulator(case::JutulCase;
         parray_arg = Dict{Symbol, Any}(),
         set_linear_solver = missing,
         linear_solver_arg = Dict{Symbol, Any}(),
-        transport_scheme = :hybrid,
+        transport_scheme = :ppu,
         extra_timing_setup = false,
         nldd_partition = missing,
         nldd_arg = Dict{Symbol, Any}(),

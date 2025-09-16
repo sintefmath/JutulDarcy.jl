@@ -45,17 +45,18 @@ end
     gΔz = effective_gravity_difference(state, face, kgrad)
     pc, ref_index = capillary_pressure(model, state)
 
-    bouyancy_term(phase) = face_average_density(model, state, kgrad, phase)
-    capillary_term(phase) = capillary_gradient(pc, kgrad, phase, ref_index)
+    bouyancy_term(phase) = -gΔz*face_average_density(model, state, kgrad, phase)
+    capillary_term(phase) = -capillary_gradient(pc, kgrad, phase, ref_index)
+    @inline function bouyancy_and_capillary_term(phase)
+        # Note: These have their signs flipped already!
+        Δpc = capillary_term(phase)
+        gΔz_ρ_avg = bouyancy_term(phase)
+        # Reference:  -T_f*(∇p + Δpc + gΔz*ρ_avg) for fully coupled flux
+        return (gΔz_ρ_avg + Δpc)
+    end
 
     scheme = transport_scheme(flux_type)
     if scheme == :ppu
-        @inline function bouyancy_and_capillary_term(phase)
-            Δpc = capillary_term(phase)
-            ρ_avg = bouyancy_term(phase)
-            # Reference:  -T_f*(∇p + Δpc + gΔz*ρ_avg) for fully coupled flux
-            return -(gΔz*ρ_avg + Δpc)
-        end
         G = map(bouyancy_and_capillary_term, phases)
         out = phase_potential_upwind_potential_differences(V_t, T_f, G, left_mob, right_mob)
     else
@@ -63,7 +64,7 @@ end
         G_cap = map(capillary_term, phases)
         pot_den = phase_potential_upwind_potential_differences(V_t, T_f, G_den, left_mob, right_mob)
 
-        if scheme == :ppu_nopc # || all(G_cap .== 0.0)
+        if scheme == :ppu_nopc || all(G_cap .== 0.0)
             out = pot_den
         else
             # TODO: This is not a correct implementation of hybrid since we do not split the upwinded terms
