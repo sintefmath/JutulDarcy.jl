@@ -73,7 +73,11 @@ function convert_to_sequential(model; avg_mobility = false, pressure = true, cor
     for k in model.output_variables
         push!(seqmodel.output_variables, k)
     end
-    push!(seqmodel.output_variables, :TotalVolumetricFlux)
+    if model_or_domain_is_well(model)
+        push!(seqmodel.output_variables, :PerforationTotalVolumetricFlux)
+    else
+        push!(seqmodel.output_variables, :TotalVolumetricFlux)
+    end
     unique!(seqmodel.output_variables)
     return seqmodel
 end
