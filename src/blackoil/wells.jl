@@ -67,6 +67,7 @@ Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::
     end
     out[l] = q_l*rhoOS
     out[v] = q_v*rhoGS
+    return out
 end
 
 Base.@propagate_inbounds function simple_well_perforation_flux!(out, sys::StandardBlackOilSystem, state_res, state_well, rhoS, conn)

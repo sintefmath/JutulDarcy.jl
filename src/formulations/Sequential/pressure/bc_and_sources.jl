@@ -1,17 +1,20 @@
-function pressure_accumulation_buffer(acc, eq_s::PressureEquationTPFAStorage)
+function pressure_accumulation_buffer(acc, eq_s::PressureEquationTPFAStorage, ncomp)
+    acc = eq_s.buf
+    @assert ncomp == length(acc)
     return eq_s.buf
 end
 
-function pressure_accumulation_buffer(acc, eq_s)
-    return acc[:, 1]
+function pressure_accumulation_buffer(acc, eq_s, ncomp)
+    return zeros(eltype(acc), ncomp)
 end
 
 function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::PressureEquation, eq_s, force::V, time) where {V <: AbstractVector{<:FlowBoundaryCondition}, D, S<:MultiPhaseSystem}
     # Jutul.apply_forces_to_equation!(acc, storage, model, eq.conservation, eq_s, force, time)
-    acc = Jutul.get_diagonal_entries(eq, eq_s)
-    acc_i = pressure_accumulation_buffer(acc, eq_s)
-    state = storage.state
     w = storage.state.PressureReductionFactors
+    ncomp = size(w, 1)
+    acc = Jutul.get_diagonal_entries(eq, eq_s)
+    acc_i = pressure_accumulation_buffer(acc, eq_s, ncomp)
+    state = storage.state
     nph = number_of_phases(reservoir_model(model).system)
     for bc in force
         c = bc.cell

@@ -21,6 +21,7 @@ Possible targets (as symbols):
 - :wrat (Surface Water Rate)
 - :orat (Surface Oil Rate)
 - :grat (Surface Gas Rate)
+- :rate (Total volumetric rate at surface conditions)
 
 # Returns
 - The computed QoI for the specified well.

@@ -93,6 +93,7 @@ Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::
     if has_water
         out[nc+1], _ = phase_mass_flux(A)
     end
+    return out
 end
 
 
