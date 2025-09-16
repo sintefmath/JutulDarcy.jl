@@ -1172,6 +1172,11 @@ function set_default_cnv_mb_inner!(tol, model;
         inc_tol_dz = Inf
     )
     is_pressure_model = haskey(model.equations, :pressure)
+    if is_pressure_model
+        label = :pressure
+    else
+        label = :mass_conservation
+    end
     if ismissing(inc_tol_dp_abs)
         if is_pressure_model
             inc_tol_dp_abs = 0.1 # 0.1 MPa = 1 bar
@@ -1205,7 +1210,7 @@ function set_default_cnv_mb_inner!(tol, model;
             c = tol_cnv
             m = tol_mb
         end
-        tol[:mass_conservation] = (
+        tol[label] = (
             CNV = c,
             MB = m,
             increment_dp_abs = inc_tol_dp_abs,
