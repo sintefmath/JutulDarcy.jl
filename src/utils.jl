@@ -947,6 +947,7 @@ function setup_reservoir_simulator(case::JutulCase;
         parray_arg = Dict{Symbol, Any}(),
         set_linear_solver = missing,
         linear_solver_arg = Dict{Symbol, Any}(),
+        transport_scheme = :hybrid,
         extra_timing_setup = false,
         nldd_partition = missing,
         nldd_arg = Dict{Symbol, Any}(),
@@ -972,7 +973,7 @@ function setup_reservoir_simulator(case::JutulCase;
             if method == :si || method == :sfi
                 extra_kwarg[:sfi] = method == :sfi
             end
-            sim = JutulDarcy.Sequential.SequentialSimulator(case; sim_kwarg...)
+            sim = JutulDarcy.Sequential.SequentialSimulator(case; transport_scheme = transport_scheme, sim_kwarg...)
         else
             extra_kwarg[:method] = method
             sim = NLDD.NLDDSimulator(case, nldd_partition; nldd_arg..., sim_kwarg...)

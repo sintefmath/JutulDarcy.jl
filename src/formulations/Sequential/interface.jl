@@ -1,12 +1,17 @@
 
-function convert_to_sequential(model; avg_mobility = false, pressure = true, correction = missing)
+function convert_to_sequential(model;
+        avg_mobility = false,
+        pressure = true,
+        correction = missing,
+        transport_scheme = :ppu
+    )
     if pressure
         f = PressureFormulation()
         T_ctx = typeof(model.context)
         ctx = T_ctx(matrix_layout = EquationMajorLayout())
     else
         @assert ismissing(correction)
-        f = TransportFormulation()
+        f = TransportFormulation(schema = transport_scheme)
         ctx = model.context
         if model_or_domain_is_well(model)
             correction = :well

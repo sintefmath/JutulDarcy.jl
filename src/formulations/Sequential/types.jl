@@ -59,14 +59,20 @@ function PressureEquationTPFAStorage(model, eq::PressureEquation; ad = true, kwa
 end
 
 function SequentialSimulator(case::JutulCase; kwarg...)
-    return SequentialSimulator(case.model; state0 = case.state0, parameters = case.parameters)
+    return SequentialSimulator(case.model; state0 = case.state0, parameters = case.parameters, kwarg...)
 end
 
-function SequentialSimulator(model; state0 = setup_state(model), parameters = setup_parameters(model), avg_mobility = false)
+function SequentialSimulator(model;
+        state0 = setup_state(model),
+        parameters = setup_parameters(model),
+        avg_mobility = false,
+        transport_scheme = :ppu,
+        kwarg...
+    )
     rmodel = reservoir_model(model)
     sys = rmodel.system
     pmodel = convert_to_sequential(model, pressure = true, avg_mobility = avg_mobility)
-    tmodel = convert_to_sequential(model, pressure = false)
+    tmodel = convert_to_sequential(model, pressure = false, transport_scheme = transport_scheme)
     function add_total_saturation!(m, state0)
         if !haskey(state0, :TotalSaturation)
             state0[:TotalSaturation] = ones(number_of_cells(m.domain))

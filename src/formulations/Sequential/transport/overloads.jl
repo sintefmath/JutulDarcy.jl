@@ -12,7 +12,7 @@ function Jutul.select_parameters!(vars, ::TransportFormulation, model::Transport
     end
 end
 
-function Jutul.select_equations!(eqs, ::TransportFormulation, model::TransportModel)
+function Jutul.select_equations!(eqs, f::TransportFormulation, model::TransportModel)
     lbl = :mass_conservation
     @assert haskey(eqs, lbl)
     eq = eqs[lbl]
@@ -20,7 +20,7 @@ function Jutul.select_equations!(eqs, ::TransportFormulation, model::TransportMo
     s = conserved_symbol(eq)
     @assert s == :TotalMasses
     N = number_of_equations_per_entity(model, eq)
-    eqs[lbl] = ConservationLaw(eq.flow_discretization, s, N, flux = TotalSaturationFlux())
+    eqs[lbl] = ConservationLaw(eq.flow_discretization, s, N, flux = TotalSaturationFlux(f))
 end
 
 @inline function JutulDarcy.darcy_permeability_potential_differences(
@@ -45,14 +45,33 @@ end
     gΔz = effective_gravity_difference(state, face, kgrad)
     pc, ref_index = capillary_pressure(model, state)
 
-    @inline function bouyancy_and_capillary_term(phase)
-        Δpc = capillary_gradient(pc, kgrad, phase, ref_index)
-        ρ_avg = face_average_density(model, state, kgrad, phase)
-        # Reference:  -T_f*(∇p + Δpc + gΔz*ρ_avg) for fully coupled flux
-        return -(gΔz*ρ_avg + Δpc)
+    bouyancy_term(phase) = face_average_density(model, state, kgrad, phase)
+    capillary_term(phase) = capillary_gradient(pc, kgrad, phase, ref_index)
+
+    scheme = transport_scheme(flux_type)
+    if scheme == :ppu
+        @inline function bouyancy_and_capillary_term(phase)
+            Δpc = capillary_term(phase)
+            ρ_avg = bouyancy_term(phase)
+            # Reference:  -T_f*(∇p + Δpc + gΔz*ρ_avg) for fully coupled flux
+            return -(gΔz*ρ_avg + Δpc)
+        end
+        G = map(bouyancy_and_capillary_term, phases)
+        out = phase_potential_upwind_potential_differences(V_t, T_f, G, left_mob, right_mob)
+    else
+        G_den = map(bouyancy_term, phases)
+        G_cap = map(capillary_term, phases)
+        pot_den = phase_potential_upwind_potential_differences(V_t, T_f, G_den, left_mob, right_mob)
+        if scheme == :ppu_nopc || all(G_cap .== 0.0)
+            out = pot_den
+        else
+            # hybrid
+            # TODO: This is not a correct implementation of hybrid since we do not split the upwinded terms
+            pot_pc = phase_potential_upwind_potential_differences(zero(V_t), T_f, G_cap, left_mob, right_mob)
+            out = pot_den .+ pot_pc
+        end
     end
-    G = map(bouyancy_and_capillary_term, phases)
-    return phase_potential_upwind_potential_differences(V_t, T_f, G, left_mob, right_mob)
+    return out
 end
 
 function Jutul.update_cross_term_in_entity!(out, i,
