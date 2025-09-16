@@ -4,7 +4,7 @@ import JutulDarcy.Sequential:
     phase_potential_upwind_fixed_flux,
     phase_potential_upwind_potential_differences,
     sort_tuple_indices
-using Test, Jutul, JutulDarcy
+using Test, Jutul, JutulDarcy, HYPRE
 @testset "sequential_upwind" begin
     @testset "sort_tuple" begin
         @test sort_tuple_indices((10.0, 5.0)) == (2, 1)
