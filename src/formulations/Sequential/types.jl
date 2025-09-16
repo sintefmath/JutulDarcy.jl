@@ -104,28 +104,10 @@ function SequentialSimulator(model; state0 = setup_state(model), parameters = se
     PSim = subsimulator(pmodel)
     TSim = subsimulator(tmodel)
 
-
-    # @info "Keys" transfer_keys_pressure transfer_keys_transport init_keys_transport init_keys_pressure
-
-
-    # all_keys = union(seq_output_keys(PSim.model), seq_output_keys(TSim.model))
-    # seq_state = JutulStorage()
-    # for s in [PSim, TSim]
-    #     s0 = s.storage.state0
-    #     for k in seq_output_keys(s.model)
-    #         if haskey(s0, k)
-    #             seq_state[k] = similar(s0[k])
-    #         end
-    #     end
-    # end
-    # @info "!" seq_state
-    # error()
     S = JutulStorage()
     S[:transfer] = JutulStorage()
     setup_sequential_storage!(S[:transfer], PSim.model, TSim.model)
     S[:recorder] = ProgressRecorder()
-    # S[:state] = seq_state
-    # S[:state0] = deepcopy(seq_state)
-    # S[:primary_variables] = seq_state
+    S[:state0] = deepcopy(TSim.storage.state0)
     return SequentialSimulator(model, PSim, TSim, S)
 end

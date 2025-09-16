@@ -242,30 +242,54 @@ end
 function Jutul.update_before_step!(sim::SequentialSimulator, dt, forces; kwarg...)
     Jutul.update_before_step!(sim.pressure, dt, forces; kwarg...)
     Jutul.update_before_step!(sim.transport, dt, forces; kwarg...)
+    sequential_set_state0_values!(sim.storage.state0, sim.transport.model, sim.transport.storage.state0)
+end
+
+function sequential_set_state0_values!(state_sim, m::SimulationModel, state)
+    pvar = Jutul.get_primary_variables(m)
+    for k in keys(pvar)
+        state_sim[k] .= state[k]
+    end
+    svar = Jutul.get_secondary_variables(m)
+    for k in keys(svar)
+        state_sim[k] .= state[k]
+    end
+    return state_sim
+end
+
+function sequential_set_state0_values!(state_sim, m::MultiModel, state)
+    for k in Jutul.submodels_symbols(m)
+        sequential_set_state0_values!(state_sim[k], m[k], state[k])
+    end
+    return state_sim
 end
 
 function Jutul.update_after_step!(sim::SequentialSimulator, dt, forces; kwarg...)
-    # First, sync up state and state0 for transport
-    r_t = Jutul.update_after_step!(sim.transport, dt, forces; kwarg...)
     # NOTE: This part must be done carefully so that the pressure contains the
     # final solution from the last transport solve.
     sequential_sync_values!(sim, to_key = :pressure, kind = :init_keys)
-    r_p = Jutul.update_after_step!(sim.pressure, dt, forces; kwarg...)
-    function merge_rep(m, p, t)
-        for (k, v) in pairs(p)
-            if k == :Pressure
-                t[k] = v
-            end
-        end
-        return t
+    return sequential_update_report(sim.transport.model, sim.transport.storage.state, sim.storage.state0)
+end
+
+function sequential_update_report(m::SimulationModel, state, state0)
+    report = Jutul.JUTUL_OUTPUT_TYPE()
+    pvar = Jutul.get_primary_variables(m)
+    for k in keys(pvar)
+        report[k] = Jutul.variable_change_report(state[k], state0[k], pvar[k])
     end
-    function merge_rep(m::Jutul.MultiModel, p, t)
-        for k in Jutul.submodels_symbols(m)
-            t[k] = merge_rep(m[k], p[k], t[k])
-        end
-        return t
+    svar = Jutul.get_secondary_variables(m)
+    for k in keys(svar)
+        report[k] = Jutul.variable_change_report(state[k], state0[k], svar[k])
     end
-    return merge_rep(sim.transport.model, r_p, r_t)
+    return report
+end
+
+function sequential_update_report(m::MultiModel, state, state0)
+    report = Jutul.JUTUL_OUTPUT_TYPE()
+    for k in Jutul.submodels_symbols(m)
+        report[k] = sequential_update_report(m[k], state[k], state0[k])
+    end
+    return report
 end
 
 
