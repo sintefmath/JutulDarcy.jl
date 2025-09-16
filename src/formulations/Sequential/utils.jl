@@ -187,7 +187,7 @@ function Jutul.final_simulation_message(simulator::SequentialSimulator, p, rec, 
     do_print = verbose || print_end_report
     if do_print
         Jutul.jutul_message("Sequential", "Total timing, per SFI iteration")
-        Jutul.final_simulation_message(simulator.pressure, p, rec, t_elapsed, reports, arg...)
+        Jutul.final_simulation_message(simulator.pressure, p, rec, t_elapsed, reports, timesteps, config, arg...)
         stats = Dict()
         stats[:pressure] = Dict(:iterations => 0, :linear_iterations => 0)
         stats[:transport] = Dict(:iterations => 0, :linear_iterations => 0)
