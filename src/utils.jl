@@ -927,9 +927,10 @@ function setup_reservoir_simulator(case::JutulCase;
         tol_dp_well = 1e-3,
         inc_tol_dp_abs = Inf,
         inc_tol_dp_rel = Inf,
+        inc_tol_dz = Inf,
+        inc_tol_dT = Inf,
         failure_cuts_timestep = true,
         max_timestep_cuts = 25,
-        inc_tol_dz = Inf,
         timesteps = :auto,
         relaxation = false,
         presolve_wells = false,
@@ -1055,7 +1056,8 @@ function setup_reservoir_simulator(case::JutulCase;
         tol_dp_well = tol_dp_well,
         inc_tol_dp_abs = inc_tol_dp_abs,
         inc_tol_dp_rel = inc_tol_dp_rel,
-        inc_tol_dz = inc_tol_dz
+        inc_tol_dz = inc_tol_dz,
+        inc_tol_dT = inc_tol_dT
         )
     return (sim, cfg)
 end
@@ -1153,7 +1155,8 @@ function set_default_cnv_mb_inner!(tol, model;
         tol_dp_well = 1e-3,
         inc_tol_dp_abs = Inf,
         inc_tol_dp_rel = Inf,
-        inc_tol_dz = Inf
+        inc_tol_dz = Inf,
+        inc_tol_dT = Inf
         )
     sys = model.system
     if model isa Jutul.CompositeModel && hasproperty(model.system.systems, :flow)
@@ -1181,6 +1184,13 @@ function set_default_cnv_mb_inner!(tol, model;
             increment_dp_rel = inc_tol_dp_rel,
             increment_dz = inc_tol_dz
         )
+        if haskey(model.equations, :energy_conservation)
+            tol[:energy_conservation] = (
+                CNV = c,
+                EB = m,
+                increment_dT = inc_tol_dT
+            )
+        end
     end
 end
 
