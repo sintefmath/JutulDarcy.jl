@@ -78,6 +78,9 @@ Calculate the convergence criterion for the total thermal energy conservation la
 function Jutul.convergence_criterion(model, storage, eq::ConservationLaw{:TotalThermalEnergy}, eq_s, r; dt = 1.0, update_report = missing)
     a = active_entities(model.domain, Cells())
     E0 = storage.state0.TotalThermalEnergy
-    @tullio max e := abs(r[i]) * dt / value(E0[a[i]])
-    return (Max = (errors = (e, ), names = ("Energy balance",)), )
+    maxval = 0.0
+    for (i, c) in enumerate(a)
+        maxval = max(maxval, abs(r[i])*dt / value(E0[c]))
+    end
+    return (Max = (errors = (maxval, ), names = ("Energy balance",)), )
 end

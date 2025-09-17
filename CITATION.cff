@@ -1,0 +1,9 @@
+@article{jutuldarcy,
+  title={JutulDarcy.jl - a fully differentiable high-performance reservoir simulator based on automatic differentiation},
+  author={M{\o}yner, Olav},
+  journal={Computational Geosciences},
+  volume={29},
+  number={30},
+  year={2025},
+  publisher={Springer}
+}

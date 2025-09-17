@@ -216,6 +216,7 @@ function build_jutul_darcy_docs(
                 ],
                 "References" => [
                     "man/basics/package.md",
+                    "extras/paper_list.md",
                     "Jutul functions" => "ref/jutul.md",
                     "Bibliography" => "extras/refs.md"
                 ],
