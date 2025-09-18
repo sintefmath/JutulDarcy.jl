@@ -3,7 +3,7 @@ function setup_wells(d::AFIInputFile, reservoir)
     well_dict = OrderedDict{String, Any}()
     for welldef in welldefs
         w2c = get(welldef.value, "WellToCellConnections", Dict())
-        if length(keys(w2c)) == 0
+        if !haskey(w2c, "Cell")
             continue
         end
         wname = welldef.value["WellName"]
