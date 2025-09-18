@@ -927,9 +927,14 @@ function setup_reservoir_simulator(case::JutulCase;
         tol_dp_well = 1e-3,
         inc_tol_dp_abs = Inf,
         inc_tol_dp_rel = Inf,
+        inc_tol_dz = Inf,
+        tol_cnve = tol_cnv,
+        tol_eb = tol_mb,
+        tol_cnve_well = 10*tol_cnve,
+        tol_eb_well = 1e4*tol_eb,
+        inc_tol_dT = Inf,
         failure_cuts_timestep = true,
         max_timestep_cuts = 25,
-        inc_tol_dz = Inf,
         timesteps = :auto,
         relaxation = false,
         presolve_wells = false,
@@ -1055,7 +1060,12 @@ function setup_reservoir_simulator(case::JutulCase;
         tol_dp_well = tol_dp_well,
         inc_tol_dp_abs = inc_tol_dp_abs,
         inc_tol_dp_rel = inc_tol_dp_rel,
-        inc_tol_dz = inc_tol_dz
+        inc_tol_dz = inc_tol_dz,
+        tol_cnve = tol_cnve,
+        tol_eb = tol_eb,
+        tol_cnve_well = tol_cnve_well,
+        tol_eb_well = tol_eb_well,
+        inc_tol_dT = inc_tol_dT,
         )
     return (sim, cfg)
 end
@@ -1153,7 +1163,12 @@ function set_default_cnv_mb_inner!(tol, model;
         tol_dp_well = 1e-3,
         inc_tol_dp_abs = Inf,
         inc_tol_dp_rel = Inf,
-        inc_tol_dz = Inf
+        inc_tol_dz = Inf,
+        tol_cnve = tol_cnv,
+        tol_eb = tol_mb,
+        tol_cnve_well = 10*tol_cnve,
+        tol_eb_well = 1e4*tol_eb,
+        inc_tol_dT = Inf,
         )
     sys = model.system
     if model isa Jutul.CompositeModel && hasproperty(model.system.systems, :flow)
@@ -1164,23 +1179,30 @@ function set_default_cnv_mb_inner!(tol, model;
         is_well = model_or_domain_is_well(model)
         if is_well
             if physical_representation(model) isa SimpleWell
-                m = Inf
+                mb, eb = Inf, Inf
             else
                 tol[:potential_balance] = (AbsMax = tol_dp_well,)
-                m = tol_mb_well
+                mb, eb = tol_mb_well, tol_eb_well
             end
-            c = tol_cnv_well
+            cnv, cnve = tol_cnv_well, tol_cnve_well
         else
-            c = tol_cnv
-            m = tol_mb
+            cnv, cnve = tol_cnv, tol_cnv
+            mb, eb = tol_mb, tol_eb
         end
         tol[:mass_conservation] = (
-            CNV = c,
-            MB = m,
+            CNV = cnv,
+            MB = mb,
             increment_dp_abs = inc_tol_dp_abs,
             increment_dp_rel = inc_tol_dp_rel,
             increment_dz = inc_tol_dz
         )
+        if haskey(model.equations, :energy_conservation)
+            tol[:energy_conservation] = (
+                CNV = cnve,
+                EB = eb,
+                increment_dT = inc_tol_dT
+            )
+        end
     end
 end
 
