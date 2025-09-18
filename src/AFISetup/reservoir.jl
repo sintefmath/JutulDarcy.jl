@@ -36,6 +36,16 @@ function cartdims_from_structured_info(d::AFIInputFile)
     return (d["I"], d["J"], d["K"])
 end
 
+function cell_index_offset(d::AFIInputFile)
+    sinfo = find_records(d, "StructuredInfo", once = true)
+    start = 0
+    if !isnothing(sinfo)
+        d = sinfo.value
+        start = get(d, "FirstCellId", start)
+    end
+    return start
+end
+
 function setup_mesh_afi(afi::AFIInputFile, mesh)
     IX = afi.setup["IX"]
     if haskey(IX, "RESQML")

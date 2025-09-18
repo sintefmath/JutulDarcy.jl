@@ -25,8 +25,10 @@ function setup_wells(d::AFIInputFile, reservoir)
         ijk_to_local[c] = i
     end
     # Linear indices
+    cell_offset = cell_index_offset(d)
     global_to_local = Dict{Int, Int}()
     for (i, c) in enumerate(mesh.cell_map)
+        c = c - 1 + cell_offset
         global_to_local[c] = i
     end
     wells = []
