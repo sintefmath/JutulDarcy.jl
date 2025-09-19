@@ -17,12 +17,13 @@ function setup_region_map(d::AFIInputFile)
             gdict[k] = i
         end
     end
-    for prefix in ["Rock", "Fluid", "Equilibrium"]
-        map_region!(regions, d, prefix)
-    end
     # RockRegionMapping
     # FluidRegionMapping
     # EquilibriumRegionMapping
+    # ... others?
+    for prefix in ["Rock", "Fluid", "Equilibrium"]
+        map_region!(regions, d, prefix)
+    end
     return regions
 end
 
@@ -31,7 +32,6 @@ function map_region!(regions, d::AFIInputFile, prefix)
     regions[lowercase(prefix)] = reg
     recs = find_records(d, "$(prefix)RegionMapping", "IX", steps = true, model = true, once = false)
     for rec in recs
-        @info "!" prefix rec.value
         tab = rec.value["table"]
         families = tab["RegionFamilyNames"]
         names = tab["RegionNames"]
