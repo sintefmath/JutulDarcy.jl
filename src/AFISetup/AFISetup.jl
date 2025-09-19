@@ -8,4 +8,5 @@ module AFISetup
     include("afi_init.jl")
     include("afi_pvt.jl")
     include("afi_saturation.jl")
+    include("afi_regions.jl")
 end
