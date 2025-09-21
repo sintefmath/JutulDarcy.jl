@@ -11,6 +11,7 @@ import {
 import VersionPicker from "../../components/VersionPicker.vue"
 import AuthorBadge from '../../components/AuthorBadge.vue'
 import Authors from '../../components/Authors.vue'
+import ExampleTag from '../../components/ExampleTag.vue'
 
 import { enhanceAppWithTabs } from 'vitepress-plugin-tabs/client'
 
@@ -32,6 +33,7 @@ export const Theme: ThemeConfig = {
     enhanceAppWithTabs(app);
     app.component('VersionPicker', VersionPicker);
     app.component('AuthorBadge', AuthorBadge)
+    app.component('ExampleTag', ExampleTag)
     app.component('Authors', Authors)
   }
 }
