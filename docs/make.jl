@@ -113,7 +113,19 @@ end
 
 function update_footer(content, subdir, exname)
     content_lines = split(content, "\n")
-    filter!(x -> !occursin("<tags", x), content_lines)
+    for (i, line) in enumerate(content_lines)
+        t = parse_tags(line)
+        if !isnothing(t)
+            newstr = "```@raw html"
+            for tag in t
+                newstr *= "\n<ExampleTag text=\"$tag\" color=green />"
+            end
+            newstr *= "\n```"
+            content_lines[i] = newstr
+            break
+        end
+    end
+    # filter!(x -> !occursin("<tags", x), content_lines)
     content = join(content_lines, "\n")
     info_footer = example_info_footer(subdir, exname)
     gc_footer = post_run_variables_gc()
