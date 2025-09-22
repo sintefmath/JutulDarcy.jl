@@ -47,6 +47,41 @@ function get_example_paths(; check_empty = true)
     return examples
 end
 
+function example_path_jl(cname, pth)
+    # Base directory
+    jutul_dir = realpath(joinpath(@__DIR__, ".."))
+    return joinpath(jutul_dir, "examples", cname, "$pth.jl")
+end
+
+function parse_tags(text)
+    # Match the pattern <tags: ...> and extract the content
+    m = match(r"<tags:\s*([^>]+)>", text)
+    if !isnothing(m)
+        # Split by comma and strip whitespace
+        tags = strip.(split(m.captures[1], ","))
+        return tags
+    end
+    return nothing
+end
+
+function example_tags(pth)
+    tags = String[]
+    lines = readlines(pth)
+    for line in lines
+        t = parse_tags(line)
+        if !isnothing(t)
+            append!(tags, t)
+            break
+        end
+    end
+    return tags
+end
+
+example_tags(example_path_jl("validation", "validation_spe1"))
+
+# exlist = get_example_paths(check_empty = false)
+
+##
 function timer_str()
     start = "example_t_start = time_ns(); # hide\n"
     stop_1 = "\nt_s = (time_ns() - example_t_start) / 1e9 # hide\n"
@@ -113,8 +148,6 @@ function build_jutul_darcy_docs(
     bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"))
 
     ## Literate pass
-    # Base directory
-    jutul_dir = realpath(joinpath(@__DIR__, ".."))
     # Convert examples as .jl files to markdown
     examples = get_example_paths(check_empty = !has_explicit_list)
     validation_markdown = []
@@ -132,7 +165,6 @@ function build_jutul_darcy_docs(
             end
         end
     end
-    example_path(cname, pth) = joinpath(jutul_dir, "examples", cname, "$pth.jl")
     out_dir = joinpath(@__DIR__, "src", "examples")
     notebook_dir = joinpath(@__DIR__, "assets")
     for (category, example_set) in pairs(examples)
@@ -158,7 +190,7 @@ function build_jutul_darcy_docs(
                 jutul_message("Examples", "$category/$exname was skipped.", color = :blue)
                 continue
             end
-            in_pth = example_path(category, exname)
+            in_pth = example_path_jl(category, exname)
             push!(ex_dest, joinpath("examples", category, "$exname.md"))
             upd(content) = update_footer(content, category, exname)
             Literate.markdown(in_pth, joinpath(out_dir, category), preprocess = upd)
@@ -253,7 +285,7 @@ function build_jutul_darcy_docs(
         mkpath(notebook_dir)
         for (category, example_set) in pairs(examples)
             for exname in example_set
-                in_pth = example_path(category, exname)
+                in_pth = example_path_jl(category, exname)
                 ex_notebook_dir = joinpath(notebook_dir, category)
                 @info "$exname Writing notebook to $ex_notebook_dir"
                 Literate.notebook(in_pth, ex_notebook_dir, execute = false)
