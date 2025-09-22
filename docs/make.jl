@@ -112,20 +112,28 @@ function example_info_footer(subdir, exname)
 end
 
 function update_footer(content, subdir, exname)
+    info_footer = example_info_footer(subdir, exname)
+    gc_footer = post_run_variables_gc()
+    start, stop = timer_str()
+    new_content = string(start, content, info_footer, stop, gc_footer)
+    # print(new_content)
+    return new_content
+end
+
+function replace_tags(content, subdir, exname)
     content_lines = split(content, "\n")
     for (i, line) in enumerate(content_lines)
         t = parse_tags(line)
         if !isnothing(t)
-            newstr = "```@raw html"
+            newstr = "``` @raw html\n"
             for tag in t
-                newstr *= "\n<ExampleTag text=\"$tag\" color=green />"
+                newstr *= "<ExampleTag text=\"$tag\" color=green /> \n"
             end
-            newstr *= "\n```"
+            newstr *= "```\n"
             content_lines[i] = newstr
             break
         end
     end
-    # filter!(x -> !occursin("<tags", x), content_lines)
     content = join(content_lines, "\n")
     info_footer = example_info_footer(subdir, exname)
     gc_footer = post_run_variables_gc()
@@ -133,6 +141,7 @@ function update_footer(content, subdir, exname)
     new_content = string(start, content, info_footer, stop, gc_footer)
     # print(new_content)
     return new_content
+    return content
 end
 
 function build_jutul_darcy_docs(
@@ -205,7 +214,8 @@ function build_jutul_darcy_docs(
             in_pth = example_path_jl(category, exname)
             push!(ex_dest, joinpath("examples", category, "$exname.md"))
             upd(content) = update_footer(content, category, exname)
-            Literate.markdown(in_pth, joinpath(out_dir, category), preprocess = upd)
+            fixt(content) = replace_tags(content, category, exname)
+            Literate.markdown(in_pth, joinpath(out_dir, category), preprocess = upd, postprocess = fixt)
         end
     end
     examples_markdown = []
