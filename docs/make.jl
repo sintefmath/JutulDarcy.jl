@@ -77,6 +77,9 @@ function example_info_footer(subdir, exname)
 end
 
 function update_footer(content, subdir, exname)
+    content_lines = split(content, "\n")
+    filter!(x -> !occursin("<tags", x), content_lines)
+    content = join(content_lines, "\n")
     info_footer = example_info_footer(subdir, exname)
     gc_footer = post_run_variables_gc()
     start, stop = timer_str()
