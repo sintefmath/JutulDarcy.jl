@@ -3,7 +3,7 @@
     class="badge"
     :style="{ backgroundColor: color }"
   >
-    <a href="man/basics/input_files">{{ text }}</a>
+    <a :href="`tags#${text}`">{{ text }}</a>
   </span>
 </template>
 
