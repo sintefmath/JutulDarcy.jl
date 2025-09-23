@@ -93,12 +93,33 @@ function all_tags()
     out = OrderedDict()
     colors = to_colormap(:tab20)
     i = 1
+    rgb_html(x, s) = Int(ceil(getfield(x, s)*255))
+
     for (k, v) in pairs(descr)
         color = colors[mod1(i, length(colors))]
-        out[k] = (desc = v, color = "green")
+        r = rgb_html(color, :r)
+        g = rgb_html(color, :g)
+        b = rgb_html(color, :b)
+
+        out[k] = (desc = v, color = "rgb($(r), $(g), $(b))")
         i += 1
     end
     return out
+end
+
+function tag_str(tag::AbstractString)
+    return tag_str([tag])
+end
+
+function tag_str(tagname::AbstractVector)
+    tags = all_tags()
+    s = "``` @raw html\n"
+    for tag in tagname
+        info = tags[tag]
+        s *= "<ExampleTag text=\"$tag\" color=\"$(info.color)\" />\n"
+    end
+    s *= "```\n"
+    return s
 end
 
 function example_tags()
@@ -129,6 +150,7 @@ function write_tags()
         println(io, "The following tags are used to categorize examples in the documentation.\n")
         for (tag, info) in pairs(tags)
             println(io, "## $tag\n")
+            println(io, tag_str(tag))
             println(io, "$(info.desc)\n")
             println(io, "Examples with this tag:\n")
             for (exname, category) in ex_tags[tag]
@@ -180,19 +202,6 @@ function update_footer(content, subdir, exname)
     new_content = string(start, content, info_footer, stop, gc_footer)
     # print(new_content)
     return new_content
-end
-
-function tag_str(tag::AbstractString)
-    return tag_str([tag])
-end
-
-function tag_str(tagname::AbstractVector)
-    s = "``` @raw html\n"
-    for tag in tagname
-        s *= "<ExampleTag text=\"$tag\" color=green />\n"
-    end
-    s *= "```\n"
-    return s
 end
 
 function replace_tags(content, subdir, exname)
