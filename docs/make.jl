@@ -6,6 +6,7 @@ using OrderedCollections
 
 using DocumenterCitations
 using DocumenterVitepress
+using GLMakie
 ##
 cd(@__DIR__)
 
@@ -86,9 +87,15 @@ example_tags(example_path_jl("validation", "validation_spe1"))
 # exlist = get_example_paths(check_empty = false)
 
 function all_tags()
+    descr = OrderedDict()
+    descr["Validation"] = "Text about validation"
+    descr["Blackoil"] = "Text about blackoil"
     out = OrderedDict()
-    out["Validation"] = "Text about validation"
-    out["Blackoil"] = "Text about blackoil"
+    i = 1
+    for (k, v) in pairs(descr)
+        out[k] = (desc = v, color = "green")
+        i += 1
+    end
     return out
 end
 
@@ -118,12 +125,11 @@ function write_tags()
     open(outpth, "w") do io
         println(io, "# Example tags\n")
         println(io, "The following tags are used to categorize examples in the documentation.\n")
-        for (tag, desc) in pairs(tags)
+        for (tag, info) in pairs(tags)
             println(io, "## $tag\n")
-            println(io, "$desc\n")
+            println(io, "$(info.desc)\n")
             println(io, "Examples with this tag:\n")
             for (exname, category) in ex_tags[tag]
-                pth = example_path_jl(category, exname)
                 exlink = joinpath("examples", category, "$exname.md")
                 println(io, "- [$exname]($exlink) (in $category)")
             end
