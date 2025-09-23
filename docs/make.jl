@@ -152,10 +152,10 @@ function write_tags()
             println(io, "## $tag\n")
             println(io, tag_str(tag))
             println(io, "$(info.desc)\n")
-            println(io, "Examples with this tag:\n")
+            println(io, "### Examples with this tag:\n")
             for (exname, category) in ex_tags[tag]
                 exlink = joinpath("examples", category, "$exname.md")
-                println(io, "- [$exname]($exlink) (in $category)")
+                println(io, "1. [$exname]($exlink) (in $category)")
             end
             println(io, "\n")
         end

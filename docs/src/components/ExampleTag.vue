@@ -3,8 +3,9 @@
     class="badge"
     :style="{ backgroundColor: color }"
   >
-    <a :href="`/example_overview#${text}`">{{ text }}</a>
+    <a :href="`/example_overview#${text}`">{{ text }}</a> 
   </span>
+  &nbsp;
 </template>
 
 <script setup>
@@ -23,10 +24,8 @@ defineProps({
 <style scoped>
 .badge {
   display: inline-block;
-  padding: 0.3em 0.8em;
-  border-radius: 999px;
-  color: #fff;
-  font-weight: 500;
+  padding: 0.1em 0.25em;
+  border-radius: 10%;
   font-size: 1em;
   user-select: none;
 }
