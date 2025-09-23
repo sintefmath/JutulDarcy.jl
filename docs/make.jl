@@ -88,8 +88,8 @@ example_tags(example_path_jl("validation", "validation_spe1"))
 
 function all_tags()
     descr = OrderedDict()
-    descr["Validation"] = "Text about validation"
-    descr["Blackoil"] = "Text about blackoil"
+    descr["Validation"] = "These examples validate the simulator on well-known problems by comparing results to other simulators or analytical solutions."
+    descr["Blackoil"] = "Examples that make use of the blackoil model for PVT descriptions."
     out = OrderedDict()
     colors = to_colormap(:tab20)
     i = 1
