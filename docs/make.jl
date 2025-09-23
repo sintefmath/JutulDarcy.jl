@@ -9,6 +9,10 @@ using DocumenterVitepress
 ##
 cd(@__DIR__)
 
+ENV["JUTULDARCY_RUN_VITEPRESS"] = 1
+ENV["JUTULDARCY_DOCS_EXAMPLES_SKIP"] = 1
+examples_to_build = ["validation_spe1"]
+
 function dir_to_doc_name(x::String)
     x = replace(x, "_" => " ")
     x = uppercase(x[1:1])*x[2:end]
@@ -81,6 +85,41 @@ example_tags(example_path_jl("validation", "validation_spe1"))
 
 # exlist = get_example_paths(check_empty = false)
 
+function all_tags()
+    out = OrderedDict()
+    out["Validation"] = "Text about validation"
+    out["Blackoil"] = "Text about blackoil"
+    return out
+end
+
+function write_tags()
+    tags = all_tags()
+    outpth = joinpath(@__DIR__, "src", "example_tags.md")
+    open(outpth, "w") do io
+        println(io, "# Example tags\n")
+        println(io, "The following tags are used to categorize examples in the documentation.\n")
+        for (tag, desc) in pairs(tags)
+            println(io, "## $tag\n")
+            println(io, "$desc\n")
+            println(io, "Examples with this tag:\n")
+            for (category, example_set) in pairs(get_example_paths(check_empty = false))
+                for exname in example_set
+                    pth = example_path_jl(category, exname)
+                    extags = example_tags(pth)
+                    if tag in extags
+                        exlink = joinpath("examples", category, "$exname.md")
+                        println(io, "- [$exname]($exlink) (in $category)")
+                    end
+                end
+            end
+            println(io, "\n")
+        end
+    end
+    println("Wrote tags to $outpth")
+end
+
+write_tags()
+
 ##
 function timer_str()
     start = "example_t_start = time_ns(); # hide\n"
@@ -135,12 +174,6 @@ function replace_tags(content, subdir, exname)
         end
     end
     content = join(content_lines, "\n")
-    info_footer = example_info_footer(subdir, exname)
-    gc_footer = post_run_variables_gc()
-    start, stop = timer_str()
-    new_content = string(start, content, info_footer, stop, gc_footer)
-    # print(new_content)
-    return new_content
     return content
 end
 
@@ -218,7 +251,7 @@ function build_jutul_darcy_docs(
             Literate.markdown(in_pth, joinpath(out_dir, category), preprocess = upd, postprocess = fixt)
         end
     end
-    examples_markdown = []
+    examples_markdown = Any["example_tags.md"]
     for (k, v) in pairs(examples_by_name)
         push!(examples_markdown, dir_to_doc_name(k) => v)
     end
