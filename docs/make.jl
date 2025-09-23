@@ -92,9 +92,29 @@ function all_tags()
     return out
 end
 
+function example_tags()
+    expths = get_example_paths(check_empty = false)
+    out = Dict{String, Any}()
+    for key in keys(all_tags())
+        out[key] = Tuple{String, String}[]
+    end
+    for (category, example_set) in pairs(expths)
+        for exname in example_set
+            pth = example_path_jl(category, exname)
+            extags = example_tags(pth)
+            for tag in extags
+                @assert haskey(out, tag) "Example $exname in $category has unknown tag $tag"
+                push!(out[tag], (exname, category))
+            end
+        end
+    end
+    return out
+end
+
 function write_tags()
     tags = all_tags()
     outpth = joinpath(@__DIR__, "src", "example_tags.md")
+    ex_tags = example_tags()
     open(outpth, "w") do io
         println(io, "# Example tags\n")
         println(io, "The following tags are used to categorize examples in the documentation.\n")
@@ -102,15 +122,10 @@ function write_tags()
             println(io, "## $tag\n")
             println(io, "$desc\n")
             println(io, "Examples with this tag:\n")
-            for (category, example_set) in pairs(get_example_paths(check_empty = false))
-                for exname in example_set
-                    pth = example_path_jl(category, exname)
-                    extags = example_tags(pth)
-                    if tag in extags
-                        exlink = joinpath("examples", category, "$exname.md")
-                        println(io, "- [$exname]($exlink) (in $category)")
-                    end
-                end
+            for (exname, category) in ex_tags[tag]
+                pth = example_path_jl(category, exname)
+                exlink = joinpath("examples", category, "$exname.md")
+                println(io, "- [$exname]($exlink) (in $category)")
             end
             println(io, "\n")
         end
