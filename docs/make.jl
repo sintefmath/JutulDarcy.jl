@@ -91,8 +91,10 @@ function all_tags()
     descr["Validation"] = "Text about validation"
     descr["Blackoil"] = "Text about blackoil"
     out = OrderedDict()
+    colors = to_colormap(:tab20)
     i = 1
     for (k, v) in pairs(descr)
+        color = colors[mod1(i, length(colors))]
         out[k] = (desc = v, color = "green")
         i += 1
     end
@@ -120,7 +122,7 @@ end
 
 function write_tags()
     tags = all_tags()
-    outpth = joinpath(@__DIR__, "src", "example_tags.md")
+    outpth = joinpath(@__DIR__, "src", "example_overview.md")
     ex_tags = example_tags()
     open(outpth, "w") do io
         println(io, "# Example tags\n")
@@ -180,17 +182,25 @@ function update_footer(content, subdir, exname)
     return new_content
 end
 
+function tag_str(tag::AbstractString)
+    return tag_str([tag])
+end
+
+function tag_str(tagname::AbstractVector)
+    s = "``` @raw html\n"
+    for tag in tagname
+        s *= "<ExampleTag text=\"$tag\" color=green />\n"
+    end
+    s *= "```\n"
+    return s
+end
+
 function replace_tags(content, subdir, exname)
     content_lines = split(content, "\n")
     for (i, line) in enumerate(content_lines)
         t = parse_tags(line)
         if !isnothing(t)
-            newstr = "``` @raw html\n"
-            for tag in t
-                newstr *= "<ExampleTag text=\"$tag\" color=green /> \n"
-            end
-            newstr *= "```\n"
-            content_lines[i] = newstr
+            content_lines[i] = tag_str(t)
             break
         end
     end
@@ -272,7 +282,7 @@ function build_jutul_darcy_docs(
             Literate.markdown(in_pth, joinpath(out_dir, category), preprocess = upd, postprocess = fixt)
         end
     end
-    examples_markdown = Any["example_tags.md"]
+    examples_markdown = Any["example_overview.md"]
     for (k, v) in pairs(examples_by_name)
         push!(examples_markdown, dir_to_doc_name(k) => v)
     end
@@ -303,6 +313,7 @@ function build_jutul_darcy_docs(
                     "JutulDarcy.jl" => "index.md",
                     "Getting started" =>"man/intro.md",
                     "Your first JutulDarcy.jl simulation" => "man/first_ex.md",
+                    # "Your first JutulDarcy.jl simulation" => "man/first_ex.md",
                     "FAQ" => "extras/faq.md",
                 ],
                 "Fundamentals" => [
