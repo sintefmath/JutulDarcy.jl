@@ -3,7 +3,7 @@
     class="badge"
     :style="{ backgroundColor: color }"
   >
-    <a :href="`/example_overview#${text}`">{{ text }}</a> 
+    <a :href="`../../examples/overview/example_overview#${text}`">{{ text }}</a> 
   </span>
   &nbsp;
 </template>

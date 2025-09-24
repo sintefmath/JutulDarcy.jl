@@ -165,7 +165,9 @@ end
 
 function write_tags()
     tags = all_tags()
-    outpth = joinpath(@__DIR__, "src", "example_overview.md")
+    outdir = joinpath(@__DIR__, "src", "examples", "overview")
+    mkpath(outdir)
+    outpth = joinpath(outdir, "example_overview.md")
     ex_tags = example_tags()
     open(outpth, "w") do io
         println(io, "# Example overview\n")
@@ -317,7 +319,7 @@ function build_jutul_darcy_docs(
             Literate.markdown(in_pth, joinpath(out_dir, category), preprocess = upd, postprocess = fixt)
         end
     end
-    examples_markdown = Any["example_overview.md"]
+    examples_markdown = Any["examples/overview/example_overview.md"]
     for (k, v) in pairs(examples_by_name)
         push!(examples_markdown, dir_to_doc_name(k) => v)
     end
