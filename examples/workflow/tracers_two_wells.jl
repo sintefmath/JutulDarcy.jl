@@ -1,4 +1,5 @@
 # # Adding tracers to a flow simulation
+# <tags: Immiscible, Tracers, Introduction, Wells>
 # JutulDarcy supports tracers, which are concentrations that flow in one or more
 # phases. These tracers can be passive, or they can be active and change the
 # properties.

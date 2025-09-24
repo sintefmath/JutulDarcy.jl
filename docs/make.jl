@@ -89,16 +89,24 @@ example_tags(example_path_jl("validation", "validation_spe1"))
 function all_tags()
     descr = OrderedDict()
     descr["Introduction"] = "Examples that illustrate basic features of JutulDarcy.jl and how to get started with the simulator. These examples are a good place to start because they are more detailed and easier to follow than the other examples where it is assumed that you are familiar with the features used in most examples."
+    descr["StartToFinish"] = "Tag for examples that go through model setup in detail from start to finish, including meshing, setting up properties, wells, and running a simulation. These examples are a good place to start if you want to see how to set up a complete model."
     descr["Advanced"] = "Examples that illustrate more advanced features of JutulDarcy.jl. These examples assume that you are already familiar with the basics of the simulator (e.g. how a reservoir is represented, how wells are set up) as little attention is given to the basics."
     descr["Validation"] = "These examples validate the simulator on well-known problems by comparing results to other simulators or analytical solutions."
 
+    descr["Wells"] = "Examples that have a particular focus on wells and are a good place to look if you are building your own model with wells, both in terms of realizing wells in a model and operating them with different types of constraints."
     descr["InputFile"] = "Examples that illustrate how to set up and run simulations based on input files (e.g. Eclipse/.DATA format)."
     descr["Differentiability"] = "Examples that illustrate how to use the differentiable features of JutulDarcy.jl, including sensitivity calculations and gradient-based optimization."
     descr["HistoryMatching"] = "Demonstrations of how to use JutulDarcy.jl for history matching/data assimilation, including gradient-based optimization of model parameters to match observed data."
     descr["Discretizations"] = "Examples that illustrate how to use different discretizations for flow and transport in JutulDarcy.jl, including advanced discretizations such as multipoint flux approximations (MPFA) and high-resolution schemes (WENO)."
     descr["Meshing"] = "These examples cover meshing (e.g. by calling Gmsh or other packages for mesh generation)."
+    descr["MachineLearning"] = "Examples that involve machine learning techniques, such as using neural networks to model relative permeability or other properties, or integrating machine learning type models into the simulation workflow."
+    descr["Tracers"] = "Examples that illustrate how to use tracers in JutulDarcy.jl, including setting up passive and active tracers, and using tracers for enhanced oil recovery (EOR) simulations."
+    descr["ModelReduction"] = "Examples that illustrate how to use model reduction techniques in JutulDarcy.jl, including coarsening/upscaling, and other methods to reduce the computational cost of simulations."
+    descr["Optimization"] = "Examples that illustrate how to use JutulDarcy.jl for optimization problems, including gradient-based optimization of well controls and other parameters to maximize an objective function."
+    descr["Properties"] = "Examples that illustrate how to set up and use different dynamic properties in JutulDarcy.jl, including PVT properties, relative permeability, hysteresis and capillary pressure."
 
     descr["Immiscible"] = "Examples that make use of the immiscible/dead-oil model for PVT descriptions."
+    descr["CO2"] = "Examples that involve simulation of geological sequestration  of CO2 (carbon storage and sequestration / CCS), or other types of simulations involving CO2."
     descr["Blackoil"] = "Examples that make use of the blackoil model for PVT descriptions."
     descr["Compositional"] = "Examples that make use of the compositional model for PVT descriptions."
     descr["Geothermal"] = "Examples that simulate recovery and/or storage of heat in the subsurface. See also the dedicated [Fimbul.jl](https://sintefmath.github.io/Fimbul.jl/dev/) module for geothermal simulation with JutulDarcy.jl."
@@ -340,7 +348,6 @@ function build_jutul_darcy_docs(
                     "JutulDarcy.jl" => "index.md",
                     "Getting started" =>"man/intro.md",
                     "Your first JutulDarcy.jl simulation" => "man/first_ex.md",
-                    # "Your first JutulDarcy.jl simulation" => "man/first_ex.md",
                     "FAQ" => "extras/faq.md",
                 ],
                 "Fundamentals" => [
