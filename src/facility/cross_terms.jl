@@ -402,7 +402,7 @@ function get_target_temperature(ctrl::InjectorControl, target::ReinjectionTarget
         return ctrl.temperature
     end
 
-    q, qh, Ttot = 0.0, 0.0, 0.0
+    q = qh = Ttot = 0.0
     for w in target.wells
         pos = get_well_position(facility.domain, w)
         qw = state_facility.TotalSurfaceMassRate[pos]
@@ -411,7 +411,7 @@ function get_target_temperature(ctrl::InjectorControl, target::ReinjectionTarget
         qh += qw.*Tw
         Ttot += Tw
     end
-    T = abs(q) >= MIN_ACTIVE_WELL_RATE ? qh/q : Ttot/length(target.wells)
+    T = ifelse(abs(q) >= MIN_ACTIVE_WELL_RATE, qh/q, Ttot/length(target.wells))
     
     return T
 end
