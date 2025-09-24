@@ -862,7 +862,7 @@ end
 - `max_timestep=si_unit(:year)`: Maximum internal timestep used in solver.
 - `min_timestep=0.0`: Minimum internal timestep used in solver.
 
-## Convergence criterions
+## Convergence criterions (mass conservation)
 - `tol_cnv=1e-3`: maximum allowable point-wise error (volume-balance)
 - `tol_mb=1e-7`: maximum alllowable integrated error (mass-balance)
 - `tol_cnv_well=10*tol_cnv`: maximum allowable point-wise error for well node
@@ -870,8 +870,15 @@ end
 - `tol_mb_well=1e4*tol_mb`: maximum alllowable integrated error for well node
   (mass-balance)
 - `inc_tol_dp_abs=Inf`: Maximum allowable pressure change (absolute)
-- `inc_tol_dp_rel=Inf`: Maximum allowable pressure change (absolute)
+- `inc_tol_dp_rel=Inf`: Maximum allowable pressure change (relative)
 - `inc_tol_dz=Inf`: Maximum allowable composition change (compositional only).
+
+## Convergence criterions (energy conservation)
+- `tol_cnve=tol_cnv`: Maximum allowable point-wise error
+- `tol_eb=tol_mb`: Maximum allowable integrated error
+- `tol_cnve_well=10*tol_cnve`: Maximum allowable point-wise error for well node
+- `tol_eb_well=1e4*tol_eb`: Maximum allowable integrated error for well node
+- `inc_tol_dT=Inf`: Maximum allowable temperature change (absolute)
 
 ## Inherited keyword arguments
 
