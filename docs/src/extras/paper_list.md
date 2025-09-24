@@ -6,6 +6,7 @@ This page lists papers that use JutulDarcy.jl. Do you have a paper that is not l
 
 ## Journal papers
 
+1. [Model-based reinforcement learning for active flow control. Y. Minghui, A. H. Elsheikh. Physics of Fluids 37.9 (2025)](https://doi.org/10.1063/5.0287427)
 1. [Grid-Orientation Effects in the 11th SPE Comparative Solution Project Using Unstructured Grids and Consistent Discretizations. K. Holme, K.-A. Lie, O. Møyner, A. Johansson. SPE Journal (2025)](https://doi.org/10.2118/223885-MS)
 1. [Diffusion-Based Subsurface Multiphysics Monitoring and Forecasting. X. Huang, F. Wang, T. Alkhalifah. JGR Machine Learning And Computation (2025)](https://doi.org/10.1029/2025JH000603)
 1. [Accelerating Nonlinear Convergence in Reservoir Simulation by Adaptive Relaxation and Nonlinear Domain-Decomposition Preconditioning. K-A. Lie, O. Møyner, Ø.Klemetsdal. SPE Journal (2025)](https://doi.org/10.2118/212199-PA)
