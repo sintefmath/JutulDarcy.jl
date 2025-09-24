@@ -1,4 +1,5 @@
 # # Advanced history matching: Regions, blending and parametric models
+# <tags: Immiscible, HistoryMatching, Advanced>
 # In this example we will explore a few advanced topics of gradient-based
 # history matching, including how to treat regions and match parametric relative
 # permeability functions. It is recommended that you first read the basic

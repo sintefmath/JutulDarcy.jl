@@ -1,4 +1,5 @@
 # # History matching a coarse model - CGNet
+# <tags: Immiscible, HistoryMatching>
 # This example demonstrates how to calibrate a coarse model against results from
 # a fine model. We do this by optimizing the parameters of the coarse model to
 # match the well curves. This is a implementation of the method described in

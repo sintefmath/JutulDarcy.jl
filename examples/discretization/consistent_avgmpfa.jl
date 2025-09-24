@@ -1,4 +1,5 @@
 # # Consistent discretizations: Average MPFA and nonlinear TPFA
+# <tags: Discretizations, Immiscible, Introduction>
 # This example demonstrates how to use alternative discretizations for the
 # pressure gradient term in the Darcy equation, i.e. the approximation of the
 # Darcy flux:

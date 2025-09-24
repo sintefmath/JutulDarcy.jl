@@ -1,4 +1,5 @@
 # # The OLYMPUS benchmark model: Two-phase corner-point reservoir
+# <tags: Immiscible, Validation, InputFile>
 # Model from the [ISAPP Optimization
 # challenge](https://www.isapp2.com/optimization-challenge/reservoir-model-description.html)
 #

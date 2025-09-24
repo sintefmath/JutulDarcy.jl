@@ -88,10 +88,21 @@ example_tags(example_path_jl("validation", "validation_spe1"))
 
 function all_tags()
     descr = OrderedDict()
+    descr["Introduction"] = "Examples that illustrate basic features of JutulDarcy.jl and how to get started with the simulator. These examples are a good place to start because they are more detailed and easier to follow than the other examples where it is assumed that you are familiar with the features used in most examples."
+    descr["Advanced"] = "Examples that illustrate more advanced features of JutulDarcy.jl. These examples assume that you are already familiar with the basics of the simulator (e.g. how a reservoir is represented, how wells are set up) as little attention is given to the basics."
     descr["Validation"] = "These examples validate the simulator on well-known problems by comparing results to other simulators or analytical solutions."
+
+    descr["InputFile"] = "Examples that illustrate how to set up and run simulations based on input files (e.g. Eclipse/.DATA format)."
+    descr["Differentiability"] = "Examples that illustrate how to use the differentiable features of JutulDarcy.jl, including sensitivity calculations and gradient-based optimization."
+    descr["HistoryMatching"] = "Demonstrations of how to use JutulDarcy.jl for history matching/data assimilation, including gradient-based optimization of model parameters to match observed data."
+    descr["Discretizations"] = "Examples that illustrate how to use different discretizations for flow and transport in JutulDarcy.jl, including advanced discretizations such as multipoint flux approximations (MPFA) and high-resolution schemes (WENO)."
+    descr["Meshing"] = "These examples cover meshing (e.g. by calling Gmsh or other packages for mesh generation)."
+
+    descr["Immiscible"] = "Examples that make use of the immiscible/dead-oil model for PVT descriptions."
     descr["Blackoil"] = "Examples that make use of the blackoil model for PVT descriptions."
     descr["Compositional"] = "Examples that make use of the compositional model for PVT descriptions."
     descr["Geothermal"] = "Examples that simulate recovery and/or storage of heat in the subsurface. See also the dedicated [Fimbul.jl](https://sintefmath.github.io/Fimbul.jl/dev/) module for geothermal simulation with JutulDarcy.jl."
+
     out = OrderedDict()
     colors = to_colormap(:tab20)
     i = 1
@@ -134,6 +145,7 @@ function example_tags()
         for exname in example_set
             pth = example_path_jl(category, exname)
             extags = example_tags(pth)
+            @assert length(extags) > 0 "Example $exname in $category has no tags"
             for tag in extags
                 @assert haskey(out, tag) "Example $exname in $category has unknown tag $tag"
                 push!(out[tag], (exname, category))

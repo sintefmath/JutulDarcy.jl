@@ -1,4 +1,5 @@
 # # Intro to sensitivities in JutulDarcy
+# <tags: Introduction, Differentiability>
 # Sensitivites with respect to custom parameters: We demonstrate how to set up a
 # simple conceptual model, add new parameters and variable definitions in the
 # form of a new relative permeability function, and calculate and visualize

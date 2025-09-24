@@ -1,4 +1,5 @@
 # # A more complex compositional model
+# <tags: Compositional>
 # This example sets up a more complex compositional simulation with five
 # different components. Other than that, the example is similar to the others
 # that include wells and is therefore not commented in great detail.

@@ -1,4 +1,5 @@
 # # Polymer injection in a 2D black-oil reservoir model
+# <tags: Blackoil, Tracers, Validation, InputFile>
 # This example validates a small polymer model taken from the OPM-tests
 # repository. The model is a 2D black-oil reservoir model with polymer
 # injection. Adding polymer to the water phase increases the viscosity of the
