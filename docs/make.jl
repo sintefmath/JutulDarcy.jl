@@ -90,6 +90,8 @@ function all_tags()
     descr = OrderedDict()
     descr["Validation"] = "These examples validate the simulator on well-known problems by comparing results to other simulators or analytical solutions."
     descr["Blackoil"] = "Examples that make use of the blackoil model for PVT descriptions."
+    descr["Compositional"] = "Examples that make use of the compositional model for PVT descriptions."
+    descr["Geothermal"] = "Examples that simulate recovery and/or storage of heat in the subsurface. See also the dedicated [Fimbul.jl](https://sintefmath.github.io/Fimbul.jl/dev/) module for geothermal simulation with JutulDarcy.jl."
     out = OrderedDict()
     colors = to_colormap(:tab20)
     i = 1
@@ -146,18 +148,22 @@ function write_tags()
     outpth = joinpath(@__DIR__, "src", "example_overview.md")
     ex_tags = example_tags()
     open(outpth, "w") do io
-        println(io, "# Example tags\n")
-        println(io, "The following tags are used to categorize examples in the documentation.\n")
+        println(io, "# Example overview\n")
+        println(io, "JutulDarcy.jl comes with a number of examples that illustrate different features of the simulator. The examples are categorized by tags, and you can find the examples with a specific tag below. Examples can have multiple tags.\n")
         for (tag, info) in pairs(tags)
             println(io, "## $tag\n")
             println(io, tag_str(tag))
             println(io, "$(info.desc)\n")
-            println(io, "### Examples with this tag:\n")
-            for (exname, category) in ex_tags[tag]
-                exlink = joinpath("examples", category, "$exname.md")
-                println(io, "1. [$exname]($exlink) (in $category)")
+            println(io, "### Examples with the $(lowercase(tag)) tag:\n")
+            if length(keys(ex_tags[tag])) == 0
+                println(io, "_No examples with this tag yet._\n")
+            else
+                for (exname, category) in ex_tags[tag]
+                    exlink = joinpath("examples", category, "$exname.md")
+                    println(io, "1. [$exname]($exlink) (in $category)")
+                end
+                println(io, "\n")
             end
-            println(io, "\n")
         end
     end
     println("Wrote tags to $outpth")
