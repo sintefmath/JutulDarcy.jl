@@ -1,4 +1,5 @@
 # # Geothermal doublet
+# <tags: Geothermal, Introduction>
 # This example demonstrates how to set up a geothermal doublet simulation using
 # JutulDarcy. We will use two different PVT functions--one simple and one
 # realistic--to highlight the importance of accurate fluid physics in geothermal

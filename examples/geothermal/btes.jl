@@ -1,4 +1,5 @@
 # # Borehole Thermal Energy Storage (BTES)
+# <tags: Geothermal, Introduction, Meshing>
 # This script demonstrates how to model a borehole thermal energy storage (BTES)
 # system using JutulDarcy. We will set up a BTES system with 50 wells, and
 # simulate five year of operation with 6 months of charging followed by 6 months

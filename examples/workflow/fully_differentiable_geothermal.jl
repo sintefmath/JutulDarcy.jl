@@ -1,4 +1,5 @@
 # # A fully differentiable geothermal doublet: History matching and control optimization
+# <tags: Geothermal, StartToFinish, Advanced, HistoryMatching, Optimization, Differentiability>
 # We are going to set up a conceptual geothermal doublet model in 2D and perform
 # gradient based history matching. This example serves two main purposes:
 # 1. It demonstrates the conceptual workflow for setting up a geothermal model

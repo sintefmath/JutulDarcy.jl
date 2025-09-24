@@ -1,4 +1,5 @@
 # # Buckley-Leverett two-phase problem
+# <tags: Introduction, Validation, Immiscible>
 # The Buckley-Leverett test problem is a classical reservoir simulation
 # benchmark that demonstrates the nonlinear displacement process of a viscous
 # fluid being displaced by a less viscous fluid, typically taken to be water

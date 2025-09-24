@@ -1,4 +1,5 @@
 # # Aquifer thermal energy storage (ATES) validation
+# <tags: Geothermal, Validation, InputFile>
 # This example validates JutulDarcy's thermal solver against results from a
 # commercial simulator. The test case is a simple ATES model with a single pair
 # of wells (hot / cold) where the cold well is used for pressure support with a

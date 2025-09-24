@@ -1,4 +1,5 @@
 # # Gradient-based optimization of net present value (NPV)
+# <tags: Immiscible, InputFile, ModelReduction, Optimization, Advanced>
 # One usage of a differentiable simulator is control optimization. A counterpart
 # to history matching, control optimization is the process of finding the
 # optimal controls for a given objective and simulation model. In this example,
