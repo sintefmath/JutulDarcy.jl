@@ -33,3 +33,4 @@ Manifest.toml
 docs/package-lock.json
 docs/package.json
 *.dat
+/docs/.vscode
