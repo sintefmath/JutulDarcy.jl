@@ -181,7 +181,7 @@ function write_tags()
                 println(io, "_No examples with this tag yet._\n")
             else
                 for (exname, category) in ex_tags[tag]
-                    exlink = joinpath("examples", category, "$exname.md")
+                    exlink = joinpath("..", "..", "examples", category, "$exname.md")
                     println(io, "1. [$exname]($exlink) (in $category)")
                 end
                 println(io, "\n")
