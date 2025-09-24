@@ -10,9 +10,9 @@ using GLMakie
 ##
 cd(@__DIR__)
 
-ENV["JUTULDARCY_RUN_VITEPRESS"] = 1
-ENV["JUTULDARCY_DOCS_EXAMPLES_SKIP"] = 1
-examples_to_build = ["validation_spe1"]
+# ENV["JUTULDARCY_RUN_VITEPRESS"] = 1
+# ENV["JUTULDARCY_DOCS_EXAMPLES_SKIP"] = 1
+# examples_to_build = ["validation_spe1"]
 
 function dir_to_doc_name(x::String)
     x = replace(x, "_" => " ")
