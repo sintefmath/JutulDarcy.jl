@@ -78,9 +78,32 @@ Calculate the convergence criterion for the total thermal energy conservation la
 function Jutul.convergence_criterion(model, storage, eq::ConservationLaw{:TotalThermalEnergy}, eq_s, r; dt = 1.0, update_report = missing)
     a = active_entities(model.domain, Cells())
     E0 = storage.state0.TotalThermalEnergy
-    maxval = 0.0
+    eb, cnv, Etot = 0.0, -Inf, 0.0
+    ΔT = temperature_increment(model, storage.state, update_report)
     for (i, c) in enumerate(a)
-        maxval = max(maxval, abs(r[i])*dt / value(E0[c]))
+        eb += r[i]
+        cnv = max(cnv, abs(r[i])*dt/value(E0[c]))
+        Etot += value(E0[c])
     end
-    return (Max = (errors = (maxval, ), names = ("Energy balance",)), )
+    eb = abs(eb)*dt/Etot
+
+    return (
+        CNV = (errors = (cnv, ), names = ("Max", )),
+        EB = (errors = (eb, ), names = ("Energy balance", )), 
+        increment_dT = (errors = (ΔT, ), names = ("ΔT", )),
+        )
+end
+
+function temperature_increment(model, state, update_report)
+    t_report = update_report[:Temperature]
+    if haskey(t_report, :max)
+        v = t_report.max
+    else
+        v = 1.0
+    end
+    return v
+end
+
+function temperature_increment(model, state, update_report::Missing)
+    return 1.0
 end
