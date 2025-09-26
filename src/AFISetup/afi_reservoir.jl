@@ -92,7 +92,15 @@ function setup_reservoir_domain_afi(d::AFIInputFile, mesh)
     end
     edits = find_records(d, "BoxPropertyEdit", "IX", steps = false, model = true, once = false)
     if length(edits) > 0
-        ijk_lookup = JutulDarcy.ijk_lookup_dict(mesh)
+        ijk_lookup = missing
+        try
+            ijk_lookup = JutulDarcy.ijk_lookup_dict(mesh)
+        catch e
+            ijk_lookup = Dict{Tuple{Int, Int, Int}, Int}()
+            for i in 1:number_of_cells(mesh)
+                ijk_lookup[(i, 1, 1)] = i
+            end
+        end
         for edit in edits
             apply_box_property_edit!(data, edit.value, ncells, ijk_lookup)
         end
