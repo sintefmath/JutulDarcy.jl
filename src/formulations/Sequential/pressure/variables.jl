@@ -36,21 +36,23 @@ function Jutul.update_secondary_variable!(w, var::PressureReductionFactors, mode
     has_water = JutulDarcy.has_other_phase(sys)
     phase_ix = JutulDarcy.phase_indices(sys)
     rhoS = JutulDarcy.reference_densities(sys)
-    rhoOS = rhoS[phase_ix.l]
-    rhoGS = rhoS[phase_ix.v]
+    l = phase_ix.l
+    v = phase_ix.v
+    rhoOS = rhoS[l]
+    rhoGS = rhoS[v]
     rho = state.PhaseMassDensities
     bfactors = state.ShrinkageFactors
     for cell in ix
-        pv = state.FluidVolume[cell]
+        # pv = state.FluidVolume[cell]
         if has_water
             denw = rho[phase_ix.a, cell]
             w[phase_ix.a, cell] = 1.0/denw
         end
-        bO = bfactors[phase_ix.l, cell]
-        bG = bfactors[phase_ix.v, cell]
+        bO = bfactors[l, cell]
+        bG = bfactors[v, cell]
         w_o, w_g = blackoil_true_impes_og!(cellval(Rs, cell), cellval(Rv, cell), bO, bG, rhoOS, rhoGS)
-        w[phase_ix.l, cell] = w_o
-        w[phase_ix.v, cell] = w_g
+        w[l, cell] = w_o
+        w[v, cell] = w_g
     end
     return w
 end

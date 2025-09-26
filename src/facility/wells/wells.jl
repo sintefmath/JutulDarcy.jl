@@ -397,15 +397,20 @@ function perforation_phase_mass_flux(λ_t, conn, state_res, state_well, ph)
     if ψ < 0
         wc = conn.well
         # Injection
-        ρ_w = state_well.PhaseMassDensities
-        s_w = state_well.Saturations
-        q_ph = s_w[ph, wc]*ρ_w[ph, wc]*ψ*λ_t
+        ρ_w = state_well.PhaseMassDensities[ph, wc]
+        s_w = state_well.Saturations[ph, wc]
+        q_ph = s_w*ρ_w*ψ*λ_t
     else
         rc = conn.reservoir
         # Production
-        ρ = state_res.PhaseMassDensities
-        λ = state_res.PhaseMobilities[ph, rc]
-        q_ph = λ*ρ[ph, rc]*ψ
+        if haskey(state_res, :PhaseMassMobilities)
+            ρλ = state_res.PhaseMassMobilities[ph, rc]
+        else
+            ρ = state_res.PhaseMassDensities[ph, rc]
+            λ = state_res.PhaseMobilities[ph, rc]
+            ρλ = ρ*λ
+        end
+        q_ph = ρλ*ψ
     end
     return q_ph
 end
@@ -414,13 +419,11 @@ Base.@propagate_inbounds function simple_well_perforation_flux!(out, sys::Union{
     rc = conn.reservoir
     # Reservoir quantities
     ρ = state_res.PhaseMassDensities
-    # Extra mobility needed
-    kr = state_res.RelativePermeabilities
-    μ = state_res.PhaseViscosities
+    mob = state_res.PhaseMobilities
     nph = size(ρ, 1)
-    ρλ_t = 0
+    ρλ_t = zero(eltype(mob))
     for ph in 1:nph
-        ρλ_t += ρ[ph, rc]*kr[ph, rc]/μ[ph, rc]
+        ρλ_t += ρ[ph, rc]*mob[ph, rc]
     end
     X = state_well.MassFractions
     for ph in 1:nph
@@ -431,7 +434,7 @@ Base.@propagate_inbounds function simple_well_perforation_flux!(out, sys::Union{
             out[ph] = X[ph]*ψ*ρλ_t
         else
             # Production
-            λ = kr[ph, rc]/μ[ph, rc]
+            λ = mob[ph, rc]
             out[ph] = λ*ρ[ph, rc]*ψ
         end
     end

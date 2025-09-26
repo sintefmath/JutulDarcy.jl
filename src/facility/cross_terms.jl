@@ -37,6 +37,7 @@ function update_cross_term_in_entity!(out, i,
     else
         @inbounds multisegment_well_perforation_flux!(out, sys, state_t, state_s, rhoS, conn)
     end
+    return out
 end
 
 function cross_term_perforation_get_conn(ct, i, state_s, state_t)
@@ -70,17 +71,19 @@ function perforation_phase_potential_difference(conn, state_res, state_well, ix)
         K_mul = state_res[:PermeabilityMultiplier][conn.reservoir]
         WI *= K_mul
     end
-    if haskey(state_well, :ConnectionPressureDrop)
-        dp += state_well.ConnectionPressureDrop[conn.perforation]
-    elseif conn.gdz != 0
-        ρ_r = state_res.PhaseMassDensities[ix, conn.reservoir]
-        if haskey(state_well, :PhaseMassDensities)
-            ρ_w = state_well.PhaseMassDensities[ix, conn.well]
-            ρ = 0.5*(ρ_r + ρ_w)
+    if conn.gdz != 0.0
+        if haskey(state_well, :ConnectionPressureDrop)
+            dp += state_well.ConnectionPressureDrop[conn.perforation]
         else
-            ρ = ρ_r
+            ρ_r = state_res.PhaseMassDensities[ix, conn.reservoir]
+            if haskey(state_well, :PhaseMassDensities)
+                ρ_w = state_well.PhaseMassDensities[ix, conn.well]
+                ρ = 0.5*(ρ_r + ρ_w)
+            else
+                ρ = ρ_r
+            end
+            dp += ρ*conn.gdz
         end
-        dp += ρ*conn.gdz
     end
     return -WI*dp
 end
@@ -217,12 +220,20 @@ done by adding a source term to the well equation based on the current facility
 status (injecting or producing).
 """
 function update_cross_term_in_entity!(out, i,
-    state_well, state0_well,
-    state_facility, state0_facility,
-    well, facility,
-    ct::WellFromFacilityFlowCT, eq, dt, ldisc = local_discretization(ct, i))
-
+        state_well, state0_well,
+        state_facility, state0_facility,
+        well, facility,
+        ct::WellFromFacilityFlowCT, eq, dt, ldisc = local_discretization(ct, i)
+    )
     well_symbol = ct.well
+    q_t, mix = cross_term_total_surface_mass_rate_and_mixture(facility, well, state_facility, state_well, well_symbol)
+    for i in eachindex(out, mix)
+        @inbounds out[i] = -mix[i]*q_t
+    end
+    return out
+end
+
+function cross_term_total_surface_mass_rate_and_mixture(facility, well, state_facility, state_well, well_symbol)
     pos = get_well_position(facility.domain, well_symbol)
 
     cfg = state_facility.WellGroupConfiguration
@@ -234,7 +245,9 @@ function update_cross_term_in_entity!(out, i,
         effective = true
     )
     # Hack for sparsity detection
-    q_t += 0*bottom_hole_pressure(state_well)
+    bhp = bottom_hole_pressure(state_well)
+    total_mass = state_well.TotalMasses[1, well_top_node()]
+    q_t += 0*bhp + 0*total_mass
 
     if isa(ctrl, InjectorControl)
         if value(q_t) < 0
@@ -256,9 +269,7 @@ function update_cross_term_in_entity!(out, i,
             mix = masses./mass
         end
     end
-    for i in eachindex(out)
-        @inbounds out[i] = -mix[i]*q_t
-    end
+    return (q_t, mix)
 end
 
 # Thermal
