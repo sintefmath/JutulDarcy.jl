@@ -9,7 +9,19 @@ function JutulDarcy.setup_reservoir_model(afi::AFIInputFile;
     model = setup_reservoir_model(reservoir, system; wells = wells, extra_out = false, kwarg...)
     pvars = JutulDarcy.AFISetup.setup_pvt_variables(afi, system, reservoir)
     svars = JutulDarcy.AFISetup.setup_saturation_variables(afi, system, reservoir)
-    Jutul.replace_variables!(model; pairs(pvars)..., pairs(svars)..., throw = false)
+    allvars = merge(pvars, svars)
+    for (k, v) in allvars
+        for submodel in values(model.models)
+            svars0 = Jutul.get_secondary_variables(submodel)
+            prm0 = Jutul.get_secondary_variables(submodel)
+            if haskey(svars0, k) || haskey(prm0, k)
+                Jutul.delete_variable!(submodel, k)
+                v::JutulVariables
+                submodel.secondary_variables[k] = v
+            end
+        end
+    end
+
     if extra_out
         retval = (model, Jutul.setup_parameters(model))
     else
