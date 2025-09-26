@@ -67,7 +67,7 @@ fig
 # steps. We implement a function for one term of this sum.
 step_times = cumsum(case_ref.dt)
 function saturation_mismatch(m, state, dt, step_info, forces)
-    t = step_info[:time] + dt
+    t = step_info[:time]
     step_no = findmin(x -> abs(x - t), step_times)[2]
     state_ref = states_ref[step_no]
     fld = :Saturations
