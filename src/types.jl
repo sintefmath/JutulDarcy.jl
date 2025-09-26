@@ -27,6 +27,11 @@ struct MultiPhaseCompositionalSystemLV{E, T, O, R, N} <: CompositionalSystem whe
     reference_phase_index::Int
 end
 
+function MultiPhaseCompositionalSystemLV{R, T, O, D, N}(phases, c, equation_of_state, reference_densities) where {R, T, O, D, N}
+    reference_phase_index = get_reference_phase_index(phases)
+    return MultiPhaseCompositionalSystemLV{R, T, O, D, N}(phases, c, equation_of_state, reference_densities, reference_phase_index)
+end
+
 const LVCompositional2PhaseSystem = MultiPhaseCompositionalSystemLV{<:Any, <:Any, Nothing, <:Any, <:Any}
 const LVCompositional3PhaseSystem = MultiPhaseCompositionalSystemLV{<:Any, <:Any, <:AbstractPhase, <:Any, <:Any}
 
