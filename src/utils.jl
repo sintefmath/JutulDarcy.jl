@@ -1191,6 +1191,8 @@ function set_default_cnv_mb_inner!(tol, model;
         tol_eb = tol_mb,
         tol_cnve_well = 10*tol_cnve,
         tol_eb_well = 1e4*tol_eb,
+        inc_tol_dp_rel = missing,
+        inc_tol_dp_abs = missing,
         inc_tol_dT = Inf,
     )
     is_pressure_model = haskey(model.equations, :pressure)
