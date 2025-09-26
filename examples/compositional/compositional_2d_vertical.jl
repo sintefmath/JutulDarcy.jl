@@ -1,4 +1,5 @@
 # # Intro to compositional flow
+# <tags: Compositional, Introduction>
 # This is a simple conceptual example demonstrating how to solve compositional
 # flow. This example uses a two-component water-CO2 system. Note that the
 # default Peng-Robinson is not accurate for this system without adjustments to

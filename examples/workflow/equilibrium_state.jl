@@ -1,4 +1,5 @@
 # # Hydrostatic equilibriation of models
+# <tags: Immiscible, Compositional, Blackoil, Introduction>
 # Initializing a reservoir model is an important part of reservoir simulation.
 # For simple, conceptual models it may be sufficient to prescribe a single
 # uniform pressure value as the initial condition, but for more realistic cases

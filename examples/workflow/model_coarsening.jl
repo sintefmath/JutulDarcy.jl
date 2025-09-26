@@ -1,4 +1,5 @@
 # # Model coarsening
+# <tags: Immiscible, ModelReduction, Advanced>
 # Running a model at full resolution can be computationally expensive. In many
 # cases, it is possible to coarsen the model to reduce the computational cost.
 # This example demonstrates how to coarsen a model using JutulDarcy.jl. The

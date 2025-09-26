@@ -1,4 +1,5 @@
 # # Norne: Real field black-oil model
+# <tags: Blackoil, Validation, InputFile>
 # The Norne model is a real field model. The model has been adapted so that the
 # input file only contains features present in JutulDarcy, with the most notable
 # omissions being removal of hysteresis and threshold pressures between

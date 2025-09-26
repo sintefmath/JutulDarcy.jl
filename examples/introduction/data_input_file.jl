@@ -1,4 +1,5 @@
 # # Simulating Eclipse/DATA input files
+# <tags: Introduction, InputFile>
 # The DATA format is commonly used in reservoir simulation. JutulDarcy can set
 # up cases on this format and includes a fully featured grid builder for
 # corner-point grids. Once a case has been set up, it uses the same types as a

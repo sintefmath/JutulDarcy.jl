@@ -1,4 +1,5 @@
 # # CO2-brine correlations with salinity
+# <tags: CO2, Properties>
 # JutulDarcy includes a set of pre-generated tables for simulation of CO2
 # storage in saline aquifers, as well as functions for calculating PVT and
 # solubility properties of CO2-brine mixtures with varying degrees of salinity.

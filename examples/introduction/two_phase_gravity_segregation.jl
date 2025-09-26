@@ -1,4 +1,5 @@
 # # Gravity segregation example
+# <tags: Immiscible, Introduction>
 # The simplest type of porous media simulation problem to set up that is not
 # trivial is the transition to equilibrium from an unstable initial condition.
 # Placing a heavy fluid on top of a lighter fluid will lead to the heavy fluid

@@ -1,4 +1,5 @@
 # # Adjoint gradients for the SPE1 model
+# <tags: Blackoil, HistoryMatching, Differentiability, InputFile>
 # This is a brief example of how to set up a case and compute adjoint gradients
 # for the SPE1 model in a few different ways. These techniques are in general
 # applicable to DATA-type models.

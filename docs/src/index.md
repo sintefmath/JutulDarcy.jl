@@ -68,43 +68,43 @@ Pkg.add("JutulDarcy") # Reservoir simulator
 
 To verify that everything is working, we have a minimal example that runs an industry standard input file and produces interactive plots. Note that interactive plotting requires `GLMakie`, which may not work if you are running Julia over SSH.
 
-```@example
-using JutulDarcy, GLMakie
-spe9_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE9")
-file_path = joinpath(spe9_dir, "SPE9.DATA")
-case = setup_case_from_data_file(file_path)
-result = simulate_reservoir(case)
-plot_reservoir_simulation_result(case.model, result)
+### Python bindings
+
+Alternatively, the code has a [Python package](https://github.com/sintefmath/PyJutulDarcy) that can be installed using `pip`:
+```sh
+pip install jutuldarcy
 ```
 
-To get access to all the examples, you can generate a folder that contains the examples locally, you can run the following code to create a folder `jutuldarcy_examples` in your current working directory:
+### Examples
+
+The examples are published in the documentation. For a list of examples categorized by tags, see the [Example overview](@ref) page.
+
+To get access to all the examples as code, you can generate a folder that contains the examples locally, you can run the following code to create a folder `jutuldarcy_examples` in your current working directory:
 
 ```julia
 using JutulDarcy
 generate_jutuldarcy_examples()
 ```
 
-These examples can then be run using `include("jutuldarcy_examples/example_name.jl")` or opened in an editor to be run line by line. Alternatively, you can download all examples as [Jupyter Notebooks](https://github.com/sintefmath/JutulDarcy.jl/tree/gh-pages/dev/final_site/notebooks).
+These examples can then be run using `include("jutuldarcy_examples/example_name.jl")` or opened in an editor to be run line by line.
 
 ## Citing JutulDarcy
 
 If you use JutulDarcy for a scientific publication, please cite [the main paper](https://doi.org/10.3997/2214-4609.202437111) the following way:
 
-> O. Møyner, (2024). JutulDarcy.jl - a Fully Differentiable High-Performance Reservoir Simulator Based on Automatic Differentiation. ECMOR 2024, [https://doi.org/10.3997/2214-4609.202437111](https://doi.org/10.3997/2214-4609.202437111)
+> O. Møyner, (2024). JutulDarcy.jl - a Fully Differentiable High-Performance Reservoir Simulator Based on Automatic Differentiation. Computational Geosciences (2025), [Open Access: https://doi.org/10.1007/s10596-025-10366-6](https://doi.org/10.1007/s10596-025-10366-6)
 
 ::: details Show BibTeX
 
 ```bibtex
-@article{jutuldarcy_ecmor_2024,
-   author = "M{\o}yner, O.",
-   title = "JutulDarcy.jl - a Fully Differentiable High-Performance Reservoir Simulator Based on Automatic Differentiation", 
-   year = "2024",
-   volume = "2024",
-   number = "1",
-   pages = "1-9",
-   doi = "https://doi.org/10.3997/2214-4609.202437111",
-   publisher = "European Association of Geoscientists \& Engineers",
-   issn = "2214-4609",
+@article{jutuldarcy,
+  title={JutulDarcy.jl - a fully differentiable high-performance reservoir simulator based on automatic differentiation},
+  author={M{\o}yner, Olav},
+  journal={Computational Geosciences},
+  volume={29},
+  number={30},
+  year={2025},
+  publisher={Springer}
 }
 ```
 

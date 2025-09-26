@@ -115,6 +115,8 @@ The main paper describing `JutulDarcy.jl` is [*JutulDarcy.jl - a Fully Different
 
 [DOI link to open access paper.](https://doi.org/10.1007/s10596-025-10366-6) If you use JutulDarcy in your work, please cite this paper.
 
+[List of papers that make use of JutulDarcy.jl (add your own!)](https://sintefmath.github.io/JutulDarcy.jl/dev/extras/paper_list)
+
 ## A few of the packages used by Jutul and JutulDarcy
 
 Jutul builds upon many of the excellent packages in the Julia ecosystem. Here are a few of them, and what they are used for:

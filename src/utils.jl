@@ -874,6 +874,7 @@ Pressure tolerances are at the moment only implemented for compositional and
 pressure models. The default value is `Inf` for compositional, and sensible
 values for pressure models.
 
+### Mass conservation
 - `tol_cnv=1e-3`: maximum allowable point-wise error (volume-balance)
 - `tol_mb=1e-7`: maximum alllowable integrated error (mass-balance)
 - `tol_cnv_well=10*tol_cnv`: maximum allowable point-wise error for well node
@@ -883,6 +884,13 @@ values for pressure models.
 - `inc_tol_dp_abs=missing`: Maximum allowable pressure change (absolute)
 - `inc_tol_dp_rel=missing`: Maximum allowable pressure change (relative)
 - `inc_tol_dz=Inf`: Maximum allowable composition change (compositional only).
+
+## Convergence criterions (energy conservation)
+- `tol_cnve=tol_cnv`: Maximum allowable point-wise error
+- `tol_eb=tol_mb`: Maximum allowable integrated error
+- `tol_cnve_well=10*tol_cnve`: Maximum allowable point-wise error for well node
+- `tol_eb_well=1e4*tol_eb`: Maximum allowable integrated error for well node
+- `inc_tol_dT=Inf`: Maximum allowable temperature change (absolute)
 
 ## Inherited keyword arguments
 
@@ -938,9 +946,14 @@ function setup_reservoir_simulator(case::JutulCase;
         tol_dp_well = 1e-3,
         inc_tol_dp_abs = missing,
         inc_tol_dp_rel = missing,
+        inc_tol_dz = Inf,
+        tol_cnve = tol_cnv,
+        tol_eb = tol_mb,
+        tol_cnve_well = 10*tol_cnve,
+        tol_eb_well = 1e4*tol_eb,
+        inc_tol_dT = Inf,
         failure_cuts_timestep = true,
         max_timestep_cuts = 25,
-        inc_tol_dz = Inf,
         timesteps = :auto,
         relaxation = false,
         presolve_wells = false,
@@ -1072,7 +1085,12 @@ function setup_reservoir_simulator(case::JutulCase;
         tol_dp_well = tol_dp_well,
         inc_tol_dp_abs = inc_tol_dp_abs,
         inc_tol_dp_rel = inc_tol_dp_rel,
-        inc_tol_dz = inc_tol_dz
+        inc_tol_dz = inc_tol_dz,
+        tol_cnve = tol_cnve,
+        tol_eb = tol_eb,
+        tol_cnve_well = tol_cnve_well,
+        tol_eb_well = tol_eb_well,
+        inc_tol_dT = inc_tol_dT,
         )
     return (sim, cfg)
 end
@@ -1168,9 +1186,13 @@ function set_default_cnv_mb_inner!(tol, model;
         tol_mb_well = 1e-3,
         tol_cnv_well = 1e-2,
         tol_dp_well = 1e-3,
-        inc_tol_dp_abs = missing,
-        inc_tol_dp_rel = missing,
-        inc_tol_dz = Inf
+        inc_tol_dz = Inf,
+        tol_cnve = tol_cnv,
+        tol_eb = tol_mb,
+        tol_cnve_well = 10*tol_cnve,
+        tol_eb_well = 1e4*tol_eb,
+        inc_tol_dT = Inf,
+        )
     )
     is_pressure_model = haskey(model.equations, :pressure)
     if is_pressure_model
@@ -1201,23 +1223,31 @@ function set_default_cnv_mb_inner!(tol, model;
         is_well = model_or_domain_is_well(model)
         if is_well
             if physical_representation(model) isa SimpleWell
-                m = Inf
+                mb, eb = Inf, Inf
             else
                 tol[:potential_balance] = (AbsMax = tol_dp_well,)
-                m = tol_mb_well
+                mb, eb = tol_mb_well, tol_eb_well
             end
-            c = tol_cnv_well
+            cnv, cnve = tol_cnv_well, tol_cnve_well
         else
-            c = tol_cnv
-            m = tol_mb
+            cnv, cnve = tol_cnv, tol_cnv
+            mb, eb = tol_mb, tol_eb
         end
-        tol[label] = (
-            CNV = c,
-            MB = m,
+
+        tol[:mass_conservation] = (
+            CNV = cnv,
+            MB = mb,
             increment_dp_abs = inc_tol_dp_abs,
             increment_dp_rel = inc_tol_dp_rel,
             increment_dz = inc_tol_dz
         )
+        if haskey(model.equations, :energy_conservation)
+            tol[:energy_conservation] = (
+                CNV = cnve,
+                EB = eb,
+                increment_dT = inc_tol_dT
+            )
+        end
     end
 end
 
@@ -1641,7 +1671,7 @@ end
 
 function available_well_targets(model)
     phases = get_phases(flow_system(model.system))
-    targets = [BottomHolePressureTarget, SurfaceLiquidRateTarget, TotalRateTarget]
+    targets = [BottomHolePressureTarget, SurfaceLiquidRateTarget, TotalRateTarget, TotalMassRateTarget]
     if AqueousPhase() in phases
         push!(targets, SurfaceLiquidRateTarget)
         push!(targets, SurfaceWaterRateTarget)

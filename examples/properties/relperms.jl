@@ -1,4 +1,5 @@
 # # Relative Permeabilities in JutulDarcy
+# <tags: Introduction, Properties>
 # We will show a few of the functions for evaluating relative permeabilities,
 # show how these can be fitted to data and finally how they can be used in
 # simulation.

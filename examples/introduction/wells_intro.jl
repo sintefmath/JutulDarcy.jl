@@ -1,4 +1,5 @@
 # # Introduction to wells
+# <tags: Immiscible, Introduction, Wells>
 
 # This example demonstrates how to set up a 3D domain with a layered
 # permeability field, define wells and solve a simple production-injection

@@ -1,4 +1,5 @@
 # # Gravity circulation with CPR preconditioner
+# <tags: Immiscible, Introduction>
 # This example demonstrates a more complex gravity driven instability. The
 # problem is a bit larger than the [Gravity segregation example](@ref), and is
 # therefore set up using the high level API that automatically sets up an

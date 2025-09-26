@@ -156,6 +156,7 @@ Translates the limit for a given control parameter in a `ProducerControl`.
     - `:rate_upper`: Total volumetric surface rate (upper limit).
     - `:rate_lower`: Total volumetric surface rate (lower limit).
     - `:resv`: Reservoir voidage.
+    - `:mrat`: Total mass rate (upper limit).
 - `val`: The value to which the limit is to be translated.
 
 # Returns
@@ -198,6 +199,9 @@ function translate_limit(control::ProducerControl, name, val)
     elseif name == :resv
         v, w = val
         target_limit = ReservoirVoidageTarget(v, w)
+    elseif name == :mrat
+        # Upper limit, total mass rate
+        target_limit = TotalMassRateTarget(val)
     else
         error("$name limit not supported for well acting as producer.")
     end
@@ -217,6 +221,7 @@ Translate the limit for a given `InjectorControl` object.
     - `:rate_upper`: Total volumetric surface rate (upper limit).
     - `:rate_lower`: Total volumetric surface rate (lower limit).
     - `:resv_rate`: Total volumetric reservoir rate.
+    - `:mrat: Total mass rate(upper limit)
 - `val`: The value associated with the limit.
 
 # Returns
@@ -237,6 +242,9 @@ function translate_limit(control::InjectorControl, name, val)
     elseif name == :resv_rate
         # Upper limit, total volumetric reservoir rate
         target_limit = TotalReservoirRateTarget(val)
+    elseif name == :mrat
+        # Upper limit, total mass rate
+        target_limit = TotalMassRateTarget(val)
     else
         error("$name limit not supported for well acting as injector.")
     end
@@ -366,6 +374,39 @@ function well_target(control::ProducerControl, target::SurfaceVolumeTarget, well
     end
     return w
 end
+
+
+"""
+Well target contribution for a producer with TotalMassRateTarget.
+Always returns 1.0 so that `t = q_t` in `target_actual_pair`, i.e., the residual
+directly compares the actual total mass flow (kg/s) with the target value.
+"""
+
+function well_target(control::ProducerControl, target::TotalMassRateTarget,
+                     well_model, well_state, surface_densities, surface_volume_fractions)
+    return 1.0
+end
+
+
+"""
+Well target contribution from injector with TotalMassRateTarget.
+
+This target enforces a specified total mass injection rate (kg/s) for the well.
+
+# Example usage:
+rate_target = TotalMassRateTarget(1.0)
+
+# Create injector control:
+I_ctrl = InjectorControl(rate_target, [0.0, 1.0], density = 630.0)
+# or, mass rate only (density defaults to 1.0 kg/m^3;
+I_ctrl = InjectorControl(rate_target, [0.0, 1.0])
+"""
+
+function well_target(control::InjectorControl, target::TotalMassRateTarget,
+                     well_model, well_state, surface_densities, surface_volume_fractions)                   
+    return 1.0
+end
+
 
 """
 Well target contribution from well itself (RESV, producer)

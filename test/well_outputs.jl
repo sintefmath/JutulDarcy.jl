@@ -9,6 +9,7 @@ using Test, JutulDarcy, Jutul, Dates
     @test JutulDarcy.translate_target_to_symbol(SurfaceGasRateTarget(1.0)) == :grat
     @test JutulDarcy.translate_target_to_symbol(ReservoirVoidageTarget(1.0, (0.2, 0.5, 0.3))) == :resv
     @test JutulDarcy.translate_target_to_symbol(HistoricalReservoirVoidageTarget(1.0, (0.2, 0.5, 0.3))) == :resv_history
+    @test JutulDarcy.translate_target_to_symbol(TotalMassRateTarget(1.0)) == :mrat
 end
 
 @testset "WellResults" begin

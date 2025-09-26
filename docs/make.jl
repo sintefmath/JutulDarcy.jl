@@ -6,8 +6,13 @@ using OrderedCollections
 
 using DocumenterCitations
 using DocumenterVitepress
+using GLMakie
 ##
 cd(@__DIR__)
+
+# ENV["JUTULDARCY_RUN_VITEPRESS"] = 1
+# ENV["JUTULDARCY_DOCS_EXAMPLES_SKIP"] = 1
+# examples_to_build = ["validation_spe1"]
 
 function dir_to_doc_name(x::String)
     x = replace(x, "_" => " ")
@@ -47,6 +52,148 @@ function get_example_paths(; check_empty = true)
     return examples
 end
 
+function example_path_jl(cname, pth)
+    # Base directory
+    jutul_dir = realpath(joinpath(@__DIR__, ".."))
+    return joinpath(jutul_dir, "examples", cname, "$pth.jl")
+end
+
+function parse_tags(text)
+    # Match the pattern <tags: ...> and extract the content
+    m = match(r"<tags:\s*([^>]+)>", text)
+    if !isnothing(m)
+        # Split by comma and strip whitespace
+        tags = strip.(split(m.captures[1], ","))
+        return tags
+    end
+    return nothing
+end
+
+function example_tags(pth)
+    tags = String[]
+    lines = readlines(pth)
+    for line in lines
+        t = parse_tags(line)
+        if !isnothing(t)
+            append!(tags, t)
+            break
+        end
+    end
+    return tags
+end
+
+example_tags(example_path_jl("validation", "validation_spe1"))
+
+# exlist = get_example_paths(check_empty = false)
+
+function all_tags()
+    descr = OrderedDict()
+    descr["Introduction"] = "Examples that illustrate basic features of JutulDarcy.jl and how to get started with the simulator. These examples are a good place to start because they are more detailed and easier to follow than the other examples where it is assumed that you are familiar with the features used in most examples."
+    descr["StartToFinish"] = "Tag for examples that go through model setup in detail from start to finish, including meshing, setting up properties, wells, and running a simulation. These examples are a good place to start if you want to see how to set up a complete model."
+    descr["Advanced"] = "Examples that illustrate more advanced features of JutulDarcy.jl. These examples assume that you are already familiar with the basics of the simulator (e.g. how a reservoir is represented, how wells are set up) as little attention is given to the basics."
+    descr["Validation"] = "These examples validate the simulator on well-known problems by comparing results to other simulators or analytical solutions."
+
+    descr["Wells"] = "Examples that have a particular focus on wells and are a good place to look if you are building your own model with wells, both in terms of realizing wells in a model and operating them with different types of constraints."
+    descr["InputFile"] = "Examples that illustrate how to set up and run simulations based on input files (e.g. Eclipse/.DATA format)."
+    descr["Differentiability"] = "Examples that illustrate how to use the differentiable features of JutulDarcy.jl, including sensitivity calculations and gradient-based optimization."
+    descr["HistoryMatching"] = "Demonstrations of how to use JutulDarcy.jl for history matching/data assimilation, including gradient-based optimization of model parameters to match observed data."
+    descr["Discretizations"] = "Examples that illustrate how to use different discretizations for flow and transport in JutulDarcy.jl, including advanced discretizations such as multipoint flux approximations (MPFA) and high-resolution schemes (WENO)."
+    descr["Meshing"] = "These examples cover meshing (e.g. by calling Gmsh or other packages for mesh generation)."
+    descr["MachineLearning"] = "Examples that involve machine learning techniques, such as using neural networks to model relative permeability or other properties, or integrating machine learning type models into the simulation workflow."
+    descr["Tracers"] = "Examples that illustrate how to use tracers in JutulDarcy.jl, including setting up passive and active tracers, and using tracers for enhanced oil recovery (EOR) simulations."
+    descr["ModelReduction"] = "Examples that illustrate how to use model reduction techniques in JutulDarcy.jl, including coarsening/upscaling, and other methods to reduce the computational cost of simulations."
+    descr["Optimization"] = "Examples that illustrate how to use JutulDarcy.jl for optimization problems, including gradient-based optimization of well controls and other parameters to maximize an objective function."
+    descr["Properties"] = "Examples that illustrate how to set up and use different dynamic properties in JutulDarcy.jl, including PVT properties, relative permeability, hysteresis and capillary pressure."
+
+    descr["Immiscible"] = "Examples that make use of the immiscible/dead-oil model for PVT descriptions."
+    descr["CO2"] = "Examples that involve simulation of geological sequestration  of CO2 (carbon storage and sequestration / CCS), or other types of simulations involving CO2."
+    descr["Blackoil"] = "Examples that make use of the blackoil model for PVT descriptions."
+    descr["Compositional"] = "Examples that make use of the compositional model for PVT descriptions."
+    descr["Geothermal"] = "Examples that simulate recovery and/or storage of heat in the subsurface. See also the dedicated [Fimbul.jl](https://sintefmath.github.io/Fimbul.jl/dev/) module for geothermal simulation with JutulDarcy.jl."
+
+    out = OrderedDict()
+    colors = to_colormap(:seaborn_muted)
+    i = 1
+    rgb_html(x, s) = Int(ceil(getfield(x, s)*255))
+
+    for (k, v) in pairs(descr)
+        color = colors[mod1(i, length(colors))]
+        r = rgb_html(color, :r)
+        g = rgb_html(color, :g)
+        b = rgb_html(color, :b)
+
+        out[k] = (desc = v, color = "rgb($(r), $(g), $(b))")
+        i += 1
+    end
+    return out
+end
+
+function tag_str(tag::AbstractString)
+    return tag_str([tag])
+end
+
+function tag_str(tagname::AbstractVector)
+    tags = all_tags()
+    s = "``` @raw html\n"
+    for tag in tagname
+        info = tags[tag]
+        s *= "<ExampleTag text=\"$tag\" color=\"$(info.color)\" />\n"
+    end
+    s *= "```\n"
+    return s
+end
+
+function example_tags()
+    expths = get_example_paths(check_empty = false)
+    out = Dict{String, Any}()
+    for key in keys(all_tags())
+        out[key] = Tuple{String, String}[]
+    end
+    for (category, example_set) in pairs(expths)
+        for exname in example_set
+            pth = example_path_jl(category, exname)
+            extags = example_tags(pth)
+            @assert length(extags) > 0 "Example $exname in $category has no tags"
+            for tag in extags
+                @assert haskey(out, tag) "Example $exname in $category has unknown tag $tag"
+                push!(out[tag], (exname, category))
+            end
+        end
+    end
+    return out
+end
+
+function write_tags()
+    tags = all_tags()
+    outdir = joinpath(@__DIR__, "src", "examples", "overview")
+    mkpath(outdir)
+    outpth = joinpath(outdir, "example_overview.md")
+    ex_tags = example_tags()
+    open(outpth, "w") do io
+        println(io, "# Example overview\n")
+        println(io, "JutulDarcy.jl comes with a number of examples that illustrate different features of the simulator. The examples are categorized by tags, and you can find the examples with a specific tag below. Examples can have multiple tags.\n")
+        for (tag, info) in pairs(tags)
+            println(io, "## $tag\n")
+            println(io, tag_str(tag))
+            println(io, "$(info.desc)\n")
+            println(io, "### Examples with the $(lowercase(tag)) tag:\n")
+            if length(keys(ex_tags[tag])) == 0
+                println(io, "_No examples with this tag yet._\n")
+            else
+                for (exname, category) in ex_tags[tag]
+                    exlink = joinpath("..", "..", "examples", category, "$exname.md")
+                    println(io, "1. [$exname]($exlink) (in $category)")
+                end
+                println(io, "\n")
+            end
+        end
+    end
+    println("Wrote tags to $outpth")
+end
+
+write_tags()
+
+##
 function timer_str()
     start = "example_t_start = time_ns(); # hide\n"
     stop_1 = "\nt_s = (time_ns() - example_t_start) / 1e9 # hide\n"
@@ -85,6 +232,19 @@ function update_footer(content, subdir, exname)
     return new_content
 end
 
+function replace_tags(content, subdir, exname)
+    content_lines = split(content, "\n")
+    for (i, line) in enumerate(content_lines)
+        t = parse_tags(line)
+        if !isnothing(t)
+            content_lines[i] = tag_str(t)
+            break
+        end
+    end
+    content = join(content_lines, "\n")
+    return content
+end
+
 function build_jutul_darcy_docs(
         build_format = nothing;
         build_examples = true,
@@ -110,8 +270,6 @@ function build_jutul_darcy_docs(
     bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"))
 
     ## Literate pass
-    # Base directory
-    jutul_dir = realpath(joinpath(@__DIR__, ".."))
     # Convert examples as .jl files to markdown
     examples = get_example_paths(check_empty = !has_explicit_list)
     validation_markdown = []
@@ -129,7 +287,6 @@ function build_jutul_darcy_docs(
             end
         end
     end
-    example_path(cname, pth) = joinpath(jutul_dir, "examples", cname, "$pth.jl")
     out_dir = joinpath(@__DIR__, "src", "examples")
     notebook_dir = joinpath(@__DIR__, "assets")
     for (category, example_set) in pairs(examples)
@@ -155,13 +312,14 @@ function build_jutul_darcy_docs(
                 jutul_message("Examples", "$category/$exname was skipped.", color = :blue)
                 continue
             end
-            in_pth = example_path(category, exname)
+            in_pth = example_path_jl(category, exname)
             push!(ex_dest, joinpath("examples", category, "$exname.md"))
             upd(content) = update_footer(content, category, exname)
-            Literate.markdown(in_pth, joinpath(out_dir, category), preprocess = upd)
+            fixt(content) = replace_tags(content, category, exname)
+            Literate.markdown(in_pth, joinpath(out_dir, category), preprocess = upd, postprocess = fixt)
         end
     end
-    examples_markdown = []
+    examples_markdown = Any["examples/overview/example_overview.md"]
     for (k, v) in pairs(examples_by_name)
         push!(examples_markdown, dir_to_doc_name(k) => v)
     end
@@ -216,6 +374,7 @@ function build_jutul_darcy_docs(
                 ],
                 "References" => [
                     "man/basics/package.md",
+                    "extras/paper_list.md",
                     "Jutul functions" => "ref/jutul.md",
                     "Bibliography" => "extras/refs.md"
                 ],
@@ -249,7 +408,7 @@ function build_jutul_darcy_docs(
         mkpath(notebook_dir)
         for (category, example_set) in pairs(examples)
             for exname in example_set
-                in_pth = example_path(category, exname)
+                in_pth = example_path_jl(category, exname)
                 ex_notebook_dir = joinpath(notebook_dir, category)
                 @info "$exname Writing notebook to $ex_notebook_dir"
                 Literate.notebook(in_pth, ex_notebook_dir, execute = false)

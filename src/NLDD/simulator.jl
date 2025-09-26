@@ -195,6 +195,7 @@ function Jutul.perform_step!(
             rethrow(excptn)
         end
     end
+
     return (e, converged, report)
 end
 
@@ -446,9 +447,10 @@ function gauss_seidel_for_each_subdomain_do(f, sim, simulators, subreports, stra
     end
     num_solved = 0
     function solve_gauss_seidel_iteration!(i)
-        f(i)
+        ok = f(i)
         sync_function()
         num_solved += 1
+        return ok
     end
     if strategy == :adaptive
         sim_order = Int[]

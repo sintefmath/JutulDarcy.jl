@@ -1,7 +1,9 @@
 # # Hybrid simulation with neural network for relative permeability
+# <tags: Immiscible, HistoryMatching, MachineLearning, Advanced>
 
-# This example demonstrates how to integrate a neural network into JutulDarcy.jl for relative permeability modeling in reservoir simulations.
-# It includes the following steps:
+# This example demonstrates how to integrate a neural network into JutulDarcy.jl
+# for relative permeability modeling in reservoir simulations. It includes the
+# following steps:
 # 1. Set up a simple reference simulation with a Brooks-Corey relative permeability model
 # 2. Train a neural network to approximate the Brooks-Corey relative permeability model
 # 3. Incorporate the trained network into a simulation model

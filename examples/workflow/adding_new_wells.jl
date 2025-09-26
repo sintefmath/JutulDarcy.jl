@@ -1,4 +1,5 @@
 # # Adding new wells to an existing model
+# <tags: Wells, Advanced, InputFile, Blackoil>
 # Taking an existing reservoir model and modifying it with new wells is a
 # typical operation in reservoir simulation. This example demonstrates how to
 # add new wells to an existing model and a few ways to setup these wells.

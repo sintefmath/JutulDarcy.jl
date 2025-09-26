@@ -1,4 +1,5 @@
 # # Quarter-five-spot example
+# <tags: Immiscible, Introduction>
 # The quarter-five-spot is a standard test problem that simulates 1/4 of the
 # five spot well pattern by assuming axial symmetry. The problem contains an
 # injector in one corner and the producer in the opposing corner, with a
