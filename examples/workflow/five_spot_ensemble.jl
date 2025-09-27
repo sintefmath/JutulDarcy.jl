@@ -158,18 +158,21 @@ porosities_gaussian = map(i -> to_poro.(real[i].field), 1:N)
 wells_gaussian, saturations_gaussian = simulate_porosities(porosities_gaussian);
 # ### Plot the producer rate over the ensemble
 plot_wells(wells_gaussian)
-# ### Plot a few realizations
-fig = Figure(size = (1000, 400))
-poro_crange = (0.15, 0.25)
-sat_crange = (0.5, 1.0)
-h1 = h2 = nothing
-n_to_plot = 5
-for i in 1:n_to_plot
-    ax = Axis(fig[1, i], title = "Gas saturation realization $i")
-    h1 = heatmap!(ax, saturations_gaussian[i], colorrange = sat_crange)
-    ax_poro = Axis(fig[2, i], title = "Porosity realization $i")
-    h2 = heatmap!(ax_poro, to_2d(porosities_gaussian[i]), colorrange = poro_crange)
+# ### Plot a few realizations of porosity and resulting gas saturation
+f = begin
+    fig = Figure(size = (1000, 400))
+    poro_crange = (0.15, 0.25)
+    sat_crange = (0.5, 1.0)
+    h1 = h2 = nothing
+    n_to_plot = 5
+    for i in 1:n_to_plot
+        ax = Axis(fig[1, i], title = "Gas saturation realization $i")
+        h1 = heatmap!(ax, saturations_gaussian[i], colorrange = sat_crange)
+        ax_poro = Axis(fig[2, i], title = "Porosity realization $i")
+        h2 = heatmap!(ax_poro, to_2d(porosities_gaussian[i]), colorrange = poro_crange)
+    end
+    Colorbar(fig[1, n_to_plot+1], h1)
+    Colorbar(fig[2, n_to_plot+1], h2)
+    fig
 end
-Colorbar(fig[1, n_to_plot+1], h1)
-Colorbar(fig[2, n_to_plot+1], h2)
-fig
+f
