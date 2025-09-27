@@ -2,17 +2,14 @@
 """
 Hagedorn and Brown well bore friction model for a segment.
 """
-struct SegmentWellBoreFrictionHB{R}
-    L::R
-    roughness::R
-    D_outer::R
-    D_inner::R
+struct SegmentWellBoreFrictionHB
     assume_turbulent::Bool
-    laminar_limit::R
-    turbulent_limit::R
-    function SegmentWellBoreFrictionHB(L, roughness, D_outer; D_inner = 0.0, assume_turbulent = false, laminar_limit = 2000.0, turbulent_limit = 4000.0)
-        L, roughness, D_outer, D_inner = promote(L, roughness, D_outer, D_inner)
-        new{typeof(L)}(L, roughness, D_outer, D_inner, assume_turbulent, laminar_limit, turbulent_limit)
+    laminar_limit::Float64
+    turbulent_limit::Float64
+    function SegmentWellBoreFrictionHB(; assume_turbulent = false, laminar_limit = 2000.0, turbulent_limit = 4000.0)
+        laminar_limit > 0.0 || throw(ArgumentError("laminar_limit must be positive"))
+        turbulent_limit > laminar_limit || throw(ArgumentError("turbulent_limit must be larger than laminar_limit"))
+        new(assume_turbulent, laminar_limit, turbulent_limit)
     end
 end
 
@@ -29,7 +26,6 @@ well_segment_is_closed(::SegmentWellBoreFrictionHB) = false
 function segment_pressure_drop(f::SegmentWellBoreFrictionHB, v, ρ, μ)
     D⁰, Dⁱ = f.D_outer, f.D_inner
     R, L = f.roughness, f.L
-    ΔD = D⁰-Dⁱ
     A = π*((D⁰/2)^2 - (Dⁱ/2)^2)
     # Scaling fix
     s = v > 0.0 ? 1.0 : -1.0

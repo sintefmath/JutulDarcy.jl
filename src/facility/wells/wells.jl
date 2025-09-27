@@ -187,7 +187,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         r_i = get_entry(radius, i)
         dir_i = get_entry(dir, i)
         s_i = get_entry(skin, i)
-        if ismissing(WI_i) || isnan(WI_i)
+        if isnan(WI_i)
             WI_i = compute_peaceman_index(g, k_i, r_i, c, dir_i; skin = s_i, Kh = Kh_i)
         end
         WI_computed[i] = WI_i
@@ -199,8 +199,8 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
             else
                 Λ_i = Λ[:, c]
             end
-            if ismissing(WIth_i) || isnan(WIth_i)
-                WIth_i = compute_well_thermal_index(g, Λ_i, r_i, c, dir_i; 
+            if isnan(WIth_i)
+                WIth_i = compute_well_thermal_index(g, Λ_i, r_i, c, dir_i;
                     thermal_index_args...)
             end
         end
@@ -226,7 +226,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         # Depth differences are taken care of via centers.
         dz *= 0.0
         W = MultiSegmentWell(reservoir_cells, volumes, centers; 
-            WI = WI_computed, WIth = WIth_computed, dz = dz, 
+            WI = WI_computed, WIth = WIth_computed, dz = dz,
             reference_depth = reference_depth, segment_radius = segment_radius, 
             kwarg...)
     end
