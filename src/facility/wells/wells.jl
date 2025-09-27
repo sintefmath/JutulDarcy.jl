@@ -139,6 +139,13 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
             T = promote_type(T, typeof(WIth))
         end
     end
+    # NaN for derived quantities -> To be computed.
+    if ismissing(WI)
+        WI = NaN
+    end
+    if ismissing(WIth)
+        WIth = NaN
+    end
     n = length(reservoir_cells)
     # Make sure these are cell indices
     reservoir_cells = map(i -> cell_index(g, i), reservoir_cells)
