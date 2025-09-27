@@ -127,6 +127,26 @@ h = nothing
 ax = Axis(fig[1, 1])
 h = heatmap!(ax, avg, colorrange = (0.0, 1.0))
 fig
+# ### Plot a few realizations of porosity and resulting gas saturation
+# Note that the porosity fields are uniformly random without any spatial
+# correlation.
+function plot_realizations(sat, poro)
+    fig = Figure(size = (1000, 400))
+    poro_crange = (0.15, 0.25)
+    sat_crange = (0.5, 1.0)
+    h1 = h2 = nothing
+    n_to_plot = 5
+    for i in 1:n_to_plot
+        ax = Axis(fig[1, i], title = "Gas saturation realization $i")
+        h1 = heatmap!(ax, sat[i], colorrange = sat_crange)
+        ax_poro = Axis(fig[2, i], title = "Porosity realization $i")
+        h2 = heatmap!(ax_poro, to_2d(poro[i]), colorrange = poro_crange)
+    end
+    Colorbar(fig[1, n_to_plot+1], h1)
+    Colorbar(fig[2, n_to_plot+1], h2)
+    return fig
+end
+plot_realizations(saturations, porosities_uniform)
 # ## Use GeoStats.jl for more realistic porosity fields
 # Taking uniformly random samples is not a very realistic way to generate
 # porosity fields. A more realistic approach is to use geostatistical methods
@@ -158,21 +178,6 @@ porosities_gaussian = map(i -> to_poro.(real[i].field), 1:N)
 wells_gaussian, saturations_gaussian = simulate_porosities(porosities_gaussian);
 # ### Plot the producer rate over the ensemble
 plot_wells(wells_gaussian)
-# ### Plot a few realizations of porosity and resulting gas saturation
-f = begin
-    fig = Figure(size = (1000, 400))
-    poro_crange = (0.15, 0.25)
-    sat_crange = (0.5, 1.0)
-    h1 = h2 = nothing
-    n_to_plot = 5
-    for i in 1:n_to_plot
-        ax = Axis(fig[1, i], title = "Gas saturation realization $i")
-        h1 = heatmap!(ax, saturations_gaussian[i], colorrange = sat_crange)
-        ax_poro = Axis(fig[2, i], title = "Porosity realization $i")
-        h2 = heatmap!(ax_poro, to_2d(porosities_gaussian[i]), colorrange = poro_crange)
-    end
-    Colorbar(fig[1, n_to_plot+1], h1)
-    Colorbar(fig[2, n_to_plot+1], h2)
-    fig
-end
-f
+# ### Plot a few realizations for the Gaussian porosity fields
+# We observe that the porosity fields now have spatial correlation.
+plot_realizations(saturations_gaussian, porosities_gaussian)
