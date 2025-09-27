@@ -629,18 +629,18 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
 
     if isnothing(segment_models)
         function setup_wbfriction(seg)
-            l, r = N[:, seg]
-            if isnothing(segment_length)
-                L = norm(ext_centers[:, l] - ext_centers[:, r], 2)
-            else
-                if segment_length isa Real
-                    L = segment_length
-                else
-                    L = segment_length[seg]
-                end
-            end
-            diameter = segment_radius[seg]*2
-            return SegmentWellBoreFrictionHB(L, friction[seg], diameter)
+            # l, r = N[:, seg]
+            # if isnothing(segment_length)
+            #     L = norm(ext_centers[:, l] - ext_centers[:, r], 2)
+            # else
+            #     if segment_length isa Real
+            #         L = segment_length
+            #     else
+            #         L = segment_length[seg]
+            #     end
+            # end
+            # diameter = segment_radius[seg]*2
+            return SegmentWellBoreFrictionHB()
         end
         segment_models = map(setup_wbfriction, 1:nseg)
     else
