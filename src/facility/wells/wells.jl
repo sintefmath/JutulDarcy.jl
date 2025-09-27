@@ -45,28 +45,28 @@ Jutul.variable_scale(t::TotalMassFlux) = t.scale
 
 default_surface_cond() = (p = 101325.0, T = 288.15) # Pa and deg. K from ISO 13443:1996 for natural gas
 
-function common_well_setup(nr; dz = nothing, WI = nothing, WIth = nothing, gravity = gravity_constant)
-    if isnothing(dz)
-        @warn "dz not provided for well. Assuming no gravity."
-        gdz = zeros(nr)
-    else
-        @assert length(dz) == nr  "Must have one connection drop dz per perforated cell"
-        gdz = dz*gravity
-    end
-    if isnothing(WI)
-        @warn "No well indices provided. Using 1e-12."
-        WI = fill(1e-12, nr)
-    else
-        @assert length(WI) == nr  "Must have one well index per perforated cell ($(length(WI)) well indices, $nr reservoir cells))"
-    end
-    if isnothing(WIth)
-        @warn "No thermal well indices provided. Using 1."
-        WIth = fill(1.0, nr)
-    else
-        @assert length(WIth) == nr  "Must have one thermal well index per perforated cell ($(length(WIth)) thermal well indices, $nr reservoir cells))"
-    end
-    return (WI, WIth, gdz)
-end
+# function common_well_setup(nr; dz = nothing, WI = nothing, WIth = nothing, gravity = gravity_constant)
+#     if isnothing(dz)
+#         @warn "dz not provided for well. Assuming no gravity."
+#         gdz = zeros(nr)
+#     else
+#         @assert length(dz) == nr  "Must have one connection drop dz per perforated cell"
+#         gdz = dz*gravity
+#     end
+#     if isnothing(WI)
+#         @warn "No well indices provided. Using 1e-12."
+#         WI = fill(1e-12, nr)
+#     else
+#         @assert length(WI) == nr  "Must have one well index per perforated cell ($(length(WI)) well indices, $nr reservoir cells))"
+#     end
+#     if isnothing(WIth)
+#         @warn "No thermal well indices provided. Using 1."
+#         WIth = fill(1.0, nr)
+#     else
+#         @assert length(WIth) == nr  "Must have one thermal well index per perforated cell ($(length(WIth)) thermal well indices, $nr reservoir cells))"
+#     end
+#     return (WI, WIth, gdz)
+# end
 
 """
     setup_well(D::DataDomain, reservoir_cells; skin = 0.0, Kh = nothing, radius = 0.1, dir = :z, name = :Well)

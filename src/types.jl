@@ -433,14 +433,14 @@ function SimpleWell(
         kwarg...
     )
     nr = length(reservoir_cells)
-    WI, WIth, gdz = common_well_setup(nr; kwarg...)
+    # WI, WIth, gdz = common_well_setup(nr; kwarg...)
     T = promote_type(typeof(reference_depth), typeof(volume), eltype(WI), eltype(WIth), eltype(gdz))
     reference_depth = convert(T, reference_depth)
     volume = convert(T, volume)
-    WI = T.(WI)
-    WIth = T.(WIth)
-    gdz = T.(gdz)
-    perf = (self = ones(Int64, nr), reservoir = vec(reservoir_cells), WI = WI, WIth = WIth, gdz = gdz)
+    # WI = T.(WI)
+    # WIth = T.(WIth)
+    # gdz = T.(gdz)
+    perf = (self = ones(Int64, nr), reservoir = vec(reservoir_cells))#, WI = WI, WIth = WIth, gdz = gdz)
     return SimpleWell(
         volume,
         perf,
