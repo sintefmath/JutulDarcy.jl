@@ -162,12 +162,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
             reference_depth = centers[3, 1]
         end
     end
-    volumes = zeros(T, n)
-    WI_computed = zeros(T, n)
-    WIth_computed = zeros(T, n)
-    segment_radius = zeros(T, n)
 
-    Λ = thermal_conductivity
     dz = zeros(T, n)
 
     function get_entry(x::AbstractVector, i)
@@ -176,38 +171,41 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     function get_entry(x, i)
         return x
     end
+    perforation_parameters = Dict{Symbol, Any}()
+    segment_parameters = Dict{Symbol, Any}()
+
+    direction = map(i -> get_entry(dir, i), 1:n)
+    Kh_vec = map(i -> get_entry(Kh, i), 1:n)
+    # These are all float arrays of length n
+    skin = zeros(T, n)
+    volumes = zeros(T, n)
+    WI_vec = zeros(T, n)
+    WIth_vec = zeros(T, n)
+    # Kh_vec = zeros(T, n)
+    perforation_radius = zeros(T, n)
+    # segment_radius = zeros(T, n)
+
+    perf_subset(x::AbstractVector) = x[reservoir_cells]
+    perf_subset(x::AbstractMatrix) = x[:, reservoir_cells]
+    perf_perm = perf_subset(K)
+    if !ismissing(thermal_conductivity)
+        perf_cond = perf_subset(thermal_conductivity)
+    end
     for (i, c) in enumerate(reservoir_cells)
-        if K isa AbstractVector
-            k_i = K[c]
-        else
-            k_i = K[:, c]
-        end
-        WI_i = get_entry(WI, i)
-        Kh_i = get_entry(Kh, i)
         r_i = get_entry(radius, i)
-        dir_i = get_entry(dir, i)
-        s_i = get_entry(skin, i)
-        if isnan(WI_i)
-            WI_i = compute_peaceman_index(g, k_i, r_i, c, dir_i; skin = s_i, Kh = Kh_i)
-        end
-        WI_computed[i] = WI_i
-        WIth_i = 0.0
-        if !ismissing(Λ)
-            WIth_i = get_entry(WIth, i)
-            if Λ isa AbstractVector
-                Λ_i = Λ[c]
-            else
-                Λ_i = Λ[:, c]
-            end
-            if isnan(WIth_i)
-                WIth_i = compute_well_thermal_index(g, Λ_i, r_i, c, dir_i;
-                    thermal_index_args...)
-            end
-        end
-        segment_radius[i] = r_i
-        WIth_computed[i] = WIth_i
+        perforation_radius[i] = r_i
+        Kh_vec[i] = get_entry(Kh, i)
+        skin[i] = get_entry(skin, i)
+        WI_vec[i] = get_entry(WI, i)
+        WIth_vec[i] = get_entry(WIth, i)
+
+        # WI_i = compute_peaceman_index(g, k_i, r_i, c, dir_i; skin = s_i, Kh = Kh_i)
+        # WIth_i = compute_well_thermal_index(g, Λ_i, r_i, c, dir_i;
+        #     thermal_index_args...)
+
         center = vec(centers[:, i])
         dz[i] = center[3] - reference_depth
+        dir_i = direction[i]
         if dir_i isa Symbol
             Δ = cell_dims(g, c)
             d_index = findfirst(isequal(dir_i), [:x, :y, :z])
@@ -219,16 +217,27 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     end
     if simple_well
         if ismissing(accumulator_volume)
-            accumulator_volume = simple_well_regularization*maximum(volumes)
+            accumulator_volume = simple_well_regularization*sum(volumes)
         end
-        W = SimpleWell(reservoir_cells; WI = WI_computed, WIth = WIth_computed, volume = accumulator_volume, dz = dz, reference_depth = reference_depth, kwarg...)
+        W = SimpleWell(reservoir_cells;
+            WI = WI_computed,
+            WIth = WIth_computed,
+            volume = accumulator_volume,
+            dz = dz,
+            reference_depth = reference_depth,
+            kwarg...
+        )
     else
         # Depth differences are taken care of via centers.
         dz *= 0.0
-        W = MultiSegmentWell(reservoir_cells, volumes, centers; 
-            WI = WI_computed, WIth = WIth_computed, dz = dz,
-            reference_depth = reference_depth, segment_radius = segment_radius, 
-            kwarg...)
+        W = MultiSegmentWell(reservoir_cells, volumes, centers;
+            WI = WI_computed,
+            WIth = WIth_computed,
+            dz = dz,
+            reference_depth = reference_depth,
+            segment_radius = segment_radius, 
+            kwarg...
+        )
     end
     return W
 end

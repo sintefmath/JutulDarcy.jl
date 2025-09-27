@@ -88,6 +88,41 @@ function Jutul.default_values(model, ::WellIndices)
     return vec(copy(w.perforations.WI))
 end
 
+abstract type ScalarSegmentVariable <: ScalarVariable end
+Jutul.associated_entity(::ScalarSegmentVariable) = Faces()
+
+"""
+    SegmentLength()
+"""
+struct SegmentRadius <: ScalarSegmentVariable end
+Jutul.minimum_value(::SegmentRadius) = 0.0
+
+function Jutul.default_values(model, ::SegmentRadius)
+    error("Not implemented yet")
+end
+
+struct SegmentCasingThickness <: ScalarSegmentVariable end
+Jutul.minimum_value(::SegmentCasingThickness) = 0.0
+
+function Jutul.default_values(model, ::SegmentCasingThickness)
+    error("Not implemented yet")
+end
+
+struct SegmentRoughness <: ScalarSegmentVariable end
+Jutul.minimum_value(::SegmentRoughness) = 0.0
+
+function Jutul.default_values(model, ::SegmentRoughness)
+    error("Not implemented yet")
+end
+
+struct SegmentLength <: ScalarSegmentVariable end
+Jutul.minimum_value(::SegmentLength) = 0.0
+
+function Jutul.default_values(model, ::SegmentLength)
+    error("Not implemented yet")
+end
+
+
 """
     PerforationGravityDifference()
 
