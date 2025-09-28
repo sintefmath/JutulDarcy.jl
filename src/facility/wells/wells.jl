@@ -91,6 +91,11 @@ function setup_well(D::DataDomain, reservoir_cells; cell_centers = D[:cell_centr
     # Compute effective thermal conductivity
     Λ_f = D[:fluid_thermal_conductivity]
     Λ_r = D[:rock_thermal_conductivity]
+    if haskey(D, :net_to_gross)
+        ntg = D[:net_to_gross]
+    else
+        ntg = missing
+    end
     ϕ = D[:porosity]
     Λ_r = vec(Λ_r)
     ϕ = vec(ϕ)
@@ -104,7 +109,12 @@ function setup_well(D::DataDomain, reservoir_cells; cell_centers = D[:cell_centr
     end
     # Get grid
     g = physical_representation(D)
-    return setup_well(g, K, reservoir_cells; thermal_conductivity = Λ, cell_centers = cell_centers, kwarg...)
+    return setup_well(g, K, reservoir_cells;
+        thermal_conductivity = Λ,
+        cell_centers = cell_centers,
+        net_to_gross = ntg,
+        kwarg...
+    )
 end
 
 function setup_well(g, K, reservoir_cells::AbstractVector;
@@ -123,7 +133,11 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         material_heat_capacity = 420.0,
         material_density = 8000.0,
         material_thermal_conductivity = 0.0,
+        net_to_gross = missing,
         cell_radius = missing,
+        volumes = missing,
+        perforation_centers = missing,
+        well_cell_centers = missing,
         # thermal_index_args = NamedTuple(),
         dir = :z,
         kwarg...
@@ -131,18 +145,10 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     T = promote_type(eltype(K), eltype(skin), eltype(radius), typeof(simple_well_regularization))
     T = promote_type(T, Jutul.float_type(g))
     if !ismissing(WI)
-        if WI isa AbstractArray
-            T = promote_type(T, eltype(WI))
-        else
-            T = promote_type(T, typeof(WI))
-        end
+        T = promote_type(T, eltype(WI))
     end
     if !ismissing(WIth)
-        if WIth isa AbstractArray
-            T = promote_type(T, eltype(WIth))
-        else
-            T = promote_type(T, typeof(WIth))
-        end
+        T = promote_type(T, eltype(WIth))
     end
     # NaN for derived quantities -> To be computed.
     if ismissing(WI)
@@ -158,13 +164,22 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         geometry = tpfv_geometry(g)
         cell_centers = geometry.cell_centroids
     end
-    centers = cell_centers[:, reservoir_cells]
+    perforation_centers = cell_centers[:, reservoir_cells]
+    if ismissing(well_cell_centers)
+        if simple_well
+            perf_to_wellcell_index = [1]
+        else
+            perf_to_wellcell_index = [1, eachindex(reservoir_cells)...]
+        end
+        well_cell_centers = perforation_centers[:, perf_to_wellcell_index]
+    end
+
 
     if isnothing(reference_depth)
-        if size(centers, 1) == 2
+        if size(well_cell_centers, 1) == 2
             reference_depth = 0.0
         else
-            reference_depth = centers[3, 1]
+            reference_depth = well_cell_centers[3, 1]
         end
     end
 
@@ -189,13 +204,14 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         # volumes[i] = h*π*r_i^2
     end
     if simple_well
+        
         if ismissing(accumulator_volume)
-            accumulator_volume = simple_well_regularization*sum(volumes)
+            # accumulator_volume = simple_well_regularization*sum(volumes)
         end
         W = SimpleWell(reservoir_cells;
             # WI = WI_computed,
             # WIth = WIth_computed,
-            volume = accumulator_volume,
+            # volume = accumulator_volume,
             # dz = dz,
             reference_depth = reference_depth,
             # kwarg...
@@ -235,11 +251,8 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
 
 
 
-    perforation_radius[i] = get_entry(radius, i)
-    Kh_vec[i] = get_entry(Kh, i)
-    skin[i] = get_entry(skin, i)
-    WI_vec[i] = get_entry(WI, i)
-    WIth_vec[i] = get_entry(WIth, i)
+    perforation_radius = get_perforation_vals(radius)
+    Kh_vec = get_perforation_vals(Kh)
 
     Wdomain = DataDomain(W)
     c = Cells()
@@ -259,12 +272,18 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     end
     Wdomain[:radius, c] = cell_radius
     # Centers
-    Wdomain[:cell_centroids, c] = centers
+    Wdomain[:cell_centroids, c] = well_cell_centers
     # ## Perforations
-    Wdomain[:ntg, p] = ntg
-    Wdomain[:skin, p] = skin
+    if ismissing(net_to_gross)
+        ntg = ones(T, n)
+    else
+        ntg = get_perforation_vals(net_to_gross)
+    end
+    Wdomain[:net_to_gross, p] = ntg
+    Wdomain[:skin, p] = get_perforation_vals(skin)
     Wdomain[:perforation_radius, p] = perforation_radius
-    Wdomain[:well_index, p] = WI_vec
+    Wdomain[:well_index, p] = get_perforation_vals(WI)
+    Wdomain[:perforation_centroids, p] = perforation_centers
 
     # ## Thermal well props
     # ### Segments:
@@ -277,14 +296,14 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     Wdomain[:void_fraction, c] = void_fraction
     # ### Perforations
     # thermal_conductivity
-    Wdomain[:thermal_well_index, p] = WIth_vec
+    Wdomain[:thermal_well_index, p] = get_perforation_vals(WIth)
 
     # Perforation properties taken from reservoir
     perf_subset(x::AbstractVector) = x[reservoir_cells]
     perf_subset(x::AbstractMatrix) = x[:, reservoir_cells]
     Wdomain[:permeability, p] = perf_subset(K)
     if !ismissing(thermal_conductivity)
-        perf_cond = perf_subset(thermal_conductivity)
+        Wdomain[:thermal_conductivity, p] = perf_subset(thermal_conductivity)
     end
 
     return Wdomain
@@ -593,4 +612,18 @@ end
 function surface_density_and_volume_fractions(state)
     x = only(state.SurfaceWellConditions)
     return (x.density, x.volume_fractions)
+end
+
+function compute_well_cell_volumes(; radius = missing, lengths = missing, volumes = missing)
+    if ismissing(volumes)
+        !ismissing(radius) || error("Either radius or volumes must be provided")
+        !ismissing(lengths) || error("Either lengths or volumes must be provided")
+        n = length(lengths)
+        T = promote_type(eltype(radius), eltype(lengths))
+        volumes = zeros(T, n)
+        for i in 1:n
+            volumes[i] = π*radius^2*lengths[i]
+        end
+    end
+    return volumes
 end

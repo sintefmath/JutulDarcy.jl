@@ -393,8 +393,8 @@ function Base.show(io::IO, w::WellDomain)
     end
     print(io, "$n [$(w.name)] ($(nn) nodes, $(nseg) segments, $(length(w.perforations.reservoir)) perforations)")
 end
+
 struct SimpleWell{SC, P, V} <: WellDomain where {SC, P}
-    volume::V
     perforations::P
     surface::SC
     name::Symbol
@@ -423,23 +423,19 @@ function SimpleWell(
         explicit_dp = true,
         surface_conditions = default_surface_cond(),
         reference_depth = 0.0,
-        volume = 1000.0, # Regularization volume for well, not a real volume
-        perforation_parameters = Dict{Symbol, Any}(),
-        segment_parameters = Dict{Symbol, Any}(),
         kwarg...
     )
     nr = length(reservoir_cells)
-    T = promote_type(typeof(reference_depth), typeof(volume), Float64)
+    # T = promote_type(typeof(reference_depth), typeof(volume), Float64)
     # WI, WIth, gdz = common_well_setup(nr; kwarg...)
     # T = promote_type(typeof(reference_depth), typeof(volume), eltype(WI), eltype(WIth), eltype(gdz))
-    reference_depth = convert(T, reference_depth)
-    volume = convert(T, volume)
+    # reference_depth = convert(T, reference_depth)
+    # volume = convert(T, volume)
     # WI = T.(WI)
     # WIth = T.(WIth)
     # gdz = T.(gdz)
     perf = (self = ones(Int64, nr), reservoir = vec(reservoir_cells))#, WI = WI, WIth = WIth, gdz = gdz)
     return SimpleWell(
-        volume,
         perf,
         surface_conditions,
         name,
