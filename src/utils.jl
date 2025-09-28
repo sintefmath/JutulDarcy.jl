@@ -219,8 +219,8 @@ end
 
 export get_model_wells
 
-function get_model_wells(case::JutulCase)
-    return get_model_wells(case.model)
+function get_model_wells(case::JutulCase; data_domain = false)
+    return get_model_wells(case.model; data_domain = data_domain)
 end
 
 """
@@ -228,11 +228,16 @@ end
 
 Get a `OrderedDict` containing all wells in the model or simulation case.
 """
-function get_model_wells(model::MultiModel)
+function get_model_wells(model::MultiModel; data_domain = false)
     wells = OrderedDict{Symbol, Any}()
     for (k, m) in pairs(model.models)
         if model_or_domain_is_well(m)
-            wells[k] = physical_representation(m.data_domain)
+            wd = m.data_domain
+            if data_domain
+                wells[k] = wd
+            else
+                wells[k] = physical_representation(wd)
+            end
         end
     end
     return wells
