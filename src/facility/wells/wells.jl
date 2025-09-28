@@ -83,6 +83,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         material_heat_capacity = 420.0,
         material_density = 8000.0,
         material_thermal_conductivity = 0.0,
+        casing_thickness = 0.0,
         volume_multiplier = 1.0,
         friction = 1e-4, # Old version of kwarg
         roughness = friction,
@@ -277,9 +278,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     end
 
     if !simple_well
-
-        # Average from perforations...
-    
+        Wdomain[:casing_thickness, f] = casing_thickness
         # TODO: friction
         Wdomain[:roughness, f] = roughness
         # ### Segments:

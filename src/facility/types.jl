@@ -143,23 +143,32 @@ struct SegmentCasingThickness <: ScalarSegmentVariable end
 Jutul.minimum_value(::SegmentCasingThickness) = 0.0
 
 function Jutul.default_parameter_values(data_domain, model, param::SegmentCasingThickness, symb)
-    error("Not implemented yet")
+    return data_domain[:casing_thickness, Faces()]
 end
 
 struct SegmentRoughness <: ScalarSegmentVariable end
 Jutul.minimum_value(::SegmentRoughness) = 0.0
 
 function Jutul.default_parameter_values(data_domain, model, param::SegmentRoughness, symb)
-    error("Not implemented yet")
+    return data_domain[:roughness, Faces()]
 end
 
 struct SegmentLength <: ScalarSegmentVariable end
 Jutul.minimum_value(::SegmentLength) = 0.0
 
 function Jutul.default_parameter_values(data_domain, model, param::SegmentLength, symb)
-    error("Not implemented yet")
+    w = physical_representation(data_domain)
+    N = get_neighborship(w)
+    nseg = number_of_faces(w)
+    pts = data_domain[:cell_centroids, Cells()]
+    T = eltype(pts)
+    L = zeros(T, nseg)
+    for segno in axes(N, 2)
+        l, r = N[:, segno]
+        L[segno] = norm(pts[:, r] .- pts[:, l], 2)
+    end
+    return L
 end
-
 
 """
     PerforationGravityDifference()
