@@ -133,10 +133,10 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         material_heat_capacity = 420.0,
         material_density = 8000.0,
         material_thermal_conductivity = 0.0,
+        volume_multiplier = 1.0,
         net_to_gross = missing,
         cell_radius = missing,
         volumes = missing,
-        perforation_centers = missing,
         well_cell_centers = missing,
         # thermal_index_args = NamedTuple(),
         dir = :z,
@@ -218,7 +218,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         )
     else
         # Depth differences are taken care of via centers.
-        dz *= 0.0
+        # dz *= 0.0
         W = MultiSegmentWell(reservoir_cells, volumes, centers;
             # WI = WI_computed,
             # WIth = WIth_computed,
@@ -284,16 +284,19 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     Wdomain[:perforation_radius, p] = perforation_radius
     Wdomain[:well_index, p] = get_perforation_vals(WI)
     Wdomain[:perforation_centroids, p] = perforation_centers
+    # Geometry
+    Wdomain[:void_fraction, c] = void_fraction
+    Wdomain[:volume_multiplier, c] = volume_multiplier
+
 
     # ## Thermal well props
-    # ### Segments:
-    # material_thermal_conductivity = 0.0,
+    if !simple_well
+        # ### Segments:
+        Wdomain[:material_thermal_conductivity, f] = material_thermal_conductivity
+    end
     # ### Ncells:
     Wdomain[:material_heat_capacity, c] = material_heat_capacity
     Wdomain[:material_density, c] = material_density
-    Wdomain[:material_thermal_conductivity, c] = material_thermal_conductivity
-    # # void_fraction = 1.0,
-    Wdomain[:void_fraction, c] = void_fraction
     # ### Perforations
     # thermal_conductivity
     Wdomain[:thermal_well_index, p] = get_perforation_vals(WIth)
