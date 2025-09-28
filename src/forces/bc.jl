@@ -101,9 +101,9 @@ function flow_boundary_condition(cells, domain, pressures, temperatures = 298.15
     if fractional_flow isa Vector
         fractional_flow = tuple(fractional_flow...)
     end
-    bc = FlowBoundaryCondition{Int, Float64, typeof(fractional_flow)}[]
+    bc = []
     flow_boundary_condition!(bc, domain, cells, pressures, temperatures; fractional_flow = fractional_flow, kwarg...)
-    return bc
+    return [i for i in bc]
 end
 
 function flow_boundary_condition!(bc, domain, cells, pressures, temperatures = 298.15; kwarg...)
