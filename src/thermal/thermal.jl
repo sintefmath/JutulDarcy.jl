@@ -7,13 +7,9 @@ function Jutul.default_parameter_values(data_domain, model, param::BulkVolume, s
     if haskey(data_domain, :volumes)
         bv = copy(data_domain[:volumes])
     elseif model_or_domain_is_well(model)
-        r = physical_representation(model.domain)
-        if r isa MultiSegmentWell
-            bv = copy(model.domain.representation.volumes)
-        else
-            r::SimpleWell
-            bv = [r.volume]
-        end
+        w = physical_representation(data_domain)
+        vol = domain_fluid_volume(data_domain, w)
+        bv = vol./data_domain[:void_fraction, Cells()]
     end
     return bv
 end

@@ -8,7 +8,7 @@
 #    generic optimization interface that allows for optimizing any input
 #    parameter used in the setup of a model.
 # ## Load packages and define units
-using Jutul, JutulDarcy, HYPRE, GeoEnergyIO, GLMakie
+using Jutul, JutulDarcy, HYPRE, GLMakie
 meter, kilogram, bar, year, liter, second, darcy, day = si_units(:meter, :kilogram, :bar, :year, :liter, :second, :darcy, :day)
 
 # ## Set up the reservoir mesh
@@ -116,7 +116,7 @@ prod_well = setup_vertical_well(domain, nx - 5, 1,
     simple_well = false
 )
 
-model_base, = setup_reservoir_model(
+model_base = setup_reservoir_model(
     domain, :geothermal,
     wells = [inj_well, prod_well],
 );

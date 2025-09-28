@@ -6,6 +6,11 @@ This changelog documents all notable changes to JutulDarcy.jl.
 ### Breaking Changes
 
 
+```julia
+ERROR: MethodError: no method matching iterate(::MultiModel{nothing, JutulStorage{…}, Vector{…}, Vector{…}, DefaultContext, Dict{…}})
+The function `iterate` exists, but no method is defined for this combination of argument types.
+```
+
 ### New features
 - 
 
