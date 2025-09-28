@@ -177,6 +177,23 @@ function Jutul.default_parameter_values(data_domain, model, param::SegmentLength
     return L
 end
 
+struct SegmentConnectionGravityDifference <: ScalarSegmentVariable end
+
+function Jutul.default_parameter_values(data_domain, model, param::SegmentConnectionGravityDifference, symb)
+    w = physical_representation(data_domain)
+    N = get_neighborship(w)
+    nseg = number_of_faces(w)
+    pts = data_domain[:cell_centroids, Cells()]
+    T = eltype(pts)
+    gdz = zeros(T, nseg)
+    for segno in axes(N, 2)
+        # TODO: Check sign.
+        l, r = N[:, segno]
+        gdz[segno] = Jutul.gravity_constant*(pts[3, r] - pts[3, l])
+    end
+    return gdz
+end
+
 """
     PerforationGravityDifference()
 

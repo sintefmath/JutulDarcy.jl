@@ -8,8 +8,7 @@ function Jutul.default_parameter_values(data_domain, model, param::BulkVolume, s
         bv = copy(data_domain[:volumes])
     elseif model_or_domain_is_well(model)
         w = physical_representation(data_domain)
-        vol = domain_fluid_volume(data_domain, w)
-        bv = vol./data_domain[:void_fraction, Cells()]
+        bv = domain_bulk_volume(data_domain, w)
     end
     return bv
 end

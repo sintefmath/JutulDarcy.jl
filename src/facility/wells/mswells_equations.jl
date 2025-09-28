@@ -83,7 +83,7 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
     (; face, left, right) = ldisc
     μ = state.PhaseViscosities
     V = state.TotalMassFlux[face]
-    gdz = state.PerforationGravityDifference[face]
+    gdz = state.SegmentConnectionGravityDifference[face]
     densities = state.PhaseMassDensities
     L = state.SegmentLength[face]
     roughness = state.SegmentRoughness[face]

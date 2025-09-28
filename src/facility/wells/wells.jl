@@ -470,11 +470,15 @@ function update_before_step_well!(well_state, well_model, res_state, res_model, 
 end
 
 function domain_fluid_volume(d::DataDomain, grid::WellDomain)
-    mult = d[:volume_multiplier, Cells()]
     void = d[:void_fraction, Cells()]
+    return domain_bulk_volume(d, grid).*void
+end
+
+function domain_bulk_volume(d::DataDomain, grid::WellDomain)
+    mult = d[:volume_multiplier, Cells()]
     r = d[:radius, Cells()]
     L = d[:cell_length, Cells()]
-    return mult.*void.*(π .* r.^2 .* L)
+    return mult.*(π .* r.^2 .* L)
 end
 
 # function domain_fluid_volume(d::DataDomain, grid::SimpleWell)
