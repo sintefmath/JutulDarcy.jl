@@ -677,7 +677,7 @@ end
 struct WellSegmentFlow{C, T<:AbstractVector} <: Jutul.FlowDiscretization
     cell_discretizations::C
     face_discretizations::T
-    function WellSegmentFlow(well, z)
+    function WellSegmentFlow(well)#, z)
         # Face part
         N = get_neighborship(well)
         nf = size(N, 2)
@@ -685,8 +685,9 @@ struct WellSegmentFlow{C, T<:AbstractVector} <: Jutul.FlowDiscretization
         function F(i)
             l = N[1, i]
             r = N[2, i]
-            gdz =  -gravity_constant*(z[l] - z[r])
-            return (left = l, right = r, gdz = gdz, face = i)
+            return (left = l, right = r, face = i)
+            # gdz =  -gravity_constant*(z[l] - z[r])
+            # return (left = l, right = r, gdz = gdz, face = i)
         end
         fdisc = map(F, 1:nf)
 

@@ -290,11 +290,11 @@ function Jutul.discretize_domain(d::DataDomain{W}, system::Union{MultiPhaseSyste
     return discretized_domain_well(physical_representation(d); kwarg...)
 end
 
-function discretized_domain_well(W::MultiSegmentWell; z = nothing, kwarg...)
-    if isnothing(z)
-        z = vec(W.centers[3, :])
-    end
-    flow = WellSegmentFlow(W, z)
+function discretized_domain_well(W::MultiSegmentWell; kwarg...)
+    # if isnothing(z)
+    #     z = vec(W.centers[3, :])
+    # end
+    flow = WellSegmentFlow(W)#, z)
     disc = (mass_flow = flow, heat_flow = flow)
     return DiscretizedDomain(W, disc; kwarg...)
 end

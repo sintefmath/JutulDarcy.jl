@@ -353,7 +353,7 @@ end
 function map_well_nodes_to_reservoir_cells(w::MultiSegmentWell, reservoir::Union{DataDomain, Missing} = missing)
     # TODO: Try to more or less match it up cell by cell. Could be
     # improved...
-    c = zeros(Int, length(w.volumes))
+    c = zeros(Int, number_of_cells(w))
     c[w.perforations.self] .= w.perforations.reservoir
     for i in 2:length(c)
         if c[i] == 0

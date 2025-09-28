@@ -445,7 +445,7 @@ function SimpleWell(
 end
 
 struct MultiSegmentWell{P, N, SC, S} <: WellDomain
-    # type::Symbol
+    type::Symbol
     # "One of volumes per node (cell)"
     # volumes::V
     num_nodes::Int
@@ -514,6 +514,7 @@ end
 
 function MultiSegmentWell(neighbors::AbstractMatrix, perforation_cells_reservoir, perforation_cells_self;
         end_nodes = missing,
+        type = :ms,
         name = :Well,
         segment_models = nothing,
         surface_conditions = default_surface_cond(),
@@ -530,6 +531,7 @@ function MultiSegmentWell(neighbors::AbstractMatrix, perforation_cells_reservoir
     end
     perf = (self = perforation_cells_self, reservoir = perforation_cells_reservoir)
     return MultiSegmentWell(
+        type,
         num_nodes,
         num_segments,
         num_perf,

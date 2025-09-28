@@ -1306,7 +1306,7 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                     ct = ReservoirFromWellThermalCT(rc, wc)
                     add_cross_term!(model, ct, target = :Reservoir, source = k, equation = energy)
                 end
-                is_closed_loop = g isa MultiSegmentWell && 
+                is_closed_loop = g isa MultiSegmentWell &&
                     m.data_domain.representation.type == :closed_loop
                 if is_closed_loop
                     # TODO: Avoid hard-coded index for BTES bottom cell
