@@ -1,6 +1,13 @@
 # JutulDarcy.jl Changelog
 
-This changelog documents all notable changes to JutulDarcy.jl based on the GitHub releases.
+This changelog documents all notable changes to JutulDarcy.jl.
+## [Unreleased]
+
+### Breaking Changes
+
+
+### New features
+- 
 
 ## [v0.2.46] - 2024-07-06
 

@@ -1,7 +1,7 @@
 function setup_reservoir_model_geothermal(
         reservoir::DataDomain;
         thermal = true,
-        extra_out = true,
+        extra_out = false,
         parameters = Dict{Symbol, Any}(),
         salt_mole_fractions = Float64[],
         salt_names = String[],

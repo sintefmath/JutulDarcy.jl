@@ -125,7 +125,6 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         radius = 0.1,
         accumulator_volume = missing,
         simple_well = true,
-        simple_well_regularization = 1.0,
         WI = missing,
         WIth = missing,
         thermal_conductivity = missing,
@@ -142,7 +141,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         dir = :z,
         kwarg...
     )
-    T = promote_type(eltype(K), eltype(skin), eltype(radius), typeof(simple_well_regularization))
+    T = promote_type(eltype(K), eltype(skin), eltype(radius), eltype(void_fraction), eltype(material_heat_capacity), eltype(material_density))
     T = promote_type(T, Jutul.float_type(g))
     if !ismissing(WI)
         T = promote_type(T, eltype(WI))
@@ -214,7 +213,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
             # volume = accumulator_volume,
             # dz = dz,
             reference_depth = reference_depth,
-            # kwarg...
+            kwarg...
         )
     else
         # Depth differences are taken care of via centers.
@@ -225,7 +224,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
             # dz = dz,
             reference_depth = reference_depth,
             # segment_radius = segment_radius, 
-            # kwarg...
+            kwarg...
         )
     end
     function get_entry(x::AbstractVector, i)
@@ -342,6 +341,10 @@ function map_well_nodes_to_reservoir_cells(w::MultiSegmentWell, reservoir::Union
     return c
 end
 
+function map_well_nodes_to_reservoir_cells(w::DataDomain, reservoir::Union{DataDomain, Missing} = missing)
+    return map_well_nodes_to_reservoir_cells(physical_representation(w), reservoir)
+end
+
 function map_well_nodes_to_reservoir_cells(w::SimpleWell, reservoir::Union{DataDomain, Missing} = missing)
     return [w.perforations.reservoir[1]]
 end
@@ -428,13 +431,15 @@ function update_before_step_well!(well_state, well_model, res_state, res_model, 
 
 end
 
-function domain_fluid_volume(grid::WellDomain)
-    return grid.volumes.*grid.void_fraction
+function domain_fluid_volume(d::DataDomain, grid::WellDomain)
+    @info "??? " d
+    error()
+    # return grid.volumes.*grid.void_fraction
 end
 
-function domain_fluid_volume(grid::SimpleWell)
-    return [grid.volume]
-end
+# function domain_fluid_volume(d::DataDomain, grid::SimpleWell)
+#     return [grid.volume]
+# end
 
 # Well segments
 

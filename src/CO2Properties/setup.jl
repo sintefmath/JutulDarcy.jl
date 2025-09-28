@@ -5,7 +5,7 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
         co2_table_directory = missing,
         co2_source = missing,
         co2_density = :nist,
-        extra_out = true,
+        extra_out = false,
         parameters = Dict{Symbol, Any}(),
         salt_names = String[],
         salt_mole_fractions = Float64[],

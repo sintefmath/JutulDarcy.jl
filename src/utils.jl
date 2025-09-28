@@ -173,49 +173,49 @@ function reservoir_system(flow::MultiPhaseSystem; kwarg...)
     reservoir_system(;flow = flow, kwarg...)
 end
 
-"""
-    well_domain(w::SimpleWell; kwarg...)
-    well_domain(w::MultiSegmentWell; kwarg...)
-    well_domain(w::DataDomain; kwarg...)
+# """
+#     well_domain(w::SimpleWell; kwarg...)
+#     well_domain(w::MultiSegmentWell; kwarg...)
+#     well_domain(w::DataDomain; kwarg...)
 
-Set up a `DataDomain` instance for a well
-"""
-function well_domain(w::SimpleWell; kwarg...)
-    return DataDomain(w; kwarg...)
-end
+# Set up a `DataDomain` instance for a well
+# """
+# function well_domain(w::SimpleWell; kwarg...)
+#     return DataDomain(w; kwarg...)
+# end
 
-function well_domain(w::MultiSegmentWell; kwarg...)
+# function well_domain(w::MultiSegmentWell; kwarg...)
 
-    nf = number_of_faces(w)
-    nc = number_of_cells(w)
+#     nf = number_of_faces(w)
+#     nc = number_of_cells(w)
 
-    # Well material properties
-    λm = w.material_thermal_conductivity
-    λm = (length(λm) == nf) ? λm : fill(λm, nf)
+#     # Well material properties
+#     λm = w.material_thermal_conductivity
+#     λm = (length(λm) == nf) ? λm : fill(λm, nf)
     
-    ρ = w.material_density
-    ρ = (length(ρ) == nc) ? ρ : fill(ρ, nc)
+#     ρ = w.material_density
+#     ρ = (length(ρ) == nc) ? ρ : fill(ρ, nc)
         
-    C = w.material_heat_capacity
-    C = (length(C) == nc) ? C : fill(C, nc)
+#     C = w.material_heat_capacity
+#     C = (length(C) == nc) ? C : fill(C, nc)
 
-    ϕ = w.void_fraction
-    ϕ = (length(ϕ) == nc) ? ϕ : fill(ϕ, nc)
+#     ϕ = w.void_fraction
+#     ϕ = (length(ϕ) == nc) ? ϕ : fill(ϕ, nc)
     
-    wd = DataDomain(w;
-        material_thermal_conductivity = (λm, Faces()),
-        material_density = (ρ, Cells()),
-        material_heat_capacity = (C, Cells()),
-        void_fraction = (ϕ, Cells()),
-        kwarg...
-    )
-    return wd
+#     wd = DataDomain(w;
+#         material_thermal_conductivity = (λm, Faces()),
+#         material_density = (ρ, Cells()),
+#         material_heat_capacity = (C, Cells()),
+#         void_fraction = (ϕ, Cells()),
+#         kwarg...
+#     )
+#     return wd
 
-end
+# end
 
-function well_domain(w::DataDomain; kwarg...)
-    return w
-end
+# function well_domain(w::DataDomain; kwarg...)
+#     return w
+# end
 
 export get_model_wells
 
@@ -387,7 +387,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         extra_outputs = [:LiquidMassFractions, :VaporMassFractions, :Rs, :Rv, :Saturations],
         split_wells = false,
         assemble_wells_together = true,
-        extra_out = true,
+        extra_out = false,
         dp_max_abs = nothing,
         dp_max_rel = 0.2,
         dp_max_abs_well = convert_to_si(50, :bar),
@@ -498,9 +498,17 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     models[:Reservoir] = rmodel
     # Then we set up all the wells
     mode = PredictionMode()
+    encountered_wells = Dict{Symbol, Bool}()
     if length(wells) > 0
         facility_to_add = OrderedDict()
-        for (well_no, w) in enumerate(wells)
+        for (well_no, w_domain) in enumerate(wells)
+            w_domain::DataDomain
+            w = physical_representation(w_domain)
+            wname = w.name::Symbol
+            if haskey(encountered_wells, wname)
+                throw(ArgumentError("Well with name $wname encountered multiple times. Each well must have a unique name."))
+            end
+            encountered_wells[wname] = true
             if ismissing(wells_systems)
                 wsys = system
             else
@@ -511,15 +519,12 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             else
                 well_context = context
             end
-            w_domain = well_domain(w)
-            wc = w.perforations.reservoir
             c = map_well_nodes_to_reservoir_cells(w, reservoir)
             for propk in [:temperature, :pvtnum]
                 if haskey(reservoir, propk)
                     w_domain[propk] = reservoir[propk][c]
                 end
             end
-            wname = w.name
             wmodel = SimulationModel(w_domain, system, context = well_context)
             if thermal
                 wmodel = add_thermal_to_model!(wmodel)
@@ -554,7 +559,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
                 models[k] = v
             end
         else
-            wg = WellGroup(map(x -> x.name, wells), can_shut_wells = can_shut_wells)
+            wg = WellGroup(map(x -> physical_representation(x).name, wells), can_shut_wells = can_shut_wells)
             F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
             if thermal
                 add_thermal_to_facility!(F)
@@ -1289,17 +1294,16 @@ function setup_reservoir_cross_terms!(model::MultiModel)
         else
             g = physical_representation(m.domain)
             if g isa WellDomain
-                WI = vec(g.perforations.WI)
+                # WI = vec(g.perforations.WI)
                 rc = vec(g.perforations.reservoir)
                 wc = vec(g.perforations.self)
                 # Put these over in cross term
                 if has_flow
-                    ct = ReservoirFromWellFlowCT(WI, rc, wc)
+                    ct = ReservoirFromWellFlowCT(rc, wc)
                     add_cross_term!(model, ct, target = :Reservoir, source = k, equation = conservation)
                 end
                 if has_thermal
-                    WIth = vec(g.perforations.WIth)
-                    ct = ReservoirFromWellThermalCT(WIth, WI, rc, wc)
+                    ct = ReservoirFromWellThermalCT(rc, wc)
                     add_cross_term!(model, ct, target = :Reservoir, source = k, equation = energy)
                 end
                 is_closed_loop = g isa MultiSegmentWell && 
@@ -1327,11 +1331,9 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                     add_cross_term!(model, ct_energy, target = return_well, source = supply_well, equation = energy)
 
                     if haskey(g.perforations, :WIth_grout)
-                        WIth_grout = vec(g.perforations.WIth_grout)
-                        ct_grout = JutulDarcy.BTESWellGroutEnergyCT(WIth_grout, wc, wc_return)
+                        ct_grout = JutulDarcy.BTESWellGroutEnergyCT(wc, wc_return)
                         add_cross_term!(model, ct_grout, target = return_well, source = supply_well, equation = energy)
                     end
-                    
                     push!(handled_closed_loops, cl_name)
                 end
             end
