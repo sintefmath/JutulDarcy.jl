@@ -196,7 +196,7 @@ inj_pressure_by_time = get_1d_interpolator(ws.time, inj_bhp)
 
 import JutulDarcy: compute_well_qoi
 function mismatch_objective(m, s, dt, step_info, forces)
-    current_time = step_info[:time] + dt
+    current_time = step_info[:time]
     ## Current values
     T_at_prod = compute_well_qoi(m, s, forces, :Producer, :temperature)
     rate = compute_well_qoi(m, s, forces, :Producer, :wrat)
@@ -329,7 +329,6 @@ temperature_injection_cost = 20.0
 temperature_production_value = 8.0
 
 function optimization_objective(m, s, dt, step_info, forces)
-    current_time = step_info[:time] + dt
     T_at_prod = convert_from_si(compute_well_qoi(m, s, forces, :Producer, :temperature), :Celsius)
     T_at_inj = convert_from_si(forces[:Facility].control[:Injector].temperature, :Celsius)
 
