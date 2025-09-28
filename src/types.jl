@@ -529,6 +529,12 @@ function MultiSegmentWell(neighbors::AbstractMatrix, perforation_cells_reservoir
         to_nodes = unique(neighbors[2,:])
         end_nodes = setdiff(to_nodes, from_nodes)
     end
+    if isnothing(segment_models)
+        segment_models = [SegmentWellBoreFrictionHB() for _ in 1:num_segments]
+    else
+        segment_models::AbstractVector
+        @assert length(segment_models) == num_segments
+    end
     perf = (self = perforation_cells_self, reservoir = perforation_cells_reservoir)
     return MultiSegmentWell(
         type,
