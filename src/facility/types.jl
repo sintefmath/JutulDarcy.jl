@@ -83,9 +83,35 @@ Jutul.minimum_value(::WellIndices) = 0.0
 Jutul.variable_scale(::WellIndices) = 1e-10
 
 Jutul.associated_entity(::WellIndices) = Perforations()
-function Jutul.default_values(model, ::WellIndices)
-    w = physical_representation(model.domain)
-    return vec(copy(w.perforations.WI))
+
+function Jutul.default_parameter_values(data_domain, model, param::WellIndices, symb)
+    @info "??" data_domain
+    WI = copy(data_domain[:well_index, Perforations()])
+    dims = data_domain[:cell_dims, Perforations()]
+    perm = data_domain[:permeability, Perforations()]
+    net_to_gross = data_domain[:net_to_gross, Perforations()]
+    skin = data_domain[:skin, Perforations()]
+    gdim = size(data_domain[:cell_centroids, Cells()], 1)
+    for (i, val) in enumerate(WI)
+        defaulted = !isfinite(val)
+        if defaulted
+            Δ = dims[i]
+            if perm isa AbstractVector
+                K = perm[i]
+            else
+                K = perm[:, i]
+            end
+            K = Jutul.expand_perm(K, gdim)
+            WI[i] = compute_peaceman_index(Δ, K, r, dir;
+                skin = skin[i],
+                Kh = Kh[i],
+                net_to_gross = net_to_gross[I]
+            )
+        end
+    end
+    error()
+    # w = physical_representation(model.domain)
+    #  return vec(copy(w.perforations.WI))
 end
 
 abstract type ScalarSegmentVariable <: ScalarVariable end

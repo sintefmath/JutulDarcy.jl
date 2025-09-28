@@ -295,6 +295,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     Wdomain[:perforation_radius, p] = perforation_radius
     Wdomain[:well_index, p] = get_perforation_vals(WI)
     Wdomain[:perforation_centroids, p] = perforation_centers
+    Wdomain[:cell_dims, p] = map(c -> peaceman_cell_dims(g, c), reservoir_cells)
     # Geometry
     Wdomain[:void_fraction, c] = void_fraction
     Wdomain[:volume_multiplier, c] = volume_multiplier
