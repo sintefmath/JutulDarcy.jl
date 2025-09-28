@@ -38,7 +38,7 @@ using LinearAlgebra
                 state = states[i]
                 s0 = rstate[:Saturations][2, :]
                 s = state[:Saturations][2, :]
-                @test norm(s-s0)/norm(s) < 0.05
+                @test norm(s-s0, 1)/norm(s, 1) < 0.05
             end
         end
     end
