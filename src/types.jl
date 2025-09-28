@@ -388,7 +388,7 @@ function Base.show(io::IO, w::WellDomain)
         n = "SimpleWell"
     else
         nseg = size(w.neighborship, 2)
-        nn = length(w.volumes)
+        nn = w.num_nodes
         n = "MultiSegmentWell"
     end
     print(io, "$n [$(w.name)] ($(nn) nodes, $(nseg) segments, $(length(w.perforations.reservoir)) perforations)")
@@ -448,6 +448,9 @@ struct MultiSegmentWell{P, N, SC, S} <: WellDomain
     # type::Symbol
     # "One of volumes per node (cell)"
     # volumes::V
+    num_nodes::Int
+    num_segments::Int
+    num_perforations::Int
     "(self -> local cells, reservoir -> reservoir cells)"
     perforations::P
     "Well cell connectivity (connections between nodes)"
@@ -500,7 +503,46 @@ way of setting up wells.
 $FIELDS
 
 """
-function MultiSegmentWell(reservoir_cells;
+
+function MultiSegmentWell(reservoir_cells; kwarg...)
+    numperf = length(reservoir_cells)
+    numnodes = numperf + 1
+    neighbors = vcat((1:numperf)', (2:numnodes)')
+    self_cells = collect(2:numnodes)
+    return MultiSegmentWell(neighbors, reservoir_cells, self_cells; kwarg...)
+end
+
+function MultiSegmentWell(neighbors::AbstractMatrix, perforation_cells_reservoir, perforation_cells_self;
+        end_nodes = missing,
+        name = :Well,
+        segment_models = nothing,
+        surface_conditions = default_surface_cond(),
+    )
+    size(neighbors, 1) == 2 || throw(ArgumentError("Connectivity matrix for multisegment well must have two rows"))
+    num_nodes = maximum(neighbors)
+    num_segments = size(neighbors, 2)
+    num_perf = length(perforation_cells_self)
+    maximum(perforation_cells_self) <= num_nodes || throw(ArgumentError("Perforation cells (self) must be less than or equal to number of nodes $(num_nodes), was $(maximum(perforation_cells_self))"))
+    if ismissing(end_nodes)
+        from_nodes = unique(neighbors[1, :])
+        to_nodes = unique(neighbors[2,:])
+        end_nodes = setdiff(to_nodes, from_nodes)
+    end
+    perf = (self = perforation_cells_self, reservoir = perforation_cells_reservoir)
+    return MultiSegmentWell(
+        num_nodes,
+        num_segments,
+        num_perf,
+        perf,
+        neighbors,
+        end_nodes,
+        surface_conditions,
+        name,
+        segment_models,
+    )
+end
+
+function MultiSegmentWell_old(reservoir_cells;
         type = :ms,
         # accumulator_center = nothing,
         # accumulator_volume = mean(volumes),
