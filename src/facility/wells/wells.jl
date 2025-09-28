@@ -71,6 +71,7 @@ default_surface_cond() = (p = 101325.0, T = 288.15) # Pa and deg. K from ISO 134
 function setup_well(g, K, reservoir_cells::AbstractVector;
         simple_well = true,
         N = missing,
+        neighborship = N,
         perforation_cells_well = missing,
         reference_depth = nothing,
         cell_centers = nothing,
@@ -119,7 +120,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         )
         perf_to_wellcell_index = [1]
     else
-        if ismissing(N)
+        if ismissing(neighborship)
             if ismissing(use_top_node)
                 if is_3d && reference_depth isa Real
                     top_res_cell = reservoir_cells[1]
@@ -139,7 +140,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         else
             # Well has actual topology
             !ismissing(perforation_cells_well) || error("Must provide perforation_cells_well if neighborship is provided.")
-            W = MultiSegmentWell(N, reservoir_cells, perforation_cells_well;
+            W = MultiSegmentWell(neighborship, reservoir_cells, perforation_cells_well;
                 kwarg...
             )
             perf_to_wellcell_index = perforation_cells_well
