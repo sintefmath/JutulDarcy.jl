@@ -787,17 +787,3 @@ No specific changes documented.
 
 - TagBot trigger issue ([#5](https://github.com/sintefmath/JutulDarcy.jl/pull/5))
 
----
-
-## Notes
-
-This changelog is based on the GitHub releases for JutulDarcy.jl. The releases show the active development and continuous improvement of this Julia package for reservoir simulation, with particular focus on:
-
-- **Geothermal modeling capabilities**
-- **Advanced optimization and sensitivity analysis**
-- **Support for complex well configurations**
-- **Improved discretization schemes**
-- **Performance optimizations**
-- **Comprehensive example library**
-
-The project demonstrates strong commitment to both research advancement and practical applications in reservoir engineering and geothermal systems.
