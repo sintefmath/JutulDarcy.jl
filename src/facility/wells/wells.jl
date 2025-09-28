@@ -133,7 +133,8 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         material_density = 8000.0,
         material_thermal_conductivity = 0.0,
         volume_multiplier = 1.0,
-        roughness = 1e-4,
+        friction = 1e-4, # Old version of kwarg
+        roughness = friction,
         net_to_gross = missing,
         cell_radius = missing,
         segment_radius = missing,
@@ -481,8 +482,8 @@ function number_of_cells(W::SimpleWell)
     return 1
 end
 
-function number_of_cells(W::WellDomain)
-    return length(W.volumes)
+function number_of_cells(W::MultiSegmentWell)
+    return W.num_nodes
 end
 
 function declare_entities(W::WellDomain)
