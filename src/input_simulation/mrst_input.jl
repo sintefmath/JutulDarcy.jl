@@ -101,7 +101,7 @@ function reservoir_domain_from_mrst(name::String; extraout = false, convert_grid
 end
 
 function get_well_from_mrst_data(
-        mrst_data, system, ix;
+        mrst_data, reservoir, system, ix;
         volume = 1e-3,
         extraout = false,
         use_lengths = false,
@@ -128,7 +128,7 @@ function get_well_from_mrst_data(
         [x]
     end
     ref_depth = W_mrst["refDepth"]
-    rc = Int64.(awrap(W_mrst["cells"]))
+    rc = vec(Int64.(awrap(W_mrst["cells"])))
     n = length(rc)
     # dz = awrap(w.dZ)
     WI = awrap(W_mrst["WI"])
@@ -146,6 +146,7 @@ function get_well_from_mrst_data(
     segment_models = nothing
     if well_type == :ms
         if haskey(W_mrst, "isMS") && W_mrst["isMS"]
+            error("MRST exported multisegment well for current version of JutulDarcy.jl")
             @info "MS well found: $nm"
             nodes = W_mrst["nodes"]
             V = vec(copy(nodes["vol"]))
@@ -222,11 +223,12 @@ function get_well_from_mrst_data(
                                                         accumulator_volume = accumulator_volume,
                                                         surface_conditions = cond)
     elseif well_type == :simple || well_type == :std
-        # For simple well, distance from ref depth to perf
-        dz = z_res .- ref_depth
+        W = setup_well(reservoir, rc, WI = vec(WI), reference_depth = ref_depth)
         z = [ref_depth]
-        accumulator_volume = volume*mean(well_cell_volume)
-        W = SimpleWell(rc, WI = WI, WIth = WIth, dz = dz, surface_conditions = cond, name = Symbol(nm), volume = accumulator_volume)
+        # For simple well, distance from ref depth to perf
+        # dz = z_res .- ref_depth
+        # accumulator_volume = volume*mean(well_cell_volume)
+        # W = SimpleWell(rc, WI = WI, WIth = WIth, dz = dz, surface_conditions = cond, name = Symbol(nm), volume = accumulator_volume)
         reservoir_cells = [rc[1]]
     else
         error("Unsupported well type $well_type (can be :ms, :simple or :std)")
@@ -236,8 +238,8 @@ function get_well_from_mrst_data(
     else
         wsys = system
     end
-    W_domain = discretized_domain_well(W, z = z)
-    wmodel = SimulationModel(W_domain, wsys; kwarg...)
+    # W_domain = discretized_domain_well(W)
+    wmodel = SimulationModel(W, wsys; kwarg...)
     if haskey(mrst_data["deck"], "SOLUTION")
         sol = mrst_data["deck"]["SOLUTION"]
         if haskey(sol, "FIELDSEP")
@@ -1215,7 +1217,7 @@ function setup_case_from_mrst(casename;
     sys = model.system
     for i = 1:num_wells
         sym = well_symbols[i]
-        wi, wdata, res_cells = get_well_from_mrst_data(mrst_data, sys, i, W_data = first_well_set,
+        wi, wdata, res_cells = get_well_from_mrst_data(mrst_data, data_domain, sys, i, W_data = first_well_set,
                 extraout = true, well_type = wells, context = w_context, use_lengths = use_well_lengths)
 
         param_w = setup_parameters(wi)
@@ -1359,8 +1361,8 @@ function setup_case_from_mrst(casename;
                         limits[wsym] = convert_to_immutable_storage(lims)
                         found_limits = true
                     end
-                    Ω_w = models[wsym].domain
-                    WI = physical_representation(Ω_w).perforations.WI
+                   #  Ω_w = models[wsym].domain
+                    WI = setup_parameters(models[wsym])[:WellIndices]
                     new_WI = vectorize(wdata["WI"])
                     if all(cstatus) && all(WI .== new_WI)
                         new_force[wsym] = nothing
