@@ -539,7 +539,7 @@ function MultiSegmentWell(neighbors::AbstractMatrix, perforation_cells_reservoir
         segment_models = [SegmentWellBoreFrictionHB() for _ in 1:num_segments]
     else
         segment_models::AbstractVector
-        @assert length(segment_models) == num_segments
+        length(segment_models) == num_segments || throw(ArgumentError("If segment models are provided, there must be one per segment. Was $(length(segment_models)), expected $num_segments"))
     end
     perf = (self = perforation_cells_self, reservoir = perforation_cells_reservoir)
     return MultiSegmentWell(

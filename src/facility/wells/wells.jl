@@ -70,6 +70,8 @@ default_surface_cond() = (p = 101325.0, T = 288.15) # Pa and deg. K from ISO 134
 
 function setup_well(g, K, reservoir_cells::AbstractVector;
         simple_well = true,
+        neighborship = missing,
+        perforation_cells_well = missing,
         reference_depth = nothing,
         cell_centers = nothing,
         skin = 0.0,
@@ -116,21 +118,30 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         )
         perf_to_wellcell_index = [1]
     else
-        if ismissing(use_top_node)
-            if is_3d && reference_depth isa Real
-                top_res_cell = reservoir_cells[1]
-                use_top_node = !(reference_depth ≈ cell_centers[3, top_res_cell])
-            else
-                use_top_node = false
+        if ismissing(neighborship)
+            if ismissing(use_top_node)
+                if is_3d && reference_depth isa Real
+                    top_res_cell = reservoir_cells[1]
+                    use_top_node = !(reference_depth ≈ cell_centers[3, top_res_cell])
+                else
+                    use_top_node = false
+                end
             end
-        end
-        W = MultiSegmentWell(reservoir_cells;
-            top_node = use_top_node,
-            kwarg...
-        )
-        perf_to_wellcell_index = collect(eachindex(reservoir_cells))
-        if use_top_node
-            pushfirst!(perf_to_wellcell_index, 1)
+            W = MultiSegmentWell(reservoir_cells;
+                top_node = use_top_node,
+                kwarg...
+            )
+            perf_to_wellcell_index = collect(eachindex(reservoir_cells))
+            if use_top_node
+                pushfirst!(perf_to_wellcell_index, 1)
+            end
+        else
+            # Well has actual topology
+            !ismissing(perforation_cells_well) || error("Must provide perforation_cells_well if neighborship is provided.")
+            W = MultiSegmentWell(neighborship, reservoir_cells, perforation_cells_well;
+                kwarg...
+            )
+            perf_to_wellcell_index = perforation_cells_well
         end
     end
 
@@ -167,6 +178,9 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     end
     perforation_centers = cell_centers[:, reservoir_cells]
     if ismissing(well_cell_centers)
+        if !simple_well && !isnothing(neighborship)
+            error("Must provide well_cell_centers for multisegment wells when neighborship is provided.")
+        end
         well_cell_centers = perforation_centers[:, perf_to_wellcell_index]
     else
         well_cell_centers = copy(well_cell_centers)
