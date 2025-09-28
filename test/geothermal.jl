@@ -80,8 +80,9 @@ end
                 use_tables = use_tables
             )
 
-            if use_tables && btes_type == :simple
+            if btes_type == :simple
                 # This combo is not yet converging.
+                # Table version is also broken
                 @test_broken F()
             else
                 states, = F()

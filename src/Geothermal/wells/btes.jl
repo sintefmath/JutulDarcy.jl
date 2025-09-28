@@ -58,9 +58,8 @@ function setup_btes_well_simple(D::DataDomain, reservoir_cells;
     # Common properties
     args = (
         WI = 0.0,
-        extra_perforation_props = (WIth_grout = WIth_grout, ),
         radius = radius_pipe,
-        end_nodes = [length(reservoir_cells)+1],
+        end_nodes = [length(reservoir_cells)],
         simple_well = false,
         type = :closed_loop
     )
@@ -178,28 +177,16 @@ function setup_btes_well_u1(D::DataDomain, reservoir_cells;
     void_fraction[grout_cells .+ 1] .= 0.0
 
     ## Set up supply and return wells
-    args = (
-        type = :closed_loop,
-        N = N0,
-        # WI = fill(0.0, nr),
-        # WIth = λgr,
-        # extra_perforation_props = (WIth_grout = λgg, ),
-        # material_thermal_conductivity = material_thermal_conductivity,
-        # material_heat_capacity = fill(heat_capacity_grout, nc),
-        # material_density = fill(density_grout, nc),
-        # void_fraction = void_fraction,
-        dz = dz,
-        perforation_cells = collect(grout_cells.+1),
-        end_nodes = [nc_pipe+1],
-        segment_models = segment_models,
-    )
     new_arg = (
+        type = :closed_loop,
         thermal_conductivity_grout = thermal_conductivity_grout,
         thermal_conductivity_casing = thermal_conductivity_pipe,
+        material_thermal_conductivity = material_thermal_conductivity,
         material_heat_capacity = heat_capacity_grout,
         material_density = density_grout,
         volumes = [volumes[1], volumes...],
         void_fraction = void_fraction,
+        WI = 0.0,
         neighborship = N,
         perforation_cells_well = collect(grout_cells.+1),
         well_cell_centers = ext_centers,
@@ -207,21 +194,14 @@ function setup_btes_well_u1(D::DataDomain, reservoir_cells;
         segment_models = segment_models,
         simple_well = false
     )
-    if false
-        supply_well = MultiSegmentWell(reservoir_cells, volumes, centers;
-            name = Symbol(name, "_supply"), args...)
-        return_well = MultiSegmentWell(reservoir_cells, volumes, centers;
-            name = Symbol(name, "_return"), args...)
-    else
-        supply_well = setup_well(D::DataDomain, reservoir_cells;
-            name = Symbol(name, "_supply"),
-            new_arg...
-        )
-        return_well = setup_well(D::DataDomain, reservoir_cells;
-            name = Symbol(name, "_return"),
-            new_arg...
-        )
-    end
+    supply_well = setup_well(D::DataDomain, reservoir_cells;
+        name = Symbol(name, "_supply"),
+        new_arg...
+    )
+    return_well = setup_well(D::DataDomain, reservoir_cells;
+        name = Symbol(name, "_return"),
+        new_arg...
+    )
     physical_representation(return_well)::MultiSegmentWell
     physical_representation(supply_well)::MultiSegmentWell
     return (supply_well, return_well)
