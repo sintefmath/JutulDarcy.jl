@@ -130,7 +130,7 @@ for (wno, xw) in enumerate(well_coords)
 end
 
 # ### Make the model
-model, parameters = setup_reservoir_model(
+model = setup_reservoir_model(
     domain, :geothermal,
     wells=well_models
 );
@@ -225,7 +225,7 @@ end
 
 # ## Set simulator and run
 # Pack simulation case
-case = JutulCase(model, dt_vec, forces, state0=state0, parameters=parameters);
+case = JutulCase(model, dt_vec, forces, state0 = state0);
 # We set somewhat relaxed tolerances and use relaxation of the Newton updates to
 # speed up the simulation
 simulator, config = setup_reservoir_simulator(case;
