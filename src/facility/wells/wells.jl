@@ -119,7 +119,12 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         WI = missing,
         WIth = missing,
         thermal_conductivity = missing,
-        thermal_index_args = NamedTuple(),
+        void_fraction = 1.0,
+        material_heat_capacity = 420.0,
+        material_density = 8000.0,
+        material_thermal_conductivity = 0.0,
+        cell_radius = missing,
+        # thermal_index_args = NamedTuple(),
         dir = :z,
         kwarg...
     )
@@ -163,83 +168,126 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         end
     end
 
-    dz = zeros(T, n)
+    # dz = zeros(T, n)
 
-    function get_entry(x::AbstractVector, i)
-        return x[i]
-    end
-    function get_entry(x, i)
-        return x
-    end
-    perforation_parameters = Dict{Symbol, Any}()
-    segment_parameters = Dict{Symbol, Any}()
 
-    direction = map(i -> get_entry(dir, i), 1:n)
-    Kh_vec = map(i -> get_entry(Kh, i), 1:n)
-    # These are all float arrays of length n
-    skin = zeros(T, n)
-    volumes = zeros(T, n)
-    WI_vec = zeros(T, n)
-    WIth_vec = zeros(T, n)
-    # Kh_vec = zeros(T, n)
-    perforation_radius = zeros(T, n)
-    # segment_radius = zeros(T, n)
-
-    perf_subset(x::AbstractVector) = x[reservoir_cells]
-    perf_subset(x::AbstractMatrix) = x[:, reservoir_cells]
-    perf_perm = perf_subset(K)
-    if !ismissing(thermal_conductivity)
-        perf_cond = perf_subset(thermal_conductivity)
-    end
     for (i, c) in enumerate(reservoir_cells)
-        r_i = get_entry(radius, i)
-        perforation_radius[i] = r_i
-        Kh_vec[i] = get_entry(Kh, i)
-        skin[i] = get_entry(skin, i)
-        WI_vec[i] = get_entry(WI, i)
-        WIth_vec[i] = get_entry(WIth, i)
-
         # WI_i = compute_peaceman_index(g, k_i, r_i, c, dir_i; skin = s_i, Kh = Kh_i)
         # WIth_i = compute_well_thermal_index(g, Λ_i, r_i, c, dir_i;
         #     thermal_index_args...)
 
-        center = vec(centers[:, i])
-        dz[i] = center[3] - reference_depth
-        dir_i = direction[i]
-        if dir_i isa Symbol
-            Δ = cell_dims(g, c)
-            d_index = findfirst(isequal(dir_i), [:x, :y, :z])
-            h = Δ[d_index]
-        else
-            h = norm(dir_i, 2)
-        end
-        volumes[i] = h*π*r_i^2
+        # center = vec(centers[:, i])
+        # dz[i] = center[3] - reference_depth
+        # dir_i = direction[i]
+        # if dir_i isa Symbol
+        #     Δ = cell_dims(g, c)
+        #     d_index = findfirst(isequal(dir_i), [:x, :y, :z])
+        #     h = Δ[d_index]
+        # else
+        #     h = norm(dir_i, 2)
+        # end
+        # volumes[i] = h*π*r_i^2
     end
     if simple_well
         if ismissing(accumulator_volume)
             accumulator_volume = simple_well_regularization*sum(volumes)
         end
         W = SimpleWell(reservoir_cells;
-            WI = WI_computed,
-            WIth = WIth_computed,
+            # WI = WI_computed,
+            # WIth = WIth_computed,
             volume = accumulator_volume,
-            dz = dz,
+            # dz = dz,
             reference_depth = reference_depth,
-            kwarg...
+            # kwarg...
         )
     else
         # Depth differences are taken care of via centers.
         dz *= 0.0
         W = MultiSegmentWell(reservoir_cells, volumes, centers;
-            WI = WI_computed,
-            WIth = WIth_computed,
-            dz = dz,
+            # WI = WI_computed,
+            # WIth = WIth_computed,
+            # dz = dz,
             reference_depth = reference_depth,
-            segment_radius = segment_radius, 
-            kwarg...
+            # segment_radius = segment_radius, 
+            # kwarg...
         )
     end
-    return W
+    function get_entry(x::AbstractVector, i)
+        return x[i]
+    end
+    function get_entry(x, i)
+        return x
+    end
+    # perforation_parameters = Dict{Symbol, Any}()
+    # segment_parameters = Dict{Symbol, Any}()
+
+    get_perforation_vals(x) = map(i -> get_entry(x, i), 1:n)
+
+    direction = get_perforation_vals(dir)
+    Kh_vec = get_perforation_vals(Kh)
+    skin = get_perforation_vals(skin)
+    # volumes = zeros(T, n)
+    # WI_vec = zeros(T, n)
+    # WIth_vec = zeros(T, n)
+    # Kh_vec = zeros(T, n)
+    # perforation_radius = zeros(T, n)
+    # segment_radius = zeros(T, n)
+
+
+
+    perforation_radius[i] = get_entry(radius, i)
+    Kh_vec[i] = get_entry(Kh, i)
+    skin[i] = get_entry(skin, i)
+    WI_vec[i] = get_entry(WI, i)
+    WIth_vec[i] = get_entry(WIth, i)
+
+    Wdomain = DataDomain(W)
+    c = Cells()
+    p = Perforations()
+    f = Faces()
+    # d[:cell_vec, Cells()]
+    # ## Flow props
+    # ## Segments:
+    # Length
+    #
+    # ## Cells
+    # VolumeMultiplier?
+    # Wdomain[:cell_centroids, c] = 
+    # Radius
+    if ismissing(cell_radius)
+        cell_radius = perforation_radius[1]
+    end
+    Wdomain[:radius, c] = cell_radius
+    # Centers
+    Wdomain[:cell_centroids, c] = centers
+    # ## Perforations
+    Wdomain[:ntg, p] = ntg
+    Wdomain[:skin, p] = skin
+    Wdomain[:perforation_radius, p] = perforation_radius
+    Wdomain[:well_index, p] = WI_vec
+
+    # ## Thermal well props
+    # ### Segments:
+    # material_thermal_conductivity = 0.0,
+    # ### Ncells:
+    Wdomain[:material_heat_capacity, c] = material_heat_capacity
+    Wdomain[:material_density, c] = material_density
+    Wdomain[:material_thermal_conductivity, c] = material_thermal_conductivity
+    # # void_fraction = 1.0,
+    Wdomain[:void_fraction, c] = void_fraction
+    # ### Perforations
+    # thermal_conductivity
+    Wdomain[:thermal_well_index, p] = WIth_vec
+
+    # Perforation properties taken from reservoir
+    perf_subset(x::AbstractVector) = x[reservoir_cells]
+    perf_subset(x::AbstractMatrix) = x[:, reservoir_cells]
+    Wdomain[:permeability, p] = perf_subset(K)
+    if !ismissing(thermal_conductivity)
+        perf_cond = perf_subset(thermal_conductivity)
+    end
+
+    return Wdomain
 end
 
 function setup_well(g, K, reservoir_cell::Union{Int, Tuple, NamedTuple}; kwarg...)
