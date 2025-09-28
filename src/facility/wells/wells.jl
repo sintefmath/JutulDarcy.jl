@@ -74,6 +74,8 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         cell_centers = nothing,
         skin = 0.0,
         radius = 0.1,
+        radius_grout = 0.0, # In addition to the radius
+        casing_thickness = 0.0, # How much of the radius is casing
         accumulator_volume = missing,
         Kh = missing,
         WI = missing,
@@ -83,14 +85,13 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         material_heat_capacity = 420.0,
         material_density = 8000.0,
         material_thermal_conductivity = 0.0,
-        casing_thickness = 0.0,
+        thermal_conductivity_casing = 20,
+        thermal_conductivity_grout = 2.3,
         volume_multiplier = 1.0,
         friction = 1e-4, # Old version of kwarg
         roughness = friction,
         net_to_gross = missing,
         cell_radius = missing,
-        segment_radius = missing,
-        volumes = missing,
         well_cell_centers = missing,
         # thermal_index_args = NamedTuple(),
         dir = :z,
@@ -193,29 +194,6 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         # end
         # volumes[i] = h*π*r_i^2
     end
-    function get_entry(x::AbstractVector, i)
-        return x[i]
-    end
-    function get_entry(x, i)
-        return x
-    end
-    # perforation_parameters = Dict{Symbol, Any}()
-    # segment_parameters = Dict{Symbol, Any}()
-
-    get_perforation_vals(x) = map(i -> get_entry(x, i), 1:n)
-
-    direction = get_perforation_vals(dir)
-    # volumes = zeros(T, n)
-    # WI_vec = zeros(T, n)
-    # WIth_vec = zeros(T, n)
-    # Kh_vec = zeros(T, n)
-    # perforation_radius = zeros(T, n)
-    # segment_radius = zeros(T, n)
-
-
-
-    perforation_radius = get_perforation_vals(radius)
-
     Wdomain = DataDomain(W)
     c = Cells()
     p = Perforations()
@@ -238,29 +216,34 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
             h = norm(dir_i, 2)
         end
     end
-    # Length of cell in direction of well - used for volumes of nodes
-    Wdomain[:cell_length, c] = map((i, cell) -> cell_height(direction[i], cell), 1:n, reservoir_cells)[perf_to_wellcell_index]
+    # ## Perforations
 
+    Wdomain[:Kh, p] = Kh
+    Wdomain[:skin, p] = skin
+    Wdomain[:perforation_radius, p] = radius
+    Wdomain[:radius_grout, p] = radius_grout
+    Wdomain[:well_index, p] = WI
+    Wdomain[:perforation_centroids, p] = perforation_centers
+    if dir isa Symbol
+        dir = fill(dir, n)
+    end
+    Wdomain[:perforation_direction, p] = dir
+
+    direction_expanded = Wdomain[:perforation_direction, p]
+    Wdomain[:cell_length, c] = map(
+        (i, cell) -> cell_height(direction_expanded[i], cell),
+            1:n,
+            reservoir_cells)[perf_to_wellcell_index]
+
+    Wdomain[:cell_dims, p] = map(c -> peaceman_cell_dims(g, c), reservoir_cells)
+
+    # Length of cell in direction of well - used for volumes of nodes
     if ismissing(cell_radius)
-        cell_radius = perforation_radius[1]
+        cell_radius = Wdomain[:perforation_radius, p][1]
     end
     Wdomain[:radius, c] = cell_radius
     # Centers
     Wdomain[:cell_centroids, c] = well_cell_centers
-    # ## Perforations
-    if ismissing(net_to_gross)
-        ntg = 1.0
-    else
-        ntg = get_perforation_vals(net_to_gross)
-    end
-    Wdomain[:Kh, p] = Kh
-    Wdomain[:net_to_gross, p] = ntg
-    Wdomain[:skin, p] = skin
-    Wdomain[:perforation_radius, p] = perforation_radius
-    Wdomain[:well_index, p] = WI
-    Wdomain[:perforation_centroids, p] = perforation_centers
-    Wdomain[:perforation_direction, p] = direction
-    Wdomain[:cell_dims, p] = map(c -> peaceman_cell_dims(g, c), reservoir_cells)
     # Geometry
     Wdomain[:void_fraction, c] = void_fraction
     Wdomain[:volume_multiplier, c] = volume_multiplier
@@ -271,11 +254,19 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     Wdomain[:material_density, c] = material_density
     # ### Perforations
     # thermal_conductivity
-    Wdomain[:thermal_well_index, p] = get_perforation_vals(WIth)
-
+    Wdomain[:thermal_well_index, p] = WIth
+    Wdomain[:thermal_conductivity_casing, p] = thermal_conductivity_casing
+    Wdomain[:thermal_conductivity_grout, p] = thermal_conductivity_grout
     # Perforation properties taken from reservoir
     perf_subset(x::AbstractVector) = x[reservoir_cells]
     perf_subset(x::AbstractMatrix) = x[:, reservoir_cells]
+
+    if ismissing(net_to_gross)
+        ntg = 1.0
+    else
+        ntg = perf_subset(net_to_gross)
+    end
+    Wdomain[:net_to_gross, p] = ntg
     Wdomain[:permeability, p] = perf_subset(K)
     if !ismissing(thermal_conductivity)
         Wdomain[:thermal_conductivity, p] = perf_subset(thermal_conductivity)

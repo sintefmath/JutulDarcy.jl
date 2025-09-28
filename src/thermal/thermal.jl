@@ -249,36 +249,37 @@ Jutul.variable_scale(::WellIndicesThermal) = 1.0
 Jutul.associated_entity(::WellIndicesThermal) = Perforations()
 
 function Jutul.default_parameter_values(data_domain, model, param::WellIndicesThermal, symb)
-    @warn "Not finished"
-    WI = copy(data_domain[:well_index, Perforations()])
+    @warn "Not finished" data_domain
+    WIt = copy(data_domain[:thermal_well_index, Perforations()])
     dims = data_domain[:cell_dims, Perforations()]
-    perm = data_domain[:permeability, Perforations()]
-    net_to_gross = data_domain[:net_to_gross, Perforations()]
+    thermal_conductivity = data_domain[:thermal_conductivity, Perforations()]
+    radius_grout = data_domain[:radius_grout, Perforations()]
     direction = data_domain[:perforation_direction, Perforations()]
-    skin = data_domain[:skin, Perforations()]
-    Kh = data_domain[:Kh, Perforations()]
     radius = data_domain[:perforation_radius, Perforations()]
     gdim = size(data_domain[:cell_centroids, Cells()], 1)
-    for (i, val) in enumerate(WI)
+    for (i, val) in enumerate(WIt)
         defaulted = !isfinite(val)
         if defaulted
             Δ = dims[i]
-            if perm isa AbstractVector
-                K = perm[i]
+            if thermal_conductivity isa AbstractVector
+                Λ_i = thermal_conductivity[i]
             else
-                K = perm[:, i]
+                Λ_i = thermal_conductivity[:, i]
             end
-            K = Jutul.expand_perm(K, gdim)
-            r = radius[i]
+            Λ_i = Jutul.expand_perm(Λ_i, gdim)
             dir = direction[i]
-            WI[i] = compute_peaceman_index(Δ, K, r, dir;
-                skin = skin[i],
-                Kh = Kh[i],
-                net_to_gross = net_to_gross[i]
+            r_outer = radius[i]
+            r_inner = r_outer - casing_thickness[i]
+            r_grout = radius_grout[i]
+            WIt[i] = compute_well_thermal_index(Δ, Λ_i, r_inner, dir;
+                radius_outer = r_outer,
+                thermal_conductivity_casing = 20,
+                radius_grout = r_grout,
+                thermal_conductivity_grout = 2.3,
             )
         end
     end
-    return WI.*0.0
+    return WIt
 end
 
 """

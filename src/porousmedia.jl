@@ -178,16 +178,21 @@ function compute_peaceman_index(Δ, K, radius, dir::Vector;
 
 end
 
-function compute_well_thermal_index(g::T, thermal_conductivity, radius, pos, dir=:z; 
+function compute_well_thermal_index(g::T, thermal_conductivity, radius, pos, dir=:z;
+        kwargs...
+    ) where T<:Jutul.JutulMesh
+    Δ = cell_dims(g, pos)
+    return compute_well_thermal_index(Δ, thermal_conductivity, radius, pos, dir; kwarg...)
+end
+
+function compute_well_thermal_index(Δ::Real, thermal_conductivity, radius, pos, dir=:z;
         radius_outer = nothing,
         thermal_conductivity_casing = 20,
         radius_grout = nothing,
         thermal_conductivity_grout = 2.3,
-        kwargs...
-    ) where T<:Jutul.JutulMesh
+    )
 
     if dir isa Symbol
-        Δ = cell_dims(g, pos)
         d_index = findfirst(isequal(dir), [:x, :y, :z])
         L = Δ[d_index]
     else
@@ -213,9 +218,7 @@ function compute_well_thermal_index(g::T, thermal_conductivity, radius, pos, dir
 
     # Convert to thermal indices
     WIth = 2π*L/U
-    
     return WIth
-
 end
 
 function Jutul.discretize_domain(d::DataDomain, system::Union{MultiPhaseSystem, CompositeSystem{:Reservoir, T}}, ::Val{:default}; kwarg...) where T
