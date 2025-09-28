@@ -128,7 +128,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     if simple_well
         perf_to_wellcell_index = [1]
     else
-        perf_to_wellcell_index = [1, eachindex(reservoir_cells)...]
+        perf_to_wellcell_index = eachindex(reservoir_cells)
     end
     if isnothing(cell_centers)
         geometry = tpfv_geometry(g)
