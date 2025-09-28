@@ -80,9 +80,10 @@ Jutul.discretization(e::PotentialDropBalanceWell) = e.flow_discretization
 
 import Jutul: two_point_potential_drop
 function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::PotentialDropBalanceWell, model, dt, ldisc = local_discretization(eq, i))
-    (; face, left, right, gdz) = ldisc
+    (; face, left, right) = ldisc
     μ = state.PhaseViscosities
     V = state.TotalMassFlux[face]
+    gdz = state.PerforationGravityDifference[face]
     densities = state.PhaseMassDensities
     s = state.Saturations
     p = state.Pressure
