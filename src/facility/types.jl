@@ -174,7 +174,7 @@ function Jutul.default_parameter_values(data_domain, model, param::PerforationGr
     if dim == 3
         z_perf = c_perf[3, :]
         z_cells = c_cells[3, c]
-        dz = z_perf .- z_cells
+        dz = Jutul.gravity_constant.*(z_perf .- z_cells)
     else
         dz = zeros(length(c))
     end
