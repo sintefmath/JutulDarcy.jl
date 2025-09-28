@@ -504,11 +504,17 @@ $FIELDS
 
 """
 
-function MultiSegmentWell(reservoir_cells; kwarg...)
+function MultiSegmentWell(reservoir_cells; top_node = false, kwarg...)
     numperf = length(reservoir_cells)
-    ix = 1:numperf
-    neighbors = vcat(ix', ix')
-    self_cells = collect(ix)
+    pix = 1:numperf
+    if top_node
+        numnodes = numperf + 1
+        neighbors = vcat(pix', (2:numnodes)')
+        self_cells = collect(2:numnodes)
+    else
+        neighbors = vcat(pix', pix')
+        self_cells = collect(pix)
+    end
     return MultiSegmentWell(neighbors, reservoir_cells, self_cells; kwarg...)
 end
 

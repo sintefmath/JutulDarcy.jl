@@ -96,6 +96,41 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         dir = :z,
         kwarg...
     )
+    is_3d = dim(g) == 3
+    n = length(reservoir_cells)
+    # Make sure these are cell indices
+    reservoir_cells = map(i -> cell_index(g, i), reservoir_cells)
+    # Set up well itself
+    if simple_well
+        if ismissing(accumulator_volume)
+            # accumulator_volume = simple_well_regularization*sum(volumes)
+        end
+        W = SimpleWell(reservoir_cells;
+            # WI = WI_computed,
+            # WIth = WIth_computed,
+            # volume = accumulator_volume,
+            # dz = dz,
+            # reference_depth = reference_depth,
+            kwarg...
+        )
+        perf_to_wellcell_index = [1]
+    else
+        if is_3d && reference_depth isa Real
+            top_res_cell = reservoir_cells[1]
+            use_top_node = !(reference_depth ≈ cell_centers[3, top_res_cell])
+        else
+            use_top_node = false
+        end
+        W = MultiSegmentWell(reservoir_cells;
+            top_node = use_top_node,
+            kwarg...
+        )
+        perf_to_wellcell_index = collect(eachindex(reservoir_cells))
+        if use_top_node
+            pushfirst!(perf_to_wellcell_index, 1)
+        end
+    end
+
     if ismissing(WI)
         WI = NaN
     end
@@ -122,14 +157,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     # end
     # NaN for derived quantities -> To be computed.
 
-    n = length(reservoir_cells)
-    # Make sure these are cell indices
-    reservoir_cells = map(i -> cell_index(g, i), reservoir_cells)
-    if simple_well
-        perf_to_wellcell_index = [1]
-    else
-        perf_to_wellcell_index = eachindex(reservoir_cells)
-    end
+
     if isnothing(cell_centers)
         geometry = tpfv_geometry(g)
         cell_centers = geometry.cell_centroids
@@ -137,10 +165,11 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     perforation_centers = cell_centers[:, reservoir_cells]
     if ismissing(well_cell_centers)
         well_cell_centers = perforation_centers[:, perf_to_wellcell_index]
+    else
+        well_cell_centers = copy(well_cell_centers)
     end
-
-
-    if reference_depth isa Real && size(well_cell_centers, 1) == 3
+    # Set reference depth if provided
+    if reference_depth isa Real && is_3d
         well_cell_centers[3, 1] = reference_depth
     end
 
@@ -163,31 +192,6 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         #     h = norm(dir_i, 2)
         # end
         # volumes[i] = h*π*r_i^2
-    end
-    if simple_well
-        
-        if ismissing(accumulator_volume)
-            # accumulator_volume = simple_well_regularization*sum(volumes)
-        end
-        W = SimpleWell(reservoir_cells;
-            # WI = WI_computed,
-            # WIth = WIth_computed,
-            # volume = accumulator_volume,
-            # dz = dz,
-            # reference_depth = reference_depth,
-            kwarg...
-        )
-    else
-        # Depth differences are taken care of via centers.
-        # dz *= 0.0
-        W = MultiSegmentWell(reservoir_cells;
-            # WI = WI_computed,
-            # WIth = WIth_computed,
-            # dz = dz,
-            # reference_depth = reference_depth,
-            # segment_radius = segment_radius, 
-            kwarg...
-        )
     end
     function get_entry(x::AbstractVector, i)
         return x[i]
