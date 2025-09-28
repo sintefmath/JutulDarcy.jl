@@ -127,23 +127,30 @@ Jutul.minimum_value(::SegmentRadius) = 0.0
 
 function Jutul.default_parameter_values(data_domain, model, param::SegmentRadius, symb)
     cradius = data_domain[:radius, Cells()]
-    w = physical_representation(data_domain)
+    return segment_average_from_cells(data_domain, cradius)
+end
+
+function segment_average_from_cells(w::DataDomain, cval::Vector{T}) where T
+    return segment_average_from_cells(physical_representation(w), cval)
+end
+
+function segment_average_from_cells(w, cval::Vector{T}) where T
     N = get_neighborship(w)
     nseg = number_of_faces(w)
-    T = eltype(cradius)
-    radius = zeros(T, nseg)
+    out = zeros(T, nseg)
     for segno in axes(N, 2)
         l, r = N[:, segno]
-        radius[segno] = (cradius[r] + cradius[l])/2
+        out[segno] = (cval[r] + cval[l])/2
     end
-    return radius
+    return out
 end
 
 struct SegmentCasingThickness <: ScalarSegmentVariable end
 Jutul.minimum_value(::SegmentCasingThickness) = 0.0
 
 function Jutul.default_parameter_values(data_domain, model, param::SegmentCasingThickness, symb)
-    return data_domain[:casing_thickness, Faces()]
+    cell_thickness = data_domain[:casing_thickness, Cells()]
+    return segment_average_from_cells(data_domain, cell_thickness)
 end
 
 struct SegmentRoughness <: ScalarSegmentVariable end

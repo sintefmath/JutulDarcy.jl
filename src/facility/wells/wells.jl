@@ -247,6 +247,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     # Geometry
     Wdomain[:void_fraction, c] = void_fraction
     Wdomain[:volume_multiplier, c] = volume_multiplier
+    Wdomain[:casing_thickness, c] = casing_thickness
 
     # ## Thermal well props
     # ### Ncells:
@@ -273,7 +274,6 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     end
 
     if !simple_well
-        Wdomain[:casing_thickness, f] = casing_thickness
         # TODO: friction
         Wdomain[:roughness, f] = roughness
         # ### Segments:

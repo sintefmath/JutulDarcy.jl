@@ -182,10 +182,10 @@ function compute_well_thermal_index(g::T, thermal_conductivity, radius, pos, dir
         kwargs...
     ) where T<:Jutul.JutulMesh
     Δ = cell_dims(g, pos)
-    return compute_well_thermal_index(Δ, thermal_conductivity, radius, pos, dir; kwarg...)
+    return compute_well_thermal_index(Δ, thermal_conductivity, radius, dir; kwarg...)
 end
 
-function compute_well_thermal_index(Δ::Real, thermal_conductivity, radius, pos, dir=:z;
+function compute_well_thermal_index(Δ, thermal_conductivity, radius, dir=:z;
         radius_outer = nothing,
         thermal_conductivity_casing = 20,
         radius_grout = nothing,
@@ -212,7 +212,7 @@ function compute_well_thermal_index(Δ::Real, thermal_conductivity, radius, pos,
         U += log(rg/ro)/λg
     end
     # Conduction into reservoir
-    WIth0 = compute_peaceman_index(g::T, λr, radius, pos, dir; constant = 2*0.14)
+    WIth0 = compute_peaceman_index(Δ, λr, radius, dir; constant = 2*0.14)
     U += 1/(WIth0/(2π*L))
     #TODO: Implement flow-dependent conduction from bulk flow to pipe wall
 
