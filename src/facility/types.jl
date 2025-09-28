@@ -125,28 +125,38 @@ Jutul.associated_entity(::ScalarSegmentVariable) = Faces()
 struct SegmentRadius <: ScalarSegmentVariable end
 Jutul.minimum_value(::SegmentRadius) = 0.0
 
-function Jutul.default_values(model, ::SegmentRadius)
-    error("Not implemented yet")
+function Jutul.default_parameter_values(data_domain, model, param::SegmentRadius, symb)
+    cradius = data_domain[:radius, Cells()]
+    w = physical_representation(data_domain)
+    N = get_neighborship(w)
+    nseg = number_of_faces(w)
+    T = eltype(cradius)
+    radius = zeros(T, nseg)
+    for segno in axes(N, 2)
+        l, r = N[:, segno]
+        radius[segno] = (cradius[r] + cradius[l])/2
+    end
+    return radius
 end
 
 struct SegmentCasingThickness <: ScalarSegmentVariable end
 Jutul.minimum_value(::SegmentCasingThickness) = 0.0
 
-function Jutul.default_values(model, ::SegmentCasingThickness)
+function Jutul.default_parameter_values(data_domain, model, param::SegmentCasingThickness, symb)
     error("Not implemented yet")
 end
 
 struct SegmentRoughness <: ScalarSegmentVariable end
 Jutul.minimum_value(::SegmentRoughness) = 0.0
 
-function Jutul.default_values(model, ::SegmentRoughness)
+function Jutul.default_parameter_values(data_domain, model, param::SegmentRoughness, symb)
     error("Not implemented yet")
 end
 
 struct SegmentLength <: ScalarSegmentVariable end
 Jutul.minimum_value(::SegmentLength) = 0.0
 
-function Jutul.default_values(model, ::SegmentLength)
+function Jutul.default_parameter_values(data_domain, model, param::SegmentLength, symb)
     error("Not implemented yet")
 end
 

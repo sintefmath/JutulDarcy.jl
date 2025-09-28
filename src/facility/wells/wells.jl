@@ -68,55 +68,6 @@ default_surface_cond() = (p = 101325.0, T = 288.15) # Pa and deg. K from ISO 134
 #     return (WI, WIth, gdz)
 # end
 
-"""
-    setup_well(D::DataDomain, reservoir_cells; skin = 0.0, Kh = nothing, radius = 0.1, dir = :z, name = :Well)
-    w = setup_well(D, 1, name = :MyWell)         # Cell 1 in the grid
-    w = setup_well(D, (2, 5, 1), name = :MyWell) # Position (2, 5, 1) in logically structured mesh
-    w2 = setup_well(D, [1, 2, 3], name = :MyOtherWell)
-
-
-Set up a well in `reservoir_cells` with given skin factor and radius. The order
-of cells matter as it is treated as a trajectory.
-
-The `name` keyword argument can be left defaulted if your model will only have a
-single well (named `:Well`). It is highly recommended to provide this whenever a
-well is set up.
-
-`reservoir_cells` can be one of the following: A Vector of cells, a single cell,
-a Vector of `(I, J, K)` Tuples or a single Tuple of the same type.
-"""
-function setup_well(D::DataDomain, reservoir_cells; cell_centers = D[:cell_centroids], kwarg...)
-    # Get permeability
-    K = D[:permeability]
-    # Compute effective thermal conductivity
-    Λ_f = D[:fluid_thermal_conductivity]
-    Λ_r = D[:rock_thermal_conductivity]
-    if haskey(D, :net_to_gross)
-        ntg = D[:net_to_gross]
-    else
-        ntg = missing
-    end
-    ϕ = D[:porosity]
-    Λ_r = vec(Λ_r)
-    ϕ = vec(ϕ)
-    if size(Λ_f, 1) == 1 || Λ_f isa Vector
-        Λ_f = vec(Λ_f)
-        Λ = ϕ.*Λ_f + (1.0 .- ϕ).*Λ_r
-    else
-        # TODO: This is a bit of a hack. We should really have a proper way to
-        # do this inside the equations for multiphase flow.
-        Λ = Λ_r
-    end
-    # Get grid
-    g = physical_representation(D)
-    return setup_well(g, K, reservoir_cells;
-        thermal_conductivity = Λ,
-        cell_centers = cell_centers,
-        net_to_gross = ntg,
-        kwarg...
-    )
-end
-
 function setup_well(g, K, reservoir_cells::AbstractVector;
         simple_well = true,
         reference_depth = nothing,
@@ -337,6 +288,55 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     end
 
     return Wdomain
+end
+
+"""
+    setup_well(D::DataDomain, reservoir_cells; skin = 0.0, Kh = nothing, radius = 0.1, dir = :z, name = :Well)
+    w = setup_well(D, 1, name = :MyWell)         # Cell 1 in the grid
+    w = setup_well(D, (2, 5, 1), name = :MyWell) # Position (2, 5, 1) in logically structured mesh
+    w2 = setup_well(D, [1, 2, 3], name = :MyOtherWell)
+
+
+Set up a well in `reservoir_cells` with given skin factor and radius. The order
+of cells matter as it is treated as a trajectory.
+
+The `name` keyword argument can be left defaulted if your model will only have a
+single well (named `:Well`). It is highly recommended to provide this whenever a
+well is set up.
+
+`reservoir_cells` can be one of the following: A Vector of cells, a single cell,
+a Vector of `(I, J, K)` Tuples or a single Tuple of the same type.
+"""
+function setup_well(D::DataDomain, reservoir_cells; cell_centers = D[:cell_centroids], kwarg...)
+    # Get permeability
+    K = D[:permeability]
+    # Compute effective thermal conductivity
+    Λ_f = D[:fluid_thermal_conductivity]
+    Λ_r = D[:rock_thermal_conductivity]
+    if haskey(D, :net_to_gross)
+        ntg = D[:net_to_gross]
+    else
+        ntg = missing
+    end
+    ϕ = D[:porosity]
+    Λ_r = vec(Λ_r)
+    ϕ = vec(ϕ)
+    if size(Λ_f, 1) == 1 || Λ_f isa Vector
+        Λ_f = vec(Λ_f)
+        Λ = ϕ.*Λ_f + (1.0 .- ϕ).*Λ_r
+    else
+        # TODO: This is a bit of a hack. We should really have a proper way to
+        # do this inside the equations for multiphase flow.
+        Λ = Λ_r
+    end
+    # Get grid
+    g = physical_representation(D)
+    return setup_well(g, K, reservoir_cells;
+        thermal_conductivity = Λ,
+        cell_centers = cell_centers,
+        net_to_gross = ntg,
+        kwarg...
+    )
 end
 
 function setup_well(g, K, reservoir_cell::Union{Int, Tuple, NamedTuple}; kwarg...)
