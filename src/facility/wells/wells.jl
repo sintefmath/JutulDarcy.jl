@@ -133,8 +133,10 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         material_density = 8000.0,
         material_thermal_conductivity = 0.0,
         volume_multiplier = 1.0,
+        roughness = 1e-4,
         net_to_gross = missing,
         cell_radius = missing,
+        segment_radius = missing,
         volumes = missing,
         well_cell_centers = missing,
         # thermal_index_args = NamedTuple(),
@@ -225,7 +227,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     else
         # Depth differences are taken care of via centers.
         # dz *= 0.0
-        W = MultiSegmentWell(reservoir_cells, volumes, centers;
+        W = MultiSegmentWell(reservoir_cells;
             # WI = WI_computed,
             # WIth = WIth_computed,
             # dz = dz,
@@ -307,11 +309,6 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     Wdomain[:volume_multiplier, c] = volume_multiplier
 
     # ## Thermal well props
-    if !simple_well
-        # ### Segments:
-        Wdomain[:material_thermal_conductivity, f] = material_thermal_conductivity
-        # SEGMENT LENGTH!!!
-    end
     # ### Ncells:
     Wdomain[:material_heat_capacity, c] = material_heat_capacity
     Wdomain[:material_density, c] = material_density
@@ -325,6 +322,17 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     Wdomain[:permeability, p] = perf_subset(K)
     if !ismissing(thermal_conductivity)
         Wdomain[:thermal_conductivity, p] = perf_subset(thermal_conductivity)
+    end
+
+    if !simple_well
+
+        # Average from perforations...
+    
+        # TODO: friction
+        Wdomain[:roughness, f] = roughness
+        # ### Segments:
+        Wdomain[:material_thermal_conductivity, f] = material_thermal_conductivity
+        # SEGMENT LENGTH!!!
     end
 
     return Wdomain

@@ -444,20 +444,20 @@ function SimpleWell(
     )
 end
 
-struct MultiSegmentWell{P, N, A, C, SC, S} <: WellDomain
-    type::Symbol
+struct MultiSegmentWell{P, N, SC, S} <: WellDomain
+    # type::Symbol
     # "One of volumes per node (cell)"
     # volumes::V
     "(self -> local cells, reservoir -> reservoir cells)"
     perforations::P
     "Well cell connectivity (connections between nodes)"
     neighborship::N
-    "Top node where scalar well quantities live"
-    top::A
+    # "Top node where scalar well quantities live"
+    # top::A
     "End node(s) for the well"
     end_nodes::Vector{Int64}
-    "Coordinate centers of nodes"
-    centers::C
+    # "Coordinate centers of nodes"
+    # centers::C
     "pressure and temperature conditions at surface"
     surface::SC
     "Name of the well as a Symbol"
@@ -500,40 +500,38 @@ way of setting up wells.
 $FIELDS
 
 """
-function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
+function MultiSegmentWell(reservoir_cells;
         type = :ms,
-        accumulator_center = nothing,
-        accumulator_volume = mean(volumes),
+        # accumulator_center = nothing,
+        # accumulator_volume = mean(volumes),
         N = nothing,
         end_nodes = missing,
         name = :Well,
         perforation_cells = nothing,
         segment_models = nothing,
-        reference_depth = nothing,
-        dz = nothing,
-        segment_length = nothing,
-        friction = 1e-4,
+        # reference_depth = nothing,
+        # dz = nothing,
+        # segment_length = nothing,
+        # friction = 1e-4,
         surface_conditions = default_surface_cond(),
         # material_thermal_conductivity = 0.0,
         # material_heat_capacity = 420.0,
         # material_density = 8000.0,
         # void_fraction = 1.0,
-        extra_perforation_props = NamedTuple(),
+        # extra_perforation_props = NamedTuple(),
         segment_radius = 0.05,
-        perforation_parameters = Dict{Symbol, Any}(),
-        segment_parameters = Dict{Symbol, Any}(),
         kwarg...
     )
-    if isnothing(reference_depth)
-        if isnothing(accumulator_center)
-            reference_depth = 0
-        else
-            reference_depth = accumulator_center[3]
-        end
-    end
-    if isnothing(accumulator_center)
-        accumulator_center = [centers[1, 1], centers[2, 1], reference_depth]
-    end
+    # if isnothing(reference_depth)
+    #     if isnothing(accumulator_center)
+    #         reference_depth = 0
+    #     else
+    #         reference_depth = accumulator_center[3]
+    #     end
+    # end
+    # if isnothing(accumulator_center)
+    #     accumulator_center = [centers[1, 1], centers[2, 1], reference_depth]
+    # end
     nv = length(volumes)
     nc = nv + 1
     reservoir_cells = vec(reservoir_cells)
@@ -634,9 +632,9 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
         segment_models::AbstractVector
         @assert length(segment_models) == nseg
     end
-    if isnothing(dz)
-        dz = centers[3, :] .- reference_depth
-    end
+    # if isnothing(dz)
+    #     dz = centers[3, :] .- reference_depth
+    # end
     @assert length(perforation_cells) == nr
     #WI, WIth, gdz = common_well_setup(nr; dz = dz, kwarg...)
     perf = (self = perforation_cells, reservoir = reservoir_cells)#, WI = WI, WIth = WIth, gdz = gdz)
@@ -644,24 +642,24 @@ function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
     for (k, v) in zip(keys(perf), perf)
         @assert length(v) == nr "Perforation property $k must have length equal to number of reservoir cells"
     end
-    accumulator = (reference_depth = reference_depth, )
+    # accumulator = (reference_depth = reference_depth, )
     MultiSegmentWell{
-        typeof(volumes),
+        # typeof(volumes),
         typeof(perf),
         typeof(N),
-        typeof(accumulator),
-        typeof(ext_centers),
+        # typeof(accumulator),
+        # typeof(ext_centers),
         typeof(surface_conditions),
         typeof(segment_models),
         # typeof(material_thermal_conductivity)
     }(
-        type,
-        volumes,
+        # type,
+        # volumes,
         perf,
         N,
-        accumulator,
+        # accumulator,
         end_nodes,
-        ext_centers,
+        # ext_centers,
         surface_conditions,
         name,
         segment_models,

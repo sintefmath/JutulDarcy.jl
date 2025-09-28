@@ -161,10 +161,6 @@ struct PerforationGravityDifference <: ScalarVariable end
 
 Jutul.associated_entity(::PerforationGravityDifference) = Perforations()
 function Jutul.default_parameter_values(data_domain, model, param::PerforationGravityDifference, symb)
-    # Simple well: Values
-    # Otherwise: Zeros.
-    @info "???" data_domain
-
     well = physical_representation(data_domain)
     c_cells = data_domain[:cell_centroids, Cells()]
     c_perf = data_domain[:perforation_centroids, Perforations()]
