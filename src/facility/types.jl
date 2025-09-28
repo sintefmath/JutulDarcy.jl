@@ -85,12 +85,14 @@ Jutul.variable_scale(::WellIndices) = 1e-10
 Jutul.associated_entity(::WellIndices) = Perforations()
 
 function Jutul.default_parameter_values(data_domain, model, param::WellIndices, symb)
-    @info "??" data_domain
     WI = copy(data_domain[:well_index, Perforations()])
     dims = data_domain[:cell_dims, Perforations()]
     perm = data_domain[:permeability, Perforations()]
     net_to_gross = data_domain[:net_to_gross, Perforations()]
+    direction = data_domain[:perforation_direction, Perforations()]
     skin = data_domain[:skin, Perforations()]
+    Kh = data_domain[:Kh, Perforations()]
+    radius = data_domain[:perforation_radius, Perforations()]
     gdim = size(data_domain[:cell_centroids, Cells()], 1)
     for (i, val) in enumerate(WI)
         defaulted = !isfinite(val)
@@ -102,16 +104,16 @@ function Jutul.default_parameter_values(data_domain, model, param::WellIndices, 
                 K = perm[:, i]
             end
             K = Jutul.expand_perm(K, gdim)
+            r = radius[i]
+            dir = direction[i]
             WI[i] = compute_peaceman_index(Δ, K, r, dir;
                 skin = skin[i],
                 Kh = Kh[i],
-                net_to_gross = net_to_gross[I]
+                net_to_gross = net_to_gross[i]
             )
         end
     end
-    error()
-    # w = physical_representation(model.domain)
-    #  return vec(copy(w.perforations.WI))
+    return WI
 end
 
 abstract type ScalarSegmentVariable <: ScalarVariable end

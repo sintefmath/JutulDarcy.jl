@@ -118,13 +118,13 @@ function setup_well(D::DataDomain, reservoir_cells; cell_centers = D[:cell_centr
 end
 
 function setup_well(g, K, reservoir_cells::AbstractVector;
+        simple_well = true,
         reference_depth = nothing,
         cell_centers = nothing,
         skin = 0.0,
-        Kh = nothing,
         radius = 0.1,
         accumulator_volume = missing,
-        simple_well = true,
+        Kh = missing,
         WI = missing,
         WIth = missing,
         thermal_conductivity = missing,
@@ -141,21 +141,32 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         dir = :z,
         kwarg...
     )
-    T = promote_type(eltype(K), eltype(skin), eltype(radius), eltype(void_fraction), eltype(material_heat_capacity), eltype(material_density))
-    T = promote_type(T, Jutul.float_type(g))
-    if !ismissing(WI)
-        T = promote_type(T, eltype(WI))
-    end
-    if !ismissing(WIth)
-        T = promote_type(T, eltype(WIth))
-    end
-    # NaN for derived quantities -> To be computed.
     if ismissing(WI)
         WI = NaN
     end
     if ismissing(WIth)
         WIth = NaN
     end
+    if ismissing(Kh) || isnothing(Kh)
+        Kh = NaN
+    end
+    # T = promote_type(
+    #     eltype(K),
+    #     eltype(skin),
+    #     eltype(radius),
+    #     eltype(void_fraction),
+    #     eltype(material_heat_capacity),
+    #     eltype(material_density)
+    # )
+    # T = promote_type(T, Jutul.float_type(g))
+    # if !ismissing(WI)
+    #     T = promote_type(T, eltype(WI))
+    # end
+    # if !ismissing(WIth)
+    #     T = promote_type(T, eltype(WIth))
+    # end
+    # NaN for derived quantities -> To be computed.
+
     n = length(reservoir_cells)
     # Make sure these are cell indices
     reservoir_cells = map(i -> cell_index(g, i), reservoir_cells)
@@ -239,8 +250,6 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     get_perforation_vals(x) = map(i -> get_entry(x, i), 1:n)
 
     direction = get_perforation_vals(dir)
-    Kh_vec = get_perforation_vals(Kh)
-    skin = get_perforation_vals(skin)
     # volumes = zeros(T, n)
     # WI_vec = zeros(T, n)
     # WIth_vec = zeros(T, n)
@@ -251,7 +260,6 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
 
 
     perforation_radius = get_perforation_vals(radius)
-    Kh_vec = get_perforation_vals(Kh)
 
     Wdomain = DataDomain(W)
     c = Cells()
@@ -286,15 +294,17 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     Wdomain[:cell_centroids, c] = well_cell_centers
     # ## Perforations
     if ismissing(net_to_gross)
-        ntg = ones(T, n)
+        ntg = 1.0
     else
         ntg = get_perforation_vals(net_to_gross)
     end
+    Wdomain[:Kh, p] = Kh
     Wdomain[:net_to_gross, p] = ntg
-    Wdomain[:skin, p] = get_perforation_vals(skin)
+    Wdomain[:skin, p] = skin
     Wdomain[:perforation_radius, p] = perforation_radius
-    Wdomain[:well_index, p] = get_perforation_vals(WI)
+    Wdomain[:well_index, p] = WI
     Wdomain[:perforation_centroids, p] = perforation_centers
+    Wdomain[:perforation_direction, p] = direction
     Wdomain[:cell_dims, p] = map(c -> peaceman_cell_dims(g, c), reservoir_cells)
     # Geometry
     Wdomain[:void_fraction, c] = void_fraction
