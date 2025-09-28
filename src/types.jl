@@ -394,12 +394,12 @@ function Base.show(io::IO, w::WellDomain)
     print(io, "$n [$(w.name)] ($(nn) nodes, $(nseg) segments, $(length(w.perforations.reservoir)) perforations)")
 end
 
-struct SimpleWell{SC, P, V} <: WellDomain where {SC, P}
+struct SimpleWell{SC, P} <: WellDomain where {SC, P}
     perforations::P
     surface::SC
     name::Symbol
     explicit_dp::Bool
-    reference_depth::V
+    # reference_depth::V
 end
 
 """
@@ -422,7 +422,7 @@ function SimpleWell(
         name = :Well,
         explicit_dp = true,
         surface_conditions = default_surface_cond(),
-        reference_depth = 0.0,
+        # reference_depth = 0.0,
         kwarg...
     )
     nr = length(reservoir_cells)
@@ -439,8 +439,8 @@ function SimpleWell(
         perf,
         surface_conditions,
         name,
-        explicit_dp,
-        reference_depth
+        explicit_dp
+        # reference_depth
     )
 end
 

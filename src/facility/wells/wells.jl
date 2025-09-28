@@ -185,12 +185,8 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     end
 
 
-    if isnothing(reference_depth)
-        if size(well_cell_centers, 1) == 2
-            reference_depth = 0.0
-        else
-            reference_depth = well_cell_centers[3, 1]
-        end
+    if reference_depth isa Real && size(well_cell_centers, 1) == 3
+        well_cell_centers[3, 1] = well_cell_centers
     end
 
     # dz = zeros(T, n)
@@ -223,7 +219,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
             # WIth = WIth_computed,
             # volume = accumulator_volume,
             # dz = dz,
-            reference_depth = reference_depth,
+            # reference_depth = reference_depth,
             kwarg...
         )
     else
@@ -233,7 +229,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
             # WI = WI_computed,
             # WIth = WIth_computed,
             # dz = dz,
-            reference_depth = reference_depth,
+            # reference_depth = reference_depth,
             # segment_radius = segment_radius, 
             kwarg...
         )

@@ -160,9 +160,25 @@ the well.
 struct PerforationGravityDifference <: ScalarVariable end
 
 Jutul.associated_entity(::PerforationGravityDifference) = Perforations()
-function Jutul.default_values(model, ::PerforationGravityDifference)
-    w = physical_representation(model.domain)
-    return vec(copy(w.perforations.gdz))
+function Jutul.default_parameter_values(data_domain, model, param::PerforationGravityDifference, symb)
+    # Simple well: Values
+    # Otherwise: Zeros.
+    @info "???" data_domain
+
+    well = physical_representation(data_domain)
+    c_cells = data_domain[:cell_centroids, Cells()]
+    c_perf = data_domain[:perforation_centroids, Perforations()]
+    dim = size(c_cells, 1)
+    @assert dim == size(c_perf, 1) "Inconsistent dimensions between cell and perforation centroids"
+    c = well.perforations.self
+    if dim == 3
+        z_perf = c_perf[3, :]
+        z_cells = c_cells[3, c]
+        dz = z_perf .- z_cells
+    else
+        dz = zeros(length(c))
+    end
+    return dz
 end
 
 Base.show(io::IO, t::SurfaceVolumeTarget) = print(io, "$(typeof(t)) with value $(t.value) [m^3/s] for $(join([typeof(p) for p in lumped_phases(t)], ", "))")
