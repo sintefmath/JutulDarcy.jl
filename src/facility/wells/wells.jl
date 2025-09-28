@@ -159,17 +159,17 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     n = length(reservoir_cells)
     # Make sure these are cell indices
     reservoir_cells = map(i -> cell_index(g, i), reservoir_cells)
+    if simple_well
+        perf_to_wellcell_index = [1]
+    else
+        perf_to_wellcell_index = [1, eachindex(reservoir_cells)...]
+    end
     if isnothing(cell_centers)
         geometry = tpfv_geometry(g)
         cell_centers = geometry.cell_centroids
     end
     perforation_centers = cell_centers[:, reservoir_cells]
     if ismissing(well_cell_centers)
-        if simple_well
-            perf_to_wellcell_index = [1]
-        else
-            perf_to_wellcell_index = [1, eachindex(reservoir_cells)...]
-        end
         well_cell_centers = perforation_centers[:, perf_to_wellcell_index]
     end
 
@@ -266,6 +266,18 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     # VolumeMultiplier?
     # Wdomain[:cell_centroids, c] = 
     # Radius
+    function cell_height(dir_i, cell)
+        if dir_i isa Symbol
+            Δ = cell_dims(g, cell)
+            d_index = findfirst(isequal(dir_i), [:x, :y, :z])
+            h = Δ[d_index]
+        else
+            h = norm(dir_i, 2)
+        end
+    end
+    # Length of cell in direction of well - used for volumes of nodes
+    Wdomain[:cell_length, c] = map((i, cell) -> cell_height(direction[i], cell), 1:n, reservoir_cells)[perf_to_wellcell_index]
+
     if ismissing(cell_radius)
         cell_radius = perforation_radius[1]
     end
@@ -287,11 +299,11 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     Wdomain[:void_fraction, c] = void_fraction
     Wdomain[:volume_multiplier, c] = volume_multiplier
 
-
     # ## Thermal well props
     if !simple_well
         # ### Segments:
         Wdomain[:material_thermal_conductivity, f] = material_thermal_conductivity
+        # SEGMENT LENGTH!!!
     end
     # ### Ncells:
     Wdomain[:material_heat_capacity, c] = material_heat_capacity
@@ -432,9 +444,11 @@ function update_before_step_well!(well_state, well_model, res_state, res_model, 
 end
 
 function domain_fluid_volume(d::DataDomain, grid::WellDomain)
-    @info "??? " d
-    error()
-    # return grid.volumes.*grid.void_fraction
+    mult = d[:volume_multiplier, Cells()]
+    void = d[:void_fraction, Cells()]
+    r = d[:radius, Cells()]
+    L = d[:cell_length, Cells()]
+    return mult.*void.*(π .* r.^2 .* L)
 end
 
 # function domain_fluid_volume(d::DataDomain, grid::SimpleWell)
