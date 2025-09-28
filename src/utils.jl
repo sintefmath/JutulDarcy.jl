@@ -264,8 +264,9 @@ function reservoir_system(; flow = missing, thermal = missing, kwarg...)
 end
 
 """
-    model, parameters = setup_reservoir_model(reservoir, system; wells = [], <keyword arguments>)
-    model, parameters = setup_reservoir_model(reservoir, system; wells = [w1, w2], backend = :csr, <keyword arguments>)
+    model = setup_reservoir_model(reservoir, system; wells = [], <keyword arguments>)
+    model = setup_reservoir_model(reservoir, system; wells = [w1, w2], backend = :csr, <keyword arguments>)
+    model, parameters = setup_reservoir_model(reservoir, system; extra_out = true, <keyword arguments>)
 
 Set up a reservoir `MultiModel` for a given reservoir `DataDomain` typically set
 up from  [`reservoir_domain`](@ref) and an optional vector of wells that are
@@ -281,7 +282,7 @@ reservoir and that facility.
 
 - `wells=[]`: Vector of wells (e.g. from [`setup_well`](@ref)) that are to be
   used in the model. Each well must have a unique name.
-- `extra_out=true`: Return both the model and the parameters instead of just the
+- `extra_out=false`: Return both the model and the parameters instead of just the
   model.
 - `thermal = false`: Add additional equations for conservation of energy and
   temperature as a primary variable.

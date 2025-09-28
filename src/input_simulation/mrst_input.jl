@@ -1361,7 +1361,6 @@ function setup_case_from_mrst(casename;
                         limits[wsym] = convert_to_immutable_storage(lims)
                         found_limits = true
                     end
-                   #  Ω_w = models[wsym].domain
                     WI = setup_parameters(models[wsym])[:WellIndices]
                     new_WI = vectorize(wdata["WI"])
                     if all(cstatus) && all(WI .== new_WI)
