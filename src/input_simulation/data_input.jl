@@ -125,7 +125,8 @@ function setup_case_from_parsed_data(datafile;
     msg("Setting up model with $(length(wells)) wells.")
     wells_pvt = Dict()
     wells_systems = []
-    for w in wells
+    for wdomain in wells
+        w = physical_representation(wdomain)
         if has_pvt
             c = first(w.perforations.reservoir)
             reg_w = pvt_reg[c]
