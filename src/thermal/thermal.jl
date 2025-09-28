@@ -249,11 +249,12 @@ Jutul.variable_scale(::WellIndicesThermal) = 1.0
 Jutul.associated_entity(::WellIndicesThermal) = Perforations()
 
 function Jutul.default_parameter_values(data_domain, model, param::WellIndicesThermal, symb)
-    @warn "Not finished" data_domain
     well = physical_representation(data_domain)
     WIt = copy(data_domain[:thermal_well_index, Perforations()])
     dims = data_domain[:cell_dims, Perforations()]
     thermal_conductivity = data_domain[:thermal_conductivity, Perforations()]
+    thermal_conductivity_casing = data_domain[:thermal_conductivity_casing, Perforations()]
+    thermal_conductivity_grout = data_domain[:thermal_conductivity_grout, Perforations()]
     radius_grout = data_domain[:radius_grout, Perforations()]
     direction = data_domain[:perforation_direction, Perforations()]
     radius = data_domain[:perforation_radius, Perforations()]
@@ -276,9 +277,9 @@ function Jutul.default_parameter_values(data_domain, model, param::WellIndicesTh
             r_grout = radius_grout[i]
             WIt[i] = compute_well_thermal_index(Δ, Λ_i, r_inner, dir;
                 radius_outer = r_outer,
-                thermal_conductivity_casing = 20,
                 radius_grout = r_grout,
-                thermal_conductivity_grout = 2.3,
+                thermal_conductivity_casing = thermal_conductivity_casing[i],
+                thermal_conductivity_grout = thermal_conductivity_grout[i],
             )
         end
     end

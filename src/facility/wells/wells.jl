@@ -88,12 +88,12 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         thermal_conductivity_casing = 20,
         thermal_conductivity_grout = 2.3,
         volume_multiplier = 1.0,
-        friction = 1e-4, # Old version of kwarg
+        friction = 1e-4, # Old version of kwarg for roughness
         roughness = friction,
         net_to_gross = missing,
         cell_radius = missing,
         well_cell_centers = missing,
-        # thermal_index_args = NamedTuple(),
+        use_top_node = missing,
         dir = :z,
         kwarg...
     )
@@ -116,11 +116,13 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         )
         perf_to_wellcell_index = [1]
     else
-        if is_3d && reference_depth isa Real
-            top_res_cell = reservoir_cells[1]
-            use_top_node = !(reference_depth ≈ cell_centers[3, top_res_cell])
-        else
-            use_top_node = false
+        if ismissing(use_top_node)
+            if is_3d && reference_depth isa Real
+                top_res_cell = reservoir_cells[1]
+                use_top_node = !(reference_depth ≈ cell_centers[3, top_res_cell])
+            else
+                use_top_node = false
+            end
         end
         W = MultiSegmentWell(reservoir_cells;
             top_node = use_top_node,

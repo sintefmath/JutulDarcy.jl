@@ -204,11 +204,11 @@ function compute_well_thermal_index(Δ, thermal_conductivity, radius, dir=:z;
     λr, λc, λg = thermal_conductivity, thermal_conductivity_casing, thermal_conductivity_grout
     U = 0.0
     # Conduction through casing
-    if !isnothing(ro)
+    if !isnothing(ro) && ro > ri
         U += log(ri/ro)/λc
     end
     # Conduction through grouting
-    if !isnothing(rg)
+    if !isnothing(rg) && rg > 0.0
         U += log(rg/ro)/λg
     end
     # Conduction into reservoir
