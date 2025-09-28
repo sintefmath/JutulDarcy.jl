@@ -159,12 +159,11 @@ function setup_btes_well_u1(D::DataDomain, reservoir_cells;
     nr = length(reservoir_cells)
 
     for seg in 1:nseg
-        l, r = N[:, seg]
-        L = norm(ext_centers[:, l] - ext_centers[:, r], 2)
+        # l, r = N[:, seg]
+        # L = norm(ext_centers[:, l] - ext_centers[:, r], 2)
         if seg <= nc_pipe
             # Pipe segments use standard wellbore friction model
-            Do, Di = 2*radius_pipe_inner, 0.0
-            seg_model = SegmentWellBoreFrictionHB(L, friction, Do; D_inner = Di)
+            seg_model = SegmentWellBoreFrictionHB()
         else
             seg_model = JutulDarcy.ClosedSegment()
         end

@@ -25,7 +25,7 @@ function solve_btes(;
     else
         sys = SinglePhaseSystem(AqueousPhase(), reference_density = 1000.0)
     end
-    model, = setup_reservoir_model(d, sys;
+    model = setup_reservoir_model(d, sys;
         wells = [btes_sup, btes_ret], thermal = true)
     rmodel = reservoir_model(model)
     sys = rmodel.system
