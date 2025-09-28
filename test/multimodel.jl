@@ -86,7 +86,7 @@ function test_perforation_mask()
     g = CartesianMesh(dims, (2000.0, 1500.0, 50.0))
     Darcy = 9.869232667160130e-13
     domain = reservoir_domain(g, permeability = 0.1*Darcy, porosity = 0.1)
-    P = setup_vertical_well(domain, 1, 1, name = :Producer, simple_well = false);
+    P = setup_vertical_well(domain, 1, 1, name = :Producer, simple_well = false, use_top_node = true);
     phases = (LiquidPhase(), VaporPhase())
     rhoLS = 1000.0
     rhoGS = 100.0
