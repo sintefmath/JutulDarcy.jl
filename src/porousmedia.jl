@@ -97,6 +97,9 @@ function compute_peaceman_index(Δ, K, radius, dir::Symbol = :z;
         skin = 0,
         check = true
     )
+    if K isa Number
+        K = Diagonal(fill(K, 3))
+    end
     K_d = diag(K)
     Δx, Δy, Δz = Δ
     Δz *= net_to_gross
@@ -182,7 +185,7 @@ function compute_well_thermal_index(g::T, thermal_conductivity, radius, pos, dir
         kwargs...
     ) where T<:Jutul.JutulMesh
     Δ = cell_dims(g, pos)
-    return compute_well_thermal_index(Δ, thermal_conductivity, radius, dir; kwarg...)
+    return compute_well_thermal_index(Δ, thermal_conductivity, radius, dir; kwargs...)
 end
 
 function compute_well_thermal_index(Δ, thermal_conductivity, radius, dir=:z;
@@ -204,11 +207,11 @@ function compute_well_thermal_index(Δ, thermal_conductivity, radius, dir=:z;
     λr, λc, λg = thermal_conductivity, thermal_conductivity_casing, thermal_conductivity_grout
     U = 0.0
     # Conduction through casing
-    if !isnothing(ro) && ro > ri
+    if !isnothing(ro) && !ismissing(ro) && ro > ri
         U += log(ri/ro)/λc
     end
     # Conduction through grouting
-    if !isnothing(rg) && rg > 0.0
+    if !isnothing(rg) && !ismissing(rg) && rg > 0.0
         U += log(rg/ro)/λg
     end
     # Conduction into reservoir
