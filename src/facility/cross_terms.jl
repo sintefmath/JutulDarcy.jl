@@ -96,7 +96,7 @@ function Jutul.cross_term_entities_source(ct::AbstractReservoirFromWellCT, eq::C
 end
 
 function Jutul.subcrossterm(ct::ReservoirFromWellFlowCT, ctp, m_t, m_s, map_res::FiniteVolumeGlobalMap, ::TrivialGlobalMap, partition)
-    (; WI, reservoir_cells, well_cells) = ct
+    (; reservoir_cells, well_cells) = ct
     rc = map(
         c -> Jutul.local_cell(c, map_res),
         reservoir_cells)
@@ -343,11 +343,11 @@ function Base.show(io::IO, d::ReservoirFromWellThermalCT)
 end
 
 function Jutul.subcrossterm(ct::ReservoirFromWellThermalCT, ctp, m_t, m_s, map_res::FiniteVolumeGlobalMap, ::TrivialGlobalMap, partition)
-    (; WIth, WI, reservoir_cells, well_cells) = ct
+    (; reservoir_cells, well_cells) = ct
     rc = map(
         c -> Jutul.local_cell(c, map_res),
         reservoir_cells)
-    return ReservoirFromWellThermalCT(copy(WIth), copy(WI), rc, copy(well_cells))
+    return ReservoirFromWellThermalCT(rc, copy(well_cells))
 end
 
 function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellThermalCT, target, source, model, storage, dt, force::PerforationMask; time = time)
