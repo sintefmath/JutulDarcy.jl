@@ -186,7 +186,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
 
 
     if reference_depth isa Real && size(well_cell_centers, 1) == 3
-        well_cell_centers[3, 1] = well_cell_centers
+        well_cell_centers[3, 1] = reference_depth
     end
 
     # dz = zeros(T, n)
