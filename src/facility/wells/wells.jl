@@ -82,6 +82,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         Kh = missing,
         WI = missing,
         WIth = missing,
+        volumes = missing,
         thermal_conductivity = missing,
         void_fraction = 1.0,
         material_heat_capacity = 420.0,
@@ -261,6 +262,10 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         cell_radius = Wdomain[:perforation_radius, p][1]
     end
     Wdomain[:radius, c] = cell_radius
+    if !ismissing(volumes)
+        length(volumes) == number_of_cells(W) || error("Must provide one volume per well cell ($(length(volumes)) provided, $(number_of_cells(W)) well cells).")
+        Wdomain[:volume_override, c] = volumes
+    end
     # Centers
     Wdomain[:cell_centroids, c] = well_cell_centers
     # Geometry
@@ -475,10 +480,15 @@ function domain_fluid_volume(d::DataDomain, grid::WellDomain)
 end
 
 function domain_bulk_volume(d::DataDomain, grid::WellDomain)
-    mult = d[:volume_multiplier, Cells()]
-    r = d[:radius, Cells()]
-    L = d[:cell_length, Cells()]
-    return mult.*(π .* r.^2 .* L)
+    if haskey(d, :volume_override)
+        vols = d[:volume_override, Cells()]
+    else
+        mult = d[:volume_multiplier, Cells()]
+        r = d[:radius, Cells()]
+        L = d[:cell_length, Cells()]
+        vols = mult.*(π .* r.^2 .* L)
+    end
+    return vols
 end
 
 # function domain_fluid_volume(d::DataDomain, grid::SimpleWell)

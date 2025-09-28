@@ -40,8 +40,7 @@ function setup_vertical_btes_well(D::DataDomain, i, j;
         reservoir_cells[ix] = cell_index(g, (i, j, k))
     end
     # Set up BTES well
-    setup_btes_well(D, reservoir_cells; kwarg...)
-
+    return setup_btes_well(D, reservoir_cells; kwarg...)
 end
 
 function setup_btes_well_simple(D::DataDomain, reservoir_cells;
@@ -199,6 +198,7 @@ function setup_btes_well_u1(D::DataDomain, reservoir_cells;
         thermal_conductivity_casing = thermal_conductivity_pipe,
         material_heat_capacity = heat_capacity_grout,
         material_density = density_grout,
+        volumes = [volumes[1], volumes...],
         void_fraction = void_fraction,
         neighborship = N,
         perforation_cells_well = collect(grout_cells.+1),
