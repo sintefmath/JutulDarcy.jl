@@ -185,6 +185,11 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     else
         well_cell_centers = copy(well_cell_centers)
     end
+    closest_reservoir_cell_to_well_cell = Int[]
+    for i in 1:size(well_cell_centers, 2)
+        dists = vec(norm.(eachcol(perforation_centers .- well_cell_centers[:, i]), 2))
+        push!(closest_reservoir_cell_to_well_cell, findmin(dists)[2])
+    end
     # Set reference depth if provided
     if reference_depth isa Real && is_3d
         well_cell_centers[3, 1] = reference_depth
@@ -246,11 +251,9 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     Wdomain[:perforation_direction, p] = dir
 
     direction_expanded = Wdomain[:perforation_direction, p]
-    Wdomain[:cell_length, c] = map(
-        (i, cell) -> cell_height(direction_expanded[i], cell),
-            1:n,
-            reservoir_cells)[perf_to_wellcell_index]
 
+    perf_height = map((i, cell) -> cell_height(direction_expanded[i], cell), 1:n, reservoir_cells)
+    Wdomain[:cell_length, c] = perf_height[closest_reservoir_cell_to_well_cell]
     Wdomain[:cell_dims, p] = map(c -> peaceman_cell_dims(g, c), reservoir_cells)
 
     # Length of cell in direction of well - used for volumes of nodes
@@ -290,11 +293,8 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     end
 
     if !simple_well
-        # TODO: friction
         Wdomain[:roughness, f] = roughness
-        # ### Segments:
         Wdomain[:material_thermal_conductivity, f] = material_thermal_conductivity
-        # SEGMENT LENGTH!!!
     end
 
     return Wdomain

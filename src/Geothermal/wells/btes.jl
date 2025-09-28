@@ -202,7 +202,7 @@ function setup_btes_well_u1(D::DataDomain, reservoir_cells;
         void_fraction = void_fraction,
         neighborship = N,
         perforation_cells_well = collect(grout_cells.+1),
-        well_cell_centers = centers,
+        well_cell_centers = ext_centers,
         end_nodes = [nc_pipe+1],
         segment_models = segment_models,
         simple_well = false
@@ -222,8 +222,8 @@ function setup_btes_well_u1(D::DataDomain, reservoir_cells;
             new_arg...
         )
     end
-    return_well::MultiSegmentWell
-    supply_well::MultiSegmentWell
+    physical_representation(return_well)::MultiSegmentWell
+    physical_representation(supply_well)::MultiSegmentWell
     return (supply_well, return_well)
 end
 
