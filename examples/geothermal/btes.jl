@@ -171,7 +171,8 @@ ctrl_prod = ProducerControl(bhp_target);
 # Set up forces
 control_charge = Dict()
 control_discharge = Dict()
-for well in well_models
+for welld in well_models
+    well = physical_representation(welld)
     if contains(String(well.name), "_supply")
         control_charge[well.name] = ctrl_charge
         control_discharge[well.name] = ctrl_discharge
