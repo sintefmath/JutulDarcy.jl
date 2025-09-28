@@ -295,7 +295,7 @@ fig
 # parameterization could lead to good match in terms of the objective function,
 # even without good match for the spatial distribution.
 step = 80
-cmap = :heat
+cmap = reverse(to_colormap(:heat))
 fig = Figure(size = (1200, 400))
 ax = Axis3(fig[1, 1], title = "Truth")
 plot_cell_data!(ax, rmesh, states[step][:Temperature] .- 273.15, colorrange = (10.0, 100.0), colormap = cmap)
@@ -373,7 +373,7 @@ case_opt_ctrl = setup_doublet_case(prm_opt_ctrl)
 ws_opt_ctrl, states_opt_ctrl = simulate_reservoir(case_opt_ctrl)
 # ### Plot the distribution of temperature with and without optimization
 step = 80
-cmap = :heat
+cmap = reverse(to_colormap(:heat))
 fig = Figure(size = (1000, 400))
 ax = Axis3(fig[1, 1], title = "Base case")
 plot_cell_data!(ax, rmesh, states[step][:Temperature] .- 273.15, colorrange = (10.0, 100.0), colormap = cmap)
