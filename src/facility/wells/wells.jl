@@ -178,7 +178,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     end
     perforation_centers = cell_centers[:, reservoir_cells]
     if ismissing(well_cell_centers)
-        if !simple_well && !isnothing(neighborship)
+        if !simple_well && !ismissing(neighborship)
             error("Must provide well_cell_centers for multisegment wells when neighborship is provided.")
         end
         well_cell_centers = perforation_centers[:, perf_to_wellcell_index]
