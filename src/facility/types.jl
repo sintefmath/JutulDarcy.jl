@@ -186,10 +186,13 @@ function Jutul.default_parameter_values(data_domain, model, param::SegmentConnec
     pts = data_domain[:cell_centroids, Cells()]
     T = eltype(pts)
     gdz = zeros(T, nseg)
-    for segno in axes(N, 2)
-        # TODO: Check sign.
-        l, r = N[:, segno]
-        gdz[segno] = Jutul.gravity_constant*(pts[3, r] - pts[3, l])
+    if size(pts, 1) == 3
+        for segno in axes(N, 2)
+            # Old code:
+            # gdz = -gravity_constant*(z[l] - z[r])
+            l, r = N[:, segno]
+            gdz[segno] = Jutul.gravity_constant*(pts[3, r] - pts[3, l])
+        end
     end
     return gdz
 end
