@@ -42,7 +42,7 @@ rhoS = [rhoLS, rhoVS]
 L, V = LiquidPhase(), VaporPhase()
 # Define system and realize on grid
 sys = MultiPhaseCompositionalSystemLV(eos, (L, V))
-model, parameters = setup_reservoir_model(res, sys, wells = [inj, prod], block_backend = true);
+model = setup_reservoir_model(res, sys, wells = [inj, prod], block_backend = true);
 kr = BrooksCoreyRelativePermeabilities(sys, 2.0, 0.0, 1.0)
 model = replace_variables!(model, RelativePermeabilities = kr)
 
@@ -60,7 +60,7 @@ controls = Dict()
 controls[:Injector] = I_ctrl
 controls[:Producer] = P_ctrl
 forces = setup_reservoir_forces(model, control = controls)
-ws, states = simulate_reservoir(state0, model, dt, parameters = parameters, forces = forces);
+ws, states = simulate_reservoir(state0, model, dt, forces = forces);
 # ## Once the simulation is done, we can plot the states
 # ### CO2 mole fraction
 sg = states[end][:OverallMoleFractions][2, :]

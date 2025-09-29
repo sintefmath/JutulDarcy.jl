@@ -45,27 +45,265 @@ Jutul.variable_scale(t::TotalMassFlux) = t.scale
 
 default_surface_cond() = (p = 101325.0, T = 288.15) # Pa and deg. K from ISO 13443:1996 for natural gas
 
-function common_well_setup(nr; dz = nothing, WI = nothing, WIth = nothing, gravity = gravity_constant)
-    if isnothing(dz)
-        @warn "dz not provided for well. Assuming no gravity."
-        gdz = zeros(nr)
+# function common_well_setup(nr; dz = nothing, WI = nothing, WIth = nothing, gravity = gravity_constant)
+#     if isnothing(dz)
+#         @warn "dz not provided for well. Assuming no gravity."
+#         gdz = zeros(nr)
+#     else
+#         @assert length(dz) == nr  "Must have one connection drop dz per perforated cell"
+#         gdz = dz*gravity
+#     end
+#     if isnothing(WI)
+#         @warn "No well indices provided. Using 1e-12."
+#         WI = fill(1e-12, nr)
+#     else
+#         @assert length(WI) == nr  "Must have one well index per perforated cell ($(length(WI)) well indices, $nr reservoir cells))"
+#     end
+#     if isnothing(WIth)
+#         @warn "No thermal well indices provided. Using 1."
+#         WIth = fill(1.0, nr)
+#     else
+#         @assert length(WIth) == nr  "Must have one thermal well index per perforated cell ($(length(WIth)) thermal well indices, $nr reservoir cells))"
+#     end
+#     return (WI, WIth, gdz)
+# end
+
+function setup_well(g, K, reservoir_cells::AbstractVector;
+        simple_well = true,
+        N = missing,
+        neighborship = N,
+        perforation_cells_well = missing,
+        reference_depth = nothing,
+        cell_centers = nothing,
+        skin = 0.0,
+        radius = 0.1,
+        radius_grout = 0.0, # In addition to the radius
+        casing_thickness = 0.0, # How much of the radius is casing
+        accumulator_volume = missing,
+        Kh = missing,
+        WI = missing,
+        WIth = missing,
+        volumes = missing,
+        thermal_conductivity = missing,
+        void_fraction = 1.0,
+        material_heat_capacity = 420.0,
+        material_density = 8000.0,
+        material_thermal_conductivity = 0.0,
+        thermal_conductivity_casing = 20,
+        thermal_conductivity_grout = 2.3,
+        volume_multiplier = 1.0,
+        friction = 1e-4, # Old version of kwarg for roughness
+        roughness = friction,
+        net_to_gross = missing,
+        cell_radius = missing,
+        well_cell_centers = missing,
+        use_top_node = missing,
+        dir = :z,
+        kwarg...
+    )
+    is_3d = dim(g) == 3
+    n = length(reservoir_cells)
+    # Make sure these are cell indices
+    reservoir_cells = map(i -> cell_index(g, i), reservoir_cells)
+    # Set up well itself
+    if simple_well
+        if ismissing(accumulator_volume)
+            # accumulator_volume = simple_well_regularization*sum(volumes)
+        end
+        W = SimpleWell(reservoir_cells;
+            # WI = WI_computed,
+            # WIth = WIth_computed,
+            # volume = accumulator_volume,
+            # dz = dz,
+            # reference_depth = reference_depth,
+            kwarg...
+        )
+        perf_to_wellcell_index = [1]
     else
-        @assert length(dz) == nr  "Must have one connection drop dz per perforated cell"
-        gdz = dz*gravity
+        if ismissing(neighborship)
+            if ismissing(use_top_node)
+                if is_3d && reference_depth isa Real
+                    top_res_cell = reservoir_cells[1]
+                    use_top_node = !(reference_depth ≈ cell_centers[3, top_res_cell])
+                else
+                    use_top_node = false
+                end
+            end
+            W = MultiSegmentWell(reservoir_cells;
+                top_node = use_top_node,
+                kwarg...
+            )
+            perf_to_wellcell_index = collect(eachindex(reservoir_cells))
+            if use_top_node
+                pushfirst!(perf_to_wellcell_index, 1)
+            end
+        else
+            # Well has actual topology
+            !ismissing(perforation_cells_well) || error("Must provide perforation_cells_well if neighborship is provided.")
+            W = MultiSegmentWell(neighborship, reservoir_cells, perforation_cells_well;
+                kwarg...
+            )
+            perf_to_wellcell_index = perforation_cells_well
+        end
     end
-    if isnothing(WI)
-        @warn "No well indices provided. Using 1e-12."
-        WI = fill(1e-12, nr)
+
+    if ismissing(WI)
+        WI = NaN
+    end
+    if ismissing(WIth)
+        WIth = NaN
+    end
+    if ismissing(Kh) || isnothing(Kh)
+        Kh = NaN
+    end
+    # T = promote_type(
+    #     eltype(K),
+    #     eltype(skin),
+    #     eltype(radius),
+    #     eltype(void_fraction),
+    #     eltype(material_heat_capacity),
+    #     eltype(material_density)
+    # )
+    # T = promote_type(T, Jutul.float_type(g))
+    # if !ismissing(WI)
+    #     T = promote_type(T, eltype(WI))
+    # end
+    # if !ismissing(WIth)
+    #     T = promote_type(T, eltype(WIth))
+    # end
+    # NaN for derived quantities -> To be computed.
+
+
+    if isnothing(cell_centers)
+        geometry = tpfv_geometry(g)
+        cell_centers = geometry.cell_centroids
+    end
+    perforation_centers = cell_centers[:, reservoir_cells]
+    if ismissing(well_cell_centers)
+        if !simple_well && !ismissing(neighborship)
+            error("Must provide well_cell_centers for multisegment wells when neighborship is provided.")
+        end
+        well_cell_centers = perforation_centers[:, perf_to_wellcell_index]
     else
-        @assert length(WI) == nr  "Must have one well index per perforated cell ($(length(WI)) well indices, $nr reservoir cells))"
+        well_cell_centers = copy(well_cell_centers)
     end
-    if isnothing(WIth)
-        @warn "No thermal well indices provided. Using 1."
-        WIth = fill(1.0, nr)
+    closest_reservoir_cell_to_well_cell = Int[]
+    for i in 1:size(well_cell_centers, 2)
+        dists = vec(norm.(eachcol(perforation_centers .- well_cell_centers[:, i]), 2))
+        push!(closest_reservoir_cell_to_well_cell, findmin(dists)[2])
+    end
+    # Set reference depth if provided
+    if reference_depth isa Real && is_3d
+        well_cell_centers[3, 1] = reference_depth
+    end
+
+    # dz = zeros(T, n)
+
+
+    for (i, c) in enumerate(reservoir_cells)
+        # WI_i = compute_peaceman_index(g, k_i, r_i, c, dir_i; skin = s_i, Kh = Kh_i)
+        # WIth_i = compute_well_thermal_index(g, Λ_i, r_i, c, dir_i;
+        #     thermal_index_args...)
+
+        # center = vec(centers[:, i])
+        # dz[i] = center[3] - reference_depth
+        # dir_i = direction[i]
+        # if dir_i isa Symbol
+        #     Δ = cell_dims(g, c)
+        #     d_index = findfirst(isequal(dir_i), [:x, :y, :z])
+        #     h = Δ[d_index]
+        # else
+        #     h = norm(dir_i, 2)
+        # end
+        # volumes[i] = h*π*r_i^2
+    end
+    Wdomain = DataDomain(W)
+    c = Cells()
+    p = Perforations()
+    f = Faces()
+    # d[:cell_vec, Cells()]
+    # ## Flow props
+    # ## Segments:
+    # Length
+    #
+    # ## Cells
+    # VolumeMultiplier?
+    # Wdomain[:cell_centroids, c] = 
+    # Radius
+    function cell_height(dir_i, cell)
+        if dir_i isa Symbol
+            Δ = cell_dims(g, cell)
+            d_index = findfirst(isequal(dir_i), [:x, :y, :z])
+            h = Δ[d_index]
+        else
+            h = norm(dir_i, 2)
+        end
+    end
+    # ## Perforations
+
+    Wdomain[:Kh, p] = Kh
+    Wdomain[:skin, p] = skin
+    Wdomain[:perforation_radius, p] = radius
+    Wdomain[:radius_grout, p] = radius_grout
+    Wdomain[:well_index, p] = WI
+    Wdomain[:perforation_centroids, p] = perforation_centers
+    if dir isa Symbol
+        dir = fill(dir, n)
+    end
+    Wdomain[:perforation_direction, p] = dir
+
+    direction_expanded = Wdomain[:perforation_direction, p]
+
+    perf_height = map((i, cell) -> cell_height(direction_expanded[i], cell), 1:n, reservoir_cells)
+    Wdomain[:cell_length, c] = perf_height[closest_reservoir_cell_to_well_cell]
+    Wdomain[:cell_dims, p] = map(c -> peaceman_cell_dims(g, c), reservoir_cells)
+
+    # Length of cell in direction of well - used for volumes of nodes
+    if ismissing(cell_radius)
+        cell_radius = Wdomain[:perforation_radius, p][1]
+    end
+    Wdomain[:radius, c] = cell_radius
+    if !ismissing(volumes)
+        length(volumes) == number_of_cells(W) || error("Must provide one volume per well cell ($(length(volumes)) provided, $(number_of_cells(W)) well cells).")
+        Wdomain[:volume_override, c] = volumes
+    end
+    # Centers
+    Wdomain[:cell_centroids, c] = well_cell_centers
+    # Geometry
+    Wdomain[:void_fraction, c] = void_fraction
+    Wdomain[:volume_multiplier, c] = volume_multiplier
+    Wdomain[:casing_thickness, c] = casing_thickness
+
+    # ## Thermal well props
+    # ### Ncells:
+    Wdomain[:material_heat_capacity, c] = material_heat_capacity
+    Wdomain[:material_density, c] = material_density
+    # ### Perforations
+    # thermal_conductivity
+    Wdomain[:thermal_well_index, p] = WIth
+    Wdomain[:thermal_conductivity_casing, p] = thermal_conductivity_casing
+    Wdomain[:thermal_conductivity_grout, p] = thermal_conductivity_grout
+    # Perforation properties taken from reservoir
+    perf_subset(x::AbstractVector) = x[reservoir_cells]
+    perf_subset(x::AbstractMatrix) = x[:, reservoir_cells]
+
+    if ismissing(net_to_gross)
+        ntg = 1.0
     else
-        @assert length(WIth) == nr  "Must have one thermal well index per perforated cell ($(length(WIth)) thermal well indices, $nr reservoir cells))"
+        ntg = perf_subset(net_to_gross)
     end
-    return (WI, WIth, gdz)
+    Wdomain[:net_to_gross, p] = ntg
+    Wdomain[:permeability, p] = perf_subset(K)
+    if !ismissing(thermal_conductivity)
+        Wdomain[:thermal_conductivity, p] = perf_subset(thermal_conductivity)
+    end
+
+    if !simple_well
+        Wdomain[:roughness, f] = roughness
+        Wdomain[:material_thermal_conductivity, f] = material_thermal_conductivity
+    end
+
+    return Wdomain
 end
 
 """
@@ -91,6 +329,11 @@ function setup_well(D::DataDomain, reservoir_cells; cell_centers = D[:cell_centr
     # Compute effective thermal conductivity
     Λ_f = D[:fluid_thermal_conductivity]
     Λ_r = D[:rock_thermal_conductivity]
+    if haskey(D, :net_to_gross)
+        ntg = D[:net_to_gross]
+    else
+        ntg = missing
+    end
     ϕ = D[:porosity]
     Λ_r = vec(Λ_r)
     ϕ = vec(ϕ)
@@ -104,126 +347,12 @@ function setup_well(D::DataDomain, reservoir_cells; cell_centers = D[:cell_centr
     end
     # Get grid
     g = physical_representation(D)
-    return setup_well(g, K, reservoir_cells; thermal_conductivity = Λ, cell_centers = cell_centers, kwarg...)
-end
-
-function setup_well(g, K, reservoir_cells::AbstractVector;
-        reference_depth = nothing,
-        cell_centers = nothing,
-        skin = 0.0,
-        Kh = nothing,
-        radius = 0.1,
-        accumulator_volume = missing,
-        simple_well = true,
-        simple_well_regularization = 1.0,
-        WI = missing,
-        WIth = missing,
-        thermal_conductivity = missing,
-        thermal_index_args = NamedTuple(),
-        dir = :z,
+    return setup_well(g, K, reservoir_cells;
+        thermal_conductivity = Λ,
+        cell_centers = cell_centers,
+        net_to_gross = ntg,
         kwarg...
     )
-    T = promote_type(eltype(K), eltype(skin), eltype(radius), typeof(simple_well_regularization))
-    T = promote_type(T, Jutul.float_type(g))
-    if !ismissing(WI)
-        if WI isa AbstractArray
-            T = promote_type(T, eltype(WI))
-        else
-            T = promote_type(T, typeof(WI))
-        end
-    end
-    if !ismissing(WIth)
-        if WIth isa AbstractArray
-            T = promote_type(T, eltype(WIth))
-        else
-            T = promote_type(T, typeof(WIth))
-        end
-    end
-    n = length(reservoir_cells)
-    # Make sure these are cell indices
-    reservoir_cells = map(i -> cell_index(g, i), reservoir_cells)
-    if isnothing(cell_centers)
-        geometry = tpfv_geometry(g)
-        cell_centers = geometry.cell_centroids
-    end
-    centers = cell_centers[:, reservoir_cells]
-
-    if isnothing(reference_depth)
-        if size(centers, 1) == 2
-            reference_depth = 0.0
-        else
-            reference_depth = centers[3, 1]
-        end
-    end
-    volumes = zeros(T, n)
-    WI_computed = zeros(T, n)
-    WIth_computed = zeros(T, n)
-    segment_radius = zeros(T, n)
-
-    Λ = thermal_conductivity
-    dz = zeros(T, n)
-
-    function get_entry(x::AbstractVector, i)
-        return x[i]
-    end
-    function get_entry(x, i)
-        return x
-    end
-    for (i, c) in enumerate(reservoir_cells)
-        if K isa AbstractVector
-            k_i = K[c]
-        else
-            k_i = K[:, c]
-        end
-        WI_i = get_entry(WI, i)
-        Kh_i = get_entry(Kh, i)
-        r_i = get_entry(radius, i)
-        dir_i = get_entry(dir, i)
-        s_i = get_entry(skin, i)
-        if ismissing(WI_i) || isnan(WI_i)
-            WI_i = compute_peaceman_index(g, k_i, r_i, c, dir_i; skin = s_i, Kh = Kh_i)
-        end
-        WI_computed[i] = WI_i
-        WIth_i = 0.0
-        if !ismissing(Λ)
-            WIth_i = get_entry(WIth, i)
-            if Λ isa AbstractVector
-                Λ_i = Λ[c]
-            else
-                Λ_i = Λ[:, c]
-            end
-            if ismissing(WIth_i) || isnan(WIth_i)
-                WIth_i = compute_well_thermal_index(g, Λ_i, r_i, c, dir_i; 
-                    thermal_index_args...)
-            end
-        end
-        segment_radius[i] = r_i
-        WIth_computed[i] = WIth_i
-        center = vec(centers[:, i])
-        dz[i] = center[3] - reference_depth
-        if dir_i isa Symbol
-            Δ = cell_dims(g, c)
-            d_index = findfirst(isequal(dir_i), [:x, :y, :z])
-            h = Δ[d_index]
-        else
-            h = norm(dir_i, 2)
-        end
-        volumes[i] = h*π*r_i^2
-    end
-    if simple_well
-        if ismissing(accumulator_volume)
-            accumulator_volume = simple_well_regularization*maximum(volumes)
-        end
-        W = SimpleWell(reservoir_cells; WI = WI_computed, WIth = WIth_computed, volume = accumulator_volume, dz = dz, reference_depth = reference_depth, kwarg...)
-    else
-        # Depth differences are taken care of via centers.
-        dz *= 0.0
-        W = MultiSegmentWell(reservoir_cells, volumes, centers; 
-            WI = WI_computed, WIth = WIth_computed, dz = dz, 
-            reference_depth = reference_depth, segment_radius = segment_radius, 
-            kwarg...)
-    end
-    return W
 end
 
 function setup_well(g, K, reservoir_cell::Union{Int, Tuple, NamedTuple}; kwarg...)
@@ -240,7 +369,7 @@ end
 function map_well_nodes_to_reservoir_cells(w::MultiSegmentWell, reservoir::Union{DataDomain, Missing} = missing)
     # TODO: Try to more or less match it up cell by cell. Could be
     # improved...
-    c = zeros(Int, length(w.volumes))
+    c = zeros(Int, number_of_cells(w))
     c[w.perforations.self] .= w.perforations.reservoir
     for i in 2:length(c)
         if c[i] == 0
@@ -254,6 +383,10 @@ function map_well_nodes_to_reservoir_cells(w::MultiSegmentWell, reservoir::Union
     end
     @assert all(x -> x > 0, c)
     return c
+end
+
+function map_well_nodes_to_reservoir_cells(w::DataDomain, reservoir::Union{DataDomain, Missing} = missing)
+    return map_well_nodes_to_reservoir_cells(physical_representation(w), reservoir)
 end
 
 function map_well_nodes_to_reservoir_cells(w::SimpleWell, reservoir::Union{DataDomain, Missing} = missing)
@@ -342,13 +475,26 @@ function update_before_step_well!(well_state, well_model, res_state, res_model, 
 
 end
 
-function domain_fluid_volume(grid::WellDomain)
-    return grid.volumes.*grid.void_fraction
+function domain_fluid_volume(d::DataDomain, grid::WellDomain)
+    void = d[:void_fraction, Cells()]
+    return domain_bulk_volume(d, grid).*void
 end
 
-function domain_fluid_volume(grid::SimpleWell)
-    return [grid.volume]
+function domain_bulk_volume(d::DataDomain, grid::WellDomain)
+    if haskey(d, :volume_override)
+        vols = d[:volume_override, Cells()]
+    else
+        mult = d[:volume_multiplier, Cells()]
+        r = d[:radius, Cells()]
+        L = d[:cell_length, Cells()]
+        vols = mult.*(π .* r.^2 .* L)
+    end
+    return vols
 end
+
+# function domain_fluid_volume(d::DataDomain, grid::SimpleWell)
+#     return [grid.volume]
+# end
 
 # Well segments
 
@@ -361,8 +507,8 @@ function number_of_cells(W::SimpleWell)
     return 1
 end
 
-function number_of_cells(W::WellDomain)
-    return length(W.volumes)
+function number_of_cells(W::MultiSegmentWell)
+    return W.num_nodes
 end
 
 function declare_entities(W::WellDomain)
@@ -529,4 +675,18 @@ end
 function surface_density_and_volume_fractions(state)
     x = only(state.SurfaceWellConditions)
     return (x.density, x.volume_fractions)
+end
+
+function compute_well_cell_volumes(; radius = missing, lengths = missing, volumes = missing)
+    if ismissing(volumes)
+        !ismissing(radius) || error("Either radius or volumes must be provided")
+        !ismissing(lengths) || error("Either lengths or volumes must be provided")
+        n = length(lengths)
+        T = promote_type(eltype(radius), eltype(lengths))
+        volumes = zeros(T, n)
+        for i in 1:n
+            volumes[i] = π*radius^2*lengths[i]
+        end
+    end
+    return volumes
 end

@@ -39,7 +39,7 @@ k = Int(ceil(nz/2))
 Whot = setup_vertical_well(reservoir, 0+di   , 1, toe = k, name = :Hot)
 Wcold = setup_vertical_well(reservoir, nx-di+1, 1, toe = k, name = :Cold)
 
-model, parameters = setup_reservoir_model(reservoir, :geothermal, wells = [Whot, Wcold]);
+model = setup_reservoir_model(reservoir, :geothermal, wells = [Whot, Wcold]);
 # ## Set up boundary and initial conditions
 bcells = Int[]
 pressure_res = Float64[]
@@ -112,8 +112,7 @@ end
 state0 = setup_reservoir_state(model, Pressure = pressure_res, Temperature = temperature_res);
 # ## Simulate the case
 ws, states = simulate_reservoir(state0, model, dt,
-    forces = forces,
-    parameters = parameters
+    forces = forces
 );
 
 # ## Plot the reservoir states in the interactive viewer

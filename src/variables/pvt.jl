@@ -143,7 +143,7 @@ function Jutul.default_parameter_values(data_domain, model, param::FluidVolume, 
     end
     if ismissing(vol)
         g = physical_representation(data_domain)
-        vol = domain_fluid_volume(g)
+        vol = domain_fluid_volume(data_domain, g)
         if ismissing(vol)
             error(":volumes or :pore_volume symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
         end

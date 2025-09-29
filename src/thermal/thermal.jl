@@ -7,13 +7,8 @@ function Jutul.default_parameter_values(data_domain, model, param::BulkVolume, s
     if haskey(data_domain, :volumes)
         bv = copy(data_domain[:volumes])
     elseif model_or_domain_is_well(model)
-        r = physical_representation(model.domain)
-        if r isa MultiSegmentWell
-            bv = copy(model.domain.representation.volumes)
-        else
-            r::SimpleWell
-            bv = [r.volume]
-        end
+        w = physical_representation(data_domain)
+        bv = domain_bulk_volume(data_domain, w)
     end
     return bv
 end
@@ -247,9 +242,43 @@ struct WellIndicesThermal <: ScalarVariable end
 Jutul.minimum_value(::WellIndicesThermal) = 0.0
 Jutul.variable_scale(::WellIndicesThermal) = 1.0
 Jutul.associated_entity(::WellIndicesThermal) = Perforations()
-function Jutul.default_values(model, ::WellIndicesThermal)
-    w = physical_representation(model.domain)
-    return vec(copy(w.perforations.WIth))
+
+function Jutul.default_parameter_values(data_domain, model, param::WellIndicesThermal, symb)
+    well = physical_representation(data_domain)
+    WIt = copy(data_domain[:thermal_well_index, Perforations()])
+    dims = data_domain[:cell_dims, Perforations()]
+    thermal_conductivity = data_domain[:thermal_conductivity, Perforations()]
+    thermal_conductivity_casing = data_domain[:thermal_conductivity_casing, Perforations()]
+    thermal_conductivity_grout = data_domain[:thermal_conductivity_grout, Perforations()]
+    radius_grout = data_domain[:radius_grout, Perforations()]
+    direction = data_domain[:perforation_direction, Perforations()]
+    radius = data_domain[:perforation_radius, Perforations()]
+    casing_thickness = data_domain[:casing_thickness, Cells()]
+    gdim = size(data_domain[:cell_centroids, Cells()], 1)
+    for (i, val) in enumerate(WIt)
+        cell = well.perforations.self[i]
+        defaulted = !isfinite(val)
+        if defaulted
+            Δ = dims[i]
+            if thermal_conductivity isa AbstractVector
+                Λ_i = thermal_conductivity[i]
+            else
+                Λ_i = thermal_conductivity[:, i]
+            end
+            Λ_i = Jutul.expand_perm(Λ_i, gdim)
+            dir = direction[i]
+            r_outer = radius[i]
+            r_inner = r_outer - casing_thickness[cell]
+            r_grout = radius_grout[i]
+            WIt[i] = compute_well_thermal_index(Δ, Λ_i, r_inner, dir;
+                radius_outer = r_outer,
+                radius_grout = r_grout,
+                thermal_conductivity_casing = thermal_conductivity_casing[i],
+                thermal_conductivity_grout = thermal_conductivity_grout[i],
+            )
+        end
+    end
+    return WIt
 end
 
 """

@@ -17,7 +17,7 @@ function coarsen_reservoir_model(fine_model::MultiModel, partition; functions = 
     reservoir = reservoir_domain(fine_model)
     creservoir = coarsen_reservoir(reservoir, partition, functions = functions)
 
-    wells = get_model_wells(fine_model)
+    wells = get_model_wells(fine_model, data_domain = true)
     cwells = []
     for (k, well) in pairs(wells)
         if haskey(well_arg, k)
@@ -34,7 +34,7 @@ function coarsen_reservoir_model(fine_model::MultiModel, partition; functions = 
 
     thermal = haskey(Jutul.get_primary_variables(fine_reservoir_model), :Temperature)
 
-    coarse_model, = setup_reservoir_model(creservoir, sys;
+    coarse_model = setup_reservoir_model(creservoir, sys;
         wells = cwells,
         split_wells = split_wells,
         thermal = thermal,
@@ -86,13 +86,15 @@ function coarsen_reservoir(D::DataDomain, partition; functions = Dict())
     return Jutul.coarsen_data_domain(D, partition, functions = functions)
 end
 
-function coarsen_well(well, creservoir::DataDomain, reservoir::DataDomain, partition; kwarg...)
+function coarsen_well(wd::DataDomain, creservoir::DataDomain, reservoir::DataDomain, partition; kwarg...)
+    well = physical_representation(wd)
     cells = unique(partition[well.perforations.reservoir])
     is_simple = well isa SimpleWell
-    if is_simple
-        d = well.reference_depth
+    wcent = wd[:cell_centroids, Cells()]
+    if size(wcent, 1) == 3
+        d = wcent[3, 1]
     else
-        d = well.top.reference_depth
+        d = missing
     end
     return setup_well(creservoir, cells;
         name = well.name,

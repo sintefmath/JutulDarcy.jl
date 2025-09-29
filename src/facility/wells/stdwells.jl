@@ -96,7 +96,7 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
     phases = ctrl.phases
     perf = physical_representation(well_model.domain).perforations
     res_cells = perf.reservoir
-    gdz = perf.gdz
+    gdz = well_state.PerforationGravityDifference
 
     ρ = as_value(res_state.PhaseMassDensities)
 
@@ -126,7 +126,7 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
     # accumulate the actual pressure drop due to hydrostatic assumptions.
     perf = physical_representation(well_model).perforations
     res_cells = perf.reservoir
-    gdz = perf.gdz
+    gdz = well_state.PerforationGravityDifference
     # Explicit update, take value.
     WI = as_value(well_state.WellIndices)
     ρ = as_value(res_state.PhaseMassDensities)

@@ -84,5 +84,9 @@ end
     include("gpu.jl")
 end
 
+@testitem "Well constructors" begin
+    include("well_constructor.jl")
+end
+
 @run_package_tests
 nothing

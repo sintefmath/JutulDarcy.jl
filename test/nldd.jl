@@ -101,7 +101,7 @@ end
             else
                 sys = SinglePhaseSystem(AqueousPhase(), reference_density = 1000.0)
             end
-            model, = setup_reservoir_model(domain, sys)
+            model = setup_reservoir_model(domain, sys)
             # Initial state and BCs
             p0, T0 = 10.0si_unit(:bar), convert_to_si(20.0, :Celsius)
             state0 = setup_reservoir_state(model; Pressure = p0, Temperature = T0)

@@ -109,7 +109,8 @@ function solve_thermal_wells(;
     model, parameters = setup_reservoir_model(res, sys,
         thermal = thermal,
         wells = wells,
-        block_backend = block_backend
+        block_backend = block_backend,
+        extra_out = true
     )
     # Replace the density function with our custom version for wells and reservoir
     ρ = ConstantCompressibilityDensities(p_ref = 1*bar, density_ref = rhoS, compressibility = c)
