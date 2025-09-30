@@ -505,9 +505,10 @@ function deck_relperm(runspec, props; oil, water, gas, satnum = nothing)
         end
     else
         if haskey(props, "WSF")
+            # Note: WSF acts like "liquid" relative perm for CO2STORE
             for swfn in props["WSF"]
                 krw = PhaseRelativePermeability(swfn[:, 1], swfn[:, 2], label = :w)
-                push!(tables_krw, krw)
+                push!(tables_krog, krw)
             end
         end
         if haskey(props, "GSF")
