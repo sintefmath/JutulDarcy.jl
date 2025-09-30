@@ -676,6 +676,8 @@ function deck_pc(props; oil, water, gas, satnum = nothing, is_co2 = false)
             interp_og, found_pcog = get_pc(props["SGOF"], 4)
         elseif haskey(props, "SLGOF")
             interp_og, found_pcog = get_pc(props["SLGOF"], 4, sgn = -1)
+        elseif haskey(props, "GSF")
+            interp_og, found_pcog = get_pc(props["GSF"], 3, sgn = -1)
         else
             interp_og, found_pcog = get_pc(props["SGFN"], 3)
         end
