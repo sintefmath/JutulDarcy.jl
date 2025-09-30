@@ -1646,8 +1646,7 @@ function simulate_mrst_case(fn;
     forces = case.forces
     dt = case.dt
     parameters = case.parameters
-    models = model.models
-    rmodel = models[:Reservoir]
+    rmodel = reservoir_model(model)
     if rmodel isa StandardBlackOilModel
         sys = rmodel.system
         if has_disgas(sys)
@@ -1686,8 +1685,7 @@ function simulate_mrst_case(fn;
         output_path = output_path,
         kwarg...
     )
-    M = first(values(models))
-    sys = M.system
+    sys = rmodel.system
     if sys isa CompositionalSystem
         s = "compositional"
     elseif sys isa BlackOilSystem
@@ -1699,7 +1697,7 @@ function simulate_mrst_case(fn;
     end
     ncomp = number_of_components(sys)
     nph = number_of_phases(sys)
-    nc = number_of_cells(M.domain)
+    nc = number_of_cells(rmodel.domain)
     if do_sim
         if verbose
             jutul_message("MRST model", "Starting simulation of $s system with $nc cells and $nph phases and $ncomp components.")
@@ -1717,7 +1715,7 @@ function simulate_mrst_case(fn;
             if verbose
                 jutul_message("MRST model", "Writing output to $mrst_output_path.")
             end
-            write_reservoir_simulator_output_to_mrst(sim.model, states, reports, forces, mrst_output_path, parameters = parameters)
+            write_reservoir_simulator_output_to_mrst(model, states, reports, forces, mrst_output_path, parameters = parameters)
         end
         ns = length(states)
         nt = length(dt)
