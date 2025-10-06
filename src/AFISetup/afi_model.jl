@@ -11,15 +11,19 @@ function JutulDarcy.setup_reservoir_model(afi::AFIInputFile;
     svars = JutulDarcy.AFISetup.setup_saturation_variables(afi, system, reservoir)
     allvars = merge(pvars, svars)
     for (k, v) in allvars
-        for submodel in values(model.models)
+        for (model_key, submodel) in pairs(model.models)
             svars0 = Jutul.get_secondary_variables(submodel)
-            prm0 = Jutul.get_secondary_variables(submodel)
+            prm0 = Jutul.get_parameters(submodel)
             if haskey(svars0, k) || haskey(prm0, k)
                 Jutul.delete_variable!(submodel, k)
                 v::JutulVariables
                 submodel.secondary_variables[k] = v
             end
         end
+    end
+    if haskey(svars, :CapillaryPressure)
+        # This should be added to the reservoir model even it is not already a value, check why it does not work.
+        # model[:Reservoir].secondary_variables[:CapillaryPressure] = svars[:CapillaryPressure]
     end
     JutulDarcy.set_rock_compressibility!(model, afi)
 
