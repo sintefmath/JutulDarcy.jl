@@ -65,7 +65,9 @@ function setup_wells(d::AFIInputFile, reservoir)
         end
         dir = dir[active]
         WI = get(w2c, "Transmissibility", missing)
-        if !ismissing(WI)
+        if length(WI) == 0
+            WI = missing
+        else
             WI = WI[active]
         end
         r = get(w2c, "WellboreRadius", fill(0.1, nperf))[active]
