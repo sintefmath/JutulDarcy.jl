@@ -448,6 +448,9 @@ struct InjectorControl{T, R, P, M, E, TR} <: WellControlForce
         end
         mix = vec(mix)
         if check && R == Float64
+            if rate_weighted(target)
+                @assert target.value > 0.0 "Injector target rate must be positive"
+            end
             @assert sum(mix) ≈ 1
             @assert isfinite(density) && density > 0.0 "Injector density must be finite and positive"
             @assert isfinite(temperature) && temperature > 0.0 "Injector temperature must be finite and positive"
@@ -506,7 +509,10 @@ See also [`DisabledControl`](@ref), [`InjectorControl`](@ref).
 struct ProducerControl{T, R} <: WellControlForce
     target::T
     factor::R
-    function ProducerControl(target::T; factor::R = 1.0) where {T<:WellTarget, R<:Real}
+    function ProducerControl(target::T; factor::R = 1.0, check = true) where {T<:WellTarget, R<:Real}
+        if check && rate_weighted(target)
+            @assert target.value < 0.0 "Injector target rate must be negative"
+        end
         new{T, R}(target, factor)
     end
 end

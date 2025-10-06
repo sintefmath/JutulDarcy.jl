@@ -132,6 +132,24 @@ function setup_forces(model::SimulationModel{D}; control = nothing, limits = not
                 limits[w] = nothing
             end
         end
+        c = control[w]
+        is_inj = c isa InjectorControl
+        is_prod = c isa ProducerControl
+        if is_inj || is_prod
+            if is_inj
+                sgn = 1.0
+            else
+                sgn = -1.0
+            end
+            for l in [:rate, :orat, :wrat, :grat, :lrat, :resv]
+                if haskey(limits[w], l)
+                    val = limits[w][l]
+                    if sign(val) != sgn
+                        @warn "Well '$w' has $(l) limit with wrong sign ($(val)) for its control type ($(typeof(c)))."
+                    end
+                end
+            end
+        end
     end
     return (control = control::AbstractDict, limits = limits::AbstractDict,)
 end
