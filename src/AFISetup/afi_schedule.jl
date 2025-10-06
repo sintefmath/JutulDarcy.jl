@@ -53,6 +53,7 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
                     if names isa AbstractString
                         names = [names]
                     end
+                    new_names = String[]
                     for name in names
                         if contains(name, '*')
                             matcher = Regex(replace(name, '*' => ".*"))
@@ -63,12 +64,14 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
                                 end
                                 is_match = !isnothing(findfirst(matcher, othername))
                                 if is_match
-                                    push!(names, othername)
+                                    push!(new_names, othername)
                                 end
                             end
+                        else
+                            push!(new_names, name)
                         end
                     end
-                    new_names = String[]
+                    names = new_names
                     for name in names
                         wname = Symbol(name)
                         wsetup = get(well_setup, wname, missing)
