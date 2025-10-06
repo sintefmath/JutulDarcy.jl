@@ -155,7 +155,7 @@ function forces_from_constraints(well_setup, date, sys, model, wells)
                 lims = Dict()
                 for (k, v) in pairs(c)
                     ck = control_type_to_symbol(k)
-                    if !(ck == :bhp || ck == :thp)
+                    if endswith(k, "_rate")
                         v *= wsgn
                     end
                     lims[ck] = v
