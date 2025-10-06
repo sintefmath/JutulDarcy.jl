@@ -57,12 +57,12 @@ function setup_producer_control(val::Number, type::Union{String, Symbol}; signed
     if type isa AbstractString
         type = Symbol(type)
     end
-    if !signed
-        val = abs(val)
-    end
     info = well_target_information(type)
     if ismissing(info.type)
         error("Unknown well target type '$val' - or missing type field in well_target_information.")
+    end
+    if info.is_rate && !signed
+        val = -abs(val)
     end
     target = info.type(val)
 
