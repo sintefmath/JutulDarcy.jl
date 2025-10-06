@@ -54,6 +54,22 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
                         names = [names]
                     end
                     for name in names
+                        if contains(name, '*')
+                            matcher = Regex(replace(name, '*' => ".*"))
+                            for othername in keys(well_setup)
+                                othername = String(othername)
+                                if othername == name
+                                    continue
+                                end
+                                is_match = !isnothing(findfirst(matcher, othername))
+                                if is_match
+                                    push!(names, othername)
+                                end
+                            end
+                        end
+                    end
+                    new_names = String[]
+                    for name in names
                         wname = Symbol(name)
                         wsetup = get(well_setup, wname, missing)
                         if ismissing(wsetup)
@@ -155,7 +171,7 @@ function forces_from_constraints(well_setup, date, sys, model, wells)
                 lims = Dict()
                 for (k, v) in pairs(c)
                     ck = control_type_to_symbol(k)
-                    if endswith(k, "_rate")
+                    if endswith(uppercase(k), "_RATE")
                         v *= wsgn
                     end
                     lims[ck] = v
