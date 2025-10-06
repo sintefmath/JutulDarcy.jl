@@ -1,8 +1,8 @@
-function JutulDarcy.reservoir_domain(d::AFIInputFile; mesh = missing)
+function JutulDarcy.reservoir_domain(d::AFIInputFile; mesh = missing, kwarg...)
     mesh = setup_mesh_afi(d, mesh)
 
     # TODO: Handle regions and better warnings
-    return setup_reservoir_domain_afi(d, mesh)
+    return setup_reservoir_domain_afi(d, mesh; kwarg...)
 end
 
 function setup_mesh_afi(d::AFIInputFile, mesh)
@@ -56,9 +56,11 @@ function setup_mesh_afi(afi::AFIInputFile, mesh::Missing)
     return mesh
 end
 
-function setup_reservoir_domain_afi(d::AFIInputFile, mesh)
-    active = mesh.cell_map
+function setup_reservoir_domain_afi(d::AFIInputFile, mesh; active = mesh.cell_map)
     ncells = number_of_cells(mesh)
+    if isnothing(active)
+        active = 1:ncells
+    end
     # perm = zeros(Float64, 3, ncells)
     # poro = ones(Float64, ncells)
     # ntg = ones(Float64, ncells)
