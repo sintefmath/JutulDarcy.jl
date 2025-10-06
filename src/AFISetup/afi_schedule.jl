@@ -7,7 +7,7 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
     wells = get_model_wells(model)
     for (wname, w) in pairs(wells)
         well_setup[wname] = Dict{String, Any}(
-            "Constraints" => Dict{String, Float64}(),
+            "Constraints" => OrderedDict{String, Float64}(),
             "Status" => "OPEN",
             "Type" => "PRODUCER"
         )
@@ -123,17 +123,20 @@ function forces_from_constraints(well_setup, date, sys, model, wells)
     function defaulted_constraint(c, default)
         x = get(c, default, missing)
         if ismissing(x)
-            ks = keys(c)
-            k = first(ks)
-            x = c[k]
+            return first_constraint(c)
         else
             k = default
         end
         return (k, x)
     end
+    function first_constraint(c)
+        ks = keys(c)
+        k = first(ks)
+        x = c[k]
+        return (k, x)
+    end
     for wname in keys(wells)
         wsetup = well_setup[wname]
-        # @info "??" wname wsetup
         status = wsetup["Status"]
         wtype = lowercase(wsetup["Type"])
         c = wsetup["Constraints"]
@@ -143,24 +146,22 @@ function forces_from_constraints(well_setup, date, sys, model, wells)
                 ctrl = JutulDarcy.setup_disabled_control()
             else
                 if wtype == "producer"
-                    ctrl_type_str, val = defaulted_constraint(c, "BOTTOM_HOLE_PRESSURE")
+                    ctrl_type_str, val = first_constraint(c)
                     ctrl_type = control_type_to_symbol(ctrl_type_str)
                     ctrl = JutulDarcy.setup_producer_control(val, ctrl_type)
                     wsgn = -1.0
                 else
                     if startswith(wtype, "water")
-                        default = "WATER_INJECTION_RATE"
                         ph = AqueousPhase()
                     elseif startswith(wtype, "gas")
-                        default = "GAS_INJECTION_RATE"
                         ph = VaporPhase()
                     elseif startswith(wtype, "oil")
-                        default = "OIL_INJECTION_RATE"
                         ph = LiquidPhase()
                     else
                         error("Unknown injector type '$wtype' for well '$wname'")
                     end
-                    ctrl_type_str, val = defaulted_constraint(c, default)
+                    ctrl_type_str, val = first_constraint(c)
+                    @info "??" ctrl_type_str val c
                     ctrl_type = control_type_to_symbol(ctrl_type_str)
                     ix = findfirst(isequal(ph), phases)
                     if isnothing(ix)
