@@ -105,7 +105,7 @@ function forces_from_constraints(well_setup, date, sys, model, wells)
         x = get(c, default, missing)
         if ismissing(x)
             ks = keys(c)
-            k = first(keys(c))
+            k = first(ks)
             x = c[k]
         else
             k = default
@@ -122,32 +122,45 @@ function forces_from_constraints(well_setup, date, sys, model, wells)
             if length(keys(c)) == 0
                 println("No constraints found for well $wname at $date. Well will be disabled for step.")
                 ctrl = JutulDarcy.setup_disabled_control()
-            elseif wtype == "producer"
-                ctrl_type_str, val = defaulted_constraint(c, "BOTTOM_HOLE_PRESSURE")
-                ctrl_type = control_type_to_symbol(ctrl_type_str)
-                ctrl = JutulDarcy.setup_producer_control(val, ctrl_type)
             else
-                if startswith(wtype, "water")
-                    default = "WATER_INJECTION_RATE"
-                    ph = AqueousPhase()
-                elseif startswith(wtype, "gas")
-                    default = "GAS_INJECTION_RATE"
-                    ph = VaporPhase()
-                elseif startswith(wtype, "oil")
-                    default = "OIL_INJECTION_RATE"
-                    ph = LiquidPhase()
+                if wtype == "producer"
+                    ctrl_type_str, val = defaulted_constraint(c, "BOTTOM_HOLE_PRESSURE")
+                    ctrl_type = control_type_to_symbol(ctrl_type_str)
+                    ctrl = JutulDarcy.setup_producer_control(val, ctrl_type)
+                    wsgn = -1.0
                 else
-                    error("Unknown injector type '$wtype' for well '$wname'")
+                    if startswith(wtype, "water")
+                        default = "WATER_INJECTION_RATE"
+                        ph = AqueousPhase()
+                    elseif startswith(wtype, "gas")
+                        default = "GAS_INJECTION_RATE"
+                        ph = VaporPhase()
+                    elseif startswith(wtype, "oil")
+                        default = "OIL_INJECTION_RATE"
+                        ph = LiquidPhase()
+                    else
+                        error("Unknown injector type '$wtype' for well '$wname'")
+                    end
+                    ctrl_type_str, val = defaulted_constraint(c, default)
+                    ctrl_type = control_type_to_symbol(ctrl_type_str)
+                    ix = findfirst(isequal(ph), phases)
+                    if isnothing(ix)
+                        error("Phase '$ph' for injector well '$wname' not present in system phases: $phases")
+                    end
+                    mix = zeros(length(phases))
+                    mix[ix] = 1.0
+                    ctrl = JutulDarcy.setup_injector_control(val, ctrl_type, mix, density = rhos[ix])
+                    wsgn = 1.0
                 end
-                ctrl_type_str, val = defaulted_constraint(c, default)
-                ctrl_type = control_type_to_symbol(ctrl_type_str)
-                ix = findfirst(isequal(ph), phases)
-                if isnothing(ix)
-                    error("Phase '$ph' for injector well '$wname' not present in system phases: $phases")
+                lims = Dict()
+                for (k, v) in pairs(c)
+                    ck = control_type_to_symbol(k)
+                    if !(ck == :bhp || ck == :thp)
+                        v *= wsgn
+                    end
+                    lims[ck] = v
                 end
-                mix = zeros(length(phases))
-                mix[ix] = 1.0
-                ctrl = JutulDarcy.setup_injector_control(val, ctrl_type, mix, density = rhos[ix])
+                limits[wname] = lims
             end
         else
             ctrl = JutulDarcy.setup_disabled_control()
