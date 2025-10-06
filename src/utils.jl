@@ -2744,3 +2744,20 @@ function transfer_variables_and_parameters!(new_model, old_model;
     end
     return new_model
 end
+
+function set_rock_compressibility!(model::MultiModel; kwarg...)
+    set_rock_compressibility!(reservoir_model(model); kwarg...)
+    return model
+end
+
+function set_rock_compressibility!(model; reference_pressure = 1*si_unit(:atm), compressibility = 1e-10)
+    pv = LinearlyCompressiblePoreVolume(reference_pressure = reference_pressure, expansion = compressibility)
+    param = Jutul.get_parameters(model)
+    if !haskey(param, :StaticPoreVolume)
+        static = param[:FluidVolume]
+        delete!(param, :FluidVolume)
+        param[:StaticFluidVolume] = static
+    end
+    set_secondary_variables!(model, FluidVolume = pv)
+    return model
+end

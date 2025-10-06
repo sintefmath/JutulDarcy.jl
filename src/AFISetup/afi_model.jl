@@ -21,6 +21,7 @@ function JutulDarcy.setup_reservoir_model(afi::AFIInputFile;
             end
         end
     end
+    JutulDarcy.set_rock_compressibility!(model, afi)
 
     if extra_out
         retval = (model, Jutul.setup_parameters(model))

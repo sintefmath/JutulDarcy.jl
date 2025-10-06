@@ -53,6 +53,27 @@ function setup_pvt_variables(d::AFIInputFile, sys::Union{StandardBlackOilSystem,
     return pvt_vars
 end
 
+function JutulDarcy.set_rock_compressibility!(model, d::AFIInputFile)
+    rockcomp = find_records(d, "RockCompressibility", "IX", steps = false, model = true)
+    if length(rockcomp) == 0
+        p = 1*si_unit(:atm)
+        c = 0.0
+    else
+        if length(rockcomp) > 1
+            @warn "Multiple BlackOilFluidModel records found in AFI file. Using the first one."
+            rockcomp = rockcomp[1]
+        end
+        rockcomp = only(rockcomp).value
+        rocktab = rockcomp["table"]
+        p = get(rocktab, "RefPressure", 1*si_unit(:atm))
+        c = get(rocktab, "PoreVolCompressibility", 0.0)
+    end
+    if c != 0.0
+        JutulDarcy.set_rock_compressibility!(model, reference_pressure = p, compressibility = c)
+    end
+    return model
+end
+
 function rs_table_from_oil_table(x)
     tab = x["table"]
     ix = tab["SubTableIndex"]
