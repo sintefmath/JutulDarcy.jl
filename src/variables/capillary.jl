@@ -63,7 +63,6 @@ end
             w = 1
         end
         pcow = only(cap)
-        @assert reference_ph == 1
         @inbounds for c in ix
             reg = region(pc.regions, c)
             pcow_c = table_by_region(pcow, reg)
