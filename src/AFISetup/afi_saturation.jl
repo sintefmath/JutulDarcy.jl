@@ -77,14 +77,19 @@ function setup_pc(d, reservoir, sys; regions = setup_region_map(d))
 
     has_ow = present.water && present.oil
     has_og = present.oil && present.gas
+
+    function getpc(vals, name, sgn = 1.0)
+        f = get_saturation_function(vals, "CapPressure", name)
+        return get_1d_interpolator(f["Saturation"], sgn.*f["CapPressure"])
+    end
     for satfun in map(x -> x, satfuns)
         vals = satfun.value
         reg = satfun.value["region"]
         if has_ow
-            pcow[reg] = get_saturation_function(vals, "CapPressure", "OilWaterCapPressureFunction")
+            pcow[reg] = getpc(vals, "OilWaterCapPressureFunction", -1)
         end
         if has_og
-            pcog[reg] = get_saturation_function(vals, "CapPressure", "GasOilCapPressureFunction")
+            pcog[reg] = getpc(vals, "GasOilCapPressureFunction")
         end
     end
     drainage_satnum, drain_reg_map = get_region_value_and_map(reservoir, regions, "rock", "DRAINAGE_SATURATION_FUNCTION")

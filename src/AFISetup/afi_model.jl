@@ -23,7 +23,7 @@ function JutulDarcy.setup_reservoir_model(afi::AFIInputFile;
     end
     if haskey(svars, :CapillaryPressure)
         # This should be added to the reservoir model even it is not already a value, check why it does not work.
-        # model[:Reservoir].secondary_variables[:CapillaryPressure] = svars[:CapillaryPressure]
+        model[:Reservoir].secondary_variables[:CapillaryPressure] = svars[:CapillaryPressure]
     end
     JutulDarcy.set_rock_compressibility!(model, afi)
 
