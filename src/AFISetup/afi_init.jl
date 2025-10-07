@@ -28,7 +28,6 @@ function setup_equilibrium_region(equil, model; single_region = true)
         if !ismissing(rs_tab)
             rsvd_tab = get_1d_interpolator(rs_tab["Depth"], rs_tab["SolutionGOR"])
             rsvd = z -> rsvd_tab(z)
-            @info "!" rs_tab
         end
     end
 

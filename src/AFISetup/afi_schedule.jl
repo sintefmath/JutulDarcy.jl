@@ -29,9 +29,9 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
     dates = keys(ix_steps)
     @assert dates == keys(fm_steps)
     @assert issorted(dates)
+    dates = collect(dates)
     forces = []
     timesteps = Float64[]
-    prev_date = missing
     for (dateno, date) in enumerate(dates)
         for (i, recv) in enumerate(ix_steps[date])
             kw = recv.keyword
@@ -100,16 +100,15 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
                 println("FM: $kw: Skipping record $i for $date, record not used by setup code.")
             end
         end
-        if dateno > 1
+        if dateno != length(dates)
             # Well constraints, etc
             f = forces_from_constraints(well_setup, date, sys, model, wells)
             push!(forces, f)
             # Timestep in seconds
-            dt_i = date - prev_date
+            dt_i = dates[dateno+1] - date
             dt_i::Millisecond
             push!(timesteps, Dates.value(dt_i)/1000.0)
         end
-        prev_date = date
     end
     return (timesteps, forces)
 end
