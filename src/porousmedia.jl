@@ -97,6 +97,7 @@ function compute_peaceman_index(Δ, K, radius, dir::Symbol = :z;
         skin = 0,
         check = true
     )
+    is_defaulted(x) = isnothing(x) || ismissing(x) || isnan(x)
     K_d = diag(K)
     Δx, Δy, Δz = Δ
     Δz *= net_to_gross
@@ -127,7 +128,7 @@ function compute_peaceman_index(Δ, K, radius, dir::Symbol = :z;
     k21 = kratio(k2, k1)
     k12 = kratio(k1, k2)
     ke  = sqrt(k1*k2)
-    if isnothing(drainage_radius) || ismissing(drainage_radius)
+    if is_defaulted(drainage_radius)
         re1 = 2 * constant * sqrt((d1^2)*sqrt(k21) + (d2^2)*sqrt(k12))
         re2 = k21^(1/4) + k12^(1/4)
         re = kratio(re1, re2)
@@ -135,7 +136,7 @@ function compute_peaceman_index(Δ, K, radius, dir::Symbol = :z;
         re = drainage_radius
     end
 
-    if isnothing(Kh) || isnan(Kh) || ismissing(Kh)
+    if is_defaulted(Kh)
         Kh = L*ke
     end
     WI = 2 * π * Kh / (log(re / radius) + skin)

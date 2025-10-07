@@ -10,12 +10,35 @@ function setup_wells(d::AFIInputFile, reservoir)
         !haskey(well_dict, wname) || error("Duplicate WellDef keyword for well $wname with WellToCellConnections entry in AFI file.")
         well_dict[wname] = Dict()
         well_dict[wname]["w2c"] = w2c
+        well_dict[wname]["ref_depth"] = nothing
+    end
+    # We do a second pass when all wells have been found
+    well_kws = find_records(d, "Well", "FM", steps = true, model = true)
+    for well_kw in well_kws
+        val = well_kw.value
+        wname = val["name"]
+        if haskey(val, "BottomHoleRefDepth")
+            newval = val["BottomHoleRefDepth"]
+            oldval = well_dict[wname]["ref_depth"]
+            if isnothing(oldval)
+                well_dict[wname]["ref_depth"] = newval
+            elseif !(oldval ≈ newval)
+                println("Inconsistent BottomHoleRefDepth for well $wname: $oldval vs $newval. Using the first provided value ($oldval).")
+            end
+        end
     end
     dir_to_str = Dict(
         GeoEnergyIO.IXParser.IX_I => :x,
         GeoEnergyIO.IXParser.IX_J => :y,
         GeoEnergyIO.IXParser.IX_K => :z,
     )
+    if haskey(reservoir, :net_to_gross)
+        ntg = reservoir[:net_to_gross]
+    else
+        ntg = missing
+    end
+    net_to_gross(ntg, c) = reservoir[:net_to_gross][c]
+    net_to_gross(::Missing, c) = 1.0
     # Set up mappings
     mesh = physical_representation(reservoir)
     # IJK indices
@@ -34,6 +57,13 @@ function setup_wells(d::AFIInputFile, reservoir)
     for (i, c) in enumerate(cmap)
         c = c - 1 + cell_offset
         global_to_local[c] = i
+    end
+    function get_if_active(w2c, kw, active)
+        x = get(w2c, kw, missing)
+        if ismissing(x) || length(x) == 0
+            return missing
+        end
+        return x[active]
     end
     wells = []
     for (k, v) in pairs(well_dict)
@@ -64,15 +94,21 @@ function setup_wells(d::AFIInputFile, reservoir)
             dir = map(x -> dir_to_str[x], dir)
         end
         dir = dir[active]
-        WI = get(w2c, "Transmissibility", missing)
-        if length(WI) == 0
-            WI = missing
-        else
-            WI = WI[active]
-        end
+        WI = get_if_active(w2c, "Transmissibility", active)
+        Kh = get_if_active(w2c, "PermeabilityThickness", active)
+        drainage_radius = get_if_active(w2c, "PressureEquivalentRadius", active)
         r = get(w2c, "WellboreRadius", fill(0.1, nperf))[active]
-        # TODO: Permeability thickness, multipliers, etc
-        w = setup_well(reservoir, cells_mapped, skin = skin, dir = dir, WI = WI, radius = r, name = Symbol(k))
+        w = setup_well(reservoir, cells_mapped,
+            skin = skin,
+            dir = dir,
+            WI = WI,
+            Kh = Kh,
+            net_to_gross = map(i -> net_to_gross(ntg, i), cells_mapped),
+            # drainage_radius = drainage_radius,
+            radius = r,
+            reference_depth = v["ref_depth"],
+            name = Symbol(k)
+        )
         compnames = get(w2c, "Completion", missing)
         if ismissing(compnames)
             compnames = map(i -> "COMPLETION_$i", cells)

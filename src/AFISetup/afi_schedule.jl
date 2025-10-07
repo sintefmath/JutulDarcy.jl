@@ -161,7 +161,6 @@ function forces_from_constraints(well_setup, date, sys, model, wells)
                         error("Unknown injector type '$wtype' for well '$wname'")
                     end
                     ctrl_type_str, val = first_constraint(c)
-                    @info "??" ctrl_type_str val c
                     ctrl_type = control_type_to_symbol(ctrl_type_str)
                     ix = findfirst(isequal(ph), phases)
                     if isnothing(ix)
