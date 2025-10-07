@@ -65,6 +65,22 @@ phase_name(::LiquidPhase) = "Liquid"
 struct VaporPhase <: AbstractPhase end
 phase_name(::VaporPhase) = "Vapor"
 
+hasphase(model::MultiModel, phase) = hasphase(reservoir_model(model), phase)
+hasphase(model::SimulationModel, phase) = hasphase(model.system, phase)
+hasphase(sys::JutulSystem, phase::AbstractPhase) = phase in get_phases(sys)
+hasphase(sys::JutulSystem, phase_t::Type) = hasphase(sys, phase_t())
+
+function hasphase(sys::JutulSystem, phase::String)
+    if phase == "Liquid"
+        ph = LiquidPhase()
+    elseif phase == "Vapor"
+        ph = VaporPhase()
+    elseif phase == "Aqueous"
+        ph = AqueousPhase()
+    end
+    return hasphase(sys, ph)
+end
+
 ## Main implementation
 # Primary variable logic
 

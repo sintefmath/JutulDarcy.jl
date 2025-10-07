@@ -106,6 +106,29 @@ function equilibriate_state(model, equil::EquilibriumRegion)
         !isnan(c) || throw(ArgumentError("$name cannot be defaulted for this system."))
         isfinite(pc_c) || throw(ArgumentError("Capillary pressure at contact (pc_$name) is not finite."))
     end
+    cells = equil.cells
+    if ismissing(cells)
+        cells = 1:number_of_cells(model.domain)
+    end
+    nc = length(cells)
+    # s_min = vector of vectors, [swmin, somin, sgmin]
+    s_min = []
+    s_max = []
+    swcon, swmax = swcon_and_swmax_for_cells(model, cells)
+
+    for phase in phases
+        # s_min for water = swcon
+        # s_max for water = s_max from relperm
+        # s_max for oil/gas = 1 - swcon
+        # s_min for oil/gas = 0
+        if phase == AqueousPhase()
+            push!(s_min, swcon)
+            push!(s_max, swmax)
+        else
+            push!(s_min, zeros(nc))
+            push!(s_max, ones(nc) .- swcon)
+        end
+    end
 
     contacts = Float64[]
     contacts_pc = Float64[]
@@ -124,8 +147,9 @@ function equilibriate_state(model, equil::EquilibriumRegion)
         push!(contacts_pc, equil.pc_goc)
         check_pair(equil.goc, equil.pc_goc, "goc")
     end
-    model = reservoir_model(model)
     init = equilibriate_state(model,
+        s_min = s_min,
+        s_max = s_max,
         contacts,
         equil.datum_depth,
         equil.datum_pressure;
@@ -1007,4 +1031,31 @@ function current_phase_index(z, depths; reverse = true)
     end
     @assert out > 0
     return out
+end
+
+function swcon_and_swmax_for_cells(model::MultiModel, arg...)
+    return swcon_and_swmax_for_cells(model, arg...)
+end
+
+function swcon_and_swmax_for_cells(model, cells = 1:number_of_cells(model.domain))
+    kr = model[:RelativePermeabilities]
+    return swcon_and_swmax_for_cells(model, kr, cells)
+end
+
+function swcon_and_swmax_for_cells(model, kr, cells)
+    nc = length(cells)
+    swcon = zeros(nc)
+    swmax = ones(nc)
+    if hasphase(model.system, AqueousPhase())
+        if hasproperty(kr, :krw)
+            krw = kr.krw
+            for (i, c) in enumerate(cells)
+                sreg = region(kr.regions, c)
+                krw_i = table_by_region(krw, sreg)
+                swcon[i] = krw_i.connate
+                swmax[i] = krw_i.input_s_max
+            end
+        end
+    end
+    return (swcon, swmax)
 end
