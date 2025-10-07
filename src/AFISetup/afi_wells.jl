@@ -97,7 +97,7 @@ function setup_wells(d::AFIInputFile, reservoir)
         WI = get_if_active(w2c, "Transmissibility", active)
         Kh = get_if_active(w2c, "PermeabilityThickness", active)
         drainage_radius = get_if_active(w2c, "PressureEquivalentRadius", active)
-        r = get(w2c, "WellboreRadius", fill(0.1, nperf))[active]
+        r = get(w2c, "WellBoreRadius", fill(0.1, nperf))[active]
         w = setup_well(reservoir, cells_mapped,
             skin = skin,
             dir = dir,
