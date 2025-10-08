@@ -76,5 +76,6 @@ function setup_phases(d::AFIInputFile)
     if "GAS" in phases
         push!(typed_phases, VaporPhase())
     end
+    length(phases) in (1, 2, 3) || error("Invalid number of phases found: $phases has $(length(phases)) values.")
     return Tuple(typed_phases)
 end
