@@ -2,13 +2,12 @@
 function setup_system(d::AFIInputFile)
     phases = setup_phases(d)
     bo_model = find_records(d, "BlackOilFluidModel", "IX", steps = false, model = true, once = true)
+    comp_model = find_records(d, "CompositionalFluidModel", "IX", steps = false, model = true, once = true)
     has_water = AqueousPhase() in phases
     has_oil = LiquidPhase() in phases
     has_gas = VaporPhase() in phases
 
-    if isnothing(bo_model)
-        error("No BlackOilFluidModel record found in AFI file. This function is currently limited to blackoil type models.")
-    else
+    if !isnothing(bo_model)
         bo_model = bo_model.value
         has_disgas = haskey(bo_model, "OilTable")
         has_vapoil = haskey(bo_model, "GasTable")
@@ -40,6 +39,10 @@ function setup_system(d::AFIInputFile)
         else
             sys = ImmiscibleSystem(phases, reference_densities = rhoS)
         end
+    elseif !isnothing(comp_model)
+        error("Compositional models are not yet supported in setup from AFI.")
+    else
+        error("No BlackOilFluidModel or CompositionalFluidModel found in AFI file.")
     end
     return sys
 end
