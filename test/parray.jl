@@ -170,7 +170,7 @@ end
     end
     @testset "MRST case" begin
         r = simulate_mrst_case("spe1";
-            output_path = tempdir(),
+            output_path = joinpath(tempdir(), "parray_test"),
             parray_arg = (np = 2,),
             mode = :parray,
             write_mrst = true,
