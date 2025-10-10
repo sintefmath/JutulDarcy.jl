@@ -22,7 +22,7 @@ using JutulDarcy, Jutul, Test
     rhoGS = 100.0
     rhoS = [rhoLS, rhoGS] .* kg/meter^3
     sys = ImmiscibleSystem(phases, reference_densities = rhoS)
-    model, prm = setup_reservoir_model(domain, sys, wells = [Inj, Prod], extra_out = true);
+    model, prm = setup_reservoir_model(domain, sys, wells = [Inj, Prod], thermal = true, extra_out = true);
 
     @test prm[:Injector][:FluidVolume][1] ≈ 0.392699 atol = 0.001
     @test prm[:Injector][:WellIndicesThermal][1] ≈ 27.3211 atol = 0.001
