@@ -69,7 +69,7 @@ function setup_simulation_case()
     P_ctrl = ProducerControl(bhp_target)
     controls = Dict(:Injector => I_ctrl, :Producer => P_ctrl)
 
-    model, parameters = setup_reservoir_model(domain, sys, wells = [Injector, Producer])
+    model, parameters = setup_reservoir_model(domain, sys, wells = [Injector, Producer], extra_out = True)
     forces = setup_reservoir_forces(model, control = controls);
 
     return model, parameters, forces, sys, dt

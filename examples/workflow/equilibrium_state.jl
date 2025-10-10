@@ -62,7 +62,7 @@ G = VaporPhase()
 rhoS = [1000.0, 700.0, 100.0]
 sys_3ph = ImmiscibleSystem((W, O, G), reference_densities = rhoS)
 rho = ConstantCompressibilityDensities(sys_3ph, 1.5bar, rhoS, 1e-5/bar)
-model_3ph, prm_3ph = setup_reservoir_model(reservoir, sys_3ph)
+model_3ph = setup_reservoir_model(reservoir, sys_3ph)
 set_secondary_variables!(model_3ph[:Reservoir], PhaseMassDensities = rho)
 state0_3ph_1 = setup_reservoir_state(model_3ph, Saturations = [0.0, 1.0, 0.0], Pressure = 200*bar)
 # ### Simulate the model and plot the change in pressure
@@ -231,7 +231,7 @@ pressure_vs_depth_plot(state0_two_reg)
 # reservoir model to see how equilibrium can be computed for a black-oil model.
 spe9 = GeoEnergyIO.test_input_file_path("SPE9", "SPE9.DATA");
 case = setup_case_from_data_file(spe9)
-model_bo, = setup_reservoir_model(reservoir, case.model);
+model_bo = setup_reservoir_model(reservoir, case.model);
 # ### Equilibriate the model
 # We will now equilibriate the black-oil model. Note that we can specify the Rs
 # value by depth. The density of the liquid phase in this model depends on the
@@ -273,7 +273,7 @@ c_heavy = MolecularProperty("n-Decane")
 mixture = MultiComponentMixture([c_light, c_heavy])
 eos = GenericCubicEOS(mixture, PengRobinson())
 sys_c = MultiPhaseCompositionalSystemLV(eos, (LiquidPhase(), VaporPhase()))
-model_comp, = setup_reservoir_model(reservoir, sys_c);
+model_comp = setup_reservoir_model(reservoir, sys_c);
 # ### Equilibriate the model
 # We will now equilibriate the compositional model. The compositional model can
 # be equilibrated in much the same manner, but unlike the previous model two
@@ -300,7 +300,7 @@ plot_state0(state0_comp, :og)
 # We can also initialize single-phase models, which are entirely parametrized by
 # the contact depth and pressure.
 sys_1ph = SinglePhaseSystem(reference_density = 1000.0)
-model_1ph, = setup_reservoir_model(reservoir, sys_1ph)
+model_1ph = setup_reservoir_model(reservoir, sys_1ph)
 eql_1ph = EquilibriumRegion(model_1ph, 100*bar, 1000.0)
 state0_1ph = setup_reservoir_state(model_1ph, eql_1ph)
 plot_state0(state0_1ph)
@@ -312,7 +312,7 @@ plot_state0(state0_1ph)
 rhoS = [1000.0, 100.0]
 sys_wg = ImmiscibleSystem((W, G), reference_densities = rhoS)
 rho = ConstantCompressibilityDensities(sys_wg, 1.5bar, rhoS, 1e-5/bar)
-model_wg, prm_wg = setup_reservoir_model(reservoir, sys_wg)
+model_wg = setup_reservoir_model(reservoir, sys_wg)
 set_secondary_variables!(model_wg[:Reservoir], PhaseMassDensities = rho)
 
 eql = EquilibriumRegion(model_wg, 100*bar, 1000.0, wgc = 1300.0)

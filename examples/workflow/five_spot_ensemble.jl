@@ -33,7 +33,7 @@ function simulate_qfs(porosity = 0.3)
     rhoGS = 700.0*kg/meter^3
     rhoS = [rhoLS, rhoGS]
     sys = ImmiscibleSystem(phases, reference_densities = rhoS)
-    model, parameters = setup_reservoir_model(domain, sys, wells = [Inj, Prod])
+    model = setup_reservoir_model(domain, sys, wells = [Inj, Prod])
     c = [1e-6/bar, 1e-6/bar]
     ρ = ConstantCompressibilityDensities(p_ref = 150*bar, density_ref = rhoS, compressibility = c)
     kr = BrooksCoreyRelativePermeabilities(sys, [2.0, 2.0])
@@ -52,7 +52,7 @@ function simulate_qfs(porosity = 0.3)
     controls[:Injector] = I_ctrl
     controls[:Producer] = P_ctrl
     forces = setup_reservoir_forces(model, control = controls)
-    return simulate_reservoir(state0, model, dt, parameters = parameters, forces = forces)
+    return simulate_reservoir(state0, model, dt, forces = forces)
 end
 # ## Simulate base case
 # This will give the solution with uniform porosity of 0.3.

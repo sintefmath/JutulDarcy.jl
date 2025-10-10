@@ -60,7 +60,7 @@ fig
 # no variation in permeability or significant compressibility. The function will
 # return the pressure solution at the end of the simulation for a given scheme.
 function solve_test_problem(scheme)
-    model, parameters = setup_reservoir_model(domain, sys,
+    model = setup_reservoir_model(domain, sys,
         general_ad = true,
         kgrad = scheme,
         block_backend = false

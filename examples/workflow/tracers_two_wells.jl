@@ -73,14 +73,14 @@ controls[:P1] = P_ctrl
 # We set up the reservoir model and simulate the flow. Note that we must pass
 # the tracers to the setup function for the reservoir model - otherwise the
 # tracers will not be simulated.
-model, parameters = setup_reservoir_model(reservoir, sys,
+model = setup_reservoir_model(reservoir, sys,
     wells = [I1, I2, P1],
     tracers = tracers,
 )
 
 forces = setup_reservoir_forces(model, control = controls)
 state0 = setup_reservoir_state(model, Pressure = 100*bar, Saturations = [0.0, 1.0])
-ws, states = simulate_reservoir(state0, model, dt, info_level = -1, parameters = parameters, forces = forces);
+ws, states = simulate_reservoir(state0, model, dt, info_level = -1, forces = forces);
 # ## Plot interactively
 plot_reservoir(model, states, key = :TracerMasses, step = length(dt))
 # ## Plot the final water saturation and tracer concentrations

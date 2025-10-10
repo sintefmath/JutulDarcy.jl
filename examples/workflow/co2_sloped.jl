@@ -115,7 +115,6 @@ else
 end
 model = setup_reservoir_model(domain, :co2brine,
     wells = Injector,
-    extra_out = false,
     salt_names = ["NaCl", "KCl", "CaSO4", "CaCl2", "MgSO4", "MgCl2"],
     salt_mole_fractions = [0.01, 0.005, 0.005, 0.001, 0.0002, 1e-5],
     co2_physics = physics
