@@ -1,4 +1,4 @@
-
+[![Paper](https://img.shields.io/badge/open_access_paper-computational_geosciences-blue.svg)](https://link.springer.com/article/10.1007/s10596-025-10366-6)
 [![Zenodo](https://zenodo.org/badge/477727603.svg)](https://zenodo.org/badge/latestdoi/477727603)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://sintefmath.github.io/JutulDarcy.jl/dev/)
 [![Build Status](https://github.com/sintefmath/JutulDarcy.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/sintefmath/JutulDarcy.jl/actions/workflows/CI.yml?query=branch%3Amain)
@@ -99,7 +99,7 @@ Cases with CPR used hypre as the AMG solver. OYMPUS1 refers to realization 1 fro
 
 ## Paper and citing
 
-The main paper describing `JutulDarcy.jl` is [*JutulDarcy.jl - a Fully Differentiable High-Performance Reservoir Simulator Based on Automatic Differentiation*, available as open access from Springer](https://link.springer.com/article/10.1007/s10596-025-10366-6#citeas):
+The main paper describing `JutulDarcy.jl` is [*JutulDarcy.jl - a Fully Differentiable High-Performance Reservoir Simulator Based on Automatic Differentiation*, available as open access from Springer](https://link.springer.com/article/10.1007/s10596-025-10366-6):
 
 ```bibtex
 @article{jutuldarcy,
