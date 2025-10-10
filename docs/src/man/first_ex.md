@@ -47,8 +47,7 @@ These are automatically computed from the domain's geometry, permeability and
 porosity.
 
 ````@example intro_ex
-model, parameters = setup_reservoir_model(domain, sys, wells = [Injector, Producer])
-model
+model = setup_reservoir_model(domain, sys, wells = [Injector, Producer])
 ````
 
 The model has a set of default secondary variables (properties) that are used to compute the flow equations. We can have a look at the reservoir model to see what the defaults are for the Darcy flow part of the domain:
@@ -98,6 +97,7 @@ dt = fill(365.0day, nstep);
 We next set up a rate target with a high amount of gas injected into the model. This is not fully realistic, but will give some nice and dramatic plots for our example later on.
 
 ````@example intro_ex
+parameters = setup_parameters(model)
 pv = pore_volume(model, parameters)
 inj_rate = 1.5*sum(pv)/sum(dt)
 rate_target = TotalRateTarget(inj_rate)
