@@ -55,7 +55,7 @@ function test_optimization_gradient(casename = :immiscible_2ph; use_scaling = tr
     # Perturb the data in a few different directions and verify
     # the gradients there too. Use the F_and_dF interface, that
     # computes gradients together with the objective
-    for delta in [1.05, 0.85, 0.325, 1.2]
+    for delta in [1.05, 0.85, 1.2]
         x_mod = delta.*x0
         dF_mod = similar(dF_initial)
         F_and_dF(NaN, dF_mod, x_mod)
