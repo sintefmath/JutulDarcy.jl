@@ -69,8 +69,7 @@ end
 
 
 
-struct ReservoirFromWellTracerCT{T<:AbstractVector, I<:AbstractVector} <: JutulDarcy.AbstractReservoirFromWellCT
-    WI::T
+struct ReservoirFromWellTracerCT{I<:AbstractVector} <: JutulDarcy.AbstractReservoirFromWellCT
     reservoir_cells::I
     well_cells::I
 end
@@ -129,16 +128,16 @@ function Jutul.update_cross_term_in_entity!(out, i,
 end
 
 function Base.show(io::IO, d::ReservoirFromWellTracerCT)
-    n = length(d.WI)
+    n = length(d.reservoir_cells)
     print(io, "ReservoirFromWellTracerCT ($n connections)")
 end
 
 function Jutul.subcrossterm(ct::ReservoirFromWellTracerCT, ctp, m_t, m_s, map_res::Jutul.FiniteVolumeGlobalMap, ::Jutul.TrivialGlobalMap, partition)
-    (; WI, reservoir_cells, well_cells) = ct
+    (; reservoir_cells, well_cells) = ct
     rc = map(
         c -> Jutul.local_cell(c, map_res),
         reservoir_cells)
-    return ReservoirFromWellTracerCT(copy(WI), rc, copy(well_cells))
+    return ReservoirFromWellTracerCT(rc, copy(well_cells))
 end
 
 function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellTracerCT, target, source, model, storage, dt, force::PerforationMask; time = time)
