@@ -52,7 +52,7 @@ function simulate_qfs(porosity = 0.3)
     controls[:Injector] = I_ctrl
     controls[:Producer] = P_ctrl
     forces = setup_reservoir_forces(model, control = controls)
-    return simulate_reservoir(state0, model, dt, forces = forces)
+    return simulate_reservoir(state0, model, dt, forces = forces, info_level = -1)
 end
 # ## Simulate base case
 # This will give the solution with uniform porosity of 0.3.
