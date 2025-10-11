@@ -478,20 +478,16 @@ struct MultiSegmentWell{P, N, SC, S} <: WellDomain
 end
 
 """
-    MultiSegmentWell(reservoir_cells, volumes, centers;
-        N = nothing,
+    MultiSegmentWell(reservoir_cells;
         name = :Well,
-        perforation_cells = nothing,
-        segment_models = nothing,
-        segment_length = nothing,
-        reference_depth = 0,
-        dz = nothing,
-        surface_conditions = default_surface_cond(),
-        accumulator_volume = mean(volumes),
+        top_node = false,
     )
 
-Create well perforated in a vector of `reservoir_cells` with corresponding
-`volumes` and cell `centers`.
+Create well perforated in a vector of `reservoir_cells`. This constructor
+assumes that the well is vertical and that the cells are ordered from top to
+bottom. If `top_node = true`, an additional node is added at the top of the
+well to represent the surface node. The well will then have one more node than
+perforations.
 
 # Note
 
@@ -503,7 +499,6 @@ way of setting up wells.
 $FIELDS
 
 """
-
 function MultiSegmentWell(reservoir_cells; top_node = false, kwarg...)
     numperf = length(reservoir_cells)
     pix = 1:numperf
@@ -518,6 +513,29 @@ function MultiSegmentWell(reservoir_cells; top_node = false, kwarg...)
     return MultiSegmentWell(neighbors, reservoir_cells, self_cells; kwarg...)
 end
 
+"""
+    MultiSegmentWell(neighbors::AbstractMatrix, perforation_cells_reservoir, perforation_cells_self;
+        end_nodes = missing,
+        type = :ms,
+        name = :Well,
+        segment_models = nothing,
+        surface_conditions = default_surface_cond(),
+    )
+
+Create a multisegment well from a connectivity matrix `neighbors` and vectors
+of perforation cells in the reservoir and the well. The connectivity matrix
+must have two rows, where the first row contains the "from" node and the second
+row contains the "to" node. The nodes are numbered from 1 to the maximum node
+number. The vectors `perforation_cells_reservoir` and `perforation_cells_self`
+must have the same length, and contain the cell indices in the reservoir grid
+and the local well grid, respectively, where the well is perforated. The
+optional argument `end_nodes` can be used to specify which nodes are end nodes
+of the well. If not provided, these are automatically detected as nodes that
+are not "from" nodes in the connectivity matrix. The optional argument
+`segment_models` can be used to provide a vector of segment pressure drop
+models, one per segment. If not provided, a default `SegmentWellBoreFrictionHB`
+model is used for all segments.
+"""
 function MultiSegmentWell(neighbors::AbstractMatrix, perforation_cells_reservoir, perforation_cells_self;
         end_nodes = missing,
         type = :ms,

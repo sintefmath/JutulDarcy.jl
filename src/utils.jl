@@ -620,7 +620,7 @@ that is initialized to one for each cell.
 """
 function setup_reservoir_model(reservoir::Union{DataDomain, Missing, Nothing}, model_template::MultiModel;
         wells = [],
-        extra_out = true,
+        extra_out = false,
         thermal = model_is_thermal(model_template),
         reservoir_only = missing,
         parameters = missing,
@@ -694,9 +694,11 @@ function setup_reservoir_model(reservoir::Union{DataDomain, Missing, Nothing}, m
         #    FluidVolume since that is strictly speaking a rock property. Other
         #    exceptions could be added to this list.
         for well in wells
-            well::WellDomain
-            wname = well.name
-            wtype = typeof(well)
+            well::DataDomain
+            wdomain = physical_representation(well)
+            wdomain::WellDomain
+            wname = wdomain.name
+            wtype = typeof(wdomain)
             if haskey(wells_by_name, wname)
                 template = wells_by_name[wname]
                 by_name = welltype(template) == wtype
