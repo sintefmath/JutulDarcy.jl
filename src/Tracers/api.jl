@@ -95,7 +95,7 @@ function add_tracers_to_model!(model::MultiModel, tracers; names = missing, kwar
         for ctp in model.cross_terms
             ct = ctp.cross_term
             if ctp.cross_term isa JutulDarcy.ReservoirFromWellFlowCT
-                ctt = ReservoirFromWellTracerCT(ct.WI, ct.reservoir_cells, ct.well_cells)
+                ctt = ReservoirFromWellTracerCT(ct.reservoir_cells, ct.well_cells)
                 add_next!(ctp, ctt)
             end
             if ct isa JutulDarcy.WellFromFacilityFlowCT

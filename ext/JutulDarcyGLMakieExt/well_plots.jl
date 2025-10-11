@@ -56,7 +56,8 @@ function JutulDarcy.plot_well!(ax, g, w;
 
     l = pts[:, 1]
     if fontsize > 0
-        txt = text!(ax, well_name_for_plot(w, name),
+        wd = physical_representation(w)
+        txt = text!(ax, well_name_for_plot(wd, name),
             position = Tuple([l[1], l[2], l[3]]),
             space = :data,
             transparency = transparency,
@@ -94,6 +95,10 @@ function well_cells_for_plot(w::Dict)
         wc = [wc]
     end
     return vec(Int64.(wc))
+end
+
+function well_cells_for_plot(w::DataDomain)
+    return w |> physical_representation |> well_cells_for_plot
 end
 
 function well_cells_for_plot(w)

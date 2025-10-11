@@ -2,17 +2,14 @@
 """
 Hagedorn and Brown well bore friction model for a segment.
 """
-struct SegmentWellBoreFrictionHB{R}
-    L::R
-    roughness::R
-    D_outer::R
-    D_inner::R
+struct SegmentWellBoreFrictionHB
     assume_turbulent::Bool
-    laminar_limit::R
-    turbulent_limit::R
-    function SegmentWellBoreFrictionHB(L, roughness, D_outer; D_inner = 0.0, assume_turbulent = false, laminar_limit = 2000.0, turbulent_limit = 4000.0)
-        L, roughness, D_outer, D_inner = promote(L, roughness, D_outer, D_inner)
-        new{typeof(L)}(L, roughness, D_outer, D_inner, assume_turbulent, laminar_limit, turbulent_limit)
+    laminar_limit::Float64
+    turbulent_limit::Float64
+    function SegmentWellBoreFrictionHB(; assume_turbulent = false, laminar_limit = 2000.0, turbulent_limit = 4000.0)
+        laminar_limit > 0.0 || throw(ArgumentError("laminar_limit must be positive"))
+        turbulent_limit > laminar_limit || throw(ArgumentError("turbulent_limit must be larger than laminar_limit"))
+        new(assume_turbulent, laminar_limit, turbulent_limit)
     end
 end
 
@@ -26,24 +23,22 @@ end
 
 well_segment_is_closed(::SegmentWellBoreFrictionHB) = false
 
-function segment_pressure_drop(f::SegmentWellBoreFrictionHB, v, ρ, μ)
-    D⁰, Dⁱ = f.D_outer, f.D_inner
-    R, L = f.roughness, f.L
-    ΔD = D⁰-Dⁱ
-    A = π*((D⁰/2)^2 - (Dⁱ/2)^2)
+function segment_pressure_drop(f::SegmentWellBoreFrictionHB, L, rough, radius_inner, v, ρ, μ)
+    D = 2*radius_inner
+    A = π*radius_inner^2
     # Scaling fix
     s = v > 0.0 ? 1.0 : -1.0
     e = eps(Float64)
     v = s*max(abs(v), e)
 
-    Re = abs(D⁰*v/(A*μ))
+    Re = abs(D*v/(A*μ))
     # Friction model - empirical relationship
     Re_l, Re_t = f.laminar_limit, f.turbulent_limit
     if is_laminar_flow(f, Re)
         f = 16.0/Re
     else
         # Either turbulent or intermediate flow regime. We need turbulent value either way.
-        f_t = (-3.6*log10(6.9/Re +(R/(3.7*D⁰))^(10.0/9.0)))^(-2.0)
+        f_t = (-3.6*log10(6.9/Re +(rough/(3.7*D))^(10.0/9.0)))^(-2.0)
         if is_turbulent_flow(f, Re)
             # Turbulent flow
             f = f_t
@@ -55,7 +50,7 @@ function segment_pressure_drop(f::SegmentWellBoreFrictionHB, v, ρ, μ)
             f = f_l + (Δf / ΔRe)*(Re - Re_l)
         end
     end
-    Δp = 2*f*L*v^2/((A^2)*D⁰*ρ)
+    Δp = 2*f*L*v^2/((A^2)*D*ρ)
     return Δp
 end
 
@@ -85,10 +80,14 @@ Jutul.discretization(e::PotentialDropBalanceWell) = e.flow_discretization
 
 import Jutul: two_point_potential_drop
 function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::PotentialDropBalanceWell, model, dt, ldisc = local_discretization(eq, i))
-    (; face, left, right, gdz) = ldisc
+    (; face, left, right) = ldisc
     μ = state.PhaseViscosities
     V = state.TotalMassFlux[face]
+    gdz = state.SegmentConnectionGravityDifference[face]
     densities = state.PhaseMassDensities
+    L = state.SegmentLength[face]
+    roughness = state.SegmentRoughness[face]
+    radius_inner = state.SegmentRadius[face] - state.SegmentCasingThickness[face]
     s = state.Saturations
     p = state.Pressure
 
@@ -101,7 +100,7 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
         rho_r, mu_r = saturation_mixed(s, densities, μ, right)
         rho = 0.5*(rho_l + rho_r)
         μ_mix = 0.5*(mu_l + mu_r)
-        Δp = segment_pressure_drop(seg_model, V, rho, μ_mix)
+        Δp = segment_pressure_drop(seg_model, L, roughness, radius_inner, V, rho, μ_mix)
         Δθ = two_point_potential_drop(p[left], p[right], gdz, rho_l, rho_r)
         # We rewrite the term so that for very small friction, the model reduces
         # to a high trans darcy flux Note that the SI units make this sensible

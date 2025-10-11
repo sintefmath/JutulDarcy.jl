@@ -27,7 +27,8 @@ function setup_well_case(nx = 5, backend = :csr; use_wells = true)
         domain, sys,
         wells = wells,
         backend = backend,
-        split_wells = true
+        split_wells = true,
+        extra_out = true
         )
     c = [1e-6/bar, 1e-4/bar]
     ρ = ConstantCompressibilityDensities(p_ref = 1*bar, density_ref = rhoS, compressibility = c)

@@ -62,7 +62,7 @@ phases = (AqueousPhase(), VaporPhase())
 rhoWS, rhoGS = 1000.0kg/meter^3, 700.0kg/meter^3
 system = ImmiscibleSystem(phases, reference_densities = (rhoWS, rhoGS))
 
-model, = setup_reservoir_model(reservoir, system, wells = [I, P])
+model = setup_reservoir_model(reservoir, system, wells = [I, P])
 rmodel = reservoir_model(model)
 # ## Plot the initial variable graph
 # We plot the default variable graph that describes how the different variables

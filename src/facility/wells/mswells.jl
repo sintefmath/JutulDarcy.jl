@@ -12,6 +12,11 @@ end
 function select_parameters!(prm, domain::MSWellDomain, model::MSWellFlowModel)
     prm[:WellIndices] = WellIndices()
     prm[:PerforationGravityDifference] = PerforationGravityDifference()
+    prm[:SegmentConnectionGravityDifference] = SegmentConnectionGravityDifference()
+    prm[:SegmentRadius] = SegmentRadius()
+    prm[:SegmentCasingThickness] = SegmentCasingThickness()
+    prm[:SegmentRoughness] = SegmentRoughness()
+    prm[:SegmentLength] = SegmentLength()
 end
 
 function Jutul.select_minimum_output_variables!(vars, domain::DiscretizedDomain, model::MSWellFlowModel)

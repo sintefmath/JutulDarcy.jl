@@ -260,7 +260,7 @@ function local_stage(simulator, dt, forces, config, iteration)
         # Make sure that recorder is updated to match global context
         rec_global = sim_global.storage.recorder
         rec_local = subsim.storage.recorder
-        Jutul.reset!(rec_local, rec_global)
+        Jutul.recorder_reset!(rec_local, rec_global)
         should_solve = check_if_subdomain_needs_solving(global_state_mirror, global_state, subsim, config, iteration)
         do_solve[i] = should_solve
         if should_solve

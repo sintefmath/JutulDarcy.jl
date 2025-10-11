@@ -25,7 +25,7 @@ function setup_doublet(sys)
     inj_well = setup_vertical_well(domain, 45, 15, name = :Injector, simple_well = false)
     prod_well = setup_vertical_well(domain, 15, 45, name = :Producer, simple_well = false)
 
-    model, _ = setup_reservoir_model(
+    model = setup_reservoir_model(
         domain, sys,
         thermal = true,
         wells = [inj_well, prod_well],

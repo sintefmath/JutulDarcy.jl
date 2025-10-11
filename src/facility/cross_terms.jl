@@ -1,13 +1,12 @@
 
 abstract type AbstractReservoirFromWellCT <: Jutul.AdditiveCrossTerm end
-struct ReservoirFromWellFlowCT{T<:AbstractVector, I<:AbstractVector} <: AbstractReservoirFromWellCT
-    WI::T
+struct ReservoirFromWellFlowCT{I<:AbstractVector} <: AbstractReservoirFromWellCT
     reservoir_cells::I
     well_cells::I
 end
 
 function Base.show(io::IO, d::ReservoirFromWellFlowCT)
-    n = length(d.WI)
+    n = length(d.reservoir_cells)
     print(io, "ReservoirFromWellFlowCT ($n connections)")
 end
 
@@ -97,11 +96,11 @@ function Jutul.cross_term_entities_source(ct::AbstractReservoirFromWellCT, eq::C
 end
 
 function Jutul.subcrossterm(ct::ReservoirFromWellFlowCT, ctp, m_t, m_s, map_res::FiniteVolumeGlobalMap, ::TrivialGlobalMap, partition)
-    (; WI, reservoir_cells, well_cells) = ct
+    (; reservoir_cells, well_cells) = ct
     rc = map(
         c -> Jutul.local_cell(c, map_res),
         reservoir_cells)
-    return ReservoirFromWellFlowCT(copy(WI), rc, copy(well_cells))
+    return ReservoirFromWellFlowCT(rc, copy(well_cells))
 end
 
 # Well influence on facility
@@ -273,9 +272,7 @@ function cross_term_total_surface_mass_rate_and_mixture(facility, well, state_fa
 end
 
 # Thermal
-struct ReservoirFromWellThermalCT{T<:AbstractVector, I<:AbstractVector} <: AbstractReservoirFromWellCT
-    WIth::T
-    WI::T
+struct ReservoirFromWellThermalCT{I<:AbstractVector} <: AbstractReservoirFromWellCT
     reservoir_cells::I
     well_cells::I
 end
@@ -346,11 +343,11 @@ function Base.show(io::IO, d::ReservoirFromWellThermalCT)
 end
 
 function Jutul.subcrossterm(ct::ReservoirFromWellThermalCT, ctp, m_t, m_s, map_res::FiniteVolumeGlobalMap, ::TrivialGlobalMap, partition)
-    (; WIth, WI, reservoir_cells, well_cells) = ct
+    (; reservoir_cells, well_cells) = ct
     rc = map(
         c -> Jutul.local_cell(c, map_res),
         reservoir_cells)
-    return ReservoirFromWellThermalCT(copy(WIth), copy(WI), rc, copy(well_cells))
+    return ReservoirFromWellThermalCT(rc, copy(well_cells))
 end
 
 function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellThermalCT, target, source, model, storage, dt, force::PerforationMask; time = time)
