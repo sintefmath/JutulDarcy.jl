@@ -552,6 +552,10 @@ function MultiSegmentWell(neighbors::AbstractMatrix, perforation_cells_reservoir
         from_nodes = unique(neighbors[1, :])
         to_nodes = unique(neighbors[2,:])
         end_nodes = setdiff(to_nodes, from_nodes)
+        if isempty(end_nodes)
+            @assert num_nodes == 1 "Failed to determine end_nodes from connectivity matrix, please provide explicitly."
+            end_nodes = [1]
+        end
     end
     if isnothing(segment_models)
         segment_models = [SegmentWellBoreFrictionHB() for _ in 1:num_segments]
