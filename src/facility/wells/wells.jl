@@ -56,7 +56,6 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         radius = 0.1,
         radius_grout = 0.0, # In addition to the radius
         casing_thickness = 0.0, # How much of the radius is casing
-        accumulator_volume = missing,
         Kh = missing,
         WI = missing,
         WIth = missing,
@@ -84,15 +83,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     reservoir_cells = map(i -> cell_index(g, i), reservoir_cells)
     # Set up well itself
     if simple_well
-        if ismissing(accumulator_volume)
-            # accumulator_volume = simple_well_regularization*sum(volumes)
-        end
         W = SimpleWell(reservoir_cells;
-            # WI = WI_computed,
-            # WIth = WIth_computed,
-            # volume = accumulator_volume,
-            # dz = dz,
-            # reference_depth = reference_depth,
             kwarg...
         )
         perf_to_wellcell_index = [1]
@@ -123,33 +114,13 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
             perf_to_wellcell_index = perforation_cells_well
         end
     end
+    treat_defaulted(x) = x
+    treat_defaulted(::Missing) = NaN
+    treat_defaulted(::Nothing) = NaN
 
-    if ismissing(WI)
-        WI = NaN
-    end
-    if ismissing(WIth)
-        WIth = NaN
-    end
-    if ismissing(Kh) || isnothing(Kh)
-        Kh = NaN
-    end
-    # T = promote_type(
-    #     eltype(K),
-    #     eltype(skin),
-    #     eltype(radius),
-    #     eltype(void_fraction),
-    #     eltype(material_heat_capacity),
-    #     eltype(material_density)
-    # )
-    # T = promote_type(T, Jutul.float_type(g))
-    # if !ismissing(WI)
-    #     T = promote_type(T, eltype(WI))
-    # end
-    # if !ismissing(WIth)
-    #     T = promote_type(T, eltype(WIth))
-    # end
-    # NaN for derived quantities -> To be computed.
-
+    WI = treat_defaulted(WI)
+    WIth = treat_defaulted(WIth)
+    Kh = treat_defaulted(Kh)
 
     if isnothing(cell_centers)
         geometry = tpfv_geometry(g)
@@ -174,39 +145,11 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         well_cell_centers[3, 1] = reference_depth
     end
 
-    # dz = zeros(T, n)
-
-
-    for (i, c) in enumerate(reservoir_cells)
-        # WI_i = compute_peaceman_index(g, k_i, r_i, c, dir_i; skin = s_i, Kh = Kh_i)
-        # WIth_i = compute_well_thermal_index(g, Λ_i, r_i, c, dir_i;
-        #     thermal_index_args...)
-
-        # center = vec(centers[:, i])
-        # dz[i] = center[3] - reference_depth
-        # dir_i = direction[i]
-        # if dir_i isa Symbol
-        #     Δ = cell_dims(g, c)
-        #     d_index = findfirst(isequal(dir_i), [:x, :y, :z])
-        #     h = Δ[d_index]
-        # else
-        #     h = norm(dir_i, 2)
-        # end
-        # volumes[i] = h*π*r_i^2
-    end
     Wdomain = DataDomain(W)
     c = Cells()
     p = Perforations()
     f = Faces()
-    # d[:cell_vec, Cells()]
-    # ## Flow props
-    # ## Segments:
-    # Length
-    #
-    # ## Cells
-    # VolumeMultiplier?
-    # Wdomain[:cell_centroids, c] = 
-    # Radius
+
     function cell_height(dir_i, cell)
         if dir_i isa Symbol
             Δ = cell_dims(g, cell)
