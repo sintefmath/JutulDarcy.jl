@@ -970,12 +970,12 @@ function setup_reservoir_simulator(case::JutulCase;
         timesteps = :auto,
         relaxation = false,
         presolve_wells = false,
-        parray_arg = Dict{Symbol, Any}(),
         set_linear_solver = missing,
-        linear_solver_arg = Dict{Symbol, Any}(),
         transport_scheme = :ppu,
         extra_timing_setup = false,
         nldd_partition = missing,
+        linear_solver_arg = Dict{Symbol, Any}(),
+        parray_arg = Dict{Symbol, Any}(),
         nldd_arg = Dict{Symbol, Any}(),
         kwarg...
     )

@@ -45,29 +45,6 @@ Jutul.variable_scale(t::TotalMassFlux) = t.scale
 
 default_surface_cond() = (p = 101325.0, T = 288.15) # Pa and deg. K from ISO 13443:1996 for natural gas
 
-# function common_well_setup(nr; dz = nothing, WI = nothing, WIth = nothing, gravity = gravity_constant)
-#     if isnothing(dz)
-#         @warn "dz not provided for well. Assuming no gravity."
-#         gdz = zeros(nr)
-#     else
-#         @assert length(dz) == nr  "Must have one connection drop dz per perforated cell"
-#         gdz = dz*gravity
-#     end
-#     if isnothing(WI)
-#         @warn "No well indices provided. Using 1e-12."
-#         WI = fill(1e-12, nr)
-#     else
-#         @assert length(WI) == nr  "Must have one well index per perforated cell ($(length(WI)) well indices, $nr reservoir cells))"
-#     end
-#     if isnothing(WIth)
-#         @warn "No thermal well indices provided. Using 1."
-#         WIth = fill(1.0, nr)
-#     else
-#         @assert length(WIth) == nr  "Must have one thermal well index per perforated cell ($(length(WIth)) thermal well indices, $nr reservoir cells))"
-#     end
-#     return (WI, WIth, gdz)
-# end
-
 function setup_well(g, K, reservoir_cells::AbstractVector;
         simple_well = true,
         N = missing,
@@ -91,7 +68,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         material_thermal_conductivity = 0.0,
         thermal_conductivity_casing = 20,
         thermal_conductivity_grout = 2.3,
-        volume_multiplier = 1.0,
+        volume_multiplier = ifelse(simple_well, 100.0, 1.0),
         friction = 1e-4, # Old version of kwarg for roughness
         roughness = friction,
         net_to_gross = missing,
@@ -502,15 +479,10 @@ function domain_bulk_volume(d::DataDomain, grid::WellDomain)
     return vols
 end
 
-# function domain_fluid_volume(d::DataDomain, grid::SimpleWell)
-#     return [grid.volume]
-# end
-
 # Well segments
-
 function get_neighborship(::SimpleWell)
     # No interior connections.
-    return zeros(Int64, 2, 0)
+    return zeros(Int, 2, 0)
 end
 
 function number_of_cells(W::SimpleWell)
