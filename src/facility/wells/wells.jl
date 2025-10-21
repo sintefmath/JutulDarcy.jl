@@ -291,12 +291,18 @@ function map_well_nodes_to_reservoir_cells(w::MultiSegmentWell, reservoir::Union
     # improved...
     c = zeros(Int, number_of_cells(w))
     c[w.perforations.self] .= w.perforations.reservoir
-    for i in 2:length(c)
+    for i in eachindex(c)
+        if i == firstindex(c)
+            continue
+        end
         if c[i] == 0
             c[i] = c[i-1]
         end
     end
-    for i in (length(c)-1):-1:1
+    for i in reverse(eachindex(c))
+        if i == lastindex(c)
+            continue
+        end
         if c[i] == 0
             c[i] = c[i+1]
         end
