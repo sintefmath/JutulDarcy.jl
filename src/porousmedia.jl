@@ -130,7 +130,7 @@ function compute_peaceman_index(Δ, K, radius, dir::Symbol = :z;
     k21 = kratio(k2, k1)
     k12 = kratio(k1, k2)
     ke  = sqrt(k1*k2)
-    if isnothing(drainage_radius)
+    if isnothing(drainage_radius) || isnan(drainage_radius)
         re1 = 2 * constant * sqrt((d1^2)*sqrt(k21) + (d2^2)*sqrt(k12))
         re2 = k21^(1/4) + k12^(1/4)
         re = kratio(re1, re2)

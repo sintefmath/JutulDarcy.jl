@@ -75,6 +75,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         well_cell_centers = missing,
         use_top_node = missing,
         dir = :z,
+        drainage_radius = NaN,
         kwarg...
     )
     is_3d = dim(g) == 3
@@ -167,6 +168,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     Wdomain[:radius_grout, p] = radius_grout
     Wdomain[:well_index, p] = WI
     Wdomain[:perforation_centroids, p] = perforation_centers
+    Wdomain[:drainage_radius, p] = drainage_radius
     if dir isa Symbol
         dir = fill(dir, n)
     end
