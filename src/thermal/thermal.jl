@@ -250,7 +250,7 @@ function Jutul.default_parameter_values(data_domain, model, param::WellIndicesTh
     thermal_conductivity = data_domain[:thermal_conductivity, Perforations()]
     thermal_conductivity_casing = data_domain[:thermal_conductivity_casing, Perforations()]
     thermal_conductivity_grout = data_domain[:thermal_conductivity_grout, Perforations()]
-    radius_grout = data_domain[:radius_grout, Perforations()]
+    grouting_thickness = data_domain[:grouting_thickness, Perforations()]
     direction = data_domain[:perforation_direction, Perforations()]
     radius = data_domain[:perforation_radius, Perforations()]
     casing_thickness = data_domain[:casing_thickness, Cells()]
@@ -266,13 +266,9 @@ function Jutul.default_parameter_values(data_domain, model, param::WellIndicesTh
                 Λ_i = thermal_conductivity[:, i]
             end
             Λ_i = Jutul.expand_perm(Λ_i, gdim)
-            dir = direction[i]
-            r_outer = radius[i]
-            r_inner = r_outer - casing_thickness[cell]
-            r_grout = radius_grout[i]
-            WIt[i] = compute_well_thermal_index(Δ, Λ_i, r_inner, dir;
-                radius_outer = r_outer,
-                radius_grout = r_grout,
+            WIt[i] = compute_well_thermal_index(Δ, Λ_i, radius[i], direction[i];
+                casing_thickness = casing_thickness[i],
+                grouting_thickness = grouting_thickness[i],
                 thermal_conductivity_casing = thermal_conductivity_casing[i],
                 thermal_conductivity_grout = thermal_conductivity_grout[i],
             )

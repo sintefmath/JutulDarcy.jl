@@ -54,7 +54,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         cell_centers = nothing,
         skin = 0.0,
         radius = 0.1,
-        radius_grout = 0.0, # In addition to the radius
+        grouting_thickness = 0.0, # In addition to the radius
         casing_thickness = 0.0, # How much of the radius is casing
         Kh = missing,
         WI = missing,
@@ -65,7 +65,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         material_heat_capacity = 420.0,
         material_density = 8000.0,
         material_thermal_conductivity = 0.0,
-        thermal_conductivity_casing = 20,
+        thermal_conductivity_casing = 20.0,
         thermal_conductivity_grout = 2.3,
         volume_multiplier = ifelse(simple_well, 20.0, 1.0),
         friction = 1e-4, # Old version of kwarg for roughness
@@ -165,7 +165,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     Wdomain[:Kh, p] = Kh
     Wdomain[:skin, p] = skin
     Wdomain[:perforation_radius, p] = radius
-    Wdomain[:radius_grout, p] = radius_grout
+    Wdomain[:grouting_thickness, p] = grouting_thickness
     Wdomain[:well_index, p] = WI
     Wdomain[:perforation_centroids, p] = perforation_centers
     Wdomain[:drainage_radius, p] = drainage_radius

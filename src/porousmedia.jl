@@ -188,28 +188,37 @@ function compute_well_thermal_index(g::T, thermal_conductivity, radius, pos, dir
     return compute_well_thermal_index(Δ, thermal_conductivity, radius, dir; kwargs...)
 end
 
-function compute_well_thermal_index(Δ, thermal_conductivity, radius, dir=:z;
-        radius_outer = nothing,
-        thermal_conductivity_casing = 20,
-        radius_grout = nothing,
-        thermal_conductivity_grout = 2.3,
+function compute_well_thermal_index(Δ, thermal_conductivity, radius::Float64, dir=:z;
+        casing_thickness::Float64 = 0.0,
+        grouting_thickness::Float64 = 0.0,
+        thermal_conductivity_casing::Float64 = 20.0,
+        thermal_conductivity_grout::Float64 = 2.3,
     )
 
-    L = length_from_cell_dims(Δ, dir)
-    # Readable notation
-    ri, ro, rg = radius, radius_outer, radius_grout
-    λr, λc, λg = thermal_conductivity, thermal_conductivity_casing, thermal_conductivity_grout
+    @assert radius > 0.0 "Well radius must be positive."
+    @assert 0.0 <= casing_thickness < radius "Casing thickness must be non-negative and less than outer radius."
+    @assert grouting_thickness >= 0.0 "Grouting thickness must be non-negative."
+    @assert thermal_conductivity_casing > 0.0 "Thermal conductivity casing must be positive."
+    @assert thermal_conductivity_grout > 0.0 "Thermal conductivity grout must be positive."
+
+    ro = radius
     U = 0.0
     # Conduction through casing
-    if !isnothing(ro) && !ismissing(ro) && ro > ri
+    if casing_thickness > 0.0
+        ri = ro - casing_thickness
+        λc = thermal_conductivity_casing
         U += log(ri/ro)/λc
     end
     # Conduction through grouting
-    if !isnothing(rg) && !ismissing(rg) && rg > 0.0
+    if grouting_thickness > 0.0
+        rg = ri + casing_thickness + grouting_thickness
+        λg = thermal_conductivity_grout
         U += log(rg/ro)/λg
     end
     # Conduction into reservoir
-    WIth0 = compute_peaceman_index(Δ, λr, radius, dir; constant = 2*0.14)
+    λr = thermal_conductivity
+    WIth0 = compute_peaceman_index(Δ, λr, ro, dir; constant = 2*0.14)
+    L = length_from_cell_dims(Δ, dir)
     U += 1/(WIth0/(2π*L))
     #TODO: Implement flow-dependent conduction from bulk flow to pipe wall
 
