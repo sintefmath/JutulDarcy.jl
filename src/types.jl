@@ -482,7 +482,7 @@ function MultiSegmentWell(reservoir_cells; top_node = false, kwarg...)
         neighbors = vcat(pix', (2:numnodes)')
         self_cells = collect(2:numnodes)
     else
-        neighbors = vcat(pix', pix')
+        neighbors = vcat(pix[1:end-1]', pix[2:end]')
         self_cells = collect(pix)
     end
     return MultiSegmentWell(neighbors, reservoir_cells, self_cells; kwarg...)
