@@ -453,6 +453,7 @@ function compdat_to_connection_factors(domain, wspec, v, step; sort = true, orde
             else
                 k_i = K[:, c]
             end
+            k_i = Jutul.expand_perm(k_i, 3)
             WI[i] = compute_peaceman_index(G, k_i, radius[i], c, dir[i];
                 skin = skin[i],
                 Kh = Kh[i],
