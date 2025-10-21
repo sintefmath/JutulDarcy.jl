@@ -195,13 +195,7 @@ function compute_well_thermal_index(Δ, thermal_conductivity, radius, dir=:z;
         thermal_conductivity_grout = 2.3,
     )
 
-    if dir isa Symbol
-        d_index = findfirst(isequal(dir), [:x, :y, :z])
-        L = Δ[d_index]
-    else
-        L = norm(dir, 2)
-    end
-
+    L = length_from_cell_dims(Δ, dir)
     # Readable notation
     ri, ro, rg = radius, radius_outer, radius_grout
     λr, λc, λg = thermal_conductivity, thermal_conductivity_casing, thermal_conductivity_grout
@@ -222,6 +216,15 @@ function compute_well_thermal_index(Δ, thermal_conductivity, radius, dir=:z;
     # Convert to thermal indices
     WIth = 2π*L/U
     return WIth
+end
+
+function length_from_cell_dims(Δ, dir::Symbol)
+    d_index = findfirst(isequal(dir), [:x, :y, :z])
+    return Δ[d_index]
+end
+
+function length_from_cell_dims(Δ, dir)
+    return norm(dir, 2)
 end
 
 function Jutul.discretize_domain(d::DataDomain, system::Union{MultiPhaseSystem, CompositeSystem{:Reservoir, T}}, ::Val{:default}; kwarg...) where T

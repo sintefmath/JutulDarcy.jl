@@ -485,9 +485,19 @@ function domain_bulk_volume(d::DataDomain, grid::WellDomain)
         vols = d[:volume_override, Cells()]
     else
         mult = d[:volume_multiplier, Cells()]
-        r = d[:radius, Cells()]
-        L = d[:cell_length, Cells()]
-        vols = mult.*(π .* r.^2 .* L)
+        if grid isa MultiSegmentWell
+            r = d[:radius, Cells()]
+            L = d[:cell_length, Cells()]
+            vols = mult.*(π .* r.^2 .* L)
+        else
+            # Simple wells are not segmented, so sum over perforations instead
+            grid::SimpleWell
+            r = d[:perforation_radius, Perforations()]
+            cdims = d[:cell_dims, Perforations()]
+            dir = d[:perforation_direction, Perforations()]
+            L = length_from_cell_dims.(cdims, dir)
+            vols = only(mult)*sum(π .* r.^2 .* L)
+        end
     end
     return vols
 end
