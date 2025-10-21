@@ -67,7 +67,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         material_thermal_conductivity = 0.0,
         thermal_conductivity_casing = 20,
         thermal_conductivity_grout = 2.3,
-        volume_multiplier = ifelse(simple_well, 100.0, 1.0),
+        volume_multiplier = ifelse(simple_well, 20.0, 1.0),
         friction = 1e-4, # Old version of kwarg for roughness
         roughness = friction,
         net_to_gross = missing,
