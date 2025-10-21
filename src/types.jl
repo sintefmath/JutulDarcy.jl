@@ -422,32 +422,19 @@ function SimpleWell(
         name = :Well,
         explicit_dp = true,
         surface_conditions = default_surface_cond(),
-        # reference_depth = 0.0,
-        kwarg...
     )
     nr = length(reservoir_cells)
-    # T = promote_type(typeof(reference_depth), typeof(volume), Float64)
-    # WI, WIth, gdz = common_well_setup(nr; kwarg...)
-    # T = promote_type(typeof(reference_depth), typeof(volume), eltype(WI), eltype(WIth), eltype(gdz))
-    # reference_depth = convert(T, reference_depth)
-    # volume = convert(T, volume)
-    # WI = T.(WI)
-    # WIth = T.(WIth)
-    # gdz = T.(gdz)
     perf = (self = ones(Int64, nr), reservoir = vec(reservoir_cells))#, WI = WI, WIth = WIth, gdz = gdz)
     return SimpleWell(
         perf,
         surface_conditions,
         name,
         explicit_dp
-        # reference_depth
     )
 end
 
 struct MultiSegmentWell{P, N, SC, S} <: WellDomain
     type::Symbol
-    # "One of volumes per node (cell)"
-    # volumes::V
     num_nodes::Int
     num_segments::Int
     num_perforations::Int
@@ -455,26 +442,14 @@ struct MultiSegmentWell{P, N, SC, S} <: WellDomain
     perforations::P
     "Well cell connectivity (connections between nodes)"
     neighborship::N
-    # "Top node where scalar well quantities live"
-    # top::A
     "End node(s) for the well"
     end_nodes::Vector{Int64}
-    # "Coordinate centers of nodes"
-    # centers::C
     "pressure and temperature conditions at surface"
     surface::SC
     "Name of the well as a Symbol"
     name::Symbol
     "Pressure drop model for seg well segment"
     segment_models::S
-    # "Thermal conductivity of well material"
-    # material_thermal_conductivity::M
-    # "Density of well material"
-    # material_density::M
-    # "Specific heat capacity of well material"
-    # material_heat_capacity::M
-    # "Well void fraction"
-    # void_fraction::M
 end
 
 """
@@ -575,178 +550,6 @@ function MultiSegmentWell(neighbors::AbstractMatrix, perforation_cells_reservoir
         surface_conditions,
         name,
         segment_models,
-    )
-end
-
-function MultiSegmentWell_old(reservoir_cells;
-        type = :ms,
-        # accumulator_center = nothing,
-        # accumulator_volume = mean(volumes),
-        N = nothing,
-        end_nodes = missing,
-        name = :Well,
-        perforation_cells = nothing,
-        segment_models = nothing,
-        # reference_depth = nothing,
-        # dz = nothing,
-        # segment_length = nothing,
-        # friction = 1e-4,
-        surface_conditions = default_surface_cond(),
-        # material_thermal_conductivity = 0.0,
-        # material_heat_capacity = 420.0,
-        # material_density = 8000.0,
-        # void_fraction = 1.0,
-        # extra_perforation_props = NamedTuple(),
-        segment_radius = 0.05,
-        kwarg...
-    )
-    # if isnothing(reference_depth)
-    #     if isnothing(accumulator_center)
-    #         reference_depth = 0
-    #     else
-    #         reference_depth = accumulator_center[3]
-    #     end
-    # end
-    # if isnothing(accumulator_center)
-    #     accumulator_center = [centers[1, 1], centers[2, 1], reference_depth]
-    # end
-    nv = length(volumes)
-    nc = nv + 1
-    reservoir_cells = vec(reservoir_cells)
-    nr = length(reservoir_cells)
-    if isnothing(N)
-        @debug "No connectivity. Assuming nicely ordered linear well."
-        N = vcat((1:nv)', (2:nc)')
-    elseif maximum(N) == nv
-        N = hcat([1, 2], N.+1)
-    end
-    if ismissing(end_nodes)
-        from_nodes = unique(N[1, :])
-        to_nodes = unique(N[2,:])
-        end_nodes = setdiff(to_nodes, from_nodes)
-    end
-    if length(size(centers)) == 3
-        @assert size(centers, 3) == 1
-        centers = centers[:, :, 1]
-    end
-    nseg = size(N, 2)
-    @assert size(N, 1) == 2
-    @assert size(centers, 1) == 3
-    volumes = vcat([accumulator_volume], volumes)
-    ext_centers = hcat(accumulator_center, centers)
-    @assert length(volumes) == size(ext_centers, 2)
-    if !isnothing(reservoir_cells) && isnothing(perforation_cells)
-        @assert length(reservoir_cells) == nv "If no perforation cells are given, we must 1->1 correspondence between well volumes and reservoir cells."
-        perforation_cells = collect(2:nc)
-    end
-    perforation_cells = vec(perforation_cells)
-    if segment_radius isa Real
-        segment_radius = fill(segment_radius, nseg)
-    end
-    if length(segment_radius) < nseg
-        @assert length(segment_radius) == nv
-        # We are provided one radius per cell - compute segment radii as the
-        # average of its to associated cells segment values
-        pushfirst!(segment_radius, segment_radius[1])
-        segment_radius = mean(segment_radius[N], dims=1)
-    end
-    @assert length(segment_radius) == nseg "Segment radius must have length equal to number of segments"
-
-    if friction isa Real
-        friction = fill(friction, nseg)
-    end
-    if length(friction) < nseg
-        @assert length(friction) == nv
-        # We are provided one friction factor per cell - compute segment
-        # friction factors as the average of its to associated cells segment
-        # values
-        pushfirst!(friction, friction[1])
-        friction = mean(friction[N], dims=1)
-    end
-
-    # Process well material properties
-    # if length(material_thermal_conductivity) == 1
-    #     material_thermal_conductivity = fill(material_thermal_conductivity, nseg)
-    # end
-    # @assert length(material_thermal_conductivity) == nseg 
-    #     "Material thermal conductivity must have length equal to number of segments"
-
-    # if length(material_heat_capacity) == 1
-    #     material_heat_capacity = fill(material_heat_capacity, nc)
-    # end
-    # @assert length(material_heat_capacity) == nc
-    #     "Material heat capacity must have length equal to number of cells (including accumulator node)"
-
-    # if length(material_density) == 1
-    #     material_density = fill(material_density, nc)
-    # end
-    # @assert length(material_density) == nc
-    #     "Material density must have length equal to number of cells (including accumulator node)"
-
-    # if length(void_fraction) == 1
-    #     void_fraction = vcat(1.0, fill(void_fraction, nc-1))
-    # end
-    # @assert length(void_fraction) == nc
-    #     "Void fraction must have length equal to number of cells (including accumulator node)"
-    # @assert void_fraction[1] == 1.0 "Void fraction for accumulator node must be 1.0"
-
-    if isnothing(segment_models)
-        function setup_wbfriction(seg)
-            # l, r = N[:, seg]
-            # if isnothing(segment_length)
-            #     L = norm(ext_centers[:, l] - ext_centers[:, r], 2)
-            # else
-            #     if segment_length isa Real
-            #         L = segment_length
-            #     else
-            #         L = segment_length[seg]
-            #     end
-            # end
-            # diameter = segment_radius[seg]*2
-            return SegmentWellBoreFrictionHB()
-        end
-        segment_models = map(setup_wbfriction, 1:nseg)
-    else
-        segment_models::AbstractVector
-        @assert length(segment_models) == nseg
-    end
-    # if isnothing(dz)
-    #     dz = centers[3, :] .- reference_depth
-    # end
-    @assert length(perforation_cells) == nr
-    #WI, WIth, gdz = common_well_setup(nr; dz = dz, kwarg...)
-    perf = (self = perforation_cells, reservoir = reservoir_cells)#, WI = WI, WIth = WIth, gdz = gdz)
-    perf = merge(perf, extra_perforation_props)
-    for (k, v) in zip(keys(perf), perf)
-        @assert length(v) == nr "Perforation property $k must have length equal to number of reservoir cells"
-    end
-    # accumulator = (reference_depth = reference_depth, )
-    MultiSegmentWell{
-        # typeof(volumes),
-        typeof(perf),
-        typeof(N),
-        # typeof(accumulator),
-        # typeof(ext_centers),
-        typeof(surface_conditions),
-        typeof(segment_models),
-        # typeof(material_thermal_conductivity)
-    }(
-        # type,
-        # volumes,
-        perf,
-        N,
-        # accumulator,
-        end_nodes,
-        # ext_centers,
-        surface_conditions,
-        name,
-        segment_models,
-        # material_thermal_conductivity,
-        # material_density,
-        # material_heat_capacity,
-        # void_fraction,
-        # perforation_parameters,
-        # segment_parameters
     )
 end
 

@@ -357,11 +357,9 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
             end
         end
     end
-
     if ismissing(W)
         W = setup_well(domain, wc;
             name = Symbol(wname),
-            accumulator_volume = accumulator_volume,
             WI = WI,
             reference_depth = ref_depth,
             simple_well = simple_well
