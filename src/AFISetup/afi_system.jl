@@ -1,6 +1,5 @@
 
-function setup_system(d::AFIInputFile)
-    phases = setup_phases(d)
+function setup_system(d::AFIInputFile; phases = setup_phases(d))
     bo_model = find_records(d, "BlackOilFluidModel", "IX", steps = false, model = true, once = true)
     comp_model = find_records(d, "CompositionalFluidModel", "IX", steps = false, model = true, once = true)
     has_water = AqueousPhase() in phases
@@ -80,5 +79,11 @@ function setup_phases(d::AFIInputFile)
         push!(typed_phases, VaporPhase())
     end
     length(phases) in (1, 2, 3) || error("Invalid number of phases found: $phases has $(length(phases)) values.")
-    return Tuple(typed_phases)
+    return tuple(typed_phases...)
+end
+
+function thermal_type(d::AFIInputFile)
+    t = find_records(d, "ThermalModel", "IX", steps = false, model = true, once = true)
+    t2 = find_records(d, "ThermalModel", "FM", steps = false, model = true, once = true)
+    @info "??" t t2
 end
