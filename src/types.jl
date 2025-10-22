@@ -519,7 +519,7 @@ function MultiSegmentWell(neighbors::AbstractMatrix, perforation_cells_reservoir
         surface_conditions = default_surface_cond(),
     )
     size(neighbors, 1) == 2 || throw(ArgumentError("Connectivity matrix for multisegment well must have two rows"))
-    num_nodes = maximum(neighbors)
+    num_nodes = maximum(neighbors, init = 1)
     num_segments = size(neighbors, 2)
     num_perf = length(perforation_cells_self)
     maximum(perforation_cells_self) <= num_nodes || throw(ArgumentError("Perforation cells (self) must be less than or equal to number of nodes $(num_nodes), was $(maximum(perforation_cells_self))"))

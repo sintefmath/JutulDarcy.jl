@@ -135,20 +135,26 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
 
     mass = state.TotalMasses
     mass0 = state0.TotalMasses
-    v = state.TotalMassFlux
-    # For each component, compute fractional flow for mass flux + accumulation
     ncomp = number_of_components(model.system)
-    m_t = component_sum(mass, self_cell)
-    for i in 1:ncomp
-        m_i = mass[i, self_cell]
-        eq_i = (m_i - mass0[i, self_cell])/dt
-        f_i = m_i/m_t
-        for (cell, face, sgn) in zip(cells, faces, signs)
-            v_f = sgn*v[face]
-            f_o = mass[i, cell]/component_sum(mass, cell)
-            eq_i += v_f*upw_flux(v_f, f_i, f_o)
+    if length(faces) == 0
+        for i in 1:ncomp
+            eq_buf[i] = (mass[i, self_cell] - mass0[i, self_cell])/dt
         end
-        eq_buf[i] = eq_i
+    else
+        v = state.TotalMassFlux
+        # For each component, compute fractional flow for mass flux + accumulation
+        m_t = component_sum(mass, self_cell)
+        for i in 1:ncomp
+            m_i = mass[i, self_cell]
+            eq_i = (m_i - mass0[i, self_cell])/dt
+            f_i = m_i/m_t
+            for (cell, face, sgn) in zip(cells, faces, signs)
+                v_f = sgn*v[face]
+                f_o = mass[i, cell]/component_sum(mass, cell)
+                eq_i += v_f*upw_flux(v_f, f_i, f_o)
+            end
+            eq_buf[i] = eq_i
+        end
     end
 end
 
@@ -156,35 +162,33 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
     (; cells, faces, signs) = ldisc
     nph = number_of_phases(model.system)
     λm = state.MaterialThermalConductivities
-    mass = state.TotalMasses
     energy = state.TotalThermalEnergy
     energy0 = state0.TotalThermalEnergy
     density = state.PhaseMassDensities
     S = state.Saturations
     H_f = state.FluidEnthalpy
-    v = state.TotalMassFlux
     T = state.Temperature
 
     eq = (energy[self_cell] - energy0[self_cell])/dt
-    m_t_self = total_density(S, density, self_cell)
-
-    for (cell, face, sgn) in zip(cells, faces, signs)
-        v_f = sgn*v[face]
-        for ph in 1:nph
-            # Compute mass fraction of phase, then weight by enthalpy.
-            m_t_other = total_density(S, density, cell)
-            f_self = density[ph, self_cell]*S[ph, self_cell]/m_t_self
-            f_other = density[ph, cell]*S[ph, cell]/m_t_other
-
-            ME_other = H_f[ph, cell]*f_other
-            ME_self = H_f[ph, self_cell]*f_self
-            eq += v_f*upw_flux(v_f, ME_self, ME_other)
-        end
-
-        λm_f = λm[face]
-        if λm_f >= 0.0
-            # Account for heat conduction in well material
-            eq -= λm_f*(T[cell] - T[self_cell])
+    if length(faces) > 0
+        v = state.TotalMassFlux
+        m_t_self = total_density(S, density, self_cell)
+        for (cell, face, sgn) in zip(cells, faces, signs)
+            v_f = sgn*v[face]
+            for ph in 1:nph
+                # Compute mass fraction of phase, then weight by enthalpy.
+                m_t_other = total_density(S, density, cell)
+                f_self = density[ph, self_cell]*S[ph, self_cell]/m_t_self
+                f_other = density[ph, cell]*S[ph, cell]/m_t_other
+                ME_other = H_f[ph, cell]*f_other
+                ME_self = H_f[ph, self_cell]*f_self
+                eq += v_f*upw_flux(v_f, ME_self, ME_other)
+            end
+            λm_f = λm[face]
+            if λm_f >= 0.0
+                # Account for heat conduction in well material
+                eq -= λm_f*(T[cell] - T[self_cell])
+            end
         end
     end
 
