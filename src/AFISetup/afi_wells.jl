@@ -37,8 +37,6 @@ function setup_wells(d::AFIInputFile, reservoir)
     else
         ntg = missing
     end
-    net_to_gross(ntg, c) = reservoir[:net_to_gross][c]
-    net_to_gross(::Missing, c) = 1.0
     # Set up mappings
     mesh = physical_representation(reservoir)
     # IJK indices
@@ -103,7 +101,7 @@ function setup_wells(d::AFIInputFile, reservoir)
             dir = dir,
             WI = WI,
             Kh = Kh,
-            net_to_gross = map(i -> net_to_gross(ntg, i), cells_mapped),
+            net_to_gross = ntg,
             # drainage_radius = drainage_radius,
             radius = r,
             reference_depth = v["ref_depth"],
@@ -113,8 +111,7 @@ function setup_wells(d::AFIInputFile, reservoir)
         if ismissing(compnames)
             compnames = map(i -> "COMPLETION_$i", cells)
         end
-        pprm = w.perforation_parameters
-        pprm[:names] = compnames[active]
+        w[:perforation_names, JutulDarcy.Perforations()] = compnames[active]
         push!(wells, w)
     end
     return wells
