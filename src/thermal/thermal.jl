@@ -244,19 +244,24 @@ Jutul.variable_scale(::WellIndicesThermal) = 1.0
 Jutul.associated_entity(::WellIndicesThermal) = Perforations()
 
 function Jutul.default_parameter_values(data_domain, model, param::WellIndicesThermal, symb)
-    well = physical_representation(data_domain)
+
     WIt = copy(data_domain[:thermal_well_index, Perforations()])
     dims = data_domain[:cell_dims, Perforations()]
     thermal_conductivity = data_domain[:thermal_conductivity, Perforations()]
-    thermal_conductivity_casing = data_domain[:thermal_conductivity_casing, Perforations()]
-    thermal_conductivity_grout = data_domain[:thermal_conductivity_grout, Perforations()]
-    grouting_thickness = data_domain[:grouting_thickness, Perforations()]
     direction = data_domain[:perforation_direction, Perforations()]
     radius = data_domain[:perforation_radius, Perforations()]
-    casing_thickness = data_domain[:casing_thickness, Cells()]
     gdim = size(data_domain[:cell_centroids, Cells()], 1)
+
+    # These are defined per cell, map to perforations
+    well = physical_representation(data_domain)
+    ic = well.perforations.self
+
+    thermal_conductivity_casing = data_domain[:thermal_conductivity_casing, Cells()][ic]
+    thermal_conductivity_grout = data_domain[:thermal_conductivity_grout, Cells()][ic]
+    casing_thickness = data_domain[:casing_thickness, Cells()][ic]
+    grouting_thickness = data_domain[:grouting_thickness, Cells()][ic]
+
     for (i, val) in enumerate(WIt)
-        cell = well.perforations.self[i]
         defaulted = !isfinite(val)
         if defaulted
             Δ = dims[i]

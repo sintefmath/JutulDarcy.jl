@@ -61,9 +61,6 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         WIth = missing,
         volumes = missing,
         thermal_conductivity = missing,
-        void_fraction = 1.0,
-        material_heat_capacity = 420.0,
-        material_density = 8000.0,
         material_thermal_conductivity = 0.0,
         thermal_conductivity_casing = 20.0,
         thermal_conductivity_grout = 2.3,
@@ -137,7 +134,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         well_cell_centers = copy(well_cell_centers)
     end
     closest_reservoir_cell_to_well_cell = Int[]
-    for i in 1:size(well_cell_centers, 2)
+    for i in axes(well_cell_centers, 2)
         dists = vec(norm.(eachcol(perforation_centers .- well_cell_centers[:, i]), 2))
         push!(closest_reservoir_cell_to_well_cell, findmin(dists)[2])
     end
@@ -165,7 +162,6 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     Wdomain[:Kh, p] = Kh
     Wdomain[:skin, p] = skin
     Wdomain[:perforation_radius, p] = radius
-    Wdomain[:grouting_thickness, p] = grouting_thickness
     Wdomain[:well_index, p] = WI
     Wdomain[:perforation_centroids, p] = perforation_centers
     Wdomain[:drainage_radius, p] = drainage_radius
@@ -192,19 +188,15 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     # Centers
     Wdomain[:cell_centroids, c] = well_cell_centers
     # Geometry
-    Wdomain[:void_fraction, c] = void_fraction
     Wdomain[:volume_multiplier, c] = volume_multiplier
     Wdomain[:casing_thickness, c] = casing_thickness
+    Wdomain[:grouting_thickness, c] = grouting_thickness
+    Wdomain[:thermal_conductivity_casing, c] = thermal_conductivity_casing
+    Wdomain[:thermal_conductivity_grout, c] = thermal_conductivity_grout
 
     # ## Thermal well props
-    # ### Ncells:
-    Wdomain[:material_heat_capacity, c] = material_heat_capacity
-    Wdomain[:material_density, c] = material_density
     # ### Perforations
-    # thermal_conductivity
     Wdomain[:thermal_well_index, p] = WIth
-    Wdomain[:thermal_conductivity_casing, p] = thermal_conductivity_casing
-    Wdomain[:thermal_conductivity_grout, p] = thermal_conductivity_grout
     # Perforation properties taken from reservoir
     perf_subset(x::AbstractVector) = x[reservoir_cells]
     perf_subset(x::AbstractMatrix) = x[:, reservoir_cells]
@@ -404,23 +396,26 @@ function update_before_step_well!(well_state, well_model, res_state, res_model, 
 end
 
 function domain_fluid_volume(d::DataDomain, grid::WellDomain)
-    void = d[:void_fraction, Cells()]
-    return domain_bulk_volume(d, grid).*void
+    return domain_bulk_volume(d, grid, outer_boundary = :hole)
 end
 
-function domain_bulk_volume(d::DataDomain, grid::WellDomain)
+function domain_bulk_volume(d::DataDomain, grid::WellDomain; outer_boundary = :grouting)
     if haskey(d, :volume_override)
         vols = d[:volume_override, Cells()]
     else
+        case_thickness = d[:casing_thickness, Cells()]
+        grouting_thickness = d[:grouting_thickness, Cells()]
         mult = d[:volume_multiplier, Cells()]
         if grid isa MultiSegmentWell
-            r = d[:radius, Cells()]
+            hole_radius = d[:radius, Cells()]
+            r = well_bulk_volume_radius(hole_radius, case_thickness, grouting_thickness, outer_boundary = outer_boundary)
             L = d[:cell_length, Cells()]
             vols = mult.*(π .* r.^2 .* L)
         else
             # Simple wells are not segmented, so sum over perforations instead
             grid::SimpleWell
-            r = d[:perforation_radius, Perforations()]
+            ic = grid.perforations.self
+            r = well_bulk_volume_radius(d[:perforation_radius, Perforations()], case_thickness[ic], grouting_thickness[ic], outer_boundary = outer_boundary)
             cdims = d[:cell_dims, Perforations()]
             dir = d[:perforation_direction, Perforations()]
             L = length_from_cell_dims.(cdims, dir)
@@ -428,6 +423,19 @@ function domain_bulk_volume(d::DataDomain, grid::WellDomain)
         end
     end
     return vols
+end
+
+function well_bulk_volume_radius(r_h, r_c, r_g; outer_boundary::Symbol)
+    if outer_boundary == :hole
+        r = r_h
+    elseif outer_boundary == :casing
+        r = r_h .+ r_c
+    elseif outer_boundary == :grouting
+        r = r_h .+ r_c .+ r_g
+    else
+        error("Invalid outer_boundary: $outer_boundary, must be :hole, :casing or :grouting.")
+    end
+    return r
 end
 
 # Well segments

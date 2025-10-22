@@ -195,11 +195,11 @@ function compute_well_thermal_index(Δ, thermal_conductivity, radius::Float64, d
         thermal_conductivity_grout::Float64 = 2.3,
     )
 
-    @assert radius > 0.0 "Well radius must be positive."
-    @assert 0.0 <= casing_thickness < radius "Casing thickness must be non-negative and less than outer radius."
-    @assert grouting_thickness >= 0.0 "Grouting thickness must be non-negative."
-    @assert thermal_conductivity_casing > 0.0 "Thermal conductivity casing must be positive."
-    @assert thermal_conductivity_grout > 0.0 "Thermal conductivity grout must be positive."
+    radius > 0.0 || error("Well radius must be positive.")
+    0.0 <= casing_thickness < radius || error("Casing thickness must be non-negative and less than outer radius.")
+    grouting_thickness >= 0.0 || error("Grouting thickness must be non-negative.")
+    thermal_conductivity_casing > 0.0 || error("Thermal conductivity casing must be positive.")
+    thermal_conductivity_grout > 0.0 || error("Thermal conductivity grout must be positive.")
 
     ro = radius
     U = 0.0
@@ -207,11 +207,11 @@ function compute_well_thermal_index(Δ, thermal_conductivity, radius::Float64, d
     if casing_thickness > 0.0
         ri = ro - casing_thickness
         λc = thermal_conductivity_casing
-        U += log(ri/ro)/λc
+        U += log(ro/ri)/λc
     end
     # Conduction through grouting
     if grouting_thickness > 0.0
-        rg = ri + casing_thickness + grouting_thickness
+        rg = ro + grouting_thickness
         λg = thermal_conductivity_grout
         U += log(rg/ro)/λg
     end
