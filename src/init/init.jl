@@ -1038,8 +1038,14 @@ function swcon_and_swmax_for_cells(model::MultiModel, arg...)
 end
 
 function swcon_and_swmax_for_cells(model, cells = 1:number_of_cells(model.domain))
-    kr = model[:RelativePermeabilities]
-    return swcon_and_swmax_for_cells(model, kr, cells)
+    kr = get_variable(model, :RelativePermeabilities)
+    if isnothing(kr)
+        nc = length(cells)
+        out = (zeros(nc), ones(nc))
+    else
+        out = swcon_and_swmax_for_cells(model, kr, cells)
+    end
+    return out
 end
 
 function swcon_and_swmax_for_cells(model, kr, cells)
