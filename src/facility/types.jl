@@ -93,6 +93,7 @@ function Jutul.default_parameter_values(data_domain, model, param::WellIndices, 
     skin = data_domain[:skin, Perforations()]
     Kh = data_domain[:Kh, Perforations()]
     radius = data_domain[:perforation_radius, Perforations()]
+    drainage_radius = data_domain[:drainage_radius, Perforations()]
     gdim = size(data_domain[:cell_centroids, Cells()], 1)
     for (i, val) in enumerate(WI)
         defaulted = !isfinite(val)
@@ -109,7 +110,8 @@ function Jutul.default_parameter_values(data_domain, model, param::WellIndices, 
             WI[i] = compute_peaceman_index(Δ, K, r, dir;
                 skin = skin[i],
                 Kh = Kh[i],
-                net_to_gross = net_to_gross[i]
+                net_to_gross = net_to_gross[i],
+                drainage_radius = drainage_radius[i]
             )
         end
     end
