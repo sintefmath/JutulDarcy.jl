@@ -217,7 +217,7 @@ function compute_well_thermal_index(Δ, thermal_conductivity, radius::Float64, d
     end
     # Conduction into reservoir
     λr = thermal_conductivity
-    WIth0 = compute_peaceman_index(Δ, λr, ro, dir; constant = 2*0.14)
+    WIth0 = compute_peaceman_index(Δ, λr, ro + grouting_thickness, dir; constant = 2*0.14)
     L = length_from_cell_dims(Δ, dir)
     U += 1/(WIth0/(2π*L))
     #TODO: Implement flow-dependent conduction from bulk flow to pipe wall
