@@ -16,8 +16,8 @@ function setup_wells(d::AFIInputFile, reservoir)
     well_kws = find_records(d, "Well", "FM", steps = true, model = true)
     for well_kw in well_kws
         val = well_kw.value
-        wname = val["name"]
         if haskey(val, "BottomHoleRefDepth")
+            wname = val["name"]
             newval = val["BottomHoleRefDepth"]
             oldval = well_dict[wname]["ref_depth"]
             if isnothing(oldval)
