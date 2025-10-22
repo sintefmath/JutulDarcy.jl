@@ -359,6 +359,7 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
     end
     if ismissing(W)
         W = setup_well(domain, wc;
+            volume_multiplier = 20,
             name = Symbol(wname),
             WI = data[:well_index],
             dir = data[:dir],
