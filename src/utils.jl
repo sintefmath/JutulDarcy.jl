@@ -173,50 +173,6 @@ function reservoir_system(flow::MultiPhaseSystem; kwarg...)
     reservoir_system(;flow = flow, kwarg...)
 end
 
-# """
-#     well_domain(w::SimpleWell; kwarg...)
-#     well_domain(w::MultiSegmentWell; kwarg...)
-#     well_domain(w::DataDomain; kwarg...)
-
-# Set up a `DataDomain` instance for a well
-# """
-# function well_domain(w::SimpleWell; kwarg...)
-#     return DataDomain(w; kwarg...)
-# end
-
-# function well_domain(w::MultiSegmentWell; kwarg...)
-
-#     nf = number_of_faces(w)
-#     nc = number_of_cells(w)
-
-#     # Well material properties
-#     λm = w.material_thermal_conductivity
-#     λm = (length(λm) == nf) ? λm : fill(λm, nf)
-    
-#     ρ = w.material_density
-#     ρ = (length(ρ) == nc) ? ρ : fill(ρ, nc)
-        
-#     C = w.material_heat_capacity
-#     C = (length(C) == nc) ? C : fill(C, nc)
-
-#     ϕ = w.void_fraction
-#     ϕ = (length(ϕ) == nc) ? ϕ : fill(ϕ, nc)
-    
-#     wd = DataDomain(w;
-#         material_thermal_conductivity = (λm, Faces()),
-#         material_density = (ρ, Cells()),
-#         material_heat_capacity = (C, Cells()),
-#         void_fraction = (ϕ, Cells()),
-#         kwarg...
-#     )
-#     return wd
-
-# end
-
-# function well_domain(w::DataDomain; kwarg...)
-#     return w
-# end
-
 export get_model_wells
 
 function get_model_wells(case::JutulCase; data_domain = false)
