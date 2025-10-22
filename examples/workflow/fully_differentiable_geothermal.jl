@@ -8,7 +8,7 @@
 #    generic optimization interface that allows for optimizing any input
 #    parameter used in the setup of a model.
 # ## Load packages and define units
-using Jutul, JutulDarcy, HYPRE, GeoEnergyIO, GLMakie
+using Jutul, JutulDarcy, HYPRE, GLMakie
 meter, kilogram, bar, year, liter, second, darcy, day = si_units(:meter, :kilogram, :bar, :year, :liter, :second, :darcy, :day)
 
 # ## Set up the reservoir mesh
@@ -116,7 +116,7 @@ prod_well = setup_vertical_well(domain, nx - 5, 1,
     simple_well = false
 )
 
-model_base, = setup_reservoir_model(
+model_base = setup_reservoir_model(
     domain, :geothermal,
     wells = [inj_well, prod_well],
 );
@@ -295,7 +295,7 @@ fig
 # parameterization could lead to good match in terms of the objective function,
 # even without good match for the spatial distribution.
 step = 80
-cmap = :heat
+cmap = reverse(to_colormap(:heat))
 fig = Figure(size = (1200, 400))
 ax = Axis3(fig[1, 1], title = "Truth")
 plot_cell_data!(ax, rmesh, states[step][:Temperature] .- 273.15, colorrange = (10.0, 100.0), colormap = cmap)
@@ -373,7 +373,7 @@ case_opt_ctrl = setup_doublet_case(prm_opt_ctrl)
 ws_opt_ctrl, states_opt_ctrl = simulate_reservoir(case_opt_ctrl)
 # ### Plot the distribution of temperature with and without optimization
 step = 80
-cmap = :heat
+cmap = reverse(to_colormap(:heat))
 fig = Figure(size = (1000, 400))
 ax = Axis3(fig[1, 1], title = "Base case")
 plot_cell_data!(ax, rmesh, states[step][:Temperature] .- 273.15, colorrange = (10.0, 100.0), colormap = cmap)

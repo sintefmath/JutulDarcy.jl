@@ -35,7 +35,7 @@ end
 
 step_times = cumsum(case.dt)
 total_time = step_times[end]
-function mismatch_objective(m, s, dt, step_info, forces)
+function mismatch_objective_p(m, s, dt, step_info, forces)
     t = step_info[:time] + dt
     step = findmin(x -> abs(x - t), step_times)[2]
     p = s[:Reservoir][:Pressure]
@@ -50,7 +50,7 @@ end
 prm = Dict("poro" => x_truth .+ 0.25)
 dprm = setup_reservoir_dict_optimization(prm, F)
 free_optimization_parameter!(dprm, "poro", abs_max = 1.0, abs_min = 0.1)
-prm_opt = optimize_reservoir(dprm, mismatch_objective);
+prm_opt = optimize_reservoir(dprm, mismatch_objective_p);
 dprm
 # ## Plot the optimization history
 using GLMakie
@@ -96,7 +96,7 @@ prm = Dict(
 # can use this as the lumping parameter directly.
 perm_opt = setup_reservoir_dict_optimization(prm, F_perm)
 free_optimization_parameter!(perm_opt, "perm", rel_min = 0.1, rel_max = 10.0, lumping = layerno)
-perm_tuned = optimize_reservoir(perm_opt, mismatch_objective);
+perm_tuned = optimize_reservoir(perm_opt, mismatch_objective_p);
 perm_opt
 # ### Plot the recovered permeability
 first_entry = map(i -> findfirst(isequal(i), layerno), 1:3)
@@ -129,7 +129,7 @@ fig
 # permeability, porosity and well indices.
 dprm_case = setup_reservoir_dict_optimization(case)
 free_optimization_parameters!(dprm_case)
-dprm_grad = parameters_gradient_reservoir(dprm_case, mismatch_objective);
+dprm_grad = parameters_gradient_reservoir(dprm_case, mismatch_objective_p);
 # ## Plot the gradient of the mismatch objective with respect to the porosity
 # We see, as expected, that the gradient is largest in magnitude around the
 # wells and near the front of the displacement.

@@ -44,10 +44,6 @@ end
     include("thermal.jl")
 end
 
-@testitem "Geothermal" begin
-    include("geothermal.jl")
-end
-
 @testitem "NLDD" begin
     include("nldd.jl")
 end
@@ -82,6 +78,10 @@ end
 
 @testitem "GPU" begin
     include("gpu.jl")
+end
+
+@testitem "Well constructors" begin
+    include("well_constructor.jl")
 end
 
 @run_package_tests

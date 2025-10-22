@@ -168,7 +168,7 @@ push!(w, (1/80)*day)
 push!(matches, orat)
 push!(w, (1/50)*day)
 
-wnames = map(x -> x.name, wells)
+wnames = map(x -> physical_representation(x).name, wells)
 o_scale = 1.0/(sum(dt)*length(wnames))
 mismatch_objective = (model, state, dt, step_info, forces) -> well_mismatch(
     matches,

@@ -173,54 +173,10 @@ function reservoir_system(flow::MultiPhaseSystem; kwarg...)
     reservoir_system(;flow = flow, kwarg...)
 end
 
-"""
-    well_domain(w::SimpleWell; kwarg...)
-    well_domain(w::MultiSegmentWell; kwarg...)
-    well_domain(w::DataDomain; kwarg...)
-
-Set up a `DataDomain` instance for a well
-"""
-function well_domain(w::SimpleWell; kwarg...)
-    return DataDomain(w; kwarg...)
-end
-
-function well_domain(w::MultiSegmentWell; kwarg...)
-
-    nf = number_of_faces(w)
-    nc = number_of_cells(w)
-
-    # Well material properties
-    λm = w.material_thermal_conductivity
-    λm = (length(λm) == nf) ? λm : fill(λm, nf)
-    
-    ρ = w.material_density
-    ρ = (length(ρ) == nc) ? ρ : fill(ρ, nc)
-        
-    C = w.material_heat_capacity
-    C = (length(C) == nc) ? C : fill(C, nc)
-
-    ϕ = w.void_fraction
-    ϕ = (length(ϕ) == nc) ? ϕ : fill(ϕ, nc)
-    
-    wd = DataDomain(w;
-        material_thermal_conductivity = (λm, Faces()),
-        material_density = (ρ, Cells()),
-        material_heat_capacity = (C, Cells()),
-        void_fraction = (ϕ, Cells()),
-        kwarg...
-    )
-    return wd
-
-end
-
-function well_domain(w::DataDomain; kwarg...)
-    return w
-end
-
 export get_model_wells
 
-function get_model_wells(case::JutulCase)
-    return get_model_wells(case.model)
+function get_model_wells(case::JutulCase; data_domain = false)
+    return get_model_wells(case.model; data_domain = data_domain)
 end
 
 """
@@ -228,11 +184,16 @@ end
 
 Get a `OrderedDict` containing all wells in the model or simulation case.
 """
-function get_model_wells(model::MultiModel)
+function get_model_wells(model::MultiModel; data_domain = false)
     wells = OrderedDict{Symbol, Any}()
     for (k, m) in pairs(model.models)
         if model_or_domain_is_well(m)
-            wells[k] = physical_representation(m.data_domain)
+            wd = m.data_domain
+            if data_domain
+                wells[k] = wd
+            else
+                wells[k] = physical_representation(wd)
+            end
         end
     end
     return wells
@@ -264,8 +225,9 @@ function reservoir_system(; flow = missing, thermal = missing, kwarg...)
 end
 
 """
-    model, parameters = setup_reservoir_model(reservoir, system; wells = [], <keyword arguments>)
-    model, parameters = setup_reservoir_model(reservoir, system; wells = [w1, w2], backend = :csr, <keyword arguments>)
+    model = setup_reservoir_model(reservoir, system; wells = [], <keyword arguments>)
+    model = setup_reservoir_model(reservoir, system; wells = [w1, w2], backend = :csr, <keyword arguments>)
+    model, parameters = setup_reservoir_model(reservoir, system; extra_out = true, <keyword arguments>)
 
 Set up a reservoir `MultiModel` for a given reservoir `DataDomain` typically set
 up from  [`reservoir_domain`](@ref) and an optional vector of wells that are
@@ -281,7 +243,7 @@ reservoir and that facility.
 
 - `wells=[]`: Vector of wells (e.g. from [`setup_well`](@ref)) that are to be
   used in the model. Each well must have a unique name.
-- `extra_out=true`: Return both the model and the parameters instead of just the
+- `extra_out=false`: Return both the model and the parameters instead of just the
   model.
 - `thermal = false`: Add additional equations for conservation of energy and
   temperature as a primary variable.
@@ -387,7 +349,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         extra_outputs = [:LiquidMassFractions, :VaporMassFractions, :Rs, :Rv, :Saturations],
         split_wells = false,
         assemble_wells_together = true,
-        extra_out = true,
+        extra_out = false,
         dp_max_abs = nothing,
         dp_max_rel = 0.2,
         dp_max_abs_well = convert_to_si(50, :bar),
@@ -498,9 +460,17 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     models[:Reservoir] = rmodel
     # Then we set up all the wells
     mode = PredictionMode()
+    encountered_wells = Dict{Symbol, Bool}()
     if length(wells) > 0
         facility_to_add = OrderedDict()
-        for (well_no, w) in enumerate(wells)
+        for (well_no, w_domain) in enumerate(wells)
+            w_domain::DataDomain
+            w = physical_representation(w_domain)
+            wname = w.name::Symbol
+            if haskey(encountered_wells, wname)
+                throw(ArgumentError("Well with name $wname encountered multiple times. Each well must have a unique name."))
+            end
+            encountered_wells[wname] = true
             if ismissing(wells_systems)
                 wsys = system
             else
@@ -511,15 +481,12 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             else
                 well_context = context
             end
-            w_domain = well_domain(w)
-            wc = w.perforations.reservoir
             c = map_well_nodes_to_reservoir_cells(w, reservoir)
             for propk in [:temperature, :pvtnum]
                 if haskey(reservoir, propk)
                     w_domain[propk] = reservoir[propk][c]
                 end
             end
-            wname = w.name
             wmodel = SimulationModel(w_domain, system, context = well_context)
             if thermal
                 wmodel = add_thermal_to_model!(wmodel)
@@ -554,7 +521,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
                 models[k] = v
             end
         else
-            wg = WellGroup(map(x -> x.name, wells), can_shut_wells = can_shut_wells)
+            wg = WellGroup(map(x -> physical_representation(x).name, wells), can_shut_wells = can_shut_wells)
             F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
             if thermal
                 add_thermal_to_facility!(F)
@@ -609,7 +576,7 @@ that is initialized to one for each cell.
 """
 function setup_reservoir_model(reservoir::Union{DataDomain, Missing, Nothing}, model_template::MultiModel;
         wells = [],
-        extra_out = true,
+        extra_out = false,
         thermal = model_is_thermal(model_template),
         reservoir_only = missing,
         parameters = missing,
@@ -683,9 +650,11 @@ function setup_reservoir_model(reservoir::Union{DataDomain, Missing, Nothing}, m
         #    FluidVolume since that is strictly speaking a rock property. Other
         #    exceptions could be added to this list.
         for well in wells
-            well::WellDomain
-            wname = well.name
-            wtype = typeof(well)
+            well::DataDomain
+            wdomain = physical_representation(well)
+            wdomain::WellDomain
+            wname = wdomain.name
+            wtype = typeof(wdomain)
             if haskey(wells_by_name, wname)
                 template = wells_by_name[wname]
                 by_name = welltype(template) == wtype
@@ -862,15 +831,27 @@ end
 - `max_timestep=si_unit(:year)`: Maximum internal timestep used in solver.
 - `min_timestep=0.0`: Minimum internal timestep used in solver.
 
-## Convergence criterions (mass conservation)
+## Convergence criterions
+The main numerical tolerances that govern the accuracy of the simulation. The
+default values are quite strict and can be relaxed for faster simulation. The
+main tolerance to adjust is the `tol_cnv` value, which is the maximum point-wise
+error allowed for the volume balance. The mass-balance tolerance (`tol_mb`) is
+typically much smaller and should not be adjusted unless you have a very good
+reason to do so.
+
+Pressure tolerances are at the moment only implemented for compositional and
+pressure models. The default value is `Inf` for compositional, and sensible
+values for pressure models.
+
+### Mass conservation
 - `tol_cnv=1e-3`: maximum allowable point-wise error (volume-balance)
 - `tol_mb=1e-7`: maximum alllowable integrated error (mass-balance)
 - `tol_cnv_well=10*tol_cnv`: maximum allowable point-wise error for well node
   (volume-balance)
 - `tol_mb_well=1e4*tol_mb`: maximum alllowable integrated error for well node
   (mass-balance)
-- `inc_tol_dp_abs=Inf`: Maximum allowable pressure change (absolute)
-- `inc_tol_dp_rel=Inf`: Maximum allowable pressure change (relative)
+- `inc_tol_dp_abs=missing`: Maximum allowable pressure change (absolute)
+- `inc_tol_dp_rel=missing`: Maximum allowable pressure change (relative)
 - `inc_tol_dz=Inf`: Maximum allowable composition change (compositional only).
 
 ## Convergence criterions (energy conservation)
@@ -932,8 +913,8 @@ function setup_reservoir_simulator(case::JutulCase;
         tol_cnv_well = 10*tol_cnv,
         tol_mb_well = 1e4*tol_mb,
         tol_dp_well = 1e-3,
-        inc_tol_dp_abs = Inf,
-        inc_tol_dp_rel = Inf,
+        inc_tol_dp_abs = missing,
+        inc_tol_dp_rel = missing,
         inc_tol_dz = Inf,
         tol_cnve = tol_cnv,
         tol_eb = tol_mb,
@@ -945,11 +926,12 @@ function setup_reservoir_simulator(case::JutulCase;
         timesteps = :auto,
         relaxation = false,
         presolve_wells = false,
-        parray_arg = Dict{Symbol, Any}(),
         set_linear_solver = missing,
-        linear_solver_arg = Dict{Symbol, Any}(),
+        transport_scheme = :ppu,
         extra_timing_setup = false,
         nldd_partition = missing,
+        linear_solver_arg = Dict{Symbol, Any}(),
+        parray_arg = Dict{Symbol, Any}(),
         nldd_arg = Dict{Symbol, Any}(),
         kwarg...
     )
@@ -969,6 +951,11 @@ function setup_reservoir_simulator(case::JutulCase;
         # Single-process solve
         if method == :newton
             sim = Simulator(case; sim_kwarg...)
+        elseif method == :sequential || method == :si || method == :sfi
+            if method == :si || method == :sfi
+                extra_kwarg[:sfi] = method == :sfi
+            end
+            sim = JutulDarcy.Sequential.SequentialSimulator(case; transport_scheme = transport_scheme, sim_kwarg...)
         else
             extra_kwarg[:method] = method
             sim = NLDD.NLDDSimulator(case, nldd_partition; nldd_arg..., sim_kwarg...)
@@ -1168,15 +1155,35 @@ function set_default_cnv_mb_inner!(tol, model;
         tol_mb_well = 1e-3,
         tol_cnv_well = 1e-2,
         tol_dp_well = 1e-3,
-        inc_tol_dp_abs = Inf,
-        inc_tol_dp_rel = Inf,
         inc_tol_dz = Inf,
         tol_cnve = tol_cnv,
         tol_eb = tol_mb,
         tol_cnve_well = 10*tol_cnve,
         tol_eb_well = 1e4*tol_eb,
+        inc_tol_dp_rel = missing,
+        inc_tol_dp_abs = missing,
         inc_tol_dT = Inf,
-        )
+    )
+    is_pressure_model = haskey(model.equations, :pressure)
+    if is_pressure_model
+        label = :pressure
+    else
+        label = :mass_conservation
+    end
+    if ismissing(inc_tol_dp_abs)
+        if is_pressure_model
+            inc_tol_dp_abs = 0.1 # 0.1 MPa = 1 bar
+        else
+            inc_tol_dp_abs = Inf
+        end
+    end
+    if ismissing(inc_tol_dp_rel)
+        if is_pressure_model
+            inc_tol_dp_rel = 1e-3
+        else
+            inc_tol_dp_rel = Inf
+        end
+    end
     sys = model.system
     if model isa Jutul.CompositeModel && hasproperty(model.system.systems, :flow)
         sys = flow_system(model.system)
@@ -1196,6 +1203,7 @@ function set_default_cnv_mb_inner!(tol, model;
             cnv, cnve = tol_cnv, tol_cnv
             mb, eb = tol_mb, tol_eb
         end
+
         tol[:mass_conservation] = (
             CNV = cnv,
             MB = mb,
@@ -1250,20 +1258,19 @@ function setup_reservoir_cross_terms!(model::MultiModel)
         else
             g = physical_representation(m.domain)
             if g isa WellDomain
-                WI = vec(g.perforations.WI)
+                # WI = vec(g.perforations.WI)
                 rc = vec(g.perforations.reservoir)
                 wc = vec(g.perforations.self)
                 # Put these over in cross term
                 if has_flow
-                    ct = ReservoirFromWellFlowCT(WI, rc, wc)
+                    ct = ReservoirFromWellFlowCT(rc, wc)
                     add_cross_term!(model, ct, target = :Reservoir, source = k, equation = conservation)
                 end
                 if has_thermal
-                    WIth = vec(g.perforations.WIth)
-                    ct = ReservoirFromWellThermalCT(WIth, WI, rc, wc)
+                    ct = ReservoirFromWellThermalCT(rc, wc)
                     add_cross_term!(model, ct, target = :Reservoir, source = k, equation = energy)
                 end
-                is_closed_loop = g isa MultiSegmentWell && 
+                is_closed_loop = g isa MultiSegmentWell &&
                     m.data_domain.representation.type == :closed_loop
                 if is_closed_loop
                     # TODO: Avoid hard-coded index for BTES bottom cell
@@ -1288,11 +1295,9 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                     add_cross_term!(model, ct_energy, target = return_well, source = supply_well, equation = energy)
 
                     if haskey(g.perforations, :WIth_grout)
-                        WIth_grout = vec(g.perforations.WIth_grout)
-                        ct_grout = JutulDarcy.BTESWellGroutEnergyCT(WIth_grout, wc, wc_return)
+                        ct_grout = JutulDarcy.BTESWellGroutEnergyCT(wc, wc_return)
                         add_cross_term!(model, ct_grout, target = return_well, source = supply_well, equation = energy)
                     end
-                    
                     push!(handled_closed_loops, cl_name)
                 end
             end
@@ -1394,7 +1399,9 @@ function setup_reservoir_forces(model::MultiModel;
     )
     submodels = model.models
     has_facility = any(x -> isa(x.domain, WellGroup), values(submodels))
-    no_well_controls = isnothing(control) && isnothing(limits)
+    has_no_controls = isnothing(control) || isempty(control)
+    has_no_limits = isnothing(limits) || isempty(limits)
+    no_well_controls = has_no_controls && has_no_limits
     if !isnothing(bc) && !(bc isa AbstractVector)
         bc = [bc]
     end
@@ -1402,7 +1409,7 @@ function setup_reservoir_forces(model::MultiModel;
         sources = [sources]
     end
     reservoir_forces = (bc = bc, sources = sources)
-    @assert no_well_controls || has_facility "Model must have facility when well controls are provided."
+    (no_well_controls || has_facility) || error("Model must have facility when well controls are provided.")
     if haskey(submodels, :Facility)
         # Unified facility for all wells
         facility = model.models.Facility
@@ -2541,7 +2548,7 @@ function reservoir_measurables(model, wellresult, states = missing;
         if use_prefix
             name = Symbol(prefix, name)
         end
-        out[name] = (values = values, legend = "$prefix_str legend", unit_type = unit, is_rate = is_rate)
+        out[name] = (values = values, legend = "$prefix_str $legend", unit_type = unit, is_rate = is_rate)
         return values
     end
     # Production of different types
@@ -2760,4 +2767,69 @@ function set_rock_compressibility!(model; reference_pressure = 1*si_unit(:atm), 
     end
     set_secondary_variables!(model, FluidVolume = pv)
     return model
+end
+
+function reservoir_fluxes(model::SimulationModel, states::AbstractVector, kind = :volumetric; kwarg...)
+    return map(x -> reservoir_fluxes(model, x, kind; kwarg...), states)
+end
+
+function reservoir_fluxes(model::MultiModel, state_or_states, kind = :volumetric;
+        parameters = setup_parameters(model),
+        simulator = missing,
+        kwarg...
+    )
+    function get_rstate(x)
+        if haskey(x, :Reservoir)
+            return x[:Reservoir]
+        else
+            return x
+        end
+    end
+    if state_or_states isa AbstractVector
+        state_or_states = map(get_rstate, state_or_states)
+        single_state = state_or_states[1]
+    else
+        state_or_states = get_rstate(state_or_states)
+        single_state = state_or_states
+    end
+    rmodel = reservoir_model(model)
+    rparam = parameters[:Reservoir]
+    if ismissing(simulator)
+        simulator = HelperSimulator(rmodel, state0 = single_state, parameters = rparam)
+    end
+    return reservoir_fluxes(rmodel, state_or_states, kind; parameters = rparam, simulator = simulator, kwarg...)
+end
+
+function reservoir_fluxes(model, state, kind = :volumetric;
+        parameters = setup_parameters(model),
+        total = false,
+        internal = true,
+        dt = NaN,
+        forces = setup_forces(model),
+        extra_out = false,
+        simulator = HelperSimulator(model, state0 = state, parameters = parameters)
+    )
+    storage = Jutul.get_simulator_storage(simulator)
+    update_state_dependents!(storage, model, dt, forces; update_secondary = true)
+    if kind == :volumetric
+        is_mass = false
+    elseif kind == :mass
+        is_mass = true
+    else
+        error("Unknown flux kind $kind. Supported kinds are :volumetric and :mass")
+    end
+    internal || error("Boundary fluxes not supported in this function yet, set internal = true to compute internal fluxes")
+    if total
+        V = Sequential.store_total_fluxes(model, storage.state, is_mass)
+    else
+        V = Sequential.store_phase_fluxes(model, storage.state, is_mass)
+    end
+    if extra_out
+        rdomain = reservoir_domain(model)
+        rmesh = physical_representation(rdomain)
+        out = (V, get_neighborship(rmesh))
+    else
+        out = V
+    end
+    return out
 end

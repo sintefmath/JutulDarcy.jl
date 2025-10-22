@@ -15,9 +15,9 @@ function simulate_mini_wellcase(::Val{:compositional_2ph_3c};
     g = CartesianMesh(dims, (2000.0, 1500.0, 50.0))
     domain = reservoir_domain(g, permeability = 1e-13, porosity = 0.1)
     ## Set up a vertical well in the first corner, perforated in all layers
-    prod = setup_vertical_well(domain, nx, 1, name = :Producer, simple_well = simple_well);
+    prod = setup_vertical_well(domain, nx, 1, name = :Producer, simple_well = simple_well, use_top_node = true);
     ## Set up an injector in the upper left corner
-    inj = setup_vertical_well(domain, 1, 1, name = :Injector, simple_well = simple_well);
+    inj = setup_vertical_well(domain, 1, 1, name = :Injector, simple_well = simple_well, use_top_node = true);
 
     co2 = MolecularProperty(0.0440, 7.38e6, 304.1, 9.412e-5, 0.224)
     c1 = MolecularProperty(0.0160, 4.60e6, 190.6, 9.863e-5, 0.011)
@@ -31,7 +31,7 @@ function simulate_mini_wellcase(::Val{:compositional_2ph_3c};
     L, V = LiquidPhase(), VaporPhase()
     # Define system and realize on grid
     sys = MultiPhaseCompositionalSystemLV(eos, (L, V), reference_densities = rhoS)
-    model, parameters = setup_reservoir_model(domain, sys, wells = [inj, prod]; kwarg...);
+    model, parameters = setup_reservoir_model(domain, sys, wells = [inj, prod]; extra_out = true, kwarg...);
     state0 = setup_reservoir_state(model, Pressure = 150*bar, OverallMoleFractions = [0.5, 0.3, 0.2])
 
     dt = fill(total_time/nstep, nstep)
@@ -85,9 +85,9 @@ function simulate_mini_wellcase(::Val{:immiscible_2ph};
     g = CartesianMesh(dims, (2000.0, 1500.0, 50.0))
     domain = reservoir_domain(g, permeability = permeability, porosity = 0.1)
     ## Set up a vertical well in the first corner, perforated in all layers
-    P = setup_vertical_well(domain, 1, 1, name = :Producer, simple_well = simple_well);
+    P = setup_vertical_well(domain, 1, 1, name = :Producer, simple_well = simple_well, use_top_node = true);
     ## Set up an injector in the upper left corner
-    I = setup_well(domain, [(nx, ny, 1)], name = :Injector, simple_well = simple_well);
+    I = setup_well(domain, [(nx, ny, 1)], name = :Injector, simple_well = simple_well, use_top_node = true);
     ## Set up a two-phase immiscible system and define a density secondary variable
     phases = (LiquidPhase(), VaporPhase())
     rhoLS = 1000.0
@@ -97,7 +97,7 @@ function simulate_mini_wellcase(::Val{:immiscible_2ph};
     c = [1e-6/bar, 1e-4/bar]
     ρ = ConstantCompressibilityDensities(p_ref = 1*bar, density_ref = rhoS, compressibility = c)
     ## Set up a reservoir model that contains the reservoir, wells and a facility that controls the wells
-    model, parameters = setup_reservoir_model(domain, sys, wells = [I, P]; kwarg...)
+    model, parameters = setup_reservoir_model(domain, sys, wells = [I, P]; extra_out = true, kwarg...)
     ## Replace the density function with our custom version
     replace_variables!(model, PhaseMassDensities = ρ)
     ## Set up initial state
@@ -158,9 +158,9 @@ function simulate_mini_wellcase(::Val{:bo_spe1};
     Darcy = 9.869232667160130e-13
     domain = reservoir_domain(g, permeability = 0.1*Darcy, porosity = 0.1)
     ## Set up a vertical well in the first corner, perforated in all layers
-    P = setup_vertical_well(domain, 1, 1, name = :Producer, simple_well = simple_well);
+    P = setup_vertical_well(domain, 1, 1, name = :Producer, simple_well = simple_well, use_top_node = true);
     ## Set up an injector in the upper left corner
-    I = setup_well(domain, [(nx, ny, 1)], name = :Injector, simple_well = simple_well);
+    I = setup_well(domain, [(nx, ny, 1)], name = :Injector, simple_well = simple_well, use_top_node = true);
     ## Set up a two-phase immiscible system and define a density secondary variable
     setup = JutulDarcy.blackoil_bench_pvt(:spe1)
     pvt = setup[:pvt]
@@ -171,7 +171,7 @@ function simulate_mini_wellcase(::Val{:bo_spe1};
     sat_table = get_1d_interpolator(pvto_tab.sat_pressure, pvto_tab.rs, cap_end = false)
     sys = StandardBlackOilSystem(rs_max = sat_table, phases = phases, reference_densities = rhoS)
     ## Set up a reservoir model that contains the reservoir, wells and a facility that controls the wells
-    model, parameters = setup_reservoir_model(domain, sys, wells = [I, P]; kwarg...)
+    model, parameters = setup_reservoir_model(domain, sys, wells = [I, P]; extra_out = true, kwarg...)
     ## Set up initial state
     bo = BlackOilX(50.0, JutulDarcy.OilOnly, false)
     state0 = setup_reservoir_state(model, Pressure = 200*bar, ImmiscibleSaturation = 0.1, BlackOilUnknown = bo)

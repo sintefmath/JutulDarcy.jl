@@ -109,7 +109,7 @@ function all_tags()
     descr["CO2"] = "Examples that involve simulation of geological sequestration  of CO2 (carbon storage and sequestration / CCS), or other types of simulations involving CO2."
     descr["Blackoil"] = "Examples that make use of the blackoil model for PVT descriptions."
     descr["Compositional"] = "Examples that make use of the compositional model for PVT descriptions."
-    descr["Geothermal"] = "Examples that simulate recovery and/or storage of heat in the subsurface. See also the dedicated [Fimbul.jl](https://sintefmath.github.io/Fimbul.jl/dev/) module for geothermal simulation with JutulDarcy.jl."
+    descr["Geothermal"] = "Examples that simulate recovery and/or storage of heat in the subsurface. See also the dedicated [Fimbul.jl](https://sintefmath.github.io/Fimbul.jl/dev/) module for geothermal simulation with JutulDarcy.jl where additional advanced examples are provided."
 
     out = OrderedDict()
     colors = to_colormap(:seaborn_muted)

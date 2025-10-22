@@ -1,27 +1,29 @@
-
 import JutulDarcy.Sequential:
     phase_potential_r_index,
     phase_potential_upwind_fixed_flux,
     phase_potential_upwind_potential_differences,
-    sort_tuple
-using Test
+    sort_tuple_indices
+using Test, Jutul, JutulDarcy, HYPRE, LinearAlgebra
+
 @testset "sequential_upwind" begin
     @testset "sort_tuple" begin
-        @test sort_tuple((10.0, 5.0)) == (2, 1)
-        @test sort_tuple((5.0, 10.0)) == (1, 2)
+        @test sort_tuple_indices((10.0, 5.0)) == (2, 1)
+        @test sort_tuple_indices((5.0, 10.0)) == (1, 2)
 
-        combos = [
-            ((1, 2, 3), (1, 2, 3)),
-            ((1, 3, 2), (1, 3, 2)),
-            ((2, 1, 3), (2, 1, 3)),
-            ((2, 3, 1), (3, 1, 2)),
-            ((3, 1, 2), (2, 3, 1)),
-            ((3, 2, 1), (3, 2, 1))
+        tups = [
+            (1, 2, 3),
+            (1, 3, 2),
+            (2, 1, 3),
+            (2, 3, 1),
+            (3, 1, 2),
+            (3, 2, 1)
         ]
 
         vals = [10.0, 50.0, 500.0]
-        for (ix, ref) in combos
-            @test sort_tuple((vals[ix[1]], vals[ix[2]], vals[ix[3]])) == ref
+        for ix in tups
+            V = (vals[ix[1]], vals[ix[2]], vals[ix[3]])
+            ref = sort(eachindex(V), by = i -> V[i])
+            @test sort_tuple_indices(V) == Tuple(ref)
         end
     end
 
@@ -35,27 +37,26 @@ using Test
 
     simple_upwind(l, r, flag) = ifelse(flag, r, l)
 
-    function test_flux(q, K, g_ph, mob_l, mob_r; print = false)
-        flags = phase_potential_upwind_fixed_flux(q, K, g_ph, mob_l, mob_r, print)
+    function test_flux(q, K, g_ph, mob_l, mob_r)
+        flags = phase_potential_upwind_fixed_flux(q, K, g_ph, mob_l, mob_r)
         N = length(g_ph)
         vals = Float64[]
-        for i in 1:N
+        mobT = 0.0
+        upw(flag, ph) = ifelse(flag, mob_r[ph], mob_l[ph])
+        for l in 1:N
             val = q
+            mobT += upw(flags[l], l)
             for j in 1:N
-                if i != j
-                    if flags[j]
-                        mob = mob_l[j]
-                    else
-                        mob = mob_r[j]
-                    end
-                    val += K*(g_ph[i] - g_ph[j])*mob
+                if l != j
+                    mob = upw(flags[j], j)
+                    val += K*(g_ph[l] - g_ph[j])*mob
                 end
             end
             push!(vals, val)
         end
         vals2 = phase_potential_upwind_potential_differences(q, K, g_ph, mob_l, mob_r)
 
-        vals = vals2
+        # vals = vals2
         # @test vals == vals2
         for (i, val) in enumerate(vals)
             if val > 0
@@ -129,5 +130,53 @@ using Test
                 end
             end
         end
+    end
+end
+
+##
+@testset "Sequential interface" begin+
+    file_path = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1", "SPE1.DATA")
+    case = setup_case_from_data_file(file_path, 
+        extra_outputs = [:PhaseMobilities, :PhaseMassDensities, :SurfaceVolumeMobilities, :Rs]
+    )
+    r_seq = simulate_reservoir(case,
+        method = :sequential,
+        target_ds = 0.1,
+        info_level = -1
+    );
+    ix = length(r_seq.states)
+    state = r_seq.states[ix]
+    state = deepcopy(state)
+    state = merge!(state, case.parameters[:Reservoir])
+    state[:TotalSaturation] .= 1.0
+    state = JutulStorage(state)
+    rmodel = reservoir_model(case.model)
+    nf = number_of_faces(rmodel.domain)
+    neighbors = rmodel.data_domain[:neighbors]
+    nph = number_of_phases(rmodel.system)
+
+    v_total = JutulDarcy.Sequential.store_total_fluxes(rmodel, state)
+    state[:TotalVolumetricFlux] = v_total
+    faces = 1:nf
+    flux = zeros(nph, length(faces))
+    flux_s = zeros(nph, length(faces))
+    for (i, face) in enumerate(faces)
+        l, r = neighbors[:, face]
+        q = Jutul.StaticArrays.@MVector zeros(3)
+        flux_type = Jutul.DefaultFlux()
+        flux_type_s = JutulDarcy.Sequential.TotalSaturationFlux()
+        upw = Jutul.SPU(l, r)
+        kgrad = Jutul.TPFA(l, r, 1)
+        flux[:, i] = JutulDarcy.component_mass_fluxes!(q, face, state, rmodel, flux_type, kgrad, upw)
+        flux_s[:, i] = JutulDarcy.component_mass_fluxes!(q, face, state, rmodel, flux_type_s, kgrad, upw)
+    end
+
+    for ph in 1:nph
+        f = flux[ph, :]
+        err_scaled = abs.(f - flux_s[ph, :])/norm(f, 2)
+        err = norm(err_scaled, 2)
+        @test err < 1e-14
+        # ix = findmax(err_scaled)[2]
+        # println("Phase $ph: rel err = $err (worst value: $(f[ix]) vs $(flux_s[ph, ix]) at face $ix)")
     end
 end

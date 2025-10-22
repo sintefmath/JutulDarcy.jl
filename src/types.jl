@@ -27,6 +27,11 @@ struct MultiPhaseCompositionalSystemLV{E, T, O, R, N} <: CompositionalSystem whe
     reference_phase_index::Int
 end
 
+function MultiPhaseCompositionalSystemLV{R, T, O, D, N}(phases, c, equation_of_state, reference_densities) where {R, T, O, D, N}
+    reference_phase_index = get_reference_phase_index(phases)
+    return MultiPhaseCompositionalSystemLV{R, T, O, D, N}(phases, c, equation_of_state, reference_densities, reference_phase_index)
+end
+
 const LVCompositional2PhaseSystem = MultiPhaseCompositionalSystemLV{<:Any, <:Any, Nothing, <:Any, <:Any}
 const LVCompositional3PhaseSystem = MultiPhaseCompositionalSystemLV{<:Any, <:Any, <:AbstractPhase, <:Any, <:Any}
 
@@ -383,22 +388,18 @@ function Base.show(io::IO, w::WellDomain)
         n = "SimpleWell"
     else
         nseg = size(w.neighborship, 2)
-        nn = length(w.volumes)
+        nn = w.num_nodes
         n = "MultiSegmentWell"
     end
     print(io, "$n [$(w.name)] ($(nn) nodes, $(nseg) segments, $(length(w.perforations.reservoir)) perforations)")
 end
-struct SimpleWell{SC, P, V} <: WellDomain where {SC, P}
-    volume::V
+
+struct SimpleWell{SC, P} <: WellDomain where {SC, P}
     perforations::P
     surface::SC
     name::Symbol
     explicit_dp::Bool
-    reference_depth::V
-    "Extra properties to attach to perforations"
-    perforation_parameters::Dict{Symbol, Any}
-    "Extra properties to attach to segments"
-    segment_parameters::Dict{Symbol, Any}
+    # reference_depth::V
 end
 
 """
@@ -421,80 +422,47 @@ function SimpleWell(
         name = :Well,
         explicit_dp = true,
         surface_conditions = default_surface_cond(),
-        reference_depth = 0.0,
-        volume = 1000.0, # Regularization volume for well, not a real volume
-        kwarg...
     )
     nr = length(reservoir_cells)
-    WI, WIth, gdz = common_well_setup(nr; kwarg...)
-    T = promote_type(typeof(reference_depth), typeof(volume), eltype(WI), eltype(WIth), eltype(gdz))
-    reference_depth = convert(T, reference_depth)
-    volume = convert(T, volume)
-    WI = T.(WI)
-    WIth = T.(WIth)
-    gdz = T.(gdz)
-    perf = (self = ones(Int64, nr), reservoir = vec(reservoir_cells), WI = WI, WIth = WIth, gdz = gdz)
+    perf = (self = ones(Int64, nr), reservoir = vec(reservoir_cells))#, WI = WI, WIth = WIth, gdz = gdz)
     return SimpleWell(
-        volume,
         perf,
         surface_conditions,
         name,
-        explicit_dp,
-        reference_depth,
-        Dict{Symbol, Any}(),
-        Dict{Symbol, Any}()
+        explicit_dp
     )
 end
 
-struct MultiSegmentWell{V, P, N, A, C, SC, S, M} <: WellDomain
+struct MultiSegmentWell{P, N, SC, S} <: WellDomain
     type::Symbol
-    "One of volumes per node (cell)"
-    volumes::V
-    "(self -> local cells, reservoir -> reservoir cells, WI -> connection factor)"
+    num_nodes::Int
+    num_segments::Int
+    num_perforations::Int
+    "(self -> local cells, reservoir -> reservoir cells)"
     perforations::P
     "Well cell connectivity (connections between nodes)"
     neighborship::N
-    "Top node where scalar well quantities live"
-    top::A
     "End node(s) for the well"
     end_nodes::Vector{Int64}
-    "Coordinate centers of nodes"
-    centers::C
     "pressure and temperature conditions at surface"
     surface::SC
     "Name of the well as a Symbol"
     name::Symbol
     "Pressure drop model for seg well segment"
     segment_models::S
-    "Thermal conductivity of well material"
-    material_thermal_conductivity::M
-    "Density of well material"
-    material_density::M
-    "Specific heat capacity of well material"
-    material_heat_capacity::M
-    "Well void fraction"
-    void_fraction::M
-    "Extra properties to attach to perforations"
-    perforation_parameters::Dict{Symbol, Any}
-    "Extra properties to attach to segments"
-    segment_parameters::Dict{Symbol, Any}
 end
 
 """
-    MultiSegmentWell(reservoir_cells, volumes, centers;
-        N = nothing,
+    MultiSegmentWell(reservoir_cells;
         name = :Well,
-        perforation_cells = nothing,
-        segment_models = nothing,
-        segment_length = nothing,
-        reference_depth = 0,
-        dz = nothing,
-        surface_conditions = default_surface_cond(),
-        accumulator_volume = mean(volumes),
+        top_node = false,
     )
 
-Create well perforated in a vector of `reservoir_cells` with corresponding
-`volumes` and cell `centers`.
+Create well perforated in a vector of `reservoir_cells`. This constructor
+assumes that the well is vertical and that the cells are ordered from top to
+bottom. If `top_node = true`, an additional node is added at the top of the
+well to represent the surface node. The well will then have one more node than
+perforations.
 
 # Note
 
@@ -506,175 +474,82 @@ way of setting up wells.
 $FIELDS
 
 """
-function MultiSegmentWell(reservoir_cells, volumes::AbstractVector, centers;
-        type = :ms,
-        accumulator_center = nothing,
-        accumulator_volume = mean(volumes),
-        N = nothing,
+function MultiSegmentWell(reservoir_cells; top_node = false, kwarg...)
+    numperf = length(reservoir_cells)
+    pix = 1:numperf
+    if top_node
+        numnodes = numperf + 1
+        neighbors = vcat(pix', (2:numnodes)')
+        self_cells = collect(2:numnodes)
+    else
+        neighbors = vcat(pix[1:end-1]', pix[2:end]')
+        self_cells = collect(pix)
+    end
+    return MultiSegmentWell(neighbors, reservoir_cells, self_cells; kwarg...)
+end
+
+"""
+    MultiSegmentWell(neighbors::AbstractMatrix, perforation_cells_reservoir, perforation_cells_self;
         end_nodes = missing,
+        type = :ms,
         name = :Well,
-        perforation_cells = nothing,
         segment_models = nothing,
-        reference_depth = nothing,
-        dz = nothing,
-        segment_length = nothing,
-        friction = 1e-4,
         surface_conditions = default_surface_cond(),
-        material_thermal_conductivity = 0.0,
-        material_heat_capacity = 420.0,
-        material_density = 8000.0,
-        void_fraction = 1.0,
-        extra_perforation_props = NamedTuple(),
-        segment_radius = 0.05,
-        kwarg...
     )
-    if isnothing(reference_depth)
-        if isnothing(accumulator_center)
-            reference_depth = 0
-        else
-            reference_depth = accumulator_center[3]
-        end
-    end
-    if isnothing(accumulator_center)
-        accumulator_center = [centers[1, 1], centers[2, 1], reference_depth]
-    end
-    nv = length(volumes)
-    nc = nv + 1
-    reservoir_cells = vec(reservoir_cells)
-    nr = length(reservoir_cells)
-    if isnothing(N)
-        @debug "No connectivity. Assuming nicely ordered linear well."
-        N = vcat((1:nv)', (2:nc)')
-    elseif maximum(N) == nv
-        N = hcat([1, 2], N.+1)
-    end
+
+Create a multisegment well from a connectivity matrix `neighbors` and vectors
+of perforation cells in the reservoir and the well. The connectivity matrix
+must have two rows, where the first row contains the "from" node and the second
+row contains the "to" node. The nodes are numbered from 1 to the maximum node
+number. The vectors `perforation_cells_reservoir` and `perforation_cells_self`
+must have the same length, and contain the cell indices in the reservoir grid
+and the local well grid, respectively, where the well is perforated. The
+optional argument `end_nodes` can be used to specify which nodes are end nodes
+of the well. If not provided, these are automatically detected as nodes that
+are not "from" nodes in the connectivity matrix. The optional argument
+`segment_models` can be used to provide a vector of segment pressure drop
+models, one per segment. If not provided, a default `SegmentWellBoreFrictionHB`
+model is used for all segments.
+"""
+function MultiSegmentWell(neighbors::AbstractMatrix, perforation_cells_reservoir, perforation_cells_self;
+        end_nodes = missing,
+        type = :ms,
+        name = :Well,
+        segment_models = nothing,
+        surface_conditions = default_surface_cond(),
+    )
+    size(neighbors, 1) == 2 || throw(ArgumentError("Connectivity matrix for multisegment well must have two rows"))
+    num_nodes = maximum(neighbors, init = 1)
+    num_segments = size(neighbors, 2)
+    num_perf = length(perforation_cells_self)
+    maximum(perforation_cells_self) <= num_nodes || throw(ArgumentError("Perforation cells (self) must be less than or equal to number of nodes $(num_nodes), was $(maximum(perforation_cells_self))"))
     if ismissing(end_nodes)
-        from_nodes = unique(N[1, :])
-        to_nodes = unique(N[2,:])
+        from_nodes = unique(neighbors[1, :])
+        to_nodes = unique(neighbors[2,:])
         end_nodes = setdiff(to_nodes, from_nodes)
-    end
-    if length(size(centers)) == 3
-        @assert size(centers, 3) == 1
-        centers = centers[:, :, 1]
-    end
-    nseg = size(N, 2)
-    @assert size(N, 1) == 2
-    @assert size(centers, 1) == 3
-    volumes = vcat([accumulator_volume], volumes)
-    ext_centers = hcat(accumulator_center, centers)
-    @assert length(volumes) == size(ext_centers, 2)
-    if !isnothing(reservoir_cells) && isnothing(perforation_cells)
-        @assert length(reservoir_cells) == nv "If no perforation cells are given, we must 1->1 correspondence between well volumes and reservoir cells."
-        perforation_cells = collect(2:nc)
-    end
-    perforation_cells = vec(perforation_cells)
-    if segment_radius isa Real
-        segment_radius = fill(segment_radius, nseg)
-    end
-    if length(segment_radius) < nseg
-        @assert length(segment_radius) == nv
-        # We are provided one radius per cell - compute segment radii as the
-        # average of its to associated cells segment values
-        pushfirst!(segment_radius, segment_radius[1])
-        segment_radius = mean(segment_radius[N], dims=1)
-    end
-    @assert length(segment_radius) == nseg "Segment radius must have length equal to number of segments"
-
-    if friction isa Real
-        friction = fill(friction, nseg)
-    end
-    if length(friction) < nseg
-        @assert length(friction) == nv
-        # We are provided one friction factor per cell - compute segment
-        # friction factors as the average of its to associated cells segment
-        # values
-        pushfirst!(friction, friction[1])
-        friction = mean(friction[N], dims=1)
-    end
-
-    # Process well material properties
-    if length(material_thermal_conductivity) == 1
-        material_thermal_conductivity = fill(material_thermal_conductivity, nseg)
-    end
-    @assert length(material_thermal_conductivity) == nseg 
-        "Material thermal conductivity must have length equal to number of segments"
-
-    if length(material_heat_capacity) == 1
-        material_heat_capacity = fill(material_heat_capacity, nc)
-    end
-    @assert length(material_heat_capacity) == nc
-        "Material heat capacity must have length equal to number of cells (including accumulator node)"
-
-    if length(material_density) == 1
-        material_density = fill(material_density, nc)
-    end
-    @assert length(material_density) == nc
-        "Material density must have length equal to number of cells (including accumulator node)"
-
-    if length(void_fraction) == 1
-        void_fraction = vcat(1.0, fill(void_fraction, nc-1))
-    end
-    @assert length(void_fraction) == nc
-        "Void fraction must have length equal to number of cells (including accumulator node)"
-    @assert void_fraction[1] == 1.0 "Void fraction for accumulator node must be 1.0"
-
-    if isnothing(segment_models)
-        function setup_wbfriction(seg)
-            l, r = N[:, seg]
-            if isnothing(segment_length)
-                L = norm(ext_centers[:, l] - ext_centers[:, r], 2)
-            else
-                if segment_length isa Real
-                    L = segment_length
-                else
-                    L = segment_length[seg]
-                end
-            end
-            diameter = segment_radius[seg]*2
-            return SegmentWellBoreFrictionHB(L, friction[seg], diameter)
+        if isempty(end_nodes)
+            @assert num_nodes == 1 "Failed to determine end_nodes from connectivity matrix, please provide explicitly."
+            end_nodes = [1]
         end
-        segment_models = map(setup_wbfriction, 1:nseg)
+    end
+    if isnothing(segment_models)
+        segment_models = [SegmentWellBoreFrictionHB() for _ in 1:num_segments]
     else
         segment_models::AbstractVector
-        @assert length(segment_models) == nseg
+        length(segment_models) == num_segments || throw(ArgumentError("If segment models are provided, there must be one per segment. Was $(length(segment_models)), expected $num_segments"))
     end
-    if isnothing(dz)
-        dz = centers[3, :] .- reference_depth
-    end
-    @assert length(perforation_cells) == nr
-    WI, WIth, gdz = common_well_setup(nr; dz = dz, kwarg...)
-    perf = (self = perforation_cells, reservoir = reservoir_cells, WI = WI, WIth = WIth, gdz = gdz)
-    perf = merge(perf, extra_perforation_props)
-    for (k, v) in zip(keys(perf), perf)
-        @assert length(v) == nr "Perforation property $k must have length equal to number of reservoir cells"
-    end
-    accumulator = (reference_depth = reference_depth, )
-    MultiSegmentWell{
-        typeof(volumes),
-        typeof(perf),
-        typeof(N),
-        typeof(accumulator),
-        typeof(ext_centers),
-        typeof(surface_conditions),
-        typeof(segment_models),
-        typeof(material_thermal_conductivity)
-    }(
+    perf = (self = perforation_cells_self, reservoir = perforation_cells_reservoir)
+    return MultiSegmentWell(
         type,
-        volumes,
+        num_nodes,
+        num_segments,
+        num_perf,
         perf,
-        N,
-        accumulator,
+        neighbors,
         end_nodes,
-        ext_centers,
         surface_conditions,
         name,
         segment_models,
-        material_thermal_conductivity,
-        material_density,
-        material_heat_capacity,
-        void_fraction,
-        Dict{Symbol, Any}(),
-        Dict{Symbol, Any}()
     )
 end
 

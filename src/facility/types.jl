@@ -83,9 +83,120 @@ Jutul.minimum_value(::WellIndices) = 0.0
 Jutul.variable_scale(::WellIndices) = 1e-10
 
 Jutul.associated_entity(::WellIndices) = Perforations()
-function Jutul.default_values(model, ::WellIndices)
-    w = physical_representation(model.domain)
-    return vec(copy(w.perforations.WI))
+
+function Jutul.default_parameter_values(data_domain, model, param::WellIndices, symb)
+    WI = copy(data_domain[:well_index, Perforations()])
+    dims = data_domain[:cell_dims, Perforations()]
+    perm = data_domain[:permeability, Perforations()]
+    net_to_gross = data_domain[:net_to_gross, Perforations()]
+    direction = data_domain[:perforation_direction, Perforations()]
+    skin = data_domain[:skin, Perforations()]
+    Kh = data_domain[:Kh, Perforations()]
+    radius = data_domain[:perforation_radius, Perforations()]
+    drainage_radius = data_domain[:drainage_radius, Perforations()]
+    gdim = size(data_domain[:cell_centroids, Cells()], 1)
+    for (i, val) in enumerate(WI)
+        defaulted = !isfinite(val)
+        if defaulted
+            Δ = dims[i]
+            if perm isa AbstractVector
+                K = perm[i]
+            else
+                K = perm[:, i]
+            end
+            K = Jutul.expand_perm(K, gdim)
+            r = radius[i]
+            dir = direction[i]
+            WI[i] = compute_peaceman_index(Δ, K, r, dir;
+                skin = skin[i],
+                Kh = Kh[i],
+                net_to_gross = net_to_gross[i],
+                drainage_radius = drainage_radius[i]
+            )
+        end
+    end
+    return WI
+end
+
+abstract type ScalarSegmentVariable <: ScalarVariable end
+Jutul.associated_entity(::ScalarSegmentVariable) = Faces()
+
+"""
+    SegmentLength()
+"""
+struct SegmentRadius <: ScalarSegmentVariable end
+Jutul.minimum_value(::SegmentRadius) = 0.0
+
+function Jutul.default_parameter_values(data_domain, model, param::SegmentRadius, symb)
+    cradius = data_domain[:radius, Cells()]
+    return segment_average_from_cells(data_domain, cradius)
+end
+
+function segment_average_from_cells(w::DataDomain, cval::Vector{T}) where T
+    return segment_average_from_cells(physical_representation(w), cval)
+end
+
+function segment_average_from_cells(w, cval::Vector{T}) where T
+    N = get_neighborship(w)
+    nseg = number_of_faces(w)
+    out = zeros(T, nseg)
+    for segno in axes(N, 2)
+        l, r = N[:, segno]
+        out[segno] = (cval[r] + cval[l])/2
+    end
+    return out
+end
+
+struct SegmentCasingThickness <: ScalarSegmentVariable end
+Jutul.minimum_value(::SegmentCasingThickness) = 0.0
+
+function Jutul.default_parameter_values(data_domain, model, param::SegmentCasingThickness, symb)
+    cell_thickness = data_domain[:casing_thickness, Cells()]
+    return segment_average_from_cells(data_domain, cell_thickness)
+end
+
+struct SegmentRoughness <: ScalarSegmentVariable end
+Jutul.minimum_value(::SegmentRoughness) = 0.0
+
+function Jutul.default_parameter_values(data_domain, model, param::SegmentRoughness, symb)
+    return data_domain[:roughness, Faces()]
+end
+
+struct SegmentLength <: ScalarSegmentVariable end
+Jutul.minimum_value(::SegmentLength) = 0.0
+
+function Jutul.default_parameter_values(data_domain, model, param::SegmentLength, symb)
+    w = physical_representation(data_domain)
+    N = get_neighborship(w)
+    nseg = number_of_faces(w)
+    pts = data_domain[:cell_centroids, Cells()]
+    T = eltype(pts)
+    L = zeros(T, nseg)
+    for segno in axes(N, 2)
+        l, r = N[:, segno]
+        L[segno] = norm(pts[:, r] .- pts[:, l], 2)
+    end
+    return L
+end
+
+struct SegmentConnectionGravityDifference <: ScalarSegmentVariable end
+
+function Jutul.default_parameter_values(data_domain, model, param::SegmentConnectionGravityDifference, symb)
+    w = physical_representation(data_domain)
+    N = get_neighborship(w)
+    nseg = number_of_faces(w)
+    pts = data_domain[:cell_centroids, Cells()]
+    T = eltype(pts)
+    gdz = zeros(T, nseg)
+    if size(pts, 1) == 3
+        for segno in axes(N, 2)
+            # Old code:
+            # gdz = -gravity_constant*(z[l] - z[r])
+            l, r = N[:, segno]
+            gdz[segno] = Jutul.gravity_constant*(pts[3, r] - pts[3, l])
+        end
+    end
+    return gdz
 end
 
 """
@@ -97,15 +208,27 @@ the well.
 struct PerforationGravityDifference <: ScalarVariable end
 
 Jutul.associated_entity(::PerforationGravityDifference) = Perforations()
-function Jutul.default_values(model, ::PerforationGravityDifference)
-    w = physical_representation(model.domain)
-    return vec(copy(w.perforations.gdz))
+function Jutul.default_parameter_values(data_domain, model, param::PerforationGravityDifference, symb)
+    well = physical_representation(data_domain)
+    c_cells = data_domain[:cell_centroids, Cells()]
+    c_perf = data_domain[:perforation_centroids, Perforations()]
+    dim = size(c_cells, 1)
+    @assert dim == size(c_perf, 1) "Inconsistent dimensions between cell and perforation centroids"
+    c = well.perforations.self
+    if dim == 3
+        z_perf = c_perf[3, :]
+        z_cells = c_cells[3, c]
+        dz = Jutul.gravity_constant.*(z_perf .- z_cells)
+    else
+        dz = zeros(length(c))
+    end
+    return dz
 end
 
 Base.show(io::IO, t::SurfaceVolumeTarget) = print(io, "$(typeof(t)) with value $(t.value) [m^3/s] for $(join([typeof(p) for p in lumped_phases(t)], ", "))")
 
 """
-    BottomHolePressureTarget(q, phase)
+    BottomHolePressureTarget(`bhp`)
 
 Bottom-hole pressure (bhp) target with target pressure value `bhp`. A well
 operating under a bhp constraint will keep the well pressure at the bottom hole
@@ -322,6 +445,10 @@ This constraint is typically set up from .DATA files for black-oil and immiscibl
 struct ReservoirVoidageTarget{T, K} <: WellTarget where {T<:AbstractFloat, K<:Tuple}
     value::T
     weights::K
+end
+
+struct ReservoirVolumeRateTarget{T} <: WellTarget where {T<:AbstractFloat}
+    value::T
 end
 
 mutable struct ReinjectionTarget <: WellTarget
@@ -604,7 +731,7 @@ end
 struct WellSegmentFlow{C, T<:AbstractVector} <: Jutul.FlowDiscretization
     cell_discretizations::C
     face_discretizations::T
-    function WellSegmentFlow(well, z)
+    function WellSegmentFlow(well)#, z)
         # Face part
         N = get_neighborship(well)
         nf = size(N, 2)
@@ -612,8 +739,9 @@ struct WellSegmentFlow{C, T<:AbstractVector} <: Jutul.FlowDiscretization
         function F(i)
             l = N[1, i]
             r = N[2, i]
-            gdz =  -gravity_constant*(z[l] - z[r])
-            return (left = l, right = r, gdz = gdz, face = i)
+            return (left = l, right = r, face = i)
+            # gdz =  -gravity_constant*(z[l] - z[r])
+            # return (left = l, right = r, gdz = gdz, face = i)
         end
         fdisc = map(F, 1:nf)
 
@@ -811,6 +939,16 @@ function well_target_information(t::Union{HistoricalReservoirVoidageTarget, Val{
         unit_type = :liquid_volume_reservoir,
         unit_label = "m³/s",
         type = HistoricalReservoirVoidageTarget
+    )
+end
+
+function well_target_information(t::Union{ReservoirVolumeRateTarget, Val{:rvolrat}})
+    return well_target_information(
+        symbol = :rvolrat,
+        description = "Reservoir rate",
+        explanation = "Total volumetric rate at BHP conditions. This is the sum of all phases.",
+        unit_type = :liquid_volume_reservoir,
+        unit_label = "m³/s"
     )
 end
 

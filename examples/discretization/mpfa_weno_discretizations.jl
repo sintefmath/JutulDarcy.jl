@@ -81,7 +81,7 @@ all_results = Dict()
 # behavior of JutulDarcy by using the industry standard single-point upwind,
 # two-point flux approximation.
 function simulate_with_discretizations(upwind = :spu, kgrad = :tpfa)
-    model, parameters = setup_reservoir_model(reservoir, sys,
+    model = setup_reservoir_model(reservoir, sys,
         kgrad = kgrad,
         upwind = upwind,
         wells = [P1, P2, I1]
@@ -90,7 +90,7 @@ function simulate_with_discretizations(upwind = :spu, kgrad = :tpfa)
     replace_variables!(model, RelativePermeabilities = kr)
     forces = setup_reservoir_forces(model, control = controls)
     state0 = setup_reservoir_state(model, Pressure = 100*bar, Saturations = [0.0, 1.0])
-    result = simulate_reservoir(state0, model, dt, info_level = 0, parameters = parameters, forces = forces);
+    return simulate_reservoir(state0, model, dt, info_level = 0, forces = forces);
 end
 # ### Function to plot the results
 # We create a function `plot_discretization_result` that takes the result from a

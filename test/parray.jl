@@ -1,6 +1,6 @@
 using Test, Jutul, JutulDarcy, HYPRE, PartitionedArrays
 # Test distributed parallel solve using PartitionedArrays + HYPRE.
-function setup_well_case(nx = 5, backend = :csr)
+function setup_well_case(nx = 5, backend = :csr; use_wells = true)
     bar = 1e5
     day = 3600*24.0
     Darcy = 9.869232667160130e-13
@@ -11,18 +11,24 @@ function setup_well_case(nx = 5, backend = :csr)
     g = CartesianMesh(dims, (2000.0, 1500.0, 50.0))
 
     domain = reservoir_domain(g, permeability = 0.1*Darcy, porosity = 0.2)
-    Prod = setup_vertical_well(domain, 1, 1, name = :Producer);
-    Inj = setup_well(domain, [(nx, ny, 1)], name = :Injector);
     phases = (LiquidPhase(), VaporPhase())
     rhoLS = 1000.0
     rhoGS = 100.0
     rhoS = [rhoLS, rhoGS]
     sys = ImmiscibleSystem(phases, reference_densities = rhoS)
+    if use_wells
+        Prod = setup_vertical_well(domain, 1, 1, name = :Producer);
+        Inj = setup_well(domain, [(nx, ny, 1)], name = :Injector);
+        wells = [Inj, Prod]
+    else
+        wells = []
+    end
     model, parameters = setup_reservoir_model(
         domain, sys,
-        wells = [Inj, Prod],
+        wells = wells,
         backend = backend,
-        split_wells = true
+        split_wells = true,
+        extra_out = true
         )
     c = [1e-6/bar, 1e-4/bar]
     ρ = ConstantCompressibilityDensities(p_ref = 1*bar, density_ref = rhoS, compressibility = c)
@@ -33,15 +39,18 @@ function setup_well_case(nx = 5, backend = :csr)
     inj_rate = sum(pv)/sum(dt)
     dt = dt[1:2]
 
-    rate_target = TotalRateTarget(inj_rate)
-    I_ctrl = InjectorControl(rate_target, [0.0, 1.0], density = rhoGS)
-    bhp_target = BottomHolePressureTarget(50*bar)
-    P_ctrl = ProducerControl(bhp_target)
-    controls = Dict()
-    controls[:Injector] = I_ctrl
-    controls[:Producer] = P_ctrl
-
-    forces = setup_reservoir_forces(model, control = controls)
+    if use_wells
+        rate_target = TotalRateTarget(inj_rate)
+        I_ctrl = InjectorControl(rate_target, [0.0, 1.0], density = rhoGS)
+        bhp_target = BottomHolePressureTarget(50*bar)
+        P_ctrl = ProducerControl(bhp_target)
+        controls = Dict()
+        controls[:Injector] = I_ctrl
+        controls[:Producer] = P_ctrl
+        forces = setup_reservoir_forces(model, control = controls)
+    else
+        forces = setup_reservoir_forces(model)
+    end
     return JutulCase(model, dt, forces, state0 = state0, parameters = parameters)
 end
 
@@ -103,7 +112,7 @@ end
                 @testset "PArray native" begin
                     # Set np = 1 just to check that it works, is anyway tested
                     # by the multi model version
-                    for np in 1
+                    for np in [1]
                         for order in [:default]#, :symrcm]
                             states_p, reports_p = simulate_reservoir_parray(case,
                                 :parray;
@@ -129,33 +138,51 @@ end
     @testset "MultiModel" begin
         for backend in [:csc, :csr]
             @testset "$backend" begin
-                case = setup_well_case(50, backend)
-                arg = (info_level = -1, failure_cuts_timestep = false, timesteps = :none)
-                # Test basic version
-                ws, states = simulate_reservoir(case; mode = :default, arg...)
-                # Basic version (multiproc faked)
-                @testset "PArray native" begin
-                    for order in [:default]#, :symrcm]
-                        for np in num_procs_to_test
-                            ws_d, states_d = simulate_reservoir(case;
-                                mode = :parray,
-                                parray_arg = (np = np, order = order),
-                                precond = :ilu0,
-                                output_path = tempdir(),
-                                arg...
-                            )
-                            compare_ws(ws.wells, ws_d.wells)
-                            compare_states(states, states_d)
+                for use_wells in [true, false]
+                    case = setup_well_case(50, backend, use_wells = use_wells)
+                    arg = (info_level = -1, failure_cuts_timestep = false, timesteps = :none)
+                    # Test basic version
+                    ws, states = simulate_reservoir(case; mode = :default, arg...)
+                    # Basic version (multiproc faked)
+                    @testset "PArray native" begin
+                        for order in [:default]#, :symrcm]
+                            for np in num_procs_to_test
+                                ws_d, states_d = simulate_reservoir(case;
+                                    mode = :parray,
+                                    parray_arg = (np = np, order = order),
+                                    precond = :ilu0,
+                                    output_path = tempdir(),
+                                    arg...
+                                )
+                                compare_ws(ws.wells, ws_d.wells)
+                                compare_states(states, states_d)
+                            end
                         end
                     end
-                end
-                @testset "PArray MPI" begin
-                    # MPI version
-                    ws_m, states_m = simulate_reservoir(case; mode = :mpi, arg...)
-                    compare_ws(ws.wells, ws_m.wells)
-                    compare_states(states, states_m)
+                    @testset "PArray MPI" begin
+                        # MPI version
+                        ws_m, states_m = simulate_reservoir(case; mode = :mpi, arg...)
+                        compare_ws(ws.wells, ws_m.wells)
+                        compare_states(states, states_m)
+                    end
                 end
             end
         end
     end
+    @testset "MRST case" begin
+        r = simulate_mrst_case("spe1";
+            output_path = joinpath(tempdir(), "parray_test"),
+            parray_arg = (np = 2,),
+            mode = :parray,
+            write_mrst = true,
+            info_level = -1,
+            failure_cuts_timestep = false,
+            precond = :ilu0,
+            split_wells = true,
+            timesteps = :none,
+            verbose = false
+        )
+        @test length(r.states) == 120
+    end
 end
+

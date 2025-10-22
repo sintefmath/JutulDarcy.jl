@@ -125,7 +125,8 @@ function setup_case_from_parsed_data(datafile;
     msg("Setting up model with $(length(wells)) wells.")
     wells_pvt = Dict()
     wells_systems = []
-    for w in wells
+    for wdomain in wells
+        w = physical_representation(wdomain)
         if has_pvt
             c = first(w.perforations.reservoir)
             reg_w = pvt_reg[c]
@@ -238,7 +239,7 @@ function setup_case_from_parsed_data(datafile;
 end
 
 function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, step; simple_well = isnothing(msdata))
-    wc, WI, open, = compdat_to_connection_factors(domain, wspecs, cdat, step, sort = true, order = compord)
+    wc, WI, open, _, _, data = compdat_to_connection_factors(domain, wspecs, cdat, step, sort = true, order = compord)
     ref_depth = wspecs.ref_depth
     if isnan(ref_depth)
         ref_depth = nothing
@@ -356,14 +357,18 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
             end
         end
     end
-
     if ismissing(W)
         W = setup_well(domain, wc;
+            volume_multiplier = 20,
             name = Symbol(wname),
-            accumulator_volume = accumulator_volume,
-            WI = WI,
+            WI = data[:well_index],
+            dir = data[:dir],
+            radius = data[:radius],
+            skin = data[:skin],
+            drainage_radius = data[:drainage_radius],
+            Kh = data[:Kh],
             reference_depth = ref_depth,
-            simple_well = simple_well
+            simple_well = simple_well,
         )
     end
     return (W, wc, WI, open)
@@ -413,9 +418,17 @@ function compdat_to_connection_factors(domain, wspec, v, step; sort = true, orde
     getf(k) = map(x -> v[x][k], ij_ix)
 
     d = getf(:diameter)
+    radius = d./2
     Kh = getf(:Kh)
     WI = getf(:WI)
     skin = getf(:skin)
+
+    if wspec.drainage_radius <= 0.0
+        dval = NaN
+    else
+        dval = wspec.drainage_radius
+    end
+    drainage_radius = fill(dval, length(wc))
 
     T = promote_type(Jutul.float_type(G), eltype(K), eltype(d), eltype(Kh), eltype(WI), eltype(skin))
     if haskey(domain, :net_to_gross)
@@ -424,10 +437,14 @@ function compdat_to_connection_factors(domain, wspec, v, step; sort = true, orde
     WI = T.(WI)
 
     open = getf(:open)
-    dir = getf(:dir)
+    dir = map(x -> Symbol(lowercase(x)), getf(:dir))
     mul = getf(:mul)
     fresh = map(x -> v[x].ctrl == step, ij_ix)
-
+    if haskey(domain, :net_to_gross)
+        net_to_gross = domain[:net_to_gross][wc]
+    else
+        net_to_gross = ones(T, length(wc))
+    end
     for i in eachindex(WI)
         W_i = WI[i]
         if isnan(W_i) || W_i < 0.0
@@ -437,31 +454,29 @@ function compdat_to_connection_factors(domain, wspec, v, step; sort = true, orde
             else
                 k_i = K[:, c]
             end
-            drainage_radius = wspec.drainage_radius
-            if drainage_radius <= 0.0
-                drainage_radius = nothing
-            end
-            if haskey(domain, :net_to_gross)
-                ntg = domain[:net_to_gross][c]
-            else
-                ntg = 1.0
-            end
-            WI[i] = compute_peaceman_index(G, k_i, d[i]/2, c, Symbol(dir[i]);
+            WI[i] = compute_peaceman_index(G, k_i, radius[i], c, dir[i];
                 skin = skin[i],
                 Kh = Kh[i],
-                net_to_gross = ntg,
-                drainage_radius = drainage_radius
+                net_to_gross = net_to_gross[i],
+                drainage_radius = drainage_radius[i]
             )
         end
     end
+
     if sort
         ix = well_completion_sortperm(domain, wspec, order, wc, dir)
-        wc = wc[ix]
-        WI = WI[ix]
-        open = open[ix]
-        fresh = fresh[ix]
+    else
+        ix = eachindex(wc)
     end
-    return (wc, WI, open, mul, fresh)
+    data = Dict{Symbol, Any}(
+        :radius => radius[ix],
+        :Kh => Kh[ix],
+        :skin => skin[ix],
+        :dir => dir[ix],
+        :drainage_radius => drainage_radius[ix],
+        :well_index => WI[ix]
+    )
+    return (wc, WI[ix], open[ix], mul[ix], fresh[ix], data)
 end
 
 function parse_schedule(domain, runspec, props, schedule, sys; simple_well = true)
@@ -501,7 +516,7 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
             well_is_shut = well_control isa DisabledControl
             wi_mul = zeros(T, n_wi)
             if !well_is_shut
-                wc, WI, open, multipliers, fresh = compdat_to_connection_factors(domain, wspec, compdat, i, ijk_lookup = ijk_lookup, sort = false)
+                wc, WI, open, multipliers, fresh, = compdat_to_connection_factors(domain, wspec, compdat, i, ijk_lookup = ijk_lookup, sort = false)
                 for (c, wi, is_open, is_fresh, mul) in zip(wc, WI, open, fresh, multipliers)
                     compl_idx = findfirst(isequal(c), wc_base)
                     if isnothing(compl_idx)
@@ -2117,7 +2132,7 @@ function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
         # Make copies so we can safely remove values as we go.
         wc = copy(wc)
         original_ix = collect(1:n)
-        dir = lowercase.(copy(dir))
+        dir = copy(dir)
         g = physical_representation(domain)
         ijk = map(ix -> cell_ijk(g, ix), wc)
 
@@ -2172,14 +2187,14 @@ function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
             closest_xyz_distance = Inf
             if use_dir
                 closest_ijk_distance = typemax(Int)
-                if prev_dir == "x"
+                if prev_dir == :x
                     dim = 1
                     coord = x
-                elseif prev_dir == "y"
+                elseif prev_dir == :y
                     dim = 2
                     coord = y
                 else
-                    @assert prev_dir == "z"
+                    @assert prev_dir == :z
                     dim = 3
                     coord = z
                 end

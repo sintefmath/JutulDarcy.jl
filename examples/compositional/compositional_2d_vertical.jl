@@ -40,7 +40,7 @@ rhoVS = 126.97*kg/meter^3
 rhoS = [rhoLS, rhoVS]
 L, V = LiquidPhase(), VaporPhase()
 sys = MultiPhaseCompositionalSystemLV(eos, (L, V))
-model, parameters = setup_reservoir_model(res, sys, wells = [inj, prod]);
+model, parameters = setup_reservoir_model(res, sys, wells = [inj, prod], extra_out = true);
 push!(model[:Reservoir].output_variables, :Saturations)
 kr = BrooksCoreyRelativePermeabilities(sys, 2.0, 0.0, 1.0)
 model = replace_variables!(model, RelativePermeabilities = kr)

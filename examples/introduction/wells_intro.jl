@@ -92,8 +92,9 @@ sys = ImmiscibleSystem(phases, reference_densities = rhoS)
 # reservoir. JutulDarcy treats wells as first-class citizens and models flow
 # inside the well bore using the same fluid description as the reservoir, with
 # modified equations to account for the non-Darcy velocities. We call the
-# utility function that sets up all of this for us:
-model, parameters = setup_reservoir_model(domain, sys, wells = [Inj, Prod])
+# utility function that sets up all of this for us. Note that we pass the
+# extra_out argument to get both the model and the parameters values.
+model, parameters = setup_reservoir_model(domain, sys, wells = [Inj, Prod], extra_out = true)
 model
 # The model is an instance of the [`MultiModel`](@ref) from `Jutul` where a
 # submodel is defined for the reservoir, each of the wells and the facility that

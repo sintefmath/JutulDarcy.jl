@@ -7,13 +7,8 @@ function Jutul.default_parameter_values(data_domain, model, param::BulkVolume, s
     if haskey(data_domain, :volumes)
         bv = copy(data_domain[:volumes])
     elseif model_or_domain_is_well(model)
-        r = physical_representation(model.domain)
-        if r isa MultiSegmentWell
-            bv = copy(model.domain.representation.volumes)
-        else
-            r::SimpleWell
-            bv = [r.volume]
-        end
+        w = physical_representation(data_domain)
+        bv = domain_bulk_volume(data_domain, w)
     end
     return bv
 end
@@ -247,9 +242,44 @@ struct WellIndicesThermal <: ScalarVariable end
 Jutul.minimum_value(::WellIndicesThermal) = 0.0
 Jutul.variable_scale(::WellIndicesThermal) = 1.0
 Jutul.associated_entity(::WellIndicesThermal) = Perforations()
-function Jutul.default_values(model, ::WellIndicesThermal)
-    w = physical_representation(model.domain)
-    return vec(copy(w.perforations.WIth))
+
+function Jutul.default_parameter_values(data_domain, model, param::WellIndicesThermal, symb)
+
+    WIt = copy(data_domain[:thermal_well_index, Perforations()])
+    dims = data_domain[:cell_dims, Perforations()]
+    thermal_conductivity = data_domain[:thermal_conductivity, Perforations()]
+    direction = data_domain[:perforation_direction, Perforations()]
+    radius = data_domain[:perforation_radius, Perforations()]
+    gdim = size(data_domain[:cell_centroids, Cells()], 1)
+
+    # These are defined per cell, map to perforations
+    well = physical_representation(data_domain)
+    ic = well.perforations.self
+
+    thermal_conductivity_casing = data_domain[:thermal_conductivity_casing, Cells()][ic]
+    thermal_conductivity_grout = data_domain[:thermal_conductivity_grout, Cells()][ic]
+    casing_thickness = data_domain[:casing_thickness, Cells()][ic]
+    grouting_thickness = data_domain[:grouting_thickness, Cells()][ic]
+
+    for (i, val) in enumerate(WIt)
+        defaulted = !isfinite(val)
+        if defaulted
+            Δ = dims[i]
+            if thermal_conductivity isa AbstractVector
+                Λ_i = thermal_conductivity[i]
+            else
+                Λ_i = thermal_conductivity[:, i]
+            end
+            Λ_i = Jutul.expand_perm(Λ_i, gdim)
+            WIt[i] = compute_well_thermal_index(Δ, Λ_i, radius[i], direction[i];
+                casing_thickness = casing_thickness[i],
+                grouting_thickness = grouting_thickness[i],
+                thermal_conductivity_casing = thermal_conductivity_casing[i],
+                thermal_conductivity_grout = thermal_conductivity_grout[i],
+            )
+        end
+    end
+    return WIt
 end
 
 """
@@ -277,37 +307,37 @@ end
 
 Parameter well material density.
 """
-struct MaterialDensities <: ScalarVariable end
+struct CasingDensities <: ScalarVariable end
 
-Jutul.variable_scale(::MaterialDensities) = 1.0
-Jutul.minimum_value(::MaterialDensities) = 0.0
-Jutul.associated_entity(::MaterialDensities) = Cells()
+Jutul.variable_scale(::CasingDensities) = 1.0
+Jutul.minimum_value(::CasingDensities) = 0.0
+Jutul.associated_entity(::CasingDensities) = Cells()
 
-function Jutul.default_parameter_values(data_domain, model, param::MaterialDensities, symb)
-    if haskey(data_domain, :material_density, Cells())
-        T = copy(data_domain[:material_density])
+function Jutul.default_parameter_values(data_domain, model, param::CasingDensities, symb)
+    if haskey(data_domain, :casing_density, Cells())
+        T = copy(data_domain[:casing_density])
     else
-        error(":material_density or :material_density symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+        error(":casing_density symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
     return T
 end
 
 """
-    MaterialHeatCapacities()
+    CasingHeatCapacities()
 
 Parameter heat capacitiy of the well material.
 """
-struct MaterialHeatCapacities <: ScalarVariable end
+struct CasingHeatCapacities <: ScalarVariable end
 
-Jutul.variable_scale(::MaterialHeatCapacities) = 1.0
-Jutul.minimum_value(::MaterialHeatCapacities) = 0.0
-Jutul.associated_entity(::MaterialHeatCapacities) = Cells()
+Jutul.variable_scale(::CasingHeatCapacities) = 1.0
+Jutul.minimum_value(::CasingHeatCapacities) = 0.0
+Jutul.associated_entity(::CasingHeatCapacities) = Cells()
 
-function Jutul.default_parameter_values(data_domain, model, param::MaterialHeatCapacities, symb)
-    if haskey(data_domain, :material_heat_capacity, Cells())
-        T = copy(data_domain[:material_heat_capacity])
+function Jutul.default_parameter_values(data_domain, model, param::CasingHeatCapacities, symb)
+    if haskey(data_domain, :casing_heat_capacity, Cells())
+        T = copy(data_domain[:casing_heat_capacity])
     else
-        error(":material_heat_capacity or :material_heat_capacity symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+        error(":casing_heat_capacity symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
     return T
 end
@@ -366,8 +396,8 @@ function add_thermal_to_model!(model)
             if w isa MultiSegmentWell
                 set_parameters!(model,
                     MaterialThermalConductivities = MaterialThermalConductivities(),
-                    MaterialHeatCapacities = MaterialHeatCapacities(),
-                    MaterialDensities = MaterialDensities()
+                    CasingHeatCapacities = CasingHeatCapacities(),
+                    CasingDensities = CasingDensities()
                 )
                 set_secondary_variables!(model,
                     MaterialInternalEnergy = MaterialInternalEnergy()

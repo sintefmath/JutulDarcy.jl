@@ -1,11 +1,13 @@
 [deps]
 ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
+Clapeyron = "7c7805af-46cc-48c9-995b-ed0ed2dc909a"
 DocStringExtensions = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 DocumenterCitations = "daee34ce-89f3-4625-b898-19384cb65244"
 DocumenterVitepress = "4710194d-e776-4893-9690-8d956a29c365"
 GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 GeoEnergyIO = "3b1dd628-313a-45bb-9d8d-8f3c48dcb5d4"
+GeoStats = "dcc97b0b-8ce5-5539-9008-bb190f959ef6"
 Gmsh = "705231aa-382f-11e9-3f0c-b7cb4346fdeb"
 GraphMakie = "1ecd5474-83a3-4783-bb4f-06765db800d2"
 HYPRE = "b5ffcf37-a2bd-41ab-a3da-4bd9bc8ad771"

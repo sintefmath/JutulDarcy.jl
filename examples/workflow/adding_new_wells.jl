@@ -47,7 +47,7 @@ I2 = setup_well_from_trajectory(reservoir, traj, name = :INJ_NEW)
 # same properties and customizations as the original model, but with the new
 # wells added. The template model takes the place of the `sys` argument seen in
 # other examples.
-new_model, new_parameters = setup_reservoir_model(reservoir, model, wells = [I1, I2, P1, P2]);
+new_model = setup_reservoir_model(reservoir, model, wells = [I1, I2, P1, P2]);
 # ## Visualize the new wells and the trajectory
 # We can see the new wells and the trajectory by plotting the model. Note that
 # the trajectory is connected to cell centers in the numerical model. The coarse
@@ -91,7 +91,7 @@ new_limits[:PROD_NEW] = plims
 new_forces = setup_reservoir_forces(new_model, control = new_control, limits = new_limits)
 
 # ## Simulate the new case
-new_ws, new_states = simulate_reservoir(new_state0, new_model, dt, forces = new_forces, parameters = new_parameters)
+new_ws, new_states = simulate_reservoir(new_state0, new_model, dt, forces = new_forces)
 
 # ## Visualize the results
 # We can visualize the results of the new model and the old model
