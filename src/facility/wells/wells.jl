@@ -64,8 +64,8 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         material_thermal_conductivity = 0.0,
         thermal_conductivity_casing = 20.0,
         thermal_conductivity_grout = 2.3,
-        material_heat_capacity = 420.0,
-        material_density = 8000.0,
+        casing_heat_capacity = 420.0,
+        casing_density = 8000.0,
         volume_multiplier = 1.0,
         friction = 1e-4, # Old version of kwarg for roughness
         roughness = friction,
@@ -195,8 +195,8 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     Wdomain[:grouting_thickness, c] = grouting_thickness
     Wdomain[:thermal_conductivity_casing, c] = thermal_conductivity_casing
     Wdomain[:thermal_conductivity_grout, c] = thermal_conductivity_grout
-    Wdomain[:material_heat_capacity, c] = material_heat_capacity
-    Wdomain[:material_density, c] = material_density
+    Wdomain[:casing_heat_capacity, c] = casing_heat_capacity
+    Wdomain[:casing_density, c] = casing_density
 
     # ## Thermal well props
     # ### Perforations

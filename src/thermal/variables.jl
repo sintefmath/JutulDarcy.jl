@@ -83,12 +83,12 @@ end
 
 const MSWellDomain = DiscretizedDomain{<:MultiSegmentWell}
 const MSWellFlowModel = SimulationModel{<:MSWellDomain, <:MultiPhaseSystem}
-@jutul_secondary function update_total_thermal_energy!(E_total, te::TotalThermalEnergy, model::MSWellFlowModel, Saturations, PhaseMassDensities, FluidInternalEnergy, MaterialDensities, MaterialInternalEnergy, BulkVolume, FluidVolume, ix)
-    update_total_thermal_energy!(E_total, te::TotalThermalEnergy, nothing, Saturations, PhaseMassDensities, FluidInternalEnergy, MaterialDensities, MaterialInternalEnergy, BulkVolume, FluidVolume, ix)
+@jutul_secondary function update_total_thermal_energy!(E_total, te::TotalThermalEnergy, model::MSWellFlowModel, Saturations, PhaseMassDensities, FluidInternalEnergy, CasingDensities, MaterialInternalEnergy, BulkVolume, FluidVolume, ix)
+    update_total_thermal_energy!(E_total, te::TotalThermalEnergy, nothing, Saturations, PhaseMassDensities, FluidInternalEnergy, CasingDensities, MaterialInternalEnergy, BulkVolume, FluidVolume, ix)
 end
 
-@jutul_secondary function update_material_internal_energy!(U_m, e::MaterialInternalEnergy, model::MSWellFlowModel, MaterialHeatCapacities, Temperature, ix)
+@jutul_secondary function update_material_internal_energy!(U_m, e::MaterialInternalEnergy, model::MSWellFlowModel, CasingHeatCapacities, Temperature, ix)
     for i in ix
-        U_m[i] = MaterialHeatCapacities[i]*Temperature[i]
+        U_m[i] = CasingHeatCapacities[i]*Temperature[i]
     end
 end

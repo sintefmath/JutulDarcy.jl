@@ -307,37 +307,37 @@ end
 
 Parameter well material density.
 """
-struct MaterialDensities <: ScalarVariable end
+struct CasingDensities <: ScalarVariable end
 
-Jutul.variable_scale(::MaterialDensities) = 1.0
-Jutul.minimum_value(::MaterialDensities) = 0.0
-Jutul.associated_entity(::MaterialDensities) = Cells()
+Jutul.variable_scale(::CasingDensities) = 1.0
+Jutul.minimum_value(::CasingDensities) = 0.0
+Jutul.associated_entity(::CasingDensities) = Cells()
 
-function Jutul.default_parameter_values(data_domain, model, param::MaterialDensities, symb)
-    if haskey(data_domain, :material_density, Cells())
-        T = copy(data_domain[:material_density])
+function Jutul.default_parameter_values(data_domain, model, param::CasingDensities, symb)
+    if haskey(data_domain, :casing_density, Cells())
+        T = copy(data_domain[:casing_density])
     else
-        error(":material_density or :material_density symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+        error(":casing_density symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
     return T
 end
 
 """
-    MaterialHeatCapacities()
+    CasingHeatCapacities()
 
 Parameter heat capacitiy of the well material.
 """
-struct MaterialHeatCapacities <: ScalarVariable end
+struct CasingHeatCapacities <: ScalarVariable end
 
-Jutul.variable_scale(::MaterialHeatCapacities) = 1.0
-Jutul.minimum_value(::MaterialHeatCapacities) = 0.0
-Jutul.associated_entity(::MaterialHeatCapacities) = Cells()
+Jutul.variable_scale(::CasingHeatCapacities) = 1.0
+Jutul.minimum_value(::CasingHeatCapacities) = 0.0
+Jutul.associated_entity(::CasingHeatCapacities) = Cells()
 
-function Jutul.default_parameter_values(data_domain, model, param::MaterialHeatCapacities, symb)
-    if haskey(data_domain, :material_heat_capacity, Cells())
-        T = copy(data_domain[:material_heat_capacity])
+function Jutul.default_parameter_values(data_domain, model, param::CasingHeatCapacities, symb)
+    if haskey(data_domain, :casing_heat_capacity, Cells())
+        T = copy(data_domain[:casing_heat_capacity])
     else
-        error(":material_heat_capacity or :material_heat_capacity symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+        error(":casing_heat_capacity symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
     return T
 end
@@ -396,8 +396,8 @@ function add_thermal_to_model!(model)
             if w isa MultiSegmentWell
                 set_parameters!(model,
                     MaterialThermalConductivities = MaterialThermalConductivities(),
-                    MaterialHeatCapacities = MaterialHeatCapacities(),
-                    MaterialDensities = MaterialDensities()
+                    CasingHeatCapacities = CasingHeatCapacities(),
+                    CasingDensities = CasingDensities()
                 )
                 set_secondary_variables!(model,
                     MaterialInternalEnergy = MaterialInternalEnergy()
