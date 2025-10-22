@@ -1,7 +1,6 @@
 module Geothermal
 
     using Jutul, JutulDarcy
-    export setup_btes_well, setup_vertical_btes_well
     export BTESWellSupplyToReturnMassCT, ClosedLoopSupplyToReturnEnergyCT, BTESWellGroutEnergyCT
     export update_cross_term_in_entity!
 
@@ -9,7 +8,6 @@ module Geothermal
         return setup_reservoir_model_geothermal(reservoir; kwarg...)
     end
 
-    include("wells/btes.jl")
     include("wells/cross_terms.jl")
     include("properties.jl")
 
