@@ -65,7 +65,10 @@ function setup_mesh_afi(afi::AFIInputFile, mesh::Missing)
     return mesh
 end
 
-function setup_reservoir_domain_afi(d::AFIInputFile, mesh; active = mesh.cell_map)
+function setup_reservoir_domain_afi(d::AFIInputFile, mesh;
+        use_nnc = true,
+        active = mesh.cell_map
+    )
     ncells = number_of_cells(mesh)
     if isnothing(active)
         active = 1:ncells
@@ -117,7 +120,11 @@ function setup_reservoir_domain_afi(d::AFIInputFile, mesh; active = mesh.cell_ma
         end
     end
     # TODO: Move unit conversion here to properly handle edits.
-    conn = find_records(d, "ConnectionSet", once = false)
+    if use_nnc
+        conn = find_records(d, "ConnectionSet", once = false)
+    else
+        conn = []
+    end
     has_trani = haskey(data, "TRANSMISSIBILITY_I")
     has_tranj = haskey(data, "TRANSMISSIBILITY_J")
     has_trank = haskey(data, "TRANSMISSIBILITY_K")
