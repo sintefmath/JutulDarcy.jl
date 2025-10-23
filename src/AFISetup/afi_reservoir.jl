@@ -141,11 +141,14 @@ function setup_reservoir_domain_afi(d::AFIInputFile, mesh;
         left = Int[]
         right = Int[]
         trans_nnc = Float64[]
+        # global_to_local = afi_to_jutul_cell_map(d, mesh)
         for (k, conn) in pairs(allconn)
             if haskey(conn, "table")
                 tab = conn["table"]
                 for (c1, c2, t) in zip(tab["Cell1"], tab["Cell2"], tab["Transmissibility"])
-                    # TODO: Handle cell index offset and active map
+                    # TODO: Is this global or local indexing?
+                    # push!(left, global_to_local[c1])
+                    # push!(right, global_to_local[c2])
                     push!(left, c1)
                     push!(right, c2)
                     push!(trans_nnc, t)

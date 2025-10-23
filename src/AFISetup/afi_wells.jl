@@ -46,16 +46,7 @@ function setup_wells(d::AFIInputFile, reservoir)
         ijk_to_local[c] = i
     end
     # Linear indices
-    cell_offset = cell_index_offset(d)
-    global_to_local = Dict{Int, Int}()
-    cmap = mesh.cell_map
-    if isnothing(cmap)
-        cmap = 1:number_of_cells(mesh)
-    end
-    for (i, c) in enumerate(cmap)
-        c = c - 1 + cell_offset
-        global_to_local[c] = i
-    end
+    global_to_local = afi_to_jutul_cell_map(d, mesh)
     function get_if_active(w2c, kw, active)
         x = get(w2c, kw, missing)
         if ismissing(x) || length(x) == 0
@@ -115,4 +106,18 @@ function setup_wells(d::AFIInputFile, reservoir)
         push!(wells, w)
     end
     return wells
+end
+
+function afi_to_jutul_cell_map(d, mesh)
+    cell_offset = cell_index_offset(d)
+    global_to_local = Dict{Int, Int}()
+    cmap = mesh.cell_map
+    if isnothing(cmap)
+        cmap = 1:number_of_cells(mesh)
+    end
+    for (i, c) in enumerate(cmap)
+        c = c - 1 + cell_offset
+        global_to_local[c] = i
+    end
+    return global_to_local
 end
