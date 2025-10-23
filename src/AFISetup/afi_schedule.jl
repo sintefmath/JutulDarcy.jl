@@ -80,12 +80,19 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
                             continue
                         end
                         if haskey(rec, "Constraints")
-                            verb = lowercase(rec["Constraints"].verb)
-                            if verb != "add"
-                                error("Only 'add' verb is implemented so far, got '$verb' in position 1 for record $i for $date: $(rec["Constraints"])")
-                            end
-                            for (cname, cval) in pairs(rec["Constraints"].constraints)
+                            rc = rec["Constraints"]
+                            if rc isa GeoEnergyIO.IXParser.IXAssignmentRecord
+                                cname = rc.index
+                                cval = rc.value
                                 wsetup["Constraints"][cname] = Float64(cval)
+                            else
+                                verb = lowercase(rc.verb)
+                                if verb != "add"
+                                    error("Only 'add' verb is implemented so far, got '$verb' in position 1 for record $i for $date: $(rec["Constraints"])")
+                                end
+                                for (cname, cval) in pairs(rc.constraints)
+                                    wsetup["Constraints"][cname] = Float64(cval)
+                                end
                             end
                         end
                         if haskey(rec, "Status")
