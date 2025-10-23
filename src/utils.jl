@@ -89,6 +89,9 @@ calculated from geometry and other properties. This is useful for example if you
 have an externally computed model. The values must be given for every face on
 the mesh. Values that are NaN or Inf will be treated as missing and the standard
 transmissibility calculator will be used instead for those faces.
+
+Non-neighboring (nnc) connections can be added by passing a structure created
+using [`setup_nnc_connections`](@ref) to the `nnc` keyword argument.
 """
 function reservoir_domain(g;
         permeability = convert_to_si(0.1, :darcy),
@@ -101,8 +104,22 @@ function reservoir_domain(g;
         transmissibility_override = missing,
         transmissibility_multiplier = missing,
         diffusion = missing,
+        nnc = missing,
         kwarg...
     )
+    nf0 = number_of_faces(g)
+    has_nnc = !ismissing(nnc)
+    if has_nnc
+        nnc::NonNeighboringConnections
+        if g isa CartesianMesh
+            g = UnstructuredMesh(g)
+        end
+        g::UnstructuredMesh
+        g = deepcopy(g)
+        for (l, r) in nnc.cells
+            insert_nnc_face!(g, l, r)
+        end
+    end
     all(isfinite, permeability) || throw(ArgumentError("Keyword argument permeability has non-finite entries."))
     all(isfinite, porosity) || throw(ArgumentError("Keyword argument porosity has non-finite entries."))
     all(isfinite, rock_thermal_conductivity) || throw(ArgumentError("Keyword argument rock_thermal_conductivity has non-finite entries."))
@@ -135,6 +152,9 @@ function reservoir_domain(g;
         rock_density = rock_density,
         kwarg...
     )
+    if has_nnc
+        reservoir[:nnc, nothing] = nnc
+    end
     for k in [:porosity, :net_to_gross]
         if haskey(reservoir, k)
             val = reservoir[k]
@@ -142,9 +162,21 @@ function reservoir_domain(g;
         end
     end
     if !ismissing(transmissibility_multiplier)
+        if has_nnc && length(transmissibility_multiplier) == nf0
+            # Expand to include NNC connections
+            for _ in 1:length(nnc.cells)
+                push!(transmissibility_multiplier, 1.0)
+            end
+        end
         reservoir[:transmissibility_multiplier, Faces()] = transmissibility_multiplier
     end
     if !ismissing(transmissibility_override)
+        if has_nnc && length(transmissibility_override) == nf0
+            # Expand to include NNC connections
+            for _ in 1:length(nnc.cells)
+                push!(transmissibility_override, NaN)
+            end
+        end
         reservoir[:transmissibility_override, Faces()] = transmissibility_override
     end
     return reservoir
@@ -2013,12 +2045,12 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
 
     if haskey(d, :nnc)
         nnc = d[:nnc]
-        num_nnc = length(nnc)
-        # Aquifers come at the end, and NNC are just before the aquifer faces.
-        # TODO: Do this in a less brittle way, e.g. by tags.
-        offset = nf - num_nnc - num_aquifer_faces
-        for (i, ncon) in enumerate(nnc)
-            T[i + offset] = ncon[7]
+        nnc::NonNeighboringConnections
+        num_nnc = length(nnc.trans_flow)
+        # NNC come at the end.
+        offset = nf - num_nnc
+        for (i, T_nnc) in enumerate(nnc.trans_flow)
+            T[i + offset] = T_nnc
         end
     end
     return T
@@ -2832,4 +2864,13 @@ function reservoir_fluxes(model, state, kind = :volumetric;
         out = V
     end
     return out
+end
+
+function insert_nnc_face!(m::UnstructuredMesh, l::Int, r::Int)
+    nf = number_of_faces(m)
+    push!(m.faces.neighbors, (l, r))
+    npos = m.faces.faces_to_nodes.pos
+    push!(npos, npos[end])
+    @assert number_of_faces(m) == nf + 1
+    return m
 end

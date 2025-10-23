@@ -218,16 +218,29 @@ function Jutul.default_parameter_values(data_domain, model, param::RockThermalCo
         # This takes precedence
         T = copy(data_domain[:rock_thermal_conductivities])
     elseif haskey(data_domain, :rock_thermal_conductivity, Cells())
-        nph = number_of_phases(model.system)
-        phi = data_domain[:porosity]
-        C = data_domain[:rock_thermal_conductivity]
-        T = compute_face_trans(data_domain, (1.0 .- phi).*C)
+        T = reservoir_conductivity(data_domain)
     else
         error(":rock_thermal_conductivities or :rock_thermal_conductivities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
     return T
 end
 
+function reservoir_conductivity(reservoir::DataDomain)
+    phi = reservoir[:porosity]
+    C = reservoir[:rock_thermal_conductivity]
+    T = compute_face_trans(reservoir, (1.0 .- phi).*C)
+    if haskey(reservoir, :nnc)
+        nnc = reservoir[:nnc]
+        nnc::NonNeighboringConnections
+        num_nnc = length(nnc.trans_thermal)
+        # NNC come at the end.
+        offset = number_of_faces(reservoir) - num_nnc
+        for (i, T_nnc) in enumerate(nnc.trans_thermal)
+            T[i + offset] = T_nnc
+        end
+    end
+    return T
+end
 
 """
     WellIndicesThermal()

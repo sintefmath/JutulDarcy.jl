@@ -697,6 +697,8 @@ struct NonNeighboringConnections{R}
     trans_thermal::Vector{R}
 end
 
+export setup_nnc_connections
+
 function setup_nnc_connections(mesh::JutulMesh, left::Vector{Int}, right::Vector{Int}, trans::Vector, arg...)
     length(left) == length(right) || throw(ArgumentError("Left and right neighbor vectors must have the same length"))
     neighbors = [(left[i], right[i]) for i in eachindex(left)]
@@ -709,6 +711,20 @@ function setup_nnc_connections(mesh::JutulMesh, neighbors::Matrix{Int}, trans::V
     return setup_nnc_connections(mesh, tupl_neighbors, trans, arg...)
 end
 
+"""
+    setup_nnc_connections(mesh::JutulMesh, neighbors::Vector{Tuple{Int, Int}}, trans::Vector, trans_thermal = missing)
+    setup_nnc_connections(m, left::Vector{Int}, right::Vector{Int}, trans, trans_thermal)
+    setup_nnc_connections(m, neighbors::Matrix{Int}, trans, trans_thermal)
+
+Set up a NNC connection structure for the given `mesh`, list of `neighbors` (as
+tuples of left and right cell indices or a matrix with one column per
+connection), flow transmissibilities `trans` and thermal transmissibilities
+`trans_thermal`. If `trans_thermal` is not provided, it will be defaulted to
+zeros (no heat conduction).
+
+This object can then be passed to [`reservoir_domain`](@ref) to include NNCs in the
+simulation.
+"""
 function setup_nnc_connections(mesh::JutulMesh, neighbors::Vector{Tuple{Int, Int}}, trans::Vector{T}, trans_thermal = missing) where T
     if ismissing(trans_thermal)
         trans_thermal = similar(trans)
