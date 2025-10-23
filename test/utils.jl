@@ -81,7 +81,6 @@ end
     @test T_computed[end-2] == 10.0
     @test T_computed[end-1] == 5.0
     @test T_computed[end] == 3.0
-    ##
 
     Tt_computed0 = JutulDarcy.reservoir_conductivity(d0)
     Tt_computed = JutulDarcy.reservoir_conductivity(d)

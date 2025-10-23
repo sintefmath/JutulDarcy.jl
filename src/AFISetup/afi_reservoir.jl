@@ -119,32 +119,103 @@ function setup_reservoir_domain_afi(d::AFIInputFile, mesh;
             apply_box_property_edit!(data, edit.value, ncells, ijk_lookup)
         end
     end
-    # TODO: Move unit conversion here to properly handle edits.
+    # TODO: Move unit conversion here to properly handle edits that use absolute
+    # values and not multipliers.
+    domain_kwarg = remap_properties_to_jutuldarcy_names(data, ncells)
+
     if use_nnc
         conn = find_records(d, "ConnectionSet", once = false)
     else
         conn = []
     end
     if length(conn) > 0
-        # NNC
-        # TRANSMIBBILITY_(I/J/K)
-        # mesh, nnc_trans = add_afi_nnc_connections!(mesh, conn)
-        data[:nnc] = nnc_trans
-        error("Not finished.")
+        allconn = Dict{String, Any}()
+        for c in conn
+            nm = c.value["name"]
+            if haskey(allconn, nm)
+                merge!(allconn[nm], c.value)
+            else
+                allconn[nm] = c.value
+            end
+        end
+        left = Int[]
+        right = Int[]
+        trans_nnc = Float64[]
+        for (k, conn) in pairs(allconn)
+            if haskey(conn, "table")
+                tab = conn["table"]
+                for (c1, c2, t) in zip(tab["Cell1"], tab["Cell2"], tab["Transmissibility"])
+                    # TODO: Handle cell index offset and active map
+                    push!(left, c1)
+                    push!(right, c2)
+                    push!(trans_nnc, t)
+                end
+            end
+        end
+        num_nnc = length(trans_nnc)
+        if num_nnc > 0
+            @warn "Added $(length(trans_nnc)) NNC connections from AFI file. This functionality is not well tested, especially for meshes with inactive cells."
+            domain_kwarg[:nnc] = JutulDarcy.setup_nnc_connections(mesh, left, right, trans_nnc)
+        end
+    else
+        num_nnc = 0
     end
+
+    reservoir = reservoir_domain(mesh; domain_kwarg...)
+    # Finally, check if transmissibility override is present
+    set_transmissibility_override!(reservoir, data, num_nnc)
+    return reservoir
+end
+
+function set_transmissibility_override!(reservoir, data, num_nnc)
+    mesh = physical_representation(reservoir)
     has_trani = haskey(data, "TRANSMISSIBILITY_I")
     has_tranj = haskey(data, "TRANSMISSIBILITY_J")
     has_trank = haskey(data, "TRANSMISSIBILITY_K")
     has_tran_override = has_trani || has_tranj || has_trank
     if has_tran_override
-        domain_kwarg[:transmissibility_override] = tran_override
+        trans_override = JutulDarcy.reservoir_transmissibility(reservoir)
+        ijk = map(cell_ijk(mesh), 1:number_of_cells(mesh))
+        if has_trani
+            set_trans_override!(trans_override, mesh, ijk, 1, data["TRANSMISSIBILITY_I"], num_nnc)
+        end
+        if has_tranj
+            set_trans_override!(trans_override, mesh, ijk, 2, data["TRANSMISSIBILITY_J"], num_nnc)
+        end
+        if has_trank
+            set_trans_override!(trans_override, mesh, ijk, 3, data["TRANSMISSIBILITY_K"], num_nnc)
+        end
+        reservoir[:transmissibility_override, Faces()] = trans_override
     end
-    domain_kwarg = remap_properties_to_jutuldarcy_names(data, ncells)
-    return reservoir_domain(mesh; domain_kwarg...)
+    return reservoir
 end
 
-function add_afi_nnc_connections!(mesh, conn)
-    return (mesh, nnc_trans)
+function set_trans_override!(tran_override, mesh, ijk, dir, tran_xyz, num_nnc)
+    N = mesh.faces.neighbors
+    active_ix = mesh.cell_map
+    nf = number_of_faces(mesh)
+    for (c, val) in enumerate(tran_xyz[active_ix])
+        ijk_c = ijk[c][dir]
+        if !isfinite(val) || val < 0.0
+            continue
+        end
+        for face in mesh.faces.cells_to_faces[c]
+            if face > nf + num_nnc
+                continue
+            end
+            l, r = N[face]
+            if l == c
+                ijk_other = ijk[r][dir]
+            else
+                @assert r == c
+                ijk_other = ijk[l][dir]
+            end
+            if ijk_other != ijk_c
+                tran_override[face] = val
+            end
+        end
+    end
+    return tran_override
 end
 
 function apply_box_property_edit!(data, record, ncells, ijk_lookup)

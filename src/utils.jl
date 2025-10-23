@@ -1914,6 +1914,17 @@ a diagonal tensor aligned with the logical grid directions. The latter choice is
 only meaningful for a diagonal tensor.
 """
 function reservoir_transmissibility(d::DataDomain; version = :xyz)
+    nf = number_of_faces(d)
+    has_nnc = haskey(d, :nnc)
+    if has_nnc
+        nnc = d[:nnc]
+        nnc::NonNeighboringConnections
+        num_nnc = length(nnc.trans_flow)
+    else
+        nnc = missing
+        num_nnc = 0
+    end
+
     function apply_ntg!(T_hf, ntg, facepos, face_is_vertical)
         for (c, ntg) in enumerate(ntg)
             if ntg isa AbstractFloat && ntg ≈ 1.0
@@ -1926,9 +1937,12 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
             end
         end
     end
-    function fig_negative_trans!(T_hf)
+    function fig_negative_trans!(T_hf, faceno)
         neg_count = 0
         for (i, T_hf_i) in enumerate(T_hf)
+            if faceno[i] > nf - num_nnc
+                continue
+            end
             neg_count += T_hf_i < 0
             T_hf[i] = abs(T_hf_i)
         end
@@ -1941,9 +1955,12 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
         end
         return T_hf
     end
-    function fix_bad_trans!(T_hf)
+    function fix_bad_trans!(T_hf, faceno)
         bad_count = 0
         for (i, T_hf_i) in enumerate(T_hf)
+            if faceno[i] > nf - num_nnc
+                continue
+            end
             if T_hf_i isa AbstractFloat && !isfinite(T_hf_i)
                 bad_count += 1
                 T_hf[i] = 0.0
@@ -1978,8 +1995,8 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
         face_dir = face_dir
     )
     nf = number_of_faces(d)
-    fig_negative_trans!(T_hf)
-    fix_bad_trans!(T_hf)
+    fig_negative_trans!(T_hf, faces)
+    fix_bad_trans!(T_hf, faces)
     if haskey(d, :net_to_gross)
         # Net to gross applies to vertical trans only
         otag = get_mesh_entity_tag(g, Faces(), :orientation, throw = false)
@@ -2043,10 +2060,7 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
         num_aquifer_faces = 0
     end
 
-    if haskey(d, :nnc)
-        nnc = d[:nnc]
-        nnc::NonNeighboringConnections
-        num_nnc = length(nnc.trans_flow)
+    if has_nnc
         # NNC come at the end.
         offset = nf - num_nnc
         for (i, T_nnc) in enumerate(nnc.trans_flow)
