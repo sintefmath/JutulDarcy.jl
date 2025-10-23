@@ -163,6 +163,10 @@ function setup_reservoir_domain_afi(d::AFIInputFile, mesh;
 
     reservoir = reservoir_domain(mesh; domain_kwarg...)
     # Finally, check if transmissibility override is present
+    if haskey(data, "CELL_CENTER_DEPTH")
+        cc = reservoir[:cell_centroids, Cells()]
+        cc[3, :] .= data["CELL_CENTER_DEPTH"]
+    end
     set_transmissibility_override!(reservoir, data, num_nnc)
     return reservoir
 end
@@ -359,6 +363,11 @@ function remap_properties_to_jutuldarcy_names(data, ncells)
             poro .= vals
         elseif k == "NET_TO_GROSS_RATIO"
             ntg .= vals
+        elseif k == "PORE_VOLUME"
+            out[:fluid_volume] = vals
+        elseif k in ["TRANSMISSIBILITY_I", "TRANSMISSIBILITY_J", "TRANSMISSIBILITY_K"]
+            # Handled separately
+            continue
         else
             out[Symbol(k)] = vals
         end
