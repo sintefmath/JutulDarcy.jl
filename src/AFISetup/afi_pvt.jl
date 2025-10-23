@@ -18,7 +18,7 @@ function setup_pvt_variables(d::AFIInputFile, sys::Union{StandardBlackOilSystem,
     if LiquidPhase() in phases
         if JutulDarcy.has_disgas(sys)
             dtab = bo_model["OilTable"]["table"]
-            pvto_like = JutulDarcy.AFISetup.to_processed_pvt_table(dtab, "SolutionGOR", ["Pressure", "FormationVolumeFactor", "Viscosity"])
+            pvto_like = to_processed_pvt_table(dtab, "SolutionGOR", ["Pressure", "FormationVolumeFactor", "Viscosity"])
             pvto_ext = GeoEnergyIO.InputParser.restructure_pvt_table(pvto_like)
             oil_tab_raw = JutulDarcy.PVTOTable(pvto_ext)
             oil_tab = JutulDarcy.PVTO(oil_tab_raw)

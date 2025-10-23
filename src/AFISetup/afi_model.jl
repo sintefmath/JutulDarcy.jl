@@ -1,14 +1,14 @@
 function JutulDarcy.setup_reservoir_model(afi::AFIInputFile;
         reservoir = JutulDarcy.reservoir_domain(afi),
-        system = JutulDarcy.AFISetup.setup_system(afi),
-        wells = JutulDarcy.AFISetup.setup_wells(afi, reservoir),
+        system = setup_system(afi),
+        wells = setup_wells(afi, reservoir),
         extra_out = true,
         kwarg...
     )
 
     model = setup_reservoir_model(reservoir, system; wells = wells, extra_out = false, kwarg...)
-    pvars = JutulDarcy.AFISetup.setup_pvt_variables(afi, system, reservoir)
-    svars = JutulDarcy.AFISetup.setup_saturation_variables(afi, system, reservoir)
+    pvars = setup_pvt_variables(afi, system, reservoir)
+    svars = setup_saturation_variables(afi, system, reservoir)
     allvars = merge(pvars, svars)
     for (k, v) in allvars
         for (model_key, submodel) in pairs(model.models)
