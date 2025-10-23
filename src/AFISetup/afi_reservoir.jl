@@ -125,16 +125,26 @@ function setup_reservoir_domain_afi(d::AFIInputFile, mesh;
     else
         conn = []
     end
+    if length(conn) > 0
+        # NNC
+        # TRANSMIBBILITY_(I/J/K)
+        # mesh, nnc_trans = add_afi_nnc_connections!(mesh, conn)
+        data[:nnc] = nnc_trans
+        error("Not finished.")
+    end
     has_trani = haskey(data, "TRANSMISSIBILITY_I")
     has_tranj = haskey(data, "TRANSMISSIBILITY_J")
     has_trank = haskey(data, "TRANSMISSIBILITY_K")
-    if length(conn) > 0 || has_trani || has_tranj || has_trank
-        # NNC
-        # TRANSMIBBILITY_(I/J/K)
-        error("Not finished.")
+    has_tran_override = has_trani || has_tranj || has_trank
+    if has_tran_override
+        domain_kwarg[:transmissibility_override] = tran_override
     end
     domain_kwarg = remap_properties_to_jutuldarcy_names(data, ncells)
     return reservoir_domain(mesh; domain_kwarg...)
+end
+
+function add_afi_nnc_connections!(mesh, conn)
+    return (mesh, nnc_trans)
 end
 
 function apply_box_property_edit!(data, record, ncells, ijk_lookup)

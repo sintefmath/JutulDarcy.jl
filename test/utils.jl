@@ -39,3 +39,39 @@ import JutulDarcy: current_phase_index
     @test current_phase_index(1.5, depths, reverse = true) == 2 # Oil
     @test current_phase_index(2.5, depths, reverse = true) == 1 # Water
 end
+
+##
+@testset "nnc" begin
+
+end
+
+##
+using Test
+
+l = [1, 2, 3]
+r = [2, 3, 4]
+N = [l'; r']
+neighbors = [(l[i], r[i]) for i in eachindex(l)]
+T = [10.0, 5.0, 3.0]
+T_t = [0.1, 0.2, 0.3]
+
+m = UnstructuredMesh(CartesianMesh((5, 5)))
+nnc1 = JutulDarcy.setup_nnc_connections(m, l, r, T, T_t)
+nnc2 = JutulDarcy.setup_nnc_connections(m, N, T, T_t)
+@test nnc1.cells == nnc2.cells
+@test nnc1.trans_flow == nnc2.trans_flow
+@test nnc1.trans_thermal == nnc2.trans_thermal
+
+nnc3 = JutulDarcy.setup_nnc_connections(m, neighbors, T, T_t)
+@test nnc1.cells == nnc3.cells
+@test nnc1.trans_flow == nnc3.trans_flow
+@test nnc1.trans_thermal == nnc3.trans_thermal
+
+nnc4 = JutulDarcy.setup_nnc_connections(m, l, r, T)
+@test nnc1.cells == nnc4.cells
+@test all(isequal(0.0), nnc4.trans_thermal)
+
+@test_throws "ArgumentError: Left neighbor index 26 at connection 1 exceeds number of cells 25" JutulDarcy.setup_nnc_connections(m, [26], [1], T, T_t)
+@test_throws "ArgumentError: Right neighbor index 0 at connection 1 must be positive" JutulDarcy.setup_nnc_connections(m, [1], [0], T, T_t)
+##
+

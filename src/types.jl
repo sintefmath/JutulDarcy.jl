@@ -690,3 +690,50 @@ struct MaxRelPermPoints <: ScalarVariable end
 struct LETCoefficients <: JutulVariables end
 
 struct CoreyExponentKrPoints <: ScalarVariable end
+
+struct NonNeighboringConnections{R}
+    cells::Vector{Tuple{Int, Int}}
+    trans_flow::Vector{R}
+    trans_thermal::Vector{R}
+end
+
+function setup_nnc_connections(mesh::JutulMesh, left::Vector{Int}, right::Vector{Int}, trans::Vector, arg...)
+    length(left) == length(right) || throw(ArgumentError("Left and right neighbor vectors must have the same length"))
+    neighbors = [(left[i], right[i]) for i in eachindex(left)]
+    return setup_nnc_connections(mesh, neighbors, trans, arg...)
+end
+
+function setup_nnc_connections(mesh::JutulMesh, neighbors::Matrix{Int}, trans::Vector, arg...)
+    size(neighbors, 1) == 2 || throw(ArgumentError("Neighbors matrix must have two rows"))
+    tupl_neighbors = [(neighbors[1, i], neighbors[2, i]) for i in axes(neighbors, 2)]
+    return setup_nnc_connections(mesh, tupl_neighbors, trans, arg...)
+end
+
+function setup_nnc_connections(mesh::JutulMesh, neighbors::Vector{Tuple{Int, Int}}, trans::Vector{T}, trans_thermal = missing) where T
+    if ismissing(trans_thermal)
+        trans_thermal = similar(trans)
+        trans_thermal .= 0.0
+    end
+    nc = number_of_cells(mesh)
+    for (i, (l, r)) in enumerate(neighbors)
+        l > 0 || throw(ArgumentError("Left neighbor index $l at connection $i must be positive"))
+        r > 0 || throw(ArgumentError("Right neighbor index $r at connection $i must be positive"))
+        l <= nc || throw(ArgumentError("Left neighbor index $l at connection $i exceeds number of cells $nc"))
+        r <= nc || throw(ArgumentError("Right neighbor index $r at connection $i exceeds number of cells $nc"))
+    end
+    nf = length(neighbors)
+    nt_f = length(trans)
+    nt_t = length(trans_thermal)
+    nt_f == nf || throw(ArgumentError("Length of flow transmissibilities ($nt_f) must match number of connections"))
+    nt_t == nf || throw(ArgumentError("Length of thermal transmissibilities ($nt_t) must match number of connections"))
+    F = eltype(trans_thermal)
+    R = promote_type(T, F)
+    if T != R
+        trans = R.(trans)
+    end
+    if F != R
+        trans_thermal = R.(trans_thermal)
+    end
+    return NonNeighboringConnections{R}(neighbors, trans, trans_thermal)
+end
+
