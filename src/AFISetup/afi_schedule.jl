@@ -4,6 +4,10 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
     # well_type = Dict{Symbol, Any}()
 
     well_setup = Dict{Symbol, Any}()
+    group_lists = Dict{String, Any}(
+        "StaticList" => Dict{String, Any}(),
+        "Group" => Dict{String, Any}()
+    )
     wells = get_model_wells(model)
     for (wname, w) in pairs(wells)
         well_setup[wname] = Dict{String, Any}(
@@ -46,8 +50,9 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
         for (i, recv) in enumerate(fm_steps[date])
             kw = recv.keyword
             rec = recv.value
-            # @info "FM $date: $i $kw" rec
-            if kw == "Well"
+            if kw == "StaticList" || kw == "Group"
+                group_lists[kw][rec.group] = rec.members
+            elseif kw == "Well"
                 if haskey(rec, "name")
                     names = rec["name"]
                     if names isa AbstractString
