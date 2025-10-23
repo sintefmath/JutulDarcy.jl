@@ -37,12 +37,18 @@ function setup_mesh_afi(afi::AFIInputFile, mesh::Missing)
         if isnothing(pillar_grid)
             error("No RESQML section in AFI file, and no StraightPillarGrid record found.")
         end
+        pg = pillar_grid.value
         cartdims = cartdims_from_structured_info(afi)
         nx, ny, nz = cartdims
-        dx = pillar_grid.value["DeltaX"]
-        dy = pillar_grid.value["DeltaY"]
-        dz = pillar_grid.value["DeltaZ"]
-        tops = pillar_grid.value["PillarTops"]
+        dx = pg["DeltaX"]
+        dy = pg["DeltaY"]
+        dz = pg["DeltaZ"]
+        tops = pg["PillarTops"]
+
+        dcp = pg["CellDoubleProperty"]
+        if ismissing(tops) && haskey(dcp, "CELL_TOP_DEPTH")
+            tops = dcp["CELL_TOP_DEPTH"]
+        end
         if !ismissing(tops)
             tops = tops[1:nx*ny]
         end
