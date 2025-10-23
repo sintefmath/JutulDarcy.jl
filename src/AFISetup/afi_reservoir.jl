@@ -90,8 +90,8 @@ function setup_reservoir_domain_afi(d::AFIInputFile, mesh; active = mesh.cell_ma
         end
         found = true
     else
-        pillar_grid = find_records(d, "StraightPillarGrid", once = true)
-        if !isnothing(pillar_grid)
+        pillar_grids = find_records(d, "StraightPillarGrid", once = false)
+        for pillar_grid in pillar_grids
             found = true
             for (k, v) in pillar_grid.value["CellDoubleProperty"]
                 set_grid_entry!(data, k, v, ncells)
