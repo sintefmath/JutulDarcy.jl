@@ -116,6 +116,7 @@ function setup_reservoir_domain_afi(d::AFIInputFile, mesh; active = mesh.cell_ma
             apply_box_property_edit!(data, edit.value, ncells, ijk_lookup)
         end
     end
+    # TODO: Move unit conversion here to properly handle edits.
     domain_kwarg = remap_properties_to_jutuldarcy_names(data, ncells)
     return reservoir_domain(mesh; domain_kwarg...)
 end

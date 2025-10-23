@@ -6,16 +6,38 @@ function setup_saturation_variables(d::AFIInputFile, sys, reservoir; regions = s
 end
 
 function setup_relperm(d, reservoir, sys; regions = setup_region_map(d))
+    satfuns = find_records(d, "SaturationFunction", "IX", steps = false, model = true)
+    drain = phase_relperms(satfuns, reservoir, sys, regions; drainage = true)
+    kr = JutulDarcy.ReservoirRelativePermeabilities(
+        w = drain.w,
+        g = drain.g,
+        ow = drain.ow,
+        og = drain.og,
+        regions = drain.satnum
+    )
+    return kr
+end
+
+function phase_relperms(satfuns, reservoir, sys, regions; drainage::Bool = true)
     phase_symb = phases_symbol(sys)
     present = phases_present(sys)
-    satfuns = find_records(d, "SaturationFunction", "IX", steps = false, model = true)
     krw = Dict()
     krg = Dict()
     krog = Dict()
     krow = Dict()
-    for satfun in map(x -> x, satfuns)
+    if drainage
+        regkey = "DRAINAGE_SATURATION_FUNCTION"
+    else
+        regkey = "IMBIBITION_SATURATION_FUNCTION"
+    end
+    satnum, regmap = get_region_value_and_map(reservoir, regions, "rock", regkey)
+
+    for satfun in satfuns
         vals = satfun.value
         reg = satfun.value["region"]
+        if !haskey(regmap, reg)
+            continue
+        end
         if present.water
             krw[reg] = get_relperm(vals, :w, phase_symb, "WaterRelPermFunction")
             if present.oil
@@ -29,16 +51,11 @@ function setup_relperm(d, reservoir, sys; regions = setup_region_map(d))
             end
         end
     end
-    drainage_satnum, drain_reg_map = get_region_value_and_map(reservoir, regions, "rock", "DRAINAGE_SATURATION_FUNCTION")
-    # TODO: Hysteresis, scaling
-    kr = JutulDarcy.ReservoirRelativePermeabilities(
-        w = remap_to_tuple(krw, drain_reg_map),
-        g = remap_to_tuple(krg, drain_reg_map),
-        ow = remap_to_tuple(krow, drain_reg_map),
-        og = remap_to_tuple(krog, drain_reg_map),
-        regions = drainage_satnum
-    )
-    return kr
+    w = remap_to_tuple(krw, regmap)
+    g = remap_to_tuple(krg, regmap)
+    ow = remap_to_tuple(krow, regmap)
+    og = remap_to_tuple(krog, regmap)
+    return (w = w, g = g, ow = ow, og = og, satnum = satnum)
 end
 
 function region_convert(region::Vector, reg_map = missing)
@@ -82,7 +99,7 @@ function setup_pc(d, reservoir, sys; regions = setup_region_map(d))
         f = get_saturation_function(vals, "CapPressure", name)
         return get_1d_interpolator(f["Saturation"], sgn.*f["CapPressure"])
     end
-    for satfun in map(x -> x, satfuns)
+    for satfun in satfuns
         vals = satfun.value
         reg = satfun.value["region"]
         if has_ow
