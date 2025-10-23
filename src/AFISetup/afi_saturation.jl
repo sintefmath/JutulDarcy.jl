@@ -99,9 +99,14 @@ function setup_pc(d, reservoir, sys; regions = setup_region_map(d))
         f = get_saturation_function(vals, "CapPressure", name)
         return get_1d_interpolator(f["Saturation"], sgn.*f["CapPressure"])
     end
+    drainage_satnum, drain_reg_map = get_region_value_and_map(reservoir, regions, "rock", "DRAINAGE_SATURATION_FUNCTION")
     for satfun in satfuns
         vals = satfun.value
         reg = satfun.value["region"]
+        if !haskey(drain_reg_map, reg)
+            println("Skipping region $reg for capillary pressure. Hysteresis not supported for capillary pressure.")
+            continue
+        end
         if has_ow
             pcow[reg] = getpc(vals, "OilWaterCapPressureFunction", -1)
         end
@@ -109,7 +114,6 @@ function setup_pc(d, reservoir, sys; regions = setup_region_map(d))
             pcog[reg] = getpc(vals, "GasOilCapPressureFunction")
         end
     end
-    drainage_satnum, drain_reg_map = get_region_value_and_map(reservoir, regions, "rock", "DRAINAGE_SATURATION_FUNCTION")
     # TODO: Hysteresis, scaling
     pc = []
     if has_ow
