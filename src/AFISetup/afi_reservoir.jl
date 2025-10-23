@@ -43,12 +43,15 @@ function setup_mesh_afi(afi::AFIInputFile, mesh::Missing)
         dy = pillar_grid.value["DeltaY"]
         dz = pillar_grid.value["DeltaZ"]
         tops = pillar_grid.value["PillarTops"]
+        if !ismissing(tops)
+            tops = tops[1:nx*ny]
+        end
         grid = Dict(
             "cartDims" => cartdims,
             "DXV" => dx,
             "DYV" => dy,
             "DZV" => dz,
-            "TOPS" => tops[1:nx*ny],
+            "TOPS" => tops,
         )
         mesh = mesh_from_grid_section(grid)
     end
