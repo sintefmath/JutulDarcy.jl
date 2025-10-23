@@ -117,6 +117,15 @@ function setup_reservoir_domain_afi(d::AFIInputFile, mesh; active = mesh.cell_ma
         end
     end
     # TODO: Move unit conversion here to properly handle edits.
+    conn = find_records(d, "ConnectionSet", once = false)
+    has_trani = haskey(data, "TRANSMISSIBILITY_I")
+    has_tranj = haskey(data, "TRANSMISSIBILITY_J")
+    has_trank = haskey(data, "TRANSMISSIBILITY_K")
+    if length(conn) > 0 || has_trani || has_tranj || has_trank
+        # NNC
+        # TRANSMIBBILITY_(I/J/K)
+        error("Not finished.")
+    end
     domain_kwarg = remap_properties_to_jutuldarcy_names(data, ncells)
     return reservoir_domain(mesh; domain_kwarg...)
 end
