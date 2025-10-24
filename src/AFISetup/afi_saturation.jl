@@ -21,7 +21,6 @@ function setup_relperm(d, reservoir, sys; regions = setup_region_map(d))
     for satfun in satfuns
         vals = satfun.value
         reg = satfun.value["region"]
-        @warn reg
         if present.water
             krw[reg] = get_relperm(vals, :w, phase_symb, "WaterRelPermFunction")
             if present.oil
@@ -190,6 +189,8 @@ function get_relperm(satfun, phase_label::Symbol, phases::Symbol, tab_label; thr
     return kr_obj
 end
 
+
+import JutulDarcy: brooks_corey_relperm
 function brooks_corey_from_coefficients(krtab)
     n = krtab["Exponent"]
     sr = get(krtab, "ResidualSaturation", 0.0)
@@ -197,7 +198,8 @@ function brooks_corey_from_coefficients(krtab)
     krmax = get(krtab, "EndPointRelPerm", 1.0)
     s_max = get(krtab, "EndPointSaturation", 1.0 - sconn)
     s = collect(range(sconn, s_max, length = 50))
-    kr = JutulDarcy.brooks_corey_relperm.(s, n = n, residual = sr, kr_max = krmax, residual_total = 1.0 - s_max)
+    bc(s_i) = brooks_corey_relperm(s_i, n, sr, krmax, 1.0 - s_max)
+    kr = bc.(s)
     return (s, kr)
 end
 
