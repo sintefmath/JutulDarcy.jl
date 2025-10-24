@@ -21,9 +21,6 @@ function setup_relperm(d, reservoir, sys; regions = setup_region_map(d))
     for satfun in satfuns
         vals = satfun.value
         reg = satfun.value["region"]
-        if !haskey(drainage.map, reg)
-            continue
-        end
         if present.water
             krw[reg] = get_relperm(vals, :w, phase_symb, "WaterRelPermFunction")
             if present.oil
@@ -157,7 +154,7 @@ function remap_to_tuple(d::Dict, regs)
         for (k, v) in d
             out[regs.map[k]] = v
         end
-        any(ismissing(out)) && error("Not all regions mapped in saturation function remapping.")
+        any(ismissing.(out)) && error("Not all regions mapped in saturation function remapping.")
         out = Tuple(out)
     end
     return out
@@ -248,7 +245,14 @@ function merge_saturation_regions(drainage, imbibition)
         if !all(drainage.value .== imbibition.value)
             @warn "Drainage and imbibition saturation functions defined on different regions, cannot merge. Using drainage only."
         end
-        merged = (value = drainage.value, map = merge(drainage.map, imbibition.map))
+        new_map = copy(drainage.map)
+        maxval = maximum(values(drainage.map))
+        for (k, v) in imbibition.map
+            if !haskey(new_map, k)
+                new_map[k] = v + maxval
+            end
+        end
+        merged = (value = drainage.value, map = merge(drainage.map, new_map))
     end
     return merged
 end
