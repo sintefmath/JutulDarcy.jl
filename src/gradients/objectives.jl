@@ -162,6 +162,75 @@ function well_mismatch(qoi, wells, model_f, states_f, model_c, state_c, dt, step
     return scale*dt*obj
 end
 
+function setup_well_mismatch_objective(case_coarse::JutulCase, case_fine::JutulCase, result_fine::ReservoirSimResult;
+        orat_scale = 1.0/(100.0/si_unit(:day)),
+        wrat_scale = 1.0/(250.0/si_unit(:day)),
+        grat_scale = 1.0/(2000.0/si_unit(:day)),
+        bhp_scale = 1.0/(100.0*si_unit(:bar))
+    )
+    states_f = deepcopy(result_fine.result.states)
+    for state in states_f
+        for (k, v) in pairs(state)
+            state[k] = Jutul.convert_to_immutable_storage(v)
+        end
+    end
+    w = Float64[]
+    matches = []
+    signs = Int[]
+    model_f = case_fine.model
+    sys = reservoir_model(model_f).system
+    wrat = SurfaceWaterRateTarget(1.0)
+    orat = SurfaceOilRateTarget(1.0)
+    grat = SurfaceGasRateTarget(-1.0)
+    bhp = JutulDarcy.BottomHolePressureTarget(1.0)
+
+    push!(matches, bhp)
+    push!(w, bhp_scale)
+    push!(signs, -1)
+
+    for phase in JutulDarcy.get_phases(sys)
+        if phase == LiquidPhase()
+            push!(matches, orat)
+            push!(w, orat_scale)
+            push!(signs, -1)
+        elseif phase == VaporPhase()
+            push!(matches, grat)
+            push!(w, grat_scale)
+            push!(signs, -1)
+        else
+            @assert phase == AqueousPhase()
+            push!(matches, wrat)
+            push!(w, wrat_scale)
+            push!(signs, -1)
+        end
+    end
+
+    signs = zeros(Int, length(signs))
+    dt = case_coarse.dt
+    wells = collect(keys(JutulDarcy.get_model_wells(case_fine)))
+    o_scale = 1.0/(sum(dt)*length(wells))
+    states_f = result_fine.result.states
+    for (i, state) in enumerate(states_f)
+        for (k, v) in pairs(state)
+            state[k] = Jutul.convert_to_immutable_storage(v)
+        end
+    end
+    G = (model_c, state_c, dt, step_no, forces) -> well_mismatch(
+        matches,
+        wells,
+        model_f,
+        states_f,
+        model_c,
+        state_c,
+        dt,
+        step_no,
+        forces,
+        weights = w,
+        scale = o_scale,
+        signs = signs
+    )
+    return G
+end
 
 """
     setup_rate_optimization_objective(case, base_rate;
