@@ -638,9 +638,9 @@ struct ProducerControl{T, R} <: WellControlForce
     factor::R
     function ProducerControl(target::T; factor::R = 1.0, check = true) where {T<:WellTarget, R<:Real}
         if check && rate_weighted(target)
-            @assert target.value < 0.0 "Injector target rate must be negative"
+            target.value < 0.0 || error("Injector target rate must be negative")
         end
-        new{T, R}(target, factor)
+        return new{T, R}(target, factor)
     end
 end
 
@@ -649,7 +649,7 @@ default_limits(f::ProducerControl{T}) where T<:TotalMassRateTarget = merge((bhp 
 default_limits(f::ProducerControl{T}) where T<:BottomHolePressureTarget = merge((rate_lower = -MIN_ACTIVE_WELL_RATE,), as_limit(f.target))
 
 function replace_target(f::ProducerControl, target)
-    return ProducerControl(target, factor = f.factor)
+    return ProducerControl(target, factor = f.factor, check = false)
 end
 
 effective_surface_rate(qts, ::DisabledControl) = qts
