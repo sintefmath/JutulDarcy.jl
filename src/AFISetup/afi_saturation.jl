@@ -21,6 +21,7 @@ function setup_relperm(d, reservoir, sys; regions = setup_region_map(d))
     for satfun in satfuns
         vals = satfun.value
         reg = satfun.value["region"]
+        @warn reg
         if present.water
             krw[reg] = get_relperm(vals, :w, phase_symb, "WaterRelPermFunction")
             if present.oil
@@ -183,16 +184,21 @@ function get_relperm(satfun, phase_label::Symbol, phases::Symbol, tab_label; thr
         s = krtab["Saturation"]
     elseif haskey(satfun, "CoreyRelPerm")
         krtab = get_saturation_function(satfun, "CoreyRelPerm", tab_label, throw = throw)
-        n = krtab["Exponent"]
-        sr = get(krtab, "ResidualSaturation", 0.0)
-        sconn = get(krtab, "ConnateSaturation", 0.0)
-        krmax = get(krtab, "EndPointRelPerm", 1.0)
-        s_max = get(krtab, "EndPointSaturation", 1.0 - sconn)
-        s = collect(range(sconn, s_max, length = 50))
-        kr = JutulDarcy.brooks_corey_relperm.(s, n = n, residual = sr, kr_max = krmax, residual_total = 1.0 - s_max)
+        s, kr = brooks_corey_from_coefficients(krtab)
     end
     kr_obj = PhaseRelativePermeability(s, kr, label = phase_label)
     return kr_obj
+end
+
+function brooks_corey_from_coefficients(krtab)
+    n = krtab["Exponent"]
+    sr = get(krtab, "ResidualSaturation", 0.0)
+    sconn = get(krtab, "ConnateSaturation", 0.0)
+    krmax = get(krtab, "EndPointRelPerm", 1.0)
+    s_max = get(krtab, "EndPointSaturation", 1.0 - sconn)
+    s = collect(range(sconn, s_max, length = 50))
+    kr = JutulDarcy.brooks_corey_relperm.(s, n = n, residual = sr, kr_max = krmax, residual_total = 1.0 - s_max)
+    return (s, kr)
 end
 
 function get_saturation_function(satfun, type, label; throw = true)
