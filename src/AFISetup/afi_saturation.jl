@@ -62,6 +62,20 @@ function setup_relperm(d, reservoir, sys; regions = setup_region_map(d))
         hysteresis_w = hysteresis_ow = hysteresis_g = hysteresis_og = JutulDarcy.NoHysteresis()
     end
 
+    rock_mgr = find_records(d, "RockMgr", "IX", steps = false, model = true, once = true)
+    hscale = get(rock_mgr.value, "HorizontalEndPointScaling", false)
+    vscale = get(rock_mgr.value, "VerticalEndPointScaling", false)
+    hscale == vscale || error("Only one of HorizontalEndPointScaling and VerticalEndPointScaling is set in RockMgr. Both must be true or both must be false in this current implementation.")
+    if hscale || vscale
+        if get(rock_mgr.value, "ThreePointScaling", false)
+            scaling = JutulDarcy.ThreePointKrScale()
+        else
+            scaling = JutulDarcy.TwoPointKrScale()
+        end
+    else
+        scaling = JutulDarcy.NoKrScale()
+    end
+
     kr = JutulDarcy.ReservoirRelativePermeabilities(
         w = w,
         g = g,
@@ -71,7 +85,8 @@ function setup_relperm(d, reservoir, sys; regions = setup_region_map(d))
         hysteresis_w = hysteresis_w,
         hysteresis_ow = hysteresis_ow,
         hysteresis_g = hysteresis_g,
-        hysteresis_og = hysteresis_og
+        hysteresis_og = hysteresis_og,
+        scaling = scaling
     )
     return kr
 end
@@ -176,7 +191,8 @@ function get_relperm(satfun, phase_label::Symbol, phases::Symbol, tab_label; thr
         s = collect(range(sconn, s_max, length = 50))
         kr = JutulDarcy.brooks_corey_relperm.(s, n = n, residual = sr, kr_max = krmax, residual_total = 1.0 - s_max)
     end
-    return PhaseRelativePermeability(s, kr, label = phase_label)
+    kr_obj = PhaseRelativePermeability(s, kr, label = phase_label)
+    return kr_obj
 end
 
 function get_saturation_function(satfun, type, label; throw = true)
