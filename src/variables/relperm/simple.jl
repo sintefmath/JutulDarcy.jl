@@ -275,7 +275,8 @@ end
 
 function update_let!(kr, Saturations, WettingLET, NonWettingLET, WettingCritical, NonWettingCritical, WettingKrMax, NonWettingKrMax, ix)
     for c in ix
-        sw, snw = Saturations[:, c]
+        sw = Saturations[1, c]
+        snw = Saturations[2, c]
 
         Lw = WettingLET[1, c]
         Ew = WettingLET[2, c]
