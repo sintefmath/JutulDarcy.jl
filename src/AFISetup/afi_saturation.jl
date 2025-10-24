@@ -7,35 +7,21 @@ end
 
 function setup_relperm(d, reservoir, sys; regions = setup_region_map(d))
     satfuns = find_records(d, "SaturationFunction", "IX", steps = false, model = true)
-    drain = phase_relperms(satfuns, reservoir, sys, regions; drainage = true)
-    kr = JutulDarcy.ReservoirRelativePermeabilities(
-        w = drain.w,
-        g = drain.g,
-        ow = drain.ow,
-        og = drain.og,
-        regions = drain.satnum
-    )
-    return kr
-end
 
-function phase_relperms(satfuns, reservoir, sys, regions; drainage::Bool = true)
     phase_symb = phases_symbol(sys)
     present = phases_present(sys)
     krw = Dict()
     krg = Dict()
     krog = Dict()
     krow = Dict()
-    if drainage
-        regkey = "DRAINAGE_SATURATION_FUNCTION"
-    else
-        regkey = "IMBIBITION_SATURATION_FUNCTION"
-    end
-    satnum, regmap = get_region_value_and_map(reservoir, regions, "rock", regkey)
+    drainage = get_region_value_and_map(reservoir, regions, "rock", "DRAINAGE_SATURATION_FUNCTION")
+    imbibition = get_region_value_and_map(reservoir, regions, "rock", "IMBIBITION_SATURATION_FUNCTION")
+    kr_regs = merge_saturation_regions(drainage, imbibition)
 
     for satfun in satfuns
         vals = satfun.value
         reg = satfun.value["region"]
-        if !haskey(regmap, reg)
+        if !haskey(drainage.map, reg)
             continue
         end
         if present.water
@@ -51,11 +37,46 @@ function phase_relperms(satfuns, reservoir, sys, regions; drainage::Bool = true)
             end
         end
     end
-    w = remap_to_tuple(krw, regmap)
-    g = remap_to_tuple(krg, regmap)
-    ow = remap_to_tuple(krow, regmap)
-    og = remap_to_tuple(krog, regmap)
-    return (w = w, g = g, ow = ow, og = og, satnum = satnum)
+    w = remap_to_tuple(krw, kr_regs)
+    g = remap_to_tuple(krg, kr_regs)
+    ow = remap_to_tuple(krow, kr_regs)
+    og = remap_to_tuple(krog, kr_regs)
+
+    hyst = find_records(d, "KilloughRelPermHysteresis", "IX", steps = false, model = true, once = true)
+    if !isnothing(hyst)
+        h = hyst.value
+        # Drainage, imbibition, hysteresis?
+        tol = get(h, "ModificationParameter", 0.1)
+        nw_hyst = JutulDarcy.KilloughHysteresis(tol = tol)
+        wetting_hyst = String(get(h, "WettingPhaseHysteresis", "DRAINAGE"))
+        if wetting_hyst == "DRAINAGE"
+            w_hyst = JutulDarcy.ImbibitionOnlyHysteresis()
+        elseif wetting_hyst == "IMBIBITION"
+            w_hyst = JutulDarcy.NoHysteresis()
+        else
+            wetting_hyst == "HYSTERESIS" || error("Unknown wetting phase hysteresis type: $wetting_hyst")
+            w_hyst = nw_hyst
+        end
+        hysteresis_w = w_hyst
+        hysteresis_ow = nw_hyst
+        hysteresis_g = w_hyst
+        hysteresis_og = nw_hyst
+    else
+        hysteresis_w = hysteresis_ow = hysteresis_g = hysteresis_og = JutulDarcy.NoHysteresis()
+    end
+
+    kr = JutulDarcy.ReservoirRelativePermeabilities(
+        w = w,
+        g = g,
+        ow = ow,
+        og = og,
+        regions = kr_regs.value,
+        hysteresis_w = hysteresis_w,
+        hysteresis_ow = hysteresis_ow,
+        hysteresis_g = hysteresis_g,
+        hysteresis_og = hysteresis_og
+    )
+    return kr
 end
 
 function region_convert(region::Vector, reg_map = missing)
@@ -99,14 +120,12 @@ function setup_pc(d, reservoir, sys; regions = setup_region_map(d))
         f = get_saturation_function(vals, "CapPressure", name)
         return get_1d_interpolator(f["Saturation"], sgn.*f["CapPressure"])
     end
-    drainage_satnum, drain_reg_map = get_region_value_and_map(reservoir, regions, "rock", "DRAINAGE_SATURATION_FUNCTION")
+    drainage = get_region_value_and_map(reservoir, regions, "rock", "DRAINAGE_SATURATION_FUNCTION")
+    imbibition = get_region_value_and_map(reservoir, regions, "rock", "IMBIBITION_SATURATION_FUNCTION")
+    regs = merge_saturation_regions(drainage, imbibition)
     for satfun in satfuns
         vals = satfun.value
         reg = satfun.value["region"]
-        if !haskey(drain_reg_map, reg)
-            println("Skipping region $reg for capillary pressure. Hysteresis not supported for capillary pressure.")
-            continue
-        end
         if has_ow
             pcow[reg] = getpc(vals, "OilWaterCapPressureFunction", -1)
         end
@@ -117,18 +136,18 @@ function setup_pc(d, reservoir, sys; regions = setup_region_map(d))
     # TODO: Hysteresis, scaling
     pc = []
     if has_ow
-        push!(pc, remap_to_tuple(pcow, drain_reg_map))
+        push!(pc, remap_to_tuple(pcow, regs))
     end
     if has_og
-        push!(pc, remap_to_tuple(pcog, drain_reg_map))
+        push!(pc, remap_to_tuple(pcog, regs))
     end
     pc_f = JutulDarcy.SimpleCapillaryPressure(pc,
-        regions = drainage_satnum
+        regions = regs.value
     )
     return pc_f
 end
 
-function remap_to_tuple(d::Dict, mapper)
+function remap_to_tuple(d::Dict, regs)
     nkeys = length(keys(d))
     if nkeys == 0
         out = nothing
@@ -136,7 +155,7 @@ function remap_to_tuple(d::Dict, mapper)
         out = Vector{Any}(undef, nkeys)
         fill!(out, missing)
         for (k, v) in d
-            out[mapper[k]] = v
+            out[regs.map[k]] = v
         end
         any(ismissing(out)) && error("Not all regions mapped in saturation function remapping.")
         out = Tuple(out)
@@ -209,12 +228,27 @@ function phases_symbol(sys)
 end
 
 function get_region_value_and_map(reservoir, regions, regtype, regname)
-    reg = regions[regtype][regname]
-    reg_no_label = only(keys(reg))
-    # drain_reg_no = only(values(drain_reg))
+    reg = get(regions[regtype], regname, missing)
+    if ismissing(reg)
+        out = missing
+    else
+        reg_no_label = only(keys(reg))
+        reg_map = regions["family"][reg_no_label]
+        reg_value = reservoir[Symbol(reg_no_label)]
+        reg_value, reg_map = region_convert(reg_value, reg_map)
+        out = (value = reg_value, map = reg_map)
+    end
+    return out
+end
 
-    reg_map = regions["family"][reg_no_label]
-    reg_value = reservoir[Symbol(reg_no_label)]
-    reg_value, reg_map = region_convert(reg_value, reg_map)
-    return (reg_value, reg_map)
+function merge_saturation_regions(drainage, imbibition)
+    if ismissing(imbibition)
+        merged = drainage
+    else
+        if !all(drainage.value .== imbibition.value)
+            @warn "Drainage and imbibition saturation functions defined on different regions, cannot merge. Using drainage only."
+        end
+        merged = (value = drainage.value, map = merge(drainage.map, imbibition.map))
+    end
+    return merged
 end

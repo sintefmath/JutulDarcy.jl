@@ -73,9 +73,6 @@ function setup_reservoir_domain_afi(d::AFIInputFile, mesh;
     if isnothing(active)
         active = 1:ncells
     end
-    # perm = zeros(Float64, 3, ncells)
-    # poro = ones(Float64, ncells)
-    # ntg = ones(Float64, ncells)
 
     data = Dict{String, Vector}()
     IX = d.setup["IX"]

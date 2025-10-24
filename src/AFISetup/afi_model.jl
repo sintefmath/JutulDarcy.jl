@@ -26,7 +26,7 @@ function JutulDarcy.setup_reservoir_model(afi::AFIInputFile;
         model[:Reservoir].secondary_variables[:CapillaryPressure] = svars[:CapillaryPressure]
     end
     JutulDarcy.set_rock_compressibility!(model, afi)
-
+    JutulDarcy.add_relperm_parameters!(model)
     if extra_out
         retval = (model, Jutul.setup_parameters(model))
     else
