@@ -193,11 +193,10 @@ end
 import JutulDarcy: brooks_corey_relperm
 function brooks_corey_from_coefficients(krtab)
     n = krtab["Exponent"]
-    sr = get(krtab, "ResidualSaturation", 0.0)
-    sconn = get(krtab, "ConnateSaturation", 0.0)
+    sr = max(get(krtab, "ResidualSaturation", 0.0), get(krtab, "ConnateSaturation", 0.0))
     krmax = get(krtab, "EndPointRelPerm", 1.0)
-    s_max = get(krtab, "EndPointSaturation", 1.0 - sconn)
-    s = collect(range(sconn, s_max, length = 50))
+    s_max = clamp(get(krtab, "EndPointSaturation", 1.0 - sr), 0, 1)
+    s = collect(range(sr, s_max + sr, length = 50))
     bc(s_i) = brooks_corey_relperm(s_i, n, sr, krmax, 1.0 - s_max)
     kr = bc.(s)
     return (s, kr)
