@@ -202,6 +202,9 @@ module JutulDarcy
     # Timestepping
     include("timesteps.jl")
 
+    # Postprocessing
+    include("postprocessing.jl")
+
     # Geothermal
     include("Geothermal/Geothermal.jl")
     import JutulDarcy.Geothermal: ClosedLoopSupplyToReturnMassCT, ClosedLoopSupplyToReturnEnergyCT, BTESWellGroutEnergyCT

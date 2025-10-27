@@ -1294,10 +1294,6 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                     add_cross_term!(model, ct_mass, target = return_well, source = supply_well, equation = conservation)
                     add_cross_term!(model, ct_energy, target = return_well, source = supply_well, equation = energy)
 
-                    if haskey(g.perforations, :WIth_grout)
-                        ct_grout = JutulDarcy.BTESWellGroutEnergyCT(wc, wc_return)
-                        add_cross_term!(model, ct_grout, target = return_well, source = supply_well, equation = energy)
-                    end
                     push!(handled_closed_loops, cl_name)
                 end
             end
