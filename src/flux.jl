@@ -243,22 +243,6 @@ end
     return Δp_c
 end
 
-
-
-@inline function phase_mass_flux(Ψ, c, i, ρ, kr, μ, ph)
-    upc = upwind_cell(Ψ, c, i)
-    @inbounds F = ρ[ph, upc]*(kr[ph, upc]/μ[ph, upc])*Ψ
-    return (F, upc)
-end
-
-@inline function upwind_cell(pot, l, r)
-    if pot < 0
-        c = l
-    else
-        c = r
-    end
-end
-
 """
     component_mass_fluxes!(q, face, state, model, flux_type, kgrad, upw)
 
