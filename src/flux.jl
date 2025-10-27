@@ -206,9 +206,19 @@ end
     return @inbounds X[up]
 end
 
+@inline function upwind(upw::SPU, m::AbstractArray{T}, q) where T<:Jutul.AdjointsDI.SparseConnectivityTracer.Dual
+    # Type overload for adjoints - only pattern matters
+    return m[upw.left] + m[upw.right]
+end
+
 @inline function phase_upwind(upw, m::AbstractMatrix, phase::Integer, q)
     F(cell) = @inbounds m[phase, cell]
     return upwind(upw, F, q)
+end
+
+@inline function phase_upwind(upw, m::AbstractMatrix{T}, phase::Integer, q) where T<:Jutul.AdjointsDI.SparseConnectivityTracer.Dual
+    # Type overload for adjoints - only pattern matters
+    return m[phase, upw.left] + m[phase, upw.right]
 end
 
 @inline function upwind(upw::Jutul.WENO.WENOFaceDiscretization, F, q)
