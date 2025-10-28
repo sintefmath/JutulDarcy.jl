@@ -240,6 +240,60 @@ well is set up.
 
 `reservoir_cells` can be one of the following: A Vector of cells, a single cell,
 a Vector of `(I, J, K)` Tuples or a single Tuple of the same type.
+
+# Keyword arguments
+
+## Basics
+- `simple_well = true`
+- `reference_depth = nothing`
+
+## Physical parameters
+These parameters are numerical values used in the well model. For many of them,
+a single value can be provided (applied to all perforations/cells), or a vector of
+values (one per perforation/cell, depending on the type).
+
+### Flow
+- `Kh = missing`: Horizontal permeability. Used to initialize well index if `WI`
+  is not provided.
+- `WI = missing`: Well index (productivity/injectivity). Will be calculated from
+  the Peaceman formula if not provided.
+- `volume_multiplier = 1.0`: Multiplier for well cell volumes. Small well
+  volumes can lead to slow convergence. Increasing this value can help, but at
+  the cost of less accurate well transients (as more fluid is stored in the
+  well).
+- `radius = 0.1`: Well radius in each perforation.
+- `well_cell_centers = missing` : Cell centers for the well cells (defaults to
+  the reservoir cell centers connected to the well).
+- `dir = :z`: Direction of the well at perforations. Can be a single Symbol
+  (`:x`, `:y` or `:z`) or a Vector of Symbols (one per perforation).
+- `drainage_radius = NaN`: Drainage radius for each perforation. If `NaN`, the
+  Peaceman formula is used to compute this value.
+- `skin = 0.0`: Skin factor for each perforation.
+
+### Thermal
+- `grouting_thickness = 0.0`: Grouting thickness (in addition to the radius)
+- `casing_thickness = 0.0`: How much of the radius is casing (included in the
+  radius)
+- `WIth = missing`
+- `thermal_conductivity = missing,`
+- `material_thermal_conductivity = 0.0`
+- `thermal_conductivity_casing = 20.0`
+- `thermal_conductivity_grout = 2.3`
+- `casing_heat_capacity = 420.0`
+- `casing_density = 8000.0`
+
+## Multisegment well arguments
+- `neighborship = missing`: A `2 by N` array of Ints defining the well topology,
+  where cell/node `i` connects to `neighborship[1, i]` and `neighborship[2, i]`.
+- `cell_radius = missing`: Radius for each well node used to calculate the
+  volumes of each node.
+- `perforation_cells_well = missing`: Array of Ints, corresponding to the well cell index of cells/nodes corresponding to each perforation.
+- `cell_centers = domain[:cell_centroids]`: Cell centers for the well cells
+  (defaults to the reservoir cell centers connected to the well)
+- `use_top_node = missing`
+- `volumes = missing`: Volume of each well cell/node
+- `roughness = 1e-4`: Roughness of the well wall (used to compute frictional
+  pressure losses in multisegment wells).
 """
 function setup_well(D::DataDomain, reservoir_cells; cell_centers = D[:cell_centroids], kwarg...)
     # Get permeability
@@ -372,6 +426,8 @@ end
 Set up a vertical well for given grid `g` and permeability `K` at logical
 indices `i, j` perforating all cells starting at k-logical index `heel` to
 `toe`.
+
+See `setup_well` for details about keyword arguments.
 """
 function setup_vertical_well(g, K, i, j; heel = 1, toe = grid_dims_ijk(g)[3], kwarg...)
     @assert heel <= toe

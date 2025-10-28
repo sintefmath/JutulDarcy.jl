@@ -1,18 +1,21 @@
 # JutulDarcy.jl Changelog
 
 This changelog documents all notable changes to JutulDarcy.jl.
-## [Unreleased]
+## [v0.3.0]
 
 ### Breaking Changes
 
+- `setup_well` and `setup_vertical_well` now return a `DataDomain` instance that wraps the well types. The wells themselves have been substantially updated to expose more parameters like radius, roughness/friction factor and so on for tuning.
+- The `extra_out` argument to `setup_reservoir_model` now defaults to `false`.
+
+This means that calls of the type `model, prm = setup_reservoir_model(domain, sys)` will have to be replaced with `model, prm = setup_reservoir_model(domain, sys, extra_out = true)`, or by removing the `parameters` from your script so that they are initialized automatically. This change is done to avoid having to instantiate the parameters explicitly in codes where they are just going to be passed on to `simulate_reservoir` unmodified.
+
+Example error you may encounter if encountering the `extra_out` change:
 
 ```julia
 ERROR: MethodError: no method matching iterate(::MultiModel{nothing, JutulStorage{…}, Vector{…}, Vector{…}, DefaultContext, Dict{…}})
 The function `iterate` exists, but no method is defined for this combination of argument types.
 ```
-
-### New features
-- 
 
 ## [v0.2.46] - 2024-07-06
 
