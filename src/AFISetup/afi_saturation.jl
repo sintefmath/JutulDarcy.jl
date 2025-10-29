@@ -63,8 +63,13 @@ function setup_relperm(d, reservoir, sys; regions = setup_region_map(d))
     end
 
     rock_mgr = find_records(d, "RockMgr", "IX", steps = false, model = true, once = true)
-    hscale = get(rock_mgr.value, "HorizontalEndPointScaling", false)
-    vscale = get(rock_mgr.value, "VerticalEndPointScaling", false)
+    if isnothing(rock_mgr)
+        hscale = false
+        vscale = false
+    else
+        hscale = get(rock_mgr.value, "HorizontalEndPointScaling", false)
+        vscale = get(rock_mgr.value, "VerticalEndPointScaling", false)
+    end
     hscale == vscale || error("Only one of HorizontalEndPointScaling and VerticalEndPointScaling is set in RockMgr. Both must be true or both must be false in this current implementation.")
     if hscale || vscale
         if get(rock_mgr.value, "ThreePointScaling", false)
