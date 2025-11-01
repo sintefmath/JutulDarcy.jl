@@ -4,32 +4,51 @@ This directory contains scripts to build both the web-based documentation and a 
 
 ## Building the PDF Documentation
 
-### Prerequisites
+There are two approaches to building PDF documentation for JutulDarcy.jl:
 
-1. **Julia** (already installed if you're using this package)
-2. **LaTeX Distribution** (required for PDF compilation):
-   - **Linux**: Install texlive
-     ```bash
-     sudo apt-get install texlive-full
-     ```
-   - **macOS**: Install MacTeX
-     ```bash
-     brew install --cask mactex
-     ```
-   - **Windows**: Install MiKTeX or TeX Live
-   - **Using Docker** (recommended for consistent builds):
-     ```bash
-     docker pull texlive/texlive
-     ```
+### Approach 1: Using Pandoc (Recommended - Simpler)
 
-### Building the PDF
+This approach converts the markdown files directly to PDF using Pandoc.
+
+#### Prerequisites
+- **Pandoc**: https://pandoc.org/installing.html
+- **LaTeX Distribution** (for PDF output):
+  - **Linux**: `sudo apt-get install texlive-full`
+  - **macOS**: `brew install --cask mactex`
+  - **Windows**: Install MiKTeX or TeX Live
+
+#### Building with Pandoc
 
 1. **Navigate to the docs directory:**
    ```bash
    cd docs/
    ```
 
-2. **Install dependencies** (first time only):
+2. **Run the build script:**
+   ```bash
+   bash build_pdf_pandoc.sh
+   ```
+   
+   This will create `JutulDarcy_Documentation.pdf` in the `docs/` directory.
+
+### Approach 2: Using Documenter.jl (Advanced)
+
+This approach uses Julia's Documenter.jl to generate LaTeX documentation.
+
+**Note**: Documenter.jl's LaTeX writer was moved to a separate package (DocumenterLaTeX.jl) which has compatibility issues with recent Documenter versions. This approach is provided for reference but may require additional setup.
+
+#### Prerequisites
+- Julia (already installed)
+- LaTeX distribution (same as above)
+
+#### Building with Documenter
+
+1. **Navigate to the docs directory:**
+   ```bash
+   cd docs/
+   ```
+
+2. **Install Julia dependencies** (first time only):
    ```bash
    julia --project -e 'using Pkg; Pkg.instantiate()'
    ```
@@ -39,47 +58,27 @@ This directory contains scripts to build both the web-based documentation and a 
    julia --project make_pdf.jl
    ```
 
-4. **Compile the LaTeX to PDF:**
-   
-   After running `make_pdf.jl`, LaTeX source files will be generated in `build/`. To compile to PDF:
-
+4. **Compile the generated LaTeX:**
    ```bash
    cd build/
    pdflatex JutulDarcy.jl.tex
    pdflatex JutulDarcy.jl.tex  # Run twice for references
    ```
 
-   Or if using Docker:
-   ```bash
-   cd build/
-   docker run --rm -v $(pwd):/work texlive/texlive pdflatex JutulDarcy.jl.tex
-   ```
-
-5. **Find your PDF:**
-   The compiled PDF will be at `build/JutulDarcy.jl.pdf`
-
-## Building Web Documentation
-
-To build the regular web-based documentation (HTML/Vitepress):
-
-```bash
-julia --project make.jl
-```
-
 ## Files
 
 - `make.jl` - Main documentation build script (generates HTML/Vitepress documentation)
-- `make_pdf.jl` - PDF documentation build script (generates LaTeX/PDF documentation using Documenter's built-in LaTeX writer)
+- `make_pdf.jl` - PDF documentation build script using Documenter.jl (advanced, may have compatibility issues)
+- `build_pdf_pandoc.sh` - Shell script to build PDF using Pandoc (recommended)
 - `Project.toml` - Julia dependencies for documentation building
 - `package.json` - Node.js dependencies for Vitepress
 - `src/` - Documentation source files (Markdown)
 
 ## Notes
 
-- The PDF build includes the core documentation but **excludes dynamically generated examples** from Literate.jl to keep the PDF focused and manageable
-- If you encounter LaTeX compilation errors, ensure you have a complete LaTeX distribution installed
-- The `docker` platform option in `make_pdf.jl` provides the most consistent results across different systems
-- For automated builds, consider using latexmk: `latexmk -pdf JutulDarcy.jl.tex`
+- The Pandoc approach is **recommended** for most users as it's simpler and doesn't require Julia package resolution
+- The PDF includes the core documentation but excludes dynamically generated examples to keep it focused
+- For the most up-to-date documentation with examples, visit the online documentation at https://sintefmath.github.io/JutulDarcy.jl/
 
 ## Troubleshooting
 
@@ -88,8 +87,11 @@ If you get errors about missing LaTeX packages, install them using your LaTeX di
 - For TeX Live: `tlmgr install <package-name>`
 - For MiKTeX: Packages are usually installed automatically when needed
 
-### Out of memory errors
+### Pandoc not found
+Install Pandoc from https://pandoc.org/installing.html
+
+### Out of memory errors during LaTeX compilation
 If the PDF compilation runs out of memory, you may need to:
-1. Reduce the documentation content in `make_pdf.jl`
+1. Reduce the documentation content
 2. Increase LaTeX's memory limits
 3. Use a more powerful machine or cloud build service
