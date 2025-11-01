@@ -114,7 +114,6 @@ pandoc "$COMBINED_MD" \
     --variable=documentclass:report \
     --variable=fontsize:11pt \
     --variable=papersize:letter \
-    --variable=mainfont:"DejaVu Sans" \
     --metadata title="JutulDarcy.jl Documentation" \
     --metadata author="Olav Møyner and contributors" \
     --metadata date="$(date +%Y-%m-%d)" \

@@ -6,7 +6,7 @@ High-performance porous media and reservoir simulator based on automatic differe
 
 ## What is this?
 
-JutulDarcy.jl is a general high-performance purpose porous media simulator toolbox (CO2 sequestration, gas/H2 storage, oil/gas fields) written in [Julia](https://julialang.org/) based on [Jutul.jl](https://github.com/sintefmath/Jutul.jl), developed by the [Applied Computational Science group](https://www.sintef.no/en/digital/departments-new/applied-mathematics/applied-computational-sciences/) at [SINTEF Digital](https://www.sintef.no/en/digital/).
+JutulDarcy.jl is a general-purpose high-performance porous media simulator toolbox (CO2 sequestration, gas/H2 storage, oil/gas fields) written in [Julia](https://julialang.org/) based on [Jutul.jl](https://github.com/sintefmath/Jutul.jl), developed by the [Applied Computational Science group](https://www.sintef.no/en/digital/departments-new/applied-mathematics/applied-computational-sciences/) at [SINTEF Digital](https://www.sintef.no/en/digital/).
 
 A few highlights:
 
