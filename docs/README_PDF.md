@@ -25,11 +25,23 @@ This approach converts the markdown files directly to PDF using Pandoc.
    ```
 
 2. **Run the build script:**
+   
+   **Option A - Using Make (simplest):**
+   ```bash
+   make pdf
+   ```
+   
+   **Option B - Direct script execution:**
    ```bash
    bash build_pdf_pandoc.sh
    ```
    
    This will create `JutulDarcy_Documentation.pdf` in the `docs/` directory.
+
+3. **Clean up (optional):**
+   ```bash
+   make clean
+   ```
 
 ### Approach 2: Using Documenter.jl (Advanced)
 
@@ -70,9 +82,11 @@ This approach uses Julia's Documenter.jl to generate LaTeX documentation.
 - `make.jl` - Main documentation build script (generates HTML/Vitepress documentation)
 - `make_pdf.jl` - PDF documentation build script using Documenter.jl (advanced, may have compatibility issues)
 - `build_pdf_pandoc.sh` - Shell script to build PDF using Pandoc (recommended)
+- `Makefile` - Simple Makefile for building PDF with `make pdf` command
 - `Project.toml` - Julia dependencies for documentation building
 - `package.json` - Node.js dependencies for Vitepress
 - `src/` - Documentation source files (Markdown)
+- `src/index_pdf.md` - PDF-friendly version of the index page
 
 ## Notes
 
