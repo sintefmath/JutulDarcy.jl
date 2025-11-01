@@ -60,37 +60,125 @@ clean_markdown() {
         "$input" > "$output"
 }
 
-# Collect manual pages
-echo "Collecting manual pages..."
+# Generate example overview first
+echo "Generating example overview..."
+julia generate_example_overview.jl
+
+# Collect pages in the correct order following make.jl structure
+echo "Collecting documentation pages..."
 COUNTER=1
-for section in intro first_ex highlevel basics/input_files basics/systems basics/solution \
-               basics/forces basics/wells basics/primary basics/secondary basics/parameters \
-               basics/plotting basics/utilities basics/package advanced/mpi advanced/gpu \
-               advanced/compiled validation; do
+
+# 1. Introduction section (from index_pdf.md)
+if [ -f "src/index_pdf.md" ]; then
+    printf -v padded "%02d" $COUNTER
+    clean_markdown "src/index_pdf.md" "$TMP_DIR/${padded}_index.md"
+    echo "  Added: Introduction"
+    COUNTER=$((COUNTER + 1))
+fi
+
+# 2. Getting started
+if [ -f "src/man/intro.md" ]; then
+    printf -v padded "%02d" $COUNTER
+    clean_markdown "src/man/intro.md" "$TMP_DIR/${padded}_intro.md"
+    echo "  Added: Getting started"
+    COUNTER=$((COUNTER + 1))
+fi
+
+# 3. First example
+if [ -f "src/man/first_ex.md" ]; then
+    printf -v padded "%02d" $COUNTER
+    clean_markdown "src/man/first_ex.md" "$TMP_DIR/${padded}_first_ex.md"
+    echo "  Added: Your first simulation"
+    COUNTER=$((COUNTER + 1))
+fi
+
+# 4. FAQ
+if [ -f "src/extras/faq.md" ]; then
+    printf -v padded "%02d" $COUNTER
+    clean_markdown "src/extras/faq.md" "$TMP_DIR/${padded}_faq.md"
+    echo "  Added: FAQ"
+    COUNTER=$((COUNTER + 1))
+fi
+
+# 5. Fundamentals section
+echo "  Section: Fundamentals"
+for section in highlevel basics/input_files basics/systems basics/solution; do
     if [ -f "src/man/$section.md" ]; then
         printf -v padded "%02d" $COUNTER
         clean_markdown "src/man/$section.md" "$TMP_DIR/${padded}_$(basename $section).md"
-        echo "  Added: man/$section.md"
+        echo "    Added: man/$section.md"
         COUNTER=$((COUNTER + 1))
     fi
 done
 
-# Collect extras pages
-echo "Collecting reference pages..."
-for extra in faq paper_list refs; do
-    if [ -f "src/extras/$extra.md" ]; then
+# 6. Detailed API section
+echo "  Section: Detailed API"
+for section in basics/forces basics/wells basics/primary basics/secondary basics/parameters basics/plotting basics/utilities; do
+    if [ -f "src/man/$section.md" ]; then
         printf -v padded "%02d" $COUNTER
-        clean_markdown "src/extras/$extra.md" "$TMP_DIR/${padded}_${extra}.md"
-        echo "  Added: extras/$extra.md"
+        clean_markdown "src/man/$section.md" "$TMP_DIR/${padded}_$(basename $section).md"
+        echo "    Added: man/$section.md"
         COUNTER=$((COUNTER + 1))
     fi
 done
 
-# Collect reference documentation
+# 7. Parallelism and compilation section
+echo "  Section: Parallelism and compilation"
+for section in advanced/mpi advanced/gpu advanced/compiled; do
+    if [ -f "src/man/$section.md" ]; then
+        printf -v padded "%02d" $COUNTER
+        clean_markdown "src/man/$section.md" "$TMP_DIR/${padded}_$(basename $section).md"
+        echo "    Added: man/$section.md"
+        COUNTER=$((COUNTER + 1))
+    fi
+done
+
+# 8. References section
+echo "  Section: References"
+if [ -f "src/man/basics/package.md" ]; then
+    printf -v padded "%02d" $COUNTER
+    clean_markdown "src/man/basics/package.md" "$TMP_DIR/${padded}_package.md"
+    echo "    Added: man/basics/package.md"
+    COUNTER=$((COUNTER + 1))
+fi
+
+if [ -f "src/extras/paper_list.md" ]; then
+    printf -v padded "%02d" $COUNTER
+    clean_markdown "src/extras/paper_list.md" "$TMP_DIR/${padded}_paper_list.md"
+    echo "    Added: extras/paper_list.md"
+    COUNTER=$((COUNTER + 1))
+fi
+
 if [ -f "src/ref/jutul.md" ]; then
     printf -v padded "%02d" $COUNTER
     clean_markdown "src/ref/jutul.md" "$TMP_DIR/${padded}_jutul_ref.md"
-    echo "  Added: ref/jutul.md"
+    echo "    Added: ref/jutul.md"
+    COUNTER=$((COUNTER + 1))
+fi
+
+if [ -f "src/extras/refs.md" ]; then
+    printf -v padded "%02d" $COUNTER
+    clean_markdown "src/extras/refs.md" "$TMP_DIR/${padded}_refs.md"
+    echo "    Added: extras/refs.md"
+    COUNTER=$((COUNTER + 1))
+fi
+
+# 9. Examples section
+echo "  Section: Examples"
+if [ -f "src/examples/overview/example_overview.md" ]; then
+    printf -v padded "%02d" $COUNTER
+    clean_markdown "src/examples/overview/example_overview.md" "$TMP_DIR/${padded}_example_overview.md"
+    echo "    Added: examples/overview/example_overview.md"
+    COUNTER=$((COUNTER + 1))
+fi
+
+# 10. Validation section
+echo "  Section: Validation"
+if [ -f "src/man/validation.md" ]; then
+    printf -v padded "%02d" $COUNTER
+    clean_markdown "src/man/validation.md" "$TMP_DIR/${padded}_validation.md"
+    echo "    Added: man/validation.md"
+    COUNTER=$((COUNTER + 1))
 fi
 
 # Combine all markdown files

@@ -30,6 +30,11 @@ jobs:
         run: |
           sudo apt-get install -y texlive-xetex texlive-latex-extra texlive-fonts-recommended
       
+      - name: Setup Julia
+        uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.10'
+      
       - name: Generate PDF
         run: |
           cd docs

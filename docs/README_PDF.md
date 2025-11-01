@@ -4,6 +4,23 @@ This directory contains scripts to build both the web-based documentation and a 
 
 **Note**: The repository includes a pre-built PDF (`JutulDarcy_Documentation.pdf`) in the root directory that is automatically updated via GitHub Actions whenever documentation changes are pushed to the main branch.
 
+## What's Included in the PDF
+
+The PDF documentation includes:
+
+- **Introduction** - Overview of JutulDarcy.jl and its features
+- **Getting Started** - Installation and basic setup
+- **Your First Simulation** - Detailed walkthrough of a first example
+- **FAQ** - Frequently asked questions
+- **Fundamentals** - Core concepts (high-level overview, input files, systems, solutions)
+- **Detailed API** - In-depth documentation (forces, wells, primary/secondary variables, parameters, plotting, utilities)
+- **Parallelism and Compilation** - MPI, GPU, and compiled execution
+- **References** - Package information, paper list, Jutul functions, and bibliography
+- **Examples** - Overview of all available examples organized by category
+- **Validation** - Information about validation cases
+
+For the full interactive examples with code execution and plots, visit https://sintefmath.github.io/JutulDarcy.jl/
+
 ## Building the PDF Documentation
 
 There are two approaches to building PDF documentation for JutulDarcy.jl:
