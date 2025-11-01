@@ -1,0 +1,52 @@
+name: Generate PDF Documentation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/src/**'
+      - 'docs/make_pdf.jl'
+      - 'docs/build_pdf_pandoc.sh'
+      - '.github/workflows/generate-pdf.yml'
+  workflow_dispatch:
+
+jobs:
+  generate-pdf:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Install Pandoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc
+      
+      - name: Install LaTeX
+        run: |
+          sudo apt-get install -y texlive-xetex texlive-latex-extra texlive-fonts-recommended
+      
+      - name: Generate PDF
+        run: |
+          cd docs
+          bash build_pdf_pandoc.sh
+      
+      - name: Copy PDF to root
+        run: |
+          cp docs/JutulDarcy_Documentation.pdf JutulDarcy_Documentation.pdf
+      
+      - name: Commit PDF
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add JutulDarcy_Documentation.pdf
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update PDF documentation [skip ci]"
+            git push
+          fi

@@ -11,6 +11,8 @@
 
 > [!TIP]
 > Visit the docs at https://sintefmath.github.io/JutulDarcy.jl/stable/
+> 
+> 📄 [**Download PDF Documentation**](JutulDarcy_Documentation.pdf) - Complete offline documentation in PDF format
 
 # Reservoir simulation in Julia
 
