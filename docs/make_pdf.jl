@@ -2,7 +2,6 @@ using JutulDarcy
 using Jutul
 using Documenter
 using DocumenterCitations
-using DocumenterLaTeX
 using OrderedCollections
 
 ##
@@ -58,8 +57,9 @@ build_pages = [
     ]
 ]
 
-# Configure LaTeX output
-latex_format = DocumenterLaTeX.LaTeX(
+# Configure LaTeX output using Documenter's built-in LaTeX writer
+# Note: Documenter.jl v1.0+ includes LaTeX support natively
+latex_format = Documenter.LaTeX(
     platform = "docker"  # Use docker platform for better compatibility
 )
 

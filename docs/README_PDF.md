@@ -69,7 +69,7 @@ julia --project make.jl
 ## Files
 
 - `make.jl` - Main documentation build script (generates HTML/Vitepress documentation)
-- `make_pdf.jl` - PDF documentation build script (generates LaTeX/PDF documentation)
+- `make_pdf.jl` - PDF documentation build script (generates LaTeX/PDF documentation using Documenter's built-in LaTeX writer)
 - `Project.toml` - Julia dependencies for documentation building
 - `package.json` - Node.js dependencies for Vitepress
 - `src/` - Documentation source files (Markdown)
