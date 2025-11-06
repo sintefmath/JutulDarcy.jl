@@ -338,7 +338,7 @@ function update_cross_term_in_entity!(out, i,
 end
 
 function Base.show(io::IO, d::ReservoirFromWellThermalCT)
-    n = length(d.WIth)
+    n = length(d.well_cells)
     print(io, "ReservoirFromWellThermalCT ($n connections)")
 end
 
