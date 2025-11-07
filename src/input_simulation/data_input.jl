@@ -1650,8 +1650,7 @@ function parse_control_steps(runspec, props, schedule, sys)
                 for cd in kword
                     wname, I, J, K1, K2, flag, satnum, WI, diam, Kh, skin, Dfac, dir = cd
                     if isnan(diam)
-                        @warn "Diameter not specified for well $wname in COMPDAT. Defaulting to 0.2 m."
-                        diam = 0.2
+                        diam = 0.3048
                     end
                     @assert haskey(wells, wname)
                     head = wells[wname].head
