@@ -39,7 +39,15 @@ function setup_system(d::AFIInputFile; phases = setup_phases(d))
             sys = ImmiscibleSystem(phases, reference_densities = rhoS)
         end
     elseif !isnothing(comp_model)
-        error("Compositional models are not yet supported in setup from AFI.")
+        cprops = comp_model.value["ComponentProperties"]
+        cnames = cprops["ComponentName"]
+        if length(cnames) == 1
+            # Single component system - treat as immiscible
+            sys = ImmiscibleSystem(phases; reference_densities = rhoS)
+            error("Not finished")
+        else
+            error("Compositional models with more than one component are not yet supported in setup from AFI.")
+        end
     else
         error("No BlackOilFluidModel or CompositionalFluidModel found in AFI file.")
     end
