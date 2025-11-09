@@ -5,6 +5,7 @@ function setup_system(d::AFIInputFile; phases = setup_phases(d))
     has_water = AqueousPhase() in phases
     has_oil = LiquidPhase() in phases
     has_gas = VaporPhase() in phases
+    rhoS = Float64[]
 
     if !isnothing(bo_model)
         bo_model = bo_model.value
@@ -18,7 +19,6 @@ function setup_system(d::AFIInputFile; phases = setup_phases(d))
         if has_vapoil
             rv_max = rv_table_from_gas_table(bo_model["GasTable"])
         end
-        rhoS = Float64[]
         if has_water
             push!(rhoS, bo_model["WaterCompressibilities"]["SurfaceDensity"])
         end
@@ -39,12 +39,23 @@ function setup_system(d::AFIInputFile; phases = setup_phases(d))
             sys = ImmiscibleSystem(phases, reference_densities = rhoS)
         end
     elseif !isnothing(comp_model)
-        cprops = comp_model.value["ComponentProperties"]
+        comp_model = comp_model.value
+        cprops = comp_model["ComponentProperties"]
         cnames = cprops["ComponentName"]
+
+        if has_water
+            push!(rhoS, comp_model["WaterCompressibilities"]["SurfaceDensity"])
+        end
+        if has_oil
+            error("Compositional oil models are not yet supported in setup from AFI.")
+        end
+        if has_gas
+            error("Compositional gas models are not yet supported in setup from AFI.")
+        end
+
         if length(cnames) == 1
             # Single component system - treat as immiscible
             sys = ImmiscibleSystem(phases; reference_densities = rhoS)
-            error("Not finished")
         else
             error("Compositional models with more than one component are not yet supported in setup from AFI.")
         end
