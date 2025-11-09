@@ -19,52 +19,69 @@ function setup_pvt_variables(d::AFIInputFile, sys::Union{StandardBlackOilSystem,
     end
     fluid_model = fluid_model[1].value
     phases = JutulDarcy.get_phases(sys)
-    pvt = []
-    if AqueousPhase() in phases
-        wc = fluid_model["WaterCompressibilities"]
-        BW = get(wc, "FormationVolumeFactor", 1.0)
-        compw = get(wc, "Compressibility", 4e-5/si_unit(:bar))
-        compmuw = get(wc, "ViscosityCompressibility", 0.0)
-        water_tab_raw = ConstMuBTable(wc["RefPressure"], 1.0/BW, compw, wc["Viscosity"], compmuw)
-        water_tab = JutulDarcy.PVTW((water_tab_raw, ))
-        push!(pvt, water_tab)
-    end
-    if LiquidPhase() in phases
-        if JutulDarcy.has_disgas(sys)
-            dtab = fluid_model["OilTable"]["table"]
-            pvto_like = to_processed_pvt_table(dtab, "SolutionGOR", ["Pressure", "FormationVolumeFactor", "Viscosity"])
-            pvto_ext = GeoEnergyIO.InputParser.restructure_pvt_table(pvto_like)
-            oil_tab_raw = JutulDarcy.PVTOTable(pvto_ext)
-            oil_tab = JutulDarcy.PVTO(oil_tab_raw)
-        else
-            dtab = fluid_model["DeadOilTable"]["table"]
-            p = dtab["Pressure"]
-            Bo = dtab["FormationVolumeFactor"]
-            mu = dtab["Viscosity"]
-            oil_tab_raw = JutulDarcy.MuBTable(p, 1 ./ Bo, mu)
-            oil_tab = JutulDarcy.PVCDO((oil_tab_raw, ))
+    if length(phases) == 1 && only(phases) isa AqueousPhase
+        pvt_vars = setup_pvt_variables_single_phase_water(d, sys, reservoir, fluid_model)
+    else
+        pvt = []
+        if AqueousPhase() in phases
+            water_tab = setup_water_pvt(fluid_model)
+            push!(pvt, water_tab)
         end
-        push!(pvt, oil_tab)
-    end
-    if VaporPhase() in phases
-        if JutulDarcy.has_vapoil(sys)
-            @info "Not finished" fluid_model["GasTable"]
-            error("Not yet implemented")
-        else
-            dtab = fluid_model["UndersaturatedGasTable"]["table"]
-            p = dtab["Pressure"]
-            Bg = dtab["FormationVolumeFactor"]
-            mu = dtab["Viscosity"]
-            gas_tab_raw = JutulDarcy.MuBTable(p, 1 ./ Bg, mu)
-            gas_tab = JutulDarcy.PVDG((gas_tab_raw, ))
+        if LiquidPhase() in phases
+            if JutulDarcy.has_disgas(sys)
+                dtab = fluid_model["OilTable"]["table"]
+                pvto_like = to_processed_pvt_table(dtab, "SolutionGOR", ["Pressure", "FormationVolumeFactor", "Viscosity"])
+                pvto_ext = GeoEnergyIO.InputParser.restructure_pvt_table(pvto_like)
+                oil_tab_raw = JutulDarcy.PVTOTable(pvto_ext)
+                oil_tab = JutulDarcy.PVTO(oil_tab_raw)
+            else
+                dtab = fluid_model["DeadOilTable"]["table"]
+                p = dtab["Pressure"]
+                Bo = dtab["FormationVolumeFactor"]
+                mu = dtab["Viscosity"]
+                oil_tab_raw = JutulDarcy.MuBTable(p, 1 ./ Bo, mu)
+                oil_tab = JutulDarcy.PVCDO((oil_tab_raw, ))
+            end
+            push!(pvt, oil_tab)
         end
-        push!(pvt, gas_tab)
+        if VaporPhase() in phases
+            if JutulDarcy.has_vapoil(sys)
+                @info "Not finished" fluid_model["GasTable"]
+                error("Not yet implemented")
+            else
+                dtab = fluid_model["UndersaturatedGasTable"]["table"]
+                p = dtab["Pressure"]
+                Bg = dtab["FormationVolumeFactor"]
+                mu = dtab["Viscosity"]
+                gas_tab_raw = JutulDarcy.MuBTable(p, 1 ./ Bg, mu)
+                gas_tab = JutulDarcy.PVDG((gas_tab_raw, ))
+            end
+            push!(pvt, gas_tab)
+        end
+        pvt_vars = Dict()
+        pvt_vars[:PhaseMassDensities] = DeckPhaseMassDensities(pvt)
+        pvt_vars[:ShrinkageFactors] = DeckShrinkageFactors(pvt)
+        pvt_vars[:PhaseViscosities] = DeckPhaseViscosities(pvt)
     end
-    pvt_vars = Dict()
-    pvt_vars[:PhaseMassDensities] = DeckPhaseMassDensities(pvt)
-    pvt_vars[:ShrinkageFactors] = DeckShrinkageFactors(pvt)
-    pvt_vars[:PhaseViscosities] = DeckPhaseViscosities(pvt)
     return pvt_vars
+end
+
+function setup_pvt_variables_single_phase_water(d, sys, reservoir, fluid_model)
+    pvt_vars = Dict()
+    water_tab = setup_water_pvt(fluid_model)
+    pvt_vars[:PhaseMassDensities] = DeckPhaseMassDensities([water_tab])
+
+    return pvt_vars
+    error("Not yet implemented")
+end
+
+function setup_water_pvt(fluid_model)
+    wc = fluid_model["WaterCompressibilities"]
+    BW = get(wc, "FormationVolumeFactor", 1.0)
+    compw = get(wc, "Compressibility", 4e-5/si_unit(:bar))
+    compmuw = get(wc, "ViscosityCompressibility", 0.0)
+    water_tab_raw = ConstMuBTable(wc["RefPressure"], 1.0/BW, compw, wc["Viscosity"], compmuw)
+    return JutulDarcy.PVTW((water_tab_raw, ))
 end
 
 function JutulDarcy.set_rock_compressibility!(model, d::AFIInputFile)
