@@ -22,7 +22,10 @@ function setup_pvt_variables(d::AFIInputFile, sys::Union{StandardBlackOilSystem,
     pvt = []
     if AqueousPhase() in phases
         wc = fluid_model["WaterCompressibilities"]
-        water_tab_raw = ConstMuBTable(wc["RefPressure"], 1.0/wc["FormationVolumeFactor"], wc["Compressibility"], wc["Viscosity"], wc["ViscosityCompressibility"])
+        BW = get(wc, "FormationVolumeFactor", 1.0)
+        compw = get(wc, "Compressibility", 4e-5/si_unit(:bar))
+        compmuw = get(wc, "ViscosityCompressibility", 0.0)
+        water_tab_raw = ConstMuBTable(wc["RefPressure"], 1.0/BW, compw, wc["Viscosity"], compmuw)
         water_tab = JutulDarcy.PVTW((water_tab_raw, ))
         push!(pvt, water_tab)
     end
