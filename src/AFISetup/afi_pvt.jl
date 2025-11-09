@@ -1,29 +1,40 @@
 function setup_pvt_variables(d::AFIInputFile, sys::Union{StandardBlackOilSystem, ImmiscibleSystem}, reservoir)
     bo_model = find_records(d, "BlackOilFluidModel", "IX", steps = false, model = true, once = false)
-    if length(bo_model) == 0
-        error("No BlackOilFluidModel record found in AFI file. This function is currently limited to blackoil type models.")
+    c_model = find_records(d, "CompositionalFluidModel", "IX", steps = false, model = true, once = false)
+    has_bo = length(bo_model) > 0
+    has_comp = length(c_model) > 0
+    if !has_bo && !has_comp
+        error("No FluidModel record found in AFI file. This function is currently limited to blackoil and compositional type models.")
+    elseif has_bo && has_comp
+        error("Both BlackOilFluidModel and CompositionalFluidModel records found in AFI file.")
+    elseif has_bo
+        fluid_model = bo_model
+    else
+        @assert has_comp
+        fluid_model = c_model
     end
-    if length(bo_model) > 1
-        @warn "Multiple BlackOilFluidModel records found in AFI file. Using the first one."
+
+    if length(fluid_model) > 1
+        @warn "Multiple fluid model records found in AFI file. Using the first one."
     end
-    bo_model = bo_model[1].value
+    fluid_model = fluid_model[1].value
     phases = JutulDarcy.get_phases(sys)
     pvt = []
     if AqueousPhase() in phases
-        wc = bo_model["WaterCompressibilities"]
+        wc = fluid_model["WaterCompressibilities"]
         water_tab_raw = ConstMuBTable(wc["RefPressure"], 1.0/wc["FormationVolumeFactor"], wc["Compressibility"], wc["Viscosity"], wc["ViscosityCompressibility"])
         water_tab = JutulDarcy.PVTW((water_tab_raw, ))
         push!(pvt, water_tab)
     end
     if LiquidPhase() in phases
         if JutulDarcy.has_disgas(sys)
-            dtab = bo_model["OilTable"]["table"]
+            dtab = fluid_model["OilTable"]["table"]
             pvto_like = to_processed_pvt_table(dtab, "SolutionGOR", ["Pressure", "FormationVolumeFactor", "Viscosity"])
             pvto_ext = GeoEnergyIO.InputParser.restructure_pvt_table(pvto_like)
             oil_tab_raw = JutulDarcy.PVTOTable(pvto_ext)
             oil_tab = JutulDarcy.PVTO(oil_tab_raw)
         else
-            dtab = bo_model["DeadOilTable"]["table"]
+            dtab = fluid_model["DeadOilTable"]["table"]
             p = dtab["Pressure"]
             Bo = dtab["FormationVolumeFactor"]
             mu = dtab["Viscosity"]
@@ -34,10 +45,10 @@ function setup_pvt_variables(d::AFIInputFile, sys::Union{StandardBlackOilSystem,
     end
     if VaporPhase() in phases
         if JutulDarcy.has_vapoil(sys)
-            @info "Not finished" bo_model["GasTable"]
+            @info "Not finished" fluid_model["GasTable"]
             error("Not yet implemented")
         else
-            dtab = bo_model["UndersaturatedGasTable"]["table"]
+            dtab = fluid_model["UndersaturatedGasTable"]["table"]
             p = dtab["Pressure"]
             Bg = dtab["FormationVolumeFactor"]
             mu = dtab["Viscosity"]
