@@ -1,7 +1,9 @@
 function setup_saturation_variables(d::AFIInputFile, sys, reservoir; regions = setup_region_map(d))
     out = Dict{Symbol, Any}()
-    out[:RelativePermeabilities] = setup_relperm(d, reservoir, sys, regions = regions)
-    out[:CapillaryPressure] = setup_pc(d, reservoir, sys, regions = regions)
+    if length(JutulDarcy.get_phases(sys)) > 1
+        out[:RelativePermeabilities] = setup_relperm(d, reservoir, sys, regions = regions)
+        out[:CapillaryPressure] = setup_pc(d, reservoir, sys, regions = regions)
+    end
     return out
 end
 
