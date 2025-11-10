@@ -222,6 +222,10 @@ function forces_from_constraints(well_setup, streams, date, sys, model, wells)
                 lims = Dict()
                 for (k, v) in pairs(c)
                     ck = control_type_to_symbol(k)
+                    if ismissing(ck)
+                        @warn "Unsupported constraint type '$k' for well '$wname', constraint will not be used."
+                        continue
+                    end
                     if endswith(uppercase(k), "_RATE")
                         v *= wsgn
                     end
@@ -249,6 +253,8 @@ function control_type_to_symbol(s::String)
         return :grat
     elseif s in ["liquid_production_rate", "liquid_injection_rate", "lrat"]
         return :lrat
+    elseif s in ["injection_tubing_head_pressure"]
+        return missing
     else
         error("Unknown control type string '$s'")
     end
