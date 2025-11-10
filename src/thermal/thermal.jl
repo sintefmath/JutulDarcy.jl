@@ -193,12 +193,29 @@ function Jutul.default_parameter_values(data_domain, model, param::FluidThermalC
             T = compute_face_trans(data_domain, phi.*C)
             T = repeat(T', nph, 1)
         else
-            @assert size(C, 1) == nph
+            size(C, 1) == nph || error("Expected size $(nph) x num_cells for :fluid_thermal_conductivity, got size $(size(C))")
             nf = number_of_faces(data_domain)
             T = zeros(nph, nf)
             for ph in 1:nph
                 T[ph, :] = compute_face_trans(data_domain, phi.*C[ph, :])
             end
+        end
+        bad = 0
+        neg = 0
+        for (i, v) in enumerate(T)
+            if !isfinite(v)
+                T[i] = 0.0
+                bad += 1
+            elseif v < 0.0
+                T[i] = 0.0
+                neg += 1
+            end
+        end
+        if neg > 0
+            println("Found $neg negative fluid thermal conductivities, set to zero.")
+        end
+        if bad > 0
+            println("Found $bad non-finite fluid thermal conductivities, set to zero.")
         end
     else
         error(":fluid_thermal_conductivities or :fluid_thermal_conductivities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
