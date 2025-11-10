@@ -107,10 +107,10 @@ end
 function thermal_type(d::AFIInputFile)
     t = find_records(d, "ThermalModel", "IX", steps = false, model = true, once = true)
     if ismissing(t)
-        thermal_type = :isothermal
+        tt = :isothermal
     else
-        thermal_type = Symbol(lowercase(String(t.value.arg)))
+        tt = Symbol(lowercase(String(t.value.arg)))
     end
-    thermal_type in (:thermal, :isothermal) || error("Unsupported ThermalModel keyword $thermal_type")
-    return thermal_type
+    tt in (:thermal, :isothermal) || error("Unsupported ThermalModel keyword $tt")
+    return tt
 end

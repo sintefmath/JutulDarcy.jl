@@ -4,10 +4,16 @@ function JutulDarcy.setup_reservoir_model(afi::AFIInputFile;
         system = setup_system(afi, phases = phases),
         wells = setup_wells(afi, reservoir),
         extra_out = false,
+        thermal = thermal_type(afi) == :thermal,
         kwarg...
     )
 
-    model = setup_reservoir_model(reservoir, system; wells = wells, extra_out = false, kwarg...)
+    model = setup_reservoir_model(reservoir, system;
+        wells = wells,
+        extra_out = false,
+        thermal = thermal,
+        kwarg...
+    )
     pvars = setup_pvt_variables(afi, system, reservoir)
     svars = setup_saturation_variables(afi, system, reservoir)
     allvars = merge(pvars, svars)

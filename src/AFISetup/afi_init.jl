@@ -30,6 +30,17 @@ function setup_equilibrium_region(equil, model; single_region = true)
             rsvd = z -> rsvd_tab(z)
         end
     end
+    if JutulDarcy.model_is_thermal(model)
+        tdt = equil["TemperatureDepthTable"]
+        T_d = tdt["Temperature"] .+ 273.15
+        I_T = get_1d_interpolator(
+            tdt["Depth"],
+            T_d
+        )
+        temperature_vs_depth = z -> I_T(z)
+    else
+        temperature_vs_depth = missing
+    end
 
     return EquilibriumRegion(model, datum_pressure;
         woc = woc_depth,
@@ -37,6 +48,7 @@ function setup_equilibrium_region(equil, model; single_region = true)
         rs_vs_depth = rsvd,
         pc_woc = woc_pc,
         pc_goc = goc_pc,
+        temperature_vs_depth = temperature_vs_depth,
         cells = cells
     )
 end

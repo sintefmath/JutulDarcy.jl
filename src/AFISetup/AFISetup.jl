@@ -18,6 +18,7 @@ module AFISetup
     end
 
     function setup_case_from_afi(afi::AFIInputFile; kwarg...)
+        
         model, prm = setup_reservoir_model(afi; extra_out = true, kwarg...)
         state0 = setup_reservoir_state(afi, model)
         dt, forces = setup_afi_schedule(afi, model)
