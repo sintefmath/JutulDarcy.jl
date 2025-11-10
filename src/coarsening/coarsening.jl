@@ -145,7 +145,8 @@ function coarsen_reservoir_state(coarse_model, fine_model, fine_state0; function
         pv = pore_volume(fine_reservoir)
         default = CoarsenByPoreVolume(pv)
     end
-
+    cg = physical_representation(coarse_reservoir)
+    coarse_to_cells = map(i -> findall(isequal(i), cg.partition), 1:maximum(cg.partition))
     ncoarse = number_of_cells(coarse_reservoir)
     for (k, v) in pairs(fine_state0)
         if associated_entity(fine_rmodel[k]) == Cells() && eltype(v)<:AbstractFloat
@@ -155,7 +156,7 @@ function coarsen_reservoir_state(coarse_model, fine_model, fine_state0; function
                 coarseval = zeros(size(v, 1), ncoarse)
             end
             f = get(functions, k, default)
-            coarse_state0[k] = Jutul.apply_coarsening_function!(coarseval, v, f, coarse_reservoir, fine_reservoir, k, Cells())
+            coarse_state0[k] = Jutul.apply_coarsening_function!(coarseval, v, f, coarse_reservoir, fine_reservoir, k, Cells(), coarse_to_cells = coarse_to_cells)
         end
     end
     return setup_reservoir_state(coarse_model, coarse_state0)
