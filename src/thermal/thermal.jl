@@ -222,23 +222,6 @@ function Jutul.default_parameter_values(data_domain, model, param::RockThermalCo
     else
         error(":rock_thermal_conductivities or :rock_thermal_conductivities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
-    bad = 0
-    neg = 0
-    for (i, v) in enumerate(T)
-        if !isfinite(v)
-            T[i] = 0.0
-            bad += 1
-        elseif v < 0.0
-            T[i] = 0.0
-            neg += 1
-        end
-    end
-    if neg > 0
-        println("Found $neg negative rock thermal conductivities, set to zero.")
-    end
-    if bad > 0
-        println("Found $bad non-finite rock thermal conductivities, set to zero.")
-    end
     return ensure_non_negative_trans(T, "rock_thermal_conductivities")
 end
 
