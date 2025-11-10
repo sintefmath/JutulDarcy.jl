@@ -70,9 +70,26 @@ function setup_pvt_variables_single_phase_water(d, sys, reservoir, fluid_model)
     pvt_vars = Dict()
     water_tab = setup_water_pvt(fluid_model)
     pvt_vars[:PhaseMassDensities] = DeckPhaseMassDensities([water_tab])
-
+    if haskey(fluid_model, "ViscosityTemperatureTable")
+        mutab = missing
+        for (k, v) in pairs(fluid_model["ViscosityTemperatureTable"])
+            if contains(lowercase(v["Phase"]), "water")
+                mutab = v["table"]
+                break
+            end
+        end
+        if ismissing(mutab)
+            error("No water viscosity temperature table found.")
+        end
+        T_rel = mutab["Temperature"]
+        T_abs = Jutul.convert_to_si.(T_rel, :Celsius)
+        mu_F = get_1d_interpolator(T_abs, mutab["Viscosity"])
+        mu = JutulDarcy.TemperatureDependentVariable(mu_F)
+    else
+        mu = DeckPhaseViscosities([water_tab])
+    end
+    pvt_vars[:PhaseViscosities] = mu
     return pvt_vars
-    error("Not yet implemented")
 end
 
 function setup_water_pvt(fluid_model)
