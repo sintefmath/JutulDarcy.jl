@@ -66,9 +66,18 @@ function setup_mesh_afi(afi::AFIInputFile, mesh::Missing)
 end
 
 function setup_reservoir_domain_afi(d::AFIInputFile, mesh;
+        system = missing,
+        phases = missing,
         use_nnc = true,
         active = mesh.cell_map
     )
+    if ismissing(phases)
+        if ismissing(system)
+            phases = (AqueousPhase(), LiquidPhase(), VaporPhase())
+        else
+            phases = JutulDarcy.get_phases(system)
+        end
+    end
     ncells = number_of_cells(mesh)
     if isnothing(active)
         active = 1:ncells
@@ -118,7 +127,7 @@ function setup_reservoir_domain_afi(d::AFIInputFile, mesh;
     end
     # TODO: Move unit conversion here to properly handle edits that use absolute
     # values and not multipliers.
-    domain_kwarg = remap_properties_to_jutuldarcy_names(data, ncells)
+    domain_kwarg = remap_properties_to_jutuldarcy_names(data, ncells, phases)
 
     if use_nnc
         conn = find_records(d, "ConnectionSet", once = false)
@@ -337,7 +346,7 @@ function get_property_from_string(data, k, ncells; T = Float64)
     return v
 end
 
-function remap_properties_to_jutuldarcy_names(data, ncells)
+function remap_properties_to_jutuldarcy_names(data, ncells, phases)
     perm = zeros(Float64, 3, ncells)
     poro = ones(Float64, ncells)
     ntg = ones(Float64, ncells)
@@ -370,9 +379,35 @@ function remap_properties_to_jutuldarcy_names(data, ncells)
         elseif k in ["TRANSMISSIBILITY_I", "TRANSMISSIBILITY_J", "TRANSMISSIBILITY_K"]
             # Handled separately
             continue
+        elseif k == "THERMAL_CONDUCTIVITY_ROCK"
+            out[:rock_thermal_conductivity] = vals
+        elseif k == "ROCK_HEAT_CAPACITY"
+            out[:rock_heat_capacity] = vals
+        elseif startswith(k, "THERMAL_CONDUCTIVITY_")
+            if !haskey(out, :fluid_thermal_conductivity)
+                out[:fluid_thermal_conductivity] = handle_suffixed_entries(data, ncells, "THERMAL_CONDUCTIVITY_", phases)
+            end
         else
             out[Symbol(k)] = vals
         end
     end
     return out
+end
+
+function handle_suffixed_entries(data, nc, prefix, phases = (AqueousPhase(), LiquidPhase(), VaporPhase()))
+    nph = length(phases)
+    val = zeros(nph, nc)
+    for (phno, phase) in enumerate(phases)
+        if phase == AqueousPhase()
+            suffix = "WATER"
+        elseif phase == LiquidPhase()
+            suffix = "OIL"
+        elseif phase == VaporPhase()
+            suffix = "GAS"
+        else
+            error("Unsupported phase type $phase for suffixed property handling.")
+        end
+        val[phno, :] = data["$prefix$suffix"]
+    end
+    return val
 end
