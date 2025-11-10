@@ -200,27 +200,10 @@ function Jutul.default_parameter_values(data_domain, model, param::FluidThermalC
                 T[ph, :] = compute_face_trans(data_domain, phi.*C[ph, :])
             end
         end
-        bad = 0
-        neg = 0
-        for (i, v) in enumerate(T)
-            if !isfinite(v)
-                T[i] = 0.0
-                bad += 1
-            elseif v < 0.0
-                T[i] = 0.0
-                neg += 1
-            end
-        end
-        if neg > 0
-            println("Found $neg negative fluid thermal conductivities, set to zero.")
-        end
-        if bad > 0
-            println("Found $bad non-finite fluid thermal conductivities, set to zero.")
-        end
     else
         error(":fluid_thermal_conductivities or :fluid_thermal_conductivities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
-    return T
+    return ensure_non_negative_trans(T, "fluid_thermal_conductivities")
 end
 
 Jutul.associated_entity(::FluidThermalConductivities) = Faces()
@@ -238,6 +221,44 @@ function Jutul.default_parameter_values(data_domain, model, param::RockThermalCo
         T = reservoir_conductivity(data_domain)
     else
         error(":rock_thermal_conductivities or :rock_thermal_conductivities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+    end
+    bad = 0
+    neg = 0
+    for (i, v) in enumerate(T)
+        if !isfinite(v)
+            T[i] = 0.0
+            bad += 1
+        elseif v < 0.0
+            T[i] = 0.0
+            neg += 1
+        end
+    end
+    if neg > 0
+        println("Found $neg negative rock thermal conductivities, set to zero.")
+    end
+    if bad > 0
+        println("Found $bad non-finite rock thermal conductivities, set to zero.")
+    end
+    return ensure_non_negative_trans(T, "rock_thermal_conductivities")
+end
+
+function ensure_non_negative_trans(T, name)
+    bad = 0
+    neg = 0
+    for (i, v) in enumerate(T)
+        if !isfinite(v)
+            T[i] = 0.0
+            bad += 1
+        elseif v < 0.0
+            T[i] = 0.0
+            neg += 1
+        end
+    end
+    if neg > 0
+        jutul_message(name, "Found $neg negative values, set to zero.")
+    end
+    if bad > 0
+        jutul_message(name, "Found $bad non-finite values, set to zero.")
     end
     return T
 end
