@@ -17,6 +17,9 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
         )
     end
 
+    stream_keys = ("FluidEnthalpy", "FluidStream", "FluidSourceExternal", "FluidSourceInternal")
+    streams = Dict(k => Dict{String, Any}() for k in stream_keys)
+
     reservoir = reservoir_domain(model)
     rmesh = physical_representation(reservoir)
     wells = get_model_wells(model)
@@ -108,13 +111,15 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
                         end
                     end
                 end
+            elseif kw in stream_keys
+                streams[kw][rec["group"]] = rec
             else
                 println("FM: $kw: Skipping record $i for $date, record not used by setup code.")
             end
         end
         if dateno != length(dates)
             # Well constraints, etc
-            f = forces_from_constraints(well_setup, date, sys, model, wells)
+            f = forces_from_constraints(well_setup, streams, date, sys, model, wells)
             push!(forces, f)
             # Timestep in seconds
             dt_i = dates[dateno+1] - date
@@ -125,7 +130,7 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
     return (timesteps, forces)
 end
 
-function forces_from_constraints(well_setup, date, sys, model, wells)
+function forces_from_constraints(well_setup, streams, date, sys, model, wells)
     control = Dict{Symbol, Any}()
     limits = Dict{Symbol, Any}()
     phases = JutulDarcy.get_phases(sys)
