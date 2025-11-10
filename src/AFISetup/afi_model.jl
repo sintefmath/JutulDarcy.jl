@@ -1,6 +1,7 @@
 function JutulDarcy.setup_reservoir_model(afi::AFIInputFile;
         reservoir = JutulDarcy.reservoir_domain(afi),
-        system = setup_system(afi),
+        phases = missing,
+        system = setup_system(afi, phases = phases),
         wells = setup_wells(afi, reservoir),
         extra_out = false,
         kwarg...

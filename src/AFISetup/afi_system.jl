@@ -1,5 +1,8 @@
 
-function setup_system(d::AFIInputFile; phases = setup_phases(d))
+function setup_system(d::AFIInputFile; phases = missing)
+    if ismissing(phases)
+        phases = setup_phases(d)
+    end
     bo_model = find_records(d, "BlackOilFluidModel", "IX", steps = false, model = true, once = true)
     comp_model = find_records(d, "CompositionalFluidModel", "IX", steps = false, model = true, once = true)
     has_water = AqueousPhase() in phases
