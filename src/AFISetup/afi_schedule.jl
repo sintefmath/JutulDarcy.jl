@@ -13,7 +13,8 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
         well_setup[wname] = Dict{String, Any}(
             "Constraints" => OrderedDict{String, Float64}(),
             "Status" => "OPEN",
-            "Type" => "PRODUCER"
+            "Type" => "PRODUCER",
+            "Enthalpy" => missing,
         )
     end
 
@@ -109,6 +110,9 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
                         if haskey(rec, "Type")
                             wsetup["Type"] = rec["Type"]
                         end
+                        if haskey(rec, "Enthalpy")
+                            wsetup["Enthalpy"] = rec["Enthalpy"].key
+                        end
                     end
                 end
             elseif kw in stream_keys
@@ -135,6 +139,7 @@ function forces_from_constraints(well_setup, streams, date, sys, model, wells)
     limits = Dict{Symbol, Any}()
     phases = JutulDarcy.get_phases(sys)
     rhos = JutulDarcy.reference_densities(sys)
+    rdomain = reservoir_domain(model)
 
     function defaulted_constraint(c, default)
         x = get(c, default, missing)
@@ -152,6 +157,8 @@ function forces_from_constraints(well_setup, streams, date, sys, model, wells)
         return (k, x)
     end
     for wname in keys(wells)
+        wmodel = model[wname]
+        wdomain = wmodel.data_domain
         wsetup = well_setup[wname]
         status = wsetup["Status"]
         wtype = lowercase(wsetup["Type"])
@@ -184,7 +191,32 @@ function forces_from_constraints(well_setup, streams, date, sys, model, wells)
                     end
                     mix = zeros(length(phases))
                     mix[ix] = 1.0
-                    ctrl = JutulDarcy.setup_injector_control(val, ctrl_type, mix, density = rhos[ix])
+                    enthalpy_stream = wsetup["Enthalpy"]
+                    if ismissing(enthalpy_stream)
+                        T = convert_to_si(20.0, :Celsius)
+                        enthalpy = missing
+                    else
+                        enthalpy_info = streams["FluidEnthalpy"][enthalpy_stream]
+                        T = convert_to_si(enthalpy_info["Temperature"], :Celsius)
+                        # TODO: Handle regions here and treat enthalpy properly...
+                        # P = enthalpy_info["Pressure"]
+                        # rho_def = reservoir_model(model)[:PhaseMassDensities].pvt[ix]
+                        # rho_c = rhos[ix]*JutulDarcy.shrinkage(rho_def, nothing, P, 1)
+                        # wc = wmodel.domain.representation.perforations.reservoir
+                        # hc = rdomain[:component_heat_capacity]
+                        # if hc isa AbstractVector
+
+                        # end
+                        # heat_capacity = rdomain[:component_heat_capacity][ix, wc[1]]
+                        # enthalpy = internal energy + p / rho
+                        # internal energy = heat capacity * T
+                        # enthalpy = (p, T) -> 
+                        enthalpy = missing
+                    end
+                    ctrl = JutulDarcy.setup_injector_control(val, ctrl_type, mix,
+                        density = rhos[ix],
+                        temperature = T
+                    )
                     wsgn = 1.0
                 end
                 lims = Dict()
