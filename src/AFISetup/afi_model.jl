@@ -2,7 +2,7 @@ function JutulDarcy.setup_reservoir_model(afi::AFIInputFile;
         reservoir = JutulDarcy.reservoir_domain(afi),
         system = setup_system(afi),
         wells = setup_wells(afi, reservoir),
-        extra_out = true,
+        extra_out = false,
         kwarg...
     )
 
