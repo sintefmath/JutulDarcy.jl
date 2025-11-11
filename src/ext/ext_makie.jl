@@ -135,6 +135,7 @@ function plot_reservoir(model, arg...;
     elseif wells isa AbstractVector
         ws = Dict{Symbol, Any}()
         for w in wells
+            w = physical_representation(w)
             ws[w.name] = w
         end
         wells = ws
