@@ -1,8 +1,42 @@
 function setup_equilibrium_regions(d::AFIInputFile, model; regions = setup_region_map(d))
     model = reservoir_model(model)
     equils = find_records(d, "Equilibrium", "IX", steps = false, model = true, once = false)
-    single_reg = length(equils) == 1
-    return map(x -> setup_equilibrium_region(x.value, model, single_region = single_reg), equils)
+    equil = merge_records(equils).value
+    return map(
+        reg -> setup_equilibrium_region(equil[reg], model),
+        collect(keys(equil))
+    )
+end
+
+function merge_records(vals)
+    I = firstindex(vals)
+    kw = vals[I].keyword
+    a = vals[I].value
+    for i in eachindex(vals)
+        if i == I
+            continue
+        end
+        @assert vals[i].keyword == kw "Cannot merge dissimilar keywords: '$kw' and '$(vals[i].keyword)'"
+        b = vals[i].value
+        a = merge_records(a, b)
+    end
+    return (value = a, keyword = kw)
+end
+
+function merge_records(a, b)
+    keysa = keys(a)
+    keysb = keys(b)
+    out = Dict{String, Any}()
+    for k in intersect(keysa, keysb)
+        out[k] = merge(a[k], b[k])
+    end
+    for ka in setdiff(keysa, keysb)
+        out[ka] = a[ka]
+    end
+    for kb in setdiff(keysb, keysa)
+        out[kb] = b[kb]
+    end
+    return out
 end
 
 function setup_equilibrium_region(equil, model; single_region = true)
