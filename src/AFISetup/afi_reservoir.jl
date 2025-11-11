@@ -73,7 +73,8 @@ function setup_reservoir_domain_afi(d::AFIInputFile, mesh;
         system = missing,
         phases = missing,
         use_nnc = true,
-        active = mesh.cell_map
+        active = mesh.cell_map,
+        kwarg...
     )
     if ismissing(phases)
         if ismissing(system)
@@ -187,7 +188,7 @@ function setup_reservoir_domain_afi(d::AFIInputFile, mesh;
         num_nnc = 0
     end
 
-    reservoir = reservoir_domain(mesh; domain_kwarg...)
+    reservoir = reservoir_domain(mesh; domain_kwarg..., kwarg...)
     # Finally, check if transmissibility override is present
     if haskey(data, "CELL_CENTER_DEPTH")
         cc = reservoir[:cell_centroids, Cells()]
