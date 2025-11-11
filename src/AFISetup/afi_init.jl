@@ -1,45 +1,31 @@
 function setup_equilibrium_regions(d::AFIInputFile, model; regions = setup_region_map(d))
     model = reservoir_model(model)
+    reservoir = reservoir_domain(model)
     equils = find_records(d, "Equilibrium", "IX", steps = false, model = true, once = false)
+    regmap = get_region_value_and_map(reservoir, regions, "equilibrium", "EQUILIBRIUM_EQL_MODEL")
+    regs_eql = regions["equilibrium"]["EQUILIBRIUM_EQL_MODEL"]
     equil = merge_records(equils).value
     return map(
-        reg -> setup_equilibrium_region(equil[reg], model),
+        reg -> setup_equilibrium_region(equil[reg], model, cells = equil_model_region_to_cells(regmap, regs_eql, reg)),
         collect(keys(equil))
     )
 end
 
-function merge_records(vals)
-    I = firstindex(vals)
-    kw = vals[I].keyword
-    a = vals[I].value
-    for i in eachindex(vals)
-        if i == I
-            continue
+function equil_model_region_to_cells(regmap, regs_eql, model_reg)
+    equil_reg = missing
+    for (k, v) in pairs(regs_eql)
+        for el in v
+            if el.model == model_reg
+                equil_reg = el.region
+                break
+            end
         end
-        @assert vals[i].keyword == kw "Cannot merge dissimilar keywords: '$kw' and '$(vals[i].keyword)'"
-        b = vals[i].value
-        a = merge_records(a, b)
     end
-    return (value = a, keyword = kw)
+    !ismissing(equil_reg) || error("No equilibrium region found for model region $model_reg")
+    return findall(isequal(regmap.map[equil_reg]), regmap.value)
 end
 
-function merge_records(a, b)
-    keysa = keys(a)
-    keysb = keys(b)
-    out = Dict{String, Any}()
-    for k in intersect(keysa, keysb)
-        out[k] = merge(a[k], b[k])
-    end
-    for ka in setdiff(keysa, keysb)
-        out[ka] = a[ka]
-    end
-    for kb in setdiff(keysb, keysa)
-        out[kb] = b[kb]
-    end
-    return out
-end
-
-function setup_equilibrium_region(equil, model; single_region = true)
+function setup_equilibrium_region(equil, model; cells = missing)
     sys = model.system
 
     datum_depth = get(equil, "DatumDepth", 0.0)
@@ -50,12 +36,6 @@ function setup_equilibrium_region(equil, model; single_region = true)
     goc_depth = get(equil, "GOCDepth", datum_depth)
     goc_pc = get(equil, "GOCPressure", 0.0)
 
-    if single_region
-        cells = missing
-    else
-        region = equil["group"]
-        error("Not implemented yet.")
-    end
     rsvd = missing
     if JutulDarcy.has_disgas(sys)
         rs_tab = get(equil, "SolutionGORDepthTable", missing)

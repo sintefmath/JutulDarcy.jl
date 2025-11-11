@@ -261,7 +261,15 @@ function get_region_value_and_map(reservoir, regions, regtype, regname)
     else
         reg_no_label = only(keys(reg))
         reg_map = regions["family"][reg_no_label]
-        reg_value = reservoir[Symbol(reg_no_label)]
+        if haskey(reservoir, Symbol(reg_no_label))
+            reg_value = reservoir[Symbol(reg_no_label)]
+        elseif length(keys(reg_map)) == 1
+            jutul_message("Regions", "Only one region label found for region $reg_no_label, but did not find this region in the domain. Assuming all cells belong to this region.")
+            nc = number_of_cells(reservoir)
+            reg_value = ones(Int, nc)
+        else
+            error("Region $reg_no_label not found in reservoir domain.")
+        end
         reg_value, reg_map = region_convert(reg_value, reg_map)
         out = (value = reg_value, map = reg_map)
     end

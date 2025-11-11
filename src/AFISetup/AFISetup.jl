@@ -12,6 +12,7 @@ module AFISetup
     include("afi_regions.jl")
     include("afi_model.jl")
     include("afi_schedule.jl")
+    include("afi_utils.jl")
 
     function setup_case_from_afi(x::AbstractDict; kwarg...)
         return setup_case_from_afi(AFIInputFile(x); kwarg...)
