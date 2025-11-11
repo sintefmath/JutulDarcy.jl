@@ -127,7 +127,7 @@ function StandardBlackOilSystem(;
         reference_densities = [786.507, 1037.84, 0.969758], 
         saturated_chop = false,
         keep_bubble_flag = true,
-        eps_s = 1e-5,
+        eps_s = 1e-10,
         eps_rs = nothing,
         eps_rv = nothing,
         formulation::Symbol = :varswitch,
