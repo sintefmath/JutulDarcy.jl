@@ -4,6 +4,8 @@ function JutulDarcy.setup_reservoir_model(afi::AFIInputFile;
         system = setup_system(afi, phases = phases),
         wells = setup_wells(afi, reservoir),
         extra_out = false,
+        disable_hysteresis = true,
+        disable_endscale = false,
         thermal = thermal_type(afi) == :thermal,
         kwarg...
     )
@@ -15,7 +17,10 @@ function JutulDarcy.setup_reservoir_model(afi::AFIInputFile;
         kwarg...
     )
     pvars = setup_pvt_variables(afi, system, reservoir)
-    svars = setup_saturation_variables(afi, system, reservoir)
+    svars = setup_saturation_variables(afi, system, reservoir,
+        disable_hysteresis = disable_hysteresis,
+        disable_endscale = disable_endscale,
+    )
     allvars = merge(pvars, svars)
     for (k, v) in allvars
         for (model_key, submodel) in pairs(model.models)

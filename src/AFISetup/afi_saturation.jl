@@ -1,13 +1,25 @@
-function setup_saturation_variables(d::AFIInputFile, sys, reservoir; regions = setup_region_map(d))
+function setup_saturation_variables(d::AFIInputFile, sys, reservoir;
+        regions = setup_region_map(d),
+        disable_endscale = false,
+        disable_hysteresis = false,
+    )
     out = Dict{Symbol, Any}()
     if length(JutulDarcy.get_phases(sys)) > 1
-        out[:RelativePermeabilities] = setup_relperm(d, reservoir, sys, regions = regions)
+        out[:RelativePermeabilities] = setup_relperm(d, reservoir, sys,
+            regions = regions,
+            disable_endscale = disable_endscale,
+            disable_hysteresis = disable_hysteresis
+        )
         out[:CapillaryPressure] = setup_pc(d, reservoir, sys, regions = regions)
     end
     return out
 end
 
-function setup_relperm(d, reservoir, sys; regions = setup_region_map(d))
+function setup_relperm(d, reservoir, sys;
+        regions = setup_region_map(d),
+        disable_endscale = false,
+        disable_hysteresis = false
+    )
     satfuns = find_records(d, "SaturationFunction", "IX", steps = false, model = true)
 
     phase_symb = phases_symbol(sys)
@@ -42,7 +54,7 @@ function setup_relperm(d, reservoir, sys; regions = setup_region_map(d))
     og = remap_to_tuple(krog, kr_regs)
 
     hyst = find_records(d, "KilloughRelPermHysteresis", "IX", steps = false, model = true, once = true)
-    if !isnothing(hyst)
+    if !isnothing(hyst) && !disable_hysteresis
         h = hyst.value
         # Drainage, imbibition, hysteresis?
         tol = get(h, "ModificationParameter", 0.1)
@@ -65,7 +77,7 @@ function setup_relperm(d, reservoir, sys; regions = setup_region_map(d))
     end
 
     rock_mgr = find_records(d, "RockMgr", "IX", steps = false, model = true, once = true)
-    if isnothing(rock_mgr)
+    if isnothing(rock_mgr) || disable_endscale
         hscale = false
         vscale = false
     else
