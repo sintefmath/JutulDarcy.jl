@@ -106,7 +106,7 @@ end
 
 function thermal_type(d::AFIInputFile)
     t = find_records(d, "ThermalModel", "IX", steps = false, model = true, once = true)
-    if ismissing(t)
+    if ismissing(t) || isnothing(t)
         tt = :isothermal
     else
         tt = Symbol(lowercase(String(t.value.arg)))
