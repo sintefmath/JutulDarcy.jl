@@ -29,13 +29,13 @@ function setup_pvt_variables(d::AFIInputFile, sys::Union{StandardBlackOilSystem,
         end
         if LiquidPhase() in phases
             if JutulDarcy.has_disgas(sys)
-                dtab = fluid_model["OilTable"]["table"]
+                dtab = fluid_model["OilTable"]
                 pvto_like = to_processed_pvt_table(dtab, "SolutionGOR", ["Pressure", "FormationVolumeFactor", "Viscosity"])
                 pvto_ext = GeoEnergyIO.InputParser.restructure_pvt_table(pvto_like)
                 oil_tab_raw = JutulDarcy.PVTOTable(pvto_ext)
                 oil_tab = JutulDarcy.PVTO(oil_tab_raw)
             else
-                dtab = fluid_model["DeadOilTable"]["table"]
+                dtab = fluid_model["DeadOilTable"]
                 p = dtab["Pressure"]
                 Bo = dtab["FormationVolumeFactor"]
                 mu = dtab["Viscosity"]
@@ -122,8 +122,7 @@ function JutulDarcy.set_rock_compressibility!(model, d::AFIInputFile)
     return model
 end
 
-function rs_table_from_oil_table(x)
-    tab = x["table"]
+function rs_table_from_oil_table(tab)
     ix = tab["SubTableIndex"]
     gor = tab["SolutionGOR"]
     p = tab["Pressure"]
