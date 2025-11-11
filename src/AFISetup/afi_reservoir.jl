@@ -26,6 +26,10 @@ function cell_index_offset(d::AFIInputFile)
     return start
 end
 
+function setup_mesh_afi(afi::AFIInputFile)
+    return setup_mesh_afi(afi, missing)
+end
+
 function setup_mesh_afi(afi::AFIInputFile, mesh::Missing)
     IX = afi.setup["IX"]
     if haskey(IX, "RESQML")
@@ -128,6 +132,19 @@ function setup_reservoir_domain_afi(d::AFIInputFile, mesh;
     # TODO: Move unit conversion here to properly handle edits that use absolute
     # values and not multipliers.
     domain_kwarg = remap_properties_to_jutuldarcy_names(data, ncells, phases)
+
+    # Heat capacity for components
+    d.setup["IX"]
+    cmodel = find_records(d, "CompositionalFluidModel", once = true)
+    if !isnothing(cmodel)
+        lenthalpy = get(cmodel.value, "EnthalpyLiquidHeatCapacity", missing)
+        if !ismissing(lenthalpy)
+            c1 = get(lenthalpy, "LiquidHeatCapacityCoef1", missing)
+            if !ismissing(c1)
+                domain_kwarg[:component_heat_capacities] = repeat(c1, 1, ncells)
+            end
+        end
+    end
 
     if use_nnc
         conn = find_records(d, "ConnectionSet", once = false)
