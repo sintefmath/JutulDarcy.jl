@@ -394,7 +394,7 @@ function remap_properties_to_jutuldarcy_names(data, ncells, phases)
         elseif k == "NET_TO_GROSS_RATIO"
             ntg .= vals
         elseif k == "PORE_VOLUME"
-            out[:fluid_volume] = vals
+            out[:pore_volume] = vals
         elseif k == "PORE_VOLUME_MULTIPLIER"
             out[:pore_volume_multiplier] = vals
         elseif k in ["TRANSMISSIBILITY_I", "TRANSMISSIBILITY_J", "TRANSMISSIBILITY_K"]

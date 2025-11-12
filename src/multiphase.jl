@@ -360,6 +360,9 @@ number_of_equations_per_entity(system::SinglePhaseSystem, e::ConservationLaw) = 
 function pore_volume(data_domain::DataDomain; throw = true)
     if haskey(data_domain, :pore_volume, Cells())
         pv = data_domain[:pore_volume]
+        if haskey(data_domain, :pore_volume_multiplier, Cells())
+            pv = pv.*data_domain[:pore_volume_multiplier]
+        end
     elseif haskey(data_domain, :volumes, Cells())
         vol = copy(data_domain[:volumes])
         ntg = poro = pvmult = 1.0
