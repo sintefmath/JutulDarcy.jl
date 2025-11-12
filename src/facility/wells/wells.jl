@@ -462,7 +462,22 @@ function domain_fluid_volume(d::DataDomain, grid::WellDomain)
 end
 
 function domain_bulk_volume(d::DataDomain, grid::WellDomain; outer_boundary = :grouting)
-    if haskey(d, :volume_override)
+    
+    has_hv = haskey(d, :volume_override_hole)
+    has_cv = haskey(d, :volume_override_casing)
+    has_gv = haskey(d, :volume_override_grouting)
+    if outer_boundary == :hole && has_hv
+        vols = d[:volume_override_hole, Cells()]
+    elseif outer_boundary == :casing && has_hv && has_cv
+        vols =
+        d[:volume_override_hole, Cells()] +
+        d[:volume_override_casing, Cells()]
+    elseif outer_boundary == :grouting && has_hv && has_cv && has_gv
+        vols = 
+        d[:volume_override_hole, Cells()] + 
+        d[:volume_override_casing, Cells()] +
+        d[:volume_override_grouting, Cells()]
+    elseif haskey(d, :volume_override)
         vols = d[:volume_override, Cells()]
     else
         case_thickness = d[:casing_thickness, Cells()]
