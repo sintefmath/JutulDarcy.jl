@@ -197,12 +197,7 @@ function setup_well_mismatch_objective(case_coarse::JutulCase, case_fine::JutulC
         wells = collect(keys(JutulDarcy.get_model_wells(case_fine))),
         compile = true
     )
-    states_f = deepcopy(result_fine.result.states)
-    for state in states_f
-        for (k, v) in pairs(state)
-            state[k] = Jutul.convert_to_immutable_storage(v)
-        end
-    end
+
     w = Float64[]
     matches = []
     model_f = case_fine.model
@@ -232,8 +227,8 @@ function setup_well_mismatch_objective(case_coarse::JutulCase, case_fine::JutulC
     dt = case_coarse.dt
     o_scale = 1.0/(sum(dt)*length(wells))
     wellpos = map(w -> get_well_position(model_c.models[:Facility].domain, w), wells)
-    states_f = result_fine.result.states
-    for (i, state) in enumerate(states_f)
+    states_f = deepcopy(result_fine.result.states)
+    for state in states_f
         for (k, v) in pairs(state)
             state[k] = Jutul.convert_to_immutable_storage(v)
         end
