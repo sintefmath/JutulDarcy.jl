@@ -2583,6 +2583,7 @@ function reservoir_measurables(model, wellresult, states = missing;
     wix = findfirst(isequal(AqueousPhase()), phases)
     oix = findfirst(isequal(LiquidPhase()), phases)
     gix = findfirst(isequal(VaporPhase()), phases)
+    rhoS = reference_densities(model.system)
 
     has_water = !isnothing(wix)
     has_oil = !isnothing(oix)
@@ -2664,19 +2665,19 @@ function reservoir_measurables(model, wellresult, states = missing;
             if has_water
                 fwipr[i] = sum(ix -> pv[ix]*s[wix, ix], eachindex(pv))
                 if is_blackoil
-                    fwip[i] = sum(tm[wix, :])
+                    fwip[i] = sum(tm[wix, :])/rhoS[wix]
                 end
             end
             if has_oil
                 foipr[i] = sum(ix -> pv[ix]*s[oix, ix], eachindex(pv))
                 if is_blackoil
-                    foip[i] = sum(tm[oix, :])
+                    foip[i] = sum(tm[oix, :])/rhoS[oix]
                 end
             end
             if has_gas
                 fgipr[i] = sum(ix -> pv[ix]*s[gix, ix], eachindex(pv))
                 if is_blackoil
-                    fgip[i] = sum(tm[gix, :])
+                    fgip[i] = sum(tm[gix, :])/rhoS[gix]
                 end
             end
 
