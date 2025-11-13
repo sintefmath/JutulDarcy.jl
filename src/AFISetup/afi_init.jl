@@ -56,7 +56,7 @@ function setup_equilibrium_region(equil, model; cells = missing)
         temperature_vs_depth = missing
     end
 
-    return EquilibriumRegion(model, datum_pressure;
+    return EquilibriumRegion(model, datum_pressure, datum_depth;
         woc = woc_depth,
         goc = goc_depth,
         rs_vs_depth = rsvd,
