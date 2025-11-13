@@ -1649,6 +1649,9 @@ function parse_control_steps(runspec, props, schedule, sys)
             elseif key == "COMPDAT"
                 for cd in kword
                     wname, I, J, K1, K2, flag, satnum, WI, diam, Kh, skin, Dfac, dir = cd
+                    if isnan(diam)
+                        diam = 0.3048
+                    end
                     @assert haskey(wells, wname)
                     head = wells[wname].head
                     if I < 1
