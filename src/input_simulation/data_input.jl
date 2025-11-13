@@ -1082,10 +1082,6 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
                     # faceno = length(fp)
                     c1 != c2 || error("NNC cell pair must be distinct.")
                     # NNC connections have no nodes
-                    # push!(fp, fp[end])
-                    # push!(I_faces.neighbors, (c1, c2))
-                    # push!(I_faces.cell_faces[c1], faceno)
-                    # push!(I_faces.cell_faces[c2], faceno)
                     push!(T_nnc, nnc_entry[7])
                     push!(N_nnc, (c1, c2))
                 else

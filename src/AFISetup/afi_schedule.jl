@@ -1,8 +1,6 @@
 function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
-    # well_constraints = Dict{Symbol, Any}()
-    # well_status = Dict{Symbol, Any}()
-    # well_type = Dict{Symbol, Any}()
-
+    OPEN = GeoEnergyIO.IXParser.IX_OPEN
+    # CLOSED = GeoEnergyIO.IXParser.IX_CLOSED
     well_setup = Dict{Symbol, Any}()
     group_lists = Dict{String, Any}(
         "StaticList" => Dict{String, Any}(),
@@ -10,9 +8,14 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
     )
     wells = get_model_wells(model)
     for (wname, w) in pairs(wells)
+        wdomain = physical_representation(w)
+        nperf = length(wdomain.perforations.reservoir)
         well_setup[wname] = Dict{String, Any}(
             "Constraints" => OrderedDict{String, Float64}(),
             "Status" => "OPEN",
+            "PiMultiplier" => ones(nperf),
+            "ConnectionStatus" => fill(OPEN, nperf),
+            "EffectivePiMultiplier" => ones(nperf),
             "Type" => "PRODUCER",
             "Enthalpy" => missing,
         )
@@ -44,9 +47,28 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
         for (i, recv) in enumerate(ix_steps[date])
             kw = recv.keyword
             rec = recv.value
-            # @info "IX $date: $i $kw" rec
             if kw == "WellDef"
+                w2c = get(rec, "WellToCellConnections", missing)
+                if !ismissing(w2c)
+                    wname = Symbol(rec["WellName"])
+                    eff_mult = well_setup[wname]["EffectivePiMultiplier"]
+                    mult = well_setup[wname]["PiMultiplier"]
+                    status = well_setup[wname]["ConnectionStatus"]
 
+                    for (i, v) in enumerate(get(w2c, "PiMultiplier", []))
+                        mult[i] = v
+                    end
+                    for (i, v) in enumerate(get(w2c, "Status", []))
+                        status[i] = v
+                    end
+                    for i in eachindex(eff_mult, mult, status)
+                        next_mult = mult[i]
+                        if status[i] != OPEN
+                            next_mult = 0.0
+                        end
+                        eff_mult[i] = next_mult
+                    end
+                end
             else
                 println("IX: $kw: Skipping record $i for $date, record not used by setup code.")
             end
@@ -140,6 +162,7 @@ function forces_from_constraints(well_setup, streams, date, sys, model, wells)
     phases = JutulDarcy.get_phases(sys)
     rhos = JutulDarcy.reference_densities(sys)
     rdomain = reservoir_domain(model)
+    wforces = Dict{Symbol, Any}()
 
     function defaulted_constraint(c, default)
         x = get(c, default, missing)
@@ -236,9 +259,14 @@ function forces_from_constraints(well_setup, streams, date, sys, model, wells)
         else
             ctrl = JutulDarcy.setup_disabled_control()
         end
+        mult = well_setup[wname]["EffectivePiMultiplier"]
+        if any(x -> !(x ≈ 1.0), mult)
+            mask = PerforationMask(mult)
+            wforces[wname] = setup_forces(wmodel, mask = mask)
+        end
         control[wname] = ctrl
     end
-    return setup_reservoir_forces(model, control = control, limits = limits)
+    return setup_reservoir_forces(model; control = control, limits = limits, pairs(wforces)...)
 end
 
 function control_type_to_symbol(s::String)
