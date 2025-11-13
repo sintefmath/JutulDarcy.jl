@@ -118,6 +118,7 @@ Compute well mismatch for a set of qoi's (well targets) and a set of well symbol
 function well_mismatch(qoi, wells, model_f, states_f, model_c, state_c, dt, step_info, forces;
         weights = ones(length(qoi)),
         scale = 1.0,
+        wellpos = map(w -> get_well_position(model_c.models[:Facility].domain, w), wells),
         signs = nothing,
         compile = true
     )
@@ -129,17 +130,37 @@ function well_mismatch(qoi, wells, model_f, states_f, model_c, state_c, dt, step
     end
     step_no = step_info[:step]
     state_f = states_f[step_no]
+    function conv(s)
+        tmp = Dict{Symbol, Any}(k => s[k] for k in wells)
+        tmp[:Facility] = s[:Facility]
+        return NamedTuple(tmp)
+    end
+    controls = forces[:Facility].control
+    if compile
+        state_f = conv(state_f)
+        state_c = conv(state_c)
+        controls = NamedTuple(controls)
+        wells = Tuple(wells)
+        qoi = Tuple(qoi)
+        model_f = model_f.models
+        model_c = model_c.models
+    end
+    obj = well_mismatch_loop(qoi, wells, model_f, state_f, model_c, state_c, controls, weights, wellpos)
+    return scale*dt*obj
+end
 
+
+function well_mismatch_loop(qoi, wells, model_f, state_f, model_c, state_c, controls, weights, wellpos)
     obj = 0.0
     @assert length(weights) == length(qoi)
     for (wno, well) in enumerate(wells)
-        pos = get_well_position(model_c.models[:Facility].domain, well)
+        pos = wellpos[wno]
 
         well_f = model_f[well]
         well_c = model_c[well]
         rhoS = reference_densities(well_f.system)
 
-        ctrl = forces[:Facility].control[well]
+        ctrl = controls[well]
         if ctrl isa DisabledControl
             continue
         end
@@ -149,18 +170,23 @@ function well_mismatch(qoi, wells, model_f, states_f, model_c, state_c, dt, step
 
         fstate_f = state_f[:Facility]
         fstate_c = state_c[:Facility]
-
-        for (i, q) in enumerate(qoi)
-            ctrl = replace_target(ctrl, q)
-
-            qoi_f = compute_well_qoi(well_f, wstate_f, fstate_f, well, pos, rhoS, ctrl)
-            qoi_c = compute_well_qoi(well_c, wstate_c, fstate_c, well, pos, rhoS, ctrl)
-
-            Δ = qoi_f - qoi_c
-            obj += (weights[i]*Δ)^2
-        end
+        obj += well_mismatch_loop_inner(ctrl, qoi, wstate_f, fstate_f, well_f, wstate_c, fstate_c, well_c, rhoS, well, weights, pos)
     end
-    return scale*dt*obj
+    return obj
+end
+
+function well_mismatch_loop_inner(ctrl, qoi, wstate_f, fstate_f, well_f, wstate_c, fstate_c, well_c, rhoS, well, weights, pos)
+    obj = 0.0
+    for (i, q) in enumerate(qoi)
+        ctrl = replace_target(ctrl, q)
+
+        qoi_f = compute_well_qoi(well_f, wstate_f, fstate_f, well, pos, rhoS, ctrl)
+        qoi_c = compute_well_qoi(well_c, wstate_c, fstate_c, well, pos, rhoS, ctrl)
+
+        Δ = qoi_f - qoi_c
+        obj += (weights[i]*Δ)^2
+    end
+    return obj
 end
 
 function setup_well_mismatch_objective(case_coarse::JutulCase, case_fine::JutulCase, result_fine::ReservoirSimResult;
@@ -204,8 +230,8 @@ function setup_well_mismatch_objective(case_coarse::JutulCase, case_fine::JutulC
     end
 
     dt = case_coarse.dt
-    wells = collect(keys(JutulDarcy.get_model_wells(case_fine)))
     o_scale = 1.0/(sum(dt)*length(wells))
+    wellpos = map(w -> get_well_position(model_c.models[:Facility].domain, w), wells)
     states_f = result_fine.result.states
     for (i, state) in enumerate(states_f)
         for (k, v) in pairs(state)
@@ -223,6 +249,7 @@ function setup_well_mismatch_objective(case_coarse::JutulCase, case_fine::JutulC
         step_no,
         forces,
         weights = w,
+        wellpos = wellpos,
         scale = o_scale,
         compile = compile
     )
