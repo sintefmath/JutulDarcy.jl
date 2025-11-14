@@ -1,6 +1,6 @@
 function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
     OPEN = GeoEnergyIO.IXParser.IX_OPEN
-    # CLOSED = GeoEnergyIO.IXParser.IX_CLOSED
+    CLOSED = GeoEnergyIO.IXParser.IX_CLOSED
     well_setup = Dict{Symbol, Any}()
     group_lists = Dict{String, Any}(
         "StaticList" => Dict{String, Any}(),
@@ -127,7 +127,11 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
                             end
                         end
                         if haskey(rec, "Status")
-                            wsetup["Status"] = rec["Status"]
+                            s = rec["Status"]
+                            wsetup["Status"] = s
+                            if s == "ALL_COMPLETIONS_SHUTIN"
+                                well_setup[wname]["ConnectionStatus"] .= CLOSED
+                            end
                         end
                         if haskey(rec, "Type")
                             wsetup["Type"] = rec["Type"]
@@ -186,7 +190,7 @@ function forces_from_constraints(well_setup, streams, date, sys, model, wells)
         status = wsetup["Status"]
         wtype = lowercase(wsetup["Type"])
         c = wsetup["Constraints"]
-        if status == GeoEnergyIO.IXParser.IX_OPEN
+        if status == GeoEnergyIO.IXParser.IX_OPEN || status == "OPEN"
             if length(keys(c)) == 0
                 println("No constraints found for well $wname at $date. Well will be disabled for step.")
                 ctrl = JutulDarcy.setup_disabled_control()
