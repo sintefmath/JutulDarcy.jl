@@ -14,7 +14,7 @@ struct EquilibriumRegion{R}
     temperature_vs_depth::Union{Function, Missing}
     cells::Union{Vector{Int}, Missing}
     pvtnum::Int
-    satnum::Int
+    satnum::Union{Int, Missing}
     kwarg::Any
 end
 
@@ -41,7 +41,7 @@ end
         rv = 0.0,
         rv_vs_depth = missing,
         pvtnum = 1,
-        satnum = 1,
+        satnum = missing,
         cells = missing,
         kwarg...
     )
@@ -76,7 +76,7 @@ function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = 
         rv = 0.0,
         rv_vs_depth = missing,
         pvtnum = 1,
-        satnum = 1,
+        satnum = missing,
         cells = missing,
         kwarg...
     )
@@ -239,11 +239,20 @@ function setup_reservoir_state(
         equil_regs::Union{Missing, Vector, EquilibriumRegion} = missing;
         kwarg...
     )
+    nc = number_of_cells(rmodel.domain)
     if ismissing(equil_regs)
         init = kwarg
     else
+        # Turn it into a vector if needed
         if equil_regs isa EquilibriumRegion
             equil_regs = [equil_regs]
+        end
+        # Handle defaulted SATNUM for Pc initialization
+        svars = Jutul.get_secondary_variables(rmodel)
+        pc = get(svars, :CapillaryPressure, missing)
+        pc_reg = pc.regions
+        if !ismissing(pc)
+            equil_regs = split_equilibrium_regions(equil_regs, pc_reg)
         end
         inits = map(equil -> equilibriate_state(rmodel, equil), equil_regs)
         if length(inits) == 1
@@ -252,7 +261,6 @@ function setup_reservoir_state(
             # Handle multiple regions by merging each init
             inits_cells = map(x -> x.cells, equil_regs)
             init = Dict{Symbol, Any}()
-            nc = number_of_cells(rmodel.domain)
             touched = [false for i in 1:nc]
             for (k, v) in first(inits)
                 if v isa AbstractVector
@@ -318,4 +326,56 @@ end
 function handle_alternate_primary_variable_spec!(res_init, found, rmodel, system)
     # Internal utility to handle non-trivial specification of primary variables
     return res_init
+end
+
+function split_equilibrium_regions(equil_regs::AbstractVector{T}, region::AbstractArray; variant = :satnum) where T
+    equil_regs_new = T[]
+    for er in equil_regs
+        cells = er.cells
+        if ismissing(cells)
+            cells = eachindex(region)
+        end
+        regs = getproperty(er, variant)
+        if ismissing(regs)
+            for subreg in unique(region[cells])
+                subcells = filter(c -> region[c] == subreg, cells)
+                if variant == :satnum
+                    new_pvt = er.pvtnum
+                    new_sat = subreg
+                else
+                    variant == :pvtnum || error("Unknown variant $variant, must be :satnum or :pvtnum")
+                    new_pvt = subreg
+                    new_sat = er.satnum
+                end
+                @assert only(unique(region[subcells])) == subreg
+                er_sub = EquilibriumRegion(
+                    er.datum_pressure,
+                    er.datum_depth,
+                    er.woc,
+                    er.goc,
+                    er.wgc,
+                    er.pc_woc,
+                    er.pc_goc,
+                    er.pc_wgc,
+                    er.density_function,
+                    er.composition_vs_depth,
+                    er.rs_vs_depth,
+                    er.rv_vs_depth,
+                    er.temperature_vs_depth,
+                    subcells,
+                    new_pvt,
+                    new_sat,
+                    er.kwarg
+                )
+                push!(equil_regs_new, er_sub)
+            end
+        else
+            push!(equil_regs_new, er)
+        end
+    end
+    return equil_regs_new
+end
+
+function split_equilibrium_regions(equil_regs, region::Union{Missing, Nothing})
+    return equil_regs
 end
