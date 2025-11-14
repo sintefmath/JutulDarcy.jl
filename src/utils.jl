@@ -2653,7 +2653,8 @@ function reservoir_measurables(model, wellresult, states = missing;
         fgipr = add_entry(:gipr, "gas in place (reservoir volumes)", :gas_volume_reservoir)
 
         fprh = add_entry(:prh, "average pressure (hydrocarbon volume weighted)", :pressure)
-        pres = add_entry(:pr, "average pressure", :pressure)
+        fpr = add_entry(:pr, "average pressure (hydrocarbon volume weighted)", :pressure)
+        pres = add_entry(:prp, "average pressure", :pressure)
 
         if haskey(states[1], :Reservoir)
             states = map(x -> x[:Reservoir], states)
@@ -2690,6 +2691,7 @@ function reservoir_measurables(model, wellresult, states = missing;
                 hc_mean_p = mean_p
             end
             fprh[i] = hc_mean_p
+            fpr[i] = hc_mean_p
             pres[i] = mean_p
         end
     end
