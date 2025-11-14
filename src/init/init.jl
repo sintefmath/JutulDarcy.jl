@@ -684,7 +684,7 @@ function parse_state0_equil(model, datafile; normalize = :sum)
                     ztab_z = Float64[]
                     ztab_static = Sz[]
                     num_renormalized = 0
-                    for row in 1:size(ztab, 1)
+                    for row in axes(ztab, 1)
                         mf_i = Sz(ztab[row, 2:end])
                         if maximum(mf_i) > 1.0 || minimum(mf_i) < 0 || !(sum(mf_i) ≈ 1.0)
                             num_renormalized += 1
@@ -970,13 +970,14 @@ function determine_saturations(depths, contacts, pressures; s_min = missing, s_m
                 I = get_1d_interpolator(pc_pair, s, constant_dx = false)
                 I_pc = get_1d_interpolator(s, pc_pair, constant_dx = false)
                 for i in eachindex(depths)
-                    z = depths[i]
-
                     dp = pressures[ph, i] - pressures[ref_ix, i]
                     if dp > pc_max
                         s_eff = s_max[ph][i]
+                        s_eff = min(s_eff, s[end])
                     elseif dp < pc_min
                         s_eff = s_min[ph][i]
+                        # Not clear if this should be the case...
+                        # s_eff = max(s_eff, s[1])
                     else
                         s_eff = I(dp)
                     end
