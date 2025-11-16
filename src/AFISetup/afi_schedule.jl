@@ -39,6 +39,7 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
 
     ix_steps = afi["IX"]["STEPS"]
     fm_steps = afi["FM"]["STEPS"]
+    observation_data = obsh = get(afi["FM"], "OBSH", missing)
     dates = keys(ix_steps)
     @assert dates == keys(fm_steps)
     @assert issorted(dates)
@@ -164,20 +165,27 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
                 println("FM: $kw: Skipping record $i for $date, record not used by setup code.")
             end
         end
+        t = 0.0
         if dateno != length(dates)
-            # Well constraints, etc
-            f = forces_from_constraints(well_setup, streams, date, sys, model, wells)
-            push!(forces, f)
             # Timestep in seconds
             dt_i = dates[dateno+1] - date
             dt_i::Millisecond
-            push!(timesteps, Dates.value(dt_i)/1000.0)
+            dt_in_second = date_delta_to_seconds(dt_i)
+            t += dt_in_second
+            # Well constraints, etc
+            f = forces_from_constraints(well_setup, observation_data, streams, date, sys, model, t, wells)
+            push!(forces, f)
+            push!(timesteps, dt_in_second)
         end
     end
     return (timesteps, forces)
 end
 
-function forces_from_constraints(well_setup, streams, date, sys, model, wells)
+function date_delta_to_seconds(dt_i::Millisecond)
+    return Dates.value(dt_i)/1000.0
+end
+
+function forces_from_constraints(well_setup, observation_data, streams, date, sys, model, t_since_start, wells)
     control = Dict{Symbol, Any}()
     limits = Dict{Symbol, Any}()
     phases = JutulDarcy.get_phases(sys)
@@ -214,7 +222,13 @@ function forces_from_constraints(well_setup, streams, date, sys, model, wells)
                 println("HistoryDataControl is defaulted for well $wname at $date but no constraint was provided as Well.HistoricalControlModes. Shutting well.")
                 ctrl = JutulDarcy.setup_disabled_control()
             else
-                @info "??" 
+                if length(hist_ctrl) > 1
+                    println("Multiple HistoricalControlModes for well $wname at $date: $hist_ctrl, taking the first")
+                end
+                hmode = hist_ctrl[1]
+                ctrl = setup_history_control(wname, wsetup, observation_data, hmode, t_since_start)
+
+                @info "??" t_since_start hmode
                 error("HistoricalControlModes handling not implemented yet.")
             end
         elseif status == GeoEnergyIO.IXParser.IX_OPEN || status == "OPEN"
@@ -319,4 +333,40 @@ function control_type_to_symbol(s::String)
     else
         error("Unknown control type string '$s'")
     end
+end
+
+function setup_history_control(wname, wsetup, observation_data, hmode, t_since_start)
+    ismissing(observation_data) && error("Observation data is required for HistoricalControlModes")
+    wtype = lowercase(wsetup["Type"])
+    obs = observation_data[wsetup["HistoryDataControl"]]["wells_interp"][wname]
+    @info "???" hmode keys(wsetup)
+    @info "???" wname wtype observation_data obs
+    if hmode == "RES_VOLUME_INJECTION_RATE"
+        println("RES_VOLUME_INJECTION_RATE handling not implemented yet, switching to rate constraint.")
+        if wtype == "water_injector"
+            ctrl = setup_history_control(wname, wsetup, observation_data, "WATER_INJECTION_RATE", t_since_start)
+        elseif wtype == "gas_injector"
+            ctrl = setup_history_control(wname, wsetup, observation_data, "GAS_INJECTION_RATE", t_since_start)
+        else
+            error("Unsupported well type '$wtype' for RES_VOLUME_INJECTION_RATE historical control for well '$wname'")
+        end
+    elseif hmode == "BOTTOM_HOLE_PRESSURE"
+
+    elseif hmode == "LIQUID_PRODUCTION_RATE"
+        val = obs["LIQUID_PRODUCTION_RATE"](t_since_start)
+        target = SurfaceLiquidRateTarget(val)
+    elseif hmode == "GAS_PRODUCTION_RATE"
+
+    elseif hmode == "GAS_INJECTION_RATE"
+
+    elseif hmode == "RES_VOLUME_PRODUCTION_RATE"
+        println("RES_VOLUME_PRODUCTION_RATE handling not implemented yet, switching to LIQUID_PRODUCTION_RATE.")
+        ctrl = setup_history_control(wname, wsetup, observation_data, "LIQUID_PRODUCTION_RATE", t_since_start)
+    elseif hmode == "LIQUID_PRODUCTION_RATE"
+        
+        target = SurfaceLiquidRateTarget()
+    else
+        error("Unsupported HistoricalControlModes '$hmode' for well '$wname'")
+    end
+    return ctrl
 end
