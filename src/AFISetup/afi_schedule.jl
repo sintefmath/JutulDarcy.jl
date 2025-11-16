@@ -12,6 +12,8 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
         nperf = length(wdomain.perforations.reservoir)
         well_setup[wname] = Dict{String, Any}(
             "Constraints" => OrderedDict{String, Float64}(),
+            "HistoryDataControl" => missing,
+            "HistoricalControlModes" => missing,
             "Status" => "OPEN",
             "PiMultiplier" => ones(nperf),
             "ConnectionStatus" => fill(OPEN, nperf),
@@ -78,6 +80,15 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
             rec = recv.value
             if kw == "StaticList" || kw == "Group"
                 group_lists[kw][rec.group] = rec.members
+            elseif kw == "HistoricalDataControl"
+                if get(rec, "value", true)
+                    wtype, wellnames = rec["Wells"]
+                    @assert String(wtype) == "Well"
+                    for wname in wellnames
+                        wname = Symbol(wname)
+                        well_setup[wname]["HistoryDataControl"] = rec["DataFileName"]
+                    end
+                end
             elseif kw == "Well"
                 if haskey(rec, "name")
                     names = rec["name"]
@@ -141,6 +152,10 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
                         if haskey(rec, "Enthalpy")
                             wsetup["Enthalpy"] = rec["Enthalpy"].key
                         end
+                        if haskey(rec, "HistoricalControlModes")
+                            @info "Setting HistoricalControlModes for well $wname" map(String, rec["HistoricalControlModes"])
+                            wsetup["HistoricalControlModes"] = map(String, rec["HistoricalControlModes"])
+                        end
                     end
                 end
             elseif kw in stream_keys
@@ -192,7 +207,18 @@ function forces_from_constraints(well_setup, streams, date, sys, model, wells)
         status = wsetup["Status"]
         wtype = lowercase(wsetup["Type"])
         c = wsetup["Constraints"]
-        if status == GeoEnergyIO.IXParser.IX_OPEN || status == "OPEN"
+        hctrl = wsetup["HistoryDataControl"]
+        if !ismissing(hctrl)
+            hist_ctrl = wsetup["HistoricalControlModes"]
+            if ismissing(hist_ctrl)
+                println("HistoryDataControl is defaulted for well $wname at $date but no constraint was provided as Well.HistoricalControlModes. Shutting well.")
+                ctrl = JutulDarcy.setup_disabled_control()
+            else
+                @info "??" 
+                error("HistoricalControlModes handling not implemented yet.")
+            end
+        elseif status == GeoEnergyIO.IXParser.IX_OPEN || status == "OPEN"
+            hctrl = wsetup["HistoryDataControl"]
             if length(keys(c)) == 0
                 println("No constraints found for well $wname at $date. Well will be disabled for step.")
                 ctrl = JutulDarcy.setup_disabled_control()
