@@ -337,6 +337,7 @@ end
 
 function setup_history_control(wname, wsetup, observation_data, hmode, t_since_start)
     ismissing(observation_data) && error("Observation data is required for HistoricalControlModes")
+    maybe_ctrl(x, T) = ifelse(x ≈ 0.0, DisabledControl(), T(x))
     wtype = lowercase(wsetup["Type"])
     obs = observation_data[wsetup["HistoryDataControl"]]["wells_interp"][wname]
     @info "???" hmode keys(wsetup)
@@ -354,9 +355,10 @@ function setup_history_control(wname, wsetup, observation_data, hmode, t_since_s
 
     elseif hmode == "LIQUID_PRODUCTION_RATE"
         val = obs["LIQUID_PRODUCTION_RATE"](t_since_start)
-        target = SurfaceLiquidRateTarget(val)
+        target = SurfaceLiquidRateTarget(-val)
     elseif hmode == "GAS_PRODUCTION_RATE"
-
+        val = obs["LIQUID_PRODUCTION_RATE"](t_since_start)
+        target = SurfaceLiquidRateTarget(-val)
     elseif hmode == "GAS_INJECTION_RATE"
 
     elseif hmode == "RES_VOLUME_PRODUCTION_RATE"
