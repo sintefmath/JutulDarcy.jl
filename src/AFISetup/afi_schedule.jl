@@ -131,6 +131,8 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
                             wsetup["Status"] = s
                             if s == "ALL_COMPLETIONS_SHUTIN"
                                 well_setup[wname]["ConnectionStatus"] .= CLOSED
+                                eff_mult = well_setup[wname]["EffectivePiMultiplier"]
+                                eff_mult .= 0.0
                             end
                         end
                         if haskey(rec, "Type")
@@ -270,7 +272,8 @@ function forces_from_constraints(well_setup, streams, date, sys, model, wells)
         end
         control[wname] = ctrl
     end
-    return setup_reservoir_forces(model; control = control, limits = limits, pairs(wforces)...)
+    f = setup_reservoir_forces(model; control = control, limits = limits, pairs(wforces)...)
+    return f
 end
 
 function control_type_to_symbol(s::String)
