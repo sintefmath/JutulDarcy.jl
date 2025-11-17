@@ -193,21 +193,6 @@ function forces_from_constraints(well_setup, observation_data, streams, date, sy
     rdomain = reservoir_domain(model)
     wforces = Dict{Symbol, Any}()
 
-    function defaulted_constraint(c, default)
-        x = get(c, default, missing)
-        if ismissing(x)
-            return first_constraint(c)
-        else
-            k = default
-        end
-        return (k, x)
-    end
-    function first_constraint(c)
-        ks = keys(c)
-        k = first(ks)
-        x = c[k]
-        return (k, x)
-    end
     for wname in keys(wells)
         wmodel = model[wname]
         wdomain = wmodel.data_domain
@@ -239,8 +224,6 @@ function forces_from_constraints(well_setup, observation_data, streams, date, sy
                 else
                     error("Unknown injector type '$wtype' for well '$wname'")
                 end
-                ctrl_type_str, val = first_constraint(c)
-                ctrl_type = control_type_to_symbol(ctrl_type_str)
                 ix = findfirst(isequal(ph), phases)
                 if isnothing(ix)
                     error("Phase '$ph' for injector well '$wname' not present in system phases: $phases")
@@ -324,6 +307,12 @@ function control_type_to_symbol(s::String)
 end
 
 function setup_constraint_control(c, wtype)
+    function first_constraint(c)
+        ks = keys(c)
+        k = first(ks)
+        x = c[k]
+        return (k, x)
+    end
     if length(c) == 0
         println("No constraints provided for well, defaulting to disabled control.")
         wtype = "disabled"
