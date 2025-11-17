@@ -18,10 +18,10 @@ module AFISetup
         return setup_case_from_afi(AFIInputFile(x); kwarg...)
     end
 
-    function setup_case_from_afi(afi::AFIInputFile; kwarg...)
+    function setup_case_from_afi(afi::AFIInputFile; step_limit = missing, kwarg...)
         model, prm = setup_reservoir_model(afi; extra_out = true, kwarg...)
         state0 = setup_reservoir_state(afi, model)
-        dt, forces = setup_afi_schedule(afi, model)
+        dt, forces = setup_afi_schedule(afi, model, step_limit = step_limit)
         return Jutul.JutulCase(model, dt, forces, state0 = state0, parameters = prm)
     end
 end

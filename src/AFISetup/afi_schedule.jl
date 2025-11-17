@@ -1,4 +1,4 @@
-function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
+function setup_afi_schedule(afi::AFIInputFile, model::MultiModel; step_limit = missing)
     OPEN = GeoEnergyIO.IXParser.IX_OPEN
     CLOSED = GeoEnergyIO.IXParser.IX_CLOSED
     well_setup = Dict{Symbol, Any}()
@@ -139,14 +139,12 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
                                 end
                             end
                         end
-                        if haskey(rec, "Status")
-                            s = rec["Status"]
-                            wsetup["Status"] = s
-                            if s == "ALL_COMPLETIONS_SHUTIN"
-                                well_setup[wname]["ConnectionStatus"] .= CLOSED
-                                eff_mult = well_setup[wname]["EffectivePiMultiplier"]
-                                eff_mult .= 0.0
-                            end
+                        s = get(rec, "Status", "OPEN")
+                        wsetup["Status"] = s
+                        if s == "ALL_COMPLETIONS_SHUTIN" && false
+                            well_setup[wname]["ConnectionStatus"] .= CLOSED
+                            eff_mult = well_setup[wname]["EffectivePiMultiplier"]
+                            eff_mult .= 0.0
                         end
                         if haskey(rec, "Type")
                             wsetup["Type"] = rec["Type"]
@@ -155,7 +153,6 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
                             wsetup["Enthalpy"] = rec["Enthalpy"].key
                         end
                         if haskey(rec, "HistoricalControlModes")
-                            @info "Setting HistoricalControlModes for well $wname" map(String, rec["HistoricalControlModes"])
                             wsetup["HistoricalControlModes"] = map(String, rec["HistoricalControlModes"])
                         end
                     end
@@ -176,6 +173,9 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel)
             f = forces_from_constraints(well_setup, observation_data, streams, date, sys, model, t_elapsed, wells)
             push!(forces, f)
             push!(timesteps, dt_in_second)
+        end
+        if !ismissing(step_limit) && dateno == step_limit
+            break
         end
     end
     return (timesteps, forces)
@@ -314,7 +314,7 @@ function setup_constraint_control(c, wtype)
         return (k, x)
     end
     if length(c) == 0
-        println("No constraints provided for well, defaulting to disabled control.")
+        # println("No constraints provided for well, defaulting to disabled control.")
         wtype = "disabled"
         ctrl_type = :disabled
         val = missing
@@ -327,7 +327,7 @@ end
 
 function setup_history_control(hist_ctrl, wname, wtype, wsetup, observation_data, t_since_start)
     if ismissing(hist_ctrl)
-        println("HistoryDataControl is defaulted for well $wname but no constraint was provided as Well.HistoricalControlModes. Shutting well.")
+        # println("HistoryDataControl is defaulted for well $wname but no constraint was provided as Well.HistoricalControlModes. Shutting well.")
         wtype = "disabled"
         return (:disabled, missing, wtype)
     elseif hist_ctrl isa AbstractVector
@@ -346,7 +346,7 @@ function setup_history_control(hist_ctrl, wname, wtype, wsetup, observation_data
         ctrl_type = :bhp
     else
         if hmode == "RES_VOLUME_INJECTION_RATE"
-            println("RES_VOLUME_INJECTION_RATE handling not implemented yet, switching to rate constraint.")
+            # println("RES_VOLUME_INJECTION_RATE handling not implemented yet, switching to rate constraint.")
             if wtype == "water_injector"
                 ctrl_type, val, wtype = setup_history_control("WATER_INJECTION_RATE", wname, wtype, wsetup, observation_data, t_since_start)
             elseif wtype == "gas_injector"
@@ -369,7 +369,7 @@ function setup_history_control(hist_ctrl, wname, wtype, wsetup, observation_data
             val = -obs["GAS_PRODUCTION_RATE"](t_since_start)
             ctrl_type = :grat
         elseif hmode == "RES_VOLUME_PRODUCTION_RATE"
-            println("RES_VOLUME_PRODUCTION_RATE handling not implemented yet, switching to LIQUID_PRODUCTION_RATE.")
+            # println("RES_VOLUME_PRODUCTION_RATE handling not implemented yet, switching to LIQUID_PRODUCTION_RATE.")
             ctrl_type, val, wtype = setup_history_control("LIQUID_PRODUCTION_RATE", wname, wtype, wsetup, observation_data,  t_since_start)
         elseif hmode == "LIQUID_PRODUCTION_RATE"
             ctrl_type = :lrat
