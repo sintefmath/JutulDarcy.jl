@@ -216,78 +216,66 @@ function forces_from_constraints(well_setup, observation_data, streams, date, sy
         wtype = lowercase(wsetup["Type"])
         c = wsetup["Constraints"]
         hctrl = wsetup["HistoryDataControl"]
-        if !ismissing(hctrl)
-            hist_ctrl = wsetup["HistoricalControlModes"]
-            if ismissing(hist_ctrl)
-                println("HistoryDataControl is defaulted for well $wname at $date but no constraint was provided as Well.HistoricalControlModes. Shutting well.")
-                ctrl = JutulDarcy.setup_disabled_control()
+        has_history = !ismissing(hctrl)
+        if status == GeoEnergyIO.IXParser.IX_OPEN || status == "OPEN" || has_history
+            if has_history
+                hist_ctrl = wsetup["HistoricalControlModes"]
+                ctrl_type, val, wtype = setup_history_control(hist_ctrl, wname, wtype, wsetup, observation_data, t_since_start)
             else
-                if length(hist_ctrl) > 1
-                    println("Multiple HistoricalControlModes for well $wname at $date: $hist_ctrl, taking the first")
-                end
-                hmode = hist_ctrl[1]
-                ctrl = setup_history_control(wname, wsetup, observation_data, hmode, t_since_start)
-
-                @info "??" t_since_start hmode
-                error("HistoricalControlModes handling not implemented yet.")
+                ctrl_type, val, wtype = setup_constraint_control(c, wtype)
             end
-        elseif status == GeoEnergyIO.IXParser.IX_OPEN || status == "OPEN"
-            hctrl = wsetup["HistoryDataControl"]
-            if length(keys(c)) == 0
-                println("No constraints found for well $wname at $date. Well will be disabled for step.")
+            if wtype == "disabled"
                 ctrl = JutulDarcy.setup_disabled_control()
+            elseif wtype == "producer"
+                ctrl = JutulDarcy.setup_producer_control(val, ctrl_type)
+                wsgn = -1.0
             else
-                if wtype == "producer"
-                    ctrl_type_str, val = first_constraint(c)
-                    ctrl_type = control_type_to_symbol(ctrl_type_str)
-                    ctrl = JutulDarcy.setup_producer_control(val, ctrl_type)
-                    wsgn = -1.0
+                if startswith(wtype, "water")
+                    ph = AqueousPhase()
+                elseif startswith(wtype, "gas")
+                    ph = VaporPhase()
+                elseif startswith(wtype, "oil")
+                    ph = LiquidPhase()
                 else
-                    if startswith(wtype, "water")
-                        ph = AqueousPhase()
-                    elseif startswith(wtype, "gas")
-                        ph = VaporPhase()
-                    elseif startswith(wtype, "oil")
-                        ph = LiquidPhase()
-                    else
-                        error("Unknown injector type '$wtype' for well '$wname'")
-                    end
-                    ctrl_type_str, val = first_constraint(c)
-                    ctrl_type = control_type_to_symbol(ctrl_type_str)
-                    ix = findfirst(isequal(ph), phases)
-                    if isnothing(ix)
-                        error("Phase '$ph' for injector well '$wname' not present in system phases: $phases")
-                    end
-                    mix = zeros(length(phases))
-                    mix[ix] = 1.0
-                    enthalpy_stream = wsetup["Enthalpy"]
-                    if ismissing(enthalpy_stream)
-                        T = convert_to_si(20.0, :Celsius)
-                        enthalpy = missing
-                    else
-                        enthalpy_info = streams["FluidEnthalpy"][enthalpy_stream]
-                        T = convert_to_si(enthalpy_info["Temperature"], :Celsius)
-                        # TODO: Handle regions here and treat enthalpy properly...
-                        # P = enthalpy_info["Pressure"]
-                        # rho_def = reservoir_model(model)[:PhaseMassDensities].pvt[ix]
-                        # rho_c = rhos[ix]*JutulDarcy.shrinkage(rho_def, nothing, P, 1)
-                        # wc = wmodel.domain.representation.perforations.reservoir
-                        # hc = rdomain[:component_heat_capacity]
-                        # if hc isa AbstractVector
-
-                        # end
-                        # heat_capacity = rdomain[:component_heat_capacity][ix, wc[1]]
-                        # enthalpy = internal energy + p / rho
-                        # internal energy = heat capacity * T
-                        # enthalpy = (p, T) -> 
-                        enthalpy = missing
-                    end
-                    ctrl = JutulDarcy.setup_injector_control(val, ctrl_type, mix,
-                        density = rhos[ix],
-                        temperature = T
-                    )
-                    wsgn = 1.0
+                    error("Unknown injector type '$wtype' for well '$wname'")
                 end
+                ctrl_type_str, val = first_constraint(c)
+                ctrl_type = control_type_to_symbol(ctrl_type_str)
+                ix = findfirst(isequal(ph), phases)
+                if isnothing(ix)
+                    error("Phase '$ph' for injector well '$wname' not present in system phases: $phases")
+                end
+                mix = zeros(length(phases))
+                mix[ix] = 1.0
+                enthalpy_stream = wsetup["Enthalpy"]
+                if ismissing(enthalpy_stream)
+                    T = convert_to_si(20.0, :Celsius)
+                    enthalpy = missing
+                else
+                    enthalpy_info = streams["FluidEnthalpy"][enthalpy_stream]
+                    T = convert_to_si(enthalpy_info["Temperature"], :Celsius)
+                    # TODO: Handle regions here and treat enthalpy properly...
+                    # P = enthalpy_info["Pressure"]
+                    # rho_def = reservoir_model(model)[:PhaseMassDensities].pvt[ix]
+                    # rho_c = rhos[ix]*JutulDarcy.shrinkage(rho_def, nothing, P, 1)
+                    # wc = wmodel.domain.representation.perforations.reservoir
+                    # hc = rdomain[:component_heat_capacity]
+                    # if hc isa AbstractVector
+
+                    # end
+                    # heat_capacity = rdomain[:component_heat_capacity][ix, wc[1]]
+                    # enthalpy = internal energy + p / rho
+                    # internal energy = heat capacity * T
+                    # enthalpy = (p, T) -> 
+                    enthalpy = missing
+                end
+                ctrl = JutulDarcy.setup_injector_control(val, ctrl_type, mix,
+                    density = rhos[ix],
+                    temperature = T
+                )
+                wsgn = 1.0
+            end
+            if !(ctrl isa DisabledControl)
                 lims = Dict()
                 for (k, v) in pairs(c)
                     ck = control_type_to_symbol(k)
@@ -335,40 +323,77 @@ function control_type_to_symbol(s::String)
     end
 end
 
-function setup_history_control(wname, wsetup, observation_data, hmode, t_since_start)
+function setup_constraint_control(c, wtype)
+    if length(c) == 0
+        println("No constraints provided for well, defaulting to disabled control.")
+        wtype = "disabled"
+        ctrl_type = :disabled
+        val = missing
+    else
+        ctrl_type_str, val = first_constraint(c)
+        ctrl_type = control_type_to_symbol(ctrl_type_str)
+    end
+    return (ctrl_type, val, wtype)
+end
+
+function setup_history_control(hist_ctrl, wname, wtype, wsetup, observation_data, t_since_start)
+    if ismissing(hist_ctrl)
+        println("HistoryDataControl is defaulted for well $wname but no constraint was provided as Well.HistoricalControlModes. Shutting well.")
+        wtype = "disabled"
+        return (:disabled, missing, wtype)
+    elseif hist_ctrl isa AbstractVector
+        if length(hist_ctrl) > 1
+            println("Multiple HistoricalControlModes for well $wname at $date: $hist_ctrl, taking the first")
+        end
+        hmode = hist_ctrl[1]
+    else
+        hmode = hist_ctrl
+    end
     ismissing(observation_data) && error("Observation data is required for HistoricalControlModes")
     maybe_ctrl(x, T) = ifelse(x ≈ 0.0, DisabledControl(), T(x))
-    wtype = lowercase(wsetup["Type"])
     obs = observation_data[wsetup["HistoryDataControl"]]["wells_interp"][wname]
-    @info "???" hmode keys(wsetup)
-    @info "???" wname wtype observation_data obs
-    if hmode == "RES_VOLUME_INJECTION_RATE"
-        println("RES_VOLUME_INJECTION_RATE handling not implemented yet, switching to rate constraint.")
-        if wtype == "water_injector"
-            ctrl = setup_history_control(wname, wsetup, observation_data, "WATER_INJECTION_RATE", t_since_start)
-        elseif wtype == "gas_injector"
-            ctrl = setup_history_control(wname, wsetup, observation_data, "GAS_INJECTION_RATE", t_since_start)
-        else
-            error("Unsupported well type '$wtype' for RES_VOLUME_INJECTION_RATE historical control for well '$wname'")
-        end
-    elseif hmode == "BOTTOM_HOLE_PRESSURE"
-
-    elseif hmode == "LIQUID_PRODUCTION_RATE"
-        val = obs["LIQUID_PRODUCTION_RATE"](t_since_start)
-        target = SurfaceLiquidRateTarget(-val)
-    elseif hmode == "GAS_PRODUCTION_RATE"
-        val = obs["LIQUID_PRODUCTION_RATE"](t_since_start)
-        target = SurfaceLiquidRateTarget(-val)
-    elseif hmode == "GAS_INJECTION_RATE"
-
-    elseif hmode == "RES_VOLUME_PRODUCTION_RATE"
-        println("RES_VOLUME_PRODUCTION_RATE handling not implemented yet, switching to LIQUID_PRODUCTION_RATE.")
-        ctrl = setup_history_control(wname, wsetup, observation_data, "LIQUID_PRODUCTION_RATE", t_since_start)
-    elseif hmode == "LIQUID_PRODUCTION_RATE"
-        
-        target = SurfaceLiquidRateTarget()
+    if hmode == "BOTTOM_HOLE_PRESSURE"
+        val = obs["BOTTOM_HOLE_PRESSURE"](t_since_start)
+        ctrl_type = :bhp
     else
-        error("Unsupported HistoricalControlModes '$hmode' for well '$wname'")
+        if hmode == "RES_VOLUME_INJECTION_RATE"
+            println("RES_VOLUME_INJECTION_RATE handling not implemented yet, switching to rate constraint.")
+            if wtype == "water_injector"
+                ctrl_type, val, wtype = setup_history_control("WATER_INJECTION_RATE", wname, wtype, wsetup, observation_data, t_since_start)
+            elseif wtype == "gas_injector"
+                ctrl_type, val, wtype = setup_history_control("GAS_INJECTION_RATE", wname, wtype, wsetup, observation_data, t_since_start)
+            else
+                error("Unsupported well type '$wtype' for RES_VOLUME_INJECTION_RATE historical control for well '$wname'")
+            end
+        elseif hmode == "GAS_INJECTION_RATE"
+            ctrl_type = :grat
+            val = obs["GAS_INJECTION_RATE"](t_since_start)
+            wtype = "gas_injector"
+        elseif hmode == "WATER_INJECTION_RATE"
+            ctrl_type = :wrat
+            val = obs["WATER_INJECTION_RATE"](t_since_start)
+            wtype = "water_injector"
+        elseif hmode == "LIQUID_PRODUCTION_RATE"
+            ctrl_type = :lrat
+            val = -obs["LIQUID_PRODUCTION_RATE"](t_since_start)
+        elseif hmode == "GAS_PRODUCTION_RATE"
+            val = -obs["GAS_PRODUCTION_RATE"](t_since_start)
+            ctrl_type = :grat
+        elseif hmode == "RES_VOLUME_PRODUCTION_RATE"
+            println("RES_VOLUME_PRODUCTION_RATE handling not implemented yet, switching to LIQUID_PRODUCTION_RATE.")
+            ctrl_type, val, wtype = setup_history_control("LIQUID_PRODUCTION_RATE", wname, wtype, wsetup, observation_data,  t_since_start)
+        elseif hmode == "LIQUID_PRODUCTION_RATE"
+            ctrl_type = :lrat
+            val = -obs["LIQUID_PRODUCTION_RATE"](t_since_start)
+        elseif hmode == "OIL_PRODUCTION_RATE"
+            ctrl_type = :orat
+            val = -obs["OIL_PRODUCTION_RATE"](t_since_start)
+        else
+            error("Unsupported HistoricalControlModes '$hmode' for well '$wname'")
+        end
+        if val ≈ 0.0
+            wtype = "disabled"
+        end
     end
-    return ctrl
+    return (ctrl_type, val, wtype)
 end
