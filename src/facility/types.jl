@@ -638,7 +638,7 @@ struct ProducerControl{T, R} <: WellControlForce
     factor::R
     function ProducerControl(target::T; factor::R = 1.0, check = true) where {T<:WellTarget, R<:Real}
         if check && rate_weighted(target)
-            target.value < 0.0 || error("Injector target rate must be negative")
+            target.value < 0.0 || error("Producer target rate must be negative, was $(target.value)")
         end
         return new{T, R}(target, factor)
     end
