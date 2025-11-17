@@ -230,39 +230,73 @@ function Jutul.line_plot_data(model::SimulationModel, k::ReservoirRelativePermea
     s = collect(0:0.01:1)
     has_reg = !isnothing(k.regions)
     if has_reg
+        hyst = hysteresis_is_active(k)
         nreg = length(k.krw)
+        if hyst
+            nreg = nreg ÷ 2
+        end
     else
+        hyst = false
         nreg = 1
+    end
+    if hyst
+        suffix = " (drainage)"
+    else
+        suffix = ""
     end
     data = Matrix{Any}(undef, 2, nreg)
     ix = 1
     if !isnothing(k.krw)
-        for (krw, krow) in zip(k.krw, k.krow)
+        for ix in 1:nreg
+            krow = k.krow[ix]
+            krw = k.krw[ix]
             x = []
             y = []
             labels = []
             push!(x, s)
             push!(y, krw.(s))
-            push!(labels, "W")
+            push!(labels, "W$suffix")
             push!(x, 1 .- s)
             push!(y, krow.(s))
-            push!(labels, "OW")
+            push!(labels, "OW$suffix")
+            if hyst
+                krwi = k.krw[ix + nreg]
+                krowi = k.krow[ix + nreg]
+                push!(x, s)
+                push!(y, krwi.(s))
+                push!(labels, "W (imbibition)")
+                push!(x, 1 .- s)
+                push!(y, krowi.(s))
+                push!(labels, "OW (imbibition)")
+            end
             data[1, ix] = Jutul.JutulLinePlotData(x, y, labels = labels, title = "Relative permeability", xlabel = "Water saturation", ylabel = "Water-Oil Kr")
             ix += 1
         end
     end
     if !isnothing(k.krg)
         ix = 1
-        for (krg, krog) in zip(k.krg, k.krog)
+        for ix in 1:nreg
+            krog = k.krog[ix]
+            krg = k.krg[ix]
             x = []
             y = []
             labels = []
             push!(x, s)
             push!(y, krg.(s))
-            push!(labels, "G")
+            push!(labels, "G$suffix")
             push!(x, s)
             push!(y, krog.(1 .- s))
-            push!(labels, "OG")
+            push!(labels, "OG$suffix")
+            if hyst
+                krgi = k.krg[ix + nreg]
+                krogi = k.krog[ix + nreg]
+                push!(x, s)
+                push!(y, krgi.(s))
+                push!(labels, "G (imbibition)")
+                push!(x, s)
+                push!(y, krogi.(1 .- s))
+                push!(labels, "OG (imbibition)")
+            end
             data[2, ix] = Jutul.JutulLinePlotData(x, y, labels = labels, title = "Relative permeability", xlabel = "Gas saturation", ylabel = "Gas-Oil Kr")
             ix += 1
         end
