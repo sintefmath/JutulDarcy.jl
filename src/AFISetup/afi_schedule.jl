@@ -8,6 +8,11 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel; step_limit = m
     )
     wells = get_model_wells(model)
     for (wname, w) in pairs(wells)
+        orig_perf = model[wname].data_domain[:original_perforation_indices, JutulDarcy.Perforations()]
+        remap = Dict{Int, Int}()
+        for (i, p) in enumerate(orig_perf)
+            remap[p] = i
+        end
         wdomain = physical_representation(w)
         nperf = length(wdomain.perforations.reservoir)
         well_setup[wname] = Dict{String, Any}(
@@ -19,6 +24,7 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel; step_limit = m
             "ConnectionStatus" => fill(OPEN, nperf),
             "EffectivePiMultiplier" => ones(nperf),
             "Type" => "PRODUCER",
+            "PerforationMap" => remap,
             "Enthalpy" => missing,
         )
     end
@@ -55,15 +61,16 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel; step_limit = m
                 w2c = get(rec, "WellToCellConnections", missing)
                 if !ismissing(w2c)
                     wname = Symbol(rec["WellName"])
+                    pmap = well_setup[wname]["PerforationMap"]
                     eff_mult = well_setup[wname]["EffectivePiMultiplier"]
                     mult = well_setup[wname]["PiMultiplier"]
                     status = well_setup[wname]["ConnectionStatus"]
 
                     for (i, v) in enumerate(get(w2c, "PiMultiplier", []))
-                        mult[i] = v
+                        mult[pmap[i]] = v
                     end
                     for (i, v) in enumerate(get(w2c, "Status", []))
-                        status[i] = v
+                        status[pmap[i]] = v
                     end
                     for i in eachindex(eff_mult, mult, status)
                         next_mult = mult[i]

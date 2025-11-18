@@ -1,4 +1,4 @@
-function setup_wells(d::AFIInputFile, reservoir)
+function setup_wells(d::AFIInputFile, reservoir; perf_sort = :depth)
     welldefs = find_records(d, "WellDef", "IX", steps = true, model = true)
     well_dict = OrderedDict{String, Any}()
     for welldef in welldefs
@@ -91,6 +91,28 @@ function setup_wells(d::AFIInputFile, reservoir)
         Kh = get_if_active(w2c, "PermeabilityThickness", active)
         drainage_radius = get_if_active(w2c, "PressureEquivalentRadius", active)
         r = get(w2c, "WellBoreRadius", fill(0.1, nperf))[active]
+        compnames = get(w2c, "Completion", missing)
+        if ismissing(compnames)
+            compnames = map(i -> "COMPLETION_$i", cells)
+        end
+        compnames = compnames[active]
+        if perf_sort == :depth
+            depth = reservoir[:cell_centroids][3, cells_mapped]
+            sorted_ix = sortperm(depth)
+        else
+            sorted_ix = eachindex(depth)
+        end
+        maybe_sort(::Missing) = missing
+        maybe_sort(arr::AbstractVector) = arr[sorted_ix]
+
+        cells_mapped = cells_mapped[sorted_ix]
+        skin = maybe_sort(skin)
+        dir = maybe_sort(dir)
+        WI = maybe_sort(WI)
+        Kh = maybe_sort(Kh)
+        r = maybe_sort(r)
+
+        compnames = maybe_sort(compnames)
         w = setup_well(reservoir, cells_mapped,
             skin = skin,
             dir = dir,
@@ -102,11 +124,8 @@ function setup_wells(d::AFIInputFile, reservoir)
             reference_depth = v["ref_depth"],
             name = Symbol(k)
         )
-        compnames = get(w2c, "Completion", missing)
-        if ismissing(compnames)
-            compnames = map(i -> "COMPLETION_$i", cells)
-        end
-        w[:perforation_names, JutulDarcy.Perforations()] = compnames[active]
+        w[:perforation_names, JutulDarcy.Perforations()] = compnames
+        w[:original_perforation_indices, JutulDarcy.Perforations()] = sorted_ix
         push!(wells, w)
     end
     return wells
