@@ -65,8 +65,8 @@ function setup_wells(d::AFIInputFile, reservoir)
         for c in cells
             if c isa Int
                 # TODO: Not clear to me if these include the cell index offset or not
-                next = c
-                # next = get(global_to_local, c, missing)
+                # next = c
+                next = get(global_to_local, c, missing)
             else
                 c::Tuple{Int, Int, Int}
                 next = get(ijk_to_local, Tuple(c), missing)
