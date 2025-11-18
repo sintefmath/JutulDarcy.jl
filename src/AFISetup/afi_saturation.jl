@@ -61,9 +61,9 @@ function setup_relperm(d, reservoir, sys;
         nw_hyst = JutulDarcy.KilloughHysteresis(tol = tol)
         wetting_hyst = String(get(h, "WettingPhaseHysteresis", "DRAINAGE"))
         if wetting_hyst == "DRAINAGE"
-            w_hyst = JutulDarcy.ImbibitionOnlyHysteresis()
-        elseif wetting_hyst == "IMBIBITION"
             w_hyst = JutulDarcy.NoHysteresis()
+        elseif wetting_hyst == "IMBIBITION"
+            w_hyst = JutulDarcy.ImbibitionOnlyHysteresis()
         else
             wetting_hyst == "HYSTERESIS" || error("Unknown wetting phase hysteresis type: $wetting_hyst")
             w_hyst = nw_hyst
