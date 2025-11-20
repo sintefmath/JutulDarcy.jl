@@ -226,6 +226,7 @@ function setup_well_mismatch_objective(case_coarse::JutulCase, case_fine::JutulC
 
     dt = case_coarse.dt
     o_scale = 1.0/(sum(dt)*length(wells))
+    model_c = case_coarse.model
     wellpos = map(w -> get_well_position(model_c.models[:Facility].domain, w), wells)
     states_f = deepcopy(result_fine.result.states)
     for state in states_f
