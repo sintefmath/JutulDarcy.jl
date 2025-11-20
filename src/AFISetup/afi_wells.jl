@@ -16,7 +16,11 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = :depth)
     well_kws = find_records(d, "Well", "FM", steps = true, model = true)
     for well_kw in well_kws
         val = well_kw.value
-        welltab = get(val, "wells", Dict())
+        if haskey(val, "BottomHoleRefDepth")
+            welltab = Dict(well_kw.value["name"] => val)
+        else
+            welltab = get(val, "wells", Dict())
+        end
         for (wname, val) in pairs(welltab)
             if haskey(val, "BottomHoleRefDepth")
                 newval = val["BottomHoleRefDepth"]
