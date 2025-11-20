@@ -24,6 +24,12 @@ function setup_relperm(d, reservoir, sys;
 
     phase_symb = phases_symbol(sys)
     present = phases_present(sys)
+    length(present) > 1 || error("Relative permeability setup called for single-phase system.")
+    length(present) <= 3 || error("Relative permeability setup called for system with more than three phases.")
+    has_ow = present.water && present.oil
+    has_og = present.oil && present.gas
+    has_wg = present.water && present.gas && !present.oil
+
     krw = Dict()
     krg = Dict()
     krog = Dict()
@@ -35,17 +41,14 @@ function setup_relperm(d, reservoir, sys;
     for satfun in satfuns
         vals = satfun.value
         reg = satfun.value["region"]
-        if present.water
-            krw[reg] = get_relperm(vals, :w, phase_symb, "WaterRelPermFunction")
-            if present.oil
-                krow[reg] = get_relperm(vals, :ow, phase_symb, "OilInWaterRelPermFunction")
-            end
+        if has_ow
+            krw[reg], krow[reg] = afi_relperm_pair(vals, :ow)
         end
-        if present.gas
-            krg[reg] = get_relperm(vals, :g, phase_symb, "GasRelPermFunction")
-            if present.oil
-                krog[reg] = get_relperm(vals, :og, phase_symb, "OilInGasRelPermFunction")
-            end
+        if has_og
+            krg[reg], krog[reg] = afi_relperm_pair(vals, :og)
+        end
+        if has_wg
+            krw[reg], krg[reg] = afi_relperm_pair(vals, :wg)
         end
     end
     w = remap_to_tuple(krw, kr_regs)
@@ -194,40 +197,58 @@ function remap_to_tuple(d::Dict, regs)
     return out
 end
 
-function get_relperm(satfun, phase_label::Symbol, phases::Symbol, tab_label; throw = true)
-    phase_label in (:w, :o, :ow, :og, :g) || error("Unsupported phase label for relperm: $phase_label")
-    if haskey(satfun, "RelPerm")
-        krtab = get_saturation_function(satfun, "RelPerm", tab_label, throw = throw)
-        kr = krtab["RelPerm"]
-        s = krtab["Saturation"]
-    elseif haskey(satfun, "CoreyRelPerm")
-        krtab = get_saturation_function(satfun, "CoreyRelPerm", tab_label, throw = throw)
-        s, kr = brooks_corey_from_coefficients(krtab)
+function afi_relperm_pair(satfun, type::Symbol)
+    if type == :ow
+        tab_label_w = "WaterRelPermFunction"
+        tab_label_nw = "OilInWaterRelPermFunction"
+    elseif type == :og
+        tab_label_w = "GasRelPermFunction"
+        tab_label_nw = "OilInGasRelPermFunction"
+    elseif type == :wg
+        tab_label_w = "WaterRelPermFunction"
+        tab_label_nw = "GasRelPermFunction"
+    else
+        error("Unsupported relperm pair type: $type")
     end
-    kr_obj = PhaseRelativePermeability(s, kr, label = phase_label)
-    return kr_obj
+    if haskey(satfun, "RelPerm")
+        kr_w = get_relperm_table(satfun, tab_label_w)
+        kr_nw = get_relperm_table(satfun, tab_label_nw)
+    elseif haskey(satfun, "CoreyRelPerm")
+        tab_w = table_for_relperm(satfun, tab_label_w, "CoreyRelPerm")
+        tab_nw = table_for_relperm(satfun, tab_label_nw, "CoreyRelPerm")
+        kr_w, kr_nw = relperm_for_corey_pair(tab_w, tab_nw)
+    end
+
+    return (kr_w, kr_nw)
 end
 
+function get_relperm_table(satfun, name)
+    krtab = table_for_relperm(satfun, name, "RelPerm")
+    kr = krtab["RelPerm"]
+    s = krtab["Saturation"]
+    phase_label = krtab["Label"]
+    return PhaseRelativePermeability(s, kr, label = phase_label)
+end
+
+function table_for_relperm(satfun, name, tabtype = "RelPerm")
+    if name == "WaterRelPermFunction"
+        phase_label = :w
+    elseif name == "OilInWaterRelPermFunction"
+        phase_label = :ow
+    elseif name == "GasRelPermFunction"
+        phase_label = :g
+    elseif name == "OilInGasRelPermFunction"
+        phase_label = :og
+    else
+        error("Unsupported relperm table name: $name")
+    end
+    krtab = get_saturation_function(satfun, tabtype, name, throw = true)
+    krtab = copy(krtab)
+    krtab["Label"] = phase_label
+    return krtab
+end
 
 import JutulDarcy: brooks_corey_relperm
-function brooks_corey_from_coefficients(krtab; npts::Int = 50)
-    n = krtab["Exponent"]
-    sr = max(get(krtab, "ResidualSaturation", 0.0), get(krtab, "ConnateSaturation", 0.0))
-    krmax = get(krtab, "EndPointRelPerm", 1.0)
-    if haskey(krtab, "EndPointSaturation")
-        sr_other = 1.0 - krtab["EndPointSaturation"]
-    elseif haskey(krtab, "MaximumSaturation")
-        sr_other = 1.0 - krtab["MaximumSaturation"]
-    else
-        sr_other = 0.0
-    end
-    sr_tot = sr + sr_other
-    # s_max = clamp(s_max, 0, 1)
-    s = collect(range(sr, 1.0 - sr_other, length = npts))
-    bc(s_i) = brooks_corey_relperm(s_i, n, sr, krmax, sr_tot)
-    kr = bc.(s)
-    return (s, kr)
-end
 
 function get_saturation_function(satfun, type, label; throw = true)
     out = missing
@@ -313,4 +334,61 @@ function merge_saturation_regions(drainage, imbibition)
         merged = (value = drainage.value, map = merge(drainage.map, new_map))
     end
     return merged
+end
+
+function setup_corey_kr_afi(sr_tot, sr, n = 2.0, krmax = 1.0, krmax_end = krmax; label, npts = 1000)
+    sr_other = sr_tot - sr
+    s = collect(range(sr, 1.0 - sr_other, length = npts))
+    bc(s_i) = JutulDarcy.brooks_corey_relperm(s_i, n, sr, krmax, sr_tot)
+    kr = bc.(s)
+    if krmax_end != krmax && sr_tot - sr > 0.0
+        @assert krmax_end >= krmax
+        push!(s, 1.0)
+        push!(kr, krmax_end)
+    end
+    return PhaseRelativePermeability(s, kr, label = label)
+end
+
+function residual_saturation(tab)
+    return max(get(tab, "ResidualSaturation", 0.0), get(tab, "ConnateSaturation", 0.0))
+end
+
+function max_saturation(tab)
+    return get(tab, "MaximumSaturation", 1.0)
+end
+
+function total_residual(tab, sr_tot)
+    sr_from_max = 0.0
+    return max(sr_tot, sr_from_max)
+end
+
+function table_krmax(tab)
+    krmax = get(tab, "EndPointRelPerm", 1.0)
+    krmax_crit = get(tab, "RelPermAtAssociatedCriticalSaturation", krmax)
+    return (krmax, krmax_crit)
+end
+
+function relperm_for_corey_pair(tab_w, tab_nw)
+    sr_w = residual_saturation(tab_w)
+    sr_nw = residual_saturation(tab_nw)
+    max_wetting = max_saturation(tab_w)
+
+    n_w = get(tab_w, "Exponent", 2.0)
+    n_nw = get(tab_nw, "Exponent", 2.0)
+
+    sr_nw = max(sr_nw, 1.0 - max_wetting)
+    sr_tot = sr_w + sr_nw
+
+    sr_tot_w = total_residual(tab_w, sr_tot)
+    sr_tot_nw = total_residual(tab_nw, sr_tot)
+
+    krmax_w, krmax_crit_w = table_krmax(tab_w)
+    krmax_nw, krmax_crit_nw = table_krmax(tab_nw)
+
+    label_w = tab_w["Label"]
+    label_nw = tab_nw["Label"]
+
+    krw = setup_corey_kr_afi(sr_tot_w, sr_w, n_w, krmax_crit_w, krmax_w, label = label_w)
+    krnw = setup_corey_kr_afi(sr_tot_nw, sr_nw, n_nw, krmax_crit_nw, krmax_nw, label = label_nw)
+    return (krw, krnw)
 end
