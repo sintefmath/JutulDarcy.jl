@@ -481,6 +481,11 @@ function domain_bulk_volume(d::DataDomain, grid::WellDomain; outer_boundary = :g
         d[:volume_override_casing, Cells()] +
         d[:volume_override_grouting, Cells()]
     elseif haskey(d, :volume_override)
+        if has_hv || has_cv || has_gv
+            error("Using volume_override together with "*
+            "volume_override_hole, volume_override_casing or "*
+            "volume_override_grouting is ambiguous.")
+        end
         vols = d[:volume_override, Cells()]
     else
         case_thickness = d[:casing_thickness, Cells()]
