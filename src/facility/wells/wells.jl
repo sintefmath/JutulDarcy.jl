@@ -71,6 +71,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         roughness = friction,
         net_to_gross = missing,
         cell_radius = missing,
+        cell_radius_inner = 0.0,
         well_cell_centers = missing,
         use_top_node = missing,
         dir = :z,
@@ -186,6 +187,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         end
     end
     Wdomain[:radius, c] = cell_radius
+    Wdomain[:radius_inner, c] = cell_radius_inner
     if !ismissing(volumes)
         length(volumes) == number_of_cells(W) || error("Must provide one volume per well cell ($(length(volumes)) provided, $(number_of_cells(W)) well cells).")
         Wdomain[:volume_override, c] = volumes
