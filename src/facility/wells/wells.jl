@@ -180,7 +180,10 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
 
     # Length of cell in direction of well - used for volumes of nodes
     if ismissing(cell_radius)
-        cell_radius = Wdomain[:perforation_radius, p][1]
+        cell_radius = fill(Wdomain[:perforation_radius, p][1], number_of_cells(W))
+        if !ismissing(casing_thickness)
+            cell_radius .-= casing_thickness
+        end
     end
     Wdomain[:radius, c] = cell_radius
     if !ismissing(volumes)
