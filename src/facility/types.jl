@@ -132,6 +132,14 @@ function Jutul.default_parameter_values(data_domain, model, param::SegmentRadius
     return segment_average_from_cells(data_domain, cradius)
 end
 
+struct SegmentRadiusInner <: ScalarSegmentVariable end
+Jutul.minimum_value(::SegmentRadiusInner) = 0.0
+
+function Jutul.default_parameter_values(data_domain, model, param::SegmentRadiusInner, symb)
+    radius_inner = data_domain[:radius_inner, Cells()]
+    return segment_average_from_cells(data_domain, radius_inner)
+end
+
 function segment_average_from_cells(w::DataDomain, cval::Vector{T}) where T
     return segment_average_from_cells(physical_representation(w), cval)
 end
