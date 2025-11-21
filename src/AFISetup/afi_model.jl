@@ -4,7 +4,7 @@ function JutulDarcy.setup_reservoir_model(afi::AFIInputFile;
         system = setup_system(afi, phases = phases),
         wells = setup_wells(afi, reservoir),
         extra_out = false,
-        disable_hysteresis = true,
+        disable_hysteresis = false,
         disable_endscale = false,
         thermal = thermal_type(afi) == :thermal,
         kwarg...
