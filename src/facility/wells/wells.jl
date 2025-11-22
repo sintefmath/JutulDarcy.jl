@@ -495,9 +495,11 @@ function domain_bulk_volume(d::DataDomain, grid::WellDomain; outer_boundary = :g
         mult = d[:volume_multiplier, Cells()]
         if grid isa MultiSegmentWell
             hole_radius = d[:radius, Cells()]
+            ri = d[:radius_inner, Cells()]
             r = well_bulk_volume_radius(hole_radius, case_thickness, grouting_thickness, outer_boundary = outer_boundary)
+            A = π .* (r.^2 .- ri.^2)
             L = d[:cell_length, Cells()]
-            vols = mult.*(π .* r.^2 .* L)
+            vols = mult.*(A .* L)
         else
             # Simple wells are not segmented, so sum over perforations instead
             grid::SimpleWell
