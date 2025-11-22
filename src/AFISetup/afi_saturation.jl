@@ -338,15 +338,19 @@ end
 
 function setup_corey_kr_afi(sr_tot, sr, n = 2.0, krmax = 1.0, krmax_end = krmax; label, npts = 1000)
     sr_other = sr_tot - sr
-    s = collect(range(sr, 1.0 - sr_other, length = npts))
-    bc(s_i) = JutulDarcy.brooks_corey_relperm(s_i, n, sr, krmax, sr_tot)
+    ϵ = 1e-8
+    s = collect(range(sr + ϵ, 1.0 - sr_other, length = npts))
+    bc(s_i) = JutulDarcy.brooks_corey_relperm(s_i, n, sr + ϵ, krmax, sr_tot + 2*ϵ)
     kr = bc.(s)
     if krmax_end != krmax && sr_tot - sr > 0.0
         @assert krmax_end >= krmax
         push!(s, 1.0)
         push!(kr, krmax_end)
     end
-    return PhaseRelativePermeability(s, kr, label = label)
+    pushfirst!(s, 0.0)
+    pushfirst!(kr, 0.0)
+    kr = PhaseRelativePermeability(s, kr, label = label)
+    return kr
 end
 
 function residual_saturation(tab)
