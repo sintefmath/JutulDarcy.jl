@@ -259,12 +259,13 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         density_function = density_f
     end
     pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_function, contacts_pc, ref_phase)
+    ref_ix = get_reference_phase_index(model.system)
     if nph > 1
         relperm = model.secondary_variables[:RelativePermeabilities]
         if relperm isa Pair
             relperm = last(relperm)
         end
-        s, pc = determine_saturations(depths, contacts, pressures; pc = pc, s_min = s_min, kwarg...)
+        s, pc, active_phase = determine_saturations(depths, contacts, pressures; ref_ix = ref_ix, pc = pc, s_min = s_min, kwarg...)
         if !ismissing(sw)
             nph = size(s, 1)
             for i in axes(s, 2)
@@ -292,43 +293,47 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
                 end
             end
         end
-        if relperm isa ReservoirRelativePermeabilities
-            nc_total = number_of_cells(model.domain)
-            T_S = eltype(s)
-            kr = zeros(T_S, nph, nc_total)
-            s_eval = zeros(T_S, nph, nc_total)
-            s_eval[:, cells] .= s
-            phases = get_phases(sys)
-            phase_ind = phase_indices(model.system)
-            if length(phases) == 3
-                swcon = zeros(nc_total)
-                if AqueousPhase() in phases && !ismissing(s_min)
-                    swcon[cells] .= s_min[1]
-                end
-                for c in cells
-                    update_three_phase_relperm!(kr, relperm, phase_ind, s_eval, nothing, c, swcon[c], nothing, nothing)
-                end
-            else
-                ph = relperm.phases
-                if ph == :wo
-                    kr1, kr2 = relperm.krw, relperm.krow
-                elseif ph == :og
-                    kr1, kr2 = relperm.krog, relperm.krg
+        if false
+            if relperm isa ReservoirRelativePermeabilities
+                nc_total = number_of_cells(model.domain)
+                T_S = eltype(s)
+                kr = zeros(T_S, nph, nc_total)
+                s_eval = zeros(T_S, nph, nc_total)
+                s_eval[:, cells] .= s
+                phases = get_phases(sys)
+                phase_ind = phase_indices(model.system)
+                if length(phases) == 3
+                    swcon = zeros(nc_total)
+                    if AqueousPhase() in phases && !ismissing(s_min)
+                        swcon[cells] .= s_min[1]
+                    end
+                    for c in cells
+                        update_three_phase_relperm!(kr, relperm, phase_ind, s_eval, nothing, c, swcon[c], nothing, nothing)
+                    end
                 else
-                    @assert ph == :wg
-                    kr1, kr2 = relperm.krw, relperm.krg
+                    ph = relperm.phases
+                    if ph == :wo
+                        kr1, kr2 = relperm.krw, relperm.krow
+                    elseif ph == :og
+                        kr1, kr2 = relperm.krog, relperm.krg
+                    else
+                        @assert ph == :wg
+                        kr1, kr2 = relperm.krw, relperm.krg
+                    end
+                    for c in cells
+                        update_two_phase_relperm!(kr, relperm, kr1, kr2, nothing, nothing, phase_ind, s_eval, nothing, c, nothing, nothing)
+                    end
                 end
-                for c in cells
-                    update_two_phase_relperm!(kr, relperm, kr1, kr2, nothing, nothing, phase_ind, s_eval, nothing, c, nothing, nothing)
-                end
+                kr = kr[:, cells]
+            else
+                jutul_message("Initialization", "Rel. perm. is not a ReservoirRelativePermeabilities, skipping mobility check for reference pressure.")
+                kr = copy(s)
             end
-            kr = kr[:, cells]
         else
-            jutul_message("Initialization", "Rel. perm. is not a ReservoirRelativePermeabilities, skipping mobility check for reference pressure.")
             kr = copy(s)
         end
         init[:Saturations] = s
-        init[:Pressure] = init_reference_pressure(pressures, contacts, kr, pc, ref_phase)
+        init[:Pressure] = init_reference_pressure(pressures, contacts, kr, active_phase, pc, ref_phase)
     else
         p = copy(vec(pressures))
         init[:Pressure] = p
@@ -839,21 +844,28 @@ function fill_subinit!(x::Matrix, cells, v::Matrix)
     end
 end
 
-function init_reference_pressure(pressures, contacts, kr, pc, ref_ix = 2)
+function init_reference_pressure(pressures, contacts, kr, active_phase, pc, ref_ix = 2)
     nph, nc = size(kr)
     T = promote_type(eltype(pressures), eltype(contacts), eltype(kr))
     p = zeros(T, nc)
     ϵ = 1e-12
-    for i in eachindex(p)
-        p[i] = pressures[ref_ix, i]
-        kr_ref = kr[ref_ix, i]
-        @assert kr_ref >= -ϵ "Evaluated rel. perm. was $kr_ref for phase reference phase (index $ref_ix)."
-        if kr[ref_ix, i] <= ϵ
-            for ph in 1:nph
-                if kr[ph, i] > ϵ
-                    p[i] = pressures[ph, i]
+    if ismissing(active_phase)
+        for i in eachindex(p)
+            p[i] = pressures[ref_ix, i]
+            kr_ref = kr[ref_ix, i]
+            @assert kr_ref >= -ϵ "Evaluated rel. perm. was $kr_ref for phase reference phase (index $ref_ix)."
+            if kr[ref_ix, i] <= ϵ
+                for ph in 1:nph
+                    if kr[ph, i] > ϵ
+                        p[i] = pressures[ph, i] - pc[ph, i]
+                    end
                 end
             end
+        end
+    else
+        for i in eachindex(p)
+            ph = active_phase[i]
+            p[i] = pressures[ph, i] - pc[ph, i]
         end
     end
     return p
@@ -937,7 +949,7 @@ function integrate_phase_density(z_datum, z_end, p0, density_f, phase; n = 1000,
     return (z, pressure)
 end
 
-function determine_saturations(depths, contacts, pressures; s_min = missing, s_max = missing, pc = missing)
+function determine_saturations(depths, contacts, pressures; ref_ix = 2, s_min = missing, s_max = missing, pc = missing)
     nc = length(depths)
     T = promote_type(eltype(depths), eltype(pressures), eltype(contacts))
     nph = length(contacts) + 1
@@ -949,10 +961,12 @@ function determine_saturations(depths, contacts, pressures; s_min = missing, s_m
     end
     sat = zeros(T, nph, nc)
     sat_pc = similar(sat)
+    mobile_phase = fill(ref_ix, nc)
     if isnothing(pc) || ismissing(pc)
         for i in eachindex(depths)
             z = depths[i]
             ph = current_phase_index(z, contacts)
+            mobile_phase[i] = ph
             for j in axes(sat, 1)
                 is_main = ph == j
                 s = is_main*s_max[j][i] + !is_main*s_min[j][i]
@@ -960,7 +974,6 @@ function determine_saturations(depths, contacts, pressures; s_min = missing, s_m
             end
         end
     else
-        ref_ix = 2
         offset = 1
         for ph in 1:nph
             if ph != ref_ix
@@ -969,11 +982,12 @@ function determine_saturations(depths, contacts, pressures; s_min = missing, s_m
                 pc_min = minimum(pc_pair)
                 I = get_1d_interpolator(pc_pair, s, constant_dx = false)
                 I_pc = get_1d_interpolator(s, pc_pair, constant_dx = false)
+                s_pcmax = s[findfirst(isequal(pc_max), pc_pair)]
                 for i in eachindex(depths)
                     dp = pressures[ph, i] - pressures[ref_ix, i]
                     if dp > pc_max
-                        s_eff = s_max[ph][i]
-                        s_eff = min(s_eff, s[end])
+                        s_eff = min(s_max[ph][i], s_pcmax)
+                        mobile_phase[i] = ph
                     elseif dp < pc_min
                         s_eff = s_min[ph][i]
                         # Not clear if this should be the case...
@@ -1007,7 +1021,7 @@ function determine_saturations(depths, contacts, pressures; s_min = missing, s_m
             jutul_message("Initialization", "Negative saturation in $(length(bad_cells)) cells for phase $ref_ix. Normalizing.", color = :yellow)
         end
     end
-    return (sat, sat_pc)
+    return (sat, sat_pc, mobile_phase)
 end
 
 function current_phase_index(z, depths; reverse = true)
