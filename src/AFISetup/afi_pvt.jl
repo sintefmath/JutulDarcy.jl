@@ -69,7 +69,7 @@ end
 function setup_pvt_variables_single_phase_water(d, sys, reservoir, fluid_model)
     pvt_vars = Dict()
     water_tab = setup_water_pvt(fluid_model)
-    pvt_vars[:PhaseMassDensities] = DeckPhaseMassDensities([water_tab])
+    rho = DeckPhaseMassDensities([water_tab])
     if haskey(fluid_model, "ViscosityTemperatureTable")
         mutab = missing
         for (k, v) in pairs(fluid_model["ViscosityTemperatureTable"])
@@ -128,6 +128,7 @@ function setup_pvt_variables_single_phase_water(d, sys, reservoir, fluid_model)
             viscosity_model == "USER_TABLE" || error("Unsupported liquid viscosity model: $viscosity_model")
         end
     end
+    pvt_vars[:PhaseMassDensities] = rho
     pvt_vars[:PhaseViscosities] = mu
     return pvt_vars
 end
