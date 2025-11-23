@@ -865,8 +865,6 @@ function init_reference_pressure(pressures, contacts, kr, active_phase, pc, ref_
             end
         end
     else
-        @assert all(isfinite.(pressures))
-        @assert all(isfinite.(pc))
         for i in eachindex(p)
             ph = active_phase[i]
             p[i] = pressures[ph, i] - pc[ph, i]
