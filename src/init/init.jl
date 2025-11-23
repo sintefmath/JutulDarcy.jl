@@ -293,7 +293,8 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
                 end
             end
         end
-        if false
+        use_mobility_check = true
+        if use_mobility_check
             if relperm isa ReservoirRelativePermeabilities
                 nc_total = number_of_cells(model.domain)
                 T_S = eltype(s)
@@ -330,6 +331,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
                 kr = copy(s)
             end
         else
+            active_phase = missing
             kr = copy(s)
         end
         init[:Saturations] = s
@@ -863,6 +865,8 @@ function init_reference_pressure(pressures, contacts, kr, active_phase, pc, ref_
             end
         end
     else
+        @assert all(isfinite.(pressures))
+        @assert all(isfinite.(pc))
         for i in eachindex(p)
             ph = active_phase[i]
             p[i] = pressures[ph, i] - pc[ph, i]
@@ -960,7 +964,7 @@ function determine_saturations(depths, contacts, pressures; ref_ix = 2, s_min = 
         s_max = [ones(T, nc) for i in 1:nph]
     end
     sat = zeros(T, nph, nc)
-    sat_pc = similar(sat)
+    sat_pc = zeros(T, nph, nc)
     mobile_phase = fill(ref_ix, nc)
     if isnothing(pc) || ismissing(pc)
         for i in eachindex(depths)
@@ -986,7 +990,9 @@ function determine_saturations(depths, contacts, pressures; ref_ix = 2, s_min = 
                 for i in eachindex(depths)
                     dp = pressures[ph, i] - pressures[ref_ix, i]
                     if dp > pc_max
-                        s_eff = min(s_max[ph][i], s_pcmax)
+                        s_eff = s_max[ph][i]
+                        s_eff = min(s_eff, s_pcmax)
+                        @assert isfinite(s_eff)
                         mobile_phase[i] = ph
                     elseif dp < pc_min
                         s_eff = s_min[ph][i]
