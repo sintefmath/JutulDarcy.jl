@@ -88,6 +88,46 @@ function setup_pvt_variables_single_phase_water(d, sys, reservoir, fluid_model)
     else
         mu = DeckPhaseViscosities([water_tab])
     end
+    wtm = get(fluid_model, "WaterThermalModel", nothing)
+    if !isnothing(wtm)
+        salt_mole_fractions = Float64[]
+        salt_names = String[]
+        table_arg = NamedTuple()
+        tables = JutulDarcy.Geothermal.geothermal_setup_tables(Dict(), salt_names, salt_mole_fractions, table_arg)
+        # TODO: make this dynamic
+        update_reservoir = true
+        cond_water = tables[:phase_conductivity](1*si_unit(:atm), 273.15 + 20.0)
+        if update_reservoir
+            reservoir[:fluid_thermal_conductivity] .= cond_water
+        end
+        if wtm isa GeoEnergyIO.IXParser.IXEqualRecord
+            rec = only(wtm.value)
+            wtm = Dict{String, Any}(
+                rec.keyword => rec.value
+            )
+        end
+        get_wtm(k) = String(get(wtm, k, "STEAM_TABLE"))
+        density_model = get_wtm("LiquidDensityModel")
+        if density_model == "STEAM_TABLE"
+            rho = JutulDarcy.PressureTemperatureDependentVariable(tables[:density])
+        else
+            error("Only STEAM_TABLE liquid density model is implemented")
+        end
+        pvt_vars[:PhaseMassDensities] = rho
+        emodel = get_wtm("LiquidEnthalpyModel")
+        if emodel == "STEAM_TABLE"
+            c_p = JutulDarcy.PressureTemperatureDependentVariable(tables[:heat_capacity_constant_pressure])
+        else
+            error("Only STEAM_TABLE liquid enthalpy model is implemented")
+        end
+        pvt_vars[:ComponentHeatCapacity] = c_p
+        viscosity_model = get_wtm("LiquidViscosityModel")
+        if viscosity_model == "STEAM_TABLE"
+            mu = JutulDarcy.PTViscosities(tables[:viscosity])
+        else
+            viscosity_model == "USER_TABLE" || error("Unsupported liquid viscosity model: $viscosity_model")
+        end
+    end
     pvt_vars[:PhaseViscosities] = mu
     return pvt_vars
 end

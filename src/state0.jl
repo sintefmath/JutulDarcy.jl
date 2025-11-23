@@ -250,8 +250,8 @@ function setup_reservoir_state(
         # Handle defaulted SATNUM for Pc initialization
         svars = Jutul.get_secondary_variables(rmodel)
         pc = get(svars, :CapillaryPressure, missing)
-        pc_reg = pc.regions
         if !ismissing(pc)
+            pc_reg = pc.regions
             equil_regs = split_equilibrium_regions(equil_regs, pc_reg)
         end
         inits = map(equil -> equilibriate_state(rmodel, equil), equil_regs)

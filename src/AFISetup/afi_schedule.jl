@@ -67,9 +67,17 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel; step_limit = m
                     status = well_setup[wname]["ConnectionStatus"]
 
                     for (i, v) in enumerate(get(w2c, "PiMultiplier", []))
-                        mult[pmap[i]] = v
+                        i_mapped = get(pmap, i, missing)
+                        if ismissing(i_mapped)
+                            continue
+                        end
+                        mult[i_mapped] = v
                     end
                     for (i, v) in enumerate(get(w2c, "Status", []))
+                        i_mapped = get(pmap, i, missing)
+                        if ismissing(i_mapped)
+                            continue
+                        end
                         status[pmap[i]] = v
                     end
                     for i in eachindex(eff_mult, mult, status)
@@ -160,7 +168,11 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel; step_limit = m
                             wsetup["Enthalpy"] = rec["Enthalpy"].key
                         end
                         if haskey(rec, "HistoricalControlModes")
-                            wsetup["HistoricalControlModes"] = map(String, rec["HistoricalControlModes"])
+                            hcm = rec["HistoricalControlModes"]
+                            if !(hcm isa AbstractVector)
+                                hcm = [hcm]
+                            end
+                            wsetup["HistoricalControlModes"] = map(String, hcm)
                         end
                     end
                 end
