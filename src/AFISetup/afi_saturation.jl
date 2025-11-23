@@ -339,6 +339,7 @@ end
 function setup_corey_kr_afi(sr_tot, sr, n = 2.0, krmax = 1.0, krmax_end = krmax; label, npts = 1000)
     sr_other = sr_tot - sr
     ϵ = 1e-8
+    ϵ = 0.0
     s = collect(range(sr, 1.0 - sr_other, length = npts))
     bc(s_i) = JutulDarcy.brooks_corey_relperm(s_i, n, sr + ϵ, krmax, sr_tot + 2*ϵ)
     kr = bc.(s)
