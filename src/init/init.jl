@@ -570,10 +570,6 @@ function parse_state0_equil(model, datafile; normalize = :sum)
                         ix = unique(i -> cap[i], 1:length(cap))
                         s = s[ix]
                         cap = cap[ix]
-                        if length(s) == 1
-                            push!(s, s[end])
-                            push!(cap, cap[end]+1.0)
-                        end
                         push!(pc, (s = s, pc = cap))
                     end
                 else
@@ -985,12 +981,14 @@ function determine_saturations(depths, contacts, pressures; ref_ix = 2, s_min = 
                 I = get_1d_interpolator(pc_pair, s, constant_dx = false)
                 I_pc = get_1d_interpolator(s, pc_pair, constant_dx = false)
                 s_pcmax = s[findfirst(isequal(pc_max), pc_pair)]
+                has_pc = norm(pc_pair, 2) > 1e-8
                 for i in eachindex(depths)
                     dp = pressures[ph, i] - pressures[ref_ix, i]
                     if dp > pc_max
                         s_eff = s_max[ph][i]
-                        s_eff = min(s_eff, s_pcmax)
-                        @assert isfinite(s_eff)
+                        if has_pc
+                            s_eff = min(s_eff, s_pcmax)
+                        end
                         mobile_phase[i] = ph
                     elseif dp < pc_min
                         s_eff = s_min[ph][i]
