@@ -96,7 +96,7 @@ function select_equations!(eqs, domain::WellGroup, model::SimulationModel)
     eqs[:control_equation] = ControlEquationWell()
 end
 
-function setup_forces(model::SimulationModel{D}; control = nothing, limits = nothing, set_default_limits = true) where {D <: WellGroup}
+function setup_forces(model::SimulationModel{D}; control = nothing, limits = nothing, set_default_limits = true, check = false) where {D <: WellGroup}
     T = Dict{Symbol, Any}
     if isnothing(control)
         control = T()
@@ -141,11 +141,13 @@ function setup_forces(model::SimulationModel{D}; control = nothing, limits = not
             else
                 sgn = -1.0
             end
-            for l in [:rate, :orat, :wrat, :grat, :lrat, :resv]
-                if haskey(limits[w], l)
-                    val = limits[w][l]
-                    if sign(val) != sgn
-                        @warn "Well '$w' has $(l) limit with wrong sign ($(val)) for its control type ($(typeof(c)))."
+            if check && !isnothing(limits[w])
+                for l in [:rate, :orat, :wrat, :grat, :lrat, :resv]
+                    if haskey(limits[w], l)
+                        val = limits[w][l]
+                        if sign(val) != sgn
+                            @warn "Well '$w' has $(l) limit with wrong sign ($(val)) for its control type ($(typeof(c)))."
+                        end
                     end
                 end
             end

@@ -1471,7 +1471,8 @@ function setup_reservoir_forces(model::MultiModel;
                 new_forces[ctrl_symbol] = setup_forces(facility,
                     control = subctrl,
                     limits = sublimits,
-                    set_default_limits = set_default_limits
+                    set_default_limits = set_default_limits,
+                    check = true
                 )
             end
         end
