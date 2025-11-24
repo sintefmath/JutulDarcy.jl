@@ -91,7 +91,7 @@ the mesh. Values that are NaN or Inf will be treated as missing and the standard
 transmissibility calculator will be used instead for those faces.
 
 Non-neighboring (nnc) connections can be added by passing a structure created
-using [`setup_nnc_connections`](@ref) to the `nnc` keyword argument.
+using [`JutulDarcy.setup_nnc_connections`](@ref) to the `nnc` keyword argument.
 """
 function reservoir_domain(g;
         permeability = convert_to_si(0.1, :darcy),
