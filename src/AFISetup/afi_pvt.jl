@@ -107,11 +107,13 @@ function setup_pvt_variables_single_phase_water(d, sys, reservoir, fluid_model)
             )
         end
         get_wtm(k) = String(get(wtm, k, "STEAM_TABLE"))
-        density_model = get_wtm("LiquidDensityModel")
-        if density_model == "STEAM_TABLE"
-            rho = JutulDarcy.PressureTemperatureDependentVariable(tables[:density])
-        else
-            error("Only STEAM_TABLE liquid density model is implemented")
+        if haskey(wtm, "LiquidDensityModel")
+            density_model = get_wtm("LiquidDensityModel")
+            if density_model == "STEAM_TABLE"
+                rho = JutulDarcy.PressureTemperatureDependentVariable(tables[:density])
+            else
+                error("Only STEAM_TABLE liquid density model is implemented")
+            end
         end
         pvt_vars[:PhaseMassDensities] = rho
         emodel = get_wtm("LiquidEnthalpyModel")
@@ -121,11 +123,13 @@ function setup_pvt_variables_single_phase_water(d, sys, reservoir, fluid_model)
             error("Only STEAM_TABLE liquid enthalpy model is implemented")
         end
         pvt_vars[:ComponentHeatCapacity] = c_p
-        viscosity_model = get_wtm("LiquidViscosityModel")
-        if viscosity_model == "STEAM_TABLE"
-            mu = JutulDarcy.PTViscosities(tables[:viscosity])
-        else
-            viscosity_model == "USER_TABLE" || error("Unsupported liquid viscosity model: $viscosity_model")
+        if haskey(wtm, "LiquidViscosityModel")
+            viscosity_model = get_wtm("LiquidViscosityModel")
+            if viscosity_model == "STEAM_TABLE"
+                mu = JutulDarcy.PTViscosities(tables[:viscosity])
+            else
+                viscosity_model == "USER_TABLE" || error("Unsupported liquid viscosity model: $viscosity_model")
+            end
         end
     end
     pvt_vars[:PhaseMassDensities] = rho
