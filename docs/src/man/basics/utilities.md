@@ -66,6 +66,6 @@ full_well_outputs
 
 ## Non-neighboring connections
 
-```docs
-JutulDarcy.setup_nnc_connections
+```@docs
+setup_nnc_connections
 ```
