@@ -8,19 +8,25 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel; step_limit = m
     )
     wells = get_model_wells(model)
     for (wname, w) in pairs(wells)
-        orig_perf = model[wname].data_domain[:original_perforation_indices, JutulDarcy.Perforations()]
+        w_dd = model[wname].data_domain
+        orig_perf = w_dd[:original_perforation_indices, JutulDarcy.Perforations()]
         remap = Dict{Int, Int}()
         for (i, p) in enumerate(orig_perf)
             remap[p] = i
         end
         wdomain = physical_representation(w)
         nperf = length(wdomain.perforations.reservoir)
+        if haskey(w_dd, :well_index_multiplier)
+            pimult = copy(w_dd[:well_index_multiplier, JutulDarcy.Perforations()])
+        else
+            pimult = ones(length(nperf))
+        end
         well_setup[wname] = Dict{String, Any}(
             "Constraints" => OrderedDict{String, Float64}(),
             "HistoryDataControl" => missing,
             "HistoricalControlModes" => missing,
             "Status" => "OPEN",
-            "PiMultiplier" => ones(nperf),
+            "PiMultiplier" => pimult,
             "ConnectionStatus" => fill(OPEN, nperf),
             "EffectivePiMultiplier" => ones(nperf),
             "Type" => "PRODUCER",
