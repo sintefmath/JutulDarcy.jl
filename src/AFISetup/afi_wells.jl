@@ -1,4 +1,4 @@
-function setup_wells(d::AFIInputFile, reservoir; perf_sort = :depth)
+function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
     welldefs = find_records(d, "WellDef", "IX", steps = true, model = true)
     well_dict = OrderedDict{String, Any}()
     for welldef in welldefs
@@ -11,6 +11,11 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = :depth)
         well_dict[wname] = Dict()
         well_dict[wname]["w2c"] = w2c
         well_dict[wname]["ref_depth"] = nothing
+    end
+    if perf_sort isa Symbol
+        perf_sort = Dict{String, Symbol}(
+            k => perf_sort for k in keys(well_dict)
+        )
     end
     # We do a second pass when all wells have been found
     well_kws = find_records(d, "Well", "FM", steps = true, model = true)
@@ -100,8 +105,8 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = :depth)
             compnames = map(i -> "COMPLETION_$i", cells)
         end
         compnames = compnames[active]
-        if perf_sort == :depth
-            depth = reservoir[:cell_centroids][3, cells_mapped]
+        depth = reservoir[:cell_centroids][3, cells_mapped]
+        if get(perf_sort, k, :none) == :depth
             sorted_ix = sortperm(depth)
         else
             sorted_ix = eachindex(depth)
