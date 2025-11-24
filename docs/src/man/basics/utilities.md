@@ -63,3 +63,9 @@ get_model_wells
 well_output
 full_well_outputs
 ```
+
+## Non-neighboring connections
+
+```docs
+JutulDarcy.setup_nnc_connections
+```
