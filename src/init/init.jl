@@ -1001,7 +1001,11 @@ function determine_saturations(depths, contacts, pressures; ref_ix = 2, s_min = 
                     end
                     s_eff = clamp(s_eff, s_min[ph][i], s_max[ph][i])
                     sat[ph, i] = s_eff
-                    sat_pc[ph, i] = I_pc(s_eff)
+                    pcval = I_pc(s_eff)
+                    if !isfinite(I_pc(s_eff))
+                        pcval = 0.0
+                    end
+                    sat_pc[ph, i] = pcval
                 end
                 offset += 1
             end
