@@ -1076,6 +1076,7 @@ function swcon_and_swmax_for_cells(model, kr, cells)
     swcon = zeros(nc)
     swmax = ones(nc)
     if hasphase(model.system, AqueousPhase())
+        rdomain = reservoir_domain(model)
         if hasproperty(kr, :krw)
             krw = kr.krw
             for (i, c) in enumerate(cells)
@@ -1083,6 +1084,20 @@ function swcon_and_swmax_for_cells(model, kr, cells)
                 krw_i = table_by_region(krw, sreg)
                 swcon[i] = krw_i.connate
                 swmax[i] = krw_i.input_s_max
+            end
+            use_scaling = hasproperty(kr, :scaling) && kr.scaling != NoKrScale()
+            if haskey(rdomain, :scaler_w_drainage) && use_scaling
+                scaler = rdomain[:scaler_w_drainage]
+                for (i, c) in enumerate(cells)
+                    swc = scaler[1, c]
+                    swm = scaler[3, c]
+                    if !isnan(swc)
+                        swcon[i] = swc
+                    end
+                    if !isnan(swm)
+                        swmax[i] = swm
+                    end
+                end
             end
         end
     end
