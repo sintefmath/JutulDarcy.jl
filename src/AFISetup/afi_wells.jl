@@ -87,6 +87,13 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
                 push!(cells_mapped, next)
             end
         end
+        tvd = get(w2c, "TrueVerticalDepth", missing)
+        if !ismissing(tvd)
+            if isnothing(v["ref_depth"]) && length(cells) > 0
+                v["ref_depth"] = w2c["TrueVerticalDepth"][1]
+            end
+            tvd = tvd[active]
+        end
         nperf = length(cells)
         skin = get(w2c, "SkinFactors", zeros(nperf))[active]
         dir = get(w2c, "PenetrationDirection", missing)
@@ -120,6 +127,7 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
         WI = maybe_sort(WI)
         Kh = maybe_sort(Kh)
         r = maybe_sort(r)
+        tvd = maybe_sort(tvd)
 
         compnames = maybe_sort(compnames)
         w = setup_well(reservoir, cells_mapped,
@@ -135,6 +143,9 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
         )
         w[:perforation_names, JutulDarcy.Perforations()] = compnames
         w[:original_perforation_indices, JutulDarcy.Perforations()] = sorted_ix
+        if !ismissing(tvd)
+            w[:perforation_centroids, JutulDarcy.Perforations()][3, :] .= tvd
+        end
         push!(wells, w)
     end
     return wells

@@ -473,7 +473,9 @@ function add_relperm_parameters!(model::MultiModel)
 end
 
 function add_relperm_parameters!(model::SimulationModel)
-    add_relperm_parameters!(model.parameters, model[:RelativePermeabilities])
+    if !(model.system isa SinglePhaseSystem)
+        add_relperm_parameters!(model.parameters, model[:RelativePermeabilities])
+    end
     return model
 end
 

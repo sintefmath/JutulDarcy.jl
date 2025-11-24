@@ -1,4 +1,4 @@
-function setup_pvt_variables(d::AFIInputFile, sys::Union{StandardBlackOilSystem, ImmiscibleSystem}, reservoir)
+function setup_pvt_variables(d::AFIInputFile, sys::Union{SinglePhaseSystem, StandardBlackOilSystem, ImmiscibleSystem}, reservoir)
     bo_model = find_records(d, "BlackOilFluidModel", "IX", steps = false, model = true, once = false)
     c_model = find_records(d, "CompositionalFluidModel", "IX", steps = false, model = true, once = false)
     has_bo = length(bo_model) > 0

@@ -58,7 +58,11 @@ function setup_system(d::AFIInputFile; phases = missing)
 
         if length(cnames) == 1
             # Single component system - treat as immiscible
-            sys = ImmiscibleSystem(phases; reference_densities = rhoS)
+            if length(phases) == 1
+                sys = SinglePhaseSystem(only(phases), reference_density = only(rhoS))
+            else
+                sys = ImmiscibleSystem(phases; reference_densities = rhoS)
+            end
         else
             error("Compositional models with more than one component are not yet supported in setup from AFI.")
         end
