@@ -145,9 +145,9 @@ function compute_peaceman_index(Δ, K, radius, dir::Symbol = :z;
     WI = 2 * π * Kh / (log(re / radius) + skin)
     if check && WI < 0
         if re < radius
-            error("Equivialent Peaceman radius is smaller than well radius - negative well was negative. Either the cell is too small, or the radius too big.")
+            error("Equivalent Peaceman radius is smaller than well radius - computed Peaceman index was negative. Either the cell is too small, or the radius too big.")
         else
-            error("Too large skin factor - well radius became negative.")
+            error("Too large Skin factor - Equivalent Peaceman radius became negative during Peaceman index calculation.")
         end
     end
     return WI
