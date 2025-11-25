@@ -176,7 +176,7 @@ module SPE10
         domain = setup_reservoir(; layers = layers, kwarg...)
         sys = setup_system()
         wells = setup_wells(domain)
-        model = setup_reservoir_model(domain, sys; wells = wells, model_arg...)
+        model = setup_reservoir_model(domain, sys; ds_max = 0.1, wells = wells, model_arg...)
         kr = setup_relperm()
         mu = setup_viscosity()
         rho = setup_density()
