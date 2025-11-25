@@ -42,3 +42,11 @@ Flow](https://opm-project.org/).
 If you can share your input file or the missing keywords [in the issues
 section](https://github.com/sintefmath/JutulDarcy.jl/issues) it may be easier to
 figure out if a case can be supported.
+
+## Premade models
+
+### SPE10, model 2
+
+```@docs
+JutulDarcy.SPE10.setup_case
+```

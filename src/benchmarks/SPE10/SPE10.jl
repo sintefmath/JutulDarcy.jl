@@ -1,6 +1,14 @@
 module SPE10
     using LazyArtifacts, Artifacts, JutulDarcy, DelimitedFiles, Jutul
 
+    """
+        JutulDarcy.SPE10.setup_case()
+        JutulDarcy.SPE10.setup_case(layers = 1:5, nsteps = 200)
+
+    Set up the SPE10, model2, benchmark case. This model is a 1.1 million cell
+    nearly incompressible oil-water model with highly heterogenous static
+    properties (permeability/porosity).
+    """
     function setup_case(;
             num_steps = 100,
             t_total = 2000*si_unit(:day),
@@ -113,7 +121,7 @@ module SPE10
         P1 = addw(1, 1, :P1)
         P2 = addw(60, 1, :P2)
         P3 = addw(60, 220, :P3)
-        P4 = addw(60, 220, :P4)
+        P4 = addw(1, 220, :P4)
         return [I1, P1, P2, P3, P4]
     end
 
