@@ -1,5 +1,19 @@
 module SPE10
     using LazyArtifacts, Artifacts, JutulDarcy, DelimitedFiles, Jutul
+
+    function setup_case(;
+            num_steps = 100,
+            t_total = 2000*si_unit(:day),
+            kwarg...
+        )
+        model = setup_model(; kwarg...)
+        state0 = setup_state0(model)
+        dt = fill(t_total/num_steps, num_steps)
+        forces = setup_well_forces(model)
+        forces = setup_well_forces(model)
+        return JutulCase(model, dt, forces, state0 = state0)
+    end
+
     function setup_reservoir(;
             layers = 1:85,
             anisotropy = true,
@@ -80,5 +94,139 @@ module SPE10
 
     function spe10_artifact_path()
         return artifact"spe10_model2"
+    end
+
+    function setup_system()
+        pft3 = si_unit(:pound)/si_unit(:feet)^3
+        rhoWS = 64.0*pft3  # water density
+        rhoOS = 53.0*pft3  # oil density
+        return ImmiscibleSystem(:wo, reference_densities = [rhoWS, rhoOS])
+    end
+
+    function setup_wells(domain::Jutul.DataDomain)
+        mesh = physical_representation(domain)
+        nx, ny, nz = grid_dims_ijk(mesh)
+        nx == 60 || error("Expected nx=60, got $nx")
+        ny == 220 || error("Expected ny=220, got $ny")
+        addw(I, J, name) = setup_vertical_well(domain, I, J, name = name, verbose = false, radius = 5*si_unit(:inch))
+        I1 = addw(30, 110, :I1)
+        P1 = addw(1, 1, :P1)
+        P2 = addw(60, 1, :P2)
+        P3 = addw(60, 220, :P3)
+        P4 = addw(60, 220, :P4)
+        return [I1, P1, P2, P3, P4]
+    end
+
+    function setup_relperm()
+        swof = [
+            0.200	0.0000	1.0000
+            0.250	0.0069	0.8403
+            0.300	0.0278	0.6944
+            0.350	0.0625	0.5625
+            0.400	0.1111	0.4444
+            0.450	0.1736	0.3403
+            0.500	0.2500	0.2500
+            0.550	0.3403	0.1736
+            0.600	0.4444	0.1111
+            0.650	0.5625	0.0625
+            0.700	0.6944	0.0278
+            0.750	0.8403	0.0069
+            0.800	1.0000	0.0000
+        ]
+        krw, krow = table_to_relperm(swof, first_label = :w, second_label = :ow)
+        return JutulDarcy.ReservoirRelativePermeabilities(w = krw, ow = krow)
+    end
+
+    function setup_pvt()
+        cP = si_unit(:centi)*si_unit(:poise)
+        p_ref = 6000*si_unit(:psi)
+        mu_c = 0.0
+        mu_ref = 0.3*cP
+        b_ref = 1.01
+        c_w = 3.10e-6/si_unit(:psi)
+        w = JutulDarcy.PVTW(ConstMuBTable(p_ref, b_ref, c_w, mu_ref, mu_c))
+
+        p_o = [300.0, 800.0, 8000.0].*si_unit(:psi)
+        b_o = [1.05, 1.02, 1.01]
+        mu_o = [2.85, 2.99, 3.0].*cP
+        o = JutulDarcy.PVDO(MuBTable(p_o, b_o, mu_o))
+
+        return (w, o)
+    end
+
+    function setup_density()
+        pvt = setup_pvt()
+        return DeckPhaseMassDensities(pvt)
+    end
+
+    function setup_viscosity()
+        pvt = setup_pvt()
+        return DeckPhaseViscosities(pvt)
+    end
+
+    function setup_model(; layers = 1:85, model_arg = NamedTuple(), kwarg...)
+        domain = setup_reservoir(; layers = layers, kwarg...)
+        sys = setup_system()
+        wells = setup_wells(domain)
+        model = setup_reservoir_model(domain, sys; wells = wells, model_arg...)
+        kr = setup_relperm()
+        mu = setup_viscosity()
+        rho = setup_density()
+
+        rmodel = reservoir_model(model)
+        set_secondary_variables!(rmodel,
+            RelativePermeabilities = kr,
+            PhaseMassDensities = rho,
+            PhaseViscosities = mu
+        )
+        for (k, submodel) in pairs(model.models)
+            if JutulDarcy.model_or_domain_is_well(submodel)
+                set_secondary_variables!(submodel,
+                    PhaseMassDensities = rho,
+                    PhaseViscosities = mu
+                )
+            end
+        end
+        JutulDarcy.set_rock_compressibility!(model, reference_pressure = 6000*si_unit(:psi), compressibility = 1e-6/si_unit(:psi))
+        return model
+    end
+
+    function setup_state0(model)
+        p_datum = 6000*si_unit(:psi)
+        datum_depth = 12000*si_unit(:feet)
+        reservoir = reservoir_domain(model)
+        woc = maximum(reservoir[:cell_centroids][3, :]) + 100*si_unit(:feet)
+        equil = EquilibriumRegion(model, p_datum, datum_depth, woc = woc)
+        return setup_reservoir_state(model, equil)
+    end
+
+    function setup_well_forces(model; do_scale = true)
+        if do_scale
+            reservoir = reservoir_domain(model)
+            pv = pore_volume(reservoir)
+            pv_tot = 2.1673386968997316e6
+            fraction = min(sum(pv)/pv_tot, 1.0)
+        else
+            fraction = 1.0
+        end
+        irate = fraction*5000*si_unit(:stb)/si_unit(:day)
+        ibhp = 10000*si_unit(:psi)
+        pbhp = 4000*si_unit(:psi)
+
+        rhows = JutulDarcy.reference_densities(setup_system())[1]
+
+        ictrl = InjectorControl(TotalRateTarget(irate), [1.0, 0.0], density = rhows)
+        pctrl = ProducerControl(BottomHolePressureTarget(pbhp))
+        ctrl = Dict(
+            :I1 => ictrl,
+            :P1 => pctrl,
+            :P2 => pctrl,
+            :P3 => pctrl,
+            :P4 => pctrl,
+        )
+        limits = Dict{Symbol, Any}(
+            :I1 => (bhp = ibhp, )
+        )
+        return setup_reservoir_forces(model, control = ctrl, limits = limits)
     end
 end

@@ -429,7 +429,7 @@ indices `i, j` perforating all cells starting at k-logical index `heel` to
 
 See `setup_well` for details about keyword arguments.
 """
-function setup_vertical_well(g, K, i, j; heel = 1, toe = grid_dims_ijk(g)[3], kwarg...)
+function setup_vertical_well(g, K, i, j; heel = 1, toe = grid_dims_ijk(g)[3], verbose = true, kwarg...)
     @assert heel <= toe
     @assert heel > 0
     @assert toe > 0
@@ -440,7 +440,9 @@ function setup_vertical_well(g, K, i, j; heel = 1, toe = grid_dims_ijk(g)[3], kw
     for (ix, k) in enumerate(k_range)
         cell_ix = cell_index(g, (i, j, k), throw = false)
         if isnothing(cell_ix)
-            jutul_message("Well", "Cell ($i, $j, $k) not found in active set, skipping.", color = :yellow)
+            if verbose
+                jutul_message("Well", "Cell ($i, $j, $k) not found in active set, skipping.", color = :yellow)
+            end
         else
             push!(reservoir_cells, cell_ix)
         end
