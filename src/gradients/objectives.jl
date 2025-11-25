@@ -115,53 +115,142 @@ end
 
 Compute well mismatch for a set of qoi's (well targets) and a set of well symbols.
 """
-function well_mismatch(qoi, wells, model_f, states_f, model_c, state_c, dt, step_info, forces; weights = ones(length(qoi)), scale = 1.0, signs = nothing)
+function well_mismatch(qoi, wells, model_f, states_f, model_c, state_c, dt, step_info, forces;
+        weights = ones(length(qoi)),
+        scale = 1.0,
+        wellpos = map(w -> get_well_position(model_c.models[:Facility].domain, w), wells),
+        signs = nothing,
+        compile = true
+    )
     if !(qoi isa AbstractArray)
-        qoi = [qoi]
+        qoi = (qoi, )
     end
     if !(wells isa AbstractArray)
-        wells = [wells]
+        wells = (wells, )
     end
     step_no = step_info[:step]
+    state_f = states_f[step_no]
+    function conv(s)
+        tmp = Dict{Symbol, Any}(k => s[k] for k in wells)
+        tmp[:Facility] = s[:Facility]
+        return NamedTuple(tmp)
+    end
+    controls = forces[:Facility].control
+    if compile
+        state_f = conv(state_f)
+        state_c = conv(state_c)
+        controls = NamedTuple(controls)
+        wells = Tuple(wells)
+        qoi = Tuple(qoi)
+        model_f = model_f.models
+        model_c = model_c.models
+    end
+    obj = well_mismatch_loop(qoi, wells, model_f, state_f, model_c, state_c, controls, weights, wellpos)
+    return scale*dt*obj
+end
+
+
+function well_mismatch_loop(qoi, wells, model_f, state_f, model_c, state_c, controls, weights, wellpos)
     obj = 0.0
     @assert length(weights) == length(qoi)
-    for well in wells
-        pos = get_well_position(model_c.models[:Facility].domain, well)
+    for (wno, well) in enumerate(wells)
+        pos = wellpos[wno]
 
         well_f = model_f[well]
         well_c = model_c[well]
         rhoS = reference_densities(well_f.system)
 
-        ctrl = forces[:Facility].control[well]
+        ctrl = controls[well]
         if ctrl isa DisabledControl
             continue
         end
 
-        state_f = states_f[step_no]
+        wstate_f = state_f[well]
+        wstate_c = state_c[well]
 
-        for (i, q) in enumerate(qoi)
-            ctrl = replace_target(ctrl, q)
-            if !isnothing(signs)
-                s = signs[i]
-                if ctrl isa ProducerControl
-                    sgn = -1
-                else
-                    sgn = 1
-                end
-                if s != sgn && s != 0
-                    continue
-                end
-            end
-            qoi_f = compute_well_qoi(well_f, state_f[well], state_f[:Facility], well, pos, rhoS, ctrl)
-            qoi_c = compute_well_qoi(well_c, state_c[well], state_c[:Facility], well, pos, rhoS, ctrl)
-
-            Δ = qoi_f - qoi_c
-            obj += (weights[i]*Δ)^2
-        end
+        fstate_f = state_f[:Facility]
+        fstate_c = state_c[:Facility]
+        obj += well_mismatch_loop_inner(ctrl, qoi, wstate_f, fstate_f, well_f, wstate_c, fstate_c, well_c, rhoS, well, weights, pos)
     end
-    return scale*dt*obj
+    return obj
 end
 
+function well_mismatch_loop_inner(ctrl, qoi, wstate_f, fstate_f, well_f, wstate_c, fstate_c, well_c, rhoS, well, weights, pos)
+    obj = 0.0
+    for (i, q) in enumerate(qoi)
+        ctrl = replace_target(ctrl, q)
+
+        qoi_f = compute_well_qoi(well_f, wstate_f, fstate_f, well, pos, rhoS, ctrl)
+        qoi_c = compute_well_qoi(well_c, wstate_c, fstate_c, well, pos, rhoS, ctrl)
+
+        Δ = qoi_f - qoi_c
+        obj += (weights[i]*Δ)^2
+    end
+    return obj
+end
+
+function setup_well_mismatch_objective(case_coarse::JutulCase, case_fine::JutulCase, result_fine::ReservoirSimResult;
+        orat_scale = 1.0/(100.0/si_unit(:day)),
+        wrat_scale = 1.0/(250.0/si_unit(:day)),
+        grat_scale = 1.0/(2000.0/si_unit(:day)),
+        bhp_scale = 1.0/(100.0*si_unit(:bar)),
+        wells = collect(keys(JutulDarcy.get_model_wells(case_fine))),
+        compile = true
+    )
+
+    w = Float64[]
+    matches = []
+    model_f = case_fine.model
+    sys = reservoir_model(model_f).system
+    wrat = SurfaceWaterRateTarget(1.0)
+    orat = SurfaceOilRateTarget(1.0)
+    grat = SurfaceGasRateTarget(-1.0)
+    bhp = JutulDarcy.BottomHolePressureTarget(1.0)
+
+    push!(matches, bhp)
+    push!(w, bhp_scale)
+
+    for phase in JutulDarcy.get_phases(sys)
+        if phase == LiquidPhase()
+            push!(matches, orat)
+            push!(w, orat_scale)
+        elseif phase == VaporPhase()
+            push!(matches, grat)
+            push!(w, grat_scale)
+        else
+            @assert phase == AqueousPhase()
+            push!(matches, wrat)
+            push!(w, wrat_scale)
+        end
+    end
+
+    dt = case_coarse.dt
+    o_scale = 1.0/(sum(dt)*length(wells))
+    model_c = case_coarse.model
+    wellpos = map(w -> get_well_position(model_c.models[:Facility].domain, w), wells)
+    states_f = deepcopy(result_fine.result.states)
+    for state in states_f
+        for (k, v) in pairs(state)
+            state[k] = Jutul.convert_to_immutable_storage(v)
+        end
+    end
+    G = (model_c, state_c, dt, step_no, forces) -> well_mismatch(
+        matches,
+        wells,
+        model_f,
+        states_f,
+        model_c,
+        state_c,
+        dt,
+        step_no,
+        forces,
+        weights = w,
+        wellpos = wellpos,
+        scale = o_scale,
+        compile = compile
+    )
+    return G
+end
 
 """
     setup_rate_optimization_objective(case, base_rate;

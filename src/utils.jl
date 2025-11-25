@@ -89,6 +89,9 @@ calculated from geometry and other properties. This is useful for example if you
 have an externally computed model. The values must be given for every face on
 the mesh. Values that are NaN or Inf will be treated as missing and the standard
 transmissibility calculator will be used instead for those faces.
+
+Non-neighboring (nnc) connections can be added by passing a structure created
+using [`JutulDarcy.setup_nnc_connections`](@ref) to the `nnc` keyword argument.
 """
 function reservoir_domain(g;
         permeability = convert_to_si(0.1, :darcy),
@@ -101,8 +104,22 @@ function reservoir_domain(g;
         transmissibility_override = missing,
         transmissibility_multiplier = missing,
         diffusion = missing,
+        nnc = missing,
         kwarg...
     )
+    nf0 = number_of_faces(g)
+    has_nnc = !ismissing(nnc)
+    if has_nnc
+        nnc::NonNeighboringConnections
+        if g isa CartesianMesh
+            g = UnstructuredMesh(g)
+        end
+        g::UnstructuredMesh
+        g = deepcopy(g)
+        for (l, r) in nnc.cells
+            insert_nnc_face!(g, l, r)
+        end
+    end
     all(isfinite, permeability) || throw(ArgumentError("Keyword argument permeability has non-finite entries."))
     all(isfinite, porosity) || throw(ArgumentError("Keyword argument porosity has non-finite entries."))
     all(isfinite, rock_thermal_conductivity) || throw(ArgumentError("Keyword argument rock_thermal_conductivity has non-finite entries."))
@@ -135,6 +152,9 @@ function reservoir_domain(g;
         rock_density = rock_density,
         kwarg...
     )
+    if has_nnc
+        reservoir[:nnc, nothing] = nnc
+    end
     for k in [:porosity, :net_to_gross]
         if haskey(reservoir, k)
             val = reservoir[k]
@@ -142,9 +162,21 @@ function reservoir_domain(g;
         end
     end
     if !ismissing(transmissibility_multiplier)
+        if has_nnc && length(transmissibility_multiplier) == nf0
+            # Expand to include NNC connections
+            for _ in 1:length(nnc.cells)
+                push!(transmissibility_multiplier, 1.0)
+            end
+        end
         reservoir[:transmissibility_multiplier, Faces()] = transmissibility_multiplier
     end
     if !ismissing(transmissibility_override)
+        if has_nnc && length(transmissibility_override) == nf0
+            # Expand to include NNC connections
+            for _ in 1:length(nnc.cells)
+                push!(transmissibility_override, NaN)
+            end
+        end
         reservoir[:transmissibility_override, Faces()] = transmissibility_override
     end
     return reservoir
@@ -1435,7 +1467,8 @@ function setup_reservoir_forces(model::MultiModel;
                 new_forces[ctrl_symbol] = setup_forces(facility,
                     control = subctrl,
                     limits = sublimits,
-                    set_default_limits = set_default_limits
+                    set_default_limits = set_default_limits,
+                    check = true
                 )
             end
         end
@@ -1878,6 +1911,17 @@ a diagonal tensor aligned with the logical grid directions. The latter choice is
 only meaningful for a diagonal tensor.
 """
 function reservoir_transmissibility(d::DataDomain; version = :xyz)
+    nf = number_of_faces(d)
+    has_nnc = haskey(d, :nnc)
+    if has_nnc
+        nnc = d[:nnc]
+        nnc::NonNeighboringConnections
+        num_nnc = length(nnc.trans_flow)
+    else
+        nnc = missing
+        num_nnc = 0
+    end
+
     function apply_ntg!(T_hf, ntg, facepos, face_is_vertical)
         for (c, ntg) in enumerate(ntg)
             if ntg isa AbstractFloat && ntg ≈ 1.0
@@ -1890,9 +1934,12 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
             end
         end
     end
-    function fig_negative_trans!(T_hf)
+    function fig_negative_trans!(T_hf, faceno)
         neg_count = 0
         for (i, T_hf_i) in enumerate(T_hf)
+            if faceno[i] > nf - num_nnc
+                continue
+            end
             neg_count += T_hf_i < 0
             T_hf[i] = abs(T_hf_i)
         end
@@ -1905,9 +1952,12 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
         end
         return T_hf
     end
-    function fix_bad_trans!(T_hf)
+    function fix_bad_trans!(T_hf, faceno)
         bad_count = 0
         for (i, T_hf_i) in enumerate(T_hf)
+            if faceno[i] > nf - num_nnc
+                continue
+            end
             if T_hf_i isa AbstractFloat && !isfinite(T_hf_i)
                 bad_count += 1
                 T_hf[i] = 0.0
@@ -1942,8 +1992,8 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
         face_dir = face_dir
     )
     nf = number_of_faces(d)
-    fig_negative_trans!(T_hf)
-    fix_bad_trans!(T_hf)
+    fig_negative_trans!(T_hf, faces)
+    fix_bad_trans!(T_hf, faces)
     if haskey(d, :net_to_gross)
         # Net to gross applies to vertical trans only
         otag = get_mesh_entity_tag(g, Faces(), :orientation, throw = false)
@@ -2007,14 +2057,11 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
         num_aquifer_faces = 0
     end
 
-    if haskey(d, :nnc)
-        nnc = d[:nnc]
-        num_nnc = length(nnc)
-        # Aquifers come at the end, and NNC are just before the aquifer faces.
-        # TODO: Do this in a less brittle way, e.g. by tags.
-        offset = nf - num_nnc - num_aquifer_faces
-        for (i, ncon) in enumerate(nnc)
-            T[i + offset] = ncon[7]
+    if has_nnc
+        # NNC come at the end.
+        offset = nf - num_nnc
+        for (i, T_nnc) in enumerate(nnc.trans_flow)
+            T[i + offset] = T_nnc
         end
     end
     return T
@@ -2533,6 +2580,7 @@ function reservoir_measurables(model, wellresult, states = missing;
     wix = findfirst(isequal(AqueousPhase()), phases)
     oix = findfirst(isequal(LiquidPhase()), phases)
     gix = findfirst(isequal(VaporPhase()), phases)
+    rhoS = reference_densities(model.system)
 
     has_water = !isnothing(wix)
     has_oil = !isnothing(oix)
@@ -2602,7 +2650,8 @@ function reservoir_measurables(model, wellresult, states = missing;
         fgipr = add_entry(:gipr, "gas in place (reservoir volumes)", :gas_volume_reservoir)
 
         fprh = add_entry(:prh, "average pressure (hydrocarbon volume weighted)", :pressure)
-        pres = add_entry(:pr, "average pressure", :pressure)
+        fpr = add_entry(:pr, "average pressure (hydrocarbon volume weighted)", :pressure)
+        pres = add_entry(:prp, "average pressure", :pressure)
 
         if haskey(states[1], :Reservoir)
             states = map(x -> x[:Reservoir], states)
@@ -2614,19 +2663,19 @@ function reservoir_measurables(model, wellresult, states = missing;
             if has_water
                 fwipr[i] = sum(ix -> pv[ix]*s[wix, ix], eachindex(pv))
                 if is_blackoil
-                    fwip[i] = sum(tm[wix, :])
+                    fwip[i] = sum(tm[wix, :])/rhoS[wix]
                 end
             end
             if has_oil
                 foipr[i] = sum(ix -> pv[ix]*s[oix, ix], eachindex(pv))
                 if is_blackoil
-                    foip[i] = sum(tm[oix, :])
+                    foip[i] = sum(tm[oix, :])/rhoS[oix]
                 end
             end
             if has_gas
                 fgipr[i] = sum(ix -> pv[ix]*s[gix, ix], eachindex(pv))
                 if is_blackoil
-                    fgip[i] = sum(tm[gix, :])
+                    fgip[i] = sum(tm[gix, :])/rhoS[gix]
                 end
             end
 
@@ -2639,6 +2688,7 @@ function reservoir_measurables(model, wellresult, states = missing;
                 hc_mean_p = mean_p
             end
             fprh[i] = hc_mean_p
+            fpr[i] = hc_mean_p
             pres[i] = mean_p
         end
     end
@@ -2748,6 +2798,22 @@ function transfer_variables_and_parameters!(new_model, old_model;
     return new_model
 end
 
+function set_rock_compressibility!(model::MultiModel; kwarg...)
+    set_rock_compressibility!(reservoir_model(model); kwarg...)
+    return model
+end
+
+function set_rock_compressibility!(model; reference_pressure = 1*si_unit(:atm), compressibility = 1e-10)
+    pv = LinearlyCompressiblePoreVolume(reference_pressure = reference_pressure, expansion = compressibility)
+    param = Jutul.get_parameters(model)
+    if !haskey(param, :StaticPoreVolume)
+        static = param[:FluidVolume]
+        delete!(param, :FluidVolume)
+        param[:StaticFluidVolume] = static
+    end
+    set_secondary_variables!(model, FluidVolume = pv)
+    return model
+end
 
 function reservoir_fluxes(model::SimulationModel, states::AbstractVector, kind = :volumetric; kwarg...)
     return map(x -> reservoir_fluxes(model, x, kind; kwarg...), states)
@@ -2812,4 +2878,13 @@ function reservoir_fluxes(model, state, kind = :volumetric;
         out = V
     end
     return out
+end
+
+function insert_nnc_face!(m::UnstructuredMesh, l::Int, r::Int)
+    nf = number_of_faces(m)
+    push!(m.faces.neighbors, (l, r))
+    npos = m.faces.faces_to_nodes.pos
+    push!(npos, npos[end])
+    @assert number_of_faces(m) == nf + 1
+    return m
 end

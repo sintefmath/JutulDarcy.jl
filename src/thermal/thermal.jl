@@ -193,7 +193,7 @@ function Jutul.default_parameter_values(data_domain, model, param::FluidThermalC
             T = compute_face_trans(data_domain, phi.*C)
             T = repeat(T', nph, 1)
         else
-            @assert size(C, 1) == nph
+            size(C, 1) == nph || error("Expected size $(nph) x num_cells for :fluid_thermal_conductivity, got size $(size(C))")
             nf = number_of_faces(data_domain)
             T = zeros(nph, nf)
             for ph in 1:nph
@@ -203,7 +203,7 @@ function Jutul.default_parameter_values(data_domain, model, param::FluidThermalC
     else
         error(":fluid_thermal_conductivities or :fluid_thermal_conductivities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
-    return T
+    return ensure_non_negative_trans(T, "fluid_thermal_conductivities")
 end
 
 Jutul.associated_entity(::FluidThermalConductivities) = Faces()
@@ -218,16 +218,50 @@ function Jutul.default_parameter_values(data_domain, model, param::RockThermalCo
         # This takes precedence
         T = copy(data_domain[:rock_thermal_conductivities])
     elseif haskey(data_domain, :rock_thermal_conductivity, Cells())
-        nph = number_of_phases(model.system)
-        phi = data_domain[:porosity]
-        C = data_domain[:rock_thermal_conductivity]
-        T = compute_face_trans(data_domain, (1.0 .- phi).*C)
+        T = reservoir_conductivity(data_domain)
     else
         error(":rock_thermal_conductivities or :rock_thermal_conductivities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+    end
+    return ensure_non_negative_trans(T, "rock_thermal_conductivities")
+end
+
+function ensure_non_negative_trans(T, name)
+    bad = 0
+    neg = 0
+    for (i, v) in enumerate(T)
+        if !isfinite(v)
+            T[i] = 0.0
+            bad += 1
+        elseif v < 0.0
+            T[i] = 0.0
+            neg += 1
+        end
+    end
+    if neg > 0
+        jutul_message(name, "Found $neg negative values, set to zero.")
+    end
+    if bad > 0
+        jutul_message(name, "Found $bad non-finite values, set to zero.")
     end
     return T
 end
 
+function reservoir_conductivity(reservoir::DataDomain)
+    phi = reservoir[:porosity]
+    C = reservoir[:rock_thermal_conductivity]
+    T = compute_face_trans(reservoir, (1.0 .- phi).*C)
+    if haskey(reservoir, :nnc)
+        nnc = reservoir[:nnc]
+        nnc::NonNeighboringConnections
+        num_nnc = length(nnc.trans_thermal)
+        # NNC come at the end.
+        offset = number_of_faces(reservoir) - num_nnc
+        for (i, T_nnc) in enumerate(nnc.trans_thermal)
+            T[i + offset] = T_nnc
+        end
+    end
+    return T
+end
 
 """
     WellIndicesThermal()

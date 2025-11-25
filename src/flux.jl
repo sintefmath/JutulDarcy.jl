@@ -206,9 +206,19 @@ end
     return @inbounds X[up]
 end
 
+@inline function upwind(upw::SPU, m::AbstractArray{T}, q) where T<:Jutul.AdjointsDI.SparseConnectivityTracer.Dual
+    # Type overload for adjoints - only pattern matters
+    return m[upw.left] + m[upw.right]
+end
+
 @inline function phase_upwind(upw, m::AbstractMatrix, phase::Integer, q)
     F(cell) = @inbounds m[phase, cell]
     return upwind(upw, F, q)
+end
+
+@inline function phase_upwind(upw, m::AbstractMatrix{T}, phase::Integer, q) where T<:Jutul.AdjointsDI.SparseConnectivityTracer.Dual
+    # Type overload for adjoints - only pattern matters
+    return m[phase, upw.left] + m[phase, upw.right]
 end
 
 @inline function upwind(upw::Jutul.WENO.WENOFaceDiscretization, F, q)
@@ -231,22 +241,6 @@ end
         Δp_c = @inbounds pc[pos, c_r] - pc[pos, c_l]
     end
     return Δp_c
-end
-
-
-
-@inline function phase_mass_flux(Ψ, c, i, ρ, kr, μ, ph)
-    upc = upwind_cell(Ψ, c, i)
-    @inbounds F = ρ[ph, upc]*(kr[ph, upc]/μ[ph, upc])*Ψ
-    return (F, upc)
-end
-
-@inline function upwind_cell(pot, l, r)
-    if pot < 0
-        c = l
-    else
-        c = r
-    end
 end
 
 """

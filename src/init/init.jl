@@ -106,6 +106,29 @@ function equilibriate_state(model, equil::EquilibriumRegion)
         !isnan(c) || throw(ArgumentError("$name cannot be defaulted for this system."))
         isfinite(pc_c) || throw(ArgumentError("Capillary pressure at contact (pc_$name) is not finite."))
     end
+    cells = equil.cells
+    if ismissing(cells)
+        cells = 1:number_of_cells(model.domain)
+    end
+    nc = length(cells)
+    # s_min = vector of vectors, [swmin, somin, sgmin]
+    s_min = []
+    s_max = []
+    swcon, swmax = swcon_and_swmax_for_cells(model, cells)
+
+    for phase in phases
+        # s_min for water = swcon
+        # s_max for water = s_max from relperm
+        # s_max for oil/gas = 1 - swcon
+        # s_min for oil/gas = 0
+        if phase == AqueousPhase()
+            push!(s_min, swcon)
+            push!(s_max, swmax)
+        else
+            push!(s_min, zeros(nc))
+            push!(s_max, ones(nc) .- swcon)
+        end
+    end
 
     contacts = Float64[]
     contacts_pc = Float64[]
@@ -124,8 +147,9 @@ function equilibriate_state(model, equil::EquilibriumRegion)
         push!(contacts_pc, equil.pc_goc)
         check_pair(equil.goc, equil.pc_goc, "goc")
     end
-    model = reservoir_model(model)
     init = equilibriate_state(model,
+        s_min = s_min,
+        s_max = s_max,
         contacts,
         equil.datum_depth,
         equil.datum_pressure;
@@ -183,6 +207,25 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
             end
         end
     end
+    if ismissing(s_min)
+        kr_def = get(model.secondary_variables, :RelativePermeabilities, nothing)
+        if kr_def isa ReservoirRelativePermeabilities
+            phases = get_phases(sys)
+            nph = length(phases)
+            water_ix = findfirst(x -> x isa AqueousPhase, get_phases(sys))
+            if !isnothing(water_ix)
+                swcon = map(x -> x.connate, kr_def.krw)
+                s_min = Vector{Vector{Float64}}()
+                for _ in 1:nph
+                    push!(s_min, zeros(length(cells)))
+                end
+                for (i, c) in enumerate(cells)
+                    reg = region(kr_def.regions, c)
+                    s_min[water_ix][i] = swcon[reg]
+                end
+            end
+        end
+    end
     if ismissing(contacts_pc)
         contacts_pc = zeros(number_of_phases(sys)-1)
     end
@@ -216,12 +259,13 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         density_function = density_f
     end
     pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_function, contacts_pc, ref_phase)
+    ref_ix = get_reference_phase_index(model.system)
     if nph > 1
         relperm = model.secondary_variables[:RelativePermeabilities]
         if relperm isa Pair
             relperm = last(relperm)
         end
-        s, pc = determine_saturations(depths, contacts, pressures; pc = pc, s_min = s_min, kwarg...)
+        s, pc, active_phase = determine_saturations(depths, contacts, pressures; ref_ix = ref_ix, pc = pc, s_min = s_min, kwarg...)
         if !ismissing(sw)
             nph = size(s, 1)
             for i in axes(s, 2)
@@ -249,43 +293,49 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
                 end
             end
         end
-        if relperm isa ReservoirRelativePermeabilities
-            nc_total = number_of_cells(model.domain)
-            T_S = eltype(s)
-            kr = zeros(T_S, nph, nc_total)
-            s_eval = zeros(T_S, nph, nc_total)
-            s_eval[:, cells] .= s
-            phases = get_phases(sys)
-            phase_ind = phase_indices(model.system)
-            if length(phases) == 3
-                swcon = zeros(nc_total)
-                if AqueousPhase() in phases && !ismissing(s_min)
-                    swcon[cells] .= s_min[1]
-                end
-                for c in cells
-                    update_three_phase_relperm!(kr, relperm, phase_ind, s_eval, nothing, c, swcon[c], nothing, nothing)
-                end
-            else
-                ph = relperm.phases
-                if ph == :wo
-                    kr1, kr2 = relperm.krw, relperm.krow
-                elseif ph == :og
-                    kr1, kr2 = relperm.krog, relperm.krg
+        use_mobility_check = true
+        if use_mobility_check
+            if relperm isa ReservoirRelativePermeabilities
+                nc_total = number_of_cells(model.domain)
+                T_S = eltype(s)
+                kr = zeros(T_S, nph, nc_total)
+                s_eval = zeros(T_S, nph, nc_total)
+                s_eval[:, cells] .= s
+                phases = get_phases(sys)
+                phase_ind = phase_indices(model.system)
+                if length(phases) == 3
+                    swcon = zeros(nc_total)
+                    if AqueousPhase() in phases && !ismissing(s_min)
+                        swcon[cells] .= s_min[1]
+                    end
+                    for c in cells
+                        update_three_phase_relperm!(kr, relperm, phase_ind, s_eval, nothing, c, swcon[c], nothing, nothing)
+                    end
                 else
-                    @assert ph == :wg
-                    kr1, kr2 = relperm.krw, relperm.krg
+                    ph = relperm.phases
+                    if ph == :wo
+                        kr1, kr2 = relperm.krw, relperm.krow
+                    elseif ph == :og
+                        kr1, kr2 = relperm.krog, relperm.krg
+                    else
+                        @assert ph == :wg
+                        kr1, kr2 = relperm.krw, relperm.krg
+                    end
+                    for c in cells
+                        update_two_phase_relperm!(kr, relperm, kr1, kr2, nothing, nothing, phase_ind, s_eval, nothing, c, nothing, nothing)
+                    end
                 end
-                for c in cells
-                    update_two_phase_relperm!(kr, relperm, kr1, kr2, nothing, nothing, phase_ind, s_eval, nothing, c, nothing, nothing)
-                end
+                kr = kr[:, cells]
+            else
+                jutul_message("Initialization", "Rel. perm. is not a ReservoirRelativePermeabilities, skipping mobility check for reference pressure.")
+                kr = copy(s)
             end
-            kr = kr[:, cells]
         else
-            jutul_message("Initialization", "Rel. perm. is not a ReservoirRelativePermeabilities, skipping mobility check for reference pressure.")
+            active_phase = missing
             kr = copy(s)
         end
         init[:Saturations] = s
-        init[:Pressure] = init_reference_pressure(pressures, contacts, kr, pc, ref_phase)
+        init[:Pressure] = init_reference_pressure(pressures, contacts, kr, active_phase, pc, ref_phase)
     else
         p = copy(vec(pressures))
         init[:Pressure] = p
@@ -520,10 +570,6 @@ function parse_state0_equil(model, datafile; normalize = :sum)
                         ix = unique(i -> cap[i], 1:length(cap))
                         s = s[ix]
                         cap = cap[ix]
-                        if length(s) == 1
-                            push!(s, s[end])
-                            push!(cap, cap[end]+1.0)
-                        end
                         push!(pc, (s = s, pc = cap))
                     end
                 else
@@ -641,7 +687,7 @@ function parse_state0_equil(model, datafile; normalize = :sum)
                     ztab_z = Float64[]
                     ztab_static = Sz[]
                     num_renormalized = 0
-                    for row in 1:size(ztab, 1)
+                    for row in axes(ztab, 1)
                         mf_i = Sz(ztab[row, 2:end])
                         if maximum(mf_i) > 1.0 || minimum(mf_i) < 0 || !(sum(mf_i) ≈ 1.0)
                             num_renormalized += 1
@@ -796,21 +842,28 @@ function fill_subinit!(x::Matrix, cells, v::Matrix)
     end
 end
 
-function init_reference_pressure(pressures, contacts, kr, pc, ref_ix = 2)
+function init_reference_pressure(pressures, contacts, kr, active_phase, pc, ref_ix = 2)
     nph, nc = size(kr)
     T = promote_type(eltype(pressures), eltype(contacts), eltype(kr))
     p = zeros(T, nc)
     ϵ = 1e-12
-    for i in eachindex(p)
-        p[i] = pressures[ref_ix, i]
-        kr_ref = kr[ref_ix, i]
-        @assert kr_ref >= -ϵ "Evaluated rel. perm. was $kr_ref for phase reference phase (index $ref_ix)."
-        if kr[ref_ix, i] <= ϵ
-            for ph in 1:nph
-                if kr[ph, i] > ϵ
-                    p[i] = pressures[ph, i]
+    if ismissing(active_phase)
+        for i in eachindex(p)
+            p[i] = pressures[ref_ix, i]
+            kr_ref = kr[ref_ix, i]
+            @assert kr_ref >= -ϵ "Evaluated rel. perm. was $kr_ref for phase reference phase (index $ref_ix)."
+            if kr[ref_ix, i] <= ϵ
+                for ph in 1:nph
+                    if kr[ph, i] > ϵ
+                        p[i] = pressures[ph, i] - pc[ph, i]
+                    end
                 end
             end
+        end
+    else
+        for i in eachindex(p)
+            ph = active_phase[i]
+            p[i] = pressures[ph, i] - pc[ph, i]
         end
     end
     return p
@@ -886,13 +939,15 @@ function integrate_phase_density(z_datum, z_end, p0, density_f, phase; n = 1000,
         depth = z[i-1] + dz
         dens = density_f(p, depth, phase)
         pressure[i] = p + dz*dens*g
-        @assert isfinite(pressure[i]) "Equilibriation returned non-finite pressures."
+        if !isfinite(pressure[i])
+            error("Equilibriation returned non-finite pressures for density $dens at pressure $p Pa and depth $depth m for node $(i-1).")
+        end
         z[i] = depth
     end
     return (z, pressure)
 end
 
-function determine_saturations(depths, contacts, pressures; s_min = missing, s_max = missing, pc = missing)
+function determine_saturations(depths, contacts, pressures; ref_ix = 2, s_min = missing, s_max = missing, pc = missing)
     nc = length(depths)
     T = promote_type(eltype(depths), eltype(pressures), eltype(contacts))
     nph = length(contacts) + 1
@@ -903,11 +958,13 @@ function determine_saturations(depths, contacts, pressures; s_min = missing, s_m
         s_max = [ones(T, nc) for i in 1:nph]
     end
     sat = zeros(T, nph, nc)
-    sat_pc = similar(sat)
+    sat_pc = zeros(T, nph, nc)
+    mobile_phase = fill(ref_ix, nc)
     if isnothing(pc) || ismissing(pc)
         for i in eachindex(depths)
             z = depths[i]
             ph = current_phase_index(z, contacts)
+            mobile_phase[i] = ph
             for j in axes(sat, 1)
                 is_main = ph == j
                 s = is_main*s_max[j][i] + !is_main*s_min[j][i]
@@ -915,7 +972,6 @@ function determine_saturations(depths, contacts, pressures; s_min = missing, s_m
             end
         end
     else
-        ref_ix = 2
         offset = 1
         for ph in 1:nph
             if ph != ref_ix
@@ -924,20 +980,30 @@ function determine_saturations(depths, contacts, pressures; s_min = missing, s_m
                 pc_min = minimum(pc_pair)
                 I = get_1d_interpolator(pc_pair, s, constant_dx = false)
                 I_pc = get_1d_interpolator(s, pc_pair, constant_dx = false)
+                s_pcmax = s[findfirst(isequal(pc_max), pc_pair)]
+                has_pc = norm(pc_pair, 2) > 1e-8
                 for i in eachindex(depths)
-                    z = depths[i]
-
                     dp = pressures[ph, i] - pressures[ref_ix, i]
                     if dp > pc_max
                         s_eff = s_max[ph][i]
+                        if has_pc
+                            s_eff = min(s_eff, s_pcmax)
+                        end
+                        mobile_phase[i] = ph
                     elseif dp < pc_min
                         s_eff = s_min[ph][i]
+                        # Not clear if this should be the case...
+                        # s_eff = max(s_eff, s[1])
                     else
                         s_eff = I(dp)
                     end
                     s_eff = clamp(s_eff, s_min[ph][i], s_max[ph][i])
                     sat[ph, i] = s_eff
-                    sat_pc[ph, i] = I_pc(s_eff)
+                    pcval = I_pc(s_eff)
+                    if !isfinite(I_pc(s_eff))
+                        pcval = 0.0
+                    end
+                    sat_pc[ph, i] = pcval
                 end
                 offset += 1
             end
@@ -961,7 +1027,7 @@ function determine_saturations(depths, contacts, pressures; s_min = missing, s_m
             jutul_message("Initialization", "Negative saturation in $(length(bad_cells)) cells for phase $ref_ix. Normalizing.", color = :yellow)
         end
     end
-    return (sat, sat_pc)
+    return (sat, sat_pc, mobile_phase)
 end
 
 function current_phase_index(z, depths; reverse = true)
@@ -986,4 +1052,52 @@ function current_phase_index(z, depths; reverse = true)
     end
     @assert out > 0
     return out
+end
+
+function swcon_and_swmax_for_cells(model::MultiModel, arg...)
+    return swcon_and_swmax_for_cells(model, arg...)
+end
+
+function swcon_and_swmax_for_cells(model, cells = 1:number_of_cells(model.domain))
+    kr = get_variable(model, :RelativePermeabilities)
+    if isnothing(kr)
+        nc = length(cells)
+        out = (zeros(nc), ones(nc))
+    else
+        out = swcon_and_swmax_for_cells(model, kr, cells)
+    end
+    return out
+end
+
+function swcon_and_swmax_for_cells(model, kr, cells)
+    nc = length(cells)
+    swcon = zeros(nc)
+    swmax = ones(nc)
+    if hasphase(model.system, AqueousPhase())
+        rdomain = reservoir_domain(model)
+        if hasproperty(kr, :krw)
+            krw = kr.krw
+            for (i, c) in enumerate(cells)
+                sreg = region(kr.regions, c)
+                krw_i = table_by_region(krw, sreg)
+                swcon[i] = krw_i.connate
+                swmax[i] = krw_i.input_s_max
+            end
+            use_scaling = hasproperty(kr, :scaling) && kr.scaling != NoKrScale()
+            if haskey(rdomain, :scaler_w_drainage) && use_scaling
+                scaler = rdomain[:scaler_w_drainage]
+                for (i, c) in enumerate(cells)
+                    swc = scaler[1, c]
+                    swm = scaler[3, c]
+                    if !isnan(swc)
+                        swcon[i] = swc
+                    end
+                    if !isnan(swm)
+                        swmax[i] = swm
+                    end
+                end
+            end
+        end
+    end
+    return (swcon, swmax)
 end

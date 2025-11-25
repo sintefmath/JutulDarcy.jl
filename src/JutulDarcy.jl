@@ -214,6 +214,9 @@ module JutulDarcy
     import JutulDarcy.Tracers: SinglePhaseTracer, MultiPhaseTracer, add_tracers_to_model!, number_of_tracers
     export SinglePhaseTracer, MultiPhaseTracer, add_tracers_to_model!, number_of_tracers
 
+    # AFI input support
+    include("AFISetup/AFISetup.jl")
+
 
     @compile_workload begin
         try

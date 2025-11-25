@@ -1,0 +1,237 @@
+function setup_pvt_variables(d::AFIInputFile, sys::Union{SinglePhaseSystem, StandardBlackOilSystem, ImmiscibleSystem}, reservoir)
+    bo_model = find_records(d, "BlackOilFluidModel", "IX", steps = false, model = true, once = false)
+    c_model = find_records(d, "CompositionalFluidModel", "IX", steps = false, model = true, once = false)
+    has_bo = length(bo_model) > 0
+    has_comp = length(c_model) > 0
+    if !has_bo && !has_comp
+        error("No FluidModel record found in AFI file. This function is currently limited to blackoil and compositional type models.")
+    elseif has_bo && has_comp
+        error("Both BlackOilFluidModel and CompositionalFluidModel records found in AFI file.")
+    elseif has_bo
+        fluid_model = bo_model
+    else
+        @assert has_comp
+        fluid_model = c_model
+    end
+
+    if length(fluid_model) > 1
+        @warn "Multiple fluid model records found in AFI file. Using the first one."
+    end
+    fluid_model = fluid_model[1].value
+    phases = JutulDarcy.get_phases(sys)
+    if length(phases) == 1 && only(phases) isa AqueousPhase
+        pvt_vars = setup_pvt_variables_single_phase_water(d, sys, reservoir, fluid_model)
+    else
+        pvt = []
+        if AqueousPhase() in phases
+            water_tab = setup_water_pvt(fluid_model)
+            push!(pvt, water_tab)
+        end
+        if LiquidPhase() in phases
+            if JutulDarcy.has_disgas(sys)
+                dtab = fluid_model["OilTable"]
+                pvto_like = to_processed_pvt_table(dtab, "SolutionGOR", ["Pressure", "FormationVolumeFactor", "Viscosity"])
+                pvto_ext = GeoEnergyIO.InputParser.restructure_pvt_table(pvto_like)
+                oil_tab_raw = JutulDarcy.PVTOTable(pvto_ext)
+                oil_tab = JutulDarcy.PVTO(oil_tab_raw)
+            else
+                dtab = fluid_model["DeadOilTable"]
+                p = dtab["Pressure"]
+                Bo = dtab["FormationVolumeFactor"]
+                mu = dtab["Viscosity"]
+                oil_tab_raw = JutulDarcy.MuBTable(p, 1 ./ Bo, mu)
+                oil_tab = JutulDarcy.PVCDO((oil_tab_raw, ))
+            end
+            push!(pvt, oil_tab)
+        end
+        if VaporPhase() in phases
+            if JutulDarcy.has_vapoil(sys)
+                @info "Not finished" fluid_model["GasTable"]
+                error("Not yet implemented")
+            else
+                dtab = fluid_model["UndersaturatedGasTable"]["table"]
+                p = dtab["Pressure"]
+                Bg = dtab["FormationVolumeFactor"]
+                mu = dtab["Viscosity"]
+                gas_tab_raw = JutulDarcy.MuBTable(p, 1 ./ Bg, mu)
+                gas_tab = JutulDarcy.PVDG((gas_tab_raw, ))
+            end
+            push!(pvt, gas_tab)
+        end
+        pvt_vars = Dict()
+        pvt_vars[:PhaseMassDensities] = DeckPhaseMassDensities(pvt)
+        pvt_vars[:ShrinkageFactors] = DeckShrinkageFactors(pvt)
+        pvt_vars[:PhaseViscosities] = DeckPhaseViscosities(pvt)
+    end
+    return pvt_vars
+end
+
+function setup_pvt_variables_single_phase_water(d, sys, reservoir, fluid_model)
+    pvt_vars = Dict()
+    water_tab = setup_water_pvt(fluid_model)
+    rho = DeckPhaseMassDensities([water_tab])
+    if haskey(fluid_model, "ViscosityTemperatureTable")
+        mutab = missing
+        for (k, v) in pairs(fluid_model["ViscosityTemperatureTable"])
+            if contains(lowercase(v["Phase"]), "water")
+                mutab = v["table"]
+                break
+            end
+        end
+        if ismissing(mutab)
+            error("No water viscosity temperature table found.")
+        end
+        T_rel = mutab["Temperature"]
+        T_abs = Jutul.convert_to_si.(T_rel, :Celsius)
+        mu_F = get_1d_interpolator(T_abs, mutab["Viscosity"])
+        mu = JutulDarcy.TemperatureDependentVariable(mu_F)
+    else
+        mu = DeckPhaseViscosities([water_tab])
+    end
+    wtm = get(fluid_model, "WaterThermalModel", nothing)
+    if !isnothing(wtm)
+        salt_mole_fractions = Float64[]
+        salt_names = String[]
+        table_arg = NamedTuple()
+        tables = JutulDarcy.Geothermal.geothermal_setup_tables(Dict(), salt_names, salt_mole_fractions, table_arg)
+        # TODO: make this dynamic
+        update_reservoir = true
+        cond_water = tables[:phase_conductivity](1*si_unit(:atm), 273.15 + 20.0)
+        if update_reservoir
+            reservoir[:fluid_thermal_conductivity] .= cond_water
+        end
+        if wtm isa GeoEnergyIO.IXParser.IXEqualRecord
+            rec = only(wtm.value)
+            wtm = Dict{String, Any}(
+                rec.keyword => rec.value
+            )
+        end
+        get_wtm(k) = String(get(wtm, k, "STEAM_TABLE"))
+        if haskey(wtm, "LiquidDensityModel")
+            density_model = get_wtm("LiquidDensityModel")
+            if density_model == "STEAM_TABLE"
+                rho = JutulDarcy.PressureTemperatureDependentVariable(tables[:density])
+            else
+                error("Only STEAM_TABLE liquid density model is implemented")
+            end
+        end
+        pvt_vars[:PhaseMassDensities] = rho
+        emodel = get_wtm("LiquidEnthalpyModel")
+        if emodel == "STEAM_TABLE"
+            c_p = JutulDarcy.PressureTemperatureDependentVariable(tables[:heat_capacity_constant_pressure])
+        else
+            error("Only STEAM_TABLE liquid enthalpy model is implemented")
+        end
+        pvt_vars[:ComponentHeatCapacity] = c_p
+        if haskey(wtm, "LiquidViscosityModel")
+            viscosity_model = get_wtm("LiquidViscosityModel")
+            if viscosity_model == "STEAM_TABLE"
+                mu = JutulDarcy.PTViscosities(tables[:viscosity])
+            else
+                viscosity_model == "USER_TABLE" || error("Unsupported liquid viscosity model: $viscosity_model")
+            end
+        end
+    end
+    pvt_vars[:PhaseMassDensities] = rho
+    pvt_vars[:PhaseViscosities] = mu
+    return pvt_vars
+end
+
+function setup_water_pvt(fluid_model)
+    wc = fluid_model["WaterCompressibilities"]
+    BW = get(wc, "FormationVolumeFactor", 1.0)
+    compw = get(wc, "Compressibility", 4e-5/si_unit(:bar))
+    compmuw = get(wc, "ViscosityCompressibility", 0.0)
+    water_tab_raw = ConstMuBTable(wc["RefPressure"], 1.0/BW, compw, wc["Viscosity"], compmuw)
+    return JutulDarcy.PVTW((water_tab_raw, ))
+end
+
+function JutulDarcy.set_rock_compressibility!(model, d::AFIInputFile)
+    rockcomp = find_records(d, "RockCompressibility", "IX", steps = false, model = true)
+    if length(rockcomp) == 0
+        p = 1*si_unit(:atm)
+        c = 0.0
+    else
+        if length(rockcomp) > 1
+            @warn "Multiple BlackOilFluidModel records found in AFI file. Using the first one."
+            rockcomp = rockcomp[1]
+        end
+        rockcomp = only(rockcomp).value
+        rocktab = rockcomp["table"]
+        p = get(rocktab, "RefPressure", 1*si_unit(:atm))
+        c = get(rocktab, "PoreVolCompressibility", 0.0)
+    end
+    if c != 0.0
+        JutulDarcy.set_rock_compressibility!(model, reference_pressure = p, compressibility = c)
+    end
+    return model
+end
+
+function rs_table_from_oil_table(tab)
+    ix = tab["SubTableIndex"]
+    gor = tab["SolutionGOR"]
+    p = tab["Pressure"]
+    p_t, rs_t = extract_saturated_table(ix, p, gor)
+    return JutulDarcy.saturated_table(p_t, rs_t)
+end
+
+function extract_saturated_table(table_indices, p, ratio)
+    if eltype(table_indices) != Int
+        table_indices = Int.(table_indices)
+    end
+    ratio_t = Float64[]
+    p_t = Float64[]
+    prev_table = -1
+    for (row, table_index) in enumerate(table_indices)
+        if table_index != prev_table
+            push!(p_t, p[row])
+            push!(ratio_t, ratio[row])
+            prev_table = table_index
+        end
+    end
+    return (p_t, ratio_t)
+end
+
+function rv_table_from_gas_table(x)
+    tab = x["table"]
+    ix = tab["SubTableIndex"]
+    rv = tab["VaporOGR"]
+    p = tab["Pressure"]
+    p_t, rv_t =  extract_saturated_table(ix, p, rv)
+    return JutulDarcy.saturated_table(p_t, rv_t)
+end
+
+function to_processed_pvt_table(dtab, main_key, key_order)
+    tabix = Int.(dtab["SubTableIndex"])
+    mintab = minimum(tabix)
+    if mintab == 0
+        @. tabix += 1
+    else
+        mintab == 1 || error("Unexpected SubTableIndex starting at $mintab")
+    end
+    issorted(tabix) || error("SubTableIndex not sorted")
+    maxtab = maximum(tabix)
+    out = Vector{Float64}[]
+    for subtab_no in 1:maxtab
+        next = Float64[]
+        is_first = true
+        for (i, ix) in enumerate(tabix)
+            if ix != subtab_no
+                continue
+            end
+            if is_first
+                push!(next, dtab[main_key][i])
+                is_first = false
+            end
+            for k in key_order
+                push!(next, dtab[k][i])
+            end
+        end
+        if is_first
+            error("No entries found for table index $i")
+        end
+        push!(out, next)
+    end
+    return out
+end
+

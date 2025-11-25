@@ -232,7 +232,7 @@ function translate_limit(control::InjectorControl, name, val)
     if name == :bhp
         # Upper limit, pressure
         target_limit = BottomHolePressureTarget(val)
-    elseif name == :rate || name == :rate_upper
+    elseif name == :rate || name == :rate_upper || name == :wrat || name == :orat || name == :lrat || name == :grat
         # Upper limit, total volumetric surface rate
         target_limit = TotalRateTarget(val)
     elseif name == :rate_lower

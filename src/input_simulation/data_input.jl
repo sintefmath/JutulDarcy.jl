@@ -885,6 +885,7 @@ end
 function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, process_pinch = true)
     grid = data_file["GRID"]
     cartdims = grid["cartDims"]
+    nx, ny, nz = cartdims
     G = mesh_from_grid_section(grid; repair_zcorn = repair_zcorn, process_pinch = process_pinch)
 
     # Handle numerical aquifers
@@ -928,9 +929,6 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
         end
         extra_data_arg[:pore_volume_multiplier] = multpv
     end
-
-
-
 
     tranmult = ones(nf)
     tran_override = fill(NaN, nf)
@@ -1063,6 +1061,36 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
     satnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :satnum, active = active_ix)
     pvtnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :pvtnum, active = active_ix)
     eqlnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :eqlnum, active = active_ix)
+
+    nnc = get(grid, "NNC", nothing)
+    if !isnothing(nnc)
+        to_active_ix = zeros(Int, nx*ny*nz)
+        to_active_ix[active] = eachindex(active)
+        function cell_index(i, j, k)
+            ix = ijk_to_linear(i, j, k, cartdims)
+            aix = to_active_ix[ix]
+            return aix
+        end
+
+        if length(nnc_entry) > 0
+            T_nnc = Float64[]
+            N_nnc = Tuple{Int, Int}[]
+            for nnc_entry in nnc
+                c1 = cell_index(nnc_entry[1], nnc_entry[2], nnc_entry[3])
+                c2 = cell_index(nnc_entry[4], nnc_entry[5], nnc_entry[6])
+                if c1 > 0 && c2 > 0
+                    # faceno = length(fp)
+                    c1 != c2 || error("NNC cell pair must be distinct.")
+                    # NNC connections have no nodes
+                    push!(T_nnc, nnc_entry[7])
+                    push!(N_nnc, (c1, c2))
+                else
+                    error("NNC connects inactive cells, cannot proceed: $(Tuple(nnc_entry[1:3])) -> $(Tuple(nnc_entry[4:6]))")
+                end
+            end
+            extra_data_arg[:nnc] = setup_nnc_connections(G, N_nnc, T_nnc)
+        end
+    end
 
     if !isnothing(aquifers)
         for (aq_id, aquifer) in pairs(aquifers)
