@@ -16,7 +16,6 @@ module SPE10
         poro = readdlm(joinpath(source, "spe_phi.dat"))'
         length(poro) == nvals_data || error("Porosity data must have $nvals_data values")
         length(perm) == 3*nvals_data || error("Permeability data must have 3*$nvals_data values")
-        md = si_unit(:darcy)
 
         function extract_layers_and_flatten(x)
             x = vec(x)
@@ -29,8 +28,9 @@ module SPE10
 
         function get_perm(i)
             @assert size(perm) == (6, 561000)
+            md = si_unit(:milli)*si_unit(:darcy)
             offset = nvals_data ÷ 6
-            vals = perm[:, ((i-1)*offset + 1):(i*offset)]
+            vals = perm[:, ((i-1)*offset + 1):(i*offset)] .* md
             vals = vec(vals)
             return extract_layers_and_flatten(vals)
         end
