@@ -5,3 +5,11 @@ lazy = true
     [[CO2Tables_CSP11.download]]
     sha256 = "b20fd6fbffdc9e2ab6f6e147e799ecc57fd2b8b5888923ccad3b4d437eab3479"
     url = "https://github.com/sintefmath/JutulDarcy.jl/releases/download/v0.2.27/csp11.tar.gz"
+
+[spe10_model2]
+git-tree-sha1 = "b421d0416a268c2561af960dbabca183fdad90e6"
+lazy = true
+
+    [[spe10_model2.download]]
+    sha256 = "3a4b0d7b9f37d21dad2453ebfa5cc02d07b0acb64b6cb88567d5c36f610c66d2"
+    url = "https://github.com/sintefmath/JutulDarcy.jl/releases/download/v0.3.0/spe10_model2.tar.bz2"

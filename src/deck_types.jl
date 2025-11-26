@@ -493,6 +493,11 @@ function PVDO(pvdo::AbstractArray)
     PVDO{typeof(ct)}(ct)
 end
 
+function PVDO(tab::MuBTable)
+    ct = (tab, )
+    PVDO{typeof(ct)}(ct)
+end
+
 struct PVDG{T} <: AbstractTablePVT
     tab::T
 end
@@ -515,6 +520,13 @@ end
 
 struct PVTW{N, T} <: AbstractTablePVT
     tab::NTuple{N, T}
+end
+
+function PVTW(tab::ConstMuBTable)
+    ct = (tab, )
+    N = length(ct)
+    T = typeof(ct[1])
+    PVTW{N, T}(ct)
 end
 
 function PVTW(pvtw::AbstractArray)

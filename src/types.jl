@@ -213,6 +213,7 @@ end
 
 """
     ImmiscibleSystem(phases; reference_densities = ones(length(phases)))
+    ImmiscibleSystem(:wog)
     ImmiscibleSystem((LiquidPhase(), VaporPhase()), reference_densities = (1000.0, 700.0))
 
 Immiscible flow system: Each component exists only in a single phase, and the
@@ -225,6 +226,28 @@ that there is no mass transfer between phases and that a phase is uniform in
 composition.
 """
 function ImmiscibleSystem(phases; reference_densities = ones(length(phases)), reference_phase_index = missing)
+    if phases isa Symbol
+        if phases == :og || phases == :lv
+            phases = (LiquidPhase(), VaporPhase())
+        elseif phases == :wo || phases == :al
+            phases = (AqueousPhase(), LiquidPhase())
+        elseif phases == :wg || phases == :av
+            phases = (AqueousPhase(), VaporPhase())
+        elseif phases == :w || phases == :a
+            phases = (AqueousPhase(), )
+        elseif phases == :o || phases == :l
+            phases = (LiquidPhase(), )
+        elseif phases == :g || phases == :v
+            phases = (VaporPhase(), )
+        elseif phases == :wog || phases == :alv
+            phases = (AqueousPhase(), LiquidPhase(), VaporPhase())
+        else
+            error("Unknown immiscible system symbol: $phases")
+        end
+    end
+    for ph in phases
+        ph isa AbstractPhase || error("Phase $ph was not a phase?")
+    end
     phases = tuple(phases...)
     if ismissing(reference_phase_index)
         reference_phase_index = get_reference_phase_index(phases)

@@ -216,7 +216,8 @@ module JutulDarcy
 
     # AFI input support
     include("AFISetup/AFISetup.jl")
-
+    # Benchmarks
+    include("benchmarks/benchmarks.jl")
 
     @compile_workload begin
         try
