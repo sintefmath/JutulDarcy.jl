@@ -71,6 +71,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         roughness = friction,
         net_to_gross = missing,
         cell_radius = missing,
+        cell_radius_inner = 0.0,
         well_cell_centers = missing,
         use_top_node = missing,
         dir = :z,
@@ -180,9 +181,13 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
 
     # Length of cell in direction of well - used for volumes of nodes
     if ismissing(cell_radius)
-        cell_radius = Wdomain[:perforation_radius, p][1]
+        cell_radius = fill(Wdomain[:perforation_radius, p][1], number_of_cells(W))
+        if !ismissing(casing_thickness)
+            cell_radius .-= casing_thickness
+        end
     end
     Wdomain[:radius, c] = cell_radius
+    Wdomain[:radius_inner, c] = cell_radius_inner
     if !ismissing(volumes)
         length(volumes) == number_of_cells(W) || error("Must provide one volume per well cell ($(length(volumes)) provided, $(number_of_cells(W)) well cells).")
         Wdomain[:volume_override, c] = volumes
@@ -462,7 +467,27 @@ function domain_fluid_volume(d::DataDomain, grid::WellDomain)
 end
 
 function domain_bulk_volume(d::DataDomain, grid::WellDomain; outer_boundary = :grouting)
-    if haskey(d, :volume_override)
+    
+    has_hv = haskey(d, :volume_override_hole)
+    has_cv = haskey(d, :volume_override_casing)
+    has_gv = haskey(d, :volume_override_grouting)
+    if outer_boundary == :hole && has_hv
+        vols = d[:volume_override_hole, Cells()]
+    elseif outer_boundary == :casing && has_hv && has_cv
+        vols =
+        d[:volume_override_hole, Cells()] +
+        d[:volume_override_casing, Cells()]
+    elseif outer_boundary == :grouting && has_hv && has_cv && has_gv
+        vols = 
+        d[:volume_override_hole, Cells()] + 
+        d[:volume_override_casing, Cells()] +
+        d[:volume_override_grouting, Cells()]
+    elseif haskey(d, :volume_override)
+        if has_hv || has_cv || has_gv
+            error("Using volume_override together with "*
+            "volume_override_hole, volume_override_casing or "*
+            "volume_override_grouting is ambiguous.")
+        end
         vols = d[:volume_override, Cells()]
     else
         case_thickness = d[:casing_thickness, Cells()]
@@ -470,9 +495,11 @@ function domain_bulk_volume(d::DataDomain, grid::WellDomain; outer_boundary = :g
         mult = d[:volume_multiplier, Cells()]
         if grid isa MultiSegmentWell
             hole_radius = d[:radius, Cells()]
+            ri = d[:radius_inner, Cells()]
             r = well_bulk_volume_radius(hole_radius, case_thickness, grouting_thickness, outer_boundary = outer_boundary)
+            A = π .* (r.^2 .- ri.^2)
             L = d[:cell_length, Cells()]
-            vols = mult.*(π .* r.^2 .* L)
+            vols = mult.*(A .* L)
         else
             # Simple wells are not segmented, so sum over perforations instead
             grid::SimpleWell

@@ -86,7 +86,11 @@ function JutulDarcy.update_cross_term_in_entity!(out, i,
         q = 0.0
         for ph in 1:nph
             q_ph = btes_supply_return_massflux(state_s, state_t, supply_node, return_node, ph)
-            h_ph = state_s.FluidEnthalpy[ph, supply_node]
+            if q_ph < 0
+                h_ph = state_s.FluidEnthalpy[ph, supply_node]
+            else
+                h_ph = state_t.FluidEnthalpy[ph, return_node]
+            end
             q += q_ph.*h_ph
         end
     end
@@ -103,9 +107,15 @@ Base.@propagate_inbounds function btes_supply_return_massflux(state_supply, stat
     T = 1.0e-10
     Ψ = -T*dp
 
-    ρ = state_supply.PhaseMassDensities[ph, supply_node]
-    s = state_supply.Saturations[ph, supply_node]
-    μ = state_supply.PhaseViscosities[ph, supply_node]
+    if dp > 0
+        ρ = state_supply.PhaseMassDensities[ph, supply_node]
+        s = state_supply.Saturations[ph, supply_node]
+        μ = state_supply.PhaseViscosities[ph, supply_node]
+    else
+        ρ = state_return.PhaseMassDensities[ph, return_node]
+        s = state_return.Saturations[ph, return_node]
+        μ = state_return.PhaseViscosities[ph, return_node]
+    end
 
     q_ph = (s*ρ/μ)*Ψ
 
