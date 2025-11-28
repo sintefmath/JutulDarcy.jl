@@ -394,10 +394,10 @@ function relperm_for_corey_pair(tab_w, tab_nw, sr_other)
     n_nw = get(tab_nw, "Exponent", 2.0)
 
     sr_nw = max(sr_nw, 1.0 - max_wetting)
-    sr_tot = sr_w + sr_nw + sr_other
+    sr_tot = sr_w + sr_nw
 
     sr_tot_w = total_residual(tab_w, sr_tot)
-    sr_tot_nw = total_residual(tab_nw, sr_tot)
+    sr_tot_nw = total_residual(tab_nw, sr_tot + sr_other)
 
     krmax_w, krmax_crit_w = table_krmax(tab_w)
     krmax_nw, krmax_crit_nw = table_krmax(tab_nw)
