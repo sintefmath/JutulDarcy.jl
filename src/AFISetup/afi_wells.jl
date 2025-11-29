@@ -143,7 +143,7 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
             reference_depth = v["ref_depth"],
             name = Symbol(k)
         )
-        w[:well_index_multiplier, JutulDarcy.Perforations()] = pi_mult
+        w[:well_index_multiplier, JutulDarcy.Perforations()] = Float64.(pi_mult)
         w[:perforation_names, JutulDarcy.Perforations()] = compnames
         w[:original_perforation_indices, JutulDarcy.Perforations()] = sorted_ix
         if !ismissing(tvd)

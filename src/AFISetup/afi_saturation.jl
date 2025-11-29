@@ -42,13 +42,13 @@ function setup_relperm(d, reservoir, sys;
         vals = satfun.value
         reg = satfun.value["region"]
         if has_ow
-            krw[reg], krow[reg] = afi_relperm_pair(vals, :ow)
+            krw[reg], krow[reg] = afi_relperm_pair(vals, :ow, present)
         end
         if has_og
-            krg[reg], krog[reg] = afi_relperm_pair(vals, :og)
+            krg[reg], krog[reg] = afi_relperm_pair(vals, :og, present)
         end
         if has_wg
-            krw[reg], krg[reg] = afi_relperm_pair(vals, :wg)
+            krw[reg], krg[reg] = afi_relperm_pair(vals, :wg, present)
         end
     end
     w = remap_to_tuple(krw, kr_regs)
@@ -197,16 +197,24 @@ function remap_to_tuple(d::Dict, regs)
     return out
 end
 
-function afi_relperm_pair(satfun, type::Symbol)
+function afi_relperm_pair(satfun, type::Symbol, present)
+    tab_label_other = missing
     if type == :ow
         tab_label_w = "WaterRelPermFunction"
         tab_label_nw = "OilInWaterRelPermFunction"
+        if present.gas
+            tab_label_other = "GasRelPermFunction"
+        end
     elseif type == :og
         tab_label_w = "GasRelPermFunction"
         tab_label_nw = "OilInGasRelPermFunction"
+        if present.water
+            tab_label_other = "WaterRelPermFunction"
+        end
     elseif type == :wg
         tab_label_w = "WaterRelPermFunction"
         tab_label_nw = "GasRelPermFunction"
+        @assert !present.oil
     else
         error("Unsupported relperm pair type: $type")
     end
@@ -214,9 +222,15 @@ function afi_relperm_pair(satfun, type::Symbol)
         kr_w = get_relperm_table(satfun, tab_label_w)
         kr_nw = get_relperm_table(satfun, tab_label_nw)
     elseif haskey(satfun, "CoreyRelPerm")
+        if ismissing(tab_label_other)
+            sr_other = 0.0
+        else
+            tab_other = table_for_relperm(satfun, tab_label_other, "CoreyRelPerm")
+            sr_other = residual_saturation(tab_other)
+        end
         tab_w = table_for_relperm(satfun, tab_label_w, "CoreyRelPerm")
         tab_nw = table_for_relperm(satfun, tab_label_nw, "CoreyRelPerm")
-        kr_w, kr_nw = relperm_for_corey_pair(tab_w, tab_nw)
+        kr_w, kr_nw = relperm_for_corey_pair(tab_w, tab_nw, sr_other)
     end
 
     return (kr_w, kr_nw)
@@ -336,7 +350,7 @@ function merge_saturation_regions(drainage, imbibition)
     return merged
 end
 
-function setup_corey_kr_afi(sr_tot, sr, n = 2.0, krmax = 1.0, krmax_end = krmax; label, npts = 1000)
+function setup_corey_kr_afi(sr_tot, sr, n = 2.0, krmax = 1.0, krmax_end = krmax; label, npts = 100)
     sr_other = sr_tot - sr
     ϵ = 1e-8
     ϵ = 0.0
@@ -371,7 +385,7 @@ function table_krmax(tab)
     return (krmax, krmax_crit)
 end
 
-function relperm_for_corey_pair(tab_w, tab_nw)
+function relperm_for_corey_pair(tab_w, tab_nw, sr_other)
     sr_w = residual_saturation(tab_w)
     sr_nw = residual_saturation(tab_nw)
     max_wetting = max_saturation(tab_w)
@@ -383,7 +397,7 @@ function relperm_for_corey_pair(tab_w, tab_nw)
     sr_tot = sr_w + sr_nw
 
     sr_tot_w = total_residual(tab_w, sr_tot)
-    sr_tot_nw = total_residual(tab_nw, sr_tot)
+    sr_tot_nw = total_residual(tab_nw, sr_tot + sr_other)
 
     krmax_w, krmax_crit_w = table_krmax(tab_w)
     krmax_nw, krmax_crit_nw = table_krmax(tab_nw)

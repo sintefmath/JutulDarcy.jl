@@ -22,6 +22,7 @@ module AFISetup
         model, prm = setup_reservoir_model(afi; extra_out = true, kwarg...)
         state0 = setup_reservoir_state(afi, model)
         dt, forces = setup_afi_schedule(afi, model, step_limit = step_limit)
-        return Jutul.JutulCase(model, dt, forces, state0 = state0, parameters = prm)
+        date = first(keys(afi.setup["IX"]["STEPS"]))
+        return Jutul.JutulCase(model, dt, forces, state0 = state0, parameters = prm, start_date = date)
     end
 end

@@ -464,7 +464,7 @@ function compdat_to_connection_factors(domain, wspec, v, step; sort = true, orde
     end
 
     if sort
-        ix = well_completion_sortperm(domain, wspec, order, wc, dir)
+        ix = well_completion_sortperm(domain, wspec.head, order, wc, dir)
     else
         ix = eachindex(wc)
     end
@@ -2194,7 +2194,7 @@ function well_completion_sortperm(domain, head, order_t0::Union{Symbol, String},
         closest_ix = 0
         closest_ij_distance = typemax(Int)
         lowest_z = Inf
-        I_head, J_head = wspec.head
+        I_head, J_head = head
         for (i, c) in enumerate(wc)
             z_i = z[i]
             I, J, = ijk[i]
@@ -2214,7 +2214,6 @@ function well_completion_sortperm(domain, head, order_t0::Union{Symbol, String},
             end
         end
         prev_ix, prev_coord, prev_ijk, prev_dir = add_to_sorted!(closest_ix)
-        start = wspec.head
         use_dir = true
         while length(wc) > 0
             closest_ix = 0
