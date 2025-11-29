@@ -40,13 +40,25 @@ plot_reservoir(reservoir_ness, key = :porosity)
 # now quite easy to simulate when using parallel computing on CPU/GPU.
 #
 # The default coarsening is quite simple (harmonic averages and sums), but
-# quickly sets up a coarse model that can be used for testing.
+# quickly sets up a coarse model that can be used for testing, or as a starting
+# point for a more refined coarsening.
 case_fine = JutulDarcy.SPE10.setup_case()
-case_coarse = coarsen_reservoir_case(case_fine, (10, 22, 8))
+case_coarse = coarsen_reservoir_case(case_fine, (10, 22, 40))
 # ### Simulate the coarse model
-# The now quite coarse model should run in less than a second.
+# The now quite coarse model should run a few seconds.
 ws_coarse, states_coarse = simulate_reservoir(case_coarse);
 plot_reservoir(case_coarse.model, states_coarse, key = :Saturations, step = length(states_coarse))
+# ### Plot the water cut
+using Jutul
+t = ws_coarse.time./si_unit(:day)
+fig = Figure()
+ax = Axis(fig[1, 1]; xlabel = "Time (days)", ylabel = "Water cut")
+for w in [:P1, :P2, :P3, :P4]
+    wc = ws_coarse[w, :wcut]
+    lines!(ax, t, wc; label = "$w")
+end
+axislegend(position = :lt)
+fig
 # ## Conclusion
 # The SPE10, model 2, case is a standard benchmark case for reservoir
 # simulators. JutulDarcy includes premade functions to set up and run this
