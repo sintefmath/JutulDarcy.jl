@@ -464,7 +464,7 @@ function compdat_to_connection_factors(domain, wspec, v, step; sort = true, orde
     end
 
     if sort
-        ix = well_completion_sortperm(domain, wspec, order, wc, dir)
+        ix = well_completion_sortperm(domain, wspec.head, order, wc, dir)
     else
         ix = eachindex(wc)
     end
@@ -2143,7 +2143,7 @@ function keyword_to_control(sys, streams, kw, ::Val{:WCONINJH}; kwarg...)
     return injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp, is_hist = true; kwarg...)
 end
 
-function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
+function well_completion_sortperm(domain, head, order_t0, wc, dir)
     order_t = lowercase(order_t0)
     @assert order_t in ("track", "input", "depth") "Invalid order for well: $order_t0"
     centroid(dim) = domain[:cell_centroids][dim, wc]
@@ -2191,7 +2191,7 @@ function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
         closest_ix = 0
         closest_ij_distance = typemax(Int)
         lowest_z = Inf
-        I_head, J_head = wspec.head
+        I_head, J_head = head
         for (i, c) in enumerate(wc)
             z_i = z[i]
             I, J, = ijk[i]
@@ -2211,7 +2211,6 @@ function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
             end
         end
         prev_ix, prev_coord, prev_ijk, prev_dir = add_to_sorted!(closest_ix)
-        start = wspec.head
         use_dir = true
         while length(wc) > 0
             closest_ix = 0
