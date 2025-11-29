@@ -38,7 +38,7 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
             end
         end
     end
-    dir_to_str = Dict(
+    dir_to_symbol = Dict(
         GeoEnergyIO.IXParser.IX_I => :x,
         GeoEnergyIO.IXParser.IX_J => :y,
         GeoEnergyIO.IXParser.IX_K => :z,
@@ -71,6 +71,7 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
         cells = get(w2c, "Cell", Int[])
         active = Bool[]
         cells_mapped = Int[]
+        head = missing
         for c in cells
             if c isa Int
                 # TODO: Not clear to me if these include the cell index offset or not
@@ -83,6 +84,9 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
             if ismissing(next)
                 push!(active, false)
             else
+                if ismissing(head)
+                    head = cell_ijk(mesh, c)
+                end
                 push!(active, true)
                 push!(cells_mapped, next)
             end
@@ -101,7 +105,7 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
         if ismissing(dir)
             dir = fill(:z, nperf)
         else
-            dir = map(x -> dir_to_str[x], dir)
+            dir = map(x -> dir_to_symbol[x], dir)
         end
         dir = dir[active]
         WI = get_if_active(w2c, "Transmissibility", active)
@@ -113,12 +117,8 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
             compnames = map(i -> "COMPLETION_$i", cells)
         end
         compnames = compnames[active]
-        depth = reservoir[:cell_centroids][3, cells_mapped]
-        if get(perf_sort, k, :none) == :depth
-            sorted_ix = sortperm(depth)
-        else
-            sorted_ix = eachindex(depth)
-        end
+        worder = get(perf_sort, k, :track)
+        sorted_ix = JutulDarcy.well_completion_sortperm(reservoir, head, worder, cells_mapped, dir)
         maybe_sort(::Missing) = missing
         maybe_sort(arr::AbstractVector) = arr[sorted_ix]
 
