@@ -106,9 +106,15 @@ function Jutul.scalarized_primary_variable_type(model, var::BlackOilUnknown)
     return BlackOilX{Float64}
 end
 
-function Jutul.scalarize_primary_variable(model, source_vec, var::BlackOilUnknown, index)
+function Jutul.scalarize_primary_variable(model, source_vec, var::BlackOilUnknown, index; numeric::Bool = false)
     x = source_vec[index]
-    return BlackOilX(value(x.val), x.phases_present, x.sat_close)
+    xval = value(x.val)
+    if numeric
+        out = xval
+    else
+        out = BlackOilX(xval, x.phases_present, x.sat_close)
+    end
+    return out
 end
 
 function Jutul.descalarize_primary_variable!(dest_array, model, V::BlackOilX, var::BlackOilUnknown, index)
