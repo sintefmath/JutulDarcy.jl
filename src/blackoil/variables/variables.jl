@@ -103,7 +103,7 @@ function Base.zero(::BlackOilX{R}) where R
 end
 
 function Jutul.scalarized_primary_variable_type(model, var::BlackOilUnknown, T = Float64)
-    return BlackOilX{Float64}
+    return BlackOilX{T}
 end
 
 function Jutul.scalarize_primary_variable(model, source_vec, var::BlackOilUnknown, index; numeric::Bool = false)
