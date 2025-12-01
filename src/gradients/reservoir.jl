@@ -1,11 +1,12 @@
-function setup_reservoir_dict_optimization(dict, F = missing)
-    return DictParameters(dict, F)
+function setup_reservoir_dict_optimization(dict, F = missing; kwarg...)
+    return DictParameters(dict, F; kwarg...)
 end
 
 function setup_reservoir_dict_optimization(case::JutulCase;
         use_trans = false,
         use_pore_volume = false,
         strict = false,
+        verbose = true,
         do_copy = true,
         parameters = Symbol[],
         kwarg...
@@ -140,7 +141,7 @@ function setup_reservoir_dict_optimization(case::JutulCase;
     end
     opt_dict[:state0] = state0_dict
     F(D, step_info = missing) = optimization_resetup_reservoir_case(D, case, step_info, do_copy = do_copy)
-    return DictParameters(opt_dict, F, strict = strict)
+    return DictParameters(opt_dict, F, strict = strict, verbose = verbose)
 end
 
 function optimization_resetup_reservoir_case(opt_dict::AbstractDict, case::JutulCase, step_info; do_copy = true)
