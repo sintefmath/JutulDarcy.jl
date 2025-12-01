@@ -179,7 +179,11 @@ function update_flash_buffer!(buf, eos, Pressure, Temperature, OverallMoleFracti
         else
             Z = OverallMoleFractions[:, 1]
         end
-        buf.forces = force_coefficients(eos, (p = P, T = T, z = Z), static_size = true)
+        buf.forces = force_coefficients(
+            eos,
+            (p = P, T = T, z = Z),
+            static_size = isbitstype(maybe_ad_T)
+        )
     end
 end
 
@@ -233,6 +237,17 @@ function update_flash_result(S, m, eos, phase_state, K, cond_prev, stability, x,
 
     p_val = value(P)
     T_val = value(T)
+    T_num = promote_type(typeof(p_val), typeof(T_val), typeof(value(Z[1])))
+    if !(T_num isa AbstractFloat)
+        T_ad = promote_type(typeof(P), typeof(T), eltype(Z))
+        Z = collect(Z)
+        Z = T_ad.(Z)
+        P = T_ad(P)
+        Z_L = Z_V = V = P
+        x = y = Z
+        out = FlashedMixture2Phase(phase_state, K, V, x, y, Z_L, Z_V, critical_distance, cond_prev, stability)
+        return (out, FLASH_FULL)
+    end
     @. z = max(value(Z), MultiComponentFlash.MINIMUM_COMPOSITION)
 
     new_cond = (p = p_val, T = T_val, z = z)
