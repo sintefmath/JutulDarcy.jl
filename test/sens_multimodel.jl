@@ -115,7 +115,7 @@ end
         end
     end
 end
-
+##
 @testset "Egg sensitivities" begin
     egg_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("EGG");
     data_pth = joinpath(egg_dir, "EGG.DATA");
@@ -321,3 +321,117 @@ end
         @test isapprox(dF_num[i], dF_adj[i], atol = 0.1, rtol = 0.1)
     end
 end
+
+using JutulDarcy, Jutul, Test
+import Jutul.DictOptimization: finite_difference_gradient_entry
+
+@testset "Inner adjoint tests" begin
+    function test_physics(phys;
+        block_backend = false,
+        case_broken = false,
+        di_broken = false,
+        atol = 1e-8,
+        rtol = 1e-2,
+        lumping = missing
+        )
+        tmp = JutulDarcy.simulate_mini_wellcase(phys, block_backend = block_backend);
+        s = tmp.setup;
+        case = JutulCase(s[:model], s[:dt], s[:forces], state0 = s[:state0], parameters = s[:parameters])
+        _, states = simulate_reservoir(case, info_level = -1)
+
+        step_times = cumsum(case.dt)
+        total_time = step_times[end]
+        function pdiff(p, p0)
+            v = 0.0
+            for i in eachindex(p)
+                v += (p[i] - p0[i])^2
+            end
+            return v
+        end
+
+        function mismatch_objective_p(m, s, dt, step_info, forces)
+            t = step_info[:time] + dt
+            step = findmin(x -> abs(x - t), step_times)[2]
+            p = s[:Reservoir][:Pressure]
+            v = pdiff(p, states[step][:Pressure])
+            return (dt/total_time)*(v/(si_unit(:bar)*100)^2)
+        end
+
+        function setup_function(d, step_info = missing)
+            new_case = deepcopy(case)
+            T = new_case.parameters[:Reservoir][:Transmissibilities]
+            p0 = new_case.state0[:Reservoir][:Pressure]
+            new_case.state0[:Reservoir][:Pressure] = p0.*d["pmult"]
+            new_case.parameters[:Reservoir][:Transmissibilities] = T.*d["transmult"]
+            return new_case
+        end
+
+        rmodel = reservoir_model(case)
+        nf = number_of_faces(rmodel.domain)
+        nc = number_of_cells(rmodel.domain)
+        prm = Dict(
+            "transmult" => 1.0 .+ 0.5*rand(nf),
+            "pmult" => fill(1.5, nc)
+        )
+
+        dprm = setup_reservoir_dict_optimization(prm, setup_function, verbose = false)
+        free_optimization_parameter!(dprm, "transmult", abs_max = 5.0, abs_min = 0.1)
+        free_optimization_parameter!(dprm, "pmult", abs_max = 5.0, abs_min = 0.1, lumping = lumping)
+
+        P = Jutul.DictOptimization.JutulOptimizationProblem(dprm, mismatch_objective_p, setup_function, info_level = -1, deps = :parameters_and_state0, deps_ad = :jutul)
+        P_case = Jutul.DictOptimization.JutulOptimizationProblem(dprm, mismatch_objective_p, setup_function, info_level = -1, deps = :case)
+        P_di = Jutul.DictOptimization.JutulOptimizationProblem(dprm, mismatch_objective_p, setup_function, info_level = -1, deps = :parameters_and_state0, deps_ad = :di)
+        x0 = copy(P.x0)
+
+        f, dfdx_jutul = P(x0)
+        f, dfdx_di = P_di(x0)
+        f, dfdx_case = P_case(x0)
+        ##
+        dfdx_fd = similar(dfdx_jutul)
+        for index in eachindex(dfdx_jutul)
+            dfdx_fd[index] = finite_difference_gradient_entry(P, x0, index = index)
+        end
+        function mytest(cond, is_broken)
+            if is_broken
+                @test_broken cond
+            else
+                @test cond
+            end
+        end
+        function test_ok(val, broken)
+            @test length(val) == length(dfdx_fd)
+            normdiff = norm(val-dfdx_fd, 2)/norm(dfdx_fd, 2)
+            mytest(normdiff < 1e-3, broken)
+            mytest(all(isapprox.(dfdx_fd, val, rtol = rtol, atol = atol)), broken)
+        end
+        @testset "Jutul inner adjoint" begin
+            test_ok(dfdx_jutul, false)
+        end
+        @testset "DI inner adjoint" begin
+            test_ok(dfdx_di, di_broken)
+        end
+        @testset "DI outer adjoint (case)" begin
+            test_ok(dfdx_case, case_broken)
+        end
+    end
+    phys = :immiscible_2ph
+    @testset "$phys" begin
+        test_physics(phys; block_backend = true)
+        test_physics(phys; block_backend = false)
+        test_physics(phys; block_backend = true, lumping = [2, 1, 1])
+    end
+    phys = :compositional_2ph_3c
+    @testset "$phys" begin
+        test_physics(phys; block_backend = true, case_broken = true, di_broken = true)
+        test_physics(phys; block_backend = false, case_broken = true, di_broken = true)
+    end
+    phys = :bo_spe1
+    @testset "$phys" begin
+        test_physics(phys; block_backend = true, case_broken = false, di_broken = true)
+        test_physics(phys; block_backend = false, case_broken = false, di_broken = true)
+    end
+    phys = :single_phase
+    @testset "$phys" begin
+        test_physics(phys; block_backend = false, case_broken = false, di_broken = false)
+    end
+end;
