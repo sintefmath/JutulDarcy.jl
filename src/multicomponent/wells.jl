@@ -234,8 +234,13 @@ end
 function compositional_surface_densities(state, system, S_l::S_T, S_v::S_T, rho_l::R_T, rho_v::R_T) where {S_T, R_T}
     nph = number_of_phases(system)
     T = promote_type(S_T, R_T)
-    rhoS = @MVector zeros(T, nph)
-    volume = @MVector zeros(T, nph)
+    if isbitstype(T)
+        rhoS = @MVector zeros(T, nph)
+        volume = @MVector zeros(T, nph)
+    else
+        rhoS = zeros(T, nph)
+        volume = zeros(T, nph)
+    end
     if has_other_phase(system)
         a, l, v = phase_indices(system)
         rhoWS = reference_densities(system)[a]
@@ -255,5 +260,9 @@ function compositional_surface_densities(state, system, S_l::S_T, S_v::S_T, rho_
     volume[l] = S_l*rem
     volume[v] = S_v*rem
     @assert sum(volume) ≈ 1.0 "Volume should sum to 1, was $(sum(volume))"
-    return (SVector(rhoS), SVector(volume))
+    if isbitstype(T)
+        rhoS = SVector(rhoS)
+        volume = SVector(volume)
+    end
+    return (rhoS, volume)
 end
