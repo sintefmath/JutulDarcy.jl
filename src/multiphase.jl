@@ -393,9 +393,26 @@ function pore_volume(data_domain::DataDomain; throw = true)
     return pv
 end
 
-pore_volume(model::MultiModel, parameters) = pore_volume(reservoir_model(model), parameters[:Reservoir])
-pore_volume(model::SimulationModel, parameters) = fluid_volume(model, parameters)
-fluid_volume(model, parameters) = parameters[:FluidVolume]
+function pore_volume(model::MultiModel)
+    return pore_volume(reservoir_model(model))
+end
+
+function pore_volume(model::MultiModel, parameters)
+    return pore_volume(reservoir_model(model), parameters[:Reservoir])
+end
+
+function pore_volume(model::SimulationModel, parameters = setup_parameters(model))
+    fluid_volume(model, parameters)
+end
+
+function fluid_volume(model, parameters)
+    if haskey(parameters, :StaticFluidVolume)
+        return parameters[:StaticFluidVolume]
+    else
+        return parameters[:FluidVolume]
+    end
+end
+
 domain_fluid_volume(g) = missing
 
 function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw, eq_s, force::V, time) where {V <: AbstractVector{SourceTerm{I, F, T}}, D, S<:MultiPhaseSystem} where {I, F, T}

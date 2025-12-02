@@ -2143,7 +2143,10 @@ function keyword_to_control(sys, streams, kw, ::Val{:WCONINJH}; kwarg...)
     return injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp, is_hist = true; kwarg...)
 end
 
-function well_completion_sortperm(domain, head, order_t0, wc, dir)
+function well_completion_sortperm(domain, head, order_t0::Union{Symbol, String}, wc, dir::AbstractVector{Symbol})
+    if order_t0 isa Symbol
+        order_t0 = String(order_t0)
+    end
     order_t = lowercase(order_t0)
     @assert order_t in ("track", "input", "depth") "Invalid order for well: $order_t0"
     centroid(dim) = domain[:cell_centroids][dim, wc]
@@ -2151,7 +2154,7 @@ function well_completion_sortperm(domain, head, order_t0, wc, dir)
     if n < 2 || order_t == "input"
         # Do nothing.
         sorted = eachindex(wc)
-    elseif order_t == "depth" || all(isequal("Z"), dir)
+    elseif order_t == "depth" || all(isequal(:z), dir)
         z = centroid(3)
         sorted = sortperm(z)
     else

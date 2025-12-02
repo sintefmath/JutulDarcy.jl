@@ -111,18 +111,26 @@ module SPE10
         return ImmiscibleSystem(:wo, reference_densities = [rhoWS, rhoOS])
     end
 
-    function setup_wells(domain::Jutul.DataDomain)
+    function setup_wells(domain::Jutul.DataDomain; well_triplets = missing)
+        if ismissing(well_triplets)
+            well_triplets = [
+                (30, 110, :I1),
+                (1, 1, :P1),
+                (60, 1, :P2),
+                (60, 220, :P3),
+                (1, 220, :P4)
+            ]
+        end
         mesh = physical_representation(domain)
         nx, ny, nz = grid_dims_ijk(mesh)
         nx == 60 || error("Expected nx=60, got $nx")
         ny == 220 || error("Expected ny=220, got $ny")
         addw(I, J, name) = setup_vertical_well(domain, I, J, name = name, verbose = false, radius = 5*si_unit(:inch))
-        I1 = addw(30, 110, :I1)
-        P1 = addw(1, 1, :P1)
-        P2 = addw(60, 1, :P2)
-        P3 = addw(60, 220, :P3)
-        P4 = addw(1, 220, :P4)
-        return [I1, P1, P2, P3, P4]
+        wells = []
+        for (I, J, name) in well_triplets
+            push!(wells, addw(I, J, name))
+        end
+        return [w for w in wells]
     end
 
     function setup_relperm()
@@ -172,10 +180,15 @@ module SPE10
         return DeckPhaseViscosities(pvt)
     end
 
-    function setup_model(; layers = 1:85, model_arg = NamedTuple(), kwarg...)
+    function setup_model(;
+            layers = 1:85,
+            model_arg = NamedTuple(),
+            well_triplets = missing,
+            kwarg...
+        )
         domain = setup_reservoir(; layers = layers, kwarg...)
         sys = setup_system()
-        wells = setup_wells(domain)
+        wells = setup_wells(domain; well_triplets = well_triplets)
         model = setup_reservoir_model(domain, sys; ds_max = 0.1, wells = wells, model_arg...)
         kr = setup_relperm()
         mu = setup_viscosity()
