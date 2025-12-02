@@ -230,7 +230,7 @@ end
         @test norm(adjgrad - numgrad)/scale < 1e-6
     end
 end
-
+##
 @testset "Lumping and LET" begin
     data_dir = GeoEnergyIO.test_input_file_path("EGG")
     data_pth = joinpath(data_dir, "EGG.DATA")
@@ -321,22 +321,32 @@ end
         @test isapprox(dF_num[i], dF_adj[i], atol = 0.1, rtol = 0.1)
     end
 end
-
+##
 using JutulDarcy, Jutul, Test
 import Jutul.DictOptimization: finite_difference_gradient_entry
 
 @testset "Inner adjoint tests" begin
     function test_physics(phys;
-        block_backend = false,
-        case_broken = false,
-        di_broken = false,
-        atol = 1e-8,
-        rtol = 1e-2,
-        lumping = missing
+            block_backend = false,
+            case_broken = false,
+            di_broken = false,
+            atol = 1e-8,
+            rtol = 1e-2,
+            lumping = missing,
+            add_let = false
         )
         tmp = JutulDarcy.simulate_mini_wellcase(phys, block_backend = block_backend);
         s = tmp.setup;
-        case = JutulCase(s[:model], s[:dt], s[:forces], state0 = s[:state0], parameters = s[:parameters])
+        m = s[:model]
+        prm = s[:parameters]
+        if add_let
+            rmodel = reservoir_model(m)
+            kr = JutulDarcy.ParametricLETRelativePermeabilities()
+            set_secondary_variables!(rmodel, RelativePermeabilities = kr)
+            JutulDarcy.add_relperm_parameters!(rmodel)
+            prm = setup_parameters(m)
+        end
+        case = JutulCase(m, s[:dt], s[:forces], state0 = s[:state0], parameters = prm)
         _, states = simulate_reservoir(case, info_level = -1)
 
         step_times = cumsum(case.dt)
@@ -363,6 +373,12 @@ import Jutul.DictOptimization: finite_difference_gradient_entry
             p0 = new_case.state0[:Reservoir][:Pressure]
             new_case.state0[:Reservoir][:Pressure] = p0.*d["pmult"]
             new_case.parameters[:Reservoir][:Transmissibilities] = T.*d["transmult"]
+            if add_let
+                WettingLET = new_case.parameters[:Reservoir][:WettingLET]
+                NonWettingLET = new_case.parameters[:Reservoir][:NonWettingLET]
+                new_case.parameters[:Reservoir][:WettingLET] = WettingLET .* d["WettingLET"]
+                new_case.parameters[:Reservoir][:NonWettingLET] = NonWettingLET .* d["NonWettingLET"]
+            end
             return new_case
         end
 
@@ -373,10 +389,19 @@ import Jutul.DictOptimization: finite_difference_gradient_entry
             "transmult" => 1.0 .+ 0.5*rand(nf),
             "pmult" => fill(1.5, nc)
         )
+        if add_let
+            prm["WettingLET"] = fill(1.0, 3, nc)
+            prm["NonWettingLET"] = fill(1.0, 3, nc)
+        end
 
         dprm = setup_reservoir_dict_optimization(prm, setup_function, verbose = false)
         free_optimization_parameter!(dprm, "transmult", abs_max = 5.0, abs_min = 0.1)
         free_optimization_parameter!(dprm, "pmult", abs_max = 5.0, abs_min = 0.1, lumping = lumping)
+
+        if add_let
+            free_optimization_parameter!(dprm, "WettingLET", abs_max = 5.0, abs_min = 0.1, lumping = lumping)
+            free_optimization_parameter!(dprm, "NonWettingLET", abs_max = 5.0, abs_min = 0.1)
+        end
 
         P = Jutul.DictOptimization.JutulOptimizationProblem(dprm, mismatch_objective_p, setup_function, info_level = -1, deps = :parameters_and_state0, deps_ad = :jutul)
         P_case = Jutul.DictOptimization.JutulOptimizationProblem(dprm, mismatch_objective_p, setup_function, info_level = -1, deps = :case)
@@ -419,6 +444,7 @@ import Jutul.DictOptimization: finite_difference_gradient_entry
         test_physics(phys; block_backend = true)
         test_physics(phys; block_backend = false)
         test_physics(phys; block_backend = true, lumping = [2, 1, 1])
+        test_physics(phys; block_backend = true, lumping = [2, 1, 1], add_let = true)
     end
     phys = :compositional_2ph_3c
     @testset "$phys" begin
