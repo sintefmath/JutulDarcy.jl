@@ -230,7 +230,7 @@ end
         @test norm(adjgrad - numgrad)/scale < 1e-6
     end
 end
-##
+
 @testset "Lumping and LET" begin
     data_dir = GeoEnergyIO.test_input_file_path("EGG")
     data_pth = joinpath(data_dir, "EGG.DATA")
@@ -321,7 +321,7 @@ end
         @test isapprox(dF_num[i], dF_adj[i], atol = 0.1, rtol = 0.1)
     end
 end
-##
+
 using JutulDarcy, Jutul, Test
 import Jutul.DictOptimization: finite_difference_gradient_entry
 
