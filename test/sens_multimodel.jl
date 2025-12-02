@@ -385,7 +385,7 @@ import Jutul.DictOptimization: finite_difference_gradient_entry
         rmodel = reservoir_model(case)
         nf = number_of_faces(rmodel.domain)
         nc = number_of_cells(rmodel.domain)
-        prm = Dict(
+        prm = Dict{String, Any}(
             "transmult" => 1.0 .+ 0.5*rand(nf),
             "pmult" => fill(1.5, nc)
         )
@@ -399,7 +399,12 @@ import Jutul.DictOptimization: finite_difference_gradient_entry
         free_optimization_parameter!(dprm, "pmult", abs_max = 5.0, abs_min = 0.1, lumping = lumping)
 
         if add_let
-            free_optimization_parameter!(dprm, "WettingLET", abs_max = 5.0, abs_min = 0.1, lumping = lumping)
+            if ismissing(lumping)
+                lumping_let = missing
+            else
+                lumping_let = repeat(lumping', 3, 1)
+            end
+            free_optimization_parameter!(dprm, "WettingLET", abs_max = 5.0, abs_min = 0.1, lumping = lumping_let)
             free_optimization_parameter!(dprm, "NonWettingLET", abs_max = 5.0, abs_min = 0.1)
         end
 
@@ -443,8 +448,12 @@ import Jutul.DictOptimization: finite_difference_gradient_entry
     @testset "$phys" begin
         test_physics(phys; block_backend = true)
         test_physics(phys; block_backend = false)
-        test_physics(phys; block_backend = true, lumping = [2, 1, 1])
-        test_physics(phys; block_backend = true, lumping = [2, 1, 1], add_let = true)
+        @testset "Lumping" begin
+            test_physics(phys; block_backend = true, lumping = [2, 1, 1])
+        end
+        @testset "LET" begin
+            test_physics(phys; block_backend = true, lumping = [2, 1, 1], add_let = true)
+        end
     end
     phys = :compositional_2ph_3c
     @testset "$phys" begin
