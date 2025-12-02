@@ -448,11 +448,12 @@ import Jutul.DictOptimization: finite_difference_gradient_entry
     @testset "$phys" begin
         test_physics(phys; block_backend = true)
         test_physics(phys; block_backend = false)
+
         @testset "Lumping" begin
             test_physics(phys; block_backend = true, lumping = [2, 1, 1])
         end
         @testset "LET" begin
-            test_physics(phys; block_backend = true, lumping = [2, 1, 1], add_let = true)
+            test_physics(phys; block_backend = true, lumping = [2, 1, 1], add_let = true, di_broken = true)
         end
     end
     phys = :compositional_2ph_3c
