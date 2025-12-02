@@ -61,11 +61,11 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         WIth = missing,
         volumes = missing,
         thermal_conductivity = missing,
+        material_density = 0.0,
+        material_heat_capacity = 0.0,
         material_thermal_conductivity = 0.0,
-        thermal_conductivity_casing = 20.0,
-        thermal_conductivity_grout = 2.3,
-        casing_heat_capacity = 420.0,
-        casing_density = 8000.0,
+        casing_thermal_conductivity = 20.0,
+        grouting_thermal_conductivity = 2.3,
         volume_multiplier = 1.0,
         friction = 1e-4, # Old version of kwarg for roughness
         roughness = friction,
@@ -198,10 +198,8 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
     Wdomain[:volume_multiplier, c] = volume_multiplier
     Wdomain[:casing_thickness, c] = casing_thickness
     Wdomain[:grouting_thickness, c] = grouting_thickness
-    Wdomain[:thermal_conductivity_casing, c] = thermal_conductivity_casing
-    Wdomain[:thermal_conductivity_grout, c] = thermal_conductivity_grout
-    Wdomain[:casing_heat_capacity, c] = casing_heat_capacity
-    Wdomain[:casing_density, c] = casing_density
+    Wdomain[:casing_thermal_conductivity, c] = casing_thermal_conductivity
+    Wdomain[:grouting_thermal_conductivity, c] = grouting_thermal_conductivity
 
     # ## Thermal well props
     # ### Perforations
@@ -223,7 +221,10 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
 
     if !simple_well
         Wdomain[:roughness, f] = roughness
+        # Properties to allow for modelling heat flow in well material
         Wdomain[:material_thermal_conductivity, f] = material_thermal_conductivity
+        Wdomain[:material_density, c] = material_density
+        Wdomain[:material_heat_capacity, c] = material_heat_capacity
     end
 
     return Wdomain
