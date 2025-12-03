@@ -290,8 +290,8 @@ function Jutul.default_parameter_values(data_domain, model, param::WellIndicesTh
     well = physical_representation(data_domain)
     ic = well.perforations.self
 
-    thermal_conductivity_casing = data_domain[:thermal_conductivity_casing, Cells()][ic]
-    thermal_conductivity_grout = data_domain[:thermal_conductivity_grout, Cells()][ic]
+    λ_casing = data_domain[:casing_thermal_conductivity, Cells()][ic]
+    λ_grout = data_domain[:grouting_thermal_conductivity, Cells()][ic]
     casing_thickness = data_domain[:casing_thickness, Cells()][ic]
     grouting_thickness = data_domain[:grouting_thickness, Cells()][ic]
 
@@ -308,8 +308,8 @@ function Jutul.default_parameter_values(data_domain, model, param::WellIndicesTh
             WIt[i] = compute_well_thermal_index(Δ, Λ_i, radius[i], direction[i];
                 casing_thickness = casing_thickness[i],
                 grouting_thickness = grouting_thickness[i],
-                thermal_conductivity_casing = thermal_conductivity_casing[i],
-                thermal_conductivity_grout = thermal_conductivity_grout[i],
+                casing_thermal_conductivity = λ_casing[i],
+                grouting_thermal_conductivity = λ_grout[i],
             )
         end
     end
@@ -337,41 +337,39 @@ function Jutul.default_parameter_values(data_domain, model, param::MaterialTherm
 end
 
 """
-    MaterialDensity()
+    MaterialDensities()
 
 Parameter well material density.
 """
-struct CasingDensities <: ScalarVariable end
+struct MaterialDensities <: ScalarVariable end
+Jutul.variable_scale(::MaterialDensities) = 1.0
+Jutul.minimum_value(::MaterialDensities) = 0.0
+Jutul.associated_entity(::MaterialDensities) = Cells()
 
-Jutul.variable_scale(::CasingDensities) = 1.0
-Jutul.minimum_value(::CasingDensities) = 0.0
-Jutul.associated_entity(::CasingDensities) = Cells()
-
-function Jutul.default_parameter_values(data_domain, model, param::CasingDensities, symb)
-    if haskey(data_domain, :casing_density, Cells())
-        T = copy(data_domain[:casing_density])
+function Jutul.default_parameter_values(data_domain, model, param::MaterialDensities, symb)
+    if haskey(data_domain, :material_density, Cells())
+        T = copy(data_domain[:material_density])
     else
-        error(":casing_density symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+        error(":material_density must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
     return T
 end
 
 """
-    CasingHeatCapacities()
+    MaterialHeatCapacities()
 
 Parameter heat capacitiy of the well material.
 """
-struct CasingHeatCapacities <: ScalarVariable end
+struct MaterialHeatCapacities <: ScalarVariable end
+Jutul.variable_scale(::MaterialHeatCapacities) = 1.0
+Jutul.minimum_value(::MaterialHeatCapacities) = 0.0
+Jutul.associated_entity(::MaterialHeatCapacities) = Cells()
 
-Jutul.variable_scale(::CasingHeatCapacities) = 1.0
-Jutul.minimum_value(::CasingHeatCapacities) = 0.0
-Jutul.associated_entity(::CasingHeatCapacities) = Cells()
-
-function Jutul.default_parameter_values(data_domain, model, param::CasingHeatCapacities, symb)
-    if haskey(data_domain, :casing_heat_capacity, Cells())
-        T = copy(data_domain[:casing_heat_capacity])
+function Jutul.default_parameter_values(data_domain, model, param::MaterialHeatCapacities, symb)
+    if haskey(data_domain, :material_heat_capacity, Cells())
+        T = copy(data_domain[:material_heat_capacity])
     else
-        error(":casing_heat_capacity symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+        error(":material_heat_capacity symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
     return T
 end
@@ -430,8 +428,8 @@ function add_thermal_to_model!(model)
             if w isa MultiSegmentWell
                 set_parameters!(model,
                     MaterialThermalConductivities = MaterialThermalConductivities(),
-                    CasingHeatCapacities = CasingHeatCapacities(),
-                    CasingDensities = CasingDensities()
+                    MaterialHeatCapacities = MaterialHeatCapacities(),
+                    MaterialDensities = MaterialDensities()
                 )
                 set_secondary_variables!(model,
                     MaterialInternalEnergy = MaterialInternalEnergy()
