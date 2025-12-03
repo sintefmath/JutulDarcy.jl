@@ -1,0 +1,1 @@
+import{_ as e,c as a,o as s}from"./chunks/framework.BgSDnNIf.js";const p=JSON.parse('{"title":"","description":"","frontmatter":{},"headers":[],"relativePath":"man/basics/models.md","filePath":"man/basics/models.md","lastUpdated":null}'),t={name:"man/basics/models.md"};function o(n,c,r,d,m,l){return s(),a("div")}const _=e(t,[["render",o]]);export{p as __pageData,_ as default};
