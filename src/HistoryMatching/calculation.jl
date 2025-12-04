@@ -36,6 +36,7 @@ function (global_obj::GlobalHistoryMatchObjective)(model, state0, states, step_i
     obj = 0.0
     # Find start and stop index
 
+    # println("Evaluate global history match objective #$(global_obj.evaluation_count[])")
     period_contribution(start_idx, stop_idx, weights) = get_period_contribution(hm, model, states, step_infos, forces, start_idx, stop_idx, weights)
     if ismissing(hm.periods)
         for i in eachindex(step_infos)
@@ -52,12 +53,14 @@ function (global_obj::GlobalHistoryMatchObjective)(model, state0, states, step_i
         end
     end
     obj += get_cumulative_contribution(hm, model, states, step_infos, forces)
-    return obj
+    return obj*hm.total_scale
 end
 
 function (local_obj::SumHistoryMatchObjective)(model, state, dt, step_info, forces)
     local_obj.evaluation_count[] += 1
-    return get_cumulative_contribution(local_obj.match, model, (state,), (step_info,), (forces,))
+    hm = local_obj.match
+    val = get_cumulative_contribution(hm, model, (state,), (step_info,), (forces,))
+    return val*hm.total_scale
 end
 
 function get_cumulative_contribution(hm::HistoryMatch, model, states, step_infos, forces)
@@ -101,6 +104,7 @@ function get_period_contribution_wells(wms::Vector{WellMatch}, sgn, target::Jutu
     if length(wms) == 0
         return val
     end
+    for wm in wms
         val += get_period_contribution_well(wm, wellpos, sgn, target, model, states, step_infos, forces, start_idx, stop_idx, weights; kwarg...)
     end
     return val

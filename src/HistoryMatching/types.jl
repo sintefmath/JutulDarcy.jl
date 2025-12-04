@@ -50,6 +50,7 @@ struct HistoryMatch
     producer_cumulative_water::Vector{WellMatch}
     producer_cumulative_liquid::Vector{WellMatch}
     reservoir::Vector{ReservoirMatch}
+    total_scale::Float64
 end
 
 function HistoryMatch(case::JutulCase; kwarg...)
@@ -62,7 +63,12 @@ function HistoryMatch(case::JutulCase, res::JutulDarcy.ReservoirSimResult; kwarg
     return HistoryMatch(case, states, smry; kwarg...)
 end
 
-function HistoryMatch(case::JutulCase, states, summary; periods = missing, period_weights = missing, normalized_periods = missing)
+function HistoryMatch(case::JutulCase, states, summary;
+        periods = missing,
+        period_weights = missing,
+        normalized_periods = missing,
+        scale = 1.0/sum(case.dt)
+    )
     periods = setup_periods(case, periods, period_weights, normalized_periods)
     case.model::MultiModel
     wellpos = Dict{Symbol, Int}()
@@ -90,7 +96,8 @@ function HistoryMatch(case::JutulCase, states, summary; periods = missing, perio
         WellMatch[],  # producer_cumulative_gas
         WellMatch[],  # producer_cumulative_water
         WellMatch[],  # producer_cumulative_liquid
-        ReservoirMatch[]  # reservoir
+        ReservoirMatch[],  # reservoir
+        scale
     )
 end
 
