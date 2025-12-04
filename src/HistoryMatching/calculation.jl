@@ -140,7 +140,7 @@ function get_period_contribution_well(wm::WellMatch, wellpos, sgn, target::Jutul
                 observed_cumulative = get_well_observation(wm, time)
                 w_well = effective_weight(wm, control_step)
                 # Accumulate objective
-                obj += abs((calculated_cumulative - observed_cumulative)*w_step_from_period*w_well)
+                obj += ((calculated_cumulative - observed_cumulative)*w_step_from_period*w_well)^2
             end
         end
         out = obj
