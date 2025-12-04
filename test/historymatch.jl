@@ -1,7 +1,12 @@
+using Jutul, JutulDarcy
 using JutulDarcy.HistoryMatching
 
 using Test
 @testset "HistoryMatching Interface" begin
+    spe1_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1")
+    case_spe1 = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"))
+    res_spe1 = simulate_reservoir(case_spe1, info_level = -1)
+
     yr = si_unit(:year)
     hm = HistoryMatching.HistoryMatch(case_spe1)
     @test ismissing(hm.periods)
