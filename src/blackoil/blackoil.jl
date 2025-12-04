@@ -168,20 +168,26 @@ function handle_alternate_primary_variable_spec!(init, found, rmodel, sys::Stand
             rv = zeros(nc)
             rv_var = nothing
         end
-        so = @. 1.0 - sw - sg
-        bo = Vector{BlackOilX{T}}()
-        sizehint!(bo, nc)
-        for i in 1:nc
-            reg_rs = region(rs_var, i)
-            reg_rv = region(rv_var, i)
-            F_rs_i = table_by_region(F_rs, reg_rs)
-            F_rv_i = table_by_region(F_rv, reg_rv)
-            sw_i, so_i, sg_i, rs_i, rv_i, pressure_i = promote(sw[i], so[i], sg[i], rs[i], rv[i], pressure[i])
-            v = blackoil_unknown_init(F_rs_i, F_rv_i, sw_i, so_i, sg_i, rs_i, rv_i, pressure_i)
-            push!(bo, v)
-        end
+        bo = handle_alternate_primary_variable_spec_blackoil_initialization(T, rs_var, rv_var, F_rs, F_rv, sw, sg, rs, rv, pressure)
         init[:BlackOilUnknown] = bo
         push!(found, :BlackOilUnknown)
     end
     return init
+end
+
+function handle_alternate_primary_variable_spec_blackoil_initialization(T, rs_var, rv_var, F_rs, F_rv, sw, sg, rs, rv, pressure)
+    so = @. 1.0 - sw - sg
+    nc = length(pressure)
+    bo = Vector{BlackOilX{T}}()
+    sizehint!(bo, nc)
+    for i in 1:nc
+        reg_rs = region(rs_var, i)
+        reg_rv = region(rv_var, i)
+        F_rs_i = table_by_region(F_rs, reg_rs)
+        F_rv_i = table_by_region(F_rv, reg_rv)
+        sw_i, so_i, sg_i, rs_i, rv_i, pressure_i = promote(sw[i], so[i], sg[i], rs[i], rv[i], pressure[i])
+        v = blackoil_unknown_init(F_rs_i, F_rv_i, sw_i, so_i, sg_i, rs_i, rv_i, pressure_i)
+        push!(bo, v)
+    end
+    return bo
 end
