@@ -184,9 +184,12 @@ module SPE10
             layers = 1:85,
             model_arg = NamedTuple(),
             well_triplets = missing,
+            domain = missing,
             kwarg...
         )
-        domain = setup_reservoir(; layers = layers, kwarg...)
+        if ismissing(domain)
+            domain = setup_reservoir(; layers = layers, kwarg...)
+        end
         sys = setup_system()
         wells = setup_wells(domain; well_triplets = well_triplets)
         model = setup_reservoir_model(domain, sys; ds_max = 0.1, wells = wells, model_arg...)
