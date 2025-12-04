@@ -58,7 +58,7 @@ end
 function (local_obj::SumHistoryMatchObjective)(model, state, dt, step_info, forces)
     local_obj.evaluation_count[] += 1
     hm = local_obj.match
-    val = get_cumulative_contribution(hm, model, (state,), (step_info,), (forces,))
+    val = get_period_contribution(hm, model, (state,), (step_info,), (forces,), 1, 1, missing)
     return val*hm.total_scale
 end
 
