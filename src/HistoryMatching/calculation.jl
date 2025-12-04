@@ -7,10 +7,16 @@ function evaluate_global_match(hm::HistoryMatch, result::ReservoirSimResult)
     return Jutul.evaluate_objective(hm, model, result.result.states, timesteps, all_forces)
 end
 
-function get_well_value(wm::WellMatch, ctrl, wmodel, wstate, fstate, wellpos, report_step, time)
-    wname = wm.name
-    rhoS = JutulDarcy.reference_densities(wmodel.system)
-    return JutulDarcy.compute_well_qoi(wmodel, wstate, fstate, wname, wellpos, rhoS, ctrl)
+function get_well_value(wm::WellMatch, ctrl, target, wmodel, wstate, fstate, wellpos, report_step, time)
+    if ctrl isa DisabledControl
+        val = 0.0
+    else
+        ctrl = JutulDarcy.replace_target(ctrl, target)
+        wname = wm.name
+        rhoS = JutulDarcy.reference_densities(wmodel.system)
+        val = JutulDarcy.compute_well_qoi(wmodel, wstate, fstate, wname, wellpos, rhoS, ctrl)
+    end
+    return val
 end
 
 function get_well_observation(wm::WellMatch, time)
@@ -18,12 +24,7 @@ function get_well_observation(wm::WellMatch, time)
 end
 
 function get_well_match(wm::WellMatch, ctrl, target, wmodel, wstate, fstate, wellpos, report_step, time)
-    if ctrl isa DisabledTarget
-        qoi = 0.0
-    else
-        ctrl = JutulDarcy.replace_target(ctrl, target)
-        qoi = get_well_value(wm, ctrl, wmodel, wstate, fstate, wellpos, report_step, time)
-    end
+    qoi = get_well_value(wm, ctrl, target, wmodel, wstate, fstate, wellpos, report_step, time)
     obs = get_well_observation(wm, time)
     w = effective_weight(wm, report_step)
     return (w*qoi, w*obs)

@@ -70,7 +70,10 @@ smry_jutul = summary_result(case, res, :field)
 GeoEnergyIO.write_jutuldarcy_summary("FILENAME", smry_jutul, unified = true)
 ```
 """
-function summary_result(case::JutulCase, res::ReservoirSimResult, usys = missing)
+function summary_result(case::JutulCase, res::ReservoirSimResult, usys = missing;
+        field = true,
+        wells = true
+    )
     function to_summary(x::Dict)
         x_c = Dict{String, Vector{Float64}}()
         # TODO: Unit conversion here.
@@ -114,25 +117,34 @@ function summary_result(case::JutulCase, res::ReservoirSimResult, usys = missing
         )
         return rm
     end
-    f_smry = get_values(:field)
-    vals["FIELD"] = to_summary(f_smry)
-    w_smry = Dict()
-    for w in keys(res.wells.wells)
-        wi = get_values(:well, wells = w)
-        w_smry["$w"] = to_summary(wi)
+    t = missing
+    if field
+        f_smry = get_values(:field)
+        vals["FIELD"] = to_summary(f_smry)
+        t = f_smry[:time]
     end
-    vals["WELLS"] = w_smry
+    if wells
+        w_smry = Dict()
+        for w in keys(res.wells.wells)
+            wi = get_values(:well, wells = w)
+            w_smry["$w"] = to_summary(wi)
+            if ismissing(t)
+                t = wi[:time]
+            end
+        end
+        vals["WELLS"] = w_smry
+    end
 
     if has_data && haskey(data["RUNSPEC"], "START")
         start = data["RUNSPEC"]["START"]
     else
         start = missing
     end
-    out["TIME"] = (start_date = start, seconds = f_smry[:time])
+    out["TIME"] = (start_date = start, seconds = t)
 
     reservoir = reservoir_domain(case)
     mesh = physical_representation(reservoir)
-    if mesh.structure isa CartesianIndex
+    if mesh isa UnstructuredMesh && mesh.structure isa CartesianIndex
         dims = mesh.structure.I
     else
         dims = (number_of_cells(mesh), 1, 1)
