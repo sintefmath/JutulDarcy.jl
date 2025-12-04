@@ -18,7 +18,7 @@ function get_well_observation(wm::WellMatch, time)
 end
 
 function get_well_match(wm::WellMatch, ctrl, target, wmodel, wstate, fstate, wellpos, report_step, time)
-    if target isa DisabledTarget
+    if ctrl isa DisabledTarget
         qoi = 0.0
     else
         ctrl = JutulDarcy.replace_target(ctrl, target)
