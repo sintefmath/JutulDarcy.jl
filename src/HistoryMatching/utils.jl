@@ -176,7 +176,7 @@ function get_well_data(hm::HistoryMatch, name, quantity, data, t)
     end
     minval = minimum(response)
     if minval <= 0.0
-        jutul_warning("HistoryMatch", "Minimum value in provided data for well $name, $quantity is negative ($minval). All well responses are assumed to be non-negative and into/out of reservoir is set via injector/producer designation.")
+        jutul_message("HistoryMatch", "Minimum value in provided data for well $name, $quantity is negative ($minval). All well responses are assumed to be non-negative and into/out of reservoir is set via injector/producer designation.")
     end
     return Jutul.get_1d_interpolator(time, response, constant_dx = false, static = false)
 end

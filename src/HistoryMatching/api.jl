@@ -177,7 +177,7 @@ end
 
 function phase_reference_density(sys, phase)
     if phase in JutulDarcy.get_phases(sys)
-        idx = JutulDarcy.phase_index(sys, VaporPhase())
+        idx = JutulDarcy.phase_index(sys, phase)
         rhos = JutulDarcy.reference_densities(sys)
         val = rhos[idx]
     else
