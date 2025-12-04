@@ -31,6 +31,7 @@ function get_well_match(wm::WellMatch, ctrl, target, wmodel, wstate, fstate, wel
 end
 
 function (global_obj::GlobalHistoryMatchObjective)(model, state0, states, step_infos, forces, input_data)
+    global_obj.evaluation_count[] += 1
     hm = global_obj.match
     obj = 0.0
     # Find start and stop index
@@ -55,6 +56,7 @@ function (global_obj::GlobalHistoryMatchObjective)(model, state0, states, step_i
 end
 
 function (local_obj::SumHistoryMatchObjective)(model, state, dt, step_info, forces)
+    local_obj.evaluation_count[] += 1
     return get_cumulative_contribution(local_obj.match, model, (state,), (step_info,), (forces,))
 end
 
@@ -96,7 +98,9 @@ end
 
 function get_period_contribution_wells(wms::Vector{WellMatch}, sgn, target::JutulDarcy.WellTarget, wellpos, model, states, step_infos, forces, start_idx::Int, stop_idx::Int, weights; kwarg...)
     val = 0.0
-    for wm in wms
+    if length(wms) == 0
+        return val
+    end
         val += get_period_contribution_well(wm, wellpos, sgn, target, model, states, step_infos, forces, start_idx, stop_idx, weights; kwarg...)
     end
     return val

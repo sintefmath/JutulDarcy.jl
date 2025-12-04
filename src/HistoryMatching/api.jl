@@ -4,19 +4,16 @@
 
 function history_match_objective(case::JutulCase, arg...; is_global::Bool = true, kwarg...)
     hm = HistoryMatch(case, arg...; kwarg...)
-    if is_global
-        return GlobalHistoryMatchObjective(hm)
-    else
-        ismissing(hm.periods) || error("SumHistoryMatchObjective does not support periods.")
-        return SumHistoryMatchObjective(hm)
-    end
+    history_match_objective(hm; is_global = is_global)
 end
 
 function history_match_objective(hm::HistoryMatch; is_global::Bool = true)
+    counter = Ref(0)
     if is_global
-        return GlobalHistoryMatchObjective(hm)
+        return GlobalHistoryMatchObjective(hm, counter)
     else
-        return SumHistoryMatchObjective(hm)
+        ismissing(hm.periods) || error("SumHistoryMatchObjective does not support periods.")
+        return SumHistoryMatchObjective(hm, counter)
     end
 end
 

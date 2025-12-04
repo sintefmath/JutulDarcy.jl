@@ -96,6 +96,7 @@ end
 
 struct GlobalHistoryMatchObjective <: Jutul.AbstractGlobalObjective
     match::HistoryMatch
+    evaluation_count
 end
 
 function Base.show(io::IO, obj::GlobalHistoryMatchObjective)
@@ -105,6 +106,7 @@ end
 
 struct SumHistoryMatchObjective <: Jutul.AbstractSumObjective
     match::HistoryMatch
+    evaluation_count
 end
 
 function Base.show(io::IO, obj::SumHistoryMatchObjective)
