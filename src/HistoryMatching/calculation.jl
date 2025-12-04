@@ -35,7 +35,6 @@ function (global_obj::GlobalHistoryMatchObjective)(model, state0, states, step_i
     hm = global_obj.match
     obj = 0.0
     # Find start and stop index
-
     # println("Evaluate global history match objective #$(global_obj.evaluation_count[])")
     period_contribution(start_idx, stop_idx, weights) = get_period_contribution(hm, model, states, step_infos, forces, start_idx, stop_idx, weights)
     if ismissing(hm.periods)
@@ -141,7 +140,7 @@ function get_period_contribution_well(wm::WellMatch, wellpos, sgn, target::Jutul
                 observed_cumulative = get_well_observation(wm, time)
                 w_well = effective_weight(wm, control_step)
                 # Accumulate objective
-                obj += ((calculated_cumulative - observed_cumulative)*w_step_from_period*w_well)^2
+                obj += abs((calculated_cumulative - observed_cumulative)*w_step_from_period*w_well)
             end
         end
         out = obj
