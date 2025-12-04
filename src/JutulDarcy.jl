@@ -219,6 +219,9 @@ module JutulDarcy
     # Benchmarks
     include("benchmarks/benchmarks.jl")
 
+    # History matching
+    include("HistoryMatching/HistoryMatching.jl")
+
     @compile_workload begin
         try
             precompile_darcy_multimodels()
