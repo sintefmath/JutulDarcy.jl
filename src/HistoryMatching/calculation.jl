@@ -17,8 +17,13 @@ function get_well_observation(wm::WellMatch, time)
     return wm.data(time)
 end
 
-function get_well_match(wm::WellMatch, ctrl, wmodel, wstate, fstate, wellpos, report_step, time)
-    qoi = get_well_value(wm, ctrl, wmodel, wstate, fstate, wellpos, report_step, time)
+function get_well_match(wm::WellMatch, ctrl, target, wmodel, wstate, fstate, wellpos, report_step, time)
+    if target isa DisabledTarget
+        qoi = 0.0
+    else
+        ctrl = JutulDarcy.replace_target(ctrl, target)
+        qoi = get_well_value(wm, ctrl, wmodel, wstate, fstate, wellpos, report_step, time)
+    end
     obs = get_well_observation(wm, time)
     w = effective_weight(wm, report_step)
     return (w*qoi, w*obs)
@@ -120,9 +125,8 @@ function get_period_contribution_well(wm::WellMatch, wellpos, sgn, target::Jutul
                 force = forces[step_index]
                 fstate = state[:Facility]
                 wstate = state[wname]
-                ctrl_from_force = force[:Facility].control[wname]
-                ctrl = JutulDarcy.replace_target(ctrl_from_force, target)
-                val = get_well_value(wm, ctrl, wmodel, wstate, fstate, pos, control_step, time)
+                ctrl = force[:Facility].control[wname]
+                val = get_well_value(wm, ctrl, target, wmodel, wstate, fstate, pos, control_step, time)
                 # Note: Observations are cumulative, we need to calculate the volumes ourselves.
                 calculated_cumulative += sgn*val*dt
                 observed_cumulative = get_well_observation(wm, time)
@@ -148,9 +152,8 @@ function get_period_contribution_well(wm::WellMatch, wellpos, sgn, target::Jutul
                 force = forces[step_index]
                 fstate = state[:Facility]
                 wstate = state[wname]
-                ctrl_from_force = force[:Facility].control[wname]
-                ctrl = JutulDarcy.replace_target(ctrl_from_force, target)
-                val, obs = get_well_match(wm, ctrl, wmodel, wstate, fstate, pos, control_step, time)
+                ctrl = force[:Facility].control[wname]
+                val, obs = get_well_match(wm, ctrl, target, wmodel, wstate, fstate, pos, control_step, time)
                 calculated += sgn*val*w_dt
                 observed += obs*w_dt
                 w_total += w_dt
