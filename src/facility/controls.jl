@@ -46,8 +46,10 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
             # We have a new control. Any previous control change is invalid.
             # Set both operating and requested control to the new one.
             @debug "Well $key switching from $oldctrl to $newctrl"
+            idx = get_well_position(model.domain, key)
             req_ctrls[key] = newctrl
             op_ctrls[key] = newctrl
+            set_facility_values_for_control!(storage.state, newctrl, cfg.limits[key], idx)
         end
         pos = get_well_position(model.domain, key)
         if q_t isa Vector
@@ -100,7 +102,7 @@ function apply_well_limits!(cfg::WellGroupConfiguration, state, limits, control,
         # Disabled wells cannot change active constraint
         return cfg
     end
-    
+
     if isnothing(limits)
         # No limits to apply
         return cfg
@@ -109,37 +111,43 @@ function apply_well_limits!(cfg::WellGroupConfiguration, state, limits, control,
     old_control = control
     control, changed = check_well_limits(limits, cond, control)
     if changed
-        new_target_symbol = translate_target_to_symbol(control.target)
         @info "Well $well switching control from $(old_control.target) to $(control.target) due to active limit." limits
         cfg.operating_controls[well] = control
-        is_injector = control isa InjectorControl
-        if is_injector
-            sgn = 1.0
-        else
-            sgn = -1.0
-        end
-        oval = get(limits, :orat, 0.0)
-        gval = get(limits, :grat, 0.0)
-        wval = get(limits, :wrat, 0.0)
-        lrat = get(limits, :lrat, 0.0)
-
-        if new_target_symbol == :lrat
-            oval = lrat/2.0
-            gval = lrat/2.0
-        end
-        phase_rates = state.SurfacePhaseRates
-        bhps = state.BottomHolePressure
-        if new_target_symbol == :bhp
-            bhps[cond.idx] = replace_value(bhps[cond.idx], limits.bhp)
-        elseif haskey(limits, :bhp)
-            bhps[cond.idx] = replace_value(bhps[cond.idx], limits.bhp + sgn*0.1*si_unit(:bar))
-        end
-
-        phase_rates[1, cond.idx] = replace_value(phase_rates[1, cond.idx], sgn*wval)
-        phase_rates[2, cond.idx] = replace_value(phase_rates[2, cond.idx], sgn*oval)
-        phase_rates[3, cond.idx] = replace_value(phase_rates[3, cond.idx], sgn*gval)
+        set_facility_values_for_control!(state, control, limits, cond.idx)
     end
     return cfg
+end
+
+function set_facility_values_for_control!(state, control, limits, idx)
+    new_target_symbol = translate_target_to_symbol(control.target)
+    is_injector = control isa InjectorControl
+    if is_injector
+        sgn = 1.0
+    else
+        sgn = -1.0
+    end
+    oval = get(limits, :orat, 0.0)
+    gval = get(limits, :grat, 0.0)
+    wval = get(limits, :wrat, 0.0)
+    lrat = get(limits, :lrat, 0.0)
+
+    if new_target_symbol == :lrat
+        oval = lrat/2.0
+        gval = lrat/2.0
+    end
+    phase_rates = state.SurfacePhaseRates
+    bhps = state.BottomHolePressure
+    if new_target_symbol == :bhp
+        bhps[idx] = replace_value(bhps[idx], limits.bhp)
+    elseif haskey(limits, :bhp)
+        bhps[idx] = replace_value(bhps[idx], limits.bhp + sgn*0.1*si_unit(:bar))
+    end
+    ev = 1e-8
+
+    phase_rates[1, idx] = replace_value(phase_rates[1, idx], sgn*(wval + ev))
+    phase_rates[2, idx] = replace_value(phase_rates[2, idx], sgn*(oval + ev))
+    phase_rates[3, idx] = replace_value(phase_rates[3, idx], sgn*(gval + ev))
+    return state
 end
 
 function check_well_limits(limits, cond, control)
