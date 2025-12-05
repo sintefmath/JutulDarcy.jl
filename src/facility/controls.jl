@@ -49,7 +49,7 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
             idx = get_well_position(model.domain, key)
             req_ctrls[key] = newctrl
             op_ctrls[key] = newctrl
-            set_facility_values_for_control!(storage.state, newctrl, cfg.limits[key], idx)
+            set_facility_values_for_control!(storage.state, model, newctrl, cfg.limits[key], idx)
         end
         pos = get_well_position(model.domain, key)
         if q_t isa Vector
@@ -97,7 +97,7 @@ function valid_surface_rate_for_control(q_t, ::DisabledControl)
     return Jutul.replace_value(q_t, 0.0)
 end
 
-function apply_well_limits!(cfg::WellGroupConfiguration, state, limits, control, well::Symbol, cond::FacilityVariablesForWell)
+function apply_well_limits!(cfg::WellGroupConfiguration, model, state, limits, control, well::Symbol, cond::FacilityVariablesForWell)
     if control isa DisabledControl
         # Disabled wells cannot change active constraint
         return cfg
@@ -113,12 +113,13 @@ function apply_well_limits!(cfg::WellGroupConfiguration, state, limits, control,
     if changed
         @info "Well $well switching control from $(old_control.target) to $(control.target) due to active limit." limits
         cfg.operating_controls[well] = control
-        set_facility_values_for_control!(state, control, limits, cond.idx)
+        set_facility_values_for_control!(state, model, control, limits, cond.idx)
     end
     return cfg
 end
 
-function set_facility_values_for_control!(state, control, limits, idx)
+function set_facility_values_for_control!(state, model::FacilityModel, control, limits, idx)
+    @warn "Setting facility values for control $control at $idx"
     new_target_symbol = translate_target_to_symbol(control.target)
     is_injector = control isa InjectorControl
     if is_injector
@@ -126,16 +127,42 @@ function set_facility_values_for_control!(state, control, limits, idx)
     else
         sgn = -1.0
     end
+    sys = model.system.multiphase
+    nph = number_of_phases(sys)
+    has_water = !isnothing(phase_index(sys, AqueousPhase()))
+    has_oil = !isnothing(phase_index(sys, LiquidPhase()))
+    has_gas = !isnothing(phase_index(sys, VaporPhase()))
+
+    # Upper limits
     oval = get(limits, :orat, 0.0)
     gval = get(limits, :grat, 0.0)
     wval = get(limits, :wrat, 0.0)
     lrat = get(limits, :lrat, 0.0)
+    rate = get(limits, :rate, missing)
 
     if new_target_symbol == :lrat
-        oval = lrat/2.0
-        gval = lrat/2.0
+        if has_water && has_oil
+            wval = lrat/2.0
+            oval = lrat/2.0
+        elseif has_water
+            wval = lrat
+        elseif has_oil
+            oval = lrat
+        else
+            error("No water or oil phase present to apply liquid rate limit.")
+        end
+        gval = 0.0
+    elseif new_target_symbol == :rate
+        oval = rate/nph
+        wval = rate/nph
+        gval = rate/nph
+    elseif new_target_symbol == :orat
+        gval = wval = 0.0
+    elseif new_target_symbol == :grat
+        oval = wval = 0.0
+    elseif new_target_symbol == :wrat
+        oval = gval = 0.0
     end
-    phase_rates = state.SurfacePhaseRates
     bhps = state.BottomHolePressure
     if new_target_symbol == :bhp
         bhps[idx] = replace_value(bhps[idx], limits.bhp)
@@ -143,6 +170,7 @@ function set_facility_values_for_control!(state, control, limits, idx)
         bhps[idx] = replace_value(bhps[idx], limits.bhp + sgn*0.1*si_unit(:bar))
     end
     ev = 1e-8
+    phase_rates = state.SurfacePhaseRates
 
     phase_rates[1, idx] = replace_value(phase_rates[1, idx], sgn*(wval + ev))
     phase_rates[2, idx] = replace_value(phase_rates[2, idx], sgn*(oval + ev))
