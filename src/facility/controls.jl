@@ -129,9 +129,15 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     end
     sys = model.system.multiphase
     nph = number_of_phases(sys)
-    has_water = !isnothing(phase_index(sys, AqueousPhase()))
-    has_oil = !isnothing(phase_index(sys, LiquidPhase()))
-    has_gas = !isnothing(phase_index(sys, VaporPhase()))
+    rhos = reference_densities(sys)
+    
+    w_idx = phase_index(sys, AqueousPhase())
+    o_idx = phase_index(sys, LiquidPhase())
+    g_idx = phase_index(sys, VaporPhase())
+
+    has_water = !isnothing(w_idx)
+    has_oil = !isnothing(o_idx)
+    has_gas = !isnothing(g_idx)
 
     # Upper limits
     oval = get(limits, :orat, 0.0)
@@ -153,9 +159,37 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
         end
         gval = 0.0
     elseif new_target_symbol == :rate
-        oval = rate/nph
-        wval = rate/nph
-        gval = rate/nph
+        # Injector should be different!
+        if is_injector
+            wval = oval = gval = 0.0
+            for (ph, mix) in control.phases
+                if ph == w_idx
+                    wval = mix*rate
+                elseif ph == o_idx
+                    oval = mix*rate
+                elseif ph == g_idx
+                    gval = mix*rate
+                end
+            end
+        else
+            if has_water
+                wval = rhos[w_idx]*rate/nph
+            else
+                wval = 0.0
+            end
+            if has_oil
+                oval = rhos[o_idx]*rate/nph
+            else
+                oval = 0.0
+            end
+            if has_gas
+                gval = rhos[g_idx]*rate/nph
+            end
+            total = wval + oval + gval
+            wval = wval/total
+            oval = oval/total
+            gval = gval/total
+        end
     elseif new_target_symbol == :orat
         gval = wval = 0.0
     elseif new_target_symbol == :grat
@@ -172,6 +206,7 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     ev = 1e-8
     phase_rates = state.SurfacePhaseRates
 
+    @info "Setting values for $new_target_symbol $(limits[new_target_symbol])" wval oval gval value(bhps[idx])
     phase_rates[1, idx] = replace_value(phase_rates[1, idx], sgn*(wval + ev))
     phase_rates[2, idx] = replace_value(phase_rates[2, idx], sgn*(oval + ev))
     phase_rates[3, idx] = replace_value(phase_rates[3, idx], sgn*(gval + ev))
