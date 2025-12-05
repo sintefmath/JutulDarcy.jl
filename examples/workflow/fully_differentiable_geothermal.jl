@@ -342,12 +342,15 @@ end
 
 opt_ctrl = JutulDarcy.setup_reservoir_dict_optimization(prm_truth, setup_doublet_case)
 # ### Set optimization to use injection rate and temperature
-# Note that as these are represented as per-interval values, we could also have passed vectors of equal length as the
-# number of intervals for more fine-grained control over the limits.
+# Note that as these are represented as per-interval values, we could also have
+# passed vectors of equal length as the number of intervals for more
+# fine-grained control over the limits. We specify that the dependencies include
+# the whole case instead of just state0 and parameters since the forces depend on
+# the optimization parameters.
 free_optimization_parameter!(opt_ctrl, "injection_temperature_C", abs_max = 80.0, abs_min = 10.0)
 free_optimization_parameter!(opt_ctrl, "injection_rate", abs_min = 1.0*liter/second, abs_max = 30.0*liter/second)
 # ### Call the optimizer
-prm_opt_ctrl = JutulDarcy.optimize_reservoir(opt_ctrl, optimization_objective, maximize = true);
+prm_opt_ctrl = JutulDarcy.optimize_reservoir(opt_ctrl, optimization_objective, maximize = true, deps = :case);
 opt_ctrl
 # ### Plot the optimized injection rates and temperatures
 # The optimized injection rates and temperatures are plotted for each interval.

@@ -64,17 +64,18 @@ struct FlashResults{F_t, S_t, B_t} <: ScalarVariable
     end
 end
 
-default_value(model, ::FlashResults) = FlashedMixture2Phase(model.system.equation_of_state)
+function default_value(model, ::FlashResults, T = Jutul.float_type(model.context))
+    return FlashedMixture2Phase(model.system.equation_of_state, T)
+end
 
 function initialize_variable_value(model, pvar::FlashResults, val::AbstractDict; need_value = false, T = Jutul.float_type(model.context))
     @assert need_value == false
     n = number_of_entities(model, pvar)
-    v = default_value(model, pvar)
-    T = typeof(v)
-    V = Vector{T}()
+    v = default_value(model, pvar, T)
+    V = Vector{typeof(v)}()
     sizehint!(V, n)
-    for i in 1:n
-        push!(V, default_value(model, pvar))
+    for _ in 1:n
+        push!(V, default_value(model, pvar, T))
     end
     initialize_variable_value(model, pvar, V)
 end
@@ -179,7 +180,11 @@ function update_flash_buffer!(buf, eos, Pressure, Temperature, OverallMoleFracti
         else
             Z = OverallMoleFractions[:, 1]
         end
-        buf.forces = force_coefficients(eos, (p = P, T = T, z = Z), static_size = true)
+        buf.forces = force_coefficients(
+            eos,
+            (p = P, T = T, z = Z),
+            static_size = isbitstype(maybe_ad_T)
+        )
     end
 end
 
@@ -233,6 +238,17 @@ function update_flash_result(S, m, eos, phase_state, K, cond_prev, stability, x,
 
     p_val = value(P)
     T_val = value(T)
+    T_num = promote_type(typeof(p_val), typeof(T_val), typeof(value(Z[1])))
+    if !(T_num<:AbstractFloat)
+        T_ad = promote_type(typeof(P), typeof(T), eltype(Z))
+        Z = collect(Z)
+        Z = T_ad.(Z)
+        P = T_ad(P)
+        Z_L = Z_V = V = P
+        x = y = Z
+        out = FlashedMixture2Phase(phase_state, K, V, x, y, Z_L, Z_V, critical_distance, cond_prev, stability)
+        return (out, FLASH_FULL)
+    end
     @. z = max(value(Z), MultiComponentFlash.MINIMUM_COMPOSITION)
 
     new_cond = (p = p_val, T = T_val, z = z)

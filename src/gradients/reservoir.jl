@@ -1,11 +1,12 @@
-function setup_reservoir_dict_optimization(dict, F = missing)
-    return DictParameters(dict, F)
+function setup_reservoir_dict_optimization(dict, F = missing; kwarg...)
+    return DictParameters(dict, F; kwarg...)
 end
 
 function setup_reservoir_dict_optimization(case::JutulCase;
         use_trans = false,
         use_pore_volume = false,
         strict = false,
+        verbose = true,
         do_copy = true,
         parameters = Symbol[],
         kwarg...
@@ -140,7 +141,7 @@ function setup_reservoir_dict_optimization(case::JutulCase;
     end
     opt_dict[:state0] = state0_dict
     F(D, step_info = missing) = optimization_resetup_reservoir_case(D, case, step_info, do_copy = do_copy)
-    return DictParameters(opt_dict, F, strict = strict)
+    return DictParameters(opt_dict, F, strict = strict, verbose = verbose)
 end
 
 function optimization_resetup_reservoir_case(opt_dict::AbstractDict, case::JutulCase, step_info; do_copy = true)
@@ -211,14 +212,35 @@ function optimization_resetup_reservoir_case(opt_dict::AbstractDict, case::Jutul
     return new_case
 end
 
+"""
+    optimize_reservoir(dopt, objective, setup_fn = dopt.setup_function)
+
+Perform optimization for reservoir models using the given `DictParameters`
+struct `dopt`, objective function `objective`, and setup function `setup_fn`.
+
+Additional keyword arguments can be provided to customize the simulator
+setup and optimization process:
+- `simulator_arg`: Arguments for the simulator setup (default: `(output_substates = true,)`).
+- `simulator`: Custom simulator instance (default: `missing`).
+- `config`: Configuration for the simulator (default: `missing`).
+- `deps`: Dependencies for the optimization (default: `:parameters_and_state0`).
+
+# Notes
+If you are optimizing forces (i.e. well constraints or boundary conditions), you
+need to set `deps = :case` to ensure that gradients are correctly computed. The
+same applies if you change the model itself in the setup function. The defaults
+of `:parameters_and_state0` provide significant performance improvements in most cases
+where only parameters and initial state are changed.
+"""
 function optimize_reservoir(dopt, objective, setup_fn = dopt.setup_function;
         simulator_arg = (output_substates = true, ),
         simulator = missing,
         config = missing,
+        deps = :parameters_and_state0,
         kwarg...
     )
     sim, cfg = setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg)
-    return Jutul.optimize(dopt, objective, setup_fn; simulator = sim, config = cfg, kwarg...)
+    return Jutul.optimize(dopt, objective, setup_fn; simulator = sim, config = cfg, deps = deps, kwarg...)
 end
 
 function parameters_gradient_reservoir(dopt, objective, setup_fn = dopt.setup_function;

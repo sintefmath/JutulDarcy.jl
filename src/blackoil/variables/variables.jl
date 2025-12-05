@@ -102,19 +102,37 @@ function Base.zero(::BlackOilX{R}) where R
     return BlackOilX(zero(R))
 end
 
-function Jutul.scalarized_primary_variable_type(model, var::BlackOilUnknown)
-    return BlackOilX{Float64}
+function Jutul.scalarized_primary_variable_type(model, var::BlackOilUnknown, T = Float64)
+    return BlackOilX{T}
 end
 
-function Jutul.scalarize_primary_variable(model, source_vec, var::BlackOilUnknown, index)
+function Jutul.scalarize_primary_variable(model, source_vec, var::BlackOilUnknown, index; numeric::Bool = false)
     x = source_vec[index]
-    return BlackOilX(value(x.val), x.phases_present, x.sat_close)
+    xval = value(x.val)
+    if numeric
+        out = xval
+    else
+        out = BlackOilX(xval, x.phases_present, x.sat_close)
+    end
+    return out
 end
 
-function Jutul.descalarize_primary_variable!(dest_array, model, V::BlackOilX, var::BlackOilUnknown, index)
+function Jutul.descalarize_primary_variable!(dest_array, model, V::BlackOilX, var::BlackOilUnknown, index, ref = missing; F = identity)
     V_old = dest_array[index]
-    val_converted = replace_value(V_old.val, V.val)
+    val_converted = replace_value(V_old.val, F(V.val))
     dest_array[index] = BlackOilX(val_converted, V.phases_present, V.sat_close)
+end
+
+function Jutul.descalarize_primary_variable!(dest_array, model, V, var::BlackOilUnknown, index, ref = missing; F = identity)
+    # Linearization around a point - keep phases_present and sat_close
+    V_old = dest_array[index]
+    if ismissing(ref)
+        V_ref = ref[index]
+    else
+        V_ref = V_old
+    end
+    val_converted = replace_value(V_old.val, F(V))
+    dest_array[index] = BlackOilX(val_converted, V_ref.phases_present, V_ref.sat_close)
 end
 
 """

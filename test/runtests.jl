@@ -84,5 +84,9 @@ end
     include("well_constructor.jl")
 end
 
+@testitem "HistoryMatching" begin
+    include("historymatch.jl")
+end
+
 @run_package_tests
 nothing
