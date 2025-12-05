@@ -509,12 +509,13 @@ function update_cross_term_in_entity!(out, i,
     pos = get_well_position(facility.domain, ct.well)
     q_t = state_facility.TotalSurfaceMassRate[pos]
     rhoS, S = surface_density_and_volume_fractions(state_well)
-    vol = 0.0
+    total_density = 0.0
     for i in eachindex(rhoS, S)
-        vol += S[i]*q_t/rhoS[i]
+        total_density += S[i]*rhoS[i]
     end
+    q_vol = q_t/total_density
     for ph in eachindex(rhoS, S)
-        out[ph] = -S[ph]*q_t/rhoS[ph]
+        out[ph] = -S[ph]*q_vol
     end
     return out
 end
