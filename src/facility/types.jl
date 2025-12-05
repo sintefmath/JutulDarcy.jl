@@ -4,6 +4,8 @@ struct FacilitySystem{T} <: AbstractFacilitySystem
     multiphase::T
 end
 
+get_phases(sys::FacilitySystem) = get_phases(sys.multiphase)
+
 abstract type SurfaceFacilityDomain <: JutulDomain end
 abstract type WellControllerDomain <: SurfaceFacilityDomain end
 
@@ -756,6 +758,15 @@ end
 struct SurfaceTemperatureEquation <:JutulEquation
     # Equation:
     #        T_surf - T|top_cell = 0
+end
+
+struct BottomHolePressureEquation <:JutulEquation
+    # Equation:
+    #        bhp - p|top_cell = 0
+end
+
+struct SurfacePhaseRatesEquation <:JutulEquation
+    # Equation: Surface phase rates calculated from well values
 end
 
 struct WellSegmentFlow{C, T<:AbstractVector} <: Jutul.FlowDiscretization

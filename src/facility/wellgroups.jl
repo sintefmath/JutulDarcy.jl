@@ -83,18 +83,38 @@ function Jutul.update_equation_in_entity!(v, i, state, state0, eq::SurfaceTemper
     v[] = state.SurfaceTemperature[i]
 end
 
+Jutul.associated_entity(::BottomHolePressureEquation) = Wells()
+Jutul.local_discretization(::BottomHolePressureEquation, i) = nothing
+function Jutul.update_equation_in_entity!(v, i, state, state0, eq::BottomHolePressureEquation, model, dt, ldisc = local_discretization(eq, i))
+    # Set equal to bhp. corresponding well top cell pressures will be
+    # subtracted using corss terms
+    v[] = state.BottomHolePressure[i]
+end
+
+Jutul.associated_entity(::SurfacePhaseRatesEquation) = Wells()
+Jutul.local_discretization(::SurfacePhaseRatesEquation, i) = nothing
+Jutul.number_of_equations_per_entity(fmodel::SimulationModel, eq::SurfacePhaseRatesEquation) = length(get_phases(fmodel.system))
+
+function Jutul.update_equation_in_entity!(v, i, state, state0, eq::SurfacePhaseRatesEquation, model, dt, ldisc = local_discretization(eq, i))
+    # Set equal to bhp. corresponding well top cell pressures will be
+    # subtracted using corss terms
+    for ph in eachindex(v)
+        v[i] = state.SurfacePhaseRates[ph, i]
+    end
+    return v
+end
+
 # Selection of primary variables
-function select_primary_variables!(S, domain::WellGroup, model)
+function select_primary_variables!(S, system::FacilitySystem, model::FacilityModel)
+    ph = get_phases(system.multiphase)
     S[:BottomHolePressure] = BottomHolePressure()
-    S[:SurfacePhaseRates] = SurfacePhaseRates()
+    S[:SurfacePhaseRates] = SurfacePhaseRates(ph)
     S[:TotalSurfaceMassRate] = TotalSurfaceMassRate()
 end
 
-function select_primary_variables!(S, system::FacilitySystem, model)
-    nothing
-end
-
-function select_equations!(eqs, domain::WellGroup, model::SimulationModel)
+function select_equations!(eqs, system::FacilitySystem, model::FacilityModel)
+    eqs[:bottom_hole_pressure_equation] = BottomHolePressureEquation()
+    eqs[:surface_phase_rates_equation] = SurfacePhaseRatesEquation()
     eqs[:control_equation] = ControlEquationWell()
 end
 
