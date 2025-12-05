@@ -198,21 +198,13 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
         end
         W = model.models[k]
         if W.domain isa WellGroup
-            # Facility or well group
-            init_arg = Dict{Symbol, Any}()
-            init_arg[:TotalSurfaceMassRate] = 0.0
-            init_arg[:SurfacePhaseRates] = 0.0
-            init_arg[:BottomHolePressure] = si_unit(:atm)
-            if is_thermal
-                init_arg[:SurfaceTemperature] = convert_to_si(20.0, :Celsius)
-            end
-            init_w = setup_state(W; pairs(init_arg)...)
+            # We do this in a second pass
+            continue
         else
             # Wells
             init_w = Dict{Symbol, Any}()
             W = model.models[k]
             wg = physical_representation(W.domain)
-            res_c = wg.perforations.reservoir
             if wg isa MultiSegmentWell
                 init_w[:TotalMassFlux] = 0.0
             end
@@ -224,6 +216,30 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
         end
         init[k] = init_w
     end
+    for k in keys(model.models)
+        if k == :Reservoir
+            # Already done
+            continue
+        end
+        W = model.models[k]
+        if W.domain isa WellGroup
+            # Facility or well group
+            init_arg = Dict{Symbol, Any}()
+            init_arg[:TotalSurfaceMassRate] = 0.0
+            init_arg[:SurfacePhaseRates] = 0.0
+            own_wells = W.domain.well_symbols
+            bh = zeros(length(own_wells))
+            for (i, w) in enumerate(own_wells)
+                bh[i] = init[w][:Pressure][1]
+            end
+            init_arg[:BottomHolePressure] = bh
+            if is_thermal
+                init_arg[:SurfaceTemperature] = init[w][:Temperature][1]
+            end
+            init[k] = setup_state(W; pairs(init_arg)...)
+        end
+    end
+
     state = setup_state(model, init)
     return state
 end
