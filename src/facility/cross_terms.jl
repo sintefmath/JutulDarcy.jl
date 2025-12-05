@@ -493,3 +493,27 @@ function update_cross_term_in_entity!(out, i,
     P += state_well[:Pressure][well_top_node()]
     out[1] = -P
 end
+
+struct FacilityFromSurfacePhaseRatesCT <: Jutul.AdditiveCrossTerm
+    well::Symbol
+end
+
+Jutul.cross_term_entities(ct::FacilityFromSurfacePhaseRatesCT, eq::SurfacePhaseRatesEquation, model) = get_well_position(model.domain, ct.well)
+
+function update_cross_term_in_entity!(out, i,
+    state_facility, state0_facility,
+    state_well, state0_well,
+    facility, well,
+    ct::FacilityFromSurfacePhaseRatesCT, eq, dt, ldisc = local_discretization(ct, i))
+
+    @time pos = get_well_position(facility.domain, ct.well)
+    phases = get_phases(facility.system)
+    @info "???" out eq phases
+    error()
+    out[1] = 0.0
+    out[2] = 0.0
+    out[3] = 0.0
+    # P = 0*state_facility[:BottomHolePressure][pos]
+    # P += state_well[:Pressure][well_top_node()]
+    # out[1] = -P
+end
