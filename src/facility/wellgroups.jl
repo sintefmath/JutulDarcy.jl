@@ -10,8 +10,13 @@ function get_well_position(d, symbol)
     return findfirst(isequal(symbol), d.well_symbols)
 end
 
-function Jutul.associated_entity(::TotalSurfaceMassRate) Wells() end
-function Jutul.associated_entity(::SurfaceTemperature) Wells() end
+function Jutul.associated_entity(::SurfaceTemperature)
+    return Wells()
+end
+
+function Jutul.associated_entity(::TotalSurfaceMassRate)
+    return Wells()
+end
 
 function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, state_symbol, model, dx, w)
     v = state[state_symbol]
@@ -55,6 +60,41 @@ function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, s
         s = symbols[i]
         v[i] = do_update!(cfg, s, v[i], w*dx[i], operating_control(cfg, s))
     end
+end
+
+function Jutul.update_primary_variable!(state, var::SurfacePhaseRates, state_symbol, model, dx, w)
+    v = state[state_symbol]
+    symbols = model.domain.well_symbols
+    cfg = state.WellGroupConfiguration
+    # Injectors can only have strictly positive injection rates,
+    # producers can only have strictly negative and disabled controls give zero rate.
+    abs_max = Jutul.absolute_increment_limit(var)
+    rel_max = Jutul.relative_increment_limit(var)
+    function do_update!(wcfg, s, v, dx, ctrl)
+        return Jutul.update_value(v, dx)
+    end
+    function do_update!(wcfg, s, v, dx, ctrl::InjectorControl)
+        limit_rate = MIN_INITIAL_WELL_RATE
+        next = Jutul.update_value(v, dx, abs_max, rel_max, limit_rate, nothing)
+        return next
+    end
+    function do_update!(wcfg, s, v, dx, ctrl::ProducerControl)
+        # A significant negative rate is the valid producer control
+        limit_rate = -MIN_INITIAL_WELL_RATE
+        next = Jutul.update_value(v, dx, abs_max, rel_max, nothing, limit_rate)
+        return next
+    end
+    function do_update!(wcfg, s, v, dx, ctrl::DisabledControl)
+        # Set value to zero since we know it is correct.
+        return Jutul.update_value(v, -value(v))
+    end
+    for i in eachindex(symbols)
+        s = symbols[i]
+        for ph in axes(v, 1)
+            v[ph, i] = do_update!(cfg, s, v[ph, i], w*dx[ph, i], operating_control(cfg, s))
+        end
+    end
+    return state
 end
 
 
