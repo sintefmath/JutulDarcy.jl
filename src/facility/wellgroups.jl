@@ -99,7 +99,7 @@ function Jutul.update_equation_in_entity!(v, i, state, state0, eq::SurfacePhaseR
     # Set equal to bhp. corresponding well top cell pressures will be
     # subtracted using corss terms
     for ph in eachindex(v)
-        v[i] = state.SurfacePhaseRates[ph, i]
+        v[ph] = state.SurfacePhaseRates[ph, i]
     end
     return v
 end

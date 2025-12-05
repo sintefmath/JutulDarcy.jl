@@ -475,3 +475,21 @@ function update_cross_term_in_entity!(out, i,
     T += state_well[:Temperature][well_top_node()]
     out[1] = -T
 end
+
+struct FacilityFromWellBottomHolePressureCT <: Jutul.AdditiveCrossTerm
+    well::Symbol
+end
+
+Jutul.cross_term_entities(ct::FacilityFromWellBottomHolePressureCT, eq::BottomHolePressureEquation, model) = get_well_position(model.domain, ct.well)
+
+function update_cross_term_in_entity!(out, i,
+    state_facility, state0_facility,
+    state_well, state0_well,
+    facility, well,
+    ct::FacilityFromWellBottomHolePressureCT, eq, dt, ldisc = local_discretization(ct, i))
+
+    pos = get_well_position(facility.domain, ct.well)
+    P = 0*state_facility[:BottomHolePressure][pos]
+    P += state_well[:Pressure][well_top_node()]
+    out[1] = -P
+end

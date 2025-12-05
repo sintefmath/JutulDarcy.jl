@@ -1255,6 +1255,9 @@ function setup_reservoir_cross_terms!(model::MultiModel)
 
                     ct = WellFromFacilityFlowCT(target_well)
                     add_cross_term!(model, ct, target = target_well, source = k, equation = conservation)
+
+                    ct = FacilityFromWellBottomHolePressureCT(target_well)
+                    add_cross_term!(model, ct, target = k, source = target_well, equation = :bottom_hole_pressure_equation)
                 end
                 if has_thermal
                     ct = WellFromFacilityThermalCT(target_well)
