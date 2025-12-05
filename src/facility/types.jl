@@ -29,14 +29,16 @@ function WellGroup(wells::Vector{Symbol}; can_shut_wells = true, can_shut_inject
 end
 
 struct FacilityVariablesForWell{T}
+    idx::Int
+    name::Symbol
     bottom_hole_pressure::T # Pa
     total_mass_rate::T # kg/s
     surface_aqueous_rate::T # surface m3/s
     surface_liquid_rate::T # surface m3/s
     surface_vapor_rate::T # surface m3/s
-    function FacilityVariablesForWell(bhp, qmass, qws, qos, qgs)
+    function FacilityVariablesForWell(idx, name, bhp, qmass, qws, qos, qgs)
         bhp, qws, qos, qgs = promote(bhp, qmass, qws, qos, qgs)
-        return new{typeof(bhp)}(bhp, qmass, qws, qos, qgs)
+        return new{typeof(bhp)}(idx, name, bhp, qmass, qws, qos, qgs)
     end
 end
 
@@ -57,7 +59,7 @@ function FacilityVariablesForWell(model::FacilityModel, state, well::Symbol)
             qg = rate
         end
     end
-    return FacilityVariablesForWell(bhp, qmass, qw, qo, qg)
+    return FacilityVariablesForWell(pos, well, bhp, qmass, qw, qo, qg)
 end
 
 const WellGroupModel = SimulationModel{WellGroup, <:Any, <:Any, <:Any}

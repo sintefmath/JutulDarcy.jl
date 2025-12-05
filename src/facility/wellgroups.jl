@@ -74,13 +74,13 @@ function Jutul.update_primary_variable!(state, var::SurfacePhaseRates, state_sym
         return Jutul.update_value(v, dx)
     end
     function do_update!(wcfg, s, v, dx, ctrl::InjectorControl)
-        limit_rate = MIN_INITIAL_WELL_RATE
+        limit_rate = 0.0
         next = Jutul.update_value(v, dx, abs_max, rel_max, limit_rate, nothing)
         return next
     end
     function do_update!(wcfg, s, v, dx, ctrl::ProducerControl)
         # A significant negative rate is the valid producer control
-        limit_rate = -MIN_INITIAL_WELL_RATE
+        limit_rate = 0.0
         next = Jutul.update_value(v, dx, abs_max, rel_max, nothing, limit_rate)
         return next
     end
@@ -117,7 +117,8 @@ function Jutul.prepare_equation_in_entity!(i, eq::ControlEquationWell, eq_s, sta
     cfg = state.WellGroupConfiguration
     ctrl = operating_control(cfg, well)
     limits = current_limits(cfg, well)
-    apply_well_limits!(cfg, limits, ctrl, well, cond)
+    phase_rates = state.SurfacePhaseRates
+    apply_well_limits!(cfg, phase_rates, limits, ctrl, well, cond)
 end
 
 function Jutul.update_equation_in_entity!(v, i, state, state0, eq::ControlEquationWell, model, dt, ldisc = local_discretization(eq, i))

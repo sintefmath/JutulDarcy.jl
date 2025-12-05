@@ -95,7 +95,7 @@ function valid_surface_rate_for_control(q_t, ::DisabledControl)
     return Jutul.replace_value(q_t, 0.0)
 end
 
-function apply_well_limits!(cfg::WellGroupConfiguration, limits, control, well::Symbol, cond::FacilityVariablesForWell)
+function apply_well_limits!(cfg::WellGroupConfiguration, phase_rates, limits, control, well::Symbol, cond::FacilityVariablesForWell)
     if control isa DisabledControl
         # Disabled wells cannot change active constraint
         return cfg
@@ -110,7 +110,24 @@ function apply_well_limits!(cfg::WellGroupConfiguration, limits, control, well::
     control, changed = check_well_limits(limits, cond, control)
     if changed
         cfg.operating_controls[well] = control
-        @info "$well switching control to $control from $old_control due to active limit."
+        is_injector = control isa InjectorControl
+        if is_injector
+            sgn = 1.0
+        else
+            sgn = -1.0
+        end
+        oval = get(limits, :orat, 0.0)
+        gval = get(limits, :grat, 0.0)
+        wval = get(limits, :wrat, 0.0)
+        lrat = get(limits, :lrat, 0.0)
+
+        if translate_target_to_symbol(control.target) == :lrat
+            oval = lrat/2.0
+            gval = lrat/2.0
+        end
+        phase_rates[1, cond.idx] = replace_value(phase_rates[1, cond.idx], sgn*wval)
+        phase_rates[2, cond.idx] = replace_value(phase_rates[2, cond.idx], sgn*oval)
+        phase_rates[3, cond.idx] = replace_value(phase_rates[3, cond.idx], sgn*gval)
     end
     return cfg
 end
