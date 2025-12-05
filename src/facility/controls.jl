@@ -285,9 +285,27 @@ end
 
 
 function well_control_equation(ctrl, cond, well, model, state)
-    error()
+    target = ctrl.target
+    eq = well_control_equation(ctrl, target, cond, well, model, state)
+    return eq/target_scaling(target)
 end
 
+function well_control_equation(ctrl::DisabledControl, target::DisabledTarget, cond, well, model, state)
+    return 0.0
+end
+
+function well_control_equation(ctrl, target::TotalRateTarget, cond, well, model, state)
+    rate = cond.surface_aqueous_rate + cond.surface_liquid_rate + cond.surface_vapor_rate
+    return rate - target.value
+end
+
+function well_control_equation(ctrl, target::BottomHolePressureTarget, cond, well, model, state)
+    return cond.bottom_hole_pressure - target.value
+end
+
+function well_control_equation(ctrl, target::SurfaceOilRateTarget, cond, well, model, state)
+    return cond.surface_liquid_rate - target.value
+end
 
 """
     translate_limit(control::ProducerControl, name, val)
