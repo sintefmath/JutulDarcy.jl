@@ -201,12 +201,12 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     if new_target_symbol == :bhp
         bhps[idx] = replace_value(bhps[idx], limits.bhp)
     elseif haskey(limits, :bhp)
-        bhps[idx] = replace_value(bhps[idx], limits.bhp + sgn*0.1*si_unit(:bar))
+        bhps[idx] = replace_value(bhps[idx], limits.bhp * (1.0 - 0.1*sgn))
     end
     ev = 1e-8
     phase_rates = state.SurfacePhaseRates
 
-    @info "Setting values for $new_target_symbol $(limits[new_target_symbol])" wval oval gval value(bhps[idx])
+    @info "Setting values for $new_target_symbol $(limits[new_target_symbol])" wval oval gval value(bhps[idx]) limits
     phase_rates[1, idx] = replace_value(phase_rates[1, idx], sgn*(wval + ev))
     phase_rates[2, idx] = replace_value(phase_rates[2, idx], sgn*(oval + ev))
     phase_rates[3, idx] = replace_value(phase_rates[3, idx], sgn*(gval + ev))
