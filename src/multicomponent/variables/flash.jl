@@ -26,7 +26,7 @@ struct FlashResults{F_t, S_t, B_t} <: ScalarVariable
             reuse_guess = false,
             stability_bypass = false
         )
-        system = flow_system(model.system)
+        system = model.system
         eos = system.equation_of_state
         nc = MultiComponentFlash.number_of_components(eos)
         storage = []
@@ -88,7 +88,7 @@ function initialize_variable_ad!(state, model, pvar::FlashResults, symb, npartia
     n = number_of_entities(model, pvar)
     v_ad = get_ad_entity_scalar(1.0, npartials, diag_pos; kwarg...)
     ∂T = typeof(v_ad)
-    eos = flow_system(model.system).equation_of_state
+    eos = model.system.equation_of_state
 
     r = FlashedMixture2Phase(eos, ∂T)
     T = typeof(r)

@@ -21,7 +21,7 @@ end
 end
 
 @jutul_secondary function update_fluid_internal_energy!(U, fe::FluidInternalEnergy, model::CompositionalModel, Temperature, ComponentHeatCapacity, LiquidMassFractions, VaporMassFractions, ix)
-    fsys = flow_system(model.system)
+    fsys = model.system
     C = ComponentHeatCapacity
     X = LiquidMassFractions
     Y = VaporMassFractions

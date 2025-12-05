@@ -1193,9 +1193,6 @@ function set_default_cnv_mb_inner!(tol, model;
         end
     end
     sys = model.system
-    if model isa Jutul.CompositeModel && hasproperty(model.system.systems, :flow)
-        sys = flow_system(model.system)
-    end
     if sys isa SinglePhaseSystem || sys isa ImmiscibleSystem || 
         sys isa BlackOilSystem || sys isa CompositionalSystem
         is_well = model_or_domain_is_well(model)
@@ -1648,7 +1645,7 @@ function wellgroup_symbols(model::MultiModel)
 end
 
 function available_well_targets(model)
-    phases = get_phases(flow_system(model.system))
+    phases = get_phases(model.system)
     targets = [BottomHolePressureTarget, SurfaceLiquidRateTarget, TotalRateTarget, TotalMassRateTarget]
     if AqueousPhase() in phases
         push!(targets, SurfaceLiquidRateTarget)

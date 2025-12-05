@@ -135,7 +135,6 @@ end
 end
 
 @inline function face_average_density(model::CompositionalModel, state, tpfa, phase, ρ = state.PhaseMassDensities)
-    sys = flow_system(model.system)
     l = tpfa.left
     r = tpfa.right
     @inbounds ρ_l = ρ[phase, l]

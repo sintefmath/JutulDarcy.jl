@@ -302,7 +302,7 @@ Well target contribution from well itself (surface volume, injector)
 """
 function well_target(control::InjectorControl, target::SurfaceVolumeTarget, well_model, well_state, surface_densities, surface_volume_fractions)
     t_phases = lumped_phases(target)
-    w_phases = get_phases(flow_system(well_model.system))
+    w_phases = get_phases(well_model.system)
     t = 0.0
     for (ix, mix) in control.phases
         if w_phases[ix] in t_phases
@@ -317,7 +317,7 @@ end
 Well target contribution from well itself (reservoir volume, injector)
 """
 function well_target(control::InjectorControl, target::TotalReservoirRateTarget, well_model, well_state, surface_densities, surface_volume_fractions)
-    w_phases = get_phases(flow_system(well_model.system))
+    w_phases = get_phases(well_model.system)
     t = 0.0
     rho = well_state.PhaseMassDensities
     for (ix, mix) in control.phases
@@ -343,7 +343,7 @@ end
 Well target contribution from well itself (surface volume, producer)
 """
 function well_target(control::ProducerControl, target::SurfaceVolumeTarget, well_model, well_state, surface_densities, surface_volume_fractions)
-    phases = get_phases(flow_system(well_model.system))
+    w_phases = get_phases(well_model.system)
     Tw = eltype(surface_volume_fractions)
     if abs(target.value) == MIN_ACTIVE_WELL_RATE
         # Special meaning: Limits set at the CONST minimum value are really absolute mass limits.

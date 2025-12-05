@@ -7,8 +7,6 @@ get_phases(s::Symbol) = get_phases(Val(s))
 @inline number_of_phases(sys::MultiPhaseSystem) = length(get_phases(sys))
 @inline reference_densities(sys::MultiPhaseSystem) = sys.rho_ref
 
-flow_system(sys::MultiPhaseSystem) = sys
-
 number_of_components(sys::ImmiscibleSystem) = number_of_phases(sys)
 
 """

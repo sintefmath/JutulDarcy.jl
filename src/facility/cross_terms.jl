@@ -254,7 +254,7 @@ function cross_term_total_surface_mass_rate_and_mixture(facility, well, state_fa
         end
         mix = ctrl.injection_mixture
         nmix = length(mix)
-        ncomp = number_of_components(flow_system(well.system))
+        ncomp = number_of_components(well.system)
         @assert nmix == ncomp "Injection composition length ($nmix) must match number of components ($ncomp)."
     else
         if value(q_t) > 0 && ctrl isa ProducerControl
@@ -509,6 +509,10 @@ function update_cross_term_in_entity!(out, i,
     pos = get_well_position(facility.domain, ct.well)
     q_t = state_facility.TotalSurfaceMassRate[pos]
     rhoS, S = surface_density_and_volume_fractions(state_well)
+    vol = 0.0
+    for i in eachindex(rhoS, S)
+        vol += S[i]*q_t/rhoS[i]
+    end
     for ph in eachindex(rhoS, S)
         out[ph] = -S[ph]*q_t/rhoS[ph]
     end
