@@ -199,6 +199,7 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     end
     bhps = state.BottomHolePressure
     if new_target_symbol == :bhp
+        oval = gval = wval = sgn*1e-8
         bhps[idx] = replace_value(bhps[idx], limits.bhp)
     elseif haskey(limits, :bhp)
         bhps[idx] = replace_value(bhps[idx], limits.bhp * (1.0 - 0.1*sgn))
@@ -207,9 +208,15 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     phase_rates = state.SurfacePhaseRates
 
     @info "Setting values for $new_target_symbol $(limits[new_target_symbol])" wval oval gval value(bhps[idx]) limits
-    phase_rates[1, idx] = replace_value(phase_rates[1, idx], sgn*(wval + ev))
-    phase_rates[2, idx] = replace_value(phase_rates[2, idx], sgn*(oval + ev))
-    phase_rates[3, idx] = replace_value(phase_rates[3, idx], sgn*(gval + ev))
+    if has_water
+        phase_rates[w_idx, idx] = replace_value(phase_rates[w_idx, idx], sgn*(wval + ev))
+    end
+    if has_oil
+        phase_rates[o_idx, idx] = replace_value(phase_rates[o_idx, idx], sgn*(oval + ev))
+    end
+    if has_gas
+        phase_rates[g_idx, idx] = replace_value(phase_rates[g_idx, idx], sgn*(gval + ev))
+    end
     return state
 end
 
