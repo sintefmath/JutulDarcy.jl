@@ -95,49 +95,199 @@ function valid_surface_rate_for_control(q_t, ::DisabledControl)
     return Jutul.replace_value(q_t, 0.0)
 end
 
-function apply_well_limit!(cfg::WellGroupConfiguration, target, wmodel, wstate, well::Symbol, density_s, volume_fraction_s, total_mass_rate, current_lims = current_limits(cfg, well))
-    if !isnothing(current_lims)
-        ctrl = operating_control(cfg, well)
-        @tic "limits" target, changed, current_val, limit_val, lim_type = check_active_limits(ctrl, target, current_lims, wmodel, wstate, well, density_s, volume_fraction_s, total_mass_rate)
-        if changed
-            old = cfg.operating_controls[well].target
-            next_control = replace_target(ctrl, target)
-            cfg.operating_controls[well] = next_control
-            if lim_type == :lower
-                lb = "is below"
-            else
-                lb = "is above"
-            end
-            limstr = "Current value $(current_val) $lb $lim_type limit $(limit_val)."
-            header = "$well is switching control due to $lim_type limit for $(typeof(target)) of $limit_val"
-            @debug "$(header)\n$(limstr)\nOld value: $old\nNew value: $target." next_control
-        end
+function apply_well_limits!(cfg::WellGroupConfiguration, limits, control, well::Symbol, cond::FacilityVariablesForWell)
+    if control isa DisabledControl
+        # Disabled wells cannot change active constraint
+        return cfg
     end
-    return target
+    
+    if isnothing(limits)
+        # No limits to apply
+        return cfg
+    end
+
+    old_control = control
+    control, changed = check_well_limits(limits, cond, control)
+    if changed
+        cfg.operating_controls[well] = control
+        @debug "$well switching control to $control from $old_control due to active limit."
+    end
+    return cfg
 end
 
-function check_active_limits(control, target, limits, wmodel, wstate, well::Symbol, density_s, volume_fraction_s, total_mass_rate)
-    changed = false
-    cval = tval = NaN
-    is_lower = false
-    for (name, val) in pairs(limits)
-        if isfinite(first(val))
-            (target_limit, is_lower) = translate_limit(control, name, val)
-            ok, cval, tval = check_limit(control, target_limit, target, is_lower, total_mass_rate, wmodel, wstate, density_s, volume_fraction_s)
-            if !ok
-                changed = true
-                target = target_limit
-                break
+function check_well_limits(limits, cond, control)
+    current_target = control.target
+    next_target = current_target
+    current_name = translate_target_to_symbol(current_target)
+    if control isa InjectorControl
+        for (name, limit_value) in pairs(limits)
+            if name == current_name
+                continue
+            end
+
+            if name == :bhp
+                # Injector BHP limit is an upper limit, and pressure is positive
+                if cond.bottom_hole_pressure > limit_value
+                    next_target = BottomHolePressureTarget(limit_value)
+                    break
+                end
+            else
+                # Injector limits are upper limits on rates
+                if name == :rate
+                    rate = cond.surface_aqueous_rate + cond.surface_liquid_rate + cond.surface_vapor_rate
+                    if rate >= limit_value
+                        next_target = TotalRateTarget(limit_value)
+                        break
+                    end
+                elseif name == :wrat
+                    wrat = cond.surface_aqueous_rate
+                    if wrat >= limit_value
+                        next_target = SurfaceWaterRateTarget(limit_value)
+                        break
+                    end
+                elseif name == :orat
+                    orat = cond.surface_liquid_rate
+                    if orat >= limit_value
+                        next_target = SurfaceOilRateTarget(limit_value)
+                        break
+                    end
+                elseif name == :lrat
+                    lrat = cond.surface_aqueous_rate + cond.surface_liquid_rate
+                    if lrat >= limit_value
+                        next_target = SurfaceLiquidRateTarget(limit_value)
+                        break
+                    end
+                elseif name == :grat
+                    grat = cond.surface_vapor_rate
+                    if grat >= limit_value
+                        next_target = SurfaceGasRateTarget(limit_value)
+                        break
+                    end
+                elseif name == :rate_lower
+                    rate = cond.surface_aqueous_rate + cond.surface_liquid_rate + cond.surface_vapor_rate
+                    if rate <= limit_value
+                        next_target = TotalRateTarget(limit_value)
+                        break
+                    end
+                else
+                    error("Unsupported well producer constraint/limit $k")
+                end
+            end
+        end
+    else
+        control::ProducerControl
+        for (name, limit_value) in pairs(limits)
+            if name == current_name
+                continue
+            end
+            if name == :bhp
+                # Producer BHP limit is a lower limit, and pressure is positive
+                if cond.bottom_hole_pressure < limit_value
+                    next_target = BottomHolePressureTarget(limit_value)
+                    break
+                end
+            else
+                # Producer rates are negative by convention. Producer rate
+                # limits are upper limits.
+                if name == :lrat
+                    lrat = -(cond.surface_aqueous_rate + cond.surface_liquid_rate)
+                    if lrat >= limit_value
+                        next_target = SurfaceLiquidRateTarget(-limit_value)
+                        break
+                    end
+                elseif name == :orat
+                    orat = -cond.surface_liquid_rate
+                    if orat >= limit_value
+                        next_target = SurfaceOilRateTarget(-limit_value)
+                        break
+                    end
+                elseif name == :wrat
+                    wrat = -cond.surface_aqueous_rate
+                    if wrat >= limit_value
+                        next_target = SurfaceWaterRateTarget(-limit_value)
+                        break
+                    end
+                elseif name == :grat
+                    grat = -cond.surface_vapor_rate
+                    if grat >= limit_value
+                        next_target = SurfaceGasRateTarget(-limit_value)
+                        break
+                    end
+                elseif name == :rate
+                    rate = -(cond.surface_aqueous_rate + cond.surface_liquid_rate + cond.surface_vapor_rate)
+                    if rate >= limit_value
+                        next_target = TotalRateTarget(-limit_value)
+                        break
+                    end
+                elseif name == :rate_lower
+                    rate = -(cond.surface_aqueous_rate + cond.surface_liquid_rate + cond.surface_vapor_rate)
+                    if rate <= limit_value
+                        next_target = TotalRateTarget(-limit_value)
+                        break
+                    end
+                else
+                    error("Unsupported well injector constraint/limit $k")
+                end
             end
         end
     end
-    if is_lower
-        lim_type = :lower
-    else
-        lim_type = :upper
+    changed = next_target != current_target
+    if changed
+        control = replace_target(control, next_target)
     end
-    return (target, changed, cval, tval, lim_type)
+    return (control, next_target != current_target)
 end
+
+
+# function apply_well_limit!(cfg::WellGroupConfiguration, target, wmodel, wstate, well::Symbol, density_s, volume_fraction_s, total_mass_rate, current_lims = current_limits(cfg, well))
+#     if !isnothing(current_lims)
+#         ctrl = operating_control(cfg, well)
+#         @tic "limits" target, changed, current_val, limit_val, lim_type = check_active_limits(ctrl, target, current_lims, wmodel, wstate, well, density_s, volume_fraction_s, total_mass_rate)
+#         if changed
+#             old = cfg.operating_controls[well].target
+#             next_control = replace_target(ctrl, target)
+#             cfg.operating_controls[well] = next_control
+#             if lim_type == :lower
+#                 lb = "is below"
+#             else
+#                 lb = "is above"
+#             end
+#             limstr = "Current value $(current_val) $lb $lim_type limit $(limit_val)."
+#             header = "$well is switching control due to $lim_type limit for $(typeof(target)) of $limit_val"
+#             @debug "$(header)\n$(limstr)\nOld value: $old\nNew value: $target." next_control
+#         end
+#     end
+#     return target
+# end
+
+# function check_active_limits(control, target, limits, wmodel, wstate, well::Symbol, density_s, volume_fraction_s, total_mass_rate)
+#     changed = false
+#     cval = tval = NaN
+#     is_lower = false
+#     for (name, val) in pairs(limits)
+#         if isfinite(first(val))
+#             (target_limit, is_lower) = translate_limit(control, name, val)
+#             ok, cval, tval = check_limit(control, target_limit, target, is_lower, total_mass_rate, wmodel, wstate, density_s, volume_fraction_s)
+#             if !ok
+#                 changed = true
+#                 target = target_limit
+#                 break
+#             end
+#         end
+#     end
+#     if is_lower
+#         lim_type = :lower
+#     else
+#         lim_type = :upper
+#     end
+#     return (target, changed, cval, tval, lim_type)
+# end
+
+
+function well_control_equation(ctrl, cond, well, model, state)
+    error()
+end
+
 
 """
     translate_limit(control::ProducerControl, name, val)

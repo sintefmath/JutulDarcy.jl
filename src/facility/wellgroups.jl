@@ -70,9 +70,23 @@ target_scaling(::TotalMassRateTarget) = 1.0/(3600*24.0) # weight by day
 
 Jutul.associated_entity(::ControlEquationWell) = Wells()
 Jutul.local_discretization(::ControlEquationWell, i) = nothing
+
+function Jutul.prepare_equation_in_entity!(i, eq::ControlEquationWell, eq_s, state, state0, model, dt)
+    well = model.domain.well_symbols[i]
+    cond = FacilityVariablesForWell(model, state, well)
+    cfg = state.WellGroupConfiguration
+    ctrl = operating_control(cfg, well)
+    limits = current_limits(cfg, well)
+    apply_well_limits!(cfg, limits, ctrl, well, cond)
+end
+
 function Jutul.update_equation_in_entity!(v, i, state, state0, eq::ControlEquationWell, model, dt, ldisc = local_discretization(eq, i))
-    # Set to zero, do actual control via cross terms
-    v[] = 0*state.TotalSurfaceMassRate[i]
+    well = model.domain.well_symbols[i]
+    cond = FacilityVariablesForWell(model, state, well)
+    cfg = state.WellGroupConfiguration
+    ctrl = operating_control(cfg, well)
+    eq_val = well_control_equation(ctrl, cond, well, model, state)
+    v[] = eq_val + 0*state.BottomHolePressure[i]
 end
 
 Jutul.associated_entity(::SurfaceTemperatureEquation) = Wells()

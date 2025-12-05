@@ -28,6 +28,38 @@ function WellGroup(wells::Vector{Symbol}; can_shut_wells = true, can_shut_inject
     return WellGroup(wells, can_shut_producers, can_shut_injectors)
 end
 
+struct FacilityVariablesForWell{T}
+    bottom_hole_pressure::T # Pa
+    total_mass_rate::T # kg/s
+    surface_aqueous_rate::T # surface m3/s
+    surface_liquid_rate::T # surface m3/s
+    surface_vapor_rate::T # surface m3/s
+    function FacilityVariablesForWell(bhp, qmass, qws, qos, qgs)
+        bhp, qws, qos, qgs = promote(bhp, qmass, qws, qos, qgs)
+        return new{typeof(bhp)}(bhp, qmass, qws, qos, qgs)
+    end
+end
+
+function FacilityVariablesForWell(model::FacilityModel, state, well::Symbol)
+    sys = model.system.multiphase
+    pos = get_well_position(model.domain, well)
+    bhp = state.BottomHolePressure[pos]
+    qmass = state.TotalSurfaceMassRate[pos]
+    qw = qo = qg = zero(qmass)
+    phases = get_phases(sys)
+    for (i, ph) in enumerate(phases)
+        rate = state.SurfacePhaseRates[i, pos]
+        if ph isa AqueousPhase
+            qw = rate
+        elseif ph isa LiquidPhase
+            qo = rate
+        elseif ph isa VaporPhase
+            qg = rate
+        end
+    end
+    return FacilityVariablesForWell(bhp, qmass, qw, qo, qg)
+end
+
 const WellGroupModel = SimulationModel{WellGroup, <:Any, <:Any, <:Any}
 
 struct Wells <: JutulEntity end
