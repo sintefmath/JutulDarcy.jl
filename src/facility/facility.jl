@@ -18,13 +18,6 @@ include("cross_terms.jl")
 include("well_presolve.jl")
 include("gradients.jl")
 
-function Jutul.select_minimum_output_variables!(vars, domain::Union{MSWellDomain, SimpleWellDomain}, model::SimulationModel{<:Any, CompositeSystem{:Reservoir, T}, <:Any, <:Any}) where T
-    push!(vars, :PhaseMassDensities)
-    push!(vars, :Saturations)
-    push!(vars, :SurfaceWellConditions)
-    return vars
-end
-
 function Jutul.select_minimum_output_variables!(vars, domain::WellGroup, model)
     for k in keys(model.primary_variables)
         push!(vars, k)

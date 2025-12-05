@@ -6,13 +6,10 @@ get_phases(s::Symbol) = get_phases(Val(s))
 
 @inline number_of_phases(sys::MultiPhaseSystem) = length(get_phases(sys))
 @inline reference_densities(sys::MultiPhaseSystem) = sys.rho_ref
-@inline reference_densities(sys::CompositeSystem) = reference_densities(flow_system(sys))
 
 flow_system(sys::MultiPhaseSystem) = sys
-flow_system(sys::CompositeSystem) = sys.systems.flow
 
 number_of_components(sys::ImmiscibleSystem) = number_of_phases(sys)
-number_of_components(sys::CompositeSystem) = number_of_components(flow_system(sys))
 
 """
     component_names(sys)
@@ -20,7 +17,6 @@ number_of_components(sys::CompositeSystem) = number_of_components(flow_system(sy
 Get a list of the component names (as Strings)
 """
 component_names(sys::Union{SinglePhaseSystem, ImmiscibleSystem}) = phase_names(sys)
-component_names(sys::CompositeSystem) = phase_names(sys.systems.flow)
 
 phase_names(system) = phase_name.(get_phases(system))
 
@@ -30,7 +26,6 @@ phase_indices(sys::SinglePhaseSystem) = 1
 phase_indices(sys::ImmiscibleSystem) = tuple(eachindex(sys.phases)...)
 
 number_of_phases(::SinglePhaseSystem) = 1
-number_of_phases(sys::CompositeSystem) = number_of_phases(sys.systems.flow)
 
 """
     eachphase(sys::MultiPhaseSystem)

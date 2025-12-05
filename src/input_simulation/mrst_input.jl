@@ -903,7 +903,6 @@ function set_thermal_deck_specialization!(model, props, pvtnum, oil, water, gas)
         end
         tab = tuple(tab...)
         v = TemperatureDependentVariable(tab, regions = pvtnum)
-        v = wrap_reservoir_variable(model.system, v, :thermal)
         set_secondary_variables!(model, ComponentHeatCapacity = v)
     end
 
@@ -919,7 +918,6 @@ function set_thermal_deck_specialization!(model, props, pvtnum, oil, water, gas)
         end
         tab = tuple(tab...)
         v = TemperatureDependentVariable(tab, regions = pvtnum)
-        v = wrap_reservoir_variable(model.system, v, :thermal)
         set_secondary_variables!(model, RockHeatCapacity = v)
     end
 end
@@ -927,7 +925,7 @@ end
 function set_deck_pc!(vars, param, sys, props; kwarg...)
     pc = deck_pc(props; kwarg...)
     if !isnothing(pc)
-        vars[:CapillaryPressure] = wrap_reservoir_variable(sys, pc, :flow)
+        vars[:CapillaryPressure] = pc
     end
 end
 
@@ -995,22 +993,6 @@ function set_deck_pvmult!(vars, runspec, param, sys, props, reservoir)
         param[:StaticFluidVolume] = static
         vars[:FluidVolume] = ϕ
     end
-end
-
-function wrap_reservoir_variable(sys::CompositeSystem, var::JutulVariables, type::Symbol = :flow)
-    return Pair(type, var)
-end
-
-function wrap_reservoir_variable(sys, var, type::Symbol = :flow)
-    return var
-end
-
-function unwrap_reservoir_variable(var)
-    return var
-end
-
-function unwrap_reservoir_variable(var::Pair)
-    return last(var)
 end
 
 function init_from_mat(mrst_data, model, param)
@@ -1282,7 +1264,7 @@ function setup_case_from_mrst(casename;
         initializer[sym] = w0
     end
     #
-    mode = PredictionMode()
+    mode = FacilitySystem(sys)
     F0 = Dict(:TotalSurfaceMassRate => 0.0)
 
     facility_symbols = []

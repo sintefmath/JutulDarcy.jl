@@ -1,12 +1,14 @@
+abstract type AbstractFacilitySystem <: JutulSystem end
 
-abstract type FacilitySystem <: JutulSystem end
-struct PredictionMode <: FacilitySystem end
-struct HistoryMode <: FacilitySystem end
-
-const FacilityModel = SimulationModel{<:Any, <:FacilitySystem, <:Any, <:Any}
+struct FacilitySystem{T} <: AbstractFacilitySystem
+    multiphase::T
+end
 
 abstract type SurfaceFacilityDomain <: JutulDomain end
 abstract type WellControllerDomain <: SurfaceFacilityDomain end
+
+const FacilityModel = SimulationModel{<:SurfaceFacilityDomain, <:AbstractFacilitySystem, <:Any, <:Any}
+
 mutable struct WellGroup <: WellControllerDomain
     const well_symbols::Vector{Symbol} # Controlled wells
     "Can temporarily shut producers that try to reach zero rate multiple solves in a row"
@@ -27,6 +29,26 @@ end
 const WellGroupModel = SimulationModel{WellGroup, <:Any, <:Any, <:Any}
 
 struct Wells <: JutulEntity end
+
+struct SurfacePhaseRates{T} <: JutulVariables
+    phases::T
+    function SurfacePhaseRates(phases = (AqueousPhase(), LiquidPhase(), VaporPhase()))
+        all(x -> x isa AbstractPhase, phases) || throw(ArgumentError("All entries in phases must be of type AbstractPhase"))
+        return new{typeof(phases)}(phases)
+    end
+end
+
+Jutul.associated_entity(::SurfacePhaseRates) = Wells()
+Jutul.values_per_entity(fmodel, rates::SurfacePhaseRates) = length(rates.phases)
+
+Base.@kwdef struct BottomHolePressure <: Jutul.ScalarVariable
+    "Maximum absolute change betweeen two Newton updates (nominally Pa)"
+    max_absolute_change::Union{Float64, Nothing} = nothing
+    "Maximum relative change between two Newton updates."
+    max_relative_change::Union{Float64, Nothing} = nothing
+end
+
+Jutul.associated_entity(::BottomHolePressure) = Wells()
 
 """
     TotalSurfaceMassRate(max_absolute_change = nothing, max_relative_change = nothing)

@@ -232,31 +232,6 @@ function get_model_wells(model::MultiModel; data_domain = false)
 end
 
 """
-    reservoir_system(flow = flow_system, thermal = thermal_system)
-
-Set up a [`Jutul.CompositeSystem`](@ref) that combines multiple systems
-together. In some terminologies this is referred to as a multi-physics system.
-The classical example is to combine a flow system and a thermal system to create
-a coupled flow and heat system.
-"""
-function reservoir_system(; flow = missing, thermal = missing, kwarg...)
-    carg = Pair{Symbol, Jutul.JutulSystem}[]
-    if !ismissing(flow)
-        flow::MultiPhaseSystem
-        push!(carg, :flow => flow)
-    end
-    if !ismissing(thermal)
-        thermal::ThermalSystem
-        push!(carg, :thermal => thermal)
-    end
-    for (k, v) in kwarg
-        v::Jutul.JutulSystem
-        push!(carg, k => v)
-    end
-    return CompositeSystem(:Reservoir; carg...)
-end
-
-"""
     model = setup_reservoir_model(reservoir, system; wells = [], <keyword arguments>)
     model = setup_reservoir_model(reservoir, system; wells = [w1, w2], backend = :csr, <keyword arguments>)
     model, parameters = setup_reservoir_model(reservoir, system; extra_out = true, <keyword arguments>)
@@ -436,7 +411,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     # List of models (order matters)
     models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()
     reservoir_context, context = Jutul.select_contexts(
-        backend; 
+        backend;
         main_context = reservoir_context,
         context = context,
         block_backend = block_backend,
@@ -452,6 +427,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         kgrad = kgrad,
         upwind = upwind
     )
+    system = rmodel.system
     if thermal
         rmodel = add_thermal_to_model!(rmodel)
     end
@@ -491,7 +467,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     end
     models[:Reservoir] = rmodel
     # Then we set up all the wells
-    mode = PredictionMode()
+    facility_system = FacilitySystem(system)
     encountered_wells = Dict{Symbol, Bool}()
     if length(wells) > 0
         facility_to_add = OrderedDict()
@@ -539,7 +515,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             models[wname] = wmodel
             if split_wells
                 wg = WellGroup([wname], can_shut_wells = can_shut_wells)
-                F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
+                F = SimulationModel(wg, facility_system, context = context, data_domain = DataDomain(wg))
                 if thermal
                     add_thermal_to_facility!(F)
                 end
@@ -554,7 +530,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             end
         else
             wg = WellGroup(map(x -> physical_representation(x).name, wells), can_shut_wells = can_shut_wells)
-            F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
+            F = SimulationModel(wg, facility_system, context = context, data_domain = DataDomain(wg))
             if thermal
                 add_thermal_to_facility!(F)
             end
@@ -2181,7 +2157,6 @@ function set_discretization_variables!(model::MultiModel)
 end
 
 function set_discretization_variables!(model; ntpfa_potential = true)
-    disc = model.domain.discretizations
     flow = model.domain.discretizations.mass_flow
     if flow isa PotentialFlow
         if eltype(flow.kgrad) != TPFA
@@ -2198,10 +2173,6 @@ function set_discretization_variables!(model; ntpfa_potential = true)
             if ntpfa_potential || has_gravity || has_pc
                 pp = PhasePotentials()
                 acd = AdjustedCellDepths()
-                if model.system isa CompositeSystem
-                    pp = Pair(:flow, pp)
-                    acd = Pair(:flow, acd)
-                end
                 set_secondary_variables!(model, PhasePotentials = pp)
                 set_parameters!(model, AdjustedCellDepths = acd)
             end

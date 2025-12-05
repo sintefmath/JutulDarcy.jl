@@ -187,7 +187,7 @@ function setup_case_from_parsed_data(datafile;
                 if sys isa StandardBlackOilSystem
                     b_i = DeckShrinkageFactors(pvt_i, regions = pvt_reg_i, watdent = watdent)
                     set_secondary_variables!(submodel,
-                        ShrinkageFactors = wrap_reservoir_variable(sys, b_i, :flow)
+                        ShrinkageFactors = b_i
                     )
                 end
                 if is_thermal
@@ -201,8 +201,8 @@ function setup_case_from_parsed_data(datafile;
                 end
                 mu = DeckPhaseViscosities(pvt_i, regions = pvt_reg_i, thermal = thermal_visc)
                 set_secondary_variables!(submodel,
-                    PhaseViscosities = wrap_reservoir_variable(sys, mu, :flow),
-                    PhaseMassDensities = wrap_reservoir_variable(sys, rho, :flow)
+                    PhaseViscosities = mu,
+                    PhaseMassDensities = rho
                 )
             end
             if is_thermal

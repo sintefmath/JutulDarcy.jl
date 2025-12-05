@@ -237,7 +237,7 @@ function length_from_cell_dims(Δ, dir)
     return norm(dir, 2)
 end
 
-function Jutul.discretize_domain(d::DataDomain, system::Union{MultiPhaseSystem, CompositeSystem{:Reservoir, T}}, ::Val{:default}; kwarg...) where T
+function Jutul.discretize_domain(d::DataDomain, system::MultiPhaseSystem, ::Val{:default}; kwarg...)
     return discretized_domain_tpfv_flow(d; kwarg...)
 end
 
@@ -305,7 +305,7 @@ function discretized_domain_tpfv_flow(domain::Jutul.DataDomain;
     return DiscretizedDomain(G, disc)
 end
 
-function Jutul.discretize_domain(d::DataDomain{W}, system::Union{MultiPhaseSystem, CompositeSystem{:Reservoir, T}}, ::Val{:default}; kwarg...) where {W<:Union{SimpleWell, MultiSegmentWell}, T}
+function Jutul.discretize_domain(d::DataDomain{W}, system::MultiPhaseSystem, ::Val{:default}; kwarg...) where W<:Union{SimpleWell, MultiSegmentWell}
     return discretized_domain_well(physical_representation(d); kwarg...)
 end
 

@@ -551,7 +551,7 @@ function declare_entities(W::WellDomain)
 end
 
 function Jutul.select_secondary_variables!(S, D::WellDomain, model)
-    if model.system isa MultiPhaseSystem || model.system isa CompositeSystem
+    if model.system isa MultiPhaseSystem
         sys = flow_system(model.system)
         S[:SurfaceWellConditions] = SurfaceWellConditions(sys)
     end

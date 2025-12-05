@@ -85,10 +85,12 @@ end
 
 # Selection of primary variables
 function select_primary_variables!(S, domain::WellGroup, model)
+    S[:BottomHolePressure] = BottomHolePressure()
+    S[:SurfacePhaseRates] = SurfacePhaseRates()
     S[:TotalSurfaceMassRate] = TotalSurfaceMassRate()
 end
 
-function select_primary_variables!(S, system::PredictionMode, model)
+function select_primary_variables!(S, system::FacilitySystem, model)
     nothing
 end
 
