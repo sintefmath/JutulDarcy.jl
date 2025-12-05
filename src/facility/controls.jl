@@ -110,7 +110,7 @@ function apply_well_limits!(cfg::WellGroupConfiguration, limits, control, well::
     control, changed = check_well_limits(limits, cond, control)
     if changed
         cfg.operating_controls[well] = control
-        @debug "$well switching control to $control from $old_control due to active limit."
+        @info "$well switching control to $control from $old_control due to active limit."
     end
     return cfg
 end
@@ -307,136 +307,136 @@ function well_control_equation(ctrl, target::SurfaceOilRateTarget, cond, well, m
     return cond.surface_liquid_rate - target.value
 end
 
-"""
-    translate_limit(control::ProducerControl, name, val)
+# """
+#     translate_limit(control::ProducerControl, name, val)
 
-Translates the limit for a given control parameter in a `ProducerControl`.
+# Translates the limit for a given control parameter in a `ProducerControl`.
 
-# Arguments
-- `control::ProducerControl`: The control object containing the parameters to be translated into limit.
-- `name`: The name of the parameter whose limit is to be translated.
-    - `:bhp`: Bottom hole pressure.
-    - `:orat`: Surface oil rate.
-    - `:lrat`: Surface liquid (water + oil) rate.
-    - `:grat`: Surface gas rate.
-    - `:wrat`: Surface water rate.
-    - `:rate`: Total volumetric surface rate (upper limit).
-    - `:rate_upper`: Total volumetric surface rate (upper limit).
-    - `:rate_lower`: Total volumetric surface rate (lower limit).
-    - `:resv`: Reservoir voidage.
-    - `:mrat`: Total mass rate (upper limit).
-- `val`: The value to which the limit is to be translated.
+# # Arguments
+# - `control::ProducerControl`: The control object containing the parameters to be translated into limit.
+# - `name`: The name of the parameter whose limit is to be translated.
+#     - `:bhp`: Bottom hole pressure.
+#     - `:orat`: Surface oil rate.
+#     - `:lrat`: Surface liquid (water + oil) rate.
+#     - `:grat`: Surface gas rate.
+#     - `:wrat`: Surface water rate.
+#     - `:rate`: Total volumetric surface rate (upper limit).
+#     - `:rate_upper`: Total volumetric surface rate (upper limit).
+#     - `:rate_lower`: Total volumetric surface rate (lower limit).
+#     - `:resv`: Reservoir voidage.
+#     - `:mrat`: Total mass rate (upper limit).
+# - `val`: The value to which the limit is to be translated.
 
-# Returns
-- The translated limit value for the specified control parameter.
-"""
-function translate_limit(control::ProducerControl, name, val)
-    # Note: Negative sign convention for production.
-    # A lower absolute bound on a rate
-    # |q| > |lim| -> q < lim if both sides are negative
-    # means that we specify is_lower for upper limits and the other
-    # way around for lower limits, when dealing with rates.
-    is_lower = true
-    if name == :bhp
-        # Upper limit, pressure
-        target_limit = BottomHolePressureTarget(val)
-        # Pressures are positive, this is a true lower bound
-        is_lower = true
-    elseif name == :orat
-        # Upper limit, surface oil rate
-        target_limit = SurfaceOilRateTarget(val)
-    elseif name == :lrat
-        # Upper limit, surface liquid (water + oil) rate
-        target_limit = SurfaceLiquidRateTarget(val)
-    elseif name == :grat
-        # Upper limit, surface gas rate
-        target_limit = SurfaceGasRateTarget(val)
-    elseif name == :wrat
-        # Upper limit, surface water rate
-        target_limit = SurfaceWaterRateTarget(val)
-    elseif name == :rate || name == :rate_upper
-        # Upper limit, total volumetric surface rate
-        target_limit = TotalRateTarget(val)
-    elseif name == :rvolrat
-        target_limit = ReservoirVolumeRateTarget(val)
-    elseif name == :rate_lower
-        # Lower limit, total volumetric surface rate. This is useful
-        # disabling producers if they would otherwise start to inject.
-        target_limit = TotalRateTarget(val)
-        is_lower = false
-    elseif name == :resv
-        v, w = val
-        target_limit = ReservoirVoidageTarget(v, w)
-    elseif name == :mrat
-        # Upper limit, total mass rate
-        target_limit = TotalMassRateTarget(val)
-    else
-        error("$name limit not supported for well acting as producer.")
-    end
-    return (target_limit, is_lower)
-end
+# # Returns
+# - The translated limit value for the specified control parameter.
+# """
+# function translate_limit(control::ProducerControl, name, val)
+#     # Note: Negative sign convention for production.
+#     # A lower absolute bound on a rate
+#     # |q| > |lim| -> q < lim if both sides are negative
+#     # means that we specify is_lower for upper limits and the other
+#     # way around for lower limits, when dealing with rates.
+#     is_lower = true
+#     if name == :bhp
+#         # Upper limit, pressure
+#         target_limit = BottomHolePressureTarget(val)
+#         # Pressures are positive, this is a true lower bound
+#         is_lower = true
+#     elseif name == :orat
+#         # Upper limit, surface oil rate
+#         target_limit = SurfaceOilRateTarget(val)
+#     elseif name == :lrat
+#         # Upper limit, surface liquid (water + oil) rate
+#         target_limit = SurfaceLiquidRateTarget(val)
+#     elseif name == :grat
+#         # Upper limit, surface gas rate
+#         target_limit = SurfaceGasRateTarget(val)
+#     elseif name == :wrat
+#         # Upper limit, surface water rate
+#         target_limit = SurfaceWaterRateTarget(val)
+#     elseif name == :rate || name == :rate_upper
+#         # Upper limit, total volumetric surface rate
+#         target_limit = TotalRateTarget(val)
+#     elseif name == :rvolrat
+#         target_limit = ReservoirVolumeRateTarget(val)
+#     elseif name == :rate_lower
+#         # Lower limit, total volumetric surface rate. This is useful
+#         # disabling producers if they would otherwise start to inject.
+#         target_limit = TotalRateTarget(val)
+#         is_lower = false
+#     elseif name == :resv
+#         v, w = val
+#         target_limit = ReservoirVoidageTarget(v, w)
+#     elseif name == :mrat
+#         # Upper limit, total mass rate
+#         target_limit = TotalMassRateTarget(val)
+#     else
+#         error("$name limit not supported for well acting as producer.")
+#     end
+#     return (target_limit, is_lower)
+# end
 
-"""
-    translate_limit(control::InjectorControl, name, val)
+# """
+#     translate_limit(control::InjectorControl, name, val)
 
-Translate the limit for a given `InjectorControl` object.
+# Translate the limit for a given `InjectorControl` object.
 
-# Arguments
-- `control::InjectorControl`: The control object for which the limit is being translated.
-- `name`: The name of the limit to be translated.
-    - `:bhp`: Bottom hole pressure.
-    - `:rate`: Total volumetric surface rate (upper limit).
-    - `:rate_upper`: Total volumetric surface rate (upper limit).
-    - `:rate_lower`: Total volumetric surface rate (lower limit).
-    - `:resv_rate`: Total volumetric reservoir rate.
-    - `:mrat: Total mass rate(upper limit)
-- `val`: The value associated with the limit.
+# # Arguments
+# - `control::InjectorControl`: The control object for which the limit is being translated.
+# - `name`: The name of the limit to be translated.
+#     - `:bhp`: Bottom hole pressure.
+#     - `:rate`: Total volumetric surface rate (upper limit).
+#     - `:rate_upper`: Total volumetric surface rate (upper limit).
+#     - `:rate_lower`: Total volumetric surface rate (lower limit).
+#     - `:resv_rate`: Total volumetric reservoir rate.
+#     - `:mrat: Total mass rate(upper limit)
+# - `val`: The value associated with the limit.
 
-# Returns
-- The translated limit value.
-"""
-function translate_limit(control::InjectorControl, name, val)
-    is_lower = false
-    if name == :bhp
-        # Upper limit, pressure
-        target_limit = BottomHolePressureTarget(val)
-    elseif name == :rate || name == :rate_upper || name == :wrat || name == :orat || name == :lrat || name == :grat
-        # Upper limit, total volumetric surface rate
-        target_limit = TotalRateTarget(val)
-    elseif name == :rate_lower
-        # Lower limit, total volumetric surface rate
-        target_limit = TotalRateTarget(val)
-        is_lower = true
-    elseif name == :resv_rate
-        # Upper limit, total volumetric reservoir rate
-        target_limit = TotalReservoirRateTarget(val)
-    elseif name == :mrat
-        # Upper limit, total mass rate
-        target_limit = TotalMassRateTarget(val)
-    else
-        error("$name limit not supported for well acting as injector.")
-    end
-    return (target_limit, is_lower)
-end
+# # Returns
+# - The translated limit value.
+# """
+# function translate_limit(control::InjectorControl, name, val)
+#     is_lower = false
+#     if name == :bhp
+#         # Upper limit, pressure
+#         target_limit = BottomHolePressureTarget(val)
+#     elseif name == :rate || name == :rate_upper || name == :wrat || name == :orat || name == :lrat || name == :grat
+#         # Upper limit, total volumetric surface rate
+#         target_limit = TotalRateTarget(val)
+#     elseif name == :rate_lower
+#         # Lower limit, total volumetric surface rate
+#         target_limit = TotalRateTarget(val)
+#         is_lower = true
+#     elseif name == :resv_rate
+#         # Upper limit, total volumetric reservoir rate
+#         target_limit = TotalReservoirRateTarget(val)
+#     elseif name == :mrat
+#         # Upper limit, total mass rate
+#         target_limit = TotalMassRateTarget(val)
+#     else
+#         error("$name limit not supported for well acting as injector.")
+#     end
+#     return (target_limit, is_lower)
+# end
 
-function check_limit(current_control, target_limit, target, is_lower::Bool, q_t, source_model, well_state, rhoS, S)
-    if typeof(target_limit) == typeof(target)
-        # We are already operating at this target and there is no need to check.
-        ok = true
-        current_val = limit_val = NaN
-    else
-        current_val = value(well_target_value(q_t, current_control, target_limit, source_model, well_state, rhoS, S))
-        limit_val = target_limit.value
-        ϵ = 1e-6
-        if is_lower
-            # Limit is lower bound, check that we are above...
-            ok = current_val >= (1 + ϵ)*limit_val
-        else
-            ok = current_val <= (1 - ϵ)*limit_val
-        end
-    end
-    return (ok, current_val, limit_val)
-end
+# function check_limit(current_control, target_limit, target, is_lower::Bool, q_t, source_model, well_state, rhoS, S)
+#     if typeof(target_limit) == typeof(target)
+#         # We are already operating at this target and there is no need to check.
+#         ok = true
+#         current_val = limit_val = NaN
+#     else
+#         current_val = value(well_target_value(q_t, current_control, target_limit, source_model, well_state, rhoS, S))
+#         limit_val = target_limit.value
+#         ϵ = 1e-6
+#         if is_lower
+#             # Limit is lower bound, check that we are above...
+#             ok = current_val >= (1 + ϵ)*limit_val
+#         else
+#             ok = current_val <= (1 - ϵ)*limit_val
+#         end
+#     end
+#     return (ok, current_val, limit_val)
+# end
 
 
 function facility_surface_mass_rate_for_well(model::SimulationModel, wsym, fstate; effective::Bool = false)
@@ -451,172 +451,172 @@ end
 
 bottom_hole_pressure(ws) = ws.Pressure[1]
 
-"""
-Well target contribution from well itself (disabled, zero value)
-"""
-function well_target(control, target::DisabledTarget, well_model, well_state, rhoS, S)
-    return 0.0
-end
+# """
+# Well target contribution from well itself (disabled, zero value)
+# """
+# function well_target(control, target::DisabledTarget, well_model, well_state, rhoS, S)
+#     return 0.0
+# end
 
-"""
-Well target contribution from well itself (bhp)
-"""
-function well_target(control, target::BottomHolePressureTarget, well_model, well_state, rhoS, S)
-    return bottom_hole_pressure(well_state)
-end
+# """
+# Well target contribution from well itself (bhp)
+# """
+# function well_target(control, target::BottomHolePressureTarget, well_model, well_state, rhoS, S)
+#     return bottom_hole_pressure(well_state)
+# end
 
-"""
-Well target contribution from well itself (surface volume, injector)
-"""
-function well_target(control::InjectorControl, target::SurfaceVolumeTarget, well_model, well_state, surface_densities, surface_volume_fractions)
-    t_phases = lumped_phases(target)
-    w_phases = get_phases(well_model.system)
-    t = 0.0
-    for (ix, mix) in control.phases
-        if w_phases[ix] in t_phases
-            t += mix
-        end
-    end
-    return t/control.mixture_density
-end
-
-
-"""
-Well target contribution from well itself (reservoir volume, injector)
-"""
-function well_target(control::InjectorControl, target::TotalReservoirRateTarget, well_model, well_state, surface_densities, surface_volume_fractions)
-    w_phases = get_phases(well_model.system)
-    t = 0.0
-    rho = well_state.PhaseMassDensities
-    for (ix, mix) in control.phases
-        t += mix/rho[ix, 1]
-    end
-    return t
-end
-
-"""
-Well target contribution from well itself (surface volume, injector)
-"""
-function well_target(control::InjectorControl, target::TotalRateTarget, well_model, well_state, surface_densities, surface_volume_fractions)
-    if abs(target.value) == MIN_ACTIVE_WELL_RATE
-        # Special meaning: Limits set at the CONST minimum value are really absolute mass limits.
-        w = 1.0
-    else
-        w = 1.0/control.mixture_density
-    end
-    return w
-end
-
-"""
-Well target contribution from well itself (surface volume, producer)
-"""
-function well_target(control::ProducerControl, target::SurfaceVolumeTarget, well_model, well_state, surface_densities, surface_volume_fractions)
-    phases = get_phases(well_model.system)
-    Tw = eltype(surface_volume_fractions)
-    if abs(target.value) == MIN_ACTIVE_WELL_RATE
-        # Special meaning: Limits set at the CONST minimum value are really absolute mass limits.
-        w = 1.0
-    else
-        # Compute total density at surface conditions by weighting phase volumes at surf
-        ρ_tot = zero(Tw)
-        for (ρ, V) in zip(surface_densities, surface_volume_fractions)
-            ρ_tot += ρ*V
-        end
-        # Divide by total density to get total volume at surface, then multiply that by surface volume fraction
-        w = zero(Tw)
-        if isa(target, TotalRateTarget)
-            for i in eachindex(phases)
-                @inbounds V = surface_volume_fractions[i]
-                w += V
-            end
-        else
-            lp = lumped_phases(target)
-            for (i, ph) in enumerate(phases)
-                if ph in lp
-                    @inbounds V = surface_volume_fractions[i]
-                    w += V
-                end
-            end
-        end
-        w = w/ρ_tot
-    end
-    return w
-end
+# """
+# Well target contribution from well itself (surface volume, injector)
+# """
+# function well_target(control::InjectorControl, target::SurfaceVolumeTarget, well_model, well_state, surface_densities, surface_volume_fractions)
+#     t_phases = lumped_phases(target)
+#     w_phases = get_phases(well_model.system)
+#     t = 0.0
+#     for (ix, mix) in control.phases
+#         if w_phases[ix] in t_phases
+#             t += mix
+#         end
+#     end
+#     return t/control.mixture_density
+# end
 
 
-"""
-Well target contribution for a producer with TotalMassRateTarget.
-Always returns 1.0 so that `t = q_t` in `target_actual_pair`, i.e., the residual
-directly compares the actual total mass flow (kg/s) with the target value.
-"""
+# """
+# Well target contribution from well itself (reservoir volume, injector)
+# """
+# function well_target(control::InjectorControl, target::TotalReservoirRateTarget, well_model, well_state, surface_densities, surface_volume_fractions)
+#     w_phases = get_phases(well_model.system)
+#     t = 0.0
+#     rho = well_state.PhaseMassDensities
+#     for (ix, mix) in control.phases
+#         t += mix/rho[ix, 1]
+#     end
+#     return t
+# end
 
-function well_target(control::ProducerControl, target::TotalMassRateTarget,
-                     well_model, well_state, surface_densities, surface_volume_fractions)
-    return 1.0
-end
+# """
+# Well target contribution from well itself (surface volume, injector)
+# """
+# function well_target(control::InjectorControl, target::TotalRateTarget, well_model, well_state, surface_densities, surface_volume_fractions)
+#     if abs(target.value) == MIN_ACTIVE_WELL_RATE
+#         # Special meaning: Limits set at the CONST minimum value are really absolute mass limits.
+#         w = 1.0
+#     else
+#         w = 1.0/control.mixture_density
+#     end
+#     return w
+# end
+
+# """
+# Well target contribution from well itself (surface volume, producer)
+# """
+# function well_target(control::ProducerControl, target::SurfaceVolumeTarget, well_model, well_state, surface_densities, surface_volume_fractions)
+#     phases = get_phases(well_model.system)
+#     Tw = eltype(surface_volume_fractions)
+#     if abs(target.value) == MIN_ACTIVE_WELL_RATE
+#         # Special meaning: Limits set at the CONST minimum value are really absolute mass limits.
+#         w = 1.0
+#     else
+#         # Compute total density at surface conditions by weighting phase volumes at surf
+#         ρ_tot = zero(Tw)
+#         for (ρ, V) in zip(surface_densities, surface_volume_fractions)
+#             ρ_tot += ρ*V
+#         end
+#         # Divide by total density to get total volume at surface, then multiply that by surface volume fraction
+#         w = zero(Tw)
+#         if isa(target, TotalRateTarget)
+#             for i in eachindex(phases)
+#                 @inbounds V = surface_volume_fractions[i]
+#                 w += V
+#             end
+#         else
+#             lp = lumped_phases(target)
+#             for (i, ph) in enumerate(phases)
+#                 if ph in lp
+#                     @inbounds V = surface_volume_fractions[i]
+#                     w += V
+#                 end
+#             end
+#         end
+#         w = w/ρ_tot
+#     end
+#     return w
+# end
 
 
-"""
-Well target contribution from injector with TotalMassRateTarget.
+# """
+# Well target contribution for a producer with TotalMassRateTarget.
+# Always returns 1.0 so that `t = q_t` in `target_actual_pair`, i.e., the residual
+# directly compares the actual total mass flow (kg/s) with the target value.
+# """
 
-This target enforces a specified total mass injection rate (kg/s) for the well.
-
-# Example usage:
-rate_target = TotalMassRateTarget(1.0)
-
-# Create injector control:
-I_ctrl = InjectorControl(rate_target, [0.0, 1.0], density = 630.0)
-# or, mass rate only (density defaults to 1.0 kg/m^3;
-I_ctrl = InjectorControl(rate_target, [0.0, 1.0])
-"""
-
-function well_target(control::InjectorControl, target::TotalMassRateTarget,
-                     well_model, well_state, surface_densities, surface_volume_fractions)                   
-    return 1.0
-end
+# function well_target(control::ProducerControl, target::TotalMassRateTarget,
+#                      well_model, well_state, surface_densities, surface_volume_fractions)
+#     return 1.0
+# end
 
 
-"""
-Well target contribution from well itself (RESV, producer)
-"""
-function well_target(control::ProducerControl, target::ReservoirVoidageTarget, well_model, well_state, surface_densities, surface_volume_fractions)
-    Tw = eltype(surface_volume_fractions)
-    ρ_tot = zero(Tw)
-    for (ρ, V) in zip(surface_densities, surface_volume_fractions)
-        ρ_tot += ρ*V
-    end
-    w = zero(Tw)
-    for (i, S) in enumerate(surface_volume_fractions)
-        w += S*target.weights[i]
-    end
-    return w/ρ_tot
-end
+# """
+# Well target contribution from injector with TotalMassRateTarget.
 
-function well_target(control::ProducerControl, target::ReservoirVolumeRateTarget, well_model, well_state, surface_densities, surface_volume_fractions)
-    rho = well_state.PhaseMassDensities
-    s = well_state.Saturations
-    total_density = zero(eltype(rho))
-    wc = JutulDarcy.well_top_node()
-    for ph in axes(rho, 1)
-        total_density += rho[ph, wc]*s[ph, wc]
-    end
-    if haskey(well_state, :TotalSaturation)
-        # sT = well_state.TotalSaturation[wc]
-        # total_density *= sT
-    end
-    return 1.0/total_density
-end
+# This target enforces a specified total mass injection rate (kg/s) for the well.
 
-function well_target(control::InjectorControl, target::ReinjectionTarget, well_model, well_state, surface_densities, surface_volume_fractions)
-    w = 1.0/control.mixture_density
-    return w
-end
+# # Example usage:
+# rate_target = TotalMassRateTarget(1.0)
 
-function well_target_value(q_t, control, target, source_model, well_state, rhoS, S)
-    v = well_target(control, target, source_model, well_state, rhoS, S)
-    if rate_weighted(target)
-        v *= value(q_t)
-    end
-    return v
-end
+# # Create injector control:
+# I_ctrl = InjectorControl(rate_target, [0.0, 1.0], density = 630.0)
+# # or, mass rate only (density defaults to 1.0 kg/m^3;
+# I_ctrl = InjectorControl(rate_target, [0.0, 1.0])
+# """
+
+# function well_target(control::InjectorControl, target::TotalMassRateTarget,
+#                      well_model, well_state, surface_densities, surface_volume_fractions)                   
+#     return 1.0
+# end
+
+
+# """
+# Well target contribution from well itself (RESV, producer)
+# """
+# function well_target(control::ProducerControl, target::ReservoirVoidageTarget, well_model, well_state, surface_densities, surface_volume_fractions)
+#     Tw = eltype(surface_volume_fractions)
+#     ρ_tot = zero(Tw)
+#     for (ρ, V) in zip(surface_densities, surface_volume_fractions)
+#         ρ_tot += ρ*V
+#     end
+#     w = zero(Tw)
+#     for (i, S) in enumerate(surface_volume_fractions)
+#         w += S*target.weights[i]
+#     end
+#     return w/ρ_tot
+# end
+
+# function well_target(control::ProducerControl, target::ReservoirVolumeRateTarget, well_model, well_state, surface_densities, surface_volume_fractions)
+#     rho = well_state.PhaseMassDensities
+#     s = well_state.Saturations
+#     total_density = zero(eltype(rho))
+#     wc = JutulDarcy.well_top_node()
+#     for ph in axes(rho, 1)
+#         total_density += rho[ph, wc]*s[ph, wc]
+#     end
+#     if haskey(well_state, :TotalSaturation)
+#         # sT = well_state.TotalSaturation[wc]
+#         # total_density *= sT
+#     end
+#     return 1.0/total_density
+# end
+
+# function well_target(control::InjectorControl, target::ReinjectionTarget, well_model, well_state, surface_densities, surface_volume_fractions)
+#     w = 1.0/control.mixture_density
+#     return w
+# end
+
+# function well_target_value(q_t, control, target, source_model, well_state, rhoS, S)
+#     v = well_target(control, target, source_model, well_state, rhoS, S)
+#     if rate_weighted(target)
+#         v *= value(q_t)
+#     end
+#     return v
+# end
 
