@@ -291,7 +291,7 @@ function well_control_equation(ctrl, cond, well, model, state)
 end
 
 function well_control_equation(ctrl::DisabledControl, target::DisabledTarget, cond, well, model, state)
-    return 0.0
+    return cond.total_mass_rate
 end
 
 function well_control_equation(ctrl, target::TotalRateTarget, cond, well, model, state)
