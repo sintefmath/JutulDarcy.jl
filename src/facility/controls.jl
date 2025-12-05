@@ -162,37 +162,37 @@ function check_well_limits(limits, cond, control)
                 # Injector limits are upper limits on rates
                 if name == :rate
                     rate = cond.surface_aqueous_rate + cond.surface_liquid_rate + cond.surface_vapor_rate
-                    if rate >= limit_value
+                    if rate > limit_value
                         next_target = TotalRateTarget(limit_value)
                         break
                     end
                 elseif name == :wrat
                     wrat = cond.surface_aqueous_rate
-                    if wrat >= limit_value
+                    if wrat > limit_value
                         next_target = SurfaceWaterRateTarget(limit_value)
                         break
                     end
                 elseif name == :orat
                     orat = cond.surface_liquid_rate
-                    if orat >= limit_value
+                    if orat > limit_value
                         next_target = SurfaceOilRateTarget(limit_value)
                         break
                     end
                 elseif name == :lrat
                     lrat = cond.surface_aqueous_rate + cond.surface_liquid_rate
-                    if lrat >= limit_value
+                    if lrat > limit_value
                         next_target = SurfaceLiquidRateTarget(limit_value)
                         break
                     end
                 elseif name == :grat
                     grat = cond.surface_vapor_rate
-                    if grat >= limit_value
+                    if grat > limit_value
                         next_target = SurfaceGasRateTarget(limit_value)
                         break
                     end
                 elseif name == :rate_lower
                     rate = cond.surface_aqueous_rate + cond.surface_liquid_rate + cond.surface_vapor_rate
-                    if rate <= limit_value
+                    if rate < limit_value
                         next_target = TotalRateTarget(limit_value)
                         break
                     end
@@ -218,37 +218,37 @@ function check_well_limits(limits, cond, control)
                 # limits are upper limits.
                 if name == :lrat
                     lrat = -(cond.surface_aqueous_rate + cond.surface_liquid_rate)
-                    if lrat >= limit_value
+                    if lrat > limit_value
                         next_target = SurfaceLiquidRateTarget(-limit_value)
                         break
                     end
                 elseif name == :orat
                     orat = -cond.surface_liquid_rate
-                    if orat >= limit_value
+                    if orat > limit_value
                         next_target = SurfaceOilRateTarget(-limit_value)
                         break
                     end
                 elseif name == :wrat
                     wrat = -cond.surface_aqueous_rate
-                    if wrat >= limit_value
+                    if wrat > limit_value
                         next_target = SurfaceWaterRateTarget(-limit_value)
                         break
                     end
                 elseif name == :grat
                     grat = -cond.surface_vapor_rate
-                    if grat >= limit_value
+                    if grat > limit_value
                         next_target = SurfaceGasRateTarget(-limit_value)
                         break
                     end
                 elseif name == :rate
                     rate = -(cond.surface_aqueous_rate + cond.surface_liquid_rate + cond.surface_vapor_rate)
-                    if rate >= limit_value
+                    if rate > limit_value
                         next_target = TotalRateTarget(-limit_value)
                         break
                     end
                 elseif name == :rate_lower
                     rate = -(cond.surface_aqueous_rate + cond.surface_liquid_rate + cond.surface_vapor_rate)
-                    if rate <= limit_value
+                    if rate < limit_value
                         next_target = TotalRateTarget(-limit_value)
                         break
                     end
