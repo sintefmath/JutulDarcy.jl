@@ -95,7 +95,7 @@ function valid_surface_rate_for_control(q_t, ::DisabledControl)
     return Jutul.replace_value(q_t, 0.0)
 end
 
-function apply_well_limits!(cfg::WellGroupConfiguration, phase_rates, limits, control, well::Symbol, cond::FacilityVariablesForWell)
+function apply_well_limits!(cfg::WellGroupConfiguration, state, limits, control, well::Symbol, cond::FacilityVariablesForWell)
     if control isa DisabledControl
         # Disabled wells cannot change active constraint
         return cfg
@@ -109,6 +109,8 @@ function apply_well_limits!(cfg::WellGroupConfiguration, phase_rates, limits, co
     old_control = control
     control, changed = check_well_limits(limits, cond, control)
     if changed
+        new_target_symbol = translate_target_to_symbol(control.target)
+        @info "Well $well switching control from $(old_control.target) to $(control.target) due to active limit." limits
         cfg.operating_controls[well] = control
         is_injector = control isa InjectorControl
         if is_injector
@@ -121,10 +123,18 @@ function apply_well_limits!(cfg::WellGroupConfiguration, phase_rates, limits, co
         wval = get(limits, :wrat, 0.0)
         lrat = get(limits, :lrat, 0.0)
 
-        if translate_target_to_symbol(control.target) == :lrat
+        if new_target_symbol == :lrat
             oval = lrat/2.0
             gval = lrat/2.0
         end
+        phase_rates = state.SurfacePhaseRates
+        bhps = state.BottomHolePressure
+        if new_target_symbol == :bhp
+            bhps[cond.idx] = replace_value(bhps[cond.idx], limits.bhp)
+        elseif haskey(limits, :bhp)
+            bhps[cond.idx] = replace_value(bhps[cond.idx], limits.bhp + sgn*0.1*si_unit(:bar))
+        end
+
         phase_rates[1, cond.idx] = replace_value(phase_rates[1, cond.idx], sgn*wval)
         phase_rates[2, cond.idx] = replace_value(phase_rates[2, cond.idx], sgn*oval)
         phase_rates[3, cond.idx] = replace_value(phase_rates[3, cond.idx], sgn*gval)

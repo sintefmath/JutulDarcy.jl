@@ -117,8 +117,7 @@ function Jutul.prepare_equation_in_entity!(i, eq::ControlEquationWell, eq_s, sta
     cfg = state.WellGroupConfiguration
     ctrl = operating_control(cfg, well)
     limits = current_limits(cfg, well)
-    phase_rates = state.SurfacePhaseRates
-    apply_well_limits!(cfg, phase_rates, limits, ctrl, well, cond)
+    apply_well_limits!(cfg, state, limits, ctrl, well, cond)
 end
 
 function Jutul.update_equation_in_entity!(v, i, state, state0, eq::ControlEquationWell, model, dt, ldisc = local_discretization(eq, i))
