@@ -415,7 +415,7 @@ function well_control_equation(ctrl, cond, well, model, state)
 end
 
 function well_control_equation(ctrl::DisabledControl, target::DisabledTarget, cond, well, model, state)
-    return cond.total_mass_rate
+    return abs(cond.total_mass_rate) + abs(cond.surface_aqueous_rate) + abs(cond.surface_liquid_rate) + abs(cond.surface_vapor_rate)
 end
 
 function well_control_equation(ctrl, target::TotalRateTarget, cond, well, model, state)
