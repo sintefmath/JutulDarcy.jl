@@ -146,11 +146,12 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     gval = cond.surface_vapor_rate
 
     # Upper limits
-    oval_limit = get(limits, :orat, 0.0)
-    gval_limit = get(limits, :grat, 0.0)
-    wval_limit = get(limits, :wrat, 0.0)
-    lrat_limit = get(limits, :lrat, 0.0)
-    rate = get(limits, :rate, missing)
+    w = 0.99
+    oval_limit = w*get(limits, :orat, 0.0)
+    gval_limit = w*get(limits, :grat, 0.0)
+    wval_limit = w*get(limits, :wrat, 0.0)
+    lrat_limit = w*get(limits, :lrat, 0.0)
+    rate = w*get(limits, :rate, missing)
 
     if new_target_symbol == :lrat
         if has_water && has_oil
@@ -197,13 +198,13 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
             gval = gval/total
         end
     elseif new_target_symbol == :orat
-        gval = wval = 0.0
+        # gval = wval = 0.0
         oval = oval_limit
     elseif new_target_symbol == :grat
-        oval = wval = 0.0
+        # oval = wval = 0.0
         gval = gval_limit
     elseif new_target_symbol == :wrat
-        oval = gval = 0.0
+        # oval = gval = 0.0
         wval = wval_limit
     end
     bhps = state.BottomHolePressure
@@ -231,7 +232,7 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     if has_gas
         phase_rates[g_idx, idx] = replace_value(phase_rates[g_idx, idx], sgn*(gval + ev))
     end
-    @info "??" phase_rates bhps
+    @info "??" value(phase_rates) value(bhps)
     return state
 end
 
@@ -248,6 +249,7 @@ function check_well_limits(limits, cond, control)
             if name == :bhp
                 # Injector BHP limit is an upper limit, and pressure is positive
                 if cond.bottom_hole_pressure > limit_value
+                    @error "INJECTOR BHP TOO HIGH" cond.bottom_hole_pressure limit_value
                     next_target = BottomHolePressureTarget(limit_value)
                     break
                 end
@@ -303,6 +305,7 @@ function check_well_limits(limits, cond, control)
             if name == :bhp
                 # Producer BHP limit is a lower limit, and pressure is positive
                 if cond.bottom_hole_pressure < limit_value
+                    @error "PRODUCER BHP TOO LOW" cond.bottom_hole_pressure limit_value
                     next_target = BottomHolePressureTarget(limit_value)
                     break
                 end
@@ -353,6 +356,7 @@ function check_well_limits(limits, cond, control)
     end
     changed = next_target != current_target
     if changed
+        @error "Well changed" next_target current_target
         control = replace_target(control, next_target)
     end
     return (control, next_target != current_target)

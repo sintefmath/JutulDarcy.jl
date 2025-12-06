@@ -44,7 +44,7 @@ struct FacilityVariablesForWell{T}
             qos = Jutul.value(qos)
             qgs = Jutul.value(qgs)
         end
-        bhp, qws, qos, qgs = promote(bhp, qmass, qws, qos, qgs)
+        bhp, qmass, qws, qos, qgs = promote(bhp, qmass, qws, qos, qgs)
         return new{typeof(bhp)}(idx, name, bhp, qmass, qws, qos, qgs)
     end
 end
