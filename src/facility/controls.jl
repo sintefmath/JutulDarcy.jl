@@ -149,6 +149,7 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
 
     # Upper limits
     w = 0.99
+    w = 1.0
     if new_target_symbol == :lrat
         lrat_limit = w*limits.lrat
         if has_water && has_oil
