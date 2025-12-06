@@ -151,7 +151,7 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     w = 0.99
     w = 1.0
     if new_target_symbol == :lrat
-        lrat_limit = w*limits.lrat
+        lrat_limit = w*abs(limits.lrat)
         if has_water && has_oil
             wval = lrat_limit/2.0
             oval = lrat_limit/2.0
@@ -165,7 +165,7 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
         gval = 0.0
     elseif new_target_symbol == :rate
         # Injector should be different!
-        rate = w*limits.rate
+        rate = w*abs(limits.rate)
         if is_injector
             wval = oval = gval = 0.0
             for (ph, mix) in control.phases
@@ -191,20 +191,20 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
             if has_gas
                 gval = rhos[g_idx]*rate/nph
             end
-            total = wval + oval + gval
+            total = abs(wval + oval + gval)
             wval = wval/total
             oval = oval/total
             gval = gval/total
         end
     elseif new_target_symbol == :orat
         gval = wval = 0.0
-        oval = w*limits.orat
+        oval = w*abs(limits.orat)
     elseif new_target_symbol == :grat
         oval = wval = 0.0
-        gval = w*limits.grat
+        gval = w*abs(limits.grat)
     elseif new_target_symbol == :wrat
         oval = gval = 0.0
-        wval = w*limits.wrat
+        wval = w*abs(limits.wrat)
     end
     bhps = state.BottomHolePressure
     bhp_limit = get(limits, :bhp, nothing)
@@ -231,7 +231,7 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     if has_gas
         phase_rates[g_idx, idx] = replace_value(phase_rates[g_idx, idx], sgn*(gval + ev))
     end
-    @info "??" value(phase_rates) value(bhps)
+    @info "??" value(phase_rates[:, idx]) value(bhps)
     return state
 end
 
