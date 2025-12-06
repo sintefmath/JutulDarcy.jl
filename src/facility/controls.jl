@@ -101,6 +101,7 @@ end
 function apply_well_limits!(cfg::WellGroupConfiguration, model, state, limits, control, well::Symbol, cond::FacilityVariablesForWell)
     if control isa DisabledControl
         # Disabled wells cannot change active constraint
+        println("Well $well is disabled; skipping limit application.")
         return cfg
     end
 
@@ -116,6 +117,7 @@ function apply_well_limits!(cfg::WellGroupConfiguration, model, state, limits, c
         cfg.operating_controls[well] = control
         set_facility_values_for_control!(state, model, control, limits, cond)
     end
+    println("$well operating $(translate_target_to_symbol(control.target)) with value $(control.target.value)")
     return cfg
 end
 
@@ -147,13 +149,8 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
 
     # Upper limits
     w = 0.99
-    oval_limit = w*get(limits, :orat, 0.0)
-    gval_limit = w*get(limits, :grat, 0.0)
-    wval_limit = w*get(limits, :wrat, 0.0)
-    lrat_limit = w*get(limits, :lrat, 0.0)
-    rate = w*get(limits, :rate, missing)
-
     if new_target_symbol == :lrat
+        lrat_limit = w*limits.lrat
         if has_water && has_oil
             wval = lrat_limit/2.0
             oval = lrat_limit/2.0
@@ -167,6 +164,7 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
         gval = 0.0
     elseif new_target_symbol == :rate
         # Injector should be different!
+        rate = w*limits.rate
         if is_injector
             wval = oval = gval = 0.0
             for (ph, mix) in control.phases
@@ -198,14 +196,14 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
             gval = gval/total
         end
     elseif new_target_symbol == :orat
-        # gval = wval = 0.0
-        oval = oval_limit
+        gval = wval = 0.0
+        oval = w*limits.orat
     elseif new_target_symbol == :grat
-        # oval = wval = 0.0
-        gval = gval_limit
+        oval = wval = 0.0
+        gval = w*limits.grat
     elseif new_target_symbol == :wrat
-        # oval = gval = 0.0
-        wval = wval_limit
+        oval = gval = 0.0
+        wval = w*limits.wrat
     end
     bhps = state.BottomHolePressure
     bhp_limit = get(limits, :bhp, nothing)
@@ -312,6 +310,7 @@ function check_well_limits(limits, cond, control)
             else
                 # Producer rates are negative by convention. Producer rate
                 # limits are upper limits.
+                limit_value = abs(limit_value)
                 if name == :lrat
                     lrat = -(cond.surface_aqueous_rate + cond.surface_liquid_rate)
                     if lrat > limit_value
