@@ -132,7 +132,7 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     sys = model.system.multiphase
     nph = number_of_phases(sys)
     rhos = reference_densities(sys)
-    
+
     w_idx = phase_index(sys, AqueousPhase())
     o_idx = phase_index(sys, LiquidPhase())
     g_idx = phase_index(sys, VaporPhase())
@@ -141,21 +141,25 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     has_oil = !isnothing(o_idx)
     has_gas = !isnothing(g_idx)
 
+    wval = cond.surface_aqueous_rate
+    oval = cond.surface_liquid_rate
+    gval = cond.surface_vapor_rate
+
     # Upper limits
-    oval = get(limits, :orat, 0.0)
-    gval = get(limits, :grat, 0.0)
-    wval = get(limits, :wrat, 0.0)
-    lrat = get(limits, :lrat, 0.0)
+    oval_limit = get(limits, :orat, 0.0)
+    gval_limit = get(limits, :grat, 0.0)
+    wval_limit = get(limits, :wrat, 0.0)
+    lrat_limit = get(limits, :lrat, 0.0)
     rate = get(limits, :rate, missing)
 
     if new_target_symbol == :lrat
         if has_water && has_oil
-            wval = lrat/2.0
-            oval = lrat/2.0
+            wval = lrat_limit/2.0
+            oval = lrat_limit/2.0
         elseif has_water
-            wval = lrat
+            wval = lrat_limit
         elseif has_oil
-            oval = lrat
+            oval = lrat_limit
         else
             error("No water or oil phase present to apply liquid rate limit.")
         end
@@ -194,16 +198,25 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
         end
     elseif new_target_symbol == :orat
         gval = wval = 0.0
+        oval = oval_limit
     elseif new_target_symbol == :grat
         oval = wval = 0.0
+        gval = gval_limit
     elseif new_target_symbol == :wrat
         oval = gval = 0.0
+        wval = wval_limit
     end
     bhps = state.BottomHolePressure
+    bhp_limit = get(limits, :bhp, nothing)
     if new_target_symbol == :bhp
-        bhps[idx] = replace_value(bhps[idx], limits.bhp)
-    elseif haskey(limits, :bhp)
-        bhps[idx] = replace_value(bhps[idx], limits.bhp * (1.0 + 0.1*sgn))
+        bhps[idx] = replace_value(bhps[idx], bhp_limit)
+    elseif !isnothing(bhp_limit)
+        bhp = value(bhps[idx])
+        is_above = bhp > bhp_limit
+        is_below = bhp < bhp_limit
+        if (is_injector && is_above) || (!is_injector && is_below)
+            bhps[idx] = replace_value(bhps[idx], limits.bhp*(1.0 - 0.01*sgn))
+        end
     end
     ev = 1e-8
     phase_rates = state.SurfacePhaseRates
@@ -218,6 +231,7 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     if has_gas
         phase_rates[g_idx, idx] = replace_value(phase_rates[g_idx, idx], sgn*(gval + ev))
     end
+    @info "??" phase_rates bhps
     return state
 end
 
