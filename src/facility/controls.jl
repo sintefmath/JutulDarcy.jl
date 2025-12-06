@@ -218,7 +218,7 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
             bhps[idx] = replace_value(bhps[idx], limits.bhp*(1.0 - 0.01*sgn))
         end
     end
-    ev = 1e-8
+    ev = 0*sgn*1e-8
     phase_rates = state.SurfacePhaseRates
 
     @info "Setting values for $new_target_symbol $(limits[new_target_symbol])" wval oval gval value(bhps[idx]) limits
