@@ -143,9 +143,9 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     has_oil = !isnothing(o_idx)
     has_gas = !isnothing(g_idx)
 
-    wval = cond.surface_aqueous_rate
-    oval = cond.surface_liquid_rate
-    gval = cond.surface_vapor_rate
+    wval = abs(cond.surface_aqueous_rate)
+    oval = abs(cond.surface_liquid_rate)
+    gval = abs(cond.surface_vapor_rate)
 
     # Upper limits
     w = 0.99
@@ -231,7 +231,7 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     if has_gas
         phase_rates[g_idx, idx] = replace_value(phase_rates[g_idx, idx], sgn*(gval + ev))
     end
-    @info "??" value(phase_rates[:, idx]) value(bhps)
+    @info "??" value(phase_rates[:, idx]) value(bhps[idx])
     return state
 end
 
