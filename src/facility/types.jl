@@ -36,13 +36,20 @@ struct FacilityVariablesForWell{T}
     surface_aqueous_rate::T # surface m3/s
     surface_liquid_rate::T # surface m3/s
     surface_vapor_rate::T # surface m3/s
-    function FacilityVariablesForWell(idx, name, bhp, qmass, qws, qos, qgs)
+    function FacilityVariablesForWell(idx, name, bhp, qmass, qws, qos, qgs; drop_ad = false)
+        if drop_ad
+            bhp = Jutul.value(bhp)
+            qmass = Jutul.value(qmass)
+            qws = Jutul.value(qws)
+            qos = Jutul.value(qos)
+            qgs = Jutul.value(qgs)
+        end
         bhp, qws, qos, qgs = promote(bhp, qmass, qws, qos, qgs)
         return new{typeof(bhp)}(idx, name, bhp, qmass, qws, qos, qgs)
     end
 end
 
-function FacilityVariablesForWell(model::FacilityModel, state, well::Symbol)
+function FacilityVariablesForWell(model::FacilityModel, state, well::Symbol; drop_ad = false)
     sys = model.system.multiphase
     pos = get_well_position(model.domain, well)
     bhp = state.BottomHolePressure[pos]
@@ -59,7 +66,7 @@ function FacilityVariablesForWell(model::FacilityModel, state, well::Symbol)
             qg = rate
         end
     end
-    return FacilityVariablesForWell(pos, well, bhp, qmass, qw, qo, qg)
+    return FacilityVariablesForWell(pos, well, bhp, qmass, qw, qo, qg; drop_ad = drop_ad)
 end
 
 const WellGroupModel = SimulationModel{WellGroup, <:Any, <:Any, <:Any}

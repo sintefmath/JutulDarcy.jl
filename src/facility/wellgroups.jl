@@ -113,7 +113,7 @@ Jutul.local_discretization(::ControlEquationWell, i) = nothing
 
 function Jutul.prepare_equation_in_entity!(i, eq::ControlEquationWell, eq_s, state, state0, model, dt)
     well = model.domain.well_symbols[i]
-    cond = FacilityVariablesForWell(model, state, well)
+    cond = FacilityVariablesForWell(model, state, well, drop_ad = true)
     cfg = state.WellGroupConfiguration
     ctrl = operating_control(cfg, well)
     limits = current_limits(cfg, well)

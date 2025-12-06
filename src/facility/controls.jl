@@ -46,10 +46,11 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
             # We have a new control. Any previous control change is invalid.
             # Set both operating and requested control to the new one.
             @debug "Well $key switching from $oldctrl to $newctrl"
-            idx = get_well_position(model.domain, key)
+            # idx = get_well_position(model.domain, key)
             req_ctrls[key] = newctrl
             op_ctrls[key] = newctrl
-            set_facility_values_for_control!(storage.state, model, newctrl, cfg.limits[key], idx)
+            cond = FacilityVariablesForWell(model, storage.state, key, drop_ad = true)
+            set_facility_values_for_control!(storage.state, model, newctrl, cfg.limits[key], cond)
         end
         pos = get_well_position(model.domain, key)
         if q_t isa Vector
@@ -113,12 +114,13 @@ function apply_well_limits!(cfg::WellGroupConfiguration, model, state, limits, c
     if changed
         @info "Well $well switching control from $(old_control.target) to $(control.target) due to active limit." limits
         cfg.operating_controls[well] = control
-        set_facility_values_for_control!(state, model, control, limits, cond.idx)
+        set_facility_values_for_control!(state, model, control, limits, cond)
     end
     return cfg
 end
 
-function set_facility_values_for_control!(state, model::FacilityModel, control, limits, idx)
+function set_facility_values_for_control!(state, model::FacilityModel, control, limits, cond::FacilityVariablesForWell)
+    idx = cond.idx
     @warn "Setting facility values for control $control at $idx"
     new_target_symbol = translate_target_to_symbol(control.target)
     is_injector = control isa InjectorControl
@@ -199,10 +201,9 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     end
     bhps = state.BottomHolePressure
     if new_target_symbol == :bhp
-        oval = gval = wval = sgn*1e-8
         bhps[idx] = replace_value(bhps[idx], limits.bhp)
     elseif haskey(limits, :bhp)
-        bhps[idx] = replace_value(bhps[idx], limits.bhp * (1.0 - 0.1*sgn))
+        bhps[idx] = replace_value(bhps[idx], limits.bhp * (1.0 + 0.1*sgn))
     end
     ev = 1e-8
     phase_rates = state.SurfacePhaseRates
