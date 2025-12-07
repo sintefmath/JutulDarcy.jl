@@ -425,7 +425,7 @@ function update_cross_term_in_entity!(out, i,
     state_facility, state0_facility,
     state_well, state0_well,
     facility, well,
-    ct::FacilityFromWellBottomHolePressureCT, eq, dt, ldisc = local_discretization(ct, i))
+    ct::FacilityFromWellBottomHolePressureCT, eq::BottomHolePressureEquation, dt, ldisc = local_discretization(ct, i))
 
     pos = get_well_position(facility.domain, ct.well)
     P = 0*state_facility[:BottomHolePressure][pos]
@@ -443,7 +443,7 @@ function update_cross_term_in_entity!(out, i,
     state_facility, state0_facility,
     state_well, state0_well,
     facility, well,
-    ct::FacilityFromSurfacePhaseRatesCT, eq, dt, ldisc = local_discretization(ct, i))
+    ct::FacilityFromSurfacePhaseRatesCT, eq::SurfacePhaseRatesEquation, dt, ldisc = local_discretization(ct, i))
 
     pos = get_well_position(facility.domain, ct.well)
     q_t = state_facility.TotalSurfaceMassRate[pos]

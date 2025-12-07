@@ -109,13 +109,14 @@ function apply_well_limits!(cfg::WellGroupConfiguration, model, state, limits, c
         # No limits to apply
         return cfg
     end
-
+    println("Checking: $well with limits $limits with $cond")
     old_control = control
     control, changed = check_well_limits(limits, cond, control)
     if changed
         @info "Well $well switching control from $(old_control.target) to $(control.target) due to active limit." limits
         cfg.operating_controls[well] = control
         set_facility_values_for_control!(state, model, control, limits, cond)
+        # error()
     end
     println("$well operating $(translate_target_to_symbol(control.target)) with value $(control.target.value)")
     return cfg
@@ -228,7 +229,7 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     q_t = state.TotalSurfaceMassRate
     q_t[idx] = valid_surface_rate_for_control(q_t[idx], control)
 
-    do_print = cond.name == :PRODU26
+    do_print = cond.name == :PRODU21
     if do_print
         @info "Setting values for $new_target_symbol $(limits[new_target_symbol])" wval oval gval value(bhps[idx]) limits
     end
@@ -428,8 +429,11 @@ end
 
 function well_control_equation(ctrl, cond, well, model, state)
     target = ctrl.target
+    val_t = target.value
     val = well_target_value(ctrl, target, cond, well, model, state)
-    return (val - target.value)/target_scaling(target)
+    scale = target_scaling(target)
+    # @info "Target: $(val_t) - $(value(val)) for $cond and $(ctrl.target)"
+    return (val - val_t)/scale
 end
 
 function well_target_value(ctrl::DisabledControl, target::DisabledTarget, cond, well, model, state)
