@@ -53,9 +53,9 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
             set_facility_values_for_control!(storage.state, model, newctrl, cfg.limits[key], cond)
         end
         pos = get_well_position(model.domain, key)
-        if q_t isa Vector
-            q_t[pos] = valid_surface_rate_for_control(q_t[pos], newctrl)
-        end
+        # if q_t isa Vector
+        #     q_t[pos] = valid_surface_rate_for_control(q_t[pos], newctrl)
+        # end
         if changed && !new_is_disabled
             if isnothing(cfg.limits[key])
                 cfg.limits[key] = as_limit(newctrl.target)
@@ -224,6 +224,9 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     function set_phase_rate!(ph, val)
         phase_rates[ph, idx] = replace_value(phase_rates[ph, idx], sgn*val)
     end
+
+    q_t = state.TotalSurfaceMassRate
+    q_t[idx] = valid_surface_rate_for_control(q_t[idx], control)
 
     do_print = cond.name == :PRODU26
     if do_print
