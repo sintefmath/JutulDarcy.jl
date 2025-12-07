@@ -210,20 +210,20 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     bhps = state.BottomHolePressure
     bhp_limit = get(limits, :bhp, nothing)
     if new_target_symbol == :bhp
-        bhps[idx] = replace_value(bhps[idx], bhp_limit)
+        # bhps[idx] = replace_value(bhps[idx], bhp_limit)
     elseif !isnothing(bhp_limit)
         bhp = value(bhps[idx])
         is_above = bhp > bhp_limit
         is_below = bhp < bhp_limit
         if (is_injector && is_above) || (!is_injector && is_below)
             # @error "Setting bhp" limits.bhp*(1.0 - 0.01*sgn) is_injector bhp bhp_limit
-            bhps[idx] = replace_value(bhps[idx], bhp_limit*(1.0 - 0.01*sgn))
+            # bhps[idx] = replace_value(bhps[idx], bhp_limit*(1.0 - 0.01*sgn))
         end
     end
     ev = 1e-8
     phase_rates = state.SurfacePhaseRates
     function set_phase_rate!(ph, val)
-        phase_rates[ph, idx] = replace_value(phase_rates[ph, idx], sgn*val)
+        # phase_rates[ph, idx] = replace_value(phase_rates[ph, idx], sgn*val)
     end
 
     q_t = state.TotalSurfaceMassRate

@@ -126,7 +126,7 @@ function Jutul.update_equation_in_entity!(v, i, state, state0, eq::ControlEquati
     cfg = state.WellGroupConfiguration
     ctrl = operating_control(cfg, well)
     eq_val = well_control_equation(ctrl, cond, well, model, state)
-    v[] = eq_val + 0*state.BottomHolePressure[i]
+    v[1] = eq_val + 0*state.BottomHolePressure[i] + 0*state.SurfacePhaseRates[1, i]
 end
 
 Jutul.associated_entity(::SurfaceTemperatureEquation) = Wells()
@@ -134,7 +134,7 @@ Jutul.local_discretization(::SurfaceTemperatureEquation, i) = nothing
 function Jutul.update_equation_in_entity!(v, i, state, state0, eq::SurfaceTemperatureEquation, model, dt, ldisc = local_discretization(eq, i))
     # Set equal to surface temperature. corresponding well temperatures will be
     # subtracted using corss terms
-    v[] = state.SurfaceTemperature[i]
+    v[1] = state.SurfaceTemperature[i]
 end
 
 Jutul.associated_entity(::BottomHolePressureEquation) = Wells()
@@ -142,7 +142,7 @@ Jutul.local_discretization(::BottomHolePressureEquation, i) = nothing
 function Jutul.update_equation_in_entity!(v, i, state, state0, eq::BottomHolePressureEquation, model, dt, ldisc = local_discretization(eq, i))
     # Set equal to bhp. corresponding well top cell pressures will be
     # subtracted using corss terms
-    v[] = state.BottomHolePressure[i]
+    v[1] = state.BottomHolePressure[i]
 end
 
 Jutul.associated_entity(::SurfacePhaseRatesEquation) = Wells()
