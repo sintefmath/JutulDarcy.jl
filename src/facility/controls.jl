@@ -123,7 +123,7 @@ end
 
 function set_facility_values_for_control!(state, model::FacilityModel, control, limits, cond::FacilityVariablesForWell)
     idx = cond.idx
-    @warn "Setting facility values for control $control at $idx"
+    @warn "$(cond.name) Setting facility values for control $control at $idx"
     new_target_symbol = translate_target_to_symbol(control.target)
     is_injector = control isa InjectorControl
     if is_injector
@@ -215,23 +215,32 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
         is_above = bhp > bhp_limit
         is_below = bhp < bhp_limit
         if (is_injector && is_above) || (!is_injector && is_below)
-            bhps[idx] = replace_value(bhps[idx], limits.bhp*(1.0 - 0.01*sgn))
+            @error "Setting bhp" limits.bhp*(1.0 - 0.01*sgn) is_injector bhp bhp_limit
+            bhps[idx] = replace_value(bhps[idx], bhp_limit*(1.0 - 0.01*sgn))
         end
     end
-    ev = 0*sgn*1e-8
+    ev = 1e-8
     phase_rates = state.SurfacePhaseRates
+    function set_phase_rate!(ph, val)
+        phase_rates[ph, idx] = replace_value(phase_rates[ph, idx], sgn*val)
+    end
 
-    @info "Setting values for $new_target_symbol $(limits[new_target_symbol])" wval oval gval value(bhps[idx]) limits
+    do_print = cond.name == :PRODU26
+    if do_print
+        @info "Setting values for $new_target_symbol $(limits[new_target_symbol])" wval oval gval value(bhps[idx]) limits
+    end
     if has_water
-        phase_rates[w_idx, idx] = replace_value(phase_rates[w_idx, idx], sgn*(wval + ev))
+        set_phase_rate!(w_idx, max(wval - ev, 0))
     end
     if has_oil
-        phase_rates[o_idx, idx] = replace_value(phase_rates[o_idx, idx], sgn*(oval + ev))
+        set_phase_rate!(o_idx, max(oval - ev, 0))
     end
     if has_gas
-        phase_rates[g_idx, idx] = replace_value(phase_rates[g_idx, idx], sgn*(gval + ev))
+        set_phase_rate!(g_idx, max(gval - ev, 0))
     end
-    @info "??" value(phase_rates[:, idx]) value(bhps[idx])
+    if do_print
+        @info "??" value(phase_rates[:, idx]) value(bhps[idx]) cond
+    end
     return state
 end
 
@@ -356,7 +365,7 @@ function check_well_limits(limits, cond, control)
     end
     changed = next_target != current_target
     if changed
-        @error "Well changed" next_target current_target
+        @error "Well changed" next_target current_target cond
         control = replace_target(control, next_target)
     end
     return (control, next_target != current_target)
