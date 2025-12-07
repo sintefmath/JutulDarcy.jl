@@ -109,22 +109,22 @@ function apply_well_limits!(cfg::WellGroupConfiguration, model, state, limits, c
         # No limits to apply
         return cfg
     end
-    println("Checking: $well with limits $limits with $cond")
+    # println("Checking: $well with limits $limits with $cond")
     old_control = control
     control, changed = check_well_limits(limits, cond, control)
     if changed
-        @info "Well $well switching control from $(old_control.target) to $(control.target) due to active limit." limits
+        # @info "Well $well switching control from $(old_control.target) to $(control.target) due to active limit." limits
         cfg.operating_controls[well] = control
         set_facility_values_for_control!(state, model, control, limits, cond)
         # error()
     end
-    println("$well operating $(translate_target_to_symbol(control.target)) with value $(control.target.value)")
+    # println("$well operating $(translate_target_to_symbol(control.target)) with value $(control.target.value)")
     return cfg
 end
 
 function set_facility_values_for_control!(state, model::FacilityModel, control, limits, cond::FacilityVariablesForWell)
     idx = cond.idx
-    @warn "$(cond.name) Setting facility values for control $control at $idx"
+    # @warn "$(cond.name) Setting facility values for control $control at $idx"
     new_target_symbol = translate_target_to_symbol(control.target)
     is_injector = control isa InjectorControl
     if is_injector
@@ -198,13 +198,13 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
             gval = gval/total
         end
     elseif new_target_symbol == :orat
-        gval = wval = 0.0
+        # gval = wval = 0.0
         oval = w*abs(limits.orat)
     elseif new_target_symbol == :grat
-        oval = wval = 0.0
+        # oval = wval = 0.0
         gval = w*abs(limits.grat)
     elseif new_target_symbol == :wrat
-        oval = gval = 0.0
+        # oval = gval = 0.0
         wval = w*abs(limits.wrat)
     end
     bhps = state.BottomHolePressure
@@ -216,7 +216,7 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
         is_above = bhp > bhp_limit
         is_below = bhp < bhp_limit
         if (is_injector && is_above) || (!is_injector && is_below)
-            @error "Setting bhp" limits.bhp*(1.0 - 0.01*sgn) is_injector bhp bhp_limit
+            # @error "Setting bhp" limits.bhp*(1.0 - 0.01*sgn) is_injector bhp bhp_limit
             bhps[idx] = replace_value(bhps[idx], bhp_limit*(1.0 - 0.01*sgn))
         end
     end
@@ -229,7 +229,7 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     q_t = state.TotalSurfaceMassRate
     q_t[idx] = valid_surface_rate_for_control(q_t[idx], control)
 
-    do_print = cond.name == :PRODU21
+    do_print = cond.name == :PRODU21 && false
     if do_print
         @info "Setting values for $new_target_symbol $(limits[new_target_symbol])" wval oval gval value(bhps[idx]) limits
     end
@@ -242,7 +242,15 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     if has_gas
         set_phase_rate!(g_idx, max(gval - ev, 0))
     end
+    new_mass_rate = 0.0
+    rhos = reference_densities(sys)
+    for ph in 1:number_of_phases(sys)
+        new_mass_rate += rhos[ph]*value(phase_rates[ph, idx])
+    end
+    qt0 = value(q_t[idx])
+    q_t[idx] = replace_value(q_t[idx], new_mass_rate)
     if do_print
+        @info "???" new_mass_rate qt0
         @info "??" value(phase_rates[:, idx]) value(bhps[idx]) cond
     end
     return state
@@ -261,7 +269,7 @@ function check_well_limits(limits, cond, control)
             if name == :bhp
                 # Injector BHP limit is an upper limit, and pressure is positive
                 if cond.bottom_hole_pressure > limit_value
-                    @error "INJECTOR BHP TOO HIGH" cond.bottom_hole_pressure limit_value
+                    # @error "INJECTOR BHP TOO HIGH" cond.bottom_hole_pressure limit_value
                     next_target = BottomHolePressureTarget(limit_value)
                     break
                 end
@@ -369,7 +377,7 @@ function check_well_limits(limits, cond, control)
     end
     changed = next_target != current_target
     if changed
-        @error "Well changed" next_target current_target cond
+        # @error "Well changed" next_target current_target cond
         control = replace_target(control, next_target)
     end
     return (control, next_target != current_target)
@@ -432,8 +440,10 @@ function well_control_equation(ctrl, cond, well, model, state)
     val_t = target.value
     val = well_target_value(ctrl, target, cond, well, model, state)
     scale = target_scaling(target)
-    # @info "Target: $(val_t) - $(value(val)) for $cond and $(ctrl.target)"
-    return (val - val_t)/scale
+    if target isa BottomHolePressureTarget
+        # @info "Target: $(val_t) - $(value(val)) for $cond and $(ctrl.target)"
+    end
+    return (val - val_t)#/scale
 end
 
 function well_target_value(ctrl::DisabledControl, target::DisabledTarget, cond, well, model, state)
