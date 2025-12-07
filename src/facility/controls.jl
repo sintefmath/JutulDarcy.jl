@@ -248,7 +248,7 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
         new_mass_rate += rhos[ph]*value(phase_rates[ph, idx])
     end
     qt0 = value(q_t[idx])
-    q_t[idx] = replace_value(q_t[idx], new_mass_rate)
+    # q_t[idx] = replace_value(q_t[idx], new_mass_rate)
     if do_print
         @info "???" new_mass_rate qt0
         @info "??" value(phase_rates[:, idx]) value(bhps[idx]) cond
