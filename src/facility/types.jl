@@ -86,12 +86,19 @@ Jutul.values_per_entity(fmodel, rates::SurfacePhaseRates) = length(rates.phases)
 
 Base.@kwdef struct BottomHolePressure <: Jutul.ScalarVariable
     "Maximum absolute change betweeen two Newton updates (nominally Pa)"
-    max_absolute_change::Union{Float64, Nothing} = nothing
+    max_absolute_change::Union{Float64, Nothing} = 50*si_unit(:bar)
     "Maximum relative change between two Newton updates."
     max_relative_change::Union{Float64, Nothing} = nothing
 end
 
 Jutul.associated_entity(::BottomHolePressure) = Wells()
+function Jutul.absolute_increment_limit(bhp::BottomHolePressure)
+    return bhp.max_absolute_change
+end
+
+function Jutul.relative_increment_limit(bhp::BottomHolePressure)
+    return bhp.max_relative_change
+end
 
 """
     TotalSurfaceMassRate(max_absolute_change = nothing, max_relative_change = nothing)
@@ -107,6 +114,14 @@ Base.@kwdef struct TotalSurfaceMassRate <: ScalarVariable
     max_relative_change::Union{Float64, Nothing} = nothing
 end
 
+function Jutul.absolute_increment_limit(q::TotalSurfaceMassRate)
+    return q.max_absolute_change
+end
+
+function Jutul.relative_increment_limit(q::TotalSurfaceMassRate)
+    return q.max_relative_change
+end
+
 Base.@kwdef struct SurfaceTemperature <: ScalarVariable
     "Maximum absolute change betweeen two Newton updates (nominally K)"
     max_absolute_change::Union{Float64, Nothing} = nothing
@@ -116,12 +131,12 @@ Base.@kwdef struct SurfaceTemperature <: ScalarVariable
     max = 1e6
 end
 
-function Jutul.absolute_increment_limit(q::TotalSurfaceMassRate)
-    return q.max_absolute_change
+function Jutul.absolute_increment_limit(T::SurfaceTemperature)
+    return T.max_absolute_change
 end
 
-function Jutul.relative_increment_limit(q::TotalSurfaceMassRate)
-    return q.max_relative_change
+function Jutul.relative_increment_limit(T::SurfaceTemperature)
+    return T.max_relative_change
 end
 
 abstract type WellTarget end
