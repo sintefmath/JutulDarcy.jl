@@ -1562,9 +1562,13 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
             well_state = convert_to_immutable_storage(well_state)
             ctrl_grp = Symbol("$(well_symbol)_ctrl")
             if haskey(state, ctrl_grp)
-                q_t = only(state[ctrl_grp][:TotalSurfaceMassRate])
+                fstate = convert_to_immutable_storage(state[ctrl_grp])
+                fmodel = model.models[ctrl_grp]
+                q_t = only(fstate[:TotalSurfaceMassRate])
             else
-                q_t = state[:Facility][:TotalSurfaceMassRate][well_number]
+                fstate = convert_to_immutable_storage(state[:Facility])
+                fmodel = model.models[:Facility]
+                q_t = fstate[:TotalSurfaceMassRate][well_number]
             end
             if forces isa AbstractVector
                 force = forces[i]
@@ -1601,9 +1605,9 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
                     end
                     d[i] = v
                 else
-                    current_control = replace_target(control, BottomHolePressureTarget(1.0))
-                    rhoS, S = surface_density_and_volume_fractions(well_state)
-                    v = well_target_value(q_t, current_control, target_limit, well_model, well_state, rhoS, S)
+                    current_control = replace_target(control, target_limit)
+                    cond = FacilityVariablesForWell(fmodel, fstate, well_symbol, drop_ad = true)
+                    v = well_target_value(current_control, target_limit, cond, well_model, fmodel, fstate)
                     d[i] = v
                 end
             end

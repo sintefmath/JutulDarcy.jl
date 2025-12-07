@@ -419,28 +419,50 @@ end
 #     return (target, changed, cval, tval, lim_type)
 # end
 
+function well_control_equation(ctrl::DisabledControl, cond, well, model, state)
+    target = ctrl.target
+    target::DisabledTarget
+    # Equation is just the sum of absolute rates to force them all to zero.
+    return well_target_value(ctrl, target, cond, well, model, state)
+end
 
 function well_control_equation(ctrl, cond, well, model, state)
     target = ctrl.target
-    eq = well_control_equation(ctrl, target, cond, well, model, state)
-    return eq/target_scaling(target)
+    val = well_target_value(ctrl, target, cond, well, model, state)
+    return (val - target.value)/target_scaling(target)
 end
 
-function well_control_equation(ctrl::DisabledControl, target::DisabledTarget, cond, well, model, state)
+function well_target_value(ctrl::DisabledControl, target::DisabledTarget, cond, well, model, state)
     return abs(cond.total_mass_rate) + abs(cond.surface_aqueous_rate) + abs(cond.surface_liquid_rate) + abs(cond.surface_vapor_rate)
 end
 
-function well_control_equation(ctrl, target::TotalRateTarget, cond, well, model, state)
+function well_target_value(ctrl, target::TotalRateTarget, cond, well, model, state)
     rate = cond.surface_aqueous_rate + cond.surface_liquid_rate + cond.surface_vapor_rate
-    return rate - target.value
+    return rate
 end
 
-function well_control_equation(ctrl, target::BottomHolePressureTarget, cond, well, model, state)
-    return cond.bottom_hole_pressure - target.value
+function well_target_value(ctrl, target::BottomHolePressureTarget, cond, well, model, state)
+    return cond.bottom_hole_pressure
 end
 
-function well_control_equation(ctrl, target::SurfaceOilRateTarget, cond, well, model, state)
-    return cond.surface_liquid_rate - target.value
+function well_target_value(ctrl, target::SurfaceOilRateTarget, cond, well, model, state)
+    return cond.surface_liquid_rate
+end
+
+function well_target_value(ctrl, target::SurfaceWaterRateTarget, cond, well, model, state)
+    return cond.surface_aqueous_rate
+end
+
+function well_target_value(ctrl, target::SurfaceGasRateTarget, cond, well, model, state)
+    return cond.surface_vapor_rate
+end
+
+function well_target_value(ctrl, target::SurfaceLiquidRateTarget, cond, well, model, state)
+    return cond.surface_liquid_rate + cond.surface_aqueous_rate
+end
+
+function well_target_value(ctrl, target::TotalMassRateTarget, cond, well, model, state)
+    return cond.total_mass_rate
 end
 
 # """
