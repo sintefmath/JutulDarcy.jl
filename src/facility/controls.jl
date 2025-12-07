@@ -325,7 +325,7 @@ function check_well_limits(limits, cond, control)
             if name == :bhp
                 # Producer BHP limit is a lower limit, and pressure is positive
                 if cond.bottom_hole_pressure < limit_value
-                    @error "PRODUCER BHP TOO LOW" cond.bottom_hole_pressure limit_value
+                    # @error "PRODUCER BHP TOO LOW" cond.bottom_hole_pressure limit_value
                     next_target = BottomHolePressureTarget(limit_value)
                     break
                 end
