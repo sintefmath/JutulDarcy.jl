@@ -430,7 +430,7 @@ function update_cross_term_in_entity!(out, i,
     pos = get_well_position(facility.domain, ct.well)
     P = 0*state_facility[:BottomHolePressure][pos]
     P += state_well[:Pressure][well_top_node()]
-    out[1] = -P
+    out[1] = -P/1e5
 end
 
 struct FacilityFromSurfacePhaseRatesCT <: Jutul.AdditiveCrossTerm
@@ -454,7 +454,7 @@ function update_cross_term_in_entity!(out, i,
     end
     q_vol = q_t/total_density
     for ph in eachindex(rhoS, S)
-        out[ph] = -S[ph]*q_vol
+        out[ph] = -S[ph]*q_vol/1000.0
     end
     return out
 end

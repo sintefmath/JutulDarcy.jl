@@ -436,10 +436,7 @@ function well_control_equation(ctrl, cond, well, model, state)
     val_t = target.value
     val = well_target_value(ctrl, target, cond, well, model, state)
     scale = target_scaling(target)
-    if target isa BottomHolePressureTarget
-        # @info "Target: $(val_t) - $(value(val)) for $cond and $(ctrl.target)"
-    end
-    return (val - val_t)#/scale
+    return (val - val_t)/scale
 end
 
 function well_target_value(ctrl::DisabledControl, target::DisabledTarget, cond, well, model, state)

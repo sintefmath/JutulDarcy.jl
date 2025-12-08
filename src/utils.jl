@@ -1068,7 +1068,7 @@ function setup_reservoir_simulator(case::JutulCase;
         tol_cnve_well = tol_cnve_well,
         tol_eb_well = tol_eb_well,
         inc_tol_dT = inc_tol_dT,
-        )
+    )
     return (sim, cfg)
 end
 
