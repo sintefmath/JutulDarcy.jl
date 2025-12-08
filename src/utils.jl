@@ -1319,65 +1319,71 @@ function reservoir_multimodel(models::AbstractDict;
         specialize = false,
         split_wells = false,
         immutable_model = false,
-        assemble_wells_together = haskey(models, :Facility)
+        assemble_wells_together = haskey(models, :Facility),
+        groups = missing
     )
     res_model = models[:Reservoir]
     is_block(x) = Jutul.is_cell_major(matrix_layout(x.context))
     block_backend = is_block(res_model)
     n = length(models)
-    if block_backend && n > 1
-        if  !(split_wells == true) || assemble_wells_together
-            groups = repeat([2], n)
-            for (i, k) in enumerate(keys(models))
-                m = models[k]
-                if is_block(m)
-                    groups[i] = 1
-                end
-            end
-        else
-            groups = repeat([1], n)
-            gpos = 1
-            pos = 2
-            wno = 1
-            mkeys = collect(keys(models))
-            nw = 1
-            for (k, m) in models
-                if endswith(String(k), "_ctrl")
-                    nw += 1
-                end
-            end
-            if split_wells == :threads
-                npartition = Threads.nthreads()
-            else
-                npartition = nw
-            end
-            p = Jutul.partition_linear(npartition, nw)
-            for (k, m) in models
-                if k != :Reservoir
-                    sk = String(k)
-                    if endswith(sk, "_ctrl")
-                        wk = Symbol(sk[1:end-5])
-                        wpos = findfirst(isequal(wk), mkeys)
-                        if false
-                            g = pos
-                        else
-                            g = p[wno]+1
-                        end
-                        groups[wpos] = g
-                        groups[gpos] = g
-                        pos += 1
-                        wno += 1
+    if ismissing(groups)
+        if block_backend && n > 1
+            if  !(split_wells == true) || assemble_wells_together
+                groups = repeat([2], n)
+                for (i, k) in enumerate(keys(models))
+                    m = models[k]
+                    if is_block(m)
+                        groups[i] = 1
                     end
                 end
-                gpos += 1
+            else
+                groups = repeat([1], n)
+                gpos = 1
+                pos = 2
+                wno = 1
+                mkeys = collect(keys(models))
+                nw = 1
+                for (k, m) in models
+                    if endswith(String(k), "_ctrl")
+                        nw += 1
+                    end
+                end
+                if split_wells == :threads
+                    npartition = Threads.nthreads()
+                else
+                    npartition = nw
+                end
+                p = Jutul.partition_linear(npartition, nw)
+                for (k, m) in models
+                    if k != :Reservoir
+                        sk = String(k)
+                        if endswith(sk, "_ctrl")
+                            wk = Symbol(sk[1:end-5])
+                            wpos = findfirst(isequal(wk), mkeys)
+                            if false
+                                g = pos
+                            else
+                                g = p[wno]+1
+                            end
+                            groups[wpos] = g
+                            groups[gpos] = g
+                            pos += 1
+                            wno += 1
+                        end
+                    end
+                    gpos += 1
+                end
             end
+            red = :schur_apply
+            outer_context = DefaultContext()
+        else
+            outer_context = models[:Reservoir].context
+            groups = nothing
+            red = nothing
         end
-        red = :schur_apply
-        outer_context = DefaultContext()
     else
-        outer_context = models[:Reservoir].context
-        groups = nothing
-        red = nothing
+        outer_context = DefaultContext()
+        red = :schur_apply
     end
     models = convert_to_immutable_storage(models)
     model = MultiModel(models, groups = groups, context = outer_context, reduction = red, specialize = specialize)
