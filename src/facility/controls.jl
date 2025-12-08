@@ -320,7 +320,7 @@ function check_well_limit(name::Symbol, limit_value, cond, control::InjectorCont
                 next_target = SurfaceGasRateTarget(limit_value)
             end
         elseif name == :rate_lower
-            rate = cond.surface_aqueous_rate + cond.surface_liquid_rate + cond.surface_vapor_rate
+            rate = cond.total_mass_rate
             if rate < limit_value
                 next_target = TotalRateTarget(limit_value)
             end
@@ -331,7 +331,7 @@ function check_well_limit(name::Symbol, limit_value, cond, control::InjectorCont
     return next_target
 end
 
-function check_well_limit(name::Symbol, limit_value, cond, control::ProducerControl)
+function check_well_limit(name::Symbol, limit_value, cond::FacilityVariablesForWell, control::ProducerControl)
     next_target = missing
     if name == :bhp
         # Producer BHP limit is a lower limit, and pressure is positive
@@ -369,7 +369,7 @@ function check_well_limit(name::Symbol, limit_value, cond, control::ProducerCont
                 next_target = TotalRateTarget(-limit_value)
             end
         elseif name == :rate_lower
-            rate = -(cond.surface_aqueous_rate + cond.surface_liquid_rate + cond.surface_vapor_rate)
+            rate = -cond.total_mass_rate
             if rate < limit_value
                 next_target = TotalRateTarget(-limit_value)
             end
