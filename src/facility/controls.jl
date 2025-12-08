@@ -113,7 +113,7 @@ function apply_well_limits!(cfg::WellGroupConfiguration, model, state, limits, c
     old_control = control
     control, changed = check_well_limits(limits, cond, control)
     if changed
-        @info "Well $well switching control from $(old_control.target) to $(control.target) due to active limit." limits cond
+        @debug "Well $well switching control from $(old_control.target) to $(control.target) due to active limit." limits cond
         cfg.operating_controls[well] = control
         set_facility_values_for_control!(state, model, control, limits, cond)
         # error()
@@ -276,8 +276,6 @@ function check_well_limits(limits, cond, control)
                 break
             end
         end
-    else
-        @info "Control $current_name not ok?" cond limits changed
     end
     if changed
         # @error "Well changed" next_target current_target cond
