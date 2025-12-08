@@ -113,7 +113,7 @@ function apply_well_limits!(cfg::WellGroupConfiguration, model, state, limits, c
     old_control = control
     control, changed = check_well_limits(limits, cond, control)
     if changed
-        # @info "Well $well switching control from $(old_control.target) to $(control.target) due to active limit." limits
+        @info "Well $well switching control from $(old_control.target) to $(control.target) due to active limit." limits
         cfg.operating_controls[well] = control
         set_facility_values_for_control!(state, model, control, limits, cond)
         # error()
@@ -257,132 +257,129 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
 end
 
 function check_well_limits(limits, cond, control)
-    current_target = control.target
-    next_target = current_target
-    current_name = translate_target_to_symbol(current_target)
-    if control isa InjectorControl
+    # current_target = control.target
+    # next_target = current_target
+    current_name = translate_target_to_symbol(control.target)
+    next_target = missing
+    changed = false
+    control_check = check_well_limit(current_name, limits[current_name], cond, control)
+    control_ok = ismissing(control_check)
+    if control_ok
         for (name, limit_value) in pairs(limits)
             if name == current_name
                 continue
             end
-
-            if name == :bhp
-                # Injector BHP limit is an upper limit, and pressure is positive
-                if cond.bottom_hole_pressure > limit_value
-                    # @error "INJECTOR BHP TOO HIGH" cond.bottom_hole_pressure limit_value
-                    next_target = BottomHolePressureTarget(limit_value)
-                    break
-                end
-            else
-                # Injector limits are upper limits on rates
-                if name == :rate
-                    rate = cond.surface_aqueous_rate + cond.surface_liquid_rate + cond.surface_vapor_rate
-                    if rate > limit_value
-                        next_target = TotalRateTarget(limit_value)
-                        break
-                    end
-                elseif name == :wrat
-                    wrat = cond.surface_aqueous_rate
-                    if wrat > limit_value
-                        next_target = SurfaceWaterRateTarget(limit_value)
-                        break
-                    end
-                elseif name == :orat
-                    orat = cond.surface_liquid_rate
-                    if orat > limit_value
-                        next_target = SurfaceOilRateTarget(limit_value)
-                        break
-                    end
-                elseif name == :lrat
-                    lrat = cond.surface_aqueous_rate + cond.surface_liquid_rate
-                    if lrat > limit_value
-                        next_target = SurfaceLiquidRateTarget(limit_value)
-                        break
-                    end
-                elseif name == :grat
-                    grat = cond.surface_vapor_rate
-                    if grat > limit_value
-                        next_target = SurfaceGasRateTarget(limit_value)
-                        break
-                    end
-                elseif name == :rate_lower
-                    rate = cond.surface_aqueous_rate + cond.surface_liquid_rate + cond.surface_vapor_rate
-                    if rate < limit_value
-                        next_target = TotalRateTarget(limit_value)
-                        break
-                    end
-                else
-                    error("Unsupported well producer constraint/limit $k")
-                end
+            next_target = check_well_limit(name, limit_value, cond, control)
+            if !ismissing(next_target)
+                changed = true
+                break
             end
         end
     else
-        control::ProducerControl
-        for (name, limit_value) in pairs(limits)
-            if name == current_name
-                continue
-            end
-            if name == :bhp
-                # Producer BHP limit is a lower limit, and pressure is positive
-                if cond.bottom_hole_pressure < limit_value
-                    # @error "PRODUCER BHP TOO LOW" cond.bottom_hole_pressure limit_value
-                    next_target = BottomHolePressureTarget(limit_value)
-                    break
-                end
-            else
-                # Producer rates are negative by convention. Producer rate
-                # limits are upper limits.
-                limit_value = abs(limit_value)
-                if name == :lrat
-                    lrat = -(cond.surface_aqueous_rate + cond.surface_liquid_rate)
-                    if lrat > limit_value
-                        next_target = SurfaceLiquidRateTarget(-limit_value)
-                        break
-                    end
-                elseif name == :orat
-                    orat = -cond.surface_liquid_rate
-                    if orat > limit_value
-                        next_target = SurfaceOilRateTarget(-limit_value)
-                        break
-                    end
-                elseif name == :wrat
-                    wrat = -cond.surface_aqueous_rate
-                    if wrat > limit_value
-                        next_target = SurfaceWaterRateTarget(-limit_value)
-                        break
-                    end
-                elseif name == :grat
-                    grat = -cond.surface_vapor_rate
-                    if grat > limit_value
-                        next_target = SurfaceGasRateTarget(-limit_value)
-                        break
-                    end
-                elseif name == :rate
-                    rate = -(cond.surface_aqueous_rate + cond.surface_liquid_rate + cond.surface_vapor_rate)
-                    if rate > limit_value
-                        next_target = TotalRateTarget(-limit_value)
-                        break
-                    end
-                elseif name == :rate_lower
-                    rate = -(cond.surface_aqueous_rate + cond.surface_liquid_rate + cond.surface_vapor_rate)
-                    if rate < limit_value
-                        next_target = TotalRateTarget(-limit_value)
-                        break
-                    end
-                else
-                    error("Unsupported well injector constraint/limit $k")
-                end
-            end
-        end
+        @info "Control $current_name not ok?" cond limits changed
     end
-    changed = next_target != current_target
     if changed
         # @error "Well changed" next_target current_target cond
         control = replace_target(control, next_target)
     end
-    return (control, next_target != current_target)
+    return (control, changed)
 end
 
+function check_well_limit(name::Symbol, limit_value, cond, control::InjectorControl)
+    next_target = missing
+    if name == :bhp
+        # Injector BHP limit is an upper limit, and pressure is positive
+        if cond.bottom_hole_pressure > limit_value
+            # @error "INJECTOR BHP TOO HIGH" cond.bottom_hole_pressure limit_value
+            next_target = BottomHolePressureTarget(limit_value)
+        end
+    else
+        # Injector limits are upper limits on rates
+        if name == :rate
+            rate = cond.surface_aqueous_rate + cond.surface_liquid_rate + cond.surface_vapor_rate
+            if rate > limit_value
+                next_target = TotalRateTarget(limit_value)
+            end
+        elseif name == :wrat
+            wrat = cond.surface_aqueous_rate
+            if wrat > limit_value
+                next_target = SurfaceWaterRateTarget(limit_value)
+            end
+        elseif name == :orat
+            orat = cond.surface_liquid_rate
+            if orat > limit_value
+                next_target = SurfaceOilRateTarget(limit_value)
+            end
+        elseif name == :lrat
+            lrat = cond.surface_aqueous_rate + cond.surface_liquid_rate
+            if lrat > limit_value
+                next_target = SurfaceLiquidRateTarget(limit_value)
+            end
+        elseif name == :grat
+            grat = cond.surface_vapor_rate
+            if grat > limit_value
+                next_target = SurfaceGasRateTarget(limit_value)
+            end
+        elseif name == :rate_lower
+            rate = cond.surface_aqueous_rate + cond.surface_liquid_rate + cond.surface_vapor_rate
+            if rate < limit_value
+                next_target = TotalRateTarget(limit_value)
+            end
+        else
+            error("Unsupported well producer constraint/limit $k")
+        end
+    end
+    return next_target
+end
+
+function check_well_limit(name::Symbol, limit_value, cond, control::ProducerControl)
+    next_target = missing
+    if name == :bhp
+        # Producer BHP limit is a lower limit, and pressure is positive
+        if cond.bottom_hole_pressure < limit_value
+            # @error "PRODUCER BHP TOO LOW" cond.bottom_hole_pressure limit_value
+            next_target = BottomHolePressureTarget(limit_value)
+        end
+    else
+        # Producer rates are negative by convention. Producer rate
+        # limits are upper limits.
+        limit_value = abs(limit_value)
+        if name == :lrat
+            lrat = -(cond.surface_aqueous_rate + cond.surface_liquid_rate)
+            if lrat > limit_value
+                next_target = SurfaceLiquidRateTarget(-limit_value)
+            end
+        elseif name == :orat
+            orat = -cond.surface_liquid_rate
+            if orat > limit_value
+                next_target = SurfaceOilRateTarget(-limit_value)
+            end
+        elseif name == :wrat
+            wrat = -cond.surface_aqueous_rate
+            if wrat > limit_value
+                next_target = SurfaceWaterRateTarget(-limit_value)
+            end
+        elseif name == :grat
+            grat = -cond.surface_vapor_rate
+            if grat > limit_value
+                next_target = SurfaceGasRateTarget(-limit_value)
+            end
+        elseif name == :rate
+            rate = -(cond.surface_aqueous_rate + cond.surface_liquid_rate + cond.surface_vapor_rate)
+            if rate > limit_value
+                next_target = TotalRateTarget(-limit_value)
+            end
+        elseif name == :rate_lower
+            rate = -(cond.surface_aqueous_rate + cond.surface_liquid_rate + cond.surface_vapor_rate)
+            if rate < limit_value
+                next_target = TotalRateTarget(-limit_value)
+            end
+        else
+            error("Unsupported well injector constraint/limit $k")
+        end
+    end
+    return next_target
+end
 
 # function apply_well_limit!(cfg::WellGroupConfiguration, target, wmodel, wstate, well::Symbol, density_s, volume_fraction_s, total_mass_rate, current_lims = current_limits(cfg, well))
 #     if !isnothing(current_lims)
