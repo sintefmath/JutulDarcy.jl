@@ -1807,7 +1807,6 @@ function parse_well_streams_for_step!(streams, step, props)
         T = convert_to_si(std[1], :Celsius)
         p = std[2]
     else
-        @debug "Defaulted STCOND..."
         T = convert_to_si(15.56, :Celsius)
         p = convert_to_si(1.0, :atm)
     end

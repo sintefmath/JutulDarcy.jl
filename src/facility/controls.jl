@@ -101,7 +101,7 @@ end
 function apply_well_limits!(cfg::WellGroupConfiguration, model, state, limits, control, well::Symbol, cond::FacilityVariablesForWell)
     if control isa DisabledControl
         # Disabled wells cannot change active constraint
-        println("Well $well is disabled; skipping limit application.")
+        # println("Well $well is disabled; skipping limit application.")
         return cfg
     end
 
@@ -263,8 +263,12 @@ function check_well_limits(limits, cond, control)
     current_name = translate_target_to_symbol(control.target)
     next_target = missing
     changed = false
-    control_check = check_well_limit(current_name, limits[current_name], cond, control)
-    control_ok = ismissing(control_check)
+    if haskey(limits, current_name)
+        control_check = check_well_limit(current_name, limits[current_name], cond, control)
+        control_ok = ismissing(control_check)
+    else
+        control_ok = true
+    end
     if control_ok
         for (name, limit_value) in pairs(limits)
             if name == current_name
@@ -342,39 +346,53 @@ function check_well_limit(name::Symbol, limit_value, cond::FacilityVariablesForW
     else
         # Producer rates are negative by convention. Producer rate
         # limits are upper limits.
-        limit_value = abs(limit_value)
-        if name == :lrat
-            lrat = -(cond.surface_aqueous_rate + cond.surface_liquid_rate)
-            if lrat > limit_value
-                next_target = SurfaceLiquidRateTarget(-limit_value)
-            end
-        elseif name == :orat
-            orat = -cond.surface_liquid_rate
-            if orat > limit_value
-                next_target = SurfaceOilRateTarget(-limit_value)
-            end
-        elseif name == :wrat
-            wrat = -cond.surface_aqueous_rate
-            if wrat > limit_value
-                next_target = SurfaceWaterRateTarget(-limit_value)
-            end
-        elseif name == :grat
-            grat = -cond.surface_vapor_rate
-            if grat > limit_value
-                next_target = SurfaceGasRateTarget(-limit_value)
-            end
-        elseif name == :rate
-            rate = -(cond.surface_aqueous_rate + cond.surface_liquid_rate + cond.surface_vapor_rate)
-            if rate > limit_value
-                next_target = TotalRateTarget(-limit_value)
-            end
-        elseif name == :rate_lower
-            rate = -cond.total_mass_rate
-            if rate < limit_value
-                next_target = TotalRateTarget(-limit_value)
+        @info name
+        if name == :resv
+            weights = limit_value[2]
+            limit_value = abs(limit_value[1])
+            w_w, w_o, w_g = weights
+            q_w = -cond.surface_aqueous_rate
+            q_o = -cond.surface_liquid_rate
+            q_g = -cond.surface_vapor_rate
+            resv = w_w*q_w + w_o*q_o + w_g*q_g
+            if resv > limit_value
+                next_target = ReservoirVoidageTarget(-limit_value, weights)
             end
         else
-            error("Unsupported well injector constraint/limit $k")
+            limit_value = abs(limit_value)
+            if name == :lrat
+                lrat = -(cond.surface_aqueous_rate + cond.surface_liquid_rate)
+                if lrat > limit_value
+                    next_target = SurfaceLiquidRateTarget(-limit_value)
+                end
+            elseif name == :orat
+                orat = -cond.surface_liquid_rate
+                if orat > limit_value
+                    next_target = SurfaceOilRateTarget(-limit_value)
+                end
+            elseif name == :wrat
+                wrat = -cond.surface_aqueous_rate
+                if wrat > limit_value
+                    next_target = SurfaceWaterRateTarget(-limit_value)
+                end
+            elseif name == :grat
+                grat = -cond.surface_vapor_rate
+                if grat > limit_value
+                    next_target = SurfaceGasRateTarget(-limit_value)
+                end
+            elseif name == :rate
+                rate = -(cond.surface_aqueous_rate + cond.surface_liquid_rate + cond.surface_vapor_rate)
+                if rate > limit_value
+                    next_target = TotalRateTarget(-limit_value)
+                end
+            elseif name == :rate_lower
+                rate = -cond.total_mass_rate
+                if rate < limit_value
+                    next_target = TotalRateTarget(-limit_value)
+                end
+            else
+                error("Unsupported well injector constraint/limit $k")
+            end
         end
     end
     return next_target
@@ -466,6 +484,14 @@ end
 
 function well_target_value(ctrl, target::SurfaceLiquidRateTarget, cond, well, model, state)
     return cond.surface_liquid_rate + cond.surface_aqueous_rate
+end
+
+function well_target_value(ctrl, target::ReservoirVoidageTarget, cond, well, model, state)
+    w_w, w_o, w_g = target.weights
+    q_w = cond.surface_aqueous_rate
+    q_o = cond.surface_liquid_rate
+    q_g = cond.surface_vapor_rate
+    return w_w*q_w + w_o*q_o + w_g*q_g
 end
 
 function well_target_value(ctrl, target::TotalMassRateTarget, cond, well, model, state)
