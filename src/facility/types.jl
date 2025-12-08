@@ -86,7 +86,7 @@ Jutul.values_per_entity(fmodel, rates::SurfacePhaseRates) = length(rates.phases)
 
 Base.@kwdef struct BottomHolePressure <: Jutul.ScalarVariable
     "Maximum absolute change betweeen two Newton updates (nominally Pa)"
-    max_absolute_change::Union{Float64, Nothing} = nothing# 50*si_unit(:bar)
+    max_absolute_change::Union{Float64, Nothing} = nothing
     "Maximum relative change between two Newton updates."
     max_relative_change::Union{Float64, Nothing} = nothing
 end

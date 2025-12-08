@@ -113,7 +113,7 @@ function apply_well_limits!(cfg::WellGroupConfiguration, model, state, limits, c
     old_control = control
     control, changed = check_well_limits(limits, cond, control)
     if changed
-        @info "Well $well switching control from $(old_control.target) to $(control.target) due to active limit." limits
+        @info "Well $well switching control from $(old_control.target) to $(control.target) due to active limit." limits cond
         cfg.operating_controls[well] = control
         set_facility_values_for_control!(state, model, control, limits, cond)
         # error()
@@ -124,6 +124,9 @@ end
 
 function set_facility_values_for_control!(state, model::FacilityModel, control, limits, cond::FacilityVariablesForWell)
     idx = cond.idx
+    q_t = state.TotalSurfaceMassRate
+    q_t[idx] = valid_surface_rate_for_control(q_t[idx], control)
+    return
     # @warn "$(cond.name) Setting facility values for control $control at $idx"
     new_target_symbol = translate_target_to_symbol(control.target)
     is_injector = control isa InjectorControl
@@ -226,8 +229,6 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
         # phase_rates[ph, idx] = replace_value(phase_rates[ph, idx], sgn*val)
     end
 
-    q_t = state.TotalSurfaceMassRate
-    q_t[idx] = valid_surface_rate_for_control(q_t[idx], control)
 
     do_print = cond.name == :PRODU21 && false
     if do_print
