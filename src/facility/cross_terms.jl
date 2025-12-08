@@ -447,14 +447,26 @@ function update_cross_term_in_entity!(out, i,
 
     pos = get_well_position(facility.domain, ct.well)
     q_t = state_facility.TotalSurfaceMassRate[pos]
-    rhoS, S = surface_density_and_volume_fractions(state_well)
-    total_density = 0.0
-    for i in eachindex(rhoS, S)
-        total_density += S[i]*rhoS[i]
-    end
-    q_vol = q_t/total_density
-    for ph in eachindex(rhoS, S)
-        out[ph] = -S[ph]*q_vol/1000.0
+    # Need to also get this from injector control!!
+    is_injector = q_t > 0.0
+    if is_injector
+        cfg = state_facility[:WellGroupConfiguration]
+        ctrl = operating_control(cfg, ct.well)
+        density = ctrl.mixture_density
+        volume_rate = q_t/density
+        for (ph_idx, phase_fraction) in ctrl.phases
+            out[ph_idx] = volume_rate*phase_fraction
+        end
+    else
+        rhoS, S = surface_density_and_volume_fractions(state_well)
+        total_density = 0.0
+        for i in eachindex(rhoS, S)
+            total_density += S[i]*rhoS[i]
+        end
+        q_vol = q_t/total_density
+        for ph in eachindex(rhoS, S)
+            out[ph] = -S[ph]*q_vol/1000.0
+        end
     end
     return out
 end
