@@ -229,12 +229,16 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
             init_arg[:SurfacePhaseRates] = 0.0
             own_wells = W.domain.well_symbols
             bh = zeros(length(own_wells))
+            temp = similar(bh)
             for (i, w) in enumerate(own_wells)
                 bh[i] = init[w][:Pressure][1]
+                if is_thermal
+                    temp[i] = init[w][:Temperature][1]
+                end
             end
             init_arg[:BottomHolePressure] = bh
             if is_thermal
-                init_arg[:SurfaceTemperature] = init[w][:Temperature][1]
+                init_arg[:SurfaceTemperature] = temp
             end
             init[k] = setup_state(W; pairs(init_arg)...)
         end
