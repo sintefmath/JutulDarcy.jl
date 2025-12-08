@@ -69,6 +69,10 @@ function FacilityVariablesForWell(model::FacilityModel, state, well::Symbol; dro
     return FacilityVariablesForWell(pos, well, bhp, qmass, qw, qo, qg; drop_ad = drop_ad)
 end
 
+function FacilityVariablesForWell(model::FacilityModel, state::AbstractDict, well::Symbol; drop_ad = false)
+    return FacilityVariablesForWell(model, JutulStorage(state), well; drop_ad = drop_ad)
+end
+
 const WellGroupModel = SimulationModel{WellGroup, <:Any, <:Any, <:Any}
 
 struct Wells <: JutulEntity end

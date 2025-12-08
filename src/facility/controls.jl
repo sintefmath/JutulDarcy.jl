@@ -442,7 +442,7 @@ end
 #     return (target, changed, cval, tval, lim_type)
 # end
 
-function well_control_equation(ctrl::DisabledControl, cond, well, model, state)
+function well_control_equation(ctrl::DisabledControl, cond::FacilityVariablesForWell, well::Symbol, model, state)
     target = ctrl.target
     target::DisabledTarget
     # Equation is just the sum of absolute rates to force them all to zero.

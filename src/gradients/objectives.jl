@@ -39,6 +39,7 @@ function compute_well_qoi(model::MultiModel, state, forces, well::Symbol, target
         fk = Symbol("$(well)_ctrl")
     end
     ctrl = forces[fk].control[well]
+    fmodel = model.models[fk]
     fstate = state[fk]
     wstate = state[well]
 
@@ -72,7 +73,6 @@ function compute_well_qoi(model::MultiModel, state, forces, well::Symbol, target
         end
     end
 
-    translate_target_to_symbol
     if ctrl isa DisabledControl
         qoi = 0.0
     else
@@ -91,24 +91,15 @@ function compute_well_qoi(model::MultiModel, state, forces, well::Symbol, target
         if well_target_information(target).symbol != well_target_information(ctrl.target).symbol
             ctrl = replace_target(ctrl, target)
         end
-        qoi = compute_well_qoi(well_model, wstate, fstate, well::Symbol, pos, rhoS, ctrl)
+        qoi = compute_well_qoi(fmodel, fstate, well::Symbol, ctrl)
     end
     return qoi
 end
 
-function compute_well_qoi(well_model, well_state, fstate, well::Symbol, pos, rhoS, control)
-    # well_state = convert_to_immutable_storage(well_state)
-    q_t = fstate[:TotalSurfaceMassRate][pos]
-    target = control.target
-
-    rhoS, S = surface_density_and_volume_fractions(well_state)
-    v = well_target(control, target, well_model, well_state, rhoS, S)
-    if rate_weighted(target)
-        v *= q_t
-    end
-    return v
+function compute_well_qoi(fmodel, fstate, well::Symbol, control, target = control.target)
+    cond = FacilityVariablesForWell(fmodel, fstate, well)
+    return well_target_value(control, target, cond, well, fmodel, fstate)
 end
-
 
 """
     well_mismatch(qoi, wells, model_f, states_f, model_c, state_c, dt, step_info, forces; <keyword arguments>)
@@ -168,20 +159,27 @@ function well_mismatch_loop(qoi, wells, model_f, state_f, model_c, state_c, cont
         wstate_f = state_f[well]
         wstate_c = state_c[well]
 
-        fstate_f = state_f[:Facility]
-        fstate_c = state_c[:Facility]
-        obj += well_mismatch_loop_inner(ctrl, qoi, wstate_f, fstate_f, well_f, wstate_c, fstate_c, well_c, rhoS, well, weights, pos)
+        facility_state_f = state_f[:Facility]
+        facility_fstate_c = state_c[:Facility]
+
+        facility_model_f = model_f[:Facility]
+        facility_model_c = model_c[:Facility]
+        fine = (facility_model_f, facility_state_f)
+        coarse = (facility_model_c, facility_fstate_c)
+        obj += well_mismatch_loop_inner(ctrl, qoi, fine, coarse, well, weights)
     end
     return obj
 end
 
-function well_mismatch_loop_inner(ctrl, qoi, wstate_f, fstate_f, well_f, wstate_c, fstate_c, well_c, rhoS, well, weights, pos)
+function well_mismatch_loop_inner(ctrl, qoi, fine, coarse, well, weights)
     obj = 0.0
+    fmodel, fstate = fine
+    cmodel, cstate = coarse
     for (i, q) in enumerate(qoi)
         ctrl = replace_target(ctrl, q)
 
-        qoi_f = compute_well_qoi(well_f, wstate_f, fstate_f, well, pos, rhoS, ctrl)
-        qoi_c = compute_well_qoi(well_c, wstate_c, fstate_c, well, pos, rhoS, ctrl)
+        qoi_f = compute_well_qoi(fmodel, fstate, well, ctrl)
+        qoi_c = compute_well_qoi(cmodel, cstate, well, ctrl)
 
         Δ = qoi_f - qoi_c
         obj += (weights[i]*Δ)^2
