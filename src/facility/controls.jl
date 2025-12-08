@@ -80,21 +80,22 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
     end
 end
 
-function valid_surface_rate_for_control(q_t, ::InjectorControl)
-    if q_t < MIN_INITIAL_WELL_RATE
-        q_t = Jutul.replace_value(q_t, MIN_INITIAL_WELL_RATE)
+
+function default_surface_rate_for_control(q_t, ::InjectorControl, val = 2000.0*MIN_INITIAL_WELL_RATE)
+    if q_t < val
+        q_t = Jutul.replace_value(q_t, val)
     end
     return q_t
 end
 
-function valid_surface_rate_for_control(q_t, ::ProducerControl)
-    if q_t > -MIN_INITIAL_WELL_RATE
-        q_t = Jutul.replace_value(q_t, -MIN_INITIAL_WELL_RATE)
+function default_surface_rate_for_control(q_t, ::ProducerControl, val = 2000.0*MIN_INITIAL_WELL_RATE)
+    if q_t > -val
+        q_t = Jutul.replace_value(q_t, -val)
     end
     return q_t
 end
 
-function valid_surface_rate_for_control(q_t, ::DisabledControl)
+function default_surface_rate_for_control(q_t, ::DisabledControl)
     return Jutul.replace_value(q_t, 0.0)
 end
 
@@ -125,7 +126,7 @@ end
 function set_facility_values_for_control!(state, model::FacilityModel, control, limits, cond::FacilityVariablesForWell)
     idx = cond.idx
     q_t = state.TotalSurfaceMassRate
-    q_t[idx] = valid_surface_rate_for_control(q_t[idx], control)
+    q_t[idx] = default_surface_rate_for_control(q_t[idx], control)
     return
     # @warn "$(cond.name) Setting facility values for control $control at $idx"
     new_target_symbol = translate_target_to_symbol(control.target)
@@ -346,7 +347,6 @@ function check_well_limit(name::Symbol, limit_value, cond::FacilityVariablesForW
     else
         # Producer rates are negative by convention. Producer rate
         # limits are upper limits.
-        @info name
         if name == :resv
             weights = limit_value[2]
             limit_value = abs(limit_value[1])
