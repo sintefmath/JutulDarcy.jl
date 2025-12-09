@@ -1240,28 +1240,9 @@ function setup_case_from_mrst(casename;
         end
         @debug "$sym: Well $i/$num_wells" typeof(ctrl) ci
 
-        pw = vec(init[:Pressure][res_cells])
-        w0 = Dict{Symbol, Any}(:Pressure => pw, :TotalMassFlux => 1e-12)
-        if is_comp
-            if isnothing(ci)
-                cw_0 = init[:OverallMoleFractions][:, res_cells]
-                cw_0::Matrix{Float64}
-            else
-                cw_0 = ci
-            end
-            w0[:OverallMoleFractions] = cw_0
-        elseif haskey(init, :Saturations)
-            w0[:Saturations] = init[:Saturations][:, res_cells]
-        end
-        for sk in [:GasMassFraction, :BlackOilUnknown, :ImmiscibleSaturation]
-            if haskey(init, sk)
-                w0[sk] = vec(init[sk][res_cells])
-            end
-        end
         parameters[sym] = param_w
         controls[sym] = ctrl
         forces[sym] = nothing
-        initializer[sym] = w0
     end
     #
     mode = FacilitySystem(sys)
@@ -1403,7 +1384,7 @@ function setup_case_from_mrst(casename;
         p_def = Pressure(max_abs = dp_max_abs, max_rel = dp_max_rel, minimum = p_min, maximum = p_max)
         replace_variables!(model, Pressure = p_def, throw = false)
 
-        state0 = setup_state(model, initializer)
+        state0 = setup_reservoir_state(model, initializer[:Reservoir])
         parameters = setup_parameters(model, parameters)
 
         case = JutulCase(model, timesteps, forces, state0 = state0, parameters = parameters)
