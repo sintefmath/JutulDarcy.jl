@@ -156,8 +156,9 @@ function optimization_resetup_reservoir_case(opt_dict::AbstractDict, case::Jutul
     changed_dd = false
     for (k, v) in pairs(dd_dict)
         if haskey(domain, k)
+            e = associated_entity(domain, k)
             changed_dd = true
-            domain[k] = v
+            domain[k, e] = v
         end
     end
     if changed_dd
