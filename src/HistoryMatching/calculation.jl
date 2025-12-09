@@ -81,18 +81,26 @@ function get_period_contribution(hm::HistoryMatch, model, states, step_infos, fo
     prod_sgn = -1.0
     val = 0.0
     # Injectors
-    val += eval_match(hm.injector_bhp, 1.0, BottomHolePressureTarget(1.0))
-    val += eval_match(hm.injector_rate, inj_sgn, TotalRateTarget(1.0))
-    val += eval_match(hm.injector_orat, inj_sgn, SurfaceOilRateTarget(1.0))
-    val += eval_match(hm.injector_wrat, inj_sgn, SurfaceWaterRateTarget(1.0))
-    val += eval_match(hm.injector_grat, inj_sgn, SurfaceGasRateTarget(1.0))
+    bhp_inj = eval_match(hm.injector_bhp, 1.0, BottomHolePressureTarget(1.0))
+    rate_inj = eval_match(hm.injector_rate, inj_sgn, TotalRateTarget(1.0))
+    orat_inj = eval_match(hm.injector_orat, inj_sgn, SurfaceOilRateTarget(1.0))
+    wrat_inj = eval_match(hm.injector_wrat, inj_sgn, SurfaceWaterRateTarget(1.0))
+    grat_inj = eval_match(hm.injector_grat, inj_sgn, SurfaceGasRateTarget(1.0))
     # Producers
-    val += eval_match(hm.producer_bhp, 1.0, BottomHolePressureTarget(1.0))
-    val += eval_match(hm.producer_rate, prod_sgn, TotalRateTarget(-1.0))
-    val += eval_match(hm.producer_grat, prod_sgn, SurfaceGasRateTarget(-1.0))
-    val += eval_match(hm.producer_orat, prod_sgn, SurfaceOilRateTarget(-1.0))
-    val += eval_match(hm.producer_lrat, prod_sgn, SurfaceLiquidRateTarget(-1.0))
-    val += eval_match(hm.producer_wrat, prod_sgn, SurfaceWaterRateTarget(-1.0))
+    bhp_prod = eval_match(hm.producer_bhp, 1.0, BottomHolePressureTarget(1.0))
+    rate_prod = eval_match(hm.producer_rate, prod_sgn, TotalRateTarget(-1.0))
+    grat_prod = eval_match(hm.producer_grat, prod_sgn, SurfaceGasRateTarget(-1.0))
+    orat_prod = eval_match(hm.producer_orat, prod_sgn, SurfaceOilRateTarget(-1.0))
+    lrat_prod = eval_match(hm.producer_lrat, prod_sgn, SurfaceLiquidRateTarget(-1.0))
+    wrat_prod = eval_match(hm.producer_wrat, prod_sgn, SurfaceWaterRateTarget(-1.0))
+
+    if false
+        println("Well match contributions: ")
+        println(" BHP inj: $bhp_inj, rate inj: $rate_inj, orat inj: $orat_inj, wrat inj: $wrat_inj, grat inj: $grat_inj | ")
+        println(" BHP prod: $bhp_prod, rate prod: $rate_prod, grat prod: $grat_prod, orat prod: $orat_prod, lrat prod: $lrat_prod, wrat prod: $wrat_prod ")
+    end
+    val = bhp_inj + rate_inj + orat_inj + wrat_inj + grat_inj +
+        bhp_prod + rate_prod + grat_prod + orat_prod + lrat_prod + wrat_prod
     return val
 end
 
