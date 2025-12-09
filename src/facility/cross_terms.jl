@@ -183,10 +183,12 @@ function cross_term_total_surface_mass_rate_and_mixture(facility, well, state_fa
         effective = true
     )
     # Hack for sparsity detection
-    bhp = bottom_hole_pressure(state_well)
+    # bhp = bottom_hole_pressure(state_well)
+    bhp = state_facility[:BottomHolePressure][pos]
+    ph = state_facility[:TotalSurfaceMassRate][pos]
+    ph2 = state_facility[:SurfacePhaseRates][1, pos]
     total_mass = state_well.TotalMasses[1, well_top_node()]
-    q_t += 0*bhp + 0*total_mass
-
+    q_t += 0*bhp + 0*ph + 0*total_mass + 0*ph2
     if isa(ctrl, InjectorControl)
         if value(q_t) < 0
             @warn "Injector $well_symbol is producing?"
@@ -450,19 +452,19 @@ function update_cross_term_in_entity!(out, i,
     cfg = state_facility[:WellGroupConfiguration]
     ctrl = operating_control(cfg, ct.well)
     scale_factor = 1000.0
+    rhoS, S = surface_density_and_volume_fractions(state_well)
 
     is_injector = ctrl isa InjectorControl
     if is_injector
         density = ctrl.mixture_density
         volume_rate = q_t/density
         for ph_idx in eachindex(out)
-            out[ph_idx] = 0.0
+            out[ph_idx] = 0.0*(S[ph_idx] + rhoS[ph_idx])
         end
         for (ph_idx, phase_fraction) in ctrl.phases
-            out[ph_idx] = -volume_rate*phase_fraction/scale_factor
+            out[ph_idx] += -volume_rate*phase_fraction/scale_factor
         end
     else
-        rhoS, S = surface_density_and_volume_fractions(state_well)
         total_density = 0.0
         for i in eachindex(rhoS, S)
             total_density += S[i]*rhoS[i]
