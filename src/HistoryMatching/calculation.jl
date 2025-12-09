@@ -159,7 +159,7 @@ function get_period_contribution_well(wm::WellMatch, wellpos, sgn, target::Jutul
                 val, obs = get_well_match(wm, ctrl, target, fmodel, fstate, control_step, time)
                 calculated += sgn*val*w_dt
                 observed += obs*w_dt
-                w_total += w_dt
+                w_total += w_step_from_period
             end
         end
         out = ((calculated - observed)/w_total)^2
