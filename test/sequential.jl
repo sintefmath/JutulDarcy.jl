@@ -134,9 +134,9 @@ using Test, Jutul, JutulDarcy, HYPRE, LinearAlgebra
 end
 
 ##
-@testset "Sequential interface" begin+
+@testset "Sequential interface" begin
     file_path = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1", "SPE1.DATA")
-    case = setup_case_from_data_file(file_path, 
+    case = setup_case_from_data_file(file_path,
         extra_outputs = [:PhaseMobilities, :PhaseMassDensities, :SurfaceVolumeMobilities, :Rs]
     )
     r_seq = simulate_reservoir(case,

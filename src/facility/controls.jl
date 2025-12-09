@@ -343,7 +343,6 @@ function check_well_limit(name::Symbol, limit_value, cond::FacilityVariablesForW
     if name == :bhp
         # Producer BHP limit is a lower limit, and pressure is positive
         if cond.bottom_hole_pressure < limit_value
-            # @error "PRODUCER BHP TOO LOW" cond.bottom_hole_pressure limit_value
             next_target = BottomHolePressureTarget(limit_value)
         end
     else
@@ -393,7 +392,7 @@ function check_well_limit(name::Symbol, limit_value, cond::FacilityVariablesForW
                     next_target = TotalRateTarget(-limit_value)
                 end
             else
-                error("Unsupported well injector constraint/limit $k")
+                error("Unsupported well injector constraint/limit $name")
             end
         end
     end
