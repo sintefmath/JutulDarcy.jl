@@ -169,9 +169,10 @@ end
 
 function effective_weight(wm::WellMatch, step::Int)
     if wm.weight isa AbstractVector
-        return wm.weight[step]
+        w = wm.weight[step]
     else
-        return wm.weight
+        w = wm.weight
     end
+    return w*wm.scale
 end
 
