@@ -49,13 +49,13 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
             # idx = get_well_position(model.domain, key)
             req_ctrls[key] = newctrl
             op_ctrls[key] = newctrl
-            cond = FacilityVariablesForWell(model, storage.state, key, drop_ad = true)
-            set_facility_values_for_control!(storage.state, model, newctrl, cfg.limits[key], cond)
+            # cond = FacilityVariablesForWell(model, storage.state, key, drop_ad = true)
+            # set_facility_values_for_control!(storage.state, model, newctrl, cfg.limits[key], cond)
         end
         pos = get_well_position(model.domain, key)
-        # if q_t isa Vector
-        #     q_t[pos] = valid_surface_rate_for_control(q_t[pos], newctrl)
-        # end
+        if q_t isa Vector
+            q_t[pos] = valid_surface_rate_for_control(q_t[pos], newctrl)
+        end
         if changed && !new_is_disabled
             if isnothing(cfg.limits[key])
                 cfg.limits[key] = as_limit(newctrl.target)
@@ -81,21 +81,21 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
 end
 
 
-function default_surface_rate_for_control(q_t, ::InjectorControl, val = 2000.0*MIN_INITIAL_WELL_RATE)
+function valid_surface_rate_for_control(q_t, ::InjectorControl, val = MIN_INITIAL_WELL_RATE)
     if q_t < val
         q_t = Jutul.replace_value(q_t, val)
     end
     return q_t
 end
 
-function default_surface_rate_for_control(q_t, ::ProducerControl, val = 2000.0*MIN_INITIAL_WELL_RATE)
+function valid_surface_rate_for_control(q_t, ::ProducerControl, val = MIN_INITIAL_WELL_RATE)
     if q_t > -val
         q_t = Jutul.replace_value(q_t, -val)
     end
     return q_t
 end
 
-function default_surface_rate_for_control(q_t, ::DisabledControl)
+function valid_surface_rate_for_control(q_t, ::DisabledControl)
     return Jutul.replace_value(q_t, 0.0)
 end
 
@@ -116,7 +116,7 @@ function apply_well_limits!(cfg::WellGroupConfiguration, model, state, limits, c
     if changed
         @debug "Well $well switching control from $(old_control.target) to $(control.target) due to active limit." limits cond
         cfg.operating_controls[well] = control
-        set_facility_values_for_control!(state, model, control, limits, cond)
+        # set_facility_values_for_control!(state, model, control, limits, cond)
         # error()
     end
     # println("$well operating $(translate_target_to_symbol(control.target)) with value $(control.target.value)")
@@ -126,7 +126,7 @@ end
 function set_facility_values_for_control!(state, model::FacilityModel, control, limits, cond::FacilityVariablesForWell)
     idx = cond.idx
     q_t = state.TotalSurfaceMassRate
-    q_t[idx] = default_surface_rate_for_control(q_t[idx], control)
+    q_t[idx] = valid_surface_rate_for_control(q_t[idx], control)
     return
     # @warn "$(cond.name) Setting facility values for control $control at $idx"
     new_target_symbol = translate_target_to_symbol(control.target)
@@ -327,6 +327,8 @@ function check_well_limit(name::Symbol, limit_value, cond, control::InjectorCont
         elseif name == :rate_lower
             rate = cond.total_mass_rate
             if rate < limit_value
+                @info "Injector total mass rate below lower limit" rate limit_value cond
+                error()
                 next_target = TotalRateTarget(limit_value)
             end
         else
