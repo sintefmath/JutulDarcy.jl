@@ -1,12 +1,16 @@
+abstract type AbstractFacilitySystem <: JutulSystem end
 
-abstract type FacilitySystem <: JutulSystem end
-struct PredictionMode <: FacilitySystem end
-struct HistoryMode <: FacilitySystem end
+struct FacilitySystem{T} <: AbstractFacilitySystem
+    multiphase::T
+end
 
-const FacilityModel = SimulationModel{<:Any, <:FacilitySystem, <:Any, <:Any}
+get_phases(sys::FacilitySystem) = get_phases(sys.multiphase)
 
 abstract type SurfaceFacilityDomain <: JutulDomain end
 abstract type WellControllerDomain <: SurfaceFacilityDomain end
+
+const FacilityModel = SimulationModel{<:SurfaceFacilityDomain, <:AbstractFacilitySystem, <:Any, <:Any}
+
 mutable struct WellGroup <: WellControllerDomain
     const well_symbols::Vector{Symbol} # Controlled wells
     "Can temporarily shut producers that try to reach zero rate multiple solves in a row"
@@ -24,9 +28,81 @@ function WellGroup(wells::Vector{Symbol}; can_shut_wells = true, can_shut_inject
     return WellGroup(wells, can_shut_producers, can_shut_injectors)
 end
 
+struct FacilityVariablesForWell{T}
+    idx::Int
+    name::Symbol
+    bottom_hole_pressure::T # Pa
+    total_mass_rate::T # kg/s
+    surface_aqueous_rate::T # surface m3/s
+    surface_liquid_rate::T # surface m3/s
+    surface_vapor_rate::T # surface m3/s
+    function FacilityVariablesForWell(idx, name, bhp, qmass, qws, qos, qgs; drop_ad = false)
+        if drop_ad
+            bhp = Jutul.value(bhp)
+            qmass = Jutul.value(qmass)
+            qws = Jutul.value(qws)
+            qos = Jutul.value(qos)
+            qgs = Jutul.value(qgs)
+        end
+        bhp, qmass, qws, qos, qgs = promote(bhp, qmass, qws, qos, qgs)
+        return new{typeof(bhp)}(idx, name, bhp, qmass, qws, qos, qgs)
+    end
+end
+
+function FacilityVariablesForWell(model::FacilityModel, state, well::Symbol; drop_ad = false)
+    sys = model.system.multiphase
+    pos = get_well_position(model.domain, well)
+    bhp = state.BottomHolePressure[pos]
+    qmass = state.TotalSurfaceMassRate[pos]
+    qw = qo = qg = zero(qmass)
+    phases = get_phases(sys)
+    for (i, ph) in enumerate(phases)
+        rate = state.SurfacePhaseRates[i, pos]
+        if ph isa AqueousPhase
+            qw = rate
+        elseif ph isa LiquidPhase
+            qo = rate
+        elseif ph isa VaporPhase
+            qg = rate
+        end
+    end
+    return FacilityVariablesForWell(pos, well, bhp, qmass, qw, qo, qg; drop_ad = drop_ad)
+end
+
+function FacilityVariablesForWell(model::FacilityModel, state::AbstractDict, well::Symbol; drop_ad = false)
+    return FacilityVariablesForWell(model, JutulStorage(state), well; drop_ad = drop_ad)
+end
+
 const WellGroupModel = SimulationModel{WellGroup, <:Any, <:Any, <:Any}
 
 struct Wells <: JutulEntity end
+
+struct SurfacePhaseRates{T} <: JutulVariables
+    phases::T
+    function SurfacePhaseRates(phases = (AqueousPhase(), LiquidPhase(), VaporPhase()))
+        all(x -> x isa AbstractPhase, phases) || throw(ArgumentError("All entries in phases must be of type AbstractPhase"))
+        return new{typeof(phases)}(phases)
+    end
+end
+
+Jutul.associated_entity(::SurfacePhaseRates) = Wells()
+Jutul.values_per_entity(fmodel, rates::SurfacePhaseRates) = length(rates.phases)
+
+Base.@kwdef struct BottomHolePressure <: Jutul.ScalarVariable
+    "Maximum absolute change betweeen two Newton updates (nominally Pa)"
+    max_absolute_change::Union{Float64, Nothing} = nothing
+    "Maximum relative change between two Newton updates."
+    max_relative_change::Union{Float64, Nothing} = nothing
+end
+
+Jutul.associated_entity(::BottomHolePressure) = Wells()
+function Jutul.absolute_increment_limit(bhp::BottomHolePressure)
+    return bhp.max_absolute_change
+end
+
+function Jutul.relative_increment_limit(bhp::BottomHolePressure)
+    return bhp.max_relative_change
+end
 
 """
     TotalSurfaceMassRate(max_absolute_change = nothing, max_relative_change = nothing)
@@ -42,6 +118,14 @@ Base.@kwdef struct TotalSurfaceMassRate <: ScalarVariable
     max_relative_change::Union{Float64, Nothing} = nothing
 end
 
+function Jutul.absolute_increment_limit(q::TotalSurfaceMassRate)
+    return q.max_absolute_change
+end
+
+function Jutul.relative_increment_limit(q::TotalSurfaceMassRate)
+    return q.max_relative_change
+end
+
 Base.@kwdef struct SurfaceTemperature <: ScalarVariable
     "Maximum absolute change betweeen two Newton updates (nominally K)"
     max_absolute_change::Union{Float64, Nothing} = nothing
@@ -51,12 +135,12 @@ Base.@kwdef struct SurfaceTemperature <: ScalarVariable
     max = 1e6
 end
 
-function Jutul.absolute_increment_limit(q::TotalSurfaceMassRate)
-    return q.max_absolute_change
+function Jutul.absolute_increment_limit(T::SurfaceTemperature)
+    return T.max_absolute_change
 end
 
-function Jutul.relative_increment_limit(q::TotalSurfaceMassRate)
-    return q.max_relative_change
+function Jutul.relative_increment_limit(T::SurfaceTemperature)
+    return T.max_relative_change
 end
 
 abstract type WellTarget end
@@ -734,6 +818,15 @@ end
 struct SurfaceTemperatureEquation <:JutulEquation
     # Equation:
     #        T_surf - T|top_cell = 0
+end
+
+struct BottomHolePressureEquation <:JutulEquation
+    # Equation:
+    #        bhp - p|top_cell = 0
+end
+
+struct SurfacePhaseRatesEquation <:JutulEquation
+    # Equation: Surface phase rates calculated from well values
 end
 
 struct WellSegmentFlow{C, T<:AbstractVector} <: Jutul.FlowDiscretization

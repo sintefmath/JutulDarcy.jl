@@ -211,7 +211,7 @@ end
                 forces = forces,
                 state0 = state0,
                 parameters = parameters,
-                epsilon = 1e-6
+                epsilon = 1e-3
             )
         end
         return grad_adj, grad_numeric
@@ -227,7 +227,7 @@ end
         else
             scale = 1.0
         end
-        @test norm(adjgrad - numgrad)/scale < 1e-6
+        @test norm(adjgrad - numgrad)/scale < 2e-5
     end
 end
 

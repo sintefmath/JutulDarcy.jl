@@ -7,14 +7,12 @@ function evaluate_global_match(hm::HistoryMatch, result::ReservoirSimResult)
     return Jutul.evaluate_objective(hm, model, result.result.states, timesteps, all_forces)
 end
 
-function get_well_value(wm::WellMatch, ctrl, target, wmodel, wstate, fstate, wellpos, report_step, time)
+function get_well_value(wm::WellMatch, ctrl, target, fmodel, fstate)
     if ctrl isa DisabledControl
         val = 0.0
     else
-        ctrl = JutulDarcy.replace_target(ctrl, target)
         wname = wm.name
-        rhoS = JutulDarcy.reference_densities(wmodel.system)
-        val = JutulDarcy.compute_well_qoi(wmodel, wstate, fstate, wname, wellpos, rhoS, ctrl)
+        val = JutulDarcy.compute_well_qoi(fmodel, fstate, wname, ctrl, target)
     end
     return val
 end
@@ -23,8 +21,8 @@ function get_well_observation(wm::WellMatch, time)
     return wm.data(time)
 end
 
-function get_well_match(wm::WellMatch, ctrl, target, wmodel, wstate, fstate, wellpos, report_step, time)
-    qoi = get_well_value(wm, ctrl, target, wmodel, wstate, fstate, wellpos, report_step, time)
+function get_well_match(wm::WellMatch, ctrl, target, fmodel, fstate, report_step, time)
+    qoi = get_well_value(wm, ctrl, target, fmodel, fstate)
     obs = get_well_observation(wm, time)
     w = effective_weight(wm, report_step)
     return (w*qoi, w*obs)
@@ -83,18 +81,26 @@ function get_period_contribution(hm::HistoryMatch, model, states, step_infos, fo
     prod_sgn = -1.0
     val = 0.0
     # Injectors
-    val += eval_match(hm.injector_bhp, 1.0, BottomHolePressureTarget(1.0))
-    val += eval_match(hm.injector_rate, inj_sgn, TotalRateTarget(1.0))
-    val += eval_match(hm.injector_orat, inj_sgn, SurfaceOilRateTarget(1.0))
-    val += eval_match(hm.injector_wrat, inj_sgn, SurfaceWaterRateTarget(1.0))
-    val += eval_match(hm.injector_grat, inj_sgn, SurfaceGasRateTarget(1.0))
+    bhp_inj = eval_match(hm.injector_bhp, 1.0, BottomHolePressureTarget(1.0))
+    rate_inj = eval_match(hm.injector_rate, inj_sgn, TotalRateTarget(1.0))
+    orat_inj = eval_match(hm.injector_orat, inj_sgn, SurfaceOilRateTarget(1.0))
+    wrat_inj = eval_match(hm.injector_wrat, inj_sgn, SurfaceWaterRateTarget(1.0))
+    grat_inj = eval_match(hm.injector_grat, inj_sgn, SurfaceGasRateTarget(1.0))
     # Producers
-    val += eval_match(hm.producer_bhp, 1.0, BottomHolePressureTarget(1.0))
-    val += eval_match(hm.producer_rate, prod_sgn, TotalRateTarget(-1.0))
-    val += eval_match(hm.producer_grat, prod_sgn, SurfaceGasRateTarget(-1.0))
-    val += eval_match(hm.producer_orat, prod_sgn, SurfaceOilRateTarget(-1.0))
-    val += eval_match(hm.producer_lrat, prod_sgn, SurfaceLiquidRateTarget(-1.0))
-    val += eval_match(hm.producer_wrat, prod_sgn, SurfaceWaterRateTarget(-1.0))
+    bhp_prod = eval_match(hm.producer_bhp, 1.0, BottomHolePressureTarget(1.0))
+    rate_prod = eval_match(hm.producer_rate, prod_sgn, TotalRateTarget(-1.0))
+    grat_prod = eval_match(hm.producer_grat, prod_sgn, SurfaceGasRateTarget(-1.0))
+    orat_prod = eval_match(hm.producer_orat, prod_sgn, SurfaceOilRateTarget(-1.0))
+    lrat_prod = eval_match(hm.producer_lrat, prod_sgn, SurfaceLiquidRateTarget(-1.0))
+    wrat_prod = eval_match(hm.producer_wrat, prod_sgn, SurfaceWaterRateTarget(-1.0))
+
+    if false
+        println("Well match contributions: ")
+        println(" BHP inj: $bhp_inj, rate inj: $rate_inj, orat inj: $orat_inj, wrat inj: $wrat_inj, grat inj: $grat_inj | ")
+        println(" BHP prod: $bhp_prod, rate prod: $rate_prod, grat prod: $grat_prod, orat prod: $orat_prod, lrat prod: $lrat_prod, wrat prod: $wrat_prod ")
+    end
+    val = bhp_inj + rate_inj + orat_inj + wrat_inj + grat_inj +
+        bhp_prod + rate_prod + grat_prod + orat_prod + lrat_prod + wrat_prod
     return val
 end
 
@@ -113,8 +119,7 @@ function get_period_contribution_well(wm::WellMatch, wellpos, sgn, target::Jutul
         is_cumulative::Bool = false
     )
     wname = wm.name
-    wmodel = model[wname]
-    pos = wellpos[wname]
+    fmodel = model[:Facility]
     w_total = 0.0
     if is_cumulative
         @assert JutulDarcy.rate_weighted(target)
@@ -132,9 +137,8 @@ function get_period_contribution_well(wm::WellMatch, wellpos, sgn, target::Jutul
                 state = states[step_index]
                 force = forces[step_index]
                 fstate = state[:Facility]
-                wstate = state[wname]
                 ctrl = force[:Facility].control[wname]
-                val = get_well_value(wm, ctrl, target, wmodel, wstate, fstate, pos, control_step, time)
+                val = get_well_value(wm, ctrl, target, fmodel, fstate)
                 # Note: Observations are cumulative, we need to calculate the volumes ourselves.
                 calculated_cumulative += sgn*val*dt
                 observed_cumulative = get_well_observation(wm, time)
@@ -159,12 +163,11 @@ function get_period_contribution_well(wm::WellMatch, wellpos, sgn, target::Jutul
                 state = states[step_index]
                 force = forces[step_index]
                 fstate = state[:Facility]
-                wstate = state[wname]
                 ctrl = force[:Facility].control[wname]
-                val, obs = get_well_match(wm, ctrl, target, wmodel, wstate, fstate, pos, control_step, time)
+                val, obs = get_well_match(wm, ctrl, target, fmodel, fstate, control_step, time)
                 calculated += sgn*val*w_dt
                 observed += obs*w_dt
-                w_total += w_dt
+                w_total += w_step_from_period
             end
         end
         out = ((calculated - observed)/w_total)^2
@@ -174,9 +177,10 @@ end
 
 function effective_weight(wm::WellMatch, step::Int)
     if wm.weight isa AbstractVector
-        return wm.weight[step]
+        w = wm.weight[step]
     else
-        return wm.weight
+        w = wm.weight
     end
+    return w*wm.scale
 end
 

@@ -146,7 +146,7 @@ function Jutul.values_per_entity(model, ::PressureTemperatureDependentEnthalpy{T
 end
 
 @jutul_secondary function update_temperature_dependent_enthalpy!(H_phases, var::PressureTemperatureDependentEnthalpy{T, R, N}, model::CompositionalModel, Pressure, Temperature, LiquidMassFractions, VaporMassFractions, PhaseMassDensities, ix) where {T, R, N}
-    fsys = flow_system(model.system)
+    fsys = model.system
     @assert !has_other_phase(fsys)
     @assert N == number_of_components(fsys)
     l, v = phase_indices(fsys)

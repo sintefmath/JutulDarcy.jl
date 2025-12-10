@@ -232,31 +232,6 @@ function get_model_wells(model::MultiModel; data_domain = false)
 end
 
 """
-    reservoir_system(flow = flow_system, thermal = thermal_system)
-
-Set up a [`Jutul.CompositeSystem`](@ref) that combines multiple systems
-together. In some terminologies this is referred to as a multi-physics system.
-The classical example is to combine a flow system and a thermal system to create
-a coupled flow and heat system.
-"""
-function reservoir_system(; flow = missing, thermal = missing, kwarg...)
-    carg = Pair{Symbol, Jutul.JutulSystem}[]
-    if !ismissing(flow)
-        flow::MultiPhaseSystem
-        push!(carg, :flow => flow)
-    end
-    if !ismissing(thermal)
-        thermal::ThermalSystem
-        push!(carg, :thermal => thermal)
-    end
-    for (k, v) in kwarg
-        v::Jutul.JutulSystem
-        push!(carg, k => v)
-    end
-    return CompositeSystem(:Reservoir; carg...)
-end
-
-"""
     model = setup_reservoir_model(reservoir, system; wells = [], <keyword arguments>)
     model = setup_reservoir_model(reservoir, system; wells = [w1, w2], backend = :csr, <keyword arguments>)
     model, parameters = setup_reservoir_model(reservoir, system; extra_out = true, <keyword arguments>)
@@ -436,7 +411,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     # List of models (order matters)
     models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()
     reservoir_context, context = Jutul.select_contexts(
-        backend; 
+        backend;
         main_context = reservoir_context,
         context = context,
         block_backend = block_backend,
@@ -452,6 +427,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         kgrad = kgrad,
         upwind = upwind
     )
+    system = rmodel.system
     if thermal
         rmodel = add_thermal_to_model!(rmodel)
     end
@@ -491,7 +467,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     end
     models[:Reservoir] = rmodel
     # Then we set up all the wells
-    mode = PredictionMode()
+    facility_system = FacilitySystem(system)
     encountered_wells = Dict{Symbol, Bool}()
     if length(wells) > 0
         facility_to_add = OrderedDict()
@@ -539,7 +515,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             models[wname] = wmodel
             if split_wells
                 wg = WellGroup([wname], can_shut_wells = can_shut_wells)
-                F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
+                F = SimulationModel(wg, facility_system, context = context, data_domain = DataDomain(wg))
                 if thermal
                     add_thermal_to_facility!(F)
                 end
@@ -554,7 +530,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             end
         else
             wg = WellGroup(map(x -> physical_representation(x).name, wells), can_shut_wells = can_shut_wells)
-            F = SimulationModel(wg, mode, context = context, data_domain = DataDomain(wg))
+            F = SimulationModel(wg, facility_system, context = context, data_domain = DataDomain(wg))
             if thermal
                 add_thermal_to_facility!(F)
             end
@@ -1092,7 +1068,7 @@ function setup_reservoir_simulator(case::JutulCase;
         tol_cnve_well = tol_cnve_well,
         tol_eb_well = tol_eb_well,
         inc_tol_dT = inc_tol_dT,
-        )
+    )
     return (sim, cfg)
 end
 
@@ -1217,9 +1193,6 @@ function set_default_cnv_mb_inner!(tol, model;
         end
     end
     sys = model.system
-    if model isa Jutul.CompositeModel && hasproperty(model.system.systems, :flow)
-        sys = flow_system(model.system)
-    end
     if sys isa SinglePhaseSystem || sys isa ImmiscibleSystem || 
         sys isa BlackOilSystem || sys isa CompositionalSystem
         is_well = model_or_domain_is_well(model)
@@ -1274,11 +1247,14 @@ function setup_reservoir_cross_terms!(model::MultiModel)
         elseif m.domain isa WellGroup
             for target_well in m.domain.well_symbols
                 if has_flow
-                    ct = FacilityFromWellFlowCT(target_well)
-                    add_cross_term!(model, ct, target = k, source = target_well, equation = :control_equation)
-
                     ct = WellFromFacilityFlowCT(target_well)
                     add_cross_term!(model, ct, target = target_well, source = k, equation = conservation)
+
+                    ct = FacilityFromWellBottomHolePressureCT(target_well)
+                    add_cross_term!(model, ct, target = k, source = target_well, equation = :bottom_hole_pressure_equation)
+
+                    ct = FacilityFromSurfacePhaseRatesCT(target_well)
+                    add_cross_term!(model, ct, target = k, source = target_well, equation = :surface_phase_rates_equation)
                 end
                 if has_thermal
                     ct = WellFromFacilityThermalCT(target_well)
@@ -1343,65 +1319,71 @@ function reservoir_multimodel(models::AbstractDict;
         specialize = false,
         split_wells = false,
         immutable_model = false,
-        assemble_wells_together = haskey(models, :Facility)
+        assemble_wells_together = haskey(models, :Facility),
+        groups = missing
     )
     res_model = models[:Reservoir]
     is_block(x) = Jutul.is_cell_major(matrix_layout(x.context))
     block_backend = is_block(res_model)
     n = length(models)
-    if block_backend && n > 1
-        if  !(split_wells == true) || assemble_wells_together
-            groups = repeat([2], n)
-            for (i, k) in enumerate(keys(models))
-                m = models[k]
-                if is_block(m)
-                    groups[i] = 1
-                end
-            end
-        else
-            groups = repeat([1], n)
-            gpos = 1
-            pos = 2
-            wno = 1
-            mkeys = collect(keys(models))
-            nw = 1
-            for (k, m) in models
-                if endswith(String(k), "_ctrl")
-                    nw += 1
-                end
-            end
-            if split_wells == :threads
-                npartition = Threads.nthreads()
-            else
-                npartition = nw
-            end
-            p = Jutul.partition_linear(npartition, nw)
-            for (k, m) in models
-                if k != :Reservoir
-                    sk = String(k)
-                    if endswith(sk, "_ctrl")
-                        wk = Symbol(sk[1:end-5])
-                        wpos = findfirst(isequal(wk), mkeys)
-                        if false
-                            g = pos
-                        else
-                            g = p[wno]+1
-                        end
-                        groups[wpos] = g
-                        groups[gpos] = g
-                        pos += 1
-                        wno += 1
+    if ismissing(groups)
+        if block_backend && n > 1
+            if  !(split_wells == true) || assemble_wells_together
+                groups = repeat([2], n)
+                for (i, k) in enumerate(keys(models))
+                    m = models[k]
+                    if is_block(m)
+                        groups[i] = 1
                     end
                 end
-                gpos += 1
+            else
+                groups = repeat([1], n)
+                gpos = 1
+                pos = 2
+                wno = 1
+                mkeys = collect(keys(models))
+                nw = 1
+                for (k, m) in models
+                    if endswith(String(k), "_ctrl")
+                        nw += 1
+                    end
+                end
+                if split_wells == :threads
+                    npartition = Threads.nthreads()
+                else
+                    npartition = nw
+                end
+                p = Jutul.partition_linear(npartition, nw)
+                for (k, m) in models
+                    if k != :Reservoir
+                        sk = String(k)
+                        if endswith(sk, "_ctrl")
+                            wk = Symbol(sk[1:end-5])
+                            wpos = findfirst(isequal(wk), mkeys)
+                            if false
+                                g = pos
+                            else
+                                g = p[wno]+1
+                            end
+                            groups[wpos] = g
+                            groups[gpos] = g
+                            pos += 1
+                            wno += 1
+                        end
+                    end
+                    gpos += 1
+                end
             end
+            red = :schur_apply
+            outer_context = DefaultContext()
+        else
+            outer_context = models[:Reservoir].context
+            groups = nothing
+            red = nothing
         end
-        red = :schur_apply
-        outer_context = DefaultContext()
     else
-        outer_context = models[:Reservoir].context
-        groups = nothing
-        red = nothing
+        outer_context = DefaultContext()
+        red = :schur_apply
     end
     models = convert_to_immutable_storage(models)
     model = MultiModel(models, groups = groups, context = outer_context, reduction = red, specialize = specialize)
@@ -1586,9 +1568,13 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
             well_state = convert_to_immutable_storage(well_state)
             ctrl_grp = Symbol("$(well_symbol)_ctrl")
             if haskey(state, ctrl_grp)
-                q_t = only(state[ctrl_grp][:TotalSurfaceMassRate])
+                fstate = convert_to_immutable_storage(state[ctrl_grp])
+                fmodel = model.models[ctrl_grp]
+                q_t = only(fstate[:TotalSurfaceMassRate])
             else
-                q_t = state[:Facility][:TotalSurfaceMassRate][well_number]
+                fstate = convert_to_immutable_storage(state[:Facility])
+                fmodel = model.models[:Facility]
+                q_t = fstate[:TotalSurfaceMassRate][well_number]
             end
             if forces isa AbstractVector
                 force = forces[i]
@@ -1625,9 +1611,9 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
                     end
                     d[i] = v
                 else
-                    current_control = replace_target(control, BottomHolePressureTarget(1.0))
-                    rhoS, S = surface_density_and_volume_fractions(well_state)
-                    v = well_target_value(q_t, current_control, target_limit, well_model, well_state, rhoS, S)
+                    current_control = replace_target(control, target_limit)
+                    cond = FacilityVariablesForWell(fmodel, fstate, well_symbol, drop_ad = true)
+                    v = well_target_value(current_control, target_limit, cond, well_model, fmodel, fstate)
                     d[i] = v
                 end
             end
@@ -1666,7 +1652,7 @@ function wellgroup_symbols(model::MultiModel)
 end
 
 function available_well_targets(model)
-    phases = get_phases(flow_system(model.system))
+    phases = get_phases(model.system)
     targets = [BottomHolePressureTarget, SurfaceLiquidRateTarget, TotalRateTarget, TotalMassRateTarget]
     if AqueousPhase() in phases
         push!(targets, SurfaceLiquidRateTarget)
@@ -2181,7 +2167,6 @@ function set_discretization_variables!(model::MultiModel)
 end
 
 function set_discretization_variables!(model; ntpfa_potential = true)
-    disc = model.domain.discretizations
     flow = model.domain.discretizations.mass_flow
     if flow isa PotentialFlow
         if eltype(flow.kgrad) != TPFA
@@ -2198,10 +2183,6 @@ function set_discretization_variables!(model; ntpfa_potential = true)
             if ntpfa_potential || has_gravity || has_pc
                 pp = PhasePotentials()
                 acd = AdjustedCellDepths()
-                if model.system isa CompositeSystem
-                    pp = Pair(:flow, pp)
-                    acd = Pair(:flow, acd)
-                end
                 set_secondary_variables!(model, PhasePotentials = pp)
                 set_parameters!(model, AdjustedCellDepths = acd)
             end

@@ -2,7 +2,7 @@
 #             API            #
 ##############################
 
-function history_match_objective(case::JutulCase, arg...; is_global::Bool = true, kwarg...)
+function history_match_objective(case::JutulCase, arg...; is_global::Bool = false, kwarg...)
     hm = HistoryMatch(case, arg...; kwarg...)
     history_match_objective(hm; is_global = is_global)
 end

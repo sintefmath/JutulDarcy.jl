@@ -551,8 +551,8 @@ function declare_entities(W::WellDomain)
 end
 
 function Jutul.select_secondary_variables!(S, D::WellDomain, model)
-    if model.system isa MultiPhaseSystem || model.system isa CompositeSystem
-        sys = flow_system(model.system)
+    sys = model.system
+    if sys isa MultiPhaseSystem
         S[:SurfaceWellConditions] = SurfaceWellConditions(sys)
     end
 end
@@ -689,7 +689,7 @@ function apply_perforation_mask!(storage::NamedTuple, mask::AbstractVector)
 end
 
 function flash_wellstream_at_surface(var, well_model, well_state, rhoS, cond = default_surface_cond())
-    fsys = flow_system(well_model.system)
+    fsys = well_model.system
     return flash_wellstream_at_surface(var, well_model, fsys, well_state, rhoS)
 end
 

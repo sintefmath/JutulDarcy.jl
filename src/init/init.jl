@@ -43,7 +43,7 @@ function equilibriate_state(model, contacts,
     if ismissing(datum_depth)
         datum_depth = minimum(pts)
     end
-    sys = flow_system(model.system)
+    sys = model.system
 
     init = Dict{Symbol, Any}()
     init = equilibriate_state!(init, pts, model, sys, contacts, datum_depth, datum_pressure;

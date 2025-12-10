@@ -63,7 +63,9 @@ TotalMassRateTarget
 ### Implementation of well controls
 
 ```@docs
-JutulDarcy.well_target
+JutulDarcy.well_target_value
+JutulDarcy.well_control_equation
+JutulDarcy.check_well_limit
 ```
 
 ### Well outputs

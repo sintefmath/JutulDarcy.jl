@@ -10,8 +10,13 @@ function get_well_position(d, symbol)
     return findfirst(isequal(symbol), d.well_symbols)
 end
 
-function Jutul.associated_entity(::TotalSurfaceMassRate) Wells() end
-function Jutul.associated_entity(::SurfaceTemperature) Wells() end
+function Jutul.associated_entity(::SurfaceTemperature)
+    return Wells()
+end
+
+function Jutul.associated_entity(::TotalSurfaceMassRate)
+    return Wells()
+end
 
 function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, state_symbol, model, dx, w)
     v = state[state_symbol]
@@ -57,6 +62,41 @@ function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, s
     end
 end
 
+function Jutul.update_primary_variable!(state, var::SurfacePhaseRates, state_symbol, model, dx, w)
+    v = state[state_symbol]
+    symbols = model.domain.well_symbols
+    cfg = state.WellGroupConfiguration
+    # Injectors can only have strictly positive injection rates,
+    # producers can only have strictly negative and disabled controls give zero rate.
+    abs_max = Jutul.absolute_increment_limit(var)
+    rel_max = Jutul.relative_increment_limit(var)
+    function do_update!(wcfg, s, v, dx, ctrl)
+        return Jutul.update_value(v, dx)
+    end
+    function do_update!(wcfg, s, v, dx, ctrl::InjectorControl)
+        limit_rate = 0.0
+        next = Jutul.update_value(v, dx, abs_max, rel_max, limit_rate, nothing)
+        return next
+    end
+    function do_update!(wcfg, s, v, dx, ctrl::ProducerControl)
+        # A significant negative rate is the valid producer control
+        limit_rate = 0.0
+        next = Jutul.update_value(v, dx, abs_max, rel_max, nothing, limit_rate)
+        return next
+    end
+    function do_update!(wcfg, s, v, dx, ctrl::DisabledControl)
+        # Set value to zero since we know it is correct.
+        return Jutul.update_value(v, -value(v))
+    end
+    for i in eachindex(symbols)
+        s = symbols[i]
+        for ph in axes(v, 1)
+            v[ph, i] = do_update!(cfg, s, v[ph, i], w*dx[ph, i], operating_control(cfg, s))
+        end
+    end
+    return state
+end
+
 
 rate_weighted(t) = true
 rate_weighted(::BottomHolePressureTarget) = false
@@ -70,29 +110,65 @@ target_scaling(::TotalMassRateTarget) = 1.0/(3600*24.0) # weight by day
 
 Jutul.associated_entity(::ControlEquationWell) = Wells()
 Jutul.local_discretization(::ControlEquationWell, i) = nothing
+
+function Jutul.prepare_equation_in_entity!(i, eq::ControlEquationWell, eq_s, state, state0, model, dt)
+    well = model.domain.well_symbols[i]
+    cond = FacilityVariablesForWell(model, state, well, drop_ad = true)
+    cfg = state.WellGroupConfiguration
+    ctrl = operating_control(cfg, well)
+    limits = current_limits(cfg, well)
+    apply_well_limits!(cfg, model, state, limits, ctrl, well, cond)
+end
+
 function Jutul.update_equation_in_entity!(v, i, state, state0, eq::ControlEquationWell, model, dt, ldisc = local_discretization(eq, i))
-    # Set to zero, do actual control via cross terms
-    v[] = 0*state.TotalSurfaceMassRate[i]
+    well = model.domain.well_symbols[i]
+    cond = FacilityVariablesForWell(model, state, well)
+    cfg = state.WellGroupConfiguration
+    ctrl = operating_control(cfg, well)
+    eq_val = well_control_equation(ctrl, cond, well, model, state)
+    v[1] = eq_val + 0*state.BottomHolePressure[i] + 0*state.SurfacePhaseRates[1, i]
 end
 
 Jutul.associated_entity(::SurfaceTemperatureEquation) = Wells()
 Jutul.local_discretization(::SurfaceTemperatureEquation, i) = nothing
 function Jutul.update_equation_in_entity!(v, i, state, state0, eq::SurfaceTemperatureEquation, model, dt, ldisc = local_discretization(eq, i))
     # Set equal to surface temperature. corresponding well temperatures will be
+    # subtracted using cross terms
+    v[1] = state.SurfaceTemperature[i]
+end
+
+Jutul.associated_entity(::BottomHolePressureEquation) = Wells()
+Jutul.local_discretization(::BottomHolePressureEquation, i) = nothing
+function Jutul.update_equation_in_entity!(v, i, state, state0, eq::BottomHolePressureEquation, model, dt, ldisc = local_discretization(eq, i))
+    # Set equal to bhp. corresponding well top cell pressures will be
+    # subtracted using cross terms
+    v[1] = state.BottomHolePressure[i]/1e5
+end
+
+Jutul.associated_entity(::SurfacePhaseRatesEquation) = Wells()
+Jutul.local_discretization(::SurfacePhaseRatesEquation, i) = nothing
+Jutul.number_of_equations_per_entity(fmodel::SimulationModel, eq::SurfacePhaseRatesEquation) = length(get_phases(fmodel.system))
+
+function Jutul.update_equation_in_entity!(v, i, state, state0, eq::SurfacePhaseRatesEquation, model, dt, ldisc = local_discretization(eq, i))
+    # Set equal to bhp. corresponding well top cell pressures will be
     # subtracted using corss terms
-    v[] = state.SurfaceTemperature[i]
+    for ph in eachindex(v)
+        v[ph] = state.SurfacePhaseRates[ph, i]/1000.0
+    end
+    return v
 end
 
 # Selection of primary variables
-function select_primary_variables!(S, domain::WellGroup, model)
+function select_primary_variables!(S, system::FacilitySystem, model::FacilityModel)
+    ph = get_phases(system.multiphase)
+    S[:BottomHolePressure] = BottomHolePressure()
+    S[:SurfacePhaseRates] = SurfacePhaseRates(ph)
     S[:TotalSurfaceMassRate] = TotalSurfaceMassRate()
 end
 
-function select_primary_variables!(S, system::PredictionMode, model)
-    nothing
-end
-
-function select_equations!(eqs, domain::WellGroup, model::SimulationModel)
+function select_equations!(eqs, system::FacilitySystem, model::FacilityModel)
+    eqs[:bottom_hole_pressure_equation] = BottomHolePressureEquation()
+    eqs[:surface_phase_rates_equation] = SurfacePhaseRatesEquation()
     eqs[:control_equation] = ControlEquationWell()
 end
 

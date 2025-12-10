@@ -57,7 +57,7 @@ function JutulDarcy.update_cross_term_in_entity!(out, i,
     ct::ClosedLoopSupplyToReturnMassCT, eq, dt, ldisc = JutulDarcy.local_discretization(ct, i))
 
     # Unpack properties
-    sys = JutulDarcy.flow_system(model_t.system)
+    sys = model_t.system
     @inbounds begin 
         supply_node = ct.supply_nodes[i]
         return_node = ct.return_nodes[i]
@@ -78,7 +78,7 @@ function JutulDarcy.update_cross_term_in_entity!(out, i,
     ct::ClosedLoopSupplyToReturnEnergyCT, eq, dt, ldisc = JutulDarcy.local_discretization(ct, i))
 
     # Unpack properties
-    sys = JutulDarcy.flow_system(model_t.system)
+    sys = model_t.system
     @inbounds begin 
         supply_node = ct.supply_nodes[i]
         return_node = ct.return_nodes[i]
@@ -129,7 +129,7 @@ function JutulDarcy.update_cross_term_in_entity!(out, i,
     ct::BTESWellGroutEnergyCT, eq, dt, ldisc = JutulDarcy.local_discretization(ct, i))
 
     # Unpack properties
-    sys = JutulDarcy.flow_system(model_t.system)
+    sys = model_t.system
     @inbounds begin 
         supply_node = ct.supply_nodes[i]
         return_node = ct.return_nodes[i]
