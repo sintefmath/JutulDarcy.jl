@@ -399,50 +399,6 @@ function check_well_limit(name::Symbol, limit_value, cond::FacilityVariablesForW
     return next_target
 end
 
-# function apply_well_limit!(cfg::WellGroupConfiguration, target, wmodel, wstate, well::Symbol, density_s, volume_fraction_s, total_mass_rate, current_lims = current_limits(cfg, well))
-#     if !isnothing(current_lims)
-#         ctrl = operating_control(cfg, well)
-#         @tic "limits" target, changed, current_val, limit_val, lim_type = check_active_limits(ctrl, target, current_lims, wmodel, wstate, well, density_s, volume_fraction_s, total_mass_rate)
-#         if changed
-#             old = cfg.operating_controls[well].target
-#             next_control = replace_target(ctrl, target)
-#             cfg.operating_controls[well] = next_control
-#             if lim_type == :lower
-#                 lb = "is below"
-#             else
-#                 lb = "is above"
-#             end
-#             limstr = "Current value $(current_val) $lb $lim_type limit $(limit_val)."
-#             header = "$well is switching control due to $lim_type limit for $(typeof(target)) of $limit_val"
-#             @debug "$(header)\n$(limstr)\nOld value: $old\nNew value: $target." next_control
-#         end
-#     end
-#     return target
-# end
-
-# function check_active_limits(control, target, limits, wmodel, wstate, well::Symbol, density_s, volume_fraction_s, total_mass_rate)
-#     changed = false
-#     cval = tval = NaN
-#     is_lower = false
-#     for (name, val) in pairs(limits)
-#         if isfinite(first(val))
-#             (target_limit, is_lower) = translate_limit(control, name, val)
-#             ok, cval, tval = check_limit(control, target_limit, target, is_lower, total_mass_rate, wmodel, wstate, density_s, volume_fraction_s)
-#             if !ok
-#                 changed = true
-#                 target = target_limit
-#                 break
-#             end
-#         end
-#     end
-#     if is_lower
-#         lim_type = :lower
-#     else
-#         lim_type = :upper
-#     end
-#     return (target, changed, cval, tval, lim_type)
-# end
-
 function well_control_equation(ctrl::DisabledControl, cond::FacilityVariablesForWell, well::Symbol, model, state)
     target = ctrl.target
     target::DisabledTarget

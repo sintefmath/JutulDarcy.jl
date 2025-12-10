@@ -216,19 +216,22 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
         end
         init[k] = init_w
     end
-    for k in keys(model.models)
-        if k == :Reservoir
-            # Already done
-            continue
+    T = Float64
+    for (k, W) in get_model_wells(model)
+        T = promote_type(T, eltype(init[k][:Pressure]))
+        if is_thermal
+            T = promote_type(T, eltype(init[k][:Temperature]))
         end
-        W = model.models[k]
+    end
+
+    for (k, W) in pairs(model.models)
         if W.domain isa WellGroup
             # Facility or well group
             init_arg = Dict{Symbol, Any}()
             init_arg[:TotalSurfaceMassRate] = 0.0
             init_arg[:SurfacePhaseRates] = 0.0
             own_wells = W.domain.well_symbols
-            bh = zeros(length(own_wells))
+            bh = zeros(T, length(own_wells))
             temp = similar(bh)
             for (i, w) in enumerate(own_wells)
                 bh[i] = init[w][:Pressure][1]
