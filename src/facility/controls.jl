@@ -289,6 +289,12 @@ function check_well_limits(limits, cond, control)
     return (control, changed)
 end
 
+"""
+    check_well_limit(name::Symbol, limit_value, cond, control::InjectorControl)
+
+Check constrants/limits for an injector well control. If a limit is violated, return
+a new target to switch to. If no limits are violated, return `missing`.
+"""
 function check_well_limit(name::Symbol, limit_value, cond, control::InjectorControl)
     next_target = missing
     if name == :bhp
@@ -338,6 +344,12 @@ function check_well_limit(name::Symbol, limit_value, cond, control::InjectorCont
     return next_target
 end
 
+"""
+    check_well_limit(name::Symbol, limit_value, cond::FacilityVariablesForWell, control::ProducerControl)
+
+Check constrants/limits for a producer well control. If a limit is violated, return
+a new target to switch to. If no limits are violated, return `missing`.
+"""
 function check_well_limit(name::Symbol, limit_value, cond::FacilityVariablesForWell, control::ProducerControl)
     next_target = missing
     if name == :bhp
@@ -406,12 +418,32 @@ function well_control_equation(ctrl::DisabledControl, cond::FacilityVariablesFor
     return well_target_value(ctrl, target, cond, well, model, state)
 end
 
+"""
+    well_control_equation(ctrl, cond, well, model, state)
+
+Compute the control equation for the given well control `ctrl`. This function
+returns the difference between the current value of the target and
+the target value itself, scaled by a target scaling factor.
+"""
 function well_control_equation(ctrl, cond, well, model, state)
     target = ctrl.target
     val_t = target.value
     val = well_target_value(ctrl, target, cond, well, model, state)
     scale = target_scaling(target)
     return (val - val_t)/scale
+end
+
+"""
+    well_target_value(ctrl::WellControlForce, target::WellTarget, cond::FacilityVariablesForWell, well::Symbol, model::Facility_model, facility_state)
+
+Compute the value of the well target for the given control and facility
+conditions. For example, for the `BottomHolePressureTarget`, this function
+returns the bottom hole pressure of the well as given in `cond`. This value is
+then used in the control equation to compute the difference between the current
+and target values.
+"""
+function well_target_value
+
 end
 
 function well_target_value(ctrl::DisabledControl, target::DisabledTarget, cond, well, model, state)
