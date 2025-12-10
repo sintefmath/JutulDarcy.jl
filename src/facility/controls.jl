@@ -333,8 +333,6 @@ function check_well_limit(name::Symbol, limit_value, cond, control::InjectorCont
         elseif name == :rate_lower
             rate = cond.total_mass_rate
             if rate < limit_value
-                @info "Injector total mass rate below lower limit" rate limit_value cond
-                error()
                 next_target = TotalRateTarget(limit_value)
             end
         else
