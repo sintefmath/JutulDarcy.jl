@@ -67,10 +67,14 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel; step_limit = m
                 w2c = get(rec, "WellToCellConnections", missing)
                 if !ismissing(w2c)
                     wname = Symbol(rec["WellName"])
-                    pmap = well_setup[wname]["PerforationMap"]
-                    eff_mult = well_setup[wname]["EffectivePiMultiplier"]
-                    mult = well_setup[wname]["PiMultiplier"]
-                    status = well_setup[wname]["ConnectionStatus"]
+                    ws = get(well_setup, wname, missing)
+                    if ismissing(ws)
+                        continue
+                    end
+                    pmap = ws["PerforationMap"]
+                    eff_mult = ws["EffectivePiMultiplier"]
+                    mult = ws["PiMultiplier"]
+                    status = ws["ConnectionStatus"]
 
                     for (i, v) in enumerate(get(w2c, "PiMultiplier", []))
                         i_mapped = get(pmap, i, missing)
@@ -109,7 +113,11 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel; step_limit = m
                     @assert String(wtype) == "Well"
                     for wname in wellnames
                         wname = Symbol(wname)
-                        well_setup[wname]["HistoryDataControl"] = rec["DataFileName"]
+                        ws = get(well_setup, wname, missing)
+                        if ismissing(ws)
+                            continue
+                        end
+                        ws["HistoryDataControl"] = rec["DataFileName"]
                     end
                 end
             elseif kw == "Well"
