@@ -62,6 +62,10 @@ function setup_reservoir_model_geothermal(
     return out
 end
 
+function geothermal_setup_tables()
+    return geothermal_setup_tables(Dict(), String[], Float64[], NamedTuple())
+end
+
 function geothermal_setup_tables(table_cache, salt_names, salt_mole_fractions, table_arg)
     tabkey = (salt_names, salt_mole_fractions, table_arg)
     tables = get!(table_cache, tabkey, missing)
