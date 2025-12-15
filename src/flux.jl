@@ -101,7 +101,7 @@ end
     return T_f
 end
 
-function effective_gravity_difference(state, face, kgrad)
+@inline function effective_gravity_difference(state, face, kgrad)
     grav = state.TwoPointGravityDifference
     face_sign(::Any) = 1
     face_sign(x::TPFA) = x.face_sign
@@ -173,12 +173,12 @@ end
     return F(tpfa.right) - F(tpfa.left)
 end
 
-function face_average(F, tpfa)
+@inline function face_average(F, tpfa)
     l, r = Jutul.cell_pair(tpfa)
     return 0.5*(F(r) + F(l))
 end
 
-function phase_face_average(phase_property, tpfa, phase)
+@inline function phase_face_average(phase_property, tpfa, phase)
     F(cell) = @inbounds phase_property[phase, cell]
     return face_average(F, tpfa)
 end

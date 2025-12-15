@@ -1,4 +1,7 @@
-function setup_afi_schedule(afi::AFIInputFile, model::MultiModel; step_limit = missing)
+function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
+        step_limit = missing,
+        evaluate_enthalpy = true
+    )
     OPEN = GeoEnergyIO.IXParser.IX_OPEN
     CLOSED = GeoEnergyIO.IXParser.IX_CLOSED
     well_setup = Dict{Symbol, Any}()
@@ -208,7 +211,7 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel; step_limit = m
             dt_i::Millisecond
             dt_in_second = date_delta_to_seconds(dt_i)
             # Well constraints, etc
-            f = forces_from_constraints(well_setup, observation_data, streams, date, sys, model, t_elapsed, dt_in_second, wells, tab)
+            f = forces_from_constraints(well_setup, observation_data, streams, date, sys, model, t_elapsed, dt_in_second, wells, tab; evaluate_enthalpy = evaluate_enthalpy)
             push!(forces, f)
             push!(timesteps, dt_in_second)
             t_elapsed += dt_in_second
@@ -224,7 +227,7 @@ function date_delta_to_seconds(dt_i::Millisecond)
     return Dates.value(dt_i)/1000.0
 end
 
-function forces_from_constraints(well_setup, observation_data, streams, date, sys, model, t_since_start_before_step, dt, wells, tab)
+function forces_from_constraints(well_setup, observation_data, streams, date, sys, model, t_since_start_before_step, dt, wells, tab; evaluate_enthalpy = false)
     control = Dict{Symbol, Any}()
     limits = Dict{Symbol, Any}()
     phases = JutulDarcy.get_phases(sys)
@@ -276,7 +279,7 @@ function forces_from_constraints(well_setup, observation_data, streams, date, sy
                 else
                     enthalpy_info = streams["FluidEnthalpy"][enthalpy_stream]
                     T = convert_to_si(enthalpy_info["Temperature"], :Celsius)
-                    if ismissing(tab)
+                    if ismissing(tab) || !evaluate_enthalpy
                         enthalpy = missing
                     else
                         p = enthalpy_info["Pressure"]
