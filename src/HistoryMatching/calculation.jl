@@ -154,7 +154,11 @@ function get_period_contribution_well(wm::WellMatch, wellpos, sgn, target::Jutul
             if w_step_from_period > 0.0
                 dt = step_info[:dt]::Float64
                 time = step_info[:time]::Float64
-                w_dt = w_step_from_period*dt
+                if JutulDarcy.rate_weighted(target)
+                    w_dt = w_step_from_period*dt
+                else
+                    w_dt = w_step_from_period
+                end
                 # Unpack stuff
                 state = states[step_index]
                 force = forces[step_index]
