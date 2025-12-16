@@ -448,7 +448,7 @@ function get_control_target_value(target::ReinjectionTarget, model, state)
         cond_well = FacilityVariablesForWell(model, state, well)
         qtot -= cond_well.total_mass_rate
     end
-    return qtot
+    return max(qtot, MIN_ACTIVE_WELL_RATE)
 end
 
 """
