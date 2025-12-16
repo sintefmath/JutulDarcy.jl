@@ -338,7 +338,7 @@ function check_well_limit(name::Symbol, limit_value, cond, control::InjectorCont
                 next_target = TotalRateTarget(limit_value)
             end
         else
-            error("Unsupported well producer constraint/limit $k")
+            error("Unsupported well producer constraint/limit $name")
         end
     end
     return next_target
