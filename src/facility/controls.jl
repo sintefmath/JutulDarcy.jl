@@ -337,6 +337,11 @@ function check_well_limit(name::Symbol, limit_value, cond, control::InjectorCont
                 error()
                 next_target = TotalRateTarget(limit_value)
             end
+        elseif name == :reinjection
+            rate = cond.total_mass_rate
+            if rate > limit_value
+                next_target = TotalMassRateTarget(limit_value)
+            end
         else
             error("Unsupported well producer constraint/limit $name")
         end
@@ -427,10 +432,23 @@ the target value itself, scaled by a target scaling factor.
 """
 function well_control_equation(ctrl, cond, well, model, state)
     target = ctrl.target
-    val_t = target.value
+    val_t = get_control_target_value(target, model, state)
     val = well_target_value(ctrl, target, cond, well, model, state)
     scale = target_scaling(target)
     return (val - val_t)/scale
+end
+
+function get_control_target_value(target::WellTarget, model, state)
+    return target.value
+end
+
+function get_control_target_value(target::ReinjectionTarget, model, state)
+    qtot = 0.0
+    for well in target.wells
+        cond_well = FacilityVariablesForWell(model, state, well)
+        qtot -= cond_well.total_mass_rate
+    end
+    return qtot
 end
 
 """
@@ -484,6 +502,10 @@ function well_target_value(ctrl, target::ReservoirVoidageTarget, cond, well, mod
 end
 
 function well_target_value(ctrl, target::TotalMassRateTarget, cond, well, model, state)
+    return cond.total_mass_rate
+end
+
+function well_target_value(ctrl, target::ReinjectionTarget, cond, well, model, state)
     return cond.total_mass_rate
 end
 
