@@ -1119,6 +1119,18 @@ function well_target_information(t::Union{TotalMassRateTarget, Val{:mrat}})
     )
 end
 
+function well_target_information(t::Union{ReinjectionTarget, Val{:reinjection}})
+    return well_target_information(
+        symbol = :reinjection,
+        description = "Reinjection rate",
+        explanation = "Reinjection rate target for wells used for reinjection of produced fluids.",
+        unit_type = :mass,
+        is_rate = true,
+        unit_label = "kg/s",
+        type = ReinjectionTarget
+    )
+end
+
 
 function realize_control_for_reservoir(state, ctrl, model, dt)
     return (ctrl, false)
