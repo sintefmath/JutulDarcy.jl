@@ -453,13 +453,13 @@ function update_cross_term_in_entity!(out, i,
     ctrl = operating_control(cfg, ct.well)
     rhoS, S = surface_density_and_volume_fractions(state_well)
 
+    for ph_idx in eachindex(out)
+        out[ph_idx] = 0.0*(S[ph_idx] + rhoS[ph_idx] + q_t)
+    end
     is_injector = ctrl isa InjectorControl
     if is_injector
         density = ctrl.mixture_density
         volume_rate = q_t/density
-        for ph_idx in eachindex(out)
-            out[ph_idx] = 0.0*(S[ph_idx] + rhoS[ph_idx])
-        end
         for (ph_idx, phase_fraction) in ctrl.phases
             out[ph_idx] += -volume_rate*phase_fraction*eq.scale
         end
@@ -470,7 +470,7 @@ function update_cross_term_in_entity!(out, i,
         end
         q_vol = q_t/total_density
         for ph in eachindex(rhoS, S)
-            out[ph] = -S[ph]*q_vol*eq.scale
+            out[ph] += -S[ph]*q_vol*eq.scale
         end
     end
     return out
