@@ -361,7 +361,7 @@ function get_target_temperature(ctrl::InjectorControl, target::ReinjectionTarget
         Ttot += Tw
     end
     T = ifelse(abs(q) >= MIN_ACTIVE_WELL_RATE, qh/q, Ttot/length(target.wells))
-    
+
     return T
 end
 

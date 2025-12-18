@@ -93,7 +93,10 @@ Base.@kwdef struct BottomHolePressure <: Jutul.ScalarVariable
     max_absolute_change::Union{Float64, Nothing} = nothing
     "Maximum relative change between two Newton updates."
     max_relative_change::Union{Float64, Nothing} = nothing
+    scale::Float64 = si_unit(:bar)
 end
+
+Jutul.variable_scale(x::BottomHolePressure) = x.scale
 
 Jutul.associated_entity(::BottomHolePressure) = Wells()
 function Jutul.absolute_increment_limit(bhp::BottomHolePressure)
