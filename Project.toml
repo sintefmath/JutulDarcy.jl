@@ -1,7 +1,7 @@
 name = "JutulDarcy"
 uuid = "82210473-ab04-4dce-b31b-11573c4f8e0a"
-authors = ["Olav Møyner <olav.moyner@gmail.com>"]
 version = "0.3.0"
+authors = ["Olav Møyner <olav.moyner@gmail.com>"]
 
 [deps]
 AlgebraicMultigrid = "2169fc97-5a83-5252-b627-83903c6c433c"
@@ -50,9 +50,9 @@ JutulDarcyMakieExt = "Makie"
 JutulDarcyPartitionedArraysExt = ["PartitionedArrays", "MPI", "HYPRE"]
 
 [compat]
+AMGX = "0.2"
 AlgebraicMultigrid = "0.5.1, 0.6.0"
 Artifacts = "1"
-AMGX = "0.2"
 CUDA = "5"
 DataStructures = "0.18.13"
 Dates = "1"
@@ -66,7 +66,7 @@ Krylov = "0.9.1"
 LazyArtifacts = "1"
 LinearAlgebra = "1"
 LoopVectorization = "0.12.115"
-MAT = "0.10.3"
+MAT = "0.10.3, 0.11"
 Makie = "0.21, 0.22, 0.23"
 MultiComponentFlash = "1.1.16"
 OrderedCollections = "1.6.2"
