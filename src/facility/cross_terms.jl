@@ -432,7 +432,7 @@ function update_cross_term_in_entity!(out, i,
     pos = get_well_position(facility.domain, ct.well)
     P = 0*state_facility[:BottomHolePressure][pos]
     P += state_well[:Pressure][well_top_node()]
-    out[1] = -P/1e5
+    out[1] = -P*eq.scale
 end
 
 struct FacilityFromSurfacePhaseRatesCT <: Jutul.AdditiveCrossTerm
@@ -451,7 +451,6 @@ function update_cross_term_in_entity!(out, i,
     q_t = state_facility.TotalSurfaceMassRate[pos]
     cfg = state_facility[:WellGroupConfiguration]
     ctrl = operating_control(cfg, ct.well)
-    scale_factor = 1000.0
     rhoS, S = surface_density_and_volume_fractions(state_well)
 
     is_injector = ctrl isa InjectorControl
@@ -462,7 +461,7 @@ function update_cross_term_in_entity!(out, i,
             out[ph_idx] = 0.0*(S[ph_idx] + rhoS[ph_idx])
         end
         for (ph_idx, phase_fraction) in ctrl.phases
-            out[ph_idx] += -volume_rate*phase_fraction/scale_factor
+            out[ph_idx] += -volume_rate*phase_fraction*eq.scale
         end
     else
         total_density = 0.0
@@ -471,7 +470,7 @@ function update_cross_term_in_entity!(out, i,
         end
         q_vol = q_t/total_density
         for ph in eachindex(rhoS, S)
-            out[ph] = -S[ph]*q_vol/scale_factor
+            out[ph] = -S[ph]*q_vol*eq.scale
         end
     end
     return out

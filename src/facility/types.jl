@@ -815,18 +815,20 @@ struct ControlEquationWell <: JutulEquation
     #        p|top cell - target = 0
 end
 
-struct SurfaceTemperatureEquation <:JutulEquation
+struct SurfaceTemperatureEquation <: JutulEquation
     # Equation:
     #        T_surf - T|top_cell = 0
 end
 
-struct BottomHolePressureEquation <:JutulEquation
+Base.@kwdef struct BottomHolePressureEquation <: JutulEquation
     # Equation:
     #        bhp - p|top_cell = 0
+    scale::Float64 = 1.0/si_unit(:bar)
 end
 
-struct SurfacePhaseRatesEquation <:JutulEquation
+Base.@kwdef struct SurfacePhaseRatesEquation <: JutulEquation
     # Equation: Surface phase rates calculated from well values
+    scale::Float64 = 1.0/1000.0
 end
 
 struct WellSegmentFlow{C, T<:AbstractVector} <: Jutul.FlowDiscretization
