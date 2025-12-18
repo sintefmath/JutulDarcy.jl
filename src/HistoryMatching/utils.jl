@@ -168,7 +168,7 @@ function get_well_data(hm::HistoryMatch, name, quantity, data, t)
         response = data
     end
     mint, maxt = extrema(time)
-    if mint > 0.0
+    if mint > 1.01*hm.case.dt[1]
         jutul_message("HistoryMatch", "Minimum time in provided data for well $name, $quantity is greater than zero ($(Jutul.get_tstr(mint))). Constant extrapolation to time zero will be performed.")
     end
     if maxt > sum(hm.case.dt)

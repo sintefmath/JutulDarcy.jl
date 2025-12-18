@@ -1,4 +1,7 @@
-function setup_afi_schedule(afi::AFIInputFile, model::MultiModel; step_limit = missing)
+function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
+        step_limit = missing,
+        evaluate_enthalpy = true
+    )
     OPEN = GeoEnergyIO.IXParser.IX_OPEN
     CLOSED = GeoEnergyIO.IXParser.IX_CLOSED
     well_setup = Dict{Symbol, Any}()
@@ -42,6 +45,12 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel; step_limit = m
     rmesh = physical_representation(reservoir)
     wells = get_model_wells(model)
     sys = reservoir_model(model).system
+    is_geothermal = JutulDarcy.get_phases(sys) == (AqueousPhase(),) && JutulDarcy.model_is_thermal(model)
+    if is_geothermal
+        tab = JutulDarcy.Geothermal.geothermal_setup_tables()
+    else
+        tab = missing
+    end
     # Constraints are in FM + completion status?
     # IX Steps:
     # WellDef:
@@ -67,10 +76,14 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel; step_limit = m
                 w2c = get(rec, "WellToCellConnections", missing)
                 if !ismissing(w2c)
                     wname = Symbol(rec["WellName"])
-                    pmap = well_setup[wname]["PerforationMap"]
-                    eff_mult = well_setup[wname]["EffectivePiMultiplier"]
-                    mult = well_setup[wname]["PiMultiplier"]
-                    status = well_setup[wname]["ConnectionStatus"]
+                    ws = get(well_setup, wname, missing)
+                    if ismissing(ws)
+                        continue
+                    end
+                    pmap = ws["PerforationMap"]
+                    eff_mult = ws["EffectivePiMultiplier"]
+                    mult = ws["PiMultiplier"]
+                    status = ws["ConnectionStatus"]
 
                     for (i, v) in enumerate(get(w2c, "PiMultiplier", []))
                         i_mapped = get(pmap, i, missing)
@@ -109,7 +122,11 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel; step_limit = m
                     @assert String(wtype) == "Well"
                     for wname in wellnames
                         wname = Symbol(wname)
-                        well_setup[wname]["HistoryDataControl"] = rec["DataFileName"]
+                        ws = get(well_setup, wname, missing)
+                        if ismissing(ws)
+                            continue
+                        end
+                        ws["HistoryDataControl"] = rec["DataFileName"]
                     end
                 end
             elseif kw == "Well"
@@ -194,7 +211,7 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel; step_limit = m
             dt_i::Millisecond
             dt_in_second = date_delta_to_seconds(dt_i)
             # Well constraints, etc
-            f = forces_from_constraints(well_setup, observation_data, streams, date, sys, model, t_elapsed, dt_in_second, wells)
+            f = forces_from_constraints(well_setup, observation_data, streams, date, sys, model, t_elapsed, dt_in_second, wells, tab; evaluate_enthalpy = evaluate_enthalpy)
             push!(forces, f)
             push!(timesteps, dt_in_second)
             t_elapsed += dt_in_second
@@ -210,7 +227,7 @@ function date_delta_to_seconds(dt_i::Millisecond)
     return Dates.value(dt_i)/1000.0
 end
 
-function forces_from_constraints(well_setup, observation_data, streams, date, sys, model, t_since_start_before_step, dt, wells)
+function forces_from_constraints(well_setup, observation_data, streams, date, sys, model, t_since_start_before_step, dt, wells, tab; evaluate_enthalpy = false)
     control = Dict{Symbol, Any}()
     limits = Dict{Symbol, Any}()
     phases = JutulDarcy.get_phases(sys)
@@ -262,24 +279,19 @@ function forces_from_constraints(well_setup, observation_data, streams, date, sy
                 else
                     enthalpy_info = streams["FluidEnthalpy"][enthalpy_stream]
                     T = convert_to_si(enthalpy_info["Temperature"], :Celsius)
-                    # TODO: Handle regions here and treat enthalpy properly...
-                    # P = enthalpy_info["Pressure"]
-                    # rho_def = reservoir_model(model)[:PhaseMassDensities].pvt[ix]
-                    # rho_c = rhos[ix]*JutulDarcy.shrinkage(rho_def, nothing, P, 1)
-                    # wc = wmodel.domain.representation.perforations.reservoir
-                    # hc = rdomain[:component_heat_capacity]
-                    # if hc isa AbstractVector
-
-                    # end
-                    # heat_capacity = rdomain[:component_heat_capacity][ix, wc[1]]
-                    # enthalpy = internal energy + p / rho
-                    # internal energy = heat capacity * T
-                    # enthalpy = (p, T) -> 
-                    enthalpy = missing
+                    if ismissing(tab) || !evaluate_enthalpy
+                        enthalpy = missing
+                    else
+                        p = enthalpy_info["Pressure"]
+                        c_p = tab[:heat_capacity_constant_pressure](p, T)
+                        rho = tab[:density](p, T)
+                        enthalpy = c_p * T - p/rho
+                    end
                 end
                 ctrl = JutulDarcy.setup_injector_control(val, ctrl_type, mix,
                     density = rhos[ix],
-                    temperature = T
+                    temperature = T,
+                    enthalpy = enthalpy
                 )
                 wsgn = 1.0
             end

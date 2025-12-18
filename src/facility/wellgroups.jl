@@ -142,7 +142,7 @@ Jutul.local_discretization(::BottomHolePressureEquation, i) = nothing
 function Jutul.update_equation_in_entity!(v, i, state, state0, eq::BottomHolePressureEquation, model, dt, ldisc = local_discretization(eq, i))
     # Set equal to bhp. corresponding well top cell pressures will be
     # subtracted using cross terms
-    v[1] = state.BottomHolePressure[i]/1e5
+    v[1] = state.BottomHolePressure[i]*eq.scale
 end
 
 Jutul.associated_entity(::SurfacePhaseRatesEquation) = Wells()
@@ -153,7 +153,7 @@ function Jutul.update_equation_in_entity!(v, i, state, state0, eq::SurfacePhaseR
     # Set equal to bhp. corresponding well top cell pressures will be
     # subtracted using corss terms
     for ph in eachindex(v)
-        v[ph] = state.SurfacePhaseRates[ph, i]/1000.0
+        v[ph] = state.SurfacePhaseRates[ph, i]*eq.scale
     end
     return v
 end

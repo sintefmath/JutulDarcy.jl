@@ -403,7 +403,10 @@ function remap_properties_to_jutuldarcy_names(data, ncells, phases)
         elseif k == "THERMAL_CONDUCTIVITY_ROCK"
             out[:rock_thermal_conductivity] = vals
         elseif k == "ROCK_HEAT_CAPACITY"
-            out[:rock_heat_capacity] = vals
+            # This is per volume, convert to per mass
+            rho_r = 2000.0 # kg/m3
+            out[:rock_heat_capacity] = vals./rho_r
+            out[:rock_density] = fill(rho_r, ncells)
         elseif startswith(k, "THERMAL_CONDUCTIVITY_")
             if !haskey(out, :fluid_thermal_conductivity)
                 out[:fluid_thermal_conductivity] = handle_suffixed_entries(data, ncells, "THERMAL_CONDUCTIVITY_", phases)

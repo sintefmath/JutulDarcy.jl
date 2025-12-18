@@ -8,12 +8,8 @@ function evaluate_global_match(hm::HistoryMatch, result::ReservoirSimResult)
 end
 
 function get_well_value(wm::WellMatch, ctrl, target, fmodel, fstate)
-    if ctrl isa DisabledControl
-        val = 0.0
-    else
-        wname = wm.name
-        val = JutulDarcy.compute_well_qoi(fmodel, fstate, wname, ctrl, target)
-    end
+    wname = wm.name
+    val = JutulDarcy.compute_well_qoi(fmodel, fstate, wname, ctrl, target)
     return val
 end
 
@@ -158,7 +154,11 @@ function get_period_contribution_well(wm::WellMatch, wellpos, sgn, target::Jutul
             if w_step_from_period > 0.0
                 dt = step_info[:dt]::Float64
                 time = step_info[:time]::Float64
-                w_dt = w_step_from_period*dt
+                if JutulDarcy.rate_weighted(target)
+                    w_dt = w_step_from_period*dt
+                else
+                    w_dt = w_step_from_period
+                end
                 # Unpack stuff
                 state = states[step_index]
                 force = forces[step_index]

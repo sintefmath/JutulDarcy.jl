@@ -45,10 +45,10 @@ function match_well!(hm::HistoryMatch, name::Union{String, Symbol}, quantity::Un
 
     day = si_unit(:day)
     # Rates
-    grat_scale = day/rhogs
-    orat_scale = day/rhoos
-    wrat_scale = day/rhows
-    lrat_scale = day/rhols
+    grat_scale = 1.0/rhogs
+    orat_scale = 1.0/rhoos
+    wrat_scale = 1.0/rhows
+    lrat_scale = 1.0/rhols
     bhp_scale = 1.0/(100*si_unit(:bar))
     # Cumulative production
     gtotal_scale = 1.0./rhogs
