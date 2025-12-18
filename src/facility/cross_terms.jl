@@ -453,8 +453,11 @@ function update_cross_term_in_entity!(out, i,
     ctrl = operating_control(cfg, ct.well)
     rhoS, S = surface_density_and_volume_fractions(state_well)
 
+    p_top = state_well.Pressure[well_top_node()]
+    tm = state_well.TotalMasses[1, well_top_node()]
+    # Sparsity hack
     for ph_idx in eachindex(out)
-        out[ph_idx] = 0.0*(S[ph_idx] + rhoS[ph_idx] + q_t)
+        out[ph_idx] = 0.0*(S[ph_idx] + rhoS[ph_idx] + q_t + tm + p_top)
     end
     is_injector = ctrl isa InjectorControl
     if is_injector
