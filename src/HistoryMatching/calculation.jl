@@ -20,6 +20,11 @@ end
 function get_well_match(wm::WellMatch, ctrl, target, fmodel, fstate, report_step, time)
     qoi = get_well_value(wm, ctrl, target, fmodel, fstate)
     obs = get_well_observation(wm, time)
+    if (target isa BottomHolePressureTarget && obs < 1e-10) || isnan(obs)
+        # Missing data
+        obs = 0.0
+        qoi = 0.0
+    end
     w = effective_weight(wm, report_step)
     return (w*qoi, w*obs)
 end
