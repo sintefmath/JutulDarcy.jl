@@ -216,6 +216,9 @@ module JutulDarcy
 
     # AFI input support
     include("AFISetup/AFISetup.jl")
+    import JutulDarcy.AFISetup: setup_case_from_afi
+    export setup_case_from_afi
+
     # Benchmarks
     include("benchmarks/benchmarks.jl")
 

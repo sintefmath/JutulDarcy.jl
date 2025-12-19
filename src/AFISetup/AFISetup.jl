@@ -3,6 +3,8 @@ module AFISetup
     using Dates
     import GeoEnergyIO.IXParser: read_afi_file, AFIInputFile, find_records
 
+    export setup_case_from_afi
+
     include("afi_reservoir.jl")
     include("afi_wells.jl")
     include("afi_system.jl")
@@ -13,16 +15,5 @@ module AFISetup
     include("afi_model.jl")
     include("afi_schedule.jl")
     include("afi_utils.jl")
-
-    function setup_case_from_afi(x::AbstractDict; kwarg...)
-        return setup_case_from_afi(AFIInputFile(x); kwarg...)
-    end
-
-    function setup_case_from_afi(afi::AFIInputFile; step_limit = missing, kwarg...)
-        model, prm = setup_reservoir_model(afi; extra_out = true, kwarg...)
-        state0 = setup_reservoir_state(afi, model)
-        dt, forces = setup_afi_schedule(afi, model, step_limit = step_limit)
-        date = first(keys(afi.setup["IX"]["STEPS"]))
-        return Jutul.JutulCase(model, dt, forces, state0 = state0, parameters = prm, start_date = date)
-    end
+    include("interface.jl")
 end

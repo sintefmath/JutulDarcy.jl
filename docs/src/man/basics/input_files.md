@@ -20,13 +20,14 @@ Jutul.MRSTWrapMesh
 
 ## DATA-files from commercial reservoir modelling software
 
-JutulDarcy can set up cases from Eclipse-type input files by making use of the [GeoEnergyIO.jl](https://github.com/sintefmath/GeoEnergyIO.jl) package for parsing. This package is a direct dependency of JutulDarcy and these cases can be simulated directly. If you want to parse the input files and possibly modify them in your Julia session before the case is simulated, we refer you to the [GeoEnergyIO Documentation](https://sintefmath.github.io/GeoEnergyIO.jl/dev/).
+JutulDarcy can set up cases from Eclipse and Intersect type input files by making use of the [GeoEnergyIO.jl](https://github.com/sintefmath/GeoEnergyIO.jl) package for parsing. This package is a direct dependency of JutulDarcy and these cases can be simulated directly. If you want to parse the input files and possibly modify them in your Julia session before the case is simulated, we refer you to the [GeoEnergyIO Documentation](https://sintefmath.github.io/GeoEnergyIO.jl/dev/).
 
 If you want to directly simulate a file from disk, you can sue the high level functions that automatically parse the files for you:
 
 ```@docs
 simulate_data_file
 setup_case_from_data_file
+setup_case_from_afi
 JutulDarcy.setup_case_from_parsed_data
 JutulDarcy.convert_co2store_to_co2_brine
 ```
