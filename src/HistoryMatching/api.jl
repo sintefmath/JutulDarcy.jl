@@ -43,7 +43,6 @@ function match_well!(hm::HistoryMatch, name::Union{String, Symbol}, quantity::Un
     rhogs = phase_reference_density(sys, JutulDarcy.VaporPhase())
     rhols = 0.5*(rhoos + rhows)
 
-    day = si_unit(:day)
     # Rates
     grat_scale = 1.0/rhogs
     orat_scale = 1.0/rhoos
