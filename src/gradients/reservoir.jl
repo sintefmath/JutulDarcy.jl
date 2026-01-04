@@ -234,14 +234,15 @@ of `:parameters_and_state0` provide significant performance improvements in most
 where only parameters and initial state are changed.
 """
 function optimize_reservoir(dopt, objective, setup_fn = dopt.setup_function;
-        simulator_arg = (output_substates = true, ),
+        info_level = 0,
+        simulator_arg = (output_substates = true, info_level = info_level, end_report = info_level > 0),
         simulator = missing,
         config = missing,
         deps = :parameters_and_state0,
         kwarg...
     )
     sim, cfg = setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg)
-    return Jutul.optimize(dopt, objective, setup_fn; simulator = sim, config = cfg, deps = deps, kwarg...)
+    return Jutul.optimize(dopt, objective, setup_fn; simulator = sim, config = cfg, deps = deps, info_level = info_level, kwarg...)
 end
 
 function parameters_gradient_reservoir(dopt, objective, setup_fn = dopt.setup_function;
