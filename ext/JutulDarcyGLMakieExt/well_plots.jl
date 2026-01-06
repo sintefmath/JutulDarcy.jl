@@ -817,7 +817,9 @@ function JutulDarcy.plot_summary(arg...;
         for i in idx
             name, well_or_fld = split_name(plots[i])
             t, v = get_data(name, well_or_fld, 1)
-            scatter!(plot_boxes[i].ax, t, v)
+            ax = plot_boxes[i].ax
+            empty!(ax)
+            scatterlines!(ax, t, v)
         end
     end
 
