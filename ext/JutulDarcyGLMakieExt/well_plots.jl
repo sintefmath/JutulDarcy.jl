@@ -728,7 +728,7 @@ function JutulDarcy.plot_summary(arg...;
         # left_accumulated = accumulated,
         # right_accumulated = accumulated,
         # unit_system = "Metric",
-        plots = ["FPRES"],
+        plots = ["FPR"],
         kwarg...
     )
     function split_name(inp::String)
@@ -769,6 +769,19 @@ function JutulDarcy.plot_summary(arg...;
         return opts
     end
 
+    function get_data(kind, valtype, idx)
+        smry = summaries[idx]
+        t = smry["TIME"].seconds
+        if valtype == "NONE"
+            v = fill(NaN, length(t))
+        elseif kind == "FIELD"
+            v = smry["VALUES"]["FIELD"][valtype]
+        else
+            v = smry["VALUES"]["WELLS"][kind][valtype]
+        end
+        return (t, v)
+    end
+
     function update_quantity_menu!(menu, kind)
         opts = get_quantity_options(kind)
         # @info "!!!" kind menu opts
@@ -803,10 +816,8 @@ function JutulDarcy.plot_summary(arg...;
     function update_plots(idx = eachindex(plots))
         for i in idx
             name, well_or_fld = split_name(plots[i])
-            # ax = Axis
-            if name != "NONE"
-
-            end
+            t, v = get_data(name, well_or_fld, 1)
+            scatter!(plot_boxes[i].ax, t, v)
         end
     end
 
@@ -848,7 +859,7 @@ function JutulDarcy.plot_summary(arg...;
                     update_plots(local_plot_idx)
                 end
                 subax = Axis(plot_box[2, 1:2])
-                name, well_or_fld = split_name(plots[plot_idx])
+                # name, well_or_fld = split_name(plots[plot_idx])
 
                 plot_boxes[i, j] = (ax = subax, menu1 = submenu1, menu2 = submenu2, box = plot_box, label1 = l1, label2 = l2)
                 plot_idx += 1
