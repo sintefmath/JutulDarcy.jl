@@ -718,3 +718,106 @@ function JutulDarcy.plot_reservoir_measurables(arg...;
     return fig
 end
 
+function JutulDarcy.plot_summary(arg...;
+        # type = :field,
+        # left = missing,
+        # right = "none",
+        # lcolor = Makie.wong_colors()[1],
+        # rcolor = Makie.wong_colors()[6],
+        # accumulated = false,
+        # left_accumulated = accumulated,
+        # right_accumulated = accumulated,
+        # unit_system = "Metric",
+        plots = ["FPRES"],
+        kwarg...
+    )
+    function split_name(inp::String)
+        sep = ':'
+        if in(sep, inp)
+            well_or_fld, name = split(inp, ':')
+        else
+            well_or_fld = "FIELD"
+            name = inp
+        end
+        return (well_or_fld, name)
+    end
+    get_summary(r::JutulDarcy.ReservoirSimResult) = r.summary
+    get_summary(x) = x
+    summaries = map(get_summary, arg)
+    summary_sample = summaries[1]
+    well_keys = keys(summary_sample["VALUES"]["WELLS"])
+    field_keys = keys(summary_sample["VALUES"]["FIELD"])
+
+    plots = map(String, plots)
+    fig = Figure(size = (1200, 800))
+    top_menu_grid = GridLayout(fig[2, 1])
+    # Menu(top_menu_grid[1, 1], options = ["1", "2", "3"])
+    row_menu = label_menu(top_menu_grid[1, 1], [1, 2, 3], "Number of rows")
+    col_menu = label_menu(top_menu_grid[1, 2], [1, 2, 3], "Number of columns")
+
+    plot_layout = nothing
+    plot_boxes = []
+
+    function update_plots(idx = eachindex(plots))
+        for i in idx
+            name, well_or_fld = split_name(plots[i])
+            # ax = Axis
+            if name != "NONE"
+
+            end
+        end
+    end
+
+    function update_menu_layout()
+        nrows = row_menu.selection[]
+        ncols = col_menu.selection[]
+        plot_layout = GridLayout(nrows, ncols)
+        fig.layout[1, 1] = plot_layout
+        len = nrows*ncols
+        nplots = length(plots)
+        for _ in 1:(len - nplots)
+            push!(plots, "NONE")
+        end
+        resize!(plots, len)
+
+        for el in plot_boxes
+            delete!(el.menu1)
+            delete!(el.menu2)
+            delete!(el.ax)
+        end
+        plot_boxes = Matrix{Any}(undef, nrows, ncols)
+        plot_idx = 1
+        for i in 1:nrows
+            for j in 1:ncols
+                plot_box = GridLayout(plot_layout[i, j], 2, 2)
+                submenu1 = label_menu(plot_box[1, 1], ["Hello", "World"], "Hei")
+                submenu2 = label_menu(plot_box[1, 2], ["Hello", "World"], "Hei")
+                subax = Axis(plot_box[2, 1:2])
+                plot_boxes[i, j] = (ax = subax, menu1 = submenu1, menu2 = submenu2, box = plot_box)
+                plot_idx += 1
+            end
+        end
+        update_plots()
+    end
+
+    on(row_menu.selection) do _
+        update_menu_layout()
+    end
+    on(col_menu.selection) do _
+        update_menu_layout()
+    end
+
+    update_menu_layout()
+
+    return fig
+end
+
+function label_menu(dest, options, mlabel::String; kwarg...)
+    g = GridLayout(dest)
+    Label(
+        g[1, 1], mlabel,
+        justification = :center,
+        lineheight = 0.9
+    )
+    Menu(g[1, 2], options = options; kwarg...)
+end
