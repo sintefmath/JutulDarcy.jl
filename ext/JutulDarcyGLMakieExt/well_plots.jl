@@ -767,6 +767,11 @@ function JutulDarcy.plot_summary(arg...;
             opts = get_well_quantity_keys(kind)
         end
         menu.options[] = opts
+        oldval = menu.selection[]
+        if !(oldval in opts)
+            menu.selection[] = first(opts)
+        end
+        return menu
     end
 
     plots = map(String, plots)
