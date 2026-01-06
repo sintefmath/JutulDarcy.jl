@@ -745,15 +745,36 @@ function JutulDarcy.plot_summary(arg...;
     get_summary(x) = x
     summaries = map(get_summary, arg)
     summary_sample = summaries[1]
-    well_keys = keys(summary_sample["VALUES"]["WELLS"])
-    field_keys = keys(summary_sample["VALUES"]["FIELD"])
+    # The source of the data
+    well_names = collect(keys(summary_sample["VALUES"]["WELLS"]))
+    source_keys = copy(well_names)
+    sort!(source_keys)
+    pushfirst!(source_keys, "FIELD")
+    # Field types
+    field_quantity_keys = collect(keys(summary_sample["VALUES"]["FIELD"]))
+    sort!(field_quantity_keys)
+    pushfirst!(field_quantity_keys, "NONE")
+
+    function get_well_quantity_keys(wname)
+        wk = collect(keys(summary_sample["VALUES"]["WELLS"][wname]))
+        return sort!(wk)
+    end
+
+    function update_quantity_menu!(menu, kind)
+        if kind == "FIELD"
+            opts = field_quantity_keys
+        else
+            opts = get_well_quantity_keys(kind)
+        end
+        menu.options[] = opts
+    end
 
     plots = map(String, plots)
     fig = Figure(size = (1200, 800))
     top_menu_grid = GridLayout(fig[2, 1])
     # Menu(top_menu_grid[1, 1], options = ["1", "2", "3"])
-    row_menu = label_menu(top_menu_grid[1, 1], [1, 2, 3], "Number of rows")
-    col_menu = label_menu(top_menu_grid[1, 2], [1, 2, 3], "Number of columns")
+    row_menu, = label_menu(top_menu_grid[1, 1], [1, 2, 3], "Number of rows")
+    col_menu, = label_menu(top_menu_grid[1, 2], [1, 2, 3], "Number of columns")
 
     plot_layout = nothing
     plot_boxes = []
@@ -783,6 +804,8 @@ function JutulDarcy.plot_summary(arg...;
         for el in plot_boxes
             delete!(el.menu1)
             delete!(el.menu2)
+            delete!(el.label1)
+            delete!(el.label2)
             delete!(el.ax)
         end
         plot_boxes = Matrix{Any}(undef, nrows, ncols)
@@ -790,10 +813,16 @@ function JutulDarcy.plot_summary(arg...;
         for i in 1:nrows
             for j in 1:ncols
                 plot_box = GridLayout(plot_layout[i, j], 2, 2)
-                submenu1 = label_menu(plot_box[1, 1], ["Hello", "World"], "Hei")
-                submenu2 = label_menu(plot_box[1, 2], ["Hello", "World"], "Hei")
+                submenu1, l1 = label_menu(plot_box[1, 1], source_keys, "Source", default = "FIELD")
+                submenu2, l2 = label_menu(plot_box[1, 2], field_quantity_keys, "Type")
+
+                on(submenu1.selection) do s
+                    update_quantity_menu!(submenu2, s)
+                end
                 subax = Axis(plot_box[2, 1:2])
-                plot_boxes[i, j] = (ax = subax, menu1 = submenu1, menu2 = submenu2, box = plot_box)
+                name, well_or_fld = split_name(plots[plot_idx])
+
+                plot_boxes[i, j] = (ax = subax, menu1 = submenu1, menu2 = submenu2, box = plot_box, label1 = l1, label2 = l2)
                 plot_idx += 1
             end
         end
@@ -814,10 +843,11 @@ end
 
 function label_menu(dest, options, mlabel::String; kwarg...)
     g = GridLayout(dest)
-    Label(
+    l = Label(
         g[1, 1], mlabel,
         justification = :center,
         lineheight = 0.9
     )
-    Menu(g[1, 2], options = options; kwarg...)
+    m = Menu(g[1, 2], options = options; kwarg...)
+    return (m, l)
 end
