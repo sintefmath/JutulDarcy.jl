@@ -71,7 +71,7 @@ smry_jutul = summary_result(case, res, :field)
 GeoEnergyIO.write_jutuldarcy_summary("FILENAME", smry_jutul, unified = true)
 ```
 """
-function summary_result(case::JutulCase, res::ReservoirSimResult, usys = missing; kwarg...)
+function summary_result(case::Jutul.JutulCase, res::ReservoirSimResult, usys = missing; kwarg...)
     return summary_result(case.model, res.wells, res.states, usys; input_data = case.input_data, kwarg...)
 end
 
@@ -83,6 +83,7 @@ Low level version of `summary_result` that works directly on a `MultiModel`,
 function summary_result(model::MultiModel, wellresult, states = missing, usys = missing;
         input_data = missing,
         wells = !ismissing(wellresult),
+        start_date = missing,
         field = wells
     )
     function to_summary(x::Dict)
@@ -146,12 +147,14 @@ function summary_result(model::MultiModel, wellresult, states = missing, usys = 
         vals["WELLS"] = w_smry
     end
 
-    if has_data && haskey(data["RUNSPEC"], "START")
-        start = data["RUNSPEC"]["START"]
-    else
-        start = missing
+    if ismissing(start_date)
+        if has_data && haskey(data["RUNSPEC"], "START")
+            start_date = data["RUNSPEC"]["START"]
+        else
+            start_date = missing
+        end
     end
-    out["TIME"] = (start_date = start, seconds = t)
+    out["TIME"] = (start_date = start_date, seconds = t)
 
     reservoir = reservoir_domain(model)
     mesh = physical_representation(reservoir)

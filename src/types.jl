@@ -596,6 +596,8 @@ struct ReservoirSimResult
     wells::WellResults
     "Reservoir states for each time-step"
     states::AbstractVector
+    "Summary result (sparse data)"
+    summary::AbstractDict
     "The time the states and well solutions are given at"
     time::AbstractVector
     "Raw simulation results with more detailed well results and reports of solution progress"
@@ -634,7 +636,8 @@ function ReservoirSimResult(model, result::Jutul.SimResult, forces, extra = Dict
     end
     wells = full_well_outputs(model, states, forces)
     well_result = WellResults(report_time, wells, start_date)
-    return ReservoirSimResult(well_result, res_states, report_time, result, extra)
+    summary = summary_result(model, well_result, states, :si, start_date = start_date)
+    return ReservoirSimResult(well_result, res_states, summary, report_time, result, extra)
 end
 
 struct TopConditions{N, R}
