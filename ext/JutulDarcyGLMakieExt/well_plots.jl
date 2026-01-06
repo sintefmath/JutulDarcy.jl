@@ -760,17 +760,25 @@ function JutulDarcy.plot_summary(arg...;
         return sort!(wk)
     end
 
-    function update_quantity_menu!(menu, kind)
+    function get_quantity_options(kind)
         if kind == "FIELD"
             opts = field_quantity_keys
         else
             opts = get_well_quantity_keys(kind)
         end
+        return opts
+    end
+
+    function update_quantity_menu!(menu, kind)
+        opts = get_quantity_options(kind)
+        # @info "!!!" kind menu opts
         menu.options[] = opts
-        oldval = menu.selection[]
-        if !(oldval in opts)
-            menu.selection[] = first(opts)
-        end
+        # menu.options[] = opts
+        # oldval = menu.selection[]
+        # if !(oldval in opts)
+            # menu.selection[] = opts[1]
+        # end
+        # @info "After" menu.selection[] menu.options[]
         return menu
     end
 
@@ -783,6 +791,14 @@ function JutulDarcy.plot_summary(arg...;
 
     plot_layout = nothing
     plot_boxes = []
+
+    function plot_string(source::String, type::String)
+        return "$source:$type"
+    end
+
+    function plot_string(source::String, ::Nothing)
+        return plot_string(source, "NONE")
+    end
 
     function update_plots(idx = eachindex(plots))
         for i in idx
@@ -820,9 +836,16 @@ function JutulDarcy.plot_summary(arg...;
                 plot_box = GridLayout(plot_layout[i, j], 2, 2)
                 submenu1, l1 = label_menu(plot_box[1, 1], source_keys, "Source", default = "FIELD")
                 submenu2, l2 = label_menu(plot_box[1, 2], field_quantity_keys, "Type")
-
+                # Capture variable in local scope for the functions
+                local_plot_idx = plot_idx
                 on(submenu1.selection) do s
                     update_quantity_menu!(submenu2, s)
+                    plots[local_plot_idx] = plot_string(s, submenu2.selection[])
+                    update_plots(local_plot_idx)
+                end
+                on(submenu2.selection) do s
+                    plots[local_plot_idx] = plot_string(submenu1.selection[], s)
+                    update_plots(local_plot_idx)
                 end
                 subax = Axis(plot_box[2, 1:2])
                 name, well_or_fld = split_name(plots[plot_idx])
