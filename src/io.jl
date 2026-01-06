@@ -56,9 +56,10 @@ function ensure_endpoints!(x, f, ϵ)
 end
 
 """
-    summary_result(case::JutulCase, res::ReservoirSimResult, usys = missing)
+    summary_result(case::JutulCase, res::ReservoirSimResult) # units from case input data
+    summary_result(case::JutulCase, res::ReservoirSimResult, :field) # field units
 
-Write a summary-like result to a Dict. This can subsequently be written to disk
+Create a summary-like result as a Dict. This can subsequently be written to disk
 using `GeoEnergyIO.write_jutuldarcy_summary`. The `usys` argument is used to
 specify the unit system to use. If `usys` is `missing`, the unit system is
 chosen based on the input data as either :field, :lab or :metric, if data is
@@ -70,9 +71,19 @@ smry_jutul = summary_result(case, res, :field)
 GeoEnergyIO.write_jutuldarcy_summary("FILENAME", smry_jutul, unified = true)
 ```
 """
-function summary_result(case::JutulCase, res::ReservoirSimResult, usys = missing;
-        field = true,
-        wells = true
+function summary_result(case::JutulCase, res::ReservoirSimResult, usys = missing; kwarg...)
+    return summary_result(case.model, res.wells, res.states, usys; input_data = case.input_data, kwarg...)
+end
+
+"""
+    summary_result(model::MultiModel, wellresult, states)
+
+Low level version of `summary_result` that works directly on a `MultiModel`,
+"""
+function summary_result(model::MultiModel, wellresult, states = missing, usys = missing;
+        input_data = missing,
+        wells = !ismissing(wellresult),
+        field = wells
     )
     function to_summary(x::Dict)
         x_c = Dict{String, Vector{Float64}}()
@@ -87,8 +98,8 @@ function summary_result(case::JutulCase, res::ReservoirSimResult, usys = missing
         return x_c
     end
 
-    data = case.input_data
-    has_data = !isnothing(data) && haskey(data, "RUNSPEC") 
+    data = input_data
+    has_data = !isnothing(data) && !ismissing(data) && haskey(data, "RUNSPEC") 
     if ismissing(usys)
         if has_data
             rs = data["RUNSPEC"]
@@ -110,7 +121,7 @@ function summary_result(case::JutulCase, res::ReservoirSimResult, usys = missing
     out["VALUES"] = vals = Dict()
     function get_values(t; kwarg...)
             rm = JutulDarcy.reservoir_measurables(
-            case, res;
+            model, wellresult, states;
             units = usys,
             type = t,
             kwarg...
@@ -125,7 +136,7 @@ function summary_result(case::JutulCase, res::ReservoirSimResult, usys = missing
     end
     if wells
         w_smry = Dict()
-        for w in keys(res.wells.wells)
+        for w in keys(wellresult.wells)
             wi = get_values(:well, wells = w)
             w_smry["$w"] = to_summary(wi)
             if ismissing(t)
@@ -142,7 +153,7 @@ function summary_result(case::JutulCase, res::ReservoirSimResult, usys = missing
     end
     out["TIME"] = (start_date = start, seconds = t)
 
-    reservoir = reservoir_domain(case)
+    reservoir = reservoir_domain(model)
     mesh = physical_representation(reservoir)
     if mesh isa UnstructuredMesh && mesh.structure isa CartesianIndex
         dims = mesh.structure.I
