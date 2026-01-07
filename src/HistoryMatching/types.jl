@@ -29,7 +29,7 @@ struct ReservoirMatch
 end
 
 mutable struct HistoryMatchLogger
-    data::Union{Missing, Dict{Symbol, Any}}
+    data::Union{Missing, Dict{Any, Any}}
 end
 
 function HistoryMatchLogger()
