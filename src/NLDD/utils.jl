@@ -51,6 +51,7 @@ function simulator_config(sim::NLDDSimulator;
         types = Symbol,
         values = [:linear, :pressure, :potential, :adaptive]
     )
+    add_option!(cfg, :nldd_max_sweeps, 1, "Maximum number of NLDD sweeps", types = Int)
     add_option!(cfg, :method, method, "Method to use", values = [:nldd, :aspen], types = Symbol)
     add_option!(cfg, :debug_checks, false, "Enable extra expensive checks", types = Bool)
     add_option!(cfg, :solve_subdomains, true, "Solve subdomains", types = Bool)
