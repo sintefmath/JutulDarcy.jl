@@ -2719,6 +2719,59 @@ function reservoir_measurables(model, wellresult, states = missing;
     return out
 end
 
+function summary_key_lookup()
+    out = Dict{String, Any}()
+
+    function add_entry(name::Symbol, legend, type = :id; is_rate = false, prefix = "")
+        key = uppercase("$prefix$name")
+        if prefix == "w"
+            type_prefix = "well "
+        elseif prefix == "g"
+            type_prefix = "group "
+        elseif prefix == "f"
+            type_prefix = "field "
+        else
+            type_prefix = ""
+        end
+        out[key] = (legend = legend, type = "$type_prefix$type", is_rate = is_rate)
+    end
+
+
+    for prefix in ["f", "g", "w"]
+        add_entry(:lpr, "liquid production rate (oil + water)", :liquid_volume_surface, is_rate = true, prefix = prefix)
+        add_entry(:wpr, "water production rate", :liquid_volume_surface, is_rate = true, prefix = prefix)
+        add_entry(:opr, "oil production rate", :liquid_volume_surface, is_rate = true, prefix = prefix)
+        add_entry(:gpr, "gas production rate", :gas_volume_surface, is_rate = true, prefix = prefix)
+
+        add_entry(:wir, "water injection rate", :liquid_volume_surface, is_rate = true, prefix = prefix)
+        add_entry(:oir, "oil injection rate", :liquid_volume_surface, is_rate = true, prefix = prefix)
+        add_entry(:gir, "gas injection rate", :gas_volume_surface, is_rate = true, prefix = prefix)
+
+        add_entry(:wct, "production water cut", prefix = prefix)
+        add_entry(:gor, "gas-oil production ratio", prefix = prefix)
+        add_entry(:wit, "water injection total", :liquid_volume_surface, is_rate = false, prefix = prefix)
+        add_entry(:oit, "oil injection total", :liquid_volume_surface, is_rate = false, prefix = prefix)
+        add_entry(:git, "gas injection total", :gas_volume_surface, is_rate = false, prefix = prefix)
+        add_entry(:wpt, "water production total", :liquid_volume_surface, is_rate = false, prefix = prefix)
+        add_entry(:opt, "oil production total", :liquid_volume_surface, is_rate = false, prefix = prefix)
+        add_entry(:gpt, "gas production total", :gas_volume_surface, is_rate = false, prefix = prefix)
+
+        if prefix == "w"
+            add_entry(:bhp, "bottom-hole pressure", :pressure, prefix = prefix)
+        elseif prefix != "g"
+            add_entry(:prh, "average pressure (hydrocarbon volume weighted)", :pressure, prefix = prefix)
+            add_entry(:pr, "average pressure (hydrocarbon volume weighted)", :pressure, prefix = prefix)
+            add_entry(:prp, "average pressure", :pressure, prefix = prefix)
+            add_entry(:wip, "water component in place (surface volumes)", :liquid_volume_surface, prefix = prefix)
+            add_entry(:oip, "oil component in place (surface volumes)", :liquid_volume_surface, prefix = prefix)
+            add_entry(:gip, "gas component in place (surface volumes)", :gas_volume_surface, prefix = prefix)
+            add_entry(:wipr, "water in place (reservoir volumes)", :liquid_volume_reservoir, prefix = prefix)
+            add_entry(:oipr, "oil in place (reservoir volumes)", :liquid_volume_reservoir, prefix = prefix)
+            add_entry(:gipr, "gas in place (reservoir volumes)", :gas_volume_reservoir, prefix = prefix)
+        end
+    end
+    return out
+end
 
 # Utility to transfer one type of variables or parameters from one model to another
 function transfer_variables_or_parameters!(vars, new_model::SimulationModel, replacements; skip = Symbol[], add_new = true)
