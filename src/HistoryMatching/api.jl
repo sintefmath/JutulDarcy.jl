@@ -24,8 +24,18 @@ function evaluate_match(obj::HistoryMatchObjective, result::ReservoirSimResult; 
     states = result.result.states
     timesteps = c.dt
     all_forces = c.forces
+    if log
+        hm.logging.data = Dict{Symbol, Any}()
+    else
+        hm.logging.data = missing
+    end
     obj = Jutul.evaluate_objective(obj, model, states, timesteps, all_forces)
-    return obj
+    if log
+        out = (obj, hm.logging.data)
+    else
+        out = obj
+    end
+    return out
 end
 
 function match_well!(hm::HistoryMatch, name::Union{String, Symbol}, quantity::Union{String, Symbol};
