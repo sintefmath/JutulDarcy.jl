@@ -732,8 +732,9 @@ function JutulDarcy.plot_summary(arg...;
         extra_field = String[],
         extra_well = String[],
         linecolor = :black,
-        rows = length(plots),
+        selectors = true,
         cols = 1,
+        rows = ceil(length(plots)/cols) |> Int,
         colormap = missing,
         kwarg...
     )
@@ -982,22 +983,28 @@ function JutulDarcy.plot_summary(arg...;
         plot_idx = 1
         for j in 1:ncols
             for i in 1:nrows
-                plot_box = GridLayout(plot_layout[i, j], 2, 2)
-                well_or_fld, name = split_name(plots[plot_idx])
-                submenu1, l1 = label_menu(plot_box[1, 1], source_keys, "Source", default = well_or_fld)
-                submenu2, l2 = label_menu(plot_box[1, 2], get_quantity_options(well_or_fld), "Type", default = name)
-                # Capture variable in local scope for the functions
-                local_plot_idx = plot_idx
-                on(submenu1.selection) do s
-                    submenu2.options[] = get_quantity_options(s)
-                    plots[local_plot_idx] = plot_string(s, submenu2.selection[])
-                    update_plots(local_plot_idx)
+                if selectors
+                    plot_box = GridLayout(plot_layout[i, j], 2, 2)
+                    well_or_fld, name = split_name(plots[plot_idx])
+                    submenu1, l1 = label_menu(plot_box[1, 1], source_keys, "Source", default = well_or_fld)
+                    submenu2, l2 = label_menu(plot_box[1, 2], get_quantity_options(well_or_fld), "Type", default = name)
+                    # Capture variable in local scope for the functions
+                    local_plot_idx = plot_idx
+                    on(submenu1.selection) do s
+                        submenu2.options[] = get_quantity_options(s)
+                        plots[local_plot_idx] = plot_string(s, submenu2.selection[])
+                        update_plots(local_plot_idx)
+                    end
+                    on(submenu2.selection) do s
+                        plots[local_plot_idx] = plot_string(submenu1.selection[], s)
+                        update_plots(local_plot_idx)
+                    end
+                    subax = Axis(plot_box[2, 1:2])
+                else
+                    plot_box = GridLayout(plot_layout[i, j], 1, 1)
+                    subax = Axis(plot_box[1, 1])
+                    submenu1 = submenu2 = l1 = l2 = missing
                 end
-                on(submenu2.selection) do s
-                    plots[local_plot_idx] = plot_string(submenu1.selection[], s)
-                    update_plots(local_plot_idx)
-                end
-                subax = Axis(plot_box[2, 1:2])
                 if i == nrows
                     subax.xlabel[] = "days"
                 else
