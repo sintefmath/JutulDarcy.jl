@@ -2726,15 +2726,15 @@ function summary_key_lookup()
     function add_entry(name::Symbol, legend, type = :id; is_rate = false, prefix = "")
         key = uppercase("$prefix$name")
         if prefix == "w"
-            type_prefix = "well "
+            legend_prefix = "well "
         elseif prefix == "g"
-            type_prefix = "group "
+            legend_prefix = "group "
         elseif prefix == "f"
-            type_prefix = "field "
+            legend_prefix = "field "
         else
-            type_prefix = ""
+            legend_prefix = ""
         end
-        out[key] = (legend = legend, unit_type = "$type_prefix$type", is_rate = is_rate)
+        out[key] = (legend = "$legend_prefix$legend", unit_type = type, is_rate = is_rate)
     end
 
     for prefix in ["f", "g", "w"]
@@ -2770,6 +2770,7 @@ function summary_key_lookup()
             add_entry(:gipr, "gas in place (reservoir volumes)", :gas_volume_reservoir, prefix = prefix)
         end
     end
+    add_entry(:none, "", :id, prefix = "")
     return out
 end
 

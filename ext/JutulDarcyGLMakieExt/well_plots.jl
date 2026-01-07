@@ -755,6 +755,7 @@ function JutulDarcy.plot_summary(arg...;
     sort!(field_quantity_keys)
     pushfirst!(field_quantity_keys, "NONE")
 
+    lookup = JutulDarcy.summary_key_lookup()
     function get_well_quantity_keys(wname)
         wk = collect(keys(summary_sample["VALUES"]["WELLS"][wname]))
         return sort!(wk)
@@ -815,9 +816,13 @@ function JutulDarcy.plot_summary(arg...;
 
     function update_plots(idx = eachindex(plots))
         for i in idx
-            name, well_or_fld = split_name(plots[i])
-            t, v = get_data(name, well_or_fld, 1)
+            well_or_fld, name = split_name(plots[i])
+            t, v = get_data(well_or_fld, name, 1)
+            info = get(lookup, name, missing)
             ax = plot_boxes[i].ax
+            if !ismissing(info) && name != "NONE"
+                ax.title[] = "$(name) $(info.legend)"
+            end
             empty!(ax)
             scatterlines!(ax, t, v)
         end
