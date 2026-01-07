@@ -778,17 +778,17 @@ function JutulDarcy.plot_summary(arg...;
         return opts
     end
 
-    function time_data(kind, valtype, idx)
+    function time_data(idx)
         smry = summaries[idx]
         t = smry["TIME"].seconds
-        return t
+        return t./si_unit(:day)
     end
 
     function plot_data(kind, valtype, idx, info, units)
         smry = summaries[idx]
         t = smry["TIME"].seconds
         if valtype == "NONE"
-            v = fill(NaN, length(t))
+            v = zeros(length(t))
         elseif kind == "FIELD"
             v = smry["VALUES"]["FIELD"][valtype]
         else
@@ -847,7 +847,7 @@ function JutulDarcy.plot_summary(arg...;
             well_or_fld, name = split_name(plots[i])
             info = get(lookup, name, missing)
             units = unit_menu.selection
-            t = time_data(well_or_fld, name, 1)
+            t = time_data(1)
             v = @lift plot_data(well_or_fld, name, 1, info, $units)
             ax = plot_boxes[i].ax
             if !ismissing(info) && name != "NONE"
@@ -856,6 +856,7 @@ function JutulDarcy.plot_summary(arg...;
             empty!(ax)
             lw_sel = linewidth_menu.selection
             ms_sel = markersize_menu.selection
+            @info "???" t v
             scatterlines!(ax, t, v, linewidth = lw_sel, markersize = ms_sel)
         end
     end
@@ -898,6 +899,11 @@ function JutulDarcy.plot_summary(arg...;
                     update_plots(local_plot_idx)
                 end
                 subax = Axis(plot_box[2, 1:2])
+                if i == nrows
+                    subax.xlabel[] = "days"
+                else
+                    hidexdecorations!(subax)
+                end
                 # name, well_or_fld = split_name(plots[plot_idx])
 
                 plot_boxes[i, j] = (ax = subax, menu1 = submenu1, menu2 = submenu2, box = plot_box, label1 = l1, label2 = l2)
