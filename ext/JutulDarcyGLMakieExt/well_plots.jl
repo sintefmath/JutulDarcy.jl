@@ -802,6 +802,9 @@ function JutulDarcy.plot_summary(arg...;
     # Menu(top_menu_grid[1, 1], options = ["1", "2", "3"])
     row_menu, = label_menu(top_menu_grid[1, 1], [1, 2, 3], "Number of rows")
     col_menu, = label_menu(top_menu_grid[1, 2], [1, 2, 3], "Number of columns")
+    linewidth_menu, = label_menu(top_menu_grid[1, 3], range(0.0, 8.0, 17), "Line width")
+    markersize_menu, = label_menu(top_menu_grid[1, 4], [0.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0], "Marker size")
+    unit_menu, = label_menu(top_menu_grid[1, 5], ["Metric", "SI", "Field"], "Unit system"; default = "Metric")
 
     plot_layout = nothing
     plot_boxes = []
@@ -824,7 +827,9 @@ function JutulDarcy.plot_summary(arg...;
                 ax.title[] = "$(name) $(info.legend)"
             end
             empty!(ax)
-            scatterlines!(ax, t, v)
+            lw_sel = linewidth_menu.selection
+            ms_sel = markersize_menu.selection
+            scatterlines!(ax, t, v, linewidth = lw_sel, markersize = ms_sel)
         end
     end
 
