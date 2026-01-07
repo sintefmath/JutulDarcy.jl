@@ -849,8 +849,8 @@ function JutulDarcy.plot_summary(arg...;
         end
         plot_boxes = Matrix{Any}(undef, nrows, ncols)
         plot_idx = 1
-        for i in 1:nrows
-            for j in 1:ncols
+        for j in 1:ncols
+            for i in 1:nrows
                 plot_box = GridLayout(plot_layout[i, j], 2, 2)
                 submenu1, l1 = label_menu(plot_box[1, 1], source_keys, "Source", default = "FIELD")
                 submenu2, l2 = label_menu(plot_box[1, 2], field_quantity_keys, "Type")
