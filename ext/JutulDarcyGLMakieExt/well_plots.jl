@@ -737,6 +737,10 @@ function JutulDarcy.plot_summary(arg...;
         linewidth = 2.0,
         markersize = 0.0,
         plots = ["FIELD:FPR"],
+        extra_field = String[],
+        extra_well = String[],
+        rows = length(plots),
+        cols = 1,
         colormap = missing,
         kwarg...
     )
@@ -819,25 +823,12 @@ function JutulDarcy.plot_summary(arg...;
         return v
     end
 
-    function update_quantity_menu!(menu, kind)
-        opts = get_quantity_options(kind)
-        # @info "!!!" kind menu opts
-        menu.options[] = opts
-        # menu.options[] = opts
-        # oldval = menu.selection[]
-        # if !(oldval in opts)
-            # menu.selection[] = opts[1]
-        # end
-        # @info "After" menu.selection[] menu.options[]
-        return menu
-    end
-
     plots = map(String, plots)
     fig = Figure(size = (1200, 800))
     top_menu_grid = GridLayout(fig[2, 1])
     # Menu(top_menu_grid[1, 1], options = ["1", "2", "3"])
-    row_menu, = label_menu(top_menu_grid[1, 1], [1, 2, 3], "Number of rows")
-    col_menu, = label_menu(top_menu_grid[1, 2], [1, 2, 3], "Number of columns")
+    row_menu, = label_menu(top_menu_grid[1, 1], collect(range(1, max(rows, 5))), "Number of rows", default = string(rows))
+    col_menu, = label_menu(top_menu_grid[1, 2], collect(range(1, max(cols, 5))), "Number of columns", default = string(cols))
 
     lineoptions = collect(range(0.0, 8.0, 17))
     push!(lineoptions, linewidth)
@@ -931,7 +922,7 @@ function JutulDarcy.plot_summary(arg...;
                 # Capture variable in local scope for the functions
                 local_plot_idx = plot_idx
                 on(submenu1.selection) do s
-                    update_quantity_menu!(submenu2, s)
+                    submenu2.options[] = get_quantity_options(s)
                     plots[local_plot_idx] = plot_string(s, submenu2.selection[])
                     update_plots(local_plot_idx)
                 end
