@@ -25,13 +25,14 @@ function evaluate_match(obj::HistoryMatchObjective, result::ReservoirSimResult; 
     timesteps = c.dt
     all_forces = c.forces
     if log
-        hm.logging.data = Dict{Symbol, Any}()
+        hm.logger.data = Dict{Symbol, Any}()
     else
-        hm.logging.data = missing
+        hm.logger.data = missing
     end
     obj = Jutul.evaluate_objective(obj, model, states, timesteps, all_forces)
     if log
-        out = (obj, hm.logging.data)
+        out = (obj, hm.logger.data)
+        hm.logger.data = missing
     else
         out = obj
     end

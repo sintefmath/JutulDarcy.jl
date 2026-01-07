@@ -64,7 +64,7 @@ end
 function get_cumulative_contribution(hm::HistoryMatch, model, states, step_infos, forces)
     start_idx = 1
     stop_idx = length(step_infos)
-    eval_match(x, sgn, target) = get_period_contribution_wells(x, sgn, target, hm.wellpos, model, states, step_infos, forces, start_idx, stop_idx, missing, is_cumulative = true)
+    eval_match(x, sgn, target) = get_period_contribution_wells(hm.logger, x, sgn, target, hm.wellpos, model, states, step_infos, forces, start_idx, stop_idx, missing, is_cumulative = true)
     prod_sgn = -1.0
     val = 0.0
     # Producers only...
@@ -77,7 +77,7 @@ end
 
 function get_period_contribution(hm::HistoryMatch, model, states, step_infos, forces, start_idx::Int, stop_idx::Int, weights)
     val = 0.0
-    eval_match(x, sgn, target) = get_period_contribution_wells(x, sgn, target, hm.wellpos, model, states, step_infos, forces, start_idx, stop_idx, weights)
+    eval_match(x, sgn, target) = get_period_contribution_wells(hm.logger, x, sgn, target, hm.wellpos, model, states, step_infos, forces, start_idx, stop_idx, weights)
     inj_sgn = 1.0
     prod_sgn = -1.0
     val = 0.0
@@ -105,18 +105,18 @@ function get_period_contribution(hm::HistoryMatch, model, states, step_infos, fo
     return val
 end
 
-function get_period_contribution_wells(wms::Vector{WellMatch}, sgn, target::JutulDarcy.WellTarget, wellpos, model, states, step_infos, forces, start_idx::Int, stop_idx::Int, weights; kwarg...)
+function get_period_contribution_wells(logger::HistoryMatchLogger, wms::Vector{WellMatch}, sgn, target::JutulDarcy.WellTarget, wellpos, model, states, step_infos, forces, start_idx::Int, stop_idx::Int, weights; kwarg...)
     val = 0.0
     if length(wms) == 0
         return val
     end
     for wm in wms
-        val += get_period_contribution_well(wm, wellpos, sgn, target, model, states, step_infos, forces, start_idx, stop_idx, weights; kwarg...)
+        val += get_period_contribution_well(logger, wm, wellpos, sgn, target, model, states, step_infos, forces, start_idx, stop_idx, weights; kwarg...)
     end
     return val
 end
 
-function get_period_contribution_well(wm::WellMatch, wellpos, sgn, target::JutulDarcy.WellTarget, model, states, step_infos, forces, start_idx::Int, stop_idx::Int, weights;
+function get_period_contribution_well(logger::HistoryMatchLogger, wm::WellMatch, wellpos, sgn, target::JutulDarcy.WellTarget, model, states, step_infos, forces, start_idx::Int, stop_idx::Int, weights;
         is_cumulative::Bool = false
     )
     wname = wm.name

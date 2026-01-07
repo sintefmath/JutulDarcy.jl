@@ -59,7 +59,7 @@ struct HistoryMatch
     producer_cumulative_liquid::Vector{WellMatch}
     reservoir::Vector{ReservoirMatch}
     total_scale::Float64
-    logging::HistoryMatchLogger
+    logger::HistoryMatchLogger
 end
 
 function HistoryMatch(case::JutulCase; kwarg...)
