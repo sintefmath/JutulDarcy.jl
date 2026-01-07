@@ -214,7 +214,14 @@ function match_producers!(hm::HistoryMatch, quantity::Union{String, Symbol}, wel
     return hm
 end
 
-match_injectors!(obj::HistoryMatchObjective, arg...; kwarg...) = match_injectors!(obj.match, arg...; kwarg...)
-match_producers!(obj::HistoryMatchObjective, arg...; kwarg...) = match_producers!(obj.match, arg...; kwarg...)
-match_well!(obj::GlobalHistoryMatchObjective, arg...; kwarg...) = match_well!(obj.match, arg...; kwarg...)
-match_well!(obj::SumHistoryMatchObjective, arg...; kwarg...) = match_well!(obj.match, arg...; kwarg..., is_sum_objective = true)
+function match_injectors!(obj::HistoryMatchObjective, arg...; kwarg...)
+    return match_injectors!(obj.match, arg...; kwarg..., is_sum_objective = obj isa SumHistoryMatchObjective)
+end
+
+function match_producers!(obj::HistoryMatchObjective, arg...; kwarg...)
+    return match_producers!(obj.match, arg...; kwarg..., is_sum_objective = obj isa SumHistoryMatchObjective)
+end
+
+function match_well!(obj::HistoryMatchObjective, arg...; kwarg...)
+    return match_well!(obj.match, arg...; kwarg..., is_sum_objective = obj isa SumHistoryMatchObjective)
+end
