@@ -746,6 +746,12 @@ function JutulDarcy.plot_summary(arg...;
     get_summary(r::JutulDarcy.ReservoirSimResult) = r.summary
     get_summary(x) = x
     summaries = map(get_summary, arg)
+    for (i, s) in enumerate(summaries)
+        if !haskey(s, "UNIT_SYSTEM")
+            println("Warning: Summary $i has no UNIT_SYSTEM key, assuming metric.")
+            s["UNIT_SYSTEM"] = "metric"
+        end
+    end
     summary_sample = summaries[1]
     # The source of the data
     well_names = collect(keys(summary_sample["VALUES"]["WELLS"]))

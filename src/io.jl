@@ -119,6 +119,7 @@ function summary_result(model::MultiModel, wellresult, states = missing, usys = 
     end
 
     out = Dict()
+    out["UNIT_SYSTEM"] = string(usys)
     out["VALUES"] = vals = Dict()
     function get_values(t; kwarg...)
             rm = JutulDarcy.reservoir_measurables(
