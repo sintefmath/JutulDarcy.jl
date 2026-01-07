@@ -826,7 +826,6 @@ function JutulDarcy.plot_summary(arg...;
     plots = map(String, plots)
     fig = Figure(size = (1200, 800))
     top_menu_grid = GridLayout(fig[2, 1])
-    # Menu(top_menu_grid[1, 1], options = ["1", "2", "3"])
     row_menu, = label_menu(top_menu_grid[1, 1], collect(range(1, max(rows, 5))), "Number of rows", default = string(rows))
     col_menu, = label_menu(top_menu_grid[1, 2], collect(range(1, max(cols, 5))), "Number of columns", default = string(cols))
 
@@ -861,26 +860,41 @@ function JutulDarcy.plot_summary(arg...;
             ax = plot_boxes[i].ax
             empty!(ax)
             well_or_fld, name = split_name(plots[i])
-            info = get(lookup, name, missing)
-            units = unit_menu.selection[]
-            for (smry_no, smry_name) in enumerate(names)
-                t = time_data(smry_no)
-                v = plot_data(well_or_fld, name, smry_no, info, units)
-                if !ismissing(info) && name != "NONE"
-                    ax.title[] = "$(name) $(info.legend)"
-                    _, u = well_unit_conversion(units, "", info)
-                    if info.is_rate
-                        v = v.*si_unit(:day)
-                        u *= "/day"
+
+            plot_names = split(name, ',')
+            ystr = ""
+            tstr = ""
+            for (pn_idx, pname) in enumerate(plot_names)
+                info = get(lookup, pname, missing)
+                units = unit_menu.selection[]
+
+                for (smry_no, smry_name) in enumerate(names)
+                    t = time_data(smry_no)
+                    v = plot_data(well_or_fld, pname, smry_no, info, units)
+                    if !ismissing(info) && name != "NONE"
+                        # ax.title[] = "$(name) $(info.legend)"
+                        _, u = well_unit_conversion(units, "", info)
+                        if info.is_rate
+                            v = v.*si_unit(:day)
+                            u *= "/day"
+                        end
+                        if smry_no == 1
+                            # Only add if we are the first summary
+                            if pn_idx == 1
+                                ystr = "$u"
+                                tstr = "$(name) $(info.legend)"
+                            else
+                                ystr = "$ystr, $u"
+                                tstr = "$tstr, $(name) $(info.legend)"
+                            end
+                        end
                     end
-                    ax.ylabel[] = u
-                else
-                    ax.title[] = ""
-                    ax.ylabel[] = ""
+                    lw_sel = linewidth_menu.selection
+                    ms_sel = markersize_menu.selection
+                    scatterlines!(ax, t, v, linewidth = lw_sel, markersize = ms_sel, label = smry_name, color = smry_no, colorrange = (1, nsmry), colormap = colormap)
                 end
-                lw_sel = linewidth_menu.selection
-                ms_sel = markersize_menu.selection
-                scatterlines!(ax, t, v, linewidth = lw_sel, markersize = ms_sel, label = smry_name, color = smry_no, colorrange = (1, nsmry), colormap = colormap)
+                ax.ylabel[] = ystr
+                ax.title[] = tstr
             end
             if nsmry > 1
                 l = axislegend(ax, position = :lt)
