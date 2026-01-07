@@ -990,6 +990,7 @@ function JutulDarcy.plot_summary(arg...;
                 plot_idx += 1
             end
         end
+        linkxaxes!(map(x -> x.ax, plot_boxes)...)
         update_plots()
     end
 
