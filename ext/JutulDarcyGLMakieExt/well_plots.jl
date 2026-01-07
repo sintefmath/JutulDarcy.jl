@@ -496,10 +496,11 @@ function is_injectors(well_data)
 end
 
 function well_unit_conversion(unit_sys, lbl, info)
-    @assert unit_sys in ("Metric", "SI", "Field")
+    unit_sys = lowercase(unit_sys)
+    @assert unit_sys in ("metric", "si", "field")
     t = info.unit_type
     u = 1.0
-    if unit_sys == "Metric"
+    if unit_sys == "metric"
         if t == :gas_volume_surface
             lbl = "m³"
         elseif t == :gas_volume_reservoir
@@ -518,7 +519,7 @@ function well_unit_conversion(unit_sys, lbl, info)
             u = :Kelvin
             lbl = "°K"
         end
-    elseif unit_sys == "Field"
+    elseif unit_sys == "field"
         if t == :gas_volume_surface
             u = si_unit(:kilo)*si_unit(:feet)^3
             lbl = "MScf"
@@ -544,7 +545,7 @@ function well_unit_conversion(unit_sys, lbl, info)
             u = :pound
             lbl = "pound"
         end
-    elseif unit_sys == "SI"
+    elseif unit_sys == "si"
         if t == :gas_volume_surface
             lbl = "m³"
         elseif t == :gas_volume_reservoir
@@ -794,6 +795,11 @@ function JutulDarcy.plot_summary(arg...;
         else
             v = smry["VALUES"]["WELLS"][kind][valtype]
         end
+        v = copy(v)
+        from_sys = JutulDarcy.GeoEnergyIO.InputParser.DeckUnitSystem(Symbol(lowercase(smry["UNIT_SYSTEM"])))
+        to_sys = JutulDarcy.GeoEnergyIO.InputParser.DeckUnitSystem(Symbol(lowercase(units)))
+        systems = (to = to_sys, from = from_sys)
+        JutulDarcy.GeoEnergyIO.InputParser.swap_unit_system!(v, systems, info.unit_type)
         return v
     end
 
@@ -846,12 +852,21 @@ function JutulDarcy.plot_summary(arg...;
         for i in idx
             well_or_fld, name = split_name(plots[i])
             info = get(lookup, name, missing)
-            units = unit_menu.selection
+            units = unit_menu.selection[]
             t = time_data(1)
-            v = @lift plot_data(well_or_fld, name, 1, info, $units)
+            v = plot_data(well_or_fld, name, 1, info, units)
             ax = plot_boxes[i].ax
             if !ismissing(info) && name != "NONE"
                 ax.title[] = "$(name) $(info.legend)"
+                _, u = well_unit_conversion(units, "", info)
+                if info.is_rate
+                    v = v.*si_unit(:day)
+                    u *= "/day"
+                end
+                ax.ylabel[] = u
+            else
+                ax.title[] = ""
+                ax.ylabel[] = ""
             end
             empty!(ax)
             lw_sel = linewidth_menu.selection
@@ -904,8 +919,6 @@ function JutulDarcy.plot_summary(arg...;
                 else
                     hidexdecorations!(subax)
                 end
-                # name, well_or_fld = split_name(plots[plot_idx])
-
                 plot_boxes[i, j] = (ax = subax, menu1 = submenu1, menu2 = submenu2, box = plot_box, label1 = l1, label2 = l2)
                 plot_idx += 1
             end
@@ -919,7 +932,11 @@ function JutulDarcy.plot_summary(arg...;
     on(col_menu.selection) do _
         update_menu_layout()
     end
-
+    on(unit_menu.selection) do _
+        for i in eachindex(plots)
+            update_plots(i)
+        end
+    end
     update_menu_layout()
 
     return fig
