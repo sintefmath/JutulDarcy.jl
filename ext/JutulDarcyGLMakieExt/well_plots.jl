@@ -727,7 +727,9 @@ function JutulDarcy.plot_summary(arg...;
         # accumulated = false,
         # left_accumulated = accumulated,
         # right_accumulated = accumulated,
-        # unit_system = "Metric",
+        unit_system = "Metric",
+        linewidth = 2.0,
+        markersize = 0.0,
         plots = ["FPR"],
         kwarg...
     )
@@ -770,7 +772,13 @@ function JutulDarcy.plot_summary(arg...;
         return opts
     end
 
-    function get_data(kind, valtype, idx)
+    function time_data(kind, valtype, idx)
+        smry = summaries[idx]
+        t = smry["TIME"].seconds
+        return t
+    end
+
+    function plot_data(kind, valtype, idx, info, units)
         smry = summaries[idx]
         t = smry["TIME"].seconds
         if valtype == "NONE"
@@ -780,7 +788,7 @@ function JutulDarcy.plot_summary(arg...;
         else
             v = smry["VALUES"]["WELLS"][kind][valtype]
         end
-        return (t, v)
+        return v
     end
 
     function update_quantity_menu!(menu, kind)
@@ -802,9 +810,20 @@ function JutulDarcy.plot_summary(arg...;
     # Menu(top_menu_grid[1, 1], options = ["1", "2", "3"])
     row_menu, = label_menu(top_menu_grid[1, 1], [1, 2, 3], "Number of rows")
     col_menu, = label_menu(top_menu_grid[1, 2], [1, 2, 3], "Number of columns")
-    linewidth_menu, = label_menu(top_menu_grid[1, 3], range(0.0, 8.0, 17), "Line width")
-    markersize_menu, = label_menu(top_menu_grid[1, 4], [0.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0], "Marker size")
-    unit_menu, = label_menu(top_menu_grid[1, 5], ["Metric", "SI", "Field"], "Unit system"; default = "Metric")
+
+    lineoptions = collect(range(0.0, 8.0, 17))
+    push!(lineoptions, linewidth)
+    unique!(lineoptions)
+    sort!(lineoptions)
+
+    markeroptions = [0.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0]
+    push!(markeroptions, markersize)
+    unique!(markeroptions)
+    sort!(markeroptions)
+
+    linewidth_menu, = label_menu(top_menu_grid[1, 3], lineoptions, "Line width", default = string(linewidth))
+    markersize_menu, = label_menu(top_menu_grid[1, 4], markeroptions, "Marker size", default = string(markersize))
+    unit_menu, = label_menu(top_menu_grid[1, 5], ["Metric", "SI", "Field"], "Unit system"; default = unit_system)
 
     plot_layout = nothing
     plot_boxes = []
@@ -820,8 +839,10 @@ function JutulDarcy.plot_summary(arg...;
     function update_plots(idx = eachindex(plots))
         for i in idx
             well_or_fld, name = split_name(plots[i])
-            t, v = get_data(well_or_fld, name, 1)
             info = get(lookup, name, missing)
+            units = unit_menu.selection
+            t = time_data(well_or_fld, name, 1)
+            v = @lift plot_data(well_or_fld, name, 1, info, $units)
             ax = plot_boxes[i].ax
             if !ismissing(info) && name != "NONE"
                 ax.title[] = "$(name) $(info.legend)"
