@@ -719,6 +719,10 @@ function JutulDarcy.plot_reservoir_measurables(arg...;
     return fig
 end
 
+function JutulDarcy.plot_summary(v::Union{AbstractVector, Tuple}; kwarg...)
+    return JutulDarcy.plot_summary(v...; kwarg...)
+end
+
 function JutulDarcy.plot_summary(arg...;
         # type = :field,
         # left = missing,
@@ -728,6 +732,7 @@ function JutulDarcy.plot_summary(arg...;
         # accumulated = false,
         # left_accumulated = accumulated,
         # right_accumulated = accumulated,
+        names = ["Dataset $i" for i in 1:length(arg)],
         unit_system = "Metric",
         linewidth = 2.0,
         markersize = 0.0,
@@ -747,6 +752,7 @@ function JutulDarcy.plot_summary(arg...;
     get_summary(r::JutulDarcy.ReservoirSimResult) = r.summary
     get_summary(x) = x
     summaries = map(get_summary, arg)
+    length(names) == length(summaries) || error("Number of names must match number of summaries.")
     for (i, s) in enumerate(summaries)
         if !haskey(s, "UNIT_SYSTEM")
             println("Warning: Summary $i has no UNIT_SYSTEM key, assuming metric.")
@@ -839,6 +845,7 @@ function JutulDarcy.plot_summary(arg...;
 
     plot_layout = nothing
     plot_boxes = []
+    legends = Dict{Int, Legend}()
 
     function plot_string(source::String, type::String)
         return "$source:$type"
@@ -849,30 +856,39 @@ function JutulDarcy.plot_summary(arg...;
     end
 
     function update_plots(idx = eachindex(plots))
+        nsmry = length(names)
         for i in idx
+            ax = plot_boxes[i].ax
+            empty!(ax)
             well_or_fld, name = split_name(plots[i])
             info = get(lookup, name, missing)
             units = unit_menu.selection[]
-            t = time_data(1)
-            v = plot_data(well_or_fld, name, 1, info, units)
-            ax = plot_boxes[i].ax
-            if !ismissing(info) && name != "NONE"
-                ax.title[] = "$(name) $(info.legend)"
-                _, u = well_unit_conversion(units, "", info)
-                if info.is_rate
-                    v = v.*si_unit(:day)
-                    u *= "/day"
+            for (smry_no, smry_name) in enumerate(names)
+                t = time_data(smry_no)
+                v = plot_data(well_or_fld, name, smry_no, info, units)
+                if !ismissing(info) && name != "NONE"
+                    ax.title[] = "$(name) $(info.legend)"
+                    _, u = well_unit_conversion(units, "", info)
+                    if info.is_rate
+                        v = v.*si_unit(:day)
+                        u *= "/day"
+                    end
+                    ax.ylabel[] = u
+                else
+                    ax.title[] = ""
+                    ax.ylabel[] = ""
                 end
-                ax.ylabel[] = u
-            else
-                ax.title[] = ""
-                ax.ylabel[] = ""
+                lw_sel = linewidth_menu.selection
+                ms_sel = markersize_menu.selection
+                scatterlines!(ax, t, v, linewidth = lw_sel, markersize = ms_sel, label = smry_name, color = smry_no, colorrange = (1, nsmry))
             end
-            empty!(ax)
-            lw_sel = linewidth_menu.selection
-            ms_sel = markersize_menu.selection
-            @info "???" t v
-            scatterlines!(ax, t, v, linewidth = lw_sel, markersize = ms_sel)
+            if nsmry > 1
+                l = axislegend(ax, position = :lt)
+                if haskey(legends, i)
+                    delete!(legends[i])
+                end
+                legends[i] = l
+            end
         end
     end
 
