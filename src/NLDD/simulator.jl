@@ -913,14 +913,31 @@ function Jutul.perform_step_per_process_initial_update!(simulator::NLDDSimulator
     else
         active = active_status(strategy, log, iteration)
     end
-    @tic "local" if (active && config[:solve_subdomains])
-        subreports, solve_order, t_sub, status, failures = local_stage(base_arg...)
-    else
-        subreports = nothing
-        solve_order = nothing
-        t_sub = 0.0
-        failures = []
-        status = [local_solve_skipped for i in eachindex(simulator.subdomain_simulators)]
+
+    num_sweeps = 5
+    subreports = nothing
+    solve_order = nothing
+    t_sub = 0.0
+    failures = []
+    status = [local_solve_skipped for i in eachindex(simulator.subdomain_simulators)]
+    for _ in 1:num_sweeps
+        state_prev = deepcopy(s.storage.state)
+        @tic "local" if (active && config[:solve_subdomains])
+                subreports, solve_order, t_sub, status, failures = local_stage(base_arg...)
+        else
+            subreports = nothing
+            solve_order = nothing
+            t_sub = 0.0
+            failures = []
+            status = [local_solve_skipped for i in eachindex(simulator.subdomain_simulators)]
+        end
+        solve_tol = get_nldd_solution_change_tolerances(config)
+        if !isnothing(solve_tol)
+            update_state_mirror!(simulator.storage.state_mirror, state_prev, s.model, solve_tol)
+        end
+        if all(status .== local_solve_skipped)
+            break
+        end
     end
     solve_tol = get_nldd_solution_change_tolerances(config)
     if !isnothing(solve_tol)
