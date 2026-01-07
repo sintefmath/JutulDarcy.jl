@@ -759,6 +759,10 @@ function JutulDarcy.plot_summary(arg...;
     extra_field_internal = String[]
     for (prefix, dest) in zip(["F", "W"], [extra_field_internal, extra_well_internal])
         push!(dest, "$(prefix)WPR,$(prefix)OPR,$(prefix)GPR")
+        push!(dest, "$(prefix)WPT,$(prefix)OPT,$(prefix)GPT")
+        push!(dest, "$(prefix)WIT,$(prefix)WPT")
+        push!(dest, "$(prefix)OIP,$(prefix)OPT")
+        push!(dest, "$(prefix)WIP,$(prefix)WPT")
     end
 
     get_summary(r::JutulDarcy.ReservoirSimResult) = r.summary
