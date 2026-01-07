@@ -17,14 +17,15 @@ function history_match_objective(hm::HistoryMatch; is_global::Bool = true)
     end
 end
 
-function evaluate_match(obj::HistoryMatchObjective, result::ReservoirSimResult)
+function evaluate_match(obj::HistoryMatchObjective, result::ReservoirSimResult; log = false)
     hm = obj.match
     c = hm.case
     model = c.model
-    states = result.states
+    states = result.result.states
     timesteps = c.dt
     all_forces = c.forces
-    return Jutul.evaluate_objective(obj, model, result.result.states, timesteps, all_forces)
+    obj = Jutul.evaluate_objective(obj, model, states, timesteps, all_forces)
+    return obj
 end
 
 function match_well!(hm::HistoryMatch, name::Union{String, Symbol}, quantity::Union{String, Symbol};

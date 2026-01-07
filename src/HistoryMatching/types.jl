@@ -28,6 +28,14 @@ struct ReservoirMatch
     data::I_type
 end
 
+mutable struct HistoryMatchLogger
+    data::Union{Missing, Dict{Symbol, Any}}
+end
+
+function HistoryMatchLogger()
+    return HistoryMatchLogger(missing)
+end
+
 struct HistoryMatch
     case::JutulCase
     states
@@ -51,6 +59,7 @@ struct HistoryMatch
     producer_cumulative_liquid::Vector{WellMatch}
     reservoir::Vector{ReservoirMatch}
     total_scale::Float64
+    logging::HistoryMatchLogger
 end
 
 function HistoryMatch(case::JutulCase; kwarg...)
@@ -97,7 +106,8 @@ function HistoryMatch(case::JutulCase, states, summary;
         WellMatch[],  # producer_cumulative_water
         WellMatch[],  # producer_cumulative_liquid
         ReservoirMatch[],  # reservoir
-        scale
+        scale,
+        HistoryMatchLogger()
     )
 end
 
