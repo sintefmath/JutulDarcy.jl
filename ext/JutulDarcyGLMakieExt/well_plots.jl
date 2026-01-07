@@ -724,14 +724,6 @@ function JutulDarcy.plot_summary(v::Union{AbstractVector, Tuple}; kwarg...)
 end
 
 function JutulDarcy.plot_summary(arg...;
-        # type = :field,
-        # left = missing,
-        # right = "none",
-        # lcolor = Makie.wong_colors()[1],
-        # rcolor = Makie.wong_colors()[6],
-        # accumulated = false,
-        # left_accumulated = accumulated,
-        # right_accumulated = accumulated,
         names = ["Dataset $i" for i in 1:length(arg)],
         unit_system = "Metric",
         linewidth = 2.0,
