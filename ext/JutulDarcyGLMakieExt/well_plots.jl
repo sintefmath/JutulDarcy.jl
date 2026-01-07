@@ -759,13 +759,18 @@ function JutulDarcy.plot_summary(arg...;
 
     get_summary(r::JutulDarcy.ReservoirSimResult) = r.summary
     get_summary(x) = x
-    summaries = map(get_summary, arg)
+    summaries = [get_summary(s) for s in arg]
     nsmry = length(names)
     nsmry == length(summaries) || error("Number of names must match number of summaries.")
     for (i, s) in enumerate(summaries)
+        summaries[i] = copy(s)
         if !haskey(s, "UNIT_SYSTEM")
             println("Warning: Summary $i has no UNIT_SYSTEM key, assuming metric.")
             s["UNIT_SYSTEM"] = "metric"
+        end
+        if !haskey(s["VALUES"], "FIELD")
+            println("Warning: Summary $i has no FIELD values, adding empty.")
+            s["VALUES"]["FIELD"] = Dict{String, Any}()
         end
     end
     if ismissing(colormap)
@@ -779,7 +784,15 @@ function JutulDarcy.plot_summary(arg...;
     summary_sample = summaries[1]
     # The source of the data
     well_names = collect(keys(summary_sample["VALUES"]["WELLS"]))
+
     source_keys = copy(well_names)
+    for i in 2:nsmry
+        # Find intersection of well names
+        smry = summaries[i]
+        wnames_i = collect(keys(smry["VALUES"]["WELLS"]))
+        source_keys = intersect(source_keys, wnames_i)
+    end
+
     sort!(source_keys)
     pushfirst!(source_keys, "FIELD")
     # Field types
@@ -795,7 +808,7 @@ function JutulDarcy.plot_summary(arg...;
                 push!(wk, k)
             end
         end
-        return sort!(wk)
+        return wk
     end
 
     function get_quantity_options(kind)
@@ -824,9 +837,13 @@ function JutulDarcy.plot_summary(arg...;
         if valtype == "NONE"
             v = zeros(length(t))
         elseif kind == "FIELD"
-            v = smry["VALUES"]["FIELD"][valtype]
+            v = get(smry["VALUES"]["FIELD"], valtype, missing)
         else
-            v = smry["VALUES"]["WELLS"][kind][valtype]
+            v = get(smry["VALUES"]["WELLS"][kind], valtype, missing)
+        end
+        if ismissing(v)
+            println("Warning: No data for $kind:$valtype in $(names[idx])")
+            return fill(NaN, length(t))
         end
         v = copy(v)
         from_sys = JutulDarcy.GeoEnergyIO.InputParser.DeckUnitSystem(Symbol(lowercase(smry["UNIT_SYSTEM"])))
