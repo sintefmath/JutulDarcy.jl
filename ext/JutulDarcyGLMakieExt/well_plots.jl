@@ -736,7 +736,8 @@ function JutulDarcy.plot_summary(arg...;
         unit_system = "Metric",
         linewidth = 2.0,
         markersize = 0.0,
-        plots = ["FPR"],
+        plots = ["FIELD:FPR"],
+        colormap = missing,
         kwarg...
     )
     function split_name(inp::String)
@@ -752,11 +753,20 @@ function JutulDarcy.plot_summary(arg...;
     get_summary(r::JutulDarcy.ReservoirSimResult) = r.summary
     get_summary(x) = x
     summaries = map(get_summary, arg)
-    length(names) == length(summaries) || error("Number of names must match number of summaries.")
+    nsmry = length(names)
+    nsmry == length(summaries) || error("Number of names must match number of summaries.")
     for (i, s) in enumerate(summaries)
         if !haskey(s, "UNIT_SYSTEM")
             println("Warning: Summary $i has no UNIT_SYSTEM key, assuming metric.")
             s["UNIT_SYSTEM"] = "metric"
+        end
+    end
+    if ismissing(colormap)
+        wong_c = Makie.wong_colors()
+        if nsmry <= length(wong_c)
+            colormap = to_colormap(wong_c[1:nsmry])
+        else
+            colormap = to_colormap(:tab20)
         end
     end
     summary_sample = summaries[1]
@@ -856,7 +866,6 @@ function JutulDarcy.plot_summary(arg...;
     end
 
     function update_plots(idx = eachindex(plots))
-        nsmry = length(names)
         for i in idx
             ax = plot_boxes[i].ax
             empty!(ax)
@@ -880,7 +889,7 @@ function JutulDarcy.plot_summary(arg...;
                 end
                 lw_sel = linewidth_menu.selection
                 ms_sel = markersize_menu.selection
-                scatterlines!(ax, t, v, linewidth = lw_sel, markersize = ms_sel, label = smry_name, color = smry_no, colorrange = (1, nsmry))
+                scatterlines!(ax, t, v, linewidth = lw_sel, markersize = ms_sel, label = smry_name, color = smry_no, colorrange = (1, nsmry), colormap = colormap)
             end
             if nsmry > 1
                 l = axislegend(ax, position = :lt)
@@ -916,8 +925,9 @@ function JutulDarcy.plot_summary(arg...;
         for j in 1:ncols
             for i in 1:nrows
                 plot_box = GridLayout(plot_layout[i, j], 2, 2)
-                submenu1, l1 = label_menu(plot_box[1, 1], source_keys, "Source", default = "FIELD")
-                submenu2, l2 = label_menu(plot_box[1, 2], field_quantity_keys, "Type")
+                well_or_fld, name = split_name(plots[plot_idx])
+                submenu1, l1 = label_menu(plot_box[1, 1], source_keys, "Source", default = well_or_fld)
+                submenu2, l2 = label_menu(plot_box[1, 2], field_quantity_keys, "Type", default = name)
                 # Capture variable in local scope for the functions
                 local_plot_idx = plot_idx
                 on(submenu1.selection) do s
