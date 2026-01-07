@@ -739,6 +739,7 @@ function JutulDarcy.plot_summary(arg...;
         plots = ["FIELD:FPR"],
         extra_field = String[],
         extra_well = String[],
+        linecolor = :black,
         rows = length(plots),
         cols = 1,
         colormap = missing,
@@ -754,6 +755,12 @@ function JutulDarcy.plot_summary(arg...;
         end
         return (well_or_fld, name)
     end
+    extra_well_internal = String[]
+    extra_field_internal = String[]
+    for (prefix, dest) in zip(["F", "W"], [extra_field_internal, extra_well_internal])
+        push!(dest, "$(prefix)WPR,$(prefix)OPR,$(prefix)GPR")
+    end
+
     get_summary(r::JutulDarcy.ReservoirSimResult) = r.summary
     get_summary(x) = x
     summaries = map(get_summary, arg)
@@ -768,7 +775,7 @@ function JutulDarcy.plot_summary(arg...;
     if ismissing(colormap)
         wong_c = Makie.wong_colors()
         if nsmry <= length(wong_c)
-            colormap = to_colormap(wong_c[1:nsmry])
+            colormap = to_colormap(wong_c)
         else
             colormap = to_colormap(:tab20)
         end
@@ -787,12 +794,22 @@ function JutulDarcy.plot_summary(arg...;
     lookup = JutulDarcy.summary_key_lookup()
     function get_well_quantity_keys(wname)
         wk = collect(keys(summary_sample["VALUES"]["WELLS"][wname]))
+        for k in cat(extra_well, extra_well_internal; dims = 1)
+            if !(k in wk)
+                push!(wk, k)
+            end
+        end
         return sort!(wk)
     end
 
     function get_quantity_options(kind)
         if kind == "FIELD"
-            opts = field_quantity_keys
+            opts = copy(field_quantity_keys)
+            for k in cat(extra_field, extra_field_internal; dims = 1)
+                if !(k in opts)
+                    push!(opts, k)
+                end
+            end
         else
             opts = get_well_quantity_keys(kind)
         end
@@ -864,6 +881,10 @@ function JutulDarcy.plot_summary(arg...;
             plot_names = split(name, ',')
             ystr = ""
             tstr = ""
+            nplts = length(plot_names)
+            ncolors = nplts*nsmry
+            crng = (1, max(ncolors, 2))
+            crng = (1, max(length(colormap), ncolors))
             for (pn_idx, pname) in enumerate(plot_names)
                 info = get(lookup, pname, missing)
                 units = unit_menu.selection[]
@@ -880,23 +901,42 @@ function JutulDarcy.plot_summary(arg...;
                         end
                         if smry_no == 1
                             # Only add if we are the first summary
+                            ttxt = "$(pname) $(info.legend)"
                             if pn_idx == 1
                                 ystr = "$u"
-                                tstr = "$(name) $(info.legend)"
+                                tstr = ttxt
                             else
                                 ystr = "$ystr, $u"
-                                tstr = "$tstr, $(name) $(info.legend)"
+                                tstr = "$tstr, $ttxt"
                             end
                         end
                     end
                     lw_sel = linewidth_menu.selection
                     ms_sel = markersize_menu.selection
-                    scatterlines!(ax, t, v, linewidth = lw_sel, markersize = ms_sel, label = smry_name, color = smry_no, colorrange = (1, nsmry), colormap = colormap)
+                    if ncolors == 1
+                        arg = (color = linecolor, )
+                    else
+                        clr = smry_no + (pn_idx-1)*nsmry
+                        arg = (color = clr, colorrange = crng, colormap = colormap)
+                    end
+                    if nplts == 1
+                        lbl = smry_name
+                    elseif nsmry == 1
+                        lbl = pname
+                    else
+                        lbl = "$(smry_name):$(pname)"
+                    end
+                    scatterlines!(ax, t, v;
+                        linewidth = lw_sel,
+                        markersize = ms_sel,
+                        label = lbl,
+                        arg...
+                    )
                 end
                 ax.ylabel[] = ystr
                 ax.title[] = tstr
             end
-            if nsmry > 1
+            if ncolors > 1
                 l = axislegend(ax, position = :lt)
                 if haskey(legends, i)
                     delete!(legends[i])
@@ -932,7 +972,7 @@ function JutulDarcy.plot_summary(arg...;
                 plot_box = GridLayout(plot_layout[i, j], 2, 2)
                 well_or_fld, name = split_name(plots[plot_idx])
                 submenu1, l1 = label_menu(plot_box[1, 1], source_keys, "Source", default = well_or_fld)
-                submenu2, l2 = label_menu(plot_box[1, 2], field_quantity_keys, "Type", default = name)
+                submenu2, l2 = label_menu(plot_box[1, 2], get_quantity_options(well_or_fld), "Type", default = name)
                 # Capture variable in local scope for the functions
                 local_plot_idx = plot_idx
                 on(submenu1.selection) do s
