@@ -231,7 +231,7 @@ function did_solve(subreports, i)
     return solved
 end
 
-function local_stage(simulator, dt, forces, config, iteration)
+function local_stage(simulator, dt, forces, config, iteration, sweep_no)
     is_aspen = config[:method] == :aspen
     is_gauss_seidel = config[:gauss_seidel] && !is_aspen
     # Perform DD pass (nonlinear solves)
@@ -356,12 +356,16 @@ function local_stage(simulator, dt, forces, config, iteration)
     end
     if config[:info_level] > 1
         m = sum(x-> !(x == local_solve_skipped), solve_status)
+        prestr = "NLDD"
+        if config[:nldd_max_sweeps] > 1
+            prestr *= " (sweep $sweep_no)"
+        end
         if m > 0
             tot_str = Jutul.get_tstr(t, 1)
             avg_str = Jutul.get_tstr(t/m, 1)
-            jutul_message("NLDD", "Solved $m/$n domains in $tot_str ($avg_str average)")
+            jutul_message(prestr, "Solved $m/$n domains in $tot_str ($avg_str average)")
         else
-            jutul_message("NLDD", "Solved no subdomains.")
+            jutul_message(prestr, "Solved no subdomains.")
         end
     end
     return subreports, sim_order, t, solve_status, failures
@@ -914,22 +918,24 @@ function Jutul.perform_step_per_process_initial_update!(simulator::NLDDSimulator
         active = active_status(strategy, log, iteration)
     end
 
-    num_sweeps = 5
     subreports = nothing
     solve_order = nothing
     t_sub = 0.0
     failures = []
     status = [local_solve_skipped for i in eachindex(simulator.subdomain_simulators)]
-    for _ in 1:num_sweeps
+    for sweep_no in 1:config[:nldd_max_sweeps]
         state_prev = deepcopy(s.storage.state)
         @tic "local" if (active && config[:solve_subdomains])
-                subreports, solve_order, t_sub, status, failures = local_stage(base_arg...)
+                subreports, solve_order, t_sub, status, failures = local_stage(base_arg..., sweep_no)
         else
             subreports = nothing
             solve_order = nothing
             t_sub = 0.0
             failures = []
             status = [local_solve_skipped for i in eachindex(simulator.subdomain_simulators)]
+        end
+        if config[:nldd_max_sweeps] == 1
+            break
         end
         solve_tol = get_nldd_solution_change_tolerances(config)
         if !isnothing(solve_tol)
