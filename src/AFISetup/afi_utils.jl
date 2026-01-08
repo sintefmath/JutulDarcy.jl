@@ -45,21 +45,61 @@ function obsh_to_summary(obsh, t_seconds = missing; start_date = missing)
     for well in keys(obsh["wells_interp"])
         swdata = Dict()
         I = obsh["wells_interp"][well]
+        # Oil, production
         swdata["WOPT"] = I["OIL_PRODUCTION_CUML"].(t_s)
         swdata["WOPR"] = I["OIL_PRODUCTION_RATE"].(t_s)
-
+        # Water, production
         swdata["WWPT"] = I["WATER_PRODUCTION_CUML"].(t_s)
         swdata["WWPR"] = I["WATER_PRODUCTION_RATE"].(t_s)
-
+        # Water, injection
         swdata["WWIT"] = I["WATER_INJECTION_CUML"].(t_s)
         swdata["WWIR"] = I["WATER_INJECTION_RATE"].(t_s)
+        # Bottom hole pressure
         swdata["WBHP"] = I["BOTTOM_HOLE_PRESSURE"].(t_s)
 
         swdata["WLPR"] = I["LIQUID_PRODUCTION_RATE"].(t_s)
         swdata["WLPT"] = I["LIQUID_PRODUCTION_CUML"].(t_s)
 
+        if haskey(I, "GAS_PRODUCTION_RATE")
+            swdata["WGPR"] = I["GAS_PRODUCTION_RATE"].(t_s)
+            swdata["WGPT"] = I["GAS_PRODUCTION_CUML"].(t_s)
+        else
+            swdata["WGPR"] = zeros(length(t_s))
+            swdata["WGPT"] = zeros(length(t_s))
+        end
+
         summary_obs["VALUES"]["WELLS"][string(well)] = swdata
     end
+
+    fld = Dict()
+    function sum_wells(k)
+        val = missing
+        for (i, w) in enumerate(keys(summary_obs["VALUES"]["WELLS"]))
+            wval = summary_obs["VALUES"]["WELLS"][w][k]
+            if i == 1
+                val = copy(wval)
+            else
+                val .+= wval
+            end
+        end
+        return val
+    end
+    # Oil
+    fld["FOPR"] = sum_wells("WOPR")
+    fld["FOPT"] = sum_wells("WOPT")
+    # Water
+    fld["FWPR"] = sum_wells("WWPR")
+    fld["FWPT"] = sum_wells("WWPT")
+    fld["FWIR"] = sum_wells("WWIR")
+    fld["FWIT"] = sum_wells("WWIT")
+    # Gas
+    fld["FGPR"] = sum_wells("WGPR")
+    fld["FGPT"] = sum_wells("WGPT")
+    # Liquid
+    fld["FLPR"] = sum_wells("WLPR")
+    fld["FLPT"] = sum_wells("WLPT")
+
+    summary_obs["VALUES"]["FIELD"] = fld
     summary_obs["UNIT_SYSTEM"] = "si"
     return summary_obs
 end
