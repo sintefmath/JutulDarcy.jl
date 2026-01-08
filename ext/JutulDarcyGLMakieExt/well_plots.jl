@@ -896,9 +896,7 @@ function JutulDarcy.plot_summary(arg...;
             ystr = ""
             tstr = ""
             nplts = length(plot_names)
-            ncolors = nplts*nsmry
-            crng = (1, max(ncolors, 2))
-            crng = (1, max(length(colormap), ncolors))
+            nlines = nplts*nsmry
             for (pn_idx, pname) in enumerate(plot_names)
                 info = get(lookup, pname, missing)
                 units = unit_menu.selection[]
@@ -927,11 +925,19 @@ function JutulDarcy.plot_summary(arg...;
                     end
                     lw_sel = linewidth_menu.selection
                     ms_sel = markersize_menu.selection
-                    if ncolors == 1
-                        arg = (color = linecolor, )
+                    if nlines == 1
+                        if nsmry == 1
+                            arg = (color = linecolor, )
+                        else
+                            arg = (color = smry_no, colorrange = (1, max(nsmry, 2)), colormap = colormap)
+                        end
                     else
-                        clr = smry_no + (pn_idx-1)*nsmry
-                        arg = (color = clr, colorrange = crng, colormap = colormap)
+                        # Multiple summaries and multiple plots
+                        # Use plot type to color
+                        # Line type from summary
+                        linestyles = (:solid, :dash, :dot, :dashdot, :dashdotdot)
+                        ls = linestyles[mod1(smry_no, length(linestyles))]
+                        arg = (color = pn_idx, colorrange = (1, max(nplts, 2)), colormap = colormap, linestyle = ls)
                     end
                     if nplts == 1
                         lbl = smry_name
@@ -950,7 +956,7 @@ function JutulDarcy.plot_summary(arg...;
                 ax.ylabel[] = ystr
                 ax.title[] = tstr
             end
-            if ncolors > 1
+            if nlines > 1
                 l = axislegend(ax, position = :lt)
                 if haskey(legends, i)
                     delete!(legends[i])
