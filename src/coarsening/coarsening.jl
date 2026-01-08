@@ -40,7 +40,6 @@ function coarsen_reservoir_model(fine_model::MultiModel, partition; functions = 
         thermal = thermal,
         kwarg...
     )
-    coarse_reservoir_model = reservoir_model(coarse_model)
     # Variables etc.
     ncoarse = maximum(partition)
     subcells = zeros(Int, ncoarse)
@@ -253,7 +252,10 @@ Coarsens the given reservoir case to the specified dimensions.
 
 # Arguments
 - `case`: The reservoir case to be coarsened.
-- `coarsedim`: The target dimensions for the coarsened reservoir.
+- `coarsedim`: The target dimensions for the coarsened reservoir. Can be one of the following:
+    - A tuple (nx, ny, nz) specifying the number of coarse blocks in each dimension.
+    - An integer specifying the total number of desired coarse blocks.
+    - Or a vector specifying the partition directly.
 
 # Keyword Arguments
 - `method`: The method to use for partitioning. Defaults to `missing`.
