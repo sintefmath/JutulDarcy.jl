@@ -32,6 +32,10 @@ function plot_summary
 
 end
 
+function plot_mismatch
+
+end
+
 """
     plot_reservoir_simulation_result(model::MultiModel, res::ReservoirSimResult; wells = true, reservoir = true)
 

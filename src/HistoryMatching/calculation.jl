@@ -201,3 +201,36 @@ function effective_weight(wm::WellMatch, step::Int)
     return w*wm.scale
 end
 
+function compute_well_target_contribution_matrix(w; step = missing)
+    targets = Symbol[]
+    for wdata in values(w)
+        for el in wdata
+            push!(targets, el.target)
+        end
+    end
+    unique!(targets)
+    ntargets = length(targets)
+    wellnames = collect(keys(w))
+    nw = length(wellnames)
+
+    well_impact = zeros(nw, ntargets)
+
+    for (wno, well) in enumerate(wellnames)
+        for el in w[well]
+            if ismissing(step)
+                w_step = 1.0
+            else
+                # For periods we divide it by the number of steps in the period
+                if el.start >= step && el.stop <= step
+                    w_step = 1.0/(el.stop - el.start + 1)
+                else
+                    continue
+                end
+            end
+            pos = findfirst(isequal(el.target), targets)
+            well_impact[wno, pos] += w_step*el.value
+        end
+    end
+    return (impact = well_impact, targets = targets, wells = wellnames)
+end
+
