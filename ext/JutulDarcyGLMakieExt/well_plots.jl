@@ -925,7 +925,7 @@ function JutulDarcy.plot_summary(arg...;
                     end
                     lw_sel = linewidth_menu.selection
                     ms_sel = markersize_menu.selection
-                    if nlines == 1
+                    if nplts == 1
                         if nsmry == 1
                             arg = (color = linecolor, )
                         else
