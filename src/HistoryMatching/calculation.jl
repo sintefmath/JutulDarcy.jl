@@ -64,7 +64,10 @@ end
 function get_cumulative_contribution(hm::HistoryMatch, model, states, step_infos, forces)
     start_idx = 1
     stop_idx = length(step_infos)
-    eval_match(x, sgn, target) = get_period_contribution_wells(hm.logger, x, sgn, target, hm.wellpos, model, states, step_infos, forces, start_idx, stop_idx, missing, is_cumulative = true)
+    eval_match(x, sgn, target) = get_period_contribution_wells(
+        hm.logger, x, sgn, target, hm.wellpos, model, states, step_infos, forces, start_idx, stop_idx, missing,
+        is_cumulative = true
+    )
     prod_sgn = -1.0
     val = 0.0
     # Producers only...
@@ -180,7 +183,11 @@ function get_period_contribution_well(logger::HistoryMatchLogger, wm::WellMatch,
     if !ismissing(logger.data)
         start = step_infos[1][:substep_global]
         stop = step_infos[end][:substep_global]
-        logger.data[(well = wname, start = start, stop = stop, target = target)] = out
+        if !haskey(logger.data, wname)
+            logger.data[wname] = []
+        end
+        tsym = JutulDarcy.translate_target_to_symbol(target)
+        push!(logger.data[wname], (start = start, stop = stop, target = tsym, value = out, is_cumulative = is_cumulative))
     end
     return out
 end
