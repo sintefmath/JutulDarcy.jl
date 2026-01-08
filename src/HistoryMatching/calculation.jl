@@ -178,7 +178,9 @@ function get_period_contribution_well(logger::HistoryMatchLogger, wm::WellMatch,
         out = ((calculated - observed)/w_total)^2
     end
     if !ismissing(logger.data)
-        logger.data[(well = wname, start = start_idx, stop = stop_idx, target = target)] = out
+        start = step_infos[1][:substep_global]
+        stop = step_infos[end][:substep_global]
+        logger.data[(well = wname, start = start, stop = stop, target = target)] = out
     end
     return out
 end
