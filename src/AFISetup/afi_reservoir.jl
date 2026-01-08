@@ -37,17 +37,21 @@ function setup_mesh_afi(afi::AFIInputFile, mesh::Missing)
         haskey(IX["RESQML"], "GRID") || error("No GRID section in converted AFI file under the RESQML section.")
         mesh = GeoEnergyIO.mesh_from_grid_section(resqml["GRID"])
     else
-        pillar_grid = find_records(afi, "StraightPillarGrid", once = true)
-        if isnothing(pillar_grid)
+        pg = get_pillar_grid(afi)# find_records(afi, "StraightPillarGrid", once = false)
+        if isnothing(pg)
             error("No RESQML section in AFI file, and no StraightPillarGrid record found.")
         end
-        pg = pillar_grid.value
+        grid_names = keys(pg)
+        if length(pg) > 1
+            @warn "Multiple StraightPillarGrid records found in AFI file. Using the first one: $(first(grid_names))."
+        end
+        pg = pg[first(grid_names)]
         cartdims = cartdims_from_structured_info(afi)
         nx, ny, nz = cartdims
-        dx = pg["DeltaX"]
-        dy = pg["DeltaY"]
-        dz = pg["DeltaZ"]
-        tops = pg["PillarTops"]
+        dx = get(pg, "DeltaX", missing)
+        dy = get(pg, "DeltaY", missing)
+        dz = get(pg, "DeltaZ", missing)
+        tops = get(pg, "PillarTops", missing)
 
         dcp = pg["CellDoubleProperty"]
         if ismissing(tops) && haskey(dcp, "CELL_TOP_DEPTH")
@@ -67,6 +71,45 @@ function setup_mesh_afi(afi::AFIInputFile, mesh::Missing)
     end
     !ismissing(mesh) || error("Could not set up mesh from AFI file.")
     return mesh
+end
+
+function get_pillar_grid(afi)
+    recs = find_records(afi, "StraightPillarGrid", once = false)
+    if length(recs) == 0
+        pillar_grid = nothing
+    else
+        pillar_grid = Dict{String, Any}()
+        for rec in recs
+            name = rec.value["name"]
+            if haskey(pillar_grid, name)
+                dest = pillar_grid[name]
+            else
+                dest = Dict{String, Any}()
+                dest["CellDoubleProperty"] = Dict{String, Any}()
+                dest["CellIntegerProperty"] = Dict{String, Any}()
+                pillar_grid[name] = dest
+            end
+            for (k, v) in rec.value
+                if k == "name" || ismissing(v)
+                    continue
+                end
+                if k == "CellDoubleProperty" || k == "CellIntegerProperty"
+                    for (pk, pv) in v
+                        if !ismissing(pv)
+                            dest[k][pk] = pv
+                        end
+                    end
+                    continue
+                else
+                    if haskey(dest, k)
+                        @warn "Multiple StraightPillarGrid records found in AFI file. Overwriting existing entry for $k."
+                    end
+                    dest[k] = v
+                end
+            end
+        end
+    end
+    return pillar_grid
 end
 
 function setup_reservoir_domain_afi(d::AFIInputFile, mesh;
