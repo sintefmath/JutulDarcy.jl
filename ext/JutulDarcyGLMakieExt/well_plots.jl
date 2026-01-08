@@ -1045,7 +1045,7 @@ function label_menu(dest, options, mlabel::String; kwarg...)
     return (m, l)
 end
 
-function JutulDarcy.plot_mismatch(obj, res)
+function JutulDarcy.plot_mismatch(obj, res::ReservoirSimResult)
     _, w = JutulDarcy.HistoryMatching.evaluate_match(obj, res, log = true)
     return JutulDarcy.plot_mismatch(w)
 end
@@ -1053,9 +1053,8 @@ end
 function JutulDarcy.plot_mismatch(w)
     (; impact, targets, wells) = JutulDarcy.HistoryMatching.compute_well_target_contribution_matrix(w)
     nw, ntargets = size(impact)
-    display(impact)
 
-    fig = Figure(size = (800, 900))
+    fig = Figure(size = (1400, 900))
     # Barplot over well contributions, banked by control type
     ax1 = Axis(fig[2, 1], title = "Contribution by well (total)")
     ax2 = Axis(fig[2, 2], title = "Contribution by target (total)")
@@ -1074,6 +1073,7 @@ function JutulDarcy.plot_mismatch(w)
     elements = [PolyElement(polycolor = colors[i]) for i in 1:length(labels)]
     Legend(fig[1, 1:2], elements, labels, orientation  = :horizontal, tellheight = true)
     ax1.xticks[] = (1:nw, map(string, wells))
+    ax1.xticklabelrotation[] = -pi/4
 
     # Barplot over control types
     target_weight = sum(impact, dims = 1)
