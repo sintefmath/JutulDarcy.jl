@@ -929,7 +929,8 @@ function JutulDarcy.plot_summary(arg...;
                         if nsmry == 1
                             arg = (color = linecolor, )
                         else
-                            arg = (color = smry_no, colorrange = (1, max(nsmry, 2)), colormap = colormap)
+                            maxsmry = max(nsmry, 2)
+                            arg = (color = smry_no, colorrange = (1, maxsmry), colormap = colormap[1:min(length(colormap), maxsmry)])
                         end
                     else
                         # Multiple summaries and multiple plots
@@ -937,7 +938,8 @@ function JutulDarcy.plot_summary(arg...;
                         # Line type from summary
                         linestyles = (:solid, :dash, :dot, :dashdot, :dashdotdot)
                         ls = linestyles[mod1(smry_no, length(linestyles))]
-                        arg = (color = pn_idx, colorrange = (1, max(nplts, 2)), colormap = colormap, linestyle = ls)
+                        maxplt = max(nplts, 2)
+                        arg = (color = pn_idx, colorrange = (1, maxplt), colormap = colormap[1:min(length(colormap), maxplt)], linestyle = ls)
                     end
                     if nplts == 1
                         lbl = smry_name
