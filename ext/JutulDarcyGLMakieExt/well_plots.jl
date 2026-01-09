@@ -769,7 +769,7 @@ function JutulDarcy.plot_summary(arg...;
     get_summary(x) = x
     summaries = [get_summary(s) for s in arg]
     nsmry = length(names)
-    nsmry == length(summaries) || error("Number of names must match number of summaries.")
+    nsmry == length(summaries) || error("Number of names ($nsmry) must match number of summaries ($(length(summaries))).")
     for (i, s) in enumerate(summaries)
         summaries[i] = copy(s)
         if !haskey(s, "UNIT_SYSTEM")
@@ -857,7 +857,9 @@ function JutulDarcy.plot_summary(arg...;
         from_sys = JutulDarcy.GeoEnergyIO.InputParser.DeckUnitSystem(Symbol(lowercase(smry["UNIT_SYSTEM"])))
         to_sys = JutulDarcy.GeoEnergyIO.InputParser.DeckUnitSystem(Symbol(lowercase(units)))
         systems = (to = to_sys, from = from_sys)
-        JutulDarcy.GeoEnergyIO.InputParser.swap_unit_system!(v, systems, info.unit_type)
+        if !ismissing(info)
+            JutulDarcy.GeoEnergyIO.InputParser.swap_unit_system!(v, systems, info.unit_type)
+        end
         return v
     end
 
