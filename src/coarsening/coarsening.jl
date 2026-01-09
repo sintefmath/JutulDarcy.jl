@@ -287,7 +287,61 @@ function coarsen_reservoir_case(case, coarsedim;
     (; model, forces, dt, parameters, state0) = case
     coarse_model, coarse_parameters = coarsen_reservoir_model(model, p; setup_arg...)
     coarse_state0 = coarsen_reservoir_state(coarse_model, model, state0; state_arg...)
-    coarse_forces = deepcopy(forces)
+    coarse_forces = coarsen_reservoir_forces(forces, coarse_model, model)
     coarse_dt = deepcopy(dt)
     return JutulCase(coarse_model, coarse_dt, coarse_forces, parameters = coarse_parameters, state0 = coarse_state0)
+end
+
+function coarsen_reservoir_forces(forces::AbstractVector, coarse_model, fine_model)
+    conv(f) = coarsen_reservoir_forces(f, coarse_model, fine_model)
+    return map(conv, forces)
+end
+
+function coarsen_reservoir_forces(forces, coarse_model, fine_model)
+    c_forces = deepcopy(forces)
+    for (k, f) in pairs(c_forces)
+        sub = OrderedDict{Symbol, Any}()
+        for (fk, fv) in pairs(f)
+            sub[fk] = coarsen_reservoir_force(Val(fk), fv, coarse_model, fine_model, k)
+        end
+        c_forces[k] = NamedTuple(sub)
+    end
+    return c_forces
+end
+
+function coarsen_reservoir_force(::Val{T}, ::Nothing, coarse_model, fine_model, submodel_key) where T
+    return nothing
+end
+
+function coarsen_reservoir_force(::Val{T}, f::Any, coarse_model, fine_model, submodel_key) where T
+    println("No coarsening defined for force of type $T, returning fine force")
+    return deepcopy(f)
+end
+
+function coarsen_reservoir_force(::Val{:control}, f, coarse_model, fine_model, submodel_key)
+    return deepcopy(f)
+end
+
+function coarsen_reservoir_force(::Val{:limits}, f, coarse_model, fine_model, submodel_key)
+    return deepcopy(f)
+end
+
+function coarsen_reservoir_force(::Val{:mask}, f::PerforationMask, coarse_model, fine_model, submodel_key)
+    res = reservoir_domain(coarse_model)
+    p = physical_representation(res).partition
+    vals = f.values
+    perf_coarse = physical_representation(coarse_model[submodel_key]).perforations
+    perf_fine = physical_representation(fine_model[submodel_key]).perforations
+    nperf_coarse = length(perf_coarse.self)
+    new_vals = zeros(nperf_coarse)
+    new_vals_num = zeros(Int, nperf_coarse)
+    # We average the mask values for all fine perforations mapping to the same coarse perforation
+    for (fine_idx, res_cell) in enumerate(perf_fine.reservoir)
+        part_perf = p[res_cell]
+        idx = findfirst(isequal(part_perf), perf_coarse.reservoir)
+        new_vals[idx] += vals[fine_idx]
+        new_vals_num[idx] += 1
+    end
+    new_vals = new_vals./max.(new_vals_num, 1)
+    return PerforationMask(new_vals)
 end
