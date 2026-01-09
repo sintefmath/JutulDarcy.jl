@@ -750,6 +750,13 @@ function JutulDarcy.plot_summary(arg...;
     end
     extra_well_internal = String[]
     extra_field_internal = String[]
+    for k in plots
+        well_or_fld, name = split_name(k)
+        dest = well_or_fld == "FIELD" ? extra_field_internal : extra_well_internal
+        if !(name in dest)
+            push!(dest, name)
+        end
+    end
     for (prefix, dest) in zip(["F", "W"], [extra_field_internal, extra_well_internal])
         push!(dest, "$(prefix)WPR,$(prefix)OPR,$(prefix)GPR")
         push!(dest, "$(prefix)WPT,$(prefix)OPT,$(prefix)GPT")
