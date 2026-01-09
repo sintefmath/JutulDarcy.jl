@@ -82,6 +82,12 @@ function coarsen_reservoir(D::DataDomain, partition; functions = Dict())
     if !haskey(functions, :porosity)
         functions[:porosity] = Jutul.CoarsenByVolumeAverage()
     end
+    if !haskey(functions, :pore_volume)
+        functions[:pore_volume] = Jutul.CoarsenBySum()
+    end
+    if haskey(D, :pore_volume_multiplier)
+        functions[:pore_volume_multiplier] = Jutul.CoarsenByVolumeAverage()
+    end
     return Jutul.coarsen_data_domain(D, partition, functions = functions)
 end
 
