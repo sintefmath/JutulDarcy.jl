@@ -46,13 +46,14 @@ end
         kwarg...
     )
 
-Set uip equilibriation region for a reservoir model. The region is defined by
-the datum pressure and depth, and the water-oil, gas-oil, and water-gas
-contacts. The contacts will be used to determine the phase distribution and
-initial pressure in the region. The region can be further specified by
-temperature, composition, density, and rs/rv functions. Most entries can either
-be specified as a function of depth or as a constant value. Additional keyword
-arguments are passed onto the `equilibriate_state` function.
+Set up equilibriation region for a reservoir model which can be used for
+hydrostatic initial state setup. The region is defined by the datum pressure and
+depth, and the water-oil, gas-oil, and water-gas contacts. The contacts will be
+used to determine the phase distribution and initial pressure in the region. The
+region can be further specified by temperature, composition, density, and rs/rv
+functions. Most entries can either be specified as a function of depth or as a
+constant value. Additional keyword arguments are passed onto the
+`equilibriate_state` function.
 """
 function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = missing,
         datum_depth = missing;
