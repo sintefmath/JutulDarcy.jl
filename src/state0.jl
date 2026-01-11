@@ -378,6 +378,10 @@ function setup_reservoir_state(
                     touched[c] = true
                 end
                 for (k, v) in subinit
+                    T = promote_type(eltype(init[k]), eltype(v))
+                    if eltype(init[k]) != T
+                        init[k] = T.(init[k])
+                    end
                     fill_subinit!(init[k], cells, v)
                 end
             end
