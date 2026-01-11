@@ -16,6 +16,55 @@ struct EquilibriumRegion{R}
     pvtnum::Int
     satnum::Union{Int, Missing}
     kwarg::Any
+    function EquilibriumRegion(
+        datum_pressure,
+        datum_depth,
+        woc,
+        goc,
+        wgc,
+        pc_woc,
+        pc_goc,
+        pc_wgc,
+        density_function,
+        composition_vs_depth,
+        rs_vs_depth,
+        rv_vs_depth,
+        temperature_vs_depth,
+        cells,
+        pvtnum,
+        satnum,
+        kwarg,
+    )
+        datum_pressure, datum_depth, woc, goc, wgc, pc_woc, pc_goc, pc_wgc = promote(
+            datum_pressure,
+            datum_depth,
+            woc,
+            goc,
+            wgc,
+            pc_woc,
+            pc_goc,
+            pc_wgc,
+        )
+        return new{typeof(datum_pressure)}(
+            datum_pressure,
+            datum_depth,
+            woc,
+            goc,
+            wgc,
+            pc_woc,
+            pc_goc,
+            pc_wgc,
+            density_function,
+            composition_vs_depth,
+            rs_vs_depth,
+            rv_vs_depth,
+            temperature_vs_depth,
+            cells,
+            pvtnum,
+            satnum,
+            kwarg,
+        )
+    end
 end
 
 """
