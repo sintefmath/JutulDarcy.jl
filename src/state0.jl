@@ -162,6 +162,31 @@ function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = 
     )
 end
 
+function EquilibriumRegion(eql::EquilibriumRegion, model; kwarg...)
+    # Convenience constructor to re-use an existing EquilibriumRegion but for a
+    # new model and with a few fields modified
+    return EquilibriumRegion(
+        model,
+        eql.datum_pressure,
+        eql.datum_depth;
+        woc = eql.woc,
+        goc = eql.goc,
+        wgc = eql.wgc,
+        pc_woc = eql.pc_woc,
+        pc_goc = eql.pc_goc,
+        pc_wgc = eql.pc_wgc,
+        density_function = eql.density_function,
+        composition_vs_depth = eql.composition_vs_depth,
+        rs_vs_depth = eql.rs_vs_depth,
+        rv_vs_depth = eql.rv_vs_depth,
+        temperature_vs_depth = eql.temperature_vs_depth,
+        cells = eql.cells,
+        pvtnum = eql.pvtnum,
+        satnum = eql.satnum,
+        kwarg...,
+    )
+end
+
 function Base.show(io::IO, eql::EquilibriumRegion{R}) where R
     nc = length(eql.cells)
     println(io, "EquilibriumRegion{$R} for $(nc) cells with datum pressure $(eql.datum_pressure) Pa at depth $(eql.datum_depth) m")
