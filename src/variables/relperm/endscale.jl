@@ -16,10 +16,50 @@ struct ScaledPhaseRelativePermeability{T, N, S<:AbstractKrScale} <: AbstractPhas
     s_max::N
     residual::N
     residual_base::N
+    function ScaledPhaseRelativePermeability(
+            kr::PhaseRelativePermeability{T, M},
+            scaling::AbstractKrScale,
+            connate,
+            critical,
+            s_max,
+            k_max,
+            residual,
+            residual_base
+        ) where {T, M}
+        # Promote types
+        N = promote_type(
+            M,
+            typeof(connate),
+            typeof(critical),
+            typeof(s_max),
+            typeof(k_max),
+            typeof(residual),
+            typeof(residual_base)
+        )
+        kr_conv = PhaseRelativePermeability{T, N}(
+            kr.k,
+            kr.label,
+            N(kr.connate),
+            N(kr.critical),
+            N(kr.s_max),
+            N(kr.k_max),
+            N(kr.input_s_max)
+        )
+        return new{T, N, typeof(scaling)}(
+            scaling,
+            kr_conv,
+            N(connate),
+            N(critical),
+            N(k_max),
+            N(s_max),
+            N(residual),
+            N(residual_base)
+        )
+    end
 end
 
 function ScaledPhaseRelativePermeability(
-        kr::PhaseRelativePermeability{T, M},
+        kr::PhaseRelativePermeability,
         scaling::AbstractKrScale;
         connate,
         critical,
@@ -27,35 +67,17 @@ function ScaledPhaseRelativePermeability(
         k_max,
         residual,
         residual_base
-    ) where {T, M}
-    # Promote types
-    N = promote_type(
-        M,
-        typeof(connate),
-        typeof(critical),
-        typeof(s_max),
-        typeof(k_max),
-        typeof(residual),
-        typeof(residual_base)
     )
-    kr_conv = PhaseRelativePermeability{T, N}(
-        kr.k,
-        kr.label,
-        N(kr.connate),
-        N(kr.critical),
-        N(kr.s_max),
-        N(kr.k_max),
-        N(kr.input_s_max)
-    )
-    return ScaledPhaseRelativePermeability{T, N, typeof(scaling)}(
+
+    return ScaledPhaseRelativePermeability(
         scaling,
         kr_conv,
-        N(connate),
-        N(critical),
-        N(k_max),
-        N(s_max),
-        N(residual),
-        N(residual_base)
+        connate,
+        critical,
+        k_max,
+        s_max,
+        residual,
+        residual_base
     )
 end
 
@@ -216,11 +238,11 @@ function get_kr_scalers(kr::PhaseRelativePermeability)
 end
 
 function get_kr_scalers(scaler::AbstractMatrix, c)
-    ϵ = 1e-4
     @inbounds L = scaler[1, c]
     @inbounds CR = scaler[2, c]
     @inbounds U = scaler[3, c]
     @inbounds KM = scaler[4, c]
+    ϵ = convert(eltype(scaler), 1e-4)
     U = max(U, 2*ϵ)
     CR = min(CR, U - ϵ)
     L = min(L, CR - ϵ)
@@ -365,10 +387,14 @@ function get_three_phase_scaled_relperms(scaling, krw, krow, krog, krg, swcon, s
     U_og = 1.0 - L_g - L_w
     u_og = 1.0 - l_g - l_w
 
-    Krw = ScaledPhaseRelativePermeability(krw, scaling, connate = L_w, critical = CR_w, k_max = KM_w, s_max = U_w, residual = R_w, residual_base = r_w)
-    Krg = ScaledPhaseRelativePermeability(krg, scaling, connate = L_g, critical = CR_g, k_max = KM_g, s_max = U_g, residual = R_g, residual_base = r_g)
-    Krow = ScaledPhaseRelativePermeability(krow, scaling, connate = L_ow, critical = CR_ow, k_max = KM_ow, s_max = U_ow, residual = R_ow, residual_base = r_ow)
-    Krog = ScaledPhaseRelativePermeability(krog, scaling, connate = L_og, critical = CR_og, k_max = KM_og, s_max = U_og, residual = R_og, residual_base = r_og)
+    # Krw = ScaledPhaseRelativePermeability(krw, scaling, connate = L_w, critical = CR_w, k_max = KM_w, s_max = U_w, residual = R_w, residual_base = r_w)
+    # Krg = ScaledPhaseRelativePermeability(krg, scaling, connate = L_g, critical = CR_g, k_max = KM_g, s_max = U_g, residual = R_g, residual_base = r_g)
+    # Krow = ScaledPhaseRelativePermeability(krow, scaling, connate = L_ow, critical = CR_ow, k_max = KM_ow, s_max = U_ow, residual = R_ow, residual_base = r_ow)
+    # Krog = ScaledPhaseRelativePermeability(krog, scaling, connate = L_og, critical = CR_og, k_max = KM_og, s_max = U_og, residual = R_og, residual_base = r_og)
+    Krw = ScaledPhaseRelativePermeability(krw, scaling, L_w, CR_w, U_w, KM_w, R_w, r_w)
+    Krg = ScaledPhaseRelativePermeability(krg, scaling, L_g, CR_g, U_g, KM_g, R_g, r_g)
+    Krow = ScaledPhaseRelativePermeability(krow, scaling, L_ow, CR_ow, U_ow, KM_ow, R_ow, r_ow)
+    Krog = ScaledPhaseRelativePermeability(krog, scaling, L_og, CR_og, U_og, KM_og, R_og, r_og)
 
     return (Krw, Krow, Krog, Krg)
 end
@@ -390,8 +416,10 @@ function get_two_phase_scaled_relperms(scaling, krw, krn, scaler_w, scaler_n, c)
     U_n = 1.0 - L_w
     u_n = 1.0 - l_w
 
-    Krw = ScaledPhaseRelativePermeability(krw, scaling, connate = L_w, critical = CR_w, k_max = KM_w, s_max = U_w, residual = R_w, residual_base = r_w)
-    Krn = ScaledPhaseRelativePermeability(krn, scaling, connate = L_n, critical = CR_n, k_max = KM_n, s_max = U_n, residual = R_n, residual_base = r_n)
+    # Krw = ScaledPhaseRelativePermeability(krw, scaling, connate = L_w, critical = CR_w, k_max = KM_w, s_max = U_w, residual = R_w, residual_base = r_w)
+    # Krn = ScaledPhaseRelativePermeability(krn, scaling, connate = L_n, critical = CR_n, k_max = KM_n, s_max = U_n, residual = R_n, residual_base = r_n)
+    Krw = ScaledPhaseRelativePermeability(krw, scaling, L_w, CR_w, U_w, KM_w, R_w, r_w)
+    Krn = ScaledPhaseRelativePermeability(krn, scaling, L_n, CR_n, U_n, KM_n, R_n, r_n)
 
     return (Krw, Krn)
 end
