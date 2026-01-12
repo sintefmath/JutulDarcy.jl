@@ -2584,6 +2584,7 @@ function reservoir_measurables(model, wellresult, states = missing;
     fgpr = add_entry(:gpr)
 
     # Injection types
+    flir = add_entry(:lir)
     fwir = add_entry(:wir)
     foir = add_entry(:oir)
     fgir = add_entry(:gir)
@@ -2703,6 +2704,8 @@ function reservoir_measurables(model, wellresult, states = missing;
     fgor = add_entry(:gor)
     @. fgor = fgpr./max.(fopr, 1e-12)
 
+    flpt = add_entry(:lpt)
+    flpt .= cumsum(flpr.*dt)
     fwit = add_entry(:wit)
     fwit .= cumsum(fwir.*dt)
     foit = add_entry(:oit)
@@ -2710,6 +2713,8 @@ function reservoir_measurables(model, wellresult, states = missing;
     fgit = add_entry(:git)
     fgit .= cumsum(fgir.*dt)
 
+    flit = add_entry(:lit)
+    flit .= cumsum(flir.*dt)
     fwit = add_entry(:wpt)
     fwit .= cumsum(fwpr.*dt)
     foit = add_entry(:opt)
@@ -2743,6 +2748,7 @@ function summary_key_lookup()
         add_entry(:opr, "oil production rate", :liquid_volume_surface, is_rate = true, prefix = prefix)
         add_entry(:gpr, "gas production rate", :gas_volume_surface, is_rate = true, prefix = prefix)
 
+        add_entry(:lir, "liquid injection rate (oil + water)", :liquid_volume_surface, is_rate = true, prefix = prefix)
         add_entry(:wir, "water injection rate", :liquid_volume_surface, is_rate = true, prefix = prefix)
         add_entry(:oir, "oil injection rate", :liquid_volume_surface, is_rate = true, prefix = prefix)
         add_entry(:gir, "gas injection rate", :gas_volume_surface, is_rate = true, prefix = prefix)
@@ -2752,9 +2758,12 @@ function summary_key_lookup()
         add_entry(:wit, "water injection total", :liquid_volume_surface, is_rate = false, prefix = prefix)
         add_entry(:oit, "oil injection total", :liquid_volume_surface, is_rate = false, prefix = prefix)
         add_entry(:git, "gas injection total", :gas_volume_surface, is_rate = false, prefix = prefix)
+        add_entry(:lit, "liquid injection total", :liquid_volume_surface, is_rate = false, prefix = prefix)
+
         add_entry(:wpt, "water production total", :liquid_volume_surface, is_rate = false, prefix = prefix)
         add_entry(:opt, "oil production total", :liquid_volume_surface, is_rate = false, prefix = prefix)
         add_entry(:gpt, "gas production total", :gas_volume_surface, is_rate = false, prefix = prefix)
+        add_entry(:lpt, "liquid production total", :liquid_volume_surface, is_rate = false, prefix = prefix)
 
         if prefix == "w"
             add_entry(:bhp, "bottom-hole pressure", :pressure, prefix = prefix)
