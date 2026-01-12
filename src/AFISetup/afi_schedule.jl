@@ -90,6 +90,11 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
                         if ismissing(i_mapped)
                             continue
                         end
+                        # Not sure what -1 means but we interpret it as a
+                        # defaulted value, resetting the multiplier to 1.0
+                        if v ≈ -1.0
+                            v = 1.0
+                        end
                         mult[i_mapped] = v
                     end
                     for (i, v) in enumerate(get(w2c, "Status", []))
@@ -103,6 +108,9 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
                         next_mult = mult[i]
                         if status[i] != OPEN
                             next_mult = 0.0
+                        end
+                        if next_mult < 0.0
+                            error("Negative pi multiplier $next_mult for well $wname, perforation index $i at report step $dateno: $date")
                         end
                         eff_mult[i] = next_mult
                     end

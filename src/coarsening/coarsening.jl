@@ -343,5 +343,10 @@ function coarsen_reservoir_force(::Val{:mask}, f::PerforationMask, coarse_model,
         new_vals_num[idx] += 1
     end
     new_vals = new_vals./max.(new_vals_num, 1)
+    for v in new_vals
+        if v < 0.0
+            @warn "Coarsened perforation mask has negative values, something is wrong."
+        end
+    end
     return PerforationMask(new_vals)
 end
