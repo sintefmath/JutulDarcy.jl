@@ -276,7 +276,9 @@ function three_point_saturation_scaling(s::T, cr, CR, u, U, r, R) where T<:Real
     return S
 end
 
-function two_point_saturation_scaling(s::T, cr, CR, u, U) where T<:Real
+function two_point_saturation_scaling(s, cr, CR, u, U)
+    s, cr, CR, u, U = promote(s, cr, CR, u, U)
+    T = typeof(s)
     if s < CR
         S = zero(T)
     elseif s >= CR && s < U
@@ -284,7 +286,7 @@ function two_point_saturation_scaling(s::T, cr, CR, u, U) where T<:Real
     else
         S = one(T)
     end
-    return S
+    return S::T
 end
 
 
