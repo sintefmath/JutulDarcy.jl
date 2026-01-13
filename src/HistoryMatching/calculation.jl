@@ -1,10 +1,10 @@
 function evaluate_global_match(hm::HistoryMatch, result::ReservoirSimResult)
     c = hm.case
     model = c.model
-    states = result.states
+    states = result.states.states
     timesteps = c.dt
     all_forces = c.forces
-    return Jutul.evaluate_objective(hm, model, result.result.states, timesteps, all_forces)
+    return Jutul.evaluate_objective(hm, model, states, timesteps, all_forces)
 end
 
 @inline function get_well_value(wm::WellMatch, ctrl, target, fmodel, fstate)
@@ -198,9 +198,6 @@ function mismatch_for_step(fmodel, fstate, ctrl, sgn, wm::WellMatch, target::Jut
         end
         # Unpack stuff
         val, obs = get_well_match(wm, ctrl, target, fmodel, fstate, control_step, time)
-        # calculated += sgn*val*w_dt
-        # observed += obs*w_dt
-        # w_total += w_step_from_period
     else
         val = obs = 0.0
     end
