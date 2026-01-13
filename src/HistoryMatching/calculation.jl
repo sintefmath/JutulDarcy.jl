@@ -54,13 +54,6 @@ function (global_obj::GlobalHistoryMatchObjective)(model, state0, states, step_i
     return obj*hm.total_scale
 end
 
-function (local_obj::SumHistoryMatchObjective)(model, state, dt, step_info, forces)
-    local_obj.evaluation_count[] += 1
-    hm = local_obj.match
-    val = get_period_contribution(hm, model, (state,), (step_info,), (forces,), 1, 1, missing)
-    return val*hm.total_scale
-end
-
 function get_cumulative_contribution(hm::HistoryMatch, model, states, step_infos, forces)
     start_idx = 1
     stop_idx = length(step_infos)
