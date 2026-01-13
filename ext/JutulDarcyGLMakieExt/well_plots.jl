@@ -734,6 +734,7 @@ function JutulDarcy.plot_summary(arg...;
         linecolor = :black,
         selectors = true,
         cols = 1,
+        alpha = 1.0,
         rows = ceil(length(plots)/cols) |> Int,
         colormap = missing,
         kwarg...
@@ -961,6 +962,8 @@ function JutulDarcy.plot_summary(arg...;
                         linewidth = lw_sel,
                         markersize = ms_sel,
                         label = lbl,
+                        alpha = alpha,
+                        transparency = alpha < 1.0,
                         arg...
                     )
                 end
