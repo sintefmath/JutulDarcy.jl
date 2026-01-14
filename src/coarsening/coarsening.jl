@@ -289,7 +289,12 @@ function coarsen_reservoir_case(case, coarsedim;
     coarse_state0 = coarsen_reservoir_state(coarse_model, model, state0; state_arg...)
     coarse_forces = coarsen_reservoir_forces(forces, coarse_model, model)
     coarse_dt = deepcopy(dt)
-    return JutulCase(coarse_model, coarse_dt, coarse_forces, parameters = coarse_parameters, state0 = coarse_state0)
+    return JutulCase(coarse_model, coarse_dt, coarse_forces,
+        parameters = coarse_parameters,
+        state0 = coarse_state0,
+        start_date = case.start_date,
+        termination_criterion = case.termination_criterion
+    )
 end
 
 function coarsen_reservoir_forces(forces::AbstractVector, coarse_model, fine_model)
