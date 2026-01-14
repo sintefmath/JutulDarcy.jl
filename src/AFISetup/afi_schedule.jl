@@ -30,6 +30,7 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
             "HistoricalControlModes" => missing,
             "Status" => "OPEN",
             "PiMultiplier" => pimult,
+            "BaseMultiplier" => ones(nperf),
             "ConnectionStatus" => fill(OPEN, nperf),
             "EffectivePiMultiplier" => ones(nperf),
             "Type" => "PRODUCER",
@@ -83,6 +84,7 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
                     pmap = ws["PerforationMap"]
                     eff_mult = ws["EffectivePiMultiplier"]
                     mult = ws["PiMultiplier"]
+                    base_mult = ws["BaseMultiplier"]
                     status = ws["ConnectionStatus"]
 
                     for (i, v) in enumerate(get(w2c, "PiMultiplier", []))
@@ -104,6 +106,9 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
                         end
                         status[pmap[i]] = v
                     end
+                    for (i, v) in enumerate(get(w2c, "Transmissibility", []))
+                        error()
+                    end
                     for i in eachindex(eff_mult, mult, status)
                         next_mult = mult[i]
                         if status[i] != OPEN
@@ -112,7 +117,7 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
                         if next_mult < 0.0
                             error("Negative pi multiplier $next_mult for well $wname, perforation index $i at report step $dateno: $date")
                         end
-                        eff_mult[i] = next_mult
+                        eff_mult[i] = base_mult[i]*next_mult
                     end
                 end
             else

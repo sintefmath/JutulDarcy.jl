@@ -10,14 +10,42 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
         if haskey(well_dict, wname)
             current_w2c = well_dict[wname]["w2c"]
             for (k, v) in pairs(w2c)
+                if k in ("Transmissibility", "Status", "PiMultiplier")
+                    # These can vary over time - we skip these
+                    continue
+                end
                 if haskey(current_w2c, k)
                     old_value = current_w2c[k]
                     new_value = v
                     if old_value != new_value
-                        @warn "Duplicate WellDef WellToCellConnections entry for well $wname entry in AFI file with different values. Keyword: $k. Using the last provided entry (new_value)." old_value new_value
+                        # Sometimes these get set to zero, which we allow
+                        if k == "WellBoreRadius" && length(old_value) == length(new_value)
+                            ok = true
+                            for i in eachindex(old_value, new_value)
+                                ov = old_value[i]
+                                nv = new_value[i]
+                                if !isapprox(ov, nv, atol = 1e-3) && nv > 0.0
+                                    ok = false
+                                    break
+                                end
+                            end
+                            if ok
+                                continue
+                            end
+                        end
+                        msg = ""
+                        for (i, v) in enumerate(new_value)
+                            if v isa Real && !isapprox(v, old_value[i], rtol = 1e-6) && !(k == "WellBoreRadius" && v ≈ 0.0)
+                                msg *= " Index $i: old=$(old_value[i]) vs new=$v\n"
+                            elseif v isa String && v != old_value[i]
+                                msg *= " Index $i: old=$(old_value[i]) vs new=$v\n"
+                            end
+                        end
+                        @warn "Duplicate WellDef WellToCellConnections entry for well $wname entry in AFI file with different values. Keyword: $k. Using initially provided entry. Details:$msg"
                     end
+                else
+                    current_w2c[k] = v
                 end
-                current_w2c[k] = v
             end
         else
             well_dict[wname] = Dict()
