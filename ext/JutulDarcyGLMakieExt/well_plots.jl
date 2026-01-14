@@ -1,3 +1,5 @@
+using Dates
+
 function JutulDarcy.plot_well!(ax, g, w;
         color = :darkred,
         textcolor = nothing,
@@ -769,16 +771,6 @@ function JutulDarcy.plot_summary(arg...;
     get_summary(r::JutulDarcy.ReservoirSimResult) = r.summary
     get_summary(x) = x
     summaries = [get_summary(s) for s in arg]
-    start_dates = map(s -> s["TIME"].start_date, summaries)
-    unique!(filter!(x -> !isnothing(x) && !ismissing(x), start_dates))
-    if length(start_dates) == 0
-        start_date = nothing
-    else
-        if length(start_dates) > 1
-            println("Note: Multiple distinct start dates ($start_dates) found in summaries, using first entry.")
-        end
-        start_date = first(start_dates)
-    end
     nsmry = length(names)
     nsmry == length(summaries) || error("Number of names ($nsmry) must match number of summaries ($(length(summaries))).")
     for (i, s) in enumerate(summaries)
@@ -872,6 +864,23 @@ function JutulDarcy.plot_summary(arg...;
             JutulDarcy.GeoEnergyIO.InputParser.swap_unit_system!(v, systems, info.unit_type)
         end
         return v
+    end
+
+    # Set up time labels
+    start_dates = map(s -> s["TIME"].start_date, summaries)
+    unique!(filter!(x -> !isnothing(x) && !ismissing(x), start_dates))
+    if length(start_dates) == 0
+        start_date = nothing
+    else
+        if length(start_dates) > 1
+            println("Note: Multiple distinct start dates ($start_dates) found in summaries, using first entry.")
+        end
+        start_date = first(start_dates)
+    end
+    # Max time - in days
+    t_max = maximum(x -> maximum(time_data(x)), eachindex(summaries))
+    ticks_days = collect(range(0.0, ceil(t_max), length = 10))
+    if !isnothing(start_date)
     end
 
     plots = map(String, plots)
@@ -1039,6 +1048,13 @@ function JutulDarcy.plot_summary(arg...;
                     submenu1 = submenu2 = l1 = l2 = missing
                 end
                 if i == nrows
+                    if isnothing(start_date) || ncols > 2
+                        subax.xticks[] = ticks_days
+                    else
+                        dates = map(d -> start_date + Day(round(Int, d)), ticks_days)
+                        ticks_dates = map(d -> Dates.format(d, "yyyy u d"), dates)
+                        subax.xticks[] = (ticks_days, ticks_dates)
+                    end
                     subax.xlabel[] = "days"
                 else
                     hidexdecorations!(subax)
