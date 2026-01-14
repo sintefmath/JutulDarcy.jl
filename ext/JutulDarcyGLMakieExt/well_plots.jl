@@ -769,6 +769,16 @@ function JutulDarcy.plot_summary(arg...;
     get_summary(r::JutulDarcy.ReservoirSimResult) = r.summary
     get_summary(x) = x
     summaries = [get_summary(s) for s in arg]
+    start_dates = map(s -> s["TIME"].start_date, summaries)
+    unique!(filter!(x -> !isnothing(x) && !ismissing(x), start_dates))
+    if length(start_dates) == 0
+        start_date = nothing
+    else
+        if length(start_dates) > 1
+            println("Note: Multiple distinct start dates ($start_dates) found in summaries, using first entry.")
+        end
+        start_date = first(start_dates)
+    end
     nsmry = length(names)
     nsmry == length(summaries) || error("Number of names ($nsmry) must match number of summaries ($(length(summaries))).")
     for (i, s) in enumerate(summaries)
