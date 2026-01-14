@@ -7,10 +7,23 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
             continue
         end
         wname = welldef.value["WellName"]
-        !haskey(well_dict, wname) || error("Duplicate WellDef keyword for well $wname with WellToCellConnections entry in AFI file.")
-        well_dict[wname] = Dict()
-        well_dict[wname]["w2c"] = w2c
-        well_dict[wname]["ref_depth"] = nothing
+        if haskey(well_dict, wname)
+            current_w2c = well_dict[wname]["w2c"]
+            for (k, v) in pairs(w2c)
+                if haskey(current_w2c, k)
+                    old_value = current_w2c[k]
+                    new_value = v
+                    if old_value != new_value
+                        @warn "Duplicate WellDef WellToCellConnections entry for well $wname entry in AFI file with different values. Keyword: $k. Using the last provided entry (new_value)." old_value new_value
+                    end
+                end
+                current_w2c[k] = v
+            end
+        else
+            well_dict[wname] = Dict()
+            well_dict[wname]["w2c"] = w2c
+            well_dict[wname]["ref_depth"] = nothing
+        end
     end
     if perf_sort isa Symbol
         perf_sort = Dict{String, Symbol}(
