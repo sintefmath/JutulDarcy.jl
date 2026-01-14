@@ -148,10 +148,17 @@ function setup_reservoir_domain_afi(d::AFIInputFile, mesh;
         end
         found = true
     else
-        pillar_grids = find_records(d, "StraightPillarGrid", once = false)
-        for pillar_grid in pillar_grids
-            found = true
-            for (k, v) in pillar_grid.value["CellDoubleProperty"]
+        pillar_grid = get_pillar_grid(d)
+        found = !isnothing(pillar_grid)
+        if found
+            if length(keys(pillar_grid)) > 1
+                @warn "Multiple StraightPillarGrid records found in AFI file. Using the first one: $(first(keys(pillar_grid)))."
+            end
+            grid = pillar_grid[first(keys(pillar_grid))]
+            for (k, v) in grid["CellDoubleProperty"]
+                set_grid_entry!(data, k, v, ncells)
+            end
+            for (k, v) in grid["CellIntegerProperty"]
                 set_grid_entry!(data, k, v, ncells)
             end
         end

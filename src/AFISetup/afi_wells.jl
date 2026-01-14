@@ -41,7 +41,7 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
                                 msg *= " Index $i: old=$(old_value[i]) vs new=$v\n"
                             end
                         end
-                        @warn "Duplicate WellDef WellToCellConnections entry for well $wname entry in AFI file with different values. Keyword: $k. Using initially provided entry. Details:$msg"
+                        @warn "Duplicate WellDef WellToCellConnections entry for well $wname entry in AFI file with different values. Keyword: $k. Using initially provided entry. Details:\n$msg"
                     end
                 else
                     current_w2c[k] = v
