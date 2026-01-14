@@ -1145,8 +1145,8 @@ function simulate_reservoir(case::JutulCase;
         extra_arg = (state0 = case.state0, parameters = case.parameters)
         @assert !ismissing(config) "If simulator is provided, config must also be provided"
     end
-    result = simulate!(sim, dt; forces = forces, config = config, restart = restart, extra_arg...)
-    return ReservoirSimResult(model, result, forces; simulator = sim, config = config)
+    result = simulate!(sim, dt; forces = forces, config = config, restart = restart, start_date = case.start_date, extra_arg...)
+    return ReservoirSimResult(model, result, forces; simulator = sim, config = config, start_date = case.start_date)
 end
 
 function set_default_cnv_mb!(cfg::JutulConfig, sim::JutulSimulator; kwarg...)
