@@ -737,6 +737,7 @@ function JutulDarcy.plot_summary(arg...;
         selectors = true,
         cols = 1,
         alpha = 1.0,
+        nxticks = 15,
         rows = ceil(length(plots)/cols) |> Int,
         colormap = missing,
         kwarg...
@@ -1030,6 +1031,11 @@ function JutulDarcy.plot_summary(arg...;
         plot_idx = 1
         for j in 1:ncols
             for i in 1:nrows
+                if isnothing(start_date)
+                    tick_arg = (xticks = LinearTicks(nxticks),)
+                else
+                    tick_arg = NamedTuple()
+                end
                 if selectors
                     plot_box = GridLayout(plot_layout[i, j], 2, 2)
                     well_or_fld, name = split_name(plots[plot_idx])
@@ -1046,21 +1052,16 @@ function JutulDarcy.plot_summary(arg...;
                         plots[local_plot_idx] = plot_string(submenu1.selection[], s)
                         update_plots(local_plot_idx)
                     end
-                    subax = Axis(plot_box[2, 1:2])
+                    subax = Axis(plot_box[2, 1:2]; tick_arg...)
                 else
                     plot_box = GridLayout(plot_layout[i, j], 1, 1)
-                    subax = Axis(plot_box[1, 1])
+                    subax = Axis(plot_box[1, 1]; tick_arg...)
                     submenu1 = submenu2 = l1 = l2 = missing
                 end
                 if i == nrows
-                    if isnothing(start_date) || ncols > 2
-                        # subax.xticks[] = ticks_days
-                    else
-                        dates = map(d -> start_date + Day(round(Int, d)), ticks_days)
-                        ticks_dates = map(d -> Dates.format(d, "yyyy u d"), dates)
-                        # subax.xticks[] = (ticks_days, ticks_dates)
+                    if isnothing(start_date)
+                        subax.xlabel[] = "days"
                     end
-                    subax.xlabel[] = "days"
                 else
                     hidexdecorations!(subax)
                 end
