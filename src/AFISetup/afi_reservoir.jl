@@ -387,10 +387,15 @@ function set_grid_entry!(data::Dict{String, Vector}, k, v, ncells)
         T = Int
     end
     nvals = length(v)
-    if nvals != ncells
-        @warn "Property $k has $nvals values, but the grid has $ncells cells..."
+    if nvals > ncells
+        @warn "Property $k has $nvals values, but the grid has $ncells cells. Taking the first $ncells values."
+        v = v[1:ncells]
+    elseif nvals < ncells
+        @warn "Property $k has $nvals values, but the grid has $ncells cells. Padding with the last value."
+        lastval = v[end]
+        v = vcat(v, fill(lastval, ncells - nvals))
     end
-    vals = get_property_from_string(data, k, nvals; T = T)
+    vals = get_property_from_string(data, k, ncells; T = T)
     vals .= v
     return data
 end
