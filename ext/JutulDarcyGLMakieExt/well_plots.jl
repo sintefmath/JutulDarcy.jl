@@ -836,10 +836,15 @@ function JutulDarcy.plot_summary(arg...;
         return opts
     end
 
-    function time_data(idx)
+    function time_data(idx; maybe_datetime = false)
         smry = summaries[idx]
         t = smry["TIME"].seconds
-        return t./si_unit(:day)
+        if maybe_datetime && !isnothing(start_date)
+            out = start_date .+ @. Microsecond(ceil(t*1e6))
+        else
+            out = t./si_unit(:day)
+        end
+        return out
     end
 
     function plot_data(kind, valtype, idx, info, units)
@@ -931,7 +936,7 @@ function JutulDarcy.plot_summary(arg...;
                 units = unit_menu.selection[]
 
                 for (smry_no, smry_name) in enumerate(names)
-                    t = time_data(smry_no)
+                    t = time_data(smry_no, maybe_datetime = true)
                     v = plot_data(well_or_fld, pname, smry_no, info, units)
                     if !ismissing(info) && name != "NONE"
                         # ax.title[] = "$(name) $(info.legend)"
@@ -1049,11 +1054,11 @@ function JutulDarcy.plot_summary(arg...;
                 end
                 if i == nrows
                     if isnothing(start_date) || ncols > 2
-                        subax.xticks[] = ticks_days
+                        # subax.xticks[] = ticks_days
                     else
                         dates = map(d -> start_date + Day(round(Int, d)), ticks_days)
                         ticks_dates = map(d -> Dates.format(d, "yyyy u d"), dates)
-                        subax.xticks[] = (ticks_days, ticks_dates)
+                        # subax.xticks[] = (ticks_days, ticks_dates)
                     end
                     subax.xlabel[] = "days"
                 else
