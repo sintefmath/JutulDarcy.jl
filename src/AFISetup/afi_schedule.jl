@@ -106,11 +106,8 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
                         end
                         status[pmap[i]] = v
                     end
-                    if !haskey(w2c, "PiMultiplier")
-                        # Avoid double counting...?
-                        for (i, v) in enumerate(get(w2c, "Transmissibility", []))
-                            base_mult[i] = v/base_trans[i]
-                        end
+                    for (i, v) in enumerate(get(w2c, "Transmissibility", []))
+                        base_mult[i] = v/base_trans[i]
                     end
                     for i in eachindex(eff_mult, mult, status)
                         next_mult = mult[i]
