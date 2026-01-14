@@ -999,6 +999,9 @@ function JutulDarcy.plot_summary(arg...;
             delete!(el.label2)
             delete!(el.ax)
         end
+        for el in values(legends)
+            delete!(el)
+        end
         plot_boxes = Matrix{Any}(undef, nrows, ncols)
         plot_idx = 1
         for j in 1:ncols
