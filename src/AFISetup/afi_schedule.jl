@@ -43,7 +43,6 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
     streams = Dict(k => Dict{String, Any}() for k in stream_keys)
 
     reservoir = reservoir_domain(model)
-    rmesh = physical_representation(reservoir)
     wells = get_model_wells(model)
     sys = reservoir_model(model).system
     is_geothermal = JutulDarcy.get_phases(sys) == (AqueousPhase(),) && JutulDarcy.model_is_thermal(model)
@@ -61,7 +60,7 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
 
     ix_steps = afi["IX"]["STEPS"]
     fm_steps = afi["FM"]["STEPS"]
-    observation_data = obsh = get(afi["FM"], "OBSH", missing)
+    observation_data = get(afi["FM"], "OBSH", missing)
     dates = keys(ix_steps)
     @assert dates == keys(fm_steps)
     @assert issorted(dates)
@@ -86,6 +85,7 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
                     mult = ws["PiMultiplier"]
                     base_mult = ws["BaseMultiplier"]
                     status = ws["ConnectionStatus"]
+                    base_trans = model[wname].data_domain[:well_index]
 
                     for (i, v) in enumerate(get(w2c, "PiMultiplier", []))
                         i_mapped = get(pmap, i, missing)
@@ -106,8 +106,11 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
                         end
                         status[pmap[i]] = v
                     end
-                    for (i, v) in enumerate(get(w2c, "Transmissibility", []))
-                        error()
+                    if !haskey(w2c, "PiMultiplier")
+                        # Avoid double counting...?
+                        for (i, v) in enumerate(get(w2c, "Transmissibility", []))
+                            base_mult[i] = v/base_trans[i]
+                        end
                     end
                     for i in eachindex(eff_mult, mult, status)
                         next_mult = mult[i]
