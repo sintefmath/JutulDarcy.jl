@@ -155,7 +155,14 @@ function remove_missing(I::Jutul.LinearInterpolant)
     if length(new_vals) <= 1
         return I
     else
-        return Jutul.get_1d_interpolator(new_t, new_vals, cap_endpoints = true)
+        # Put zero values at the ends
+        mint, maxt = extrema(new_t)
+        pushfirst!(new_t, mint - 1.0, mint - 10.0)
+        pushfirst!(new_vals, 0.0, 0.0)
+
+        push!(new_t, maxt + 1.0, maxt + 10.0)
+        push!(new_vals, 0.0, 0.0)
+        return Jutul.LinearInterpolant(new_t, new_vals)
     end
 end
 
