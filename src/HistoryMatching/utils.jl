@@ -171,8 +171,9 @@ function get_well_data(hm::HistoryMatch, name, quantity, data, t)
     if mint > 1.01*hm.case.dt[1]
         jutul_message("HistoryMatch", "Minimum time in provided data for well $name, $quantity is greater than zero ($(Jutul.get_tstr(mint))). Constant extrapolation to time zero will be performed.")
     end
+    total_case_t = sum(hm.case.dt)
     if maxt > sum(hm.case.dt)
-        jutul_message("HistoryMatch", "Maximum time in provided data for well $name, $quantity exceeds total simulation time ($(Jutul.get_tstr(sum(hm.case.dt)))). Time must be given in seconds.")
+        jutul_message("HistoryMatch", "Maximum time in provided data for well $name, $quantity ($(Jutul.get_tstr(maxt))) exceeds total simulation time ($(Jutul.get_tstr(total_case_t))). Time must be given in seconds.")
     end
     minval = minimum(response)
     if minval < -1e-12
