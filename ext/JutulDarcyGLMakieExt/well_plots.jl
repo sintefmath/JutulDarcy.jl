@@ -738,6 +738,7 @@ function JutulDarcy.plot_summary(arg...;
         cols = 1,
         alpha = 1.0,
         nxticks = 15,
+        hideaxes = false,
         rows = ceil(length(plots)/cols) |> Int,
         colormap = missing,
         kwarg...
@@ -1058,13 +1059,17 @@ function JutulDarcy.plot_summary(arg...;
                     subax = Axis(plot_box[1, 1]; tick_arg...)
                     submenu1 = submenu2 = l1 = l2 = missing
                 end
-                if i == nrows
+                if hideaxes
+                    hidexdecorations!(subax)
+                    hideydecorations!(subax)
+                elseif i == nrows
                     if isnothing(start_date)
                         subax.xlabel[] = "days"
                     end
                 else
                     hidexdecorations!(subax)
                 end
+
                 plot_boxes[i, j] = (ax = subax, menu1 = submenu1, menu2 = submenu2, box = plot_box, label1 = l1, label2 = l2)
                 plot_idx += 1
             end

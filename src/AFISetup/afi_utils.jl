@@ -30,7 +30,7 @@ function merge_records(a, b)
     return out
 end
 
-function obsh_to_summary(obsh, t_seconds = missing; start_date = missing, smooth = false, alpha = 0.1, remove_bhp_missing = true)
+function obsh_to_summary(obsh, t_seconds = missing; start_date = missing, smooth = false, alpha = 0.7, remove_bhp_missing = true)
     if ismissing(t_seconds)
         WI = obsh["wells_interp"]
         w_sample = first(values(WI))
