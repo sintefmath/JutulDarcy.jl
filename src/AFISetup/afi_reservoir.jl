@@ -230,6 +230,11 @@ function setup_reservoir_domain_afi(d::AFIInputFile, mesh;
                 end
             end
         end
+        if minimum(left) == 0 || minimum(right) == 0
+            @warn "ConnectionSet contains zero-based cell indices. Converting to one-based indices."
+            left .+= 1
+            right .+= 1
+        end
         num_nnc = length(trans_nnc)
         if num_nnc > 0
             @warn "Added $(length(trans_nnc)) NNC connections from AFI file. This functionality is not well tested, especially for meshes with inactive cells."
