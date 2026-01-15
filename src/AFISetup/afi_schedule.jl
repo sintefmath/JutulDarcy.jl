@@ -106,9 +106,10 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
                         end
                         status[pmap[i]] = v
                     end
-                    for (i, v) in enumerate(get(w2c, "Transmissibility", []))
-                        base_mult[i] = v/base_trans[i]
-                    end
+                    # TODO: Figure out what to do with Transmissibility changes outside of multiplier
+                    # for (i, v) in enumerate(get(w2c, "Transmissibility", []))
+                    #     base_mult[i] = v/base_trans[i]
+                    # end
                     for i in eachindex(eff_mult, mult, status)
                         next_mult = mult[i]
                         if status[i] != OPEN
@@ -117,6 +118,7 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
                         if next_mult < 0.0
                             error("Negative pi multiplier $next_mult for well $wname, perforation index $i at report step $dateno: $date")
                         end
+                        @assert base_mult[i] == 1.0
                         eff_mult[i] = base_mult[i]*next_mult
                     end
                 end
