@@ -30,7 +30,7 @@ function merge_records(a, b)
     return out
 end
 
-function obsh_to_summary(obsh, t_seconds = missing; start_date = missing, smooth = false, alpha = 0.1)
+function obsh_to_summary(obsh, t_seconds = missing; start_date = missing, smooth = false, alpha = 0.1, remove_bhp_missing = true)
     if ismissing(t_seconds)
         WI = obsh["wells_interp"]
         w_sample = first(values(WI))
@@ -61,6 +61,9 @@ function obsh_to_summary(obsh, t_seconds = missing; start_date = missing, smooth
         # Bottom hole pressure
         I_bhp = get(obsh["wells_interp"][well], "BOTTOM_HOLE_PRESSURE", missing)
         if !ismissing(I_bhp)
+            if remove_bhp_missing
+                I_bhp = remove_missing(I_bhp)
+            end
             if smooth
                 I_bhp = smooth_interpolant(I_bhp, alpha)
             end
@@ -138,10 +141,28 @@ function get_obsh_rate_and_cumulative(well, prefix, obsh, t_s; smooth = false, a
     return (rate, cumulative)
 end
 
+function remove_missing(I::Jutul.LinearInterpolant)
+    vals = I.F
+    t = I.X
+    new_vals = Float64[]
+    new_t = Float64[]
+    for (i, v) in enumerate(vals)
+        if isfinite(v) && !isapprox(v, 0.0, atol = 1e-8)
+            push!(new_vals, v)
+            push!(new_t, t[i])
+        end
+    end
+    if length(new_vals) <= 1
+        return I
+    else
+        return Jutul.get_1d_interpolator(new_t, new_vals, cap_endpoints = true)
+    end
+end
+
 function smooth_interpolant(I::Jutul.LinearInterpolant, alpha::Float64)
     vals = I.F
     smoothed_vals = exponential_smoothing(vals, alpha)
-    return get_linear_interpolant(I.X, smoothed_vals)
+    return Jutul.get_1d_interpolator(I.X, smoothed_vals, cap_endpoints = true)
 end
 
 function exponential_smoothing(data::Vector{Float64}, alpha::Float64)
