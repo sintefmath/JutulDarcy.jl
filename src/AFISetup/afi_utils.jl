@@ -30,7 +30,7 @@ function merge_records(a, b)
     return out
 end
 
-function obsh_to_summary(obsh, t_seconds = missing; start_date = missing)
+function obsh_to_summary(obsh, t_seconds = missing; start_date = missing, smooth = false, alpha = 0.1)
     if ismissing(t_seconds)
         WI = obsh["wells_interp"]
         w_sample = first(values(WI))
@@ -42,64 +42,114 @@ function obsh_to_summary(obsh, t_seconds = missing; start_date = missing)
     summary_obs["VALUES"]["WELLS"] = Dict()
 
     t_s = t_seconds
+    function set_well_outputs!(dest, shortname, longname, well)
+        rat, tot = get_obsh_rate_and_cumulative(well, longname, obsh, t_s; smooth = smooth, alpha = alpha)
+        if !ismissing(rat)
+            dest["$(shortname)R"] = rat
+            dest["$(shortname)T"] = tot
+        end
+        return dest
+    end
     for well in keys(obsh["wells_interp"])
         swdata = Dict()
-        I = obsh["wells_interp"][well]
-        # Oil, production
-        swdata["WOPT"] = I["OIL_PRODUCTION_CUML"].(t_s)
-        swdata["WOPR"] = I["OIL_PRODUCTION_RATE"].(t_s)
-        # Water, production
-        swdata["WWPT"] = I["WATER_PRODUCTION_CUML"].(t_s)
-        swdata["WWPR"] = I["WATER_PRODUCTION_RATE"].(t_s)
-        # Water, injection
-        swdata["WWIT"] = I["WATER_INJECTION_CUML"].(t_s)
-        swdata["WWIR"] = I["WATER_INJECTION_RATE"].(t_s)
+        set_well_outputs!(swdata, "WOP", "OIL_PRODUCTION", well)
+        set_well_outputs!(swdata, "WWP", "WATER_PRODUCTION", well)
+        set_well_outputs!(swdata, "WWI", "WATER_INJECTION", well)
+        set_well_outputs!(swdata, "WLP", "LIQUID_PRODUCTION", well)
+        set_well_outputs!(swdata, "WGP", "GAS_PRODUCTION", well)
+
         # Bottom hole pressure
-        swdata["WBHP"] = I["BOTTOM_HOLE_PRESSURE"].(t_s)
-
-        swdata["WLPR"] = I["LIQUID_PRODUCTION_RATE"].(t_s)
-        swdata["WLPT"] = I["LIQUID_PRODUCTION_CUML"].(t_s)
-
-        if haskey(I, "GAS_PRODUCTION_RATE")
-            swdata["WGPR"] = I["GAS_PRODUCTION_RATE"].(t_s)
-            swdata["WGPT"] = I["GAS_PRODUCTION_CUML"].(t_s)
-        else
-            swdata["WGPR"] = zeros(length(t_s))
-            swdata["WGPT"] = zeros(length(t_s))
+        I_bhp = get(obsh["wells_interp"][well], "BOTTOM_HOLE_PRESSURE", missing)
+        if !ismissing(I_bhp)
+            if smooth
+                I_bhp = smooth_interpolant(I_bhp, alpha)
+            end
+            swdata["WBHP"] = I_bhp.(t_s)
         end
-
         summary_obs["VALUES"]["WELLS"][string(well)] = swdata
     end
 
     fld = Dict()
-    function sum_wells(k)
+    function sum_wells!(dest, dest_name, k)
         val = missing
         for (i, w) in enumerate(keys(summary_obs["VALUES"]["WELLS"]))
+            wval = get(summary_obs["VALUES"]["WELLS"][w], k, missing)
+            if ismissing(wval)
+                continue
+            end
             wval = summary_obs["VALUES"]["WELLS"][w][k]
-            if i == 1
+            if ismissing(val)
                 val = copy(wval)
             else
                 val .+= wval
             end
         end
-        return val
+        if !ismissing(val)
+            dest[dest_name] = val
+        end
+        return dest
     end
     # Oil
-    fld["FOPR"] = sum_wells("WOPR")
-    fld["FOPT"] = sum_wells("WOPT")
+    sum_wells!(fld, "FOPR", "WOPR")
+    sum_wells!(fld, "FOPT", "WOPT")
     # Water
-    fld["FWPR"] = sum_wells("WWPR")
-    fld["FWPT"] = sum_wells("WWPT")
-    fld["FWIR"] = sum_wells("WWIR")
-    fld["FWIT"] = sum_wells("WWIT")
+    sum_wells!(fld, "FWPR", "WWPR")
+    sum_wells!(fld, "FWPT", "WWPT")
+    sum_wells!(fld, "FWIR", "WWIR")
+    sum_wells!(fld, "FWIT", "WWIT")
     # Gas
-    fld["FGPR"] = sum_wells("WGPR")
-    fld["FGPT"] = sum_wells("WGPT")
+    sum_wells!(fld, "FGPR", "WGPR")
+    sum_wells!(fld, "FGPT", "WGPT")
     # Liquid
-    fld["FLPR"] = sum_wells("WLPR")
-    fld["FLPT"] = sum_wells("WLPT")
+    sum_wells!(fld, "FLPR", "WLPR")
+    sum_wells!(fld, "FLPT", "WLPT")
 
     summary_obs["VALUES"]["FIELD"] = fld
     summary_obs["UNIT_SYSTEM"] = "si"
     return summary_obs
+end
+
+function get_obsh_rate_and_cumulative(well, prefix, obsh, t_s; smooth = false, alpha = 0.1)
+    rate_key = "$(prefix)_RATE"
+    cumulative_key = "$(prefix)_CUML"
+
+    well_interp = obsh["wells_interp"][well]
+    rate_interp = get(well_interp, rate_key, missing)
+    if ismissing(rate_interp)
+        rate = cumulative = missing
+    else
+        if smooth
+            rate_interp = smooth_interpolant(rate_interp, alpha)
+            # rate_val = rate_interp.F
+            # rate_t = rate_interp.X
+            # rate_vals_smooth = exponential_smoothing(rate_val, alpha)
+            # rate_interp = get_linear_interpolant(rate_t, rate_vals_smooth)
+        end
+        rate = rate_interp.(t_s)
+
+        recompute_cumulative = smooth || !haskey(well_interp, cumulative_key)
+        if recompute_cumulative
+            dt = diff([0.0; t_s])
+            cumulative = cumsum(rate .* dt)
+        else
+            cumulative = well_interp[cumulative_key].(t_s)
+        end
+    end
+    return (rate, cumulative)
+end
+
+function smooth_interpolant(I::Jutul.LinearInterpolant, alpha::Float64)
+    vals = I.F
+    smoothed_vals = exponential_smoothing(vals, alpha)
+    return get_linear_interpolant(I.X, smoothed_vals)
+end
+
+function exponential_smoothing(data::Vector{Float64}, alpha::Float64)
+    alpha < 0.0 && error("Alpha must be in [0, 1], got $alpha")
+    alpha > 1.0 && error("Alpha must be in [0, 1], got $alpha")
+    smoothed = copy(data)
+    for i in 2:length(data)
+        smoothed[i] = alpha * data[i] + (1 - alpha) * smoothed[i - 1]
+    end
+    return smoothed
 end
