@@ -640,6 +640,10 @@ function ReservoirSimResult(model, result::Jutul.SimResult, forces, extra = Dict
     return ReservoirSimResult(well_result, res_states, summary, report_time, result, extra)
 end
 
+function ReservoirSimResult(case::JutulCase, result::Jutul.SimResult, extra = Dict(); kwarg...)
+    return ReservoirSimResult(case.model, result, case.forces, extra; kwarg...)
+end
+
 struct TopConditions{N, R}
     density::SVector{N, R}
     volume_fractions::SVector{N, R}
