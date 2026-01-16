@@ -2641,7 +2641,11 @@ function reservoir_measurables(model, wellresult, states = missing;
         end
         for (i, state) in enumerate(states)
             p = state[:Pressure]
-            s = state[:Saturations]
+            if haskey(state, :Saturations)
+                s = state[:Saturations]
+            else
+                s = ones(length(phases), length(p))
+            end
             tm = state[:TotalMasses]
             if has_water
                 fwipr[i] = sum(ix -> pv[ix]*s[wix, ix], eachindex(pv))
