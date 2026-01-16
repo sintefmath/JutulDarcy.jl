@@ -20,16 +20,12 @@ end
 function evaluate_match(obj::HistoryMatchObjective, result::ReservoirSimResult; log = false)
     hm = obj.match
     c = hm.case
-    model = c.model
-    states = result.result.states
-    timesteps = c.dt
-    all_forces = c.forces
     if log
         hm.logger.data = Dict{Symbol, Any}()
     else
         hm.logger.data = missing
     end
-    obj = Jutul.evaluate_objective(obj, model, states, timesteps, all_forces)
+    obj = Jutul.evaluate_objective(obj, c, result.result)
     if log
         out = (obj, hm.logger.data)
         hm.logger.data = missing
