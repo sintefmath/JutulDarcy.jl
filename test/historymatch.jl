@@ -60,7 +60,7 @@ using Test
         obj_local = history_match_objective(case_spe1, res_spe1, is_global = false)
         match_injectors!(obj_local, :bhp)
         match_producers!(obj_local, :grat, weight = 2.0)
-        @test_throws "Cumulative well matches are not supported for SumHistoryMatchObjective." match_producers!(obj, :cumulative_water, weight = 2.0)
+        @test_throws "Cumulative well matches are not supported for SumHistoryMatchObjective." match_producers!(obj_local, :cumulative_water, weight = 2.0)
         @test evaluate_match(obj_local, res_spe1) ≈ 0.0 atol = 1e-12
     end
 end
