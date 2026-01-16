@@ -46,7 +46,7 @@ function squared_mismatch_for_step(logger, matches::Vector{WellMatch}, fmodel, f
     for wm in matches
         wname = wm.name
         val, obs, w_for_step = mismatch_for_step(fmodel, fstate, ctrls[wname], sgn, wm, target, step_info, missing)
-        added_value = ((val - obs)/w_for_step)^2
+        added_value = step_info[:dt]*((val - obs)/w_for_step)^2
         if !ismissing(logger.data)
             start = stop = step_info[:substep_global]
             if !haskey(logger.data, wname)
