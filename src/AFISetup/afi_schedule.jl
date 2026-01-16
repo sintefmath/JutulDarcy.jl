@@ -92,12 +92,8 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
                         if ismissing(i_mapped)
                             continue
                         end
-                        # Not sure what -1 means but we interpret it as a
-                        # defaulted value, resetting the multiplier to 1.0
-                        if v ≈ -1.0
-                            v = 1.0
-                        end
-                        mult[i_mapped] = v
+                        # Not sure what -1 means but we truncate to zero
+                        mult[i_mapped] = max(v, 0.0)
                     end
                     for (i, v) in enumerate(get(w2c, "Status", []))
                         i_mapped = get(pmap, i, missing)
