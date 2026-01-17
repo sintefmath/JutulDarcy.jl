@@ -993,6 +993,9 @@ function JutulDarcy.plot_summary(arg...;
                     else
                         lbl = "$(smry_name):$(pname)"
                     end
+                    if all(x -> !isfinite(x) || x == 0.0, v)
+                        lbl = lbl * " (no data)"
+                    end
                     scatterlines!(ax, t, v;
                         linewidth = lw_sel,
                         markersize = ms_sel,
