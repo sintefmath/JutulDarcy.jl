@@ -212,6 +212,8 @@ function optimization_resetup_reservoir_case(opt_dict::AbstractDict, case::Jutul
                     perm[3, i] *= vpermmult[i]
                 end
             end
+            domain[:permeability] = perm
+            changed_dd = true
         end
     end
 
