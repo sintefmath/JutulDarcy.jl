@@ -1,4 +1,4 @@
-using Dates
+using Dates, Printf
 
 function JutulDarcy.plot_well!(ax, g, w;
         color = :darkred,
@@ -922,6 +922,15 @@ function JutulDarcy.plot_summary(arg...;
         return plot_string(source, "NONE")
     end
 
+    function float_fmt(x, u)
+        if x > 1e5
+            numstr = @sprintf("%g", x)
+        else
+            numstr = "$(round(x, sigdigits = 4))"
+        end
+        return "$numstr\n$u"
+    end
+
     function update_plots(idx = eachindex(plots))
         for i in idx
             ax = plot_boxes[i].ax
@@ -993,7 +1002,8 @@ function JutulDarcy.plot_summary(arg...;
                         arg...
                     )
                 end
-                ax.ylabel[] = ystr
+                # ax.ylabel[] = ystr
+                ax.ytickformat[] = values -> [float_fmt(value, ystr) for value in values]
                 ax.title[] = tstr
             end
             if nlines > 1
