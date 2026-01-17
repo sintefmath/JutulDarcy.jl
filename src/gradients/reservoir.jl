@@ -5,6 +5,7 @@ end
 function setup_reservoir_dict_optimization(case::JutulCase;
         use_trans = false,
         use_pore_volume = false,
+        use_multipliers = false,
         strict = false,
         verbose = true,
         do_copy = true,
@@ -21,6 +22,8 @@ function setup_reservoir_dict_optimization(case::JutulCase;
     end
     rmodel = reservoir_model(case.model)
     rdomain = reservoir_domain(rmodel)
+    ncells = number_of_cells(rdomain)
+    nfaces = number_of_faces(rdomain)
 
     skip_list = [
         :satnum,
@@ -55,16 +58,34 @@ function setup_reservoir_dict_optimization(case::JutulCase;
     opt_dict[:model] = dd_dict
     opt_dict[:parameters] = prm_dict
     if use_trans
-        prm_dict[:Transmissibilities] = copy(rparameters[:Transmissibilities])
+        trans = copy(rparameters[:Transmissibilities])
+        if use_multipliers
+            prm_dict[:multiplier_trans] = ones(nfaces)
+        else
+            trans::Vector{Float64}
+            for (i, v) in enumerate(trans)
+                # Avoid for optimizer
+                trans[i] = max(v, 1e-20)
+            end
+            prm_dict[:Transmissibilities] = trans
+        end
+        push!(skip_list, :permeability)
+    elseif use_multipliers
+        prm_dict[:multiplier_permeability] = ones(ncells)
+        prm_dict[:multiplier_vertical_permeability] = ones(ncells)
         push!(skip_list, :permeability)
     end
-    if use_pore_volume
+    if use_pore_volume || use_multipliers
         if haskey(rparameters, :StaticFluidVolume)
             k = :StaticFluidVolume
         else
             k = :FluidVolume
         end
-        dd_dict[:pore_volume] = copy(rparameters[k])
+        if use_multipliers
+            prm_dict[:multiplier_pore_volume] = ones(ncells)
+        else
+            dd_dict[:pore_volume] = copy(rparameters[k])
+        end
         push!(skip_list, :porosity)
         push!(skip_list, :net_to_gross)
         push!(skip_list_parameters, k)
@@ -92,9 +113,18 @@ function setup_reservoir_dict_optimization(case::JutulCase;
             if model_or_domain_is_well(submodel)
                 subdict = DT()
                 subprm = case.parameters[k]
-                subdict[:WellIndices] = copy(subprm[:WellIndices])
+                wi = copy(subprm[:WellIndices])
+                if use_multipliers
+                    subdict[:multiplier_wellindices] = ones(length(wi))
+                else
+                    subdict[:WellIndices] = copy(subprm[:WellIndices])
+                end
                 if haskey(subprm, :WellIndicesThermal) && is_thermal
-                    subdict[:WellIndicesThermal] = copy(subprm[:WellIndicesThermal])
+                    if use_multipliers
+                        subdict[:multiplier_wellindices_thermal] = ones(length(wi))
+                    else
+                        subdict[:WellIndicesThermal] = copy(subprm[:WellIndicesThermal])
+                    end
                 end
                 w_dict[k] = subdict
             end
@@ -140,11 +170,21 @@ function setup_reservoir_dict_optimization(case::JutulCase;
         end
     end
     opt_dict[:state0] = state0_dict
-    F(D, step_info = missing) = optimization_resetup_reservoir_case(D, case, step_info, do_copy = do_copy)
+    F(D, step_info = missing) = optimization_resetup_reservoir_case(D, case, step_info,
+        do_copy = do_copy,
+        use_multipliers = use_multipliers,
+        use_pore_volume = use_pore_volume,
+        use_trans = use_trans
+    )
     return DictParameters(opt_dict, F, strict = strict, verbose = verbose)
 end
 
-function optimization_resetup_reservoir_case(opt_dict::AbstractDict, case::JutulCase, step_info; do_copy = true)
+function optimization_resetup_reservoir_case(opt_dict::AbstractDict, case::JutulCase, step_info;
+        do_copy = true,
+        use_trans = false,
+        use_pore_volume = false,
+        use_multipliers = false
+    )
     if do_copy
         case = deepcopy(case)
     end
@@ -161,6 +201,20 @@ function optimization_resetup_reservoir_case(opt_dict::AbstractDict, case::Jutul
             domain[k, e] = v
         end
     end
+    if use_multipliers
+        if !use_trans
+            perm = domain[:permeability]
+            permmult = opt_dict[:parameters][:multiplier_permeability]
+            perm = perm .* permmult'
+            if size(perm, 1) > 2
+                vpermmult = opt_dict[:parameters][:multiplier_vertical_permeability]
+                for i in axes(perm, 2)
+                    perm[3, i] *= vpermmult[i]
+                end
+            end
+        end
+    end
+
     if changed_dd
         # Now we call the setup again
         parameters = setup_parameters(model)
@@ -170,23 +224,37 @@ function optimization_resetup_reservoir_case(opt_dict::AbstractDict, case::Jutul
     else
         rparameters = parameters
     end
-    if haskey(dd_dict, :pore_volume)
+    if use_pore_volume || use_multipliers
         if haskey(rparameters, :StaticFluidVolume)
             k = :StaticFluidVolume
         else
             k = :FluidVolume
         end
-        rparameters[k] = dd_dict[:pore_volume]
+        if use_multipliers
+            pv_val = rparameters[k] .* opt_dict[:parameters][:multiplier_pore_volume]
+        else
+            pv_val = dd_dict[:pore_volume]
+        end
+        rparameters[k] = pv_val
     end
     for (k, v) in pairs(opt_dict[:parameters])
         rparameters[k] = v
     end
     if is_multimodel
         for (w, wsub) in pairs(opt_dict[:wells])
+            wprm = parameters[w]
             for (k, v) in pairs(wsub)
-                @assert haskey(parameters[w], k)
-                @assert size(parameters[w][k]) == size(v)
-                parameters[w][k] = v
+                if k == :multiplier_wellindices
+                    wi = wprm[:WellIndices]
+                    wprm[:WellIndices] = wi .* v
+                elseif k == :multiplier_wellindices_thermal
+                    wi = wprm[:WellIndicesThermal]
+                    wprm[:WellIndicesThermal] = wi .* v
+                else
+                    @assert haskey(wprm, k)
+                    @assert size(wprm[k]) == size(v)
+                    wprm[k] = v
+                end
             end
         end
     end
