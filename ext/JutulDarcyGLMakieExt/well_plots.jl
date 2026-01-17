@@ -1047,6 +1047,15 @@ function JutulDarcy.plot_summary(arg...;
                 else
                     tick_arg = NamedTuple()
                 end
+                make_ax(pos) = Axis(pos;
+                    xminorticksvisible = true,
+                    xminorgridvisible = true,
+                    xminorticks = IntervalsBetween(5),
+                    yminorticksvisible = true,
+                    yminorgridvisible = true,
+                    yminorticks = IntervalsBetween(5),
+                    tick_arg...
+                )
                 if selectors
                     plot_box = GridLayout(plot_layout[i, j], 2, 2)
                     well_or_fld, name = split_name(plots[plot_idx])
@@ -1063,10 +1072,10 @@ function JutulDarcy.plot_summary(arg...;
                         plots[local_plot_idx] = plot_string(submenu1.selection[], s)
                         update_plots(local_plot_idx)
                     end
-                    subax = Axis(plot_box[2, 1:2]; tick_arg...)
+                    subax = make_ax(plot_box[2, 1:2])
                 else
                     plot_box = GridLayout(plot_layout[i, j], 1, 1)
-                    subax = Axis(plot_box[1, 1]; tick_arg...)
+                    subax = make_ax(plot_box[1, 1])
                     submenu1 = submenu2 = l1 = l2 = missing
                 end
                 if hideaxes
