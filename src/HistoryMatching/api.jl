@@ -52,16 +52,18 @@ function match_well!(hm::HistoryMatch, name::Union{String, Symbol}, quantity::Un
     rhols = 0.5*(rhoos + rhows)
 
     # Rates
-    grat_scale = 1.0/rhogs
-    orat_scale = 1.0/rhoos
-    wrat_scale = 1.0/rhows
-    lrat_scale = 1.0/rhols
-    bhp_scale = 1.0/(100*si_unit(:bar))
+    t_scale = 1.0#30*si_unit(:day)
+    grat_scale = t_scale*rhogs
+    orat_scale = t_scale*rhoos
+    wrat_scale = t_scale*rhows
+    lrat_scale = t_scale*rhols
+    # grat_scale = wrat_scale = orat_scale = lrat_scale = 1.0
+    bhp_scale = 1.0/(20*si_unit(:bar))
     # Cumulative production
-    gtotal_scale = 1.0./rhogs
-    ototal_scale = 1.0./rhoos
-    wtotal_scale = 1.0./rhows
-    ltotal_scale = 1.0./rhols
+    gtotal_scale = rhogs
+    ototal_scale = rhoos
+    wtotal_scale = rhows
+    ltotal_scale = rhols
 
     if is_injector
         if quantity isa Symbol

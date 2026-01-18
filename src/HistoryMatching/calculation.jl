@@ -182,13 +182,15 @@ function mismatch_for_step(fmodel, fstate, ctrl, sgn, wm::WellMatch, target::Jut
     control_step = step_info[:step]::Int
     w_step_from_period = ismissing(weights) ? 1.0 : weights[control_step]
     if w_step_from_period > 0.0
-        dt = step_info[:dt]::Float64
+        # dt = step_info[:dt]::Float64
         time = step_info[:time]::Float64
-        if JutulDarcy.rate_weighted(target)
-            w_dt = w_step_from_period*dt
-        else
-            w_dt = w_step_from_period
-        end
+        # if JutulDarcy.rate_weighted(target)
+        #     w_dt = w_step_from_period*dt
+        # else
+        #     w_dt = w_step_from_period
+        # end
+        w_dt = w_step_from_period
+
         # Unpack stuff
         val, obs = get_well_match(wm, ctrl, target, fmodel, fstate, control_step, time)
     else
