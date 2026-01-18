@@ -23,7 +23,7 @@ end
     if (target isa BottomHolePressureTarget && obs < 1e-10) || isnan(obs)
         # Missing data
         obs = 0.0
-        qoi = 0.0
+        qoi = 0.0*qoi
     end
     w = effective_weight(wm, report_step)
     return (w*qoi, w*obs)
@@ -181,12 +181,9 @@ end
 function mismatch_for_step(fmodel, fstate, ctrl, sgn, wm::WellMatch, target::JutulDarcy.WellTarget, step_info, weights)
     control_step = step_info[:step]::Int
     w_step_from_period = ismissing(weights) ? 1.0 : weights[control_step]
-    if w_step_from_period > 0.0
-        time = step_info[:time]::Float64
-        val, obs = get_well_match(wm, ctrl, target, fmodel, fstate, control_step, time)
-    else
-        val = obs = 0.0
-    end
+    time = step_info[:time]::Float64
+    val, obs = get_well_match(wm, ctrl, target, fmodel, fstate, control_step, time)
+
     return (sgn*val, obs, w_step_from_period)
 end
 
