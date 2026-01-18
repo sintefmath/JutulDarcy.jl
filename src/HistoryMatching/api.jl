@@ -52,13 +52,13 @@ function match_well!(hm::HistoryMatch, name::Union{String, Symbol}, quantity::Un
     rhols = 0.5*(rhoos + rhows)
 
     # Rates
-    t_scale = 1.0#30*si_unit(:day)
+    t_scale = 1.0/(si_unit(:day))
     grat_scale = t_scale*rhogs
     orat_scale = t_scale*rhoos
     wrat_scale = t_scale*rhows
     lrat_scale = t_scale*rhols
     # grat_scale = wrat_scale = orat_scale = lrat_scale = 1.0
-    bhp_scale = 1.0/(20*si_unit(:bar))
+    bhp_scale = t_scale/(10*si_unit(:bar))
     # Cumulative production
     gtotal_scale = rhogs
     ototal_scale = rhoos
