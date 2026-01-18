@@ -735,6 +735,7 @@ function JutulDarcy.plot_summary(arg...;
         extra_well = String[],
         linecolor = :black,
         selectors = true,
+        plot_type = :lines,
         cols = 1,
         alpha = 1.0,
         nxticks = 15,
@@ -907,8 +908,16 @@ function JutulDarcy.plot_summary(arg...;
     sort!(markeroptions)
 
     linewidth_menu, = label_menu(top_menu_grid[1, 3], lineoptions, "Line width", default = string(linewidth))
-    markersize_menu, = label_menu(top_menu_grid[1, 4], markeroptions, "Marker size", default = string(markersize))
-    unit_menu, = label_menu(top_menu_grid[1, 5], ["Metric", "SI", "Field"], "Unit system"; default = unit_system)
+    menu_idx = 4
+    if plot_type == :scatter || plot_type == :scatterlines
+        markersize_menu, = label_menu(top_menu_grid[1, menu_idx], markeroptions, "Marker size", default = string(markersize))
+        ms_sel = markersize_menu.selection
+        menu_idx += 1
+    else
+        ms_sel = missing
+    end
+
+    unit_menu, = label_menu(top_menu_grid[1, menu_idx], ["Metric", "SI", "Field"], "Unit system"; default = unit_system)
 
     plot_layout = nothing
     plot_boxes = []
@@ -969,7 +978,6 @@ function JutulDarcy.plot_summary(arg...;
                         end
                     end
                     lw_sel = linewidth_menu.selection
-                    ms_sel = markersize_menu.selection
                     if nplts == 1
                         if nsmry == 1
                             arg = (color = linecolor, )
@@ -996,14 +1004,39 @@ function JutulDarcy.plot_summary(arg...;
                     if all(x -> !isfinite(x) || x == 0.0, v)
                         lbl = lbl * " (no data)"
                     end
-                    scatterlines!(ax, t, v;
-                        linewidth = lw_sel,
-                        markersize = ms_sel,
+                    plot_arg = (
                         label = lbl,
                         alpha = alpha,
                         transparency = alpha < 1.0,
-                        arg...
                     )
+                    if plot_type == :lines
+                        lines!(ax, t, v;
+                            linewidth = lw_sel,
+                            plot_arg...,
+                            arg...
+                        )
+                    elseif plot_type == :stairs
+                        stairs!(ax, t, v;
+                            linewidth = lw_sel,
+                            plot_arg...,
+                            arg...
+                        )
+                    elseif plot_type == :scatter
+                        scatter!(ax, t, v;
+                            markersize = ms_sel,
+                            plot_arg...,
+                            arg...
+                        )
+                    elseif plot_type == :scatterlines
+                        scatterlines!(ax, t, v;
+                            linewidth = lw_sel,
+                            markersize = ms_sel,
+                            plot_arg...,
+                            arg...
+                        )
+                    else
+                        error("Unknown plot type: $plot_type")
+                    end
                 end
                 # ax.ylabel[] = ystr
                 ax.ytickformat[] = values -> [float_fmt(value, ystr) for value in values]
