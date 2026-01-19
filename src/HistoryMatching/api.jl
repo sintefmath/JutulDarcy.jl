@@ -45,6 +45,22 @@ function evaluate_match(obj::HistoryMatchObjective, result::ReservoirSimResult; 
     return out
 end
 
+"""
+    match_well!(hm_obj, well_name, quantity; is_injector = true)
+    match_well!(hm_obj, "WellName", "WBHP"; weight = 3.0, is_injector = true)
+
+Add a well match to the history match object `hm_obj` for the well with name
+`well_name` and quantity `quantity`. Additional keyword arguments:
+
+- `weight`: Weighting factor for the well match. Can be a scalar or a vector
+  with length equal to the number of report steps in the simulation case.
+  Default is `1.0`.
+- `is_injector`: Set to `true` if the well is an injector, `false` if it is a
+  producer. Mandatory. Use `match_injectors!` or `match_producers!` for
+  convenience.
+- `data`: Optionally provide observation data as a vector or function. If
+  missing, data is taken from the case summary embedded in the hm object.
+"""
 function match_well!(hm::HistoryMatch, name::Union{String, Symbol}, quantity::Union{String, Symbol};
         weight::Union{Float64, Vector{Float64}} = 1.0,
         is_injector::Bool,
