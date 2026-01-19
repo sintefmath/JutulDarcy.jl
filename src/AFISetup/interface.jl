@@ -12,6 +12,17 @@ The parser requires that the mesh and mesh properties are either provided inline
 (i.e. as direct keywords with numbers) or in the [RESQML
 format](https://energistics.org/resqml-data-standards). GSG files are not
 currently supported.
+
+# Keyword arguments
+- `step_limit`: An optional limit on the number of simulation steps to set up.
+- `step_override`: An optional vector of time points (in seconds) to override the
+  simulation steps defined in the AFI file. If provided, the simulation will use
+  these time points as the time steps. If the time points are normalized (i.e. in the
+  range [0, 1]), set `step_override_is_normalized` to true.
+- `step_override_is_normalized`: A boolean indicating whether the `step_override`
+  time points are normalized (i.e. in the range [0, 1]). Defaults to false.
+- `reservoir`: An optional existing reservoir domain to use instead of setting
+  up a new one from the AFI file.
 """
 function setup_case_from_afi
 
