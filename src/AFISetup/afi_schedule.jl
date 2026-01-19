@@ -1,5 +1,7 @@
 function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
         step_limit = missing,
+        step_override = missing,
+        step_override_is_normalized = false,
         evaluate_enthalpy = true
     )
     OPEN = GeoEnergyIO.IXParser.IX_OPEN
@@ -65,6 +67,20 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
     @assert dates == keys(fm_steps)
     @assert issorted(dates)
     dates = collect(dates)
+    has_step_override = !ismissing(step_override)
+    if has_step_override
+        t_tot = date_delta_to_seconds(dates[end] - dates[1])
+        if step_override_is_normalized
+            step_override = step_override .* t_tot
+        end
+        if maximum(step_override) > t_tot + 1e-6
+            @warn "Step override maximum time $(maximum(step_override)) exceeds total simulation time $t_tot"
+        end
+        if step_override[1] ≈ 0.0
+            step_override = step_override[2:end]
+        end
+        all(diff(step_override) .> 0) || error("Step override times must be strictly increasing.")
+    end
     forces = []
     timesteps = Float64[]
     t_elapsed = 0.0
@@ -85,7 +101,7 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
                     mult = ws["PiMultiplier"]
                     base_mult = ws["BaseMultiplier"]
                     status = ws["ConnectionStatus"]
-                    base_trans = model[wname].data_domain[:well_index]
+                    # base_trans = model[wname].data_domain[:well_index]
 
                     for (i, v) in enumerate(get(w2c, "PiMultiplier", []))
                         i_mapped = get(pmap, i, missing)
@@ -223,8 +239,26 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
             dt_in_second = date_delta_to_seconds(dt_i)
             # Well constraints, etc
             f = forces_from_constraints(well_setup, observation_data, streams, date, sys, model, t_elapsed, dt_in_second, wells, tab; evaluate_enthalpy = evaluate_enthalpy)
-            push!(forces, f)
-            push!(timesteps, dt_in_second)
+            if has_step_override
+                for (idx, t_override) in enumerate(step_override)
+                    inside_upper_bnd = t_override <= t_elapsed + dt_in_second
+                    inside_lower_bnd = t_override > t_elapsed
+                    if inside_lower_bnd && inside_upper_bnd
+                        if idx == 1
+                            dt_override = t_override
+                        else
+                            dt_override = t_override - step_override[idx-1]
+                        end
+                        push!(forces, f)
+                        push!(timesteps, dt_override)
+                    elseif !inside_upper_bnd
+                        break
+                    end
+                end
+            else
+                push!(forces, f)
+                push!(timesteps, dt_in_second)
+            end
             t_elapsed += dt_in_second
         end
         if !ismissing(step_limit) && dateno == step_limit
