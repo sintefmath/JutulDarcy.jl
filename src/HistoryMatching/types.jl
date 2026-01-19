@@ -66,8 +66,10 @@ function HistoryMatch(case::JutulCase; kwarg...)
     return HistoryMatch(case, missing, missing; kwarg...)
 end
 
-function HistoryMatch(case::JutulCase, res::JutulDarcy.ReservoirSimResult; kwarg...)
-    smry = JutulDarcy.summary_result(case, res, :si, field = false, wells = true)
+function HistoryMatch(case::JutulCase, res::JutulDarcy.ReservoirSimResult, smry = missing; kwarg...)
+    if ismissing(smry)
+        smry = JutulDarcy.summary_result(case, res, :si, field = false, wells = true)
+    end
     states = res.states
     return HistoryMatch(case, states, smry; kwarg...)
 end

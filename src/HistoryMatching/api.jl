@@ -2,8 +2,18 @@
 #             API            #
 ##############################
 
-function history_match_objective(case::JutulCase, arg...; is_global::Bool = false, kwarg...)
-    hm = HistoryMatch(case, arg...; kwarg...)
+"""
+    history_match_objective(case::JutulCase)
+    history_match_objective(case::JutulCase, res::ReservoirSimResult)
+    history_match_objective(case::JutulCase, states, summary)
+
+Set up a history match objective.
+"""
+function history_match_objective(case::JutulCase, states_or_reservoir_result = missing, summary = missing;
+        is_global::Bool = false,
+        kwarg...
+    )
+    hm = HistoryMatch(case, states_or_reservoir_result, summary; kwarg...)
     history_match_objective(hm; is_global = is_global)
 end
 
