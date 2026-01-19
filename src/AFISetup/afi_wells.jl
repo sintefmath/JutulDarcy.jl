@@ -35,10 +35,14 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
                         end
                         msg = ""
                         for (i, v) in enumerate(new_value)
-                            if v isa Real && !isapprox(v, old_value[i], rtol = 1e-6) && !(k == "WellBoreRadius" && v ≈ 0.0)
-                                msg *= " Index $i: old=$(old_value[i]) vs new=$v\n"
-                            elseif v isa String && v != old_value[i]
-                                msg *= " Index $i: old=$(old_value[i]) vs new=$v\n"
+                            ov = old_value[i]
+                            if ov isa Real && ov ≈ 0.0 && !(v ≈ 0.0)
+                                # Old value was set to zero - we accept the new value
+                                old_value[i] = v
+                            elseif v isa Real && !isapprox(v, ov, rtol = 1e-6) && !(k == "WellBoreRadius" && v ≈ 0.0)
+                                msg *= " Index $i: old=$(ov) vs new=$v\n"
+                            elseif v isa String && v != ov
+                                msg *= " Index $i: old=$(ov) vs new=$v\n"
                             end
                         end
                         @warn "Duplicate WellDef WellToCellConnections entry for well $wname entry in AFI file with different values. Keyword: $k. Using initially provided entry. Details:\n$msg"
