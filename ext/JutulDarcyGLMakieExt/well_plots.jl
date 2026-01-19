@@ -794,6 +794,8 @@ function JutulDarcy.plot_summary(arg...;
         else
             colormap = to_colormap(:tab20)
         end
+    elseif isa(colormap, Symbol)
+        colormap = to_colormap(colormap)
     end
     summary_sample = summaries[1]
     # The source of the data
