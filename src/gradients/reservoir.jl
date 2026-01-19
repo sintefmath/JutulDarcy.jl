@@ -2,6 +2,34 @@ function setup_reservoir_dict_optimization(dict, F = missing; kwarg...)
     return DictParameters(dict, F; kwarg...)
 end
 
+"""
+    setup_reservoir_dict_optimization(case::JutulCase)
+    setup_reservoir_dict_optimization(case::JutulCase;
+        use_trans = false,
+        use_pore_volume = false,
+        use_multipliers = false,
+        strict = false,
+        verbose = true,
+        do_copy = true,
+        parameters = Symbol[],
+        kwarg...
+    )
+
+Set up a `DictParameters` struct for reservoir model optimization with a setup
+function. The function extracts relevant model and parameter data from the
+provided `JutulCase` instance, puts them in a dict for use in optimization, and
+defines a setup function to reconstruct the `JutulCase` from modified
+parameters.
+
+Options:
+- `use_trans`: If `true`, include transmissibilities as optimization parameters
+  instead of permeability.
+- `use_pore_volume`: If `true`, include pore volumes as optimization parameters
+  instead of porosity.
+- `use_multipliers`: If `true`, use multipliers for
+  permeability/transmissibility, well indices and pore volume instead of
+  absolute values.
+"""
 function setup_reservoir_dict_optimization(case::JutulCase;
         use_trans = false,
         use_pore_volume = false,

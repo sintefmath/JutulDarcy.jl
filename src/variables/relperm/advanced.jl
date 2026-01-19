@@ -122,7 +122,6 @@ function ReservoirRelativePermeabilities(;
 end
 
 function Jutul.get_dependencies(kr::ReservoirRelativePermeabilities, model)
-    scaling = endpoint_scaling_model(kr)
     deps = Symbol[:Saturations]
     phases = get_phases(model.system)
     has_hyst = hysteresis_is_active(kr)
