@@ -205,7 +205,12 @@ function optimization_resetup_reservoir_case(opt_dict::AbstractDict, case::Jutul
         if !use_trans
             perm = domain[:permeability]
             permmult = opt_dict[:parameters][:multiplier_permeability]
-            perm = perm .* permmult'
+            if perm isa AbstractVector
+                perm = perm .* permmult
+            else
+                @assert size(perm, 2) == length(permmult)
+                perm = perm .* permmult'
+            end
             if size(perm, 1) > 2
                 vpermmult = opt_dict[:parameters][:multiplier_vertical_permeability]
                 for i in axes(perm, 2)
