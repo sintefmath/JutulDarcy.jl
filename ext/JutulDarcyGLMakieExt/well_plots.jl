@@ -1212,6 +1212,8 @@ function JutulDarcy.plot_mismatch(w)
     for i in 1:ntargets
         lines!(ax3, 1:maxstep, target_step_vals[i, :], color = colors[i], label = string(targets[i]))
     end
+    totals = vec(sum(target_step_vals, dims = 1))
+    lines!(ax3, 1:maxstep, totals, color = :black, label = "Total")
     axislegend(ax3)
     # Magnitude of well by step
     plts = []
