@@ -78,7 +78,7 @@ function HistoryMatch(case::JutulCase, states, summary;
         periods = missing,
         period_weights = missing,
         normalized_periods = missing,
-        scale = 1.0#/sum(case.dt)
+        scale = sum(case.dt)
     )
     periods = setup_periods(case, periods, period_weights, normalized_periods)
     case.model::MultiModel
