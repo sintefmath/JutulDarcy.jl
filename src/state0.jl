@@ -16,6 +16,55 @@ struct EquilibriumRegion{R}
     pvtnum::Int
     satnum::Union{Int, Missing}
     kwarg::Any
+    function EquilibriumRegion(
+        datum_pressure,
+        datum_depth,
+        woc,
+        goc,
+        wgc,
+        pc_woc,
+        pc_goc,
+        pc_wgc,
+        density_function,
+        composition_vs_depth,
+        rs_vs_depth,
+        rv_vs_depth,
+        temperature_vs_depth,
+        cells,
+        pvtnum,
+        satnum,
+        kwarg,
+    )
+        datum_pressure, datum_depth, woc, goc, wgc, pc_woc, pc_goc, pc_wgc = promote(
+            datum_pressure,
+            datum_depth,
+            woc,
+            goc,
+            wgc,
+            pc_woc,
+            pc_goc,
+            pc_wgc,
+        )
+        return new{typeof(datum_pressure)}(
+            datum_pressure,
+            datum_depth,
+            woc,
+            goc,
+            wgc,
+            pc_woc,
+            pc_goc,
+            pc_wgc,
+            density_function,
+            composition_vs_depth,
+            rs_vs_depth,
+            rv_vs_depth,
+            temperature_vs_depth,
+            cells,
+            pvtnum,
+            satnum,
+            kwarg,
+        )
+    end
 end
 
 """
@@ -46,13 +95,14 @@ end
         kwarg...
     )
 
-Set uip equilibriation region for a reservoir model. The region is defined by
-the datum pressure and depth, and the water-oil, gas-oil, and water-gas
-contacts. The contacts will be used to determine the phase distribution and
-initial pressure in the region. The region can be further specified by
-temperature, composition, density, and rs/rv functions. Most entries can either
-be specified as a function of depth or as a constant value. Additional keyword
-arguments are passed onto the `equilibriate_state` function.
+Set up equilibriation region for a reservoir model which can be used for
+hydrostatic initial state setup. The region is defined by the datum pressure and
+depth, and the water-oil, gas-oil, and water-gas contacts. The contacts will be
+used to determine the phase distribution and initial pressure in the region. The
+region can be further specified by temperature, composition, density, and rs/rv
+functions. Most entries can either be specified as a function of depth or as a
+constant value. Additional keyword arguments are passed onto the
+`equilibriate_state` function.
 """
 function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = missing,
         datum_depth = missing;
@@ -159,6 +209,31 @@ function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = 
         pvtnum,
         satnum,
         kwarg
+    )
+end
+
+function EquilibriumRegion(eql::EquilibriumRegion, model; kwarg...)
+    # Convenience constructor to re-use an existing EquilibriumRegion but for a
+    # new model and with a few fields modified
+    return EquilibriumRegion(
+        model,
+        eql.datum_pressure,
+        eql.datum_depth;
+        woc = eql.woc,
+        goc = eql.goc,
+        wgc = eql.wgc,
+        pc_woc = eql.pc_woc,
+        pc_goc = eql.pc_goc,
+        pc_wgc = eql.pc_wgc,
+        density_function = eql.density_function,
+        composition_vs_depth = eql.composition_vs_depth,
+        rs_vs_depth = eql.rs_vs_depth,
+        rv_vs_depth = eql.rv_vs_depth,
+        temperature_vs_depth = eql.temperature_vs_depth,
+        cells = eql.cells,
+        pvtnum = eql.pvtnum,
+        satnum = eql.satnum,
+        kwarg...,
     )
 end
 
@@ -303,6 +378,10 @@ function setup_reservoir_state(
                     touched[c] = true
                 end
                 for (k, v) in subinit
+                    T = promote_type(eltype(init[k]), eltype(v))
+                    if eltype(init[k]) != T
+                        init[k] = T.(init[k])
+                    end
                     fill_subinit!(init[k], cells, v)
                 end
             end

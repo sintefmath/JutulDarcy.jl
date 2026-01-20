@@ -40,7 +40,6 @@ function coarsen_reservoir_model(fine_model::MultiModel, partition; functions = 
         thermal = thermal,
         kwarg...
     )
-    coarse_reservoir_model = reservoir_model(coarse_model)
     # Variables etc.
     ncoarse = maximum(partition)
     subcells = zeros(Int, ncoarse)
@@ -82,6 +81,12 @@ function coarsen_reservoir(D::DataDomain, partition; functions = Dict())
     end
     if !haskey(functions, :porosity)
         functions[:porosity] = Jutul.CoarsenByVolumeAverage()
+    end
+    if !haskey(functions, :pore_volume)
+        functions[:pore_volume] = Jutul.CoarsenBySum()
+    end
+    if haskey(D, :pore_volume_multiplier)
+        functions[:pore_volume_multiplier] = Jutul.CoarsenByVolumeAverage()
     end
     return Jutul.coarsen_data_domain(D, partition, functions = functions)
 end
@@ -253,7 +258,10 @@ Coarsens the given reservoir case to the specified dimensions.
 
 # Arguments
 - `case`: The reservoir case to be coarsened.
-- `coarsedim`: The target dimensions for the coarsened reservoir.
+- `coarsedim`: The target dimensions for the coarsened reservoir. Can be one of the following:
+    - A tuple (nx, ny, nz) specifying the number of coarse blocks in each dimension.
+    - An integer specifying the total number of desired coarse blocks.
+    - Or a vector specifying the partition directly.
 
 # Keyword Arguments
 - `method`: The method to use for partitioning. Defaults to `missing`.
@@ -279,7 +287,74 @@ function coarsen_reservoir_case(case, coarsedim;
     (; model, forces, dt, parameters, state0) = case
     coarse_model, coarse_parameters = coarsen_reservoir_model(model, p; setup_arg...)
     coarse_state0 = coarsen_reservoir_state(coarse_model, model, state0; state_arg...)
-    coarse_forces = deepcopy(forces)
+    coarse_forces = coarsen_reservoir_forces(forces, coarse_model, model)
     coarse_dt = deepcopy(dt)
-    return JutulCase(coarse_model, coarse_dt, coarse_forces, parameters = coarse_parameters, state0 = coarse_state0)
+    return JutulCase(coarse_model, coarse_dt, coarse_forces,
+        parameters = coarse_parameters,
+        state0 = coarse_state0,
+        start_date = case.start_date,
+        termination_criterion = case.termination_criterion
+    )
+end
+
+function coarsen_reservoir_forces(forces::AbstractVector, coarse_model, fine_model)
+    conv(f) = coarsen_reservoir_forces(f, coarse_model, fine_model)
+    # Coarsen unique forces and map back
+    fmap = Jutul.unique_forces_and_mapping(forces, ones(length(forces)); eachstep = false)
+    coarse_unique_forces = map(conv, fmap.forces)
+    return coarse_unique_forces[fmap.timesteps_to_forces]
+end
+
+function coarsen_reservoir_forces(forces, coarse_model, fine_model)
+    c_forces = deepcopy(forces)
+    for (k, f) in pairs(c_forces)
+        sub = OrderedDict{Symbol, Any}()
+        for (fk, fv) in pairs(f)
+            sub[fk] = coarsen_reservoir_force(Val(fk), fv, coarse_model, fine_model, k)
+        end
+        c_forces[k] = NamedTuple(sub)
+    end
+    return c_forces
+end
+
+function coarsen_reservoir_force(::Val{T}, ::Nothing, coarse_model, fine_model, submodel_key) where T
+    return nothing
+end
+
+function coarsen_reservoir_force(::Val{T}, f::Any, coarse_model, fine_model, submodel_key) where T
+    println("No coarsening defined for force of type $T, returning fine force")
+    return deepcopy(f)
+end
+
+function coarsen_reservoir_force(::Val{:control}, f, coarse_model, fine_model, submodel_key)
+    return deepcopy(f)
+end
+
+function coarsen_reservoir_force(::Val{:limits}, f, coarse_model, fine_model, submodel_key)
+    return deepcopy(f)
+end
+
+function coarsen_reservoir_force(::Val{:mask}, f::PerforationMask, coarse_model, fine_model, submodel_key)
+    res = reservoir_domain(coarse_model)
+    p = physical_representation(res).partition
+    vals = f.values
+    perf_coarse = physical_representation(coarse_model[submodel_key]).perforations
+    perf_fine = physical_representation(fine_model[submodel_key]).perforations
+    nperf_coarse = length(perf_coarse.self)
+    new_vals = zeros(nperf_coarse)
+    new_vals_num = zeros(Int, nperf_coarse)
+    # We average the mask values for all fine perforations mapping to the same coarse perforation
+    for (fine_idx, res_cell) in enumerate(perf_fine.reservoir)
+        part_perf = p[res_cell]
+        idx = findfirst(isequal(part_perf), perf_coarse.reservoir)
+        new_vals[idx] += vals[fine_idx]
+        new_vals_num[idx] += 1
+    end
+    new_vals = new_vals./max.(new_vals_num, 1)
+    for v in new_vals
+        if v < 0.0
+            @warn "Coarsened perforation mask has negative values, something is wrong."
+        end
+    end
+    return PerforationMask(new_vals)
 end

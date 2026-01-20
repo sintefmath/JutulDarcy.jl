@@ -890,7 +890,13 @@ forces = setup_reservoir_forces(model, control = controls, Injector = iforces)
 struct PerforationMask{V} <: JutulForce where V<:AbstractVector
     values::V
     function PerforationMask(v::T) where T<:AbstractVecOrMat
-        return new{T}(copy(vec(v)))
+        vals = copy(vec(v))
+        for (i, v) in enumerate(vals)
+            if v < 0.0
+                throw(ArgumentError("Perforation mask values must be non-negative, found $v at index $i"))
+            end
+        end
+        return new{T}(vals)
     end
 end
 

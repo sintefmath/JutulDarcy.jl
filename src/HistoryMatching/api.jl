@@ -2,8 +2,18 @@
 #             API            #
 ##############################
 
-function history_match_objective(case::JutulCase, arg...; is_global::Bool = false, kwarg...)
-    hm = HistoryMatch(case, arg...; kwarg...)
+"""
+    history_match_objective(case::JutulCase)
+    history_match_objective(case::JutulCase, res::ReservoirSimResult)
+    history_match_objective(case::JutulCase, states, summary)
+
+Set up a history match objective.
+"""
+function history_match_objective(case::JutulCase, states_or_reservoir_result = missing, summary = missing;
+        is_global::Bool = false,
+        kwarg...
+    )
+    hm = HistoryMatch(case, states_or_reservoir_result, summary; kwarg...)
     history_match_objective(hm; is_global = is_global)
 end
 
@@ -17,16 +27,40 @@ function history_match_objective(hm::HistoryMatch; is_global::Bool = true)
     end
 end
 
-function evaluate_match(obj::HistoryMatchObjective, result::ReservoirSimResult)
+function evaluate_match(obj::HistoryMatchObjective, result::ReservoirSimResult; log = false)
     hm = obj.match
     c = hm.case
-    model = c.model
-    states = result.states
-    timesteps = c.dt
-    all_forces = c.forces
-    return Jutul.evaluate_objective(obj, model, result.result.states, timesteps, all_forces)
+    if log
+        hm.logger.data = Dict{Symbol, Any}()
+    else
+        hm.logger.data = missing
+    end
+    obj = Jutul.evaluate_objective(obj, c, result.result)
+    if log
+        out = (obj, hm.logger.data)
+        hm.logger.data = missing
+    else
+        out = obj
+    end
+    return out
 end
 
+"""
+    match_well!(hm_obj, well_name, quantity; is_injector = true)
+    match_well!(hm_obj, "WellName", "WBHP"; weight = 3.0, is_injector = true)
+
+Add a well match to the history match object `hm_obj` for the well with name
+`well_name` and quantity `quantity`. Additional keyword arguments:
+
+- `weight`: Weighting factor for the well match. Can be a scalar or a vector
+  with length equal to the number of report steps in the simulation case.
+  Default is `1.0`.
+- `is_injector`: Set to `true` if the well is an injector, `false` if it is a
+  producer. Mandatory. Use `match_injectors!` or `match_producers!` for
+  convenience.
+- `data`: Optionally provide observation data as a vector or function. If
+  missing, data is taken from the case summary embedded in the hm object.
+"""
 function match_well!(hm::HistoryMatch, name::Union{String, Symbol}, quantity::Union{String, Symbol};
         weight::Union{Float64, Vector{Float64}} = 1.0,
         is_injector::Bool,
@@ -44,16 +78,18 @@ function match_well!(hm::HistoryMatch, name::Union{String, Symbol}, quantity::Un
     rhols = 0.5*(rhoos + rhows)
 
     # Rates
-    grat_scale = 1.0/rhogs
-    orat_scale = 1.0/rhoos
-    wrat_scale = 1.0/rhows
-    lrat_scale = 1.0/rhols
-    bhp_scale = 1.0/(100*si_unit(:bar))
+    t_scale = 1.0/(si_unit(:day))
+    grat_scale = t_scale*rhogs
+    orat_scale = t_scale*rhoos
+    wrat_scale = t_scale*rhows
+    lrat_scale = t_scale*rhols
+    # grat_scale = wrat_scale = orat_scale = lrat_scale = 1.0
+    bhp_scale = t_scale/(10*si_unit(:bar))
     # Cumulative production
-    gtotal_scale = 1.0./rhogs
-    ototal_scale = 1.0./rhoos
-    wtotal_scale = 1.0./rhows
-    ltotal_scale = 1.0./rhols
+    gtotal_scale = rhogs
+    ototal_scale = rhoos
+    wtotal_scale = rhows
+    ltotal_scale = rhols
 
     if is_injector
         if quantity isa Symbol
@@ -202,7 +238,14 @@ function match_producers!(hm::HistoryMatch, quantity::Union{String, Symbol}, wel
     return hm
 end
 
-match_injectors!(obj::HistoryMatchObjective, arg...; kwarg...) = match_injectors!(obj.match, arg...; kwarg...)
-match_producers!(obj::HistoryMatchObjective, arg...; kwarg...) = match_producers!(obj.match, arg...; kwarg...)
-match_well!(obj::GlobalHistoryMatchObjective, arg...; kwarg...) = match_well!(obj.match, arg...; kwarg...)
-match_well!(obj::SumHistoryMatchObjective, arg...; kwarg...) = match_well!(obj.match, arg...; kwarg..., is_sum_objective = true)
+function match_injectors!(obj::HistoryMatchObjective, arg...; kwarg...)
+    return match_injectors!(obj.match, arg...; kwarg..., is_sum_objective = obj isa SumHistoryMatchObjective)
+end
+
+function match_producers!(obj::HistoryMatchObjective, arg...; kwarg...)
+    return match_producers!(obj.match, arg...; kwarg..., is_sum_objective = obj isa SumHistoryMatchObjective)
+end
+
+function match_well!(obj::HistoryMatchObjective, arg...; kwarg...)
+    return match_well!(obj.match, arg...; kwarg..., is_sum_objective = obj isa SumHistoryMatchObjective)
+end

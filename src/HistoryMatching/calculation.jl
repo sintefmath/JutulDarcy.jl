@@ -1,29 +1,29 @@
 function evaluate_global_match(hm::HistoryMatch, result::ReservoirSimResult)
     c = hm.case
     model = c.model
-    states = result.states
+    states = result.states.states
     timesteps = c.dt
     all_forces = c.forces
-    return Jutul.evaluate_objective(hm, model, result.result.states, timesteps, all_forces)
+    return Jutul.evaluate_objective(hm, model, states, timesteps, all_forces)
 end
 
-function get_well_value(wm::WellMatch, ctrl, target, fmodel, fstate)
+@inline function get_well_value(wm::WellMatch, ctrl, target, fmodel, fstate)
     wname = wm.name
     val = JutulDarcy.compute_well_qoi(fmodel, fstate, wname, ctrl, target)
     return val
 end
 
-function get_well_observation(wm::WellMatch, time)
+@inline function get_well_observation(wm::WellMatch, time)
     return wm.data(time)
 end
 
-function get_well_match(wm::WellMatch, ctrl, target, fmodel, fstate, report_step, time)
+@inline function get_well_match(wm::WellMatch, ctrl, target, fmodel, fstate, report_step, time)
     qoi = get_well_value(wm, ctrl, target, fmodel, fstate)
     obs = get_well_observation(wm, time)
     if (target isa BottomHolePressureTarget && obs < 1e-10) || isnan(obs)
         # Missing data
         obs = 0.0
-        qoi = 0.0
+        qoi = 0.0*qoi
     end
     w = effective_weight(wm, report_step)
     return (w*qoi, w*obs)
@@ -54,17 +54,13 @@ function (global_obj::GlobalHistoryMatchObjective)(model, state0, states, step_i
     return obj*hm.total_scale
 end
 
-function (local_obj::SumHistoryMatchObjective)(model, state, dt, step_info, forces)
-    local_obj.evaluation_count[] += 1
-    hm = local_obj.match
-    val = get_period_contribution(hm, model, (state,), (step_info,), (forces,), 1, 1, missing)
-    return val*hm.total_scale
-end
-
 function get_cumulative_contribution(hm::HistoryMatch, model, states, step_infos, forces)
     start_idx = 1
     stop_idx = length(step_infos)
-    eval_match(x, sgn, target) = get_period_contribution_wells(x, sgn, target, hm.wellpos, model, states, step_infos, forces, start_idx, stop_idx, missing, is_cumulative = true)
+    eval_match(x, sgn, target) = get_period_contribution_wells(
+        hm.logger, x, sgn, target, hm.wellpos, model, states, step_infos, forces, start_idx, stop_idx, missing,
+        is_cumulative = true
+    )
     prod_sgn = -1.0
     val = 0.0
     # Producers only...
@@ -77,7 +73,7 @@ end
 
 function get_period_contribution(hm::HistoryMatch, model, states, step_infos, forces, start_idx::Int, stop_idx::Int, weights)
     val = 0.0
-    eval_match(x, sgn, target) = get_period_contribution_wells(x, sgn, target, hm.wellpos, model, states, step_infos, forces, start_idx, stop_idx, weights)
+    eval_match(x, sgn, target) = get_period_contribution_wells(hm.logger, x, sgn, Val(target), hm.wellpos, model, states, step_infos, forces, start_idx, stop_idx, weights)
     inj_sgn = 1.0
     prod_sgn = -1.0
     val = 0.0
@@ -105,18 +101,23 @@ function get_period_contribution(hm::HistoryMatch, model, states, step_infos, fo
     return val
 end
 
-function get_period_contribution_wells(wms::Vector{WellMatch}, sgn, target::JutulDarcy.WellTarget, wellpos, model, states, step_infos, forces, start_idx::Int, stop_idx::Int, weights; kwarg...)
+function get_period_contribution_wells(logger::HistoryMatchLogger, wms::Vector{WellMatch}, sgn, ::Val{target}, wellpos, model, states, step_infos, forces, start_idx::Int, stop_idx::Int, weights; kwarg...) where target
+    return get_period_contribution_wells(logger, wms, sgn, target::JutulDarcy.WellTarget, wellpos, model, states, step_infos, forces, start_idx, stop_idx, weights; kwarg...)
+end
+
+
+function get_period_contribution_wells(logger::HistoryMatchLogger, wms::Vector{WellMatch}, sgn, target::JutulDarcy.WellTarget, wellpos, model, states, step_infos, forces, start_idx::Int, stop_idx::Int, weights; kwarg...)
     val = 0.0
     if length(wms) == 0
         return val
     end
     for wm in wms
-        val += get_period_contribution_well(wm, wellpos, sgn, target, model, states, step_infos, forces, start_idx, stop_idx, weights; kwarg...)
+        val += get_period_contribution_well(logger, wm, wellpos, sgn, target, model, states, step_infos, forces, start_idx, stop_idx, weights; kwarg...)
     end
     return val
 end
 
-function get_period_contribution_well(wm::WellMatch, wellpos, sgn, target::JutulDarcy.WellTarget, model, states, step_infos, forces, start_idx::Int, stop_idx::Int, weights;
+function get_period_contribution_well(logger::HistoryMatchLogger, wm::WellMatch, wellpos, sgn, target::JutulDarcy.WellTarget, model, states, step_infos, forces, start_idx::Int, stop_idx::Int, weights;
         is_cumulative::Bool = false
     )
     wname = wm.name
@@ -154,30 +155,36 @@ function get_period_contribution_well(wm::WellMatch, wellpos, sgn, target::Jutul
         observed = 0.0
         for step_index in start_idx:stop_idx
             step_info = step_infos[step_index]
-            control_step = step_info[:step]::Int
-            w_step_from_period = ismissing(weights) ? 1.0 : weights[control_step]
-            if w_step_from_period > 0.0
-                dt = step_info[:dt]::Float64
-                time = step_info[:time]::Float64
-                if JutulDarcy.rate_weighted(target)
-                    w_dt = w_step_from_period*dt
-                else
-                    w_dt = w_step_from_period
-                end
-                # Unpack stuff
-                state = states[step_index]
-                force = forces[step_index]
-                fstate = state[:Facility]
-                ctrl = force[:Facility].control[wname]
-                val, obs = get_well_match(wm, ctrl, target, fmodel, fstate, control_step, time)
-                calculated += sgn*val*w_dt
-                observed += obs*w_dt
-                w_total += w_step_from_period
-            end
+            state = states[step_index]
+            force = forces[step_index]
+            fstate = state[:Facility]
+            ctrl = force[:Facility].control[wname]
+            val, obs, w_for_step = mismatch_for_step(fmodel, fstate, ctrl, sgn, wm::WellMatch, target::JutulDarcy.WellTarget, step_info, weights)
+            calculated += val
+            observed += obs
+            w_total += w_for_step
         end
         out = ((calculated - observed)/w_total)^2
     end
+    if !ismissing(logger.data)
+        start = step_infos[1][:substep_global]
+        stop = step_infos[end][:substep_global]
+        if !haskey(logger.data, wname)
+            logger.data[wname] = []
+        end
+        tsym = JutulDarcy.translate_target_to_symbol(target)
+        push!(logger.data[wname], (start = start, stop = stop, target = tsym, value = out, is_cumulative = is_cumulative))
+    end
     return out
+end
+
+function mismatch_for_step(fmodel, fstate, ctrl, sgn, wm::WellMatch, target::JutulDarcy.WellTarget, step_info, weights)
+    control_step = step_info[:step]::Int
+    w_step_from_period = ismissing(weights) ? 1.0 : weights[control_step]
+    time = step_info[:time]::Float64
+    val, obs = get_well_match(wm, ctrl, target, fmodel, fstate, control_step, time)
+
+    return (sgn*val, obs, w_step_from_period)
 end
 
 function effective_weight(wm::WellMatch, step::Int)
@@ -187,5 +194,38 @@ function effective_weight(wm::WellMatch, step::Int)
         w = wm.weight
     end
     return w*wm.scale
+end
+
+function compute_well_target_contribution_matrix(w; step = missing)
+    targets = Symbol[]
+    for wdata in values(w)
+        for el in wdata
+            push!(targets, el.target)
+        end
+    end
+    unique!(targets)
+    ntargets = length(targets)
+    wellnames = collect(keys(w))
+    nw = length(wellnames)
+
+    well_impact = zeros(nw, ntargets)
+
+    for (wno, well) in enumerate(wellnames)
+        for el in w[well]
+            if ismissing(step)
+                w_step = 1.0
+            else
+                # For periods we divide it by the number of steps in the period
+                if el.start >= step && el.stop <= step
+                    w_step = 1.0/(el.stop - el.start + 1)
+                else
+                    continue
+                end
+            end
+            pos = findfirst(isequal(el.target), targets)
+            well_impact[wno, pos] += w_step*el.value
+        end
+    end
+    return (impact = well_impact, targets = targets, wells = wellnames)
 end
 

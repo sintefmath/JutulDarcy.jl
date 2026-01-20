@@ -28,6 +28,14 @@ struct ReservoirMatch
     data::I_type
 end
 
+mutable struct HistoryMatchLogger
+    data::Union{Missing, Dict{Any, Any}}
+end
+
+function HistoryMatchLogger()
+    return HistoryMatchLogger(missing)
+end
+
 struct HistoryMatch
     case::JutulCase
     states
@@ -51,14 +59,17 @@ struct HistoryMatch
     producer_cumulative_liquid::Vector{WellMatch}
     reservoir::Vector{ReservoirMatch}
     total_scale::Float64
+    logger::HistoryMatchLogger
 end
 
 function HistoryMatch(case::JutulCase; kwarg...)
     return HistoryMatch(case, missing, missing; kwarg...)
 end
 
-function HistoryMatch(case::JutulCase, res::JutulDarcy.ReservoirSimResult; kwarg...)
-    smry = JutulDarcy.summary_result(case, res, :si, field = false, wells = true)
+function HistoryMatch(case::JutulCase, res::JutulDarcy.ReservoirSimResult, smry = missing; kwarg...)
+    if ismissing(smry)
+        smry = JutulDarcy.summary_result(case, res, :si, field = false, wells = true)
+    end
     states = res.states
     return HistoryMatch(case, states, smry; kwarg...)
 end
@@ -67,7 +78,7 @@ function HistoryMatch(case::JutulCase, states, summary;
         periods = missing,
         period_weights = missing,
         normalized_periods = missing,
-        scale = 1.0#/sum(case.dt)
+        scale = sum(case.dt)
     )
     periods = setup_periods(case, periods, period_weights, normalized_periods)
     case.model::MultiModel
@@ -97,7 +108,8 @@ function HistoryMatch(case::JutulCase, states, summary;
         WellMatch[],  # producer_cumulative_water
         WellMatch[],  # producer_cumulative_liquid
         ReservoirMatch[],  # reservoir
-        scale
+        scale,
+        HistoryMatchLogger()
     )
 end
 
@@ -151,7 +163,7 @@ function Base.show(io::IO, hm::HistoryMatch)
             tab[i, 4] = v.weight
             tab[i, 5] = v.scale
         end
-        pretty_table(io, tab; header = header)
+        pretty_table(io, tab; header = header, crop = :horizontal)
     end
 end
 

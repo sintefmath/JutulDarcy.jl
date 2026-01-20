@@ -113,14 +113,12 @@ function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellFlo
     apply_perforation_mask!(ct_s.source, mask)
 end
 
-
 function target_actual_pair(target::DisabledTarget, well, state_well, q_t, ctrl)
     # The well should have zero rate. Enforce this by the trivial residual R = q_t = 0
     t = q_t
     t_num = 0.0
     return (t, t_num)
 end
-
 
 function target_actual_pair(target, well, state_well, q_t, ctrl)
     rhoS, S = surface_density_and_volume_fractions(state_well)

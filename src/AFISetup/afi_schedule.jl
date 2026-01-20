@@ -1,5 +1,7 @@
 function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
         step_limit = missing,
+        step_override = missing,
+        step_override_is_normalized = false,
         evaluate_enthalpy = true
     )
     OPEN = GeoEnergyIO.IXParser.IX_OPEN
@@ -30,6 +32,7 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
             "HistoricalControlModes" => missing,
             "Status" => "OPEN",
             "PiMultiplier" => pimult,
+            "BaseMultiplier" => ones(nperf),
             "ConnectionStatus" => fill(OPEN, nperf),
             "EffectivePiMultiplier" => ones(nperf),
             "Type" => "PRODUCER",
@@ -42,7 +45,6 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
     streams = Dict(k => Dict{String, Any}() for k in stream_keys)
 
     reservoir = reservoir_domain(model)
-    rmesh = physical_representation(reservoir)
     wells = get_model_wells(model)
     sys = reservoir_model(model).system
     is_geothermal = JutulDarcy.get_phases(sys) == (AqueousPhase(),) && JutulDarcy.model_is_thermal(model)
@@ -60,11 +62,25 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
 
     ix_steps = afi["IX"]["STEPS"]
     fm_steps = afi["FM"]["STEPS"]
-    observation_data = obsh = get(afi["FM"], "OBSH", missing)
+    observation_data = get(afi["FM"], "OBSH", missing)
     dates = keys(ix_steps)
     @assert dates == keys(fm_steps)
     @assert issorted(dates)
     dates = collect(dates)
+    has_step_override = !ismissing(step_override)
+    if has_step_override
+        t_tot = date_delta_to_seconds(dates[end] - dates[1])
+        if step_override_is_normalized
+            step_override = step_override .* t_tot
+        end
+        if maximum(step_override) > t_tot + 1e-6
+            @warn "Step override maximum time $(maximum(step_override)) exceeds total simulation time $t_tot"
+        end
+        if step_override[1] ≈ 0.0
+            step_override = step_override[2:end]
+        end
+        all(diff(step_override) .> 0) || error("Step override times must be strictly increasing.")
+    end
     forces = []
     timesteps = Float64[]
     t_elapsed = 0.0
@@ -83,14 +99,17 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
                     pmap = ws["PerforationMap"]
                     eff_mult = ws["EffectivePiMultiplier"]
                     mult = ws["PiMultiplier"]
+                    base_mult = ws["BaseMultiplier"]
                     status = ws["ConnectionStatus"]
+                    # base_trans = model[wname].data_domain[:well_index]
 
                     for (i, v) in enumerate(get(w2c, "PiMultiplier", []))
                         i_mapped = get(pmap, i, missing)
                         if ismissing(i_mapped)
                             continue
                         end
-                        mult[i_mapped] = v
+                        # Not sure what -1 means but we truncate to zero
+                        mult[i_mapped] = max(v, 0.0)
                     end
                     for (i, v) in enumerate(get(w2c, "Status", []))
                         i_mapped = get(pmap, i, missing)
@@ -99,12 +118,20 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
                         end
                         status[pmap[i]] = v
                     end
+                    # TODO: Figure out what to do with Transmissibility changes outside of multiplier
+                    # for (i, v) in enumerate(get(w2c, "Transmissibility", []))
+                    #     base_mult[i] = v/base_trans[i]
+                    # end
                     for i in eachindex(eff_mult, mult, status)
                         next_mult = mult[i]
                         if status[i] != OPEN
                             next_mult = 0.0
                         end
-                        eff_mult[i] = next_mult
+                        if next_mult < 0.0
+                            error("Negative pi multiplier $next_mult for well $wname, perforation index $i at report step $dateno: $date")
+                        end
+                        @assert base_mult[i] == 1.0
+                        eff_mult[i] = base_mult[i]*next_mult
                     end
                 end
             else
@@ -212,8 +239,26 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
             dt_in_second = date_delta_to_seconds(dt_i)
             # Well constraints, etc
             f = forces_from_constraints(well_setup, observation_data, streams, date, sys, model, t_elapsed, dt_in_second, wells, tab; evaluate_enthalpy = evaluate_enthalpy)
-            push!(forces, f)
-            push!(timesteps, dt_in_second)
+            if has_step_override
+                for (idx, t_override) in enumerate(step_override)
+                    inside_upper_bnd = t_override <= t_elapsed + dt_in_second
+                    inside_lower_bnd = t_override > t_elapsed
+                    if inside_lower_bnd && inside_upper_bnd
+                        if idx == 1
+                            dt_override = t_override
+                        else
+                            dt_override = t_override - step_override[idx-1]
+                        end
+                        push!(forces, f)
+                        push!(timesteps, dt_override)
+                    elseif !inside_upper_bnd
+                        break
+                    end
+                end
+            else
+                push!(forces, f)
+                push!(timesteps, dt_in_second)
+            end
             t_elapsed += dt_in_second
         end
         if !ismissing(step_limit) && dateno == step_limit

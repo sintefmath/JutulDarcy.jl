@@ -5,4 +5,5 @@ module HistoryMatching
     include("api.jl")
     include("utils.jl")
     include("calculation.jl")
+    include("calculation_sum.jl")
 end

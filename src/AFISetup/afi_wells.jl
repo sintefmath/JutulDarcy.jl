@@ -7,10 +7,55 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
             continue
         end
         wname = welldef.value["WellName"]
-        !haskey(well_dict, wname) || error("Duplicate WellDef keyword for well $wname with WellToCellConnections entry in AFI file.")
-        well_dict[wname] = Dict()
-        well_dict[wname]["w2c"] = w2c
-        well_dict[wname]["ref_depth"] = nothing
+        if haskey(well_dict, wname)
+            current_w2c = well_dict[wname]["w2c"]
+            for (k, v) in pairs(w2c)
+                if k in ("Transmissibility", "Status", "PiMultiplier")
+                    # These can vary over time - we skip these
+                    continue
+                end
+                if haskey(current_w2c, k)
+                    old_value = current_w2c[k]
+                    new_value = v
+                    if old_value != new_value
+                        # Sometimes these get set to zero, which we allow
+                        if k == "WellBoreRadius" && length(old_value) == length(new_value)
+                            ok = true
+                            for i in eachindex(old_value, new_value)
+                                ov = old_value[i]
+                                nv = new_value[i]
+                                if !isapprox(ov, nv, atol = 1e-3) && nv > 0.0
+                                    ok = false
+                                    break
+                                end
+                            end
+                            if ok
+                                continue
+                            end
+                        end
+                        msg = ""
+                        for (i, v) in enumerate(new_value)
+                            ov = old_value[i]
+                            if ov isa Real && ov ≈ 0.0 && !(v ≈ 0.0)
+                                # Old value was set to zero - we accept the new value
+                                old_value[i] = v
+                            elseif v isa Real && !isapprox(v, ov, rtol = 1e-6) && !(k == "WellBoreRadius" && v ≈ 0.0)
+                                msg *= " Index $i: old=$(ov) vs new=$v\n"
+                            elseif v isa String && v != ov
+                                msg *= " Index $i: old=$(ov) vs new=$v\n"
+                            end
+                        end
+                        @warn "Duplicate WellDef WellToCellConnections entry for well $wname entry in AFI file with different values. Keyword: $k. Using initially provided entry. Details:\n$msg"
+                    end
+                else
+                    current_w2c[k] = v
+                end
+            end
+        else
+            well_dict[wname] = Dict()
+            well_dict[wname]["w2c"] = w2c
+            well_dict[wname]["ref_depth"] = nothing
+        end
     end
     if perf_sort isa Symbol
         perf_sort = Dict{String, Symbol}(

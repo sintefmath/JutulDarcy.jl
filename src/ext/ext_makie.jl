@@ -28,6 +28,40 @@ function plot_reservoir_measurables
 
 end
 
+"""
+    plot_summary(summary::Dict)
+    plot_summary(res::ReservoirSimResult)
+    plot_summary([res1, res2, res3]; names = ["Res1", "Res2", "Res3"])
+
+Plot summary results interactively. If multiple results are given, they will be
+compared in the same figure.
+
+# Keyword arguments:
+- `names`: Names for the different results when multiple results are given.
+- `unit_system`: Unit system to use (can be changed in dropdown). Can be
+  `:metric`, `:si` or `:field`.
+- `linewidth`: Linewidth for the plots.
+- `plots` = Vector{Symbol}: Which plots to show by default. For example,
+  `["FOPR", "FWPR"]` will field show oil and water production rates as two
+  plots. Alternatively, combined plots can be made: `["FOPR,FWPR"]` will show
+  both oil and water rates in the same plot. For wells, the name must be
+  specified: `["W1:WBHP", "W2:WBHP"]` will show bottom hole pressures for wells
+  named W1 and W2.
+- `cols`::Int: Number of columns in the layout.
+- `selectors`::Bool: Whether to show dropdown selectors for choosing which plots
+  to show.
+- `extra_field/extra_well`: Additional reservoir measurables or well measurables
+  to include in the selection lists, for example to add custom composite plots.
+  For example, adding `WBHP,WWIR` to `extra_well` will allow plotting bottom
+  hole pressure together with water injection rate for wells.
+"""
+function plot_summary
+
+end
+
+function plot_mismatch
+
+end
 
 """
     plot_reservoir_simulation_result(model::MultiModel, res::ReservoirSimResult; wells = true, reservoir = true)

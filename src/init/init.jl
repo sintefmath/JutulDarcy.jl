@@ -91,7 +91,7 @@ function equilibriate_state(model, contacts,
     return init
 end
 
-function equilibriate_state(model, equil::EquilibriumRegion)
+function equilibriate_state(model, equil::EquilibriumRegion{R}) where R
     sys = model.system
     phases = get_phases(sys)
     phase_ix = [i for i in phase_indices(sys)]
@@ -130,8 +130,8 @@ function equilibriate_state(model, equil::EquilibriumRegion)
         end
     end
 
-    contacts = Float64[]
-    contacts_pc = Float64[]
+    contacts = R[]
+    contacts_pc = R[]
     if has_water && has_oil
         push!(contacts, equil.woc)
         push!(contacts_pc, equil.pc_woc)
@@ -142,7 +142,6 @@ function equilibriate_state(model, equil::EquilibriumRegion)
         check_pair(equil.wgc, equil.pc_wgc, "wgc")
     end
     if has_oil && has_gas
-        goc = equil.goc
         push!(contacts, equil.goc)
         push!(contacts_pc, equil.pc_goc)
         check_pair(equil.goc, equil.pc_goc, "goc")

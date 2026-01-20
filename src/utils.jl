@@ -1145,8 +1145,8 @@ function simulate_reservoir(case::JutulCase;
         extra_arg = (state0 = case.state0, parameters = case.parameters)
         @assert !ismissing(config) "If simulator is provided, config must also be provided"
     end
-    result = simulate!(sim, dt; forces = forces, config = config, restart = restart, extra_arg...)
-    return ReservoirSimResult(model, result, forces; simulator = sim, config = config)
+    result = simulate!(sim, dt; forces = forces, config = config, restart = restart, start_date = case.start_date, extra_arg...)
+    return ReservoirSimResult(model, result, forces; simulator = sim, config = config, start_date = case.start_date)
 end
 
 function set_default_cnv_mb!(cfg::JutulConfig, sim::JutulSimulator; kwarg...)
@@ -2568,24 +2568,26 @@ function reservoir_measurables(model, wellresult, states = missing;
     has_gas = !isnothing(gix)
     n = length(time)
 
-    function add_entry(name::Symbol, legend, unit = :id; is_rate = false, use_prefix = true)
+    lookup = summary_key_lookup()
+
+    function add_entry(name::Symbol)
         values = zeros(n)
-        if use_prefix
-            name = Symbol(prefix, name)
-        end
-        out[name] = (values = values, legend = "$prefix_str $legend", unit_type = unit, is_rate = is_rate)
+        name = Symbol(prefix, name)
+        info = lookup[uppercase(string(name))]
+        out[name] = (values = values, info.legend, info.unit_type, is_rate = info.is_rate)
         return values
     end
     # Production of different types
-    flpr = add_entry(:lpr, "liquid production rate (oil + water)", :liquid_volume_surface, is_rate = true)
-    fwpr = add_entry(:wpr, "water production rate", :liquid_volume_surface, is_rate = true)
-    fopr = add_entry(:opr, "oil production rate", :liquid_volume_surface, is_rate = true)
-    fgpr = add_entry(:gpr, "gas production rate", :gas_volume_surface, is_rate = true)
+    flpr = add_entry(:lpr)
+    fwpr = add_entry(:wpr)
+    fopr = add_entry(:opr)
+    fgpr = add_entry(:gpr)
 
     # Injection types
-    fwir = add_entry(:wir, "water injection rate", :liquid_volume_surface, is_rate = true)
-    foir = add_entry(:oir, "oil injection rate", :liquid_volume_surface, is_rate = true)
-    fgir = add_entry(:gir, "gas injection rate", :gas_volume_surface, is_rate = true)
+    flir = add_entry(:lir)
+    fwir = add_entry(:wir)
+    foir = add_entry(:oir)
+    fgir = add_entry(:gir)
 
     function sum_well_rates!(vals, k::Symbol; is_prod::Bool)
         for (wk, wval) in pairs(ws)
@@ -2621,25 +2623,29 @@ function reservoir_measurables(model, wellresult, states = missing;
     # Reservoir values
     if include_reservoir
         if is_blackoil
-            fwip = add_entry(:wip, "water component in place (surface volumes)", :liquid_volume_surface)
-            foip = add_entry(:oip, "oil component in place (surface volumes)", :liquid_volume_surface)
-            fgip = add_entry(:gip, "gas component in place (surface volumes)", :gas_volume_surface)
+            fwip = add_entry(:wip)
+            foip = add_entry(:oip)
+            fgip = add_entry(:gip)
         end
 
-        fwipr = add_entry(:wipr, "water in place (reservoir volumes)", :liquid_volume_reservoir)
-        foipr = add_entry(:oipr, "oil in place (reservoir volumes)", :liquid_volume_reservoir)
-        fgipr = add_entry(:gipr, "gas in place (reservoir volumes)", :gas_volume_reservoir)
+        fwipr = add_entry(:wipr)
+        foipr = add_entry(:oipr)
+        fgipr = add_entry(:gipr)
 
-        fprh = add_entry(:prh, "average pressure (hydrocarbon volume weighted)", :pressure)
-        fpr = add_entry(:pr, "average pressure (hydrocarbon volume weighted)", :pressure)
-        pres = add_entry(:prp, "average pressure", :pressure)
+        fprh = add_entry(:prh)
+        fpr = add_entry(:pr)
+        pres = add_entry(:prp)
 
         if haskey(states[1], :Reservoir)
             states = map(x -> x[:Reservoir], states)
         end
         for (i, state) in enumerate(states)
             p = state[:Pressure]
-            s = state[:Saturations]
+            if haskey(state, :Saturations)
+                s = state[:Saturations]
+            else
+                s = ones(length(phases), length(p))
+            end
             tm = state[:TotalMasses]
             if has_water
                 fwipr[i] = sum(ix -> pv[ix]*s[wix, ix], eachindex(pv))
@@ -2675,7 +2681,7 @@ function reservoir_measurables(model, wellresult, states = missing;
     end
     # Well values
     if prefix == 'w'
-        bhp = add_entry(:bhp, "bottom-hole pressure", :pressure)
+        bhp = add_entry(:bhp)
         bhp .= ws[only(wells)][:bhp]
     end
 
@@ -2697,28 +2703,89 @@ function reservoir_measurables(model, wellresult, states = missing;
     end
 
     # Derived quantities - done at the end to avoid double unit conversion
-    fwct = add_entry(:wct, "production water cut")
+    fwct = add_entry(:wct)
     @. fwct = fwpr./max.(flpr, 1e-12)
-    fgor = add_entry(:gor, "gas-oil production ratio")
+    fgor = add_entry(:gor)
     @. fgor = fgpr./max.(fopr, 1e-12)
 
-    fwit = add_entry(:wit, "water injection total", :liquid_volume_surface, is_rate = false)
+    flpt = add_entry(:lpt)
+    flpt .= cumsum(flpr.*dt)
+    fwit = add_entry(:wit)
     fwit .= cumsum(fwir.*dt)
-    foit = add_entry(:oit, "oil injection total", :liquid_volume_surface, is_rate = false)
+    foit = add_entry(:oit)
     foit .= cumsum(foir.*dt)
-    fgit = add_entry(:git, "gas injection total", :gas_volume_surface, is_rate = false)
+    fgit = add_entry(:git)
     fgit .= cumsum(fgir.*dt)
 
-    fwit = add_entry(:wpt, "water production total", :liquid_volume_surface, is_rate = false)
+    flit = add_entry(:lit)
+    flit .= cumsum(flir.*dt)
+    fwit = add_entry(:wpt)
     fwit .= cumsum(fwpr.*dt)
-    foit = add_entry(:opt, "oil production total", :liquid_volume_surface, is_rate = false)
+    foit = add_entry(:opt)
     foit .= cumsum(fopr.*dt)
-    fgit = add_entry(:gpt, "gas production total", :gas_volume_surface, is_rate = false)
+    fgit = add_entry(:gpt)
     fgit .= cumsum(fgpr.*dt)
 
     return out
 end
 
+function summary_key_lookup()
+    out = Dict{String, Any}()
+
+    function add_entry(name::Symbol, legend, type = :id; is_rate = false, prefix = "")
+        key = uppercase("$prefix$name")
+        if prefix == "w"
+            legend_prefix = "well "
+        elseif prefix == "g"
+            legend_prefix = "group "
+        elseif prefix == "f"
+            legend_prefix = "field "
+        else
+            legend_prefix = ""
+        end
+        out[key] = (legend = "$legend_prefix$legend", unit_type = type, is_rate = is_rate)
+    end
+
+    for prefix in ["f", "g", "w"]
+        add_entry(:lpr, "liquid production rate (oil + water)", :liquid_volume_surface, is_rate = true, prefix = prefix)
+        add_entry(:wpr, "water production rate", :liquid_volume_surface, is_rate = true, prefix = prefix)
+        add_entry(:opr, "oil production rate", :liquid_volume_surface, is_rate = true, prefix = prefix)
+        add_entry(:gpr, "gas production rate", :gas_volume_surface, is_rate = true, prefix = prefix)
+
+        add_entry(:lir, "liquid injection rate (oil + water)", :liquid_volume_surface, is_rate = true, prefix = prefix)
+        add_entry(:wir, "water injection rate", :liquid_volume_surface, is_rate = true, prefix = prefix)
+        add_entry(:oir, "oil injection rate", :liquid_volume_surface, is_rate = true, prefix = prefix)
+        add_entry(:gir, "gas injection rate", :gas_volume_surface, is_rate = true, prefix = prefix)
+
+        add_entry(:wct, "production water cut", prefix = prefix)
+        add_entry(:gor, "gas-oil production ratio", prefix = prefix)
+        add_entry(:wit, "water injection total", :liquid_volume_surface, is_rate = false, prefix = prefix)
+        add_entry(:oit, "oil injection total", :liquid_volume_surface, is_rate = false, prefix = prefix)
+        add_entry(:git, "gas injection total", :gas_volume_surface, is_rate = false, prefix = prefix)
+        add_entry(:lit, "liquid injection total", :liquid_volume_surface, is_rate = false, prefix = prefix)
+
+        add_entry(:wpt, "water production total", :liquid_volume_surface, is_rate = false, prefix = prefix)
+        add_entry(:opt, "oil production total", :liquid_volume_surface, is_rate = false, prefix = prefix)
+        add_entry(:gpt, "gas production total", :gas_volume_surface, is_rate = false, prefix = prefix)
+        add_entry(:lpt, "liquid production total", :liquid_volume_surface, is_rate = false, prefix = prefix)
+
+        if prefix == "w"
+            add_entry(:bhp, "bottom-hole pressure", :pressure, prefix = prefix)
+        elseif prefix != "g"
+            add_entry(:prh, "average pressure (hydrocarbon volume weighted)", :pressure, prefix = prefix)
+            add_entry(:pr, "average pressure (hydrocarbon volume weighted)", :pressure, prefix = prefix)
+            add_entry(:prp, "average pressure", :pressure, prefix = prefix)
+            add_entry(:wip, "water component in place (surface volumes)", :liquid_volume_surface, prefix = prefix)
+            add_entry(:oip, "oil component in place (surface volumes)", :liquid_volume_surface, prefix = prefix)
+            add_entry(:gip, "gas component in place (surface volumes)", :gas_volume_surface, prefix = prefix)
+            add_entry(:wipr, "water in place (reservoir volumes)", :liquid_volume_reservoir, prefix = prefix)
+            add_entry(:oipr, "oil in place (reservoir volumes)", :liquid_volume_reservoir, prefix = prefix)
+            add_entry(:gipr, "gas in place (reservoir volumes)", :gas_volume_reservoir, prefix = prefix)
+        end
+    end
+    add_entry(:none, "", :id, prefix = "")
+    return out
+end
 
 # Utility to transfer one type of variables or parameters from one model to another
 function transfer_variables_or_parameters!(vars, new_model::SimulationModel, replacements; skip = Symbol[], add_new = true)

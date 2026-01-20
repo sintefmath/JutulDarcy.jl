@@ -37,17 +37,21 @@ function setup_mesh_afi(afi::AFIInputFile, mesh::Missing)
         haskey(IX["RESQML"], "GRID") || error("No GRID section in converted AFI file under the RESQML section.")
         mesh = GeoEnergyIO.mesh_from_grid_section(resqml["GRID"])
     else
-        pillar_grid = find_records(afi, "StraightPillarGrid", once = true)
-        if isnothing(pillar_grid)
+        pg = get_pillar_grid(afi)# find_records(afi, "StraightPillarGrid", once = false)
+        if isnothing(pg)
             error("No RESQML section in AFI file, and no StraightPillarGrid record found.")
         end
-        pg = pillar_grid.value
+        grid_names = keys(pg)
+        if length(pg) > 1
+            @warn "Multiple StraightPillarGrid records found in AFI file. Using the first one: $(first(grid_names))."
+        end
+        pg = pg[first(grid_names)]
         cartdims = cartdims_from_structured_info(afi)
         nx, ny, nz = cartdims
-        dx = pg["DeltaX"]
-        dy = pg["DeltaY"]
-        dz = pg["DeltaZ"]
-        tops = pg["PillarTops"]
+        dx = get(pg, "DeltaX", missing)
+        dy = get(pg, "DeltaY", missing)
+        dz = get(pg, "DeltaZ", missing)
+        tops = get(pg, "PillarTops", missing)
 
         dcp = pg["CellDoubleProperty"]
         if ismissing(tops) && haskey(dcp, "CELL_TOP_DEPTH")
@@ -69,10 +73,50 @@ function setup_mesh_afi(afi::AFIInputFile, mesh::Missing)
     return mesh
 end
 
+function get_pillar_grid(afi)
+    recs = find_records(afi, "StraightPillarGrid", once = false)
+    if length(recs) == 0
+        pillar_grid = nothing
+    else
+        pillar_grid = Dict{String, Any}()
+        for rec in recs
+            name = rec.value["name"]
+            if haskey(pillar_grid, name)
+                dest = pillar_grid[name]
+            else
+                dest = Dict{String, Any}()
+                dest["CellDoubleProperty"] = Dict{String, Any}()
+                dest["CellIntegerProperty"] = Dict{String, Any}()
+                pillar_grid[name] = dest
+            end
+            for (k, v) in rec.value
+                if k == "name" || ismissing(v)
+                    continue
+                end
+                if k == "CellDoubleProperty" || k == "CellIntegerProperty"
+                    for (pk, pv) in v
+                        if !ismissing(pv)
+                            dest[k][pk] = pv
+                        end
+                    end
+                    continue
+                else
+                    if haskey(dest, k)
+                        @warn "Multiple StraightPillarGrid records found in AFI file. Overwriting existing entry for $k."
+                    end
+                    dest[k] = v
+                end
+            end
+        end
+    end
+    return pillar_grid
+end
+
 function setup_reservoir_domain_afi(d::AFIInputFile, mesh;
         system = missing,
         phases = missing,
         use_nnc = true,
+        use_geometry = true,
         active = mesh.cell_map,
         kwarg...
     )
@@ -104,10 +148,17 @@ function setup_reservoir_domain_afi(d::AFIInputFile, mesh;
         end
         found = true
     else
-        pillar_grids = find_records(d, "StraightPillarGrid", once = false)
-        for pillar_grid in pillar_grids
-            found = true
-            for (k, v) in pillar_grid.value["CellDoubleProperty"]
+        pillar_grid = get_pillar_grid(d)
+        found = !isnothing(pillar_grid)
+        if found
+            if length(keys(pillar_grid)) > 1
+                @warn "Multiple StraightPillarGrid records found in AFI file. Using the first one: $(first(keys(pillar_grid)))."
+            end
+            grid = pillar_grid[first(keys(pillar_grid))]
+            for (k, v) in grid["CellDoubleProperty"]
+                set_grid_entry!(data, k, v, ncells)
+            end
+            for (k, v) in grid["CellIntegerProperty"]
                 set_grid_entry!(data, k, v, ncells)
             end
         end
@@ -179,6 +230,11 @@ function setup_reservoir_domain_afi(d::AFIInputFile, mesh;
                 end
             end
         end
+        if minimum(left) == 0 || minimum(right) == 0
+            @warn "ConnectionSet contains zero-based cell indices. Converting to one-based indices."
+            left .+= 1
+            right .+= 1
+        end
         num_nnc = length(trans_nnc)
         if num_nnc > 0
             @warn "Added $(length(trans_nnc)) NNC connections from AFI file. This functionality is not well tested, especially for meshes with inactive cells."
@@ -190,7 +246,7 @@ function setup_reservoir_domain_afi(d::AFIInputFile, mesh;
 
     reservoir = reservoir_domain(mesh; domain_kwarg..., kwarg...)
     # Finally, check if transmissibility override is present
-    if haskey(data, "CELL_CENTER_DEPTH")
+    if haskey(data, "CELL_CENTER_DEPTH") && use_geometry
         cc = reservoir[:cell_centroids, Cells()]
         cc[3, :] .= data["CELL_CENTER_DEPTH"]
     end
@@ -343,10 +399,15 @@ function set_grid_entry!(data::Dict{String, Vector}, k, v, ncells)
         T = Int
     end
     nvals = length(v)
-    if nvals != ncells
-        @warn "Property $k has $nvals values, but the grid has $ncells cells..."
+    if nvals > ncells
+        @warn "Property $k has $nvals values, but the grid has $ncells cells. Taking the first $ncells values."
+        v = v[1:ncells]
+    elseif nvals < ncells
+        @warn "Property $k has $nvals values, but the grid has $ncells cells. Padding with the last value."
+        lastval = v[end]
+        v = vcat(v, fill(lastval, ncells - nvals))
     end
-    vals = get_property_from_string(data, k, nvals; T = T)
+    vals = get_property_from_string(data, k, ncells; T = T)
     vals .= v
     return data
 end
