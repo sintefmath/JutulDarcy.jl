@@ -299,7 +299,10 @@ end
 
 function coarsen_reservoir_forces(forces::AbstractVector, coarse_model, fine_model)
     conv(f) = coarsen_reservoir_forces(f, coarse_model, fine_model)
-    return map(conv, forces)
+    # Coarsen unique forces and map back
+    fmap = Jutul.unique_forces_and_mapping(forces, ones(length(forces)); eachstep = false)
+    coarse_unique_forces = map(conv, fmap.forces)
+    return coarse_unique_forces[fmap.timesteps_to_forces]
 end
 
 function coarsen_reservoir_forces(forces, coarse_model, fine_model)
