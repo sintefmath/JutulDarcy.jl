@@ -215,7 +215,13 @@ end
 
 function plot_reservoir(case::JutulCase, arg...; kwarg...)
     if length(arg) == 0
-        arg = (merge(case.parameters[:Reservoir], case.state0[:Reservoir]),)
+        plot_vals = merge(case.parameters[:Reservoir], case.state0[:Reservoir])
+        for (k, v) in pairs(reservoir_model(case).data_domain)
+            if !haskey(plot_vals, k)
+                plot_vals[k] = v[1]
+            end
+        end
+        arg = (plot_vals, )
     end
     return plot_reservoir(case.model, arg...; kwarg...)
 end
