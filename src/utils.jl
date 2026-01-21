@@ -2636,7 +2636,7 @@ function reservoir_measurables(model, wellresult, states = missing;
         fpr = add_entry(:pr)
         pres = add_entry(:prp)
 
-        if haskey(states[1], :Reservoir)
+        if length(states) > 0 && haskey(states[1], :Reservoir)
             states = map(x -> x[:Reservoir], states)
         end
         for (i, state) in enumerate(states)
