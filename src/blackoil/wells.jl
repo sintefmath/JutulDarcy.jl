@@ -9,14 +9,10 @@ Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::
         a, l, v, rhoGS, rhoOS = well_pvt_bo(sys)
         b, b_w, ρ, ρ_w, s_w = well_volumes_bo(state_res, state_well)
         # Water component flux
-        if dp_a < 0.0
-            # Injection
-            Q_a = s_w[a, wc]*ρ_w[a, wc]*λ_t*dp_a
-        else
-            # Production
-            Q_a = ρ[a, rc]*λ_a*dp_a
-        end
-        out[a] = Q_a
+        water_is_injecting = dp_a < 0.0
+        injection_value = s_w[a, wc]*ρ_w[a, wc]*λ_t*dp_a
+        production_value = ρ[a, rc]*λ_a*dp_a
+        out[a] = ifelse(water_is_injecting, injection_value, production_value)
     else
         l, v = phase_indices(sys)
         dp_l, dp_v = res_dp(conn, state_res, state_well, sys)
@@ -28,42 +24,27 @@ Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::
 
     q_l = q_v = zero(dp_l)
     # Oil component flux
-    if dp_l < 0.0
-        # Injection
-        bO = b_w[l, wc]
-        sO = s_w[l, wc]
-        q = λ_t*dp_l*sO*bO
-        q_l += q
-        if has_disgas(sys)
-            q_v += state_well.Rs[wc]*q
-        end
-    else
-        # Production
-        bO = b[l, rc]
-        q = dp_l*bO*λ_l
-        q_l += q
-        if has_disgas(sys)
-            q_v += state_res.Rs[rc]*q
-        end
+    liquid_is_injecting = dp_l < 0.0
+    q_inj_l = λ_t*dp_l*s_w[l, wc]*b_w[l, wc]
+    q_prod_l = dp_l*b[l, rc]*λ_l
+    q_l += ifelse(liquid_is_injecting, q_inj_l, q_prod_l)
+    if has_disgas(sys)
+        q_v += ifelse(liquid_is_injecting,
+            state_well.Rs[wc]*q_inj_l,
+            state_res.Rs[rc]*q_prod_l
+        )
     end
+
     # Gas component flux
-    if dp_v < 0.0
-        # Injection
-        bG = b_w[v, wc]
-        sG = s_w[v, wc]
-        q = λ_t*dp_v*sG*bG
-        q_v += q
-        if has_vapoil(sys)
-            q_l += state_well.Rv[wc]*q
-        end
-    else
-        # Production
-        bG = b[v, rc]
-        q = dp_v*bG*λ_v
-        q_v += q
-        if has_vapoil(sys)
-            q_l += state_res.Rv[rc]*q
-        end
+    vapor_is_injecting = dp_v < 0.0
+    q_inj_v = λ_t*dp_v*s_w[v, wc]*b_w[v, wc]
+    q_prod_v = dp_v*b[v, rc]*λ_v
+    q_v += ifelse(vapor_is_injecting, q_inj_v, q_prod_v)
+    if has_vapoil(sys)
+        q_l += ifelse(vapor_is_injecting,
+            state_well.Rv[wc]*q_inj_v,
+            state_res.Rv[rc]*q_prod_v
+        )
     end
     out[l] = q_l*rhoOS
     out[v] = q_v*rhoGS

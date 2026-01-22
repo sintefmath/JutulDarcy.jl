@@ -196,7 +196,8 @@ function cross_term_total_surface_mass_rate_and_mixture(facility, well, state_fa
         ncomp = number_of_components(well.system)
         @assert nmix == ncomp "Injection composition length ($nmix) must match number of components ($ncomp)."
     else
-        if value(q_t) > 0 && ctrl isa ProducerControl
+        v_q_t = value(q_t)
+        if v_q_t isa Float64 && v_q_t > 0 && ctrl isa ProducerControl
             @warn "Producer $well_symbol is injecting?"
         end
         if haskey(state_well, :MassFractions)
