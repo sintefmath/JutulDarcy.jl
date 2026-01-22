@@ -195,7 +195,7 @@ pressure_gradient(state, disc) = gradient(state.Pressure, disc)
     return F(up)
 end
 
-@inline function upwind(upw::SPU, m::AbstractArray{T}, q::Jutul.MaybeFloatMaybeJutulAD) where T<:Jutul.MaybeFloatMaybeJutulAD
+@inline function upwind(upw::SPU, m::AbstractArray{T}, q::Jutul.JutulReal) where T<:Jutul.JutulReal
     flag = q < zero(q)
     if flag
         up = upw.right
@@ -210,7 +210,7 @@ end
     return ifelse(q < zero(q), m[upw.right], m[upw.left])
 end
 
-@inline function phase_upwind(upw, m::AbstractMatrix{T}, phase::Integer, q::Jutul.MaybeFloatMaybeJutulAD) where T<:Jutul.MaybeFloatMaybeJutulAD
+@inline function phase_upwind(upw, m::AbstractMatrix{T}, phase::Integer, q::Jutul.JutulReal) where T<:Jutul.JutulReal
     F(cell) = @inbounds m[phase, cell]
     return upwind(upw, F, q)
 end
