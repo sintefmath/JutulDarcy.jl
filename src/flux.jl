@@ -220,6 +220,8 @@ end
     return ifelse(q < zero(q), m[phase, upw.right], m[phase, upw.left])
 end
 
+component_upwind(upw, m, c, q) = phase_upwind(upw, m, c, q)
+
 @inline function upwind(upw::Jutul.WENO.WENOFaceDiscretization, F, q)
     return Jutul.WENO.weno_upwind(upw, F, q)
 end
