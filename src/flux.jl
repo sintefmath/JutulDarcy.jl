@@ -205,7 +205,7 @@ end
     return @inbounds X[up]
 end
 
-@inline function upwind(upw::SPU, m::AbstractArray{T}, q)
+@inline function upwind(upw::SPU, m::AbstractArray, q)
     # Generic fallback for other types
     return ifelse(q < zero(q), m[upw.right], m[upw.left])
 end
