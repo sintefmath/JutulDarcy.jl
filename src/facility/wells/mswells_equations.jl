@@ -126,10 +126,8 @@ function saturation_mixed(saturations, densities, viscosities, ix)
         mu = zero(eltype(viscosities))
         for ph in 1:nph
             s = saturations[ph, ix]
-            if s > 0
-                rho += densities[ph, ix]*s
-                mu += viscosities[ph, ix]*s
-            end
+            rho += densities[ph, ix]*s
+            mu += viscosities[ph, ix]*s
         end
     end
     return (rho, mu)
