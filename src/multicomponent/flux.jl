@@ -41,8 +41,9 @@ end
 
 @inline function inner_compositional!(q, S, ρ, X, Y, D, q_l, q_v, face, grad, upw, nc, lv)
     for i in 1:nc
-        X_f = upwind(upw, cell -> @inbounds(X[i, cell]), q_l)
-        Y_f = upwind(upw, cell -> @inbounds(Y[i, cell]), q_v)
+        X_f = component_upwind(upw, X, i, q_l)
+        Y_f = component_upwind(upw, Y, i, q_v)
+
         q_i = q_l*X_f + q_v*Y_f
         q = setindex(q, q_i, i)
     end

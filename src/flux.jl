@@ -145,19 +145,19 @@ end
     @inbounds s_l = s[phase, l]
     @inbounds s_r = s[phase, r]
 
-    s_l_tiny = s_l <= ϵ
-    s_r_tiny = s_r <= ϵ
-    if s_l_tiny && s_r_tiny
-        ρ_avg = zero(s_l)
-    elseif s_l_tiny
-        ρ_avg = ρ_r
-    elseif s_r_tiny
-        ρ_avg = ρ_l
-    else
-        # alt def: (s_l*ρ_r + s_r*ρ_l)/(s_l + s_r)
-        ρ_avg = 0.5*(ρ_r + ρ_l)
-    end
-    return ρ_avg
+    # s_l_tiny = s_l <= ϵ
+    # s_r_tiny = s_r <= ϵ
+    # if s_l_tiny && s_r_tiny
+    #     ρ_avg = zero(s_l)
+    # elseif s_l_tiny
+    #     ρ_avg = ρ_r
+    # elseif s_r_tiny
+    #     ρ_avg = ρ_l
+    # else
+    #     # alt def: (s_l*ρ_r + s_r*ρ_l)/(s_l + s_r)
+    #     ρ_avg = 0.5*(ρ_r + ρ_l)
+    # end
+    return 0.5*(ρ_r + ρ_l)
 end
 
 @inline function gradient(X::AbstractVector, tpfa::TPFA)
@@ -220,7 +220,10 @@ end
     return ifelse(q < zero(q), m[phase, upw.right], m[phase, upw.left])
 end
 
-component_upwind(upw, m, c, q) = phase_upwind(upw, m, c, q)
+@inline function component_upwind(upw, component_values, component_idx, q)
+    # Alias to make code more readable
+    return phase_upwind(upw, component_values, component_idx, q)
+end
 
 @inline function upwind(upw::Jutul.WENO.WENOFaceDiscretization, F, q)
     return Jutul.WENO.weno_upwind(upw, F, q)
