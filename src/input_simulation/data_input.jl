@@ -281,7 +281,6 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
                 top_node = [top_x, top_y, top_depth]
                 centers = zeros(3, num_edges+1)
                 centers[:, 1] = top_node
-                volumes = zeros(num_edges)
                 diameter = fill(NaN, num_edges)
                 branches = zeros(Int, num_edges)
                 tubing_lengths = zeros(num_edges)
@@ -338,6 +337,9 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
                 end
                 perforation_cells = map_compdat_to_multisegment_segments(compsegs, branches, tubing_lengths, tubing_depths, cdat)
                 extra_arg[:neighborship] = N
+                r_cells = diameter./2
+                pushfirst!(r_cells, diameter[1]/2) # Top node
+                extra_arg[:cell_radius] = r_cells
                 extra_arg[:perforation_cells_well] = perforation_cells
                 extra_arg[:well_cell_centers] = centers
                 extra_arg[:use_top_node] = false
