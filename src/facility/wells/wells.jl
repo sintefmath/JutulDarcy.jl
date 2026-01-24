@@ -571,24 +571,21 @@ end
 function perforation_phase_mass_flux(λ_t, conn, state_res, state_well, ph)
     # ψ is pressure difference from reservoir to well. If it is negative, we are injecting into the reservoir.
     ψ = perforation_phase_potential_difference(conn, state_res, state_well, ph)
-    if ψ < 0
-        wc = conn.well
-        # Injection
-        ρ_w = state_well.PhaseMassDensities[ph, wc]
-        s_w = state_well.Saturations[ph, wc]
-        q_ph = s_w*ρ_w*ψ*λ_t
+    is_injecting = ψ < 0
+    wc = conn.well
+    rc = conn.reservoir
+    ρ_w = state_well.PhaseMassDensities[ph, wc]
+    s_w = state_well.Saturations[ph, wc]
+
+    if haskey(state_res, :PhaseMassMobilities)
+        ρλ = state_res.PhaseMassMobilities[ph, rc]
     else
-        rc = conn.reservoir
-        # Production
-        if haskey(state_res, :PhaseMassMobilities)
-            ρλ = state_res.PhaseMassMobilities[ph, rc]
-        else
-            ρ = state_res.PhaseMassDensities[ph, rc]
-            λ = state_res.PhaseMobilities[ph, rc]
-            ρλ = ρ*λ
-        end
-        q_ph = ρλ*ψ
+        ρ = state_res.PhaseMassDensities[ph, rc]
+        λ = state_res.PhaseMobilities[ph, rc]
+        ρλ = ρ*λ
     end
+
+    q_ph = ifelse(is_injecting, s_w*ρ_w*ψ*λ_t, ρλ*ψ)
     return q_ph
 end
 
