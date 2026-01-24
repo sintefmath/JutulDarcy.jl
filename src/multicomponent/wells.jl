@@ -62,13 +62,9 @@ Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::
         dp = perforation_phase_potential_difference(conn, state_res, state_well, ph)
         # dp is pressure difference from reservoir to well. If it is negative,
         # we are injecting into the reservoir.
-        if dp < 0
-            mob_ph = λ_t*s_w[ph, wc]
-            dens_ph = ρ_w[ph, wc]
-        else
-            mob_ph = mob(ph)
-            dens_ph = ρ[ph, rc]
-        end
+        is_injecting = dp < 0
+        mob_ph = ifelse(is_injecting, λ_t*s_w[ph, wc], mob(ph))
+        dens_ph = ifelse(is_injecting, ρ_w[ph, wc], ρ[ph, rc])
         Q = mob_ph*dens_ph*dp
         return (Q, dp)
     end
@@ -76,18 +72,11 @@ Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::
     Q_l, dp_l = phase_mass_flux(L)
     Q_v, dp_v = phase_mass_flux(V)
 
+    liquid_inj = dp_l < 0
+    vapor_inj = dp_v < 0
     @inbounds for c in 1:nc
-        if dp_l < 0
-            # Injection
-            X_upw = X_w[c, wc]
-        else
-            X_upw = X[c, rc]
-        end
-        if dp_v < 0
-            Y_upw = Y_w[c, wc]
-        else
-            Y_upw = Y[c, rc]
-        end
+        X_upw = ifelse(liquid_inj, X_w[c, wc], X[c, rc])
+        Y_upw = ifelse(vapor_inj, Y_w[c, wc], Y[c, rc])
         out[c] = Q_l*X_upw + Q_v*Y_upw
     end
     if has_water
