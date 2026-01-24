@@ -964,7 +964,9 @@ function JutulDarcy.plot_summary(arg...;
                         # ax.title[] = "$(name) $(info.legend)"
                         _, u = well_unit_conversion(units, "", info)
                         if info.is_rate
-                            v = v.*si_unit(:day)
+                            if lowercase(string(summaries[smry_no]["UNIT_SYSTEM"])) == "si"
+                                v = v.*si_unit(:day)
+                            end
                             u *= "/day"
                         end
                         if smry_no == 1
