@@ -28,34 +28,33 @@ function segment_pressure_drop(f::SegmentWellBoreFrictionHB, L, rough, radius_ou
     Dᵢ = 2*radius_inner
     A = well_cross_section_area(radius_outer, radius_inner)
     v = V/(ρ*A) # Mass flux to velocity
-    if abs(v) < eps(Float64)
-        # Avoid division by zero - use laminar flow model,
-        #   Δp = 2*f*(L/Dₒ)*ρ*v^2, where f = 16/Re,
-        # with direct elimination of v to avoid division by very small number
-        Δp = 2*(16/(ρ*(Dₒ-Dᵢ)/μ))*(L/(Dₒ-Dᵢ))*ρ*v
-        return Δp
-    end
 
+    # 
+    # If v is very small, avoid division by zero - use laminar flow model,
+    #
+    #   Δp = 2*f*(L/Dₒ)*ρ*v^2, where f = 16/Re,
+    #
+    # with direct elimination of v to avoid division by very small number
+    is_tiny_flow = abs(v) < eps(Float64)
+    Δp_tiny_flow = 2*(16/(ρ*(Dₒ-Dᵢ)/μ))*(L/(Dₒ-Dᵢ))*ρ*v
+
+    # Otherwise compute Reynolds number
     Re = abs(ρ*v*(Dₒ-Dᵢ)/μ)
-    # Friction model - empirical relationship
+    # Friction model - empirical relationship that interpolates between laminar
+    # and turbulent flow regimes using limits defined in f
     Re_l, Re_t = f.laminar_limit, f.turbulent_limit
-    if is_laminar_flow(f, Re)
-        f = 16.0/Re
+    # Laminar and turbulent friction factors
+    f_laminar = 16.0/Re
+    f_turbulent = (-3.6*log10(6.9/Re +(rough/(3.7*Dₒ))^(10.0/9.0)))^(-2.0)
+
+    if f.assume_turbulent
+        α = 1.0
     else
-        # Either turbulent or intermediate flow regime. We need turbulent value either way.
-        f_t = (-3.6*log10(6.9/Re +(rough/(3.7*Dₒ))^(10.0/9.0)))^(-2.0)
-        if is_turbulent_flow(f, Re)
-            # Turbulent flow
-            f = f_t
-        else
-            # Intermediate regime - interpolation
-            f_l = 16.0/Re
-            α = (Re - Re_l)/(Re_t - Re_l)
-            f = (1 - α)*f_l + α*f_t
-        end
+        α = clamp((Re - Re_l)/(Re_t - Re_l), 0.0, 1.0)
     end
+    f = (1.0 - α)*f_laminar + α*f_turbulent
     Δp = 2*f*(L/(Dₒ-Dᵢ))*ρ*v^2
-    return Δp
+    return ifelse(is_tiny_flow, Δp_tiny_flow, Δp)
 end
 
 function well_cross_section_area(radius_outer, radius_inner)
