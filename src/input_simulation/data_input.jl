@@ -289,8 +289,6 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
                 tubing_lengths = zeros(num_edges)
                 tubing_depths = zeros(num_edges)
                 # tubing_depths[1] = top_tubing_delta
-
-                segment_models = Vector{SegmentWellBoreFrictionHB{Float64}}(undef, num_edges)
                 for segment in segments
                     start, stop, branch, start_conn,
                     dist, depth_delta, D, rough, cross_sect, vol, = segment
@@ -315,7 +313,6 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
                     if vol <= 0.0
                         vol = cross_sect*L
                     end
-                    Δp = SegmentWellBoreFrictionHB(L, rough, D)
 
                     push!(conn, (start, start_conn))
                     current_tubing = tubing_at_start
@@ -326,7 +323,6 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
 
                         edge_ix = seg_ix - 1
                         @assert isnan(diameter[edge_ix]) "Values are being overwritten in ms well - programming error?"
-                        segment_models[edge_ix] = Δp
                         diameter[edge_ix] = D
                         volumes[edge_ix] = vol
                         branches[edge_ix] = branch
@@ -338,6 +334,7 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
                         tubing_depths[edge_ix] = current_tubing
                     end
                 end
+                # segment_models = [i for i in segment_models]
                 N = zeros(Int, 2, length(conn))
                 for (i, t) in enumerate(conn)
                     N[:, i] .= t
@@ -345,15 +342,25 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
                 perforation_cells = map_compdat_to_multisegment_segments(compsegs, branches, tubing_lengths, tubing_depths, cdat)
                 cell_centers = domain[:cell_centroids]
                 dz = vec(cell_centers[3, wc]) - vec(centers[3, perforation_cells])
-                W = MultiSegmentWell(wc, volumes, centers;
-                    name = Symbol(wname),
-                    WI = WI,
-                    dz = dz, # TODO
-                    N = N,
-                    perforation_cells = perforation_cells,
+                W = setup_well(domain, perforation_cells, simple_well = false, name = Symbol(wname);
+                    volume_multiplier = 20,
+                    WI = data[:well_index],
+                    dir = data[:dir],
+                    radius = data[:radius],
+                    skin = data[:skin],
+                    drainage_radius = data[:drainage_radius],
+                    Kh = data[:Kh],
                     reference_depth = ref_depth,
-                    segment_models = segment_models,
                 )
+                # W = MultiSegmentWell(wc, volumes, centers;
+                #     name = Symbol(wname),
+                #     WI = WI,
+                #     dz = dz, # TODO
+                #     N = N,
+                #     perforation_cells = perforation_cells,
+                #     reference_depth = ref_depth,
+                #     segment_models = segment_models,
+                # )
             end
         end
     end
