@@ -209,6 +209,9 @@ module JutulDarcy
     include("Geothermal/Geothermal.jl")
     import JutulDarcy.Geothermal: ClosedLoopSupplyToReturnMassCT, ClosedLoopSupplyToReturnEnergyCT, BTESWellGroutEnergyCT
 
+    # Discrete Fracture Models
+    include("DFM/utils.jl")
+
     # Tracers
     include("Tracers/Tracers.jl")
     import JutulDarcy.Tracers: SinglePhaseTracer, MultiPhaseTracer, add_tracers_to_model!, number_of_tracers
