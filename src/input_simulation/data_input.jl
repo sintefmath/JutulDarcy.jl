@@ -933,6 +933,9 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
         if haskey(section, "PORV")
             extra_data_arg[:pore_volume_override] = section["PORV"][active_ix]
         end
+        if haskey(section, "EDITNNC")
+            apply_mult_nnc!(tranmult, section["EDITNNC"], G, ijk)
+        end
         # Explicit trans given as cell values
         for k in ["TRANX", "TRANY", "TRANZ"]
             if haskey(section, k)
@@ -1216,6 +1219,29 @@ function parser_set_multregt!(tranmult, G, opernum, multnum, fluxnum, multregt, 
                 end
             end
         end
+    end
+    return tranmult
+end
+
+function apply_mult_nnc!(tranmult, edit_nnc, G, ijk::Vector{NTuple{3, Int}})
+    nskip = 0
+    for entry in edit_nnc
+        (; c1, c2, trans_mult) = entry
+        c1_linear = findfirst(isequal(c1), ijk)
+        c2_linear = findfirst(isequal(c2), ijk)
+        if isnothing(c1_linear) || isnothing(c2_linear)
+            nskip += 1
+            continue
+        end
+        for face in G.faces.cells_to_faces[c1_linear]
+            l, r = G.faces.neighbors[face]
+            if (l == c1_linear && r == c2_linear) || (l == c2_linear && r == c1_linear)
+                tranmult[face] *= trans_mult
+            end
+        end
+    end
+    if nskip > 0
+        println("Skipped $nskip of $(length(edit_nnc)) EDITNNC entries due to inactive cells.")
     end
     return tranmult
 end
