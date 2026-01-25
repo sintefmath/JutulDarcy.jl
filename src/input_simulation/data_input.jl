@@ -244,12 +244,9 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
     if isnan(ref_depth)
         ref_depth = nothing
     end
-    W = missing
-    accumulator_volume = missing
-    if simple_well
-        @assert isnothing(msdata)
-        accumulator_volume = 0.05*mean(domain[:volumes][wc])*mean(domain[:porosity][wc])
-    else
+    extra_arg = Dict{Symbol, Any}()
+    if !simple_well
+        # Set up multi-segment well
         if !isnothing(msdata)
             has_welsegs = haskey(msdata, "WELSEGS")
             has_compsegs = haskey(msdata, "COMPSEGS")
@@ -282,15 +279,13 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
                 conn = Tuple{Int, Int}[]
 
                 top_node = [top_x, top_y, top_depth]
-                centers = zeros(3, num_edges)
-                volumes = zeros(num_edges)
+                centers = zeros(3, num_edges+1)
+                centers[:, 1] = top_node
                 diameter = fill(NaN, num_edges)
                 branches = zeros(Int, num_edges)
                 tubing_lengths = zeros(num_edges)
                 tubing_depths = zeros(num_edges)
                 # tubing_depths[1] = top_tubing_delta
-
-                segment_models = Vector{SegmentWellBoreFrictionHB{Float64}}(undef, num_edges)
                 for segment in segments
                     start, stop, branch, start_conn,
                     dist, depth_delta, D, rough, cross_sect, vol, = segment
@@ -315,7 +310,6 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
                     if vol <= 0.0
                         vol = cross_sect*L
                     end
-                    Δp = SegmentWellBoreFrictionHB(L, rough, D)
 
                     push!(conn, (start, start_conn))
                     current_tubing = tubing_at_start
@@ -326,51 +320,45 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
 
                         edge_ix = seg_ix - 1
                         @assert isnan(diameter[edge_ix]) "Values are being overwritten in ms well - programming error?"
-                        segment_models[edge_ix] = Δp
                         diameter[edge_ix] = D
-                        volumes[edge_ix] = vol
                         branches[edge_ix] = branch
                         tubing_lengths[edge_ix] = L
                         # TODO: Set better x, y
-                        centers[1, edge_ix] = top_x
-                        centers[2, edge_ix] = top_y
-                        centers[3, edge_ix] = current_depth
+                        centers[1, edge_ix + 1] = top_x
+                        centers[2, edge_ix + 1] = top_y
+                        centers[3, edge_ix + 1] = current_depth
                         tubing_depths[edge_ix] = current_tubing
                     end
                 end
+                # segment_models = [i for i in segment_models]
                 N = zeros(Int, 2, length(conn))
                 for (i, t) in enumerate(conn)
                     N[:, i] .= t
                 end
                 perforation_cells = map_compdat_to_multisegment_segments(compsegs, branches, tubing_lengths, tubing_depths, cdat)
-                cell_centers = domain[:cell_centroids]
-                dz = vec(cell_centers[3, wc]) - vec(centers[3, perforation_cells])
-                W = MultiSegmentWell(wc, volumes, centers;
-                    name = Symbol(wname),
-                    WI = WI,
-                    dz = dz, # TODO
-                    N = N,
-                    perforation_cells = perforation_cells,
-                    reference_depth = ref_depth,
-                    segment_models = segment_models,
-                )
+                extra_arg[:neighborship] = N
+                r_cells = diameter./2
+                pushfirst!(r_cells, diameter[1]/2) # Top node
+                extra_arg[:cell_radius] = r_cells
+                extra_arg[:perforation_cells_well] = perforation_cells
+                extra_arg[:well_cell_centers] = centers
+                extra_arg[:use_top_node] = false
             end
         end
     end
-    if ismissing(W)
-        W = setup_well(domain, wc;
-            volume_multiplier = 20,
-            name = Symbol(wname),
-            WI = data[:well_index],
-            dir = data[:dir],
-            radius = data[:radius],
-            skin = data[:skin],
-            drainage_radius = data[:drainage_radius],
-            Kh = data[:Kh],
-            reference_depth = ref_depth,
-            simple_well = simple_well,
-        )
-    end
+    W = setup_well(domain, wc;
+        volume_multiplier = 20,
+        name = Symbol(wname),
+        WI = data[:well_index],
+        dir = data[:dir],
+        radius = data[:radius],
+        skin = data[:skin],
+        drainage_radius = data[:drainage_radius],
+        Kh = data[:Kh],
+        reference_depth = ref_depth,
+        simple_well = simple_well,
+        extra_arg...
+    )
     return (W, wc, WI, open)
 end
 
