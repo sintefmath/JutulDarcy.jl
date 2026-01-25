@@ -510,17 +510,38 @@ end
 Base.show(io::IO, t::TotalReservoirRateTarget) = print(io, "TotalReservoirRateTarget with value $(t.value) [m^3/s]")
 
 """
-    HistoricalReservoirVoidageTarget(q, weights)
+    HistoricalReservoirVoidageTarget(; oil = 0.0, water = 0.0, gas = 0.0)
 
 Historical RESV target for history matching cases. See
 [`ReservoirVoidageTarget`](@ref). For historical rates, the weights described in
 that target are computed based on the reservoir pressure and conditions at the
 previous time-step.
 """
-struct HistoricalReservoirVoidageTarget{T, K} <: WellTarget where {T<:AbstractFloat, K<:Tuple}
+struct HistoricalReservoirVoidageTarget{T} <: WellTarget where {T<:AbstractFloat}
     value::T
-    weights::K
+    water::T
+    oil::T
+    gas::T
+    function HistoricalReservoirVoidageTarget(v = missing; oil = 0.0, water = 0.0, gas = 0.0)
+        if ismissing(v)
+            v = water + oil + gas
+        end
+        v, water, oil, gas = promote(v, water, oil, gas)
+        return new{typeof(water)}(v, water, oil, gas)
+    end
 end
+
+
+function HistoricalReservoirVoidageTarget(v, w)
+    water, oil, gas = w
+    return HistoricalReservoirVoidageTarget(
+        v,
+        water = w[1]*v,
+        oil = w[2]*v,
+        gas = w[3]*v
+    )
+end
+
 Base.show(io::IO, t::HistoricalReservoirVoidageTarget) = print(io, "HistoricalReservoirVoidageTarget with value $(t.value) [m^3/s]")
 
 """
@@ -1149,7 +1170,7 @@ end
 
 function realize_control_for_reservoir(rstate, ctrl::ProducerControl{<:HistoricalReservoirVoidageTarget}, model, dt)
     sys = model.system
-    w = ctrl.target.weights
+    resv_t = ctrl.target
     pv_t = 0.0
     p_avg = 0.0
     rs_avg = 0.0
@@ -1175,18 +1196,18 @@ function realize_control_for_reservoir(rstate, ctrl::ProducerControl{<:Historica
     rv_avg /= pv_t
 
     a, l, v = phase_indices(sys)
-    ww = w[a]
-    wo = w[l]
-    wg = w[v]
-    if wo <= 1e-20
+    qw = resv_t.water
+    qo = resv_t.oil
+    qg = resv_t.gas
+    if qw <= 1e-20
         rs = 0.0
     else
-        rs = min(wg/wo, rs_avg)
+        rs = min(qg/qo, rs_avg)
     end
-    if wg <= 1e-20
+    if qg <= 1e-20
         rv = 0.0
     else
-        rv = min(wo/wg, rv_avg)
+        rv = min(qo/qg, rv_avg)
     end
 
     svar = Jutul.get_secondary_variables(model)
@@ -1206,16 +1227,13 @@ function realize_control_for_reservoir(rstate, ctrl::ProducerControl{<:Historica
 
     shrink = max(1.0 - rs*rv, 1e-20)
     shrink_avg = max(1.0 - rs_avg*rv_avg, 1e-20)
-    old_rate = ctrl.target.value
     # Water
-    new_water_rate = old_rate*ww/bW
+    new_water_rate = qw/bW
     new_water_weight = 1/bW
     # Oil
-    qo = old_rate*wo
     new_oil_rate = qo
     new_oil_weight = 1.0/(bO*shrink_avg)
     # Gas
-    qg = old_rate*wg
     new_gas_rate = qg
     new_gas_weight = 1.0/(bG*shrink_avg)
     # Miscibility adjustments

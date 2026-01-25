@@ -1931,10 +1931,12 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
             is_rate = false
         elseif ctrl == "RESV"
             if is_hist
-                self_val = -(wrat + orat + grat)
-                w = [wrat, orat, grat]
-                w = w./sum(w)
-                t = HistoricalReservoirVoidageTarget(self_val, w)
+                t = HistoricalReservoirVoidageTarget(
+                    oil = -orat,
+                    water = -wrat,
+                    gas = -grat
+                )
+                self_val = t.value
             else
                 self_val = resv
                 w = [1.0, 1.0, 1.0]
