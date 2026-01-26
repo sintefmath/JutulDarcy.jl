@@ -37,3 +37,17 @@ function fracture_domain(mesh::Jutul.EmbeddedMeshes.EmbeddedMesh;
     return domain
 
 end
+
+function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, fractures::DataDomain, system::JutulSystem;
+    wells = [],
+    kwarg...)
+
+    model = setup_reservoir_model(reservoir, system; wells = wells, kwarg...)
+    fmodel = setup_reservoir_model(fractures, system; kwarg...)
+    model.models[:Fractures] = fmodel
+
+    # Set up DFM cross-terms
+
+    return model
+
+end
