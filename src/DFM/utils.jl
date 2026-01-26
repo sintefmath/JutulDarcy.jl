@@ -1,4 +1,10 @@
 using LinearAlgebra
+using StaticArrays
+
+# Fix for Jutul.LinearizedBlock initialization with SMatrix
+function Base.convert(::Type{SMatrix{N, M, T, L}}, x::Number) where {N, M, T, L}
+    return SMatrix{N, M, T, L}(ntuple(_ -> T(x), Val(L)))
+end
 
 function fracture_domain(mesh::Jutul.EmbeddedMeshes.EmbeddedMesh;
     aperture = 0.5e-3si_unit(:meter),
@@ -100,30 +106,15 @@ function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, fractures::Data
     kwarg...)
 
     model = setup_reservoir_model(reservoir, system; wells = wells, kwarg...)
-    fmodel = setup_reservoir_model(fractures, system; kwarg...)
-    fmodel = fmodel.models[:Reservoir]
+    fmodel = setup_reservoir_model(fractures, system; context = model.context, kwarg...)
+    if fmodel isa Jutul.MultiModel
+        fmodel = fmodel.models[:Reservoir]
+    end
     
     model.models[:Fractures] = fmodel
     group = maximum(model.groups) + 1
     push!(model.groups, group)
     model.group_lookup[:Fractures] = group
-
-    # models = Dict()
-    # models[:Reservoir] = model.models[:Reservoir]
-    # models[:Fractures] = fmodel
-    # groups = [1, 2]
-    # gno = maximum(groups) + 1
-    # for k in keys(model.models)
-    #     if k != :Reservoir && k != :Fractures
-    #         models[k] = model.models[k]
-    #         push!(groups, gno)
-    #     end
-    # end
-
-    # model = MultiModel(models;
-    #     cross_terms = model.cross_terms,
-    #     groups = groups,
-    # )
 
     # Set up DFM cross-terms
     ct = setup_reservoir_fracture_cross_term(reservoir, fractures)
