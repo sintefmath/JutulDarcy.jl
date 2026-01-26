@@ -545,22 +545,19 @@ end
 Base.show(io::IO, t::HistoricalReservoirVoidageTarget) = print(io, "HistoricalReservoirVoidageTarget with value $(t.value) [m^3/s]")
 
 """
-    ReservoirVoidageTarget(q, weights)
+    ReservoirVoidageTarget(q)
 
-RESV target for history matching cases. The `weights` input should
-have one entry per phase (or pseudocomponent) in the system. The well control
-equation is then:
+RESV target for history matching cases. 
 
-``|q_{ctrl} - \\sum_i w_i q_i^s|``
-
-where ``q_i^s`` is the surface rate of phase ``i`` and ``w_i`` the weight of
-component stream ``i``.
-
-This constraint is typically set up from .DATA files for black-oil and immiscible cases.
+This constraint is typically set up from .DATA files for black-oil and
+immiscible cases.
 """
-struct ReservoirVoidageTarget{T, K} <: WellTarget where {T<:AbstractFloat, K<:Tuple}
+struct ReservoirVoidageTarget{T, K} <: WellTarget where {T<:AbstractFloat, K}
     value::T
-    weights::K
+    avg_state::K
+    function ReservoirVoidageTarget(v::T, s = missing) where T
+        return new{T, typeof(s)}(v, s)
+    end
 end
 
 struct ReservoirVolumeRateTarget{T} <: WellTarget where {T<:AbstractFloat}
@@ -595,7 +592,7 @@ end
 as_limit(target) = NamedTuple([Pair(translate_target_to_symbol(target, shortname = true), target.value)])
 as_limit(T::DisabledTarget) = nothing
 as_limit(T::HistoricalReservoirVoidageTarget) = nothing
-as_limit(target::ReservoirVoidageTarget) = NamedTuple([Pair(translate_target_to_symbol(target, shortname = true), (target.value, target.weights))])
+as_limit(target::ReservoirVoidageTarget) = NamedTuple([Pair(translate_target_to_symbol(target, shortname = true), (target.value, target.avg_state))])
 as_limit(target::ReinjectionTarget) = NamedTuple([Pair(translate_target_to_symbol(target, shortname = true), (Inf))])
 
 """
@@ -1168,9 +1165,25 @@ function realize_control_for_reservoir(state, ctrl, model, dt)
     return (ctrl, false)
 end
 
-function realize_control_for_reservoir(rstate, ctrl::ProducerControl{<:HistoricalReservoirVoidageTarget}, model, dt)
-    sys = model.system
+function realize_control_for_reservoir(rstate, ctrl::ProducerControl{<:Union{HistoricalReservoirVoidageTarget, ReservoirVoidageTarget}}, model, dt)
     resv_t = ctrl.target
+    state_avg = setup_average_resv_state(model, rstate)
+    if resv_t isa HistoricalReservoirVoidageTarget
+        qw = resv_t.water
+        qo = resv_t.oil
+        qg = resv_t.gas
+        q_resv = compute_total_resv_rate(state_avg; qw = qw, qg = qg, qo = qo)
+    else
+        q_resv = resv_t.value
+    end
+    new_control = replace_target(ctrl, ReservoirVoidageTarget(q_resv, state_avg))
+    return (new_control, true)
+end
+
+function setup_average_resv_state(model::StandardBlackOilModel, rstate; qw = 0.0, qo = 0.0, qg = 0.0)
+    sys = model.system
+    has_water = has_other_phase(sys)
+
     pv_t = 0.0
     p_avg = 0.0
     rs_avg = 0.0
@@ -1180,7 +1193,11 @@ function realize_control_for_reservoir(rstate, ctrl::ProducerControl{<:Historica
     for c in eachindex(rstate.Pressure)
         p = value(rstate.Pressure[c])
         vol = value(rstate.FluidVolume[c])
-        sw = value(rstate.ImmiscibleSaturation[c])
+        if has_water
+            sw = value(rstate.ImmiscibleSaturation[c])
+        else
+            sw = 0.0
+        end
         vol_hc = vol*(1.0 - sw)
         p_avg += p*vol_hc
         pv_t += vol_hc
@@ -1195,65 +1212,68 @@ function realize_control_for_reservoir(rstate, ctrl::ProducerControl{<:Historica
     rs_avg /= pv_t
     rv_avg /= pv_t
 
-    a, l, v = phase_indices(sys)
-    qw = resv_t.water
-    qo = resv_t.oil
-    qg = resv_t.gas
-    if qw <= 1e-20
-        rs = 0.0
+    if has_water
+        a, l, v = phase_indices(sys)
     else
-        rs = min(qg/qo, rs_avg)
-    end
-    if qg <= 1e-20
-        rv = 0.0
-    else
-        rv = min(qo/qg, rv_avg)
+        l, v = phase_indices(sys)
     end
 
     svar = Jutul.get_secondary_variables(model)
     b_var = svar[:ShrinkageFactors]
     reg = b_var.regions
-    bW = shrinkage(b_var.pvt[a], reg, p_avg, 1)
+    if has_water
+        bW = shrinkage(b_var.pvt[a], reg, p_avg, 1)
+    else
+        bW = 1.0
+    end
     if has_disgas(model.system)
+        rs = min(rs_avg, sys.rs_max[1](p_avg))
         bO = shrinkage(b_var.pvt[l], reg, p_avg, rs, 1)
     else
+        rs = 0.0
         bO = shrinkage(b_var.pvt[l], reg, p_avg, 1)
     end
     if has_vapoil(model.system)
+        rv = min(rv_avg, sys.rv_max[1](p_avg))
         bG = shrinkage(b_var.pvt[v], reg, p_avg, rv, 1)
     else
+        rv = 0.0
         bG = shrinkage(b_var.pvt[v], reg, p_avg, 1)
     end
-
-    shrink = max(1.0 - rs*rv, 1e-20)
-    shrink_avg = max(1.0 - rs_avg*rv_avg, 1e-20)
-    # Water
-    new_water_rate = qw/bW
-    new_water_weight = 1/bW
-    # Oil
-    new_oil_rate = qo
-    new_oil_weight = 1.0/(bO*shrink_avg)
-    # Gas
-    new_gas_rate = qg
-    new_gas_weight = 1.0/(bG*shrink_avg)
-    # Miscibility adjustments
-    if vapoil
-        new_oil_rate -= rv*qg
-        new_gas_weight -= rv/(bO*shrink_avg)
-    end
-    if disgas
-        new_gas_rate -= rs*qo
-        new_oil_weight -= rs/(bG*shrink_avg)
-    end
-    new_oil_rate /= (bO*shrink)
-    new_gas_rate /= (bG*shrink)
-
-
-    new_weights = (new_water_weight, new_oil_weight, new_gas_weight)
-    @assert all(isfinite, new_weights) "Computed RESV weights were non-finite: $new_weights"
-
-    new_rate = new_water_rate + new_oil_rate + new_gas_rate
-    new_control = replace_target(ctrl, ReservoirVoidageTarget(new_rate, new_weights))
-    return (new_control, true)
+    return (bW = bW, bO = bO, bG = bG, p = p_avg, rs = rs_avg, rv = rv_avg)
 end
 
+
+function compute_total_resv_rate(state_avg; qw = 0.0, qo = 0.0, qg = 0.0)
+    if qw + qo + qg < 0.0
+        sgn = -1.0
+    else
+        sgn = 1.0
+    end
+    # Surface rates
+    qw = abs(qw)
+    qo = abs(qo)
+    qg = abs(qg)
+
+    if qw <= 1e-20
+        rs = 0.0
+    else
+        rs = min(qg/qo, state_avg.rs)
+    end
+    if qg <= 1e-20
+        rv = 0.0
+    else
+        rv = min(qo/qg, state_avg.rv)
+    end
+    shrink = max(1.0 - rs*rv, 1e-20)
+    # Water
+    new_water_rate = qw/state_avg.bW
+    # Oil
+    bO = state_avg.bO
+    new_oil_rate = (qo - rv*qg)/(bO*shrink)
+    # Gas
+    bG = state_avg.bG
+    new_gas_rate = (qg - rs*qo)/(bG*shrink)
+    resv_rate = sgn*(new_water_rate + new_oil_rate + new_gas_rate)
+    return resv_rate
+end
