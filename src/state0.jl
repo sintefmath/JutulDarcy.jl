@@ -270,6 +270,12 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
         if k == :Reservoir
             # Already done
             continue
+        elseif k == :Fractures
+            # Fracture model
+            fmodel = model.models[k]
+            fstate = setup_reservoir_state(fmodel; kwarg...)
+            init[k] = fstate
+            continue
         end
         W = model.models[k]
         if W.domain isa WellGroup
