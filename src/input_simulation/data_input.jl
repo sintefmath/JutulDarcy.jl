@@ -2324,7 +2324,11 @@ function apply_weltarg!(controls, limits, wk)
             limit[Symbol(ctype)] = rate_target
         end
         limits[well] = convert_to_immutable_storage(limit)
-        controls[well] = replace_target(ctrl, new_target)
+        old_sym = translate_target_to_symbol(ctrl.target, shortname = true)
+        new_sym = translate_target_to_symbol(new_target, shortname = true)
+        if old_sym == new_sym
+            controls[well] = replace_target(ctrl, new_target)
+        end
     end
     return (controls, limits)
 end
