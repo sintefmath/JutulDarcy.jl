@@ -64,6 +64,7 @@ function update_cross_term_in_entity!(out, i,
         end
         out[ph] = -T * ρ * λ * Δp
     end
+    return out
 end
 
 function Jutul.subcrossterm(ct::MatrixFromFractureFlowCT, ctp, m_t, m_s, map_res::Jutul.FiniteVolumeGlobalMap, map_frac::Jutul.FiniteVolumeGlobalMap, partition)
