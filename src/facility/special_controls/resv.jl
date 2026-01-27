@@ -13,7 +13,10 @@ function realize_control_for_reservoir(rstate, ctrl::ProducerControl{<:Union{His
         qw = resv_t.water
         qo = resv_t.oil
         qg = resv_t.gas
-        q_resv = compute_total_resv_rate(state_avg; qw = qw, qg = qg, qo = qo)
+        q_resv = compute_total_resv_rate(state_avg; qw = qw, qg = qg, qo = qo, is_obs = true)
+        # q_resv = observations_to_resv_rate(state_avg; qw = qw, qo = qo, qg = qg, s)
+        # @info "Recomputed resv rate" q_resv resv_t.value qw+qo+qg
+        # yield()
     else
         q_resv = resv_t.value
     end
@@ -67,25 +70,24 @@ function setup_average_resv_state(model::StandardBlackOilModel, rstate; qw = 0.0
     else
         bW = 1.0
     end
-    if has_disgas(model.system)
-        rs = min(rs_avg, sys.rs_max[1](p_avg))
-        bO = rs -> shrinkage(b_var.pvt[l], reg, p_avg, rs, 1)
+    if disgas
+        rs_max = sys.rs_max[1](p_avg)
+        bO = rs -> shrinkage(b_var.pvt[l], reg, p_avg, min(rs, rs_max), 1)
     else
-        rs = 0.0
+        rs_max = 0.0
         bO = rs -> shrinkage(b_var.pvt[l], reg, p_avg, 1)
     end
-    if has_vapoil(model.system)
-        rv = min(rv_avg, sys.rv_max[1](p_avg))
-        bG = rv -> shrinkage(b_var.pvt[v], reg, p_avg, rv, 1)
+    if vapoil
+        rv_max = sys.rv_max[1](p_avg)
+        bG = rv -> shrinkage(b_var.pvt[v], reg, p_avg, min(rv, rv_max), 1)
     else
-        rv = 0.0
+        rv_max = 0.0
         bG = rv -> shrinkage(b_var.pvt[v], reg, p_avg, 1)
     end
     return (bW = bW, bO = bO, bG = bG, p = p_avg, rs = rs_avg, rv = rv_avg)
 end
 
-
-function compute_total_resv_rate(state_avg; qw = 0.0, qo = 0.0, qg = 0.0)
+function compute_total_resv_rate(state_avg; qw = 0.0, qo = 0.0, qg = 0.0, is_obs::Bool = false)
     if qw + qo + qg < 0.0
         sgn = -1.0
     else
@@ -107,14 +109,21 @@ function compute_total_resv_rate(state_avg; qw = 0.0, qo = 0.0, qg = 0.0)
         rv = min(qo/qg, state_avg.rv)
     end
     shrink = max(1.0 - rs*rv, 1e-20)
-    # Water
-    new_water_rate = qw/state_avg.bW
-    # Oil
+    bW = state_avg.bW
     bO = state_avg.bO(rs)
-    new_oil_rate = (qo - rv*qg)/(bO*shrink)
-    # Gas
     bG = state_avg.bG(rv)
-    new_gas_rate = (qg - rs*qo)/(bG*shrink)
-    resv_rate = sgn*(new_water_rate + new_oil_rate + new_gas_rate)
-    return resv_rate
+    if is_obs
+        # Water
+        new_water_rate = qw/bW
+        # Oil
+        new_oil_rate = (qo - rv*qg)/(bO*shrink)
+        # Gas
+        new_gas_rate = (qg - rs*qo)/(bG*shrink)
+        resv_rate = new_water_rate + new_oil_rate + new_gas_rate
+    else
+        f_oil = 1.0/(bO*shrink)
+        f_gas = 1.0/(bG*shrink)
+        resv_rate = qo*(f_oil - rs*f_gas) + qg*(f_gas - rv*f_oil) + qw/bW
+    end
+    return sgn*resv_rate
 end
