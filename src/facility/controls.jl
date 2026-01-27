@@ -1,3 +1,5 @@
+include("special_controls/special_controls.jl")
+
 function Jutul.initialize_extra_state_fields!(state, domain::WellGroup, model; T = Float64)
     # Insert structure that holds well control (limits etc) that is then updated before each step
     state[:WellGroupConfiguration] = WellGroupConfiguration(domain.well_symbols)
@@ -490,13 +492,6 @@ function well_target_value(ctrl, target::SurfaceLiquidRateTarget, cond, well, mo
     return cond.surface_liquid_rate + cond.surface_aqueous_rate
 end
 
-function well_target_value(ctrl, target::ReservoirVoidageTarget, cond, well, model, state)
-    q_w = cond.surface_aqueous_rate
-    q_o = cond.surface_liquid_rate
-    q_g = cond.surface_vapor_rate
-    return compute_total_resv_rate(target.avg_state; qw = q_w, qg = q_g, qo = q_o)
-end
-
 function well_target_value(ctrl, target::TotalMassRateTarget, cond, well, model, state)
     return cond.total_mass_rate
 end
@@ -516,3 +511,4 @@ function facility_surface_mass_rate_for_well(model::SimulationModel, wsym, fstat
 end
 
 bottom_hole_pressure(ws) = ws.Pressure[1]
+
