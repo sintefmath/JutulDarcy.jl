@@ -113,6 +113,10 @@ function compute_total_resv_rate(state_avg; qw = 0.0, qo = 0.0, qg = 0.0, is_obs
     bO = state_avg.bO(rs)
     bG = state_avg.bG(rv)
     if is_obs
+        f_oil = 1.0/(bO*shrink)
+        f_gas = 1.0/(bG*shrink)
+        resv_rate = qo*(f_oil - rs*f_gas) + qg*(f_gas - rv*f_oil) + qw/bW
+    else
         # Water
         new_water_rate = qw/bW
         # Oil
@@ -120,10 +124,6 @@ function compute_total_resv_rate(state_avg; qw = 0.0, qo = 0.0, qg = 0.0, is_obs
         # Gas
         new_gas_rate = (qg - rs*qo)/(bG*shrink)
         resv_rate = new_water_rate + new_oil_rate + new_gas_rate
-    else
-        f_oil = 1.0/(bO*shrink)
-        f_gas = 1.0/(bG*shrink)
-        resv_rate = qo*(f_oil - rs*f_gas) + qg*(f_gas - rv*f_oil) + qw/bW
     end
     return sgn*resv_rate
 end
