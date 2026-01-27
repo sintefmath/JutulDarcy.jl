@@ -2,7 +2,7 @@ function well_target_value(ctrl, target::ReservoirVoidageTarget, cond, well, mod
     q_w = cond.surface_aqueous_rate
     q_o = cond.surface_liquid_rate
     q_g = cond.surface_vapor_rate
-    return compute_total_resv_rate(target.avg_state; qw = q_w, qg = q_g, qo = q_o)
+    return compute_total_resv_rate(target.avg_state; qw = q_w, qo = q_o, qg = q_g)
 end
 
 
@@ -69,17 +69,17 @@ function setup_average_resv_state(model::StandardBlackOilModel, rstate; qw = 0.0
     end
     if has_disgas(model.system)
         rs = min(rs_avg, sys.rs_max[1](p_avg))
-        bO = shrinkage(b_var.pvt[l], reg, p_avg, rs, 1)
+        bO = rs -> shrinkage(b_var.pvt[l], reg, p_avg, rs, 1)
     else
         rs = 0.0
-        bO = shrinkage(b_var.pvt[l], reg, p_avg, 1)
+        bO = rs -> shrinkage(b_var.pvt[l], reg, p_avg, 1)
     end
     if has_vapoil(model.system)
         rv = min(rv_avg, sys.rv_max[1](p_avg))
-        bG = shrinkage(b_var.pvt[v], reg, p_avg, rv, 1)
+        bG = rv -> shrinkage(b_var.pvt[v], reg, p_avg, rv, 1)
     else
         rv = 0.0
-        bG = shrinkage(b_var.pvt[v], reg, p_avg, 1)
+        bG = rv -> shrinkage(b_var.pvt[v], reg, p_avg, 1)
     end
     return (bW = bW, bO = bO, bG = bG, p = p_avg, rs = rs_avg, rv = rv_avg)
 end
@@ -110,10 +110,10 @@ function compute_total_resv_rate(state_avg; qw = 0.0, qo = 0.0, qg = 0.0)
     # Water
     new_water_rate = qw/state_avg.bW
     # Oil
-    bO = state_avg.bO
+    bO = state_avg.bO(rs)
     new_oil_rate = (qo - rv*qg)/(bO*shrink)
     # Gas
-    bG = state_avg.bG
+    bG = state_avg.bG(rv)
     new_gas_rate = (qg - rs*qo)/(bG*shrink)
     resv_rate = sgn*(new_water_rate + new_oil_rate + new_gas_rate)
     return resv_rate
