@@ -445,7 +445,10 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
                 )
             end
             t = toggles[i]
-            connect!(h.visible, t.checked)
+            on(t.checked) do val
+                h.visible[] = val
+            end
+            # connect!(h.visible, t.checked)
             push!(lineh, h)
         end
     end
