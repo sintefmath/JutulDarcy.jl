@@ -404,12 +404,13 @@ function equilibrium_phase_density(p, z, ph, rho, T_z, fake_state, model, rs, rv
         end
     else
         rho_val = fake_state[:PhaseMassDensities]
-        fake_state[:Pressure][1] = p
+        c = only(fake_cell_ix)
+        fake_state[:Pressure][c] = p
         if !ismissing(T_z)
-            fake_state[:Temperature][1] = T_z(z)
+            fake_state[:Temperature][c] = T_z(z)
         end
         Jutul.update_secondary_variable!(rho_val, rho, model, fake_state, fake_cell_ix)
-        phase_density = rho_val[ph]
+        phase_density = rho_val[ph, c]
     end
     return phase_density
 end
