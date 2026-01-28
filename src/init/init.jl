@@ -631,7 +631,8 @@ function parse_state0_equil(model, datafile; normalize = :sum)
                     rhoGS = map(x -> x[3], datafile["PROPS"]["DENSITY"])
                     rhoOS = map(x -> x[1], datafile["PROPS"]["DENSITY"])
 
-                    Rs_scale = (rhoGS[preg]/rhoGS[1])*(rhoOS[preg]/rhoOS[1])
+                    # Divide by region density, then multiply by reg 1 density
+                    Rs_scale = (rhoGS[1]/rhoGS[preg])*(rhoOS[1]/rhoOS[preg])
                     Rv_scale = 1.0/Rs_scale
                     if disgas
                         if rs_method <= 0
