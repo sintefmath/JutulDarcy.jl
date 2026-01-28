@@ -13,10 +13,7 @@ function realize_control_for_reservoir(rstate, ctrl::ProducerControl{<:Union{His
         qw = resv_t.water
         qo = resv_t.oil
         qg = resv_t.gas
-        q_resv = compute_total_resv_rate(state_avg; qw = qw, qg = qg, qo = qo, is_obs = true)
-        # q_resv = observations_to_resv_rate(state_avg; qw = qw, qo = qo, qg = qg, s)
-        # @info "Recomputed resv rate" q_resv resv_t.value qw+qo+qg
-        # yield()
+        q_resv = compute_total_resv_rate(state_avg; qw = qw, qg = qg, qo = qo)
     else
         q_resv = resv_t.value
     end
@@ -56,18 +53,14 @@ function setup_average_resv_state(model::StandardBlackOilModel, rstate; qw = 0.0
     rs_avg /= pv_t
     rv_avg /= pv_t
 
-    if has_water
-        a, l, v = phase_indices(sys)
-    else
-        l, v = phase_indices(sys)
-    end
-
     svar = Jutul.get_secondary_variables(model)
     b_var = svar[:ShrinkageFactors]
     reg = b_var.regions
     if has_water
+        a, l, v = phase_indices(sys)
         bW = shrinkage(b_var.pvt[a], reg, p_avg, 1)
     else
+        l, v = phase_indices(sys)
         bW = 1.0
     end
     if disgas
@@ -98,32 +91,20 @@ function compute_total_resv_rate(state_avg; qw = 0.0, qo = 0.0, qg = 0.0, is_obs
     qo = abs(qo)
     qg = abs(qg)
 
-    if qw <= 1e-20
-        rs = 0.0
-    else
-        rs = min(qg/qo, state_avg.rs)
-    end
-    if qg <= 1e-20
-        rv = 0.0
-    else
-        rv = min(qo/qg, state_avg.rv)
-    end
+    rs = clamp(qg/(qo + 1e-12), 0.0, state_avg.rs)
+    rv = clamp(qo/(qg + 1e-12), 0.0, state_avg.rv)
     shrink = max(1.0 - rs*rv, 1e-20)
     bW = state_avg.bW
     bO = state_avg.bO(rs)
     bG = state_avg.bG(rv)
-    if is_obs
-        f_oil = 1.0/(bO*shrink)
-        f_gas = 1.0/(bG*shrink)
-        resv_rate = qo*(f_oil - rs*f_gas) + qg*(f_gas - rv*f_oil) + qw/bW
-    else
-        # Water
-        new_water_rate = qw/bW
-        # Oil
-        new_oil_rate = (qo - rv*qg)/(bO*shrink)
-        # Gas
-        new_gas_rate = (qg - rs*qo)/(bG*shrink)
-        resv_rate = new_water_rate + new_oil_rate + new_gas_rate
-    end
+
+    # Water
+    new_water_rate = qw/bW
+    # Oil
+    new_oil_rate = (qo - rv*qg)/(bO*shrink)
+    # Gas
+    new_gas_rate = (qg - rs*qo)/(bG*shrink)
+    resv_rate = new_water_rate + new_oil_rate + new_gas_rate
+
     return sgn*resv_rate
 end
