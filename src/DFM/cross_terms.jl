@@ -62,7 +62,7 @@ function update_cross_term_in_entity!(out, i,
             ρ = rho_m[ph, mc]
             λ = mob_m[ph, mc]
         end
-        out[ph] = -T * ρ * λ * Δp
+        out[ph] = T * ρ * λ * Δp
     end
     return out
 end
