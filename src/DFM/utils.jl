@@ -142,6 +142,17 @@ function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, fractures::Data
     ct = setup_reservoir_fracture_cross_term(reservoir, fractures)
     add_cross_term!(model, ct, target = :Reservoir, source = :Fractures, equation = :mass_conservation)
 
+    for (name, well_model) in get_model_wells(model)
+        g = physical_representation(well_model)
+        if g isa WellDomain
+            # WI = vec(g.perforations.WI)
+            fc = vec(g.perforations.fracture)
+            wc = vec(g.perforations.self_fracture)
+            ct = FracturesFromWellFlowCT(fc, wc)
+            add_cross_term!(model, ct, target = :Fractures, source = name, equation = :mass_conservation)
+        end
+    end
+    
     return model
 
 end
