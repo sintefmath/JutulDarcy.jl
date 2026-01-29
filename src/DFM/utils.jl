@@ -10,7 +10,7 @@ function fracture_domain(mesh::Jutul.EmbeddedMeshes.EmbeddedMesh;
     aperture = 0.5e-3si_unit(:meter),
     permeability = missing,
     porosity = 1.0,
-    matrix_cells = missing,
+    matrix_faces = missing,
     kwarg...
     )
 
@@ -43,17 +43,17 @@ function fracture_domain(mesh::Jutul.EmbeddedMeshes.EmbeddedMesh;
     T = Jutul.EmbeddedMeshes.compute_face_trans_dfm(T_hf, N, mesh.intersections)
     domain[:transmissibilities, Faces()] = T
 
-    domain[:matrix_cells] = matrix_cells
+    domain[:matrix_faces] = matrix_faces
 
     return domain
 
 end
 
 function setup_reservoir_fracture_cross_term(reservoir::Jutul.DataDomain, fractures::Jutul.DataDomain)
-    if ismissing(fractures[:matrix_cells])
-        error("Fracture domain must have :matrix_cells data (from create_fracture_domain) to set up cross terms.")
+    if ismissing(fractures[:matrix_faces])
+        error("Fracture domain must have :matrix_faces data (from create_fracture_domain) to set up cross terms.")
     end
-    matrix_cells = fractures[:matrix_cells]
+    matrix_faces = fractures[:matrix_faces]
     n_f = number_of_cells(fractures)
     n_res = number_of_cells(reservoir)
     
@@ -66,6 +66,9 @@ function setup_reservoir_fracture_cross_term(reservoir::Jutul.DataDomain, fractu
     vol_frac = fractures[:volumes]
     aperture = fractures[:aperture]
 
+    mmesh = physical_representation(reservoir)
+    N = get_neighborship(mmesh)
+
     for fcell in 1:n_f
         # Get area of fracture cell (face area)
         # Volume = Area * Aperture -> Area = Volume / Aperture
@@ -76,21 +79,23 @@ function setup_reservoir_fracture_cross_term(reservoir::Jutul.DataDomain, fractu
         K_f = fractures[:permeability][fcell]
         c_f = n_f.*aperture[fcell]/2.0
         T_fm = Jutul.half_face_trans(A_f, K_f, c_f, n_f)
-        for cell in matrix_cells[:, fcell]
-            A_m = A_f
-            n_m = n_f
-            x_m = reservoir[:cell_centroids][:, cell]
-            c_m = x_f .- x_m
-            if dot(c_m, n_m) < 0
-                n_m = .-n_m
+        for face in matrix_faces[fcell]
+            for cell in N[:, face]
+                A_m = A_f
+                n_m = n_f
+                x_m = reservoir[:cell_centroids][:, cell]
+                c_m = x_f .- x_m
+                if dot(c_m, n_m) < 0
+                    n_m = .-n_m
+                end
+                K_m = reservoir[:permeability][cell]
+                T_mf = Jutul.half_face_trans(A_m, K_m, c_m, n_m)
+                println("T_fm: $T_fm, T_mf: $T_mf")
+                T = 1.0/(1.0/T_fm + 1.0/T_mf)
+                push!(target_cells, cell)
+                push!(source_cells, fcell)
+                push!(transmissibilities, T)
             end
-            K_m = reservoir[:permeability][cell]
-            T_mf = Jutul.half_face_trans(A_m, K_m, c_m, n_m)
-            println("T_fm: $T_fm, T_mf: $T_mf")
-            T = 1.0/(1.0/T_fm + 1.0/T_mf)
-            push!(target_cells, cell)
-            push!(source_cells, fcell)
-            push!(transmissibilities, T)
         end
     end
     
@@ -106,6 +111,21 @@ function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, fractures::Data
     block_backend = true,
     kwarg...)
 
+    # Set zero transmissibility accross matrix cells that are fractures
+    T = reservoir_transmissibility(reservoir)
+    T[fractures[:matrix_faces]] .= 0.0
+    reservoir[:transmissibilities, Faces()] = T
+
+    # Adjust matrix cell volumes to account for fracture volumes
+    fracture_volumes = fractures[:volumes, Cells()]
+    matrix_volumes = reservoir[:volumes, Cells()]
+    N = get_neighborship(physical_representation(reservoir))
+    for (cf, face) in enumerate(fractures[:matrix_faces])
+        vf = fracture_volumes[cf]
+        matrix_volumes[N[:, face]] .-= vf/2
+    end
+    reservoir[:volumes, Cells()] = matrix_volumes
+    
     model = setup_reservoir_model(reservoir, system; wells = wells, block_backend = block_backend, kwarg...)
     fmodel = setup_reservoir_model(fractures, system; context = model.context, block_backend = false, kwarg...)
     if fmodel isa Jutul.MultiModel
