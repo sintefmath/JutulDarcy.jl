@@ -90,7 +90,6 @@ function setup_reservoir_fracture_cross_term(reservoir::Jutul.DataDomain, fractu
                 end
                 K_m = reservoir[:permeability][cell]
                 T_mf = Jutul.half_face_trans(A_m, K_m, c_m, n_m)
-                println("T_fm: $T_fm, T_mf: $T_mf")
                 T = 1.0/(1.0/T_fm + 1.0/T_mf)
                 push!(target_cells, cell)
                 push!(source_cells, fcell)
