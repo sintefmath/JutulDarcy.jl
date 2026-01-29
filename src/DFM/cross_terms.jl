@@ -87,10 +87,6 @@ function Jutul.cross_term_entities(ct::FracturesFromWellFlowCT, eq::Conservation
     return ct.fracture_cells
 end
 
-function Jutul.cross_term_entities_source(ct::FracturesFromWellFlowCT, eq::ConservationLaw, model)
-    return ct.well_cells
-end
-
 # Jutul.can_impact_cross_term(force_t::PerforationMask, cross_term::AbstractReservoirFromWellCT) = true
 
 function update_cross_term_in_entity!(out, i,
