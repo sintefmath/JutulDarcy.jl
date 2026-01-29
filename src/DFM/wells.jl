@@ -85,8 +85,11 @@ function setup_well(g_matrix::JutulMesh, K_matrix, matrix_cells::AbstractVector,
                     end
                 end
             end
-        else
-            new_val = val
+        elseif entity == Perforations()
+            Wdomain[k, entity] = val
+            new_val = frac_val
+            k = Symbol(String(k)*"_frac")
+            entity = FracturePerforations()
         end
         Wdomain[k, entity] = new_val
     end
