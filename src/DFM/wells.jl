@@ -1,11 +1,14 @@
 function setup_well(g_matrix::JutulMesh, K_matrix, matrix_cells::AbstractVector,
     g_fractures::JutulMesh, K_fractures, matrix_fracture_faces;
     simple_well = false,
+    frac_args = NamedTuple(),
     kwarg...
     )
 
-    simple_well == false || throw(ArgumentError("Only MultiSegmentWell setup is supported for DFM wells."))
+    !simple_well || throw(ArgumentError("Only MultiSegmentWell setup is supported for DFM wells."))
     tmp = setup_well(g_matrix, K_matrix, matrix_cells; simple_well=simple_well, kwarg...)
+
+    # return tmp
 
     neighborship, perforation_cells_fractures, perforation_cells_fractures_self, old_ix = 
     add_fracture_cells(g_matrix, tmp.representation, matrix_fracture_faces)
@@ -19,27 +22,76 @@ function setup_well(g_matrix::JutulMesh, K_matrix, matrix_cells::AbstractVector,
             segment_models[seg] = tmp.representation.segment_models[old_ix[seg]]
         end
     end
-    W = MultiSegmentWell(
-            neighborship,
-            tmp.representation.perforations.reservoir, 
-            tmp.representation.perforations.self,
-            perforation_cells_fractures,
-            perforation_cells_fractures_self;
-            end_nodes = tmp.representation.end_nodes,
-            type = tmp.representation.type,
-            name = tmp.representation.name,
-            segment_models = segment_models,
-            surface_conditions = tmp.representation.surface,
+
+    # perforation_cells = vcat(
+    #     tmp.representation.perforations.reservoir,
+    #     perforation_cells_fractures
+    # )
+    # perforation_cells_self = vcat(
+    #     tmp.representation.perforations.self,
+    #     perforation_cells_fractures_self
+    # )
+    
+    # nrp = length(tmp.representation.perforations.reservoir)
+    # fracture_perforations = collect(nrp+1:length(perforation_cells))
+    perf = (
+        self = tmp.representation.perforations.self,
+        reservoir = tmp.representation.perforations.reservoir,
+        self_fracture = perforation_cells_fractures_self,
+        fracture = perforation_cells_fractures,
     )
 
+    tmp_frac = setup_well(g_fractures, K_fractures, perforation_cells_fractures;
+    simple_well=simple_well, frac_args...)
+
+    W = MultiSegmentWell(
+        tmp.representation.type,
+        maximum(neighborship, init = 1),
+        length(segment_models),
+        length(tmp.representation.perforations.self),
+        perf,
+        neighborship,
+        tmp.representation.end_nodes,
+        tmp.representation.surface,
+        tmp.representation.name,
+        segment_models,
+    )
+
+    # TODO: Make FracturePerforations() entity type and move all
+    # fracture-related perforation logic there + make FractureFromWellFlowCT
+
     Wdomain = DataDomain(W)
-    c = Cells()
-    p = Perforations()
-    f = Faces()
-
     
+    for (k, v) in tmp.data
+        val, entity = v
+        frac_val = tmp_frac[k, entity]
+        if entity == Cells()
+            # Cell data
+            if k ∈ [:cell_centroids, :perforation_centroids]
+                new_val = hcat(val, frac_val)
+            else
+                new_val = vcat(val, frac_val)
+            end
+        elseif entity == Faces()
+            new_val = similar(val, count_entities(W, Faces()))
+            for seg in 1:num_segments
+                if old_ix[seg] != 0
+                    new_val[seg] = val[old_ix[seg]]
+                else
+                    if old_ix[seg-1] > 0
+                        new_val[seg] = val[old_ix[seg-1]]
+                    elseif old_ix[seg+1] > 0
+                        new_val[seg] = val[old_ix[seg+1]]
+                    end
+                end
+            end
+        else
+            new_val = val
+        end
+        Wdomain[k, entity] = new_val
+    end
 
-    return W, tmp
+    return Wdomain
 
 end
 
@@ -86,8 +138,7 @@ function add_fracture_cells(g_matrix, representation, fracture_faces)
 end
 
 function MultiSegmentWell(neighbors::AbstractMatrix,
-        perforation_cells_matrix, perforation_cells_matrix_self,
-        perforation_cells_fractures, perforation_cells_fractures_self;
+        perforation_cells_reservoir, perforation_cells_self, fracture_perforations;
         end_nodes = missing,
         type = :ms,
         name = :Well,
@@ -97,8 +148,8 @@ function MultiSegmentWell(neighbors::AbstractMatrix,
     size(neighbors, 1) == 2 || throw(ArgumentError("Connectivity matrix for multisegment well must have two rows"))
     num_nodes = maximum(neighbors, init = 1)
     num_segments = size(neighbors, 2)
-    num_perf = length(perforation_cells_matrix_self) + length(perforation_cells_fractures_self)
-    maximum(vcat(perforation_cells_matrix_self, perforation_cells_fractures_self)) <= num_nodes || throw(ArgumentError("Perforation cells (self) must be less than or equal to number of nodes $(num_nodes), was $(maximum(vcat(perforation_cells_matrix_self, perforation_cells_fractures_self)))"))
+    num_perf = length(perforation_cells_self) + length(fracture_perforations)
+    maximum(vcat(perforation_cells_self, fracture_perforations)) <= num_nodes || throw(ArgumentError("Perforation cells (self) must be less than or equal to number of nodes $(num_nodes), was $(maximum(vcat(perforation_cells_self, fracture_perforations)))"))
     if ismissing(end_nodes)
         from_nodes = unique(neighbors[1, :])
         to_nodes = unique(neighbors[2,:])
@@ -114,7 +165,7 @@ function MultiSegmentWell(neighbors::AbstractMatrix,
         segment_models::AbstractVector
         length(segment_models) == num_segments || throw(ArgumentError("If segment models are provided, there must be one per segment. Was $(length(segment_models)), expected $num_segments"))
     end
-    perf = (self = perforation_cells_matrix_self, reservoir = perforation_cells_matrix,
+    perf = (self = perforation_cells_self, reservoir = perforation_cells_reservoir,
             self_fracture = perforation_cells_fractures_self, fracture = perforation_cells_fractures)
     return MultiSegmentWell(
         type,
@@ -129,4 +180,3 @@ function MultiSegmentWell(neighbors::AbstractMatrix,
         segment_models,
     )
 end
-
