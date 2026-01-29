@@ -103,17 +103,18 @@ end
 
 function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, fractures::DataDomain, system::JutulSystem;
     wells = [],
+    block_backend = true,
     kwarg...)
 
-    model = setup_reservoir_model(reservoir, system; wells = wells, kwarg...)
-    fmodel = setup_reservoir_model(fractures, system; context = model.context, kwarg...)
+    model = setup_reservoir_model(reservoir, system; wells = wells, block_backend = block_backend, kwarg...)
+    fmodel = setup_reservoir_model(fractures, system; context = model.context, block_backend = false, kwarg...)
     if fmodel isa Jutul.MultiModel
         fmodel = fmodel.models[:Reservoir]
     end
     
     model.models[:Fractures] = fmodel
     if !isnothing(model.groups)
-        group = maximum(model.groups) + 1
+        group = maximum(model.groups)# + 1 # TODO: Now it gets schur lumped with the wells...
         push!(model.groups, group)
         model.group_lookup[:Fractures] = group
     end
