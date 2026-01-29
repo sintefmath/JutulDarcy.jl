@@ -112,10 +112,11 @@ function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, fractures::Data
     end
     
     model.models[:Fractures] = fmodel
-    group = maximum(model.groups) + 1
-    push!(model.groups, group)
-    model.group_lookup[:Fractures] = group
-
+    if !isnothing(model.groups)
+        group = maximum(model.groups) + 1
+        push!(model.groups, group)
+        model.group_lookup[:Fractures] = group
+    end
     # Set up DFM cross-terms
     ct = setup_reservoir_fracture_cross_term(reservoir, fractures)
     add_cross_term!(model, ct, target = :Reservoir, source = :Fractures, equation = :mass_conservation)
