@@ -214,6 +214,7 @@ module JutulDarcy
     # Discrete Fracture Models
     include("DFM/utils.jl")
     include("DFM/cross_terms.jl")
+    include("DFM/wells.jl")
 
     # Tracers
     include("Tracers/Tracers.jl")
