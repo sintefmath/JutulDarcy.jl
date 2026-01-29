@@ -464,7 +464,7 @@ function compdat_to_connection_factors(domain, wspec, v, step; sort = true, orde
         :drainage_radius => drainage_radius[ix],
         :well_index => WI[ix]
     )
-    return (wc, WI[ix], open[ix], mul[ix], fresh[ix], data)
+    return (wc[ix], WI[ix], open[ix], mul[ix], fresh[ix], data)
 end
 
 function parse_schedule(domain, runspec, props, schedule, sys; simple_well = true)
