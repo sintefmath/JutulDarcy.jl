@@ -21,24 +21,7 @@ function Jutul.default_parameter_values(data_domain, model, param::FractureWellI
     for (i, val) in enumerate(WI)
         defaulted = !isfinite(val)
         if defaulted
-            Δ = dims[i]
-            fix = Δ .== 0.0
-            @assert sum(fix) <= 1
-            Δ[fix] .= data_domain[:aperture][model.representation.fracture][i]
-            if perm isa AbstractVector
-                K = perm[i]
-            else
-                K = perm[:, i]
-            end
-            K = Jutul.expand_perm(K, gdim)
-            r = radius[i]
-            dir = direction[i]
-            WI[i] = compute_peaceman_index(Δ, K, r, dir;
-                skin = skin[i],
-                Kh = Kh[i],
-                net_to_gross = net_to_gross[i],
-                drainage_radius = drainage_radius[i]
-            )
+            error("Fracture well indices cannot be defaulted")
         end
     end
     return WI
