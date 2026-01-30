@@ -7,10 +7,12 @@ Equilibrates the state of the given model based on the provided contacts.
 # Arguments
 - `model`: The model whose state needs to be equilibrated.
 - `contacts`: The nph contact depths.
+- `datum_depth`: The reference depth for the datum (optional, defaults to
+  highest point in mesh).
+- `datum_pressure`: The pressure at the datum depth (defaults to approximately 1
+  atm).
 
 # Keyword Arguments
-- `datum_depth`: The reference depth for the datum.
-- `datum_pressure`: The pressure at the datum depth.
 - `cells`: The cells to be equilibrated.
 - `rs`: Solution gas-oil ratio (blackoil).
 - `rv`: Vapor-oil ratio (blackoil).
