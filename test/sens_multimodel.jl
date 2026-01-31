@@ -421,18 +421,16 @@ import Jutul.DictOptimization: finite_difference_gradient_entry
         for index in eachindex(dfdx_jutul)
             dfdx_fd[index] = finite_difference_gradient_entry(P, x0, index = index)
         end
-        function mytest(cond, is_broken)
-            if is_broken
-                @test_broken cond
-            else
-                @test cond
-            end
-        end
         function test_ok(val, broken)
             @test length(val) == length(dfdx_fd)
             normdiff = norm(val-dfdx_fd, 2)/norm(dfdx_fd, 2)
-            mytest(normdiff < 1e-3, broken)
-            mytest(all(isapprox.(dfdx_fd, val, rtol = rtol, atol = atol)), broken)
+            if broken
+                @test_broken normdiff < 1e-3
+                @test_broken all(isapprox.(dfdx_fd, val, rtol = rtol, atol = atol))
+            else
+                @test normdiff < 1e-3
+                @test all(isapprox.(dfdx_fd, val, rtol = rtol, atol = atol))
+            end
         end
         @testset "Jutul inner adjoint" begin
             test_ok(dfdx_jutul, false)

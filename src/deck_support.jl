@@ -138,7 +138,7 @@ function Jutul.line_plot_data(model::SimulationModel, k::DeckPhaseVariables)
     has_reg = !isnothing(k.regions)
     s = collect(0:0.01:1)
     if has_reg
-        nreg = length(k.relperms[1])
+        nreg = maximum(k.regions)
     else
         nreg = 1
     end

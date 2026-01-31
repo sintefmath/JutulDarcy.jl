@@ -464,7 +464,7 @@ function compdat_to_connection_factors(domain, wspec, v, step; sort = true, orde
         :drainage_radius => drainage_radius[ix],
         :well_index => WI[ix]
     )
-    return (wc, WI[ix], open[ix], mul[ix], fresh[ix], data)
+    return (wc[ix], WI[ix], open[ix], mul[ix], fresh[ix], data)
 end
 
 function parse_schedule(domain, runspec, props, schedule, sys; simple_well = true)
@@ -933,6 +933,9 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
         if haskey(section, "PORV")
             extra_data_arg[:pore_volume_override] = section["PORV"][active_ix]
         end
+        if haskey(section, "EDITNNC")
+            apply_mult_nnc!(tranmult, section["EDITNNC"], G, ijk)
+        end
         # Explicit trans given as cell values
         for k in ["TRANX", "TRANY", "TRANZ"]
             if haskey(section, k)
@@ -1216,6 +1219,29 @@ function parser_set_multregt!(tranmult, G, opernum, multnum, fluxnum, multregt, 
                 end
             end
         end
+    end
+    return tranmult
+end
+
+function apply_mult_nnc!(tranmult, edit_nnc, G, ijk::Vector{NTuple{3, Int}})
+    nskip = 0
+    for entry in edit_nnc
+        (; c1, c2, trans_mult) = entry
+        c1_linear = findfirst(isequal(c1), ijk)
+        c2_linear = findfirst(isequal(c2), ijk)
+        if isnothing(c1_linear) || isnothing(c2_linear)
+            nskip += 1
+            continue
+        end
+        for face in G.faces.cells_to_faces[c1_linear]
+            l, r = G.faces.neighbors[face]
+            if (l == c1_linear && r == c2_linear) || (l == c2_linear && r == c1_linear)
+                tranmult[face] *= trans_mult
+            end
+        end
+    end
+    if nskip > 0
+        println("Skipped $nskip of $(length(edit_nnc)) EDITNNC entries due to inactive cells.")
     end
     return tranmult
 end
@@ -1905,10 +1931,12 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
             is_rate = false
         elseif ctrl == "RESV"
             if is_hist
-                self_val = -(wrat + orat + grat)
-                w = [wrat, orat, grat]
-                w = w./sum(w)
-                t = HistoricalReservoirVoidageTarget(self_val, w)
+                t = HistoricalReservoirVoidageTarget(
+                    oil = -orat,
+                    water = -wrat,
+                    gas = -grat
+                )
+                self_val = t.value
             else
                 self_val = resv
                 w = [1.0, 1.0, 1.0]
@@ -2296,7 +2324,11 @@ function apply_weltarg!(controls, limits, wk)
             limit[Symbol(ctype)] = rate_target
         end
         limits[well] = convert_to_immutable_storage(limit)
-        controls[well] = replace_target(ctrl, new_target)
+        old_sym = translate_target_to_symbol(ctrl.target, shortname = true)
+        new_sym = translate_target_to_symbol(new_target, shortname = true)
+        if old_sym == new_sym
+            controls[well] = replace_target(ctrl, new_target)
+        end
     end
     return (controls, limits)
 end

@@ -7,10 +7,12 @@ Equilibrates the state of the given model based on the provided contacts.
 # Arguments
 - `model`: The model whose state needs to be equilibrated.
 - `contacts`: The nph contact depths.
+- `datum_depth`: The reference depth for the datum (optional, defaults to
+  highest point in mesh).
+- `datum_pressure`: The pressure at the datum depth (defaults to approximately 1
+  atm).
 
 # Keyword Arguments
-- `datum_depth`: The reference depth for the datum.
-- `datum_pressure`: The pressure at the datum depth.
 - `cells`: The cells to be equilibrated.
 - `rs`: Solution gas-oil ratio (blackoil).
 - `rv`: Vapor-oil ratio (blackoil).
@@ -404,12 +406,13 @@ function equilibrium_phase_density(p, z, ph, rho, T_z, fake_state, model, rs, rv
         end
     else
         rho_val = fake_state[:PhaseMassDensities]
-        fake_state[:Pressure][1] = p
+        c = only(fake_cell_ix)
+        fake_state[:Pressure][c] = p
         if !ismissing(T_z)
-            fake_state[:Temperature][1] = T_z(z)
+            fake_state[:Temperature][c] = T_z(z)
         end
         Jutul.update_secondary_variable!(rho_val, rho, model, fake_state, fake_cell_ix)
-        phase_density = rho_val[ph]
+        phase_density = rho_val[ph, c]
     end
     return phase_density
 end
@@ -630,7 +633,8 @@ function parse_state0_equil(model, datafile; normalize = :sum)
                     rhoGS = map(x -> x[3], datafile["PROPS"]["DENSITY"])
                     rhoOS = map(x -> x[1], datafile["PROPS"]["DENSITY"])
 
-                    Rs_scale = (rhoGS[preg]/rhoGS[1])*(rhoOS[preg]/rhoOS[1])
+                    # Divide by region density, then multiply by reg 1 density
+                    Rs_scale = (rhoGS[1]/rhoGS[preg])*(rhoOS[1]/rhoOS[preg])
                     Rv_scale = 1.0/Rs_scale
                     if disgas
                         if rs_method <= 0

@@ -513,7 +513,6 @@ function npv_objective(model, state, dt, step_info, forces;
         discount_unit = si_unit(:year),
         scale = 1.0
     )
-    step_no = step_info[:step]
     phases = get_phases(reservoir_model(model).system)
     has_wat = AqueousPhase() in phases
     has_gas = VaporPhase() in phases
