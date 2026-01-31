@@ -510,36 +510,54 @@ end
 Base.show(io::IO, t::TotalReservoirRateTarget) = print(io, "TotalReservoirRateTarget with value $(t.value) [m^3/s]")
 
 """
-    HistoricalReservoirVoidageTarget(q, weights)
+    HistoricalReservoirVoidageTarget(; oil = 0.0, water = 0.0, gas = 0.0)
 
 Historical RESV target for history matching cases. See
 [`ReservoirVoidageTarget`](@ref). For historical rates, the weights described in
 that target are computed based on the reservoir pressure and conditions at the
 previous time-step.
 """
-struct HistoricalReservoirVoidageTarget{T, K} <: WellTarget where {T<:AbstractFloat, K<:Tuple}
+struct HistoricalReservoirVoidageTarget{T} <: WellTarget where {T<:AbstractFloat}
     value::T
-    weights::K
+    water::T
+    oil::T
+    gas::T
+    function HistoricalReservoirVoidageTarget(v = missing; oil = 0.0, water = 0.0, gas = 0.0)
+        if ismissing(v)
+            v = water + oil + gas
+        end
+        v, water, oil, gas = promote(v, water, oil, gas)
+        return new{typeof(water)}(v, water, oil, gas)
+    end
 end
+
+
+function HistoricalReservoirVoidageTarget(v, w)
+    water, oil, gas = w
+    return HistoricalReservoirVoidageTarget(
+        v,
+        water = w[1]*v,
+        oil = w[2]*v,
+        gas = w[3]*v
+    )
+end
+
 Base.show(io::IO, t::HistoricalReservoirVoidageTarget) = print(io, "HistoricalReservoirVoidageTarget with value $(t.value) [m^3/s]")
 
 """
-    ReservoirVoidageTarget(q, weights)
+    ReservoirVoidageTarget(q)
 
-RESV target for history matching cases. The `weights` input should
-have one entry per phase (or pseudocomponent) in the system. The well control
-equation is then:
+RESV target for history matching cases. 
 
-``|q_{ctrl} - \\sum_i w_i q_i^s|``
-
-where ``q_i^s`` is the surface rate of phase ``i`` and ``w_i`` the weight of
-component stream ``i``.
-
-This constraint is typically set up from .DATA files for black-oil and immiscible cases.
+This constraint is typically set up from .DATA files for black-oil and
+immiscible cases.
 """
-struct ReservoirVoidageTarget{T, K} <: WellTarget where {T<:AbstractFloat, K<:Tuple}
+struct ReservoirVoidageTarget{T, K} <: WellTarget where {T<:AbstractFloat, K}
     value::T
-    weights::K
+    avg_state::K
+    function ReservoirVoidageTarget(v::T, s = missing) where T
+        return new{T, typeof(s)}(v, s)
+    end
 end
 
 struct ReservoirVolumeRateTarget{T} <: WellTarget where {T<:AbstractFloat}
@@ -574,7 +592,7 @@ end
 as_limit(target) = NamedTuple([Pair(translate_target_to_symbol(target, shortname = true), target.value)])
 as_limit(T::DisabledTarget) = nothing
 as_limit(T::HistoricalReservoirVoidageTarget) = nothing
-as_limit(target::ReservoirVoidageTarget) = NamedTuple([Pair(translate_target_to_symbol(target, shortname = true), (target.value, target.weights))])
+as_limit(target::ReservoirVoidageTarget) = NamedTuple([Pair(translate_target_to_symbol(target, shortname = true), (target.value, target.avg_state))])
 as_limit(target::ReinjectionTarget) = NamedTuple([Pair(translate_target_to_symbol(target, shortname = true), (Inf))])
 
 """
@@ -1146,96 +1164,3 @@ end
 function realize_control_for_reservoir(state, ctrl, model, dt)
     return (ctrl, false)
 end
-
-function realize_control_for_reservoir(rstate, ctrl::ProducerControl{<:HistoricalReservoirVoidageTarget}, model, dt)
-    sys = model.system
-    w = ctrl.target.weights
-    pv_t = 0.0
-    p_avg = 0.0
-    rs_avg = 0.0
-    rv_avg = 0.0
-    disgas = has_disgas(sys)
-    vapoil = has_vapoil(sys)
-    for c in eachindex(rstate.Pressure)
-        p = value(rstate.Pressure[c])
-        vol = value(rstate.FluidVolume[c])
-        sw = value(rstate.ImmiscibleSaturation[c])
-        vol_hc = vol*(1.0 - sw)
-        p_avg += p*vol_hc
-        pv_t += vol_hc
-        if disgas
-            rs_avg += value(rstate.Rs[c])*vol_hc
-        end
-        if vapoil
-            rv_avg += value(rstate.Rv[c])*vol_hc
-        end
-    end
-    p_avg /= pv_t
-    rs_avg /= pv_t
-    rv_avg /= pv_t
-
-    a, l, v = phase_indices(sys)
-    ww = w[a]
-    wo = w[l]
-    wg = w[v]
-    if wo <= 1e-20
-        rs = 0.0
-    else
-        rs = min(wg/wo, rs_avg)
-    end
-    if wg <= 1e-20
-        rv = 0.0
-    else
-        rv = min(wo/wg, rv_avg)
-    end
-
-    svar = Jutul.get_secondary_variables(model)
-    b_var = svar[:ShrinkageFactors]
-    reg = b_var.regions
-    bW = shrinkage(b_var.pvt[a], reg, p_avg, 1)
-    if has_disgas(model.system)
-        bO = shrinkage(b_var.pvt[l], reg, p_avg, rs, 1)
-    else
-        bO = shrinkage(b_var.pvt[l], reg, p_avg, 1)
-    end
-    if has_vapoil(model.system)
-        bG = shrinkage(b_var.pvt[v], reg, p_avg, rv, 1)
-    else
-        bG = shrinkage(b_var.pvt[v], reg, p_avg, 1)
-    end
-
-    shrink = max(1.0 - rs*rv, 1e-20)
-    shrink_avg = max(1.0 - rs_avg*rv_avg, 1e-20)
-    old_rate = ctrl.target.value
-    # Water
-    new_water_rate = old_rate*ww/bW
-    new_water_weight = 1/bW
-    # Oil
-    qo = old_rate*wo
-    new_oil_rate = qo
-    new_oil_weight = 1.0/(bO*shrink_avg)
-    # Gas
-    qg = old_rate*wg
-    new_gas_rate = qg
-    new_gas_weight = 1.0/(bG*shrink_avg)
-    # Miscibility adjustments
-    if vapoil
-        new_oil_rate -= rv*qg
-        new_gas_weight -= rv/(bO*shrink_avg)
-    end
-    if disgas
-        new_gas_rate -= rs*qo
-        new_oil_weight -= rs/(bG*shrink_avg)
-    end
-    new_oil_rate /= (bO*shrink)
-    new_gas_rate /= (bG*shrink)
-
-
-    new_weights = (new_water_weight, new_oil_weight, new_gas_weight)
-    @assert all(isfinite, new_weights) "Computed RESV weights were non-finite: $new_weights"
-
-    new_rate = new_water_rate + new_oil_rate + new_gas_rate
-    new_control = replace_target(ctrl, ReservoirVoidageTarget(new_rate, new_weights))
-    return (new_control, true)
-end
-

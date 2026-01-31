@@ -1,3 +1,5 @@
+include("special_controls/special_controls.jl")
+
 function Jutul.initialize_extra_state_fields!(state, domain::WellGroup, model; T = Float64)
     # Insert structure that holds well control (limits etc) that is then updated before each step
     state[:WellGroupConfiguration] = WellGroupConfiguration(domain.well_symbols)
@@ -364,15 +366,14 @@ function check_well_limit(name::Symbol, limit_value, cond::FacilityVariablesForW
         # Producer rates are negative by convention. Producer rate
         # limits are upper limits.
         if name == :resv
-            weights = limit_value[2]
+            state_avg = limit_value[2]
             limit_value = abs(limit_value[1])
-            w_w, w_o, w_g = weights
             q_w = -cond.surface_aqueous_rate
             q_o = -cond.surface_liquid_rate
             q_g = -cond.surface_vapor_rate
-            resv = w_w*q_w + w_o*q_o + w_g*q_g
+            resv = compute_total_resv_rate(state_avg; qw = q_w, qg = q_g, qo = q_o)
             if resv > limit_value
-                next_target = ReservoirVoidageTarget(-limit_value, weights)
+                next_target = ReservoirVoidageTarget(-limit_value, state_avg)
             end
         else
             limit_value = abs(limit_value)
@@ -491,14 +492,6 @@ function well_target_value(ctrl, target::SurfaceLiquidRateTarget, cond, well, mo
     return cond.surface_liquid_rate + cond.surface_aqueous_rate
 end
 
-function well_target_value(ctrl, target::ReservoirVoidageTarget, cond, well, model, state)
-    w_w, w_o, w_g = target.weights
-    q_w = cond.surface_aqueous_rate
-    q_o = cond.surface_liquid_rate
-    q_g = cond.surface_vapor_rate
-    return w_w*q_w + w_o*q_o + w_g*q_g
-end
-
 function well_target_value(ctrl, target::TotalMassRateTarget, cond, well, model, state)
     return cond.total_mass_rate
 end
@@ -506,138 +499,6 @@ end
 function well_target_value(ctrl, target::ReinjectionTarget, cond, well, model, state)
     return cond.total_mass_rate
 end
-
-# """
-#     translate_limit(control::ProducerControl, name, val)
-
-# Translates the limit for a given control parameter in a `ProducerControl`.
-
-# # Arguments
-# - `control::ProducerControl`: The control object containing the parameters to be translated into limit.
-# - `name`: The name of the parameter whose limit is to be translated.
-#     - `:bhp`: Bottom hole pressure.
-#     - `:orat`: Surface oil rate.
-#     - `:lrat`: Surface liquid (water + oil) rate.
-#     - `:grat`: Surface gas rate.
-#     - `:wrat`: Surface water rate.
-#     - `:rate`: Total volumetric surface rate (upper limit).
-#     - `:rate_upper`: Total volumetric surface rate (upper limit).
-#     - `:rate_lower`: Total volumetric surface rate (lower limit).
-#     - `:resv`: Reservoir voidage.
-#     - `:mrat`: Total mass rate (upper limit).
-# - `val`: The value to which the limit is to be translated.
-
-# # Returns
-# - The translated limit value for the specified control parameter.
-# """
-# function translate_limit(control::ProducerControl, name, val)
-#     # Note: Negative sign convention for production.
-#     # A lower absolute bound on a rate
-#     # |q| > |lim| -> q < lim if both sides are negative
-#     # means that we specify is_lower for upper limits and the other
-#     # way around for lower limits, when dealing with rates.
-#     is_lower = true
-#     if name == :bhp
-#         # Upper limit, pressure
-#         target_limit = BottomHolePressureTarget(val)
-#         # Pressures are positive, this is a true lower bound
-#         is_lower = true
-#     elseif name == :orat
-#         # Upper limit, surface oil rate
-#         target_limit = SurfaceOilRateTarget(val)
-#     elseif name == :lrat
-#         # Upper limit, surface liquid (water + oil) rate
-#         target_limit = SurfaceLiquidRateTarget(val)
-#     elseif name == :grat
-#         # Upper limit, surface gas rate
-#         target_limit = SurfaceGasRateTarget(val)
-#     elseif name == :wrat
-#         # Upper limit, surface water rate
-#         target_limit = SurfaceWaterRateTarget(val)
-#     elseif name == :rate || name == :rate_upper
-#         # Upper limit, total volumetric surface rate
-#         target_limit = TotalRateTarget(val)
-#     elseif name == :rvolrat
-#         target_limit = ReservoirVolumeRateTarget(val)
-#     elseif name == :rate_lower
-#         # Lower limit, total volumetric surface rate. This is useful
-#         # disabling producers if they would otherwise start to inject.
-#         target_limit = TotalRateTarget(val)
-#         is_lower = false
-#     elseif name == :resv
-#         v, w = val
-#         target_limit = ReservoirVoidageTarget(v, w)
-#     elseif name == :mrat
-#         # Upper limit, total mass rate
-#         target_limit = TotalMassRateTarget(val)
-#     else
-#         error("$name limit not supported for well acting as producer.")
-#     end
-#     return (target_limit, is_lower)
-# end
-
-# """
-#     translate_limit(control::InjectorControl, name, val)
-
-# Translate the limit for a given `InjectorControl` object.
-
-# # Arguments
-# - `control::InjectorControl`: The control object for which the limit is being translated.
-# - `name`: The name of the limit to be translated.
-#     - `:bhp`: Bottom hole pressure.
-#     - `:rate`: Total volumetric surface rate (upper limit).
-#     - `:rate_upper`: Total volumetric surface rate (upper limit).
-#     - `:rate_lower`: Total volumetric surface rate (lower limit).
-#     - `:resv_rate`: Total volumetric reservoir rate.
-#     - `:mrat: Total mass rate(upper limit)
-# - `val`: The value associated with the limit.
-
-# # Returns
-# - The translated limit value.
-# """
-# function translate_limit(control::InjectorControl, name, val)
-#     is_lower = false
-#     if name == :bhp
-#         # Upper limit, pressure
-#         target_limit = BottomHolePressureTarget(val)
-#     elseif name == :rate || name == :rate_upper || name == :wrat || name == :orat || name == :lrat || name == :grat
-#         # Upper limit, total volumetric surface rate
-#         target_limit = TotalRateTarget(val)
-#     elseif name == :rate_lower
-#         # Lower limit, total volumetric surface rate
-#         target_limit = TotalRateTarget(val)
-#         is_lower = true
-#     elseif name == :resv_rate
-#         # Upper limit, total volumetric reservoir rate
-#         target_limit = TotalReservoirRateTarget(val)
-#     elseif name == :mrat
-#         # Upper limit, total mass rate
-#         target_limit = TotalMassRateTarget(val)
-#     else
-#         error("$name limit not supported for well acting as injector.")
-#     end
-#     return (target_limit, is_lower)
-# end
-
-# function check_limit(current_control, target_limit, target, is_lower::Bool, q_t, source_model, well_state, rhoS, S)
-#     if typeof(target_limit) == typeof(target)
-#         # We are already operating at this target and there is no need to check.
-#         ok = true
-#         current_val = limit_val = NaN
-#     else
-#         current_val = value(well_target_value(q_t, current_control, target_limit, source_model, well_state, rhoS, S))
-#         limit_val = target_limit.value
-#         ϵ = 1e-6
-#         if is_lower
-#             # Limit is lower bound, check that we are above...
-#             ok = current_val >= (1 + ϵ)*limit_val
-#         else
-#             ok = current_val <= (1 - ϵ)*limit_val
-#         end
-#     end
-#     return (ok, current_val, limit_val)
-# end
-
 
 function facility_surface_mass_rate_for_well(model::SimulationModel, wsym, fstate; effective::Bool = false)
     pos = get_well_position(model.domain, wsym)
@@ -650,3 +511,4 @@ function facility_surface_mass_rate_for_well(model::SimulationModel, wsym, fstat
 end
 
 bottom_hole_pressure(ws) = ws.Pressure[1]
+

@@ -445,7 +445,10 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
                 )
             end
             t = toggles[i]
-            connect!(h.visible, t.checked)
+            on(t.checked) do val
+                h.visible[] = val
+            end
+            # connect!(h.visible, t.checked)
             push!(lineh, h)
         end
     end
@@ -964,7 +967,9 @@ function JutulDarcy.plot_summary(arg...;
                         # ax.title[] = "$(name) $(info.legend)"
                         _, u = well_unit_conversion(units, "", info)
                         if info.is_rate
-                            v = v.*si_unit(:day)
+                            if lowercase(string(summaries[smry_no]["UNIT_SYSTEM"])) == "si"
+                                v = v.*si_unit(:day)
+                            end
                             u *= "/day"
                         end
                         if smry_no == 1
