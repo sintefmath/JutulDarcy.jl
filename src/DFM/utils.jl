@@ -178,6 +178,9 @@ function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, fractures::Data
         g = physical_representation(well_model)
         if g isa WellDomain
             # WI = vec(g.perforations.WI)
+            set_parameters!(model.models[name],
+                FractureWellIndices = FractureWellIndices()
+            )
             fc = vec(g.perforations.fracture)
             wc = vec(g.perforations.self_fracture)
             ct = FracturesFromWellFlowCT(fc, wc)
@@ -185,6 +188,9 @@ function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, fractures::Data
             if has_thermal
                 ct = FracturesFromWellThermalCT(fc, wc)
                 add_cross_term!(model, ct, target = :Fractures, source = name, equation = :energy_conservation)
+                set_parameters!(model.models[name],
+                    FractureWellIndicesThermal = FractureWellIndicesThermal()
+                )
             end
         end
     end
