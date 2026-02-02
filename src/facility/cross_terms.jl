@@ -238,8 +238,8 @@ function update_cross_term_in_entity!(out, i,
     @inbounds begin 
         reservoir_cell = ct.reservoir_cells[i]
         well_cell = ct.well_cells[i]
-        WIth = state_well.WellIndicesThermal[i]
         WI = state_well.WellIndices[i]
+        WIth = state_well.WellIndicesThermal[i]
         gdz = state_well.PerforationGravityDifference[i]
         p_well = state_well.Pressure
         p_res = state_res.Pressure
@@ -247,6 +247,7 @@ function update_cross_term_in_entity!(out, i,
         conn = (
             dp = dp,
             WI = WI,
+            WIth = WIth,
             gdz = gdz,
             well = well_cell,
             perforation = i,
@@ -254,10 +255,18 @@ function update_cross_term_in_entity!(out, i,
         )
     end
 
-    kr = state_res.RelativePermeabilities
-    mu = state_res.PhaseViscosities
-
     λ_t = sum(perforation_reservoir_mobilities(state_res, state_well, sys, reservoir_cell, well_cell))
+    qh = perforation_phase_thermal_flux(λ_t, conn, state_res, state_well, nph)
+    out[] = qh
+
+end
+
+function perforation_phase_thermal_flux(λ_t, conn, state_res, state_well, nph)
+
+    well_cell = conn.well
+    reservoir_cell = conn.reservoir
+    WIth = conn.WIth
+
     advective_heat_flux = 0
     for ph in 1:nph
         q_ph = perforation_phase_mass_flux(λ_t, conn, state_res, state_well, ph)
@@ -273,7 +282,7 @@ function update_cross_term_in_entity!(out, i,
     T_res = state_res.Temperature[reservoir_cell]
 
     conductive_heat_flux = -WIth*(T_well - T_res)
-    out[] = advective_heat_flux + conductive_heat_flux
+    return advective_heat_flux + conductive_heat_flux
 end
 
 function Base.show(io::IO, d::ReservoirFromWellThermalCT)
