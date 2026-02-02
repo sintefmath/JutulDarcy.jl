@@ -155,6 +155,32 @@ function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, fractures::Data
     if fmodel isa Jutul.MultiModel
         fmodel = fmodel.models[:Reservoir]
     end
+
+    if has_thermal
+        fmesh = physical_representation(fractures)
+        geo = tpfv_geometry(fmesh)
+        nc = number_of_cells(fmesh)
+        N = get_neighborship(fmesh)
+        faces, facepos = get_facepos(N, nc)
+        for (tname, name) in zip(
+                [:rock_thermal_conductivities, :fluid_thermal_conductivities],
+                [:rock_thermal_conductivity, :fluid_thermal_conductivity]
+            )
+            Λ = fractures[name, Cells()]
+            T_hf = compute_half_face_trans(fmesh, 
+            geo.cell_centroids, geo.face_centroids, 
+            fractures[:areas, Faces()], Λ, faces, facepos)
+            T = Jutul.EmbeddedMeshes.compute_face_trans_dfm(T_hf, N, fmesh.intersections)
+            if contains(String(name), "fluid")
+                if Λ isa Vector
+                    T = repeat(T', number_of_phases(fmodel.system), 1)
+                else
+                    error("Fracture thermal conductivity $name must be a Vector.")
+                end
+            end
+            fractures[tname, Faces()] = T
+        end
+    end
     
     model.models[:Fractures] = fmodel
     if !isnothing(model.groups)
@@ -162,12 +188,12 @@ function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, fractures::Data
         push!(model.groups, group)
         model.group_lookup[:Fractures] = group
     end
+
     # Set up DFM cross-terms
     target_cells, source_cells, transmissibilities = setup_matrix_fracture_cross_term(reservoir, fractures, :permeability)
     gdz = zeros(Float64, length(transmissibilities))
     ct = MatrixFromFractureFlowCT(target_cells, source_cells, transmissibilities, gdz)
     add_cross_term!(model, ct, target = :Reservoir, source = :Fractures, equation = :mass_conservation)
-
     if has_thermal
         target_cells, source_cells, transmissibilities_th = setup_matrix_fracture_cross_term(reservoir, fractures, :thermal_conductivity)
         ct = MatrixFromFractureThermalCT(target_cells, source_cells, transmissibilities, transmissibilities_th, gdz)
