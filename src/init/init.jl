@@ -305,9 +305,11 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
                 phases = get_phases(sys)
                 phase_ind = phase_indices(model.system)
                 if length(phases) == 3
-                    swcon = zeros(nc_total)
                     if AqueousPhase() in phases && !ismissing(s_min)
+                        swcon = zeros(eltype(s_min[1]), nc_total)
                         swcon[cells] .= s_min[1]
+                    else
+                        swcon = zeros(nc_total)
                     end
                     for c in cells
                         update_three_phase_relperm!(kr, relperm, phase_ind, s_eval, nothing, c, swcon[c], nothing, nothing)
