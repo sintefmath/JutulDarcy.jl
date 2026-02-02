@@ -24,9 +24,6 @@ function select_parameters!(prm, domain::MSWellDomain, model::MSWellFlowModel)
         prm[:SegmentRoughness] = SegmentRoughness()
         prm[:SegmentLength] = SegmentLength()
     end
-    if haskey(domain.representation.perforations, :fracture)
-        prm[:FractureWellIndices] = FractureWellIndices()
-    end
 end
 
 function Jutul.select_minimum_output_variables!(vars, domain::DiscretizedDomain, model::MSWellFlowModel)
