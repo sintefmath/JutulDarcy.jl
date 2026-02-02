@@ -149,45 +149,6 @@ function Base.show(io::IO, d::MatrixFromFractureThermalCT)
     print(io, "MatrixFromFractureThermalCT ($n connections)")
 end
 
-
-function update_cross_term_in_entity!(out, i,
-    state_t, state0_t,
-    state_s, state0_s, 
-    model_t, model_s,
-    ct::MatrixFromFractureThermalCT, eq, dt, ldisc = local_discretization(ct, i))
-    
-    # Target (Matrix)
-    mc = ct.matrix_cells[i]
-    # Source (Fracture)
-    fc = ct.fracture_cells[i]
-    # Transmissibility
-    Λ = ct.connection_strength_thermal[i]
-
-    T_m = state_t.Temperature[mc]
-    T_f = state_s.Temperature[fc]
-    # Driving force: Matrix pressure - Fracture pressure
-    ΔT = T_m - T_f
-
-    # Properties
-    h_m = state_t.FluidEnthalpy
-    h_f = state_s.FluidEnthalpy
-    
-    nph = size(out, 1)
-    @inbounds for ph in 1:nph
-        # Upwinding
-        if ΔT < 0
-            # Fracture -> Matrix
-            h = h_f[ph, fc]
-        else
-            # Matrix -> Fracture
-            h = h_m[ph, mc]
-        end
-
-        out[ph] = Λ*ΔT
-    end
-    return out
-end
-
 function update_cross_term_in_entity!(out, i,
     state_t, state0_t,
     state_s, state0_s, 
