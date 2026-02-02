@@ -316,7 +316,7 @@ function update_cross_term_in_entity!(out, i,
         fracture_cell = ct.fracture_cells[i]
         well_cell = ct.well_cells[i]
         WI = state_well.FractureWellIndices[i]
-        WIth = state_well.FractureWellThermalIndices[i]
+        WIth = state_well.FractureWellIndicesThermal[i]
         gdz = state_well.PerforationGravityDifference[i]
         p_well = state_well.Pressure
         p_res = state_res.Pressure
@@ -332,7 +332,7 @@ function update_cross_term_in_entity!(out, i,
         )
     end
 
-    λ_t = sum(perforation_reservoir_mobilities(state_res, state_well, sys, reservoir_cell, well_cell))
+    λ_t = sum(perforation_reservoir_mobilities(state_res, state_well, sys, fracture_cell, well_cell))
     qh = perforation_phase_thermal_flux(λ_t, conn, state_res, state_well, nph)
     out[] = qh
 
