@@ -340,6 +340,19 @@ function forces_from_constraints(well_setup, observation_data, streams, date, sy
                 )
                 wsgn = 1.0
             end
+            mult = well_setup[wname]["EffectivePiMultiplier"]
+            if any(x -> !(x ≈ 1.0), mult)
+                mask = PerforationMask(mult)
+                wforces[wname] = setup_forces(wmodel, mask = mask)
+                do_shut = sum(mask.values) ≈ 0.0
+            else
+                do_shut = false
+            end
+            if do_shut && !(ctrl isa DisabledControl)
+                println("Well $wname has all perforations closed at $date, disabling well for this step.")
+                ctrl = JutulDarcy.setup_disabled_control()
+            end
+            control[wname] = ctrl
             if !(ctrl isa DisabledControl)
                 lims = Dict()
                 for (k, v) in pairs(c)
@@ -358,12 +371,6 @@ function forces_from_constraints(well_setup, observation_data, streams, date, sy
         else
             ctrl = JutulDarcy.setup_disabled_control()
         end
-        mult = well_setup[wname]["EffectivePiMultiplier"]
-        if any(x -> !(x ≈ 1.0), mult)
-            mask = PerforationMask(mult)
-            wforces[wname] = setup_forces(wmodel, mask = mask)
-        end
-        control[wname] = ctrl
     end
     f = setup_reservoir_forces(model; control = control, limits = limits, pairs(wforces)...)
     return f
