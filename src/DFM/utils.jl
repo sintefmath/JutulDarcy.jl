@@ -1,11 +1,6 @@
 using LinearAlgebra
 using StaticArrays
 
-# # Fix for Jutul.LinearizedBlock initialization with SMatrix
-# function Base.convert(::Type{SMatrix{N, M, T, L}}, x::Number) where {N, M, T, L}
-#     return SMatrix{N, M, T, L}(ntuple(_ -> T(x), Val(L)))
-# end
-
 function fracture_domain(mesh::Jutul.EmbeddedMeshes.EmbeddedMesh;
     aperture = 0.5e-3si_unit(:meter),
     permeability = missing,
