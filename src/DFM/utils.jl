@@ -49,13 +49,39 @@ function fracture_domain(mesh::Jutul.EmbeddedMeshes.EmbeddedMesh;
 
 end
 
-function setup_reservoir_fracture_cross_term(reservoir::Jutul.DataDomain, fractures::Jutul.DataDomain)
+function setup_matrix_fracture_cross_term(matrix::Jutul.DataDomain, fractures::Jutul.DataDomain, field::Symbol = :permeability)
+
+    if field == :permeability
+        matrix_conductivity = matrix[:permeability]
+        fracture_conductivity = fractures[:permeability]
+    elseif field == :thermal_conductivity
+        function effective_conductivity(ϕ, Λ_m, Λ_f)
+            return ϕ.*Λ_f .+ (1 .- ϕ).*Λ_m
+        end
+        matrix_conductivity = effective_conductivity(
+            matrix[:porosity],
+            matrix[:rock_thermal_conductivity],
+            matrix[:fluid_thermal_conductivity]
+        )
+        fracture_conductivity = effective_conductivity(
+            fractures[:porosity],
+            fractures[:rock_thermal_conductivity],
+            fractures[:fluid_thermal_conductivity]
+        )
+    else
+        error("Unsupported field $field for matrix-fracture cross term setup.")
+    end
+
+    return setup_matrix_fracture_cross_term(matrix, fractures, matrix_conductivity, fracture_conductivity)
+end
+
+function setup_matrix_fracture_cross_term(matrix::Jutul.DataDomain, fractures::Jutul.DataDomain, matrix_conductivity, fracture_conductivity)
     if ismissing(fractures[:matrix_faces])
         error("Fracture domain must have :matrix_faces data (from create_fracture_domain) to set up cross terms.")
     end
     matrix_faces = fractures[:matrix_faces]
     n_f = number_of_cells(fractures)
-    n_res = number_of_cells(reservoir)
+    n_res = number_of_cells(matrix)
     
     # Prepare output arrays
     target_cells = Int64[]
@@ -66,7 +92,7 @@ function setup_reservoir_fracture_cross_term(reservoir::Jutul.DataDomain, fractu
     vol_frac = fractures[:volumes]
     aperture = fractures[:aperture]
 
-    mmesh = physical_representation(reservoir)
+    mmesh = physical_representation(matrix)
     N = get_neighborship(mmesh)
 
     for fcell in 1:n_f
@@ -76,19 +102,19 @@ function setup_reservoir_fracture_cross_term(reservoir::Jutul.DataDomain, fractu
         x_f = fractures[:cell_centroids][:, fcell]
         A_f = vol_frac[fcell]/a
         n_f = Jutul.EmbeddedMeshes.cell_normal(fmesh, fcell)
-        K_f = fractures[:permeability][fcell]
+        K_f = fracture_conductivity[fcell]
         c_f = n_f.*aperture[fcell]/2.0
         T_fm = Jutul.half_face_trans(A_f, K_f, c_f, n_f)
         for face in matrix_faces[fcell]
             for cell in N[:, face]
                 A_m = A_f
                 n_m = n_f
-                x_m = reservoir[:cell_centroids][:, cell]
+                x_m = matrix[:cell_centroids][:, cell]
                 c_m = x_f .- x_m
                 if dot(c_m, n_m) < 0
                     n_m = .-n_m
                 end
-                K_m = reservoir[:permeability][cell]
+                K_m = matrix_conductivity[cell]
                 T_mf = Jutul.half_face_trans(A_m, K_m, c_m, n_m)
                 T = 1.0/(1.0/T_fm + 1.0/T_mf)
                 push!(target_cells, cell)
@@ -98,14 +124,11 @@ function setup_reservoir_fracture_cross_term(reservoir::Jutul.DataDomain, fractu
         end
     end
     
-    return MatrixFromFractureFlowCT(target_cells, source_cells, transmissibilities)
+    return target_cells, source_cells, transmissibilities
+    
 end
 
-function setup_reservoir_fracture_cross_term(reservoir::Jutul.SimulationModel, fractures::Jutul.SimulationModel)
-    return setup_reservoir_fracture_cross_term(reservoir.data_domain, fractures.data_domain)
-end
-
-function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, fractures::DataDomain, system::JutulSystem;
+function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, fractures::DataDomain, system::Union{JutulSystem, Symbol};
     wells = [],
     block_backend = true,
     kwarg...)
@@ -126,6 +149,8 @@ function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, fractures::Data
     reservoir[:volumes, Cells()] = matrix_volumes
     
     model = setup_reservoir_model(reservoir, system; wells = wells, block_backend = block_backend, kwarg...)
+    has_thermal = haskey(model[:Reservoir].equations, :energy_conservation)
+
     fmodel = setup_reservoir_model(fractures, system; context = model.context, block_backend = false, kwarg...)
     if fmodel isa Jutul.MultiModel
         fmodel = fmodel.models[:Reservoir]
@@ -138,8 +163,16 @@ function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, fractures::Data
         model.group_lookup[:Fractures] = group
     end
     # Set up DFM cross-terms
-    ct = setup_reservoir_fracture_cross_term(reservoir, fractures)
+    target_cells, source_cells, transmissibilities = setup_matrix_fracture_cross_term(reservoir, fractures, :permeability)
+    gdz = zeros(Float64, length(transmissibilities))
+    ct = MatrixFromFractureFlowCT(target_cells, source_cells, transmissibilities, gdz)
     add_cross_term!(model, ct, target = :Reservoir, source = :Fractures, equation = :mass_conservation)
+
+    if has_thermal
+        target_cells, source_cells, transmissibilities_th = setup_matrix_fracture_cross_term(reservoir, fractures, :thermal_conductivity)
+        ct = MatrixFromFractureThermalCT(target_cells, source_cells, transmissibilities, transmissibilities_th, gdz)
+        add_cross_term!(model, ct, target = :Reservoir, source = :Fractures, equation = :energy_conservation)
+    end
 
     for (name, well_model) in get_model_wells(model)
         g = physical_representation(well_model)
@@ -149,6 +182,10 @@ function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, fractures::Data
             wc = vec(g.perforations.self_fracture)
             ct = FracturesFromWellFlowCT(fc, wc)
             add_cross_term!(model, ct, target = :Fractures, source = name, equation = :mass_conservation)
+            if has_thermal
+                ct = FracturesFromWellThermalCT(fc, wc)
+                add_cross_term!(model, ct, target = :Fractures, source = name, equation = :energy_conservation)
+            end
         end
     end
     
