@@ -98,6 +98,76 @@ function setup_well(g_matrix::JutulMesh, K_matrix, matrix_cells::AbstractVector,
 
 end
 
+function setup_well(matrix::DataDomain, matrix_cells, fractures::DataDomain;
+    frac_args = NamedTuple(),
+    kwarg...)
+   
+    K_matrix = matrix[:permeability]
+    # Compute effective thermal conductivity
+    Λ_f = matrix[:fluid_thermal_conductivity]
+    Λ_r = matrix[:rock_thermal_conductivity]
+    if haskey(matrix, :net_to_gross)
+        ntg = matrix[:net_to_gross]
+    else
+        ntg = missing
+    end
+    ϕ = matrix[:porosity]
+    Λ_r = vec(Λ_r)
+    ϕ = vec(ϕ)
+    if size(Λ_f, 1) == 1 || Λ_f isa Vector
+        Λ_f = vec(Λ_f)
+        Λ_matrix = ϕ.*Λ_f + (1.0 .- ϕ).*Λ_r
+    else
+        # TODO: This is a bit of a hack. We should really have a proper way to
+        # do this inside the equations for multiphase flow.
+        Λ_matrix = Λ_r
+    end
+    # Get grid
+    g_matrix = physical_representation(matrix)
+
+    K_fractures = fractures[:permeability]
+    # Compute effective thermal conductivity
+    Λ_f = fractures[:fluid_thermal_conductivity]
+    Λ_r = fractures[:rock_thermal_conductivity]
+    if haskey(fractures, :net_to_gross)
+        ntg = fractures[:net_to_gross]
+    else
+        ntg = missing
+    end
+    ϕ = fractures[:porosity]
+    Λ_r = vec(Λ_r)
+    ϕ = vec(ϕ)
+    if size(Λ_f, 1) == 1 || Λ_f isa Vector
+        Λ_f = vec(Λ_f)
+        Λ_fractures = ϕ.*Λ_f + (1.0 .- ϕ).*Λ_r
+    else
+        # TODO: This is a bit of a hack. We should really have a proper way to
+        # do this inside the equations for multiphase flow.
+        Λ_fractures = Λ_r
+    end
+    # Get grid
+    g_fractures = physical_representation(fractures)
+
+    frac_args_default = (
+        thermal_conductivity = Λ_fractures,
+    )
+    frac_args = merge(frac_args_default, frac_args)
+
+    well = setup_well(g_matrix, K_matrix, matrix_cells,
+        g_fractures, K_fractures, fractures[:matrix_faces];
+        simple_well=false,
+        thermal_conductivity = Λ_matrix,
+        frac_args = frac_args,
+        kwarg...
+    )
+    wc = well.representation.perforations.self_fracture
+    fc = well.representation.perforations.fracture
+    well[:cell_length][wc] = fractures[:aperture][fc]
+
+    return well
+
+end
+
 function add_fracture_cells(g_matrix, representation, fracture_faces)
     N = representation.neighborship
     nc = maximum(N)
