@@ -1,5 +1,14 @@
 abstract type AbstractMatrixFromFractureCT <: Jutul.AdditiveCrossTerm end
 
+Jutul.symmetry(::AbstractMatrixFromFractureCT) = Jutul.CTSkewSymmetry()
+
+function Jutul.cross_term_entities(ct::AbstractMatrixFromFractureCT, eq::ConservationLaw, model)
+    return ct.matrix_cells
+end
+
+function Jutul.cross_term_entities_source(ct::AbstractMatrixFromFractureCT, eq::ConservationLaw, model)
+    return ct.fracture_cells
+end
 struct MatrixFromFractureFlowCT{I<:AbstractVector, T<:AbstractVector} <: AbstractMatrixFromFractureCT
     matrix_cells::I
     fracture_cells::I
@@ -13,16 +22,6 @@ end
 function Base.show(io::IO, d::MatrixFromFractureFlowCT)
     n = length(d.matrix_cells)
     print(io, "MatrixFromFractureFlowCT ($n connections)")
-end
-
-Jutul.symmetry(::AbstractMatrixFromFractureCT) = Jutul.CTSkewSymmetry()
-
-function Jutul.cross_term_entities(ct::AbstractMatrixFromFractureCT, eq::ConservationLaw, model)
-    return ct.matrix_cells
-end
-
-function Jutul.cross_term_entities_source(ct::AbstractMatrixFromFractureCT, eq::ConservationLaw, model)
-    return ct.fracture_cells
 end
 
 function update_cross_term_in_entity!(out, i,
@@ -78,6 +77,71 @@ function Jutul.subcrossterm(ct::MatrixFromFractureFlowCT, ctp, m_t, m_s, map_res
     return MatrixFromFractureFlowCT(mc_local, fc_local, T)
 end
 
+struct MatrixFromFractureThermalCT{I<:AbstractVector, T<:AbstractVector} <: AbstractMatrixFromFractureCT
+    matrix_cells::I
+    fracture_cells::I
+    connection_strength::T
+end
+
+function MatrixFromFractureThermalCT(matrix_cells::Vector{Int}, fracture_cells::Vector{Int}, connection_strength::Vector{Float64})
+    return MatrixFromFractureThermalCT{Vector{Int}, Vector{Float64}}(matrix_cells, fracture_cells, connection_strength)
+end
+
+function Base.show(io::IO, d::MatrixFromFractureThermalCT)
+    n = length(d.matrix_cells)
+    print(io, "MatrixFromFractureThermalCT ($n connections)")
+end
+
+
+function update_cross_term_in_entity!(out, i,
+    state_t, state0_t,
+    state_s, state0_s, 
+    model_t, model_s,
+    ct::MatrixFromFractureThermalCT, eq, dt, ldisc = local_discretization(ct, i))
+    
+    # Target (Matrix)
+    mc = ct.matrix_cells[i]
+    # Source (Fracture)
+    fc = ct.fracture_cells[i]
+    # Transmissibility
+    Λ = ct.connection_strength[i]
+
+    T_m = state_t.Temperature[mc]
+    T_f = state_s.Temperature[fc]
+    # Driving force: Matrix pressure - Fracture pressure
+    ΔT = T_m - T_f
+
+    # Properties
+    h_m = state_t.PhaseEnthalpy
+    h_f = state_s.PhaseEnthalpy
+    
+    nph = size(out, 1)
+    @inbounds for ph in 1:nph
+        # Upwinding
+        if ΔT < 0
+            # Fracture -> Matrix
+            h = h_f[ph, fc]
+        else
+            # Matrix -> Fracture
+            h = h_m[ph, mc]
+        end
+
+        out[ph] = Λ*ΔT
+    end
+    return out
+end
+
+function Jutul.subcrossterm(ct::MatrixFromFractureThermalCT, ctp, m_t, m_s, map_res::Jutul.FiniteVolumeGlobalMap, map_frac::Jutul.FiniteVolumeGlobalMap, partition)
+    mc = ct.matrix_cells[ctp]
+    fc = ct.fracture_cells[ctp]
+    T = ct.connection_strength[ctp]
+
+    mc_local = map(c -> Jutul.local_cell(c, map_res), mc)
+    fc_local = map(c -> Jutul.local_cell(c, map_frac), fc)
+
+    return MatrixFromFractureThermalCT(mc_local, fc_local, T)
+end
+
 struct FracturesFromWellFlowCT{I<:AbstractVector} <: AbstractReservoirFromWellCT
     fracture_cells::I
     well_cells::I
@@ -99,7 +163,7 @@ function update_cross_term_in_entity!(out, i,
     conn = cross_term_perforation_get_fracture_conn(ct, i, state_s, state_t)
     # Call smaller interface that is easy to specialize
     if haskey(state_s, :MassFractions)
-        @inbounds simple_well_perforation_flux!(out, sys, state_t, state_s, rhoS, conn)
+        error("FractureFromWellFlowCT currently only supports multisegment wells.")
     else
         @inbounds multisegment_well_perforation_flux!(out, sys, state_t, state_s, rhoS, conn)
     end
