@@ -7,6 +7,9 @@ Jutul.variable_scale(::FractureWellIndices) = 1e-10
 Jutul.associated_entity(::FractureWellIndices) = FracturePerforations()
 
 function Jutul.default_parameter_values(data_domain, model, param::FractureWellIndices, symb)
+    if count_entities(data_domain, FracturePerforations()) == 0
+        return Float64[]
+    end
     WI = copy(data_domain[:well_index_frac, FracturePerforations()])
     dims = data_domain[:cell_dims_frac, FracturePerforations()]
     perm = data_domain[:permeability_frac, FracturePerforations()]
