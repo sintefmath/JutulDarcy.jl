@@ -4,7 +4,6 @@ struct FractureWellIndices <: ScalarVariable end
 
 Jutul.minimum_value(::FractureWellIndices) = 0.0
 Jutul.variable_scale(::FractureWellIndices) = 1e-10
-
 Jutul.associated_entity(::FractureWellIndices) = FracturePerforations()
 
 function Jutul.default_parameter_values(data_domain, model, param::FractureWellIndices, symb)
