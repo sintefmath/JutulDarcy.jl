@@ -8,12 +8,10 @@ function setup_well(g_matrix::JutulMesh, K_matrix, matrix_cells::AbstractVector,
     !simple_well || throw(ArgumentError("Only MultiSegmentWell setup is supported for DFM wells."))
     tmp = setup_well(g_matrix, K_matrix, matrix_cells; simple_well=simple_well, kwarg...)
 
-    # return tmp
-
     neighborship, perforation_cells_fractures, perforation_cells_fractures_self, old_ix = 
     add_fracture_cells(g_matrix, tmp.representation, matrix_fracture_faces)
 
-    # return neighborship, perforation_cells_fractures, perforation_cells_fractures_self, old_ix, tmp
+    has_fracture_perforations = length(perforation_cells_fractures) > 0
 
     num_segments = size(neighborship, 2)
     segment_models = [SegmentWellBoreFrictionHB() for _ in 1:num_segments]
@@ -23,17 +21,6 @@ function setup_well(g_matrix::JutulMesh, K_matrix, matrix_cells::AbstractVector,
         end
     end
 
-    # perforation_cells = vcat(
-    #     tmp.representation.perforations.reservoir,
-    #     perforation_cells_fractures
-    # )
-    # perforation_cells_self = vcat(
-    #     tmp.representation.perforations.self,
-    #     perforation_cells_fractures_self
-    # )
-    
-    # nrp = length(tmp.representation.perforations.reservoir)
-    # fracture_perforations = collect(nrp+1:length(perforation_cells))
     perf = (
         self = tmp.representation.perforations.self,
         reservoir = tmp.representation.perforations.reservoir,
@@ -41,8 +28,12 @@ function setup_well(g_matrix::JutulMesh, K_matrix, matrix_cells::AbstractVector,
         fracture = perforation_cells_fractures,
     )
 
-    tmp_frac = setup_well(g_fractures, K_fractures, perforation_cells_fractures;
-    simple_well=simple_well, frac_args...)
+    if has_fracture_perforations
+        tmp_frac = setup_well(g_fractures, K_fractures, perforation_cells_fractures;
+        simple_well=simple_well, frac_args...)
+    else
+        tmp_frac = missing
+    end
 
     W = MultiSegmentWell(
         tmp.representation.type,
@@ -57,13 +48,14 @@ function setup_well(g_matrix::JutulMesh, K_matrix, matrix_cells::AbstractVector,
         segment_models,
     )
 
-    # TODO: Make FracturePerforations() entity type and move all
-    # fracture-related perforation logic there + make FractureFromWellFlowCT
-
     Wdomain = DataDomain(W)
     
     for (k, v) in tmp.data
         val, entity = v
+        if ismissing(tmp_frac)
+            Wdomain[k, entity] = val
+            continue
+        end
         frac_val = tmp_frac[k, entity]
         if entity == Cells()
             # Cell data
