@@ -1089,6 +1089,9 @@ function swcon_and_swmax_for_cells(model, kr, cells)
             use_scaling = hasproperty(kr, :scaling) && kr.scaling != NoKrScale()
             if haskey(rdomain, :scaler_w_drainage) && use_scaling
                 scaler = rdomain[:scaler_w_drainage]
+                T = promote_type(eltype(scaler), eltype(swcon), eltype(swmax))
+                swcon = convert(Vector{T}, swcon)
+                swmax = convert(Vector{T}, swmax)
                 for (i, c) in enumerate(cells)
                     swc = scaler[1, c]
                     swm = scaler[3, c]
