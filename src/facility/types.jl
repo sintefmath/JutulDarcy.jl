@@ -181,6 +181,10 @@ function Jutul.default_parameter_values(data_domain, model, param::WellIndices, 
     Kh = data_domain[:Kh, Perforations()]
     radius = data_domain[:perforation_radius, Perforations()]
     drainage_radius = data_domain[:drainage_radius, Perforations()]
+    T = Base.promote_type(eltype(WI), eltype(skin), eltype(radius), eltype(perm), eltype(Kh), eltype(net_to_gross), eltype(drainage_radius))
+    if T != eltype(WI)
+        WI = convert(Vector{T}, WI)
+    end
     gdim = size(data_domain[:cell_centroids, Cells()], 1)
     for (i, val) in enumerate(WI)
         defaulted = !isfinite(val)
