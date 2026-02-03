@@ -246,7 +246,7 @@ free_optimization_parameter!(opt, "layer_porosities", abs_max = 0.35, abs_min = 
 # minimize the objective function, which is the case for a history match. By
 # passing for example `lbfgs_num = 1, max_it = 50` it is possible to obtain a
 # better match, but this is not necessary for the purpose of this example.
-prm_opt = JutulDarcy.optimize_reservoir(opt, mismatch_objective, max_it = 50);
+prm_opt = JutulDarcy.optimize_reservoir(opt, mismatch_objective, max_it = 50, gradient_scaling = false, optimizer = :lbfgsb_qp);
 # ### Print the optimization overview
 # If we display the optimization overview, we can see that there are now
 # additional columns indicating the optimized values. Note that while the
@@ -350,7 +350,7 @@ opt_ctrl = JutulDarcy.setup_reservoir_dict_optimization(prm_truth, setup_doublet
 free_optimization_parameter!(opt_ctrl, "injection_temperature_C", abs_max = 80.0, abs_min = 10.0)
 free_optimization_parameter!(opt_ctrl, "injection_rate", abs_min = 1.0*liter/second, abs_max = 30.0*liter/second)
 # ### Call the optimizer
-prm_opt_ctrl = JutulDarcy.optimize_reservoir(opt_ctrl, optimization_objective, maximize = true, deps = :case);
+prm_opt_ctrl = JutulDarcy.optimize_reservoir(opt_ctrl, optimization_objective, maximize = true, deps = :case, optimizer = :lbfgsb_qp);
 opt_ctrl
 # ### Plot the optimized injection rates and temperatures
 # The optimized injection rates and temperatures are plotted for each interval.
