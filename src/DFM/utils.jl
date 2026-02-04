@@ -128,6 +128,8 @@ function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, fractures::Data
     block_backend = true,
     kwarg...)
 
+    block_lump_with_res = true && block_backend
+
     # Set zero transmissibility accross matrix cells that are fractures
     T = reservoir_transmissibility(reservoir)
     T[fractures[:matrix_faces]] .= 0.0
@@ -146,7 +148,7 @@ function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, fractures::Data
     model = setup_reservoir_model(reservoir, system; wells = wells, block_backend = block_backend, kwarg...)
     has_thermal = haskey(model[:Reservoir].equations, :energy_conservation)
 
-    fmodel = setup_reservoir_model(fractures, system; context = model.context, block_backend = false, kwarg...)
+    fmodel = setup_reservoir_model(fractures, system; context = model.context, block_backend = block_lump_with_res, kwarg...)
     if fmodel isa Jutul.MultiModel
         fmodel = fmodel.models[:Reservoir]
     end
@@ -176,12 +178,26 @@ function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, fractures::Data
             fractures[tname, Faces()] = T
         end
     end
-    
-    model.models[:Fractures] = fmodel
-    if !isnothing(model.groups)
-        group = maximum(model.groups)# + 1 # TODO: Now it gets schur lumped with the wells...
-        push!(model.groups, group)
-        model.group_lookup[:Fractures] = group
+
+    if block_lump_with_res
+        new_models = JutulStorage()
+        new_models[:Reservoir] = model.models[:Reservoir]
+        new_models[:Fractures] = fmodel
+        groups = Int[1, 1]
+        for (k, v) in pairs(model.models)
+            if k != :Reservoir
+                new_models[k] = v
+                push!(groups, 2)
+            end
+        end
+        model = Jutul.MultiModel(new_models; groups = groups)
+    else
+        model.models[:Fractures] = fmodel
+        if !isnothing(model.groups)
+            group = maximum(model.groups)# + 1 # TODO: Now it gets schur lumped with the wells...
+            push!(model.groups, group)
+            model.group_lookup[:Fractures] = group
+        end
     end
 
     # Set up DFM cross-terms
