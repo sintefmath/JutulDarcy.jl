@@ -305,9 +305,11 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
                 phases = get_phases(sys)
                 phase_ind = phase_indices(model.system)
                 if length(phases) == 3
-                    swcon = zeros(nc_total)
                     if AqueousPhase() in phases && !ismissing(s_min)
+                        swcon = zeros(eltype(s_min[1]), nc_total)
                         swcon[cells] .= s_min[1]
+                    else
+                        swcon = zeros(nc_total)
                     end
                     for c in cells
                         update_three_phase_relperm!(kr, relperm, phase_ind, s_eval, nothing, c, swcon[c], nothing, nothing)
@@ -1089,6 +1091,9 @@ function swcon_and_swmax_for_cells(model, kr, cells)
             use_scaling = hasproperty(kr, :scaling) && kr.scaling != NoKrScale()
             if haskey(rdomain, :scaler_w_drainage) && use_scaling
                 scaler = rdomain[:scaler_w_drainage]
+                T = promote_type(eltype(scaler), eltype(swcon), eltype(swmax))
+                swcon = convert(Vector{T}, swcon)
+                swmax = convert(Vector{T}, swmax)
                 for (i, c) in enumerate(cells)
                     swc = scaler[1, c]
                     swm = scaler[3, c]

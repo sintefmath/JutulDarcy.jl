@@ -184,6 +184,11 @@ Partition the reservoir model into coarser grids.
 - `method`: Optional. The method to use for partitioning. Defaults to `missing`.
 - `partitioner_conn_type`: Optional. The type of connection to use for the
   partition. Can be :trans, :logtrans or :unit.
+- `wells_in_single_block`: Optional. A boolean indicating whether wells should
+  be contained within a single coarse block. Defaults to false.
+- `compartments`: Optional. A vector specifying compartments for the cells.
+  Cells in different compartments will not be grouped together during
+  coarsening.
 
 # Returns
 - A partitioned version of the reservoir model.
@@ -192,7 +197,8 @@ Partition the reservoir model into coarser grids.
 function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, method = missing;
         parameters = missing,
         wells_in_single_block = false,
-        partitioner_conn_type = :trans
+        partitioner_conn_type = :trans,
+        compartments = missing
     )
     domain = model |> reservoir_model |> reservoir_domain
     mesh = physical_representation(domain)
@@ -226,6 +232,12 @@ function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, me
             parameters = setup_parameters(model)
         end
         N, T, well_groups = partitioner_input(model, parameters, conn = partitioner_conn_type)
+        if !ismissing(compartments)
+            l = N[1, :]
+            r = N[2, :]
+            keep = compartments[l] .== compartments[r]
+            N = N[:, keep]
+        end
         if wells_in_single_block
             groups = well_groups
         else
@@ -234,7 +246,16 @@ function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, me
         p = Jutul.partition_hypergraph(N, coarsedim, partitioner, groups = groups)
         p = Int64.(p)
     end
-    p = Jutul.process_partition(mesh, p)
+    if ismissing(compartments)
+        weights = ones(number_of_faces(mesh))
+    else
+        neigh = get_neighborship(mesh)
+        l = neigh[1, :]
+        r = neigh[2, :]
+        keep = compartments[l] .== compartments[r]
+        weights = Float64.(keep)
+    end
+    p = Jutul.process_partition(mesh, p, weights = weights)
     if wells_in_single_block
         # Could have split up things that are actually connected by wells.
         for group in partitioner_well_groups(model)

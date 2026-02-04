@@ -45,7 +45,9 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
                                 msg *= " Index $i: old=$(ov) vs new=$v\n"
                             end
                         end
-                        @warn "Duplicate WellDef WellToCellConnections entry for well $wname entry in AFI file with different values. Keyword: $k. Using initially provided entry. Details:\n$msg"
+                        if msg != ""
+                            @warn "Duplicate WellDef WellToCellConnections entry for well $wname entry in AFI file with different values. Keyword: $k. Using initially provided entry. Details:\n$msg"
+                        end
                     end
                 else
                     current_w2c[k] = v
@@ -164,19 +166,27 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
         compnames = compnames[active]
         worder = get(perf_sort, k, :track)
         sorted_ix = JutulDarcy.well_completion_sortperm(reservoir, head, worder, cells_mapped, dir)
-        maybe_sort(::Missing) = missing
-        maybe_sort(arr::AbstractVector) = arr[sorted_ix]
+        reorder_and_typecheck(::Missing, T = missing) = missing
+        function reorder_and_typecheck(arr::AbstractVector, T = missing)
+            out = arr[sorted_ix]
+            if ismissing(T)
+                out = out
+            else
+                out = convert(Vector{T}, out)
+            end
+            return out
+        end
 
         cells_mapped = cells_mapped[sorted_ix]
-        skin = maybe_sort(skin)
-        dir = maybe_sort(dir)
-        WI = maybe_sort(WI)
-        Kh = maybe_sort(Kh)
-        r = maybe_sort(r)
-        tvd = maybe_sort(tvd)
-        pi_mult = maybe_sort(pi_mult)
-
-        compnames = maybe_sort(compnames)
+        skin = reorder_and_typecheck(skin, Float64)
+        WI = reorder_and_typecheck(WI, Float64)
+        Kh = reorder_and_typecheck(Kh, Float64)
+        r = reorder_and_typecheck(r, Float64)
+        pi_mult = reorder_and_typecheck(pi_mult, Float64)
+        # Not necessarily Float64
+        dir = reorder_and_typecheck(dir)
+        tvd = reorder_and_typecheck(tvd)
+        compnames = reorder_and_typecheck(compnames)
         w = setup_well(reservoir, cells_mapped,
             skin = skin,
             dir = dir,
@@ -188,7 +198,7 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
             reference_depth = v["ref_depth"],
             name = Symbol(k)
         )
-        w[:well_index_multiplier, JutulDarcy.Perforations()] = Float64.(pi_mult)
+        w[:well_index_multiplier, JutulDarcy.Perforations()] = pi_mult
         w[:perforation_names, JutulDarcy.Perforations()] = compnames
         w[:original_perforation_indices, JutulDarcy.Perforations()] = sorted_ix
         if !ismissing(tvd)

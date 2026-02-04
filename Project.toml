@@ -1,7 +1,7 @@
 name = "JutulDarcy"
 uuid = "82210473-ab04-4dce-b31b-11573c4f8e0a"
 authors = ["Olav Møyner <olav.moyner@gmail.com>"]
-version = "0.3.2"
+version = "0.3.3"
 
 [deps]
 AlgebraicMultigrid = "2169fc97-5a83-5252-b627-83903c6c433c"
@@ -61,7 +61,7 @@ DocStringExtensions = "0.9.3"
 ForwardDiff = "0.10.30"
 GeoEnergyIO = "1.1.29"
 HYPRE = "1.6.0, 1.7"
-Jutul = "0.4.14"
+Jutul = "0.4.16"
 Krylov = "0.9.1"
 LazyArtifacts = "1"
 LinearAlgebra = "1"
