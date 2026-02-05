@@ -34,7 +34,9 @@ function obsh_to_summary(obsh, t_seconds = missing;
         start_date = missing,
         smooth = false,
         alpha = 0.7,
-        remove_bhp_missing = true
+        remove_bhp_missing = true,
+        bhp_point_limit = 3,
+        bhp_sentinel = si_unit(:atm)
     )
     if ismissing(t_seconds)
         WI = obsh["wells_interp"]
@@ -66,11 +68,14 @@ function obsh_to_summary(obsh, t_seconds = missing;
         # Bottom hole pressure
         I_bhp = get(obsh["wells_interp"][well], "BOTTOM_HOLE_PRESSURE", missing)
         if !ismissing(I_bhp)
+            if bhp_point_limit > 0
+                I_bhp = remove_sparse_points(I_bhp, bhp_point_limit, sentinel = bhp_sentinel)
+            end
             if remove_bhp_missing
                 I_bhp = remove_missing(I_bhp)
             end
             if smooth
-                I_bhp = smooth_interpolant(I_bhp, alpha, sentinel = 0.0)
+                I_bhp = smooth_interpolant(I_bhp, alpha, sentinel = bhp_sentinel)
             end
             swdata["WBHP"] = I_bhp.(t_s)
         end
@@ -142,6 +147,41 @@ function get_obsh_rate_and_cumulative(well, prefix, obsh, t_s; smooth = false, a
     return (rate, cumulative)
 end
 
+function remove_sparse_points(I, num_limit::Int; sentinel = 0.0)
+    num_limit >= 0 || error("num_limit must be non-negative.")
+    if num_limit == 0
+        I_new = I
+    else
+        start_idx = 1
+        done = false
+        ok = [true for i in eachindex(I.F)]
+        while !done
+            end_idx = findnext(x -> x <= sentinel, I.F, start_idx)
+            if isnothing(end_idx)
+                end_idx = length(I.F) + 1
+                done = true
+            end
+            if end_idx - start_idx < num_limit
+                for i in start_idx:end_idx-1
+                    ok[i] = false
+                end
+            end
+            start_idx = end_idx+1
+        end
+        new_t = Float64[]
+        new_vals = Float64[]
+        for (i, v) in enumerate(I.F)
+            if ok[i]
+                push!(new_t, I.X[i])
+                push!(new_vals, v)
+            end
+        end
+        I_new = Jutul.LinearInterpolant(new_t, new_vals)
+        # @info "Removed $(length(I.F) - length(new_vals)) sparse points from interpolant."
+    end
+    return I_new
+end
+
 function remove_missing(I::Jutul.LinearInterpolant)
     vals = I.F
     t = I.X
@@ -179,7 +219,7 @@ function exponential_smoothing(data::Vector{Float64}, alpha::Float64, sentinel =
     smoothed = copy(data)
     for i in 2:length(data)
         if !ismissing(sentinel)
-            if isapprox(data[i], sentinel; atol = 1e-8)
+            if data[i] <= sentinel || data[i-1] <= sentinel
                 smoothed[i] = data[i]
                 continue
             end
