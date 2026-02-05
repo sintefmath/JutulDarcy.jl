@@ -12,7 +12,7 @@ end
 
 function get_step_mismatch_contributions(hm, fmodel, fstate, ctrls, step_info)
     val = 0.0
-    eval_match(x, sgn, target) = squared_mismatch_for_step(hm.logger, x, fmodel, fstate, ctrls, sgn, Val(target), step_info)
+    eval_match(x, sgn, target) = weighted_mismatch_for_step(hm.logger, x, fmodel, fstate, ctrls, sgn, Val(target), step_info)
     inj_sgn = 1.0
     prod_sgn = -1.0
     val = 0.0
@@ -41,13 +41,13 @@ function get_step_mismatch_contributions(hm, fmodel, fstate, ctrls, step_info)
 
 end
 
-function squared_mismatch_for_step(logger, matches::Vector{WellMatch}, fmodel, fstate, ctrls, sgn, ::Val{target}, step_info) where target
+function weighted_mismatch_for_step(logger, matches::Vector{WellMatch}, fmodel, fstate, ctrls, sgn, ::Val{target}, step_info) where target
     out = 0.0
     for wm in matches
         wname = wm.name
         val, obs, w_for_step = mismatch_for_step(fmodel, fstate, ctrls[wname], sgn, wm, target, step_info, missing)
         dt = step_info[:dt]
-        squared_delta = w_for_step*(val - obs)^2
+        squared_delta = w_for_step*abs(val - obs)^wm.exponent
         added_value = dt*squared_delta
         if !ismissing(logger.data)
             start = stop = step_info[:substep_global]

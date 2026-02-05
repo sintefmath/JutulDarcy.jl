@@ -67,8 +67,10 @@ function match_well!(hm::HistoryMatch, name::Union{String, Symbol}, quantity::Un
         data = missing,
         t = missing,
         scale = missing,
-        is_sum_objective::Bool = false
+        is_sum_objective::Bool = false,
+        exponent::Float64 = 2.0
     )
+    exponent > 0.0 || error("Exponent must be positive.")
     is_cumulative = false
     rmodel = reservoir_model(hm.case)
     sys = rmodel.system
@@ -201,7 +203,7 @@ function match_well!(hm::HistoryMatch, name::Union{String, Symbol}, quantity::Un
     if ismissing(scale)
         scale = dscale
     end
-    wm = WellMatch(Symbol(name), quantity, weight, scale, is_injector, data)
+    wm = WellMatch(Symbol(name), quantity, weight, scale, is_injector, data, exponent)
     # total rates can be computed from other rates...
     push!(dest, wm)
     return hm
