@@ -72,7 +72,7 @@ function obsh_to_summary(obsh, t_seconds = missing;
                 I_bhp = remove_sparse_points(I_bhp, bhp_point_limit, sentinel = bhp_sentinel)
             end
             if remove_bhp_missing
-                I_bhp = remove_missing(I_bhp)
+                I_bhp = remove_missing(I_bhp, sentinel = bhp_sentinel)
             end
             if smooth
                 I_bhp = smooth_interpolant(I_bhp, alpha, sentinel = bhp_sentinel)
@@ -182,13 +182,13 @@ function remove_sparse_points(I, num_limit::Int; sentinel = 0.0)
     return I_new
 end
 
-function remove_missing(I::Jutul.LinearInterpolant)
+function remove_missing(I::Jutul.LinearInterpolant; sentinel = 1e-12)
     vals = I.F
     t = I.X
     new_vals = Float64[]
     new_t = Float64[]
     for (i, v) in enumerate(vals)
-        if isfinite(v) && !isapprox(v, 0.0, atol = 1e-8)
+        if isfinite(v) && v > sentinel
             push!(new_vals, v)
             push!(new_t, t[i])
         end
