@@ -55,7 +55,7 @@ function squared_mismatch_for_step(logger, matches::Vector{WellMatch}, fmodel, f
                 logger.data[wname] = []
             end
             tsym = JutulDarcy.translate_target_to_symbol(target)
-            push!(logger.data[wname], (start = start, stop = stop, target = tsym, value = added_value, is_cumulative = false))
+            push!(logger.data[wname], (start = start, stop = stop, target = tsym, value = added_value, is_cumulative = false, dt = dt, w = w_for_step))
         end
         out += added_value
     end
