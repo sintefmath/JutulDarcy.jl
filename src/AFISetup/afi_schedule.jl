@@ -2,7 +2,9 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
         step_limit = missing,
         step_override = missing,
         step_override_is_normalized = false,
-        evaluate_enthalpy = true
+        evaluate_enthalpy = true,
+        injector_max_bhp_limit = Inf,
+        producer_min_bhp_limit = si_unit(:atm)
     )
     OPEN = GeoEnergyIO.IXParser.IX_OPEN
     CLOSED = GeoEnergyIO.IXParser.IX_CLOSED
@@ -38,6 +40,8 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
             "Type" => "PRODUCER",
             "PerforationMap" => remap,
             "Enthalpy" => missing,
+            "injector_max_bhp_limit" => injector_max_bhp_limit,
+            "producer_min_bhp_limit" => producer_min_bhp_limit
         )
     end
 
@@ -353,7 +357,10 @@ function forces_from_constraints(well_setup, observation_data, streams, date, sy
                 ctrl = JutulDarcy.setup_disabled_control()
             end
             control[wname] = ctrl
+            ibhp_max = wsetup["injector_max_bhp_limit"]
+            pbhp_min = wsetup["producer_min_bhp_limit"]
             if !(ctrl isa DisabledControl)
+                is_injector = ctrl isa InjectorControl
                 lims = Dict()
                 for (k, v) in pairs(c)
                     ck = control_type_to_symbol(k)
@@ -363,6 +370,13 @@ function forces_from_constraints(well_setup, observation_data, streams, date, sy
                     end
                     if endswith(uppercase(k), "_RATE")
                         v *= wsgn
+                    end
+                    if ck == :bhp
+                        if is_injector
+                            v = min(v, ibhp_max)
+                        else
+                            v = max(v, pbhp_min)
+                        end
                     end
                     lims[ck] = v
                 end

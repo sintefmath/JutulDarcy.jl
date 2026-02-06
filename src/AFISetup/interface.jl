@@ -41,6 +41,8 @@ function setup_case_from_afi(afi::AFIInputFile;
         step_limit = missing,
         step_override = missing,
         step_override_is_normalized = false,
+        injector_max_bhp_limit = Inf,
+        producer_min_bhp_limit = si_unit(:atm),
         kwarg...
     )
     model, prm = setup_reservoir_model(afi; extra_out = true, kwarg...)
@@ -49,6 +51,8 @@ function setup_case_from_afi(afi::AFIInputFile;
         step_limit = step_limit,
         step_override = step_override,
         step_override_is_normalized = step_override_is_normalized,
+        injector_max_bhp_limit = injector_max_bhp_limit,
+        producer_min_bhp_limit = producer_min_bhp_limit
     )
     date = first(keys(afi.setup["IX"]["STEPS"]))
     return Jutul.JutulCase(model, dt, forces, state0 = state0, parameters = prm, start_date = date)
