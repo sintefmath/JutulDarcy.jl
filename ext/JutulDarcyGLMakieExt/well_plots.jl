@@ -724,12 +724,12 @@ function JutulDarcy.plot_reservoir_measurables(arg...;
     return fig
 end
 
-function JutulDarcy.plot_summary(v::Union{AbstractVector, Tuple}; kwarg...)
-    return JutulDarcy.plot_summary(v...; kwarg...)
+function JutulDarcy.plot_summary_impl(v::Union{AbstractVector, Tuple}; kwarg...)
+    return JutulDarcy.plot_summary_impl(v...; kwarg...)
 end
 
-function JutulDarcy.plot_summary(arg...;
-        names = ["Dataset $i" for i in 1:length(arg)],
+function JutulDarcy.plot_summary_impl(arg...;
+        names = missing,
         unit_system = "Metric",
         linewidth = 2.0,
         markersize = 0.0,
@@ -747,6 +747,12 @@ function JutulDarcy.plot_summary(arg...;
         colormap = missing,
         kwarg...
     )
+    if length(arg) == 1 && arg isa AbstractVector
+        arg = only(arg)
+    end
+    if ismissing(names)
+        names = ["Summary $i" for i in 1:length(arg)]
+    end
     function split_name(inp::String)
         sep = ':'
         if in(sep, inp)

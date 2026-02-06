@@ -167,3 +167,46 @@ function summary_result(model::MultiModel, wellresult, states = missing, usys = 
     out["DIMENS"] = dims
     return out
 end
+
+"""
+    s = convert_summary(s_flat_fmt)
+    s = convert_summary(s_flat_fmt, unit_system = "METRIC")
+
+Convert a summary dictionary in flat format (as produced by
+`GeoEnergy.read_summary`) to the JutulDarcy style summary format that includes
+nested dictionaries for fields, and convert all units to strict SI. This is then
+suitable for writing to disk using `GeoEnergyIO.write_jutuldarcy_summary` or
+plotting in `plot_summary`.
+"""
+function convert_summary(s; unit_system = get(s, "UNIT_SYSTEM", "METRIC"))
+    if haskey(s, "TIME")
+        # Already in Jutul style format.
+        return s
+    end
+    out = Dict{String, Any}()
+    out["VALUES"] = Dict{String, Any}(
+        "FIELD" => Dict{String, Any}(),
+        "GROUP" => Dict{String, Any}(),
+        "WELLS" => Dict{String, Any}(),
+    )
+    out["UNIT_SYSTEM"] = unit_system
+    for (k, v) in pairs(s)
+        if v isa AbstractArray
+            out["VALUES"]["FIELD"][k] = v
+        elseif v isa Dict
+            for (wk, wv) in pairs(v)
+                if startswith(k, "W")
+                    if !haskey(out["VALUES"]["WELLS"], wk)
+                        out["VALUES"]["WELLS"][wk] = Dict{String, Any}()
+                    end
+                    out["VALUES"]["WELLS"][wk][k] = wv
+                elseif wv isa AbstractArray
+                    out["VALUES"]["FIELD"][k] = v
+                end
+            end
+        end
+    end
+    seconds = smry["YEARS"].*si_unit(:year)
+    out["TIME"] = (start_date = get(s, "START_DATE", nothing), seconds = seconds)
+    return out
+end
