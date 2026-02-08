@@ -142,7 +142,12 @@ function compute_peaceman_index(Δ, K, radius, dir::Symbol = :z;
     if is_defaulted(Kh)
         Kh = L*ke
     end
-    WI = 2 * π * Kh / (log(re / radius) + skin)
+    if radius < 1e-16
+        println("Warning: Well radius is extremely small ($radius), returning zero well index.")
+        WI = zero(promote_type(typeof(Kh), typeof(re), typeof(skin)))
+    else
+        WI = 2 * π * Kh / (log(re / radius) + skin)
+    end
     if check && WI < 0
         if re < radius
             error("Equivalent Peaceman radius is smaller than well radius - computed Peaceman index was negative. Either the cell is too small, or the radius too big.")
