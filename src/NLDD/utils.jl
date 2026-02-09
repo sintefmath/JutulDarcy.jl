@@ -172,23 +172,26 @@ function final_simulation_message(sim::NLDDSimulator, p, rec, t_elapsed, reports
         for m in r[:ministeps]
             if haskey(m, :steps)
                 for mr in m[:steps]
-                    if haskey(mr, :subdomain_failures)
-                        failures = mr[:subdomain_failures]
-                        if isnothing(failures)
-                            continue
-                        end
-                        failure_count += length(failures)
-                        count += 1
-                    end
                     if !mr[:converged]
                         total_count += 1
                         nldd_count += mr[:local_solves_active]
                     end
-                    if haskey(mr, :solve_status)
-                        for status in mr[:solve_status]
-                            subdomain_skipped += status == local_solve_skipped
-                            subdomain_solves += status != local_already_converged && status != local_solve_skipped
-                            subdomain_total += 1
+                    num_sweeps = length(mr[:subdomains])
+                    for sno in 1:num_sweeps
+                        if haskey(mr, :subdomain_failures)
+                            failures = mr[:subdomain_failures][sno]
+                            if isnothing(failures)
+                                continue
+                            end
+                            failure_count += length(failures)
+                            count += 1
+                        end
+                        if haskey(mr, :solve_status)
+                            for status in mr[:solve_status][sno]
+                                subdomain_skipped += status == local_solve_skipped
+                                subdomain_solves += status != local_already_converged && status != local_solve_skipped
+                                subdomain_total += 1
+                            end
                         end
                     end
                 end
