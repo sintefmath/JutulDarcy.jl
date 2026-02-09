@@ -228,17 +228,21 @@ function subdomain_report_stats(sim, reports)
             end
             for rep in mini_rep[:steps]
                 if haskey(rep, :subdomains)
-                    stats[:time] += rep[:time_subdomains]
-                    for i = 1:N
-                        if !haskey(rep, :subdomains) || isnothing(rep[:subdomains])
+                    stats[:time] += sum(rep[:time_subdomains])
+                    num_sweeps = length(rep[:subdomains])
+                    for sno in 1:num_sweeps
+                        sweep_rep = rep[:subdomains][sno]
+                        if isnothing(sweep_rep)
                             continue
                         end
-                        R = rep[:subdomains][i]
-                        if isnothing(R)
-                            continue
-                        end
-                        for step_rep in R
-                            Jutul.ministep_report_stats!(stats, step_rep)
+                        for i = 1:N
+                            R = sweep_rep[i]
+                            if isnothing(R)
+                                continue
+                            end
+                            for step_rep in R
+                                Jutul.ministep_report_stats!(stats, step_rep)
+                            end
                         end
                     end
                 end
