@@ -171,9 +171,9 @@ function Jutul.perform_step!(
             executor = executor
         )
     end
-    active = report[:local_solves_active]
+    active = report[:local_solves_active][end]
     subreports = report[:subdomains]
-    status = report[:solve_status]
+    status = report[:solve_status][end]
 
     e = NaN
     converged = false
@@ -673,6 +673,7 @@ function global_stage(
     # If all subdomains converged, we can return early
     all_local_converged = true
     any_failures = false
+    println("Hei")
     if isnothing(subreports)
         all_local_converged = false
     else
@@ -918,22 +919,27 @@ function Jutul.perform_step_per_process_initial_update!(simulator::NLDDSimulator
         active = active_status(strategy, log, iteration)
     end
 
-    subreports = nothing
-    solve_order = nothing
-    t_sub = 0.0
+    subreports = []
+    solve_order = []
+    t_sub = []
     failures = []
-    status = [local_solve_skipped for i in eachindex(simulator.subdomain_simulators)]
+    status = []
     for sweep_no in 1:config[:nldd_max_sweeps]
+        st = [local_solve_skipped for i in eachindex(simulator.subdomain_simulators)]
         state_prev = deepcopy(s.storage.state)
         @tic "local" if (active && config[:solve_subdomains])
-                subreports, solve_order, t_sub, status, failures = local_stage(base_arg..., sweep_no)
+                sr, so, ts, st, f = local_stage(base_arg..., sweep_no)
         else
-            subreports = nothing
-            solve_order = nothing
-            t_sub = 0.0
-            failures = []
-            status = [local_solve_skipped for i in eachindex(simulator.subdomain_simulators)]
+            sr = nothing
+            so = nothing
+            ts = 0.0
+            f = []
         end
+        push!(subreports, sr)
+        push!(solve_order, so)
+        push!(t_sub, ts)
+        push!(failures, f)
+        push!(status, st)
         if config[:nldd_max_sweeps] == 1
             break
         end
@@ -941,7 +947,7 @@ function Jutul.perform_step_per_process_initial_update!(simulator::NLDDSimulator
         if !isnothing(solve_tol)
             update_state_mirror!(simulator.storage.state_mirror, state_prev, s.model, solve_tol)
         end
-        if all(status .== local_solve_skipped)
+        if all(st .== local_solve_skipped)
             break
         end
     end
