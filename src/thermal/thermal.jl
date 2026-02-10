@@ -479,5 +479,7 @@ function model_is_thermal(model::SimulationModel)
     return haskey(pvars, :Temperature)
 end
 
+include("types.jl")
 include("variables.jl")
 include("equations.jl")
+include("bc.jl")
