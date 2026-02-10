@@ -1205,7 +1205,7 @@ function set_default_cnv_mb_inner!(tol, model;
             end
             cnv, cnve = tol_cnv_well, tol_cnve_well
         else
-            cnv, cnve = tol_cnv, tol_cnv
+            cnv, cnve = tol_cnv, tol_cnve
             mb, eb = tol_mb, tol_eb
         end
 
