@@ -157,6 +157,9 @@ function get_well_data(hm::HistoryMatch, name, quantity, data, t)
             time = hm.summary["TIME"].seconds
             wdata = flexible_getindex(smry_data["WELLS"], name)
             response = flexible_getindex(wdata, quantity)
+            if ismissing(response)
+                error("Summary data for well $name, quantity $quantity not found in summary object.")
+            end
         else
             error("Unsupported summary data format. Cannot extract well data for $name, $quantity.")
         end
