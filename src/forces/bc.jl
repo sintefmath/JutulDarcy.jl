@@ -101,9 +101,9 @@ function flow_boundary_condition(cells, domain, pressures, temperatures = 298.15
     if fractional_flow isa Vector
         fractional_flow = tuple(fractional_flow...)
     end
-    bc = []
+    bc = Vector{Jutul.JutulForce}()
     flow_boundary_condition!(bc, domain, cells, pressures, temperatures; fractional_flow = fractional_flow, kwarg...)
-    return [i for i in bc]
+    return bc
 end
 
 function flow_boundary_condition!(bc, domain, cells, pressures, temperatures = 298.15; kwarg...)
@@ -117,10 +117,12 @@ function flow_boundary_condition!(bc, domain, cells, pressures, temperatures = 2
     length(temperatures) == n || throw(ArgumentError("Mismatch in length of cells and temperatures arrays"))
     length(pressures) == n || throw(ArgumentError("Mismatch in length of cells and pressures arrays"))
 
+    println(typeof(bc))
     for (cell, pressure, temperature) in zip(cells, pressures, temperatures)
         bc_c = FlowBoundaryCondition(domain, cell, pressure, temperature; kwarg...)
         push!(bc, bc_c)
     end
+    println(typeof(bc))
 
     return bc
 end
@@ -155,26 +157,29 @@ function Jutul.subforce(s::AbstractVector{S}, model) where S<:FlowBoundaryCondit
     return s[keep]
 end
 
-function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw{:TotalMasses}, eq_s, force::V, time) where {V <: AbstractVector{<:FlowBoundaryCondition}, D, S<:MultiPhaseSystem}
+function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw, eq_s, force::V, time) where {V <: AbstractVector{<:JutulForce}, D, S<:MultiPhaseSystem}
     state = storage.state
-    nph = number_of_phases(reservoir_model(model).system)
     for bc in force
-        c = bc.cell
-        acc_i = view(acc, :, c)
-        q = compute_bc_mass_fluxes(bc, global_map(model), state, nph)
-        apply_flow_bc!(acc_i, q, bc, model, state, time)
+        apply_force_to_equation!(acc, storage, model, eq, eq_s, bc, time)
     end
 end
 
-function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw{:TotalThermalEnergy}, eq_s, force::V, time) where {V <: AbstractVector{<:FlowBoundaryCondition}, D, S<:MultiPhaseSystem}
+function apply_force_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw{:TotalMasses}, eq_s, bc::V, time) where {V <: FlowBoundaryCondition, D, S<:MultiPhaseSystem}
     state = storage.state
     nph = number_of_phases(reservoir_model(model).system)
-    for bc in force
-        c = bc.cell
-        acc_i = view(acc, :, c)
-        qh_adv, qh_cond = compute_bc_heat_fluxes(bc, global_map(model), state, nph)
-        apply_flow_bc!(acc_i, qh_adv + qh_cond, bc, model, state, time)
-    end
+    c = bc.cell
+    acc_i = view(acc, :, c)
+    q = compute_bc_mass_fluxes(bc, global_map(model), state, nph)
+    apply_flow_bc!(acc_i, q, bc, model, state, time)
+end
+
+function apply_force_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw{:TotalThermalEnergy}, eq_s, bc::V, time) where {V <: FlowBoundaryCondition, D, S<:MultiPhaseSystem}
+    state = storage.state
+    nph = number_of_phases(reservoir_model(model).system)
+    c = bc.cell
+    acc_i = view(acc, :, c)
+    qh_adv, qh_cond = compute_bc_heat_fluxes(bc, global_map(model), state, nph)
+    apply_flow_bc!(acc_i, qh_adv + qh_cond, bc, model, state, time)
 end
 
 function compute_bc_mass_fluxes(bc, gmap, state, nph)
