@@ -161,9 +161,9 @@ function test_group_control()
     controls[:Injector] = I_ctrl
     controls[:Producer1] = P1_ctrl
     controls[:Producer2] = P2_ctrl
-    # Group controls define the actual target for the group
+    # Group BHP target so both producers maintain group control
     group_controls = Dict{Symbol, Any}(
-        :ProducerGroup => ProducerControl(TotalRateTarget(-inj_rate))
+        :ProducerGroup => ProducerControl(BottomHolePressureTarget(100*bar))
     )
     forces = setup_reservoir_forces(model, control = controls, group_controls = group_controls)
     result = simulate_reservoir(state0, model, dt,
@@ -172,15 +172,23 @@ function test_group_control()
     wd, states, t = result
     @testset "Group control simulation" begin
         @test length(states) == 6
-        # Both producers should produce approximately equal rates under group control
+        # Both producers should produce approximately equal rates under group BHP target
         q1 = wd[:Producer1][:rate]
         q2 = wd[:Producer2][:rate]
+        bhp1 = wd[:Producer1][:bhp]
+        bhp2 = wd[:Producer2][:bhp]
         for step in eachindex(q1)
             if q1[step] != 0.0 && q2[step] != 0.0
                 ratio = q1[step] / q2[step]
                 @test isapprox(ratio, 1.0, atol = 0.15)
             end
+            # Both should hit the group BHP target
+            @test isapprox(bhp1[step], 100*bar, rtol = 0.01)
+            @test isapprox(bhp2[step], 100*bar, rtol = 0.01)
         end
+        # All controls should remain group target
+        @test all(c -> c == :group, wd[:Producer1][:control])
+        @test all(c -> c == :group, wd[:Producer2][:control])
     end
 end
 

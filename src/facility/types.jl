@@ -772,7 +772,7 @@ function replace_target(f::InjectorControl, target, temperature = f.temperature)
 end
 
 default_limits(f::InjectorControl{T}) where T<:BottomHolePressureTarget = merge((rate_lower = MIN_ACTIVE_WELL_RATE, ), as_limit(f.target))
-default_limits(f::InjectorControl{GroupTarget}) = nothing
+default_limits(f::InjectorControl{GroupTarget}) = (rate_lower = MIN_ACTIVE_WELL_RATE,)
 
 function Base.isequal(f::InjectorControl, g::InjectorControl)
     t_eq = f.target == g.target 
@@ -815,7 +815,7 @@ end
 default_limits(f::ProducerControl{T}) where T<:SurfaceVolumeTarget = merge((bhp = DEFAULT_MINIMUM_PRESSURE,), as_limit(f.target)) # 1 atm
 default_limits(f::ProducerControl{T}) where T<:TotalMassRateTarget = merge((bhp = DEFAULT_MINIMUM_PRESSURE,), as_limit(f.target)) # 1 atm
 default_limits(f::ProducerControl{T}) where T<:BottomHolePressureTarget = merge((rate_lower = -MIN_ACTIVE_WELL_RATE,), as_limit(f.target))
-default_limits(f::ProducerControl{GroupTarget}) = nothing
+default_limits(f::ProducerControl{GroupTarget}) = (bhp = DEFAULT_MINIMUM_PRESSURE,)
 
 function replace_target(f::ProducerControl, target)
     return ProducerControl(target, factor = f.factor, check = false)
