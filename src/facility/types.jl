@@ -17,15 +17,21 @@ mutable struct WellGroup <: WellControllerDomain
     can_shut_producers::Bool
     "Can temporarily shut injectors that try to reach zero rate multiple solves in a row"
     can_shut_injectors::Bool
+    "Groups of wells with group name => list of well symbols"
+    const groups::Dict{Symbol, Vector{Symbol}}
 end
 
 """
-    WellGroup(wells::Vector{Symbol}; can_shut_wells = true)
+    WellGroup(wells::Vector{Symbol}; can_shut_wells = true, groups = Dict{Symbol, Vector{Symbol}}())
 
 Create a well group that can control the given set of wells.
+
+`groups` is an optional dictionary mapping group names to vectors of well
+symbols. Wells belonging to a group can be placed under group control using
+[`GroupControl`](@ref).
 """
-function WellGroup(wells::Vector{Symbol}; can_shut_wells = true, can_shut_injectors = can_shut_wells, can_shut_producers = can_shut_wells)
-    return WellGroup(wells, can_shut_producers, can_shut_injectors)
+function WellGroup(wells::Vector{Symbol}; can_shut_wells = true, can_shut_injectors = can_shut_wells, can_shut_producers = can_shut_wells, groups = Dict{Symbol, Vector{Symbol}}())
+    return WellGroup(wells, can_shut_producers, can_shut_injectors, groups)
 end
 
 struct FacilityVariablesForWell{T}
@@ -772,6 +778,70 @@ end
 effective_surface_rate(qts, ::DisabledControl) = qts
 effective_surface_rate(qts, c::Union{InjectorControl, ProducerControl}) = qts*c.factor
 
+"""
+    GroupControl(well_control, group; allocation_factor = nothing)
+
+Wrap a well control (e.g. [`InjectorControl`](@ref) or [`ProducerControl`](@ref))
+so that the target applies to the entire group rather than the individual well.
+The `group` must be a `Symbol` corresponding to a group name defined in the
+[`WellGroup`](@ref) domain.
+
+Each well in the group is assigned an `allocation_factor` that determines what
+share of the group target the well should provide. By default
+(`allocation_factor = nothing`) each well receives an equal share (1/nw where
+nw is the number of wells in the group).
+
+Wells can still switch away from group control if their individual limits are
+violated.
+"""
+struct GroupControl{C<:WellControlForce} <: WellControlForce
+    well_control::C
+    group::Symbol
+    allocation_factor::Union{Float64, Nothing}
+    function GroupControl(well_control::C, group::Symbol; allocation_factor::Union{Float64, Nothing} = nothing) where {C<:WellControlForce}
+        return new{C}(well_control, group, allocation_factor)
+    end
+end
+
+function replace_target(f::GroupControl, target)
+    new_ctrl = replace_target(f.well_control, target)
+    return GroupControl(new_ctrl, f.group, allocation_factor = f.allocation_factor)
+end
+
+default_limits(f::GroupControl) = default_limits(f.well_control)
+
+effective_surface_rate(qts, c::GroupControl) = effective_surface_rate(qts, c.well_control)
+
+# Forward target accessor for GroupControl
+function Base.getproperty(gc::GroupControl, s::Symbol)
+    if s == :target
+        return getfield(gc, :well_control).target
+    elseif s == :injection_mixture
+        ctrl = getfield(gc, :well_control)
+        return ctrl.injection_mixture
+    elseif s == :mixture_density
+        ctrl = getfield(gc, :well_control)
+        return ctrl.mixture_density
+    elseif s == :phases
+        ctrl = getfield(gc, :well_control)
+        return ctrl.phases
+    elseif s == :temperature
+        ctrl = getfield(gc, :well_control)
+        return ctrl.temperature
+    elseif s == :enthalpy
+        ctrl = getfield(gc, :well_control)
+        return ctrl.enthalpy
+    elseif s == :factor
+        ctrl = getfield(gc, :well_control)
+        return ctrl.factor
+    elseif s == :tracers
+        ctrl = getfield(gc, :well_control)
+        return ctrl.tracers
+    else
+        return getfield(gc, s)
+    end
+end
+
 mutable struct WellGroupConfiguration{T, O, L}
     const operating_controls::T # Currently operating control
     const requested_controls::O # The requested control (which may be different if limits are hit)
@@ -1167,4 +1237,13 @@ end
 
 function realize_control_for_reservoir(state, ctrl, model, dt)
     return (ctrl, false)
+end
+
+function realize_control_for_reservoir(state, ctrl::GroupControl, model, dt)
+    inner, changed = realize_control_for_reservoir(state, ctrl.well_control, model, dt)
+    if changed
+        return (GroupControl(inner, ctrl.group, allocation_factor = ctrl.allocation_factor), true)
+    else
+        return (ctrl, false)
+    end
 end

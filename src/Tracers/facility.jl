@@ -16,6 +16,7 @@ function Jutul.update_cross_term_in_entity!(out, i,
 
     cfg = state_facility.WellGroupConfiguration
     ctrl = JutulDarcy.operating_control(cfg, well_symbol)
+    inner_ctrl = ctrl isa GroupControl ? ctrl.well_control : ctrl
     qT = state_facility.TotalSurfaceMassRate[pos]
 
     tracers = well.equations[:tracers].flux_type.tracers
@@ -25,11 +26,11 @@ function Jutul.update_cross_term_in_entity!(out, i,
     rho = state_well.PhaseMassDensities
     wc = JutulDarcy.well_top_node()
 
-    if ctrl isa InjectorControl
-        if ismissing(ctrl.tracers)
+    if inner_ctrl isa InjectorControl
+        if ismissing(inner_ctrl.tracers)
             @. out = zero(T)
         else
-            @assert length(ctrl.tracers) == N
+            @assert length(inner_ctrl.tracers) == N
             phases = tuple(1:number_of_phases(well.system)...)
             masses = map(ph -> S[ph, wc]*rho[ph, wc], phases)
             mass_tot = sum(masses)
@@ -41,7 +42,7 @@ function Jutul.update_cross_term_in_entity!(out, i,
                 end
                 if mass > TRACER_TOL
                     F = mass/mass_tot
-                    v = -qT*F*ctrl.tracers[i]
+                    v = -qT*F*inner_ctrl.tracers[i]
                 else
                     v = zero(T)
                 end

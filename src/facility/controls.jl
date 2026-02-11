@@ -101,10 +101,13 @@ function valid_surface_rate_for_control(q_t, ::DisabledControl)
     return Jutul.replace_value(q_t, 0.0)
 end
 
+function valid_surface_rate_for_control(q_t, gc::GroupControl)
+    return valid_surface_rate_for_control(q_t, gc.well_control)
+end
+
 function apply_well_limits!(cfg::WellGroupConfiguration, model, state, limits, control, well::Symbol, cond::FacilityVariablesForWell)
     if control isa DisabledControl
         # Disabled wells cannot change active constraint
-        # println("Well $well is disabled; skipping limit application.")
         return cfg
     end
 
@@ -112,16 +115,13 @@ function apply_well_limits!(cfg::WellGroupConfiguration, model, state, limits, c
         # No limits to apply
         return cfg
     end
-    # println("Checking: $well with limits $limits with $cond")
-    old_control = control
-    control, changed = check_well_limits(limits, cond, control)
+    ctrl_for_limits = control isa GroupControl ? control.well_control : control
+    old_control = ctrl_for_limits
+    ctrl_for_limits, changed = check_well_limits(limits, cond, ctrl_for_limits)
     if changed
-        @debug "Well $well switching control from $(old_control.target) to $(control.target) due to active limit." limits cond
-        cfg.operating_controls[well] = control
-        # set_facility_values_for_control!(state, model, control, limits, cond)
-        # error()
+        @debug "Well $well switching control from $(old_control.target) to $(ctrl_for_limits.target) due to active limit." limits cond
+        cfg.operating_controls[well] = ctrl_for_limits
     end
-    # println("$well operating $(translate_target_to_symbol(control.target)) with value $(control.target.value)")
     return cfg
 end
 
@@ -433,6 +433,30 @@ function well_control_equation(ctrl, cond, well, model, state)
     target = ctrl.target
     val_t = get_control_target_value(target, model, state)
     val = well_target_value(ctrl, target, cond, well, model, state)
+    scale = target_scaling(target)
+    return (val - val_t)/scale
+end
+
+"""
+    well_control_equation(ctrl::GroupControl, cond, well, model, state)
+
+Compute the control equation for a well under group control. For rate-weighted
+targets, each well targets its allocation factor times the group target value.
+For non-rate targets (e.g. BHP), the allocation factor is not applied.
+"""
+function well_control_equation(ctrl::GroupControl, cond::FacilityVariablesForWell, well::Symbol, model, state)
+    inner = ctrl.well_control
+    target = inner.target
+    val_t = get_control_target_value(target, model, state)
+    if rate_weighted(target)
+        group_name = ctrl.group
+        groups = model.domain.groups
+        group_wells = groups[group_name]
+        nw = length(group_wells)
+        af = isnothing(ctrl.allocation_factor) ? 1.0/nw : ctrl.allocation_factor
+        val_t = val_t * af
+    end
+    val = well_target_value(inner, target, cond, well, model, state)
     scale = target_scaling(target)
     return (val - val_t)/scale
 end

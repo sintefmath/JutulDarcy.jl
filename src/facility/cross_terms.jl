@@ -174,6 +174,7 @@ function cross_term_total_surface_mass_rate_and_mixture(facility, well, state_fa
 
     cfg = state_facility.WellGroupConfiguration
     ctrl = operating_control(cfg, well_symbol)
+    inner_ctrl = ctrl isa GroupControl ? ctrl.well_control : ctrl
     q_t = facility_surface_mass_rate_for_well(
         facility,
         well_symbol,
@@ -187,16 +188,16 @@ function cross_term_total_surface_mass_rate_and_mixture(facility, well, state_fa
     ph2 = state_facility[:SurfacePhaseRates][1, pos]
     total_mass = state_well.TotalMasses[1, well_top_node()]
     q_t += 0*bhp + 0*ph + 0*total_mass + 0*ph2
-    if isa(ctrl, InjectorControl)
+    if isa(inner_ctrl, InjectorControl)
         if value(q_t) < 0
             @warn "Injector $well_symbol is producing?"
         end
-        mix = ctrl.injection_mixture
+        mix = inner_ctrl.injection_mixture
         nmix = length(mix)
         ncomp = number_of_components(well.system)
         @assert nmix == ncomp "Injection composition length ($nmix) must match number of components ($ncomp)."
     else
-        if value(q_t) > 0 && ctrl isa ProducerControl
+        if value(q_t) > 0 && inner_ctrl isa ProducerControl
             @warn "Producer $well_symbol is injecting?"
         end
         if haskey(state_well, :MassFractions)
@@ -320,14 +321,15 @@ function update_cross_term_in_entity!(out, i,
 
     cfg = state_facility.WellGroupConfiguration
     ctrl = operating_control(cfg, well_symbol)
+    inner_ctrl = ctrl isa GroupControl ? ctrl.well_control : ctrl
     qT = state_facility.TotalSurfaceMassRate[pos]
     # Hack for sparsity detection
     qT += 0*bottom_hole_pressure(state_well)
 
     cell = well_top_node()
 
-    T = get_target_temperature(ctrl, ctrl.target, facility, state_facility)
-    H = well_top_node_enthalpy(ctrl, well, state_well, T, cell)
+    T = get_target_temperature(inner_ctrl, inner_ctrl.target, facility, state_facility)
+    H = well_top_node_enthalpy(inner_ctrl, well, state_well, T, cell)
     out[] = -qT*H
 end
 
@@ -449,6 +451,7 @@ function update_cross_term_in_entity!(out, i,
     q_t = state_facility.TotalSurfaceMassRate[pos]
     cfg = state_facility[:WellGroupConfiguration]
     ctrl = operating_control(cfg, ct.well)
+    inner_ctrl = ctrl isa GroupControl ? ctrl.well_control : ctrl
     rhoS, S = surface_density_and_volume_fractions(state_well)
 
     p_top = state_well.Pressure[well_top_node()]
@@ -457,11 +460,11 @@ function update_cross_term_in_entity!(out, i,
     for ph_idx in eachindex(out)
         out[ph_idx] = 0.0*(S[ph_idx] + rhoS[ph_idx] + q_t + tm + p_top)
     end
-    is_injector = ctrl isa InjectorControl
+    is_injector = inner_ctrl isa InjectorControl
     if is_injector
-        density = ctrl.mixture_density
+        density = inner_ctrl.mixture_density
         volume_rate = q_t/density
-        for (ph_idx, phase_fraction) in ctrl.phases
+        for (ph_idx, phase_fraction) in inner_ctrl.phases
             out[ph_idx] += -volume_rate*phase_fraction*eq.scale
         end
     else

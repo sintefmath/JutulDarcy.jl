@@ -56,6 +56,9 @@ function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, s
         # Set value to zero since we know it is correct.
         return Jutul.update_value(v, -value(v))
     end
+    function do_update!(wcfg, s, v, dx, ctrl::GroupControl)
+        return do_update!(wcfg, s, v, dx, ctrl.well_control)
+    end
     @inbounds for i in eachindex(v)
         s = symbols[i]
         v[i] = do_update!(cfg, s, v[i], w*dx[i], operating_control(cfg, s))
@@ -87,6 +90,9 @@ function Jutul.update_primary_variable!(state, var::SurfacePhaseRates, state_sym
     function do_update!(wcfg, s, v, dx, ctrl::DisabledControl)
         # Set value to zero since we know it is correct.
         return Jutul.update_value(v, -value(v))
+    end
+    function do_update!(wcfg, s, v, dx, ctrl::GroupControl)
+        return do_update!(wcfg, s, v, dx, ctrl.well_control)
     end
     for i in eachindex(symbols)
         s = symbols[i]
@@ -209,8 +215,9 @@ function setup_forces(model::SimulationModel{D}; control = nothing, limits = not
             end
         end
         c = control[w]
-        is_inj = c isa InjectorControl
-        is_prod = c isa ProducerControl
+        inner_c = c isa GroupControl ? c.well_control : c
+        is_inj = inner_c isa InjectorControl
+        is_prod = inner_c isa ProducerControl
         if is_inj || is_prod
             if is_inj
                 sgn = 1.0
@@ -243,13 +250,18 @@ end
 
 function name_equation(name, cfg::WellGroupConfiguration)
     ctrl = cfg.operating_controls[name]
-    if ctrl isa InjectorControl
+    inner = ctrl isa GroupControl ? ctrl.well_control : ctrl
+    if inner isa InjectorControl
         cs = "I"
-    elseif ctrl isa ProducerControl
+    elseif inner isa ProducerControl
         cs = "P"
     else
         cs = "X"
     end
-    t = translate_target_to_symbol(ctrl.target)
-    return "$name ($cs) $t"
+    t = translate_target_to_symbol(inner.target)
+    if ctrl isa GroupControl
+        return "$name ($cs) $t [G:$(ctrl.group)]"
+    else
+        return "$name ($cs) $t"
+    end
 end
