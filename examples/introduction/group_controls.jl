@@ -1,11 +1,16 @@
 # # Group control for wells
-# <tags: Immiscible, Introduction, Wells, GroupControl>
+# <tags: Immiscible, Introduction, Wells, GroupTarget>
 
 # This example demonstrates how to use group control for wells. Group control
 # allows specifying a combined target for a group of wells, where each well in
 # the group is allocated a fraction of the group target. This is useful for
 # modelling field-level constraints where a group of producers or injectors
 # share a common rate or pressure target.
+#
+# Each well uses a `GroupTarget` as its target, which references a group
+# defined in the model. The actual target type and value (e.g. total rate,
+# liquid rate) are set per group via the `group_controls` keyword in
+# [`setup_reservoir_forces`](@ref).
 
 # ## Preliminaries
 using JutulDarcy, Jutul
@@ -70,32 +75,18 @@ pv = pore_volume(model, parameters)
 total_inj_rate = sum(pv)/sum(dt)
 
 # ## Define group-controlled well controls
-# ### Injector group control
-# The total injection rate is shared equally between both injectors. Each
-# injector will target `total_inj_rate / 2` automatically via the allocation
-# factor (1/nw = 1/2).
-inj_group_target = TotalRateTarget(total_inj_rate)
-I1_ctrl = GroupControl(
-    InjectorControl(inj_group_target, [0.0, 1.0], density = rhoGS),
-    :InjectorGroup
-)
-I2_ctrl = GroupControl(
-    InjectorControl(inj_group_target, [0.0, 1.0], density = rhoGS),
-    :InjectorGroup
-)
+# Each well uses a `GroupTarget` to indicate that its target is determined by
+# the group. The `group_controls` dictionary then defines the actual target
+# for each group.
 
-# ### Producer group control
-# The total production rate is shared equally between both producers. Each
-# producer will target half of the group production rate.
-prod_group_target = TotalRateTarget(-total_inj_rate)
-P1_ctrl = GroupControl(
-    ProducerControl(prod_group_target),
-    :ProducerGroup
-)
-P2_ctrl = GroupControl(
-    ProducerControl(prod_group_target),
-    :ProducerGroup
-)
+# ### Well controls with GroupTarget
+# The individual well controls use `GroupTarget(:GroupName)` as the target.
+# The well type (injector/producer) and injection mixture are still specified
+# per-well.
+I1_ctrl = InjectorControl(GroupTarget(:InjectorGroup), [0.0, 1.0], density = rhoGS)
+I2_ctrl = InjectorControl(GroupTarget(:InjectorGroup), [0.0, 1.0], density = rhoGS)
+P1_ctrl = ProducerControl(GroupTarget(:ProducerGroup))
+P2_ctrl = ProducerControl(GroupTarget(:ProducerGroup))
 
 controls = Dict(
     :Injector1 => I1_ctrl,
@@ -104,7 +95,15 @@ controls = Dict(
     :Producer2 => P2_ctrl
 )
 
-forces = setup_reservoir_forces(model, control = controls)
+# ### Group controls
+# The group-level controls specify what the actual target is for the group.
+# Each well in the group will produce/inject its allocation share of the total.
+group_controls = Dict(
+    :InjectorGroup => InjectorControl(TotalRateTarget(total_inj_rate), [0.0, 1.0], density = rhoGS),
+    :ProducerGroup => ProducerControl(TotalRateTarget(-total_inj_rate))
+)
+
+forces = setup_reservoir_forces(model, control = controls, group_controls = group_controls)
 
 # ## Simulate the model
 result = simulate_reservoir(state0, model, dt, parameters = parameters, forces = forces)

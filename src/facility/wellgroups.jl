@@ -56,9 +56,6 @@ function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, s
         # Set value to zero since we know it is correct.
         return Jutul.update_value(v, -value(v))
     end
-    function do_update!(wcfg, s, v, dx, ctrl::GroupControl)
-        return do_update!(wcfg, s, v, dx, ctrl.well_control)
-    end
     @inbounds for i in eachindex(v)
         s = symbols[i]
         v[i] = do_update!(cfg, s, v[i], w*dx[i], operating_control(cfg, s))
@@ -90,9 +87,6 @@ function Jutul.update_primary_variable!(state, var::SurfacePhaseRates, state_sym
     function do_update!(wcfg, s, v, dx, ctrl::DisabledControl)
         # Set value to zero since we know it is correct.
         return Jutul.update_value(v, -value(v))
-    end
-    function do_update!(wcfg, s, v, dx, ctrl::GroupControl)
-        return do_update!(wcfg, s, v, dx, ctrl.well_control)
     end
     for i in eachindex(symbols)
         s = symbols[i]
@@ -178,7 +172,7 @@ function select_equations!(eqs, system::FacilitySystem, model::FacilityModel)
     eqs[:control_equation] = ControlEquationWell()
 end
 
-function setup_forces(model::SimulationModel{D}; control = nothing, limits = nothing, set_default_limits = true, check = false) where {D <: WellGroup}
+function setup_forces(model::SimulationModel{D}; control = nothing, limits = nothing, group_controls = nothing, set_default_limits = true, check = false) where {D <: WellGroup}
     T = Dict{Symbol, Any}
     if isnothing(control)
         control = T()
@@ -215,9 +209,8 @@ function setup_forces(model::SimulationModel{D}; control = nothing, limits = not
             end
         end
         c = control[w]
-        inner_c = c isa GroupControl ? c.well_control : c
-        is_inj = inner_c isa InjectorControl
-        is_prod = inner_c isa ProducerControl
+        is_inj = c isa InjectorControl
+        is_prod = c isa ProducerControl
         if is_inj || is_prod
             if is_inj
                 sgn = 1.0
@@ -236,7 +229,11 @@ function setup_forces(model::SimulationModel{D}; control = nothing, limits = not
             end
         end
     end
-    return (control = control::AbstractDict, limits = limits::AbstractDict,)
+    # Initialize group controls
+    if isnothing(group_controls)
+        group_controls = Dict{Symbol, Any}()
+    end
+    return (control = control::AbstractDict, limits = limits::AbstractDict, group_controls = group_controls::AbstractDict)
 end
 
 function convergence_criterion(model, storage, eq::ControlEquationWell, eq_s, r; dt = 1.0, update_report = missing)
@@ -250,18 +247,18 @@ end
 
 function name_equation(name, cfg::WellGroupConfiguration)
     ctrl = cfg.operating_controls[name]
-    inner = ctrl isa GroupControl ? ctrl.well_control : ctrl
-    if inner isa InjectorControl
+    if ctrl isa InjectorControl
         cs = "I"
-    elseif inner isa ProducerControl
+    elseif ctrl isa ProducerControl
         cs = "P"
     else
         cs = "X"
     end
-    t = translate_target_to_symbol(inner.target)
-    if ctrl isa GroupControl
-        return "$name ($cs) $t [G:$(ctrl.group)]"
+    target = ctrl.target
+    if target isa GroupTarget
+        return "$name ($cs) group:$(target.group)"
     else
+        t = translate_target_to_symbol(target)
         return "$name ($cs) $t"
     end
 end

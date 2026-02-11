@@ -76,10 +76,9 @@ function compute_well_qoi(model::MultiModel, state, forces, well::Symbol, target
     if ctrl isa DisabledControl
         qoi = 0.0
     else
-        inner_ctrl = ctrl isa GroupControl ? ctrl.well_control : ctrl
         if target isa Type
             if target<:SurfaceVolumeTarget
-                if inner_ctrl isa InjectorControl
+                if ctrl isa InjectorControl
                     tv = 1.0
                 else
                     tv = -1.0

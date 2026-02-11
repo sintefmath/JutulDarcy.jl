@@ -154,14 +154,18 @@ function test_group_control()
     inj_rate = 0.25*sum(pv)/sum(dt)
     rate_target = TotalRateTarget(inj_rate)
     I_ctrl = InjectorControl(rate_target, [0.0, 1.0], density = rhoGS)
-    group_rate = TotalRateTarget(-inj_rate)
-    P1_ctrl = GroupControl(ProducerControl(group_rate), :ProducerGroup)
-    P2_ctrl = GroupControl(ProducerControl(group_rate), :ProducerGroup)
+    # Producers use GroupTarget - the actual target comes from group_controls
+    P1_ctrl = ProducerControl(GroupTarget(:ProducerGroup))
+    P2_ctrl = ProducerControl(GroupTarget(:ProducerGroup))
     controls = Dict{Symbol, Any}()
     controls[:Injector] = I_ctrl
     controls[:Producer1] = P1_ctrl
     controls[:Producer2] = P2_ctrl
-    forces = setup_reservoir_forces(model, control = controls)
+    # Group controls define the actual target for the group
+    group_controls = Dict{Symbol, Any}(
+        :ProducerGroup => ProducerControl(TotalRateTarget(-inj_rate))
+    )
+    forces = setup_reservoir_forces(model, control = controls, group_controls = group_controls)
     result = simulate_reservoir(state0, model, dt,
         parameters = parameters, forces = forces, info_level = -1
     )

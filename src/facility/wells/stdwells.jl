@@ -88,8 +88,7 @@ well_has_explicit_pressure_drop(w::SimpleWell) = w.explicit_dp
 function update_before_step_well!(well_state, well_model::SimpleWellFlowModel, res_state, res_model, ctrl, mask; update_explicit = true)
     if well_has_explicit_pressure_drop(well_model) && update_explicit
         dp = well_state.ConnectionPressureDrop
-        inner_ctrl = ctrl isa GroupControl ? ctrl.well_control : ctrl
-        update_connection_pressure_drop!(dp, well_state, well_model, res_state, res_model, inner_ctrl, mask)
+        update_connection_pressure_drop!(dp, well_state, well_model, res_state, res_model, ctrl, mask)
     end
 end
 

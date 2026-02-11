@@ -1403,6 +1403,7 @@ Set up driving forces for a reservoir model with wells
 function setup_reservoir_forces(model::MultiModel;
         control = nothing,
         limits = nothing,
+        group_controls = nothing,
         set_default_limits = true,
         bc = nothing,
         sources = nothing,
@@ -1428,6 +1429,7 @@ function setup_reservoir_forces(model::MultiModel;
         surface_forces = setup_forces(facility,
             control = control,
             limits = limits,
+            group_controls = group_controls,
             set_default_limits = set_default_limits
         )
         # Set up forces for the whole model.
@@ -1595,9 +1597,8 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
                 d[i] = q_t
             elseif target isa Int
                 # Shorthand for component mass rate
-                inner_control = control isa GroupControl ? control.well_control : control
-                if inner_control isa InjectorControl
-                    mix = inner_control.injection_mixture[target]
+                if control isa InjectorControl
+                    mix = control.injection_mixture[target]
                 else
                     totmass = well_state[:TotalMasses][:, 1]
                     mix = totmass[target]/sum(totmass)

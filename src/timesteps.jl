@@ -113,7 +113,7 @@ function Jutul.pick_next_timestep(sel::ControlChangeTimestepSelector,
             break
         end
         # Check if the temperature has changed more than prescribed threshold
-        if !(sel.include_temperature && (ctrl isa InjectorControl || (ctrl isa GroupControl && ctrl.well_control isa InjectorControl)))
+        if !(sel.include_temperature && ctrl isa InjectorControl)
             continue
         end
         temp0 = sel.prev_controls[well].temperature

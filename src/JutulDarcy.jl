@@ -64,7 +64,7 @@ module JutulDarcy
     export WellDomain, MultiSegmentWell
     export TotalMassFlux, PotentialDropBalanceWell
     export SegmentWellBoreFrictionHB
-    export InjectorControl, ProducerControl, GroupControl
+    export InjectorControl, ProducerControl, GroupTarget
     export Perforations
     export MixedWellSegmentFlow
     export segment_pressure_drop

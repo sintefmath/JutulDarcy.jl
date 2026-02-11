@@ -36,16 +36,18 @@ function Jutul.vectorization_length(controls_or_limits::AbstractDict, model::Fac
     n = 0
     if name == :control
         for (k, v) in pairs(controls_or_limits)
-            inner_v = v isa GroupControl ? v.well_control : v
-            if inner_v isa DisabledControl
+            if v isa DisabledControl
+                continue
+            elseif v.target isa GroupTarget
+                # GroupTarget wells don't contribute to vectorization
                 continue
             else
                 if supp.target
                     n += 1
                 end
-                if inner_v isa InjectorControl
+                if v isa InjectorControl
                     if supp.injection_mixture
-                        n += length(inner_v.injection_mixture)
+                        n += length(v.injection_mixture)
                     end
                     if supp.mixture_density
                         n += 1
@@ -54,7 +56,7 @@ function Jutul.vectorization_length(controls_or_limits::AbstractDict, model::Fac
                         n += 1
                     end
                 else
-                    @assert inner_v isa ProducerControl
+                    @assert v isa ProducerControl
                 end
             end
         end
@@ -80,18 +82,19 @@ function Jutul.vectorize_force!(v, model::FacilityModel, controls_or_limits::Abs
     offset = 0
     if name == :control
         for (wname, ctrl) in pairs(controls_or_limits)
-            inner_ctrl = ctrl isa GroupControl ? ctrl.well_control : ctrl
-            if inner_ctrl isa DisabledControl
+            if ctrl isa DisabledControl
+                continue
+            elseif ctrl.target isa GroupTarget
                 continue
             else
                 if supp.target
-                    v[offset+1] = inner_ctrl.target.value
+                    v[offset+1] = ctrl.target.value
                     push!(names, Symbol("target_$wname"))
                     offset += 1
                 end
-                if inner_ctrl isa InjectorControl
+                if ctrl isa InjectorControl
                     if supp.injection_mixture
-                        for (i, x_i) in enumerate(inner_ctrl.injection_mixture)
+                        for (i, x_i) in enumerate(ctrl.injection_mixture)
                             offset += 1
                             v[offset] = x_i
                             push!(names, Symbol("injection_mixture_$(wname)_$i"))
@@ -99,16 +102,16 @@ function Jutul.vectorize_force!(v, model::FacilityModel, controls_or_limits::Abs
                     end
                     if supp.mixture_density
                         offset += 1
-                        v[offset] = inner_ctrl.mixture_density
+                        v[offset] = ctrl.mixture_density
                         push!(names, Symbol("mixture_density_$wname"))
                     end
                     if supp.temperature
                         offset += 1
-                        v[offset] = inner_ctrl.temperature
+                        v[offset] = ctrl.temperature
                         push!(names, Symbol("temperature_$wname"))
                     end
                 else
-                    @assert inner_ctrl isa ProducerControl
+                    @assert ctrl isa ProducerControl
                 end
             end
         end
@@ -140,66 +143,58 @@ function Jutul.devectorize_force(control_or_limits::Tcl, model::FacilityModel, X
     T = eltype(X)
     if name == :control
         for (wname, ctrl) in pairs(control_or_limits)
-            inner_ctrl = ctrl isa GroupControl ? ctrl.well_control : ctrl
-            if inner_ctrl isa DisabledControl
+            if ctrl isa DisabledControl
+                out[wname] = ctrl
+            elseif ctrl.target isa GroupTarget
+                # Pass through GroupTarget controls without modification
                 out[wname] = ctrl
             else
                 if supp.target
                     val = X[offset+1]
-                    if inner_ctrl.target isa ReinjectionTarget
-                        target = deepcopy(inner_ctrl.target)
+                    if ctrl.target isa ReinjectionTarget
+                        target = deepcopy(ctrl.target)
                         target.value = val
                     else
-                        Tt = Base.typename(typeof(inner_ctrl.target)).wrapper
+                        Tt = Base.typename(typeof(ctrl.target)).wrapper
                         # TODO: Ugly hack...
                         target = Tt(val)
                     end
                     offset += 1
                 else
-                    target = T(inner_ctrl.target)
+                    target = T(ctrl.target)
                 end
-                if inner_ctrl isa InjectorControl
+                if ctrl isa InjectorControl
                     if supp.injection_mixture
-                        nm = length(inner_ctrl.injection_mixture)
+                        nm = length(ctrl.injection_mixture)
                         mixture = X[offset+1:offset+nm]
                         offset += nm
                     else
-                        mixture = T.(inner_ctrl.injection_mixture)
+                        mixture = T.(ctrl.injection_mixture)
                     end
                     if supp.mixture_density
                         density = X[offset+1]
                         offset += 1
                     else
-                        density = T(inner_ctrl.mixture_density)
+                        density = T(ctrl.mixture_density)
                     end
                     if supp.temperature
                         temp = X[offset+1]
                         offset += 1
                     else
-                        temp = T(inner_ctrl.temperature)
+                        temp = T(ctrl.temperature)
                     end
-                    new_inner = InjectorControl(target, mixture,
+                    out[wname] = InjectorControl(target, mixture,
                         density = density,
                         temperature = temp,
-                        factor = T(inner_ctrl.factor),
-                        enthalpy = inner_ctrl.enthalpy,
-                        tracers = inner_ctrl.tracers,
-                        phases = inner_ctrl.phases,
+                        factor = T(ctrl.factor),
+                        enthalpy = ctrl.enthalpy,
+                        tracers = ctrl.tracers,
+                        phases = ctrl.phases,
                         check = false
                     )
-                    if ctrl isa GroupControl
-                        out[wname] = GroupControl(new_inner, ctrl.group, allocation_factor = ctrl.allocation_factor)
-                    else
-                        out[wname] = new_inner
-                    end
                 else
-                    @assert inner_ctrl isa ProducerControl
-                    new_inner = ProducerControl(target, check = false)
-                    if ctrl isa GroupControl
-                        out[wname] = GroupControl(new_inner, ctrl.group, allocation_factor = ctrl.allocation_factor)
-                    else
-                        out[wname] = new_inner
-                    end
+                    @assert ctrl isa ProducerControl
+                    out[wname] = ProducerControl(target, check = false)
                 end
             end
         end
