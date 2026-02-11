@@ -22,7 +22,8 @@ function apply_force_to_equation!(acc, storage, model::SimulationModel{D, S}, eq
 end
 
 function apply_force_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw{:TotalThermalEnergy}, eq_s, bc::V, time) where {V <: HeatFluxBoundaryCondition, D, S<:MultiPhaseSystem}
-    c = bc.cell
+    gmap = global_map(model)
+    c = Jutul.full_cell(bc.cell, gmap)
     acc_i = view(acc, :, c)
     acc_i .-= bc.heat_flux
 end
