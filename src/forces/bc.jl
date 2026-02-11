@@ -18,7 +18,7 @@ function FlowBoundaryCondition(
         fractional_flow = nothing,
         density = nothing,
         trans_flow = 1e-12,
-        trans_thermal = 1e-6
+        trans_thermal = 1e2
     )
     pressure >= DEFAULT_MINIMUM_PRESSURE || throw(ArgumentError("Pressure must be at least $DEFAULT_MINIMUM_PRESSURE"))
     temperature >= 0.0 || throw(ArgumentError("Temperature must be at least 0.0 K"))
@@ -158,7 +158,6 @@ function Jutul.subforce(s::AbstractVector{S}, model) where S<:FlowBoundaryCondit
 end
 
 function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw, eq_s, force::V, time) where {V <: AbstractVector{<:JutulForce}, D, S<:MultiPhaseSystem}
-    state = storage.state
     for bc in force
         apply_force_to_equation!(acc, storage, model, eq, eq_s, bc, time)
     end
