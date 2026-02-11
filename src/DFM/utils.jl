@@ -16,7 +16,7 @@ function fracture_domain(mesh::Jutul.EmbeddedMeshes.EmbeddedMesh;
         permeability = (aperture.^2)./12.0
     end
 
-    domain = reservoir_domain(mesh,
+    domain = reservoir_domain(mesh;
         permeability = permeability,
         porosity = porosity,
         kwarg...
