@@ -150,6 +150,122 @@ function partition_uniform_1d(nc, N)
     return p
 end
 
+function count_nldd_solve_statistics(reports)
+    """
+    Count NLDD solve statistics from simulation reports.
+    Returns a named tuple with statistics or missing if required data is not available.
+    """
+    # Check if we have the basic structure we need
+    if isempty(reports)
+        return missing
+    end
+    
+    # Initialize counters
+    failure_count = 0
+    failure_attempts = 0
+    nldd_count = 0
+    total_count = 0
+    subdomain_skipped = 0
+    subdomain_solves = 0
+    subdomain_total = 0
+    
+    # Track if we found any relevant data
+    has_solve_data = false
+    has_failure_data = false
+    has_status_data = false
+    
+    for r in reports
+        for m in r[:ministeps]
+            if haskey(m, :steps)
+                for mr in m[:steps]
+                    # Count NLDD method usage
+                    if haskey(mr, :converged) && haskey(mr, :local_solves_active)
+                        has_solve_data = true
+                        if !mr[:converged]
+                            total_count += 1
+                            nldd_count += mr[:local_solves_active]
+                        end
+                    end
+                    
+                    # Count failures and status
+                    if haskey(mr, :subdomains)
+                        num_sweeps = length(mr[:subdomains])
+                        for sno in 1:num_sweeps
+                            # Count subdomain failures
+                            if haskey(mr, :subdomain_failures)
+                                failures = mr[:subdomain_failures][sno]
+                                if !isnothing(failures)
+                                    has_failure_data = true
+                                    failure_count += length(failures)
+                                    failure_attempts += 1
+                                end
+                            end
+                            
+                            # Count solve status
+                            if haskey(mr, :solve_status)
+                                has_status_data = true
+                                for status in mr[:solve_status][sno]
+                                    subdomain_skipped += status == local_solve_skipped
+                                    subdomain_solves += status != local_already_converged && status != local_solve_skipped
+                                    subdomain_total += 1
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    # Return missing if we don't have any meaningful data
+    if !has_solve_data && !has_failure_data && !has_status_data
+        return missing
+    end
+    
+    subdomain_already_conv = subdomain_total - subdomain_solves - subdomain_skipped
+    
+    return (
+        nldd_count = nldd_count,
+        total_count = total_count,
+        failure_count = failure_count,
+        failure_attempts = failure_attempts,
+        subdomain_skipped = subdomain_skipped,
+        subdomain_solves = subdomain_solves,
+        subdomain_total = subdomain_total,
+        subdomain_already_conv = subdomain_already_conv,
+        has_solve_data = has_solve_data,
+        has_failure_data = has_failure_data,
+        has_status_data = has_status_data
+    )
+end
+
+function print_nldd_solve_statistics(stats, n_subdomains, method, info_level)
+    """
+    Print NLDD solve statistics if available and info_level allows it.
+    """
+    if ismissing(stats)
+        return
+    end
+    
+    if info_level > -1
+        # Print NLDD method usage statistics
+        if stats.has_solve_data
+            Jutul.jutul_message("NLDD", "$(stats.nldd_count)/$(stats.total_count) solves used $method.")
+        end
+        
+        # Print subdomain status statistics
+        if stats.has_status_data
+            Jutul.jutul_message("NLDD", "Subdomain status:\n\t$(stats.subdomain_skipped)/$(stats.subdomain_total) local solves were skipped.\n\t$(stats.subdomain_already_conv)/$(stats.subdomain_total) local solves were already converged.\n\t$(stats.subdomain_solves)/$(stats.subdomain_total) local solves were solved.")
+        end
+    end
+    
+    # Always print failure information if there are failures
+    if stats.has_failure_data && stats.failure_count > 0
+        total_local_solves = n_subdomains * stats.failure_attempts
+        @info "$(stats.failure_count) subdomain solves failed out of $total_local_solves total local solves."
+    end
+end
+
 function final_simulation_message(sim::NLDDSimulator, p, rec, t_elapsed, reports, timesteps, config, start_date, aborted)
     info_level = config[:info_level]
     if info_level > -1
@@ -160,52 +276,12 @@ function final_simulation_message(sim::NLDDSimulator, p, rec, t_elapsed, reports
             Jutul.print_timing(stats, title = "Subdomain stats (Total)")
         end
     end
-    n = length(sim.subdomain_simulators)
-    failure_count = 0
-    count = 0
-    nldd_count = 0
-    total_count = 0
-    subdomain_skipped = 0
-    subdomain_solves = 0
-    subdomain_total = 0
-    for r in reports
-        for m in r[:ministeps]
-            if haskey(m, :steps)
-                for mr in m[:steps]
-                    if !mr[:converged]
-                        total_count += 1
-                        nldd_count += mr[:local_solves_active]
-                    end
-                    num_sweeps = length(mr[:subdomains])
-                    for sno in 1:num_sweeps
-                        if haskey(mr, :subdomain_failures)
-                            failures = mr[:subdomain_failures][sno]
-                            if isnothing(failures)
-                                continue
-                            end
-                            failure_count += length(failures)
-                            count += 1
-                        end
-                        if haskey(mr, :solve_status)
-                            for status in mr[:solve_status][sno]
-                                subdomain_skipped += status == local_solve_skipped
-                                subdomain_solves += status != local_already_converged && status != local_solve_skipped
-                                subdomain_total += 1
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-    if info_level > -1
-        subdomain_already_conv = subdomain_total-subdomain_solves-subdomain_skipped
-        Jutul.jutul_message("NLDD", "$nldd_count/$total_count solves used $(config[:method]).")
-        Jutul.jutul_message("NLDD", "Subdomain status:\n\t$subdomain_skipped/$subdomain_total local solves were skipped.\n\t$subdomain_already_conv/$subdomain_total local solves were already converged.\n\t$subdomain_solves/$subdomain_total local solves were solved.")
-    end
-    if failure_count > 0
-        @info "$failure_count subdomain solves failed out of $(n*count) total local solves."
-    end
+    
+    # Count and print NLDD solve statistics
+    nldd_stats = count_nldd_solve_statistics(reports)
+    n_subdomains = length(sim.subdomain_simulators)
+    print_nldd_solve_statistics(nldd_stats, n_subdomains, config[:method], info_level)
+    
     final_simulation_message(sim.simulator, p, rec, t_elapsed, reports, timesteps, config, start_date, aborted)
 end
 
