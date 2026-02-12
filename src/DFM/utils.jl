@@ -38,7 +38,7 @@ function fracture_domain(mesh::Jutul.EmbeddedMeshes.EmbeddedMesh;
     T = Jutul.EmbeddedMeshes.compute_face_trans_dfm(T_hf, N, mesh.intersections)
     domain[:transmissibilities, Faces()] = T
 
-    domain[:matrix_faces] = matrix_faces
+    domain[:matrix_faces, NoEntity()] = matrix_faces
 
     return domain
 
@@ -50,8 +50,8 @@ function setup_matrix_fracture_cross_term(matrix::Jutul.DataDomain, fractures::J
         matrix_conductivity = matrix[:permeability]
         fracture_conductivity = fractures[:permeability]
     elseif field == :thermal_conductivity
-        function effective_conductivity(ϕ, Λ_m, Λ_f)
-            return ϕ.*Λ_f .+ (1 .- ϕ).*Λ_m
+        function effective_conductivity(ϕ, Λ_r, Λ_f)
+            return ϕ.*Λ_f .+ (1 .- ϕ).*Λ_r
         end
         matrix_conductivity = effective_conductivity(
             matrix[:porosity],
@@ -74,7 +74,7 @@ function setup_matrix_fracture_cross_term(matrix::Jutul.DataDomain, fractures::J
     if ismissing(fractures[:matrix_faces])
         error("Fracture domain must have :matrix_faces data (from create_fracture_domain) to set up cross terms.")
     end
-    matrix_faces = fractures[:matrix_faces]
+    matrix_faces = fractures[:matrix_faces, NoEntity()]
     n_f = number_of_cells(fractures)
     n_res = number_of_cells(matrix)
     
@@ -123,7 +123,7 @@ function setup_matrix_fracture_cross_term(matrix::Jutul.DataDomain, fractures::J
     
 end
 
-function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, fractures::DataDomain, system::Union{JutulSystem, Symbol};
+function JutulDarcy.setup_reservoir_model(matrix::DataDomain, fractures::DataDomain, system::Union{JutulSystem, Symbol};
     wells = [],
     block_backend = true,
     kwarg...)
@@ -131,27 +131,48 @@ function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, fractures::Data
     block_lump_with_res = true && block_backend
 
     # Set zero transmissibility accross matrix cells that are fractures
-    T = reservoir_transmissibility(reservoir)
-    T[fractures[:matrix_faces]] .= 0.0
-    reservoir[:transmissibilities, Faces()] = T
+    T = reservoir_transmissibility(matrix)
+    T[fractures[:matrix_faces, NoEntity()]] .= 0.0
+    matrix[:transmissibilities, Faces()] = T
+
+    if haskey(matrix, :rock_thermal_conductivity)
+        T = reservoir_conductivity(matrix)
+        T[fractures[:matrix_faces, NoEntity()]] .= 0.0
+        matrix[:rock_thermal_conductivities, Faces()] = T
+    end
+
+    if haskey(matrix, :fluid_thermal_conductivity)
+        nph = 1
+        @warn "Assuming single-phase system for setting up fluid thermal conductivity"
+        C = matrix[:fluid_thermal_conductivity]
+        phi = matrix[:porosity]
+        if C isa Vector
+            T = compute_face_trans(matrix, phi.*C)
+            T = repeat(T', nph, 1)
+        else
+            size(C, 1) == nph || error("Expected size $(nph) x num_cells for :fluid_thermal_conductivity, got size $(size(C))")
+            nf = number_of_faces(matrix)
+            T = zeros(nph, nf)
+            for ph in 1:nph
+                T[ph, :] = compute_face_trans(matrix, phi.*C[ph, :])
+            end
+        end
+        T[fractures[:matrix_faces, NoEntity()]] .= 0.0
+        matrix[:fluid_thermal_conductivities, Faces()] = T
+    end
 
     # Adjust matrix cell volumes to account for fracture volumes
     fracture_volumes = fractures[:volumes, Cells()]
-    matrix_volumes = reservoir[:volumes, Cells()]
-    N = get_neighborship(physical_representation(reservoir))
-    for (cf, face) in enumerate(fractures[:matrix_faces])
+    matrix_volumes = matrix[:volumes, Cells()]
+    N = get_neighborship(physical_representation(matrix))
+    for (cf, face) in enumerate(fractures[:matrix_faces, NoEntity()])
         vf = fracture_volumes[cf]
         matrix_volumes[N[:, face]] .-= vf/2
     end
-    reservoir[:volumes, Cells()] = matrix_volumes
+    matrix[:volumes, Cells()] = matrix_volumes
     
-    model = setup_reservoir_model(reservoir, system; wells = wells, block_backend = block_backend, kwarg...)
+    model = setup_reservoir_model(matrix, system; wells = wells, block_backend = block_backend, kwarg...)
     has_thermal = haskey(model[:Reservoir].equations, :energy_conservation)
-
-    fmodel = setup_reservoir_model(fractures, system; context = model.context, block_backend = block_lump_with_res, kwarg...)
-    if fmodel isa Jutul.MultiModel
-        fmodel = fmodel.models[:Reservoir]
-    end
 
     if has_thermal
         fmesh = physical_representation(fractures)
@@ -159,24 +180,31 @@ function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, fractures::Data
         nc = number_of_cells(fmesh)
         N = get_neighborship(fmesh)
         faces, facepos = get_facepos(N, nc)
-        for (tname, name) in zip(
+        ϕ = fractures[:porosity]
+        for (tname, name, vol_frac) in zip(
                 [:rock_thermal_conductivities, :fluid_thermal_conductivities],
-                [:rock_thermal_conductivity, :fluid_thermal_conductivity]
+                [:rock_thermal_conductivity, :fluid_thermal_conductivity],
+                [1 .- ϕ, ϕ]
             )
-            Λ = fractures[name, Cells()]
+            Λ = fractures[name, Cells()].*vol_frac
             T_hf = compute_half_face_trans(fmesh, 
             geo.cell_centroids, geo.face_centroids, 
             fractures[:areas, Faces()], Λ, faces, facepos)
             T = Jutul.EmbeddedMeshes.compute_face_trans_dfm(T_hf, N, fmesh.intersections)
             if contains(String(name), "fluid")
                 if Λ isa Vector
-                    T = repeat(T', number_of_phases(fmodel.system), 1)
+                    T = repeat(T', number_of_phases(model[:Reservoir].system), 1)
                 else
                     error("Fracture thermal conductivity $name must be a Vector.")
                 end
             end
             fractures[tname, Faces()] = T
         end
+    end
+
+    fmodel = setup_reservoir_model(fractures, system; context = model.context, block_backend = false, kwarg...)
+    if fmodel isa Jutul.MultiModel
+        fmodel = fmodel.models[:Reservoir]
     end
 
     if block_lump_with_res
@@ -201,12 +229,12 @@ function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, fractures::Data
     end
 
     # Set up DFM cross-terms
-    target_cells, source_cells, transmissibilities = setup_matrix_fracture_cross_term(reservoir, fractures, :permeability)
+    target_cells, source_cells, transmissibilities = setup_matrix_fracture_cross_term(matrix, fractures, :permeability)
     gdz = zeros(Float64, length(transmissibilities))
     ct = MatrixFromFractureFlowCT(target_cells, source_cells, transmissibilities, gdz)
     add_cross_term!(model, ct, target = :Reservoir, source = :Fractures, equation = :mass_conservation)
     if has_thermal
-        target_cells, source_cells, transmissibilities_th = setup_matrix_fracture_cross_term(reservoir, fractures, :thermal_conductivity)
+        target_cells, source_cells, transmissibilities_th = setup_matrix_fracture_cross_term(matrix, fractures, :thermal_conductivity)
         ct = MatrixFromFractureThermalCT(target_cells, source_cells, transmissibilities, transmissibilities_th, gdz)
         add_cross_term!(model, ct, target = :Reservoir, source = :Fractures, equation = :energy_conservation)
     end
