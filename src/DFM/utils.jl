@@ -128,7 +128,7 @@ function JutulDarcy.setup_reservoir_model(matrix::DataDomain, fractures::DataDom
     block_backend = true,
     kwarg...)
 
-    block_lump_with_res = true && block_backend
+    block_lump_with_res = true# && block_backend
 
     # Set zero transmissibility accross matrix cells that are fractures
     T = reservoir_transmissibility(matrix)
@@ -174,6 +174,7 @@ function JutulDarcy.setup_reservoir_model(matrix::DataDomain, fractures::DataDom
     model = setup_reservoir_model(matrix, system; wells = wells, block_backend = block_backend, kwarg...)
     has_thermal = haskey(model[:Reservoir].equations, :energy_conservation)
 
+
     if has_thermal
         fmesh = physical_representation(fractures)
         geo = tpfv_geometry(fmesh)
@@ -202,7 +203,7 @@ function JutulDarcy.setup_reservoir_model(matrix::DataDomain, fractures::DataDom
         end
     end
 
-    fmodel = setup_reservoir_model(fractures, system; context = model.context, block_backend = false, kwarg...)
+    fmodel = setup_reservoir_model(fractures, system; context = model.context, block_backend = block_backend && block_lump_with_res, kwarg...)
     if fmodel isa Jutul.MultiModel
         fmodel = fmodel.models[:Reservoir]
     end
@@ -217,6 +218,9 @@ function JutulDarcy.setup_reservoir_model(matrix::DataDomain, fractures::DataDom
                 new_models[k] = v
                 push!(groups, 2)
             end
+        end
+        if isnothing(model.groups)
+            groups = nothing
         end
         model = Jutul.MultiModel(new_models; groups = groups)
     else
