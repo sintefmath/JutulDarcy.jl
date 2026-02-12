@@ -256,54 +256,6 @@ function subdomain_report_stats(sim, reports)
     return Jutul.output_report_stats(stats)
 end
 
-function subdomain_solve_count(sim, reports)
-    n = length(sim.subdomain_simulators)
-    failure_count = 0
-    count = 0
-    nldd_count = 0
-    total_count = 0
-    subdomain_skipped = 0
-    subdomain_solves = 0
-    subdomain_total = 0
-    for r in reports
-        for m in r[:ministeps]
-            if haskey(m, :steps)
-                for mr in m[:steps]
-                    if haskey(mr, :subdomain_failures)
-                        failures = mr[:subdomain_failures]
-                        if isnothing(failures)
-                            continue
-                        end
-                        failure_count += length(failures)
-                        count += 1
-                    end
-                    if !mr[:converged]
-                        total_count += 1
-                        nldd_count += mr[:local_solves_active]
-                    end
-                    if haskey(mr, :solve_status)
-                        for status in mr[:solve_status]
-                            subdomain_skipped += status == local_solve_skipped
-                            subdomain_solves += status != local_already_converged && status != local_solve_skipped
-                            subdomain_total += 1
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    count = (
-        total=total_count,
-        nldd=nldd_count,
-        solved=subdomains_solved,
-        skipped=subdomains_skipped,
-        solved_total
-    )
-
-    return nldd_count, total_count
-end
-
 import JutulDarcy: reservoir_partition
 
 function build_submodels(model, partition; active_global = missing, specialize = false)
