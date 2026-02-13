@@ -109,7 +109,11 @@ function reservoir_linsolve(model, precond = :cpr;
     elseif precond == :spai0
         prec = SPAI0Preconditioner()
     else
-        error("Preconditioner $precond not supported for $(model.context)")
+        if precond isa Symbol
+            error("Preconditioner $precond not supported for $(model.context)")
+        else
+            prec = precond
+        end
     end
     if isnothing(rtol)
         rtol = default_tol
