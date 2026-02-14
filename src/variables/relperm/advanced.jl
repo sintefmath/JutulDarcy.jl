@@ -413,14 +413,14 @@ Base.@propagate_inbounds @inline function three_phase_oil_relperm(Krow, Krog, sw
     if so_star <= 0
         return zero(typeof(Krow))
     end
-    krocw_safe = max(krocw, 1e-30)
-    kro = so_star * Krow * Krog / krocw_safe
+    krocw_clamped = max(krocw, 1e-30)
+    kro = so_star * Krow * Krog / krocw_clamped
     return kro
 end
 
 Base.@propagate_inbounds @inline function three_phase_oil_relperm(Krow, Krog, swcon, sg, sw, ::StoneIIMethod; krocw = 1.0, krw_val = 0.0, krg_val = 0.0)
-    krocw_safe = max(krocw, 1e-30)
-    kro = krocw_safe * ((Krow / krocw_safe + krw_val) * (Krog / krocw_safe + krg_val) - (krw_val + krg_val))
+    krocw_clamped = max(krocw, 1e-30)
+    kro = krocw_clamped * ((Krow / krocw_clamped + krw_val) * (Krog / krocw_clamped + krg_val) - (krw_val + krg_val))
     kro = max(kro, zero(typeof(kro)))
     return kro
 end
