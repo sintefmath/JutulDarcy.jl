@@ -1,4 +1,54 @@
-struct ReservoirRelativePermeabilities{Scaling, ph, O, OW, OG, G, R, HW, HOW, HOG, HG} <: AbstractRelativePermeabilities
+"""
+    AbstractThreePhaseOilMethod
+
+Abstract type for methods that combine two-phase oil relative permeabilities
+``k_{row}(S_o)`` and ``k_{rog}(S_o)`` into a three-phase oil relative permeability.
+"""
+abstract type AbstractThreePhaseOilMethod end
+
+"""
+    SaturationWeightedOilRelperm()
+
+Default three-phase oil relative permeability model using saturation-weighted
+interpolation between ``k_{row}`` and ``k_{rog}``:
+
+``k_{ro} = (1-w) k_{rog} + w k_{row}``
+
+where ``w = (S_w - S_{wc})/(S_g + S_w - S_{wc})``.
+"""
+struct SaturationWeightedOilRelperm <: AbstractThreePhaseOilMethod end
+
+"""
+    StoneIMethod()
+
+Stone's first model (Stone I) for three-phase oil relative permeability.
+Combines two-phase oil relative permeabilities:
+
+``k_{ro} = S_o^* \\frac{k_{row} k_{rog}}{k_{rocw}}``
+
+where ``S_o^* = (S_o - S_{om})/(1 - S_{wc} - S_{om})`` is the normalized oil
+saturation and ``k_{rocw}`` is the oil relative permeability at connate water
+saturation.
+
+Reference: Stone, H.L. "Probability Model for Estimating Three-Phase Relative
+Permeability." Journal of Petroleum Technology 22.02 (1970): 214-218.
+"""
+struct StoneIMethod <: AbstractThreePhaseOilMethod end
+
+"""
+    StoneIIMethod()
+
+Stone's second model (Stone II) for three-phase oil relative permeability:
+
+``k_{ro} = k_{rocw} \\left[\\left(\\frac{k_{row}}{k_{rocw}} + k_{rw}\\right)
+\\left(\\frac{k_{rog}}{k_{rocw}} + k_{rg}\\right) - (k_{rw} + k_{rg})\\right]``
+
+Reference: Stone, H.L. "Estimation of Three-Phase Relative Permeability and
+Residual Oil Data." Journal of Canadian Petroleum Technology 12.4 (1973).
+"""
+struct StoneIIMethod <: AbstractThreePhaseOilMethod end
+
+struct ReservoirRelativePermeabilities{Scaling, ph, O, OW, OG, G, R, HW, HOW, HOG, HG, M} <: AbstractRelativePermeabilities
     "Water relative permeability as a function of water saturation: ``k_{rw}(S_w)``"
     krw::O
     "Oil relative permeability (in the presence of water) as a function of oil saturation: ``k_{row}(S_o)``"
@@ -25,6 +75,8 @@ struct ReservoirRelativePermeabilities{Scaling, ph, O, OW, OG, G, R, HW, HOW, HO
     hysteresis_s_threshold::Float64
     "Small epsilon used in hysteresis activation check"
     hysteresis_s_eps::Float64
+    "Method for computing three-phase oil relative permeability"
+    three_phase_method::M
 end
 
 
@@ -35,18 +87,25 @@ end
         ow = nothing,
         og = nothing,
         scaling = NoKrScale(),
-        regions = nothing
+        regions = nothing,
         hysteresis_w = NoHysteresis(),
         hysteresis_ow = NoHysteresis(),
         hysteresis_og = NoHysteresis(),
         hysteresis_g = NoHysteresis(),
         hysteresis_s_threshold = 0.0,
-        hysteresis_s_eps = 1e-10
+        hysteresis_s_eps = 1e-10,
+        three_phase_method = SaturationWeightedOilRelperm()
     )
 
 Relative permeability with advanced features for reservoir simulation. Includes
 features like rel. perm. endpoint scaling, connate water adjustment and separate
-phase pair relative permeabilites for the oil phase.
+phase pair relative permeabilites for the oil phase. Supports multiple methods
+for combining two-phase oil relative permeabilities in three-phase systems via
+`three_phase_method`:
+
+- `SaturationWeightedOilRelperm()` (default): saturation-weighted interpolation
+- `StoneIMethod()`: Stone's first model
+- `StoneIIMethod()`: Stone's second model
 
 # Fields
 
@@ -72,7 +131,8 @@ function ReservoirRelativePermeabilities(;
         hysteresis_og::AbstractHysteresis = NoHysteresis(),
         hysteresis_g::AbstractHysteresis = NoHysteresis(),
         hysteresis_s_threshold = 0.0,
-        hysteresis_s_eps = 1e-10
+        hysteresis_s_eps = 1e-10,
+        three_phase_method::AbstractThreePhaseOilMethod = SaturationWeightedOilRelperm()
     )
     has_w = !isnothing(w)
     has_g = !isnothing(g)
@@ -117,8 +177,9 @@ function ReservoirRelativePermeabilities(;
         typeof(hysteresis_w),
         typeof(hysteresis_ow),
         typeof(hysteresis_og),
-        typeof(hysteresis_g)
-        }(krw, krow, krog, krg, regions, phases, hysteresis_w, hysteresis_ow, hysteresis_og, hysteresis_g, scaling, hysteresis_s_threshold, hysteresis_s_eps)
+        typeof(hysteresis_g),
+        typeof(three_phase_method)
+        }(krw, krow, krog, krg, regions, phases, hysteresis_w, hysteresis_ow, hysteresis_og, hysteresis_g, scaling, hysteresis_s_threshold, hysteresis_s_eps, three_phase_method)
 end
 
 function Jutul.get_dependencies(kr::ReservoirRelativePermeabilities, model)
@@ -307,7 +368,7 @@ function Jutul.subvariable(k::ReservoirRelativePermeabilities, map::FiniteVolume
     c = map.cells
     regions = Jutul.partition_variable_slice(k.regions, c)
     scaling = endpoint_scaling_model(k)
-    return ReservoirRelativePermeabilities(; w = k.krw, ow = k.krow, og = k.krog, g = k.krg, regions = regions, scaling = scaling)
+    return ReservoirRelativePermeabilities(; w = k.krw, ow = k.krow, og = k.krog, g = k.krg, regions = regions, scaling = scaling, three_phase_method = k.three_phase_method)
 end
 
 function Base.show(io::IO, t::MIME"text/plain", kr::ReservoirRelativePermeabilities)
@@ -330,14 +391,43 @@ function Base.show(io::IO, t::MIME"text/plain", kr::ReservoirRelativePermeabilit
         println(io, "\n  regions: $regstr.")
     end
     println(io, "\n  scaling: $(endpoint_scaling_model(kr))")
+    println(io, "  three-phase oil method: $(kr.three_phase_method)")
 end
 
-Base.@propagate_inbounds @inline function three_phase_oil_relperm(Krow, Krog, swcon, sg, sw)
+Base.@propagate_inbounds @inline function three_phase_oil_relperm(Krow, Krog, swcon, sg, sw, ::SaturationWeightedOilRelperm)
     swc = min(swcon, value(sw) - 1e-5)
     d  = (sg + sw - swc)
     ww = (sw - swc)/d
     kro = (1-ww)*Krog + ww*Krow
     return kro
+end
+
+Base.@propagate_inbounds @inline function three_phase_oil_relperm(Krow, Krog, swcon, sg, sw, ::StoneIMethod; krocw = 1.0, som = 0.0)
+    so = 1.0 - sw - sg
+    swc = swcon
+    denom = 1.0 - swc - som
+    if denom <= 0.0 || so <= som
+        return zero(typeof(Krow))
+    end
+    so_star = (so - som) / denom
+    if so_star <= 0
+        return zero(typeof(Krow))
+    end
+    krocw_safe = max(krocw, 1e-30)
+    kro = so_star * Krow * Krog / krocw_safe
+    return kro
+end
+
+Base.@propagate_inbounds @inline function three_phase_oil_relperm(Krow, Krog, swcon, sg, sw, ::StoneIIMethod; krocw = 1.0, krw_val = 0.0, krg_val = 0.0)
+    krocw_safe = max(krocw, 1e-30)
+    kro = krocw_safe * ((Krow / krocw_safe + krw_val) * (Krog / krocw_safe + krg_val) - (krw_val + krg_val))
+    kro = max(kro, zero(typeof(kro)))
+    return kro
+end
+
+# Backward-compatible version that defaults to SaturationWeightedOilRelperm
+Base.@propagate_inbounds @inline function three_phase_oil_relperm(Krow, Krog, swcon, sg, sw)
+    return three_phase_oil_relperm(Krow, Krog, swcon, sg, sw, SaturationWeightedOilRelperm())
 end
 
 Base.@propagate_inbounds function two_phase_relperm!(kr, s, regions, Kr_1, Kr_2, phases, c)
@@ -398,8 +488,24 @@ Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relper
     end
 
     kr[w, c] = val_w
-    kr[o, c] = three_phase_oil_relperm(val_ow, val_og, swcon, sg, sw)
+    method = relperm.three_phase_method
+    kr[o, c] = compute_three_phase_oil_kr(method, val_ow, val_og, val_w, val_g, swcon, sg, sw, krowd)
     kr[g, c] = val_g
+end
+
+@inline function compute_three_phase_oil_kr(method::SaturationWeightedOilRelperm, val_ow, val_og, val_w, val_g, swcon, sg, sw, krowd)
+    return three_phase_oil_relperm(val_ow, val_og, swcon, sg, sw, method)
+end
+
+@inline function compute_three_phase_oil_kr(method::StoneIMethod, val_ow, val_og, val_w, val_g, swcon, sg, sw, krowd)
+    krocw = krowd.k_max
+    som = krowd.critical
+    return three_phase_oil_relperm(val_ow, val_og, swcon, sg, sw, method, krocw = krocw, som = som)
+end
+
+@inline function compute_three_phase_oil_kr(method::StoneIIMethod, val_ow, val_og, val_w, val_g, swcon, sg, sw, krowd)
+    krocw = krowd.k_max
+    return three_phase_oil_relperm(val_ow, val_og, swcon, sg, sw, method, krocw = krocw, krw_val = val_w, krg_val = val_g)
 end
 
 Base.@propagate_inbounds @inline function update_two_phase_relperm!(kr, relperm, krw, krn, H_w, H_n, phase_ind, s, s_max, c, scalers, scalersi)
@@ -482,4 +588,124 @@ function add_relperm_parameters!(param, kr::AbstractRelativePermeabilities)
     add_hysteresis_parameters!(param, kr)
     add_scaling_parameters!(param, kr)
     return param
+end
+
+"""
+    set_relative_permeability(model;
+        w = nothing,
+        ow = nothing,
+        og = nothing,
+        g = nothing,
+        swof = nothing,
+        sgof = nothing,
+        scaling = NoKrScale(),
+        regions = nothing,
+        hysteresis_w = NoHysteresis(),
+        hysteresis_ow = NoHysteresis(),
+        hysteresis_og = NoHysteresis(),
+        hysteresis_g = NoHysteresis(),
+        hysteresis_s_threshold = 0.0,
+        hysteresis_s_eps = 1e-10,
+        three_phase_method = SaturationWeightedOilRelperm()
+    )
+
+User-friendly helper function to set up relative permeabilities on a model. Supports
+both direct specification of `PhaseRelativePermeability` objects via keyword
+arguments `w`, `ow`, `og`, `g`, and also SWOF/SGOF table input.
+
+## Table input
+
+If `swof` is provided as a matrix with columns `[Sw, krw, krow]`, the water and
+oil-water relative permeabilities are automatically constructed. Similarly, if
+`sgof` is provided as a matrix with columns `[Sg, krg, krog]`, the gas and
+oil-gas relative permeabilities are automatically constructed.
+
+## Examples
+
+Two-phase with tables:
+```julia
+s = collect(range(0, 1, 10))
+swof = hcat(s, s.^2, reverse(s).^2)
+set_relative_permeability(model, swof = swof)
+```
+
+Three-phase with Stone II:
+```julia
+s = collect(range(0, 1, 10))
+swof = hcat(s, s.^2, reverse(s).^2)
+sgof = hcat(s, s.^3, reverse(s).^3)
+set_relative_permeability(model, swof = swof, sgof = sgof, three_phase_method = StoneIIMethod())
+```
+
+Direct specification:
+```julia
+s = collect(range(0, 1, 100))
+krw = PhaseRelativePermeability(s, s)
+krow = PhaseRelativePermeability(s, s.^2)
+set_relative_permeability(model, w = krw, ow = krow)
+```
+"""
+function set_relative_permeability(model;
+        w = nothing,
+        ow = nothing,
+        og = nothing,
+        g = nothing,
+        swof = nothing,
+        sgof = nothing,
+        scaling::AbstractKrScale = NoKrScale(),
+        regions::Union{Vector{Int}, Nothing} = nothing,
+        hysteresis_w::AbstractHysteresis = NoHysteresis(),
+        hysteresis_ow::AbstractHysteresis = NoHysteresis(),
+        hysteresis_og::AbstractHysteresis = NoHysteresis(),
+        hysteresis_g::AbstractHysteresis = NoHysteresis(),
+        hysteresis_s_threshold = 0.0,
+        hysteresis_s_eps = 1e-10,
+        three_phase_method::AbstractThreePhaseOilMethod = SaturationWeightedOilRelperm()
+    )
+    # Convert SWOF table to relative permeability functions
+    if !isnothing(swof)
+        krw_t, krow_t = table_to_relperm(swof, first_label = :w, second_label = :ow)
+        if isnothing(w)
+            w = krw_t
+        end
+        if isnothing(ow)
+            ow = krow_t
+        end
+    end
+
+    # Convert SGOF table to relative permeability functions
+    if !isnothing(sgof)
+        krg_t, krog_t = table_to_relperm(sgof, first_label = :g, second_label = :og)
+        if isnothing(g)
+            g = krg_t
+        end
+        if isnothing(og)
+            og = krog_t
+        end
+    end
+
+    kr = ReservoirRelativePermeabilities(
+        w = w,
+        g = g,
+        ow = ow,
+        og = og,
+        scaling = scaling,
+        regions = regions,
+        hysteresis_w = hysteresis_w,
+        hysteresis_ow = hysteresis_ow,
+        hysteresis_og = hysteresis_og,
+        hysteresis_g = hysteresis_g,
+        hysteresis_s_threshold = hysteresis_s_threshold,
+        hysteresis_s_eps = hysteresis_s_eps,
+        three_phase_method = three_phase_method
+    )
+
+    if model isa MultiModel
+        rmodel = reservoir_model(model)
+    else
+        rmodel = model
+    end
+    set_secondary_variables!(rmodel, RelativePermeabilities = kr)
+    add_relperm_parameters!(rmodel)
+    return model
 end
