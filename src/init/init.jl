@@ -1144,16 +1144,6 @@ function equilibriate_phase_pressures_and_saturations(model::SimulationModel, de
     if ismissing(contacts_pc)
         contacts_pc = zeros(number_of_phases(sys)-1)
     end
-    zmin = minimum(depths) - 1.0
-    zmax = maximum(depths) + 1.0
-
-    if ismissing(cell_nz) || cell_nz == 1
-        cell_z_bounds = missing
-    else
-        # Find top and bottom of the relevant cells
-        cell_z_bounds = map(c -> cell_centroid_bounds(model.data_domain, c, 3), cells)
-    end
-
     rho = model.secondary_variables[:PhaseMassDensities]
 
     reg = Int[pvtnum]
@@ -1175,6 +1165,30 @@ function equilibriate_phase_pressures_and_saturations(model::SimulationModel, de
         density_function = density_f
     end
     # Expand here
+    is_multipoint = !(ismissing(cell_nz) || cell_nz == 1)
+    if is_multipoint
+        cell_nz > 1 || error("cell_nz must be greater than 1 for multi-point initialization, got cell_nz=$(cell_nz).")
+        # Find top and bottom of the relevant cells
+        cell_z_bounds = map(c -> cell_centroid_bounds(model.data_domain, c, 3), cells)
+        T = promote_type(eltype(eltype(cell_z_bounds)), eltype(depths))
+        new_depths = T[]
+        depth_index = Int[]
+        for (i, bnds) in enumerate(cell_z_bounds)
+            zmin, zmax = bnds
+            delta = (zmax - zmin)/(cell_nz-1)
+            for j in 1:cell_nz
+                z = zmin + (j-1)*delta
+                push!(new_depths, z)
+                push!(depth_index, i)
+            end
+        end
+        depths = new_depths
+        s_max = [s[depth_index] for s in s_max]
+        s_min = [s[depth_index] for s in s_min]
+    end
+    zmin = minimum(depths) - 1.0
+    zmax = maximum(depths) + 1.0
+
     pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_function, contacts_pc, ref_ix)
     if nph == 1
         s = ones(eltype(pressures), size(pressures))
@@ -1183,7 +1197,34 @@ function equilibriate_phase_pressures_and_saturations(model::SimulationModel, de
     else
         s, pc, active_phase = determine_saturations(depths, contacts, pressures; ref_ix = ref_ix, pc = pc, s_min = s_min, s_max = s_max, kwarg...)
     end
-    # Contract here
-
+    if is_multipoint
+        nc = length(cells)
+        nph = size(s, 1)
+        s_new = zeros(eltype(s), nph, nc)
+        pc_new = zeros(eltype(pc), nph, nc)
+        pressures_new = zeros(eltype(pressures), nph, nc)
+        active_phase_new = fill(0, nc)
+        for i in eachindex(depth_index)
+            idx = depth_index[i]
+            for ph in 1:nph
+                s_new[ph, idx] += s[ph, i]
+                pc_new[ph, idx] += pc[ph, i]
+                pressures_new[ph, idx] += pressures[ph, i]
+            end
+        end
+        for i in eachindex(cells)
+            for ph in 1:nph
+                s_new[ph, i] /= cell_nz
+                pc_new[ph, i] /= cell_nz
+                pressures_new[ph, i] /= cell_nz
+            end
+            first_in_new = findfirst(isequal(i), depth_index)
+            active_phase_new[i] = active_phase[first_in_new]
+        end
+        pressures = pressures_new
+        s = s_new
+        pc = pc_new
+        active_phase = active_phase_new
+    end
     return (pressures, s, pc, active_phase)
 end
