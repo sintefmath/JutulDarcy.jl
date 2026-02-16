@@ -330,7 +330,9 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
                 end
                 kr = kr[:, cells]
             else
-                jutul_message("Initialization", "Rel. perm. is not a ReservoirRelativePermeabilities, skipping mobility check for reference pressure.")
+                if size(s, 1) > 1
+                    jutul_message("Initialization", "Variable RelativePermeabilities is not a ReservoirRelativePermeabilities, skipping mobility check for reference pressure.")
+                end
                 kr = copy(s)
             end
         else
