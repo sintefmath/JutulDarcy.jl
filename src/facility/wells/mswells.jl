@@ -19,6 +19,7 @@ function select_parameters!(prm, domain::MSWellDomain, model::MSWellFlowModel)
     if count_active_entities(domain, Faces()) > 0
         prm[:SegmentConnectionGravityDifference] = SegmentConnectionGravityDifference()
         prm[:SegmentRadius] = SegmentRadius()
+        prm[:SegmentRadiusInner] = SegmentRadiusInner()
         prm[:SegmentCasingThickness] = SegmentCasingThickness()
         prm[:SegmentRoughness] = SegmentRoughness()
         prm[:SegmentLength] = SegmentLength()

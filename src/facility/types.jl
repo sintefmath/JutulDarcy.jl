@@ -1,12 +1,16 @@
+abstract type AbstractFacilitySystem <: JutulSystem end
 
-abstract type FacilitySystem <: JutulSystem end
-struct PredictionMode <: FacilitySystem end
-struct HistoryMode <: FacilitySystem end
+struct FacilitySystem{T} <: AbstractFacilitySystem
+    multiphase::T
+end
 
-const FacilityModel = SimulationModel{<:Any, <:FacilitySystem, <:Any, <:Any}
+get_phases(sys::FacilitySystem) = get_phases(sys.multiphase)
 
 abstract type SurfaceFacilityDomain <: JutulDomain end
 abstract type WellControllerDomain <: SurfaceFacilityDomain end
+
+const FacilityModel = SimulationModel{<:SurfaceFacilityDomain, <:AbstractFacilitySystem, <:Any, <:Any}
+
 mutable struct WellGroup <: WellControllerDomain
     const well_symbols::Vector{Symbol} # Controlled wells
     "Can temporarily shut producers that try to reach zero rate multiple solves in a row"
@@ -24,9 +28,84 @@ function WellGroup(wells::Vector{Symbol}; can_shut_wells = true, can_shut_inject
     return WellGroup(wells, can_shut_producers, can_shut_injectors)
 end
 
+struct FacilityVariablesForWell{T}
+    idx::Int
+    name::Symbol
+    bottom_hole_pressure::T # Pa
+    total_mass_rate::T # kg/s
+    surface_aqueous_rate::T # surface m3/s
+    surface_liquid_rate::T # surface m3/s
+    surface_vapor_rate::T # surface m3/s
+    function FacilityVariablesForWell(idx, name, bhp, qmass, qws, qos, qgs; drop_ad = false)
+        if drop_ad
+            bhp = Jutul.value(bhp)
+            qmass = Jutul.value(qmass)
+            qws = Jutul.value(qws)
+            qos = Jutul.value(qos)
+            qgs = Jutul.value(qgs)
+        end
+        bhp, qmass, qws, qos, qgs = promote(bhp, qmass, qws, qos, qgs)
+        return new{typeof(bhp)}(idx, name, bhp, qmass, qws, qos, qgs)
+    end
+end
+
+function FacilityVariablesForWell(model::FacilityModel, state, well::Symbol; drop_ad = false)
+    sys = model.system.multiphase
+    pos = get_well_position(model.domain, well)
+    bhp = state.BottomHolePressure[pos]
+    qmass = state.TotalSurfaceMassRate[pos]
+    qw = qo = qg = zero(qmass)
+    phases = get_phases(sys)
+    for (i, ph) in enumerate(phases)
+        rate = state.SurfacePhaseRates[i, pos]
+        if ph isa AqueousPhase
+            qw = rate
+        elseif ph isa LiquidPhase
+            qo = rate
+        elseif ph isa VaporPhase
+            qg = rate
+        end
+    end
+    return FacilityVariablesForWell(pos, well, bhp, qmass, qw, qo, qg; drop_ad = drop_ad)
+end
+
+function FacilityVariablesForWell(model::FacilityModel, state::AbstractDict, well::Symbol; drop_ad = false)
+    return FacilityVariablesForWell(model, JutulStorage(state), well; drop_ad = drop_ad)
+end
+
 const WellGroupModel = SimulationModel{WellGroup, <:Any, <:Any, <:Any}
 
 struct Wells <: JutulEntity end
+
+struct SurfacePhaseRates{T} <: JutulVariables
+    phases::T
+    function SurfacePhaseRates(phases = (AqueousPhase(), LiquidPhase(), VaporPhase()))
+        all(x -> x isa AbstractPhase, phases) || throw(ArgumentError("All entries in phases must be of type AbstractPhase"))
+        return new{typeof(phases)}(phases)
+    end
+end
+
+Jutul.associated_entity(::SurfacePhaseRates) = Wells()
+Jutul.values_per_entity(fmodel, rates::SurfacePhaseRates) = length(rates.phases)
+
+Base.@kwdef struct BottomHolePressure <: Jutul.ScalarVariable
+    "Maximum absolute change betweeen two Newton updates (nominally Pa)"
+    max_absolute_change::Union{Float64, Nothing} = nothing
+    "Maximum relative change between two Newton updates."
+    max_relative_change::Union{Float64, Nothing} = nothing
+    scale::Float64 = si_unit(:bar)
+end
+
+Jutul.variable_scale(x::BottomHolePressure) = x.scale
+
+Jutul.associated_entity(::BottomHolePressure) = Wells()
+function Jutul.absolute_increment_limit(bhp::BottomHolePressure)
+    return bhp.max_absolute_change
+end
+
+function Jutul.relative_increment_limit(bhp::BottomHolePressure)
+    return bhp.max_relative_change
+end
 
 """
     TotalSurfaceMassRate(max_absolute_change = nothing, max_relative_change = nothing)
@@ -42,6 +121,14 @@ Base.@kwdef struct TotalSurfaceMassRate <: ScalarVariable
     max_relative_change::Union{Float64, Nothing} = nothing
 end
 
+function Jutul.absolute_increment_limit(q::TotalSurfaceMassRate)
+    return q.max_absolute_change
+end
+
+function Jutul.relative_increment_limit(q::TotalSurfaceMassRate)
+    return q.max_relative_change
+end
+
 Base.@kwdef struct SurfaceTemperature <: ScalarVariable
     "Maximum absolute change betweeen two Newton updates (nominally K)"
     max_absolute_change::Union{Float64, Nothing} = nothing
@@ -51,12 +138,12 @@ Base.@kwdef struct SurfaceTemperature <: ScalarVariable
     max = 1e6
 end
 
-function Jutul.absolute_increment_limit(q::TotalSurfaceMassRate)
-    return q.max_absolute_change
+function Jutul.absolute_increment_limit(T::SurfaceTemperature)
+    return T.max_absolute_change
 end
 
-function Jutul.relative_increment_limit(q::TotalSurfaceMassRate)
-    return q.max_relative_change
+function Jutul.relative_increment_limit(T::SurfaceTemperature)
+    return T.max_relative_change
 end
 
 abstract type WellTarget end
@@ -94,6 +181,10 @@ function Jutul.default_parameter_values(data_domain, model, param::WellIndices, 
     Kh = data_domain[:Kh, Perforations()]
     radius = data_domain[:perforation_radius, Perforations()]
     drainage_radius = data_domain[:drainage_radius, Perforations()]
+    T = Base.promote_type(eltype(WI), eltype(skin), eltype(radius), eltype(perm), eltype(Kh), eltype(net_to_gross), eltype(drainage_radius))
+    if T != eltype(WI)
+        WI = convert(Vector{T}, WI)
+    end
     gdim = size(data_domain[:cell_centroids, Cells()], 1)
     for (i, val) in enumerate(WI)
         defaulted = !isfinite(val)
@@ -130,6 +221,14 @@ Jutul.minimum_value(::SegmentRadius) = 0.0
 function Jutul.default_parameter_values(data_domain, model, param::SegmentRadius, symb)
     cradius = data_domain[:radius, Cells()]
     return segment_average_from_cells(data_domain, cradius)
+end
+
+struct SegmentRadiusInner <: ScalarSegmentVariable end
+Jutul.minimum_value(::SegmentRadiusInner) = 0.0
+
+function Jutul.default_parameter_values(data_domain, model, param::SegmentRadiusInner, symb)
+    radius_inner = data_domain[:radius_inner, Cells()]
+    return segment_average_from_cells(data_domain, radius_inner)
 end
 
 function segment_average_from_cells(w::DataDomain, cval::Vector{T}) where T
@@ -415,36 +514,54 @@ end
 Base.show(io::IO, t::TotalReservoirRateTarget) = print(io, "TotalReservoirRateTarget with value $(t.value) [m^3/s]")
 
 """
-    HistoricalReservoirVoidageTarget(q, weights)
+    HistoricalReservoirVoidageTarget(; oil = 0.0, water = 0.0, gas = 0.0)
 
 Historical RESV target for history matching cases. See
 [`ReservoirVoidageTarget`](@ref). For historical rates, the weights described in
 that target are computed based on the reservoir pressure and conditions at the
 previous time-step.
 """
-struct HistoricalReservoirVoidageTarget{T, K} <: WellTarget where {T<:AbstractFloat, K<:Tuple}
+struct HistoricalReservoirVoidageTarget{T} <: WellTarget where {T<:AbstractFloat}
     value::T
-    weights::K
+    water::T
+    oil::T
+    gas::T
+    function HistoricalReservoirVoidageTarget(v = missing; oil = 0.0, water = 0.0, gas = 0.0)
+        if ismissing(v)
+            v = water + oil + gas
+        end
+        v, water, oil, gas = promote(v, water, oil, gas)
+        return new{typeof(water)}(v, water, oil, gas)
+    end
 end
+
+
+function HistoricalReservoirVoidageTarget(v, w)
+    water, oil, gas = w
+    return HistoricalReservoirVoidageTarget(
+        v,
+        water = w[1]*v,
+        oil = w[2]*v,
+        gas = w[3]*v
+    )
+end
+
 Base.show(io::IO, t::HistoricalReservoirVoidageTarget) = print(io, "HistoricalReservoirVoidageTarget with value $(t.value) [m^3/s]")
 
 """
-    ReservoirVoidageTarget(q, weights)
+    ReservoirVoidageTarget(q)
 
-RESV target for history matching cases. The `weights` input should
-have one entry per phase (or pseudocomponent) in the system. The well control
-equation is then:
+RESV target for history matching cases. 
 
-``|q_{ctrl} - \\sum_i w_i q_i^s|``
-
-where ``q_i^s`` is the surface rate of phase ``i`` and ``w_i`` the weight of
-component stream ``i``.
-
-This constraint is typically set up from .DATA files for black-oil and immiscible cases.
+This constraint is typically set up from .DATA files for black-oil and
+immiscible cases.
 """
-struct ReservoirVoidageTarget{T, K} <: WellTarget where {T<:AbstractFloat, K<:Tuple}
+struct ReservoirVoidageTarget{T, K} <: WellTarget where {T<:AbstractFloat, K}
     value::T
-    weights::K
+    avg_state::K
+    function ReservoirVoidageTarget(v::T, s = missing) where T
+        return new{T, typeof(s)}(v, s)
+    end
 end
 
 struct ReservoirVolumeRateTarget{T} <: WellTarget where {T<:AbstractFloat}
@@ -479,7 +596,7 @@ end
 as_limit(target) = NamedTuple([Pair(translate_target_to_symbol(target, shortname = true), target.value)])
 as_limit(T::DisabledTarget) = nothing
 as_limit(T::HistoricalReservoirVoidageTarget) = nothing
-as_limit(target::ReservoirVoidageTarget) = NamedTuple([Pair(translate_target_to_symbol(target, shortname = true), (target.value, target.weights))])
+as_limit(target::ReservoirVoidageTarget) = NamedTuple([Pair(translate_target_to_symbol(target, shortname = true), (target.value, target.avg_state))])
 as_limit(target::ReinjectionTarget) = NamedTuple([Pair(translate_target_to_symbol(target, shortname = true), (Inf))])
 
 """
@@ -575,6 +692,9 @@ struct InjectorControl{T, R, P, M, E, TR} <: WellControlForce
         end
         mix = vec(mix)
         if check && R == Float64
+            if rate_weighted(target)
+                @assert target.value > 0.0 "Injector target rate must be positive"
+            end
             @assert sum(mix) ≈ 1
             @assert isfinite(density) && density > 0.0 "Injector density must be finite and positive"
             @assert isfinite(temperature) && temperature > 0.0 "Injector temperature must be finite and positive"
@@ -633,8 +753,11 @@ See also [`DisabledControl`](@ref), [`InjectorControl`](@ref).
 struct ProducerControl{T, R} <: WellControlForce
     target::T
     factor::R
-    function ProducerControl(target::T; factor::R = 1.0) where {T<:WellTarget, R<:Real}
-        new{T, R}(target, factor)
+    function ProducerControl(target::T; factor::R = 1.0, check = true) where {T<:WellTarget, R<:Real}
+        if check && rate_weighted(target)
+            target.value < 0.0 || error("Producer target rate must be negative, was $(target.value)")
+        end
+        return new{T, R}(target, factor)
     end
 end
 
@@ -643,7 +766,7 @@ default_limits(f::ProducerControl{T}) where T<:TotalMassRateTarget = merge((bhp 
 default_limits(f::ProducerControl{T}) where T<:BottomHolePressureTarget = merge((rate_lower = -MIN_ACTIVE_WELL_RATE,), as_limit(f.target))
 
 function replace_target(f::ProducerControl, target)
-    return ProducerControl(target, factor = f.factor)
+    return ProducerControl(target, factor = f.factor, check = false)
 end
 
 effective_surface_rate(qts, ::DisabledControl) = qts
@@ -717,9 +840,20 @@ struct ControlEquationWell <: JutulEquation
     #        p|top cell - target = 0
 end
 
-struct SurfaceTemperatureEquation <:JutulEquation
+struct SurfaceTemperatureEquation <: JutulEquation
     # Equation:
     #        T_surf - T|top_cell = 0
+end
+
+Base.@kwdef struct BottomHolePressureEquation <: JutulEquation
+    # Equation:
+    #        bhp - p|top_cell = 0
+    scale::Float64 = 1.0/si_unit(:bar)
+end
+
+Base.@kwdef struct SurfacePhaseRatesEquation <: JutulEquation
+    # Equation: Surface phase rates calculated from well values
+    scale::Float64 = 1.0/1000.0
 end
 
 struct WellSegmentFlow{C, T<:AbstractVector} <: Jutul.FlowDiscretization
@@ -778,7 +912,13 @@ forces = setup_reservoir_forces(model, control = controls, Injector = iforces)
 struct PerforationMask{V} <: JutulForce where V<:AbstractVector
     values::V
     function PerforationMask(v::T) where T<:AbstractVecOrMat
-        return new{T}(copy(vec(v)))
+        vals = copy(vec(v))
+        for (i, v) in enumerate(vals)
+            if v < 0.0
+                throw(ArgumentError("Perforation mask values must be non-negative, found $v at index $i"))
+            end
+        end
+        return new{T}(vals)
     end
 end
 
@@ -803,7 +943,8 @@ function well_target_information(;
         unit_type::Symbol,
         unit_label::String,
         explanation::String = description,
-        is_rate::Bool = true
+        is_rate::Bool = true,
+        type = missing
     )
     return (
         symbol = symbol,
@@ -811,7 +952,8 @@ function well_target_information(;
         explanation = explanation,
         unit_label = unit_label,
         unit_type = unit_type,
-        is_rate = is_rate
+        is_rate = is_rate,
+        type = type
     )
 end
 
@@ -841,7 +983,8 @@ function well_target_information(t::Union{BottomHolePressureTarget, Val{:bhp}})
         explanation = "Pressure at well bottom hole. This is often given at or near the top perforation, but can be manually set to other depths.",
         unit_type = :pressure,
         unit_label = "Pa",
-        is_rate = false
+        is_rate = false,
+        type = BottomHolePressureTarget
     )
 end
 
@@ -851,7 +994,8 @@ function well_target_information(t::Union{TotalRateTarget, Val{:rate}})
         description = "Surface total rate",
         explanation = "Total volumetric rate at surface conditions. This is the sum of all phases. For most models, it is the sum of the mass rates divided by the prescribed surface densities. For compositional models the density is computed using a flash.",
         unit_type = :liquid_volume_surface,
-        unit_label = "m³/s"
+        unit_label = "m³/s",
+        type = TotalRateTarget
     )
 end
 
@@ -862,7 +1006,8 @@ function well_target_information(t::Union{TotalReservoirRateTarget, Val{:resv_ra
         description = "Surface total rate",
         explanation = "Total volumetric rate at reservoir conditions. This is the sum of all phases. For most models, it is the sum of the mass rates divided by the prescribed surface densities.",
         unit_type = :liquid_volume_reservoir,
-        unit_label = "m³/s"
+        unit_label = "m³/s",
+        type = TotalReservoirRateTarget
     )
 end
 
@@ -872,7 +1017,8 @@ function well_target_information(t::Union{SurfaceWaterRateTarget, Val{:wrat}})
         description = "Surface water rate",
         explanation = "Water volumetric rate at surface conditions. This is the water mass stream divided by the surface density of water, which is typically around 1000 kg/m³",
         unit_type = :liquid_volume_surface,
-        unit_label = "m³/s"
+        unit_label = "m³/s",
+        type = SurfaceWaterRateTarget
     )
 end
 
@@ -882,7 +1028,8 @@ function well_target_information(t::Union{SurfaceLiquidRateTarget, Val{:lrat}})
         description = "Surface water rate",
         explanation = "Liquid volumetric rate at surface conditions. This is the sum of the oil rate and the water rate.",
         unit_type = :liquid_volume_surface,
-        unit_label = "m³/s"
+        unit_label = "m³/s",
+        type = SurfaceLiquidRateTarget
     )
 end
 
@@ -892,7 +1039,8 @@ function well_target_information(t::Union{SurfaceOilRateTarget, Val{:orat}})
         description = "Surface oil rate",
         explanation = "Oil rate at surface conditions. This is oil mass rate divided by the surface density of the oil phase.",
         unit_type = :liquid_volume_surface,
-        unit_label = "m³/s"
+        unit_label = "m³/s",
+        type = SurfaceOilRateTarget
     )
 end
 
@@ -902,7 +1050,8 @@ function well_target_information(t::Union{SurfaceGasRateTarget, Val{:grat}})
         description = "Surface gas rate",
         explanation = "Gas rate at surface conditions. This is gas mass rate divided by the surface density of the gas phase.",
         unit_type = :gas_volume_surface,
-        unit_label = "m³/s"
+        unit_label = "m³/s",
+        type = SurfaceGasRateTarget
     )
 end
 
@@ -922,7 +1071,8 @@ function well_target_information(t::Union{HistoricalReservoirVoidageTarget, Val{
         description = "Historical reservoir voidage rate",
         explanation = "Historical reservoir voidage rate is a special rate used to match observed production rates.",
         unit_type = :liquid_volume_reservoir,
-        unit_label = "m³/s"
+        unit_label = "m³/s",
+        type = HistoricalReservoirVoidageTarget
     )
 end
 
@@ -997,7 +1147,20 @@ function well_target_information(t::Union{TotalMassRateTarget, Val{:mrat}})
         explanation = "Total mass rate of fluids for the well. Can be used both for production wells (specifying produced mass flow) and injection wells (specifying injected mass flow).",
         unit_type = :mass,
         unit_label = "kg/s",
-        is_rate = true
+        is_rate = true,
+        type = TotalMassRateTarget
+    )
+end
+
+function well_target_information(t::Union{ReinjectionTarget, Val{:reinjection}})
+    return well_target_information(
+        symbol = :reinjection,
+        description = "Reinjection rate",
+        explanation = "Reinjection rate target for wells used for reinjection of produced fluids.",
+        unit_type = :mass,
+        is_rate = true,
+        unit_label = "kg/s",
+        type = ReinjectionTarget
     )
 end
 
@@ -1005,96 +1168,3 @@ end
 function realize_control_for_reservoir(state, ctrl, model, dt)
     return (ctrl, false)
 end
-
-function realize_control_for_reservoir(rstate, ctrl::ProducerControl{<:HistoricalReservoirVoidageTarget}, model, dt)
-    sys = model.system
-    w = ctrl.target.weights
-    pv_t = 0.0
-    p_avg = 0.0
-    rs_avg = 0.0
-    rv_avg = 0.0
-    disgas = has_disgas(sys)
-    vapoil = has_vapoil(sys)
-    for c in eachindex(rstate.Pressure)
-        p = value(rstate.Pressure[c])
-        vol = value(rstate.FluidVolume[c])
-        sw = value(rstate.ImmiscibleSaturation[c])
-        vol_hc = vol*(1.0 - sw)
-        p_avg += p*vol_hc
-        pv_t += vol_hc
-        if disgas
-            rs_avg += value(rstate.Rs[c])*vol_hc
-        end
-        if vapoil
-            rv_avg += value(rstate.Rv[c])*vol_hc
-        end
-    end
-    p_avg /= pv_t
-    rs_avg /= pv_t
-    rv_avg /= pv_t
-
-    a, l, v = phase_indices(sys)
-    ww = w[a]
-    wo = w[l]
-    wg = w[v]
-    if wo <= 1e-20
-        rs = 0.0
-    else
-        rs = min(wg/wo, rs_avg)
-    end
-    if wg <= 1e-20
-        rv = 0.0
-    else
-        rv = min(wo/wg, rv_avg)
-    end
-
-    svar = Jutul.get_secondary_variables(model)
-    b_var = svar[:ShrinkageFactors]
-    reg = b_var.regions
-    bW = shrinkage(b_var.pvt[a], reg, p_avg, 1)
-    if has_disgas(model.system)
-        bO = shrinkage(b_var.pvt[l], reg, p_avg, rs, 1)
-    else
-        bO = shrinkage(b_var.pvt[l], reg, p_avg, 1)
-    end
-    if has_vapoil(model.system)
-        bG = shrinkage(b_var.pvt[v], reg, p_avg, rv, 1)
-    else
-        bG = shrinkage(b_var.pvt[v], reg, p_avg, 1)
-    end
-
-    shrink = max(1.0 - rs*rv, 1e-20)
-    shrink_avg = max(1.0 - rs_avg*rv_avg, 1e-20)
-    old_rate = ctrl.target.value
-    # Water
-    new_water_rate = old_rate*ww/bW
-    new_water_weight = 1/bW
-    # Oil
-    qo = old_rate*wo
-    new_oil_rate = qo
-    new_oil_weight = 1.0/(bO*shrink_avg)
-    # Gas
-    qg = old_rate*wg
-    new_gas_rate = qg
-    new_gas_weight = 1.0/(bG*shrink_avg)
-    # Miscibility adjustments
-    if vapoil
-        new_oil_rate -= rv*qg
-        new_gas_weight -= rv/(bO*shrink_avg)
-    end
-    if disgas
-        new_gas_rate -= rs*qo
-        new_oil_weight -= rs/(bG*shrink_avg)
-    end
-    new_oil_rate /= (bO*shrink)
-    new_gas_rate /= (bG*shrink)
-
-
-    new_weights = (new_water_weight, new_oil_weight, new_gas_weight)
-    @assert all(isfinite, new_weights) "Computed RESV weights were non-finite: $new_weights"
-
-    new_rate = new_water_rate + new_oil_rate + new_gas_rate
-    new_control = replace_target(ctrl, ReservoirVoidageTarget(new_rate, new_weights))
-    return (new_control, true)
-end
-

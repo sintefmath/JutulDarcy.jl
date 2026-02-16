@@ -186,7 +186,7 @@ function Jutul.devectorize_force(control_or_limits::Tcl, model::FacilityModel, X
                     )
                 else
                     @assert ctrl isa ProducerControl
-                    out[wname] = ProducerControl(target)
+                    out[wname] = ProducerControl(target, check = false)
                 end
             end
         end

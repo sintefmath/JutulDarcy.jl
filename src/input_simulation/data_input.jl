@@ -187,7 +187,7 @@ function setup_case_from_parsed_data(datafile;
                 if sys isa StandardBlackOilSystem
                     b_i = DeckShrinkageFactors(pvt_i, regions = pvt_reg_i, watdent = watdent)
                     set_secondary_variables!(submodel,
-                        ShrinkageFactors = wrap_reservoir_variable(sys, b_i, :flow)
+                        ShrinkageFactors = b_i
                     )
                 end
                 if is_thermal
@@ -201,8 +201,8 @@ function setup_case_from_parsed_data(datafile;
                 end
                 mu = DeckPhaseViscosities(pvt_i, regions = pvt_reg_i, thermal = thermal_visc)
                 set_secondary_variables!(submodel,
-                    PhaseViscosities = wrap_reservoir_variable(sys, mu, :flow),
-                    PhaseMassDensities = wrap_reservoir_variable(sys, rho, :flow)
+                    PhaseViscosities = mu,
+                    PhaseMassDensities = rho
                 )
             end
             if is_thermal
@@ -244,12 +244,9 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
     if isnan(ref_depth)
         ref_depth = nothing
     end
-    W = missing
-    accumulator_volume = missing
-    if simple_well
-        @assert isnothing(msdata)
-        accumulator_volume = 0.05*mean(domain[:volumes][wc])*mean(domain[:porosity][wc])
-    else
+    extra_arg = Dict{Symbol, Any}()
+    if !simple_well
+        # Set up multi-segment well
         if !isnothing(msdata)
             has_welsegs = haskey(msdata, "WELSEGS")
             has_compsegs = haskey(msdata, "COMPSEGS")
@@ -282,15 +279,13 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
                 conn = Tuple{Int, Int}[]
 
                 top_node = [top_x, top_y, top_depth]
-                centers = zeros(3, num_edges)
-                volumes = zeros(num_edges)
+                centers = zeros(3, num_edges+1)
+                centers[:, 1] = top_node
                 diameter = fill(NaN, num_edges)
                 branches = zeros(Int, num_edges)
                 tubing_lengths = zeros(num_edges)
                 tubing_depths = zeros(num_edges)
                 # tubing_depths[1] = top_tubing_delta
-
-                segment_models = Vector{SegmentWellBoreFrictionHB{Float64}}(undef, num_edges)
                 for segment in segments
                     start, stop, branch, start_conn,
                     dist, depth_delta, D, rough, cross_sect, vol, = segment
@@ -315,7 +310,6 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
                     if vol <= 0.0
                         vol = cross_sect*L
                     end
-                    Δp = SegmentWellBoreFrictionHB(L, rough, D)
 
                     push!(conn, (start, start_conn))
                     current_tubing = tubing_at_start
@@ -326,51 +320,45 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
 
                         edge_ix = seg_ix - 1
                         @assert isnan(diameter[edge_ix]) "Values are being overwritten in ms well - programming error?"
-                        segment_models[edge_ix] = Δp
                         diameter[edge_ix] = D
-                        volumes[edge_ix] = vol
                         branches[edge_ix] = branch
                         tubing_lengths[edge_ix] = L
                         # TODO: Set better x, y
-                        centers[1, edge_ix] = top_x
-                        centers[2, edge_ix] = top_y
-                        centers[3, edge_ix] = current_depth
+                        centers[1, edge_ix + 1] = top_x
+                        centers[2, edge_ix + 1] = top_y
+                        centers[3, edge_ix + 1] = current_depth
                         tubing_depths[edge_ix] = current_tubing
                     end
                 end
+                # segment_models = [i for i in segment_models]
                 N = zeros(Int, 2, length(conn))
                 for (i, t) in enumerate(conn)
                     N[:, i] .= t
                 end
                 perforation_cells = map_compdat_to_multisegment_segments(compsegs, branches, tubing_lengths, tubing_depths, cdat)
-                cell_centers = domain[:cell_centroids]
-                dz = vec(cell_centers[3, wc]) - vec(centers[3, perforation_cells])
-                W = MultiSegmentWell(wc, volumes, centers;
-                    name = Symbol(wname),
-                    WI = WI,
-                    dz = dz, # TODO
-                    N = N,
-                    perforation_cells = perforation_cells,
-                    reference_depth = ref_depth,
-                    segment_models = segment_models,
-                )
+                extra_arg[:neighborship] = N
+                r_cells = diameter./2
+                pushfirst!(r_cells, diameter[1]/2) # Top node
+                extra_arg[:cell_radius] = r_cells
+                extra_arg[:perforation_cells_well] = perforation_cells
+                extra_arg[:well_cell_centers] = centers
+                extra_arg[:use_top_node] = false
             end
         end
     end
-    if ismissing(W)
-        W = setup_well(domain, wc;
-            volume_multiplier = 20,
-            name = Symbol(wname),
-            WI = data[:well_index],
-            dir = data[:dir],
-            radius = data[:radius],
-            skin = data[:skin],
-            drainage_radius = data[:drainage_radius],
-            Kh = data[:Kh],
-            reference_depth = ref_depth,
-            simple_well = simple_well,
-        )
-    end
+    W = setup_well(domain, wc;
+        volume_multiplier = 20,
+        name = Symbol(wname),
+        WI = data[:well_index],
+        dir = data[:dir],
+        radius = data[:radius],
+        skin = data[:skin],
+        drainage_radius = data[:drainage_radius],
+        Kh = data[:Kh],
+        reference_depth = ref_depth,
+        simple_well = simple_well,
+        extra_arg...
+    )
     return (W, wc, WI, open)
 end
 
@@ -464,7 +452,7 @@ function compdat_to_connection_factors(domain, wspec, v, step; sort = true, orde
     end
 
     if sort
-        ix = well_completion_sortperm(domain, wspec, order, wc, dir)
+        ix = well_completion_sortperm(domain, wspec.head, order, wc, dir)
     else
         ix = eachindex(wc)
     end
@@ -476,7 +464,7 @@ function compdat_to_connection_factors(domain, wspec, v, step; sort = true, orde
         :drainage_radius => drainage_radius[ix],
         :well_index => WI[ix]
     )
-    return (wc, WI[ix], open[ix], mul[ix], fresh[ix], data)
+    return (wc[ix], WI[ix], open[ix], mul[ix], fresh[ix], data)
 end
 
 function parse_schedule(domain, runspec, props, schedule, sys; simple_well = true)
@@ -885,6 +873,7 @@ end
 function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, process_pinch = true)
     grid = data_file["GRID"]
     cartdims = grid["cartDims"]
+    nx, ny, nz = cartdims
     G = mesh_from_grid_section(grid; repair_zcorn = repair_zcorn, process_pinch = process_pinch)
 
     # Handle numerical aquifers
@@ -929,9 +918,6 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
         extra_data_arg[:pore_volume_multiplier] = multpv
     end
 
-
-
-
     tranmult = ones(nf)
     tran_override = fill(NaN, nf)
     ijk = map(i -> Jutul.cell_ijk(G, i), 1:nc)
@@ -946,6 +932,9 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
         # TODO: This is not 100% robust if edit and grid interact.
         if haskey(section, "PORV")
             extra_data_arg[:pore_volume_override] = section["PORV"][active_ix]
+        end
+        if haskey(section, "EDITNNC")
+            apply_mult_nnc!(tranmult, section["EDITNNC"], G, ijk)
         end
         # Explicit trans given as cell values
         for k in ["TRANX", "TRANY", "TRANZ"]
@@ -1063,6 +1052,36 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
     satnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :satnum, active = active_ix)
     pvtnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :pvtnum, active = active_ix)
     eqlnum = GeoEnergyIO.InputParser.get_data_file_cell_region(data_file, :eqlnum, active = active_ix)
+
+    nnc = get(grid, "NNC", nothing)
+    if !isnothing(nnc)
+        to_active_ix = zeros(Int, nx*ny*nz)
+        to_active_ix[active] = eachindex(active)
+        function cell_index(i, j, k)
+            ix = ijk_to_linear(i, j, k, cartdims)
+            aix = to_active_ix[ix]
+            return aix
+        end
+
+        if length(nnc_entry) > 0
+            T_nnc = Float64[]
+            N_nnc = Tuple{Int, Int}[]
+            for nnc_entry in nnc
+                c1 = cell_index(nnc_entry[1], nnc_entry[2], nnc_entry[3])
+                c2 = cell_index(nnc_entry[4], nnc_entry[5], nnc_entry[6])
+                if c1 > 0 && c2 > 0
+                    # faceno = length(fp)
+                    c1 != c2 || error("NNC cell pair must be distinct.")
+                    # NNC connections have no nodes
+                    push!(T_nnc, nnc_entry[7])
+                    push!(N_nnc, (c1, c2))
+                else
+                    error("NNC connects inactive cells, cannot proceed: $(Tuple(nnc_entry[1:3])) -> $(Tuple(nnc_entry[4:6]))")
+                end
+            end
+            extra_data_arg[:nnc] = setup_nnc_connections(G, N_nnc, T_nnc)
+        end
+    end
 
     if !isnothing(aquifers)
         for (aq_id, aquifer) in pairs(aquifers)
@@ -1200,6 +1219,29 @@ function parser_set_multregt!(tranmult, G, opernum, multnum, fluxnum, multregt, 
                 end
             end
         end
+    end
+    return tranmult
+end
+
+function apply_mult_nnc!(tranmult, edit_nnc, G, ijk::Vector{NTuple{3, Int}})
+    nskip = 0
+    for entry in edit_nnc
+        (; c1, c2, trans_mult) = entry
+        c1_linear = findfirst(isequal(c1), ijk)
+        c2_linear = findfirst(isequal(c2), ijk)
+        if isnothing(c1_linear) || isnothing(c2_linear)
+            nskip += 1
+            continue
+        end
+        for face in G.faces.cells_to_faces[c1_linear]
+            l, r = G.faces.neighbors[face]
+            if (l == c1_linear && r == c2_linear) || (l == c2_linear && r == c1_linear)
+                tranmult[face] *= trans_mult
+            end
+        end
+    end
+    if nskip > 0
+        println("Skipped $nskip of $(length(edit_nnc)) EDITNNC entries due to inactive cells.")
     end
     return tranmult
 end
@@ -1649,6 +1691,9 @@ function parse_control_steps(runspec, props, schedule, sys)
             elseif key == "COMPDAT"
                 for cd in kword
                     wname, I, J, K1, K2, flag, satnum, WI, diam, Kh, skin, Dfac, dir = cd
+                    if isnan(diam)
+                        diam = 0.3048
+                    end
                     @assert haskey(wells, wname)
                     head = wells[wname].head
                     if I < 1
@@ -1776,7 +1821,6 @@ function parse_well_streams_for_step!(streams, step, props)
         T = convert_to_si(std[1], :Celsius)
         p = std[2]
     else
-        @debug "Defaulted STCOND..."
         T = convert_to_si(15.56, :Celsius)
         p = convert_to_si(1.0, :atm)
     end
@@ -1887,10 +1931,12 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
             is_rate = false
         elseif ctrl == "RESV"
             if is_hist
-                self_val = -(wrat + orat + grat)
-                w = [wrat, orat, grat]
-                w = w./sum(w)
-                t = HistoricalReservoirVoidageTarget(self_val, w)
+                t = HistoricalReservoirVoidageTarget(
+                    oil = -orat,
+                    water = -wrat,
+                    gas = -grat
+                )
+                self_val = t.value
             else
                 self_val = resv
                 w = [1.0, 1.0, 1.0]
@@ -2112,7 +2158,10 @@ function keyword_to_control(sys, streams, kw, ::Val{:WCONINJH}; kwarg...)
     return injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp, is_hist = true; kwarg...)
 end
 
-function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
+function well_completion_sortperm(domain, head, order_t0::Union{Symbol, String}, wc, dir::AbstractVector{Symbol})
+    if order_t0 isa Symbol
+        order_t0 = String(order_t0)
+    end
     order_t = lowercase(order_t0)
     @assert order_t in ("track", "input", "depth") "Invalid order for well: $order_t0"
     centroid(dim) = domain[:cell_centroids][dim, wc]
@@ -2120,7 +2169,7 @@ function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
     if n < 2 || order_t == "input"
         # Do nothing.
         sorted = eachindex(wc)
-    elseif order_t == "depth" || all(isequal("Z"), dir)
+    elseif order_t == "depth" || all(isequal(:z), dir)
         z = centroid(3)
         sorted = sortperm(z)
     else
@@ -2160,7 +2209,7 @@ function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
         closest_ix = 0
         closest_ij_distance = typemax(Int)
         lowest_z = Inf
-        I_head, J_head = wspec.head
+        I_head, J_head = head
         for (i, c) in enumerate(wc)
             z_i = z[i]
             I, J, = ijk[i]
@@ -2180,7 +2229,6 @@ function well_completion_sortperm(domain, wspec, order_t0, wc, dir)
             end
         end
         prev_ix, prev_coord, prev_ijk, prev_dir = add_to_sorted!(closest_ix)
-        start = wspec.head
         use_dir = true
         while length(wc) > 0
             closest_ix = 0
@@ -2276,7 +2324,11 @@ function apply_weltarg!(controls, limits, wk)
             limit[Symbol(ctype)] = rate_target
         end
         limits[well] = convert_to_immutable_storage(limit)
-        controls[well] = replace_target(ctrl, new_target)
+        old_sym = translate_target_to_symbol(ctrl.target, shortname = true)
+        new_sym = translate_target_to_symbol(new_target, shortname = true)
+        if old_sym == new_sym
+            controls[well] = replace_target(ctrl, new_target)
+        end
     end
     return (controls, limits)
 end

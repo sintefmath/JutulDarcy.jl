@@ -62,14 +62,24 @@ function setup_reservoir_model_geothermal(
     return out
 end
 
+function geothermal_setup_tables()
+    return geothermal_setup_tables(Dict(), String[], Float64[], NamedTuple())
+end
+
 function geothermal_setup_tables(table_cache, salt_names, salt_mole_fractions, table_arg)
     tabkey = (salt_names, salt_mole_fractions, table_arg)
     tables = get!(table_cache, tabkey, missing)
     if ismissing(tables)
+        if length(salt_names) == 0
+            co2_source = :table
+        else
+            co2_source = :salo24
+        end
         tables_with_co2 = JutulDarcy.CO2Properties.co2_brine_property_tables(
             missing;
             salt_names = salt_names,
             salt_mole_fractions = salt_mole_fractions,
+            co2_source = co2_source,
             table_arg...
         )
 

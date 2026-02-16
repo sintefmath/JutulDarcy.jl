@@ -97,6 +97,7 @@ function compute_peaceman_index(Δ, K, radius, dir::Symbol = :z;
         skin = 0,
         check = true
     )
+    is_defaulted(x) = isnothing(x) || ismissing(x) || isnan(x)
     if K isa Number
         K = Diagonal(fill(K, 3))
     end
@@ -130,7 +131,7 @@ function compute_peaceman_index(Δ, K, radius, dir::Symbol = :z;
     k21 = kratio(k2, k1)
     k12 = kratio(k1, k2)
     ke  = sqrt(k1*k2)
-    if isnothing(drainage_radius) || isnan(drainage_radius)
+    if is_defaulted(drainage_radius)
         re1 = 2 * constant * sqrt((d1^2)*sqrt(k21) + (d2^2)*sqrt(k12))
         re2 = k21^(1/4) + k12^(1/4)
         re = kratio(re1, re2)
@@ -138,15 +139,15 @@ function compute_peaceman_index(Δ, K, radius, dir::Symbol = :z;
         re = drainage_radius
     end
 
-    if isnothing(Kh) || isnan(Kh)
+    if is_defaulted(Kh)
         Kh = L*ke
     end
     WI = 2 * π * Kh / (log(re / radius) + skin)
     if check && WI < 0
         if re < radius
-            error("Equivialent Peaceman radius is smaller than well radius - negative well was negative. Either the cell is too small, or the radius too big.")
+            error("Equivalent Peaceman radius is smaller than well radius - computed Peaceman index was negative. Either the cell is too small, or the radius too big.")
         else
-            error("Too large skin factor - well radius became negative.")
+            error("Too large Skin factor - Equivalent Peaceman radius became negative during Peaceman index calculation.")
         end
     end
     return WI
@@ -191,28 +192,28 @@ end
 function compute_well_thermal_index(Δ, thermal_conductivity, radius::Float64, dir=:z;
         casing_thickness::Float64 = 0.0,
         grouting_thickness::Float64 = 0.0,
-        thermal_conductivity_casing::Float64 = 20.0,
-        thermal_conductivity_grout::Float64 = 2.3,
+        casing_thermal_conductivity::Float64 = 20.0,
+        grouting_thermal_conductivity::Float64 = 2.3,
     )
 
     radius > 0.0 || error("Well radius must be positive.")
     0.0 <= casing_thickness < radius || error("Casing thickness must be non-negative and less than outer radius.")
     grouting_thickness >= 0.0 || error("Grouting thickness must be non-negative.")
-    thermal_conductivity_casing > 0.0 || error("Thermal conductivity casing must be positive.")
-    thermal_conductivity_grout > 0.0 || error("Thermal conductivity grout must be positive.")
+    casing_thermal_conductivity > 0.0 || error("Casing thermal conductivity must be positive.")
+    grouting_thermal_conductivity > 0.0 || error("Grouting thermal conductivity must be positive.")
 
     ro = radius
     U = 0.0
     # Conduction through casing
     if casing_thickness > 0.0
         ri = ro - casing_thickness
-        λc = thermal_conductivity_casing
+        λc = casing_thermal_conductivity
         U += log(ro/ri)/λc
     end
     # Conduction through grouting
     if grouting_thickness > 0.0
         rg = ro + grouting_thickness
-        λg = thermal_conductivity_grout
+        λg = grouting_thermal_conductivity
         U += log(rg/ro)/λg
     end
     # Conduction into reservoir
@@ -236,7 +237,7 @@ function length_from_cell_dims(Δ, dir)
     return norm(dir, 2)
 end
 
-function Jutul.discretize_domain(d::DataDomain, system::Union{MultiPhaseSystem, CompositeSystem{:Reservoir, T}}, ::Val{:default}; kwarg...) where T
+function Jutul.discretize_domain(d::DataDomain, system::MultiPhaseSystem, ::Val{:default}; kwarg...)
     return discretized_domain_tpfv_flow(d; kwarg...)
 end
 
@@ -304,7 +305,7 @@ function discretized_domain_tpfv_flow(domain::Jutul.DataDomain;
     return DiscretizedDomain(G, disc)
 end
 
-function Jutul.discretize_domain(d::DataDomain{W}, system::Union{MultiPhaseSystem, CompositeSystem{:Reservoir, T}}, ::Val{:default}; kwarg...) where {W<:Union{SimpleWell, MultiSegmentWell}, T}
+function Jutul.discretize_domain(d::DataDomain{W}, system::MultiPhaseSystem, ::Val{:default}; kwarg...) where W<:Union{SimpleWell, MultiSegmentWell}
     return discretized_domain_well(physical_representation(d); kwarg...)
 end
 

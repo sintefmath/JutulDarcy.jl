@@ -56,7 +56,7 @@ dprm
 using GLMakie
 fig = Figure()
 ax = Axis(fig[1, 1], xlabel = "LBFGS iteration", ylabel = "Objective function", yscale = log10)
-scatter!(ax, dprm.history.val)
+scatter!(ax, dprm.history.objectives)
 fig
 # ## Use lumping to match permeability
 # The model contains three layers with different permeability. We can perturb

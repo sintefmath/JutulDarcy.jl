@@ -28,6 +28,40 @@ function plot_reservoir_measurables
 
 end
 
+"""
+    plot_summary(summary::Dict)
+    plot_summary(res::ReservoirSimResult)
+    plot_summary([res1, res2, res3]; names = ["Res1", "Res2", "Res3"])
+
+Plot summary results interactively. If multiple results are given, they will be
+compared in the same figure.
+
+# Keyword arguments:
+- `names`: Names for the different results when multiple results are given.
+- `unit_system`: Unit system to use (can be changed in dropdown). Can be
+  `:metric`, `:si` or `:field`.
+- `linewidth`: Linewidth for the plots.
+- `plots` = Vector{Symbol}: Which plots to show by default. For example,
+  `["FOPR", "FWPR"]` will field show oil and water production rates as two
+  plots. Alternatively, combined plots can be made: `["FOPR,FWPR"]` will show
+  both oil and water rates in the same plot. For wells, the name must be
+  specified: `["W1:WBHP", "W2:WBHP"]` will show bottom hole pressures for wells
+  named W1 and W2.
+- `cols`::Int: Number of columns in the layout.
+- `selectors`::Bool: Whether to show dropdown selectors for choosing which plots
+  to show.
+- `extra_field/extra_well`: Additional reservoir measurables or well measurables
+  to include in the selection lists, for example to add custom composite plots.
+  For example, adding `WBHP,WWIR` to `extra_well` will allow plotting bottom
+  hole pressure together with water injection rate for wells.
+"""
+function plot_summary
+
+end
+
+function plot_mismatch
+
+end
 
 """
     plot_reservoir_simulation_result(model::MultiModel, res::ReservoirSimResult; wells = true, reservoir = true)
@@ -71,19 +105,33 @@ function plot_reservoir(model, arg...;
         well_fontsize = 18,
         well_linewidth = 3,
         well_color = :darkred,
-        aspect = (1.0, 1.0, 1/3),
+        zaspect = 1/3,
+        aspect = missing,
         well_top_factor_scale = 1.0,
         well_arg = NamedTuple(),
         force_glmakie = true,
+        wells = missing,
         kwarg...
     )
     Jutul.check_plotting_availability()
     if force_glmakie
         @assert Jutul.plotting_check_interactive(warn = true) "Function requires interactive plotting. Set force_glmakie = false to override."
     end
-    rmodel = reservoir_model(model)
-    data_domain = rmodel.data_domain
+    if model isa DataDomain
+        data_domain = model
+        model = missing
+    else
+        rmodel = reservoir_model(model)
+        data_domain = rmodel.data_domain
+    end
     cell_centroids = data_domain[:cell_centroids]
+    if ismissing(aspect)
+        x = cell_centroids[1, :]
+        y = cell_centroids[2, :]
+        xrng = maximum(x) - minimum(x)
+        yrng = maximum(y) - minimum(y)
+        aspect = (1.0, yrng/xrng, zaspect)
+    end
     if haskey(data_domain, :boundary_centroids)
         bc = data_domain[:boundary_centroids]
         if size(bc, 1) == 3
@@ -108,57 +156,72 @@ function plot_reservoir(model, arg...;
     else
         fig, ax, plt = plot_cell_data(g, arg...; z_is_depth = true, kwarg...)
     end
-    wells = Dict{Symbol, Any}()
-    if model isa MultiModel
-        for (k, m) in pairs(model.models)
-            w = physical_representation(m.data_domain)
-            if w isa WellDomain
-                wells[k] = w
+    if ismissing(wells)
+        wells = Dict{Symbol, Any}()
+        if model isa MultiModel
+            for (k, m) in pairs(model.models)
+                w = physical_representation(m.data_domain)
+                if w isa WellDomain
+                    wells[k] = w
+                end
             end
         end
+    elseif wells isa AbstractVector
+        ws = Dict{Symbol, Any}()
+        for w in wells
+            w = physical_representation(w)
+            ws[w.name] = w
+        end
+        wells = ws
+    end
 
-        i = 1
-        n = length(wells)
-        for (k, w) in pairs(wells)
-            tf = 0.2 + 0.1*(i/n)
-            if well_color isa AbstractDict
-                well_color_k = get(well_color, k, :darkred)
-            else
-                well_color_k = well_color
-            end
-            plot_well!(ax.scene, g, w;
-                fontsize = well_fontsize,
-                top_factor = well_top_factor_scale*tf,
-                bounds_z = bounds_z,
-                color = well_color_k,
-                linewidth = well_linewidth,
-                cell_centroids = cell_centroids,
-                well_arg...
-            )
-            i += 1
+    i = 1
+    n = length(wells)
+    for (k, w) in pairs(wells)
+        tf = 0.2 + 0.1*(i/n)
+        if well_color isa AbstractDict
+            well_color_k = get(well_color, k, :darkred)
+        else
+            well_color_k = well_color
         end
+        plot_well!(ax.scene, g, w;
+            fontsize = well_fontsize,
+            top_factor = well_top_factor_scale*tf,
+            bounds_z = bounds_z,
+            color = well_color_k,
+            linewidth = well_linewidth,
+            cell_centroids = cell_centroids,
+            well_arg...
+        )
+        i += 1
     end
     return fig
 end
 
-function plot_reservoir(d::DataDomain, arg...;
-        aspect = (1.0, 1.0, 1/3),
-        gui = true,
-        kwarg...
-    )
-    if gui
-        fig = plot_interactive(d, arg...; z_is_depth = true, aspect = aspect, kwarg...)
-        ax = fig.current_axis[]
-    else
-        g = physical_representation(d)
-        fig, ax, plt = plot_cell_data(g, arg...; z_is_depth = true, kwarg...)
-    end
-    return fig
-end
+# function plot_reservoir(d::DataDomain, arg...;
+#         aspect = (1.0, 1.0, 1/3),
+#         gui = true,
+#         kwarg...
+#     )
+#     if gui
+#         fig = plot_interactive(d, arg...; z_is_depth = true, aspect = aspect, kwarg...)
+#         ax = fig.current_axis[]
+#     else
+#         g = physical_representation(d)
+#         fig, ax, plt = plot_cell_data(g, arg...; z_is_depth = true, kwarg...)
+#     end
+#     return fig
+# end
 
 function plot_reservoir(case::JutulCase, arg...; kwarg...)
     if length(arg) == 0
-        arg = (merge(case.parameters[:Reservoir], case.state0[:Reservoir]),)
+        plot_vals = merge(case.parameters[:Reservoir], case.state0[:Reservoir])
+        for (k, v) in pairs(reservoir_model(case).data_domain)
+            if !haskey(plot_vals, k)
+                plot_vals[k] = v[1]
+            end
+        end
+        arg = (plot_vals, )
     end
     return plot_reservoir(case.model, arg...; kwarg...)
 end

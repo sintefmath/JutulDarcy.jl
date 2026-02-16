@@ -1,6 +1,14 @@
 # JutulDarcy.jl Changelog
 
 This changelog documents all notable changes to JutulDarcy.jl.
+
+## [v0.3.1]
+
+- A new submodule for setting the classical SPE10 test case.
+- Support for parsing and setting up AFI files (used by IX simulator)
+- New interface for setting up history matching
+- Improved facility state now stores surface rates and bottom hole pressures for easy access after simulation
+
 ## [v0.3.0]
 
 ### Breaking Changes
@@ -17,7 +25,16 @@ ERROR: MethodError: no method matching iterate(::MultiModel{nothing, JutulStorag
 The function `iterate` exists, but no method is defined for this combination of argument types.
 ```
 
-## [v0.2.46] - 2024-07-06
+### Merged pull requests
+
+Complete refactor of wells and their parameters (#179) (@moyner)
+MRST MPI fixes (#182) (@moyner)
+Set correct version (#183) (@strene)
+Fix regressions / resolve some issues with refactored wells (#184) (@moyner)
+Well fixes for thermal and post processing functionality (#185) (@strene)
+Version 0.3.0 (#186) (@moyner)
+
+## [v0.2.46]
 
 ### New Features
 
@@ -47,9 +64,9 @@ The function `iterate` exists, but no method is defined for this combination of 
 
 - Minor bug in multicomponent/bc.jl ([#145](https://github.com/sintefmath/JutulDarcy.jl/pull/145))
 
-## [v0.2.45] - 2024-06-17
+## [v0.2.45]
 
-## [v0.2.44] - 2024-04-09
+## [v0.2.44]
 
 ### New Features
 
@@ -70,7 +87,7 @@ The function `iterate` exists, but no method is defined for this combination of 
 
 - turn off print ([#109](https://github.com/sintefmath/JutulDarcy.jl/pull/109))
 
-## [v0.2.43] - 2024-03-19
+## [v0.2.43]
 
 ### New Features
 
@@ -90,7 +107,7 @@ The function `iterate` exists, but no method is defined for this combination of 
 
 - StackOverflowError ([#104](https://github.com/sintefmath/JutulDarcy.jl/pull/104))
 
-## [v0.2.42] - 2024-03-07
+## [v0.2.42]
 
 ### New Features
 
@@ -114,7 +131,7 @@ The function `iterate` exists, but no method is defined for this combination of 
 
 - objective function modification ([#100](https://github.com/sintefmath/JutulDarcy.jl/pull/100))
 
-## [v0.2.41] - 2024-02-14
+## [v0.2.41]
 
 ### Major New Features
 
@@ -160,13 +177,13 @@ The function `iterate` exists, but no method is defined for this combination of 
 - Geothermal improvements ([#96](https://github.com/sintefmath/JutulDarcy.jl/pull/96))
 - Enable BTES example ([#97](https://github.com/sintefmath/JutulDarcy.jl/pull/97))
 
-## [v0.2.40] - 2024-01-16
+## [v0.2.40]
 
 ### Merged Pull Requests
 
 - Update tests, robustness for init ([#89](https://github.com/sintefmath/JutulDarcy.jl/pull/89))
 
-## [v0.2.39] - 2024-01-08
+## [v0.2.39]
 
 ### Breaking Changes
 
@@ -188,7 +205,7 @@ The function `iterate` exists, but no method is defined for this combination of 
 - Convert warnings to errors in docs, update docs and simplify compute_well_qoi, ZCRIT support ([#84](https://github.com/sintefmath/JutulDarcy.jl/pull/84))
 - Compositional improvements ([#85](https://github.com/sintefmath/JutulDarcy.jl/pull/85))
 
-## [v0.2.38] - 2024-11-28
+## [v0.2.38]
 
 ### New Features
 
@@ -217,7 +234,7 @@ In addition, the [Buckley-Leverett adjoint example](https://sintefmath.github.io
 
 - Using Clapeyron.jl for properties? ([#135](https://github.com/sintefmath/JutulDarcy.jl/pull/135))
 
-## [v0.2.37] - 2024-11-16
+## [v0.2.37]
 
 ### New Features
 
@@ -234,7 +251,7 @@ In addition, the [Buckley-Leverett adjoint example](https://sintefmath.github.io
 - AMGX finalizer fix + update to Jutul 0.30 ([#79](https://github.com/sintefmath/JutulDarcy.jl/pull/79))
 - WENO support, improved CPR support for non-standard discretizations, more tests ([#81](https://github.com/sintefmath/JutulDarcy.jl/pull/81))
 
-## [v0.2.36] - 2024-11-13
+## [v0.2.36]
 
 ### New Features
 
@@ -256,7 +273,7 @@ In addition, the [Buckley-Leverett adjoint example](https://sintefmath.github.io
 - DisableControl() and compute_well_qoi ([#73](https://github.com/sintefmath/JutulDarcy.jl/pull/73))
 - `extra_out` error for `setup_reservoir_model()` ([#74](https://github.com/sintefmath/JutulDarcy.jl/pull/74))
 
-## [v0.2.35] - 2024-10-15
+## [v0.2.35]
 
 ### New Features
 
@@ -284,13 +301,13 @@ In addition, the [Buckley-Leverett adjoint example](https://sintefmath.github.io
 - Function arguments in examples ([#67](https://github.com/sintefmath/JutulDarcy.jl/pull/67))
 - setting custom objective function ([#69](https://github.com/sintefmath/JutulDarcy.jl/pull/69))
 
-## [v0.2.34] - 2024-10-01
+## [v0.2.34]
 
 ### Merged Pull Requests
 
 - Rock hysteresis, fix scaled capillary pressure regression, bump HYPRE ([#66](https://github.com/sintefmath/JutulDarcy.jl/pull/66))
 
-## [v0.2.33] - 2024-09-28
+## [v0.2.33]
 
 ### New Features
 
@@ -307,7 +324,7 @@ In addition, the [Buckley-Leverett adjoint example](https://sintefmath.github.io
 
 - multiple well gradients ([#60](https://github.com/sintefmath/JutulDarcy.jl/pull/60))
 
-## [v0.2.32] - 2024-09-24
+## [v0.2.32]
 
 ### New Features
 
@@ -325,7 +342,7 @@ In addition, the [Buckley-Leverett adjoint example](https://sintefmath.github.io
 
 - Support for Julia 1.7 and 1.8 ([#50](https://github.com/sintefmath/JutulDarcy.jl/pull/50))
 
-## [v0.2.31] - 2024-09-23
+## [v0.2.31]
 
 ### Updates
 
@@ -339,19 +356,19 @@ In addition, the [Buckley-Leverett adjoint example](https://sintefmath.github.io
 
 - Support for numerical aquifers and cleanup of capillary pressure ([#58](https://github.com/sintefmath/JutulDarcy.jl/pull/58))
 
-## [v0.2.30] - 2024-09-08
+## [v0.2.30]
 
 ### Merged Pull Requests
 
 - Bugfix to initialization and fault plots ([#56](https://github.com/sintefmath/JutulDarcy.jl/pull/56))
 
-## [v0.2.29] - 2024-09-08
+## [v0.2.29]
 
 ### Merged Pull Requests
 
 - New examples and example improvements ([#55](https://github.com/sintefmath/JutulDarcy.jl/pull/55))
 
-## [v0.2.28] - 2024-08-31
+## [v0.2.28]
 
 ### New Features
 
@@ -370,7 +387,7 @@ In addition, the [Buckley-Leverett adjoint example](https://sintefmath.github.io
 - Simplify thermal implementation ([#53](https://github.com/sintefmath/JutulDarcy.jl/pull/53))
 - Nonlinear finite-volume schemes, constant pressure aquifers, converter for CO2STORE, simplify thermal ([#54](https://github.com/sintefmath/JutulDarcy.jl/pull/54))
 
-## [v0.2.27] - 2024-08-02
+## [v0.2.27]
 
 ### New Features
 
@@ -384,7 +401,7 @@ In addition, the [Buckley-Leverett adjoint example](https://sintefmath.github.io
 - CompatHelper: bump compat for TestItems to 1, (keep existing compat) ([#48](https://github.com/sintefmath/JutulDarcy.jl/pull/48)) (@github-actions[bot])
 - Hysteresis & relperm refactoring ([#51](https://github.com/sintefmath/JutulDarcy.jl/pull/51))
 
-## [v0.2.26] - 2024-06-27
+## [v0.2.26]
 
 ### Updates
 
@@ -392,7 +409,7 @@ In addition, the [Buckley-Leverett adjoint example](https://sintefmath.github.io
 - **Fixed crash for two-point rel. perm. scaling for water-oil systems**
 - **Greatly improved performance for immiscible viscosity evaluation**
 
-## [v0.2.25] - 2024-06-25
+## [v0.2.25]
 
 ### Updates
 
@@ -404,7 +421,7 @@ In addition, the [Buckley-Leverett adjoint example](https://sintefmath.github.io
 
 - Improved performance, better behavior on input cases ([#47](https://github.com/sintefmath/JutulDarcy.jl/pull/47))
 
-## [v0.2.24] - 2024-06-05
+## [v0.2.24]
 
 ### Updates
 
@@ -429,7 +446,7 @@ In addition, the [Buckley-Leverett adjoint example](https://sintefmath.github.io
 - Error in simulate_mrst_case for firstJutulExample.m ([#38](https://github.com/sintefmath/JutulDarcy.jl/pull/38))
 - Error in well output for JutulSPE1.m ([#39](https://github.com/sintefmath/JutulDarcy.jl/pull/39))
 
-## [v0.2.23] - 2024-05-06
+## [v0.2.23]
 
 ### Merged Pull Requests
 
@@ -439,7 +456,7 @@ In addition, the [Buckley-Leverett adjoint example](https://sintefmath.github.io
 
 - Features Request ([#41](https://github.com/sintefmath/JutulDarcy.jl/pull/41))
 
-## [v0.2.22] - 2024-04-14
+## [v0.2.22]
 
 ### Changes
 
@@ -450,7 +467,7 @@ In addition, the [Buckley-Leverett adjoint example](https://sintefmath.github.io
 
 - Fix MRST output writing ([#40](https://github.com/sintefmath/JutulDarcy.jl/pull/40))
 
-## [v0.2.21] - 2024-04-12
+## [v0.2.21]
 
 ### Changes
 
@@ -465,7 +482,7 @@ In addition, the [Buckley-Leverett adjoint example](https://sintefmath.github.io
 
 - Flash bypass and improved performance for many components ([#37](https://github.com/sintefmath/JutulDarcy.jl/pull/37))
 
-## [v0.2.20] - 2024-04-04
+## [v0.2.20]
 
 ### Merged Pull Requests
 
@@ -473,13 +490,13 @@ In addition, the [Buckley-Leverett adjoint example](https://sintefmath.github.io
 - Pre-solver for wells, improved MS well parsing, better NLDD support ([#35](https://github.com/sintefmath/JutulDarcy.jl/pull/35))
 - Updates to docs + add CO2-brine model from CSP11 ([#36](https://github.com/sintefmath/JutulDarcy.jl/pull/36))
 
-## [v0.2.19] - 2024-03-10
+## [v0.2.19]
 
 ### Merged Pull Requests
 
 - Add nonlinear domain decomposition solvers ([#33](https://github.com/sintefmath/JutulDarcy.jl/pull/33))
 
-## [v0.2.18] - 2024-03-04
+## [v0.2.18]
 
 ### Features
 
@@ -510,7 +527,7 @@ In addition, the [Buckley-Leverett adjoint example](https://sintefmath.github.io
 
 - Thermal rework ([#32](https://github.com/sintefmath/JutulDarcy.jl/pull/32))
 
-## [v0.2.17] - 2024-02-07
+## [v0.2.17]
 
 ### Changes
 
@@ -525,13 +542,13 @@ In addition, the [Buckley-Leverett adjoint example](https://sintefmath.github.io
 
 - Remove parser that is moved to GeoEnergyIO ([#31](https://github.com/sintefmath/JutulDarcy.jl/pull/31))
 
-## [v0.2.16] - 2024-01-28
+## [v0.2.16]
 
 ### Merged Pull Requests
 
 - K value flash support ([#30](https://github.com/sintefmath/JutulDarcy.jl/pull/30))
 
-## [v0.2.15] - 2024-01-23
+## [v0.2.15]
 
 ### New Features
 
@@ -539,19 +556,19 @@ In addition, the [Buckley-Leverett adjoint example](https://sintefmath.github.io
 - **Improvements to plotting**
 - **Parsing improvements (performance + keywords)**
 
-## [v0.2.14] - 2024-01-08
+## [v0.2.14]
 
 ### Merged Pull Requests
 
 - Documentation updates ([#29](https://github.com/sintefmath/JutulDarcy.jl/pull/29))
 
-## [v0.2.13] - 2024-01-04
+## [v0.2.13]
 
 ### Merged Pull Requests
 
 - Upgrades to .DATA and corner point grid parsers ([#28](https://github.com/sintefmath/JutulDarcy.jl/pull/28))
 
-## [v0.2.12] - 2023-12-19
+## [v0.2.12]
 
 ### New Features
 
@@ -564,7 +581,7 @@ In addition, the [Buckley-Leverett adjoint example](https://sintefmath.github.io
 
 - Rewrite corner point support, improved parser, other small features ([#27](https://github.com/sintefmath/JutulDarcy.jl/pull/27))
 
-## [v0.2.11] - 2023-11-17
+## [v0.2.11]
 
 ### Merged Pull Requests
 
@@ -577,23 +594,23 @@ In addition, the [Buckley-Leverett adjoint example](https://sintefmath.github.io
 
 - CO2 brine example not working ([#22](https://github.com/sintefmath/JutulDarcy.jl/pull/22))
 
-## [v0.2.10] - 2023-10-18
+## [v0.2.10]
 
 ### Merged Pull Requests
 
 - Better compositional solvers and fixes to simple wells + blackoil diffusion ([#21](https://github.com/sintefmath/JutulDarcy.jl/pull/21))
 
-## [v0.2.9] - 2023-09-24
+## [v0.2.9]
 
 No specific changes documented.
 
-## [v0.2.8] - 2023-08-07
+## [v0.2.8]
 
 ### Merged Pull Requests
 
 - Support for parsing and simulating .DATA files ([#19](https://github.com/sintefmath/JutulDarcy.jl/pull/19))
 
-## [v0.2.7] - 2023-06-26
+## [v0.2.7]
 
 ### Merged Pull Requests
 
@@ -601,22 +618,22 @@ No specific changes documented.
 - Add new ex to docs ([#17](https://github.com/sintefmath/JutulDarcy.jl/pull/17))
 - Support for sensitivities for src/bc ([#18](https://github.com/sintefmath/JutulDarcy.jl/pull/18))
 
-## [v0.2.6] - 2023-06-07
+## [v0.2.6]
 
 No specific changes documented.
 
-## [v0.2.5] - 2023-06-06
+## [v0.2.5]
 
 No specific changes documented.
 
-## [v0.2.4] - 2023-06-05
+## [v0.2.4]
 
 ### Merged Pull Requests
 
 - Migrate from SnoopPrecompile to PrecompileTools ([#14](https://github.com/sintefmath/JutulDarcy.jl/pull/14))
 - MPI solve with HYPRE + PartitionedArrays ([#15](https://github.com/sintefmath/JutulDarcy.jl/pull/15))
 
-## [v0.2.3] - 2023-04-22
+## [v0.2.3]
 
 ### Merged Pull Requests
 
@@ -627,21 +644,21 @@ No specific changes documented.
 
 - No writing access to `/tmp` leads to error during precompilation ([#12](https://github.com/sintefmath/JutulDarcy.jl/pull/12))
 
-## [v0.2.2] - 2023-03-19
+## [v0.2.2]
 
 ### Merged Pull Requests
 
 - Add parameters kwarg to setup_reservoir_model ([#10](https://github.com/sintefmath/JutulDarcy.jl/pull/10)) (@gbruer15)
 
-## [v0.2.1] - 2023-02-21
+## [v0.2.1]
 
 No specific changes documented.
 
-## [v0.2.0] - 2023-02-04
+## [v0.2.0]
 
 Major version release with significant updates.
 
-## [v0.1.6] - 2022-12-14
+## [v0.1.6]
 
 ### New Features
 
@@ -658,7 +675,7 @@ Major version release with significant updates.
 
 - Upgrades to .DATA and corner point grid parsers ([#28](https://github.com/sintefmath/JutulDarcy.jl/pull/28))
 
-## [v0.2.12] - 2023-12-19
+## [v0.2.12]
 
 ### New Features
 
@@ -671,7 +688,7 @@ Major version release with significant updates.
 
 - Rewrite corner point support, improved parser, other small features ([#27](https://github.com/sintefmath/JutulDarcy.jl/pull/27))
 
-## [v0.2.11] - 2023-11-17
+## [v0.2.11]
 
 ### Merged Pull Requests
 
@@ -684,23 +701,23 @@ Major version release with significant updates.
 
 - CO2 brine example not working ([#22](https://github.com/sintefmath/JutulDarcy.jl/pull/22))
 
-## [v0.2.10] - 2023-10-18
+## [v0.2.10]
 
 ### Merged Pull Requests
 
 - Better compositional solvers and fixes to simple wells + blackoil diffusion ([#21](https://github.com/sintefmath/JutulDarcy.jl/pull/21))
 
-## [v0.2.9] - 2023-09-24
+## [v0.2.9]
 
 No specific changes documented.
 
-## [v0.2.8] - 2023-08-07
+## [v0.2.8]
 
 ### Merged Pull Requests
 
 - Support for parsing and simulating .DATA files ([#19](https://github.com/sintefmath/JutulDarcy.jl/pull/19))
 
-## [v0.2.7] - 2023-06-26
+## [v0.2.7]
 
 ### Merged Pull Requests
 
@@ -708,22 +725,22 @@ No specific changes documented.
 - Add new ex to docs ([#17](https://github.com/sintefmath/JutulDarcy.jl/pull/17))
 - Support for sensitivities for src/bc ([#18](https://github.com/sintefmath/JutulDarcy.jl/pull/18))
 
-## [v0.2.6] - 2023-06-07
+## [v0.2.6]
 
 No specific changes documented.
 
-## [v0.2.5] - 2023-06-06
+## [v0.2.5]
 
 No specific changes documented.
 
-## [v0.2.4] - 2023-06-05
+## [v0.2.4]
 
 ### Merged Pull Requests
 
 - Migrate from SnoopPrecompile to PrecompileTools ([#14](https://github.com/sintefmath/JutulDarcy.jl/pull/14))
 - MPI solve with HYPRE + PartitionedArrays ([#15](https://github.com/sintefmath/JutulDarcy.jl/pull/15))
 
-## [v0.2.3] - 2023-04-22
+## [v0.2.3]
 
 ### Merged Pull Requests
 
@@ -734,21 +751,21 @@ No specific changes documented.
 
 - No writing access to `/tmp` leads to error during precompilation ([#12](https://github.com/sintefmath/JutulDarcy.jl/pull/12))
 
-## [v0.2.2] - 2023-03-19
+## [v0.2.2]
 
 ### Merged Pull Requests
 
 - Add parameters kwarg to setup_reservoir_model ([#10](https://github.com/sintefmath/JutulDarcy.jl/pull/10)) (@gbruer15)
 
-## [v0.2.1] - 2023-02-21
+## [v0.2.1]
 
 No specific changes documented.
 
-## [v0.2.0] - 2023-02-04
+## [v0.2.0]
 
 Major version release with significant updates.
 
-## [v0.1.6] - 2022-12-14
+## [v0.1.6]
 
 ### New Features
 
@@ -762,18 +779,18 @@ Major version release with significant updates.
 - Support for VAPOIL ([#6](https://github.com/sintefmath/JutulDarcy.jl/pull/6))
 - Improve input case support, VAPOIL/DISGAS systems, other fixes ([#8](https://github.com/sintefmath/JutulDarcy.jl/pull/8))
 
-## [v0.1.5] - 2022-11-04
+## [v0.1.5]
 
 ### Updates
 
 - **Improved CSR support**
 - **Performance improvements**
 
-## [v0.1.4] - 2022-10-16
+## [v0.1.4]
 
 No specific changes documented.
 
-## [v0.1.3] - 2022-09-29
+## [v0.1.3]
 
 ### New Features
 
@@ -781,7 +798,7 @@ No specific changes documented.
 - **Rewritten and documented main exported interfaces**
 - **Support for choosing update frequency of AMG pressure subsystem**
 
-## [v0.1.2] - 2022-09-25
+## [v0.1.2]
 
 ### Improvements
 
@@ -789,7 +806,7 @@ No specific changes documented.
 - **Added precompilation**
 - **More tests**
 
-## [v0.1.1] - 2022-09-20
+## [v0.1.1]
 
 ### Merged Pull Requests
 

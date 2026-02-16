@@ -6,13 +6,8 @@ get_phases(s::Symbol) = get_phases(Val(s))
 
 @inline number_of_phases(sys::MultiPhaseSystem) = length(get_phases(sys))
 @inline reference_densities(sys::MultiPhaseSystem) = sys.rho_ref
-@inline reference_densities(sys::CompositeSystem) = reference_densities(flow_system(sys))
-
-flow_system(sys::MultiPhaseSystem) = sys
-flow_system(sys::CompositeSystem) = sys.systems.flow
 
 number_of_components(sys::ImmiscibleSystem) = number_of_phases(sys)
-number_of_components(sys::CompositeSystem) = number_of_components(flow_system(sys))
 
 """
     component_names(sys)
@@ -20,7 +15,6 @@ number_of_components(sys::CompositeSystem) = number_of_components(flow_system(sy
 Get a list of the component names (as Strings)
 """
 component_names(sys::Union{SinglePhaseSystem, ImmiscibleSystem}) = phase_names(sys)
-component_names(sys::CompositeSystem) = phase_names(sys.systems.flow)
 
 phase_names(system) = phase_name.(get_phases(system))
 
@@ -30,7 +24,6 @@ phase_indices(sys::SinglePhaseSystem) = 1
 phase_indices(sys::ImmiscibleSystem) = tuple(eachindex(sys.phases)...)
 
 number_of_phases(::SinglePhaseSystem) = 1
-number_of_phases(sys::CompositeSystem) = number_of_phases(sys.systems.flow)
 
 """
     eachphase(sys::MultiPhaseSystem)
@@ -64,6 +57,22 @@ phase_name(::LiquidPhase) = "Liquid"
 """
 struct VaporPhase <: AbstractPhase end
 phase_name(::VaporPhase) = "Vapor"
+
+hasphase(model::MultiModel, phase) = hasphase(reservoir_model(model), phase)
+hasphase(model::SimulationModel, phase) = hasphase(model.system, phase)
+hasphase(sys::JutulSystem, phase::AbstractPhase) = phase in get_phases(sys)
+hasphase(sys::JutulSystem, phase_t::Type) = hasphase(sys, phase_t())
+
+function hasphase(sys::JutulSystem, phase::String)
+    if phase == "Liquid"
+        ph = LiquidPhase()
+    elseif phase == "Vapor"
+        ph = VaporPhase()
+    elseif phase == "Aqueous"
+        ph = AqueousPhase()
+    end
+    return hasphase(sys, ph)
+end
 
 ## Main implementation
 # Primary variable logic
@@ -344,6 +353,9 @@ number_of_equations_per_entity(system::SinglePhaseSystem, e::ConservationLaw) = 
 function pore_volume(data_domain::DataDomain; throw = true)
     if haskey(data_domain, :pore_volume, Cells())
         pv = data_domain[:pore_volume]
+        if haskey(data_domain, :pore_volume_multiplier, Cells())
+            pv = pv.*data_domain[:pore_volume_multiplier]
+        end
     elseif haskey(data_domain, :volumes, Cells())
         vol = copy(data_domain[:volumes])
         ntg = poro = pvmult = 1.0
@@ -374,9 +386,26 @@ function pore_volume(data_domain::DataDomain; throw = true)
     return pv
 end
 
-pore_volume(model::MultiModel, parameters) = pore_volume(reservoir_model(model), parameters[:Reservoir])
-pore_volume(model::SimulationModel, parameters) = fluid_volume(model, parameters)
-fluid_volume(model, parameters) = parameters[:FluidVolume]
+function pore_volume(model::MultiModel)
+    return pore_volume(reservoir_model(model))
+end
+
+function pore_volume(model::MultiModel, parameters)
+    return pore_volume(reservoir_model(model), parameters[:Reservoir])
+end
+
+function pore_volume(model::SimulationModel, parameters = setup_parameters(model))
+    fluid_volume(model, parameters)
+end
+
+function fluid_volume(model, parameters)
+    if haskey(parameters, :StaticFluidVolume)
+        return parameters[:StaticFluidVolume]
+    else
+        return parameters[:FluidVolume]
+    end
+end
+
 domain_fluid_volume(g) = missing
 
 function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw, eq_s, force::V, time) where {V <: AbstractVector{SourceTerm{I, F, T}}, D, S<:MultiPhaseSystem} where {I, F, T}
@@ -508,7 +537,7 @@ function cpr_weights_no_partials!(w, model::SimulationModel{R, S}, state, r, n, 
     end
 end
 
-function capillary_pressure(model, s)
+@inline function capillary_pressure(model, s)
     pck = :CapillaryPressure
     ref_index = get_reference_phase_index(model.system)
     if haskey(s, pck)

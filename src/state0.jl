@@ -14,8 +14,57 @@ struct EquilibriumRegion{R}
     temperature_vs_depth::Union{Function, Missing}
     cells::Union{Vector{Int}, Missing}
     pvtnum::Int
-    satnum::Int
+    satnum::Union{Int, Missing}
     kwarg::Any
+    function EquilibriumRegion(
+        datum_pressure,
+        datum_depth,
+        woc,
+        goc,
+        wgc,
+        pc_woc,
+        pc_goc,
+        pc_wgc,
+        density_function,
+        composition_vs_depth,
+        rs_vs_depth,
+        rv_vs_depth,
+        temperature_vs_depth,
+        cells,
+        pvtnum,
+        satnum,
+        kwarg,
+    )
+        datum_pressure, datum_depth, woc, goc, wgc, pc_woc, pc_goc, pc_wgc = promote(
+            datum_pressure,
+            datum_depth,
+            woc,
+            goc,
+            wgc,
+            pc_woc,
+            pc_goc,
+            pc_wgc,
+        )
+        return new{typeof(datum_pressure)}(
+            datum_pressure,
+            datum_depth,
+            woc,
+            goc,
+            wgc,
+            pc_woc,
+            pc_goc,
+            pc_wgc,
+            density_function,
+            composition_vs_depth,
+            rs_vs_depth,
+            rv_vs_depth,
+            temperature_vs_depth,
+            cells,
+            pvtnum,
+            satnum,
+            kwarg,
+        )
+    end
 end
 
 """
@@ -41,18 +90,19 @@ end
         rv = 0.0,
         rv_vs_depth = missing,
         pvtnum = 1,
-        satnum = 1,
+        satnum = missing,
         cells = missing,
         kwarg...
     )
 
-Set uip equilibriation region for a reservoir model. The region is defined by
-the datum pressure and depth, and the water-oil, gas-oil, and water-gas
-contacts. The contacts will be used to determine the phase distribution and
-initial pressure in the region. The region can be further specified by
-temperature, composition, density, and rs/rv functions. Most entries can either
-be specified as a function of depth or as a constant value. Additional keyword
-arguments are passed onto the `equilibriate_state` function.
+Set up equilibriation region for a reservoir model which can be used for
+hydrostatic initial state setup. The region is defined by the datum pressure and
+depth, and the water-oil, gas-oil, and water-gas contacts. The contacts will be
+used to determine the phase distribution and initial pressure in the region. The
+region can be further specified by temperature, composition, density, and rs/rv
+functions. Most entries can either be specified as a function of depth or as a
+constant value. Additional keyword arguments are passed onto the
+`equilibriate_state` function.
 """
 function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = missing,
         datum_depth = missing;
@@ -76,7 +126,7 @@ function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = 
         rv = 0.0,
         rv_vs_depth = missing,
         pvtnum = 1,
-        satnum = 1,
+        satnum = missing,
         cells = missing,
         kwarg...
     )
@@ -137,6 +187,10 @@ function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = 
             end
         end
     end
+    if ismissing(datum_depth)
+        z = reservoir[:cell_centroids][end, cells]
+        datum_depth = minimum(z)
+    end
     return EquilibriumRegion(
         p_datum,
         datum_depth,
@@ -155,6 +209,31 @@ function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = 
         pvtnum,
         satnum,
         kwarg
+    )
+end
+
+function EquilibriumRegion(eql::EquilibriumRegion, model; kwarg...)
+    # Convenience constructor to re-use an existing EquilibriumRegion but for a
+    # new model and with a few fields modified
+    return EquilibriumRegion(
+        model,
+        eql.datum_pressure,
+        eql.datum_depth;
+        woc = eql.woc,
+        goc = eql.goc,
+        wgc = eql.wgc,
+        pc_woc = eql.pc_woc,
+        pc_goc = eql.pc_goc,
+        pc_wgc = eql.pc_wgc,
+        density_function = eql.density_function,
+        composition_vs_depth = eql.composition_vs_depth,
+        rs_vs_depth = eql.rs_vs_depth,
+        rv_vs_depth = eql.rv_vs_depth,
+        temperature_vs_depth = eql.temperature_vs_depth,
+        cells = eql.cells,
+        pvtnum = eql.pvtnum,
+        satnum = eql.satnum,
+        kwarg...,
     )
 end
 
@@ -194,19 +273,13 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
         end
         W = model.models[k]
         if W.domain isa WellGroup
-            # Facility or well group
-            if !is_thermal
-                init_w = setup_state(W; TotalSurfaceMassRate = 0.0)
-            else
-                T0 = convert_to_si(20.0, :Celsius)
-                init_w = setup_state(W; TotalSurfaceMassRate = 0.0, SurfaceTemperature = T0)
-            end
+            # We do this in a second pass
+            continue
         else
             # Wells
             init_w = Dict{Symbol, Any}()
             W = model.models[k]
             wg = physical_representation(W.domain)
-            res_c = wg.perforations.reservoir
             if wg isa MultiSegmentWell
                 init_w[:TotalMassFlux] = 0.0
             end
@@ -218,6 +291,37 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
         end
         init[k] = init_w
     end
+    T = Float64
+    for (k, W) in get_model_wells(model)
+        T = promote_type(T, eltype(init[k][:Pressure]))
+        if is_thermal
+            T = promote_type(T, eltype(init[k][:Temperature]))
+        end
+    end
+
+    for (k, W) in pairs(model.models)
+        if W.domain isa WellGroup
+            # Facility or well group
+            init_arg = Dict{Symbol, Any}()
+            init_arg[:TotalSurfaceMassRate] = 0.0
+            init_arg[:SurfacePhaseRates] = 0.0
+            own_wells = W.domain.well_symbols
+            bh = zeros(T, length(own_wells))
+            temp = similar(bh)
+            for (i, w) in enumerate(own_wells)
+                bh[i] = init[w][:Pressure][1]
+                if is_thermal
+                    temp[i] = init[w][:Temperature][1]
+                end
+            end
+            init_arg[:BottomHolePressure] = bh
+            if is_thermal
+                init_arg[:SurfaceTemperature] = temp
+            end
+            init[k] = setup_state(W; pairs(init_arg)...)
+        end
+    end
+
     state = setup_state(model, init)
     return state
 end
@@ -235,11 +339,20 @@ function setup_reservoir_state(
         equil_regs::Union{Missing, Vector, EquilibriumRegion} = missing;
         kwarg...
     )
+    nc = number_of_cells(rmodel.domain)
     if ismissing(equil_regs)
         init = kwarg
     else
+        # Turn it into a vector if needed
         if equil_regs isa EquilibriumRegion
             equil_regs = [equil_regs]
+        end
+        # Handle defaulted SATNUM for Pc initialization
+        svars = Jutul.get_secondary_variables(rmodel)
+        pc = get(svars, :CapillaryPressure, missing)
+        if !ismissing(pc)
+            pc_reg = pc.regions
+            equil_regs = split_equilibrium_regions(equil_regs, pc_reg)
         end
         inits = map(equil -> equilibriate_state(rmodel, equil), equil_regs)
         if length(inits) == 1
@@ -248,7 +361,6 @@ function setup_reservoir_state(
             # Handle multiple regions by merging each init
             inits_cells = map(x -> x.cells, equil_regs)
             init = Dict{Symbol, Any}()
-            nc = number_of_cells(rmodel.domain)
             touched = [false for i in 1:nc]
             for (k, v) in first(inits)
                 if v isa AbstractVector
@@ -266,6 +378,10 @@ function setup_reservoir_state(
                     touched[c] = true
                 end
                 for (k, v) in subinit
+                    T = promote_type(eltype(init[k]), eltype(v))
+                    if eltype(init[k]) != T
+                        init[k] = T.(init[k])
+                    end
                     fill_subinit!(init[k], cells, v)
                 end
             end
@@ -314,4 +430,56 @@ end
 function handle_alternate_primary_variable_spec!(res_init, found, rmodel, system)
     # Internal utility to handle non-trivial specification of primary variables
     return res_init
+end
+
+function split_equilibrium_regions(equil_regs::AbstractVector{T}, region::AbstractArray; variant = :satnum) where T
+    equil_regs_new = T[]
+    for er in equil_regs
+        cells = er.cells
+        if ismissing(cells)
+            cells = eachindex(region)
+        end
+        regs = getproperty(er, variant)
+        if ismissing(regs)
+            for subreg in unique(region[cells])
+                subcells = filter(c -> region[c] == subreg, cells)
+                if variant == :satnum
+                    new_pvt = er.pvtnum
+                    new_sat = subreg
+                else
+                    variant == :pvtnum || error("Unknown variant $variant, must be :satnum or :pvtnum")
+                    new_pvt = subreg
+                    new_sat = er.satnum
+                end
+                @assert only(unique(region[subcells])) == subreg
+                er_sub = EquilibriumRegion(
+                    er.datum_pressure,
+                    er.datum_depth,
+                    er.woc,
+                    er.goc,
+                    er.wgc,
+                    er.pc_woc,
+                    er.pc_goc,
+                    er.pc_wgc,
+                    er.density_function,
+                    er.composition_vs_depth,
+                    er.rs_vs_depth,
+                    er.rv_vs_depth,
+                    er.temperature_vs_depth,
+                    subcells,
+                    new_pvt,
+                    new_sat,
+                    er.kwarg
+                )
+                push!(equil_regs_new, er_sub)
+            end
+        else
+            push!(equil_regs_new, er)
+        end
+    end
+    return equil_regs_new
+end
+
+function split_equilibrium_regions(equil_regs, region::Union{Missing, Nothing})
+    return equil_regs
 end

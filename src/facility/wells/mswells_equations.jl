@@ -23,35 +23,43 @@ end
 
 well_segment_is_closed(::SegmentWellBoreFrictionHB) = false
 
-function segment_pressure_drop(f::SegmentWellBoreFrictionHB, L, rough, radius_inner, v, ρ, μ)
-    D = 2*radius_inner
-    A = π*radius_inner^2
-    # Scaling fix
-    s = v > 0.0 ? 1.0 : -1.0
-    e = eps(Float64)
-    v = s*max(abs(v), e)
+function segment_pressure_drop(f::SegmentWellBoreFrictionHB, L, rough, radius_outer, radius_inner, V, ρ, μ)
+    Dₒ = 2*radius_outer
+    Dᵢ = 2*radius_inner
+    A = well_cross_section_area(radius_outer, radius_inner)
+    v = V/(ρ*A) # Mass flux to velocity
+    if abs(v) < eps(Float64)
+        # Avoid division by zero - use laminar flow model,
+        #   Δp = 2*f*(L/Dₒ)*ρ*v^2, where f = 16/Re,
+        # with direct elimination of v to avoid division by very small number
+        Δp = 2*(16/(ρ*(Dₒ-Dᵢ)/μ))*(L/(Dₒ-Dᵢ))*ρ*v
+        return Δp
+    end
 
-    Re = abs(D*v/(A*μ))
+    Re = abs(ρ*v*(Dₒ-Dᵢ)/μ)
     # Friction model - empirical relationship
     Re_l, Re_t = f.laminar_limit, f.turbulent_limit
     if is_laminar_flow(f, Re)
         f = 16.0/Re
     else
         # Either turbulent or intermediate flow regime. We need turbulent value either way.
-        f_t = (-3.6*log10(6.9/Re +(rough/(3.7*D))^(10.0/9.0)))^(-2.0)
+        f_t = (-3.6*log10(6.9/Re +(rough/(3.7*Dₒ))^(10.0/9.0)))^(-2.0)
         if is_turbulent_flow(f, Re)
             # Turbulent flow
             f = f_t
         else
             # Intermediate regime - interpolation
-            f_l = 16.0/Re_l
-            Δf = f_t - f_l
-            ΔRe = Re_t - Re_l
-            f = f_l + (Δf / ΔRe)*(Re - Re_l)
+            f_l = 16.0/Re
+            α = (Re - Re_l)/(Re_t - Re_l)
+            f = (1 - α)*f_l + α*f_t
         end
     end
-    Δp = 2*f*L*v^2/((A^2)*D*ρ)
+    Δp = 2*f*(L/(Dₒ-Dᵢ))*ρ*v^2
     return Δp
+end
+
+function well_cross_section_area(radius_outer, radius_inner)
+    return π * (radius_outer^2 - radius_inner^2)
 end
 
 struct ClosedSegment
@@ -87,7 +95,8 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
     densities = state.PhaseMassDensities
     L = state.SegmentLength[face]
     roughness = state.SegmentRoughness[face]
-    radius_inner = state.SegmentRadius[face] - state.SegmentCasingThickness[face]
+    radius_outer = state.SegmentRadius[face]
+    radius_inner = state.SegmentRadiusInner[face]
     s = state.Saturations
     p = state.Pressure
 
@@ -100,13 +109,10 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
         rho_r, mu_r = saturation_mixed(s, densities, μ, right)
         rho = 0.5*(rho_l + rho_r)
         μ_mix = 0.5*(mu_l + mu_r)
-        Δp = segment_pressure_drop(seg_model, L, roughness, radius_inner, V, rho, μ_mix)
+        Δp = segment_pressure_drop(seg_model, L, roughness, radius_outer, radius_inner, V, rho, μ_mix)
         Δθ = two_point_potential_drop(p[left], p[right], gdz, rho_l, rho_r)
-        # We rewrite the term so that for very small friction, the model reduces
-        # to a high trans darcy flux Note that the SI units make this sensible
-        # since dp is very large (Pa) and v is small (m/s).
-        # Normally the V term is neglible.
-        eq = 1e-3*(Δθ + Δp) - V
+        eq = Δθ - Δp
+
     end
     eq_buf[] = eq
 end

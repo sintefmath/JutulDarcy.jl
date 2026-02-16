@@ -36,10 +36,10 @@ end
     JutulDarcy.well_result_dates(res)
     JutulDarcy.well_result_dates(res_date)
 
-    @test JutulDarcy.print_well_result_table(res, :W1) == nothing
-    @test JutulDarcy.print_well_result_table(res_date, :W1) == nothing
+    @test isnothing(JutulDarcy.print_well_result_table(res, :W1))
+    @test isnothing(JutulDarcy.print_well_result_table(res_date, :W1))
 
-    @test JutulDarcy.print_well_result_table(res_date, (:W1, :W2), :bhp) == nothing
-    @test JutulDarcy.print_well_result_table(res_date, (:W1, :W2)) == nothing
-    @test res_date(:W1) == nothing
+    @test isnothing(JutulDarcy.print_well_result_table(res_date, (:W1, :W2), :bhp))
+    @test isnothing(JutulDarcy.print_well_result_table(res_date, (:W1, :W2)))
+    @test isnothing(res_date(:W1))
 end

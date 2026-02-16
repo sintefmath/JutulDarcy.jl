@@ -101,7 +101,7 @@ end
     return T_f
 end
 
-function effective_gravity_difference(state, face, kgrad)
+@inline function effective_gravity_difference(state, face, kgrad)
     grav = state.TwoPointGravityDifference
     face_sign(::Any) = 1
     face_sign(x::TPFA) = x.face_sign
@@ -135,7 +135,6 @@ end
 end
 
 @inline function face_average_density(model::CompositionalModel, state, tpfa, phase, ρ = state.PhaseMassDensities)
-    sys = flow_system(model.system)
     l = tpfa.left
     r = tpfa.right
     @inbounds ρ_l = ρ[phase, l]
@@ -174,12 +173,12 @@ end
     return F(tpfa.right) - F(tpfa.left)
 end
 
-function face_average(F, tpfa)
+@inline function face_average(F, tpfa)
     l, r = Jutul.cell_pair(tpfa)
     return 0.5*(F(r) + F(l))
 end
 
-function phase_face_average(phase_property, tpfa, phase)
+@inline function phase_face_average(phase_property, tpfa, phase)
     F(cell) = @inbounds phase_property[phase, cell]
     return face_average(F, tpfa)
 end
@@ -206,9 +205,19 @@ end
     return @inbounds X[up]
 end
 
+@inline function upwind(upw::SPU, m::AbstractArray{T}, q) where T<:Jutul.AdjointsDI.SparseConnectivityTracer.Dual
+    # Type overload for adjoints - only pattern matters
+    return m[upw.left] + m[upw.right]
+end
+
 @inline function phase_upwind(upw, m::AbstractMatrix, phase::Integer, q)
     F(cell) = @inbounds m[phase, cell]
     return upwind(upw, F, q)
+end
+
+@inline function phase_upwind(upw, m::AbstractMatrix{T}, phase::Integer, q) where T<:Jutul.AdjointsDI.SparseConnectivityTracer.Dual
+    # Type overload for adjoints - only pattern matters
+    return m[phase, upw.left] + m[phase, upw.right]
 end
 
 @inline function upwind(upw::Jutul.WENO.WENOFaceDiscretization, F, q)
@@ -231,22 +240,6 @@ end
         Δp_c = @inbounds pc[pos, c_r] - pc[pos, c_l]
     end
     return Δp_c
-end
-
-
-
-@inline function phase_mass_flux(Ψ, c, i, ρ, kr, μ, ph)
-    upc = upwind_cell(Ψ, c, i)
-    @inbounds F = ρ[ph, upc]*(kr[ph, upc]/μ[ph, upc])*Ψ
-    return (F, upc)
-end
-
-@inline function upwind_cell(pot, l, r)
-    if pot < 0
-        c = l
-    else
-        c = r
-    end
 end
 
 """

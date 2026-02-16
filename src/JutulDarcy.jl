@@ -214,6 +214,16 @@ module JutulDarcy
     import JutulDarcy.Tracers: SinglePhaseTracer, MultiPhaseTracer, add_tracers_to_model!, number_of_tracers
     export SinglePhaseTracer, MultiPhaseTracer, add_tracers_to_model!, number_of_tracers
 
+    # AFI input support
+    include("AFISetup/AFISetup.jl")
+    import JutulDarcy.AFISetup: setup_case_from_afi
+    export setup_case_from_afi
+
+    # Benchmarks
+    include("benchmarks/benchmarks.jl")
+
+    # History matching
+    include("HistoryMatching/HistoryMatching.jl")
 
     @compile_workload begin
         try

@@ -138,7 +138,7 @@ function Jutul.line_plot_data(model::SimulationModel, k::DeckPhaseVariables)
     has_reg = !isnothing(k.regions)
     s = collect(0:0.01:1)
     if has_reg
-        nreg = length(k.relperms[1])
+        nreg = maximum(k.regions)
     else
         nreg = 1
     end
@@ -166,18 +166,23 @@ end
 function deck_function_plot_data(model, pvt::Union{PVTW, PVDO, PVTW_EXTENDED, PVDG}, phase, reg, as_type)
     p = collect(range(1e5, 1000e5, 100))
     phase_name = phase_names(model.system)[phase]
+    if pvt.tab isa Tuple
+        pvt = pvt.tab[only(reg)]
+    else
+        pvt = pvt.tab
+    end
     if as_type == :shrinkage
-        F = (pressure) -> shrinkage(pvt.tab[reg], pressure)
+        F = (pressure) -> shrinkage(pvt, pressure)
         title = "Phase Shrinkage"
         yl = "1/B"
     elseif as_type == :viscosity
-        F = (pressure) -> viscosity(pvt.tab[reg], pressure)/1e-3
+        F = (pressure) -> viscosity(pvt, pressure)/1e-3
         title = "Phase Viscosity"
         yl = "μ [cP]"
     else
         @assert as_type == :density
         rhoS = reference_densities(model.system)[phase]
-        F = (pressure) -> rhoS*shrinkage(pvt.tab[reg], pressure)
+        F = (pressure) -> rhoS*shrinkage(pvt, pressure)
         title = "Phase Mass Density"
         yl = "ρ [kg/m^3]"
     end
@@ -189,7 +194,7 @@ function deck_function_plot_data(model, pvt::Union{PVTG, PVTO}, phase, reg, as_t
     phase_name = phase_names(sys)[phase]
     rhoS = reference_densities(sys)
     rhoS_self = rhoS[phase]
-    
+
     ix = phase_indices(sys)
     if length(ix) == 3
         a, l, v = ix
@@ -205,20 +210,22 @@ function deck_function_plot_data(model, pvt::Union{PVTG, PVTO}, phase, reg, as_t
         @assert phase == l
         rhoS_other = rhoS[v]
     end
+    reg_vec = [reg]
     if as_type == :shrinkage
-        F = (pressure, r) -> shrinkage(pvt, reg, pressure, r, 1)
+        F = (pressure, r) -> shrinkage(pvt, reg_vec, pressure, r, 1)
         title = "Phase Shrinkage"
         yl = "1/B"
     elseif as_type == :viscosity
-        F = (pressure, r) -> viscosity(pvt, reg, pressure, r, 1)/1e-3
+        F = (pressure, r) -> viscosity(pvt, reg_vec, pressure, r, 1)/1e-3
         title = "Phase Viscosity"
         yl = "μ [cP]"
     else
         @assert as_type == :density
-        F = (pressure, r) -> (rhoS_self + r*rhoS_other)*shrinkage(pvt, reg, pressure, r, 1)
+        F = (pressure, r) -> (rhoS_self + r*rhoS_other)*shrinkage(pvt, reg_vec, pressure, r, 1)
         title = "Phase Mass Density"
         yl = "ρ [kg/m^3]"
     end
+    sat_fn = sat_fn[reg]
     np = 100
     nsat = 10
     data = Vector{Float64}()

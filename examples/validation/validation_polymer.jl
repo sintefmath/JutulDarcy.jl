@@ -14,8 +14,8 @@
 # - Permeability reduction from polymer
 # - Dead pore space for polymer part of water phase
 #
-# Note that non-Newtonian / shear effectsare not yet implemented in the polymer
-# model.
+# Note that non-Newtonian rheology / shear effects are not yet implemented in
+# the polymer model.
 
 using GeoEnergyIO, Jutul, JutulDarcy, GLMakie, DelimitedFiles
 pth = JutulDarcy.GeoEnergyIO.test_input_file_path("BOPOLYMER_NOSHEAR", "BOPOLYMER_NOSHEAR.DATA")

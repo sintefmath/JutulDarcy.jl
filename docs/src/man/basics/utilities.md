@@ -51,9 +51,12 @@ coarsen_reservoir_case
 ## Adjoints and gradients
 
 ```@docs
+optimize_reservoir
 JutulDarcy.reservoir_sensitivities
 JutulDarcy.well_mismatch
 Jutul.LBFGS.unit_box_bfgs
+JutulDarcy.setup_reservoir_dict_optimization
+JutulDarcy.HistoryMatching.history_match_objective
 ```
 
 ## Well outputs
@@ -62,4 +65,10 @@ Jutul.LBFGS.unit_box_bfgs
 get_model_wells
 well_output
 full_well_outputs
+```
+
+## Non-neighboring connections
+
+```@docs
+setup_nnc_connections
 ```

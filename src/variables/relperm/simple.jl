@@ -269,11 +269,22 @@ function Jutul.update_secondary_variable!(
     NonWettingLET = state[relperm.nonwetting_let]
     NonWettingCritical = state[relperm.nonwetting_critical]
     NonWettingKrMax = state[relperm.nonwetting_krmax]
-    for c in ix
-        sw, snw = Saturations[:, c]
+    update_let!(kr, Saturations, WettingLET, NonWettingLET, WettingCritical, NonWettingCritical, WettingKrMax, NonWettingKrMax, ix)
+    return kr
+end
 
-        Lw, Ew, Tw = WettingLET[:, c]
-        Lnw, Enw, Tnw = NonWettingLET[:, c]
+function update_let!(kr, Saturations, WettingLET, NonWettingLET, WettingCritical, NonWettingCritical, WettingKrMax, NonWettingKrMax, ix)
+    for c in ix
+        sw = Saturations[1, c]
+        snw = Saturations[2, c]
+
+        Lw = WettingLET[1, c]
+        Ew = WettingLET[2, c]
+        Tw = WettingLET[3, c]
+
+        Lnw = NonWettingLET[1, c]
+        Enw = NonWettingLET[2, c]
+        Tnw = NonWettingLET[3, c]
 
         rw = WettingCritical[c]
         rnw = NonWettingCritical[c]
