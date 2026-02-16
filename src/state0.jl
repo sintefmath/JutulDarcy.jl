@@ -337,6 +337,7 @@ end
 function setup_reservoir_state(
         rmodel::SimulationModel,
         equil_regs::Union{Missing, Vector, EquilibriumRegion} = missing;
+        cell_nz = missing,
         kwarg...
     )
     nc = number_of_cells(rmodel.domain)
@@ -354,7 +355,7 @@ function setup_reservoir_state(
             pc_reg = pc.regions
             equil_regs = split_equilibrium_regions(equil_regs, pc_reg)
         end
-        inits = map(equil -> equilibriate_state(rmodel, equil), equil_regs)
+        inits = map(equil -> equilibriate_state(rmodel, equil, cell_nz = cell_nz), equil_regs)
         if length(inits) == 1
             init = only(inits)
         else
