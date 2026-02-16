@@ -1176,7 +1176,13 @@ function equilibriate_phase_pressures_and_saturations(model::SimulationModel, de
     end
     # Expand here
     pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_function, contacts_pc, ref_ix)
-    s, pc, active_phase = determine_saturations(depths, contacts, pressures; ref_ix = ref_ix, pc = pc, s_min = s_min, s_max = s_max, kwarg...)
+    if nph == 1
+        s = ones(eltype(pressures), size(pressures))
+        pc = zeros(eltype(pressures), size(pressures))
+        active_phase = fill(1, length(depths))
+    else
+        s, pc, active_phase = determine_saturations(depths, contacts, pressures; ref_ix = ref_ix, pc = pc, s_min = s_min, s_max = s_max, kwarg...)
+    end
     # Contract here
 
     return (pressures, s, pc, active_phase)
