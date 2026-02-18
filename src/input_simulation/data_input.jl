@@ -107,7 +107,11 @@ function setup_case_from_parsed_data(datafile;
     end
 
     msg("Parsing reservoir domain.")
-    domain = parse_reservoir(datafile, zcorn_depths = zcorn_depths, repair_zcorn = repair_zcorn, process_pinch = process_pinch)
+    domain = reservoir_domain(datafile,
+        zcorn_depths = zcorn_depths,
+        repair_zcorn = repair_zcorn,
+        process_pinch = process_pinch
+    )
     pvt_reg = reservoir_regions(domain, :pvtnum)
     has_pvt = isnothing(pvt_reg)
     # Parse wells
@@ -869,9 +873,23 @@ function initialize_numerical_aquifers!(init, rmodel, aquifers)
     end
     return init
 end
+"""
+    res = reservoir_domain(data_file)
+    reservoir_domain(data_file::AbstractDict; zcorn_depths = true, repair_zcorn = true, process_pinch = true)
 
-function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, process_pinch = true)
-    grid = data_file["GRID"]
+Set up reservoir domain from GRID section of passed .DATA file.
+"""
+function reservoir_domain(data_file::AbstractDict;
+        zcorn_depths = true,
+        repair_zcorn = true,
+        process_pinch = true,
+        kwarg...
+    )
+    if haskey(data_file, "GRID")
+        grid = data_file["GRID"]
+    else
+        grid = data_file
+    end
     cartdims = grid["cartDims"]
     nx, ny, nz = cartdims
     G = mesh_from_grid_section(grid; repair_zcorn = repair_zcorn, process_pinch = process_pinch)
@@ -1116,7 +1134,8 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
         satnum = satnum,
         eqlnum = eqlnum,
         pvtnum = pvtnum,
-        pairs(extra_data_arg)...
+        pairs(extra_data_arg)...,
+        kwarg...
     )
     if !all(isequal(1.0), tranmult)
         domain[:transmissibility_multiplier, Faces()] = tranmult
@@ -1694,7 +1713,10 @@ function parse_control_steps(runspec, props, schedule, sys)
                     if isnan(diam)
                         diam = 0.3048
                     end
-                    @assert haskey(wells, wname)
+                    if !haskey(wells, wname)
+                        display(keys(wells))
+                        error("COMPDAT entry for well $wname, but no WELSPECS entry for this well.")
+                    end
                     head = wells[wname].head
                     if I < 1
                         I = head[1]
