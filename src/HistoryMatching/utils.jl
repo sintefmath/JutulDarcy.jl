@@ -275,10 +275,16 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
         else
             worstval = 0.0
             worstkey = ""
+            bestval = typemax(Float64)
+            bestkey = ""
             for (k, v) in pairs(mismatch)
                 if v > worstval
                     worstval = v
                     worstkey = k
+                end
+                if v < bestval && any(x -> x > no_data_threshold, summary["VALUES"]["WELLS"][k][fld])
+                    bestval = v
+                    bestkey = k
                 end
             end
             if relative
@@ -288,11 +294,11 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
             end
             print("$fld $fldk: ")
             if length(bad) > 0
-                print("$(length(bad)) wells above threshold ($threshold) out of $(length(wells))")
+                print("$(length(bad))/$(length(wells)) wells above threshold ($threshold)")
             else
                 print("All wells below threshold ($threshold).")
             end
-            println(" Worst mismatch: $worstkey with mismatch $worstval.")
+            println(" Worst: $worstkey: $(round(worstval, sigdigits=2)), best $bestkey: $(round(bestval, sigdigits=2))")
         end
     end
     return Dict(
