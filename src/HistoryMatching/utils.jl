@@ -195,7 +195,8 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
         npts = 1000,
         no_data_threshold = ifelse(fld == "WBHP", si_unit(:atm), 1e-10),
         relative = true,
-        type = :mean
+        type = :mean,
+        prefix = ""
     )
     t_ref = summary_ref["TIME"].seconds
     t = summary["TIME"].seconds
@@ -260,7 +261,7 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
     if prt > 0
         if prt > 1
             # Potentially very detailed printout
-            println("Mismatch summary for field '$fld':")
+            println("$(prefix)Mismatch summary for field '$fld':")
             if length(bad) > 0
                 println("Wells with mismatch above threshold ($threshold): ", join(bad, ", "))
                 if prt > 2
@@ -270,7 +271,7 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
                     end
                 end
             else
-                println("All wells have mismatch below threshold ($threshold).")
+                println("$(prefix)All wells have mismatch below threshold ($threshold).")
             end
         else
             worstval = 0.0
@@ -292,7 +293,7 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
             else
                 fldk = type
             end
-            print("$fld $fldk: ")
+            print("$prefix$fld $fldk: ")
             if length(bad) > 0
                 print("$(length(bad))/$(length(wells)) wells above threshold ($threshold)")
             else
