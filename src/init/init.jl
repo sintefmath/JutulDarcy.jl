@@ -902,12 +902,8 @@ function determine_saturations(depths, contacts, pressures;
         ref_ix = 2,
         s_min = missing,
         s_max = missing,
-        pc = missing,
-        cell_nz = missing,
+        pc = missing
     )
-    if !ismissing(cell_nz) && cell_nz > 1
-        ismissing(cell_z_bounds) || error("cell_z_bounds must be provided if cell_nz > 1, was missing for cell_nz=$cell_nz")
-    end
     nc = length(depths)
     T = promote_type(eltype(depths), eltype(pressures), eltype(contacts))
     nph = length(contacts) + 1
@@ -1065,39 +1061,6 @@ function swcon_and_swmax_for_cells(model, kr, cells)
     return (swcon, swmax)
 end
 
-function cell_centroid_bounds(G::DataDomain, cell, idx = missing)
-    G_u = physical_representation(G)
-    return cell_centroid_bounds(G_u, cell, idx)
-end
-
-function cell_centroid_bounds(G::CartesianMesh, cell, idx = missing)
-    G_u = UnstructuredMesh(G)
-    return cell_centroid_bounds(G_u, cell, idx)
-end
-
-function cell_centroid_bounds(G, cell, idx = missing)
-    points = G.node_points
-    T_s = eltype(points)
-    D = length(T_s)
-    T = eltype(T_s)
-    cmin = @MVector fill(typemax(T), D)
-    cmax = @MVector fill(typemin(T), D)
-    for (e, mapper) in [(Faces(), G.faces), (BoundaryFaces(), G.boundary_faces)]
-        for f in mapper.cells_to_faces[cell]
-            c, _ = Jutul.compute_centroid_and_measure(G, e, f)
-            for i in 1:D
-                cmin[i] = min(cmin[i], c[i])
-                cmax[i] = max(cmax[i], c[i])
-            end
-        end
-    end
-    if ismissing(idx)
-        return (T_s(cmin), T_s(cmax))
-    else
-        return (cmin[idx], cmax[idx])
-    end
-end
-
 function equilibriate_phase_pressures_and_saturations(model::SimulationModel, depths, depth, contacts, datum_pressure, cells;
         density_function = missing,
         contacts_pc = missing,
@@ -1169,20 +1132,15 @@ function equilibriate_phase_pressures_and_saturations(model::SimulationModel, de
     if is_multipoint
         cell_nz > 1 || error("cell_nz must be greater than 1 for multi-point initialization, got cell_nz=$(cell_nz).")
         # Find top and bottom of the relevant cells
-        cell_z_bounds = map(c -> cell_centroid_bounds(model.data_domain, c, 3), cells)
-        T = promote_type(eltype(eltype(cell_z_bounds)), eltype(depths))
-        new_depths = T[]
-        depth_index = Int[]
-        for (i, bnds) in enumerate(cell_z_bounds)
-            zmin, zmax = bnds
-            delta = (zmax - zmin)/(cell_nz-1)
-            for j in 1:cell_nz
-                z = zmin + (j-1)*delta
-                push!(new_depths, z)
-                push!(depth_index, i)
-            end
+        if haskey(model.data_domain, :min_coordinate)
+            min_z_cells = view(model.data_domain[:min_coordinate], 3, cells)
+            max_z_cells = view(model.data_domain[:max_coordinate], 3, cells)
+        else
+            cell_z_bounds = map(c -> cell_node_bounds(model.data_domain, c, 3), cells)
+            min_z_cells = map(first, cell_z_bounds)
+            max_z_cells = map(last, cell_z_bounds)
         end
-        depths = new_depths
+        depths, depth_index = discretize_depths(depths, min_z_cells, max_z_cells, cell_nz)
         s_max = [s[depth_index] for s in s_max]
         s_min = [s[depth_index] for s in s_min]
     end
@@ -1227,4 +1185,21 @@ function equilibriate_phase_pressures_and_saturations(model::SimulationModel, de
         active_phase = active_phase_new
     end
     return (pressures, s, pc, active_phase)
+end
+
+function discretize_depths(depths, min_z_cells, max_z_cells, cell_nz)
+    T = promote_type(eltype(min_z_cells), eltype(max_z_cells), eltype(depths))
+    new_depths = T[]
+    depth_index = Int[]
+    for i in eachindex(min_z_cells, max_z_cells, depths)
+        zmin = min_z_cells[i]
+        zmax = max_z_cells[i]
+        delta = (zmax - zmin)/(cell_nz-1)
+        for j in 1:cell_nz
+            z = zmin + (j-1)*delta
+            push!(new_depths, z)
+            push!(depth_index, i)
+        end
+    end
+    return (new_depths, depth_index)
 end

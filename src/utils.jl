@@ -105,6 +105,7 @@ function reservoir_domain(g;
         transmissibility_multiplier = missing,
         diffusion = missing,
         nnc = missing,
+        include_bounds = false,
         kwarg...
     )
     nf0 = number_of_faces(g)
@@ -178,6 +179,21 @@ function reservoir_domain(g;
             end
         end
         reservoir[:transmissibility_override, Faces()] = transmissibility_override
+    end
+    if include_bounds
+        d = dim(g)
+        bounds = map(c -> cell_node_bounds(g, c), 1:nc)
+        min_bounds = zeros(dim(g), nc)
+        max_bounds = zeros(dim(g), nc)
+        for c in 1:nc
+            for j in 1:d
+                m, M = bounds[c]
+                min_bounds[j, c] = m[j]
+                max_bounds[j, c] = M[j]
+            end
+        end
+        reservoir[:min_coordinate, Cells()] = min_bounds
+        reservoir[:max_coordinate, Cells()] = max_bounds
     end
     return reservoir
 end
@@ -2935,4 +2951,58 @@ function insert_nnc_face!(m::UnstructuredMesh, l::Int, r::Int)
     push!(npos, npos[end])
     @assert number_of_faces(m) == nf + 1
     return m
+end
+
+function cell_node_bounds(G::DataDomain, cell, idx = missing)
+    G_u = physical_representation(G)
+    return cell_node_bounds(G_u, cell, idx)
+end
+
+function cell_node_bounds(G::CartesianMesh, cell, idx = missing)
+    G_u = UnstructuredMesh(G)
+    return cell_node_bounds(G_u, cell, idx)
+end
+
+function cell_node_bounds(G::CoarseMesh, cell, idx = missing)
+    T = Jutul.float_type(G)
+    D = Jutul.dim(G)
+    cmin = @MVector fill(typemax(T), D)
+    cmax = @MVector fill(typemin(T), D)
+    for (idx, cblock) in enumerate(G.partition)
+        if cblock == cell
+            minval, maxval = cell_node_bounds(G.parent, idx)
+            for i in 1:D
+                cmin[i] = min(cmin[i], minval[i])
+                cmax[i] = max(cmax[i], maxval[i])
+            end
+        end
+    end
+    if ismissing(idx)
+        out = (SVector{D, T}(cmin), SVector{D, T}(cmax))
+    else
+        out = (cmin[idx], cmax[idx])
+    end
+    return out
+end
+
+function cell_node_bounds(G, cell, idx = missing)
+    D = Jutul.dim(G)
+    T = Jutul.float_type(G)
+    T_s = SVector{D, T}
+    cmin = @MVector fill(typemax(T), D)
+    cmax = @MVector fill(typemin(T), D)
+    for (e, mapper) in [(Faces(), G.faces), (BoundaryFaces(), G.boundary_faces)]
+        for f in mapper.cells_to_faces[cell]
+            c, _ = Jutul.compute_centroid_and_measure(G, e, f)
+            for i in 1:D
+                cmin[i] = min(cmin[i], c[i])
+                cmax[i] = max(cmax[i], c[i])
+            end
+        end
+    end
+    if ismissing(idx)
+        return (T_s(cmin), T_s(cmax))
+    else
+        return (cmin[idx], cmax[idx])
+    end
 end

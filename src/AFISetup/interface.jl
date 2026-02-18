@@ -43,10 +43,11 @@ function setup_case_from_afi(afi::AFIInputFile;
         step_override_is_normalized = false,
         injector_max_bhp_limit = Inf,
         producer_min_bhp_limit = si_unit(:atm),
+        cell_nz = missing,
         kwarg...
     )
     model, prm = setup_reservoir_model(afi; extra_out = true, kwarg...)
-    state0 = setup_reservoir_state(afi, model)
+    state0 = setup_reservoir_state(afi, model, cell_nz = cell_nz)
     dt, forces = setup_afi_schedule(afi, model,
         step_limit = step_limit,
         step_override = step_override,
