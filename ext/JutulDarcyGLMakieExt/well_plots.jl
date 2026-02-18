@@ -879,7 +879,7 @@ function JutulDarcy.plot_summary_impl(arg...;
         from_sys = JutulDarcy.GeoEnergyIO.InputParser.DeckUnitSystem(Symbol(lowercase(smry["UNIT_SYSTEM"])))
         to_sys = JutulDarcy.GeoEnergyIO.InputParser.DeckUnitSystem(Symbol(lowercase(units)))
         systems = (to = to_sys, from = from_sys)
-        if !ismissing(info)
+        if !ismissing(info) && v isa AbstractArray
             JutulDarcy.GeoEnergyIO.InputParser.swap_unit_system!(v, systems, info.unit_type)
         end
         return v
@@ -969,7 +969,7 @@ function JutulDarcy.plot_summary_impl(arg...;
                 for (smry_no, smry_name) in enumerate(names)
                     t = time_data(smry_no, maybe_datetime = true)
                     v = plot_data(well_or_fld, pname, smry_no, info, units)
-                    if !ismissing(info) && name != "NONE"
+                    if !ismissing(info) && name != "NONE" && v isa AbstractArray
                         # ax.title[] = "$(name) $(info.legend)"
                         _, u = well_unit_conversion(units, "", info)
                         if info.is_rate
