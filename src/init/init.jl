@@ -1194,6 +1194,9 @@ function discretize_depths(depths, min_z_cells, max_z_cells, cell_nz)
     for i in eachindex(min_z_cells, max_z_cells, depths)
         zmin = min_z_cells[i]
         zmax = max_z_cells[i]
+        if zmin > zmax 
+            @warn "Cell bounds are invalid for cell index $i: zmin ($zmin) is not less than zmax ($zmax) in multipoint initialization."
+        end
         delta = (zmax - zmin)/(cell_nz-1)
         for j in 1:cell_nz
             z = zmin + (j-1)*delta
