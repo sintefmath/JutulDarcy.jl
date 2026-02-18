@@ -208,8 +208,10 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
 
     start_ref = summary["TIME"].start_date
     start = summary["TIME"].start_date
-    if start != start_ref
-        jutul_message("HistoryMatch", "Mismatch summary: Start time in reference data ($(start_ref)) does not match start time in simulation summary ($(start)). Assuming equal start dates!")
+    if !(ismissing(start) && ismissing(start_ref))
+        if start != start_ref
+            jutul_message("HistoryMatch", "Mismatch summary: Start time in reference data ($(start_ref)) does not match start time in simulation summary ($(start)). Assuming equal start dates!")
+        end
     end
 
     mismatch = Dict{String, Float64}()
@@ -274,10 +276,13 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
                 println("$(prefix)All wells have mismatch below threshold ($threshold).")
             end
         else
+            fmt(x) = round(x, sigdigits=2)
             worstval = 0.0
             worstkey = ""
             bestval = typemax(Float64)
             bestkey = ""
+            avg = 0.0
+            n = 1
             for (k, v) in pairs(mismatch)
                 if v > worstval
                     worstval = v
@@ -287,6 +292,8 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
                     bestval = v
                     bestkey = k
                 end
+                avg += v
+                n += 1
             end
             if relative
                 fldk = "rel.$type"
@@ -295,11 +302,11 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
             end
             print("$prefix$fld $fldk: ")
             if length(bad) > 0
-                print("$(length(bad))/$(length(wells)) wells above threshold ($threshold)")
+                print("$(length(bad))/$(length(wells)) above $threshold")
             else
                 print("All wells below threshold ($threshold).")
             end
-            println(" Worst: $worstkey: $(round(worstval, sigdigits=2)), best $bestkey: $(round(bestval, sigdigits=2))")
+            println(" (avg $(fmt(avg/n))), worst: $worstkey: $(fmt(worstval)), best $bestkey: $(fmt(bestval))")
         end
     end
     return Dict(
