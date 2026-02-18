@@ -206,7 +206,7 @@ function convert_summary(s; unit_system = get(s, "UNIT_SYSTEM", "METRIC"))
             end
         end
     end
-    seconds = smry["YEARS"].*si_unit(:year)
+    seconds = s["YEARS"].*si_unit(:year)
     out["TIME"] = (start_date = get(s, "START_DATE", nothing), seconds = seconds)
     return out
 end
