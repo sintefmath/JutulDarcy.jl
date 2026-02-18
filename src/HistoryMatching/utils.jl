@@ -217,6 +217,8 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
     mismatch = Dict{String, Float64}()
     bad = String[]
     mismatch_per_step = Dict{String, Vector{Float64}}()
+    values_per_step = Dict{String, Vector{Float64}}()
+    reference_per_step = Dict{String, Vector{Float64}}()
     for w in wells
         val_ref = abs.(resample(t_ref, summary_ref["VALUES"]["WELLS"][w][fld]))
         val_sim = abs.(resample(t, summary["VALUES"]["WELLS"][w][fld]))
@@ -255,6 +257,8 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
         end
         mismatch[w] = mval
         mismatch_per_step[w] = step_mismatch
+        values_per_step[w] = val_sim
+        reference_per_step[w] = val_ref
         if mval >= threshold
             push!(bad, w)
         end
@@ -313,6 +317,8 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
         "mismatch" => mismatch,
         "bad" => bad,
         "mismatch_per_step" => mismatch_per_step,
+        "values_per_step" => values_per_step,
+        "reference_per_step" => reference_per_step,
         "seconds" => t_eval,
     )
 end
