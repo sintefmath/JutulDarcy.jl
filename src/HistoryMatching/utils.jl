@@ -241,7 +241,7 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
         if type == :mean
             mval = sum(step_mismatch)
             if relative
-                mval /= max(sum(abs.(val_ref)), no_data_threshold)
+                mval /= max(sum(abs.(val_ref)), max(no_data_threshold, 1e-12))
             else
                 mval /= max(num_ok, 1)
             end
