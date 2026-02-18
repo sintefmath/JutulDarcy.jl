@@ -184,3 +184,121 @@ function get_well_data(hm::HistoryMatch, name, quantity, data, t)
     end
     return Jutul.get_1d_interpolator(time, response, constant_dx = false, static = false)
 end
+
+function mismatch_summary(obj::HistoryMatchObjective, res::ReservoirSimResult, fld::String, threshold = 0.2; kwarg...)
+    return mismatch_summary(obj.match.summary, res.summary, fld; kwarg...)
+end
+
+function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
+        wells = keys(summary["VALUES"]["WELLS"]),
+        do_print = 0,
+        npts = 1000,
+        no_data_threshold = ifelse(fld == "WBHP", si_unit(:atm), 1e-10),
+        relative = true,
+        type = :mean
+    )
+    t_ref = summary_ref["TIME"].seconds
+    t = summary["TIME"].seconds
+
+    t_eval = range(0.0, stop = t[end], length = npts)
+    function resample(t, val)
+        return Jutul.get_1d_interpolator(t, val).(t_eval)
+    end
+
+    start_ref = summary["TIME"].start_date
+    start = summary["TIME"].start_date
+    if start != start_ref
+        jutul_message("HistoryMatch", "Mismatch summary: Start time in reference data ($(start_ref)) does not match start time in simulation summary ($(start)). Assuming equal start dates!")
+    end
+
+    mismatch = Dict{String, Float64}()
+    bad = String[]
+    mismatch_per_step = Dict{String, Vector{Float64}}()
+    for w in wells
+        val_ref = abs.(resample(t_ref, summary_ref["VALUES"]["WELLS"][w][fld]))
+        val_sim = abs.(resample(t, summary["VALUES"]["WELLS"][w][fld]))
+
+        step_mismatch = zeros(length(val_ref))
+        num_ok = 0
+        for i in eachindex(val_ref)
+            if abs(val_ref[i]) < no_data_threshold || !isfinite(val_ref[i])
+                continue
+            end
+            step_mismatch[i] = abs(val_sim[i] - val_ref[i])
+            num_ok += 1
+        end
+        if type == :mean
+            mval = sum(step_mismatch)
+            if relative
+                mval /= max(sum(abs.(val_ref)), no_data_threshold)
+            else
+                mval /= max(num_ok, 1)
+            end
+        elseif type == :max
+            if relative
+                worst = 0.0
+                for i in eachindex(step_mismatch)
+                    v = val_sim[i]/val_ref[i]
+                    if v > worst
+                        worst = v
+                    end
+                end
+                mval = worst
+            else
+                mval = maximum(step_mismatch)
+            end
+        else
+            error("Unknown mismatch type '$type'. Supported types are :mean and :max.")
+        end
+        mismatch[w] = mval
+        mismatch_per_step[w] = step_mismatch
+        if mval >= threshold
+            push!(bad, w)
+        end
+    end
+    prt = Int(do_print)
+    if prt > 0
+        if prt > 1
+            # Potentially very detailed printout
+            println("Mismatch summary for field '$fld':")
+            if length(bad) > 0
+                println("Wells with mismatch above threshold ($threshold): ", join(bad, ", "))
+                if prt > 2
+                    for w in bad
+                        mval = mismatch[w]
+                        println("  $w: $mval")
+                    end
+                end
+            else
+                println("All wells have mismatch below threshold ($threshold).")
+            end
+        else
+            worstval = 0.0
+            worstkey = ""
+            for (k, v) in pairs(mismatch)
+                if v > worstval
+                    worstval = v
+                    worstkey = k
+                end
+            end
+            if relative
+                fldk = "rel.$type"
+            else
+                fldk = type
+            end
+            print("$fld $fldk: ")
+            if length(bad) > 0
+                print("$(length(bad)) wells above threshold ($threshold) out of $(length(wells))")
+            else
+                print("All wells below threshold ($threshold).")
+            end
+            println(" Worst mismatch: $worstkey with mismatch $worstval.")
+        end
+    end
+    return Dict(
+        "mismatch" => mismatch,
+        "bad" => bad,
+        "mismatch_per_step" => mismatch_per_step,
+        "seconds" => t_eval,
+    )
+end
