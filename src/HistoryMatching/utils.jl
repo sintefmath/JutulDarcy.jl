@@ -193,7 +193,7 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
         wells = keys(summary["VALUES"]["WELLS"]),
         do_print = 0,
         npts = 1000,
-        no_data_threshold = ifelse(fld == "WBHP", si_unit(:atm), 1e-10),
+        no_data_threshold = ifelse(fld == "WBHP", si_unit(:atm), 0.0),
         relative = true,
         type = :mean,
         prefix = ""
@@ -219,9 +219,15 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
     mismatch_per_step = Dict{String, Vector{Float64}}()
     values_per_step = Dict{String, Vector{Float64}}()
     reference_per_step = Dict{String, Vector{Float64}}()
+    wells = intersect(wells, keys(summary_ref["VALUES"]["WELLS"]), keys(summary["VALUES"]["WELLS"]))
     for w in wells
-        val_ref = abs.(resample(t_ref, summary_ref["VALUES"]["WELLS"][w][fld]))
-        val_sim = abs.(resample(t, summary["VALUES"]["WELLS"][w][fld]))
+        r = summary_ref["VALUES"]["WELLS"][w]
+        s = summary["VALUES"]["WELLS"][w]
+        if !haskey(r, fld) || !haskey(s, fld)
+            continue
+        end
+        val_ref = abs.(resample(t_ref, r[fld]))
+        val_sim = abs.(resample(t, s[fld]))
 
         step_mismatch = zeros(length(val_ref))
         num_ok = 0
