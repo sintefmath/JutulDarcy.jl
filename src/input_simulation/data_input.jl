@@ -71,6 +71,7 @@ function setup_case_from_parsed_data(datafile;
         convert_co2store = true,
         repair_zcorn = true,
         process_pinch = true,
+        cell_nz = 1,
         kwarg...
     )
     function msg(s)
@@ -227,7 +228,7 @@ function setup_case_from_parsed_data(datafile;
         forces = parse_forces(model, datafile, sys, wells, controls, limits, cstep, dt, well_forces)
     end
     msg("Setting up initial state.")
-    state0 = parse_state0(model, datafile, normalize = normalize)
+    state0 = parse_state0(model, datafile, normalize = normalize, cell_nz = cell_nz)
     msg("Setting up parameters.")
     parameters = setup_parameters(model)
     if haskey(props, "SWL")
@@ -643,14 +644,14 @@ function parse_forces(model, datafile, sys, wells, controls, limits, cstep, dt, 
     return forces[cstep]
 end
 
-function parse_state0(model, datafile; normalize = true)
+function parse_state0(model, datafile; normalize = true, cell_nz = 1)
     rmodel = reservoir_model(model)
     reservoir = reservoir_domain(rmodel)
     init = Dict{Symbol, Any}()
     sol = datafile["SOLUTION"]
 
     if haskey(sol, "EQUIL")
-        init = parse_state0_equil(rmodel, datafile; normalize = normalize)
+        init = parse_state0_equil(rmodel, datafile; normalize = normalize, cell_nz = cell_nz)
     else
         init = parse_state0_direct_assignment(rmodel, datafile)
     end

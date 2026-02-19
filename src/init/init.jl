@@ -365,7 +365,7 @@ function equilibrium_phase_density(p, z, ph, rho, T_z, fake_state, model, rs, rv
     return phase_density
 end
 
-function parse_state0_equil(model, datafile; normalize = :sum)
+function parse_state0_equil(model, datafile; normalize = :sum, cell_nz = 1)
     sys = model.system
     d = model.data_domain
 
@@ -689,6 +689,7 @@ function parse_state0_equil(model, datafile; normalize = :sum)
                         rs = rs,
                         rv = rv,
                         pc = pc,
+                        cell_nz = cell_nz,
                         output_pressures = true,
                         extra_arg...
                     )
