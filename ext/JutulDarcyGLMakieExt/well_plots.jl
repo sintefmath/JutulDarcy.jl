@@ -889,12 +889,12 @@ function JutulDarcy.plot_summary_impl(arg...;
     start_dates = map(s -> s["TIME"].start_date, summaries)
     filtered_start_dates = copy(start_dates)
     unique!(filter!(x -> !isnothing(x) && !ismissing(x), filtered_start_dates))
-    t_offsets = zeros(length(summaries))
+    has_missing = length(filtered_start_dates) < length(start_dates)
     if length(filtered_start_dates) == 0
         start_date = nothing
     else
         start_date = first(filtered_start_dates)
-        if length(filtered_start_dates) > 1
+        if has_missing
             println("Note: Multiple distinct start dates ($start_dates) found in summaries, using first entry as the base for values without dates.")
             for (i, s) in enumerate(summaries)
                 if isnothing(s["TIME"].start_date) || ismissing(s["TIME"].start_date)
