@@ -854,7 +854,7 @@ function JutulDarcy.plot_summary_impl(arg...;
         smry = summaries[idx]
         t = smry["TIME"].seconds
         if maybe_datetime && !isnothing(start_date)
-            out = start_date .+ @. Microsecond(ceil(t*1e6))
+            out = start_dates[idx] .+ @. Microsecond(ceil(t*1e6))
         else
             out = t./si_unit(:day)
         end
@@ -887,14 +887,21 @@ function JutulDarcy.plot_summary_impl(arg...;
 
     # Set up time labels
     start_dates = map(s -> s["TIME"].start_date, summaries)
-    unique!(filter!(x -> !isnothing(x) && !ismissing(x), start_dates))
-    if length(start_dates) == 0
+    filtered_start_dates = copy(start_dates)
+    unique!(filter!(x -> !isnothing(x) && !ismissing(x), filtered_start_dates))
+    t_offsets = zeros(length(summaries))
+    if length(filtered_start_dates) == 0
         start_date = nothing
     else
-        if length(start_dates) > 1
-            println("Note: Multiple distinct start dates ($start_dates) found in summaries, using first entry.")
+        start_date = first(filtered_start_dates)
+        if length(filtered_start_dates) > 1
+            println("Note: Multiple distinct start dates ($start_dates) found in summaries, using first entry as the base for values without dates.")
+            for (i, s) in enumerate(summaries)
+                if isnothing(s["TIME"].start_date) || ismissing(s["TIME"].start_date)
+                    start_dates[i] = start_date
+                end
+            end
         end
-        start_date = first(start_dates)
     end
     # Max time - in days
     t_max = maximum(x -> maximum(time_data(x)), eachindex(summaries))
