@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Gravity segregation · JutulDarcy.jl</title><meta name="title" content="Gravity segregation · JutulDarcy.jl"/><meta property="og:title" content="Gravity segregation · JutulDarcy.jl"/><meta property="twitter:title" content="Gravity segregation · JutulDarcy.jl"/><meta name="description" content="Documentation for JutulDarcy.jl."/><meta property="og:description" content="Documentation for JutulDarcy.jl."/><meta property="twitter:description" content="Documentation for JutulDarcy.jl."/><meta property="og:url" content="https://sintefmath.github.io/JutulDarcy.jl/examples/two_phase_gravity_segregation/"/><meta property="twitter:url" content="https://sintefmath.github.io/JutulDarcy.jl/examples/two_phase_gravity_segregation/"/><link rel="canonical" href="https://sintefmath.github.io/JutulDarcy.jl/examples/two_phase_gravity_segregation/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/citations.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="JutulDarcy.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">JutulDarcy.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><span class="tocitem">Introduction</span><ul><li><a class="tocitem" href="../../">JutulDarcy.jl</a></li><li><a class="tocitem" href="../../man/intro/">Getting started</a></li></ul></li><li><span class="tocitem">Examples</span><ul><li class="is-active"><a class="tocitem" href>Gravity segregation</a><ul class="internal"><li><a class="tocitem" href="#Problem-set-up"><span>Problem set up</span></a></li><li><a class="tocitem" href="#Fluid-properties"><span>Fluid properties</span></a></li><li><a class="tocitem" href="#Plot-results"><span>Plot results</span></a></li><li><a class="tocitem" href="#Example-on-GitHub"><span>Example on GitHub</span></a></li></ul></li><li><a class="tocitem" href="../two_phase_buckley_leverett/">Two-phase Buckley-Leverett</a></li><li><a class="tocitem" href="../two_phase_unstable_gravity/">Gravity circulation with CPR preconditioner</a></li><li><a class="tocitem" href="../wells_intro/">Intro to wells</a></li><li><a class="tocitem" href="../co2_sloped/">CO2 injection in saline aquifer</a></li><li><a class="tocitem" href="../data_input_file/">Simulating Eclipse/DATA input files</a></li><li><a class="tocitem" href="../five_spot_ensemble/">Quarter-five-spot with variation</a></li><li><a class="tocitem" href="../co2_brine_2d_vertical/">Intro to compositional flow</a></li><li><a class="tocitem" href="../compositional_5components/">Compositional with five components</a></li><li><a class="tocitem" href="../optimize_simple_bl/">Parameter optimization of Buckley-Leverett</a></li><li><a class="tocitem" href="../validation_spe1/">Validation: SPE1</a></li><li><a class="tocitem" href="../validation_spe9/">Validation: SPE9</a></li><li><a class="tocitem" href="../validation_egg/">Validation: Egg</a></li><li><a class="tocitem" href="../validation_olympus_1/">Validation: OLYMPUS 1</a></li><li><a class="tocitem" href="../validation_norne_nohyst/">Validation: Norne</a></li><li><a class="tocitem" href="../validation_mrst/">Validation: MRST input files</a></li></ul></li><li><span class="tocitem">Manual</span><ul><li><a class="tocitem" href="../../man/highlevel/">High-level API</a></li><li><a class="tocitem" href="../../man/basics/input_files/">Input formats</a></li><li><a class="tocitem" href="../../man/basics/forces/">Driving forces</a></li><li><a class="tocitem" href="../../man/basics/systems/">Supported physical systems</a></li><li><a class="tocitem" href="../../man/basics/wells/">Wells and controls</a></li><li><a class="tocitem" href="../../man/basics/solution/">Solving the equations</a></li><li><a class="tocitem" href="../../man/basics/primary/">Primary variables</a></li><li><a class="tocitem" href="../../man/basics/secondary/">Secondary variables (properties)</a></li><li><a class="tocitem" href="../../man/basics/parameters/">Parameters</a></li><li><a class="tocitem" href="../../man/basics/plotting/">Plotting and visualization</a></li></ul></li><li><span class="tocitem">Advanced usage</span><ul><li><a class="tocitem" href="../../man/advanced/mpi/">Multi-threading and MPI support</a></li><li><a class="tocitem" href="../../man/advanced/compiled/">Standalone reservoir simulator</a></li></ul></li><li><span class="tocitem">Reference</span><ul><li><a class="tocitem" href="../../ref/jutul/">Jutul functions</a></li></ul></li><li><span class="tocitem">Additional information </span><ul><li><a class="tocitem" href="../../extras/refs/">References</a></li><li><a class="tocitem" href="../../extras/faq/">FAQ</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Gravity segregation</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Gravity segregation</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/two_phase_gravity_segregation.jl#" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Gravity-segregation-example"><a class="docs-heading-anchor" href="#Gravity-segregation-example">Gravity segregation example</a><a id="Gravity-segregation-example-1"></a><a class="docs-heading-anchor-permalink" href="#Gravity-segregation-example" title="Permalink"></a></h1><p>The simplest type of porous media simulation problem to set up that is not trivial is the transition to equilibrium from an unstable initial condition. Placing a heavy fluid on top of a lighter fluid will lead to the heavy fluid moving down while the lighter fluid moves up.</p><h2 id="Problem-set-up"><a class="docs-heading-anchor" href="#Problem-set-up">Problem set up</a><a id="Problem-set-up-1"></a><a class="docs-heading-anchor-permalink" href="#Problem-set-up" title="Permalink"></a></h2><p>We define a simple 1D gravity column with an approximate 10-1 ratio in density between the two compressible phases and let it simulate until equilibrium is reached.</p><pre><code class="language-julia hljs">using JutulDarcy, Jutul
+nc = 100
+Darcy, bar, kg, meter, day = si_units(:darcy, :bar, :kilogram, :meter, :day)
+
+g = CartesianMesh((1, 1, nc), (1.0, 1.0, 10.0))
+domain = reservoir_domain(g, permeability = 1.0*Darcy)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">DataDomain wrapping CartesianMesh (3D) with 1x1x100=100 cells with 17 data fields added:
+  100 Cells
+    :permeability =&gt; 100 Vector{Float64}
+    :porosity =&gt; 100 Vector{Float64}
+    :rock_thermal_conductivity =&gt; 100 Vector{Float64}
+    :fluid_thermal_conductivity =&gt; 100 Vector{Float64}
+    :rock_density =&gt; 100 Vector{Float64}
+    :cell_centroids =&gt; 3×100 Matrix{Float64}
+    :volumes =&gt; 100 Vector{Float64}
+  99 Faces
+    :neighbors =&gt; 2×99 Matrix{Int64}
+    :areas =&gt; 99 Vector{Float64}
+    :normals =&gt; 3×99 Matrix{Float64}
+    :face_centroids =&gt; 3×99 Matrix{Float64}
+  198 HalfFaces
+    :half_face_cells =&gt; 198 Vector{Int64}
+    :half_face_faces =&gt; 198 Vector{Int64}
+  402 BoundaryFaces
+    :boundary_areas =&gt; 402 Vector{Float64}
+    :boundary_centroids =&gt; 3×402 Matrix{Float64}
+    :boundary_normals =&gt; 3×402 Matrix{Float64}
+    :boundary_neighbors =&gt; 402 Vector{Int64}
+</code></pre><h2 id="Fluid-properties"><a class="docs-heading-anchor" href="#Fluid-properties">Fluid properties</a><a id="Fluid-properties-1"></a><a class="docs-heading-anchor-permalink" href="#Fluid-properties" title="Permalink"></a></h2><p>Define two phases liquid and vapor with a 10-1 ratio reference densities and set up the simulation model.</p><pre><code class="language-julia hljs">p0 = 100*bar
+
+rhoLS = 1000.0*kg/meter^3
+rhoVS = 100.0*kg/meter^3
+cl, cv = 1e-5/bar, 1e-4/bar
+L, V = LiquidPhase(), VaporPhase()
+sys = ImmiscibleSystem([L, V])
+model = SimulationModel(domain, sys)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">SimulationModel:
+
+  Model with 200 degrees of freedom, 200 equations and 498 parameters
+
+  domain:
+    DiscretizedDomain with MinimalTPFATopology (100 cells, 99 faces) and discretizations for mass_flow, heat_flow
+
+  system:
+    ImmiscibleSystem with LiquidPhase, VaporPhase
+
+  context:
+    DefaultContext(EquationMajorLayout(false), 1000, 1)
+
+  formulation:
+    FullyImplicitFormulation()
+
+  data_domain:
+    DataDomain wrapping CartesianMesh (3D) with 1x1x100=100 cells with 17 data fields added:
+  100 Cells
+    :permeability =&gt; 100 Vector{Float64}
+    :porosity =&gt; 100 Vector{Float64}
+    :rock_thermal_conductivity =&gt; 100 Vector{Float64}
+    :fluid_thermal_conductivity =&gt; 100 Vector{Float64}
+    :rock_density =&gt; 100 Vector{Float64}
+    :cell_centroids =&gt; 3×100 Matrix{Float64}
+    :volumes =&gt; 100 Vector{Float64}
+  99 Faces
+    :neighbors =&gt; 2×99 Matrix{Int64}
+    :areas =&gt; 99 Vector{Float64}
+    :normals =&gt; 3×99 Matrix{Float64}
+    :face_centroids =&gt; 3×99 Matrix{Float64}
+  198 HalfFaces
+    :half_face_cells =&gt; 198 Vector{Int64}
+    :half_face_faces =&gt; 198 Vector{Int64}
+  402 BoundaryFaces
+    :boundary_areas =&gt; 402 Vector{Float64}
+    :boundary_centroids =&gt; 3×402 Matrix{Float64}
+    :boundary_normals =&gt; 3×402 Matrix{Float64}
+    :boundary_neighbors =&gt; 402 Vector{Int64}
+
+  primary_variables:
+   1) Pressure    ∈ 100 Cells: 1 dof each
+   2) Saturations ∈ 100 Cells: 1 dof, 2 values each
+
+  secondary_variables:
+   1) PhaseMassDensities     ∈ 100 Cells: 2 values each
+      -&gt; ConstantCompressibilityDensities as evaluator
+   2) TotalMasses            ∈ 100 Cells: 2 values each
+      -&gt; TotalMasses as evaluator
+   3) RelativePermeabilities ∈ 100 Cells: 2 values each
+      -&gt; BrooksCoreyRelativePermeabilities as evaluator
+   4) PhaseMobilities        ∈ 100 Cells: 2 values each
+      -&gt; JutulDarcy.PhaseMobilities as evaluator
+   5) PhaseMassMobilities    ∈ 100 Cells: 2 values each
+      -&gt; JutulDarcy.PhaseMassMobilities as evaluator
+
+  parameters:
+   1) Transmissibilities        ∈ 99 Faces: Scalar
+   2) TwoPointGravityDifference ∈ 99 Faces: Scalar
+   3) PhaseViscosities          ∈ 100 Cells: 2 values each
+   4) FluidVolume               ∈ 100 Cells: Scalar
+
+  equations:
+   1) mass_conservation ∈ 100 Cells: 2 values each
+      -&gt; ConservationLaw{:TotalMasses, TwoPointPotentialFlowHardCoded{Vector{Int64}, Vector{@NamedTuple{self::Int64, other::Int64, face::Int64, face_sign::Int64}}}, Jutul.DefaultFlux, 2}
+
+  output_variables:
+    Pressure, Saturations, TotalMasses
+
+  extra:
+    OrderedCollections.OrderedDict{Symbol, Any} with keys: Symbol[]
+</code></pre><h3 id="Definition-for-phase-mass-densities"><a class="docs-heading-anchor" href="#Definition-for-phase-mass-densities">Definition for phase mass densities</a><a id="Definition-for-phase-mass-densities-1"></a><a class="docs-heading-anchor-permalink" href="#Definition-for-phase-mass-densities" title="Permalink"></a></h3><p>Replace default density with a constant compressibility function that uses the reference values at the initial pressure.</p><pre><code class="language-julia hljs">density = ConstantCompressibilityDensities(sys, p0, [rhoLS, rhoVS], [cl, cv])
+set_secondary_variables!(model, PhaseMassDensities = density)</code></pre><h3 id="Set-up-initial-state"><a class="docs-heading-anchor" href="#Set-up-initial-state">Set up initial state</a><a id="Set-up-initial-state-1"></a><a class="docs-heading-anchor-permalink" href="#Set-up-initial-state" title="Permalink"></a></h3><p>Put heavy phase on top and light phase on bottom. Saturations have one value per phase, per cell and consequently a per-cell instantiation will require a two by number of cells matrix as input.</p><pre><code class="language-julia hljs">nl = nc ÷ 2
+sL = vcat(ones(nl), zeros(nc - nl))&#39;
+s0 = vcat(sL, 1 .- sL)
+state0 = setup_state(model, Pressure = p0, Saturations = s0)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Dict{Symbol, Any} with 7 entries:
+  :PhaseMassMobilities    =&gt; [0.0 0.0 … 0.0 0.0; 0.0 0.0 … 0.0 0.0]
+  :PhaseMassDensities     =&gt; [0.0 0.0 … 0.0 0.0; 0.0 0.0 … 0.0 0.0]
+  :RelativePermeabilities =&gt; [0.5 0.5 … 0.5 0.5; 0.5 0.5 … 0.5 0.5]
+  :Saturations            =&gt; [1.0 1.0 … 0.0 0.0; 0.0 0.0 … 1.0 1.0]
+  :Pressure               =&gt; [1.0e7, 1.0e7, 1.0e7, 1.0e7, 1.0e7, 1.0e7, 1.0e7, …
+  :TotalMasses            =&gt; [0.0 0.0 … 0.0 0.0; 0.0 0.0 … 0.0 0.0]
+  :PhaseMobilities        =&gt; [0.0 0.0 … 0.0 0.0; 0.0 0.0 … 0.0 0.0]</code></pre><p>Convert time-steps from days to seconds</p><pre><code class="language-julia hljs">timesteps = repeat([0.02]*day, 150)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">150-element Vector{Float64}:
+ 1728.0
+ 1728.0
+ 1728.0
+ 1728.0
+ 1728.0
+ 1728.0
+ 1728.0
+ 1728.0
+ 1728.0
+ 1728.0
+    ⋮
+ 1728.0
+ 1728.0
+ 1728.0
+ 1728.0
+ 1728.0
+ 1728.0
+ 1728.0
+ 1728.0
+ 1728.0</code></pre><pre><code class="language-julia hljs"># Perform simulation
+states, report = simulate(state0, model, timesteps, info_level = -1)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">SimResult with 150 entries:
+
+  states (model variables)
+    :Saturations =&gt; Matrix{Float64} of size (2, 100)
+    :Pressure =&gt; Vector{Float64} of size (100,)
+    :TotalMasses =&gt; Matrix{Float64} of size (2, 100)
+
+  reports (timing/debug information)
+    :ministeps =&gt; Vector{Any} of size (1,)
+    :total_time =&gt; Float64
+    :output_time =&gt; Float64
+
+  Completed at Jun. 25 2024 17:06 after 109 milliseconds, 805 microseconds, 242 nanoseconds.</code></pre><h2 id="Plot-results"><a class="docs-heading-anchor" href="#Plot-results">Plot results</a><a id="Plot-results-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-results" title="Permalink"></a></h2><p>The 1D nature of the problem allows us to plot all timesteps simultaneously in 2D. We see that the heavy fluid, colored blue, is initially at the top of the domain and the lighter fluid is at the bottom. These gradually switch places until all the heavy fluid is at the lower part of the column.</p><pre><code class="language-julia hljs">using GLMakie
+tmp = vcat(map((x) -&gt; x[:Saturations][1, :]&#39;, states)...)
+f = Figure()
+ax = Axis(f[1, 1], xlabel = &quot;Time&quot;, ylabel = &quot;Depth&quot;, title = &quot;Gravity segregation&quot;)
+hm = heatmap!(ax, tmp, colormap = :seismic)
+Colorbar(f[1, 2], hm)
+f</code></pre><img src="4d3c08cb.png" alt="Example block output"/><h2 id="Example-on-GitHub"><a class="docs-heading-anchor" href="#Example-on-GitHub">Example on GitHub</a><a id="Example-on-GitHub-1"></a><a class="docs-heading-anchor-permalink" href="#Example-on-GitHub" title="Permalink"></a></h2><p>If you would like to run this example yourself, it can be downloaded from the JutulDarcy.jl GitHub repository <a href="https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/two_phase_gravity_segregation.jl">as a script</a>, or as a <a href="https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/examples/two_phase_gravity_segregation.ipynb">Notebook</a></p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../man/intro/">« Getting started</a><a class="docs-footer-nextpage" href="../two_phase_buckley_leverett/">Two-phase Buckley-Leverett »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.4.1 on <span class="colophon-date" title="Tuesday 25 June 2024 17:21">Tuesday 25 June 2024</span>. Using Julia version 1.10.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

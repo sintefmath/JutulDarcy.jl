@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Validation: Compositional · JutulDarcy.jl</title><meta name="title" content="Validation: Compositional · JutulDarcy.jl"/><meta property="og:title" content="Validation: Compositional · JutulDarcy.jl"/><meta property="twitter:title" content="Validation: Compositional · JutulDarcy.jl"/><meta name="description" content="Documentation for JutulDarcy.jl."/><meta property="og:description" content="Documentation for JutulDarcy.jl."/><meta property="twitter:description" content="Documentation for JutulDarcy.jl."/><meta property="og:url" content="https://sintefmath.github.io/JutulDarcy.jl/examples/validation_compositional/"/><meta property="twitter:url" content="https://sintefmath.github.io/JutulDarcy.jl/examples/validation_compositional/"/><link rel="canonical" href="https://sintefmath.github.io/JutulDarcy.jl/examples/validation_compositional/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/citations.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="JutulDarcy.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">JutulDarcy.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><span class="tocitem">Introduction</span><ul><li><a class="tocitem" href="../../">JutulDarcy.jl</a></li><li><a class="tocitem" href="../../man/intro/">Getting started</a></li></ul></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../two_phase_gravity_segregation/">Gravity segregation</a></li><li><a class="tocitem" href="../two_phase_buckley_leverett/">Two-phase Buckley-Leverett</a></li><li><a class="tocitem" href="../two_phase_unstable_gravity/">Gravity circulation with CPR preconditioner</a></li><li><a class="tocitem" href="../wells_intro/">Intro to wells</a></li><li><a class="tocitem" href="../intro_sensitivities/">Intro to sensitivities in JutulDarcy</a></li><li><a class="tocitem" href="../co2_sloped/">CO2 injection in saline aquifer</a></li><li><a class="tocitem" href="../data_input_file/">Simulating Eclipse/DATA input files</a></li><li><a class="tocitem" href="../five_spot_ensemble/">Quarter-five-spot with variation</a></li><li><a class="tocitem" href="../co2_brine_2d_vertical/">Intro to compositional flow</a></li><li><a class="tocitem" href="../compositional_5components/">Compositional with five components</a></li><li><a class="tocitem" href="../optimize_simple_bl/">Parameter optimization of Buckley-Leverett</a></li><li><a class="tocitem" href="../validation_spe1/">Validation: SPE1</a></li><li><a class="tocitem" href="../validation_spe9/">Validation: SPE9</a></li><li class="is-active"><a class="tocitem" href>Validation: Compositional</a><ul class="internal"><li><a class="tocitem" href="#Plot-solutions-and-compare"><span>Plot solutions and compare</span></a></li><li><a class="tocitem" href="#Calculate-sensitivities"><span>Calculate sensitivities</span></a></li><li><a class="tocitem" href="#Example-on-GitHub"><span>Example on GitHub</span></a></li></ul></li><li><a class="tocitem" href="../validation_egg/">Validation: Egg</a></li><li><a class="tocitem" href="../validation_olympus_1/">Validation: OLYMPUS 1</a></li><li><a class="tocitem" href="../validation_norne_nohyst/">Validation: Norne</a></li><li><a class="tocitem" href="../validation_mrst/">Validation: MRST input files</a></li></ul></li><li><span class="tocitem">Manual</span><ul><li><a class="tocitem" href="../../man/highlevel/">High-level API</a></li><li><a class="tocitem" href="../../man/basics/input_files/">Input formats</a></li><li><a class="tocitem" href="../../man/basics/forces/">Driving forces</a></li><li><a class="tocitem" href="../../man/basics/systems/">Supported physical systems</a></li><li><a class="tocitem" href="../../man/basics/wells/">Wells and controls</a></li><li><a class="tocitem" href="../../man/basics/solution/">Solving the equations</a></li><li><a class="tocitem" href="../../man/basics/primary/">Primary variables</a></li><li><a class="tocitem" href="../../man/basics/secondary/">Secondary variables (properties)</a></li><li><a class="tocitem" href="../../man/basics/parameters/">Parameters</a></li><li><a class="tocitem" href="../../man/basics/plotting/">Plotting and visualization</a></li></ul></li><li><span class="tocitem">Advanced usage</span><ul><li><a class="tocitem" href="../../man/advanced/mpi/">Multi-threading and MPI support</a></li><li><a class="tocitem" href="../../man/advanced/compiled/">Standalone reservoir simulator</a></li></ul></li><li><span class="tocitem">Reference</span><ul><li><a class="tocitem" href="../../ref/jutul/">Jutul functions</a></li></ul></li><li><span class="tocitem">Additional information </span><ul><li><a class="tocitem" href="../../extras/refs/">References</a></li><li><a class="tocitem" href="../../extras/faq/">FAQ</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Validation: Compositional</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Validation: Compositional</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/validation_compositional.jl#" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Validation-of-equation-of-state-compositiona-simulator"><a class="docs-heading-anchor" href="#Validation-of-equation-of-state-compositiona-simulator">Validation of equation-of-state compositiona simulator</a><a id="Validation-of-equation-of-state-compositiona-simulator-1"></a><a class="docs-heading-anchor-permalink" href="#Validation-of-equation-of-state-compositiona-simulator" title="Permalink"></a></h1><p>This example solves a 1D problem and compares against existing simulators (E300, AD-GPRS) to verify correctness.</p><p>The case is loaded from an input file that can be run in other simulators. For convenience, we provide solutions from the other simulators as a binary file.</p><pre><code class="language-julia hljs">using JutulDarcy
+using Jutul
+using GLMakie
+dpth = JutulDarcy.GeoEnergyIO.test_input_file_path(&quot;SIMPLE_COMP&quot;)
+data_path = joinpath(dpth, &quot;SIMPLE_COMP.DATA&quot;)
+case = setup_case_from_data_file(data_path)
+result = simulate_reservoir(case)
+ws, states = result;</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps   0%  ETA: 0:27:42</span>
+<span class="sgr34">  Progress:  Solving step 2/500 (0.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     4 iterations in 5.22 s (1.31 s each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps   1%  ETA: 0:18:46</span>
+<span class="sgr34">  Progress:  Solving step 3/500 (0.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     9 iterations in 5.34 s (593.54 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps   1%  ETA: 0:11:24</span>
+<span class="sgr34">  Progress:  Solving step 5/500 (0.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     15 iterations in 5.45 s (363.35 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps   2%  ETA: 0:07:13</span>
+<span class="sgr34">  Progress:  Solving step 8/500 (0.02% of time interval complete)</span>
+<span class="sgr34">  Stats:     22 iterations in 5.58 s (253.60 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps   2%  ETA: 0:05:19</span>
+<span class="sgr34">  Progress:  Solving step 11/500 (0.04% of time interval complete)</span>
+<span class="sgr34">  Stats:     29 iterations in 5.71 s (196.89 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps   3%  ETA: 0:04:33</span>
+<span class="sgr34">  Progress:  Solving step 13/500 (0.07% of time interval complete)</span>
+<span class="sgr34">  Stats:     36 iterations in 5.84 s (162.22 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps   3%  ETA: 0:03:45</span>
+<span class="sgr34">  Progress:  Solving step 16/500 (0.21% of time interval complete)</span>
+<span class="sgr34">  Stats:     44 iterations in 5.99 s (136.11 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps   4%  ETA: 0:03:23</span>
+<span class="sgr34">  Progress:  Solving step 18/500 (0.35% of time interval complete)</span>
+<span class="sgr34">  Stats:     50 iterations in 6.10 s (122.09 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps   4%  ETA: 0:02:56</span>
+<span class="sgr34">  Progress:  Solving step 21/500 (0.56% of time interval complete)</span>
+<span class="sgr34">  Stats:     58 iterations in 6.25 s (107.82 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps   5%  ETA: 0:02:42</span>
+<span class="sgr34">  Progress:  Solving step 23/500 (0.70% of time interval complete)</span>
+<span class="sgr34">  Stats:     64 iterations in 6.37 s (99.47 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps   5%  ETA: 0:02:25</span>
+<span class="sgr34">  Progress:  Solving step 26/500 (0.91% of time interval complete)</span>
+<span class="sgr34">  Stats:     71 iterations in 6.50 s (91.55 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps   6%  ETA: 0:02:11</span>
+<span class="sgr34">  Progress:  Solving step 29/500 (1.40% of time interval complete)</span>
+<span class="sgr34">  Stats:     78 iterations in 6.63 s (85.03 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps   6%  ETA: 0:02:04</span>
+<span class="sgr34">  Progress:  Solving step 31/500 (1.82% of time interval complete)</span>
+<span class="sgr34">  Stats:     85 iterations in 6.77 s (79.59 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps   7%  ETA: 0:01:54</span>
+<span class="sgr34">  Progress:  Solving step 35/500 (2.65% of time interval complete)</span>
+<span class="sgr34">  Stats:     98 iterations in 7.00 s (71.45 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps   7%  ETA: 0:01:49</span>
+<span class="sgr34">  Progress:  Solving step 37/500 (3.07% of time interval complete)</span>
+<span class="sgr34">  Stats:     104 iterations in 7.11 s (68.40 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps   8%  ETA: 0:01:42</span>
+<span class="sgr34">  Progress:  Solving step 40/500 (3.70% of time interval complete)</span>
+<span class="sgr34">  Stats:     112 iterations in 7.26 s (64.81 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps   9%  ETA: 0:01:36</span>
+<span class="sgr34">  Progress:  Solving step 43/500 (4.33% of time interval complete)</span>
+<span class="sgr34">  Stats:     120 iterations in 7.40 s (61.70 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps   9%  ETA: 0:01:30</span>
+<span class="sgr34">  Progress:  Solving step 46/500 (4.96% of time interval complete)</span>
+<span class="sgr34">  Stats:     127 iterations in 7.53 s (59.31 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  10%  ETA: 0:01:25</span>
+<span class="sgr34">  Progress:  Solving step 49/500 (5.58% of time interval complete)</span>
+<span class="sgr34">  Stats:     135 iterations in 7.68 s (56.88 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  10%  ETA: 0:01:23</span>
+<span class="sgr34">  Progress:  Solving step 51/500 (6.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     141 iterations in 7.79 s (55.23 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  11%  ETA: 0:01:19</span>
+<span class="sgr34">  Progress:  Solving step 54/500 (6.63% of time interval complete)</span>
+<span class="sgr34">  Stats:     148 iterations in 7.91 s (53.48 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  11%  ETA: 0:01:16</span>
+<span class="sgr34">  Progress:  Solving step 56/500 (7.05% of time interval complete)</span>
+<span class="sgr34">  Stats:     154 iterations in 8.02 s (52.10 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  12%  ETA: 0:01:14</span>
+<span class="sgr34">  Progress:  Solving step 58/500 (7.47% of time interval complete)</span>
+<span class="sgr34">  Stats:     160 iterations in 8.16 s (50.97 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  12%  ETA: 0:01:12</span>
+<span class="sgr34">  Progress:  Solving step 60/500 (7.89% of time interval complete)</span>
+<span class="sgr34">  Stats:     166 iterations in 8.26 s (49.79 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  13%  ETA: 0:01:09</span>
+<span class="sgr34">  Progress:  Solving step 63/500 (8.52% of time interval complete)</span>
+<span class="sgr34">  Stats:     174 iterations in 8.41 s (48.34 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  13%  ETA: 0:01:07</span>
+<span class="sgr34">  Progress:  Solving step 66/500 (9.14% of time interval complete)</span>
+<span class="sgr34">  Stats:     181 iterations in 8.54 s (47.18 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  14%  ETA: 0:01:04</span>
+<span class="sgr34">  Progress:  Solving step 69/500 (9.77% of time interval complete)</span>
+<span class="sgr34">  Stats:     189 iterations in 8.69 s (45.96 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  14%  ETA: 0:01:02</span>
+<span class="sgr34">  Progress:  Solving step 72/500 (10.40% of time interval complete)</span>
+<span class="sgr34">  Stats:     196 iterations in 8.81 s (44.97 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  15%  ETA: 0:01:00</span>
+<span class="sgr34">  Progress:  Solving step 75/500 (11.03% of time interval complete)</span>
+<span class="sgr34">  Stats:     203 iterations in 8.94 s (44.06 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  16%  ETA: 0:00:58</span>
+<span class="sgr34">  Progress:  Solving step 78/500 (11.66% of time interval complete)</span>
+<span class="sgr34">  Stats:     211 iterations in 9.09 s (43.10 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  16%  ETA: 0:00:56</span>
+<span class="sgr34">  Progress:  Solving step 81/500 (12.28% of time interval complete)</span>
+<span class="sgr34">  Stats:     218 iterations in 9.23 s (42.35 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  17%  ETA: 0:00:55</span>
+<span class="sgr34">  Progress:  Solving step 83/500 (12.70% of time interval complete)</span>
+<span class="sgr34">  Stats:     224 iterations in 9.35 s (41.72 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  17%  ETA: 0:00:54</span>
+<span class="sgr34">  Progress:  Solving step 85/500 (13.12% of time interval complete)</span>
+<span class="sgr34">  Stats:     230 iterations in 9.46 s (41.13 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  18%  ETA: 0:00:53</span>
+<span class="sgr34">  Progress:  Solving step 88/500 (13.75% of time interval complete)</span>
+<span class="sgr34">  Stats:     238 iterations in 9.61 s (40.40 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  18%  ETA: 0:00:51</span>
+<span class="sgr34">  Progress:  Solving step 91/500 (14.38% of time interval complete)</span>
+<span class="sgr34">  Stats:     246 iterations in 9.77 s (39.72 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  19%  ETA: 0:00:50</span>
+<span class="sgr34">  Progress:  Solving step 94/500 (15.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     252 iterations in 9.89 s (39.24 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  19%  ETA: 0:00:48</span>
+<span class="sgr34">  Progress:  Solving step 97/500 (15.63% of time interval complete)</span>
+<span class="sgr34">  Stats:     260 iterations in 10.04 s (38.62 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  20%  ETA: 0:00:48</span>
+<span class="sgr34">  Progress:  Solving step 99/500 (16.05% of time interval complete)</span>
+<span class="sgr34">  Stats:     266 iterations in 10.16 s (38.19 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  20%  ETA: 0:00:47</span>
+<span class="sgr34">  Progress:  Solving step 101/500 (16.47% of time interval complete)</span>
+<span class="sgr34">  Stats:     271 iterations in 10.28 s (37.92 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  21%  ETA: 0:00:46</span>
+<span class="sgr34">  Progress:  Solving step 103/500 (16.89% of time interval complete)</span>
+<span class="sgr34">  Stats:     277 iterations in 10.39 s (37.53 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  21%  ETA: 0:00:45</span>
+<span class="sgr34">  Progress:  Solving step 106/500 (17.52% of time interval complete)</span>
+<span class="sgr34">  Stats:     284 iterations in 10.53 s (37.09 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  22%  ETA: 0:00:45</span>
+<span class="sgr34">  Progress:  Solving step 108/500 (17.94% of time interval complete)</span>
+<span class="sgr34">  Stats:     290 iterations in 10.65 s (36.73 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  22%  ETA: 0:00:43</span>
+<span class="sgr34">  Progress:  Solving step 111/500 (18.56% of time interval complete)</span>
+<span class="sgr34">  Stats:     296 iterations in 10.77 s (36.39 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  23%  ETA: 0:00:42</span>
+<span class="sgr34">  Progress:  Solving step 114/500 (19.19% of time interval complete)</span>
+<span class="sgr34">  Stats:     304 iterations in 10.93 s (35.95 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  23%  ETA: 0:00:42</span>
+<span class="sgr34">  Progress:  Solving step 117/500 (19.82% of time interval complete)</span>
+<span class="sgr34">  Stats:     312 iterations in 11.09 s (35.54 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  24%  ETA: 0:00:41</span>
+<span class="sgr34">  Progress:  Solving step 119/500 (20.24% of time interval complete)</span>
+<span class="sgr34">  Stats:     318 iterations in 11.21 s (35.25 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  24%  ETA: 0:00:40</span>
+<span class="sgr34">  Progress:  Solving step 121/500 (20.66% of time interval complete)</span>
+<span class="sgr34">  Stats:     323 iterations in 11.31 s (35.02 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  25%  ETA: 0:00:40</span>
+<span class="sgr34">  Progress:  Solving step 123/500 (21.08% of time interval complete)</span>
+<span class="sgr34">  Stats:     329 iterations in 11.43 s (34.75 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  25%  ETA: 0:00:39</span>
+<span class="sgr34">  Progress:  Solving step 126/500 (21.70% of time interval complete)</span>
+<span class="sgr34">  Stats:     335 iterations in 11.55 s (34.49 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  26%  ETA: 0:00:39</span>
+<span class="sgr34">  Progress:  Solving step 128/500 (22.12% of time interval complete)</span>
+<span class="sgr34">  Stats:     340 iterations in 11.66 s (34.28 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  26%  ETA: 0:00:38</span>
+<span class="sgr34">  Progress:  Solving step 130/500 (22.54% of time interval complete)</span>
+<span class="sgr34">  Stats:     345 iterations in 11.76 s (34.08 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  26%  ETA: 0:00:38</span>
+<span class="sgr34">  Progress:  Solving step 132/500 (22.96% of time interval complete)</span>
+<span class="sgr34">  Stats:     351 iterations in 11.88 s (33.84 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  27%  ETA: 0:00:37</span>
+<span class="sgr34">  Progress:  Solving step 134/500 (23.38% of time interval complete)</span>
+<span class="sgr34">  Stats:     356 iterations in 11.98 s (33.65 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  27%  ETA: 0:00:37</span>
+<span class="sgr34">  Progress:  Solving step 136/500 (23.80% of time interval complete)</span>
+<span class="sgr34">  Stats:     361 iterations in 12.08 s (33.46 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  28%  ETA: 0:00:36</span>
+<span class="sgr34">  Progress:  Solving step 138/500 (24.22% of time interval complete)</span>
+<span class="sgr34">  Stats:     367 iterations in 12.20 s (33.24 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  28%  ETA: 0:00:36</span>
+<span class="sgr34">  Progress:  Solving step 140/500 (24.63% of time interval complete)</span>
+<span class="sgr34">  Stats:     372 iterations in 12.30 s (33.07 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  28%  ETA: 0:00:35</span>
+<span class="sgr34">  Progress:  Solving step 142/500 (25.05% of time interval complete)</span>
+<span class="sgr34">  Stats:     377 iterations in 12.41 s (32.90 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  29%  ETA: 0:00:35</span>
+<span class="sgr34">  Progress:  Solving step 144/500 (25.47% of time interval complete)</span>
+<span class="sgr34">  Stats:     383 iterations in 12.53 s (32.71 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  29%  ETA: 0:00:35</span>
+<span class="sgr34">  Progress:  Solving step 146/500 (25.89% of time interval complete)</span>
+<span class="sgr34">  Stats:     389 iterations in 12.65 s (32.51 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  30%  ETA: 0:00:34</span>
+<span class="sgr34">  Progress:  Solving step 148/500 (26.31% of time interval complete)</span>
+<span class="sgr34">  Stats:     395 iterations in 12.77 s (32.33 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  30%  ETA: 0:00:34</span>
+<span class="sgr34">  Progress:  Solving step 150/500 (26.73% of time interval complete)</span>
+<span class="sgr34">  Stats:     400 iterations in 12.87 s (32.18 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  30%  ETA: 0:00:33</span>
+<span class="sgr34">  Progress:  Solving step 152/500 (27.15% of time interval complete)</span>
+<span class="sgr34">  Stats:     405 iterations in 12.98 s (32.04 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  31%  ETA: 0:00:33</span>
+<span class="sgr34">  Progress:  Solving step 155/500 (27.78% of time interval complete)</span>
+<span class="sgr34">  Stats:     412 iterations in 13.12 s (31.84 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  31%  ETA: 0:00:32</span>
+<span class="sgr34">  Progress:  Solving step 157/500 (28.19% of time interval complete)</span>
+<span class="sgr34">  Stats:     417 iterations in 13.22 s (31.71 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  32%  ETA: 0:00:32</span>
+<span class="sgr34">  Progress:  Solving step 159/500 (28.61% of time interval complete)</span>
+<span class="sgr34">  Stats:     423 iterations in 13.35 s (31.55 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  32%  ETA: 0:00:32</span>
+<span class="sgr34">  Progress:  Solving step 161/500 (29.03% of time interval complete)</span>
+<span class="sgr34">  Stats:     429 iterations in 13.47 s (31.39 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  33%  ETA: 0:00:32</span>
+<span class="sgr34">  Progress:  Solving step 163/500 (29.45% of time interval complete)</span>
+<span class="sgr34">  Stats:     434 iterations in 13.70 s (31.56 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  33%  ETA: 0:00:31</span>
+<span class="sgr34">  Progress:  Solving step 166/500 (30.08% of time interval complete)</span>
+<span class="sgr34">  Stats:     442 iterations in 13.85 s (31.34 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  34%  ETA: 0:00:31</span>
+<span class="sgr34">  Progress:  Solving step 169/500 (30.71% of time interval complete)</span>
+<span class="sgr34">  Stats:     449 iterations in 13.99 s (31.16 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  34%  ETA: 0:00:30</span>
+<span class="sgr34">  Progress:  Solving step 171/500 (31.12% of time interval complete)</span>
+<span class="sgr34">  Stats:     455 iterations in 14.11 s (31.01 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  35%  ETA: 0:00:30</span>
+<span class="sgr34">  Progress:  Solving step 173/500 (31.54% of time interval complete)</span>
+<span class="sgr34">  Stats:     460 iterations in 14.21 s (30.89 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  35%  ETA: 0:00:29</span>
+<span class="sgr34">  Progress:  Solving step 176/500 (32.17% of time interval complete)</span>
+<span class="sgr34">  Stats:     467 iterations in 14.35 s (30.73 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  36%  ETA: 0:00:29</span>
+<span class="sgr34">  Progress:  Solving step 178/500 (32.59% of time interval complete)</span>
+<span class="sgr34">  Stats:     473 iterations in 14.47 s (30.60 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  36%  ETA: 0:00:29</span>
+<span class="sgr34">  Progress:  Solving step 180/500 (33.01% of time interval complete)</span>
+<span class="sgr34">  Stats:     479 iterations in 14.59 s (30.47 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  37%  ETA: 0:00:28</span>
+<span class="sgr34">  Progress:  Solving step 183/500 (33.64% of time interval complete)</span>
+<span class="sgr34">  Stats:     487 iterations in 14.75 s (30.29 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  37%  ETA: 0:00:28</span>
+<span class="sgr34">  Progress:  Solving step 186/500 (34.26% of time interval complete)</span>
+<span class="sgr34">  Stats:     494 iterations in 14.89 s (30.15 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  38%  ETA: 0:00:28</span>
+<span class="sgr34">  Progress:  Solving step 188/500 (34.68% of time interval complete)</span>
+<span class="sgr34">  Stats:     500 iterations in 15.02 s (30.03 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  38%  ETA: 0:00:27</span>
+<span class="sgr34">  Progress:  Solving step 190/500 (35.10% of time interval complete)</span>
+<span class="sgr34">  Stats:     505 iterations in 15.12 s (29.94 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  39%  ETA: 0:00:27</span>
+<span class="sgr34">  Progress:  Solving step 193/500 (35.73% of time interval complete)</span>
+<span class="sgr34">  Stats:     513 iterations in 15.28 s (29.78 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  39%  ETA: 0:00:27</span>
+<span class="sgr34">  Progress:  Solving step 195/500 (36.15% of time interval complete)</span>
+<span class="sgr34">  Stats:     519 iterations in 15.40 s (29.67 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  39%  ETA: 0:00:26</span>
+<span class="sgr34">  Progress:  Solving step 197/500 (36.57% of time interval complete)</span>
+<span class="sgr34">  Stats:     524 iterations in 15.50 s (29.59 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  40%  ETA: 0:00:26</span>
+<span class="sgr34">  Progress:  Solving step 199/500 (36.99% of time interval complete)</span>
+<span class="sgr34">  Stats:     530 iterations in 15.63 s (29.48 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  40%  ETA: 0:00:26</span>
+<span class="sgr34">  Progress:  Solving step 201/500 (37.41% of time interval complete)</span>
+<span class="sgr34">  Stats:     536 iterations in 15.75 s (29.38 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  41%  ETA: 0:00:26</span>
+<span class="sgr34">  Progress:  Solving step 203/500 (37.82% of time interval complete)</span>
+<span class="sgr34">  Stats:     542 iterations in 15.87 s (29.28 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  41%  ETA: 0:00:25</span>
+<span class="sgr34">  Progress:  Solving step 205/500 (38.24% of time interval complete)</span>
+<span class="sgr34">  Stats:     548 iterations in 15.99 s (29.18 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  41%  ETA: 0:00:25</span>
+<span class="sgr34">  Progress:  Solving step 207/500 (38.66% of time interval complete)</span>
+<span class="sgr34">  Stats:     554 iterations in 16.11 s (29.08 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  42%  ETA: 0:00:25</span>
+<span class="sgr34">  Progress:  Solving step 209/500 (39.08% of time interval complete)</span>
+<span class="sgr34">  Stats:     560 iterations in 16.23 s (28.99 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  42%  ETA: 0:00:25</span>
+<span class="sgr34">  Progress:  Solving step 211/500 (39.50% of time interval complete)</span>
+<span class="sgr34">  Stats:     566 iterations in 16.36 s (28.90 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  43%  ETA: 0:00:24</span>
+<span class="sgr34">  Progress:  Solving step 213/500 (39.92% of time interval complete)</span>
+<span class="sgr34">  Stats:     571 iterations in 16.46 s (28.82 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  43%  ETA: 0:00:24</span>
+<span class="sgr34">  Progress:  Solving step 215/500 (40.34% of time interval complete)</span>
+<span class="sgr34">  Stats:     577 iterations in 16.58 s (28.74 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  43%  ETA: 0:00:24</span>
+<span class="sgr34">  Progress:  Solving step 217/500 (40.75% of time interval complete)</span>
+<span class="sgr34">  Stats:     582 iterations in 16.69 s (28.67 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  44%  ETA: 0:00:24</span>
+<span class="sgr34">  Progress:  Solving step 219/500 (41.17% of time interval complete)</span>
+<span class="sgr34">  Stats:     588 iterations in 16.81 s (28.59 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  44%  ETA: 0:00:23</span>
+<span class="sgr34">  Progress:  Solving step 221/500 (41.59% of time interval complete)</span>
+<span class="sgr34">  Stats:     594 iterations in 16.93 s (28.51 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  45%  ETA: 0:00:23</span>
+<span class="sgr34">  Progress:  Solving step 223/500 (42.01% of time interval complete)</span>
+<span class="sgr34">  Stats:     600 iterations in 17.06 s (28.43 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  45%  ETA: 0:00:23</span>
+<span class="sgr34">  Progress:  Solving step 225/500 (42.43% of time interval complete)</span>
+<span class="sgr34">  Stats:     607 iterations in 17.21 s (28.35 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  45%  ETA: 0:00:23</span>
+<span class="sgr34">  Progress:  Solving step 227/500 (42.85% of time interval complete)</span>
+<span class="sgr34">  Stats:     613 iterations in 17.33 s (28.28 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  46%  ETA: 0:00:23</span>
+<span class="sgr34">  Progress:  Solving step 229/500 (43.27% of time interval complete)</span>
+<span class="sgr34">  Stats:     619 iterations in 17.46 s (28.21 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  46%  ETA: 0:00:22</span>
+<span class="sgr34">  Progress:  Solving step 231/500 (43.69% of time interval complete)</span>
+<span class="sgr34">  Stats:     625 iterations in 17.59 s (28.15 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  47%  ETA: 0:00:22</span>
+<span class="sgr34">  Progress:  Solving step 233/500 (44.10% of time interval complete)</span>
+<span class="sgr34">  Stats:     630 iterations in 17.70 s (28.10 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  47%  ETA: 0:00:22</span>
+<span class="sgr34">  Progress:  Solving step 235/500 (44.52% of time interval complete)</span>
+<span class="sgr34">  Stats:     636 iterations in 17.83 s (28.04 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  47%  ETA: 0:00:22</span>
+<span class="sgr34">  Progress:  Solving step 237/500 (44.94% of time interval complete)</span>
+<span class="sgr34">  Stats:     642 iterations in 17.96 s (27.98 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  48%  ETA: 0:00:22</span>
+<span class="sgr34">  Progress:  Solving step 239/500 (45.36% of time interval complete)</span>
+<span class="sgr34">  Stats:     648 iterations in 18.09 s (27.92 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  48%  ETA: 0:00:21</span>
+<span class="sgr34">  Progress:  Solving step 241/500 (45.78% of time interval complete)</span>
+<span class="sgr34">  Stats:     654 iterations in 18.23 s (27.87 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  49%  ETA: 0:00:21</span>
+<span class="sgr34">  Progress:  Solving step 243/500 (46.20% of time interval complete)</span>
+<span class="sgr34">  Stats:     660 iterations in 18.36 s (27.82 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  49%  ETA: 0:00:21</span>
+<span class="sgr34">  Progress:  Solving step 245/500 (46.62% of time interval complete)</span>
+<span class="sgr34">  Stats:     666 iterations in 18.49 s (27.77 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  49%  ETA: 0:00:21</span>
+<span class="sgr34">  Progress:  Solving step 247/500 (47.04% of time interval complete)</span>
+<span class="sgr34">  Stats:     671 iterations in 18.60 s (27.73 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  50%  ETA: 0:00:21</span>
+<span class="sgr34">  Progress:  Solving step 249/500 (47.45% of time interval complete)</span>
+<span class="sgr34">  Stats:     678 iterations in 18.76 s (27.67 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  50%  ETA: 0:00:20</span>
+<span class="sgr34">  Progress:  Solving step 251/500 (47.87% of time interval complete)</span>
+<span class="sgr34">  Stats:     684 iterations in 18.89 s (27.62 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  50%  ETA: 0:00:20</span>
+<span class="sgr34">  Progress:  Solving step 253/500 (48.29% of time interval complete)</span>
+<span class="sgr34">  Stats:     690 iterations in 19.02 s (27.57 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  51%  ETA: 0:00:20</span>
+<span class="sgr34">  Progress:  Solving step 255/500 (48.71% of time interval complete)</span>
+<span class="sgr34">  Stats:     696 iterations in 19.15 s (27.52 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  51%  ETA: 0:00:20</span>
+<span class="sgr34">  Progress:  Solving step 257/500 (49.13% of time interval complete)</span>
+<span class="sgr34">  Stats:     702 iterations in 19.28 s (27.47 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  52%  ETA: 0:00:20</span>
+<span class="sgr34">  Progress:  Solving step 259/500 (49.55% of time interval complete)</span>
+<span class="sgr34">  Stats:     708 iterations in 19.42 s (27.42 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  52%  ETA: 0:00:19</span>
+<span class="sgr34">  Progress:  Solving step 261/500 (49.97% of time interval complete)</span>
+<span class="sgr34">  Stats:     714 iterations in 19.55 s (27.38 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  52%  ETA: 0:00:19</span>
+<span class="sgr34">  Progress:  Solving step 263/500 (50.38% of time interval complete)</span>
+<span class="sgr34">  Stats:     720 iterations in 19.68 s (27.33 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  53%  ETA: 0:00:19</span>
+<span class="sgr34">  Progress:  Solving step 265/500 (50.80% of time interval complete)</span>
+<span class="sgr34">  Stats:     726 iterations in 19.81 s (27.29 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  53%  ETA: 0:00:19</span>
+<span class="sgr34">  Progress:  Solving step 267/500 (51.22% of time interval complete)</span>
+<span class="sgr34">  Stats:     732 iterations in 19.95 s (27.25 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  54%  ETA: 0:00:19</span>
+<span class="sgr34">  Progress:  Solving step 269/500 (51.64% of time interval complete)</span>
+<span class="sgr34">  Stats:     738 iterations in 20.08 s (27.21 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  54%  ETA: 0:00:19</span>
+<span class="sgr34">  Progress:  Solving step 271/500 (52.06% of time interval complete)</span>
+<span class="sgr34">  Stats:     744 iterations in 20.21 s (27.17 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  54%  ETA: 0:00:18</span>
+<span class="sgr34">  Progress:  Solving step 273/500 (52.48% of time interval complete)</span>
+<span class="sgr34">  Stats:     751 iterations in 20.37 s (27.12 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  55%  ETA: 0:00:18</span>
+<span class="sgr34">  Progress:  Solving step 275/500 (52.90% of time interval complete)</span>
+<span class="sgr34">  Stats:     757 iterations in 20.50 s (27.08 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  55%  ETA: 0:00:18</span>
+<span class="sgr34">  Progress:  Solving step 277/500 (53.32% of time interval complete)</span>
+<span class="sgr34">  Stats:     762 iterations in 20.61 s (27.05 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  56%  ETA: 0:00:18</span>
+<span class="sgr34">  Progress:  Solving step 279/500 (53.73% of time interval complete)</span>
+<span class="sgr34">  Stats:     768 iterations in 20.74 s (27.01 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  56%  ETA: 0:00:18</span>
+<span class="sgr34">  Progress:  Solving step 281/500 (54.15% of time interval complete)</span>
+<span class="sgr34">  Stats:     774 iterations in 20.88 s (26.97 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  56%  ETA: 0:00:17</span>
+<span class="sgr34">  Progress:  Solving step 283/500 (54.57% of time interval complete)</span>
+<span class="sgr34">  Stats:     780 iterations in 21.01 s (26.94 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  57%  ETA: 0:00:17</span>
+<span class="sgr34">  Progress:  Solving step 285/500 (54.99% of time interval complete)</span>
+<span class="sgr34">  Stats:     786 iterations in 21.14 s (26.90 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  57%  ETA: 0:00:17</span>
+<span class="sgr34">  Progress:  Solving step 287/500 (55.41% of time interval complete)</span>
+<span class="sgr34">  Stats:     792 iterations in 21.28 s (26.86 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  58%  ETA: 0:00:17</span>
+<span class="sgr34">  Progress:  Solving step 289/500 (55.83% of time interval complete)</span>
+<span class="sgr34">  Stats:     797 iterations in 21.39 s (26.83 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  58%  ETA: 0:00:17</span>
+<span class="sgr34">  Progress:  Solving step 291/500 (56.25% of time interval complete)</span>
+<span class="sgr34">  Stats:     803 iterations in 21.62 s (26.92 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  58%  ETA: 0:00:17</span>
+<span class="sgr34">  Progress:  Solving step 293/500 (56.67% of time interval complete)</span>
+<span class="sgr34">  Stats:     809 iterations in 21.75 s (26.88 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  59%  ETA: 0:00:16</span>
+<span class="sgr34">  Progress:  Solving step 295/500 (57.08% of time interval complete)</span>
+<span class="sgr34">  Stats:     815 iterations in 21.88 s (26.84 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  59%  ETA: 0:00:16</span>
+<span class="sgr34">  Progress:  Solving step 297/500 (57.50% of time interval complete)</span>
+<span class="sgr34">  Stats:     822 iterations in 22.02 s (26.79 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  60%  ETA: 0:00:16</span>
+<span class="sgr34">  Progress:  Solving step 299/500 (57.92% of time interval complete)</span>
+<span class="sgr34">  Stats:     828 iterations in 22.15 s (26.75 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  60%  ETA: 0:00:16</span>
+<span class="sgr34">  Progress:  Solving step 301/500 (58.34% of time interval complete)</span>
+<span class="sgr34">  Stats:     834 iterations in 22.28 s (26.71 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  60%  ETA: 0:00:16</span>
+<span class="sgr34">  Progress:  Solving step 303/500 (58.76% of time interval complete)</span>
+<span class="sgr34">  Stats:     841 iterations in 22.43 s (26.67 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  61%  ETA: 0:00:16</span>
+<span class="sgr34">  Progress:  Solving step 305/500 (59.18% of time interval complete)</span>
+<span class="sgr34">  Stats:     847 iterations in 22.55 s (26.63 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  61%  ETA: 0:00:15</span>
+<span class="sgr34">  Progress:  Solving step 307/500 (59.60% of time interval complete)</span>
+<span class="sgr34">  Stats:     853 iterations in 22.68 s (26.59 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  62%  ETA: 0:00:15</span>
+<span class="sgr34">  Progress:  Solving step 309/500 (60.01% of time interval complete)</span>
+<span class="sgr34">  Stats:     860 iterations in 22.83 s (26.55 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  62%  ETA: 0:00:15</span>
+<span class="sgr34">  Progress:  Solving step 311/500 (60.43% of time interval complete)</span>
+<span class="sgr34">  Stats:     866 iterations in 22.96 s (26.51 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  62%  ETA: 0:00:15</span>
+<span class="sgr34">  Progress:  Solving step 313/500 (60.85% of time interval complete)</span>
+<span class="sgr34">  Stats:     872 iterations in 23.09 s (26.48 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  63%  ETA: 0:00:15</span>
+<span class="sgr34">  Progress:  Solving step 315/500 (61.27% of time interval complete)</span>
+<span class="sgr34">  Stats:     878 iterations in 23.21 s (26.44 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  63%  ETA: 0:00:14</span>
+<span class="sgr34">  Progress:  Solving step 317/500 (61.69% of time interval complete)</span>
+<span class="sgr34">  Stats:     884 iterations in 23.34 s (26.40 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  64%  ETA: 0:00:14</span>
+<span class="sgr34">  Progress:  Solving step 319/500 (62.11% of time interval complete)</span>
+<span class="sgr34">  Stats:     890 iterations in 23.47 s (26.37 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  64%  ETA: 0:00:14</span>
+<span class="sgr34">  Progress:  Solving step 321/500 (62.53% of time interval complete)</span>
+<span class="sgr34">  Stats:     896 iterations in 23.59 s (26.33 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  64%  ETA: 0:00:14</span>
+<span class="sgr34">  Progress:  Solving step 323/500 (62.95% of time interval complete)</span>
+<span class="sgr34">  Stats:     902 iterations in 23.72 s (26.30 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  65%  ETA: 0:00:14</span>
+<span class="sgr34">  Progress:  Solving step 325/500 (63.36% of time interval complete)</span>
+<span class="sgr34">  Stats:     909 iterations in 23.87 s (26.26 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  65%  ETA: 0:00:14</span>
+<span class="sgr34">  Progress:  Solving step 327/500 (63.78% of time interval complete)</span>
+<span class="sgr34">  Stats:     915 iterations in 23.99 s (26.22 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  66%  ETA: 0:00:13</span>
+<span class="sgr34">  Progress:  Solving step 329/500 (64.20% of time interval complete)</span>
+<span class="sgr34">  Stats:     921 iterations in 24.12 s (26.19 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  66%  ETA: 0:00:13</span>
+<span class="sgr34">  Progress:  Solving step 331/500 (64.62% of time interval complete)</span>
+<span class="sgr34">  Stats:     927 iterations in 24.24 s (26.15 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  66%  ETA: 0:00:13</span>
+<span class="sgr34">  Progress:  Solving step 333/500 (65.04% of time interval complete)</span>
+<span class="sgr34">  Stats:     934 iterations in 24.39 s (26.11 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  67%  ETA: 0:00:13</span>
+<span class="sgr34">  Progress:  Solving step 335/500 (65.46% of time interval complete)</span>
+<span class="sgr34">  Stats:     940 iterations in 24.51 s (26.08 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  67%  ETA: 0:00:13</span>
+<span class="sgr34">  Progress:  Solving step 337/500 (65.88% of time interval complete)</span>
+<span class="sgr34">  Stats:     946 iterations in 24.64 s (26.04 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  68%  ETA: 0:00:13</span>
+<span class="sgr34">  Progress:  Solving step 339/500 (66.30% of time interval complete)</span>
+<span class="sgr34">  Stats:     953 iterations in 24.78 s (26.00 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  68%  ETA: 0:00:12</span>
+<span class="sgr34">  Progress:  Solving step 341/500 (66.71% of time interval complete)</span>
+<span class="sgr34">  Stats:     959 iterations in 24.90 s (25.97 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  68%  ETA: 0:00:12</span>
+<span class="sgr34">  Progress:  Solving step 343/500 (67.13% of time interval complete)</span>
+<span class="sgr34">  Stats:     966 iterations in 25.05 s (25.93 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  69%  ETA: 0:00:12</span>
+<span class="sgr34">  Progress:  Solving step 345/500 (67.55% of time interval complete)</span>
+<span class="sgr34">  Stats:     973 iterations in 25.20 s (25.90 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  69%  ETA: 0:00:12</span>
+<span class="sgr34">  Progress:  Solving step 347/500 (67.97% of time interval complete)</span>
+<span class="sgr34">  Stats:     979 iterations in 25.33 s (25.87 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  70%  ETA: 0:00:12</span>
+<span class="sgr34">  Progress:  Solving step 349/500 (68.39% of time interval complete)</span>
+<span class="sgr34">  Stats:     986 iterations in 25.48 s (25.84 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  70%  ETA: 0:00:12</span>
+<span class="sgr34">  Progress:  Solving step 351/500 (68.81% of time interval complete)</span>
+<span class="sgr34">  Stats:     994 iterations in 25.64 s (25.80 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  70%  ETA: 0:00:11</span>
+<span class="sgr34">  Progress:  Solving step 353/500 (69.23% of time interval complete)</span>
+<span class="sgr34">  Stats:     1000 iterations in 25.77 s (25.77 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  71%  ETA: 0:00:11</span>
+<span class="sgr34">  Progress:  Solving step 355/500 (69.64% of time interval complete)</span>
+<span class="sgr34">  Stats:     1007 iterations in 25.92 s (25.74 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  71%  ETA: 0:00:11</span>
+<span class="sgr34">  Progress:  Solving step 357/500 (70.06% of time interval complete)</span>
+<span class="sgr34">  Stats:     1014 iterations in 26.07 s (25.71 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  72%  ETA: 0:00:11</span>
+<span class="sgr34">  Progress:  Solving step 359/500 (70.48% of time interval complete)</span>
+<span class="sgr34">  Stats:     1022 iterations in 26.23 s (25.67 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  72%  ETA: 0:00:11</span>
+<span class="sgr34">  Progress:  Solving step 361/500 (70.90% of time interval complete)</span>
+<span class="sgr34">  Stats:     1028 iterations in 26.36 s (25.64 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  72%  ETA: 0:00:11</span>
+<span class="sgr34">  Progress:  Solving step 363/500 (71.32% of time interval complete)</span>
+<span class="sgr34">  Stats:     1035 iterations in 26.50 s (25.61 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  73%  ETA: 0:00:11</span>
+<span class="sgr34">  Progress:  Solving step 365/500 (71.74% of time interval complete)</span>
+<span class="sgr34">  Stats:     1042 iterations in 26.65 s (25.57 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  73%  ETA: 0:00:10</span>
+<span class="sgr34">  Progress:  Solving step 367/500 (72.16% of time interval complete)</span>
+<span class="sgr34">  Stats:     1050 iterations in 26.81 s (25.54 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  74%  ETA: 0:00:10</span>
+<span class="sgr34">  Progress:  Solving step 369/500 (72.58% of time interval complete)</span>
+<span class="sgr34">  Stats:     1058 iterations in 26.98 s (25.50 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  74%  ETA: 0:00:10</span>
+<span class="sgr34">  Progress:  Solving step 371/500 (72.99% of time interval complete)</span>
+<span class="sgr34">  Stats:     1064 iterations in 27.11 s (25.48 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  74%  ETA: 0:00:10</span>
+<span class="sgr34">  Progress:  Solving step 373/500 (73.41% of time interval complete)</span>
+<span class="sgr34">  Stats:     1070 iterations in 27.24 s (25.46 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  75%  ETA: 0:00:10</span>
+<span class="sgr34">  Progress:  Solving step 375/500 (73.83% of time interval complete)</span>
+<span class="sgr34">  Stats:     1078 iterations in 27.40 s (25.42 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  75%  ETA: 0:00:10</span>
+<span class="sgr34">  Progress:  Solving step 377/500 (74.25% of time interval complete)</span>
+<span class="sgr34">  Stats:     1085 iterations in 27.55 s (25.39 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  76%  ETA: 0:00:09</span>
+<span class="sgr34">  Progress:  Solving step 379/500 (74.67% of time interval complete)</span>
+<span class="sgr34">  Stats:     1093 iterations in 27.72 s (25.36 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  76%  ETA: 0:00:09</span>
+<span class="sgr34">  Progress:  Solving step 381/500 (75.09% of time interval complete)</span>
+<span class="sgr34">  Stats:     1101 iterations in 27.88 s (25.33 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  76%  ETA: 0:00:09</span>
+<span class="sgr34">  Progress:  Solving step 383/500 (75.51% of time interval complete)</span>
+<span class="sgr34">  Stats:     1107 iterations in 28.01 s (25.30 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  77%  ETA: 0:00:09</span>
+<span class="sgr34">  Progress:  Solving step 385/500 (75.93% of time interval complete)</span>
+<span class="sgr34">  Stats:     1113 iterations in 28.13 s (25.28 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  77%  ETA: 0:00:09</span>
+<span class="sgr34">  Progress:  Solving step 387/500 (76.34% of time interval complete)</span>
+<span class="sgr34">  Stats:     1119 iterations in 28.26 s (25.25 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  78%  ETA: 0:00:09</span>
+<span class="sgr34">  Progress:  Solving step 389/500 (76.76% of time interval complete)</span>
+<span class="sgr34">  Stats:     1127 iterations in 28.42 s (25.22 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  78%  ETA: 0:00:08</span>
+<span class="sgr34">  Progress:  Solving step 391/500 (77.18% of time interval complete)</span>
+<span class="sgr34">  Stats:     1134 iterations in 28.57 s (25.19 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  78%  ETA: 0:00:08</span>
+<span class="sgr34">  Progress:  Solving step 393/500 (77.60% of time interval complete)</span>
+<span class="sgr34">  Stats:     1141 iterations in 28.71 s (25.16 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  79%  ETA: 0:00:08</span>
+<span class="sgr34">  Progress:  Solving step 395/500 (78.02% of time interval complete)</span>
+<span class="sgr34">  Stats:     1149 iterations in 28.88 s (25.13 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  79%  ETA: 0:00:08</span>
+<span class="sgr34">  Progress:  Solving step 397/500 (78.44% of time interval complete)</span>
+<span class="sgr34">  Stats:     1157 iterations in 29.04 s (25.10 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  80%  ETA: 0:00:08</span>
+<span class="sgr34">  Progress:  Solving step 399/500 (78.86% of time interval complete)</span>
+<span class="sgr34">  Stats:     1165 iterations in 29.21 s (25.07 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  80%  ETA: 0:00:08</span>
+<span class="sgr34">  Progress:  Solving step 401/500 (79.27% of time interval complete)</span>
+<span class="sgr34">  Stats:     1172 iterations in 29.35 s (25.04 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  80%  ETA: 0:00:08</span>
+<span class="sgr34">  Progress:  Solving step 403/500 (79.69% of time interval complete)</span>
+<span class="sgr34">  Stats:     1178 iterations in 29.47 s (25.02 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  81%  ETA: 0:00:07</span>
+<span class="sgr34">  Progress:  Solving step 405/500 (80.11% of time interval complete)</span>
+<span class="sgr34">  Stats:     1184 iterations in 29.59 s (25.00 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  81%  ETA: 0:00:07</span>
+<span class="sgr34">  Progress:  Solving step 407/500 (80.53% of time interval complete)</span>
+<span class="sgr34">  Stats:     1190 iterations in 29.72 s (24.97 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  82%  ETA: 0:00:07</span>
+<span class="sgr34">  Progress:  Solving step 409/500 (80.95% of time interval complete)</span>
+<span class="sgr34">  Stats:     1196 iterations in 29.84 s (24.95 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  82%  ETA: 0:00:07</span>
+<span class="sgr34">  Progress:  Solving step 411/500 (81.37% of time interval complete)</span>
+<span class="sgr34">  Stats:     1202 iterations in 29.96 s (24.92 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  82%  ETA: 0:00:07</span>
+<span class="sgr34">  Progress:  Solving step 413/500 (81.79% of time interval complete)</span>
+<span class="sgr34">  Stats:     1208 iterations in 30.08 s (24.90 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  83%  ETA: 0:00:07</span>
+<span class="sgr34">  Progress:  Solving step 415/500 (82.21% of time interval complete)</span>
+<span class="sgr34">  Stats:     1214 iterations in 30.32 s (24.97 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  83%  ETA: 0:00:06</span>
+<span class="sgr34">  Progress:  Solving step 417/500 (82.62% of time interval complete)</span>
+<span class="sgr34">  Stats:     1220 iterations in 30.43 s (24.95 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  84%  ETA: 0:00:06</span>
+<span class="sgr34">  Progress:  Solving step 419/500 (83.04% of time interval complete)</span>
+<span class="sgr34">  Stats:     1227 iterations in 30.57 s (24.91 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  84%  ETA: 0:00:06</span>
+<span class="sgr34">  Progress:  Solving step 421/500 (83.46% of time interval complete)</span>
+<span class="sgr34">  Stats:     1235 iterations in 30.72 s (24.88 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  84%  ETA: 0:00:06</span>
+<span class="sgr34">  Progress:  Solving step 423/500 (83.88% of time interval complete)</span>
+<span class="sgr34">  Stats:     1243 iterations in 30.88 s (24.84 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  85%  ETA: 0:00:06</span>
+<span class="sgr34">  Progress:  Solving step 425/500 (84.30% of time interval complete)</span>
+<span class="sgr34">  Stats:     1251 iterations in 31.03 s (24.81 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  85%  ETA: 0:00:06</span>
+<span class="sgr34">  Progress:  Solving step 427/500 (84.72% of time interval complete)</span>
+<span class="sgr34">  Stats:     1259 iterations in 31.18 s (24.77 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  86%  ETA: 0:00:06</span>
+<span class="sgr34">  Progress:  Solving step 429/500 (85.14% of time interval complete)</span>
+<span class="sgr34">  Stats:     1267 iterations in 31.34 s (24.74 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  86%  ETA: 0:00:05</span>
+<span class="sgr34">  Progress:  Solving step 431/500 (85.56% of time interval complete)</span>
+<span class="sgr34">  Stats:     1274 iterations in 31.47 s (24.70 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  86%  ETA: 0:00:05</span>
+<span class="sgr34">  Progress:  Solving step 433/500 (85.97% of time interval complete)</span>
+<span class="sgr34">  Stats:     1280 iterations in 31.59 s (24.68 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  87%  ETA: 0:00:05</span>
+<span class="sgr34">  Progress:  Solving step 435/500 (86.39% of time interval complete)</span>
+<span class="sgr34">  Stats:     1286 iterations in 31.70 s (24.65 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  87%  ETA: 0:00:05</span>
+<span class="sgr34">  Progress:  Solving step 437/500 (86.81% of time interval complete)</span>
+<span class="sgr34">  Stats:     1292 iterations in 31.82 s (24.63 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  88%  ETA: 0:00:05</span>
+<span class="sgr34">  Progress:  Solving step 439/500 (87.23% of time interval complete)</span>
+<span class="sgr34">  Stats:     1298 iterations in 31.93 s (24.60 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  88%  ETA: 0:00:05</span>
+<span class="sgr34">  Progress:  Solving step 441/500 (87.65% of time interval complete)</span>
+<span class="sgr34">  Stats:     1304 iterations in 32.05 s (24.58 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  88%  ETA: 0:00:04</span>
+<span class="sgr34">  Progress:  Solving step 443/500 (88.07% of time interval complete)</span>
+<span class="sgr34">  Stats:     1310 iterations in 32.16 s (24.55 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  89%  ETA: 0:00:04</span>
+<span class="sgr34">  Progress:  Solving step 445/500 (88.49% of time interval complete)</span>
+<span class="sgr34">  Stats:     1316 iterations in 32.28 s (24.53 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  89%  ETA: 0:00:04</span>
+<span class="sgr34">  Progress:  Solving step 447/500 (88.90% of time interval complete)</span>
+<span class="sgr34">  Stats:     1322 iterations in 32.39 s (24.50 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  90%  ETA: 0:00:04</span>
+<span class="sgr34">  Progress:  Solving step 449/500 (89.32% of time interval complete)</span>
+<span class="sgr34">  Stats:     1330 iterations in 32.54 s (24.47 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  90%  ETA: 0:00:04</span>
+<span class="sgr34">  Progress:  Solving step 451/500 (89.74% of time interval complete)</span>
+<span class="sgr34">  Stats:     1338 iterations in 32.69 s (24.43 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  90%  ETA: 0:00:04</span>
+<span class="sgr34">  Progress:  Solving step 453/500 (90.16% of time interval complete)</span>
+<span class="sgr34">  Stats:     1346 iterations in 32.84 s (24.40 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  91%  ETA: 0:00:04</span>
+<span class="sgr34">  Progress:  Solving step 455/500 (90.58% of time interval complete)</span>
+<span class="sgr34">  Stats:     1354 iterations in 32.99 s (24.36 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  91%  ETA: 0:00:03</span>
+<span class="sgr34">  Progress:  Solving step 457/500 (91.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     1362 iterations in 33.14 s (24.33 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  92%  ETA: 0:00:03</span>
+<span class="sgr34">  Progress:  Solving step 459/500 (91.42% of time interval complete)</span>
+<span class="sgr34">  Stats:     1370 iterations in 33.28 s (24.30 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  92%  ETA: 0:00:03</span>
+<span class="sgr34">  Progress:  Solving step 461/500 (91.84% of time interval complete)</span>
+<span class="sgr34">  Stats:     1378 iterations in 33.43 s (24.26 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  92%  ETA: 0:00:03</span>
+<span class="sgr34">  Progress:  Solving step 463/500 (92.25% of time interval complete)</span>
+<span class="sgr34">  Stats:     1386 iterations in 33.58 s (24.23 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  93%  ETA: 0:00:03</span>
+<span class="sgr34">  Progress:  Solving step 465/500 (92.67% of time interval complete)</span>
+<span class="sgr34">  Stats:     1392 iterations in 33.69 s (24.20 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  93%  ETA: 0:00:03</span>
+<span class="sgr34">  Progress:  Solving step 467/500 (93.09% of time interval complete)</span>
+<span class="sgr34">  Stats:     1398 iterations in 33.80 s (24.18 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  94%  ETA: 0:00:02</span>
+<span class="sgr34">  Progress:  Solving step 469/500 (93.51% of time interval complete)</span>
+<span class="sgr34">  Stats:     1404 iterations in 33.91 s (24.16 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  94%  ETA: 0:00:02</span>
+<span class="sgr34">  Progress:  Solving step 471/500 (93.93% of time interval complete)</span>
+<span class="sgr34">  Stats:     1412 iterations in 34.06 s (24.12 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  94%  ETA: 0:00:02</span>
+<span class="sgr34">  Progress:  Solving step 473/500 (94.35% of time interval complete)</span>
+<span class="sgr34">  Stats:     1420 iterations in 34.21 s (24.09 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  95%  ETA: 0:00:02</span>
+<span class="sgr34">  Progress:  Solving step 475/500 (94.77% of time interval complete)</span>
+<span class="sgr34">  Stats:     1428 iterations in 34.36 s (24.06 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  95%  ETA: 0:00:02</span>
+<span class="sgr34">  Progress:  Solving step 477/500 (95.19% of time interval complete)</span>
+<span class="sgr34">  Stats:     1436 iterations in 34.52 s (24.04 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  96%  ETA: 0:00:02</span>
+<span class="sgr34">  Progress:  Solving step 479/500 (95.60% of time interval complete)</span>
+<span class="sgr34">  Stats:     1444 iterations in 34.67 s (24.01 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  96%  ETA: 0:00:02</span>
+<span class="sgr34">  Progress:  Solving step 481/500 (96.02% of time interval complete)</span>
+<span class="sgr34">  Stats:     1450 iterations in 34.78 s (23.99 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  96%  ETA: 0:00:01</span>
+<span class="sgr34">  Progress:  Solving step 483/500 (96.44% of time interval complete)</span>
+<span class="sgr34">  Stats:     1456 iterations in 34.89 s (23.97 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  97%  ETA: 0:00:01</span>
+<span class="sgr34">  Progress:  Solving step 485/500 (96.86% of time interval complete)</span>
+<span class="sgr34">  Stats:     1464 iterations in 35.04 s (23.94 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  97%  ETA: 0:00:01</span>
+<span class="sgr34">  Progress:  Solving step 487/500 (97.28% of time interval complete)</span>
+<span class="sgr34">  Stats:     1472 iterations in 35.19 s (23.91 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  98%  ETA: 0:00:01</span>
+<span class="sgr34">  Progress:  Solving step 489/500 (97.70% of time interval complete)</span>
+<span class="sgr34">  Stats:     1480 iterations in 35.34 s (23.88 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  98%  ETA: 0:00:01</span>
+<span class="sgr34">  Progress:  Solving step 491/500 (98.12% of time interval complete)</span>
+<span class="sgr34">  Stats:     1488 iterations in 35.49 s (23.85 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  98%  ETA: 0:00:01</span>
+<span class="sgr34">  Progress:  Solving step 493/500 (98.53% of time interval complete)</span>
+<span class="sgr34">  Stats:     1495 iterations in 35.62 s (23.83 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  99%  ETA: 0:00:00</span>
+<span class="sgr34">  Progress:  Solving step 495/500 (98.95% of time interval complete)</span>
+<span class="sgr34">  Stats:     1501 iterations in 35.73 s (23.81 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  99%  ETA: 0:00:00</span>
+<span class="sgr34">  Progress:  Solving step 497/500 (99.37% of time interval complete)</span>
+<span class="sgr34">  Stats:     1509 iterations in 35.88 s (23.78 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps  99%  ETA: 0:00:00</span>
+<span class="sgr34">  Progress:  Solving step 499/500 (99.79% of time interval complete)</span>
+<span class="sgr34">  Stats:     1517 iterations in 36.03 s (23.75 ms each)</span>
+
+<span class="sgr32">Simulating 19 years, 32.21 weeks as 500 report steps 100% Time: 0:00:37</span>
+<span class="sgr34">  Progress:  Solved step 500/500</span>
+<span class="sgr34">  Stats:     1526 iterations in 36.19 s (23.72 ms each)</span>
+╭────────────────┬───────────┬───────────────┬──────────╮
+│<span class="sgr1"> Iteration type </span>│<span class="sgr1">  Avg/step </span>│<span class="sgr1">  Avg/ministep </span>│<span class="sgr1">    Total </span>│
+│<span class="sgr1">                </span>│<span class="sgr90"> 500 steps </span>│<span class="sgr90"> 503 ministeps </span>│<span class="sgr90"> (wasted) </span>│
+├────────────────┼───────────┼───────────────┼──────────┤
+│<span class="sgr1"> Newton         </span>│     3.052 │        3.0338 │ 1526 (0) │
+│<span class="sgr1"> Linearization  </span>│     4.058 │        4.0338 │ 2029 (0) │
+│<span class="sgr1"> Linear solver  </span>│     3.052 │        3.0338 │ 1526 (0) │
+│<span class="sgr1"> Precond apply  </span>│     6.104 │       6.06759 │ 3052 (0) │
+╰────────────────┴───────────┴───────────────┴──────────╯
+╭───────────────┬─────────┬────────────┬─────────╮
+│<span class="sgr1"> Timing type   </span>│<span class="sgr1">    Each </span>│<span class="sgr1">   Relative </span>│<span class="sgr1">   Total </span>│
+│<span class="sgr1">               </span>│<span class="sgr90">      ms </span>│<span class="sgr90"> Percentage </span>│<span class="sgr90">       s </span>│
+├───────────────┼─────────┼────────────┼─────────┤
+│<span class="sgr1"> Properties    </span>│ 18.0030 │    75.91 % │ 27.4726 │
+│<span class="sgr1"> Equations     </span>│  1.0895 │     6.11 % │  2.2105 │
+│<span class="sgr1"> Assembly      </span>│  0.6688 │     3.75 % │  1.3571 │
+│<span class="sgr1"> Linear solve  </span>│  0.2564 │     1.08 % │  0.3913 │
+│<span class="sgr1"> Linear setup  </span>│  0.8420 │     3.55 % │  1.2849 │
+│<span class="sgr1"> Precond apply </span>│  0.1151 │     0.97 % │  0.3513 │
+│<span class="sgr1"> Update        </span>│  0.2207 │     0.93 % │  0.3368 │
+│<span class="sgr1"> Convergence   </span>│  0.7270 │     4.08 % │  1.4751 │
+│<span class="sgr1"> Input/Output  </span>│  0.1153 │     0.16 % │  0.0580 │
+│<span class="sgr1"> Other         </span>│  0.8226 │     3.47 % │  1.2552 │
+├───────────────┼─────────┼────────────┼─────────┤
+│<span class="sgr1"> Total         </span>│ 23.7174 │   100.00 % │ 36.1927 │
+╰───────────────┴─────────┴────────────┴─────────╯</code></pre><h2 id="Plot-solutions-and-compare"><a class="docs-heading-anchor" href="#Plot-solutions-and-compare">Plot solutions and compare</a><a id="Plot-solutions-and-compare-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-solutions-and-compare" title="Permalink"></a></h2><pre><code class="language-julia hljs">cmap = :tableau_hue_circle
+ref_path = joinpath(dpth, &quot;reference.jld2&quot;)
+ref = Jutul.JLD2.load(ref_path)
+
+step_to_plot = 250
+fig = with_theme(theme_latexfonts()) do
+    x = reservoir_domain(case)[:cell_centroids][1, :]
+    mz = 3
+    ix = step_to_plot
+    mt = :circle
+    fig = Figure(size = (800, 400))
+    ax = Axis(fig[2, 1], xlabel = &quot;Cell center / m&quot;)
+    cnames = [&quot;DECANE&quot;, &quot;CO2&quot;, &quot;METHANE&quot;]
+    cnames = [&quot;C₁₀&quot;, &quot;CO₂&quot;, &quot;C₁&quot;]
+    cnames = [L&quot;\text{C}_{10}&quot;, L&quot;\text{CO}_2&quot;, L&quot;\text{C}_1&quot;]
+    lineh = []
+    lnames = []
+    crange = (1, 4)
+    for i in range(crange...)
+        if i == 4
+            cname = L&quot;\text{S}_g&quot;
+            gprs = missing
+            ecl = ref[&quot;e300&quot;][ix][:Saturations][2, :]
+            ju = states[ix][:Saturations][2, :]
+        else
+            @assert i &lt;= 4
+            ecl = ref[&quot;e300&quot;][ix][:OverallMoleFractions][i, :]
+            gprs = ref[&quot;adgprs&quot;][ix][:OverallMoleFractions][i, :]
+            ju = states[ix][:OverallMoleFractions][i, :]
+            cname = cnames[i]
+        end
+        h = lines!(ax, x, ju, colormap = cmap, color = i, colorrange = crange, label = cname)
+        push!(lnames, cname)
+        push!(lineh, h)
+        scatter!(ax, x, ecl, markersize = mz, colormap = cmap, color = i, colorrange = crange)
+        if !ismissing(gprs)
+            lines!(ax, x, gprs, colormap = cmap, color = i, colorrange = crange, linestyle = :dash)
+        end
+    end
+
+    l_ju = LineElement(color = :black, linestyle = nothing)
+    l_ecl = MarkerElement(color = :black, markersize = mz, marker = mt)
+    l_gprs = LineElement(color = :black, linestyle = :dash)
+
+    Legend(
+        fig[1, 1],
+        [[l_ju, l_ecl, l_gprs], lineh],
+        [[L&quot;\text{JutulDarcy}&quot;, L&quot;\text{E300}&quot;, L&quot;\text{AD-GPRS}&quot;], lnames],
+        [&quot;Simulator&quot;, &quot;Result&quot;],
+        tellwidth = false,
+        orientation = :horizontal,
+    )
+    fig
+end</code></pre><img src="65b3e8b9.png" alt="Example block output"/><h2 id="Calculate-sensitivities"><a class="docs-heading-anchor" href="#Calculate-sensitivities">Calculate sensitivities</a><a id="Calculate-sensitivities-1"></a><a class="docs-heading-anchor-permalink" href="#Calculate-sensitivities" title="Permalink"></a></h2><p>We demonstrate how the parameter sensitivities of an objective function can be calculated for a compositional model.</p><p>The objective function is taken to be the average gas saturation at a specific report step that was plotted in the previous section.</p><pre><code class="language-julia hljs">import Statistics: mean
+import JutulDarcy: reservoir_sensitivities
+function objective_function(model, state, Δt, step_i, forces)
+    if step_i != step_to_plot
+        return 0.0
+    end
+    sg = @view state.Reservoir.Saturations[2, :]
+    return mean(sg)
+end
+data_domain_with_gradients = reservoir_sensitivities(case, result, objective_function, include_parameters = true)
+
+fig = with_theme(theme_latexfonts()) do
+    x = reservoir_domain(case)[:cell_centroids][1, :]
+    mz = 3
+    ix = step_to_plot
+    cmap = :Dark2_5
+    cmap = :Accent_4
+    cmap = :Spectral_4
+    cmap = :tableau_hue_circle
+    mt = :circle
+    fig = Figure(size = (800, 400))
+    normalize = x -&gt; x./(maximum(x) - minimum(x))
+    logscale = x -&gt; sign.(x).*log10.(abs.(x))
+
+    ∂T = data_domain_with_gradients[:temperature]
+    ∂ϕ = data_domain_with_gradients[:porosity]
+
+    ax1 = Axis(fig[2, 1], yticklabelcolor = :blue, xlabel = &quot;Cell center / m&quot;)
+    ax2 = Axis(fig[2, 1], yticklabelcolor = :red, yaxisposition = :right)
+    hidespines!(ax2)
+    hidexdecorations!(ax2)
+
+    l1 = lines!(ax1, x, ∂T, label = &quot;Temperature&quot;, color = :blue)
+    l2 = lines!(ax2, x, ∂ϕ, label = &quot;Porosity&quot;, color = :red)
+
+    Legend(fig[1, 1], [l1, l2], [&quot;Temperature&quot;, &quot;Porosity&quot;], &quot;Parameter&quot;, tellwidth = false, orientation = :horizontal)
+    fig
+end
+fig</code></pre><img src="59f3d75b.png" alt="Example block output"/><h2 id="Example-on-GitHub"><a class="docs-heading-anchor" href="#Example-on-GitHub">Example on GitHub</a><a id="Example-on-GitHub-1"></a><a class="docs-heading-anchor-permalink" href="#Example-on-GitHub" title="Permalink"></a></h2><p>If you would like to run this example yourself, it can be downloaded from the JutulDarcy.jl GitHub repository <a href="https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/validation_compositional.jl">as a script</a>, or as a <a href="https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/examples/validation_compositional.ipynb">Notebook</a></p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../validation_spe9/">« Validation: SPE9</a><a class="docs-footer-nextpage" href="../validation_egg/">Validation: Egg »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.7.0 on <span class="colophon-date" title="Monday 23 September 2024 13:24">Monday 23 September 2024</span>. Using Julia version 1.10.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
