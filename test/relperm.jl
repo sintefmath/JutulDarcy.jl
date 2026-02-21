@@ -100,6 +100,7 @@ function solve_1d_kr(phases;
         scaling = JutulDarcy.NoKrScale(),
         non_wetting_hysteresis = JutulDarcy.NoHysteresis(),
         wetting_hysteresis = JutulDarcy.NoHysteresis(),
+        three_phase_method = JutulDarcy.SaturationWeightedOilRelperm(),
         time = 1.0,
         nstep = nc
     )
@@ -169,7 +170,8 @@ function solve_1d_kr(phases;
         hysteresis_w = wetting_hysteresis,
         hysteresis_ow = non_wetting_hysteresis,
         hysteresis_og = non_wetting_hysteresis,
-        hysteresis_g = non_wetting_hysteresis
+        hysteresis_g = non_wetting_hysteresis,
+        three_phase_method = three_phase_method
     )
     replace_variables!(model, RelativePermeabilities = kr)
     JutulDarcy.add_relperm_parameters!(model)
@@ -279,3 +281,130 @@ end
         end
     end
 end;
+
+## Stone I/II three-phase methods
+@testset "ThreePhaseOilMethods" begin
+    @testset "StoneI" begin
+        solve_1d_kr(:wog, three_phase_method = JutulDarcy.StoneIMethod())
+    end
+    @testset "StoneII" begin
+        solve_1d_kr(:wog, three_phase_method = JutulDarcy.StoneIIMethod())
+    end
+    @testset "SaturationWeighted" begin
+        solve_1d_kr(:wog, three_phase_method = JutulDarcy.SaturationWeightedOilRelperm())
+    end
+    @testset "Unit values" begin
+        # Test Stone I: kro = so_star * krow * krog / krocw
+        krocw = 0.8
+        som = 0.1
+        swcon = 0.2
+        sw = 0.3
+        sg = 0.2
+        so = 1.0 - sw - sg
+        so_star = (so - som) / (1.0 - swcon - som)
+        krow_val = 0.5
+        krog_val = 0.4
+        expected_stone1 = so_star * krow_val * krog_val / krocw
+        result = JutulDarcy.three_phase_oil_relperm(krow_val, krog_val, swcon, sg, sw, StoneIMethod(), krocw = krocw, som = som)
+        @test result ≈ expected_stone1
+
+        # Test Stone II: kro = krocw * [(krow/krocw + krw) * (krog/krocw + krg) - (krw + krg)]
+        krw_v = 0.3
+        krg_v = 0.1
+        expected_stone2 = krocw * ((krow_val/krocw + krw_v) * (krog_val/krocw + krg_v) - (krw_v + krg_v))
+        result2 = JutulDarcy.three_phase_oil_relperm(krow_val, krog_val, swcon, sg, sw, StoneIIMethod(), krocw = krocw, krw_val = krw_v, krg_val = krg_v)
+        @test result2 ≈ expected_stone2
+
+        # Test saturation weighted (backward compatible)
+        result3 = JutulDarcy.three_phase_oil_relperm(krow_val, krog_val, swcon, sg, sw)
+        result3b = JutulDarcy.three_phase_oil_relperm(krow_val, krog_val, swcon, sg, sw, SaturationWeightedOilRelperm())
+        @test result3 ≈ result3b
+    end
+end
+
+## Wetting phase hysteresis tests
+@testset "WettingPhaseHysteresis" begin
+    @testset "Killough wetting" begin
+        solve_1d_kr(:wo,
+            wetting_hysteresis = JutulDarcy.KilloughHysteresis(),
+            non_wetting_hysteresis = JutulDarcy.NoHysteresis()
+        )
+    end
+    @testset "Carlson wetting" begin
+        solve_1d_kr(:wo,
+            wetting_hysteresis = JutulDarcy.CarlsonHysteresis(),
+            non_wetting_hysteresis = JutulDarcy.NoHysteresis()
+        )
+    end
+    @testset "Three-phase wetting hysteresis" begin
+        solve_1d_kr(:wog,
+            wetting_hysteresis = JutulDarcy.KilloughHysteresis(),
+            non_wetting_hysteresis = JutulDarcy.NoHysteresis()
+        )
+    end
+end
+
+## set_relative_permeability helper function tests
+@testset "set_relative_permeability" begin
+    @testset "Direct specification two-phase" begin
+        s = collect(range(0, 1, 100))
+        krw = PhaseRelativePermeability(s, s)
+        krow = PhaseRelativePermeability(s, s.^2)
+        domain = get_1d_reservoir(3)
+        sys = ImmiscibleSystem((AqueousPhase(), LiquidPhase()))
+        model = SimulationModel(domain, sys)
+        set_relative_permeability(model, w = krw, ow = krow)
+        relperm = model[:RelativePermeabilities]
+        @test relperm isa JutulDarcy.ReservoirRelativePermeabilities
+        @test relperm.phases == :wo
+    end
+
+    @testset "SWOF table input" begin
+        s = collect(range(0, 1, 10))
+        swof = hcat(s, s.^2, reverse(s).^2)
+        domain = get_1d_reservoir(3)
+        sys = ImmiscibleSystem((AqueousPhase(), LiquidPhase()))
+        model = SimulationModel(domain, sys)
+        set_relative_permeability(model, swof = swof)
+        relperm = model[:RelativePermeabilities]
+        @test relperm isa JutulDarcy.ReservoirRelativePermeabilities
+        @test relperm.phases == :wo
+    end
+
+    @testset "Three-phase with SWOF/SGOF" begin
+        s = collect(range(0, 1, 10))
+        swof = hcat(s, s.^2, reverse(s).^2)
+        sgof = hcat(s, s.^3, reverse(s).^3)
+        domain = get_1d_reservoir(3)
+        sys = ImmiscibleSystem((AqueousPhase(), LiquidPhase(), VaporPhase()))
+        model = SimulationModel(domain, sys)
+        set_relative_permeability(model, swof = swof, sgof = sgof, three_phase_method = StoneIIMethod())
+        relperm = model[:RelativePermeabilities]
+        @test relperm isa JutulDarcy.ReservoirRelativePermeabilities
+        @test relperm.phases == :wog
+        @test relperm.three_phase_method isa StoneIIMethod
+    end
+
+    @testset "Simulation with set_relative_permeability" begin
+        s = collect(range(0, 1, 100))
+        swof = hcat(s, s, (1 .- s).^2)
+        domain = get_1d_reservoir(3)
+        nc = number_of_cells(domain)
+        sys = ImmiscibleSystem((AqueousPhase(), LiquidPhase()))
+        model = SimulationModel(domain, sys)
+        set_relative_permeability(model, swof = swof)
+        bar = 1e5
+        p0 = 100*bar
+        state0 = setup_state(model, Pressure = p0, Saturations = [0.0, 1.0])
+        mu = [1e-3, 5e-3]
+        parameters = setup_parameters(model, PhaseViscosities = mu)
+        timesteps = repeat([1.0*3600*24], 3)
+        pv = pore_volume(domain)
+        irate = 500*sum(pv)/sum(timesteps)
+        src = SourceTerm(1, irate, fractional_flow = [1.0, 0.0])
+        bc = FlowBoundaryCondition(nc, p0/2)
+        forces = setup_forces(model, sources = src, bc = bc)
+        states, = simulate(state0, model, timesteps, forces = forces, parameters = parameters, info_level = -1)
+        @test length(states) == length(timesteps)
+    end
+end
