@@ -17,15 +17,21 @@ mutable struct WellGroup <: WellControllerDomain
     can_shut_producers::Bool
     "Can temporarily shut injectors that try to reach zero rate multiple solves in a row"
     can_shut_injectors::Bool
+    "Groups of wells: group name => vector of well symbols"
+    const groups::Dict{Symbol, Vector{Symbol}}
 end
 
 """
-    WellGroup(wells::Vector{Symbol}; can_shut_wells = true)
+    WellGroup(wells::Vector{Symbol}; can_shut_wells = true, groups = Dict{Symbol, Vector{Symbol}}())
 
 Create a well group that can control the given set of wells.
+
+`groups` is an optional dictionary mapping group names to vectors of well
+symbols. Wells belonging to a group can be placed under group control using
+[`GroupTarget`](@ref).
 """
-function WellGroup(wells::Vector{Symbol}; can_shut_wells = true, can_shut_injectors = can_shut_wells, can_shut_producers = can_shut_wells)
-    return WellGroup(wells, can_shut_producers, can_shut_injectors)
+function WellGroup(wells::Vector{Symbol}; can_shut_wells = true, can_shut_injectors = can_shut_wells, can_shut_producers = can_shut_wells, groups = Dict{Symbol, Vector{Symbol}}())
+    return WellGroup(wells, can_shut_producers, can_shut_injectors, groups)
 end
 
 struct FacilityVariablesForWell{T}
@@ -580,6 +586,50 @@ Disabled target used when a well is under `DisabledControl()` only. The well
 will be disconnected from the surface.
 """
 struct DisabledTarget <: WellTarget end
+
+"""
+    GroupTarget(group; allocation_factor = nothing)
+
+Well target that indicates the well is controlled by a group target. When a
+well uses `GroupTarget`, the actual target type and value are determined by the
+group's control (set via `group_controls` in [`setup_reservoir_forces`](@ref)).
+
+The `group` must be a `Symbol` corresponding to a group name defined in the
+[`WellGroup`](@ref) domain. Each well in the group is assigned an
+`allocation_factor` that determines what share of the group target the well
+should provide. By default (`allocation_factor = nothing`) each well receives
+an equal share (1/nw where nw is the number of wells in the group).
+
+Wells can still switch away from group control if their individual limits are
+violated.
+
+# Example
+
+```julia
+groups = Dict(:Producers => [:Prod1, :Prod2])
+model = setup_reservoir_model(domain, sys, wells = wells, well_groups = groups)
+
+# Group target: 1000 m³/day total liquid production
+group_controls = Dict(:Producers => ProducerControl(SurfaceLiquidRateTarget(-1000.0/day)))
+
+# Each well just uses GroupTarget - the actual target comes from the group
+controls = Dict(
+    :Prod1 => ProducerControl(GroupTarget(:Producers)),
+    :Prod2 => ProducerControl(GroupTarget(:Producers)),
+)
+forces = setup_reservoir_forces(model, control = controls, group_controls = group_controls)
+```
+"""
+struct GroupTarget <: WellTarget
+    group::Symbol
+    allocation_factor::Union{Float64, Nothing}
+    function GroupTarget(group::Symbol; allocation_factor::Union{Float64, Nothing} = nothing)
+        return new(group, allocation_factor)
+    end
+end
+
+rate_weighted(::GroupTarget) = true  # Group targets are treated as rate-weighted for update purposes
+as_limit(::GroupTarget) = nothing  # Group targets don't produce limits directly
 abstract type WellForce <: JutulForce end
 abstract type WellControlForce <: WellForce end
 
@@ -692,7 +742,7 @@ struct InjectorControl{T, R, P, M, E, TR} <: WellControlForce
         end
         mix = vec(mix)
         if check && R == Float64
-            if rate_weighted(target)
+            if !(target isa GroupTarget) && rate_weighted(target)
                 @assert target.value > 0.0 "Injector target rate must be positive"
             end
             @assert sum(mix) ≈ 1
@@ -722,6 +772,7 @@ function replace_target(f::InjectorControl, target, temperature = f.temperature)
 end
 
 default_limits(f::InjectorControl{T}) where T<:BottomHolePressureTarget = merge((rate_lower = MIN_ACTIVE_WELL_RATE, ), as_limit(f.target))
+default_limits(f::InjectorControl{GroupTarget}) = (rate_lower = MIN_ACTIVE_WELL_RATE,)
 
 function Base.isequal(f::InjectorControl, g::InjectorControl)
     t_eq = f.target == g.target 
@@ -754,7 +805,7 @@ struct ProducerControl{T, R} <: WellControlForce
     target::T
     factor::R
     function ProducerControl(target::T; factor::R = 1.0, check = true) where {T<:WellTarget, R<:Real}
-        if check && rate_weighted(target)
+        if check && !(target isa GroupTarget) && rate_weighted(target)
             target.value < 0.0 || error("Producer target rate must be negative, was $(target.value)")
         end
         return new{T, R}(target, factor)
@@ -764,6 +815,7 @@ end
 default_limits(f::ProducerControl{T}) where T<:SurfaceVolumeTarget = merge((bhp = DEFAULT_MINIMUM_PRESSURE,), as_limit(f.target)) # 1 atm
 default_limits(f::ProducerControl{T}) where T<:TotalMassRateTarget = merge((bhp = DEFAULT_MINIMUM_PRESSURE,), as_limit(f.target)) # 1 atm
 default_limits(f::ProducerControl{T}) where T<:BottomHolePressureTarget = merge((rate_lower = -MIN_ACTIVE_WELL_RATE,), as_limit(f.target))
+default_limits(f::ProducerControl{GroupTarget}) = (bhp = DEFAULT_MINIMUM_PRESSURE,)
 
 function replace_target(f::ProducerControl, target)
     return ProducerControl(target, factor = f.factor, check = false)
@@ -776,9 +828,10 @@ mutable struct WellGroupConfiguration{T, O, L}
     const operating_controls::T # Currently operating control
     const requested_controls::O # The requested control (which may be different if limits are hit)
     const limits::L             # Operating limits for the wells
+    const group_controls::Dict{Symbol, WellControlForce} # Group-level controls (group name => control with target)
     step_index::Int             # Internal book-keeping of what step we are at
-    function WellGroupConfiguration(; operating, limits, requested = operating, step = 0)
-        new{typeof(operating), typeof(requested), typeof(limits)}(operating, requested, limits, step)
+    function WellGroupConfiguration(; operating, limits, requested = operating, group_controls = Dict{Symbol, WellControlForce}(), step = 0)
+        new{typeof(operating), typeof(requested), typeof(limits)}(operating, requested, limits, group_controls, step)
     end
 end
 
@@ -809,6 +862,7 @@ function Base.copy(c::WellGroupConfiguration)
         operating = copy(c.operating_controls),
         requested = copy(c.requested_controls),
         limits = copy(c.limits),
+        group_controls = copy(c.group_controls),
         step = c.step_index
     )
 end
@@ -826,6 +880,9 @@ function Jutul.update_values!(old::WellGroupConfiguration, new::WellGroupConfigu
     end
     for (k, v) in new.limits
         old.limits[k] = v
+    end
+    for (k, v) in new.group_controls
+        old.group_controls[k] = v
     end
     old.step_index = new.step_index
     return old
@@ -1083,6 +1140,18 @@ function well_target_information(t::Union{ReservoirVolumeRateTarget, Val{:rvolra
         explanation = "Total volumetric rate at BHP conditions. This is the sum of all phases.",
         unit_type = :liquid_volume_reservoir,
         unit_label = "m³/s"
+    )
+end
+
+function well_target_information(t::Union{GroupTarget, Val{:group}})
+    return well_target_information(
+        symbol = :group,
+        description = "Group target",
+        explanation = "Well is under group control. The actual target type is determined by the group.",
+        unit_type = :none,
+        unit_label = "-",
+        is_rate = false,
+        type = GroupTarget
     )
 end
 

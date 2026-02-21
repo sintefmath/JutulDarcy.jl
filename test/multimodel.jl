@@ -123,6 +123,75 @@ function test_perforation_mask()
     end
 end
 
+function test_group_control()
+    day = 3600*24
+    bar = 1e5
+    Darcy = 9.869232667160130e-13
+    nx = ny = 5
+    nz = 2
+    g = CartesianMesh((nx, ny, nz), (2000.0, 1500.0, 50.0))
+    domain = reservoir_domain(g, permeability = 0.3*Darcy, porosity = 0.2)
+    Prod1 = setup_vertical_well(domain, 1, 1, name = :Producer1)
+    Prod2 = setup_vertical_well(domain, nx, ny, name = :Producer2)
+    Inj = setup_well(domain, [(nx÷2+1, ny÷2+1, 1)], name = :Injector)
+    groups = Dict(:ProducerGroup => [:Producer1, :Producer2])
+    phases = (LiquidPhase(), VaporPhase())
+    rhoLS = 1000.0
+    rhoGS = 100.0
+    rhoS = [rhoLS, rhoGS]
+    sys = ImmiscibleSystem(phases, reference_densities = rhoS)
+    c = [1e-6/bar, 1e-4/bar]
+    ρ = ConstantCompressibilityDensities(p_ref = 1*bar, density_ref = rhoS, compressibility = c)
+    model, parameters = setup_reservoir_model(domain, sys,
+        wells = [Inj, Prod1, Prod2],
+        extra_out = true,
+        well_groups = groups
+    )
+    replace_variables!(model, PhaseMassDensities = ρ)
+    state0 = setup_reservoir_state(model, Pressure = 150*bar, Saturations = [1.0, 0.0])
+    dt = repeat([30.0]*day, 6)
+    pv = pore_volume(model, parameters)
+    inj_rate = 0.25*sum(pv)/sum(dt)
+    rate_target = TotalRateTarget(inj_rate)
+    I_ctrl = InjectorControl(rate_target, [0.0, 1.0], density = rhoGS)
+    # Producers use GroupTarget - the actual target comes from group_controls
+    P1_ctrl = ProducerControl(GroupTarget(:ProducerGroup))
+    P2_ctrl = ProducerControl(GroupTarget(:ProducerGroup))
+    controls = Dict{Symbol, Any}()
+    controls[:Injector] = I_ctrl
+    controls[:Producer1] = P1_ctrl
+    controls[:Producer2] = P2_ctrl
+    # Group BHP target so both producers maintain group control
+    group_controls = Dict{Symbol, Any}(
+        :ProducerGroup => ProducerControl(BottomHolePressureTarget(100*bar))
+    )
+    forces = setup_reservoir_forces(model, control = controls, group_controls = group_controls)
+    result = simulate_reservoir(state0, model, dt,
+        parameters = parameters, forces = forces, info_level = -1
+    )
+    wd, states, t = result
+    @testset "Group control simulation" begin
+        @test length(states) == 6
+        # Both producers should produce approximately equal rates under group BHP target
+        q1 = wd[:Producer1][:rate]
+        q2 = wd[:Producer2][:rate]
+        bhp1 = wd[:Producer1][:bhp]
+        bhp2 = wd[:Producer2][:bhp]
+        for step in eachindex(q1)
+            if q1[step] != 0.0 && q2[step] != 0.0
+                ratio = q1[step] / q2[step]
+                @test isapprox(ratio, 1.0, atol = 0.15)
+            end
+            # Both should hit the group BHP target
+            @test isapprox(bhp1[step], 100*bar, rtol = 0.01)
+            @test isapprox(bhp2[step], 100*bar, rtol = 0.01)
+        end
+        # All controls should remain group target
+        @test all(c -> c == :group, wd[:Producer1][:control])
+        @test all(c -> c == :group, wd[:Producer2][:control])
+    end
+end
+
 @testset "MultiModel (wells)" begin
     for b in [false, true]
         for backend in [:csr, :csc]
@@ -138,6 +207,10 @@ end
         end
     end
     test_perforation_mask()
+
+    @testset "Group control" begin
+        test_group_control()
+    end
 
     @testset "Preconditioners" begin
         # CSR is the default, do exhaustive testing

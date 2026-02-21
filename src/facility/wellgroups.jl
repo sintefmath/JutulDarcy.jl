@@ -172,7 +172,7 @@ function select_equations!(eqs, system::FacilitySystem, model::FacilityModel)
     eqs[:control_equation] = ControlEquationWell()
 end
 
-function setup_forces(model::SimulationModel{D}; control = nothing, limits = nothing, set_default_limits = true, check = false) where {D <: WellGroup}
+function setup_forces(model::SimulationModel{D}; control = nothing, limits = nothing, group_controls = nothing, set_default_limits = true, check = false) where {D <: WellGroup}
     T = Dict{Symbol, Any}
     if isnothing(control)
         control = T()
@@ -229,7 +229,11 @@ function setup_forces(model::SimulationModel{D}; control = nothing, limits = not
             end
         end
     end
-    return (control = control::AbstractDict, limits = limits::AbstractDict,)
+    # Initialize group controls
+    if isnothing(group_controls)
+        group_controls = Dict{Symbol, Any}()
+    end
+    return (control = control::AbstractDict, limits = limits::AbstractDict, group_controls = group_controls::AbstractDict)
 end
 
 function convergence_criterion(model, storage, eq::ControlEquationWell, eq_s, r; dt = 1.0, update_report = missing)
@@ -250,6 +254,11 @@ function name_equation(name, cfg::WellGroupConfiguration)
     else
         cs = "X"
     end
-    t = translate_target_to_symbol(ctrl.target)
-    return "$name ($cs) $t"
+    target = ctrl.target
+    if target isa GroupTarget
+        return "$name ($cs) group:$(target.group)"
+    else
+        t = translate_target_to_symbol(target)
+        return "$name ($cs) $t"
+    end
 end
