@@ -30,6 +30,10 @@ function simulate_mini_wellcase(physics::Symbol; kwarg...)
     return simulate_mini_wellcase(Val(physics); kwarg...)
 end
 
+function setup_mini_wellcase(physics::Symbol; kwarg...)
+    return setup_mini_wellcase(Val(physics); kwarg...)
+end
+
 function setup_mini_wellcase(::Val{:compositional_2ph_3c};
         dims = (3, 1, 1),
         nstep = 12*5,
@@ -227,6 +231,49 @@ function setup_mini_wellcase(::Val{:bo_spe1};
     rate_target = TotalRateTarget(inj_rate)
     i_mix = [0.01, 0.05, 0.94]
     I_ctrl = InjectorControl(rate_target, i_mix, density = 1.0)
+    # The producer operates at a fixed bottom hole pressure
+    bhp_target = BottomHolePressureTarget(50*bar)
+    P_ctrl = ProducerControl(bhp_target)
+    # Set up the controls. One control per well in the Facility.
+    controls = Dict()
+    controls[:Injector] = I_ctrl
+    controls[:Producer] = P_ctrl
+    # Set up forces for the whole model. For this example, all forces are defaulted
+    # (amounting to no-flow for the reservoir).
+    forces = setup_reservoir_forces(model, control = controls)
+    return JutulCase(model, dt, forces, state0 = state0, parameters = parameters)
+end
+
+function setup_mini_wellcase(::Val{:geothermal};
+        dims = (3, 1, 1),
+        permeability = 0.1*9.869232667160130e-13,
+        nstep = 12*5,
+        total_time = 30.0*si_unit(:day)*nstep,
+        simple_well = true,
+        kwarg...)
+    # Some useful constants
+    bar = 1e5
+    # Create the mesh
+    nx, ny, nz = dims
+    g = CartesianMesh(dims, (2000.0, 1500.0, 50.0))
+    domain = reservoir_domain(g, permeability = permeability, porosity = 0.1)
+    ## Set up a vertical well in the first corner, perforated in all layers
+    P = setup_vertical_well(domain, 1, 1, name = :Producer, simple_well = simple_well, use_top_node = true);
+    ## Set up an injector in the upper left corner
+    I = setup_well(domain, [(nx, ny, 1)], name = :Injector, simple_well = simple_well, use_top_node = true);
+    rhoLS = 1000.0
+    ## Set up a reservoir model that contains the reservoir, wells and a facility that controls the wells
+    model, parameters = setup_reservoir_model(domain, :geothermal, wells = [I, P]; extra_out = true, block_backend = false, kwarg...)
+    ## Set up initial state
+    state0 = setup_reservoir_state(model, Pressure = 150*bar, Saturations = [1.0], Temperature = si"400Kelvin")
+    ## Set up time-steps
+    dt = fill(total_time/nstep, nstep)
+    pv = pore_volume(model, parameters)
+    time_scale = 30.0*12*5*si_unit(:day)
+    inj_rate = 2*sum(pv)/time_scale
+    rate_target = TotalRateTarget(inj_rate)
+    i_mix = [1.0]
+    I_ctrl = InjectorControl(rate_target, i_mix, density = rhoLS, temperature = si"300Kelvin")
     # The producer operates at a fixed bottom hole pressure
     bhp_target = BottomHolePressureTarget(50*bar)
     P_ctrl = ProducerControl(bhp_target)
