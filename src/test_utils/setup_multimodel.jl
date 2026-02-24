@@ -32,8 +32,6 @@ end
 
 function setup_mini_wellcase(::Val{:compositional_2ph_3c};
         dims = (3, 1, 1),
-        setuparg = NamedTuple(),
-        output_path = nothing,
         nstep = 12*5,
         total_time = 30.0*si_unit(:day)*nstep,
         simple_well = true,
