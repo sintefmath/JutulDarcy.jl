@@ -265,7 +265,7 @@ function setup_mini_wellcase(::Val{:geothermal};
     ## Set up a reservoir model that contains the reservoir, wells and a facility that controls the wells
     model, parameters = setup_reservoir_model(domain, :geothermal, wells = [I, P]; extra_out = true, block_backend = false, kwarg...)
     ## Set up initial state
-    state0 = setup_reservoir_state(model, Pressure = 150*bar, Saturations = [1.0], Temperature = si"400Kelvin")
+    state0 = setup_reservoir_state(model, Pressure = 150*bar, Saturations = [1.0], Temperature = 400.0)
     ## Set up time-steps
     dt = fill(total_time/nstep, nstep)
     pv = pore_volume(model, parameters)
@@ -273,7 +273,7 @@ function setup_mini_wellcase(::Val{:geothermal};
     inj_rate = 2*sum(pv)/time_scale
     rate_target = TotalRateTarget(inj_rate)
     i_mix = [1.0]
-    I_ctrl = InjectorControl(rate_target, i_mix, density = rhoLS, temperature = si"300Kelvin")
+    I_ctrl = InjectorControl(rate_target, i_mix, density = rhoLS, temperature = 300.0)
     # The producer operates at a fixed bottom hole pressure
     bhp_target = BottomHolePressureTarget(50*bar)
     P_ctrl = ProducerControl(bhp_target)
