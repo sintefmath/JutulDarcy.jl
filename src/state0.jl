@@ -212,13 +212,17 @@ function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = 
     )
 end
 
-function EquilibriumRegion(eql::EquilibriumRegion, model; kwarg...)
+function EquilibriumRegion(eql::EquilibriumRegion, model;
+        datum_pressure = eql.datum_pressure,
+        datum_depth = eql.datum_depth,
+        kwarg...
+    )
     # Convenience constructor to re-use an existing EquilibriumRegion but for a
     # new model and with a few fields modified
     return EquilibriumRegion(
         model,
-        eql.datum_pressure,
-        eql.datum_depth;
+        datum_pressure,
+        datum_depth;
         woc = eql.woc,
         goc = eql.goc,
         wgc = eql.wgc,
