@@ -66,16 +66,21 @@ function setup_well(g_matrix::JutulMesh, K_matrix, matrix_cells::AbstractVector,
             end
         elseif entity == Faces()
             new_val = similar(val, count_entities(W, Faces()))
-            for seg in 1:num_segments
-                if old_ix[seg] != 0
-                    new_val[seg] = val[old_ix[seg]]
-                else
-                    pseg = max(seg-1, 1)
-                    nseg = min(seg+1, num_segments)
-                    if old_ix[pseg] > 0
-                        new_val[seg] = val[old_ix[pseg]]
-                    elseif old_ix[nseg] > 0
-                        new_val[seg] = val[old_ix[nseg]]
+            new_val[old_ix .!= 0] = val[old_ix[old_ix .!= 0]]
+            fixed = old_ix .!= 0
+            # Insert nearby values for new fracture perforation faces
+            while any(.!fixed)
+                for seg in 1:num_segments
+                    if !fixed[seg]
+                        pseg = max(seg-1, 1)
+                        nseg = min(seg+1, num_segments)
+                        if fixed[pseg]
+                            new_val[seg] = new_val[pseg]
+                            fixed[seg] = true
+                        elseif fixed[nseg]
+                            new_val[seg] = new_val[nseg]
+                            fixed[seg] = true
+                        end
                     end
                 end
             end
