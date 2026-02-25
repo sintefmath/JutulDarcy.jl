@@ -279,8 +279,9 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
     end
     active_wells = unique!(active_wells)
     inactive_wells = setdiff(keys(wells), active_wells)
-    if length(inactive_wells) > 0
-        println("Inactive wells in schedule (no provided constraints): $inactive_wells")
+    ninactive = length(inactive_wells)
+    if ninactive > 0
+        println("$ninactive inactive wells in schedule (no provided constraints):\n$(join(inactive_wells, ", "))")
     end
     return (timesteps, forces)
 end
