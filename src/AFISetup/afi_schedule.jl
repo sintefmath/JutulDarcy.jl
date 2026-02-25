@@ -430,9 +430,16 @@ end
 
 function setup_history_control(hist_ctrl, wname, wtype, wsetup, observation_data, t_since_start, dt)
     if ismissing(hist_ctrl)
-        # println("HistoryDataControl is defaulted for well $wname but no constraint was provided as Well.HistoricalControlModes. Shutting well.")
-        wtype = "disabled"
-        return (:disabled, missing, wtype)
+        if wtype == "producer"
+            hmode = "LIQUID_PRODUCTION_RATE"
+        elseif wtype == "water_injector"
+            hmode = "WATER_INJECTION_RATE"
+        elseif wtype == "gas_injector"
+            hmode = "GAS_INJECTION_RATE"
+        else
+            error("Unsupported well type '$wtype' for historical control for well '$wname'")
+        end
+        println("$wname ($wtype): Under HistoryDataControl, no constraint in Well.HistoricalControlModes. Setting to $hmode.")
     elseif hist_ctrl isa AbstractVector
         if length(hist_ctrl) > 1
             println("Multiple HistoricalControlModes for well $wname at $date: $hist_ctrl, taking the first")
