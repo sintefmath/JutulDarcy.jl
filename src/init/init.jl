@@ -365,7 +365,7 @@ function equilibrium_phase_density(p, z, ph, rho, T_z, fake_state, model, rs, rv
         end
         fake_state[:Pressure][c] = p
         if !ismissing(T_z)
-            if eltype(T_z(z)) != T
+            if eltype(fake_state[:Temperature]) != T
                 fake_state[:Temperature] = convert.(T, fake_state[:Temperature])
             end
             fake_state[:Temperature][c] = T_z(z)
