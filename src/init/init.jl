@@ -355,9 +355,24 @@ function equilibrium_phase_density(p, z, ph, rho, T_z, fake_state, model, rs, rv
     else
         rho_val = fake_state[:PhaseMassDensities]
         c = only(fake_cell_ix)
+        eltype_pressure = eltype(fake_state[:Pressure])
+        T = promote_type(eltype(p), eltype_pressure, eltype(rho_val))
+        if !ismissing(T_z)
+            T = promote_type(T, eltype(T_z(z)))
+        end
+        if eltype_pressure != T
+            fake_state[:Pressure] = convert.(T, fake_state[:Pressure])
+        end
         fake_state[:Pressure][c] = p
         if !ismissing(T_z)
+            if eltype(T_z(z)) != T
+                fake_state[:Temperature] = convert.(T, fake_state[:Temperature])
+            end
             fake_state[:Temperature][c] = T_z(z)
+        end
+        if eltype(rho_val) != T
+            fake_state[:PhaseMassDensities] = convert.(T, rho_val)
+            rho_val =  fake_state[:PhaseMassDensities]
         end
         Jutul.update_secondary_variable!(rho_val, rho, model, fake_state, fake_cell_ix)
         phase_density = rho_val[ph, c]
