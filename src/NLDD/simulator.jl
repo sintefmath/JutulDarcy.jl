@@ -673,7 +673,6 @@ function global_stage(
     # If all subdomains converged, we can return early
     all_local_converged = true
     any_failures = false
-    println("Hei")
     if isnothing(subreports)
         all_local_converged = false
     else
