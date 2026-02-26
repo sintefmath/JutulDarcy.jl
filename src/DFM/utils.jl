@@ -209,20 +209,37 @@ function JutulDarcy.setup_reservoir_model(matrix::DataDomain, fractures::DataDom
     end
 
     if block_lump_with_res
-        new_models = JutulStorage()
-        new_models[:Reservoir] = model.models[:Reservoir]
-        new_models[:Fractures] = fmodel
-        groups = Int[1, 1]
-        for (k, v) in pairs(model.models)
-            if k != :Reservoir
-                new_models[k] = v
-                push!(groups, 2)
+        if false
+            new_models = JutulStorage()
+            new_models[:Reservoir] = model.models[:Reservoir]
+            new_models[:Fractures] = fmodel
+            groups = Int[1, 1]
+            for (k, v) in pairs(model.models)
+                if k != :Reservoir
+                    new_models[k] = v
+                    push!(groups, 2)
+                end
+            end
+            if isnothing(model.groups)
+                groups = nothing
+            end
+            model = Jutul.MultiModel(new_models; groups = groups)
+        else
+            model.models[:Fractures] = fmodel
+            if !isnothing(model.groups)
+                push!(model.groups, 0)
+                println(model.groups)
+                for (k, (name, _)) in enumerate(pairs(model.models))
+                    if name ∈ [:Reservoir, :Fractures]
+                        gno = 1
+                    else
+                        gno = 2
+                    end
+                    model.groups[k] = gno
+                    model.group_lookup[name] = gno
+                end
             end
         end
-        if isnothing(model.groups)
-            groups = nothing
-        end
-        model = Jutul.MultiModel(new_models; groups = groups)
     else
         model.models[:Fractures] = fmodel
         if !isnothing(model.groups)
