@@ -156,7 +156,13 @@ function JutulDarcy.set_rock_compressibility!(model, d::AFIInputFile)
             @warn "Multiple BlackOilFluidModel records found in AFI file. Using the first one."
             rockcomp = rockcomp[1]
         end
-        rockcomp = only(rockcomp).value
+        if rockcomp isa Vector
+            if length(rockcomp) > 1
+                @warn "Multiple RockCompressibility records found in AFI file. Using the first one."
+            end
+            rockcomp = rockcomp[1]
+        end
+        rockcomp = rockcomp.value
         rocktab = rockcomp["table"]
         p = get(rocktab, "RefPressure", 1*si_unit(:atm))
         c = get(rocktab, "PoreVolCompressibility", 0.0)
