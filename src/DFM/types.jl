@@ -83,7 +83,6 @@ function Jutul.default_parameter_values(data_domain, model, param::FractureWellI
     for (i, val) in enumerate(WIt)
         defaulted = !isfinite(val)
         if defaulted
-            println("Computing thermal well index for perforation $i")
             Δ = dims[i]
             if thermal_conductivity isa AbstractVector
                 Λ_i = thermal_conductivity[i]
