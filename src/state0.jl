@@ -439,10 +439,13 @@ end
 
 function split_equilibrium_regions(equil_regs::AbstractVector{T}, region::AbstractArray; variant = :satnum) where T
     equil_regs_new = T[]
-    for er in equil_regs
+    for (i, er) in enumerate(equil_regs)
         cells = er.cells
         if ismissing(cells)
             cells = eachindex(region)
+        elseif length(cells) == 0
+            @warn "Equilibrium region $i has empty cell list, skipping"
+            continue
         end
         regs = getproperty(er, variant)
         if ismissing(regs)
