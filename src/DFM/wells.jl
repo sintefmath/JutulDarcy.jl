@@ -163,6 +163,20 @@ function setup_well(matrix::DataDomain, matrix_cells, fractures::DataDomain;
     fc = well.representation.perforations.fracture
     well[:cell_length][wc] = fractures[:aperture][fc]
 
+    Δ = well[:cell_dims_frac, FracturePerforations()]
+    dir = well[:perforation_direction_frac, FracturePerforations()]
+    for (c, (Δ_k, dir_k)) in enumerate(zip(Δ, dir))
+        if dir_k isa Symbol
+            d = findfirst(==(dir_k), [:x, :y, :z])
+        else
+            d = last(findmax(abs.(dir_k)))
+        end
+        Δ_k = [Δ_k...]
+        Δ_k[d] = fractures[:aperture][fc[c]]
+        Δ[c] = Tuple(Δ_k)
+    end
+    well[:cell_dims_frac, FracturePerforations()] = Δ
+
     return well
 
 end
