@@ -379,7 +379,7 @@ function apply_box_property_edit_inner!(vals, data, irange, jrange, krange, prop
                     end
                 end
             catch e
-                @warn "Error when applying expression in BoxPropertyEdit record:\n$expr\nRaw expression: $expr0. Expression will be ignored." e
+                @warn "Error when applying expression in BoxPropertyEdit record applied to $prop:\n$expr\nRaw expression: $expr0. Expression will be ignored." e
             end
         end
     else
