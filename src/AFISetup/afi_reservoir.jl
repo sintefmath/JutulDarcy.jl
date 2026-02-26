@@ -309,7 +309,11 @@ function set_trans_override!(tran_override, mesh, ijk, dir, tran_xyz, num_nnc)
 end
 
 function apply_box_property_edit!(data, record, ncells, ijk_lookup)
-    # @info "??" record
+    ok = haskey(record, "I1") && haskey(record, "I2") && haskey(record, "J1") && haskey(record, "J2") && haskey(record, "K1") && haskey(record, "K2") && haskey(record, "Property") && haskey(record, "Expression")
+    if !ok
+        println("BoxPropertyEdit record is missing range fields. Skipping this record. Record: $record")
+        return data
+    end
     for (i1, i2, j1, j2, k1, k2, prop, expr) in zip(
             record["I1"],
             record["I2"],
@@ -357,7 +361,7 @@ function apply_box_property_edit_inner!(vals, data, irange, jrange, krange, prop
     new_val = tryparse(Float64, expr0)
     if isnothing(new_val)
         # Value is an expression and we have to do eval magic
-        expr = replace(expr0, "if" => "ifelse", " " => "")
+        expr = replace(expr0, "if" => "ifelse", "IF" => "ifelse", " " => "")
         expr = replace_strings_with_dict_access(expr, "data")
         F = missing
         try
