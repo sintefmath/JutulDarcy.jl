@@ -269,19 +269,23 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
             break
         end
     end
-    active_wells = Symbol[]
-    for f in forces
-        for (wname, ctrl) in pairs(f[:Facility].control)
-            if !(ctrl isa DisabledControl)
-                push!(active_wells, wname)
+    if haskey(model.models, :Facility)
+        active_wells = Symbol[]
+        for f in forces
+            for (wname, ctrl) in pairs(f[:Facility].control)
+                if !(ctrl isa DisabledControl)
+                    push!(active_wells, wname)
+                end
             end
         end
-    end
-    active_wells = unique!(active_wells)
-    inactive_wells = setdiff(keys(wells), active_wells)
-    ninactive = length(inactive_wells)
-    if ninactive > 0
-        println("$ninactive inactive wells in schedule (no provided constraints):\n$(join(inactive_wells, ", "))")
+        active_wells = unique!(active_wells)
+        inactive_wells = setdiff(keys(wells), active_wells)
+        ninactive = length(inactive_wells)
+        if ninactive > 0
+            println("$ninactive inactive wells in schedule (no provided constraints):\n$(join(inactive_wells, ", "))")
+        end
+    else
+        println("No Facility model was set up. Case may be missing wells.")
     end
     return (timesteps, forces)
 end
