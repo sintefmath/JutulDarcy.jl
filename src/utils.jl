@@ -2798,7 +2798,7 @@ function transfer_variables_or_parameters!(vars, new_model::SimulationModel, rep
         end
         Jutul.delete_variable!(new_model, varname)
         vardef = deepcopy(vardef)
-        if hasproperty(vardef, :regions) && !isnothing(vardef)
+        if hasproperty(vardef, :regions) && !isnothing(vardef.regions)
             entity = Jutul.associated_entity(vardef)
             n = count_entities(new_model.domain.representation, entity)
             empty!(vardef.regions)
