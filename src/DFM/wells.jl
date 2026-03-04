@@ -2,11 +2,12 @@ function setup_well(g_matrix::JutulMesh, K_matrix, matrix_cells::AbstractVector,
     g_fractures::JutulMesh, K_fractures, matrix_fracture_faces;
     simple_well = false,
     frac_args = NamedTuple(),
+    radius=0.1,
     kwarg...
     )
 
     !simple_well || throw(ArgumentError("Only MultiSegmentWell setup is supported for DFM wells."))
-    tmp = setup_well(g_matrix, K_matrix, matrix_cells; simple_well=simple_well, kwarg...)
+    tmp = setup_well(g_matrix, K_matrix, matrix_cells; simple_well=simple_well, radius=radius, kwarg...)
 
     neighborship, perforation_cells_fractures, perforation_cells_fractures_self, old_ix = 
     add_fracture_cells(g_matrix, tmp.representation, matrix_fracture_faces)
@@ -30,7 +31,7 @@ function setup_well(g_matrix::JutulMesh, K_matrix, matrix_cells::AbstractVector,
 
     if has_fracture_perforations
         tmp_frac = setup_well(g_fractures, K_fractures, perforation_cells_fractures;
-        simple_well=simple_well, frac_args...)
+        simple_well=simple_well, radius=radius, frac_args...)
     else
         tmp_frac = missing
     end
