@@ -206,6 +206,9 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
         return Jutul.get_1d_interpolator(t, val).(t_eval)
     end
 
+    reference_units = JutulDarcy.GeoEnergyIO.InputParser.DeckUnitSystem(Symbol(lowercase(summary_ref["UNIT_SYSTEM"])))
+    summary_units = JutulDarcy.GeoEnergyIO.InputParser.DeckUnitSystem(Symbol(lowercase(summary["UNIT_SYSTEM"])))
+
     start_ref = summary["TIME"].start_date
     start = summary["TIME"].start_date
     if !(ismissing(start) && ismissing(start_ref))
@@ -213,6 +216,7 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
             jutul_message("HistoryMatch", "Mismatch summary: Start time in reference data ($(start_ref)) does not match start time in simulation summary ($(start)). Assuming equal start dates!")
         end
     end
+    lookup = JutulDarcy.summary_key_lookup()
 
     mismatch = Dict{String, Float64}()
     bad = String[]
@@ -231,6 +235,14 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
 
         step_mismatch = zeros(length(val_ref))
         num_ok = 0
+
+        systems = (to = summary_units, from = reference_units)
+        info = get(lookup, fld, missing)
+        if ismissing(info)
+            println("No units found for $fld, may be inaccurate!")
+        else
+            JutulDarcy.GeoEnergyIO.InputParser.swap_unit_system!(val_ref, systems, info.unit_type)
+        end
         for i in eachindex(val_ref)
             if abs(val_ref[i]) < no_data_threshold || !isfinite(val_ref[i])
                 continue
