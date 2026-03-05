@@ -210,6 +210,7 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
 
     reference_units = JutulDarcy.GeoEnergyIO.InputParser.DeckUnitSystem(Symbol(lowercase(summary_ref["UNIT_SYSTEM"])))
     summary_units = JutulDarcy.GeoEnergyIO.InputParser.DeckUnitSystem(Symbol(lowercase(summary["UNIT_SYSTEM"])))
+    si_units = JutulDarcy.GeoEnergyIO.InputParser.DeckUnitSystem(:si)
 
     start_ref = summary_ref["TIME"].start_date
     start = summary["TIME"].start_date
@@ -240,12 +241,21 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
         step_mismatch = zeros(length(val_ref))
         num_ok = 0
 
-        systems = (to = summary_units, from = reference_units)
         info = get(lookup, fld, missing)
         if ismissing(info)
             println("No units found for $fld, may be inaccurate!")
         else
-            JutulDarcy.GeoEnergyIO.InputParser.swap_unit_system!(val_ref, systems, info.unit_type)
+            JutulDarcy.GeoEnergyIO.InputParser.swap_unit_system!(val_sim, (to = si_units, from = summary_units), info.unit_type)
+            JutulDarcy.GeoEnergyIO.InputParser.swap_unit_system!(val_ref, (to = si_units, from = reference_units), info.unit_type)
+
+            if info.is_rate
+                if lowercase(string(summary["UNIT_SYSTEM"])) == "si"
+                    val_sim = val_sim.*si_unit(:day)
+                end
+                if lowercase(string(summary_ref["UNIT_SYSTEM"])) == "si"
+                    val_ref = val_ref.*si_unit(:day)
+                end
+            end
         end
         for i in eachindex(val_ref)
             if abs(val_ref[i]) < no_data_threshold || !isfinite(val_ref[i])
