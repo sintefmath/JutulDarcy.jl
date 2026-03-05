@@ -218,7 +218,6 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
     if !ismissing(start) && !ismissing(start_ref)
         if start != start_ref
             offset_t = Period(start_ref - start).value/1000
-            jutul_message("HistoryMatch", "Mismatch summary: Start time in reference data ($(start_ref)) does not match start time in simulation summary ($(start)). Assuming equal start dates!")
         end
     end
     lookup = JutulDarcy.summary_key_lookup()
