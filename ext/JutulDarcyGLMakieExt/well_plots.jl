@@ -736,6 +736,7 @@ function JutulDarcy.plot_summary_impl(arg...;
         plots = ["FIELD:FPR"],
         extra_field = String[],
         extra_well = String[],
+        events = missing,
         linecolor = :black,
         selectors = true,
         plot_type = :lines,
@@ -904,11 +905,6 @@ function JutulDarcy.plot_summary_impl(arg...;
         end
     end
     # Max time - in days
-    t_max = maximum(x -> maximum(time_data(x)), eachindex(summaries))
-    ticks_days = collect(range(0.0, ceil(t_max), length = 10))
-    if !isnothing(start_date)
-    end
-
     plots = map(String, plots)
     fig = Figure(size = (1200, 800))
     top_menu_grid = GridLayout(fig[2, 1])
@@ -1028,6 +1024,8 @@ function JutulDarcy.plot_summary_impl(arg...;
                         label = lbl,
                         alpha = alpha,
                         transparency = alpha < 1.0,
+                        inspectable = false,
+                        kwarg...
                     )
                     if plot_type == :lines
                         lines!(ax, t, v;
@@ -1056,6 +1054,9 @@ function JutulDarcy.plot_summary_impl(arg...;
                         )
                     else
                         error("Unknown plot type: $plot_type")
+                    end
+                    if !ismissing(events)
+                        plot_events!(ax, events, well_or_fld, start_date, t, v)
                     end
                 end
                 # ax.ylabel[] = ystr
@@ -1165,6 +1166,9 @@ function JutulDarcy.plot_summary_impl(arg...;
         end
     end
     update_menu_layout()
+    if !ismissing(events)
+        DataInspector(fig)
+    end
 
     return fig
 end
@@ -1178,6 +1182,33 @@ function label_menu(dest, options, mlabel::String; kwarg...)
     )
     m = Menu(g[1, 2], options = options; kwarg...)
     return (m, l)
+end
+
+function plot_events!(ax, events, well_or_fld, start_date, t, v)
+    events_for_k = get(events, well_or_fld, missing)
+    if ismissing(events_for_k)
+        return ax
+    end
+    ed = collect(keys(events_for_k))
+    vals = collect(values(events_for_k))
+    if length(ed) == 0
+        return ax
+    end
+    if first(ed) isa DateTime
+
+        t_s = map(x -> Period(x - start_date).value/1000, t)
+        event_s = map(x -> Period(x - start_date).value/1000, ed)
+    else
+        t_s = t
+        event_s = ed
+    end
+    vals_h = get_1d_interpolator(t_s, v).(event_s)
+    function event_inspector(plot, index, position)
+        return "$(ed[index])\n$(vals[index])"
+    end
+
+    scatter!(ax, ed, vals_h; color = :darkred, markersize = 3.0, inspector_label = event_inspector)
+    return ax
 end
 
 function JutulDarcy.plot_mismatch(obj, res::ReservoirSimResult)
