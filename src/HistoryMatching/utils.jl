@@ -1,3 +1,5 @@
+using Dates
+
 function set_report_step_and_weights_for_period!(period::MatchPeriod, dt::Vector{Float64}, baseweight)
     start, stop = period.start, period.stop
     idxs = period.step_idx
@@ -209,10 +211,12 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
     reference_units = JutulDarcy.GeoEnergyIO.InputParser.DeckUnitSystem(Symbol(lowercase(summary_ref["UNIT_SYSTEM"])))
     summary_units = JutulDarcy.GeoEnergyIO.InputParser.DeckUnitSystem(Symbol(lowercase(summary["UNIT_SYSTEM"])))
 
-    start_ref = summary["TIME"].start_date
+    start_ref = summary_ref["TIME"].start_date
     start = summary["TIME"].start_date
-    if !(ismissing(start) && ismissing(start_ref))
+    offset_t = 0.0
+    if !ismissing(start) && !ismissing(start_ref)
         if start != start_ref
+            offset_t = Period(start_ref - start).value/1000
             jutul_message("HistoryMatch", "Mismatch summary: Start time in reference data ($(start_ref)) does not match start time in simulation summary ($(start)). Assuming equal start dates!")
         end
     end
@@ -231,7 +235,7 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
             continue
         end
         val_ref = abs.(resample(t_ref, r[fld]))
-        val_sim = abs.(resample(t, s[fld]))
+        val_sim = abs.(resample(t .- offset_t, s[fld]))
 
         step_mismatch = zeros(length(val_ref))
         num_ok = 0
