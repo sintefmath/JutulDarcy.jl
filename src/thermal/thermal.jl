@@ -284,8 +284,9 @@ function Jutul.default_parameter_values(data_domain, model, param::WellIndicesTh
     thermal_conductivity = data_domain[:thermal_conductivity, Perforations()]
     direction = data_domain[:perforation_direction, Perforations()]
     radius = data_domain[:perforation_radius, Perforations()]
-    gdim = size(data_domain[:cell_centroids, Cells()], 1)
-
+    drainage_radius = data_domain[:drainage_radius, Perforations()]
+    gdim = size(data_domain[:cell_centroids, Cells()], 1
+)
     # These are defined per cell, map to perforations
     well = physical_representation(data_domain)
     ic = well.perforations.self
@@ -298,7 +299,7 @@ function Jutul.default_parameter_values(data_domain, model, param::WellIndicesTh
     T = Base.promote_type(
         eltype(WIt), eltype(thermal_conductivity), eltype(radius),
         eltype(λ_casing), eltype(λ_grout), eltype(casing_thickness),
-        eltype(grouting_thickness))
+        eltype(grouting_thickness), eltype(drainage_radius))
     if T != eltype(WIt)
         WIt = convert(Vector{T}, WIt)
     end
@@ -318,6 +319,7 @@ function Jutul.default_parameter_values(data_domain, model, param::WellIndicesTh
                 grouting_thickness = grouting_thickness[i],
                 casing_thermal_conductivity = λ_casing[i],
                 grouting_thermal_conductivity = λ_grout[i],
+                drainage_radius = drainage_radius[i],
             )
         end
     end
