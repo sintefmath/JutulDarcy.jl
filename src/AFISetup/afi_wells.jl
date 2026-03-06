@@ -9,6 +9,37 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
         wname = welldef.value["WellName"]
         if haskey(well_dict, wname)
             current_w2c = well_dict[wname]["w2c"]
+            if wname == "ALK043" || wname == :ALK043
+                @info "Well " current_w2c w2c
+                @info "Cell fields" current_w2c["Cell"] w2c["Cell"]
+            end
+            new_cells = w2c["Cell"]
+            current_cells = current_w2c["Cell"]
+            n_added = 0
+            cell_pos_in_current = Int[]
+            is_new = Bool[]
+            for c in new_cells
+                pos = findfirst(x -> x == c, current_cells)
+                if isnothing(pos)
+                    push!(current_cells, c)
+                    n_added += 1
+                    new_idx = length(current_cells)
+                    push!(is_new, true)
+                else
+                    new_idx = pos
+                    push!(is_new, false)
+                end
+                push!(cell_pos_in_current, new_idx)
+            end
+            if n_added > 0
+                for (k, v) in pairs(current_w2c)
+                    if k == "Cell"
+                        continue
+                    end
+                    resize!(v, length(current_cells))
+                end
+            end
+
             for (k, v) in pairs(w2c)
                 if k in ("Transmissibility", "Status", "PiMultiplier")
                     # These can vary over time - we skip these
@@ -35,7 +66,13 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
                         end
                         msg = ""
                         for (i, v) in enumerate(new_value)
-                            ov = old_value[i]
+                            current_i = cell_pos_in_current[i]
+                            if is_new[i]
+                                # This is a new cell - we take the new value
+                                old_value[current_i] = v
+                                continue
+                            end
+                            ov = old_value[current_i]
                             if ov isa Real && ov ≈ 0.0 && !(v ≈ 0.0)
                                 # Old value was set to zero - we accept the new value
                                 old_value[i] = v
@@ -55,7 +92,7 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
             end
         else
             well_dict[wname] = Dict()
-            well_dict[wname]["w2c"] = w2c
+            well_dict[wname]["w2c"] = deepcopy(w2c)
             well_dict[wname]["ref_depth"] = nothing
         end
     end
