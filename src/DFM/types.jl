@@ -61,6 +61,7 @@ function Jutul.default_parameter_values(data_domain, model, param::FractureWellI
     thermal_conductivity = data_domain[:thermal_conductivity_frac, FracturePerforations()]
     direction = data_domain[:perforation_direction_frac, FracturePerforations()]
     radius = data_domain[:perforation_radius_frac, FracturePerforations()]
+    drainage_radius = data_domain[:drainage_radius_frac, FracturePerforations()]
     gdim = size(data_domain[:cell_centroids, Cells()], 1)
 
     # These are defined per cell, map to perforations
@@ -75,7 +76,7 @@ function Jutul.default_parameter_values(data_domain, model, param::FractureWellI
     T = Base.promote_type(
         eltype(WIt), eltype(thermal_conductivity), eltype(radius),
         eltype(λ_casing), eltype(λ_grout), eltype(casing_thickness),
-        eltype(grouting_thickness))
+        eltype(grouting_thickness), eltype(drainage_radius))
     if T != eltype(WIt)
         WIt = convert(Vector{T}, WIt)
     end
@@ -95,6 +96,7 @@ function Jutul.default_parameter_values(data_domain, model, param::FractureWellI
                 grouting_thickness = grouting_thickness[i],
                 casing_thermal_conductivity = λ_casing[i],
                 grouting_thermal_conductivity = λ_grout[i],
+                drainage_radius = drainage_radius[i],
             )
         end
     end
