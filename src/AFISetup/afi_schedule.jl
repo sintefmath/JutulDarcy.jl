@@ -479,8 +479,13 @@ function setup_history_control(hist_ctrl, wname, wtype, wsetup, observation_data
     end
     ismissing(observation_data) && error("Observation data is required for HistoricalControlModes")
     maybe_ctrl(x, T) = ifelse(x ≈ 0.0, DisabledControl(), T(x))
-    obs = observation_data[wsetup["HistoryDataControl"]]["wells_interp"][wname]
-    if hmode == "BOTTOM_HOLE_PRESSURE"
+    obs = get(observation_data[wsetup["HistoryDataControl"]]["wells_interp"], wname, missing)
+    if ismissing(obs)
+        jutul_message("OBSH", "No observation data found for well '$wname' with HistoricalDataControl", color = :red)
+        ctrl_type = :disabled
+        val = 0.0
+        wtype = "disabled"
+    elseif hmode == "BOTTOM_HOLE_PRESSURE"
         val = obs["BOTTOM_HOLE_PRESSURE"](t_since_start)
         ctrl_type = :bhp
     else
