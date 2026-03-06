@@ -128,7 +128,7 @@ function JutulDarcy.setup_reservoir_model(matrix::DataDomain, fractures::DataDom
     block_backend = true,
     kwarg...)
 
-    block_lump_with_res = true# && block_backend
+    block_lump_with_res = false# && block_backend
 
     # Set zero transmissibility accross matrix cells that are fractures
     T = reservoir_transmissibility(matrix)
@@ -264,6 +264,9 @@ function JutulDarcy.setup_reservoir_model(matrix::DataDomain, fractures::DataDom
         g = physical_representation(well_model)
         if g isa WellDomain
             # WI = vec(g.perforations.WI)
+            if !haskey(g.perforations, :fracture)
+                continue
+            end
             set_parameters!(model.models[name],
                 FractureWellIndices = FractureWellIndices()
             )
