@@ -571,6 +571,13 @@ end
 mutable struct ReinjectionTarget <: WellTarget
     value
     wells::Vector{Symbol}
+    fraction::Float64
+    function ReinjectionTarget(wells, fraction::Float64=1.0)
+        if wells isa Symbol
+            wells = [wells]
+        end
+        return new(NaN, wells, fraction)
+    end
 end
 
 """
