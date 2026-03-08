@@ -8,20 +8,22 @@ end
 
 function triangulate_well_domain(w::DataDomain; rfactor = 10.0, outer = false, is_simple = false, flatten = true, flip = false)
     if is_simple
-        error("Triangulation of SimpleWell is not implemented yet")
+        pts = w[:perforation_centroids]
     else
         pts = w[:cell_centroids]
-        radius = w[:radius] .* rfactor
-
-        r = sum(radius) / length(radius)
     end
+    radius = w[:radius] .* rfactor
+    r = sum(radius) / length(radius)
+
     ctri = triangulate_cylindrical_mesh(pts, radius = r, cap = :round)
     cell_index = ctri.vert_srcidx
-    @info "???" cell_index size(pts)
+    if is_simple
+        cell_index .= 1
+    end
     mapper = (
-                Cells = (cell_data) -> cell_data[cell_index],
-                indices = (Cells = cell_index, )
-            )
+        Cells = (cell_data) -> cell_data[cell_index],
+        indices = (Cells = cell_index, )
+    )
     return (points = ctri.xyz', triangulation = ctri.tri', mapper = mapper)
 end
 
