@@ -16,12 +16,12 @@ function triangulate_well_domain(w::DataDomain; rfactor = 10.0, outer = false, i
         r = sum(radius) / length(radius)
     end
     ctri = triangulate_cylindrical_mesh(pts, radius = r, cap = :round)
-    cell_index = ctri.vert_cell
+    cell_index = ctri.vert_srcidx
     @info "???" cell_index size(pts)
     mapper = (
                 Cells = (cell_data) -> cell_data[cell_index],
                 indices = (Cells = cell_index, )
             )
-    return (points = ctri.xyz, triangulation = ctri.tri, mapper = mapper)
+    return (points = ctri.xyz', triangulation = ctri.tri', mapper = mapper)
 end
 
