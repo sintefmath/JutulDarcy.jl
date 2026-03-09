@@ -41,6 +41,9 @@ end
 
 struct RockInternalEnergy <: ScalarVariable end
 struct TotalThermalEnergy <: ScalarVariable end
+struct TotalEnergy <: ScalarVariable end
+struct PotentialEnergy <: ScalarVariable end
+struct KineticEnergy <: ScalarVariable end
 
 struct ComponentHeatCapacity <: ComponentVariables end
 Jutul.default_value(model, ::ComponentHeatCapacity) = 4184.0
