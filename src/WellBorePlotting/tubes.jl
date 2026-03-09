@@ -390,8 +390,8 @@ Triangulate a smooth tube around a 2D/3D polyline.
 
 # Keyword arguments
 - `radius::Real`            : Tube radius (required).
-- `ntheta::Int=24`          : Vertices per ring around circumference.
-- `samples_per_seg::Int=8`  : Spline samples per original segment.
+- `ntheta::Int=12`          : Vertices per ring around circumference.
+- `samples_per_seg::Int=5`  : Spline samples per original segment.
 - `cap::Symbol=:flat`       : `:flat` (disk) or `:round` (hemisphere).
 - `cap_stacks::Int=4`       : Radial stacks for rounded caps.
 
@@ -405,7 +405,7 @@ NamedTuple:
 - `vert_srcidx::Vector{Int}` (N)     : vertex→**original point index** (nearest in arc-length)
 """
 function triangulate_cylindrical_mesh(points::AbstractMatrix{<:Real};
-        radius::Real, ntheta::Int=24, samples_per_seg::Int=8,
+        radius::Real, ntheta::Int=12, samples_per_seg::Int=5,
         cap::Symbol=:flat, cap_stacks::Int=4)
 
     @assert size(points,2) ≥ 2 "Need at least two points"

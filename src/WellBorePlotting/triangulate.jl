@@ -111,3 +111,7 @@ function find_well_branches(N; overlap = false)
     end
     return branches
 end
+
+function Jutul.mesh_linesegments(m::Union{MultiSegmentWell, SimpleWell}; kwarg...)
+    return []
+end
