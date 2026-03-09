@@ -266,6 +266,16 @@ function reservoir_conductivity(reservoir::DataDomain)
     return T
 end
 
+struct UnitPotentialEnergy <: ScalarVariable end
+
+function Jutul.default_parameter_values(data_domain, model, param::UnitPotentialEnergy, symb)
+    z = data_domain[:cell_centroids, Cells()][3, :]
+    z_max = maximum(z)
+    g = gravity_constant
+    return .-z.*g
+end
+
+
 """
     WellIndicesThermal()
 
@@ -396,10 +406,15 @@ standard set of parameters to existing flow model. Note that more complex models
 require additional customization after this function call to get correct
 results.
 """
-function add_thermal_to_model!(model::MultiModel)
+function add_thermal_to_model!(model::MultiModel; wellbore_energy_formulation=:total)
     for (k, m) in pairs(model.models)
         if m.system isa MultiPhaseSystem
-            add_thermal_to_model!(m)
+            if model_or_domain_is_well(m)
+                energy_formulation = wellbore_energy_formulation
+            else
+                energy_formulation = :thermal
+            end
+            add_thermal_to_model!(m; energy_formulation=energy_formulation)
         elseif m.system isa FacilitySystem
             add_thermal_to_facility!(m)
         end
@@ -407,7 +422,7 @@ function add_thermal_to_model!(model::MultiModel)
     return m
 end
 
-function add_thermal_to_model!(model)
+function add_thermal_to_model!(model; energy_formulation=:thermal)
     set_primary_variables!(model, Temperature = Temperature())
     set_parameters!(model,
         RockHeatCapacity = RockHeatCapacity(),
@@ -420,6 +435,16 @@ function add_thermal_to_model!(model)
         FluidEnthalpy = FluidEnthalpy(),
         TotalThermalEnergy = TotalThermalEnergy(),
     )
+    if energy_formulation == :total
+        set_parameters!(model,
+            UnitPotentialEnergy = UnitPotentialEnergy(),
+        )
+        set_secondary_variables!(model,
+            PotentialEnergy = PotentialEnergy(),
+            KineticEnergy = KineticEnergy(),
+            TotalEnergy = TotalEnergy()
+        )
+    end
     is_reservoir = !model_or_domain_is_well(model)
     if is_reservoir
         set_parameters!(model,
@@ -455,7 +480,11 @@ function add_thermal_to_model!(model)
         end
     end
     disc = model.domain.discretizations.heat_flow
-    model.equations[:energy_conservation] = ConservationLaw(disc, :TotalThermalEnergy, 1)
+    if energy_formulation == :total
+        model.equations[:energy_conservation] = ConservationLaw(disc, :TotalEnergy, 1)
+    else
+        model.equations[:energy_conservation] = ConservationLaw(disc, :TotalThermalEnergy, 1)
+    end
 
     out = model.output_variables
     push!(out, :TotalThermalEnergy)
