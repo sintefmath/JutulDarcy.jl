@@ -45,6 +45,9 @@ function triangulate_well_domain(w::DataDomain;
             pts = hcat(pts[:, 1], pts)
             pts[3, 1] -= 10.0
         end
+        if size(pts, 2) == 1
+            continue
+        end
 
         radius = w[:radius] .* rfactor
         r = sum(radius) / length(radius)
