@@ -164,12 +164,20 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
     end
 end
 
-function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::ConservationLaw{:TotalThermalEnergy, <:WellSegmentFlow}, model, dt, ldisc = local_discretization(eq, self_cell)) where T_e
+const ThermalEnergyConservation{T} = ConservationLaw{:TotalThermalEnergy, T}
+const EnergyConservation{T} = ConservationLaw{:TotalEnergy, T}
+
+function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::Union{ThermalEnergyConservation{T_m}, EnergyConservation{T_m}}, model, dt, ldisc = local_discretization(eq, self_cell)) where {T_e, T_m<:WellSegmentFlow}
     (; cells, faces, signs) = ldisc
     nph = number_of_phases(model.system)
     λm = state.MaterialThermalConductivities
-    energy = state.TotalThermalEnergy
-    energy0 = state0.TotalThermalEnergy
+    if eq isa ThermalEnergyConservation{T_m}
+        energy = state.TotalThermalEnergy
+        energy0 = state0.TotalThermalEnergy
+    elseif eq isa EnergyConservation{T_m}
+        energy = state.TotalEnergy
+        energy0 = state0.TotalEnergy
+    end
     density = state.PhaseMassDensities
     S = state.Saturations
     H_f = state.FluidEnthalpy
