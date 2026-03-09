@@ -32,6 +32,10 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
                 push!(cell_pos_in_current, new_idx)
             end
             if n_added > 0
+                missing_fields = setdiff(keys(current_w2c), keys(w2c))
+                if length(missing_fields) > 0
+                    @warn "New WellDef entry for well $wname has new cells but is missing fields $(missing_fields). These will be filled with UNINITIALIZED values and may lead to a crash if used. Please check the AFI file for consistency."
+                end
                 for (k, v) in pairs(current_w2c)
                     if k == "Cell"
                         continue
