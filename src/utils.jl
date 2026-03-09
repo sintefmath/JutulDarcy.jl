@@ -353,6 +353,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         general_ad = false,
         backend = :csr,
         thermal = false,
+        mswell_energy_formulation=:total,
         extra_outputs = [:LiquidMassFractions, :VaporMassFractions, :Rs, :Rv, :Saturations],
         split_wells = false,
         assemble_wells_together = true,
@@ -497,7 +498,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             end
             wmodel = SimulationModel(w_domain, system, context = well_context)
             if thermal
-                wmodel = add_thermal_to_model!(wmodel)
+                wmodel = add_thermal_to_model!(wmodel; energy_formulation = mswell_energy_formulation)
             end
             set_reservoir_variable_defaults!(wmodel,
                 dp_max_abs = dp_max_abs_well,
