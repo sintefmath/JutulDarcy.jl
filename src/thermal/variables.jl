@@ -65,25 +65,27 @@ end
     end
 end
 
-function compute_phase_thermal_energy(u_f, u_r, ρ_f, ρ_r, S, vol_f, vol_b)
-    energy = ρ_r*u_r*(vol_b - vol_f)
-    for ph in axes(u_f, 1)
-        energy += ρ_f[ph]*S[ph]*u_f[ph]*vol_f
-    end
-    energy += u_r*(vol_b - sum(ρ_f[ph]*S[ph]*vol_f for ph in axes(u_f, 1)))
-    return energy
-end
+# function compute_phase_thermal_energy(u_f, u_r, ρ_f, ρ_r, S, vol_f, vol_b)
+#     energy = ρ_r*u_r*(vol_b - vol_f)
+#     for ph in axes(u_f, 1)
+#         energy += ρ_f[ph]*S[ph]*u_f[ph]*vol_f
+#     end
+#     return energy
+# end
 
 @jutul_secondary function update_total_thermal_energy!(E_total, te::TotalThermalEnergy, model, Saturations, PhaseMassDensities, FluidInternalEnergy, RockDensity, RockInternalEnergy, BulkVolume, FluidVolume, ix)
     U_f = FluidInternalEnergy
     U_r = RockInternalEnergy
     ρ_f = PhaseMassDensities
-    ρ_r = RockDensity
     S = Saturations
-    vol_f = FluidVolume
-    vol_b = BulkVolume
+    V = BulkVolume
     for i in ix
-        E_total[i] = compute_phase_thermal_energy(U_f[:, i], U_r[i], ρ_f[:, i], ρ_r[i], S[:, i], vol_f[i], vol_b[i])
+        V_f = FluidVolume[i]
+        E_i = RockDensity[i]*U_r[i]*(V[i] - V_f)
+        for ph in axes(U_f, 1)
+            E_i += ρ_f[ph, i]*S[ph, i]*U_f[ph, i]*V_f
+        end
+        E_total[i] = E_i
     end
 end
 
@@ -99,26 +101,20 @@ end
     end
 end
 
-@jutul_secondary function update_kinetic_energy!(E_kinetic, ke::KineticEnergy, model::MSWellFlowModel, Velocities, PhaseMassDensities, FluidVolume, ix)
-    error()
-    for i in ix
-        E_kinetic[i] = 0.0
-        for ph in axes(Velocities, 1)
-            v = TotalMassFlux[ph, i]
-            ρ = PhaseMassDensities[ph, i]
-            E_kinetic[i] += 0.5*ρ*v^2*FluidVolume[i]
-        end
-    end
+@jutul_secondary function update_kinetic_energy!(E_kinetic, ke::KineticEnergy, model::MSWellFlowModel, PhaseMassDensities, FluidVolume, ix)
+    return 0.0
 end
 
-@jutul_secondary function update_potential_energy!(E_potential, pe::PotentialEnergy, model, Velocities, PhaseMassDensities, FluidVolume, ix)
-    error()
+@jutul_secondary function update_potential_energy!(E_potential, pe::PotentialEnergy, model, UnitPotentialEnergy, PhaseMassDensities, Saturations, FluidVolume, ix)
+    # error()
     for i in ix
         E_potential[i] = 0.0
-        z = model.geometry.cell_centroids[3, i]
-        for ph in axes(Velocities, 1)
+        E0 = UnitPotentialEnergy[i]
+        V = FluidVolume[i]
+        for ph in axes(PhaseMassDensities, 1)
             ρ = PhaseMassDensities[ph, i]
-            E_potential[i] += ρ*g*z*FluidVolume[i]
+            S = Saturations[ph, i]
+            E_potential[i] += S*ρ*E0*V
         end
     end
 end
