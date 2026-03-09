@@ -78,7 +78,8 @@ function find_well_branches(N; overlap = false)
         counts[l] += 1
         counts[r] += 1
     end
-    terminus = findall(x -> x == 1, counts)
+    connectors = findall(x -> x > 2, counts)
+    pushfirst!(connectors, 1)
 
     function dfs_color(N, start, visited)
         branch = Int[]
@@ -88,46 +89,25 @@ function find_well_branches(N; overlap = false)
     function dfs_color!(branch, N, start, visited)
         visited[start] = true
         push!(branch, start)
-        conn_idx = findfirst(t -> start in t, N)
-        l, r = N[conn_idx]
-        if l == start && !visited[r]
-            dfs_color!(branch, N, r, visited)
-        elseif r == start && !visited[l]
-            dfs_color!(branch, N, l, visited)
+        for conn_idx in findall(t -> start in t, N)
+            l, r = N[conn_idx]
+            if l == start && !visited[r]
+                dfs_color!(branch, N, r, visited)
+                break
+            elseif r == start && !visited[l]
+                dfs_color!(branch, N, l, visited)
+                break
+            end
         end
         return branch
     end
     visited = falses(Nmax)
     branches = Vector{Vector{Int}}()
 
-    while length(terminus)> 0
-        start = popfirst!(terminus)
+    while length(connectors) > 0
+        start = popfirst!(connectors)
         new_branch = dfs_color(N, start, visited)
-        if length(branches) != 0
-            reverse!(new_branch)
-        end
         push!(branches, new_branch)
     end
-    if overlap
-        sort_tup(a) = ifelse(a[1] > a[2], (a[2], a[1]), a)
-        for (bno, branch) in enumerate(branches)
-            for bother in branches
-                if bother == branch
-                    continue
-                end
-                start = branch[1]
-                self = sort_tup((start, bother[end]))
-                if !isnothing(self)
-                    if self[1] == start
-                        other = self[2]
-                    else
-                        other = self[1]
-                    end
-                    pushfirst!(branch, other)
-                end
-            end
-        end
-    end
-    @info branches N
     return branches
 end
