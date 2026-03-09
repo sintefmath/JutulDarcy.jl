@@ -304,12 +304,13 @@ function JutulDarcy.plot_well_states_interactive(well_model, states;
     fig = Figure(size=resolution)
     
     # Main plot axis
-    ax = Axis(fig[1, 1:3], 
+    ax = Axis(fig[1:4, 1:3], 
               xlabel="Meters Drilled", 
-              ylabel="Field Value")
+              ylabel="Field Value",
+              aspect=AxisAspect(2))
     
     # Control panel at bottom
-    control_layout = fig[2, :] = GridLayout()
+    control_layout = fig[5, :] = GridLayout()
     
     # Field selection menu
     field_menu = Menu(fig, options=valid_fields, default=valid_fields[1], width=150)
