@@ -11,7 +11,7 @@ function triangulate_well_domain(w::DataDomain;
         outer = false,
         is_simple = false,
         flatten = true,
-        flip = false, type = Cells()
+        flip = true, type = Cells()
     )
     is_perf = type == JutulDarcy.Perforations()
     if is_simple
@@ -67,6 +67,9 @@ function triangulate_well_domain(w::DataDomain;
         Cells = (cell_data) -> cell_data[allcells],
         indices = (Cells = allcells, )
     )
+    if flip
+        alltri = alltri[:, [3, 2, 1]]
+    end
     return (points = allpts, triangulation = alltri, mapper = mapper)
 end
 
