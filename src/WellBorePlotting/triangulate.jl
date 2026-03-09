@@ -20,7 +20,7 @@ function triangulate_well_domain(w::DataDomain;
     else
         global_pts = w[:cell_centroids]
         N = w.representation.neighborship
-        branches = find_well_branches(N)
+        branches = find_well_branches(N, overlap = true)
     end
     # if size(pts, 2) == 1
     #     pts = repeat(pts, 1, 2)
@@ -70,7 +70,7 @@ function triangulate_well_domain(w::DataDomain;
     return (points = allpts, triangulation = alltri, mapper = mapper)
 end
 
-function find_well_branches(N)
+function find_well_branches(N; overlap = false)
     N = reinterpret(Tuple{Int, Int}, N)
     Nmax = maximum(t -> maximum(t), N)
     counts = zeros(Int, Nmax)
@@ -99,10 +99,35 @@ function find_well_branches(N)
     end
     visited = falses(Nmax)
     branches = Vector{Vector{Int}}()
+
     while length(terminus)> 0
         start = popfirst!(terminus)
         new_branch = dfs_color(N, start, visited)
+        if length(branches) != 0
+            reverse!(new_branch)
+        end
         push!(branches, new_branch)
     end
-    branches
+    if overlap
+        sort_tup(a) = ifelse(a[1] > a[2], (a[2], a[1]), a)
+        for (bno, branch) in enumerate(branches)
+            for bother in branches
+                if bother == branch
+                    continue
+                end
+                start = branch[1]
+                self = sort_tup((start, bother[end]))
+                if !isnothing(self)
+                    if self[1] == start
+                        other = self[2]
+                    else
+                        other = self[1]
+                    end
+                    pushfirst!(branch, other)
+                end
+            end
+        end
+    end
+    @info branches N
+    return branches
 end
