@@ -11,7 +11,8 @@ function triangulate_well_domain(w::DataDomain;
         outer = false,
         is_simple = false,
         flatten = true,
-        flip = true, type = Cells()
+        flip = true,
+        type = Cells()
     )
     is_perf = type == JutulDarcy.Perforations()
     if is_simple
@@ -22,12 +23,6 @@ function triangulate_well_domain(w::DataDomain;
         N = w.representation.neighborship
         branches = find_well_branches(N, overlap = true)
     end
-    # if size(pts, 2) == 1
-    #     pts = repeat(pts, 1, 2)
-    #     pt_remap = [1, 1]
-    # else
-    #     pt_remap = 1:size(pts, 2)
-    # end
 
     offset = 0
     allpts = []
