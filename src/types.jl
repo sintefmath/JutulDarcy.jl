@@ -425,6 +425,9 @@ struct SimpleWell{SC, P} <: WellDomain where {SC, P}
     # reference_depth::V
 end
 
+Jutul.dim(w::DataDomain{<:WellDomain}) = size(w[:cell_centroids], 1)
+Jutul.mesh_z_is_depth(w::DataDomain{<:WellDomain}) = true
+
 """
     SimpleWell(reservoir_cells; <keyword arguments>)
 
