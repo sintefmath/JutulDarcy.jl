@@ -65,14 +65,6 @@ end
     end
 end
 
-# function compute_phase_thermal_energy(u_f, u_r, ρ_f, ρ_r, S, vol_f, vol_b)
-#     energy = ρ_r*u_r*(vol_b - vol_f)
-#     for ph in axes(u_f, 1)
-#         energy += ρ_f[ph]*S[ph]*u_f[ph]*vol_f
-#     end
-#     return energy
-# end
-
 @jutul_secondary function update_total_thermal_energy!(E_total, te::TotalThermalEnergy, model, Saturations, PhaseMassDensities, FluidInternalEnergy, RockDensity, RockInternalEnergy, BulkVolume, FluidVolume, ix)
     U_f = FluidInternalEnergy
     U_r = RockInternalEnergy
@@ -105,16 +97,14 @@ end
     return 0.0
 end
 
-@jutul_secondary function update_potential_energy!(E_potential, pe::PotentialEnergy, model, UnitPotentialEnergy, PhaseMassDensities, Saturations, FluidVolume, ix)
+@jutul_secondary function update_potential_energy!(E_potential, pe::PotentialEnergy, model, UnitPotentialEnergy, TotalMasses, ix)
     # error()
     for i in ix
         E_potential[i] = 0.0
         E0 = UnitPotentialEnergy[i]
-        V = FluidVolume[i]
-        for ph in axes(PhaseMassDensities, 1)
-            ρ = PhaseMassDensities[ph, i]
-            S = Saturations[ph, i]
-            E_potential[i] += S*ρ*E0*V
+        for ph in axes(TotalMasses, 1)
+            M = TotalMasses[ph, i]
+            E_potential[i] += M*E0
         end
     end
 end
