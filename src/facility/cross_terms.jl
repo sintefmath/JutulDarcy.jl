@@ -328,7 +328,14 @@ function update_cross_term_in_entity!(out, i,
 
     T = get_target_temperature(ctrl, ctrl.target, facility, state_facility)
     H = well_top_node_enthalpy(ctrl, well, state_well, T, cell)
-    out[] = -qT*H
+    Q = -qT*H
+
+    if eq isa ConservationLaw{:TotalEnergy, <:WellSegmentFlow} && true
+        # Account for potential energy in total energy balance
+        pot = state_well[:UnitPotentialEnergy][cell]
+        Q -= qT*pot
+    end
+    out[] = Q
 end
 
 function get_target_temperature(ctrl, target, facility, state_facility)
