@@ -108,7 +108,9 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
         rho_l, mu_l = saturation_mixed(s, densities, μ, left)
         rho_r, mu_r = saturation_mixed(s, densities, μ, right)
         rho = 0.5*(rho_l + rho_r)
+        rho = V >= 0 ? rho_l : rho_r
         μ_mix = 0.5*(mu_l + mu_r)
+        μ_mix = V >= 0 ? mu_l : mu_r
         Δp = segment_pressure_drop(seg_model, L, roughness, radius_outer, radius_inner, V, rho, μ_mix)
         Δθ = two_point_potential_drop(p[left], p[right], gdz, rho_l, rho_r)
         eq = Δθ - Δp
@@ -167,16 +169,20 @@ end
 const ThermalEnergyConservation{T} = ConservationLaw{:TotalThermalEnergy, T}
 const EnergyConservation{T} = ConservationLaw{:TotalEnergy, T}
 
-function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::Union{ThermalEnergyConservation{T_m}, EnergyConservation{T_m}}, model, dt, ldisc = local_discretization(eq, self_cell)) where {T_e, T_m<:WellSegmentFlow}
+function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq_type::Union{ThermalEnergyConservation{T_m}, EnergyConservation{T_m}}, model, dt, ldisc = local_discretization(eq_type, self_cell)) where {T_e, T_m<:WellSegmentFlow}
     (; cells, faces, signs) = ldisc
     nph = number_of_phases(model.system)
     λm = state.MaterialThermalConductivities
-    if eq isa ThermalEnergyConservation{T_m}
+    if eq_type isa ThermalEnergyConservation{T_m}
         energy = state.TotalThermalEnergy
         energy0 = state0.TotalThermalEnergy
-    elseif eq isa EnergyConservation{T_m}
+    elseif eq_type isa EnergyConservation{T_m}
         energy = state.TotalEnergy
         energy0 = state0.TotalEnergy
+        pot = state.PotentialEnergy
+        vol = state.FluidVolume
+        pot0 = state.UnitPotentialEnergy
+        # println("Potential energy at cell ", self_cell, ": ", pot[self_cell])
     end
     density = state.PhaseMassDensities
     S = state.Saturations
@@ -189,6 +195,7 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
         m_t_self = total_density(S, density, self_cell)
         for (cell, face, sgn) in zip(cells, faces, signs)
             v_f = sgn*v[face]
+            # println("Sign of flux: ", sgn, " velocity: ", v[face])
             for ph in 1:nph
                 # Compute mass fraction of phase, then weight by enthalpy.
                 m_t_other = total_density(S, density, cell)
@@ -198,8 +205,17 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
                 ME_self = H_f[ph, self_cell]*f_self
                 eq += v_f*upw_flux(v_f, ME_self, ME_other)
             end
+            if eq_type isa EnergyConservation{T_m}
+                # println("Adding potential")
+                # Account for kinetic and potential energy in total energy balance
+                # vv = v_f/upw_flux(v_f, density[1, self_cell], density[1, cell])
+                # eq += vv*upw_flux(v_f, pot[self_cell]/vol[self_cell], pot[cell]/vol[cell])
+                # eq += vv*(pot[self_cell]/vol[self_cell] + pot[cell]/vol[cell])/2
+                eq += v_f*upw_flux(v_f, pot0[self_cell], pot0[cell])
+            end
             λm_f = λm[face]
-            if λm_f >= 0.0
+            if λm_f > 0.0
+                println("Thermal cond: $λm_f")
                 # Account for heat conduction in well material
                 eq -= λm_f*(T[cell] - T[self_cell])
             end
@@ -226,7 +242,8 @@ function component_sum(mass, i)
 end
 
 function convergence_criterion(model, storage, eq::PotentialDropBalanceWell, eq_s, r; dt = 1.0, update_report = missing)
-    e = (norm(r, Inf)/1e5, ) # Given as pressure - scale by 1 bar
+    # e = (norm(r, Inf)/1e5, ) # Given as pressure - scale by 1 bar
+    e = (norm(r, Inf), ) # Given as pressure - scale by 1 bar
     R = (AbsMax = (errors = e, names = "R"), )
     return R
 end
