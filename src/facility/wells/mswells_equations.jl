@@ -107,9 +107,9 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
     else
         rho_l, mu_l = saturation_mixed(s, densities, μ, left)
         rho_r, mu_r = saturation_mixed(s, densities, μ, right)
-        rho = 0.5*(rho_l + rho_r)
+        # rho = 0.5*(rho_l + rho_r)
         rho = V >= 0 ? rho_l : rho_r
-        μ_mix = 0.5*(mu_l + mu_r)
+        # μ_mix = 0.5*(mu_l + mu_r)
         μ_mix = V >= 0 ? mu_l : mu_r
         Δp = segment_pressure_drop(seg_model, L, roughness, radius_outer, radius_inner, V, rho, μ_mix)
         Δθ = two_point_potential_drop(p[left], p[right], gdz, rho_l, rho_r)
@@ -206,16 +206,10 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
                 eq += v_f*upw_flux(v_f, ME_self, ME_other)
             end
             if eq_type isa EnergyConservation{T_m}
-                # println("Adding potential")
-                # Account for kinetic and potential energy in total energy balance
-                # vv = v_f/upw_flux(v_f, density[1, self_cell], density[1, cell])
-                # eq += vv*upw_flux(v_f, pot[self_cell]/vol[self_cell], pot[cell]/vol[cell])
-                # eq += vv*(pot[self_cell]/vol[self_cell] + pot[cell]/vol[cell])/2
                 eq += v_f*upw_flux(v_f, pot0[self_cell], pot0[cell])
             end
             λm_f = λm[face]
             if λm_f > 0.0
-                println("Thermal cond: $λm_f")
                 # Account for heat conduction in well material
                 eq -= λm_f*(T[cell] - T[self_cell])
             end
