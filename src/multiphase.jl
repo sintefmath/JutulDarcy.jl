@@ -471,17 +471,6 @@ function insert_phase_sources!(acc, model, kr, mu, rhoS, sources)
     end
 end
 
-# function insert_phase_sources!(acc::CuArray, model, kr, mu, rhoS, sources)
-#     sources::CuArray
-#     ix = map(cell, sources)
-#     if !isa(rhoS, CuArray)
-#         @warn "SurfaceDensities is not a CuArray, will convert whenever needed. Improve performance by converting once."  maxlog=1
-#         rhoS = CuArray(rhoS)
-#     end
-#     rhoS::CuArray
-#     @tullio acc[ph, ix[i]] = acc[ph, ix[i]] - phase_source(sources[i].cell, sources[i], rhoS[ph], kr, mu, ph)
-# end
-
 function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw{:TotalMasses}, eq_s, r; dt = 1, update_report = missing) where {D, S<:MultiPhaseSystem}
     M = global_map(model.domain)
     v = x -> as_value(Jutul.active_view(x, M, for_variables = false))
@@ -490,10 +479,20 @@ function convergence_criterion(model::SimulationModel{D, S}, storage, eq::Conser
 
     nph = number_of_phases(model.system)
     cnv, mb = cnv_mb_errors(r, Φ, ρ, dt, Val(nph))
-
+    dp_abs, dp_rel = pressure_increments(model, storage.state, update_report)
+    if ismissing(update_report)
+        ds_max = 1.0
+    else
+        ds_max = update_report[:Saturations].max
+    end
     names = phase_names(model.system)
-    R = (CNV = (errors = cnv, names = names),
-         MB = (errors = mb, names = names))
+    R = (
+        CNV = (errors = cnv, names = names),
+        MB = (errors = mb, names = names),
+        increment_dp_abs = (errors = (dp_abs/1e6, ), names = (raw"Δp (abs, MPa)", ), ),
+        increment_dp_rel = (errors = (dp_rel, ), names = (raw"Δp (rel)", ), ),
+        increment_saturation = (errors = (ds_max, ), names = (raw"Δs", ), )
+    )
     return R
 end
 
