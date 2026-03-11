@@ -86,7 +86,8 @@ function setup_case_from_parsed_data(datafile;
         datafile = convert_co2store_to_co2_brine(datafile)
         rs = datafile["RUNSPEC"]
     end
-    sys, pvt = parse_physics_types(datafile, pvt_region = 1)
+    t_physics = @elapsed sys, pvt = parse_physics_types(datafile, pvt_region = 1)
+    msg("Complete in $(round(t_physics, sigdigits = 3)) seconds.")
     is_blackoil = sys isa StandardBlackOilSystem
     is_compositional = sys isa CompositionalSystem || sys == :co2brine
     is_thermal = haskey(datafile["RUNSPEC"], "THERMAL")
@@ -107,12 +108,13 @@ function setup_case_from_parsed_data(datafile;
     end
 
     msg("Parsing reservoir domain.")
-    domain = parse_reservoir(datafile, zcorn_depths = zcorn_depths, repair_zcorn = repair_zcorn, process_pinch = process_pinch)
+    t_domain = @elapsed domain = parse_reservoir(datafile, zcorn_depths = zcorn_depths, repair_zcorn = repair_zcorn, process_pinch = process_pinch)
+    msg("Complete in $(round(t_domain, sigdigits = 3)) seconds.")
     pvt_reg = reservoir_regions(domain, :pvtnum)
     has_pvt = isnothing(pvt_reg)
     # Parse wells
     msg("Parsing schedule.")
-    if skip_forces
+    t_schedule = @elapsed if skip_forces
         wells = []
         controls = limits = cstep = well_forces = missing
         dt = [1.0]
@@ -122,6 +124,7 @@ function setup_case_from_parsed_data(datafile;
             empty!(wells)
         end
     end
+    msg("Complete in $(round(t_schedule, sigdigits = 3)) seconds.")
     msg("Setting up model with $(length(wells)) wells.")
     wells_pvt = Dict()
     wells_systems = []
@@ -223,17 +226,19 @@ function setup_case_from_parsed_data(datafile;
         forces = parse_forces(model, datafile, sys, wells, controls, limits, cstep, dt, well_forces)
     end
     msg("Setting up initial state.")
-    state0 = parse_state0(model, datafile, normalize = normalize)
+    t_state0 = @elapsed state0 = parse_state0(model, datafile, normalize = normalize)
+    msg("Complete in $(round(t_state0, sigdigits = 3)) seconds.")
     msg("Setting up parameters.")
-    parameters = setup_parameters(model)
+    t_prm = @elapsed parameters = setup_parameters(model)
     if haskey(props, "SWL")
         G = physical_representation(domain)
         swl = vec(props["SWL"])
         # parameters[:Reservoir][:ConnateWater] .= swl[G.cell_map]
     end
-    if use_ijk_trans
+    t_trans = @elapsed if use_ijk_trans
         parameters[:Reservoir][:Transmissibilities] = reservoir_transmissibility(domain, version = :ijk);
     end
+    msg("Complete in $(round(t_trans + t_prm, sigdigits = 3)) seconds.")
     msg("Setup complete.")
     return JutulCase(model, dt, forces, state0 = state0, parameters = parameters, input_data = datafile)
 end
