@@ -198,7 +198,7 @@ function Jutul.increment_norm(dX, state, model, X, pvar::BlackOilUnknown)
     sg_max_v = sg_sum_v = zero(T)
     rv_max_v = rv_sum_v = zero(T)
 
-    @inbounds for i in 1:length(dX)
+    @inbounds for i in eachindex(dX)
         ph = X[i].phases_present
         dx_abs = abs(dX[i])
         if ph == OilAndGas
@@ -213,10 +213,10 @@ function Jutul.increment_norm(dX, state, model, X, pvar::BlackOilUnknown)
         end
     end
     return (
-            sg_sum = sg_sum_v, sg_max = sg_max_v,
-            rs_sum = rs_sum_v, rs_max = rs_max_v,
-            rv_sum = rv_sum_v, rv_max = rv_max_v,
-            )
+        sg_sum = sg_sum_v, sg_max = sg_max_v,
+        rs_sum = rs_sum_v, rs_max = rs_max_v,
+        rv_sum = rv_sum_v, rv_max = rv_max_v,
+    )
 end
 
 include("shrinkage.jl")

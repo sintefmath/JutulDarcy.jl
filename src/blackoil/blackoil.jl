@@ -73,10 +73,15 @@ function convergence_criterion(model::SimulationModel{D, S}, storage, eq::Conser
     nph = number_of_phases(sys)
     rhoS = reference_densities(sys)
     cnv, mb = cnv_mb_errors_bo(r, Φ, b, dt, rhoS, Val(nph))
+    dp_abs, dp_rel = pressure_increments(model, storage.state, update_report)
 
     names = phase_names(model.system)
-    R = (CNV = (errors = cnv, names = names),
-         MB = (errors = mb, names = names))
+    R = (
+        CNV = (errors = cnv, names = names),
+        MB = (errors = mb, names = names),
+        increment_dp_abs = (errors = (dp_abs/1e6, ), names = (raw"Δp (abs, MPa)", ), ),
+        increment_dp_rel = (errors = (dp_rel, ), names = (raw"Δp (rel)", ), ),
+    )
     return R
 end
 
