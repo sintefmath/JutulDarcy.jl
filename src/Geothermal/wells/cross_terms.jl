@@ -92,7 +92,7 @@ function JutulDarcy.update_cross_term_in_entity!(out, i,
                 h_ph = state_t.FluidEnthalpy[ph, return_node]
             end
             pot0 = 0.0
-            if eq isa ConservationLaw{:TotalEnergy, Jutul.FlowDiscretization} && true
+            if eq isa ConservationLaw{:TotalEnergy, <:Jutul.FlowDiscretization} && true
                 # Account for potential energy in total energy balance
                 if q_ph < 0
                     pot0 = state_s.UnitPotentialEnergy[supply_node]
