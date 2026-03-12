@@ -482,8 +482,10 @@ function convergence_criterion(model::SimulationModel{D, S}, storage, eq::Conser
     dp_abs, dp_rel = pressure_increments(model, storage.state, update_report)
     if ismissing(update_report)
         ds_max = 1.0
-    else
+    elseif haskey(update_report, :Saturations)
         ds_max = update_report[:Saturations].max
+    else
+        ds_max = 0.0
     end
     names = phase_names(model.system)
     R = (
