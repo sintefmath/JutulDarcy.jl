@@ -887,7 +887,7 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
     cartdims = grid["cartDims"]
     nx, ny, nz = cartdims
     G = mesh_from_grid_section(grid; repair_zcorn = repair_zcorn, process_pinch = process_pinch)
-
+    Jutul.MeshQualityControl.check_and_fix_mesh!(G, recheck = false)
     # Handle numerical aquifers
     aqunum = get(grid, "AQUNUM", missing)
     aqucon = get(grid, "AQUCON", missing)
