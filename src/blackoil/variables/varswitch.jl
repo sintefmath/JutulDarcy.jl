@@ -41,7 +41,9 @@ function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, reg_rs, reg_
         rv_tab_i = table_by_region(rv_tab, region(reg_rv, i))
         n_switched += varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab_i, rv_tab_i, keep_bub, sat_chop, pressure, swi, ϵ, w)
     end
-    @debug "Black oil updated for $(length(Dx)) cells, with $n_switched phase state changes."
+    if n_switched > 0
+        @debug "Black oil updated for $(length(Dx)) cells, with $n_switched phase state changes."
+    end
 end
 
 Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab, rv_tab, keep_bubble, sat_chop, pressure, swi, ϵ, w)
