@@ -859,6 +859,7 @@ values for pressure models.
 - `tol_mb_well=1e4*tol_mb`: maximum alllowable integrated error for well node
   (mass-balance)
 - `inc_tol_dp_abs=missing`: Maximum allowable pressure change (absolute)
+- `inc_tol_saturation=Inf`: Maximum allowable saturation change.
 - `inc_tol_dp_rel=missing`: Maximum allowable pressure change (relative)
 - `inc_tol_dz=Inf`: Maximum allowable composition change (compositional only).
 
@@ -924,6 +925,7 @@ function setup_reservoir_simulator(case::JutulCase;
         inc_tol_dp_abs = missing,
         inc_tol_dp_rel = missing,
         inc_tol_dz = Inf,
+        inc_tol_saturation = Inf,
         tol_cnve = tol_cnv,
         tol_eb = tol_mb,
         tol_cnve_well = 10*tol_cnve,
@@ -1062,6 +1064,7 @@ function setup_reservoir_simulator(case::JutulCase;
         tol_dp_well = tol_dp_well,
         inc_tol_dp_abs = inc_tol_dp_abs,
         inc_tol_dp_rel = inc_tol_dp_rel,
+        inc_tol_saturation = inc_tol_saturation,
         inc_tol_dz = inc_tol_dz,
         tol_cnve = tol_cnve,
         tol_eb = tol_eb,
@@ -1164,6 +1167,7 @@ function set_default_cnv_mb_inner!(tol, model;
         tol_cnv_well = 1e-2,
         tol_dp_well = 1e-3,
         inc_tol_dz = Inf,
+        inc_tol_saturation = Inf,
         tol_cnve = tol_cnv,
         tol_eb = tol_mb,
         tol_cnve_well = 10*tol_cnve,
@@ -1214,7 +1218,8 @@ function set_default_cnv_mb_inner!(tol, model;
             MB = mb,
             increment_dp_abs = inc_tol_dp_abs,
             increment_dp_rel = inc_tol_dp_rel,
-            increment_dz = inc_tol_dz
+            increment_dz = inc_tol_dz,
+            increment_saturation = inc_tol_saturation,
         )
         if haskey(model.equations, :energy_conservation)
             tol[:energy_conservation] = (

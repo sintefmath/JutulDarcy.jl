@@ -86,7 +86,8 @@ function setup_case_from_parsed_data(datafile;
         datafile = convert_co2store_to_co2_brine(datafile)
         rs = datafile["RUNSPEC"]
     end
-    sys, pvt = parse_physics_types(datafile, pvt_region = 1)
+    t_physics = @elapsed sys, pvt = parse_physics_types(datafile, pvt_region = 1)
+    msg("Complete in $(round(t_physics, sigdigits = 3)) seconds.")
     is_blackoil = sys isa StandardBlackOilSystem
     is_compositional = sys isa CompositionalSystem || sys == :co2brine
     is_thermal = haskey(datafile["RUNSPEC"], "THERMAL")
@@ -107,12 +108,13 @@ function setup_case_from_parsed_data(datafile;
     end
 
     msg("Parsing reservoir domain.")
-    domain = parse_reservoir(datafile, zcorn_depths = zcorn_depths, repair_zcorn = repair_zcorn, process_pinch = process_pinch)
+    t_domain = @elapsed domain = parse_reservoir(datafile, zcorn_depths = zcorn_depths, repair_zcorn = repair_zcorn, process_pinch = process_pinch)
+    msg("Complete in $(round(t_domain, sigdigits = 3)) seconds.")
     pvt_reg = reservoir_regions(domain, :pvtnum)
     has_pvt = isnothing(pvt_reg)
     # Parse wells
     msg("Parsing schedule.")
-    if skip_forces
+    t_schedule = @elapsed if skip_forces
         wells = []
         controls = limits = cstep = well_forces = missing
         dt = [1.0]
@@ -122,6 +124,7 @@ function setup_case_from_parsed_data(datafile;
             empty!(wells)
         end
     end
+    msg("Complete in $(round(t_schedule, sigdigits = 3)) seconds.")
     msg("Setting up model with $(length(wells)) wells.")
     wells_pvt = Dict()
     wells_systems = []
@@ -157,7 +160,7 @@ function setup_case_from_parsed_data(datafile;
         extra_arg[:tracers] = [t for t in tracer_types]
     end
 
-    model = setup_reservoir_model(domain, sys;
+    t_model_base = @elapsed model = setup_reservoir_model(domain, sys;
         thermal = is_thermal,
         wells = wells,
         extra_out = false,
@@ -165,7 +168,7 @@ function setup_case_from_parsed_data(datafile;
         kwarg...,
         extra_arg...
     )
-    for (k, submodel) in pairs(model.models)
+    t_model2 = @elapsed for (k, submodel) in pairs(model.models)
         if model_or_domain_is_well(submodel) || k == :Reservoir
             # Modify secondary variables
             if !is_compositional
@@ -213,27 +216,36 @@ function setup_case_from_parsed_data(datafile;
             end
         end
     end
+    msg("Complete in $(round(t_model_base + t_model2, sigdigits = 3)) seconds.")
     if "POLYMER" in tracers
         Tracers.set_polymer_model!(model, datafile)
     end
     msg("Setting up forces.")
-    if skip_forces
+    t_forces = @elapsed if skip_forces
         forces = setup_reservoir_forces(model)
     else
         forces = parse_forces(model, datafile, sys, wells, controls, limits, cstep, dt, well_forces)
     end
+    msg("Complete in $(round(t_forces, sigdigits = 3)) seconds.")
     msg("Setting up initial state.")
-    state0 = parse_state0(model, datafile, normalize = normalize)
+    t_state0 = @elapsed state0 = parse_state0(model, datafile, normalize = normalize)
+    msg("Complete in $(round(t_state0, sigdigits = 3)) seconds.")
     msg("Setting up parameters.")
-    parameters = setup_parameters(model)
-    if haskey(props, "SWL")
-        G = physical_representation(domain)
-        swl = vec(props["SWL"])
-        # parameters[:Reservoir][:ConnateWater] .= swl[G.cell_map]
+    t_prm = @elapsed begin
+        t_trans = @elapsed if use_ijk_trans
+            tran = reservoir_transmissibility(domain, version = :ijk);
+            prm_init = Dict(:Reservoir => Dict(:Transmissibilities => tran))
+            parameters = setup_parameters(model, prm_init)
+        else
+            parameters = setup_parameters(model)
+        end
+        # if haskey(props, "SWL")
+        #     G = physical_representation(domain)
+        #     swl = vec(props["SWL"])
+        #     # parameters[:Reservoir][:ConnateWater] .= swl[G.cell_map]
+        # end
     end
-    if use_ijk_trans
-        parameters[:Reservoir][:Transmissibilities] = reservoir_transmissibility(domain, version = :ijk);
-    end
+    msg("Complete in $(round(t_trans + t_prm, sigdigits = 3)) seconds.")
     msg("Setup complete.")
     return JutulCase(model, dt, forces, state0 = state0, parameters = parameters, input_data = datafile)
 end
@@ -1293,9 +1305,13 @@ function apply_mult_xyz!(tranmult, k, mult_on_active, G, ijk)
 end
 
 function get_zcorn_cell_depths(g, grid)
-    nc = number_of_cells(g)
     cartdims = grid["cartDims"]
     zcorn = grid["ZCORN"]
+    return get_zcorn_cell_depths(g, cartdims, zcorn)
+end
+
+function get_zcorn_cell_depths(g, cartdims, zcorn)
+    nc = number_of_cells(g)
     z = zeros(eltype(zcorn), nc)
     for c in 1:nc
         i, j, k = cell_ijk(g, c)

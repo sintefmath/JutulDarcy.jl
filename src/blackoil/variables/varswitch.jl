@@ -34,11 +34,15 @@ end
 function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, reg_rs, reg_rv, keep_bub, sat_chop, pressure, active, sw, ϵ, w)
     water_saturation(::Nothing, i) = 0.0
     water_saturation(sat, i) = value(sat[i])
+    n_switched = 0
     @inbounds for (i, dx) in zip(active, Dx)
         swi = water_saturation(sw, i)
         rs_tab_i = table_by_region(rs_tab, region(reg_rs, i))
         rv_tab_i = table_by_region(rv_tab, region(reg_rv, i))
-        varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab_i, rv_tab_i, keep_bub, sat_chop, pressure, swi, ϵ, w)
+        n_switched += varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab_i, rv_tab_i, keep_bub, sat_chop, pressure, swi, ϵ, w)
+    end
+    if n_switched > 0
+        @debug "Black oil updated for $(length(Dx)) cells, with $n_switched phase state changes."
     end
 end
 
@@ -89,6 +93,7 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
         next_x, next_state, is_near_bubble = handle_phase_appearance(pressure, i, tab, dr_max, old_state, old_x, swi, dx, was_near_bubble, ϵ_s, ϵ_r, keep_bubble, w)
     end
     v[i] = BlackOilX(next_x, next_state, is_near_bubble)
+    return old_state != next_state
 end
 
 function handle_phase_disappearance(pressure, i, ::Nothing, next_x, swi, old_state, possible_new_state, was_near_bubble, keep_bubble, ϵ_s, ϵ_r)

@@ -213,10 +213,10 @@ function Jutul.increment_norm(dX, state, model, X, pvar::BlackOilUnknown)
         end
     end
     return (
-            sg_sum = sg_sum_v, sg_max = sg_max_v,
-            rs_sum = rs_sum_v, rs_max = rs_max_v,
-            rv_sum = rv_sum_v, rv_max = rv_max_v,
-            )
+        sg_sum = sg_sum_v, sg_max = sg_max_v,
+        rs_sum = rs_sum_v, rs_max = rs_max_v,
+        rv_sum = rv_sum_v, rv_max = rv_max_v,
+    )
 end
 
 include("shrinkage.jl")
