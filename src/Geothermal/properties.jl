@@ -40,8 +40,8 @@ function setup_reservoir_model_geothermal(
                 set_secondary_variables!(m;
                     PhaseMassDensities = rho,
                     PhaseViscosities = mu,
-                    # ComponentHeatCapacity = c_v,
-                    # FluidInternalEnergy = u
+                    ComponentHeatCapacity = c_v,
+                    FluidInternalEnergy = u
                 )
             end
         end
