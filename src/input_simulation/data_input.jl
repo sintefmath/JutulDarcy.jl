@@ -1307,7 +1307,7 @@ end
 function get_zcorn_cell_depths(g, grid)
     cartdims = grid["cartDims"]
     zcorn = grid["ZCORN"]
-    return get_zcorn_cell_depths(nc, cartdims, zcorn)
+    return get_zcorn_cell_depths(g, cartdims, zcorn)
 end
 
 function get_zcorn_cell_depths(g, cartdims, zcorn)
