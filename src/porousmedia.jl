@@ -194,11 +194,11 @@ function compute_well_thermal_index(g::T, thermal_conductivity, radius, pos, dir
     return compute_well_thermal_index(Δ, thermal_conductivity, radius, dir; kwargs...)
 end
 
-function compute_well_thermal_index(Δ, thermal_conductivity, radius::Float64, dir=:z;
-        casing_thickness::Float64 = 0.0,
-        grouting_thickness::Float64 = 0.0,
-        casing_thermal_conductivity::Float64 = 20.0,
-        grouting_thermal_conductivity::Float64 = 2.3,
+function compute_well_thermal_index(Δ, thermal_conductivity, radius, dir=:z;
+        casing_thickness = 0.0,
+        grouting_thickness = 0.0,
+        casing_thermal_conductivity = 20.0,
+        grouting_thermal_conductivity = 2.3,
     )
 
     radius > 0.0 || error("Well radius must be positive.")
