@@ -41,20 +41,22 @@ function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, reg_rs, reg_
         rv_tab_i = table_by_region(rv_tab, region(reg_rv, i))
         n_switched += varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab_i, rv_tab_i, keep_bub, sat_chop, pressure, swi, ϵ, w)
     end
-    @debug if n_switched > 0
-        og = 0
-        g = 0
-        o = 0
-        for bo in v
-            if bo.phases_present == OilAndGas
-                og += 1
-            elseif bo.phases_present == GasOnly
-                g += 1
-            elseif bo.phases_present == OilOnly
-                o += 1
+    if n_switched > 0
+        @debug begin
+            og = 0
+            g = 0
+            o = 0
+            for bo in v
+                if bo.phases_present == OilAndGas
+                    og += 1
+                elseif bo.phases_present == GasOnly
+                    g += 1
+                elseif bo.phases_present == OilOnly
+                    o += 1
+                end
             end
+            "Black oil updated for $(length(Dx)) cells, with $n_switched phase state changes. Phase state distribution after update: Oil and Gas: $og, Gas only: $g, Oil only: $o"
         end
-        "Black oil updated for $(length(Dx)) cells, with $n_switched phase state changes. Phase state distribution after update: Oil and Gas: $og, Gas only: $g, Oil only: $o"
     end
 end
 
