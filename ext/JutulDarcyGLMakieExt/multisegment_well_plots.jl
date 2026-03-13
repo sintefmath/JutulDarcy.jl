@@ -1,7 +1,9 @@
 # Multisegment well plotting functionality
 # Requires GLMakie for interactive plotting
 
-"""
+# NOTE: This module was developed with the assistance of AI agents tools.
+
+"""r
     compute_meters_drilled(well_model)
 
 Compute meters drilled for each cell in a multisegment well.
