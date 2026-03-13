@@ -107,9 +107,7 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
     else
         rho_l, mu_l = saturation_mixed(s, densities, μ, left)
         rho_r, mu_r = saturation_mixed(s, densities, μ, right)
-        # rho = 0.5*(rho_l + rho_r)
         rho = V >= 0 ? rho_l : rho_r
-        # μ_mix = 0.5*(mu_l + mu_r)
         μ_mix = V >= 0 ? mu_l : mu_r
         Δp = segment_pressure_drop(seg_model, L, roughness, radius_outer, radius_inner, V, rho, μ_mix)
         Δθ = two_point_potential_drop(p[left], p[right], gdz, rho_l, rho_r)
@@ -179,10 +177,7 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
     elseif eq_type isa EnergyConservation{T_m}
         energy = state.TotalEnergy
         energy0 = state0.TotalEnergy
-        pot = state.PotentialEnergy
-        vol = state.FluidVolume
         pot0 = state.UnitPotentialEnergy
-        # println("Potential energy at cell ", self_cell, ": ", pot[self_cell])
     end
     density = state.PhaseMassDensities
     S = state.Saturations
@@ -195,7 +190,6 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
         m_t_self = total_density(S, density, self_cell)
         for (cell, face, sgn) in zip(cells, faces, signs)
             v_f = sgn*v[face]
-            # println("Sign of flux: ", sgn, " velocity: ", v[face])
             for ph in 1:nph
                 # Compute mass fraction of phase, then weight by enthalpy.
                 m_t_other = total_density(S, density, cell)
@@ -206,6 +200,7 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
                 eq += v_f*upw_flux(v_f, ME_self, ME_other)
             end
             if eq_type isa EnergyConservation{T_m}
+                # Account for potential energy
                 eq += v_f*upw_flux(v_f, pot0[self_cell], pot0[cell])
             end
             λm_f = λm[face]
@@ -236,8 +231,7 @@ function component_sum(mass, i)
 end
 
 function convergence_criterion(model, storage, eq::PotentialDropBalanceWell, eq_s, r; dt = 1.0, update_report = missing)
-    # e = (norm(r, Inf)/1e5, ) # Given as pressure - scale by 1 bar
-    e = (norm(r, Inf), ) # Given as pressure - scale by 1 bar
+    e = (norm(r, Inf)/1e5, ) # Given as pressure - scale by 1 bar
     R = (AbsMax = (errors = e, names = "R"), )
     return R
 end
