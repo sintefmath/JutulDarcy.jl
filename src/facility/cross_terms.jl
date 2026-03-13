@@ -268,6 +268,15 @@ function update_cross_term_in_entity!(out, i,
             H_perf = state_res.FluidEnthalpy[ph, reservoir_cell]
         end
         advective_heat_flux += H_perf*q_ph
+        if eq isa ConservationLaw{:TotalEnergy, <:WellSegmentFlow}
+            # Account for potential energy in total energy balance
+            if q_ph < 0
+                pot = state_well.UnitPotentialEnergy[well_cell]
+            else
+                pot = state_res.UnitPotentialEnergy[reservoir_cell]
+            end
+            advective_heat_flux += pot*q_ph
+        end
     end
     T_well = state_well.Temperature[well_cell]
     T_res = state_res.Temperature[reservoir_cell]
