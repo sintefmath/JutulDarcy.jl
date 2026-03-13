@@ -9,6 +9,7 @@ module Geothermal
     end
 
     include("wells/cross_terms.jl")
+    include("wells/utils.jl")
     include("properties.jl")
 
 end
