@@ -248,6 +248,9 @@ function JutulDarcy.plot_well_vs_meters_drilled(well_model, values;
     fig = Figure(; figure_kwargs...)
     ax = Axis(fig[1, 1]; axis_kwargs...)
     JutulDarcy.plot_well_vs_meters_drilled!(ax, well_model, values; kwargs...)
+    if haskey(well_model.data_domain, :section)
+        Legend(fig[1, 2], ax, "Sections")
+    end
     return fig
 end
 
@@ -535,12 +538,27 @@ function JutulDarcy.plot_well_states_interactive(well_model, states;
         info_layout[2, 1] = Label(fig, time_label)
     end
     
-    # Check for sections
+    # Add section legend to the right of the plot
     has_sections = haskey(well_model.data_domain, :section)
     if has_sections
         n_sections = maximum(well_model.data_domain[:section])
-        info_layout[3, 1] = Label(fig, "Sections: $n_sections")
-        info_layout[4, 1] = Label(fig, "Colors by section")
+        # Determine section colors (matching logic in plot_well_vs_meters_drilled!)
+        kw = Dict{Symbol,Any}(kwargs)
+        user_colors = get(kw, :colors, missing)
+        if !ismissing(user_colors)
+            section_colors = user_colors
+        elseif n_sections <= 7
+            section_colors = Makie.wong_colors(n_sections)
+        elseif n_sections <= 10
+            section_colors = cgrad(:tab10, n_sections, categorical = true)
+        elseif n_sections <= 20
+            section_colors = cgrad(:tab20, n_sections, categorical = true)
+        else
+            section_colors = cgrad(:BrBg, n_sections, categorical = true)
+        end
+        entries = [LineElement(color = section_colors[s], linewidth = 3) for s in 1:n_sections]
+        labels = ["Section $s" for s in 1:n_sections]
+        Legend(fig[2:4, 4], entries, labels, "Sections")
     end
     
     # Trigger initial plot
