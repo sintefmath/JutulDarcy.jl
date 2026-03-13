@@ -17,6 +17,35 @@ end
     return setindex(q_i, q, 1)
 end
 
+@inline function Jutul.face_flux!(Q, left, right, face, face_sign, eq::ConservationLaw{:TotalEnergy, <:Any}, state, model, dt, flow_disc::TwoPointPotentialFlowHardCoded)
+    # Specific version for tpfa flux
+    # TODO: Add general version for thermal
+    grad = TPFA(left, right, face_sign)
+    upw = SPU(left, right)
+    # TODO: This could be inconsistent if we use flux_type for something.
+    flux_type = Jutul.flux_type(eq)
+    q = thermal_heat_flux(face, state, model, grad, upw, flux_type)
+    pot = state.UnitPotentialEnergy
+    qm = darcy_phase_mass_fluxes(face, state, model, flux_type, grad, upw)
+    for ph in eachindex(qm)
+        q += qm[ph]*upwind(upw, pot, qm[ph])
+    end
+    return setindex(Q, q, 1)
+end
+
+@inline function Jutul.face_flux!(q_i, face, eq::ConservationLaw{:TotalEnergy, <:Any}, state, model, dt, flow_disc::PotentialFlow, ldisc)
+    # Inner version, for generic flux
+    kgrad, upw = ldisc.face_disc(face)
+    ft = Jutul.flux_type(eq)
+    q = thermal_heat_flux(face, state, model, kgrad, upw, ft)
+    pot = state.UnitPotentialEnergy
+    qm = darcy_phase_mass_fluxes(face, state, model, ft, kgrad, upw)
+    for ph in eachindex(qm)
+        q += qm[ph]*upwind(upw, pot, qm[ph])
+    end
+    return setindex(q_i, q, 1)
+end
+
 """
     thermal_heat_flux(face, state, model, grad, upw, flux_type)
 
