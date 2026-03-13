@@ -114,3 +114,9 @@ end
         E_total[i] = TotalThermalEnergy[i] + KineticEnergy[i] + PotentialEnergy[i]
     end
 end
+
+@jutul_secondary function update_total_energy!(E_total, te::TotalEnergy, model, TotalThermalEnergy, PotentialEnergy, ix)
+    for i in ix
+        E_total[i] = TotalThermalEnergy[i] + PotentialEnergy[i]
+    end
+end
