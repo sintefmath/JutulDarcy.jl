@@ -28,7 +28,8 @@ function setup_reservoir_model_geothermal(
     model = setup_reservoir_model(reservoir, sys; thermal = true, extra_out = false, kwarg...)
     # Tables
     rho = JutulDarcy.PressureTemperatureDependentVariable(tables[:density])
-    c_p = JutulDarcy.PressureTemperatureDependentVariable(tables[:heat_capacity_constant_pressure])
+    u = JutulDarcy.PressureTemperatureDependentVariable(tables[:internal_energy])
+    c_v = JutulDarcy.PressureTemperatureDependentVariable(tables[:heat_capacity_constant_volume])
 
     mu = JutulDarcy.PTViscosities(tables[:viscosity])
 
@@ -38,7 +39,8 @@ function setup_reservoir_model_geothermal(
                 set_secondary_variables!(m;
                     PhaseMassDensities = rho,
                     PhaseViscosities = mu,
-                    ComponentHeatCapacity = c_p
+                    ComponentHeatCapacity = c_v,
+                    FluidInternalEnergy = u,
                 )
             end
         end
@@ -107,7 +109,7 @@ function geothermal_setup_tables(table_cache, salt_names, salt_mole_fractions, t
             return Jutul.BilinearInterpolant(t.X, t.Y, F)
         end
         tables = Dict()
-        for k in [:density, :heat_capacity_constant_pressure, :viscosity, :phase_conductivity]
+        for k in [:density, :internal_energy, :heat_capacity_constant_volume, :viscosity, :phase_conductivity]
             tables[k] = water_only_table(tables_with_co2, k)
         end
         table_cache[tabkey] = tables
