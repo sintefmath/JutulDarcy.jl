@@ -29,8 +29,8 @@ function compute_meters_drilled(well_model)
     # Build graph adjacency list with distances
     graph = build_well_graph(centroids, neighborship)
     
-    # Find the root/start node of the well
-    start_node = find_well_start_node(neighborship, n_cells)
+    # Root/start node of the well (assumed to be the node with no incoming edges)
+    start_node = 1
     
     # Compute shortest path distances from start to all nodes
     distances = compute_shortest_distances(graph, start_node, n_cells)
@@ -72,7 +72,7 @@ end
 Compute Euclidean distance between two 3D points.
 """
 function euclidean_distance(p1, p2)
-    return norm(p1 - p2)
+    return norm(p1 - p2, 2)
 end
 
 """
@@ -158,18 +158,44 @@ Plot well data vs meters drilled on the given axis.
 If the well has sections (`:section` key), each section is plotted with a distinct color.
 Otherwise, plots all values as a single line.
 """
-function JutulDarcy.plot_well_vs_meters_drilled!(ax, well_model, values; label=nothing, kwargs...)
-    # Compute meters drilled for each cell
-    meters_drilled = compute_meters_drilled(well_model)
+function JutulDarcy.plot_well_vs_meters_drilled!(ax, well_model, values;
+    label=nothing, colors = missing, meters_drilled=missing, kwargs...)
+    # Compute meters drilled for each cell if not provided
+    if ismissing(meters_drilled)
+        meters_drilled = compute_meters_drilled(well_model)
+    end
     
     # Check if well has section data
     has_sections = haskey(well_model.data_domain, :section)
-    
+
+    n_cells = number_of_cells(well_model.data_domain)
+    n_segments = number_of_faces(well_model.data_domain)
+    if length(values) == n_cells
+        # OK
+    elseif length(values) == n_segments
+        N = get_neighborship(well_model.data_domain.representation)
+        meters_drilled = vec(sum(meters_drilled[N], dims=1)./2) # Average meters drilled for each segment
+    else
+        error("Length of values must match number of cells ($n_cells) or segments ($n_segments)")
+    end
+
     if has_sections
         sections = well_model.data_domain[:section]
+        if length(values) == n_segments
+            sections = max.(sections[N[1,:]], sections[N[2,:]])
+        end
         num_sections = maximum(sections)
-        # colors = cgrad(:BrBg, num_sections, categorical = true)
-        colors = Makie.wong_colors(num_sections)  # Use Wong's color palette for better distinction
+        if ismissing(colors)
+            if num_sections <= 7
+                colors = Makie.wong_colors(num_sections)  # Use Wong's color palette for better distinction
+            elseif num_sections <= 10
+                colors = cgrad(:tab10, num_sections, categorical = true) # Use Tab10 for up to 10 sections
+            elseif num_sections <= 20
+                colors = cgrad(:tab20, num_sections, categorical = true) # Use Tab20 for up to 20 sections
+            else
+                colors = cgrad(:BrBg, num_sections, categorical = true) # Use a diverging colormap for more than 20 sections (not ideal but better than repeating colors)
+            end
+        end
         
         # Plot each section with different colors
         for s in 1:num_sections
@@ -267,12 +293,15 @@ function JutulDarcy.plot_well_states_interactive(well_model, states;
     # Filter to numeric fields with correct dimensions
     meters_drilled = compute_meters_drilled(well_model)
     n_cells = length(meters_drilled)
+    n_segments = number_of_faces(well_model.data_domain)
     
     valid_fields = String[]
     for field in field_names
         val = first_state[field]
-        if val isa AbstractVector && length(val) == n_cells && eltype(val) <: Number
-            push!(valid_fields, string(field))
+        if val isa AbstractVector && eltype(val) <: Number
+            if length(val) ∈ [n_cells, n_segments]
+                push!(valid_fields, string(field))
+            end
         end
     end
     
@@ -455,7 +484,7 @@ function JutulDarcy.plot_well_states_interactive(well_model, states;
         field_data = current_state[Symbol(field)]
         
         # Plot data vs meters drilled (with section support)
-        JutulDarcy.plot_well_vs_meters_drilled!(ax, well_model, field_data)
+        JutulDarcy.plot_well_vs_meters_drilled!(ax, well_model, field_data; meters_drilled=meters_drilled, kwargs...)
         
         # Set consistent y-axis limits
         y_min, y_max = field_y_limits[field]
