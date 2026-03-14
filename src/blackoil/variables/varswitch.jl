@@ -106,10 +106,6 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
         end
         next_x, next_state, is_near_bubble = handle_phase_appearance(pressure, i, tab, dr_max, old_state, old_x, swi, dx, was_near_bubble, ϵ_s, ϵ_r, keep_bubble, w)
     end
-    if !isfinite(value(next_x))
-        @info "???" old_x old_state swi next_x
-        error("Non-finite value for primary variable after update for entry $i: $next_x")
-    end
     v[i] = BlackOilX(next_x, next_state, is_near_bubble)
     return old_state != next_state
 end
@@ -145,7 +141,7 @@ end
 
 function handle_phase_appearance(pressure, i, r_tab, dr_max, old_state, old_x, swi, dx, was_near_bubble, ϵ_s, ϵ_r, keep_bubble, w)
     p = pressure[i]
-    r_sat = max(r_tab(value(p)), 1e-3)
+    r_sat = max(r_tab(value(p)), 10*ϵ_r)
     abs_r_max = dr_max*r_sat
     Δ = Jutul.choose_increment(value(old_x), dx, abs_r_max, nothing, 0, nothing)
     next_x = old_x + w*Δ
