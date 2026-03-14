@@ -203,7 +203,7 @@ function update_preconditioner!(cpr::CPRPreconditioner, lsys::Jutul.JutulLinearS
     end
 end
 
-function initialize_cpr_storage!(cpr, model, lsys, s, bz, T)
+function initialize_cpr_storage!(cpr, model, lsys, bz, T)
     J = reservoir_jacobian(lsys)
     do_setup = isnothing(cpr.storage) || cpr.storage.id != objectid(J)
     if do_setup
@@ -292,16 +292,15 @@ end
 
 function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, recorder, executor, T)
     do_p_update = should_update_cpr(cpr, recorder, :amg)
-    s = reservoir_storage(model, storage)
     A = reservoir_jacobian(lsys)
     rmodel = reservoir_model(model, type = :flow)
     bz = number_of_components(rmodel.system)
-    initialize_cpr_storage!(cpr, model, lsys, s, bz, T)
+    initialize_cpr_storage!(cpr, model, lsys, bz, T)
     ps = rmodel.primary_variables[:Pressure].scale
     if do_p_update || cpr.partial_update
         rmodel = reservoir_model(model)
         ctx = rmodel.context
-        @tic "weights" w_p = update_weights!(cpr, cpr.storage, rmodel, s, storage, A, ps)
+        @tic "weights" w_p = update_weights!(cpr, cpr.storage, model, storage, A, ps)
         A_p = cpr.storage.A_p
         w_p = cpr.storage.w_p
         rw_map = cpr.storage.well_reservoir_map
@@ -526,37 +525,20 @@ function reservoir_jacobian(lsys::MultiLinearizedSystem)
     return lsys[1, 1].jac
 end
 
-function update_weights!(cpr, cpr_storage::CPRStorage, model, res_storage, storage, J, ps)
+function update_weights!(cpr, cpr_storage::CPRStorage, model, storage, J, ps)
     np = cpr_storage.np
-    nc = number_of_cells(reservoir_model(model).domain)
-    n = min(np, nc)
-    bz = cpr_storage.block_size
     w = cpr_storage.w_p
-    r = cpr_storage.w_rhs
-    ncomp = size(w, 1)
-    scaling = cpr.weight_scaling
-    strategy = cpr.strategy
-    if strategy == :true_impes
-        eq_s = res_storage.equations[:mass_conservation]
-        if eq_s isa ConservationLawTPFAStorage
-            acc = eq_s.accumulation.entries
-        else
-            acc = res_storage.state.TotalMasses
-            # This term isn't scaled by dt, so use simple weights instead
-            ps = 1.0
-        end
-        true_impes!(w, acc, r, n, ncomp, ps, scaling)
-    elseif strategy == :analytical
-        rstate = res_storage.state
-        cpr_weights_no_partials!(w, model, rstate, r, n, ncomp, scaling)
-    elseif strategy == :quasi_impes
-        quasi_impes!(w, J, r, n, ncomp, scaling)
-    elseif strategy == :none
-        # Do nothing. Already set to one.
+    rmodel = reservoir_model(model)
+    rstorage = reservoir_storage(model, storage)
+    nc = cpr_weights_for_reservoir!(rmodel, cpr, cpr_storage, rstorage, 0)
+    if model isa MultiModel && haskey(model.models, :Fractures)
+        fmodel = model.models[:Fractures]
+        fstorage = storage[:Fractures]
+        nf = cpr_weights_for_reservoir!(fmodel, cpr, cpr_storage, fstorage, nc)
     else
-        error("Unsupported strategy $(strategy)")
+        nf = 0
     end
-    if np > nc
+    if np > (nf + nc)
         wr_map = cpr_storage.well_reservoir_map
         @assert !isnothing(wr_map)
         for i in 1:(np-nc)
@@ -565,7 +547,7 @@ function update_weights!(cpr, cpr_storage::CPRStorage, model, res_storage, stora
             well = wr_map.wells[i]
             wstate = storage[well].state
             if strategy == :analytical
-                cpr_weights_no_partials!(w_i, model, wstate, nothing, 1, ncomp, scaling)
+                cpr_weights_no_partials!(w_i, rmodel, wstate, nothing, 1, ncomp, scaling)
             else
                 acc_i = wstate.TotalMasses
                 true_impes!(w_i, acc_i, r, 1, ncomp, ps, scaling)
@@ -573,6 +555,39 @@ function update_weights!(cpr, cpr_storage::CPRStorage, model, res_storage, stora
         end
     end
     return w
+end
+
+function cpr_weights_for_reservoir!(model, cpr, cpr_storage, storage, offset)
+    np = cpr_storage.np
+
+    nc = number_of_cells(model.domain)
+    n = min(np, nc)
+    r = cpr_storage.w_rhs
+    w = view(cpr_storage.w_p, :, (offset+1):(offset+n))
+    ncomp = size(w, 1)
+    scaling = cpr.weight_scaling
+    strategy = cpr.strategy
+    if strategy == :true_impes
+        eq_s = storage.equations[:mass_conservation]
+        if eq_s isa ConservationLawTPFAStorage
+            acc = eq_s.accumulation.entries
+        else
+            acc = storage.state.TotalMasses
+            # This term isn't scaled by dt, so use simple weights instead
+            ps = 1.0
+        end
+        true_impes!(w, acc, r, n, ncomp, ps, scaling)
+    elseif strategy == :analytical
+        rstate = storage.state
+        cpr_weights_no_partials!(w, model, rstate, r, n, ncomp, scaling)
+    elseif strategy == :quasi_impes
+        quasi_impes!(w, J, r, n, ncomp, scaling)
+    elseif strategy == :none
+        # Do nothing. Already set to one.
+    else
+        error("Unsupported strategy $(strategy)")
+    end
+    return n
 end
 
 function true_impes!(w, acc, r, n, bz, arg...)
