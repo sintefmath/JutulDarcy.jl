@@ -557,9 +557,8 @@ function update_weights!(cpr, cpr_storage::CPRStorage, model, storage, J, ps)
     return w
 end
 
-function cpr_weights_for_reservoir!(model, cpr, cpr_storage, storage, offset)
+function cpr_weights_for_reservoir!(model::SimulationModel, cpr, cpr_storage, storage, offset)
     np = cpr_storage.np
-
     nc = number_of_cells(model.domain)
     n = min(np, nc)
     r = cpr_storage.w_rhs
@@ -571,6 +570,7 @@ function cpr_weights_for_reservoir!(model, cpr, cpr_storage, storage, offset)
         eq_s = storage.equations[:mass_conservation]
         if eq_s isa ConservationLawTPFAStorage
             acc = eq_s.accumulation.entries
+            ps = model.primary_variables[:Pressure].scale
         else
             acc = storage.state.TotalMasses
             # This term isn't scaled by dt, so use simple weights instead
