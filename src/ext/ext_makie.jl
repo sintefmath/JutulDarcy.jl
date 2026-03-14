@@ -256,3 +256,32 @@ or CairoMakie)
 function plot_co2_inventory
 
 end
+
+"""
+    plot_well_vs_meters_drilled!(ax, well_model, values; label=nothing, kwargs...)
+
+Plot well data vs meters drilled on the given axis. If the well has sections,
+each section is plotted with a distinct color. Needs GLMakie to be loaded.
+"""
+function plot_well_vs_meters_drilled!
+
+end
+
+"""
+    plot_well_vs_meters_drilled(well_model, values; figure_kwargs=NamedTuple(), axis_kwargs=NamedTuple(), kwargs...)
+
+Create a new figure and plot well data vs meters drilled. Needs GLMakie to be loaded.
+"""
+function plot_well_vs_meters_drilled
+
+end
+
+"""
+    plot_well_states_interactive(well_model, states; time=missing, names=missing, resolution=(1200, 800), kwargs...)
+    plot_well_states_interactive(well_name::Symbol, model, states; kwargs...)
+
+Interactive GUI for plotting multisegment well data vs meters drilled. Needs GLMakie to be loaded.
+"""
+function plot_well_states_interactive
+
+end
