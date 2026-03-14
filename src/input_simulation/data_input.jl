@@ -896,6 +896,7 @@ function reservoir_domain(data_file::AbstractDict;
         zcorn_depths = true,
         repair_zcorn = true,
         process_pinch = true,
+        check_mesh = false,
         kwarg...
     )
     if haskey(data_file, "GRID")
@@ -906,7 +907,10 @@ function reservoir_domain(data_file::AbstractDict;
     cartdims = grid["cartDims"]
     nx, ny, nz = cartdims
     G = mesh_from_grid_section(grid; repair_zcorn = repair_zcorn, process_pinch = process_pinch)
-    Jutul.MeshQualityControl.check_and_fix_mesh!(G, recheck = false)
+    if check_mesh
+        # TODO: Requires Jutul update.
+        Jutul.MeshQualityControl.check_and_fix_mesh!(G, recheck = false)
+    end
     # Handle numerical aquifers
     aqunum = get(grid, "AQUNUM", missing)
     aqucon = get(grid, "AQUCON", missing)
