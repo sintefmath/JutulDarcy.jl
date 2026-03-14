@@ -223,7 +223,11 @@ function JutulDarcy.setup_reservoir_model(matrix::DataDomain, fractures::DataDom
             if isnothing(model.groups)
                 groups = nothing
             end
+            old_model = model
             model = Jutul.MultiModel(new_models; groups = groups)
+            for ct in old_model.cross_terms
+                push!(model.cross_terms, ct)
+            end
         else
             model.models[:Fractures] = fmodel
             if !isnothing(model.groups)
