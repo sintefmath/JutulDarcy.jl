@@ -130,8 +130,7 @@ function hysteresis_impl(t::CarlsonHysteresis, drain, imb, s, s_max)
             F,
             (value(imb.connate), value(imb.s_max)),
             A42(),
-            xatol = ϵ,
-            rtol = ϵ
+            xatol = ϵ
         )
     end
     s_shifted = s + s_meet - s_max
