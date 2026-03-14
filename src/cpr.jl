@@ -530,11 +530,11 @@ function update_weights!(cpr, cpr_storage::CPRStorage, model, storage, J, ps)
     w = cpr_storage.w_p
     rmodel = reservoir_model(model)
     rstorage = reservoir_storage(model, storage)
-    nc = cpr_weights_for_reservoir!(rmodel, cpr, cpr_storage, rstorage, 0)
+    nc = cpr_weights_for_reservoir!(rmodel, J, cpr, cpr_storage, rstorage, 0)
     if model isa MultiModel && haskey(model.models, :Fractures)
         fmodel = model.models[:Fractures]
         fstorage = storage[:Fractures]
-        nf = cpr_weights_for_reservoir!(fmodel, cpr, cpr_storage, fstorage, nc)
+        nf = cpr_weights_for_reservoir!(fmodel, J, cpr, cpr_storage, fstorage, nc)
     else
         nf = 0
     end
@@ -557,7 +557,7 @@ function update_weights!(cpr, cpr_storage::CPRStorage, model, storage, J, ps)
     return w
 end
 
-function cpr_weights_for_reservoir!(model::SimulationModel, cpr, cpr_storage, storage, offset)
+function cpr_weights_for_reservoir!(model::SimulationModel, J, cpr, cpr_storage, storage, offset)
     np = cpr_storage.np
     nc = number_of_cells(model.domain)
     n = min(np, nc)
@@ -581,7 +581,7 @@ function cpr_weights_for_reservoir!(model::SimulationModel, cpr, cpr_storage, st
         rstate = storage.state
         cpr_weights_no_partials!(w, model, rstate, r, n, ncomp, scaling)
     elseif strategy == :quasi_impes
-        quasi_impes!(w, J, r, n, ncomp, scaling)
+        quasi_impes!(w, J, r, n, ncomp, scaling, offset)
     elseif strategy == :none
         # Do nothing. Already set to one.
     else
@@ -699,10 +699,10 @@ function true_impes_gen!(w, acc, r, n, ::Val{bz}, p_scale, scaling) where bz
     end
 end
 
-function quasi_impes!(w, J, r, n, bz, scaling)
+function quasi_impes!(w, J, r, n, bz, scaling, offset = 0)
     r_p = SVector{bz}(r)
     @batch for cell = 1:n
-        J_b = J[cell, cell]'
+        J_b = J[cell + offset, cell + offset]'
         invert_w!(w, J_b, r_p, cell, bz, scaling)
     end
 end
