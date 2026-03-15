@@ -1196,8 +1196,8 @@ function plot_events!(ax, events, well_or_fld, start_date, t, v)
     end
     if first(ed) isa DateTime
 
-        t_s = map(x -> Period(x - start_date).value/1000, t)
-        event_s = map(x -> Period(x - start_date).value/1000, ed)
+        t_s = map(x -> Dates.value(x - start_date) / 1000, t)
+        event_s = map(x -> Dates.value(x - start_date) / 1000, ed)
     else
         t_s = t
         event_s = ed
