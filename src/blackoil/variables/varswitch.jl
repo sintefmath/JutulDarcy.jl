@@ -42,7 +42,21 @@ function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, reg_rs, reg_
         n_switched += varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab_i, rv_tab_i, keep_bub, sat_chop, pressure, swi, ϵ, w)
     end
     if n_switched > 0
-        @debug "Black oil updated for $(length(Dx)) cells, with $n_switched phase state changes."
+        @debug begin
+            og = 0
+            g = 0
+            o = 0
+            for bo in v
+                if bo.phases_present == OilAndGas
+                    og += 1
+                elseif bo.phases_present == GasOnly
+                    g += 1
+                elseif bo.phases_present == OilOnly
+                    o += 1
+                end
+            end
+            "Black oil updated for $(length(Dx)) cells, with $n_switched phase state changes. Phase state distribution after update: Oil and Gas: $og, Gas only: $g, Oil only: $o"
+        end
     end
 end
 
@@ -127,11 +141,12 @@ end
 
 function handle_phase_appearance(pressure, i, r_tab, dr_max, old_state, old_x, swi, dx, was_near_bubble, ϵ_s, ϵ_r, keep_bubble, w)
     p = pressure[i]
-    r_sat = r_tab(value(p))
-
+    r_sat = max(r_tab(value(p)), 10*ϵ_r)
     abs_r_max = dr_max*r_sat
-    next_x = old_x + w*Jutul.choose_increment(value(old_x), dx, abs_r_max, nothing, 0, nothing)
-    if next_x >= r_sat
+    Δ = Jutul.choose_increment(value(old_x), dx, abs_r_max, nothing, 0, nothing)
+    next_x = old_x + w*Δ
+    to_two_phase = next_x >= r_sat
+    if to_two_phase
         if was_near_bubble
             # We are sufficiently close to the saturated point. Switch to gas saturation as primary variable.
             if old_state == OilOnly
@@ -154,16 +169,6 @@ function handle_phase_appearance(pressure, i, r_tab, dr_max, old_state, old_x, s
         is_near_bubble = false
     end
     return (next_x, next_state, is_near_bubble)
-end
-
-function s_removed(s, d)
-    error("Not in use")
-    if d < 1e-12
-        s_bar = 1.0
-    else
-        s_bar = s/(1-d)
-    end
-    return s_bar
 end
 
 function blackoil_unknown_init(F_rs, F_rv::Nothing, sw, so, sg, rs, rv, p)

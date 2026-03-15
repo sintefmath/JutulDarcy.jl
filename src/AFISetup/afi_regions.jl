@@ -16,7 +16,7 @@ function setup_region_map(d::AFIInputFile)
         regions["family"][group] = gdict
 
         for (i, k) in zip(indices, names)
-            gdict[k] = i
+            gdict[String(k)] = i
         end
     end
     # RockRegionMapping

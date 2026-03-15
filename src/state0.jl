@@ -212,13 +212,17 @@ function EquilibriumRegion(model::Union{SimulationModel, MultiModel}, p_datum = 
     )
 end
 
-function EquilibriumRegion(eql::EquilibriumRegion, model; kwarg...)
+function EquilibriumRegion(eql::EquilibriumRegion, model;
+        datum_pressure = eql.datum_pressure,
+        datum_depth = eql.datum_depth,
+        kwarg...
+    )
     # Convenience constructor to re-use an existing EquilibriumRegion but for a
     # new model and with a few fields modified
     return EquilibriumRegion(
         model,
-        eql.datum_pressure,
-        eql.datum_depth;
+        datum_pressure,
+        datum_depth;
         woc = eql.woc,
         goc = eql.goc,
         wgc = eql.wgc,
@@ -337,6 +341,7 @@ end
 function setup_reservoir_state(
         rmodel::SimulationModel,
         equil_regs::Union{Missing, Vector, EquilibriumRegion} = missing;
+        cell_nz = missing,
         kwarg...
     )
     nc = number_of_cells(rmodel.domain)
@@ -354,7 +359,7 @@ function setup_reservoir_state(
             pc_reg = pc.regions
             equil_regs = split_equilibrium_regions(equil_regs, pc_reg)
         end
-        inits = map(equil -> equilibriate_state(rmodel, equil), equil_regs)
+        inits = map(equil -> equilibriate_state(rmodel, equil, cell_nz = cell_nz), equil_regs)
         if length(inits) == 1
             init = only(inits)
         else
@@ -405,7 +410,7 @@ function setup_reservoir_state(
             end
         end
         if isnothing(I)
-            if !(k in svars)
+            if !(k in svars) && !(k in (:Temperature, :Saturations))
                 jutul_message("setup_reservoir_state", "Received primary variable $k, but this is not known to reservoir model.")
             end
         else
@@ -434,10 +439,13 @@ end
 
 function split_equilibrium_regions(equil_regs::AbstractVector{T}, region::AbstractArray; variant = :satnum) where T
     equil_regs_new = T[]
-    for er in equil_regs
+    for (i, er) in enumerate(equil_regs)
         cells = er.cells
         if ismissing(cells)
             cells = eachindex(region)
+        elseif length(cells) == 0
+            @warn "Equilibrium region $i has empty cell list, skipping"
+            continue
         end
         regs = getproperty(er, variant)
         if ismissing(regs)

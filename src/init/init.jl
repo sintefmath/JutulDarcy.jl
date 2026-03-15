@@ -93,7 +93,7 @@ function equilibriate_state(model, contacts,
     return init
 end
 
-function equilibriate_state(model, equil::EquilibriumRegion{R}) where R
+function equilibriate_state(model, equil::EquilibriumRegion{R}; cell_nz = missing) where R
     sys = model.system
     phases = get_phases(sys)
     phase_ix = [i for i in phase_indices(sys)]
@@ -163,6 +163,7 @@ function equilibriate_state(model, equil::EquilibriumRegion{R}) where R
         density_function = equil.density_function,
         pvtnum = equil.pvtnum,
         satnum = equil.satnum,
+        cell_nz = cell_nz,
         equil.kwarg...
     )
     init[:Saturations] = init[:Saturations][phase_ix, :]
@@ -171,44 +172,19 @@ end
 
 function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pressure;
         cells = 1:length(depths),
-        rs = missing,
-        rv = missing,
-        pc = missing,
-        composition = missing,
         T_z = missing,
-        s_min = missing,
-        contacts_pc = missing,
-        pvtnum = 1,
-        satnum = 1,
         sw = missing,
+        s_min = missing,
         output_pressures = false,
-        density_function = missing,
         kwarg...
     )
-    if ismissing(pc)
-        pc_def = get(model.secondary_variables, :CapillaryPressure, nothing)
-        if !isnothing(pc_def)
-            pc = []
-            for (i, f) in enumerate(pc_def.pc)
-                f = table_by_region(f, satnum)
-                s = copy(f.X)
-                cap = copy(f.F)
-                if s[1] < 0
-                    s = s[2:end]
-                    cap = cap[2:end]
-                end
-                ix = unique(i -> cap[i], 1:length(cap))
-                s = s[ix]
-                cap = cap[ix]
-                if length(s) == 1
-                    push!(s, s[end])
-                    push!(cap, cap[end]+1.0)
-                end
-                push!(pc, (s = s, pc = cap))
-            end
-        end
-    end
+
+    nph = number_of_phases(sys)
+    ref_phase = get_reference_phase_index(model.system)
+
     if ismissing(s_min)
+        # For the outer definition we can do better here than just zeros and
+        # ones, but we need the model to determine the correct swcon values.
         kr_def = get(model.secondary_variables, :RelativePermeabilities, nothing)
         if kr_def isa ReservoirRelativePermeabilities
             phases = get_phases(sys)
@@ -227,46 +203,14 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
             end
         end
     end
-    if ismissing(contacts_pc)
-        contacts_pc = zeros(number_of_phases(sys)-1)
-    end
-    zmin = minimum(depths) - 1.0
-    zmax = maximum(depths) + 1.0
+    # pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_function, contacts_pc, ref_phase)
+    # ref_ix = get_reference_phase_index(model.system)
+    # s, pc, active_phase = determine_saturations(depths, contacts, pressures; ref_ix = ref_ix, pc = pc, s_min = s_min, kwarg...)
 
-    nph = number_of_phases(sys)
+    pressures, s, pc, active_phase = equilibriate_phase_pressures_and_saturations(model, depths, depth, contacts, datum_pressure, cells; s_min = s_min, T_z = T_z, kwarg...)
 
-    @assert length(contacts) == nph-1
-    rho = model.secondary_variables[:PhaseMassDensities]
-    if rho isa Pair
-        rho = last(rho)
-    end
-
-    reg = Int[pvtnum]
-    # Set up a mock state for evaluation
-    if haskey(model.data_domain, :pvtnum)
-        fake_cell_ix = [findfirst(isequal(pvtnum), model.data_domain[:pvtnum])]
-    else
-        fake_cell_ix = [1]
-    end
-    fake_state = JutulStorage()
-    fake_state[:Pressure] = [NaN]
-    fake_state[:PhaseMassDensities] = zeros(nph, 1)
-    fake_state[:Temperature] = [NaN]
-
-    density_f(p, z, ph) = equilibrium_phase_density(p, z, ph, rho, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg)
-    # Find the reference phase. It is either liquid
-    ref_phase = get_reference_phase_index(model.system)
-    if ismissing(density_function)
-        density_function = density_f
-    end
-    pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_function, contacts_pc, ref_phase)
-    ref_ix = get_reference_phase_index(model.system)
     if nph > 1
         relperm = model.secondary_variables[:RelativePermeabilities]
-        if relperm isa Pair
-            relperm = last(relperm)
-        end
-        s, pc, active_phase = determine_saturations(depths, contacts, pressures; ref_ix = ref_ix, pc = pc, s_min = s_min, kwarg...)
         if !ismissing(sw)
             nph = size(s, 1)
             for i in axes(s, 2)
@@ -330,7 +274,9 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
                 end
                 kr = kr[:, cells]
             else
-                jutul_message("Initialization", "Rel. perm. is not a ReservoirRelativePermeabilities, skipping mobility check for reference pressure.")
+                if size(s, 1) > 1
+                    jutul_message("Initialization", "Variable RelativePermeabilities is not a ReservoirRelativePermeabilities, skipping mobility check for reference pressure.")
+                end
                 kr = copy(s)
             end
         else
@@ -409,9 +355,24 @@ function equilibrium_phase_density(p, z, ph, rho, T_z, fake_state, model, rs, rv
     else
         rho_val = fake_state[:PhaseMassDensities]
         c = only(fake_cell_ix)
+        eltype_pressure = eltype(fake_state[:Pressure])
+        T = promote_type(eltype(p), eltype_pressure, eltype(rho_val))
+        if !ismissing(T_z)
+            T = promote_type(T, eltype(T_z(z)))
+        end
+        if eltype_pressure != T
+            fake_state[:Pressure] = convert.(T, fake_state[:Pressure])
+        end
         fake_state[:Pressure][c] = p
         if !ismissing(T_z)
+            if eltype(fake_state[:Temperature]) != T
+                fake_state[:Temperature] = convert.(T, fake_state[:Temperature])
+            end
             fake_state[:Temperature][c] = T_z(z)
+        end
+        if eltype(rho_val) != T
+            fake_state[:PhaseMassDensities] = convert.(T, rho_val)
+            rho_val =  fake_state[:PhaseMassDensities]
         end
         Jutul.update_secondary_variable!(rho_val, rho, model, fake_state, fake_cell_ix)
         phase_density = rho_val[ph, c]
@@ -419,7 +380,7 @@ function equilibrium_phase_density(p, z, ph, rho, T_z, fake_state, model, rs, rv
     return phase_density
 end
 
-function parse_state0_equil(model, datafile; normalize = :sum)
+function parse_state0_equil(model, datafile; normalize = :sum, cell_nz = 1)
     sys = model.system
     d = model.data_domain
 
@@ -743,6 +704,7 @@ function parse_state0_equil(model, datafile; normalize = :sum)
                         rs = rs,
                         rv = rv,
                         pc = pc,
+                        cell_nz = cell_nz,
                         output_pressures = true,
                         extra_arg...
                     )
@@ -952,7 +914,12 @@ function integrate_phase_density(z_datum, z_end, p0, density_f, phase; n = 1000,
     return (z, pressure)
 end
 
-function determine_saturations(depths, contacts, pressures; ref_ix = 2, s_min = missing, s_max = missing, pc = missing)
+function determine_saturations(depths, contacts, pressures;
+        ref_ix = 2,
+        s_min = missing,
+        s_max = missing,
+        pc = missing
+    )
     nc = length(depths)
     T = promote_type(eltype(depths), eltype(pressures), eltype(contacts))
     nph = length(contacts) + 1
@@ -1108,4 +1075,150 @@ function swcon_and_swmax_for_cells(model, kr, cells)
         end
     end
     return (swcon, swmax)
+end
+
+function equilibriate_phase_pressures_and_saturations(model::SimulationModel, depths, depth, contacts, datum_pressure, cells;
+        density_function = missing,
+        contacts_pc = missing,
+        rs = missing,
+        rv = missing,
+        pc = missing,
+        s_min = missing,
+        s_max = missing,
+        T_z = missing,
+        composition = missing,
+        satnum = 1,
+        pvtnum = 1,
+        cell_nz = missing,
+        kwarg...
+    )
+    sys = model.system
+    nph = number_of_phases(sys)
+    ref_ix = get_reference_phase_index(model.system)
+    length(contacts) == nph-1 || error("Number of contacts must be one less than number of phases, got $(length(contacts)) contacts for $nph phases.")
+
+    if ismissing(pc)
+        pc_def = get(model.secondary_variables, :CapillaryPressure, nothing)
+        if !isnothing(pc_def)
+            pc = []
+            for (i, f) in enumerate(pc_def.pc)
+                f = table_by_region(f, satnum)
+                s = copy(f.X)
+                cap = copy(f.F)
+                if s[1] < 0
+                    s = s[2:end]
+                    cap = cap[2:end]
+                end
+                ix = unique(i -> cap[i], 1:length(cap))
+                s = s[ix]
+                cap = cap[ix]
+                if length(s) == 1
+                    push!(s, s[end])
+                    push!(cap, cap[end]+1.0)
+                end
+                push!(pc, (s = s, pc = cap))
+            end
+        end
+    end
+    if ismissing(contacts_pc)
+        contacts_pc = zeros(number_of_phases(sys)-1)
+    end
+    rho = model.secondary_variables[:PhaseMassDensities]
+
+    reg = Int[pvtnum]
+    # Set up a mock state for evaluation
+    if haskey(model.data_domain, :pvtnum)
+        fake_cell_ix = [findfirst(isequal(pvtnum), model.data_domain[:pvtnum])]
+    else
+        fake_cell_ix = [1]
+    end
+    fake_state = JutulStorage()
+    fake_state[:Pressure] = [NaN]
+    fake_state[:PhaseMassDensities] = zeros(nph, 1)
+    fake_state[:Temperature] = [NaN]
+
+    density_f(p, z, ph) = equilibrium_phase_density(p, z, ph, rho, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg)
+    # Find the reference phase. It is either liquid
+
+    if ismissing(density_function)
+        density_function = density_f
+    end
+    # Expand here
+    is_multipoint = !(ismissing(cell_nz) || cell_nz == 1)
+    if is_multipoint
+        cell_nz > 1 || error("cell_nz must be greater than 1 for multi-point initialization, got cell_nz=$(cell_nz).")
+        # Find top and bottom of the relevant cells
+        if haskey(model.data_domain, :min_coordinate)
+            min_z_cells = view(model.data_domain[:min_coordinate], 3, cells)
+            max_z_cells = view(model.data_domain[:max_coordinate], 3, cells)
+        else
+            cell_z_bounds = map(c -> cell_node_bounds(model.data_domain, c, 3), cells)
+            min_z_cells = map(first, cell_z_bounds)
+            max_z_cells = map(last, cell_z_bounds)
+        end
+        depths, depth_index = discretize_depths(depths, min_z_cells, max_z_cells, cell_nz)
+        s_max = [s[depth_index] for s in s_max]
+        s_min = [s[depth_index] for s in s_min]
+    end
+    zmin = minimum(depths) - 1.0
+    zmax = maximum(depths) + 1.0
+
+    pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_function, contacts_pc, ref_ix)
+    if nph == 1
+        s = ones(eltype(pressures), size(pressures))
+        pc = zeros(eltype(pressures), size(pressures))
+        active_phase = fill(1, length(depths))
+    else
+        s, pc, active_phase = determine_saturations(depths, contacts, pressures; ref_ix = ref_ix, pc = pc, s_min = s_min, s_max = s_max, kwarg...)
+    end
+    if is_multipoint
+        nc = length(cells)
+        nph = size(s, 1)
+        s_new = zeros(eltype(s), nph, nc)
+        pc_new = zeros(eltype(pc), nph, nc)
+        pressures_new = zeros(eltype(pressures), nph, nc)
+        active_phase_new = fill(0, nc)
+        for i in eachindex(depth_index)
+            idx = depth_index[i]
+            for ph in 1:nph
+                s_new[ph, idx] += s[ph, i]
+                pc_new[ph, idx] += pc[ph, i]
+                pressures_new[ph, idx] += pressures[ph, i]
+            end
+        end
+        for i in eachindex(cells)
+            for ph in 1:nph
+                s_new[ph, i] /= cell_nz
+                pc_new[ph, i] /= cell_nz
+                pressures_new[ph, i] /= cell_nz
+            end
+            first_in_new = findfirst(isequal(i), depth_index)
+            active_phase_new[i] = active_phase[first_in_new]
+        end
+        pressures = pressures_new
+        s = s_new
+        pc = pc_new
+        active_phase = active_phase_new
+    end
+    return (pressures, s, pc, active_phase)
+end
+
+function discretize_depths(depths, min_z_cells, max_z_cells, cell_nz)
+    T = promote_type(eltype(min_z_cells), eltype(max_z_cells), eltype(depths))
+    new_depths = T[]
+    depth_index = Int[]
+    for i in eachindex(min_z_cells, max_z_cells, depths)
+        zmin = min_z_cells[i]
+        zmax = max_z_cells[i]
+        if zmin > zmax 
+            @warn "Cell bounds are invalid for cell index $i: zmin ($zmin) is not less than zmax ($zmax) in multipoint initialization."
+        end
+        delta = (zmax - zmin)/(cell_nz-1)
+        for j in 1:cell_nz
+            z = zmin + (j-1)*delta
+            push!(new_depths, z)
+            push!(depth_index, i)
+        end
+    end
+    return (new_depths, depth_index)
 end

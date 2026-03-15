@@ -18,6 +18,7 @@ struct WellMatch
     scale::Float64
     is_injector::Bool
     data::I_type
+    exponent::Float64
 end
 
 struct ReservoirMatch

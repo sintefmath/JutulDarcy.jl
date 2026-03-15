@@ -55,7 +55,12 @@ compared in the same figure.
   For example, adding `WBHP,WWIR` to `extra_well` will allow plotting bottom
   hole pressure together with water injection rate for wells.
 """
-function plot_summary
+function plot_summary(arg...; kwarg...)
+    Jutul.check_plotting_availability()
+    return plot_summary_impl(arg...; kwarg...)
+end
+
+function plot_summary_impl
 
 end
 

@@ -71,6 +71,7 @@ function setup_case_from_parsed_data(datafile;
         convert_co2store = true,
         repair_zcorn = true,
         process_pinch = true,
+        cell_nz = 1,
         kwarg...
     )
     function msg(s)
@@ -108,7 +109,11 @@ function setup_case_from_parsed_data(datafile;
     end
 
     msg("Parsing reservoir domain.")
-    t_domain = @elapsed domain = parse_reservoir(datafile, zcorn_depths = zcorn_depths, repair_zcorn = repair_zcorn, process_pinch = process_pinch)
+    t_domain = @elapsed domain = reservoir_domain(datafile,
+        zcorn_depths = zcorn_depths,
+        repair_zcorn = repair_zcorn,
+        process_pinch = process_pinch
+    )
     msg("Complete in $(round(t_domain, sigdigits = 3)) seconds.")
     pvt_reg = reservoir_regions(domain, :pvtnum)
     has_pvt = isnothing(pvt_reg)
@@ -228,7 +233,7 @@ function setup_case_from_parsed_data(datafile;
     end
     msg("Complete in $(round(t_forces, sigdigits = 3)) seconds.")
     msg("Setting up initial state.")
-    t_state0 = @elapsed state0 = parse_state0(model, datafile, normalize = normalize)
+    t_state0 = @elapsed state0 = parse_state0(model, datafile, normalize = normalize, cell_nz = cell_nz)
     msg("Complete in $(round(t_state0, sigdigits = 3)) seconds.")
     msg("Setting up parameters.")
     t_prm = @elapsed begin
@@ -651,14 +656,14 @@ function parse_forces(model, datafile, sys, wells, controls, limits, cstep, dt, 
     return forces[cstep]
 end
 
-function parse_state0(model, datafile; normalize = true)
+function parse_state0(model, datafile; normalize = true, cell_nz = 1)
     rmodel = reservoir_model(model)
     reservoir = reservoir_domain(rmodel)
     init = Dict{Symbol, Any}()
     sol = datafile["SOLUTION"]
 
     if haskey(sol, "EQUIL")
-        init = parse_state0_equil(rmodel, datafile; normalize = normalize)
+        init = parse_state0_equil(rmodel, datafile; normalize = normalize, cell_nz = cell_nz)
     else
         init = parse_state0_direct_assignment(rmodel, datafile)
     end
@@ -881,13 +886,31 @@ function initialize_numerical_aquifers!(init, rmodel, aquifers)
     end
     return init
 end
+"""
+    res = reservoir_domain(data_file)
+    reservoir_domain(data_file::AbstractDict; zcorn_depths = true, repair_zcorn = true, process_pinch = true)
 
-function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, process_pinch = true)
-    grid = data_file["GRID"]
+Set up reservoir domain from GRID section of passed .DATA file.
+"""
+function reservoir_domain(data_file::AbstractDict;
+        zcorn_depths = true,
+        repair_zcorn = true,
+        process_pinch = true,
+        check_mesh = false,
+        kwarg...
+    )
+    if haskey(data_file, "GRID")
+        grid = data_file["GRID"]
+    else
+        grid = data_file
+    end
     cartdims = grid["cartDims"]
     nx, ny, nz = cartdims
     G = mesh_from_grid_section(grid; repair_zcorn = repair_zcorn, process_pinch = process_pinch)
-
+    if check_mesh
+        # TODO: Requires Jutul update.
+        Jutul.MeshQualityControl.check_and_fix_mesh!(G, recheck = false)
+    end
     # Handle numerical aquifers
     aqunum = get(grid, "AQUNUM", missing)
     aqucon = get(grid, "AQUCON", missing)
@@ -1128,7 +1151,8 @@ function parse_reservoir(data_file; zcorn_depths = true, repair_zcorn = true, pr
         satnum = satnum,
         eqlnum = eqlnum,
         pvtnum = pvtnum,
-        pairs(extra_data_arg)...
+        pairs(extra_data_arg)...,
+        kwarg...
     )
     if !all(isequal(1.0), tranmult)
         domain[:transmissibility_multiplier, Faces()] = tranmult
@@ -1710,7 +1734,10 @@ function parse_control_steps(runspec, props, schedule, sys)
                     if isnan(diam)
                         diam = 0.3048
                     end
-                    @assert haskey(wells, wname)
+                    if !haskey(wells, wname)
+                        available_wells = collect(keys(wells))
+                        error("COMPDAT entry for well $wname, but no WELSPECS entry for this well. Available wells: $(available_wells).")
+                    end
                     head = wells[wname].head
                     if I < 1
                         I = head[1]

@@ -2,7 +2,9 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
         step_limit = missing,
         step_override = missing,
         step_override_is_normalized = false,
-        evaluate_enthalpy = true
+        evaluate_enthalpy = true,
+        injector_max_bhp_limit = Inf,
+        producer_min_bhp_limit = si_unit(:atm)
     )
     OPEN = GeoEnergyIO.IXParser.IX_OPEN
     CLOSED = GeoEnergyIO.IXParser.IX_CLOSED
@@ -38,6 +40,8 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
             "Type" => "PRODUCER",
             "PerforationMap" => remap,
             "Enthalpy" => missing,
+            "injector_max_bhp_limit" => injector_max_bhp_limit,
+            "producer_min_bhp_limit" => producer_min_bhp_limit
         )
     end
 
@@ -265,6 +269,24 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
             break
         end
     end
+    if haskey(model.models, :Facility)
+        active_wells = Symbol[]
+        for f in forces
+            for (wname, ctrl) in pairs(f[:Facility].control)
+                if !(ctrl isa DisabledControl)
+                    push!(active_wells, wname)
+                end
+            end
+        end
+        active_wells = unique!(active_wells)
+        inactive_wells = setdiff(keys(wells), active_wells)
+        ninactive = length(inactive_wells)
+        if ninactive > 0
+            println("$ninactive inactive wells in schedule (no provided constraints):\n$(join(inactive_wells, ", "))")
+        end
+    else
+        println("No Facility model was set up. Case may be missing wells.")
+    end
     return (timesteps, forces)
 end
 
@@ -353,7 +375,10 @@ function forces_from_constraints(well_setup, observation_data, streams, date, sy
                 ctrl = JutulDarcy.setup_disabled_control()
             end
             control[wname] = ctrl
+            ibhp_max = wsetup["injector_max_bhp_limit"]
+            pbhp_min = wsetup["producer_min_bhp_limit"]
             if !(ctrl isa DisabledControl)
+                is_injector = ctrl isa InjectorControl
                 lims = Dict()
                 for (k, v) in pairs(c)
                     ck = control_type_to_symbol(k)
@@ -363,6 +388,13 @@ function forces_from_constraints(well_setup, observation_data, streams, date, sy
                     end
                     if endswith(uppercase(k), "_RATE")
                         v *= wsgn
+                    end
+                    if ck == :bhp
+                        if is_injector
+                            v = min(v, ibhp_max)
+                        else
+                            v = max(v, pbhp_min)
+                        end
                     end
                     lims[ck] = v
                 end
@@ -416,9 +448,16 @@ end
 
 function setup_history_control(hist_ctrl, wname, wtype, wsetup, observation_data, t_since_start, dt)
     if ismissing(hist_ctrl)
-        # println("HistoryDataControl is defaulted for well $wname but no constraint was provided as Well.HistoricalControlModes. Shutting well.")
-        wtype = "disabled"
-        return (:disabled, missing, wtype)
+        if wtype == "producer"
+            hmode = "LIQUID_PRODUCTION_RATE"
+        elseif wtype == "water_injector"
+            hmode = "WATER_INJECTION_RATE"
+        elseif wtype == "gas_injector"
+            hmode = "GAS_INJECTION_RATE"
+        else
+            error("Unsupported well type '$wtype' for historical control for well '$wname'")
+        end
+        println("$wname ($wtype): Under HistoryDataControl, no constraint in Well.HistoricalControlModes. Setting to $hmode.")
     elseif hist_ctrl isa AbstractVector
         if length(hist_ctrl) > 1
             println("Multiple HistoricalControlModes for well $wname at $date: $hist_ctrl, taking the first")
@@ -440,8 +479,13 @@ function setup_history_control(hist_ctrl, wname, wtype, wsetup, observation_data
     end
     ismissing(observation_data) && error("Observation data is required for HistoricalControlModes")
     maybe_ctrl(x, T) = ifelse(x ≈ 0.0, DisabledControl(), T(x))
-    obs = observation_data[wsetup["HistoryDataControl"]]["wells_interp"][wname]
-    if hmode == "BOTTOM_HOLE_PRESSURE"
+    obs = get(observation_data[wsetup["HistoryDataControl"]]["wells_interp"], wname, missing)
+    if ismissing(obs)
+        jutul_message("OBSH", "No observation data found for well '$wname' with HistoricalDataControl", color = :red)
+        ctrl_type = :disabled
+        val = 0.0
+        wtype = "disabled"
+    elseif hmode == "BOTTOM_HOLE_PRESSURE"
         val = obs["BOTTOM_HOLE_PRESSURE"](t_since_start)
         ctrl_type = :bhp
     else
