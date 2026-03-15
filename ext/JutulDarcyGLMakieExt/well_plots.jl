@@ -748,7 +748,7 @@ function JutulDarcy.plot_summary_impl(arg...;
         colormap = missing,
         kwarg...
     )
-    if length(arg) == 1 && arg isa AbstractVector
+    if length(arg) == 1 && only(arg) isa AbstractVector
         arg = only(arg)
     end
     if ismissing(names)

@@ -9,10 +9,6 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
         wname = welldef.value["WellName"]
         if haskey(well_dict, wname)
             current_w2c = well_dict[wname]["w2c"]
-            if wname == "ALK043" || wname == :ALK043
-                @info "Well " current_w2c w2c
-                @info "Cell fields" current_w2c["Cell"] w2c["Cell"]
-            end
             new_cells = w2c["Cell"]
             current_cells = current_w2c["Cell"]
             n_added = 0
