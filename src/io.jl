@@ -174,9 +174,10 @@ end
 
 Convert a summary dictionary in flat format (as produced by
 `GeoEnergy.read_summary`) to the JutulDarcy style summary format that includes
-nested dictionaries for fields, and convert all units to strict SI. This is then
-suitable for writing to disk using `GeoEnergyIO.write_jutuldarcy_summary` or
-plotting in `plot_summary`.
+nested dictionaries for fields, and construct a `TIME` entry in seconds from the
+`YEARS` vector. The original unit system indicated by `UNIT_SYSTEM` is preserved
+for all value arrays. This is then suitable for writing to disk using
+`GeoEnergyIO.write_jutuldarcy_summary` or plotting in `plot_summary`.
 """
 function convert_summary(s; unit_system = get(s, "UNIT_SYSTEM", "METRIC"))
     if haskey(s, "TIME")

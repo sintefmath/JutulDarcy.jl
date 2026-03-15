@@ -1735,8 +1735,8 @@ function parse_control_steps(runspec, props, schedule, sys)
                         diam = 0.3048
                     end
                     if !haskey(wells, wname)
-                        display(keys(wells))
-                        error("COMPDAT entry for well $wname, but no WELSPECS entry for this well.")
+                        available_wells = collect(keys(wells))
+                        error("COMPDAT entry for well $wname, but no WELSPECS entry for this well. Available wells: $(available_wells).")
                     end
                     head = wells[wname].head
                     if I < 1

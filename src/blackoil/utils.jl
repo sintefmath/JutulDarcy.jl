@@ -28,7 +28,7 @@ function check_blackoil_pvt(p, pvto_or_pvdo, pvtg_or_pvtg;
     ∂(x::Float64) = 0.0
 
     cellreg = region(reg, cell)
-    if !ismissing(rs_max)
+    if !ismissing(rs_max) && !isnothing(rs_max)
         if isnothing(rs)
             rs = rs_max[cellreg](p)
         end
@@ -38,7 +38,7 @@ function check_blackoil_pvt(p, pvto_or_pvdo, pvtg_or_pvtg;
         B_o = 1/shrinkage(pvto_or_pvdo, reg, p, cell)
     end
 
-    if !ismissing(rv_max)
+    if !ismissing(rv_max) && !isnothing(rv_max)
         if isnothing(rv)
             rv = rv_max[cellreg](p)
         end

@@ -215,7 +215,7 @@ function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
     start_ref = summary_ref["TIME"].start_date
     start = summary["TIME"].start_date
     offset_t = 0.0
-    if !ismissing(start) && !ismissing(start_ref)
+    if !ismissing(start) && !ismissing(start_ref) && !isnothing(start) && !isnothing(start_ref)
         if start != start_ref
             offset_t = Period(start_ref - start).value/1000
         end
