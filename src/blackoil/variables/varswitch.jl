@@ -69,24 +69,36 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
     is_near_bubble = was_near_bubble
     if swi > 1 - 10*ϵ_s
         # Water filled
-        if old_state == OilAndGas
-            next_x = old_x + w*Jutul.choose_increment(value(old_x), dx, ds_max, nothing, 0, 1 - swi)
+        # if old_state == OilAndGas
+        #     next_x = old_x + w*Jutul.choose_increment(value(old_x), dx, ds_max, nothing, 0, 1 - swi)
+        # else
+        #     if old_state == OilOnly
+        #         sg = 0
+        #     else
+        #         sg = 1 - swi
+        #     end
+        #     next_x = replace_value(old_x, sg)
+        # end
+        if isnothing(rs_tab)
+            # Blackoil needs either Rs or Rv.
+            next_state = GasOnly
         else
-            if old_state == OilOnly
-                sg = 0
-            else
-                sg = 1 - swi
-            end
-            next_x = replace_value(old_x, sg)
+            next_state = OilOnly
         end
-        next_state = OilAndGas
+        if old_state == next_state
+            # Keep as it is.
+            next_x = old_x
+        else
+            # Set to zero Rs/Rv.
+            next_x = replace_value(old_x, 0.0)
+        end
     elseif old_state == OilAndGas
         next_x = old_x + w*Jutul.choose_increment(value(old_x), dx, ds_max)
-        if next_x <= 0
+        if next_x <= 0.0
             maybe_state = OilOnly
             tab = rs_tab
             ϵ_r = ϵ_rs
-        elseif next_x >= 1 - swi
+        elseif next_x >= 1.0 - swi
             maybe_state = GasOnly
             tab = rv_tab
             ϵ_r = ϵ_rv
