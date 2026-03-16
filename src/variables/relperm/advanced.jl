@@ -333,10 +333,15 @@ function Base.show(io::IO, t::MIME"text/plain", kr::ReservoirRelativePermeabilit
 end
 
 Base.@propagate_inbounds @inline function three_phase_oil_relperm(Krow, Krog, swcon, sg, sw)
-    swc = min(swcon, value(sw) - 1e-5)
-    d  = (sg + sw - swc)
-    ww = (sw - swc)/d
-    kro = (1-ww)*Krog + ww*Krow
+    s_not_oil = sw + sg
+    if s_not_oil >= 1.0 - MINIMUM_COMPOSITIONAL_SATURATION
+        kro = zero(typeof(s_not_oil))
+    else
+        swc = min(swcon, value(sw) - 1e-5)
+        d  = (s_not_oil - swc)
+        ww = (sw - swc)/d
+        kro = (1-ww)*Krog + ww*Krow
+    end
     return kro
 end
 
