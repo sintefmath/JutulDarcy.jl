@@ -253,7 +253,7 @@ end
         sw = ImmiscibleSaturation[i]
         X = BlackOilUnknown[i]
         phases = X.phases_present
-        rem = one(T) - sw + MINIMUM_COMPOSITIONAL_SATURATION
+        rem = one(T) - sw + 0.1*MINIMUM_COMPOSITIONAL_SATURATION
         if phases == OilOnly
             sg = zero(T)
             so = rem
