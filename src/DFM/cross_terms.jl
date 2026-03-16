@@ -116,6 +116,7 @@ function matrix_fracture_phase_potential_difference(conn, state_m, state_f, ix)
                 ρ = ρ_m
             end
             dp += ρ*conn.gdz
+
         end
     end
     return -T*dp
@@ -125,11 +126,12 @@ function Jutul.subcrossterm(ct::MatrixFromFractureFlowCT, ctp, m_t, m_s, map_res
     mc = ct.matrix_cells[ctp]
     fc = ct.fracture_cells[ctp]
     T = ct.connection_strength[ctp]
+    gdz = ct.gravity_potential[ctp]
 
     mc_local = map(c -> Jutul.local_cell(c, map_res), mc)
     fc_local = map(c -> Jutul.local_cell(c, map_frac), fc)
 
-    return MatrixFromFractureFlowCT(mc_local, fc_local, T)
+    return MatrixFromFractureFlowCT(mc_local, fc_local, T, gdz)
 end
 
 struct MatrixFromFractureThermalCT{I<:AbstractVector, T<:AbstractVector} <: AbstractMatrixFromFractureCT
@@ -198,11 +200,13 @@ function Jutul.subcrossterm(ct::MatrixFromFractureThermalCT, ctp, m_t, m_s, map_
     mc = ct.matrix_cells[ctp]
     fc = ct.fracture_cells[ctp]
     T = ct.connection_strength[ctp]
+    T_th = ct.connection_strength_thermal[ctp]
+    gdz = ct.gravity_potential[ctp]
 
     mc_local = map(c -> Jutul.local_cell(c, map_res), mc)
     fc_local = map(c -> Jutul.local_cell(c, map_frac), fc)
 
-    return MatrixFromFractureThermalCT(mc_local, fc_local, T)
+    return MatrixFromFractureThermalCT(mc_local, fc_local, T, T_th, gdz)
 end
 
 struct FracturesFromWellFlowCT{I<:AbstractVector} <: AbstractReservoirFromWellCT

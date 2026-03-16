@@ -82,6 +82,8 @@ function setup_matrix_fracture_cross_term(matrix::Jutul.DataDomain, fractures::J
     target_cells = Int64[]
     source_cells = Int64[]
     transmissibilities = Float64[]
+    gdz = Float64[]
+    g = gravity_constant
     fmesh = physical_representation(fractures)
 
     vol_frac = fractures[:volumes]
@@ -115,11 +117,13 @@ function setup_matrix_fracture_cross_term(matrix::Jutul.DataDomain, fractures::J
                 push!(target_cells, cell)
                 push!(source_cells, fcell)
                 push!(transmissibilities, T)
+                dz = x_m[3] - x_f[3]
+                push!(gdz, g*dz)
             end
         end
     end
     
-    return target_cells, source_cells, transmissibilities
+    return target_cells, source_cells, transmissibilities, gdz
     
 end
 
@@ -254,12 +258,11 @@ function JutulDarcy.setup_reservoir_model(matrix::DataDomain, fractures::DataDom
     end
 
     # Set up DFM cross-terms
-    target_cells, source_cells, transmissibilities = setup_matrix_fracture_cross_term(matrix, fractures, :permeability)
-    gdz = zeros(Float64, length(transmissibilities))
+    target_cells, source_cells, transmissibilities, gdz = setup_matrix_fracture_cross_term(matrix, fractures, :permeability)
     ct = MatrixFromFractureFlowCT(target_cells, source_cells, transmissibilities, gdz)
     add_cross_term!(model, ct, target = :Reservoir, source = :Fractures, equation = :mass_conservation)
     if has_thermal
-        target_cells, source_cells, transmissibilities_th = setup_matrix_fracture_cross_term(matrix, fractures, :thermal_conductivity)
+        target_cells, source_cells, transmissibilities_th, gdz = setup_matrix_fracture_cross_term(matrix, fractures, :thermal_conductivity)
         ct = MatrixFromFractureThermalCT(target_cells, source_cells, transmissibilities, transmissibilities_th, gdz)
         add_cross_term!(model, ct, target = :Reservoir, source = :Fractures, equation = :energy_conservation)
     end
