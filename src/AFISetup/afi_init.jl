@@ -22,7 +22,12 @@ function equil_model_region_to_cells(regmap, regs_eql, model_reg)
         end
     end
     !ismissing(equil_reg) || error("No equilibrium region found for model region $model_reg")
-    return findall(isequal(regmap.map[equil_reg]), regmap.value)
+    val = regmap.map[equil_reg]
+    cells = findall(isequal(val), regmap.value)
+    if length(cells) == 0
+        @warn "Equilibrium region $model_reg ($(val)) has no cells assigned in regions with unique entries $(unique(regmap.value))."
+    end
+    return cells
 end
 
 function setup_equilibrium_region(equil, model; cells = missing)

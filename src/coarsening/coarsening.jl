@@ -88,6 +88,12 @@ function coarsen_reservoir(D::DataDomain, partition; functions = Dict())
     if haskey(D, :pore_volume_multiplier)
         functions[:pore_volume_multiplier] = Jutul.CoarsenByVolumeAverage()
     end
+    if haskey(D, :min_coordinate)
+        functions[:min_coordinate] = Jutul.CoarsenByMinimum()
+    end
+    if haskey(D, :max_coordinate)
+        functions[:max_coordinate] = Jutul.CoarsenByMaximum()
+    end
     return Jutul.coarsen_data_domain(D, partition, functions = functions)
 end
 

@@ -1,7 +1,41 @@
-function simulate_mini_wellcase(::Val{:compositional_2ph_3c};
-        dims = (3, 1, 1),
+function simulate_mini_wellcase(v::Val;
         setuparg = NamedTuple(),
         output_path = nothing,
+        kwarg...
+    )
+    case = setup_mini_wellcase(v; kwarg...)
+    sim, config = setup_reservoir_simulator(
+        case;
+        info_level = -1,
+        error_on_incomplete = true,
+        output_path = output_path,
+        setuparg...,
+        tol_cnv_well = 1e-3 # Needed for test
+    )
+    setup = Dict(
+        :forces     => case.forces,
+        :state0     => case.state0,
+        :model      => case.model,
+        :parameters => case.parameters,
+        :dt         => case.dt,
+        :case       => case,
+        :config     => config,
+        :sim        => sim,
+    )
+    states, reports = simulate!(sim, case.dt, forces = case.forces, config = config);
+    return (states = states, reports = reports, setup = setup)
+end
+
+function simulate_mini_wellcase(physics::Symbol; kwarg...)
+    return simulate_mini_wellcase(Val(physics); kwarg...)
+end
+
+function setup_mini_wellcase(physics::Symbol; kwarg...)
+    return setup_mini_wellcase(Val(physics); kwarg...)
+end
+
+function setup_mini_wellcase(::Val{:compositional_2ph_3c};
+        dims = (3, 1, 1),
         nstep = 12*5,
         total_time = 30.0*si_unit(:day)*nstep,
         simple_well = true,
@@ -49,30 +83,11 @@ function simulate_mini_wellcase(::Val{:compositional_2ph_3c};
     controls[:Producer] = P_ctrl
     # Simulate
     forces = setup_reservoir_forces(model, control = controls)
-    sim, config = setup_reservoir_simulator(
-        model, state0, parameters;
-        info_level = -1,
-        error_on_incomplete = true,
-        output_path = output_path,
-        setuparg...,
-        tol_cnv_well = 1e-3 # Needed for test
-    )
-    setup = Dict(:config     => config,
-                 :forces     => forces,
-                 :state0     => state0,
-                 :model      => model,
-                 :sim        => sim,
-                 :parameters => parameters,
-                 :dt         => dt)
-    states, reports = simulate!(sim, dt, forces = forces, config = config);
-    return (states = states, reports = reports, setup = setup)
+    return JutulCase(model, dt, forces, state0 = state0, parameters = parameters)
 end
 
-
-function simulate_mini_wellcase(::Val{:single_phase};
+function setup_mini_wellcase(::Val{:single_phase};
         dims = (3, 1, 1),
-        setuparg = NamedTuple(),
-        output_path = nothing,
         permeability = 0.1*9.869232667160130e-13,
         nstep = 12*5,
         total_time = 30.0*si_unit(:day)*nstep,
@@ -118,29 +133,11 @@ function simulate_mini_wellcase(::Val{:single_phase};
     # Set up forces for the whole model. For this example, all forces are defaulted
     # (amounting to no-flow for the reservoir).
     forces = setup_reservoir_forces(model, control = controls)
-    ## Finally simulate!
-    sim, config = setup_reservoir_simulator(
-        model, state0, parameters;
-        info_level = -1,
-        output_path = output_path,
-        error_on_incomplete = true,
-        setuparg...
-        )
-    setup = Dict(:config     => config,
-                 :forces     => forces,
-                 :state0     => state0,
-                 :model      => model,
-                 :sim        => sim,
-                 :parameters => parameters,
-                 :dt         => dt)
-    states, reports = simulate!(sim, dt, forces = forces, config = config);
-    return (states = states, reports = reports, setup = setup)
+    return JutulCase(model, dt, forces, state0 = state0, parameters = parameters)
 end
 
-function simulate_mini_wellcase(::Val{:immiscible_2ph};
+function setup_mini_wellcase(::Val{:immiscible_2ph};
         dims = (3, 1, 1),
-        setuparg = NamedTuple(),
-        output_path = nothing,
         permeability = 0.1*9.869232667160130e-13,
         nstep = 12*5,
         total_time = 30.0*si_unit(:day)*nstep,
@@ -189,29 +186,11 @@ function simulate_mini_wellcase(::Val{:immiscible_2ph};
     # Set up forces for the whole model. For this example, all forces are defaulted
     # (amounting to no-flow for the reservoir).
     forces = setup_reservoir_forces(model, control = controls)
-    ## Finally simulate!
-    sim, config = setup_reservoir_simulator(
-        model, state0, parameters;
-        info_level = -1,
-        output_path = output_path,
-        error_on_incomplete = true,
-        setuparg...
-        )
-    setup = Dict(:config     => config,
-                 :forces     => forces,
-                 :state0     => state0,
-                 :model      => model,
-                 :sim        => sim,
-                 :parameters => parameters,
-                 :dt         => dt)
-    states, reports = simulate!(sim, dt, forces = forces, config = config);
-    return (states = states, reports = reports, setup = setup)
+    return JutulCase(model, dt, forces, state0 = state0, parameters = parameters)
 end
 
-function simulate_mini_wellcase(::Val{:bo_spe1};
+function setup_mini_wellcase(::Val{:bo_spe1};
         dims = (3, 1, 1),
-        setuparg = NamedTuple(),
-        output_path = nothing,
         nstep = 12*5,
         total_time = 30.0*si_unit(:day)*nstep,
         simple_well = true,
@@ -262,27 +241,50 @@ function simulate_mini_wellcase(::Val{:bo_spe1};
     # Set up forces for the whole model. For this example, all forces are defaulted
     # (amounting to no-flow for the reservoir).
     forces = setup_reservoir_forces(model, control = controls)
-    ## Finally simulate!
-    sim, config = setup_reservoir_simulator(
-        model, state0, parameters;
-        info_level = -1,
-        output_path = output_path,
-        error_on_incomplete = true,
-        setuparg...
-        )
-    setup = Dict(:config     => config,
-                 :forces     => forces,
-                 :state0     => state0,
-                 :model      => model,
-                 :sim        => sim,
-                 :parameters => parameters,
-                 :dt         => dt)
-    states, reports = simulate!(sim, dt, forces = forces, config = config);
-    return (states = states, reports = reports, setup = setup)
+    return JutulCase(model, dt, forces, state0 = state0, parameters = parameters)
 end
 
-function simulate_mini_wellcase(physics::Symbol; kwarg...)
-    return simulate_mini_wellcase(Val(physics); kwarg...)
+function setup_mini_wellcase(::Val{:geothermal};
+        dims = (3, 1, 1),
+        permeability = 0.1*9.869232667160130e-13,
+        nstep = 12*5,
+        total_time = 30.0*si_unit(:day)*nstep,
+        simple_well = true,
+        kwarg...)
+    # Some useful constants
+    bar = 1e5
+    # Create the mesh
+    nx, ny, nz = dims
+    g = CartesianMesh(dims, (2000.0, 1500.0, 50.0))
+    domain = reservoir_domain(g, permeability = permeability, porosity = 0.1)
+    ## Set up a vertical well in the first corner, perforated in all layers
+    P = setup_vertical_well(domain, 1, 1, name = :Producer, simple_well = simple_well, use_top_node = true);
+    ## Set up an injector in the upper left corner
+    I = setup_well(domain, [(nx, ny, 1)], name = :Injector, simple_well = simple_well, use_top_node = true);
+    rhoLS = 1000.0
+    ## Set up a reservoir model that contains the reservoir, wells and a facility that controls the wells
+    model, parameters = setup_reservoir_model(domain, :geothermal, wells = [I, P]; extra_out = true, block_backend = false, kwarg...)
+    ## Set up initial state
+    state0 = setup_reservoir_state(model, Pressure = 150*bar, Saturations = [1.0], Temperature = 400.0)
+    ## Set up time-steps
+    dt = fill(total_time/nstep, nstep)
+    pv = pore_volume(model, parameters)
+    time_scale = 30.0*12*5*si_unit(:day)
+    inj_rate = 2*sum(pv)/time_scale
+    rate_target = TotalRateTarget(inj_rate)
+    i_mix = [1.0]
+    I_ctrl = InjectorControl(rate_target, i_mix, density = rhoLS, temperature = 300.0)
+    # The producer operates at a fixed bottom hole pressure
+    bhp_target = BottomHolePressureTarget(50*bar)
+    P_ctrl = ProducerControl(bhp_target)
+    # Set up the controls. One control per well in the Facility.
+    controls = Dict()
+    controls[:Injector] = I_ctrl
+    controls[:Producer] = P_ctrl
+    # Set up forces for the whole model. For this example, all forces are defaulted
+    # (amounting to no-flow for the reservoir).
+    forces = setup_reservoir_forces(model, control = controls)
+    return JutulCase(model, dt, forces, state0 = state0, parameters = parameters)
 end
 
 function precompile_darcy_multimodels(targets = missing; kwarg...)

@@ -46,9 +46,9 @@ Jutul.variable_scale(t::TotalMassFlux) = t.scale
 default_surface_cond() = (p = 101325.0, T = 288.15) # Pa and deg. K from ISO 13443:1996 for natural gas
 
 function setup_well(g, K, reservoir_cells::AbstractVector;
-        simple_well = true,
         N = missing,
         neighborship = N,
+        simple_well = ismissing(neighborship),
         perforation_cells_well = missing,
         reference_depth = nothing,
         cell_centers = nothing,

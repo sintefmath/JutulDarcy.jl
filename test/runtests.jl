@@ -60,6 +60,10 @@ end
     include("sens_state0.jl")
 end
 
+@testitem "Sensitivities (equil)" begin
+    include("sens_equil.jl")
+end
+
 @testitem "Compositional validation" begin
     include("compositional.jl")
 end

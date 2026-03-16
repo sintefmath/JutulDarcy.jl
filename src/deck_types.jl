@@ -220,8 +220,8 @@ struct PVTOTable{T,V}
     viscosity::V
 end
 
-function PVTO(pvto::Vector)
-    c = map(PVTOTable, pvto)
+function PVTO(pvto::Vector; fix = true)
+    c = map(x -> PVTOTable(x, fix = fix), pvto)
     ct = Tuple(c)
     return PVTO(ct)
 end
@@ -231,8 +231,8 @@ function PVTO(pvto::PVTOTable)
     return PVTO(ct)
 end
 
-function PVTO(pvto::Dict)
-    return PVTO(PVTOTable(pvto))
+function PVTO(pvto::Dict; fix = true)
+    return PVTO(PVTOTable(pvto; fix = fix))
 end
 
 function PVTOTable(d::Dict; fix = true)

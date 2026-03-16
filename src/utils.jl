@@ -105,6 +105,7 @@ function reservoir_domain(g;
         transmissibility_multiplier = missing,
         diffusion = missing,
         nnc = missing,
+        include_bounds = false,
         kwarg...
     )
     nf0 = number_of_faces(g)
@@ -178,6 +179,21 @@ function reservoir_domain(g;
             end
         end
         reservoir[:transmissibility_override, Faces()] = transmissibility_override
+    end
+    if include_bounds
+        d = dim(g)
+        bounds = map(c -> cell_node_bounds(g, c), 1:nc)
+        min_bounds = zeros(dim(g), nc)
+        max_bounds = zeros(dim(g), nc)
+        for c in 1:nc
+            for j in 1:d
+                m, M = bounds[c]
+                min_bounds[j, c] = m[j]
+                max_bounds[j, c] = M[j]
+            end
+        end
+        reservoir[:min_coordinate, Cells()] = min_bounds
+        reservoir[:max_coordinate, Cells()] = max_bounds
     end
     return reservoir
 end
@@ -859,6 +875,7 @@ values for pressure models.
 - `tol_mb_well=1e4*tol_mb`: maximum alllowable integrated error for well node
   (mass-balance)
 - `inc_tol_dp_abs=missing`: Maximum allowable pressure change (absolute)
+- `inc_tol_saturation=Inf`: Maximum allowable saturation change.
 - `inc_tol_dp_rel=missing`: Maximum allowable pressure change (relative)
 - `inc_tol_dz=Inf`: Maximum allowable composition change (compositional only).
 
@@ -924,6 +941,7 @@ function setup_reservoir_simulator(case::JutulCase;
         inc_tol_dp_abs = missing,
         inc_tol_dp_rel = missing,
         inc_tol_dz = Inf,
+        inc_tol_saturation = Inf,
         tol_cnve = tol_cnv,
         tol_eb = tol_mb,
         tol_cnve_well = 10*tol_cnve,
@@ -1062,6 +1080,7 @@ function setup_reservoir_simulator(case::JutulCase;
         tol_dp_well = tol_dp_well,
         inc_tol_dp_abs = inc_tol_dp_abs,
         inc_tol_dp_rel = inc_tol_dp_rel,
+        inc_tol_saturation = inc_tol_saturation,
         inc_tol_dz = inc_tol_dz,
         tol_cnve = tol_cnve,
         tol_eb = tol_eb,
@@ -1164,6 +1183,7 @@ function set_default_cnv_mb_inner!(tol, model;
         tol_cnv_well = 1e-2,
         tol_dp_well = 1e-3,
         inc_tol_dz = Inf,
+        inc_tol_saturation = Inf,
         tol_cnve = tol_cnv,
         tol_eb = tol_mb,
         tol_cnve_well = 10*tol_cnve,
@@ -1214,7 +1234,8 @@ function set_default_cnv_mb_inner!(tol, model;
             MB = mb,
             increment_dp_abs = inc_tol_dp_abs,
             increment_dp_rel = inc_tol_dp_rel,
-            increment_dz = inc_tol_dz
+            increment_dz = inc_tol_dz,
+            increment_saturation = inc_tol_saturation,
         )
         if haskey(model.equations, :energy_conservation)
             tol[:energy_conservation] = (
@@ -2798,7 +2819,7 @@ function transfer_variables_or_parameters!(vars, new_model::SimulationModel, rep
         end
         Jutul.delete_variable!(new_model, varname)
         vardef = deepcopy(vardef)
-        if hasproperty(vardef, :regions) && !isnothing(vardef)
+        if hasproperty(vardef, :regions) && !isnothing(vardef.regions)
             entity = Jutul.associated_entity(vardef)
             n = count_entities(new_model.domain.representation, entity)
             empty!(vardef.regions)
@@ -2935,4 +2956,58 @@ function insert_nnc_face!(m::UnstructuredMesh, l::Int, r::Int)
     push!(npos, npos[end])
     @assert number_of_faces(m) == nf + 1
     return m
+end
+
+function cell_node_bounds(G::DataDomain, cell, idx = missing)
+    G_u = physical_representation(G)
+    return cell_node_bounds(G_u, cell, idx)
+end
+
+function cell_node_bounds(G::CartesianMesh, cell, idx = missing)
+    G_u = UnstructuredMesh(G)
+    return cell_node_bounds(G_u, cell, idx)
+end
+
+function cell_node_bounds(G::CoarseMesh, cell, idx = missing)
+    T = Jutul.float_type(G)
+    D = Jutul.dim(G)
+    cmin = @MVector fill(typemax(T), D)
+    cmax = @MVector fill(typemin(T), D)
+    for (idx, cblock) in enumerate(G.partition)
+        if cblock == cell
+            minval, maxval = cell_node_bounds(G.parent, idx)
+            for i in 1:D
+                cmin[i] = min(cmin[i], minval[i])
+                cmax[i] = max(cmax[i], maxval[i])
+            end
+        end
+    end
+    if ismissing(idx)
+        out = (SVector{D, T}(cmin), SVector{D, T}(cmax))
+    else
+        out = (cmin[idx], cmax[idx])
+    end
+    return out
+end
+
+function cell_node_bounds(G, cell, idx = missing)
+    D = Jutul.dim(G)
+    T = Jutul.float_type(G)
+    T_s = SVector{D, T}
+    cmin = @MVector fill(typemax(T), D)
+    cmax = @MVector fill(typemin(T), D)
+    for (e, mapper) in [(Faces(), G.faces), (BoundaryFaces(), G.boundary_faces)]
+        for f in mapper.cells_to_faces[cell]
+            c, _ = Jutul.compute_centroid_and_measure(G, e, f)
+            for i in 1:D
+                cmin[i] = min(cmin[i], c[i])
+                cmax[i] = max(cmax[i], c[i])
+            end
+        end
+    end
+    if ismissing(idx)
+        return (T_s(cmin), T_s(cmax))
+    else
+        return (cmin[idx], cmax[idx])
+    end
 end

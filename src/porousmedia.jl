@@ -142,7 +142,12 @@ function compute_peaceman_index(Δ, K, radius, dir::Symbol = :z;
     if is_defaulted(Kh)
         Kh = L*ke
     end
-    WI = 2 * π * Kh / (log(re / radius) + skin)
+    if radius < 1e-16
+        println("Warning: Well radius is extremely small ($radius), returning zero well index.")
+        WI = zero(promote_type(typeof(Kh), typeof(re), typeof(skin)))
+    else
+        WI = 2 * π * Kh / (log(re / radius) + skin)
+    end
     if check && WI < 0
         if re < radius
             error("Equivalent Peaceman radius is smaller than well radius - computed Peaceman index was negative. Either the cell is too small, or the radius too big.")
@@ -189,11 +194,11 @@ function compute_well_thermal_index(g::T, thermal_conductivity, radius, pos, dir
     return compute_well_thermal_index(Δ, thermal_conductivity, radius, dir; kwargs...)
 end
 
-function compute_well_thermal_index(Δ, thermal_conductivity, radius::Float64, dir=:z;
-        casing_thickness::Float64 = 0.0,
-        grouting_thickness::Float64 = 0.0,
-        casing_thermal_conductivity::Float64 = 20.0,
-        grouting_thermal_conductivity::Float64 = 2.3,
+function compute_well_thermal_index(Δ, thermal_conductivity, radius, dir=:z;
+        casing_thickness = 0.0,
+        grouting_thickness = 0.0,
+        casing_thermal_conductivity = 20.0,
+        grouting_thermal_conductivity = 2.3,
     )
 
     radius > 0.0 || error("Well radius must be positive.")

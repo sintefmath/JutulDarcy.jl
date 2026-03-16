@@ -34,11 +34,29 @@ end
 function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, reg_rs, reg_rv, keep_bub, sat_chop, pressure, active, sw, ϵ, w)
     water_saturation(::Nothing, i) = 0.0
     water_saturation(sat, i) = value(sat[i])
+    n_switched = 0
     @inbounds for (i, dx) in zip(active, Dx)
         swi = water_saturation(sw, i)
         rs_tab_i = table_by_region(rs_tab, region(reg_rs, i))
         rv_tab_i = table_by_region(rv_tab, region(reg_rv, i))
-        varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab_i, rv_tab_i, keep_bub, sat_chop, pressure, swi, ϵ, w)
+        n_switched += varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab_i, rv_tab_i, keep_bub, sat_chop, pressure, swi, ϵ, w)
+    end
+    if n_switched > 0
+        @debug begin
+            og = 0
+            g = 0
+            o = 0
+            for bo in v
+                if bo.phases_present == OilAndGas
+                    og += 1
+                elseif bo.phases_present == GasOnly
+                    g += 1
+                elseif bo.phases_present == OilOnly
+                    o += 1
+                end
+            end
+            "Black oil updated for $(length(Dx)) cells, with $n_switched phase state changes. Phase state distribution after update: Oil and Gas: $og, Gas only: $g, Oil only: $o"
+        end
     end
 end
 
@@ -89,6 +107,7 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
         next_x, next_state, is_near_bubble = handle_phase_appearance(pressure, i, tab, dr_max, old_state, old_x, swi, dx, was_near_bubble, ϵ_s, ϵ_r, keep_bubble, w)
     end
     v[i] = BlackOilX(next_x, next_state, is_near_bubble)
+    return old_state != next_state
 end
 
 function handle_phase_disappearance(pressure, i, ::Nothing, next_x, swi, old_state, possible_new_state, was_near_bubble, keep_bubble, ϵ_s, ϵ_r)
@@ -122,11 +141,12 @@ end
 
 function handle_phase_appearance(pressure, i, r_tab, dr_max, old_state, old_x, swi, dx, was_near_bubble, ϵ_s, ϵ_r, keep_bubble, w)
     p = pressure[i]
-    r_sat = r_tab(value(p))
-
+    r_sat = max(r_tab(value(p)), 10*ϵ_r)
     abs_r_max = dr_max*r_sat
-    next_x = old_x + w*Jutul.choose_increment(value(old_x), dx, abs_r_max, nothing, 0, nothing)
-    if next_x >= r_sat
+    Δ = Jutul.choose_increment(value(old_x), dx, abs_r_max, nothing, 0, nothing)
+    next_x = old_x + w*Δ
+    to_two_phase = next_x >= r_sat
+    if to_two_phase
         if was_near_bubble
             # We are sufficiently close to the saturated point. Switch to gas saturation as primary variable.
             if old_state == OilOnly
@@ -149,16 +169,6 @@ function handle_phase_appearance(pressure, i, r_tab, dr_max, old_state, old_x, s
         is_near_bubble = false
     end
     return (next_x, next_state, is_near_bubble)
-end
-
-function s_removed(s, d)
-    error("Not in use")
-    if d < 1e-12
-        s_bar = 1.0
-    else
-        s_bar = s/(1-d)
-    end
-    return s_bar
 end
 
 function blackoil_unknown_init(F_rs, F_rv::Nothing, sw, so, sg, rs, rv, p)

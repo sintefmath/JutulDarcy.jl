@@ -1,3 +1,5 @@
+using Dates
+
 function set_report_step_and_weights_for_period!(period::MatchPeriod, dt::Vector{Float64}, baseweight)
     start, stop = period.start, period.stop
     idxs = period.step_idx
@@ -157,6 +159,9 @@ function get_well_data(hm::HistoryMatch, name, quantity, data, t)
             time = hm.summary["TIME"].seconds
             wdata = flexible_getindex(smry_data["WELLS"], name)
             response = flexible_getindex(wdata, quantity)
+            if ismissing(response)
+                error("Summary data for well $name, quantity $quantity not found in summary object.")
+            end
         else
             error("Unsupported summary data format. Cannot extract well data for $name, $quantity.")
         end
@@ -180,4 +185,171 @@ function get_well_data(hm::HistoryMatch, name, quantity, data, t)
         jutul_message("HistoryMatch", "Minimum value in provided data for well $name, $quantity is negative ($minval). All well responses are assumed to be non-negative and into/out of reservoir is set via injector/producer designation.")
     end
     return Jutul.get_1d_interpolator(time, response, constant_dx = false, static = false)
+end
+
+function mismatch_summary(obj::HistoryMatchObjective, res::ReservoirSimResult, fld::String, threshold = 0.2; kwarg...)
+    return mismatch_summary(obj.match.summary, res.summary, fld; kwarg...)
+end
+
+function mismatch_summary(summary_ref, summary, fld::String, threshold = 0.2;
+        wells = keys(summary["VALUES"]["WELLS"]),
+        do_print = 0,
+        npts = 1000,
+        no_data_threshold = ifelse(fld == "WBHP", si_unit(:atm), 0.0),
+        relative = true,
+        type = :mean,
+        prefix = ""
+    )
+    t_ref = summary_ref["TIME"].seconds
+    t = summary["TIME"].seconds
+
+    t_eval = range(0.0, stop = t[end], length = npts)
+    function resample(t, val)
+        return Jutul.get_1d_interpolator(t, val).(t_eval)
+    end
+
+    reference_units = JutulDarcy.GeoEnergyIO.InputParser.DeckUnitSystem(Symbol(lowercase(summary_ref["UNIT_SYSTEM"])))
+    summary_units = JutulDarcy.GeoEnergyIO.InputParser.DeckUnitSystem(Symbol(lowercase(summary["UNIT_SYSTEM"])))
+    si_units = JutulDarcy.GeoEnergyIO.InputParser.DeckUnitSystem(:si)
+
+    start_ref = summary_ref["TIME"].start_date
+    start = summary["TIME"].start_date
+    offset_t = 0.0
+    if !ismissing(start) && !ismissing(start_ref) && !isnothing(start) && !isnothing(start_ref)
+        if start != start_ref
+            offset_t = Period(start_ref - start).value/1000
+        end
+    end
+    lookup = JutulDarcy.summary_key_lookup()
+
+    mismatch = Dict{String, Float64}()
+    bad = String[]
+    mismatch_per_step = Dict{String, Vector{Float64}}()
+    values_per_step = Dict{String, Vector{Float64}}()
+    reference_per_step = Dict{String, Vector{Float64}}()
+    wells = intersect(wells, keys(summary_ref["VALUES"]["WELLS"]), keys(summary["VALUES"]["WELLS"]))
+    for w in wells
+        r = summary_ref["VALUES"]["WELLS"][w]
+        s = summary["VALUES"]["WELLS"][w]
+        if !haskey(r, fld) || !haskey(s, fld)
+            continue
+        end
+        val_ref = abs.(resample(t_ref, r[fld]))
+        val_sim = abs.(resample(t .- offset_t, s[fld]))
+
+        step_mismatch = zeros(length(val_ref))
+        num_ok = 0
+
+        info = get(lookup, fld, missing)
+        if ismissing(info)
+            println("No units found for $fld, may be inaccurate!")
+        else
+            JutulDarcy.GeoEnergyIO.InputParser.swap_unit_system!(val_sim, (to = si_units, from = summary_units), info.unit_type)
+            JutulDarcy.GeoEnergyIO.InputParser.swap_unit_system!(val_ref, (to = si_units, from = reference_units), info.unit_type)
+
+            if info.is_rate
+                if lowercase(string(summary["UNIT_SYSTEM"])) == "si"
+                    val_sim = val_sim.*si_unit(:day)
+                end
+                if lowercase(string(summary_ref["UNIT_SYSTEM"])) == "si"
+                    val_ref = val_ref.*si_unit(:day)
+                end
+            end
+        end
+        for i in eachindex(val_ref)
+            if abs(val_ref[i]) < no_data_threshold || !isfinite(val_ref[i])
+                continue
+            end
+            step_mismatch[i] = abs(val_sim[i] - val_ref[i])
+            num_ok += 1
+        end
+        if type == :mean
+            mval = sum(step_mismatch)
+            if relative
+                mval /= max(sum(abs.(val_ref)), max(no_data_threshold, 1e-12))
+            else
+                mval /= max(num_ok, 1)
+            end
+        elseif type == :max
+            if relative
+                worst = 0.0
+                for i in eachindex(step_mismatch)
+                    v = val_sim[i]/val_ref[i]
+                    if v > worst
+                        worst = v
+                    end
+                end
+                mval = worst
+            else
+                mval = maximum(step_mismatch)
+            end
+        else
+            error("Unknown mismatch type '$type'. Supported types are :mean and :max.")
+        end
+        mismatch[w] = mval
+        mismatch_per_step[w] = step_mismatch
+        values_per_step[w] = val_sim
+        reference_per_step[w] = val_ref
+        if mval >= threshold
+            push!(bad, w)
+        end
+    end
+    prt = Int(do_print)
+    if prt > 0
+        if prt > 1
+            # Potentially very detailed printout
+            println("$(prefix)Mismatch summary for field '$fld':")
+            if length(bad) > 0
+                println("Wells with mismatch above threshold ($threshold): ", join(bad, ", "))
+                if prt > 2
+                    for w in bad
+                        mval = mismatch[w]
+                        println("  $w: $mval")
+                    end
+                end
+            else
+                println("$(prefix)All wells have mismatch below threshold ($threshold).")
+            end
+        else
+            fmt(x) = round(x, sigdigits=2)
+            worstval = 0.0
+            worstkey = ""
+            bestval = typemax(Float64)
+            bestkey = ""
+            avg = 0.0
+            n = 1
+            for (k, v) in pairs(mismatch)
+                if v > worstval
+                    worstval = v
+                    worstkey = k
+                end
+                if v < bestval && any(x -> x > no_data_threshold, summary["VALUES"]["WELLS"][k][fld])
+                    bestval = v
+                    bestkey = k
+                end
+                avg += v
+                n += 1
+            end
+            if relative
+                fldk = "rel.$type"
+            else
+                fldk = type
+            end
+            print("$prefix$fld $fldk: ")
+            if length(bad) > 0
+                print("$(length(bad))/$(length(wells)) above $threshold")
+            else
+                print("All wells below threshold ($threshold).")
+            end
+            println(" (avg $(fmt(avg/n))), worst: $worstkey: $(fmt(worstval)), best $bestkey: $(fmt(bestval))")
+        end
+    end
+    return Dict(
+        "mismatch" => mismatch,
+        "bad" => bad,
+        "mismatch_per_step" => mismatch_per_step,
+        "values_per_step" => values_per_step,
+        "reference_per_step" => reference_per_step,
+        "seconds" => t_eval,
+    )
 end

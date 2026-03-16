@@ -295,6 +295,14 @@ function Jutul.default_parameter_values(data_domain, model, param::WellIndicesTh
     casing_thickness = data_domain[:casing_thickness, Cells()][ic]
     grouting_thickness = data_domain[:grouting_thickness, Cells()][ic]
 
+    T = Base.promote_type(
+        eltype(WIt), eltype(thermal_conductivity), eltype(radius),
+        eltype(λ_casing), eltype(λ_grout), eltype(casing_thickness),
+        eltype(grouting_thickness))
+    if T != eltype(WIt)
+        WIt = convert(Vector{T}, WIt)
+    end
+
     for (i, val) in enumerate(WIt)
         defaulted = !isfinite(val)
         if defaulted

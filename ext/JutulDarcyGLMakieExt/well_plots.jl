@@ -724,18 +724,19 @@ function JutulDarcy.plot_reservoir_measurables(arg...;
     return fig
 end
 
-function JutulDarcy.plot_summary(v::Union{AbstractVector, Tuple}; kwarg...)
-    return JutulDarcy.plot_summary(v...; kwarg...)
+function JutulDarcy.plot_summary_impl(v::Union{AbstractVector, Tuple}; kwarg...)
+    return JutulDarcy.plot_summary_impl(v...; kwarg...)
 end
 
-function JutulDarcy.plot_summary(arg...;
-        names = ["Dataset $i" for i in 1:length(arg)],
+function JutulDarcy.plot_summary_impl(arg...;
+        names = missing,
         unit_system = "Metric",
         linewidth = 2.0,
         markersize = 0.0,
         plots = ["FIELD:FPR"],
         extra_field = String[],
         extra_well = String[],
+        events = missing,
         linecolor = :black,
         selectors = true,
         plot_type = :lines,
@@ -747,6 +748,12 @@ function JutulDarcy.plot_summary(arg...;
         colormap = missing,
         kwarg...
     )
+    if length(arg) == 1 && only(arg) isa AbstractVector
+        arg = only(arg)
+    end
+    if ismissing(names)
+        names = ["Summary $i" for i in 1:length(arg)]
+    end
     function split_name(inp::String)
         sep = ':'
         if in(sep, inp)
@@ -848,7 +855,7 @@ function JutulDarcy.plot_summary(arg...;
         smry = summaries[idx]
         t = smry["TIME"].seconds
         if maybe_datetime && !isnothing(start_date)
-            out = start_date .+ @. Microsecond(ceil(t*1e6))
+            out = start_dates[idx] .+ @. Microsecond(ceil(t*1e6))
         else
             out = t./si_unit(:day)
         end
@@ -873,7 +880,7 @@ function JutulDarcy.plot_summary(arg...;
         from_sys = JutulDarcy.GeoEnergyIO.InputParser.DeckUnitSystem(Symbol(lowercase(smry["UNIT_SYSTEM"])))
         to_sys = JutulDarcy.GeoEnergyIO.InputParser.DeckUnitSystem(Symbol(lowercase(units)))
         systems = (to = to_sys, from = from_sys)
-        if !ismissing(info)
+        if !ismissing(info) && v isa AbstractArray
             JutulDarcy.GeoEnergyIO.InputParser.swap_unit_system!(v, systems, info.unit_type)
         end
         return v
@@ -881,21 +888,23 @@ function JutulDarcy.plot_summary(arg...;
 
     # Set up time labels
     start_dates = map(s -> s["TIME"].start_date, summaries)
-    unique!(filter!(x -> !isnothing(x) && !ismissing(x), start_dates))
-    if length(start_dates) == 0
+    filtered_start_dates = copy(start_dates)
+    unique!(filter!(x -> !isnothing(x) && !ismissing(x), filtered_start_dates))
+    has_missing = length(filtered_start_dates) < length(start_dates)
+    if length(filtered_start_dates) == 0
         start_date = nothing
     else
-        if length(start_dates) > 1
-            println("Note: Multiple distinct start dates ($start_dates) found in summaries, using first entry.")
+        start_date = first(filtered_start_dates)
+        if has_missing
+            println("Note: Multiple distinct start dates ($start_dates) found in summaries, using first entry as the base for values without dates.")
+            for (i, s) in enumerate(summaries)
+                if isnothing(s["TIME"].start_date) || ismissing(s["TIME"].start_date)
+                    start_dates[i] = start_date
+                end
+            end
         end
-        start_date = first(start_dates)
     end
     # Max time - in days
-    t_max = maximum(x -> maximum(time_data(x)), eachindex(summaries))
-    ticks_days = collect(range(0.0, ceil(t_max), length = 10))
-    if !isnothing(start_date)
-    end
-
     plots = map(String, plots)
     fig = Figure(size = (1200, 800))
     top_menu_grid = GridLayout(fig[2, 1])
@@ -963,7 +972,7 @@ function JutulDarcy.plot_summary(arg...;
                 for (smry_no, smry_name) in enumerate(names)
                     t = time_data(smry_no, maybe_datetime = true)
                     v = plot_data(well_or_fld, pname, smry_no, info, units)
-                    if !ismissing(info) && name != "NONE"
+                    if !ismissing(info) && name != "NONE" && v isa AbstractArray
                         # ax.title[] = "$(name) $(info.legend)"
                         _, u = well_unit_conversion(units, "", info)
                         if info.is_rate
@@ -1015,6 +1024,8 @@ function JutulDarcy.plot_summary(arg...;
                         label = lbl,
                         alpha = alpha,
                         transparency = alpha < 1.0,
+                        inspectable = false,
+                        kwarg...
                     )
                     if plot_type == :lines
                         lines!(ax, t, v;
@@ -1043,6 +1054,9 @@ function JutulDarcy.plot_summary(arg...;
                         )
                     else
                         error("Unknown plot type: $plot_type")
+                    end
+                    if !ismissing(events)
+                        plot_events!(ax, events, well_or_fld, start_date, t, v)
                     end
                 end
                 # ax.ylabel[] = ystr
@@ -1152,6 +1166,9 @@ function JutulDarcy.plot_summary(arg...;
         end
     end
     update_menu_layout()
+    if !ismissing(events)
+        DataInspector(fig)
+    end
 
     return fig
 end
@@ -1165,6 +1182,33 @@ function label_menu(dest, options, mlabel::String; kwarg...)
     )
     m = Menu(g[1, 2], options = options; kwarg...)
     return (m, l)
+end
+
+function plot_events!(ax, events, well_or_fld, start_date, t, v)
+    events_for_k = get(events, well_or_fld, missing)
+    if ismissing(events_for_k)
+        return ax
+    end
+    ed = collect(keys(events_for_k))
+    vals = collect(values(events_for_k))
+    if length(ed) == 0
+        return ax
+    end
+    if first(ed) isa DateTime
+
+        t_s = map(x -> Dates.value(x - start_date) / 1000, t)
+        event_s = map(x -> Dates.value(x - start_date) / 1000, ed)
+    else
+        t_s = t
+        event_s = ed
+    end
+    vals_h = get_1d_interpolator(t_s, v).(event_s)
+    function event_inspector(plot, index, position)
+        return "$(ed[index])\n$(vals[index])"
+    end
+
+    scatter!(ax, ed, vals_h; color = :darkred, markersize = 3.0, inspector_label = event_inspector)
+    return ax
 end
 
 function JutulDarcy.plot_mismatch(obj, res::ReservoirSimResult)

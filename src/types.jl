@@ -158,14 +158,16 @@ function StandardBlackOilSystem(;
         if isnothing(rs_max)
             eps_rs = eps_s
         else
-            eps_rs = 1e-4*mean(diff(first(rs_max).F))
+            F_rs = first(rs_max).F
+            eps_rs = max(1e-6*F_rs[end]/length(F_rs), 1e-12)
         end
     end
     if isnothing(eps_rv)
         if isnothing(rv_max)
             eps_rv = eps_s
         else
-            eps_rv = 1e-4*mean(diff(first(rv_max).F))
+            F_rv = first(rv_max).F
+            eps_rv = max(1e-6*F_rv[end]/length(F_rv), 1e-12)
         end
     end
     @assert formulation == :varswitch || formulation == :zg
@@ -424,6 +426,9 @@ struct SimpleWell{SC, P} <: WellDomain where {SC, P}
     explicit_dp::Bool
     # reference_depth::V
 end
+
+Jutul.dim(w::DataDomain{<:WellDomain}) = size(w[:cell_centroids], 1)
+Jutul.mesh_z_is_depth(w::DataDomain{<:WellDomain}) = true
 
 """
     SimpleWell(reservoir_cells; <keyword arguments>)

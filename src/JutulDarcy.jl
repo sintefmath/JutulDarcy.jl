@@ -227,6 +227,10 @@ module JutulDarcy
     # History matching
     include("HistoryMatching/HistoryMatching.jl")
 
+    # Plotting utilities for wells
+    include("WellBorePlotting/WellBorePlotting.jl")
+
+
     @compile_workload begin
         try
             precompile_darcy_multimodels()
