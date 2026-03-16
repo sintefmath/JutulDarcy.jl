@@ -162,6 +162,11 @@ function setup_well(matrix::DataDomain, matrix_cells, fractures::DataDomain;
     )
     wc = well.representation.perforations.self_fracture
     fc = well.representation.perforations.fracture
+
+    if isempty(fc)
+        return well
+    end
+    
     well[:cell_length][wc] = fractures[:aperture][fc]
 
     Δ = well[:cell_dims_frac, FracturePerforations()]
