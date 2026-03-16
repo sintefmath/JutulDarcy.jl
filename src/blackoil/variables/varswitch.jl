@@ -201,12 +201,13 @@ function blackoil_unknown_init(F_rs, F_rv, sw, so, sg, rs, rv, p)
         rv = F_rv(p)
         x = sg
         state = OilAndGas
-    elseif so > 0
-        x = rs
-        state = OilOnly
-    else
+    elseif sg > 0
         x = rv
         state = GasOnly
+    else
+        # Oil only for water case.
+        x = rs
+        state = OilOnly
     end
     return BlackOilX(x, state, false)
 end
