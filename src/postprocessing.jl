@@ -1,31 +1,59 @@
-function delta_state(x::AbstractArray, x0::AbstractArray, relative=false)
-    if length(x) != length(x0)
-        return missing
+# Generic fallback
+delta_state(xa, xb, relative=false) = missing
+
+# Scalars
+function delta_state(xa::Number, xb::Number, relative=false)
+    relative ? (xa - xb) / xb : (xa - xb)
+end
+
+# Arrays (matrix/tensor/etc.; vectors handled by more specific methods below)
+function delta_state(xa::AbstractArray, xb::AbstractArray, relative=false)
+    size(xa) == size(xb) || return missing
+    if eltype(xa) <: Number && eltype(xb) <: Number
+        println("Should have been here!")
+        return relative ? (xa .- xb) ./ xb : (xa .- xb)
     else
-        if relative
-            return (x .- x0) ./ x0
-        else
-            return x .- x0
-        end
+        println("Should not have been here!")
+        return map((a, b) -> delta_state(a, b, relative), xa, xb)
     end
 end
 
-function delta_state(x, x0::Dict, relative=false)
-    dx = deepcopy(x)
-    for (k, v) in x
-        if haskey(x0, k)
-            dx[k] = delta_state(x[k], x0[k], relative)
-        else
-            dx[k] = missing
-        end
+# Dict/OrderedDict (and other AbstractDict)
+function delta_state(xa::AbstractDict, xb::AbstractDict, relative=false)
+    # dx = OrderedDict{Any, Any}()
+    dx = deepcopy(xa)
+    for (k, va) in xa
+        println("Processing key: $k")
+        dx[k] = haskey(xb, k) ? delta_state(va, xb[k], relative) : missing
+        println("Type of dx[$k]: $(typeof(dx[k]))")
     end
     return dx
 end
 
-function delta_state(x::Vector, x0::Dict, relative=false)
-    dx = deepcopy(x)
-    for (n, xn) in enumerate(x)
-        dx[n] = delta_state(xn, x0, relative)
+# Vector vs vector (e.g., vector of states)
+function delta_state(xa::AbstractVector, xb::AbstractVector, relative=false)
+    length(xa) == length(xb) || return missing
+    dx = Vector{Any}(undef, length(xa))
+    @inbounds for i in eachindex(xa, xb)
+        dx[i] = delta_state(xa[i], xb[i], relative)
+    end
+    return dx
+end
+
+# Vector of states vs single reference state (dict/ordered dict)
+function delta_state(xa::AbstractVector, xb::AbstractDict, relative=false)
+    dx = Vector{Any}(undef, length(xa))
+    @inbounds for i in eachindex(xa)
+        dx[i] = delta_state(xa[i], xb, relative)
+    end
+    return dx
+end
+
+# Single state vs vector of reference states
+function delta_state(xa::AbstractDict, xb::AbstractVector, relative=false)
+    dx = Vector{Any}(undef, length(xb))
+    @inbounds for i in eachindex(xb)
+        dx[i] = delta_state(xa, xb[i], relative)
     end
     return dx
 end
