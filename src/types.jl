@@ -456,7 +456,7 @@ function SimpleWell(
     return SimpleWell(
         perf,
         surface_conditions,
-        name,
+        Symbol(name),
         explicit_dp
     )
 end
