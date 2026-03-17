@@ -144,9 +144,9 @@ function MuBTable(tab::MultiComponentFlash.PVTExperiments.PVDGTable; kwarg...)
     return MuBTable(tab.p, 1.0 ./ tab.Bg, tab.mu_g; kwarg...)
 end
 
-# function MuBTable(tab::MultiComponentFlash.PVTExperiments.PVDOTable; kwarg...)
-#     return MuBTable(tab.p, 1.0 ./ tab.Bo, tab.mu_o; kwarg...)
-# end
+function MuBTable(tab::MultiComponentFlash.PVTExperiments.PVDOTable; kwarg...)
+    return MuBTable(tab.p, 1.0 ./ tab.Bo, tab.mu_o; kwarg...)
+end
 
 function viscosity(tbl::MuBTable, p)
     return tbl.viscosity_interp(p)
@@ -465,6 +465,52 @@ struct PVTGTable{T,V}
     shrinkage::V
     viscosity::V
 end
+
+function PVTGTable(tab::MultiComponentFlash.PVTExperiments.PVTGTable)
+    # Vectors of vectors
+    bg = 1 ./ tab.Bg
+    rv_sub = tab.Rv_sub
+    mu = tab.mu_g
+    # Vectors
+    p = copy(tab.p)
+    rv = copy(tab.Rv)
+    return PVTGTable(bg, rv_sub, mu, p, rv)
+end
+
+"""
+    PVTGTable(bo, p, mu, p_bub, rs)
+
+Create a PVTGTable table from vectors of vectors.
+
+# Arguments
+- bo should be 1/Bo values for each pressure value with varying Rv, given as a vector of vectors.
+- rv_sub should be the corresponding Rv values for each pressure value, given as a vector of vectors.
+- mu should be the corresponding viscosities for each pressure value as a function of Rv, given as a vector of vectors.
+- p and rv should be vectors of the same length as bo, p, and mu, giving the
+  pressure at which the gas phase is fully saturated with oil and the corresponding Rv value.
+"""
+function PVTGTable(bg::Vector, rv_sub::Vector, mu::Vector, p::Vector, rv::Vector)
+    issorted(reverse(p)) || throw(ArgumentError("Each pressure vector in the input table must be sorted in descending order."))
+    rv_flat = Float64[]
+    mu_flat = Float64[]
+    b_flat = Float64[]
+
+    pos = Int[1]
+    for i in eachindex(bg, mu, rv_sub)
+        rv_i = rv_sub[i]
+        mu_i = mu[i]
+        b_i = bg[i]
+        length(rv_i) == length(mu_i) == length(b_i) || throw(ArgumentError("Each set of rv, viscosity, and shrinkage data must have the same length. Failed for entry $i."))
+        for j in eachindex(rv_i)
+            push!(rv_flat, rv_i[j])
+            push!(mu_flat, mu_i[j])
+            push!(b_flat, b_i[j])
+        end
+        push!(pos, pos[end] + length(rv_i))
+    end
+    return PVTGTable(pos, p, rv_flat, rv, b_flat, mu_flat)
+end
+
 
 function PVTG(pvtg::PVTGTable)
     ct = (pvtg, )

@@ -784,7 +784,9 @@ function setup_reservoir_model_from_blackoil_tables(reservoir;
 
     water = !ismissing(pvtw)
 
+    pvt = []
     if water
+        push!(pvt, pvtw)
         phases = (AqueousPhase(), LiquidPhase(), VaporPhase())
     else
         phases = (LiquidPhase(), VaporPhase())
@@ -794,19 +796,23 @@ function setup_reservoir_model_from_blackoil_tables(reservoir;
     if disgas || vapoil
         rs_max = rv_max = nothing
         if disgas
+            push!(pvt, pvto)
             rs_max = map(
                 tab -> get_1d_interpolator(tab.sat_pressure, tab.rs),
                 pvto.tab
             )
+        else
+            push!(pvt, pvdo)
         end
         if vapoil
+            push!(pvt, pvtg)
             # TODO FIX
             rv_max = map(
-                tab -> get_1d_interpolator(tab.sat_pressure, tab.rs),
+                tab -> get_1d_interpolator(tab.pressure, tab.sat_rv),
                 pvtg.tab
             )
         else
-
+            push!(pvt, pvdg)
         end
         system = StandardBlackOilSystem(
             rs_max = rs_max,
@@ -818,7 +824,18 @@ function setup_reservoir_model_from_blackoil_tables(reservoir;
         system = ImmiscibleSystem(phases, reference_densities = reference_densities)
     end
 
-    model = setup_reservoir_model(reservoir, system; extra_out = false, kwarg...)
+    bfn = DeckShrinkageFactors(pvt)
+    mufn = DeckPhaseViscosities(pvt)
+
+    model = setup_reservoir_model(reservoir, system;
+        extra_out = false,
+        kwarg...
+    )
+    for (k, submodel) in pairs(model.models)
+        if model_or_domain_is_well(submodel) || k == :Reservoir || k == :Fractures
+            set_secondary_variables!(submodel, ShrinkageFactors = bfn, PhaseViscosities = mufn)
+        end
+    end
 
     if extra_out
         out = (model, setup_parameters(model))
@@ -831,7 +848,7 @@ end
 
 
 function setup_reservoir_model_from_blackoil_tables(reservoir, tables;
-        vapoil = false,
+        vapoil = false, # !isnothing(tables.pvtg),
         disgas = !isnothing(tables.pvto),
         water = true,
         water_density = convert_to_si(1000.0, "kilogram/meter^3"),
@@ -843,6 +860,7 @@ function setup_reservoir_model_from_blackoil_tables(reservoir, tables;
     )
     if vapoil
         isnothing(tables.pvtg) && throw(ArgumentError("PVTG table must be present in tables if vapoil is true. Are you sure that the oil sample was a volatile oil."))
+        jutul_message("Blackoil from tables", "Disgas support was explicitly enabled. This is experimental. Make sure to check that the tables are correct and that the results are reasonable.")
         pvtg = PVTG(PVTGTable(tables.pvtg))
         pvdg = missing
     else
