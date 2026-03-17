@@ -793,7 +793,8 @@ function setup_reservoir_model_from_blackoil_tables(reservoir;
     end
     length(phases) == length(reference_densities) || throw(ArgumentError("Length of reference_densities $(length(phases)) must match the actiev phases implied by the tables $phases."))
 
-    if disgas || vapoil
+    is_bo = disgas || vapoil
+    if is_bo
         rs_max = rv_max = nothing
         if disgas
             push!(pvt, pvto)
@@ -820,11 +821,14 @@ function setup_reservoir_model_from_blackoil_tables(reservoir;
             reference_densities = reference_densities
         )
     else
+        push!(pvt, pvdo)
+        push!(pvt, pvdg)
         system = ImmiscibleSystem(phases, reference_densities = reference_densities)
     end
 
     bfn = DeckShrinkageFactors(pvt)
     mufn = DeckPhaseViscosities(pvt)
+    rhofn = DeckPhaseMassDensities(pvt)
 
     model = setup_reservoir_model(reservoir, system;
         extra_out = false,
@@ -832,7 +836,16 @@ function setup_reservoir_model_from_blackoil_tables(reservoir;
     )
     for (k, submodel) in pairs(model.models)
         if model_or_domain_is_well(submodel) || k == :Reservoir || k == :Fractures
-            set_secondary_variables!(submodel, ShrinkageFactors = bfn, PhaseViscosities = mufn)
+            if is_bo
+                set_secondary_variables!(submodel,
+                    ShrinkageFactors = bfn
+                )
+            end
+            set_secondary_variables!(submodel,
+                ShrinkageFactors = bfn,
+                PhaseViscosities = mufn,
+                PhaseMassDensities = rhofn
+            )
         end
     end
 

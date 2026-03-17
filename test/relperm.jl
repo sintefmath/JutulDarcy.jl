@@ -344,8 +344,8 @@ end
     end
 end
 
-## set_relative_permeability helper function tests
-@testset "set_relative_permeability" begin
+## set_relative_permeability! helper function tests
+@testset "set_relative_permeability!" begin
     @testset "Direct specification two-phase" begin
         s = collect(range(0, 1, 100))
         krw = PhaseRelativePermeability(s, s)
@@ -353,7 +353,7 @@ end
         domain = get_1d_reservoir(3)
         sys = ImmiscibleSystem((AqueousPhase(), LiquidPhase()))
         model = SimulationModel(domain, sys)
-        set_relative_permeability(model, w = krw, ow = krow)
+        set_relative_permeability!(model, w = krw, ow = krow)
         relperm = model[:RelativePermeabilities]
         @test relperm isa JutulDarcy.ReservoirRelativePermeabilities
         @test relperm.phases == :wo
@@ -365,7 +365,7 @@ end
         domain = get_1d_reservoir(3)
         sys = ImmiscibleSystem((AqueousPhase(), LiquidPhase()))
         model = SimulationModel(domain, sys)
-        set_relative_permeability(model, swof = swof)
+        set_relative_permeability!(model, swof = swof)
         relperm = model[:RelativePermeabilities]
         @test relperm isa JutulDarcy.ReservoirRelativePermeabilities
         @test relperm.phases == :wo
@@ -378,21 +378,21 @@ end
         domain = get_1d_reservoir(3)
         sys = ImmiscibleSystem((AqueousPhase(), LiquidPhase(), VaporPhase()))
         model = SimulationModel(domain, sys)
-        set_relative_permeability(model, swof = swof, sgof = sgof, three_phase_method = StoneIIMethod())
+        set_relative_permeability!(model, swof = swof, sgof = sgof, three_phase_method = StoneIIMethod())
         relperm = model[:RelativePermeabilities]
         @test relperm isa JutulDarcy.ReservoirRelativePermeabilities
         @test relperm.phases == :wog
         @test relperm.three_phase_method isa StoneIIMethod
     end
 
-    @testset "Simulation with set_relative_permeability" begin
+    @testset "Simulation with set_relative_permeability!" begin
         s = collect(range(0, 1, 100))
         swof = hcat(s, s, (1 .- s).^2)
         domain = get_1d_reservoir(3)
         nc = number_of_cells(domain)
         sys = ImmiscibleSystem((AqueousPhase(), LiquidPhase()))
         model = SimulationModel(domain, sys)
-        set_relative_permeability(model, swof = swof)
+        set_relative_permeability!(model, swof = swof)
         bar = 1e5
         p0 = 100*bar
         state0 = setup_state(model, Pressure = p0, Saturations = [0.0, 1.0])

@@ -49,7 +49,7 @@ setup_reservoir_model
 ### Properties and functions
 
 ```@docs
-set_relative_permeability
+set_relative_permeability!
 JutulDarcy.StoneIIMethod
 JutulDarcy.SaturationWeightedOilRelperm
 JutulDarcy.StoneIMethod

@@ -396,7 +396,12 @@ end
 
 Base.@propagate_inbounds @inline function three_phase_oil_relperm(Krow, Krog, swcon, sg, sw, ::SaturationWeightedOilRelperm)
     swc = min(swcon, value(sw) - 1e-5)
-    d  = (sg + sw - swc)
+    sg_and_sw = sg + sw
+    d  = (sg_and_sw - swc)
+    # error()
+    if 1 - sg_and_sw < MINIMUM_COMPOSITIONAL_SATURATION
+        # return zero(typeof(Krow))
+    end
     ww = (sw - swc)/d
     kro = (1-ww)*Krog + ww*Krow
     return kro
@@ -591,7 +596,7 @@ function add_relperm_parameters!(param, kr::AbstractRelativePermeabilities)
 end
 
 """
-    set_relative_permeability(model;
+    set_relative_permeability!(model;
         w = nothing,
         ow = nothing,
         og = nothing,
@@ -626,7 +631,7 @@ Two-phase with tables:
 ```julia
 s = collect(range(0, 1, 10))
 swof = hcat(s, s.^2, reverse(s).^2)
-set_relative_permeability(model, swof = swof)
+set_relative_permeability!(model, swof = swof)
 ```
 
 Three-phase with Stone II:
@@ -634,7 +639,7 @@ Three-phase with Stone II:
 s = collect(range(0, 1, 10))
 swof = hcat(s, s.^2, reverse(s).^2)
 sgof = hcat(s, s.^3, reverse(s).^3)
-set_relative_permeability(model, swof = swof, sgof = sgof, three_phase_method = StoneIIMethod())
+set_relative_permeability!(model, swof = swof, sgof = sgof, three_phase_method = StoneIIMethod())
 ```
 
 Direct specification:
@@ -642,10 +647,10 @@ Direct specification:
 s = collect(range(0, 1, 100))
 krw = PhaseRelativePermeability(s, s)
 krow = PhaseRelativePermeability(s, s.^2)
-set_relative_permeability(model, w = krw, ow = krow)
+set_relative_permeability!(model, w = krw, ow = krow)
 ```
 """
-function set_relative_permeability(model;
+function set_relative_permeability!(model;
         w = nothing,
         ow = nothing,
         og = nothing,
