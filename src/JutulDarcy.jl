@@ -80,6 +80,8 @@ module JutulDarcy
     export ImmiscibleSaturation
     export PhaseMassDensities, ConstantCompressibilityDensities
     export BrooksCoreyRelativePermeabilities, TabulatedSimpleRelativePermeabilities
+    export SaturationWeightedOilRelperm, StoneIMethod, StoneIIMethod
+    export set_relative_permeability
     export EquilibriumRegion
     export setup_reservoir_dict_optimization, optimize_reservoir, parameters_gradient_reservoir
 
