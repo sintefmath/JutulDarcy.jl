@@ -806,7 +806,6 @@ function setup_reservoir_model_from_blackoil_tables(reservoir;
         end
         if vapoil
             push!(pvt, pvtg)
-            # TODO FIX
             rv_max = map(
                 tab -> get_1d_interpolator(tab.pressure, tab.sat_rv),
                 pvtg.tab
@@ -843,9 +842,7 @@ function setup_reservoir_model_from_blackoil_tables(reservoir;
         out = model
     end
     return out
-
 end
-
 
 function setup_reservoir_model_from_blackoil_tables(reservoir, tables;
         vapoil = false, # !isnothing(tables.pvtg),

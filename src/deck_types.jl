@@ -230,7 +230,7 @@ end
 
 function PVTOTable(tab::MultiComponentFlash.PVTExperiments.PVTOTable)
     # Vectors of vectors
-    bo = 1 ./ tab.Bo
+    bo = map(b -> 1 ./ b, tab.Bo)
     p = tab.p
     mu = tab.mu_o
     # Vectors
@@ -253,7 +253,7 @@ mu are the data for that Rs value.
 - p_bub and rs should be vectors of the same length as bo, p, and mu, giving the
   bubble point pressure and Rs value for each set of data.
 """
-function PVTOTable(bo::Vector, p::Vector, mu::Vector, p_bub::Vector, rs::Vector)
+function PVTOTable(bo::Vector{<:AbstractVector}, p::Vector{<:AbstractVector}, mu::Vector{<:AbstractVector}, p_bub::Vector, rs::Vector)
     issorted(p) || throw(ArgumentError("Each pressure vector in the input table must be sorted in ascending order."))
     p_flat = Float64[]
     mu_flat = Float64[]
@@ -468,13 +468,11 @@ end
 
 function PVTGTable(tab::MultiComponentFlash.PVTExperiments.PVTGTable)
     # Vectors of vectors
-    bg = 1 ./ tab.Bg
-    rv_sub = tab.Rv_sub
-    mu = tab.mu_g
+    bg = map(b -> 1 ./ b, tab.Bg)
     # Vectors
-    p = copy(tab.p)
-    rv = copy(tab.Rv)
-    return PVTGTable(bg, rv_sub, mu, p, rv)
+    p = reverse(tab.p)
+    rv = reverse(tab.Rv)
+    return PVTGTable(bg, tab.Rv_sub, tab.mu_g, p, rv)
 end
 
 """
@@ -487,10 +485,11 @@ Create a PVTGTable table from vectors of vectors.
 - rv_sub should be the corresponding Rv values for each pressure value, given as a vector of vectors.
 - mu should be the corresponding viscosities for each pressure value as a function of Rv, given as a vector of vectors.
 - p and rv should be vectors of the same length as bo, p, and mu, giving the
-  pressure at which the gas phase is fully saturated with oil and the corresponding Rv value.
+  pressure at which the gas phase is fully saturated with oil and the
+  corresponding Rv value.
 """
-function PVTGTable(bg::Vector, rv_sub::Vector, mu::Vector, p::Vector, rv::Vector)
-    issorted(reverse(p)) || throw(ArgumentError("Each pressure vector in the input table must be sorted in descending order."))
+function PVTGTable(bg::Vector{<:AbstractVector}, rv_sub::Vector{<:AbstractVector}, mu::Vector{<:AbstractVector}, p::Vector, rv::Vector)
+    issorted(p) || throw(ArgumentError("Each pressure vector in the input table must be sorted in descending order."))
     rv_flat = Float64[]
     mu_flat = Float64[]
     b_flat = Float64[]
@@ -498,6 +497,7 @@ function PVTGTable(bg::Vector, rv_sub::Vector, mu::Vector, p::Vector, rv::Vector
     pos = Int[1]
     for i in eachindex(bg, mu, rv_sub)
         rv_i = rv_sub[i]
+        issorted(rv_i) || error("Each Rv vector in the input table must be sorted in ascending order. Failed for entry $i.")
         mu_i = mu[i]
         b_i = bg[i]
         length(rv_i) == length(mu_i) == length(b_i) || throw(ArgumentError("Each set of rv, viscosity, and shrinkage data must have the same length. Failed for entry $i."))
