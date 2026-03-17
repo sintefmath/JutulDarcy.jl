@@ -220,6 +220,41 @@ struct PVTOTable{T,V}
     viscosity::V
 end
 
+# function PVTOTable(tab::MultiComponentFlash.PVTExperiments.PVTOTable)
+#     return PVTOTable(pos, rs, p_flat, p_bub, b_flat, mu_flat)
+# end
+
+
+
+
+function PVTOTable(tab::MultiComponentFlash.PVTExperiments.PVTOTable)
+    # Vectors of vectors
+    bo = 1 ./ tab.Bo
+    p = tab.p
+    mu = tab.mu_o
+    # Vectors
+    p_bub = copy(tab.p_bub)
+    rs = copy(tab.Rs)
+
+    p_flat = Float64[]
+    mu_flat = Float64[]
+    b_flat = Float64[]
+
+    pos = Int[1]
+    for i in eachindex(bo, mu, p)
+        p_i = p[i]
+        mu_i = mu[i]
+        b_i = bo[i]
+        for j in eachindex(p_i)
+            push!(p_flat, p_i[j])
+            push!(mu_flat, mu_i[j])
+            push!(b_flat, b_i[j])
+        end
+        push!(pos, pos[end] + length(p_i))
+    end
+    return PVTOTable(pos, rs, p_flat, p_bub, b_flat, mu_flat)
+end
+
 function PVTO(pvto::Vector; fix = true)
     c = map(x -> PVTOTable(x, fix = fix), pvto)
     ct = Tuple(c)

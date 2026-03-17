@@ -752,6 +752,77 @@ function set_reservoir_variable_defaults!(model;
     return model
 end
 
+function setup_reservoir_model_from_blackoil_tables(reservoir;
+        pvto::Union{PVTO, Missing} = missing,
+        pvdo::Union{PVDO, Missing} = missing,
+        pvtg::Union{PVTG, Missing} = missing,
+        pvdg::Union{PVDG, Missing} = missing,
+        pvtw::Union{PVTW, PVTW_EXTENDED, Missing} = missing,
+        reference_densities = missing,
+        extra_out = false,
+        kwarg...
+    )
+
+    model = setup_reservoir_model(reservoir, system; extra_out = false, kwarg...)
+    has_pvto = !ismissing(pvto)
+    has_pvdo = !ismissing(pvdo)
+    if has_pvto && has_pvdo
+        throw(ArgumentError("Both PVTO and PVDO tables provided. Only one of these should be provided for a blackoil model."))
+    elseif !(has_pvto || has_pvdo)
+        throw(ArgumentError("At least one of PVTO and PVDO tables must be provided."))
+    end
+
+    has_pvtg = !ismissing(pvtg)
+    has_pvdg = !ismissing(pvdg)
+    if has_pvtg && has_pvdg
+        throw(ArgumentError("Both PVTG and PVDG tables provided. Only one of these should be provided for a blackoil model."))
+    elseif !(has_pvtg || has_pvdg)
+        throw(ArgumentError("At least one of PVTG and PVDG tables must be provided."))
+    end
+
+    disgas = has_pvto
+    vapoil = has_pvtg
+
+    water = !ismissing(pvtw)
+
+    if disgas || vapoil
+        if disgas
+
+        else
+
+        end
+        if vapoil
+
+        else
+
+        end
+    end
+
+
+    if extra_out
+        out = (model, setup_parameters(model))
+    else
+        out = model
+    end
+    return out
+
+end
+
+
+function setup_reservoir_model_from_blackoil_tables(reservoir, tables; vapoil = false, disgas = !isnothing(tables.pvto), kwarg...)
+    if vapoil
+        isnothing(tables.pvtg) && throw(ArgumentError("PVTG table must be present in tables if vapoil is true. Are you sure that the oil sample was a volatile oil."))
+    end
+    if disgas
+        isnothing(tables.pvto) && throw(ArgumentError("PVTO table must be present in tables if disgas is true. Are you sure that the oil sample was a black oil with dissolved gas?"))
+    end
+
+    
+
+
+end
+
+
 """
     setup_reservoir_simulator(models, initializer, parameters = nothing; <keyword arguments>)
 
