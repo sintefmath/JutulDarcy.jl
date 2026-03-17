@@ -140,6 +140,14 @@ function MuBTable(pvtx::T; kwarg...) where T<:AbstractMatrix
     MuBTable(V(p), V(b), V(mu); kwarg...)
 end
 
+function MuBTable(tab::MultiComponentFlash.PVTExperiments.PVDGTable; kwarg...)
+    return MuBTable(tab.p, 1.0 ./ tab.Bg, tab.mu_g; kwarg...)
+end
+
+# function MuBTable(tab::MultiComponentFlash.PVTExperiments.PVDOTable; kwarg...)
+#     return MuBTable(tab.p, 1.0 ./ tab.Bo, tab.mu_o; kwarg...)
+# end
+
 function viscosity(tbl::MuBTable, p)
     return tbl.viscosity_interp(p)
 end
@@ -220,13 +228,6 @@ struct PVTOTable{T,V}
     viscosity::V
 end
 
-# function PVTOTable(tab::MultiComponentFlash.PVTExperiments.PVTOTable)
-#     return PVTOTable(pos, rs, p_flat, p_bub, b_flat, mu_flat)
-# end
-
-
-
-
 function PVTOTable(tab::MultiComponentFlash.PVTExperiments.PVTOTable)
     # Vectors of vectors
     bo = 1 ./ tab.Bo
@@ -235,7 +236,25 @@ function PVTOTable(tab::MultiComponentFlash.PVTExperiments.PVTOTable)
     # Vectors
     p_bub = copy(tab.p_bub)
     rs = copy(tab.Rs)
+    return PVTOTable(bo, p, mu, p_bub, rs)
+end
 
+"""
+    PVTO(bo, p, mu, p_bub, rs)
+
+Create a PVTO table from vectors of vectors. Each vector in the input vectors
+corresponds to a different Rs value, and the corresponding vectors in bo, p, and
+mu are the data for that Rs value.
+
+# Arguments
+- bo should be 1/Bo values for each Rs value, given as a vector of vectors.
+- p should be the corresponding pressures for each Rs value, given as a vector of vectors.
+- mu should be the corresponding viscosities for each Rs value, given as a vector of vectors.
+- p_bub and rs should be vectors of the same length as bo, p, and mu, giving the
+  bubble point pressure and Rs value for each set of data.
+"""
+function PVTOTable(bo::Vector, p::Vector, mu::Vector, p_bub::Vector, rs::Vector)
+    issorted(p) || throw(ArgumentError("Each pressure vector in the input table must be sorted in ascending order."))
     p_flat = Float64[]
     mu_flat = Float64[]
     b_flat = Float64[]
@@ -245,6 +264,7 @@ function PVTOTable(tab::MultiComponentFlash.PVTExperiments.PVTOTable)
         p_i = p[i]
         mu_i = mu[i]
         b_i = bo[i]
+        length(p_i) == length(mu_i) == length(b_i) || throw(ArgumentError("Each set of pressure, viscosity, and shrinkage data must have the same length. Failed for entry $i."))
         for j in eachindex(p_i)
             push!(p_flat, p_i[j])
             push!(mu_flat, mu_i[j])

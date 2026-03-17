@@ -758,12 +758,11 @@ function setup_reservoir_model_from_blackoil_tables(reservoir;
         pvtg::Union{PVTG, Missing} = missing,
         pvdg::Union{PVDG, Missing} = missing,
         pvtw::Union{PVTW, PVTW_EXTENDED, Missing} = missing,
-        reference_densities = missing,
+        reference_densities,
         extra_out = false,
         kwarg...
     )
 
-    model = setup_reservoir_model(reservoir, system; extra_out = false, kwarg...)
     has_pvto = !ismissing(pvto)
     has_pvdo = !ismissing(pvdo)
     if has_pvto && has_pvdo
@@ -785,19 +784,41 @@ function setup_reservoir_model_from_blackoil_tables(reservoir;
 
     water = !ismissing(pvtw)
 
+    if water
+        phases = (AqueousPhase(), LiquidPhase(), VaporPhase())
+    else
+        phases = (LiquidPhase(), VaporPhase())
+    end
+    length(phases) == length(reference_densities) || throw(ArgumentError("Length of reference_densities $(length(phases)) must match the actiev phases implied by the tables $phases."))
+
     if disgas || vapoil
+        rs_max = rv_max = nothing
         if disgas
-
-        else
-
+            rs_max = map(
+                tab -> get_1d_interpolator(tab.sat_pressure, tab.rs),
+                pvto.tab
+            )
         end
         if vapoil
-
+            # TODO FIX
+            rv_max = map(
+                tab -> get_1d_interpolator(tab.sat_pressure, tab.rs),
+                pvtg.tab
+            )
         else
 
         end
+        system = StandardBlackOilSystem(
+            rs_max = rs_max,
+            rv_max = rv_max,
+            phases = phases,
+            reference_densities = reference_densities
+        )
+    else
+        system = ImmiscibleSystem(phases, reference_densities = reference_densities)
     end
 
+    model = setup_reservoir_model(reservoir, system; extra_out = false, kwarg...)
 
     if extra_out
         out = (model, setup_parameters(model))
@@ -809,17 +830,58 @@ function setup_reservoir_model_from_blackoil_tables(reservoir;
 end
 
 
-function setup_reservoir_model_from_blackoil_tables(reservoir, tables; vapoil = false, disgas = !isnothing(tables.pvto), kwarg...)
+function setup_reservoir_model_from_blackoil_tables(reservoir, tables;
+        vapoil = false,
+        disgas = !isnothing(tables.pvto),
+        water = true,
+        water_density = convert_to_si(1000.0, "kilogram/meter^3"),
+        water_compressibility = 1e-5/si_unit(:bar),
+        water_viscosity = convert_to_si(1.0, :centipoise),
+        water_viscosibility = 0.0,
+        reference_densities = missing,
+        kwarg...
+    )
     if vapoil
         isnothing(tables.pvtg) && throw(ArgumentError("PVTG table must be present in tables if vapoil is true. Are you sure that the oil sample was a volatile oil."))
+        pvtg = PVTG(PVTGTable(tables.pvtg))
+        pvdg = missing
+    else
+        pvtg = missing
+        pvdg = PVDG(MuBTable(tables.pvdg))
     end
     if disgas
         isnothing(tables.pvto) && throw(ArgumentError("PVTO table must be present in tables if disgas is true. Are you sure that the oil sample was a black oil with dissolved gas?"))
+        pvto = PVTO(PVTOTable(tables.pvto))
+        pvdo = missing
+    else
+        pvto = missing
+        pvdo = PVDO(MuBTable(tables.pvdo))
+    end
+    if water
+        pvtw = PVTW(ConstMuBTable(si_unit(:atm), 1.0, water_compressibility, water_viscosity, water_viscosibility))
+    else
+        pvtw = missing
     end
 
-    
+    if ismissing(reference_densities)
+        rhoos = tables.surface_densities.oil
+        rhogs = tables.surface_densities.gas
+        if water
+            reference_densities = [water_density, rhoos, rhogs]
+        else
+            reference_densities = [rhoos, rhogs]
+        end
+    end
 
-
+    return setup_reservoir_model_from_blackoil_tables(reservoir;
+        pvto = pvto,
+        pvdo = pvdo,
+        pvtg = pvtg,
+        pvdg = pvdg,
+        pvtw = pvtw,
+        reference_densities = reference_densities,
+        kwarg...
+    )
 end
 
 
