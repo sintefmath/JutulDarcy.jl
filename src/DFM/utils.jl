@@ -38,6 +38,24 @@ function fracture_domain(mesh::Jutul.EmbeddedMeshes.EmbeddedMesh;
     T = Jutul.EmbeddedMeshes.compute_face_trans_dfm(T_hf, N, mesh.intersections)
     domain[:transmissibilities, Faces()] = T
 
+    # gdz = compute_face_gdz(mesh)
+    # faces, face_pos = get_facepos(N)
+    # nf = diff(face_pos)
+    # cells = vcat([fill(i, nf[i]) for i in 1:length(nf)]...)
+    # z_c = geo.cell_centroids[3, :]
+    # z_f = geo.face_centroids[3, :]
+    # # g = gravity_constant
+    # sgn = (vec(N[1, faces]) .== cells).*2 .- 1
+    # gdz_hf = gdz[faces]
+    # gdz_ix, ix_faces = Jutul.EmbeddedMeshes.compute_intersection_trans_dfm(gdz_hf, N, mesh.intersections)
+    # ok = isfinite.(gdz_ix)
+    # gdz_ix[.!ok] .= 0.0
+    # for (f, gdz_val) in zip(ix_faces, gdz_ix)
+    #     println("Setting gdz for face $f from $(gdz[f]) to $gdz_val")
+    #     gdz[f] = gdz_val
+    # end
+    # domain[:gdz, Faces()] = gdz
+
     domain[:matrix_faces, NoEntity()] = matrix_faces
 
     return domain
@@ -123,6 +141,7 @@ function setup_matrix_fracture_cross_term(matrix::Jutul.DataDomain, fractures::J
         end
     end
     
+    # gdz .*= 0.0
     return target_cells, source_cells, transmissibilities, gdz
     
 end
@@ -177,7 +196,6 @@ function JutulDarcy.setup_reservoir_model(matrix::DataDomain, fractures::DataDom
     
     model = setup_reservoir_model(matrix, system; wells = wells, block_backend = block_backend, kwarg...)
     has_thermal = haskey(model[:Reservoir].equations, :energy_conservation)
-
 
     if has_thermal
         fmesh = physical_representation(fractures)
