@@ -253,7 +253,7 @@ mu are the data for that Rs value.
 - p_bub and rs should be vectors of the same length as bo, p, and mu, giving the
   bubble point pressure and Rs value for each set of data.
 """
-function PVTOTable(bo::Vector{<:AbstractVector}, p::Vector{<:AbstractVector}, mu::Vector{<:AbstractVector}, p_bub::Vector, rs::Vector)
+function PVTOTable(bo::Vector{<:AbstractVector}, p::Vector{<:AbstractVector}, mu::Vector{<:AbstractVector}, p_bub::Vector, rs::Vector; fix = true)
     issorted(p) || throw(ArgumentError("Each pressure vector in the input table must be sorted in ascending order."))
     p_flat = Float64[]
     mu_flat = Float64[]
@@ -272,7 +272,11 @@ function PVTOTable(bo::Vector{<:AbstractVector}, p::Vector{<:AbstractVector}, mu
         end
         push!(pos, pos[end] + length(p_i))
     end
-    return PVTOTable(pos, rs, p_flat, p_bub, b_flat, mu_flat)
+    tab = PVTOTable(pos, rs, p_flat, p_bub, b_flat, mu_flat)
+    if fix
+        tab = extend_pvt_table_for_safe_extrapolation(tab)
+    end
+    return tab
 end
 
 function PVTO(pvto::Vector; fix = true)
@@ -606,6 +610,11 @@ end
 function PVDG(pvdo::AbstractArray)
     c = map(MuBTable, pvdo)
     ct = Tuple(c)
+    PVDG{typeof(ct)}(ct)
+end
+
+function PVDG(pvdo::MuBTable)
+    ct = (pvdo, )
     PVDG{typeof(ct)}(ct)
 end
 
