@@ -10,28 +10,23 @@ end
 function delta_state(xa::AbstractArray, xb::AbstractArray, relative=false)
     size(xa) == size(xb) || return missing
     if eltype(xa) <: Number && eltype(xb) <: Number
-        println("Should have been here!")
         return relative ? (xa .- xb) ./ xb : (xa .- xb)
     else
-        println("Should not have been here!")
         return map((a, b) -> delta_state(a, b, relative), xa, xb)
     end
 end
 
 # Dict/OrderedDict (and other AbstractDict)
 function delta_state(xa::AbstractDict, xb::AbstractDict, relative=false)
-    # dx = OrderedDict{Any, Any}()
-    dx = deepcopy(xa)
+    dx = OrderedDict{Any, Any}()
     for (k, va) in xa
-        println("Processing key: $k")
         dx[k] = haskey(xb, k) ? delta_state(va, xb[k], relative) : missing
-        println("Type of dx[$k]: $(typeof(dx[k]))")
     end
     return dx
 end
 
 # Vector vs vector (e.g., vector of states)
-function delta_state(xa::AbstractVector, xb::AbstractVector, relative=false)
+function delta_state(xa::Vector{AbstractDict}, xb::Vector{AbstractDict}, relative=false)
     length(xa) == length(xb) || return missing
     dx = Vector{Any}(undef, length(xa))
     @inbounds for i in eachindex(xa, xb)
@@ -41,7 +36,7 @@ function delta_state(xa::AbstractVector, xb::AbstractVector, relative=false)
 end
 
 # Vector of states vs single reference state (dict/ordered dict)
-function delta_state(xa::AbstractVector, xb::AbstractDict, relative=false)
+function delta_state(xa::Vector{AbstractDict}, xb::AbstractDict, relative=false)
     dx = Vector{Any}(undef, length(xa))
     @inbounds for i in eachindex(xa)
         dx[i] = delta_state(xa[i], xb, relative)
@@ -50,7 +45,7 @@ function delta_state(xa::AbstractVector, xb::AbstractDict, relative=false)
 end
 
 # Single state vs vector of reference states
-function delta_state(xa::AbstractDict, xb::AbstractVector, relative=false)
+function delta_state(xa::AbstractDict, xb::Vector{AbstractDict}, relative=false)
     dx = Vector{Any}(undef, length(xb))
     @inbounds for i in eachindex(xb)
         dx[i] = delta_state(xa, xb[i], relative)
