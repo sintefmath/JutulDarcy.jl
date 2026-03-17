@@ -398,10 +398,6 @@ Base.@propagate_inbounds @inline function three_phase_oil_relperm(Krow, Krog, sw
     swc = min(swcon, value(sw) - 1e-5)
     sg_and_sw = sg + sw
     d  = (sg_and_sw - swc)
-    # error()
-    if 1 - sg_and_sw < MINIMUM_COMPOSITIONAL_SATURATION
-        # return zero(typeof(Krow))
-    end
     ww = (sw - swc)/d
     kro = (1-ww)*Krog + ww*Krow
     return kro
