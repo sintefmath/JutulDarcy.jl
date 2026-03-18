@@ -53,8 +53,11 @@ new_model = setup_reservoir_model(reservoir, model, wells = [I1, I2, P1, P2]);
 # the trajectory is connected to cell centers in the numerical model. The coarse
 # resolution of the model makes the trajectory appear jagged when realized along
 # cells.
-fig = plot_reservoir(new_model, title = "New model", alpha = 0.0, edge_color = :black)
-lines!(fig.current_axis[], traj', color = :red)
+fig, ax, plt = plot_mesh_edges(reservoir)
+lines!(ax, traj', color = :red)
+for w in [I1, I2, P1, P2]
+    plot_well!(ax, reservoir, w)
+end
 fig
 # ## Setup a new state and forces
 # The new state and forces are set up in the same way as the original model,

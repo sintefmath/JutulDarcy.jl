@@ -14,7 +14,7 @@
 # with a plane to create a fault. We also define a few layers in the vertical
 # direction by assigning a layer index to each cell based on its depth. This
 # will allow us to set different properties in each layer later on.
-using Jutul, HYPRE, JutulDarcy, GeoEnergyIO, GLMakie, MultiComponentFlash
+using Jutul, HYPRE, JutulDarcy, GeoEnergyIO, GLMakie, MultiComponentFlash, LinearAlgebra
 nx = 60
 ny = 40
 nz = 10
