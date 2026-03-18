@@ -140,6 +140,14 @@ function MuBTable(pvtx::T; kwarg...) where T<:AbstractMatrix
     MuBTable(V(p), V(b), V(mu); kwarg...)
 end
 
+function MuBTable(tab::MultiComponentFlash.PVTExperiments.PVDGTable; kwarg...)
+    return MuBTable(tab.p, 1.0 ./ tab.Bg, tab.mu_g; kwarg...)
+end
+
+function MuBTable(tab::MultiComponentFlash.PVTExperiments.PVDOTable; kwarg...)
+    return MuBTable(tab.p, 1.0 ./ tab.Bo, tab.mu_o; kwarg...)
+end
+
 function viscosity(tbl::MuBTable, p)
     return tbl.viscosity_interp(p)
 end
@@ -218,6 +226,57 @@ struct PVTOTable{T,V}
     sat_pressure::V
     shrinkage::V
     viscosity::V
+end
+
+function PVTOTable(tab::MultiComponentFlash.PVTExperiments.PVTOTable)
+    # Vectors of vectors
+    bo = map(b -> 1 ./ b, tab.Bo)
+    p = tab.p
+    mu = tab.mu_o
+    # Vectors
+    p_bub = copy(tab.p_bub)
+    rs = copy(tab.Rs)
+    return PVTOTable(bo, p, mu, p_bub, rs)
+end
+
+"""
+    PVTO(bo, p, mu, p_bub, rs)
+
+Create a PVTO table from vectors of vectors. Each vector in the input vectors
+corresponds to a different Rs value, and the corresponding vectors in bo, p, and
+mu are the data for that Rs value.
+
+# Arguments
+- bo should be 1/Bo values for each Rs value, given as a vector of vectors.
+- p should be the corresponding pressures for each Rs value, given as a vector of vectors.
+- mu should be the corresponding viscosities for each Rs value, given as a vector of vectors.
+- p_bub and rs should be vectors of the same length as bo, p, and mu, giving the
+  bubble point pressure and Rs value for each set of data.
+"""
+function PVTOTable(bo::Vector{<:AbstractVector}, p::Vector{<:AbstractVector}, mu::Vector{<:AbstractVector}, p_bub::Vector, rs::Vector; fix = true)
+    issorted(p) || throw(ArgumentError("Each pressure vector in the input table must be sorted in ascending order."))
+    p_flat = Float64[]
+    mu_flat = Float64[]
+    b_flat = Float64[]
+
+    pos = Int[1]
+    for i in eachindex(bo, mu, p)
+        p_i = p[i]
+        mu_i = mu[i]
+        b_i = bo[i]
+        length(p_i) == length(mu_i) == length(b_i) || throw(ArgumentError("Each set of pressure, viscosity, and shrinkage data must have the same length. Failed for entry $i."))
+        for j in eachindex(p_i)
+            push!(p_flat, p_i[j])
+            push!(mu_flat, mu_i[j])
+            push!(b_flat, b_i[j])
+        end
+        push!(pos, pos[end] + length(p_i))
+    end
+    tab = PVTOTable(pos, rs, p_flat, p_bub, b_flat, mu_flat)
+    if fix
+        tab = extend_pvt_table_for_safe_extrapolation(tab)
+    end
+    return tab
 end
 
 function PVTO(pvto::Vector; fix = true)
@@ -411,6 +470,52 @@ struct PVTGTable{T,V}
     viscosity::V
 end
 
+function PVTGTable(tab::MultiComponentFlash.PVTExperiments.PVTGTable)
+    # Vectors of vectors
+    bg = map(b -> 1 ./ b, tab.Bg)
+    # Vectors
+    p = reverse(tab.p)
+    rv = reverse(tab.Rv)
+    return PVTGTable(bg, tab.Rv_sub, tab.mu_g, p, rv)
+end
+
+"""
+    PVTGTable(bo, p, mu, p_bub, rs)
+
+Create a PVTGTable table from vectors of vectors.
+
+# Arguments
+- bo should be 1/Bo values for each pressure value with varying Rv, given as a vector of vectors.
+- rv_sub should be the corresponding Rv values for each pressure value, given as a vector of vectors.
+- mu should be the corresponding viscosities for each pressure value as a function of Rv, given as a vector of vectors.
+- p and rv should be vectors of the same length as bo, p, and mu, giving the
+  pressure at which the gas phase is fully saturated with oil and the
+  corresponding Rv value.
+"""
+function PVTGTable(bg::Vector{<:AbstractVector}, rv_sub::Vector{<:AbstractVector}, mu::Vector{<:AbstractVector}, p::Vector, rv::Vector)
+    issorted(p) || throw(ArgumentError("Each pressure vector in the input table must be sorted in descending order."))
+    rv_flat = Float64[]
+    mu_flat = Float64[]
+    b_flat = Float64[]
+
+    pos = Int[1]
+    for i in eachindex(bg, mu, rv_sub)
+        rv_i = rv_sub[i]
+        issorted(rv_i) || error("Each Rv vector in the input table must be sorted in ascending order. Failed for entry $i.")
+        mu_i = mu[i]
+        b_i = bg[i]
+        length(rv_i) == length(mu_i) == length(b_i) || throw(ArgumentError("Each set of rv, viscosity, and shrinkage data must have the same length. Failed for entry $i."))
+        for j in eachindex(rv_i)
+            push!(rv_flat, rv_i[j])
+            push!(mu_flat, mu_i[j])
+            push!(b_flat, b_i[j])
+        end
+        push!(pos, pos[end] + length(rv_i))
+    end
+    return PVTGTable(pos, p, rv_flat, rv, b_flat, mu_flat)
+end
+
+
 function PVTG(pvtg::PVTGTable)
     ct = (pvtg, )
     return PVTG(ct)
@@ -505,6 +610,11 @@ end
 function PVDG(pvdo::AbstractArray)
     c = map(MuBTable, pvdo)
     ct = Tuple(c)
+    PVDG{typeof(ct)}(ct)
+end
+
+function PVDG(pvdo::MuBTable)
+    ct = (pvdo, )
     PVDG{typeof(ct)}(ct)
 end
 

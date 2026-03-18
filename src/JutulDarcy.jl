@@ -81,9 +81,9 @@ module JutulDarcy
     export PhaseMassDensities, ConstantCompressibilityDensities
     export BrooksCoreyRelativePermeabilities, TabulatedSimpleRelativePermeabilities
     export SaturationWeightedOilRelperm, StoneIMethod, StoneIIMethod
-    export set_relative_permeability
+    export set_relative_permeability!
     export EquilibriumRegion
-    export setup_reservoir_dict_optimization, optimize_reservoir, parameters_gradient_reservoir
+    export setup_reservoir_dict_optimization, optimize_reservoir, parameters_gradient_reservoir, setup_injector_control, setup_producer_control, setup_disabled_control
 
     import Jutul:
         number_of_cells, number_of_faces,

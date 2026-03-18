@@ -46,6 +46,16 @@ A single, option-heavy function is used to set up the reservoir model and defaul
 setup_reservoir_model
 ```
 
+### Properties and functions
+
+```@docs
+set_relative_permeability!
+JutulDarcy.StoneIIMethod
+JutulDarcy.SaturationWeightedOilRelperm
+JutulDarcy.StoneIMethod
+```
+
+
 ### Initial state
 
 The initial state can be set up by explicitly setting all primary variables. JutulDarcy also contains functionality for initial hydrostatic equilibriation of the state, which is either done by setting up `EquilibriumRegion` instances that are passed to `setup_reservoir_state`, or by using an input file with the `EQUIL` keyword.

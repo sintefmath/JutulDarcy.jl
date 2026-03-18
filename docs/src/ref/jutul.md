@@ -6,5 +6,5 @@ knowing the inner workings of `Jutul.jl`, but if you want to dive under the hood
 We include the docstrings here for your convenience:
 
 ```@autodocs
-Modules = [Jutul, Jutul.ConvergenceMonitors]
+Modules = [Jutul, Jutul.ConvergenceMonitors, Jutul.CutCellMeshes, Jutul.EmbeddedMeshes]
 ```
