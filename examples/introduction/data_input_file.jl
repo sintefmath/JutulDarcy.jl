@@ -72,4 +72,4 @@ ex = plot_explorer(reservoir, dynamic = simulated.states, colormap = :seaborn_ic
 for (k, w) in get_model_wells(case.model)
     plot_well!(ex.lscene, reservoir, w)
 end
-ex
+ex.fig

@@ -1,5 +1,5 @@
-# # Setting up a black-oil model from scratch
-# <tags: Blackoil, Introduction, HistoryMatching, Wells>
+# # Black-oil model from scratch with history matching
+# <tags: Blackoil, StartToFinish, Introduction, HistoryMatching, Wells>
 # This script shows how to set up a black-oil model from scratch, using Jutul to
 # set up the mesh and MultiComponentFlash to generate PVT tables. The script
 # also shows how to set up a parametrized history matching problem and solve it
@@ -91,7 +91,9 @@ fig
 # ## Set up a well configuration
 # As this script has variable nx/ny/nz, we can set up the wells using
 # trajectories defined in physical space, instead of using cell indices. We set
-# up 5 injectors and 3 producers.
+# up 5 injectors and 3 producers. The injectors are in the boundary of the
+# domain and are vertical, while the producers are horizontal and in the
+# interior.
 reservoir = reservoir_domain(g)
 wells = []
 
@@ -152,8 +154,21 @@ for (i, traj) in enumerate(producer_trajectories)
     push!(producer_names, name)
 end
 
-##
+fig, ax, plt = plot_mesh_edges(reservoir)
+ax.zreversed[] = true
+for w in wells
+    plot_well!(ax, reservoir, w)
+end
 
+# ## Generate PVT tables
+# We define a synthetic oil composition and use the MultiComponentFlash package
+# to generate PVT tables for the oil and gas phases. We then use the
+# `setup_reservoir_model_from_blackoil_tables` function to generate a black-oil
+# model with the PVT tables, and specify that we want to include dissolved gas
+# in the oil phase by setting `disgas = true`. If we set `disgas = false`, we
+# would get an immiscible model instead, where the gas and oil phases do not
+# interact. The default setup also includes a water/aqueous phase with defaulted
+# properties.
 data = [
     ("C1" ,     0.25)
     ("CO2",     0.005)
@@ -176,7 +191,7 @@ T_res = convert_to_si(70.0, "Celsius")
 
 tables = generate_pvt_tables(eos, z_oil, T_res;
     n_pvto = 10, n_pvdg = 10, n_undersaturated = 10)
-
+# ## Plot 1/B for the oil and gas phases
 fig = Figure()
 ax = Axis(fig[1, 1], title = "1/Bo", xlabel = "Pressure (bar)", ylabel = "1/Bo")
 pvto = tables.pvto
@@ -238,13 +253,17 @@ axislegend(ax)
 fig
 
 # ## Equilibriate the model by setting fluid contacts
-meter = si_unit(:meter)
-eql = EquilibriumRegion(model, si"110bar", 0.0,
+# We define a single equilbrium region with datum pressure 110 bar at the depth
+# of 0 meter (for simplicity, our model has zero depth at the top of the model
+# instead of the surface). We set constant Rs, but could also have specified
+# `rs_vs_depth` as a function to have a depth-dependent Rs. We also set the
+# gas-oil contact (GOC) and water-oil contact (WOC) to be at 30% and 80% of the
+# total initial height of the model, respectively.
+eql = EquilibriumRegion(model, si"110bar", si"0meter",
     goc = 0.3*H,
     woc = 0.8*H,
     rs = 40.0
 )
-
 state0 = setup_reservoir_state(model, eql);
 # ## Set up schedule
 total_time = si"20year"
@@ -275,7 +294,9 @@ end
 # simulating the model. The parameters we choose to define the model are the
 # porosity and permeability of each layer, the multiplier on the
 # transmissibilities of the fault faces, and the vertical/horizontal
-# permeability ratio (kv_ratio).
+# permeability ratio (kv_ratio). We could also have used
+# [`setup_reservoir_dict_optimization`](@ref) to make a setup function
+# automatically that exposes "standard" parameters.
 truth_prm = Dict(
     "LAYER_PORO" => [0.15, 0.22, 0.10],
     "LAYER_PERM" => [200.0, 800.0, 100.0],
@@ -319,7 +340,7 @@ function setup_my_blackoil_model(prm, step_info = missing)
 end
 
 truth_case = setup_my_blackoil_model(truth_prm)
-truth_sim = simulate_reservoir(truth_case, info_level = 1.5)
+truth_sim = simulate_reservoir(truth_case)
 # ## Plot the results of the truth case
 truth_summary = truth_sim.summary
 JutulDarcy.plot_summary(truth_summary, plots = ["FOPR,FWPR,FGPR", "FOPT,FWPT,FGPT", "FPR", "FOIP"], unit_system = "Field", cols = 2)
@@ -327,11 +348,14 @@ JutulDarcy.plot_summary(truth_summary, plots = ["FOPR,FWPR,FGPR", "FOPT,FWPT,FGP
 plot_well_results(truth_sim.wells)
 # ## Plot the reservoir results
 reservoir = reservoir_domain(truth_case)
-ex = plot_explorer(reservoir, dynamic = truth_sim.states, colormap = :seaborn_icefire_gradient)
+ex = plot_explorer(reservoir, dynamic = truth_sim.states,
+    colormap = :seaborn_icefire_gradient,
+    zreversed = true
+)
 for w in wells
     plot_well!(ex.lscene, reservoir, w)
 end
-ex
+ex.fig
 # ## Define an initial guess that is different from the truth case
 initial_prm = Dict(
     "LAYER_PORO" => [0.1, 0.1, 0.1],
@@ -359,7 +383,9 @@ free_optimization_parameter!(dopt, "LAYER_PERM", abs_min = 100.0, abs_max = 1000
 free_optimization_parameter!(dopt, "FAULT_MULTIPLIER", abs_min = 0.01, abs_max = 1.0, initial = 0.5)
 
 display(dopt)
-
+# ## Run the history matching
+# We use the built-in optimizer to run a few iterations of matching. The adjoint
+# method calculates gradients for us.
 tuned_prm = optimize_reservoir(dopt, obj;
     allow_errors = true,
     max_it = 15,
@@ -374,6 +400,7 @@ tuned_prm = optimize_reservoir(dopt, obj;
 # similar responses.
 tuned_case = setup_my_blackoil_model(tuned_prm)
 tuned_sim = simulate_reservoir(tuned_case)
+## Plot the results of the tuned model compared to the truth and initial guess
 JutulDarcy.plot_summary(
     [truth_summary, initial_sim.summary, tuned_sim.summary], 
     names = ["Truth", "Initial model", "Tuned model"],
