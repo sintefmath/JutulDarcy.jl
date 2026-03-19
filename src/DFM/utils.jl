@@ -1,38 +1,121 @@
 using LinearAlgebra
 using StaticArrays
 
-function fracture_domain(mesh::Jutul.EmbeddedMeshes.EmbeddedMesh;
-    aperture = 0.5e-3si_unit(:meter),
-    permeability = missing,
-    porosity = 1.0,
+function fracture_domain(mesh::JutulMesh, matrix::DataDomain;
+    connection_cells_fracture=missing,
+    matrix_faces=missing,
+    matrix_cells=missing,
+    kwarg...)
+
+    # Set up matrix domain and fracture-matrix connections
+    matrix_mesh = physical_representation(matrix)
+    if ismissing(connection_cells_fracture)
+        connection_cells_fracture = 1:number_of_cells(mesh)
+        if hasproperty(mesh, :intersection_cells)
+            connection_cells_fracture = setdiff(
+                connection_cells_fracture, mesh.intersection_cells)
+        end
+    end
+
+    if ismissing(matrix_faces)
+        if hasproperty(mesh, :parent_faces)
+            matrix_faces = mesh.parent_faces
+        else
+            @warn "Matrix faces not provided and not found in fracture mesh.\
+            Fractures will not affect flow through matrix cells unless already\
+            accounted for in the provided matrix domain."
+        end
+    end
+    if ismissing(matrix_cells)
+        !ismissing(matrix_faces) || error("Must provide matrix_cells if \
+            matrix_faces is not provided in order to set up matrix/fracture connections.")
+        N = get_neighborship(matrix_mesh)
+        matrix_cells = N[:, matrix_faces][:]
+        matrix_faces = repeat(matrix_faces, inner=2)
+        connection_cells_fracture = repeat(connection_cells_fracture, inner=2)
+    end
+    length(matrix_faces) == length(matrix_cells) || error("Length of \
+        matrix_faces and matrix_cells must match")
+
+    println()
+    println(matrix_faces)
+    # Set up fracture domain
+    fracture = fracture_domain(mesh; kwarg...)
+
+    x = matrix[:cell_centroids]
+    K = matrix[:permeability]
+    ϕ = matrix[:porosity]
+    Λ_f = matrix[:fluid_thermal_conductivity]
+    Λ_r = matrix[:rock_thermal_conductivity]
+    Λ_r = vec(Λ_r)
+    ϕ = vec(ϕ)
+    if size(Λ_f, 1) == 1 || Λ_f isa Vector
+        Λ_f = vec(Λ_f)
+        Λ = ϕ.*Λ_f + (1.0 .- ϕ).*Λ_r
+    else
+        # TODO: This is a bit of a hack. We should really have a proper way to
+        # do this inside the equations for multiphase flow.
+        Λ = Λ_r
+    end
+
+    # Add fracture-matrix connection entitiy to fracture domain
+    fmc = FractureMatrixConnection()
+    fmc = JutulDarcy.FractureMatrixConnection()
+    num_fmc = length(matrix_faces)
+    fracture.entities[fmc] = num_fmc
+    # Add matrix face and cell indices for each fracture-matrix connection to
+    # the fracture domain for later use in cross-term calculations
+    fracture[:connection_cells, fmc] = connection_cells_fracture
+    fracture[:matrix_faces, fmc] = matrix_faces
+    fracture[:matrix_cells, fmc] = matrix_cells
+    fracture[:matrix_cell_centroids, fmc] = x[:, matrix_cells]
+    fracture[:matrix_permeability, fmc] = K[matrix_cells]
+    fracture[:matrix_porosity, fmc] = ϕ[matrix_cells]
+    fracture[:matrix_thermal_conductivity, fmc] = Λ[matrix_cells]
+
+    return fracture
+
+end
+
+function fracture_domain(mesh::JutulMesh;
+    aperture=0.5e-3si_unit(:meter),
+    hydralic_aperture=aperture,
+    permeability=missing,
     kwarg...
     )
 
-    all(isfinite, aperture) || throw(ArgumentError("Keyword argument aperture has non-finite entries."))
-    minimum(aperture) >= 0 || throw(ArgumentError("All aperture values must be non-negative."))
+    all(isfinite, aperture) || throw(ArgumentError(
+        "Keyword argument aperture has non-finite entries."))
+    minimum(aperture) >= 0 || throw(ArgumentError(
+        "All aperture values must be non-negative."))
+    all(isfinite, hydralic_aperture) || throw(ArgumentError(
+        "Keyword argument hydralic_aperture has non-finite entries."))
+    minimum(hydralic_aperture) >= 0 || throw(ArgumentError(
+        "All hydralic_aperture values must be non-negative."))
 
     if ismissing(permeability)
-        permeability = (aperture.^2)./12.0
+        # Use cubic law to compute permeability from hydraulic aperture if not provided
+        permeability = (hydralic_aperture.^2)./12.0
     end
-
+    # Set up the fracture domain with the provided aperture and computed permeability
     domain = reservoir_domain(mesh;
         permeability = permeability,
-        porosity = porosity,
         kwarg...
     )
     domain[:aperture, Cells()] = aperture
 
+    # Adjust cell volumes and face areas to account for aperture
     geo = tpfv_geometry(mesh)
     aperture = domain[:aperture, Cells()]
     volumes = geo.volumes.*aperture
     volumes[mesh.intersection_cells] .*= aperture[mesh.intersection_cells]
     domain[:volumes, Cells()] = volumes
-
     N = domain[:neighbors]
-    face_aperture = vec(sum(domain[:aperture, Cells()][N], dims = 1)./2)
+    face_aperture = vec(sum(aperture[N], dims=1)./2)
     domain[:areas, Faces()] = geo.areas.*face_aperture
- 
-    star_delta = isempty(mesh.intersection_cells)
+    
+    # Compute fracture transmissibilities
+    star_delta = isempty(mesh.intersection_cells) # Use star-delta if intersection cells are eliminated
     nc = number_of_cells(mesh)
     faces, facepos = get_facepos(N, nc)
     T_hf = compute_half_face_trans(mesh, 
@@ -76,7 +159,8 @@ function setup_matrix_fracture_cross_term(matrix::Jutul.DataDomain, fractures::J
     if ismissing(fractures[:matrix_faces])
         error("Fracture domain must have :matrix_faces data (from create_fracture_domain) to set up cross terms.")
     end
-    matrix_faces = fractures[:matrix_faces, FractureMatrixConnection()]
+    matrix_cells = fractures[:matrix_cells, FractureMatrixConnection()]
+    fracture_cells = fractures[:connection_cells, FractureMatrixConnection()]
     n_frac = number_of_cells(fractures)
     n_res = number_of_cells(matrix)
     
@@ -94,7 +178,7 @@ function setup_matrix_fracture_cross_term(matrix::Jutul.DataDomain, fractures::J
     mmesh = physical_representation(matrix)
     N = get_neighborship(mmesh)
 
-    for fcell in 1:n_frac
+    for (fcell, mcell) in zip(fracture_cells, matrix_cells)
         if fcell ∈ fmesh.intersection_cells
             continue # Skip intersection cells, as they are handled separately
         end
@@ -102,30 +186,47 @@ function setup_matrix_fracture_cross_term(matrix::Jutul.DataDomain, fractures::J
         # Volume = Area * Aperture -> Area = Volume / Aperture
         a = fractures[:aperture][fcell]
         x_f = fractures[:cell_centroids][:, fcell]
-        A_f = vol_frac[fcell]/a
+        A_f = fractures[:volumes][fcell]/a
         n_f = Jutul.EmbeddedMeshes.cell_normal(fmesh, fcell)
         K_f = fracture_conductivity[fcell]
-        c_f = n_f.*aperture[fcell]/2.0
+        c_f = n_f.*a/2.0
         T_fm = Jutul.half_face_trans(A_f, K_f, c_f, n_f)
-        for face in matrix_faces[fcell]
-            for cell in N[:, face]
-                A_m = A_f
-                n_m = n_f
-                x_m = matrix[:cell_centroids][:, cell]
-                c_m = x_f .- x_m
-                if dot(c_m, n_m) < 0
-                    n_m = .-n_m
-                end
-                K_m = matrix_conductivity[cell]
-                T_mf = Jutul.half_face_trans(A_m, K_m, c_m, n_m)
-                T = 1.0/(1.0/T_fm + 1.0/T_mf)
-                push!(target_cells, cell)
-                push!(source_cells, fcell)
-                push!(transmissibilities, T)
-                dz = x_m[3] - x_f[3]
-                push!(gdz, g*dz)
-            end
+
+        A_m = A_f
+        n_m = n_f
+        x_m = matrix[:cell_centroids][:, mcell]
+        c_m = x_f .- x_m
+        if dot(c_m, n_m) < 0
+            n_m = .-n_m
         end
+        K_m = matrix_conductivity[mcell]
+        T_mf = Jutul.half_face_trans(A_m, K_m, c_m, n_m)
+        T = 1.0/(1.0/T_fm + 1.0/T_mf)
+
+        push!(target_cells, mcell)
+        push!(source_cells, fcell)
+        push!(transmissibilities, T)
+        dz = x_m[3] - x_f[3]
+        push!(gdz, g*dz)
+        # for face in matrix_faces[fcell]
+        #     for cell in N[:, face]
+        #         A_m = A_f
+        #         n_m = n_f
+        #         x_m = matrix[:cell_centroids][:, cell]
+        #         c_m = x_f .- x_m
+        #         if dot(c_m, n_m) < 0
+        #             n_m = .-n_m
+        #         end
+        #         K_m = matrix_conductivity[cell]
+        #         T_mf = Jutul.half_face_trans(A_m, K_m, c_m, n_m)
+        #         T = 1.0/(1.0/T_fm + 1.0/T_mf)
+        #         push!(target_cells, cell)
+        #         push!(source_cells, fcell)
+        #         push!(transmissibilities, T)
+        #         dz = x_m[3] - x_f[3]
+        #         push!(gdz, g*dz)
+        #     end
+        # end
     end
     
     return target_cells, source_cells, transmissibilities, gdz
@@ -162,39 +263,12 @@ function compute_connection_transmissibilities(data_domain, source_cells, matrix
     return T
 end
 
-function JutulDarcy.setup_reservoir_model(matrix::DataDomain, fractures::DataDomain, system::Union{JutulSystem, Symbol};
-    matrix_faces=missing,
-    matrix_cells=missing,
+function setup_fractured_reservoir_model(matrix::DataDomain, fractures::DataDomain, system::Union{JutulSystem, Symbol};
     wells = [],
     block_backend = true,
     kwarg...)
 
-    block_lump_with_res = true && block_backend
-
-    mmesh = physical_representation(matrix)
-    fmesh = physical_representation(fractures)
-    if ismissing(matrix_faces)
-        if haskey(fmesh, :parent_faces)
-            matrix_faces = fmesh.parent_faces
-        else
-            @warn "Matrix faces not provided and not found in fracture mesh.\
-            Fractures will not block affect through matrix cells."
-        end
-    end
-    if ismissing(matrix_cells)
-        !ismissing(matrix_faces) || error("Must provide matrix_cells if \
-            matrix_faces is not provided to set up matrix/fracture connections.")
-        N = get_neighborship(mmesh)
-        matrix_cells = [c for c in eachcol(N[:, matrix_faces])]
-    end
-    fmc = FractureMatrixConnection()
-    fmc = JutulDarcy.FractureMatrixConnection()
-    num_fmc = length(matrix_faces)
-    domain.entities[fmc] = num_fmc
-
-    domain[:matrix_faces, fmc] = matrix_faces
-
-    matrix_faces = fractures[:matrix_faces, fmc]
+    matrix_faces = unique(fractures[:matrix_faces])
     # Set zero transmissibility accross matrix cells that are fractures
     T = reservoir_transmissibility(matrix)
     T[matrix_faces] .= 0.0
@@ -267,12 +341,12 @@ function JutulDarcy.setup_reservoir_model(matrix::DataDomain, fractures::DataDom
         end
     end
 
-    fmodel = setup_reservoir_model(fractures, system; context = model.context, block_backend = block_backend && block_lump_with_res, kwarg...)
+    fmodel = setup_reservoir_model(fractures, system; context = model.context, block_backend = block_backend, kwarg...)
     if fmodel isa Jutul.MultiModel
         fmodel = fmodel.models[:Reservoir]
     end
 
-    if block_lump_with_res
+    if block_backend
         if true
             new_models = JutulStorage()
             new_models[:Reservoir] = model.models[:Reservoir]
@@ -318,18 +392,12 @@ function JutulDarcy.setup_reservoir_model(matrix::DataDomain, fractures::DataDom
     end
 
     # Set up DFM cross-terms
-    set_parameters!(model.models[:Fractures],
-        FractureMatrixTransmissibility = FractureMatrixTransmissibility()
-    )
+    # set_parameters!(model.models[:Fractures],
+    #     FractureMatrixTransmissibility = FractureMatrixTransmissibility()
+    # )
     target_cells, source_cells, transmissibilities, gdz = setup_matrix_fracture_cross_term(matrix, fractures, :permeability)
     ct = MatrixFromFractureFlowCT(target_cells, source_cells, transmissibilities, gdz)
     add_cross_term!(model, ct, target = :Reservoir, source = :Fractures, equation = :mass_conservation)
-
-    # Store per-connection matrix parameters on FractureMatrixConnection entities
-    # fractures[:fracture_cells, fmc] = source_cells
-    # fractures[:matrix_cell_centroids, fmc] = matrix[:cell_centroids][:, target_cells]
-    # fractures[:matrix_permeability, fmc] = matrix[:permeability][target_cells]
-    # fractures[:matrix_porosity, fmc] = matrix[:porosity][target_cells]
 
     if has_thermal
         target_cells, source_cells, transmissibilities_th, gdz = setup_matrix_fracture_cross_term(matrix, fractures, :thermal_conductivity)
