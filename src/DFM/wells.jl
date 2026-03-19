@@ -154,8 +154,9 @@ function setup_well(matrix::DataDomain, matrix_cells, fractures::DataDomain;
     )
     frac_args = merge(frac_args_default, frac_args)
 
+    matrix_faces = unique(fractures[:matrix_faces])
     well = setup_well(g_matrix, K_matrix, matrix_cells,
-        g_fractures, K_fractures, fractures[:matrix_faces];
+        g_fractures, K_fractures, matrix_faces;
         simple_well=false,
         thermal_conductivity = Λ_matrix,
         frac_args = frac_args,
