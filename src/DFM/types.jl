@@ -9,7 +9,7 @@ Jutul.minimum_value(::FractureMatrixTransmissibility) = 0.0
 Jutul.associated_entity(::FractureMatrixTransmissibility) = FractureMatrixConnection()
 
 function Jutul.default_parameter_values(data_domain, model, param::FractureMatrixTransmissibility, symb)
-    source_cells = data_domain[:fracture_cells, FractureMatrixConnection()]
+    source_cells = data_domain[:matrix_cells, FractureMatrixConnection()]
     matrix_perm = data_domain[:matrix_permeability, FractureMatrixConnection()]
     matrix_centroids = data_domain[:matrix_cell_centroids, FractureMatrixConnection()]
     fracture_perm = data_domain[:permeability]
@@ -22,7 +22,7 @@ Jutul.minimum_value(::FractureMatrixThermalConductivity) = 0.0
 Jutul.associated_entity(::FractureMatrixThermalConductivity) = FractureMatrixConnection()
 
 function Jutul.default_parameter_values(data_domain, model, param::FractureMatrixThermalConductivity, symb)
-    source_cells = data_domain[:fracture_cells, FractureMatrixConnection()]
+    source_cells = data_domain[:matrix_cells, FractureMatrixConnection()]
     matrix_centroids = data_domain[:matrix_cell_centroids, FractureMatrixConnection()]
 
     ϕ_m = data_domain[:matrix_porosity, FractureMatrixConnection()]
