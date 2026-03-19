@@ -35,7 +35,7 @@ function fracture_domain(mesh::Jutul.EmbeddedMeshes.EmbeddedMesh;
     T_hf = compute_half_face_trans(mesh, 
         geo.cell_centroids, geo.face_centroids, 
         domain[:areas, Faces()], permeability, faces, facepos)
-    T = Jutul.EmbeddedMeshes.compute_face_trans_dfm(T_hf, N, mesh.intersections)
+    T = Jutul.EmbeddedMeshes.compute_face_trans_dfm(T_hf, N, mesh.intersection_neighbors)
     domain[:transmissibilities, Faces()] = T
 
     # gdz = compute_face_gdz(mesh)
