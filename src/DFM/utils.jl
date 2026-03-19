@@ -93,7 +93,7 @@ function setup_matrix_fracture_cross_term(matrix::Jutul.DataDomain, fractures::J
         error("Fracture domain must have :matrix_faces data (from create_fracture_domain) to set up cross terms.")
     end
     matrix_faces = fractures[:matrix_faces, NoEntity()]
-    n_f = number_of_cells(fractures)
+    n_frac = number_of_cells(fractures)
     n_res = number_of_cells(matrix)
     
     # Prepare output arrays
@@ -110,7 +110,7 @@ function setup_matrix_fracture_cross_term(matrix::Jutul.DataDomain, fractures::J
     mmesh = physical_representation(matrix)
     N = get_neighborship(mmesh)
 
-    for fcell in 1:n_f
+    for fcell in 1:n_frac
         # Get area of fracture cell (face area)
         # Volume = Area * Aperture -> Area = Volume / Aperture
         a = fractures[:aperture][fcell]
