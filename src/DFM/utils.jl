@@ -111,6 +111,9 @@ function setup_matrix_fracture_cross_term(matrix::Jutul.DataDomain, fractures::J
     N = get_neighborship(mmesh)
 
     for fcell in 1:n_frac
+        if fcell ∈ fmesh.intersection_cells
+            continue # Skip intersection cells, as they are handled separately
+        end
         # Get area of fracture cell (face area)
         # Volume = Area * Aperture -> Area = Volume / Aperture
         a = fractures[:aperture][fcell]
