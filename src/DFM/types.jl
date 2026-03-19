@@ -1,4 +1,42 @@
 struct FracturePerforations <: JutulEntity end
+struct FractureMatrixConnection <: JutulEntity end
+
+abstract type AbstractFractureMatrixConductivity <: ScalarVariable end
+
+struct FractureMatrixTransmissibility <: AbstractFractureMatrixConductivity end
+Jutul.variable_scale(::FractureMatrixTransmissibility) = 1e-10
+Jutul.minimum_value(::FractureMatrixTransmissibility) = 0.0
+Jutul.associated_entity(::FractureMatrixTransmissibility) = FractureMatrixConnection()
+
+function Jutul.default_parameter_values(data_domain, model, param::FractureMatrixTransmissibility, symb)
+    source_cells = data_domain[:fracture_cells, FractureMatrixConnection()]
+    matrix_perm = data_domain[:matrix_permeability, FractureMatrixConnection()]
+    matrix_centroids = data_domain[:matrix_cell_centroids, FractureMatrixConnection()]
+    fracture_perm = data_domain[:permeability]
+    return compute_connection_transmissibilities(data_domain, source_cells, matrix_perm, matrix_centroids, fracture_perm)
+end
+
+struct FractureMatrixThermalConductivity <: AbstractFractureMatrixConductivity end
+Jutul.variable_scale(::FractureMatrixThermalConductivity) = 1e-10
+Jutul.minimum_value(::FractureMatrixThermalConductivity) = 0.0
+Jutul.associated_entity(::FractureMatrixThermalConductivity) = FractureMatrixConnection()
+
+function Jutul.default_parameter_values(data_domain, model, param::FractureMatrixThermalConductivity, symb)
+    source_cells = data_domain[:fracture_cells, FractureMatrixConnection()]
+    matrix_centroids = data_domain[:matrix_cell_centroids, FractureMatrixConnection()]
+
+    ϕ_m = data_domain[:matrix_porosity, FractureMatrixConnection()]
+    Λ_r_m = data_domain[:matrix_rock_thermal_conductivity, FractureMatrixConnection()]
+    Λ_f_m = data_domain[:matrix_fluid_thermal_conductivity, FractureMatrixConnection()]
+    matrix_cond = ϕ_m .* Λ_f_m .+ (1 .- ϕ_m) .* Λ_r_m
+
+    ϕ_f = data_domain[:porosity]
+    Λ_r_f = data_domain[:rock_thermal_conductivity]
+    Λ_f_f = data_domain[:fluid_thermal_conductivity]
+    fracture_cond = ϕ_f .* Λ_f_f .+ (1 .- ϕ_f) .* Λ_r_f
+
+    return compute_connection_transmissibilities(data_domain, source_cells, matrix_cond, matrix_centroids, fracture_cond)
+end
 
 struct FractureWellIndices <: ScalarVariable end
 
