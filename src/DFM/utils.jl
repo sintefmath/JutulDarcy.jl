@@ -24,37 +24,24 @@ function fracture_domain(mesh::Jutul.EmbeddedMeshes.EmbeddedMesh;
     domain[:aperture, Cells()] = aperture
 
     geo = tpfv_geometry(mesh)
-    domain[:volumes, Cells()] = geo.volumes.*domain[:aperture, Cells()]
-    
+    aperture = domain[:aperture, Cells()]
+    volumes = geo.volumes.*aperture
+    volumes[mesh.intersection_cells] .*= aperture[mesh.intersection_cells]
+    domain[:volumes, Cells()] = volumes
+
     N = domain[:neighbors]
     face_aperture = vec(sum(domain[:aperture, Cells()][N], dims = 1)./2)
     domain[:areas, Faces()] = geo.areas.*face_aperture
-
+ 
+    star_delta = isempty(mesh.intersection_cells)
     nc = number_of_cells(mesh)
     faces, facepos = get_facepos(N, nc)
     T_hf = compute_half_face_trans(mesh, 
         geo.cell_centroids, geo.face_centroids, 
-        domain[:areas, Faces()], permeability, faces, facepos)
-    T = Jutul.EmbeddedMeshes.compute_face_trans_dfm(T_hf, N, mesh.intersection_neighbors)
+        domain[:areas, Faces()], permeability, aperture, faces, facepos)
+    T = Jutul.EmbeddedMeshes.compute_face_trans_dfm(
+            T_hf, N, mesh.intersection_neighbors, star_delta)
     domain[:transmissibilities, Faces()] = T
-
-    # gdz = compute_face_gdz(mesh)
-    # faces, face_pos = get_facepos(N)
-    # nf = diff(face_pos)
-    # cells = vcat([fill(i, nf[i]) for i in 1:length(nf)]...)
-    # z_c = geo.cell_centroids[3, :]
-    # z_f = geo.face_centroids[3, :]
-    # # g = gravity_constant
-    # sgn = (vec(N[1, faces]) .== cells).*2 .- 1
-    # gdz_hf = gdz[faces]
-    # gdz_ix, ix_faces = Jutul.EmbeddedMeshes.compute_intersection_trans_dfm(gdz_hf, N, mesh.intersections)
-    # ok = isfinite.(gdz_ix)
-    # gdz_ix[.!ok] .= 0.0
-    # for (f, gdz_val) in zip(ix_faces, gdz_ix)
-    #     println("Setting gdz for face $f from $(gdz[f]) to $gdz_val")
-    #     gdz[f] = gdz_val
-    # end
-    # domain[:gdz, Faces()] = gdz
 
     domain[:matrix_faces, NoEntity()] = matrix_faces
 
