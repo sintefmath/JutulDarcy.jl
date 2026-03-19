@@ -26,7 +26,7 @@ function delta_state(xa::AbstractDict, xb::AbstractDict, relative=false)
 end
 
 # Vector vs vector (e.g., vector of states)
-function delta_state(xa::Vector{AbstractDict}, xb::Vector{AbstractDict}, relative=false)
+function delta_state(xa::Vector{<:AbstractDict}, xb::Vector{<:AbstractDict}, relative=false)
     length(xa) == length(xb) || return missing
     dx = Vector{Any}(undef, length(xa))
     @inbounds for i in eachindex(xa, xb)
@@ -36,7 +36,7 @@ function delta_state(xa::Vector{AbstractDict}, xb::Vector{AbstractDict}, relativ
 end
 
 # Vector of states vs single reference state (dict/ordered dict)
-function delta_state(xa::Vector{AbstractDict}, xb::AbstractDict, relative=false)
+function delta_state(xa::Vector{<:AbstractDict}, xb::AbstractDict, relative=false)
     dx = Vector{Any}(undef, length(xa))
     @inbounds for i in eachindex(xa)
         dx[i] = delta_state(xa[i], xb, relative)
@@ -45,7 +45,7 @@ function delta_state(xa::Vector{AbstractDict}, xb::AbstractDict, relative=false)
 end
 
 # Single state vs vector of reference states
-function delta_state(xa::AbstractDict, xb::Vector{AbstractDict}, relative=false)
+function delta_state(xa::AbstractDict, xb::Vector{<:AbstractDict}, relative=false)
     dx = Vector{Any}(undef, length(xb))
     @inbounds for i in eachindex(xb)
         dx[i] = delta_state(xa, xb[i], relative)
