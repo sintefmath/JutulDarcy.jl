@@ -131,7 +131,6 @@ function setup_matrix_fracture_cross_term(matrix::Jutul.DataDomain, fractures::J
         end
     end
     
-    # gdz .*= 0.0
     return target_cells, source_cells, transmissibilities, gdz
     
 end
