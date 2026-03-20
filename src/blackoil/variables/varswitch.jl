@@ -69,13 +69,18 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
     is_near_bubble = was_near_bubble
     if swi > 1 - 10*ϵ_s
         # Water filled
+        sg_max = 1.0 - swi
         if old_state == OilAndGas
-            next_x = old_x + w*Jutul.choose_increment(value(old_x), dx, ds_max, nothing, 0, 1 - swi)
+            if old_x > sg_max
+                next_x = replace_value(old_x, sg_max)
+            else
+                next_x = old_x + w*Jutul.choose_increment(value(old_x), dx, ds_max, nothing, 0, sg_max)
+            end
         else
             if old_state == OilOnly
-                sg = 0
+                sg = 0.0
             else
-                sg = 1 - swi
+                sg = sg_max
             end
             next_x = replace_value(old_x, sg)
         end
