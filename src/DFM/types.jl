@@ -88,6 +88,63 @@ function Jutul.default_parameter_values(data_domain, model, param::FractureMatri
 
 end
 
+function matrix_fracture_connection_conductivity(fractures::DataDomain, field::Symbol=:permeability)
+
+    # Get matrix-fracture connection source cells
+    fracture_cells = fractures[:connection_cells, FractureMatrixConnection()]
+    # Get matrix and fracture conductivity
+    if field == :thermal_conductivity
+        # Matrix effective thermal conductivity
+        matrix_conductivity = effective_conductivity(
+            fractures[:matrix_fluid_thermal_conductivity],
+            fractures[:matrix_rock_thermal_conductivity],
+            fractures[:matrix_porosity])
+        # Fracture effective thermal conductivity
+        fracture_conductivity = effective_conductivity(
+            fractures[:fluid_thermal_conductivity],
+            fractures[:rock_thermal_conductivity],
+            fractures[:porosity])
+    else
+        # Use conductivity values directly (permeability)
+        matrix_conductivity = fractures[Symbol(:matrix_, field)]
+        fracture_conductivity = fractures[field]
+    end
+    # Prepare output arrays
+    transmissibilities = Float64[]
+    # Compute transmissibilities and gravity potential differences for each
+    # matrix-fracture connection
+    for (mcell, fcell) in enumerate(fracture_cells)
+        # Compute fracture-matrix transmissibility
+        a = fractures[:aperture][fcell]
+        A = fractures[:volumes][fcell]/a
+        n = fractures[:cell_normals][:, fcell]
+        xf = fractures[:cell_centroids][:, fcell]
+        xm = fractures[:matrix_cell_centroids][:, mcell]
+        Kf = fracture_conductivity[fcell]
+        Km = matrix_conductivity[mcell]
+        T = matrix_fracture_connection_conductivity(a, A, n, xf, xm, Kf, Km)
+        push!(transmissibilities, T)
+    end
+
+    return transmissibilities
+
+end
+
+function matrix_fracture_connection_conductivity(aperture, area, normal, xf, xm, Kf, Km)
+
+    a, A, nf = aperture, area, normal
+    cf = nf.*a/2.0
+    T_fm = Jutul.half_face_trans(A, Kf, cf, nf)
+    # Compute matrix-fracture transmissibility
+    cm = xf .- xm
+    nm = dot(cm, nf) > 0 ? nf : .-nf
+    T_mf = Jutul.half_face_trans(A, Km, cm, nm)
+    T = 1.0/(1.0/T_fm + 1.0/T_mf)
+
+    return T
+
+end
+
 struct FractureWellIndices <: ScalarVariable end
 
 Jutul.minimum_value(::FractureWellIndices) = 0.0
