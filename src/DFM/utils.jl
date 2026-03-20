@@ -131,8 +131,70 @@ function fracture_domain(mesh::JutulMesh;
 
 end
 
+function add_fractures_to_model!(model::MultiModel, fractures::DataDomain; kwarg...)
+    
+    # Get matrix model
+    matrix = model.models[:Reservoir]
+    system = matrix.system
+
+    fmc = JutulDarcy.FractureMatrixConnection()
+    if haskey(fractures, :matrix_faces)
+        matrix_faces = fractures[:matrix_faces, fmc]
+        block_fracture_face_connections!(matrix, unique(matrix_faces))
+    end
+
+    return model
+
+end
+
+function block_fracture_face_connections!(matrix::SimulationModel, faces)
+
+    thermal = model_is_thermal(matrix)
+    data_domain = matrix.data_domain
+
+    # Set zero transmissibility for fracture faces
+    if haskey(data_domain, :transmissibilities)
+        T = data_domain[:transmissibilities, Faces()]
+    else
+        T = Jutul.default_parameter_values(
+            data_domain, matrix, Transmissibilities(), :Transmissibilities)
+    end
+    T[faces] .= 0.0
+    data_domain[:transmissibilities, Faces()] = T
+    
+    thermal || return
+    
+    # Set zero rock thermal conductivity for fracture faces
+    if haskey(matrix, :rock_thermal_conductivities)
+        Λr = matrix[:rock_thermal_conductivities, Faces()]
+    else
+        Λr = Jutul.default_parameter_values(
+            data_domain, matrix, RockThermalConductivities(), :RockThermalConductivities)
+    end
+    Λr[faces] .= 0.0
+    data_domain[:rock_thermal_conductivities, Faces()] = Λr
+
+    # Set zero fluid thermal conductivity for fracture faces
+    if haskey(matrix, :fluid_thermal_conductivities)
+        Λf = matrix[:fluid_thermal_conductivities, Faces()]
+    else
+        Λf = Jutul.default_parameter_values(
+            data_domain, matrix, FluidThermalConductivities(), :FluidThermalConductivities)
+    end
+    Λf[faces] .= 0.0
+    data_domain[:fluid_thermal_conductivities, Faces()] = Λf
+
+    return
+
+end
+
+function add_fractures_to_well()
+
+
+end
+
+
 function setup_fractured_reservoir_model(matrix::DataDomain, fractures::DataDomain, system::Union{JutulSystem, Symbol};
-    wells = [],
     block_backend = true,
     kwarg...)
 
@@ -178,7 +240,7 @@ function setup_fractured_reservoir_model(matrix::DataDomain, fractures::DataDoma
     end
     matrix[:volumes, Cells()] = matrix_volumes
     
-    model = setup_reservoir_model(matrix, system; wells = wells, block_backend = block_backend, kwarg...)
+    model = setup_reservoir_model(matrix, system; block_backend = block_backend, kwarg...)
     has_thermal = haskey(model[:Reservoir].equations, :energy_conservation)
 
     if has_thermal
@@ -216,49 +278,24 @@ function setup_fractured_reservoir_model(matrix::DataDomain, fractures::DataDoma
     fmc = JutulDarcy.FractureMatrixConnection()
     fmodel.domain.entities[fmc] = count_entities(fractures, fmc)
 
-    if block_backend
-        if true
-            new_models = JutulStorage()
-            new_models[:Reservoir] = model.models[:Reservoir]
-            new_models[:Fractures] = fmodel
-            groups = Int[1, 1]
-            for (k, v) in pairs(model.models)
-                if k != :Reservoir
-                    new_models[k] = v
-                    push!(groups, 2)
-                end
-            end
-            if isnothing(model.groups)
-                groups = nothing
-            end
-            old_model = model
-            model = Jutul.MultiModel(new_models; groups = groups)
-            for ct in old_model.cross_terms
-                push!(model.cross_terms, ct)
-            end
-        else
-            model.models[:Fractures] = fmodel
-            if !isnothing(model.groups)
-                push!(model.groups, 0)
-                println(model.groups)
-                for (k, (name, _)) in enumerate(pairs(model.models))
-                    if name ∈ [:Reservoir, :Fractures]
-                        gno = 1
-                    else
-                        gno = 2
-                    end
-                    model.groups[k] = gno
-                    model.group_lookup[name] = gno
-                end
-            end
+    # Reconstruct multimodel with fracture model and same non-fracture models as before
+    new_models = JutulStorage()
+    new_models[:Reservoir] = model.models[:Reservoir]
+    new_models[:Fractures] = fmodel
+    groups = Int[1, 1]
+    for (k, v) in pairs(model.models)
+        if k != :Reservoir
+            new_models[k] = v
+            push!(groups, 2)
         end
-    else
-        model.models[:Fractures] = fmodel
-        if !isnothing(model.groups)
-            group = maximum(model.groups)# + 1 # TODO: Now it gets schur lumped with the wells...
-            push!(model.groups, group)
-            model.group_lookup[:Fractures] = group
-        end
+    end
+    if isnothing(model.groups)
+        groups = nothing
+    end
+    old_model = model
+    model = Jutul.MultiModel(new_models; groups = groups)
+    for ct in old_model.cross_terms
+        push!(model.cross_terms, ct)
     end
 
     # Set up DFM cross-terms
@@ -266,18 +303,17 @@ function setup_fractured_reservoir_model(matrix::DataDomain, fractures::DataDoma
         FractureMatrixTransmissibility = FractureMatrixTransmissibility(),
         FractureMatrixGravityDifference = FractureMatrixGravityDifference(),
     )
-    # target_cells, source_cells, transmissibilities, gdz = setup_matrix_fracture_cross_term(fractures, :permeability)
     matrix_cells = fractures[:matrix_cells, fmc]
     fracture_cells = fractures[:connection_cells, fmc]
     ct = MatrixFromFractureFlowCT(matrix_cells, fracture_cells)
     add_cross_term!(model, ct, target = :Reservoir, source = :Fractures, equation = :mass_conservation)
 
     if has_thermal
-        target_cells, source_cells, transmissibilities_th, gdz = setup_matrix_fracture_cross_term(fractures, :thermal_conductivity)
-        ct = MatrixFromFractureThermalCT(target_cells, source_cells, transmissibilities, transmissibilities_th, gdz)
+        set_parameters!(model.models[:Fractures],
+            FractureMatrixThermalConductivity = FractureMatrixThermalConductivity(),
+        )
+        ct = MatrixFromFractureThermalCT(matrix_cells, fracture_cells)
         add_cross_term!(model, ct, target = :Reservoir, source = :Fractures, equation = :energy_conservation)
-        fractures[:matrix_rock_thermal_conductivity, fmc] = fractures[:matrix_rock_thermal_conductivity][target_cells]
-        fractures[:matrix_fluid_thermal_conductivity, fmc] = fractures[:matrix_fluid_thermal_conductivity][target_cells]
     end
 
     for (name, well_model) in get_model_wells(model)
