@@ -9,33 +9,83 @@ Jutul.minimum_value(::FractureMatrixTransmissibility) = 0.0
 Jutul.associated_entity(::FractureMatrixTransmissibility) = FractureMatrixConnection()
 
 function Jutul.default_parameter_values(data_domain, model, param::FractureMatrixTransmissibility, symb)
-    source_cells = data_domain[:matrix_cells, FractureMatrixConnection()]
-    matrix_perm = data_domain[:matrix_permeability, FractureMatrixConnection()]
-    matrix_centroids = data_domain[:matrix_cell_centroids, FractureMatrixConnection()]
-    fracture_perm = data_domain[:permeability]
-    return compute_connection_transmissibilities(data_domain, source_cells, matrix_perm, matrix_centroids, fracture_perm)
-end
+
+    fmc = FractureMatrixConnection()
+    if haskey(data_domain, :fracture_matrix_transmissibility, fmc)
+        return data_domain[:fracture_matrix_transmissibility, fmc]
+    end
+
+    # Get matrix-fracture connection target/source cells
+    fracture_cells = data_domain[:connection_cells, fmc]
+    # Sanity check
+    fmesh = physical_representation(data_domain)
+    if hasproperty(fmesh, :intersection_cells)
+       .!any(c ∈ fmesh.intersection_cells for c in fracture_cells) || error(
+        "Fracture cells must not include intersection cells for matrix-fracture\
+        cross term setup.")
+    end
+    # Compute transmissibilities
+    T = matrix_fracture_connection_conductivity(data_domain, :permeability)
+    return T
+
+  end
 
 struct FractureMatrixThermalConductivity <: AbstractFractureMatrixConductivity end
-Jutul.variable_scale(::FractureMatrixThermalConductivity) = 1e-10
+Jutul.variable_scale(::FractureMatrixThermalConductivity) = 1.0
 Jutul.minimum_value(::FractureMatrixThermalConductivity) = 0.0
 Jutul.associated_entity(::FractureMatrixThermalConductivity) = FractureMatrixConnection()
 
 function Jutul.default_parameter_values(data_domain, model, param::FractureMatrixThermalConductivity, symb)
-    source_cells = data_domain[:matrix_cells, FractureMatrixConnection()]
-    matrix_centroids = data_domain[:matrix_cell_centroids, FractureMatrixConnection()]
+    
+    fmc = FractureMatrixConnection()
+    if haskey(data_domain, :fracture_matrix_thermal_conductivity, fmc)
+        return data_domain[:fracture_matrix_thermal_conductivity, fmc]
+    end
 
-    ϕ_m = data_domain[:matrix_porosity, FractureMatrixConnection()]
-    Λ_r_m = data_domain[:matrix_rock_thermal_conductivity, FractureMatrixConnection()]
-    Λ_f_m = data_domain[:matrix_fluid_thermal_conductivity, FractureMatrixConnection()]
-    matrix_cond = ϕ_m .* Λ_f_m .+ (1 .- ϕ_m) .* Λ_r_m
+    # Get matrix-fracture connection target/source cells
+    fracture_cells = data_domain[:connection_cells, fmc]
+    # Sanity check
+    fmesh = physical_representation(data_domain)
+    if hasproperty(fmesh, :intersection_cells)
+       .!any(c ∈ fmesh.intersection_cells for c in fracture_cells) || error(
+        "Fracture cells must not include intersection cells for matrix-fracture\
+        cross term setup.")
+    end
+    # Compute transmissibilities
+    T = matrix_fracture_connection_conductivity(data_domain, :thermal_conductivity)
+    return T
 
-    ϕ_f = data_domain[:porosity]
-    Λ_r_f = data_domain[:rock_thermal_conductivity]
-    Λ_f_f = data_domain[:fluid_thermal_conductivity]
-    fracture_cond = ϕ_f .* Λ_f_f .+ (1 .- ϕ_f) .* Λ_r_f
+end
 
-    return compute_connection_transmissibilities(data_domain, source_cells, matrix_cond, matrix_centroids, fracture_cond)
+struct FractureMatrixGravityDifference <: ScalarVariable end
+Jutul.variable_scale(::FractureMatrixGravityDifference) = 1.0
+Jutul.minimum_value(::FractureMatrixGravityDifference) = -Inf
+Jutul.associated_entity(::FractureMatrixGravityDifference) = FractureMatrixConnection()
+
+function Jutul.default_parameter_values(data_domain, model, param::FractureMatrixGravityDifference, symb)
+    
+    fmc = FractureMatrixConnection()
+    if haskey(data_domain, :fracture_matrix_gravity_difference, fmc)
+        return data_domain[:fracture_matrix_gravity_difference, fmc]
+    end
+
+    # Get matrix-fracture connection target/source cells
+    fracture_cells = data_domain[:connection_cells, fmc]
+    # Sanity check
+    fmesh = physical_representation(data_domain)
+    if hasproperty(fmesh, :intersection_cells)
+       .!any(c ∈ fmesh.intersection_cells for c in fracture_cells) || error(
+        "Fracture cells must not include intersection cells for matrix-fracture\
+        cross term setup.")
+    end
+    # Compute gravity potential difference
+    xm = data_domain[:matrix_cell_centroids, fmc]
+    xf = data_domain[:cell_centroids, Jutul.Cells()][:, fracture_cells]
+    g = gravity_constant
+    gdz = g * (xm[3, :] .- xf[3, :])
+
+    return gdz
+
 end
 
 struct FractureWellIndices <: ScalarVariable end
