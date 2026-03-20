@@ -37,11 +37,9 @@ function fracture_domain(mesh::JutulMesh, matrix::DataDomain;
     length(matrix_faces) == length(matrix_cells) || error("Length of \
         matrix_faces and matrix_cells must match")
 
-    println()
-    println(matrix_faces)
     # Set up fracture domain
     fracture = fracture_domain(mesh; kwarg...)
-
+    # Add matrix properties to fracture domain for use in cross-term calculations
     x = matrix[:cell_centroids]
     K = matrix[:permeability]
     ϕ = matrix[:porosity]
@@ -57,20 +55,17 @@ function fracture_domain(mesh::JutulMesh, matrix::DataDomain;
         # do this inside the equations for multiphase flow.
         Λ = Λ_r
     end
-
     # Add fracture-matrix connection entitiy to fracture domain
     fmc = FractureMatrixConnection()
     fmc = JutulDarcy.FractureMatrixConnection()
     num_fmc = length(matrix_faces)
     fracture.entities[fmc] = num_fmc
-    # Add matrix face and cell indices for each fracture-matrix connection to
-    # the fracture domain for later use in cross-term calculations
+    # Add data for fracture-matrix connections to fracture domain
     fracture[:connection_cells, fmc] = connection_cells_fracture
     fracture[:matrix_faces, fmc] = matrix_faces
     fracture[:matrix_cells, fmc] = matrix_cells
     fracture[:matrix_cell_centroids, fmc] = x[:, matrix_cells]
     fracture[:matrix_permeability, fmc] = K[matrix_cells]
-    fracture[:matrix_porosity, fmc] = ϕ[matrix_cells]
     fracture[:matrix_thermal_conductivity, fmc] = Λ[matrix_cells]
 
     return fracture
@@ -129,139 +124,95 @@ function fracture_domain(mesh::JutulMesh;
 
 end
 
-function setup_matrix_fracture_cross_term(matrix::Jutul.DataDomain, fractures::Jutul.DataDomain, field::Symbol = :permeability)
+function setup_matrix_fracture_cross_term(fractures::Jutul.DataDomain, field::Symbol = :permeability)
 
-    if field == :permeability
-        matrix_conductivity = matrix[:permeability]
-        fracture_conductivity = fractures[:permeability]
-    elseif field == :thermal_conductivity
-        function effective_conductivity(ϕ, Λ_r, Λ_f)
-            return ϕ.*Λ_f .+ (1 .- ϕ).*Λ_r
-        end
-        matrix_conductivity = effective_conductivity(
-            matrix[:porosity],
-            matrix[:rock_thermal_conductivity],
-            matrix[:fluid_thermal_conductivity]
-        )
-        fracture_conductivity = effective_conductivity(
-            fractures[:porosity],
-            fractures[:rock_thermal_conductivity],
-            fractures[:fluid_thermal_conductivity]
-        )
-    else
-        error("Unsupported field $field for matrix-fracture cross term setup.")
-    end
-
-    return setup_matrix_fracture_cross_term(matrix, fractures, matrix_conductivity, fracture_conductivity)
-end
-
-function setup_matrix_fracture_cross_term(matrix::Jutul.DataDomain, fractures::Jutul.DataDomain, matrix_conductivity, fracture_conductivity)
-    if ismissing(fractures[:matrix_faces])
-        error("Fracture domain must have :matrix_faces data (from create_fracture_domain) to set up cross terms.")
-    end
+    # Get matrix-fracture connection target/source cells
     matrix_cells = fractures[:matrix_cells, FractureMatrixConnection()]
     fracture_cells = fractures[:connection_cells, FractureMatrixConnection()]
-    n_frac = number_of_cells(fractures)
-    n_res = number_of_cells(matrix)
-    
+    # Sanity check
+    fmesh = physical_representation(fractures)
+    if hasproperty(fmesh, :intersection_cells)
+       .!any(c ∈ fmesh.intersection_cells for c in fracture_cells) || error(
+        "Fracture cells must not include intersection cells for matrix-fracture\
+        cross term setup.")
+    end
+
+    # Get matrix and fracture conductivity
+    matrix_conductivity = fractures[Symbol(:matrix_, field)]
+    fracture_conductivity = fractures[field]
     # Prepare output arrays
-    target_cells = Int64[]
-    source_cells = Int64[]
     transmissibilities = Float64[]
     gdz = Float64[]
     g = gravity_constant
-    fmesh = physical_representation(fractures)
-
-    vol_frac = fractures[:volumes]
-    aperture = fractures[:aperture]
-
-    mmesh = physical_representation(matrix)
-    N = get_neighborship(mmesh)
-
-    for (fcell, mcell) in zip(fracture_cells, matrix_cells)
-        if fcell ∈ fmesh.intersection_cells
-            continue # Skip intersection cells, as they are handled separately
-        end
-        # Get area of fracture cell (face area)
-        # Volume = Area * Aperture -> Area = Volume / Aperture
+    # Compute transmissibilities and gravity potential differences for each
+    # matrix-fracture connection
+    for (mcell, fcell) in enumerate(fracture_cells)
+        # Compute fracture-matrix transmissibility
         a = fractures[:aperture][fcell]
-        x_f = fractures[:cell_centroids][:, fcell]
-        A_f = fractures[:volumes][fcell]/a
-        n_f = Jutul.EmbeddedMeshes.cell_normal(fmesh, fcell)
-        K_f = fracture_conductivity[fcell]
-        c_f = n_f.*a/2.0
-        T_fm = Jutul.half_face_trans(A_f, K_f, c_f, n_f)
-
-        A_m = A_f
-        n_m = n_f
-        x_m = matrix[:cell_centroids][:, mcell]
-        c_m = x_f .- x_m
-        if dot(c_m, n_m) < 0
-            n_m = .-n_m
-        end
-        K_m = matrix_conductivity[mcell]
-        T_mf = Jutul.half_face_trans(A_m, K_m, c_m, n_m)
-        T = 1.0/(1.0/T_fm + 1.0/T_mf)
-
-        push!(target_cells, mcell)
-        push!(source_cells, fcell)
+        A = fractures[:volumes][fcell]/a
+        n = Jutul.EmbeddedMeshes.cell_normal(fmesh, fcell)
+        xf = fractures[:cell_centroids][:, fcell]
+        xm = fractures[:matrix_cell_centroids][:, mcell]
+        Kf = fracture_conductivity[fcell]
+        Km = matrix_conductivity[mcell]
+        T = matrix_fracture_connection_conductivity(a, A, n, xf, xm, Kf, Km)
         push!(transmissibilities, T)
-        dz = x_m[3] - x_f[3]
+        # Compute gravity potential difference
+        dz = xm[3] - xf[3]
         push!(gdz, g*dz)
-        # for face in matrix_faces[fcell]
-        #     for cell in N[:, face]
-        #         A_m = A_f
-        #         n_m = n_f
-        #         x_m = matrix[:cell_centroids][:, cell]
-        #         c_m = x_f .- x_m
-        #         if dot(c_m, n_m) < 0
-        #             n_m = .-n_m
-        #         end
-        #         K_m = matrix_conductivity[cell]
-        #         T_mf = Jutul.half_face_trans(A_m, K_m, c_m, n_m)
-        #         T = 1.0/(1.0/T_fm + 1.0/T_mf)
-        #         push!(target_cells, cell)
-        #         push!(source_cells, fcell)
-        #         push!(transmissibilities, T)
-        #         dz = x_m[3] - x_f[3]
-        #         push!(gdz, g*dz)
-        #     end
-        # end
     end
+    # The target/source cells for the cross term are the matrix/fracture cells
+    target_cells = matrix_cells
+    source_cells = fracture_cells
     
     return target_cells, source_cells, transmissibilities, gdz
     
 end
 
-function compute_connection_transmissibilities(data_domain, source_cells, matrix_conductivity, matrix_centroids, fracture_conductivity)
-    n_conn = length(source_cells)
-    fmesh = physical_representation(data_domain)
-    vol_frac = data_domain[:volumes]
-    aperture = data_domain[:aperture]
+function matrix_fracture_connection_conductivity(aperture, area, normal, xf, xm, Kf, Km)
 
-    T = zeros(n_conn)
-    for i in 1:n_conn
-        fcell = source_cells[i]
-        a = aperture[fcell]
-        x_f = data_domain[:cell_centroids][:, fcell]
-        A_f = vol_frac[fcell]/a
-        n_f = Jutul.EmbeddedMeshes.cell_normal(fmesh, fcell)
-        K_f = fracture_conductivity[fcell]
-        c_f = n_f .* a/2.0
-        T_fm = Jutul.half_face_trans(A_f, K_f, c_f, n_f)
+    a, A, nf = aperture, area, normal
+    cf = nf.*a/2.0
+    T_fm = Jutul.half_face_trans(A, Kf, cf, nf)
+    # Compute matrix-fracture transmissibility
+    cm = xf .- xm
+    nm = dot(cm, nf) > 0 ? nf : .-nf
+    T_mf = Jutul.half_face_trans(A, Km, cm, nm)
+    T = 1.0/(1.0/T_fm + 1.0/T_mf)
 
-        x_m = matrix_centroids[:, i]
-        c_m = x_f .- x_m
-        n_m = n_f
-        if dot(c_m, n_m) < 0
-            n_m = .-n_m
-        end
-        K_m = matrix_conductivity[i]
-        T_mf = Jutul.half_face_trans(A_f, K_m, c_m, n_m)
-        T[i] = 1.0/(1.0/T_fm + 1.0/T_mf)
-    end
     return T
+
 end
+
+# function compute_connection_transmissibilities(data_domain, source_cells, matrix_conductivity, matrix_centroids, fracture_conductivity)
+#     n_conn = length(source_cells)
+#     fmesh = physical_representation(data_domain)
+#     vol_frac = data_domain[:volumes]
+#     aperture = data_domain[:aperture]
+
+#     T = zeros(n_conn)
+#     for i in 1:n_conn
+#         fcell = source_cells[i]
+#         a = aperture[fcell]
+#         x_f = data_domain[:cell_centroids][:, fcell]
+#         A_f = vol_frac[fcell]/a
+#         n_f = Jutul.EmbeddedMeshes.cell_normal(fmesh, fcell)
+#         K_f = fracture_conductivity[fcell]
+#         c_f = n_f .* a/2.0
+#         T_fm = Jutul.half_face_trans(A_f, K_f, c_f, n_f)
+
+#         x_m = matrix_centroids[:, i]
+#         c_m = x_f .- x_m
+#         n_m = n_f
+#         if dot(c_m, n_m) < 0
+#             n_m = .-n_m
+#         end
+#         K_m = matrix_conductivity[i]
+#         T_mf = Jutul.half_face_trans(A_f, K_m, c_m, n_m)
+#         T[i] = 1.0/(1.0/T_fm + 1.0/T_mf)
+#     end
+#     return T
+# end
 
 function setup_fractured_reservoir_model(matrix::DataDomain, fractures::DataDomain, system::Union{JutulSystem, Symbol};
     wells = [],
@@ -395,16 +346,16 @@ function setup_fractured_reservoir_model(matrix::DataDomain, fractures::DataDoma
     # set_parameters!(model.models[:Fractures],
     #     FractureMatrixTransmissibility = FractureMatrixTransmissibility()
     # )
-    target_cells, source_cells, transmissibilities, gdz = setup_matrix_fracture_cross_term(matrix, fractures, :permeability)
+    target_cells, source_cells, transmissibilities, gdz = setup_matrix_fracture_cross_term(fractures, :permeability)
     ct = MatrixFromFractureFlowCT(target_cells, source_cells, transmissibilities, gdz)
     add_cross_term!(model, ct, target = :Reservoir, source = :Fractures, equation = :mass_conservation)
 
     if has_thermal
-        target_cells, source_cells, transmissibilities_th, gdz = setup_matrix_fracture_cross_term(matrix, fractures, :thermal_conductivity)
+        target_cells, source_cells, transmissibilities_th, gdz = setup_matrix_fracture_cross_term(fractures, :thermal_conductivity)
         ct = MatrixFromFractureThermalCT(target_cells, source_cells, transmissibilities, transmissibilities_th, gdz)
         add_cross_term!(model, ct, target = :Reservoir, source = :Fractures, equation = :energy_conservation)
-        fractures[:matrix_rock_thermal_conductivity, fmc] = matrix[:rock_thermal_conductivity][target_cells]
-        fractures[:matrix_fluid_thermal_conductivity, fmc] = matrix[:fluid_thermal_conductivity][target_cells]
+        fractures[:matrix_rock_thermal_conductivity, fmc] = fractures[:matrix_rock_thermal_conductivity][target_cells]
+        fractures[:matrix_fluid_thermal_conductivity, fmc] = fractures[:matrix_fluid_thermal_conductivity][target_cells]
     end
 
     for (name, well_model) in get_model_wells(model)
