@@ -93,12 +93,10 @@ function matrix_fracture_connection_conductivity(fractures::DataDomain, field::S
     # Get matrix-fracture connection source cells
     fracture_cells = fractures[:connection_cells, FractureMatrixConnection()]
     # Get matrix and fracture conductivity
+    effective_conductivity(λ_fluid, λ_rock, ϕ) = (ϕ.*λ_fluid .+ (1.0 .- ϕ).*λ_rock)
     if field == :thermal_conductivity
         # Matrix effective thermal conductivity
-        matrix_conductivity = effective_conductivity(
-            fractures[:matrix_fluid_thermal_conductivity],
-            fractures[:matrix_rock_thermal_conductivity],
-            fractures[:matrix_porosity])
+        matrix_conductivity = fractures[:matrix_thermal_conductivity]
         # Fracture effective thermal conductivity
         fracture_conductivity = effective_conductivity(
             fractures[:fluid_thermal_conductivity],

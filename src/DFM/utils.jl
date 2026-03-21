@@ -127,6 +127,38 @@ function fracture_domain(mesh::JutulMesh;
             T_hf, N, mesh.intersection_neighbors, star_delta)
     domain[:transmissibilities, Faces()] = T
 
+    # Compute fracture thermal conductivities
+    ϕ = domain[:porosity]
+    for (tname, name, vol_frac) in zip(
+            [:rock_thermal_conductivities, :fluid_thermal_conductivities],
+            [:rock_thermal_conductivity, :fluid_thermal_conductivity],
+            [1 .- ϕ, ϕ]
+        )
+        Λ = domain[name, Cells()].*vol_frac
+        if Λ isa Vector
+            T_hf = compute_half_face_trans(mesh, 
+                geo.cell_centroids, geo.face_centroids, 
+                domain[:areas, Faces()], Λ, aperture, faces, facepos)
+            T = Jutul.EmbeddedMeshes.compute_face_trans_dfm(
+                    T_hf, N, mesh.intersection_neighbors, star_delta)
+            if contains(String(name), "fluid")
+                nph = 1 # Assuming single-phase system for now...
+                T = repeat(T', nph, 1)
+            end
+        else
+            nph = size(Λ, 1)
+            T = zeros(nph, number_of_faces(mesh))
+            for ph in 1:nph
+                T_hf = compute_half_face_trans(mesh, 
+                    geo.cell_centroids, geo.face_centroids, 
+                    domain[:areas, Faces()], Λ[ph, :], aperture, faces, facepos)
+                T[ph, :] = Jutul.EmbeddedMeshes.compute_face_trans_dfm(
+                    T_hf, N, mesh.intersection_neighbors, star_delta)
+            end
+        end
+        # domain[tname, Faces()] = T
+    end
+
     return domain
 
 end
@@ -136,10 +168,11 @@ function add_fractures_to_model!(model::MultiModel, fractures::DataDomain; kwarg
     # Get matrix model
     matrix_model = model.models[:Reservoir]
     system = matrix_model.system
+    thermal = model_is_thermal(matrix_model)
 
     # Set up fracture model with same system and context as matrix model
     fracture_model = setup_reservoir_model(fractures, system;
-        context=model.context, kwarg...)
+        context=model.context, thermal=thermal, kwarg...)
     if fracture_model isa Jutul.MultiModel
         fracture_model = fracture_model.models[:Reservoir]
     end
@@ -443,19 +476,19 @@ function add_fracture_cross_terms!(model::MultiModel, fractures::DataDomain)
             if !haskey(g.perforations, :fracture)
                 continue
             end
+            fc = vec(g.perforations.fracture)
+            wc = vec(g.perforations.self_fracture)
             set_parameters!(model.models[name],
                 FractureWellIndices = FractureWellIndices()
             )
-            fc = vec(g.perforations.fracture)
-            wc = vec(g.perforations.self_fracture)
             ct = FracturesFromWellFlowCT(fc, wc)
             add_cross_term!(model, ct, target = :Fractures, source = name, equation = :mass_conservation)
             if thermal
-                ct = FracturesFromWellThermalCT(fc, wc)
-                add_cross_term!(model, ct, target = :Fractures, source = name, equation = :energy_conservation)
                 set_parameters!(model.models[name],
                     FractureWellIndicesThermal = FractureWellIndicesThermal()
                 )
+                ct = FracturesFromWellThermalCT(fc, wc)
+                add_cross_term!(model, ct, target = :Fractures, source = name, equation = :energy_conservation)
             end
         end
     end
