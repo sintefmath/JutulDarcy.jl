@@ -201,7 +201,7 @@ function blackoil_unknown_init(F_rs::Nothing, F_rv, sw, so, sg, rs, rv, p)
 end
 
 function blackoil_unknown_init(F_rs, F_rv, sw, so, sg, rs, rv, p)
-    if sg > 0 && so > 0
+    if sg > 0 && so > 0 || sw > 1.0 - 10*MINIMUM_COMPOSITIONAL_SATURATION
         rs = F_rs(p)
         rv = F_rv(p)
         x = sg
@@ -257,7 +257,7 @@ end
         sw = ImmiscibleSaturation[i]
         X = BlackOilUnknown[i]
         phases = X.phases_present
-        rem = one(T) - sw + MINIMUM_COMPOSITIONAL_SATURATION
+        rem = one(T) - sw# + MINIMUM_COMPOSITIONAL_SATURATION
         if phases == OilOnly
             sg = zero(T)
             so = rem
