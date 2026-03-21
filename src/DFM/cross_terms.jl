@@ -45,10 +45,8 @@ function cross_term_matrix_fracture_get_conn(ct, i, state_f, state_m)
         matrix_cell = ct.matrix_cells[i]
         fracture_cell = ct.fracture_cells[i]
         T = state_f.FractureMatrixTransmissibility[i]
-        if hasproperty(ct, :connection_strength_thermal)
-            T_th = ct.connection_strength_thermal[i]
-        else
-            T_th = missing
+        if haskey(state_f, :FractureMatrixThermalConductivity)
+            T_th = state_f.FractureMatrixThermalConductivity[i]
         end
         gdz = state_f.FractureMatrixGravityDifference[i]
         p_m = state_m.Pressure
@@ -135,13 +133,10 @@ end
 struct MatrixFromFractureThermalCT{I<:AbstractVector, T<:AbstractVector} <: AbstractMatrixFromFractureCT
     matrix_cells::I
     fracture_cells::I
-    connection_strength_flow::T
-    connection_strength_thermal::T
-    gravity_potential::T
 end
 
-function MatrixFromFractureThermalCT(matrix_cells::Vector{Int}, fracture_cells::Vector{Int}, connection_strength_flow::Vector{Float64}, connection_strength_thermal::Vector{Float64}, gravity_potential::Vector{Float64})
-    return MatrixFromFractureThermalCT{Vector{Int}, Vector{Float64}}(matrix_cells, fracture_cells, connection_strength_flow, connection_strength_thermal, gravity_potential)
+function MatrixFromFractureThermalCT(matrix_cells::Vector{Int}, fracture_cells::Vector{Int})
+    return MatrixFromFractureThermalCT{Vector{Int}, Vector{Float64}}(matrix_cells, fracture_cells)
 end
 
 function Base.show(io::IO, d::MatrixFromFractureThermalCT)
