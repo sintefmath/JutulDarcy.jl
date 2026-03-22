@@ -66,7 +66,9 @@ function fracture_domain(mesh::JutulMesh, matrix::DataDomain;
     fracture[:matrix_cells, fmc] = matrix_cells
     fracture[:matrix_cell_centroids, fmc] = x[:, matrix_cells]
     fracture[:matrix_permeability, fmc] = K[matrix_cells]
-    fracture[:matrix_thermal_conductivity, fmc] = Λ[matrix_cells]
+    fracture[:matrix_fluid_thermal_conductivity, fmc] = Λ_f[matrix_cells]
+    fracture[:matrix_rock_thermal_conductivity, fmc] = Λ_r[matrix_cells]
+    fracture[:matrix_porosity, fmc] = ϕ[matrix_cells]
 
     # cell_normals = Matrix{Float64}(undef, size(x, 1), number_of_cells(mesh))
     cell_normals = fill(NaN, size(x, 1), number_of_cells(mesh))
@@ -122,7 +124,7 @@ function fracture_domain(mesh::JutulMesh;
     faces, facepos = get_facepos(N, nc)
     T_hf = compute_half_face_trans(mesh, 
         geo.cell_centroids, geo.face_centroids, 
-        domain[:areas, Faces()], permeability, aperture, faces, facepos)
+        domain[:areas, Faces()], domain[:permeability, Cells()], aperture, faces, facepos)
     T = Jutul.EmbeddedMeshes.compute_face_trans_dfm(
             T_hf, N, mesh.intersection_neighbors, star_delta)
     domain[:transmissibilities, Faces()] = T
@@ -156,7 +158,7 @@ function fracture_domain(mesh::JutulMesh;
                     T_hf, N, mesh.intersection_neighbors, star_delta)
             end
         end
-        # domain[tname, Faces()] = T
+        domain[tname, Faces()] = T
     end
 
     return domain
@@ -167,6 +169,7 @@ function add_fractures_to_model!(model::MultiModel, fractures::DataDomain; kwarg
     
     # Get matrix model
     matrix_model = model.models[:Reservoir]
+    println(typeof(matrix_model.secondary_variables[:PhaseMassDensities]))
     system = matrix_model.system
     thermal = model_is_thermal(matrix_model)
 
@@ -215,6 +218,15 @@ function add_fractures_to_model!(model::MultiModel, fractures::DataDomain; kwarg
 
     # Add the fracture model to the multimodel
     model = add_fracture_model(model, fracture_model)
+    for (k, m) in pairs(model.models)
+        if k ∈ [:Reservoir, :Fractures] || JutulDarcy.model_or_domain_is_well(m)
+            set_secondary_variables!(m;
+                PhaseMassDensities = matrix_model.secondary_variables[:PhaseMassDensities],
+                PhaseViscosities = matrix_model.secondary_variables[:PhaseViscosities],
+                ComponentHeatCapacity = matrix_model.secondary_variables[:ComponentHeatCapacity]
+            )
+        end
+    end
 
     # Set up DFM cross-terms
     add_fracture_cross_terms!(model, fractures)
@@ -239,7 +251,7 @@ function block_fracture_face_connections!(matrix_model::SimulationModel, faces)
     matrix[:transmissibilities, Faces()] = T
     
     thermal || return
-    
+
     # Set zero rock thermal conductivity for fracture faces
     if haskey(matrix, :rock_thermal_conductivities)
         Λr = matrix[:rock_thermal_conductivities, Faces()]
