@@ -920,7 +920,8 @@ function determine_saturations(depths, contacts, pressures;
         ref_ix = 2,
         s_min = missing,
         s_max = missing,
-        pc = missing
+        pc = missing,
+        pc_scaling = missing
     )
     nc = length(depths)
     T = promote_type(eltype(depths), eltype(pressures), eltype(contacts))
@@ -949,6 +950,7 @@ function determine_saturations(depths, contacts, pressures;
         offset = 1
         for ph in 1:nph
             if ph != ref_ix
+                @assert ismissing(pc_scaling)
                 s, pc_pair = pc[offset]
                 pc_max = maximum(pc_pair)
                 pc_min = minimum(pc_pair)
@@ -1146,6 +1148,11 @@ function equilibriate_phase_pressures_and_saturations(model::SimulationModel, de
         density_function = density_f
     end
     # Expand here
+    if haskey(model.data_domain, :capillary_pressure_scaling)
+        pc_scaling = view(model.data_domain[:capillary_pressure_scaling], :, cells)
+    else
+        pc_scaling = missing
+    end
     is_multipoint = !(ismissing(cell_nz) || cell_nz == 1)
     if is_multipoint
         cell_nz > 1 || error("cell_nz must be greater than 1 for multi-point initialization, got cell_nz=$(cell_nz).")
@@ -1161,6 +1168,9 @@ function equilibriate_phase_pressures_and_saturations(model::SimulationModel, de
         depths, depth_index = discretize_depths(depths, min_z_cells, max_z_cells, cell_nz)
         s_max = [s[depth_index] for s in s_max]
         s_min = [s[depth_index] for s in s_min]
+        if !ismissing(pc_scaling)
+            pc_scaling = pc_scaling[:, depth_index]
+        end
     end
     zmin = minimum(depths) - 1.0
     zmax = maximum(depths) + 1.0
@@ -1171,7 +1181,14 @@ function equilibriate_phase_pressures_and_saturations(model::SimulationModel, de
         pc = zeros(eltype(pressures), size(pressures))
         active_phase = fill(1, length(depths))
     else
-        s, pc, active_phase = determine_saturations(depths, contacts, pressures; ref_ix = ref_ix, pc = pc, s_min = s_min, s_max = s_max, kwarg...)
+        s, pc, active_phase = determine_saturations(depths, contacts, pressures;
+            ref_ix = ref_ix,
+            pc = pc,
+            s_min = s_min,
+            s_max = s_max,
+            pc_scaling = pc_scaling,
+            kwarg...
+        )
     end
     if is_multipoint
         nc = length(cells)
