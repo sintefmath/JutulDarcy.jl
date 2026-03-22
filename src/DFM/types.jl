@@ -52,7 +52,9 @@ function Jutul.default_parameter_values(data_domain, model, param::FractureMatri
         cross term setup.")
     end
     # Compute transmissibilities
-    T = matrix_fracture_connection_conductivity(data_domain, :thermal_conductivity)
+    Tr = matrix_fracture_connection_conductivity(data_domain, :rock_thermal_conductivity)
+    Tf = matrix_fracture_connection_conductivity(data_domain, :fluid_thermal_conductivity)
+    T = Tr .+ Tf
     return T
 
 end
@@ -93,19 +95,29 @@ function matrix_fracture_connection_conductivity(fractures::DataDomain, field::S
     # Get matrix-fracture connection source cells
     fracture_cells = fractures[:connection_cells, FractureMatrixConnection()]
     # Get matrix and fracture conductivity
-    effective_conductivity(λ_fluid, λ_rock, ϕ) = (ϕ.*λ_fluid .+ (1.0 .- ϕ).*λ_rock)
-    if field == :thermal_conductivity
-        # Matrix effective thermal conductivity
-        matrix_conductivity = fractures[:matrix_thermal_conductivity]
-        # Fracture effective thermal conductivity
-        fracture_conductivity = effective_conductivity(
-            fractures[:fluid_thermal_conductivity],
-            fractures[:rock_thermal_conductivity],
-            fractures[:porosity])
-    else
+    # effective_conductivity(λ_fluid, λ_rock, ϕ) = (ϕ.*λ_fluid .+ (1.0 .- ϕ).*λ_rock)
+    # if field == :thermal_conductivity
+    #     # Matrix effective thermal conductivity
+    #     matrix_conductivity = effective_conductivity(
+    #         fractures[:matrix_fluid_thermal_conductivity],
+    #         fractures[:matrix_rock_thermal_conductivity],
+    #         fractures[:matrix_porosity])
+    #     # Fracture effective thermal conductivity
+    #     fracture_conductivity = effective_conductivity(
+    #         fractures[:fluid_thermal_conductivity],
+    #         fractures[:rock_thermal_conductivity],
+    #         fractures[:porosity])
+    # else
         # Use conductivity values directly (permeability)
         matrix_conductivity = fractures[Symbol(:matrix_, field)]
         fracture_conductivity = fractures[field]
+    # end
+    if contains(String(field), "fluid")
+        matrix_conductivity .*= fractures[:matrix_porosity]
+        fracture_conductivity .*= fractures[:porosity]
+    elseif contains(String(field), "rock")
+        matrix_conductivity .*= (1.0 .- fractures[:matrix_porosity])
+        fracture_conductivity .*= (1.0 .- fractures[:porosity])
     end
     # Prepare output arrays
     transmissibilities = Float64[]
