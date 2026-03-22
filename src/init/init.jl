@@ -765,7 +765,9 @@ function parse_state0_equil(model, datafile; normalize = :sum, cell_nz = 1)
             # -> p_w - p_o = pc_ow
             pc_scale[1, i] = pc_eql/pc_actual
         end
-        model.secondary_variables[:CapillaryPressure] = ScaledCapillaryPressure(pc.pc, pc_scale, regions = pc.regions)
+        model.secondary_variables[:CapillaryPressure] = ScaledCapillaryPressure(pc.pc, regions = pc.regions)
+        model.parameters[:CapillaryPressureScaling] = CapillaryPressureScaling()
+        model.data_domain[:capillary_pressure_scaling, Cells()] = pc_scale
     end
     delete!(init, :EquilibriationPressures)
     return init
