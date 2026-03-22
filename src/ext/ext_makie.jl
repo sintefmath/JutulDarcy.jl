@@ -135,7 +135,7 @@ function plot_reservoir(model, arg...;
         y = cell_centroids[2, :]
         xrng = maximum(x) - minimum(x)
         yrng = maximum(y) - minimum(y)
-        aspect = (1.0, yrng/xrng, zaspect)
+        aspect = (1.0, max(yrng/xrng, 0.001), zaspect)
     end
     if haskey(data_domain, :boundary_centroids)
         bc = data_domain[:boundary_centroids]
