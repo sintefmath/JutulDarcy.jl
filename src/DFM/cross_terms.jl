@@ -47,6 +47,8 @@ function cross_term_matrix_fracture_get_conn(ct, i, state_f, state_m)
         T = state_f.FractureMatrixTransmissibility[i]
         if haskey(state_f, :FractureMatrixThermalConductivity)
             T_th = state_f.FractureMatrixThermalConductivity[i]
+        else
+            T_th = missing
         end
         gdz = state_f.FractureMatrixGravityDifference[i]
         p_m = state_m.Pressure
