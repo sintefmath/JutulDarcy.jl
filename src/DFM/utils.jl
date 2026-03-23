@@ -7,8 +7,7 @@ function fracture_domain(mesh::JutulMesh, matrix::DataDomain;
     matrix_cells=missing,
     kwarg...)
 
-    # Set up matrix domain and fracture-matrix connections
-    matrix_mesh = physical_representation(matrix)
+    # Define fracture cells connected to matrix (default: all except intersection cells)
     if ismissing(connection_cells_fracture)
         connection_cells_fracture = 1:number_of_cells(mesh)
         if hasproperty(mesh, :intersection_cells)
@@ -16,7 +15,7 @@ function fracture_domain(mesh::JutulMesh, matrix::DataDomain;
                 connection_cells_fracture, mesh.intersection_cells)
         end
     end
-
+    # Define matrix faces corresponding to fractures (if given)
     if ismissing(matrix_faces)
         if hasproperty(mesh, :parent_faces)
             matrix_faces = mesh.parent_faces
@@ -26,19 +25,27 @@ function fracture_domain(mesh::JutulMesh, matrix::DataDomain;
             accounted for in the provided matrix domain."
         end
     end
+    # Define matrix cells connected to fractures (if given)
     if ismissing(matrix_cells)
         !ismissing(matrix_faces) || error("Must provide matrix_cells if \
             matrix_faces is not provided in order to set up matrix/fracture connections.")
+        matrix_mesh = physical_representation(matrix)
         N = get_neighborship(matrix_mesh)
         matrix_cells = N[:, matrix_faces][:]
         matrix_faces = repeat(matrix_faces, inner=2)
         connection_cells_fracture = repeat(connection_cells_fracture, inner=2)
     end
-    length(matrix_faces) == length(matrix_cells) || error("Length of \
-        matrix_faces and matrix_cells must match")
+    length(connection_cells_fracture) == length(matrix_faces) == length(matrix_cells) ||
+    error("Length of connection_cells_fracture, matrix_faces, and matrix_cells must match")
 
     # Set up fracture domain
     fracture = fracture_domain(mesh; kwarg...)
+    # Add fracture-matrix connection entitiy to fracture domain
+    fmc = FractureMatrixConnection()
+    fmc = JutulDarcy.FractureMatrixConnection()
+    num_fmc = length(matrix_faces)
+    fracture.entities[fmc] = num_fmc
+
     # Add matrix properties to fracture domain for use in cross-term calculations
     x = matrix[:cell_centroids]
     K = matrix[:permeability]
@@ -47,20 +54,6 @@ function fracture_domain(mesh::JutulMesh, matrix::DataDomain;
     Λ_r = matrix[:rock_thermal_conductivity]
     Λ_r = vec(Λ_r)
     ϕ = vec(ϕ)
-    if size(Λ_f, 1) == 1 || Λ_f isa Vector
-        Λ_f = vec(Λ_f)
-        Λ = ϕ.*Λ_f + (1.0 .- ϕ).*Λ_r
-    else
-        # TODO: This is a bit of a hack. We should really have a proper way to
-        # do this inside the equations for multiphase flow.
-        Λ = Λ_r
-    end
-    # Add fracture-matrix connection entitiy to fracture domain
-    fmc = FractureMatrixConnection()
-    fmc = JutulDarcy.FractureMatrixConnection()
-    num_fmc = length(matrix_faces)
-    fracture.entities[fmc] = num_fmc
-    # Add data for fracture-matrix connections to fracture domain
     fracture[:connection_cells, fmc] = connection_cells_fracture
     fracture[:matrix_faces, fmc] = matrix_faces
     fracture[:matrix_cells, fmc] = matrix_cells
@@ -69,8 +62,6 @@ function fracture_domain(mesh::JutulMesh, matrix::DataDomain;
     fracture[:matrix_fluid_thermal_conductivity, fmc] = Λ_f[matrix_cells]
     fracture[:matrix_rock_thermal_conductivity, fmc] = Λ_r[matrix_cells]
     fracture[:matrix_porosity, fmc] = ϕ[matrix_cells]
-
-    # cell_normals = Matrix{Float64}(undef, size(x, 1), number_of_cells(mesh))
     cell_normals = fill(NaN, size(x, 1), number_of_cells(mesh))
     for cell in connection_cells_fracture
         cell_normals[:, cell] = Jutul.EmbeddedMeshes.cell_normal(mesh, cell)
@@ -106,8 +97,8 @@ function fracture_domain(mesh::JutulMesh;
         permeability = permeability,
         kwarg...
     )
+    # Set aperture
     domain[:aperture, Cells()] = aperture
-
     # Adjust cell volumes and face areas to account for aperture
     geo = tpfv_geometry(mesh)
     aperture = domain[:aperture, Cells()]
@@ -117,49 +108,6 @@ function fracture_domain(mesh::JutulMesh;
     N = domain[:neighbors]
     face_aperture = vec(sum(aperture[N], dims=1)./2)
     domain[:areas, Faces()] = geo.areas.*face_aperture
-    
-    # Compute fracture transmissibilities
-    star_delta = isempty(mesh.intersection_cells) # Use star-delta if intersection cells are eliminated
-    nc = number_of_cells(mesh)
-    faces, facepos = get_facepos(N, nc)
-    T_hf = compute_half_face_trans(mesh, 
-        geo.cell_centroids, geo.face_centroids, 
-        domain[:areas, Faces()], domain[:permeability, Cells()], aperture, faces, facepos)
-    T = Jutul.EmbeddedMeshes.compute_face_trans_dfm(
-            T_hf, N, mesh.intersection_neighbors, star_delta)
-    domain[:transmissibilities, Faces()] = T
-
-    # Compute fracture thermal conductivities
-    ϕ = domain[:porosity]
-    for (tname, name, vol_frac) in zip(
-            [:rock_thermal_conductivities, :fluid_thermal_conductivities],
-            [:rock_thermal_conductivity, :fluid_thermal_conductivity],
-            [1 .- ϕ, ϕ]
-        )
-        Λ = domain[name, Cells()].*vol_frac
-        if Λ isa Vector
-            T_hf = compute_half_face_trans(mesh, 
-                geo.cell_centroids, geo.face_centroids, 
-                domain[:areas, Faces()], Λ, aperture, faces, facepos)
-            T = Jutul.EmbeddedMeshes.compute_face_trans_dfm(
-                    T_hf, N, mesh.intersection_neighbors, star_delta)
-            if contains(String(name), "fluid")
-                nph = 1 # Assuming single-phase system for now...
-                T = repeat(T', nph, 1)
-            end
-        else
-            nph = size(Λ, 1)
-            T = zeros(nph, number_of_faces(mesh))
-            for ph in 1:nph
-                T_hf = compute_half_face_trans(mesh, 
-                    geo.cell_centroids, geo.face_centroids, 
-                    domain[:areas, Faces()], Λ[ph, :], aperture, faces, facepos)
-                T[ph, :] = Jutul.EmbeddedMeshes.compute_face_trans_dfm(
-                    T_hf, N, mesh.intersection_neighbors, star_delta)
-            end
-        end
-        domain[tname, Faces()] = T
-    end
 
     return domain
 
@@ -206,6 +154,14 @@ function setup_fractured_reservoir_model(matrix::DataDomain, fractures::DataDoma
         context=model.context, kwarg...)
     if fracture_model isa Jutul.MultiModel
         fracture_model = fracture_model.models[:Reservoir]
+    end
+    set_parameters!(fracture_model, Transmissibilities = TransmissibilitiesDFM())
+    thermal = model_is_thermal(matrix_model)
+    if thermal
+        set_parameters!(fracture_model,
+            RockThermalConductivities = RockThermalConductivitiesDFM(),
+            FluidThermalConductivities = FluidThermalConductivitiesDFM(),
+        )
     end
     # Add extra entities to fracture model for fracture-matrix connections
     fracture_model.domain.entities[fmc] = count_entities(fractures, fmc)
@@ -497,6 +453,27 @@ function add_fracture_cross_terms!(model::MultiModel, fractures::DataDomain)
             end
         end
     end
+
+end
+
+function reservoir_conductivity_dfm(domain, Λ)
+
+    mesh = physical_representation(domain)
+    star_delta = isempty(mesh.intersection_cells) # Use star-delta if intersection cells are eliminated
+    N = domain[:neighbors]
+    nc = number_of_cells(mesh)
+    faces, facepos = get_facepos(N, nc)
+    T_hf = compute_half_face_trans(mesh, 
+        domain[:cell_centroids, Cells()],
+        domain[:face_centroids, Faces()], 
+        domain[:areas, Faces()],
+        Λ,
+        domain[:aperture, Cells()],
+        faces, facepos)
+    T = Jutul.EmbeddedMeshes.compute_face_trans_dfm(
+            T_hf, N, mesh.intersection_neighbors, star_delta)
+
+    return T
 
 end
 
