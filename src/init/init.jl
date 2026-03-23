@@ -950,7 +950,6 @@ function determine_saturations(depths, contacts, pressures;
         offset = 1
         for ph in 1:nph
             if ph != ref_ix
-                @assert ismissing(pc_scaling)
                 s, pc_pair = pc[offset]
                 pc_max = maximum(pc_pair)
                 pc_min = minimum(pc_pair)
@@ -959,7 +958,12 @@ function determine_saturations(depths, contacts, pressures;
                 s_pcmax = s[findfirst(isequal(pc_max), pc_pair)]
                 has_pc = norm(pc_pair, 2) > 1e-8
                 for i in eachindex(depths)
-                    dp = pressures[ph, i] - pressures[ref_ix, i]
+                    if ismissing(pc_scaling)
+                        scale = 1.0
+                    else
+                        scale = pc_scaling[offset, i]
+                    end
+                    dp = (pressures[ph, i] - pressures[ref_ix, i])/scale
                     if dp > pc_max
                         s_eff = s_max[ph][i]
                         if has_pc
@@ -979,7 +983,7 @@ function determine_saturations(depths, contacts, pressures;
                     if !isfinite(I_pc(s_eff))
                         pcval = 0.0
                     end
-                    sat_pc[ph, i] = pcval
+                    sat_pc[ph, i] = pcval*scale
                 end
                 offset += 1
             end
