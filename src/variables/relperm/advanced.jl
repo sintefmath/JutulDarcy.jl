@@ -772,6 +772,7 @@ function setup_capillary_pressure_functions(model;
     has_wo = has_water && has_oil
     has_og = has_oil && has_gas
     has_wg = has_water && has_gas && !has_oil
+    issorted(phase_indices(sys)) || error("Phases must be ordered in canonical ordering (water, oil, gas) for capillary pressure setup")
 
     function convert_table(x::Tuple, name)
         length(x) == 2 || error("Capillary pressure table $name must have 2 columns")
