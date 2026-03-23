@@ -720,7 +720,12 @@ Configure capillary pressure functions for a reservoir model.
 
 # Arguments
 - `model`: Reservoir model to configure
-- `cell_scaling::Bool`: Enable cell-wise scaling of capillary pressure (default: false)
+- `use_scaling` (Bool): Enable cell-wise scaling of capillary pressure (default:
+  false if `cell_scaling` is not provided, true if `cell_scaling` is provided)
+- `cell_scaling`: A nph-1 by ncell matrix of scaling factors for capillary
+  pressure, or `missing` to use the default scaling from the reservoir domain
+  (which will be set to 1.0 if it is missing). If provided, this will enable
+  cell-wise scaling of capillary pressure.
 - `regions`: Region mapping for scaled capillary pressure
 - `kwarg`: Additional arguments passed to `setup_capillary_pressure_functions`
 
@@ -749,19 +754,27 @@ Tables are given as the saturation of the corresponding phase (e.g. water
 saturation for pcow) and the corresponding capillary pressure value.
 """
 function set_capillary_pressure!(model;
-        cell_scaling = false,
+        cell_scaling = missing,
+        use_scaling = !ismissing(cell_scaling),
         regions = nothing,
         kwarg...
     )
     model = reservoir_model(model)
     pc = setup_capillary_pressure_functions(model; kwarg...)
-    if cell_scaling
+    if use_scaling
         pc_def = ScaledCapillaryPressure(pc, regions = regions)
         set_parameters!(model, CapillaryPressureScaling = CapillaryPressureScaling())
         reservoir = reservoir_domain(model)
-        if !haskey(reservoir, :capillary_pressure_scaling)
-            jutul_message("CapillaryPressure", "Adding :capillary_pressure_scaling to reservoir domain for cell-wise capillary pressure scaling")
-            reservoir[:capillary_pressure_scaling] = ones(length(pc), number_of_cells(reservoir))
+        npc = length(pc)
+        nc = number_of_cells(reservoir)
+        if ismissing(cell_scaling)
+            if !haskey(reservoir, :capillary_pressure_scaling)
+                jutul_message("CapillaryPressure", "Adding :capillary_pressure_scaling to reservoir domain for cell-wise capillary pressure scaling")
+                reservoir[:capillary_pressure_scaling] = ones(length(pc), number_of_cells(reservoir))
+            end
+        else
+            size(cell_scaling) == (npc, nc) || error("cell_scaling must have size (number of capillary pressure functions, number of cells)")
+            reservoir[:capillary_pressure_scaling] = cell_scaling
         end
     else
         pc_def = SimpleCapillaryPressure(pc, regions = regions)
