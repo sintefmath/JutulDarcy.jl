@@ -710,3 +710,121 @@ function set_relative_permeability!(model;
     add_relperm_parameters!(rmodel)
     return model
 end
+
+export set_capillary_pressure!
+
+"""
+    set_capillary_pressure!(model, pcow = pcow, pcog = pcog)
+
+Configure capillary pressure functions for a reservoir model.
+
+# Arguments
+- `model`: Reservoir model to configure
+- `cell_scaling::Bool`: Enable cell-wise scaling of capillary pressure (default: false)
+- `regions`: Region mapping for scaled capillary pressure
+- `kwarg`: Additional arguments passed to `setup_capillary_pressure_functions`
+
+# Keyword Arguments (passed to setup_capillary_pressure_functions)
+- `pcow`: Water-oil capillary pressure table [S, pc] or [S, kr1, kr2, pc]
+- `pcog`: Oil-gas capillary pressure table [S, pc] or [S, kr1, kr2, pc]
+- `pcwg`: Water-gas capillary pressure table [S, pc] or [S, kr1, kr2, pc]
+- `pc`: Explicit Vector/Tuple of capillary pressure interpolators (overrides individual tables)
+
+# Description
+Sets up capillary pressure as a secondary variable. When `cell_scaling=true`,
+creates a `ScaledCapillaryPressure` with per-cell scaling parameters controlled
+via an added parameter `CapillaryPressureScaling` that takes default values from
+`reservoir_domain(model)[:capillary_pressure_scaling]`.
+"""
+function set_capillary_pressure!(model;
+        cell_scaling = false,
+        regions = nothing,
+        kwarg...
+    )
+    model = reservoir_model(model)
+    pc = setup_capillary_pressure_functions(model; kwarg...)
+    if cell_scaling
+        pc_def = ScaledCapillaryPressure(pc, regions = regions)
+        set_parameters!(model, CapillaryPressureScaling = CapillaryPressureScaling())
+        reservoir = reservoir_domain(model)
+        if !haskey(reservoir, :capillary_pressure_scaling)
+            jutul_message("CapillaryPressure", "Adding :capillary_pressure_scaling to reservoir domain for cell-wise capillary pressure scaling")
+            reservoir[:capillary_pressure_scaling] = zeros(length(pc), number_of_cells(reservoir))
+        end
+    else
+        pc_def = SimpleCapillaryPressure(pc, regions = regions)
+    end
+    set_secondary_variables!(model, CapillaryPressure = pc_def)
+end
+
+function setup_capillary_pressure_functions(model;
+        pcow = nothing,
+        pcog = nothing,
+        pcwg = nothing,
+        pc = nothing
+    )
+    model = reservoir_model(model)
+    sys = model.system
+    phases = get_phases(sys)
+    has_water = AqueousPhase() in phases
+    has_oil = LiquidPhase() in phases
+    has_gas = VaporPhase() in phases
+    has_wo = has_water && has_oil
+    has_og = has_oil && has_gas
+    has_wg = has_water && has_gas && !has_oil
+
+    function convert_table(x::Tuple, name)
+        length(x) == 2 || error("Capillary pressure table $name must have 2 columns")
+        jutul_message("CapillaryPressure", "Interpreting $name tuple as 2 columns as [S, pc]")
+        x = get_1d_interpolator(x[1], x[2])
+        return x
+    end
+
+    function convert_table(x::AbstractMatrix, name)
+        if size(x, 2) == 4
+            jutul_message("CapillaryPressure", "Interpreting $name table with 4 columns as [S, kr1, kr2, pc]")
+            S = x[:, 1]
+            pcvals = x[:, 4]
+        elseif size(x, 2) == 2
+            jutul_message("CapillaryPressure", "Interpreting $name table with 2 columns as [S, pc]")
+            S = x[:, 1]
+            pcvals = x[:, 2]
+        else
+            error("Capillary pressure table $name must have either 2 or 4 columns")
+        end
+        return get_1d_interpolator(S, pcvals)
+    end
+
+    function convert_table(x::Jutul.LinearInterpolant, name)
+        return x
+    end
+
+    function convert_table(x::Nothing, name)
+        jutul_message("$name not provided, using zero capillary pressure")
+        return get_1d_interpolator([0.0, 1.0], [0.0, 0.0])
+    end
+
+    nph = number_of_phases(sys)
+    npc = nph - 1
+    if isnothing(pc)
+        pc = []
+        if has_wo
+            push!(pc, convert_table(pcow, "pcow"))
+        else
+            isnothing(pcow) || jutul_message("CapillaryPressure", "Ignoring pcow since system does not contain water and oil")
+        end
+        if has_og
+            push!(pc, convert_table(pcog, "pcog"))
+        else
+            isnothing(pcog) || jutul_message("CapillaryPressure", "Ignoring pcog since system does not contain oil and gas")
+        end
+        if has_wg
+            push!(pc, convert_table(pcwg, "pcwg"))
+        else
+            isnothing(pcwg) || jutul_message("CapillaryPressure", "Ignoring pcwg since system does not contain water and gas without oil")
+        end
+    else
+        length(pc) == npc || error("Explicitly given capillary pressure table pc must have $npc columns for a system with $nph phases")
+    end
+    return pc
+end
