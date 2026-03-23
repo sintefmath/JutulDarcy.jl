@@ -165,68 +165,61 @@ function fracture_domain(mesh::JutulMesh;
 
 end
 
-function add_fractures_to_model!(model::MultiModel, fractures::DataDomain; kwarg...)
-    
+function setup_fractured_reservoir_model(matrix::DataDomain, fractures::DataDomain, system::Union{JutulSystem, Symbol};
+    wells=[], kwarg...)
+
+    fmc = JutulDarcy.FractureMatrixConnection()
+    if haskey(fractures, :matrix_faces)
+        matrix_faces = fractures[:matrix_faces, fmc]
+    else
+        @warn "Matrix faces corresponding to fractures not found in fracture \
+        domain. Fractures will not affect flow accross any matrix faces unless \
+        already accounted for in the matrix domain."
+        matrix_faces = missing
+    end
+    if haskey(fractures, :matrix_cells)
+        matrix_cells = fractures[:matrix_cells, fmc]
+    else
+        @warn "Matrix cells connected to fractures not found in fracture \
+        domain. Cannot set up matrix/fracture cross terms and adjust matrix \
+        cell volumes to account for fracture volumes."
+        matrix_cells = missing
+    end
+
+    if ismissing(matrix_faces)        
+        fractured_wells = wells
+    else
+        matrix_mesh = physical_representation(matrix)
+        fractured_wells = []
+        for well in wells
+            well = add_fractures_to_well(well, fractures, matrix_mesh, unique(matrix_faces))
+            push!(fractured_wells, well)
+        end
+    end
+
     # Get matrix model
+    model = setup_reservoir_model(matrix, system; wells=fractured_wells, kwarg...)
     matrix_model = model.models[:Reservoir]
-    println(typeof(matrix_model.secondary_variables[:PhaseMassDensities]))
-    system = matrix_model.system
-    thermal = model_is_thermal(matrix_model)
 
     # Set up fracture model with same system and context as matrix model
     fracture_model = setup_reservoir_model(fractures, system;
-        context=model.context, thermal=thermal, kwarg...)
+        context=model.context, kwarg...)
     if fracture_model isa Jutul.MultiModel
         fracture_model = fracture_model.models[:Reservoir]
     end
     # Add extra entities to fracture model for fracture-matrix connections
-    fmc = JutulDarcy.FractureMatrixConnection()
     fracture_model.domain.entities[fmc] = count_entities(fractures, fmc)
 
     # Block flow across matrix faces that are connected to fractures
-    fmc = JutulDarcy.FractureMatrixConnection()
-    if haskey(fractures, :matrix_faces)
-        matrix_faces = fractures[:matrix_faces, fmc]
+    if !ismissing(matrix_faces)
         block_fracture_face_connections!(matrix_model, unique(matrix_faces))
-    else
-        @warn "Matrix faces corresponding to fractures not found in fracture domain. \
-        Fracture faces will not be blocked and fractures will not affect flow \
-        through matrix cells unless already accounted for in the matrix domain."
     end
-    if haskey(fractures, :matrix_cells)
+    if !ismissing(matrix_cells)
         adjust_matrix_cell_volumes!(matrix_model, fractures)
-    else
-        @warn "Matrix cells"
     end
-
-    # Add fracture perforations to wells
-    matrix_mesh = physical_representation(matrix_model.domain)
-    wells = []
-    for (name, well) in get_model_wells(model; data_domain=true)
-        well = add_fractures_to_well(well, fractures, matrix_mesh, unique(matrix_faces))
-        push!(wells, well)
-    end
-
-    # Set up new model with fracture model and updated wells TODO: This
-    # reconstructs the entire model, which may miss some of the internal
-    # structure of the original model. We should find a way to ensure the
-    # original model structure is preserved.
-    model = setup_reservoir_model(matrix_model.data_domain, system;
-        wells=wells,
-        thermal=model_is_thermal(matrix_model),
-        context=model.context, kwarg...)
 
     # Add the fracture model to the multimodel
     model = add_fracture_model(model, fracture_model)
-    for (k, m) in pairs(model.models)
-        if k ∈ [:Reservoir, :Fractures] || JutulDarcy.model_or_domain_is_well(m)
-            set_secondary_variables!(m;
-                PhaseMassDensities = matrix_model.secondary_variables[:PhaseMassDensities],
-                PhaseViscosities = matrix_model.secondary_variables[:PhaseViscosities],
-                ComponentHeatCapacity = matrix_model.secondary_variables[:ComponentHeatCapacity]
-            )
-        end
-    end
 
     # Set up DFM cross-terms
     add_fracture_cross_terms!(model, fractures)
@@ -507,7 +500,7 @@ function add_fracture_cross_terms!(model::MultiModel, fractures::DataDomain)
 
 end
 
-function setup_fractured_reservoir_model(matrix::DataDomain, fractures::DataDomain, system::Union{JutulSystem, Symbol};
+function setup_fractured_reservoir_model___(matrix::DataDomain, fractures::DataDomain, system::Union{JutulSystem, Symbol};
     block_backend = true,
     kwarg...)
 
