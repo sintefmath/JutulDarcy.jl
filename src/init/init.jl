@@ -1101,6 +1101,9 @@ function equilibriate_phase_pressures_and_saturations(model::SimulationModel, de
     ref_ix = get_reference_phase_index(model.system)
     length(contacts) == nph-1 || error("Number of contacts must be one less than number of phases, got $(length(contacts)) contacts for $nph phases.")
 
+    if ismissing(satnum)
+        satnum = 1
+    end
     if ismissing(pc)
         pc_def = get(model.secondary_variables, :CapillaryPressure, nothing)
         if !isnothing(pc_def)

@@ -265,13 +265,15 @@ ax3 = Axis(fig[1, 3], title = "Water-Oil relative permeability", ylabel = "Kr", 
 plt_krw = lines!(ax3, krw.k.X, krw.k.F)
 fig
 # ## Scaled capillary pressure
-model_bo_scaled = setup_reservoir_model(reservoir, case.model);
+model_bo_scaled = setup_reservoir_model(deepcopy(reservoir), case.model);
 props = case.input_data["PROPS"]
 swof = props["SWOF"][1]
 sgof = props["SGOF"][1]
-
-
 set_capillary_pressure!(model_bo_scaled, pcow = swof, pcog = sgof, cell_scaling = true)
+##
+eql_bo = EquilibriumRegion(model_bo_scaled, 100*bar, 1000.0, woc = 1600.0, goc = 1100.0, rs = 15.0)
+state0_bo_scaled = setup_reservoir_state(model_bo_scaled, eql_bo)
+plot_state0(state0_bo_scaled)
 
 
 
