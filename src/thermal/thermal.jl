@@ -177,7 +177,7 @@ end
 Variable defining the fluid component conductivity.
 """
 struct FluidThermalConductivities <: VectorVariables end
-Jutul.variable_scale(::FluidThermalConductivities) = 1e-10
+Jutul.variable_scale(::FluidThermalConductivities) = 1.0
 Jutul.minimum_value(::FluidThermalConductivities) = 0.0
 Jutul.values_per_entity(model, ::FluidThermalConductivities) = number_of_phases(model.system)
 
@@ -201,7 +201,7 @@ function Jutul.default_parameter_values(data_domain, model, param::FluidThermalC
             end
         end
     else
-        error(":fluid_thermal_conductivities or :fluid_thermal_conductivities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+        error(":fluid_thermal_conductivities or :fluid_thermal_conductivity symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
     return ensure_non_negative_trans(T, "fluid_thermal_conductivities")
 end
@@ -209,7 +209,7 @@ end
 Jutul.associated_entity(::FluidThermalConductivities) = Faces()
 
 struct RockThermalConductivities <: ScalarVariable end
-Jutul.variable_scale(::RockThermalConductivities) = 1e-10
+Jutul.variable_scale(::RockThermalConductivities) = 1.0
 Jutul.minimum_value(::RockThermalConductivities) = 0.0
 Jutul.associated_entity(::RockThermalConductivities) = Faces()
 
@@ -220,7 +220,7 @@ function Jutul.default_parameter_values(data_domain, model, param::RockThermalCo
     elseif haskey(data_domain, :rock_thermal_conductivity, Cells())
         T = reservoir_conductivity(data_domain)
     else
-        error(":rock_thermal_conductivities or :rock_thermal_conductivities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+        error(":rock_thermal_conductivities or :rock_thermal_conductivity symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
     return ensure_non_negative_trans(T, "rock_thermal_conductivities")
 end
