@@ -112,33 +112,48 @@ end
     end
 end
 
-struct ScaledCapillaryPressure{T, R, S} <: AbstractCapillaryPressure
+struct CapillaryPressureScaling <: Jutul.VectorVariables end
+
+Jutul.degrees_of_freedom_per_entity(model, v::CapillaryPressureScaling) = number_of_phases(model.system) - 1
+Jutul.default_value(::CapillaryPressureScaling) = 1.0
+
+function Jutul.default_parameter_values(data_domain, model, param::CapillaryPressureScaling, symb)
+    N = Jutul.degrees_of_freedom_per_entity(model, param)
+    M = number_of_cells(model.domain)
+    if haskey(data_domain, :capillary_pressure_scaling)
+        out = data_domain[:capillary_pressure_scaling, Cells()]
+    else
+        v = Jutul.default_value(param)
+        out = fill(v, N, M)
+    end
+    size(out) == (N, M) || error("Capillary pressure scaling must have size (N, number of cells), where N is the number of non-reference phases.")
+    return out
+end
+
+struct ScaledCapillaryPressure{T, R} <: AbstractCapillaryPressure
     pc::T
     regions::R
-    scaling::S
-    function ScaledCapillaryPressure(pc::C, scaling::S; regions::T = nothing) where {C, S, T}
+    function ScaledCapillaryPressure(pc::C; regions::T = nothing) where {C, T}
         is_tup_tup = first(pc) isa Tuple
         if isnothing(regions)
             @assert !is_tup_tup || all(x -> length(x) == 1, pc)
         end
         pc = map(x -> region_wrap(x, regions), pc)
         pc = tuple(pc...)
-        @assert length(pc) == size(scaling, 1)
-        return new{typeof(pc), T, S}(pc, regions, scaling)
+        return new{typeof(pc), T}(pc, regions)
     end
 end
 
 function Jutul.subvariable(p::ScaledCapillaryPressure, map::FiniteVolumeGlobalMap)
     c = map.cells
     regions = Jutul.partition_variable_slice(p.regions, c)
-    scaling = Jutul.partition_variable_slice(p.scaling, c)
-    return ScaledCapillaryPressure(p.pc, scaling, regions = regions)
+    return ScaledCapillaryPressure(p.pc, regions = regions)
 end
 
-@jutul_secondary function update_pc!(Δp, pc::ScaledCapillaryPressure, model, Saturations, ix)
+@jutul_secondary function update_pc!(Δp, pc::ScaledCapillaryPressure, model, Saturations, CapillaryPressureScaling, ix)
     cap = pc.pc
     npc = size(Δp, 1)
-    scale = pc.scaling
+    scale = CapillaryPressureScaling
     reference_ph = get_reference_phase_index(model.system)
     if npc == 1
         if reference_ph == 1

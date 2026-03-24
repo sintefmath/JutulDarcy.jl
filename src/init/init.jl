@@ -765,7 +765,9 @@ function parse_state0_equil(model, datafile; normalize = :sum, cell_nz = 1)
             # -> p_w - p_o = pc_ow
             pc_scale[1, i] = pc_eql/pc_actual
         end
-        model.secondary_variables[:CapillaryPressure] = ScaledCapillaryPressure(pc.pc, pc_scale, regions = pc.regions)
+        model.secondary_variables[:CapillaryPressure] = ScaledCapillaryPressure(pc.pc, regions = pc.regions)
+        model.parameters[:CapillaryPressureScaling] = CapillaryPressureScaling()
+        model.data_domain[:capillary_pressure_scaling, Cells()] = pc_scale
     end
     delete!(init, :EquilibriationPressures)
     return init
@@ -918,7 +920,8 @@ function determine_saturations(depths, contacts, pressures;
         ref_ix = 2,
         s_min = missing,
         s_max = missing,
-        pc = missing
+        pc = missing,
+        pc_scaling = missing
     )
     nc = length(depths)
     T = promote_type(eltype(depths), eltype(pressures), eltype(contacts))
@@ -955,7 +958,12 @@ function determine_saturations(depths, contacts, pressures;
                 s_pcmax = s[findfirst(isequal(pc_max), pc_pair)]
                 has_pc = norm(pc_pair, 2) > 1e-8
                 for i in eachindex(depths)
-                    dp = pressures[ph, i] - pressures[ref_ix, i]
+                    if ismissing(pc_scaling)
+                        scale = 1.0
+                    else
+                        scale = pc_scaling[offset, i]
+                    end
+                    dp = (pressures[ph, i] - pressures[ref_ix, i])/scale
                     if dp > pc_max
                         s_eff = s_max[ph][i]
                         if has_pc
@@ -975,7 +983,7 @@ function determine_saturations(depths, contacts, pressures;
                     if !isfinite(I_pc(s_eff))
                         pcval = 0.0
                     end
-                    sat_pc[ph, i] = pcval
+                    sat_pc[ph, i] = pcval*scale
                 end
                 offset += 1
             end
@@ -1097,6 +1105,9 @@ function equilibriate_phase_pressures_and_saturations(model::SimulationModel, de
     ref_ix = get_reference_phase_index(model.system)
     length(contacts) == nph-1 || error("Number of contacts must be one less than number of phases, got $(length(contacts)) contacts for $nph phases.")
 
+    if ismissing(satnum)
+        satnum = 1
+    end
     if ismissing(pc)
         pc_def = get(model.secondary_variables, :CapillaryPressure, nothing)
         if !isnothing(pc_def)
@@ -1144,6 +1155,11 @@ function equilibriate_phase_pressures_and_saturations(model::SimulationModel, de
         density_function = density_f
     end
     # Expand here
+    if haskey(model.data_domain, :capillary_pressure_scaling)
+        pc_scaling = view(model.data_domain[:capillary_pressure_scaling], :, cells)
+    else
+        pc_scaling = missing
+    end
     is_multipoint = !(ismissing(cell_nz) || cell_nz == 1)
     if is_multipoint
         cell_nz > 1 || error("cell_nz must be greater than 1 for multi-point initialization, got cell_nz=$(cell_nz).")
@@ -1159,6 +1175,9 @@ function equilibriate_phase_pressures_and_saturations(model::SimulationModel, de
         depths, depth_index = discretize_depths(depths, min_z_cells, max_z_cells, cell_nz)
         s_max = [s[depth_index] for s in s_max]
         s_min = [s[depth_index] for s in s_min]
+        if !ismissing(pc_scaling)
+            pc_scaling = pc_scaling[:, depth_index]
+        end
     end
     zmin = minimum(depths) - 1.0
     zmax = maximum(depths) + 1.0
@@ -1169,7 +1188,14 @@ function equilibriate_phase_pressures_and_saturations(model::SimulationModel, de
         pc = zeros(eltype(pressures), size(pressures))
         active_phase = fill(1, length(depths))
     else
-        s, pc, active_phase = determine_saturations(depths, contacts, pressures; ref_ix = ref_ix, pc = pc, s_min = s_min, s_max = s_max, kwarg...)
+        s, pc, active_phase = determine_saturations(depths, contacts, pressures;
+            ref_ix = ref_ix,
+            pc = pc,
+            s_min = s_min,
+            s_max = s_max,
+            pc_scaling = pc_scaling,
+            kwarg...
+        )
     end
     if is_multipoint
         nc = length(cells)

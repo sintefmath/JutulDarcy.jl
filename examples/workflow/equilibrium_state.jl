@@ -264,6 +264,27 @@ plt_sw = lines!(ax2, sw, reservoir[:cell_centroids][3, :])
 ax3 = Axis(fig[1, 3], title = "Water-Oil relative permeability", ylabel = "Kr", xlabel = "Water saturation")
 plt_krw = lines!(ax3, krw.k.X, krw.k.F)
 fig
+# ## Scaled capillary pressure
+# We can also perform cell-by-cell scaling of the capillary pressure. This is
+# done by providing a matrix of scaling factors for the capillary pressure,
+# which will be multiplied with the capillary pressure function on a
+# cell-by-cell basis. This can be used to model heterogeneity in the capillary
+# pressure, for example due to variations in pore size distribution or
+# wettability. The scaling factors can be provided as a keyword argument to
+# `set_capillary_pressure!`, and will be stored in the reservoir domain under
+# the key `:capillary_pressure_scaling`.
+#
+# We set up capillary pressure manually by taking the SPE9 SWOF/SGOF tables and
+# then applying uniform scaling per curve.
+model_bo_scaled = setup_reservoir_model(deepcopy(reservoir), case.model);
+props = case.input_data["PROPS"]
+swof = props["SWOF"][1]
+sgof = props["SGOF"][1]
+scaling = ones(2, number_of_cells(reservoir))
+scaling[1, :] .= 10.0
+set_capillary_pressure!(model_bo_scaled, pcow = swof, pcog = sgof, cell_scaling = scaling)
+state0_bo_scaled = setup_reservoir_state(model_bo_scaled, eql_bo)
+plot_state0(state0_bo_scaled)
 
 # ## Set up a compositional model
 # We will now set up a compositional model with two components. The components
