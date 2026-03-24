@@ -28,6 +28,7 @@ function get_example_paths(; check_empty = true)
     examples["data_assimilation"] = []
     examples["geothermal"] = []
     examples["compositional"] = []
+    examples["dfm"] = []
     examples["discretization"] = []
     examples["properties"] = []
     examples["validation"] = []
