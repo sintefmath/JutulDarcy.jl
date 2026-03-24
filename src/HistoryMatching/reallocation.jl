@@ -33,6 +33,10 @@ function reallocate_oil_production_rates(smry, group;
 
             remaining_oil = total_oil_rate - sum(new_orates)
             it += 1
+            if it > 1000
+                @warn "Reallocation did not converge after 1000 iterations. Remaining oil to distribute: $remaining_oil"
+                break
+            end
         end
         for (i, w) in enumerate(group)
             new_oil_rate = new_orates[i]
