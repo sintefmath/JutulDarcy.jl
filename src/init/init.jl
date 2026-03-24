@@ -926,6 +926,16 @@ function determine_saturations(depths, contacts, pressures;
     nc = length(depths)
     T = promote_type(eltype(depths), eltype(pressures), eltype(contacts))
     nph = length(contacts) + 1
+    if !ismissing(s_min)
+        for el in s_min
+            T = promote_type(T, eltype(el))
+        end
+    end
+    if !ismissing(s_max)
+        for el in s_max
+            T = promote_type(T, eltype(el))
+        end
+    end
     if ismissing(s_min)
         s_min = [zeros(T, nc) for i in 1:nph]
     end
@@ -978,8 +988,15 @@ function determine_saturations(depths, contacts, pressures;
                         s_eff = I(dp)
                     end
                     s_eff = clamp(s_eff, s_min[ph][i], s_max[ph][i])
-                    sat[ph, i] = s_eff
                     pcval = I_pc(s_eff)
+                    T_promoted = promote_type(typeof(s_eff), eltype(sat), typeof(pcval))
+                    if T_promoted != eltype(sat)
+                        sat = T_promoted.(sat)
+                    end
+                    if T_promoted != eltype(sat_pc)
+                        sat_pc = T_promoted.(sat_pc)
+                    end
+                    sat[ph, i] = s_eff
                     if !isfinite(I_pc(s_eff))
                         pcval = 0.0
                     end
