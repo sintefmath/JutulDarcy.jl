@@ -48,6 +48,8 @@ setup_reservoir_model
 
 ### Properties and functions
 
+#### Relative permeability
+
 ```@docs
 set_relative_permeability!
 JutulDarcy.StoneIIMethod
@@ -55,6 +57,11 @@ JutulDarcy.SaturationWeightedOilRelperm
 JutulDarcy.StoneIMethod
 ```
 
+#### Capillary pressure
+
+```@docs
+set_capillary_pressure!
+```
 
 ### Initial state
 
