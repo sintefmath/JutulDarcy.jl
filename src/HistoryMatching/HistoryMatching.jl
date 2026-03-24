@@ -6,4 +6,5 @@ module HistoryMatching
     include("utils.jl")
     include("calculation.jl")
     include("calculation_sum.jl")
+    include("reallocation.jl")
 end
