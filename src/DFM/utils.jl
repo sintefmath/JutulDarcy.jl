@@ -1,4 +1,34 @@
 
+"""
+    fracture_domain(mesh, matrix; kwarg...)
+
+Create a fracture `DataDomain` from a fracture network `mesh` and a `matrix`
+domain, including the fracture-matrix connection data needed for discrete
+fracture-matrix (DFM) simulations.
+
+The function sets up a [`FractureMatrixConnection`](@ref) entity that stores
+per- connection data (connected cells, matrix faces, matrix permeability,
+porosity, thermal conductivities, and cell centroids) used by the DFM
+cross-terms.
+
+# Arguments
+- `mesh::JutulMesh`: the fracture mesh (e.g. an embedded surface mesh).
+- `matrix::DataDomain`: the matrix reservoir domain.
+
+# Keyword arguments
+- `connection_cells_fracture`: fracture cells participating in the connection
+  (default: all non-intersection cells).
+- `matrix_faces`: matrix faces that correspond to the fracture cells. Looked up
+  from `mesh.parent_faces` when not provided.
+- `matrix_cells`: matrix cells on each side of the `matrix_faces`. Inferred from
+  the matrix neighborship when not provided.
+- Remaining keyword arguments are forwarded to the
+  [`fracture_domain(mesh;  ...)`](@ref) method.
+
+# Returns
+A `DataDomain` representing the fracture network, augmented with
+`FractureMatrixConnection` entities and the associated matrix data.
+"""
 function fracture_domain(mesh::JutulMesh, matrix::DataDomain;
     connection_cells_fracture=missing,
     matrix_faces=missing,
@@ -71,6 +101,24 @@ function fracture_domain(mesh::JutulMesh, matrix::DataDomain;
 
 end
 
+"""
+    fracture_domain(mesh; aperture, hydralic_aperture, permeability, kwarg...)
+
+Create a fracture `DataDomain` from a fracture `mesh` without matrix connection
+data. Cell volumes and face areas are scaled by the fracture `aperture`, and
+permeability is computed from the cubic law (`a²/12`) when not explicitly given.
+
+# Keyword arguments
+- `aperture = 0.5e-3 m`: physical aperture of the fracture (scalar or per-cell
+  vector).
+- `hydralic_aperture = aperture`: hydraulic aperture used for the cubic-law
+  permeability estimate.
+- `permeability`: fracture permeability. Defaults to `hydralic_aperture²/12`.
+- Remaining keyword arguments are forwarded to `reservoir_domain`.
+
+# Returns
+A `DataDomain` for the fracture with adjusted volumes, areas, and aperture.
+"""
 function fracture_domain(mesh::JutulMesh;
     aperture=0.5e-3si_unit(:meter),
     hydralic_aperture=aperture,
@@ -112,6 +160,36 @@ function fracture_domain(mesh::JutulMesh;
 
 end
 
+"""
+    setup_fractured_reservoir_model(matrix, fractures, system; wells=[], kwarg...)
+
+Build a `MultiModel` that couples a matrix reservoir model with a discrete
+fracture model (DFM).
+
+The function performs the following steps:
+1. Optionally extends each well to include fracture perforations.
+2. Creates the matrix model via `setup_reservoir_model`.
+3. Creates the fracture model with DFM-specific parameter definitions
+   (`TransmissibilitiesDFM`, and thermal conductivity variants when thermal).
+4. Blocks flow across matrix faces that coincide with fractures.
+5. Adjusts matrix cell volumes to subtract the fracture volume contribution.
+6. Adds the fracture model and DFM cross-terms to the `MultiModel`.
+
+# Arguments
+- `matrix::DataDomain`: the matrix reservoir domain.
+- `fractures::DataDomain`: the fracture domain, typically created by
+  [`fracture_domain`](@ref).
+- `system::Union{JutulSystem, Symbol}`: the physical system (e.g.
+  `:immiscible`, `:compositional`, or a constructed `JutulSystem`).
+
+# Keyword arguments
+- `wells = []`: vector of well configurations to include in the model.
+- Remaining keyword arguments are forwarded to `setup_reservoir_model`.
+
+# Returns
+A `MultiModel` containing `:Reservoir` (matrix), `:Fracture`, and well
+sub-models with the appropriate DFM cross-terms.
+"""
 function setup_fractured_reservoir_model(matrix::DataDomain, fractures::DataDomain, system::Union{JutulSystem, Symbol};
     wells=[], kwarg...)
 
