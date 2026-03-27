@@ -92,5 +92,9 @@ end
     include("historymatch.jl")
 end
 
+@testitem "DFM" begin
+    include("dfm.jl")
+end
+
 @run_package_tests
 nothing
