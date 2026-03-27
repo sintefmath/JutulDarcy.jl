@@ -195,6 +195,7 @@ Partition the reservoir model into coarser grids.
 - `compartments`: Optional. A vector specifying compartments for the cells.
   Cells in different compartments will not be grouped together during
   coarsening.
+- `kwarg...`: Additional keyword arguments that are passed onto the partitioner.
 
 # Returns
 - A partitioned version of the reservoir model.
@@ -204,7 +205,8 @@ function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, me
         parameters = missing,
         wells_in_single_block = false,
         partitioner_conn_type = :trans,
-        compartments = missing
+        compartments = missing,
+        kwarg...
     )
     domain = model |> reservoir_model |> reservoir_domain
     mesh = physical_representation(domain)
@@ -249,7 +251,7 @@ function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, me
         else
             groups = Vector{Vector{Int}}()
         end
-        p = Jutul.partition_hypergraph(N, coarsedim, partitioner, groups = groups)
+        p = Jutul.partition_hypergraph(N, coarsedim, partitioner, groups = groups, kwarg...)
         p = Int64.(p)
     end
     if ismissing(compartments)
