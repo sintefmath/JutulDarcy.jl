@@ -1,5 +1,5 @@
-using LinearAlgebra
-using StaticArrays
+# using LinearAlgebra
+# using StaticArrays
 
 function fracture_domain(mesh::JutulMesh, matrix::DataDomain;
     connection_cells_fracture=missing,
@@ -20,15 +20,16 @@ function fracture_domain(mesh::JutulMesh, matrix::DataDomain;
         if hasproperty(mesh, :parent_faces)
             matrix_faces = mesh.parent_faces
         else
-            @warn "Matrix faces not provided and not found in fracture mesh.\
-            Fractures will not affect flow through matrix cells unless already\
+            @warn "Matrix faces not provided and not found in fracture mesh. \
+            Fractures will not affect flow through matrix cells unless already \
             accounted for in the provided matrix domain."
         end
     end
     # Define matrix cells connected to fractures (if given)
     if ismissing(matrix_cells)
         !ismissing(matrix_faces) || error("Must provide matrix_cells if \
-            matrix_faces is not provided in order to set up matrix/fracture connections.")
+            matrix_faces is not provided in order to set up matrix/fracture \
+            connections.")
         matrix_mesh = physical_representation(matrix)
         N = get_neighborship(matrix_mesh)
         matrix_cells = N[:, matrix_faces][:]
@@ -248,7 +249,7 @@ function add_fractures_to_well(well, fractures::DataDomain, matrix_mesh, matrix_
 
     well0 = well
     neighborship, perforation_cells_fractures, perforation_cells_fractures_self, old_ix = 
-    add_fracture_cells(matrix_mesh, well0.representation, matrix_faces)
+    add_fracture_cells_to_well(matrix_mesh, well0.representation, matrix_faces)
 
     has_fracture_perforations = length(perforation_cells_fractures) > 0
     if !has_fracture_perforations
@@ -380,6 +381,50 @@ function add_fractures_to_well(well, fractures::DataDomain, matrix_mesh, matrix_
     well[:cell_dims_frac, FracturePerforations()] = Δ
 
     return well
+
+end
+
+function add_fracture_cells_to_well(g_matrix, representation, fracture_faces)
+    
+    N = representation.neighborship
+    nc = maximum(N)
+    w2m = fill(0, nc)
+    perf = representation.perforations
+    w2m[perf.self] .= perf.reservoir
+
+    N_new = Matrix{Int}(undef, 2, 0)
+    N_matrix = get_neighborship(g_matrix)
+    perforation_cells_fractures = Int[]
+    perforation_cells_fractures_self = Int[]
+
+    wc = maximum(N)
+    added = false
+    old_ix = Int[]
+    for (seg, mcells) in enumerate(eachcol(w2m[N]))
+        ix = vec(all(mcells .== N_matrix, dims = 1) .|| all(reverse(mcells) .== N_matrix, dims = 1))
+        if any(ix)
+            @assert sum(ix) == 1 "Failed to find unique matching face for well segment perforation"
+            face = findfirst(ix)
+            if face ∈ fracture_faces
+                wc += 1
+                fcell = findfirst(fracture_faces .== face)
+                push!(perforation_cells_fractures, fcell)
+                push!(perforation_cells_fractures_self, wc)
+                m2f = [N[1, seg], wc]
+                f2m = [wc, N[2, seg]]
+                N_new = hcat(N_new, m2f, f2m)
+                push!(old_ix, 0, 0)
+                added = true
+            end
+        end
+        if !added
+            N_new = hcat(N_new, N[:, seg])
+            push!(old_ix, seg)
+        end
+        added = false
+    end
+
+    return N_new, perforation_cells_fractures, perforation_cells_fractures_self, old_ix
 
 end
 
