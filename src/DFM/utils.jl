@@ -193,6 +193,9 @@ sub-models with the appropriate DFM cross-terms.
 function setup_fractured_reservoir_model(matrix::DataDomain, fractures::DataDomain, system::Union{JutulSystem, Symbol};
     wells=[], kwarg...)
 
+    system isa ImmiscibleSystem || system == :geothermal || error(
+        "DFM currently supports only Immiscible and :geothermal fluid systems.")
+
     fmc = JutulDarcy.FractureMatrixConnection()
     if haskey(fractures, :matrix_faces)
         matrix_faces = fractures[:matrix_faces, fmc]
