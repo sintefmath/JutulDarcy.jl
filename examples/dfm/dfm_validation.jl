@@ -6,24 +6,23 @@
 #
 # ## Background
 # Fractures in porous media are thin, high-permeability features that
-# significantly affect fluid flow and heat transport. Two common approaches
-# exist for modeling fractures:
+# significantly affect fluid flow and heat transport. In this example, we
+# demonstrate two common approaches for modeling fractures:
 #
 # 1. **Full-dimensional (FD)**: The fracture is explicitly resolved in the mesh
 #    as thin cells with high permeability. This is accurate but requires very
 #    fine grids to resolve the fracture aperture.
 #
-# 2. **Lower-dimensional (DFM)**: The fracture is represented as a
+# 2. **Discrete Fracture Modeling (DFM)**: The fracture is represented as a
 #    codimension-one entity (surface in 3D, line in 2D) embedded in the matrix
 #    mesh. Flow between matrix and fracture is handled via cross-terms. This
 #    approach avoids the need to resolve the fracture aperture in the mesh and
-#    is much more computationally efficient.
+#    gives much more flexibility in handling complex fracture geometries.
 #
 # In this example, we set up a fractured cube with an injector–producer
 # doublet and compare the two approaches — first for two-phase immiscible flow
 # and then for geothermal heat transport. We demonstrate that the DFM gives
-# results that closely match the full-dimensional reference in both cases while
-# using significantly fewer cells.
+# results that closely match the full-dimensional reference in both cases.
 
 # ## Setup
 using Jutul, JutulDarcy, HYPRE, GLMakie
@@ -42,7 +41,7 @@ Darcy, bar, kg, meter, Kelvin, year = si_units(:darcy, :bar, :kilogram, :meter, 
 #
 # - A **full-dimensional** (FD) Cartesian grid where thin layers of cells
 #   explicitly represent the fractures. This serves as the reference solution.
-# - A **lower-dimensional** (DFM) cut mesh where fractures are embedded
+# - A **discrete fracture model** (DFM) cut mesh where fractures are embedded
 #   surfaces. Cross-terms handle the fracture–matrix coupling.
 #
 # Both setups share the same injector–producer well pair along the ``z``-axis,
@@ -257,10 +256,10 @@ res_dfm_tp = simulate_reservoir(case_dfm_tp; sim_args...);
 # ### Two-phase well comparison
 # If the DFM correctly reproduces the fracture physics, injection and
 # production curves should closely follow the full-dimensional reference.
-plot_well_results([res_fd_tp.wells, res_dfm_tp.wells],
+plot_well_results([res_fd_tp.wells, res_dfm_tp.wells];
     names = ["Full-dimensional", "DFM"])
 
-# ### Two-phase pointwise error
+# ### Two-phase cell-wise error
 # Map the DFM solution back onto the FD grid and compute cell-wise saturation
 # differences.
 fd_domain_tp = case_fd_tp.model[:Reservoir].data_domain
@@ -280,12 +279,10 @@ delta_tp = JutulDarcy.delta_state(states_recon_tp, states_fd_tp)
 plot_reservoir(case_fd_tp.model[:Reservoir], delta_tp; key = :Saturations)
 
 # ## Part 2 – Geothermal validation
-# Next we validate the DFM for a single-phase geothermal system. Cold water
-# (10 °C) is injected into a hot reservoir (90 °C), with fractures acting as
-# preferential pathways for heat transport. This causes earlier thermal
-# breakthrough at the producer compared to an unfractured reservoir. We inject
-# 50 pore volumes over one year so that the cold front has time to traverse the
-# domain.
+# Next we validate the DFM for a single-phase geothermal system. Cold water (10
+# °C) is injected into a hot reservoir (90 °C), with fractures acting as
+# preferential pathways for heat transport. We inject 50 pore volumes over one
+# year so that the cold water has time to cool down the surrounding rock.
 case_fd_gt, case_dfm_gt = setup_fractured_cube(
     cart_dims, phys_dims;
     fluid_model = :geothermal,
@@ -310,7 +307,7 @@ res_dfm_gt = simulate_reservoir(case_dfm_gt; sim_args_gt...);
 plot_well_results([res_fd_gt.wells, res_dfm_gt.wells],
     names = ["Full-dimensional", "DFM"])
 
-# ### Geothermal pointwise temperature error
+# ### Geothermal cell-wise temperature error
 # Map the DFM solution onto the FD grid and plot the cell-wise temperature
 # difference. Small differences confirm that the DFM faithfully captures
 # thermal transport through fractures.
