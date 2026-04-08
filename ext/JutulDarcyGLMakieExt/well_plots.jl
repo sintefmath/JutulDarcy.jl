@@ -743,6 +743,7 @@ function JutulDarcy.plot_summary_impl(arg...;
         cols = 1,
         alpha = 1.0,
         nxticks = 15,
+        legend = true,
         hideaxes = false,
         rows = ceil(length(plots)/cols) |> Int,
         colormap = missing,
@@ -896,7 +897,9 @@ function JutulDarcy.plot_summary_impl(arg...;
     else
         start_date = first(filtered_start_dates)
         if has_missing
-            println("Note: Multiple distinct start dates ($start_dates) found in summaries, using first entry as the base for values without dates.")
+            if length(filtered_start_dates) > 1
+                println("Note: Multiple distinct start dates ($start_dates) found in summaries, using first entry as the base for values without dates.")
+            end
             for (i, s) in enumerate(summaries)
                 if isnothing(s["TIME"].start_date) || ismissing(s["TIME"].start_date)
                     start_dates[i] = start_date
@@ -1063,7 +1066,7 @@ function JutulDarcy.plot_summary_impl(arg...;
                 ax.ytickformat[] = values -> [float_fmt(value, ystr) for value in values]
                 ax.title[] = tstr
             end
-            if nlines > 1
+            if nlines > 1 && legend
                 l = axislegend(ax, position = :lt)
                 if haskey(legends, i)
                     delete!(legends[i])

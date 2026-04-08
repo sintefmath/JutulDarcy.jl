@@ -1784,7 +1784,7 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
                 end
                 d[i] = q_t*mix
             else
-                if q_t == 0
+                if q_t == 0 || control isa DisabledControl
                     current_control = DisabledControl()
                     if target == BottomHolePressureTarget
                         v = well_state.Pressure[1]
