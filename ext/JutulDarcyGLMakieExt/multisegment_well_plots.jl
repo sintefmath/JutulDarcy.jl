@@ -218,7 +218,7 @@ Otherwise, plots all values as a single line.
 """
 function JutulDarcy.plot_well_vs_meters_drilled!(ax, well_model, values;
     label=nothing, colors = missing, meters_drilled=missing,
-    unit_sys="SI", field_name=missing, kwargs...)
+    unit_sys="SI", field_name=missing, section_labels=missing, kwargs...)
     # Compute meters drilled for each cell if not provided
     if ismissing(meters_drilled)
         meters_drilled = compute_meters_drilled(well_model)
@@ -266,10 +266,15 @@ function JutulDarcy.plot_well_vs_meters_drilled!(ax, well_model, values;
         for s in 1:num_sections
             cell_mask = sections .== s
             if any(cell_mask)  # Only plot if section has cells
-                section_label = if isnothing(label)
-                    "Section $s"
+                base_label = if !ismissing(section_labels)
+                    section_labels[s]
                 else
-                    "$label - Section $s"
+                    "Section $s"
+                end
+                section_label = if isnothing(label)
+                    base_label
+                else
+                    "$label - $base_label"
                 end
                 
                 lines!(ax, meters_drilled[cell_mask], values[cell_mask]; 
@@ -311,10 +316,11 @@ function JutulDarcy.plot_well_vs_meters_drilled(well_model, values;
                                     axis_kwargs=NamedTuple(), 
                                     unit_sys="SI",
                                     field_name=missing,
+                                    section_labels=missing,
                                     kwargs...)
     fig = Figure(; figure_kwargs...)
     ax = Axis(fig[1, 1]; axis_kwargs...)
-    JutulDarcy.plot_well_vs_meters_drilled!(ax, well_model, values; unit_sys=unit_sys, field_name=field_name, kwargs...)
+    JutulDarcy.plot_well_vs_meters_drilled!(ax, well_model, values; unit_sys=unit_sys, field_name=field_name, section_labels=section_labels, kwargs...)
     if haskey(well_model.data_domain, :section)
         Legend(fig[1, 2], ax, "Sections")
     end
@@ -349,6 +355,7 @@ function JutulDarcy.plot_well_states_interactive(well_model, states;
                                      time=missing, 
                                      names=missing, 
                                      unit_sys="Metric",
+                                     section_labels=missing,
                                      resolution=(1200, 800), 
                                      kwargs...)
     
@@ -567,7 +574,7 @@ function JutulDarcy.plot_well_states_interactive(well_model, states;
         field_data, unit_label = convert_state_field_values(field_data, Symbol(field), usys)
         
         # Plot data vs meters drilled (with section support)
-        JutulDarcy.plot_well_vs_meters_drilled!(ax, well_model, field_data; meters_drilled=meters_drilled, kwargs...)
+        JutulDarcy.plot_well_vs_meters_drilled!(ax, well_model, field_data; meters_drilled=meters_drilled, section_labels=section_labels, kwargs...)
         
         # Set consistent y-axis limits (convert from SI)
         y_min, y_max = field_y_limits[field]
@@ -642,7 +649,11 @@ function JutulDarcy.plot_well_states_interactive(well_model, states;
             section_colors = cgrad(:BrBg, n_sections, categorical = true)
         end
         entries = [LineElement(color = section_colors[s], linewidth = 3) for s in 1:n_sections]
-        labels = ["Section $s" for s in 1:n_sections]
+        labels = if !ismissing(section_labels)
+            [section_labels[s] for s in 1:n_sections]
+        else
+            ["Section $s" for s in 1:n_sections]
+        end
         Legend(fig[2:4, 4], entries, labels, "Sections")
     end
     
