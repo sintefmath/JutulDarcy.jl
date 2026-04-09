@@ -295,7 +295,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
             is_rate = endswith(info.unit_label, "/s")
             lbl = replace(info.unit_label, "/s" => "")
             @assert info.is_rate == is_rate
-            f_u, lbl = well_unit_conversion(unit_sys[], lbl, info)
+            f_u, lbl = JutulDarcy.summary_unit_and_label(unit_sys[], lbl, info)
             if f_u isa Symbol
                 qoi_val = convert_from_si.(qoi_val, f_u)
             else
@@ -500,78 +500,6 @@ function is_injectors(well_data)
     return D
 end
 
-function well_unit_conversion(unit_sys, lbl, info)
-    unit_sys = lowercase(unit_sys)
-    @assert unit_sys in ("metric", "si", "field")
-    t = info.unit_type
-    u = 1.0
-    if unit_sys == "metric"
-        if t == :gas_volume_surface
-            lbl = "m³"
-        elseif t == :gas_volume_reservoir
-            lbl = "m³"
-        elseif t == :liquid_volume_surface
-            lbl = "m³"
-        elseif t == :liquid_volume_reservoir
-            lbl = "m³"
-        elseif t == :pressure
-            u = :bar
-            lbl = "bar"
-        elseif t == :absolute_temperature
-            u = :Celsius
-            lbl = "°C"
-        elseif t == :relative_temperature
-            u = :Kelvin
-            lbl = "°K"
-        end
-    elseif unit_sys == "field"
-        if t == :gas_volume_surface
-            u = si_unit(:kilo)*si_unit(:feet)^3
-            lbl = "MScf"
-        elseif t == :gas_volume_reservoir
-            u = :stb
-            lbl = "bbl"
-        elseif t == :liquid_volume_surface
-            u = :stb
-            lbl = "bbl"
-        elseif t == :liquid_volume_reservoir
-            u = :stb
-            lbl = "bbl"
-        elseif t == :pressure
-            u = :psi
-            lbl = "psi"
-        elseif t == :absolute_temperature
-            u = :Rankine
-            lbl = "°R"
-        elseif t == :relative_temperature
-            u = :Fahrenheit
-            lbl = "°F"
-        elseif t == :mass
-            u = :pound
-            lbl = "pound"
-        end
-    elseif unit_sys == "si"
-        if t == :gas_volume_surface
-            lbl = "m³"
-        elseif t == :gas_volume_reservoir
-            lbl = "m³"
-        elseif t == :liquid_volume_surface
-            lbl = "m³"
-        elseif t == :liquid_volume_reservoir
-            lbl = "m³"
-        elseif t == :pressure
-            lbl = "Pa"
-        elseif t == :absolute_temperature
-            lbl = "°K"
-        elseif t == :relative_temperature
-            lbl = "°C"
-        elseif t == :mass
-            lbl = "kg"
-        end
-    end
-    return (u, lbl)
-end
-
 function JutulDarcy.plot_reservoir_measurables(arg...;
         type = :field,
         left = missing,
@@ -601,7 +529,7 @@ function JutulDarcy.plot_reservoir_measurables(arg...;
         else
             data = fieldvals[to_key(k)]
             out = data.values
-            factor, u = well_unit_conversion(usel, "", data)
+            factor, u = JutulDarcy.summary_unit_and_label(usel, "", data)
             if factor isa Symbol
                 out = convert_from_si.(out, factor)
             else
@@ -977,7 +905,7 @@ function JutulDarcy.plot_summary_impl(arg...;
                     v = plot_data(well_or_fld, pname, smry_no, info, units)
                     if !ismissing(info) && name != "NONE" && v isa AbstractArray
                         # ax.title[] = "$(name) $(info.legend)"
-                        _, u = well_unit_conversion(units, "", info)
+                        _, u = JutulDarcy.summary_unit_and_label(units, "", info)
                         if info.is_rate
                             if lowercase(string(summaries[smry_no]["UNIT_SYSTEM"])) == "si"
                                 v = v.*si_unit(:day)

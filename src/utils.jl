@@ -2969,6 +2969,78 @@ function summary_key_lookup()
     return out
 end
 
+function summary_unit_and_label(unit_sys, lbl, info)
+    unit_sys = lowercase(unit_sys)
+    @assert unit_sys in ("metric", "si", "field")
+    t = info.unit_type
+    u = 1.0
+    if unit_sys == "metric"
+        if t == :gas_volume_surface
+            lbl = "m³"
+        elseif t == :gas_volume_reservoir
+            lbl = "m³"
+        elseif t == :liquid_volume_surface
+            lbl = "m³"
+        elseif t == :liquid_volume_reservoir
+            lbl = "m³"
+        elseif t == :pressure
+            u = :bar
+            lbl = "bar"
+        elseif t == :absolute_temperature
+            u = :Celsius
+            lbl = "°C"
+        elseif t == :relative_temperature
+            u = :Kelvin
+            lbl = "°K"
+        end
+    elseif unit_sys == "field"
+        if t == :gas_volume_surface
+            u = si_unit(:kilo)*si_unit(:feet)^3
+            lbl = "MScf"
+        elseif t == :gas_volume_reservoir
+            u = :stb
+            lbl = "bbl"
+        elseif t == :liquid_volume_surface
+            u = :stb
+            lbl = "bbl"
+        elseif t == :liquid_volume_reservoir
+            u = :stb
+            lbl = "bbl"
+        elseif t == :pressure
+            u = :psi
+            lbl = "psi"
+        elseif t == :absolute_temperature
+            u = :Rankine
+            lbl = "°R"
+        elseif t == :relative_temperature
+            u = :Fahrenheit
+            lbl = "°F"
+        elseif t == :mass
+            u = :pound
+            lbl = "pound"
+        end
+    elseif unit_sys == "si"
+        if t == :gas_volume_surface
+            lbl = "m³"
+        elseif t == :gas_volume_reservoir
+            lbl = "m³"
+        elseif t == :liquid_volume_surface
+            lbl = "m³"
+        elseif t == :liquid_volume_reservoir
+            lbl = "m³"
+        elseif t == :pressure
+            lbl = "Pa"
+        elseif t == :absolute_temperature
+            lbl = "°K"
+        elseif t == :relative_temperature
+            lbl = "°C"
+        elseif t == :mass
+            lbl = "kg"
+        end
+    end
+    return (u, lbl)
+end
+
 # Utility to transfer one type of variables or parameters from one model to another
 function transfer_variables_or_parameters!(vars, new_model::SimulationModel, replacements; skip = Symbol[], add_new = true)
     for (varname, vardef) in pairs(replacements)
