@@ -252,7 +252,14 @@ function setup_case_from_parsed_data(datafile;
     end
     msg("Complete in $(round(t_trans + t_prm, sigdigits = 3)) seconds.")
     msg("Setup complete.")
-    return JutulCase(model, dt, forces, state0 = state0, parameters = parameters, input_data = datafile)
+    start_date = get(rs, "START", nothing)
+    return JutulCase(
+        model, dt, forces,
+        state0 = state0,
+        parameters = parameters,
+        input_data = datafile,
+        start_date = start_date
+    )
 end
 
 function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, step; simple_well = isnothing(msdata))
