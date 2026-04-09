@@ -3,7 +3,7 @@
 
 # NOTE: This module was developed with the assistance of AI agent tools.
 
-"""r
+"""
     compute_meters_drilled(well_model)
 
 Compute meters drilled for each cell in a multisegment well.
@@ -60,7 +60,7 @@ function build_well_graph(centroids, neighborship)
         
         # Add edge in both directions (undirected graph)
         push!(adj_list[from_node], (to_node, dist))
-        push!(adj_list[to_node], (from_node, dist))
+        # push!(adj_list[to_node], (from_node, dist))
     end
     
     return adj_list
@@ -142,6 +142,64 @@ function compute_shortest_distances(graph, start_node, n_nodes)
 end
 
 """
+    state_variable_unit_information(field::Symbol)
+
+Return unit information for a state variable, similar to `well_target_information`.
+Returns `missing` if the variable is not recognized.
+"""
+function state_variable_unit_information(field::Symbol)
+    # Try well_target_information directly
+    info = JutulDarcy.well_target_information(field)
+    if !ismissing(info)
+        return info
+    end
+    # Map common state variable names to unit information
+    if field === :Pressure
+        return JutulDarcy.well_target_information(Val(:bhp))
+    elseif field === :Temperature
+        return JutulDarcy.well_target_information(Val(:temperature))
+    elseif field === :TotalMassFlux
+        return JutulDarcy.well_target_information(
+            symbol = :total_mass_flux,
+            description = "Total mass flux",
+            unit_type = :mass,
+            unit_label = "kg/s",
+            is_rate = true
+        )
+    else
+        return missing
+    end
+end
+
+"""
+    convert_state_field_values(values, field::Symbol, unit_sys::String)
+
+Convert state field values from SI to the specified unit system.
+Returns `(converted_values, unit_label)`.
+"""
+function convert_state_field_values(values, field::Symbol, unit_sys::String)
+    info = state_variable_unit_information(field)
+    if ismissing(info)
+        return values, string(field)
+    end
+    lbl = info.unit_label
+    is_rate = info.is_rate
+    factor = 1.0
+    f_u, lbl = well_unit_conversion(unit_sys, lbl, info)
+    if f_u isa Symbol
+        values = convert_from_si.(values, f_u)
+    else
+        factor *= f_u
+    end
+    if is_rate
+        lbl *= "/day"
+        factor *= si_unit(:day)
+    end
+    values = factor .* values
+    return values, lbl
+end
+
+"""
     plot_well_vs_meters_drilled!(ax, well_model, values; label=nothing, kwargs...)
 
 Plot well data vs meters drilled on the given axis.
@@ -159,7 +217,8 @@ If the well has sections (`:section` key), each section is plotted with a distin
 Otherwise, plots all values as a single line.
 """
 function JutulDarcy.plot_well_vs_meters_drilled!(ax, well_model, values;
-    label=nothing, colors = missing, meters_drilled=missing, kwargs...)
+    label=nothing, colors = missing, meters_drilled=missing,
+    unit_sys="SI", field_name=missing, kwargs...)
     # Compute meters drilled for each cell if not provided
     if ismissing(meters_drilled)
         meters_drilled = compute_meters_drilled(well_model)
@@ -177,6 +236,12 @@ function JutulDarcy.plot_well_vs_meters_drilled!(ax, well_model, values;
         meters_drilled = vec(sum(meters_drilled[N], dims=1)./2) # Average meters drilled for each segment
     else
         error("Length of values must match number of cells ($n_cells) or segments ($n_segments)")
+    end
+
+    # Apply unit conversion if field_name is provided
+    if !ismissing(field_name)
+        values, unit_label = convert_state_field_values(values, Symbol(field_name), unit_sys)
+        ax.ylabel = unit_label
     end
 
     if has_sections
@@ -244,10 +309,12 @@ fig = plot_well_vs_meters_drilled(well_model, temperature_values,
 function JutulDarcy.plot_well_vs_meters_drilled(well_model, values; 
                                     figure_kwargs=NamedTuple(), 
                                     axis_kwargs=NamedTuple(), 
+                                    unit_sys="SI",
+                                    field_name=missing,
                                     kwargs...)
     fig = Figure(; figure_kwargs...)
     ax = Axis(fig[1, 1]; axis_kwargs...)
-    JutulDarcy.plot_well_vs_meters_drilled!(ax, well_model, values; kwargs...)
+    JutulDarcy.plot_well_vs_meters_drilled!(ax, well_model, values; unit_sys=unit_sys, field_name=field_name, kwargs...)
     if haskey(well_model.data_domain, :section)
         Legend(fig[1, 2], ax, "Sections")
     end
@@ -281,6 +348,7 @@ Interactive GUI for plotting multisegment well data vs meters drilled.
 function JutulDarcy.plot_well_states_interactive(well_model, states; 
                                      time=missing, 
                                      names=missing, 
+                                     unit_sys="Metric",
                                      resolution=(1200, 800), 
                                      kwargs...)
     
@@ -331,6 +399,7 @@ function JutulDarcy.plot_well_states_interactive(well_model, states;
     n_states = length(states)
     state_index = Observable{Int}(1)
     field_selection = Observable{String}(valid_fields[1])
+    unit_sys_obs = Observable{String}(unit_sys)
     is_playing = Observable{Bool}(false)
     play_speed = Observable{Float64}(1.0)  # States per second
     
@@ -350,8 +419,12 @@ function JutulDarcy.plot_well_states_interactive(well_model, states;
     field_menu = Menu(fig, options=valid_fields, default=valid_fields[1], width=150)
     on(field_menu.selection) do s
         field_selection[] = s
-        # Update axis label
-        ax.ylabel = s
+    end
+
+    # Unit system menu
+    unit_menu = Menu(fig, options=["Metric", "SI", "Field"], default=unit_sys_obs[], width=100)
+    on(unit_menu.selection) do s
+        unit_sys_obs[] = s
     end
     
     # Time stepping controls
@@ -413,23 +486,26 @@ function JutulDarcy.plot_well_states_interactive(well_model, states;
     end
     
     on(reset_y_button.clicks) do _
-        # Reset y-axis to full range of current field
+        # Reset y-axis to full range of current field (converted to current unit system)
         field = field_selection[]
         y_min, y_max = field_y_limits[field]
-        ylims!(ax, y_min, y_max)
+        lims, _ = convert_state_field_values([y_min, y_max], Symbol(field), unit_sys_obs[])
+        ylims!(ax, lims[1], lims[2])
     end
     
     # Layout controls
     control_layout[1, 1] = Label(fig, "Field:", halign=:right)
     control_layout[1, 2] = field_menu
-    control_layout[1, 3] = Label(fig, "Time step:")
-    control_layout[1, 4] = time_slider
-    control_layout[1, 5] = play_button
-    control_layout[1, 6] = Label(fig, "Speed:")
-    control_layout[1, 7] = speed_input
-    control_layout[1, 8] = reset_button
-    control_layout[1, 9] = reset_x_button
-    control_layout[1, 10] = reset_y_button
+    control_layout[1, 3] = Label(fig, "Units:")
+    control_layout[1, 4] = unit_menu
+    control_layout[1, 5] = Label(fig, "Time step:")
+    control_layout[1, 6] = time_slider
+    control_layout[1, 7] = play_button
+    control_layout[1, 8] = Label(fig, "Speed:")
+    control_layout[1, 9] = speed_input
+    control_layout[1, 10] = reset_button
+    control_layout[1, 11] = reset_x_button
+    control_layout[1, 12] = reset_y_button
     
     # Animation timer
     animation_timer = Timer(0.1)  # Will be started/stopped as needed
@@ -478,20 +554,25 @@ function JutulDarcy.plot_well_states_interactive(well_model, states;
     function update_plot()
         idx = state_index[]
         field = field_selection[]
+        usys = unit_sys_obs[]
         
         # Clear existing plots
         empty!(ax)
         
         # Get current state and field data  
         current_state = states[idx]
-        field_data = current_state[Symbol(field)]
+        field_data = Float64.(current_state[Symbol(field)])
+        
+        # Convert units
+        field_data, unit_label = convert_state_field_values(field_data, Symbol(field), usys)
         
         # Plot data vs meters drilled (with section support)
         JutulDarcy.plot_well_vs_meters_drilled!(ax, well_model, field_data; meters_drilled=meters_drilled, kwargs...)
         
-        # Set consistent y-axis limits
+        # Set consistent y-axis limits (convert from SI)
         y_min, y_max = field_y_limits[field]
-        ylims!(ax, y_min, y_max)
+        lims, _ = convert_state_field_values([y_min, y_max], Symbol(field), usys)
+        ylims!(ax, lims[1], lims[2])
         
         # Update title
         title_str = if n_states > 1
@@ -509,16 +590,20 @@ function JutulDarcy.plot_well_states_interactive(well_model, states;
         end
         ax.title = title_str
         
-        # Update axis label
-        ax.ylabel = field
+        # Update axis label with unit
+        ax.ylabel = unit_label
     end
     
-    # Listen to both observables
+    # Listen to state, field, and unit system observables
     on(state_index) do _
         update_plot()
     end
     
     on(field_selection) do _
+        update_plot()
+    end
+    
+    on(unit_sys_obs) do _
         update_plot()
     end
     
