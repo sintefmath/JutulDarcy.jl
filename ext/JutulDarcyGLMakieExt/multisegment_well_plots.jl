@@ -248,6 +248,8 @@ function JutulDarcy.plot_well_vs_meters_drilled!(ax, well_model, values;
         sections = well_model.data_domain[:section]
         if length(values) == n_segments
             sections = max.(sections[N[1,:]], sections[N[2,:]])
+            joints = findall(sections[N[1,:]] .!= sections[N[2,:]])
+            sections[joints] .= -1  # Assign a new section for joints
         end
         num_sections = maximum(sections)
         if ismissing(colors)
@@ -408,7 +410,7 @@ function JutulDarcy.plot_well_states_interactive(well_model, states;
     field_selection = Observable{String}(valid_fields[1])
     unit_sys_obs = Observable{String}(unit_sys)
     is_playing = Observable{Bool}(false)
-    play_speed = Observable{Float64}(1.0)  # States per second
+    play_speed = Observable{Float64}(10.0)  # States per second
     
     # Create figure and layout
     fig = Figure(size=resolution)
@@ -462,8 +464,8 @@ function JutulDarcy.plot_well_states_interactive(well_model, states;
     play_button = Button(fig, label="Play", width=80)
     
     # Speed control
-    speed_input = Textbox(fig, placeholder="1.0", width=60, validator=s -> tryparse(Float64, s) !== nothing)
-    speed_input.stored_string = "1.0"
+    speed_input = Textbox(fig, placeholder="10.0", width=60, validator=s -> tryparse(Float64, s) !== nothing)
+    speed_input.stored_string = "10.0"
     
     on(speed_input.stored_string) do s
         val = tryparse(Float64, s)
@@ -472,13 +474,13 @@ function JutulDarcy.plot_well_states_interactive(well_model, states;
         end
     end
     
-    # Reset button
-    reset_button = Button(fig, label="Reset", width=60)
-    on(reset_button.clicks) do _
-        state_index[] = 1
-        is_playing[] = false
-        play_button.label = "Play"
-    end
+    # # Reset button
+    # reset_button = Button(fig, label="Reset", width=60)
+    # on(reset_button.clicks) do _
+    #     state_index[] = 1
+    #     is_playing[] = false
+    #     play_button.label = "Play"
+    # end
     
     # Axis reset buttons
     reset_x_button = Button(fig, label="Reset X", width=70)
@@ -486,18 +488,28 @@ function JutulDarcy.plot_well_states_interactive(well_model, states;
     
     on(reset_x_button.clicks) do _
         # Reset x-axis to full range of meters drilled
+        limits = deepcopy(ax.finallimits[])
+        # Access individual ranges
+        current_ylims = (limits.origin[2], limits.origin[2] + limits.widths[2])
         x_min, x_max = extrema(meters_drilled)
         x_range = x_max - x_min
         x_padding = max(x_range * 0.02, eps(Float64))
         xlims!(ax, x_min - x_padding, x_max + x_padding)
+        # Restore y zoom
+        ylims!(ax, current_ylims...)
     end
     
     on(reset_y_button.clicks) do _
         # Reset y-axis to full range of current field (converted to current unit system)
+        limits = deepcopy(ax.finallimits[])
+        # Access individual ranges
+        current_xlims = (limits.origin[1], limits.origin[1] + limits.widths[1])
         field = field_selection[]
         y_min, y_max = field_y_limits[field]
         lims, _ = convert_state_field_values([y_min, y_max], Symbol(field), unit_sys_obs[])
         ylims!(ax, lims[1], lims[2])
+        # Restore x zoom
+        xlims!(ax, current_xlims...)
     end
     
     # Layout controls
@@ -510,9 +522,9 @@ function JutulDarcy.plot_well_states_interactive(well_model, states;
     control_layout[1, 7] = play_button
     control_layout[1, 8] = Label(fig, "Speed:")
     control_layout[1, 9] = speed_input
-    control_layout[1, 10] = reset_button
-    control_layout[1, 11] = reset_x_button
-    control_layout[1, 12] = reset_y_button
+    # control_layout[1, 10] = reset_button
+    control_layout[1, 10] = reset_x_button
+    control_layout[1, 11] = reset_y_button
     
     # Animation timer
     animation_timer = Timer(0.1)  # Will be started/stopped as needed
@@ -558,10 +570,16 @@ function JutulDarcy.plot_well_states_interactive(well_model, states;
     end
     
     # Main plotting logic - reactive to state and field changes
-    function update_plot()
+    function update_plot(; reset_limits = false)
         idx = state_index[]
         field = field_selection[]
         usys = unit_sys_obs[]
+        
+        # Save current zoom before clearing
+        limits = deepcopy(ax.finallimits[])
+        # Access individual ranges
+        current_xlims = (limits.origin[1], limits.origin[1] + limits.widths[1])
+        current_ylims = (limits.origin[2], limits.origin[2] + limits.widths[2])
         
         # Clear existing plots
         empty!(ax)
@@ -576,21 +594,28 @@ function JutulDarcy.plot_well_states_interactive(well_model, states;
         # Plot data vs meters drilled (with section support)
         JutulDarcy.plot_well_vs_meters_drilled!(ax, well_model, field_data; meters_drilled=meters_drilled, section_labels=section_labels, kwargs...)
         
-        # Set consistent y-axis limits (convert from SI)
-        y_min, y_max = field_y_limits[field]
-        lims, _ = convert_state_field_values([y_min, y_max], Symbol(field), usys)
-        ylims!(ax, lims[1], lims[2])
+        if reset_limits
+            # Set y-axis limits from global field range (convert from SI)
+            y_min, y_max = field_y_limits[field]
+            lims, _ = convert_state_field_values([y_min, y_max], Symbol(field), usys)
+            ylims!(ax, lims[1], lims[2])
+        else
+            # Restore previous zoom
+            xlims!(ax, current_xlims...)
+            ylims!(ax, current_ylims...)
+        end
         
-        # Update title
+        # Update title with time in days
         title_str = if n_states > 1
             if ismissing(time)
                 "$field - Step $idx/$n_states"
             else
-                if time[idx] isa DateTime
-                    "$field - $(time[idx])"
+                t_days = if time[idx] isa DateTime
+                    time[idx]
                 else
-                    "$field - Time: $(round(time[idx], digits=2))"
+                    round(time[idx] / si_unit(:day), digits=2)
                 end
+                "$field - Step $idx/$n_states - $t_days days"
             end
         else
             field
@@ -607,11 +632,11 @@ function JutulDarcy.plot_well_states_interactive(well_model, states;
     end
     
     on(field_selection) do _
-        update_plot()
+        update_plot(reset_limits = true)
     end
     
     on(unit_sys_obs) do _
-        update_plot()
+        update_plot(reset_limits = true)
     end
     
     # Information panel (top right)
@@ -658,7 +683,7 @@ function JutulDarcy.plot_well_states_interactive(well_model, states;
     end
     
     # Trigger initial plot
-    notify(state_index)
+    update_plot(reset_limits = true)
     
     return fig
 end
