@@ -61,15 +61,15 @@ function setup_fractured_cube(n, L;
         temperature = convert_to_si(90.0, :Celsius),
         injection_temperature = convert_to_si(10.0, :Celsius))
 
-    # Normalize input: allow scalar or 3-tuple/vector for n and L.
+    ## Normalize input: allow scalar or 3-tuple/vector for n and L.
     dims0 = n isa Integer ? (n, n, n) : Tuple(n)
     Lxyz  = L isa Number  ? (L, L, L) : Tuple(L)
     @assert length(dims0) == 3 "n must be an Int or a length-3 tuple/vector."
     @assert length(Lxyz)  == 3 "L must be a Number or a length-3 tuple/vector."
 
     ## ── Full-dimensional (FD) mesh ──────────────────────────────────────
-    # Refine the Cartesian grid around each fracture plane so that a layer of
-    # cells with thickness equal to the aperture represents the fracture.
+    ## Refine the Cartesian grid around each fracture plane so that a layer of
+    ## cells with thickness equal to the aperture represents the fracture.
     fd_axis_widths = ntuple(3) do d
         nd = dims0[d]; Ld = Lxyz[d]
         xc = collect(range(0.0, Ld; length = nd + 1))
@@ -102,8 +102,8 @@ function setup_fractured_cube(n, L;
     fd_pv = sum(pore_volume(fd_matrix))
 
     ## ── Lower-dimensional (DFM) mesh ────────────────────────────────────
-    # Cut a coarse Cartesian grid with fracture planes; the cuts produce an
-    # embedded fracture mesh handled by cross-terms.
+    ## Cut a coarse Cartesian grid with fracture planes; the cuts produce an
+    ## embedded fracture mesh handled by cross-terms.
     ld_mesh = UnstructuredMesh(CartesianMesh(dims0, Lxyz))
     ld_ijk = reinterpret(reshape, Int,
         map(c -> cell_ijk(ld_mesh, c), 1:number_of_cells(ld_mesh)))
@@ -125,7 +125,7 @@ function setup_fractured_cube(n, L;
         aperture = fracture_aperture, porosity = fracture_porosity)
     ijk = ld_ijk[:, info[:cell_index]]
 
-    # Sort well cells by distance to the corner for consistent ordering.
+    ## Sort well cells by distance to the corner for consistent ordering.
     function sorted_well_cells(domain, ijk, d1_val, d2_val)
         cells = findall(ijk[1, :] .== d1_val .&& ijk[2, :] .== d2_val)
         x = domain[:cell_centroids][:, cells]
