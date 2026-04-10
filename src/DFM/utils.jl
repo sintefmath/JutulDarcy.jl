@@ -220,6 +220,14 @@ function setup_fractured_reservoir_model(matrix::DataDomain, fractures::DataDoma
         matrix_mesh = physical_representation(matrix)
         fractured_wells = []
         for well in wells
+            if well.representation isa SimpleWell
+                @warn "Well $(well.representation.name) is a SimpleWell, which \
+                    is currently not supported for extension with fracture \
+                    perforations. The well will not be directly connected to \
+                    any fractures."
+                push!(fractured_wells, well)
+                continue
+            end
             well = add_fractures_to_well(well, fractures, matrix_mesh, unique(matrix_faces))
             push!(fractured_wells, well)
         end
@@ -322,7 +330,7 @@ function adjust_matrix_cell_volumes!(matrix_model::SimulationModel, fractures::D
 
 end
 
-function add_fractures_to_well(well, fractures::DataDomain, matrix_mesh, matrix_faces; kwarg...)
+function add_fractures_to_well(well::DataDomain{T}, fractures::DataDomain, matrix_mesh, matrix_faces; kwarg...) where T <: MultiSegmentWell
 
     well0 = well
     neighborship, perforation_cells_fractures, perforation_cells_fractures_self, old_ix = 
