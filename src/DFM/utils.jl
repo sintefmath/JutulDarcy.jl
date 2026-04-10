@@ -120,7 +120,7 @@ permeability is computed from the cubic law (`a²/12`) when not explicitly given
 A `DataDomain` for the fracture with adjusted volumes, areas, and aperture.
 """
 function fracture_domain(mesh::JutulMesh;
-    aperture=0.5e-3si_unit(:meter),
+    aperture=convert_to_si(0.5e-3, :meter),
     hydralic_aperture=aperture,
     permeability=missing,
     kwarg...
@@ -232,9 +232,7 @@ function setup_fractured_reservoir_model(matrix::DataDomain, fractures::DataDoma
     # Set up fracture model with same system and context as matrix model
     fracture_model = setup_reservoir_model(fractures, system;
         context=model.context, kwarg...)
-    if fracture_model isa Jutul.MultiModel
-        fracture_model = fracture_model.models[:Reservoir]
-    end
+    fracture_model = reservoir_model(fracture_model)
     set_parameters!(fracture_model, Transmissibilities = TransmissibilitiesDFM())
     thermal = model_is_thermal(matrix_model)
     if thermal
@@ -271,7 +269,7 @@ function block_fracture_face_connections!(matrix_model::SimulationModel, faces)
 
     # Set zero transmissibility for fracture faces
     if haskey(matrix, :transmissibilities)
-        T = matrix[:transmissibilities, Faces()]
+        T = copy(matrix[:transmissibilities, Faces()])
     else
         T = Jutul.default_parameter_values(
             matrix, matrix_model, Transmissibilities(), :Transmissibilities)
@@ -283,7 +281,7 @@ function block_fracture_face_connections!(matrix_model::SimulationModel, faces)
 
     # Set zero rock thermal conductivity for fracture faces
     if haskey(matrix, :rock_thermal_conductivities)
-        Λr = matrix[:rock_thermal_conductivities, Faces()]
+        Λr = copy(matrix[:rock_thermal_conductivities, Faces()])
     else
         Λr = Jutul.default_parameter_values(
             matrix, matrix_model, RockThermalConductivities(), :RockThermalConductivities)
@@ -293,7 +291,7 @@ function block_fracture_face_connections!(matrix_model::SimulationModel, faces)
 
     # Set zero fluid thermal conductivity for fracture faces
     if haskey(matrix, :fluid_thermal_conductivities)
-        Λf = matrix[:fluid_thermal_conductivities, Faces()]
+        Λf = copy(matrix[:fluid_thermal_conductivities, Faces()])
     else
         Λf = Jutul.default_parameter_values(
             matrix, matrix_model, FluidThermalConductivities(), :FluidThermalConductivities)
