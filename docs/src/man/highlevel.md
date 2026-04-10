@@ -29,6 +29,14 @@ reservoir_domain
 get_1d_reservoir
 ```
 
+### Fractures
+
+To model fracture flow, we can construct a fracture domain from e.g, an embedded mesh [`Jutul.EmbeddedMeshes.EmbeddedMesh`](@ref) made up of a subset of the faces of a 3D reservoir mesh.
+
+```@docs
+fracture_domain
+```
+
 ### Wells
 
 Wells are most easily created using utilities that act directly on a reservoir domain:
@@ -44,6 +52,14 @@ A single, option-heavy function is used to set up the reservoir model and defaul
 
 ```@docs
 setup_reservoir_model
+```
+
+#### Fractured reservoirs
+
+Similar functionality can be used to set up a fractured reservoir model using `setup_fractured_reservoir_model`. The function takes a fracture domain (constructed using `fracture_domain`)  as its second argument, in a addtion to the keyword arguments of `setup_reservoir_model`
+
+```@docs
+setup_fractured_reservoir_model
 ```
 
 ### Properties and functions
