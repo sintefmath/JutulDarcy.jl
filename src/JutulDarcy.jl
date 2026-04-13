@@ -215,6 +215,7 @@ module JutulDarcy
     include("DFM/utils.jl")
     include("DFM/cross_terms.jl")
     include("DFM/types.jl")
+    export fracture_domain, setup_fractured_reservoir_model
 
     # Tracers
     include("Tracers/Tracers.jl")
