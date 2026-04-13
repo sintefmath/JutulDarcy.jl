@@ -36,12 +36,13 @@ struct DeckPhaseMassDensities{T, W, R} <: DeckPhaseVariables
     pvt::T
     watdent::W
     regions::R
-    function DeckPhaseMassDensities(pvt; regions = nothing, watdent = nothing)
-        check_regions(regions)
-        pvt_t = Tuple(pvt)
-        watdent::Union{Nothing, WATDENT}
-        new{typeof(pvt_t), typeof(watdent), typeof(regions)}(pvt_t, watdent, regions)
-    end
+end
+
+function DeckPhaseMassDensities(pvt; regions = nothing, watdent = nothing)
+    check_regions(regions)
+    pvt_t = Tuple(pvt)
+    watdent::Union{Nothing, WATDENT}
+    return DeckPhaseMassDensities{typeof(pvt_t), typeof(watdent), typeof(regions)}(pvt_t, watdent, regions)
 end
 
 function Jutul.subvariable(p::DeckPhaseMassDensities, map::FiniteVolumeGlobalMap)
@@ -60,12 +61,13 @@ struct DeckShrinkageFactors{T, W, R} <: DeckPhaseVariables
     pvt::T
     watdent::W
     regions::R
-    function DeckShrinkageFactors(pvt; watdent = nothing, regions = nothing)
-        check_regions(regions)
-        pvt_t = Tuple(pvt)
-        watdent_t = region_wrap(watdent, regions)
-        new{typeof(pvt_t), typeof(watdent_t), typeof(regions)}(pvt_t, watdent, regions)
-    end
+end
+
+function DeckShrinkageFactors(pvt; watdent = nothing, regions = nothing)
+    check_regions(regions)
+    pvt_t = Tuple(pvt)
+    watdent_t = region_wrap(watdent, regions)
+    DeckShrinkageFactors{typeof(pvt_t), typeof(watdent_t), typeof(regions)}(pvt_t, watdent, regions)
 end
 
 function Jutul.subvariable(p::DeckShrinkageFactors, map::FiniteVolumeGlobalMap)
@@ -87,45 +89,46 @@ struct MuBTable{V, I}
     shrinkage_interp::I
     viscosity::V
     viscosity_interp::I
-    function MuBTable(p::T, b::T, mu::T; extrapolate = true, fix = true, kwarg...) where T<:AbstractVector
-        @assert length(p) == length(b) == length(mu)
-        I_b = get_1d_interpolator(p, b; cap_endpoints = !extrapolate, kwarg...)
-        I_mu = get_1d_interpolator(p, mu; cap_endpoints = !extrapolate, kwarg...)
-        all(extrema(b) .> 0) || throw(ArgumentError("b must be positive at at all pressures"))
-        all(extrema(mu) .> 0) || throw(ArgumentError("mu must be positive at at all pressures"))
-        if fix
-            # Define a minimum b factor. Should really not be less than 1 at 1 atm pressure.
-            ϵ = 0.01
-            lowest_possible_b = min(0.99*b[1], 1.0 + ϵ)
-            p0 = DEFAULT_MINIMUM_PRESSURE
-            interval = (p0, p[1])
-            if I_b(p0) <= 0
-                p_intersect = MultiComponentFlash.Roots.find_zero(p -> I_b(p) - lowest_possible_b, interval)
-                if p_intersect == p0
-                    p0 = 0.999*p0
-                end
-                @assert p_intersect > p0
-                jutul_message("PVT", "Fixing table for low pressure conditions.")
-                p = copy(p)
-                b = copy(b)
-                mu = copy(mu)
-                # Next extend the tables with more points
-                pushfirst!(p, p_intersect)
-                pushfirst!(p, p0)
+end
 
-                pushfirst!(b, lowest_possible_b)
-                pushfirst!(b, lowest_possible_b - ϵ)
-
-                mu0 = mu[1]
-                pushfirst!(mu, mu0)
-                pushfirst!(mu, mu0)
-
-                I_b = get_1d_interpolator(p, b; cap_endpoints = !extrapolate, kwarg...)
-                I_mu = get_1d_interpolator(p, mu; cap_endpoints = !extrapolate, kwarg...)
+function MuBTable(p::T, b::T, mu::T; extrapolate = true, fix = true, kwarg...) where T<:AbstractVector
+    @assert length(p) == length(b) == length(mu)
+    I_b = get_1d_interpolator(p, b; cap_endpoints = !extrapolate, kwarg...)
+    I_mu = get_1d_interpolator(p, mu; cap_endpoints = !extrapolate, kwarg...)
+    all(extrema(b) .> 0) || throw(ArgumentError("b must be positive at at all pressures"))
+    all(extrema(mu) .> 0) || throw(ArgumentError("mu must be positive at at all pressures"))
+    if fix
+        # Define a minimum b factor. Should really not be less than 1 at 1 atm pressure.
+        ϵ = 0.01
+        lowest_possible_b = min(0.99*b[1], 1.0 + ϵ)
+        p0 = DEFAULT_MINIMUM_PRESSURE
+        interval = (p0, p[1])
+        if I_b(p0) <= 0
+            p_intersect = MultiComponentFlash.Roots.find_zero(p -> I_b(p) - lowest_possible_b, interval)
+            if p_intersect == p0
+                p0 = 0.999*p0
             end
+            @assert p_intersect > p0
+            jutul_message("PVT", "Fixing table for low pressure conditions.")
+            p = copy(p)
+            b = copy(b)
+            mu = copy(mu)
+            # Next extend the tables with more points
+            pushfirst!(p, p_intersect)
+            pushfirst!(p, p0)
+
+            pushfirst!(b, lowest_possible_b)
+            pushfirst!(b, lowest_possible_b - ϵ)
+
+            mu0 = mu[1]
+            pushfirst!(mu, mu0)
+            pushfirst!(mu, mu0)
+
+            I_b = get_1d_interpolator(p, b; cap_endpoints = !extrapolate, kwarg...)
+            I_mu = get_1d_interpolator(p, mu; cap_endpoints = !extrapolate, kwarg...)
         end
-        new{T, typeof(I_b)}(p, b, I_b, mu, I_mu)
     end
+    MuBTable{T, typeof(I_b)}(p, b, I_b, mu, I_mu)
 end
 
 function MuBTable(pvtx::T; kwarg...) where T<:AbstractMatrix
