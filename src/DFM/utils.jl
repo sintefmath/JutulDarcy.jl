@@ -6,7 +6,7 @@ Create a fracture `DataDomain` from a fracture network `mesh` and a `matrix`
 domain, including the fracture-matrix connection data needed for discrete
 fracture-matrix (DFM) simulations.
 
-The function sets up a [`FractureMatrixConnection`](@ref) entity that stores
+The function sets up a `FractureMatrixConnection` entity that stores
 per- connection data (connected cells, matrix faces, matrix permeability,
 porosity, thermal conductivities, and cell centroids) used by the DFM
 cross-terms.
