@@ -163,7 +163,7 @@ function state_variable_unit_information(field::Symbol)
             symbol = :total_mass_flux,
             description = "Total mass flux",
             unit_type = :mass,
-            unit_label = "kg/s",
+            unit_label = "kg",
             is_rate = true
         )
     else
@@ -229,10 +229,10 @@ function JutulDarcy.plot_well_vs_meters_drilled!(ax, well_model, values;
 
     n_cells = number_of_cells(well_model.data_domain)
     n_segments = number_of_faces(well_model.data_domain)
+    N = get_neighborship(well_model.data_domain.representation)
     if length(values) == n_cells
         # OK
     elseif length(values) == n_segments
-        N = get_neighborship(well_model.data_domain.representation)
         meters_drilled = vec(sum(meters_drilled[N], dims=1)./2) # Average meters drilled for each segment
     else
         error("Length of values must match number of cells ($n_cells) or segments ($n_segments)")
