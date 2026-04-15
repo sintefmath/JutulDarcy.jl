@@ -547,7 +547,12 @@ function declare_entities(W::WellDomain)
     c = (entity = Cells(),         count = number_of_cells(W))
     f = (entity = Faces(),         count = number_of_faces(W))
     p = (entity = Perforations(),  count = np)
-    return [c, f, p]
+    entities = [c, f, p]
+    if haskey(W.perforations, :fracture)
+        fp = (entity = FracturePerforations(), count = length(W.perforations.fracture))
+        push!(entities, fp)
+    end
+    return entities
 end
 
 function Jutul.select_secondary_variables!(S, D::WellDomain, model)

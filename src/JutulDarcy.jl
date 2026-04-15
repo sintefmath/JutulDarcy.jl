@@ -211,6 +211,12 @@ module JutulDarcy
     include("Geothermal/Geothermal.jl")
     import JutulDarcy.Geothermal: ClosedLoopSupplyToReturnMassCT, ClosedLoopSupplyToReturnEnergyCT, BTESWellGroutEnergyCT
 
+    # Discrete Fracture Models
+    include("DFM/cross_terms.jl")
+    include("DFM/types.jl")
+    include("DFM/utils.jl")
+    export fracture_domain, setup_fractured_reservoir_model
+
     # Tracers
     include("Tracers/Tracers.jl")
     import JutulDarcy.Tracers: SinglePhaseTracer, MultiPhaseTracer, add_tracers_to_model!, number_of_tracers

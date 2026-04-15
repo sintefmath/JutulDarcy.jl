@@ -167,7 +167,9 @@ function Jutul.declare_pattern(model, peq::PressureEquation{ConservationLaw{A, B
     return (I, J)
 end
 
-function Jutul.align_to_jacobian!(eq_s::PressureEquationTPFAStorage, p_eq::PressureEquation, jac, model, u::Cells; equation_offset = 0, variable_offset = 0)
+function Jutul.align_to_jacobian!(eq_s::PressureEquationTPFAStorage, p_eq::PressureEquation, jac, model, u::Cells; equation_offset = 0, variable_offset = 0, row_offset = 0, col_offset = 0)
+    @assert row_offset == 0 "Non-zero row and column offsets are not yet supported for pressure equation"
+    @assert col_offset == 0 "Non-zero row and column offsets are not yet supported for pressure equation"
     eq = p_eq.conservation
     fd = eq.flow_discretization
     M = global_map(model.domain)
