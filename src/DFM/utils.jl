@@ -22,8 +22,8 @@ cross-terms.
   from `mesh.parent_faces` when not provided.
 - `matrix_cells`: matrix cells on each side of the `matrix_faces`. Inferred from
   the matrix neighborship when not provided.
-- Remaining keyword arguments are forwarded to the
-  [`fracture_domain(mesh;  ...)`](@ref) method.
+- Remaining keyword arguments are forwarded to the `fracture_domain(mesh;  ...)`
+  method.
 
 # Returns
 A `DataDomain` representing the fracture network, augmented with
