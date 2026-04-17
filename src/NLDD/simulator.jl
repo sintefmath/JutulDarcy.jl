@@ -172,7 +172,7 @@ function Jutul.perform_step!(
         )
     end
     active = report[:local_solves_active][end]
-    subreports = report[:subdomains]
+    subreports = report[:subdomains][end]
     status = report[:solve_status][end]
 
     e = NaN
