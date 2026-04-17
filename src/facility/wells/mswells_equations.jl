@@ -54,7 +54,7 @@ function segment_pressure_drop(f::SegmentWellBoreFrictionHB, L, rough, radius_ou
             f = (1 - α)*f_l + α*f_t
         end
     end
-    Δp = 2*f*(L/(Dₒ-Dᵢ))*ρ*v^2
+    Δp = sign(v)*2*f*(L/(Dₒ-Dᵢ))*ρ*v^2
     return Δp
 end
 
@@ -107,8 +107,8 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
     else
         rho_l, mu_l = saturation_mixed(s, densities, μ, left)
         rho_r, mu_r = saturation_mixed(s, densities, μ, right)
-        rho = 0.5*(rho_l + rho_r)
-        μ_mix = 0.5*(mu_l + mu_r)
+        rho = V > 0 ? rho_l : rho_r # Upwind
+        μ_mix = V > 0 ? mu_l : mu_r # Upwind
         Δp = segment_pressure_drop(seg_model, L, roughness, radius_outer, radius_inner, V, rho, μ_mix)
         Δθ = two_point_potential_drop(p[left], p[right], gdz, rho_l, rho_r)
         eq = Δθ - Δp
