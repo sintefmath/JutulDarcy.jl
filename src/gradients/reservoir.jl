@@ -349,13 +349,15 @@ function optimize_reservoir(dopt, objective, setup_fn = dopt.setup_function;
 end
 
 function parameters_gradient_reservoir(dopt, objective, setup_fn = dopt.setup_function;
-        simulator_arg = (output_substates = true, ),
+        info_level = 0,
+        simulator_arg = (output_substates = true, info_level = info_level, end_report = info_level > 0),
         simulator = missing,
         config = missing,
+        deps = :parameters_and_state0,
         kwarg...
     )
     sim, cfg = setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg)
-    return Jutul.parameters_gradient(dopt, objective, setup_fn; simulator = sim, config = cfg, kwarg...)
+    return Jutul.parameters_gradient(dopt, objective, setup_fn; deps = deps, simulator = sim, config = cfg, kwarg...)
 end
 
 function setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg)
