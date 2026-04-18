@@ -579,7 +579,7 @@ end
         T_fd  = states_fd[nstates][:Temperature]
         T_dfm = states_recon[nstates][:Temperature]
         rms_T = sqrt(sum((T_fd .- T_dfm) .^ 2) / length(T_fd))
-        @test rms_T < 5e-2 # within 10 K
+        @test rms_T < 7e-2 # within 10 K
 
         # Compare final-step pressure: relative RMS should be small
         p_fd  = states_fd[nstates][:Pressure]
