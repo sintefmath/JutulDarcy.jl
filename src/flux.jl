@@ -160,55 +160,12 @@ end
     return ρ_avg
 end
 
-@inline function gradient(X::AbstractVector, tpfa::TPFA)
-    return @inbounds X[tpfa.right] - X[tpfa.left]
-end
-
-@inline function gradient(X::AbstractMatrix, i, tpfa::TPFA)
-    return @inbounds X[i, tpfa.right] - X[i, tpfa.left]
-end
-
-@inline function gradient(F, tpfa::TPFA)
-    # Function handle version
-    return F(tpfa.right) - F(tpfa.left)
-end
-
-@inline function face_average(F, tpfa)
-    l, r = Jutul.cell_pair(tpfa)
-    return 0.5*(F(r) + F(l))
-end
-
 @inline function phase_face_average(phase_property, tpfa, phase)
     F(cell) = @inbounds phase_property[phase, cell]
     return face_average(F, tpfa)
 end
 
 pressure_gradient(state, disc) = gradient(state.Pressure, disc)
-
-@inline function upwind(upw::SPU, F, q)
-    flag = q < zero(q)
-    if flag
-        up = upw.right
-    else
-        up = upw.left
-    end
-    return F(up)
-end
-
-@inline function upwind(upw::SPU, X::AbstractArray, q)
-    flag = q < zero(q)
-    if flag
-        up = upw.right
-    else
-        up = upw.left
-    end
-    return @inbounds X[up]
-end
-
-@inline function upwind(upw::SPU, m::AbstractArray{T}, q) where T<:Jutul.AdjointsDI.SparseConnectivityTracer.Dual
-    # Type overload for adjoints - only pattern matters
-    return m[upw.left] + m[upw.right]
-end
 
 @inline function phase_upwind(upw, m::AbstractMatrix, phase::Integer, q)
     F(cell) = @inbounds m[phase, cell]
@@ -218,10 +175,6 @@ end
 @inline function phase_upwind(upw, m::AbstractMatrix{T}, phase::Integer, q) where T<:Jutul.AdjointsDI.SparseConnectivityTracer.Dual
     # Type overload for adjoints - only pattern matters
     return m[phase, upw.left] + m[phase, upw.right]
-end
-
-@inline function upwind(upw::Jutul.WENO.WENOFaceDiscretization, F, q)
-    return Jutul.WENO.weno_upwind(upw, F, q)
 end
 
 @inline function capillary_gradient(pc, tpfa::TPFA, ph, ph_ref)

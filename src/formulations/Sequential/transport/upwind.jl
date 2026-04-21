@@ -119,8 +119,8 @@ function phase_potential_upwind_potential_differences(V_t, T_f, G::NTuple{N, T},
     return phase_potential_differences
 end
 
-function JutulDarcy.upwind(upw::SPU, F::AbstractArray, q::MultiPotential)
-    new_pot = map(p -> JutulDarcy.upwind(upw, F, p), q.potentials)
+function Jutul.upwind(upw::SPU, F::AbstractArray, q::MultiPotential)
+    new_pot = map(p -> Jutul.upwind(upw, F, p), q.potentials)
     return MultiPotential(new_pot)
 end
 

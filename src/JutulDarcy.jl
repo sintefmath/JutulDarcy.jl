@@ -114,6 +114,7 @@ module JutulDarcy
         declare_entities,
         get_neighborship
 
+    import Jutul: gradient, face_average, upwind
     import Jutul: update_preconditioner!, partial_update_preconditioner!
 
     import Jutul: fill_equation_entries!, update_linearized_system_equation!, check_convergence, update!, linear_operator, transfer, operator_nrows, matrix_layout, apply!
