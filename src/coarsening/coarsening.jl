@@ -208,6 +208,7 @@ function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, me
         wells_in_single_block = false,
         well_padding = 0,
         partitioner_conn_type = :trans,
+        edge_weights = missing,
         compartments = missing,
         kwarg...
     )
@@ -243,6 +244,9 @@ function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, me
             parameters = setup_parameters(model)
         end
         N, T, well_groups = partitioner_input(model, parameters, conn = partitioner_conn_type, well_padding=well_padding)
+        if ismissing(edge_weights)
+            edge_weights = T
+        end
         if !ismissing(compartments)
             l = N[1, :]
             r = N[2, :]
@@ -254,7 +258,7 @@ function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, me
         else
             groups = Vector{Vector{Int}}()
         end
-        p = Jutul.partition_hypergraph(N, coarsedim, partitioner; groups = groups, kwarg...)
+        p = Jutul.partition_hypergraph(N, coarsedim, partitioner; groups = groups, edge_weights=edge_weights, kwarg...)
         p = Int64.(p)
     end
     if ismissing(compartments)
