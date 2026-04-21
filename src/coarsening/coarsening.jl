@@ -252,6 +252,7 @@ function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, me
             r = N[2, :]
             keep = compartments[l] .== compartments[r]
             N = N[:, keep]
+            edge_weights = edge_weights[keep]
         end
         if wells_in_single_block
             groups = well_groups
