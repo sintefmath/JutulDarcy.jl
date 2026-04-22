@@ -301,9 +301,10 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
         rmodel = reservoir_model(model)
         ctx = rmodel.context
         @tic "weights" w_p = update_weights!(cpr, cpr.storage, model, storage, A, ps)
-        A_p = cpr.storage.A_p
-        w_p = cpr.storage.w_p
-        rw_map = cpr.storage.well_reservoir_map
+        cpr_s = cpr.storage
+        A_p = cpr_s.A_p
+        w_p = cpr_s.w_p
+        rw_map = cpr_s.well_reservoir_map
         @tic "pressure system" update_pressure_system!(A_p, cpr.pressure_precond, A, w_p, ctx, executor, rw_map)
     end
     return do_p_update
@@ -540,13 +541,16 @@ function update_weights!(cpr, cpr_storage::CPRStorage, model, storage, J, ps)
     end
     if np > (nf + nc)
         wr_map = cpr_storage.well_reservoir_map
+        ncomp = size(w, 1)
+        scaling = cpr.weight_scaling
         @assert !isnothing(wr_map)
+        r = zeros(ncomp)
         for i in 1:(np-nc)
             wno = nc+i
             w_i = view(w, :, wno)
             well = wr_map.wells[i]
             wstate = storage[well].state
-            if strategy == :analytical
+            if cpr.strategy == :analytical
                 cpr_weights_no_partials!(w_i, rmodel, wstate, nothing, 1, ncomp, scaling)
             else
                 acc_i = wstate.TotalMasses
