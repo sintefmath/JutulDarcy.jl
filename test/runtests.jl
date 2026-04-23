@@ -20,6 +20,10 @@ end
     include("multimodel.jl")
 end
 
+@testitem "Multisegment wells" begin
+    include("mswells.jl")
+end
+
 @testitem "Sensitivities (simple)" begin
     include("sens_bl.jl")
 end
