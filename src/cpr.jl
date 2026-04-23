@@ -539,14 +539,15 @@ function update_weights!(cpr, cpr_storage::CPRStorage, model, storage, J, ps)
     else
         nf = 0
     end
-    if np > (nf + nc)
+    last_porous_media_index = nf + nc
+    if np > last_porous_media_index
         wr_map = cpr_storage.well_reservoir_map
         ncomp = size(w, 1)
         scaling = cpr.weight_scaling
         @assert !isnothing(wr_map)
-        r = zeros(ncomp)
-        for i in 1:(np-nc)
-            wno = nc+i
+        r = cpr_storage.w_rhs
+        for i in 1:(np-last_porous_media_index)
+            wno = last_porous_media_index+i
             w_i = view(w, :, wno)
             well = wr_map.wells[i]
             wstate = storage[well].state
