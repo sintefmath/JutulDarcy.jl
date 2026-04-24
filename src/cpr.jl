@@ -897,6 +897,7 @@ function cpr_construct_well_reservoir_map(model::MultiModel, lsys, bz)
     end
     ncell = size(J_rr, 1)
 
+    bz = bz + model_is_thermal(reservoir_model(model))
     well_cells = Vector{Int64}[]
     map_T = Vector{Vector{SMatrix{bz, bz, Int64, bz*bz}}}
     map_12 = map_T()
