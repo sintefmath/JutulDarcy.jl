@@ -988,9 +988,8 @@ end
 - `linear_solver=:bicgstab`: iterative solver to use (provided model supports
   it). Typical options are `:bicgstab` or `:gmres` Can alternatively pass a
   linear solver instance.
-- `precond=:cprw` (`:cpr` for `mode=:mpi`): preconditioner for iterative solver.
-  For larger problems, CPR variants are recommended. In order of strength and
-  cost:
+- `precond=:cpr`: preconditioner for iterative solver. For larger problems, CPR
+  variants are recommended. In order of strength and cost:
    - `:cpr` standard Constrained-Pressure-Residual with ILU(0) second stage
      (strong preconditioner)
    - `:cprw` CPRW with ILU(0) second stage. Faster for problems with wells
@@ -1082,7 +1081,7 @@ list a few of the most relevant entries here for convenience:
 function setup_reservoir_simulator(case::JutulCase;
         mode = :default,
         method = :newton,
-        precond = ifelse(mode == :default, :cprw, :cpr),
+        precond = :cpr,
         linear_solver = :bicgstab,
         linear_solver_backend = :cpu,
         max_timestep = si_unit(:year),
