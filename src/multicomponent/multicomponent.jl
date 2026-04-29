@@ -52,7 +52,7 @@ function convergence_criterion(model::CompositionalModel, storage, eq::Conservat
         end
         return t
     end
-    @tullio max e[j] := abs(r[j, i]) * dt / scale(i)
+    e = [maximum(i -> abs(r[j, i]) * dt / scale(i), axes(r, 2)) for j in axes(r, 1)]
     names = model.system.components
     R = (CNV = (errors = e, names = names), )
     return R
