@@ -182,6 +182,7 @@ function Jutul.devectorize_force(control_or_limits::Tcl, model::FacilityModel, X
                         enthalpy = ctrl.enthalpy,
                         tracers = ctrl.tracers,
                         phases = ctrl.phases,
+                        state_well = nothing,
                         check = false
                     )
                 else

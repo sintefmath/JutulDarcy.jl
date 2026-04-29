@@ -674,7 +674,7 @@ if not given.
 
 See also [`ProducerControl`](@ref), [`DisabledControl`](@ref).
 """
-struct InjectorControl{T, R, P, M, E, TR} <: WellControlForce
+struct InjectorControl{T, R, P, M, E, TR, SW} <: WellControlForce
     target::T
     injection_mixture::M
     mixture_density::R
@@ -683,6 +683,7 @@ struct InjectorControl{T, R, P, M, E, TR} <: WellControlForce
     enthalpy::E
     factor::R
     tracers::TR
+    state_well::SW
     function InjectorControl(target::T, mix;
             density::Real = 1.0,
             phases = ((1, 1.0),),
@@ -690,7 +691,8 @@ struct InjectorControl{T, R, P, M, E, TR} <: WellControlForce
             enthalpy = missing,
             tracers = missing,
             check = true,
-            factor::Real = 1.0
+            factor::Real = 1.0,
+            state_well = nothing
         ) where {T<:WellTarget}
         density, temperature, factor = promote(density, temperature, factor)
         R = typeof(density)
@@ -709,12 +711,13 @@ struct InjectorControl{T, R, P, M, E, TR} <: WellControlForce
         if isa(tracers, Real)
             tracers = [tracers]
         end
-        new{T, R, typeof(phases), typeof(mix), typeof(enthalpy), typeof(tracers)}(target, mix, density, phases, temperature, enthalpy, factor, tracers)
+        new{T, R, typeof(phases), typeof(mix), typeof(enthalpy), typeof(tracers), typeof(state_well)}(target, mix, density, phases, temperature, enthalpy, factor, tracers, state_well)
     end
 end
 
 function replace_target(f::InjectorControl, target, temperature = f.temperature)
     _, fact, den, T = Base.promote(target.value, f.factor, f.mixture_density, temperature)
+    sw = (T == f.temperature) ? f.state_well : nothing
     return InjectorControl(
         target,
         f.injection_mixture,
@@ -724,6 +727,7 @@ function replace_target(f::InjectorControl, target, temperature = f.temperature)
         phases = f.phases,
         factor = fact,
         tracers = f.tracers,
+        state_well = sw,
         check = false
     )
 end

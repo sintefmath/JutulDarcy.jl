@@ -385,7 +385,7 @@ struct SourceTerm{I, F, T} <: JutulForce
     type::FlowSourceType
 end
 
-struct FlowBoundaryCondition{I, F, T} <: JutulForce
+struct FlowBoundaryCondition{I, F, T, S} <: JutulForce
     cell::I
     pressure::F
     temperature::F
@@ -393,6 +393,7 @@ struct FlowBoundaryCondition{I, F, T} <: JutulForce
     trans_thermal::F
     fractional_flow::T
     density::Union{F, Nothing}
+    state_bc::S
 end
 
 abstract type PorousMediumDomain <: JutulMesh end

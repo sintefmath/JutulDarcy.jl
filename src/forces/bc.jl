@@ -35,7 +35,7 @@ function FlowBoundaryCondition(
         sum(f) == 1.0 || error("Fractional flow for boundary condition in cell $cell must sum to 1.")
     end
     pressure, temperature, trans_flow, trans_thermal = promote(pressure, temperature, trans_flow, trans_thermal)
-    return FlowBoundaryCondition(cell, pressure, temperature, trans_flow, trans_thermal, f, density)
+    return FlowBoundaryCondition(cell, pressure, temperature, trans_flow, trans_thermal, f, density, nothing)
 end
 
 function FlowBoundaryCondition(
@@ -148,8 +148,10 @@ function Jutul.subforce(s::AbstractVector{S}, model) where S<:FlowBoundaryCondit
             bc.temperature,
             bc.trans_flow,
             bc.trans_thermal,
+
             bc.fractional_flow,
-            bc.density
+            bc.density,
+            bc.state_bc
         )
     end
     return s[keep]
@@ -214,11 +216,20 @@ function compute_bc_mass_fluxes(bc, gmap, state, nph)
             λ_t += kr[ph, c]/mu[ph, c]
         end
         if isnothing(rho_inj)
-            # Density not provided, take saturation average from what we have in
-            # the inside of the domain
-            rho_inj = 0.0
-            for ph in 1:nph
-                rho_inj += state.Saturations[ph, c]*rho[ph, c]
+            sbc = bc.state_bc
+            if !isnothing(sbc)
+                # Use pre-computed per-phase densities from state_bc
+                rho_inj = 0.0
+                for ph in 1:nph
+                    rho_inj += sbc[:Saturations][ph, 1]*sbc[:PhaseMassDensities][ph, 1]
+                end
+            else
+                # Density not provided, take saturation average from what we have in
+                # the inside of the domain
+                rho_inj = 0.0
+                for ph in 1:nph
+                    rho_inj += state.Saturations[ph, c]*rho[ph, c]
+                end
             end
         end
         if isnothing(f_inj)
@@ -267,10 +278,14 @@ function compute_bc_heat_fluxes(bc, gmap, state, nph)
     rho_bc = bc.density
 
     qh_advective = 0
+    sbc = bc.state_bc
     for ph in 1:nph
         if q[ph] > 0
             # Flow out from domain
             h_ph = h[ph,c]
+        elseif !isnothing(sbc)
+            # Use pre-computed enthalpy from state_bc
+            h_ph = sbc[:FluidEnthalpy][ph, 1]
         else
             Cp = u[ph,c]/T[c]
             if isnothing(rho_bc)
@@ -383,6 +398,7 @@ function Jutul.devectorize_force(bc::FlowBoundaryCondition, model::SimulationMod
         trans_flow,
         trans_thermal,
         f,
-        ρ
+        ρ,
+        nothing
     )
 end

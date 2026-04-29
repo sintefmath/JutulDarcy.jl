@@ -377,7 +377,13 @@ function well_top_node_enthalpy(ctrl::InjectorControl, model, state_well, T, cel
     # density = ctrl.mixture_density
     # T = ctrl.temperature
     H_w = ctrl.enthalpy
-    if ismissing(H_w)
+    if !isnothing(ctrl.state_well)
+        # Use pre-computed saturation-weighted enthalpy from state_well
+        H = 0.0
+        for ph in axes(ctrl.state_well[:FluidEnthalpy], 1)
+            H += ctrl.state_well[:FluidEnthalpy][ph, 1] * ctrl.state_well[:Saturations][ph, 1]
+        end
+    elseif ismissing(H_w)
         H = 0.0
         for ph in axes(state_well.Saturations, 1)
             # Define it via the volume weighted internal energy
@@ -468,7 +474,15 @@ function update_cross_term_in_entity!(out, i,
     end
     is_injector = ctrl isa InjectorControl
     if is_injector
-        density = ctrl.mixture_density
+        if !isnothing(ctrl.state_well)
+            # Use pre-computed saturation-weighted density from state_well
+            density = 0.0
+            for ph in axes(ctrl.state_well[:PhaseMassDensities], 1)
+                density += ctrl.state_well[:Saturations][ph, 1] * ctrl.state_well[:PhaseMassDensities][ph, 1]
+            end
+        else
+            density = ctrl.mixture_density
+        end
         volume_rate = q_t/density
         for (ph_idx, phase_fraction) in ctrl.phases
             out[ph_idx] += -volume_rate*phase_fraction*eq.scale

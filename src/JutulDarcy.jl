@@ -84,6 +84,8 @@ module JutulDarcy
     export set_relative_permeability!
     export EquilibriumRegion
     export setup_reservoir_dict_optimization, optimize_reservoir, parameters_gradient_reservoir, setup_injector_control, setup_producer_control, setup_disabled_control
+    export SubdomainPropertyEvaluator, setup_bc_property_evaluator, evaluate_bc_state
+    export with_property_evaluator, with_property_evaluators
 
     import Jutul:
         number_of_cells, number_of_faces,
