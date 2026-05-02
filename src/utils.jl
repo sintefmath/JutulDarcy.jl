@@ -398,6 +398,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         immutable_model = false,
         wells_systems = missing,
         wells_as_cells = false,
+        optimization_level = 0,
         discretization_arg = NamedTuple()
     )
     # Deal with wells, make sure that multisegment wells come last.
@@ -441,7 +442,8 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         context = reservoir_context,
         general_ad = general_ad,
         kgrad = kgrad,
-        upwind = upwind
+        upwind = upwind,
+        optimization_level = optimization_level
     )
     system = rmodel.system
     if thermal
@@ -511,7 +513,10 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
                     w_domain[propk] = reservoir[propk][c]
                 end
             end
-            wmodel = SimulationModel(w_domain, system, context = well_context)
+            wmodel = SimulationModel(w_domain, system,
+                context = well_context,
+                optimization_level = optimization_level
+            )
             if thermal
                 wmodel = add_thermal_to_model!(wmodel)
             end
@@ -531,7 +536,11 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             models[wname] = wmodel
             if split_wells
                 wg = WellGroup([wname], can_shut_wells = can_shut_wells)
-                F = SimulationModel(wg, facility_system, context = context, data_domain = DataDomain(wg))
+                F = SimulationModel(wg, facility_system,
+                    context = context,
+                    data_domain = DataDomain(wg),
+                    optimization_level = optimization_level
+                )
                 if thermal
                     add_thermal_to_facility!(F)
                 end
@@ -546,7 +555,11 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             end
         else
             wg = WellGroup(map(x -> physical_representation(x).name, wells), can_shut_wells = can_shut_wells)
-            F = SimulationModel(wg, facility_system, context = context, data_domain = DataDomain(wg))
+            F = SimulationModel(wg, facility_system,
+                context = context,
+                data_domain = DataDomain(wg),
+                optimization_level = optimization_level
+            )
             if thermal
                 add_thermal_to_facility!(F)
             end
