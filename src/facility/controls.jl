@@ -24,6 +24,12 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
     for key in keys(forces.limits)
         cfg.limits[key] = forces.limits[key]
     end
+    # Set group controls if present in forces
+    if haskey(forces, :group_controls)
+        for (gname, gctrl) in forces.group_controls
+            cfg.group_controls[gname] = gctrl
+        end
+    end
     current_step = recorder.recorder.step
     # Set operational controls
     for key in keys(forces.control)
@@ -39,7 +45,9 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
         old_is_disabled = oldctrl isa DisabledControl
         well_was_disabled = op_ctrls[key] == disabled && !new_is_disabled
         changed = (is_new_step && newctrl != oldctrl) || well_was_disabled
-        if !changed && !well_was_disabled && !(new_is_disabled || old_is_disabled)
+        has_group_target = newctrl.target isa GroupTarget
+        any_disabled = new_is_disabled || old_is_disabled
+        if !changed && !well_was_disabled && !any_disabled && !has_group_target
             # Handle the case where controls may be identical, but a higher type
             # might be incoming (e.g. use of AD)
             changed = changed || value_has_promoted_type(newctrl.target.value, oldctrl.target.value)
@@ -48,17 +56,14 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
             # We have a new control. Any previous control change is invalid.
             # Set both operating and requested control to the new one.
             @debug "Well $key switching from $oldctrl to $newctrl"
-            # idx = get_well_position(model.domain, key)
             req_ctrls[key] = newctrl
             op_ctrls[key] = newctrl
-            # cond = FacilityVariablesForWell(model, storage.state, key, drop_ad = true)
-            # set_facility_values_for_control!(storage.state, model, newctrl, cfg.limits[key], cond)
         end
         pos = get_well_position(model.domain, key)
         if q_t isa Vector
             q_t[pos] = valid_surface_rate_for_control(q_t[pos], newctrl)
         end
-        if changed && !new_is_disabled
+        if changed && !new_is_disabled && !has_group_target
             if isnothing(cfg.limits[key])
                 cfg.limits[key] = as_limit(newctrl.target)
             else
@@ -104,7 +109,6 @@ end
 function apply_well_limits!(cfg::WellGroupConfiguration, model, state, limits, control, well::Symbol, cond::FacilityVariablesForWell)
     if control isa DisabledControl
         # Disabled wells cannot change active constraint
-        # println("Well $well is disabled; skipping limit application.")
         return cfg
     end
 
@@ -112,16 +116,12 @@ function apply_well_limits!(cfg::WellGroupConfiguration, model, state, limits, c
         # No limits to apply
         return cfg
     end
-    # println("Checking: $well with limits $limits with $cond")
     old_control = control
     control, changed = check_well_limits(limits, cond, control)
     if changed
         @debug "Well $well switching control from $(old_control.target) to $(control.target) due to active limit." limits cond
         cfg.operating_controls[well] = control
-        # set_facility_values_for_control!(state, model, control, limits, cond)
-        # error()
     end
-    # println("$well operating $(translate_target_to_symbol(control.target)) with value $(control.target.value)")
     return cfg
 end
 
@@ -431,9 +431,39 @@ the target value itself, scaled by a target scaling factor.
 """
 function well_control_equation(ctrl, cond, well, model, state)
     target = ctrl.target
+    if target isa GroupTarget
+        return well_control_equation_group(ctrl, target, cond, well, model, state)
+    end
     val_t = get_control_target_value(target, model, state)
     val = well_target_value(ctrl, target, cond, well, model, state)
     scale = target_scaling(target)
+    return (val - val_t)/scale
+end
+
+"""
+    well_control_equation_group(ctrl, group_target, cond, well, model, state)
+
+Compute the control equation for a well under group control. The well's actual
+target type and value are looked up from the group's control stored in
+`WellGroupConfiguration`. For rate-weighted group targets, each well targets
+its allocation factor times the group target value. For non-rate targets
+(e.g. BHP), the allocation factor is not applied.
+"""
+function well_control_equation_group(ctrl, group_target::GroupTarget, cond::FacilityVariablesForWell, well::Symbol, model, state)
+    group_name = group_target.group
+    cfg = state.WellGroupConfiguration
+    group_ctrl = cfg.group_controls[group_name]
+    actual_target = group_ctrl.target
+    val_t = get_control_target_value(actual_target, model, state)
+    if rate_weighted(actual_target)
+        groups = model.domain.groups
+        group_wells = groups[group_name]
+        nw = length(group_wells)
+        af = isnothing(group_target.allocation_factor) ? 1.0/nw : group_target.allocation_factor
+        val_t = val_t * af
+    end
+    val = well_target_value(ctrl, actual_target, cond, well, model, state)
+    scale = target_scaling(actual_target)
     return (val - val_t)/scale
 end
 
