@@ -188,7 +188,7 @@ end
         end
 
         # 5. Enough multi-sweeps should ensure convergence in a single outer iteration
-        @testset "nldd_max_sweeps = 1000 should converge to FI solution" begin
+        @testset "nldd_max_sweeps = 1000 should converge in one FI iteration" begin
             results = simulate_reservoir(case[1:5]; method = :nldd,
                 nldd_arg = nldd_arg, 
                 nldd_max_sweeps = 1000,
