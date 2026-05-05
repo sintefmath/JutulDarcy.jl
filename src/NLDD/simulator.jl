@@ -684,11 +684,8 @@ function global_stage(
         end
     end
     if all_local_converged && (iteration > config[:min_nonlinear_iterations]) && config[:subdomain_tol_sufficient]
-        # report[:secondary_time] = 0.0
-        # report[:equations_time] = 0.0
-        # report[:linear_system_time] = 0.0
         report[:converged] = true
-        # report[:convergence_time] = 0.0
+        report[:solved] = false
         Jutul.extra_debug_output!(report, s.storage, s.model, config, iteration, dt)
         out = (0.0, true, report)
         il = config[:info_level]
