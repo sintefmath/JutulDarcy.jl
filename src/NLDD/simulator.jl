@@ -171,7 +171,7 @@ function Jutul.perform_step!(
             executor = executor
         )
     end
-    active = report[:local_solves_active][end]
+    active = report[:local_solves_active]
     subreports = report[:subdomains][end]
     status = report[:solve_status][end]
 
@@ -922,7 +922,9 @@ function Jutul.perform_step_per_process_initial_update!(simulator::NLDDSimulator
     status = []
     for sweep_no in 1:config[:nldd_max_sweeps]
         st = [local_solve_skipped for i in eachindex(simulator.subdomain_simulators)]
-        state_prev = deepcopy(s.storage.state)
+        if config[:nldd_max_sweeps] > 1
+            state_prev = deepcopy(s.storage.state)
+        end
         @tic "local" if (active && config[:solve_subdomains])
                 sr, so, ts, st, f = local_stage(base_arg..., sweep_no)
         else
