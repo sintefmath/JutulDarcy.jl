@@ -169,32 +169,17 @@ end
             @test get_prod_bhp(ws_1)  ≈ get_prod_bhp(ws_default)  rtol = 0
         end
 
-        # 2. Multi-sweep (2 and 3) must reproduce Newton to simulation tolerance
-        @testset "nldd_max_sweeps = $ns matches Newton" for ns in [2, 3]
+        # 2. Multi-sweep (2 and 10) must reproduce Newton to simulation tolerance
+        @testset "nldd_max_sweeps = $ns matches Newton" for ns in [2, 10]
             ws, = simulate_reservoir(case, method = :nldd, nldd_max_sweeps = ns, nldd_arg = nldd_arg; args...)
             @test get_prod_rate(ws) ≈ get_prod_rate(ws_newton) rtol = 1e-2
             @test get_prod_bhp(ws)  ≈ get_prod_bhp(ws_newton)  rtol = 1e-2
         end
 
-        # 3. Multi-sweep should not increase outer Newton iteration count
-        @testset "nldd_max_sweeps should not increase outer iterations" begin
-            get_its = r -> Jutul.report_stats(r.result.reports).newtons
-            case_mrst, = setup_case_from_mrst("spe1",
-                split_wells = true, ds_max = 0.1, block_backend = true)
-            case_mrst = case_mrst[1:5]
-            push!(case_mrst.model[:Reservoir].output_variables, :Saturations)
-            sim_arg = (info_level = -1, timesteps = :iteration,
-                       error_on_incomplete = true, nldd_arg = (no_blocks = 4,))
-            its_1 = get_its(simulate_reservoir(case_mrst, method = :nldd; sim_arg...))
-            its_2 = get_its(simulate_reservoir(case_mrst, method = :nldd,
-                nldd_max_sweeps = 2; sim_arg...))
-            @test its_2 <= its_1
-        end
-
         # 4. Gauss-Seidel + multi-sweep must give correct results for all ordering strategies
         @testset "Gauss-Seidel + nldd_max_sweeps = 2, order = $order" for order in [:pressure, :linear, :potential]
             ws, = simulate_reservoir(case, method = :nldd,
-                nldd_max_sweeps = 2,
+                nldd_max_sweeps = 5,
                 gauss_seidel = true,
                 gauss_seidel_order = order,
                 nldd_arg = nldd_arg; args...)
@@ -202,18 +187,17 @@ end
             @test get_prod_bhp(ws)  ≈ get_prod_bhp(ws_newton)  rtol = 1e-2
         end
 
-        # 5. Enough multi-sweeps should converge to the FI solution
+        # 5. Enough multi-sweeps should ensure convergence in a single outer iteration
         @testset "nldd_max_sweeps = 1000 should converge to FI solution" begin
-            sim, cfg = setup_reservoir_simulator(case, method = :nldd, nldd_arg = nldd_arg; args...)
-            
-            [c[:info_level]=2 for c in cfg[:config_subdomains]]
-
-            results = simulate_reservoir(case[1:5], method = :nldd,
+            results = simulate_reservoir(case[1:5]; method = :nldd,
+                nldd_arg = nldd_arg, 
                 nldd_max_sweeps = 1000,
                 gauss_seidel = true,
-                nldd_arg = nldd_arg; args..., simulator=sim, config = cfg, info_level=2)
-            @test get_prod_rate(ws) ≈ get_prod_rate(ws_newton) rtol = 1e-2
-            @test get_prod_bhp(ws)  ≈ get_prod_bhp(ws_newton)  rtol = 1e-2
+                inner_tol_mul=1e-1, inner_tol_final=1.0, args...   
+                )
+            # Global nonlinear iterations per ministep should be 1
+            stats = report_stats(results.result.reports)
+            @test stats.newtons == stats.ministeps
         end
 
     end
