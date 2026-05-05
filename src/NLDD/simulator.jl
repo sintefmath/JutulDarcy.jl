@@ -946,7 +946,7 @@ function Jutul.perform_step_per_process_initial_update!(simulator::NLDDSimulator
         if !isnothing(solve_tol)
             update_state_mirror!(simulator.storage.state_mirror, state_prev, s.model, solve_tol)
         end
-        if all(st .== local_solve_skipped)
+        if all(st .== local_solve_skipped .|| st .== local_already_converged)
             break
         end
     end
