@@ -162,7 +162,6 @@ function count_nldd_solve_statistics(reports)
     
     # Initialize counters
     failure_count = 0
-    failure_attempts = 0
     nldd_count = 0
     total_count = 0
     subdomain_skipped = 0
@@ -197,7 +196,6 @@ function count_nldd_solve_statistics(reports)
                                 if !isnothing(failures)
                                     has_failure_data = true
                                     failure_count += length(failures)
-                                    failure_attempts += 1
                                 end
                             end
                             
@@ -228,7 +226,6 @@ function count_nldd_solve_statistics(reports)
         nldd_count = nldd_count,
         total_count = total_count,
         failure_count = failure_count,
-        failure_attempts = failure_attempts,
         subdomain_skipped = subdomain_skipped,
         subdomain_solves = subdomain_solves,
         subdomain_total = subdomain_total,
@@ -255,14 +252,16 @@ function print_nldd_solve_statistics(stats, n_subdomains, method, info_level)
         
         # Print subdomain status statistics
         if stats.has_status_data
-            Jutul.jutul_message("NLDD", "Subdomain status:\n\t$(stats.subdomain_skipped)/$(stats.subdomain_total) local solves were skipped.\n\t$(stats.subdomain_already_conv)/$(stats.subdomain_total) local solves were already converged.\n\t$(stats.subdomain_solves)/$(stats.subdomain_total) local solves were solved.")
+            Jutul.jutul_message("NLDD", "Subdomain status:\
+            \n\t$(stats.subdomain_skipped)/$(stats.subdomain_total) local problems were skipped.\
+            \n\t$(stats.subdomain_already_conv)/$(stats.subdomain_total) local problems were already converged.\
+            \n\t$(stats.subdomain_solves)/$(stats.subdomain_total) local problems were solved.")
         end
     end
     
     # Always print failure information if there are failures
     if stats.has_failure_data && stats.failure_count > 0
-        total_local_solves = n_subdomains * stats.failure_attempts
-        @info "$(stats.failure_count) subdomain solves failed out of $total_local_solves total local solves."
+        @info "$(stats.failure_count) subdomain solves failed out of $(stats.subdomain_solves) total local solves."
     end
 end
 
