@@ -1850,7 +1850,7 @@ function available_well_targets(model)
     return unique(targets)
 end
 
-function partitioner_input(model, parameters; conn = :trans)
+function partitioner_input(model, parameters; conn = :trans, well_padding = 0)
     rmodel = reservoir_model(model)
     if haskey(parameters, :Reservoir)
         parameters = parameters[:Reservoir]
@@ -1876,16 +1876,31 @@ function partitioner_input(model, parameters; conn = :trans)
             error("conn must be one of :trans, :unit or :logtrans, was $conn")
         end
     end
-    groups = partitioner_well_groups(model)
+    groups = partitioner_well_groups(model, well_padding)
     return (N, T, groups)
 end
 
-function partitioner_well_groups(model::MultiModel)
+function partitioner_well_groups(model::MultiModel, padding=0)
     groups = Vector{Vector{Int}}()
+    if padding > 0
+        mesh = physical_representation(reservoir_model(model).data_domain)
+        nc = number_of_cells(mesh)
+        N = get_neighborship(mesh)
+        ii, jj = N[1,:], N[2,:]
+        M = sparse(vcat(ii, jj), vcat(jj, ii), 1.0)
+    end
     for (k, m) in pairs(model.models)
         wg = physical_representation(m.domain)
         if wg isa WellDomain
             rcells = vec(Int.(wg.perforations.reservoir))
+            if padding > 0
+                cell_mask = falses(nc)
+                cell_mask[rcells] .= true
+                for _ = 1:padding
+                    cell_mask = cell_mask .|| M*cell_mask .> 0
+                end
+                rcells = findall(cell_mask)
+            end
             push!(groups, rcells)
         end
     end

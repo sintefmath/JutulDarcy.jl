@@ -172,8 +172,8 @@ function Jutul.perform_step!(
         )
     end
     active = report[:local_solves_active]
-    subreports = report[:subdomains]
-    status = report[:solve_status]
+    subreports = report[:subdomains][end]
+    status = report[:solve_status][end]
 
     e = NaN
     converged = false
@@ -231,7 +231,7 @@ function did_solve(subreports, i)
     return solved
 end
 
-function local_stage(simulator, dt, forces, config, iteration)
+function local_stage(simulator, dt, forces, config, iteration, sweep_no)
     is_aspen = config[:method] == :aspen
     is_gauss_seidel = config[:gauss_seidel] && !is_aspen
     # Perform DD pass (nonlinear solves)
@@ -356,12 +356,16 @@ function local_stage(simulator, dt, forces, config, iteration)
     end
     if config[:info_level] > 1
         m = sum(x-> !(x == local_solve_skipped), solve_status)
+        prestr = "NLDD"
+        if config[:nldd_max_sweeps] > 1
+            prestr *= " (sweep $sweep_no)"
+        end
         if m > 0
             tot_str = Jutul.get_tstr(t, 1)
             avg_str = Jutul.get_tstr(t/m, 1)
-            jutul_message("NLDD", "Solved $m/$n domains in $tot_str ($avg_str average)")
+            jutul_message(prestr, "Solved $m/$n domains in $tot_str ($avg_str average)")
         else
-            jutul_message("NLDD", "Solved no subdomains.")
+            jutul_message(prestr, "Solved no subdomains.")
         end
     end
     return subreports, sim_order, t, solve_status, failures
@@ -680,11 +684,8 @@ function global_stage(
         end
     end
     if all_local_converged && (iteration > config[:min_nonlinear_iterations]) && config[:subdomain_tol_sufficient]
-        # report[:secondary_time] = 0.0
-        # report[:equations_time] = 0.0
-        # report[:linear_system_time] = 0.0
         report[:converged] = true
-        # report[:convergence_time] = 0.0
+        report[:solved] = false
         Jutul.extra_debug_output!(report, s.storage, s.model, config, iteration, dt)
         out = (0.0, true, report)
         il = config[:info_level]
@@ -913,14 +914,40 @@ function Jutul.perform_step_per_process_initial_update!(simulator::NLDDSimulator
     else
         active = active_status(strategy, log, iteration)
     end
-    @tic "local" if (active && config[:solve_subdomains])
-        subreports, solve_order, t_sub, status, failures = local_stage(base_arg...)
-    else
-        subreports = nothing
-        solve_order = nothing
-        t_sub = 0.0
-        failures = []
-        status = [local_solve_skipped for i in eachindex(simulator.subdomain_simulators)]
+
+    subreports = []
+    solve_order = []
+    t_sub = []
+    failures = []
+    status = []
+    for sweep_no in 1:config[:nldd_max_sweeps]
+        st = [local_solve_skipped for i in eachindex(simulator.subdomain_simulators)]
+        if config[:nldd_max_sweeps] > 1
+            state_prev = deepcopy(s.storage.state)
+        end
+        @tic "local" if (active && config[:solve_subdomains])
+                sr, so, ts, st, f = local_stage(base_arg..., sweep_no)
+        else
+            sr = nothing
+            so = nothing
+            ts = 0.0
+            f = []
+        end
+        push!(subreports, sr)
+        push!(solve_order, so)
+        push!(t_sub, ts)
+        push!(failures, f)
+        push!(status, st)
+        if config[:nldd_max_sweeps] == 1
+            break
+        end
+        solve_tol = get_nldd_solution_change_tolerances(config)
+        if !isnothing(solve_tol)
+            update_state_mirror!(simulator.storage.state_mirror, state_prev, s.model, solve_tol)
+        end
+        if all(st .== local_solve_skipped .|| st .== local_already_converged)
+            break
+        end
     end
     solve_tol = get_nldd_solution_change_tolerances(config)
     if !isnothing(solve_tol)
