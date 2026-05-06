@@ -17,6 +17,10 @@ Build a [`SubdomainPropertyEvaluator`](@ref) for a single reservoir `cell`.
 """
 function setup_bc_property_evaluator(rmodel::SimulationModel, cell::Int)
     sub = submodel(rmodel, [cell])
+    for (k, m) in rmodel.extra
+        # println("Submodel extra data: $k => $m")
+        sub.extra[k] = deepcopy(m) # shallow copy of extra data (e.g. enthalpy tables) from full model
+    end
     prm = setup_parameters(sub)
     return SubdomainPropertyEvaluator(sub, prm)
 end
@@ -31,6 +35,14 @@ function _bc_state_dict(sub_model::SimulationModel, p, T, saturations_or_mix)
     state[:Pressure] = [p]
     if haskey(pvars, :Temperature)
         state[:Temperature] = [T]
+    elseif haskey(pvars, :Enthalpy)
+        if haskey(sub_model.extra, :enthalpy_from_pT)
+            enthalpy_from_pT = sub_model.extra[:enthalpy_from_pT]
+            H = enthalpy_from_pT(p, T)
+        else
+            error("Model does not have Temperature or Enthalpy as primary variable, cannot evaluate BC state.")
+        end
+        state[:Enthalpy] = [H]# caller should pass enthalpy in place of temperature
     end
     if haskey(pvars, :Saturations)
         nph = length(saturations_or_mix)
