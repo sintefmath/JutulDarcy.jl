@@ -642,22 +642,6 @@ function update_target!(ctrl, target, state_facility, state_well, facility)
     nothing
 end
 
-function update_target!(ctrl, target::ReinjectionTarget, state_facility, state_well, facility)
-
-    q = 0.0
-    for w in target.wells
-        pos = get_well_position(facility.domain, w)
-        qw = state_facility.TotalSurfaceMassRate[pos]
-        @assert qw <= 0.0
-        q -= qw
-    end
-    ρ = ctrl.mixture_density
-
-    value = max(q./ρ, 1e-10)
-    target.value = value
-
-end
-
 """
     InjectorControl(target, mix, density = 1.0, phases = ((1, 1.0)), temperature = 293.15)
 
@@ -674,7 +658,7 @@ if not given.
 
 See also [`ProducerControl`](@ref), [`DisabledControl`](@ref).
 """
-struct InjectorControl{T, R, P, M, E, TR, SW} <: WellControlForce
+struct InjectorControl{T, R, P, M, E, TR, SW, EV} <: WellControlForce
     target::T
     injection_mixture::M
     mixture_density::R
@@ -684,6 +668,7 @@ struct InjectorControl{T, R, P, M, E, TR, SW} <: WellControlForce
     factor::R
     tracers::TR
     state_well::SW
+    property_evaluator::EV
     function InjectorControl(target::T, mix;
             density::Real = 1.0,
             phases = ((1, 1.0),),
@@ -692,7 +677,8 @@ struct InjectorControl{T, R, P, M, E, TR, SW} <: WellControlForce
             tracers = missing,
             check = true,
             factor::Real = 1.0,
-            state_well = nothing
+            state_well = nothing,
+            property_evaluator = nothing
         ) where {T<:WellTarget}
         density, temperature, factor = promote(density, temperature, factor)
         R = typeof(density)
@@ -711,13 +697,20 @@ struct InjectorControl{T, R, P, M, E, TR, SW} <: WellControlForce
         if isa(tracers, Real)
             tracers = [tracers]
         end
-        new{T, R, typeof(phases), typeof(mix), typeof(enthalpy), typeof(tracers), typeof(state_well)}(target, mix, density, phases, temperature, enthalpy, factor, tracers, state_well)
+        new{T, R, typeof(phases), typeof(mix), typeof(enthalpy), typeof(tracers), typeof(state_well), typeof(property_evaluator)}(target, mix, density, phases, temperature, enthalpy, factor, tracers, state_well, property_evaluator)
     end
 end
 
 function replace_target(f::InjectorControl, target, temperature = f.temperature)
     _, fact, den, T = Base.promote(target.value, f.factor, f.mixture_density, temperature)
-    sw = (T == f.temperature) ? f.state_well : nothing
+    if !isnothing(f.state_well) && isnothing(f.property_evaluator)
+        @warn "Replacing target for InjectorControl without property evaluator, \
+        using state_well as is. This may lead to inconsistent states if the \
+        new target has a different value than the old one."
+        new_state_well = f.state_well
+    else
+        new_state_well = evaluate_bc_state(f.property_evaluator, DEFAULT_MINIMUM_PRESSURE, T, f.injection_mixture)
+    end
     return InjectorControl(
         target,
         f.injection_mixture,
@@ -727,7 +720,8 @@ function replace_target(f::InjectorControl, target, temperature = f.temperature)
         phases = f.phases,
         factor = fact,
         tracers = f.tracers,
-        state_well = sw,
+        state_well = new_state_well,
+        property_evaluator = f.property_evaluator,
         check = false
     )
 end
