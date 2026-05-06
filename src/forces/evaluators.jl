@@ -64,7 +64,7 @@ function evaluate_bc_state(ev::SubdomainPropertyEvaluator, p, T, saturations_or_
         prm = copy(prm)          # shallow copy — safe to overwrite scalar entry
         prm[:Temperature] = [Float64(T)]
     end
-    return evaluate_all_secondary_variables(ev.model, state, prm)
+    return Jutul.evaluate_all_secondary_variables(ev.model, state, prm)
 end
 
 # ---------------------------------------------------------------------------
@@ -105,6 +105,9 @@ submodel built at `perf_cell`.  `p_ref` defaults to `DEFAULT_MINIMUM_PRESSURE`.
 """
 function with_property_evaluator(rmodel::SimulationModel, ctrl::InjectorControl, perf_cell::Int; p_ref = DEFAULT_MINIMUM_PRESSURE)
     ev = setup_bc_property_evaluator(rmodel, perf_cell)
+    if ctrl.target isa ReinjectionTarget && isnan(ctrl.temperature)
+        error("ReinjectionTarget with reinjection temperature not supported with property evaluator")
+    end
     state_well = evaluate_bc_state(ev, p_ref, ctrl.temperature, ctrl.injection_mixture)
     return InjectorControl(
         ctrl.target, ctrl.injection_mixture;
@@ -115,6 +118,7 @@ function with_property_evaluator(rmodel::SimulationModel, ctrl::InjectorControl,
         tracers = ctrl.tracers,
         factor = ctrl.factor,
         state_well = state_well,
+        property_evaluator = ev,
         check = false
     )
 end
