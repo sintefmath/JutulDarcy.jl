@@ -703,13 +703,17 @@ end
 
 function replace_target(f::InjectorControl, target, temperature = f.temperature)
     _, fact, den, T = Base.promote(target.value, f.factor, f.mixture_density, temperature)
-    if !isnothing(f.state_well) && isnothing(f.property_evaluator)
-        @warn "Replacing target for InjectorControl without property evaluator, \
-        using state_well as is. This may lead to inconsistent states if the \
-        new target has a different value than the old one."
-        new_state_well = f.state_well
+    if !isnothing(f.state_well)
+        if isnothing(f.property_evaluator)
+            @warn "Replacing target for InjectorControl without property evaluator, \
+            using state_well as is. This may lead to inconsistent states if the \
+            new target has a different value than the old one."
+            new_state_well = f.state_well
+        else 
+            new_state_well = evaluate_bc_state(f.property_evaluator, DEFAULT_MINIMUM_PRESSURE, T, f.injection_mixture)
+        end
     else
-        new_state_well = evaluate_bc_state(f.property_evaluator, DEFAULT_MINIMUM_PRESSURE, T, f.injection_mixture)
+        new_state_well = nothing
     end
     return InjectorControl(
         target,
