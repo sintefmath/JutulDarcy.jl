@@ -26,16 +26,28 @@ module JutulDarcyPartitionedArraysExt
             backend::PArrayBackend;
             conn = :logtrans,
             np = missing,
+            nldd_partition = missing,
+            precomputed_partition = missing,
             kwarg...
         )
         if ismissing(np)
             np = MPI.Comm_size(MPI.COMM_WORLD)
         end
         np::Int
-        N, T, groups = partitioner_input(case.model, case.parameters, conn = conn)
         rmodel = reservoir_model(case.model)
         nc = number_of_cells(rmodel.domain)
-        p_num = partition_distributed(N, T, nc = nc, np = np, groups = groups)
+        if ismissing(precomputed_partition)
+            N, T, groups = partitioner_input(case.model, case.parameters, conn = conn)
+            p_num = partition_distributed(N, T, nc = nc, np = np, groups = groups)
+        else
+            p_num = precomputed_partition
+            length(p_num) == nc || throw(ArgumentError(
+                "precomputed_partition has length $(length(p_num)) but the model has $nc reservoir cells."
+            ))
+        end
+        if !ismissing(nldd_partition)
+            JutulDarcy.NLDD.validate_nldd_mpi_partition(p_num, nldd_partition)
+        end
         p = reservoir_partition(case.model, p_num)
         return PArraySimulator(case, p; backend = backend, kwarg...)
     end
