@@ -1234,13 +1234,26 @@ function setup_reservoir_simulator(case::JutulCase;
             make_sim = (m; kwarg...) -> Simulator(m; sim_kwarg..., kwarg...)
             pbuffer = false
         else
-            make_sim = (m; kwarg...) -> NLDD.NLDDSimulator(m; nldd_arg..., sim_kwarg..., kwarg...)
+            if ismissing(nldd_partition)
+                make_sim = (m; kwarg...) -> NLDD.NLDDSimulator(m; nldd_arg..., sim_kwarg..., kwarg...)
+            else
+                captured_nldd = nldd_partition
+                make_sim = (m; executor = Jutul.default_executor(), kwarg...) -> begin
+                    local_part = if executor isa Jutul.PArrayExecutor
+                        NLDD._extract_local_nldd_partition(captured_nldd, executor.data[:partition])
+                    else
+                        missing
+                    end
+                    NLDD.NLDDSimulator(m, local_part; nldd_arg..., sim_kwarg..., executor = executor, kwarg...)
+                end
+            end
             pbuffer = true
         end
         b = mode_to_backend(mode)
         sim = setup_reservoir_simulator_parray(case, b;
             simulator_constructor = make_sim,
             primary_buffer = pbuffer,
+            nldd_partition = nldd_partition,
             parray_arg...
         )
     end

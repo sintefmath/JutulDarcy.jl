@@ -1,7 +1,54 @@
 import Krylov
-export reservoir_partition, build_submodels
+export reservoir_partition, build_submodels, validate_nldd_mpi_partition
 
 import JutulDarcy: set_default_cnv_mb!
+
+"""
+    validate_nldd_mpi_partition(p_mpi::Vector{Int}, p_nldd::Vector{Int})
+
+Validate that every NLDD block is fully contained within a single MPI domain.
+
+Both vectors must have one entry per reservoir cell. `p_mpi[i]` is the MPI rank
+domain index for cell `i` and `p_nldd[i]` is the NLDD block index for cell `i`.
+
+Throws an `ArgumentError` if any NLDD block has cells assigned to more than one
+MPI domain.
+"""
+function validate_nldd_mpi_partition(p_mpi::Vector, p_nldd::Vector)
+    length(p_mpi) == length(p_nldd) || throw(ArgumentError(
+        "MPI partition (length $(length(p_mpi))) and NLDD partition " *
+        "(length $(length(p_nldd))) must have the same length (one entry per reservoir cell)."
+    ))
+    nldd_to_mpi = Dict{Int, Int}()
+    for p in unique(p_nldd)
+        cell_mask = p_nldd .== p
+        unique(p_mpi[cell_mask]) |> length > 1 && throw(ArgumentError(
+            "NLDD block $p has cells assigned to multiple MPI domains: " *
+            "$(unique(p_mpi[cell_mask])). Every NLDD block must be fully contained within a single MPI domain."
+        ))
+    end
+    return true
+end
+
+"""
+    _extract_local_nldd_partition(global_nldd, global_cell_indices)
+
+Extract and renumber the NLDD partition for a single rank's local cells.
+
+`global_nldd` is the global NLDD partition vector (one entry per reservoir cell).
+`global_cell_indices` is the vector of global cell indices belonging to this rank
+(owned + ghost), as stored in `executor.data[:partition]`.
+
+Returns a local partition vector of the same length as `global_cell_indices` with
+block indices renumbered to a contiguous `1:n_local_blocks`.
+"""
+function _extract_local_nldd_partition(global_nldd::Vector, global_cell_indices::Vector)
+    local_raw = global_nldd[global_cell_indices]
+    unique_blocks = sort(unique(local_raw))
+    remap = Dict{Int, Int}(b => i for (i, b) in enumerate(unique_blocks))
+    return [remap[b] for b in local_raw]
+end
+
 
 function simulator_config(sim::NLDDSimulator;
         method = :nldd,
