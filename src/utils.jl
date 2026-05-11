@@ -1337,6 +1337,13 @@ function set_default_cnv_mb!(cfg, model; kwarg...)
     set_default_cnv_mb_inner!(cfg[:tolerances], model; kwarg...)
 end
 
+function system_uses_cnv_mb(system::JutulSystem)
+
+    systems = (SinglePhaseSystem, ImmiscibleSystem, BlackOilSystem, CompositionalSystem)
+    return any(s -> system isa s, systems)
+
+end
+
 function set_default_cnv_mb_inner!(tol, model;
         tol_cnv = 1e-3,
         tol_mb = 1e-7,
@@ -1374,8 +1381,7 @@ function set_default_cnv_mb_inner!(tol, model;
         end
     end
     sys = model.system
-    if sys isa SinglePhaseSystem || sys isa ImmiscibleSystem || 
-        sys isa BlackOilSystem || sys isa CompositionalSystem
+    if system_uses_cnv_mb(sys)
         is_well = model_or_domain_is_well(model)
         if is_well
             if physical_representation(model) isa SimpleWell
