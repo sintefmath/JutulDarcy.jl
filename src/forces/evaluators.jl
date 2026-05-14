@@ -36,9 +36,8 @@ function _bc_state_dict(sub_model::SimulationModel, p, T, saturations_or_mix)
     if haskey(pvars, :Temperature)
         state[:Temperature] = [T]
     elseif haskey(pvars, :Enthalpy)
-        if haskey(sub_model.extra, :enthalpy_from_pT)
-            enthalpy_from_pT = sub_model.extra[:enthalpy_from_pT]
-            H = enthalpy_from_pT(p, T)
+        if haskey(sub_model.extra, :enthalpy)
+            H = sub_model.extra[:enthalpy](p, T)  # use enthalpy at given pressure and temperature if available
         else
             error("Model does not have Temperature or Enthalpy as primary variable, cannot evaluate BC state.")
         end
@@ -115,12 +114,15 @@ Return a new [`InjectorControl`](@ref) with the `state_well` field populated
 by evaluating the reservoir EOS at `(p_ref, ctrl.temperature)` using a one-cell
 submodel built at `perf_cell`.  `p_ref` defaults to `DEFAULT_MINIMUM_PRESSURE`.
 """
-function with_property_evaluator(rmodel::SimulationModel, ctrl::InjectorControl, perf_cell::Int; p_ref = DEFAULT_MINIMUM_PRESSURE)
+function with_property_evaluator(rmodel::SimulationModel, ctrl::InjectorControl, perf_cell::Int; pressure = DEFAULT_MINIMUM_PRESSURE)
     ev = setup_bc_property_evaluator(rmodel, perf_cell)
     if ctrl.target isa ReinjectionTarget && isnan(ctrl.temperature)
         error("ReinjectionTarget with reinjection temperature not supported with property evaluator")
     end
-    state_well = evaluate_bc_state(ev, p_ref, ctrl.temperature, ctrl.injection_mixture)
+    if ctrl.target isa BottomHolePressureTarget
+        pressure = ctrl.target.value
+    end
+    state_well = evaluate_bc_state(ev, pressure, ctrl.temperature, ctrl.injection_mixture)
     return InjectorControl(
         ctrl.target, ctrl.injection_mixture;
         density = ctrl.mixture_density,
