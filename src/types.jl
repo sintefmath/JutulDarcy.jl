@@ -385,7 +385,7 @@ struct SourceTerm{I, F, T} <: JutulForce
     type::FlowSourceType
 end
 
-struct FlowBoundaryCondition{I, F, T, S} <: JutulForce
+struct FlowBoundaryCondition{I, F, T, TR, S} <: JutulForce
     cell::I
     pressure::F
     temperature::F
@@ -393,6 +393,7 @@ struct FlowBoundaryCondition{I, F, T, S} <: JutulForce
     trans_thermal::F
     fractional_flow::T
     density::Union{F, Nothing}
+    tracers::TR
     state_bc::S
 end
 

@@ -32,6 +32,56 @@ function setup_bl_twoforces(;nc = 100, time = 1.0, nstep = 100)
     return (model, state0, parameters, forces, tstep)
 end
 
+@testset "bc tracer support" begin
+    grid = CartesianMesh((1, 1, 1), (1.0, 1.0, 1.0))
+    domain = reservoir_domain(grid)
+    sys = ImmiscibleSystem((LiquidPhase(), VaporPhase()))
+    model = SimulationModel(domain, sys)
+    kr = BrooksCoreyRelativePermeabilities(sys, [2.0, 2.0], [0.2, 0.2])
+    replace_variables!(model, RelativePermeabilities = kr)
+    add_tracers_to_model!(model, [SinglePhaseTracer(sys, 1)], names = ["water_tracer"])
+
+    state = setup_state(model,
+        Pressure = [100.0],
+        Saturations = [0.8, 0.2],
+        TracerConcentrations = [0.9]
+    )
+    parameters = setup_parameters(model, PhaseViscosities = [1.0, 2.0])
+    state = Jutul.evaluate_all_secondary_variables(model, state, parameters)
+    state = JutulStorage(state)
+
+    eq = model.equations[:tracers]
+    storage = (state = state,)
+    acc = zeros(1, 1)
+
+    bc_inj = FlowBoundaryCondition(1, 150.0;
+        fractional_flow = [1.0, 0.0],
+        density = 1000.0,
+        tracers = [0.25],
+        trans_flow = 2.0
+    )
+    q_inj = JutulDarcy.compute_bc_mass_fluxes(bc_inj, global_map(model), state, number_of_phases(sys))
+    @test q_inj[1] < 0
+    Jutul.apply_forces_to_equation!(acc, storage, model, eq, nothing, [bc_inj], 1.0)
+    @test acc[1, 1] ≈ 0.25*q_inj[1]
+
+    acc .= 0.0
+    bc_prod = FlowBoundaryCondition(1, 50.0;
+        fractional_flow = [1.0, 0.0],
+        density = 1000.0,
+        tracers = [0.1],
+        trans_flow = 2.0
+    )
+    q_prod = JutulDarcy.compute_bc_mass_fluxes(bc_prod, global_map(model), state, number_of_phases(sys))
+    @test q_prod[1] > 0
+    Jutul.apply_forces_to_equation!(acc, storage, model, eq, nothing, [bc_prod], 1.0)
+    @test acc[1, 1] ≈ state.TracerConcentrations[1, 1]*q_prod[1]
+
+    x, cfg = Jutul.vectorize_forces(setup_forces(model, bc = [bc_inj]), model)
+    bc_roundtrip = Jutul.devectorize_forces(setup_forces(model, bc = [bc_inj]), model, x, cfg)
+    @test bc_roundtrip[:bc][1].tracers == bc_inj.tracers
+end
+
 function test_force_vectorization(forces, tstep, model)
     unique_forces, to_step = Jutul.unique_forces_and_mapping(forces, tstep)
     for (i, uf) in enumerate(unique_forces)
