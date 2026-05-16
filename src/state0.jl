@@ -305,7 +305,13 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
     for (k, W) in get_model_wells(model)
         T = promote_type(T, eltype(init[k][:Pressure]))
         if is_thermal
-            T = promote_type(T, eltype(init[k][:Temperature]))
+            candidates = [:Temperature, :Enthalpy]
+            for cand in candidates
+                if haskey(init[k], cand)
+                    T = promote_type(T, eltype(init[k][cand]))
+                    break
+                end
+            end
         end
     end
 
@@ -321,7 +327,13 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
             for (i, w) in enumerate(own_wells)
                 bh[i] = init[w][:Pressure][1]
                 if is_thermal
-                    temp[i] = init[w][:Temperature][1]
+                    candidates = [:Temperature, :Enthalpy]
+                    for cand in candidates
+                        if haskey(init[w], cand)
+                            temp[i] = init[w][cand][1]
+                            break
+                        end
+                    end
                 end
             end
             init_arg[:BottomHolePressure] = bh
