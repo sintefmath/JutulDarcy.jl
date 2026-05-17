@@ -258,12 +258,12 @@ function compute_bc_mass_fluxes(bc, gmap, state, nph)
             # Fractional flow not provided. We match the mass fraction we
             # observe on the inside.
             total = 0.0
-            for ph in 1:nph
-                total += state.TotalMasses[ph, c]
+            for i in axes(state.TotalMasses, 1)
+                total += state.TotalMasses[i, c]
             end
-            for ph in 1:nph
-                F = state.TotalMasses[ph, c]/total
-                q[ph] = q_tot*rho_inj*λ_t*F
+            for i in axes(state.TotalMasses, 1)
+                F = state.TotalMasses[i, c]/total
+                q[i] = q_tot*rho_inj*λ_t*F
             end
         else
             @assert length(f_inj) == nph
