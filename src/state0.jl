@@ -269,7 +269,7 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
     perf_subset(v::AbstractVector, i) = v[i]
     perf_subset(v::AbstractMatrix, i) = v[:, i]
     perf_subset(v, i) = v
-    is_thermal = model_is_thermal(rmodel)
+    is_thermal, th_var = model_is_thermal(rmodel, true)
     for k in keys(model.models)
         if k == :Reservoir
             # Already done
@@ -305,7 +305,7 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
     for (k, W) in get_model_wells(model)
         T = promote_type(T, eltype(init[k][:Pressure]))
         if is_thermal
-            T = promote_type(T, eltype(init[k][:Temperature]))
+            T = promote_type(T, eltype(init[k][th_var]))
         end
     end
 
@@ -321,7 +321,7 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
             for (i, w) in enumerate(own_wells)
                 bh[i] = init[w][:Pressure][1]
                 if is_thermal
-                    temp[i] = init[w][:Temperature][1]
+                    temp[i] = init[w][th_var][1]
                 end
             end
             init_arg[:BottomHolePressure] = bh
