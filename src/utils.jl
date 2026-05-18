@@ -1329,10 +1329,11 @@ function simulate_reservoir(case::JutulCase;
     return ReservoirSimResult(model, result, forces; simulator = sim, config = config, start_date = case.start_date)
 end
 
-function system_uses_cnv_mb(system::JutulSystem)
-    systems = (SinglePhaseSystem, ImmiscibleSystem, BlackOilSystem, CompositionalSystem)
-    return any(s -> system isa s, systems)
-end
+system_uses_cnv_mb(system::JutulSystem) = false
+system_uses_cnv_mb(system::SinglePhaseSystem) = true
+system_uses_cnv_mb(system::ImmiscibleSystem) = true
+system_uses_cnv_mb(system::BlackOilSystem) = true
+system_uses_cnv_mb(system::CompositionalSystem) = true
 
 function set_default_cnv_mb!(cfg::JutulConfig, sim::JutulSimulator; kwarg...)
     set_default_cnv_mb!(cfg, sim.model; kwarg...)
