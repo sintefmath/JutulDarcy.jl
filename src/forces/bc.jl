@@ -17,13 +17,14 @@ function FlowBoundaryCondition(
         temperature = 298.15;
         fractional_flow = nothing,
         density = nothing,
+        enthalpy = nothing,
         trans_flow = 1e-12,
         trans_thermal = 1e-6
     )
     pressure >= DEFAULT_MINIMUM_PRESSURE || throw(ArgumentError("Pressure must be at least $DEFAULT_MINIMUM_PRESSURE"))
     temperature >= 0.0 || throw(ArgumentError("Temperature must be at least 0.0 K"))
-
     isnothing(density) || density > 0.0 || error("Density, if provided, must be positive")
+    isnothing(enthalpy) || enthalpy >= 0.0 || error("Enthalpy, if provided, must be non-negative")
     if isnothing(fractional_flow)
         f = fractional_flow
     else
@@ -35,7 +36,7 @@ function FlowBoundaryCondition(
         sum(f) == 1.0 || error("Fractional flow for boundary condition in cell $cell must sum to 1.")
     end
     pressure, temperature, trans_flow, trans_thermal = promote(pressure, temperature, trans_flow, trans_thermal)
-    return FlowBoundaryCondition(cell, pressure, temperature, trans_flow, trans_thermal, f, density)
+    return FlowBoundaryCondition(cell, pressure, temperature, trans_flow, trans_thermal, f, density, enthalpy)
 end
 
 function FlowBoundaryCondition(
@@ -97,16 +98,16 @@ the `FlowBoundaryCondition` constructor.
 The output of this function is a `Vector` of boundary conditions that can be
 passed on the form `forces = setup_reservoir_forces(model, bc = bc)`.
 """
-function flow_boundary_condition(cells, domain, pressures, temperatures = 298.15; fractional_flow = nothing, kwarg...)
+function flow_boundary_condition(cells, domain, pressures, temperatures = 298.15; fractional_flow = nothing, enthalpy = nothing, kwarg...)
     if fractional_flow isa Vector
         fractional_flow = tuple(fractional_flow...)
     end
     bc = []
-    flow_boundary_condition!(bc, domain, cells, pressures, temperatures; fractional_flow = fractional_flow, kwarg...)
+    flow_boundary_condition!(bc, domain, cells, pressures, temperatures; fractional_flow = fractional_flow, enthalpy = enthalpy, kwarg...)
     return [i for i in bc]
 end
 
-function flow_boundary_condition!(bc, domain, cells, pressures, temperatures = 298.15; kwarg...)
+function flow_boundary_condition!(bc, domain, cells, pressures, temperatures = 298.15; enthalpy = nothing, kwarg...)
     n = length(cells)
     if temperatures isa Real
         temperatures = fill(temperatures, n)
@@ -114,11 +115,15 @@ function flow_boundary_condition!(bc, domain, cells, pressures, temperatures = 2
     if pressures isa Real
         pressures = fill(pressures, n)
     end
+    if enthalpy isa Real || isnothing(enthalpy)
+        enthalpy = fill(enthalpy, n)
+    end
     length(temperatures) == n || throw(ArgumentError("Mismatch in length of cells and temperatures arrays"))
     length(pressures) == n || throw(ArgumentError("Mismatch in length of cells and pressures arrays"))
+    length(enthalpy) == n || throw(ArgumentError("Mismatch in length of cells and enthalpy arrays"))
 
-    for (cell, pressure, temperature) in zip(cells, pressures, temperatures)
-        bc_c = FlowBoundaryCondition(domain, cell, pressure, temperature; kwarg...)
+    for (cell, pressure, temperature, h) in zip(cells, pressures, temperatures, enthalpy)
+        bc_c = FlowBoundaryCondition(domain, cell, pressure, temperature; enthalpy = h, kwarg...)
         push!(bc, bc_c)
     end
 
@@ -157,28 +162,30 @@ end
 
 function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw{:TotalMasses}, eq_s, force::V, time) where {V <: AbstractVector{<:FlowBoundaryCondition}, D, S<:MultiPhaseSystem}
     state = storage.state
-    nph = number_of_phases(reservoir_model(model).system)
+    system = reservoir_model(model).system
     for bc in force
         c = bc.cell
         acc_i = view(acc, :, c)
-        q = compute_bc_mass_fluxes(bc, global_map(model), state, nph)
+        q = compute_bc_mass_fluxes(system, bc, global_map(model), state)
         apply_flow_bc!(acc_i, q, bc, model, state, time)
     end
 end
 
 function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw{:TotalThermalEnergy}, eq_s, force::V, time) where {V <: AbstractVector{<:FlowBoundaryCondition}, D, S<:MultiPhaseSystem}
     state = storage.state
-    nph = number_of_phases(reservoir_model(model).system)
+    system = reservoir_model(model).system
+    nph = number_of_phases(system)
     for bc in force
         c = bc.cell
         acc_i = view(acc, :, c)
-        qh_adv, qh_cond = compute_bc_heat_fluxes(bc, global_map(model), state, nph)
+        qh_adv, qh_cond = compute_bc_heat_fluxes(system, bc, global_map(model), state, nph)
         apply_flow_bc!(acc_i, qh_adv + qh_cond, bc, model, state, time)
     end
 end
 
-function compute_bc_mass_fluxes(bc, gmap, state, nph)
+function compute_bc_mass_fluxes(system::JutulSystem, bc, gmap, state)
     # Get reservoir properties
+    nph = number_of_phases(system)
     p   = state.Pressure
     mu  = state.PhaseViscosities
     kr  = state.RelativePermeabilities
@@ -248,8 +255,9 @@ function compute_bc_mass_fluxes(bc, gmap, state, nph)
     return q
 end
 
-function compute_bc_heat_fluxes(bc, gmap, state, nph)
-    q = compute_bc_mass_fluxes(bc, gmap, state, nph)
+function compute_bc_heat_fluxes(system::JutulSystem, bc, gmap, state)
+    nph = number_of_phases(system)
+    q = compute_bc_mass_fluxes(system, bc, gmap, state)
     c = Jutul.full_cell(bc.cell, gmap)
 
     # Get reservoir properties
