@@ -394,6 +394,7 @@ struct FlowBoundaryCondition{I, F, T} <: JutulForce
     trans_thermal::F
     fractional_flow::T
     density::Union{F, Nothing}
+    enthalpy::Union{F, Nothing}
 end
 
 abstract type PorousMediumDomain <: JutulMesh end
