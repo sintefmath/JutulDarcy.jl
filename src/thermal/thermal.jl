@@ -484,9 +484,22 @@ function model_is_thermal(model::MultiModel)
     return model_is_thermal(m)
 end
 
-function model_is_thermal(model::SimulationModel)
+function model_is_thermal(model::SimulationModel, return_name=false)
     pvars = Jutul.get_primary_variables(model)
-    return haskey(pvars, :Temperature)
+    candidates = [:Temperature, :Enthalpy]
+    is_thermal, name = false, nothing
+    for var in candidates
+        if haskey(pvars, var)
+            is_thermal = true
+            name = var
+            break
+        end
+    end
+    if return_name
+        return is_thermal, name
+    else
+        return is_thermal
+    end
 end
 
 include("variables.jl")
