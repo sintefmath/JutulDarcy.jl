@@ -111,8 +111,12 @@ function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, tim
 
     system = reservoir_model(model).system
     ncomp = number_of_components(system)
-    for i in 1:ncomp
-        acc[i] += sum(q[:, i])
+    if ncomp == 1
+        acc[] += sum(q)
+    else
+        for i in 1:ncomp
+            acc[i] += sum(q[:, i])
+        end
     end
 
 end
