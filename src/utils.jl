@@ -1108,6 +1108,7 @@ function setup_reservoir_simulator(case::JutulCase;
         tol_cnve_well = 10*tol_cnve,
         tol_eb_well = 1e4*tol_eb,
         inc_tol_dT = Inf,
+        tolerances = NamedTuple(),
         failure_cuts_timestep = true,
         max_timestep_cuts = 25,
         timesteps = :auto,
@@ -1233,7 +1234,7 @@ function setup_reservoir_simulator(case::JutulCase;
         max_timestep_cuts = max_timestep_cuts,
         kwarg...
     )
-    set_default_cnv_mb!(cfg, sim,
+    set_default_cnv_mb!(cfg, sim;
         tol_cnv = tol_cnv,
         tol_mb = tol_mb,
         tol_cnv_well = tol_cnv_well,
@@ -1248,6 +1249,7 @@ function setup_reservoir_simulator(case::JutulCase;
         tol_cnve_well = tol_cnve_well,
         tol_eb_well = tol_eb_well,
         inc_tol_dT = inc_tol_dT,
+        tolerances...,
     )
     return (sim, cfg)
 end
