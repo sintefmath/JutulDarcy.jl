@@ -154,7 +154,8 @@ function Jutul.subforce(s::AbstractVector{S}, model) where S<:FlowBoundaryCondit
             bc.trans_flow,
             bc.trans_thermal,
             bc.fractional_flow,
-            bc.density
+            bc.density,
+            bc.enthalpy
         )
     end
     return s[keep]
@@ -178,7 +179,7 @@ function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D,
     for bc in force
         c = bc.cell
         acc_i = view(acc, :, c)
-        qh_adv, qh_cond = compute_bc_heat_fluxes(system, bc, global_map(model), state, nph)
+        qh_adv, qh_cond = compute_bc_heat_fluxes(system, bc, global_map(model), state)
         apply_flow_bc!(acc_i, qh_adv + qh_cond, bc, model, state, time)
     end
 end
@@ -367,6 +368,7 @@ function Jutul.devectorize_force(bc::FlowBoundaryCondition, model::SimulationMod
     trans_thermal = bc.trans_thermal
     f = bc.fractional_flow
     ρ = bc.density
+    h = bc.enthalpy
     if variant == :all
         T = X[2]
         trans_flow = X[3]
@@ -377,7 +379,10 @@ function Jutul.devectorize_force(bc::FlowBoundaryCondition, model::SimulationMod
             f = X[(offset+1):(offset+length(f))]
         end
         if !isnothing(ρ)
-            ρ = X[end]
+            ρ = X[end-1]
+        end
+        if !isnothing(h)
+            h = X[end]
         end
     elseif variant == :control
         # DO nothing
@@ -391,6 +396,7 @@ function Jutul.devectorize_force(bc::FlowBoundaryCondition, model::SimulationMod
         trans_flow,
         trans_thermal,
         f,
-        ρ
+        ρ,
+        h
     )
 end
