@@ -14,6 +14,10 @@ function Jutul.associated_entity(::SurfaceTemperature)
     return Wells()
 end
 
+function Jutul.associated_entity(::SurfaceEnthalpy)
+    return Wells()
+end
+
 function Jutul.associated_entity(::TotalSurfaceMassRate)
     return Wells()
 end
@@ -135,6 +139,14 @@ function Jutul.update_equation_in_entity!(v, i, state, state0, eq::SurfaceTemper
     # Set equal to surface temperature. corresponding well temperatures will be
     # subtracted using cross terms
     v[1] = state.SurfaceTemperature[i]
+end
+
+Jutul.associated_entity(::SurfaceEnthalpyEquation) = Wells()
+Jutul.local_discretization(::SurfaceEnthalpyEquation, i) = nothing
+function Jutul.update_equation_in_entity!(v, i, state, state0, eq::SurfaceEnthalpyEquation, model, dt, ldisc = local_discretization(eq, i))
+    # Set equal to surface enthalpy. corresponding well enthalpies will be
+    # subtracted using cross terms
+    v[1] = state.SurfaceEnthalpy[i]
 end
 
 Jutul.associated_entity(::BottomHolePressureEquation) = Wells()

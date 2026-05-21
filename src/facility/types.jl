@@ -146,6 +146,23 @@ function Jutul.relative_increment_limit(T::SurfaceTemperature)
     return T.max_relative_change
 end
 
+Base.@kwdef struct SurfaceEnthalpy <: ScalarVariable
+    "Maximum absolute change betweeen two Newton updates (nominally J/kg)"
+    max_absolute_change::Union{Float64, Nothing} = nothing
+    "Maximum relative change between two Newton updates."
+    max_relative_change::Union{Float64, Nothing} = nothing
+    min = 0.0
+    max = 1e12
+end
+
+function Jutul.absolute_increment_limit(H::SurfaceEnthalpy)
+    return H.max_absolute_change
+end
+
+function Jutul.relative_increment_limit(H::SurfaceEnthalpy)
+    return H.max_relative_change
+end
+
 abstract type WellTarget end
 abstract type SurfaceVolumeTarget <: WellTarget end
 
@@ -850,6 +867,11 @@ end
 struct SurfaceTemperatureEquation <: JutulEquation
     # Equation:
     #        T_surf - T|top_cell = 0
+end
+
+struct SurfaceEnthalpyEquation <: JutulEquation
+    # Equation:
+    #        H_surf - H|top_cell = 0
 end
 
 Base.@kwdef struct BottomHolePressureEquation <: JutulEquation
