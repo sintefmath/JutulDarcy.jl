@@ -466,10 +466,15 @@ function add_thermal_to_model!(model)
 end
 
 function add_thermal_to_facility!(facility)
-    set_primary_variables!(facility, SurfaceTemperature = SurfaceTemperature())
+    set_primary_variables!(facility,
+        SurfaceTemperature = SurfaceTemperature(),
+        SurfaceEnthalpy = SurfaceEnthalpy()
+    )
     facility.equations[:temperature_equation] = SurfaceTemperatureEquation()
+    facility.equations[:enthalpy_equation] = SurfaceEnthalpyEquation()
     out = facility.output_variables
     push!(out, :SurfaceTemperature)
+    push!(out, :SurfaceEnthalpy)
     unique!(out)
     return facility
 end
