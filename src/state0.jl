@@ -266,6 +266,7 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
     res_state = setup_reservoir_state(rmodel, equil; kwarg...)
     # Next, we initialize the wells.
     init = Dict(:Reservoir => res_state)
+    well_cells = Dict{Symbol, Any}()
     perf_subset(v::AbstractVector, i) = v[i]
     perf_subset(v::AbstractMatrix, i) = v[:, i]
     perf_subset(v, i) = v
@@ -294,6 +295,7 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
                 init_w[:TotalMassFlux] = 0.0
             end
             c = map_well_nodes_to_reservoir_cells(wg, rmodel.data_domain)
+            well_cells[k] = c
             for pk in pvars
                 pv = res_state[pk]
                 init_w[pk] = perf_subset(pv, c)
@@ -318,15 +320,43 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
             own_wells = W.domain.well_symbols
             bh = zeros(T, length(own_wells))
             temp = similar(bh)
+            enth = similar(bh)
             for (i, w) in enumerate(own_wells)
+                wc = well_cells[w][1]
                 bh[i] = init[w][:Pressure][1]
                 if is_thermal
-                    temp[i] = init[w][th_var][1]
+                    if haskey(res_state, :Temperature)
+                        temp[i] = res_state[:Temperature][wc]
+                    else
+                        @error "Temperature variable not found in reservoir \
+                        state, but model is thermal. Cannot initialize \
+                        surface temperature for well $w."
+                    end
+                    if haskey(res_state, :Enthalpy)
+                        enth[i] = res_state[:Enthalpy][wc]
+                    elseif haskey(res_state, :FluidEnthalpy)
+                        H = res_state[:FluidEnthalpy]
+                        if haskey(res_state, :Saturations)
+                            S = res_state[:Saturations]
+                            enth_i = zero(H[1, wc])
+                            for ph in axes(H, 1)
+                                enth_i += H[ph, wc]*S[ph, wc]
+                            end
+                            enth[i] = enth_i
+                        else
+                            enth[i] = H[1, wc]
+                        end
+                    else
+                        @error "Enthalpy/FluidEnthalpy variable not found in \
+                        reservoir state, but model is thermal. Cannot \
+                        initialize surface enthalpy for well $w."
+                    end
                 end
             end
             init_arg[:BottomHolePressure] = bh
             if is_thermal
                 init_arg[:SurfaceTemperature] = temp
+                init_arg[:SurfaceEnthalpy] = enth
             end
             init[k] = setup_state(W; pairs(init_arg)...)
         end
