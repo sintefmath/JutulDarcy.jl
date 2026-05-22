@@ -1304,6 +1304,8 @@ function simulate_reservoir(case::JutulCase;
         config = missing,
         restart = false,
         simulator = missing,
+        states = Vector{Jutul.JUTUL_OUTPUT_TYPE}(),
+        reports = [],
         kwarg...
     )
     (; model, forces, state0, parameters, dt) = case
@@ -1325,7 +1327,15 @@ function simulate_reservoir(case::JutulCase;
         extra_arg = (state0 = case.state0, parameters = case.parameters)
         @assert !ismissing(config) "If simulator is provided, config must also be provided"
     end
-    result = simulate!(sim, dt; forces = forces, config = config, restart = restart, start_date = case.start_date, extra_arg...)
+    result = simulate!(sim, dt;
+        forces = forces,
+        config = config,
+        restart = restart,
+        start_date = case.start_date,
+        states = states,
+        reports = reports,
+        extra_arg...,
+    )
     return ReservoirSimResult(model, result, forces; simulator = sim, config = config, start_date = case.start_date)
 end
 
