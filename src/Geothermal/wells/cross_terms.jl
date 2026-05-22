@@ -36,18 +36,6 @@ struct ClosedLoopSupplyToReturnEnergyCT <: AbstractClosedLoopCT
     end
 end
 
-struct BTESWellGroutEnergyCT <: AbstractClosedLoopCT
-    WIth_grout::Vector{Float64}
-    supply_nodes::Vector{Int64}
-    return_nodes::Vector{Int64}
-    function BTESWellGroutEnergyCT(WIth_grout::Vector{Float64}, supply_nodes::Vector{Int64}, return_nodes::Vector{Int64})
-        if length(supply_nodes) != length(return_nodes)
-            throw(ArgumentError("Supply and return nodes must have the same length"))
-        end
-        new(WIth_grout, supply_nodes, return_nodes)
-    end
-end
-
 ## Cross term calculations for BTES wells
 
 function JutulDarcy.update_cross_term_in_entity!(out, i,
@@ -190,25 +178,4 @@ Base.@propagate_inbounds function btes_supply_return_heatflux(system::JutulDarcy
     end
    
     return q
-end
-
-function JutulDarcy.update_cross_term_in_entity!(out, i,
-    state_t, state0_t,
-    state_s, state0_s, 
-    model_t, model_s,
-    ct::BTESWellGroutEnergyCT, eq, dt, ldisc = JutulDarcy.local_discretization(ct, i))
-
-    # Unpack properties
-    sys = model_t.system
-    @inbounds begin 
-        supply_node = ct.supply_nodes[i]
-        return_node = ct.return_nodes[i]
-        λ = ct.WIth_grout[i]
-        T_s = state_s.Temperature[supply_node]
-        T_t = state_t.Temperature[return_node]
-        λ = ct.WIth_grout[i]
-        q = -λ.*(T_t - T_s)
-    end
-
-    out[] = q
 end
