@@ -157,7 +157,7 @@ Base.@propagate_inbounds function btes_supply_return_heatflux(system::JutulDarcy
     ncomp = JutulDarcy.number_of_components(system)
     q = 0.0
     has_enthalpy = haskey(state_supply, :Enthalpy) && haskey(state_return, :Enthalpy)
-    function enthalpy(comp, state, node)
+    function enthalpy(state, node)
         if has_enthalpy
             return state.Enthalpy[node]
         else
@@ -165,14 +165,16 @@ Base.@propagate_inbounds function btes_supply_return_heatflux(system::JutulDarcy
             h_v = state.FluidEnthalpy[2, node]
             S_l = state.Saturations[1, node]
             S_v = state.Saturations[2, node]
-            return S_l*h_l + S_v*h_v
+            ρ_l = state.PhaseMassDensities[1, node]
+            ρ_v = state.PhaseMassDensities[2, node]
+            return (h_l*S_l*ρ_l + h_v*S_v*ρ_v)/(S_l*ρ_l + S_v*ρ_v)
         end
     end
     for comp in 1:ncomp
         if q_comp[comp] < 0
-            h_comp = enthalpy(comp, state_supply, supply_node)
+            h_comp = enthalpy(state_supply, supply_node)
         else
-            h_comp = enthalpy(comp, state_return, return_node)
+            h_comp = enthalpy(state_return, return_node)
         end
         q += q_comp[comp]*h_comp
     end
