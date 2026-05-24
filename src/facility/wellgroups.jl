@@ -146,7 +146,7 @@ Jutul.local_discretization(::SurfaceEnthalpyEquation, i) = nothing
 function Jutul.update_equation_in_entity!(v, i, state, state0, eq::SurfaceEnthalpyEquation, model, dt, ldisc = local_discretization(eq, i))
     # Set equal to surface enthalpy. Corresponding well enthalpies will be
     # subtracted using cross terms
-    v[1] = state.SurfaceEnthalpy[i]
+    v[1] = state.SurfaceEnthalpy[i]*eq.scale
 end
 
 Jutul.associated_entity(::BottomHolePressureEquation) = Wells()
