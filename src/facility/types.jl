@@ -869,9 +869,10 @@ struct SurfaceTemperatureEquation <: JutulEquation
     #        T_surf - T|top_cell = 0
 end
 
-struct SurfaceEnthalpyEquation <: JutulEquation
+Base.@kwdef struct SurfaceEnthalpyEquation <: JutulEquation
     # Equation:
     #        H_surf - H|top_cell = 0
+    scale::Float64 = 1e-3
 end
 
 Base.@kwdef struct BottomHolePressureEquation <: JutulEquation
