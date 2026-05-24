@@ -210,7 +210,7 @@ module JutulDarcy
 
     # Geothermal
     include("Geothermal/Geothermal.jl")
-    import JutulDarcy.Geothermal: ClosedLoopSupplyToReturnMassCT, ClosedLoopSupplyToReturnEnergyCT, BTESWellGroutEnergyCT
+    import JutulDarcy.Geothermal: ClosedLoopSupplyToReturnMassCT, ClosedLoopSupplyToReturnEnergyCT
 
     # Discrete Fracture Models
     include("DFM/cross_terms.jl")
