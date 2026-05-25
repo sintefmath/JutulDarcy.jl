@@ -215,12 +215,12 @@ function Jutul.default_parameter_values(data_domain, model, param::WellIndices, 
             K = Jutul.expand_perm(K, gdim)
             r = radius[i]
             dir = direction[i]
-            WI[i] = compute_peaceman_index(Δ, K, r, dir;
+            WI = assign_parameter_value_or_widen(WI, i, compute_peaceman_index(Δ, K, r, dir;
                 skin = skin[i],
                 Kh = Kh[i],
                 net_to_gross = net_to_gross[i],
                 drainage_radius = drainage_radius[i]
-            )
+            ))
         end
     end
     return WI

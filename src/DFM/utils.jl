@@ -317,6 +317,10 @@ function adjust_matrix_cell_volumes!(matrix_model::SimulationModel, fractures::D
 
     fracture_volumes = fractures[:volumes, Cells()]
     matrix_volumes = matrix[:volumes, Cells()]
+    S = promote_type(eltype(matrix_volumes), eltype(fracture_volumes))
+    if eltype(matrix_volumes) != S
+        matrix_volumes = convert(Vector{S}, matrix_volumes)
+    end
     fmc = JutulDarcy.FractureMatrixConnection()
     fracture_cells = fractures[:connection_cells, fmc]
     matrix_cells = fractures[:matrix_cells, fmc]
@@ -449,9 +453,25 @@ function add_fractures_to_well(well::DataDomain{T}, fractures::DataDomain, matri
 
     wc = well.representation.perforations.self_fracture
     fc = well.representation.perforations.fracture
-    
-    well[:cell_length][wc] = fractures[:aperture][fc]
+    aperture = fractures[:aperture]
+    S = promote_type(eltype(well[:cell_length, Cells()]), eltype(aperture))
+
+    cell_length = well[:cell_length, Cells()]
+    if eltype(cell_length) != S
+        cell_length = convert(Vector{S}, cell_length)
+        well[:cell_length, Cells()] = cell_length
+    end
+
     Δ = well[:cell_dims_frac, FracturePerforations()]
+    n_dims = length(first(Δ))
+    dim_type = NTuple{n_dims, S}
+    if eltype(Δ) != dim_type
+        Δ = map(dims -> ntuple(i -> convert(S, dims[i]), n_dims), Δ)
+        well[:cell_dims_frac, FracturePerforations()] = Δ
+    end
+
+    well[:cell_length][wc] = aperture[fc]
+    Δ = copy(well[:cell_dims_frac, FracturePerforations()])
     dir = well[:perforation_direction_frac, FracturePerforations()]
     for (c, (Δ_k, dir_k)) in enumerate(zip(Δ, dir))
         if dir_k isa Symbol
@@ -459,9 +479,7 @@ function add_fractures_to_well(well::DataDomain{T}, fractures::DataDomain, matri
         else
             d = last(findmax(abs.(dir_k)))
         end
-        Δ_k = [Δ_k...]
-        Δ_k[d] = fractures[:aperture][fc[c]]
-        Δ[c] = Tuple(Δ_k)
+        Δ[c] = ntuple(i -> i == d ? convert(S, aperture[fc[c]]) : convert(S, Δ_k[i]), n_dims)
     end
     well[:cell_dims_frac, FracturePerforations()] = Δ
 

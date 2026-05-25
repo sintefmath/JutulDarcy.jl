@@ -246,6 +246,17 @@ function ensure_non_negative_trans(T, name)
     return T
 end
 
+function assign_parameter_value_or_widen(storage::Vector, i::Int, value)
+    if value isa eltype(storage)
+        storage[i] = value
+        return storage
+    end
+    T = promote_type(eltype(storage), typeof(value))
+    widened = convert(Vector{T}, storage)
+    widened[i] = value
+    return widened
+end
+
 function reservoir_conductivity(reservoir::DataDomain)
     phi = reservoir[:porosity]
     C = reservoir[:rock_thermal_conductivity]
@@ -314,13 +325,13 @@ function Jutul.default_parameter_values(data_domain, model, param::WellIndicesTh
                 Λ_i = thermal_conductivity[:, i]
             end
             Λ_i = Jutul.expand_perm(Λ_i, gdim)
-            WIt[i] = compute_well_thermal_index(Δ, Λ_i, radius[i], direction[i];
+            WIt = assign_parameter_value_or_widen(WIt, i, compute_well_thermal_index(Δ, Λ_i, radius[i], direction[i];
                 casing_thickness = casing_thickness[i],
                 grouting_thickness = grouting_thickness[i],
                 casing_thermal_conductivity = λ_casing[i],
                 grouting_thermal_conductivity = λ_grout[i],
                 drainage_radius = drainage_radius[i],
-            )
+            ))
         end
     end
     return WIt

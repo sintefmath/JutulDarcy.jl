@@ -97,15 +97,24 @@ function matrix_fracture_connection_conductivity(fractures::DataDomain, field::S
     matrix_conductivity = fractures[Symbol(:matrix_, field)]
     fracture_conductivity = fractures[field]
     if contains(String(field), "fluid")
-        matrix_conductivity .*= fractures[:matrix_porosity]
-        fracture_conductivity .*= fractures[:porosity]
+        matrix_conductivity = matrix_conductivity .* fractures[:matrix_porosity]
+        fracture_conductivity = fracture_conductivity .* fractures[:porosity]
     elseif contains(String(field), "rock")
-        matrix_conductivity .*= (1.0 .- fractures[:matrix_porosity])
-        fracture_conductivity .*= (1.0 .- fractures[:porosity])
+        matrix_conductivity = matrix_conductivity .* (1.0 .- fractures[:matrix_porosity])
+        fracture_conductivity = fracture_conductivity .* (1.0 .- fractures[:porosity])
     end
     # Compute transmissibilities and gravity potential differences for each
     # matrix-fracture connection
-    transmissibilities = Float64[]
+    T = promote_type(
+        eltype(fractures[:aperture]),
+        eltype(fractures[:volumes]),
+        eltype(fractures[:cell_normals]),
+        eltype(fractures[:cell_centroids]),
+        eltype(fractures[:matrix_cell_centroids]),
+        eltype(matrix_conductivity),
+        eltype(fracture_conductivity)
+    )
+    transmissibilities = Vector{T}(undef, length(fracture_cells))
     for (mcell, fcell) in enumerate(fracture_cells)
         # Compute fracture-matrix transmissibility
         a = fractures[:aperture][fcell]
@@ -115,8 +124,7 @@ function matrix_fracture_connection_conductivity(fractures::DataDomain, field::S
         xm = fractures[:matrix_cell_centroids][:, mcell]
         Kf = fracture_conductivity[fcell]
         Km = matrix_conductivity[mcell]
-        T = matrix_fracture_connection_conductivity(a, A, n, xf, xm, Kf, Km)
-        push!(transmissibilities, T)
+        transmissibilities[mcell] = matrix_fracture_connection_conductivity(a, A, n, xf, xm, Kf, Km)
     end
 
     return transmissibilities
@@ -260,12 +268,12 @@ function Jutul.default_parameter_values(data_domain, model, param::FractureWellI
             K = Jutul.expand_perm(K, gdim)
             r = radius[i]
             dir = direction[i]
-            WI[i] = compute_peaceman_index(Δ, K, r, dir;
+            WI = assign_parameter_value_or_widen(WI, i, compute_peaceman_index(Δ, K, r, dir;
                 skin = skin[i],
                 Kh = Kh[i],
                 net_to_gross = net_to_gross[i],
                 drainage_radius = drainage_radius[i]
-            )
+            ))
         end
     end
     return WI
@@ -312,13 +320,13 @@ function Jutul.default_parameter_values(data_domain, model, param::FractureWellI
                 Λ_i = thermal_conductivity[:, i]
             end
             Λ_i = Jutul.expand_perm(Λ_i, gdim)
-            WIt[i] = compute_well_thermal_index(Δ, Λ_i, radius[i], direction[i];
+            WIt = assign_parameter_value_or_widen(WIt, i, compute_well_thermal_index(Δ, Λ_i, radius[i], direction[i];
                 casing_thickness = casing_thickness[i],
                 grouting_thickness = grouting_thickness[i],
                 casing_thermal_conductivity = λ_casing[i],
                 grouting_thermal_conductivity = λ_grout[i],
                 drainage_radius = drainage_radius[i],
-            )
+            ))
         end
     end
     return WIt
