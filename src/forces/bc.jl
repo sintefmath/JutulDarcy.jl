@@ -107,7 +107,7 @@ function flow_boundary_condition(cells, domain, pressures, temperatures = 298.15
     return [i for i in bc]
 end
 
-function flow_boundary_condition!(bc, domain, cells, pressures, temperatures = 298.15; enthalpy = nothing, kwarg...)
+function flow_boundary_condition!(bc, domain, cells, pressures, temperatures = 298.15; density = nothing, enthalpy = nothing, kwarg...)
     n = length(cells)
     if temperatures isa Real
         temperatures = fill(temperatures, n)
@@ -115,15 +115,19 @@ function flow_boundary_condition!(bc, domain, cells, pressures, temperatures = 2
     if pressures isa Real
         pressures = fill(pressures, n)
     end
+    if density isa Real || isnothing(density)
+        density = fill(density, n)
+    end
     if enthalpy isa Real || isnothing(enthalpy)
         enthalpy = fill(enthalpy, n)
     end
     length(temperatures) == n || throw(ArgumentError("Mismatch in length of cells and temperatures arrays"))
     length(pressures) == n || throw(ArgumentError("Mismatch in length of cells and pressures arrays"))
     length(enthalpy) == n || throw(ArgumentError("Mismatch in length of cells and enthalpy arrays"))
+    length(density) == n || throw(ArgumentError("Mismatch in length of cells and density arrays"))
 
-    for (cell, pressure, temperature, h) in zip(cells, pressures, temperatures, enthalpy)
-        bc_c = FlowBoundaryCondition(domain, cell, pressure, temperature; enthalpy = h, kwarg...)
+    for (cell, pressure, temperature, h, ρ) in zip(cells, pressures, temperatures, enthalpy, density)
+        bc_c = FlowBoundaryCondition(domain, cell, pressure, temperature; density = ρ, enthalpy = h, kwarg...)
         push!(bc, bc_c)
     end
 
