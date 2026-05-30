@@ -79,14 +79,12 @@ function Jutul.update_cross_term_in_entity!(out, i,
     state_well, state0_well, 
     model_res, model_well,
     ct::ReservoirFromWellTracerCT, eq, dt, ldisc = Jutul.local_discretization(ct, i))
-    # Unpack properties
     sys = model_res.system
-    nph = number_of_phases(sys)
     conn = JutulDarcy.cross_term_perforation_get_conn(ct, i, state_well, state_res)
     reservoir_cell = conn.reservoir
     well_cell = conn.well
     phases = tuple(1:number_of_phases(model_res.system)...)
-    λ_t = sum(JutulDarcy.perforation_reservoir_mobilities(state_res, state_well, sys, reservoir_cell, well_cell))
+    λ_t = JutulDarcy.perforation_total_mobility(state_res, state_well, sys, reservoir_cell, well_cell)
 
     fluxes = map(ph -> JutulDarcy.perforation_phase_mass_flux(λ_t, conn, state_res, state_well, ph), phases)
     tracers = model_res.equations[:tracers].flux_type.tracers

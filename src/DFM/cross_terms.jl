@@ -258,7 +258,7 @@ function update_cross_term_in_entity!(out, i,
         )
     end
 
-    λ_t = sum(perforation_reservoir_mobilities(state_res, state_well, sys, fracture_cell, well_cell))
+    λ_t = perforation_total_mobility(state_res, state_well, sys, fracture_cell, well_cell)
     qh = perforation_phase_thermal_flux(λ_t, conn, state_res, state_well, nph)
     out[] = qh
 

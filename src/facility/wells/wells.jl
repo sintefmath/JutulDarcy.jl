@@ -570,11 +570,15 @@ function phase_mass_mobility(state, ph, cell)
     end
 end
 
+function perforation_total_mobility(state_res, state_well, sys, reservoir_cell, well_cell)
+    return sum(perforation_reservoir_mobilities(state_res, state_well, sys, reservoir_cell, well_cell))
+end
+
 Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::Union{ImmiscibleSystem, SinglePhaseSystem}, state_res, state_well, rhoS, conn)
     rc = conn.reservoir
     wc = conn.well
     nph = number_of_phases(sys)
-    λ_t = sum(perforation_reservoir_mobilities(state_res, state_well, sys, rc, wc))
+    λ_t = perforation_total_mobility(state_res, state_well, sys, rc, wc)
     for ph in 1:nph
         out[ph] = perforation_phase_mass_flux(λ_t, conn, state_res, state_well, ph)
     end
