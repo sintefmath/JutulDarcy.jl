@@ -277,23 +277,39 @@ function update_cross_term_in_entity!(out, i,
 
 end
 
+function cross_term_advective_thermal_flux(phase_mass_flux, state_target, state_source, nph;
+    target_cell,
+    source_cell
+)
+    advective_heat_flux = 0
+    H_t = state_target.FluidEnthalpy
+    H_s = state_source.FluidEnthalpy
+    @inbounds for ph in 1:nph
+        q_ph = phase_mass_flux(ph)
+        if q_ph < 0
+            H_perf = H_s[ph, source_cell]
+        else
+            H_perf = H_t[ph, target_cell]
+        end
+        advective_heat_flux += H_perf*q_ph
+    end
+    return advective_heat_flux
+end
+
 function perforation_phase_thermal_flux(λ_t, conn, state_res, state_well, nph)
 
     well_cell = conn.well
     reservoir_cell = conn.reservoir
     WIth = conn.WIth
 
-    advective_heat_flux = 0
-    for ph in 1:nph
-        q_ph = perforation_phase_mass_flux(λ_t, conn, state_res, state_well, ph)
-        if q_ph < 0
-            # Injection
-            H_perf = state_well.FluidEnthalpy[ph, well_cell]
-        else
-            H_perf = state_res.FluidEnthalpy[ph, reservoir_cell]
-        end
-        advective_heat_flux += H_perf*q_ph
-    end
+    advective_heat_flux = cross_term_advective_thermal_flux(
+        ph -> perforation_phase_mass_flux(λ_t, conn, state_res, state_well, ph),
+        state_res,
+        state_well,
+        nph;
+        target_cell = reservoir_cell,
+        source_cell = well_cell
+    )
     T_well = state_well.Temperature[well_cell]
     T_res = state_res.Temperature[reservoir_cell]
 

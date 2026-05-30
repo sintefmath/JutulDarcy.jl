@@ -144,19 +144,14 @@ function matrix_fracture_thermal_flux(conn, state_m, state_f, nph)
     ΔT = T_f - T_m
     qh = -Λ*ΔT
     # Add advective heat flux
-    h_m = state_m.FluidEnthalpy
-    h_f = state_f.FluidEnthalpy
-    @inbounds for ph in 1:nph
-        qm = matrix_fracture_phase_mass_flux(conn, state_m, state_f, ph)
-        if qm < 0
-            # Fracture -> Matrix
-            h = h_f[ph, cf]
-        else
-            # Matrix -> Fracture
-            h = h_m[ph, cm]
-        end
-        qh += qm*h
-    end
+    qh += cross_term_advective_thermal_flux(
+        ph -> matrix_fracture_phase_mass_flux(conn, state_m, state_f, ph),
+        state_m,
+        state_f,
+        nph;
+        target_cell = cm,
+        source_cell = cf
+    )
 
     return qh
     
