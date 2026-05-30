@@ -1422,6 +1422,16 @@ function simulate_reservoir(case::JutulCase;
         extra_arg = (state0 = case.state0, parameters = case.parameters)
         @assert !ismissing(config) "If simulator is provided, config must also be provided"
     end
+    skip_result = sim isa Jutul.PArraySimulator && 
+        sim.backend isa Jutul.MPI_PArrayBackend && 
+        isnothing(config[:output_path])
+    if skip_result
+        is_main = !haskey(sim.storage, :is_main_process) || sim.storage[:is_main_process]
+        if is_main
+            @warn "simulate_reservoir(...; mode = :mpi) requires output_path \
+            to assemble a ReservoirSimResult. Returning missing instead."
+        end
+    end
     result = simulate!(sim, dt;
         forces = forces,
         config = config,
@@ -1431,6 +1441,9 @@ function simulate_reservoir(case::JutulCase;
         reports = reports,
         extra_arg...,
     )
+    if skip_result
+        return missing
+    end
     return ReservoirSimResult(model, result, forces; simulator = sim, config = config, start_date = case.start_date)
 end
 
