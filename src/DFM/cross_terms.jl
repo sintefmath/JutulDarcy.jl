@@ -73,51 +73,22 @@ function matrix_fracture_phase_mass_flux(conn, state_m, state_f, ph)
     if ψ < 0
         cf = conn.fracture
         # Fracture -> Matrix
-        if haskey(state_f, :PhaseMassMobilities)
-            ρλ = state_f.PhaseMassMobilities[ph, cf]
-        else
-            ρ = state_f.PhaseMassDensities[ph, cf]
-            λ = state_f.PhaseMobilities[ph, cf]
-            ρλ = ρ*λ
-        end
+        ρλ = phase_mass_mobility(state_f, ph, cf)
     else
         cm = conn.matrix
         # Matrix -> Fracture
-        if haskey(state_m, :PhaseMassMobilities)
-            ρλ = state_m.PhaseMassMobilities[ph, cm]
-        else
-            ρ = state_m.PhaseMassDensities[ph, cm]
-            λ = state_m.PhaseMobilities[ph, cm]
-            ρλ = ρ*λ
-        end
+        ρλ = phase_mass_mobility(state_m, ph, cm)
     end
     return ρλ*ψ
 end
 
 function matrix_fracture_phase_potential_difference(conn, state_m, state_f, ix)
-    dp = conn.dp
-    T = conn.T
-    T, dp = Base.promote(T, dp)
-    if haskey(state_m, :PermeabilityMultiplier)
-        K_mul = state_m[:PermeabilityMultiplier][conn.matrix]
-        T *= K_mul
-    end
-    if conn.gdz != 0.0
-        if haskey(state_f, :ConnectionPressureDrop)
-            dp += state_f.ConnectionPressureDrop[conn.fracture]
-        else
-            ρ_m = state_m.PhaseMassDensities[ix, conn.matrix]
-            if haskey(state_f, :PhaseMassDensities)
-                ρ_f = state_f.PhaseMassDensities[ix, conn.fracture]
-                ρ = 0.5*(ρ_m + ρ_f)
-            else
-                ρ = ρ_m
-            end
-            dp += ρ*conn.gdz
-
-        end
-    end
-    return -T*dp
+    return cross_term_phase_potential_difference(conn, state_m, state_f, ix;
+        coefficient = :T,
+        target_cell = :matrix,
+        source_cell = :fracture,
+        pressure_drop_cell = :fracture
+    )
 end
 
 function Jutul.subcrossterm(ct::MatrixFromFractureFlowCT, ctp, m_t, m_s, map_res::Jutul.FiniteVolumeGlobalMap, map_frac::Jutul.FiniteVolumeGlobalMap, partition)

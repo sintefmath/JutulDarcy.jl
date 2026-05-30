@@ -562,6 +562,14 @@ function Jutul.select_secondary_variables!(S, D::WellDomain, model)
     end
 end
 
+function phase_mass_mobility(state, ph, cell)
+    if haskey(state, :PhaseMassMobilities)
+        return state.PhaseMassMobilities[ph, cell]
+    else
+        return state.PhaseMassDensities[ph, cell]*state.PhaseMobilities[ph, cell]
+    end
+end
+
 Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::Union{ImmiscibleSystem, SinglePhaseSystem}, state_res, state_well, rhoS, conn)
     rc = conn.reservoir
     wc = conn.well
@@ -585,13 +593,7 @@ function perforation_phase_mass_flux(λ_t, conn, state_res, state_well, ph)
     else
         rc = conn.reservoir
         # Production
-        if haskey(state_res, :PhaseMassMobilities)
-            ρλ = state_res.PhaseMassMobilities[ph, rc]
-        else
-            ρ = state_res.PhaseMassDensities[ph, rc]
-            λ = state_res.PhaseMobilities[ph, rc]
-            ρλ = ρ*λ
-        end
+        ρλ = phase_mass_mobility(state_res, ph, rc)
         q_ph = ρλ*ψ
     end
     return q_ph

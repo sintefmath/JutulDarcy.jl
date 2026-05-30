@@ -62,29 +62,45 @@ function cross_term_perforation_get_conn(ct, i, state_s, state_t)
     return conn
 end
 
-function perforation_phase_potential_difference(conn, state_res, state_well, ix)
+function cross_term_phase_potential_difference(conn, state_target, state_source, ix;
+    coefficient,
+    target_cell,
+    source_cell,
+    pressure_drop_cell
+)
     dp = conn.dp
-    WI = conn.WI
-    WI, dp = Base.promote(WI, dp)
-    if haskey(state_res, :PermeabilityMultiplier)
-        K_mul = state_res[:PermeabilityMultiplier][conn.reservoir]
-        WI *= K_mul
+    coeff = getproperty(conn, coefficient)
+    coeff, dp = Base.promote(coeff, dp)
+    if haskey(state_target, :PermeabilityMultiplier)
+        K_mul = state_target[:PermeabilityMultiplier][getproperty(conn, target_cell)]
+        coeff *= K_mul
     end
     if conn.gdz != 0.0
-        if haskey(state_well, :ConnectionPressureDrop)
-            dp += state_well.ConnectionPressureDrop[conn.perforation]
+        if haskey(state_source, :ConnectionPressureDrop)
+            dp += state_source.ConnectionPressureDrop[getproperty(conn, pressure_drop_cell)]
         else
-            ρ_r = state_res.PhaseMassDensities[ix, conn.reservoir]
-            if haskey(state_well, :PhaseMassDensities)
-                ρ_w = state_well.PhaseMassDensities[ix, conn.well]
-                ρ = 0.5*(ρ_r + ρ_w)
+            target_ix = getproperty(conn, target_cell)
+            ρ_t = state_target.PhaseMassDensities[ix, target_ix]
+            if haskey(state_source, :PhaseMassDensities)
+                source_ix = getproperty(conn, source_cell)
+                ρ_s = state_source.PhaseMassDensities[ix, source_ix]
+                ρ = 0.5*(ρ_t + ρ_s)
             else
-                ρ = ρ_r
+                ρ = ρ_t
             end
             dp += ρ*conn.gdz
         end
     end
-    return -WI*dp
+    return -coeff*dp
+end
+
+function perforation_phase_potential_difference(conn, state_res, state_well, ix)
+    return cross_term_phase_potential_difference(conn, state_res, state_well, ix;
+        coefficient = :WI,
+        target_cell = :reservoir,
+        source_cell = :well,
+        pressure_drop_cell = :perforation
+    )
 end
 
 function Jutul.cross_term_entities(ct::AbstractReservoirFromWellCT, eq::ConservationLaw, model)
