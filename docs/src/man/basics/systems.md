@@ -108,7 +108,7 @@ r_w = \frac{\partial}{\partial t} (S_w \rho_w \phi) + \nabla \cdot (\rho_w \vec{
 To complete this description we also need expressions for the phase fluxes. We use the standard multiphase extension of Darcy's law,
 
 ```math
-\vec{v}_\alpha = - \mathbf{K} \frac{k_{r\alpha}}{\mu_\alpha} (\nabla p\alpha + \rho_\alpha g \nabla z)
+\vec{v}_\alpha = - \mathbf{K} \frac{k_{r\alpha}}{\mu_\alpha} (\nabla p_\alpha + \rho_\alpha g \nabla z)
 ```
 
 Here, we have introduced the relative permeability of the phase ``k_{r\alpha}``, an empirical relationship between the saturation and the flow rate. Relative permeability is a complex topic with many different relationships and functional forms, but we limit the discussion to monotone, non-negative functions of their respective saturations, for example a simple Brooks-Corey type of ``k_{r\alpha}(S_\alpha) = S_\alpha^2``. We have also introduced separate phase pressures ``p_\alpha`` that account for capillary pressure, e.g. ``p_w = p_n + p_c(S_w)``.
