@@ -1240,7 +1240,7 @@ function setup_reservoir_simulator(case::JutulCase;
                 captured_nldd = nldd_partition
                 make_sim = (m; executor = Jutul.default_executor(), kwarg...) -> begin
                     local_part = if executor isa Jutul.PArrayExecutor
-                        NLDD._extract_local_nldd_partition(captured_nldd, executor.data[:partition])
+                        NLDD._extract_local_nldd_partition(captured_nldd, executor.data[:partition], executor.data[:n_self])
                     else
                         missing
                     end

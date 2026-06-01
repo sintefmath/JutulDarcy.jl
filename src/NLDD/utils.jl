@@ -31,22 +31,38 @@ function validate_nldd_mpi_partition(p_mpi::Vector, p_nldd::Vector)
 end
 
 """
-    _extract_local_nldd_partition(global_nldd, global_cell_indices)
+    _extract_local_nldd_partition(global_nldd, global_cell_indices, n_self)
 
 Extract and renumber the NLDD partition for a single rank's local cells.
 
 `global_nldd` is the global NLDD partition vector (one entry per reservoir cell).
 `global_cell_indices` is the vector of global cell indices belonging to this rank
 (owned + ghost), as stored in `executor.data[:partition]`.
+`n_self` is the number of owned cells (first `n_self` entries of `global_cell_indices`).
+
+Only NLDD blocks that contain at least one owned cell are kept as proper subdomains.
+Ghost cells whose global NLDD block has no owned cells on this rank are assigned
+block index 1 (an arbitrary valid owned block). They are always filtered out of
+subdomain interiors by `active_global` in `submap_cells`, so the exact assignment
+does not affect correctness.
 
 Returns a local partition vector of the same length as `global_cell_indices` with
-block indices renumbered to a contiguous `1:n_local_blocks`.
+owned-block indices renumbered to a contiguous `1:n_local_blocks`.
 """
-function _extract_local_nldd_partition(global_nldd::Vector, global_cell_indices::Vector)
+function _extract_local_nldd_partition(global_nldd::Vector, global_cell_indices::Vector, n_self::Int = length(global_cell_indices))
     local_raw = global_nldd[global_cell_indices]
-    unique_blocks = sort(unique(local_raw))
-    remap = Dict{Int, Int}(b => i for (i, b) in enumerate(unique_blocks))
-    return [remap[b] for b in local_raw]
+    # Identify which global NLDD blocks have at least one owned cell.
+    owned_blocks = Set{Int}()
+    for i in 1:n_self
+        push!(owned_blocks, local_raw[i])
+    end
+    unique_owned = sort(collect(owned_blocks))
+    remap = Dict{Int, Int}(b => i for (i, b) in enumerate(unique_owned))
+    # Owned cells always map to their (renumbered) block.
+    # Ghost cells that belong to a non-owned block are assigned to block 1 —
+    # SimplePartition requires minimum(p) == 1 and contiguous 1:n indices.
+    # These cells are always filtered from subdomain interiors by active_global.
+    return [get(remap, b, 1) for b in local_raw]
 end
 
 
