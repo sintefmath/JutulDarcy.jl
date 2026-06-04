@@ -65,6 +65,59 @@ function _extract_local_nldd_partition(global_nldd::Vector, global_cell_indices:
     return [get(remap, b, 1) for b in local_raw]
 end
 
+"""
+    validate_nldd_mpi_partition(p_mpi::Vector, op::OverlapPartition)
+
+Validate an overlap/partial-coverage NLDD partition against an MPI decomposition.
+
+Each NLDD subset must be fully contained within a single MPI domain.  Subsets
+that are empty, overlap with other subsets, or do not cover all cells are all
+permitted.
+"""
+function validate_nldd_mpi_partition(p_mpi::Vector, op::Jutul.OverlapPartition)
+    for (j, subset) in enumerate(op.subsets)
+        isempty(subset) && continue
+        mpi_domains = unique(p_mpi[subset])
+        if length(mpi_domains) > 1
+            throw(ArgumentError(
+                "NLDD subdomain $j spans multiple MPI domains: $mpi_domains. " *
+                "Each NLDD subdomain must be fully contained within a single MPI domain."
+            ))
+        end
+    end
+    return true
+end
+
+"""
+    _extract_local_nldd_partition(op::OverlapPartition, global_cell_indices, n_self)
+
+Extract and renumber an overlap NLDD partition for a single rank's local cells.
+
+Only subdomains that contain at least one owned cell (first `n_self` entries of
+`global_cell_indices`) are retained.  Cell indices within each kept subset are
+remapped from global to local (1-based into `global_cell_indices`).  Cells in
+a subset that are not visible to this rank are silently dropped.
+
+Returns a new `OverlapPartition` in local index space.
+"""
+function _extract_local_nldd_partition(op::Jutul.OverlapPartition, global_cell_indices::Vector, n_self::Int = length(global_cell_indices))
+    owned_cells = Set(global_cell_indices[1:n_self])
+    global_to_local = Dict{Int, Int}(c => i for (i, c) in enumerate(global_cell_indices))
+    nc_local = length(global_cell_indices)
+    local_subsets = Vector{Int}[]
+    for subset in op.subsets
+        # Keep only subdomains with at least one owned cell on this rank
+        any(c -> c in owned_cells, subset) || continue
+        # Remap global → local; drop cells unknown to this rank
+        local_subset = Int[]
+        for c in subset
+            li = get(global_to_local, c, nothing)
+            isnothing(li) || push!(local_subset, li)
+        end
+        isempty(local_subset) || push!(local_subsets, local_subset)
+    end
+    return Jutul.OverlapPartition(local_subsets, nc_local)
+end
 
 function simulator_config(sim::NLDDSimulator;
         method = :nldd,
@@ -121,7 +174,8 @@ function simulator_config(sim::NLDDSimulator;
     add_option!(cfg, :aspen_full_increment, false, "Solve full ASPEN update", types = Bool)
     add_option!(cfg, :strategy, DefaultNLDDStrategy(), "Strategy to use for applying NLDD/ASPEN")
     same_tol = inner_tol_final <= 1.0 && inner_tol_mul <= 1.0
-    add_option!(cfg, :subdomain_tol_sufficient, same_tol && !is_mpi, "Tolerances in subdomains are at least tight enough to be able to conclude global convergence.", types = Bool)
+    covers_full_domain = Jutul.partition_covers_full_domain(sim.partition)
+    add_option!(cfg, :subdomain_tol_sufficient, same_tol && !is_mpi && covers_full_domain, "Tolerances in subdomains are at least tight enough to be able to conclude global convergence.", types = Bool)
 
     # Subdomain tolerances for when to solve a local subdomain
     add_option!(cfg, :solve_tol_temperature, nothing, "Local subdomains are solved if maximum temperature change at boundary exceeds this value.", types = Union{Float64, Nothing})

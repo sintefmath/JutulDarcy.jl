@@ -38,8 +38,8 @@ function NLDDSimulator(case::JutulCase, partition = missing;
         jutul_message("Partition", "Generating $N coarse blocks using $partitioner_type.")
         p = JutulDarcy.partition_reservoir(case, N, partitioner_type; partitioner_arg..., wells_in_single_block = true)
         partition = reservoir_partition(model, p);
-    elseif partition isa Vector{Int}
-        # Convert it.
+    elseif partition isa Vector{Int} || partition isa Jutul.OverlapPartition
+        # Convert raw partition representation to full multi-model partition.
         partition = reservoir_partition(model, partition)
     end
     partition::Jutul.AbstractDomainPartition
@@ -234,6 +234,23 @@ end
 function local_stage(simulator, dt, forces, config, iteration, sweep_no)
     is_aspen = config[:method] == :aspen
     is_gauss_seidel = config[:gauss_seidel] && !is_aspen
+    # Guard: overlap / partial-coverage partitions require NLDD + Gauss-Seidel.
+    let part = simulator.partition
+        if !Jutul.partition_covers_full_domain(part) || Jutul.partition_has_overlap(part)
+            if is_aspen
+                throw(ArgumentError(
+                    "Overlap/partial-coverage NLDD partition is not compatible with " *
+                    "method = :aspen.  Use method = :nldd with gauss_seidel = true."
+                ))
+            end
+            if !is_gauss_seidel
+                throw(ArgumentError(
+                    "Overlap/partial-coverage NLDD partition requires gauss_seidel = true. " *
+                    "Set method = :nldd and do not disable Gauss-Seidel."
+                ))
+            end
+        end
+    end
     # Perform DD pass (nonlinear solves)
     sim_global = simulator.simulator
     sub_sims = simulator.subdomain_simulators

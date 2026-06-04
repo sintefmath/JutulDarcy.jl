@@ -2075,6 +2075,58 @@ function reservoir_partition(model::MultiModel, p)
     return SimpleMultiModelPartition(part, :Reservoir)
 end
 
+function reservoir_partition(model::MultiModel, op::Jutul.OverlapPartition)
+    !haskey(model.models, :Facility) || throw(ArgumentError("Cannot partition model if split_wells = false in setup_reservoir_model"))
+    models = model.models
+    function model_is_well(m)
+        d = physical_representation(m.domain)
+        return isa(d, JutulDarcy.WellDomain)
+    end
+    n = number_of_subdomains(op)
+    # Build Set{Int} per subdomain for O(1) membership tests
+    subset_sets = [Set{Int}(subset) for subset in op.subsets]
+    wpart = Dict{Symbol, Set{Int}}()
+    for key in keys(models)
+        m = models[key]
+        if model_is_well(m)
+            wg = physical_representation(m.domain)
+            wc = wg.perforations.reservoir
+            # A well is assigned to subdomain i only if ALL perforated cells are
+            # contained in that subdomain.  Subdomains with partial coverage do
+            # not receive the well model — those cells participate as plain
+            # reservoir cells in the local solve.
+            assigned = Set{Int}()
+            for i in 1:n
+                if all(c -> c in subset_sets[i], wc)
+                    push!(assigned, i)
+                end
+            end
+            if isempty(assigned)
+                throw(ArgumentError(
+                    "Well $key has perforations in cells $wc but no single NLDD " *
+                    "subdomain contains all of them.  Adjust the partition so that " *
+                    "at least one subdomain fully covers each well."
+                ))
+            end
+            wpart[key] = assigned
+        end
+    end
+    part = Dict{Symbol, Any}()
+    for key in keys(models)
+        m = models[key]
+        if key == :Reservoir
+            part[key] = op
+        elseif model_is_well(m)
+            part[key] = wpart[key]
+        else
+            # WellGroup / facility: derive membership from its base well key
+            s = Symbol(string(key)[1:end-5])
+            part[key] = wpart[s]
+        end
+    end
+    return SimpleMultiModelPartition(part, :Reservoir)
+end
+
 function reservoir_partition(model, p)
     return SimplePartition(p)
 end
