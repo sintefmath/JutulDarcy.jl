@@ -167,7 +167,15 @@ function simulator_config(sim::NLDDSimulator;
         types = Symbol,
         values = [:linear, :pressure, :potential, :adaptive]
     )
-    add_option!(cfg, :nldd_max_sweeps, 1, "Maximum number of NLDD sweeps", types = Int)
+    add_option!(cfg,
+        :gauss_seidel_batches,
+        nothing,
+        "Batched GS ordering: Vector of (indices, strategy) NamedTuples processed in order. " *
+        "Each batch specifies a subset of subdomain indices (1:n) and an ordering strategy. " *
+        "The batches must be exhaustive (cover all 1:n) and non-overlapping. " *
+        "When nothing, gauss_seidel_order is used for all subdomains.",
+        types = Union{Nothing, AbstractVector}
+    )
     add_option!(cfg, :method, method, "Method to use", values = [:nldd, :aspen], types = Symbol)
     add_option!(cfg, :debug_checks, false, "Enable extra expensive checks", types = Bool)
     add_option!(cfg, :solve_subdomains, true, "Solve subdomains", types = Bool)

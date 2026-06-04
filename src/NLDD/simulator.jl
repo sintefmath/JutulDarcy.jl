@@ -326,7 +326,9 @@ function local_stage(simulator, dt, forces, config, iteration, sweep_no)
             simulator,
             sub_sims,
             subreports,
-            config[:gauss_seidel_order],
+            let b = config[:gauss_seidel_batches]
+                isnothing(b) ? config[:gauss_seidel_order] : b
+            end,
             allow_early_termination
         )
     else
@@ -538,6 +540,140 @@ function gauss_seidel_for_each_subdomain_do(f, sim, simulators, subreports, stra
     if is_mpi
         for i in (num_solved+1):n_total
             # Need to account for other process waiting on a (potentially trivial) sync.
+            sync_function()
+        end
+    end
+    return sim_order
+end
+
+function gauss_seidel_for_each_subdomain_do(f, sim, simulators, subreports, batches::AbstractVector, early_stop::Bool)
+    n = length(simulators)
+    is_mpi = sim.storage.is_mpi
+    should_sync = sim.storage.mpi_sync_after_solve
+    if sim.executor isa Jutul.PArrayExecutor
+        has_sync = haskey(sim.executor.data, :distributed_primary_variables_sync_function)
+    else
+        has_sync = false
+    end
+    if is_mpi && has_sync && should_sync
+        sync_function = sim.executor.data[:distributed_primary_variables_sync_function]
+        n_total = sim.storage[:maximum_number_of_subdomains_globally]
+    else
+        sync_function = (; kwarg...) -> nothing
+        n_total = n
+    end
+
+    # Validate that batches are exhaustive and non-overlapping
+    covered = Set{Int}()
+    for (bi, batch) in enumerate(batches)
+        for i in batch.indices
+            if i in covered
+                throw(ArgumentError("Subdomain $i appears in more than one batch (detected at batch $bi)."))
+            end
+            push!(covered, i)
+        end
+    end
+    if covered != Set(1:n)
+        missing_ids = setdiff(Set(1:n), covered)
+        extra_ids   = setdiff(covered, Set(1:n))
+        if !isempty(missing_ids)
+            throw(ArgumentError("gauss_seidel_batches: subdomains $missing_ids are not covered by any batch."))
+        end
+        if !isempty(extra_ids)
+            throw(ArgumentError("gauss_seidel_batches: batch indices $extra_ids are out of range 1:$n."))
+        end
+    end
+
+    num_solved = 0
+    function solve_gauss_seidel_iteration!(i)
+        ok = f(i)
+        sync_function()
+        num_solved += 1
+        return ok
+    end
+
+    # Shared across all batches so that `:adaptive` credits from earlier batches
+    # propagate into later batches.  -1 marks a subdomain as already solved.
+    num_neighbor_updates = zeros(Int, n)
+    coarse_neighbors = sim.storage.coarse_neighbors
+
+    sim_order = Int[]
+    sizehint!(sim_order, n)
+
+    for batch in batches
+        candidate_indices = collect(batch.indices)
+        strategy = batch.strategy
+        if strategy == :adaptive
+            candidate_set = Set(candidate_indices)
+            injectors_all = find_injectors(simulators)
+            injectors = filter(i -> i in candidate_set, injectors_all)
+            if isempty(injectors)
+                _, idx = findmax(i -> find_max_interior_pressure(simulators[i]), candidate_indices)
+                injectors = [candidate_indices[idx]]
+            end
+            n_batch_solved = 0
+
+            function solve_adaptive_batch(i)
+                solve_gauss_seidel_iteration!(i)
+                push!(sim_order, i)
+                delete!(candidate_set, i)
+                subreports_i = subreports[i]
+                if !isnothing(subreports_i)
+                    n_its = 0
+                    for rep in subreports_i
+                        n_its += length(rep[:steps])
+                    end
+                    for j in coarse_neighbors[i]
+                        if num_neighbor_updates[j] != -1
+                            num_neighbor_updates[j] += n_its
+                        end
+                    end
+                end
+                num_neighbor_updates[i] = -1
+                n_batch_solved += 1
+            end
+
+            for i in injectors
+                solve_adaptive_batch(i)
+            end
+            while n_batch_solved < length(candidate_indices)
+                # Pick the unsolved domain in this batch with the most neighbor credits
+                best_i = first(candidate_set)
+                best_v = num_neighbor_updates[best_i]
+                for i in candidate_set
+                    v = num_neighbor_updates[i]
+                    if v > best_v
+                        best_v = v
+                        best_i = i
+                    end
+                end
+                solve_adaptive_batch(best_i)
+            end
+        else
+            if strategy == :linear
+                batch_order = candidate_indices
+            elseif strategy == :pressure
+                pval = map(i -> -find_max_interior_pressure(simulators[i]), candidate_indices)
+                batch_order = candidate_indices[sortperm(pval)]
+            elseif strategy == :potential
+                pval = map(i -> -find_block_potential(simulators[i]), candidate_indices)
+                batch_order = candidate_indices[sortperm(pval)]
+            else
+                error("Ordering $strategy is not supported.")
+            end
+            for i in batch_order
+                ok_i = solve_gauss_seidel_iteration!(i)
+                push!(sim_order, i)
+                num_neighbor_updates[i] = -1
+                if early_stop && !ok_i
+                    break
+                end
+            end
+        end
+    end
+
+    if is_mpi
+        for i in (num_solved+1):n_total
             sync_function()
         end
     end
