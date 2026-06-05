@@ -386,6 +386,17 @@ struct SourceTerm{I, F, T} <: JutulForce
     type::FlowSourceType
 end
 
+"""
+    FlowBoundaryCondition
+
+Boundary condition for prescribed pressure/temperature flow across a reservoir
+boundary. Optional `fractional_flow`, `density`, and `enthalpy` values can be
+used to specify the injected stream.
+
+If `enthalpy` is left as `nothing`, thermal compositional inflow falls back to
+the local reservoir-state enthalpy at the boundary cell: `Enthalpy` when
+available, otherwise a saturation-weighted value from `FluidEnthalpy`.
+"""
 struct FlowBoundaryCondition{I, F, T} <: JutulForce
     cell::I
     pressure::F
