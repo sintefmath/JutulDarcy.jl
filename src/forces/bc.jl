@@ -5,6 +5,7 @@
     temperature = 298.15;
     fractional_flow = nothing,
     density = nothing,
+    enthalpy = nothing,
     trans_flow = 1e-12,
     trans_thermal = 1e-6
     )
@@ -323,6 +324,9 @@ function Jutul.vectorization_length(bc::FlowBoundaryCondition, model, name, vari
         if !isnothing(bc.density)
             n += 1
         end
+        if !isnothing(bc.enthalpy)
+            n += 1
+        end
         return n
     elseif variant == :control
         return 1
@@ -356,6 +360,11 @@ function Jutul.vectorize_force!(v, model::SimulationModel, bc::FlowBoundaryCondi
             v[offset] = bc.density
             push!(names, :density)
         end
+        if !isnothing(bc.enthalpy)
+            offset += 1
+            v[offset] = bc.enthalpy
+            push!(names, :enthalpy)
+        end
     elseif variant == :control
         v[1] = bc.pressure
         push!(names, :pressure)
@@ -380,13 +389,17 @@ function Jutul.devectorize_force(bc::FlowBoundaryCondition, model::SimulationMod
 
         offset = 4
         if !isnothing(f)
-            f = X[(offset+1):(offset+length(f))]
+            nf = length(f)
+            f = Tuple(X[(offset+1):(offset+nf)])
+            offset += nf
         end
         if !isnothing(ρ)
-            ρ = X[end-1]
+            offset += 1
+            ρ = X[offset]
         end
         if !isnothing(h)
-            h = X[end]
+            offset += 1
+            h = X[offset]
         end
     elseif variant == :control
         # DO nothing
