@@ -93,8 +93,10 @@ export flow_boundary_condition
 
 Add flow boundary conditions to a vector of `cells` for a given `domain` coming
 from `reservoir_domain`. The input arguments `pressures` and `temperatures` can
-either be scalars or one value per cell. Other keyword arguments are passed onto
-the `FlowBoundaryCondition` constructor.
+either be scalars or one value per cell. Optional injected-stream properties
+such as `fractional_flow`, `density`, and `enthalpy` can be provided through
+keyword arguments, which are passed onto the `FlowBoundaryCondition`
+constructor.
 
 The output of this function is a `Vector` of boundary conditions that can be
 passed on the form `forces = setup_reservoir_forces(model, bc = bc)`.
