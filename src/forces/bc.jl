@@ -276,9 +276,8 @@ function compute_bc_heat_fluxes(system::JutulSystem, bc, gmap, state)
 
     # Get boundary properties
     T_h    = bc.trans_thermal
-    p_bc   = bc.pressure
     T_bc   = bc.temperature
-    rho_bc = bc.density
+    h_in   = bc_inflow_enthalpy(bc, state, c)
 
     qh_advective = 0
     for ph in 1:nph
@@ -286,16 +285,7 @@ function compute_bc_heat_fluxes(system::JutulSystem, bc, gmap, state)
             # Flow out from domain
             h_ph = h[ph,c]
         else
-            Cp = u[ph,c]/T[c]
-            if isnothing(rho_bc)
-                # Density not provided, take saturation average from what we
-                # have in the inside of the domain
-                rho_bc = 0.0
-                for ph in 1:nph
-                    rho_bc += state.Saturations[ph,c]*rho[ph,c]
-                end
-            end
-            h_ph = Cp*T_bc + p_bc/rho_bc
+            h_ph = h_in
         end
         qh_advective += h_ph*q[ph]
     end
@@ -304,6 +294,25 @@ function compute_bc_heat_fluxes(system::JutulSystem, bc, gmap, state)
     qh_conductive = T_h*ΔT
 
     return qh_advective, qh_conductive
+end
+
+function bc_inflow_enthalpy(bc, state, cell)
+    if !isnothing(bc.enthalpy)
+        return bc.enthalpy
+    elseif haskey(state, :Enthalpy)
+        return state.Enthalpy[cell]
+    end
+    H = state.FluidEnthalpy
+    if haskey(state, :Saturations)
+        S = state.Saturations
+        H_in = zero(H[1, cell])
+        for ph in axes(H, 1)
+            H_in += H[ph, cell]*S[ph, cell]
+        end
+    else
+        H_in = H[1, cell]
+    end
+    return H_in
 end
 
 function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, time) where T<:Union{ImmiscibleSystem, SinglePhaseSystem}

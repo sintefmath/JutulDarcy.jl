@@ -133,6 +133,45 @@ end
 
     bc_explicit = FlowBoundaryCondition(1, 1.0e5, 300.0; enthalpy = 2.5e6)
     @test JutulDarcy.bc_inflow_enthalpy(bc_explicit, state_sat, 2) == 2.5e6
+
+    state_flux = (
+        Pressure = [10001.0, 10002.0, 10003.0],
+        Temperature = [300.0, 300.0, 300.0],
+        Saturations = [0.25 0.5 0.25; 0.75 0.5 0.75],
+        PhaseViscosities = [1.0 1.0 1.0; 1.0 1.0 1.0],
+        RelativePermeabilities = [1.0 1.0 1.0; 1.0 1.0 1.0],
+        PhaseMassDensities = [1.0 1.0 1.0; 1.0 1.0 1.0],
+        FluidEnthalpy = [10.0 20.0 30.0; 40.0 50.0 60.0],
+        FluidInternalEnergy = [9.0 9.0 9.0; 39.0 39.0 39.0],
+        TotalMasses = [1.0 1.0 1.0; 3.0 3.0 3.0]
+    )
+    gmap = Jutul.global_map(model)
+
+    bc_flux = FlowBoundaryCondition(3, 10005.0, 300.0;
+        density = 1.0,
+        enthalpy = 10.0,
+        fractional_flow = [0.25, 0.75],
+        trans_flow = 1.0,
+        trans_thermal = 0.0
+    )
+    qh_adv, qh_cond = JutulDarcy.compute_bc_heat_fluxes(sys, bc_flux, gmap, state_flux)
+    @test qh_cond == 0.0
+    @test qh_adv == -40.0
+
+    bc_flux_fallback = FlowBoundaryCondition(3, 10005.0, 300.0;
+        density = 1.0,
+        fractional_flow = [0.25, 0.75],
+        trans_flow = 1.0,
+        trans_thermal = 0.0
+    )
+    qh_adv_fallback, qh_cond_fallback = JutulDarcy.compute_bc_heat_fluxes(sys, bc_flux_fallback, gmap, state_flux)
+    @test qh_cond_fallback == 0.0
+    @test qh_adv_fallback == -210.0
+
+    state_flux_h = merge(state_flux, (Enthalpy = [700.0, 800.0, 900.0],))
+    qh_adv_state_h, qh_cond_state_h = JutulDarcy.compute_bc_heat_fluxes(sys, bc_flux_fallback, gmap, state_flux_h)
+    @test qh_cond_state_h == 0.0
+    @test qh_adv_state_h == -3600.0
 end
 
 @testset "bc and source force gradients" begin

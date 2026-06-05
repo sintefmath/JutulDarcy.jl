@@ -106,25 +106,6 @@ function compute_bc_heat_fluxes(system::AbstractCompositionalSystemLV, bc, gmap,
 
 end
 
-function bc_inflow_enthalpy(bc, state, cell)
-    if !isnothing(bc.enthalpy)
-        return bc.enthalpy
-    elseif haskey(state, :Enthalpy)
-        return state.Enthalpy[cell]
-    end
-    H = state.FluidEnthalpy
-    if haskey(state, :Saturations)
-        S = state.Saturations
-        H_in = zero(H[1, cell])
-        for ph in axes(H, 1)
-            H_in += H[ph, cell]*S[ph, cell]
-        end
-    else
-        H_in = H[1, cell]
-    end
-    return H_in
-end
-
 function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, time) where T<:AbstractCompositionalSystemLV
 
     system = reservoir_model(model).system
