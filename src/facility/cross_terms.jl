@@ -471,7 +471,7 @@ function update_cross_term_in_entity!(out, i,
     pos = get_well_position(facility.domain, ct.well)
     H = 0*state_facility[:SurfaceEnthalpy][pos]
     H += well_top_node_enthalpy(well, state_well, well_top_node())
-    out[1] = -H
+    out[1] = -H*eq.scale
 end
 
 struct FacilityFromWellBottomHolePressureCT <: Jutul.AdditiveCrossTerm
