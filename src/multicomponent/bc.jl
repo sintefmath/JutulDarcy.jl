@@ -82,13 +82,12 @@ function compute_bc_heat_fluxes(system::AbstractCompositionalSystemLV, bc, gmap,
 
     # Get reservoir properties
     h_ph = state.FluidEnthalpy
-    h = state.Enthalpy
 
     q_adv = 0.0
     if size(q, 1) == 1
         q_tot = sum(q)
         @assert q_tot <= 0.0
-        q_adv = q_tot*bc.enthalpy
+        q_adv = q_tot*bc_inflow_enthalpy(bc, state, c)
     else
         @assert size(q, 1) == nph
         for ph in 1:nph
@@ -105,6 +104,25 @@ function compute_bc_heat_fluxes(system::AbstractCompositionalSystemLV, bc, gmap,
 
     return q_adv, qh_cond
 
+end
+
+function bc_inflow_enthalpy(bc, state, cell)
+    if !isnothing(bc.enthalpy)
+        return bc.enthalpy
+    elseif haskey(state, :Enthalpy)
+        return state.Enthalpy[cell]
+    end
+    H = state.FluidEnthalpy
+    if haskey(state, :Saturations)
+        S = state.Saturations
+        H_in = zero(H[1, cell])
+        for ph in axes(H, 1)
+            H_in += H[ph, cell]*S[ph, cell]
+        end
+    else
+        H_in = H[1, cell]
+    end
+    return H_in
 end
 
 function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, time) where T<:AbstractCompositionalSystemLV
