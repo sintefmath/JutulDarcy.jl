@@ -397,7 +397,7 @@ If `enthalpy` is left as `nothing`, thermal inflow falls back to
 the local reservoir-state enthalpy at the boundary cell: `Enthalpy` when
 available, otherwise a saturation-weighted value from `FluidEnthalpy`.
 """
-struct FlowBoundaryCondition{I, F, T} <: JutulForce
+struct FlowBoundaryCondition{I, F, T, TR} <: JutulForce
     cell::I
     pressure::F
     temperature::F
@@ -406,6 +406,7 @@ struct FlowBoundaryCondition{I, F, T} <: JutulForce
     fractional_flow::T
     density::Union{F, Nothing}
     enthalpy::Union{F, Nothing}
+    tracers::TR
 end
 
 abstract type PorousMediumDomain <: JutulMesh end

@@ -19,6 +19,7 @@ function FlowBoundaryCondition(
         fractional_flow = nothing,
         density = nothing,
         enthalpy = nothing,
+        tracers = nothing,
         trans_flow = 1e-12,
         trans_thermal = 1e-6
     )
@@ -36,8 +37,16 @@ function FlowBoundaryCondition(
         all(f .>= 0) || error("Fractional flow must be non-negative: $f")
         sum(f) == 1.0 || error("Fractional flow for boundary condition in cell $cell must sum to 1.")
     end
+    if isnothing(tracers)
+        tr = tracers
+    else
+        T = promote_type(eltype(tracers), typeof(pressure))
+        tracers = convert.(T, tracers)
+        tr = Tuple(tracers)
+        all(tr .>= 0) || error("Tracer concentrations must be non-negative: $tr")
+    end
     pressure, temperature, trans_flow, trans_thermal = promote(pressure, temperature, trans_flow, trans_thermal)
-    return FlowBoundaryCondition(cell, pressure, temperature, trans_flow, trans_thermal, f, density, enthalpy)
+    return FlowBoundaryCondition(cell, pressure, temperature, trans_flow, trans_thermal, f, density, enthalpy, tr)
 end
 
 function FlowBoundaryCondition(
@@ -162,7 +171,8 @@ function Jutul.subforce(s::AbstractVector{S}, model) where S<:FlowBoundaryCondit
             bc.trans_thermal,
             bc.fractional_flow,
             bc.density,
-            bc.enthalpy
+            bc.enthalpy,
+            bc.tracers
         )
     end
     return s[keep]
@@ -188,6 +198,18 @@ function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D,
         acc_i = view(acc, :, c)
         qh_adv, qh_cond = compute_bc_heat_fluxes(system, bc, global_map(model), state)
         apply_flow_bc!(acc_i, qh_adv + qh_cond, bc, model, state, time)
+    end
+end
+
+function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw{:TracerMasses, <:Any}, eq_s, force::V, time) where {V <: AbstractVector{<:FlowBoundaryCondition}, D, S<:MultiPhaseSystem}
+    state = storage.state
+    nph = number_of_phases(reservoir_model(model).system)
+    tracers = eq.flux_type.tracers
+    for bc in force
+        c = bc.cell
+        acc_i = view(acc, :, c)
+        q = compute_bc_tracer_fluxes(bc, global_map(model), state, tracers, nph)
+        apply_flow_bc!(acc_i, q, bc, model, state, time)
     end
 end
 
@@ -317,6 +339,49 @@ function bc_inflow_enthalpy(bc, state, cell)
     return H_in
 end
 
+function compute_bc_tracer_fluxes(bc, gmap, state, tracers, nph)
+    q_ph = compute_bc_mass_fluxes(bc, gmap, state, nph)
+    c = Jutul.full_cell(bc.cell, gmap)
+    C = state.TracerConcentrations
+
+    T_num = promote_type(eltype(C), eltype(q_ph))
+    ntr = length(tracers)
+    bc_tracers = bc.tracers
+    if isnothing(bc_tracers)
+        bc_tracers = ntuple(i -> zero(T_num), ntr)
+    else
+        length(bc_tracers) == ntr || error("Tracer concentrations for boundary condition in cell $(bc.cell) must have length $ntr.")
+    end
+
+    isbits_out = isbitstype(T_num)
+    if isbits_out
+        V_t = MVector{ntr, T_num}
+    else
+        V_t = SizedVector{ntr, T_num}
+    end
+    q = zeros(V_t)
+    for i in 1:ntr
+        tracer = tracers[i]
+        v = zero(T_num)
+        for phase in Tracers.tracer_phase_indices(tracer)
+            q_i = q_ph[phase]
+            if q_i > 0
+                C_i = C[i, c]
+            else
+                C_i = bc_tracers[i]
+            end
+            v += C_i*q_i
+        end
+        q[i] = v
+    end
+
+    if isbits_out
+        return SVector{ntr, T_num}(q)
+    else
+        return q
+    end
+end
+
 function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, time) where T<:Union{ImmiscibleSystem, SinglePhaseSystem}
 
     for ph in eachindex(acc)
@@ -337,6 +402,10 @@ function Jutul.vectorization_length(bc::FlowBoundaryCondition, model, name, vari
         end
         if !isnothing(bc.enthalpy)
             n += 1
+        end
+        tr = bc.tracers
+        if !isnothing(tr)
+            n += length(tr)
         end
         return n
     elseif variant == :control
@@ -376,6 +445,14 @@ function Jutul.vectorize_force!(v, model::SimulationModel, bc::FlowBoundaryCondi
             v[offset] = bc.enthalpy
             push!(names, :enthalpy)
         end
+        tr = bc.tracers
+        if !isnothing(tr)
+            for (i, tr_i) in enumerate(tr)
+                offset += 1
+                v[offset] = tr_i
+                push!(names, Symbol("tracer$i"))
+            end
+        end
     elseif variant == :control
         v[1] = bc.pressure
         push!(names, :pressure)
@@ -393,6 +470,7 @@ function Jutul.devectorize_force(bc::FlowBoundaryCondition, model::SimulationMod
     f = bc.fractional_flow
     ρ = bc.density
     h = bc.enthalpy
+    tr = bc.tracers
     if variant == :all
         T = X[2]
         trans_flow = X[3]
@@ -403,6 +481,8 @@ function Jutul.devectorize_force(bc::FlowBoundaryCondition, model::SimulationMod
             nf = length(f)
             f = Tuple(X[(offset+1):(offset+nf)])
             offset += nf
+            f = X[(offset+1):(offset+length(f))]
+            offset += length(f)
         end
         if !isnothing(ρ)
             offset += 1
@@ -411,6 +491,9 @@ function Jutul.devectorize_force(bc::FlowBoundaryCondition, model::SimulationMod
         if !isnothing(h)
             offset += 1
             h = X[offset]
+        end
+        if !isnothing(tr)
+            tr = X[(offset+1):(offset+length(tr))]
         end
     elseif variant == :control
         # DO nothing
@@ -425,6 +508,7 @@ function Jutul.devectorize_force(bc::FlowBoundaryCondition, model::SimulationMod
         trans_thermal,
         f,
         ρ,
-        h
+        h,
+        tr
     )
 end
