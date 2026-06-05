@@ -676,7 +676,7 @@ function update_target!(ctrl, target::ReinjectionTarget, state_facility, state_w
 end
 
 """
-    InjectorControl(target, mix, density = 1.0, phases = ((1, 1.0)), temperature = 293.15)
+    InjectorControl(target, mix, density = 1.0, phases = ((1, 1.0)), temperature = 293.15, enthalpy = missing)
 
 Well control that specifies injection into the reservoir. `target` specifies the type of target and `mix` defines the
 injection mass fractions for all species in the model during injection. 
@@ -688,6 +688,11 @@ system (e.g. `LiquidPhase(), VaporPhase()`) the species corresponds to phases an
 
 The density of the injected fluid at surface conditions is given by `density` which is defaulted to 1.0
 if not given.
+
+`enthalpy` controls the injected specific enthalpy. Supported modes are:
+- `missing`: derive the injected enthalpy from the injector temperature and well state.
+- `::Real`: use a constant injected specific enthalpy.
+- `::Function`: use a callback `(p, T) -> h` evaluated at the well top node pressure and target temperature.
 
 See also [`ProducerControl`](@ref), [`DisabledControl`](@ref).
 """
