@@ -1237,6 +1237,18 @@ function setup_reservoir_simulator(case::JutulCase;
             if ismissing(nldd_partition)
                 make_sim = (m; kwarg...) -> NLDD.NLDDSimulator(m; nldd_arg..., sim_kwarg..., kwarg...)
             else
+                # If overlap > 0 and the partition is a plain Vector{Int}, expand it
+                # globally now (before MPI splitting) so that _extract_local_nldd_partition
+                # sees a fully-expanded OverlapPartition on every rank.
+                overlap_val = get(nldd_arg, :overlap, 0)
+                if nldd_partition isa Vector{Int} && overlap_val > 0
+                    rmodel = JutulDarcy.reservoir_model(case.model)
+                    mesh = physical_representation(rmodel.data_domain)
+                    N = get_neighborship(mesh)
+                    nc = number_of_cells(mesh)
+                    nldd_partition = NLDD.expand_partition_overlap(nldd_partition, N, overlap_val)
+                    nldd_partition = Jutul.OverlapPartition(nldd_partition, nc)
+                end
                 captured_nldd = nldd_partition
                 make_sim = (m; executor = Jutul.default_executor(), kwarg...) -> begin
                     local_part = if executor isa Jutul.PArrayExecutor

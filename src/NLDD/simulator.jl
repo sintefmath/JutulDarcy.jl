@@ -17,6 +17,7 @@ function NLDDSimulator(case::JutulCase, partition = missing;
         partitioner_type = :metis,
         partitioner_arg = (partitioner_conn_type = :unit,),
         specialize_submodels = false,
+        overlap::Int = 0,
         kwarg...
     )
     (; model, state0, parameters) = case
@@ -40,6 +41,14 @@ function NLDDSimulator(case::JutulCase, partition = missing;
         partition = reservoir_partition(model, p);
     elseif partition isa Vector{Int} || partition isa Jutul.OverlapPartition
         # Convert raw partition representation to full multi-model partition.
+        if partition isa Vector{Int} && overlap > 0
+            rmodel = JutulDarcy.reservoir_model(model)
+            mesh = physical_representation(rmodel.data_domain)
+            N = get_neighborship(mesh)
+            nc = number_of_cells(mesh)
+            subsets = expand_partition_overlap(partition, N, overlap)
+            partition = Jutul.OverlapPartition(subsets, nc)
+        end
         partition = reservoir_partition(model, partition)
     end
     partition::Jutul.AbstractDomainPartition

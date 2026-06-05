@@ -1,7 +1,38 @@
 import Krylov
-export reservoir_partition, build_submodels, validate_nldd_mpi_partition
+export reservoir_partition, build_submodels, validate_nldd_mpi_partition, expand_partition_overlap
 
 import JutulDarcy: set_default_cnv_mb!
+
+"""
+    expand_partition_overlap(p, N, overlap) -> Vector{Vector{Int}}
+
+Expand each block of the dense partition vector `p` (length = nc, values 1:nb,
+0 = unassigned) by `overlap` topological hops using the cell-adjacency implied
+by the neighborship matrix `N` (2×nf, `get_neighborship(mesh)`).
+
+Returns a `Vector{Vector{Int}}` of length `nb` suitable for constructing an
+`OverlapPartition`.  Cells with `p[c] == 0` are never used as seeds but may be
+pulled in as neighbors.
+"""
+function expand_partition_overlap(p::Vector{Int}, N::AbstractMatrix{Int}, overlap::Int)
+    @assert overlap >= 0
+    nc = length(p)
+    nb = maximum(p)
+    # Build symmetric sparse adjacency for the cell graph (one entry per face)
+    ii = @view N[1, :]
+    jj = @view N[2, :]
+    A = SparseArrays.sparse(vcat(ii, jj), vcat(jj, ii), true, nc, nc)
+    subsets = Vector{Vector{Int}}(undef, nb)
+    members = BitVector(undef, nc)
+    for b in 1:nb
+        members .= (p .== b)
+        for _ in 1:overlap
+            members .|= (A * members) .> 0
+        end
+        subsets[b] = findall(members)
+    end
+    return subsets
+end
 
 """
     validate_nldd_mpi_partition(p_mpi::Vector{Int}, p_nldd::Vector{Int})
