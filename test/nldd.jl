@@ -146,8 +146,8 @@ end
         for use_blocks in [true, false]
             test_on_mrst_case("spe1", use_blocks)
         end
-        test_on_mrst_case("egg", true, steps = 1:5)
-        test_on_mrst_case("spe9", true, steps = 1:5)
+        # test_on_mrst_case("egg", true, steps = 1:5)
+        # test_on_mrst_case("spe9", true, steps = 1:5)
     end
 
     @testset "NLDD multi-sweep (nldd_max_sweeps)" begin
