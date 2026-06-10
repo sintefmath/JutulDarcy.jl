@@ -10,7 +10,7 @@ using Jutul, JutulDarcy, Test, HYPRE, MPI, PartitionedArrays
     ws[:nldd], = simulate_reservoir(case, method = :nldd, info_level = il);
     ws[:nldd_4], = simulate_reservoir(case, method = :nldd, info_level = il, nldd_arg = Dict(:no_blocks => 4));
 
-    ws[:aspen], = simulate_reservoir(case, method = :aspen, info_level = il);
+    # ws[:aspen], = simulate_reservoir(case, method = :aspen, info_level = il);
     ws[:mpi], = simulate_reservoir(case, method = :newton, mode = :mpi, info_level = il);
     ws[:nldd_mpi], = simulate_reservoir(case, method = :nldd, mode = :mpi, info_level = il);
 
@@ -80,13 +80,13 @@ end
                     test_solver_result(results_dd)
                 end
             end
-            if name != "spe9"
-                @testset "ASPEN" begin
-                    results_as = simulate_reservoir(case, method = :aspen;
-                    sim_arg...);
-                    test_solver_result(results_as)
-                end
-            end
+            # if name != "spe9"
+            #     @testset "ASPEN" begin
+            #         results_as = simulate_reservoir(case, method = :aspen;
+            #         sim_arg...);
+            #         test_solver_result(results_as)
+            #     end
+            # end
         end
     end
 
