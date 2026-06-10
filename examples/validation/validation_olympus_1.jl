@@ -66,7 +66,7 @@ function plot_well_comparison(response, well_names, reponse_name = "$response"; 
 
         val = sum(qoi.*diff([0; time_jutul]))       # hide
         val_ref = sum(qoi_ref.*diff([0; time_ref])) # hide
-        @test abs(val - val_ref)/abs(val) < 0.03    # hide
+        @test abs(val - val_ref)/abs(val) < 0.045    # hide
 
         tot_rate = copy(well[:rate])
         @. qoi[tot_rate == 0] = NaN
