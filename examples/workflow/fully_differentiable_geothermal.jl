@@ -242,11 +242,13 @@ free_optimization_parameter!(opt, "layer_porosities", abs_max = 0.35, abs_min = 
 # objective function. The defaults for the optimizer are fairly reasonable, so
 # we do not tweak the convergence criteria or the maximum number of iterations.
 # Note that by default the optimizer uses LBFGS, but it is also possible to pass
-# other optimizers as a function callable. The default for the optimizer is to
-# minimize the objective function, which is the case for a history match. By
-# passing for example `lbfgs_num = 1, max_it = 50` it is possible to obtain a
-# better match, but this is not necessary for the purpose of this example.
-prm_opt = JutulDarcy.optimize_reservoir(opt, mismatch_objective, max_it = 50, gradient_scaling = false, optimizer = :lbfgsb_qp);
+# other optimizers as a callable function. Here we use the optimizer lbfgs_qp.
+# By default, this optimizer does no parameter scaling, but since our parameters 
+# span a wide range of magnitudes (perm ~ O(10^-15) and heat capacity ~ O(10^3)), 
+# this can lead to numerical issues. By passing `scale = true` the optimizer will
+# effectively scale all parameters to [0, 1] and transform the optimization problem, 
+# avoiding numerical issues.
+prm_opt = JutulDarcy.optimize_reservoir(opt, mismatch_objective, max_it = 50, gradient_scaling = false, optimizer = :lbfgsb_qp, scale = true);
 # ### Print the optimization overview
 # If we display the optimization overview, we can see that there are now
 # additional columns indicating the optimized values. Note that while the
