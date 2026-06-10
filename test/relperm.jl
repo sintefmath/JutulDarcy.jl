@@ -160,7 +160,8 @@ function solve_1d_kr(phases;
         end
     end
     sys = ImmiscibleSystem(mph)
-    model = SimulationModel(domain, sys)
+    ctx = ParallelCSRContext(1, matrix_layout = BlockMajorLayout())
+    model = SimulationModel(domain, sys, context = ctx)
     kr = JutulDarcy.ReservoirRelativePermeabilities(
         w = krw,
         g = krg,
