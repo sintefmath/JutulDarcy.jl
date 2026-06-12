@@ -160,7 +160,8 @@ function solve_1d_kr(phases;
         end
     end
     sys = ImmiscibleSystem(mph)
-    model = SimulationModel(domain, sys)
+    ctx = ParallelCSRContext(1, matrix_layout = BlockMajorLayout())
+    model = SimulationModel(domain, sys, context = ctx)
     kr = JutulDarcy.ReservoirRelativePermeabilities(
         w = krw,
         g = krg,
@@ -234,8 +235,10 @@ function solve_1d_kr(phases;
     # Make two different rates to get hysteresis effects
     parameters = setup_parameters(model, PhaseViscosities = mu)
     state0 = setup_state(model, Pressure = p0, Saturations = s0)
+    lsolve = GenericKrylov(rtol = 1e-3, preconditioner = ILUZeroPreconditioner())
     states, report = simulate(state0, model, timesteps,
-        forces = forces, parameters = parameters, info_level = -1)
+        forces = forces, parameters = parameters,
+        info_level = -1, linear_solver = lsolve)
     @test length(states) == length(timesteps)
 end
 ##

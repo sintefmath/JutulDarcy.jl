@@ -164,15 +164,15 @@ function print_well_result_table(io::IO, wr::WellResults, wells, arg...; legend 
     # Main caller
     function print_well(w)
         tbl = well_result_table(wr, w, arg...; kwarg...)
-        Jutul.PrettyTables.pretty_table(io, tbl.data, header = tbl.header, title = tbl.title)
+        pretty_table(io, tbl.data, column_labels = [tbl.header...], title = tbl.title)
     end
     wells_is_iterable = wells isa Base.AbstractVecOrTuple
     outputs_is_iterable = length(arg) == 0 || first(arg) isa Base.AbstractVecOrTuple
 
     if outputs_is_iterable && legend
         tab = well_result_output_legend_table(wr, arg...)
-        Jutul.PrettyTables.pretty_table(io, tab.data,
-            header = tab.header,
+        pretty_table(io, tab.data,
+            column_labels = tab.header,
             title = tab.title,
             alignment = :l,
         )

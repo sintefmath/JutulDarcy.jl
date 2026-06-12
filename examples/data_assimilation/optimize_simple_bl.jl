@@ -123,8 +123,8 @@ dF_initial = dF_o(similar(x0), x0)
 import Optim
 lower, upper = lims
 inner_optimizer = Optim.LBFGS()
-opts = Optim.Options(store_trace = true, show_trace = true, time_limit = 30)
-results = Optim.optimize(Optim.only_fg!(F_and_dF), lower, upper, x0, Optim.Fminbox(inner_optimizer), opts)
+opts = Optim.Options(store_trace = true, show_trace = true, time_limit = 30, f_abstol = 0.01)
+results = Optim.optimize(F_o, dF_o, lower, upper, x0, Optim.Fminbox(inner_optimizer), opts)
 x = results.minimizer
 display(results)
 F_final = F_o(x)
@@ -134,7 +134,7 @@ devectorize_variables!(parameters_t, model, x, data[:mapper], config = data[:con
 x_truth = vectorize_variables(case_ref.model, case_ref.parameters, data[:mapper], config = data[:config])
 states_tuned, = simulate(case_dporo.state0, case_dporo.model, case_dporo.dt, parameters = parameters_t, forces = case_dporo.forces);
 # ## Plot final parameter spread
-@info "Final residual $F_final (down from $F_initial)"
+println("Final residual $F_final (down from $F_initial)")
 fig = Figure()
 ax1 = Axis(fig[1, 1], title = "Scaled parameters", ylabel = "Value")
 scatter!(ax1, x, label = "Final X")
@@ -171,14 +171,18 @@ fig
 
 # ## Define an alternative optimization
 # We can also use the generic interface for optimization, which is a bit less
-# efficient, but a lot more flexible. The previous optimization interface works
-# on numerical parameters (like pore-volumes, transmissibilities, etc.), while
-# the generic interface allows for both numerical and input parameters (like
-# permeability, porosity, etc.).
+# efficient in terms of evaluating the gradients, but a lot more flexible. The
+# previous optimization interface works on numerical parameters (like
+# pore-volumes, transmissibilities, etc.), while the generic interface allows
+# for both numerical and input parameters (like permeability, porosity, etc.).
 #
 # Note that the viscosity is not defaulted - so we need to let the solver know
 # that it needs to treat it as a distinct parameter, even if we do not optimize
-# on it directly.
+# on it directly. This calls the builtin Jutul optimizer, which generally
+# attempts to minimize the number of objective evaluations due to the cost of
+# performing a simulation. This is generally advantageous for history matching
+# problems, where the cost of evaluating the objective is high relative to the
+# cost of the work done by the optimizer itself.
 opt = setup_reservoir_dict_optimization(case_dporo, parameters = [:PhaseViscosities])
 free_optimization_parameter!(opt, [:model, :porosity], rel_min = 0.1, rel_max = 10.0)
 prm_opt = optimize_reservoir(opt, saturation_mismatch);

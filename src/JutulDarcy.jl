@@ -141,6 +141,7 @@ module JutulDarcy
     # Artifacts
     using Artifacts
     using LazyArtifacts
+    import PrettyTables: pretty_table
 
     import DataStructures: OrderedDict
     using DocStringExtensions
