@@ -164,7 +164,7 @@ function Base.show(io::IO, hm::HistoryMatch)
             tab[i, 4] = v.weight
             tab[i, 5] = v.scale
         end
-        pretty_table(io, tab; header = header, crop = :horizontal)
+        pretty_table(io, tab; column_labels = header)
     end
 end
 

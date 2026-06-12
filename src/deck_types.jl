@@ -888,8 +888,8 @@ function add_lower_pvtg(data, pos, pressure)
 end
 
 function print_deck_table!(io, tab; units = :si, self = :si, print_keyword = true)
-    u_target = InputParser.DeckUnitSystem(units)
-    u_self = InputParser.DeckUnitSystem(self)
+    u_target = GeoEnergyIO.InputParser.DeckUnitSystem(units)
+    u_self = GeoEnergyIO.InputParser.DeckUnitSystem(self)
     u = (from = u_self, to = u_target)
     start_label, tab_as_mat, header, end_records = as_printed_table(tab, u)
 
@@ -905,7 +905,7 @@ function print_deck_table!(io, tab; units = :si, self = :si, print_keyword = tru
     if print_keyword && !isnothing(start_label)
         println(io, start_label)
     end
-    Jutul.PrettyTables.pretty_table(
+    PrettyTables.pretty_table(
         io,
         tab_as_mat,
         tf = Jutul.PrettyTables.tf_borderless,
