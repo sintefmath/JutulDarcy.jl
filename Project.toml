@@ -50,7 +50,7 @@ JutulDarcyPartitionedArraysExt = ["PartitionedArrays", "MPI", "HYPRE"]
 
 [compat]
 AMGX = "0.2"
-AlgebraicMultigrid = "0.5.1, 0.6.0"
+AlgebraicMultigrid = "0.5.1, 0.6.0, 2"
 Artifacts = "1"
 CUDA = "5"
 DataStructures = "0.18.13"
