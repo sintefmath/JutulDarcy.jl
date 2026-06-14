@@ -182,10 +182,12 @@ function default_psolve(; max_levels = 10, max_coarse = 10, amgcl_type = :amg, t
         end
         amg = Jutul.AMGCLPreconditioner(amgcl_type; kwarg...)
     else
-        gs_its = 1
-        cyc = AlgebraicMultigrid.V()
-        gs = GaussSeidel(ForwardSweep(), gs_its)
-        amg = AMGPreconditioner(type; max_levels = max_levels, max_coarse = max_coarse, presmoother = gs, postsmoother = gs, cycle = cyc, kwarg...)
+        error("Unknown AMG type: $type")
+    # elseif type == :algebraicmultigrid
+    #     gs_its = 1
+    #     cyc = AlgebraicMultigrid.V()
+    #     gs = GaussSeidel(ForwardSweep(), gs_its)
+    #     amg = AMGPreconditioner(type; max_levels = max_levels, max_coarse = max_coarse, presmoother = gs, postsmoother = gs, cycle = cyc, kwarg...)
     end
 end
 
