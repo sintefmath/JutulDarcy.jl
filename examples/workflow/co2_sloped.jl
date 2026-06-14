@@ -3,8 +3,7 @@
 # This example demonstrates a custom K-value compositional model for the
 # injection of CO2 into a saline aquifer. The physical model for flow of CO2 is
 # a realization of the description in [11th SPE Comparative Solutions
-# Project](https://spe.org/en/csp/). Simulation of CO2 can be challenging, and
-# we load the HYPRE package to improve performance.
+# Project](https://spe.org/en/csp/).
 #
 # The model also has an option to run immiscible simulations with otherwise
 # identical PVT behavior. This is often faster to run, but lacks the dissolution
@@ -12,7 +11,6 @@
 # brine, and no vaporization of water in the vapor phase).
 use_immiscible = false
 using Jutul, JutulDarcy
-using HYPRE
 using GLMakie
 nx = 100
 nz = 50

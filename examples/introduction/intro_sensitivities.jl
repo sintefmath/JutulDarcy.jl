@@ -12,7 +12,7 @@
 # For more details, see the paper [JutulDarcy.jl - a Fully Differentiable
 # High-Performance Reservoir Simulator Based on Automatic
 # Differentiation](https://doi.org/10.3997/2214-4609.202437111).
-using Jutul, JutulDarcy, GLMakie, HYPRE
+using Jutul, JutulDarcy, GLMakie
 darcy, kg, meter, year, day, bar = si_units(:darcy, :kilogram, :meter, :year, :day, :bar)
 
 L = 1000.0meter

@@ -10,7 +10,7 @@
 # ## Load and simulate Egg base case
 # We take a subset of the first 60 steps (1350 days) since not much happens after
 # that in terms of well behavior.
-using Jutul, JutulDarcy, HYPRE, GeoEnergyIO, GLMakie
+using Jutul, JutulDarcy, GeoEnergyIO, GLMakie
 import LBFGSB as lb
 
 egg_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("EGG")

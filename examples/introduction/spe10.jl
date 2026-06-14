@@ -9,7 +9,7 @@
 # called SPE10, since the first model of the benchmark is very small.
 # ## Set up the reservoir
 # We can set up the reservoir itself to have a look at the static properties.
-using JutulDarcy, GLMakie, HYPRE
+using JutulDarcy, GLMakie
 reservoir = JutulDarcy.SPE10.setup_reservoir()
 plot_reservoir(reservoir, key = :porosity)
 # ## Set up and run a simulation for the first layer

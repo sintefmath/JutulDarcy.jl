@@ -8,7 +8,7 @@
 #    generic optimization interface that allows for optimizing any input
 #    parameter used in the setup of a model.
 # ## Load packages and define units
-using Jutul, JutulDarcy, HYPRE, GLMakie
+using Jutul, JutulDarcy, GLMakie
 meter, kilogram, bar, year, liter, second, darcy, day = si_units(:meter, :kilogram, :bar, :year, :liter, :second, :darcy, :day)
 
 # ## Set up the reservoir mesh

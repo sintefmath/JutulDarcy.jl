@@ -7,7 +7,7 @@
 #
 # For more details, see [olympus](@cite)
 #
-using Jutul, JutulDarcy, GLMakie, DelimitedFiles, HYPRE
+using Jutul, JutulDarcy, GLMakie, DelimitedFiles
 using Test # hide
 olympus_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("OLYMPUS_1")
 case = setup_case_from_data_file(joinpath(olympus_dir, "OLYMPUS_1.DATA"), backend = :csr)

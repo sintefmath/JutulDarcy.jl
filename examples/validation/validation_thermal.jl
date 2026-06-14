@@ -8,7 +8,7 @@
 #
 # This case is completely specified in the `ATES_TEST.DATA` file which was
 # provided by TNO. The model is a structured mesh with 472 500 active cells.
-using Jutul, JutulDarcy, GeoEnergyIO, DelimitedFiles, HYPRE, GLMakie
+using Jutul, JutulDarcy, GeoEnergyIO, DelimitedFiles, GLMakie
 basepth = GeoEnergyIO.test_input_file_path("ATES_TEST")
 data = parse_data_file(joinpath(basepth, "ATES_TEST.DATA"))
 

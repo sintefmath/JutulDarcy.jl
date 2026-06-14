@@ -3,7 +3,7 @@ import JutulDarcy.Sequential:
     phase_potential_upwind_fixed_flux,
     phase_potential_upwind_potential_differences,
     sort_tuple_indices
-using Test, Jutul, JutulDarcy, HYPRE, LinearAlgebra
+using Test, Jutul, JutulDarcy, LinearAlgebra
 
 @testset "sequential_upwind" begin
     @testset "sort_tuple" begin

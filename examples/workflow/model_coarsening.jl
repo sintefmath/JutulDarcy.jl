@@ -16,7 +16,7 @@
 # intentionally simple and very coarse for quick simulations, and not
 # necessarily accurate model responses.
 
-using Jutul, JutulDarcy, HYPRE
+using Jutul, JutulDarcy
 using GLMakie
 using GeoEnergyIO
 data_dir = GeoEnergyIO.test_input_file_path("EGG")
