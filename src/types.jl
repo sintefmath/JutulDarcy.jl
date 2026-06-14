@@ -19,8 +19,8 @@ abstract type BlackOilSystem <: MultiComponentSystem end
 abstract type PhaseVariables <: VectorVariables end
 abstract type ComponentVariables <: VectorVariables end
 
-abstract type AbstractCompositionalSystemLV <: CompositionalSystem end
-struct MultiPhaseCompositionalSystemLV{E, T, O, R, N} <: AbstractCompositionalSystemLV where T<:Tuple
+abstract type CompositionalSystemLV <: CompositionalSystem end
+struct MultiPhaseCompositionalSystemLV{E, T, O, R, N} <: CompositionalSystemLV where T<:Tuple
     phases::T
     components::Vector{String}
     equation_of_state::E

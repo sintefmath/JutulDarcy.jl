@@ -1,4 +1,4 @@
-function compute_bc_mass_fluxes(system::AbstractCompositionalSystemLV, bc, gmap, state)
+function compute_bc_mass_fluxes(system::CompositionalSystemLV, bc, gmap, state)
     c = bc.cell
     T_f = bc.trans_flow
     p = state.Pressure
@@ -74,7 +74,7 @@ function compute_bc_mass_fluxes(system::AbstractCompositionalSystemLV, bc, gmap,
 
 end
 
-function compute_bc_heat_fluxes(system::AbstractCompositionalSystemLV, bc, gmap, state)
+function compute_bc_heat_fluxes(system::CompositionalSystemLV, bc, gmap, state)
 
     nph = number_of_phases(system)
     q = compute_bc_mass_fluxes(system, bc, gmap, state)
@@ -106,7 +106,7 @@ function compute_bc_heat_fluxes(system::AbstractCompositionalSystemLV, bc, gmap,
 
 end
 
-function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, time) where T<:AbstractCompositionalSystemLV
+function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, time) where T<:CompositionalSystemLV
 
     system = reservoir_model(model).system
     ncomp = number_of_components(system)

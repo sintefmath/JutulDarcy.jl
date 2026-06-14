@@ -101,7 +101,7 @@ Base.@propagate_inbounds function btes_supply_return_massflux(system::JutulSyste
     return q
 end
 
-Base.@propagate_inbounds function btes_supply_return_massflux(system::JutulDarcy.AbstractCompositionalSystemLV, state_supply, state_return, supply_node, return_node)
+Base.@propagate_inbounds function btes_supply_return_massflux(system::JutulDarcy.CompositionalSystemLV, state_supply, state_return, supply_node, return_node)
 
     T = 1.0e-10
     p_s = state_supply.Pressure[supply_node]
@@ -152,7 +152,7 @@ Base.@propagate_inbounds function btes_supply_return_heatflux(system::JutulSyste
     return q
 end
 
-Base.@propagate_inbounds function btes_supply_return_heatflux(system::JutulDarcy.AbstractCompositionalSystemLV, state_supply, state_return, supply_node, return_node)
+Base.@propagate_inbounds function btes_supply_return_heatflux(system::JutulDarcy.CompositionalSystemLV, state_supply, state_return, supply_node, return_node)
     q_comp = btes_supply_return_massflux(system, state_supply, state_return, supply_node, return_node)
     ncomp = JutulDarcy.number_of_components(system)
     q = 0.0
