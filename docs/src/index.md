@@ -118,7 +118,6 @@ JutulDarcy.jl builds upon many of the excellent packages in the Julia ecosystem.
 - [SparsityTracing.jl](https://github.com/PALEOtoolkit/SparsityTracing.jl/) provides sparsity detection inside Jutul
 - [Krylov.jl](https://github.com/JuliaSmoothOptimizers/Krylov.jl) provides the iterative linear solvers
 - [ILUZero.jl](https://github.com/mcovalt/ILUZero.jl/blob/master/src/ILUZero.jl) for ILU(0) preconditioners
-- [AlgebraicMultigrid.jl](https://github.com/JuliaLinearAlgebra/AlgebraicMultigrid.jl) for AMG preconditioners
 - [HYPRE.jl](https://github.com/fredrikekre/HYPRE.jl) for robust AMG preconditioners with MPI support
 - [PartitionedArrays.jl](https://github.com/fverdugo/PartitionedArrays.jl) for MPI assembly and linear solve
 - [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) for CUDA-GPU support

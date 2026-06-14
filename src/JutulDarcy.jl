@@ -129,7 +129,7 @@ module JutulDarcy
 
     using Jutul
     using ForwardDiff, StaticArrays, SparseArrays, LinearAlgebra, Statistics
-    using AlgebraicMultigrid
+    using HYPRE
     # PVT
     using MultiComponentFlash
     using MAT
@@ -243,10 +243,10 @@ module JutulDarcy
         try
             precompile_darcy_multimodels()
             # We run a tiny MRST case to precompile the .MAT file loading
-            spe1_path = joinpath(pathof(JutulDarcy), "..", "..", "test", "mrst", "spe1.mat")
-            if isfile(spe1_path)
-                simulate_mrst_case(spe1_path, info_level = -1, verbose = false)
-            end
+            # spe1_path = joinpath(pathof(JutulDarcy), "..", "..", "test", "mrst", "spe1.mat")
+            # if isfile(spe1_path)
+            #     simulate_mrst_case(spe1_path, info_level = -1, verbose = false)
+            # end
             # Precompile a DATA file workflow
             spe1_path_data = GeoEnergyIO.test_input_file_path("SPE1", "SPE1.DATA")
             if isfile(spe1_path_data)

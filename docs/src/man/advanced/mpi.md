@@ -23,7 +23,7 @@ Starting Julia with multiple threads (for example `julia --project. --threads=4`
 - Running with a parallel preconditioner can lead to higher iteration counts since the ILU(0) preconditioner changes in parallel
 - Heavy compositional models benefit a lot from using threads
 
-Threads are easy to use and can give a bit of benefit for large models.
+Threads are easy to use and can give a bit of benefit for large models. You can also call `Jutul.set_hypre_threads(N)` where `N` is the desired number of threads to allow the hypre AMG solver to use threads as well. If you call `Jutul.set_hypre_threads()` it will default to the number of threads in the Julia session (i.e. whatever was passed to the `--threads` argument).
 
 ### Mixed-mode parallelism
 
@@ -48,7 +48,7 @@ There are a few adjustments needed before a script can be run in MPI.
 ### Setting up the environment
 
 You will have to set up an environment with the following packages under Julia 1.9+:
-`PartitionedArrays`, `MPI`, `JutulDarcy` and `HYPRE`. This is generally the best performing solver setup available, even if you are working in a shared memory environment.
+`PartitionedArrays`, `MPI`, and `JutulDarcy`. `HYPRE` is automatically installed. This is generally the best performing solver setup available, even if you are working in a shared memory environment.
 
 ### Writing the script
 

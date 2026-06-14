@@ -25,7 +25,7 @@
 # results that closely match the full-dimensional reference in both cases.
 
 # ## Setup
-using Jutul, JutulDarcy, HYPRE, GLMakie
+using Jutul, JutulDarcy, GLMakie
 import Jutul.CutCellMeshes: PlaneCut, cut_mesh
 
 Darcy, bar, kg, meter, Kelvin, year = si_units(:darcy, :bar, :kilogram, :meter, :Kelvin, :year)

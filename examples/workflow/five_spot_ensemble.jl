@@ -4,7 +4,7 @@
 # five spot well pattern by assuming axial symmetry. The problem contains an
 # injector in one corner and the producer in the opposing corner, with a
 # significant volume of fluids injected into the domain.
-using JutulDarcy, Jutul, HYPRE, Statistics
+using JutulDarcy, Jutul, Statistics
 nx = 50;
 # ## Setup
 # We define a function that, for a given porosity field, computes a solution

@@ -8,7 +8,7 @@
 # where energy is stored from June to September, and discharged from December to
 # March. The rest of the year is a rest period where no energy is stored or
 # produced.
-using JutulDarcy, Jutul, HYPRE
+using JutulDarcy, Jutul
 import Dates: monthname
 darcy, litre, year, second = si_units(:darcy, :litre, :year, :second)
 

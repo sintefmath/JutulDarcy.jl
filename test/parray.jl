@@ -1,4 +1,4 @@
-using Test, Jutul, JutulDarcy, HYPRE, PartitionedArrays
+using Test, Jutul, JutulDarcy, PartitionedArrays
 # Test distributed parallel solve using PartitionedArrays + HYPRE.
 function setup_well_case(nx = 5, backend = :csr; use_wells = true)
     bar = 1e5

@@ -4,7 +4,7 @@
 # JutulDarcy. We will use two different PVT functions--one simple and one
 # realistic--to highlight the importance of accurate fluid physics in geothermal
 # simulations.
-using Jutul, JutulDarcy, HYPRE, GeoEnergyIO, GLMakie
+using Jutul, JutulDarcy, GeoEnergyIO, GLMakie
 meter, kilogram, bar, year = si_units(:meter, :kilogram, :bar, :year)
 
 # ## Make setup function

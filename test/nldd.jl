@@ -1,4 +1,4 @@
-using Jutul, JutulDarcy, Test, HYPRE, MPI, PartitionedArrays
+using Jutul, JutulDarcy, Test, MPI, PartitionedArrays
 
 @testset "NLDD/MPI" begin
     f = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1", "SPE1.DATA")

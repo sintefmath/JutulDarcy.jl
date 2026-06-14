@@ -127,10 +127,9 @@ Jutul builds upon many of the excellent packages in the Julia ecosystem. Here ar
 - [Krylov.jl](https://github.com/JuliaSmoothOptimizers/Krylov.jl) provides the iterative linear solvers
 - [DifferentiationInterface.jl](https://github.com/JuliaDiff/DifferentiationInterface.jl) provides gradients of setup functions for the adjoint method
 - [ILUZero.jl](https://github.com/mcovalt/ILUZero.jl/blob/master/src/ILUZero.jl) for ILU(0) preconditioners
-- [AlgebraicMultigrid.jl](https://github.com/JuliaLinearAlgebra/AlgebraicMultigrid.jl) for AMG preconditioners
 - [HYPRE.jl](https://github.com/fredrikekre/HYPRE.jl) for robust AMG preconditioners with MPI support
 - [PartitionedArrays.jl](https://github.com/fverdugo/PartitionedArrays.jl) for MPI assembly and linear solve
-- [Tullio.jl](https://github.com/mcabbott/Tullio.jl) for automatically optimized loops and [Polyester.jl](https://github.com/JuliaSIMD/Polyester.jl) for lightweight threads
+- [Polyester.jl](https://github.com/JuliaSIMD/Polyester.jl) for lightweight threads
 - [TimerOutputs.jl](https://github.com/KristofferC/TimerOutputs.jl) and [ProgressMeter.jl](https://github.com/timholy/ProgressMeter.jl) gives nice output to terminal.
 - [Makie.jl](https://makie.juliaplots.org/) is used for the visualization features
 - [MultiComponentFlash.jl](https://github.com/moyner/MultiComponentFlash.jl) provides many of the compositional features
