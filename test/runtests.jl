@@ -1,5 +1,9 @@
 using JutulDarcy, TestItems, Test, TestItemRunner
 
+@testitem "Mesh and reservoir" begin
+    include("mesh_and_reservoir.jl")
+end
+
 @testitem "Utilities" begin
     include("utils.jl")
 end
