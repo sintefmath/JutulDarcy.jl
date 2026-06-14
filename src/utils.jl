@@ -90,8 +90,33 @@ have an externally computed model. The values must be given for every face on
 the mesh. Values that are NaN or Inf will be treated as missing and the standard
 transmissibility calculator will be used instead for those faces.
 
-Non-neighboring (nnc) connections can be added by passing a structure created
-using [`JutulDarcy.setup_nnc_connections`](@ref) to the `nnc` keyword argument.
+# Keywords for active cells
+
+This function can remove cells from the mesh based on minimum pore volume and/or
+a manually specified active cell list. Note that in this case, the routine
+assumes that you still give cell-wise values like permeability for all cells
+*before* removal.
+
+ - `min_porevolume`: Minimum pore volume for a cell to be included in the mesh.
+   Cells with a pore volume (cell volume * porosity) less than this value will
+   be removed from the mesh. 
+- `active`: Vector of active cell indices. Only cells with indices in this
+  vector will be included in the mesh. This can be used in combination with
+  `min_porevolume` to further filter the mesh.
+
+If you have inactive cells, you can retrieve the updated mesh by calling
+[`reservoir_mesh`](@ref) on the output from this function.
+
+# Other keyword arguments
+ - `nnc`: Non-neighboring (nnc) connections can be added by passing a structure
+  created using [`JutulDarcy.setup_nnc_connections`](@ref) to the `nnc` keyword
+  argument.
+- `include_bounds`: If `true`, the minimum and maximum coordinates of each cell
+  will be added to the reservoir domain as `min_coordinate` and `max_coordinate`
+  with entity `Cells()`. This can be useful for equilbriation to subdivide
+  coarse cells into finer cells for more accurate equilibration, albeit at the
+  cost of the initial equilibrium not being a true rest state.
+
 """
 function reservoir_domain(g;
         permeability = convert_to_si(0.1, :darcy),
@@ -103,6 +128,8 @@ function reservoir_domain(g;
         rock_density = 2000.0,
         transmissibility_override = missing,
         transmissibility_multiplier = missing,
+        min_porevolume = 1e-6,
+        active = missing,
         diffusion = missing,
         nnc = missing,
         include_bounds = false,
@@ -153,15 +180,55 @@ function reservoir_domain(g;
         rock_density = rock_density,
         kwarg...
     )
+    has_minpv = min_porevolume > 0.0
+    has_active = !ismissing(active)
+    if has_minpv || has_active
+        active_cells = collect(1:nc)
+        if has_minpv
+            vols = copy(reservoir[:volumes, Cells()])
+            poro = reservoir[:porosity, Cells()]
+            if haskey(reservoir, :net_to_gross)
+                ntg = reservoir[:net_to_gross, Cells()]
+            else
+                ntg = 1.0
+            end
+            @. vols *= ntg * poro
+            active_cells = findall(vols .>= min_porevolume)
+        end
+        if has_active
+            active_cells = intersect(active, active_cells)
+        end
+        nc_new = length(active_cells)
+        if nc_new < nc
+            println("Filtering mesh to cells with volume >= $min_porevolume. Keeping $(nc_new) out of $(nc) cells.")
+            msh = extract_submesh(msh, active_cells)
+            new_reservoir = reservoir_domain(msh)
+            for (k, v_and_e) in pairs(reservoir)
+                v, e = v_and_e
+                if e == Cells()
+                    if v isa AbstractMatrix
+                        new_reservoir[k] = v[:, active_cells]
+                    elseif v isa AbstractVector
+                        new_reservoir[k] = v[active_cells]
+                    else
+                        @debug "Skipping property $k in submesh..."
+                    end
+                else
+                    @debug "Skipping property $k since it is defined on $e, not cells."
+                end
+            end
+            reservoir = new_reservoir
+        elseif nc_new == nc
+            @debug "All cells have volume >= $min_porevolume. No mesh filtering applied."
+        else
+            error("No cells have volume >= min_pore_volume=$min_porevolume. No mesh left after filtering.")
+        end
+    end
+
     if has_nnc
         reservoir[:nnc, nothing] = nnc
     end
-    for k in [:porosity, :net_to_gross]
-        if haskey(reservoir, k)
-            val = reservoir[k]
-            minimum(val) > 0 || throw(ArgumentError("Keyword argument $k must have positive entries."))
-        end
-    end
+
     if !ismissing(transmissibility_multiplier)
         if has_nnc && length(transmissibility_multiplier) == nf0
             # Expand to include NNC connections
