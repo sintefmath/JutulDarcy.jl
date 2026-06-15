@@ -335,9 +335,35 @@ function update_cross_term_in_entity!(out, i,
 
     cell = well_top_node()
 
-    T = get_target_temperature(ctrl, ctrl.target, facility, state_facility)
-    H = well_top_node_enthalpy(ctrl, well, state_well, T, cell)
+    H = get_target_enthalpy(ctrl, ctrl.target, facility, state_facility, well, state_well, cell)
     out[] = -qT*H
+end
+
+function get_target_enthalpy(ctrl, target, facility, state_facility, model, state_well, cell)
+    return well_top_node_enthalpy(model, state_well, cell)
+end
+
+function get_target_enthalpy(ctrl::InjectorControl, target, facility, state_facility, model, state_well, cell)
+    T = get_target_temperature(ctrl, target, facility, state_facility)
+    return well_top_node_enthalpy(ctrl, model, state_well, T, cell)
+end
+
+function get_target_enthalpy(ctrl::InjectorControl, target::ReinjectionTarget, facility, state_facility, model, state_well, cell)
+    if !ismissing(ctrl.enthalpy) || !isnan(ctrl.temperature)
+        T = get_target_temperature(ctrl, target, facility, state_facility)
+        return well_top_node_enthalpy(ctrl, model, state_well, T, cell)
+    end
+
+    q = qh = Htot = 0.0
+    for w in target.wells
+        pos = get_well_position(facility.domain, w)
+        qw = state_facility.TotalSurfaceMassRate[pos]
+        Hw = state_facility.SurfaceEnthalpy[pos]
+        q += qw
+        qh += qw*Hw
+        Htot += Hw
+    end
+    return ifelse(abs(q) >= MIN_ACTIVE_WELL_RATE, qh/q, Htot/length(target.wells))
 end
 
 function get_target_temperature(ctrl, target, facility, state_facility)
@@ -349,11 +375,6 @@ function get_target_temperature(ctrl::InjectorControl, target, facility, state_f
 end
 
 function get_target_temperature(ctrl::InjectorControl, target::ReinjectionTarget, facility, state_facility)
-
-    # TODO: This currently assumes constant fluid heat capacity and equal
-    # pressures. Should ideally be replaced by enthalpy, which requires
-    # FluidEnthalpy to be a Facility variable
-
     if !isnan(ctrl.temperature)
         return ctrl.temperature
     end
@@ -370,6 +391,23 @@ function get_target_temperature(ctrl::InjectorControl, target::ReinjectionTarget
     T = ifelse(abs(q) >= MIN_ACTIVE_WELL_RATE, qh/q, Ttot/length(target.wells))
 
     return T
+end
+
+function well_top_node_enthalpy(model, state_well, cell)
+    if haskey(state_well, :Enthalpy)
+        return state_well.Enthalpy[cell]
+    end
+    H = state_well.FluidEnthalpy
+    if haskey(state_well, :Saturations)
+        S = state_well.Saturations
+        H_w = zero(H[1, cell])
+        for ph in axes(H, 1)
+            H_w += H[ph, cell]*S[ph, cell]
+        end
+    else
+        H_w = H[1, cell]
+    end
+    return H_w
 end
 
 function well_top_node_enthalpy(ctrl::InjectorControl, model, state_well, T, cell)
@@ -397,13 +435,7 @@ function well_top_node_enthalpy(ctrl::InjectorControl, model, state_well, T, cel
 end
 
 function well_top_node_enthalpy(ctrl, model, state_well, T, cell)
-    H = state_well.FluidEnthalpy
-    S = state_well.Saturations
-    H_w = 0.0
-    for ph in axes(H, 1)
-        H_w += H[ph, cell]*S[ph, cell]
-    end
-    return H_w
+    return well_top_node_enthalpy(model, state_well, cell)
 end
 
 struct FacilityFromWellTemperatureCT <: Jutul.AdditiveCrossTerm
@@ -422,6 +454,24 @@ function update_cross_term_in_entity!(out, i,
     T = 0*state_facility[:SurfaceTemperature][pos]
     T += state_well[:Temperature][well_top_node()]
     out[1] = -T
+end
+
+struct FacilityFromWellEnthalpyCT <: Jutul.AdditiveCrossTerm
+    well::Symbol
+end
+
+Jutul.cross_term_entities(ct::FacilityFromWellEnthalpyCT, eq::SurfaceEnthalpyEquation, model) = get_well_position(model.domain, ct.well)
+
+function update_cross_term_in_entity!(out, i,
+    state_facility, state0_facility,
+    state_well, state0_well,
+    facility, well,
+    ct::FacilityFromWellEnthalpyCT, eq::SurfaceEnthalpyEquation, dt, ldisc = local_discretization(ct, i))
+
+    pos = get_well_position(facility.domain, ct.well)
+    H = 0*state_facility[:SurfaceEnthalpy][pos]
+    H += well_top_node_enthalpy(well, state_well, well_top_node())
+    out[1] = -H*eq.scale
 end
 
 struct FacilityFromWellBottomHolePressureCT <: Jutul.AdditiveCrossTerm

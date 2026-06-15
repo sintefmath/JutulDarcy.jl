@@ -1108,6 +1108,7 @@ function setup_reservoir_simulator(case::JutulCase;
         tol_cnve_well = 10*tol_cnve,
         tol_eb_well = 1e4*tol_eb,
         inc_tol_dT = Inf,
+        tolerances = NamedTuple(),
         failure_cuts_timestep = true,
         max_timestep_cuts = 25,
         timesteps = :auto,
@@ -1233,7 +1234,7 @@ function setup_reservoir_simulator(case::JutulCase;
         max_timestep_cuts = max_timestep_cuts,
         kwarg...
     )
-    set_default_cnv_mb!(cfg, sim,
+    set_default_cnv_mb!(cfg, sim;
         tol_cnv = tol_cnv,
         tol_mb = tol_mb,
         tol_cnv_well = tol_cnv_well,
@@ -1248,6 +1249,7 @@ function setup_reservoir_simulator(case::JutulCase;
         tol_cnve_well = tol_cnve_well,
         tol_eb_well = tol_eb_well,
         inc_tol_dT = inc_tol_dT,
+        tolerances...,
     )
     return (sim, cfg)
 end
@@ -1329,6 +1331,12 @@ function simulate_reservoir(case::JutulCase;
     return ReservoirSimResult(model, result, forces; simulator = sim, config = config, start_date = case.start_date)
 end
 
+system_uses_cnv_mb(system::JutulSystem) = false
+system_uses_cnv_mb(system::SinglePhaseSystem) = true
+system_uses_cnv_mb(system::ImmiscibleSystem) = true
+system_uses_cnv_mb(system::BlackOilSystem) = true
+system_uses_cnv_mb(system::CompositionalSystem) = true
+
 function set_default_cnv_mb!(cfg::JutulConfig, sim::JutulSimulator; kwarg...)
     set_default_cnv_mb!(cfg, sim.model; kwarg...)
 end
@@ -1374,8 +1382,7 @@ function set_default_cnv_mb_inner!(tol, model;
         end
     end
     sys = model.system
-    if sys isa SinglePhaseSystem || sys isa ImmiscibleSystem || 
-        sys isa BlackOilSystem || sys isa CompositionalSystem
+    if system_uses_cnv_mb(sys)
         is_well = model_or_domain_is_well(model)
         if is_well
             if physical_representation(model) isa SimpleWell
@@ -1443,6 +1450,8 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                     add_cross_term!(model, ct, target = target_well, source = k, equation = energy)
                     ct = FacilityFromWellTemperatureCT(target_well)
                     add_cross_term!(model, ct, target = k, source = target_well, equation = :temperature_equation)
+                    ct = FacilityFromWellEnthalpyCT(target_well)
+                    add_cross_term!(model, ct, target = k, source = target_well, equation = :enthalpy_equation)
                 end
             end
         else

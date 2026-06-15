@@ -19,7 +19,8 @@ abstract type BlackOilSystem <: MultiComponentSystem end
 abstract type PhaseVariables <: VectorVariables end
 abstract type ComponentVariables <: VectorVariables end
 
-struct MultiPhaseCompositionalSystemLV{E, T, O, R, N} <: CompositionalSystem where T<:Tuple
+abstract type CompositionalSystemLV <: CompositionalSystem end
+struct MultiPhaseCompositionalSystemLV{E, T, O, R, N} <: CompositionalSystemLV where T<:Tuple
     phases::T
     components::Vector{String}
     equation_of_state::E
@@ -385,6 +386,17 @@ struct SourceTerm{I, F, T} <: JutulForce
     type::FlowSourceType
 end
 
+"""
+    FlowBoundaryCondition
+
+Boundary condition for prescribed pressure/temperature flow across a reservoir
+boundary. Optional `fractional_flow`, `density`, and `enthalpy` values can be
+used to specify the injected stream.
+
+If `enthalpy` is left as `nothing`, thermal inflow falls back to
+the local reservoir-state enthalpy at the boundary cell: `Enthalpy` when
+available, otherwise a saturation-weighted value from `FluidEnthalpy`.
+"""
 struct FlowBoundaryCondition{I, F, T} <: JutulForce
     cell::I
     pressure::F
@@ -393,6 +405,7 @@ struct FlowBoundaryCondition{I, F, T} <: JutulForce
     trans_thermal::F
     fractional_flow::T
     density::Union{F, Nothing}
+    enthalpy::Union{F, Nothing}
 end
 
 abstract type PorousMediumDomain <: JutulMesh end

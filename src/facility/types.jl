@@ -129,13 +129,13 @@ function Jutul.relative_increment_limit(q::TotalSurfaceMassRate)
     return q.max_relative_change
 end
 
-Base.@kwdef struct SurfaceTemperature <: ScalarVariable
+Base.@kwdef struct SurfaceTemperature{T} <: ScalarVariable
     "Maximum absolute change betweeen two Newton updates (nominally K)"
     max_absolute_change::Union{Float64, Nothing} = nothing
     "Maximum relative change between two Newton updates."
     max_relative_change::Union{Float64, Nothing} = nothing
-    min = 273.15
-    max = 1e6
+    min::T = 273.15
+    max::T = 1e6
 end
 
 function Jutul.absolute_increment_limit(T::SurfaceTemperature)
@@ -144,6 +144,23 @@ end
 
 function Jutul.relative_increment_limit(T::SurfaceTemperature)
     return T.max_relative_change
+end
+
+Base.@kwdef struct SurfaceEnthalpy{T} <: ScalarVariable
+    "Maximum absolute change betweeen two Newton updates (nominally J/kg)"
+    max_absolute_change::Union{Float64, Nothing} = nothing
+    "Maximum relative change between two Newton updates."
+    max_relative_change::Union{Float64, Nothing} = nothing
+    min::T = 0.0
+    max::T = 1e12
+end
+
+function Jutul.absolute_increment_limit(H::SurfaceEnthalpy)
+    return H.max_absolute_change
+end
+
+function Jutul.relative_increment_limit(H::SurfaceEnthalpy)
+    return H.max_relative_change
 end
 
 abstract type WellTarget end
@@ -659,7 +676,7 @@ function update_target!(ctrl, target::ReinjectionTarget, state_facility, state_w
 end
 
 """
-    InjectorControl(target, mix, density = 1.0, phases = ((1, 1.0)), temperature = 293.15)
+    InjectorControl(target, mix, density = 1.0, phases = ((1, 1.0)), temperature = 293.15, enthalpy = missing)
 
 Well control that specifies injection into the reservoir. `target` specifies the type of target and `mix` defines the
 injection mass fractions for all species in the model during injection. 
@@ -671,6 +688,11 @@ system (e.g. `LiquidPhase(), VaporPhase()`) the species corresponds to phases an
 
 The density of the injected fluid at surface conditions is given by `density` which is defaulted to 1.0
 if not given.
+
+`enthalpy` controls the injected specific enthalpy. Supported modes are:
+- `missing`: derive the injected enthalpy from the injector temperature and well state.
+- `::Real`: use a constant injected specific enthalpy.
+- `::Function`: use a callback `(p, T) -> h` evaluated at the well top node pressure and target temperature.
 
 See also [`ProducerControl`](@ref), [`DisabledControl`](@ref).
 """
@@ -850,6 +872,12 @@ end
 struct SurfaceTemperatureEquation <: JutulEquation
     # Equation:
     #        T_surf - T|top_cell = 0
+end
+
+Base.@kwdef struct SurfaceEnthalpyEquation <: JutulEquation
+    # Equation:
+    #        H_surf - H|top_cell = 0
+    scale::Float64 = 1e-3
 end
 
 Base.@kwdef struct BottomHolePressureEquation <: JutulEquation

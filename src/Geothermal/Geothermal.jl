@@ -1,7 +1,7 @@
 module Geothermal
 
     using Jutul, JutulDarcy
-    export BTESWellSupplyToReturnMassCT, ClosedLoopSupplyToReturnEnergyCT, BTESWellGroutEnergyCT
+    export BTESWellSupplyToReturnMassCT, ClosedLoopSupplyToReturnEnergyCT
     export update_cross_term_in_entity!
 
     function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, ::Val{:geothermal}; kwarg...)

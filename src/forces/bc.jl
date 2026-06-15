@@ -5,6 +5,7 @@
     temperature = 298.15;
     fractional_flow = nothing,
     density = nothing,
+    enthalpy = nothing,
     trans_flow = 1e-12,
     trans_thermal = 1e-6
     )
@@ -17,13 +18,14 @@ function FlowBoundaryCondition(
         temperature = 298.15;
         fractional_flow = nothing,
         density = nothing,
+        enthalpy = nothing,
         trans_flow = 1e-12,
         trans_thermal = 1e-6
     )
     pressure >= DEFAULT_MINIMUM_PRESSURE || throw(ArgumentError("Pressure must be at least $DEFAULT_MINIMUM_PRESSURE"))
     temperature >= 0.0 || throw(ArgumentError("Temperature must be at least 0.0 K"))
-
     isnothing(density) || density > 0.0 || error("Density, if provided, must be positive")
+    isnothing(enthalpy) || enthalpy >= 0.0 || error("Enthalpy, if provided, must be non-negative")
     if isnothing(fractional_flow)
         f = fractional_flow
     else
@@ -35,7 +37,7 @@ function FlowBoundaryCondition(
         sum(f) == 1.0 || error("Fractional flow for boundary condition in cell $cell must sum to 1.")
     end
     pressure, temperature, trans_flow, trans_thermal = promote(pressure, temperature, trans_flow, trans_thermal)
-    return FlowBoundaryCondition(cell, pressure, temperature, trans_flow, trans_thermal, f, density)
+    return FlowBoundaryCondition(cell, pressure, temperature, trans_flow, trans_thermal, f, density, enthalpy)
 end
 
 function FlowBoundaryCondition(
@@ -91,22 +93,24 @@ export flow_boundary_condition
 
 Add flow boundary conditions to a vector of `cells` for a given `domain` coming
 from `reservoir_domain`. The input arguments `pressures` and `temperatures` can
-either be scalars or one value per cell. Other keyword arguments are passed onto
-the `FlowBoundaryCondition` constructor.
+either be scalars or one value per cell. Optional injected-stream properties
+such as `fractional_flow`, `density`, and `enthalpy` can be provided through
+keyword arguments, which are passed onto the `FlowBoundaryCondition`
+constructor.
 
 The output of this function is a `Vector` of boundary conditions that can be
 passed on the form `forces = setup_reservoir_forces(model, bc = bc)`.
 """
-function flow_boundary_condition(cells, domain, pressures, temperatures = 298.15; fractional_flow = nothing, kwarg...)
+function flow_boundary_condition(cells, domain, pressures, temperatures = 298.15; fractional_flow = nothing, enthalpy = nothing, kwarg...)
     if fractional_flow isa Vector
         fractional_flow = tuple(fractional_flow...)
     end
     bc = []
-    flow_boundary_condition!(bc, domain, cells, pressures, temperatures; fractional_flow = fractional_flow, kwarg...)
+    flow_boundary_condition!(bc, domain, cells, pressures, temperatures; fractional_flow = fractional_flow, enthalpy = enthalpy, kwarg...)
     return [i for i in bc]
 end
 
-function flow_boundary_condition!(bc, domain, cells, pressures, temperatures = 298.15; kwarg...)
+function flow_boundary_condition!(bc, domain, cells, pressures, temperatures = 298.15; density = nothing, enthalpy = nothing, kwarg...)
     n = length(cells)
     if temperatures isa Real
         temperatures = fill(temperatures, n)
@@ -114,11 +118,19 @@ function flow_boundary_condition!(bc, domain, cells, pressures, temperatures = 2
     if pressures isa Real
         pressures = fill(pressures, n)
     end
+    if density isa Real || isnothing(density)
+        density = fill(density, n)
+    end
+    if enthalpy isa Real || isnothing(enthalpy)
+        enthalpy = fill(enthalpy, n)
+    end
     length(temperatures) == n || throw(ArgumentError("Mismatch in length of cells and temperatures arrays"))
     length(pressures) == n || throw(ArgumentError("Mismatch in length of cells and pressures arrays"))
+    length(enthalpy) == n || throw(ArgumentError("Mismatch in length of cells and enthalpy arrays"))
+    length(density) == n || throw(ArgumentError("Mismatch in length of cells and density arrays"))
 
-    for (cell, pressure, temperature) in zip(cells, pressures, temperatures)
-        bc_c = FlowBoundaryCondition(domain, cell, pressure, temperature; kwarg...)
+    for (cell, pressure, temperature, h, ρ) in zip(cells, pressures, temperatures, enthalpy, density)
+        bc_c = FlowBoundaryCondition(domain, cell, pressure, temperature; density = ρ, enthalpy = h, kwarg...)
         push!(bc, bc_c)
     end
 
@@ -149,7 +161,8 @@ function Jutul.subforce(s::AbstractVector{S}, model) where S<:FlowBoundaryCondit
             bc.trans_flow,
             bc.trans_thermal,
             bc.fractional_flow,
-            bc.density
+            bc.density,
+            bc.enthalpy
         )
     end
     return s[keep]
@@ -157,28 +170,30 @@ end
 
 function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw{:TotalMasses}, eq_s, force::V, time) where {V <: AbstractVector{<:FlowBoundaryCondition}, D, S<:MultiPhaseSystem}
     state = storage.state
-    nph = number_of_phases(reservoir_model(model).system)
+    system = reservoir_model(model).system
     for bc in force
         c = bc.cell
         acc_i = view(acc, :, c)
-        q = compute_bc_mass_fluxes(bc, global_map(model), state, nph)
+        q = compute_bc_mass_fluxes(system, bc, global_map(model), state)
         apply_flow_bc!(acc_i, q, bc, model, state, time)
     end
 end
 
 function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw{:TotalThermalEnergy}, eq_s, force::V, time) where {V <: AbstractVector{<:FlowBoundaryCondition}, D, S<:MultiPhaseSystem}
     state = storage.state
-    nph = number_of_phases(reservoir_model(model).system)
+    system = reservoir_model(model).system
+    nph = number_of_phases(system)
     for bc in force
         c = bc.cell
         acc_i = view(acc, :, c)
-        qh_adv, qh_cond = compute_bc_heat_fluxes(bc, global_map(model), state, nph)
+        qh_adv, qh_cond = compute_bc_heat_fluxes(system, bc, global_map(model), state)
         apply_flow_bc!(acc_i, qh_adv + qh_cond, bc, model, state, time)
     end
 end
 
-function compute_bc_mass_fluxes(bc, gmap, state, nph)
+function compute_bc_mass_fluxes(system::JutulSystem, bc, gmap, state)
     # Get reservoir properties
+    nph = number_of_phases(system)
     p   = state.Pressure
     mu  = state.PhaseViscosities
     kr  = state.RelativePermeabilities
@@ -248,8 +263,9 @@ function compute_bc_mass_fluxes(bc, gmap, state, nph)
     return q
 end
 
-function compute_bc_heat_fluxes(bc, gmap, state, nph)
-    q = compute_bc_mass_fluxes(bc, gmap, state, nph)
+function compute_bc_heat_fluxes(system::JutulSystem, bc, gmap, state)
+    nph = number_of_phases(system)
+    q = compute_bc_mass_fluxes(system, bc, gmap, state)
     c = Jutul.full_cell(bc.cell, gmap)
 
     # Get reservoir properties
@@ -262,9 +278,8 @@ function compute_bc_heat_fluxes(bc, gmap, state, nph)
 
     # Get boundary properties
     T_h    = bc.trans_thermal
-    p_bc   = bc.pressure
     T_bc   = bc.temperature
-    rho_bc = bc.density
+    h_in   = bc_inflow_enthalpy(bc, state, c)
 
     qh_advective = 0
     for ph in 1:nph
@@ -272,16 +287,7 @@ function compute_bc_heat_fluxes(bc, gmap, state, nph)
             # Flow out from domain
             h_ph = h[ph,c]
         else
-            Cp = u[ph,c]/T[c]
-            if isnothing(rho_bc)
-                # Density not provided, take saturation average from what we
-                # have in the inside of the domain
-                rho_bc = 0.0
-                for ph in 1:nph
-                    rho_bc += state.Saturations[ph,c]*rho[ph,c]
-                end
-            end
-            h_ph = Cp*T_bc + p_bc/rho_bc
+            h_ph = h_in
         end
         qh_advective += h_ph*q[ph]
     end
@@ -290,6 +296,25 @@ function compute_bc_heat_fluxes(bc, gmap, state, nph)
     qh_conductive = T_h*ΔT
 
     return qh_advective, qh_conductive
+end
+
+function bc_inflow_enthalpy(bc, state, cell)
+    if !isnothing(bc.enthalpy)
+        return bc.enthalpy
+    elseif haskey(state, :Enthalpy)
+        return state.Enthalpy[cell]
+    end
+    H = state.FluidEnthalpy
+    if haskey(state, :Saturations)
+        S = state.Saturations
+        H_in = zero(H[1, cell])
+        for ph in axes(H, 1)
+            H_in += H[ph, cell]*S[ph, cell]
+        end
+    else
+        H_in = H[1, cell]
+    end
+    return H_in
 end
 
 function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, time) where T<:Union{ImmiscibleSystem, SinglePhaseSystem}
@@ -308,6 +333,9 @@ function Jutul.vectorization_length(bc::FlowBoundaryCondition, model, name, vari
             n += length(f)
         end
         if !isnothing(bc.density)
+            n += 1
+        end
+        if !isnothing(bc.enthalpy)
             n += 1
         end
         return n
@@ -343,6 +371,11 @@ function Jutul.vectorize_force!(v, model::SimulationModel, bc::FlowBoundaryCondi
             v[offset] = bc.density
             push!(names, :density)
         end
+        if !isnothing(bc.enthalpy)
+            offset += 1
+            v[offset] = bc.enthalpy
+            push!(names, :enthalpy)
+        end
     elseif variant == :control
         v[1] = bc.pressure
         push!(names, :pressure)
@@ -359,6 +392,7 @@ function Jutul.devectorize_force(bc::FlowBoundaryCondition, model::SimulationMod
     trans_thermal = bc.trans_thermal
     f = bc.fractional_flow
     ρ = bc.density
+    h = bc.enthalpy
     if variant == :all
         T = X[2]
         trans_flow = X[3]
@@ -366,10 +400,17 @@ function Jutul.devectorize_force(bc::FlowBoundaryCondition, model::SimulationMod
 
         offset = 4
         if !isnothing(f)
-            f = X[(offset+1):(offset+length(f))]
+            nf = length(f)
+            f = Tuple(X[(offset+1):(offset+nf)])
+            offset += nf
         end
         if !isnothing(ρ)
-            ρ = X[end]
+            offset += 1
+            ρ = X[offset]
+        end
+        if !isnothing(h)
+            offset += 1
+            h = X[offset]
         end
     elseif variant == :control
         # DO nothing
@@ -383,6 +424,7 @@ function Jutul.devectorize_force(bc::FlowBoundaryCondition, model::SimulationMod
         trans_flow,
         trans_thermal,
         f,
-        ρ
+        ρ,
+        h
     )
 end
