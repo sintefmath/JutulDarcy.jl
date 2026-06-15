@@ -95,7 +95,9 @@ transmissibility calculator will be used instead for those faces.
 This function can remove cells from the mesh based on minimum pore volume and/or
 a manually specified active cell list. Note that in this case, the routine
 assumes that you still give cell-wise values like permeability for all cells
-*before* removal.
+*before* removal. By default, no cells will be removed and zero values will
+instead throw an error to avoid giving user scripts discrepancy between the
+actual mesh used in simulation, and the one passed in.
 
  - `min_porevolume`: Minimum pore volume for a cell to be included in the mesh.
    Cells with a pore volume (cell volume * porosity) less than this value will
@@ -128,7 +130,7 @@ function reservoir_domain(g;
         rock_density = 2000.0,
         transmissibility_override = missing,
         transmissibility_multiplier = missing,
-        min_porevolume = 1e-6,
+        min_porevolume = 0.0,
         active = missing,
         diffusion = missing,
         nnc = missing,
@@ -182,6 +184,17 @@ function reservoir_domain(g;
     )
     has_minpv = min_porevolume > 0.0
     has_active = !ismissing(active)
+    if !has_minpv
+        for k in [:porosity, :net_to_gross]
+            if haskey(reservoir, k)
+                val = reservoir[k]
+                if has_active
+                    val = val[active]
+                end
+                minimum(val) > 0 || throw(ArgumentError("Keyword argument $k must have positive entries when min_porevolume is present. If you want to remove cells with zero pore volume and avoid this error, set min_porevolume to a small positive value."))
+            end
+        end
+    end
     if has_minpv || has_active
         active_cells = collect(1:nc)
         if has_minpv
@@ -201,8 +214,8 @@ function reservoir_domain(g;
         nc_new = length(active_cells)
         if nc_new < nc
             println("Filtering mesh to cells with volume >= $min_porevolume. Keeping $(nc_new) out of $(nc) cells.")
-            msh = extract_submesh(msh, active_cells)
-            new_reservoir = reservoir_domain(msh)
+            g = extract_submesh(g, active_cells)
+            new_reservoir = reservoir_domain(g)
             for (k, v_and_e) in pairs(reservoir)
                 v, e = v_and_e
                 if e == Cells()
