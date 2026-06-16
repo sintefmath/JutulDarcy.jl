@@ -113,7 +113,7 @@ function all_tags()
     descr["Geothermal"] = "Examples that simulate recovery and/or storage of heat in the subsurface. See also the dedicated [Fimbul.jl](https://sintefmath.github.io/Fimbul.jl/dev/) module for geothermal simulation with JutulDarcy.jl where additional advanced examples are provided."
 
     out = OrderedDict()
-    colors = to_colormap(:seaborn_muted)
+    colors = to_colormap(:Set1_8)
     i = 1
     rgb_html(x, s) = Int(ceil(getfield(x, s)*255))
 
