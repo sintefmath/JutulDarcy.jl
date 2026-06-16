@@ -24,7 +24,7 @@ Darcy, bar, kg, meter, day = si_units(:darcy, :bar, :kilogram, :meter, :day);
 nx = ny = 5
 nz = 4
 dims = (nx, ny, nz)
-g = CartesianMesh(dims, (2000.0, 1500.0, 50.0))
+g = reservoir_mesh(dims, (2000.0, 1500.0, 50.0))
 #-
 # ### Adding properties and making a domain
 # The grid by itself does not fully specify a porous medium. For that we need to

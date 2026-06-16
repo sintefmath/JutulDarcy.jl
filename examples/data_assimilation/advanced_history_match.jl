@@ -15,7 +15,7 @@ using Jutul, JutulDarcy, GLMakie
 import LBFGSB as lb
 
 nx = 20
-g = CartesianMesh((nx, nx, 1), (100.0, 100.0, 10.0))
+g = reservoir_mesh((nx, nx, 1), (100.0, 100.0, 10.0))
 nc = number_of_cells(g)
 reservoir = reservoir_domain(g);
 # ## Define the rock types

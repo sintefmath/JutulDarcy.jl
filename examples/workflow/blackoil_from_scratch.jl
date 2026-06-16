@@ -22,8 +22,7 @@ nz = 10
 L = 2000.0
 W = 1000.0
 H = 180.0
-g_cart = CartesianMesh((nx, ny, nz), (L, W, H))
-g = UnstructuredMesh(g_cart, z_is_depth = true)
+g = reservoir_mesh((nx, ny, nz), (L, W, H))
 
 for (idx, pt) in enumerate(g.node_points)
     x_norm, y_norm, z_norm = pt ./ (L, W, H)

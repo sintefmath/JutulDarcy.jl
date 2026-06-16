@@ -101,7 +101,7 @@ function test_perforation_mask()
     day = 3600*24
     bar = 1e5
     dims = (nx, ny, nz)
-    g = CartesianMesh(dims, (2000.0, 1500.0, 50.0))
+    g = reservoir_mesh(dims, (2000.0, 1500.0, 50.0))
     Darcy = 9.869232667160130e-13
     domain = reservoir_domain(g, permeability = 0.1*Darcy, porosity = 0.1)
     P = setup_vertical_well(domain, 1, 1, name = :Producer, simple_well = false, use_top_node = true);

@@ -50,7 +50,7 @@ function get_1d_reservoir(nc;
         z_max = nothing
     )
     @assert nc > 1 "Must have at least two cells."
-    g = CartesianMesh((nc, 1, 1), (L, sqrt(area), sqrt(area)))
+    g = reservoir_mesh((nc, 1, 1), (L, sqrt(area), sqrt(area)))
     D = reservoir_domain(g, permeability = perm, porosity = poro)
 
     if !isnothing(z_max)

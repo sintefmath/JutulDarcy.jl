@@ -44,8 +44,7 @@ for i in 1:ntop
     push!(dz, bottom_layer_thickness/nbottom)
 end
 
-cmesh = CartesianMesh((nx, 1, nz), (2000.0, 50.0, dz))
-rmesh = UnstructuredMesh(cmesh, z_is_depth = true)
+rmesh = reservoir_mesh((nx, 1, nz), (2000.0, 50.0, dz))
 # ### Define regions based on our selected depths
 # We tag each cell with a region number based on its depth. The top layer is
 # region 1, the middle layer is region 2, and the bottom layer is region 3.

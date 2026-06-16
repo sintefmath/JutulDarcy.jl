@@ -91,7 +91,7 @@ module SPE10
         nz = length(layers)
         cell_dims = (20.0, 10.0, 2.0).*ft
         dims = (nx, ny, nz)
-        mesh = UnstructuredMesh(CartesianMesh(dims, dims.*cell_dims))
+        mesh = reservoir_mesh(dims, dims.*cell_dims)
         depth = 12000*ft
         offset = [0.0, 0.0, depth]
         for (i, n) in enumerate(mesh.node_points)

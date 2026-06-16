@@ -14,7 +14,7 @@ ny = 20
 nx = 2*ny + 1
 nz = 1
 
-g = CartesianMesh((nx, ny, nz), (2000.0, 1000.0, 100.0))
+g = reservoir_mesh((nx, ny, nz), (2000.0, 1000.0, 100.0))
 
 c_i = cell_index(g, (nx÷2+1, ny, 1))
 c_p1 = cell_index(g, (1, 1, 1))

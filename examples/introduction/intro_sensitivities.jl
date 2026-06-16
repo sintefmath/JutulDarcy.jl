@@ -25,7 +25,7 @@ else
 end
 dx = L/nx
 
-g = CartesianMesh((nx, nx, 1), (L, L, H))
+g = reservoir_mesh((nx, nx, 1), (L, L, H))
 nc = number_of_cells(g)
 perm = fill(0.1darcy, nc)
 
