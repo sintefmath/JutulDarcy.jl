@@ -113,7 +113,7 @@ function all_tags()
     descr["Geothermal"] = "Examples that simulate recovery and/or storage of heat in the subsurface. See also the dedicated [Fimbul.jl](https://sintefmath.github.io/Fimbul.jl/dev/) module for geothermal simulation with JutulDarcy.jl where additional advanced examples are provided."
 
     out = OrderedDict()
-    colors = to_colormap(:seaborn_muted)
+    colors = to_colormap(:Set1_8)
     i = 1
     rgb_html(x, s) = Int(ceil(getfield(x, s)*255))
 
@@ -150,14 +150,16 @@ function example_tags()
     for key in keys(all_tags())
         out[key] = Tuple{String, String}[]
     end
-    for (category, example_set) in pairs(expths)
-        for exname in example_set
-            pth = example_path_jl(category, exname)
-            extags = example_tags(pth)
-            @assert length(extags) > 0 "Example $exname in $category has no tags"
-            for tag in extags
-                @assert haskey(out, tag) "Example $exname in $category has unknown tag $tag"
-                push!(out[tag], (exname, category))
+    if get(ENV, "JUTULDARCY_DOCS_EXAMPLES_SKIP", "0") == "0"
+        for (category, example_set) in pairs(expths)
+            for exname in example_set
+                pth = example_path_jl(category, exname)
+                extags = example_tags(pth)
+                @assert length(extags) > 0 "Example $exname in $category has no tags"
+                for tag in extags
+                    @assert haskey(out, tag) "Example $exname in $category has unknown tag $tag"
+                    push!(out[tag], (exname, category))
+                end
             end
         end
     end
@@ -220,8 +222,11 @@ end
 function example_info_footer(subdir, exname)
     return "\n\n# ## Example on GitHub\n"*
     "# If you would like to run this example yourself, it can be downloaded from "*
-    "the JutulDarcy.jl GitHub repository [as a script](https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/$subdir/$exname.jl), "*
-    "or as a [Jupyter Notebook](https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/final_site/notebooks/$subdir/$exname.ipynb)"
+    "the JutulDarcy.jl GitHub repository [as a script](https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/$subdir/$exname.jl)"
+    # return "\n\n# ## Example on GitHub\n"*
+    # "# If you would like to run this example yourself, it can be downloaded from "*
+    # "the JutulDarcy.jl GitHub repository [as a script](https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/$subdir/$exname.jl), "*
+    # "or as a [Jupyter Notebook](https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/final_site/notebooks/$subdir/$exname.ipynb)"
 end
 
 function update_footer(content, subdir, exname)
@@ -355,6 +360,7 @@ function build_jutul_darcy_docs(
                 ],
                 "Fundamentals" => [
                     "man/highlevel.md",
+                    "man/basics/units.md",
                     "man/basics/input_files.md",
                     "man/basics/systems.md",
                     "man/basics/solution.md",

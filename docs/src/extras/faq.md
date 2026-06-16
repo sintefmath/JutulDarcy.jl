@@ -7,14 +7,19 @@ Here are a few common questions and possible answers. You may also want to have 
 ### What input formats can JutulDarcy.jl use?
 
 1. DATA files (used by Eclipse, OPM Flow, tNavigator, Echelon and others) provided that the grid is given either as a corner-point GRDECL file or in TOPS format. As with most reservoir simulators, not all features of the original format are supported, but the code will let you know when unsupported features are encountered.
-2. Cases written out from [MRST](https://www.mrst.no/) through the `jutul` module.
-3. Cases written entirely in Julia using the basic `Jutul` and `JutulDarcy` data structures, as seen in the examples of the module.
+1. AFI-files (used by Intersect), provided that the definition of the grid and grid quantities is either given inline or embedded as RESQML. This format is more experimental than DATA files as less samples are publicly available.
+1. Cases written out from [MRST](https://www.mrst.no/) through the `jutul` module.
+1. Cases written entirely in Julia using the basic `Jutul` and `JutulDarcy` data structures, as seen in the examples of the module.
 
 ### What output formats does JutulDarcy.jl have?
 
 The simulator outputs results into standard Julia data structures (e.g. Vectors and Dicts) that can easily be written out using other Julia packages, for example in CSV format. We do not currently support binary formats output by commercial simulators.
 
 Simulation results are written to disk using [JLD2](https://github.com/JuliaIO/JLD2.jl), a subset of [HDF5](https://en.wikipedia.org/wiki/Hierarchical_Data_Format) commonly used in Julia for storing objects to disk.
+
+### What units does JutulDarcy.jl use?
+
+JutulDarcy nominally uses SI units, but the code contains utilities to convert from typical unit sets to the internal SI format. See [Unit support](@ref) for more details and a tutorial. Wrong units (caused by e.g. directly inserting field units like millidarcy or standard barrels without conversion) can lead to large differences between simulators, or make problems very difficult to simulate.
 
 ### How do I restart an interrupted simulation?
 
@@ -134,37 +139,6 @@ issue, especially if you have a clear reference to how something should be
 implemented is still very useful. It is also possible to fund the development
 for a specific feature, or to implement the feature yourself by asking for
 pointers on how to get started.
-
-### What units does JutulDarcy.jl use?
-
-JutulDarcy uses consistent units. This typically means that all your values must
-be input in strict SI. This means pressures in Pascal, temperatures in Kelvin
-and time in seconds. Note that this is very similar to the `METRIC` type of unit
-system seen in many commercial simulators, except that units of time is not
-given in days. This also impacts permeabilities, transmissibilities and
-viscosities, which will be much smaller than in metric where days are used.
-
-Reading of input files will automatically convert data to the correct units for simulation, but care must be taken when you are writing your own code. `Jutul.jl` contains unit conversion factors to make it easier to write code:
-
-```@example
-using Jutul
-p = convert_to_si(120.0, :bar)
-```
-
-You can also extract individual units and to the setup yourself:
-
-```@example
-using Jutul
-day, stb = si_units(:day, :stb)
-# convert to m^3/s:
-rate = 100.0stb/day
-```
-
-JutulDarcy does currently not make use of conversion factors or explicit
-units can in principle use any consistent unit system. Some default scaling
-of variables assume that the magnitude pressures and velocities roughly
-match that of strict SI (e.g. Pascals and cubic meters per second). These
-scaling factors are primarily used when iterative linear solvers are used.
 
 ### Who develops JutulDarcy.jl?
 

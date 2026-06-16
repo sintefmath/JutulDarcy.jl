@@ -23,11 +23,47 @@ defineProps({
 
 <style scoped>
 .badge {
-  display: inline-block;
-  padding: 0.1em 0.25em;
-  border-radius: 10%;
-  font-size: 1em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+
+  padding: 0.2em 0.5em;
+  border-radius: 999px;
+
+  font-size: 0.85em;
+  font-weight: 500;
+  line-height: 1;
+
   user-select: none;
+  white-space: nowrap;
+
+  text-decoration: none;   /* remove link underline */
+  color: inherit;          /* prevent default link color */
+
+  background-color: var(--badge-bg, rgba(0, 0, 0, 0.08));
+  transition: background-color 0.15s ease, transform 0.05s ease;
+}
+
+/* hover / focus states */
+.badge:hover {
+  background-color: var(--badge-bg-hover, rgba(0, 0, 0, 0.12));
+  text-decoration: none;
+}
+
+.badge:active {
+  transform: scale(1.0);
+}
+
+/* optional: if it's an <a> element */
+a.badge {
+  color: inherit;
+  text-decoration: none;
+}
+
+.badge,
+.badge * {
+  text-decoration: none !important;
+  color: inherit !important;
 }
 </style>
 
