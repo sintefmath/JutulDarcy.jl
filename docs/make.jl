@@ -360,6 +360,7 @@ function build_jutul_darcy_docs(
                 ],
                 "Fundamentals" => [
                     "man/highlevel.md",
+                    "man/basics/units.md",
                     "man/basics/input_files.md",
                     "man/basics/systems.md",
                     "man/basics/solution.md",
