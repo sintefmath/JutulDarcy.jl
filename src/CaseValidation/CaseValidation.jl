@@ -54,6 +54,9 @@ module CaseValidation
         add_bounds(:FluidVolume, "meter^3", (0.01, 1e20))
         add_bounds(:WellIndices, missing, (0.00, 1e-6))
 
+        add_bounds(:PerforationGravityDifference, missing, (-10.0, 5000.0),
+            msg = "Perforation difference (9.81 m/s^2 * distance from bhp depth to perforation) exceeds 500 meters. You may want to check reference depth for the well. Wells with reference depth far above the model may lead to convergence issues.")
+
         # Well controls
         add_bounds(:rate, missing, (0.00, 100.0), msg = "Rates above 100 m^3/s or 100 kg/s are unlikely to be physical for a single well. Make sure that rates are not given per day.")
         add_bounds(:bhp, missing, (p0, 5000*si_unit(:bar)), msg = "Bottom-hole-pressures should be given in Pascals. Large values may indicate bar, MPa or psi units. Use `val = convert_to_si(val, \"bar\")` to convert from bar to SI.")
