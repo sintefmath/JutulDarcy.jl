@@ -183,12 +183,12 @@ module CaseValidation
             end
             target = ctrl.target
             info = JutulDarcy.well_target_information(target)
+            if ismissing(step)
+                msgname = "$well control"
+            else
+                msgname = "$well control at step $step"
+            end
             if info.is_rate
-                if ismissing(step)
-                    msgname = "$well control"
-                else
-                    msgname = "$well control at step $step"
-                end
                 check(abs(target.value), :rate, result, msgname)
             elseif info.unit_type == :pressure
                 check(target.value, :bhp, result, msgname)
