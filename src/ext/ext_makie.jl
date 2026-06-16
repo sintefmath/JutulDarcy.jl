@@ -103,10 +103,15 @@ end
 """
     plot_reservoir(model, states=missing; well_fontsize = 18, well_linewidth = 3, kwarg...)
 
-Launch interactive plotter of reservoir + well trajectories in reservoir. Requires GLMakie.
+Launch interactive plotter of reservoir + well trajectories in reservoir.
+Requires GLMakie to be loaded (using GLMakie). If the keyword `fancy=true`, a
+more advanced GUI with more options will be launched that allows for panning and
+zooming.. The keyword `gui=false` can be used to just get a static plot without
+interactivity.
 """
 function plot_reservoir(model, arg...;
         gui = true,
+        fancy = false,
         well_fontsize = 18,
         well_linewidth = 3,
         well_color = :darkred,
@@ -156,10 +161,21 @@ function plot_reservoir(model, arg...;
     g = physical_representation(data_domain)
 
     if gui
-        fig = plot_interactive(data_domain, arg...; z_is_depth = true, aspect = aspect, kwarg...)
-        ax = fig.current_axis[]
+        if fancy
+            if length(arg) == 0
+                dynamic = missing
+            else
+                dynamic = arg[1]
+            end
+            s = plot_explorer(data_domain, dynamic = dynamic, zreversed = true, aspect = aspect, kwarg...)
+            ax = s.lscene
+            fig = s.fig
+        else
+            fig = plot_interactive(data_domain, arg...; z_is_depth = true, aspect = aspect, kwarg...)
+            ax = fig.current_axis[]
+        end
     else
-        fig, ax, plt = plot_cell_data(g, arg...; z_is_depth = true, kwarg...)
+        fig, ax, _ = plot_cell_data(g, arg...; z_is_depth = true, kwarg...)
     end
     if ismissing(wells)
         wells = Dict{Symbol, Any}()
