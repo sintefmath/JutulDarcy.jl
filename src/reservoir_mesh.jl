@@ -108,6 +108,16 @@ function reservoir_mesh(::Val{:cartesian}, dim::Tuple, arg...; origin = nothing,
     return m
 end
 
+function reservoir_mesh(::Val{:cartesian}, d::Int; kwarg...)
+    # Convenience version for 1D mesh.
+    return reservoir_mesh(Val(:cartesian), (d,); kwarg...)
+end
+
+function reservoir_mesh(::Val{:cartesian}, d::Int, sz; kwarg...)
+    # Convenience version for 1D mesh.
+    return reservoir_mesh(Val(:cartesian), (d,), (sz, ); kwarg...)
+end
+
 """
     mesh = reservoir_mesh(grid::AbstractDict; kwarg...)
 
