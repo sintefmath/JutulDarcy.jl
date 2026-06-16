@@ -150,14 +150,16 @@ function example_tags()
     for key in keys(all_tags())
         out[key] = Tuple{String, String}[]
     end
-    for (category, example_set) in pairs(expths)
-        for exname in example_set
-            pth = example_path_jl(category, exname)
-            extags = example_tags(pth)
-            @assert length(extags) > 0 "Example $exname in $category has no tags"
-            for tag in extags
-                @assert haskey(out, tag) "Example $exname in $category has unknown tag $tag"
-                push!(out[tag], (exname, category))
+    if get(ENV, "JUTULDARCY_DOCS_EXAMPLES_SKIP", "0") == "0"
+        for (category, example_set) in pairs(expths)
+            for exname in example_set
+                pth = example_path_jl(category, exname)
+                extags = example_tags(pth)
+                @assert length(extags) > 0 "Example $exname in $category has no tags"
+                for tag in extags
+                    @assert haskey(out, tag) "Example $exname in $category has unknown tag $tag"
+                    push!(out[tag], (exname, category))
+                end
             end
         end
     end
