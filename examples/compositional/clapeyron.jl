@@ -14,7 +14,7 @@
 using Jutul, JutulDarcy, GLMakie, MultiComponentFlash
 
 function solve_and_plot_displacement(eos, nx = 50; name = "")
-    g = CartesianMesh((nx, 1, 1), (100.0, 10.0, 10.0))
+    g = reservoir_mesh((nx, 1, 1), (100.0, 10.0, 10.0))
     Darcy, bar, kg, meter, day = si_units(:darcy, :bar, :kilogram, :meter, :day)
     res = reservoir_domain(g, porosity = 0.3, permeability = 0.1*Darcy)
     inj = setup_well(res, 1, name = :Injector)

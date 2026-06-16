@@ -22,8 +22,7 @@ Darcy, bar, kg, meter, day, yr = si_units(:darcy, :bar, :kilogram, :meter, :day,
 # surface has a large impact on where the CO2 migrates.
 cart_dims = (nx, 1, nz)
 physical_dims = (1000.0, 1.0, 50.0)
-cart_mesh = CartesianMesh(cart_dims, physical_dims)
-mesh = UnstructuredMesh(cart_mesh, z_is_depth = true)
+mesh = reservoir_mesh(cart_dims, physical_dims)
 
 points = mesh.node_points
 for (i, pt) in enumerate(points)

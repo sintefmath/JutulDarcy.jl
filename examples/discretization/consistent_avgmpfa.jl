@@ -34,7 +34,7 @@ using Test # hide
 sys = SinglePhaseSystem()
 nx = nz = 100
 pdims = (1.0, 1.0)
-g = CartesianMesh((nx, nz), pdims)
+g = reservoir_mesh((nx, nz), pdims)
 
 g = UnstructuredMesh(g)
 D = dim(g)

@@ -26,7 +26,7 @@ nx = ny = 20
 nz = 2
 
 dims = (nx, ny, nz)
-g = CartesianMesh(dims, (1000.0, 1000.0, 1.0))
+g = reservoir_mesh(dims, (1000.0, 1000.0, 1.0))
 nc = number_of_cells(g)
 K = repeat([0.05*Darcy], 1, nc)
 res = reservoir_domain(g, porosity = 0.25, permeability = K, temperature = 387.45*Kelvin)

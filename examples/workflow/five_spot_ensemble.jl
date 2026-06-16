@@ -23,7 +23,7 @@ function simulate_qfs(porosity = 0.3)
     Dz = 10.0
     bar, kg, meter, day = si_units(:bar, :kilogram, :meter, :day)
 
-    mesh = CartesianMesh((nx, nx, 1), (Dx, Dx, Dz))
+    mesh = reservoir_mesh((nx, nx, 1), (Dx, Dx, Dz))
     K = perm_kozeny_carman.(porosity)
     domain = reservoir_domain(mesh, permeability = K, porosity = porosity)
     Inj = setup_vertical_well(domain, 1, 1, name = :Injector);

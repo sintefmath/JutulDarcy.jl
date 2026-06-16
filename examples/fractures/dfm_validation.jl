@@ -80,7 +80,7 @@ function setup_fractured_cube(n, L;
     end
     fd_cart_dims = map(length, fd_axis_widths)
 
-    fd_mesh = UnstructuredMesh(CartesianMesh(fd_cart_dims, fd_axis_widths))
+    fd_mesh = reservoir_mesh(fd_cart_dims, fd_axis_widths)
     fd_ijk = reinterpret(reshape, Int,
         map(c -> cell_ijk(fd_mesh, c), 1:number_of_cells(fd_mesh)))
 
@@ -104,7 +104,7 @@ function setup_fractured_cube(n, L;
     ## ── Lower-dimensional (DFM) mesh ────────────────────────────────────
     ## Cut a coarse Cartesian grid with fracture planes; the cuts produce an
     ## embedded fracture mesh handled by cross-terms.
-    ld_mesh = UnstructuredMesh(CartesianMesh(dims0, Lxyz))
+    ld_mesh = reservoir_mesh(dims0, Lxyz)
     ld_ijk = reinterpret(reshape, Int,
         map(c -> cell_ijk(ld_mesh, c), 1:number_of_cells(ld_mesh)))
 

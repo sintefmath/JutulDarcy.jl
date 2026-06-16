@@ -22,8 +22,7 @@ ny = 20
 nx = 2*ny + 1
 nz = 1
 
-gcart = CartesianMesh((nx, ny, nz), (2.0, 1.0, 1.0))
-g = UnstructuredMesh(gcart)
+g = reservoir_mesh((nx, ny, nz), (2.0, 1.0, 1.0))
 
 for (i, pt) in enumerate(g.node_points)
     x, y, z = pt

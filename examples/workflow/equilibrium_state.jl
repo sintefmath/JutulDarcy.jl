@@ -39,8 +39,7 @@ using Jutul, JutulDarcy, MultiComponentFlash, GLMakie, GeoEnergyIO
 nx = 2
 nz = 1000
 Darcy, bar, yr, Kelvin = si_units(:darcy, :bar, :year, :Kelvin)
-cmesh = CartesianMesh((nx, 1, nz), (20.0, 10.0, 1000.0))
-cmesh = UnstructuredMesh(cmesh, z_is_depth = true)
+cmesh = reservoir_mesh((nx, 1, nz), (20.0, 10.0, 1000.0))
 for (i, pt) in enumerate(cmesh.node_points)
     cmesh.node_points[i] = pt .+ [0.0, 0.0, 800.0]
 end

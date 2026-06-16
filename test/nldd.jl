@@ -94,7 +94,7 @@ end
         nc = 4
         function setup_bc_case(; thermal = false)
             # Model
-            grid = CartesianMesh((nc, 1, nc), (10.0, 1.0, 10.0))
+            grid = reservoir_mesh((nc, 1, nc), (10.0, 1.0, 10.0))
             domain = reservoir_domain(grid)
             if thermal
                 sys = :geothermal

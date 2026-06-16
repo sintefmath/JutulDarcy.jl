@@ -23,7 +23,7 @@ grad_p = 1000*9.81
 grad_T = 0.3
 
 # ## Set up the reservoir
-g = CartesianMesh((nx, 1, nz), (250.0, 250.0, 75.0))
+g = reservoir_mesh((nx, 1, nz), (250.0, 250.0, 75.0))
 reservoir = reservoir_domain(g,
     permeability = [0.3, 0.3, 0.1].*darcy,
     porosity = 0.3,

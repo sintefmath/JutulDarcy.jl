@@ -15,7 +15,7 @@ import JutulDarcy: table_to_relperm, PhaseRelativePermeability, brooks_corey_rel
 #
 # ### Simulation helpers
 function setup_model_with_relperm(kr; mu_ratio = 1.0)
-    mesh = CartesianMesh(1000, 1000.0)
+    mesh = reservoir_mesh(1000, 1000.0)
     domain = reservoir_domain(mesh)
     nc = number_of_cells(domain)
     sys = ImmiscibleSystem((LiquidPhase(), VaporPhase()), reference_densities = [1000.0, 700.0])
