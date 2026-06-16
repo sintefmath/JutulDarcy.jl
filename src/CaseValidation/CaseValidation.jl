@@ -218,12 +218,13 @@ module CaseValidation
 
     function validate_reservoir(res::DataDomain, model, result)
         for k in keys(res)
-            check(res[k], k, result, "reservoir_domain")
+            allow_nonfinite = startswith(String(k), "scaler")
+            check(res[k], k, result, "reservoir_domain", allow_nonfinite = allow_nonfinite)
         end
     end
 
     # Utilities for checking
-    function check(vals, label, result, name)
+    function check(vals, label, result, name; allow_nonfinite = false)
         ok = true
         messages = String[]
         fmt(x) = @sprintf("%.3g", x)
@@ -252,19 +253,21 @@ module CaseValidation
             end
         end
 
-        nbad = 0
-        firstbad = 0
-        for (i, v) in enumerate(vals)
-            if !isfinite(v)
-                nbad += 1
-                if firstbad == 0
-                    firstbad = i
+        if !allow_nonfinite
+            nbad = 0
+            firstbad = 0
+            for (i, v) in enumerate(vals)
+                if !isfinite(v)
+                    nbad += 1
+                    if firstbad == 0
+                        firstbad = i
+                    end
                 end
             end
-        end
-        if nbad > 0
-            push!(messages, "$label has $nbad non-finite or negative values. First occurrence at index $firstbad.")
-            ok = false
+            if nbad > 0
+                push!(messages, "$label has $nbad non-finite or negative values. First occurrence at index $firstbad.")
+                ok = false
+            end
         end
 
         if ok
