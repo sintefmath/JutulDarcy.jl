@@ -28,6 +28,7 @@ function plot_reservoir_measurables
 
 end
 
+export plot_summary
 """
     plot_summary(summary::Dict)
     plot_summary(res::ReservoirSimResult)
