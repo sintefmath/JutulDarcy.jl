@@ -407,6 +407,7 @@ function build_jutul_darcy_docs(
             plugins = [bib],
             format = build_format,
             pages = build_pages,
+            draft = get(ENV, "JUTULDARCY_DOCS_DRAFT_MODE", "0") == "1"
         )
     end
     if build_notebooks
@@ -438,6 +439,9 @@ end
 # ENV["JUTULDARCY_DOCS_EXAMPLES_SKIP"] = 1
 # You can also enable build after (Linux only):
 # ENV["JUTULDARCY_RUN_VITEPRESS"] = 1
+# To use the standard documenter draft mode you can set
+# ENV["JUTULDARCY_DOCS_DRAFT_MODE"] = 1
+# This skips all examples, including the inline ones.
 if get(ENV, "JUTULDARCY_DOCS_EXAMPLES_SKIP", "0") == "1"
     # You can add a list of examples to build by running
     # examples_to_build = ["geothermal_1well"]
