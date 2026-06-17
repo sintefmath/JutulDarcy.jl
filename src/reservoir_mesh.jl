@@ -29,10 +29,10 @@ This function has two main modes of usage:
   remove inactive cells. Alternatively, this can be done in
   [`reservoir_domain`](@ref) by passing an active cell mask or by setting the
   passed `porosity` to zero.
-- The function [`Jutul.grid_dims_ijk`](@ref) can be used to get the dimensions of the
+- The function `Jutul.grid_dims_ijk` can be used to get the dimensions of the
   mesh in the i, j, k directions when the mesh at some started out as a
   Cartesian mesh (e.g. cartesian or GRDECL variants).
-- Individual cells can be looked up by [`cell_ijk`](@ref) to get the `i`, `j`,
+- Individual cells can be looked up by `cell_ijk` to get the `i`, `j`,
   `k` indices of a cell in a structured grid. This is useful for setting up
   boundary conditions and wells. This will always return a triplet, even for 2D
   meshes (with `k=1`).
