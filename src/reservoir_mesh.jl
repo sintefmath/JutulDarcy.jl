@@ -9,7 +9,7 @@ This function has two main modes of usage:
 
  1. To provide a convenient interface for constructing reservoir meshes without
     having to specify the mesh type explicitly. Unless explicitly noted, the
-    mesh will always be returned as an (`UnstructuredMesh`)[@ref] from `Jutul`
+    mesh will always be returned as an (`UnstructuredMesh`](@ref) from `Jutul`
     with `z_is_depth = true` to match the `JutulDarcy` mesh convention where the
     third coordinate is oriented downwards (primarily for plotting purposes).
  2. To provide a way to extract the reservoir mesh from a case or model that
@@ -17,7 +17,7 @@ This function has two main modes of usage:
 
 # Useful features of the `UnstructuredMesh` type
 
-- The (`UnstructuredMesh`)[@ref] type uses a node list and several connectivity
+- The [`Jutul.UnstructuredMesh`](@ref) type uses a node list and several connectivity
   lists to represent the mesh. This means that we can manipulate the field
   `node_points` which will typically be, as an example, a `Vector{SVector{3,
   Float64}}` for 3D meshes with double precision coordinates. If we want to
@@ -25,16 +25,17 @@ This function has two main modes of usage:
   `node_points` directly, and all cells will remain connected as before provided
   that the transformations are sufficiently smooth to not cause
   self-intersection of cells.
-- The function (`extract_submesh`)[@ref] can be used to extract a submesh to
+- The function [`Jutul.extract_submesh`](@ref) can be used to extract a submesh to
   remove inactive cells. Alternatively, this can be done in
-  (`reservoir_domain`)[@ref] by passing an active cell mask or by setting the
+  [`reservoir_domain`](@ref) by passing an active cell mask or by setting the
   passed `porosity` to zero.
-- The function (`grid_dims_ijk`)[@ref] can be used to get the dimensions of the
+- The function [`Jutul.grid_dims_ijk`](@ref) can be used to get the dimensions of the
   mesh in the i, j, k directions when the mesh at some started out as a
   Cartesian mesh (e.g. cartesian or GRDECL variants).
-- Individual cells can be looked up by (`cell_ijk`)[@ref] to get the i, j, k
-  indices of a cell in a structured grid. This is useful for setting up boundary
-  conditions and wells.
+- Individual cells can be looked up by [`cell_ijk`](@ref) to get the `i`, `j`,
+  `k` indices of a cell in a structured grid. This is useful for setting up
+  boundary conditions and wells. This will always return a triplet, even for 2D
+  meshes (with `k=1`).
 """
 function reservoir_mesh
 
