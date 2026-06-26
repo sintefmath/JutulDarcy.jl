@@ -49,7 +49,19 @@ module JutulDarcyPartitionedArraysExt
             JutulDarcy.NLDD.validate_nldd_mpi_partition(p_num, nldd_partition)
         end
         p = reservoir_partition(case.model, p_num)
-        return PArraySimulator(case, p; backend = backend, kwarg...)
+        sim = PArraySimulator(case, p; backend = backend, kwarg...)
+        sim.storage[:global_mpi_partition] = p_num
+        sim.storage[:global_mpi_partition_source] = ismissing(precomputed_partition) ? :auto : :precomputed
+        if !ismissing(nldd_partition)
+            if nldd_partition isa Jutul.OverlapPartition
+                sim.storage[:global_nldd_partition] = copy(Jutul.subdomain_partition(nldd_partition))
+                sim.storage[:global_nldd_partition_source] = :provided_overlap
+            elseif nldd_partition isa AbstractVector
+                sim.storage[:global_nldd_partition] = Int.(nldd_partition)
+                sim.storage[:global_nldd_partition_source] = :provided
+            end
+        end
+        return sim
     end
 
     function set_default_cnv_mb!(config::JutulConfig, sim::PArraySimulator; kwarg...)
