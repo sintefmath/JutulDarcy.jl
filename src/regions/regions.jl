@@ -1,9 +1,10 @@
 function check_regions(regions::AbstractVector, maxreg = missing)
+    @assert eltype(regions)<:Integer
+    isempty(regions) && return
     @assert minimum(regions) > 0
     if !ismissing(maxreg)
         @assert maximum(regions) <= maxreg
     end
-    @assert eltype(regions)<:Integer
 end
 
 function check_regions(regions::Nothing, maxreg = missing)
@@ -50,6 +51,7 @@ function region_wrap(x::Tuple, regions::Nothing)
 end
 
 function region_wrap(x::Tuple, regions::AbstractArray)
+    isempty(regions) && return x
     @assert length(x) >= maximum(regions)
     return x
 end

@@ -1431,7 +1431,13 @@ function simulate_reservoir(case::JutulCase;
                 config[k] = v
             end
         end
-        extra_arg = (state0 = case.state0, parameters = case.parameters)
+        if sim isa Jutul.PArraySimulator
+            # PArray simulators already contain distributed local state and
+            # parameters in each inner simulator.
+            extra_arg = NamedTuple()
+        else
+            extra_arg = (state0 = case.state0, parameters = case.parameters)
+        end
         @assert !ismissing(config) "If simulator is provided, config must also be provided"
     end
     skip_result = sim isa Jutul.PArraySimulator && 
