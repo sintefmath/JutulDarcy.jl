@@ -168,7 +168,7 @@ function plot_reservoir(model, arg...;
             else
                 dynamic = arg[1]
             end
-            s = plot_explorer(data_domain, dynamic = dynamic, zreversed = true, aspect = aspect, kwarg...)
+            s = plot_explorer(data_domain; dynamic = dynamic, zreversed = true, aspect = aspect, kwarg...)
             ax = s.lscene
             fig = s.fig
         else
@@ -218,6 +218,10 @@ function plot_reservoir(model, arg...;
         i += 1
     end
     return fig
+end
+
+function plot_reservoir(model::Union{MultiModel, SimulationModel}, result::ReservoirSimResult; kwarg...)
+    return plot_reservoir(model, result.states; kwarg...)
 end
 
 # function plot_reservoir(d::DataDomain, arg...;
