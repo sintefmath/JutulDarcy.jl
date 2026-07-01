@@ -112,7 +112,7 @@ interactivity.
 """
 function plot_reservoir(model, arg...;
         gui = true,
-        fancy = false,
+        fancy = true,
         faults = fancy,
         fault_alpha = 0.5,
         well_fontsize = 18,
