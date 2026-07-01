@@ -114,6 +114,7 @@ function plot_reservoir(model, arg...;
         gui = true,
         fancy = false,
         faults = fancy,
+        fault_alpha = 0.5,
         well_fontsize = 18,
         well_linewidth = 3,
         well_color = :darkred,
@@ -234,7 +235,7 @@ function plot_reservoir(model, arg...;
         i += 1
     end
     if faults
-        plot_faults!(ax, g; domain = data_domain, toggle = ftoggle)
+        plot_faults!(ax, g; domain = data_domain, toggle = ftoggle, alpha = fault_alpha)
     end
     return fig
 end
