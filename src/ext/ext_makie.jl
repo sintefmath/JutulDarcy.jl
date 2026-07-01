@@ -107,12 +107,12 @@ end
 Launch interactive plotter of reservoir + well trajectories in reservoir.
 Requires GLMakie to be loaded (using GLMakie). If the keyword `fancy=true`, a
 more advanced GUI with more options will be launched that allows for panning and
-zooming.. The keyword `gui=false` can be used to just get a static plot without
-interactivity.
+zooming. If `fancy=false`, a fixed-axis plot will be launched instead. The
+keyword `gui=false` can be used to just get a static plot without interactivity.
 """
 function plot_reservoir(model, arg...;
         gui = true,
-        fancy = true,
+        fancy = false,
         faults = fancy,
         fault_alpha = 0.5,
         well_fontsize = 18,
