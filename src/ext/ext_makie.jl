@@ -161,6 +161,7 @@ function plot_reservoir(model, arg...;
     end
     g = physical_representation(data_domain)
 
+    wtoggle = missing
     if gui
         if fancy
             if length(arg) == 0
@@ -179,6 +180,7 @@ function plot_reservoir(model, arg...;
             )
             ax = s.lscene
             fig = s.fig
+            wtoggle = s.add_toggle("Wells", true)
         else
             fig = plot_interactive(data_domain, arg...; z_is_depth = true, aspect = aspect, kwarg...)
             ax = fig.current_axis[]
@@ -207,6 +209,7 @@ function plot_reservoir(model, arg...;
 
     i = 1
     n = length(wells)
+    well_plts = []
     for (k, w) in pairs(wells)
         tf = 0.2 + 0.1*(i/n)
         if well_color isa AbstractDict
@@ -214,15 +217,18 @@ function plot_reservoir(model, arg...;
         else
             well_color_k = well_color
         end
-        plot_well!(ax.scene, g, w;
+        wp = plot_well!(ax.scene, g, w;
             fontsize = well_fontsize,
             top_factor = well_top_factor_scale*tf,
             bounds_z = bounds_z,
             color = well_color_k,
             linewidth = well_linewidth,
             cell_centroids = cell_centroids,
+            extra_out = true,
+            toggle = wtoggle,
             well_arg...
         )
+        push!(well_plts, wp)
         i += 1
     end
     return fig
