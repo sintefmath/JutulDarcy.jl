@@ -113,6 +113,7 @@ interactivity.
 function plot_reservoir(model, arg...;
         gui = true,
         fancy = false,
+        faults = fancy,
         well_fontsize = 18,
         well_linewidth = 3,
         well_color = :darkred,
@@ -161,7 +162,7 @@ function plot_reservoir(model, arg...;
     end
     g = physical_representation(data_domain)
 
-    wtoggle = missing
+    wtoggle = ftoggle = missing
     if gui
         if fancy
             if length(arg) == 0
@@ -181,6 +182,7 @@ function plot_reservoir(model, arg...;
             ax = s.lscene
             fig = s.fig
             wtoggle = s.add_toggle("Wells", true)
+            ftoggle = s.add_toggle("Faults", faults)
         else
             fig = plot_interactive(data_domain, arg...; z_is_depth = true, aspect = aspect, kwarg...)
             ax = fig.current_axis[]
@@ -230,6 +232,9 @@ function plot_reservoir(model, arg...;
         )
         push!(well_plts, wp)
         i += 1
+    end
+    if faults
+        plot_faults!(ax, g; domain = data_domain, toggle = ftoggle)
     end
     return fig
 end
