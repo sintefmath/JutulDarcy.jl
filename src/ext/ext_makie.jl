@@ -252,7 +252,7 @@ function plot_reservoir(case::JutulCase, arg...; kwarg...)
                 plot_vals[k] = v[1]
             end
         end
-        arg = (plot_vals, )
+        arg = ([plot_vals], )
     end
     return plot_reservoir(case.model, arg...; kwarg...)
 end
