@@ -66,7 +66,37 @@ Pkg.add("Jutul")      # Base package
 Pkg.add("JutulDarcy") # Reservoir simulator
 ```
 
-To verify that everything is working, we have a minimal example that runs an industry standard input file and produces interactive plots. Note that interactive plotting requires `GLMakie`, which may not work if you are running Julia over SSH.
+To verify that everything is working, we have a minimal example that runs an industry standard input file and produces interactive plots. Note that interactive plotting requires `GLMakie`, which may not work if you are running Julia over SSH:
+
+```@example helloworld
+using JutulDarcy, GLMakie
+# Load the SPE9 dataset
+spe9_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE9")
+file_path = joinpath(spe9_dir, "SPE9.DATA")
+case = setup_case_from_data_file(file_path)
+# Simulate and plot
+result = simulate_reservoir(case)
+plot_reservoir(case, result, fancy = true)
+```
+
+We can then continue to produce interactive plots for the wells:
+
+```@example helloworld
+plot_well_results(result)
+```
+
+There is also support for plotting summary data:
+
+```@example helloworld
+plot_summary(result)
+```
+
+This can then be used to create dashboard that summarize the field behavior for specified values:
+
+```@example helloworld
+# Plot field rates and rates for two specific wells in field units
+plot_summary(result, plots = ["FWPR,FOPR,FGPR", "PRODU2:WOPR,WWPR,WGPR", "PRODU4:WOPR,WWPR,WGPR"], unit_system = "Field")
+```
 
 ### Python bindings
 
