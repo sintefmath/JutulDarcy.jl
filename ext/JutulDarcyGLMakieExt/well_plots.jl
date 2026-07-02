@@ -12,6 +12,8 @@ function JutulDarcy.plot_well!(ax, g, w;
         transparency = true,
         bounds_z = missing,
         cell_centroids = missing,
+        extra_out = false,
+        toggle = missing,
         kwarg...
     )
     if isnothing(textcolor)
@@ -69,6 +71,8 @@ function JutulDarcy.plot_well!(ax, g, w;
             glowwidth = glowwidth,
             fontsize = fontsize
         )
+    else
+        txt = missing
     end
     x = pts[1, :]
     y = pts[2, :]
@@ -77,7 +81,7 @@ function JutulDarcy.plot_well!(ax, g, w;
     npts = length(x)
     spts = fill(markersize, npts)
     spts[1] = 0
-    scatterlines!(ax, x, y, z,
+    plt = scatterlines!(ax, x, y, z,
         transparency = transparency,
         linewidth = linewidth,
         color = color,
@@ -85,6 +89,20 @@ function JutulDarcy.plot_well!(ax, g, w;
         alpha = 0.9,
         kwarg...
     )
+    if !ismissing(toggle)
+        on(toggle.checked) do checked
+            plt.visible[] = checked
+            if !ismissing(txt)
+                txt.visible[] = checked
+            end
+        end
+    end
+    if extra_out
+        out = (plt, txt)
+    else
+        out = plt
+    end
+    return out
 end
 
 well_name_for_plot(w::Dict, ::Nothing) = w["name"]

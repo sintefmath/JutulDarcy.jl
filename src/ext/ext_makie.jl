@@ -76,19 +76,14 @@ Plot a reservoir simulation result. If `wells=true` well curves will be shown
 interactively. If `reservoir=true` the reservoir quantities will be visualized
 in 3D. These options can be combined.
 """
-function plot_reservoir_simulation_result(model::MultiModel, res::ReservoirSimResult; wells = true, reservoir = true)
+function plot_reservoir_simulation_result(model::MultiModel, res::ReservoirSimResult;
+        wells = true,
+        reservoir = true,
+        fancy = true
+    )
     Jutul.check_plotting_availability()
     if reservoir
-        rmodel = reservoir_model(model)
-        fig = plot_interactive(rmodel, res.states)
-        g = physical_representation(rmodel.data_domain)
-        ax = fig.current_axis[]
-        for (k, m) in pairs(model.models)
-            w = physical_representation(m.data_domain)
-            if w isa WellDomain
-                plot_well!(ax, g, w)
-            end
-        end
+        fig = plot_reservoir(model, res, fancy = fancy)
     else
         fig = nothing
     end
@@ -107,12 +102,14 @@ end
 Launch interactive plotter of reservoir + well trajectories in reservoir.
 Requires GLMakie to be loaded (using GLMakie). If the keyword `fancy=true`, a
 more advanced GUI with more options will be launched that allows for panning and
-zooming.. The keyword `gui=false` can be used to just get a static plot without
-interactivity.
+zooming. If `fancy=false`, a fixed-axis plot will be launched instead. The
+keyword `gui=false` can be used to just get a static plot without interactivity.
 """
 function plot_reservoir(model, arg...;
         gui = true,
         fancy = false,
+        faults = fancy,
+        fault_alpha = 0.5,
         well_fontsize = 18,
         well_linewidth = 3,
         well_color = :darkred,
@@ -161,6 +158,7 @@ function plot_reservoir(model, arg...;
     end
     g = physical_representation(data_domain)
 
+    wtoggle = ftoggle = missing
     if gui
         if fancy
             if length(arg) == 0
@@ -168,9 +166,19 @@ function plot_reservoir(model, arg...;
             else
                 dynamic = arg[1]
             end
-            s = plot_explorer(data_domain, dynamic = dynamic, zreversed = true, aspect = aspect, kwarg...)
+            if !ismissing(aspect)
+                aspect = 1.0 ./ aspect
+            end
+            s = plot_explorer(data_domain;
+                dynamic = dynamic,
+                zreversed = true,
+                aspect = aspect,
+                kwarg...
+            )
             ax = s.lscene
             fig = s.fig
+            wtoggle = s.add_toggle("Wells", true)
+            ftoggle = s.add_toggle("Faults", faults)
         else
             fig = plot_interactive(data_domain, arg...; z_is_depth = true, aspect = aspect, kwarg...)
             ax = fig.current_axis[]
@@ -199,6 +207,7 @@ function plot_reservoir(model, arg...;
 
     i = 1
     n = length(wells)
+    well_plts = []
     for (k, w) in pairs(wells)
         tf = 0.2 + 0.1*(i/n)
         if well_color isa AbstractDict
@@ -206,34 +215,29 @@ function plot_reservoir(model, arg...;
         else
             well_color_k = well_color
         end
-        plot_well!(ax.scene, g, w;
+        wp = plot_well!(ax.scene, g, w;
             fontsize = well_fontsize,
             top_factor = well_top_factor_scale*tf,
             bounds_z = bounds_z,
             color = well_color_k,
             linewidth = well_linewidth,
             cell_centroids = cell_centroids,
+            extra_out = true,
+            toggle = wtoggle,
             well_arg...
         )
+        push!(well_plts, wp)
         i += 1
+    end
+    if faults
+        plot_faults!(ax, g; domain = data_domain, toggle = ftoggle, alpha = fault_alpha)
     end
     return fig
 end
 
-# function plot_reservoir(d::DataDomain, arg...;
-#         aspect = (1.0, 1.0, 1/3),
-#         gui = true,
-#         kwarg...
-#     )
-#     if gui
-#         fig = plot_interactive(d, arg...; z_is_depth = true, aspect = aspect, kwarg...)
-#         ax = fig.current_axis[]
-#     else
-#         g = physical_representation(d)
-#         fig, ax, plt = plot_cell_data(g, arg...; z_is_depth = true, kwarg...)
-#     end
-#     return fig
-# end
+function plot_reservoir(model::Union{MultiModel, SimulationModel}, result::ReservoirSimResult; kwarg...)
+    return plot_reservoir(model, result.states; kwarg...)
+end
 
 function plot_reservoir(case::JutulCase, arg...; kwarg...)
     if length(arg) == 0
@@ -243,7 +247,7 @@ function plot_reservoir(case::JutulCase, arg...; kwarg...)
                 plot_vals[k] = v[1]
             end
         end
-        arg = (plot_vals, )
+        arg = ([plot_vals], )
     end
     return plot_reservoir(case.model, arg...; kwarg...)
 end

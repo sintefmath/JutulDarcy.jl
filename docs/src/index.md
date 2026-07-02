@@ -56,7 +56,9 @@ A few highlights:
 
 [Getting started](@ref) is the main setup guide that includes the basics of installing Julia and creating a Julia environment for `JutulDarcy.jl`, written for users who may not already be familiar with Julia package management.
 
-If you want to get started quickly: Install [Julia](https://julialang.org/) and add the following packages together
+### Installation
+
+If you want to get started right away: Install [Julia](https://julialang.org/) and add the following packages together
 with a Makie backend library to your environment of choice using Julia's package manager `Pkg`:
 
 ```julia
@@ -66,7 +68,39 @@ Pkg.add("Jutul")      # Base package
 Pkg.add("JutulDarcy") # Reservoir simulator
 ```
 
-To verify that everything is working, we have a minimal example that runs an industry standard input file and produces interactive plots. Note that interactive plotting requires `GLMakie`, which may not work if you are running Julia over SSH.
+### Perform a simulation
+
+To verify that everything is working, we have a minimal example that runs an industry standard input file and produces interactive plots. Note that interactive plotting requires `GLMakie`, which may not work if you are running Julia over SSH:
+
+```@example helloworld
+using JutulDarcy, GLMakie
+# Load the SPE9 dataset
+spe9_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE9")
+file_path = joinpath(spe9_dir, "SPE9.DATA")
+case = setup_case_from_data_file(file_path)
+# Simulate and plot
+result = simulate_reservoir(case)
+plot_reservoir(case, result, fancy = true)
+```
+
+We can then continue to produce interactive plots for the wells:
+
+```@example helloworld
+plot_well_results(result)
+```
+
+There is also support for plotting summary data:
+
+```@example helloworld
+plot_summary(result)
+```
+
+This can then be used to create dashboard that summarize the field behavior for specified values:
+
+```@example helloworld
+# Plot field rates and rates for two specific wells in field units
+plot_summary(result, plots = ["FWPR,FOPR,FGPR", "PRODU2:WOPR,WWPR,WGPR", "PRODU4:WOPR,WWPR,WGPR"], unit_system = "Field")
+```
 
 ### Python bindings
 
@@ -110,6 +144,11 @@ If you use JutulDarcy for a scientific publication, please cite [the main paper]
 
 :::
 
+## Related packages
+
+- [Fimbul.jl](https://github.com/sintefmath/Fimbul.jl) is built on top of JutulDarcy.jl and contains extensions and examples that cover advanced geothermal systems, including closed-loop and enhanced geothermal systems.
+- [jutul-agent](https://github.com/SINTEF-agentlab/jutul-agent) is an agentic interface that has specializations for JutulDarcy that allows setting up cases, visualization and interaction with other agents.
+
 ## A few of the packages used by JutulDarcy
 
 JutulDarcy.jl builds upon many of the excellent packages in the Julia ecosystem. Here are a few of them, and what they are used for:
@@ -122,7 +161,6 @@ JutulDarcy.jl builds upon many of the excellent packages in the Julia ecosystem.
 - [PartitionedArrays.jl](https://github.com/fverdugo/PartitionedArrays.jl) for MPI assembly and linear solve
 - [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) for CUDA-GPU support
 - [AMGX.jl](https://github.com/JuliaGPU/AMGX.jl) for AMG on CUDA GPUs
-- [Tullio.jl](https://github.com/mcabbott/Tullio.jl) for automatically optimized loops and [Polyester.jl](https://github.com/JuliaSIMD/Polyester.jl) for lightweight threads
 - [TimerOutputs.jl](https://github.com/KristofferC/TimerOutputs.jl) and [ProgressMeter.jl](https://github.com/timholy/ProgressMeter.jl) gives nice output to terminal.
 - [Makie.jl](https://makie.juliaplots.org/) is used for the visualization features
 - [MultiComponentFlash.jl](https://github.com/moyner/MultiComponentFlash.jl) provides many of the compositional features
