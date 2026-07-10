@@ -121,7 +121,7 @@ A `DataDomain` for the fracture with adjusted volumes, areas, and aperture.
 """
 function fracture_domain(mesh::JutulMesh;
     aperture=convert_to_si(0.5e-3, :meter),
-    hydralic_aperture=aperture,
+    hydraulic_aperture=aperture,
     permeability=missing,
     kwarg...
     )
@@ -130,14 +130,14 @@ function fracture_domain(mesh::JutulMesh;
         "Keyword argument aperture has non-finite entries."))
     minimum(aperture) >= 0 || throw(ArgumentError(
         "All aperture values must be non-negative."))
-    all(isfinite, hydralic_aperture) || throw(ArgumentError(
+    all(isfinite, hydraulic_aperture) || throw(ArgumentError(
         "Keyword argument hydralic_aperture has non-finite entries."))
-    minimum(hydralic_aperture) >= 0 || throw(ArgumentError(
+    minimum(hydraulic_aperture) >= 0 || throw(ArgumentError(
         "All hydralic_aperture values must be non-negative."))
 
     if ismissing(permeability)
         # Use cubic law to compute permeability from hydraulic aperture if not provided
-        permeability = (hydralic_aperture.^2)./12.0
+        permeability = (hydraulic_aperture.^2)./12.0
     end
     # Set up the fracture domain with the provided aperture and computed permeability
     domain = reservoir_domain(mesh;
