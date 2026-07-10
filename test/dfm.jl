@@ -282,8 +282,8 @@ end
 
         @test_throws ArgumentError JutulDarcy.fracture_domain(fmesh; aperture = NaN)
         @test_throws ArgumentError JutulDarcy.fracture_domain(fmesh; aperture = -1.0)
-        @test_throws ArgumentError JutulDarcy.fracture_domain(fmesh; hydralic_aperture = Inf)
-        @test_throws ArgumentError JutulDarcy.fracture_domain(fmesh; hydralic_aperture = -0.1)
+        @test_throws ArgumentError JutulDarcy.fracture_domain(fmesh; hydraulic_aperture = Inf)
+        @test_throws ArgumentError JutulDarcy.fracture_domain(fmesh; hydraulic_aperture = -0.1)
     end
 
     @testset "fracture_domain (with matrix connection)" begin

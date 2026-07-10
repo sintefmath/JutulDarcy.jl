@@ -102,7 +102,7 @@ function fracture_domain(mesh::JutulMesh, matrix::DataDomain;
 end
 
 """
-    fracture_domain(mesh; aperture, hydralic_aperture, permeability, kwarg...)
+    fracture_domain(mesh; aperture, hydraulic_aperture, permeability, kwarg...)
 
 Create a fracture `DataDomain` from a fracture `mesh` without matrix connection
 data. Cell volumes and face areas are scaled by the fracture `aperture`, and
@@ -111,9 +111,9 @@ permeability is computed from the cubic law (`a²/12`) when not explicitly given
 # Keyword arguments
 - `aperture = 0.5e-3 m`: physical aperture of the fracture (scalar or per-cell
   vector).
-- `hydralic_aperture = aperture`: hydraulic aperture used for the cubic-law
+- `hydraulic_aperture = aperture`: hydraulic aperture used for the cubic-law
   permeability estimate.
-- `permeability`: fracture permeability. Defaults to `hydralic_aperture²/12`.
+- `permeability`: fracture permeability. Defaults to `hydraulic_aperture²/12`.
 - Remaining keyword arguments are forwarded to `reservoir_domain`.
 
 # Returns
@@ -131,9 +131,9 @@ function fracture_domain(mesh::JutulMesh;
     minimum(aperture) >= 0 || throw(ArgumentError(
         "All aperture values must be non-negative."))
     all(isfinite, hydraulic_aperture) || throw(ArgumentError(
-        "Keyword argument hydralic_aperture has non-finite entries."))
+        "Keyword argument hydraulic_aperture has non-finite entries."))
     minimum(hydraulic_aperture) >= 0 || throw(ArgumentError(
-        "All hydralic_aperture values must be non-negative."))
+        "All hydraulic_aperture values must be non-negative."))
 
     if ismissing(permeability)
         # Use cubic law to compute permeability from hydraulic aperture if not provided
