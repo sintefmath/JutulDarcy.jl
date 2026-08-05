@@ -254,5 +254,5 @@ end
 
 function brooks_corey_pc(s, p_e, n, residual, residual_total, p_max = Inf)
     s_norm = normalized_saturation(s, residual, residual_total)
-    return min(p_e*s^(-1.0/n), p_max)
+    return min(p_e*s_norm^(-1.0/n), p_max)
 end
