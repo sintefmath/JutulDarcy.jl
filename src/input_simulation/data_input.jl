@@ -261,10 +261,11 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
     if isnan(ref_depth)
         ref_depth = nothing
     end
+    has_ms_data = !isnothing(msdata)
     extra_arg = Dict{Symbol, Any}()
     if !simple_well
         # Set up multi-segment well
-        if !isnothing(msdata)
+        if has_ms_data
             has_welsegs = haskey(msdata, "WELSEGS")
             has_compsegs = haskey(msdata, "COMPSEGS")
             if has_welsegs || has_compsegs
@@ -363,10 +364,19 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
             end
         end
     end
+    # We put a separate WI value that may be NaN (indicated as defaulted, and to
+    # be calculated in setup_parameters). We need to do this double bookeeping
+    # to get the well masks right.
+    WI_for_domain = copy(WI)
+    for (i, is_def) in enumerate(data[:WI_defaulted])
+        if is_def
+            WI_for_domain[i] = NaN
+        end
+    end
     W = setup_well(domain, wc;
         volume_multiplier = 20,
         name = Symbol(wname),
-        WI = data[:well_index],
+        WI = WI,
         dir = data[:dir],
         radius = data[:radius],
         skin = data[:skin],
@@ -450,9 +460,12 @@ function compdat_to_connection_factors(domain, wspec, v, step; sort = true, orde
     else
         net_to_gross = ones(T, length(wc))
     end
+    WI_is_defaulted = Bool[]
     for i in eachindex(WI)
         W_i = WI[i]
-        if isnan(W_i) || W_i < 0.0
+        is_defaulted = isnan(W_i) || W_i < 0.0
+        push!(WI_is_defaulted, is_defaulted)
+        if is_defaulted
             c = wc[i]
             if K isa AbstractVector
                 k_i = K[c]
@@ -479,7 +492,8 @@ function compdat_to_connection_factors(domain, wspec, v, step; sort = true, orde
         :skin => skin[ix],
         :dir => dir[ix],
         :drainage_radius => drainage_radius[ix],
-        :well_index => WI[ix]
+        :well_index => WI[ix],
+        :WI_defaulted => WI_is_defaulted[ix]
     )
     return (wc[ix], WI[ix], open[ix], mul[ix], fresh[ix], data)
 end
@@ -491,10 +505,9 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
     completions, bad_wells = filter_inactive_completions!(completions, G, ijk_lookup)
     @assert length(controls) == length(completions)
     handle_wells_without_active_perforations!(bad_wells, completions, controls, limits)
-    ncomp = length(completions)
     wells = []
     well_forces = Dict{Symbol, Any}[]
-    for i in eachindex(completions)
+    for _ in eachindex(completions)
         push!(well_forces, Dict{Symbol, Any}())
     end
     for (k, v) in pairs(completions[end])
