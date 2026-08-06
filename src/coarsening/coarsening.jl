@@ -192,6 +192,8 @@ Partition the reservoir model into coarser grids.
   partition. Can be :trans, :logtrans or :unit.
 - `wells_in_single_block`: Optional. A boolean indicating whether wells should
   be contained within a single coarse block. Defaults to false.
+- `well_padding`: Optional. If > 0, well blocks are padded with well_padding
+  number of cells. Only used if `wells_in_single_block=true`.
 - `compartments`: Optional. A vector specifying compartments for the cells.
   Cells in different compartments will not be grouped together during
   coarsening.
@@ -204,7 +206,9 @@ Partition the reservoir model into coarser grids.
 function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, method = missing;
         parameters = missing,
         wells_in_single_block = false,
+        well_padding = 0,
         partitioner_conn_type = :trans,
+        edge_weights = missing,
         compartments = missing,
         kwarg...
     )
@@ -239,19 +243,23 @@ function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, me
         if ismissing(parameters)
             parameters = setup_parameters(model)
         end
-        N, T, well_groups = partitioner_input(model, parameters, conn = partitioner_conn_type)
+        N, T, well_groups = partitioner_input(model, parameters, conn = partitioner_conn_type, well_padding=well_padding)
+        if ismissing(edge_weights)
+            edge_weights = T
+        end
         if !ismissing(compartments)
             l = N[1, :]
             r = N[2, :]
             keep = compartments[l] .== compartments[r]
             N = N[:, keep]
+            edge_weights = edge_weights[keep]
         end
         if wells_in_single_block
             groups = well_groups
         else
             groups = Vector{Vector{Int}}()
         end
-        p = Jutul.partition_hypergraph(N, coarsedim, partitioner, groups = groups, kwarg...)
+        p = Jutul.partition_hypergraph(N, coarsedim, partitioner; groups = groups, edge_weights=edge_weights, kwarg...)
         p = Int64.(p)
     end
     if ismissing(compartments)
