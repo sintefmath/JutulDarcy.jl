@@ -12,7 +12,7 @@ aligned with coordinate directions or `:ijk` to interpreted the permeability as
 a diagonal tensor aligned with the logical grid directions. The latter choice is
 only meaningful for a diagonal tensor.
 """
-function reservoir_transmissibility(d::DataDomain; version = :xyz)
+function reservoir_transmissibility(d::DataDomain; version = :xyz, project_face_centroids = version == :ijk)
     nf = number_of_faces(d)
     has_nnc = haskey(d, :nnc)
     if has_nnc
@@ -83,6 +83,11 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
     else
         face_dir = missing
     end
+    if project_face_centroids
+        error("Projecting face centroids is not implemented for transmissibility calculations.")
+    else
+        cell_face_centers = missing
+    end
     T_hf = compute_half_face_trans(
         d[:cell_centroids],
         d[:face_centroids],
@@ -91,7 +96,8 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
         d[:permeability],
         faces, facepos, facesigns,
         version = version,
-        face_dir = face_dir
+        face_dir = face_dir,
+        cell_face_centers = cell_face_centers
     )
     nf = number_of_faces(d)
     fig_negative_trans!(T_hf, faces)
