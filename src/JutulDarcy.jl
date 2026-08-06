@@ -158,6 +158,7 @@ module JutulDarcy
     include("deck_types.jl")
     include("porousmedia_grids.jl")
     include("utils.jl")
+    include("transmissibility.jl")
     include("state0.jl")
     include("interpolation.jl")
     # Definitions for multiphase flow
