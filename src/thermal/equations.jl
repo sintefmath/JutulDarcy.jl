@@ -36,8 +36,7 @@ Calculate the thermal heat flux for a given face in a thermal model.
 function thermal_heat_flux(face, state, model, grad, upw, flux_type)
     T = state.Temperature
     H_f = state.FluidEnthalpy
-    λ_r = state.RockThermalTransmissibilites
-    λ_f = state.FluidThermalTransmissibilites
+    θ_r = state.RockThermalTransmissibilites
     S = state.Saturations
     nph = number_of_phases(model.system)
 
@@ -49,14 +48,57 @@ function thermal_heat_flux(face, state, model, grad, upw, flux_type)
         convective_flux += H_face_α*F_α
     end
 
-    λ_total = λ_r[face]
-    for α in 1:nph
-        λ_total += λ_f[α, face]*phase_face_average(S, grad, α)
+    # Compute fluid thermal transmissibilities dynamically when conductivity is available.
+    has_dynamic_λf = haskey(state, :FluidThermalConductivity)
+    if has_dynamic_λf
+        λ_f = state.FluidThermalConductivity
+        ϕ = state.FluidVolume./state.BulkVolume
+        domain = model.data_domain
+        dim = size(domain[:cell_centroids], 1)
+    else
+        θ_f = state.FluidThermalTransmissibilites
     end
-    conductive_flux = -λ_total*gradient(T, grad)
+
+    θ = θ_r[face]
+    for α in 1:nph
+        if has_dynamic_λf
+            grad isa TPFA || throw(ArgumentError("TPFA gradient expected for dynamic fluid thermal conductivity"))
+            
+            left, right = domain[:neighbors][:, face]
+            # left == grad.left || throw(ArgumentError("Left cell mismatch in TPFA gradient"))
+            # right == grad.right || throw(ArgumentError("Right cell mismatch in TPFA gradient"))
+
+            A = domain[:areas][face]
+            N = domain[:normals][:, face]
+
+            den = 0.0
+            for side in (left, right)
+                C = domain[:face_centroids][:, face] - domain[:cell_centroids][:, side]
+                sgn = ifelse(side == left, 1.0, -1.0)
+                λ = ϕ[side].*fluid_phase_cell_value(λ_f, α, side)
+                λ = Jutul.expand_perm(λ, Val(dim))
+                θ_hf = Jutul.half_face_trans(A, λ, C, sgn*N)
+                den += 1/θ_hf
+            end
+            θ_f = 1/den
+
+            # λ_face_α = @inbounds λ_f[α, face]
+        else
+            θ_f = θ_f[α, face]
+        end
+        θ += θ_f*phase_face_average(S, grad, α)
+    end
+    conductive_flux = -θ*gradient(T, grad)
     return conductive_flux + convective_flux
 end
 
+function fluid_phase_cell_value(λ_f, α, cell)
+    if λ_f isa AbstractVector
+        return @inbounds λ_f[cell]
+    elseif λ_f isa AbstractArray
+        return @inbounds λ_f[α, cell]
+    end
+end
 
 """
     Jutul.convergence_criterion(model, storage, eq::ConservationLaw{:TotalThermalEnergy}, eq_s, r; dt = 1.0, update_report = missing)
