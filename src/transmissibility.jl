@@ -12,7 +12,10 @@ aligned with coordinate directions or `:ijk` to interpreted the permeability as
 a diagonal tensor aligned with the logical grid directions. The latter choice is
 only meaningful for a diagonal tensor.
 """
-function reservoir_transmissibility(d::DataDomain; version = :xyz, project_face_centroids = version == :ijk)
+function reservoir_transmissibility(d::DataDomain;
+        version = :xyz,
+        projection = missing
+    )
     nf = number_of_faces(d)
     has_nnc = haskey(d, :nnc)
     if has_nnc
@@ -83,8 +86,14 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz, project_face_
     else
         face_dir = missing
     end
+    if ismissing(projection)
+        projection = :normal
+        project_face_centroids = version == :ijk
+    end
+    # project_face_centroids = false
     if project_face_centroids
-        error("Projecting face centroids is not implemented for transmissibility calculations.")
+        @info "Projecting..."
+        cell_face_centers = project_half_face_centroids(d, projection)
     else
         cell_face_centers = missing
     end
@@ -257,4 +266,39 @@ function get_ijk_face_dir(g, N)
         end
     end
     return face_dir
+end
+
+function project_half_face_centroids(
+        face_centroids::AbstractVector,
+        cell_centroids::AbstractVector,
+        normals::AbstractVector,
+        neighbors::AbstractMatrix{Int},
+        hfc::AbstractVector{Int},
+        hff::AbstractVector{Int},
+        projection::Symbol = :normal
+    )
+    projection == :normal || throw(ArgumentError("Only :normal projection is supported"))
+    nhf = length(hfc)
+    out = sizehint!(similar(face_centroids, 0), nhf)
+    for (cell, face) in zip(hfc, hff)
+        hf = face_centroids[face]
+        hc = cell_centroids[cell]
+        sgn = neighbors[1, face] == cell ? 1.0 : -1.0
+        normal = sgn*normals[face]
+
+        proj_point = hf + dot(hc - hf, normal) * normal
+        push!(out, proj_point)
+    end
+    return out
+end
+
+function project_half_face_centroids(d::DataDomain, projection = :normal)
+    face_centroids = vec(reinterpret(SVector{3, Float64}, d[:face_centroids]))
+    cell_centroids = vec(reinterpret(SVector{3, Float64}, d[:cell_centroids]))
+    normals = vec(reinterpret(SVector{3, Float64}, d[:normals]))
+    neighbors = d[:neighbors]
+
+    hfc = d[:half_face_cells]
+    hff = d[:half_face_faces]
+    return project_half_face_centroids(face_centroids, cell_centroids, normals, neighbors, hfc, hff, projection)
 end
