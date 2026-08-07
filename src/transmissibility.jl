@@ -127,7 +127,7 @@ function reservoir_transmissibility(d::DataDomain;
             end
         elseif g isa CartesianMesh
             # Cartesian mesh is simple
-            k_index = map(c -> cell_ijk(g, c), 1:nc)
+            k_index = map(c -> cell_ijk(g, c)[3], 1:nc)
             face_is_vertical = map(1:nf) do face
                 l, r = N[:, face]
                 return k_index[l] == k_index[r]
