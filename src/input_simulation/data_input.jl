@@ -1167,6 +1167,9 @@ function reservoir_domain(data_file::AbstractDict;
         pairs(extra_data_arg)...,
         kwarg...
     )
+    # Specify that the DATA file inputs are interpreted as aligned with IJK and
+    # not the coordinate directions.
+    domain[:permeability_version, NoEntity()] = :ijk
     if !all(isequal(1.0), tranmult)
         domain[:transmissibility_multiplier, Faces()] = tranmult
     end

@@ -9,13 +9,20 @@ returned from [`reservoir_domain`](@ref)
 
 The keyword argument `version` can be `:xyz` for permeability tensors that are
 aligned with coordinate directions or `:ijk` to interpreted the permeability as
-a diagonal tensor aligned with the logical grid directions. The latter choice is
-only meaningful for a diagonal tensor.
+a diagonal tensor aligned with the logical grid directions, which will also
+automatically alter the projection of the face-to-cell-centroid vectors to
+match.. The latter choice is only meaningful for a diagonal tensor. This
+argument can omitted if the `DataDomain` has a `:permeability_version` key, in
+which case that value will be used.
 """
 function reservoir_transmissibility(d::DataDomain;
-        version = :xyz,
+        version = missing,
         projection = missing
     )
+    if ismissing(version)
+        version = get(d, :permeability_version, :xyz)
+    end
+    version = :xyz
     nf = number_of_faces(d)
     has_nnc = haskey(d, :nnc)
     if has_nnc

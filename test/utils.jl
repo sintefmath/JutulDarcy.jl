@@ -113,3 +113,21 @@ end
     @test norm(T_base_proj - T_base)/norm(T_base) ≈ 0.0 atol = 1e-10
     @test norm(T_proj - T_base)/norm(T_base) ≈ 0.0 atol = 1e-10
 end
+
+@testset "consistent application of ijk transmissibilities" begin
+    # We need a tilted model for this test, use SPE9.
+    spe9_dir = GeoEnergyIO.test_input_file_path("SPE9")
+    spe9_pth = joinpath(spe9_dir, "SPE9.DATA")
+    data_spe9 = parse_data_file(spe9_pth)
+    case = setup_case_from_data_file(data_spe9)
+    reservoir = reservoir_domain(case)
+    rmodel = reservoir_model(case)
+    T_ju = Jutul.default_parameter_values(reservoir, rmodel, JutulDarcy.Transmissibilities(), :Transmissibilities)
+    # This should call the same function under the hood
+    @test T_ju == JutulDarcy.reservoir_transmissibility(reservoir)
+    # There should be no difference in the initialized transmissibilities and
+    # the ones computed during setup
+    @test T_ju == case.parameters[:Reservoir][:Transmissibilities]
+    @test haskey(reservoir, :permeability_version)
+    @test reservoir[:permeability_version] == :ijk
+end
