@@ -44,6 +44,7 @@ function reservoir_transmissibility(d::DataDomain;
                 end
             end
         end
+        return T_hf
     end
     function fig_negative_trans!(T_hf, faceno)
         neg_count = 0
