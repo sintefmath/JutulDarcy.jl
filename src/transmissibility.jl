@@ -22,7 +22,6 @@ function reservoir_transmissibility(d::DataDomain;
     if ismissing(version)
         version = get(d, :permeability_version, :xyz)
     end
-    version = :xyz
     nf = number_of_faces(d)
     has_nnc = haskey(d, :nnc)
     if has_nnc
@@ -96,6 +95,8 @@ function reservoir_transmissibility(d::DataDomain;
     if ismissing(projection)
         projection = :normal
         project_face_centroids = version == :ijk
+    else
+        project_face_centroids = projection != :none
     end
     if project_face_centroids
         half_face_centroids = project_half_face_centroids(d, projection)
