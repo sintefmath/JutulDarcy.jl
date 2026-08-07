@@ -29,6 +29,7 @@ function setup_reservoir_model_geothermal(
     # Tables
     rho = JutulDarcy.PressureTemperatureDependentVariable(tables[:density])
     c_p = JutulDarcy.PressureTemperatureDependentVariable(tables[:heat_capacity_constant_pressure])
+    lambda = JutulDarcy.PressureTemperatureDependentVariable(tables[:phase_conductivity])
 
     mu = JutulDarcy.PTViscosities(tables[:viscosity])
 
@@ -38,7 +39,8 @@ function setup_reservoir_model_geothermal(
                 set_secondary_variables!(m;
                     PhaseMassDensities = rho,
                     PhaseViscosities = mu,
-                    ComponentHeatCapacity = c_p
+                    ComponentHeatCapacity = c_p,
+                    FluidThermalConductivity = lambda
                 )
             end
         end
