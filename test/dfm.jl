@@ -434,10 +434,10 @@ end
         params = Jutul.get_parameters(frac_model)
         @test haskey(params, :Transmissibilities)
         @test params[:Transmissibilities] isa JutulDarcy.TransmissibilitiesDFM
-        @test haskey(params, :RockThermalConductivities)
-        @test params[:RockThermalConductivities] isa JutulDarcy.RockThermalConductivitiesDFM
-        @test haskey(params, :FluidThermalConductivities)
-        @test params[:FluidThermalConductivities] isa JutulDarcy.FluidThermalConductivitiesDFM
+        @test haskey(params, :RockThermalTransmissibilites)
+        @test params[:RockThermalTransmissibilites] isa JutulDarcy.RockThermalTransmissibilitesDFM
+        @test haskey(params, :FluidThermalTransmissibilites)
+        @test params[:FluidThermalTransmissibilites] isa JutulDarcy.FluidThermalTransmissibilitesDFM
     end
 
     @testset "block_fracture_face_connections!" begin

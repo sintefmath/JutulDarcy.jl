@@ -36,8 +36,8 @@ Calculate the thermal heat flux for a given face in a thermal model.
 function thermal_heat_flux(face, state, model, grad, upw, flux_type)
     T = state.Temperature
     H_f = state.FluidEnthalpy
-    λ_r = state.RockThermalConductivities
-    λ_f = state.FluidThermalConductivities
+    λ_r = state.RockThermalTransmissibilites
+    λ_f = state.FluidThermalTransmissibilites
     S = state.Saturations
     nph = number_of_phases(model.system)
 
