@@ -90,12 +90,10 @@ function reservoir_transmissibility(d::DataDomain;
         projection = :normal
         project_face_centroids = version == :ijk
     end
-    # project_face_centroids = false
     if project_face_centroids
-        @info "Projecting..."
-        cell_face_centers = project_half_face_centroids(d, projection)
+        half_face_centroids = project_half_face_centroids(d, projection)
     else
-        cell_face_centers = missing
+        half_face_centroids = missing
     end
     T_hf = compute_half_face_trans(
         d[:cell_centroids],
@@ -106,7 +104,7 @@ function reservoir_transmissibility(d::DataDomain;
         faces, facepos, facesigns,
         version = version,
         face_dir = face_dir,
-        cell_face_centers = cell_face_centers
+        half_face_centroids = half_face_centroids
     )
     nf = number_of_faces(d)
     fig_negative_trans!(T_hf, faces)
