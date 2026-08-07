@@ -43,8 +43,8 @@ function solve_thermal(;
 
     parameters = setup_parameters(model,
                                 PhaseViscosities = [1e-3, 1e-3],
-                                RockThermalConductivities = 1e-2,
-                                FluidThermalConductivities = 1e-2,
+                                RockThermalTransmissibilites = 1e-2,
+                                FluidThermalTransmissibilites = 1e-2,
                                 RockDensity = 1e3,
                                 ComponentHeatCapacity = 10000.0,
                                 RockHeatCapacity = 500.0)

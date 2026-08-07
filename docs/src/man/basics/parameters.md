@@ -36,5 +36,5 @@ JutulDarcy.PerforationGravityDifference
 ## Thermal
 
 ```@docs
-JutulDarcy.FluidThermalConductivities
+JutulDarcy.FluidThermalTransmissibilites
 ```

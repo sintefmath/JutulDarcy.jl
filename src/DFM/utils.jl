@@ -245,8 +245,8 @@ function setup_fractured_reservoir_model(matrix::DataDomain, fractures::DataDoma
     thermal = model_is_thermal(matrix_model)
     if thermal
         set_parameters!(fracture_model,
-            RockThermalConductivities = RockThermalConductivitiesDFM(),
-            FluidThermalConductivities = FluidThermalConductivitiesDFM(),
+            RockThermalTransmissibilites = RockThermalTransmissibilitesDFM(),
+            FluidThermalTransmissibilites = FluidThermalTransmissibilitesDFM(),
         )
     end
     # Add extra entities to fracture model for fracture-matrix connections
@@ -288,24 +288,28 @@ function block_fracture_face_connections!(matrix_model::SimulationModel, faces)
     thermal || return
 
     # Set zero rock thermal conductivity for fracture faces
-    if haskey(matrix, :rock_thermal_conductivities)
+    if haskey(matrix, :rock_thermal_transmissibilites)
+        Λr = copy(matrix[:rock_thermal_transmissibilites, Faces()])
+    elseif haskey(matrix, :rock_thermal_conductivities)
         Λr = copy(matrix[:rock_thermal_conductivities, Faces()])
     else
         Λr = Jutul.default_parameter_values(
-            matrix, matrix_model, RockThermalConductivities(), :RockThermalConductivities)
+            matrix, matrix_model, RockThermalTransmissibilites(), :RockThermalTransmissibilites)
     end
     Λr[faces] .= 0.0
-    matrix[:rock_thermal_conductivities, Faces()] = Λr
+    matrix[:rock_thermal_transmissibilites, Faces()] = Λr
 
     # Set zero fluid thermal conductivity for fracture faces
-    if haskey(matrix, :fluid_thermal_conductivities)
+    if haskey(matrix, :fluid_thermal_transmissibilites)
+        Λf = copy(matrix[:fluid_thermal_transmissibilites, Faces()])
+    elseif haskey(matrix, :fluid_thermal_conductivities)
         Λf = copy(matrix[:fluid_thermal_conductivities, Faces()])
     else
         Λf = Jutul.default_parameter_values(
-            matrix, matrix_model, FluidThermalConductivities(), :FluidThermalConductivities)
+            matrix, matrix_model, FluidThermalTransmissibilites(), :FluidThermalTransmissibilites)
     end
     Λf[faces] .= 0.0
-    matrix[:fluid_thermal_conductivities, Faces()] = Λf
+    matrix[:fluid_thermal_transmissibilites, Faces()] = Λf
 
     return
 

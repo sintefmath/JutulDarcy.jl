@@ -34,15 +34,16 @@ function setup_reservoir_model_geothermal(
     mu = JutulDarcy.PTViscosities(tables[:viscosity])
 
     for (k, m) in pairs(model.models)
-        for (k, m) in pairs(model.models)
-            if k == :Reservoir || JutulDarcy.model_or_domain_is_well(m)
-                set_secondary_variables!(m;
-                    PhaseMassDensities = rho,
-                    PhaseViscosities = mu,
-                    ComponentHeatCapacity = c_p,
-                    FluidThermalConductivity = lambda
-                )
+        if k == :Reservoir || JutulDarcy.model_or_domain_is_well(m)
+            if haskey(m.parameters, :FluidThermalConductivity)
+                delete!(m.parameters, :FluidThermalConductivity)
             end
+            set_secondary_variables!(m;
+                PhaseMassDensities = rho,
+                PhaseViscosities = mu,
+                ComponentHeatCapacity = c_p,
+                FluidThermalConductivity = lambda
+            )
         end
     end
     rmodel = reservoir_model(model)

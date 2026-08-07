@@ -162,14 +162,17 @@ function Jutul.default_parameter_values(data_domain, model, param::Transmissibil
 
 end
 
-struct RockThermalConductivitiesDFM <: ScalarVariable end
-Jutul.variable_scale(::RockThermalConductivitiesDFM) = 1.0
-Jutul.minimum_value(::RockThermalConductivitiesDFM) = 0.0
-Jutul.associated_entity(::RockThermalConductivitiesDFM) = Faces()
+struct RockThermalTransmissibilitesDFM <: ScalarVariable end
+Jutul.variable_scale(::RockThermalTransmissibilitesDFM) = 1.0
+Jutul.minimum_value(::RockThermalTransmissibilitesDFM) = 0.0
+Jutul.associated_entity(::RockThermalTransmissibilitesDFM) = Faces()
 
-function Jutul.default_parameter_values(data_domain, model, param::RockThermalConductivitiesDFM, symb)
+function Jutul.default_parameter_values(data_domain, model, param::RockThermalTransmissibilitesDFM, symb)
     
-    if haskey(data_domain, :rock_thermal_conductivities, Faces())
+    if haskey(data_domain, :rock_thermal_transmissibilites, Faces())
+        T = copy(data_domain[:rock_thermal_transmissibilites, Faces()])
+
+    elseif haskey(data_domain, :rock_thermal_conductivities, Faces())
         T = copy(data_domain[:rock_thermal_conductivities, Faces()])
         
     elseif haskey(data_domain, :rock_thermal_conductivity, Cells())
@@ -177,23 +180,26 @@ function Jutul.default_parameter_values(data_domain, model, param::RockThermalCo
         ϕ = data_domain[:porosity, Cells()]
         T = reservoir_conductivity_dfm(data_domain, Λ.*(1.0 .- ϕ))
     else
-        error(":rock_thermal_conductivities or :rock_thermal_conductivity\
+        error(":rock_thermal_transmissibilites/:rock_thermal_conductivities or :rock_thermal_conductivity\
             symbol must be present in DataDomain to initialize parameter \
             $symb, had keys: $(keys(data_domain))")
     end
 
-    return ensure_non_negative_trans(T, "rock_thermal_conductivities")
+    return ensure_non_negative_trans(T, "rock_thermal_transmissibilites")
 
 end
 
-struct FluidThermalConductivitiesDFM <: VectorVariables end
-Jutul.variable_scale(::FluidThermalConductivitiesDFM) = 1e-10
-Jutul.minimum_value(::FluidThermalConductivitiesDFM) = 0.0
-Jutul.associated_entity(::FluidThermalConductivitiesDFM) = Faces()
-Jutul.values_per_entity(model, ::FluidThermalConductivitiesDFM) = number_of_phases(model.system)
+struct FluidThermalTransmissibilitesDFM <: VectorVariables end
+Jutul.variable_scale(::FluidThermalTransmissibilitesDFM) = 1e-10
+Jutul.minimum_value(::FluidThermalTransmissibilitesDFM) = 0.0
+Jutul.associated_entity(::FluidThermalTransmissibilitesDFM) = Faces()
+Jutul.values_per_entity(model, ::FluidThermalTransmissibilitesDFM) = number_of_phases(model.system)
 
-function Jutul.default_parameter_values(data_domain, model, param::FluidThermalConductivitiesDFM, symb)
-    if haskey(data_domain, :fluid_thermal_conductivities, Faces())
+function Jutul.default_parameter_values(data_domain, model, param::FluidThermalTransmissibilitesDFM, symb)
+    if haskey(data_domain, :fluid_thermal_transmissibilites, Faces())
+        # This takes precedence
+        T = copy(data_domain[:fluid_thermal_transmissibilites])
+    elseif haskey(data_domain, :fluid_thermal_conductivities, Faces())
         # This takes precedence
         T = copy(data_domain[:fluid_thermal_conductivities])
     elseif haskey(data_domain, :fluid_thermal_conductivity, Cells())
@@ -212,14 +218,35 @@ function Jutul.default_parameter_values(data_domain, model, param::FluidThermalC
                 T[ph, :] = reservoir_conductivity_dfm(data_domain, Λ[ph, :].*ϕ)
             end
         end
+    elseif haskey(data_domain, :fluid_thermal_conductivity)
+        nph = number_of_phases(model.system)
+        Λ = data_domain[:fluid_thermal_conductivity]
+        ϕ = data_domain[:porosity]
+        if Λ isa Vector
+            T = reservoir_conductivity_dfm(data_domain, Λ.*ϕ)
+            T = repeat(T', nph, 1)
+        else
+            size(Λ, 1) == nph || error("Expected size $(nph) x num_cells for \
+                :fluid_thermal_conductivity, got size $(size(Λ))")
+            nf = number_of_faces(data_domain)
+            T = zeros(nph, nf)
+            for ph in 1:nph
+                T[ph, :] = reservoir_conductivity_dfm(data_domain, Λ[ph, :].*ϕ)
+            end
+        end
     else
-        error(":fluid_thermal_conductivities or :fluid_thermal_conductivity \
-            symbol must be present in DataDomain to initialize parameter \
-            $symb, had keys: $(keys(data_domain))")
+        nph = number_of_phases(model.system)
+        C = default_value(model, FluidThermalConductivity())
+        ϕ = data_domain[:porosity]
+        T = reservoir_conductivity_dfm(data_domain, fill(C, number_of_cells(data_domain)).*ϕ)
+        T = repeat(T', nph, 1)
     end
-    return ensure_non_negative_trans(T, "fluid_thermal_conductivities")
+    return ensure_non_negative_trans(T, "fluid_thermal_transmissibilites")
 
 end
+
+const RockThermalConductivitiesDFM = RockThermalTransmissibilitesDFM
+const FluidThermalConductivitiesDFM = FluidThermalTransmissibilitesDFM
 
 struct FractureWellIndices <: ScalarVariable end
 
