@@ -7,7 +7,7 @@ function setup_reservoir_model_geothermal(
         salt_names = String[],
         table_arg = NamedTuple(),
         single_phase = true,
-        update_reservoir = true,
+        dynamic_conductivity = false,
         table_cache = Dict(),
         kwarg...
     )
@@ -21,29 +21,33 @@ function setup_reservoir_model_geothermal(
         error("Multiphase geothermal is not implemented")
     end
     # TODO: make this dynamic
-    cond_water = tables[:phase_conductivity](1*si_unit(:atm), 273.15 + 20.0)
-    if update_reservoir
+    if !dynamic_conductivity
+        cond_water = tables[:phase_conductivity](1*si_unit(:atm), 273.15 + 20.0)
         reservoir[:fluid_thermal_conductivity] .= cond_water
     end
     model = setup_reservoir_model(reservoir, sys; thermal = true, extra_out = false, kwarg...)
     # Tables
     rho = JutulDarcy.PressureTemperatureDependentVariable(tables[:density])
     c_p = JutulDarcy.PressureTemperatureDependentVariable(tables[:heat_capacity_constant_pressure])
-    lambda = JutulDarcy.PressureTemperatureDependentVariable(tables[:phase_conductivity])
-
+    if dynamic_conductivity
+        lambda = JutulDarcy.PressureTemperatureDependentVariable(tables[:phase_conductivity])
+    end
+    
     mu = JutulDarcy.PTViscosities(tables[:viscosity])
 
     for (k, m) in pairs(model.models)
         if k == :Reservoir || JutulDarcy.model_or_domain_is_well(m)
-            if haskey(m.parameters, :FluidThermalConductivity)
-                delete!(m.parameters, :FluidThermalConductivity)
-            end
             set_secondary_variables!(m;
                 PhaseMassDensities = rho,
                 PhaseViscosities = mu,
                 ComponentHeatCapacity = c_p,
-                FluidThermalConductivity = lambda
             )
+            if dynamic_conductivity
+                if haskey(m.parameters, :FluidThermalConductivity)
+                    delete!(m.parameters, :FluidThermalConductivity)
+                end
+                set_secondary_variables!(m; FluidThermalConductivity = lambda)
+            end
         end
     end
     rmodel = reservoir_model(model)
