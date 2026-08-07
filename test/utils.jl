@@ -90,3 +90,26 @@ end
     @test Tt_computed[end-1] == 0.2
     @test Tt_computed[end] == 0.3
 end
+
+@testset "transmissibility and projection" begin
+    spe1_dir = GeoEnergyIO.test_input_file_path("SPE1")
+    spe1_pth = joinpath(spe1_dir, "SPE1.DATA")
+    data_spe1 = parse_data_file(spe1_pth)
+    case_spe1 = setup_case_from_data_file(data_spe1)
+
+    d = reservoir_domain(case_spe1)
+    projected_points = JutulDarcy.project_half_face_centroids(d)
+    base_points = cell_centroids[hfc]
+    @test maximum(map(norm, projected_points - base_points)) ≈ 0.0 atol = 1e-10
+
+
+    T_proj = compute_half_face_trans(d, half_face_centroids = projected_points)
+    T_base_proj = compute_half_face_trans(d, half_face_centroids = base_points)
+    T_base = compute_half_face_trans(d)
+    @test all(isfinite.(T_proj))
+    @test all(isfinite.(T_base_proj))
+    @test all(isfinite.(T_base))
+    @test norm(T_proj - T_base_proj)/norm(T_base_proj) ≈ 0.0 atol = 1e-10
+    @test norm(T_base_proj - T_base)/norm(T_base) ≈ 0.0 atol = 1e-10
+    @test norm(T_proj - T_base)/norm(T_base) ≈ 0.0 atol = 1e-10
+end
