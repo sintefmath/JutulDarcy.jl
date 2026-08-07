@@ -9,15 +9,18 @@ returned from [`reservoir_domain`](@ref)
 
 The keyword argument `version` can be `:xyz` for permeability tensors that are
 aligned with coordinate directions or `:ijk` to interpreted the permeability as
-a diagonal tensor aligned with the logical grid directions, which will also
-automatically alter the projection of the face-to-cell-centroid vectors to
-match.. The latter choice is only meaningful for a diagonal tensor. This
-argument can omitted if the `DataDomain` has a `:permeability_version` key, in
-which case that value will be used.
+a diagonal tensor aligned with the logical grid directions. The latter choice is
+only meaningful for a diagonal tensor. This argument can omitted if the
+`DataDomain` has a `:permeability_version` key, in which case that value will be
+used. The `projection` keyword argument can be used to specify how the half-face
+centroids are projected onto the cell-centroid to face-centroid line. The
+default is `:none`, which means no projection is applied. The only other option
+currently supported is `:normal`, which projects the half-face centroids along
+the face normal.
 """
 function reservoir_transmissibility(d::DataDomain;
         version = missing,
-        projection = missing
+        projection = :none
     )
     if ismissing(version)
         version = get(d, :permeability_version, :xyz)
@@ -93,13 +96,7 @@ function reservoir_transmissibility(d::DataDomain;
     else
         face_dir = missing
     end
-    if ismissing(projection)
-        projection = :normal
-        project_face_centroids = version == :ijk
-    else
-        project_face_centroids = projection != :none
-    end
-    if project_face_centroids
+    if projection != :none
         half_face_centroids = project_half_face_centroids(d, projection)
     else
         half_face_centroids = missing

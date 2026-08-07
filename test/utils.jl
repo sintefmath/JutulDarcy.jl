@@ -1,4 +1,4 @@
-using Jutul, JutulDarcy, Test
+using Jutul, JutulDarcy, GeoEnergyIO, Test
 
 g = CartesianMesh((1, 1, 1), (10, 3.14, 2.71828))
 r = 0.2;
@@ -99,9 +99,11 @@ end
 
     d = reservoir_domain(case_spe1)
     projected_points = JutulDarcy.project_half_face_centroids(d)
+    cc = d[:cell_centroids]
+    hfc = d[:half_face_cells]
+    cell_centroids = map(c -> cc[:, c], 1:number_of_cells(d))
     base_points = cell_centroids[hfc]
     @test maximum(map(norm, projected_points - base_points)) ≈ 0.0 atol = 1e-10
-
 
     T_proj = compute_half_face_trans(d, half_face_centroids = projected_points)
     T_base_proj = compute_half_face_trans(d, half_face_centroids = base_points)
