@@ -88,6 +88,45 @@ function thermal_heat_flux(face, state, model, grad, upw, flux_type)
         end
         θ += θ_f*phase_face_average(S, grad, α)
     end
+
+    if haskey(state, :ThermalDispersivity)
+        neighbors = model.data_domain[:neighbors]
+        # q_phases = face_flux_helper(face, neighbors, state, model, false)
+        # qT = sum(q_phases)
+
+        left, right = neighbors[:, face]
+        A = domain[:areas][face]
+        Nf = domain[:normals][:, face]
+        den = 0.0
+        for side in (left, right)
+            # Compute the dispersive flux contribution for each cell adjacent to the face
+            v = velocity_from_face_fluxes(side, state, model; is_mass = false)
+            println("Velocity at cell $side: ", v)
+            α_L = state.ThermalDispersivity[1, side]
+            α_T = state.ThermalDispersivity[2, side]
+            v_norm = sqrt(v'*v)
+            D = [
+                α_L*v[1].^2/v_norm + α_T*(v[2].^2 + v[3].^2)/v_norm,
+                α_L*v[2].^2/v_norm + α_T*(v[1].^2 + v[3].^2)/v_norm,
+                α_L*v[3].^2/v_norm + α_T*(v[1].^2 + v[2].^2)/v_norm
+            ]
+            ρ_f = state.PhaseMassDensities[1, side]
+            Cp_f = domain[:component_heat_capacity][side]
+            D = D.*ρ_f*Cp_f
+            # D = ρ*Cp*(αT*Id + (αL - αT)*(v*v')/(v'*v)).*sqrt((v'*v))
+            C = domain[:face_centroids][:, face] - domain[:cell_centroids][:, side]
+            sgn = ifelse(side == left, 1.0, -1.0)
+            D = Jutul.expand_perm(D, Val(length(C)))
+            # display(value(D))
+            θ_hf = Jutul.half_face_trans(A, D, C, sgn*Nf)
+            # println("Half-face transmissibility: ", value(θ_hf))
+            den += 1/θ_hf
+        end
+        θ_d = 1/den
+        θ += θ_d
+
+    end
+
     conductive_flux = -θ*gradient(T, grad)
     return conductive_flux + convective_flux
 end
@@ -98,6 +137,51 @@ function fluid_phase_cell_value(λ_f, α, cell)
     elseif λ_f isa AbstractArray
         return @inbounds λ_f[α, cell]
     end
+end
+
+function face_flux_helper(face, N, state, model, is_mass::Bool)
+    l = N[1, face]
+    r = N[2, face]
+    # TODO: This assumes the default discretizations.
+    # This should be generalized to allow for different flux types.
+    tpfa = TPFA(l, r, 1)
+    upw = SPU(l, r)
+    f_t = Jutul.DefaultFlux()
+    v_face = JutulDarcy.darcy_phase_volume_fluxes(face, state, model, f_t, tpfa, upw)
+    return v_face
+end
+
+function velocity_from_face_fluxes(cell, state, model; is_mass::Bool = false)
+    domain = model.data_domain
+    if cell <= 0
+        dim = size(domain[:cell_centroids], 1)
+        return zeros(dim)
+    end
+
+    neighbors = domain[:neighbors]
+    nc = size(domain[:cell_centroids], 2)
+    faces, facepos = get_facepos(neighbors, nc)
+    facesigns = Jutul.get_facesigns(neighbors, faces, facepos, nc)
+
+    cc = domain[:cell_centroids][:, cell]
+    v = nothing
+    for fpos = facepos[cell]:(facepos[cell+1]-1)
+        face = faces[fpos]
+        sgn = facesigns[fpos]
+        fc = domain[:face_centroids][:, face]
+        q = sum(face_flux_helper(face, neighbors, state, model, is_mass))*sgn
+        dq = q.*(fc .- cc)
+        if isnothing(v)
+            v = copy(dq)
+        else
+            v .+= dq
+        end
+    end
+    if isnothing(v)
+        return zeros(eltype(cc), length(cc))
+    end
+    v ./= domain[:volumes][cell]
+    return v
 end
 
 """
