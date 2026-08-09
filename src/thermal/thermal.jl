@@ -39,6 +39,47 @@ function Jutul.default_parameter_values(data_domain, model, param::RockDensity, 
     return T
 end
 
+"""
+    ThermalDispersivity()
+
+Cell-wise thermal dispersivity with two components per cell:
+row 1 is longitudinal and row 2 is transversal.
+"""
+struct ThermalDispersivity <: VectorVariables end
+Jutul.values_per_entity(model, ::ThermalDispersivity) = 2
+Jutul.minimum_value(::ThermalDispersivity) = 0.0
+Jutul.associated_entity(::ThermalDispersivity) = Cells()
+
+function Jutul.default_parameter_values(data_domain, model, param::ThermalDispersivity, symb)
+    nc = number_of_cells(data_domain)
+    haskey(data_domain, :thermal_dispersivity) || error(":thermal_dispersivity must be present in DataDomain to initialize parameter $symb")
+    raw = copy(data_domain[:thermal_dispersivity])
+
+    if raw isa Number
+        D = fill(raw, 2, nc)
+    elseif raw isa AbstractVector
+        n = length(raw)
+        if n == nc
+            D = zeros(eltype(raw), 2, nc)
+            D[1, :] .= raw
+            D[2, :] .= raw
+        elseif n == 2
+            D = zeros(eltype(raw), 2, nc)
+            D[1, :] .= raw[1]
+            D[2, :] .= raw[2]
+        else
+            error("Expected :thermal_dispersivity vector length 2 or num_cells ($(nc)), got length $(n)")
+        end
+    elseif raw isa AbstractMatrix
+        size(raw, 1) == 2 || error("Expected :thermal_dispersivity matrix with 2 rows, got size $(size(raw))")
+        size(raw, 2) == nc || error("Expected :thermal_dispersivity matrix with size (2, $(nc)), got size $(size(raw))")
+        D = raw
+    else
+        error("Unsupported type $(typeof(raw)) for :thermal_dispersivity")
+    end
+    return ensure_non_negative_trans(D, "thermal_dispersivity")
+end
+
 struct RockInternalEnergy <: ScalarVariable end
 struct TotalThermalEnergy <: ScalarVariable end
 
