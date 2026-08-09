@@ -120,7 +120,6 @@ function replace_co2_brine_properties!(dens, visc, K, salt_mole_fractions, salt_
                 v_co2 = dens.F[i, j][2]
                 dens.F[i, j] = pair_type(dens_calc[1], v_co2)
             end
-            dens.F[i, j] = props[:density]
             visc.F[i, j] = props[:viscosity]
             K.F[i, j] = props[:K]
         end
