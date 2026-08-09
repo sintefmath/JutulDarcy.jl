@@ -561,6 +561,11 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     if haskey(reservoir, :diffusion) || haskey(reservoir, :diffusivity)
         rmodel.parameters[:Diffusivities] = Diffusivities()
     end
+    if thermal && haskey(reservoir, :thermal_dispersivity)
+        set_parameters!(rmodel,
+            ThermalDispersivity = ThermalDispersivity()
+        )
+    end
     models[:Reservoir] = rmodel
     # Then we set up all the wells
     facility_system = FacilitySystem(system)
