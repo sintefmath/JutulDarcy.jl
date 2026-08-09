@@ -101,10 +101,13 @@ function thermal_heat_flux(face, state, model, grad, upw, flux_type)
         for side in (left, right)
             # Compute the dispersive flux contribution for each cell adjacent to the face
             v = velocity_from_face_fluxes(side, state, model; is_mass = false)
-            println("Velocity at cell $side: ", v)
             α_L = state.ThermalDispersivity[1, side]
             α_T = state.ThermalDispersivity[2, side]
             v_norm = sqrt(v'*v)
+            # println("Norm: ", v_norm)
+            if v_norm == 0.0
+                continue
+            end
             D = [
                 α_L*v[1].^2/v_norm + α_T*(v[2].^2 + v[3].^2)/v_norm,
                 α_L*v[2].^2/v_norm + α_T*(v[1].^2 + v[3].^2)/v_norm,
@@ -119,10 +122,26 @@ function thermal_heat_flux(face, state, model, grad, upw, flux_type)
             D = Jutul.expand_perm(D, Val(length(C)))
             # display(value(D))
             θ_hf = Jutul.half_face_trans(A, D, C, sgn*Nf)
+            if !isfinite(value(θ_hf))
+                println("A: ", value(A))
+                println("D: ", value(D))
+                println("C: ", value(C))
+                println("Nf: ", value(Nf))
+                println("θ_hf: ", value(θ_hf))
+                println("v: ", value(v))
+                error()
+            end
             # println("Half-face transmissibility: ", value(θ_hf))
             den += 1/θ_hf
         end
-        θ_d = 1/den
+
+        if den == 0.0
+            θ_d = 0.0
+        else
+            θ_d = 1/den
+        end
+        # println("Convective contribution: ", value(den))
+        # println("Dispersive contribution: ", value(θ_d))
         θ += θ_d
 
     end
