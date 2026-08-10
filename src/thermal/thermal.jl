@@ -520,6 +520,11 @@ function add_thermal_to_model!(model)
         BulkVolume = BulkVolume(),
         ComponentHeatCapacity = ComponentHeatCapacity(),
     )
+    if haskey(model.data_domain, :thermal_dispersivity)
+        set_parameters!(model,
+            TotalDarcyVelocity = TotalDarcyVelocity(),
+        )
+    end
     set_secondary_variables!(model,
         FluidInternalEnergy = FluidInternalEnergy(),
         FluidEnthalpy = FluidEnthalpy(),
