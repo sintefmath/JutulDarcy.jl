@@ -523,6 +523,7 @@ function add_thermal_to_model!(model)
     if haskey(model.data_domain, :thermal_dispersivity)
         set_parameters!(model,
             TotalDarcyVelocity = TotalDarcyVelocity(),
+            ThermalDispersionTransmissibility = ThermalDispersionTransmissibility(),
         )
     end
     set_secondary_variables!(model,

@@ -90,56 +90,14 @@ function thermal_heat_flux(face, state, model, grad, upw, flux_type)
     end
 
     if haskey(state, :ThermalDispersivity)
-        neighbors = model.data_domain[:neighbors]
-        # q_phases = face_flux_helper(face, neighbors, state, model, false)
-        # qT = sum(q_phases)
-        domain = model.data_domain
-        dim = size(domain[:cell_centroids], 1)
-        left, right = neighbors[:, face]
-        A = domain[:areas][face]
-        Nf = domain[:normals][:, face]
-        den = 0.0
-        Id = SMatrix{3,3,Float64}(I)
-        for side in (left, right)
-            # Compute the dispersive flux contribution for each cell adjacent to the face
-            v = velocity_from_state(side, state, model; is_mass = false)
-            v = SVector{dim}(v)
-            v² = sqrt(v'*v)
-            if v² == 0.0
-                continue
-            end
-            α_L = state.ThermalDispersivity[1, side]
-            α_T = state.ThermalDispersivity[2, side]
-            ρ_f = state.PhaseMassDensities[1, side]
-            Cp_f = domain[:component_heat_capacity][side]
-
-            # D = @SVector [
-            #     α_L*v[1].^2/v_norm + α_T*(v[2].^2 + v[3].^2)/v_norm,
-            #     α_L*v[2].^2/v_norm + α_T*(v[1].^2 + v[3].^2)/v_norm,
-            #     α_L*v[3].^2/v_norm + α_T*(v[1].^2 + v[2].^2)/v_norm
-            # ]
-            ρ_f = state.PhaseMassDensities[1, side]
-            Cp_f = domain[:component_heat_capacity][side]
-
-            D = ρ_f*Cp_f*(α_T*Id + (α_L - α_T)*(v*v')/(v'*v)).*sqrt((v'*v))
-            # D .*= ρ_f*Cp_f
-            # D = ρ*Cp*(αT*Id + (αL - αT)*(v*v')/(v'*v)).*sqrt((v'*v))
-            C = domain[:face_centroids][:, face] - domain[:cell_centroids][:, side]
-            sgn = ifelse(side == left, 1.0, -1.0)
-            # D = Jutul.expand_perm(D, Val(dim))
-            # display(value(D))
-            θ_hf = Jutul.half_face_trans(A, D, C, sgn*Nf)
-            den += 1/θ_hf
-        end
-
-        if den == 0.0
-            θ_d = 0.0
+        dispersion = state.ThermalDispersivity
+        if all(x -> value(x) == 0.0, dispersion)
+            # No dispersive contribution for this face.
+        elseif haskey(state, :ThermalDispersionTransmissibility)
+            θ += state.ThermalDispersionTransmissibility[face]
         else
-            θ_d = 1/den
+            θ += thermal_dispersion_transmissibility(face, state, model)
         end
-        # println("Convective contribution: ", value(den))
-        # println("Dispersive contribution: ", value(θ_d))
-        θ += θ_d
 
     end
 
