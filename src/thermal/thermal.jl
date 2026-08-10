@@ -77,7 +77,7 @@ function Jutul.default_parameter_values(data_domain, model, param::ThermalDisper
     else
         error("Unsupported type $(typeof(raw)) for :thermal_dispersivity")
     end
-    return ensure_non_negative_trans(D, "thermal_dispersivity")
+    return D
 end
 
 struct RockInternalEnergy <: ScalarVariable end
@@ -628,3 +628,4 @@ end
 
 include("variables.jl")
 include("equations.jl")
+include("dispersion.jl")
