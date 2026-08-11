@@ -86,12 +86,13 @@ function Jutul.update_parameter_before_step!(v, ::TotalDarcyVelocity, storage, m
     return v
 end
 
-struct ThermalDispersionTransmissibility <: ScalarVariable end
+struct ThermalDispersionTransmissibility <: VectorVariables end
 Jutul.minimum_value(::ThermalDispersionTransmissibility) = 0.0
+Jutul.values_per_entity(model, ::ThermalDispersionTransmissibility) = 2
 Jutul.associated_entity(::ThermalDispersionTransmissibility) = Faces()
 
 function Jutul.default_parameter_values(data_domain, model, param::ThermalDispersionTransmissibility, symb)
-    return zeros(number_of_faces(data_domain))
+    return zeros(2, number_of_faces(data_domain))
 end
 
 function to_vec_of_svectors(x::AbstractVector{<:SVector})
@@ -115,38 +116,88 @@ function thermal_dispersion_transmissibility(face, state, model)
     neighbors = to_vec_of_svectors(domain[:neighbors])
     areas = domain[:areas]
     component_heat_capacity = domain[:component_heat_capacity]
-    return thermal_dispersion_transmissibility(face, state, model, cell_centroids, face_centroids, normals, neighbors, areas, component_heat_capacity)
+    return thermal_dispersion_transmissibility(face, state, model, cell_centroids, face_centroids, normals, neighbors, areas, component_heat_capacity, nothing)
 end
 
-function thermal_dispersion_transmissibility(face, state, model, cell_centroids, face_centroids, normals, neighbors, areas, component_heat_capacity)
+function thermal_dispersion_transmissibility(face, state, model, half_face_trans)
+    domain = model.data_domain
+    neighbors = domain[:neighbors]
+    if neighbors isa AbstractMatrix
+        @inbounds left = neighbors[1, face]
+        @inbounds right = neighbors[2, face]
+    else
+        @inbounds left, right = neighbors[face]
+    end
+    if left <= 0 || right <= 0
+        return 0.0
+    end
+
+    @inbounds θ_l = half_face_trans[1, face]
+    @inbounds θ_r = half_face_trans[2, face]
+    if θ_l == 0.0 || θ_r == 0.0
+        return 0.0
+    end
+
+    component_heat_capacity = domain[:component_heat_capacity]
+    ρCp_l = state.PhaseMassDensities[1, left]*component_heat_capacity[left]
+    ρCp_r = state.PhaseMassDensities[1, right]*component_heat_capacity[right]
+    den = 1/(θ_l*ρCp_l) + 1/(θ_r*ρCp_r)
+    return 1/den
+end
+
+function thermal_dispersion_half_face_transmissibility(face, side, state, cell_centroids, face_centroids, normals, neighbors, areas)
     @inbounds left, right = neighbors[face]
+    if side <= 0 || right <= 0
+        return 0.0
+    end
     @inbounds A = areas[face]
     @inbounds Nf = normals[face]
     @inbounds xf = face_centroids[face]
 
-    den = 0.0
     Id = SMatrix{3, 3, Float64}(I)
-    for side in (left, right)
-        if haskey(state, :TotalDarcyVelocity)
-            v = @view state.TotalDarcyVelocity[:, side]
-        else
-            v = zeros(size(cell_centroids[1]))
-        end
-        v² = sqrt(v'*v)
-        if v² == 0.0
-            continue
-        end
-        α_L = state.ThermalDispersivity[1, side]
-        α_T = state.ThermalDispersivity[2, side]
-        ρ_f = value(state.PhaseMassDensities[1, side])
-        Cp_f = component_heat_capacity[side]
-        D = ρ_f*Cp_f*(α_T*Id + (α_L - α_T)*(v*v')/(v'*v)).*sqrt((v'*v))
-        C = xf - cell_centroids[side]
-        sgn = ifelse(side == left, 1.0, -1.0)
-        θ_hf = Jutul.half_face_trans(A, D, C, sgn*Nf)
-        den += 1/θ_hf
+    if haskey(state, :TotalDarcyVelocity)
+        v = @view state.TotalDarcyVelocity[:, side]
+    else
+        v = zeros(size(cell_centroids[1]))
     end
-    return den == 0.0 ? 0.0 : 1/den
+    v² = sqrt(v'*v)
+    if v² == 0.0
+        return 0.0
+    end
+    α_L = state.ThermalDispersivity[1, side]
+    α_T = state.ThermalDispersivity[2, side]
+    D = (α_T*Id + (α_L - α_T)*(v*v')/(v'*v)).*sqrt((v'*v))
+    C = xf - cell_centroids[side]
+    sgn = ifelse(side == left, 1.0, -1.0)
+    return Jutul.half_face_trans(A, D, C, sgn*Nf)
+end
+
+function thermal_dispersion_transmissibility(face, state, model, cell_centroids, face_centroids, normals, neighbors, areas, component_heat_capacity, half_face_trans)
+    @inbounds left, right = neighbors[face]
+    if left <= 0 || right <= 0
+        return 0.0
+    end
+
+    θ_l = if isnothing(half_face_trans)
+        thermal_dispersion_half_face_transmissibility(face, left, state, cell_centroids, face_centroids, normals, neighbors, areas)
+    else
+        @inbounds half_face_trans[1, face]
+    end
+    θ_r = if isnothing(half_face_trans)
+        thermal_dispersion_half_face_transmissibility(face, right, state, cell_centroids, face_centroids, normals, neighbors, areas)
+    else
+        @inbounds half_face_trans[2, face]
+    end
+
+    if θ_l == 0.0 || θ_r == 0.0
+        return 0.0
+    end
+
+    ρCp_l = state.PhaseMassDensities[1, left]*component_heat_capacity[left]
+    ρCp_r = state.PhaseMassDensities[1, right]*component_heat_capacity[right]
+    θ_l *= ρCp_l
+    θ_r *= ρCp_r
+    return 1/(1/θ_l + 1/θ_r)
 end
 
 function Jutul.update_parameter_before_step!(θ_d, ::ThermalDispersionTransmissibility, storage, model, dt, forces)
@@ -168,10 +219,11 @@ function Jutul.update_parameter_before_step!(θ_d, ::ThermalDispersionTransmissi
     normals = to_vec_of_svectors(domain[:normals])
     neighbors = to_vec_of_svectors(domain[:neighbors])
     areas = domain[:areas]
-    component_heat_capacity = domain[:component_heat_capacity]
 
     @inbounds for face in 1:nf
-        θ_d[face] = thermal_dispersion_transmissibility(face, state, model, cell_centroids, face_centroids, normals, neighbors, areas, component_heat_capacity)
+        left, right = neighbors[face]
+        θ_d[1, face] = thermal_dispersion_half_face_transmissibility(face, left, state, cell_centroids, face_centroids, normals, neighbors, areas)
+        θ_d[2, face] = thermal_dispersion_half_face_transmissibility(face, right, state, cell_centroids, face_centroids, normals, neighbors, areas)
     end
     return θ_d
 end
