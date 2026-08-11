@@ -94,7 +94,7 @@ function thermal_heat_flux(face, state, model, grad, upw, flux_type)
         if all(x -> value(x) == 0.0, dispersion)
             # No dispersive contribution for this face.
         elseif haskey(state, :ThermalDispersionTransmissibility)
-            θ += state.ThermalDispersionTransmissibility[face]
+            θ += thermal_dispersion_transmissibility(face, state, model, state.ThermalDispersionTransmissibility)
         else
             θ += thermal_dispersion_transmissibility(face, state, model)
         end
