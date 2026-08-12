@@ -75,7 +75,10 @@ function coarsen_reservoir_model(fine_model::MultiModel, partition; functions = 
     return (coarse_model, coarse_parameters)
 end
 
-function coarsen_reservoir(D::DataDomain, partition; functions = Dict())
+function coarsen_reservoir(D::DataDomain, partition;
+        functions = Dict(),
+        preserve_faults = true
+    )
     if !haskey(functions, :permeability)
         functions[:permeability] = Jutul.CoarsenByHarmonicAverage()
     end
@@ -94,7 +97,23 @@ function coarsen_reservoir(D::DataDomain, partition; functions = Dict())
     if haskey(D, :max_coordinate)
         functions[:max_coordinate] = Jutul.CoarsenByMaximum()
     end
-    return Jutul.coarsen_data_domain(D, partition, functions = functions)
+    D_c = Jutul.coarsen_data_domain(D, partition, functions = functions)
+    if preserve_faults
+        G_c = physical_representation(D_c)
+        fine_faults  = get_faults(D)
+        for (name, fine_fault) in fine_faults
+            coarse_fault = Int[]
+            for f_c in 1:number_of_faces(G_c)
+                fine_faces = G_c.coarse_faces_to_fine[f_c]
+                if any(in(fine_fault), fine_faces)
+                    push!(coarse_fault, f_c)
+                end
+            end
+            unique!(coarse_fault)
+            tag_fault!(G_c, coarse_fault, name)
+        end
+    end
+    return D_c
 end
 
 function coarsen_well(wd::DataDomain, creservoir::DataDomain, reservoir::DataDomain, partition; kwarg...)
