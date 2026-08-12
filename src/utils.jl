@@ -3271,3 +3271,22 @@ function cell_node_bounds(G, cell, idx = missing)
         return (cmin[idx], cmax[idx])
     end
 end
+
+function tag_fault!(x, fault_faces::Vector{Int}, name = missing)
+    if ismissing(name)
+        n = length(Jutul.get_mesh_entity_tag(x, Faces(), :faults))
+        name = "fault_$(n+1)"
+    end
+    g = reservoir_mesh(x)
+    set_mesh_entity_tag!(g, Faces(), :faults, Symbol(name), fault_faces)
+    return x
+end
+
+function get_faults(x)
+    g = reservoir_mesh(x)
+    faults = Jutul.get_mesh_entity_tag(g, Faces(), :faults)
+    if ismissing(faults)
+        faults = Dict{Symbol, Vector{Int}}()
+    end
+    return faults
+end
