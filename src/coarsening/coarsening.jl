@@ -204,6 +204,7 @@ Partition the reservoir model into coarser grids.
 function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, method = missing;
         parameters = missing,
         wells_in_single_block = false,
+        preserve_faults = true,
         partitioner_conn_type = :trans,
         compartments = missing,
         kwarg...
@@ -239,7 +240,7 @@ function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, me
         if ismissing(parameters)
             parameters = setup_parameters(model)
         end
-        N, T, well_groups = partitioner_input(model, parameters, conn = partitioner_conn_type)
+        N, T, well_groups = partitioner_input(model, parameters, conn = partitioner_conn_type, preserve_faults = preserve_faults)
         if !ismissing(compartments)
             l = N[1, :]
             r = N[2, :]
@@ -262,6 +263,14 @@ function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, me
         r = neigh[2, :]
         keep = compartments[l] .== compartments[r]
         weights = Float64.(keep)
+    end
+    if preserve_faults
+        faults = get_faults(mesh)
+        for (name, fault) in faults
+            for f in fault
+                weights[f] = 0.0
+            end
+        end
     end
     p = Jutul.process_partition(mesh, p, weights = weights)
     if wells_in_single_block

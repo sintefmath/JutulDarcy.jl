@@ -1949,21 +1949,36 @@ function available_well_targets(model)
     return unique(targets)
 end
 
-function partitioner_input(model, parameters; conn = :trans)
-    rmodel = reservoir_model(model)
+function partitioner_input(model, parameters;
+        conn = :trans,
+        preserve_faults = true
+    )
+    res = reservoir_domain(model)
     if haskey(parameters, :Reservoir)
         parameters = parameters[:Reservoir]
     end
-    grid = physical_representation(rmodel.domain)
-
-    N = grid.neighborship
+    N = res[:neighbors]
     trans = parameters[:Transmissibilities]
+    nf = size(N, 2)
+    length(trans) == nf || error("Transmissibilities must have length equal to number of neighbor connections in reservoir domain. Found $(length(trans)) transmissibilities and $nf neighbor connections.")
+    if preserve_faults
+        mesh = reservoir_mesh(res)
+        faults = get_faults(mesh)
+        if !ismissing(faults)
+            keep = [true for i in 1:nf]
+            for (name, fault) in faults
+                keep[fault] = false
+            end
+            N = N[:, keep]
+            trans = trans[keep]
+        end
+    end
     if conn == :unit
-        T = ones(Int, length(trans))
+        T = ones(Int, nf)
     else
         trans = max.(trans, 1e-20)
         if conn == :trans
-            T = copy(trans)
+            T = Base.copy(trans)
             T = length(T)*T./sum(T)
             T = Int.(ceil.(T))
         elseif conn == :logtrans
