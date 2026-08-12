@@ -1949,16 +1949,20 @@ function available_well_targets(model)
     return unique(targets)
 end
 
-function partitioner_input(model, parameters;
+function partitioner_input(model_or_domain::Union{JutulModel, DataDomain}, parameters = missing;
         conn = :trans,
         preserve_faults = true
     )
-    res = reservoir_domain(model)
-    if haskey(parameters, :Reservoir)
-        parameters = parameters[:Reservoir]
-    end
+    res = reservoir_domain(model_or_domain)
     N = res[:neighbors]
-    trans = parameters[:Transmissibilities]
+    if ismissing(parameters)
+        trans = ones(Float64, size(res[:neighbors], 2))
+        else
+        if haskey(parameters, :Reservoir)
+            parameters = parameters[:Reservoir]
+        end
+        trans = parameters[:Transmissibilities]
+    end
     nf = size(N, 2)
     length(trans) == nf || error("Transmissibilities must have length equal to number of neighbor connections in reservoir domain. Found $(length(trans)) transmissibilities and $nf neighbor connections.")
     if preserve_faults
@@ -1990,7 +1994,7 @@ function partitioner_input(model, parameters;
             error("conn must be one of :trans, :unit or :logtrans, was $conn")
         end
     end
-    groups = partitioner_well_groups(model)
+    groups = partitioner_well_groups(model_or_domain)
     return (N, T, groups)
 end
 
@@ -2006,7 +2010,7 @@ function partitioner_well_groups(model::MultiModel)
     return groups
 end
 
-function partitioner_well_groups(model)
+function partitioner_well_groups(model_or_domain)
     return Vector{Vector{Int}}()
 end
 
@@ -3297,8 +3301,12 @@ function tag_fault!(x, fault_faces::Vector{Int}, name = missing)
     return x
 end
 
-function get_faults(x)
+function get_faults(x::DataDomain)
     g = reservoir_mesh(x)
+    return get_faults(g)
+end
+
+function get_faults(g::JutulMesh)
     faults = Jutul.get_mesh_entity_tag(g, Faces(), :faults)
     if ismissing(faults)
         faults = Dict{Symbol, Vector{Int}}()

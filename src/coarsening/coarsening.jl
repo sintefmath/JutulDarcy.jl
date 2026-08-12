@@ -202,6 +202,14 @@ Partition the reservoir model into coarser grids.
 
 """
 function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, method = missing;
+        parameters = setup_parameters(model),
+        kwarg...
+    )
+    domain = reservoir_domain(model)
+    return partition_reservoir(domain, coarsedim, method; parameters = parameters, kwarg...)
+end
+
+function partition_reservoir(domain::DataDomain, coarsedim::Union{Tuple, Int}, method = missing;
         parameters = missing,
         wells_in_single_block = false,
         preserve_faults = true,
@@ -209,8 +217,7 @@ function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, me
         compartments = missing,
         kwarg...
     )
-    domain = model |> reservoir_model |> reservoir_domain
-    mesh = physical_representation(domain)
+    mesh = reservoir_mesh(domain)
 
     if coarsedim isa Int
         method = :metis
@@ -237,10 +244,7 @@ function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, me
             partitioner = method
         end
         partitioner::Jutul.JutulPartitioner
-        if ismissing(parameters)
-            parameters = setup_parameters(model)
-        end
-        N, T, well_groups = partitioner_input(model, parameters,
+        N, T, well_groups = partitioner_input(domain, parameters,
             conn = partitioner_conn_type,
             preserve_faults = preserve_faults
         )
@@ -288,6 +292,7 @@ function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, me
     p = Jutul.compress_partition(p)
     return p
 end
+
 
 export coarsen_reservoir_case
 
