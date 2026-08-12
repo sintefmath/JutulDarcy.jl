@@ -1971,7 +1971,7 @@ function partitioner_input(model_or_domain::Union{JutulModel, DataDomain}, param
         if !ismissing(faults)
             keep = [true for i in 1:nf]
             for (name, fault) in faults
-                keep[fault] = false
+                keep[fault] .= false
             end
             N = N[:, keep]
             trans = trans[keep]
