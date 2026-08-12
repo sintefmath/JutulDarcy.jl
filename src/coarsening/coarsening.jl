@@ -240,7 +240,10 @@ function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, me
         if ismissing(parameters)
             parameters = setup_parameters(model)
         end
-        N, T, well_groups = partitioner_input(model, parameters, conn = partitioner_conn_type, preserve_faults = preserve_faults)
+        N, T, well_groups = partitioner_input(model, parameters,
+            conn = partitioner_conn_type,
+            preserve_faults = preserve_faults
+        )
         if !ismissing(compartments)
             l = N[1, :]
             r = N[2, :]
