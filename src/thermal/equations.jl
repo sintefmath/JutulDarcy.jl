@@ -91,16 +91,17 @@ function thermal_heat_flux(face, state, model, grad, upw, flux_type)
 
     if haskey(state, :ThermalDispersivity)
         dispersion = state.ThermalDispersivity
-        ρ_l = state.PhaseMassDensities[1, grad.left]
-        ρ_r = state.PhaseMassDensities[1, grad.right]
-        Cp_l = state.ComponentHeatCapacity[1, grad.left]
-        Cp_r = state.ComponentHeatCapacity[1, grad.right]
         if all(x -> value(x) == 0.0, dispersion)
             # No dispersive contribution for this face.
         elseif haskey(state, :ThermalDispersionTransmissibility)
-            θ += thermal_dispersion_transmissibility(face, ρ_l, ρ_r, Cp_l, Cp_r, state.ThermalDispersionTransmissibility)
-        else
-            θ += thermal_dispersion_transmissibility(face, state, model)
+            θ_d = state.ThermalDispersionTransmissibility
+            ρCp_l = state.PhaseMassDensities[1, grad.left]*state.ComponentHeatCapacity[1, grad.left]
+            ρCp_r = state.PhaseMassDensities[1, grad.right]*state.ComponentHeatCapacity[1, grad.right]
+            θ_l = @inbounds θ_d[1, face]*ρCp_l
+            θ_r = @inbounds θ_d[2, face]*ρCp_r
+            if θ_l != 0.0 && θ_r != 0.0
+                θ += 1/(1/θ_l + 1/θ_r)
+            end
         end
 
     end
