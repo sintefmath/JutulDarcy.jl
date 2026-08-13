@@ -34,7 +34,6 @@ function add_thermal_dispersion!(domain::DataDomain, D::AbstractArray{<:Real, 2}
     domain[:half_face_vectors, hf] = half_face_vectors
     dim = size(domain[:cell_centroids], 1)
     domain[:half_face_vectors_svec, hf] = [SVector{dim}(half_face_vectors[:, i]) for i in axes(half_face_vectors, 2)]
-    domain[:face_fluxes_tmp, Faces()] = zeros(number_of_faces(domain))
 
     # Cache static geometry as SVectors for reuse in hot loops.
     domain[:cell_centroids_svec, Cells()] = [SVector{dim}(domain[:cell_centroids][:, i]) for i in axes(domain[:cell_centroids], 2)]
@@ -50,11 +49,39 @@ function add_thermal_dispersion!(domain::DataDomain, D::AbstractArray{<:Real, 2}
 
 end
 
-
-Base.@kwdef mutable struct TotalDarcyVelocity <: VectorVariables
+Base.@kwdef mutable struct TotalVolumeFlux <: ScalarVariable
     change_tol_rel = 1e-3
     changed = true
 end
+Jutul.associated_entity(::TotalVolumeFlux) = Faces()
+
+function Jutul.default_parameter_values(data_domain, model, param::TotalVolumeFlux, symb)
+    return zeros(number_of_faces(data_domain))
+end
+
+function Jutul.update_parameter_before_step!(q_t, prm::TotalVolumeFlux, storage, model, dt, forces)
+    state = storage.state
+    domain = model.data_domain
+    neighbors = domain[:neighbors_svec]
+    nf = number_of_faces(domain)
+
+    changed = false
+    @inbounds for face in 1:nf
+        q_old = q_t[face]
+        q_new = face_total_volume_flux(face, neighbors, state, model)
+        q_t[face] = q_new
+
+        thresh = prm.change_tol_rel*max(abs(q_old), eps(Float64))
+        if abs(q_new - q_old) > thresh
+            changed = true
+        end
+    end
+    prm.changed = changed
+    return q_t
+end
+
+
+struct TotalDarcyVelocity <: VectorVariables end
 # Jutul.variable_scale(::ThermalDispersion) = 1.0
 # Jutul.minimum_value(::ThermalDispersion) = 0.0
 Jutul.values_per_entity(model, ::TotalDarcyVelocity) = dim(model.data_domain)
@@ -70,7 +97,6 @@ function Jutul.update_parameter_before_step!(v, prm::TotalDarcyVelocity, storage
     state = storage.state
     domain = model.data_domain
     nc = number_of_cells(domain)
-    nf = number_of_faces(domain)
     volumes = domain[:volumes]
 
     half_facesigns = domain[:half_facesigns]
@@ -78,14 +104,8 @@ function Jutul.update_parameter_before_step!(v, prm::TotalDarcyVelocity, storage
     facepos = domain[:half_facepos]
     faces = domain[:half_faces]
 
-    face_fluxes = domain[:face_fluxes_tmp]
-    neighbors = domain[:neighbors_svec]
-    @inbounds for face in 1:nf
-        face_fluxes[face] = face_total_volume_flux(face, neighbors, state, model)
-    end
+    face_fluxes = state.TotalVolumeFlux
 
-    v0 = copy(v)
-    change = false
     @views fill!(v, 0.0)
     @inbounds for cell in 1:nc
         v_c = v[:, cell]
@@ -97,11 +117,8 @@ function Jutul.update_parameter_before_step!(v, prm::TotalDarcyVelocity, storage
             end
         end
         v_c ./= volumes[cell]
-        change = change ||
-            any(norm(v_c .- v0[:, cell]) .> prm.change_tol_rel .* norm(v0[:, cell]))
         v[:, cell] = v_c
     end
-    prm.changed = change
     return v
 end
 
@@ -158,7 +175,7 @@ function Jutul.update_parameter_before_step!(θ_d, ::ThermalDispersionTransmissi
         return θ_d
     end
 
-    if !model.parameters[:TotalDarcyVelocity].changed
+    if !model.parameters[:TotalVolumeFlux].changed
         return θ_d
     end
 
