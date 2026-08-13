@@ -71,16 +71,16 @@ function thermal_heat_flux(face, state, model, grad, upw, flux_type)
             θ_l = @inbounds θ_geo[1, face]*λ_l
             θ_r = @inbounds θ_geo[2, face]*λ_r
             if θ_l == 0.0 || θ_r == 0.0
-                θ_f = 0.0
+                θ_fα = 0.0
             else
-                θ_f = 1/(1/θ_l + 1/θ_r)
+                θ_fα = 1/(1/θ_l + 1/θ_r)
             end
 
             # λ_face_α = @inbounds λ_f[α, face]
         else
-            θ_f = θ_f[α, face]
+            θ_fα = θ_f[α, face]
         end
-        θ += θ_f*phase_face_average(S, grad, α)
+        θ += θ_fα*phase_face_average(S, grad, α)
     end
 
     if haskey(state, :ThermalDispersivity)
