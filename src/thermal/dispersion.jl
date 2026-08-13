@@ -51,7 +51,10 @@ function add_thermal_dispersion!(domain::DataDomain, D::AbstractArray{<:Real, 2}
 end
 
 
-struct TotalDarcyVelocity <: VectorVariables end
+Base.@kwdef mutable struct TotalDarcyVelocity <: VectorVariables
+    change_tol_rel = 1e-3
+    changed = true
+end
 # Jutul.variable_scale(::ThermalDispersion) = 1.0
 # Jutul.minimum_value(::ThermalDispersion) = 0.0
 Jutul.values_per_entity(model, ::TotalDarcyVelocity) = dim(model.data_domain)
@@ -63,7 +66,7 @@ function Jutul.default_parameter_values(data_domain, model, param::TotalDarcyVel
     return zeros(dim, nc)
 end
 
-function Jutul.update_parameter_before_step!(v, ::TotalDarcyVelocity, storage, model, dt, forces)
+function Jutul.update_parameter_before_step!(v, prm::TotalDarcyVelocity, storage, model, dt, forces)
     state = storage.state
     domain = model.data_domain
     nc = number_of_cells(domain)
@@ -81,19 +84,24 @@ function Jutul.update_parameter_before_step!(v, ::TotalDarcyVelocity, storage, m
         face_fluxes[face] = face_total_volume_flux(face, neighbors, state, model)
     end
 
+    v0 = copy(v)
+    change = false
     @views fill!(v, 0.0)
     @inbounds for cell in 1:nc
-        cell_velocity = v[:, cell]
+        v_c = v[:, cell]
         for fpos = facepos[cell]:(facepos[cell + 1] - 1)
             face = faces[fpos]
             q = face_fluxes[face]*half_facesigns[fpos]
             if q != 0.0
-                cell_velocity .+= q.*half_face_vectors_svec[fpos]
+                v_c .+= q.*half_face_vectors_svec[fpos]
             end
         end
-        cell_velocity ./= volumes[cell]
-        v[:, cell] = cell_velocity
+        v_c ./= volumes[cell]
+        change = change ||
+            any(norm(v_c .- v0[:, cell]) .> prm.change_tol_rel .* norm(v0[:, cell]))
+        v[:, cell] = v_c
     end
+    prm.changed = change
     return v
 end
 
@@ -147,6 +155,10 @@ function Jutul.update_parameter_before_step!(θ_d, ::ThermalDispersionTransmissi
     dispersion = state.ThermalDispersivity
     if all(x -> value(x) == 0.0, dispersion)
         fill!(θ_d, 0.0)
+        return θ_d
+    end
+
+    if !model.parameters[:TotalDarcyVelocity].changed
         return θ_d
     end
 
