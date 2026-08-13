@@ -308,6 +308,41 @@ end
 
 Jutul.associated_entity(::FluidThermalTransmissibilites) = Faces()
 
+struct HalfFaceTransGeo <: VectorVariables end
+Jutul.minimum_value(::HalfFaceTransGeo) = 0.0
+Jutul.values_per_entity(model, ::HalfFaceTransGeo) = 2
+Jutul.associated_entity(::HalfFaceTransGeo) = Faces()
+
+function Jutul.default_parameter_values(data_domain, model, param::HalfFaceTransGeo, symb)
+    nf = number_of_faces(data_domain)
+    θ = zeros(2, nf)
+    neighbors = data_domain[:neighbors]
+    cell_centroids = data_domain[:cell_centroids]
+    face_centroids = data_domain[:face_centroids]
+    normals = data_domain[:normals]
+    areas = data_domain[:areas]
+    @inbounds for face in 1:nf
+        if neighbors isa AbstractMatrix
+            left = neighbors[1, face]
+            right = neighbors[2, face]
+        else
+            left, right = neighbors[face]
+        end
+        if left <= 0 || right <= 0
+            continue
+        end
+        A = areas[face]
+        N = normals[:, face]
+        xf = face_centroids[:, face]
+
+        C_l = xf - cell_centroids[:, left]
+        C_r = xf - cell_centroids[:, right]
+        θ[1, face] = Jutul.half_face_trans(A, 1.0, C_l, N)
+        θ[2, face] = Jutul.half_face_trans(A, 1.0, C_r, -N)
+    end
+    return ensure_non_negative_trans(θ, "half_face_trans_geo")
+end
+
 struct RockThermalTransmissibilites <: ScalarVariable end
 Jutul.variable_scale(::RockThermalTransmissibilites) = 1.0
 Jutul.minimum_value(::RockThermalTransmissibilites) = 0.0
@@ -536,6 +571,7 @@ function add_thermal_to_model!(model)
         set_parameters!(model,
             RockThermalTransmissibilites = RockThermalTransmissibilites(),
             FluidThermalTransmissibilites = FluidThermalTransmissibilites(),
+                HalfFaceTransGeo = HalfFaceTransGeo(),
             FluidThermalConductivity = FluidThermalConductivity()
         )
         set_secondary_variables!(model,

@@ -52,9 +52,7 @@ function thermal_heat_flux(face, state, model, grad, upw, flux_type)
     has_dynamic_λf = haskey(model.secondary_variables, :FluidThermalConductivity) && haskey(state, :FluidThermalConductivity)
     if has_dynamic_λf
         λ_f = state.FluidThermalConductivity
-        ϕ = state.FluidVolume./state.BulkVolume
-        domain = model.data_domain
-        dim = size(domain[:cell_centroids], 1)
+        θ_geo = state.HalfFaceTransGeo
     else
         θ_f = state.FluidThermalTransmissibilites
     end
@@ -63,24 +61,20 @@ function thermal_heat_flux(face, state, model, grad, upw, flux_type)
     for α in 1:nph
         if has_dynamic_λf
             grad isa TPFA || throw(ArgumentError("TPFA gradient expected for dynamic fluid thermal conductivity"))
-            
-            left, right = domain[:neighbors][:, face]
-            # left == grad.left || throw(ArgumentError("Left cell mismatch in TPFA gradient"))
-            # right == grad.right || throw(ArgumentError("Right cell mismatch in TPFA gradient"))
-
-            A = domain[:areas][face]
-            N = domain[:normals][:, face]
-
-            den = 0.0
-            for side in (left, right)
-                C = domain[:face_centroids][:, face] - domain[:cell_centroids][:, side]
-                sgn = ifelse(side == left, 1.0, -1.0)
-                λ = ϕ[side].*fluid_phase_cell_value(λ_f, α, side)
-                λ = Jutul.expand_perm(λ, Val(dim))
-                θ_hf = Jutul.half_face_trans(A, λ, C, sgn*N)
-                den += 1/θ_hf
+            tpfa = grad
+            left = tpfa.left
+            right = tpfa.right
+            ϕ_l = state.FluidVolume[left]./state.BulkVolume[left]
+            ϕ_r = state.FluidVolume[right]./state.BulkVolume[right]
+            λ_l = ϕ_l.*fluid_phase_cell_value(λ_f, α, left)
+            λ_r = ϕ_r.*fluid_phase_cell_value(λ_f, α, right)
+            θ_l = @inbounds θ_geo[1, face]*λ_l
+            θ_r = @inbounds θ_geo[2, face]*λ_r
+            if θ_l == 0.0 || θ_r == 0.0
+                θ_f = 0.0
+            else
+                θ_f = 1/(1/θ_l + 1/θ_r)
             end
-            θ_f = 1/den
 
             # λ_face_α = @inbounds λ_f[α, face]
         else
