@@ -3307,7 +3307,7 @@ function get_faults(x::DataDomain)
 end
 
 function get_faults(g::JutulMesh)
-    faults = Jutul.get_mesh_entity_tag(g, Faces(), :faults)
+    faults = Jutul.get_mesh_entity_tag(g, Faces(), :faults, throw = false)
     if ismissing(faults)
         faults = Dict{Symbol, Vector{Int}}()
     end
