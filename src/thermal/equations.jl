@@ -91,10 +91,14 @@ function thermal_heat_flux(face, state, model, grad, upw, flux_type)
 
     if haskey(state, :ThermalDispersivity)
         dispersion = state.ThermalDispersivity
+        ρ_l = state.PhaseMassDensities[1, grad.left]
+        ρ_r = state.PhaseMassDensities[1, grad.right]
+        Cp_l = state.ComponentHeatCapacity[1, grad.left]
+        Cp_r = state.ComponentHeatCapacity[1, grad.right]
         if all(x -> value(x) == 0.0, dispersion)
             # No dispersive contribution for this face.
         elseif haskey(state, :ThermalDispersionTransmissibility)
-            θ += thermal_dispersion_transmissibility(face, state, model, state.ThermalDispersionTransmissibility)
+            θ += thermal_dispersion_transmissibility(face, ρ_l, ρ_r, Cp_l, Cp_r, state.ThermalDispersionTransmissibility)
         else
             θ += thermal_dispersion_transmissibility(face, state, model)
         end
@@ -114,8 +118,8 @@ function fluid_phase_cell_value(λ_f, α, cell)
 end
 
 function face_flux_helper(face, N, state, model, is_mass::Bool)
-    l = N[1, face]
-    r = N[2, face]
+    l = N[face][1]
+    r = N[face][2]
     # TODO: This assumes the default discretizations.
     # This should be generalized to allow for different flux types.
     tpfa = TPFA(l, r, 1)
