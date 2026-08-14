@@ -222,10 +222,16 @@ Partition the reservoir model into coarser grids.
 """
 function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, method = missing;
         parameters = setup_parameters(model),
+        wells_in_single_block = false,
         kwarg...
     )
     domain = reservoir_domain(model)
-    return partition_reservoir(domain, coarsedim, method; parameters = parameters, kwarg...)
+    if wells_in_single_block
+        well_groups = partitioner_well_groups(model)
+    else
+        well_groups = missing
+    end
+    return partition_reservoir(domain, coarsedim, method; parameters = parameters, well_groups = well_groups, kwarg...)
 end
 
 function partition_reservoir(domain::DataDomain, coarsedim::Union{Tuple, Int}, method = missing;
@@ -234,6 +240,7 @@ function partition_reservoir(domain::DataDomain, coarsedim::Union{Tuple, Int}, m
         preserve_faults = true,
         partitioner_conn_type = :trans,
         compartments = missing,
+        well_groups = missing,
         kwarg...
     )
     mesh = reservoir_mesh(domain)
@@ -299,9 +306,9 @@ function partition_reservoir(domain::DataDomain, coarsedim::Union{Tuple, Int}, m
         end
     end
     p = Jutul.process_partition(mesh, p, weights = weights)
-    if wells_in_single_block
+    if !ismissing(well_groups)
         # Could have split up things that are actually connected by wells.
-        for group in partitioner_well_groups(model)
+        for group in well_groups
             group_t = unique!(p[group])
             for i in 2:length(group_t)
                 p[findall(isequal(group_t[i]), p)] .= group_t[1]
