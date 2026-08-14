@@ -50,8 +50,9 @@ function add_thermal_dispersion!(domain::DataDomain, D::AbstractArray{<:Real, 2}
 end
 
 Base.@kwdef mutable struct TotalVolumeFlux <: ScalarVariable
-    change_tol_rel = 1e-3
-    changed = true
+    change_tol_rel = 1e-2
+    changed = BitVector()
+    changed_any = true
 end
 Jutul.associated_entity(::TotalVolumeFlux) = Faces()
 
@@ -65,23 +66,31 @@ function Jutul.update_parameter_before_step!(q_t, prm::TotalVolumeFlux, storage,
     neighbors = domain[:neighbors_svec]
     nf = number_of_faces(domain)
 
-    changed = false
+    if length(prm.changed) != nf
+        prm.changed = falses(nf)
+    end
+    changed_faces = prm.changed
+    changed_any = false
+
     @inbounds for face in 1:nf
         q_old = q_t[face]
         q_new = face_total_volume_flux(face, neighbors, state, model)
         q_t[face] = q_new
 
         thresh = prm.change_tol_rel*max(abs(q_old), eps(Float64))
-        if abs(q_new - q_old) > thresh
-            changed = true
-        end
+        has_changed = abs(q_new - q_old) > thresh
+        changed_faces[face] = has_changed
+        changed_any = changed_any || has_changed
     end
-    prm.changed = changed
+    prm.changed_any = changed_any
     return q_t
 end
 
 
-struct TotalDarcyVelocity <: VectorVariables end
+Base.@kwdef mutable struct TotalDarcyVelocity <: VectorVariables
+    changed = BitVector()
+    changed_any = true
+end
 # Jutul.variable_scale(::ThermalDispersion) = 1.0
 # Jutul.minimum_value(::ThermalDispersion) = 0.0
 Jutul.values_per_entity(model, ::TotalDarcyVelocity) = dim(model.data_domain)
@@ -106,9 +115,42 @@ function Jutul.update_parameter_before_step!(v, prm::TotalDarcyVelocity, storage
 
     face_fluxes = state.TotalVolumeFlux
 
-    @views fill!(v, 0.0)
+    if length(prm.changed) != nc
+        prm.changed = falses(nc)
+    end
+    changed_cells = prm.changed
+    fill!(changed_cells, false)
+
+    flux_prm = model.parameters[:TotalVolumeFlux]
+    changed_faces = flux_prm.changed
+    if length(changed_faces) == 0
+        fill!(changed_cells, true)
+    else
+        @inbounds for face in eachindex(changed_faces)
+            if changed_faces[face]
+                left, right = domain[:neighbors_svec][face]
+                if left > 0
+                    changed_cells[left] = true
+                end
+                if right > 0
+                    changed_cells[right] = true
+                end
+            end
+        end
+    end
+
+    changed_any = any(changed_cells)
+    prm.changed_any = changed_any
+    if !changed_any
+        return v
+    end
+
     @inbounds for cell in 1:nc
+        if !changed_cells[cell]
+            continue
+        end
         v_c = v[:, cell]
+        fill!(v_c, 0.0)
         for fpos = facepos[cell]:(facepos[cell + 1] - 1)
             face = faces[fpos]
             q = face_fluxes[face]*half_facesigns[fpos]
@@ -140,26 +182,30 @@ function Jutul.default_parameter_values(data_domain, model, param::ThermalDisper
     return zeros(2, number_of_faces(data_domain))
 end
         
-function thermal_dispersion_half_face_transmissibility(face, side, cell_centroids, face_centroids, normals, neighbors, areas, v_cell, aT_cell, aL_cell, is_active_cell)
+function thermal_dispersion_half_face_transmissibility(face, side, cell_centroids, face_centroids, normals, neighbors, areas, v, dispersion)
     @inbounds left, right = neighbors[face]
     if side <= 0 || right <= 0
-        return 0.0
-    end
-    if !is_active_cell[side]
         return 0.0
     end
     @inbounds A = areas[face]
     @inbounds Nf = normals[face]
     @inbounds xf = face_centroids[face]
 
-    v = v_cell[side]
-    aT = aT_cell[side]
-    aL = aL_cell[side]
+    v_i = eltype(cell_centroids)(v[:, side])
+    vmag = sqrt(dot(v_i, v_i))
+    if vmag == 0.0
+        return 0.0
+    end
+    α_L = value(dispersion[1, side])
+    α_T = value(dispersion[2, side])
+    aT = α_T*vmag
+    aL = (α_L - α_T)/vmag
+
     C = xf - cell_centroids[side]
     sgn = ifelse(side == left, 1.0, -1.0)
     N = sgn*Nf
     # D*C where D = aT*I + aL*(v*v')
-    KC = aT*C + aL*v*dot(v, C)
+    KC = aT*C + aL*v_i*dot(v_i, C)
     return A*dot(KC, N)/dot(C, C)
 end
 
@@ -175,7 +221,8 @@ function Jutul.update_parameter_before_step!(θ_d, ::ThermalDispersionTransmissi
         return θ_d
     end
 
-    if !model.parameters[:TotalVolumeFlux].changed
+    velocity_prm = model.parameters[:TotalDarcyVelocity]
+    if !velocity_prm.changed_any
         return θ_d
     end
 
@@ -187,30 +234,17 @@ function Jutul.update_parameter_before_step!(θ_d, ::ThermalDispersionTransmissi
     neighbors = domain[:neighbors_svec]
     areas = domain[:areas]
     v = state.TotalDarcyVelocity
-    nc = number_of_cells(domain)
-
-    # Precompute cell-wise velocity-dependent dispersion coefficients.
-    v_cell = Vector{eltype(cell_centroids)}(undef, nc)
-    aT_cell = zeros(nc)
-    aL_cell = zeros(nc)
-    is_active_cell = falses(nc)
-    @inbounds for cell in 1:nc
-        v_cell_i = eltype(cell_centroids)(v[:, cell])
-        v_cell[cell] = v_cell_i
-        vmag = sqrt(dot(v_cell_i, v_cell_i))
-        if vmag > 0.0
-            α_L = state.ThermalDispersivity[1, cell]
-            α_T = state.ThermalDispersivity[2, cell]
-            aT_cell[cell] = α_T*vmag
-            aL_cell[cell] = (α_L - α_T)/vmag
-            is_active_cell[cell] = true
-        end
-    end
+    changed_cells = velocity_prm.changed
 
     @inbounds for face in 1:nf
         left, right = neighbors[face]
-        θ_d[1, face] = thermal_dispersion_half_face_transmissibility(face, left, cell_centroids, face_centroids, normals, neighbors, areas, v_cell, aT_cell, aL_cell, is_active_cell)
-        θ_d[2, face] = thermal_dispersion_half_face_transmissibility(face, right, cell_centroids, face_centroids, normals, neighbors, areas, v_cell, aT_cell, aL_cell, is_active_cell)
+        left_changed = left > 0 && changed_cells[left]
+        right_changed = right > 0 && changed_cells[right]
+        if !(left_changed || right_changed)
+            continue
+        end
+        θ_d[1, face] = thermal_dispersion_half_face_transmissibility(face, left, cell_centroids, face_centroids, normals, neighbors, areas, v, dispersion)
+        θ_d[2, face] = thermal_dispersion_half_face_transmissibility(face, right, cell_centroids, face_centroids, normals, neighbors, areas, v, dispersion)
     end
     return θ_d
 end
