@@ -1777,10 +1777,14 @@ function full_well_outputs(model, states, forces; targets = missing)
         targets = available_well_targets(rmodel)
     end
     cnames = component_names(rmodel.system)
-    has_temperature = length(states) > 0 && haskey(first(states)[:Reservoir], :Temperature)
+    wsymbols = well_symbols(model)
+    has_temperature = !isempty(wsymbols) && any(states) do state
+        w = first(wsymbols)
+        haskey(state, w) && haskey(state[w], :Temperature)
+    end
     well_t = Dict{Symbol, Union{Vector{Float64}, Vector{Symbol}}}
     out = Dict{Symbol, well_t}()
-    for w in well_symbols(model)
+    for w in wsymbols
         outw = well_t()
         for t in targets
             outw[translate_target_to_symbol(t(1.0))] = well_output(model, states, w, forces, t)
@@ -1788,7 +1792,13 @@ function full_well_outputs(model, states, forces; targets = missing)
         outw[:mass_rate] = well_output(model, states, w, forces, :TotalSurfaceMassRate)
         outw[:control] = well_output(model, states, w, forces, :control)
         if has_temperature
-            outw[:temperature] = map(s -> s[w][:Temperature][well_top_node()], states)
+            outw[:temperature] = map(states) do s
+                if haskey(s, w) && haskey(s[w], :Temperature)
+                    s[w][:Temperature][well_top_node()]
+                else
+                    NaN
+                end
+            end
         end
         for (i, cname) in enumerate(cnames)
             outw[Symbol("$(cname)_mass_rate")] = well_output(model, states, w, forces, i)

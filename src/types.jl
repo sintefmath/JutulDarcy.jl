@@ -648,13 +648,17 @@ function ReservoirSimResult(model, result::Jutul.SimResult, forces, extra = Dict
     end
     states, dt, report_ix = Jutul.expand_to_ministeps(result)
     report_time = cumsum(dt)
-    res_states = map(x -> x[:Reservoir], states)
+    has_all_reservoir_states = all(s -> haskey(s, :Reservoir), states)
+    res_states = map(x -> get(x, :Reservoir, Jutul.JUTUL_OUTPUT_TYPE()), states)
     if forces isa Vector
         forces = forces[report_ix]
     end
     wells = full_well_outputs(model, states, forces)
     well_result = WellResults(report_time, wells, start_date)
-    summary = summary_result(model, well_result, states, :si, start_date = start_date)
+    summary = summary_result(model, well_result, states, :si,
+        start_date = start_date,
+        field = has_all_reservoir_states
+    )
     return ReservoirSimResult(well_result, res_states, summary, report_time, result, extra)
 end
 
