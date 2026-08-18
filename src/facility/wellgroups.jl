@@ -188,6 +188,8 @@ function setup_forces(model::SimulationModel{D}; control = nothing, limits = not
     T = Dict{Symbol, Any}
     if isnothing(control)
         control = T()
+    elseif !(control isa T)
+        control = T(pairs(control))
     end
     wells = model.domain.well_symbols
     for w in wells
@@ -198,6 +200,8 @@ function setup_forces(model::SimulationModel{D}; control = nothing, limits = not
     # Initialize limits
     if isnothing(limits)
         limits = T()
+    elseif !(limits isa T)
+        limits = T(pairs(limits))
     end
     for w in wells
         if set_default_limits
