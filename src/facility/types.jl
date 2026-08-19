@@ -489,8 +489,6 @@ struct TotalRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
 end
 Base.show(io::IO, t::TotalRateTarget) = print(io, "TotalRateTarget with value $(t.value) [m^3/s]")
 
-
-
 """
     TotalMassRateTarget(q)
 
@@ -552,7 +550,6 @@ struct HistoricalReservoirVoidageTarget{T} <: WellTarget where {T<:AbstractFloat
     end
 end
 
-
 function HistoricalReservoirVoidageTarget(v, w)
     water, oil, gas = w
     return HistoricalReservoirVoidageTarget(
@@ -595,6 +592,22 @@ mutable struct ReinjectionTarget <: WellTarget
         end
         return new(NaN, wells, fraction)
     end
+end
+
+struct WaterCutTarget{T} <: WellTarget where {T<:AbstractFloat}
+    value::T
+end
+
+struct GasOilRatioTarget{T} <: WellTarget where {T<:AbstractFloat}
+    value::T
+end
+
+struct WaterGasRatioTarget{T} <: WellTarget where {T<:AbstractFloat}
+    value::T
+end
+
+struct GasLiquidRatioTarget{T} <: WellTarget where {T<:AbstractFloat}
+    value::T
 end
 
 """

@@ -202,13 +202,13 @@ function match_well!(hm::HistoryMatch, name::Union{String, Symbol}, quantity::Un
             dscale = 1.0
         elseif quantity == "WGOR"
             dest = hm.producer_gas_oil_ratio
-            dscale = 1.0
+            dscale = 1e6
         elseif quantity == "WWGR"
             dest = hm.producer_water_gas_ratio
             dscale = 1.0
         elseif quantity == "WGLR"
             dest = hm.producer_gas_liquid_ratio
-            dscale = 1.0
+            dscale = 1e6
         else
             error("Unsupported quantity '$quantity' for producer well match.")
         end

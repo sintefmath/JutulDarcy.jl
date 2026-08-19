@@ -3008,13 +3008,13 @@ function reservoir_measurables(model, wellresult, states = missing;
 
     # Derived quantities - done at the end to avoid double unit conversion
     fwct = add_entry(:wct)
-    @. fwct = fwpr./max.(flpr, 1e-12)
+    @. fwct = abs(fwpr)/max.(abs(flpr), 1e-12)
     fgor = add_entry(:gor)
-    @. fgor = fgpr./max.(fopr, 1e-12)
+    @. fgor = abs(fgpr)/max.(abs(fopr), 1e-12)
     fwgr = add_entry(:wgr)
-    @. fwgr = fwpr./max.(fgpr, 1e-12)
+    @. fwgr = abs(fwpr)/max.(abs(fgpr), 1e-12)
     fglr = add_entry(:glr)
-    @. fglr = fgpr./max.(flpr, 1e-12)
+    @. fglr = abs(fgpr)/max.(abs(flpr), 1e-12)
 
     flpt = add_entry(:lpt)
     flpt .= cumsum(flpr.*dt)

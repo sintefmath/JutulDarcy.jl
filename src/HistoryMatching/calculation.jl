@@ -57,10 +57,13 @@ end
 function get_cumulative_contribution(hm::HistoryMatch, model, states, step_infos, forces)
     start_idx = 1
     stop_idx = length(step_infos)
-    eval_match(x, sgn, target) = get_period_contribution_wells(
-        hm.logger, x, sgn, target, hm.wellpos, model, states, step_infos, forces, start_idx, stop_idx, missing,
-        is_cumulative = true
-    )
+    function eval_match(x, sgn, target)
+        ctrb = get_period_contribution_wells(
+            hm.logger, x, sgn, target, hm.wellpos, model, states, step_infos, forces, start_idx, stop_idx, missing,
+            is_cumulative = true
+        )
+        return ctrb
+    end
     prod_sgn = -1.0
     val = 0.0
     # Producers only...
@@ -73,9 +76,13 @@ end
 
 function get_period_contribution(hm::HistoryMatch, model, states, step_infos, forces, start_idx::Int, stop_idx::Int, weights)
     val = 0.0
-    eval_match(x, sgn, target) = get_period_contribution_wells(hm.logger, x, sgn, Val(target), hm.wellpos, model, states, step_infos, forces, start_idx, stop_idx, weights)
+    function eval_match(x, sgn, target)
+        ctrb = get_period_contribution_wells(hm.logger, x, sgn, Val(target), hm.wellpos, model, states, step_infos, forces, start_idx, stop_idx, weights)
+        return ctrb
+    end
     inj_sgn = 1.0
     prod_sgn = -1.0
+    no_sgn = 1.0
     val = 0.0
     # Injectors
     bhp_inj = eval_match(hm.injector_bhp, 1.0, BottomHolePressureTarget(1.0))
@@ -91,13 +98,21 @@ function get_period_contribution(hm::HistoryMatch, model, states, step_infos, fo
     lrat_prod = eval_match(hm.producer_lrat, prod_sgn, SurfaceLiquidRateTarget(-1.0))
     wrat_prod = eval_match(hm.producer_wrat, prod_sgn, SurfaceWaterRateTarget(-1.0))
 
+    wcut_prod = eval_match(hm.producer_water_cut, no_sgn, JutulDarcy.WaterCutTarget(-1.0))
+    gor_prod = eval_match(hm.producer_gas_oil_ratio, no_sgn, JutulDarcy.GasOilRatioTarget(-1.0))
+    wgr_prod = eval_match(hm.producer_water_gas_ratio, no_sgn, JutulDarcy.WaterGasRatioTarget(-1.0))
+    glr_prod = eval_match(hm.producer_gas_liquid_ratio, no_sgn, JutulDarcy.GasLiquidRatioTarget(-1.0))
+
+    pressures = bhp_inj + bhp_prod
+    inj_rates = rate_inj + orat_inj + wrat_inj + grat_inj
+    prod_rates = rate_prod + grat_prod + orat_prod + lrat_prod + wrat_prod
+    fractions = wcut_prod + gor_prod + wgr_prod + glr_prod
     if false
         println("Well match contributions: ")
         println(" BHP inj: $bhp_inj, rate inj: $rate_inj, orat inj: $orat_inj, wrat inj: $wrat_inj, grat inj: $grat_inj | ")
         println(" BHP prod: $bhp_prod, rate prod: $rate_prod, grat prod: $grat_prod, orat prod: $orat_prod, lrat prod: $lrat_prod, wrat prod: $wrat_prod ")
     end
-    val = bhp_inj + rate_inj + orat_inj + wrat_inj + grat_inj +
-        bhp_prod + rate_prod + grat_prod + orat_prod + lrat_prod + wrat_prod
+    val = pressures + inj_rates + prod_rates + fractions
     return val
 end
 

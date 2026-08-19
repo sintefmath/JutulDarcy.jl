@@ -58,6 +58,10 @@ struct HistoryMatch
     producer_cumulative_gas::Vector{WellMatch}
     producer_cumulative_water::Vector{WellMatch}
     producer_cumulative_liquid::Vector{WellMatch}
+    producer_water_cut::Vector{WellMatch}
+    producer_gas_oil_ratio::Vector{WellMatch}
+    producer_water_gas_ratio::Vector{WellMatch}
+    producer_gas_liquid_ratio::Vector{WellMatch}
     reservoir::Vector{ReservoirMatch}
     total_scale::Float64
     logger::HistoryMatchLogger
@@ -108,6 +112,10 @@ function HistoryMatch(case::JutulCase, states, summary;
         WellMatch[],  # producer_cumulative_gas
         WellMatch[],  # producer_cumulative_water
         WellMatch[],  # producer_cumulative_liquid
+        WellMatch[],  # producer_water_cut
+        WellMatch[],  # producer_gas_oil_ratio
+        WellMatch[],  # producer_water_gas_ratio
+        WellMatch[],  # producer_gas_liquid_ratio
         ReservoirMatch[],  # reservoir
         scale,
         HistoryMatchLogger()
