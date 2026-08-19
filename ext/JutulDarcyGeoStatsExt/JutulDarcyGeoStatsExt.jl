@@ -3,28 +3,6 @@ module JutulDarcyGeoStatsExt
     using GeoStats
 
     """
-        JutulDarcy.kozeny_carman_permeability(porosity; kozeny_constant = 1.0*si_unit(:darcy),
-            permeability_bounds = (1e-20, Inf))
-
-    Compute scalar permeability from porosity using a Kozeny-Carman style relation.
-    """
-    function JutulDarcy.kozeny_carman_permeability(
-        porosity;
-        kozeny_constant::Real = 1.0*si_unit(:darcy),
-        permeability_bounds::Tuple{<:Real, <:Real} = (1e-20, Inf),
-    )
-        kozeny_constant > 0 || throw(ArgumentError("kozeny_constant must be positive."))
-
-        kmin, kmax = permeability_bounds
-        0.0 < kmin <= kmax || throw(ArgumentError("permeability_bounds must satisfy 0 < min <= max."))
-
-        numerator = kozeny_constant .* porosity.^3
-        denominator = (1 .- porosity).^2
-        permeability = numerator ./ denominator
-        return clamp.(permeability, kmin, kmax)
-    end
-
-    """
         JutulDarcy.setup_perm_poro_realizations(dims, box_lengths; kwargs...)
 
     Generate GeoStats-based porosity realizations over a box domain and derive
@@ -37,7 +15,7 @@ module JutulDarcyGeoStatsExt
     The returned realization stores physical box metadata in `realization.box`,
     consumed by [`map_realization_to_reservoir_domain`](@ref).
     """
-    function JutulDarcy.setup_perm_poro_realizations(
+    function JutulDarcy.generate_perm_poro_realizations(
         dims::NTuple{3, Int},
         box_lengths::NTuple{3, <:Real};
         nrealizations::Int = 1,
@@ -115,20 +93,6 @@ module JutulDarcyGeoStatsExt
         return realizations
     end
 
-    function JutulDarcy.map_to_domain!(domain, property, name; kwargs...)
-        values = map_to_domain(domain, property; name = name, kwargs...)
-        domain[name] = values
-        return domain
-    end
-
-    function JutulDarcy.map_to_domain!(domain, properties::Dict; kwargs...)
-        for (name, property) in properties
-            values = map_to_domain(domain, property; name = name, kwargs...)
-            domain[name] = values
-        end
-        return domain
-    end
-
     function JutulDarcy.map_to_domain(mesh::JutulMesh, tab::GeoStats.GeoTable; coordinate_mapping = nothing, kwargs...)
 
         grid = tab.geometry
@@ -139,112 +103,10 @@ module JutulDarcyGeoStatsExt
         pts = [SVector{3, Float64}([p.coords.x.val, p.coords.y.val, p.coords.z.val]) for p in pts]
         pts = coordinate_mapping === nothing ? pts : coordinate_mapping.(pts)
 
-        property = (points = pts, values = values)
+        property = (values = values, points = pts)
 
         return JutulDarcy.map_to_domain(mesh, property; kwargs...)
 
-    end
-
-    function JutulDarcy.map_to_domain(mesh::JutulMesh, property::NamedTuple; mapping::Symbol = :mean, info_level = 0, name = missing)
-
-        points = property.points
-        values = property.values
-
-        if points isa AbstractMatrix
-            nrows, ncols = size(points)
-            nrows in (2, 3) || throw(ArgumentError("Point matrix must have 2 or 3 rows, got $(nrows)."))
-            pts = [SVector{nrows, Float64}(ntuple(i -> Float64(points[i, j]), nrows)) for j in 1:ncols]
-        else
-            pts = [SVector{length(pt), Float64}(Float64.(pt)) for pt in points]
-        end
-
-        total_input_cells = length(values)
-        total_input_cells == length(pts) || throw(ArgumentError("Property length $(length(values)) does not match the number of input points $(length(pts))."))
-
-        mesh_u = UnstructuredMesh(mesh)
-        dim(mesh_u) == 3 || throw(ArgumentError("Expected a 3D reservoir mesh."))
-
-        geometry = tpfv_geometry(mesh_u)
-        cell_lookup = create_cell_lookup(mesh_u, geometry, pts)
-        println("Cell lookup: ")
-        mapped_values, total_assigned = aggregate_property_to_cells(values, cell_lookup, mapping)
-        println("Mapped values: ")
-
-        ignored_input_cells = total_input_cells - total_assigned
-        if info_level > 0
-            approx_cells_per_output = total_input_cells / max(number_of_cells(mesh_u), 1)
-            str = ifelse(ismissing(name), "", "$name: ")
-            @info str*"Mapping statistics: approx. $(approx_cells_per_output) input cells per output cell; $(ignored_input_cells) input cells were outside the mesh and ignored."
-        end
-
-        return mapped_values
-        
-    end
-
-    function JutulDarcy.map_to_domain(domain::DataDomain, property; kwargs...)
-
-        mesh = domain.mesh
-        return map_to_domain(mesh, property; kwargs...)
-
-    end
-
-    function aggregate_property_to_cells(property_array, cell_lookup, mapping::Symbol)
-        nc = maximum(cell_lookup)
-        mapped_values = fill(NaN, nc)
-        counts = zeros(Int, nc)
-        sum_values = zeros(Float64, nc)
-        sum_inv_values = zeros(Float64, nc)
-        total_assigned = 0
-
-        for idx in eachindex(property_array)
-            cell = cell_lookup[idx]
-            cell == 0 && continue
-            total_assigned += 1
-            value = Float64(property_array[idx])
-            counts[cell] += 1
-            if mapping === :mean
-                sum_values[cell] += value
-            elseif mapping === :harmonic_mean
-                value > 0 || throw(ArgumentError("Property values must be strictly positive for harmonic averaging."))
-                sum_inv_values[cell] += inv(value)
-            else
-                throw(ArgumentError("mapping must be :mean or :harmonic_mean."))
-            end
-        end
-
-        for cell in 1:nc
-            count = counts[cell]
-            count == 0 && continue
-            if mapping === :mean
-                mapped_values[cell] = sum_values[cell] / count
-            else
-                mapped_values[cell] = count / sum_inv_values[cell]
-            end
-        end
-
-        return mapped_values, total_assigned
-    end
-
-    function create_cell_lookup(mesh, geometry, pts)
-        total = length(pts)
-        cell_lookup = zeros(Int, total)
-
-        T = eltype(pts)
-        normals = vec(reinterpret(T, geometry.normals))
-        face_centroids = vec(reinterpret(T, geometry.face_centroids))
-        boundary_centroids = vec(reinterpret(T, geometry.boundary_centroids))
-        boundary_normals = vec(reinterpret(T, geometry.boundary_normals))
-       
-        for idx in 1:total
-            pt = pts[idx]
-            cell = Jutul.find_enclosing_cell(mesh, pt, normals, face_centroids, boundary_normals, boundary_centroids)
-            if isempty(cell)
-                cell_lookup[idx] = 0
-            else
-                cell_lookup[idx] = cell
-            end
-        end
-        return cell_lookup
     end
 
 end
