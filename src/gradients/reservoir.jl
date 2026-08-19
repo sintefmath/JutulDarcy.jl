@@ -124,6 +124,11 @@ function setup_reservoir_dict_optimization(case::JutulCase;
             dd_dict[k] = copy(v)
         end
     end
+    faults = get_faults(rdomain)
+    dd_dict[:multiplier_faults] = DT()
+    for (k, v) in pairs(faults)
+        dd_dict[:multiplier_faults][k] = ones(length(v))
+    end
     # Regular parameters - requested
     for k in setdiff(parameters, skip_list_parameters)
         if haskey(rparameters, k)
@@ -202,7 +207,8 @@ function setup_reservoir_dict_optimization(case::JutulCase;
         do_copy = do_copy,
         use_multipliers = use_multipliers,
         use_pore_volume = use_pore_volume,
-        use_trans = use_trans
+        use_trans = use_trans,
+        faults = faults
     )
     return DictParameters(opt_dict, F, strict = strict, verbose = verbose)
 end
@@ -211,7 +217,8 @@ function optimization_resetup_reservoir_case(opt_dict::AbstractDict, case::Jutul
         do_copy = true,
         use_trans = false,
         use_pore_volume = false,
-        use_multipliers = false
+        use_multipliers = false,
+        faults = missing
     )
     if do_copy
         case = deepcopy(case)
@@ -274,6 +281,15 @@ function optimization_resetup_reservoir_case(opt_dict::AbstractDict, case::Jutul
     end
     for (k, v) in pairs(opt_dict[:parameters])
         rparameters[k] = v
+    end
+    if !ismissing(faults)
+        for (fault, faces) in pairs(faults)
+            fmult = opt_dict[:multiplier_faults][fault]
+            trans = rparameters[:Transmissibilities]
+            for (i, f) in enumerate(faces)
+                trans[f] *= fmult[i]
+            end
+        end
     end
     if is_multimodel
         for (w, wsub) in pairs(opt_dict[:wells])

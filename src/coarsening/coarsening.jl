@@ -75,7 +75,10 @@ function coarsen_reservoir_model(fine_model::MultiModel, partition; functions = 
     return (coarse_model, coarse_parameters)
 end
 
-function coarsen_reservoir(D::DataDomain, partition; functions = Dict())
+function coarsen_reservoir(D::DataDomain, partition;
+        functions = Dict(),
+        preserve_faults = true
+    )
     if !haskey(functions, :permeability)
         functions[:permeability] = Jutul.CoarsenByHarmonicAverage()
     end
@@ -94,7 +97,23 @@ function coarsen_reservoir(D::DataDomain, partition; functions = Dict())
     if haskey(D, :max_coordinate)
         functions[:max_coordinate] = Jutul.CoarsenByMaximum()
     end
-    return Jutul.coarsen_data_domain(D, partition, functions = functions)
+    D_c = Jutul.coarsen_data_domain(D, partition, functions = functions)
+    if preserve_faults
+        G_c = physical_representation(D_c)
+        fine_faults  = get_faults(D)
+        for (name, fine_fault) in fine_faults
+            coarse_fault = Int[]
+            for f_c in 1:number_of_faces(G_c)
+                fine_faces = G_c.coarse_faces_to_fine[f_c]
+                if any(in(fine_fault), fine_faces)
+                    push!(coarse_fault, f_c)
+                end
+            end
+            unique!(coarse_fault)
+            tag_fault!(G_c, coarse_fault, name)
+        end
+    end
+    return D_c
 end
 
 function coarsen_well(wd::DataDomain, creservoir::DataDomain, reservoir::DataDomain, partition; kwarg...)
@@ -202,14 +221,29 @@ Partition the reservoir model into coarser grids.
 
 """
 function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, method = missing;
-        parameters = missing,
+        parameters = setup_parameters(model),
         wells_in_single_block = false,
-        partitioner_conn_type = :trans,
-        compartments = missing,
         kwarg...
     )
-    domain = model |> reservoir_model |> reservoir_domain
-    mesh = physical_representation(domain)
+    domain = reservoir_domain(model)
+    if wells_in_single_block
+        well_groups = partitioner_well_groups(model)
+    else
+        well_groups = missing
+    end
+    return partition_reservoir(domain, coarsedim, method; parameters = parameters, well_groups = well_groups, kwarg...)
+end
+
+function partition_reservoir(domain::DataDomain, coarsedim::Union{Tuple, Int}, method = missing;
+        parameters = missing,
+        wells_in_single_block = false,
+        preserve_faults = true,
+        partitioner_conn_type = :trans,
+        compartments = missing,
+        well_groups = missing,
+        kwarg...
+    )
+    mesh = reservoir_mesh(domain)
 
     if coarsedim isa Int
         method = :metis
@@ -236,10 +270,10 @@ function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, me
             partitioner = method
         end
         partitioner::Jutul.JutulPartitioner
-        if ismissing(parameters)
-            parameters = setup_parameters(model)
-        end
-        N, T, well_groups = partitioner_input(model, parameters, conn = partitioner_conn_type)
+        N, T, well_groups = partitioner_input(domain, parameters,
+            conn = partitioner_conn_type,
+            preserve_faults = preserve_faults
+        )
         if !ismissing(compartments)
             l = N[1, :]
             r = N[2, :]
@@ -263,10 +297,18 @@ function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, me
         keep = compartments[l] .== compartments[r]
         weights = Float64.(keep)
     end
+    if preserve_faults
+        faults = get_faults(mesh)
+        for (name, fault) in faults
+            for f in fault
+                weights[f] = 0.0
+            end
+        end
+    end
     p = Jutul.process_partition(mesh, p, weights = weights)
-    if wells_in_single_block
+    if !ismissing(well_groups)
         # Could have split up things that are actually connected by wells.
-        for group in partitioner_well_groups(model)
+        for group in well_groups
             group_t = unique!(p[group])
             for i in 2:length(group_t)
                 p[findall(isequal(group_t[i]), p)] .= group_t[1]
@@ -276,6 +318,7 @@ function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, me
     p = Jutul.compress_partition(p)
     return p
 end
+
 
 export coarsen_reservoir_case
 

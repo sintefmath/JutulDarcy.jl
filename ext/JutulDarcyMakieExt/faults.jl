@@ -1,6 +1,7 @@
 
-function JutulDarcy.plot_faults!(ax, mesh::UnstructuredMesh; domain = missing, textcolor = :black, fontsize = 12, toggle = missing, kwarg...)
-    faults = get_mesh_entity_tag(mesh, Faces(), :faults, throw = false)
+function JutulDarcy.plot_faults!(ax, mesh::JutulMesh; domain = missing, textcolor = :black, fontsize = 12, toggle = missing, kwarg...)
+    faults = JutulDarcy.get_faults(mesh)
+    is_coarse = mesh isa CoarseMesh
     if !ismissing(faults)
         n = length(keys(faults))
         i = 1
@@ -8,7 +9,23 @@ function JutulDarcy.plot_faults!(ax, mesh::UnstructuredMesh; domain = missing, t
             if length(v) == 0
                 continue
             end
-            flt = plot_mesh!(ax, mesh; faces = v, color = i, colorrange = (1, max(n, 2)), kwarg...)
+            if is_coarse
+                coarse_faces = v
+                fault_faces = Int[]
+                for cf in coarse_faces
+                    append!(fault_faces, mesh.coarse_faces_to_fine[cf])
+                end
+                plot_mesh = mesh.parent
+            else
+                plot_mesh = mesh
+                fault_faces = v
+            end
+            flt = plot_mesh!(ax, plot_mesh;
+                faces = fault_faces,
+                color = i,
+                colorrange = (1, max(n, 2)),
+                kwarg...
+            )
             if !ismissing(domain) && fontsize > 0
                 center = domain[:face_centroids][:, v[1]]
                 for i in 2:length(v)

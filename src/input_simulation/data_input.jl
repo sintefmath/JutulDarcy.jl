@@ -1246,10 +1246,15 @@ function parser_set_multregt!(tranmult, G, opernum, multnum, fluxnum, multregt, 
         for regt in multregt
             pairt = tsort(regt[1], regt[2])
             do_apply = false
-            for (pos, coord) in enumerate(('X', 'Y', 'Z'))
-                if coord in regt[4] && ijk[l][pos] != ijk[r][pos]
-                    do_apply = true
-                    break
+            valid_xyz = regt[4]
+            if valid_xyz == "XYZ"
+                do_apply = true
+            else
+                for (pos, coord) in enumerate(('X', 'Y', 'Z'))
+                    if coord in valid_xyz && ijk[l][pos] != ijk[r][pos]
+                        do_apply = true
+                        break
+                    end
                 end
             end
             if do_apply

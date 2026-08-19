@@ -171,3 +171,7 @@ Get the reservoir mesh from a reservoir domain.
 function reservoir_mesh(dd::DataDomain)
     return physical_representation(dd)
 end
+
+function reservoir_mesh(m::JutulMesh)
+    return m
+end

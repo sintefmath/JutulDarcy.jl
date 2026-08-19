@@ -179,12 +179,15 @@ function plot_reservoir(model, arg...;
             fig = s.fig
             wtoggle = s.add_toggle("Wells", true)
             ftoggle = s.add_toggle("Faults", faults)
+            retval = s
         else
             fig = plot_interactive(data_domain, arg...; z_is_depth = true, aspect = aspect, kwarg...)
             ax = fig.current_axis[]
+            retval = fig
         end
     else
         fig, ax, _ = plot_cell_data(g, arg...; z_is_depth = true, kwarg...)
+        retval = fig
     end
     if ismissing(wells)
         wells = Dict{Symbol, Any}()
@@ -232,7 +235,7 @@ function plot_reservoir(model, arg...;
     if faults
         plot_faults!(ax, g; domain = data_domain, toggle = ftoggle, alpha = fault_alpha)
     end
-    return fig
+    return retval
 end
 
 function plot_reservoir(model::Union{MultiModel, SimulationModel}, result::ReservoirSimResult; kwarg...)

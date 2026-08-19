@@ -198,7 +198,7 @@ function match_well!(hm::HistoryMatch, name::Union{String, Symbol}, quantity::Un
     end
     data = get_well_data(hm, name, quantity, data, t)
     if weight isa Vector
-        length(weight) == length(case.dt) || error("Weight vector length must match number of simulation report steps in case ($(length(case.dt))).")
+        length(weight) == length(hm.case.dt) || error("Weight vector length must match number of simulation report steps in case ($(length(hm.case.dt))).")
     end
     if ismissing(scale)
         scale = dscale
