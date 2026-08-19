@@ -45,6 +45,7 @@ function get_step_mismatch_contributions(hm, fmodel, fstate, ctrls, step_info)
         println("Well match contributions: ")
         println(" BHP inj: $bhp_inj, rate inj: $rate_inj, orat inj: $orat_inj, wrat inj: $wrat_inj, grat inj: $grat_inj | ")
         println(" BHP prod: $bhp_prod, rate prod: $rate_prod, grat prod: $grat_prod, orat prod: $orat_prod, lrat prod: $lrat_prod, wrat prod: $wrat_prod ")
+        println(" wcut prod: $wcut_prod, gor prod: $gor_prod, wgr prod: $wgr_prod, glr prod: $glr_prod ")
     end
     val = pressures + inj_rates + prod_rates + fractions
     return val
