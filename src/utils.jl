@@ -2873,7 +2873,11 @@ function reservoir_measurables(model, wellresult, states = missing;
     function add_entry(name::Symbol)
         values = zeros(n)
         name = Symbol(prefix, name)
-        info = lookup[uppercase(string(name))]
+        ek = uppercase(string(name))
+        info = get(lookup, ek, missing)
+        if ismissing(info)
+            error("No summary key found for $ek in summary_key_lookup()")
+        end
         out[name] = (values = values, info.legend, info.unit_type, is_rate = info.is_rate)
         return values
     end
@@ -3007,6 +3011,10 @@ function reservoir_measurables(model, wellresult, states = missing;
     @. fwct = fwpr./max.(flpr, 1e-12)
     fgor = add_entry(:gor)
     @. fgor = fgpr./max.(fopr, 1e-12)
+    fwgr = add_entry(:wgr)
+    @. fwgr = fwpr./max.(fgpr, 1e-12)
+    fglr = add_entry(:glr)
+    @. fglr = fgpr./max.(flpr, 1e-12)
 
     flpt = add_entry(:lpt)
     flpt .= cumsum(flpr.*dt)
@@ -3058,7 +3066,10 @@ function summary_key_lookup()
         add_entry(:gir, "gas injection rate", :gas_volume_surface, is_rate = true, prefix = prefix)
 
         add_entry(:wct, "production water cut", prefix = prefix)
-        add_entry(:gor, "gas-oil production ratio", prefix = prefix)
+        add_entry(:gor, "gas-oil production ratio", :u_rs, prefix = prefix)
+        add_entry(:wgr, "water-gas production ratio", :u_rv, prefix = prefix)
+        add_entry(:glr, "gas-liquid production ratio", :u_rs, prefix = prefix)
+
         add_entry(:wit, "water injection total", :liquid_volume_surface, is_rate = false, prefix = prefix)
         add_entry(:oit, "oil injection total", :liquid_volume_surface, is_rate = false, prefix = prefix)
         add_entry(:git, "gas injection total", :gas_volume_surface, is_rate = false, prefix = prefix)

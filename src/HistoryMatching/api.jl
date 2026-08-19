@@ -150,6 +150,14 @@ function match_well!(hm::HistoryMatch, name::Union{String, Symbol}, quantity::Un
                 quantity = "WWPT"
             elseif quantity == :cumulative_liquid
                 quantity = "WLPT"
+            elseif quantity == :wcut
+                quantity = "WWCT"
+            elseif quantity == :gor
+                quantity = "WGOR"
+            elseif quantity == :wgr
+                quantity = "WWGR"
+            elseif quantity == :glr
+                quantity = "WGLR"
             else
                 error("Unsupported quantity '$quantity' for producer well match.")
             end
@@ -189,6 +197,18 @@ function match_well!(hm::HistoryMatch, name::Union{String, Symbol}, quantity::Un
             dest = hm.producer_cumulative_liquid
             is_cumulative = true
             dscale = ltotal_scale
+        elseif quantity == "WWCT"
+            dest = hm.producer_water_cut
+            dscale = 1.0
+        elseif quantity == "WGOR"
+            dest = hm.producer_gas_oil_ratio
+            dscale = 1.0
+        elseif quantity == "WWGR"
+            dest = hm.producer_water_gas_ratio
+            dscale = 1.0
+        elseif quantity == "WGLR"
+            dest = hm.producer_gas_liquid_ratio
+            dscale = 1.0
         else
             error("Unsupported quantity '$quantity' for producer well match.")
         end
