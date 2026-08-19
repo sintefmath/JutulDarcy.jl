@@ -22,7 +22,7 @@ function generate_perm_poro(
     porosity_bounds::Tuple{<:Real, <:Real} = (0.05, 0.95),
     permeability_bounds::Tuple{<:Real, <:Real} = (1e-20, Inf),
     perm_from_poro = kozeny_carman_permeability,
-    generator = _standard_normal_generator,
+    porosity_process = _standard_normal_generator,
 )
     nrealizations > 0 || throw(ArgumentError("nrealizations must be positive."))
     all(>(0), dims) || throw(ArgumentError("All grid dimensions must be positive."))
@@ -37,7 +37,7 @@ function generate_perm_poro(
 
     realizations = NamedTuple[]
     for _ in 1:nrealizations
-        zporo = generator(dims...)
+        zporo = porosity_process(dims...)
         porosity = clamp.(porosity_mean .+ porosity_std .* zporo, phimin, phimax)
         permeability = perm_from_poro(porosity; bounds = permeability_bounds)
         push!(realizations, (porosity = porosity, permeability = permeability))
