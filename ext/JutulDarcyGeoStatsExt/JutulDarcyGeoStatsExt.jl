@@ -115,13 +115,13 @@ module JutulDarcyGeoStatsExt
         return realizations
     end
 
-    function JutulDarcy.map_to_domain!(domain, property, grid, name; kwargs...)
+    function JutulDarcy.map_to_domain!(domain, property, name; kwargs...)
         values = map_to_domain(domain, property; name = name, kwargs...)
         domain[name] = values
         return domain
     end
 
-    function JutulDarcy.map_to_domain!(domain, properties::Dict, grid; kwargs...)
+    function JutulDarcy.map_to_domain!(domain, properties::Dict; kwargs...)
         for (name, property) in properties
             values = map_to_domain(domain, property; name = name, kwargs...)
             domain[name] = values
@@ -129,7 +129,7 @@ module JutulDarcyGeoStatsExt
         return domain
     end
 
-    function JutulDarcy.map_to_domain(mesh::JutulMesh, tab::GeoStats.GeoTable, coordinate_mapping = nothing; kwargs...)
+    function JutulDarcy.map_to_domain(mesh::JutulMesh, tab::GeoStats.GeoTable; coordinate_mapping = nothing, kwargs...)
 
         grid = tab.geometry
         paramdim(grid) == 3 || throw(ArgumentError("Expected a 3D GeoStats grid."))
@@ -139,11 +139,16 @@ module JutulDarcyGeoStatsExt
         pts = [SVector{3, Float64}([p.coords.x.val, p.coords.y.val, p.coords.z.val]) for p in pts]
         pts = coordinate_mapping === nothing ? pts : coordinate_mapping.(pts)
 
-        return JutulDarcy.map_to_domain(mesh, values, pts; kwargs...)
+        property = (points = pts, values = values)
+
+        return JutulDarcy.map_to_domain(mesh, property; kwargs...)
 
     end
 
-    function JutulDarcy.map_to_domain(mesh::JutulMesh, values, points; mapping::Symbol = :mean, info_level = 0, name = missing)
+    function JutulDarcy.map_to_domain(mesh::JutulMesh, property::NamedTuple; mapping::Symbol = :mean, info_level = 0, name = missing)
+
+        points = property.points
+        values = property.values
 
         if points isa AbstractMatrix
             nrows, ncols = size(points)
@@ -161,7 +166,9 @@ module JutulDarcyGeoStatsExt
 
         geometry = tpfv_geometry(mesh_u)
         cell_lookup = create_cell_lookup(mesh_u, geometry, pts)
+        println("Cell lookup: ")
         mapped_values, total_assigned = aggregate_property_to_cells(values, cell_lookup, mapping)
+        println("Mapped values: ")
 
         ignored_input_cells = total_input_cells - total_assigned
         if info_level > 0
@@ -222,27 +229,22 @@ module JutulDarcyGeoStatsExt
         total = length(pts)
         cell_lookup = zeros(Int, total)
 
+        T = eltype(pts)
+        normals = vec(reinterpret(T, geometry.normals))
+        face_centroids = vec(reinterpret(T, geometry.face_centroids))
+        boundary_centroids = vec(reinterpret(T, geometry.boundary_centroids))
+        boundary_normals = vec(reinterpret(T, geometry.boundary_normals))
+       
         for idx in 1:total
             pt = pts[idx]
-            cells = Jutul.find_enclosing_cells(
-                mesh,
-                [pt, pt];
-                geometry = geometry,
-                n = 1,
-                limit_box = false,
-                cells = 1:number_of_cells(mesh),
-            )
-            if isempty(cells)
+            cell = Jutul.find_enclosing_cell(mesh, pt, normals, face_centroids, boundary_normals, boundary_centroids)
+            if isempty(cell)
                 cell_lookup[idx] = 0
             else
-                cell_lookup[idx] = only(cells)
+                cell_lookup[idx] = cell
             end
         end
         return cell_lookup
     end
 
 end
-
-    # function _to_float_tuple(values::NTuple{3, <:Real})
-    #     return ntuple(i -> Float64(values[i]), 3)
-    # end
