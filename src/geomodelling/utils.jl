@@ -8,6 +8,7 @@ function map_to_domain(mesh::JutulMesh, property::NamedTuple;
 
     points = property.points
     values = property.values
+    volumes = get(property, :volumes, nothing)
 
     if points isa AbstractMatrix
         nrows, ncols = size(points)
@@ -20,6 +21,10 @@ function map_to_domain(mesh::JutulMesh, property::NamedTuple;
     total_input_cells = length(values)
     total_input_cells == length(pts) || throw(ArgumentError("Property length $(length(values)) does not match the number of input points $(length(pts))."))
 
+    if !isnothing(volumes)
+        total_input_cells == length(volumes) || throw(ArgumentError("Property length $(length(values)) does not match the number of volumes $(length(volumes))."))
+    end
+
     mesh_u = UnstructuredMesh(mesh)
     dim(mesh_u) == 3 || throw(ArgumentError("Expected a 3D reservoir mesh."))
 
@@ -27,7 +32,7 @@ function map_to_domain(mesh::JutulMesh, property::NamedTuple;
         geometry = tpfv_geometry(mesh_u)
         cell_lookup = create_cell_lookup(mesh_u, geometry, pts)
     end
-    mapped_values, total_assigned = aggregate_property_to_cells(values, cell_lookup, mapping)
+    mapped_values, total_assigned = aggregate_property_to_cells(values, cell_lookup, mapping; volumes = volumes)
 
     ignored_input_cells = total_input_cells - total_assigned
     if info_level > 0
@@ -74,12 +79,14 @@ function JutulDarcy.map_to_domain!(domain::DataDomain, properties::Dict{Symbol, 
 
 end
 
-function aggregate_property_to_cells(property_array, cell_lookup, mapping::Symbol)
+function aggregate_property_to_cells(property_array, cell_lookup, mapping::Symbol; volumes = nothing)
     nc = maximum(cell_lookup)
     mapped_values = fill(NaN, nc)
     counts = zeros(Int, nc)
     sum_values = zeros(Float64, nc)
     sum_inv_values = zeros(Float64, nc)
+    weighted_sum = zeros(Float64, nc)
+    total_volume = zeros(Float64, nc)
     total_assigned = 0
 
     for idx in eachindex(property_array)
@@ -88,13 +95,22 @@ function aggregate_property_to_cells(property_array, cell_lookup, mapping::Symbo
         total_assigned += 1
         value = Float64(property_array[idx])
         counts[cell] += 1
-        if mapping === :mean
+        if mapping === :mean || mapping === :volume_weighted_mean
             sum_values[cell] += value
         elseif mapping === :harmonic_mean
             value > 0 || throw(ArgumentError("Property values must be strictly positive for harmonic averaging."))
             sum_inv_values[cell] += inv(value)
         else
-            throw(ArgumentError("mapping must be :mean or :harmonic_mean."))
+            throw(ArgumentError("mapping must be :mean, :volume_weighted_mean or :harmonic_mean."))
+        end
+
+        if !isnothing(volumes)
+            vol = Float64(volumes[idx])
+            vol > 0 || throw(ArgumentError("Volumes must be strictly positive for volume-weighted aggregation."))
+            if mapping === :volume_weighted_mean
+                weighted_sum[cell] += value * vol
+                total_volume[cell] += vol
+            end
         end
     end
 
@@ -103,8 +119,14 @@ function aggregate_property_to_cells(property_array, cell_lookup, mapping::Symbo
         count == 0 && continue
         if mapping === :mean
             mapped_values[cell] = sum_values[cell] / count
-        else
+        elseif mapping === :harmonic_mean
             mapped_values[cell] = count / sum_inv_values[cell]
+        elseif mapping === :volume_weighted_mean
+            if total_volume[cell] > 0
+                mapped_values[cell] = weighted_sum[cell] / total_volume[cell]
+            else
+                mapped_values[cell] = sum_values[cell] / count
+            end
         end
     end
 
