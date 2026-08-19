@@ -1,6 +1,6 @@
 module JutulDarcyGeoStatsExt
-    using JutulDarcy, Jutul, Random, LinearAlgebra
-    using GeoStats: CartesianGrid, GaussianProcess, SphericalCovariance
+    using JutulDarcy, Jutul, Random, LinearAlgebra, StaticArrays
+    using GeoStats
 
     """
         JutulDarcy.kozeny_carman_permeability(porosity; kozeny_constant = 1.0*si_unit(:darcy),
@@ -97,11 +97,6 @@ module JutulDarcyGeoStatsExt
         end
 
         porosity_latent = rand(porosity_process, grid, nrealizations)
-        box = (
-            dims = dims,
-            lengths = box_lengths_f,
-            origin = box_origin_f,
-        )
 
         realizations = NamedTuple[]
         for i in 1:nrealizations
@@ -114,150 +109,140 @@ module JutulDarcyGeoStatsExt
             push!(realizations, (
                 porosity = porosity,
                 permeability = permeability,
-                box = box,
+                grid = grid,
             ))
         end
         return realizations
     end
 
-    """
-        JutulDarcy.map_realization_to_reservoir_domain(domain, realization; copy_domain = true)
+    function JutulDarcy.map_to_domain!(domain, property, grid, name; kwargs...)
+        values = map_to_domain(domain, property; name = name, kwargs...)
+        domain[name] = values
+        return domain
+    end
 
-    Map a box-defined GeoStats realization onto an arbitrary 3D JutulDarcy
-    reservoir domain.
+    function JutulDarcy.map_to_domain!(domain, properties::Dict, grid; kwargs...)
+        for (name, property) in properties
+            values = map_to_domain(domain, property; name = name, kwargs...)
+            domain[name] = values
+        end
+        return domain
+    end
 
-    For each reservoir cell, all realization centroids inside the cell are
-    aggregated with arithmetic porosity averaging and harmonic permeability
-    averaging.
-    """
-    function JutulDarcy.map_realization_to_reservoir_domain(domain, realization; copy_domain::Bool = true)
-        hasproperty(realization, :porosity) || throw(ArgumentError("realization must provide a porosity field."))
-        hasproperty(realization, :permeability) || throw(ArgumentError("realization must provide a permeability field."))
-        hasproperty(realization, :box) || throw(ArgumentError("realization must provide box metadata."))
+    function JutulDarcy.map_to_domain(mesh::JutulMesh, tab::GeoStats.GeoTable, coordinate_mapping = nothing; kwargs...)
 
-        mesh = reservoir_mesh(domain)
+        grid = tab.geometry
+        paramdim(grid) == 3 || throw(ArgumentError("Expected a 3D GeoStats grid."))
+
+        values = tab.field
+        pts = centroid.(grid)
+        pts = [SVector{3, Float64}([p.coords.x.val, p.coords.y.val, p.coords.z.val]) for p in pts]
+        pts = coordinate_mapping === nothing ? pts : coordinate_mapping.(pts)
+
+        return JutulDarcy.map_to_domain(mesh, values, pts; kwargs...)
+
+    end
+
+    function JutulDarcy.map_to_domain(mesh::JutulMesh, values, points; mapping::Symbol = :mean, info_level = 0, name = missing)
+
+        if points isa AbstractMatrix
+            nrows, ncols = size(points)
+            nrows in (2, 3) || throw(ArgumentError("Point matrix must have 2 or 3 rows, got $(nrows)."))
+            pts = [SVector{nrows, Float64}(ntuple(i -> Float64(points[i, j]), nrows)) for j in 1:ncols]
+        else
+            pts = [SVector{length(pt), Float64}(Float64.(pt)) for pt in points]
+        end
+
+        total_input_cells = length(values)
+        total_input_cells == length(pts) || throw(ArgumentError("Property length $(length(values)) does not match the number of input points $(length(pts))."))
+
         mesh_u = UnstructuredMesh(mesh)
         dim(mesh_u) == 3 || throw(ArgumentError("Expected a 3D reservoir mesh."))
 
-        box = realization.box
-        dims = box.dims
-        porosity = realization.porosity
-        permeability = realization.permeability
-        size(porosity) == dims || throw(ArgumentError("Porosity field size $(size(porosity)) does not match box dimensions $dims."))
-        size(permeability) == dims || throw(ArgumentError("Permeability field size $(size(permeability)) does not match box dimensions $dims."))
+        geometry = tpfv_geometry(mesh_u)
+        cell_lookup = create_cell_lookup(mesh_u, geometry, pts)
+        mapped_values, total_assigned = aggregate_property_to_cells(values, cell_lookup, mapping)
 
-        axes_xyz = _box_centroid_axes(box)
-        cache = _prepare_cell_mapping_cache(mesh_u)
+        ignored_input_cells = total_input_cells - total_assigned
+        if info_level > 0
+            approx_cells_per_output = total_input_cells / max(number_of_cells(mesh_u), 1)
+            str = ifelse(ismissing(name), "", "$name: ")
+            @info str*"Mapping statistics: approx. $(approx_cells_per_output) input cells per output cell; $(ignored_input_cells) input cells were outside the mesh and ignored."
+        end
 
-        nc = number_of_cells(mesh_u)
-        porosity_cells = Vector{Float64}(undef, nc)
-        permeability_cells = Vector{Float64}(undef, nc)
+        return mapped_values
+        
+    end
+
+    function JutulDarcy.map_to_domain(domain::DataDomain, property; kwargs...)
+
+        mesh = domain.mesh
+        return map_to_domain(mesh, property; kwargs...)
+
+    end
+
+    function aggregate_property_to_cells(property_array, cell_lookup, mapping::Symbol)
+        nc = maximum(cell_lookup)
+        mapped_values = fill(NaN, nc)
+        counts = zeros(Int, nc)
+        sum_values = zeros(Float64, nc)
+        sum_inv_values = zeros(Float64, nc)
+        total_assigned = 0
+
+        for idx in eachindex(property_array)
+            cell = cell_lookup[idx]
+            cell == 0 && continue
+            total_assigned += 1
+            value = Float64(property_array[idx])
+            counts[cell] += 1
+            if mapping === :mean
+                sum_values[cell] += value
+            elseif mapping === :harmonic_mean
+                value > 0 || throw(ArgumentError("Property values must be strictly positive for harmonic averaging."))
+                sum_inv_values[cell] += inv(value)
+            else
+                throw(ArgumentError("mapping must be :mean or :harmonic_mean."))
+            end
+        end
 
         for cell in 1:nc
-            bounds = cache.bounds[cell]
-            ix = _axis_index_range(axes_xyz[1], bounds[1][1], bounds[2][1])
-            iy = _axis_index_range(axes_xyz[2], bounds[1][2], bounds[2][2])
-            iz = _axis_index_range(axes_xyz[3], bounds[1][3], bounds[2][3])
-
-            sum_poro = 0.0
-            sum_inv_perm = 0.0
-            count = 0
-
-            for k in iz, j in iy, i in ix
-                pt = (axes_xyz[1][i], axes_xyz[2][j], axes_xyz[3][k])
-                if _point_inside_cell(mesh_u, cache, cell, pt)
-                    phi = porosity[i, j, k]
-                    K = permeability[i, j, k]
-                    K > 0 || throw(ArgumentError("Permeability must be strictly positive for harmonic averaging."))
-                    sum_poro += phi
-                    sum_inv_perm += inv(K)
-                    count += 1
-                end
-            end
-
-            count > 0 || throw(ArgumentError("Reservoir cell $cell did not capture any GeoStats cell centroids. Refine the realization grid or adjust the realization box."))
-            porosity_cells[cell] = sum_poro / count
-            permeability_cells[cell] = count / sum_inv_perm
-        end
-
-        mapped = copy_domain ? deepcopy(domain) : domain
-        mapped[:porosity] = porosity_cells
-        mapped[:permeability] = permeability_cells
-        return mapped
-    end
-
-    function _to_float_tuple(values::NTuple{3, <:Real})
-        return ntuple(i -> Float64(values[i]), 3)
-    end
-
-    function _geostats_field_to_array(field, dims::NTuple{3, Int})
-        values = collect(field)
-        length(values) == prod(dims) || throw(ArgumentError("GeoStats field has $(length(values)) values, expected $(prod(dims))."))
-        return reshape(Float64.(vec(values)), dims)
-    end
-
-    function _box_centroid_axes(box)
-        spacing = ntuple(i -> box.lengths[i] / box.dims[i], 3)
-        return ntuple(i -> box.origin[i] .+ ((1:box.dims[i]) .- 0.5) .* spacing[i], 3)
-    end
-
-    function _prepare_cell_mapping_cache(mesh_u)
-        geometry = tpfv_geometry(mesh_u)
-        boundary_normals = zeros(size(geometry.boundary_centroids))
-        for bface in axes(boundary_normals, 2)
-            cell = mesh_u.boundary_faces.neighbors[bface]
-            boundary_normals[:, bface] .= geometry.boundary_centroids[:, bface] .- geometry.cell_centroids[:, cell]
-            boundary_normals[:, bface] ./= norm(boundary_normals[:, bface])
-        end
-        bounds = [JutulDarcy.cell_node_bounds(mesh_u, cell) for cell in 1:number_of_cells(mesh_u)]
-        return (
-            normals = geometry.normals,
-            face_centroids = geometry.face_centroids,
-            boundary_normals = boundary_normals,
-            boundary_centroids = geometry.boundary_centroids,
-            bounds = bounds,
-        )
-    end
-
-    function _axis_index_range(axis, low, high)
-        start = searchsortedfirst(axis, low)
-        stop = searchsortedlast(axis, high)
-        if start > length(axis) || stop < 1 || start > stop
-            return 1:0
-        end
-        return start:stop
-    end
-
-    function _point_inside_cell(mesh_u, cache, cell, pt)
-        for face in mesh_u.faces.cells_to_faces[cell]
-            sgn = mesh_u.faces.neighbors[face][1] == cell ? 1.0 : -1.0
-            if !_inside_half_space(pt, cache.normals, cache.face_centroids, face, sgn)
-                return false
+            count = counts[cell]
+            count == 0 && continue
+            if mapping === :mean
+                mapped_values[cell] = sum_values[cell] / count
+            else
+                mapped_values[cell] = count / sum_inv_values[cell]
             end
         end
-        for bface in mesh_u.boundary_faces.cells_to_faces[cell]
-            if !_inside_half_space(pt, cache.boundary_normals, cache.boundary_centroids, bface, 1.0)
-                return false
-            end
-        end
-        return _point_in_bounds(pt, cache.bounds[cell])
+
+        return mapped_values, total_assigned
     end
 
-    function _inside_half_space(pt, normals, centroids, index, scale)
-        val = 0.0
-        for d in 1:3
-            val += scale * normals[d, index] * (pt[d] - centroids[d, index])
-        end
-        return val <= 0.0
-    end
+    function create_cell_lookup(mesh, geometry, pts)
+        total = length(pts)
+        cell_lookup = zeros(Int, total)
 
-    function _point_in_bounds(pt, bounds)
-        low, high = bounds
-        for d in 1:3
-            if pt[d] < low[d] || pt[d] > high[d]
-                return false
+        for idx in 1:total
+            pt = pts[idx]
+            cells = Jutul.find_enclosing_cells(
+                mesh,
+                [pt, pt];
+                geometry = geometry,
+                n = 1,
+                limit_box = false,
+                cells = 1:number_of_cells(mesh),
+            )
+            if isempty(cells)
+                cell_lookup[idx] = 0
+            else
+                cell_lookup[idx] = only(cells)
             end
         end
-        return true
+        return cell_lookup
     end
+
 end
+
+    # function _to_float_tuple(values::NTuple{3, <:Real})
+    #     return ntuple(i -> Float64(values[i]), 3)
+    # end
