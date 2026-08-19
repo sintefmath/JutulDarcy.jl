@@ -3,21 +3,17 @@ module JutulDarcyGeoStatsExt
     using GeoStats
 
     """
-        JutulDarcy.setup_perm_poro_realizations(dims, box_lengths; kwargs...)
+        JutulDarcy.generate_perm_poro(dims, box_lengths = (1.0, 1.0, 1.0); kwargs...)
 
-    Generate GeoStats-based porosity realizations over a box domain and derive
-    correlated permeability realizations from porosity.
+    Generate porosity and permeability fields over a box domain.
 
-    The GeoStats process is sampled on a unit cube internally. Correlation ranges
-    are specified in physical units and normalized by box lengths before creating
-    the covariance model.
-
-    The returned realization stores physical box metadata in `realization.box`,
-    consumed by [`map_realization_to_reservoir_domain`](@ref).
+    When `GeoStats` is loaded, the default `porosity_process` is a Gaussian process
+    with spherical covariance, using correlation lengths scaled to the box size.
+    A plain standard-normal generator is still accepted as a custom override.
     """
-    function JutulDarcy.generate_perm_poro_realizations(
+    function JutulDarcy.generate_perm_poro(
         dims::NTuple{3, Int},
-        box_lengths::NTuple{3, <:Real};
+        box_lengths::NTuple{3, <:Real} = (1.0, 1.0, 1.0);
         nrealizations::Int = 1,
         seed = nothing,
         box_origin::NTuple{3, <:Real} = (0.0, 0.0, 0.0),
@@ -28,14 +24,12 @@ module JutulDarcyGeoStatsExt
         correlation_range = nothing,
         horizontal_correlation_range = nothing,
         vertical_correlation_range = nothing,
-        grain_diameter::Real = 1e-5,
         permeability_bounds::Tuple{<:Real, <:Real} = (1e-20, Inf),
+        perm_from_poro = JutulDarcy.kozeny_carman_permeability,
     )
         nrealizations > 0 || throw(ArgumentError("nrealizations must be positive."))
         all(>(0), dims) || throw(ArgumentError("All grid dimensions must be positive."))
         all(>(0), box_lengths) || throw(ArgumentError("All box lengths must be positive."))
-
-        _ = grain_diameter # reserved for future constitutive variants
 
         phimin, phimax = porosity_bounds
         0.0 <= phimin < phimax < 1.0 || throw(ArgumentError("porosity_bounds must satisfy 0 <= min < max < 1."))
@@ -47,50 +41,56 @@ module JutulDarcyGeoStatsExt
         box_origin_f = _to_float_tuple(box_origin)
         box_lengths_f = _to_float_tuple(box_lengths)
 
-        horizontal_default = max(box_lengths_f[1], box_lengths_f[2]) / 3
-        vertical_default = box_lengths_f[3] / 3
-        if isnothing(correlation_range)
-            horizontal_range = isnothing(horizontal_correlation_range) ? horizontal_default : Float64(horizontal_correlation_range)
-            vertical_range = isnothing(vertical_correlation_range) ? vertical_default : Float64(vertical_correlation_range)
-        else
-            base_range = Float64(correlation_range)
-            horizontal_range = isnothing(horizontal_correlation_range) ? base_range : Float64(horizontal_correlation_range)
-            vertical_range = isnothing(vertical_correlation_range) ? base_range : Float64(vertical_correlation_range)
-        end
-        horizontal_range > 0 || throw(ArgumentError("horizontal_correlation_range must be positive."))
-        vertical_range > 0 || throw(ArgumentError("vertical_correlation_range must be positive."))
+        spacing = ntuple(i -> Float64(box_lengths_f[i]) / dims[i], 3)
+        volumes = fill(Float64(prod(spacing)), dims...)
+        points = JutulDarcy.grid_points(dims, box_origin_f, spacing)
 
-        normalized_ranges = (
-            horizontal_range / box_lengths_f[1],
-            horizontal_range / box_lengths_f[2],
-            vertical_range / box_lengths_f[3],
-        )
-
-        grid = CartesianGrid((0.0, 0.0, 0.0), (1.0, 1.0, 1.0); dims = dims)
         if isnothing(porosity_process)
+            horizontal_default = max(box_lengths_f[1], box_lengths_f[2]) / 3
+            vertical_default = box_lengths_f[3] / 3
+            if isnothing(correlation_range)
+                horizontal_range = isnothing(horizontal_correlation_range) ? horizontal_default : Float64(horizontal_correlation_range)
+                vertical_range = isnothing(vertical_correlation_range) ? vertical_default : Float64(vertical_correlation_range)
+            else
+                base_range = Float64(correlation_range)
+                horizontal_range = isnothing(horizontal_correlation_range) ? base_range : Float64(horizontal_correlation_range)
+                vertical_range = isnothing(vertical_correlation_range) ? base_range : Float64(vertical_correlation_range)
+            end
+            horizontal_range > 0 || throw(ArgumentError("horizontal_correlation_range must be positive."))
+            vertical_range > 0 || throw(ArgumentError("vertical_correlation_range must be positive."))
+            normalized_ranges = (
+                horizontal_range / box_lengths_f[1],
+                horizontal_range / box_lengths_f[2],
+                vertical_range / box_lengths_f[3],
+            )
             porosity_process = GaussianProcess(
                 SphericalCovariance(ranges = normalized_ranges),
                 0.0,
             )
         end
 
-        porosity_latent = rand(porosity_process, grid, nrealizations)
-
+        grid = CartesianGrid((0.0, 0.0, 0.0), (1.0, 1.0, 1.0); dims = dims)
         realizations = NamedTuple[]
-        for i in 1:nrealizations
-            zporo = _geostats_field_to_array(porosity_latent[i].field, dims)
+        for _ in 1:nrealizations
+            if porosity_process isa Function
+                zporo = porosity_process(dims...)
+            else
+                zporo = _geostats_field_to_array(rand(porosity_process, grid).field, dims)
+            end
             porosity = clamp.(porosity_mean .+ porosity_std .* zporo, phimin, phimax)
-            permeability = JutulDarcy.kozeny_carman_permeability(
-                porosity;
-                permeability_bounds = permeability_bounds,
-            )
+            try
+                permeability = perm_from_poro(porosity; permeability_bounds = permeability_bounds)
+            catch
+                permeability = perm_from_poro(porosity; bounds = permeability_bounds)
+            end
             push!(realizations, (
                 porosity = porosity,
                 permeability = permeability,
-                grid = grid,
+                points = points,
+                volumes = volumes,
             ))
         end
-        return realizations
+        return nrealizations == 1 ? only(realizations) : realizations
     end
 
     function JutulDarcy.map_to_domain(mesh::JutulMesh, tab::GeoStats.GeoTable; coordinate_mapping = nothing, kwargs...)
