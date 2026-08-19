@@ -3313,3 +3313,7 @@ function get_faults(g::JutulMesh)
     end
     return faults
 end
+
+function get_faults(g::MinimalTPFATopology)
+    return Dict{Symbol, Vector{Int}}()
+end
