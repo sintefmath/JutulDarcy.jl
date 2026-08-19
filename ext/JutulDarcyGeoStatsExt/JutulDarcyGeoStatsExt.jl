@@ -5,11 +5,12 @@ module JutulDarcyGeoStatsExt
     """
         JutulDarcy.generate_perm_poro(dims, box_lengths = (1.0, 1.0, 1.0); kwargs...)
 
-    Generate porosity and permeability fields over a box domain.
+    Generate porosity and permeability realizations over a box-shaped domain.
 
-    When `GeoStats` is loaded, the default `porosity_process` is a Gaussian process
-    with spherical covariance, using correlation lengths scaled to the box size.
-    A plain standard-normal generator is still accepted as a custom override.
+    The default `porosity_process` is a Gaussian process with spherical covariance,
+    where the horizontal and vertical correlation lengths are scaled to the box
+    dimensions. A custom generator can also be supplied for deterministic or
+    problem-specific sampling.
     """
     function JutulDarcy.generate_perm_poro(
         dims::NTuple{3, Int},
@@ -93,6 +94,12 @@ module JutulDarcyGeoStatsExt
         return nrealizations == 1 ? only(realizations) : realizations
     end
 
+    """
+        JutulDarcy.map_to_domain(mesh, tab::GeoStats.GeoTable; coordinate_mapping = nothing, kwargs...)
+
+    Convert a GeoStats table sampled on a 3D grid into a reservoir property field by
+    mapping the grid cell centroids to the enclosing reservoir cells.
+    """
     function JutulDarcy.map_to_domain(mesh::JutulMesh, tab::GeoStats.GeoTable; coordinate_mapping = nothing, kwargs...)
 
         grid = tab.geometry
