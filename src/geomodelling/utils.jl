@@ -146,7 +146,7 @@ function create_cell_lookup(mesh, geometry, pts)
     for idx in 1:total
         pt = pts[idx]
         cell = Jutul.find_enclosing_cell(mesh, pt, normals, face_centroids, boundary_normals, boundary_centroids)
-        if isempty(cell)
+        if isnothing(cell)
             cell_lookup[idx] = 0
         else
             cell_lookup[idx] = cell
