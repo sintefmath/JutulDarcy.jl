@@ -83,6 +83,7 @@ module JutulDarcy
     export SaturationWeightedOilRelperm, StoneIMethod, StoneIIMethod
     export set_relative_permeability!
     export setup_perm_poro_realizations
+    export generate_perm_poro
     export map_to_domain
     export map_to_domain!
     export map_realization_to_reservoir_domain
@@ -202,6 +203,8 @@ module JutulDarcy
 
     include("formulations/formulations.jl")
     include("coarsening/coarsening.jl")
+    include("geomodelling/utils.jl")
+    include("geomodelling/generate.jl")
 
     include("ext/ext.jl")
     # Nonlinear domain decomposition solvers
