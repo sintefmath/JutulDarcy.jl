@@ -17,6 +17,7 @@ function generate_perm_poro(
     box_lengths::NTuple{3, <:Real} = (1.0, 1.0, 1.0);
     nrealizations::Int = 1,
     seed = nothing,
+    box_origin::NTuple{3, <:Real} = (0.0, 0.0, 0.0),
     porosity_mean::Real = 0.20,
     porosity_std::Real = 0.05,
     porosity_bounds::Tuple{<:Real, <:Real} = (0.05, 0.95),
@@ -35,14 +36,37 @@ function generate_perm_poro(
         Random.seed!(seed)
     end
 
+    spacing = ntuple(i -> Float64(box_lengths[i]) / dims[i], 3)
+    volumes = fill(Float64(prod(spacing)), dims...)
+    points = grid_points(dims, box_origin, spacing)
+
     realizations = NamedTuple[]
     for _ in 1:nrealizations
         zporo = porosity_process(dims...)
         porosity = clamp.(porosity_mean .+ porosity_std .* zporo, phimin, phimax)
         permeability = perm_from_poro(porosity; bounds = permeability_bounds)
-        push!(realizations, (porosity = porosity, permeability = permeability))
+        push!(realizations, (
+            porosity = porosity,
+            permeability = permeability,
+            points = points,
+            volumes = volumes,
+        ))
     end
     return nrealizations == 1 ? only(realizations) : realizations
+end
+
+function grid_points(dims::NTuple{3, Int}, origin::NTuple{3, <:Real}, spacing::NTuple{3, <:Real})
+    points = Vector{SVector{3, Float64}}(undef, prod(dims))
+    idx = 1
+    for k in 1:dims[3], j in 1:dims[2], i in 1:dims[1]
+        points[idx] = SVector{3, Float64}(
+            Float64(origin[1]) + (i - 0.5) * Float64(spacing[1]),
+            Float64(origin[2]) + (j - 0.5) * Float64(spacing[2]),
+            Float64(origin[3]) + (k - 0.5) * Float64(spacing[3]),
+        )
+        idx += 1
+    end
+    return points
 end
 
 function generate_perm_poro_realizations(dims::NTuple{3, Int}, box_lengths::NTuple{3, <:Real} = (1.0, 1.0, 1.0); kwargs...)
