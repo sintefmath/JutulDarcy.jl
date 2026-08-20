@@ -109,4 +109,70 @@ module JutulDarcyGeoStatsExt
 
     end
 
+    """
+    generate_perm_poro(mesh::JutulMesh; kwargs...)
+
+    Generate a porosity/permeability realization on the physical bounding box of a
+    mesh and map it back onto that mesh.
+
+    The mesh is used to infer both the box origin and box lengths, along with the
+    regular-grid dimensions required by the GeoStats-backed generator.
+    """
+    function JutulDarcy.generate_perm_poro(mesh::JutulMesh, dims::NTuple{3, Int}; kwargs...)
+        box_origin, box_lengths = mesh_box_and_dims(mesh)
+        realization = generate_perm_poro(dims, box_lengths, box_origin; kwargs...)
+
+        out = Dict{Symbol, Any}(
+            :porosity => map_to_domain(mesh, realization[:porosity]; mapping = :mean),
+            :permeability => map_to_domain(mesh, realization[:permeability]; mapping = :harmonic_mean),
+        )
+
+        if haskey(realization, :geo_table)
+            out[:geo_table] = realization[:geo_table]
+        end
+
+        return out
+    end
+
+    """
+        generate_perm_poro(domain::DataDomain; kwargs...)
+
+    Generate a porosity/permeability realization on the physical bounding box of a
+    reservoir domain and map the result back onto a copy of that domain.
+    """
+    function JutulDarcy.generate_perm_poro(domain::DataDomain, dims::NTuple{3, Int}; kwargs...)
+        mesh = physical_representation(domain)
+        box_origin, box_lengths = mesh_box_and_dims(mesh)
+        realization = generate_perm_poro(dims, box_lengths, box_origin; kwargs...)
+        
+        new_domain = deepcopy(domain)
+        map_to_domain!(new_domain, realization; mapping = :mean)
+
+        if haskey(realization, :geo_table)
+            out = (new_domain, realization[:geo_table])
+        else
+            out = new_domain
+        end
+
+        return out
+    end
+
+    function mesh_box_and_dims(mesh::JutulMesh)
+
+        mesh = UnstructuredMesh(mesh)  # Ensure we have an unstructured mesh for point extraction
+        pts = mesh.node_points
+        pts = collect(pts)
+        length(pts) > 0 || throw(ArgumentError("Mesh must contain at least one node point."))
+
+        dim = length(first(pts))
+        dim == 3 || throw(ArgumentError("Only 3D meshes are supported for box-based generation."))
+
+        lo = ntuple(i -> minimum(p[i] for p in pts), dim)
+        hi = ntuple(i -> maximum(p[i] for p in pts), dim)
+        box_origin = ntuple(i -> Float64(lo[i]), dim)
+        box_lengths = ntuple(i -> Float64(hi[i] - lo[i]), dim)
+
+        return box_origin, box_lengths
+    end
+
 end
