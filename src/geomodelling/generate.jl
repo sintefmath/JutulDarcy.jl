@@ -2,20 +2,6 @@ function _standard_normal_generator(dims...)
     return randn(dims...)
 end
 
-function grid_points(dims::NTuple{3, Int}, origin::NTuple{3, <:Real}, spacing::NTuple{3, <:Real})
-    points = Vector{SVector{3, Float64}}(undef, prod(dims))
-    idx = 1
-    for k in 1:dims[3], j in 1:dims[2], i in 1:dims[1]
-        points[idx] = SVector{3, Float64}(
-            Float64(origin[1]) + (i - 0.5) * Float64(spacing[1]),
-            Float64(origin[2]) + (j - 0.5) * Float64(spacing[2]),
-            Float64(origin[3]) + (k - 0.5) * Float64(spacing[3]),
-        )
-        idx += 1
-    end
-    return points
-end
-
 function kozeny_carman_permeability(
     porosity, constant::Real = 1.0si_unit(:darcy);
     bounds::Tuple{<:Real, <:Real} = (1e-20, Inf)
