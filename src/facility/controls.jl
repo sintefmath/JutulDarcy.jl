@@ -489,7 +489,7 @@ end
 function well_target_value(ctrl, target::WaterCutTarget, cond, well, model, state)
     qw = abs(cond.surface_aqueous_rate)
     ql = abs(cond.surface_liquid_rate)
-    return qw/max(ql, 1e-12)
+    return qw/max(ql + qw, 1e-12)
 end
 
 function well_target_value(ctrl, target::GasOilRatioTarget, cond, well, model, state)
@@ -507,7 +507,8 @@ end
 function well_target_value(ctrl, target::GasLiquidRatioTarget, cond, well, model, state)
     qg = abs(cond.surface_vapor_rate)
     ql = abs(cond.surface_liquid_rate)
-    return qg/max(ql, 1e-12)
+    qw = abs(cond.surface_aqueous_rate)
+    return qg/max(ql + qw, 1e-12)
 end
 
 function well_target_value(ctrl, target::ReinjectionTarget, cond, well, model, state)
