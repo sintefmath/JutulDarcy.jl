@@ -2,7 +2,7 @@ module JutulDarcyGeoStatsExt
     using JutulDarcy, Jutul, Random, LinearAlgebra, StaticArrays
     using GeoStats
 
-    function generate_perm_poro(domain::GeoStats.Meshes.GeometrySet;
+    function generate_perm_poro(geometry::GeoStats.Meshes.GeometrySet;
         nrealizations::Int = 1,
         seed = nothing,
         porosity_process = nothing,
@@ -24,22 +24,12 @@ module JutulDarcyGeoStatsExt
             Random.seed!(seed)
         end
 
-        if isnothing(porosity_process)
-            
-            points = centroid.(domain)
-            # points = [SVector{3, Float64}([
-            #     p.coords.x.val, p.coords.y.val, p.coords.z.val
-            # ]) for p in points]
-            # Get the bounding box of the domain
-            xs = [p.coords.x.val for p in points]
-            ys = [p.coords.y.val for p in points]
-            zs = [p.coords.z.val for p in points]
-            box_lengths = (maximum(xs) - minimum(xs),
-                maximum(ys) - minimum(ys),
-                maximum(zs) - minimum(zs))
+        transformed, points, scale = normalize_geometry_set(geometry)
+        sx, sy, sz = scale
 
-            horizontal_default = max(box_lengths[1], box_lengths[2]) / 3
-            vertical_default = box_lengths[3] / 3
+        if isnothing(porosity_process)
+            horizontal_default = max(sx, sy) / 3
+            vertical_default = sz / 3
             if isnothing(correlation_range)
                 horizontal_range = isnothing(horizontal_correlation_range) ? horizontal_default : Float64(horizontal_correlation_range)
                 vertical_range = isnothing(vertical_correlation_range) ? vertical_default : Float64(vertical_correlation_range)
@@ -50,7 +40,11 @@ module JutulDarcyGeoStatsExt
             end
             horizontal_range > 0 || throw(ArgumentError("horizontal_correlation_range must be positive."))
             vertical_range > 0 || throw(ArgumentError("vertical_correlation_range must be positive."))
-            ranges = (horizontal_range, horizontal_range, vertical_range)
+            ranges = (
+                horizontal_range / max(sx, eps(Float64)),
+                horizontal_range / max(sy, eps(Float64)),
+                vertical_range / max(sz, eps(Float64)),
+            )
             porosity_process = GaussianProcess(
                 SphericalCovariance(ranges = ranges),
                 0.0,
@@ -59,29 +53,28 @@ module JutulDarcyGeoStatsExt
 
         realizations = Dict[]
         for _ in 1:nrealizations
+            tab = nothing
             if porosity_process isa Function
-                zporo = porosity_process(dims...)
+                zporo = porosity_process(length(points))
             else
-                tab = rand(porosity_process, domain)
+                tab = rand(porosity_process, transformed)
                 zporo = tab.field
             end
             porosity = clamp.(porosity_mean .+ porosity_std .* zporo, phimin, phimax)
             permeability = perm_from_poro(porosity; bounds = permeability_bounds)
-            
+
             realization = Dict{Symbol, Any}(
                 :porosity => porosity,
-                :permeability => permeability
+                :permeability => permeability,
             )
 
-            if extra_output
+            if extra_output && !isnothing(tab)
                 realization[:geo_table] = tab
             end
             push!(realizations, realization)
-
         end
 
         return nrealizations == 1 ? only(realizations) : realizations
-
     end
 
     """
@@ -95,7 +88,7 @@ module JutulDarcyGeoStatsExt
     """
     function JutulDarcy.generate_perm_poro(mesh::JutulMesh; kwargs...)
         
-        geometry = mesh_to_pointset(mesh)  # Ensure we have a point set representation for GeoStats
+        geometry = mesh_to_geometry_set(mesh)
         return generate_perm_poro(geometry; kwargs...)
         
     end
@@ -123,13 +116,39 @@ module JutulDarcyGeoStatsExt
         return out
     end
 
-    function mesh_to_pointset(mesh)
+    function mesh_to_geometry_set(mesh::JutulMesh)
 
         geometry = tpfv_geometry(mesh)
         pts = [GeoStats.Meshes.Point(p[1], p[2], p[3]) for p in eachcol(geometry.cell_centroids)]
 
         return GeoStats.Meshes.GeometrySet(pts)
 
+    end
+
+    function normalize_geometry_set(geometry::GeoStats.Meshes.GeometrySet)
+        points = centroid.(geometry)
+        length(points) > 0 || throw(ArgumentError("GeometrySet must contain at least one point."))
+
+        xs = [p.coords.x.val for p in points]
+        ys = [p.coords.y.val for p in points]
+        zs = [p.coords.z.val for p in points]
+        xmin, xmax = minimum(xs), maximum(xs)
+        ymin, ymax = minimum(ys), maximum(ys)
+        zmin, zmax = minimum(zs), maximum(zs)
+
+        sx = max(xmax - xmin, eps(Float64))
+        sy = max(ymax - ymin, eps(Float64))
+        sz = max(zmax - zmin, eps(Float64))
+
+        transformed = GeoStats.Meshes.GeometrySet([
+            GeoStats.Meshes.Point(
+                (p.coords.x.val - xmin) / sx,
+                (p.coords.y.val - ymin) / sy,
+                (p.coords.z.val - zmin) / sz,
+            ) for p in points
+        ])
+
+        return transformed, points, (sx, sy, sz)
     end
 
 end
