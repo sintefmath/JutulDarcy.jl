@@ -14,10 +14,10 @@ module JutulDarcyGeoStatsExt
     """
     function JutulDarcy.generate_perm_poro(
         dims::NTuple{3, Int},
-        box_lengths::NTuple{3, <:Real} = (1.0, 1.0, 1.0);
+        box_lengths::NTuple{3, <:Real} = (1.0, 1.0, 1.0),
+        box_origin::NTuple{3, <:Real} = (0.0, 0.0, 0.0);
         nrealizations::Int = 1,
         seed = nothing,
-        box_origin::NTuple{3, <:Real} = (0.0, 0.0, 0.0),
         porosity_process = nothing,
         porosity_mean::Real = 0.20,
         porosity_std::Real = 0.05,
@@ -27,6 +27,7 @@ module JutulDarcyGeoStatsExt
         vertical_correlation_range = nothing,
         permeability_bounds::Tuple{<:Real, <:Real} = (1e-20, Inf),
         perm_from_poro = JutulDarcy.kozeny_carman_permeability,
+        extra_output = false,
     )
         nrealizations > 0 || throw(ArgumentError("nrealizations must be positive."))
         all(>(0), dims) || throw(ArgumentError("All grid dimensions must be positive."))
@@ -39,12 +40,10 @@ module JutulDarcyGeoStatsExt
             Random.seed!(seed)
         end
 
-        box_origin_f = _to_float_tuple(box_origin)
-        box_lengths_f = _to_float_tuple(box_lengths)
+        to_float_tuple(t::NTuple{3, <:Real}) = (Float64(t[1]), Float64(t[2]), Float64(t[3]))
 
-        spacing = ntuple(i -> Float64(box_lengths_f[i]) / dims[i], 3)
-        volumes = fill(Float64(prod(spacing)), dims...)
-        points = JutulDarcy.grid_points(dims, box_origin_f, spacing)
+        box_origin_f = to_float_tuple(box_origin)
+        box_lengths_f = to_float_tuple(box_lengths)
 
         if isnothing(porosity_process)
             horizontal_default = max(box_lengths_f[1], box_lengths_f[2]) / 3
@@ -71,48 +70,42 @@ module JutulDarcyGeoStatsExt
         end
 
         grid = CartesianGrid((0.0, 0.0, 0.0), (1.0, 1.0, 1.0); dims = dims)
-        realizations = NamedTuple[]
+        # Map from unit cube to box domain
+        points = centroid.(grid)
+        points = [box_origin_f .+ SVector{3, Float64}([
+            p.coords.x.val * box_lengths_f[1],
+            p.coords.y.val * box_lengths_f[2],
+            p.coords.z.val * box_lengths_f[3]
+            ]) for p in points]
+
+        # Scale volumes to physical box dimensions
+        volumes = measure.(grid)
+        volumes = [v.val * prod(box_lengths_f) for v in volumes]
+
+        realizations = Dict[]
         for _ in 1:nrealizations
             if porosity_process isa Function
                 zporo = porosity_process(dims...)
             else
-                zporo = _geostats_field_to_array(rand(porosity_process, grid).field, dims)
+                tab = rand(porosity_process, grid)
+                zporo = tab.field
             end
             porosity = clamp.(porosity_mean .+ porosity_std .* zporo, phimin, phimax)
-            try
-                permeability = perm_from_poro(porosity; permeability_bounds = permeability_bounds)
-            catch
-                permeability = perm_from_poro(porosity; bounds = permeability_bounds)
+            permeability = perm_from_poro(porosity; bounds = permeability_bounds)
+            
+            realization = Dict{Symbol, Any}(
+                :porosity => (values = porosity, points = points, volumes = volumes),
+                :permeability => (values = permeability, points = points, volumes = volumes)
+            )
+
+            if extra_output
+                realization[:geo_table] = tab
             end
-            push!(realizations, (
-                porosity = porosity,
-                permeability = permeability,
-                points = points,
-                volumes = volumes,
-            ))
+            push!(realizations, realization)
+
         end
+
         return nrealizations == 1 ? only(realizations) : realizations
-    end
-
-    """
-        JutulDarcy.map_to_domain(mesh, tab::GeoStats.GeoTable; coordinate_mapping = nothing, kwargs...)
-
-    Convert a GeoStats table sampled on a 3D grid into a reservoir property field by
-    mapping the grid cell centroids to the enclosing reservoir cells.
-    """
-    function JutulDarcy.map_to_domain(mesh::JutulMesh, tab::GeoStats.GeoTable; coordinate_mapping = nothing, kwargs...)
-
-        grid = tab.geometry
-        paramdim(grid) == 3 || throw(ArgumentError("Expected a 3D GeoStats grid."))
-
-        values = tab.field
-        pts = centroid.(grid)
-        pts = [SVector{3, Float64}([p.coords.x.val, p.coords.y.val, p.coords.z.val]) for p in pts]
-        pts = coordinate_mapping === nothing ? pts : coordinate_mapping.(pts)
-
-        property = (values = values, points = pts)
-
-        return JutulDarcy.map_to_domain(mesh, property; kwargs...)
 
     end
 
