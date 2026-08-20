@@ -55,7 +55,7 @@ function map_to_domain(mesh::JutulMesh, property::NamedTuple;
     ignored_input_cells = total_input_cells - total_assigned
     if info_level > 0
         approx_cells_per_output = total_input_cells / max(number_of_cells(mesh_u), 1)
-        str = ifelse(ismissing(name), "", "$name: ")
+        str = ifelse(ismissing(name), "", "$name ")
         @info str*"Mapping statistics: approx. $(approx_cells_per_output) \
         input cells per output cell; $(ignored_input_cells) input cells \
         were outside the mesh and ignored."
