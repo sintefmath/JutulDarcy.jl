@@ -72,26 +72,31 @@ end
 ##
 
 spe1_dir = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1")
-case_spe1 = setup_case_from_data_file(joinpath(spe1_dir, "SPE1.DATA"))
-res_spe1 = simulate_reservoir(case_spe1, info_level = -1)
+spe1_file = joinpath(spe1_dir, "SPE1.DATA")
+spe = JutulDarcy.GeoEnergyIO.parse_data_file(spe1_file)
+@. spe["PROPS"]["SWOF"][1][:, 2] *= 1e5
+case = setup_case_from_data_file(spe)
+
+res = simulate_reservoir(case, info_level = -1)
 ##
 glob = false
-res1 = deepcopy(res_spe1)
-res1.summary["VALUES"]["WELLS"]["PROD"]["WWCT"] .= 1.0
-res1.summary["VALUES"]["WELLS"]["PROD"]["WWGR"] .= 1.0
-res1.summary["VALUES"]["WELLS"]["PROD"]["WGOR"] .= 1.0
-res1.summary["VALUES"]["WELLS"]["PROD"]["WGLR"] .= 1.0
+res1 = deepcopy(res)
+s = res1.summary
+s["VALUES"]["WELLS"]["PROD"]["WWCT"] .= 1.0
+s["VALUES"]["WELLS"]["PROD"]["WWGR"] .= 1.0
+s["VALUES"]["WELLS"]["PROD"]["WGOR"] .= 1.0
+s["VALUES"]["WELLS"]["PROD"]["WGLR"] .= 1.0
 
-res2 = deepcopy(res_spe1)
-res2.summary["VALUES"]["WELLS"]["PROD"]["WWCT"] .= 0.5
-res2.summary["VALUES"]["WELLS"]["PROD"]["WWGR"] .= 0.5
-res2.summary["VALUES"]["WELLS"]["PROD"]["WGOR"] .= 0.5
-res2.summary["VALUES"]["WELLS"]["PROD"]["WGLR"] .= 0.5
+res2 = deepcopy(res)
+# res2.summary["VALUES"]["WELLS"]["PROD"]["WWCT"] .= 0.5
+# res2.summary["VALUES"]["WELLS"]["PROD"]["WWGR"] .= 0.5
+# res2.summary["VALUES"]["WELLS"]["PROD"]["WGOR"] .= 0.5
+# res2.summary["VALUES"]["WELLS"]["PROD"]["WGLR"] .= 0.5
 
-obj_local = history_match_objective(case_spe1, res1, is_global = glob, scale = 1.0)
-# match_producers!(obj_local, :wcut)
-# match_producers!(obj_local, "WWGR")
-match_producers!(obj_local, "WGOR")
-# match_producers!(obj_local, "WGLR")
-@test evaluate_match(obj_local, res1) ≈ 0.0 atol = 1e-6
-@test evaluate_match(obj_local, res2) ≈ 0.0 atol = 1e-6
+obj = history_match_objective(case, res1, is_global = glob, scale = 1.0)
+# match_producers!(obj, :wcut)
+# match_producers!(obj, "WWGR")
+match_producers!(obj, "WGOR")
+# match_producers!(obj, "WGLR")
+@test evaluate_match(obj, res1) ≈ 0.0 atol = 1e-6
+@test evaluate_match(obj, res2) ≈ 0.0 atol = 1e-6

@@ -12,7 +12,9 @@ end
 
 function get_step_mismatch_contributions(hm, fmodel, fstate, ctrls, step_info)
     val = 0.0
-    eval_match(x, sgn, target) = weighted_mismatch_for_step(hm.logger, x, fmodel, fstate, ctrls, sgn, Val(target), step_info)
+    function eval_match(x, sgn, target)
+        return weighted_mismatch_for_step(hm.logger, x, fmodel, fstate, ctrls, sgn, Val(target), step_info)
+    end
     inj_sgn = 1.0
     prod_sgn = -1.0
     no_sgn = 1.0

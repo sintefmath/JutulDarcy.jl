@@ -13,8 +13,14 @@ function history_match_objective(case::JutulCase, states_or_reservoir_result = m
         is_global::Bool = false,
         kwarg...
     )
+    # The matching type is the same for both global and sum objectives, but the
+    # objective type itself is different.
     hm = HistoryMatch(case, states_or_reservoir_result, summary; kwarg...)
-    history_match_objective(hm; is_global = is_global)
+    return history_match_objective(hm; is_global = is_global)
+end
+
+function history_match_objective(case::JutulCase, res::JutulDarcy.ReservoirSimResult; kwarg...)
+    return history_match_objective(case, res.states, res.summary; kwarg...)
 end
 
 function history_match_objective(hm::HistoryMatch; is_global::Bool = true)

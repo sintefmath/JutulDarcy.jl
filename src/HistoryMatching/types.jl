@@ -1,3 +1,5 @@
+import Base: show
+
 const I_type = Jutul.LinearInterpolant{Vector{Float64}, Vector{Float64}, Missing}
 
 struct MatchPeriod
@@ -71,8 +73,11 @@ function HistoryMatch(case::JutulCase; kwarg...)
     return HistoryMatch(case, missing, missing; kwarg...)
 end
 
-function HistoryMatch(case::JutulCase, res::JutulDarcy.ReservoirSimResult, smry = missing; kwarg...)
-    if ismissing(smry)
+function HistoryMatch(case::JutulCase, res::JutulDarcy.ReservoirSimResult, smry = res.summary;
+        recompute_summary = ismissing(smry) || length(keys(smry)) == 0,
+        kwarg...
+    )
+    if recompute_summary
         smry = JutulDarcy.summary_result(case, res, :si, field = false, wells = true)
     end
     states = res.states
