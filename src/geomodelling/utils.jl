@@ -77,7 +77,7 @@ reservoir mesh represented by a `DataDomain`.
 """
 function JutulDarcy.map_to_domain(domain::DataDomain, property::NamedTuple; kwargs...)
 
-    mesh = domain.mesh
+    mesh = physical_representation(domain)
     return map_to_domain(mesh, property; kwargs...)
 
 end
@@ -96,10 +96,11 @@ function map_to_domain!(domain::DataDomain, property::NamedTuple, name; kwargs..
 
 end
 
-function map_to_domain!(domain::DataDomain, properties::Dict{Symbol, NamedTuple};
+function map_to_domain!(domain::DataDomain, properties::Dict{Symbol, Any};
     cell_lookup = missing, kwargs...)
 
     for (name, property) in properties
+        property isa NamedTuple || continue
         values, cell_lookup, _ = map_to_domain(domain, property;
             name = name, cell_lookup = cell_lookup, extra_out = true, kwargs...)
         domain[name] = values
@@ -173,6 +174,7 @@ function create_cell_lookup(mesh, geometry, pts)
     boundary_centroids = vec(reinterpret(T, geometry.boundary_centroids))
     boundary_normals = vec(reinterpret(T, geometry.boundary_normals))
     
+    covered = falses(number_of_cells(mesh))
     for idx in 1:total
         pt = pts[idx]
         cell = Jutul.find_enclosing_cell(mesh, pt, normals, face_centroids, boundary_normals, boundary_centroids)
@@ -180,7 +182,11 @@ function create_cell_lookup(mesh, geometry, pts)
             cell_lookup[idx] = 0
         else
             cell_lookup[idx] = cell
+            covered[cell] = true
         end
     end
+
+    @assert all(covered) "Not all cells were covered by the input points. Consider increasing the number of input points or adjusting their distribution."
+
     return cell_lookup
 end
