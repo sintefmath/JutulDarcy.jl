@@ -2,6 +2,17 @@ module JutulDarcyGeoStatsExt
     using JutulDarcy, Jutul, Random, LinearAlgebra, StaticArrays
     using GeoStats
 
+    """
+        generate_perm_poro(geometry::GeoStats.Meshes.GeometrySet; kwargs...)
+
+    Generate correlated porosity and permeability realizations on a GeoStats
+    geometry set.
+
+    The geometry is first normalized to the unit cube so the Gaussian process is
+    evaluated in a numerically stable coordinate system. The resulting fields are
+    returned as a `Dict` with `:porosity` and `:permeability`, and optionally
+    `:geo_table` when `extra_output = true`.
+    """
     function generate_perm_poro(geometry::GeoStats.Meshes.GeometrySet;
         nrealizations::Int = 1,
         seed = nothing,
@@ -78,13 +89,14 @@ module JutulDarcyGeoStatsExt
     end
 
     """
-    generate_perm_poro(mesh::JutulMesh; kwargs...)
+        generate_perm_poro(mesh::JutulMesh; kwargs...)
 
-    Generate a porosity/permeability realization on the physical bounding box of a
-    mesh and map it back onto that mesh.
+    Generate a porosity/permeability realization on the cell-centroid geometry
+    of a Jutul mesh.
 
-    The mesh is used to infer both the box origin and box lengths, along with the
-    regular-grid dimensions required by the GeoStats-backed generator.
+    The mesh is converted to a `GeometrySet` of centroid points, normalized to
+    the unit cube, sampled with the GeoStats-backed generator, and returned as a
+    `Dict` with `:porosity` and `:permeability`.
     """
     function JutulDarcy.generate_perm_poro(mesh::JutulMesh; kwargs...)
         
@@ -96,8 +108,11 @@ module JutulDarcyGeoStatsExt
     """
         generate_perm_poro(domain::DataDomain; kwargs...)
 
-    Generate a porosity/permeability realization on the physical bounding box of a
-    reservoir domain and map the result back onto a copy of that domain.
+    Generate a porosity/permeability realization on the cell-centroid geometry
+    of a `DataDomain` and write the mapped values onto a copy of that domain.
+
+    If `extra_output = true`, the returned tuple also includes the GeoStats table
+    produced during sampling.
     """
     function JutulDarcy.generate_perm_poro(domain::DataDomain; kwargs...)
         
@@ -116,6 +131,12 @@ module JutulDarcyGeoStatsExt
         return out
     end
 
+    """
+        mesh_to_geometry_set(mesh::JutulMesh)
+
+    Convert a Jutul mesh to a GeoStats `GeometrySet` built from the cell
+    centroids of the mesh.
+    """
     function mesh_to_geometry_set(mesh::JutulMesh)
 
         geometry = tpfv_geometry(mesh)
@@ -125,6 +146,14 @@ module JutulDarcyGeoStatsExt
 
     end
 
+    """
+        normalize_geometry_set(geometry::GeoStats.Meshes.GeometrySet)
+
+    Translate and scale the centroids of a `GeometrySet` to the unit cube.
+
+    Returns the normalized geometry, the original centroid points, and the scale
+    factors applied along each axis.
+    """
     function normalize_geometry_set(geometry::GeoStats.Meshes.GeometrySet)
         points = centroid.(geometry)
         length(points) > 0 || throw(ArgumentError("GeometrySet must contain at least one point."))
