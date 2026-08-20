@@ -113,18 +113,19 @@ end
 
 ##
 wkey = "WWGR"
+wkey = "WWCT"
 obj1 = history_match_objective(case, res1, is_global = glob, scale = 1.0)
-match_producers!(obj1, wkey)
+match_producers!(obj1, wkey, scale = 1.0)
 
 obj2 = history_match_objective(case, res2, is_global = glob, scale = 1.0)
-match_producers!(obj2, wkey)
+match_producers!(obj2, wkey, scale = 1.0)
 
 obs = res1.summary["VALUES"]["WELLS"]["PROD"][wkey]
 ref = res2.summary["VALUES"]["WELLS"]["PROD"][wkey]
 delta = (obs .- ref).*case.dt
 perturbed_match = evaluate_match(obj1, res1)
 zero_match = evaluate_match(obj2, res2)
-ref_value = sum(abs.(obs .- ref))
+ref_value = sum(abs.(delta))
 # match_producers!(obj, "WWGR")
 # match_producers!(obj, "WGOR")
 # match_producers!(obj, "WGLR")
