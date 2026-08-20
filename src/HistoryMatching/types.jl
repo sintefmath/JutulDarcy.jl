@@ -90,6 +90,12 @@ function HistoryMatch(case::JutulCase, states, summary;
         normalized_periods = missing,
         scale = sum(case.dt)
     )
+    usys = get(summary, "UNIT_SYSTEM", missing)
+    if ismissing(usys)
+        @warn "Unit system not found in summary object. Assuming SI units."
+    elseif lowercase(usys) != "si"
+        @warn "Unit system in summary object is not SI, was $(usys). Unit system will not be converted."
+    end
     periods = setup_periods(case, periods, period_weights, normalized_periods)
     case.model::MultiModel
     wellpos = Dict{Symbol, Int}()
