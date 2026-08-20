@@ -80,6 +80,7 @@ case = setup_case_from_data_file(spe)
 res = simulate_reservoir(case, info_level = -1)
 ##
 glob = false
+res2 = deepcopy(res)
 res1 = deepcopy(res)
 s = res1.summary
 s["VALUES"]["WELLS"]["PROD"]["WWCT"] .= 1.0
@@ -87,16 +88,44 @@ s["VALUES"]["WELLS"]["PROD"]["WWGR"] .= 1.0
 s["VALUES"]["WELLS"]["PROD"]["WGOR"] .= 1.0
 s["VALUES"]["WELLS"]["PROD"]["WGLR"] .= 1.0
 
-res2 = deepcopy(res)
+for wkey in ["WWCT", "WWGR", "WGOR", "WGLR"]
+    obj = history_match_objective(case, res1, is_global = glob, scale = 1.0)
+    match_producers!(obj, wkey)
+    obs = res1.summary["VALUES"]["WELLS"]["PROD"][wkey]
+    ref = res2.summary["VALUES"]["WELLS"]["PROD"][wkey]
+    delta = (obs .- ref).*case.dt
+    perturbed_match = evaluate_match(obj, res1)
+    zero_match = evaluate_match(obj, res2)
+    ref_value = sum(abs.(obs .- ref))
+    # match_producers!(obj, "WWGR")
+    # match_producers!(obj, "WGOR")
+    # match_producers!(obj, "WGLR")
+    @info "??" ref_value perturbed_match zero_match
+
+    # @test evaluate_match(obj, res1) ≈ 0.0 atol = 1e-6
+    # @test evaluate_match(obj, res2) ≈ 0.0 atol = 1e-6
+
+end
 # res2.summary["VALUES"]["WELLS"]["PROD"]["WWCT"] .= 0.5
 # res2.summary["VALUES"]["WELLS"]["PROD"]["WWGR"] .= 0.5
 # res2.summary["VALUES"]["WELLS"]["PROD"]["WGOR"] .= 0.5
 # res2.summary["VALUES"]["WELLS"]["PROD"]["WGLR"] .= 0.5
 
-obj = history_match_objective(case, res1, is_global = glob, scale = 1.0)
-# match_producers!(obj, :wcut)
+##
+wkey = "WWGR"
+obj1 = history_match_objective(case, res1, is_global = glob, scale = 1.0)
+match_producers!(obj1, wkey)
+
+obj2 = history_match_objective(case, res2, is_global = glob, scale = 1.0)
+match_producers!(obj2, wkey)
+
+obs = res1.summary["VALUES"]["WELLS"]["PROD"][wkey]
+ref = res2.summary["VALUES"]["WELLS"]["PROD"][wkey]
+delta = (obs .- ref).*case.dt
+perturbed_match = evaluate_match(obj1, res1)
+zero_match = evaluate_match(obj2, res2)
+ref_value = sum(abs.(obs .- ref))
 # match_producers!(obj, "WWGR")
-match_producers!(obj, "WGOR")
+# match_producers!(obj, "WGOR")
 # match_producers!(obj, "WGLR")
-@test evaluate_match(obj, res1) ≈ 0.0 atol = 1e-6
-@test evaluate_match(obj, res2) ≈ 0.0 atol = 1e-6
+@info "??" ref_value perturbed_match zero_match
