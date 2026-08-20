@@ -1,26 +1,18 @@
 """
-    generate_perm_poro(dims, box_lengths = (1.0, 1.0, 1.0); kwarg...)
+    generate_perm_poro(dims, box_lengths = (1.0, 1.0, 1.0); kwargs...)
 
-Generate porosity and permeability realizations on a box-shaped GeoStats grid.
+Generate correlated porosity and permeability realizations on a box-shaped grid.
 
-Implementation is provided by `JutulDarcyGeoStatsExt` when `GeoStats` is loaded.
+The default GeoStats-backed implementation samples a latent Gaussian process,
+translates and scales it to the requested porosity mean/std, clips to the
+porosity bounds, and derives permeability through `perm_from_poro`. The public
+stub is defined here so the method is available from `JutulDarcy` even when the
+GeoStats extension is not loaded.
+
+Keyword arguments include:
+- `nrealizations`, `seed`, `box_origin`
+- `porosity_mean`, `porosity_std`, `porosity_bounds`
+- `permeability_bounds`, `perm_from_poro`, and an optional custom
+  `porosity_process`
 """
 function generate_perm_poro end
-
-# """
-#     map_to_domain(domain, property; mapping = :mean, info_level = 0, name = missing)
-
-# Map a property sampled on a GeoStats grid or point cloud onto a JutulDarcy
-# reservoir domain.
-
-# Implementation is provided by `JutulDarcyGeoStatsExt` when `GeoStats` is loaded.
-# """
-# function map_to_domain end
-
-# """
-#     map_to_domain!(domain, property, name; mapping = :mean, info_level = 0, name = missing)
-
-# Mutating variant of `map_to_domain` that stores the mapped values in the named
-# property on the domain.
-# """
-# function map_to_domain! end

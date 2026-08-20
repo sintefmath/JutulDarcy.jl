@@ -1,3 +1,21 @@
+"""
+    map_to_domain(mesh, property::NamedTuple; mapping = :mean, cell_lookup = missing,
+        info_level = 0, name = missing, extra_out = false)
+
+Map a property defined on a set of input points to the cells of a Jutul reservoir
+mesh.
+
+The input property is expected to contain at least `:points` and `:values`.
+Optionally, `:volumes` may be supplied for volume-weighted averaging. Supported
+mappings are:
+- `:mean` for arithmetic averaging
+- `:harmonic_mean` for harmonic averaging
+- `:volume_weighted_mean` for weighted arithmetic averaging using `volumes`
+
+If `cell_lookup` is omitted, enclosing cells are computed from the mesh geometry.
+The `info_level` keyword emits a summary log with the approximate input/output cell
+ratio and the number of discarded points outside the mesh.
+"""
 function map_to_domain(mesh::JutulMesh, property::NamedTuple;
     mapping::Symbol = :mean,
     cell_lookup = missing,
@@ -51,13 +69,25 @@ function map_to_domain(mesh::JutulMesh, property::NamedTuple;
     
 end
 
-function map_to_domain(domain::DataDomain, property::NamedTuple; kwargs...)
+"""
+    map_to_domain(domain, property::NamedTuple; kwargs...)
+
+Convenience wrapper that maps a property defined on an input point set onto the
+reservoir mesh represented by a `DataDomain`.
+"""
+function JutulDarcy.map_to_domain(domain::DataDomain, property::NamedTuple; kwargs...)
 
     mesh = domain.mesh
     return map_to_domain(mesh, property; kwargs...)
 
 end
 
+"""
+    map_to_domain!(domain, property::NamedTuple, name; kwargs...)
+
+Mutating variant of `map_to_domain` that stores the mapped values on the domain
+under the given property name.
+"""
 function map_to_domain!(domain::DataDomain, property::NamedTuple, name; kwargs...)
 
     values = map_to_domain(domain, property; name = name, kwargs...)
