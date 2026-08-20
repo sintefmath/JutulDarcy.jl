@@ -82,11 +82,8 @@ module JutulDarcy
     export BrooksCoreyRelativePermeabilities, TabulatedSimpleRelativePermeabilities
     export SaturationWeightedOilRelperm, StoneIMethod, StoneIIMethod
     export set_relative_permeability!
-    export setup_perm_poro_realizations
     export generate_perm_poro
-    export map_to_domain
-    export map_to_domain!
-    export map_realization_to_reservoir_domain
+    export map_to_domain, map_to_domain!
     export EquilibriumRegion
     export setup_reservoir_dict_optimization, optimize_reservoir, parameters_gradient_reservoir, setup_injector_control, setup_producer_control, setup_disabled_control
 
