@@ -2,16 +2,6 @@ function _standard_normal_generator(dims...)
     return randn(dims...)
 end
 
-"""
-    generate_perm_poro(dims, box_lengths = (1.0, 1.0, 1.0); kwargs...)
-
-Generate porosity and permeability fields from a latent Gaussian draw.
-
-The real implementation lives in the GeoStats extension when that package is
-loaded. This stub keeps the public API available in the main package.
-"""
-function generate_perm_poro end
-
 function grid_points(dims::NTuple{3, Int}, origin::NTuple{3, <:Real}, spacing::NTuple{3, <:Real})
     points = Vector{SVector{3, Float64}}(undef, prod(dims))
     idx = 1
