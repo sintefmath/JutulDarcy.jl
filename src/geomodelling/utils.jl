@@ -51,14 +51,14 @@ function map_to_domain(mesh::JutulMesh, property::NamedTuple;
     
 end
 
-function JutulDarcy.map_to_domain(domain::DataDomain, property::NamedTuple; kwargs...)
+function map_to_domain(domain::DataDomain, property::NamedTuple; kwargs...)
 
     mesh = domain.mesh
     return map_to_domain(mesh, property; kwargs...)
 
 end
 
-function JutulDarcy.map_to_domain!(domain::DataDomain, property::NamedTuple, name; kwargs...)
+function map_to_domain!(domain::DataDomain, property::NamedTuple, name; kwargs...)
 
     values = map_to_domain(domain, property; name = name, kwargs...)
     domain[name] = values
@@ -66,7 +66,7 @@ function JutulDarcy.map_to_domain!(domain::DataDomain, property::NamedTuple, nam
 
 end
 
-function JutulDarcy.map_to_domain!(domain::DataDomain, properties::Dict{Symbol, NamedTuple};
+function map_to_domain!(domain::DataDomain, properties::Dict{Symbol, NamedTuple};
     cell_lookup = missing, kwargs...)
 
     for (name, property) in properties
