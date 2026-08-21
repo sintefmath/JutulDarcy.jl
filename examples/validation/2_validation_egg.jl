@@ -1,4 +1,4 @@
-# # The Egg model: Two-phase oil-water model
+# # 2. EGG (2ph oil-water)
 # <tags: Immiscible, Validation, InputFile>
 # A two-phase model that is taken from the first member of the EGG ensemble. The
 # model is a synthetic case with channelized permeability and water injection

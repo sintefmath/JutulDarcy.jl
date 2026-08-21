@@ -1,5 +1,6 @@
-# # SPE1: Small black-oil gas injection
+# # 1. SPE1 (3ph blackoil)
 # <tags: Blackoil, Validation, InputFile>
+# Small black-oil gas injection benchmark case.
 # [Odeh, A.S. 1981. Comparison of Solutions to a Three-Dimensional Black-Oil
 # Reservoir Simulation Problem. J Pet Technol 33 (1): 13–25.
 # SPE-9723-PA](http://dx.doi.org/10.2118/9723-PA)

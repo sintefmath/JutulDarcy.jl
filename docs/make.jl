@@ -83,7 +83,7 @@ function example_tags(pth)
     return tags
 end
 
-example_tags(example_path_jl("validation", "validation_spe1"))
+example_tags(example_path_jl("validation", "1_validation_spe1"))
 
 # exlist = get_example_paths(check_empty = false)
 
@@ -390,7 +390,7 @@ function build_jutul_darcy_docs(
         "Examples" => examples_markdown,
         "Validation" => [
             "man/validation.md",
-            "Models" => validation_markdown,
+            "Models" => sort(validation_markdown),
         ]
     ]
     # for (k, subpages) in build_pages
