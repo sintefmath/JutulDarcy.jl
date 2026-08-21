@@ -61,7 +61,7 @@ prm_truth = Dict(
 # Note the input arguments: The function takes a parameter dictionary and an
 # optional dict that gives additional information about the current timestep
 # being looked at by the optimizer, which is rarely used for history matching.
-function build_case(prm::Dict, step_info = missing)
+function build_case(prm::AbstractDict, step_info = missing)
     reservoir = reservoir_domain(g,
         permeability = prm["perm"]*millidarcy,
         porosity = prm["poro"]
