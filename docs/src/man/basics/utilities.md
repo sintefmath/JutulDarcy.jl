@@ -57,6 +57,9 @@ JutulDarcy.well_mismatch
 Jutul.LBFGS.unit_box_bfgs
 JutulDarcy.setup_reservoir_dict_optimization
 JutulDarcy.HistoryMatching.history_match_objective
+JutulDarcy.HistoryMatching.match_well!
+JutulDarcy.HistoryMatching.match_injectors!
+JutulDarcy.HistoryMatching.match_producers!
 ```
 
 ## Well outputs

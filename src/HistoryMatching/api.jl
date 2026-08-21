@@ -5,9 +5,24 @@
 """
     history_match_objective(case::JutulCase)
     history_match_objective(case::JutulCase, res::ReservoirSimResult)
-    history_match_objective(case::JutulCase, states, summary)
+    history_match_objective(case::JutulCase, states, summary_to_match_against)
 
-Set up a history match objective.
+Set up a history match objective. The history match objective computes the
+mismatch between simulation results and observed data for a given case. The
+objective can be either global or sum, depending on the `is_global` keyword
+argument. Sum is generally faster to compute, but may be more sensitive to sharp
+gradients. Cumulative matches are only available for the global option.
+
+The objective is written as (for each well that is being matched):
+
+    `f(x) = sum_i w_i * (sim_i(x) - obs_i)^n` (n defaults to 2)
+
+where `w_i` is a weight for the i-th well match, `sim_i(x)` is the simulated
+value for the i-th step well match, and `obs_i` is the observed value for the
+i-th well match. The sum is taken over all well matches in the history match
+object. You must first instantiate a history match object with
+`history_match_objective`, and then add well matches with `match_injectors!` and
+`match_producers!` where you can also set weights per step.
 """
 function history_match_objective(case::JutulCase, states_or_reservoir_result = missing, summary = missing;
         is_global::Bool = false,
@@ -60,12 +75,20 @@ Add a well match to the history match object `hm_obj` for the well with name
 
 - `weight`: Weighting factor for the well match. Can be a scalar or a vector
   with length equal to the number of report steps in the simulation case.
-  Default is `1.0`.
+  Default is `1.0`. If you are matching multiple wells and quantities
+  (especially rates and pressures), you may want to adjust the weights to
+  balance the contributions to the overall objective.
 - `is_injector`: Set to `true` if the well is an injector, `false` if it is a
-  producer. Mandatory. Use `match_injectors!` or `match_producers!` for
-  convenience.
+  producer. Mandatory. Use [`match_injectors!`](@ref) or
+  [`match_producers!`](@ref) for convenience.
 - `data`: Optionally provide observation data as a vector or function. If
-  missing, data is taken from the case summary embedded in the hm object.
+  missing, data is taken from the case summary embedded in the history matching
+  object.
+- `scale`: Optionally provide a scaling factor for the well match. If missing, a
+  default scale is used based on the quantity and phase to make the value
+  roughly dimensionless.
+- `exponent`: Exponent for the mismatch calculation. Default is `2.0` (squared
+  difference).
 """
 function match_well!(hm::HistoryMatch, name::Union{String, Symbol}, quantity::Union{String, Symbol};
         weight::Union{Float64, Vector{Float64}} = 1.0,
@@ -246,6 +269,19 @@ function phase_reference_density(sys, phase)
     return val
 end
 
+"""
+    match_injectors!(obj, "WBHP", weight = 3.0)
+
+Match a quantity for all injectors in the history match object `obj`. See
+[`match_well!`](@ref) for details on the keyword arguments.
+
+# Possible quantities for injectors:
+- `:bhp` or `"WBHP"`: Bottom hole pressure
+- `:rate` or `"RATE"`: Total volumetric injection rate at standard conditions
+- `:orat` or `"WOIR"`: Oil volumetric injection rate at standard conditions
+- `:wrat` or `"WWIR"`: Water volumetric injection rate at standard conditions
+- `:grat` or `"WGIR"`: Gas volumetric injection rate at standard conditions
+"""
 function match_injectors!(hm::HistoryMatch, quantity::Union{String, Symbol}, wells = get_injectors(hm); kwarg...)
     if wells isa Symbol || wells isa String
         wells = [wells]
@@ -256,6 +292,27 @@ function match_injectors!(hm::HistoryMatch, quantity::Union{String, Symbol}, wel
     return hm
 end
 
+"""
+    match_producers!(obj, "ORAT", weight = 3.0)
+Match a quantity for all producers in the history match object `obj`. See
+[`match_well!`](@ref) for details on the keyword arguments.
+
+# Possible quantities for producers:
+- `:bhp` or `"WBHP"`: Bottom hole pressure
+- `:rate` or `"RATE"`: Total volumetric production rate at standard conditions
+- `:orat` or `"WOPR"`: Oil volumetric production rate at standard conditions
+- `:wrat` or `"WWPR"`: Water volumetric production rate at standard conditions
+- `:grat` or `"WGPR"`: Gas volumetric production rate at standard conditions
+- `:lrat` or `"WLPR"`: Liquid volumetric production rate at standard conditions
+- `:wcut` or `"WWCT"`: Water cut (ratio of water to total liquid production)
+- `:gor` or `"WGOR"`: Gas-oil ratio (ratio of gas to oil production)
+- `:wgr` or `"WWGR"`: Water-gas ratio (ratio of water to gas production)
+- `:glr` or `"WGLR"`: Gas-liquid ratio (ratio of gas to liquid production)
+- `:cumulative_oil` or `"WOPT"`: Cumulative oil production at standard conditions (requires global objective)
+- `:cumulative_gas` or `"WGPT"`: Cumulative gas production at standard conditions (requires global objective)
+- `:cumulative_water` or `"WWPT"`: Cumulative water production at standard conditions (requires global objective)
+- `:cumulative_liquid` or `"WLPT"`: Cumulative liquid production at standard conditions (requires global objective)
+"""
 function match_producers!(hm::HistoryMatch, quantity::Union{String, Symbol}, wells = get_producers(hm); kwarg...)
     if wells isa Symbol || wells isa String
         wells = [wells]
