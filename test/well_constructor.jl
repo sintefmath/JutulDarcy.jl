@@ -29,3 +29,28 @@ using JutulDarcy, Jutul, Test
     @test prm[:Injector][:PerforationGravityDifference][1] ≈ 71.0982 atol = 0.001
     @test prm[:Injector][:WellIndices][1] ≈ 1.18321e-12 rtol = 1e-3
 end
+
+@testset "Well convenience forces" begin
+    i1 = setup_injector_control(1.0, :rate, [0.0, 1.0], density = 100.0)
+    @test i1 isa InjectorControl
+    @test i1.target isa TotalRateTarget
+    @test i1.target.value == 1.0
+    @test i1.mixture_density == 100.0
+    @test i1.injection_mixture == [0.0, 1.0]
+
+    i1 = setup_injector_control(1.0, "rate", [0.0, 1.0], density = 100.0)
+    @test i1 isa InjectorControl
+    @test i1.target isa TotalRateTarget
+    @test i1.target.value == 1.0
+    @test i1.mixture_density == 100.0
+
+    p = setup_producer_control(100.0, :bhp)
+    @test p isa ProducerControl
+    @test p.target isa BottomHolePressureTarget
+    @test p.target.value == 100.0
+
+    p = setup_producer_control(100.0, "wbhp")
+    @test p isa ProducerControl
+    @test p.target isa BottomHolePressureTarget
+    @test p.target.value == 100.0
+end

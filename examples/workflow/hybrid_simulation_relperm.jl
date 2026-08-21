@@ -22,7 +22,7 @@
 using JutulDarcy, Jutul, Lux, ADTypes, Zygote, Optimisers, Random, Statistics, GLMakie
 
 # ## Set up the simulation case
-# We set up a reference simulation case following the [Your first JutulDarcy.jl simulation](https://sintefmath.github.io/JutulDarcy.jl/dev/man/first_ex) example:
+# We set up a reference simulation case following the [Your first JutulDarcy.jl simulation](@ref) example:
 # - Create a simple Cartesian Mesh
 # - Convert it to a reservoir domain with permeability and porosity
 # - Set up two wells: a vertical injector and a single-perforation producer

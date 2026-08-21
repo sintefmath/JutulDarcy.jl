@@ -81,9 +81,9 @@ Add a well match to the history match object `hm_obj` for the well with name
 - `is_injector`: Set to `true` if the well is an injector, `false` if it is a
   producer. Mandatory. Use [`match_injectors!`](@ref) or
   [`match_producers!`](@ref) for convenience.
-- `data`: Optionally provide observation data as a vector or function. If
-  missing, data is taken from the case summary embedded in the history matching
-  object.
+- `data`: Optionally provide observation data as a vector with values per report
+  step or a function (`t -> value_at_t`). If missing, data is taken from the
+  case summary embedded in the history matching object.
 - `scale`: Optionally provide a scaling factor for the well match. If missing, a
   default scale is used based on the quantity and phase to make the value
   roughly dimensionless.
@@ -228,16 +228,16 @@ function match_well!(hm::HistoryMatch, name::Union{String, Symbol}, quantity::Un
             dscale = ltotal_scale
         elseif quantity == "WWCT"
             dest = hm.producer_water_cut
-            dscale = 1.0
+            dscale = t_scale
         elseif quantity == "WGOR"
             dest = hm.producer_gas_oil_ratio
-            dscale = 1e-6
+            dscale = t_scale*1e-6
         elseif quantity == "WWGR"
             dest = hm.producer_water_gas_ratio
-            dscale = 1.0
+            dscale = t_scale
         elseif quantity == "WGLR"
             dest = hm.producer_gas_liquid_ratio
-            dscale = 1e-6
+            dscale = t_scale*1e-6
         else
             error("Unsupported quantity '$quantity' for producer well match.")
         end

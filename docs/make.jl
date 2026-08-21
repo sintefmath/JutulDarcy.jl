@@ -367,8 +367,8 @@ function build_jutul_darcy_docs(
                     "man/basics/solution.md",
                 ],
                 "Detailed API" => [
-                    "man/basics/forces.md",
                     "man/basics/wells.md",
+                    "man/basics/adjoints.md",
                     "man/basics/primary.md",
                     "man/basics/secondary.md",
                     "man/basics/parameters.md",

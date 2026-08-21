@@ -47,6 +47,33 @@ setup_well
 setup_vertical_well
 ```
 
+#### Setting up well controls
+
+```@docs
+setup_injector_control
+setup_producer_control
+```
+
+### Defining forces
+
+```@docs
+setup_reservoir_forces
+```
+
+#### Source terms
+
+```@docs
+SourceTerm
+JutulDarcy.FlowSourceType
+```
+
+#### Boundary conditions
+
+```@docs
+FlowBoundaryCondition
+flow_boundary_condition
+```
+
 ### Model
 
 A single, option-heavy function is used to set up the reservoir model and default parameters:
