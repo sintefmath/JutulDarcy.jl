@@ -168,18 +168,20 @@ function get_period_contribution_well(logger::HistoryMatchLogger, wm::WellMatch,
     else
         calculated = 0.0
         observed = 0.0
+        time_sum = 0.0
         for step_index in start_idx:stop_idx
             step_info = step_infos[step_index]
             state = states[step_index]
             force = forces[step_index]
             fstate = state[:Facility]
             ctrl = force[:Facility].control[wname]
+            time_sum += step_info[:dt]
             val, obs, w_for_step = mismatch_for_step(fmodel, fstate, ctrl, sgn, wm::WellMatch, target::JutulDarcy.WellTarget, step_info, weights)
             calculated += val
             observed += obs
             w_total += w_for_step
         end
-        out = ((calculated - observed)/w_total)^2
+        out = time_sum*w_total*(abs(calculated - observed)^wm.exponent)
     end
     if !ismissing(logger.data)
         start = step_infos[1][:substep_global]
