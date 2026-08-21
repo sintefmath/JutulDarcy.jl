@@ -354,8 +354,9 @@ function build_jutul_darcy_docs(
         "Manual" => [
                 "Introduction" => [
                     "JutulDarcy.jl" => "index.md",
-                    "Getting started" =>"man/intro.md",
-                    "Your first JutulDarcy.jl simulation" => "man/first_ex.md",
+                    "man/intro.md",
+                    "man/first_ex.md",
+                    "man/python.md",
                     "FAQ" => "extras/faq.md",
                 ],
                 "Fundamentals" => [

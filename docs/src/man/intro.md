@@ -1,6 +1,10 @@
-# Getting started
+# Installation and setup
 
 ## Installing JutulDarcy
+
+JutulDarcy is written in Julia. There is also a [Python interface](@ref) which has separate installation instructions.
+
+### Prerequisites
 
 To get started with JutulDarcy, you must install [the Julia programming language](https://julialang.org/). We recommend the latest stable release, but at least version 1.9 is required. Julia uses environments to manage packages. If you are not familiar with this concept, we recommend the [Pkg documentation](https://pkgdocs.julialang.org/v1/environments/).
 
@@ -53,10 +57,4 @@ If you want the plotting used in the examples, you need this:
 Pkg.add("GLMakie") # 3D and interactive visualization
 ```
 
-Some examples and functionalites also make use of additional packages:
-
-```julia
-Pkg.add("Optim") # Optimization library
-Pkg.add("HYPRE") # Better linear solver
-Pkg.add("GeoEnergyIO") # Parsing input files
-```
+Some examples and functionalites also make use of additional, listed at the top of each script.

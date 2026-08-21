@@ -9,7 +9,7 @@ Here are a few common questions and possible answers. You may also want to have 
 1. DATA files (used by Eclipse, OPM Flow, tNavigator, Echelon and others) provided that the grid is given either as a corner-point GRDECL file or in TOPS format. As with most reservoir simulators, not all features of the original format are supported, but the code will let you know when unsupported features are encountered.
 1. AFI-files (used by Intersect), provided that the definition of the grid and grid quantities is either given inline or embedded as RESQML. This format is more experimental than DATA files as less samples are publicly available.
 1. Cases written out from [MRST](https://www.mrst.no/) through the `jutul` module.
-1. Cases written entirely in Julia using the basic `Jutul` and `JutulDarcy` data structures, as seen in the examples of the module.
+1. Cases written entirely in Julia using the basic `Jutul` and `JutulDarcy` data structures, as seen in the examples of the module, with options to use other packages for e.g. mesh generation or data import.
 
 ### What output formats does JutulDarcy.jl have?
 

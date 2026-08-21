@@ -54,7 +54,7 @@ A few highlights:
 
 ## Quick start guide
 
-[Getting started](@ref) is the main setup guide that includes the basics of installing Julia and creating a Julia environment for `JutulDarcy.jl`, written for users who may not already be familiar with Julia package management.
+[Installation and setup](@ref) is the main setup guide that includes the basics of installing Julia and creating a Julia environment for `JutulDarcy.jl`, written for users who may not already be familiar with Julia package management.
 
 ### Installation
 
