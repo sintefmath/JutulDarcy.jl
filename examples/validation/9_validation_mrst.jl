@@ -1,4 +1,4 @@
-# # Comparison between JutulDarcy.jl and MRST
+# # 9. MRST Comparisons
 # <tags: Blackoil, Immiscible, Validation>
 # This example contains validation of JutulDarcy.jl against
 # [MRST](https://www.mrst.no). In general, minor differences are observed. These

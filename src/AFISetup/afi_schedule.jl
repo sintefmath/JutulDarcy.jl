@@ -460,7 +460,7 @@ function setup_history_control(hist_ctrl, wname, wtype, wsetup, observation_data
         println("$wname ($wtype): Under HistoryDataControl, no constraint in Well.HistoricalControlModes. Setting to $hmode.")
     elseif hist_ctrl isa AbstractVector
         if length(hist_ctrl) > 1
-            println("Multiple HistoricalControlModes for well $wname at $date: $hist_ctrl, taking the first")
+            println("Multiple HistoricalControlModes for well $wname at $t_since_start s: $hist_ctrl, taking the first")
         end
         hmode = hist_ctrl[1]
     else

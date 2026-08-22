@@ -489,8 +489,6 @@ struct TotalRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
 end
 Base.show(io::IO, t::TotalRateTarget) = print(io, "TotalRateTarget with value $(t.value) [m^3/s]")
 
-
-
 """
     TotalMassRateTarget(q)
 
@@ -552,7 +550,6 @@ struct HistoricalReservoirVoidageTarget{T} <: WellTarget where {T<:AbstractFloat
     end
 end
 
-
 function HistoricalReservoirVoidageTarget(v, w)
     water, oil, gas = w
     return HistoricalReservoirVoidageTarget(
@@ -595,6 +592,22 @@ mutable struct ReinjectionTarget <: WellTarget
         end
         return new(NaN, wells, fraction)
     end
+end
+
+struct WaterCutTarget{T} <: WellTarget where {T<:AbstractFloat}
+    value::T
+end
+
+struct GasOilRatioTarget{T} <: WellTarget where {T<:AbstractFloat}
+    value::T
+end
+
+struct WaterGasRatioTarget{T} <: WellTarget where {T<:AbstractFloat}
+    value::T
+end
+
+struct GasLiquidRatioTarget{T} <: WellTarget where {T<:AbstractFloat}
+    value::T
 end
 
 """
@@ -1199,6 +1212,49 @@ function well_target_information(t::Union{ReinjectionTarget, Val{:reinjection}})
     )
 end
 
+function well_target_information(t::Union{WaterCutTarget, Val{:wwct}})
+    return well_target_information(
+        symbol = :wwct,
+        description = "Surface water cut",
+        explanation = "Water volumetric rate at surface conditions divided by the total liquid volumetric rate at surface conditions.",
+        unit_type = :id,
+        unit_label = "-",
+        type = WaterCutTarget
+    )
+end
+
+function well_target_information(t::Union{GasOilRatioTarget, Val{:gor}})
+    return well_target_information(
+        symbol = :gor,
+        description = "Surface gas-oil ratio",
+        explanation = "Gas-oil ratio of production stream at surface conditions.",
+        unit_type = :u_rs,
+        unit_label = "m³/m³",
+        type = GasOilRatioTarget
+    )
+end
+
+function well_target_information(t::Union{WaterGasRatioTarget, Val{:wgr}})
+    return well_target_information(
+        symbol = :wgr,
+        description = "Surface water-gas ratio",
+        explanation = "Water-gas ratio of production stream at surface conditions.",
+        unit_type = :u_rv,
+        unit_label = "m³/m³",
+        type = WaterGasRatioTarget
+    )
+end
+
+function well_target_information(t::Union{GasLiquidRatioTarget, Val{:glr}})
+    return well_target_information(
+        symbol = :glr,
+        description = "Surface gas-liquid ratio",
+        explanation = "Gas-liquid ratio of production stream at surface conditions.",
+        unit_type = :u_rv,
+        unit_label = "m³/m³",
+        type = GasLiquidRatioTarget
+    )
+end
 
 function realize_control_for_reservoir(state, ctrl, model, dt)
     return (ctrl, false)

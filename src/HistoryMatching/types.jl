@@ -1,3 +1,5 @@
+import Base: show
+
 const I_type = Jutul.LinearInterpolant{Vector{Float64}, Vector{Float64}, Missing}
 
 struct MatchPeriod
@@ -58,6 +60,10 @@ struct HistoryMatch
     producer_cumulative_gas::Vector{WellMatch}
     producer_cumulative_water::Vector{WellMatch}
     producer_cumulative_liquid::Vector{WellMatch}
+    producer_water_cut::Vector{WellMatch}
+    producer_gas_oil_ratio::Vector{WellMatch}
+    producer_water_gas_ratio::Vector{WellMatch}
+    producer_gas_liquid_ratio::Vector{WellMatch}
     reservoir::Vector{ReservoirMatch}
     total_scale::Float64
     logger::HistoryMatchLogger
@@ -67,8 +73,11 @@ function HistoryMatch(case::JutulCase; kwarg...)
     return HistoryMatch(case, missing, missing; kwarg...)
 end
 
-function HistoryMatch(case::JutulCase, res::JutulDarcy.ReservoirSimResult, smry = missing; kwarg...)
-    if ismissing(smry)
+function HistoryMatch(case::JutulCase, res::JutulDarcy.ReservoirSimResult, smry = res.summary;
+        recompute_summary = ismissing(smry) || length(keys(smry)) == 0,
+        kwarg...
+    )
+    if recompute_summary
         smry = JutulDarcy.summary_result(case, res, :si, field = false, wells = true)
     end
     states = res.states
@@ -81,6 +90,14 @@ function HistoryMatch(case::JutulCase, states, summary;
         normalized_periods = missing,
         scale = sum(case.dt)
     )
+    if !ismissing(summary)
+        usys = get(summary, "UNIT_SYSTEM", missing)
+        if ismissing(usys)
+            @warn "Unit system not found in summary object. Assuming SI units."
+        elseif lowercase(usys) != "si"
+            @warn "Unit system in summary object is not SI, was $(usys). Unit system will not be converted."
+        end
+    end
     periods = setup_periods(case, periods, period_weights, normalized_periods)
     case.model::MultiModel
     wellpos = Dict{Symbol, Int}()
@@ -108,6 +125,10 @@ function HistoryMatch(case::JutulCase, states, summary;
         WellMatch[],  # producer_cumulative_gas
         WellMatch[],  # producer_cumulative_water
         WellMatch[],  # producer_cumulative_liquid
+        WellMatch[],  # producer_water_cut
+        WellMatch[],  # producer_gas_oil_ratio
+        WellMatch[],  # producer_water_gas_ratio
+        WellMatch[],  # producer_gas_liquid_ratio
         ReservoirMatch[],  # reservoir
         scale,
         HistoryMatchLogger()

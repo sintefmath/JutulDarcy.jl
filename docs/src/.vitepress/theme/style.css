@@ -210,3 +210,13 @@ mjx-container > svg {
     user-select: none;
     margin: 0 0 8px;
 }
+
+:root {
+  --vp-sidebar-width: 320px; /* Set your desired sidebar width here */
+}
+
+@media (min-width: 960px) {
+  .VPContent.has-sidebar {
+    padding-left: var(--vp-sidebar-width) !important;
+  }
+}

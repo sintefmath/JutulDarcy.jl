@@ -234,7 +234,7 @@ function to_processed_pvt_table(dtab, main_key, key_order)
             end
         end
         if is_first
-            error("No entries found for table index $i")
+            error("No entries found for table index $subtab_no")
         end
         push!(out, next)
     end

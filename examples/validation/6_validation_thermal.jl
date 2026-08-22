@@ -1,10 +1,11 @@
-# # Aquifer thermal energy storage (ATES) validation
+# # 6. ATES (thermal)
 # <tags: Geothermal, Validation, InputFile>
 # This example validates JutulDarcy's thermal solver against results from a
-# commercial simulator. The test case is a simple ATES model with a single pair
-# of wells (hot / cold) where the cold well is used for pressure support with a
-# mirrored injection rate. Towards the later part of the schedule, the cold well
-# reinjects water that is a higher temperature than the background.
+# commercial simulator. The test case is a simple aquifer thermal energy storage
+# (ATES) model with a single pair of wells (hot / cold) where the cold well is
+# used for pressure support with a mirrored injection rate. Towards the later
+# part of the schedule, the cold well reinjects water that is a higher
+# temperature than the background.
 #
 # This case is completely specified in the `ATES_TEST.DATA` file which was
 # provided by TNO. The model is a structured mesh with 472 500 active cells.

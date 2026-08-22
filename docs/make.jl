@@ -83,7 +83,7 @@ function example_tags(pth)
     return tags
 end
 
-example_tags(example_path_jl("validation", "validation_spe1"))
+example_tags(example_path_jl("validation", "1_validation_spe1"))
 
 # exlist = get_example_paths(check_empty = false)
 
@@ -354,8 +354,9 @@ function build_jutul_darcy_docs(
         "Manual" => [
                 "Introduction" => [
                     "JutulDarcy.jl" => "index.md",
-                    "Getting started" =>"man/intro.md",
-                    "Your first JutulDarcy.jl simulation" => "man/first_ex.md",
+                    "man/intro.md",
+                    "man/first_ex.md",
+                    "man/python.md",
                     "FAQ" => "extras/faq.md",
                 ],
                 "Fundamentals" => [
@@ -366,8 +367,8 @@ function build_jutul_darcy_docs(
                     "man/basics/solution.md",
                 ],
                 "Detailed API" => [
-                    "man/basics/forces.md",
                     "man/basics/wells.md",
+                    "man/basics/adjoints.md",
                     "man/basics/primary.md",
                     "man/basics/secondary.md",
                     "man/basics/parameters.md",
@@ -389,7 +390,7 @@ function build_jutul_darcy_docs(
         "Examples" => examples_markdown,
         "Validation" => [
             "man/validation.md",
-            "Models" => validation_markdown,
+            "Models" => sort(validation_markdown),
         ]
     ]
     # for (k, subpages) in build_pages

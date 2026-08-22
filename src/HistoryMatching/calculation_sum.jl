@@ -12,9 +12,12 @@ end
 
 function get_step_mismatch_contributions(hm, fmodel, fstate, ctrls, step_info)
     val = 0.0
-    eval_match(x, sgn, target) = weighted_mismatch_for_step(hm.logger, x, fmodel, fstate, ctrls, sgn, Val(target), step_info)
+    function eval_match(x, sgn, target)
+        return weighted_mismatch_for_step(hm.logger, x, fmodel, fstate, ctrls, sgn, Val(target), step_info)
+    end
     inj_sgn = 1.0
     prod_sgn = -1.0
+    no_sgn = 1.0
     val = 0.0
     # Injectors
     bhp_inj = eval_match(hm.injector_bhp, 1.0, BottomHolePressureTarget(1.0))
@@ -30,13 +33,23 @@ function get_step_mismatch_contributions(hm, fmodel, fstate, ctrls, step_info)
     lrat_prod = eval_match(hm.producer_lrat, prod_sgn, SurfaceLiquidRateTarget(-1.0))
     wrat_prod = eval_match(hm.producer_wrat, prod_sgn, SurfaceWaterRateTarget(-1.0))
 
+    wcut_prod = eval_match(hm.producer_water_cut, no_sgn, JutulDarcy.WaterCutTarget(-1.0))
+    gor_prod = eval_match(hm.producer_gas_oil_ratio, no_sgn, JutulDarcy.GasOilRatioTarget(-1.0))
+    wgr_prod = eval_match(hm.producer_water_gas_ratio, no_sgn, JutulDarcy.WaterGasRatioTarget(-1.0))
+    glr_prod = eval_match(hm.producer_gas_liquid_ratio, no_sgn, JutulDarcy.GasLiquidRatioTarget(-1.0))
+
+    pressures = bhp_inj + bhp_prod
+    inj_rates = rate_inj + orat_inj + wrat_inj + grat_inj
+    prod_rates = rate_prod + grat_prod + orat_prod + lrat_prod + wrat_prod
+    fractions = wcut_prod + gor_prod + wgr_prod + glr_prod
+
     if false
         println("Well match contributions: ")
         println(" BHP inj: $bhp_inj, rate inj: $rate_inj, orat inj: $orat_inj, wrat inj: $wrat_inj, grat inj: $grat_inj | ")
         println(" BHP prod: $bhp_prod, rate prod: $rate_prod, grat prod: $grat_prod, orat prod: $orat_prod, lrat prod: $lrat_prod, wrat prod: $wrat_prod ")
+        println(" wcut prod: $wcut_prod, gor prod: $gor_prod, wgr prod: $wgr_prod, glr prod: $glr_prod ")
     end
-    val = bhp_inj + rate_inj + orat_inj + wrat_inj + grat_inj +
-        bhp_prod + rate_prod + grat_prod + orat_prod + lrat_prod + wrat_prod
+    val = pressures + inj_rates + prod_rates + fractions
     return val
 
 end

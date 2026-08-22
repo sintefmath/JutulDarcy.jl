@@ -48,17 +48,6 @@ JutulDarcy.well_symbols
 coarsen_reservoir_case
 ```
 
-## Adjoints and gradients
-
-```@docs
-optimize_reservoir
-JutulDarcy.reservoir_sensitivities
-JutulDarcy.well_mismatch
-Jutul.LBFGS.unit_box_bfgs
-JutulDarcy.setup_reservoir_dict_optimization
-JutulDarcy.HistoryMatching.history_match_objective
-```
-
 ## Well outputs
 
 ```@docs

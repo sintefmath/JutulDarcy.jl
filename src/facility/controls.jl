@@ -232,11 +232,6 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
         # phase_rates[ph, idx] = replace_value(phase_rates[ph, idx], sgn*val)
     end
 
-
-    do_print = cond.name == :PRODU21 && false
-    if do_print
-        @info "Setting values for $new_target_symbol $(limits[new_target_symbol])" wval oval gval value(bhps[idx]) limits
-    end
     if has_water
         set_phase_rate!(w_idx, max(wval - ev, 0))
     end
@@ -250,12 +245,6 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     rhos = reference_densities(sys)
     for ph in 1:number_of_phases(sys)
         new_mass_rate += rhos[ph]*value(phase_rates[ph, idx])
-    end
-    qt0 = value(q_t[idx])
-    # q_t[idx] = replace_value(q_t[idx], new_mass_rate)
-    if do_print
-        @info "???" new_mass_rate qt0
-        @info "??" value(phase_rates[:, idx]) value(bhps[idx]) cond
     end
     return state
 end
@@ -495,6 +484,31 @@ end
 
 function well_target_value(ctrl, target::TotalMassRateTarget, cond, well, model, state)
     return cond.total_mass_rate
+end
+
+function well_target_value(ctrl, target::WaterCutTarget, cond, well, model, state)
+    qw = abs(cond.surface_aqueous_rate)
+    ql = abs(cond.surface_liquid_rate)
+    return qw/max(ql + qw, 1e-12)
+end
+
+function well_target_value(ctrl, target::GasOilRatioTarget, cond, well, model, state)
+    qg = abs(cond.surface_vapor_rate)
+    qo = abs(cond.surface_liquid_rate)
+    return qg/max(qo, 1e-12)
+end
+
+function well_target_value(ctrl, target::WaterGasRatioTarget, cond, well, model, state)
+    qw = abs(cond.surface_aqueous_rate)
+    qg = abs(cond.surface_vapor_rate)
+    return qw/max(qg, 1e-12)
+end
+
+function well_target_value(ctrl, target::GasLiquidRatioTarget, cond, well, model, state)
+    qg = abs(cond.surface_vapor_rate)
+    ql = abs(cond.surface_liquid_rate)
+    qw = abs(cond.surface_aqueous_rate)
+    return qg/max(ql + qw, 1e-12)
 end
 
 function well_target_value(ctrl, target::ReinjectionTarget, cond, well, model, state)
