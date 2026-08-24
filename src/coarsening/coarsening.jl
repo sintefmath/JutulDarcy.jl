@@ -406,6 +406,48 @@ function coarsen_reservoir_force(::Val{:limits}, f, coarse_model, fine_model, su
     return deepcopy(f)
 end
 
+function coarsen_reservoir_force(::Val{:bc}, f::AbstractVector{<:FlowBoundaryCondition}, coarse_model, fine_model, submodel_key)
+    if isempty(f)
+        return deepcopy(f)
+    end
+
+    coarse_reservoir = reservoir_domain(coarse_model)
+    fine_reservoir = reservoir_domain(fine_model)
+    partition = physical_representation(coarse_reservoir).partition
+
+    grouped = OrderedDict{Int, Vector{FlowBoundaryCondition}}()
+    for bc in f
+        fine_cell = Jutul.full_cell(bc.cell, global_map(fine_model))
+        coarse_cell = partition[fine_cell]
+        push!(get!(grouped, coarse_cell, FlowBoundaryCondition[]), bc)
+    end
+
+    coarse_bc = FlowBoundaryCondition[]
+    for (coarse_cell, bcs) in grouped
+        first_bc = first(bcs)
+        pressure = mean(getfield.(bcs, :pressure))
+        temperature = mean(getfield.(bcs, :temperature))
+        trans_flow = sum(getfield.(bcs, :trans_flow))
+        trans_thermal = sum(getfield.(bcs, :trans_thermal))
+        fractional_flow = first_bc.fractional_flow
+        density = first_bc.density
+        enthalpy = first_bc.enthalpy
+
+        push!(coarse_bc, FlowBoundaryCondition(
+            coarse_cell,
+            pressure,
+            temperature;
+            trans_flow = trans_flow,
+            trans_thermal = trans_thermal,
+            fractional_flow = fractional_flow,
+            density = density,
+            enthalpy = enthalpy,
+        ))
+    end
+
+    return coarse_bc
+end
+
 function coarsen_reservoir_force(::Val{:mask}, f::PerforationMask, coarse_model, fine_model, submodel_key)
     res = reservoir_domain(coarse_model)
     p = physical_representation(res).partition
