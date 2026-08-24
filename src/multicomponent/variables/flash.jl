@@ -31,12 +31,7 @@ struct FlashResults{F_t, S_t, B_t} <: ScalarVariable
         nc = MultiComponentFlash.number_of_components(eos)
         storage = []
         buffers = []
-        if threads
-            N = Threads.nthreads()
-        else
-            N = 1
-        end
-        for i = 1:N
+        for _ = 1:Threads.maxthreadid()
             s = flash_storage(eos,
                 method = method,
                 inc_jac = true,
@@ -118,6 +113,13 @@ function flash_entity_loop!(flash_results, fr, model, eos, Pressure, Temperature
     buf_z = buf.z
     buf_forces = buf.forces
     flash_entity_loop_impl!(flash_results, ix, S, fr, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, sw)
+end
+
+function flash_entity_loop!(flash_results, fr, model, eos::KValuesEOS, Pressure, Temperature, OverallMoleFractions, sw, ix)
+    storage, m, buffers = fr.storage, fr.method, fr.update_buffer
+    S, buf = thread_buffers(storage, buffers)
+    z_buf = buf.z
+    kvalue_loop!(flash_results, ix, Pressure, Temperature, OverallMoleFractions, eos, z_buf)
 end
 
 function flash_entity_loop_impl!(flash_results, ix, S, fr, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, sw)
@@ -463,12 +465,6 @@ two_phase_pre!(S, P, T, Z, x, y, V, eos, c) = V
     return (convert(AD, Z_L), convert(AD, Z_V), convert(AD, V), phase_state)
 end
 
-function flash_entity_loop!(flash_results, fr, model, eos::KValuesEOS, Pressure, Temperature, OverallMoleFractions, sw, ix)
-    storage, m, buffers = fr.storage, fr.method, fr.update_buffer
-    S, buf = thread_buffers(storage, buffers)
-    z_buf = buf.z
-    kvalue_loop!(flash_results, ix, Pressure, Temperature, OverallMoleFractions, eos, z_buf)
-end
 
 function kvalue_loop!(flash_results, ix, Pressure, Temperature, OverallMoleFractions, eos, z_buf)
     @inbounds for i in ix
