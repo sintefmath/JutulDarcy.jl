@@ -115,6 +115,7 @@ function flash_entity_loop!(flash_results, fr, model, eos, Pressure, Temperature
     flash_entity_loop_impl!(flash_results, ix, S, fr, m, eos, buf_z, buf_forces, Pressure, Temperature, OverallMoleFractions, sw)
 end
 
+function flash_entity_loop!(flash_results, fr, model, eos::KValuesEOS, Pressure, Temperature, OverallMoleFractions, sw, ix)
     storage, m, buffers = fr.storage, fr.method, fr.update_buffer
     S, buf = thread_buffers(storage, buffers)
     z_buf = buf.z
