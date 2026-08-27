@@ -53,7 +53,7 @@ module JutulDarcyPartitionedArraysExt
         sim.storage[:global_mpi_partition] = p_num
         sim.storage[:global_mpi_partition_source] = ismissing(precomputed_partition) ? :auto : :precomputed
         if !ismissing(nldd_partition)
-            if nldd_partition isa Jutul.OverlapPartition
+            if nldd_partition isa Jutul.GenericPartition
                 sim.storage[:global_nldd_partition] = copy(Jutul.subdomain_partition(nldd_partition))
                 sim.storage[:global_nldd_partition_source] = :provided_overlap
             elseif nldd_partition isa AbstractVector

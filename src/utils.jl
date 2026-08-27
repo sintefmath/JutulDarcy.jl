@@ -1239,7 +1239,7 @@ function setup_reservoir_simulator(case::JutulCase;
             else
                 # If overlap > 0 and the partition is a plain Vector{Int}, expand it
                 # globally now (before MPI splitting) so that _extract_local_nldd_partition
-                # sees a fully-expanded OverlapPartition on every rank.
+                # sees a fully-expanded GenericPartition on every rank.
                 overlap_val = get(nldd_arg, :overlap, 0)
                 if nldd_partition isa Vector{Int} && overlap_val > 0
                     rmodel = JutulDarcy.reservoir_model(case.model)
@@ -1247,7 +1247,7 @@ function setup_reservoir_simulator(case::JutulCase;
                     N = get_neighborship(mesh)
                     nc = number_of_cells(mesh)
                     nldd_partition = NLDD.expand_partition_overlap(nldd_partition, N, overlap_val)
-                    nldd_partition = Jutul.OverlapPartition(nldd_partition, nc)
+                    nldd_partition = Jutul.GenericPartition(nldd_partition, nc)
                 end
                 captured_nldd = nldd_partition
                 make_sim = (m; executor = Jutul.default_executor(), kwarg...) -> begin
@@ -2093,7 +2093,7 @@ function reservoir_partition(model::MultiModel, p)
     return SimpleMultiModelPartition(part, :Reservoir)
 end
 
-function reservoir_partition(model::MultiModel, op::Jutul.OverlapPartition)
+function reservoir_partition(model::MultiModel, op::Jutul.GenericPartition)
     !haskey(model.models, :Facility) || throw(ArgumentError("Cannot partition model if split_wells = false in setup_reservoir_model"))
     models = model.models
     function model_is_well(m)

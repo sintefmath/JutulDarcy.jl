@@ -11,7 +11,7 @@ Expand each block of the dense partition vector `p` (length = nc, values 1:nb,
 by the neighborship matrix `N` (2×nf, `get_neighborship(mesh)`).
 
 Returns a `Vector{Vector{Int}}` of length `nb` suitable for constructing an
-`OverlapPartition`.  Cells with `p[c] == 0` are never used as seeds but may be
+`GenericPartition`.  Cells with `p[c] == 0` are never used as seeds but may be
 pulled in as neighbors.
 """
 function expand_partition_overlap(p::Vector{Int}, N::AbstractMatrix{Int}, overlap::Int)
@@ -97,7 +97,7 @@ function _extract_local_nldd_partition(global_nldd::Vector, global_cell_indices:
 end
 
 """
-    validate_nldd_mpi_partition(p_mpi::Vector, op::OverlapPartition)
+    validate_nldd_mpi_partition(p_mpi::Vector, op::GenericPartition)
 
 Validate an overlap/partial-coverage NLDD partition against an MPI decomposition.
 
@@ -105,7 +105,7 @@ Each NLDD subset must be fully contained within a single MPI domain.  Subsets
 that are empty, overlap with other subsets, or do not cover all cells are all
 permitted.
 """
-function validate_nldd_mpi_partition(p_mpi::Vector, op::Jutul.OverlapPartition)
+function validate_nldd_mpi_partition(p_mpi::Vector, op::Jutul.GenericPartition)
     for (j, subset) in enumerate(op.subsets)
         isempty(subset) && continue
         mpi_domains = unique(p_mpi[subset])
@@ -120,7 +120,7 @@ function validate_nldd_mpi_partition(p_mpi::Vector, op::Jutul.OverlapPartition)
 end
 
 """
-    _extract_local_nldd_partition(op::OverlapPartition, global_cell_indices, n_self)
+    _extract_local_nldd_partition(op::Jutul.GenericPartition, global_cell_indices, n_self)
 
 Extract and renumber an overlap NLDD partition for a single rank's local cells.
 
@@ -129,9 +129,9 @@ Only subdomains that contain at least one owned cell (first `n_self` entries of
 remapped from global to local (1-based into `global_cell_indices`).  Cells in
 a subset that are not visible to this rank are silently dropped.
 
-Returns a new `OverlapPartition` in local index space.
+Returns a new `GenericPartition` in local index space.
 """
-function _extract_local_nldd_partition(op::Jutul.OverlapPartition, global_cell_indices::Vector, n_self::Int = length(global_cell_indices))
+function _extract_local_nldd_partition(op::Jutul.GenericPartition, global_cell_indices::Vector, n_self::Int = length(global_cell_indices))
     owned_cells = Set(global_cell_indices[1:n_self])
     global_to_local = Dict{Int, Int}(c => i for (i, c) in enumerate(global_cell_indices))
     nc_local = length(global_cell_indices)
@@ -147,7 +147,7 @@ function _extract_local_nldd_partition(op::Jutul.OverlapPartition, global_cell_i
         end
         isempty(local_subset) || push!(local_subsets, local_subset)
     end
-    return Jutul.OverlapPartition(local_subsets, nc_local)
+    return Jutul.GenericPartition(local_subsets, nc_local)
 end
 
 function simulator_config(sim::NLDDSimulator;

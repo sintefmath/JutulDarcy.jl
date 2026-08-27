@@ -39,7 +39,7 @@ function NLDDSimulator(case::JutulCase, partition = missing;
         jutul_message("Partition", "Generating $N coarse blocks using $partitioner_type.")
         p = JutulDarcy.partition_reservoir(case, N, partitioner_type; partitioner_arg..., wells_in_single_block = true)
         partition = reservoir_partition(model, p);
-    elseif partition isa Vector{Int} || partition isa Jutul.OverlapPartition
+    elseif partition isa Vector{Int} || partition isa Jutul.GenericPartition
         # Convert raw partition representation to full multi-model partition.
         if partition isa Vector{Int} && overlap > 0
             rmodel = JutulDarcy.reservoir_model(model)
@@ -47,7 +47,7 @@ function NLDDSimulator(case::JutulCase, partition = missing;
             N = get_neighborship(mesh)
             nc = number_of_cells(mesh)
             subsets = expand_partition_overlap(partition, N, overlap)
-            partition = Jutul.OverlapPartition(subsets, nc)
+            partition = Jutul.GenericPartition(subsets, nc)
         end
         partition = reservoir_partition(model, partition)
     end
