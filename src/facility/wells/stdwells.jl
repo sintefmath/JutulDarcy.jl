@@ -139,74 +139,72 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
     bhp = value(well_state.Pressure[1])
     # Integrate up, adding weighted density into well bore and keeping track of
     # current weight. Initialize by a simple average first.
-    current_weight = 0.0
-    current_density = 0.0
-    mob_t = 0.0
+    mobility_density_sum = 0.0
+    mobility_sum = 0.0
     for i in eachindex(dp)
         rc = res_cells[i]
-        current_density = 0.0
+        mobility_density_sum = 0.0
+        WI_i = WI[i]
+        if !isnothing(mask)
+            wi *= mask.values[i]
+        end
         for ph in axes(ρ, 1)
-            current_density += ρ[ph, rc]*mob[ph, rc]
+            mob_ph = WI_i*mob[ph, rc]
+            mobility_sum += mob_ph
+            mobility_density_sum += ρ[ph, rc]*mob_ph
         end
+        if i == 1
+            dz = gdz[i]
+            dp_prev = 0.0
+        else
+            dz = gdz[i] - gdz[i-1]
+            dp_prev = dp[i-1]
+        end
+        est_density = mobility_density_sum/max(mobility_sum, 1e-3)
+        dp[i] = dp_prev + dz*est_density
     end
-    density_average = current_density/max(mob_t, 1e-3)
+    current_density = current_weight = 0.0
+    for i in reverse(eachindex(dp))
+        rc = res_cells[i]
+        wi = WI[i]
+        if !isnothing(mask)
+            wi *= mask.values[i]
+        end
+        pot = abs(bhp + dp[i] - p[rc])
+        q_perf = wi*pot
+        # Mixture density along well bore
+        local_density = 0
+        local_weight = 0
+        for ph in axes(ρ, 1)
+            λ = mob[ph, rc]
+            weight_ph = q_perf*λ
+            local_weight += weight_ph
+            local_density += weight_ph*ρ[ph, rc]
+        end
+        current_weight += local_weight
+        current_density += local_density
+        if abs(current_weight) > 0.0
+            next_dp = current_density/current_weight
+        else
+            next_dp = 0.0
+        end
+        # NOTE: This is a real hack - should be fixed higher up in the
+        # initialization of the parameter.
+        dp[i] = value(next_dp)
+    end
+    # Integrate down, using the mixture densities (temporarily stored in dp) to
+    # calculate the pressure drop from the top.
+    dp_current = 0.0
+    gdz_current = 0.0
     for i in eachindex(dp)
-        dp[i] = gdz[i]*density_average
-    end
-    prev_last_dp = 0.0
-    converged = false
-    for it in 1:100
-        converged = abs(prev_last_dp - dp[end])/1e5 < 1e-3
-        if converged
-            # println("Converged after $it iterations with last dp = $(dp[end])")
-            break
-        end
-        prev_last_dp = dp[end]
-        for i in reverse(eachindex(dp))
-            rc = res_cells[i]
-            wi = WI[i]
-            if !isnothing(mask)
-                wi *= mask.values[i]
-            end
-            pot = abs(bhp + dp[i] - p[rc])
-            q_perf = wi*pot
-            # Mixture density along well bore
-            local_density = 0
-            local_weight = 0
-            for ph in axes(ρ, 1)
-                λ = mob[ph, rc]
-                weight_ph = q_perf*λ
-                local_weight += weight_ph
-                local_density += weight_ph*ρ[ph, rc]
-            end
-            current_weight += local_weight
-            current_density += local_density
-            if abs(current_weight) > 0.0
-                next_dp = current_density/current_weight
-            else
-                next_dp = 0.0
-            end
-            # NOTE: This is a real hack - should be fixed higher up in the
-            # initialization of the parameter.
-            dp[i] = value(next_dp)
-        end
-        # Integrate down, using the mixture densities (temporarily stored in dp) to
-        # calculate the pressure drop from the top.
-        dp_current = 0.0
-        gdz_current = 0.0
-        for i in eachindex(dp)
-            local_density = dp[i]
-            gdz_next = gdz[i]
-            Δgdz = gdz_next - gdz_current
+        local_density = dp[i]
+        gdz_next = gdz[i]
+        Δgdz = gdz_next - gdz_current
 
-            dp_current += local_density*Δgdz
-            gdz_current = gdz_next
+        dp_current += local_density*Δgdz
+        gdz_current = gdz_next
 
-            dp[i] = value(dp_current)
-        end
-    end
-    if !converged
-        @debug "Failed to converge well pressure drop after 100 iterations for well $(well.name)"
+        dp[i] = value(dp_current)
     end
     return dp
 end
