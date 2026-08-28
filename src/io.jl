@@ -211,3 +211,15 @@ function convert_summary(s; unit_system = get(s, "UNIT_SYSTEM", "METRIC"))
     out["TIME"] = (start_date = get(s, "START_DATE", nothing), seconds = seconds)
     return out
 end
+
+function convert_summary_from_data_file(data::AbstractDict)
+
+    rs = data["RUNSPEC"]
+    start = get(rs, "START", nothing)
+    out["TIME"] = (start_date = start, seconds = rs["YEARS"].*si_unit(:year))
+    out["UNIT_SYSTEM"] = get(rs, "UNIT_SYSTEM", "METRIC")
+end
+
+function expand_summary(summary)
+    # Add missing fields
+end
