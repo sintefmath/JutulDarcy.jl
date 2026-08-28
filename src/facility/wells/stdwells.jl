@@ -120,13 +120,15 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
         # Onto next one
         gdz_current = gdz_next
     end
+    return dp
 end
 
 function update_connection_pressure_drop!(dp, well_state, well_model, res_state, res_model, ctrl, mask)
     # Well is either disabled or producing. Loop over well from the bottom,
     # aggregating mixture density as we go. Then traverse down from the top and
     # accumulate the actual pressure drop due to hydrostatic assumptions.
-    perf = physical_representation(well_model).perforations
+    well = physical_representation(well_model)
+    perf = well.perforations
     res_cells = perf.reservoir
     gdz = well_state.PerforationGravityDifference
     # Explicit update, take value.
@@ -139,18 +141,13 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
     # current weight
     current_weight = 0.0
     current_density = 0.0
-    first_step = all(isequal(zero(eltype(dp))), dp)
     for i in reverse(eachindex(dp))
         rc = res_cells[i]
         wi = WI[i]
         if !isnothing(mask)
             wi *= mask.values[i]
         end
-        if first_step
-            pot = 1.0
-        else
-            pot = abs(bhp + dp[i] - p[rc])
-        end
+        pot = abs(bhp + dp[i] - p[rc])
         q_perf = wi*pot
         # Mixture density along well bore
         local_density = 0

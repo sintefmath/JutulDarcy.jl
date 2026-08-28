@@ -69,7 +69,7 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
     cfg.step_index = current_step
     for wname in model.domain.well_symbols
         wmodel = model_g[wname]
-        wstate = storage_g[wname].state0
+        wstate = storage_g[wname].state
         forces_w = forces_g[wname]
         if isnothing(forces_w) || !haskey(forces_w, :mask)
             mask = nothing
