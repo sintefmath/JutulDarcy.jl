@@ -238,6 +238,24 @@ function convert_summary_from_data_file(data::AbstractDict)
     )
     timesteps = Float64[]
     current_time = 0.0
+
+    function add_well_entry(qos::Real, qws::Real, qgs::Real, bhp::Real, wellname::String)
+        dest = wells_scattered[wellname]
+        push!(dest[:dt], timesteps[end])
+        push!(dest[:qos], qos)
+        push!(dest[:qws], qws)
+        push!(dest[:qgs], qgs)
+        push!(dest[:bhp], bhp)
+    end
+
+    function add_well_entry(kword, idx_qws::Int, idx_qos::Int, idx_qgs::Int, idx_bhp::Int)
+        wellname = kword[1]
+        qos = kword[idx_qos]
+        qws = kword[idx_qws]
+        qgs = kword[idx_qgs]
+        bhp = kword[idx_bhp]
+        add_well_entry!(qos, qws, qgs, bhp, wellname)
+    end
     for step in sched["STEPS"]
         for (key, kword) in pairs(step)
             if key == "DATES"
@@ -259,12 +277,14 @@ function convert_summary_from_data_file(data::AbstractDict)
                     push!(timesteps, dt)
                     current_time = current_time + dt
                 end
-            else
+            elseif key == "WCONHIST"
                 # WCONHIST
                 # 4 - qos
                 # 5 - qws
                 # 6 - qgs
                 # 10 - bhp
+                add_well_entry(kword, 5, 4, 6, 10)
+            elseif key == "WCONPROD"
                 # WCONPROD
                 # 4 - qos
                 # 5 - qws
@@ -272,10 +292,30 @@ function convert_summary_from_data_file(data::AbstractDict)
                 # 7 - lrat
                 # 8 - resv
                 # 9 - bhp
+                add_well_entry(kword, 5, 4, 6, 9)
+            elseif key == "WCONINJE"
                 # WCONINJE
-                # 1 - type
+                # 2 - type
                 # 5 - rate
                 # 7 - bhp
+                rate = kword[5]
+                phase = kword[2]
+                if phase == "WATER"
+                    qws = rate
+                    qos = 0.0
+                    qgs = 0.0
+                elseif phase == "OIL"
+                    qws = 0.0
+                    qos = rate
+                    qgs = 0.0
+                elseif phase == "GAS"
+                    qws = 0.0
+                    qos = 0.0
+                    qgs = rate
+                else
+                    error("Unknown phase $phase in WCONINJE")
+                end
+            else
                 println("Ignoring schedule keyword $key")
             end
         end
