@@ -248,13 +248,15 @@ function convert_summary_from_data_file(data::AbstractDict)
         push!(dest[:bhp], bhp)
     end
 
-    function add_well_entry(kword, idx_qws::Int, idx_qos::Int, idx_qgs::Int, idx_bhp::Int)
-        wellname = kword[1]
-        qos = kword[idx_qos]
-        qws = kword[idx_qws]
-        qgs = kword[idx_qgs]
-        bhp = kword[idx_bhp]
-        add_well_entry!(qos, qws, qgs, bhp, wellname)
+    function add_well_entry(keywords::Vector, idx_qws::Int, idx_qos::Int, idx_qgs::Int, idx_bhp::Int)
+        for kword in keywords
+            wellname = kword[1]
+            qos = kword[idx_qos]
+            qws = kword[idx_qws]
+            qgs = kword[idx_qgs]
+            bhp = kword[idx_bhp]
+            add_well_entry(qos, qws, qgs, bhp, wellname)
+        end
     end
     for step in sched["STEPS"]
         for (key, kword) in pairs(step)
@@ -315,7 +317,9 @@ function convert_summary_from_data_file(data::AbstractDict)
                 else
                     error("Unknown phase $phase in WCONINJE")
                 end
+                add_well_entry(qos, qws, qgs, kword[7], kword[1])
             else
+                # TODO: handle WCONINJH
                 println("Ignoring schedule keyword $key")
             end
         end
