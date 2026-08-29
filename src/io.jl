@@ -215,9 +215,74 @@ end
 function convert_summary_from_data_file(data::AbstractDict)
 
     rs = data["RUNSPEC"]
-    start = get(rs, "START", nothing)
-    out["TIME"] = (start_date = start, seconds = rs["YEARS"].*si_unit(:year))
-    out["UNIT_SYSTEM"] = get(rs, "UNIT_SYSTEM", "METRIC")
+    sched = data["SCHEDULE"]
+    start_date = get(rs, "START", nothing)
+
+    wells_scattered = Dict{String, Any}()
+    wells = Dict{String, Any}()
+    for k in keys(sched["WELSPECS"])
+        wells[k] = Dict{String, Any}()
+        wells_scattered[k] = (
+            :dt => Float64[],
+            :qws => Float64[],
+            :qos => Float64[],
+            :qgs => Float64[],
+            :bhp => Float64[]
+        )
+    end
+    out = Dict{String, Any}()
+    out["VALUES"] = Dict(
+        "FIELD" => Dict{String, Any}(),
+        "GROUP" => Dict{String, Any}(),
+        "WELLS" => wells,
+    )
+    timesteps = Float64[]
+    current_time = 0.0
+    for step in sched["STEPS"]
+        for (key, kword) in pairs(step)
+            if key == "DATES"
+                for date in kword
+                    cdate = start_date + Second(current_time)
+                    dt = Float64(Second(date - cdate).value)
+                    push!(timesteps, dt)
+                    current_time += dt
+                end
+            elseif key == "TIME"
+                for time in kword
+                    dt = time - current_time
+                    push!(timesteps, dt)
+                    current_time = time
+                end
+            elseif key == "TSTEP"
+                found_time = true
+                for dt in kword
+                    push!(timesteps, dt)
+                    current_time = current_time + dt
+                end
+            else
+                # WCONHIST
+                # 4 - qos
+                # 5 - qws
+                # 6 - qgs
+                # 10 - bhp
+                # WCONPROD
+                # 4 - qos
+                # 5 - qws
+                # 6 - qgs
+                # 7 - lrat
+                # 8 - resv
+                # 9 - bhp
+                # WCONINJE
+                # 1 - type
+                # 5 - rate
+                # 7 - bhp
+                println("Ignoring schedule keyword $key")
+            end
+        end
+    end
+    out["TIME"] = (start_date = start_date, seconds = timesteps)
+    out["UNIT_SYSTEM"] = "SI"
+    
 end
 
 function expand_summary(summary)
