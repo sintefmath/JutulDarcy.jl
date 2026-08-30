@@ -374,8 +374,33 @@ function convert_summary_from_data_file(data::AbstractDict)
 end
 
 function expand_summary!(summary; recompute = false)
+    update_field(d, k) = !haskey(d, k) || recompute
     # Add missing fields
+    vals = summary["VALUES"]
+    nstep = length(summary["TIME"].seconds)
+    if update_field(summary, "FIELD")
+        summary["FIELD"] = Dict{String, Any}()
+    end
+    values = summary["VALUES"]
+    # 
+    haskey(values, "WELLS") || error("Summary does not contain WELLS entry.")
+    wells = keys(values["WELLS"])
 
+    function maybe_sum_well_rates_to_field(k::String)
+        startswith(k, "W") || error("Expected well rate key starting with W, got $k")
+        fkey = "F$(k[2:end])"
+        if update_field(values, fkey)
+            values["FIELD"][fkey] = sum(x -> values["WELLS"][x][k], wells)
+        end
+    end
+
+    maybe_sum_well_rates_to_field("WOPR")
+    maybe_sum_well_rates_to_field("WGPR")
+    maybe_sum_well_rates_to_field("WWPR")
+    
+    maybe_sum_well_rates_to_field("WOIR")
+    maybe_sum_well_rates_to_field("WGIR")
+    maybe_sum_well_rates_to_field("WWIR")
     # Add FOPT, FWPT, FGPT, FOIP, FWIP, FGIP
     # Add WLPR
 end
