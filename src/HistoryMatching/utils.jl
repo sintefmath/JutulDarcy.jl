@@ -152,7 +152,7 @@ end
 function get_well_data(hm::HistoryMatch, name, quantity, data, t)
     if ismissing(data)
         ismissing(t) || error("t was provided, but not data for well $name, $quantity.")
-        !ismissing(hm.summary) || error("No summary data available in HistoryMatch for $name $quantity. You must provide data and time vector t to match $quantity.")
+        !ismissing(hm.summary) || error("No summary data available in HistoryMatch for $name $quantity. You must provide data and time vector t to match $quantity when summary is not provided.")
         if haskey(hm.summary, "VALUES")
             # Jutul style summary object
             smry_data = hm.summary["VALUES"]
