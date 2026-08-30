@@ -127,7 +127,9 @@ function setup_reservoir_dict_optimization(case::JutulCase;
     faults = get_faults(rdomain)
     dd_dict[:multiplier_faults] = DT()
     for (k, v) in pairs(faults)
-        dd_dict[:multiplier_faults][k] = ones(length(v))
+        if length(v) > 0
+            dd_dict[:multiplier_faults][k] = ones(length(v))
+        end
     end
     # Regular parameters - requested
     for k in setdiff(parameters, skip_list_parameters)
