@@ -222,8 +222,8 @@ function convert_summary_from_data_file(data::AbstractDict)
     wells = Dict{String, Any}()
     for k in keys(sched["WELSPECS"])
         wells[k] = Dict{String, Any}()
-        wells_scattered[k] = (
-            :dt => Float64[],
+        wells_scattered[k] = Dict(
+            :time => Float64[],
             :qws => Float64[],
             :qos => Float64[],
             :qgs => Float64[],
@@ -239,9 +239,9 @@ function convert_summary_from_data_file(data::AbstractDict)
     timesteps = Float64[]
     current_time = 0.0
 
-    function add_well_entry(qos::Real, qws::Real, qgs::Real, bhp::Real, wellname::String)
+    function add_well_entry(qos::Real, qws::Real, qgs::Real, bhp::Real, wellname::AbstractString)
         dest = wells_scattered[wellname]
-        push!(dest[:dt], timesteps[end])
+        push!(dest[:time], current_time)
         push!(dest[:qos], qos)
         push!(dest[:qws], qws)
         push!(dest[:qgs], qgs)
@@ -300,33 +300,35 @@ function convert_summary_from_data_file(data::AbstractDict)
                 # 2 - type
                 # 5 - rate
                 # 7 - bhp
-                rate = kword[5]
-                phase = kword[2]
-                if phase == "WATER"
-                    qws = rate
-                    qos = 0.0
-                    qgs = 0.0
-                elseif phase == "OIL"
-                    qws = 0.0
-                    qos = rate
-                    qgs = 0.0
-                elseif phase == "GAS"
-                    qws = 0.0
-                    qos = 0.0
-                    qgs = rate
-                else
-                    error("Unknown phase $phase in WCONINJE")
+                for kw in kword
+                    rate = kw[5]
+                    phase = kw[2]
+                    if phase == "WATER"
+                        qws = rate
+                        qos = 0.0
+                        qgs = 0.0
+                    elseif phase == "OIL"
+                        qws = 0.0
+                        qos = rate
+                        qgs = 0.0
+                    elseif phase == "GAS"
+                        qws = 0.0
+                        qos = 0.0
+                        qgs = rate
+                    else
+                        error("Unknown phase $phase in WCONINJE")
+                    end
+                    add_well_entry(qos, qws, qgs, kw[7], kw[1])
                 end
-                add_well_entry(qos, qws, qgs, kword[7], kword[1])
-            else
+            elseif key == "WCONINJH"
                 # TODO: handle WCONINJH
-                println("Ignoring schedule keyword $key")
+                error("WCONINJH not yet implemented in convert_summary_from_data_file")
             end
         end
     end
     out["TIME"] = (start_date = start_date, seconds = timesteps)
     out["UNIT_SYSTEM"] = "SI"
-    
+    return out
 end
 
 function expand_summary(summary)
