@@ -130,7 +130,7 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
     well = physical_representation(well_model)
     perf = well.perforations
     res_cells = perf.reservoir
-    gdz = well_state.PerforationGravityDifference
+    gdz = as_value(well_state.PerforationGravityDifference)
     # Explicit update, take value.
     WI = as_value(well_state.WellIndices)
     ρ = as_value(res_state.PhaseMassDensities)
