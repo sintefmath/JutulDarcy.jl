@@ -369,9 +369,13 @@ function convert_summary_from_data_file(data::AbstractDict)
 
     out["TIME"] = (start_date = start_date, seconds = seconds)
     out["UNIT_SYSTEM"] = "SI"
+    expand_summary!(out)
     return out
 end
 
-function expand_summary(summary)
+function expand_summary!(summary; recompute = false)
     # Add missing fields
+
+    # Add FOPT, FWPT, FGPT, FOIP, FWIP, FGIP
+    # Add WLPR
 end

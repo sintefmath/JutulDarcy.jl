@@ -146,7 +146,7 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
         mobility_density_sum = 0.0
         WI_i = WI[i]
         if !isnothing(mask)
-            wi *= mask.values[i]
+            WI_i *= mask.values[i]
         end
         for ph in axes(ρ, 1)
             mob_ph = WI_i*mob[ph, rc]
