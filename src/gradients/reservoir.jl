@@ -285,8 +285,12 @@ function optimization_resetup_reservoir_case(opt_dict::AbstractDict, case::Jutul
         rparameters[k] = v
     end
     if !ismissing(faults)
+        fmults = opt_dict[:model][:multiplier_faults]
         for (fault, faces) in pairs(faults)
-            fmult = opt_dict[:multiplier_faults][fault]
+            fmult = get(fmults, fault, missing)
+            if ismissing(fmult)
+                continue
+            end
             trans = rparameters[:Transmissibilities]
             for (i, f) in enumerate(faces)
                 trans[f] *= fmult[i]
