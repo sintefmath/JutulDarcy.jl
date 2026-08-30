@@ -382,6 +382,7 @@ function expand_summary!(summary; recompute = false)
         summary["FIELD"] = Dict{String, Any}()
     end
     values = summary["VALUES"]
+    dt = diff([0; summary["TIME"].seconds])
     # 
     haskey(values, "WELLS") || error("Summary does not contain WELLS entry.")
     wells = keys(values["WELLS"])
@@ -394,13 +395,51 @@ function expand_summary!(summary; recompute = false)
         end
     end
 
-    maybe_sum_well_rates_to_field("WOPR")
-    maybe_sum_well_rates_to_field("WGPR")
-    maybe_sum_well_rates_to_field("WWPR")
-    
-    maybe_sum_well_rates_to_field("WOIR")
-    maybe_sum_well_rates_to_field("WGIR")
-    maybe_sum_well_rates_to_field("WWIR")
+    function get_destination_and_keys(src_key)
+        type = src_key[1]
+        if type == 'W'
+            d = values["WELLS"]
+            dest_keys = wells
+        elseif type == 'F'
+            d = values
+            dest_keys = ["FIELD"]
+        else
+            error("Unexpected type $type")
+        end
+        return (d, dest_keys)
+    end
+
+    function maybe_cumsum_rate(src_key::String)
+        (d, dest_keys) = get_destination_and_keys(src_key)
+        base = src_key[1:end-1]
+        src_key[end] == 'R' || error("Expected rate key ending with R, got $src_key")
+        dest_key = "$(base)T"
+        for k in dest_keys
+            if update_field(d[k], dest_key)
+                d[k][dest_key] = cumsum(d[k][src_key].*dt)
+            end
+        end
+    end
+
+    function maybe_add_derived(src_key::String)
+
+    end
+
+
+    # Production rates
+    for w in ["WOPR", "WGPR", "WWPR", "WOIR", "WGIR", "WWIR"]
+        maybe_sum_well_rates_to_field(w)
+    end
+
+    for w in ["FOPR", "FWPR", "FGPR", "FOIR", "FWIR", "FGIR"]
+        maybe_cumsum_rate(w)
+    end
+
+    # Well stuff
+    for w in ["WOPR", "WGPR", "WWPR", "WOIR", "WGIR", "WWIR", "WLPR"]
+        maybe_cumsum_rate(w)
+    end
+
     # Add FOPT, FWPT, FGPT, FOIP, FWIP, FGIP
     # Add WLPR
 end
