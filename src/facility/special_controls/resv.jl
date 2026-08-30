@@ -33,7 +33,12 @@ function setup_average_resv_state(model::StandardBlackOilModel, rstate; qw = 0.0
     vapoil = has_vapoil(sys)
     for c in eachindex(rstate.Pressure)
         p = value(rstate.Pressure[c])
-        vol = value(rstate.FluidVolume[c])
+        if eltype(rstate.FluidVolume) <: AbstractFloat
+            vol = value(rstate.FluidVolume[c])
+        else
+            # Avoid AD tracing since we will take value during evaluation
+            vol = 1.0
+        end
         if has_water
             sw = value(rstate.ImmiscibleSaturation[c])
         else
