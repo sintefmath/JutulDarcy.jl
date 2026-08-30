@@ -219,9 +219,7 @@ function convert_summary_from_data_file(data::AbstractDict)
     start_date = get(rs, "START", nothing)
 
     wells_scattered = Dict{String, Any}()
-    wells = Dict{String, Any}()
     for k in keys(sched["WELSPECS"])
-        wells[k] = Dict{String, Any}()
         wells_scattered[k] = Dict(
             :time => Float64[],
             :qws => Float64[],
@@ -230,32 +228,34 @@ function convert_summary_from_data_file(data::AbstractDict)
             :bhp => Float64[]
         )
     end
-    out = Dict{String, Any}()
-    out["VALUES"] = Dict(
-        "FIELD" => Dict{String, Any}(),
-        "GROUP" => Dict{String, Any}(),
-        "WELLS" => wells,
-    )
     timesteps = Float64[]
     current_time = 0.0
 
-    function add_well_entry(qos::Real, qws::Real, qgs::Real, bhp::Real, wellname::AbstractString)
-        dest = wells_scattered[wellname]
-        push!(dest[:time], current_time)
-        push!(dest[:qos], qos)
-        push!(dest[:qws], qws)
-        push!(dest[:qgs], qgs)
-        push!(dest[:bhp], bhp)
+    function strip_defaulted(x)
+        if isfinite(x)
+            return x
+        else
+            return 0.0
+        end
     end
 
-    function add_well_entry(keywords::Vector, idx_qws::Int, idx_qos::Int, idx_qgs::Int, idx_bhp::Int)
+    function add_well_entry(qos::Real, qws::Real, qgs::Real, bhp::Real, wellname::AbstractString, sgn::Real)
+        dest = wells_scattered[wellname]
+        push!(dest[:time], current_time)
+        push!(dest[:qos], sgn*strip_defaulted(qos))
+        push!(dest[:qws], sgn*strip_defaulted(qws))
+        push!(dest[:qgs], sgn*strip_defaulted(qgs))
+        push!(dest[:bhp], strip_defaulted(bhp))
+    end
+
+    function add_well_entry(keywords::Vector, idx_qws::Int, idx_qos::Int, idx_qgs::Int, idx_bhp::Int, sgn::Real)
         for kword in keywords
             wellname = kword[1]
             qos = kword[idx_qos]
             qws = kword[idx_qws]
             qgs = kword[idx_qgs]
             bhp = kword[idx_bhp]
-            add_well_entry(qos, qws, qgs, bhp, wellname)
+            add_well_entry(qos, qws, qgs, bhp, wellname, sgn)
         end
     end
     for step in sched["STEPS"]
@@ -285,7 +285,7 @@ function convert_summary_from_data_file(data::AbstractDict)
                 # 5 - qws
                 # 6 - qgs
                 # 10 - bhp
-                add_well_entry(kword, 5, 4, 6, 10)
+                add_well_entry(kword, 5, 4, 6, 10, -1)
             elseif key == "WCONPROD"
                 # WCONPROD
                 # 4 - qos
@@ -294,7 +294,7 @@ function convert_summary_from_data_file(data::AbstractDict)
                 # 7 - lrat
                 # 8 - resv
                 # 9 - bhp
-                add_well_entry(kword, 5, 4, 6, 9)
+                add_well_entry(kword, 5, 4, 6, 9, -1)
             elseif key == "WCONINJE"
                 # WCONINJE
                 # 2 - type
@@ -318,7 +318,7 @@ function convert_summary_from_data_file(data::AbstractDict)
                     else
                         error("Unknown phase $phase in WCONINJE")
                     end
-                    add_well_entry(qos, qws, qgs, kw[7], kw[1])
+                    add_well_entry(qos, qws, qgs, kw[7], kw[1], 1)
                 end
             elseif key == "WCONINJH"
                 # TODO: handle WCONINJH
@@ -326,7 +326,48 @@ function convert_summary_from_data_file(data::AbstractDict)
             end
         end
     end
-    out["TIME"] = (start_date = start_date, seconds = timesteps)
+    # Now unify and output as actual summary
+    wells = Dict{String, Any}()
+    out = Dict{String, Any}()
+    out["VALUES"] = Dict(
+        "FIELD" => Dict{String, Any}(),
+        "GROUP" => Dict{String, Any}(),
+        "WELLS" => wells,
+    )
+    seconds = cumsum([0; timesteps])
+    all(isfinite, seconds) || error("Non-finite time values in summary conversion.")
+    function sample(well, response, sgn)
+        ws = wells_scattered[well]
+        t = ws[:time]
+
+        i_u = unique(i -> t[i], eachindex(t))
+        t = t[i_u]
+        r = sgn.*ws[response][i_u]
+        r = max.(r, 0.0)
+        I = get_1d_interpolator(t, r)
+        if length(t) < 2
+            val = zeros(length(seconds))
+        else
+            val = I.(seconds)
+        end
+        return val
+    end
+    for wellname in keys(wells_scattered)
+        well = Dict{String, Any}()
+        well["WBHP"] = sample(wellname, :bhp, 1.0)
+        # Production
+        well["WOPR"] = sample(wellname, :qos, -1.0)
+        well["WGPR"] = sample(wellname, :qgs, -1.0)
+        well["WWPR"] = sample(wellname, :qws, -1.0)
+        # Injection
+        well["WWIR"] = sample(wellname, :qws, 1.0)
+        well["WOIR"] = sample(wellname, :qos, 1.0)
+        well["WGIR"] = sample(wellname, :qgs, 1.0)
+
+        wells[wellname] = well
+    end
+
+    out["TIME"] = (start_date = start_date, seconds = seconds)
     out["UNIT_SYSTEM"] = "SI"
     return out
 end
