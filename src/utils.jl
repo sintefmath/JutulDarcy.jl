@@ -2210,9 +2210,6 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
 
     function apply_ntg!(T_hf, ntg, facepos, face_is_vertical)
         for (c, ntg) in enumerate(ntg)
-            if ntg isa AbstractFloat && ntg ≈ 1.0
-                continue
-            end
             for fp in facepos[c]:(facepos[c+1]-1)
                 if face_is_vertical[faces[fp]]
                     T_hf[fp] *= ntg
@@ -2244,10 +2241,9 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
             if faceno[i] > nf - num_nnc
                 continue
             end
-            if T_hf_i isa AbstractFloat && !isfinite(T_hf_i)
-                bad_count += 1
-                T_hf[i] = 0.0
-            end
+            i_is_bad = !isfinite(T_hf_i)
+            T_hf[i] = ifelse(i_is_bad, 0.0, T_hf_i)
+            bad_count += i_is_bad
         end
         if bad_count > 0
             tran_tot = length(T_hf)
