@@ -373,6 +373,10 @@ function convert_summary_from_data_file(data::AbstractDict)
     return out
 end
 
+function expand_summary(summary; kwarg...)
+    return expand_summary!(deepcopy(summary); kwarg...)
+end
+
 function expand_summary!(summary; recompute = false)
     update_field(d, k) = !haskey(d, k) || recompute
     # Add missing fields
@@ -421,25 +425,64 @@ function expand_summary!(summary; recompute = false)
         end
     end
 
-    function maybe_add_derived(src_key::String)
-
+    function add_derived_quantities()
+        for (wname, wdata) in pairs(values["WELLS"])
+            maybe_add_derived!(wdata, 'W')
+        end
+        maybe_add_derived!(values["FIELD"], 'F')
     end
 
+    function maybe_add_derived!(data, prefix::Char)
+        # GLR, WCT, LPR, WGR, GOR
+        glr = "$(prefix)GLR"
+        wct = "$(prefix)WCT"
+        lpr = "$(prefix)LPR"
+        wgr = "$(prefix)WGR"
+        gor = "$(prefix)GOR"
+
+        gpr = "$(prefix)GPR"
+        opr = "$(prefix)OPR"
+        wpr = "$(prefix)WPR"
+
+        # Liquid rate
+        if update_field(data, lpr) && haskey(data, wpr) && haskey(data, opr)
+            data[lpr] = data[wpr] + data[opr]
+        end
+
+        # Gas liquid ratio
+        if update_field(data, glr) && haskey(data, gpr) && haskey(data, opr)
+            data[glr] = data[gpr]./data[lpr]
+        end
+
+        # Water cut
+        if update_field(data, wct) && haskey(data, wpr) && haskey(data, lpr)
+            data[wct] = data[wpr]./max.(data[lpr], 1e-12)
+        end
+
+        # Gas oil ratio
+        if update_field(data, gor) && haskey(data, gpr) && haskey(data, opr)
+            data[gor] = data[gpr]./max.(data[opr], 1e-12)
+        end
+
+        # Water gas ratio
+        if update_field(data, wgr) && haskey(data, wpr) && haskey(data, gpr)
+            data[wgr] = data[wpr]./max.(data[gpr], 1e-12)
+        end
+    end
 
     # Production rates
     for w in ["WOPR", "WGPR", "WWPR", "WOIR", "WGIR", "WWIR"]
         maybe_sum_well_rates_to_field(w)
     end
-
-    for w in ["FOPR", "FWPR", "FGPR", "FOIR", "FWIR", "FGIR"]
-        maybe_cumsum_rate(w)
-    end
-
-    # Well stuff
+    # Add what can be derived from rates
+    add_derived_quantities()
+    # Add cumulative sums
     for w in ["WOPR", "WGPR", "WWPR", "WOIR", "WGIR", "WWIR", "WLPR"]
         maybe_cumsum_rate(w)
     end
 
-    # Add FOPT, FWPT, FGPT, FOIP, FWIP, FGIP
-    # Add WLPR
+    for w in ["FOPR", "FWPR", "FGPR", "FOIR", "FWIR", "FGIR", "FLPR"]
+        maybe_cumsum_rate(w)
+    end
+    return summary
 end
