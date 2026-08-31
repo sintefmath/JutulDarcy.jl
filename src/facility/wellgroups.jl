@@ -116,9 +116,14 @@ Jutul.associated_entity(::ControlEquationWell) = Wells()
 Jutul.local_discretization(::ControlEquationWell, i) = nothing
 
 function Jutul.prepare_equation_in_entity!(i, eq::ControlEquationWell, eq_s, state, state0, model, dt)
+    cfg = state.WellGroupConfiguration
+    if cfg.reference_mode
+        # Operating controls were restored from a converged solution; do not
+        # re-evaluate limit switching (see update_before_step_reference_mode!).
+        return
+    end
     well = model.domain.well_symbols[i]
     cond = FacilityVariablesForWell(model, state, well, drop_ad = true)
-    cfg = state.WellGroupConfiguration
     ctrl = operating_control(cfg, well)
     limits = current_limits(cfg, well)
     apply_well_limits!(cfg, model, state, limits, ctrl, well, cond)
