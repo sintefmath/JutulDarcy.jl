@@ -1156,7 +1156,7 @@ function equilibriate_phase_pressures_and_saturations(model::SimulationModel, de
     reg = Int[pvtnum]
     # Set up a mock state for evaluation
     if haskey(model.data_domain, :pvtnum)
-        fake_cell_ix = [findfirst(isequal(pvtnum), model.data_domain[:pvtnum])]
+        fake_cell_ix = Int[findfirst(isequal(pvtnum), model.data_domain[:pvtnum])]
     else
         fake_cell_ix = [1]
     end
@@ -1264,4 +1264,31 @@ function discretize_depths(depths, min_z_cells, max_z_cells, cell_nz)
         end
     end
     return (new_depths, depth_index)
+end
+
+function equil_setup_density_function(density_function, model, pvtnum)
+    if !ismissing(density_function)
+        return density_function
+    end
+    rho = model.secondary_variables[:PhaseMassDensities]
+    reservoir = reservoir_domain(model)
+
+    reg = Int[pvtnum]
+    # Set up a mock state for evaluation
+    if haskey(reservoir, :pvtnum)
+        fake_cell_ix = Int[findfirst(isequal(pvtnum), reservoir[:pvtnum])]
+    else
+        fake_cell_ix = [1]
+    end
+    fake_state = JutulStorage()
+    fake_state[:Pressure] = [NaN]
+    fake_state[:PhaseMassDensities] = zeros(nph, 1)
+    fake_state[:Temperature] = [NaN]
+
+    return equil_setup_density_function(rho, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg)
+end
+
+function equil_setup_density_function(rho, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg)
+    F(p, z, ph) = equilibrium_phase_density(p, z, ph, rho, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg)
+    return F
 end
