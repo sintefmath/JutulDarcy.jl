@@ -170,7 +170,6 @@ function setup_reservoir_dict_optimization(case::JutulCase;
     for (k, var) in pairs(rmodel.primary_variables)
         if k == :BlackOilUnknown
             bo_unknown = state0_r[k]
-            swat = get(state0_r, :ImmiscibleSaturation, missing)
             sw_fun(x::Missing, i) = 0.0
             sw_fun(x, i) = x[i]
             p = state0_r[:Pressure]
