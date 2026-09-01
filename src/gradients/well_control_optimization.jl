@@ -353,14 +353,31 @@ gradient at a (scaled) control vector `x`, `prob.x0` is the scaled initial
 guess, and `prob.descale` maps back to physical magnitudes. Useful for gradient
 checks and plugging into an external optimizer.
 """
+# Dense differentiation over the (small) control vector. The sparse pattern is
+# detected at the FIRST gradient evaluation and then frozen: a well limit that
+# is inactive there would keep a hard-zero gradient for the rest of the
+# optimization even after it becomes active (verified in
+# dev/kink_cache_isolation.jl / dev/kink_ministep_anatomy.jl). Dense mode does
+# not have this failure and costs little for typical control-DOF counts.
+const WELL_CONTROL_BACKEND_ARG = (
+    use_sparsity = false,
+    di_sparse = false,
+    single_step_sparsity = false,
+    do_prep = true,
+)
+
 function well_control_optimization_problem(copt::WellControlOptimization;
         deps = :case,
-        simulator_arg = (output_substates = true, info_level = -1, end_report = false),
+        simulator_arg = (info_level = -1, end_report = false),
+        backend_arg = WELL_CONTROL_BACKEND_ARG,
         kwarg...)
+    # output_substates is always enforced so that every ministep enters the
+    # adjoint solve (control/limit switching can happen within a report step).
+    simulator_arg = merge(simulator_arg, (output_substates = true,))
     sim, cfg = setup_simulator_for_reservoir_optimization(copt.dopt, copt.setup_function,
         missing, missing, simulator_arg)
     return Jutul.DictOptimization.optimization_problem(copt.dopt, copt.objective, copt.setup_function;
-        deps = deps, simulator = sim, config = cfg, kwarg...)
+        deps = deps, simulator = sim, config = cfg, backend_arg = backend_arg, kwarg...)
 end
 
 """
@@ -375,10 +392,12 @@ Returns the optimized parameter dict; call `copt(prm)` to get the tuned
 function optimize_well_controls(copt::WellControlOptimization;
         maximize = true,
         optimizer = :lbfgs,
+        backend_arg = WELL_CONTROL_BACKEND_ARG,
         kwarg...)
     return optimize_reservoir(copt.dopt, copt.objective;
         deps = :case,
         maximize = maximize,
         optimizer = optimizer,
+        backend_arg = backend_arg,
         kwarg...)
 end

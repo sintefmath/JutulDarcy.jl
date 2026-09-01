@@ -388,5 +388,9 @@ function setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, c
     else
         has_sim == has_cfg || error("Simulator and config must be provided together")
     end
+    # Substates must always be stored: the adjoint is solved over every
+    # ministep, and control/limit switching within a report step is otherwise
+    # invisible to the gradient.
+    config[:output_substates] = true
     return (simulator, config)
 end

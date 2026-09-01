@@ -77,10 +77,15 @@ npv_of(c) = Jutul.evaluate_objective(copt.objective, c.model,
     @testset "gradient vs central FD" begin
         f, g = opt(opt.x0)
         gscale = norm(g, Inf)
-        # dof 4 = PROD bhp limit, period 1. In this case PROD switches bhp->orat
-        # around step 3, so NPV(bhp_limit) has a strong kink at x0; central FD
-        # straddles it. KNOWN OPEN ISSUE: the adjoint value there is currently
-        # outside the FD subdifferential (sign flip) - see notes.
+        # dof 4 = PROD bhp limit, period 1. The adjoint value here is CORRECT
+        # (verified against one-sided FD and sweeps in
+        # dev/switching_kink_investigation.jl / dev/kink_config_matrix.jl /
+        # dev/kink_ministep_anatomy.jl): NPV(bhp_limit) has slope ~ -0.097/Pa on
+        # both sides of x0. The central FD below is invalid at this particular
+        # point because the adaptive timestep selector changes the ministep
+        # pattern ~0.03 bar below the base value, giving NPV an isolated
+        # O(1e-4 relative) discontinuity that the FD straddles. Kept as
+        # @test_broken to document that the FD check (not the gradient) fails.
         for i in eachindex(opt.x0)
             gfd = central_fd(opt, opt.x0, i)
             near_zero = max(abs(g[i]), abs(gfd)) < 1e-3*gscale

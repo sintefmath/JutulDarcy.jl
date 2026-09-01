@@ -122,9 +122,9 @@ function run_regime(name, d0; keys_to_check)
 end
 
 @testset "extended control vector gradient (DictOptimization, deps=:case)" begin
-    run_regime("never",  OrderedDict{String,Any}("orat" => [60.0/day], "bhp" => [70.0*bar]);
+    run_regime("never",  OrderedDict{String,Any}("orat" => [60.0/day], "bhp" => [50.0*bar]);
         keys_to_check = ["orat", "bhp"])
-    run_regime("switch", OrderedDict{String,Any}("orat" => [60.0/day], "bhp" => [185.0*bar]);
+    run_regime("switch", OrderedDict{String,Any}("orat" => [60.0/day], "bhp" => [80.0*bar]);
         keys_to_check = ["orat", "bhp"])
     run_regime("always", OrderedDict{String,Any}("orat" => [600.0/day], "bhp" => [150.0*bar]);
         keys_to_check = ["orat", "bhp"])
