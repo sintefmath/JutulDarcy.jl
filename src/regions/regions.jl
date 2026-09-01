@@ -50,7 +50,7 @@ function region_wrap(x::Tuple, regions::Nothing)
 end
 
 function region_wrap(x::Tuple, regions::AbstractArray)
-    @assert length(x) >= maximum(regions)
+    length(x) >= maximum(regions) || error("Length of tuple $(length(x)) is less than maximum region $(maximum(regions))")
     return x
 end
 
@@ -59,7 +59,14 @@ function region_wrap(x::Tuple, regions::Missing)
 end
 
 function region_wrap(x::AbstractVector, regions = missing)
-    return region_wrap(Tuple(x), regions)
+    if length(x) < 20
+        out = region_wrap(Tuple(x), regions)
+    else
+        # Don't make huge tuples, just return the vector with possibly tighter
+        # type for the container.
+        out = [i for i in x]
+    end
+    return out
 end
 
 """
