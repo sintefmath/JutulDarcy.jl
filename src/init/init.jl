@@ -93,7 +93,7 @@ function equilibriate_state(model, contacts,
     return init
 end
 
-function equilibriate_state(model, equil::EquilibriumRegion{R}; cell_nz = missing) where R
+function equilibriate_state(model, equil::EquilibriumRegion{R}; cache = Dict(), cell_nz = missing) where R
     sys = model.system
     phases = get_phases(sys)
     phase_ix = [i for i in phase_indices(sys)]
@@ -164,6 +164,7 @@ function equilibriate_state(model, equil::EquilibriumRegion{R}; cell_nz = missin
         pvtnum = equil.pvtnum,
         satnum = equil.satnum,
         cell_nz = cell_nz,
+        cache = cache,
         equil.kwarg...
     )
     init[:Saturations] = init[:Saturations][phase_ix, :]
@@ -176,6 +177,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
         sw = missing,
         s_min = missing,
         output_pressures = false,
+        cache = Dict(),
         kwarg...
     )
 
@@ -203,11 +205,13 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
             end
         end
     end
-    # pressures = determine_hydrostatic_pressures(depths, depth, zmin, zmax, contacts, datum_pressure, density_function, contacts_pc, ref_phase)
-    # ref_ix = get_reference_phase_index(model.system)
-    # s, pc, active_phase = determine_saturations(depths, contacts, pressures; ref_ix = ref_ix, pc = pc, s_min = s_min, kwarg...)
 
-    pressures, s, pc, active_phase = equilibriate_phase_pressures_and_saturations(model, depths, depth, contacts, datum_pressure, cells; s_min = s_min, T_z = T_z, kwarg...)
+    pressures, s, pc, active_phase = equilibriate_phase_pressures_and_saturations(model, depths, depth, contacts, datum_pressure, cells;
+        s_min = s_min,
+        T_z = T_z,
+        # cache = cache,
+        kwarg...
+    )
 
     if nph > 1
         relperm = model.secondary_variables[:RelativePermeabilities]
@@ -243,8 +247,17 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
             if relperm isa ReservoirRelativePermeabilities
                 nc_total = number_of_cells(model.domain)
                 T_S = eltype(s)
-                kr = zeros(T_S, nph, nc_total)
-                s_eval = zeros(T_S, nph, nc_total)
+                kr_key = (:krs, T_S)
+                if !haskey(cache, kr_key)
+                    buf1 = zeros(T_S, nph, nc_total)
+                    buf2 = zeros(T_S, nph, nc_total)
+                    cache[kr_key] = (buf1, buf2)
+                end
+                kr, s_eval = cache[kr_key]
+                size(kr) == (nph, nc_total) || error("Cache size mismatch for kr")
+                size(s_eval) == (nph, nc_total) || error("Cache size mismatch for s_eval")
+                s_eval::Matrix{T_S}
+                kr::Matrix{T_S}
                 s_eval[:, cells] .= s
                 phases = get_phases(sys)
                 phase_ind = phase_indices(model.system)
@@ -1115,6 +1128,7 @@ function equilibriate_phase_pressures_and_saturations(model::SimulationModel, de
         satnum = 1,
         pvtnum = 1,
         cell_nz = missing,
+        cache = Dict(),
         kwarg...
     )
     sys = model.system
