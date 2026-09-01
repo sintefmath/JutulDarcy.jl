@@ -203,12 +203,13 @@ end
 
 function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw{:TracerMasses, <:Any}, eq_s, force::V, time) where {V <: AbstractVector{<:FlowBoundaryCondition}, D, S<:MultiPhaseSystem}
     state = storage.state
-    nph = number_of_phases(reservoir_model(model).system)
+    system = reservoir_model(model).system
+    nph = number_of_phases(system)
     tracers = eq.flux_type.tracers
     for bc in force
         c = bc.cell
         acc_i = view(acc, :, c)
-        q = compute_bc_tracer_fluxes(bc, global_map(model), state, tracers, nph)
+        q = compute_bc_tracer_fluxes(system, bc, global_map(model), state, tracers)
         apply_flow_bc!(acc_i, q, bc, model, state, time)
     end
 end
@@ -339,8 +340,8 @@ function bc_inflow_enthalpy(bc, state, cell)
     return H_in
 end
 
-function compute_bc_tracer_fluxes(bc, gmap, state, tracers, nph)
-    q_ph = compute_bc_mass_fluxes(bc, gmap, state, nph)
+function compute_bc_tracer_fluxes(system, bc, gmap, state, tracers)
+    q_ph = compute_bc_mass_fluxes(system, bc, gmap, state)
     c = Jutul.full_cell(bc.cell, gmap)
     C = state.TracerConcentrations
 
