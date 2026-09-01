@@ -1151,26 +1151,8 @@ function equilibriate_phase_pressures_and_saturations(model::SimulationModel, de
     if ismissing(contacts_pc)
         contacts_pc = zeros(number_of_phases(sys)-1)
     end
-    rho = model.secondary_variables[:PhaseMassDensities]
 
-    reg = Int[pvtnum]
-    # Set up a mock state for evaluation
-    if haskey(model.data_domain, :pvtnum)
-        fake_cell_ix = Int[findfirst(isequal(pvtnum), model.data_domain[:pvtnum])]
-    else
-        fake_cell_ix = [1]
-    end
-    fake_state = JutulStorage()
-    fake_state[:Pressure] = [NaN]
-    fake_state[:PhaseMassDensities] = zeros(nph, 1)
-    fake_state[:Temperature] = [NaN]
-
-    density_f(p, z, ph) = equilibrium_phase_density(p, z, ph, rho, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg)
-    # Find the reference phase. It is either liquid
-
-    if ismissing(density_function)
-        density_function = density_f
-    end
+    density_function = equil_setup_density_function(density_function, model, pvtnum, T_z, rs, rv, composition)
     # Expand here
     if haskey(model.data_domain, :capillary_pressure_scaling)
         pc_scaling = view(model.data_domain[:capillary_pressure_scaling], :, cells)
@@ -1266,12 +1248,14 @@ function discretize_depths(depths, min_z_cells, max_z_cells, cell_nz)
     return (new_depths, depth_index)
 end
 
-function equil_setup_density_function(density_function, model, pvtnum)
+function equil_setup_density_function(density_function, model, pvtnum, T_z, rs, rv, composition)
     if !ismissing(density_function)
         return density_function
     end
     rho = model.secondary_variables[:PhaseMassDensities]
     reservoir = reservoir_domain(model)
+    sys = model.system
+    nph = number_of_phases(sys)
 
     reg = Int[pvtnum]
     # Set up a mock state for evaluation
