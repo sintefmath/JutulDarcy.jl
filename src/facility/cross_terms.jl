@@ -62,7 +62,7 @@ function cross_term_perforation_get_conn(ct, i, state_s, state_t)
     return conn
 end
 
-function perforation_phase_potential_difference(conn, state_res, state_well, ix)
+Base.@propagate_inbounds function perforation_phase_potential_difference(conn, state_res, state_well, ix::Int)
     dp = conn.dp
     WI = conn.WI
     WI, dp = Base.promote(WI, dp)

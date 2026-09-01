@@ -197,11 +197,12 @@ end
 
 
 function res_dp(conn, state_res, state_well, sys)
+    F(ph) = @inbounds perforation_phase_potential_difference(conn, state_res, state_well, ph)
     return map(
-        x -> perforation_phase_potential_difference(conn, state_res, state_well, x),
-        phase_indices(sys))
+        F,
+        values(phase_indices(sys))
+    )
 end
-
 
 function well_volumes_bo(state_res, state_well)
     ρ = state_res.PhaseMassDensities
