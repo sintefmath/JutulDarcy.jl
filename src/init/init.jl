@@ -314,7 +314,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     return init
 end
 
-function equilibrium_phase_density(p, z, ph, rho, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg)
+function equilibrium_phase_density(p, z, ph, rho::DeckPhaseMassDensities, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg)
     pvtnum = only(reg)
     sys = model.system
     rho_s = JutulDarcy.reference_densities(sys)
@@ -329,67 +329,114 @@ function equilibrium_phase_density(p, z, ph, rho, T_z, fake_state, model, rs, rv
             rhoOS, rhoGS = rho_s
         end
     end
-    if rho isa ThreePhaseCompositionalDensitiesLV || rho isa TwoPhaseCompositionalDensities
-        if phases[ph] == AqueousPhase()
-            phase_density = rho_s[ph]*JutulDarcy.shrinkage(rho.immiscible_pvt, p)
-        else
-            @assert !ismissing(composition) "Composition must be present for equilibrium calculations for compositional models."
-            @assert !ismissing(T_z) "Temperature must be present for equilibrium calculations for compositional models."
-            z_i = Vector{Float64}(composition(z))
-            T = T_z(z)
-            eos = model.system.equation_of_state
-            f = MultiComponentFlash.flashed_mixture_2ph(eos, (p = p, T = T, z = z_i))
-            rho_l, rho_v = mass_densities(eos, p, T, f)
-            if phases[ph] == VaporPhase() || rho_l == 0
-                phase_density = rho_v
-            else
-                phase_density = rho_l
-            end
-        end
-    elseif rho isa BrineCO2MixingDensities
-        T = T_z(z)
-        phase_density = rho.tab(p, T)[ph]
-    elseif rho isa DeckPhaseMassDensities
-        pvt = rho.pvt
-        pvt_i = pvt[ph]
-        if phases[ph] == LiquidPhase() && disgas
-            rs_max = table_by_region(sys.rs_max, pvtnum)
-            Rs = min(rs(z), rs_max(p))
-            b = JutulDarcy.shrinkage(pvt_i, reg, p, Rs, 1)
-            phase_density = b*(rhoOS + Rs*rhoGS)
-        elseif phases[ph] == VaporPhase() && vapoil
-            rv_max = table_by_region(sys.rv_max, pvtnum)
-            Rv = min(rv(z), rv_max(p))
-            b = JutulDarcy.shrinkage(pvt_i, reg, p, Rv, 1)
-            phase_density = b*(rhoGS + Rv*rhoOS)
-        else
-            phase_density = rho_s[ph]*JutulDarcy.shrinkage(pvt_i, reg, p, 1)
-        end
+    pvt = rho.pvt
+    pvt_i = pvt[ph]
+    if phases[ph] == LiquidPhase() && disgas
+        rs_max = table_by_region(sys.rs_max, pvtnum)
+        Rs = min(rs(z), rs_max(p))
+        b = JutulDarcy.shrinkage(pvt_i, reg, p, Rs, 1)
+        phase_density = b*(rhoOS + Rs*rhoGS)
+    elseif phases[ph] == VaporPhase() && vapoil
+        rv_max = table_by_region(sys.rv_max, pvtnum)
+        Rv = min(rv(z), rv_max(p))
+        b = JutulDarcy.shrinkage(pvt_i, reg, p, Rv, 1)
+        phase_density = b*(rhoGS + Rv*rhoOS)
     else
-        rho_val = fake_state[:PhaseMassDensities]
-        c = only(fake_cell_ix)
-        eltype_pressure = eltype(fake_state[:Pressure])
-        T = promote_type(eltype(p), eltype_pressure, eltype(rho_val))
-        if !ismissing(T_z)
-            T = promote_type(T, eltype(T_z(z)))
-        end
-        if eltype_pressure != T
-            fake_state[:Pressure] = convert.(T, fake_state[:Pressure])
-        end
-        fake_state[:Pressure][c] = p
-        if !ismissing(T_z)
-            if eltype(fake_state[:Temperature]) != T
-                fake_state[:Temperature] = convert.(T, fake_state[:Temperature])
-            end
-            fake_state[:Temperature][c] = T_z(z)
-        end
-        if eltype(rho_val) != T
-            fake_state[:PhaseMassDensities] = convert.(T, rho_val)
-            rho_val =  fake_state[:PhaseMassDensities]
-        end
-        Jutul.update_secondary_variable!(rho_val, rho, model, fake_state, fake_cell_ix)
-        phase_density = rho_val[ph, c]
+        phase_density = rho_s[ph]*JutulDarcy.shrinkage(pvt_i, reg, p, 1)
     end
+    return phase_density
+end
+
+function equilibrium_phase_density(p, z, ph, rho::BrineCO2MixingDensities, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg)
+    pvtnum = only(reg)
+    sys = model.system
+    rho_s = JutulDarcy.reference_densities(sys)
+    phases = JutulDarcy.get_phases(sys)
+    disgas = JutulDarcy.has_disgas(sys)
+    vapoil = JutulDarcy.has_vapoil(sys)
+
+    if disgas || vapoil
+        if JutulDarcy.has_other_phase(sys)
+            _, rhoOS, rhoGS = rho_s
+        else
+            rhoOS, rhoGS = rho_s
+        end
+    end
+    T = T_z(z)
+    phase_density = rho.tab(p, T)[ph]
+    return phase_density
+end
+
+function equilibrium_phase_density(p, z, ph, rho::Union{ThreePhaseCompositionalDensitiesLV, TwoPhaseCompositionalDensities}, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg)
+    pvtnum = only(reg)
+    sys = model.system
+    rho_s = JutulDarcy.reference_densities(sys)
+    phases = JutulDarcy.get_phases(sys)
+    disgas = JutulDarcy.has_disgas(sys)
+    vapoil = JutulDarcy.has_vapoil(sys)
+
+    if disgas || vapoil
+        if JutulDarcy.has_other_phase(sys)
+            _, rhoOS, rhoGS = rho_s
+        else
+            rhoOS, rhoGS = rho_s
+        end
+    end
+    if phases[ph] == AqueousPhase()
+        phase_density = rho_s[ph]*JutulDarcy.shrinkage(rho.immiscible_pvt, p)
+    else
+        @assert !ismissing(composition) "Composition must be present for equilibrium calculations for compositional models."
+        @assert !ismissing(T_z) "Temperature must be present for equilibrium calculations for compositional models."
+        z_i = Vector{Float64}(composition(z))
+        T = T_z(z)
+        eos = model.system.equation_of_state
+        f = MultiComponentFlash.flashed_mixture_2ph(eos, (p = p, T = T, z = z_i))
+        rho_l, rho_v = mass_densities(eos, p, T, f)
+        if phases[ph] == VaporPhase() || rho_l == 0
+            phase_density = rho_v
+        else
+            phase_density = rho_l
+        end
+    end
+    return phase_density
+end
+
+function equilibrium_phase_density(p, z, ph, rho, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg)
+    sys = model.system
+    rho_s = JutulDarcy.reference_densities(sys)
+    disgas = JutulDarcy.has_disgas(sys)
+    vapoil = JutulDarcy.has_vapoil(sys)
+
+    if disgas || vapoil
+        if JutulDarcy.has_other_phase(sys)
+            _, rhoOS, rhoGS = rho_s
+        else
+            rhoOS, rhoGS = rho_s
+        end
+    end
+    rho_val = fake_state[:PhaseMassDensities]
+    c = only(fake_cell_ix)
+    eltype_pressure = eltype(fake_state[:Pressure])
+    T = promote_type(eltype(p), eltype_pressure, eltype(rho_val))
+    if !ismissing(T_z)
+        T = promote_type(T, eltype(T_z(z)))
+    end
+    if eltype_pressure != T
+        fake_state[:Pressure] = convert.(T, fake_state[:Pressure])
+    end
+    fake_state[:Pressure][c] = p
+    if !ismissing(T_z)
+        if eltype(fake_state[:Temperature]) != T
+            fake_state[:Temperature] = convert.(T, fake_state[:Temperature])
+        end
+        fake_state[:Temperature][c] = T_z(z)
+    end
+    if eltype(rho_val) != T
+        fake_state[:PhaseMassDensities] = convert.(T, rho_val)
+        rho_val =  fake_state[:PhaseMassDensities]
+    end
+    Jutul.update_secondary_variable!(rho_val, rho, model, fake_state, fake_cell_ix)
+    phase_density = rho_val[ph, c]
     return phase_density
 end
 
