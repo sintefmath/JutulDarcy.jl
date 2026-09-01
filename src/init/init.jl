@@ -34,12 +34,12 @@ function equilibriate_state(model, contacts,
     model = reservoir_model(model)
     D = model.data_domain
     G = physical_representation(D)
-    cc = D[:cell_centroids][3, :]
+    cc = D[:cell_centroids]
     if ismissing(cells)
         cells = 1:number_of_cells(G)
-        pts = cc
+        pts = view(cc, 3, :)
     else
-        pts = view(cc, cells)
+        pts = view(cc, 3, cells)
     end
 
     if ismissing(datum_depth)
@@ -262,11 +262,19 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
                 phases = get_phases(sys)
                 phase_ind = phase_indices(model.system)
                 if length(phases) == 3
-                    if AqueousPhase() in phases && !ismissing(s_min)
-                        swcon = zeros(eltype(s_min[1]), nc_total)
-                        swcon[cells] .= s_min[1]
+                    if ismissing(s_min)
+                        s_min_T = Float64
                     else
-                        swcon = zeros(nc_total)
+                        s_min_T = eltype(s_min[1])
+                    end
+                    sw_key = (:swcon, s_min_T)
+                    if !haskey(cache, sw_key)
+                        cache[sw_key] = zeros(s_min_T, nc_total)
+                    end
+                    swcon = cache[sw_key]
+                    swcon::Vector{s_min_T}
+                    if AqueousPhase() in phases && !ismissing(s_min)
+                        swcon[cells] .= s_min[1]
                     end
                     for c in cells
                         update_three_phase_relperm!(kr, relperm, phase_ind, s_eval, nothing, c, swcon[c], nothing, nothing)
@@ -314,7 +322,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
     return init
 end
 
-function equilibrium_phase_density(p, z, ph, rho::DeckPhaseMassDensities, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg)
+function equilibrium_phase_density(p, z, ::Val{ph}, rho::DeckPhaseMassDensities, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg) where ph
     pvtnum = only(reg)
     sys = model.system
     rho_s = JutulDarcy.reference_densities(sys)
@@ -347,7 +355,7 @@ function equilibrium_phase_density(p, z, ph, rho::DeckPhaseMassDensities, T_z, f
     return phase_density
 end
 
-function equilibrium_phase_density(p, z, ph, rho::BrineCO2MixingDensities, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg)
+function equilibrium_phase_density(p, z, ::Val{ph}, rho::BrineCO2MixingDensities, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg) where ph
     pvtnum = only(reg)
     sys = model.system
     rho_s = JutulDarcy.reference_densities(sys)
@@ -367,7 +375,7 @@ function equilibrium_phase_density(p, z, ph, rho::BrineCO2MixingDensities, T_z, 
     return phase_density
 end
 
-function equilibrium_phase_density(p, z, ph, rho::Union{ThreePhaseCompositionalDensitiesLV, TwoPhaseCompositionalDensities}, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg)
+function equilibrium_phase_density(p, z, ::Val{ph}, rho::Union{ThreePhaseCompositionalDensitiesLV, TwoPhaseCompositionalDensities}, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg) where ph
     pvtnum = only(reg)
     sys = model.system
     rho_s = JutulDarcy.reference_densities(sys)
@@ -401,7 +409,7 @@ function equilibrium_phase_density(p, z, ph, rho::Union{ThreePhaseCompositionalD
     return phase_density
 end
 
-function equilibrium_phase_density(p, z, ph, rho, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg)
+function equilibrium_phase_density(p, z, ::Val{ph}, rho, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg) where ph
     sys = model.system
     rho_s = JutulDarcy.reference_densities(sys)
     disgas = JutulDarcy.has_disgas(sys)
@@ -1334,6 +1342,17 @@ function equil_setup_density_function(density_function, model, pvtnum, T_z, rs, 
 end
 
 function equil_setup_density_function(rho, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg)
-    F(p, z, ph) = equilibrium_phase_density(p, z, ph, rho, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg)
+    function F(p, z, ph)
+        for_phase(i) = equilibrium_phase_density(p, z, i, rho, T_z, fake_state, model, rs, rv, composition, fake_cell_ix, reg)
+        if ph == 1
+            return for_phase(Val(1))
+        elseif ph == 2
+            return for_phase(Val(2))
+        elseif ph == 3
+            return for_phase(Val(3))
+        else
+            return for_phase(Val(ph))
+        end
+    end
     return F
 end
