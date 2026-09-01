@@ -446,7 +446,7 @@ function setup_reservoir_state(
             end
         end
         if isnothing(I)
-            if !(k in svars) && !(k in (:Temperature, :Saturations))
+            if !(k in svars) && !(k in (:Temperature, :Saturations, :LiquidSaturation, :VaporSaturation))
                 jutul_message("setup_reservoir_state", "Received primary variable $k, but this is not known to reservoir model.")
             end
         else

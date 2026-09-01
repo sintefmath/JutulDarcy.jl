@@ -31,6 +31,24 @@ function setup_average_resv_state(model::StandardBlackOilModel, rstate; qw = 0.0
     rv_avg = 0.0
     disgas = has_disgas(sys)
     vapoil = has_vapoil(sys)
+    Tv = eltype(rstate.FluidVolume)
+    TP = eltype(rstate.Pressure)
+    Ts = eltype(rstate.ImmiscibleSaturation)
+    TRs = eltype(rstate.Rs)
+    TPv = eltype(rstate.Rv)
+
+    T = promote_type(Tv, TP, Ts, TRs, TPv)
+    if !(T <: AbstractFloat)
+        # Hack for SparseConnectivityTracer.GradientTracer
+        return (
+            bW = 1.0,
+            bO = x -> 1.0,
+            bG = x -> 1.0,
+            p = 100e5,
+            rs = 0.0,
+            rv = 0.0
+        )
+    end
     for c in eachindex(rstate.Pressure)
         p = value(rstate.Pressure[c])
         vol = value(rstate.FluidVolume[c])

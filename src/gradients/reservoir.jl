@@ -127,7 +127,9 @@ function setup_reservoir_dict_optimization(case::JutulCase;
     faults = get_faults(rdomain)
     dd_dict[:multiplier_faults] = DT()
     for (k, v) in pairs(faults)
-        dd_dict[:multiplier_faults][k] = ones(length(v))
+        if length(v) > 0
+            dd_dict[:multiplier_faults][k] = ones(length(v))
+        end
     end
     # Regular parameters - requested
     for k in setdiff(parameters, skip_list_parameters)
@@ -168,7 +170,6 @@ function setup_reservoir_dict_optimization(case::JutulCase;
     for (k, var) in pairs(rmodel.primary_variables)
         if k == :BlackOilUnknown
             bo_unknown = state0_r[k]
-            swat = get(state0_r, :ImmiscibleSaturation, missing)
             sw_fun(x::Missing, i) = 0.0
             sw_fun(x, i) = x[i]
             p = state0_r[:Pressure]
@@ -283,8 +284,12 @@ function optimization_resetup_reservoir_case(opt_dict::AbstractDict, case::Jutul
         rparameters[k] = v
     end
     if !ismissing(faults)
+        fmults = opt_dict[:model][:multiplier_faults]
         for (fault, faces) in pairs(faults)
-            fmult = opt_dict[:multiplier_faults][fault]
+            fmult = get(fmults, fault, missing)
+            if ismissing(fmult)
+                continue
+            end
             trans = rparameters[:Transmissibilities]
             for (i, f) in enumerate(faces)
                 trans[f] *= fmult[i]
@@ -332,6 +337,8 @@ function optimization_resetup_reservoir_case(opt_dict::AbstractDict, case::Jutul
     return new_case
 end
 
+const DEFAULT_OPTIMIZER_SIMULATOR_ARG = (output_substates = true, info_level = 0, end_report = false)
+
 """
     optimize_reservoir(dopt, objective, setup_fn = dopt.setup_function)
 
@@ -354,26 +361,52 @@ where only parameters and initial state are changed.
 """
 function optimize_reservoir(dopt, objective, setup_fn = dopt.setup_function;
         info_level = 0,
-        simulator_arg = (output_substates = true, info_level = info_level, end_report = info_level > 0),
+        simulator_arg = DEFAULT_OPTIMIZER_SIMULATOR_ARG,
         simulator = missing,
         config = missing,
         deps = :parameters_and_state0,
         kwarg...
     )
     sim, cfg = setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg)
-    return Jutul.optimize(dopt, objective, setup_fn; simulator = sim, config = cfg, deps = deps, info_level = info_level, kwarg...)
+    return Jutul.optimize(dopt, objective, setup_fn;
+        simulator = sim,
+        config = cfg,
+        deps = deps,
+        info_level = info_level,
+        kwarg...
+    )
 end
 
 function parameters_gradient_reservoir(dopt, objective, setup_fn = dopt.setup_function;
-        info_level = 0,
-        simulator_arg = (output_substates = true, info_level = info_level, end_report = info_level > 0),
+        simulator_arg = DEFAULT_OPTIMIZER_SIMULATOR_ARG,
         simulator = missing,
         config = missing,
         deps = :parameters_and_state0,
         kwarg...
     )
     sim, cfg = setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg)
-    return Jutul.parameters_gradient(dopt, objective, setup_fn; deps = deps, simulator = sim, config = cfg, kwarg...)
+    return Jutul.parameters_gradient(dopt, objective, setup_fn;
+        deps = deps,
+        simulator = sim,
+        config = cfg,
+        kwarg...
+    )
+end
+
+function reservoir_optimization_problem(dopt::DictParameters, objective, setup_fn = dopt.setup_function;
+        simulator_arg = DEFAULT_OPTIMIZER_SIMULATOR_ARG,
+        simulator = missing,
+        config = missing,
+        deps = :parameters_and_state0,
+        kwarg...
+    )
+    sim, cfg = setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg)
+    Jutul.optimization_problem(dopt, objective, setup_fn;
+        deps = deps,
+        simulator = sim,
+        config = cfg,
+        kwarg...
+    )
 end
 
 function setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg)

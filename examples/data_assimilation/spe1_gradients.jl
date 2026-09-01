@@ -121,12 +121,29 @@ title = "Categories"
 Legend(fig[1,2], elements, labels, title)
 fig
 # ## Compute sensitivities outside the optimization
-# We can also compute the sensitivities outside the optimization process. As our
-# previous setup funciton only has a single parameter (the porosity), we instead
-# switch to the `setup_reservoir_dict_optimization` function that can set up a
-# set of "typical" tunable parameters for any reservoir model. This saves us the
-# hassle of writing this function ourselves when we want to optimize e.g.
-# permeability, porosity and well indices.
+# We can also compute the sensitivities outside the optimization process. One
+# way to do this is to instantiate the optimization problem and call it with a
+# parameter dictionary. Note that the optimization problem is a callable object,
+# so we can call it with different parameter dictionaries to compute the
+# sensitivities at different points in the parameter space. This reuses the
+# somewhat expensive setup and compilation phase for a new adjoint gradient
+# computation, which is useful for external optimizers.
+problem = JutulDarcy.reservoir_optimization_problem(perm_opt, mismatch_objective_p)
+obj, g = problem()
+# ## Query gradients as a Dict
+# We can also get the gradients as a Dict, which is useful for plotting and
+# analysis. The gradients are returned in the same structure as the parameter
+# dictionary, so we can easily access the gradients for each parameter. Note
+# that lumping of parameters means that several entries may have the same value
+# - the gradient is treated as a single value for all lumped parameters in that case.
+_, gd = problem(perm_tuned)
+display(gd)
+# ## Using a pre-mde parametrization
+# As our previous setup funciton only has a single parameter (the porosity), we
+# instead switch to the `setup_reservoir_dict_optimization` function that can
+# set up a set of "typical" tunable parameters for any reservoir model. This
+# saves us the hassle of writing this function ourselves when we want to
+# optimize e.g. permeability, porosity and well indices.
 dprm_case = setup_reservoir_dict_optimization(case)
 free_optimization_parameters!(dprm_case)
 dprm_grad = parameters_gradient_reservoir(dprm_case, mismatch_objective_p);

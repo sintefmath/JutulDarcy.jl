@@ -211,3 +211,278 @@ function convert_summary(s; unit_system = get(s, "UNIT_SYSTEM", "METRIC"))
     out["TIME"] = (start_date = get(s, "START_DATE", nothing), seconds = seconds)
     return out
 end
+
+function convert_summary_from_data_file(data::AbstractDict)
+
+    rs = data["RUNSPEC"]
+    sched = data["SCHEDULE"]
+    start_date = get(rs, "START", nothing)
+
+    wells_scattered = Dict{String, Any}()
+    for k in keys(sched["WELSPECS"])
+        wells_scattered[k] = Dict(
+            :time => Float64[],
+            :qws => Float64[],
+            :qos => Float64[],
+            :qgs => Float64[],
+            :bhp => Float64[]
+        )
+    end
+    timesteps = Float64[]
+    current_time = 0.0
+
+    function strip_defaulted(x)
+        if isfinite(x)
+            return x
+        else
+            return 0.0
+        end
+    end
+
+    function add_well_entry(qos::Real, qws::Real, qgs::Real, bhp::Real, wellname::AbstractString, sgn::Real)
+        dest = wells_scattered[wellname]
+        push!(dest[:time], current_time)
+        push!(dest[:qos], sgn*strip_defaulted(qos))
+        push!(dest[:qws], sgn*strip_defaulted(qws))
+        push!(dest[:qgs], sgn*strip_defaulted(qgs))
+        push!(dest[:bhp], strip_defaulted(bhp))
+    end
+
+    function add_well_entry(keywords::Vector, idx_qws::Int, idx_qos::Int, idx_qgs::Int, idx_bhp::Int, sgn::Real)
+        for kword in keywords
+            wellname = kword[1]
+            qos = kword[idx_qos]
+            qws = kword[idx_qws]
+            qgs = kword[idx_qgs]
+            bhp = kword[idx_bhp]
+            add_well_entry(qos, qws, qgs, bhp, wellname, sgn)
+        end
+    end
+    for step in sched["STEPS"]
+        for (key, kword) in pairs(step)
+            if key == "DATES"
+                for date in kword
+                    cdate = start_date + Second(current_time)
+                    dt = Float64(Second(date - cdate).value)
+                    push!(timesteps, dt)
+                    current_time += dt
+                end
+            elseif key == "TIME"
+                for time in kword
+                    dt = time - current_time
+                    push!(timesteps, dt)
+                    current_time = time
+                end
+            elseif key == "TSTEP"
+                found_time = true
+                for dt in kword
+                    push!(timesteps, dt)
+                    current_time = current_time + dt
+                end
+            elseif key == "WCONHIST"
+                # WCONHIST
+                # 4 - qos
+                # 5 - qws
+                # 6 - qgs
+                # 10 - bhp
+                add_well_entry(kword, 5, 4, 6, 10, -1)
+            elseif key == "WCONPROD"
+                # WCONPROD
+                # 4 - qos
+                # 5 - qws
+                # 6 - qgs
+                # 7 - lrat
+                # 8 - resv
+                # 9 - bhp
+                add_well_entry(kword, 5, 4, 6, 9, -1)
+            elseif key == "WCONINJE"
+                # WCONINJE
+                # 2 - type
+                # 5 - rate
+                # 7 - bhp
+                for kw in kword
+                    rate = kw[5]
+                    phase = kw[2]
+                    if phase == "WATER"
+                        qws = rate
+                        qos = 0.0
+                        qgs = 0.0
+                    elseif phase == "OIL"
+                        qws = 0.0
+                        qos = rate
+                        qgs = 0.0
+                    elseif phase == "GAS"
+                        qws = 0.0
+                        qos = 0.0
+                        qgs = rate
+                    else
+                        error("Unknown phase $phase in WCONINJE")
+                    end
+                    add_well_entry(qos, qws, qgs, kw[7], kw[1], 1)
+                end
+            elseif key == "WCONINJH"
+                # TODO: handle WCONINJH
+                error("WCONINJH not yet implemented in convert_summary_from_data_file")
+            end
+        end
+    end
+    # Now unify and output as actual summary
+    wells = Dict{String, Any}()
+    out = Dict{String, Any}()
+    out["VALUES"] = Dict(
+        "FIELD" => Dict{String, Any}(),
+        "GROUP" => Dict{String, Any}(),
+        "WELLS" => wells,
+    )
+    seconds = cumsum([0; timesteps])
+    all(isfinite, seconds) || error("Non-finite time values in summary conversion.")
+    function sample(well, response, sgn)
+        ws = wells_scattered[well]
+        t = ws[:time]
+
+        i_u = unique(i -> t[i], eachindex(t))
+        t = t[i_u]
+        r = sgn.*ws[response][i_u]
+        r = max.(r, 0.0)
+        I = get_1d_interpolator(t, r)
+        if length(t) < 2
+            val = zeros(length(seconds))
+        else
+            val = I.(seconds)
+        end
+        return val
+    end
+    for wellname in keys(wells_scattered)
+        well = Dict{String, Any}()
+        well["WBHP"] = sample(wellname, :bhp, 1.0)
+        # Production
+        well["WOPR"] = sample(wellname, :qos, -1.0)
+        well["WGPR"] = sample(wellname, :qgs, -1.0)
+        well["WWPR"] = sample(wellname, :qws, -1.0)
+        # Injection
+        well["WWIR"] = sample(wellname, :qws, 1.0)
+        well["WOIR"] = sample(wellname, :qos, 1.0)
+        well["WGIR"] = sample(wellname, :qgs, 1.0)
+
+        wells[wellname] = well
+    end
+
+    out["TIME"] = (start_date = start_date, seconds = seconds)
+    out["UNIT_SYSTEM"] = "SI"
+    expand_summary!(out)
+    return out
+end
+
+function expand_summary(summary; kwarg...)
+    return expand_summary!(deepcopy(summary); kwarg...)
+end
+
+function expand_summary!(summary; recompute = false)
+    update_field(d, k) = !haskey(d, k) || recompute
+    # Add missing fields
+    vals = summary["VALUES"]
+    nstep = length(summary["TIME"].seconds)
+    if update_field(summary, "FIELD")
+        summary["FIELD"] = Dict{String, Any}()
+    end
+    values = summary["VALUES"]
+    dt = diff([0; summary["TIME"].seconds])
+    # 
+    haskey(values, "WELLS") || error("Summary does not contain WELLS entry.")
+    wells = keys(values["WELLS"])
+
+    function maybe_sum_well_rates_to_field(k::String)
+        startswith(k, "W") || error("Expected well rate key starting with W, got $k")
+        fkey = "F$(k[2:end])"
+        if update_field(values, fkey)
+            values["FIELD"][fkey] = sum(x -> values["WELLS"][x][k], wells)
+        end
+    end
+
+    function get_destination_and_keys(src_key)
+        type = src_key[1]
+        if type == 'W'
+            d = values["WELLS"]
+            dest_keys = wells
+        elseif type == 'F'
+            d = values
+            dest_keys = ["FIELD"]
+        else
+            error("Unexpected type $type")
+        end
+        return (d, dest_keys)
+    end
+
+    function maybe_cumsum_rate(src_key::String)
+        (d, dest_keys) = get_destination_and_keys(src_key)
+        base = src_key[1:end-1]
+        src_key[end] == 'R' || error("Expected rate key ending with R, got $src_key")
+        dest_key = "$(base)T"
+        for k in dest_keys
+            if update_field(d[k], dest_key)
+                d[k][dest_key] = cumsum(d[k][src_key].*dt)
+            end
+        end
+    end
+
+    function add_derived_quantities()
+        for (wname, wdata) in pairs(values["WELLS"])
+            maybe_add_derived!(wdata, 'W')
+        end
+        maybe_add_derived!(values["FIELD"], 'F')
+    end
+
+    function maybe_add_derived!(data, prefix::Char)
+        # GLR, WCT, LPR, WGR, GOR
+        glr = "$(prefix)GLR"
+        wct = "$(prefix)WCT"
+        lpr = "$(prefix)LPR"
+        wgr = "$(prefix)WGR"
+        gor = "$(prefix)GOR"
+
+        gpr = "$(prefix)GPR"
+        opr = "$(prefix)OPR"
+        wpr = "$(prefix)WPR"
+
+        # Liquid rate
+        if update_field(data, lpr) && haskey(data, wpr) && haskey(data, opr)
+            data[lpr] = data[wpr] + data[opr]
+        end
+
+        # Gas liquid ratio
+        if update_field(data, glr) && haskey(data, gpr) && haskey(data, opr)
+            data[glr] = data[gpr]./data[lpr]
+        end
+
+        # Water cut
+        if update_field(data, wct) && haskey(data, wpr) && haskey(data, lpr)
+            data[wct] = data[wpr]./max.(data[lpr], 1e-12)
+        end
+
+        # Gas oil ratio
+        if update_field(data, gor) && haskey(data, gpr) && haskey(data, opr)
+            data[gor] = data[gpr]./max.(data[opr], 1e-12)
+        end
+
+        # Water gas ratio
+        if update_field(data, wgr) && haskey(data, wpr) && haskey(data, gpr)
+            data[wgr] = data[wpr]./max.(data[gpr], 1e-12)
+        end
+    end
+
+    # Production rates
+    for w in ["WOPR", "WGPR", "WWPR", "WOIR", "WGIR", "WWIR"]
+        maybe_sum_well_rates_to_field(w)
+    end
+    # Add what can be derived from rates
+    add_derived_quantities()
+    # Add cumulative sums
+    for w in ["WOPR", "WGPR", "WWPR", "WOIR", "WGIR", "WWIR", "WLPR"]
+        maybe_cumsum_rate(w)
+    end
+
+    for w in ["FOPR", "FWPR", "FGPR", "FOIR", "FWIR", "FGIR", "FLPR"]
+        maybe_cumsum_rate(w)
+    end
+    return summary
+end

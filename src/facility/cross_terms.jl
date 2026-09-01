@@ -72,7 +72,8 @@ function perforation_phase_potential_difference(conn, state_res, state_well, ix)
     end
     if conn.gdz != 0.0
         if haskey(state_well, :ConnectionPressureDrop)
-            dp += state_well.ConnectionPressureDrop[conn.perforation]
+            cdp = state_well.ConnectionPressureDrop[conn.perforation]
+            dp += cdp
         else
             ρ_r = state_res.PhaseMassDensities[ix, conn.reservoir]
             if haskey(state_well, :PhaseMassDensities)
