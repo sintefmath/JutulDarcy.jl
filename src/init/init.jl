@@ -975,6 +975,8 @@ function integrate_phase_density(z_datum, z_end, p0, density_f, phase; n = 1000,
         p = pressure[i-1]
         depth = z[i-1] + dz
         dens = density_f(p, depth, phase)
+        dens = convert(T, dens)
+        depth = convert(T, depth)
         pressure[i] = p + dz*dens*g
         if !isfinite(pressure[i])
             error("Equilibriation returned non-finite pressures for density $dens at pressure $p Pa and depth $depth m for node $(i-1).")
