@@ -425,6 +425,20 @@ function expand_summary!(summary; recompute = false)
         end
     end
 
+    function add_missing_well_rates!(data)
+        for k in ["WOIR", "WGIR", "WWIR", "WOPR", "WGPR", "WWPR"]
+            if update_field(data, k)
+                data[k] = zeros(nstep)
+            end
+        end
+    end
+
+    function add_missing_well_rates()
+        for (wname, wdata) in pairs(values["WELLS"])
+            add_missing_well_rates!(wdata)
+        end
+    end
+
     function add_derived_quantities()
         for (wname, wdata) in pairs(values["WELLS"])
             maybe_add_derived!(wdata, 'W')
@@ -469,6 +483,8 @@ function expand_summary!(summary; recompute = false)
             data[wgr] = data[wpr]./max.(data[gpr], 1e-12)
         end
     end
+
+    add_missing_well_rates()
 
     # Production rates
     for w in ["WOPR", "WGPR", "WWPR", "WOIR", "WGIR", "WWIR"]
