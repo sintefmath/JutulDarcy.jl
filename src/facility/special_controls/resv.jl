@@ -38,12 +38,12 @@ function setup_average_resv_state(model::StandardBlackOilModel, rstate; qw = 0.0
     TPv = eltype(rstate.Rv)
 
     T = promote_type(Tv, TP, Ts, TRs, TPv)
-    if !(T <: AbstractFloat)
+    if T <: Jutul.AdjointsDI.SparseConnectivityTracer.Dual
         # Hack for SparseConnectivityTracer.GradientTracer
         return (
             bW = 1.0,
-            bO = x -> 1.0,
-            bG = x -> 1.0,
+            bO = _ -> 1.0,
+            bG = _ -> 1.0,
             p = 100e5,
             rs = 0.0,
             rv = 0.0
