@@ -60,7 +60,6 @@ function JutulDarcy.plot_summary_impl(arg...;
     get_summary(r::JutulDarcy.ReservoirSimResult) = r.summary
     get_summary(x) = x
     summaries = [get_summary(s) for s in arg]
-    @info "???" summaries arg
     nsmry = length(names)
     nsmry == length(summaries) || error("Number of names ($nsmry) must match number of summaries ($(length(summaries))).")
     for (i, s) in enumerate(summaries)
