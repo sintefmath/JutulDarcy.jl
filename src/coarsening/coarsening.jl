@@ -98,6 +98,12 @@ function coarsen_reservoir(D::DataDomain, partition;
         functions[:max_coordinate] = Jutul.CoarsenByMaximum()
     end
     D_c = Jutul.coarsen_data_domain(D, partition, functions = functions)
+    if haskey(D_c, :cpgrid_corners)
+        # Remove cpgrid_corners from the coarse data domain to avoid calling the
+        # cpgrid variant that requires IJK indices.
+        delete!(D_c, :cpgrid_corners)
+    end
+    D_c[:ijk_permeability, NoEntity()] = false
     if preserve_faults
         G_c = physical_representation(D_c)
         fine_faults  = get_faults(D)
