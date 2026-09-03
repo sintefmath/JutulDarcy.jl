@@ -158,4 +158,10 @@ fig
 # If you are running the example yourself, you can now explore the sensitivities
 # in the interactive viewer. This is useful for understanding how the model
 # responds to changes in the parameters.
-plot_reservoir(case.model, dprm_grad[:model])
+plot_reservoir(case, sens = dprm_grad[:model])
+##
+res, sens = JutulDarcy.reservoir_sensitivities(case, mismatch_objective_p)
+##
+plot_reservoir(case, res, sens = sens, zaspect = 1/10)
+##
+plot_reservoir(case, res, add_secondary = true)
