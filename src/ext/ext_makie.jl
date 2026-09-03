@@ -327,7 +327,7 @@ function plot_reservoir(case::JutulCase, states = missing; state0 = true, kwarg.
             states = [s0]
         else
             s = states[1]
-            s0_new = similar(s)
+            s0_new = typeof(s)()
             for (k, v) in pairs(s)
                 s0_new[k] = v
             end
