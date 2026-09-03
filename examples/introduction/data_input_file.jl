@@ -66,4 +66,4 @@ plot_summary(simulated.summary,
 # us to explore the grid and solution in more detail. The free camera allows for
 # detailed inspection of the grid and is closer to typical reservoir simulation
 # visualizers than the default `plot_reservoir` settings.
-plot_reservoir(case, states, fancy = true)
+plot_reservoir(case, states)
