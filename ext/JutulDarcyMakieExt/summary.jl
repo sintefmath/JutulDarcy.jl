@@ -351,6 +351,18 @@ function JutulDarcy.plot_summary_impl(arg...;
         end
     end
 
+
+    function update_field_or_well_selection(m1, m2, new_selection, idx)
+        m2.options[] = get_quantity_options(new_selection)
+        plots[idx] = plot_string(new_selection, m2.selection[])
+        update_plots(idx)
+    end
+
+    function update_response_selection(m1, m2, new_selection, idx)
+        plots[idx] = plot_string(m1.selection[], new_selection)
+        update_plots(idx)
+    end
+
     function update_menu_layout()
         nrows = row_menu.selection[]
         ncols = col_menu.selection[]
@@ -375,6 +387,7 @@ function JutulDarcy.plot_summary_impl(arg...;
         end
         plot_boxes = Matrix{Any}(undef, nrows, ncols)
         plot_idx = 1
+
         for j in 1:ncols
             for i in 1:nrows
                 if isnothing(start_date)
@@ -399,13 +412,10 @@ function JutulDarcy.plot_summary_impl(arg...;
                     # Capture variable in local scope for the functions
                     local_plot_idx = plot_idx
                     on(submenu1.selection) do s
-                        submenu2.options[] = get_quantity_options(s)
-                        plots[local_plot_idx] = plot_string(s, submenu2.selection[])
-                        update_plots(local_plot_idx)
+                        update_field_or_well_selection(submenu1, submenu2, s, local_plot_idx)
                     end
                     on(submenu2.selection) do s
-                        plots[local_plot_idx] = plot_string(submenu1.selection[], s)
-                        update_plots(local_plot_idx)
+                        update_response_selection(submenu1, submenu2, s, local_plot_idx)
                     end
                     subax = make_ax(plot_box[2, 1:2])
                 else
@@ -447,6 +457,47 @@ function JutulDarcy.plot_summary_impl(arg...;
     if !ismissing(events)
         DataInspector(fig)
     end
+
+    scene = fig.scene
+    #                 plot_boxes[i, j] = (ax = subax, menu1 = submenu1, menu2 = submenu2, box = plot_box, label1 = l1, label2 = l2)
+    function increment_quantity()
+        for pb in plot_boxes
+            
+        end
+        update_plots()
+    end
+
+    # on(events(scene).keyboardbutton) do event
+    #     if event.action == Keyboard.press || event.action == Keyboard.repeat
+    #         # length(points[]) > 1 || return nothing
+    #         do_update_plots = true
+    #         if event.key == Keyboard.s
+    #             # Sync all plots to the same response
+                
+    #         elseif event.key == Keyboard.a
+    #             # Sync all plots to the same well/field
+
+    #         elseif event.key == Keyboard.left
+    #             # Previous response
+    #         elseif event.key == Keyboard.right
+    #             # Next response
+    #         elseif event.key == Keyboard.up
+    #             # Previous well/field
+    #         elseif event.key == Keyboard.down
+    #             # Next well/field
+    #             # pop!(points[])
+    #             # pop!(points[])
+    #             # notify(points)
+    #         else
+    #             do_update_plots = false
+    #         end
+            
+    #         if do_update_plots
+    #             update_plots()
+    #         end
+    #     end
+    # end
+
 
     return fig
 end
