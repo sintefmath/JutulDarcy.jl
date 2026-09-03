@@ -1,4 +1,4 @@
-using Jutul, JutulDarcy, Test, LinearAlgebra, HYPRE, GeoEnergyIO
+using Jutul, JutulDarcy, Test, LinearAlgebra, GeoEnergyIO
 
 function well_test_objective(model, state)
     q = state[:Facility][:TotalSurfaceMassRate]

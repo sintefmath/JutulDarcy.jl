@@ -210,6 +210,9 @@ module JutulDarcy
     # Postprocessing
     include("postprocessing.jl")
 
+    # Corner Point Geometry
+    include("CornerPointGeometry/CornerPointGeometry.jl")
+
     # Geothermal
     include("Geothermal/Geothermal.jl")
     import JutulDarcy.Geothermal: ClosedLoopSupplyToReturnMassCT, ClosedLoopSupplyToReturnEnergyCT

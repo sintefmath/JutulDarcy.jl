@@ -2194,9 +2194,18 @@ returned from [`reservoir_domain`](@ref)
 The keyword argument `version` can be `:xyz` for permeability tensors that are
 aligned with coordinate directions or `:ijk` to interpreted the permeability as
 a diagonal tensor aligned with the logical grid directions. The latter choice is
-only meaningful for a diagonal tensor.
+only meaningful for a diagonal tensor. The `:ijk` option will be automatically
+selected automatically if the `:ijk_permeability` flag is set in the domain
+(`d[:ijk_permeability, NoEntity()] = true`).
 """
-function reservoir_transmissibility(d::DataDomain; version = :xyz)
+function reservoir_transmissibility(d::DataDomain; version = missing)
+    if ismissing(version)
+        if get(d, :ijk_permeability, false)
+            version = :ijk
+        else
+            version = :xyz
+        end
+    end
     nf = number_of_faces(d)
     has_nnc = haskey(d, :nnc)
     if has_nnc

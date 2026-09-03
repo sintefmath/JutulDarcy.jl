@@ -901,11 +901,20 @@ function initialize_numerical_aquifers!(init, rmodel, aquifers)
 end
 """
     res = reservoir_domain(data_file)
-    reservoir_domain(data_file::AbstractDict; zcorn_depths = true, repair_zcorn = true, process_pinch = true)
+    reservoir_domain(data_file::AbstractDict; cpgrid_geometry = true, repair_zcorn = true, process_pinch = true)
 
 Set up reservoir domain from GRID section of passed .DATA file.
+
+# Optional keyword arguments:
+ - `cpgrid_geometry = true`: whether to set up the corner-point grid geometry instead of true geometry
+ - `zcorn_depths` = false`: Use ZCORN depths instead of true geometry for the
+   corner-point grid (only matters if `cpgrid_geometry=false`)
+ - `repair_zcorn = true`: whether to repair ZCORN points
+ - `process_pinch = true`: whether to process pinch-outs
+ - `check_mesh = false`: whether to check for issues with the mesh at some additional runtime cost
 """
 function reservoir_domain(data_file::AbstractDict;
+        cpgrid_geometry = true,
         zcorn_depths = true,
         repair_zcorn = true,
         process_pinch = true,
@@ -1191,10 +1200,17 @@ function reservoir_domain(data_file::AbstractDict;
                 domain[:cell_centroids][3, i] = val
             end
         end
-    elseif haskey(grid, "ZCORN") && zcorn_depths
-        # Option to use ZCORN points to set depths
-        z = get_zcorn_cell_depths(G, grid)
-        @. domain[:cell_centroids][3, :] = z
+    end
+
+    if haskey(grid, "ZCORN")
+        if cpgrid_geometry
+            domain[:ijk_permeability, NoEntity()] = true
+            CornerPointGeometry.set_cpgrid_geometry!(domain, grid)
+        elseif zcorn_depths
+            # Option to use ZCORN points to set depths by itself
+            z = get_zcorn_cell_depths(G, grid)
+            @. domain[:cell_centroids][3, :] = z
+        end
     end
 
     # pinch_face = get_mesh_entity_tag(G, Faces(), :cpgrid_connection_type, :pinched, throw = false)
