@@ -458,45 +458,53 @@ function JutulDarcy.plot_summary_impl(arg...;
         DataInspector(fig)
     end
 
-    scene = fig.scene
     #                 plot_boxes[i, j] = (ax = subax, menu1 = submenu1, menu2 = submenu2, box = plot_box, label1 = l1, label2 = l2)
-    function increment_quantity()
+    function cycle_well_or_field(inc = 1)
         for pb in plot_boxes
-            
+            m1 = pb.menu1
+            m2 = pb.menu2
+            curr = m1.selection[]
+            if curr != "FIELD"
+                opts = m1.options[]
+                pos = findfirst(isequal(curr), opts)
+                pos = mod1(pos + inc, length(opts))
+                if pos == 1
+                    pos = 2
+                end
+                m1.selection[] = opts[pos]
+                m1.i_selected[] = pos
+            end
         end
-        update_plots()
     end
+    sc = fig.scene
+    sc::Scene
+    # update_field_or_well_selection(submenu1, submenu2, s, local_plot_idx)
+    # update_response_selection(submenu1, submenu2, s, local_plot_idx)
 
-    # on(events(scene).keyboardbutton) do event
-    #     if event.action == Keyboard.press || event.action == Keyboard.repeat
-    #         # length(points[]) > 1 || return nothing
-    #         do_update_plots = true
-    #         if event.key == Keyboard.s
-    #             # Sync all plots to the same response
+
+    on(Makie.events(sc).keyboardbutton) do event
+        if event.action == Keyboard.press || event.action == Keyboard.repeat
+            @info "???" event.key
+            if event.key == Keyboard.s
+                # Sync all plots to the same response
                 
-    #         elseif event.key == Keyboard.a
-    #             # Sync all plots to the same well/field
+            elseif event.key == Keyboard.a
+                # Sync all plots to the same well/field
 
-    #         elseif event.key == Keyboard.left
-    #             # Previous response
-    #         elseif event.key == Keyboard.right
-    #             # Next response
-    #         elseif event.key == Keyboard.up
-    #             # Previous well/field
-    #         elseif event.key == Keyboard.down
-    #             # Next well/field
-    #             # pop!(points[])
-    #             # pop!(points[])
-    #             # notify(points)
-    #         else
-    #             do_update_plots = false
-    #         end
-            
-    #         if do_update_plots
-    #             update_plots()
-    #         end
-    #     end
-    # end
+            elseif event.key == Keyboard.left
+                # Previous response
+            elseif event.key == Keyboard.right
+                # Next response
+            elseif event.key == Keyboard.up
+                # Previous well/field
+                cycle_well_or_field(-1)
+            elseif event.key == Keyboard.down
+                # Next well/field
+                cycle_well_or_field(1)
+            end
+
+        end
+    end
 
 
     return fig
