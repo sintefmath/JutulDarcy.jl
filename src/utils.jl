@@ -3358,6 +3358,12 @@ function unit_system_unit_conversion(unit_sys, lbl, t)
         elseif t == :length
             u = :meters
             lbl = "m"
+        elseif t == :viscosity
+            u = :centipoise
+            lbl = "cP"
+        elseif t == :volume
+            u = missing
+            lbl = "m³"
         end
     elseif unit_sys == "field"
         if t == :gas_volume_surface
@@ -3390,6 +3396,12 @@ function unit_system_unit_conversion(unit_sys, lbl, t)
         elseif t == :length
             u = :feet
             lbl = "ft"
+        elseif t == :viscosity
+            u = :centipoise
+            lbl = "cP"
+        elseif t == :volume
+            u = missing
+            lbl = "ft³"
         end
     elseif unit_sys == "si"
         if t == :gas_volume_surface
@@ -3412,17 +3424,25 @@ function unit_system_unit_conversion(unit_sys, lbl, t)
             lbl = "m²"
         elseif t == :length
             lbl = "m"
+        elseif t == :viscosity
+            lbl = "Pa·s"
+        elseif t == :volume
+            lbl = "m³"
         end
     end
     return (u, lbl)
 end
 
 function convert_for_plotting(x::DataDomain; kwarg...)
-    out = Dict{Any, Any}()
+    cell_data = Dict{Any, Any}()
     for (k, (v, e)) in pairs(x)
-        out[k] = v
+        if e == Cells()
+            cell_data[k] = v
+        end
     end
-    return convert_for_plotting(out; kwarg...)
+    converted = convert_for_plotting(cell_data; kwarg...)
+    g = physical_representation(x)
+    out = DataDomain(x; pairs(converted)...)
 end
 
 function convert_for_plotting(states::AbstractVector; kwarg...)
@@ -3492,7 +3512,9 @@ function convert_for_plotting(s::Union{AbstractDict, DataDomain, JutulStorage};
     end
     conversion = Dict(
         :Pressure => :pressure,
-        :TotalMasses => :mass
+        :TotalMasses => :mass,
+        :PhaseViscosities => :viscosity,
+        :volumes => :volume
     )
     out = Dict{keytype, Any}()
     for (k, val) in pairs(s)
