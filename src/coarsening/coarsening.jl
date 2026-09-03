@@ -101,7 +101,7 @@ function coarsen_reservoir(D::DataDomain, partition;
     if haskey(D_c, :cpgrid_corners)
         # Remove cpgrid_corners from the coarse data domain to avoid calling the
         # cpgrid variant that requires IJK indices.
-        delete!(D_c, :cpgrid_corners)
+        delete!(D_c.data, :cpgrid_corners)
     end
     D_c[:ijk_permeability, NoEntity()] = false
     if preserve_faults
