@@ -54,22 +54,16 @@ plot_reservoir_measurables(case, ws, states, left = :fgpr, right = :pres)
 # The summary contains field and well responses in one file. We have a dedicated
 # viewer that can be preconfigured to show specific responses, or used
 # interactively to explore.
-JutulDarcy.plot_summary(simulated.summary)
+plot_summary(simulated.summary)
 # ## We can also pre-specify and group plot responses
-JutulDarcy.plot_summary(simulated.summary,
+plot_summary(simulated.summary,
     plots = ["FOPR,FWPR,FGPR", "FOPT,FWPT,FGPT", "FPR", "FOIP"],
     unit_system = "Field",
     cols = 2
 )
 # ## Plot in free camera 3D viewer
-# The 3D viewer allows us to explore the grid and solution in more detail. The
-# free camera allows for detailed inspection of the grid and is closer to
-# typical reservoir simulation visualizers that the default `plot_reservoir`
-# code.
-using Jutul
-reservoir = reservoir_domain(case)
-ex = plot_explorer(reservoir, dynamic = simulated.states, colormap = :seaborn_icefire_gradient)
-for (k, w) in get_model_wells(case.model)
-    plot_well!(ex.lscene, reservoir, w)
-end
-ex.fig
+# Setting the `fancy` input argument to `true launches a 3D viewer that allows
+# us to explore the grid and solution in more detail. The free camera allows for
+# detailed inspection of the grid and is closer to typical reservoir simulation
+# visualizers than the default `plot_reservoir` settings.
+plot_reservoir(case, states, fancy = true)

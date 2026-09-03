@@ -55,6 +55,12 @@ compared in the same figure.
   to include in the selection lists, for example to add custom composite plots.
   For example, adding `WBHP,WWIR` to `extra_well` will allow plotting bottom
   hole pressure together with water injection rate for wells.
+
+# Keyboard shortcuts
+- `Left Arrow`: Previous response
+- `Right Arrow`: Next response
+- `Up Arrow`: Previous well (not active for field views)
+- `Down Arrow`: Next well (not active for field views)
 """
 function plot_summary(arg...; kwarg...)
     Jutul.check_plotting_availability()

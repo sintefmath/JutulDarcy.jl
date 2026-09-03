@@ -100,7 +100,7 @@ function JutulDarcy.plot_summary_impl(arg...;
     # Field types
     field_quantity_keys = collect(keys(summary_sample["VALUES"]["FIELD"]))
     sort!(field_quantity_keys)
-    pushfirst!(field_quantity_keys, "NONE")
+    # pushfirst!(field_quantity_keys, "NONE")
 
     lookup = JutulDarcy.summary_key_lookup()
     function get_well_quantity_keys(wname)
@@ -458,7 +458,6 @@ function JutulDarcy.plot_summary_impl(arg...;
         DataInspector(fig)
     end
 
-    #                 plot_boxes[i, j] = (ax = subax, menu1 = submenu1, menu2 = submenu2, box = plot_box, label1 = l1, label2 = l2)
     function cycle_well_or_field(inc = 1)
         for pb in plot_boxes
             m1 = pb.menu1
@@ -492,20 +491,9 @@ function JutulDarcy.plot_summary_impl(arg...;
             m2.i_selected[] = pos
         end
     end
-    # update_field_or_well_selection(submenu1, submenu2, s, local_plot_idx)
-    # update_response_selection(submenu1, submenu2, s, local_plot_idx)
-
-
     on(Makie.events(fig.scene).keyboardbutton) do event
         if event.action == Keyboard.press || event.action == Keyboard.repeat
-            @info "???" event.key
-            if event.key == Keyboard.s
-                # Sync all plots to the same response
-                
-            elseif event.key == Keyboard.a
-                # Sync all plots to the same well/field
-
-            elseif event.key == Keyboard.left
+            if event.key == Keyboard.left
                 # Previous response
                 cycle_response(-1)
             elseif event.key == Keyboard.right
@@ -518,7 +506,6 @@ function JutulDarcy.plot_summary_impl(arg...;
                 # Next well/field
                 cycle_well_or_field(1)
             end
-
         end
     end
 
