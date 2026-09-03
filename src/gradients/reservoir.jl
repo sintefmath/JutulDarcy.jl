@@ -337,8 +337,6 @@ function optimization_resetup_reservoir_case(opt_dict::AbstractDict, case::Jutul
     return new_case
 end
 
-const DEFAULT_OPTIMIZER_SIMULATOR_ARG = (output_substates = true, info_level = 0, end_report = false)
-
 """
     optimize_reservoir(dopt, objective, setup_fn = dopt.setup_function)
 
