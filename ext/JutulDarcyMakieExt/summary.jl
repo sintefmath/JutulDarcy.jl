@@ -476,13 +476,27 @@ function JutulDarcy.plot_summary_impl(arg...;
             end
         end
     end
-    sc = fig.scene
-    sc::Scene
+
+    function cycle_response(inc = 1)
+        for pb in plot_boxes
+            m1 = pb.menu1
+            m2 = pb.menu2
+            curr = m2.selection[]
+            opts = m2.options[]
+            pos = findfirst(isequal(curr), opts)
+            if isnothing(pos)
+                pos = 1
+            end
+            pos = mod1(pos + inc, length(opts))
+            m2.selection[] = opts[pos]
+            m2.i_selected[] = pos
+        end
+    end
     # update_field_or_well_selection(submenu1, submenu2, s, local_plot_idx)
     # update_response_selection(submenu1, submenu2, s, local_plot_idx)
 
 
-    on(Makie.events(sc).keyboardbutton) do event
+    on(Makie.events(fig.scene).keyboardbutton) do event
         if event.action == Keyboard.press || event.action == Keyboard.repeat
             @info "???" event.key
             if event.key == Keyboard.s
@@ -493,8 +507,10 @@ function JutulDarcy.plot_summary_impl(arg...;
 
             elseif event.key == Keyboard.left
                 # Previous response
+                cycle_response(-1)
             elseif event.key == Keyboard.right
                 # Next response
+                cycle_response(1)
             elseif event.key == Keyboard.up
                 # Previous well/field
                 cycle_well_or_field(-1)
