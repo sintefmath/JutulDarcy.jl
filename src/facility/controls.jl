@@ -132,7 +132,11 @@ function update_before_step_reference_mode!(storage_g, model_g, model::WellGroup
         newreq, = realize_control_for_reservoir(rstate, forces.control[wkey], rmodel, dt)
         req_ctrls[wkey] = newreq
         op = op_ctrls[wkey]
-        if op isa DisabledControl || newreq isa DisabledControl
+        if op isa DisabledControl
+            # The forward solve shut this well on this (sub)step (e.g. the rate
+            # collapsed to zero). Keep it shut: its control equation then has no
+            # dependence on the requested target, which is the correct gradient.
+        elseif newreq isa DisabledControl
             op_ctrls[wkey] = newreq
         else
             op_sym = translate_target_to_symbol(op.target)
