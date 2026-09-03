@@ -3414,6 +3414,8 @@ function convert_for_plotting(s::Union{AbstractDict, DataDomain, JutulStorage};
         source_units = "si",
         keytype = Symbol
     )
+    conv_to_si(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = source_units, to = "si")
+    conv_from_si(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = "si", to = units)
     conv(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = source_units, to = units)
     add!(k, v) = out[keytype(k)] = v
 
@@ -3454,7 +3456,10 @@ function convert_for_plotting(s::Union{AbstractDict, DataDomain, JutulStorage};
         elseif k == :cell_centroids
             add_spatial!(:center, val, :length, true)
         elseif k == :Temperature
-
+            add!(k, conv(val, :temperature))
+            val = conv_to_si(val, :absolute_temperature) .- 273.15
+            val_rel = conv_from_si(val, :relative_temperature)
+            add!(:Temperature_relative, val_rel)
         else
             u = get(conversion, k, missing)
             if ismissing(u)
