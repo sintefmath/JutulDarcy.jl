@@ -111,7 +111,7 @@ more advanced GUI with more options will be launched that allows for panning and
 zooming. If `fancy=false`, a fixed-axis plot will be launched instead. The
 keyword `gui=false` can be used to just get a static plot without interactivity.
 """
-function plot_reservoir(model, arg...;
+function plot_reservoir(model, states = missing;
         gui = true,
         fancy = false,
         faults = fancy,
@@ -124,9 +124,30 @@ function plot_reservoir(model, arg...;
         well_top_factor_scale = 1.0,
         well_arg = NamedTuple(),
         force_glmakie = true,
+        convert_units = true,
+        unit_system = "metric",
+        source_unit_system = "si",
+        unit_lookup = Dict(),
         wells = missing,
         kwarg...
     )
+    function maybe_convert_units(x)
+        if convert_units
+            retval = convert_for_plotting(x,
+                units = unit_system,
+                source_units = source_unit_system,
+                unit_lookup = unit_lookup
+            )
+        else
+            retval = x
+        end
+        return retval
+    end
+    if ismissing(states)
+        arg = tuple()
+    else
+        arg = (maybe_convert_units(states),)
+    end
     Jutul.check_plotting_availability()
     if force_glmakie
         @assert Jutul.plotting_check_interactive(warn = true) "Function requires interactive plotting. Set force_glmakie = false to override."

@@ -3454,14 +3454,14 @@ function convert_for_plotting(s::Union{AbstractDict, DataDomain, JutulStorage};
         source_units = "si",
         append_unit = true,
         keytype = Symbol,
-        lookup = Dict()
+        unit_lookup = Dict()
     )
     conv_to_si(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = source_units, to = "si")
     conv_from_si(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = "si", to = units)
     conv(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = source_units, to = units)
     conv(x, ::Missing) = x
     function add!(k, v, value_type = missing)
-        override = get(lookup, k, missing)
+        override = get(unit_lookup, k, missing)
         lbl = missing
         if !ismissing(override)
             if override isa Real
