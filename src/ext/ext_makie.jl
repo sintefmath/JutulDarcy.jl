@@ -200,7 +200,17 @@ function plot_reservoir(model, states = missing;
             if ismissing(states)
                 arg = tuple()
             else
-                arg = (map(x -> merge(x, static_data), states), )
+                merged_states = map(states) do s
+                    o = OrderedDict()
+                    for (k, v) in pairs(s)
+                        o[k] = v
+                    end
+                    for (k, v) in pairs(static_data)
+                        o[k] = v
+                    end
+                    return o
+                end
+                arg = (merged_states, )
             end
             fig = plot_interactive(data_domain, arg...; z_is_depth = true, aspect = aspect, kwarg...)
             ax = fig.current_axis[]
