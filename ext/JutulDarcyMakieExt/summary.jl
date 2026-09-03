@@ -100,7 +100,7 @@ function JutulDarcy.plot_summary_impl(arg...;
     # Field types
     field_quantity_keys = collect(keys(summary_sample["VALUES"]["FIELD"]))
     sort!(field_quantity_keys)
-    # pushfirst!(field_quantity_keys, "NONE")
+    pushfirst!(field_quantity_keys, "NONE")
 
     lookup = JutulDarcy.summary_key_lookup()
     function get_well_quantity_keys(wname)
