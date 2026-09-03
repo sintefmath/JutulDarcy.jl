@@ -3448,22 +3448,28 @@ function convert_for_plotting(x::DataDomain; kwarg...)
             cell_data[k] = v
         end
     end
-    converted = convert_for_plotting(cell_data; kwarg...)
-    g = physical_representation(x)
-    out = DataDomain(x; pairs(converted)...)
+    return convert_for_plotting(cell_data; kwarg...)
 end
 
 function convert_for_plotting(states::AbstractVector; kwarg...)
     return map(x -> convert_for_plotting(x; kwarg...), states)
 end
 
-function convert_for_plotting(s::Union{AbstractDict, DataDomain, JutulStorage};
+function convert_for_plotting(x::Missing; kwarg...)
+    return x
+end
+
+function convert_for_plotting(s::Union{AbstractDict, JutulStorage};
         units = "metric",
         source_units = "si",
         append_unit = true,
         keytype = Symbol,
-        unit_lookup = Dict()
+        unit_lookup = Dict(),
+        convert_units = true
     )
+    if !convert_units
+        return s
+    end
     conv_to_si(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = source_units, to = "si")
     conv_from_si(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = "si", to = units)
     conv(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = source_units, to = units)
@@ -3507,7 +3513,6 @@ function convert_for_plotting(s::Union{AbstractDict, DataDomain, JutulStorage};
         return "$(k)_$(s)"
     end
     function add_spatial!(k, v, value_type, is_depth = false)
-        println("Adding spatial variable: ", k, ", value_type: ", value_type)
         if v isa AbstractMatrix && size(v, 1) > 1
             for d in axes(v, 1)
                 v_d = conv(v[d, :], value_type)

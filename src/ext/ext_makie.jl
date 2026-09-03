@@ -132,22 +132,14 @@ function plot_reservoir(model, states = missing;
         kwarg...
     )
     function maybe_convert_units(x)
-        if convert_units
-            retval = convert_for_plotting(x,
-                units = unit_system,
-                source_units = source_unit_system,
-                unit_lookup = unit_lookup
-            )
-        else
-            retval = x
-        end
-        return retval
+        return convert_for_plotting(x,
+            units = unit_system,
+            source_units = source_unit_system,
+            unit_lookup = unit_lookup,
+            convert_units = convert_units
+        )
     end
-    if ismissing(states)
-        arg = tuple()
-    else
-        arg = (maybe_convert_units(states),)
-    end
+    states = maybe_convert_units(states)
     Jutul.check_plotting_availability()
     if force_glmakie
         @assert Jutul.plotting_check_interactive(warn = true) "Function requires interactive plotting. Set force_glmakie = false to override."
@@ -184,21 +176,17 @@ function plot_reservoir(model, states = missing;
         bounds_z = missing
     end
     g = physical_representation(data_domain)
-    data_domain = maybe_convert_units(data_domain)
+    static_data = maybe_convert_units(data_domain)
 
     wtoggle = ftoggle = missing
     if gui
         if fancy
-            if length(arg) == 0
-                dynamic = missing
-            else
-                dynamic = arg[1]
-            end
             if !ismissing(aspect)
                 aspect = 1.0 ./ aspect
             end
-            s = plot_explorer(data_domain;
-                dynamic = dynamic,
+            s = plot_explorer(g;
+                dynamic = states,
+                static = static_data,
                 zreversed = true,
                 aspect = aspect,
                 kwarg...
@@ -209,6 +197,11 @@ function plot_reservoir(model, states = missing;
             ftoggle = s.add_toggle("Faults", faults)
             retval = s
         else
+            if ismissing(states)
+                arg = tuple()
+            else
+                arg = (map(x -> merge(x, static_data), states), )
+            end
             fig = plot_interactive(data_domain, arg...; z_is_depth = true, aspect = aspect, kwarg...)
             ax = fig.current_axis[]
             retval = fig
