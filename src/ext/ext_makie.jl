@@ -159,21 +159,23 @@ function plot_reservoir(model, states = missing;
     if states isa AbstractDict
         states = [states]
     end
-    if !ismissing(model) && !ismissing(states) && add_secondary
-        rmodel = reservoir_model(model)
-        states = [Jutul.evaluate_all_secondary_variables(rmodel, s) for s in states]
+    if model isa DataDomain
+        data_domain = model
+        model = missing
+    else
+        data_domain = reservoir_domain(model)
+    end
+
+    if !ismissing(model)
+        if !ismissing(states) && add_secondary
+            rmodel = reservoir_model(model)
+            states = [Jutul.evaluate_all_secondary_variables(rmodel, s) for s in states]
+        end
     end
     states = maybe_convert_units(states)
     Jutul.check_plotting_availability()
     if force_glmakie
         @assert Jutul.plotting_check_interactive(warn = true) "Function requires interactive plotting. Set force_glmakie = false to override."
-    end
-    if model isa DataDomain
-        data_domain = model
-        model = missing
-    else
-        rmodel = reservoir_model(model)
-        data_domain = rmodel.data_domain
     end
     cell_centroids = data_domain[:cell_centroids]
     if ismissing(aspect)
