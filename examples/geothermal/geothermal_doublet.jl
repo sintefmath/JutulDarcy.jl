@@ -100,4 +100,4 @@ plot_well_results([results_simple.wells, results_real.wells]; names = ["Simple",
 ρ_simple = map(s -> s[:PhaseMassDensities], results_simple.states)
 ρ_real = map(s -> s[:PhaseMassDensities], results_real.states)
 Δρ = map(Δρ -> Dict(:DensityDifference => Δρ), ρ_simple .- ρ_real)
-plot_reservoir(case_real.model, Δρ; step = length(Δρ))
+plot_reservoir(case_real.model, Δρ[end])
