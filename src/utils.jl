@@ -3346,10 +3346,10 @@ function unit_system_unit_conversion(unit_sys, lbl, t)
         elseif t == :pressure
             u = :bar
             lbl = "bar"
-        elseif t == :absolute_temperature
+        elseif t == :relative_temperature
             u = :Celsius
             lbl = "°C"
-        elseif t == :relative_temperature
+        elseif t == :absolute_temperature
             u = :Kelvin
             lbl = "°K"
         elseif t == :permeability
@@ -3474,7 +3474,7 @@ function convert_for_plotting(s::Union{AbstractDict, JutulStorage};
     conv_from_si(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = "si", to = units)
     conv(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = source_units, to = units)
     conv(x, ::Missing) = x
-    function add!(k, v, value_type = missing)
+    function add!(k, v, value_type = missing; do_convert = true)
         override = get(unit_lookup, k, missing)
         lbl = missing
         if !ismissing(override)
@@ -3485,9 +3485,13 @@ function convert_for_plotting(s::Union{AbstractDict, JutulStorage};
             else
                 error("Unsupported override type for key $k: $override. Value should be either be a numeric conversion_factor or a Tuple (conversion_factor, unit_label)")
             end
-            v *= fact
+            if do_convert
+                v *= fact
+            end
         elseif !ismissing(value_type)
-            v = conv(v, value_type)
+            if do_convert
+                v = conv(v, value_type)
+            end
             _, lbl = unit_system_unit_conversion("$units", missing, value_type)
         end
         if append_unit && !ismissing(lbl)
@@ -3525,9 +3529,12 @@ function convert_for_plotting(s::Union{AbstractDict, JutulStorage};
     end
     conversion = Dict(
         :Pressure => :pressure,
+        :CapillaryPressure => :pressure,
         :TotalMasses => :mass,
         :PhaseViscosities => :viscosity,
-        :volumes => :volume
+        :volumes => :volume,
+        :StaticFluidVolume => :volume,
+        :FluidVolume => :volume
     )
     out = Dict{keytype, Any}()
     for (k, val) in pairs(s)
@@ -3537,9 +3544,20 @@ function convert_for_plotting(s::Union{AbstractDict, JutulStorage};
             add_spatial!(:center, val, :length, true)
         elseif k == :Temperature
             add!(k, val, :absolute_temperature)
-            val = conv_to_si(val, :absolute_temperature) .- 273.15
-            val_rel = conv_from_si(val, :relative_temperature)
-            add!(:Temperature_relative, val_rel, :relative_temperature)
+            is_imperial = source_units == "field"
+            if is_imperial
+                T_K = convert_to_si.(val, :Rankine)
+            else
+                T_K = val
+            end
+            # Now in Kelvin
+            val_C = conv_to_si(val, :absolute_temperature) .- 273.15
+            if is_imperial
+                val_rel = convert_from_si.(val, :Rankine)
+            else
+                val_rel = val_C
+            end
+            add!(:Temperature_relative, val_rel, :relative_temperature, do_convert = false)
         else
             u_type = get(conversion, k, missing)
             add!(k, val, u_type)
