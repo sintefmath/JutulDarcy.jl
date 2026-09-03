@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Getting started · JutulDarcy.jl</title><meta name="title" content="Getting started · JutulDarcy.jl"/><meta property="og:title" content="Getting started · JutulDarcy.jl"/><meta property="twitter:title" content="Getting started · JutulDarcy.jl"/><meta name="description" content="Documentation for JutulDarcy.jl."/><meta property="og:description" content="Documentation for JutulDarcy.jl."/><meta property="twitter:description" content="Documentation for JutulDarcy.jl."/><meta property="og:url" content="https://sintefmath.github.io/JutulDarcy.jl/man/intro/"/><meta property="twitter:url" content="https://sintefmath.github.io/JutulDarcy.jl/man/intro/"/><link rel="canonical" href="https://sintefmath.github.io/JutulDarcy.jl/man/intro/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/citations.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="JutulDarcy.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">JutulDarcy.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><span class="tocitem">Introduction</span><ul><li><a class="tocitem" href="../../">JutulDarcy.jl</a></li><li class="is-active"><a class="tocitem" href>Getting started</a><ul class="internal"><li><a class="tocitem" href="#Installing-JutulDarcy"><span>Installing JutulDarcy</span></a></li><li><a class="tocitem" href="#A-short-motivational-example-with-two-wells"><span>A short motivational example with two wells</span></a></li></ul></li></ul></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../../examples/two_phase_gravity_segregation/">Gravity segregation</a></li><li><a class="tocitem" href="../../examples/two_phase_buckley_leverett/">Two-phase Buckley-Leverett</a></li><li><a class="tocitem" href="../../examples/two_phase_unstable_gravity/">Gravity circulation with CPR preconditioner</a></li><li><a class="tocitem" href="../../examples/wells_intro/">Intro to wells</a></li><li><a class="tocitem" href="../../examples/co2_sloped/">CO2 injection in saline aquifer</a></li><li><a class="tocitem" href="../../examples/data_input_file/">Simulating Eclipse/DATA input files</a></li><li><a class="tocitem" href="../../examples/five_spot_ensemble/">Quarter-five-spot with variation</a></li><li><a class="tocitem" href="../../examples/co2_brine_2d_vertical/">Intro to compositional flow</a></li><li><a class="tocitem" href="../../examples/compositional_5components/">Compositional with five components</a></li><li><a class="tocitem" href="../../examples/optimize_simple_bl/">Parameter optimization of Buckley-Leverett</a></li><li><a class="tocitem" href="../../examples/validation_spe1/">Validation: SPE1</a></li><li><a class="tocitem" href="../../examples/validation_spe9/">Validation: SPE9</a></li><li><a class="tocitem" href="../../examples/validation_egg/">Validation: Egg</a></li><li><a class="tocitem" href="../../examples/validation_olympus_1/">Validation: OLYMPUS 1</a></li><li><a class="tocitem" href="../../examples/validation_norne_nohyst/">Validation: Norne</a></li><li><a class="tocitem" href="../../examples/validation_mrst/">Validation: MRST input files</a></li></ul></li><li><span class="tocitem">Manual</span><ul><li><a class="tocitem" href="../highlevel/">High-level API</a></li><li><a class="tocitem" href="../basics/input_files/">Input formats</a></li><li><a class="tocitem" href="../basics/forces/">Driving forces</a></li><li><a class="tocitem" href="../basics/systems/">Supported physical systems</a></li><li><a class="tocitem" href="../basics/wells/">Wells and controls</a></li><li><a class="tocitem" href="../basics/solution/">Solving the equations</a></li><li><a class="tocitem" href="../basics/primary/">Primary variables</a></li><li><a class="tocitem" href="../basics/secondary/">Secondary variables (properties)</a></li><li><a class="tocitem" href="../basics/parameters/">Parameters</a></li><li><a class="tocitem" href="../basics/plotting/">Plotting and visualization</a></li></ul></li><li><span class="tocitem">Advanced usage</span><ul><li><a class="tocitem" href="../advanced/mpi/">Multi-threading and MPI support</a></li><li><a class="tocitem" href="../advanced/compiled/">Standalone reservoir simulator</a></li></ul></li><li><span class="tocitem">Reference</span><ul><li><a class="tocitem" href="../../ref/jutul/">Jutul functions</a></li></ul></li><li><span class="tocitem">Additional information </span><ul><li><a class="tocitem" href="../../extras/refs/">References</a></li><li><a class="tocitem" href="../../extras/faq/">FAQ</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Introduction</a></li><li class="is-active"><a href>Getting started</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Getting started</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/sintefmath/JutulDarcy.jl/blob/main/docs/src/man/intro.md#" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Getting-started"><a class="docs-heading-anchor" href="#Getting-started">Getting started</a><a id="Getting-started-1"></a><a class="docs-heading-anchor-permalink" href="#Getting-started" title="Permalink"></a></h1><h2 id="Installing-JutulDarcy"><a class="docs-heading-anchor" href="#Installing-JutulDarcy">Installing JutulDarcy</a><a id="Installing-JutulDarcy-1"></a><a class="docs-heading-anchor-permalink" href="#Installing-JutulDarcy" title="Permalink"></a></h2><p>To get started with JutulDarcy, you must install Julia (1.9+ recommended) and the package itself. Julia uses environments to manage packages. If you are not familiar with this concept, we recommend the <a href="https://pkgdocs.julialang.org/v1/environments/">Pkg documentation</a>.</p><h3 id="Setting-up-an-environment"><a class="docs-heading-anchor" href="#Setting-up-an-environment">Setting up an environment</a><a id="Setting-up-an-environment-1"></a><a class="docs-heading-anchor-permalink" href="#Setting-up-an-environment" title="Permalink"></a></h3><p>To set up an environment you can create a folder and open Julia with that project as a runtime argument. The environment is persistent: If you start Julia from that folder again, the same packages will be installed. For this reason, it is sufficient to do this process once.</p><pre><code class="language-bash hljs">mkdir jutuldarcy_examples
+cd jutuldarcy_examples
+julia --project=.</code></pre><pre><code class="language-julia hljs">using Pkg
+Pkg.add(&quot;JutulDarcy&quot;)</code></pre><h3 id="Adding-additional-packages"><a class="docs-heading-anchor" href="#Adding-additional-packages">Adding additional packages</a><a id="Adding-additional-packages-1"></a><a class="docs-heading-anchor-permalink" href="#Adding-additional-packages" title="Permalink"></a></h3><p>We also rely heavily on the Jutul base package for some functionality, so we recommend that you also install it together with JutulDarcy:</p><pre><code class="language-julia hljs">Pkg.add(&quot;Jutul&quot;)</code></pre><p>If you want the plotting used in the examples, you need this:</p><pre><code class="language-julia hljs">Pkg.add(&quot;GLMakie&quot;) # 3D and interactive visualization</code></pre><p>Some examples and functionaltiy also make use of additional packages:</p><pre><code class="language-julia hljs">Pkg.add(&quot;Optim&quot;) # Optimization library
+Pkg.add(&quot;HYPRE&quot;) # Better linear solver
+Pkg.add(&quot;GeoEnergyIO&quot;) # Parsing input files</code></pre><h2 id="A-short-motivational-example-with-two-wells"><a class="docs-heading-anchor" href="#A-short-motivational-example-with-two-wells">A short motivational example with two wells</a><a id="A-short-motivational-example-with-two-wells-1"></a><a class="docs-heading-anchor-permalink" href="#A-short-motivational-example-with-two-wells" title="Permalink"></a></h2><p>After a bit of time has passed compiling the packages, you are now ready to use JutulDarcy. There are a number of examples included in this manual, but we include a brief example here that briefly demonstrates the key concepts.</p><h3 id="Setting-up-the-domain"><a class="docs-heading-anchor" href="#Setting-up-the-domain">Setting up the domain</a><a id="Setting-up-the-domain-1"></a><a class="docs-heading-anchor-permalink" href="#Setting-up-the-domain" title="Permalink"></a></h3><p>We set up a simple Cartesian Mesh that is converted into a reservoir domain with permeability and porosity values. We then use this domain to set up two wells: One vertical well for injection and a single perforation producer:</p><pre><code class="language-julia hljs">using JutulDarcy, Jutul
+Darcy, bar, kg, meter, day = si_units(:darcy, :bar, :kilogram, :meter, :day)
+nx = ny = 25
+nz = 10
+cart_dims = (nx, ny, nz)
+physical_dims = (1000.0, 1000.0, 100.0).*meter
+g = CartesianMesh(cart_dims, physical_dims)
+domain = reservoir_domain(g, permeability = 0.3Darcy, porosity = 0.2)
+Injector = setup_vertical_well(domain, 1, 1, name = :Injector)
+Producer = setup_well(domain, (nx, ny, 1), name = :Producer)
+# Show the properties in the domain
+domain</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">DataDomain wrapping CartesianMesh (3D) with 25x25x10=6250 cells with 17 data fields added:
+  6250 Cells
+    :permeability =&gt; 6250 Vector{Float64}
+    :porosity =&gt; 6250 Vector{Float64}
+    :rock_thermal_conductivity =&gt; 6250 Vector{Float64}
+    :fluid_thermal_conductivity =&gt; 6250 Vector{Float64}
+    :rock_density =&gt; 6250 Vector{Float64}
+    :cell_centroids =&gt; 3×6250 Matrix{Float64}
+    :volumes =&gt; 6250 Vector{Float64}
+  17625 Faces
+    :neighbors =&gt; 2×17625 Matrix{Int64}
+    :areas =&gt; 17625 Vector{Float64}
+    :normals =&gt; 3×17625 Matrix{Float64}
+    :face_centroids =&gt; 3×17625 Matrix{Float64}
+  35250 HalfFaces
+    :half_face_cells =&gt; 35250 Vector{Int64}
+    :half_face_faces =&gt; 35250 Vector{Int64}
+  2250 BoundaryFaces
+    :boundary_areas =&gt; 2250 Vector{Float64}
+    :boundary_centroids =&gt; 3×2250 Matrix{Float64}
+    :boundary_normals =&gt; 3×2250 Matrix{Float64}
+    :boundary_neighbors =&gt; 2250 Vector{Int64}
+</code></pre><h3 id="Setting-up-a-fluid-system"><a class="docs-heading-anchor" href="#Setting-up-a-fluid-system">Setting up a fluid system</a><a id="Setting-up-a-fluid-system-1"></a><a class="docs-heading-anchor-permalink" href="#Setting-up-a-fluid-system" title="Permalink"></a></h3><p>We select a two-phase immicible system by declaring that the liquid and vapor phases are present in the model. These are assumed to have fixed densitys of 1000 and 100 kilograms per meters cubed at some reference pressure and temperature conditions.</p><pre><code class="language-julia hljs">phases = (LiquidPhase(), VaporPhase())
+rhoLS = 1000.0kg/meter^3
+rhoGS = 100.0kg/meter^3
+reference_densities = [rhoLS, rhoGS]
+sys = ImmiscibleSystem(phases, reference_densities = reference_densities)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">ImmiscibleSystem with LiquidPhase, VaporPhase</code></pre><h3 id="Setting-up-the-model"><a class="docs-heading-anchor" href="#Setting-up-the-model">Setting up the model</a><a id="Setting-up-the-model-1"></a><a class="docs-heading-anchor-permalink" href="#Setting-up-the-model" title="Permalink"></a></h3><p>We now have everything we need to set up a model. We call the setup function and get out the model together with the parameters - numerical input values that are static throughout the simulation. These are automatically computed from the domain&#39;s geometry, permeability and porosity.</p><pre><code class="language-julia hljs">model, parameters = setup_reservoir_model(domain, sys, wells = [Injector, Producer])
+model</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">MultiModel with 4 models and 6 cross-terms. 12539 equations, 12539 degrees of freedom and 54061 parameters.
+
+  models:
+    1) Reservoir (12500x12500)
+       ImmiscibleSystem with LiquidPhase, VaporPhase
+       ∈ MinimalTPFATopology (6250 cells, 17625 faces)
+    2) Injector (32x32)
+       ImmiscibleSystem with LiquidPhase, VaporPhase
+       ∈ MultiSegmentWell [Injector] (11 nodes, 10 segments, 10 perforations)
+    3) Producer (5x5)
+       ImmiscibleSystem with LiquidPhase, VaporPhase
+       ∈ MultiSegmentWell [Producer] (2 nodes, 1 segments, 1 perforations)
+    4) Facility (2x2)
+       JutulDarcy.PredictionMode()
+       ∈ WellGroup([:Injector, :Producer], true, true)
+
+  cross_terms:
+    1) Injector &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    2) Producer &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    3) Injector  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    4) Facility  -&gt; Injector (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    5) Producer  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    6) Facility  -&gt; Producer (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+
+Model storage will be optimized for runtime performance.
+</code></pre><p>The model has a set of default secondary variables (properties) that are used to compute the flow equations. We can have a look at the reservoir model to see what the defaults are for the Darcy flow part of the domain:</p><pre><code class="language-julia hljs">reservoir_model(model)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">SimulationModel:
+
+  Model with 12500 degrees of freedom, 12500 equations and 54000 parameters
+
+  domain:
+    DiscretizedDomain with MinimalTPFATopology (6250 cells, 17625 faces) and discretizations for mass_flow, heat_flow
+
+  system:
+    ImmiscibleSystem with LiquidPhase, VaporPhase
+
+  context:
+    DefaultContext(BlockMajorLayout(false), 1000, 1)
+
+  formulation:
+    FullyImplicitFormulation()
+
+  data_domain:
+    DataDomain wrapping CartesianMesh (3D) with 25x25x10=6250 cells with 17 data fields added:
+  6250 Cells
+    :permeability =&gt; 6250 Vector{Float64}
+    :porosity =&gt; 6250 Vector{Float64}
+    :rock_thermal_conductivity =&gt; 6250 Vector{Float64}
+    :fluid_thermal_conductivity =&gt; 6250 Vector{Float64}
+    :rock_density =&gt; 6250 Vector{Float64}
+    :cell_centroids =&gt; 3×6250 Matrix{Float64}
+    :volumes =&gt; 6250 Vector{Float64}
+  17625 Faces
+    :neighbors =&gt; 2×17625 Matrix{Int64}
+    :areas =&gt; 17625 Vector{Float64}
+    :normals =&gt; 3×17625 Matrix{Float64}
+    :face_centroids =&gt; 3×17625 Matrix{Float64}
+  35250 HalfFaces
+    :half_face_cells =&gt; 35250 Vector{Int64}
+    :half_face_faces =&gt; 35250 Vector{Int64}
+  2250 BoundaryFaces
+    :boundary_areas =&gt; 2250 Vector{Float64}
+    :boundary_centroids =&gt; 3×2250 Matrix{Float64}
+    :boundary_normals =&gt; 3×2250 Matrix{Float64}
+    :boundary_neighbors =&gt; 2250 Vector{Int64}
+
+  primary_variables:
+   1) Pressure    ∈ 6250 Cells: 1 dof each
+   2) Saturations ∈ 6250 Cells: 1 dof, 2 values each
+
+  secondary_variables:
+   1) PhaseMassDensities     ∈ 6250 Cells: 2 values each
+      -&gt; ConstantCompressibilityDensities as evaluator
+   2) TotalMasses            ∈ 6250 Cells: 2 values each
+      -&gt; TotalMasses as evaluator
+   3) RelativePermeabilities ∈ 6250 Cells: 2 values each
+      -&gt; BrooksCoreyRelativePermeabilities as evaluator
+   4) PhaseMobilities        ∈ 6250 Cells: 2 values each
+      -&gt; JutulDarcy.PhaseMobilities as evaluator
+   5) PhaseMassMobilities    ∈ 6250 Cells: 2 values each
+      -&gt; JutulDarcy.PhaseMassMobilities as evaluator
+
+  parameters:
+   1) Transmissibilities        ∈ 17625 Faces: Scalar
+   2) TwoPointGravityDifference ∈ 17625 Faces: Scalar
+   3) PhaseViscosities          ∈ 6250 Cells: 2 values each
+   4) FluidVolume               ∈ 6250 Cells: Scalar
+
+  equations:
+   1) mass_conservation ∈ 6250 Cells: 2 values each
+      -&gt; ConservationLaw{:TotalMasses, TwoPointPotentialFlowHardCoded{Vector{Int64}, Vector{@NamedTuple{self::Int64, other::Int64, face::Int64, face_sign::Int64}}}, Jutul.DefaultFlux, 2}
+
+  output_variables:
+    Pressure, Saturations, TotalMasses
+
+  extra:
+    OrderedCollections.OrderedDict{Symbol, Any} with keys: Symbol[]
+</code></pre><p>The secondary variables can be swapped out, replaced and new variables can be added with arbitrary functional dependencies thanks to Jutul&#39;s flexible setup for automatic differentiation. Let us adjust the defaults by replacing the relative permeabilities with Brooks-Corey functions and the phase density functions by constant compressibilities:</p><pre><code class="language-julia hljs">c = [1e-6, 1e-4]/bar
+density = ConstantCompressibilityDensities(
+    p_ref = 100*bar,
+    density_ref = reference_densities,
+    compressibility = c
+)
+kr = BrooksCoreyRelativePermeabilities(sys, [2.0, 3.0])
+replace_variables!(model, PhaseMassDensities = density, PhaseRelativePermeability = kr)</code></pre><h3 id="Initial-state"><a class="docs-heading-anchor" href="#Initial-state">Initial state</a><a id="Initial-state-1"></a><a class="docs-heading-anchor-permalink" href="#Initial-state" title="Permalink"></a></h3><p>Now that we are happy with our model setup, we can designate an initial state. For simplicity, we set up a constant pressure reservoir filled with the liquid phase.</p><pre><code class="language-julia hljs">state0 = setup_reservoir_state(model,
+    Pressure = 120bar,
+    Saturations = [1.0, 0.0]
+)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Dict{Any, Any} with 4 entries:
+  :Producer  =&gt; Dict{Symbol, Any}(:TotalMassFlux=&gt;[0.0], :PhaseMassDensities=&gt;[…
+  :Injector  =&gt; Dict{Symbol, Any}(:TotalMassFlux=&gt;[0.0, 0.0, 0.0, 0.0, 0.0, 0.0…
+  :Reservoir =&gt; Dict{Symbol, Any}(:PhaseMassMobilities=&gt;[0.0 0.0 … 0.0 0.0; 0.0…
+  :Facility  =&gt; Dict{Symbol, Any}(:TotalSurfaceMassRate=&gt;[0.0, 0.0], :WellGroup…</code></pre><h3 id="Setting-up-timesteps-and-well-controls"><a class="docs-heading-anchor" href="#Setting-up-timesteps-and-well-controls">Setting up timesteps and well controls</a><a id="Setting-up-timesteps-and-well-controls-1"></a><a class="docs-heading-anchor-permalink" href="#Setting-up-timesteps-and-well-controls" title="Permalink"></a></h3><p>We set up reporting timesteps. These are the intervals that the simulator gives out outputs. The simulator may use shorter steps internally, but will always hit these points in the output.</p><pre><code class="language-julia hljs">nstep = 25
+dt = fill(365.0day, nstep)</code></pre><p>We next set up a rate target with a high amount of gas injected into the model. This is not fully realistic, but will give some nice and dramatic plots for our example later on.</p><pre><code class="language-julia hljs">pv = pore_volume(model, parameters)
+inj_rate = 1.5*sum(pv)/sum(dt)
+rate_target = TotalRateTarget(inj_rate)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">TotalRateTarget with value 0.0380517503805175 [m^3/s]</code></pre><p>The producer is set to operate at a fixed pressure:</p><pre><code class="language-julia hljs">bhp_target = BottomHolePressureTarget(100bar)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">BottomHolePressureTarget with value 100.0 [bar]</code></pre><p>We can finally set up forces for the model. Note that while JutulDarcy supports time-dependent forces and limits for the wells, we keep this example as simple as possible.</p><pre><code class="language-julia hljs">I_ctrl = InjectorControl(rate_target, [0.0, 1.0], density = rhoGS)
+P_ctrl = ProducerControl(bhp_target)
+controls = Dict(:Injector =&gt; I_ctrl, :Producer =&gt; P_ctrl)
+forces = setup_reservoir_forces(model, control = controls)</code></pre><h3 id="Simulate-and-analyze-results"><a class="docs-heading-anchor" href="#Simulate-and-analyze-results">Simulate and analyze results</a><a id="Simulate-and-analyze-results-1"></a><a class="docs-heading-anchor-permalink" href="#Simulate-and-analyze-results" title="Permalink"></a></h3><p>We call the simulation with our initial state, our model, the timesteps, the forces and the parameters:</p><pre><code class="language-julia hljs">wd, states, t = simulate_reservoir(state0, model, dt, parameters = parameters, forces = forces)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">ReservoirSimResult with 25 entries:
+
+  wells (2 present):
+    :Producer
+    :Injector
+    Results per well:
+       :Vapor_mass_rate =&gt; Vector{Float64} of size (25,)
+       :lrat =&gt; Vector{Float64} of size (25,)
+       :orat =&gt; Vector{Float64} of size (25,)
+       :control =&gt; Vector{Symbol} of size (25,)
+       :bhp =&gt; Vector{Float64} of size (25,)
+       :Liquid_mass_rate =&gt; Vector{Float64} of size (25,)
+       :mass_rate =&gt; Vector{Float64} of size (25,)
+       :rate =&gt; Vector{Float64} of size (25,)
+       :grat =&gt; Vector{Float64} of size (25,)
+
+  states (Vector with 25 entries, reservoir variables for each state)
+    :Saturations =&gt; Matrix{Float64} of size (2, 6250)
+    :Pressure =&gt; Vector{Float64} of size (6250,)
+    :TotalMasses =&gt; Matrix{Float64} of size (2, 6250)
+
+  time (report time for each state)
+     Vector{Float64} of length 25
+
+  result (extended states, reports)
+     SimResult with 25 entries
+
+  extra
+     Dict{Any, Any} with keys :simulator, :config
+
+  Completed at Aug. 31 2024 21:08 after 4 seconds, 601 milliseconds, 743.6 microseconds.</code></pre><p>We can interactively look at the well results in the command line:</p><pre><code class="language-julia hljs">wd(:Producer)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr1">Legend</span>
+┌──────────────────┬──────────────────────────────────────────┬──────┬─────────────────────────┐
+│<span class="sgr1"> Label            </span>│<span class="sgr1"> Description                              </span>│<span class="sgr1"> Unit </span>│<span class="sgr1"> Type of quantity        </span>│
+├──────────────────┼──────────────────────────────────────────┼──────┼─────────────────────────┤
+│ Liquid_mass_rate │ Component mass rate for Liquid component │ kg/s │ mass                    │
+│ Vapor_mass_rate  │ Component mass rate for Vapor component  │ kg/s │ mass                    │
+│ bhp              │ Bottom hole pressure                     │ Pa   │ pressure                │
+│ control          │ Control                                  │ -    │ none                    │
+│ grat             │ Surface gas rate                         │ m³/s │ surface_volume_per_time │
+│ lrat             │ Surface water rate                       │ m³/s │ surface_volume_per_time │
+│ mass_rate        │ Total mass rate                          │ kg/s │ mass                    │
+│ orat             │ Surface oil rate                         │ m³/s │ surface_volume_per_time │
+│ rate             │ Surface total rate                       │ m³/s │ surface_volume_per_time │
+└──────────────────┴──────────────────────────────────────────┴──────┴─────────────────────────┘
+<span class="sgr1">Producer result</span>
+┌────────┬──────────────────┬─────────────────┬───────┬─────────┬──────────────┬─────────────┬───────────┬─────────────┬────────────┐
+│<span class="sgr1">   time </span>│<span class="sgr1"> Liquid_mass_rate </span>│<span class="sgr1"> Vapor_mass_rate </span>│<span class="sgr1">   bhp </span>│<span class="sgr1"> control </span>│<span class="sgr1">         grat </span>│<span class="sgr1">        lrat </span>│<span class="sgr1"> mass_rate </span>│<span class="sgr1">        orat </span>│<span class="sgr1">       rate </span>│
+│<span class="sgr90">   days </span>│<span class="sgr90">             kg/s </span>│<span class="sgr90">            kg/s </span>│<span class="sgr90">    Pa </span>│<span class="sgr90">       - </span>│<span class="sgr90">         m³/s </span>│<span class="sgr90">        m³/s </span>│<span class="sgr90">      kg/s </span>│<span class="sgr90">        m³/s </span>│<span class="sgr90">       m³/s </span>│
+├────────┼──────────────────┼─────────────────┼───────┼─────────┼──────────────┼─────────────┼───────────┼─────────────┼────────────┤
+│  365.0 │         -37.5295 │    -5.31934e-12 │ 1.0e7 │     bhp │ -5.31934e-14 │  -0.0375295 │  -37.5295 │  -0.0375295 │ -0.0375295 │
+│  730.0 │         -37.5398 │      -1.8011e-8 │ 1.0e7 │     bhp │  -1.8011e-10 │  -0.0375398 │  -37.5398 │  -0.0375398 │ -0.0375398 │
+│ 1095.0 │         -37.5463 │     -8.74826e-6 │ 1.0e7 │     bhp │  -8.74826e-8 │  -0.0375463 │  -37.5463 │  -0.0375463 │ -0.0375464 │
+│ 1460.0 │         -37.5472 │    -0.000357476 │ 1.0e7 │     bhp │  -3.57476e-6 │  -0.0375472 │  -37.5475 │  -0.0375472 │ -0.0375508 │
+│ 1825.0 │         -37.5023 │     -0.00529783 │ 1.0e7 │     bhp │  -5.29783e-5 │  -0.0375023 │  -37.5076 │  -0.0375023 │ -0.0375553 │
+│ 2190.0 │          -37.084 │      -0.0480336 │ 1.0e7 │     bhp │ -0.000480336 │   -0.037084 │   -37.132 │   -0.037084 │ -0.0375643 │
+│ 2555.0 │         -35.7654 │       -0.181791 │ 1.0e7 │     bhp │  -0.00181791 │  -0.0357654 │  -35.9472 │  -0.0357654 │ -0.0375833 │
+│ 2920.0 │         -33.6296 │       -0.398191 │ 1.0e7 │     bhp │  -0.00398191 │  -0.0336296 │  -34.0278 │  -0.0336296 │ -0.0376115 │
+│ 3285.0 │         -31.3232 │       -0.631901 │ 1.0e7 │     bhp │  -0.00631901 │  -0.0313232 │  -31.9551 │  -0.0313232 │ -0.0376422 │
+│ 3650.0 │         -28.6794 │       -0.899759 │ 1.0e7 │     bhp │  -0.00899759 │  -0.0286794 │  -29.5791 │  -0.0286794 │  -0.037677 │
+│ 4015.0 │         -26.1839 │        -1.15264 │ 1.0e7 │     bhp │   -0.0115264 │  -0.0261839 │  -27.3365 │  -0.0261839 │ -0.0377103 │
+│ 4380.0 │         -23.9605 │        -1.37797 │ 1.0e7 │     bhp │   -0.0137797 │  -0.0239605 │  -25.3385 │  -0.0239605 │ -0.0377403 │
+│ 4745.0 │         -21.7266 │        -1.60451 │ 1.0e7 │     bhp │   -0.0160451 │  -0.0217266 │  -23.3312 │  -0.0217266 │ -0.0377718 │
+│ 5110.0 │         -19.8976 │        -1.78983 │ 1.0e7 │     bhp │   -0.0178983 │  -0.0198976 │  -21.6874 │  -0.0198976 │ -0.0377958 │
+│ 5475.0 │         -18.0132 │        -1.98091 │ 1.0e7 │     bhp │   -0.0198091 │  -0.0180132 │  -19.9941 │  -0.0180132 │ -0.0378223 │
+│ 5840.0 │           -16.51 │        -2.13304 │ 1.0e7 │     bhp │   -0.0213304 │    -0.01651 │  -18.6431 │    -0.01651 │ -0.0378404 │
+│ 6205.0 │         -14.9744 │         -2.2889 │ 1.0e7 │     bhp │    -0.022889 │  -0.0149744 │  -17.2633 │  -0.0149744 │ -0.0378633 │
+│ 6570.0 │          -13.596 │        -2.42856 │ 1.0e7 │     bhp │   -0.0242856 │   -0.013596 │  -16.0246 │   -0.013596 │ -0.0378816 │
+│ 6935.0 │         -12.5244 │        -2.53702 │ 1.0e7 │     bhp │   -0.0253702 │  -0.0125244 │  -15.0614 │  -0.0125244 │ -0.0378946 │
+│ 7300.0 │         -11.2587 │        -2.66554 │ 1.0e7 │     bhp │   -0.0266554 │  -0.0112587 │  -13.9243 │  -0.0112587 │ -0.0379142 │
+│ 7665.0 │         -10.1473 │        -2.77806 │ 1.0e7 │     bhp │   -0.0277806 │  -0.0101473 │  -12.9254 │  -0.0101473 │  -0.037928 │
+│ 8030.0 │         -9.35292 │        -2.85841 │ 1.0e7 │     bhp │   -0.0285841 │ -0.00935292 │  -12.2113 │ -0.00935292 │  -0.037937 │
+│ 8395.0 │         -8.51068 │        -2.94384 │ 1.0e7 │     bhp │   -0.0294384 │ -0.00851068 │  -11.4545 │ -0.00851068 │ -0.0379491 │
+│ 8760.0 │         -7.49353 │        -3.04713 │ 1.0e7 │     bhp │   -0.0304713 │ -0.00749353 │  -10.5407 │ -0.00749353 │ -0.0379648 │
+│ 9125.0 │         -6.67723 │        -3.12968 │ 1.0e7 │     bhp │   -0.0312968 │ -0.00667723 │   -9.8069 │ -0.00667723 │  -0.037974 │
+└────────┴──────────────────┴─────────────────┴───────┴─────────┴──────────────┴─────────────┴───────────┴─────────────┴────────────┘</code></pre><p>Let us look at the pressure evolution in the injector:</p><pre><code class="language-julia hljs">wd(:Injector, :bhp)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr1">Legend</span>
+┌───────┬──────────────────────┬──────┬──────────────────┐
+│<span class="sgr1"> Label </span>│<span class="sgr1"> Description          </span>│<span class="sgr1"> Unit </span>│<span class="sgr1"> Type of quantity </span>│
+├───────┼──────────────────────┼──────┼──────────────────┤
+│ bhp   │ Bottom hole pressure │ Pa   │ pressure         │
+└───────┴──────────────────────┴──────┴──────────────────┘
+<span class="sgr1">Injector result</span>
+┌────────┬───────────┐
+│<span class="sgr1">   time </span>│<span class="sgr1">       bhp </span>│
+│<span class="sgr90">   days </span>│<span class="sgr90">        Pa </span>│
+├────────┼───────────┤
+│  365.0 │ 2.67554e7 │
+│  730.0 │ 2.67591e7 │
+│ 1095.0 │ 2.67613e7 │
+│ 1460.0 │ 2.67628e7 │
+│ 1825.0 │ 2.67642e7 │
+│ 2190.0 │ 2.67659e7 │
+│ 2555.0 │  2.6768e7 │
+│ 2920.0 │ 2.67703e7 │
+│ 3285.0 │ 2.67708e7 │
+│ 3650.0 │ 2.67677e7 │
+│ 4015.0 │ 2.67636e7 │
+│ 4380.0 │ 2.67565e7 │
+│ 4745.0 │ 2.67457e7 │
+│ 5110.0 │ 2.67346e7 │
+│ 5475.0 │ 2.67214e7 │
+│ 5840.0 │ 2.67096e7 │
+│ 6205.0 │ 2.66966e7 │
+│ 6570.0 │ 2.66825e7 │
+│ 6935.0 │ 2.66701e7 │
+│ 7300.0 │ 2.66552e7 │
+│ 7665.0 │ 2.66406e7 │
+│ 8030.0 │ 2.66293e7 │
+│ 8395.0 │ 2.66164e7 │
+│ 8760.0 │ 2.66008e7 │
+│ 9125.0 │ 2.65864e7 │
+└────────┴───────────┘</code></pre><p>If we have a plotting package available, we can visualize the results too:</p><pre><code class="language-julia hljs">using GLMakie
+grat = wd[:Producer, :grat]
+lrat = wd[:Producer, :lrat]
+bhp = wd[:Injector, :bhp]
+fig = Figure(size = (1200, 400))
+ax = Axis(fig[1, 1],
+    title = &quot;Injector&quot;,
+    xlabel = &quot;Time / days&quot;,
+    ylabel = &quot;Bottom hole pressure / bar&quot;)
+lines!(ax, t/day, bhp./bar)
+ax = Axis(fig[1, 2],
+    title = &quot;Producer&quot;,
+    xlabel = &quot;Time / days&quot;,
+    ylabel = &quot;Production rate / m³/day&quot;)
+lines!(ax, t/day, abs.(grat).*day)
+lines!(ax, t/day, abs.(lrat).*day)
+fig</code></pre><img src="a3283e10.png" alt="Example block output"/><p>Interactive visualization of the 3D results is also possible if GLMakie is loaded:</p><pre><code class="language-julia hljs">plot_reservoir(model, states, key = :Saturations, step = 3)</code></pre><img src="8173f5f7.png" alt="Example block output"/></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../">« JutulDarcy.jl</a><a class="docs-footer-nextpage" href="../../examples/two_phase_gravity_segregation/">Gravity segregation »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.6.0 on <span class="colophon-date" title="Saturday 31 August 2024 21:05">Saturday 31 August 2024</span>. Using Julia version 1.10.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
