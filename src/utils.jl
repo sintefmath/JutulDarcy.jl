@@ -3396,3 +3396,73 @@ function well_unit_conversion(unit_sys, lbl, info)
     end
     return (u, lbl)
 end
+
+function convert_for_plotting(x::DataDomain; kwarg...)
+    out = Dict{Any, Any}()
+    for (k, (v, e)) in pairs(x)
+        out[k] = v
+    end
+    return convert_for_plotting(out; kwarg...)
+end
+
+function convert_for_plotting(states::AbstractVector; kwarg...)
+    return map(x -> convert_for_plotting(x; kwarg...), states)
+end
+
+function convert_for_plotting(s::Union{AbstractDict, DataDomain, JutulStorage};
+        units = "metric",
+        source_units = "si",
+        keytype = Symbol
+    )
+    conv(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = source_units, to = units)
+    add!(k, v) = out[keytype(k)] = v
+
+    function dim_name(k, d, depth = false)
+        if d == 1
+            s = 'x'
+        elseif d == 2
+            s = 'y'
+        elseif d == 3
+            if depth
+                s = "depth"
+            else
+                s = 'z'
+            end
+        else
+            error("Invalid dimension: $d")
+        end
+        return "$(k)_$(s)"
+    end
+    function add_spatial!(k, v, value_type, is_depth = false)
+        if v isa AbstractMatrix && size(v, 1) > 1
+            for d in axes(v, 1)
+                v_d = conv(v[d, :], value_type)
+                new_name = dim_name(k, d, is_depth)
+                add!(new_name, v_d)
+            end
+        else
+            add!(k, conv(v, value_type))
+        end
+    end
+    conversion = Dict(
+        :Pressure => :pressure,
+    )
+    out = Dict{keytype, Any}()
+    for (k, val) in pairs(s)
+        if k == :permeability
+            add_spatial!(k, val, :permeability)
+        elseif k == :cell_centroids
+            add_spatial!(:center, val, :length, true)
+        elseif k == :Temperature
+
+        else
+            u = get(conversion, k, missing)
+            if ismissing(u)
+                add!(k, val)
+            else
+                add!(k, conv(val, u))
+            end
+        end
+    end
+    return out
+end
