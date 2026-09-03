@@ -130,6 +130,7 @@ end
 function plot_reservoir(model, states = missing;
         gui = true,
         fancy = true,
+        add_secondary = false,
         faults = fancy,
         fault_alpha = 0.5,
         well_fontsize = 18,
@@ -155,10 +156,14 @@ function plot_reservoir(model, states = missing;
             convert_units = convert_units
         )
     end
-    states = maybe_convert_units(states)
     if states isa AbstractDict
         states = [states]
     end
+    if !ismissing(model) && !ismissing(states) && add_secondary
+        rmodel = reservoir_model(model)
+        states = [Jutul.evaluate_all_secondary_variables(rmodel, s) for s in states]
+    end
+    states = maybe_convert_units(states)
     Jutul.check_plotting_availability()
     if force_glmakie
         @assert Jutul.plotting_check_interactive(warn = true) "Function requires interactive plotting. Set force_glmakie = false to override."
@@ -288,21 +293,34 @@ function plot_reservoir(model, states = missing;
     return retval
 end
 
-function plot_reservoir(model::Union{MultiModel, SimulationModel}, result::ReservoirSimResult; kwarg...)
+function plot_reservoir(model::Union{MultiModel, SimulationModel,}, result::ReservoirSimResult; kwarg...)
     return plot_reservoir(model, result.states; kwarg...)
 end
 
-function plot_reservoir(case::JutulCase, arg...; kwarg...)
-    if length(arg) == 0
-        plot_vals = merge(case.parameters[:Reservoir], case.state0[:Reservoir])
-        for (k, v) in pairs(reservoir_model(case).data_domain)
-            if !haskey(plot_vals, k)
-                plot_vals[k] = v[1]
-            end
-        end
-        arg = ([plot_vals], )
+function plot_reservoir(case::JutulCase, states = missing; state0 = true, kwarg...)
+    if states isa ReservoirSimResult
+        states = states.states
     end
-    return plot_reservoir(case.model, arg...; kwarg...)
+    if state0
+        s0 = case.state0
+        m = case.model
+        if haskey(s0, :Reservoir)
+            s0 = s0[:Reservoir]
+            m = m[:Reservoir]
+        end
+        s0 = Jutul.evaluate_all_secondary_variables(m, s0)
+        if ismissing(states) || length(states) == 0
+            states = [s0]
+        else
+            s = states[1]
+            s0_new = similar(s)
+            for (k, v) in pairs(s)
+                s0_new[k] = v
+            end
+            states = [s0_new; states]
+        end
+    end
+    return plot_reservoir(case.model, states; kwarg...)
 end
 
 export plot_faults!
