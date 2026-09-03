@@ -3515,7 +3515,7 @@ function convert_for_plotting(s::Union{AbstractDict, JutulStorage};
     function add_spatial!(k, v, value_type, is_depth = false)
         if v isa AbstractMatrix && size(v, 1) > 1
             for d in axes(v, 1)
-                v_d = conv(v[d, :], value_type)
+                v_d = view(v, d, :)
                 new_name = dim_name(k, d, is_depth)
                 add!(new_name, v_d, value_type)
             end
