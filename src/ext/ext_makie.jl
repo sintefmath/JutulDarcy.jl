@@ -312,6 +312,9 @@ function plot_reservoir(case::JutulCase, states = missing; state0 = true, kwarg.
     if states isa ReservoirSimResult
         states = states.states
     end
+    if states isa AbstractDict
+        states = [states]
+    end
     if state0
         s0 = case.state0
         m = case.model
