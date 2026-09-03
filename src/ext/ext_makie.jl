@@ -130,6 +130,7 @@ end
 function plot_reservoir(model, states = missing;
         gui = true,
         fancy = true,
+        sens = missing,
         add_secondary = false,
         faults = fancy,
         fault_alpha = 0.5,
@@ -173,6 +174,7 @@ function plot_reservoir(model, states = missing;
         end
     end
     states = maybe_convert_units(states)
+    sens = maybe_convert_units(sens)
     Jutul.check_plotting_availability()
     if force_glmakie
         @assert Jutul.plotting_check_interactive(warn = true) "Function requires interactive plotting. Set force_glmakie = false to override."
@@ -210,11 +212,18 @@ function plot_reservoir(model, states = missing;
             if !ismissing(aspect)
                 aspect = 1.0 ./ aspect
             end
+            # In case it is not yet supported in Jutul...
+            if ismissing(sens)
+                extra_arg = tuple()
+            else
+                extra_arg = (sens = sens, )
+            end
             s = plot_explorer(g;
                 dynamic = states,
                 static = static_data,
                 zreversed = true,
                 aspect = aspect,
+                extra_arg...,
                 kwarg...
             )
             ax = s.lscene
