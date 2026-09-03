@@ -103,17 +103,33 @@ function plot_reservoir_simulation_result(model::MultiModel, res::ReservoirSimRe
 end
 
 """
-    plot_reservoir(model, states=missing; well_fontsize = 18, well_linewidth = 3, kwarg...)
+    plot_reservoir(case)
+    plot_reservoir(case, states)
+    plot_reservoir(case, result)
+    plot_reservoir(model, states)
 
 Launch interactive plotter of reservoir + well trajectories in reservoir.
 Requires GLMakie to be loaded (using GLMakie). If the keyword `fancy=true`, a
 more advanced GUI with more options will be launched that allows for panning and
 zooming. If `fancy=false`, a fixed-axis plot will be launched instead. The
-keyword `gui=false` can be used to just get a static plot without interactivity.
+keyword `gui=false` can be used to just get a static plot without interactivity
+(will use same fixed-axis plot as `fancy=false`).
+
+Displayed units are determined by the `unit_system` keyword, which defaults to
+`"metric"`. The source units are assumed to be `"si"` by default. Unit
+conversion can be disabled altogether by setting `convert_units=false`.
+
+# Positional arguments
+The first entry can be a `model::MultiModel` (from `setup_reservoir_model`), a
+`JutulCase` or `reservoir::DataDomain` (from `reservoir_domain`)
 """
+function plot_reservoir
+
+end
+
 function plot_reservoir(model, states = missing;
         gui = true,
-        fancy = false,
+        fancy = true,
         faults = fancy,
         fault_alpha = 0.5,
         well_fontsize = 18,
