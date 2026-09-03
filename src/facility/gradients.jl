@@ -38,6 +38,9 @@ function Jutul.vectorization_length(controls_or_limits::AbstractDict, model::Fac
         for (k, v) in pairs(controls_or_limits)
             if v isa DisabledControl
                 continue
+            elseif v.target isa GroupTarget
+                # GroupTarget wells don't contribute to vectorization
+                continue
             else
                 if supp.target
                     n += 1
@@ -80,6 +83,8 @@ function Jutul.vectorize_force!(v, model::FacilityModel, controls_or_limits::Abs
     if name == :control
         for (wname, ctrl) in pairs(controls_or_limits)
             if ctrl isa DisabledControl
+                continue
+            elseif ctrl.target isa GroupTarget
                 continue
             else
                 if supp.target
@@ -139,6 +144,9 @@ function Jutul.devectorize_force(control_or_limits::Tcl, model::FacilityModel, X
     if name == :control
         for (wname, ctrl) in pairs(control_or_limits)
             if ctrl isa DisabledControl
+                out[wname] = ctrl
+            elseif ctrl.target isa GroupTarget
+                # Pass through GroupTarget controls without modification
                 out[wname] = ctrl
             else
                 if supp.target
