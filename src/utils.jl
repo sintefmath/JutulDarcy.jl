@@ -3364,6 +3364,9 @@ function unit_system_unit_conversion(unit_sys, lbl, t)
         elseif t == :volume
             u = missing
             lbl = "m³"
+        elseif t == :mass
+            u = :kilogram
+            lbl = "kg"
         end
     elseif unit_sys == "field"
         if t == :gas_volume_surface
@@ -3402,6 +3405,9 @@ function unit_system_unit_conversion(unit_sys, lbl, t)
         elseif t == :volume
             u = missing
             lbl = "ft³"
+        elseif t == :mass
+            u = :pound
+            lbl = "pound"
         end
     elseif unit_sys == "si"
         if t == :gas_volume_surface
@@ -3428,6 +3434,8 @@ function unit_system_unit_conversion(unit_sys, lbl, t)
             lbl = "Pa·s"
         elseif t == :volume
             lbl = "m³"
+        elseif t == :mass
+            lbl = "kg"
         end
     end
     return (u, lbl)
@@ -3528,8 +3536,8 @@ function convert_for_plotting(s::Union{AbstractDict, DataDomain, JutulStorage};
             val_rel = conv_from_si(val, :relative_temperature)
             add!(:Temperature_relative, val_rel, :relative_temperature)
         else
-            u = get(conversion, k, missing)
-            add!(k, conv(val, u))
+            u_type = get(conversion, k, missing)
+            add!(k, val, u_type)
         end
     end
     return out

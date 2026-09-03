@@ -184,6 +184,7 @@ function plot_reservoir(model, states = missing;
         bounds_z = missing
     end
     g = physical_representation(data_domain)
+    data_domain = maybe_convert_units(data_domain)
 
     wtoggle = ftoggle = missing
     if gui
