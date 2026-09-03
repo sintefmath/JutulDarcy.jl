@@ -3326,9 +3326,13 @@ function get_faults(g::MinimalTPFATopology)
 end
 
 function well_unit_conversion(unit_sys, lbl, info)
+    t = info.unit_type
+    return unit_system_unit_conversion(unit_sys, lbl, t)
+end
+
+function unit_system_unit_conversion(unit_sys, lbl, t)
     unit_sys = lowercase(unit_sys)
     @assert unit_sys in ("metric", "si", "field")
-    t = info.unit_type
     u = 1.0
     if unit_sys == "metric"
         if t == :gas_volume_surface
@@ -3348,6 +3352,12 @@ function well_unit_conversion(unit_sys, lbl, info)
         elseif t == :relative_temperature
             u = :Kelvin
             lbl = "°K"
+        elseif t == :permeability
+            u = :millidarcy
+            lbl = "mD"
+        elseif t == :length
+            u = :meters
+            lbl = "m"
         end
     elseif unit_sys == "field"
         if t == :gas_volume_surface
@@ -3374,6 +3384,12 @@ function well_unit_conversion(unit_sys, lbl, info)
         elseif t == :mass
             u = :pound
             lbl = "pound"
+        elseif t == :permeability 
+            u = :millidarcy
+            lbl = "mD"
+        elseif t == :length
+            u = :feet
+            lbl = "ft"
         end
     elseif unit_sys == "si"
         if t == :gas_volume_surface
@@ -3392,6 +3408,10 @@ function well_unit_conversion(unit_sys, lbl, info)
             lbl = "°C"
         elseif t == :mass
             lbl = "kg"
+        elseif t == :permeability
+            lbl = "m²"
+        elseif t == :length
+            lbl = "m"
         end
     end
     return (u, lbl)
@@ -3412,12 +3432,35 @@ end
 function convert_for_plotting(s::Union{AbstractDict, DataDomain, JutulStorage};
         units = "metric",
         source_units = "si",
-        keytype = Symbol
+        append_unit = true,
+        keytype = Symbol,
+        lookup = Dict()
     )
     conv_to_si(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = source_units, to = "si")
     conv_from_si(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = "si", to = units)
     conv(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = source_units, to = units)
-    add!(k, v) = out[keytype(k)] = v
+    conv(x, ::Missing) = x
+    function add!(k, v, value_type = missing)
+        override = get(lookup, k, missing)
+        lbl = missing
+        if !ismissing(override)
+            if override isa Real
+                fact = override
+            elseif override isa Tuple
+                fact, lbl = override
+            else
+                error("Unsupported override type for key $k: $override. Value should be either be a numeric conversion_factor or a Tuple (conversion_factor, unit_label)")
+            end
+            v *= fact
+        elseif !ismissing(value_type)
+            v = conv(v, value_type)
+            _, lbl = unit_system_unit_conversion("$units", missing, value_type)
+        end
+        if append_unit && !ismissing(lbl)
+            k = "$k / $lbl"
+        end
+        out[keytype(k)] = v
+    end
 
     function dim_name(k, d, depth = false)
         if d == 1
@@ -3436,18 +3479,20 @@ function convert_for_plotting(s::Union{AbstractDict, DataDomain, JutulStorage};
         return "$(k)_$(s)"
     end
     function add_spatial!(k, v, value_type, is_depth = false)
+        println("Adding spatial variable: ", k, ", value_type: ", value_type)
         if v isa AbstractMatrix && size(v, 1) > 1
             for d in axes(v, 1)
                 v_d = conv(v[d, :], value_type)
                 new_name = dim_name(k, d, is_depth)
-                add!(new_name, v_d)
+                add!(new_name, v_d, value_type)
             end
         else
-            add!(k, conv(v, value_type))
+            add!(k, v, value_type)
         end
     end
     conversion = Dict(
         :Pressure => :pressure,
+        :TotalMasses => :mass
     )
     out = Dict{keytype, Any}()
     for (k, val) in pairs(s)
@@ -3456,17 +3501,13 @@ function convert_for_plotting(s::Union{AbstractDict, DataDomain, JutulStorage};
         elseif k == :cell_centroids
             add_spatial!(:center, val, :length, true)
         elseif k == :Temperature
-            add!(k, conv(val, :temperature))
+            add!(k, val, :absolute_temperature)
             val = conv_to_si(val, :absolute_temperature) .- 273.15
             val_rel = conv_from_si(val, :relative_temperature)
-            add!(:Temperature_relative, val_rel)
+            add!(:Temperature_relative, val_rel, :relative_temperature)
         else
             u = get(conversion, k, missing)
-            if ismissing(u)
-                add!(k, val)
-            else
-                add!(k, conv(val, u))
-            end
+            add!(k, conv(val, u))
         end
     end
     return out
