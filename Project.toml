@@ -1,6 +1,6 @@
 name = "JutulDarcy"
 uuid = "82210473-ab04-4dce-b31b-11573c4f8e0a"
-version = "0.3.10"
+version = "0.3.11"
 authors = ["Olav Møyner <olav.moyner@gmail.com>"]
 
 [deps]
