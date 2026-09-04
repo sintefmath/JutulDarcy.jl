@@ -24,6 +24,8 @@ function JutulDarcy.plot_summary_impl(arg...;
         colormap = missing,
         kwarg...
     )
+    lookup = JutulDarcy.summary_key_lookup()
+
     if length(arg) == 1 && only(arg) isa AbstractVector
         arg = only(arg)
     end
@@ -101,10 +103,11 @@ function JutulDarcy.plot_summary_impl(arg...;
     field_quantity_keys = collect(keys(summary_sample["VALUES"]["FIELD"]))
     sort!(field_quantity_keys)
     pushfirst!(field_quantity_keys, "NONE")
+    add_legend_to_keys!(field_quantity_keys, lookup)
 
-    lookup = JutulDarcy.summary_key_lookup()
     function get_well_quantity_keys(wname)
         wk = collect(keys(summary_sample["VALUES"]["WELLS"][wname]))
+        add_legend_to_keys!(wk, lookup)
         for k in cat(extra_well, extra_well_internal; dims = 1)
             if !(k in wk)
                 push!(wk, k)
@@ -141,6 +144,9 @@ function JutulDarcy.plot_summary_impl(arg...;
     function plot_data(kind, valtype, idx, info, units)
         smry = summaries[idx]
         t = smry["TIME"].seconds
+        if occursin(" - ", valtype)
+            valtype = first(split(valtype, ": "))
+        end
         if valtype == "NONE"
             v = zeros(length(t))
         elseif kind == "FIELD"
@@ -512,6 +518,16 @@ function JutulDarcy.plot_summary_impl(arg...;
 
 
     return fig
+end
+
+function add_legend_to_keys!(fkeys, lookup)
+    for (i, k) in enumerate(fkeys)
+        info = get(lookup, k, missing)
+        if !ismissing(info)
+            fkeys[i] = "$k: $(info.legend)"
+        end
+    end
+    return fkeys
 end
 
 function label_menu(dest, options, mlabel::String; kwarg...)
