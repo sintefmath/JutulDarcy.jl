@@ -176,6 +176,12 @@ function plot_reservoir(model, states = missing;
     end
     states = maybe_convert_units(states)
     sens = maybe_convert_units(sens, variant = :sens)
+    for (k, v) in pairs(sens)
+        if !(eltype(v)<:AbstractFloat)
+            # Remove non-numeric entries from sensitivity analysis dictionary
+            delete!(sens, k)
+        end
+    end
     Jutul.check_plotting_availability()
     if force_glmakie
         @assert Jutul.plotting_check_interactive(warn = true) "Function requires interactive plotting. Set force_glmakie = false to override."
