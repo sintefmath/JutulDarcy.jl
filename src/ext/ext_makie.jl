@@ -211,7 +211,7 @@ function plot_reservoir(model, states = missing;
     if gui
         if fancy
             if !ismissing(aspect)
-                aspect = 1.0 ./ aspect
+                # aspect = 1.0 ./ aspect
             end
             # In case it is not yet supported in Jutul...
             if ismissing(sens)
