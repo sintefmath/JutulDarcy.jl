@@ -149,12 +149,13 @@ function plot_reservoir(model, states = missing;
         wells = missing,
         kwarg...
     )
-    function maybe_convert_units(x)
-        return convert_for_plotting(x,
+    function maybe_convert_units(x; kwarg...)
+        return convert_for_plotting(x;
             units = unit_system,
             source_units = source_unit_system,
             unit_lookup = unit_lookup,
-            convert_units = convert_units
+            convert_units = convert_units,
+            kwarg...
         )
     end
     if states isa AbstractDict
@@ -174,7 +175,7 @@ function plot_reservoir(model, states = missing;
         end
     end
     states = maybe_convert_units(states)
-    sens = maybe_convert_units(sens)
+    sens = maybe_convert_units(sens, variant = :sens)
     Jutul.check_plotting_availability()
     if force_glmakie
         @assert Jutul.plotting_check_interactive(warn = true) "Function requires interactive plotting. Set force_glmakie = false to override."

@@ -3465,11 +3465,14 @@ function convert_for_plotting(s::Union{AbstractDict, JutulStorage};
         append_unit = true,
         keytype = Symbol,
         unit_lookup = Dict(),
-        convert_units = true
+        convert_units = true,
+        variant = :values
     )
     if !convert_units
         return s
     end
+    is_sens = variant == :sens
+    variant in (:values, :sens) || error("Unsupported variant: $variant")
     conv_to_si(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = source_units, to = "si")
     conv_from_si(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = "si", to = units)
     conv(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = source_units, to = units)
@@ -3486,11 +3489,20 @@ function convert_for_plotting(s::Union{AbstractDict, JutulStorage};
                 error("Unsupported override type for key $k: $override. Value should be either be a numeric conversion_factor or a Tuple (conversion_factor, unit_label)")
             end
             if do_convert
-                v *= fact
+                if is_sens
+                    v = v./fact
+                else
+                    v *= fact
+                end
             end
         elseif !ismissing(value_type)
             if do_convert
-                v = conv(v, value_type)
+                if is_sens
+                    u = conv(1.0, value_type)
+                    v = v./u
+                else
+                    v = conv(v, value_type)
+                end
             end
             _, lbl = unit_system_unit_conversion("$units", missing, value_type)
         end
@@ -3544,20 +3556,22 @@ function convert_for_plotting(s::Union{AbstractDict, JutulStorage};
             add_spatial!(:center, val, :length, true)
         elseif k == :Temperature
             add!(k, val, :absolute_temperature)
-            is_imperial = source_units == "field"
-            if is_imperial
-                T_K = convert_to_si.(val, :Rankine)
-            else
-                T_K = val
+            if !is_sens
+                is_imperial = source_units == "field"
+                if is_imperial
+                    T_K = convert_to_si.(val, :Rankine)
+                else
+                    T_K = val
+                end
+                # Now in Kelvin
+                val_C = conv_to_si(val, :absolute_temperature) .- 273.15
+                if is_imperial
+                    val_rel = convert_from_si.(val, :Rankine)
+                else
+                    val_rel = val_C
+                end
+                add!(:Temperature_relative, val_rel, :relative_temperature, do_convert = false)
             end
-            # Now in Kelvin
-            val_C = conv_to_si(val, :absolute_temperature) .- 273.15
-            if is_imperial
-                val_rel = convert_from_si.(val, :Rankine)
-            else
-                val_rel = val_C
-            end
-            add!(:Temperature_relative, val_rel, :relative_temperature, do_convert = false)
         else
             u_type = get(conversion, k, missing)
             add!(k, val, u_type)
