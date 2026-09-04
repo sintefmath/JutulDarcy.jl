@@ -1772,8 +1772,10 @@ function full_well_outputs(model, states, forces; targets = missing)
         targets = available_well_targets(rmodel)
     end
     cnames = component_names(rmodel.system)
+    has_tracers = number_of_tracers(rmodel) > 0
     has_temperature = length(states) > 0 && haskey(first(states)[:Reservoir], :Temperature)
-    well_t = Dict{Symbol, Union{Vector{Float64}, Vector{Symbol}}}
+    tracer_names = has_tracers ? rmodel.equations[:tracers].flux_type.names : ()
+    well_t = Dict{Symbol, Any}
     out = Dict{Symbol, well_t}()
     for w in well_symbols(model)
         outw = well_t()
@@ -1784,6 +1786,23 @@ function full_well_outputs(model, states, forces; targets = missing)
         outw[:control] = well_output(model, states, w, forces, :control)
         if has_temperature
             outw[:temperature] = map(s -> s[w][:Temperature][well_top_node()], states)
+        end
+        if has_tracers
+            tracer_concentrations = map(states) do s
+                concentrations = s[w][:TracerConcentrations]
+                if concentrations isa AbstractVector{<:AbstractVector}
+                    vec(concentrations[well_top_node()])
+                else
+                    vec(concentrations[:, well_top_node()])
+                end
+            end
+            for (i, tracer_name) in enumerate(tracer_names)
+                tracer_label = string(tracer_name)
+                concentration_key = Symbol("$(tracer_label)_concentration")
+                mass_rate_key = Symbol("$(tracer_label)_mass_rate")
+                outw[concentration_key] = map(concentrations -> concentrations[i], tracer_concentrations)
+                outw[mass_rate_key] = outw[:mass_rate] .* outw[concentration_key]
+            end
         end
         for (i, cname) in enumerate(cnames)
             outw[Symbol("$(cname)_mass_rate")] = well_output(model, states, w, forces, i)

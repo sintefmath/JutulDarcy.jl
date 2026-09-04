@@ -307,6 +307,10 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         lbl = response_label_to_unit(s, use_accum)
         info = JutulDarcy.well_target_information(Symbol(s))
 
+        if qoi_val isa AbstractVector{<:AbstractVector}
+            qoi_val = permutedims(reduce(hcat, qoi_val))
+        end
+
         if ismissing(info)
             is_rate = false
         else
@@ -330,7 +334,12 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         qoi_val = factor.*qoi_val
         if use_accum && is_rate
             T = [0.0, time[dataix]...]
-            qoi_val = cumsum(qoi_val.*diff(T))
+            dt = diff(T)
+            if qoi_val isa AbstractMatrix
+                qoi_val = cumsum(qoi_val .* reshape(dt, :, 1), dims = 1)
+            else
+                qoi_val = cumsum(qoi_val.*dt)
+            end
         end
         if use_abs
             qoi_val = abs.(qoi_val)
@@ -339,9 +348,9 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     end
 
     sample = map(x -> get_data([], 1, 1, x, false, false), 1:ndata)
-    nsample = map(length, sample)
+    nsample = map(x -> x isa AbstractMatrix ? size(x, 1) : length(x), sample)
     if isnothing(time)
-        time = map(s -> collect(1:length(s)), sample)
+        time = map(s -> collect(1:(s isa AbstractMatrix ? size(s, 1) : length(s))), sample)
     else
         if eltype(time)<:AbstractFloat# || eltype(time)<:Date
             time = repeat([time], ndata)
