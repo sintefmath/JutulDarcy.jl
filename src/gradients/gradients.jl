@@ -34,7 +34,7 @@ The objective is summed up for all steps.
 
     $(SIGNATURES)
 """
-function reservoir_sensitivities(case::JutulCase, rsr::ReservoirSimResult, objective::Function; kwarg...)
+function reservoir_sensitivities(case::JutulCase, rsr::ReservoirSimResult, objective; kwarg...)
     return reservoir_sensitivities(case, rsr.result, objective; kwarg...)
 end
 

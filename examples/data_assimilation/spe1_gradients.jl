@@ -159,9 +159,8 @@ fig
 # in the interactive viewer. This is useful for understanding how the model
 # responds to changes in the parameters.
 plot_reservoir(case, sens = dprm_grad[:model])
-##
+# ## Compute sensitivities using the built-in function
+# We can also explicitly pass sensitivities with respect to cell values to the
+# viewer.
 res, sens = JutulDarcy.reservoir_sensitivities(case, mismatch_objective_p)
-##
-plot_reservoir(case, res, sens = sens, zaspect = 1/10)
-##
-plot_reservoir(case, res, add_secondary = true)
+plot_reservoir(case, res, sens = sens)
