@@ -12,7 +12,7 @@ objective function on the form:
 The objective is summed up for all steps.
 
 """
-function reservoir_sensitivities(case::JutulCase, objective::Function;
+function reservoir_sensitivities(case::JutulCase, objective;
         sim_arg = DEFAULT_OPTIMIZER_SIMULATOR_ARG,
         info_level = 0,
         kwarg...
