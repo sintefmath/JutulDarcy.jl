@@ -184,8 +184,11 @@ function plot_reservoir(model, states = missing;
     if ismissing(aspect)
         x = cell_centroids[1, :]
         y = cell_centroids[2, :]
+        z = cell_centroids[3, :]
         xrng = maximum(x) - minimum(x)
         yrng = maximum(y) - minimum(y)
+        zrng = maximum(z) - minimum(z)
+        zaspect = zaspect*xrng/zrng
         aspect = (1.0, max(yrng/xrng, 0.001), zaspect)
     end
     if haskey(data_domain, :boundary_centroids)
@@ -210,9 +213,6 @@ function plot_reservoir(model, states = missing;
     wtoggle = ftoggle = missing
     if gui
         if fancy
-            if !ismissing(aspect)
-                # aspect = 1.0 ./ aspect
-            end
             # In case it is not yet supported in Jutul...
             if ismissing(sens)
                 extra_arg = tuple()
