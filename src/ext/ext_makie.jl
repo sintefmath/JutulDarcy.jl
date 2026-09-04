@@ -129,7 +129,7 @@ end
 
 function plot_reservoir(model, states = missing;
         gui = true,
-        fancy = false,
+        fancy = true,
         sens = missing,
         add_secondary = false,
         faults = fancy,
