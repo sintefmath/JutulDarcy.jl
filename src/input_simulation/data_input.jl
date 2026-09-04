@@ -1227,7 +1227,7 @@ function parser_set_multregt!(tranmult, G, opernum, multnum, fluxnum, multregt, 
     function pair_matchex(pair_kw, pair_reg)
         wildcard1 = pair_kw[1] < 1
         wildcard2 = pair_kw[2] < 1
-        if wildcard1 && wilcard2
+        if wildcard1 && wildcard2
             return pair_reg[1] != pair_reg[2]
         elseif wildcard1
             return pair_kw[2] == pair_reg[2]

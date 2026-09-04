@@ -341,11 +341,12 @@ function JutulDarcy.plot_summary_impl(arg...;
                 ax.ytickformat[] = values -> [float_fmt(value, ystr) for value in values]
                 ax.title[] = tstr
             end
+            if haskey(legends, i)
+                delete!(legends[i])
+                delete!(legends, i)
+            end
             if nlines > 1 && legend
                 l = axislegend(ax, position = :lt)
-                if haskey(legends, i)
-                    delete!(legends[i])
-                end
                 legends[i] = l
             end
         end
