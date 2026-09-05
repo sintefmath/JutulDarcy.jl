@@ -24,6 +24,8 @@ function JutulDarcy.plot_summary_impl(arg...;
         colormap = missing,
         kwarg...
     )
+    lookup = JutulDarcy.summary_key_lookup()
+
     if length(arg) == 1 && only(arg) isa AbstractVector
         arg = only(arg)
     end
@@ -101,10 +103,11 @@ function JutulDarcy.plot_summary_impl(arg...;
     field_quantity_keys = collect(keys(summary_sample["VALUES"]["FIELD"]))
     sort!(field_quantity_keys)
     pushfirst!(field_quantity_keys, "NONE")
+    add_legend_to_keys!(field_quantity_keys, lookup)
 
-    lookup = JutulDarcy.summary_key_lookup()
     function get_well_quantity_keys(wname)
         wk = collect(keys(summary_sample["VALUES"]["WELLS"][wname]))
+        add_legend_to_keys!(wk, lookup)
         for k in cat(extra_well, extra_well_internal; dims = 1)
             if !(k in wk)
                 push!(wk, k)
@@ -141,6 +144,9 @@ function JutulDarcy.plot_summary_impl(arg...;
     function plot_data(kind, valtype, idx, info, units)
         smry = summaries[idx]
         t = smry["TIME"].seconds
+        if occursin(" - ", valtype)
+            valtype = first(split(valtype, ": "))
+        end
         if valtype == "NONE"
             v = zeros(length(t))
         elseif kind == "FIELD"
@@ -341,14 +347,27 @@ function JutulDarcy.plot_summary_impl(arg...;
                 ax.ytickformat[] = values -> [float_fmt(value, ystr) for value in values]
                 ax.title[] = tstr
             end
+            if haskey(legends, i)
+                delete!(legends[i])
+                delete!(legends, i)
+            end
             if nlines > 1 && legend
                 l = axislegend(ax, position = :lt)
-                if haskey(legends, i)
-                    delete!(legends[i])
-                end
                 legends[i] = l
             end
         end
+    end
+
+
+    function update_field_or_well_selection(m1, m2, new_selection, idx)
+        m2.options[] = get_quantity_options(new_selection)
+        plots[idx] = plot_string(new_selection, m2.selection[])
+        update_plots(idx)
+    end
+
+    function update_response_selection(m1, m2, new_selection, idx)
+        plots[idx] = plot_string(m1.selection[], new_selection)
+        update_plots(idx)
     end
 
     function update_menu_layout()
@@ -375,6 +394,7 @@ function JutulDarcy.plot_summary_impl(arg...;
         end
         plot_boxes = Matrix{Any}(undef, nrows, ncols)
         plot_idx = 1
+
         for j in 1:ncols
             for i in 1:nrows
                 if isnothing(start_date)
@@ -399,13 +419,10 @@ function JutulDarcy.plot_summary_impl(arg...;
                     # Capture variable in local scope for the functions
                     local_plot_idx = plot_idx
                     on(submenu1.selection) do s
-                        submenu2.options[] = get_quantity_options(s)
-                        plots[local_plot_idx] = plot_string(s, submenu2.selection[])
-                        update_plots(local_plot_idx)
+                        update_field_or_well_selection(submenu1, submenu2, s, local_plot_idx)
                     end
                     on(submenu2.selection) do s
-                        plots[local_plot_idx] = plot_string(submenu1.selection[], s)
-                        update_plots(local_plot_idx)
+                        update_response_selection(submenu1, submenu2, s, local_plot_idx)
                     end
                     subax = make_ax(plot_box[2, 1:2])
                 else
@@ -448,7 +465,69 @@ function JutulDarcy.plot_summary_impl(arg...;
         DataInspector(fig)
     end
 
+    function cycle_well_or_field(inc = 1)
+        for pb in plot_boxes
+            m1 = pb.menu1
+            m2 = pb.menu2
+            curr = m1.selection[]
+            if curr != "FIELD"
+                opts = m1.options[]
+                pos = findfirst(isequal(curr), opts)
+                pos = mod1(pos + inc, length(opts))
+                if pos == 1
+                    pos = 2
+                end
+                m1.selection[] = opts[pos]
+                m1.i_selected[] = pos
+            end
+        end
+    end
+
+    function cycle_response(inc = 1)
+        for pb in plot_boxes
+            m1 = pb.menu1
+            m2 = pb.menu2
+            curr = m2.selection[]
+            opts = m2.options[]
+            pos = findfirst(isequal(curr), opts)
+            if isnothing(pos)
+                pos = 1
+            end
+            pos = mod1(pos + inc, length(opts))
+            m2.selection[] = opts[pos]
+            m2.i_selected[] = pos
+        end
+    end
+    on(Makie.events(fig.scene).keyboardbutton) do event
+        if event.action == Keyboard.press || event.action == Keyboard.repeat
+            if event.key == Keyboard.left
+                # Previous response
+                cycle_response(-1)
+            elseif event.key == Keyboard.right
+                # Next response
+                cycle_response(1)
+            elseif event.key == Keyboard.up
+                # Previous well/field
+                cycle_well_or_field(-1)
+            elseif event.key == Keyboard.down
+                # Next well/field
+                cycle_well_or_field(1)
+            end
+        end
+    end
+
+
     return fig
+end
+
+function add_legend_to_keys!(fkeys, lookup)
+    for (i, k) in enumerate(fkeys)
+        info = get(lookup, k, missing)
+        if !ismissing(info)
+            fkeys[i] = "$k: $(info.legend)"
+        end
+    end
+    return fkeys
 end
 
 function label_menu(dest, options, mlabel::String; kwarg...)

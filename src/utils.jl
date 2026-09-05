@@ -3335,9 +3335,13 @@ function get_faults(g::MinimalTPFATopology)
 end
 
 function well_unit_conversion(unit_sys, lbl, info)
+    t = info.unit_type
+    return unit_system_unit_conversion(unit_sys, lbl, t)
+end
+
+function unit_system_unit_conversion(unit_sys, lbl, t)
     unit_sys = lowercase(unit_sys)
     @assert unit_sys in ("metric", "si", "field")
-    t = info.unit_type
     u = 1.0
     if unit_sys == "metric"
         if t == :gas_volume_surface
@@ -3351,12 +3355,27 @@ function well_unit_conversion(unit_sys, lbl, info)
         elseif t == :pressure
             u = :bar
             lbl = "bar"
-        elseif t == :absolute_temperature
+        elseif t == :relative_temperature
             u = :Celsius
             lbl = "°C"
-        elseif t == :relative_temperature
+        elseif t == :absolute_temperature
             u = :Kelvin
             lbl = "°K"
+        elseif t == :permeability
+            u = :millidarcy
+            lbl = "mD"
+        elseif t == :length
+            u = :meters
+            lbl = "m"
+        elseif t == :viscosity
+            u = :centipoise
+            lbl = "cP"
+        elseif t == :volume
+            u = missing
+            lbl = "m³"
+        elseif t == :mass
+            u = :kilogram
+            lbl = "kg"
         end
     elseif unit_sys == "field"
         if t == :gas_volume_surface
@@ -3383,6 +3402,21 @@ function well_unit_conversion(unit_sys, lbl, info)
         elseif t == :mass
             u = :pound
             lbl = "pound"
+        elseif t == :permeability 
+            u = :millidarcy
+            lbl = "mD"
+        elseif t == :length
+            u = :feet
+            lbl = "ft"
+        elseif t == :viscosity
+            u = :centipoise
+            lbl = "cP"
+        elseif t == :volume
+            u = missing
+            lbl = "ft³"
+        elseif t == :mass
+            u = :pound
+            lbl = "pound"
         end
     elseif unit_sys == "si"
         if t == :gas_volume_surface
@@ -3401,7 +3435,156 @@ function well_unit_conversion(unit_sys, lbl, info)
             lbl = "°C"
         elseif t == :mass
             lbl = "kg"
+        elseif t == :permeability
+            lbl = "m²"
+        elseif t == :length
+            lbl = "m"
+        elseif t == :viscosity
+            lbl = "Pa·s"
+        elseif t == :volume
+            lbl = "m³"
+        elseif t == :mass
+            lbl = "kg"
         end
     end
     return (u, lbl)
+end
+
+function convert_for_plotting(x::DataDomain; kwarg...)
+    cell_data = Dict{Any, Any}()
+    for (k, (v, e)) in pairs(x)
+        if e == Cells()
+            cell_data[k] = v
+        end
+    end
+    return convert_for_plotting(cell_data; kwarg...)
+end
+
+function convert_for_plotting(states::AbstractVector; kwarg...)
+    return map(x -> convert_for_plotting(x; kwarg...), states)
+end
+
+function convert_for_plotting(x::Missing; kwarg...)
+    return x
+end
+
+function convert_for_plotting(s::Union{AbstractDict, JutulStorage};
+        units = "metric",
+        source_units = "si",
+        append_unit = true,
+        keytype = Symbol,
+        unit_lookup = Dict(),
+        convert_units = true,
+        variant = :values
+    )
+    if !convert_units
+        return s
+    end
+    is_sens = variant == :sens
+    variant in (:values, :sens) || error("Unsupported variant: $variant")
+    conv_to_si(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = source_units, to = "si")
+    conv_from_si(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = "si", to = units)
+    conv(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = source_units, to = units)
+    conv(x, ::Missing) = x
+    function add!(k, v, value_type = missing; do_convert = true)
+        override = get(unit_lookup, k, missing)
+        lbl = missing
+        if !ismissing(override)
+            if override isa Real
+                fact = override
+            elseif override isa Tuple
+                fact, lbl = override
+            else
+                error("Unsupported override type for key $k: $override. Value should be either be a numeric conversion_factor or a Tuple (conversion_factor, unit_label)")
+            end
+            if do_convert
+                if is_sens
+                    v = v./fact
+                else
+                    v *= fact
+                end
+            end
+        elseif !ismissing(value_type)
+            if do_convert
+                if is_sens
+                    u = conv(1.0, value_type)
+                    v = v./u
+                else
+                    v = conv(v, value_type)
+                end
+            end
+            _, lbl = unit_system_unit_conversion("$units", missing, value_type)
+        end
+        if append_unit && !ismissing(lbl)
+            k = "$k / $lbl"
+        end
+        out[keytype(k)] = v
+    end
+
+    function dim_name(k, d, depth = false)
+        if d == 1
+            s = 'x'
+        elseif d == 2
+            s = 'y'
+        elseif d == 3
+            if depth
+                s = "depth"
+            else
+                s = 'z'
+            end
+        else
+            error("Invalid dimension: $d")
+        end
+        return "$(k)_$(s)"
+    end
+    function add_spatial!(k, v, value_type, is_depth = false)
+        if v isa AbstractMatrix && size(v, 1) > 1
+            for d in axes(v, 1)
+                v_d = view(v, d, :)
+                new_name = dim_name(k, d, is_depth)
+                add!(new_name, v_d, value_type)
+            end
+        else
+            add!(k, v, value_type)
+        end
+    end
+    conversion = Dict(
+        :Pressure => :pressure,
+        :CapillaryPressure => :pressure,
+        :TotalMasses => :mass,
+        :PhaseViscosities => :viscosity,
+        :volumes => :volume,
+        :StaticFluidVolume => :volume,
+        :FluidVolume => :volume
+    )
+    out = Dict{keytype, Any}()
+    for (k, val) in pairs(s)
+        if k == :permeability
+            add_spatial!(k, val, :permeability)
+        elseif k == :cell_centroids
+            add_spatial!(:center, val, :length, true)
+        elseif k == :Temperature
+            add!(k, val, :absolute_temperature)
+            if !is_sens
+                is_imperial = source_units == "field"
+                if is_imperial
+                    T_K = convert_to_si.(val, :Rankine)
+                else
+                    T_K = val
+                end
+                # Now in Kelvin
+                val_C = conv_to_si(val, :absolute_temperature) .- 273.15
+                if is_imperial
+                    val_rel = convert_from_si.(val, :Rankine)
+                else
+                    val_rel = val_C
+                end
+                add!(:Temperature_relative, val_rel, :relative_temperature, do_convert = false)
+            end
+        else
+            u_type = get(conversion, k, missing)
+            add!(k, val, u_type)
+        end
+    end
+    return out
 end

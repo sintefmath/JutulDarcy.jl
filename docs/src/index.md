@@ -80,7 +80,7 @@ file_path = joinpath(spe9_dir, "SPE9.DATA")
 case = setup_case_from_data_file(file_path)
 # Simulate and plot
 result = simulate_reservoir(case)
-plot_reservoir(case, result, fancy = true)
+plot_reservoir(case, result)
 ```
 
 We can then continue to produce interactive plots for the wells:
