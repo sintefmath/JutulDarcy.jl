@@ -176,10 +176,12 @@ function plot_reservoir(model, states = missing;
     end
     states = maybe_convert_units(states)
     sens = maybe_convert_units(sens, variant = :sens)
-    for (k, v) in pairs(sens)
-        if !(eltype(v)<:AbstractFloat)
-            # Remove non-numeric entries from sensitivity analysis dictionary
-            delete!(sens, k)
+    if !ismissing(sens)
+        for (k, v) in pairs(sens)
+            if !(eltype(v)<:AbstractFloat)
+                # Remove non-numeric entries from sensitivity analysis dictionary
+                delete!(sens, k)
+            end
         end
     end
     Jutul.check_plotting_availability()
