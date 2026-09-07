@@ -365,7 +365,7 @@ function optimize_reservoir(dopt::DictParameters, objective, setup_fn = dopt.set
         deps = :parameters_and_state0,
         kwarg...
     )
-    sim, cfg = setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg)
+    sim, cfg = setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg, info_level = info_level)
     return Jutul.optimize(dopt, objective, setup_fn;
         simulator = sim,
         config = cfg,
@@ -402,9 +402,10 @@ function reservoir_optimization_problem(dopt::DictParameters, objective, setup_f
         simulator = missing,
         config = missing,
         deps = :parameters_and_state0,
+        info_level = 0,
         kwarg...
     )
-    sim, cfg = setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg)
+    sim, cfg = setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg, info_level = info_level)
     Jutul.optimization_problem(dopt, objective, setup_fn;
         deps = deps,
         simulator = sim,
@@ -413,7 +414,7 @@ function reservoir_optimization_problem(dopt::DictParameters, objective, setup_f
     )
 end
 
-function setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg)
+function setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg; kwarg...)
     if ismissing(setup_fn)
         error("Setup function was not found in DictParameters struct or as last positional argument.")
     end
@@ -421,7 +422,7 @@ function setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, c
     has_cfg = !ismissing(config)
     if !has_sim && !has_cfg
         case0 = setup_fn(dopt.parameters, missing)
-        simulator, config = setup_reservoir_simulator(case0; info_level = -1, simulator_arg...)
+        simulator, config = setup_reservoir_simulator(case0; info_level = -1, simulator_arg..., kwarg...)
     else
         has_sim == has_cfg || error("Simulator and config must be provided together")
     end
