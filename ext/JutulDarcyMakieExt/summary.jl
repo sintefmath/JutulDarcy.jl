@@ -102,7 +102,6 @@ function JutulDarcy.plot_summary_impl(arg...;
     # Field types
     field_quantity_keys = collect(keys(summary_sample["VALUES"]["FIELD"]))
     sort!(field_quantity_keys)
-    pushfirst!(field_quantity_keys, "NONE")
     add_legend_to_keys!(field_quantity_keys, lookup)
 
     function get_well_quantity_keys(wname)
@@ -127,6 +126,7 @@ function JutulDarcy.plot_summary_impl(arg...;
         else
             opts = get_well_quantity_keys(kind)
         end
+        pushfirst!(opts, "NONE")
         return opts
     end
 
