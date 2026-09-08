@@ -128,6 +128,7 @@ module JutulDarcy
     import Jutul: @tic
 
     using Jutul
+    import Adapt
     using ForwardDiff, StaticArrays, SparseArrays, LinearAlgebra, Statistics
     using HYPRE
     # PVT
@@ -206,6 +207,9 @@ module JutulDarcy
     include("CO2Properties/CO2Properties.jl")
     # Timestepping
     include("timesteps.jl")
+
+    # Backend adaptation and KA kernels for a single reservoir model.
+    include("kernel_abstractions.jl")
 
     # Postprocessing
     include("postprocessing.jl")

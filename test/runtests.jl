@@ -16,6 +16,10 @@ end
     include("singlephase.jl")
 end
 
+@testitem "KernelAbstractions single model" begin
+    include("kernel_abstractions.jl")
+end
+
 @testitem "Multi-phase" begin
     include("multiphase.jl")
 end

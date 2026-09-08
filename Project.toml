@@ -4,6 +4,7 @@ version = "0.3.10"
 authors = ["Olav Møyner <olav.moyner@gmail.com>"]
 
 [deps]
+Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 Artifacts = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
@@ -48,6 +49,7 @@ JutulDarcyMakieExt = "Makie"
 JutulDarcyPartitionedArraysExt = ["PartitionedArrays", "MPI", "HYPRE"]
 
 [compat]
+Adapt = "4"
 AMGX = "0.2"
 Artifacts = "1"
 CUDA = "5"
@@ -59,6 +61,7 @@ ForwardDiff = "0.10.30"
 GeoEnergyIO = "1.1.29"
 HYPRE = "1.6.0, 1.7"
 Jutul = "0.4.29"
+JLArrays = "0.3"
 Krylov = "0.9.1"
 LazyArtifacts = "1"
 LinearAlgebra = "1"
@@ -84,6 +87,7 @@ AMGX = "c963dde9-0319-47f5-bf0c-b07d3c80ffa6"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 HYPRE = "b5ffcf37-a2bd-41ab-a3da-4bd9bc8ad771"
+JLArrays = "27aeb0d3-9eb9-45fb-866b-73c2ecf80fcb"
 MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
 PartitionedArrays = "5a9dfac6-5c52-46f7-8278-5e2210713be9"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
@@ -91,4 +95,4 @@ TestItemRunner = "f8b46487-2199-4994-9208-9a1283c18c0a"
 TestItems = "1c621080-faea-4a02-84b6-bbd5e436b8fe"
 
 [targets]
-test = ["Test", "AMGX", "CUDA", "TestItemRunner", "TestItems", "HYPRE", "MPI", "PartitionedArrays"]
+test = ["Test", "AMGX", "CUDA", "TestItemRunner", "TestItems", "HYPRE", "JLArrays", "MPI", "PartitionedArrays"]
