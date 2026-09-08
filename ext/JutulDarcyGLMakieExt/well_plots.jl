@@ -171,6 +171,9 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     respstr = [String(x) for x in responses]
 
     is_inj = is_injectors(wd)
+    if ndata > length(styles)
+        append!(styles, repeat(styles, ceil(Int, ndata / length(styles)))[1:ndata])
+    end
     @assert ndata <= length(styles) "Can't plot more datasets than styles provided"
     fig = Figure(size = resolution)
     no_time = isnothing(time)
