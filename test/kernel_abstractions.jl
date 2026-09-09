@@ -3,6 +3,17 @@ using JLArrays
 using SparseArrays
 using Test
 
+const SPE1_GROUPS = [1, 2, 2, 2]
+const SPE1_GROUP_EXECUTION = [SolveFullyOnDevice, AssembleOnDevice]
+
+function setup_spe1_ka_case()
+    spe1 = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1", "SPE1.DATA")
+    return setup_case_from_data_file(spe1;
+        block_backend = false,
+        groups = copy(SPE1_GROUPS),
+        group_execution = copy(SPE1_GROUP_EXECUTION))[1:1]
+end
+
 @testset "Convergence reductions on a KA backend" begin
     residual = [1.0 -2.0 3.0; -4.0 5.0 -6.0]
     pore_volume = [2.0, 4.0, 5.0]
@@ -78,20 +89,25 @@ end
 end
 
 @testset "SPE1 hybrid multimodel on a KA backend" begin
-    spe1 = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1", "SPE1.DATA")
-    case = setup_case_from_data_file(spe1; block_backend = false)[1:1]
+    case = setup_spe1_ka_case()
     cpu_simulator = Simulator(case)
     simulator = transfer_to_backend(cpu_simulator, JLBackend())
 
-    @test simulator.storage.host_execution.keys == (:Facility,)
-    @test Jutul.model_execution_mode(simulator.model[:Facility]) isa
-        Jutul.HostModelExecution
-    @test Jutul.model_execution_mode(simulator.model[:PROD]) isa
-        Jutul.BackendModelExecution
-    @test Jutul.model_execution_mode(simulator.model[:INJ]) isa
-        Jutul.BackendModelExecution
+    @test simulator.storage.host_evaluation.keys == (:PROD, :INJ, :Facility)
+    @test Jutul.group_execution_mode(simulator.model, :Reservoir) ==
+        SolveFullyOnDevice
+    @test Jutul.group_execution_mode(simulator.model, :PROD) ==
+        AssembleOnDevice
+    @test Jutul.group_execution_mode(simulator.model, :Facility) ==
+        AssembleOnDevice
+    @test cpu_simulator.model.models.Facility.domain.well_symbols isa
+        Vector{Symbol}
+    @test simulator.model.models.Facility.domain.well_symbols isa Base.OneTo
+    @test !(simulator.model.models.Facility.domain.well_symbols isa Tuple)
     @test simulator.storage.PROD.state.Pressure isa JLArray
     @test simulator.storage.INJ.state.Pressure isa JLArray
+    @test cpu_simulator.storage.PROD.state.Pressure isa Vector
+    @test cpu_simulator.storage.INJ.state.Pressure isa Vector
     @test simulator.storage.Facility.state.WellGroupConfiguration === nothing
     @test simulator.storage.Facility.state.FacilityCrossTermState.control_type isa
         JLArray
@@ -113,9 +129,11 @@ end
     Jutul.update_linearized_system!(simulator.storage, simulator.model)
 
     system = simulator.storage.LinearizedSystem
+    @test system isa Jutul.MultiLinearizedSystem
     @test system.r_buffer isa JLArray
     @test all(isfinite, Array(system.r_buffer))
-    @test all(isfinite, Array(nonzeros(system.jac)))
+    @test all(block -> all(isfinite, Array(nonzeros(block.jac))),
+        system.subsystems)
 
     tolerances = Jutul.set_default_tolerances(simulator.model)
     converged, error, errors = Jutul.check_convergence(
@@ -134,22 +152,24 @@ end
     @test Set(keys(report)) == Set(keys(simulator.model.models))
 end
 
-@testset "SPE1 simulation on a KA backend" begin
-    spe1 = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1", "SPE1.DATA")
-    case = setup_case_from_data_file(spe1; block_backend = false)[1:1]
-    cpu_simulator, config = setup_reservoir_simulator(case;
+@testset "SPE1 reservoir simulator assembly on a KA backend" begin
+    case = setup_spe1_ka_case()
+    cpu_simulator, = setup_reservoir_simulator(case;
         info_level = -1,
         linear_solver = nothing,
         timesteps = :none)
     simulator = transfer_to_backend(cpu_simulator, JLBackend())
 
-    states, reports = simulate!(simulator, case.dt;
-        forces = case.forces,
-        config = config)
+    forces = case.forces isa AbstractVector ? only(case.forces) : case.forces
+    dt = only(case.dt)
+    Jutul.update_before_step!(simulator, dt, forces; time = 0.0)
+    Jutul.update_state_dependents!(
+        simulator.storage, simulator.model, dt, forces; time = dt)
+    Jutul.update_linearized_system!(simulator.storage, simulator.model)
 
-    @test length(states) == length(case.dt)
-    @test length(reports) == length(case.dt)
-    @test all(isfinite, Array(states[end][:Reservoir][:Pressure]))
-    @test states[end][:PROD][:Pressure] isa JLArray
-    @test states[end][:INJ][:Pressure] isa JLArray
+    system = simulator.storage.LinearizedSystem
+    @test system.r_buffer isa JLArray
+    @test all(isfinite, Array(system.r_buffer))
+    @test all(block -> all(isfinite, Array(nonzeros(block.jac))),
+        system.subsystems)
 end

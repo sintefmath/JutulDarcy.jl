@@ -178,6 +178,13 @@ end
 # Facility influence on well
 struct WellFromFacilityFlowCT{W} <: Jutul.AdditiveCrossTerm
     well::W
+    facility_position::Int
+end
+WellFromFacilityFlowCT(well) = WellFromFacilityFlowCT(well, 0)
+
+@inline function facility_position(ct, facility)
+    position = ct.facility_position
+    return iszero(position) ? get_well_position(facility.domain, ct.well) : position
 end
 
 Jutul.cross_term_entities(ct::WellFromFacilityFlowCT, eq::ConservationLaw, model) = [well_top_node()]
@@ -201,13 +208,14 @@ function update_cross_term_in_entity!(out, i,
     )
     well_symbol = ct.well
     cross_term_surface_mass_rate!(
-        out, facility, well, state_facility, state_well, well_symbol)
+        out, facility, well, state_facility, state_well, well_symbol,
+        facility_position(ct, facility))
     return out
 end
 
-function cross_term_surface_mass_rate!(
-        out, facility, well, state_facility, state_well, well_symbol)
-    pos = get_well_position(facility.domain, well_symbol)
+function cross_term_surface_mass_rate!(out, facility, well, state_facility,
+        state_well, well_symbol, pos = get_well_position(
+            facility.domain, well_symbol))
     cfg = facility_raw_state_field(state_facility, :WellGroupConfiguration)
     q_t = state_facility.TotalSurfaceMassRate[pos]
     q_t *= facility_control_factor(cfg, state_facility, well_symbol, pos)
@@ -371,7 +379,9 @@ end
 
 struct WellFromFacilityThermalCT{W} <: Jutul.AdditiveCrossTerm
     well::W
+    facility_position::Int
 end
+WellFromFacilityThermalCT(well) = WellFromFacilityThermalCT(well, 0)
 
 Jutul.cross_term_entities(ct::WellFromFacilityThermalCT, eq::ConservationLaw, model) = [well_top_node()]
 
@@ -390,7 +400,7 @@ function update_cross_term_in_entity!(out, i,
     well, facility,
     ct::WellFromFacilityThermalCT, eq, dt, ldisc = local_discretization(ct, i))
     well_symbol = ct.well
-    pos = get_well_position(facility.domain, well_symbol)
+    pos = facility_position(ct, facility)
 
     cfg = facility_raw_state_field(state_facility, :WellGroupConfiguration)
     ctrl = operating_control(cfg, well_symbol)
@@ -505,9 +515,11 @@ end
 
 struct FacilityFromWellTemperatureCT{W} <: Jutul.AdditiveCrossTerm
     well::W
+    facility_position::Int
 end
+FacilityFromWellTemperatureCT(well) = FacilityFromWellTemperatureCT(well, 0)
 
-Jutul.cross_term_entities(ct::FacilityFromWellTemperatureCT, eq::SurfaceTemperatureEquation, model) = get_well_position(model.domain, ct.well)
+Jutul.cross_term_entities(ct::FacilityFromWellTemperatureCT, eq::SurfaceTemperatureEquation, model) = facility_position(ct, model)
 
 function update_cross_term_in_entity!(out, i,
     state_facility, state0_facility,
@@ -515,7 +527,7 @@ function update_cross_term_in_entity!(out, i,
     facility, well,
     ct::FacilityFromWellTemperatureCT, eq, dt, ldisc = local_discretization(ct, i))
 
-    pos = get_well_position(facility.domain, ct.well)
+    pos = facility_position(ct, facility)
     T = 0*state_facility[:SurfaceTemperature][pos]
     T += state_well[:Temperature][well_top_node()]
     out[1] = -T
@@ -523,9 +535,11 @@ end
 
 struct FacilityFromWellEnthalpyCT{W} <: Jutul.AdditiveCrossTerm
     well::W
+    facility_position::Int
 end
+FacilityFromWellEnthalpyCT(well) = FacilityFromWellEnthalpyCT(well, 0)
 
-Jutul.cross_term_entities(ct::FacilityFromWellEnthalpyCT, eq::SurfaceEnthalpyEquation, model) = get_well_position(model.domain, ct.well)
+Jutul.cross_term_entities(ct::FacilityFromWellEnthalpyCT, eq::SurfaceEnthalpyEquation, model) = facility_position(ct, model)
 
 function update_cross_term_in_entity!(out, i,
     state_facility, state0_facility,
@@ -533,7 +547,7 @@ function update_cross_term_in_entity!(out, i,
     facility, well,
     ct::FacilityFromWellEnthalpyCT, eq::SurfaceEnthalpyEquation, dt, ldisc = local_discretization(ct, i))
 
-    pos = get_well_position(facility.domain, ct.well)
+    pos = facility_position(ct, facility)
     H = 0*state_facility[:SurfaceEnthalpy][pos]
     H += well_top_node_enthalpy(well, state_well, well_top_node())
     out[1] = -H*eq.scale
@@ -541,9 +555,12 @@ end
 
 struct FacilityFromWellBottomHolePressureCT{W} <: Jutul.AdditiveCrossTerm
     well::W
+    facility_position::Int
 end
+FacilityFromWellBottomHolePressureCT(well) =
+    FacilityFromWellBottomHolePressureCT(well, 0)
 
-Jutul.cross_term_entities(ct::FacilityFromWellBottomHolePressureCT, eq::BottomHolePressureEquation, model) = get_well_position(model.domain, ct.well)
+Jutul.cross_term_entities(ct::FacilityFromWellBottomHolePressureCT, eq::BottomHolePressureEquation, model) = facility_position(ct, model)
 
 function update_cross_term_in_entity!(out, i,
     state_facility, state0_facility,
@@ -551,7 +568,7 @@ function update_cross_term_in_entity!(out, i,
     facility, well,
     ct::FacilityFromWellBottomHolePressureCT, eq::BottomHolePressureEquation, dt, ldisc = local_discretization(ct, i))
 
-    pos = get_well_position(facility.domain, ct.well)
+    pos = facility_position(ct, facility)
     P = 0*state_facility[:BottomHolePressure][pos]
     P += state_well[:Pressure][well_top_node()]
     out[1] = -P*eq.scale
@@ -559,9 +576,25 @@ end
 
 struct FacilityFromSurfacePhaseRatesCT{W} <: Jutul.AdditiveCrossTerm
     well::W
+    facility_position::Int
 end
+FacilityFromSurfacePhaseRatesCT(well) = FacilityFromSurfacePhaseRatesCT(well, 0)
 
-Jutul.cross_term_entities(ct::FacilityFromSurfacePhaseRatesCT, eq::SurfacePhaseRatesEquation, model) = get_well_position(model.domain, ct.well)
+const DeviceFacilityCrossTerm = Union{
+    WellFromFacilityFlowCT{Nothing},
+    WellFromFacilityThermalCT{Nothing},
+    FacilityFromWellTemperatureCT{Nothing},
+    FacilityFromWellEnthalpyCT{Nothing},
+    FacilityFromWellBottomHolePressureCT{Nothing},
+    FacilityFromSurfacePhaseRatesCT{Nothing}
+}
+
+# Adapted device cross terms have no well name and always carry the resolved
+# integer position. This dispatch keeps that position concrete in GPU kernels.
+@inline facility_position(ct::DeviceFacilityCrossTerm, facility) =
+    ct.facility_position
+
+Jutul.cross_term_entities(ct::FacilityFromSurfacePhaseRatesCT, eq::SurfacePhaseRatesEquation, model) = facility_position(ct, model)
 
 function update_cross_term_in_entity!(out, i,
     state_facility, state0_facility,
@@ -569,7 +602,7 @@ function update_cross_term_in_entity!(out, i,
     facility, well,
     ct::FacilityFromSurfacePhaseRatesCT, eq::SurfacePhaseRatesEquation, dt, ldisc = local_discretization(ct, i))
 
-    pos = get_well_position(facility.domain, ct.well)
+    pos = facility_position(ct, facility)
     q_t = state_facility.TotalSurfaceMassRate[pos]
     cfg = facility_raw_state_field(state_facility, :WellGroupConfiguration)
     rhoS, S = surface_density_and_volume_fractions(state_well)

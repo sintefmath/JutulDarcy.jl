@@ -12,14 +12,21 @@ Adapt.@adapt_structure PVDG
 Adapt.@adapt_structure PVTW
 Adapt.@adapt_structure FacilitySystem
 
-backend_well_name(name::Symbol) = Val(name)
-backend_well_name(name::Val) = name
+function Adapt.adapt_structure(::Jutul.KernelAbstractionsContext, group::WellGroup)
+    # The authoritative WellGroup, including its symbol vector, remains on the
+    # host. Device assembly only needs the number of facility unknowns; cross
+    # terms carry their precomputed integer facility positions.
+    return WellGroup(
+        Base.OneTo(length(group.well_symbols)),
+        group.can_shut_producers,
+        group.can_shut_injectors)
+end
 
 function Adapt.adapt_structure(to, well::SimpleWell)
     return SimpleWell(
         Adapt.adapt(to, well.perforations),
         Adapt.adapt(to, well.surface),
-        backend_well_name(well.name),
+        nothing,
         well.explicit_dp
     )
 end
@@ -121,8 +128,6 @@ function Adapt.adapt_structure(to, variable::LinearlyCompressiblePoreVolume)
         Val(:assembled))
 end
 
-Jutul.model_execution_mode(::FacilityModel) = Jutul.HostModelExecution()
-
 struct BackendSurfaceWellConditions <: Jutul.ScalarVariable end
 
 function Adapt.adapt_structure(::Jutul.KernelAbstractionsContext,
@@ -148,19 +153,6 @@ function Jutul.update_secondary_variable!(x::AbstractVector{TopConditions{N, R}}
     @inbounds x[1] = TopConditions(Val(N), Val(R), rho, fractions)
     return x
 end
-
-function Adapt.adapt_structure(to, g::WellGroup)
-    return BackendWellGroup(
-        Tuple(Val(symbol) for symbol in g.well_symbols),
-        g.can_shut_producers, g.can_shut_injectors)
-end
-
-function Jutul.active_entities(wg::BackendWellGroup,
-        ::Jutul.TrivialGlobalMap, entity; for_variables = false)
-    return 1:count_entities(wg, entity)
-end
-
-Jutul.count_entities(wg::BackendWellGroup, ::Wells) = length(wg.well_symbols)
 
 # The dictionary-based control configuration is host-only. Device cross terms
 # consume FacilityCrossTermState, which is refreshed and copied in place after
@@ -198,25 +190,26 @@ function Adapt.adapt_structure(to, ct::ReservoirFromWellThermalCT)
 end
 
 function Adapt.adapt_structure(to, ct::WellFromFacilityFlowCT)
-    return WellFromFacilityFlowCT(backend_well_name(ct.well))
+    return WellFromFacilityFlowCT(nothing, ct.facility_position)
 end
 
 function Adapt.adapt_structure(to, ct::WellFromFacilityThermalCT)
-    return WellFromFacilityThermalCT(backend_well_name(ct.well))
+    return WellFromFacilityThermalCT(nothing, ct.facility_position)
 end
 
 function Adapt.adapt_structure(to, ct::FacilityFromWellTemperatureCT)
-    return FacilityFromWellTemperatureCT(backend_well_name(ct.well))
+    return FacilityFromWellTemperatureCT(nothing, ct.facility_position)
 end
 
 function Adapt.adapt_structure(to, ct::FacilityFromWellEnthalpyCT)
-    return FacilityFromWellEnthalpyCT(backend_well_name(ct.well))
+    return FacilityFromWellEnthalpyCT(nothing, ct.facility_position)
 end
 
 function Adapt.adapt_structure(to, ct::FacilityFromWellBottomHolePressureCT)
-    return FacilityFromWellBottomHolePressureCT(backend_well_name(ct.well))
+    return FacilityFromWellBottomHolePressureCT(
+        nothing, ct.facility_position)
 end
 
 function Adapt.adapt_structure(to, ct::FacilityFromSurfacePhaseRatesCT)
-    return FacilityFromSurfacePhaseRatesCT(backend_well_name(ct.well))
+    return FacilityFromSurfacePhaseRatesCT(nothing, ct.facility_position)
 end

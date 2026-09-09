@@ -478,7 +478,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         immutable_model = false,
         wells_systems = missing,
         wells_as_cells = false,
-        discretization_arg = NamedTuple()
+        discretization_arg = NamedTuple(),
+        groups = missing,
+        group_execution = Jutul.SolveFullyOnDevice
     )
     # Deal with wells, make sure that multisegment wells come last.
     if !(wells isa AbstractArray)
@@ -639,6 +641,8 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         split_wells = split_wells,
         assemble_wells_together = assemble_wells_together,
         immutable_model = immutable_model,
+        groups = groups,
+        group_execution = group_execution,
     )
     if length(tracers) > 0
         add_tracers_to_model!(model, tracers)
@@ -1524,23 +1528,29 @@ function setup_reservoir_cross_terms!(model::MultiModel)
         if k == :Reservoir
             # These are set up from wells via symmetry
         elseif m.domain isa WellGroup
-            for target_well in m.domain.well_symbols
+            for (facility_position, target_well) in
+                    enumerate(m.domain.well_symbols)
                 if has_flow
-                    ct = WellFromFacilityFlowCT(target_well)
+                    ct = WellFromFacilityFlowCT(target_well, facility_position)
                     add_cross_term!(model, ct, target = target_well, source = k, equation = conservation)
 
-                    ct = FacilityFromWellBottomHolePressureCT(target_well)
+                    ct = FacilityFromWellBottomHolePressureCT(
+                        target_well, facility_position)
                     add_cross_term!(model, ct, target = k, source = target_well, equation = :bottom_hole_pressure_equation)
 
-                    ct = FacilityFromSurfacePhaseRatesCT(target_well)
+                    ct = FacilityFromSurfacePhaseRatesCT(
+                        target_well, facility_position)
                     add_cross_term!(model, ct, target = k, source = target_well, equation = :surface_phase_rates_equation)
                 end
                 if has_thermal
-                    ct = WellFromFacilityThermalCT(target_well)
+                    ct = WellFromFacilityThermalCT(
+                        target_well, facility_position)
                     add_cross_term!(model, ct, target = target_well, source = k, equation = energy)
-                    ct = FacilityFromWellTemperatureCT(target_well)
+                    ct = FacilityFromWellTemperatureCT(
+                        target_well, facility_position)
                     add_cross_term!(model, ct, target = k, source = target_well, equation = :temperature_equation)
-                    ct = FacilityFromWellEnthalpyCT(target_well)
+                    ct = FacilityFromWellEnthalpyCT(
+                        target_well, facility_position)
                     add_cross_term!(model, ct, target = k, source = target_well, equation = :enthalpy_equation)
                 end
             end
@@ -1601,7 +1611,8 @@ function reservoir_multimodel(models::AbstractDict;
         split_wells = false,
         immutable_model = false,
         assemble_wells_together = haskey(models, :Facility),
-        groups = missing
+        groups = missing,
+        group_execution = Jutul.SolveFullyOnDevice
     )
     res_model = models[:Reservoir]
     is_block(x) = Jutul.is_cell_major(matrix_layout(x.context))
@@ -1667,7 +1678,9 @@ function reservoir_multimodel(models::AbstractDict;
         red = :schur_apply
     end
     models = convert_to_immutable_storage(models)
-    model = MultiModel(models, groups = groups, context = outer_context, reduction = red, specialize = specialize)
+    model = MultiModel(models, groups = groups,
+        group_execution = group_execution, context = outer_context,
+        reduction = red, specialize = specialize)
     setup_reservoir_cross_terms!(model)
     if immutable_model
         model = convert_to_immutable_storage(model)

@@ -11,18 +11,11 @@ abstract type WellControllerDomain <: SurfaceFacilityDomain end
 
 const FacilityModel = SimulationModel{<:SurfaceFacilityDomain, <:AbstractFacilitySystem, <:Any, <:Any}
 
-mutable struct WellGroup <: WellControllerDomain
-    const well_symbols::Vector{Symbol} # Controlled wells
+struct WellGroup{W} <: WellControllerDomain
+    well_symbols::W # Controlled wells
     "Can temporarily shut producers that try to reach zero rate multiple solves in a row"
     can_shut_producers::Bool
     "Can temporarily shut injectors that try to reach zero rate multiple solves in a row"
-    can_shut_injectors::Bool
-end
-
-"""GPU-safe structural mirror of [`WellGroup`](@ref)."""
-struct BackendWellGroup{W} <: WellControllerDomain
-    well_symbols::W
-    can_shut_producers::Bool
     can_shut_injectors::Bool
 end
 
