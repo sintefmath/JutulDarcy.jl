@@ -55,6 +55,12 @@ compared in the same figure.
   to include in the selection lists, for example to add custom composite plots.
   For example, adding `WBHP,WWIR` to `extra_well` will allow plotting bottom
   hole pressure together with water injection rate for wells.
+
+# Keyboard shortcuts
+- `Left Arrow`: Previous response
+- `Right Arrow`: Next response
+- `Up Arrow`: Previous well (not active for field views)
+- `Down Arrow`: Next well (not active for field views)
 """
 function plot_summary(arg...; kwarg...)
     Jutul.check_plotting_availability()
@@ -97,17 +103,35 @@ function plot_reservoir_simulation_result(model::MultiModel, res::ReservoirSimRe
 end
 
 """
-    plot_reservoir(model, states=missing; well_fontsize = 18, well_linewidth = 3, kwarg...)
+    plot_reservoir(case)
+    plot_reservoir(case, states)
+    plot_reservoir(case, result)
+    plot_reservoir(model, states)
 
 Launch interactive plotter of reservoir + well trajectories in reservoir.
 Requires GLMakie to be loaded (using GLMakie). If the keyword `fancy=true`, a
 more advanced GUI with more options will be launched that allows for panning and
 zooming. If `fancy=false`, a fixed-axis plot will be launched instead. The
-keyword `gui=false` can be used to just get a static plot without interactivity.
+keyword `gui=false` can be used to just get a static plot without interactivity
+(will use same fixed-axis plot as `fancy=false`).
+
+Displayed units are determined by the `unit_system` keyword, which defaults to
+`"metric"`. The source units are assumed to be `"si"` by default. Unit
+conversion can be disabled altogether by setting `convert_units=false`.
+
+# Positional arguments
+The first entry can be a `model::MultiModel` (from `setup_reservoir_model`), a
+`JutulCase` or `reservoir::DataDomain` (from `reservoir_domain`)
 """
-function plot_reservoir(model, arg...;
+function plot_reservoir
+
+end
+
+function plot_reservoir(model, states = missing;
         gui = true,
-        fancy = false,
+        fancy = true,
+        sens = missing,
+        add_secondary = false,
         faults = fancy,
         fault_alpha = 0.5,
         well_fontsize = 18,
@@ -118,26 +142,61 @@ function plot_reservoir(model, arg...;
         well_top_factor_scale = 1.0,
         well_arg = NamedTuple(),
         force_glmakie = true,
+        convert_units = true,
+        unit_system = "metric",
+        source_unit_system = "si",
+        unit_lookup = Dict(),
         wells = missing,
         kwarg...
     )
-    Jutul.check_plotting_availability()
-    if force_glmakie
-        @assert Jutul.plotting_check_interactive(warn = true) "Function requires interactive plotting. Set force_glmakie = false to override."
+    function maybe_convert_units(x; kwarg...)
+        return convert_for_plotting(x;
+            units = unit_system,
+            source_units = source_unit_system,
+            unit_lookup = unit_lookup,
+            convert_units = convert_units,
+            kwarg...
+        )
+    end
+    if states isa AbstractDict
+        states = [states]
     end
     if model isa DataDomain
         data_domain = model
         model = missing
     else
-        rmodel = reservoir_model(model)
-        data_domain = rmodel.data_domain
+        data_domain = reservoir_domain(model)
+    end
+
+    if !ismissing(model)
+        if !ismissing(states) && add_secondary
+            rmodel = reservoir_model(model)
+            states = [Jutul.evaluate_all_secondary_variables(rmodel, s) for s in states]
+        end
+    end
+    states = maybe_convert_units(states)
+    sens = maybe_convert_units(sens, variant = :sens)
+    if !ismissing(sens)
+        for (k, v) in pairs(sens)
+            if !(eltype(v)<:AbstractFloat)
+                # Remove non-numeric entries from sensitivity analysis dictionary
+                delete!(sens, k)
+            end
+        end
+    end
+    Jutul.check_plotting_availability()
+    if force_glmakie
+        @assert Jutul.plotting_check_interactive(warn = true) "Function requires interactive plotting. Set force_glmakie = false to override."
     end
     cell_centroids = data_domain[:cell_centroids]
     if ismissing(aspect)
         x = cell_centroids[1, :]
         y = cell_centroids[2, :]
+        z = cell_centroids[3, :]
         xrng = maximum(x) - minimum(x)
         yrng = maximum(y) - minimum(y)
+        zrng = maximum(z) - minimum(z)
+        zaspect = zaspect*xrng/zrng
         aspect = (1.0, max(yrng/xrng, 0.001), zaspect)
     end
     if haskey(data_domain, :boundary_centroids)
@@ -157,22 +216,23 @@ function plot_reservoir(model, arg...;
         bounds_z = missing
     end
     g = physical_representation(data_domain)
+    static_data = maybe_convert_units(data_domain)
 
     wtoggle = ftoggle = missing
     if gui
         if fancy
-            if length(arg) == 0
-                dynamic = missing
+            # In case it is not yet supported in Jutul...
+            if ismissing(sens)
+                extra_arg = tuple()
             else
-                dynamic = arg[1]
+                extra_arg = (sens = sens, )
             end
-            if !ismissing(aspect)
-                aspect = 1.0 ./ aspect
-            end
-            s = plot_explorer(data_domain;
-                dynamic = dynamic,
+            s = plot_explorer(g;
+                dynamic = states,
+                static = static_data,
                 zreversed = true,
                 aspect = aspect,
+                extra_arg...,
                 kwarg...
             )
             ax = s.lscene
@@ -181,6 +241,21 @@ function plot_reservoir(model, arg...;
             ftoggle = s.add_toggle("Faults", faults)
             retval = s
         else
+            if ismissing(states)
+                arg = tuple()
+            else
+                merged_states = map(states) do s
+                    o = OrderedDict()
+                    for (k, v) in pairs(s)
+                        o[k] = v
+                    end
+                    for (k, v) in pairs(static_data)
+                        o[k] = v
+                    end
+                    return o
+                end
+                arg = (merged_states, )
+            end
             fig = plot_interactive(data_domain, arg...; z_is_depth = true, aspect = aspect, kwarg...)
             ax = fig.current_axis[]
             retval = fig
@@ -238,21 +313,37 @@ function plot_reservoir(model, arg...;
     return retval
 end
 
-function plot_reservoir(model::Union{MultiModel, SimulationModel}, result::ReservoirSimResult; kwarg...)
+function plot_reservoir(model::Union{MultiModel, SimulationModel,}, result::ReservoirSimResult; kwarg...)
     return plot_reservoir(model, result.states; kwarg...)
 end
 
-function plot_reservoir(case::JutulCase, arg...; kwarg...)
-    if length(arg) == 0
-        plot_vals = merge(case.parameters[:Reservoir], case.state0[:Reservoir])
-        for (k, v) in pairs(reservoir_model(case).data_domain)
-            if !haskey(plot_vals, k)
-                plot_vals[k] = v[1]
-            end
-        end
-        arg = ([plot_vals], )
+function plot_reservoir(case::JutulCase, states = missing; state0 = true, kwarg...)
+    if states isa ReservoirSimResult
+        states = states.states
     end
-    return plot_reservoir(case.model, arg...; kwarg...)
+    if states isa AbstractDict
+        states = [states]
+    end
+    if state0
+        s0 = case.state0
+        m = case.model
+        if haskey(s0, :Reservoir)
+            s0 = s0[:Reservoir]
+            m = m[:Reservoir]
+        end
+        s0 = Jutul.evaluate_all_secondary_variables(m, s0)
+        if ismissing(states) || length(states) == 0
+            states = [s0]
+        else
+            s = states[1]
+            s0_new = typeof(s)()
+            for (k, v) in pairs(s)
+                s0_new[k] = v
+            end
+            states = [s0_new; states]
+        end
+    end
+    return plot_reservoir(case.model, states; kwarg...)
 end
 
 export plot_faults!

@@ -33,20 +33,11 @@ ax.azimuth[] = -3.0
 ax.elevation[] = 0.5
 fig
 # ## Plot the reservoir static properties in interactive viewer
-fig = plot_reservoir(model, key = :porosity)
-ax = fig.current_axis[]
-plot_faults!(ax, mesh, alpha = 0.5)
-ax.azimuth[] = -3.0
-ax.elevation[] = 0.5
-fig
+plot_reservoir(model, key = :porosity)
 # ## Simulate the model
 ws, states = simulate_reservoir(case, output_substates = true)
 # ## Plot the reservoir solution
-fig = plot_reservoir(model, states, step = 247, key = :Saturations)
-ax = fig.current_axis[]
-ax.azimuth[] = -3.0
-ax.elevation[] = 0.5
-fig
+plot_reservoir(model, states, step = 247, key = :Saturations)
 
 # ## Load reference and set up plotting
 csv_path = joinpath(norne_dir, "REFERENCE.CSV")

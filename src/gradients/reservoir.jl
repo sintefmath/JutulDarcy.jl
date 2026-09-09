@@ -337,8 +337,6 @@ function optimization_resetup_reservoir_case(opt_dict::AbstractDict, case::Jutul
     return new_case
 end
 
-const DEFAULT_OPTIMIZER_SIMULATOR_ARG = (output_substates = true, info_level = 0, end_report = false)
-
 """
     optimize_reservoir(dopt, objective, setup_fn = dopt.setup_function)
 
@@ -359,7 +357,7 @@ same applies if you change the model itself in the setup function. The defaults
 of `:parameters_and_state0` provide significant performance improvements in most cases
 where only parameters and initial state are changed.
 """
-function optimize_reservoir(dopt, objective, setup_fn = dopt.setup_function;
+function optimize_reservoir(dopt::DictParameters, objective, setup_fn = dopt.setup_function;
         info_level = 0,
         simulator_arg = DEFAULT_OPTIMIZER_SIMULATOR_ARG,
         simulator = missing,
@@ -367,7 +365,7 @@ function optimize_reservoir(dopt, objective, setup_fn = dopt.setup_function;
         deps = :parameters_and_state0,
         kwarg...
     )
-    sim, cfg = setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg)
+    sim, cfg = setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg, info_level = info_level)
     return Jutul.optimize(dopt, objective, setup_fn;
         simulator = sim,
         config = cfg,
@@ -377,7 +375,13 @@ function optimize_reservoir(dopt, objective, setup_fn = dopt.setup_function;
     )
 end
 
-function parameters_gradient_reservoir(dopt, objective, setup_fn = dopt.setup_function;
+"""
+    grad = parameters_gradient_reservoir(dopt::DictParameters, objective)
+
+Compute gradients of `objective` function with respect to parametrized problem
+`dopt`.
+"""
+function parameters_gradient_reservoir(dopt::DictParameters, objective, setup_fn = dopt.setup_function;
         simulator_arg = DEFAULT_OPTIMIZER_SIMULATOR_ARG,
         simulator = missing,
         config = missing,
@@ -398,9 +402,10 @@ function reservoir_optimization_problem(dopt::DictParameters, objective, setup_f
         simulator = missing,
         config = missing,
         deps = :parameters_and_state0,
+        info_level = 0,
         kwarg...
     )
-    sim, cfg = setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg)
+    sim, cfg = setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg, info_level = info_level)
     Jutul.optimization_problem(dopt, objective, setup_fn;
         deps = deps,
         simulator = sim,
@@ -409,7 +414,7 @@ function reservoir_optimization_problem(dopt::DictParameters, objective, setup_f
     )
 end
 
-function setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg)
+function setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg; kwarg...)
     if ismissing(setup_fn)
         error("Setup function was not found in DictParameters struct or as last positional argument.")
     end
@@ -417,7 +422,7 @@ function setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, c
     has_cfg = !ismissing(config)
     if !has_sim && !has_cfg
         case0 = setup_fn(dopt.parameters, missing)
-        simulator, config = setup_reservoir_simulator(case0; info_level = -1, simulator_arg...)
+        simulator, config = setup_reservoir_simulator(case0; info_level = -1, simulator_arg..., kwarg...)
     else
         has_sim == has_cfg || error("Simulator and config must be provided together")
     end
