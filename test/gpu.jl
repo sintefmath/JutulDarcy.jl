@@ -45,6 +45,35 @@ if CUDA.functional()
         lsolve = x,
         info_level = -1
     )
+    @testset "KA heterogeneous deck PVT" begin
+        grid = CartesianMesh((4, 1), (4.0, 1.0))
+        state0, model, parameters, forces, timesteps = get_test_setup(
+            grid,
+            case_name = "two_phase_simple",
+            context = ParallelCSRContext(1),
+            timesteps = [0.1]
+        )
+        water = JutulDarcy.PVTW(ConstMuBTable(
+            1.0e7, 1.0, 1.0e-9, 1.0e-3, 0.0))
+        oil = JutulDarcy.PVDO(MuBTable(
+            [1.0e7, 2.0e7], [1.0, 1.1], [2.0e-3, 2.2e-3]))
+        pvt = (water, oil)
+        replace_variables!(model,
+            PhaseMassDensities = DeckPhaseMassDensities(pvt),
+            PhaseViscosities = DeckPhaseViscosities(pvt))
+
+        cpu_simulator = Simulator(
+            model, state0 = state0, parameters = parameters)
+        simulator = transfer_to_backend(
+            cpu_simulator, CUDA.CUDABackend())
+        dt = only(timesteps)
+        Jutul.update_before_step!(simulator, dt, forces; time = 0.0)
+        Jutul.update_state_dependents!(
+            simulator.storage, simulator.model, dt, forces; time = dt)
+        Jutul.update_linearized_system!(simulator.storage, simulator.model)
+
+        @test all(isfinite, Array(simulator.storage.LinearizedSystem.r_buffer))
+    end
     @testset "SimulationModel" begin
         krylov_cpu = GenericKrylov(:bicgstab, preconditioner = ILUZeroPreconditioner())
         s_cpu = do_solve(krylov_cpu)

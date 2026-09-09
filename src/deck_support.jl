@@ -1,9 +1,19 @@
-@jutul_secondary function update_deck_viscosity!(b, ρ::DeckPhaseViscosities, model, Pressure, ix)
+@generated function foreach_phase_pvt(f, pvt::P) where {P<:Tuple}
+    calls = [:(f(Val($phase), getfield(pvt, $phase)))
+        for phase in 1:fieldcount(P)]
+    return Expr(:block, calls..., :(nothing))
+end
+
+@inline phase_index(::Val{phase}) where phase = phase
+@inline phase_tuple_entry(tuple, ::Val{phase}) where phase =
+    getfield(tuple, phase)
+
+@jutul_secondary function update_deck_viscosity!(b,
+        ρ::DeckPhaseViscosities, model, Pressure, ix)
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
-    nph = number_of_phases(model.system)
-    for ph in 1:nph
-        pvt_ph = pvt[ph]
+    foreach_phase_pvt(pvt) do phase, pvt_ph
+        ph = phase_index(phase)
         for i in ix
             p = Pressure[i]
             @inbounds b[ph, i] = viscosity(pvt_ph, reg, p, i)
@@ -35,14 +45,14 @@ end
     end
 end
 
-@jutul_secondary function update_deck_density!(rho, ρ::DeckPhaseMassDensities, model, Pressure, ix)
+@jutul_secondary function update_deck_density!(rho,
+        ρ::DeckPhaseMassDensities, model, Pressure, ix)
     rhos = reference_densities(model.system)
     pvt, reg = ρ.pvt, ρ.regions
-    nph = number_of_phases(model.system)
     # Note immiscible assumption
-    @inbounds for ph in 1:nph
-        rhos_ph = rhos[ph]
-        pvt_ph = pvt[ph]
+    foreach_phase_pvt(pvt) do phase, pvt_ph
+        ph = phase_index(phase)
+        rhos_ph = phase_tuple_entry(rhos, phase)
         @inbounds for i in ix
             p = Pressure[i]
             rho[ph, i] = rhos_ph*shrinkage(pvt_ph, reg, p, i)
@@ -78,12 +88,12 @@ end
     end
 end
 
-@jutul_secondary function update_deck_shrinkage!(b, ρ::DeckShrinkageFactors, model, Pressure, ix)
+@jutul_secondary function update_deck_shrinkage!(b,
+        ρ::DeckShrinkageFactors, model, Pressure, ix)
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
-    nph, = size(b, 1)
-    for ph in 1:nph
-        pvt_ph = pvt[ph]
+    foreach_phase_pvt(pvt) do phase, pvt_ph
+        ph = phase_index(phase)
         for i in ix
             p = Pressure[i]
             @inbounds b[ph, i] = shrinkage(pvt_ph, reg, p, i)

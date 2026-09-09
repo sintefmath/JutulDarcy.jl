@@ -8,6 +8,7 @@ end
 Adapt.@adapt_structure Rs
 Adapt.@adapt_structure PVTO
 Adapt.@adapt_structure PVTOTable
+Adapt.@adapt_structure PVDO
 Adapt.@adapt_structure PVDG
 Adapt.@adapt_structure PVTW
 Adapt.@adapt_structure FacilitySystem

@@ -9,6 +9,21 @@ function setup_spe1_ka_case()
         block_backend = false)[1:1]
 end
 
+@testset "Heterogeneous deck PVT adaptation" begin
+    water = JutulDarcy.PVTW(ConstMuBTable(
+        1.0e7, 1.0, 1.0e-9, 1.0e-3, 0.0))
+    oil = JutulDarcy.PVDO(MuBTable(
+        [1.0e7, 2.0e7], [1.0, 1.1], [2.0e-3, 2.2e-3]))
+    variable = DeckPhaseMassDensities((water, oil))
+    context = KernelAbstractionsContext(JLBackend())
+
+    adapted = JutulDarcy.Adapt.adapt(context, variable)
+
+    @test adapted.pvt[2].tab[1].pressure isa JLArray
+    @test adapted.pvt[2].tab[1].shrinkage isa JLArray
+    @test adapted.pvt[2].tab[1].viscosity isa JLArray
+end
+
 @testset "Convergence reductions on a KA backend" begin
     residual = [1.0 -2.0 3.0; -4.0 5.0 -6.0]
     pore_volume = [2.0, 4.0, 5.0]
@@ -57,6 +72,13 @@ end
     @test simulator.storage.LinearizedSystem.jac_buffer ===
         nonzeros(simulator.storage.LinearizedSystem.jac)
     @test cpu_simulator.storage.state.Pressure isa Vector
+
+    reset_state = deepcopy(state0)
+    reset_state[:Pressure] .+= 1.0
+    Jutul.reset_variables!(simulator, reset_state)
+    @test value.(Array(simulator.storage.state.Pressure)) ≈
+        reset_state[:Pressure]
+    Jutul.reset_variables!(simulator, state0)
 
     states, = simulate!(simulator, timesteps; forces = forces, info_level = -1)
     @test Array(states[end][:Pressure]) ≈ reference[end][:Pressure] rtol = 1e-10
@@ -116,6 +138,15 @@ end
     @test all(cross_term ->
             cross_term.target_impact_map.entries isa JLArray,
         simulator.storage.cross_terms)
+
+    reset_state = deepcopy(case.state0)
+    reset_state[:PROD][:Pressure] .+= 1.0
+    Jutul.reset_variables!(simulator, reset_state)
+    @test value.(host.storage.PROD.state.Pressure) ≈
+        reset_state[:PROD][:Pressure]
+    @test value.(Array(simulator.storage.PROD.state.Pressure)) ≈
+        reset_state[:PROD][:Pressure]
+    Jutul.reset_variables!(simulator, case.state0)
 
     facility_control_buffer =
         simulator.storage.Facility.state.FacilityCrossTermState.control_type
