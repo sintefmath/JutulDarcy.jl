@@ -72,6 +72,10 @@ end
     include("sens_equil.jl")
 end
 
+@testitem "Well control gradients" begin
+    include("well_control_gradients.jl")
+end
+
 @testitem "Compositional validation" begin
     include("compositional.jl")
 end

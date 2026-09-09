@@ -1,20 +1,16 @@
 # Well control optimization on top of Jutul's DictOptimization
 # ============================================================
 #
-# Workflow (MRST `optimizeEggEnsemble` style, minus the ensemble):
+# `setup_well_control_optimization(case, control_periods, controls)` -> a
+# `WellControlOptimization`, then `optimize_well_controls` runs the adjoint-based
+# box-constrained optimizer. `control_periods` are groups of report steps; each
+# `(well, quantity)` in `controls` is one degree of freedom per active period.
 #
-#   1. Start from a `JutulCase` with a base schedule.
-#   2. Declare control periods explicitly as groups of report steps.
-#   3. Declare, per well, exactly which quantities are free (primary target
-#      and/or limits) and their box bounds (absolute and/or relative).
-#   4. `optimize_well_controls` runs the adjoint-based quasi-Newton optimizer
-#      (`Jutul.unit_box_bfgs` via the `:lbfgs` backend).
-#
-# A well quantity is treated as the *target* when it matches the well's base
-# control target, otherwise as a *limit* (it is written into
-# `forces[:Facility].limits[well]`). The adjoint follows whichever control is
-# active during the simulation (see the reference-mode handling in
-# `src/facility/controls.jl`).
+# A quantity that matches the well's base control target is optimized as that
+# *target*; any other quantity is an operating *limit* written into
+# `forces[:Facility].limits[well]`. The adjoint follows whichever control is
+# actually active during the simulation - see the reference-mode handling in
+# `src/facility/controls.jl` and the test in `test/well_control_gradients.jl`.
 
 """
 Symbol -> well target constructor for the quantities that can be optimized.
@@ -278,9 +274,47 @@ function setup_well_control_optimization(case::JutulCase, control_periods, contr
 end
 
 """
+    _wc_dof_coupling(prm, dofs) -> Dict{Tuple{Symbol,Int}, Any}
+
+Value-neutral coupling term per `(well, control-period)`: `sum(v - v)` over every
+optimized magnitude (target *and* all limits) [`wc_rebuild_case`](@ref) writes
+for that well in that period. Value and derivative are exactly zero.
+
+It exists only for sparse differentiation (`di_sparse = true`), whose dR/dX
+pattern is detected once and frozen. A limit only enters the control equation on
+steps where it is the operating control, so a limit that is slack at detection
+would keep a hard-zero gradient column even after it starts binding. Adding
+`v - v` (which the tracer keeps, unlike `0*v` which it prunes) to every one of a
+well's values makes each depend structurally on the rest, so whichever control
+is active at detection pulls the whole `(well, period)` block into the pattern.
+
+Do not fold `v - v` to `zero(v)`: a constant-folding rewrite (`@fastmath`, an
+`iszero` fast path) silently reintroduces the frozen-zero gradient - a wrong
+gradient, not an error. Does not cover a well that is shut (`DisabledControl`)
+at detection and reopens later.
+"""
+function _wc_dof_coupling(prm::AbstractDict, dofs::Vector{WellControlDOF})
+    coupling = Dict{Tuple{Symbol, Int}, Any}()
+    for d in dofs
+        vals = prm[String(d.well)][String(d.quantity)]
+        for (k, pi) in enumerate(d.periods)
+            mag = d.constant ? vals[1] : vals[k]
+            key = (d.well, pi)
+            term = mag - mag
+            coupling[key] = haskey(coupling, key) ? coupling[key] + term : term
+        end
+    end
+    return coupling
+end
+
+"""
 Rebuild a `JutulCase` from an optimization parameter dict, overriding only the
 controlled wells on the controlled steps. All steps within one control period
 share a single forces object so the adjoint can reuse sparsity per unique force.
+
+Every optimized magnitude also gets a [`_wc_dof_coupling`](@ref) term added to it
+(value 0, derivative 0) so that sparse differentiation keeps a correct pattern
+for limits that are slack when the pattern is first detected.
 """
 function wc_rebuild_case(prm::AbstractDict, case::JutulCase, base_forces_vec,
         dofs::Vector{WellControlDOF}, periods, step_to_period)
@@ -291,6 +325,7 @@ function wc_rebuild_case(prm::AbstractDict, case::JutulCase, base_forces_vec,
     for (pi, pv) in enumerate(periods)
         period_force[pi] = deepcopy(base_forces_vec[first(pv)])
     end
+    coupling = _wc_dof_coupling(prm, dofs)
     for d in dofs
         wkey = String(d.well)
         qkey = String(d.quantity)
@@ -299,6 +334,7 @@ function wc_rebuild_case(prm::AbstractDict, case::JutulCase, base_forces_vec,
         TT = WELL_CONTROL_TARGET_TYPES[d.quantity]
         for (k, pi) in enumerate(d.periods)
             mag = d.constant ? vals[1] : vals[k]
+            mag += coupling[(d.well, pi)]::typeof(mag)   # value/derivative 0; keeps the sparse pattern honest
             sval = wc_signed_value(d.quantity, mag, is_inj)
             f = period_force[pi]
             fac = f[:Facility]
@@ -348,28 +384,16 @@ end
     well_control_optimization_problem(copt::WellControlOptimization; deps = :case, kwarg...)
 
 Standalone `Jutul.DictOptimization.JutulOptimizationProblem` for a well-control
-problem: `f, g = prob(x)` evaluates the NPV-style objective and its adjoint
-gradient at a (scaled) control vector `x`, `prob.x0` is the scaled initial
-guess, and `prob.descale` maps back to physical magnitudes. Useful for gradient
-checks and plugging into an external optimizer.
-"""
-# Dense differentiation over the (small) control vector. The sparse pattern is
-# detected at the FIRST gradient evaluation and then frozen: a well limit that
-# is inactive there would keep a hard-zero gradient for the rest of the
-# optimization even after it becomes active (verified in
-# dev/kink_cache_isolation.jl / dev/kink_ministep_anatomy.jl). Dense mode does
-# not have this failure and costs little for typical control-DOF counts.
-const WELL_CONTROL_BACKEND_ARG = (
-    use_sparsity = false,
-    di_sparse = false,
-    single_step_sparsity = false,
-    do_prep = true,
-)
+problem: `f, g = prob(x)` evaluates the objective and its adjoint gradient at a
+scaled control vector `x`, and `prob.x0` is the scaled initial guess. Useful for
+gradient checks and external optimizers.
 
+Differentiation over the control vector uses the sparse DictOptimization
+defaults; pass `backend_arg = (di_sparse = false,)` for dense.
+"""
 function well_control_optimization_problem(copt::WellControlOptimization;
         deps = :case,
         simulator_arg = (info_level = -1, end_report = false),
-        backend_arg = WELL_CONTROL_BACKEND_ARG,
         kwarg...)
     # output_substates is always enforced so that every ministep enters the
     # adjoint solve (control/limit switching can happen within a report step).
@@ -377,7 +401,7 @@ function well_control_optimization_problem(copt::WellControlOptimization;
     sim, cfg = setup_simulator_for_reservoir_optimization(copt.dopt, copt.setup_function,
         missing, missing, simulator_arg)
     return Jutul.DictOptimization.optimization_problem(copt.dopt, copt.objective, copt.setup_function;
-        deps = deps, simulator = sim, config = cfg, backend_arg = backend_arg, kwarg...)
+        deps = deps, simulator = sim, config = cfg, kwarg...)
 end
 
 """
@@ -391,13 +415,11 @@ Returns the optimized parameter dict; call `copt(prm)` to get the tuned
 """
 function optimize_well_controls(copt::WellControlOptimization;
         maximize = true,
-        optimizer = :lbfgs,
-        backend_arg = WELL_CONTROL_BACKEND_ARG,
+        optimizer = :lbfgsb_qp,
         kwarg...)
     return optimize_reservoir(copt.dopt, copt.objective;
         deps = :case,
         maximize = maximize,
         optimizer = optimizer,
-        backend_arg = backend_arg,
         kwarg...)
 end
