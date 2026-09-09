@@ -3,6 +3,6 @@ module JutulDarcyMetalExt
 
     function __init__()
         JutulDarcy.register_kernel_abstractions_backend!(
-            Symbol("ka-metal"), () -> Metal.MetalBackend())
+            :ka_metal, () -> Metal.MetalBackend())
     end
 end

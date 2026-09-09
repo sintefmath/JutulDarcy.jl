@@ -1053,12 +1053,12 @@ end
 
 const KERNEL_ABSTRACTIONS_BACKENDS = Dict{Symbol, Function}(
     :ka => () -> Jutul.KernelAbstractions.CPU(),
-    Symbol("ka-cpu") => () -> Jutul.KernelAbstractions.CPU()
+    :ka_cpu => () -> Jutul.KernelAbstractions.CPU()
 )
 
 function register_kernel_abstractions_backend!(mode::Symbol, constructor)
-    startswith(String(mode), "ka-") || throw(ArgumentError(
-        "KernelAbstractions mode must start with `ka-`, got :$mode"))
+    startswith(String(mode), "ka_") || throw(ArgumentError(
+        "KernelAbstractions mode must start with `ka_`, got :$mode"))
     KERNEL_ABSTRACTIONS_BACKENDS[mode] = constructor
     return mode
 end
@@ -1078,8 +1078,8 @@ end
 
 - `mode=:default`: Mode used for solving. Can be set to `:mpi` if running in MPI
   mode together with HYPRE, PartitionedArrays and MPI in your environment.
-  KernelAbstractions execution is selected with `:ka` (`:ka-cpu`), or a
-  backend-specific mode: `:ka-cuda`, `:ka-amd`, or `:ka-metal`. The reservoir
+  KernelAbstractions execution is selected with `:ka` (`:ka_cpu`), or a
+  backend-specific mode: `:ka_cuda`, `:ka_amd`, or `:ka_metal`. The reservoir
   is evaluated fully on the selected backend while wells and facility
   equations remain on the host and are copied to device storage for assembly.
 - `method=:newton`: Can be `:newton`, `:nldd` or `:aspen`. Newton is the most
@@ -1242,7 +1242,7 @@ function setup_reservoir_simulator(case::JutulCase;
     if presolve_wells
         sim_kwarg[:prepare_step_handler] = PrepareStepWellSolver()
     end
-    ka_mode = mode isa Symbol && (mode == :ka || startswith(String(mode), "ka-"))
+    ka_mode = mode isa Symbol && (mode == :ka || startswith(String(mode), "ka_"))
     if ka_mode
         method == :newton || throw(ArgumentError(
             "KernelAbstractions modes currently support method=:newton"))

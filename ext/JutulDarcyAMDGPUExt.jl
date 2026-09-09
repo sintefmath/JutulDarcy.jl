@@ -3,6 +3,6 @@ module JutulDarcyAMDGPUExt
 
     function __init__()
         JutulDarcy.register_kernel_abstractions_backend!(
-            Symbol("ka-amd"), () -> AMDGPU.ROCBackend())
+            :ka_amd, () -> AMDGPU.ROCBackend())
     end
 end
