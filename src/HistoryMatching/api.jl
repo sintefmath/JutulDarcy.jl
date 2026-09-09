@@ -30,6 +30,11 @@ function history_match_objective(case::JutulCase, states_or_reservoir_result = m
     )
     # The matching type is the same for both global and sum objectives, but the
     # objective type itself is different.
+    if ismissing(summary) && !ismissing(states_or_reservoir_result)
+        if haskey(states_or_reservoir_result, "VALUES")
+            summary, states_or_reservoir_result = states_or_reservoir_result, summary
+        end
+    end
     hm = HistoryMatch(case, states_or_reservoir_result, summary; kwarg...)
     return history_match_objective(hm; is_global = is_global)
 end

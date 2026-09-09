@@ -2194,9 +2194,18 @@ returned from [`reservoir_domain`](@ref)
 The keyword argument `version` can be `:xyz` for permeability tensors that are
 aligned with coordinate directions or `:ijk` to interpreted the permeability as
 a diagonal tensor aligned with the logical grid directions. The latter choice is
-only meaningful for a diagonal tensor.
+only meaningful for a diagonal tensor. The `:ijk` option will be automatically
+selected automatically if the `:ijk_permeability` flag is set in the domain
+(`d[:ijk_permeability, NoEntity()] = true`).
 """
-function reservoir_transmissibility(d::DataDomain; version = :xyz)
+function reservoir_transmissibility(d::DataDomain; version = missing)
+    if ismissing(version)
+        if get(d, :ijk_permeability, false)
+            version = :ijk
+        else
+            version = :xyz
+        end
+    end
     nf = number_of_faces(d)
     has_nnc = haskey(d, :nnc)
     if has_nnc
@@ -2210,9 +2219,6 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
 
     function apply_ntg!(T_hf, ntg, facepos, face_is_vertical)
         for (c, ntg) in enumerate(ntg)
-            if ntg isa AbstractFloat && ntg ≈ 1.0
-                continue
-            end
             for fp in facepos[c]:(facepos[c+1]-1)
                 if face_is_vertical[faces[fp]]
                     T_hf[fp] *= ntg
@@ -2244,10 +2250,9 @@ function reservoir_transmissibility(d::DataDomain; version = :xyz)
             if faceno[i] > nf - num_nnc
                 continue
             end
-            if T_hf_i isa AbstractFloat && !isfinite(T_hf_i)
-                bad_count += 1
-                T_hf[i] = 0.0
-            end
+            i_is_bad = !isfinite(T_hf_i)
+            T_hf[i] = ifelse(i_is_bad, 0.0, T_hf_i)
+            bad_count += i_is_bad
         end
         if bad_count > 0
             tran_tot = length(T_hf)
@@ -3327,4 +3332,259 @@ end
 
 function get_faults(g::MinimalTPFATopology)
     return Dict{Symbol, Vector{Int}}()
+end
+
+function well_unit_conversion(unit_sys, lbl, info)
+    t = info.unit_type
+    return unit_system_unit_conversion(unit_sys, lbl, t)
+end
+
+function unit_system_unit_conversion(unit_sys, lbl, t)
+    unit_sys = lowercase(unit_sys)
+    @assert unit_sys in ("metric", "si", "field")
+    u = 1.0
+    if unit_sys == "metric"
+        if t == :gas_volume_surface
+            lbl = "m³"
+        elseif t == :gas_volume_reservoir
+            lbl = "m³"
+        elseif t == :liquid_volume_surface
+            lbl = "m³"
+        elseif t == :liquid_volume_reservoir
+            lbl = "m³"
+        elseif t == :pressure
+            u = :bar
+            lbl = "bar"
+        elseif t == :relative_temperature
+            u = :Celsius
+            lbl = "°C"
+        elseif t == :absolute_temperature
+            u = :Kelvin
+            lbl = "°K"
+        elseif t == :permeability
+            u = :millidarcy
+            lbl = "mD"
+        elseif t == :length
+            u = :meters
+            lbl = "m"
+        elseif t == :viscosity
+            u = :centipoise
+            lbl = "cP"
+        elseif t == :volume
+            u = missing
+            lbl = "m³"
+        elseif t == :mass
+            u = :kilogram
+            lbl = "kg"
+        end
+    elseif unit_sys == "field"
+        if t == :gas_volume_surface
+            u = si_unit(:kilo)*si_unit(:feet)^3
+            lbl = "MScf"
+        elseif t == :gas_volume_reservoir
+            u = :stb
+            lbl = "bbl"
+        elseif t == :liquid_volume_surface
+            u = :stb
+            lbl = "bbl"
+        elseif t == :liquid_volume_reservoir
+            u = :stb
+            lbl = "bbl"
+        elseif t == :pressure
+            u = :psi
+            lbl = "psi"
+        elseif t == :absolute_temperature
+            u = :Rankine
+            lbl = "°R"
+        elseif t == :relative_temperature
+            u = :Fahrenheit
+            lbl = "°F"
+        elseif t == :mass
+            u = :pound
+            lbl = "pound"
+        elseif t == :permeability 
+            u = :millidarcy
+            lbl = "mD"
+        elseif t == :length
+            u = :feet
+            lbl = "ft"
+        elseif t == :viscosity
+            u = :centipoise
+            lbl = "cP"
+        elseif t == :volume
+            u = missing
+            lbl = "ft³"
+        elseif t == :mass
+            u = :pound
+            lbl = "pound"
+        end
+    elseif unit_sys == "si"
+        if t == :gas_volume_surface
+            lbl = "m³"
+        elseif t == :gas_volume_reservoir
+            lbl = "m³"
+        elseif t == :liquid_volume_surface
+            lbl = "m³"
+        elseif t == :liquid_volume_reservoir
+            lbl = "m³"
+        elseif t == :pressure
+            lbl = "Pa"
+        elseif t == :absolute_temperature
+            lbl = "°K"
+        elseif t == :relative_temperature
+            lbl = "°C"
+        elseif t == :mass
+            lbl = "kg"
+        elseif t == :permeability
+            lbl = "m²"
+        elseif t == :length
+            lbl = "m"
+        elseif t == :viscosity
+            lbl = "Pa·s"
+        elseif t == :volume
+            lbl = "m³"
+        elseif t == :mass
+            lbl = "kg"
+        end
+    end
+    return (u, lbl)
+end
+
+function convert_for_plotting(x::DataDomain; kwarg...)
+    cell_data = Dict{Any, Any}()
+    for (k, (v, e)) in pairs(x)
+        if e == Cells()
+            cell_data[k] = v
+        end
+    end
+    return convert_for_plotting(cell_data; kwarg...)
+end
+
+function convert_for_plotting(states::AbstractVector; kwarg...)
+    return map(x -> convert_for_plotting(x; kwarg...), states)
+end
+
+function convert_for_plotting(x::Missing; kwarg...)
+    return x
+end
+
+function convert_for_plotting(s::Union{AbstractDict, JutulStorage};
+        units = "metric",
+        source_units = "si",
+        append_unit = true,
+        keytype = Symbol,
+        unit_lookup = Dict(),
+        convert_units = true,
+        variant = :values
+    )
+    if !convert_units
+        return s
+    end
+    is_sens = variant == :sens
+    variant in (:values, :sens) || error("Unsupported variant: $variant")
+    conv_to_si(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = source_units, to = "si")
+    conv_from_si(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = "si", to = units)
+    conv(x, t) = GeoEnergyIO.convert_between_unit_systems(x, t; from = source_units, to = units)
+    conv(x, ::Missing) = x
+    function add!(k, v, value_type = missing; do_convert = true)
+        override = get(unit_lookup, k, missing)
+        lbl = missing
+        if !ismissing(override)
+            if override isa Real
+                fact = override
+            elseif override isa Tuple
+                fact, lbl = override
+            else
+                error("Unsupported override type for key $k: $override. Value should be either be a numeric conversion_factor or a Tuple (conversion_factor, unit_label)")
+            end
+            if do_convert
+                if is_sens
+                    v = v./fact
+                else
+                    v *= fact
+                end
+            end
+        elseif !ismissing(value_type)
+            if do_convert
+                if is_sens
+                    u = conv(1.0, value_type)
+                    v = v./u
+                else
+                    v = conv(v, value_type)
+                end
+            end
+            _, lbl = unit_system_unit_conversion("$units", missing, value_type)
+        end
+        if append_unit && !ismissing(lbl)
+            k = "$k / $lbl"
+        end
+        out[keytype(k)] = v
+    end
+
+    function dim_name(k, d, depth = false)
+        if d == 1
+            s = 'x'
+        elseif d == 2
+            s = 'y'
+        elseif d == 3
+            if depth
+                s = "depth"
+            else
+                s = 'z'
+            end
+        else
+            error("Invalid dimension: $d")
+        end
+        return "$(k)_$(s)"
+    end
+    function add_spatial!(k, v, value_type, is_depth = false)
+        if v isa AbstractMatrix && size(v, 1) > 1
+            for d in axes(v, 1)
+                v_d = view(v, d, :)
+                new_name = dim_name(k, d, is_depth)
+                add!(new_name, v_d, value_type)
+            end
+        else
+            add!(k, v, value_type)
+        end
+    end
+    conversion = Dict(
+        :Pressure => :pressure,
+        :CapillaryPressure => :pressure,
+        :TotalMasses => :mass,
+        :PhaseViscosities => :viscosity,
+        :volumes => :volume,
+        :StaticFluidVolume => :volume,
+        :FluidVolume => :volume
+    )
+    out = Dict{keytype, Any}()
+    for (k, val) in pairs(s)
+        if k == :permeability
+            add_spatial!(k, val, :permeability)
+        elseif k == :cell_centroids
+            add_spatial!(:center, val, :length, true)
+        elseif k == :Temperature
+            add!(k, val, :absolute_temperature)
+            if !is_sens
+                is_imperial = source_units == "field"
+                if is_imperial
+                    T_K = convert_to_si.(val, :Rankine)
+                else
+                    T_K = val
+                end
+                # Now in Kelvin
+                val_C = conv_to_si(val, :absolute_temperature) .- 273.15
+                if is_imperial
+                    val_rel = convert_from_si.(val, :Rankine)
+                else
+                    val_rel = val_C
+                end
+                add!(:Temperature_relative, val_rel, :relative_temperature, do_convert = false)
+            end
+        else
+            u_type = get(conversion, k, missing)
+            add!(k, val, u_type)
+        end
+    end
+    return out
 end

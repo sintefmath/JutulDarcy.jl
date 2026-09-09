@@ -62,7 +62,7 @@ function cross_term_perforation_get_conn(ct, i, state_s, state_t)
     return conn
 end
 
-function perforation_phase_potential_difference(conn, state_res, state_well, ix)
+Base.@propagate_inbounds function perforation_phase_potential_difference(conn, state_res, state_well, ix::Int)
     dp = conn.dp
     WI = conn.WI
     WI, dp = Base.promote(WI, dp)
@@ -72,7 +72,8 @@ function perforation_phase_potential_difference(conn, state_res, state_well, ix)
     end
     if conn.gdz != 0.0
         if haskey(state_well, :ConnectionPressureDrop)
-            dp += state_well.ConnectionPressureDrop[conn.perforation]
+            cdp = state_well.ConnectionPressureDrop[conn.perforation]
+            dp += cdp
         else
             ρ_r = state_res.PhaseMassDensities[ix, conn.reservoir]
             if haskey(state_well, :PhaseMassDensities)

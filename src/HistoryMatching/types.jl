@@ -97,6 +97,7 @@ function HistoryMatch(case::JutulCase, states, summary;
         elseif lowercase(usys) != "si"
             @warn "Unit system in summary object is not SI, was $(usys). Unit system will not be converted."
         end
+        JutulDarcy.expand_summary!(summary)
     end
     periods = setup_periods(case, periods, period_weights, normalized_periods)
     case.model::MultiModel

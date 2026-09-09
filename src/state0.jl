@@ -378,6 +378,7 @@ function setup_reservoir_state(
         rmodel::SimulationModel,
         equil_regs::Union{Missing, Vector, EquilibriumRegion} = missing;
         cell_nz = missing,
+        equil_cache = Dict(),
         kwarg...
     )
     nc = number_of_cells(rmodel.domain)
@@ -395,7 +396,7 @@ function setup_reservoir_state(
             pc_reg = pc.regions
             equil_regs = split_equilibrium_regions(equil_regs, pc_reg)
         end
-        inits = map(equil -> equilibriate_state(rmodel, equil, cell_nz = cell_nz), equil_regs)
+        inits = map(equil -> equilibriate_state(rmodel, equil, cell_nz = cell_nz, cache = equil_cache), equil_regs)
         if length(inits) == 1
             init = only(inits)
         else
@@ -446,7 +447,7 @@ function setup_reservoir_state(
             end
         end
         if isnothing(I)
-            if !(k in svars) && !(k in (:Temperature, :Saturations))
+            if !(k in svars) && !(k in (:Temperature, :Saturations, :LiquidSaturation, :VaporSaturation))
                 jutul_message("setup_reservoir_state", "Received primary variable $k, but this is not known to reservoir model.")
             end
         else

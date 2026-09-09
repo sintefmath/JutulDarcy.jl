@@ -192,7 +192,6 @@ function remap_to_tuple(d::Dict, regs)
             out[regs.map[k]] = v
         end
         any(ismissing.(out)) && error("Not all regions mapped in saturation function remapping.")
-        out = Tuple(out)
     end
     return out
 end

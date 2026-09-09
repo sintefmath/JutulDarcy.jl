@@ -120,15 +120,17 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
         # Onto next one
         gdz_current = gdz_next
     end
+    return dp
 end
 
 function update_connection_pressure_drop!(dp, well_state, well_model, res_state, res_model, ctrl, mask)
     # Well is either disabled or producing. Loop over well from the bottom,
     # aggregating mixture density as we go. Then traverse down from the top and
     # accumulate the actual pressure drop due to hydrostatic assumptions.
-    perf = physical_representation(well_model).perforations
+    well = physical_representation(well_model)
+    perf = well.perforations
     res_cells = perf.reservoir
-    gdz = well_state.PerforationGravityDifference
+    gdz = as_value(well_state.PerforationGravityDifference)
     # Explicit update, take value.
     WI = as_value(well_state.WellIndices)
     ρ = as_value(res_state.PhaseMassDensities)
@@ -136,21 +138,39 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
     p = as_value(res_state.Pressure)
     bhp = value(well_state.Pressure[1])
     # Integrate up, adding weighted density into well bore and keeping track of
-    # current weight
-    current_weight = 0.0
-    current_density = 0.0
-    first_step = all(isequal(zero(eltype(dp))), dp)
+    # current weight. Initialize by a simple average first.
+    mobility_density_sum = 0.0
+    mobility_sum = 0.0
+    for i in eachindex(dp)
+        rc = res_cells[i]
+        mobility_density_sum = 0.0
+        WI_i = WI[i]
+        if !isnothing(mask)
+            WI_i *= mask.values[i]
+        end
+        for ph in axes(ρ, 1)
+            mob_ph = WI_i*mob[ph, rc]
+            mobility_sum += mob_ph
+            mobility_density_sum += ρ[ph, rc]*mob_ph
+        end
+        if i == 1
+            dz = gdz[i]
+            dp_prev = 0.0
+        else
+            dz = gdz[i] - gdz[i-1]
+            dp_prev = dp[i-1]
+        end
+        est_density = mobility_density_sum/max(mobility_sum, 1e-3)
+        dp[i] = dp_prev + dz*est_density
+    end
+    current_density = current_weight = 0.0
     for i in reverse(eachindex(dp))
         rc = res_cells[i]
         wi = WI[i]
         if !isnothing(mask)
             wi *= mask.values[i]
         end
-        if first_step
-            pot = 1.0
-        else
-            pot = abs(bhp + dp[i] - p[rc])
-        end
+        pot = abs(bhp + dp[i] - p[rc])
         q_perf = wi*pot
         # Mixture density along well bore
         local_density = 0
@@ -186,4 +206,5 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
 
         dp[i] = value(dp_current)
     end
+    return dp
 end

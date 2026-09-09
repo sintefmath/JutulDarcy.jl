@@ -2,6 +2,8 @@
 $(README)
 """
 module JutulDarcy
+    const DEFAULT_OPTIMIZER_SIMULATOR_ARG = (output_substates = true, info_level = 0, end_report = false)
+
     export MultiPhaseSystem, ImmiscibleSystem, SinglePhaseSystem
     export reservoir_linsolve
     export get_1d_reservoir
@@ -210,6 +212,9 @@ module JutulDarcy
 
     # Postprocessing
     include("postprocessing.jl")
+
+    # Corner Point Geometry
+    include("CornerPointGeometry/CornerPointGeometry.jl")
 
     # Geothermal
     include("Geothermal/Geothermal.jl")

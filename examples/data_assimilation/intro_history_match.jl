@@ -119,16 +119,17 @@ import JutulDarcy.HistoryMatching: history_match_objective, match_injectors!, ma
 obj = history_match_objective(case_truth, result_truth)
 # ### Define what values to match
 # We can now define what values we want to match. In this case, we will match
-# the bottom hole pressure of the injector and the water cut of the producer. We
-# can also set weights for the different objectives, which will be used to scale
-# the contributions to the objective function. The weights can be one value per
-# reporting timestep (`case.dt`) or a single value that will be used for all
-# timesteps. Weights balance the importance of different wells and measurables.
-# The default scaling of each type of well response is intended to scale the
-# values to be around unit range for typical values, but this obviously depends
-# on the specific model.
+# the bottom hole pressure of the injector and water and oil rates of the
+# producer. We can also set weights for the different objectives, which will be
+# used to scale the contributions to the objective function. The weights can be
+# one value per reporting timestep (`case.dt`) or a single value that will be
+# used for all timesteps. Weights balance the importance of different wells and
+# measurables. The default scaling of each type of well response is intended to
+# scale the values to be around unit range for typical values, but this
+# obviously depends on the specific model.
 match_injectors!(obj, "WBHP", weight = 1.0)
-match_producers!(obj, "WWCT", weight = 3.0)
+match_producers!(obj, "WWPR", weight = 30.0)
+match_producers!(obj, "WOPR", weight = 30.0)
 # ## Run the optimizer
 # We know how to set up a model, we know the bounds and we have defined an
 # objective. We call the optimizer. For such a simple case, it will recover the
