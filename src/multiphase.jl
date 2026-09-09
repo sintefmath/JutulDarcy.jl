@@ -461,22 +461,27 @@ function insert_phase_sources!(acc, model, kr, mu, rhoS, sources)
     nph = size(acc, 1)
     M = global_map(model.domain)
     for src in sources
-        c = Jutul.full_cell(src.cell, M)
-        for ph = 1:nph
-            q_ph = phase_source(c, src, rhoS[ph], kr, mu, ph)
-            @inbounds acc[ph, src.cell] -= q_ph
+        function apply_source(_)
+            c = Jutul.full_cell(src.cell, M)
+            for ph = 1:nph
+                q_ph = phase_source(c, src, rhoS[ph], kr, mu, ph)
+                @inbounds acc[ph, src.cell] -= q_ph
+            end
         end
+        # Preserve force ordering to avoid races if multiple sources share a cell.
+        Jutul.threaded_loop(apply_source, 1, model.context)
     end
+    return acc
 end
 
 function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw{:TotalMasses}, eq_s, r; dt = 1, update_report = missing) where {D, S<:MultiPhaseSystem}
     M = global_map(model.domain)
-    v = x -> as_value(Jutul.active_view(x, M, for_variables = false))
+    v = x -> Jutul.active_view(x, M, for_variables = false)
     Φ = v(storage.state.FluidVolume)
     ρ = v(storage.state.PhaseMassDensities)
 
     nph = number_of_phases(model.system)
-    cnv, mb = cnv_mb_errors(r, Φ, ρ, dt, Val(nph))
+    cnv, mb = cnv_mb_errors(r, Φ, ρ, dt, Val(nph), model.context)
     dp_abs, dp_rel = pressure_increments(model, storage.state, update_report)
     if ismissing(update_report)
         ds_max = 1.0
@@ -496,31 +501,37 @@ function convergence_criterion(model::SimulationModel{D, S}, storage, eq::Conser
     return R
 end
 
-function cnv_mb_errors(r, Φ, ρ, dt, ::Val{N}) where N
+function cnv_mb_errors(r, Φ, ρ, dt, ::Val{N},
+        context::JutulContext = DefaultContext()) where N
     nc = length(Φ)
-    mb = @MVector zeros(N)
-    cnv = @MVector zeros(N)
-    avg_density = @MVector zeros(N)
-
-    pv_t = 0.0
-    @inbounds for c in 1:nc
-        pv_c = Φ[c]
-        pv_t += pv_c
-        @inbounds for ph = 1:N
-            r_ph = r[ph, c]
-            ρ_ph = ρ[ph, c]
-            # MB
-            mb[ph] += r_ph
-            avg_density[ph] += abs(ρ_ph)
-            # CNV
-            cnv[ph] = max(cnv[ph], dt*abs(r_ph)/(ρ_ph*pv_c))
+    T = typeof(value(zero(eltype(r))))
+    function reduce(out, phase)
+        seed = value(@inbounds r[phase, 1])
+        local_cnv = zero(seed)
+        local_mb = zero(seed)
+        density_sum = zero(seed)
+        total_pore_volume = zero(seed)
+        for cell in 1:nc
+            @inbounds begin
+                pv = value(Φ[cell])
+                density = value(ρ[phase, cell])
+                residual = value(r[phase, cell])
+                total_pore_volume += pv
+                local_mb += residual
+                density_sum += abs(density)
+                local_cnv = max(local_cnv,
+                    dt*abs(residual)/(density*pv))
+            end
         end
+        average_density = density_sum/nc
+        @inbounds out[phase] = SVector(
+            local_cnv,
+            (dt/total_pore_volume)*abs(local_mb)/average_density)
     end
-    @inbounds for ph = 1:N
-        ρ_avg = avg_density[ph]/nc
-        mb[ph] = (dt/pv_t)*abs(mb[ph])/ρ_avg
-    end
-    return (Tuple(cnv), Tuple(mb))
+    reduced = Jutul.context_reduce(reduce, context, SVector{2, T}, N)
+    cnv = ntuple(i -> reduced[i][1], N)
+    mb = ntuple(i -> reduced[i][2], N)
+    return (cnv, mb)
 end
 
 function cpr_weights_no_partials!(w, model::SimulationModel{R, S}, state, r, n, bz, scaling) where {R, S<:ImmiscibleSystem}

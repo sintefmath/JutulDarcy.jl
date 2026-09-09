@@ -171,94 +171,95 @@ end
 function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw{:TotalMasses}, eq_s, force::V, time) where {V <: AbstractVector{<:FlowBoundaryCondition}, D, S<:MultiPhaseSystem}
     state = storage.state
     system = reservoir_model(model).system
+    gmap = global_map(model)
     for bc in force
-        c = bc.cell
-        acc_i = view(acc, :, c)
-        q = compute_bc_mass_fluxes(system, bc, global_map(model), state)
-        apply_flow_bc!(acc_i, q, bc, model, state, time)
+        function apply_bc(_)
+            apply_bc_mass_fluxes!(acc, system, bc, gmap, state, model, time)
+        end
+        Jutul.threaded_loop(apply_bc, 1, model.context)
     end
+    return acc
 end
 
-function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw{:TotalThermalEnergy}, eq_s, force::V, time) where {V <: AbstractVector{<:FlowBoundaryCondition}, D, S<:MultiPhaseSystem}
-    state = storage.state
-    system = reservoir_model(model).system
-    nph = number_of_phases(system)
-    for bc in force
-        c = bc.cell
-        acc_i = view(acc, :, c)
-        qh_adv, qh_cond = compute_bc_heat_fluxes(system, bc, global_map(model), state)
-        apply_flow_bc!(acc_i, qh_adv + qh_cond, bc, model, state, time)
-    end
-end
-
-function compute_bc_mass_fluxes(system::JutulSystem, bc, gmap, state)
-    # Get reservoir properties
+@inline function bc_mass_flux_data(system::JutulSystem, bc, gmap, state)
     nph = number_of_phases(system)
     p   = state.Pressure
     mu  = state.PhaseViscosities
     kr  = state.RelativePermeabilities
     rho = state.PhaseMassDensities
-    @assert size(kr, 1) == nph
-    # Get boundary properties
-    c       = Jutul.full_cell(bc.cell, gmap)
-    T_f     = bc.trans_flow
-    rho_inj = bc.density
-    f_inj   = bc.fractional_flow
-    # Compute total mass flux
-    Δp = p[c] - bc.pressure
-    q_tot = T_f*Δp
+    c = Jutul.full_cell(bc.cell, gmap)
+    q_tot = bc.trans_flow*(p[c] - bc.pressure)
 
-    num_t = Base.promote_type(typeof(q_tot), eltype(kr), eltype(mu), eltype(rho), typeof(q_tot))
-    isbits_out = isbitstype(num_t)
-    if isbits_out
-        V_t = MVector{nph, num_t}
-    else
-        V_t = SizedVector{nph, num_t}
+    total_mobility = zero(q_tot)
+    local_density = zero(q_tot)
+    total_mass = zero(q_tot)
+    for ph in 1:nph
+        @inbounds begin
+            total_mobility += kr[ph, c]/mu[ph, c]
+            local_density += state.Saturations[ph, c]*rho[ph, c]
+            total_mass += state.TotalMasses[ph, c]
+        end
     end
-    q = zeros(V_t)
+    boundary_density = isnothing(bc.density) ? local_density : bc.density
+    return q_tot, total_mobility, boundary_density, total_mass, c
+end
+
+@inline function bc_mass_flux_for_phase(ph, nph, q_tot, total_mobility,
+        boundary_density, total_mass, bc, state, c)
+    rho = state.PhaseMassDensities
     if q_tot > 0
-        # Pressure inside is higher than outside, flow out from domain
-        for ph in 1:nph
-            # Immiscible: Density * total flow rate * mobility for each phase
-            q[ph] = q_tot*rho[ph, c]*kr[ph, c]/mu[ph, c]
-        end
+        @inbounds q = q_tot*rho[ph, c]*state.RelativePermeabilities[ph, c]/state.PhaseViscosities[ph, c]
+    elseif isnothing(bc.fractional_flow)
+        @inbounds fraction = state.TotalMasses[ph, c]/total_mass
+        q = q_tot*boundary_density*total_mobility*fraction
     else
-        # Injection of mass
-        λ_t = 0.0
-        for ph in 1:nph
-            λ_t += kr[ph, c]/mu[ph, c]
-        end
-        if isnothing(rho_inj)
-            # Density not provided, take saturation average from what we have in
-            # the inside of the domain
-            rho_inj = 0.0
-            for ph in 1:nph
-                rho_inj += state.Saturations[ph, c]*rho[ph, c]
-            end
-        end
-        if isnothing(f_inj)
-            # Fractional flow not provided. We match the mass fraction we
-            # observe on the inside.
-            total = 0.0
-            for ph in 1:nph
-                total += state.TotalMasses[ph, c]
-            end
-            for ph in 1:nph
-                F = state.TotalMasses[ph, c]/total
-                q[ph] = q_tot*rho_inj*λ_t*F
-            end
-        else
-            @assert length(f_inj) == nph
-            for ph in 1:nph
-                F = f_inj[ph]
-                q[ph] = q_tot*rho_inj*λ_t*F
-            end
-        end
+        @assert length(bc.fractional_flow) == nph
+        @inbounds q = q_tot*boundary_density*total_mobility*bc.fractional_flow[ph]
     end
-    if isbits_out
-        out = SVector{nph, num_t}(q)
-    else
-        out = q
+    return q
+end
+
+@inline function apply_bc_mass_fluxes!(acc,
+        system::Union{ImmiscibleSystem, SinglePhaseSystem}, bc, gmap, state,
+        model, time)
+    nph = number_of_phases(system)
+    q_tot, total_mobility, boundary_density, total_mass, c =
+        bc_mass_flux_data(system, bc, gmap, state)
+    for ph in 1:nph
+        q = bc_mass_flux_for_phase(ph, nph, q_tot, total_mobility,
+            boundary_density, total_mass, bc, state, c)
+        @inbounds acc[ph, bc.cell] += q
+    end
+    return acc
+end
+
+function apply_bc_mass_fluxes!(acc, system, bc, gmap, state, model, time)
+    q = compute_bc_mass_fluxes(system, bc, gmap, state)
+    return apply_flow_bc!(view(acc, :, bc.cell), q, bc, model, state, time)
+end
+
+function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw{:TotalThermalEnergy}, eq_s, force::V, time) where {V <: AbstractVector{<:FlowBoundaryCondition}, D, S<:MultiPhaseSystem}
+    state = storage.state
+    system = reservoir_model(model).system
+    for bc in force
+        function apply_bc(_)
+            qh_adv, qh_cond = compute_bc_heat_fluxes(
+                system, bc, global_map(model), state)
+            apply_flow_bc_to_cell!(acc, bc.cell, qh_adv + qh_cond)
+        end
+        Jutul.threaded_loop(apply_bc, 1, model.context)
+    end
+    return acc
+end
+
+function compute_bc_mass_fluxes(system::JutulSystem, bc, gmap, state)
+    nph = number_of_phases(system)
+    q_tot, total_mobility, boundary_density, total_mass, c =
+        bc_mass_flux_data(system, bc, gmap, state)
+    q = MVector{nph, typeof(q_tot)}(undef)
+    for ph in 1:nph
+        q[ph] = bc_mass_flux_for_phase(ph, nph, q_tot, total_mobility,
+            boundary_density, total_mass, bc, state, c)
     end
     return q
 end
@@ -323,6 +324,13 @@ function apply_flow_bc!(acc, q, bc, model::SimulationModel{<:Any, T}, state, tim
         acc[ph] += q[ph]
     end
 
+end
+
+function apply_flow_bc_to_cell!(acc, cell, q)
+    for phase in axes(acc, 1)
+        @inbounds acc[phase, cell] += q[phase]
+    end
+    return acc
 end
 
 function Jutul.vectorization_length(bc::FlowBoundaryCondition, model, name, variant)
