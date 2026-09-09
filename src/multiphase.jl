@@ -501,37 +501,26 @@ function convergence_criterion(model::SimulationModel{D, S}, storage, eq::Conser
     return R
 end
 
+function cnv_errors(r, Φ, ρ, dt, context::JutulContext)
+    pore_volume = reshape(Φ, 1, :)
+    scaled_residual = @. dt*abs(value(r))/(value(ρ)*value(pore_volume))
+    errors = maximum(scaled_residual; dims = 2)
+    return Tuple(vec(Jutul.backend_to_host(context, errors)))
+end
+
+function mb_errors(r, Φ, ρ, dt, context::JutulContext)
+    nc = length(Φ)
+    total_pore_volume = sum(value, Φ)
+    residual_sum = sum(value, r; dims = 2)
+    average_density = sum(Jutul.absolute_value, ρ; dims = 2)./nc
+    errors = @. (dt/total_pore_volume)*abs(residual_sum)/average_density
+    return Tuple(vec(Jutul.backend_to_host(context, errors)))
+end
+
 function cnv_mb_errors(r, Φ, ρ, dt, ::Val{N},
         context::JutulContext = DefaultContext()) where N
-    nc = length(Φ)
-    T = typeof(value(zero(eltype(r))))
-    function reduce(out, phase)
-        seed = value(@inbounds r[phase, 1])
-        local_cnv = zero(seed)
-        local_mb = zero(seed)
-        density_sum = zero(seed)
-        total_pore_volume = zero(seed)
-        for cell in 1:nc
-            @inbounds begin
-                pv = value(Φ[cell])
-                density = value(ρ[phase, cell])
-                residual = value(r[phase, cell])
-                total_pore_volume += pv
-                local_mb += residual
-                density_sum += abs(density)
-                local_cnv = max(local_cnv,
-                    dt*abs(residual)/(density*pv))
-            end
-        end
-        average_density = density_sum/nc
-        @inbounds out[phase] = SVector(
-            local_cnv,
-            (dt/total_pore_volume)*abs(local_mb)/average_density)
-    end
-    reduced = Jutul.context_reduce(reduce, context, SVector{2, T}, N)
-    cnv = ntuple(i -> reduced[i][1], N)
-    mb = ntuple(i -> reduced[i][2], N)
-    return (cnv, mb)
+    @assert size(r, 1) == size(ρ, 1) == N
+    return cnv_errors(r, Φ, ρ, dt, context), mb_errors(r, Φ, ρ, dt, context)
 end
 
 function cpr_weights_no_partials!(w, model::SimulationModel{R, S}, state, r, n, bz, scaling) where {R, S<:ImmiscibleSystem}

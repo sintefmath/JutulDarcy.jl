@@ -72,7 +72,7 @@ function convergence_criterion(model::SimulationModel{D, S}, storage, eq::Conser
     sys = model.system
     nph = number_of_phases(sys)
     rhoS = reference_densities(sys)
-    cnv, mb = cnv_mb_errors_bo(r, Φ, b, dt, rhoS, Val(nph))
+    cnv, mb = cnv_mb_errors_bo(r, Φ, b, dt, rhoS, Val(nph), model.context)
     dp_abs, dp_rel = pressure_increments(model, storage.state, update_report)
     if ismissing(update_report)
         ds_max = 1.0
@@ -93,33 +93,34 @@ function convergence_criterion(model::SimulationModel{D, S}, storage, eq::Conser
     return R
 end
 
-function cnv_mb_errors_bo(r, Φ, b, dt, rhoS, ::Val{N}) where N
-    nc = length(Φ)
-    mb = @MVector zeros(N)
-    cnv = @MVector zeros(N)
-    avg_B = @MVector zeros(N)
+@inline inverse_value(x) = inv(value(x))
 
-    pv_t = 0.0
-    @inbounds for c in 1:nc
-        pv_c = Φ[c]
-        pv_t += pv_c
-        @inbounds for ph = 1:N
-            r_ph = r[ph, c]
-            b_ph = b[ph, c]
-            # MB
-            mb[ph] += r_ph
-            avg_B[ph] += 1/b_ph
-            # CNV
-            cnv[ph] = max(cnv[ph], abs(r_ph)/pv_c)
-        end
-    end
-    @inbounds for ph = 1:N
-        B = avg_B[ph]/nc
-        scale = B*dt/rhoS[ph]
-        mb[ph] = scale*abs(mb[ph])/pv_t
-        cnv[ph] = scale*abs(cnv[ph])
-    end
-    return (Tuple(cnv), Tuple(mb))
+function average_inverse_formation_volume_factor(b, context::JutulContext)
+    average = sum(inverse_value, b; dims = 2)./size(b, 2)
+    return vec(Jutul.backend_to_host(context, average))
+end
+
+function cnv_errors_bo(r, Φ, average_B, dt, rhoS, ::Val{N}, context::JutulContext) where N
+    pore_volume = reshape(Φ, 1, :)
+    scaled_residual = @. abs(value(r))/value(pore_volume)
+    maximum_residual = vec(Jutul.backend_to_host(context,
+        maximum(scaled_residual; dims = 2)))
+    return ntuple(phase -> average_B[phase]*dt*maximum_residual[phase]/rhoS[phase], N)
+end
+
+function mb_errors_bo(r, Φ, average_B, dt, rhoS, ::Val{N}, context::JutulContext) where N
+    total_pore_volume = sum(value, Φ)
+    residual_sum = vec(Jutul.backend_to_host(context, sum(value, r; dims = 2)))
+    return ntuple(phase -> average_B[phase]*dt*abs(residual_sum[phase])/
+        (rhoS[phase]*total_pore_volume), N)
+end
+
+function cnv_mb_errors_bo(r, Φ, b, dt, rhoS, phase_count::Val{N},
+        context::JutulContext = DefaultContext()) where N
+    average_B = average_inverse_formation_volume_factor(b, context)
+    cnv = cnv_errors_bo(r, Φ, average_B, dt, rhoS, phase_count, context)
+    mb = mb_errors_bo(r, Φ, average_B, dt, rhoS, phase_count, context)
+    return cnv, mb
 end
 
 function handle_alternate_primary_variable_spec!(init, found, rmodel, sys::StandardBlackOilSystem)

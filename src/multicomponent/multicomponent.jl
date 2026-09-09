@@ -119,12 +119,12 @@ function compositional_increment(model, state, update_report::Missing)
 end
 
 function pressure_increments(model, state, update_report::Missing)
-    max_p = Jutul.context_maximum_value(model.context, state.Pressure)
+    max_p = maximum(value, state.Pressure)
     return (max_p, 1.0)
 end
 
 function pressure_increments(model, state, update_report)
-    max_p = Jutul.context_maximum_value(model.context, state.Pressure)
+    max_p = maximum(value, state.Pressure)
     dp = update_report[:Pressure]
     dp_abs = dp.max
     dp_rel = dp_abs/max_p
