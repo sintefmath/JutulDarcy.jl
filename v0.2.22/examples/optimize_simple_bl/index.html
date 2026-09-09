@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Parameter optimization of Buckley-Leverett · JutulDarcy.jl</title><meta name="title" content="Parameter optimization of Buckley-Leverett · JutulDarcy.jl"/><meta property="og:title" content="Parameter optimization of Buckley-Leverett · JutulDarcy.jl"/><meta property="twitter:title" content="Parameter optimization of Buckley-Leverett · JutulDarcy.jl"/><meta name="description" content="Documentation for JutulDarcy.jl."/><meta property="og:description" content="Documentation for JutulDarcy.jl."/><meta property="twitter:description" content="Documentation for JutulDarcy.jl."/><meta property="og:url" content="https://sintefmath.github.io/JutulDarcy.jl/examples/optimize_simple_bl/"/><meta property="twitter:url" content="https://sintefmath.github.io/JutulDarcy.jl/examples/optimize_simple_bl/"/><link rel="canonical" href="https://sintefmath.github.io/JutulDarcy.jl/examples/optimize_simple_bl/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/citations.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="JutulDarcy.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">JutulDarcy.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><span class="tocitem">Introduction</span><ul><li><a class="tocitem" href="../../">JutulDarcy.jl</a></li><li><a class="tocitem" href="../../man/intro/">Getting started</a></li></ul></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../two_phase_gravity_segregation/">Gravity segregation</a></li><li><a class="tocitem" href="../two_phase_buckley_leverett/">Two-phase Buckley-Leverett</a></li><li><a class="tocitem" href="../two_phase_unstable_gravity/">Gravity circulation with CPR preconditioner</a></li><li><a class="tocitem" href="../wells_intro/">Intro to wells</a></li><li><a class="tocitem" href="../co2_sloped/">CO2 injection in saline aquifer</a></li><li><a class="tocitem" href="../data_input_file/">Simulating Eclipse/DATA input files</a></li><li><a class="tocitem" href="../five_spot_ensemble/">Quarter-five-spot with variation</a></li><li><a class="tocitem" href="../co2_brine_2d_vertical/">Intro to compositional flow</a></li><li><a class="tocitem" href="../compositional_5components/">Compositional with five components</a></li><li class="is-active"><a class="tocitem" href>Parameter optimization of Buckley-Leverett</a><ul class="internal"><li><a class="tocitem" href="#Set-up-and-simulate-reference"><span>Set up and simulate reference</span></a></li><li><a class="tocitem" href="#Set-up-another-case-where-the-porosity-is-different"><span>Set up another case where the porosity is different</span></a></li><li><a class="tocitem" href="#Plot-the-results"><span>Plot the results</span></a></li><li><a class="tocitem" href="#Define-objective-function"><span>Define objective function</span></a></li><li><a class="tocitem" href="#Set-up-a-configuration-for-the-optimization.-This-by-default-enables-all-parameters-for"><span>Set up a configuration for the optimization. This by default enables all parameters for</span></a></li><li><a class="tocitem" href="#Set-up-parameter-optimization."><span>Set up parameter optimization.</span></a></li><li><a class="tocitem" href="#Link-to-an-optimizer-package"><span>Link to an optimizer package</span></a></li><li><a class="tocitem" href="#Compute-the-solution-using-the-tuned-parameters-found-in-x."><span>Compute the solution using the tuned parameters found in x.</span></a></li><li><a class="tocitem" href="#Plot-final-parameter-spread"><span>Plot final parameter spread</span></a></li><li><a class="tocitem" href="#Plot-the-final-solutions."><span>Plot the final solutions.</span></a></li><li><a class="tocitem" href="#Plot-the-objective-history-and-function-evaluations"><span>Plot the objective history and function evaluations</span></a></li><li><a class="tocitem" href="#Example-on-GitHub"><span>Example on GitHub</span></a></li></ul></li><li><a class="tocitem" href="../mrst_validation/">Validation of reservoir simulator</a></li></ul></li><li><span class="tocitem">Manual</span><ul><li><a class="tocitem" href="../../man/highlevel/">High-level API</a></li><li><a class="tocitem" href="../../man/basics/input_files/">Input formats</a></li><li><a class="tocitem" href="../../man/basics/forces/">Driving forces</a></li><li><a class="tocitem" href="../../man/basics/systems/">Supported physical systems</a></li><li><a class="tocitem" href="../../man/basics/wells/">Wells and controls</a></li><li><a class="tocitem" href="../../man/basics/solution/">Solving the equations</a></li><li><a class="tocitem" href="../../man/basics/primary/">Primary variables</a></li><li><a class="tocitem" href="../../man/basics/secondary/">Secondary variables (properties)</a></li><li><a class="tocitem" href="../../man/basics/parameters/">Parameters</a></li><li><a class="tocitem" href="../../man/basics/plotting/">Plotting and visualization</a></li></ul></li><li><span class="tocitem">Advanced usage</span><ul><li><a class="tocitem" href="../../man/advanced/mpi/">Multi-threading and MPI support</a></li><li><a class="tocitem" href="../../man/advanced/compiled/">Standalone reservoir simulator</a></li></ul></li><li><span class="tocitem">Reference</span><ul><li><a class="tocitem" href="../../ref/jutul/">Jutul functions</a></li></ul></li><li><span class="tocitem">Additional information </span><ul><li><a class="tocitem" href="../../extras/refs/">References</a></li><li><a class="tocitem" href="../../extras/faq/">FAQ</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Parameter optimization of Buckley-Leverett</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Parameter optimization of Buckley-Leverett</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/optimize_simple_bl.jl#" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><pre><code class="language-julia hljs">using Jutul
+using JutulDarcy
+using LinearAlgebra
+using GLMakie</code></pre><h1 id="Example-demonstrating-optimzation-of-parameters-against-observations"><a class="docs-heading-anchor" href="#Example-demonstrating-optimzation-of-parameters-against-observations">Example demonstrating optimzation of parameters against observations</a><a id="Example-demonstrating-optimzation-of-parameters-against-observations-1"></a><a class="docs-heading-anchor-permalink" href="#Example-demonstrating-optimzation-of-parameters-against-observations" title="Permalink"></a></h1><p>We create a simple test problem: A 1D nonlinear displacement. The observations are generated by solving the same problem with the true parameters. We then match the parameters against the observations using a different starting guess for the parameters, but otherwise the same physical description of the system.</p><pre><code class="language-julia hljs">function setup_bl(;nc = 100, time = 1.0, nstep = 100, poro = 0.1, perm = 9.8692e-14)
+    T = time
+    tstep = repeat([T/nstep], nstep)
+    G = get_1d_reservoir(nc, poro = poro, perm = perm)
+    nc = number_of_cells(G)
+
+    bar = 1e5
+    p0 = 1000*bar
+    sys = ImmiscibleSystem((LiquidPhase(), VaporPhase()))
+    model = SimulationModel(G, sys)
+    model.primary_variables[:Pressure] = Pressure(minimum = -Inf, max_rel = nothing)
+    kr = BrooksCoreyRelativePermeabilities(sys, [2.0, 2.0])
+    replace_variables!(model, RelativePermeabilities = kr)
+    tot_time = sum(tstep)
+
+    parameters = setup_parameters(model, PhaseViscosities = [1e-3, 5e-3]) # 1 and 5 cP
+    state0 = setup_state(model, Pressure = p0, Saturations = [0.0, 1.0])
+
+    irate = 100*sum(parameters[:FluidVolume])/tot_time
+    src  = [SourceTerm(1, irate, fractional_flow = [1.0-1e-3, 1e-3]),
+            SourceTerm(nc, -irate, fractional_flow = [1.0, 0.0])]
+    forces = setup_forces(model, sources = src)
+
+    return (model, state0, parameters, forces, tstep)
+end</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">setup_bl (generic function with 1 method)</code></pre><p>Number of cells and time-steps</p><pre><code class="language-julia hljs">N = 100
+Nt = 100
+poro_ref = 0.1
+perm_ref = 9.8692e-14</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">9.8692e-14</code></pre><h2 id="Set-up-and-simulate-reference"><a class="docs-heading-anchor" href="#Set-up-and-simulate-reference">Set up and simulate reference</a><a id="Set-up-and-simulate-reference-1"></a><a class="docs-heading-anchor-permalink" href="#Set-up-and-simulate-reference" title="Permalink"></a></h2><pre><code class="language-julia hljs">model_ref, state0_ref, parameters_ref, forces, tstep = setup_bl(nc = N, nstep = Nt, poro = poro_ref, perm = perm_ref)
+states_ref, = simulate(state0_ref, model_ref, tstep, parameters = parameters_ref, forces = forces, info_level = -1)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">SimResult with 100 entries:
+
+  states (model variables)
+    :Saturations =&gt; Matrix{Float64} of size (2, 100)
+    :Pressure =&gt; Vector{Float64} of size (100,)
+    :TotalMasses =&gt; Matrix{Float64} of size (2, 100)
+
+  reports (timing/debug information)
+    :ministeps =&gt; Vector{Any} of size (1,)
+    :total_time =&gt; Float64
+    :output_time =&gt; Float64
+
+  Completed at Apr. 14 2024 20:04 after 33 milliseconds, 495 microseconds, 519 nanoseconds.</code></pre><h2 id="Set-up-another-case-where-the-porosity-is-different"><a class="docs-heading-anchor" href="#Set-up-another-case-where-the-porosity-is-different">Set up another case where the porosity is different</a><a id="Set-up-another-case-where-the-porosity-is-different-1"></a><a class="docs-heading-anchor-permalink" href="#Set-up-another-case-where-the-porosity-is-different" title="Permalink"></a></h2><pre><code class="language-julia hljs">model, state0, parameters, = setup_bl(nc = N, nstep = Nt, poro = 2*poro_ref, perm = 1.0*perm_ref)
+states, rep = simulate(state0, model, tstep, parameters = parameters, forces = forces, info_level = -1)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">SimResult with 100 entries:
+
+  states (model variables)
+    :Saturations =&gt; Matrix{Float64} of size (2, 100)
+    :Pressure =&gt; Vector{Float64} of size (100,)
+    :TotalMasses =&gt; Matrix{Float64} of size (2, 100)
+
+  reports (timing/debug information)
+    :ministeps =&gt; Vector{Any} of size (1,)
+    :total_time =&gt; Float64
+    :output_time =&gt; Float64
+
+  Completed at Apr. 14 2024 20:04 after 31 milliseconds, 429 microseconds, 506 nanoseconds.</code></pre><h2 id="Plot-the-results"><a class="docs-heading-anchor" href="#Plot-the-results">Plot the results</a><a id="Plot-the-results-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-the-results" title="Permalink"></a></h2><pre><code class="language-julia hljs">fig = Figure()
+ax = Axis(fig[1, 1], title = &quot;Saturation&quot;)
+lines!(ax, states_ref[end][:Saturations][1, :], label = &quot;Reference&quot;)
+lines!(ax, states[end][:Saturations][1, :], label = &quot;Initial guess&quot;)
+axislegend(ax)
+ax = Axis(fig[1, 2], title = &quot;Pressure&quot;)
+lines!(ax, states_ref[end][:Pressure], label = &quot;Reference&quot;)
+lines!(ax, states[end][:Pressure], label = &quot;Initial guess&quot;)
+axislegend(ax)
+fig</code></pre><img src="081284b7.png" alt="Example block output"/><h2 id="Define-objective-function"><a class="docs-heading-anchor" href="#Define-objective-function">Define objective function</a><a id="Define-objective-function-1"></a><a class="docs-heading-anchor-permalink" href="#Define-objective-function" title="Permalink"></a></h2><p>Define objective as mismatch between water saturation in current state and reference state. The objective function is currently a sum over all time steps. We implement a function for one term of this sum.</p><pre><code class="language-julia hljs">function mass_mismatch(m, state, dt, step_no, forces)
+    state_ref = states_ref[step_no]
+    fld = :Saturations
+    val = state[fld]
+    ref = state_ref[fld]
+    err = 0
+    for i in axes(val, 2)
+        err += (val[1, i] - ref[1, i])^2
+    end
+    return dt*err
+end
+@assert Jutul.evaluate_objective(mass_mismatch, model, states_ref, tstep, forces) == 0.0
+@assert Jutul.evaluate_objective(mass_mismatch, model, states, tstep, forces) &gt; 0.0</code></pre><h2 id="Set-up-a-configuration-for-the-optimization.-This-by-default-enables-all-parameters-for"><a class="docs-heading-anchor" href="#Set-up-a-configuration-for-the-optimization.-This-by-default-enables-all-parameters-for">Set up a configuration for the optimization. This by default enables all parameters for</a><a id="Set-up-a-configuration-for-the-optimization.-This-by-default-enables-all-parameters-for-1"></a><a class="docs-heading-anchor-permalink" href="#Set-up-a-configuration-for-the-optimization.-This-by-default-enables-all-parameters-for" title="Permalink"></a></h2><p>optimization, with relative box limits 0.1 and 10 specified here. If use_scaling is enabled the variables in the optimization are scaled so that their actual limits are approximately box limits.</p><p>We are not interested in matching gravity effects or viscosity here. Transmissibilities are derived from permeability and varies significantly. We can set log scaling to get a better conditioned optimization system, without changing the limits or the result.</p><pre><code class="language-julia hljs">cfg = optimization_config(model, parameters, use_scaling = true, rel_min = 0.1, rel_max = 10)
+for (ki, vi) in cfg
+    if ki in [:TwoPointGravityDifference, :PhaseViscosities]
+        vi[:active] = false
+    end
+    if ki == :Transmissibilities
+        vi[:scaler] = :log
+    end
+end
+print_obj = 100</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">100</code></pre><h2 id="Set-up-parameter-optimization."><a class="docs-heading-anchor" href="#Set-up-parameter-optimization.">Set up parameter optimization.</a><a id="Set-up-parameter-optimization.-1"></a><a class="docs-heading-anchor-permalink" href="#Set-up-parameter-optimization." title="Permalink"></a></h2><p>This gives us a set of function handles together with initial guess and limits. Generally calling either of the functions will mutate the data Dict. The options are: F<em>o(x) -&gt; evaluate objective dF</em>o(dFdx, x) -&gt; evaluate gradient of objective, mutating dFdx (may trigger evaluation of F<em>o) F</em>and_dF(F, dFdx, x) -&gt; evaluate F and/or dF. Value of nothing will mean that the corresponding entry is skipped.</p><pre><code class="language-julia hljs">F_o, dF_o, F_and_dF, x0, lims, data = setup_parameter_optimization(model, state0, parameters, tstep, forces, mass_mismatch, cfg, print = print_obj, param_obj = true);
+F_initial = F_o(x0)
+dF_initial = dF_o(similar(x0), x0)
+@info &quot;Initial objective: $F_initial, gradient norm $(norm(dF_initial))&quot;</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr1">Parameters for model</span>
+┌────────────────────┬────────┬─────┬─────────┬─────────────────┬─────────────┬──────────────────────┬─────────┐
+│<span class="sgr1">               Name </span>│<span class="sgr1"> Entity </span>│<span class="sgr1">   N </span>│<span class="sgr1">   Scale </span>│<span class="sgr1">     Abs. limits </span>│<span class="sgr1"> Rel. limits </span>│<span class="sgr1">               Limits </span>│<span class="sgr1"> Lumping </span>│
+├────────────────────┼────────┼─────┼─────────┼─────────────────┼─────────────┼──────────────────────┼─────────┤
+│ Transmissibilities │  Faces │  99 │     log │        [0, Inf] │   [0.1, 10] │ [9.87e-13, 9.87e-11] │       - │
+│        FluidVolume │  Cells │ 100 │ default │ [2.22e-16, Inf] │   [0.1, 10] │       [0.0002, 0.02] │       - │
+└────────────────────┴────────┴─────┴─────────┴─────────────────┴─────────────┴──────────────────────┴─────────┘
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Initial objective: 0.6770524183270709, gradient norm 4.12674840425729</code></pre><h2 id="Link-to-an-optimizer-package"><a class="docs-heading-anchor" href="#Link-to-an-optimizer-package">Link to an optimizer package</a><a id="Link-to-an-optimizer-package-1"></a><a class="docs-heading-anchor-permalink" href="#Link-to-an-optimizer-package" title="Permalink"></a></h2><p>We use Optim.jl but the interface is general enough that e.g. LBFGSB.jl can easily be swapped in.</p><p>LBFGS is a good choice for this problem, as Jutul provides sensitivities via adjoints that are inexpensive to compute.</p><pre><code class="language-julia hljs">using Optim
+lower, upper = lims
+inner_optimizer = LBFGS()
+opts = Optim.Options(store_trace = true, show_trace = true, time_limit = 30)
+results = optimize(Optim.only_fg!(F_and_dF), lower, upper, x0, Fminbox(inner_optimizer), opts)
+x = results.minimizer
+display(results)
+F_final = F_o(x)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">2.9577139507905755e-5</code></pre><h2 id="Compute-the-solution-using-the-tuned-parameters-found-in-x."><a class="docs-heading-anchor" href="#Compute-the-solution-using-the-tuned-parameters-found-in-x.">Compute the solution using the tuned parameters found in x.</a><a id="Compute-the-solution-using-the-tuned-parameters-found-in-x.-1"></a><a class="docs-heading-anchor-permalink" href="#Compute-the-solution-using-the-tuned-parameters-found-in-x." title="Permalink"></a></h2><pre><code class="language-julia hljs">parameters_t = deepcopy(parameters)
+devectorize_variables!(parameters_t, model, x, data[:mapper], config = data[:config])
+x_truth = vectorize_variables(model_ref, parameters_ref, data[:mapper], config = data[:config])
+
+states_tuned, = simulate(state0, model, tstep, parameters = parameters_t, forces = forces, info_level = -1);
+nothing</code></pre><h2 id="Plot-final-parameter-spread"><a class="docs-heading-anchor" href="#Plot-final-parameter-spread">Plot final parameter spread</a><a id="Plot-final-parameter-spread-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-final-parameter-spread" title="Permalink"></a></h2><pre><code class="language-julia hljs">@info &quot;Final residual $F_final (down from $F_initial)&quot;
+fig = Figure()
+ax1 = Axis(fig[1, 1], title = &quot;Scaled parameters&quot;, ylabel = &quot;Value&quot;)
+scatter!(ax1, x, label = &quot;Final X&quot;)
+scatter!(ax1, x0, label = &quot;Initial X&quot;)
+lines!(ax1, lower, label = &quot;Lower bound&quot;)
+lines!(ax1, upper, label = &quot;Upper bound&quot;)
+axislegend()
+fig</code></pre><img src="6b4e1f29.png" alt="Example block output"/><h2 id="Plot-the-final-solutions."><a class="docs-heading-anchor" href="#Plot-the-final-solutions.">Plot the final solutions.</a><a id="Plot-the-final-solutions.-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-the-final-solutions." title="Permalink"></a></h2><p>Note that we only match saturations - so any match in pressure is not guaranteed.</p><pre><code class="language-julia hljs">fig = Figure()
+ax = Axis(fig[1, 1], title = &quot;Saturation&quot;)
+lines!(ax, states_ref[end][:Saturations][1, :], label = &quot;Reference&quot;)
+lines!(ax, states[end][:Saturations][1, :], label = &quot;Initial guess&quot;)
+lines!(ax, states_tuned[end][:Saturations][1, :], label = &quot;Tuned&quot;)
+
+axislegend(ax)
+ax = Axis(fig[1, 2], title = &quot;Pressure&quot;)
+lines!(ax, states_ref[end][:Pressure], label = &quot;Reference&quot;)
+lines!(ax, states[end][:Pressure], label = &quot;Initial guess&quot;)
+lines!(ax, states_tuned[end][:Pressure], label = &quot;Tuned&quot;)
+axislegend(ax)
+fig</code></pre><img src="820da794.png" alt="Example block output"/><h2 id="Plot-the-objective-history-and-function-evaluations"><a class="docs-heading-anchor" href="#Plot-the-objective-history-and-function-evaluations">Plot the objective history and function evaluations</a><a id="Plot-the-objective-history-and-function-evaluations-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-the-objective-history-and-function-evaluations" title="Permalink"></a></h2><pre><code class="language-julia hljs">fig = Figure()
+ax1 = Axis(fig[1, 1], yscale = log10, title = &quot;Objective evaluations&quot;, xlabel = &quot;Iterations&quot;, ylabel = &quot;Objective&quot;)
+plot!(ax1, data[:obj_hist][2:end])
+ax2 = Axis(fig[1, 2], yscale = log10, title = &quot;Outer optimizer&quot;, xlabel = &quot;Iterations&quot;, ylabel = &quot;Objective&quot;)
+t = map(x -&gt; x.value, Optim.trace(results))
+plot!(ax2, t)
+display(fig)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">GLMakie.Screen(...)</code></pre><h2 id="Example-on-GitHub"><a class="docs-heading-anchor" href="#Example-on-GitHub">Example on GitHub</a><a id="Example-on-GitHub-1"></a><a class="docs-heading-anchor-permalink" href="#Example-on-GitHub" title="Permalink"></a></h2><p>If you would like to run this example yourself, it can be downloaded from the JutulDarcy.jl GitHub repository <a href="https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/optimize_simple_bl.jl">as a script</a>, or as a <a href="https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/examples/optimize_simple_bl.ipynb">Notebook</a></p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../compositional_5components/">« Compositional with five components</a><a class="docs-footer-nextpage" href="../mrst_validation/">Validation of reservoir simulator »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.3.0 on <span class="colophon-date" title="Sunday 14 April 2024 20:39">Sunday 14 April 2024</span>. Using Julia version 1.10.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
