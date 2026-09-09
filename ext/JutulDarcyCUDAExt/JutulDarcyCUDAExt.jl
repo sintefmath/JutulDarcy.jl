@@ -2,6 +2,11 @@ module JutulDarcyCUDAExt
     using Jutul, JutulDarcy, CUDA, LinearAlgebra, SparseArrays
     import Jutul: @tic
 
+    function __init__()
+        JutulDarcy.register_kernel_abstractions_backend!(
+            Symbol("ka-cuda"), () -> CUDA.CUDABackend())
+    end
+
     timeit_debug_enabled() = Jutul.timeit_debug_enabled()
 
     include("ilu0.jl")

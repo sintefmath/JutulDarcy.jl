@@ -3,15 +3,10 @@ using JLArrays
 using SparseArrays
 using Test
 
-const SPE1_GROUPS = [1, 2, 2, 2]
-const SPE1_GROUP_EXECUTION = [SolveFullyOnDevice, AssembleOnDevice]
-
 function setup_spe1_ka_case()
     spe1 = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1", "SPE1.DATA")
     return setup_case_from_data_file(spe1;
-        block_backend = false,
-        groups = copy(SPE1_GROUPS),
-        group_execution = copy(SPE1_GROUP_EXECUTION))[1:1]
+        block_backend = false)[1:1]
 end
 
 @testset "Convergence reductions on a KA backend" begin
@@ -90,28 +85,34 @@ end
 
 @testset "SPE1 hybrid multimodel on a KA backend" begin
     case = setup_spe1_ka_case()
-    cpu_simulator = Simulator(case)
-    simulator = transfer_to_backend(cpu_simulator, JLBackend())
+    simulator, = setup_reservoir_simulator(case;
+        mode = :ka,
+        ka_backend = JLBackend(),
+        info_level = -1,
+        linear_solver = nothing,
+        timesteps = :none)
 
     @test simulator.storage.host_evaluation.keys == (:PROD, :INJ, :Facility)
+    @test simulator.model.groups == [1, 2, 2, 2]
     @test Jutul.group_execution_mode(simulator.model, :Reservoir) ==
         SolveFullyOnDevice
     @test Jutul.group_execution_mode(simulator.model, :PROD) ==
         AssembleOnDevice
     @test Jutul.group_execution_mode(simulator.model, :Facility) ==
         AssembleOnDevice
-    @test cpu_simulator.model.models.Facility.domain.well_symbols isa
+    host = simulator.storage.host_evaluation
+    @test host.model.models.Facility.domain.well_symbols isa
         Vector{Symbol}
     @test simulator.model.models.Facility.domain.well_symbols isa Base.OneTo
     @test !(simulator.model.models.Facility.domain.well_symbols isa Tuple)
     @test simulator.storage.PROD.state.Pressure isa JLArray
     @test simulator.storage.INJ.state.Pressure isa JLArray
-    @test cpu_simulator.storage.PROD.state.Pressure isa Vector
-    @test cpu_simulator.storage.INJ.state.Pressure isa Vector
+    @test host.storage.PROD.state.Pressure isa Vector
+    @test host.storage.INJ.state.Pressure isa Vector
     @test simulator.storage.Facility.state.WellGroupConfiguration === nothing
     @test simulator.storage.Facility.state.FacilityCrossTermState.control_type isa
         JLArray
-    @test cpu_simulator.storage.Facility.state.WellGroupConfiguration !== nothing
+    @test host.storage.Facility.state.WellGroupConfiguration !== nothing
     @test all(cross_term ->
             cross_term.target_impact_map.entries isa JLArray,
         simulator.storage.cross_terms)
@@ -154,11 +155,12 @@ end
 
 @testset "SPE1 reservoir simulator assembly on a KA backend" begin
     case = setup_spe1_ka_case()
-    cpu_simulator, = setup_reservoir_simulator(case;
+    simulator, = setup_reservoir_simulator(case;
+        mode = :ka,
+        ka_backend = JLBackend(),
         info_level = -1,
         linear_solver = nothing,
         timesteps = :none)
-    simulator = transfer_to_backend(cpu_simulator, JLBackend())
 
     forces = case.forces isa AbstractVector ? only(case.forces) : case.forces
     dt = only(case.dt)

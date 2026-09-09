@@ -479,8 +479,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         wells_systems = missing,
         wells_as_cells = false,
         discretization_arg = NamedTuple(),
-        groups = missing,
-        group_execution = Jutul.SolveFullyOnDevice
+        groups = missing
     )
     # Deal with wells, make sure that multisegment wells come last.
     if !(wells isa AbstractArray)
@@ -642,7 +641,6 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         assemble_wells_together = assemble_wells_together,
         immutable_model = immutable_model,
         groups = groups,
-        group_execution = group_execution,
     )
     if length(tracers) > 0
         add_tracers_to_model!(model, tracers)
@@ -1053,6 +1051,26 @@ function mode_to_backend(mode::Jutul.PArrayBackend)
     return mode
 end
 
+const KERNEL_ABSTRACTIONS_BACKENDS = Dict{Symbol, Function}(
+    :ka => () -> Jutul.KernelAbstractions.CPU(),
+    Symbol("ka-cpu") => () -> Jutul.KernelAbstractions.CPU()
+)
+
+function register_kernel_abstractions_backend!(mode::Symbol, constructor)
+    startswith(String(mode), "ka-") || throw(ArgumentError(
+        "KernelAbstractions mode must start with `ka-`, got :$mode"))
+    KERNEL_ABSTRACTIONS_BACKENDS[mode] = constructor
+    return mode
+end
+
+function kernel_abstractions_backend(mode::Symbol)
+    constructor = get(KERNEL_ABSTRACTIONS_BACKENDS, mode, nothing)
+    isnothing(constructor) && throw(ArgumentError(
+        "No KernelAbstractions backend is available for mode :$mode. " *
+        "Load the corresponding backend package or pass ka_backend explicitly."))
+    return constructor()
+end
+
 """
     setup_reservoir_simulator(case::JutulCase; <keyword arguments>)
 
@@ -1060,6 +1078,10 @@ end
 
 - `mode=:default`: Mode used for solving. Can be set to `:mpi` if running in MPI
   mode together with HYPRE, PartitionedArrays and MPI in your environment.
+  KernelAbstractions execution is selected with `:ka` (`:ka-cpu`), or a
+  backend-specific mode: `:ka-cuda`, `:ka-amd`, or `:ka-metal`. The reservoir
+  is evaluated fully on the selected backend while wells and facility
+  equations remain on the host and are copied to device storage for assembly.
 - `method=:newton`: Can be `:newton`, `:nldd` or `:aspen`. Newton is the most
   tested approach and `:nldd` can speed up difficult models. The `:nldd` option
   enables a host of additional options (look at the simulator config for more
@@ -1164,6 +1186,7 @@ list a few of the most relevant entries here for convenience:
 """
 function setup_reservoir_simulator(case::JutulCase;
         mode = :default,
+        ka_backend = missing,
         method = :newton,
         precond = :cpr,
         linear_solver = :bicgstab,
@@ -1219,7 +1242,23 @@ function setup_reservoir_simulator(case::JutulCase;
     if presolve_wells
         sim_kwarg[:prepare_step_handler] = PrepareStepWellSolver()
     end
-    if mode == :default
+    ka_mode = mode isa Symbol && (mode == :ka || startswith(String(mode), "ka-"))
+    if ka_mode
+        method == :newton || throw(ArgumentError(
+            "KernelAbstractions modes currently support method=:newton"))
+        backend = ismissing(ka_backend) ?
+            kernel_abstractions_backend(mode) : ka_backend
+        sim_cpu = Simulator(case; sim_kwarg...)
+        # Transfer is a one-time setup operation that reconstructs potentially
+        # very large concrete MultiModel types. Keep it behind an inference
+        # barrier so setup_reservoir_simulator does not specialize on that
+        # entire reconstructed graph.
+        execution = Dict{Symbol, Jutul.DeviceExecutionMode}(
+            :default => Jutul.AssembleOnDevice,
+            :Reservoir => Jutul.SolveFullyOnDevice)
+        sim = Base.invokelatest(transfer_to_backend, sim_cpu, backend;
+            group_execution = execution)
+    elseif mode == :default
         # Single-process solve
         if method == :newton
             sim = Simulator(case; sim_kwarg...)
@@ -1611,8 +1650,7 @@ function reservoir_multimodel(models::AbstractDict;
         split_wells = false,
         immutable_model = false,
         assemble_wells_together = haskey(models, :Facility),
-        groups = missing,
-        group_execution = Jutul.SolveFullyOnDevice
+        groups = missing
     )
     res_model = models[:Reservoir]
     is_block(x) = Jutul.is_cell_major(matrix_layout(x.context))
@@ -1678,8 +1716,7 @@ function reservoir_multimodel(models::AbstractDict;
         red = :schur_apply
     end
     models = convert_to_immutable_storage(models)
-    model = MultiModel(models, groups = groups,
-        group_execution = group_execution, context = outer_context,
+    model = MultiModel(models, groups = groups, context = outer_context,
         reduction = red, specialize = specialize)
     setup_reservoir_cross_terms!(model)
     if immutable_model
