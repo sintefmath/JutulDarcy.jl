@@ -79,7 +79,7 @@ end
 
 @testset "SPE1 hybrid multimodel on a KA backend" begin
     spe1 = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1", "SPE1.DATA")
-    case = setup_case_from_data_file(spe1)[1:1]
+    case = setup_case_from_data_file(spe1; block_backend = false)[1:1]
     cpu_simulator = Simulator(case)
     simulator = transfer_to_backend(cpu_simulator, JLBackend())
 
@@ -115,9 +115,7 @@ end
     system = simulator.storage.LinearizedSystem
     @test system.r_buffer isa JLArray
     @test all(isfinite, Array(system.r_buffer))
-    @test all(block -> all(isfinite, block),
-        Array(nonzeros(system[1, 1].jac)))
-    @test all(isfinite, Array(nonzeros(system[2, 2].jac)))
+    @test all(isfinite, Array(nonzeros(system.jac)))
 
     tolerances = Jutul.set_default_tolerances(simulator.model)
     converged, error, errors = Jutul.check_convergence(
@@ -134,4 +132,24 @@ end
     fill!(system.dx_buffer, 0.0)
     report = Jutul.update_primary_variables!(simulator.storage, simulator.model)
     @test Set(keys(report)) == Set(keys(simulator.model.models))
+end
+
+@testset "SPE1 simulation on a KA backend" begin
+    spe1 = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1", "SPE1.DATA")
+    case = setup_case_from_data_file(spe1; block_backend = false)[1:1]
+    cpu_simulator, config = setup_reservoir_simulator(case;
+        info_level = -1,
+        linear_solver = nothing,
+        timesteps = :none)
+    simulator = transfer_to_backend(cpu_simulator, JLBackend())
+
+    states, reports = simulate!(simulator, case.dt;
+        forces = case.forces,
+        config = config)
+
+    @test length(states) == length(case.dt)
+    @test length(reports) == length(case.dt)
+    @test all(isfinite, Array(states[end][:Reservoir][:Pressure]))
+    @test states[end][:PROD][:Pressure] isa JLArray
+    @test states[end][:INJ][:Pressure] isa JLArray
 end

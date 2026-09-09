@@ -180,12 +180,7 @@ end
 
 function Jutul.backend_copyto!(destination::FacilityCrossTermState,
         source::FacilityCrossTermState)
-    copyto!(destination.control_type, source.control_type)
-    copyto!(destination.factor, source.factor)
-    copyto!(destination.mixture_density, source.mixture_density)
-    copyto!(destination.injection_mixture, source.injection_mixture)
-    copyto!(destination.phase_fractions, source.phase_fractions)
-    return destination
+    return copyto!(destination, source)
 end
 
 function Adapt.adapt_structure(to, ct::ReservoirFromWellFlowCT)

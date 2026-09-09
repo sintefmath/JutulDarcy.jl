@@ -843,6 +843,19 @@ struct FacilityCrossTermState{I, F, M, P}
     phase_fractions::P
 end
 
+function Base.copyto!(destination::FacilityCrossTermState,
+        source::FacilityCrossTermState)
+    copyto!(destination.control_type, source.control_type)
+    copyto!(destination.factor, source.factor)
+    copyto!(destination.mixture_density, source.mixture_density)
+    copyto!(destination.injection_mixture, source.injection_mixture)
+    copyto!(destination.phase_fractions, source.phase_fractions)
+    return destination
+end
+
+Jutul.update_values!(destination::FacilityCrossTermState,
+    source::FacilityCrossTermState) = copyto!(destination, source)
+
 function FacilityCrossTermState(model::FacilityModel; T = Float64)
     nw = count_entities(model.domain, Wells())
     ncomp = number_of_components(model.system.multiphase)

@@ -213,19 +213,40 @@ end
 
 Jutul.value(t::BlackOilX{T}) where T<:ForwardDiff.Dual = BlackOilX(value(t.val), t.phases_present, t.sat_close)
 
-function Jutul.update_values!(old::AbstractVector{<:BlackOilX}, new::AbstractVector{<:BlackOilX})
-    for (i, v) in enumerate(new)
-        o = old[i]
-        oldval = value(o.val)
-        if isfinite(oldval)
-            newval = o.val - value(o.val) + value(v.val)
-        elseif o.val isa ForwardDiff.Dual
-            newval = typeof(o.val)(value(v.val), o.val.partials)
-        else
-            newval = v.val
-        end
-        old[i] = BlackOilX(newval, v.phases_present, v.sat_close)
+@inline function updated_blackoil_value(o::BlackOilX{T}, v::BlackOilX) where T<:ForwardDiff.Dual
+    oldval = value(o.val)
+    if isfinite(oldval)
+        newval = o.val - oldval + value(v.val)
+    else
+        newval = T(value(v.val), o.val.partials)
     end
+    return BlackOilX(newval, v.phases_present, v.sat_close)
+end
+
+@inline function updated_blackoil_value(o::BlackOilX{T}, v::BlackOilX) where T<:Real
+    newval = convert(T, value(v.val))
+    return BlackOilX(newval, v.phases_present, v.sat_close)
+end
+
+function update_blackoil_values!(old::AbstractVector{<:BlackOilX},
+        new::AbstractVector{<:BlackOilX}, context)
+    function update(i)
+        @inbounds v = new[i]
+        @inbounds o = old[i]
+        @inbounds old[i] = updated_blackoil_value(o, v)
+    end
+    Jutul.threaded_loop_minbatch(update, length(old), context)
+    return old
+end
+
+function Jutul.update_values!(old::AbstractVector{<:BlackOilX},
+        new::AbstractVector{<:BlackOilX})
+    return update_blackoil_values!(old, new, Jutul.DefaultContext())
+end
+
+function Jutul.update_values!(old::AbstractVector{<:BlackOilX},
+        new::AbstractVector{<:BlackOilX}, context::Jutul.JutulContext)
+    return update_blackoil_values!(old, new, context)
 end
 
 # Overloads for our specific data type
