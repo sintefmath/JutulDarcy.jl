@@ -19,6 +19,13 @@ mutable struct WellGroup <: WellControllerDomain
     can_shut_injectors::Bool
 end
 
+"""GPU-safe structural mirror of [`WellGroup`](@ref)."""
+struct BackendWellGroup{W} <: WellControllerDomain
+    well_symbols::W
+    can_shut_producers::Bool
+    can_shut_injectors::Bool
+end
+
 """
     WellGroup(wells::Vector{Symbol}; can_shut_wells = true)
 
@@ -822,6 +829,31 @@ mutable struct WellGroupConfiguration{T, O, L}
     function WellGroupConfiguration(; operating, limits, requested = operating, step = 0)
         new{typeof(operating), typeof(requested), typeof(limits)}(operating, requested, limits, step)
     end
+end
+
+"""
+Numeric, preallocated projection of facility controls used by device cross
+terms. The authoritative `WellGroupConfiguration` remains on the CPU.
+"""
+struct FacilityCrossTermState{I, F, M, P}
+    control_type::I
+    factor::F
+    mixture_density::F
+    injection_mixture::M
+    phase_fractions::P
+end
+
+function FacilityCrossTermState(model::FacilityModel; T = Float64)
+    nw = count_entities(model.domain, Wells())
+    ncomp = number_of_components(model.system.multiphase)
+    nph = number_of_phases(model.system.multiphase)
+    return FacilityCrossTermState(
+        zeros(Int8, nw),
+        ones(T, nw),
+        ones(T, nw),
+        zeros(T, ncomp, nw),
+        zeros(T, nph, nw)
+    )
 end
 
 function WellGroupConfiguration(well_symbols, control = nothing, limits = nothing, step = 0)

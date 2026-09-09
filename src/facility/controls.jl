@@ -3,6 +3,42 @@ include("special_controls/special_controls.jl")
 function Jutul.initialize_extra_state_fields!(state, domain::WellGroup, model; T = Float64)
     # Insert structure that holds well control (limits etc) that is then updated before each step
     state[:WellGroupConfiguration] = WellGroupConfiguration(domain.well_symbols)
+    state[:FacilityCrossTermState] = FacilityCrossTermState(model; T = T)
+end
+
+function update_facility_cross_term_state!(state, model::FacilityModel)
+    cfg = state.WellGroupConfiguration
+    device_state = state.FacilityCrossTermState
+    fill!(device_state.control_type, 0)
+    fill!(device_state.factor, one(eltype(device_state.factor)))
+    fill!(device_state.mixture_density, one(eltype(device_state.mixture_density)))
+    fill!(device_state.injection_mixture, zero(eltype(device_state.injection_mixture)))
+    fill!(device_state.phase_fractions, zero(eltype(device_state.phase_fractions)))
+    for (well_index, well) in enumerate(model.domain.well_symbols)
+        control = operating_control(cfg, well)
+        if control isa InjectorControl
+            device_state.control_type[well_index] = 1
+            device_state.factor[well_index] = control.factor
+            device_state.mixture_density[well_index] = control.mixture_density
+            for component in eachindex(control.injection_mixture)
+                device_state.injection_mixture[component, well_index] =
+                    control.injection_mixture[component]
+            end
+            for (phase, fraction) in control.phases
+                device_state.phase_fractions[phase, well_index] = fraction
+            end
+        elseif control isa ProducerControl
+            device_state.control_type[well_index] = 2
+            device_state.factor[well_index] = control.factor
+        end
+    end
+    return device_state
+end
+
+function Jutul.prepare_backend_transfer!(storage, model::FacilityModel)
+    update_facility_cross_term_state!(storage.state, model)
+    update_facility_cross_term_state!(storage.state0, model)
+    return storage
 end
 
 function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, model::WellGroupModel, dt, forces_g, key;

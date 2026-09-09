@@ -302,6 +302,21 @@ struct PhaseRelativePermeability{T, N} <: AbstractPhaseRelativePermeability{T, N
     input_s_max::N
 end
 
+struct BackendPhaseRelativePermeability{label, T, N} <:
+        AbstractPhaseRelativePermeability{T, N}
+    k::T
+    connate::N
+    critical::N
+    s_max::N
+    k_max::N
+    input_s_max::N
+end
+
+function BackendPhaseRelativePermeability(k::T, ::Val{label}, connate::N,
+        critical::N, s_max::N, k_max::N, input_s_max::N) where {label, T, N}
+    return BackendPhaseRelativePermeability{label, T, N}(
+        k, connate, critical, s_max, k_max, input_s_max)
+end
 
 """
     PhaseRelativePermeability(s, k; label = :w, connate = s[1], epsilon = 1e-16)
@@ -359,6 +374,7 @@ function PhaseRelativePermeability(s, k; label = :w, connate = s[1], epsilon = 1
 end
 
 (kr::PhaseRelativePermeability)(S) = kr.k(S)
+(kr::BackendPhaseRelativePermeability)(S) = kr.k(S)
 
 function Base.show(io::IO, t::MIME"text/plain", kr::PhaseRelativePermeability)
     println(io, "PhaseRelativePermeability for $(kr.label):")
@@ -432,10 +448,10 @@ function Base.show(io::IO, w::WellDomain)
     print(io, "$n [$(w.name)] ($(nn) nodes, $(nseg) segments, $(length(w.perforations.reservoir)) perforations)")
 end
 
-struct SimpleWell{SC, P} <: WellDomain where {SC, P}
+struct SimpleWell{SC, P, N} <: WellDomain where {SC, P, N}
     perforations::P
     surface::SC
-    name::Symbol
+    name::N
     explicit_dp::Bool
     # reference_depth::V
 end

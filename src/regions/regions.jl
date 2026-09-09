@@ -36,6 +36,10 @@ Base.@propagate_inbounds @inline function table_by_region(tab, reg)
     return tab[reg]
 end
 
+Base.@propagate_inbounds @inline function table_by_region(tab::Tuple{T}, reg) where T
+    return only(tab)
+end
+
 @inline function table_by_region(tab::Nothing, reg)
     return tab
 end

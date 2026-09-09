@@ -48,7 +48,19 @@ end
 
 get_phases(sys::StandardBlackOilSystem) = sys.phases
 number_of_components(sys::StandardBlackOilSystem) = length(get_phases(sys))
-phase_indices(sys::StandardBlackOilSystem) = sys.phase_indices
+@generated function phase_indices(
+        ::StandardBlackOilSystem{D, V, W, R, F, T, P}) where {D, V, W, R, F, T, P}
+    phase_types = P.parameters
+    aqueous = findfirst(phase -> phase <: AqueousPhase, phase_types)
+    liquid = findfirst(phase -> phase <: LiquidPhase, phase_types)
+    vapor = findfirst(phase -> phase <: VaporPhase, phase_types)
+    @assert !isnothing(liquid) && !isnothing(vapor)
+    if isnothing(aqueous)
+        return :((l = $liquid, v = $vapor))
+    else
+        return :((a = $aqueous, l = $liquid, v = $vapor))
+    end
+end
 
 function component_names(sys::StandardBlackOilSystem)
     return phase_names(sys)
@@ -65,7 +77,11 @@ has_disgas(::VapoilBlackOilSystem) = false
 
 function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw{:TotalMasses}, eq_s, r; dt = 1.0, update_report = missing) where {D, S<:StandardBlackOilSystem}
     M = global_map(model.domain)
-    v = x -> as_value(Jutul.active_view(x, M, for_variables = false))
+    # Keep the original backend arrays. `as_value` on an AD array creates a
+    # lazy MappedArray, and reducing a view of that wrapper can fall back to
+    # scalar iteration on GPU. The reduction functions below extract values
+    # elementwise inside the backend reduction instead.
+    v = x -> Jutul.active_view(x, M, for_variables = false)
     Φ = v(storage.state.FluidVolume)
     b = v(storage.state.ShrinkageFactors)
 
@@ -95,29 +111,31 @@ end
 
 @inline inverse_value(x) = inv(value(x))
 
-function average_inverse_formation_volume_factor(b, context::JutulContext)
-    average = sum(inverse_value, b; dims = 2)./size(b, 2)
-    return vec(Jutul.backend_to_host(context, average))
+function average_inverse_formation_volume_factor(b, ::Val{N}, context::JutulContext) where N
+    nc = size(b, 2)
+    return ntuple(phase -> sum(inverse_value, view(b, phase, :))/nc, Val(N))
 end
 
 function cnv_errors_bo(r, Φ, average_B, dt, rhoS, ::Val{N}, context::JutulContext) where N
-    pore_volume = reshape(Φ, 1, :)
-    scaled_residual = @. abs(value(r))/value(pore_volume)
-    maximum_residual = vec(Jutul.backend_to_host(context,
-        maximum(scaled_residual; dims = 2)))
-    return ntuple(phase -> average_B[phase]*dt*maximum_residual[phase]/rhoS[phase], N)
+    return ntuple(Val(N)) do phase
+        maximum_residual = mapreduce((residual, pore_volume) ->
+                abs(value(residual))/value(pore_volume),
+            max, view(r, phase, :), Φ)
+        average_B[phase]*dt*maximum_residual/rhoS[phase]
+    end
 end
 
 function mb_errors_bo(r, Φ, average_B, dt, rhoS, ::Val{N}, context::JutulContext) where N
     total_pore_volume = sum(value, Φ)
-    residual_sum = vec(Jutul.backend_to_host(context, sum(value, r; dims = 2)))
-    return ntuple(phase -> average_B[phase]*dt*abs(residual_sum[phase])/
-        (rhoS[phase]*total_pore_volume), N)
+    return ntuple(Val(N)) do phase
+        residual_sum = sum(value, view(r, phase, :))
+        average_B[phase]*dt*abs(residual_sum)/(rhoS[phase]*total_pore_volume)
+    end
 end
 
 function cnv_mb_errors_bo(r, Φ, b, dt, rhoS, phase_count::Val{N},
         context::JutulContext = DefaultContext()) where N
-    average_B = average_inverse_formation_volume_factor(b, context)
+    average_B = average_inverse_formation_volume_factor(b, phase_count, context)
     cnv = cnv_errors_bo(r, Φ, average_B, dt, rhoS, phase_count, context)
     mb = mb_errors_bo(r, Φ, average_B, dt, rhoS, phase_count, context)
     return cnv, mb

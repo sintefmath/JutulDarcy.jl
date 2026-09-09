@@ -76,3 +76,62 @@ end
     @test Array(states[end][:Pressure]) ≈ reference[end][:Pressure] rtol = 1e-10
     @test Array(states[end][:Saturations]) ≈ reference[end][:Saturations] rtol = 1e-10
 end
+
+@testset "SPE1 hybrid multimodel on a KA backend" begin
+    spe1 = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1", "SPE1.DATA")
+    case = setup_case_from_data_file(spe1)[1:1]
+    cpu_simulator = Simulator(case)
+    simulator = transfer_to_backend(cpu_simulator, JLBackend())
+
+    @test simulator.storage.host_execution.keys == (:Facility,)
+    @test Jutul.model_execution_mode(simulator.model[:Facility]) isa
+        Jutul.HostModelExecution
+    @test Jutul.model_execution_mode(simulator.model[:PROD]) isa
+        Jutul.BackendModelExecution
+    @test Jutul.model_execution_mode(simulator.model[:INJ]) isa
+        Jutul.BackendModelExecution
+    @test simulator.storage.PROD.state.Pressure isa JLArray
+    @test simulator.storage.INJ.state.Pressure isa JLArray
+    @test simulator.storage.Facility.state.WellGroupConfiguration === nothing
+    @test simulator.storage.Facility.state.FacilityCrossTermState.control_type isa
+        JLArray
+    @test cpu_simulator.storage.Facility.state.WellGroupConfiguration !== nothing
+    @test all(cross_term ->
+            cross_term.target_impact_map.entries isa JLArray,
+        simulator.storage.cross_terms)
+
+    facility_control_buffer =
+        simulator.storage.Facility.state.FacilityCrossTermState.control_type
+
+    forces = case.forces isa AbstractVector ? first(case.forces) : case.forces
+    dt = first(case.dt)
+    Jutul.update_before_step!(simulator, dt, forces; time = 0.0)
+    Jutul.update_state_dependents!(
+        simulator.storage, simulator.model, dt, forces; time = dt)
+    @test simulator.storage.Facility.state.FacilityCrossTermState.control_type ===
+        facility_control_buffer
+    Jutul.update_linearized_system!(simulator.storage, simulator.model)
+
+    system = simulator.storage.LinearizedSystem
+    @test system.r_buffer isa JLArray
+    @test all(isfinite, Array(system.r_buffer))
+    @test all(block -> all(isfinite, block),
+        Array(nonzeros(system[1, 1].jac)))
+    @test all(isfinite, Array(nonzeros(system[2, 2].jac)))
+
+    tolerances = Jutul.set_default_tolerances(simulator.model)
+    converged, error, errors = Jutul.check_convergence(
+        simulator.storage,
+        simulator.model,
+        Dict(:tolerances => tolerances);
+        dt = dt,
+        extra_out = true
+    )
+    @test converged isa Bool
+    @test isfinite(error)
+    @test Set(keys(errors)) == Set(keys(simulator.model.models))
+
+    fill!(system.dx_buffer, 0.0)
+    report = Jutul.update_primary_variables!(simulator.storage, simulator.model)
+    @test Set(keys(report)) == Set(keys(simulator.model.models))
+end

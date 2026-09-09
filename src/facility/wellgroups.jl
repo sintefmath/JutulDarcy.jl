@@ -10,6 +10,13 @@ function get_well_position(d, symbol)
     return findfirst(isequal(symbol), d.well_symbols)
 end
 
+@generated function get_well_position(::BackendWellGroup{W},
+        ::Val{name}) where {W, name}
+    position = findfirst(T -> T <: Val{name}, W.parameters)
+    isnothing(position) && error("Well $name is not present in the backend facility")
+    return :($position)
+end
+
 function Jutul.associated_entity(::SurfaceTemperature)
     return Wells()
 end

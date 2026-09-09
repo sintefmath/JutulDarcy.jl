@@ -501,26 +501,30 @@ function convergence_criterion(model::SimulationModel{D, S}, storage, eq::Conser
     return R
 end
 
-function cnv_errors(r, Φ, ρ, dt, context::JutulContext)
-    pore_volume = reshape(Φ, 1, :)
-    scaled_residual = @. dt*abs(value(r))/(value(ρ)*value(pore_volume))
-    errors = maximum(scaled_residual; dims = 2)
-    return Tuple(vec(Jutul.backend_to_host(context, errors)))
+function cnv_errors(r, Φ, ρ, dt, ::Val{N}, context::JutulContext) where N
+    return ntuple(Val(N)) do phase
+        mapreduce((residual, density, pore_volume) ->
+                dt*abs(value(residual))/(value(density)*value(pore_volume)),
+            max, view(r, phase, :), view(ρ, phase, :), Φ)
+    end
 end
 
-function mb_errors(r, Φ, ρ, dt, context::JutulContext)
+function mb_errors(r, Φ, ρ, dt, ::Val{N}, context::JutulContext) where N
     nc = length(Φ)
     total_pore_volume = sum(value, Φ)
-    residual_sum = sum(value, r; dims = 2)
-    average_density = sum(Jutul.absolute_value, ρ; dims = 2)./nc
-    errors = @. (dt/total_pore_volume)*abs(residual_sum)/average_density
-    return Tuple(vec(Jutul.backend_to_host(context, errors)))
+    return ntuple(Val(N)) do phase
+        residual_sum = sum(value, view(r, phase, :))
+        average_density = sum(Jutul.absolute_value, view(ρ, phase, :))/nc
+        (dt/total_pore_volume)*abs(residual_sum)/average_density
+    end
 end
 
 function cnv_mb_errors(r, Φ, ρ, dt, ::Val{N},
-        context::JutulContext = DefaultContext()) where N
+    context::JutulContext = DefaultContext()) where N
     @assert size(r, 1) == size(ρ, 1) == N
-    return cnv_errors(r, Φ, ρ, dt, context), mb_errors(r, Φ, ρ, dt, context)
+    phases = Val(N)
+    return cnv_errors(r, Φ, ρ, dt, phases, context),
+        mb_errors(r, Φ, ρ, dt, phases, context)
 end
 
 function cpr_weights_no_partials!(w, model::SimulationModel{R, S}, state, r, n, bz, scaling) where {R, S<:ImmiscibleSystem}

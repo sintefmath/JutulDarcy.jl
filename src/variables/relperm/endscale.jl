@@ -237,6 +237,10 @@ function get_kr_scalers(kr::PhaseRelativePermeability)
     return (kr.connate, kr.critical, kr.s_max, kr.k_max)
 end
 
+function get_kr_scalers(kr::BackendPhaseRelativePermeability)
+    return (kr.connate, kr.critical, kr.s_max, kr.k_max)
+end
+
 function get_kr_scalers(scaler::AbstractMatrix, c)
     @inbounds L = scaler[1, c]
     @inbounds CR = scaler[2, c]

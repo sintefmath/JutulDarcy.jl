@@ -39,6 +39,44 @@ function update_cross_term_in_entity!(out, i,
     return out
 end
 
+facility_raw_state_field(state, key::Symbol) = state[key]
+facility_raw_state_field(state::Union{Jutul.LocalStateAD, Jutul.ValueStateAD}, key::Symbol) =
+    getfield(state, :data)[key]
+
+facility_is_injector(::Nothing, state, well, pos) =
+    @inbounds facility_raw_state_field(state, :FacilityCrossTermState).control_type[pos] == 1
+facility_is_injector(cfg, state, well, pos) =
+    operating_control(cfg, well) isa InjectorControl
+
+facility_control_factor(::Nothing, state, well, pos) =
+    @inbounds facility_raw_state_field(state, :FacilityCrossTermState).factor[pos]
+function facility_control_factor(cfg, state, well, pos)
+    control = operating_control(cfg, well)
+    return control isa Union{InjectorControl, ProducerControl} ? control.factor : 1.0
+end
+
+facility_injection_component(::Nothing, state, well, pos, component) =
+    @inbounds facility_raw_state_field(state, :FacilityCrossTermState).injection_mixture[component, pos]
+facility_injection_component(cfg, state, well, pos, component) =
+    @inbounds operating_control(cfg, well).injection_mixture[component]
+
+facility_injection_density(::Nothing, state, well, pos) =
+    @inbounds facility_raw_state_field(state, :FacilityCrossTermState).mixture_density[pos]
+facility_injection_density(cfg, state, well, pos) =
+    operating_control(cfg, well).mixture_density
+
+facility_injection_phase_fraction(::Nothing, state, well, pos, phase) =
+    @inbounds facility_raw_state_field(state, :FacilityCrossTermState).phase_fractions[phase, pos]
+function facility_injection_phase_fraction(cfg, state, well, pos, phase)
+    fraction = 0.0
+    for (phase_index, phase_fraction) in operating_control(cfg, well).phases
+        if phase_index == phase
+            fraction = phase_fraction
+        end
+    end
+    return fraction
+end
+
 function cross_term_perforation_get_conn(ct, i, state_s, state_t)
     @inbounds begin 
         reservoir_cell = ct.reservoir_cells[i]
@@ -126,7 +164,6 @@ function target_actual_pair(target, well, state_well, q_t, ctrl)
     t = well_target(ctrl, target, well, state_well, rhoS, S)
     if rate_weighted(target)
         actual_rate = t*q_t
-        name = physical_representation(well.domain).name
         if abs(actual_rate) < MIN_ACTIVE_WELL_RATE
             t = q_t
         else
@@ -139,8 +176,8 @@ function target_actual_pair(target, well, state_well, q_t, ctrl)
 end
 
 # Facility influence on well
-struct WellFromFacilityFlowCT <: Jutul.AdditiveCrossTerm
-    well::Symbol
+struct WellFromFacilityFlowCT{W} <: Jutul.AdditiveCrossTerm
+    well::W
 end
 
 Jutul.cross_term_entities(ct::WellFromFacilityFlowCT, eq::ConservationLaw, model) = [well_top_node()]
@@ -163,9 +200,45 @@ function update_cross_term_in_entity!(out, i,
         ct::WellFromFacilityFlowCT, eq, dt, ldisc = local_discretization(ct, i)
     )
     well_symbol = ct.well
-    q_t, mix = cross_term_total_surface_mass_rate_and_mixture(facility, well, state_facility, state_well, well_symbol)
-    for i in eachindex(out, mix)
-        @inbounds out[i] = -mix[i]*q_t
+    cross_term_surface_mass_rate!(
+        out, facility, well, state_facility, state_well, well_symbol)
+    return out
+end
+
+function cross_term_surface_mass_rate!(
+        out, facility, well, state_facility, state_well, well_symbol)
+    pos = get_well_position(facility.domain, well_symbol)
+    cfg = facility_raw_state_field(state_facility, :WellGroupConfiguration)
+    q_t = state_facility.TotalSurfaceMassRate[pos]
+    q_t *= facility_control_factor(cfg, state_facility, well_symbol, pos)
+
+    # Preserve all intended AD dependencies even when the active control makes
+    # some of these values numerically inactive.
+    bhp = state_facility.BottomHolePressure[pos]
+    phase_rate = state_facility.SurfacePhaseRates[1, pos]
+    total_mass = state_well.TotalMasses[1, well_top_node()]
+    q_t += 0*(bhp + phase_rate + total_mass)
+
+    if facility_is_injector(cfg, state_facility, well_symbol, pos)
+        for component in eachindex(out)
+            fraction = facility_injection_component(
+                cfg, state_facility, well_symbol, pos, component)
+            out[component] = -fraction*q_t
+        end
+    elseif haskey(state_well, :MassFractions)
+        fractions = state_well.MassFractions
+        for component in eachindex(out)
+            out[component] = -fractions[component, well_top_node()]*q_t
+        end
+    else
+        masses = state_well.TotalMasses
+        mass = zero(masses[1, well_top_node()])
+        for component in eachindex(out)
+            mass += masses[component, well_top_node()]
+        end
+        for component in eachindex(out)
+            out[component] = -(masses[component, well_top_node()]/mass)*q_t
+        end
     end
     return out
 end
@@ -173,14 +246,9 @@ end
 function cross_term_total_surface_mass_rate_and_mixture(facility, well, state_facility, state_well, well_symbol)
     pos = get_well_position(facility.domain, well_symbol)
 
-    cfg = state_facility.WellGroupConfiguration
-    ctrl = operating_control(cfg, well_symbol)
-    q_t = facility_surface_mass_rate_for_well(
-        facility,
-        well_symbol,
-        state_facility,
-        effective = true
-    )
+    cfg = facility_raw_state_field(state_facility, :WellGroupConfiguration)
+    q_t = state_facility.TotalSurfaceMassRate[pos]
+    q_t *= facility_control_factor(cfg, state_facility, well_symbol, pos)
     # Hack for sparsity detection
     # bhp = bottom_hole_pressure(state_well)
     bhp = state_facility[:BottomHolePressure][pos]
@@ -188,18 +256,14 @@ function cross_term_total_surface_mass_rate_and_mixture(facility, well, state_fa
     ph2 = state_facility[:SurfacePhaseRates][1, pos]
     total_mass = state_well.TotalMasses[1, well_top_node()]
     q_t += 0*bhp + 0*ph + 0*total_mass + 0*ph2
-    if isa(ctrl, InjectorControl)
-        if value(q_t) < 0
-            @warn "Injector $well_symbol is producing?"
-        end
-        mix = ctrl.injection_mixture
-        nmix = length(mix)
+    if facility_is_injector(cfg, state_facility, well_symbol, pos)
+        nmix = size(facility_raw_state_field(
+            state_facility, :FacilityCrossTermState).injection_mixture, 1)
         ncomp = number_of_components(well.system)
         @assert nmix == ncomp "Injection composition length ($nmix) must match number of components ($ncomp)."
+        mix = ntuple(component -> facility_injection_component(
+            cfg, state_facility, well_symbol, pos, component), ncomp)
     else
-        if value(q_t) > 0 && ctrl isa ProducerControl
-            @warn "Producer $well_symbol is injecting?"
-        end
         if haskey(state_well, :MassFractions)
             mix = state_well.MassFractions
         else
@@ -305,8 +369,8 @@ function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellThe
     apply_perforation_mask!(ct_s.source, mask)
 end
 
-struct WellFromFacilityThermalCT <: Jutul.AdditiveCrossTerm
-    well::Symbol
+struct WellFromFacilityThermalCT{W} <: Jutul.AdditiveCrossTerm
+    well::W
 end
 
 Jutul.cross_term_entities(ct::WellFromFacilityThermalCT, eq::ConservationLaw, model) = [well_top_node()]
@@ -328,7 +392,7 @@ function update_cross_term_in_entity!(out, i,
     well_symbol = ct.well
     pos = get_well_position(facility.domain, well_symbol)
 
-    cfg = state_facility.WellGroupConfiguration
+    cfg = facility_raw_state_field(state_facility, :WellGroupConfiguration)
     ctrl = operating_control(cfg, well_symbol)
     qT = state_facility.TotalSurfaceMassRate[pos]
     # Hack for sparsity detection
@@ -439,8 +503,8 @@ function well_top_node_enthalpy(ctrl, model, state_well, T, cell)
     return well_top_node_enthalpy(model, state_well, cell)
 end
 
-struct FacilityFromWellTemperatureCT <: Jutul.AdditiveCrossTerm
-    well::Symbol
+struct FacilityFromWellTemperatureCT{W} <: Jutul.AdditiveCrossTerm
+    well::W
 end
 
 Jutul.cross_term_entities(ct::FacilityFromWellTemperatureCT, eq::SurfaceTemperatureEquation, model) = get_well_position(model.domain, ct.well)
@@ -457,8 +521,8 @@ function update_cross_term_in_entity!(out, i,
     out[1] = -T
 end
 
-struct FacilityFromWellEnthalpyCT <: Jutul.AdditiveCrossTerm
-    well::Symbol
+struct FacilityFromWellEnthalpyCT{W} <: Jutul.AdditiveCrossTerm
+    well::W
 end
 
 Jutul.cross_term_entities(ct::FacilityFromWellEnthalpyCT, eq::SurfaceEnthalpyEquation, model) = get_well_position(model.domain, ct.well)
@@ -475,8 +539,8 @@ function update_cross_term_in_entity!(out, i,
     out[1] = -H*eq.scale
 end
 
-struct FacilityFromWellBottomHolePressureCT <: Jutul.AdditiveCrossTerm
-    well::Symbol
+struct FacilityFromWellBottomHolePressureCT{W} <: Jutul.AdditiveCrossTerm
+    well::W
 end
 
 Jutul.cross_term_entities(ct::FacilityFromWellBottomHolePressureCT, eq::BottomHolePressureEquation, model) = get_well_position(model.domain, ct.well)
@@ -493,8 +557,8 @@ function update_cross_term_in_entity!(out, i,
     out[1] = -P*eq.scale
 end
 
-struct FacilityFromSurfacePhaseRatesCT <: Jutul.AdditiveCrossTerm
-    well::Symbol
+struct FacilityFromSurfacePhaseRatesCT{W} <: Jutul.AdditiveCrossTerm
+    well::W
 end
 
 Jutul.cross_term_entities(ct::FacilityFromSurfacePhaseRatesCT, eq::SurfacePhaseRatesEquation, model) = get_well_position(model.domain, ct.well)
@@ -507,8 +571,7 @@ function update_cross_term_in_entity!(out, i,
 
     pos = get_well_position(facility.domain, ct.well)
     q_t = state_facility.TotalSurfaceMassRate[pos]
-    cfg = state_facility[:WellGroupConfiguration]
-    ctrl = operating_control(cfg, ct.well)
+    cfg = facility_raw_state_field(state_facility, :WellGroupConfiguration)
     rhoS, S = surface_density_and_volume_fractions(state_well)
 
     p_top = state_well.Pressure[well_top_node()]
@@ -517,12 +580,14 @@ function update_cross_term_in_entity!(out, i,
     for ph_idx in eachindex(out)
         out[ph_idx] = 0.0*(S[ph_idx] + rhoS[ph_idx] + q_t + tm + p_top)
     end
-    is_injector = ctrl isa InjectorControl
+    is_injector = facility_is_injector(cfg, state_facility, ct.well, pos)
     if is_injector
-        density = ctrl.mixture_density
+        density = facility_injection_density(cfg, state_facility, ct.well, pos)
         volume_rate = q_t/density
-        for (ph_idx, phase_fraction) in ctrl.phases
-            out[ph_idx] += -volume_rate*phase_fraction*eq.scale
+        for ph_idx in eachindex(out)
+            fraction = facility_injection_phase_fraction(
+                cfg, state_facility, ct.well, pos, ph_idx)
+            out[ph_idx] += -volume_rate*fraction*eq.scale
         end
     else
         total_density = 0.0

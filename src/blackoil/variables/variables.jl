@@ -192,30 +192,39 @@ function Jutul.initialize_primary_variable_ad!(state, model, pvar::BlackOilUnkno
     return state
 end
 
-function Jutul.increment_norm(dX, state, model, X, pvar::BlackOilUnknown)
-    T = eltype(dX)
-    rs_max_v = rs_sum_v = zero(T)
-    sg_max_v = sg_sum_v = zero(T)
-    rv_max_v = rv_sum_v = zero(T)
+@inline function blackoil_increment_for_phase(dx, x, phase)
+    return ifelse(x.phases_present == phase, abs(dx), zero(dx))
+end
 
-    @inbounds for i in 1:length(dX)
-        ph = X[i].phases_present
-        dx_abs = abs(dX[i])
-        if ph == OilAndGas
-            sg_max_v = max(sg_max_v, dx_abs)
-            sg_sum_v += dx_abs
-        elseif ph == OilOnly
-            rs_max_v = max(rs_max_v, dx_abs)
-            rs_sum_v += dx_abs
-        else
-            rv_max_v = max(rv_max_v, dx_abs)
-            rv_sum_v += dx_abs
-        end
+linearized_blackoil_increment(dX) = vec(dX)
+linearized_blackoil_increment(dX::LinearAlgebra.Adjoint) = vec(parent(dX))
+linearized_blackoil_increment(dX::LinearAlgebra.Transpose) = vec(parent(dX))
+
+function blackoil_increment_norm(dX, X, phase)
+    # BlackOilUnknown is scalar per entity. Equation-major storage exposes it
+    # as an adjoint view, while the parent's linear storage already has the
+    # entity ordering needed to pair it with X. Reducing the parent also keeps
+    # multi-array mapreduce on the GPU implementation.
+    increments = linearized_blackoil_increment(dX)
+    if isempty(increments)
+        z = zero(eltype(increments))
+        return (sum = z, max = z)
     end
+    f = (dx, x) -> blackoil_increment_for_phase(dx, x, phase)
     return (
-        sg_sum = sg_sum_v, sg_max = sg_max_v,
-        rs_sum = rs_sum_v, rs_max = rs_max_v,
-        rv_sum = rv_sum_v, rv_max = rv_max_v,
+        sum = mapreduce(f, +, increments, X),
+        max = mapreduce(f, max, increments, X)
+    )
+end
+
+function Jutul.increment_norm(dX, state, model, X, pvar::BlackOilUnknown)
+    sg = blackoil_increment_norm(dX, X, OilAndGas)
+    rs = blackoil_increment_norm(dX, X, OilOnly)
+    rv = blackoil_increment_norm(dX, X, GasOnly)
+    return (
+        sg_sum = sg.sum, sg_max = sg.max,
+        rs_sum = rs.sum, rs_max = rs.max,
+        rv_sum = rv.sum, rv_max = rv.max,
     )
 end
 

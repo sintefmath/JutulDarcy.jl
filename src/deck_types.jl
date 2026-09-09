@@ -18,6 +18,10 @@ struct DeckPhaseViscosities{T, M, R} <: DeckPhaseVariables
         thermal::Union{Nothing, DeckThermalViscosityTable}
         new{typeof(pvt_t), typeof(thermal), typeof(regions)}(pvt_t, thermal, regions)
     end
+    function DeckPhaseViscosities(pvt::T, thermal::M, regions::R,
+            ::Val{:assembled}) where {T, M, R}
+        new{T, M, R}(pvt, thermal, regions)
+    end
 end
 
 function Jutul.subvariable(p::DeckPhaseViscosities, map::FiniteVolumeGlobalMap)
@@ -42,6 +46,10 @@ struct DeckPhaseMassDensities{T, W, R} <: DeckPhaseVariables
         watdent::Union{Nothing, WATDENT}
         new{typeof(pvt_t), typeof(watdent), typeof(regions)}(pvt_t, watdent, regions)
     end
+    function DeckPhaseMassDensities(pvt::T, watdent::W, regions::R,
+            ::Val{:assembled}) where {T, W, R}
+        new{T, W, R}(pvt, watdent, regions)
+    end
 end
 
 function Jutul.subvariable(p::DeckPhaseMassDensities, map::FiniteVolumeGlobalMap)
@@ -65,6 +73,10 @@ struct DeckShrinkageFactors{T, W, R} <: DeckPhaseVariables
         pvt_t = Tuple(pvt)
         watdent_t = region_wrap(watdent, regions)
         new{typeof(pvt_t), typeof(watdent_t), typeof(regions)}(pvt_t, watdent, regions)
+    end
+    function DeckShrinkageFactors(pvt::T, watdent::W, regions::R,
+            ::Val{:assembled}) where {T, W, R}
+        new{T, W, R}(pvt, watdent, regions)
     end
 end
 
@@ -125,6 +137,10 @@ struct MuBTable{V, I}
             end
         end
         new{T, typeof(I_b)}(p, b, I_b, mu, I_mu)
+    end
+    function MuBTable(p::V, b::V, I_b::I, mu::V, I_mu::I,
+            ::Val{:assembled}) where {V, I}
+        new{V, I}(p, b, I_b, mu, I_mu)
     end
 end
 
@@ -719,6 +735,10 @@ struct LinearlyCompressiblePoreVolume{V, R} <: ScalarVariable
         reference_pressure = region_wrap(reference_pressure, regions)
         expansion = region_wrap(expansion, regions)
         new{typeof(reference_pressure), typeof(regions)}(reference_pressure, expansion, regions)
+    end
+    function LinearlyCompressiblePoreVolume(reference_pressure::V,
+            expansion::V, regions::R, ::Val{:assembled}) where {V, R}
+        new{V, R}(reference_pressure, expansion, regions)
     end
 end
 
