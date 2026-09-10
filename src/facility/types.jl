@@ -828,12 +828,15 @@ end
 Numeric, preallocated projection of facility controls used by device cross
 terms. The authoritative `WellGroupConfiguration` remains on the CPU.
 """
-struct FacilityCrossTermState{I, F, M, P}
+struct FacilityCrossTermState{I, F, M, P, Tr}
     control_type::I
     factor::F
     mixture_density::F
+    injection_temperature::F
+    injection_enthalpy::F
     injection_mixture::M
     phase_fractions::P
+    tracer_concentrations::Tr
 end
 
 function Base.copyto!(destination::FacilityCrossTermState,
@@ -841,15 +844,19 @@ function Base.copyto!(destination::FacilityCrossTermState,
     copyto!(destination.control_type, source.control_type)
     copyto!(destination.factor, source.factor)
     copyto!(destination.mixture_density, source.mixture_density)
+    copyto!(destination.injection_temperature, source.injection_temperature)
+    copyto!(destination.injection_enthalpy, source.injection_enthalpy)
     copyto!(destination.injection_mixture, source.injection_mixture)
     copyto!(destination.phase_fractions, source.phase_fractions)
+    copyto!(destination.tracer_concentrations, source.tracer_concentrations)
     return destination
 end
 
 Jutul.update_values!(destination::FacilityCrossTermState,
     source::FacilityCrossTermState) = copyto!(destination, source)
 
-function FacilityCrossTermState(model::FacilityModel; T = Float64)
+function FacilityCrossTermState(model::FacilityModel; T = Float64,
+        number_of_tracers = 0)
     nw = count_entities(model.domain, Wells())
     ncomp = number_of_components(model.system.multiphase)
     nph = number_of_phases(model.system.multiphase)
@@ -857,8 +864,11 @@ function FacilityCrossTermState(model::FacilityModel; T = Float64)
         zeros(Int8, nw),
         ones(T, nw),
         ones(T, nw),
+        fill(T(NaN), nw),
+        fill(T(NaN), nw),
         zeros(T, ncomp, nw),
-        zeros(T, nph, nw)
+        zeros(T, nph, nw),
+        zeros(T, number_of_tracers, nw)
     )
 end
 

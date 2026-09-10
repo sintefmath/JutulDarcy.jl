@@ -9,6 +9,9 @@ struct TracerMasses{T} <: Jutul.VectorVariables
     flux_type::T
 end
 
+Adapt.@adapt_structure TracerConcentrations
+Adapt.@adapt_structure TracerMasses
+
 Jutul.values_per_entity(model, t::TracerMasses) = number_of_tracers(t.flux_type)
 
 function Jutul.update_secondary_variable!(tracer_mass, tm::TracerMasses, model, state, ix)

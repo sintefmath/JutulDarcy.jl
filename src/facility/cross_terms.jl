@@ -147,9 +147,10 @@ function well_top_node()
 end
 
 function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellFlowCT, target, source, model, storage, dt, force::PerforationMask; time = time)
-    mask = force.values
-    apply_perforation_mask!(ct_s.target, mask)
-    apply_perforation_mask!(ct_s.source, mask)
+    mask = ct_s.force_buffer
+    copyto!(mask, force.values)
+    apply_perforation_mask!(ct_s.target, mask, model.context)
+    apply_perforation_mask!(ct_s.source, mask, model.context)
 end
 
 function target_actual_pair(target::DisabledTarget, well, state_well, q_t, ctrl)
@@ -372,9 +373,10 @@ function Jutul.subcrossterm(ct::ReservoirFromWellThermalCT, ctp, m_t, m_s, map_r
 end
 
 function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellThermalCT, target, source, model, storage, dt, force::PerforationMask; time = time)
-    mask = force.values
-    apply_perforation_mask!(ct_s.target, mask)
-    apply_perforation_mask!(ct_s.source, mask)
+    mask = ct_s.force_buffer
+    copyto!(mask, force.values)
+    apply_perforation_mask!(ct_s.target, mask, model.context)
+    apply_perforation_mask!(ct_s.source, mask, model.context)
 end
 
 struct WellFromFacilityThermalCT{W} <: Jutul.AdditiveCrossTerm
@@ -411,6 +413,38 @@ function update_cross_term_in_entity!(out, i,
     cell = well_top_node()
 
     H = get_target_enthalpy(ctrl, ctrl.target, facility, state_facility, well, state_well, cell)
+    out[] = -qT*H
+end
+
+function update_cross_term_in_entity!(out, i,
+    state_well, state0_well,
+    state_facility, state0_facility,
+    well, facility,
+    ct::WellFromFacilityThermalCT{Nothing}, eq, dt,
+    ldisc = local_discretization(ct, i))
+
+    pos = facility_position(ct, facility)
+    qT = state_facility.TotalSurfaceMassRate[pos]
+    qT += 0*bottom_hole_pressure(state_well)
+    cell = well_top_node()
+    control_state = facility_raw_state_field(
+        state_facility, :FacilityCrossTermState)
+    if facility_is_injector(nothing, state_facility, nothing, pos)
+        H = control_state.injection_enthalpy[pos]
+        if isnan(H)
+            T = control_state.injection_temperature[pos]
+            if isnan(T)
+                # Reinjection without an explicit thermal condition uses the
+                # facility enthalpy assembled on the host.
+                H = state_facility.SurfaceEnthalpy[pos]
+            else
+                H = injection_enthalpy_from_temperature(
+                    state_well, T, cell)
+            end
+        end
+    else
+        H = device_well_top_node_enthalpy(state_well, cell)
+    end
     out[] = -qT*H
 end
 
@@ -507,6 +541,29 @@ function well_top_node_enthalpy(ctrl::InjectorControl, model, state_well, T, cel
         error("InjectorControl.enthalpy must be missing, a real or a function (p, T).")
     end
     return H
+end
+
+function injection_enthalpy_from_temperature(state_well, T, cell)
+    p = state_well.Pressure[cell]
+    H = zero(p)
+    for ph in axes(state_well.Saturations, 1)
+        S = state_well.Saturations[ph, cell]
+        dens = state_well.PhaseMassDensities[ph, cell]
+        C = state_well.ComponentHeatCapacity[ph, cell]
+        H += S*(C*T + p/dens)
+    end
+    return H
+end
+
+
+function device_well_top_node_enthalpy(state_well, cell)
+    H = state_well.FluidEnthalpy
+    S = state_well.Saturations
+    H_w = zero(H[1, cell])
+    for ph in axes(H, 1)
+        H_w += H[ph, cell]*S[ph, cell]
+    end
+    return H_w
 end
 
 function well_top_node_enthalpy(ctrl, model, state_well, T, cell)

@@ -73,6 +73,10 @@ struct TemperatureDependentVariable{T, R, N} <: VectorVariables
         N = length(ex(273.15 + 30.0))
         new{typeof(tab), typeof(regions), N}(tab, regions)
     end
+    function TemperatureDependentVariable(tab::T, regions::R,
+            ::Val{N}) where {T, R, N}
+        new{T, R, N}(tab, regions)
+    end
 end
 
 function Jutul.subvariable(p::TemperatureDependentVariable, map::FiniteVolumeGlobalMap)

@@ -1,4 +1,4 @@
-using Jutul, JutulDarcy, CUDA, Test
+using Jutul, JutulDarcy, CUDA, SparseArrays, Test
 
 function solve_bl_lsolve(; nx = 10, ny = 1, nstep = nx*ny, lsolve = missing, backend = :csr, step_limit = nothing, kwarg...)
     time = 1.0
@@ -73,6 +73,37 @@ if CUDA.functional()
         Jutul.update_linearized_system!(simulator.storage, simulator.model)
 
         @test all(isfinite, Array(simulator.storage.LinearizedSystem.r_buffer))
+    end
+    @testset "SPE1 hybrid KA CUDA assembly" begin
+        spe1 = JutulDarcy.GeoEnergyIO.test_input_file_path(
+            "SPE1", "SPE1.DATA")
+        case = setup_case_from_data_file(spe1;
+            block_backend = false)[1:1]
+        simulator, = setup_reservoir_simulator(case;
+            mode = :ka_cuda,
+            info_level = -1,
+            linear_solver = nothing,
+            timesteps = :none)
+
+        @test Jutul.group_execution_mode(simulator.model, :Reservoir) ==
+            SolveFullyOnDevice
+        @test Jutul.group_execution_mode(simulator.model, :Facility) ==
+            AssembleOnDevice
+        @test simulator.storage.host_evaluation.keys ==
+            (:PROD, :INJ, :Facility)
+
+        forces = case.forces isa AbstractVector ? only(case.forces) : case.forces
+        dt = only(case.dt)
+        Jutul.update_before_step!(simulator, dt, forces; time = 0.0)
+        Jutul.update_state_dependents!(
+            simulator.storage, simulator.model, dt, forces; time = dt)
+        Jutul.update_linearized_system!(simulator.storage, simulator.model)
+
+        system = simulator.storage.LinearizedSystem
+        @test system.r_buffer isa CUDA.CuArray
+        @test all(isfinite, Array(system.r_buffer))
+        @test all(block -> all(isfinite, Array(nonzeros(block.jac))),
+            system.subsystems)
     end
     @testset "SimulationModel" begin
         krylov_cpu = GenericKrylov(:bicgstab, preconditioner = ILUZeroPreconditioner())

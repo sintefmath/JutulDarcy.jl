@@ -121,6 +121,10 @@ struct AdsorbedPolymerConcentration{R, A, P} <: Jutul.ScalarVariable
         JutulDarcy.check_regions(satnum, length(plyrock))
         return new{typeof(plyrock), typeof(plyads), typeof(satnum)}(plyrock, plyads, satnum)
     end
+    function AdsorbedPolymerConcentration(plyrock::R, plyads::A,
+            satnum::P, ::Val{:assembled}) where {R, A, P}
+        return new{R, A, P}(plyrock, plyads, satnum)
+    end
 end
 
 Jutul.@jutul_secondary function update_polymer_adsorption!(vals, def::AdsorbedPolymerConcentration, model, PolymerConcentration, MaxPolymerConcentration, ix)
@@ -149,6 +153,12 @@ struct FullyMixedPolymerViscosityMultiplier{T, C, R} <: Jutul.JutulVariables
         max_mixed_multiplier = map((f, c) -> f(c), mixed_polymer_viscosity, max_concentration)
         return new{T, typeof(max_mixed_multiplier), R}(mixed_polymer_viscosity, max_mixed_multiplier, viscosity_regions)
     end
+    function FullyMixedPolymerViscosityMultiplier(
+            mixed_polymer_viscosity::T, max_mixed_multiplier::C,
+            viscosity_regions::R, ::Val{:assembled}) where {T, C, R}
+        return new{T, C, R}(
+            mixed_polymer_viscosity, max_mixed_multiplier, viscosity_regions)
+    end
 end
 
 Jutul.degrees_of_freedom_per_entity(model, ::FullyMixedPolymerViscosityMultiplier) = 2
@@ -165,11 +175,11 @@ Jutul.@jutul_secondary function update_polymer_viscosity!(vals, def::FullyMixedP
     return vals
 end
 
-struct EffectivePolymerViscosityMultipliers{F, R} <: Jutul.VectorVariables
+struct EffectivePolymerViscosityMultipliers{F, R, V<:AbstractVector{F}} <: Jutul.VectorVariables
     mixpar::F
     max_concentration::F
-    rrf::Vector{F}
-    ads_max::Vector{F}
+    rrf::V
+    ads_max::V
     regions::R
     function EffectivePolymerViscosityMultipliers(;
             max_concentration::F,
@@ -180,13 +190,19 @@ struct EffectivePolymerViscosityMultipliers{F, R} <: Jutul.VectorVariables
         ) where F
         JutulDarcy.check_regions(regions, length(rrf))
 
-        return new{F, typeof(regions)}(
+        return new{F, typeof(regions), typeof(rrf)}(
             mixpar,
             max_concentration,
             rrf,
             ads_max,
             regions,
         )
+    end
+    function EffectivePolymerViscosityMultipliers(
+            mixpar::F, max_concentration::F, rrf::V, ads_max::V,
+            regions::R, ::Val{:assembled}) where {F, R, V<:AbstractVector{F}}
+        return new{F, R, V}(
+            mixpar, max_concentration, rrf, ads_max, regions)
     end
 end
 
@@ -223,6 +239,37 @@ function polymer_multipliers(def::EffectivePolymerViscosityMultipliers, c, mult,
 end
 
 struct PolymerAdjustedViscosities <: JutulDarcy.PhaseVariables
+end
+
+function Adapt.adapt_structure(to, variable::AdsorbedPolymerConcentration)
+    plyads = map(x -> Adapt.adapt(to, x), Tuple(variable.plyads))
+    return AdsorbedPolymerConcentration(
+        Adapt.adapt(to, variable.plyrock),
+        plyads,
+        Adapt.adapt(to, variable.regions),
+        Val(:assembled))
+end
+
+function Adapt.adapt_structure(to,
+        variable::FullyMixedPolymerViscosityMultiplier)
+    viscosity = map(
+        x -> Adapt.adapt(to, x), Tuple(variable.mixed_polymer_viscosity))
+    return FullyMixedPolymerViscosityMultiplier(
+        viscosity,
+        Adapt.adapt(to, variable.max_mixed_multiplier),
+        Adapt.adapt(to, variable.regions),
+        Val(:assembled))
+end
+
+function Adapt.adapt_structure(to,
+        variable::EffectivePolymerViscosityMultipliers)
+    return EffectivePolymerViscosityMultipliers(
+        variable.mixpar,
+        variable.max_concentration,
+        Adapt.adapt(to, variable.rrf),
+        Adapt.adapt(to, variable.ads_max),
+        Adapt.adapt(to, variable.regions),
+        Val(:assembled))
 end
 
 Jutul.@jutul_secondary function update_mixed_polymer_viscosity!(vals, def::PolymerAdjustedViscosities, model, BasePhaseViscosities, EffectivePolymerViscosityMultipliers, ix)

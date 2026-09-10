@@ -23,15 +23,15 @@ end
 
 @jutul_secondary function update_deck_viscosity!(mu, μ::DeckPhaseViscosities{<:Any, Ttab, <:Any}, model, Pressure, Temperature, ix) where Ttab<:DeckThermalViscosityTable
     pvt, reg = μ.pvt, μ.regions
-    nph = number_of_phases(model.system)
-    for ph in 1:nph
-        pvt_ph = pvt[ph]
+    foreach_phase_pvt(pvt) do phase, pvt_ph
+        ph = phase_index(phase)
+        thermal_tables = phase_tuple_entry(μ.thermal.visc_tab, phase)
         for i in ix
             r_i = region(μ, i)
             p = Pressure[i]
             T = Temperature[i]
-            pvt_thermal = table_by_region(μ.thermal.visc_tab[ph], r_i)
-            p_ref = table_by_region(μ.thermal.p_ref[ph], r_i)
+            pvt_thermal = table_by_region(thermal_tables, r_i)
+            p_ref = table_by_region(μ.thermal.p_ref, r_i)
             mu_thermal = pvt_thermal(T)
             if isfinite(p_ref)
                 # We have pressure dependence in addition to temperature

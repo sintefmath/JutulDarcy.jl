@@ -6,12 +6,49 @@ function Adapt.adapt_structure(to, g::MinimalTPFATopology)
 end
 
 Adapt.@adapt_structure Rs
+Adapt.@adapt_structure Rv
 Adapt.@adapt_structure PVTO
 Adapt.@adapt_structure PVTOTable
 Adapt.@adapt_structure PVDO
 Adapt.@adapt_structure PVDG
+Adapt.@adapt_structure PVTG
+Adapt.@adapt_structure PVTGTable
 Adapt.@adapt_structure PVTW
 Adapt.@adapt_structure FacilitySystem
+
+function Adapt.adapt_structure(to, table::DeckThermalViscosityTable)
+    # The outer vector is a small set of PVT regions. Keeping it as a tuple
+    # lets Adapt recursively transfer each interpolant's arrays.
+    visc_tab = map(table.visc_tab) do phase_tables
+        map(x -> Adapt.adapt(to, x), Tuple(phase_tables))
+    end
+    return DeckThermalViscosityTable(
+        visc_tab,
+        Adapt.adapt(to, table.p_ref),
+        Adapt.adapt(to, table.rs_ref))
+end
+
+function Adapt.adapt_structure(to,
+        variable::TemperatureDependentVariable{T, R, N}) where {T, R, N}
+    return TemperatureDependentVariable(
+        Adapt.adapt(to, variable.tab),
+        Adapt.adapt(to, variable.regions),
+        Val(N))
+end
+
+function Adapt.adapt_structure(to, variable::SimpleCapillaryPressure)
+    return SimpleCapillaryPressure(
+        Adapt.adapt(to, variable.pc),
+        Adapt.adapt(to, variable.regions),
+        Val(:assembled))
+end
+
+function Adapt.adapt_structure(to, variable::ScaledCapillaryPressure)
+    return ScaledCapillaryPressure(
+        Adapt.adapt(to, variable.pc),
+        Adapt.adapt(to, variable.regions),
+        Val(:assembled))
+end
 
 function Adapt.adapt_structure(::Jutul.KernelAbstractionsContext, group::WellGroup)
     # The authoritative WellGroup, including its symbol vector, remains on the
@@ -166,14 +203,64 @@ function Adapt.adapt_structure(to, state::FacilityCrossTermState)
         Adapt.adapt(to, state.control_type),
         Adapt.adapt(to, state.factor),
         Adapt.adapt(to, state.mixture_density),
+        Adapt.adapt(to, state.injection_temperature),
+        Adapt.adapt(to, state.injection_enthalpy),
         Adapt.adapt(to, state.injection_mixture),
-        Adapt.adapt(to, state.phase_fractions)
+        Adapt.adapt(to, state.phase_fractions),
+        Adapt.adapt(to, state.tracer_concentrations)
     )
 end
 
 function Jutul.backend_copyto!(destination::FacilityCrossTermState,
         source::FacilityCrossTermState)
     return copyto!(destination, source)
+end
+
+# Application extensions can report additional numeric facility data that must
+# be allocated before the storage is adapted. Tracers uses this hook without
+# making the general reservoir/well transfer depend on the Tracers module.
+backend_facility_number_of_tracers(model) = 0
+
+function Jutul.prepare_backend_transfer!(storage, model::Jutul.MultiModel)
+    T = Jutul.float_type(model.context)
+    for (index, pair) in enumerate(model.cross_terms)
+        cross_term = pair.cross_term
+        if cross_term isa AbstractReservoirFromWellCT
+            cross_term_storage = storage.cross_terms[index]
+            force_buffer = zeros(T, length(cross_term.reservoir_cells))
+            storage.cross_terms[index] = Jutul.JutulStorage(merge(
+                Jutul.data(cross_term_storage), (; force_buffer)))
+        end
+    end
+
+    ntracers = backend_facility_number_of_tracers(model)
+    iszero(ntracers) && return storage
+    prepared = storage
+    for key in Jutul.submodels_symbols(model)
+        submodel = model[key]
+        if submodel isa FacilityModel
+            substorage = prepared[key]
+            state = substorage[:state]
+            state0 = substorage[:state0]
+            T = eltype(state.FacilityCrossTermState.factor)
+            state = merge(state, (FacilityCrossTermState =
+                FacilityCrossTermState(submodel;
+                    T = T, number_of_tracers = ntracers),))
+            state0 = merge(state0, (FacilityCrossTermState =
+                FacilityCrossTermState(submodel;
+                    T = T, number_of_tracers = ntracers),))
+            substorage = Jutul.JutulStorage(merge(Jutul.data(substorage),
+                (; state, state0)))
+            state_storage = Jutul.JutulStorage(merge(
+                Jutul.data(prepared[:state]), NamedTuple{(key,)}((state,))))
+            state0_storage = Jutul.JutulStorage(merge(
+                Jutul.data(prepared[:state0]), NamedTuple{(key,)}((state0,))))
+            prepared = Jutul.JutulStorage(merge(Jutul.data(prepared),
+                NamedTuple{(key,)}((substorage,)),
+                (; state = state_storage, state0 = state0_storage)))
+        end
+    end
+    return prepared
 end
 
 function Adapt.adapt_structure(to, ct::ReservoirFromWellFlowCT)

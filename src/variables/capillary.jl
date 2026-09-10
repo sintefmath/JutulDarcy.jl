@@ -37,6 +37,10 @@ struct SimpleCapillaryPressure{T, R} <: AbstractCapillaryPressure
         pc = tuple(pc...)
         return new{typeof(pc), T}(pc, regions)
     end
+    function SimpleCapillaryPressure(pc::T, regions::R,
+            ::Val{:assembled}) where {T, R}
+        return new{T, R}(pc, regions)
+    end
 end
 
 function SimpleCapillaryPressure(pc::Jutul.LinearInterpolant; kwarg...)
@@ -62,7 +66,7 @@ end
         else
             w = 1
         end
-        pcow = only(cap)
+        pcow = cap[1]
         @inbounds for c in ix
             reg = region(pc.regions, c)
             pcow_c = table_by_region(pcow, reg)
@@ -142,6 +146,10 @@ struct ScaledCapillaryPressure{T, R} <: AbstractCapillaryPressure
         pc = tuple(pc...)
         return new{typeof(pc), T}(pc, regions)
     end
+    function ScaledCapillaryPressure(pc::T, regions::R,
+            ::Val{:assembled}) where {T, R}
+        return new{T, R}(pc, regions)
+    end
 end
 
 function Jutul.subvariable(p::ScaledCapillaryPressure, map::FiniteVolumeGlobalMap)
@@ -161,7 +169,7 @@ end
         else
             w = 1
         end
-        pcow = only(cap)
+        pcow = cap[1]
         @inbounds for c in ix
             reg = region(pc.regions, c)
             pcow_c = table_by_region(pcow, reg)

@@ -670,24 +670,25 @@ function apply_perforation_mask!(M::AbstractMatrix, mask::AbstractVector)
     return M
 end
 
-function apply_perforation_mask!(storage::NamedTuple, mask::AbstractVector)
-    function mask_row!(M::AbstractMatrix, m, ix)
-        for i in axes(M, 1)
-            M[i, ix] *= m
-        end
+@inline function mask_perforation_entry!(M::AbstractMatrix, m, ix)
+    for i in axes(M, 1)
+        M[i, ix] *= m
     end
-    function mask_row!(M::AbstractVector, m, ix)
-        M[ix] *= m
-    end
+end
+
+@inline mask_perforation_entry!(M::AbstractVector, m, ix) = M[ix] *= m
+
+function apply_perforation_mask!(storage::NamedTuple, mask::AbstractVector,
+        context)
     for (k, s) in pairs(storage)
         if k == :numeric
             continue
         end
         v = s.entries
-        for i in 1:Jutul.number_of_entities(s)
+        Jutul.threaded_loop(Jutul.number_of_entities(s), context) do i
             mask_value = mask[i]
             for j in Jutul.vrange(s, i)
-                mask_row!(v, mask_value, j)
+                mask_perforation_entry!(v, mask_value, j)
             end
         end
     end

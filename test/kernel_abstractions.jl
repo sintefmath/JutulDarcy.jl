@@ -22,6 +22,13 @@ end
     @test adapted.pvt[2].tab[1].pressure isa JLArray
     @test adapted.pvt[2].tab[1].shrinkage isa JLArray
     @test adapted.pvt[2].tab[1].viscosity isa JLArray
+
+    pc = Jutul.LinearInterpolant([0.0, 1.0], [0.0, 1.0])
+    scaled_pc = JutulDarcy.ScaledCapillaryPressure(
+        ((pc, pc), (pc, pc)); regions = [1])
+    adapted_pc = JutulDarcy.Adapt.adapt(context, scaled_pc)
+    @test adapted_pc.pc[1][1].X isa JLArray
+    @test adapted_pc.regions isa JLArray
 end
 
 @testset "Convergence reductions on a KA backend" begin
@@ -138,6 +145,12 @@ end
     @test all(cross_term ->
             cross_term.target_impact_map.entries isa JLArray,
         simulator.storage.cross_terms)
+    masked_cross_terms = filter(
+        cross_term -> haskey(cross_term, :force_buffer),
+        simulator.storage.cross_terms)
+    @test !isempty(masked_cross_terms)
+    @test all(cross_term -> cross_term.force_buffer isa JLArray,
+        masked_cross_terms)
 
     reset_state = deepcopy(case.state0)
     reset_state[:PROD][:Pressure] .+= 1.0
