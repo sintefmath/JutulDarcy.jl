@@ -49,10 +49,11 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
                     function get_value(i)
                         # Pad with missing
                         if i <= length(v)
-                            return v[i]
+                            out = v[i]
                         else
-                            return missing
+                            out = missing
                         end
+                        return out
                     end
                     current_w2c[k] = map(get_value, 1:nuid)
                 end
@@ -91,13 +92,12 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
                                 continue
                             end
                             ov = old_value[current_i]
+                            uid = current_uids[current_i]
                             if ov isa Real && ov ≈ 0.0 && !(v ≈ 0.0)
                                 # Old value was set to zero - we accept the new value
                                 old_value[i] = v
-                            elseif v isa Real && !isapprox(v, ov, rtol = 1e-6) && !(k == "WellBoreRadius" && v ≈ 0.0)
-                                msg *= " Index $i: old=$(ov) vs new=$v\n"
-                            elseif v isa String && v != ov
-                                msg *= " Index $i: old=$(ov) vs new=$v\n"
+                            elseif (v isa Real && !isapprox(v, ov, rtol = 1e-6) && !(k == "WellBoreRadius" && v ≈ 0.0)) || (v isa String && v != ov)
+                                msg *= " Index $i cell-completion $uid: old=$(ov) vs new=$v\n"
                             end
                         end
                         if msg != ""
@@ -221,9 +221,16 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
         compnames = compnames[active]
         worder = get(perf_sort, k, :track)
         sorted_ix = JutulDarcy.well_completion_sortperm(reservoir, head, worder, cells_mapped, dir)
-        reorder_and_typecheck(::Missing, T = missing) = missing
-        function reorder_and_typecheck(arr::AbstractVector, T = missing)
+        function reorder_and_typecheck(::Missing, T = missing, default = missing)
+            return missing
+        end
+        function reorder_and_typecheck(arr::AbstractVector, T = missing, default = missing)
             out = arr[sorted_ix]
+            for (i, v) in enumerate(out)
+                if ismissing(v)
+                    out[i] = default
+                end
+            end
             if ismissing(T)
                 out = out
             else
@@ -234,10 +241,10 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
 
         cells_mapped = cells_mapped[sorted_ix]
         skin = reorder_and_typecheck(skin, Float64)
-        WI = reorder_and_typecheck(WI, Float64)
+        WI = reorder_and_typecheck(WI, Float64, NaN)
         Kh = reorder_and_typecheck(Kh, Float64)
         r = reorder_and_typecheck(r, Float64)
-        pi_mult = reorder_and_typecheck(pi_mult, Float64)
+        pi_mult = reorder_and_typecheck(pi_mult, Float64, 1.0)
         # Not necessarily Float64
         dir = reorder_and_typecheck(dir)
         tvd = reorder_and_typecheck(tvd)
