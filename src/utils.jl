@@ -1252,7 +1252,11 @@ function setup_reservoir_simulator(case::JutulCase;
         execution = Dict{Symbol, Jutul.DeviceExecutionMode}(
             :default => Jutul.AssembleOnDevice,
             :Reservoir => Jutul.SolveFullyOnDevice)
-        sim = transfer_to_backend(sim_cpu, backend;
+        # Keep the large transferred simulator out of this setup method's
+        # inferred return type. This is ordinary current-world dispatch; no
+        # `invokelatest` world-age workaround is needed.
+        transfer = Base.inferencebarrier(transfer_to_backend)
+        sim = transfer(sim_cpu, backend;
             group_execution = execution)
     elseif mode == :default
         # Single-process solve
