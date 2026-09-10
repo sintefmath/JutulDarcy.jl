@@ -192,75 +192,14 @@ function Jutul.update_secondary_variable!(x::AbstractVector{TopConditions{N, R}}
     return x
 end
 
-# The dictionary-based control configuration is host-only. Device cross terms
-# consume FacilityCrossTermState, which is refreshed and copied in place after
-# every host facility update.
 Adapt.adapt_structure(::Jutul.KernelAbstractionsContext,
     ::WellGroupConfiguration) = nothing
 
-function Adapt.adapt_structure(to, state::FacilityCrossTermState)
-    return FacilityCrossTermState(
-        Adapt.adapt(to, state.control_type),
-        Adapt.adapt(to, state.factor),
-        Adapt.adapt(to, state.mixture_density),
-        Adapt.adapt(to, state.injection_temperature),
-        Adapt.adapt(to, state.injection_enthalpy),
-        Adapt.adapt(to, state.injection_mixture),
-        Adapt.adapt(to, state.phase_fractions),
-        Adapt.adapt(to, state.tracer_concentrations)
-    )
-end
-
-function Jutul.backend_copyto!(destination::FacilityCrossTermState,
-        source::FacilityCrossTermState)
-    return copyto!(destination, source)
-end
-
-# Application extensions can report additional numeric facility data that must
-# be allocated before the storage is adapted. Tracers uses this hook without
-# making the general reservoir/well transfer depend on the Tracers module.
-backend_facility_number_of_tracers(model) = 0
-
-function Jutul.prepare_backend_transfer!(storage, model::Jutul.MultiModel)
-    T = Jutul.float_type(model.context)
-    for (index, pair) in enumerate(model.cross_terms)
-        cross_term = pair.cross_term
-        if cross_term isa AbstractReservoirFromWellCT
-            cross_term_storage = storage.cross_terms[index]
-            force_buffer = zeros(T, length(cross_term.reservoir_cells))
-            storage.cross_terms[index] = Jutul.JutulStorage(merge(
-                Jutul.data(cross_term_storage), (; force_buffer)))
-        end
-    end
-
-    ntracers = backend_facility_number_of_tracers(model)
-    iszero(ntracers) && return storage
-    prepared = storage
-    for key in Jutul.submodels_symbols(model)
-        submodel = model[key]
-        if submodel isa FacilityModel
-            substorage = prepared[key]
-            state = substorage[:state]
-            state0 = substorage[:state0]
-            T = eltype(state.FacilityCrossTermState.factor)
-            state = merge(state, (FacilityCrossTermState =
-                FacilityCrossTermState(submodel;
-                    T = T, number_of_tracers = ntracers),))
-            state0 = merge(state0, (FacilityCrossTermState =
-                FacilityCrossTermState(submodel;
-                    T = T, number_of_tracers = ntracers),))
-            substorage = Jutul.JutulStorage(merge(Jutul.data(substorage),
-                (; state, state0)))
-            state_storage = Jutul.JutulStorage(merge(
-                Jutul.data(prepared[:state]), NamedTuple{(key,)}((state,))))
-            state0_storage = Jutul.JutulStorage(merge(
-                Jutul.data(prepared[:state0]), NamedTuple{(key,)}((state0,))))
-            prepared = Jutul.JutulStorage(merge(Jutul.data(prepared),
-                NamedTuple{(key,)}((substorage,)),
-                (; state = state_storage, state0 = state0_storage)))
-        end
-    end
-    return prepared
+function Jutul.setup_cross_term_storage_extra!(storage,
+        cross_term::AbstractReservoirFromWellCT, target_model, source_model)
+    T = Jutul.float_type(target_model.context)
+    storage[:force_buffer] = zeros(T, length(cross_term.reservoir_cells))
+    return storage
 end
 
 function Adapt.adapt_structure(to, ct::ReservoirFromWellFlowCT)
@@ -275,29 +214,4 @@ function Adapt.adapt_structure(to, ct::ReservoirFromWellThermalCT)
         Adapt.adapt(to, ct.reservoir_cells),
         Adapt.adapt(to, ct.well_cells)
     )
-end
-
-function Adapt.adapt_structure(to, ct::WellFromFacilityFlowCT)
-    return WellFromFacilityFlowCT(nothing, ct.facility_position)
-end
-
-function Adapt.adapt_structure(to, ct::WellFromFacilityThermalCT)
-    return WellFromFacilityThermalCT(nothing, ct.facility_position)
-end
-
-function Adapt.adapt_structure(to, ct::FacilityFromWellTemperatureCT)
-    return FacilityFromWellTemperatureCT(nothing, ct.facility_position)
-end
-
-function Adapt.adapt_structure(to, ct::FacilityFromWellEnthalpyCT)
-    return FacilityFromWellEnthalpyCT(nothing, ct.facility_position)
-end
-
-function Adapt.adapt_structure(to, ct::FacilityFromWellBottomHolePressureCT)
-    return FacilityFromWellBottomHolePressureCT(
-        nothing, ct.facility_position)
-end
-
-function Adapt.adapt_structure(to, ct::FacilityFromSurfacePhaseRatesCT)
-    return FacilityFromSurfacePhaseRatesCT(nothing, ct.facility_position)
 end

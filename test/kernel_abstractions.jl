@@ -139,8 +139,6 @@ end
     @test host.storage.PROD.state.Pressure isa Vector
     @test host.storage.INJ.state.Pressure isa Vector
     @test simulator.storage.Facility.state.WellGroupConfiguration === nothing
-    @test simulator.storage.Facility.state.FacilityCrossTermState.control_type isa
-        JLArray
     @test host.storage.Facility.state.WellGroupConfiguration !== nothing
     @test all(cross_term ->
             cross_term.target_impact_map.entries isa JLArray,
@@ -161,16 +159,11 @@ end
         reset_state[:PROD][:Pressure]
     Jutul.reset_variables!(simulator, case.state0)
 
-    facility_control_buffer =
-        simulator.storage.Facility.state.FacilityCrossTermState.control_type
-
     forces = case.forces isa AbstractVector ? first(case.forces) : case.forces
     dt = first(case.dt)
     Jutul.update_before_step!(simulator, dt, forces; time = 0.0)
     Jutul.update_state_dependents!(
         simulator.storage, simulator.model, dt, forces; time = dt)
-    @test simulator.storage.Facility.state.FacilityCrossTermState.control_type ===
-        facility_control_buffer
     Jutul.update_linearized_system!(simulator.storage, simulator.model)
 
     system = simulator.storage.LinearizedSystem

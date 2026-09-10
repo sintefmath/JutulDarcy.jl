@@ -1,11 +1,6 @@
-struct WellFromFacilityTracerCT{W} <: Jutul.AdditiveCrossTerm
-    well::W
-    facility_position::Int
+struct WellFromFacilityTracerCT <: Jutul.AdditiveCrossTerm
+    well::Symbol
 end
-WellFromFacilityTracerCT(well) = WellFromFacilityTracerCT(well, 0)
-
-@inline JutulDarcy.facility_position(
-    ct::WellFromFacilityTracerCT{Nothing}, facility) = ct.facility_position
 
 Jutul.cross_term_entities(ct::WellFromFacilityTracerCT, eq::ConservationLaw{:TracerMasses}, model) = [JutulDarcy.well_top_node()]
 
@@ -17,63 +12,41 @@ function Jutul.update_cross_term_in_entity!(out, i,
     well, facility,
     ct::WellFromFacilityTracerCT, eq, dt, ldisc = Jutul.local_discretization(ct, i))
     well_symbol = ct.well
-    pos = JutulDarcy.facility_position(ct, facility)
+    pos = JutulDarcy.get_well_position(facility.domain, well_symbol)
 
-    cfg = JutulDarcy.facility_raw_state_field(
-        state_facility, :WellGroupConfiguration)
-    return cross_term_surface_tracer_mass!(out, state_well, state_facility,
-        well, eq, cfg, well_symbol, pos)
-end
-
-facility_has_injection_tracers(::Nothing, state, well, pos) =
-    size(JutulDarcy.facility_raw_state_field(
-        state, :FacilityCrossTermState).tracer_concentrations, 1) > 0
-facility_has_injection_tracers(cfg, state, well, pos) =
-    !ismissing(JutulDarcy.operating_control(cfg, well).tracers)
-
-facility_injection_tracer(::Nothing, state, well, pos, tracer) =
-    @inbounds JutulDarcy.facility_raw_state_field(
-        state, :FacilityCrossTermState).tracer_concentrations[tracer, pos]
-facility_injection_tracer(cfg, state, well, pos, tracer) =
-    @inbounds JutulDarcy.operating_control(cfg, well).tracers[tracer]
-
-function cross_term_surface_tracer_mass!(out, state_well, state_facility,
-        well, eq, cfg, well_symbol, pos)
+    cfg = state_facility.WellGroupConfiguration
+    ctrl = JutulDarcy.operating_control(cfg, well_symbol)
     qT = state_facility.TotalSurfaceMassRate[pos]
 
-    tracers = eq.flux_type.tracers
+    tracers = well.equations[:tracers].flux_type.tracers
     T = eltype(out)
+    N = length(tracers)
     S = state_well.Saturations
     rho = state_well.PhaseMassDensities
     wc = JutulDarcy.well_top_node()
 
-    if JutulDarcy.facility_is_injector(
-            cfg, state_facility, well_symbol, pos)
-        if !facility_has_injection_tracers(
-                cfg, state_facility, well_symbol, pos)
-            for tracer_index in eachindex(tracers)
-                out[tracer_index] = zero(T)
-            end
+    if ctrl isa InjectorControl
+        if ismissing(ctrl.tracers)
+            out .= zero(T)
         else
+            @assert length(ctrl.tracers) == N
             mass_tot = zero(T)
             for phase in 1:number_of_phases(well.system)
                 mass_tot += S[phase, wc]*rho[phase, wc]
             end
 
-            for tracer_index in eachindex(tracers)
+            for i in 1:N
                 mass = zero(T)
-                for phase in tracer_phase_indices(tracers[tracer_index])
+                for phase in tracer_phase_indices(tracers[i])
                     mass += S[phase, wc]*rho[phase, wc]
                 end
                 if mass > TRACER_TOL
                     F = mass/mass_tot
-                    concentration = facility_injection_tracer(
-                        cfg, state_facility, well_symbol, pos, tracer_index)
-                    v = -qT*F*concentration
+                    v = -qT*F*ctrl.tracers[i]
                 else
                     v = zero(T)
                 end
-                out[tracer_index] = v
+                out[i] = v
             end
         end
     else
@@ -81,24 +54,20 @@ function cross_term_surface_tracer_mass!(out, state_well, state_facility,
         for phase in 1:number_of_phases(well.system)
             mass_tot += S[phase, wc]*rho[phase, wc]
         end
-        for tracer_index in eachindex(tracers)
-            tracer = tracers[tracer_index]
+        for i in 1:N
+            tracer = tracers[i]
             v = zero(T)
-            C_i = state_well.TracerConcentrations[tracer_index, wc]
+            C_i = state_well.TracerConcentrations[i, wc]
             for phase in tracer_phase_indices(tracer)
                 F_ph = S[phase, wc]*rho[phase, wc]/mass_tot
                 v += F_ph*C_i*qT
             end
-            out[tracer_index] = -v
+            out[i] = -v
         end
     end
     return out
 end
 
-
-function Adapt.adapt_structure(to, ct::WellFromFacilityTracerCT)
-    return WellFromFacilityTracerCT(nothing, ct.facility_position)
-end
 
 struct ReservoirFromWellTracerCT{I<:AbstractVector} <: JutulDarcy.AbstractReservoirFromWellCT
     reservoir_cells::I
@@ -185,15 +154,4 @@ function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellTra
 end
 
 
-function JutulDarcy.backend_facility_number_of_tracers(model::Jutul.MultiModel)
-    ntracers = 0
-    for key in Jutul.submodels_symbols(model)
-        submodel = model[key]
-        if haskey(submodel.equations, :tracers)
-            ntracers = max(ntracers,
-                number_of_tracers(submodel.equations[:tracers].flux_type))
-        end
-    end
-    return ntracers
-end
 

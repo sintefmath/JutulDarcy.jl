@@ -3,61 +3,6 @@ include("special_controls/special_controls.jl")
 function Jutul.initialize_extra_state_fields!(state, domain::WellGroup, model; T = Float64)
     # Insert structure that holds well control (limits etc) that is then updated before each step
     state[:WellGroupConfiguration] = WellGroupConfiguration(domain.well_symbols)
-    state[:FacilityCrossTermState] = FacilityCrossTermState(model; T = T)
-end
-
-function update_facility_cross_term_state!(state, model::FacilityModel)
-    cfg = state.WellGroupConfiguration
-    device_state = state.FacilityCrossTermState
-    fill!(device_state.control_type, 0)
-    fill!(device_state.factor, one(eltype(device_state.factor)))
-    fill!(device_state.mixture_density, one(eltype(device_state.mixture_density)))
-    fill!(device_state.injection_temperature, NaN)
-    fill!(device_state.injection_enthalpy, NaN)
-    fill!(device_state.injection_mixture, zero(eltype(device_state.injection_mixture)))
-    fill!(device_state.phase_fractions, zero(eltype(device_state.phase_fractions)))
-    fill!(device_state.tracer_concentrations,
-        zero(eltype(device_state.tracer_concentrations)))
-    for (well_index, well) in enumerate(model.domain.well_symbols)
-        control = operating_control(cfg, well)
-        if control isa InjectorControl
-            device_state.control_type[well_index] = 1
-            device_state.factor[well_index] = control.factor
-            device_state.mixture_density[well_index] = control.mixture_density
-            if isfinite(control.temperature)
-                device_state.injection_temperature[well_index] = control.temperature
-            end
-            if control.enthalpy isa Real
-                device_state.injection_enthalpy[well_index] = control.enthalpy
-            end
-            for component in eachindex(control.injection_mixture)
-                device_state.injection_mixture[component, well_index] =
-                    control.injection_mixture[component]
-            end
-            for (phase, fraction) in control.phases
-                device_state.phase_fractions[phase, well_index] = fraction
-            end
-            if !ismissing(control.tracers)
-                size(device_state.tracer_concentrations, 1) ==
-                    length(control.tracers) || throw(ArgumentError(
-                    "Control tracer count does not match model tracer count"))
-                for tracer in eachindex(control.tracers)
-                    device_state.tracer_concentrations[tracer, well_index] =
-                        control.tracers[tracer]
-                end
-            end
-        elseif control isa ProducerControl
-            device_state.control_type[well_index] = 2
-            device_state.factor[well_index] = control.factor
-        end
-    end
-    return device_state
-end
-
-function Jutul.prepare_backend_transfer!(storage, model::FacilityModel)
-    update_facility_cross_term_state!(storage.state, model)
-    update_facility_cross_term_state!(storage.state0, model)
-    return storage
 end
 
 function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, model::WellGroupModel, dt, forces_g, key;

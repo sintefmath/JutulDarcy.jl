@@ -1249,14 +1249,10 @@ function setup_reservoir_simulator(case::JutulCase;
         backend = ismissing(ka_backend) ?
             kernel_abstractions_backend(mode) : ka_backend
         sim_cpu = Simulator(case; sim_kwarg...)
-        # Transfer is a one-time setup operation that reconstructs potentially
-        # very large concrete MultiModel types. Keep it behind an inference
-        # barrier so setup_reservoir_simulator does not specialize on that
-        # entire reconstructed graph.
         execution = Dict{Symbol, Jutul.DeviceExecutionMode}(
             :default => Jutul.AssembleOnDevice,
             :Reservoir => Jutul.SolveFullyOnDevice)
-        sim = Base.invokelatest(transfer_to_backend, sim_cpu, backend;
+        sim = transfer_to_backend(sim_cpu, backend;
             group_execution = execution)
     elseif mode == :default
         # Single-process solve
@@ -1567,29 +1563,23 @@ function setup_reservoir_cross_terms!(model::MultiModel)
         if k == :Reservoir
             # These are set up from wells via symmetry
         elseif m.domain isa WellGroup
-            for (facility_position, target_well) in
-                    enumerate(m.domain.well_symbols)
+            for target_well in m.domain.well_symbols
                 if has_flow
-                    ct = WellFromFacilityFlowCT(target_well, facility_position)
+                    ct = WellFromFacilityFlowCT(target_well)
                     add_cross_term!(model, ct, target = target_well, source = k, equation = conservation)
 
-                    ct = FacilityFromWellBottomHolePressureCT(
-                        target_well, facility_position)
+                    ct = FacilityFromWellBottomHolePressureCT(target_well)
                     add_cross_term!(model, ct, target = k, source = target_well, equation = :bottom_hole_pressure_equation)
 
-                    ct = FacilityFromSurfacePhaseRatesCT(
-                        target_well, facility_position)
+                    ct = FacilityFromSurfacePhaseRatesCT(target_well)
                     add_cross_term!(model, ct, target = k, source = target_well, equation = :surface_phase_rates_equation)
                 end
                 if has_thermal
-                    ct = WellFromFacilityThermalCT(
-                        target_well, facility_position)
+                    ct = WellFromFacilityThermalCT(target_well)
                     add_cross_term!(model, ct, target = target_well, source = k, equation = energy)
-                    ct = FacilityFromWellTemperatureCT(
-                        target_well, facility_position)
+                    ct = FacilityFromWellTemperatureCT(target_well)
                     add_cross_term!(model, ct, target = k, source = target_well, equation = :temperature_equation)
-                    ct = FacilityFromWellEnthalpyCT(
-                        target_well, facility_position)
+                    ct = FacilityFromWellEnthalpyCT(target_well)
                     add_cross_term!(model, ct, target = k, source = target_well, equation = :enthalpy_equation)
                 end
             end
