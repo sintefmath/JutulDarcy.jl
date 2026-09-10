@@ -7,39 +7,57 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
             continue
         end
         wname = welldef.value["WellName"]
+        w2c = copy(w2c)
+
+        cells = w2c["Cell"]
+        if haskey(w2c, "Completion")
+            completion = w2c["Completion"]
+        else
+            @warn "WellTocellConnections entry $wname has no Completion information. Generating default completion names."
+            completion = map(d -> "Completion$d", 1:length(cells))
+        end
+        w2c["UniqueID"] = map(tuple, cells, completion)
         if haskey(well_dict, wname)
             current_w2c = well_dict[wname]["w2c"]
-            new_cells = w2c["Cell"]
-            current_cells = current_w2c["Cell"]
+            current_uids = current_w2c["UniqueID"]
+            uid_pos_in_current = Int[]
             n_added = 0
-            cell_pos_in_current = Int[]
             is_new = Bool[]
-            for c in new_cells
-                pos = findfirst(x -> x == c, current_cells)
+            for uid in w2c["UniqueID"]
+                pos = findfirst(x -> x == uid, current_uids)
                 if isnothing(pos)
-                    push!(current_cells, c)
+                    push!(current_uids, uid)
                     n_added += 1
-                    new_idx = length(current_cells)
+                    new_idx = length(current_uids)
                     push!(is_new, true)
                 else
                     new_idx = pos
                     push!(is_new, false)
                 end
-                push!(cell_pos_in_current, new_idx)
+                push!(uid_pos_in_current, new_idx)
             end
             if n_added > 0
                 missing_fields = setdiff(keys(current_w2c), keys(w2c))
                 if length(missing_fields) > 0
                     @warn "New WellDef entry for well $wname has new cells but is missing fields $(missing_fields). These will be filled with UNINITIALIZED values and may lead to a crash if used. Please check the AFI file for consistency."
                 end
+                nuid = length(current_uids)
                 for (k, v) in pairs(current_w2c)
-                    if k == "Cell"
+                    if k == "UniqueID"
                         continue
                     end
-                    resize!(v, length(current_cells))
+                    function get_value(i)
+                        # Pad with missing
+                        if i <= length(v)
+                            return v[i]
+                        else
+                            return missing
+                        end
+                    end
+                    current_w2c[k] = map(get_value, 1:nuid)
                 end
             end
-
+            @assert length(uid_pos_in_current) == length(w2c["UniqueID"])
             for (k, v) in pairs(w2c)
                 if k in ("Transmissibility", "Status", "PiMultiplier")
                     # These can vary over time - we skip these
@@ -66,7 +84,7 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
                         end
                         msg = ""
                         for (i, v) in enumerate(new_value)
-                            current_i = cell_pos_in_current[i]
+                            current_i = uid_pos_in_current[i]
                             if is_new[i]
                                 # This is a new cell - we take the new value
                                 old_value[current_i] = v
