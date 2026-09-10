@@ -1051,24 +1051,13 @@ function mode_to_backend(mode::Jutul.PArrayBackend)
     return mode
 end
 
-const KERNEL_ABSTRACTIONS_BACKENDS = Dict{Symbol, Function}(
-    :ka => () -> Jutul.KernelAbstractions.CPU(),
-    :ka_cpu => () -> Jutul.KernelAbstractions.CPU()
-)
-
-function register_kernel_abstractions_backend!(mode::Symbol, constructor)
-    startswith(String(mode), "ka_") || throw(ArgumentError(
-        "KernelAbstractions mode must start with `ka_`, got :$mode"))
-    KERNEL_ABSTRACTIONS_BACKENDS[mode] = constructor
-    return mode
-end
-
-function kernel_abstractions_backend(mode::Symbol)
-    constructor = get(KERNEL_ABSTRACTIONS_BACKENDS, mode, nothing)
-    isnothing(constructor) && throw(ArgumentError(
+kernel_abstractions_backend(mode::Symbol) = kernel_abstractions_backend(Val(mode))
+kernel_abstractions_backend(::Val{:ka}) = Jutul.KernelAbstractions.CPU()
+kernel_abstractions_backend(::Val{:ka_cpu}) = Jutul.KernelAbstractions.CPU()
+function kernel_abstractions_backend(::Val{mode}) where mode
+    throw(ArgumentError(
         "No KernelAbstractions backend is available for mode :$mode. " *
         "Load the corresponding backend package or pass ka_backend explicitly."))
-    return constructor()
 end
 
 """

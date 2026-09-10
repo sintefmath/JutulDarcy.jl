@@ -11,8 +11,8 @@ abstract type WellControllerDomain <: SurfaceFacilityDomain end
 
 const FacilityModel = SimulationModel{<:SurfaceFacilityDomain, <:AbstractFacilitySystem, <:Any, <:Any}
 
-struct WellGroup{W} <: WellControllerDomain
-    well_symbols::W # Controlled wells
+mutable struct WellGroup <: WellControllerDomain
+    const well_symbols::Vector{Symbol} # Controlled wells
     "Can temporarily shut producers that try to reach zero rate multiple solves in a row"
     can_shut_producers::Bool
     "Can temporarily shut injectors that try to reach zero rate multiple solves in a row"
@@ -961,12 +961,15 @@ struct PerforationMask{V} <: JutulForce where V<:AbstractVector
     values::V
     function PerforationMask(v::T) where T<:AbstractVecOrMat
         vals = copy(vec(v))
-        for (i, v) in enumerate(vals)
-            if v < 0.0
-                throw(ArgumentError("Perforation mask values must be non-negative, found $v at index $i"))
+        for (i, value) in enumerate(vals)
+            if value < 0.0
+                throw(ArgumentError("Perforation mask values must be non-negative, found $value at index $i"))
             end
         end
-        return new{T}(vals)
+        return new{typeof(vals)}(vals)
+    end
+    function PerforationMask(v::V, ::Val{:adapted}) where V<:AbstractVector
+        return new{V}(v)
     end
 end
 

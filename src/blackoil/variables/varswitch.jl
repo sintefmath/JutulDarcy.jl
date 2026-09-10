@@ -228,8 +228,7 @@ end
     return BlackOilX(newval, v.phases_present, v.sat_close)
 end
 
-function update_blackoil_values!(old::AbstractVector{<:BlackOilX},
-        new::AbstractVector{<:BlackOilX}, context)
+function update_blackoil_values!(old::AbstractVector{<:BlackOilX}, new::AbstractVector{<:BlackOilX}, context)
     function update(i)
         @inbounds v = new[i]
         @inbounds o = old[i]

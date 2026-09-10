@@ -287,9 +287,8 @@ number_of_components(sys::SinglePhaseSystem) = 1
 
 abstract type AbstractPhaseRelativePermeability{T, N} end
 
-struct PhaseRelativePermeability{T, N} <: AbstractPhaseRelativePermeability{T, N}
+struct PhaseRelativePermeability{label, T, N} <: AbstractPhaseRelativePermeability{T, N}
     k::T
-    label::Symbol
     "Connate saturation"
     connate::N
     "The saturation at which rel. perm. becomes positive"
@@ -302,20 +301,18 @@ struct PhaseRelativePermeability{T, N} <: AbstractPhaseRelativePermeability{T, N
     input_s_max::N
 end
 
-struct BackendPhaseRelativePermeability{label, T, N} <:
-        AbstractPhaseRelativePermeability{T, N}
-    k::T
-    connate::N
-    critical::N
-    s_max::N
-    k_max::N
-    input_s_max::N
+function PhaseRelativePermeability(k::T, label::Symbol, connate::N,
+        critical::N, s_max::N, k_max::N, input_s_max::N) where {T, N}
+    return PhaseRelativePermeability{label, T, N}(
+        k, connate, critical, s_max, k_max, input_s_max)
 end
 
-function BackendPhaseRelativePermeability(k::T, ::Val{label}, connate::N,
-        critical::N, s_max::N, k_max::N, input_s_max::N) where {label, T, N}
-    return BackendPhaseRelativePermeability{label, T, N}(
-        k, connate, critical, s_max, k_max, input_s_max)
+function Base.getproperty(kr::PhaseRelativePermeability{label}, name::Symbol) where label
+    return name === :label ? label : getfield(kr, name)
+end
+
+function Base.propertynames(::PhaseRelativePermeability, private::Bool = false)
+    return (:k, :label, :connate, :critical, :s_max, :k_max, :input_s_max)
 end
 
 """
@@ -374,7 +371,6 @@ function PhaseRelativePermeability(s, k; label = :w, connate = s[1], epsilon = 1
 end
 
 (kr::PhaseRelativePermeability)(S) = kr.k(S)
-(kr::BackendPhaseRelativePermeability)(S) = kr.k(S)
 
 function Base.show(io::IO, t::MIME"text/plain", kr::PhaseRelativePermeability)
     println(io, "PhaseRelativePermeability for $(kr.label):")

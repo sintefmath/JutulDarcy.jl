@@ -48,10 +48,10 @@ end
     context = KernelAbstractionsContext(JLBackend())
     device_cnv_mb = JutulDarcy.cnv_mb_errors(
         JLArray(residual), JLArray(pore_volume), JLArray(density),
-        dt, phases, context)
+        dt, phases)
     device_bo = JutulDarcy.cnv_mb_errors_bo(
         JLArray(residual), JLArray(pore_volume), JLArray(shrinkage),
-        dt, reference_density, phases, context)
+        dt, reference_density, phases)
 
     @test collect(device_cnv_mb[1]) ≈ collect(cpu_cnv_mb[1])
     @test collect(device_cnv_mb[2]) ≈ collect(cpu_cnv_mb[2])
@@ -132,24 +132,21 @@ end
     host = simulator.storage.host_evaluation
     @test host.model.models.Facility.domain.well_symbols isa
         Vector{Symbol}
-    @test simulator.model.models.Facility.domain.well_symbols isa Base.OneTo
+    @test simulator.model.models.Facility.domain.well_symbols isa Vector{Symbol}
     @test !(simulator.model.models.Facility.domain.well_symbols isa Tuple)
     @test simulator.storage.PROD.state.Pressure isa JLArray
     @test simulator.storage.INJ.state.Pressure isa JLArray
     @test host.storage.PROD.state.Pressure isa Vector
     @test host.storage.INJ.state.Pressure isa Vector
-    @test simulator.storage.Facility.state.WellGroupConfiguration === nothing
+    @test simulator.storage.Facility.state.WellGroupConfiguration !== nothing
     @test host.storage.Facility.state.WellGroupConfiguration !== nothing
     @test all(cross_term ->
             cross_term.target_impact_map.entries isa JLArray,
         simulator.storage.cross_terms)
-    masked_cross_terms = filter(
-        cross_term -> haskey(cross_term, :force_buffer),
-        simulator.storage.cross_terms)
-    @test !isempty(masked_cross_terms)
-    @test all(cross_term -> cross_term.force_buffer isa JLArray,
-        masked_cross_terms)
-
+    mask = PerforationMask([1.0, 0.0])
+    adapted_mask = Jutul.preprocess_forces(
+        simulator, (mask = mask,)).forces.mask
+    @test adapted_mask.values isa JLArray
     reset_state = deepcopy(case.state0)
     reset_state[:PROD][:Pressure] .+= 1.0
     Jutul.reset_variables!(simulator, reset_state)
@@ -160,6 +157,7 @@ end
     Jutul.reset_variables!(simulator, case.state0)
 
     forces = case.forces isa AbstractVector ? first(case.forces) : case.forces
+    forces = Jutul.preprocess_forces(simulator, forces).forces
     dt = first(case.dt)
     Jutul.update_before_step!(simulator, dt, forces; time = 0.0)
     Jutul.update_state_dependents!(
@@ -200,6 +198,7 @@ end
         timesteps = :none)
 
     forces = case.forces isa AbstractVector ? only(case.forces) : case.forces
+    forces = Jutul.preprocess_forces(simulator, forces).forces
     dt = only(case.dt)
     Jutul.update_before_step!(simulator, dt, forces; time = 0.0)
     Jutul.update_state_dependents!(

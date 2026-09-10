@@ -147,8 +147,7 @@ function Jutul.subcrossterm(ct::ReservoirFromWellTracerCT, ctp, m_t, m_s, map_re
 end
 
 function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellTracerCT, target, source, model, storage, dt, force::PerforationMask; time = time)
-    mask = ct_s.force_buffer
-    copyto!(mask, force.values)
+    mask = force.values
     apply_perforation_mask!(ct_s.target, mask, model.context)
     apply_perforation_mask!(ct_s.source, mask, model.context)
 end

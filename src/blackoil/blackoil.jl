@@ -88,7 +88,7 @@ function convergence_criterion(model::SimulationModel{D, S}, storage, eq::Conser
     sys = model.system
     nph = number_of_phases(sys)
     rhoS = reference_densities(sys)
-    cnv, mb = cnv_mb_errors_bo(r, Φ, b, dt, rhoS, Val(nph), model.context)
+    cnv, mb = cnv_mb_errors_bo(r, Φ, b, dt, rhoS, Val(nph))
     dp_abs, dp_rel = pressure_increments(model, storage.state, update_report)
     if ismissing(update_report)
         ds_max = 1.0
@@ -109,35 +109,30 @@ function convergence_criterion(model::SimulationModel{D, S}, storage, eq::Conser
     return R
 end
 
-@inline inverse_value(x) = inv(value(x))
-
-function average_inverse_formation_volume_factor(b, ::Val{N}, context::JutulContext) where N
-    nc = size(b, 2)
-    return ntuple(phase -> sum(inverse_value, view(b, phase, :))/nc, Val(N))
-end
-
-function cnv_errors_bo(r, Φ, average_B, dt, rhoS, ::Val{N}, context::JutulContext) where N
-    return ntuple(Val(N)) do phase
-        maximum_residual = mapreduce((residual, pore_volume) ->
-                abs(value(residual))/value(pore_volume),
-            max, view(r, phase, :), Φ)
-        average_B[phase]*dt*maximum_residual/rhoS[phase]
-    end
-end
-
-function mb_errors_bo(r, Φ, average_B, dt, rhoS, ::Val{N}, context::JutulContext) where N
+function cnv_mb_errors_bo(r, Φ, b, dt, rhoS, ::Val{N}) where N
+    cell_count = length(Φ)
     total_pore_volume = sum(value, Φ)
-    return ntuple(Val(N)) do phase
-        residual_sum = sum(value, view(r, phase, :))
-        average_B[phase]*dt*abs(residual_sum)/(rhoS[phase]*total_pore_volume)
+    average_inverse_formation_volume_factor = ntuple(Val(N)) do phase
+        shrinkage = view(b, phase, :)
+        sum(x -> inv(value(x)), shrinkage)/cell_count
     end
-end
 
-function cnv_mb_errors_bo(r, Φ, b, dt, rhoS, phase_count::Val{N},
-        context::JutulContext = DefaultContext()) where N
-    average_B = average_inverse_formation_volume_factor(b, phase_count, context)
-    cnv = cnv_errors_bo(r, Φ, average_B, dt, rhoS, phase_count, context)
-    mb = mb_errors_bo(r, Φ, average_B, dt, rhoS, phase_count, context)
+    cnv = ntuple(Val(N)) do phase
+        residual = view(r, phase, :)
+        function residual_per_pore_volume(residual, pore_volume)
+            return abs(value(residual))/value(pore_volume)
+        end
+        maximum_residual = mapreduce(
+            residual_per_pore_volume, max, residual, Φ)
+        B = average_inverse_formation_volume_factor[phase]
+        B*dt*maximum_residual/rhoS[phase]
+    end
+
+    mb = ntuple(Val(N)) do phase
+        residual_sum = sum(value, view(r, phase, :))
+        B = average_inverse_formation_volume_factor[phase]
+        B*dt*abs(residual_sum)/(rhoS[phase]*total_pore_volume)
+    end
     return cnv, mb
 end
 

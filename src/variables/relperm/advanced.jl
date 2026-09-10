@@ -48,11 +48,8 @@ Residual Oil Data." Journal of Canadian Petroleum Technology 12.4 (1973).
 """
 struct StoneIIMethod <: AbstractThreePhaseOilMethod end
 
-abstract type AbstractReservoirRelativePermeabilities{Scaling, ph} <:
-    AbstractRelativePermeabilities end
-
 struct ReservoirRelativePermeabilities{Scaling, ph, O, OW, OG, G, R, HW, HOW, HOG, HG, M} <:
-        AbstractReservoirRelativePermeabilities{Scaling, ph}
+        AbstractRelativePermeabilities
     "Water relative permeability as a function of water saturation: ``k_{rw}(S_w)``"
     krw::O
     "Oil relative permeability (in the presence of water) as a function of oil saturation: ``k_{row}(S_o)``"
@@ -63,8 +60,6 @@ struct ReservoirRelativePermeabilities{Scaling, ph, O, OW, OG, G, R, HW, HOW, HO
     krg::G
     "Regions to use for each cell of the domain. Can be `nothing` if a single region is used throughout the domain."
     regions::R
-    "Symbol designating the type of system, :wog for three-phase, :og for oil-gas, :wg for water-gas, etc."
-    phases::Symbol
     "Hysteresis model for water rel. perm."
     hysteresis_w::HW
     "Hysteresis model for oil-water rel. perm."
@@ -83,22 +78,16 @@ struct ReservoirRelativePermeabilities{Scaling, ph, O, OW, OG, G, R, HW, HOW, HO
     three_phase_method::M
 end
 
-struct BackendReservoirRelativePermeabilities{Scaling, ph, O, OW, OG, G,
-        R, HW, HOW, HOG, HG, M} <:
-        AbstractReservoirRelativePermeabilities{Scaling, ph}
-    krw::O
-    krow::OW
-    krog::OG
-    krg::G
-    regions::R
-    hysteresis_w::HW
-    hysteresis_ow::HOW
-    hysteresis_og::HOG
-    hysteresis_g::HG
-    scaling::Scaling
-    hysteresis_s_threshold::Float64
-    hysteresis_s_eps::Float64
-    three_phase_method::M
+function Base.getproperty(kr::ReservoirRelativePermeabilities{Scaling, ph},
+        name::Symbol) where {Scaling, ph}
+    return name === :phases ? ph : getfield(kr, name)
+end
+
+function Base.propertynames(::ReservoirRelativePermeabilities,
+        private::Bool = false)
+    return (:krw, :krow, :krog, :krg, :regions, :phases, :hysteresis_w,
+        :hysteresis_ow, :hysteresis_og, :hysteresis_g, :scaling,
+        :hysteresis_s_threshold, :hysteresis_s_eps, :three_phase_method)
 end
 
 
@@ -201,10 +190,12 @@ function ReservoirRelativePermeabilities(;
         typeof(hysteresis_og),
         typeof(hysteresis_g),
         typeof(three_phase_method)
-        }(krw, krow, krog, krg, regions, phases, hysteresis_w, hysteresis_ow, hysteresis_og, hysteresis_g, scaling, hysteresis_s_threshold, hysteresis_s_eps, three_phase_method)
+        }(krw, krow, krog, krg, regions, hysteresis_w, hysteresis_ow,
+            hysteresis_og, hysteresis_g, scaling, hysteresis_s_threshold,
+            hysteresis_s_eps, three_phase_method)
 end
 
-function Jutul.get_dependencies(kr::AbstractReservoirRelativePermeabilities, model)
+function Jutul.get_dependencies(kr::ReservoirRelativePermeabilities, model)
     deps = Symbol[:Saturations]
     phases = get_phases(model.system)
     has_hyst = hysteresis_is_active(kr)
@@ -249,7 +240,7 @@ function Jutul.get_dependencies(kr::AbstractReservoirRelativePermeabilities, mod
 end
 
 function update_secondary_variable!(kr,
-        relperm::AbstractReservoirRelativePermeabilities{scaling_t, ph},
+        relperm::ReservoirRelativePermeabilities{scaling_t, ph},
         model, state, ix = entity_eachindex(kr)) where {scaling_t, ph}
     s = state.Saturations
     regions = relperm.regions
@@ -284,7 +275,7 @@ function update_secondary_variable!(kr,
     return kr
 end
 
-function Base.getindex(m::AbstractReservoirRelativePermeabilities, s::Symbol)
+function Base.getindex(m::ReservoirRelativePermeabilities, s::Symbol)
     if s == :w
         return m.krw
     elseif s == :g
@@ -298,11 +289,11 @@ function Base.getindex(m::AbstractReservoirRelativePermeabilities, s::Symbol)
     end
 end
 
-function endpoint_scaling_model(x::AbstractReservoirRelativePermeabilities)
+function endpoint_scaling_model(x::ReservoirRelativePermeabilities)
     return x.scaling
 end
 
-function hysteresis_is_active(x::AbstractReservoirRelativePermeabilities)
+function hysteresis_is_active(x::ReservoirRelativePermeabilities)
     disabled_w = x.hysteresis_w isa NoHysteresis
     disabled_ow = x.hysteresis_ow isa NoHysteresis
     disabled_og = x.hysteresis_og isa NoHysteresis

@@ -48,17 +48,9 @@ function ScaledPhaseRelativePermeability(
 end
 
 function phase_relative_permeability_with_number_type(
-        kr::PhaseRelativePermeability{T}, ::Type{N}) where {T, N}
-    return PhaseRelativePermeability{T, N}(
+        kr::PhaseRelativePermeability, ::Type{N}) where N
+    return PhaseRelativePermeability(
         kr.k, kr.label, N(kr.connate), N(kr.critical), N(kr.s_max),
-        N(kr.k_max), N(kr.input_s_max))
-end
-
-function phase_relative_permeability_with_number_type(
-        kr::BackendPhaseRelativePermeability{label, T},
-        ::Type{N}) where {label, T, N}
-    return BackendPhaseRelativePermeability(
-        kr.k, Val(label), N(kr.connate), N(kr.critical), N(kr.s_max),
         N(kr.k_max), N(kr.input_s_max))
 end
 
@@ -237,10 +229,6 @@ function add_scaling_parameters!(param, kr::AbstractRelativePermeabilities)
 end
 
 function get_kr_scalers(kr::PhaseRelativePermeability)
-    return (kr.connate, kr.critical, kr.s_max, kr.k_max)
-end
-
-function get_kr_scalers(kr::BackendPhaseRelativePermeability)
     return (kr.connate, kr.critical, kr.s_max, kr.k_max)
 end
 

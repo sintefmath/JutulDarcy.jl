@@ -109,8 +109,7 @@ function well_top_node()
 end
 
 function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellFlowCT, target, source, model, storage, dt, force::PerforationMask; time = time)
-    mask = ct_s.force_buffer
-    Jutul.backend_copyto!(mask, force.values)
+    mask = force.values
     apply_perforation_mask!(ct_s.target, mask, model.context)
     apply_perforation_mask!(ct_s.source, mask, model.context)
 end
@@ -301,8 +300,7 @@ function Jutul.subcrossterm(ct::ReservoirFromWellThermalCT, ctp, m_t, m_s, map_r
 end
 
 function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellThermalCT, target, source, model, storage, dt, force::PerforationMask; time = time)
-    mask = ct_s.force_buffer
-    Jutul.backend_copyto!(mask, force.values)
+    mask = force.values
     apply_perforation_mask!(ct_s.target, mask, model.context)
     apply_perforation_mask!(ct_s.source, mask, model.context)
 end

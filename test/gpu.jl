@@ -66,6 +66,7 @@ if CUDA.functional()
             model, state0 = state0, parameters = parameters)
         simulator = transfer_to_backend(
             cpu_simulator, CUDA.CUDABackend())
+        forces = Jutul.preprocess_forces(simulator, forces).forces
         dt = only(timesteps)
         Jutul.update_before_step!(simulator, dt, forces; time = 0.0)
         Jutul.update_state_dependents!(
@@ -92,7 +93,12 @@ if CUDA.functional()
         @test simulator.storage.host_evaluation.keys ==
             (:PROD, :INJ, :Facility)
 
-        forces = case.forces isa AbstractVector ? only(case.forces) : case.forces
+        forces = deepcopy(case.forces isa AbstractVector ? only(case.forces) : case.forces)
+        well = physical_representation(case.model.models.PROD.domain)
+        mask = PerforationMask(ones(length(well.perforations.reservoir)))
+        forces[:PROD] = setup_forces(case.model.models.PROD, mask = mask)
+        forces = Jutul.preprocess_forces(simulator, forces).forces
+        @test forces[:PROD].mask.values isa CUDA.CuArray
         dt = only(case.dt)
         Jutul.update_before_step!(simulator, dt, forces; time = 0.0)
         Jutul.update_state_dependents!(

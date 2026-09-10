@@ -66,7 +66,11 @@ end
 function update_max_hysteresis_value!(v_max, v)
     map!(v_max, v_max, v) do v_prev, v_current
         v_now = value(v_current)
-        ifelse(v_now > value(v_prev), replace_value(v_prev, v_now), v_prev)
+        if v_now > value(v_prev)
+            return replace_value(v_prev, v_now)
+        else
+            return v_prev
+        end
     end
     return v_max
 end
@@ -84,7 +88,11 @@ end
 function update_min_hysteresis_value!(v_min, v)
     map!(v_min, v_min, v) do v_prev, v_current
         v_now = value(v_current)
-        ifelse(v_now < value(v_prev), replace_value(v_prev, v_now), v_prev)
+        if v_now < value(v_prev)
+            return replace_value(v_prev, v_now)
+        else
+            return v_prev
+        end
     end
     return v_min
 end

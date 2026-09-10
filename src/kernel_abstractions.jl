@@ -50,15 +50,7 @@ function Adapt.adapt_structure(to, variable::ScaledCapillaryPressure)
         Val(:assembled))
 end
 
-function Adapt.adapt_structure(::Jutul.KernelAbstractionsContext, group::WellGroup)
-    # The authoritative WellGroup, including its symbol vector, remains on the
-    # host. Device assembly only needs the number of facility unknowns; cross
-    # terms carry their precomputed integer facility positions.
-    return WellGroup(
-        Base.OneTo(length(group.well_symbols)),
-        group.can_shut_producers,
-        group.can_shut_injectors)
-end
+Adapt.adapt_structure(::Jutul.KernelAbstractionsContext, group::WellGroup) = group
 
 function Adapt.adapt_structure(to, well::SimpleWell)
     return SimpleWell(
@@ -87,7 +79,7 @@ function Adapt.adapt_structure(to,
 end
 
 function Adapt.adapt_structure(to,
-        variable::AbstractReservoirRelativePermeabilities{Scaling, ph}) where {Scaling, ph}
+        variable::ReservoirRelativePermeabilities{Scaling, ph}) where {Scaling, ph}
     krw = Adapt.adapt(to, variable.krw)
     krow = Adapt.adapt(to, variable.krow)
     krog = Adapt.adapt(to, variable.krog)
@@ -99,26 +91,18 @@ function Adapt.adapt_structure(to,
     hysteresis_g = Adapt.adapt(to, variable.hysteresis_g)
     scaling = Adapt.adapt(to, variable.scaling)
     method = Adapt.adapt(to, variable.three_phase_method)
-    return BackendReservoirRelativePermeabilities{
+    return ReservoirRelativePermeabilities{
         typeof(scaling), ph, typeof(krw), typeof(krow), typeof(krog), typeof(krg),
         typeof(regions), typeof(hysteresis_w), typeof(hysteresis_ow),
         typeof(hysteresis_og), typeof(hysteresis_g), typeof(method)
-    }(krw, krow, krog, krg, regions,
-        hysteresis_w, hysteresis_ow, hysteresis_og, hysteresis_g, scaling,
+    }(krw, krow, krog, krg, regions, hysteresis_w, hysteresis_ow,
+        hysteresis_og, hysteresis_g, scaling,
         variable.hysteresis_s_threshold, variable.hysteresis_s_eps, method)
 end
 
 function Adapt.adapt_structure(to, variable::PhaseRelativePermeability)
-    return BackendPhaseRelativePermeability(
-        Adapt.adapt(to, variable.k), Val(variable.label),
-        variable.connate, variable.critical, variable.s_max,
-        variable.k_max, variable.input_s_max)
-end
-
-function Adapt.adapt_structure(to,
-        variable::BackendPhaseRelativePermeability{label}) where label
-    return BackendPhaseRelativePermeability(
-        Adapt.adapt(to, variable.k), Val(label),
+    return PhaseRelativePermeability(
+        Adapt.adapt(to, variable.k), variable.label,
         variable.connate, variable.critical, variable.s_max,
         variable.k_max, variable.input_s_max)
 end
@@ -166,40 +150,9 @@ function Adapt.adapt_structure(to, variable::LinearlyCompressiblePoreVolume)
         Val(:assembled))
 end
 
-struct BackendSurfaceWellConditions <: Jutul.ScalarVariable end
-
-function Adapt.adapt_structure(::Jutul.KernelAbstractionsContext,
-        variable::SurfaceWellConditions)
-    isempty(variable.separator_conditions) || throw(ArgumentError(
-        "GPU well execution does not support separator stages"))
-    return BackendSurfaceWellConditions()
-end
-
-Jutul.get_dependencies(::BackendSurfaceWellConditions, model) = [:TotalMasses]
-
-function Jutul.update_secondary_variable!(x::AbstractVector{TopConditions{N, R}},
-        ::BackendSurfaceWellConditions, model, state, ix) where {N, R}
-    rho = reference_densities(model.system)
-    masses = haskey(state, :MassFractions) ? state.MassFractions : state.TotalMasses
-    surface_volume = ntuple(Val(N)) do component
-        @inbounds masses[component, 1]/rho[component]
-    end
-    total_volume = sum(surface_volume)
-    fractions = ntuple(Val(N)) do component
-        surface_volume[component]/total_volume
-    end
-    @inbounds x[1] = TopConditions(Val(N), Val(R), rho, fractions)
-    return x
-end
-
-Adapt.adapt_structure(::Jutul.KernelAbstractionsContext,
-    ::WellGroupConfiguration) = nothing
-
-function Jutul.setup_cross_term_storage_extra!(storage,
-        cross_term::AbstractReservoirFromWellCT, target_model, source_model)
-    T = Jutul.float_type(target_model.context)
-    storage[:force_buffer] = zeros(T, length(cross_term.reservoir_cells))
-    return storage
+function Adapt.adapt_structure(to, mask::PerforationMask)
+    values = Adapt.adapt(to, mask.values)
+    return PerforationMask(values, Val(:adapted))
 end
 
 function Adapt.adapt_structure(to, ct::ReservoirFromWellFlowCT)
