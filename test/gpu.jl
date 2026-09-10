@@ -90,7 +90,13 @@ if CUDA.functional()
         @test Jutul.group_execution_mode(simulator.model, :Facility) ==
             AssembleOnDevice
         @test simulator.storage.host_evaluation.keys ==
-            (:PROD, :INJ, :Facility)
+            [:PROD, :INJ, :Facility]
+        host_pressure = simulator.storage.host_evaluation.storage.PROD.state.Pressure
+        device_pressure = simulator.storage.PROD.state.Pressure
+        @test CUDA.memory_type(device_pressure) in
+            (CUDA.UnifiedMemory, CUDA.HostMemory)
+        @test pointer(device_pressure; type = CUDA.HostMemory) ==
+            pointer(host_pressure)
 
         forces = case.forces isa AbstractVector ? only(case.forces) : case.forces
         dt = only(case.dt)
@@ -104,6 +110,34 @@ if CUDA.functional()
         @test all(isfinite, Array(system.r_buffer))
         @test all(block -> all(isfinite, Array(nonzeros(block.jac))),
             system.subsystems)
+
+        Jutul.prepare_linear_solve!(system)
+        cprw = CPRPreconditioner(
+            LUPreconditioner(), LUPreconditioner();
+            strategy = :true_impes,
+            variant = :cprw
+        )
+        Jutul.update_preconditioner!(cprw, system, simulator.model.context,
+            simulator.model, simulator.storage, ProgressRecorder(),
+            simulator.executor)
+        pressure_matrix = cprw.pressure_precond.host_matrix
+        pressure_values = cprw.pressure_precond.host_source_values
+        system_matrix = cprw.system_precond.host_matrix
+        system_values = cprw.system_precond.host_source_values
+        Jutul.update_preconditioner!(cprw, system, simulator.model.context,
+            simulator.model, simulator.storage, ProgressRecorder(),
+            simulator.executor)
+        @test cprw.pressure_precond.host_matrix === pressure_matrix
+        @test cprw.pressure_precond.host_source_values === pressure_values
+        @test cprw.system_precond.host_matrix === system_matrix
+        @test cprw.system_precond.host_source_values === system_values
+        rhs = Jutul.vector_residual(system)
+        increment = similar(rhs)
+        Jutul.apply!(increment, cprw, rhs)
+        @test all(isfinite, Array(increment))
+        @test cprw.storage.A_p.nzval isa CUDA.CuArray
+        @test cprw.pressure_precond.host_matrix !== nothing
+        @test cprw.system_precond.host_matrix !== nothing
     end
     @testset "SimulationModel" begin
         krylov_cpu = GenericKrylov(:bicgstab, preconditioner = ILUZeroPreconditioner())

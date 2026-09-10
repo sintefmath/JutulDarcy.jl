@@ -9,6 +9,35 @@ function setup_spe1_ka_case()
         block_backend = false)[1:1]
 end
 
+function apply_ka_cpr!(simulator; variant = :cpr)
+    system = simulator.storage.LinearizedSystem
+    Jutul.prepare_linear_solve!(system)
+    preconditioner = CPRPreconditioner(
+        LUPreconditioner(), LUPreconditioner();
+        strategy = :true_impes,
+        variant = variant
+    )
+    Jutul.update_preconditioner!(preconditioner, system,
+        simulator.model.context, simulator.model, simulator.storage,
+        ProgressRecorder(), simulator.executor)
+    pressure_matrix = preconditioner.pressure_precond.host_matrix
+    pressure_values = preconditioner.pressure_precond.host_source_values
+    system_matrix = preconditioner.system_precond.host_matrix
+    system_values = preconditioner.system_precond.host_source_values
+    Jutul.update_preconditioner!(preconditioner, system,
+        simulator.model.context, simulator.model, simulator.storage,
+        ProgressRecorder(), simulator.executor)
+    cache_reused =
+        preconditioner.pressure_precond.host_matrix === pressure_matrix &&
+        preconditioner.pressure_precond.host_source_values === pressure_values &&
+        preconditioner.system_precond.host_matrix === system_matrix &&
+        preconditioner.system_precond.host_source_values === system_values
+    rhs = Jutul.vector_residual(system)
+    increment = similar(rhs)
+    Jutul.apply!(increment, preconditioner, rhs)
+    return preconditioner, increment, cache_reused
+end
+
 @testset "Heterogeneous deck PVT adaptation" begin
     water = JutulDarcy.PVTW(ConstMuBTable(
         1.0e7, 1.0, 1.0e-9, 1.0e-3, 0.0))
@@ -110,6 +139,13 @@ end
 
     @test Array(states[end][:Pressure]) ≈ reference[end][:Pressure] rtol = 1e-10
     @test Array(states[end][:Saturations]) ≈ reference[end][:Saturations] rtol = 1e-10
+
+    cpr, increment, cache_reused = apply_ka_cpr!(simulator)
+    @test all(isfinite, Array(increment))
+    @test cache_reused
+    @test cpr.storage.A_p.nzval isa JLArray
+    @test cpr.pressure_precond.host_matrix !== nothing
+    @test cpr.system_precond.host_matrix !== nothing
 end
 
 @testset "SPE1 hybrid multimodel on a KA backend" begin
@@ -121,7 +157,10 @@ end
         linear_solver = nothing,
         timesteps = :none)
 
-    @test simulator.storage.host_evaluation.keys == (:PROD, :INJ, :Facility)
+    @test !Jutul.multi_model_is_specialized(simulator.model)
+    @test simulator.storage isa Jutul.JutulStorage{Nothing}
+    @test simulator.storage.cross_terms isa AbstractVector
+    @test simulator.storage.host_evaluation.keys == [:PROD, :INJ, :Facility]
     @test simulator.model.groups == [1, 2, 2, 2]
     @test Jutul.group_execution_mode(simulator.model, :Reservoir) ==
         SolveFullyOnDevice
@@ -211,4 +250,12 @@ end
     @test all(isfinite, Array(system.r_buffer))
     @test all(block -> all(isfinite, Array(nonzeros(block.jac))),
         system.subsystems)
+    cprw, increment, cache_reused = apply_ka_cpr!(simulator; variant = :cprw)
+    @test all(isfinite, Array(increment))
+    @test cache_reused
+    @test cprw.storage.pressure_map isa NamedTuple
+    @test size(cprw.storage.A_p, 1) > cprw.storage.pressure_map.ncell
+    @test cprw.storage.A_p.nzval isa JLArray
+    @test cprw.pressure_precond.host_matrix !== nothing
+    @test cprw.system_precond.host_matrix !== nothing
 end

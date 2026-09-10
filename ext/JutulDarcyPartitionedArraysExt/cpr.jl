@@ -89,6 +89,16 @@ function JutulDarcy.update_p_rhs!(r_p::HYPRE.HYPREVector, y, ncomp, bz, w_p, p_p
     inner_hypre_p_rhs!(r_p, y, ncomp, bz, w_p, helper, mode)
 end
 
+function JutulDarcy.update_p_rhs!(r_p::HYPRE.HYPREVector, y, ncomp, bz,
+        w_p, p_prec, mode, context)
+    return JutulDarcy.update_p_rhs!(r_p, y, ncomp, bz, w_p, p_prec, mode)
+end
+
+function JutulDarcy.update_p_rhs!(r_p::HYPRE.HYPREVector, y, ncomp, bz,
+        w_p, p_prec, mode, context, npressure)
+    return JutulDarcy.update_p_rhs!(r_p, y, ncomp, bz, w_p, p_prec, mode)
+end
+
 function inner_hypre_p_rhs!(r_p, y, ncomp, bz, w_p, helper, mode)
     R_p = helper.native_zeroed_buffer
     ix = helper.indices
@@ -124,7 +134,22 @@ function JutulDarcy.correct_residual_and_increment_pressure!(y, x, Δp::HYPRE.HY
     JutulDarcy.correct_residual_and_increment_pressure!(y, x, p_buf, bz, buf, A)
 end
 
+
+function JutulDarcy.correct_residual_and_increment_pressure!(y, x,
+        Δp::HYPRE.HYPREVector, bz, buf, A, p_buf, context, npressure)
+    copy!(p_buf, Δp)
+    JutulDarcy.correct_residual_and_increment_pressure!(
+        y, x, p_buf, bz, buf, A, p_buf, context, npressure)
+end
+
 function JutulDarcy.increment_pressure!(x, Δp::HYPRE.HYPREVector, bz, p_buf = get_p_buffer(Δp, p_buf))
     copy!(p_buf, Δp)
     JutulDarcy.increment_pressure!(x, p_buf, bz)
+end
+
+
+function JutulDarcy.increment_pressure!(x, Δp::HYPRE.HYPREVector, bz,
+        p_buf, context, npressure)
+    copy!(p_buf, Δp)
+    JutulDarcy.increment_pressure!(x, p_buf, bz, p_buf, context, npressure)
 end

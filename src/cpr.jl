@@ -1,5 +1,5 @@
 
-struct CPRStorage{P, R, S, F, W, V, P_v, M}
+struct CPRStorage{P, R, S, F, W, V, P_v, M, PM, C}
     "pressure system"
     A_p::P
     "pressure residual"
@@ -25,6 +25,10 @@ struct CPRStorage{P, R, S, F, W, V, P_v, M}
     p_buffer::P_v
     "optional well+reservoir mappings for CPRW"
     well_reservoir_map::M
+    "mapping from a scalar Jacobian to pressure-system entries"
+    pressure_map::PM
+    "execution context for restriction and prolongation"
+    context::C
     float_type::DataType
 end
 
@@ -32,38 +36,41 @@ function CPRStorage(p_prec, lin_op, full_jac, ncomp = missing;
         T = missing,
         p_buffer::Bool = true,
         well_reservoir_map = nothing,
-        lsys = missing
+        lsys = missing,
+        context = nothing
     )
     T_b = eltype(full_jac)
-    @assert T_b<:StaticMatrix
     if ismissing(T)
-        T = eltype(T_b)
+        T = T_b <: StaticMatrix ? eltype(T_b) : T_b
     end
-    # TODO: Update the sizes here from well_map if it exists.
     @assert T<:Real
-    ncell = size(full_jac, 1)
+    bz = T_b <: StaticMatrix ? size(T_b, 1) : ncomp
+    ncell = div(size(full_jac, 1), T_b <: StaticMatrix ? 1 : bz)
     if isnothing(well_reservoir_map)
         np = ncell
     else
         np = well_reservoir_map.np
     end
-    bz = size(T_b, 1)
     if ismissing(ncomp)
         ncomp = bz
     end
-    A_p, r_p, p = create_pressure_system(p_prec, full_jac, lsys, np, T, well_reservoir_map)
-    solution = zeros(T, ncell*bz)
-    residual = zeros(T, ncell*bz)
-    w_p = zeros(T, ncomp, np)
+    A_p, r_p, p, pressure_map = create_pressure_system(
+        p_prec, full_jac, lsys, np, T, well_reservoir_map, ncomp, context)
+    solution = cpr_zeros(full_jac, T, size(lin_op, 1))
+    residual = similar(solution)
+    fill!(residual, zero(T))
+    w_p = cpr_zeros(full_jac, T, ncomp, np)
     w_rhs = zeros(ncomp)
     w_rhs[1] = 1
     w_rhs = SVector{ncomp, T}(w_rhs)
     if p_buffer
-        p_buf = zeros(np)
+        p_buf = cpr_zeros(full_jac, T, np)
     else
         p_buf = missing
     end
-    return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p, w_rhs, np, bz, ncomp, objectid(full_jac), p_buf, well_reservoir_map, T)
+    return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p,
+        w_rhs, np, bz, ncomp, objectid(full_jac), p_buf,
+        well_reservoir_map, pressure_map, context, T)
 end
 
 function CPRStorage(np::Int, bz::Int, lin_op, psys::Tuple, solution, residual, T = Float64, id = zero(UInt64); ncomp = bz)
@@ -72,7 +79,15 @@ function CPRStorage(np::Int, bz::Int, lin_op, psys::Tuple, solution, residual, T
     w_rhs = zeros(ncomp)
     w_rhs[1] = 1
     w_rhs = SVector{bz, T}(w_rhs)
-    return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p, w_rhs, np, bz, ncomp, id, zeros(T, np), nothing, T)
+    return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p,
+        w_rhs, np, bz, ncomp, id, zeros(T, np), nothing, nothing,
+        nothing, T)
+end
+
+function cpr_zeros(A, T, dims...)
+    out = similar(nonzeros(A), T, dims...)
+    fill!(out, zero(T))
+    return out
 end
 
 
@@ -222,7 +237,8 @@ function initialize_cpr_storage!(cpr, model, lsys, bz, T)
         cpr.storage = CPRStorage(cpr.pressure_precond, op, J, bz,
             well_reservoir_map = well_reservoir_map,
             lsys = lsys,
-            T = T
+            T = T,
+            context = reservoir_model(model, type = :flow).context
         )
     end
 end
@@ -233,11 +249,146 @@ function pressure_matrix_from_global_jacobian(J::SparseMatrixCSC, T, lsys, well_
     return SparseMatrixCSC(n, n, J.colptr, J.rowval, nzval)
 end
 
-function pressure_matrix_from_global_jacobian(J::Jutul.StaticSparsityMatrixCSR, T, lsys, well_reservoir_map::Nothing)
+pressure_matrix_from_global_jacobian(J::SparseMatrixCSC, T, lsys,
+    well_reservoir_map::Nothing, ncomp, context) =
+    pressure_matrix_from_global_jacobian(J, T, lsys, well_reservoir_map)
+
+function pressure_matrix_from_global_jacobian(
+        J::Jutul.StaticSparsityMatrixCSR{<:StaticMatrix}, T, lsys,
+        well_reservoir_map::Nothing, ncomp, context)
     nzval = zeros(T, nnz(J))
     n = size(J, 2)
     # Assume symmetry in sparse pattern, but not values.
-    return Jutul.StaticSparsityMatrixCSR(n, n, J.At.colptr, Jutul.colvals(J), nzval, nthreads = J.nthreads, minbatch = J.minbatch)
+    if isnothing(J.backend)
+        return Jutul.StaticSparsityMatrixCSR(
+            n, n, J.At.colptr, Jutul.colvals(J), nzval;
+            nthreads = J.nthreads, minbatch = J.minbatch)
+    else
+        return Jutul.StaticSparsityMatrixCSR(cpr_zeros(J, T, nnz(J)),
+            Jutul.colvals(J), J.rowptr, n, n, J.backend;
+            nthreads = J.nthreads, minbatch = J.minbatch)
+    end
+end
+
+pressure_matrix_from_global_jacobian(
+    J::Jutul.StaticSparsityMatrixCSR{<:StaticMatrix}, T, lsys,
+    well_reservoir_map::Nothing) =
+    pressure_matrix_from_global_jacobian(J, T, lsys,
+        well_reservoir_map, size(eltype(J), 1), nothing)
+
+@inline function cpr_scalar_index(component, cell, ncell, ncomp, cell_major)
+    return cell_major ? (cell - 1)*ncomp + component :
+        (component - 1)*ncell + cell
+end
+
+function scalar_pressure_matrix_and_map(J::Jutul.StaticSparsityMatrixCSR,
+        T, ncomp, layout, context, well_reservoir_map = nothing)
+    ntotal = size(J, 1)
+    ntotal % ncomp == 0 || throw(DimensionMismatch(
+        "scalar CPR system of size $ntotal is not divisible by $ncomp components"))
+    ncell = div(ntotal, ncomp)
+    rowptr = Array(J.rowptr)
+    colval = Array(Jutul.colvals(J))
+    cell_major = Jutul.is_cell_major(layout)
+    columns_by_row = [Int[] for _ in 1:ncell]
+    for cell in 1:ncell, component in 1:ncomp
+        row = cpr_scalar_index(component, cell, ncell, ncomp, cell_major)
+        for pos in rowptr[row]:(rowptr[row + 1] - 1)
+            col = colval[pos]
+            col_component = cell_major ? mod1(col, ncomp) :
+                div(col - 1, ncell) + 1
+            if col_component == 1
+                col_cell = cell_major ? div(col - 1, ncomp) + 1 :
+                    mod1(col, ncell)
+                push!(columns_by_row[cell], col_cell)
+            end
+        end
+    end
+    I = Int[]
+    Jcol = Int[]
+    for row in 1:ncell
+        sort!(unique!(columns_by_row[row]))
+        append!(I, Iterators.repeated(row, length(columns_by_row[row])))
+        append!(Jcol, columns_by_row[row])
+    end
+    np = ncell
+    if !isnothing(well_reservoir_map)
+        np = well_reservoir_map.np
+        for (well, cells) in enumerate(well_reservoir_map.well_cells)
+            well_row = ncell + well
+            for cell in cells
+                push!(I, cell)
+                push!(Jcol, well_row)
+                push!(I, well_row)
+                push!(Jcol, cell)
+            end
+            push!(I, well_row)
+            push!(Jcol, well_row)
+        end
+    end
+    A_host = Jutul.StaticSparsityMatrixCSR(
+        sparse(Jcol, I, zeros(T, length(I)), np, np))
+    pressure_map = zeros(Int, ncomp, nnz(A_host))
+    for row in 1:ncell
+        for ppos in nzrange(A_host, row)
+            col_cell = Jutul.colvals(A_host)[ppos]
+            col_cell > ncell && continue
+            pressure_col = cpr_scalar_index(
+                1, col_cell, ncell, ncomp, cell_major)
+            for component in 1:ncomp
+                scalar_row = cpr_scalar_index(
+                    component, row, ncell, ncomp, cell_major)
+                for pos in rowptr[scalar_row]:(rowptr[scalar_row + 1] - 1)
+                    if colval[pos] == pressure_col
+                        pressure_map[component, ppos] = pos
+                        break
+                    end
+                end
+            end
+        end
+    end
+    to_backend(x) = context isa Jutul.KernelAbstractionsContext ?
+        Adapt.adapt(context, x) : x
+    A_p = to_backend(A_host)
+    reservoir_map = to_backend(pressure_map)
+    if !isnothing(well_reservoir_map)
+        empty!(well_reservoir_map.nzmap_12)
+        empty!(well_reservoir_map.nzmap_21)
+        empty!(well_reservoir_map.nzmap_22)
+        for (well, cells) in enumerate(well_reservoir_map.well_cells)
+            well_row = ncell + well
+            for cell in cells
+                push!(well_reservoir_map.nzmap_12,
+                    find_sparse_position(A_host, cell, well_row))
+                push!(well_reservoir_map.nzmap_21,
+                    find_sparse_position(A_host, well_row, cell))
+            end
+            push!(well_reservoir_map.nzmap_22,
+                find_sparse_position(A_host, well_row, well_row))
+        end
+        flatten(entries) = [entry for group in entries for entry in group]
+        cells = [cell for group in well_reservoir_map.well_cells for cell in group]
+        wells = [well for (well, group) in
+            enumerate(well_reservoir_map.well_cells) for _ in group]
+        pressure_map = (
+            reservoir = reservoir_map,
+            map_12 = to_backend(flatten(well_reservoir_map.map_12)),
+            map_21 = to_backend(flatten(well_reservoir_map.map_21)),
+            map_22 = to_backend(flatten(well_reservoir_map.map_22)),
+            cells = to_backend(cells),
+            wells = to_backend(wells),
+            nzmap_12 = to_backend(well_reservoir_map.nzmap_12),
+            nzmap_21 = to_backend(well_reservoir_map.nzmap_21),
+            nzmap_22 = to_backend(well_reservoir_map.nzmap_22),
+            nzval_12 = well_reservoir_map.nzval_12,
+            nzval_21 = well_reservoir_map.nzval_21,
+            nzval_22 = well_reservoir_map.nzval_22,
+            ncell = ncell
+        )
+    else
+        pressure_map = reservoir_map
+    end
+    return A_p, pressure_map
 end
 
 function pressure_matrix_from_global_jacobian(sys_jac::Jutul.StaticSparsityMatrixCSR, T, lsys, well_reservoir_map)
@@ -287,9 +438,26 @@ function pressure_matrix_from_global_jacobian(sys_jac::Jutul.StaticSparsityMatri
     return A_p
 end
 
-function create_pressure_system(p_prec, J, lsys, n, T, well_reservoir_map)
-    J_p = pressure_matrix_from_global_jacobian(J, T, lsys, well_reservoir_map)
-    return (J_p, zeros(T, n), zeros(T, n))
+pressure_matrix_from_global_jacobian(sys_jac::Jutul.StaticSparsityMatrixCSR,
+    T, lsys, well_reservoir_map, ncomp, context) =
+    pressure_matrix_from_global_jacobian(
+        sys_jac, T, lsys, well_reservoir_map)
+
+function create_pressure_system(p_prec, J, lsys, n, T,
+        well_reservoir_map, ncomp, context)
+    if eltype(J) <: StaticMatrix
+        J_p = pressure_matrix_from_global_jacobian(
+            J, T, lsys, well_reservoir_map, ncomp, context)
+        pressure_map = nothing
+    else
+        J_p, pressure_map = scalar_pressure_matrix_and_map(
+            J, T, ncomp, lsys[1, 1].matrix_layout, context,
+            well_reservoir_map)
+    end
+    r_p = cpr_zeros(J, T, n)
+    p = similar(r_p)
+    fill!(p, zero(T))
+    return (J_p, r_p, p, pressure_map)
 end
 
 function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, recorder, executor, T)
@@ -307,9 +475,78 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
         A_p = cpr_s.A_p
         w_p = cpr_s.w_p
         rw_map = cpr_s.well_reservoir_map
-        @tic "pressure system" update_pressure_system!(A_p, cpr.pressure_precond, A, w_p, ctx, executor, rw_map)
+        @tic "pressure system" update_pressure_system!(A_p,
+            cpr.pressure_precond, A, w_p, ctx, executor, rw_map,
+            cpr_s.pressure_map)
     end
     return do_p_update
+end
+
+function update_pressure_system!(A_p, p_prec, A, w_p, ctx, executor,
+        well_reservoir_map, ::Nothing)
+    return update_pressure_system!(
+        A_p, p_prec, A, w_p, ctx, executor, well_reservoir_map)
+end
+
+function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR,
+        p_prec, A::Jutul.StaticSparsityMatrixCSR{<:Real}, w_p, ctx,
+        executor, ::Nothing, pressure_map::AbstractMatrix)
+    nz_p = nonzeros(A_p)
+    nz = nonzeros(A)
+    rowptr = A_p.rowptr
+    ncomp = size(w_p, 1)
+    Jutul.threaded_loop(size(A_p, 1), ctx) do row
+        @inbounds for ppos in rowptr[row]:(rowptr[row + 1] - 1)
+            value = zero(eltype(nz_p))
+            for component in 1:ncomp
+                jpos = pressure_map[component, ppos]
+                if !iszero(jpos)
+                    value += w_p[component, row]*nz[jpos]
+                end
+            end
+            nz_p[ppos] = value
+        end
+    end
+    return A_p
+end
+
+@inline function reduce_scalar_cprw_entry(nz, positions, w_p, row, ncomp)
+    value = zero(eltype(nz))
+    @inbounds for component in 1:ncomp
+        pos = positions[component, 1]
+        if !iszero(pos)
+            value += w_p[component, row]*nz[pos]
+        end
+    end
+    return value
+end
+
+function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR,
+        p_prec, A::Jutul.StaticSparsityMatrixCSR{<:Real}, w_p, ctx,
+        executor, well_reservoir_map, pressure_map::NamedTuple)
+    update_pressure_system!(A_p, p_prec, A, w_p, ctx, executor, nothing,
+        pressure_map.reservoir)
+    nz_p = nonzeros(A_p)
+    ncomp = size(w_p, 1)
+    nperf = length(pressure_map.map_12)
+    Jutul.threaded_loop(nperf, ctx) do i
+        cell = pressure_map.cells[i]
+        well_row = pressure_map.ncell + pressure_map.wells[i]
+        @inbounds nz_p[pressure_map.nzmap_12[i]] =
+            reduce_scalar_cprw_entry(pressure_map.nzval_12,
+                pressure_map.map_12[i], w_p, cell, ncomp)
+        @inbounds nz_p[pressure_map.nzmap_21[i]] =
+            reduce_scalar_cprw_entry(pressure_map.nzval_21,
+                pressure_map.map_21[i], w_p, well_row, ncomp)
+    end
+    nwell = length(pressure_map.map_22)
+    Jutul.threaded_loop(nwell, ctx) do well
+        row = pressure_map.ncell + well
+        @inbounds nz_p[pressure_map.nzmap_22[well]] =
+            reduce_scalar_cprw_entry(pressure_map.nzval_22,
+                pressure_map.map_22[well], w_p, row, ncomp)
+    end
+    return A_p
 end
 
 # CSC (default) version
@@ -350,11 +587,19 @@ function update_pressure_system!(A_p::Jutul.StaticSparsityMatrixCSR, p_prec, A::
     ncomp = size(w_p, 1)
     N = Val(ncomp)
     is_adjoint = Val(Jutul.represented_as_adjoint(matrix_layout(ctx)))
-    update_rows_csr(nz, A_p, w_p, cols, nz_s, N, is_adjoint, n, tb)
+    update_rows_csr(nz, A_p, w_p, cols, nz_s, N, is_adjoint, n, ctx)
 end
 
-function update_rows_csr(nz, A_p, w_p, cols, nz_s, N, is_adjoint, n, tb)
+function update_rows_csr(nz, A_p, w_p, cols, nz_s, N, is_adjoint, n, ctx)
+    tb = minbatch(ctx, n)
     @batch minbatch=tb for row in 1:n
+        update_row_csr!(nz, A_p, w_p, cols, nz_s, row, N, is_adjoint)
+    end
+end
+
+function update_rows_csr(nz, A_p, w_p, cols, nz_s, N, is_adjoint,
+        n, ctx::Jutul.KernelAbstractionsContext)
+    Jutul.threaded_loop(n, ctx) do row
         update_row_csr!(nz, A_p, w_p, cols, nz_s, row, N, is_adjoint)
     end
 end
@@ -452,6 +697,10 @@ function operator_nrows(cpr::CPRPreconditioner)
     return size(cpr.storage.A_ps, 1)
 end
 
+cpr_reservoir_pressure_count(storage::CPRStorage) =
+    storage.pressure_map isa NamedTuple ?
+        storage.pressure_map.ncell : storage.np
+
 using Krylov
 function apply!(x, cpr::CPRPreconditioner, r0, arg...)
     cpr_s = cpr.storage
@@ -462,6 +711,7 @@ function apply!(x, cpr::CPRPreconditioner, r0, arg...)
     A_ps = cpr_s.A_ps
     smoother = cpr.system_precond
     bz = cpr_s.block_size
+    npressure = cpr_reservoir_pressure_count(cpr_s)
     # Zero out buffer, just in case (assumed by some solvers)
     @. x = 0.0
     # presmooth
@@ -469,10 +719,12 @@ function apply!(x, cpr::CPRPreconditioner, r0, arg...)
     @tic "cpr pressure stage" apply_cpr_pressure_stage!(cpr, cpr_s, r, arg...)
     # postsmooth
     if cpr.npost > 0
-        correct_residual_and_increment_pressure!(r, x, cpr_s.p, bz, buf, cpr_s.A_ps, cpr_s.p_buffer)
+        correct_residual_and_increment_pressure!(r, x, cpr_s.p, bz, buf,
+            cpr_s.A_ps, cpr_s.p_buffer, cpr_s.context, npressure)
         @tic "cpr smoother" apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npost, skip_last = true)
     else
-        @tic "p increment" increment_pressure!(x, cpr_s.p, bz, cpr_s.p_buffer)
+        @tic "p increment" increment_pressure!(
+            x, cpr_s.p, bz, cpr_s.p_buffer, cpr_s.context, npressure)
     end
 end
 
@@ -493,7 +745,9 @@ end
 function apply_cpr_pressure_stage!(cpr::CPRPreconditioner, cpr_s::CPRStorage, r, arg...)
     r_p, w_p, bz, Δp = cpr_s.r_p, cpr_s.w_p, cpr_s.block_size, cpr_s.p
     ncomp = cpr_s.number_of_components
-    @tic "p rhs" update_p_rhs!(r_p, r, ncomp, bz, w_p, cpr.pressure_precond, cpr.mode)
+    npressure = cpr_reservoir_pressure_count(cpr_s)
+    @tic "p rhs" update_p_rhs!(r_p, r, ncomp, bz, w_p,
+        cpr.pressure_precond, cpr.mode, cpr_s.context, npressure)
     # Apply preconditioner to pressure part
     @tic "p apply" begin
         p_rtol = cpr.p_rtol
@@ -557,7 +811,8 @@ function update_weights!(cpr, cpr_storage::CPRStorage, model, storage, J, ps)
                 cpr_weights_no_partials!(w_i, rmodel, wstate, nothing, 1, ncomp, scaling)
             else
                 acc_i = wstate.TotalMasses
-                true_impes!(w_i, acc_i, r, 1, ncomp, ps, scaling)
+                true_impes!(w_i, acc_i, r, 1, ncomp, ps, scaling,
+                    cpr_storage.context)
             end
         end
     end
@@ -583,12 +838,12 @@ function cpr_weights_for_reservoir!(model::SimulationModel, J, cpr, cpr_storage,
             # This term isn't scaled by dt, so use simple weights instead
             ps = 1.0
         end
-        true_impes!(w, acc, r, n, ncomp, ps, scaling)
+        true_impes!(w, acc, r, n, ncomp, ps, scaling, model.context)
     elseif strategy == :analytical
         rstate = storage.state
         cpr_weights_no_partials!(w, model, rstate, r, n, ncomp, scaling)
     elseif strategy == :quasi_impes
-        quasi_impes!(w, J, r, n, ncomp, scaling, offset)
+        quasi_impes!(w, J, r, n, ncomp, scaling, offset, model.context)
     elseif strategy == :none
         # Do nothing. Already set to one.
     else
@@ -614,9 +869,10 @@ function true_impes!(w, acc, r, n, bz, arg...)
     end
 end
 
-function true_impes_2!(w, acc, r, n, bz, p_scale, scaling)
+function true_impes_2!(w, acc, r, n, bz, p_scale, scaling, context)
     r_p = SVector{2}(r)
-    @inbounds for cell in 1:n
+    unit_scaling = scaling == :unit
+    Jutul.threaded_loop(n, context) do cell
         W = acc[1, cell]
         O = acc[2, cell]
 
@@ -628,7 +884,7 @@ function true_impes_2!(w, acc, r, n, bz, p_scale, scaling)
 
         A = @SMatrix [∂W∂p ∂O∂p; 
                       ∂W∂s ∂O∂s]
-        invert_w!(w, A, r_p, cell, bz, scaling)
+        invert_w!(w, A, r_p, cell, bz, unit_scaling)
     end
 end
 
@@ -638,46 +894,50 @@ end
 
 # TODO: Turn these into @generated functions
 
-function true_impes_3!(w, acc, r, n, bz, s, scaling)
+function true_impes_3!(w, acc, r, n, bz, s, scaling, context)
     r_p = SVector{3}(r)
+    unit_scaling = scaling == :unit
     f(i, j, c) = M_entry(acc, i, j, c)
-    for c in 1:n
+    Jutul.threaded_loop(n, context) do c
         A = @SMatrix    [s*f(1, 1, c) s*f(1, 2, c) s*f(1, 3, c);
                            f(2, 1, c) f(2, 2, c) f(2, 3, c);
                            f(3, 1, c) f(3, 2, c) f(3, 3, c)]
-        invert_w!(w, A, r_p, c, bz, scaling)
+        invert_w!(w, A, r_p, c, bz, unit_scaling)
     end
 end
 
-function true_impes_4!(w, acc, r, n, bz, s, scaling)
+function true_impes_4!(w, acc, r, n, bz, s, scaling, context)
     r_p = SVector{4}(r)
+    unit_scaling = scaling == :unit
     f(i, j, c) = M_entry(acc, i, j, c)
-    for c in 1:n
+    Jutul.threaded_loop(n, context) do c
         A = @SMatrix    [s*f(1, 1, c) s*f(1, 2, c) s*f(1, 3, c) s*f(1, 4, c);
                            f(2, 1, c) f(2, 2, c) f(2, 3, c) f(2, 4, c);
                            f(3, 1, c) f(3, 2, c) f(3, 3, c) f(3, 4, c);
                            f(4, 1, c) f(4, 2, c) f(4, 3, c) f(4, 4, c)]
-        invert_w!(w, A, r_p, c, bz, scaling)
+        invert_w!(w, A, r_p, c, bz, unit_scaling)
     end
 end
 
-function true_impes_5!(w, acc, r, n, bz, s, scaling)
+function true_impes_5!(w, acc, r, n, bz, s, scaling, context)
     r_p = SVector{5}(r)
+    unit_scaling = scaling == :unit
     f(i, j, c) = M_entry(acc, i, j, c)
-    for c in 1:n
+    Jutul.threaded_loop(n, context) do c
         A = @SMatrix    [s*f(1, 1, c) s*f(1, 2, c) s*f(1, 3, c) s*f(1, 4, c) s*f(1, 5, c);
                          f(2, 1, c) f(2, 2, c) f(2, 3, c) f(2, 4, c) f(2, 5, c);
                          f(3, 1, c) f(3, 2, c) f(3, 3, c) f(3, 4, c) f(3, 5, c);
                          f(4, 1, c) f(4, 2, c) f(4, 3, c) f(4, 4, c) f(4, 5, c);
                          f(5, 1, c) f(5, 2, c) f(5, 3, c) f(5, 4, c) f(5, 5, c)]
-        invert_w!(w, A, r_p, c, bz, scaling)
+        invert_w!(w, A, r_p, c, bz, unit_scaling)
     end
 end
 
-function true_impes_8!(w, acc, r, n, bz, s, scaling)
+function true_impes_8!(w, acc, r, n, bz, s, scaling, context)
     r_p = SVector{8}(r)
+    unit_scaling = scaling == :unit
     f(i, j, c) = M_entry(acc, i, j, c)
-    for c in 1:n
+    Jutul.threaded_loop(n, context) do c
         A = @SMatrix    [s*f(1, 1, c) s*f(1, 2, c) s*f(1, 3, c) s*f(1, 4, c) s*f(1, 5, c) s*f(1, 6, c) s*f(1, 7, c) s*f(1, 8, c);
                          f(2, 1, c) f(2, 2, c) f(2, 3, c) f(2, 4, c) f(2, 5, c) f(2, 6, c) f(2, 7, c) f(2, 8, c);
                          f(3, 1, c) f(3, 2, c) f(3, 3, c) f(3, 4, c) f(3, 5, c) f(3, 6, c) f(3, 7, c) f(3, 8, c);
@@ -686,15 +946,16 @@ function true_impes_8!(w, acc, r, n, bz, s, scaling)
                          f(6, 1, c) f(6, 2, c) f(6, 3, c) f(6, 4, c) f(6, 5, c) f(6, 6, c) f(6, 7, c) f(6, 8, c);
                          f(7, 1, c) f(7, 2, c) f(7, 3, c) f(7, 4, c) f(7, 5, c) f(7, 6, c) f(7, 7, c) f(7, 8, c);
                          f(8, 1, c) f(8, 2, c) f(8, 3, c) f(8, 4, c) f(8, 5, c) f(8, 6, c) f(8, 7, c) f(8, 8, c)]
-        invert_w!(w, A, r_p, c, bz, scaling)
+        invert_w!(w, A, r_p, c, bz, unit_scaling)
     end
 end
 
-function true_impes_gen!(w, acc, r, n, ::Val{bz}, p_scale, scaling) where bz
-    r_p = SVector{bz}(r)
-    r_T = eltype(r)
-    A = MMatrix{bz, bz, r_T}(undef)
-    for cell in 1:n
+function true_impes_gen!(w, acc, r::SVector{bz, T}, n, ::Val{bz},
+        p_scale, scaling, context) where {bz, T}
+    r_p = r
+    unit_scaling = scaling == :unit
+    Jutul.threaded_loop(n, context) do cell
+        A = MMatrix{bz, bz, T}(undef)
         @inbounds for i = 1:bz
             v = acc[i, cell]
             @inbounds A[1, i] = v.partials[1]*p_scale
@@ -702,21 +963,62 @@ function true_impes_gen!(w, acc, r, n, ::Val{bz}, p_scale, scaling) where bz
                 A[j, i] = v.partials[j]
             end
         end
-        invert_w!(w, SMatrix{bz, bz, r_T}(A), r_p, cell, bz, scaling)
+        invert_w!(w, SMatrix{bz, bz, T}(A), r_p, cell, bz,
+            unit_scaling)
     end
 end
 
-function quasi_impes!(w, J, r, n, bz, scaling, offset = 0)
+function quasi_impes!(w, J::Jutul.StaticSparsityMatrixCSR{<:Real}, r, n,
+        bz, scaling, offset, context)
+    return quasi_impes_scalar!(
+        w, J, r, n, Val(bz), scaling, offset, context)
+end
+
+function quasi_impes_scalar!(w, J::Jutul.StaticSparsityMatrixCSR{T}, r, n,
+        ::Val{bz}, scaling, offset, context) where {T, bz}
     r_p = SVector{bz}(r)
-    @batch for cell = 1:n
-        J_b = J[cell + offset, cell + offset]'
-        invert_w!(w, J_b, r_p, cell, bz, scaling)
+    unit_scaling = scaling == :unit
+    nentity = div(size(J, 1), bz)
+    cell_major = Jutul.is_cell_major(matrix_layout(context))
+    rowptr = J.rowptr
+    colval = Jutul.colvals(J)
+    nzval = nonzeros(J)
+    Jutul.threaded_loop(n, context) do cell
+        entity = cell + offset
+        diagonal = MMatrix{bz, bz, T}(undef)
+        @inbounds for equation in 1:bz
+            row = cpr_scalar_index(
+                equation, entity, nentity, bz, cell_major)
+            for derivative in 1:bz
+                column = cpr_scalar_index(
+                    derivative, entity, nentity, bz, cell_major)
+                value = zero(T)
+                for position in rowptr[row]:(rowptr[row + 1] - 1)
+                    if colval[position] == column
+                        value = nzval[position]
+                        break
+                    end
+                end
+                diagonal[equation, derivative] = value
+            end
+        end
+        J_b = transpose(SMatrix{bz, bz, T}(diagonal))
+        invert_w!(w, J_b, r_p, cell, bz, unit_scaling)
     end
 end
 
-@inline function invert_w!(w, J, r, cell, bz, scaling)
+function quasi_impes!(w, J, r, n, bz, scaling, offset, context)
+    r_p = SVector{bz}(r)
+    unit_scaling = scaling == :unit
+    Jutul.threaded_loop(n, context) do cell
+        J_b = J[cell + offset, cell + offset]'
+        invert_w!(w, J_b, r_p, cell, bz, unit_scaling)
+    end
+end
+
+@inline function invert_w!(w, J, r, cell, bz, unit_scaling::Bool)
     tmp = J\r
-    if scaling == :unit
+    if unit_scaling
         s = 1.0/norm(tmp)
     else
         s = 1.0
@@ -726,36 +1028,94 @@ end
     end
 end
 
-function update_p_rhs!(r_p, y, ncomp, bz, w_p, p_prec, mode)
-    n = length(y)÷bz
+function update_p_rhs!(r_p, y, ncomp, bz, w_p, p_prec, mode, context,
+        npressure)
+    n = min(npressure, div(length(y), bz))
+    cell_major = Jutul.is_cell_major(matrix_layout(context))
     if mode == :forward
-        @batch minbatch = 1000 for i in 1:n
+        Jutul.threaded_loop(n, context) do i
             v = 0.0
             @inbounds for b = 1:ncomp
-                v += y[(i-1)*bz + b]*w_p[b, i]
+                ix = cpr_scalar_index(b, i, n, bz, cell_major)
+                v += y[ix]*w_p[b, i]
             end
             @inbounds r_p[i] = v
         end
     else
-        @batch minbatch = 1000 for i in 1:n
-            @inbounds r_p[i] = y[(i-1)*bz + 1]*w_p[1, i]
+        Jutul.threaded_loop(n, context) do i
+            ix = cpr_scalar_index(1, i, n, bz, cell_major)
+            @inbounds r_p[i] = y[ix]*w_p[1, i]
         end
     end
-    for i in (n+1):length(r_p)
-        r_p[i] = 0.0
+    nw = length(r_p) - n
+    if nw > 0
+        Jutul.threaded_loop(nw, context) do i
+            @inbounds r_p[n + i] = zero(eltype(r_p))
+        end
     end
 end
 
-function correct_residual_and_increment_pressure!(r, x, Δp, bz, buf, A_ps, p_buf = missing)
+function update_p_rhs!(r_p, y, ncomp, bz, w_p, p_prec, mode, context)
+    return update_p_rhs!(r_p, y, ncomp, bz, w_p, p_prec, mode, context,
+        min(size(w_p, 2), div(length(y), bz)))
+end
+
+# Kept for extensions and downstream code that operate on ordinary CPU
+# storage and do not carry an execution context.
+function update_p_rhs!(r_p, y, ncomp, bz, w_p, p_prec, mode)
+    n = div(length(y), bz)
+    if mode == :forward
+        @batch minbatch=1000 for i in 1:n
+            value = zero(eltype(r_p))
+            @inbounds for component in 1:ncomp
+                value += y[(i - 1)*bz + component]*w_p[component, i]
+            end
+            @inbounds r_p[i] = value
+        end
+    else
+        @batch minbatch=1000 for i in 1:n
+            @inbounds r_p[i] = y[(i - 1)*bz + 1]*w_p[1, i]
+        end
+    end
+    if length(r_p) > n
+        fill!(view(r_p, (n + 1):length(r_p)), zero(eltype(r_p)))
+    end
+    return r_p
+end
+
+function correct_residual_and_increment_pressure!(r, x, Δp, bz, buf, A_ps,
+        p_buf, context, npressure)
     # x = x' + Δx
     # A (x' + Δx) = y
     # A x' = y'
     # y' = y - A*Δx
     # x = A \ y' + Δx
     @. buf = 0
-    n = length(r)÷bz
-    @tic "p increment" @inbounds for i in 1:n
-        ix = (i-1)*bz + 1
+    n = min(npressure, div(length(r), bz))
+    cell_major = Jutul.is_cell_major(matrix_layout(context))
+    @tic "p increment" Jutul.threaded_loop(n, context) do i
+        @inbounds begin
+            ix = cpr_scalar_index(1, i, n, bz, cell_major)
+            p_i = Δp[i]
+            buf[ix] = p_i
+            x[ix] += p_i
+        end
+    end
+    correct_residual!(r, A_ps, buf)
+end
+
+function correct_residual_and_increment_pressure!(r, x, Δp, bz, buf, A_ps,
+        p_buf, context)
+    return correct_residual_and_increment_pressure!(r, x, Δp, bz, buf,
+        A_ps, p_buf, context, div(length(r), bz))
+end
+
+function correct_residual_and_increment_pressure!(r, x, Δp, bz, buf, A_ps,
+        p_buf = missing)
+    @. buf = 0
+    n = div(length(r), bz)
+    @inbounds for i in 1:n
+        ix = (i - 1)*bz + 1
         p_i = Δp[i]
         buf[ix] = p_i
         x[ix] += p_i
@@ -770,9 +1130,25 @@ end
     end
 end
 
+function increment_pressure!(x, Δp, bz, p_buf, context, npressure)
+    n = min(npressure, div(length(x), bz))
+    cell_major = Jutul.is_cell_major(matrix_layout(context))
+    Jutul.threaded_loop(min(n, length(Δp)), context) do i
+        ix = cpr_scalar_index(1, i, n, bz, cell_major)
+        @inbounds x[ix] += Δp[i]
+    end
+end
+
+function increment_pressure!(x, Δp, bz, p_buf, context)
+    return increment_pressure!(x, Δp, bz, p_buf, context,
+        div(length(x), bz))
+end
+
+
 function increment_pressure!(x, Δp, bz, p_buf = missing)
-    @inbounds for i in eachindex(Δp)
-        x[(i-1)*bz + 1] += Δp[i]
+    n = min(div(length(x), bz), length(Δp))
+    @inbounds for i in 1:n
+        x[(i - 1)*bz + 1] += Δp[i]
     end
 end
 
@@ -845,6 +1221,16 @@ function cpr_construct_well_reservoir_map(model::SimulationModel, lsys, bz)
     return nothing
 end
 
+function cpr_host_csr_structure(J::Jutul.StaticSparsityMatrixCSR)
+    rowptr = Array(J.rowptr)
+    colval = Array(Jutul.colvals(J))
+    values = zeros(eltype(J), length(colval))
+    return Jutul.StaticSparsityMatrixCSR(
+        values, colval, rowptr, size(J, 1), size(J, 2), nothing)
+end
+
+cpr_host_csr_structure(J) = J
+
 function cpr_construct_well_reservoir_map(model::MultiModel, lsys, bz)
     num_simple_wells = 0
     simple_well_keys = Symbol[]
@@ -865,11 +1251,24 @@ function cpr_construct_well_reservoir_map(model::MultiModel, lsys, bz)
         end
     end
 
-    function weq_positions(J, cell_i, cell_j, ::Val{bz}, layout) where bz
+    function weq_positions(J, entity_i, entity_j, ::Val{bz}, layout) where bz
         out = @MMatrix zeros(Int64, bz, bz)
+        scalar = eltype(J) <: Real
+        nrow = scalar ? div(size(J, 1), bz) : size(J, 1)
+        ncol = scalar ? div(size(J, 2), bz) : size(J, 2)
+        cell_major = Jutul.is_cell_major(layout)
         for eq in 1:bz
             for der in 1:bz
-                out[eq, der] = find_sparse_position(J, cell_i+eq-1, cell_j+der-1, layout)
+                if scalar
+                    row = cpr_scalar_index(
+                        eq, entity_i, nrow, bz, cell_major)
+                    col = cpr_scalar_index(
+                        der, entity_j, ncol, bz, cell_major)
+                    out[eq, der] = find_sparse_position(J, row, col)
+                else
+                    out[eq, der] = find_sparse_position(
+                        J, entity_i, entity_j, layout)
+                end
             end
         end
         return SMatrix{bz, bz, Int64, bz*bz}(out)
@@ -878,28 +1277,37 @@ function cpr_construct_well_reservoir_map(model::MultiModel, lsys, bz)
     function well_positions(wcells, wperf, lsys_block::Jutul.LinearizedBlock{R}, bz) where R
         vbz = Val(bz)
         layout = R()
-        return map(i -> weq_positions(lsys_block.jac, bz*(wcells[i]-1)+1, bz*(wperf[i]-1)+1, vbz, layout), eachindex(wcells))
+        J_host = cpr_host_csr_structure(lsys_block.jac)
+        return map(i -> weq_positions(
+            J_host, wcells[i], wperf[i], vbz, layout), eachindex(wcells))
     end
 
     function well_positions(wcells, wperf, lsys::LinearizedSystem, bz)
         vbz = Val(bz)
         layout = lsys.matrix_layout
-        return map(i -> weq_positions(lsys.jac, bz*(wcells[i]-1)+1, bz*(wperf[i]-1)+1, vbz, layout), eachindex(wcells))
+        J_host = cpr_host_csr_structure(lsys.jac)
+        return map(i -> weq_positions(
+            J_host, wcells[i], wperf[i], vbz, layout), eachindex(wcells))
     end
 
 
     # For each well find the list of cells and corresponding sparsity + indices
     # since these are not blocks.
-    J_rr = lsys[1, 1].jac
-    if J_rr isa Jutul.StaticSparsityMatrixCSR
+    J_rr_source = lsys[1, 1].jac
+    J_rr = cpr_host_csr_structure(J_rr_source)
+    bz = bz + model_is_thermal(reservoir_model(model))
+    scalar_jacobian = eltype(J_rr) <: Real
+    if scalar_jacobian
+        I = Int[]
+        J = Int[]
+    elseif J_rr isa Jutul.StaticSparsityMatrixCSR
         # TODO: Add this method to CSR
         J, I, = findnz(J_rr.At)
     else
         I, J, = findnz(J_rr)
     end
-    ncell = size(J_rr, 1)
+    ncell = scalar_jacobian ? div(size(J_rr, 1), bz) : size(J_rr, 1)
 
-    bz = bz + model_is_thermal(reservoir_model(model))
     well_cells = Vector{Int64}[]
     map_T = Vector{Vector{SMatrix{bz, bz, Int64, bz*bz}}}
     map_12 = map_T()
@@ -911,7 +1319,9 @@ function cpr_construct_well_reservoir_map(model::MultiModel, lsys, bz)
         wmodel = model.models[k]
         # layout = matrix_layout(wmodel.context)
         w = physical_representation(wmodel.domain)
-        wc = w.perforations.reservoir
+        # CPRW maps are setup metadata. Keep the sparse searches on the host
+        # even when the well model itself has already been adapted.
+        wc = collect(Array(w.perforations.reservoir))
         push!(well_cells, wc)
         vbz = Val(bz)
 
