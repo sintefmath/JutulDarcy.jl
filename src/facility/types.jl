@@ -856,8 +856,8 @@ function Base.copy(c::WellGroupConfiguration)
         operating = copy(c.operating_controls),
         requested = copy(c.requested_controls),
         limits = copy(c.limits),
-        step = c.step_index,
-        reference_mode = c.reference_mode
+        step = c.step_index
+        # reference_mode is intentionally not copied
     )
 end
 
@@ -876,7 +876,7 @@ function Jutul.update_values!(old::WellGroupConfiguration, new::WellGroupConfigu
         old.limits[k] = v
     end
     old.step_index = new.step_index
-    old.reference_mode = new.reference_mode
+    # reference_mode is deliberately not synced here
     return old
 end
 

@@ -31,11 +31,14 @@ struct WellControlDOF
     periods::Vector{Int}     # which control-period indices this DOF is active in
     constant::Bool           # one shared value across all its periods
     initial::Vector{Float64} # magnitude, per active period (already expanded)
-    abs_min::Float64
-    abs_max::Float64
-    rel_min::Float64
-    rel_max::Float64
+    abs_min::Float64         # absolute lower bound on the magnitude (physical units)
+    abs_max::Float64         # absolute upper bound on the magnitude (physical units)
+    rel_min::Float64         # lower bound as a multiplicative factor of `initial`
+    rel_max::Float64         # upper bound as a multiplicative factor of `initial`
     scaler::Union{Symbol, Missing}
+    # abs_min/abs_max/rel_min/rel_max are the raw bounds as given (or defaulted)
+    # by the caller, unresolved: Jutul.free_optimization_parameter! combines them
+    # against `initial` (per active period) and validates the result.
 end
 
 struct WellControlOptimization
@@ -59,7 +62,8 @@ function Base.show(io::IO, ::MIME"text/plain", copt::WellControlOptimization)
     for d in copt.dofs
         kind = d.is_target ? "target" : "limit"
         rng = d.constant ? "constant" : "periods $(d.periods)"
-        println(io, "  $(d.well).$(d.quantity) ($kind, $rng)  box [$(d.abs_min), $(d.abs_max)]" *
+        rel = (isfinite(d.rel_min) || isfinite(d.rel_max)) ? "  rel=[$(d.rel_min), $(d.rel_max)]" : ""
+        println(io, "  $(d.well).$(d.quantity) ($kind, $rng)  abs=[$(d.abs_min), $(d.abs_max)]" * rel *
             (d.scaler === missing ? "" : "  scaler=$(d.scaler)"))
     end
 end
@@ -171,7 +175,11 @@ Set up a well-control optimization problem.
     - `well::Symbol`, `quantity::Symbol` (`:bhp`, `:rate`, `:orat`, `:wrat`,
       `:grat`, `:lrat`) — required.
     - `abs_min`, `abs_max`: absolute bounds on the magnitude (physical units).
-    - `rel_min`, `rel_max`: bounds relative to the base magnitude.
+    - `rel_min`, `rel_max`: bounds as multiplicative factors of `initial`, e.g.
+      `rel_min = 0.5, rel_max = 1.5` allows ±50%. Forwarded to
+      `Jutul.free_optimization_parameter!` together with `abs_min`/`abs_max`,
+      which combines and validates them against `initial` (per active period) —
+      construction errors if `initial` falls outside the resulting box.
     - `initial`: starting magnitude (scalar or one per active period). Defaults
       to the base schedule value; required for a limit absent from the base
       schedule.
@@ -233,18 +241,12 @@ function setup_well_control_optimization(case::JutulCase, control_periods, contr
         scaler = get(c, :scaler, :linear_limits)
         constant = Bool(get(c, :constant, false))
 
-        # Resolve relative bounds against the base magnitude (or the initial if
-        # there is no base magnitude).
-        ref = base_mag === missing ? first(initial) : base_mag
-        lo = max(abs_min, isfinite(rel_min) ? rel_min*ref : -Inf)
-        hi = min(abs_max, isfinite(rel_max) ? rel_max*ref : Inf)
-        isfinite(hi) || error("controls[$i]: no finite upper bound (set abs_max or rel_max).")
-        lo < hi || error("controls[$i]: empty box [$lo, $hi].")
-        all(lo .<= initial .<= hi) ||
-            @warn "controls[$i] ($well.$quantity): initial $(initial) outside box [$lo, $hi]; will be clamped."
-
+        # Bounds are not resolved here: they are passed through as-is to
+        # Jutul.free_optimization_parameter! below, which combines abs_*/rel_*
+        # against `initial` and validates the result (erroring, not clamping, if
+        # `initial` falls outside).
         push!(dofs, WellControlDOF(well, quantity, is_target, active_periods, constant,
-            clamp.(initial, lo, hi), lo, hi, rel_min, rel_max, scaler))
+            initial, abs_min, abs_max, rel_min, rel_max, scaler))
     end
 
     # Build the optimization dict: well => quantity => per-period magnitudes.
@@ -264,6 +266,8 @@ function setup_well_control_optimization(case::JutulCase, control_periods, contr
         free_optimization_parameter!(dopt, name;
             abs_min = d.abs_min,
             abs_max = d.abs_max,
+            rel_min = d.rel_min,
+            rel_max = d.rel_max,
             scaler = d.scaler,
         )
     end

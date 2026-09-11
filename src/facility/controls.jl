@@ -148,6 +148,12 @@ function update_before_step_reference_mode!(storage_g, model_g, model::WellGroup
                 lim = cfg.limits[wkey]
                 if !isnothing(lim) && haskey(lim, op_sym)
                     op_ctrls[wkey] = replace_target(op, reference_retarget(op.target, lim[op_sym]))
+                else
+                    # No entry for this limit anywhere in cfg.limits
+                    @warn "Well $wkey is operating on limit :$op_sym, but no " *
+                        "matching entry was found in its operating limits during " *
+                        "adjoint reference-mode evaluation. Its gradient will be " *
+                        "zero on steps where this happens." maxlog = 5
                 end
             end
         end
