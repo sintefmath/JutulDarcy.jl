@@ -67,8 +67,6 @@ function Jutul.update_cross_term_in_entity!(out, i,
     end
     return out
 end
-
-
 struct ReservoirFromWellTracerCT{I<:AbstractVector} <: JutulDarcy.AbstractReservoirFromWellCT
     reservoir_cells::I
     well_cells::I
@@ -151,6 +149,3 @@ function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellTra
     apply_perforation_mask!(ct_s.target, mask, model.context)
     apply_perforation_mask!(ct_s.source, mask, model.context)
 end
-
-
-
