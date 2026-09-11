@@ -123,6 +123,33 @@ if CUDA.functional()
             end
         end
     end
+    @testset "SPE9 KA CPR and CPRW" begin
+        spe9 = JutulDarcy.GeoEnergyIO.test_input_file_path(
+            "SPE9", "SPE9.DATA")
+        case = setup_case_from_data_file(spe9;
+            block_backend = true)[1:1]
+        linear_solver_arg = (
+            amg_type = :ka,
+            smoother_type = :ka_ilu0,
+            update_interval = :once,
+            update_interval_partial = :iteration,
+            partial_update = true,
+            amg_arg = (reuse = :operators,),
+            max_iterations = 100
+        )
+        for precond in (:cpr, :cprw)
+            result = simulate_reservoir(case;
+                mode = :ka_cuda,
+                precond = precond,
+                linear_solver_arg = linear_solver_arg,
+                failure_cuts_timestep = false,
+                info_level = -1)
+            @test length(result.states) == 1
+            pressure = only(result.states)[:Reservoir][:Pressure]
+            @test pressure isa Vector
+            @test all(isfinite, pressure)
+        end
+    end
     function spe1_gpu_compare(ref, cusolve)
         @test ref.wells[:PROD][:grat] ≈ cusolve.wells[:PROD][:grat] rtol = 1e-2
         @test ref.wells[:PROD][:bhp] ≈ cusolve.wells[:PROD][:bhp] rtol = 1e-2

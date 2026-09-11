@@ -5,12 +5,23 @@ Set up iterative linear solver for a reservoir model from [`setup_reservoir_mode
 
 # Arguments
 - `model`: Reservoir model that will linearize the equations for the linear solver
-- `precond=:cpr`: Preconditioner type to use: Either :cpr (Constrained-Pressure-Residual) or :ilu0 (block-incomplete-LU) (no effect if `solver = :direct`).
+- `precond=:cpr`: Preconditioner type to use. `:cpr` and `:cprw` select
+  constrained-pressure-residual variants; smoother-only choices include
+  `:ilu0`, `:jacobi`, `:spai0`, `:ka_ilu0`, `:ka_dilu`, and `:ka_spai0`.
+- `backend=:auto`: Use the KernelAbstractions solver for a model with a KA
+  context and the CPU solver otherwise. `:ka`, `:cpu`, and the legacy
+  transfer-based `:cuda` path can be selected explicitly.
 - `v=0`: verbosity (can lead to a large amount of output)
 - `solver=:bicgstab`: the symbol of a Krylov.jl solver (typically :gmres or :bicgstab)
 - `update_interval=:once`: how often the CPR AMG hierarchy is reconstructed (:once, :iteration, :ministep, :step)
 - `update_interval_partial=:iteration`: how often the pressure system is updated in CPR
 - `max_coarse`: max size of coarse level if using AMG
+- `amg_type`: pressure preconditioner implementation. `:ka` selects the new
+  backend-portable AMG. An initialized Jutul preconditioner can also be passed.
+- `smoother_type`: full-system smoother. The `:ka_*` choices use the new
+  backend-portable smoothers.
+- `amg_arg`, `smoother_arg`, `cpr_arg`: keyword arguments forwarded to the
+  pressure AMG, full-system smoother, and CPR constructors, respectively.
 - `cpr_type=nothing`: type of CPR (`:true_impes`, `:quasi_impes` or `nothing` for automatic)
 - `partial_update=true`: perform partial update of CPR preconditioner outside of AMG update (see above)
 - `rtol=1e-3`: relative tolerance for the linear solver
@@ -19,7 +30,7 @@ Set up iterative linear solver for a reservoir model from [`setup_reservoir_mode
 Additional keywords are passed onto the linear solver constructor.
 """
 function reservoir_linsolve(model, precond = :cpr;
-        backend = :cpu,
+        backend = :auto,
         rtol = nothing,
         atol = nothing,
         v = 0,
@@ -28,20 +39,37 @@ function reservoir_linsolve(model, precond = :cpr;
         max_iterations = nothing,
         update_interval = :iteration,
         update_interval_partial = :iteration,
-        amg_type = default_amg_symbol(),
+        amg_type = nothing,
         smoother_type = :ilu0,
         max_coarse = 10,
         cpr_type = nothing,
         partial_update = update_interval == :once,
         amg_arg = NamedTuple(),
+        smoother_arg = NamedTuple(),
+        cpr_arg = NamedTuple(),
         precond_side = missing,
         float_type = Float64,
         kwarg...
     )
     is_equation_major = !Jutul.is_cell_major(matrix_layout(model.context))
-    backend in (:cpu, :cuda) || throw(ArgumentError("Backend $backend not supported, must be :cpu or :cuda."))
+    if backend == :auto
+        backend = model.context isa Jutul.KernelAbstractionsContext &&
+            !is_equation_major ?
+            :ka : :cpu
+    end
+    backend in (:cpu, :cuda, :ka) || throw(ArgumentError(
+        "Backend $backend not supported, must be :auto, :cpu, :ka or :cuda."))
     is_cpr = precond == :cpr || precond == :cprw
-    if backend == :cuda
+    if backend == :ka
+        !is_equation_major || throw(ArgumentError(
+            "Equation-major storage is not supported for KernelAbstractions solvers."))
+        solver != :lu || throw(ArgumentError(
+            "A direct LU solver is not supported for KernelAbstractions backends."))
+        isnothing(amg_type) && (amg_type = :ka)
+        smoother_type == :ilu0 && (smoother_type = :ka_ilu0)
+        krylov_constructor = GenericKrylov
+        krylov_arg = NamedTuple()
+    elseif backend == :cuda
         # Check assumptions
         !is_equation_major || throw(ArgumentError("Equation-major storage not supported for CUDA backend."))
         solver != :lu || throw(ArgumentError("LU direct solver not supported for CUDA backend."))
@@ -72,6 +100,7 @@ function reservoir_linsolve(model, precond = :cpr;
         krylov_arg = NamedTuple()
         @assert float_type == Float64 "Only Float64 supported for CPU backend."
     end
+    isnothing(amg_type) && (amg_type = default_amg_symbol())
 
     default_tol = 0.01
     max_it = 200
@@ -84,13 +113,7 @@ function reservoir_linsolve(model, precond = :cpr;
             end
         end
         p_solve = default_psolve(; max_coarse = max_coarse, type = amg_type, amg_arg...)
-        if smoother_type == :ilu0
-            s = ILUZeroPreconditioner()
-        elseif smoother_type == :jacobi
-            s = JacobiPreconditioner()
-        else
-            error("Smoother :$smoother_type not supported for CPR.")
-        end
+        s = reservoir_system_preconditioner(smoother_type; smoother_arg...)
         prec = CPRPreconditioner(
             p_solve, s,
             strategy = cpr_type,
@@ -98,16 +121,15 @@ function reservoir_linsolve(model, precond = :cpr;
             update_interval = update_interval,
             partial_update = partial_update,
             update_interval_partial = update_interval_partial,
-            mode = mode
+            mode = mode,
+            cpr_arg...
         )
         default_tol = 0.005
         max_it = 50
-    elseif precond == :ilu0
-        prec = ILUZeroPreconditioner()
-    elseif precond == :jacobi
-        prec = JacobiPreconditioner()
-    elseif precond == :spai0
-        prec = SPAI0Preconditioner()
+    elseif precond in (:ilu0, :jacobi, :spai0, :ka_ilu0, :ka_dilu,
+            :ka_spai0)
+        selected = backend == :ka && precond == :ilu0 ? :ka_ilu0 : precond
+        prec = reservoir_system_preconditioner(selected; smoother_arg...)
     else
         if precond isa Symbol
             error("Preconditioner $precond not supported for $(model.context)")
@@ -144,6 +166,26 @@ function reservoir_linsolve(model, precond = :cpr;
         kwarg...
     )
     return lsolve
+end
+
+function reservoir_system_preconditioner(type; kwarg...)
+    if type == :ilu0
+        return ILUZeroPreconditioner(; kwarg...)
+    elseif type == :jacobi
+        return JacobiPreconditioner(; kwarg...)
+    elseif type == :spai0
+        return SPAI0Preconditioner(; kwarg...)
+    elseif type == :ka_ilu0
+        return Jutul.KASmootherPreconditioner(:ilu0; kwarg...)
+    elseif type == :ka_dilu
+        return Jutul.KASmootherPreconditioner(:dilu; kwarg...)
+    elseif type == :ka_spai0
+        return Jutul.KASmootherPreconditioner(:spai0; kwarg...)
+    elseif type isa JutulPreconditioner
+        return type
+    else
+        throw(ArgumentError("Unsupported reservoir smoother: $type"))
+    end
 end
 
 function reservoir_linsolve(model::MultiModel, arg...; kwarg...)

@@ -1086,6 +1086,10 @@ end
 - `rtol=nothing`: relative tolerance for linear solver. If set to `nothing`, the
   default tolerance for the preconditioner is used, which is 5e-3 for CPR
   variants and 1e-2 for smoothers.
+- `linear_solver_backend=:auto`: Select the backend-native Krylov and
+  preconditioner path. KernelAbstractions simulator modes automatically use
+  the KA AMG and smoother implementations. Set this explicitly to `:cpu`,
+  `:ka`, or the legacy `:cuda` transfer path to override the default.
 - `linear_solver_arg`: `Dict` containing additional linear solver arguments.
 
 ## Timestepping options
@@ -1170,7 +1174,7 @@ function setup_reservoir_simulator(case::JutulCase;
         method = :newton,
         precond = :cpr,
         linear_solver = :bicgstab,
-        linear_solver_backend = :cpu,
+        linear_solver_backend = :auto,
         max_timestep = si_unit(:year),
         min_timestep = 0.0,
         max_dt = max_timestep,
@@ -1308,8 +1312,13 @@ function setup_reservoir_simulator(case::JutulCase;
         else
             extra_ls = NamedTuple()
         end
+        solver_backend = if linear_solver_backend == :auto
+            ka_mode ? :ka : :cpu
+        else
+            linear_solver_backend
+        end
         extra_kwarg[:linear_solver] = reservoir_linsolve(case.model, precond;
-            backend = linear_solver_backend,
+            backend = solver_backend,
             rtol = rtol,
             extra_ls...,
             linear_solver_arg...,
