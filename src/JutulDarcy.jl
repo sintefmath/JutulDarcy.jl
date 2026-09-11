@@ -157,6 +157,7 @@ module JutulDarcy
         end
     end
 
+    include("KernelExecution/interface.jl")
     include("types.jl")
     include("deck_types.jl")
     include("porousmedia_grids.jl")
@@ -210,8 +211,9 @@ module JutulDarcy
     # Timestepping
     include("timesteps.jl")
 
-    # Backend adaptation and KA kernels for a single reservoir model.
-    include("kernel_abstractions.jl")
+    # Backend adaptation for reservoir-specific simulation types.
+    include("KernelExecution/KernelExecution.jl")
+    using .KernelExecution
 
     # Postprocessing
     include("postprocessing.jl")

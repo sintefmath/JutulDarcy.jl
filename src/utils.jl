@@ -1051,15 +1051,6 @@ function mode_to_backend(mode::Jutul.PArrayBackend)
     return mode
 end
 
-kernel_abstractions_backend(mode::Symbol) = kernel_abstractions_backend(Val(mode))
-kernel_abstractions_backend(::Val{:ka}) = Jutul.KernelAbstractions.CPU()
-kernel_abstractions_backend(::Val{:ka_cpu}) = Jutul.KernelAbstractions.CPU()
-function kernel_abstractions_backend(::Val{mode}) where mode
-    throw(ArgumentError(
-        "No KernelAbstractions backend is available for mode :$mode. " *
-        "Load the corresponding backend package or pass ka_backend explicitly."))
-end
-
 """
     setup_reservoir_simulator(case::JutulCase; <keyword arguments>)
 
