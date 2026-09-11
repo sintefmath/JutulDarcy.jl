@@ -89,7 +89,7 @@ copt = setup_well_control_optimization(egg_case, control_periods, controls;
 # `optimize_well_controls` drives a box-constrained quasi-Newton optimizer with
 # adjoint gradients (sparse differentiation over the control vector by default).
 prm_opt = optimize_well_controls(copt; maximize = true, max_it = 15,
-    simulator_arg = (rtol = 1e-5, tol_cnv = 1e-5))
+    simulator_arg = (rtol = 1e-6, tol_cnv = 1e-6, info_level = 0, end_report = false, output_substates=true))
 opt_case = copt(prm_opt)
 
 # ## NPV over the iterations
