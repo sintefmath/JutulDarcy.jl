@@ -65,8 +65,12 @@ function reservoir_linsolve(model, precond = :cpr;
             "Equation-major storage is not supported for KernelAbstractions solvers."))
         solver != :lu || throw(ArgumentError(
             "A direct LU solver is not supported for KernelAbstractions backends."))
-        isnothing(amg_type) && (amg_type = :ka)
-        smoother_type == :ilu0 && (smoother_type = :ka_ilu0)
+        if isnothing(amg_type)
+            amg_type = :ka
+        end
+        if smoother_type == :ilu0
+            smoother_type = :ka_ilu0
+        end
         krylov_constructor = GenericKrylov
         krylov_arg = NamedTuple()
     elseif backend == :cuda
