@@ -59,6 +59,33 @@ end
     @test collect(device_bo[2]) ≈ collect(cpu_bo[2])
 end
 
+@testset "KA reservoir solver configuration" begin
+    grid = CartesianMesh((2, 1), (2.0, 1.0))
+    state0, model, parameters, _, _ = get_test_setup(
+        grid,
+        case_name = "two_phase_simple",
+        context = ParallelCSRContext(matrix_layout = BlockMajorLayout()),
+        timesteps = [0.1]
+    )
+    simulator = transfer_to_backend(
+        Simulator(model; state0 = state0, parameters = parameters),
+        JLBackend())
+    for variant in (:cpr, :cprw)
+        solver = reservoir_linsolve(simulator.model, variant;
+            amg_arg = (reuse = :memory,),
+            smoother_arg = (damping = 0.8,),
+            cpr_arg = (weight_scaling = :none,))
+        preconditioner = solver.preconditioner
+        @test preconditioner isa CPRPreconditioner
+        @test preconditioner.variant == variant
+        @test preconditioner.weight_scaling == :none
+        @test preconditioner.pressure_precond isa Jutul.AMGPreconditioner
+        @test preconditioner.pressure_precond.reuse == :memory
+        @test preconditioner.system_precond isa Jutul.KASmootherPreconditioner
+        @test preconditioner.system_precond.config.damping == 0.8
+    end
+end
+
 @testset "Single-phase reservoir on a KA backend" begin
     grid = CartesianMesh((4, 1), (4.0, 1.0))
     state0, model, parameters, forces, timesteps = get_test_setup(

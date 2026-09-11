@@ -145,7 +145,7 @@ if CUDA.functional()
                 failure_cuts_timestep = false,
                 info_level = -1)
             @test length(result.states) == 1
-            pressure = only(result.states)[:Reservoir][:Pressure]
+            pressure = only(result.states)[:Pressure]
             @test pressure isa Vector
             @test all(isfinite, pressure)
         end

@@ -8,9 +8,9 @@ Set up iterative linear solver for a reservoir model from [`setup_reservoir_mode
 - `precond=:cpr`: Preconditioner type to use. `:cpr` and `:cprw` select
   constrained-pressure-residual variants; smoother-only choices include
   `:ilu0`, `:jacobi`, `:spai0`, `:ka_ilu0`, `:ka_dilu`, and `:ka_spai0`.
-- `backend=:auto`: Use the KernelAbstractions solver for a model with a KA
-  context and the CPU solver otherwise. `:ka`, `:cpu`, and the legacy
-  transfer-based `:cuda` path can be selected explicitly.
+- `backend=:auto`: Use the KernelAbstractions solver for a cell-major model
+  with a KA context and the CPU/default fallback otherwise. `:ka`, `:cpu`, and
+  the legacy transfer-based `:cuda` path can be selected explicitly.
 - `v=0`: verbosity (can lead to a large amount of output)
 - `solver=:bicgstab`: the symbol of a Krylov.jl solver (typically :gmres or :bicgstab)
 - `update_interval=:once`: how often the CPR AMG hierarchy is reconstructed (:once, :iteration, :ministep, :step)
@@ -115,7 +115,7 @@ function reservoir_linsolve(model, precond = :cpr;
         p_solve = default_psolve(; max_coarse = max_coarse, type = amg_type, amg_arg...)
         s = reservoir_system_preconditioner(smoother_type; smoother_arg...)
         prec = CPRPreconditioner(
-            p_solve, s,
+            p_solve, s;
             strategy = cpr_type,
             variant = precond,
             update_interval = update_interval,

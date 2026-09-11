@@ -261,7 +261,6 @@ function pressure_matrix_from_global_jacobian(sys_jac::Jutul.StaticSparsityMatri
     J = well_reservoir_map.J
     @assert length(I) == length(J)
     V = zeros(T, length(I))
-    n::Integer
     A = sparse(J, I, V, n, n)
     A_p_host = Jutul.StaticSparsityMatrixCSR(A;
         nthreads = sys_jac.nthreads,
@@ -270,7 +269,6 @@ function pressure_matrix_from_global_jacobian(sys_jac::Jutul.StaticSparsityMatri
     # Align reservoir variables
     nzmap_reservoir = well_reservoir_map.nzmap_11
     resize!(nzmap_reservoir, nnz(sys_jac))
-    ix_in_pnzval = 1
     ncell = size(sys_jac, 1)
     nwell = size(A_p_host, 1) - ncell
     system_rowptr = Array(sys_jac.rowptr)
@@ -291,19 +289,15 @@ function pressure_matrix_from_global_jacobian(sys_jac::Jutul.StaticSparsityMatri
     # Align well to reservoir variables
     nzmap_12 = well_reservoir_map.nzmap_12
     nzmap_21 = well_reservoir_map.nzmap_21
-    J_12 = lsys[1, 2].jac
-    J_21 = lsys[2, 1].jac
     for w in 1:nwell
-        for (i, cell) in enumerate(well_reservoir_map.well_cells[w])
+        for cell in well_reservoir_map.well_cells[w]
             ix_12 = find_sparse_position(A_p_host, cell, ncell + w)
             push!(nzmap_12, ix_12)
             ix_21 = find_sparse_position(A_p_host, ncell + w, cell)
             push!(nzmap_21, ix_21)
         end
     end
-    backend = Jutul.KAPreconditioners.matrix_backend(sys_jac)
-    A_p = Jutul.KAPreconditioners.csr_matrix(A_p_host;
-        backend = backend, block_size = sys_jac.minbatch)
+    A_p = Jutul.transfer_csr_to_backend(sys_jac, A_p_host)
     prepare_cprw_backend_maps!(well_reservoir_map, sys_jac)
     return A_p
 end
@@ -1036,7 +1030,6 @@ function cpr_construct_well_reservoir_map(model::MultiModel, lsys, bz)
         # are moved to the execution backend by prepare_cprw_backend_maps!.
         wc = Array(w.perforations.reservoir)
         push!(well_cells, wc)
-        vbz = Val(bz)
 
         wno = fill(i, length(wc))
         # Reservoir differentiated with respect to wells
