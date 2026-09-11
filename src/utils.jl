@@ -3152,18 +3152,18 @@ function transfer_variables_or_parameters!(vars, new_model::SimulationModel, rep
 end
 
 # Utility to transfer variables and parameters from one model to another
-function transfer_variables_and_parameters!(new_model, old_model;
+function transfer_variables_and_parameters!(new_model,
+        old_model::SimulationModel{O, S, F, C};
         primary = true,
         secondary = true,
         parameters = true,
         add_new = true,
         check_type = true,
         skip = Symbol[]
-    )
+    ) where {O, S, F, C}
     if check_type
-        new_type = typeof(new_model)
-        old_type = typeof(old_model)
-        @assert new_type == old_type "Models must be of the same type ($new_type ≠ $old_type)"
+        matching_type = new_model isa SimulationModel{O, S, F, C}
+        @assert matching_type "Models must have matching domains, systems, formulations and contexts"
     end
     function transfer!(x)
         transfer_variables_or_parameters!(
