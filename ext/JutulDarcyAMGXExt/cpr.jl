@@ -7,7 +7,7 @@ function JutulDarcy.update_amgx_pressure_system!(amgx::AMGXPreconditioner, A::Ju
             s = amgx.data[:storage]
             A_gpu = s.matrix
             @assert nnz(A) == nnz(A_gpu)
-            @tic "AMGX coefficients" AMGX.replace_coefficients!(A_gpu, A.At.nzval)
+            @tic "AMGX coefficients" AMGX.replace_coefficients!(A_gpu, A.nzval)
         end
     else
         if Tv == Float64
@@ -22,9 +22,9 @@ function JutulDarcy.update_amgx_pressure_system!(amgx::AMGXPreconditioner, A::Ju
         AMGX.set_zero!(s.x, n)
         AMGX.set_zero!(s.r, n)
 
-        row_ptr = Cint.(A.At.colptr .- 1)
-        colval = Cint.(A.At.rowval .- 1)
-        nzval = A.At.nzval
+        row_ptr = Cint.(A.rowptr .- 1)
+        colval = Cint.(A.colval .- 1)
+        nzval = A.nzval
         # TODO: Support for other types than Float64, should be done in setup of
         # pressure system
         AMGX.pin_memory(nzval)
@@ -33,7 +33,7 @@ function JutulDarcy.update_amgx_pressure_system!(amgx::AMGXPreconditioner, A::Ju
             colval,
             nzval
         )
-        amgx.data[:nzval] = A.At.nzval
+        amgx.data[:nzval] = A.nzval
         amgx.data[:storage] = s
         amgx.data[:block_size] = 1
         amgx.data[:n] = n

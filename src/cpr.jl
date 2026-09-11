@@ -237,7 +237,11 @@ function pressure_matrix_from_global_jacobian(J::Jutul.StaticSparsityMatrixCSR, 
     nzval = zeros(T, nnz(J))
     n = size(J, 2)
     # Assume symmetry in sparse pattern, but not values.
-    return Jutul.StaticSparsityMatrixCSR(n, n, J.At.colptr, Jutul.colvals(J), nzval, nthreads = J.nthreads, minbatch = J.minbatch)
+    return Jutul.StaticSparsityMatrixCSR(
+        n, n, J.rowptr, Jutul.colvals(J), nzval;
+        nthreads = J.nthreads,
+        minbatch = J.minbatch
+    )
 end
 
 function pressure_matrix_from_global_jacobian(sys_jac::Jutul.StaticSparsityMatrixCSR, T, lsys, well_reservoir_map)
@@ -891,12 +895,7 @@ function cpr_construct_well_reservoir_map(model::MultiModel, lsys, bz)
     # For each well find the list of cells and corresponding sparsity + indices
     # since these are not blocks.
     J_rr = lsys[1, 1].jac
-    if J_rr isa Jutul.StaticSparsityMatrixCSR
-        # TODO: Add this method to CSR
-        J, I, = findnz(J_rr.At)
-    else
-        I, J, = findnz(J_rr)
-    end
+    I, J, = findnz(J_rr)
     ncell = size(J_rr, 1)
 
     bz = bz + model_is_thermal(reservoir_model(model))

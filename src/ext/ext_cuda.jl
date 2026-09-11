@@ -49,7 +49,8 @@ function Jutul.linear_solve!(lsys::Jutul.LSystem,
     t_setup = @elapsed @tic "initial_gpu" if is_first
         csr_block_buffer = pin_cpu_memory(L.jac_buffer)
         krylov.data[:csr_buffer] = csr_block_buffer
-        krylov.data[:J], krylov.data[:r] = build_gpu_block_system(Ti, Tv, sz, bz, J.At.colptr, J.At.rowval, csr_block_buffer, r)
+        krylov.data[:J], krylov.data[:r] = build_gpu_block_system(
+            Ti, Tv, sz, bz, J.rowptr, J.colval, csr_block_buffer, r)
         krylov.data[:schur] = build_gpu_schur_system(Ti, Tv, bz, lsys)
         krylov.data[:dx_cpu] = pin_cpu_memory(zeros(n*bz))
     end
