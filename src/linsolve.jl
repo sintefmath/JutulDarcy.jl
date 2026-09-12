@@ -132,7 +132,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
     else
         default_tol = 0.01
         max_it = 200
-        prec = reservoir_system_smoother(selected; backend = backend, smoother_arg...)
+        prec = reservoir_system_smoother(precond; backend = backend, smoother_arg...)
     end
     if ismissing(rtol)
         rtol = default_tol
