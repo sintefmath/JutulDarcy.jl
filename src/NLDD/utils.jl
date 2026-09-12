@@ -98,7 +98,7 @@ function simulator_config(sim::NLDDSimulator;
             # Avoid nesting HYPRE calls?
             amg_type = :smoothed_aggregation
         else
-            amg_type = JutulDarcy.default_amg_symbol()
+            amg_type = :hypre
         end
         submodel = subsims[i].model
         linear_solver = select_reservoir_linear_solver(submodel, subdomain_precond)

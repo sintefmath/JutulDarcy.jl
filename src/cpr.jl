@@ -147,61 +147,6 @@ function CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner();
     )
 end
 
-function default_psolve(; max_levels = 10, max_coarse = 10, amgcl_type = :amg, type = default_amg_symbol(), kwarg...)
-    if type == :hypre
-        amg = BoomerAMGPreconditioner(; kwarg...)
-    elseif type == :amgx
-        amg = AMGXPreconditioner(; kwarg...)
-    elseif type == :amgcl
-        if length(kwarg) == 0
-            # Some reasonable defaults for reservoir system
-            agg = (
-                coarsening = (
-                    type = "aggregation",
-                    over_interp = 1.0,
-                    aggr = (
-                        eps_strong = 0.1,
-                    )
-                ),
-                npre = 3,
-                npost = 3,
-                ncycle = 1,
-                coarse_enough = 1000,
-                pre_cycles = 1,
-                relax = (
-                    type = "spai0",
-                ),
-            )
-            if amgcl_type == :amg
-                # Direct AMG as preconditioner
-                kwarg = agg
-            elseif amgcl_type == :amg_solver
-                # Nexted Krylov solve - should use FGMRES on outside.
-                kwarg = (
-                    solver = (
-                        type = :fgmres,
-                        tol = 1e-2,
-                        verbose = false
-                        ),
-                    precond = agg,
-                )
-            end
-        end
-        amg = Jutul.AMGCLPreconditioner(amgcl_type; kwarg...)
-    elseif type == :ka || type == :ka_amg ||
-            type == :smoothed_aggregation || type == :aggregation ||
-            type == :ruge_stuben
-        method = type in (:ka, :ka_amg) ? :smoothed_aggregation : type
-        amg = Jutul.AMGPreconditioner(method;
-            max_levels = max_levels, max_coarse = max_coarse, kwarg...)
-    elseif type isa JutulPreconditioner
-        amg = type
-    else
-        error("Unknown AMG type: $type")
-    end
-    return amg
-end
-
 function update_preconditioner!(cpr::CPRPreconditioner, lsys::Jutul.JutulLinearSystem, ctx_outer, model, storage, recorder, executor; update_system_precond = true, T = Float64)
     rmodel = reservoir_model(model, type = :flow)
     ctx = rmodel.context

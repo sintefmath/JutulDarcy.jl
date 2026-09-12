@@ -31,21 +31,21 @@ Additional keywords are passed onto the linear solver constructor.
 """
 function select_reservoir_linear_solver(model, precond = :cpr;
         backend = :auto,
-        rtol = nothing,
-        atol = nothing,
+        rtol = missing,
+        atol = missing,
         v = 0,
         mode = :forward,
         solver = :bicgstab,
-        max_iterations = nothing,
+        max_iterations = missing,
         update_interval = :iteration,
         update_interval_partial = :iteration,
-        amg_type = nothing,
-        smoother_type = :ilu0,
         max_coarse = 10,
-        cpr_type = nothing,
         partial_update = update_interval == :once,
+        amg_type = missing,
         amg_arg = NamedTuple(),
+        smoother_type = :ilu0,
         smoother_arg = NamedTuple(),
+        cpr_type = missing,
         cpr_arg = NamedTuple(),
         precond_side = missing,
         float_type = Float64,
@@ -62,10 +62,10 @@ function select_reservoir_linear_solver(model, precond = :cpr;
     is_cpr = precond == :cpr || precond == :cprw
     if backend == :ka
         !is_equation_major || throw(ArgumentError(
-            "Equation-major storage is not supported for KernelAbstractions solvers."))
+            "Equation-major storage is not supported for KernelAbstractions solvers. Set backend = :csr when setting up the model."))
         solver != :lu || throw(ArgumentError(
             "A direct LU solver is not supported for KernelAbstractions backends."))
-        if isnothing(amg_type)
+        if ismissing(amg_type)
             amg_type = :ka
         end
         if smoother_type == :ilu0
@@ -75,7 +75,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         krylov_arg = NamedTuple()
     elseif backend == :cuda
         # Check assumptions
-        !is_equation_major || throw(ArgumentError("Equation-major storage not supported for CUDA backend."))
+        !is_equation_major || throw(ArgumentError("Equation-major storage not supported for CUDA backend. Set backend = :csr when setting up the model."))
         solver != :lu || throw(ArgumentError("LU direct solver not supported for CUDA backend."))
         has_cuda = !isnothing(Base.get_extension(JutulDarcy, :JutulDarcyCUDAExt))
         has_cuda || throw(ArgumentError("CUDA backend not available. You must run \"using CUDA\" before using this function."))
@@ -88,7 +88,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
             amg_type = :amgx
         end
         if smoother_type != :ilu0
-            jutul_message("CUDA", "Smoother $smoother_type not supported for CUDA, falling back to ILU(0).")
+            jutul_message("CUDA", "Smoother $smoother_type not supported for CUDA, falling back to ILU(0). Maybe you want :ka as the backend?")
             smoother_type = :ilu0
         end
         krylov_constructor = CUDAReservoirKrylov
@@ -104,12 +104,14 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         krylov_arg = NamedTuple()
         @assert float_type == Float64 "Only Float64 supported for CPU backend."
     end
-    isnothing(amg_type) && (amg_type = default_amg_symbol())
+    if ismissing(amg_type)
+        amg_type = :hypre
+    end
 
     default_tol = 0.01
     max_it = 200
     if is_cpr
-        if isnothing(cpr_type)
+        if ismissing(cpr_type)
             if isa(model.system, ImmiscibleSystem)
                 cpr_type = :analytical
             else
@@ -117,7 +119,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
             end
         end
         p_solve = default_psolve(; max_coarse = max_coarse, type = amg_type, amg_arg...)
-        s = reservoir_system_preconditioner(smoother_type; smoother_arg...)
+        s = reservoir_system_smoother(smoother_type; smoother_arg...)
         prec = CPRPreconditioner(
             p_solve, s;
             strategy = cpr_type,
@@ -133,7 +135,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
     elseif precond in (:ilu0, :jacobi, :spai0, :ka_ilu0, :ka_dilu,
             :ka_spai0)
         selected = backend == :ka && precond == :ilu0 ? :ka_ilu0 : precond
-        prec = reservoir_system_preconditioner(selected; smoother_arg...)
+        prec = reservoir_system_smoother(selected; smoother_arg...)
     else
         if precond isa Symbol
             error("Preconditioner $precond not supported for $(model.context)")
@@ -141,10 +143,10 @@ function select_reservoir_linear_solver(model, precond = :cpr;
             prec = precond
         end
     end
-    if isnothing(rtol)
+    if ismissing(rtol)
         rtol = default_tol
     end
-    if isnothing(max_iterations)
+    if ismissing(max_iterations)
         max_iterations = max_it
         if mode == :adjoint
             # No outer loop to control - add more iterations.
@@ -172,7 +174,15 @@ function select_reservoir_linear_solver(model, precond = :cpr;
     return lsolve
 end
 
-function reservoir_system_preconditioner(type; kwarg...)
+function reservoir_system_smoother(s::JutulPreconditioner; kwarg...)
+    return s
+end
+
+function reservoir_system_smoother(s::AbstractString; kwarg...)
+    return reservoir_system_smoother(Symbol(s); kwarg...)
+end
+
+function reservoir_system_smoother(type::Symbol; kwarg...)
     if type == :ilu0
         return ILUZeroPreconditioner(; kwarg...)
     elseif type == :jacobi
@@ -185,27 +195,70 @@ function reservoir_system_preconditioner(type; kwarg...)
         return Jutul.KASmootherPreconditioner(:dilu; kwarg...)
     elseif type == :ka_spai0
         return Jutul.KASmootherPreconditioner(:spai0; kwarg...)
-    elseif type isa JutulPreconditioner
-        return type
     else
         throw(ArgumentError("Unsupported reservoir smoother: $type"))
     end
+end
+
+function default_psolve(; max_levels = 10, max_coarse = 10, amgcl_type = :amg, type = default_amg_symbol(), kwarg...)
+    if type == :hypre
+        amg = BoomerAMGPreconditioner(; kwarg...)
+    elseif type == :amgx
+        amg = AMGXPreconditioner(; kwarg...)
+    elseif type == :amgcl
+        if length(kwarg) == 0
+            # Some reasonable defaults for reservoir system
+            agg = (
+                coarsening = (
+                    type = "aggregation",
+                    over_interp = 1.0,
+                    aggr = (
+                        eps_strong = 0.1,
+                    )
+                ),
+                npre = 3,
+                npost = 3,
+                ncycle = 1,
+                coarse_enough = 1000,
+                pre_cycles = 1,
+                relax = (
+                    type = "spai0",
+                ),
+            )
+            if amgcl_type == :amg
+                # Direct AMG as preconditioner
+                kwarg = agg
+            elseif amgcl_type == :amg_solver
+                # Nexted Krylov solve - should use FGMRES on outside.
+                kwarg = (
+                    solver = (
+                        type = :fgmres,
+                        tol = 1e-2,
+                        verbose = false
+                        ),
+                    precond = agg,
+                )
+            end
+        end
+        amg = Jutul.AMGCLPreconditioner(amgcl_type; kwarg...)
+    elseif type == :ka || type == :ka_amg ||
+            type == :smoothed_aggregation || type == :aggregation ||
+            type == :ruge_stuben
+        method = type in (:ka, :ka_amg) ? :smoothed_aggregation : type
+        amg = Jutul.AMGPreconditioner(method;
+            max_levels = max_levels, max_coarse = max_coarse, kwarg...)
+    elseif type isa JutulPreconditioner
+        amg = type
+    else
+        error("Unknown AMG type: $type")
+    end
+    return amg
 end
 
 function select_reservoir_linear_solver(model::MultiModel, arg...; kwarg...)
     rmodel = reservoir_model(model)
     return select_reservoir_linear_solver(rmodel, arg...; kwarg...)
 end
-
-function default_amg_symbol()
-    if Jutul.check_hypre_availability(throw = false)
-        amg_type = :hypre
-    else
-        amg_type = :smoothed_aggregation
-    end
-    return amg_type
-end
-
 
 function Jutul.select_linear_solver(m::SimulationModel{<:Any, S, <:Any, <:Any}; kwarg...) where S<:MultiPhaseSystem
     return select_reservoir_linear_solver(m; kwarg...)
