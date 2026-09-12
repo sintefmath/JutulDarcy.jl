@@ -84,7 +84,7 @@ function solve_test_problem(scheme)
     _, states = simulate_reservoir(state0, model, dt,
         forces = forces, failure_cuts_timestep = false,
         tol_cnv = 1e-6,
-        linear_solver = GenericKrylov(preconditioner = AMGPreconditioner(:smoothed_aggregation), rtol = 1e-6)
+        linear_solver = GenericKrylov(preconditioner = AMGPreconditioner(:aggregation), rtol = 1e-6)
         )
     return states[end][:Pressure]
 end

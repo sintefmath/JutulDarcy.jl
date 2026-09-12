@@ -96,7 +96,7 @@ function simulator_config(sim::NLDDSimulator;
     for i in 1:n
         if is_mpi && use_julia_amg
             # Avoid nesting HYPRE calls?
-            amg_type = :smoothed_aggregation
+            amg_type = :aggregation
         else
             amg_type = :hypre
         end
