@@ -103,9 +103,9 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         krylov_constructor = GenericKrylov
         krylov_arg = NamedTuple()
         @assert float_type == Float64 "Only Float64 supported for CPU backend."
-    end
-    if ismissing(amg_type)
-        amg_type = :hypre
+        if ismissing(amg_type)
+            amg_type = :hypre
+        end
     end
 
     if is_cpr
@@ -116,7 +116,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
                 cpr_type = :true_impes
             end
         end
-        p_solve = reservoir_system_amg(; max_coarse = max_coarse, type = amg_type, amg_arg...)
+        p_solve = reservoir_system_amg(; max_coarse = max_coarse, backend = backend, type = amg_type, amg_arg...)
         s = reservoir_system_smoother(smoother_type; backend = backend, smoother_arg...)
         prec = CPRPreconditioner(
             p_solve, s;
@@ -206,48 +206,48 @@ function reservoir_system_amg(s::AbstractString; kwarg...)
     return reservoir_system_amg(Symbol(s); kwarg...)
 end
 
-function reservoir_system_amg(variant = :hypre; max_levels = 10, max_coarse = 10, amgcl_type = :amg, kwarg...)
-    if variant == :hypre
-        amg = BoomerAMGPreconditioner(; kwarg...)
-    elseif variant == :amgx
-        amg = AMGXPreconditioner(; kwarg...)
-    elseif variant == :amgcl
-        if length(kwarg) == 0
-            # Some reasonable defaults for reservoir system
-            agg = (
-                coarsening = (
-                    type = "aggregation",
-                    over_interp = 1.0,
-                    aggr = (
-                        eps_strong = 0.1,
-                    )
-                ),
-                npre = 3,
-                npost = 3,
-                ncycle = 1,
-                coarse_enough = 1000,
-                pre_cycles = 1,
-                relax = (
-                    type = "spai0",
-                ),
-            )
-            if amgcl_type == :amg
-                # Direct AMG as preconditioner
-                kwarg = agg
-            elseif amgcl_type == :amg_solver
-                # Nexted Krylov solve - should use FGMRES on outside.
-                kwarg = (
-                    solver = (
-                        type = :fgmres,
-                        tol = 1e-2,
-                        verbose = false
-                        ),
-                    precond = agg,
+function reservoir_system_amg(variant = :hypre; max_levels = 10, max_coarse = 10, amgcl_type = :amg, backend = :cpu, kwarg...)
+    if backend == :cpu
+        if variant == :hypre
+            amg = BoomerAMGPreconditioner(; kwarg...)
+        elseif variant == :amgcl
+            if length(kwarg) == 0
+                # Some reasonable defaults for reservoir system
+                agg = (
+                    coarsening = (
+                        type = "aggregation",
+                        over_interp = 1.0,
+                        aggr = (
+                            eps_strong = 0.1,
+                        )
+                    ),
+                    npre = 3,
+                    npost = 3,
+                    ncycle = 1,
+                    coarse_enough = 1000,
+                    pre_cycles = 1,
+                    relax = (
+                        type = "spai0",
+                    ),
                 )
+                if amgcl_type == :amg
+                    # Direct AMG as preconditioner
+                    kwarg = agg
+                elseif amgcl_type == :amg_solver
+                    # Nexted Krylov solve - should use FGMRES on outside.
+                    kwarg = (
+                        solver = (
+                            type = :fgmres,
+                            tol = 1e-2,
+                            verbose = false
+                            ),
+                        precond = agg,
+                    )
+                end
             end
+            amg = Jutul.AMGCLPreconditioner(amgcl_type; kwarg...)
         end
-        amg = Jutul.AMGCLPreconditioner(amgcl_type; kwarg...)
-    else
+    elseif backend == :ka
         # Jutul variants
         if variant in (:ka, :ka_amg)
             # Defaulted reservoir variant
@@ -258,6 +258,11 @@ function reservoir_system_amg(variant = :hypre; max_levels = 10, max_coarse = 10
             max_coarse = max_coarse,
             kwarg...
         )
+    elseif backend == :cuda
+        variant == :amgx || throw(ArgumentError("CUDA backend only supports AMGX variant"))
+        amg = AMGXPreconditioner(; kwarg...)
+    else
+        throw(ArgumentError("Unsupported backend: $backend"))
     end
     return amg
 end
