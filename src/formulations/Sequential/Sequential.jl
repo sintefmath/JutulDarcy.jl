@@ -23,7 +23,7 @@ module Sequential
         number_of_phases,
         number_of_components,
         reference_densities,
-        setup_reservoir_linear_solver,
+        select_reservoir_linear_solver,
         default_psolve,
         phase_source,
         reservoir_model,

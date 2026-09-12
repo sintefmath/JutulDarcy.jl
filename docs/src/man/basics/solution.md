@@ -34,10 +34,10 @@ If `block_backend` is set to `false`, Jutul will assemble into the standard Juli
 
 ### Iterative solver
 
-If `block_backend` is set to `true`, Jutul will by default use a constrained-pressure residual (CPR) preconditioner for BiCGStab. Jutul relies on [Krylov.jl](https://github.com/JuliaSmoothOptimizers/Krylov.jl) for iterative solvers. The main function that selects the linear solver is [`setup_reservoir_linear_solver`](@ref) that allows for the selection of different preconditioners and linear solvers. This is often an instance of [`Jutul.GenericKrylov`](@ref) with the approprioate preconditioner.
+If `block_backend` is set to `true`, Jutul will by default use a constrained-pressure residual (CPR) preconditioner for BiCGStab. Jutul relies on [Krylov.jl](https://github.com/JuliaSmoothOptimizers/Krylov.jl) for iterative solvers. The main function that selects the linear solver is [`select_reservoir_linear_solver`](@ref) that allows for the selection of different preconditioners and linear solvers. This is often an instance of [`Jutul.GenericKrylov`](@ref) with the approprioate preconditioner.
 
 ```@docs
-setup_reservoir_linear_solver
+select_reservoir_linear_solver
 ```
 
 #### Single model (only porous medium)

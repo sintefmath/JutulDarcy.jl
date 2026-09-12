@@ -71,7 +71,7 @@ end
         Simulator(model; state0 = state0, parameters = parameters),
         JLBackend())
     for variant in (:cpr, :cprw)
-        solver = setup_reservoir_linear_solver(simulator.model, variant;
+        solver = select_reservoir_linear_solver(simulator.model, variant;
             amg_arg = (reuse = :memory,),
             smoother_arg = (damping = 0.8,),
             cpr_arg = (weight_scaling = :none,))

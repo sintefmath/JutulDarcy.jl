@@ -5,7 +5,7 @@ $(README)
 """
 module JutulDarcy
     export MultiPhaseSystem, ImmiscibleSystem, SinglePhaseSystem
-    export setup_reservoir_linear_solver
+    export select_reservoir_linear_solver
     export get_1d_reservoir
     export DeckPhaseViscosities
     export DeckShrinkageFactors
