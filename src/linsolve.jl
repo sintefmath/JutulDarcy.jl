@@ -71,9 +71,6 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         if ismissing(amg_type)
             amg_type = :ka
         end
-        if smoother_type == :ilu0
-            smoother_type = :ka_ilu0
-        end
         krylov_constructor = GenericKrylov
         krylov_arg = NamedTuple()
     elseif backend == :cuda
