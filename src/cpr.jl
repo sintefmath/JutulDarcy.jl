@@ -98,11 +98,11 @@ mutable struct CPRPreconditioner{P, S} <: JutulPreconditioner
     strategy::Symbol
     variant::Symbol
     weight_scaling::Symbol
-    update_frequency::Int             # Update frequency for AMG hierarchy (and pressure part if partial_update = false)
+    update_frequency::Int             # Frequency for full pressure-preconditioner updates
     update_interval::Symbol           # iteration, ministep, step, ...
-    update_frequency_partial::Int     # Update frequency for pressure system
+    update_frequency_partial::Int     # Frequency for partial pressure-preconditioner updates
     update_interval_partial::Symbol   # iteration, ministep, step, ...
-    partial_update::Bool              # Perform partial update of AMG and update pressure system
+    partial_update::Bool              # Enable partial pressure-preconditioner updates
     full_system_correction::Bool
     p_rtol::Union{Float64, Nothing}
     npre::Int
@@ -150,13 +150,16 @@ end
 function update_preconditioner!(cpr::CPRPreconditioner, lsys::Jutul.JutulLinearSystem, ctx_outer, model, storage, recorder, executor; update_system_precond = true, T = Float64)
     rmodel = reservoir_model(model, type = :flow)
     ctx = rmodel.context
-    update_p = update_cpr_internals!(cpr, lsys, model, storage, recorder, executor, T)
+    update_p, update_p_partial = update_cpr_internals!(
+        cpr, lsys, model, storage, recorder, executor, T)
+    # The full-system smoother follows the current Jacobian on every call,
+    # independently of how much of the pressure AMG hierarchy is reused.
     if update_system_precond
         @tic "s-precond" update_preconditioner!(cpr.system_precond, lsys, ctx, model, storage, recorder, executor)
     end
     if update_p
         @tic "p-precond" update_preconditioner!(cpr.pressure_precond, cpr.storage.A_p, cpr.storage.r_p, ctx, executor)
-    elseif should_update_cpr(cpr, recorder, :partial)
+    elseif update_p_partial
         @tic "p-precond (partial)" partial_update_preconditioner!(cpr.pressure_precond, cpr.storage.A_p, cpr.storage.r_p, ctx, executor)
     end
 end
@@ -297,22 +300,23 @@ end
 
 function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, recorder, executor, T)
     do_p_update = should_update_cpr(cpr, recorder, :amg)
+    do_p_update_partial = !do_p_update && should_update_cpr(cpr, recorder, :partial)
     A = reservoir_jacobian(lsys)
     rmodel = reservoir_model(model, type = :flow)
     bz = number_of_components(rmodel.system)
     initialize_cpr_storage!(cpr, model, lsys, bz, T)
     ps = rmodel.primary_variables[:Pressure].scale
-    if do_p_update || cpr.partial_update
-        rmodel = reservoir_model(model)
-        ctx = rmodel.context
-        @tic "weights" w_p = update_weights!(cpr, cpr.storage, model, storage, A, ps)
-        cpr_s = cpr.storage
-        A_p = cpr_s.A_p
-        w_p = cpr_s.w_p
-        rw_map = cpr_s.well_reservoir_map
-        @tic "pressure system" update_pressure_system!(A_p, cpr.pressure_precond, A, w_p, ctx, executor, rw_map)
-    end
-    return do_p_update
+    # The pressure operator and weights always follow the current Jacobian.
+    # The update intervals only select how its preconditioner is refreshed.
+    rmodel = reservoir_model(model)
+    ctx = rmodel.context
+    @tic "weights" w_p = update_weights!(cpr, cpr.storage, model, storage, A, ps)
+    cpr_s = cpr.storage
+    A_p = cpr_s.A_p
+    w_p = cpr_s.w_p
+    rw_map = cpr_s.well_reservoir_map
+    @tic "pressure system" update_pressure_system!(A_p, cpr.pressure_precond, A, w_p, ctx, executor, rw_map)
+    return do_p_update, do_p_update_partial
 end
 
 # CSC (default) version

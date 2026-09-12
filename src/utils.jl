@@ -1319,7 +1319,11 @@ function setup_reservoir_simulator(case::JutulCase;
                 linear_solver_backend = :cpu
             end
         end
-        extra_kwarg[:linear_solver] = select_reservoir_linear_solver(case.model, precond;
+        # KA models have been transferred at this point, so select against the
+        # simulator model to make device-specific defaults available. Keep the
+        # established model selection for all other execution modes.
+        solver_model = ka_mode ? sim.model : case.model
+        extra_kwarg[:linear_solver] = select_reservoir_linear_solver(solver_model, precond;
             backend = linear_solver_backend,
             rtol = rtol,
             extra_ls...,

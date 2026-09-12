@@ -13,12 +13,20 @@ Set up iterative linear solver for a reservoir model from [`setup_reservoir_mode
   the legacy transfer-based `:cuda` path can be selected explicitly.
 - `v=0`: verbosity (can lead to a large amount of output)
 - `solver=:bicgstab`: the symbol of a Krylov.jl solver (typically :gmres or :bicgstab)
-- `update_interval=:once`: how often the CPR AMG hierarchy is reconstructed (:once, :iteration, :ministep, :step)
-- `update_interval_partial=:iteration`: how often the pressure system is updated in CPR
+- `update_interval=:step`: how often the full CPR pressure update runs
+  (`:once`, `:iteration`, `:ministep`, or `:step`)
+- `update_interval_partial=:iteration`: how often the partial CPR pressure
+  update runs between full updates
+- `update_type=:memory`: KA AMG reuse mode for full pressure updates
+- `update_type_partial=:operators`: KA AMG reuse mode for partial pressure
+  updates. Both update paths fully refresh the AMG and system smoothers. HYPRE
+  performs a full setup for either path. The pressure system itself is updated
+  from the current Jacobian on every preconditioner update.
 - `max_coarse`: max size of coarse level if using AMG
 - `amg_type`: pressure preconditioner implementation. `:ka` selects the new
   backend-portable AMG. An initialized Jutul preconditioner can also be passed.
-- `smoother_type`: full-system smoother. The `:ka_*` choices use the new
+- `smoother_type`: full-system smoother. The default is `:ilu0` on CPU and
+  `:dilu` on accelerator KA backends. The `:ka_*` choices use the new
   backend-portable smoothers.
 - `amg_arg`, `smoother_arg`, `cpr_arg`: keyword arguments forwarded to the
   pressure AMG, full-system smoother, and CPR constructors, respectively.
@@ -37,12 +45,14 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         mode = :forward,
         solver = :bicgstab,
         max_iterations = missing,
-        update_interval = :iteration,
+        update_interval = :step,
         update_interval_partial = :iteration,
-        partial_update = update_interval == :once,
+        update_type = :memory,
+        update_type_partial = :operators,
+        partial_update = true,
         amg_type = missing,
         amg_arg = NamedTuple(),
-        smoother_type = :ilu0,
+        smoother_type = missing,
         smoother_arg = NamedTuple(),
         cpr_type = missing,
         cpr_arg = NamedTuple(),
@@ -61,6 +71,12 @@ function select_reservoir_linear_solver(model, precond = :cpr;
     end
     backend in (:cpu, :cuda, :ka) || throw(ArgumentError(
         "Backend $backend not supported, must be :auto, :cpu, :ka or :cuda."))
+    is_accelerator_ka = backend == :ka && is_ka_model_context &&
+        !Jutul.is_cpu_backend(model.context)
+    default_smoother_type = is_accelerator_ka ? :dilu : :ilu0
+    if ismissing(smoother_type)
+        smoother_type = default_smoother_type
+    end
     is_cpr = precond == :cpr || precond == :cprw
     if backend == :ka
         !is_equation_major || throw(ArgumentError(
@@ -114,6 +130,14 @@ function select_reservoir_linear_solver(model, precond = :cpr;
             else
                 cpr_type = :true_impes
             end
+        end
+        if backend == :ka && amg_type isa Symbol
+            ka_amg_defaults = (
+                smoother_type = default_smoother_type,
+                reuse = update_type,
+                reuse_partial = update_type_partial,
+            )
+            amg_arg = merge(ka_amg_defaults, (; pairs(amg_arg)...))
         end
         p_solve = reservoir_system_amg(amg_type; backend = backend, amg_arg...)
         s = reservoir_system_smoother(smoother_type; backend = backend, smoother_arg...)

@@ -72,7 +72,6 @@ end
         JLBackend())
     for variant in (:cpr, :cprw)
         solver = select_reservoir_linear_solver(simulator.model, variant;
-            amg_arg = (reuse = :memory,),
             smoother_arg = (damping = 0.8,),
             cpr_arg = (weight_scaling = :none,))
         preconditioner = solver.preconditioner
@@ -81,9 +80,28 @@ end
         @test preconditioner.weight_scaling == :none
         @test preconditioner.pressure_precond isa Jutul.AMGPreconditioner
         @test preconditioner.pressure_precond.reuse == :memory
+        @test preconditioner.pressure_precond.reuse_partial == :operators
+        @test preconditioner.update_interval == :step
+        @test preconditioner.update_interval_partial == :iteration
+        @test preconditioner.partial_update
+        @test preconditioner.pressure_precond.options.smoother isa
+            Jutul.KAPreconditioners.DILU
         @test preconditioner.system_precond isa Jutul.KASmootherPreconditioner
+        @test preconditioner.system_precond.config isa Jutul.KAPreconditioners.DILU
         @test preconditioner.system_precond.config.damping == 0.8
     end
+
+    solver = select_reservoir_linear_solver(simulator.model, :cpr;
+        update_type = :none,
+        update_type_partial = :sparsity,
+        amg_arg = (smoother_type = :spai0,),
+        smoother_type = :ilu0)
+    preconditioner = solver.preconditioner
+    @test preconditioner.pressure_precond.reuse == :none
+    @test preconditioner.pressure_precond.reuse_partial == :sparsity
+    @test preconditioner.pressure_precond.options.smoother isa
+        Jutul.KAPreconditioners.SPAI0
+    @test preconditioner.system_precond.config isa Jutul.KAPreconditioners.ILU0
 end
 
 @testset "Single-phase reservoir on a KA backend" begin
