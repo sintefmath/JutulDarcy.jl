@@ -39,7 +39,6 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         max_iterations = missing,
         update_interval = :iteration,
         update_interval_partial = :iteration,
-        max_coarse = 10,
         partial_update = update_interval == :once,
         amg_type = missing,
         amg_arg = NamedTuple(),
@@ -69,7 +68,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         solver != :lu || throw(ArgumentError(
             "A direct LU solver is not supported for KernelAbstractions backends."))
         if ismissing(amg_type)
-            amg_type = :ka
+            amg_type = :hmis
         end
         krylov_constructor = GenericKrylov
         krylov_arg = NamedTuple()
@@ -116,7 +115,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
                 cpr_type = :true_impes
             end
         end
-        p_solve = reservoir_system_amg(; max_coarse = max_coarse, backend = backend, type = amg_type, amg_arg...)
+        p_solve = reservoir_system_amg(amg_type; backend = backend, amg_arg...)
         s = reservoir_system_smoother(smoother_type; backend = backend, smoother_arg...)
         prec = CPRPreconditioner(
             p_solve, s;
@@ -255,11 +254,9 @@ function reservoir_system_amg(variant = missing;
     elseif backend == :ka
         # Jutul variants
         if ismissing(variant)
-            method = :hmis
+            variant = :hmis
         end
-        amg = Jutul.AMGPreconditioner(method;
-            max_levels = max_levels,
-            max_coarse = max_coarse,
+        amg = Jutul.AMGPreconditioner(variant;
             kwarg...
         )
     elseif backend == :cuda

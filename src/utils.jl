@@ -1312,13 +1312,15 @@ function setup_reservoir_simulator(case::JutulCase;
         else
             extra_ls = NamedTuple()
         end
-        solver_backend = if linear_solver_backend == :auto
-            ka_mode ? :ka : :cpu
-        else
-            linear_solver_backend
+        if linear_solver_backend == :auto
+            if ka_mode
+                linear_solver_backend = :ka
+            else
+                linear_solver_backend = :cpu
+            end
         end
         extra_kwarg[:linear_solver] = select_reservoir_linear_solver(case.model, precond;
-            backend = solver_backend,
+            backend = linear_solver_backend,
             rtol = rtol,
             extra_ls...,
             linear_solver_arg...,
