@@ -213,7 +213,7 @@ function reservoir_system_amg(variant = missing;
     )
     is_defaulted = ismissing(variant)
     if backend == :cpu
-        if variant == :hypre || is_defaulted
+        if is_defaulted || variant == :hypre
             amg = BoomerAMGPreconditioner(; kwarg...)
         elseif variant == :amgcl
             if length(kwarg) == 0
@@ -263,7 +263,7 @@ function reservoir_system_amg(variant = missing;
             kwarg...
         )
     elseif backend == :cuda
-        variant == :amgx || is_defaulted || throw(ArgumentError("CUDA backend only supports AMGX variant"))
+        is_defaulted || variant == :amgx || throw(ArgumentError("CUDA backend only supports AMGX variant"))
         amg = AMGXPreconditioner(; kwarg...)
     else
         throw(ArgumentError("Unsupported backend: $backend"))
