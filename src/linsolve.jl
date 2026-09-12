@@ -206,9 +206,14 @@ function reservoir_system_amg(s::AbstractString; kwarg...)
     return reservoir_system_amg(Symbol(s); kwarg...)
 end
 
-function reservoir_system_amg(variant = :hypre; max_levels = 10, max_coarse = 10, amgcl_type = :amg, backend = :cpu, kwarg...)
+function reservoir_system_amg(variant = missing;
+        amgcl_type = :amg,
+        backend = :cpu,
+        kwarg...
+    )
+    is_defaulted = ismissing(variant)
     if backend == :cpu
-        if variant == :hypre
+        if variant == :hypre || is_defaulted
             amg = BoomerAMGPreconditioner(; kwarg...)
         elseif variant == :amgcl
             if length(kwarg) == 0
@@ -249,9 +254,8 @@ function reservoir_system_amg(variant = :hypre; max_levels = 10, max_coarse = 10
         end
     elseif backend == :ka
         # Jutul variants
-        if variant in (:ka, :ka_amg)
-            # Defaulted reservoir variant
-            method = :ka
+        if ismissing(variant)
+            method = :hmis
         end
         amg = Jutul.AMGPreconditioner(method;
             max_levels = max_levels,
@@ -259,7 +263,7 @@ function reservoir_system_amg(variant = :hypre; max_levels = 10, max_coarse = 10
             kwarg...
         )
     elseif backend == :cuda
-        variant == :amgx || throw(ArgumentError("CUDA backend only supports AMGX variant"))
+        variant == :amgx || is_defaulted || throw(ArgumentError("CUDA backend only supports AMGX variant"))
         amg = AMGXPreconditioner(; kwarg...)
     else
         throw(ArgumentError("Unsupported backend: $backend"))
