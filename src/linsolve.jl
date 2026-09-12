@@ -52,10 +52,13 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         kwarg...
     )
     is_equation_major = !Jutul.is_cell_major(matrix_layout(model.context))
+    is_ka_model_context = model.context isa Jutul.KernelAbstractionsContext
     if backend == :auto
-        backend = model.context isa Jutul.KernelAbstractionsContext &&
-            !is_equation_major ?
-            :ka : :cpu
+        if is_ka_model_context && !is_equation_major
+            backend = :ka
+        else
+            backend = :cpu
+        end
     end
     backend in (:cpu, :cuda, :ka) || throw(ArgumentError(
         "Backend $backend not supported, must be :auto, :cpu, :ka or :cuda."))
@@ -118,7 +121,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
                 cpr_type = :true_impes
             end
         end
-        p_solve = default_psolve(; max_coarse = max_coarse, type = amg_type, amg_arg...)
+        p_solve = reservoir_system_amg(; max_coarse = max_coarse, type = amg_type, amg_arg...)
         s = reservoir_system_smoother(smoother_type; smoother_arg...)
         prec = CPRPreconditioner(
             p_solve, s;
@@ -179,6 +182,9 @@ function reservoir_system_smoother(s::JutulPreconditioner; kwarg...)
 end
 
 function reservoir_system_smoother(s::AbstractString; kwarg...)
+    if length(kwarg) > 0
+        jutul_message("reservoir_system_smoother", "You passed a preconditioner and keyword arguments: $(keys(kwarg)), they will be ignored")
+    end
     return reservoir_system_smoother(Symbol(s); kwarg...)
 end
 
@@ -200,12 +206,23 @@ function reservoir_system_smoother(type::Symbol; kwarg...)
     end
 end
 
-function default_psolve(; max_levels = 10, max_coarse = 10, amgcl_type = :amg, type = default_amg_symbol(), kwarg...)
-    if type == :hypre
+function reservoir_system_amg(s::JutulPreconditioner; kwarg...)
+    if length(kwarg) > 0
+        jutul_message("reservoir_system_amg", "You passed a preconditioner and keyword arguments: $(keys(kwarg)), they will be ignored")
+    end
+    return s
+end
+
+function reservoir_system_amg(s::AbstractString; kwarg...)
+    return reservoir_system_amg(Symbol(s); kwarg...)
+end
+
+function reservoir_system_amg(variant = :hypre; max_levels = 10, max_coarse = 10, amgcl_type = :amg, kwarg...)
+    if variant == :hypre
         amg = BoomerAMGPreconditioner(; kwarg...)
-    elseif type == :amgx
+    elseif variant == :amgx
         amg = AMGXPreconditioner(; kwarg...)
-    elseif type == :amgcl
+    elseif variant == :amgcl
         if length(kwarg) == 0
             # Some reasonable defaults for reservoir system
             agg = (
@@ -241,16 +258,17 @@ function default_psolve(; max_levels = 10, max_coarse = 10, amgcl_type = :amg, t
             end
         end
         amg = Jutul.AMGCLPreconditioner(amgcl_type; kwarg...)
-    elseif type == :ka || type == :ka_amg ||
-            type == :smoothed_aggregation || type == :aggregation ||
-            type == :ruge_stuben
-        method = type in (:ka, :ka_amg) ? :smoothed_aggregation : type
-        amg = Jutul.AMGPreconditioner(method;
-            max_levels = max_levels, max_coarse = max_coarse, kwarg...)
-    elseif type isa JutulPreconditioner
-        amg = type
     else
-        error("Unknown AMG type: $type")
+        # Jutul variants
+        if variant in (:ka, :ka_amg)
+            # Defaulted reservoir variant
+            method = :ka
+        end
+        amg = Jutul.AMGPreconditioner(method;
+            max_levels = max_levels,
+            max_coarse = max_coarse,
+            kwarg...
+        )
     end
     return amg
 end

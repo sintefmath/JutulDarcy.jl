@@ -84,7 +84,7 @@ end
 
 
 """
-    CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner(); strategy = :quasi_impes, weight_scaling = :unit, update_frequency = 1, update_interval = :iteration, partial_update = true)
+    CPRPreconditioner(p = reservoir_system_amg(), s = ILUZeroPreconditioner(); strategy = :quasi_impes, weight_scaling = :unit, update_frequency = 1, update_interval = :iteration, partial_update = true)
 
 Construct a constrained pressure residual (CPR) preconditioner.
 
@@ -111,7 +111,7 @@ mutable struct CPRPreconditioner{P, S} <: JutulPreconditioner
     psolver
 end
 
-function CPRPreconditioner(p = default_psolve(), s = ILUZeroPreconditioner();
+function CPRPreconditioner(p = reservoir_system_amg(), s = ILUZeroPreconditioner();
         strategy = :true_impes,
         variant = :cpr,
         weight_scaling = :unit,

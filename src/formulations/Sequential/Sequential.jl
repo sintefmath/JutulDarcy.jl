@@ -24,7 +24,7 @@ module Sequential
         number_of_components,
         reference_densities,
         select_reservoir_linear_solver,
-        default_psolve,
+        reservoir_system_amg,
         phase_source,
         reservoir_model,
         compute_bc_mass_fluxes,

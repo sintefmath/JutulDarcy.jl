@@ -206,7 +206,7 @@ function JutulDarcy.select_reservoir_linear_solver(model::PressureModel, pname =
         kwarg...
     )
     if pname == :amg
-        prec = default_psolve()
+        prec = reservoir_system_amg()
         lsolve = GenericKrylov(solver; preconditioner = prec, rtol = rtol, kwarg...)
     else
         lsolve = nothing
