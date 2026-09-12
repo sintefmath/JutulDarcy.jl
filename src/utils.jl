@@ -1062,6 +1062,9 @@ end
   backend-specific mode: `:ka_cuda`, `:ka_amd`, or `:ka_metal`. The reservoir
   is evaluated fully on the selected backend while wells and facility
   equations remain on the host and are copied to device storage for assembly.
+- `group_execution=missing`: Per-model `DeviceExecutionMode` policy for KA
+  modes, supplied as a function or keyed collection. By default the reservoir
+  uses `SolveFullyOnDevice` and wells/facility use `AssembleOnDevice`.
 - `method=:newton`: Can be `:newton`, `:nldd` or `:aspen`. Newton is the most
   tested approach and `:nldd` can speed up difficult models. The `:nldd` option
   enables a host of additional options (look at the simulator config for more
@@ -1171,6 +1174,7 @@ list a few of the most relevant entries here for convenience:
 function setup_reservoir_simulator(case::JutulCase;
         mode = :default,
         ka_backend = missing,
+        group_execution = missing,
         method = :newton,
         precond = :cpr,
         linear_solver = :bicgstab,
@@ -1233,15 +1237,17 @@ function setup_reservoir_simulator(case::JutulCase;
         backend = ismissing(ka_backend) ?
             kernel_abstractions_backend(mode) : ka_backend
         sim_cpu = Simulator(case; sim_kwarg...)
-        execution = Dict{Symbol, Jutul.DeviceExecutionMode}(
-            :default => Jutul.AssembleOnDevice,
-            :Reservoir => Jutul.SolveFullyOnDevice)
+        if ismissing(group_execution)
+            group_execution = Dict{Symbol, Jutul.DeviceExecutionMode}(
+                :default => Jutul.AssembleOnDevice,
+                :Reservoir => Jutul.SolveFullyOnDevice)
+        end
         # Keep the large transferred simulator out of this setup method's
         # inferred return type. This is ordinary current-world dispatch; no
         # `invokelatest` world-age workaround is needed.
         transfer = Base.inferencebarrier(transfer_to_backend)
         sim = transfer(sim_cpu, backend;
-            group_execution = execution)
+            group_execution = group_execution)
     elseif mode == :default
         # Single-process solve
         if method == :newton

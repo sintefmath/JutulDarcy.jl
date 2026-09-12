@@ -108,8 +108,58 @@ if CUDA.functional()
         system = simulator.storage.LinearizedSystem
         @test system.r_buffer isa CUDA.CuArray
         @test all(isfinite, Array(system.r_buffer))
-        @test all(block -> all(isfinite, Array(nonzeros(block.jac))),
-            system.subsystems)
+        if system isa Jutul.MultiLinearizedSystem
+            @test all(block -> all(isfinite, Array(nonzeros(block.jac))),
+                system.subsystems)
+        else
+            @test all(isfinite, Array(nonzeros(system.jac)))
+        end
+    end
+    @testset "SPE1 KA CUDA adjoint solve" begin
+        spe1 = JutulDarcy.GeoEnergyIO.test_input_file_path(
+            "SPE1", "SPE1.DATA")
+        case = setup_case_from_data_file(spe1;
+            block_backend = true)[1:1]
+        transmissibilities = copy(
+            case.parameters[:Reservoir][:Transmissibilities])
+        function setup_optimization_case(parameters, step_info = missing)
+            next_case = deepcopy(case)
+            next_case.parameters[:Reservoir][:Transmissibilities] =
+                transmissibilities .* only(parameters["multiplier"])
+            return next_case
+        end
+        function objective(model, state, dt, step_info, forces)
+            pressure = state[:Reservoir][:Pressure]
+            value = zero(eltype(pressure))
+            for p in pressure
+                value += (p/1.0e7)^2
+            end
+            return value
+        end
+        parameters = Dict("multiplier" => [1.1])
+        dopt = setup_reservoir_dict_optimization(
+            parameters, setup_optimization_case; verbose = false)
+        free_optimization_parameter!(dopt, "multiplier";
+            abs_min = 0.5, abs_max = 2.0)
+        problem = JutulDarcy.reservoir_optimization_problem(dopt, objective;
+            simulator_arg = (
+                mode = :ka_cuda,
+                linear_solver = nothing,
+                timesteps = :none,
+            ))
+        value, gradient = problem()
+        simulator = problem.cache[:simulator]
+        storage = problem.cache[:storage]
+
+        @test isfinite(value)
+        @test all(isfinite, gradient)
+        @test simulator.storage.host_evaluation.keys ==
+            (:PROD, :INJ, :Facility)
+        @test storage.forward.storage.LinearizedSystem.r_buffer isa CUDA.CuArray
+        @test storage.backward.storage.LinearizedSystem.r_buffer isa CUDA.CuArray
+        @test storage.parameter.storage.LinearizedSystem.r_buffer isa Vector
+        @test storage.state0_buf isa CUDA.CuArray
+        @test storage.dstate0 isa Vector
     end
     @testset "SimulationModel" begin
         krylov_cpu = GenericKrylov(:bicgstab, preconditioner = ILUZeroPreconditioner())
