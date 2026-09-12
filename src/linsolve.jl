@@ -111,8 +111,6 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         amg_type = :hypre
     end
 
-    default_tol = 0.01
-    max_it = 200
     if is_cpr
         if ismissing(cpr_type)
             if isa(model.system, ImmiscibleSystem)
@@ -122,7 +120,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
             end
         end
         p_solve = reservoir_system_amg(; max_coarse = max_coarse, type = amg_type, amg_arg...)
-        s = reservoir_system_smoother(smoother_type; smoother_arg...)
+        s = reservoir_system_smoother(smoother_type; backend = backend, smoother_arg...)
         prec = CPRPreconditioner(
             p_solve, s;
             strategy = cpr_type,
@@ -135,16 +133,10 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         )
         default_tol = 0.005
         max_it = 50
-    elseif precond in (:ilu0, :jacobi, :spai0, :ka_ilu0, :ka_dilu,
-            :ka_spai0)
-        selected = backend == :ka && precond == :ilu0 ? :ka_ilu0 : precond
-        prec = reservoir_system_smoother(selected; smoother_arg...)
     else
-        if precond isa Symbol
-            error("Preconditioner $precond not supported for $(model.context)")
-        else
-            prec = precond
-        end
+        default_tol = 0.01
+        max_it = 200
+        prec = reservoir_system_smoother(selected; backend = backend, smoother_arg...)
     end
     if ismissing(rtol)
         rtol = default_tol
@@ -188,21 +180,21 @@ function reservoir_system_smoother(s::AbstractString; kwarg...)
     return reservoir_system_smoother(Symbol(s); kwarg...)
 end
 
-function reservoir_system_smoother(type::Symbol; kwarg...)
-    if type == :ilu0
-        return ILUZeroPreconditioner(; kwarg...)
-    elseif type == :jacobi
-        return JacobiPreconditioner(; kwarg...)
-    elseif type == :spai0
-        return SPAI0Preconditioner(; kwarg...)
-    elseif type == :ka_ilu0
-        return Jutul.KASmootherPreconditioner(:ilu0; kwarg...)
-    elseif type == :ka_dilu
-        return Jutul.KASmootherPreconditioner(:dilu; kwarg...)
-    elseif type == :ka_spai0
-        return Jutul.KASmootherPreconditioner(:spai0; kwarg...)
+function reservoir_system_smoother(type::Symbol; backend = :cpu, kwarg...)
+    if backend == :cpu
+        if type == :ilu0
+            return ILUZeroPreconditioner(; kwarg...)
+        elseif type == :jacobi
+            return JacobiPreconditioner(; kwarg...)
+        elseif type == :spai0
+            return SPAI0Preconditioner(; kwarg...)
+        else
+            throw(ArgumentError("Unsupported reservoir smoother for backend $backend: $type"))
+        end
+    elseif backend == :ka
+        return Jutul.KASmootherPreconditioner(type; kwarg...)
     else
-        throw(ArgumentError("Unsupported reservoir smoother: $type"))
+        throw(ArgumentError("Unsupported backend for reservoir smoother: $backend, should be $ka or $cpu"))
     end
 end
 
