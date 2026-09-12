@@ -24,7 +24,8 @@ Set up iterative linear solver for a reservoir model from [`setup_reservoir_mode
   from the current Jacobian on every preconditioner update.
 - `max_coarse`: max size of coarse level if using AMG
 - `amg_type`: pressure preconditioner implementation. `:ka` selects the new
-  backend-portable AMG. An initialized Jutul preconditioner can also be passed.
+  backend-portable AMG. Its default smoother is ILU(0) on CPU and SPAI(0) on
+  accelerators. An initialized Jutul preconditioner can also be passed.
 - `smoother_type`: full-system smoother. The default is `:ilu0` on CPU and
   `:dilu` on accelerator KA backends. The `:ka_*` choices use the new
   backend-portable smoothers.
@@ -71,9 +72,13 @@ function select_reservoir_linear_solver(model, precond = :cpr;
     end
     backend in (:cpu, :cuda, :ka) || throw(ArgumentError(
         "Backend $backend not supported, must be :auto, :cpu, :ka or :cuda."))
-    is_accelerator_ka = backend == :ka && is_ka_model_context &&
-        !Jutul.is_cpu_backend(model.context)
-    default_smoother_type = is_accelerator_ka ? :dilu : :ilu0
+    is_accelerator_ka = backend == :ka && is_ka_model_context
+    if is_accelerator_ka
+        default_smoother_type = :dilu
+    else
+        default_smoother_type = :ilu0
+    end
+    default_pressure_smoother_type = :spai0
     if ismissing(smoother_type)
         smoother_type = default_smoother_type
     end
@@ -133,7 +138,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         end
         if backend == :ka && amg_type isa Symbol
             ka_amg_defaults = (
-                smoother_type = default_smoother_type,
+                smoother_type = default_pressure_smoother_type,
                 reuse = update_type,
                 reuse_partial = update_type_partial,
             )
