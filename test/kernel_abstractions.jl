@@ -1,5 +1,6 @@
 using Jutul, JutulDarcy
 using JLArrays
+using MultiComponentFlash
 using SparseArrays
 using Test
 
@@ -110,6 +111,111 @@ end
 
     @test Array(states[end][:Pressure]) ≈ reference[end][:Pressure] rtol = 1e-10
     @test Array(states[end][:Saturations]) ≈ reference[end][:Saturations] rtol = 1e-10
+end
+
+@testset "Compositional reservoirs on a KA backend" begin
+    grid = CartesianMesh((4, 1), (4.0, 1.0))
+    cases = (
+        ("simple_compositional_fake_wells", (:Pressure,), false),
+        ("compositional_three_phases",
+            (:Pressure, :ImmiscibleSaturation), false),
+        ("simple_compositional_fake_wells", (:Pressure,), true)
+    )
+    for (case_name, outputs, fast_flash) in cases
+        state0, model, parameters, forces, timesteps = get_test_setup(
+            grid;
+            case_name = case_name,
+            context = ParallelCSRContext(1),
+            timesteps = [0.1]
+        )
+        if fast_flash
+            replace_variables!(model,
+                FlashResults = JutulDarcy.FlashResults(model;
+                    stability_bypass = true, reuse_guess = true))
+        end
+        reference_simulator = Simulator(
+            model; state0 = state0, parameters = parameters)
+        reference, = simulate!(reference_simulator, timesteps;
+            forces = forces, info_level = -1)
+
+        cpu_simulator = Simulator(
+            model; state0 = state0, parameters = parameters)
+        simulator = transfer_to_backend(cpu_simulator, JLBackend())
+        @test isbitstype(typeof(simulator.model.system))
+        ncomp = JutulDarcy.number_of_components(simulator.model.system)
+        @test JutulDarcy.component_names(simulator.model.system)[1:ncomp] ==
+            ["C$i" for i in 1:ncomp]
+
+        states, = simulate!(simulator, timesteps;
+            forces = forces, info_level = -1)
+        for output in outputs
+            @test Array(states[end][output]) ≈ reference[end][output] rtol = 1e-10
+        end
+    end
+end
+
+@testset "K-value compositional reservoir on a KA backend" begin
+    grid = CartesianMesh((4, 1), (4.0, 1.0))
+    domain = reservoir_domain(
+        grid; porosity = 0.3, permeability = 1e-12)
+    mixture = MultiComponentFlash.MultiComponentMixture(
+        ["CarbonDioxide", "Water"])
+    eos = MultiComponentFlash.KValuesEOS([0.05, 5.0], mixture)
+    system = MultiPhaseCompositionalSystemLV(eos)
+    model, parameters = setup_reservoir_model(domain, system;
+        extra_out = true,
+        context = ParallelCSRContext(1),
+        block_backend = false)
+    state0 = setup_reservoir_state(model;
+        Pressure = [1.2e7, 1.1e7, 1.0e7, 0.9e7],
+        OverallMoleFractions = [0.4, 0.6])
+    model = reservoir_model(model)
+    parameters = parameters[:Reservoir]
+    state0 = state0[:Reservoir]
+    timesteps = [100.0]
+
+    reference_simulator = Simulator(
+        model; state0 = state0, parameters = parameters)
+    reference, = simulate!(reference_simulator, timesteps; info_level = -1)
+
+    cpu_simulator = Simulator(
+        model; state0 = state0, parameters = parameters)
+    simulator = transfer_to_backend(cpu_simulator, JLBackend())
+    @test isbitstype(typeof(simulator.model.system))
+    states, = simulate!(simulator, timesteps; info_level = -1)
+    @test Array(states[end][:Pressure]) ≈
+        reference[end][:Pressure] rtol = 1e-10
+    @test Array(states[end][:OverallMoleFractions]) ≈
+        reference[end][:OverallMoleFractions] rtol = 1e-10
+end
+
+@testset "Compositional wells on a KA backend" begin
+    case = JutulDarcy.setup_mini_wellcase(
+        Val(:compositional_2ph_3c);
+        simple_well = false,
+        nstep = 1,
+        total_time = 30.0*si_unit(:day)
+    )
+    simulator, = setup_reservoir_simulator(case;
+        mode = :ka,
+        ka_backend = JLBackend(),
+        info_level = -1,
+        linear_solver = nothing,
+        timesteps = :none)
+
+    forces = Jutul.preprocess_forces(simulator, case.forces).forces
+    dt = only(case.dt)
+    Jutul.update_before_step!(simulator, dt, forces; time = 0.0)
+    Jutul.update_state_dependents!(
+        simulator.storage, simulator.model, dt, forces; time = dt)
+    Jutul.update_linearized_system!(simulator.storage, simulator.model)
+
+    system = simulator.storage.LinearizedSystem
+    @test system isa Jutul.MultiLinearizedSystem
+    @test all(isfinite, Array(system.r_buffer))
+    finite_entry = x -> x isa Number ? isfinite(x) : all(isfinite, x)
+    @test all(block -> all(finite_entry, Array(nonzeros(block.jac))),
+        system.subsystems)
 end
 
 @testset "SPE1 hybrid multimodel on a KA backend" begin

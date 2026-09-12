@@ -20,23 +20,23 @@ abstract type PhaseVariables <: VectorVariables end
 abstract type ComponentVariables <: VectorVariables end
 
 abstract type CompositionalSystemLV <: CompositionalSystem end
-struct MultiPhaseCompositionalSystemLV{E, T, O, R, N} <: CompositionalSystemLV where T<:Tuple
+struct MultiPhaseCompositionalSystemLV{E, T, O, R, N, C} <: CompositionalSystemLV where T<:Tuple
     phases::T
-    components::Vector{String}
+    components::C
     equation_of_state::E
     rho_ref::R
     reference_phase_index::Int
 end
 
-function MultiPhaseCompositionalSystemLV{R, T, O, D, N}(phases, c, equation_of_state, reference_densities) where {R, T, O, D, N}
+function MultiPhaseCompositionalSystemLV{R, T, O, D, N, C}(phases, c, equation_of_state, reference_densities) where {R, T, O, D, N, C}
     reference_phase_index = get_reference_phase_index(phases)
-    return MultiPhaseCompositionalSystemLV{R, T, O, D, N}(phases, c, equation_of_state, reference_densities, reference_phase_index)
+    return MultiPhaseCompositionalSystemLV{R, T, O, D, N, C}(phases, c, equation_of_state, reference_densities, reference_phase_index)
 end
 
-const LVCompositional2PhaseSystem = MultiPhaseCompositionalSystemLV{<:Any, <:Any, Nothing, <:Any, <:Any}
-const LVCompositional3PhaseSystem = MultiPhaseCompositionalSystemLV{<:Any, <:Any, <:AbstractPhase, <:Any, <:Any}
+const LVCompositional2PhaseSystem = MultiPhaseCompositionalSystemLV{<:Any, <:Any, Nothing, <:Any, <:Any, <:Any}
+const LVCompositional3PhaseSystem = MultiPhaseCompositionalSystemLV{<:Any, <:Any, <:AbstractPhase, <:Any, <:Any, <:Any}
 
-const LVCompositionalModel = SimulationModel{D, S, F, C} where {D, S<:MultiPhaseCompositionalSystemLV{<:Any, <:Any, <:Any, <:Any, <:Any}, F, C}
+const LVCompositionalModel = SimulationModel{D, S, F, C} where {D, S<:MultiPhaseCompositionalSystemLV, F, C}
 const LVCompositionalModel2Phase = SimulationModel{D, S, F, C} where {D, S<:LVCompositional2PhaseSystem, F, C}
 const LVCompositionalModel3Phase = SimulationModel{D, S, F, C} where {D, S<:LVCompositional3PhaseSystem, F, C}
 
@@ -74,11 +74,14 @@ function MultiPhaseCompositionalSystemLV(
     end
     only(findall(isequal(LiquidPhase()), phases))
     only(findall(isequal(VaporPhase()), phases))
-    return MultiPhaseCompositionalSystemLV{typeof(equation_of_state), T, O, typeof(reference_densities), N}(phases, c, equation_of_state, reference_densities, reference_phase_index)
+    return MultiPhaseCompositionalSystemLV{typeof(equation_of_state), T, O,
+        typeof(reference_densities), N, typeof(c)}(
+        phases, c, equation_of_state, reference_densities,
+        reference_phase_index)
 end
 
 function Base.show(io::IO, sys::MultiPhaseCompositionalSystemLV)
-    components = copy(sys.components)
+    components = component_names(sys)
     n = number_of_components(sys)
     if has_other_phase(sys)
         name = "(three-phase)"

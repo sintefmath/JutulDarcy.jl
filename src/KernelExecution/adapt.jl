@@ -15,6 +15,29 @@ Adapt.@adapt_structure PVTG
 Adapt.@adapt_structure PVTGTable
 Adapt.@adapt_structure PVTW
 Adapt.@adapt_structure FacilitySystem
+Adapt.@adapt_structure KValueWrapper
+
+function adapt_compositional_eos(to, eos)
+    return MultiComponentFlash.make_eos_immutable(eos)
+end
+
+function adapt_compositional_eos(to, eos::MultiComponentFlash.KValuesEOS)
+    eos = MultiComponentFlash.make_eos_immutable(eos)
+    evaluator = Adapt.adapt(to, eos.K_values_evaluator)
+    return MultiComponentFlash.KValuesEOS(evaluator, eos.mixture;
+        volume_shift = eos.volume_shift)
+end
+
+function Adapt.adapt_structure(to,
+        system::MultiPhaseCompositionalSystemLV{E, T, O, R, N, C}) where {
+        E, T, O, R, N, C}
+    eos = adapt_compositional_eos(to, system.equation_of_state)
+    phases = Adapt.adapt(to, system.phases)
+    rho_ref = Adapt.adapt(to, system.rho_ref)
+    return MultiPhaseCompositionalSystemLV{
+        typeof(eos), typeof(phases), O, typeof(rho_ref), N, Nothing}(
+        phases, nothing, eos, rho_ref, system.reference_phase_index)
+end
 
 function Adapt.adapt_structure(to, table::DeckThermalViscosityTable)
     # The outer vector is a small set of PVT regions. Keeping it as a tuple

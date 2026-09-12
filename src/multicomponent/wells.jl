@@ -164,28 +164,18 @@ function separator_surface_flash!(var, model, system::MultiPhaseCompositionalSys
 end
 
 function separator_flash!(flash, eos, cond, z)
-    fstorage, buf, f = flash
-    x = f.liquid.mole_fractions
-    y = f.vapor.mole_fractions
-    Pressure = cond.p
-    Temperature = cond.T
-    update_flash_buffer!(buf, eos, Pressure, Temperature, z)
-    forces = buf.forces
-    result, code = update_flash_result(fstorage, SSIFlash(), eos, f.state, f.K, f.flash_cond, f.flash_stability, x, y, buf.z, NaN, forces, Pressure, Temperature, z, 0.0)
-    return result
+    settings = FlashResults{SSIFlash, false, false}(
+        SSIFlash(), false, 1e-8, 10.0, false, false)
+    return immutable_flash_result(
+        flash, settings, eos, cond.p, cond.T, z, 0.0)
 end
 
 function flash_stream!(moles::SVector{N, T}, flash, eos, cond) where {N, T}
     total_moles = sum(moles)
     if total_moles ≈ 0
-        fstorage, buf, f = flash
-        x = f.liquid.mole_fractions
-        y = f.vapor.mole_fractions
-
         q_l = q_v = zero(T)
-        @. x = zero(T)
-        @. y = zero(T)
-        result = f
+        x = y = zero(flash.liquid.mole_fractions)
+        result = flash
     else
         z = moles./total_moles
         result = separator_flash!(flash, eos, cond, z)
@@ -209,18 +199,14 @@ function get_separator_intermediate_storage(var, system::MultiPhaseCompositional
     if !haskey(s, T)
         eos = system.equation_of_state
         nc = MultiComponentFlash.number_of_components(eos)
-        n = nc + has_other_phase(system)
-        m = SSIFlash()
-        buf = InPlaceFlashBuffer(nc)
-        f = FlashedMixture2Phase(eos, T)
-        fstorage = flash_storage(eos, method = m, inc_jac = true, diff_externals = true, npartials = n, static_size = true)
+        f = static_flashed_mixture(eos, T)
         n_stages = length(var.separator_conditions)
         # Array of vectors, one for each stage
         moles = zeros(S, n_stages)
         # Mutable surface moles
         surface_moles = zeros(S, nph)
         s[T] = (
-            flash = (fstorage, buf, f),
+            flash = f,
             moles = moles,
             surface_moles = surface_moles
         )

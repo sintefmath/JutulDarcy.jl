@@ -1,6 +1,7 @@
 module KernelExecution
     import Adapt
     using Jutul
+    import MultiComponentFlash
     import Jutul.KernelExecution: KernelAbstractions
 
     import ..JutulDarcy: DeckPhaseMassDensities, DeckPhaseViscosities,
@@ -10,7 +11,9 @@ module KernelExecution
         PVTGTable, PVTO, PVTOTable, PVTW, ReservoirFromWellFlowCT,
         ReservoirFromWellThermalCT, ReservoirRelativePermeabilities, Rs, Rv,
         ScaledCapillaryPressure, SimpleCapillaryPressure, SimpleWell,
-        StandardBlackOilSystem, TemperatureDependentVariable, WellGroup,
+        StandardBlackOilSystem, KValueWrapper,
+        MultiPhaseCompositionalSystemLV,
+        TemperatureDependentVariable, WellGroup,
         kernel_abstractions_backend
 
     kernel_abstractions_backend(::Val{:ka}) = KernelAbstractions.CPU()
