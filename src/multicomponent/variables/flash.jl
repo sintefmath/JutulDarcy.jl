@@ -213,13 +213,14 @@ end
 end
 
 
-@generated function phase_mole_fractions(z::SVector{N, T},
-        K::SVector{N, T}, V::T) where {N, T}
+@generated function phase_mole_fractions(z::SVector{N, Tz},
+        K::SVector{N, Tk}, V::Tv) where {N, Tz, Tk, Tv}
+    T = promote_type(Tz, Tk, Tv)
     x_values = [:(liquid_mole_fraction(z[$i], K[$i], V)) for i in 1:N]
     y_values = [:(vapor_mole_fraction(x[$i], K[$i])) for i in 1:N]
     return quote
-        x = SVector{N, T}(($(x_values...),))
-        y = SVector{N, T}(($(y_values...),))
+        x = SVector{N, $T}(($(x_values...),))
+        y = SVector{N, $T}(($(y_values...),))
         (x, y)
     end
 end
