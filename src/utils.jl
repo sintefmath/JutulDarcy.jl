@@ -1317,7 +1317,7 @@ function setup_reservoir_simulator(case::JutulCase;
         else
             linear_solver_backend
         end
-        extra_kwarg[:linear_solver] = reservoir_linsolve(case.model, precond;
+        extra_kwarg[:linear_solver] = setup_reservoir_linear_solver(case.model, precond;
             backend = solver_backend,
             rtol = rtol,
             extra_ls...,

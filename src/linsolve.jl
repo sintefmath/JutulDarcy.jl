@@ -1,5 +1,5 @@
 """
-    reservoir_linsolve(model, precond = :cpr; <keyword arguments>)
+    setup_reservoir_linear_solver(model, precond = :cpr; <keyword arguments>)
 
 Set up iterative linear solver for a reservoir model from [`setup_reservoir_model`](@ref).
 
@@ -29,7 +29,7 @@ Set up iterative linear solver for a reservoir model from [`setup_reservoir_mode
 
 Additional keywords are passed onto the linear solver constructor.
 """
-function reservoir_linsolve(model, precond = :cpr;
+function setup_reservoir_linear_solver(model, precond = :cpr;
         backend = :auto,
         rtol = nothing,
         atol = nothing,
@@ -192,9 +192,9 @@ function reservoir_system_preconditioner(type; kwarg...)
     end
 end
 
-function reservoir_linsolve(model::MultiModel, arg...; kwarg...)
+function setup_reservoir_linear_solver(model::MultiModel, arg...; kwarg...)
     rmodel = reservoir_model(model)
-    return reservoir_linsolve(rmodel, arg...; kwarg...)
+    return setup_reservoir_linear_solver(rmodel, arg...; kwarg...)
 end
 
 function default_amg_symbol()
@@ -208,5 +208,5 @@ end
 
 
 function Jutul.select_linear_solver(m::SimulationModel{<:Any, S, <:Any, <:Any}; kwarg...) where S<:MultiPhaseSystem
-    return reservoir_linsolve(m; kwarg...)
+    return setup_reservoir_linear_solver(m; kwarg...)
 end

@@ -30,7 +30,7 @@ function solve_bl_lsolve(; nx = 10, ny = 1, nstep = nx*ny, lsolve = missing, bac
     parameters = setup_parameters(model)
     state0 = setup_reservoir_state(model, Pressure = p0, Saturations = [0.25, 0.75])
     if ismissing(lsolve)
-        lsolve = reservoir_linsolve(model)
+        lsolve = setup_reservoir_linear_solver(model)
     end
     if !isnothing(step_limit)
         timesteps = timesteps[1:step_limit]

@@ -112,7 +112,7 @@ function Jutul.update_cross_term_in_entity!(out, i,
     return out
 end
 
-function JutulDarcy.reservoir_linsolve(model::TransportModel, pname = :ilu0;
+function JutulDarcy.setup_reservoir_linear_solver(model::TransportModel, pname = :ilu0;
         rtol = 1e-3,
         solver = :bicgstab,
         kwarg...

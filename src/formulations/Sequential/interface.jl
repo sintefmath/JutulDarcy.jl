@@ -200,7 +200,7 @@ function convert_to_sequential(model::MultiModel; pressure = true, kwarg...)
     return seqmodel
 end
 
-function JutulDarcy.reservoir_linsolve(model::PressureModel, pname = :amg;
+function JutulDarcy.setup_reservoir_linear_solver(model::PressureModel, pname = :amg;
         solver = :bicgstab,
         rtol = 1e-3,
         kwarg...

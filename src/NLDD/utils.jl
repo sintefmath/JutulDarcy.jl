@@ -101,7 +101,7 @@ function simulator_config(sim::NLDDSimulator;
             amg_type = JutulDarcy.default_amg_symbol()
         end
         submodel = subsims[i].model
-        linear_solver = reservoir_linsolve(submodel, subdomain_precond)
+        linear_solver = setup_reservoir_linear_solver(submodel, subdomain_precond)
         subconfigs[i] = simulator_config(subsims[i],
             max_timestep_cuts = inner_max_timestep_cuts,
             min_nonlinear_iterations = inner_min_nonlinear_iterations,
@@ -444,7 +444,7 @@ function bench_dd(name, method = :fi;
     end
     ## Set up linear solver and preconditioner
     # Simulate
-    lsolve = reservoir_linsolve(model, global_linsolve, rtol = rtol, solver = global_krylov, amg_type = global_amg)
+    lsolve = setup_reservoir_linear_solver(model, global_linsolve, rtol = rtol, solver = global_krylov, amg_type = global_amg)
     function local_config(sim; kwarg...)
         tol_arg = (
             tol_cnv = tol_cnv,
@@ -526,7 +526,7 @@ function bench_dd(name, method = :fi;
         sim = NLDDSimulator(model, mpart, submodels = submodels, state0 = state0, parameters = deepcopy(parameters));
         cfg = local_config(sim; method = method, kwarg...)
         for c in cfg[:config_subdomains]
-            c[:linear_solver] = reservoir_linsolve(model, local_linsolve, rtol = local_rtol, v = 0, solver = local_krylov)
+            c[:linear_solver] = setup_reservoir_linear_solver(model, local_linsolve, rtol = local_rtol, v = 0, solver = local_krylov)
             c[:min_nonlinear_iterations] = min_local_iterations
             # c[:max_nonlinear_iterations] = 20
             c[:relaxation] = cfg[:relaxation]
