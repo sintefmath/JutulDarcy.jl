@@ -28,14 +28,6 @@ function update_pressure_system_hypre_csr!(A_p, A, w_p, helper,
     n = size(A, 1)
     (; iupper, ilower) = A_p
     @assert n == iupper - ilower + 1
-    if A_p.parmatrix == C_NULL && !csr.preallocated[]
-        HYPRE.@check HYPRE.HYPRE_IJMatrixSetDiagOffdSizes(
-            A_p, csr.diag_sizes, csr.offdiag_sizes)
-        if Threads.nthreads() > 1 && n >= 1000
-            HYPRE.@check HYPRE.HYPRE_IJMatrixSetOMPFlag(A_p, 1)
-        end
-        csr.preallocated[] = true
-    end
     nzval = SparseArrays.nonzeros(A)
     @inbounds for row in 1:n
         for position in nzrange(A, row)
@@ -43,10 +35,10 @@ function update_pressure_system_hypre_csr!(A_p, A, w_p, helper,
                 nzval[position], w_p, row, ncomp, is_adjoint)
         end
     end
-    HYPRE.@check HYPRE.HYPRE_IJMatrixInitialize(A_p)
+    assembler = HYPRE.start_assemble!(A_p)
     HYPRE.@check HYPRE.HYPRE_IJMatrixSetValues(
         A_p, csr.nrows, csr.ncols, csr.rows, csr.cols, csr.values)
-    HYPRE.Internals.assemble_matrix(A_p)
+    HYPRE.finish_assemble!(assembler)
     return A_p
 end
 
@@ -108,8 +100,7 @@ function assemble_into_hypre_psystem!(A_p::HYPRE.HYPREMatrix, A::SparseMatrixCSC
 end
 
 function JutulDarcy.create_pressure_system(p_prec::BoomerAMGPreconditioner, J, n)
-    tmp = HYPRE.HYPREVector(zeros(3))
-    comm = HYPRE.Internals.get_comm(tmp)
+    comm = MPI.COMM_SELF
     function create_hypre_vector()
         x = HYPREVector(comm, 1, n)
         asm = HYPRE.start_assemble!(x)

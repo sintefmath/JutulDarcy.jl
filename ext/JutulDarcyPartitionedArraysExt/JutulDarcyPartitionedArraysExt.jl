@@ -147,14 +147,9 @@ module JutulDarcyPartitionedArraysExt
             local_storage = Jutul.get_simulator_storage(local_sim)
             local_system = local_storage.LinearizedSystem
             local_matrix = JutulDarcy.reservoir_jacobian(local_system)
-            helper = hypre_assembly_helper!(local_prec.pressure_precond,
+            hypre_assembly_helper!(local_prec.pressure_precond,
                 local_matrix, local_sim.executor, offset + 1, offset + n)
-            if isnothing(helper.csr)
-                A_p = HYPREMatrix(comm, offset + 1, offset + n)
-            else
-                A_p = Jutul.hypre_matrix_with_preallocation(
-                    comm, offset + 1, offset + n, helper.csr)
-            end
+            A_p = HYPREMatrix(comm, offset + 1, offset + n)
             r_p = create_hypre_vector()
             p = create_hypre_vector()
 
