@@ -69,13 +69,18 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
     is_near_bubble = was_near_bubble
     if swi > 1 - 10*ϵ_s
         # Water filled
+        sg_max = 1.0 - swi
         if old_state == OilAndGas
-            next_x = old_x + w*Jutul.choose_increment(value(old_x), dx, ds_max, nothing, 0, 1 - swi)
+            if old_x > sg_max
+                next_x = replace_value(old_x, sg_max)
+            else
+                next_x = old_x + w*Jutul.choose_increment(value(old_x), dx, ds_max, nothing, 0, sg_max)
+            end
         else
             if old_state == OilOnly
-                sg = 0
+                sg = 0.0
             else
-                sg = 1 - swi
+                sg = sg_max
             end
             next_x = replace_value(old_x, sg)
         end
@@ -196,7 +201,7 @@ function blackoil_unknown_init(F_rs::Nothing, F_rv, sw, so, sg, rs, rv, p)
 end
 
 function blackoil_unknown_init(F_rs, F_rv, sw, so, sg, rs, rv, p)
-    if sg > 0 && so > 0
+    if sg > 0 && so > 0 || sw > 1.0 - 10*MINIMUM_COMPOSITIONAL_SATURATION
         rs = F_rs(p)
         rv = F_rv(p)
         x = sg
@@ -252,7 +257,7 @@ end
         sw = ImmiscibleSaturation[i]
         X = BlackOilUnknown[i]
         phases = X.phases_present
-        rem = one(T) - sw + MINIMUM_COMPOSITIONAL_SATURATION
+        rem = one(T) - sw# + MINIMUM_COMPOSITIONAL_SATURATION
         if phases == OilOnly
             sg = zero(T)
             so = rem
