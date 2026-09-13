@@ -81,7 +81,11 @@ function select_reservoir_linear_solver(model, precond = :cpr;
     else
         default_smoother_type = :ilu0
     end
-    default_pressure_smoother_type = :spai0
+    default_pressure_smoother_type = if backend == :ka && !is_accelerator_ka
+        :gauss_seidel
+    else
+        :spai0
+    end
     if ismissing(smoother_type)
         smoother_type = default_smoother_type
     end
