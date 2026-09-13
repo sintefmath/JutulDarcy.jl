@@ -80,7 +80,11 @@ end
 
 function Base.getproperty(kr::ReservoirRelativePermeabilities{Scaling, ph},
         name::Symbol) where {Scaling, ph}
-    return name === :phases ? ph : getfield(kr, name)
+    if name === :phases
+        return ph
+    else
+        return getfield(kr, name)
+    end
 end
 
 function Base.propertynames(::ReservoirRelativePermeabilities,

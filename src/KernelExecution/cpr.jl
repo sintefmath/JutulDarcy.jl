@@ -198,9 +198,17 @@ end
                 break
             end
         end
-        matrix = represented_as_adjoint ? block : transpose(block)
+        if represented_as_adjoint
+            matrix = block
+        else
+            matrix = transpose(block)
+        end
         values = matrix \ SVector{N, eltype(rhs)}(rhs)
-        scale = unit_scaling isa Val{true} ? inv(norm(values)) : one(eltype(rhs))
+        if unit_scaling isa Val{true}
+            scale = inv(norm(values))
+        else
+            scale = one(eltype(rhs))
+        end
         @inbounds for component in 1:N
             weights[component, cell] = values[component]*scale
         end

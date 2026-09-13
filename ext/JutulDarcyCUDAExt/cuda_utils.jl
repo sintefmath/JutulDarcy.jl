@@ -89,10 +89,17 @@ function JutulDarcy.build_gpu_schur_system(Ti, Tv, bz, lsys::MultiLinearizedSyst
     # mul!(res, C_i, b_buf_1, -α, true)
 
     native_cuda_system = JutulDarcy.gpu_array_on_device(D_cpu.nzval)
-    D_nzval = native_cuda_system ? D_cpu.nzval : CUDA.pin(D_cpu.nzval)
-    C_nzval = native_cuda_system ? C_cpu.nzval : CUDA.pin(C_cpu.nzval)
-    buf_1_work = native_cuda_system ? buf_1_cpu : CUDA.pin(buf_1_cpu)
-    buf_2_work = native_cuda_system ? buf_2_cpu : CUDA.pin(buf_2_cpu)
+    if native_cuda_system
+        D_nzval = D_cpu.nzval
+        C_nzval = C_cpu.nzval
+        buf_1_work = buf_1_cpu
+        buf_2_work = buf_2_cpu
+    else
+        D_nzval = CUDA.pin(D_cpu.nzval)
+        C_nzval = CUDA.pin(C_cpu.nzval)
+        buf_1_work = CUDA.pin(buf_1_cpu)
+        buf_2_work = CUDA.pin(buf_2_cpu)
+    end
     return Dict(
         :C => C,
         :D => D,

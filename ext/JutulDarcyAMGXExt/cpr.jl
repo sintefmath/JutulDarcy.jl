@@ -97,16 +97,22 @@ function JutulDarcy.gpu_cpr_setup_buffers!(cpr, J_bsr, r_cu, op, recorder)
     if is_first
         weights_on_device = JutulDarcy.gpu_array_on_device(cpr_s.w_p)
         data[:weights_on_device] = weights_on_device
-        data[:w_p_cpu] = weights_on_device ? cpr_s.w_p :
-            CUDA.pin(cpr_s.w_p)
+        if weights_on_device
+            data[:w_p_cpu] = cpr_s.w_p
+        else
+            data[:w_p_cpu] = CUDA.pin(cpr_s.w_p)
+        end
         Tv = eltype(r_cu)
         n = length(r_cu)
         bz = cpr_s.block_size
         cpr.pressure_precond.data[:buffer_full] = similar(r_cu)
         bz_w, n_w = size(cpr_s.w_p)
         # @assert n == bz*n_w
-        data[:w_p] = weights_on_device ? cpr_s.w_p :
-            AMGX.CUDA.CuMatrix{Tv}(undef, bz_w, n_w)
+        if weights_on_device
+            data[:w_p] = cpr_s.w_p
+        else
+            data[:w_p] = AMGX.CUDA.CuMatrix{Tv}(undef, bz_w, n_w)
+        end
         data[:main_system] = J_bsr
         data[:operator] = op
     end

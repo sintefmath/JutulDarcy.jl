@@ -93,7 +93,12 @@ if CUDA.functional()
         @test simulator.storage.host_evaluation.keys ==
             (:PROD, :INJ, :Facility)
 
-        forces = deepcopy(case.forces isa AbstractVector ? only(case.forces) : case.forces)
+        if case.forces isa AbstractVector
+            forces = only(case.forces)
+        else
+            forces = case.forces
+        end
+        forces = deepcopy(forces)
         well = physical_representation(case.model.models.PROD.domain)
         mask = PerforationMask(ones(length(well.perforations.reservoir)))
         forces[:PROD] = setup_forces(case.model.models.PROD, mask = mask)

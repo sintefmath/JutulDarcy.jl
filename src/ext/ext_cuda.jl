@@ -48,15 +48,21 @@ function Jutul.linear_solve!(lsys::Jutul.LSystem,
     is_first = !haskey(krylov.data, :J)
     t_setup = @elapsed @tic "initial_gpu" if is_first
         native_cuda_system = gpu_array_on_device(L.jac_buffer)
-        csr_block_buffer = native_cuda_system ? L.jac_buffer :
-            pin_cpu_memory(L.jac_buffer)
+        if native_cuda_system
+            csr_block_buffer = L.jac_buffer
+        else
+            csr_block_buffer = pin_cpu_memory(L.jac_buffer)
+        end
         krylov.data[:csr_buffer] = csr_block_buffer
         krylov.data[:native_cuda_system] = native_cuda_system
         krylov.data[:J], krylov.data[:r] = build_gpu_block_system(
             Ti, Tv, sz, bz, J.rowptr, J.colval, csr_block_buffer, r)
         krylov.data[:schur] = build_gpu_schur_system(Ti, Tv, bz, lsys)
-        krylov.data[:dx_cpu] = native_cuda_system ?
-            similar(krylov.data[:r]) : pin_cpu_memory(zeros(Tv, n*bz))
+        if native_cuda_system
+            krylov.data[:dx_cpu] = similar(krylov.data[:r])
+        else
+            krylov.data[:dx_cpu] = pin_cpu_memory(zeros(Tv, n*bz))
+        end
     end
     csr_block_buffer = krylov.data[:csr_buffer]
     J_bsr = krylov.data[:J]

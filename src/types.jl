@@ -308,7 +308,11 @@ function PhaseRelativePermeability(k::T, label::Symbol, connate::N,
 end
 
 function Base.getproperty(kr::PhaseRelativePermeability{label}, name::Symbol) where label
-    return name === :label ? label : getfield(kr, name)
+    if name === :label
+        return label
+    else
+        return getfield(kr, name)
+    end
 end
 
 function Base.propertynames(::PhaseRelativePermeability, private::Bool = false)

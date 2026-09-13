@@ -114,7 +114,7 @@ end
         @test preconditioner.pressure_precond isa Jutul.AMGPreconditioner
         @test preconditioner.pressure_precond.reuse == :memory
         @test preconditioner.pressure_precond.reuse_partial == :operators
-        @test preconditioner.update_interval == :step
+        @test preconditioner.update_interval == :ministep
         @test preconditioner.update_interval_partial == :iteration
         @test preconditioner.partial_update
         @test preconditioner.pressure_precond.options.smoother isa
@@ -190,6 +190,65 @@ end
     @test Array(states[end][:Saturations]) ≈ reference[end][:Saturations] rtol = 1e-10
 end
 
+@testset "KA reservoir floating-point and index types" begin
+    cases = (
+        two_phase = JutulDarcy.setup_mini_wellcase(
+            Val(:immiscible_2ph); nstep = 1,
+            total_time = 0.01*si_unit(:day), backend = :csr,
+            block_backend = false),
+        compositional = JutulDarcy.setup_mini_wellcase(
+            Val(:compositional_2ph_3c); nstep = 1,
+            total_time = 0.01*si_unit(:day), backend = :csr,
+            block_backend = false, fast_flash = true),
+    )
+    for (name, case) in pairs(cases)
+        group_execution = if name == :compositional
+            Dict(:default => Jutul.AssembleOnDevice)
+        else
+            missing
+        end
+        simulator, config = setup_reservoir_simulator(case;
+            mode = :ka,
+            ka_backend = Jutul.KernelExecution.KernelAbstractions.CPU(),
+            group_execution = group_execution,
+            float_type = Float32,
+            index_type = Int32,
+            linear_solver = nothing,
+            failure_cuts_timestep = false,
+            timesteps = :none,
+            info_level = -1)
+
+        @test Jutul.float_type(simulator.model.context) === Float32
+        @test Jutul.index_type(simulator.model.context) === Int32
+        @test all(Jutul.float_type(submodel.context) === Float32
+            for submodel in values(simulator.model.models))
+        @test all(Jutul.index_type(submodel.context) === Int32
+            for submodel in values(simulator.model.models))
+        system = simulator.storage.LinearizedSystem
+        @test eltype(system.r_buffer) === Float32
+        @test eltype(system.jac.nzval) === Float32
+        @test eltype(system.jac.rowptr) === Int32
+        @test eltype(system.jac.colval) === Int32
+        pressure_type = eltype(simulator.storage.Reservoir.state.Pressure)
+        @test typeof(Jutul.value(zero(pressure_type))) === Float32
+
+        states, = simulate!(simulator, case.dt;
+            forces = case.forces, state0 = case.state0, config = config)
+        @test all(isfinite, Array(states[end][:Reservoir][:Pressure]))
+    end
+
+    unsupported = try
+        setup_reservoir_simulator(cases.two_phase;
+            mode = :default, float_type = Float32, index_type = Int32)
+        nothing
+    catch error
+        error
+    end
+    @test unsupported isa ArgumentError
+    @test occursin("only supported for KernelAbstractions",
+        sprint(showerror, unsupported))
+end
+
 @testset "SPE1 hybrid multimodel on a KA backend" begin
     case = setup_spe1_ka_case()
     simulator, = setup_reservoir_simulator(case;
@@ -236,7 +295,11 @@ end
         reset_state[:PROD][:Pressure]
     Jutul.reset_variables!(simulator, case.state0)
 
-    forces = case.forces isa AbstractVector ? first(case.forces) : case.forces
+    if case.forces isa AbstractVector
+        forces = first(case.forces)
+    else
+        forces = case.forces
+    end
     forces = Jutul.preprocess_forces(simulator, forces).forces
     dt = first(case.dt)
     Jutul.update_before_step!(simulator, dt, forces; time = 0.0)
@@ -276,7 +339,11 @@ end
         linear_solver = nothing,
         timesteps = :none)
 
-    forces = case.forces isa AbstractVector ? only(case.forces) : case.forces
+    if case.forces isa AbstractVector
+        forces = only(case.forces)
+    else
+        forces = case.forces
+    end
     forces = Jutul.preprocess_forces(simulator, forces).forces
     dt = only(case.dt)
     Jutul.update_before_step!(simulator, dt, forces; time = 0.0)

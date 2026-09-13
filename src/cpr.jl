@@ -264,9 +264,13 @@ function prepare_cprw_backend_maps!(map, system_matrix)
     map_12 = flatten(map.map_12)
     map_21 = flatten(map.map_21)
     map_22 = flatten(map.map_22)
-    cells_12 = isempty(map.well_cells) ? Int[] : reduce(vcat,
-        (map.well_cells[index] for index in eachindex(map.map_12));
-        init = Int[])
+    if isempty(map.well_cells)
+        cells_12 = Int[]
+    else
+        cells_12 = reduce(vcat,
+            (map.well_cells[index] for index in eachindex(map.map_12));
+            init = Int[])
+    end
     reservoir_cells = size(system_matrix, 1)
     wells_21 = reduce(vcat,
         (fill(index + reservoir_cells, length(map.map_21[index]))

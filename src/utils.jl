@@ -1065,6 +1065,9 @@ end
 - `group_execution=missing`: Per-model `DeviceExecutionMode` policy for KA
   modes, supplied as a function or keyed collection. By default the reservoir
   uses `SolveFullyOnDevice` and wells/facility use `AssembleOnDevice`.
+- `float_type=missing`, `index_type=missing`: Override the floating-point and
+  sparse-index types used by the `KernelAbstractionsContext`. These options are
+  only valid for KA modes; omitted values inherit the CPU model's context.
 - `method=:newton`: Can be `:newton`, `:nldd` or `:aspen`. Newton is the most
   tested approach and `:nldd` can speed up difficult models. The `:nldd` option
   enables a host of additional options (look at the simulator config for more
@@ -1175,6 +1178,8 @@ function setup_reservoir_simulator(case::JutulCase;
         mode = :default,
         ka_backend = missing,
         group_execution = missing,
+        float_type = missing,
+        index_type = missing,
         method = :newton,
         precond = :cpr,
         linear_solver = :bicgstab,
@@ -1218,6 +1223,12 @@ function setup_reservoir_simulator(case::JutulCase;
         nldd_arg = Dict{Symbol, Any}(),
         kwarg...
     )
+    ka_mode = mode isa Symbol && (mode == :ka || startswith(String(mode), "ka_"))
+    requested_ka_types = !ismissing(float_type) || !ismissing(index_type)
+    if requested_ka_types && !ka_mode
+        throw(ArgumentError(
+            "float_type and index_type are only supported for KernelAbstractions (:ka) modes"))
+    end
     if ismissing(set_linear_solver)
         set_linear_solver = linear_solver isa Symbol || ismissing(linear_solver)
     end
@@ -1230,13 +1241,28 @@ function setup_reservoir_simulator(case::JutulCase;
     if presolve_wells
         sim_kwarg[:prepare_step_handler] = PrepareStepWellSolver()
     end
-    ka_mode = mode isa Symbol && (mode == :ka || startswith(String(mode), "ka_"))
     if ka_mode
         method == :newton || throw(ArgumentError(
             "KernelAbstractions modes currently support method=:newton"))
-        backend = ismissing(ka_backend) ?
-            kernel_abstractions_backend(mode) : ka_backend
+        backend = if ismissing(ka_backend)
+            kernel_abstractions_backend(mode)
+        else
+            ka_backend
+        end
         sim_cpu = Simulator(case; sim_kwarg...)
+        if ismissing(float_type)
+            F = Jutul.float_type(sim_cpu.model.context)
+        else
+            F = float_type
+        end
+        if ismissing(index_type)
+            I = Jutul.index_type(sim_cpu.model.context)
+        else
+            I = index_type
+        end
+        ka_context = Jutul.KernelAbstractionsContext(backend;
+            float_type = F, index_type = I,
+            matrix_layout = Jutul.matrix_layout(sim_cpu.model.context))
         if ismissing(group_execution)
             group_execution = Dict{Symbol, Jutul.DeviceExecutionMode}(
                 :default => Jutul.AssembleOnDevice,
@@ -1246,7 +1272,7 @@ function setup_reservoir_simulator(case::JutulCase;
         # inferred return type. This is ordinary current-world dispatch; no
         # `invokelatest` world-age workaround is needed.
         transfer = Base.inferencebarrier(transfer_to_backend)
-        sim = transfer(sim_cpu, backend;
+        sim = transfer(sim_cpu, ka_context;
             group_execution = group_execution)
     elseif mode == :default
         # Single-process solve
@@ -1328,7 +1354,11 @@ function setup_reservoir_simulator(case::JutulCase;
         # KA models have been transferred at this point, so select against the
         # simulator model to make device-specific defaults available. Keep the
         # established model selection for all other execution modes.
-        solver_model = ka_mode ? sim.model : case.model
+        if ka_mode
+            solver_model = sim.model
+        else
+            solver_model = case.model
+        end
         extra_kwarg[:linear_solver] = select_reservoir_linear_solver(solver_model, precond;
             backend = linear_solver_backend,
             rtol = rtol,
