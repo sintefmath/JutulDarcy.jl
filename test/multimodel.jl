@@ -1,4 +1,5 @@
 using Jutul, JutulDarcy
+using JLArrays
 using Test
 
 import JutulDarcy: simulate_mini_wellcase
@@ -174,6 +175,112 @@ end
                     test_compositional_with_wells(; setuparg = lsolve_arg, arg...)
                     test_immiscible_with_wells(; setuparg = lsolve_arg, arg...)
                     test_blackoil_with_wells(; setuparg = lsolve_arg, arg...)
+                end
+            end
+        end
+    end
+
+    @testset "KernelAbstractions linear solvers" begin
+        model_arg = (
+            general_ad = false,
+            backend = :csr,
+            block_backend = true,
+        )
+        function ka_setup(ka_backend;
+                precond = :cpr,
+                linear_solver = :bicgstab,
+                linear_solver_arg = NamedTuple())
+            return (
+                mode = :ka,
+                ka_backend = ka_backend,
+                linear_solver_backend = :ka,
+                precond = precond,
+                linear_solver = linear_solver,
+                linear_solver_arg = linear_solver_arg,
+            )
+        end
+
+        egg_path = JutulDarcy.GeoEnergyIO.test_input_file_path(
+            "EGG", "EGG.DATA")
+        egg_case = setup_case_from_data_file(egg_path;
+            backend = :csr, block_backend = true)[1:1]
+        function test_egg_first_step(setup)
+            result = simulate_reservoir(egg_case;
+                setup...,
+                info_level = -1,
+                error_on_incomplete = true)
+            state = only(result.states)
+            @test length(result.states) == 1
+            @test all(isfinite, state[:Pressure])
+            @test all(isfinite, state[:Saturations])
+        end
+
+        @testset "All physics with CPR on JLArrays" begin
+            setup = ka_setup(JLBackend(); linear_solver = :gmres)
+            # Cubic-EOS flash results contain nested heap-backed vectors and
+            # cannot be stored safely in a device array. Exercise that physics
+            # through the supported host-evaluation/device-solve path.
+            compositional_setup = merge(setup, (
+                group_execution = Dict(
+                    :default => Jutul.AssembleOnDevice),))
+            test_compositional_with_wells(;
+                setuparg = compositional_setup,
+                fast_flash = true, model_arg...)
+            test_immiscible_with_wells(;
+                setuparg = setup, model_arg...)
+            test_geothermal_with_wells(;
+                setuparg = setup, model_arg...)
+            test_blackoil_with_wells(;
+                setuparg = setup, model_arg...)
+        end
+
+        @testset "2ph Krylov and KA backends" begin
+            backends = (
+                cpu = Jutul.KernelExecution.KernelAbstractions.CPU(),
+                jlarrays = JLBackend(),
+            )
+            for (backend_name, ka_backend) in pairs(backends)
+                for linear_solver in (:bicgstab, :gmres)
+                    @testset "$backend_name:$linear_solver" begin
+                        setup = ka_setup(ka_backend;
+                            linear_solver = linear_solver)
+                        test_egg_first_step(setup)
+                    end
+                end
+            end
+        end
+
+        @testset "2ph CPR variants on JLArrays" begin
+            # Keep the smoother/coarsening comparison independent of the
+            # Krylov method comparison above.
+            variants = (
+                ("CPRW", :cprw, NamedTuple()),
+                ("aggregation", :cpr, (amg_type = :aggregation,)),
+                ("Ruge-Stuben", :cpr, (amg_type = :ruge_stuben,)),
+            )
+            for (name, precond, linear_solver_arg) in variants
+                @testset "$name" begin
+                    setup = ka_setup(JLBackend();
+                        precond = precond,
+                        linear_solver = :gmres,
+                        linear_solver_arg = linear_solver_arg)
+                    test_egg_first_step(setup)
+                end
+            end
+
+            for smoother in (:ilu0, :dilu, :spai0)
+                @testset "system smoother:$smoother" begin
+                    setup = ka_setup(JLBackend();
+                        linear_solver = :gmres,
+                        linear_solver_arg = (smoother_type = smoother,))
+                    test_egg_first_step(setup)
+                end
+                @testset "AMG smoother:$smoother" begin
+                    setup = ka_setup(JLBackend();
+                        linear_solver = :gmres,
+                        linear_solver_arg = (
+                            amg_arg = (smoother_type = smoother,),))
+                    test_egg_first_step(setup)
                 end
             end
         end

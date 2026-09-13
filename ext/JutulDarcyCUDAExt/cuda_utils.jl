@@ -11,9 +11,27 @@ function JutulDarcy.build_gpu_block_system(Ti, Tv, sz::Tuple{Int, Int}, blockDim
     return (J_bsr, r_cu)
 end
 
+function JutulDarcy.build_gpu_block_system(Ti, Tv, sz::Tuple{Int, Int},
+        blockDim::Int, rowptr::CuArray, colval::CuArray, nzval::CuArray, r0)
+    rowPtr = convert(CuVector{Ti}, rowptr)
+    colVal = convert(CuVector{Ti}, colval)
+    nzVal = convert(CuVector{Tv}, vec(nzval))
+    dims = blockDim .* sz
+    dir = 'C'
+    nnzb = length(nzVal) ÷ blockDim^2
+    J_bsr = CUDA.CUSPARSE.CuSparseMatrixBSR{Tv, Ti}(
+        rowPtr, colVal, nzVal, dims, blockDim, dir, nnzb)
+    r_cu = convert(CuVector{Tv}, vec(r0))
+    return (J_bsr, r_cu)
+end
+
 function JutulDarcy.update_gpu_block_system!(J, blockDim, nzval)
     ensure_minimum_block_values!(nzval, blockDim)
     copyto!(J.nzVal, nzval)
+end
+
+function JutulDarcy.update_gpu_block_system!(J, blockDim, nzval::CuArray)
+    copyto!(J.nzVal, vec(nzval))
 end
 
 function ensure_minimum_block_values!(nzval, blockDim, ϵ = 1e-12)
@@ -70,14 +88,17 @@ function JutulDarcy.build_gpu_schur_system(Ti, Tv, bz, lsys::MultiLinearizedSyst
     # ldiv!(b_buf_1, E_i, b_buf_2)
     # mul!(res, C_i, b_buf_1, -α, true)
 
-    D_nzval = CUDA.pin(D_cpu.nzval)
-    C_nzval = CUDA.pin(C_cpu.nzval)
+    native_cuda_system = JutulDarcy.gpu_array_on_device(D_cpu.nzval)
+    D_nzval = native_cuda_system ? D_cpu.nzval : CUDA.pin(D_cpu.nzval)
+    C_nzval = native_cuda_system ? C_cpu.nzval : CUDA.pin(C_cpu.nzval)
+    buf_1_work = native_cuda_system ? buf_1_cpu : CUDA.pin(buf_1_cpu)
+    buf_2_work = native_cuda_system ? buf_2_cpu : CUDA.pin(buf_2_cpu)
     return Dict(
         :C => C,
         :D => D,
         :buf => buf,
-        :buf_1_cpu => CUDA.pin(buf_1_cpu),
-        :buf_2_cpu => CUDA.pin(buf_2_cpu),
+        :buf_1_cpu => buf_1_work,
+        :buf_2_cpu => buf_2_work,
         :E_factor => E_factor,
         :D_nzval => D_nzval,
         :C_nzval => C_nzval
@@ -111,7 +132,21 @@ function copy_to_gpu(x::Vector{Tvc}, Tv, Ti) where {Tvc}
     return convert(CuVector{Tv}, x)
 end
 
-function JutulDarcy.schur_mul_gpu!(y, x, α, β, J, C, D, buf::CuVector, buf1_cpu::Vector, buf2_cpu::Vector, E_factor)
+
+function copy_to_gpu(x::CuVector, Tv, Ti)
+    return convert(CuVector{Tv}, x)
+end
+
+function copy_to_gpu(x::Jutul.StaticSparsityMatrixCSR, Tv, Ti)
+    rowptr = convert(CuVector{Ti}, x.rowptr)
+    colval = convert(CuVector{Ti}, x.colval)
+    nzval = convert(CuVector{Tv}, x.nzval)
+    return CUDA.CUSPARSE.CuSparseMatrixCSR{Tv, Ti}(
+        rowptr, colval, nzval, size(x))
+end
+
+function JutulDarcy.schur_mul_gpu!(y, x, α, β, J, C, D, buf::CuVector,
+        buf1_cpu::AbstractVector, buf2_cpu::AbstractVector, E_factor)
     @tic "schur apply" @sync begin 
         # Working on GPU
         @async mul!(y, J, x, α, β)
@@ -129,3 +164,6 @@ end
 function JutulDarcy.pin_cpu_memory(x)
     return CUDA.pin(x)
 end
+
+
+JutulDarcy.gpu_array_on_device(::CuArray) = true

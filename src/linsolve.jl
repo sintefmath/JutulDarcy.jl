@@ -23,9 +23,10 @@ Set up iterative linear solver for a reservoir model from [`setup_reservoir_mode
   performs a full setup for either path. The pressure system itself is updated
   from the current Jacobian on every preconditioner update.
 - `max_coarse`: max size of coarse level if using AMG
-- `amg_type`: pressure preconditioner implementation. `:ka` selects the new
-  backend-portable AMG. Its default smoother is ILU(0) on CPU and SPAI(0) on
-  accelerators. An initialized Jutul preconditioner can also be passed.
+- `amg_type`: pressure AMG variant. For the KernelAbstractions backend this is
+  the coarsening method (`:hmis`, `:ruge_stuben`, or `:aggregation`),
+  with `:hmis` as the default. CPU uses `:hypre` by default and the legacy CUDA
+  backend uses `:amgx`. An initialized Jutul preconditioner can also be passed.
 - `smoother_type`: full-system smoother. The default is `:ilu0` on CPU and
   `:dilu` on accelerator KA backends. The `:ka_*` choices use the new
   backend-portable smoothers.
@@ -72,7 +73,9 @@ function select_reservoir_linear_solver(model, precond = :cpr;
     end
     backend in (:cpu, :cuda, :ka) || throw(ArgumentError(
         "Backend $backend not supported, must be :auto, :cpu, :ka or :cuda."))
-    is_accelerator_ka = backend == :ka && is_ka_model_context
+    is_accelerator_ka = backend == :ka && is_ka_model_context &&
+        !(model.context.backend isa
+            Jutul.KernelExecution.KernelAbstractions.CPU)
     if is_accelerator_ka
         default_smoother_type = :dilu
     else
@@ -206,7 +209,12 @@ function reservoir_system_smoother(s::AbstractString; kwarg...)
 end
 
 function reservoir_system_smoother(type::Symbol; backend = :cpu, kwarg...)
-    if backend == :cpu
+    type_string = String(type)
+    if startswith(type_string, "ka_")
+        method = Symbol(type_string[4:end])
+        return Jutul.KASmootherPreconditioner(method; kwarg...)
+    end
+    if backend == :cpu || backend == :cuda
         if type == :ilu0
             return ILUZeroPreconditioner(; kwarg...)
         elseif type == :jacobi
@@ -219,7 +227,7 @@ function reservoir_system_smoother(type::Symbol; backend = :cpu, kwarg...)
     elseif backend == :ka
         return Jutul.KASmootherPreconditioner(type; kwarg...)
     else
-        throw(ArgumentError("Unsupported backend for reservoir smoother: $backend, should be $ka or $cpu"))
+        throw(ArgumentError("Unsupported backend for reservoir smoother: $backend, should be :ka, :cpu, or :cuda"))
     end
 end
 

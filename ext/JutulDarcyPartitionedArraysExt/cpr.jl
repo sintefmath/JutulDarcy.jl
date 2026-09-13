@@ -1,14 +1,53 @@
-function JutulDarcy.update_pressure_system!(A_p::HYPRE.HYPREMatrix, p_prec, A, w_p, ctx, executor, well_reservoir_map::Nothing)
-    D = p_prec.data
-    if !haskey(D, :assembly_helper)
-        (; ilower, iupper) = A_p
-        D[:assembly_helper] = Jutul.generate_hypre_assembly_helper(A, executor, ilower, iupper)
+function hypre_assembly_helper!(p_prec, A, executor, ilower, iupper)
+    return get!(p_prec.data, :assembly_helper) do
+        Jutul.generate_hypre_assembly_helper(
+            A, executor, ilower, iupper)
     end
-    helper = D[:assembly_helper]
-    I_buf, J_buf, V_buffers, = D[:assembly_helper]
+end
+
+function JutulDarcy.update_pressure_system!(A_p::HYPRE.HYPREMatrix, p_prec, A, w_p, ctx, executor, well_reservoir_map::Nothing)
+    (; ilower, iupper) = A_p
+    helper = hypre_assembly_helper!(
+        p_prec, A, executor, ilower, iupper)
+    I_buf, J_buf, V_buffers, = helper
     is_adjoint = Val(Jutul.represented_as_adjoint(matrix_layout(ctx)))
     ncomp = Val(size(w_p, 1))
-    update_pressure_system_hypre!(I_buf, J_buf, V_buffers, A_p, A, w_p, executor, helper.n, is_adjoint, ncomp)
+    if A isa Jutul.StaticSparsityMatrixCSR
+        update_pressure_system_hypre_csr!(
+            A_p, A, w_p, helper, is_adjoint, ncomp)
+    else
+        update_pressure_system_hypre!(I_buf, J_buf, V_buffers,
+            A_p, A, w_p, executor, helper.n, is_adjoint, ncomp)
+    end
+end
+
+function update_pressure_system_hypre_csr!(A_p, A, w_p, helper,
+        ::Val{is_adjoint}, ::Val{ncomp}) where {is_adjoint, ncomp}
+    csr = helper.csr
+    @assert !isnothing(csr)
+    n = size(A, 1)
+    (; iupper, ilower) = A_p
+    @assert n == iupper - ilower + 1
+    if A_p.parmatrix == C_NULL && !csr.preallocated[]
+        HYPRE.@check HYPRE.HYPRE_IJMatrixSetDiagOffdSizes(
+            A_p, csr.diag_sizes, csr.offdiag_sizes)
+        if Threads.nthreads() > 1 && n >= 1000
+            HYPRE.@check HYPRE.HYPRE_IJMatrixSetOMPFlag(A_p, 1)
+        end
+        csr.preallocated[] = true
+    end
+    nzval = SparseArrays.nonzeros(A)
+    @inbounds for row in 1:n
+        for position in nzrange(A, row)
+            csr.values[position] = JutulDarcy.reduce_to_pressure(
+                nzval[position], w_p, row, ncomp, is_adjoint)
+        end
+    end
+    HYPRE.@check HYPRE.HYPRE_IJMatrixInitialize(A_p)
+    HYPRE.@check HYPRE.HYPRE_IJMatrixSetValues(
+        A_p, csr.nrows, csr.ncols, csr.rows, csr.cols, csr.values)
+    HYPRE.Internals.assemble_matrix(A_p)
+    return A_p
 end
 
 function update_pressure_system_hypre!(single_buf, longer_buf, V_buffers, A_p, A, w_p, executor, n, is_adjoint, ncomp)
@@ -84,8 +123,10 @@ function JutulDarcy.create_pressure_system(p_prec::BoomerAMGPreconditioner, J, n
     return (A, r, p)
 end
 
-function JutulDarcy.update_p_rhs!(r_p::HYPRE.HYPREVector, y, ncomp, bz, w_p, p_prec, mode)
-    helper = p_prec.data[:assembly_helper]
+function JutulDarcy.update_p_rhs!(r_p::HYPRE.HYPREVector, y, ncomp, bz,
+        w_p, pressure_matrix::HYPRE.HYPREMatrix, mode,
+        pressure_preconditioner::BoomerAMGPreconditioner)
+    helper = pressure_preconditioner.data[:assembly_helper]
     inner_hypre_p_rhs!(r_p, y, ncomp, bz, w_p, helper, mode)
 end
 

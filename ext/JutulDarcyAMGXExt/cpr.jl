@@ -27,13 +27,16 @@ function JutulDarcy.update_amgx_pressure_system!(amgx::AMGXPreconditioner, A::Ju
         nzval = A.nzval
         # TODO: Support for other types than Float64, should be done in setup of
         # pressure system
-        AMGX.pin_memory(nzval)
+        values_on_device = JutulDarcy.gpu_array_on_device(nzval)
+        values_on_device || AMGX.pin_memory(nzval)
         AMGX.upload!(s.matrix,
             row_ptr,
             colval,
             nzval
         )
-        amgx.data[:nzval] = A.nzval
+        if !values_on_device
+            amgx.data[:nzval] = nzval
+        end
         amgx.data[:storage] = s
         amgx.data[:block_size] = 1
         amgx.data[:n] = n
@@ -92,14 +95,18 @@ function JutulDarcy.gpu_cpr_setup_buffers!(cpr, J_bsr, r_cu, op, recorder)
     is_first = !haskey(data, :w_p)
     cpr_s = cpr.storage
     if is_first
-        data[:w_p_cpu] = CUDA.pin(cpr_s.w_p)
+        weights_on_device = JutulDarcy.gpu_array_on_device(cpr_s.w_p)
+        data[:weights_on_device] = weights_on_device
+        data[:w_p_cpu] = weights_on_device ? cpr_s.w_p :
+            CUDA.pin(cpr_s.w_p)
         Tv = eltype(r_cu)
         n = length(r_cu)
         bz = cpr_s.block_size
         cpr.pressure_precond.data[:buffer_full] = similar(r_cu)
         bz_w, n_w = size(cpr_s.w_p)
         # @assert n == bz*n_w
-        data[:w_p] = AMGX.CUDA.CuMatrix{Tv}(undef, bz_w, n_w)
+        data[:w_p] = weights_on_device ? cpr_s.w_p :
+            AMGX.CUDA.CuMatrix{Tv}(undef, bz_w, n_w)
         data[:main_system] = J_bsr
         data[:operator] = op
     end
@@ -109,7 +116,9 @@ function JutulDarcy.gpu_cpr_setup_buffers!(cpr, J_bsr, r_cu, op, recorder)
         w_p_cpu = data[:w_p_cpu]
         w_p_gpu = data[:w_p]
         @assert size(w_p_cpu) == size(w_p_gpu)
-        @tic "weights to gpu" copyto!(w_p_gpu, w_p_cpu)
+        if !data[:weights_on_device]
+            @tic "weights to gpu" copyto!(w_p_gpu, w_p_cpu)
+        end
     end
     return cpr
 end

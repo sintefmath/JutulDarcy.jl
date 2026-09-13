@@ -260,16 +260,18 @@ function cpr_backend_copy(prototype, source::AbstractVector{T}) where T
 end
 
 function prepare_cprw_backend_maps!(map, system_matrix)
-    isempty(map.map_12) && return map
-    map_12 = reduce(vcat, map.map_12)
-    map_21 = reduce(vcat, map.map_21)
-    map_22 = reduce(vcat, map.map_22)
-    cells_12 = reduce(vcat,
-        (map.well_cells[index] for index in eachindex(map.map_12)))
+    flatten(groups) = reduce(vcat, groups; init = eltype(groups)())
+    map_12 = flatten(map.map_12)
+    map_21 = flatten(map.map_21)
+    map_22 = flatten(map.map_22)
+    cells_12 = isempty(map.well_cells) ? Int[] : reduce(vcat,
+        (map.well_cells[index] for index in eachindex(map.map_12));
+        init = Int[])
     reservoir_cells = size(system_matrix, 1)
     wells_21 = reduce(vcat,
         (fill(index + reservoir_cells, length(map.map_21[index]))
-            for index in eachindex(map.map_21)))
+            for index in eachindex(map.map_21));
+        init = Int[])
     wells_22 = collect((reservoir_cells + index
         for index in eachindex(map.map_22)))
     prototype = system_matrix.rowptr
@@ -501,13 +503,20 @@ function apply_cpr_pressure_stage!(cpr::CPRPreconditioner, cpr_s::CPRStorage, r,
     r_p, w_p, bz, Δp = cpr_s.r_p, cpr_s.w_p, cpr_s.block_size, cpr_s.p
     ncomp = cpr_s.number_of_components
     @tic "p rhs" update_p_rhs!(
-        r_p, r, ncomp, bz, w_p, cpr_s.A_p, cpr.mode)
+        r_p, r, ncomp, bz, w_p, cpr_s.A_p, cpr.mode,
+        cpr.pressure_precond)
     # Apply preconditioner to pressure part
     @tic "p apply" begin
         p_rtol = cpr.p_rtol
         p_precond = cpr.pressure_precond
         cpr_p_apply!(Δp, cpr, p_precond, r_p, p_rtol)
     end
+end
+
+function update_p_rhs!(r_p, y, ncomp, bz, w_p, pressure_matrix, mode,
+        pressure_preconditioner)
+    return update_p_rhs!(
+        r_p, y, ncomp, bz, w_p, pressure_matrix, mode)
 end
 
 function cpr_p_apply!(Δp, cpr, p_precond, r_p, p_rtol)

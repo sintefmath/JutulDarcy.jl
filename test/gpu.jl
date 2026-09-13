@@ -179,7 +179,7 @@ if CUDA.functional()
         case = setup_case_from_data_file(spe9;
             block_backend = true)[1:1]
         linear_solver_arg = (
-            amg_type = :ka,
+            amg_type = :hmis,
             smoother_type = :ka_ilu0,
             update_interval = :once,
             update_interval_partial = :iteration,
@@ -219,12 +219,32 @@ if CUDA.functional()
             res_cuilu = simulate_reservoir(case; linear_solver_backend = :cuda, precond = :ilu0, sim_kwarg...);
             spe1_gpu_compare(res_ilu, res_cuilu)
         end
+        @testset "KA assembly with CuSPARSE-ILU(0)" begin
+            ka_case = setup_case_from_data_file(spe1_pth;
+                block_backend = true)[1:1]
+            result = simulate_reservoir(ka_case;
+                mode = :ka_cuda,
+                linear_solver_backend = :cuda,
+                precond = :ilu0,
+                sim_kwarg...)
+            @test length(result.states) == 1
+            @test all(isfinite, only(result.states)[:Pressure])
+        end
         if Sys.islinux()
             @testset "AMGX-CPR" begin
                 using AMGX
                 res_cpr = simulate_reservoir(case; precond = :cpr, sim_kwarg...)
                 res_cucpr = simulate_reservoir(case; linear_solver_backend = :cuda, precond = :cpr, sim_kwarg...);
                 spe1_gpu_compare(res_cpr, res_cucpr)
+                ka_case = setup_case_from_data_file(spe1_pth;
+                    block_backend = true)[1:1]
+                ka_amgx = simulate_reservoir(ka_case;
+                    mode = :ka_cuda,
+                    linear_solver_backend = :cuda,
+                    precond = :cpr,
+                    sim_kwarg...)
+                @test length(ka_amgx.states) == 1
+                @test all(isfinite, only(ka_amgx.states)[:Pressure])
             end
         end
     end
