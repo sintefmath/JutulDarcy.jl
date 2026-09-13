@@ -13,8 +13,8 @@ Set up iterative linear solver for a reservoir model from [`setup_reservoir_mode
   the legacy transfer-based `:cuda` path can be selected explicitly.
 - `v=0`: verbosity (can lead to a large amount of output)
 - `solver=:bicgstab`: the symbol of a Krylov.jl solver (typically :gmres or :bicgstab)
-- `update_interval=:step`: how often the full CPR pressure update runs
-  (`:once`, `:iteration`, `:ministep`, or `:step`)
+- `update_interval=:ministep`: how often the full CPR pressure preconditioner
+  gets updated (`:once`, `:iteration`, `:ministep`, or `:step`)
 - `update_interval_partial=:iteration`: how often the partial CPR pressure
   update runs between full updates
 - `update_type=:memory`: KA AMG reuse mode for full pressure updates
@@ -47,7 +47,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         mode = :forward,
         solver = :bicgstab,
         max_iterations = missing,
-        update_interval = :step,
+        update_interval = :ministep,
         update_interval_partial = :iteration,
         update_type = :memory,
         update_type_partial = :operators,
