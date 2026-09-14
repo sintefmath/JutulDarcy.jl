@@ -1,6 +1,7 @@
 module KernelExecution
     import Adapt
     using Jutul
+    import MultiComponentFlash
     import Jutul.KernelExecution: KernelAbstractions
     using .KernelAbstractions: @Const, @index, @kernel
     using LinearAlgebra
@@ -14,11 +15,15 @@ module KernelExecution
         PVTGTable, PVTO, PVTOTable, PVTW, ReservoirFromWellFlowCT,
         ReservoirFromWellThermalCT, ReservoirRelativePermeabilities, Rs, Rv,
         ScaledCapillaryPressure, SimpleCapillaryPressure, SimpleWell,
-        StandardBlackOilSystem, TemperatureDependentVariable, WellGroup,
-        cpr_weights_no_partials!, kernel_abstractions_backend,
+        StandardBlackOilSystem, WellGroup,
+        cpr_weights_no_partials!,
         update_analytical_cpr_weights!, update_p_rhs!,
         update_pressure_system!, update_quasi_impes_weights!,
         update_true_impes_weights!
+        KValueWrapper,
+        MultiPhaseCompositionalSystemLV,
+        TemperatureDependentVariable,
+        kernel_abstractions_backend
 
     kernel_abstractions_backend(::Val{:ka}) = KernelAbstractions.CPU()
     kernel_abstractions_backend(::Val{:ka_cpu}) = KernelAbstractions.CPU()
