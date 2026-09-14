@@ -74,11 +74,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
     end
     backend in (:cpu, :cuda, :ka) || throw(ArgumentError(
         "Backend $backend not supported, must be :auto, :cpu, :ka or :cuda."))
-    default_pressure_smoother_type = if is_ka_backend && !is_accelerator_ka
-        :gauss_seidel
-    else
-        :spai0
-    end
+
     is_cpr = precond == :cpr || precond == :cprw
     if is_ka_backend
         is_accelerator_ka = model.context.backend isa Jutul.KernelExecution.KernelAbstractions.CPU
