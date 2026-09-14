@@ -64,7 +64,6 @@ function select_reservoir_linear_solver(model, precond = :cpr;
     )
     is_equation_major = !Jutul.is_cell_major(matrix_layout(model.context))
     is_ka_model_context = model.context isa Jutul.KernelAbstractionsContext
-    is_ka_backend = backend == :ka
     if backend == :auto
         if is_ka_model_context && !is_equation_major
             backend = :ka
@@ -72,12 +71,13 @@ function select_reservoir_linear_solver(model, precond = :cpr;
             backend = :cpu
         end
     end
+    is_ka_backend = backend == :ka
     backend in (:cpu, :cuda, :ka) || throw(ArgumentError(
         "Backend $backend not supported, must be :auto, :cpu, :ka or :cuda."))
 
     is_cpr = precond == :cpr || precond == :cprw
     if is_ka_backend
-        is_accelerator_ka = model.context.backend isa Jutul.KernelExecution.KernelAbstractions.CPU
+        is_accelerator_ka = !(model.context.backend isa Jutul.KernelExecution.KernelAbstractions.CPU)
         !is_equation_major || throw(ArgumentError(
             "Equation-major storage is not supported for KernelAbstractions solvers. Set backend = :csr when setting up the model."))
         solver != :lu || throw(ArgumentError(
