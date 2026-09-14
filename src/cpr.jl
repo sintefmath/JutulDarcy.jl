@@ -478,7 +478,9 @@ function apply!(x, cpr::CPRPreconditioner, r0, arg...)
     # Zero out buffer, just in case (assumed by some solvers)
     @. x = 0.0
     # presmooth
-    @tic "cpr smoother" apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npre)
+    if cpr.npre > 0
+        @tic "cpr smoother" apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npre)
+    end
     @tic "cpr pressure stage" apply_cpr_pressure_stage!(cpr, cpr_s, r, arg...)
     # postsmooth
     if cpr.npost > 0
