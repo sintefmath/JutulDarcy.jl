@@ -27,12 +27,12 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
     conserved = conserved_symbol(eq)
     M₀ = state0[conserved]
     M = state[conserved]
-    @. eq_buf = (M - M₀)/Δt
+    @. eq_buf = (M[:, self_cell] - M₀[:, self_cell])/Δt
 end
 
 function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::ConservationLaw, model::SimpleWellModel, Δt, ldisc = local_discretization(eq, self_cell)) where T_e
     conserved = conserved_symbol(eq)
     M₀ = state0[conserved]
     M = state[conserved]
-    @. eq_buf = (M - M₀)/Δt
+    @. eq_buf = (M[:, self_cell] - M₀[:, self_cell])/Δt
 end
