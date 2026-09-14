@@ -138,7 +138,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
             default_pressure_smoother_type = :spai0
         end
 
-        if backend == :ka && amg_type isa Symbol
+        if is_ka_backend && amg_type isa Symbol
             ka_amg_defaults = (
                 smoother_type = default_pressure_smoother_type,
                 reuse = update_type,
