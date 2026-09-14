@@ -54,7 +54,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         partial_update = true,
         amg_type = missing,
         amg_arg = NamedTuple(),
-        smoother_type = missing,
+        smoother_type = :ilu0,
         smoother_arg = NamedTuple(),
         cpr_type = missing,
         cpr_arg = NamedTuple(),
@@ -64,6 +64,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
     )
     is_equation_major = !Jutul.is_cell_major(matrix_layout(model.context))
     is_ka_model_context = model.context isa Jutul.KernelAbstractionsContext
+    is_ka_backend = backend == :ka
     if backend == :auto
         if is_ka_model_context && !is_equation_major
             backend = :ka
@@ -73,24 +74,14 @@ function select_reservoir_linear_solver(model, precond = :cpr;
     end
     backend in (:cpu, :cuda, :ka) || throw(ArgumentError(
         "Backend $backend not supported, must be :auto, :cpu, :ka or :cuda."))
-    is_accelerator_ka = backend == :ka && is_ka_model_context &&
-        !(model.context.backend isa
-            Jutul.KernelExecution.KernelAbstractions.CPU)
-    if is_accelerator_ka
-        default_smoother_type = :dilu
-    else
-        default_smoother_type = :ilu0
-    end
-    default_pressure_smoother_type = if backend == :ka && !is_accelerator_ka
+    default_pressure_smoother_type = if is_ka_backend && !is_accelerator_ka
         :gauss_seidel
     else
         :spai0
     end
-    if ismissing(smoother_type)
-        smoother_type = default_smoother_type
-    end
     is_cpr = precond == :cpr || precond == :cprw
-    if backend == :ka
+    if is_ka_backend
+        is_accelerator_ka = model.context.backend isa Jutul.KernelExecution.KernelAbstractions.CPU
         !is_equation_major || throw(ArgumentError(
             "Equation-major storage is not supported for KernelAbstractions solvers. Set backend = :csr when setting up the model."))
         solver != :lu || throw(ArgumentError(
@@ -101,6 +92,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         krylov_constructor = GenericKrylov
         krylov_arg = NamedTuple()
     elseif backend == :cuda
+        is_accelerator_ka = false
         # Check assumptions
         !is_equation_major || throw(ArgumentError("Equation-major storage not supported for CUDA backend. Set backend = :csr when setting up the model."))
         solver != :lu || throw(ArgumentError("LU direct solver not supported for CUDA backend."))
@@ -121,6 +113,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         krylov_constructor = CUDAReservoirKrylov
         krylov_arg = (Float_t = float_type, )
     else
+        is_accelerator_ka = false
         if solver == :lu
             return LUSolver()
         end
@@ -143,6 +136,12 @@ function select_reservoir_linear_solver(model, precond = :cpr;
                 cpr_type = :true_impes
             end
         end
+        if is_ka_backend && !is_accelerator_ka
+            default_pressure_smoother_type = :gauss_seidel
+        else
+            default_pressure_smoother_type = :spai0
+        end
+
         if backend == :ka && amg_type isa Symbol
             ka_amg_defaults = (
                 smoother_type = default_pressure_smoother_type,
