@@ -820,3 +820,8 @@ function setup_nnc_connections(mesh::JutulMesh, neighbors::Vector{Tuple{Int, Int
     return NonNeighboringConnections{R}(neighbors, trans, trans_thermal)
 end
 
+
+export KValueWrapper
+struct KValueWrapper{T, D}
+    K::T
+end

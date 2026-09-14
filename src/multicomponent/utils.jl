@@ -26,11 +26,6 @@ has_other_phase(sys::MultiPhaseCompositionalSystemLV{E, T, O}) where {E, T, O<:N
 phase_indices(sys::MultiPhaseCompositionalSystemLV{E, T, O}) where {E, T, O<:Nothing} = (liquid_phase_index(sys), vapor_phase_index(sys))
 phase_indices(sys::MultiComponentSystem) = (other_phase_index(sys), liquid_phase_index(sys), vapor_phase_index(sys))
 
-export KValueWrapper
-struct KValueWrapper{T, D}
-    K::T
-end
-
 """
     KValueWrapper(K; dependence::Symbol = :pT)
 

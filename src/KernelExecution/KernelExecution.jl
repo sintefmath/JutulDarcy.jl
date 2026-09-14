@@ -19,7 +19,7 @@ module KernelExecution
         cpr_weights_no_partials!,
         update_analytical_cpr_weights!, update_p_rhs!,
         update_pressure_system!, update_quasi_impes_weights!,
-        update_true_impes_weights!
+        update_true_impes_weights!,
         KValueWrapper,
         MultiPhaseCompositionalSystemLV,
         TemperatureDependentVariable,
