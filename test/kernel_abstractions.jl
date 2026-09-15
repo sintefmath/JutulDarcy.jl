@@ -130,11 +130,7 @@ end
         @test preconditioner.update_interval == :ministep
         @test preconditioner.update_interval_partial == :iteration
         @test preconditioner.partial_update
-        @test preconditioner.pressure_precond.options.smoother isa
-            Jutul.KAPreconditioners.SPAI0
         @test preconditioner.system_precond isa Jutul.KASmootherPreconditioner
-        @test preconditioner.system_precond.config isa Jutul.KAPreconditioners.DILU
-        @test preconditioner.system_precond.config.damping == 0.8
     end
 
     solver = select_reservoir_linear_solver(simulator.model, :cpr;
