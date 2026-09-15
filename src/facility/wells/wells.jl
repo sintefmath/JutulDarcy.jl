@@ -463,15 +463,6 @@ function update_before_step_well!(well_state, well_model, res_state, res_model, 
     return nothing
 end
 
-function update_before_step_well_backend!(well_state, well_model,
-        backend_well_state, backend_well_model,
-        backend_reservoir_state, backend_reservoir_model,
-        ctrl, mask; kwarg...)
-    update_before_step_well!(well_state, well_model,
-        backend_reservoir_state, backend_reservoir_model, ctrl, mask; kwarg...)
-    return nothing
-end
-
 function domain_fluid_volume(d::DataDomain, grid::WellDomain)
     return domain_bulk_volume(d, grid, outer_boundary = :hole)
 end
@@ -683,9 +674,13 @@ end
     for i in axes(M, 1)
         M[i, ix] *= m
     end
+    return M
 end
 
-@inline mask_perforation_entry!(M::AbstractVector, m, ix) = M[ix] *= m
+@inline function mask_perforation_entry!(M::AbstractVector, m, ix)
+    M[ix] *= m
+    return M
+end
 
 function apply_perforation_mask!(storage::NamedTuple, mask::AbstractVector,
         context)
@@ -701,6 +696,7 @@ function apply_perforation_mask!(storage::NamedTuple, mask::AbstractVector,
             end
         end
     end
+    return storage
 end
 
 function flash_wellstream_at_surface(var, well_model, well_state, rhoS, cond = default_surface_cond())

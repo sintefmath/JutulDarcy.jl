@@ -85,58 +85,73 @@ end
 well_has_explicit_pressure_drop(m::SimpleWellFlowModel) = well_has_explicit_pressure_drop(physical_representation(m.domain))
 well_has_explicit_pressure_drop(w::SimpleWell) = w.explicit_dp
 
-function update_before_step_well!(well_state, well_model::SimpleWellFlowModel, res_state, res_model, ctrl, mask; update_explicit = true)
-    if well_has_explicit_pressure_drop(well_model) && update_explicit
-        dp = well_state.ConnectionPressureDrop
-        update_connection_pressure_drop!(dp, well_state, well_model, res_state, res_model, ctrl, mask)
-    end
+function connection_pressure_drop_mask_values(mask)
+    return mask.values
+end
+
+function connection_pressure_drop_mask_values(::Nothing)
     return nothing
 end
 
-function update_before_step_well_backend!(well_state,
+function connection_pressure_drop_mask_values(mask, context)
+    return Adapt.adapt(context, mask.values)
+end
+
+function connection_pressure_drop_mask_values(::Nothing, context)
+    return nothing
+end
+
+function update_before_step_well!(well_state,
         well_model::SimpleWellFlowModel,
-        backend_well_state, backend_well_model,
-        backend_reservoir_state, backend_reservoir_model,
-        ctrl, mask; update_explicit = true)
+        res_state, res_model, ctrl, mask;
+        update_explicit = true,
+        backend_well_state = well_state,
+        backend_well_model = well_model,
+        backend_reservoir_state = res_state,
+        backend_reservoir_model = res_model)
     if well_has_explicit_pressure_drop(well_model) && update_explicit
-        context = backend_reservoir_model.context
-        if isnothing(mask)
-            backend_mask = nothing
+        if res_model.context isa Jutul.KernelAbstractionsContext
+            update_connection_pressure_drop_backend!(
+                well_state.ConnectionPressureDrop,
+                backend_well_state, backend_well_model,
+                backend_reservoir_state, backend_reservoir_model,
+                ctrl, mask)
         else
-            backend_mask = Adapt.adapt(context, mask)
+            update_connection_pressure_drop!(
+                well_state.ConnectionPressureDrop,
+                well_state, well_model, res_state, res_model, ctrl, mask)
         end
-        backend_dp = backend_well_state.ConnectionPressureDrop
-        update = _ -> update_connection_pressure_drop!(backend_dp,
-            backend_well_state, backend_well_model,
-            backend_reservoir_state, backend_reservoir_model,
-            ctrl, backend_mask)
-        Jutul.threaded_loop(update, 1, context)
-        Jutul.backend_copyto!(well_state.ConnectionPressureDrop, backend_dp)
     end
     return nothing
 end
 
-function update_connection_pressure_drop!(dp, well_state, well_model, res_state, res_model, ctrl::InjectorControl, mask)
-    # Traverse down the well, using the phase notion encoded in ctrl and then
-    # just accumulate pressure drop as we go assuming no cross flow
+function update_connection_pressure_drop!(
+        dp, well_state, well_model, res_state, res_model,
+        ctrl::InjectorControl, mask)
     phases = ctrl.phases
     perf = physical_representation(well_model.domain).perforations
     res_cells = perf.reservoir
     gdz = well_state.PerforationGravityDifference
+    ρ = res_state.PhaseMassDensities
+    return update_injector_connection_pressure_drop!(
+        dp, phases, res_cells, gdz, ρ)
+end
 
-    ρ = as_value(res_state.PhaseMassDensities)
-
+function update_injector_connection_pressure_drop!(
+        dp, phases, res_cells, gdz, ρ)
+    # Traverse down the well, using the phase notion encoded in ctrl and then
+    # just accumulate pressure drop as we go assuming no cross flow.
     dp_current = 0.0
     gdz_current = 0.0
     for i in eachindex(dp)
         rc = res_cells[i]
-        gdz_next = gdz[i]
+        gdz_next = value(gdz[i])
 
         Δgdz = gdz_next - gdz_current
         # Mixture density along well bore
         local_density = 0
         for (ph, mix) in phases
-            local_density += mix*ρ[ph, rc]
+            local_density += mix*value(ρ[ph, rc])
         end
         dp_current += local_density*Δgdz
         dp[i] = value(dp_current)
@@ -147,20 +162,28 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
     return dp
 end
 
-function update_connection_pressure_drop!(dp, well_state, well_model, res_state, res_model, ctrl, mask)
+function update_connection_pressure_drop!(
+        dp, well_state, well_model, res_state, res_model, ctrl, mask)
     # Well is either disabled or producing. Loop over well from the bottom,
     # aggregating mixture density as we go. Then traverse down from the top and
     # accumulate the actual pressure drop due to hydrostatic assumptions.
     well = physical_representation(well_model)
     perf = well.perforations
     res_cells = perf.reservoir
-    gdz = as_value(well_state.PerforationGravityDifference)
-    # Explicit update, take value.
-    WI = as_value(well_state.WellIndices)
-    ρ = as_value(res_state.PhaseMassDensities)
-    mob = as_value(res_state.PhaseMobilities)
-    p = as_value(res_state.Pressure)
-    bhp = value(well_state.Pressure[1])
+    gdz = well_state.PerforationGravityDifference
+    WI = well_state.WellIndices
+    ρ = res_state.PhaseMassDensities
+    mob = res_state.PhaseMobilities
+    p = res_state.Pressure
+    well_pressure = well_state.Pressure
+    mask_values = connection_pressure_drop_mask_values(mask)
+    return update_producer_connection_pressure_drop!(
+        dp, res_cells, gdz, WI, ρ, mob, p, well_pressure, mask_values)
+end
+
+function update_producer_connection_pressure_drop!(
+        dp, res_cells, gdz, WI, ρ, mob, p, well_pressure, mask_values)
+    bhp = value(well_pressure[1])
     # Integrate up, adding weighted density into well bore and keeping track of
     # current weight. Initialize by a simple average first.
     mobility_density_sum = 0.0
@@ -168,20 +191,20 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
     for i in eachindex(dp)
         rc = res_cells[i]
         mobility_density_sum = 0.0
-        WI_i = WI[i]
-        if !isnothing(mask)
-            WI_i *= mask.values[i]
+        WI_i = value(WI[i])
+        if !isnothing(mask_values)
+            WI_i *= value(mask_values[i])
         end
         for ph in axes(ρ, 1)
-            mob_ph = WI_i*mob[ph, rc]
+            mob_ph = WI_i*value(mob[ph, rc])
             mobility_sum += mob_ph
-            mobility_density_sum += ρ[ph, rc]*mob_ph
+            mobility_density_sum += value(ρ[ph, rc])*mob_ph
         end
         if i == 1
-            dz = gdz[i]
+            dz = value(gdz[i])
             dp_prev = 0.0
         else
-            dz = gdz[i] - gdz[i-1]
+            dz = value(gdz[i]) - value(gdz[i-1])
             dp_prev = dp[i-1]
         end
         est_density = mobility_density_sum/max(mobility_sum, 1e-3)
@@ -190,20 +213,20 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
     current_density = current_weight = 0.0
     for i in reverse(eachindex(dp))
         rc = res_cells[i]
-        wi = WI[i]
-        if !isnothing(mask)
-            wi *= mask.values[i]
+        wi = value(WI[i])
+        if !isnothing(mask_values)
+            wi *= value(mask_values[i])
         end
-        pot = abs(bhp + dp[i] - p[rc])
+        pot = abs(bhp + dp[i] - value(p[rc]))
         q_perf = wi*pot
         # Mixture density along well bore
         local_density = 0
         local_weight = 0
         for ph in axes(ρ, 1)
-            λ = mob[ph, rc]
+            λ = value(mob[ph, rc])
             weight_ph = q_perf*λ
             local_weight += weight_ph
-            local_density += weight_ph*ρ[ph, rc]
+            local_density += weight_ph*value(ρ[ph, rc])
         end
         current_weight += local_weight
         current_density += local_density
@@ -222,7 +245,7 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
     gdz_current = 0.0
     for i in eachindex(dp)
         local_density = dp[i]
-        gdz_next = gdz[i]
+        gdz_next = value(gdz[i])
         Δgdz = gdz_next - gdz_current
 
         dp_current += local_density*Δgdz
@@ -231,4 +254,49 @@ function update_connection_pressure_drop!(dp, well_state, well_model, res_state,
         dp[i] = value(dp_current)
     end
     return dp
+end
+
+function update_connection_pressure_drop_backend!(
+        host_dp, well_state, well_model, res_state, res_model,
+        ctrl::InjectorControl, mask)
+    context = res_model.context
+    dp = well_state.ConnectionPressureDrop
+    perf = physical_representation(well_model.domain).perforations
+    res_cells = perf.reservoir
+    gdz = well_state.PerforationGravityDifference
+    ρ = res_state.PhaseMassDensities
+    phases = Tuple(ctrl.phases)
+    function update_pressure_drop(_)
+        update_injector_connection_pressure_drop!(
+            dp, phases, res_cells, gdz, ρ)
+        return nothing
+    end
+    Jutul.threaded_loop(update_pressure_drop, 1, context)
+    Jutul.backend_copyto!(host_dp, dp)
+    return nothing
+end
+
+function update_connection_pressure_drop_backend!(
+        host_dp, well_state, well_model, res_state, res_model,
+        ctrl, mask)
+    context = res_model.context
+    dp = well_state.ConnectionPressureDrop
+    perf = physical_representation(well_model).perforations
+    res_cells = perf.reservoir
+    gdz = well_state.PerforationGravityDifference
+    WI = well_state.WellIndices
+    ρ = res_state.PhaseMassDensities
+    mob = res_state.PhaseMobilities
+    p = res_state.Pressure
+    well_pressure = well_state.Pressure
+    mask_values = connection_pressure_drop_mask_values(mask, context)
+    function update_pressure_drop(_)
+        update_producer_connection_pressure_drop!(
+            dp, res_cells, gdz, WI, ρ, mob, p,
+            well_pressure, mask_values)
+        return nothing
+    end
+    Jutul.threaded_loop(update_pressure_drop, 1, context)
+    Jutul.backend_copyto!(host_dp, dp)
+    return nothing
 end

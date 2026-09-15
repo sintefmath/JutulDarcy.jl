@@ -95,6 +95,10 @@ if CUDA.functional()
             "SPE1", "SPE1.DATA")
         case = setup_case_from_data_file(spe1;
             block_backend = false)[1:1]
+        for well_name in (:PROD, :INJ)
+            fill!(case.parameters[well_name][:PerforationGravityDifference],
+                1.0)
+        end
         simulator, = setup_reservoir_simulator(case;
             mode = :ka_cuda,
             info_level = -1,
@@ -120,7 +124,18 @@ if CUDA.functional()
         forces = Jutul.preprocess_forces(simulator, forces).forces
         @test forces[:PROD].mask.values isa CUDA.CuArray
         dt = only(case.dt)
+        host = simulator.storage.host_evaluation
         Jutul.update_before_step!(simulator, dt, forces; time = 0.0)
+        Jutul.update_state_dependents!(
+            simulator.storage, simulator.model, dt, forces; time = dt)
+        Jutul.update_before_step!(simulator, dt, forces; time = 0.0)
+        for well_name in (:PROD, :INJ)
+            host_dp = host.storage[well_name].state.ConnectionPressureDrop
+            backend_dp = Array(
+                simulator.storage[well_name].state.ConnectionPressureDrop)
+            @test any(value -> !iszero(value), host_dp)
+            @test backend_dp == host_dp
+        end
         Jutul.update_state_dependents!(
             simulator.storage, simulator.model, dt, forces; time = dt)
         Jutul.update_linearized_system!(simulator.storage, simulator.model)

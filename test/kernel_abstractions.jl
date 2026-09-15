@@ -238,10 +238,10 @@ end
             block_backend = false, fast_flash = true),
     )
     for (name, case) in pairs(cases)
-        group_execution = if name == :compositional
-            Dict(:default => Jutul.AssembleOnDevice)
+        if name == :compositional
+            group_execution = Dict(:default => Jutul.AssembleOnDevice)
         else
-            missing
+            group_execution = missing
         end
         reduce_memory = name == :two_phase
         simulator, config = setup_reservoir_simulator(case;
@@ -286,6 +286,8 @@ end
     @test unsupported isa ArgumentError
     @test occursin("only supported for KernelAbstractions",
         sprint(showerror, unsupported))
+end
+
 @testset "Compositional reservoirs on a KA backend" begin
     grid = CartesianMesh((4, 1), (4.0, 1.0))
     cases = (
@@ -425,13 +427,22 @@ end
     system = simulator.storage.LinearizedSystem
     @test system isa Jutul.MultiLinearizedSystem
     @test all(isfinite, Array(system.r_buffer))
-    finite_entry = x -> x isa Number ? isfinite(x) : all(isfinite, x)
+    function finite_entry(x)
+        if x isa Number
+            return isfinite(x)
+        else
+            return all(isfinite, x)
+        end
+    end
     @test all(block -> all(finite_entry, Array(nonzeros(block.jac))),
         system.subsystems)
 end
 
 @testset "SPE1 hybrid multimodel on a KA backend" begin
     case = setup_spe1_ka_case()
+    for well_name in (:PROD, :INJ)
+        fill!(case.parameters[well_name][:PerforationGravityDifference], 1.0)
+    end
     simulator, = setup_reservoir_simulator(case;
         mode = :ka,
         ka_backend = JLBackend(),
@@ -488,6 +499,16 @@ end
     forces = Jutul.preprocess_forces(simulator, forces).forces
     dt = first(case.dt)
     Jutul.update_before_step!(simulator, dt, forces; time = 0.0)
+    Jutul.update_state_dependents!(
+        simulator.storage, simulator.model, dt, forces; time = dt)
+    Jutul.update_before_step!(simulator, dt, forces; time = 0.0)
+    for well_name in (:PROD, :INJ)
+        host_dp = host.storage[well_name].state.ConnectionPressureDrop
+        backend_dp = Array(
+            simulator.storage[well_name].state.ConnectionPressureDrop)
+        @test any(value -> !iszero(value), host_dp)
+        @test backend_dp == host_dp
+    end
     Jutul.update_state_dependents!(
         simulator.storage, simulator.model, dt, forces; time = dt)
     Jutul.update_linearized_system!(simulator.storage, simulator.model)
