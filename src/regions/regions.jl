@@ -25,7 +25,7 @@ end
 @inline number_of_regions(regions::AbstractVector) = 1
 
 Base.@propagate_inbounds @inline function evaluate_table_by_region(tab, reg, arg...)
-    return tab[reg](arg...)
+    return table_by_region(tab, reg)(arg...)
 end
 
 Base.@propagate_inbounds @inline function evaluate_table_by_region(tab, ::Nothing, arg...)
@@ -38,6 +38,21 @@ end
 
 Base.@propagate_inbounds @inline function table_by_region(tab::Tuple{T}, reg) where T
     return only(tab)
+end
+
+Base.@propagate_inbounds @generated function table_by_region(
+        tab::T, reg) where {T<:Tuple}
+    N = fieldcount(T)
+    selected = :(getfield(tab, $N))
+    for i in (N - 1):-1:1
+        selected = :(ifelse(reg == $i, getfield(tab, $i), $selected))
+    end
+    return quote
+        @boundscheck if !(1 <= reg <= $N)
+            throw(BoundsError(tab, reg))
+        end
+        $selected
+    end
 end
 
 @inline function table_by_region(tab::Nothing, reg)

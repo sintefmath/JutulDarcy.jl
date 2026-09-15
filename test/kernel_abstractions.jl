@@ -65,6 +65,18 @@ end
     @test adapted_pc.regions isa JLArray
 end
 
+@testset "Heterogeneous regional table selection" begin
+    without_lookup = Jutul.LinearInterpolant(
+        [0.0, 0.25, 1.0], [0.0, 1.0, 2.0]; constant_dx = false)
+    with_lookup = Jutul.LinearInterpolant(
+        [0.0, 0.5, 1.0], [2.0, 3.0, 4.0]; constant_dx = true)
+    tables = (without_lookup, with_lookup)
+    @test typeof(first(tables)) !== typeof(last(tables))
+    @test JutulDarcy.table_by_region(tables, 1) === without_lookup
+    @test JutulDarcy.table_by_region(tables, 2) === with_lookup
+    @test_throws BoundsError JutulDarcy.table_by_region(tables, 3)
+end
+
 @testset "Convergence reductions on a KA backend" begin
     residual = [1.0 -2.0 3.0; -4.0 5.0 -6.0]
     pore_volume = [2.0, 4.0, 5.0]
@@ -287,6 +299,45 @@ end
             @test Array(states[end][output]) ≈ reference[end][output] rtol = 1e-10
         end
     end
+end
+
+@testset "Compositional stability bypass configuration" begin
+    case = JutulDarcy.setup_mini_wellcase(
+        Val(:compositional_2ph_3c); nstep = 1)
+    model = reservoir_model(case.model)
+    state = case.state0[:Reservoir]
+    eos = model.system.equation_of_state
+    flash_on = JutulDarcy.FlashResults(model;
+        stability_bypass = true, reuse_guess = false)
+    flash_off = JutulDarcy.FlashResults(model;
+        stability_bypass = false, reuse_guess = false)
+    initial = JutulDarcy.static_flashed_mixture(eos, Float64)
+    pressure = state[:Pressure][1]
+    temperature = case.parameters[:Reservoir][:Temperature][1]
+    composition = state[:OverallMoleFractions][:, 1]
+
+    cached = JutulDarcy.immutable_flash_result(initial, flash_on, eos,
+        pressure, temperature, composition, 0.0)
+    @test isfinite(cached.critical_distance)
+    next_pressure = pressure*(1.0 + 1.0e-6)
+    condition = (
+        p = next_pressure, T = temperature, z = cached.flash_cond.z)
+
+    _, _, enabled = JutulDarcy.full_numeric_flash(
+        cached, flash_on, eos, condition)
+    @test enabled.bypassed
+    @test enabled.storage.reference == cached.flash_cond
+
+    _, _, disabled = JutulDarcy.full_numeric_flash(
+        cached, flash_off, eos, condition)
+    @test !disabled.bypassed
+    @test isnan(disabled.storage.critical_distance)
+    @test disabled.storage.reference == condition
+
+    uncached = JutulDarcy.immutable_flash_result(cached, flash_off, eos,
+        next_pressure, temperature, composition, 0.0)
+    @test isnan(uncached.critical_distance)
+    @test uncached.flash_cond == condition
 end
 
 @testset "K-value compositional reservoir on a KA backend" begin

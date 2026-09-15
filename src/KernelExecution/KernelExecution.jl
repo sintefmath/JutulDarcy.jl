@@ -20,9 +20,9 @@ module KernelExecution
         update_analytical_cpr_weights!, update_p_rhs!,
         update_pressure_system!, update_quasi_impes_weights!,
         update_true_impes_weights!,
-        KValueWrapper,
+        BrineCO2MixingDensities, KValueWrapper, PTViscosities,
         MultiPhaseCompositionalSystemLV,
-        TemperatureDependentVariable,
+        PressureTemperatureDependentVariable, TemperatureDependentVariable,
         kernel_abstractions_backend
 
     kernel_abstractions_backend(::Val{:ka}) = KernelAbstractions.CPU()

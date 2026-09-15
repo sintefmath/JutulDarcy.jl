@@ -16,6 +16,16 @@ Adapt.@adapt_structure PVTGTable
 Adapt.@adapt_structure PVTW
 Adapt.@adapt_structure FacilitySystem
 Adapt.@adapt_structure KValueWrapper
+Adapt.@adapt_structure PTViscosities
+Adapt.@adapt_structure BrineCO2MixingDensities
+
+function Adapt.adapt_structure(to,
+        variable::PressureTemperatureDependentVariable{T, R, N}) where {T, R, N}
+    return PressureTemperatureDependentVariable(
+        Adapt.adapt(to, variable.tab),
+        Adapt.adapt(to, variable.regions),
+        Val(N))
+end
 
 function adapt_compositional_eos(to, eos)
     return MultiComponentFlash.make_eos_immutable(eos)

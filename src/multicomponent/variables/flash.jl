@@ -111,6 +111,12 @@ end
 @inline compositional_primal(x) = x
 @inline compositional_primal(x::ForwardDiff.Dual) = ForwardDiff.value(x)
 
+@inline function numeric_values(v::SVector{N}) where N
+    return SVector{N, Float64}(ntuple(Val(N)) do i
+        Float64(compositional_primal(v[i]))
+    end)
+end
+
 @inline previous_stability_storage(f, ::Val{false}) = nothing
 @inline function previous_stability_storage(f, ::Val{true})
     return MultiComponentFlash.StaticStabilityStorage(
@@ -299,7 +305,7 @@ end
         eos::KValuesEOS{E, R, N}, P, temperature,
         OverallMoleFractions, Sw, cell = 1) where {E, R, N}
     z = cell_composition(Val(N), OverallMoleFractions, cell)
-    Num = Base.promote_type(typeof(P), typeof(temperature), eltype(z))
+    Num = typeof(P + temperature + first(z))
     z = SVector{N, Num}(z)
     cond = (p = convert(Num, P), T = convert(Num, temperature), z = z)
     K = SVector{N, Num}(initial_guess_K(eos, cond))
@@ -314,15 +320,9 @@ end
         x = y = z
     else
         state = MultiComponentFlash.two_phase_lv
-        x = SVector{N, Num}(ntuple(Val(N)) do component
-            liquid_mole_fraction(z[component], K[component], V)
-        end)
-        y = SVector{N, Num}(ntuple(Val(N)) do component
-            vapor_mole_fraction(x[component], K[component])
-        end)
+        x, y = phase_mole_fractions(z, K, V)
     end
-    K_out = SVector{N, Float64}(ntuple(
-        i -> Float64(value(K[i])), Val(N)))
+    K_out = numeric_values(K)
     cond_numeric = (p = Float64(value(P)), T = Float64(value(temperature)),
         z = numeric_composition(z))
     return FlashedMixture2Phase(state, K_out, V, x, y,
