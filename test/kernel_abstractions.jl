@@ -454,6 +454,10 @@ end
         Vector{Symbol}
     @test simulator.model.models.Facility.domain.well_symbols isa Vector{Symbol}
     @test !(simulator.model.models.Facility.domain.well_symbols isa Tuple)
+    @test host.model[:Reservoir] === simulator.model[:Reservoir]
+    @test host.storage[:Reservoir] === simulator.storage[:Reservoir]
+    @test host.storage.Reservoir.state.Pressure isa JLArray
+    @test Set(host.cross_term_evaluation.mixed_models) == Set((:PROD, :INJ))
     @test simulator.storage.PROD.state.Pressure isa JLArray
     @test simulator.storage.INJ.state.Pressure isa JLArray
     @test host.storage.PROD.state.Pressure isa Vector

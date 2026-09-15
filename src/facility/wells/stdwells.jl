@@ -90,6 +90,30 @@ function update_before_step_well!(well_state, well_model::SimpleWellFlowModel, r
         dp = well_state.ConnectionPressureDrop
         update_connection_pressure_drop!(dp, well_state, well_model, res_state, res_model, ctrl, mask)
     end
+    return nothing
+end
+
+function update_before_step_well_backend!(well_state,
+        well_model::SimpleWellFlowModel,
+        backend_well_state, backend_well_model,
+        backend_reservoir_state, backend_reservoir_model,
+        ctrl, mask; update_explicit = true)
+    if well_has_explicit_pressure_drop(well_model) && update_explicit
+        context = backend_reservoir_model.context
+        if isnothing(mask)
+            backend_mask = nothing
+        else
+            backend_mask = Adapt.adapt(context, mask)
+        end
+        backend_dp = backend_well_state.ConnectionPressureDrop
+        update = _ -> update_connection_pressure_drop!(backend_dp,
+            backend_well_state, backend_well_model,
+            backend_reservoir_state, backend_reservoir_model,
+            ctrl, backend_mask)
+        Jutul.threaded_loop(update, 1, context)
+        Jutul.backend_copyto!(well_state.ConnectionPressureDrop, backend_dp)
+    end
+    return nothing
 end
 
 function update_connection_pressure_drop!(dp, well_state, well_model, res_state, res_model, ctrl::InjectorControl, mask)

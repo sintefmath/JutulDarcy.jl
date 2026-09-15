@@ -78,8 +78,21 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
         end
         rmodel = model_g[:Reservoir]
         rstate = storage_g.Reservoir.state
-        update_before_step_well!(wstate, wmodel, rstate, rmodel, op_ctrls[wname], mask, update_explicit = update_explicit)
+        backend_wstorage, backend_wmodel =
+            Jutul.submodel_backend_evaluation_pair(storage_g, model_g, wname)
+        backend_rstorage, backend_rmodel =
+            Jutul.submodel_backend_evaluation_pair(storage_g, model_g, :Reservoir)
+        if rmodel.context isa Jutul.KernelAbstractionsContext
+            update_before_step_well_backend!(wstate, wmodel,
+                backend_wstorage.state, backend_wmodel,
+                backend_rstorage.state, backend_rmodel,
+                op_ctrls[wname], mask; update_explicit = update_explicit)
+        else
+            update_before_step_well!(wstate, wmodel, rstate, rmodel,
+                op_ctrls[wname], mask; update_explicit = update_explicit)
+        end
     end
+    return nothing
 end
 
 

@@ -460,7 +460,16 @@ end
 include("mswells_equations.jl")
 
 function update_before_step_well!(well_state, well_model, res_state, res_model, ctr, mask; kwarg...)
+    return nothing
+end
 
+function update_before_step_well_backend!(well_state, well_model,
+        backend_well_state, backend_well_model,
+        backend_reservoir_state, backend_reservoir_model,
+        ctrl, mask; kwarg...)
+    update_before_step_well!(well_state, well_model,
+        backend_reservoir_state, backend_reservoir_model, ctrl, mask; kwarg...)
+    return nothing
 end
 
 function domain_fluid_volume(d::DataDomain, grid::WellDomain)
