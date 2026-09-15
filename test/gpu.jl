@@ -66,14 +66,29 @@ if CUDA.functional()
             model, state0 = state0, parameters = parameters)
         simulator = transfer_to_backend(
             cpu_simulator, CUDA.CUDABackend())
-        forces = Jutul.preprocess_forces(simulator, forces).forces
-        dt = only(timesteps)
-        Jutul.update_before_step!(simulator, dt, forces; time = 0.0)
-        Jutul.update_state_dependents!(
-            simulator.storage, simulator.model, dt, forces; time = dt)
-        Jutul.update_linearized_system!(simulator.storage, simulator.model)
+        cached_simulator = transfer_to_backend(
+            Simulator(model, state0 = state0, parameters = parameters),
+            CUDA.CUDABackend(); reduce_memory = false)
 
-        @test all(isfinite, Array(simulator.storage.LinearizedSystem.r_buffer))
+        function assemble(simulator)
+            local_forces = Jutul.preprocess_forces(
+                simulator, deepcopy(forces)).forces
+            dt = only(timesteps)
+            Jutul.update_before_step!(
+                simulator, dt, local_forces; time = 0.0)
+            Jutul.update_state_dependents!(simulator.storage,
+                simulator.model, dt, local_forces; time = dt)
+            Jutul.update_linearized_system!(
+                simulator.storage, simulator.model)
+            system = simulator.storage.LinearizedSystem
+            return Array(system.r_buffer), Array(nonzeros(system.jac))
+        end
+
+        fused_residual, fused_jacobian = assemble(simulator)
+        cached_residual, cached_jacobian = assemble(cached_simulator)
+        @test all(isfinite, fused_residual)
+        @test fused_residual == cached_residual
+        @test fused_jacobian == cached_jacobian
     end
     @testset "SPE1 hybrid KA CUDA assembly" begin
         spe1 = JutulDarcy.GeoEnergyIO.test_input_file_path(

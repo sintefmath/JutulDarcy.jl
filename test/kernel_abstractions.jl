@@ -165,6 +165,25 @@ end
 
     cpu_simulator = Simulator(model, state0 = state0, parameters = parameters)
     simulator = transfer_to_backend(cpu_simulator, JLBackend())
+    law_storage = simulator.storage.equations.mass_conservation
+    @test ismissing(law_storage.half_face_flux_cells)
+    @test isnothing(law_storage.half_face_flux_faces)
+    @test law_storage.fused_equation_assembly isa
+        Jutul.FusedEquationAssemblyStorage
+
+    cpu_law_storage = cpu_simulator.storage.equations.mass_conservation
+    face_dependent_storage = Jutul.ConservationLawTPFAStorage(
+        cpu_law_storage.accumulation,
+        cpu_law_storage.accumulation_symbol,
+        cpu_law_storage.half_face_flux_cells,
+        cpu_law_storage.half_face_flux_cells,
+        cpu_law_storage.sources,
+        nothing)
+    adapted_face_dependent = JutulDarcy.Adapt.adapt(
+        KernelAbstractionsContext(JLBackend()), face_dependent_storage)
+    @test !ismissing(adapted_face_dependent.half_face_flux_cells)
+    @test !ismissing(adapted_face_dependent.half_face_flux_faces)
+    @test isnothing(adapted_face_dependent.fused_equation_assembly)
     @test simulator.storage.state.Pressure isa JLArray
     @test simulator.storage.primary_variables.Pressure === simulator.storage.state.Pressure
     @test simulator.storage.LinearizedSystem.jac_buffer ===
@@ -177,6 +196,14 @@ end
     @test value.(Array(simulator.storage.state.Pressure)) ≈
         reset_state[:Pressure]
     Jutul.reset_variables!(simulator, state0)
+
+    full_storage_simulator = transfer_to_backend(
+        Simulator(model; state0 = state0, parameters = parameters),
+        JLBackend(); reduce_memory = false)
+    full_law_storage =
+        full_storage_simulator.storage.equations.mass_conservation
+    @test !ismissing(full_law_storage.half_face_flux_cells)
+    @test isnothing(full_law_storage.fused_equation_assembly)
 
     states, = simulate!(simulator, timesteps; forces = forces, info_level = -1)
     @test Array(states[end][:Pressure]) ≈ reference[end][:Pressure] rtol = 1e-10
@@ -220,12 +247,14 @@ end
         else
             missing
         end
+        reduce_memory = name == :two_phase
         simulator, config = setup_reservoir_simulator(case;
             mode = :ka,
             ka_backend = Jutul.KernelExecution.KernelAbstractions.CPU(),
             group_execution = group_execution,
             float_type = Float32,
             index_type = Int32,
+            reduce_memory = reduce_memory,
             linear_solver = nothing,
             failure_cuts_timestep = false,
             timesteps = :none,
@@ -233,6 +262,7 @@ end
 
         @test Jutul.float_type(simulator.model.context) === Float32
         @test Jutul.index_type(simulator.model.context) === Int32
+        @test simulator.model.context.reduce_memory == reduce_memory
         @test all(Jutul.float_type(submodel.context) === Float32
             for submodel in values(simulator.model.models))
         @test all(Jutul.index_type(submodel.context) === Int32

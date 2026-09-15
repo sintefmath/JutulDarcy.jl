@@ -1068,6 +1068,9 @@ end
 - `float_type=missing`, `index_type=missing`: Override the floating-point and
   sparse-index types used by the `KernelAbstractionsContext`. These options are
   only valid for KA modes; omitted values inherit the CPU model's context.
+- `reduce_memory=true`: For KA modes, use fused equation assembly for TPFA
+  conservation laws without face-variable fluxes instead of storing cell
+  half-face AD flux values on the backend.
 - `method=:newton`: Can be `:newton`, `:nldd` or `:aspen`. Newton is the most
   tested approach and `:nldd` can speed up difficult models. The `:nldd` option
   enables a host of additional options (look at the simulator config for more
@@ -1180,6 +1183,7 @@ function setup_reservoir_simulator(case::JutulCase;
         group_execution = missing,
         float_type = missing,
         index_type = missing,
+        reduce_memory = true,
         method = :newton,
         precond = :cpr,
         linear_solver = :bicgstab,
@@ -1262,7 +1266,8 @@ function setup_reservoir_simulator(case::JutulCase;
         end
         ka_context = Jutul.KernelAbstractionsContext(backend;
             float_type = F, index_type = I,
-            matrix_layout = Jutul.matrix_layout(sim_cpu.model.context))
+            matrix_layout = Jutul.matrix_layout(sim_cpu.model.context),
+            reduce_memory = reduce_memory)
         if ismissing(group_execution)
             group_execution = Dict{Symbol, Jutul.DeviceExecutionMode}(
                 :default => Jutul.AssembleOnDevice,
