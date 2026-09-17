@@ -407,7 +407,7 @@ end
 domain_fluid_volume(g) = missing
 
 function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw, eq_s, force::V, time) where {V <: AbstractVector{SourceTerm{I, F, T}}, D, S<:MultiPhaseSystem} where {I, F, T}
-    state = storage.state
+    state = Jutul.evaluation_state(storage)
     if haskey(state, :RelativePermeabilities)
         kr = state.RelativePermeabilities
     else

@@ -169,7 +169,7 @@ function Jutul.subforce(s::AbstractVector{S}, model) where S<:FlowBoundaryCondit
 end
 
 function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw{:TotalMasses}, eq_s, force::V, time) where {V <: AbstractVector{<:FlowBoundaryCondition}, D, S<:MultiPhaseSystem}
-    state = storage.state
+    state = Jutul.evaluation_state(storage)
     system = reservoir_model(model).system
     gmap = global_map(model)
     Jutul.threaded_loop(length(force), model.context) do index
@@ -183,7 +183,7 @@ function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D,
 end
 
 function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw{:TotalThermalEnergy}, eq_s, force::V, time) where {V <: AbstractVector{<:FlowBoundaryCondition}, D, S<:MultiPhaseSystem}
-    state = storage.state
+    state = Jutul.evaluation_state(storage)
     system = reservoir_model(model).system
     gmap = global_map(model)
     Jutul.threaded_loop(length(force), model.context) do index

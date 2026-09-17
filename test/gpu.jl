@@ -1,4 +1,5 @@
 using Jutul, JutulDarcy, CUDA, SparseArrays, Test
+import Adapt
 
 function solve_bl_lsolve(; nx = 10, ny = 1, nstep = nx*ny, lsolve = missing, backend = :csr, step_limit = nothing, kwarg...)
     time = 1.0
@@ -66,6 +67,15 @@ if CUDA.functional()
             model, state0 = state0, parameters = parameters)
         simulator = transfer_to_backend(
             cpu_simulator, CUDA.CUDABackend())
+        @test haskey(simulator.storage, :evaluation_state)
+        @test haskey(simulator.storage, :evaluation_state0)
+        @test isbitstype(typeof(evaluation_state(simulator.storage)))
+        @test isbitstype(typeof(evaluation_state0(simulator.storage)))
+        @test evaluation_state(simulator.storage).Pressure isa
+            CUDA.CuDeviceArray
+        @test Adapt.adapt(
+            CUDA.KernelAdaptor(), evaluation_state(simulator.storage)) ===
+            evaluation_state(simulator.storage)
         cached_simulator = transfer_to_backend(
             Simulator(model, state0 = state0, parameters = parameters),
             CUDA.CUDABackend(); reduce_memory = false)
