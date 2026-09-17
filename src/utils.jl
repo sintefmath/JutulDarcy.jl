@@ -1065,6 +1065,9 @@ end
 - `group_execution=missing`: Per-model `DeviceExecutionMode` policy for KA
   modes, supplied as a function or keyed collection. By default the reservoir
   uses `SolveFullyOnDevice` and wells/facility use `AssembleOnDevice`.
+- `mixed_cross_terms_on_host=true`: Evaluate cross terms between host- and
+  device-evaluated models on the host after copying back only the current
+  device state. Set to `false` to evaluate these cross terms on the backend.
 - `float_type=missing`, `index_type=missing`: Override the floating-point and
   sparse-index types used by the `KernelAbstractionsContext`. These options are
   only valid for KA modes; omitted values inherit the CPU model's context.
@@ -1181,6 +1184,7 @@ function setup_reservoir_simulator(case::JutulCase;
         mode = :default,
         ka_backend = missing,
         group_execution = missing,
+        mixed_cross_terms_on_host::Bool = true,
         float_type = missing,
         index_type = missing,
         reduce_memory = true,
@@ -1283,7 +1287,8 @@ function setup_reservoir_simulator(case::JutulCase;
         # `invokelatest` world-age workaround is needed.
         transfer = Base.inferencebarrier(transfer_to_backend)
         sim = transfer(sim_cpu, ka_context;
-            group_execution = group_execution)
+            group_execution = group_execution,
+            mixed_cross_terms_on_host = mixed_cross_terms_on_host)
     elseif mode == :default
         # Single-process solve
         if method == :newton

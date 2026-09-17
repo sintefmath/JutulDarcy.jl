@@ -450,14 +450,14 @@ end
         linear_solver = nothing,
         timesteps = :none)
 
-    @test simulator.storage.host_evaluation.keys == (:PROD, :INJ, :Facility)
+    @test simulator.storage.host_evaluation.keys == (:Facility,)
     @test isnothing(simulator.model.groups)
     @test length(simulator.model.group_execution) ==
         length(simulator.model.models)
     @test Jutul.group_execution_mode(simulator.model, :Reservoir) ==
         SolveFullyOnDevice
     @test Jutul.group_execution_mode(simulator.model, :PROD) ==
-        AssembleOnDevice
+        SolveFullyOnDevice
     @test Jutul.group_execution_mode(simulator.model, :Facility) ==
         AssembleOnDevice
     host = simulator.storage.host_evaluation
@@ -468,6 +468,7 @@ end
     @test host.model[:Reservoir] === simulator.model[:Reservoir]
     @test host.storage[:Reservoir] === simulator.storage[:Reservoir]
     @test host.storage.Reservoir.state.Pressure isa JLArray
+    @test host.cross_term_evaluation.mixed_on_host
     @test Set(host.cross_term_evaluation.mixed_models) == Set((:PROD, :INJ))
     @test simulator.storage.PROD.state.Pressure isa JLArray
     @test simulator.storage.INJ.state.Pressure isa JLArray
@@ -485,8 +486,6 @@ end
     reset_state = deepcopy(case.state0)
     reset_state[:PROD][:Pressure] .+= 1.0
     Jutul.reset_variables!(simulator, reset_state)
-    @test value.(host.storage.PROD.state.Pressure) ≈
-        reset_state[:PROD][:Pressure]
     @test value.(Array(simulator.storage.PROD.state.Pressure)) ≈
         reset_state[:PROD][:Pressure]
     Jutul.reset_variables!(simulator, case.state0)
