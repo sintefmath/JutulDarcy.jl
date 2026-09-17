@@ -1185,7 +1185,7 @@ function setup_reservoir_simulator(case::JutulCase;
         ka_backend = missing,
         group_execution = missing,
         wells_on_device::Bool = false,
-        mixed_cross_terms_on_host::Bool = !wells_on_device,
+        mixed_cross_terms_on_host::Bool = wells_on_device,
         float_type = missing,
         index_type = missing,
         reduce_memory = true,
@@ -1251,6 +1251,9 @@ function setup_reservoir_simulator(case::JutulCase;
         sim_kwarg[:prepare_step_handler] = PrepareStepWellSolver()
     end
     if ka_mode
+        if wells_on_device != mixed_cross_terms_on_host
+            @warn "wells_on_device and mixed_cross_terms_on_host are inconsistent. This may lead to large copies or errors."
+        end
         method == :newton || throw(ArgumentError(
             "KernelAbstractions modes currently support method=:newton"))
         backend = if ismissing(ka_backend)
@@ -1273,7 +1276,7 @@ function setup_reservoir_simulator(case::JutulCase;
             float_type = F, index_type = I,
             matrix_layout = Jutul.matrix_layout(sim_cpu.model.context),
             reduce_memory = reduce_memory)
-        if ismissing(group_execution)
+        if ismissing(group_execution) && ka_mode != :ka_cpu
             group_execution = Dict{Symbol, Jutul.DeviceExecutionMode}()
             group_execution[:Reservoir] = Jutul.SolveFullyOnDevice
             group_execution[:default] = Jutul.AssembleOnDevice
@@ -1283,11 +1286,7 @@ function setup_reservoir_simulator(case::JutulCase;
                 end
             end
         end
-        # Keep the large transferred simulator out of this setup method's
-        # inferred return type. This is ordinary current-world dispatch; no
-        # `invokelatest` world-age workaround is needed.
-        transfer = Base.inferencebarrier(transfer_to_backend)
-        sim = transfer(sim_cpu, ka_context;
+        sim = transfer_to_backend(sim_cpu, ka_context;
             group_execution = group_execution,
             mixed_cross_terms_on_host = mixed_cross_terms_on_host)
     elseif mode == :default
