@@ -51,7 +51,7 @@ module JutulDarcy
     export available_well_targets
     export BlackOilUnknown
     export BlackOilX
-    export TotalSurfaceMassRate
+    export TotalSurfaceMassRate, SurfaceComponentRates
     export WellGroup
     export DisabledControl
     export Wells

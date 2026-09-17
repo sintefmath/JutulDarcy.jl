@@ -555,13 +555,6 @@ function declare_entities(W::WellDomain)
     return entities
 end
 
-function Jutul.select_secondary_variables!(S, D::WellDomain, model)
-    sys = model.system
-    if sys isa MultiPhaseSystem
-        S[:SurfaceWellConditions] = SurfaceWellConditions(sys)
-    end
-end
-
 Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::Union{ImmiscibleSystem, SinglePhaseSystem}, state_res, state_well, rhoS, conn)
     rc = conn.reservoir
     wc = conn.well
@@ -714,8 +707,8 @@ function flash_wellstream_at_surface(var, well_model, system::SinglePhaseSystem,
     return (rhoS, [1.0])
 end
 
-function surface_density_and_volume_fractions(state)
-    x = only(state.SurfaceWellConditions)
+function surface_density_and_volume_fractions(state, well = 1)
+    x = state.SurfaceWellConditions[well]
     return (x.density, x.volume_fractions)
 end
 

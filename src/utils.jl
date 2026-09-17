@@ -1269,9 +1269,14 @@ function setup_reservoir_simulator(case::JutulCase;
             matrix_layout = Jutul.matrix_layout(sim_cpu.model.context),
             reduce_memory = reduce_memory)
         if ismissing(group_execution)
-            group_execution = Dict{Symbol, Jutul.DeviceExecutionMode}(
-                :default => Jutul.AssembleOnDevice,
-                :Reservoir => Jutul.SolveFullyOnDevice)
+            group_execution = Dict{Symbol, Jutul.DeviceExecutionMode}()
+            group_execution[:Reservoir] = Jutul.SolveFullyOnDevice
+            group_execution[:default] = Jutul.AssembleOnDevice
+            if true
+                for k in keys(get_model_wells(case))
+                    group_execution[k] = Jutul.SolveFullyOnDevice
+                end
+            end
         end
         # Keep the large transferred simulator out of this setup method's
         # inferred return type. This is ordinary current-world dispatch; no
@@ -1611,8 +1616,8 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                     ct = FacilityFromWellBottomHolePressureCT(target_well)
                     add_cross_term!(model, ct, target = k, source = target_well, equation = :bottom_hole_pressure_equation)
 
-                    ct = FacilityFromSurfacePhaseRatesCT(target_well)
-                    add_cross_term!(model, ct, target = k, source = target_well, equation = :surface_phase_rates_equation)
+                    ct = FacilityFromSurfaceComponentRatesCT(target_well)
+                    add_cross_term!(model, ct, target = k, source = target_well, equation = :surface_component_rates_equation)
                 end
                 if has_thermal
                     ct = WellFromFacilityThermalCT(target_well)
@@ -1955,13 +1960,8 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
                 d[i] = q_t
             elseif target isa Int
                 # Shorthand for component mass rate
-                if control isa InjectorControl
-                    mix = control.injection_mixture[target]
-                else
-                    totmass = well_state[:TotalMasses][:, 1]
-                    mix = totmass[target]/sum(totmass)
-                end
-                d[i] = q_t*mix
+                pos = get_well_position(fmodel.domain, well_symbol)
+                d[i] = fstate[:SurfaceComponentRates][target, pos]
             else
                 if q_t == 0 || control isa DisabledControl
                     current_control = DisabledControl()

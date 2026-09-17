@@ -88,6 +88,20 @@ end
 Jutul.associated_entity(::SurfacePhaseRates) = Wells()
 Jutul.values_per_entity(fmodel, rates::SurfacePhaseRates) = length(rates.phases)
 
+"""
+    SurfaceComponentRates(components)
+
+Component mass rates at surface conditions, with one value per component and
+well. These rates connect the well-top composition to the facility-side
+surface flash.
+"""
+struct SurfaceComponentRates{T} <: JutulVariables
+    components::T
+end
+
+Jutul.associated_entity(::SurfaceComponentRates) = Wells()
+Jutul.values_per_entity(fmodel, rates::SurfaceComponentRates) = length(rates.components)
+
 Base.@kwdef struct BottomHolePressure <: Jutul.ScalarVariable
     "Maximum absolute change betweeen two Newton updates (nominally Pa)"
     max_absolute_change::Union{Float64, Nothing} = nothing
@@ -901,6 +915,11 @@ end
 
 Base.@kwdef struct SurfacePhaseRatesEquation <: JutulEquation
     # Equation: Surface phase rates calculated from well values
+    scale::Float64 = 1.0/1000.0
+end
+
+Base.@kwdef struct SurfaceComponentRatesEquation <: JutulEquation
+    # Equation: Component mass rates calculated from well-top values
     scale::Float64 = 1.0/1000.0
 end
 

@@ -22,6 +22,8 @@ function Jutul.associated_entity(::TotalSurfaceMassRate)
     return Wells()
 end
 
+Jutul.associated_entity(::SurfaceWellConditions) = Wells()
+
 function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, state_symbol, model, dx, w)
     v = state[state_symbol]
     symbols = model.domain.well_symbols
@@ -66,7 +68,7 @@ function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, s
     end
 end
 
-function Jutul.update_primary_variable!(state, var::SurfacePhaseRates, state_symbol, model, dx, w)
+function Jutul.update_primary_variable!(state, var::Union{SurfacePhaseRates, SurfaceComponentRates}, state_symbol, model, dx, w)
     v = state[state_symbol]
     symbols = model.domain.well_symbols
     cfg = state.WellGroupConfiguration
@@ -162,10 +164,35 @@ Jutul.local_discretization(::SurfacePhaseRatesEquation, i) = nothing
 Jutul.number_of_equations_per_entity(fmodel::SimulationModel, eq::SurfacePhaseRatesEquation) = length(get_phases(fmodel.system))
 
 function Jutul.update_equation_in_entity!(v, i, state, state0, eq::SurfacePhaseRatesEquation, model, dt, ldisc = local_discretization(eq, i))
-    # Set equal to bhp. Corresponding well top cell pressures will be
-    # subtracted using cross terms
+    cfg = state.WellGroupConfiguration
+    ctrl = operating_control(cfg, model.domain.well_symbols[i])
+    q_t = state.TotalSurfaceMassRate[i]
     for ph in eachindex(v)
         v[ph] = state.SurfacePhaseRates[ph, i]*eq.scale
+    end
+    if ctrl isa InjectorControl
+        volume_rate = q_t/ctrl.mixture_density
+        for (ph, phase_fraction) in ctrl.phases
+            v[ph] -= volume_rate*phase_fraction*eq.scale
+        end
+    elseif !(ctrl isa DisabledControl)
+        rhoS, S = surface_density_and_volume_fractions(state, i)
+        total_density = sum(S[ph]*rhoS[ph] for ph in eachindex(rhoS, S))
+        q_vol = q_t/total_density
+        for ph in eachindex(rhoS, S)
+            v[ph] -= S[ph]*q_vol*eq.scale
+        end
+    end
+    return v
+end
+
+Jutul.associated_entity(::SurfaceComponentRatesEquation) = Wells()
+Jutul.local_discretization(::SurfaceComponentRatesEquation, i) = nothing
+Jutul.number_of_equations_per_entity(fmodel::SimulationModel, eq::SurfaceComponentRatesEquation) = number_of_components(fmodel.system.multiphase)
+
+function Jutul.update_equation_in_entity!(v, i, state, state0, eq::SurfaceComponentRatesEquation, model, dt, ldisc = local_discretization(eq, i))
+    for component in eachindex(v)
+        v[component] = state.SurfaceComponentRates[component, i]*eq.scale
     end
     return v
 end
@@ -175,12 +202,19 @@ function select_primary_variables!(S, system::FacilitySystem, model::FacilityMod
     ph = get_phases(system.multiphase)
     S[:BottomHolePressure] = BottomHolePressure()
     S[:SurfacePhaseRates] = SurfacePhaseRates(ph)
+    S[:SurfaceComponentRates] = SurfaceComponentRates(component_names(system.multiphase))
     S[:TotalSurfaceMassRate] = TotalSurfaceMassRate()
+end
+
+function select_secondary_variables!(S, system::FacilitySystem, model::FacilityModel)
+    nw = count_entities(model.domain, Wells())
+    S[:SurfaceWellConditions] = SurfaceWellConditions(system, nw)
 end
 
 function select_equations!(eqs, system::FacilitySystem, model::FacilityModel)
     eqs[:bottom_hole_pressure_equation] = BottomHolePressureEquation()
     eqs[:surface_phase_rates_equation] = SurfacePhaseRatesEquation()
+    eqs[:surface_component_rates_equation] = SurfaceComponentRatesEquation()
     eqs[:control_equation] = ControlEquationWell()
 end
 

@@ -723,19 +723,19 @@ function Base.convert(::Type{TopConditions{N, R}}, tc::TopConditions{N, Float64}
 end
 
 struct SurfaceWellConditions{T, R} <: ScalarVariable
-    storage::T
-    separator_conditions::Vector{NamedTuple{(:p, :T), Tuple{R, R}}}
-    separator_targets::Vector{Tuple{Int, Int}}
-    function SurfaceWellConditions(S::T, c, t, R::DataType = Float64) where T
+    storage::Vector{T}
+    separator_conditions::Vector{Vector{NamedTuple{(:p, :T), Tuple{R, R}}}}
+    separator_targets::Vector{Vector{Tuple{Int, Int}}}
+    function SurfaceWellConditions(S::Vector{T}, c, t, R::DataType = Float64) where T
         new{T, R}(S, c, t)
     end
 end
 
-function SurfaceWellConditions(sys::JutulSystem; kwarg...)
-    s = Dict{Type, Any}()
+function SurfaceWellConditions(sys::JutulSystem, n = 1; kwarg...)
+    s = [Dict{Type, Any}() for _ in 1:n]
     S_t = typeof(default_surface_cond())
-    cond = S_t[]
-    targets = Tuple{Int, Int}[]
+    cond = [S_t[] for _ in 1:n]
+    targets = [Tuple{Int, Int}[] for _ in 1:n]
     return SurfaceWellConditions(s, cond, targets)
 end
 

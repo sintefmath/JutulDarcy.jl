@@ -2,7 +2,7 @@ function flash_wellstream_at_surface(var, well_model, system::S, state, rhoS, co
     eos = system.equation_of_state
     nc = MultiComponentFlash.number_of_components(eos)
     z = SVector{nc}(state.OverallMoleFractions[:, 1])
-    flash, _, surface_moles = get_separator_intermediate_storage(var, system, z, 2)
+    flash, _, surface_moles = get_separator_intermediate_storage(var, system, z, 2, 1)
     S_l, S_v, rho_l, rho_v = separator_flash(flash, system, surface_moles, eos, cond, z)
     return compositional_surface_densities(state, system, S_l, S_v, rho_l, rho_v)
 end
@@ -98,20 +98,25 @@ end
 
 
 function separator_surface_flash!(var, model, system::MultiPhaseCompositionalSystemLV, state)
-    # For each stage we need to keep track of:
-    # Total mass / moles
-    # Composition
-    # Can then flash w.r.t. that set of conditions
     eos = system.equation_of_state
     nc = MultiComponentFlash.number_of_components(eos)
     z0 = SVector{nc}(state.OverallMoleFractions[:, 1])
-    F, moles, surface_moles = get_separator_intermediate_storage(var, system, z0, 2)
+    rhoS, vol = separator_hydrocarbon_surface_flash!(var, system, z0, 1)
+    return compositional_surface_densities(state, system, vol[1], vol[2], rhoS[1], rhoS[2])
+end
+
+function separator_hydrocarbon_surface_flash!(var, system::MultiPhaseCompositionalSystemLV, z0, well)
+    # For each stage we need to keep track of total moles and composition.
+    eos = system.equation_of_state
+    F, moles, surface_moles = get_separator_intermediate_storage(var, system, z0, 2, well)
     moles[1] = z0
-    n_stage = length(var.separator_conditions)
+    separator_conditions = var.separator_conditions[well]
+    separator_targets = var.separator_targets[well]
+    n_stage = length(separator_conditions)
     for i in 1:n_stage
-        cond = var.separator_conditions[i]
+        cond = separator_conditions[i]
         streams, mole_fractions = flash_stream!(moles[i], F, eos, cond)
-        targets = var.separator_targets[i]
+        targets = separator_targets[i]
         for ph in eachindex(targets)
             dest = targets[ph]
             q = streams[ph].*mole_fractions[ph]
@@ -124,7 +129,7 @@ function separator_surface_flash!(var, model, system::MultiPhaseCompositionalSys
         end
     end
     # Final stage: Flash the tank conditions for each component.
-    cond = physical_representation(model.domain).surface
+    cond = default_surface_cond()
     T = eltype(z0)
     nph = length(surface_moles)
     rhoS = @MVector zeros(T, nph)
@@ -160,7 +165,7 @@ function separator_surface_flash!(var, model, system::MultiPhaseCompositionalSys
     for ph in eachindex(vol)
         vol[ph] /= vol_total
     end
-    return compositional_surface_densities(state, system, vol[1], vol[2], rhoS[1], rhoS[2])
+    return (rhoS, vol)
 end
 
 function separator_flash!(flash, eos, cond, z)
@@ -192,15 +197,15 @@ function flash_stream!(moles::SVector{N, T}, flash, eos, cond) where {N, T}
     return ((q_l, q_v), (x, y))
 end
 
-function get_separator_intermediate_storage(var, system::MultiPhaseCompositionalSystemLV, z::S, nph) where S
-    s = var.storage
+function get_separator_intermediate_storage(var, system::MultiPhaseCompositionalSystemLV, z::S, nph, well = 1) where S
+    s = var.storage[well]
     z::Union{AbstractVector, Tuple, NamedTuple}
     T = eltype(z)
     if !haskey(s, T)
         eos = system.equation_of_state
         nc = MultiComponentFlash.number_of_components(eos)
         f = static_flashed_mixture(eos, T)
-        n_stages = length(var.separator_conditions)
+        n_stages = length(var.separator_conditions[well])
         # Array of vectors, one for each stage
         moles = zeros(S, n_stages)
         # Mutable surface moles
@@ -215,6 +220,77 @@ function get_separator_intermediate_storage(var, system::MultiPhaseCompositional
     @. moles = zero(S)
     @. surface = zero(S)
     return (flash, moles, surface)
+end
+
+function surface_density_and_volume_fractions(var, model, system::MultiPhaseCompositionalSystemLV, state, well)
+    eos = system.equation_of_state
+    n_hc = MultiComponentFlash.number_of_components(eos)
+    mw = MultiComponentFlash.molar_masses(eos)
+    rates = state.SurfaceComponentRates
+    molar_rates = SVector{n_hc}(ntuple(c -> rates[c, well]/mw[c], Val(n_hc)))
+    total_molar_rate = sum(molar_rates)
+    if abs(value(total_molar_rate)) < MIN_ACTIVE_WELL_RATE
+        z = map(_ -> one(total_molar_rate)/n_hc, molar_rates)
+    else
+        z = molar_rates/total_molar_rate
+    end
+
+    if isempty(var.separator_conditions[well])
+        flash, _, surface_moles = get_separator_intermediate_storage(var, system, z, 2, well)
+        S_l, S_v, rho_l, rho_v = separator_flash(
+            flash, system, surface_moles, eos, default_surface_cond(), z)
+    else
+        rho, volume = separator_hydrocarbon_surface_flash!(var, system, z, well)
+        rho_l, rho_v = rho
+        S_l, S_v = volume
+    end
+    return compositional_surface_densities_from_rates(
+        rates, well, system, S_l, S_v, rho_l, rho_v)
+end
+
+function compositional_surface_densities_from_rates(rates, well, system,
+        S_l::S_T, S_v::S_T, rho_l::R_T, rho_v::R_T) where {S_T, R_T}
+    nph = number_of_phases(system)
+    T = promote_type(eltype(rates), S_T, R_T)
+    if isbitstype(T)
+        rhoS = @MVector zeros(T, nph)
+        volume = @MVector zeros(T, nph)
+    else
+        rhoS = zeros(T, nph)
+        volume = zeros(T, nph)
+    end
+    if has_other_phase(system)
+        a, l, v = phase_indices(system)
+        rhoWS = reference_densities(system)[a]
+        n_hc = MultiComponentFlash.number_of_components(system.equation_of_state)
+        q_hc = sum(c -> rates[c, well], 1:n_hc)
+        q_water = rates[end, well]
+        rho_hc = S_l*rho_l + S_v*rho_v
+        volume_hc = q_hc/rho_hc
+        volume_water = q_water/rhoWS
+        total_volume = volume_hc + volume_water
+        if abs(value(total_volume)) < MIN_ACTIVE_WELL_RATE
+            water_fraction = zero(total_volume)
+            hydrocarbon_fraction = one(total_volume)
+        else
+            water_fraction = volume_water/total_volume
+            hydrocarbon_fraction = volume_hc/total_volume
+        end
+        rhoS[a] = rhoWS
+        volume[a] = water_fraction
+    else
+        l, v = phase_indices(system)
+        hydrocarbon_fraction = one(T)
+    end
+    rhoS[l] = rho_l
+    rhoS[v] = rho_v
+    volume[l] = S_l*hydrocarbon_fraction
+    volume[v] = S_v*hydrocarbon_fraction
+    if isbitstype(T)
+        rhoS = SVector(rhoS)
+        volume = SVector(volume)
+    end
+    return (rhoS, volume)
 end
 
 function compositional_surface_densities(state, system, S_l::S_T, S_v::S_T, rho_l::R_T, rho_v::R_T) where {S_T, R_T}

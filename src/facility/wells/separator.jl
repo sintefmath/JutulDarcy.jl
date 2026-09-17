@@ -1,53 +1,66 @@
-function default_value(model, ::SurfaceWellConditions)
-    rho = reference_densities(model.system)
+function default_value(model::FacilityModel, ::SurfaceWellConditions)
+    rho = reference_densities(model.system.multiphase)
     return TopConditions(length(rho), density = rho, volume_fractions = missing)
 end
 
-function initialize_variable_value(model, pvar::SurfaceWellConditions, val::AbstractDict; need_value = false, T = Jutul.float_type(model.context))
+function initialize_variable_value(model::FacilityModel, pvar::SurfaceWellConditions, val::AbstractDict; need_value = false, T = Jutul.float_type(model.context))
     @assert need_value == false
-    initialize_variable_value(model, pvar, [default_value(model, pvar)], T = T)
+    return initialize_variable_value(model, pvar, Jutul.default_values(model, pvar), T = T)
 end
 
-function initialize_variable_value(model, pvar::SurfaceWellConditions, val::Vector; need_value = false, T = Jutul.float_type(model.context))
+function initialize_variable_value(model::FacilityModel, pvar::SurfaceWellConditions, val::Vector; need_value = false, T = Jutul.float_type(model.context))
     @assert need_value == false
-    if length(val) > 1 
-        @warn "Expected a single value, got $(length(val))"
-    end
-    tc = val[1]
-    if eltype(tc.density) != T
-        density = T.(tc.density)
-        volume_fractions = T.(tc.volume_fractions)
-        tc = TopConditions(density, volume_fractions)
-    end
-    return [tc]
-end
-
-function update_secondary_variable!(x::Vector{TopConditions{N, R}}, var::SurfaceWellConditions, model, state, ix) where {N, R}
-    nstages = length(var.separator_conditions)
-    rhoS = vol = missing
-    if nstages == 0
-        rhoS = reference_densities(model.system)
-        cond = physical_representation(model).surface
-        rhoS, vol = flash_wellstream_at_surface(var, model, model.system, state, rhoS, cond)
+    n = number_of_entities(model, pvar)
+    if length(val) == 1 && n > 1
+        val = fill(only(val), n)
     else
-        rhoS, vol = separator_surface_flash!(var, model, model.system, state)
+        @assert length(val) == n "Expected $n surface-condition values, got $(length(val))"
     end
-    x[1] = TopConditions(N, R, density = rhoS, volume_fractions = vol)
+    return map(val) do tc
+        if Jutul.numerical_type(typeof(tc)) == T
+            tc
+        else
+            TopConditions(T.(tc.density), T.(tc.volume_fractions))
+        end
+    end
 end
 
-function Jutul.default_values(model, var::SurfaceWellConditions)
-    return [default_value(model, var)]
+function update_secondary_variable!(x::Vector{TopConditions{N, R}}, var::SurfaceWellConditions, model::FacilityModel, state, ix) where {N, R}
+    system = model.system.multiphase
+    for well in ix
+        rhoS, vol = surface_density_and_volume_fractions(var, model, system, state, well)
+        x[well] = TopConditions(N, R, density = rhoS, volume_fractions = vol)
+    end
+    return x
 end
 
-function Jutul.get_dependencies(x::SurfaceWellConditions, model)
-    return [:TotalMasses]
+function surface_density_and_volume_fractions(var, model, system::MultiPhaseSystem, state, well)
+    rhoS = reference_densities(system)
+    rates = @view state.SurfaceComponentRates[:, well]
+    vol = rates./rhoS
+    total_volume = sum(vol)
+    if abs(value(total_volume)) < MIN_ACTIVE_WELL_RATE
+        vol = fill(one(eltype(vol))/length(vol), length(vol))
+    else
+        vol = vol./total_volume
+    end
+    return (rhoS, vol)
 end
 
-function initialize_variable_ad!(state, model, pvar::SurfaceWellConditions, symb, npartials, diag_pos; context = DefaultContext(), kwarg...)
+function Jutul.default_values(model::FacilityModel, var::SurfaceWellConditions)
+    return [default_value(model, var) for _ in 1:number_of_entities(model, var)]
+end
+
+function Jutul.get_dependencies(x::SurfaceWellConditions, model::FacilityModel)
+    return [:SurfaceComponentRates]
+end
+
+function initialize_variable_ad!(state, model::FacilityModel, pvar::SurfaceWellConditions, symb, npartials, diag_pos; context = DefaultContext(), kwarg...)
     v_ad = get_ad_entity_scalar(1.0, npartials, diag_pos; kwarg...)
     ∂T = typeof(v_ad)
-    nph = number_of_phases(model.system)
-    state[symb] = [TopConditions(nph, ∂T)]
+    nph = number_of_phases(model.system.multiphase)
+    nw = number_of_entities(model, pvar)
+    state[symb] = [TopConditions(nph, ∂T) for _ in 1:nw]
     return state
 end
 
@@ -75,12 +88,12 @@ end
         vol = v0.volume_fractions - value(v.volume_fractions) + v.volume_fractions
         vals[i] = TopConditions(N, T, density = rho, volume_fractions = vol)
     end
-    vals
+    return vals
 end
 
-function add_separator_stage!(var::SurfaceWellConditions, cond = default_surface_cond(), dest = (0, 0); clear = false)
-    sc = var.separator_conditions
-    t = var.separator_targets
+function add_separator_stage!(var::SurfaceWellConditions, cond = default_surface_cond(), dest = (0, 0); well = 1, clear = false)
+    sc = var.separator_conditions[well]
+    t = var.separator_targets[well]
 
     @assert cond.p > 0.0
     @assert cond.T > 0.0
@@ -90,6 +103,7 @@ function add_separator_stage!(var::SurfaceWellConditions, cond = default_surface
     if clear
         empty!(sc)
         empty!(t)
+        empty!(var.storage[well])
     end
     @assert length(t) == length(sc)
     push!(sc, cond)
@@ -97,7 +111,9 @@ function add_separator_stage!(var::SurfaceWellConditions, cond = default_surface
     return var
 end
 
-function add_separator_stage!(model::SimulationModel, arg...; kwarg...)
-    add_separator_stage!(model[:SurfaceWellConditions], arg...; kwarg...)
+function add_separator_stage!(model::FacilityModel, cond = default_surface_cond(), dest = (0, 0); well = only(model.domain.well_symbols), clear = false)
+    pos = well isa Symbol ? get_well_position(model.domain, well) : well
+    isnothing(pos) && throw(ArgumentError("Well $well is not controlled by this facility"))
+    add_separator_stage!(model[:SurfaceWellConditions], cond, dest; well = pos, clear = clear)
     return model
 end
