@@ -272,6 +272,7 @@ function update_connection_pressure_drop_backend!(
     end
     Jutul.threaded_loop(update_pressure_drop, 1, context)
     Jutul.backend_copyto!(host_dp, dp)
+    Jutul.synchronize(context)
     return nothing
 end
 
@@ -297,5 +298,6 @@ function update_connection_pressure_drop_backend!(
     end
     Jutul.threaded_loop(update_pressure_drop, 1, context)
     Jutul.backend_copyto!(host_dp, dp)
+    Jutul.synchronize(context)
     return nothing
 end

@@ -56,6 +56,20 @@ function solve_bl_lsolve(; nx = 10, ny = 1, nstep = nx*ny, lsolve = missing, bac
 end
 
 if CUDA.functional()
+    @testset "CUDA backend copies" begin
+        backend = CUDA.CUDABackend()
+        host = zeros(Float64, 4096)
+        device = CUDA.CuArray(collect(Float64, eachindex(host)))
+        Jutul.prepare_host_transfer!(backend, host)
+        Jutul.backend_copyto!(host, device)
+        CUDA.synchronize()
+        @test host == collect(Float64, eachindex(host))
+        allocated = @allocated begin
+            Jutul.backend_copyto!(host, device)
+            CUDA.synchronize()
+        end
+        @test allocated < 4096
+    end
     @testset "Preconverted CUDA launch" begin
         output = CUDA.zeros(Int, 4)
         probe = PreconvertedLaunchProbe(CUDA.cudaconvert(output))
