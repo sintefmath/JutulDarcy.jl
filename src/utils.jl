@@ -1033,7 +1033,7 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing;
     state0 = setup_state(mmodel, initializer)
 
     case = JutulCase(mmodel, state0 = state0, parameters = parameters)
-    setup_reservoir_simulator(case; kwarg...)
+    return setup_reservoir_simulator(case; kwarg...)
 end
 
 function mode_to_backend(mode::Symbol)
@@ -1185,6 +1185,7 @@ function setup_reservoir_simulator(case::JutulCase;
         ka_backend = missing,
         group_execution = missing,
         mixed_cross_terms_on_host::Bool = true,
+        wells_on_device::Bool = false,
         float_type = missing,
         index_type = missing,
         reduce_memory = true,
@@ -1276,7 +1277,7 @@ function setup_reservoir_simulator(case::JutulCase;
             group_execution = Dict{Symbol, Jutul.DeviceExecutionMode}()
             group_execution[:Reservoir] = Jutul.SolveFullyOnDevice
             group_execution[:default] = Jutul.AssembleOnDevice
-            if true
+            if wells_on_device
                 for k in keys(get_model_wells(case))
                     group_execution[k] = Jutul.SolveFullyOnDevice
                 end
