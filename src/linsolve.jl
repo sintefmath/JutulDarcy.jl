@@ -148,7 +148,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
             amg_arg = merge(ka_amg_defaults, (; pairs(amg_arg)...))
         end
         p_solve = reservoir_system_amg(amg_type; backend = backend, amg_arg...)
-        s = reservoir_system_smoother(smoother_type; backend = backend, smoother_arg...)
+        s = reservoir_system_smoother(smoother_type; backend = backend, is_cpu = !is_accelerator_ka, smoother_arg...)
         prec = CPRPreconditioner(
             p_solve, s;
             strategy = cpr_type,
@@ -208,7 +208,7 @@ function reservoir_system_smoother(s::AbstractString; kwarg...)
     return reservoir_system_smoother(Symbol(s); kwarg...)
 end
 
-function reservoir_system_smoother(type::Symbol; backend = :cpu, kwarg...)
+function reservoir_system_smoother(type::Symbol; backend = :cpu, is_cpu = backend == :cpu, kwarg...)
     type_string = String(type)
     if startswith(type_string, "ka_")
         method = Symbol(type_string[4:end])
@@ -225,7 +225,11 @@ function reservoir_system_smoother(type::Symbol; backend = :cpu, kwarg...)
             throw(ArgumentError("Unsupported reservoir smoother for backend $backend: $type"))
         end
     elseif backend == :ka
-        return Jutul.KASmootherPreconditioner(type; kwarg...)
+        if type == :ilu0 && is_cpu
+            return ILUZeroPreconditioner(; kwarg...)
+        else
+            return Jutul.KASmootherPreconditioner(type; kwarg...)
+        end
     else
         throw(ArgumentError("Unsupported backend for reservoir smoother: $backend, should be :ka, :cpu, or :cuda"))
     end
