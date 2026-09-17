@@ -1,6 +1,20 @@
 using Jutul, JutulDarcy, CUDA, SparseArrays, Test
 import Adapt
 
+struct PreconvertedLaunchProbe{A}
+    output::A
+end
+
+function (probe::PreconvertedLaunchProbe)(index, offset)
+    probe.output[index] = index + offset
+    return nothing
+end
+
+function Adapt.adapt_structure(
+        ::CUDA.KernelAdaptor, ::PreconvertedLaunchProbe)
+    error("Preconverted launch attempted to adapt its callable")
+end
+
 function solve_bl_lsolve(; nx = 10, ny = 1, nstep = nx*ny, lsolve = missing, backend = :csr, step_limit = nothing, kwarg...)
     time = 1.0
     T = time
@@ -42,6 +56,15 @@ function solve_bl_lsolve(; nx = 10, ny = 1, nstep = nx*ny, lsolve = missing, bac
 end
 
 if CUDA.functional()
+    @testset "Preconverted CUDA launch" begin
+        output = CUDA.zeros(Int, 4)
+        probe = PreconvertedLaunchProbe(CUDA.cudaconvert(output))
+        context = KernelAbstractionsContext(CUDA.CUDABackend())
+        Jutul.launch_preconverted_threaded_loop(
+            probe, length(output), context, 10)
+        Jutul.synchronize(context)
+        @test Array(output) == collect(11:14)
+    end
     do_solve(x) = solve_bl_lsolve(
         lsolve = x,
         info_level = -1
@@ -114,6 +137,12 @@ if CUDA.functional()
             info_level = -1,
             linear_solver = nothing,
             timesteps = :none)
+
+        @test haskey(simulator.storage, :cross_term_evaluations)
+        device_cross_terms = filter(
+            x -> !isnothing(x), simulator.storage.cross_term_evaluations)
+        @test !isempty(device_cross_terms)
+        @test all(plan -> isbitstype(typeof(plan)), device_cross_terms)
 
         @test Jutul.group_execution_mode(simulator.model, :Reservoir) ==
             SolveFullyOnDevice
