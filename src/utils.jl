@@ -1065,9 +1065,6 @@ end
 - `group_execution=missing`: Per-model `DeviceExecutionMode` policy for KA
   modes, supplied as a function or keyed collection. By default the reservoir
   uses `SolveFullyOnDevice` and wells/facility use `AssembleOnDevice`.
-- `mixed_cross_terms_on_host=true`: Evaluate cross terms between host- and
-  device-evaluated models on the host after copying back only the current
-  device state. Set to `false` to evaluate these cross terms on the backend.
 - `float_type=missing`, `index_type=missing`: Override the floating-point and
   sparse-index types used by the `KernelAbstractionsContext`. These options are
   only valid for KA modes; omitted values inherit the CPU model's context.
@@ -1179,6 +1176,13 @@ list a few of the most relevant entries here for convenience:
   severe impact on numerical accuracy. A value of 1 to 10 is typically safe if
   your default tolerances are strict.
 
+
+## GPU options
+- `wells_on_device=false`: Evaluate wells on the device if set to `true`,
+  otherwise on the host.
+- `mixed_cross_terms_on_host=wells_on_device`: Evaluate cross terms between host- and
+  device-evaluated models on the host after copying back only the current
+  device state. Set to `false` to evaluate these cross terms on the backend.
 """
 function setup_reservoir_simulator(case::JutulCase;
         mode = :default,
