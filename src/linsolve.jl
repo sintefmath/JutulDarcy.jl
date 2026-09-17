@@ -132,7 +132,8 @@ function select_reservoir_linear_solver(model, precond = :cpr;
                 cpr_type = :true_impes
             end
         end
-        if is_ka_backend && !is_accelerator_ka
+        is_serial = Threads.nthreads() == 1
+        if is_serial && is_ka_backend && !is_accelerator_ka
             default_pressure_smoother_type = :gauss_seidel
         else
             default_pressure_smoother_type = :spai0
@@ -165,7 +166,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         max_it = 200
         prec = reservoir_system_smoother(precond; backend = backend, smoother_arg...)
     end
-    if ismissing(rtol)
+    if ismissing(rtol) || isnothing(rtol)
         rtol = default_tol
     end
     if ismissing(max_iterations)

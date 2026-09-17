@@ -1191,7 +1191,7 @@ function setup_reservoir_simulator(case::JutulCase;
         max_timestep = si_unit(:year),
         min_timestep = 0.0,
         max_dt = max_timestep,
-        rtol = nothing,
+        rtol = missing,
         initial_dt = si_unit(:day),
         target_ds = Inf,
         target_dz = Inf,
