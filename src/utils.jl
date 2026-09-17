@@ -1277,7 +1277,7 @@ function setup_reservoir_simulator(case::JutulCase;
             matrix_layout = Jutul.matrix_layout(sim_cpu.model.context),
             reduce_memory = reduce_memory)
         if ismissing(group_execution)
-            is_cpu = mode in (:ka, :ka_cpu)
+            is_cpu = mode in (:ka, :ka_cpu, :ka_cpu_static)
             if is_cpu
                 group_execution = Dict{Symbol, Jutul.DeviceExecutionMode}(
                     :default => Jutul.SolveFullyOnDevice
