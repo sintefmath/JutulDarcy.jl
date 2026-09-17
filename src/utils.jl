@@ -1276,13 +1276,18 @@ function setup_reservoir_simulator(case::JutulCase;
             float_type = F, index_type = I,
             matrix_layout = Jutul.matrix_layout(sim_cpu.model.context),
             reduce_memory = reduce_memory)
-        if ismissing(group_execution) && ka_mode != :ka_cpu
-            group_execution = Dict{Symbol, Jutul.DeviceExecutionMode}()
-            group_execution[:Reservoir] = Jutul.SolveFullyOnDevice
-            group_execution[:default] = Jutul.AssembleOnDevice
-            if wells_on_device
-                for k in keys(get_model_wells(case))
-                    group_execution[k] = Jutul.SolveFullyOnDevice
+        if ismissing(group_execution)
+            is_cpu = ka_mode in (:ka, :ka_cpu)
+            if is_cpu
+                group_execution = Jutul.NothingOnDevice
+            else
+                group_execution = Dict{Symbol, Jutul.DeviceExecutionMode}()
+                group_execution[:Reservoir] = Jutul.SolveFullyOnDevice
+                group_execution[:default] = Jutul.AssembleOnDevice
+                if wells_on_device
+                    for k in keys(get_model_wells(case))
+                        group_execution[k] = Jutul.SolveFullyOnDevice
+                    end
                 end
             end
         end
