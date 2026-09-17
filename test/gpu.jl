@@ -74,7 +74,7 @@ if CUDA.functional()
         output = CUDA.zeros(Int, 4)
         probe = PreconvertedLaunchProbe(CUDA.cudaconvert(output))
         context = KernelAbstractionsContext(CUDA.CUDABackend())
-        Jutul.launch_preconverted_threaded_loop(
+        Jutul.KernelExecution.launch_preconverted_threaded_loop(
             probe, length(output), context, 10)
         Jutul.synchronize(context)
         @test Array(output) == collect(11:14)
@@ -152,11 +152,13 @@ if CUDA.functional()
             linear_solver = nothing,
             timesteps = :none)
 
-        @test haskey(simulator.storage, :cross_term_evaluations)
-        device_cross_terms = filter(
-            x -> !isnothing(x), simulator.storage.cross_term_evaluations)
+        device_cross_terms = filter(simulator.storage.cross_terms) do storage
+            storage isa Jutul.KernelExecution.PreparedCrossTermStorage
+        end
         @test !isempty(device_cross_terms)
-        @test all(plan -> isbitstype(typeof(plan)), device_cross_terms)
+        @test all(device_cross_terms) do storage
+            isbitstype(typeof(getfield(storage, :evaluation)))
+        end
 
         @test Jutul.group_execution_mode(simulator.model, :Reservoir) ==
             SolveFullyOnDevice
