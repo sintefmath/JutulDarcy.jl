@@ -69,9 +69,8 @@ end
         pcow = cap[1]
         @inbounds for c in ix
             reg = region(pc.regions, c)
-            pcow_c = table_by_region(pcow, reg)
             sw = Saturations[w, c]
-            Δp[1, c] = pcow_c(sw)
+            Δp[1, c] = evaluate_table_by_region(pcow, reg, sw)
         end
     elseif npc == 2
         if reference_ph == 1
@@ -86,29 +85,25 @@ end
         if isnothing(pcow)
             @inbounds for c in ix
                 reg = region(pc.regions, c)
-                pcog_c = table_by_region(pcog, reg)
                 sg = Saturations[g, c]
                 Δp[1, c] = 0
-                Δp[2, c] = pcog_c(sg)
+                Δp[2, c] = evaluate_table_by_region(pcog, reg, sg)
             end
         elseif isnothing(pcog)
             @inbounds for c in ix
                 reg = region(pc.regions, c)
-                pcow_c = table_by_region(pcow, reg)
                 sw = Saturations[w, c]
-                Δp[1, c] = pcow_c(sw)
+                Δp[1, c] = evaluate_table_by_region(pcow, reg, sw)
                 Δp[2, c] = 0
             end
         else
             @inbounds for c in ix
                 reg = region(pc.regions, c)
-                pcow_c = table_by_region(pcow, reg)
-                pcog_c = table_by_region(pcog, reg)
                 sw = Saturations[w, c]
                 sg = Saturations[g, c]
                 # Note: Negative sign already taken care of in input
-                Δp[1, c] = pcow_c(sw)
-                Δp[2, c] = pcog_c(sg)
+                Δp[1, c] = evaluate_table_by_region(pcow, reg, sw)
+                Δp[2, c] = evaluate_table_by_region(pcog, reg, sg)
             end
         end
     else
@@ -172,9 +167,8 @@ end
         pcow = cap[1]
         @inbounds for c in ix
             reg = region(pc.regions, c)
-            pcow_c = table_by_region(pcow, reg)
             sw = Saturations[1, c]
-            Δp[1, c] = scale[1, c]*pcow_c(sw)
+            Δp[1, c] = scale[1, c]*evaluate_table_by_region(pcow, reg, sw)
         end
     elseif npc == 2
         if reference_ph == 1
@@ -189,28 +183,24 @@ end
         if isnothing(pcow)
             @inbounds for c in ix
                 reg = region(pc.regions, c)
-                pcog_c = table_by_region(pcog, reg)
                 sg = Saturations[g, c]
                 Δp[1, c] = 0
-                Δp[2, c] = scale[2, c]*pcog_c(sg)
+                Δp[2, c] = scale[2, c]*evaluate_table_by_region(pcog, reg, sg)
             end
         elseif isnothing(pcog)
             @inbounds for c in ix
                 reg = region(pc.regions, c)
-                pcow_c = table_by_region(pcow, reg)
                 sw = Saturations[w, c]
-                Δp[1, c] = scale[1, c]*pcow_c(sw)
+                Δp[1, c] = scale[1, c]*evaluate_table_by_region(pcow, reg, sw)
                 Δp[2, c] = 0
             end
         else
             @inbounds for c in ix
                 reg = region(pc.regions, c)
-                pcow_c = table_by_region(pcow, reg)
-                pcog_c = table_by_region(pcog, reg)
                 sw = Saturations[w, c]
                 sg = Saturations[g, c]
-                Δp[1, c] = scale[1, c]*pcow_c(sw)
-                Δp[2, c] = scale[2, c]*pcog_c(sg)
+                Δp[1, c] = scale[1, c]*evaluate_table_by_region(pcow, reg, sw)
+                Δp[2, c] = scale[2, c]*evaluate_table_by_region(pcog, reg, sg)
             end
         end
     else

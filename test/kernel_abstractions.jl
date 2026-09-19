@@ -1,6 +1,7 @@
 using Jutul, JutulDarcy
 using JLArrays
 using MultiComponentFlash
+using ForwardDiff
 using SparseArrays
 using Test
 
@@ -75,6 +76,30 @@ end
     @test JutulDarcy.table_by_region(tables, 1) === without_lookup
     @test JutulDarcy.table_by_region(tables, 2) === with_lookup
     @test_throws BoundsError JutulDarcy.table_by_region(tables, 3)
+    @test JutulDarcy.evaluate_table_by_region((without_lookup,), 3, 0.375) ≈
+        without_lookup(0.375)
+
+    function evaluated_table_allocation(tables, reg, saturation)
+        allocated_bytes = @allocated result =
+            JutulDarcy.evaluate_table_by_region(tables, reg, saturation)
+        return allocated_bytes, result
+    end
+    @test_throws BoundsError JutulDarcy.evaluate_table_by_region(tables, 3, 0.375)
+    for reg in 1:2
+        observed_bytes = Ref{Int}(0)
+        for _ in 1:2
+            derivative = ForwardDiff.derivative(0.375) do saturation
+                observed_bytes[], result = evaluated_table_allocation(
+                    tables, reg, saturation)
+                @test result ≈ tables[reg](saturation)
+                return result
+            end
+            @test derivative ≈ ForwardDiff.derivative(tables[reg], 0.375)
+        end
+        if VERSION >= v"1.12"
+            @test observed_bytes[] == 0
+        end
+    end
 end
 
 @testset "Convergence reductions on a KA backend" begin
