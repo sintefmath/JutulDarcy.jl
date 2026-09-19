@@ -54,12 +54,12 @@ end
 end
 
 @inline function numeric_flash(f,
-        fr::FlashResults{M, StabilityBypass, ReuseGuess}, eos, cond
-    ) where {M, StabilityBypass, ReuseGuess}
+        fr::FlashResults{M, use_stability_bypass, reuse_guess}, eos, cond
+    ) where {M, use_stability_bypass, reuse_guess}
     config = MultiComponentFlash.StaticConfig()
     # This function may use approach by Rasmussen et al (2006) for reusing
     # previous flash results depending on options set
-    if ReuseGuess && f.state == MultiComponentFlash.two_phase_lv
+    if reuse_guess && f.state == MultiComponentFlash.two_phase_lv
         V0 = Float64(compositional_primal(f.V))
         if isfinite(V0) && 1e-6 < V0 < 1.0 - 1e-6
             K0 = estimated_K_from_previous_flash(f, V0, cond.z)
@@ -85,11 +85,11 @@ end
     # let the flash perform its stability test. The distance-based bypass is a
     # separate option. Two-phase history has a NaN distance, so it cannot bypass.
     K0 = initial_guess_K(eos, cond, config)
-    storage = if StabilityBypass
-        MultiComponentFlash.StaticStabilityStorage(
+    if use_stability_bypass
+        stability_storage = MultiComponentFlash.StaticStabilityStorage(
             f.flash_cond, f.critical_distance)
     else
-        nothing
+        stability_storage = nothing
     end
     V, K, report = flash_2ph!(config, K0, eos, cond, NaN;
         method = fr.method,
@@ -97,10 +97,11 @@ end
         tolerance = fr.tolerance,
         z_min = nothing,
         stability_storage = storage,
-        stability_bypass = StabilityBypass,
+        stability_bypass = use_stability_bypass,
         bypass_tolerance = fr.tolerance_bypass,
         check = false,
-        verbose = false)
+        verbose = false
+    )
     return V, K, report.stability_result
 end
 
@@ -116,9 +117,9 @@ end
 end
 
 @inline function immutable_flash_result(f,
-        fr::FlashResults{M, StabilityBypass},
+        fr::FlashResults{M, use_stability_bypass},
         eos::GenericCubicEOS{E, R, N}, P, temperature,
-        OverallMoleFractions, Sw, cell = 1) where {M, StabilityBypass, E, R, N}
+        OverallMoleFractions, Sw, cell = 1) where {M, use_stability_bypass, E, R, N}
     z = cell_composition(Val(N), OverallMoleFractions, cell)
     z_numeric = numeric_composition(z)
     cond_numeric = (
@@ -145,9 +146,9 @@ end
     end
 
     K_out = K_numeric
-    if StabilityBypass
-        critical_distance = Float64(
-            compositional_primal(stability.storage.critical_distance))
+    if use_stability_bypass
+        cd = compositional_primal(stability.storage.critical_distance)
+        critical_distance = Float64(cd)
         flash_cond = stability.storage.reference
     else
         critical_distance = NaN
