@@ -323,8 +323,11 @@ end
         x, y = phase_mole_fractions(z, K, V)
     end
     K_out = numeric_values(K)
-    cond_numeric = (p = Float64(value(P)), T = Float64(value(temperature)),
-        z = numeric_composition(z))
+    cond_numeric = (
+            p = Float64(value(P)),
+            T = Float64(value(temperature)),
+            z = numeric_composition(z)
+        )
     return FlashedMixture2Phase(state, K_out, V, x, y,
         one(Num), one(Num), NaN, cond_numeric, f.flash_stability)
 end
