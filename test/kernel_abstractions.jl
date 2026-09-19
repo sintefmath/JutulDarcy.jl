@@ -351,12 +351,12 @@ end
     condition = (
         p = next_pressure, T = temperature, z = cached.flash_cond.z)
 
-    _, _, enabled = JutulDarcy.full_numeric_flash(
+    _, _, enabled = JutulDarcy.numeric_flash(
         cached, flash_on, eos, condition)
     @test enabled.bypassed
     @test enabled.storage.reference == cached.flash_cond
 
-    _, _, disabled = JutulDarcy.full_numeric_flash(
+    _, _, disabled = JutulDarcy.numeric_flash(
         cached, flash_off, eos, condition)
     @test !disabled.bypassed
     @test isnan(disabled.storage.critical_distance)

@@ -29,46 +29,70 @@ end
     return flash_results
 end
 
-@inline function numeric_flash(f, fr::FlashResults{M, StabilityBypass, false},
-    eos, cond) where {M, StabilityBypass}
-    return full_numeric_flash(f, fr, eos, cond)
+@inline function estimated_K_from_previous_flash(f, V, z)
+    # Estimate each component's vapor partition from the previous equilibrium,
+    # then renormalize the two phases using the *current* overall composition.
+    minimum_z = MultiComponentFlash.MINIMUM_COMPOSITION
+    ratios = map(f.liquid.mole_fractions, f.vapor.mole_fractions) do x, y
+        x = max(Float64(compositional_primal(x)), minimum_z)
+        y = max(Float64(compositional_primal(y)), minimum_z)
+        V*y/((1.0 - V)*x)
+    end
+    liquid_total = sum(map((ratio, z_i) -> z_i/(1.0 + ratio), ratios, z))
+    vapor_total = sum(map((ratio, z_i) -> z_i*ratio/(1.0 + ratio), ratios, z))
+    return ratios.*(liquid_total/vapor_total)
+end
+
+@inline function valid_reused_flash(V, K, converged)
+    valid = converged && isfinite(V) && 1e-6 < V < 1.0 - 1e-6
+    trivial = true
+    @inbounds for K_i in K
+        valid &= isfinite(K_i) && K_i > 0.0
+        trivial &= abs(K_i - 1.0) < 1e-6
+    end
+    return valid && !trivial
 end
 
 @inline function numeric_flash(f,
-        fr::FlashResults{M, StabilityBypass, true}, eos, cond) where {M, StabilityBypass}
-    if f.state == MultiComponentFlash.two_phase_lv
-        config = MultiComponentFlash.StaticConfig()
+        fr::FlashResults{M, StabilityBypass, ReuseGuess}, eos, cond
+    ) where {M, StabilityBypass, ReuseGuess}
+    config = MultiComponentFlash.StaticConfig()
+    # This function may use approach by Rasmussen et al (2006) for reusing
+    # previous flash results depending on options set
+    if ReuseGuess && f.state == MultiComponentFlash.two_phase_lv
         V0 = Float64(compositional_primal(f.V))
-        V, K, report = flash_2ph!(config, f.K, eos, cond, V0;
-            method = SSIFlash(),
-            maxiter = 20,
-            extra_out = true,
-            tolerance = fr.tolerance,
-            z_min = nothing,
-            stability_bypass = false,
-            check = false,
-            verbose = false)
-        valid = report.converged && isfinite(V) &&
-            1e-6 < V < 1.0 - 1e-6
-        trivial = true
-        @inbounds for K_i in K
-            trivial &= abs(K_i - 1.0) < 1e-6
-        end
-        if valid && !trivial
-            return V, K, report.stability_result
+        if isfinite(V0) && 1e-6 < V0 < 1.0 - 1e-6
+            K0 = estimated_K_from_previous_flash(f, V0, cond.z)
+            # An interior vapor-fraction guess skips stability testing in
+            # MultiComponentFlash. This is not guaranteed to be successful; it
+            # must remain two-phase and nontrivial to be accepted.
+            V, K, report = flash_2ph!(config, K0, eos, cond, V0;
+                method = fr.method,
+                maxiter = 20,
+                extra_out = true,
+                tolerance = fr.tolerance,
+                z_min = nothing,
+                stability_bypass = false,
+                check = false,
+                verbose = false)
+            if valid_reused_flash(V, K, report.converged)
+                return V, K, report.stability_result
+            end
         end
     end
-    return full_numeric_flash(f, fr, eos, cond)
-end
 
-@inline function full_numeric_flash(f,
-        fr::FlashResults{M, StabilityBypass}, eos, cond) where {
-        M, StabilityBypass}
-    config = MultiComponentFlash.StaticConfig()
+    # The quick attempt was disabled or failed. Start from Wilson K-values and
+    # let the flash perform its stability test. The distance-based bypass is a
+    # separate option. Two-phase history has a NaN distance, so it cannot bypass.
     K0 = initial_guess_K(eos, cond, config)
-    storage = previous_stability_storage(f, Val(StabilityBypass))
+    storage = if StabilityBypass
+        MultiComponentFlash.StaticStabilityStorage(
+            f.flash_cond, f.critical_distance)
+    else
+        nothing
+    end
     V, K, report = flash_2ph!(config, K0, eos, cond, NaN;
-        method = SSIFlash(),
+        method = fr.method,
         extra_out = true,
         tolerance = fr.tolerance,
         z_min = nothing,
@@ -94,8 +118,7 @@ end
 @inline function immutable_flash_result(f,
         fr::FlashResults{M, StabilityBypass},
         eos::GenericCubicEOS{E, R, N}, P, temperature,
-        OverallMoleFractions, Sw, cell = 1) where {
-        M, StabilityBypass, E, R, N}
+        OverallMoleFractions, Sw, cell = 1) where {M, StabilityBypass, E, R, N}
     z = cell_composition(Val(N), OverallMoleFractions, cell)
     z_numeric = numeric_composition(z)
     cond_numeric = (

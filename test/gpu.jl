@@ -56,6 +56,17 @@ function solve_bl_lsolve(; nx = 10, ny = 1, nstep = nx*ny, lsolve = missing, bac
 end
 
 if CUDA.functional()
+    @testset "Compositional flash on CUDA" begin
+        data_path = JutulDarcy.GeoEnergyIO.test_input_file_path(
+            "SIMPLE_COMP", "SIMPLE_COMP.DATA")
+        case = setup_case_from_data_file(data_path;
+            flash_reuse_guess = true,
+            flash_stability_bypass = true)[1:1]
+        result = simulate_reservoir(case;
+            mode = :ka_cuda, info_level = -1)
+        @test length(result.states) == 1
+        @test all(isfinite, only(result.states)[:Pressure])
+    end
     @testset "CUDA backend copies" begin
         backend = CUDA.CUDABackend()
         host = zeros(Float64, 4096)

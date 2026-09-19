@@ -19,6 +19,7 @@ function FlashResults(model::SimulationModel;
         kwarg...)
     method isa SSIFlash || throw(ArgumentError(
         "The immutable compositional flash currently supports SSIFlash only."))
+    # Specialize the two independent switches for allocation-free GPU kernels.
     return FlashResults{typeof(method), stability_bypass, reuse_guess}(
         method, threads, Float64(tolerance), Float64(tolerance_bypass),
         stability_bypass, reuse_guess)
@@ -86,12 +87,6 @@ end
     return SVector{N, Float64}(ntuple(Val(N)) do i
         Float64(compositional_primal(v[i]))
     end)
-end
-
-@inline previous_stability_storage(f, ::Val{false}) = nothing
-@inline function previous_stability_storage(f, ::Val{true})
-    return MultiComponentFlash.StaticStabilityStorage(
-        f.flash_cond, f.critical_distance)
 end
 
 @inline function equilibrium_ad(eos, cond, vapor_fraction, K_numeric,

@@ -809,7 +809,7 @@ function set_reservoir_variable_defaults!(model;
         dT_max_abs = nothing,
         T_min = convert_to_si(0.0, :Celsius),
         flash_reuse_guess = false,
-        flash_stability_bypass = flash_reuse_guess
+        flash_stability_bypass = false
     )
     # Replace various variables - if they are available
     replace_variables!(model, OverallMoleFractions = OverallMoleFractions(dz_max = dz_max), throw = false)
