@@ -94,26 +94,6 @@ end
         f.flash_cond, f.critical_distance)
 end
 
-@inline function full_numeric_flash(f,
-        fr::FlashResults{M, StabilityBypass}, eos, cond) where {
-        M, StabilityBypass}
-    config = MultiComponentFlash.StaticConfig()
-    K0 = initial_guess_K(eos, cond, config)
-    storage = previous_stability_storage(f, Val(StabilityBypass))
-    V, K, report = flash_2ph!(config, K0, eos, cond, NaN;
-        method = SSIFlash(),
-        extra_out = true,
-        tolerance = fr.tolerance,
-        z_min = nothing,
-        stability_storage = storage,
-        stability_bypass = StabilityBypass,
-        bypass_tolerance = fr.tolerance_bypass,
-        check = false,
-        verbose = false)
-    return V, K, report.stability_result
-end
-
-
 @inline function equilibrium_ad(eos, cond, vapor_fraction, K_numeric,
         pressure::AbstractFloat, tolerance)
     T = typeof(cond.p)

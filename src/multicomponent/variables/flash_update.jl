@@ -35,8 +35,7 @@ end
 end
 
 @inline function numeric_flash(f,
-        fr::FlashResults{M, StabilityBypass, true}, eos, cond) where {
-        M, StabilityBypass}
+        fr::FlashResults{M, StabilityBypass, true}, eos, cond) where {M, StabilityBypass}
     if f.state == MultiComponentFlash.two_phase_lv
         config = MultiComponentFlash.StaticConfig()
         V0 = Float64(compositional_primal(f.V))
@@ -60,6 +59,25 @@ end
         end
     end
     return full_numeric_flash(f, fr, eos, cond)
+end
+
+@inline function full_numeric_flash(f,
+        fr::FlashResults{M, StabilityBypass}, eos, cond) where {
+        M, StabilityBypass}
+    config = MultiComponentFlash.StaticConfig()
+    K0 = initial_guess_K(eos, cond, config)
+    storage = previous_stability_storage(f, Val(StabilityBypass))
+    V, K, report = flash_2ph!(config, K0, eos, cond, NaN;
+        method = SSIFlash(),
+        extra_out = true,
+        tolerance = fr.tolerance,
+        z_min = nothing,
+        stability_storage = storage,
+        stability_bypass = StabilityBypass,
+        bypass_tolerance = fr.tolerance_bypass,
+        check = false,
+        verbose = false)
+    return V, K, report.stability_result
 end
 
 @inline function pure_immiscible_flash(f, eos, cond)
