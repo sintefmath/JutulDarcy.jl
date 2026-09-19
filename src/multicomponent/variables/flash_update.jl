@@ -96,7 +96,7 @@ end
         extra_out = true,
         tolerance = fr.tolerance,
         z_min = nothing,
-        stability_storage = storage,
+        stability_storage = stability_storage,
         stability_bypass = use_stability_bypass,
         bypass_tolerance = fr.tolerance_bypass,
         check = false,
