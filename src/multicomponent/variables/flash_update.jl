@@ -90,3 +90,77 @@ end
         true, report, K, storage, false)
     return NaN, K, stability
 end
+
+@inline function immutable_flash_result(f,
+        fr::FlashResults{M, StabilityBypass},
+        eos::GenericCubicEOS{E, R, N}, P, temperature,
+        OverallMoleFractions, Sw, cell = 1) where {
+        M, StabilityBypass, E, R, N}
+    z = cell_composition(Val(N), OverallMoleFractions, cell)
+    z_numeric = numeric_composition(z)
+    cond_numeric = (
+        p = Float64(compositional_primal(P)),
+        T = Float64(compositional_primal(temperature)),
+        z = z_numeric)
+    if is_pure_single_phase(compositional_primal(Sw))
+        V_numeric, K_numeric, stability =
+            pure_immiscible_flash(f, eos, cond_numeric)
+    else
+        V_numeric, K_numeric, stability =
+            numeric_flash(f, fr, eos, cond_numeric)
+    end
+
+    Num = typeof(P + temperature + first(z))
+    cond = (p = convert(Num, P), T = convert(Num, temperature), z = z)
+    if isnan(V_numeric)
+        is_vapor = single_phase_label(eos, cond_numeric) > 0.5
+        state, V, x, y, Z_l, Z_v = single_phase_flash_result(
+            eos, cond, cond_numeric, K_numeric, stability, is_vapor)
+    else
+        state, V, x, y, Z_l, Z_v = two_phase_flash_result(
+            eos, cond, P, V_numeric, K_numeric, fr.tolerance)
+    end
+
+    K_out = K_numeric
+    if StabilityBypass
+        critical_distance = Float64(
+            compositional_primal(stability.storage.critical_distance))
+        flash_cond = stability.storage.reference
+    else
+        critical_distance = NaN
+        flash_cond = cond_numeric
+    end
+    return FlashedMixture2Phase(state, K_out, V, x, y, Z_l, Z_v,
+        critical_distance, flash_cond, stability.report)
+end
+
+@inline function immutable_flash_result(f, fr,
+        eos::KValuesEOS{E, R, N}, P, temperature,
+        OverallMoleFractions, Sw, cell = 1) where {E, R, N}
+    z = cell_composition(Val(N), OverallMoleFractions, cell)
+    Num = typeof(P + temperature + first(z))
+    z = SVector{N, Num}(z)
+    cond = (p = convert(Num, P), T = convert(Num, temperature), z = z)
+    K = SVector{N, Num}(initial_guess_K(eos, cond))
+    V = MultiComponentFlash.solve_rachford_rice(K, z)
+    if V <= zero(V)
+        state = MultiComponentFlash.single_phase_l
+        V = zero(V)
+        x = y = z
+    elseif V >= one(V)
+        state = MultiComponentFlash.single_phase_v
+        V = one(V)
+        x = y = z
+    else
+        state = MultiComponentFlash.two_phase_lv
+        x, y = phase_mole_fractions(z, K, V)
+    end
+    K_out = numeric_values(K)
+    cond_numeric = (
+            p = Float64(value(P)),
+            T = Float64(value(temperature)),
+            z = numeric_composition(z)
+        )
+    return FlashedMixture2Phase(state, K_out, V, x, y,
+        one(Num), one(Num), NaN, cond_numeric, f.flash_stability)
+end
