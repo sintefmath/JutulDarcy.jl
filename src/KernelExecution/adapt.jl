@@ -10,10 +10,15 @@ Adapt.@adapt_structure Rv
 Adapt.@adapt_structure PVTO
 Adapt.@adapt_structure PVTOTable
 Adapt.@adapt_structure PVDO
+Adapt.@adapt_structure PVCDO
 Adapt.@adapt_structure PVDG
 Adapt.@adapt_structure PVTG
 Adapt.@adapt_structure PVTGTable
 Adapt.@adapt_structure PVTW
+Adapt.@adapt_structure WATDENT
+
+adapt_reservoir_scalar(ctx, value) = convert(
+    Jutul.KernelExecution.ka_storage_eltype(ctx, typeof(value)), value)
 Adapt.@adapt_structure FacilitySystem
 Adapt.@adapt_structure KValueWrapper
 Adapt.@adapt_structure PTViscosities
@@ -143,6 +148,13 @@ function Adapt.adapt_structure(to,
         system.reference_phase_index)
 end
 
+function Adapt.adapt_structure(ctx::Jutul.KernelAbstractionsContext,
+        system::ImmiscibleSystem{T, F, Ref}) where {T, F, Ref}
+    rho_ref = map(x -> adapt_reservoir_scalar(ctx, x), system.rho_ref)
+    return ImmiscibleSystem{T, typeof(rho_ref), Ref}(
+        system.phases, rho_ref, system.reference_phase_index)
+end
+
 function Adapt.adapt_structure(to,
         variable::ReservoirRelativePermeabilities{Scaling, ph}) where {Scaling, ph}
     krw = Adapt.adapt(to, variable.krw)
@@ -170,6 +182,37 @@ function Adapt.adapt_structure(to, variable::PhaseRelativePermeability)
         Adapt.adapt(to, variable.k), variable.label,
         variable.connate, variable.critical, variable.s_max,
         variable.k_max, variable.input_s_max)
+end
+
+function Adapt.adapt_structure(ctx::Jutul.KernelAbstractionsContext,
+        variable::PhaseRelativePermeability)
+    return PhaseRelativePermeability(
+        Adapt.adapt(ctx, variable.k), variable.label,
+        adapt_reservoir_scalar(ctx, variable.connate),
+        adapt_reservoir_scalar(ctx, variable.critical),
+        adapt_reservoir_scalar(ctx, variable.s_max),
+        adapt_reservoir_scalar(ctx, variable.k_max),
+        adapt_reservoir_scalar(ctx, variable.input_s_max))
+end
+
+function Adapt.adapt_structure(ctx::Jutul.KernelAbstractionsContext,
+        table::ConstMuBTable)
+    return ConstMuBTable(
+        adapt_reservoir_scalar(ctx, table.p_ref),
+        adapt_reservoir_scalar(ctx, table.b_ref),
+        adapt_reservoir_scalar(ctx, table.b_c),
+        adapt_reservoir_scalar(ctx, table.mu_ref),
+        adapt_reservoir_scalar(ctx, table.mu_c))
+end
+
+function Adapt.adapt_structure(ctx::Jutul.KernelAbstractionsContext,
+        table::WATDENT{N}) where N
+    tab = map(table.tab) do record
+        (T = adapt_reservoir_scalar(ctx, record.T),
+            c1 = adapt_reservoir_scalar(ctx, record.c1),
+            c2 = adapt_reservoir_scalar(ctx, record.c2))
+    end
+    return WATDENT{N, typeof(first(tab))}(tab)
 end
 
 function Adapt.adapt_structure(to, table::MuBTable)
@@ -212,6 +255,19 @@ function Adapt.adapt_structure(to, variable::LinearlyCompressiblePoreVolume)
         Adapt.adapt(to, variable.reference_pressure),
         Adapt.adapt(to, variable.expansion),
         Adapt.adapt(to, variable.regions),
+        Val(:assembled))
+end
+
+function Adapt.adapt_structure(ctx::Jutul.KernelAbstractionsContext,
+        variable::LinearlyCompressiblePoreVolume)
+    reference_pressure = map(x -> adapt_reservoir_scalar(ctx, x),
+        variable.reference_pressure)
+    expansion = map(x -> adapt_reservoir_scalar(ctx, x),
+        variable.expansion)
+    return LinearlyCompressiblePoreVolume(
+        Adapt.adapt(ctx, reference_pressure),
+        Adapt.adapt(ctx, expansion),
+        Adapt.adapt(ctx, variable.regions),
         Val(:assembled))
 end
 

@@ -103,6 +103,15 @@ if CUDA.functional()
             mode = :ka_cuda,
             float_type = Float32, index_type = Int32,
             info_level = -1, timesteps = :none)
+        reservoir_model = simulator.model.models[:Reservoir]
+        @test typeof(first(JutulDarcy.reference_densities(
+            reservoir_model.system))) === Float32
+        for phase_table in reservoir_model.secondary_variables.PhaseViscosities.pvt
+            @test typeof(first(phase_table.tab).p_ref) === Float32
+        end
+        @test typeof(first(
+            reservoir_model.secondary_variables.RelativePermeabilities.krw
+        ).connate) === Float32
 
         forces = Jutul.preprocess_forces(
             simulator, only(case.forces)).forces

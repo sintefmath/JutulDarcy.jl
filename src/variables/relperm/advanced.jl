@@ -546,8 +546,9 @@ Base.@propagate_inbounds @inline function update_two_phase_relperm!(kr, relperm,
         krni_base = imbibition_table_by_region(krn, reg)
         krwi, krni = get_two_phase_relperms(relperm, c, krwi_base, krni_base, scalersi)
 
-        ϵ = relperm.hysteresis_s_eps
-        s_th = relperm.hysteresis_s_threshold
+        F = typeof(Jutul.value(sw))
+        ϵ = convert(F, relperm.hysteresis_s_eps)
+        s_th = convert(F, relperm.hysteresis_s_threshold)
 
         val_w = kr_hysteresis(H_w, krwd, krwi, sw, sw_max, ϵ, s_th)
         val_n = kr_hysteresis(H_n, krnd, krni, sn, sn_max, ϵ, s_th)

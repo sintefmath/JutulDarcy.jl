@@ -405,13 +405,13 @@ function get_two_phase_scaled_relperms(scaling, krw, krn, scaler_w, scaler_n, c)
     l_w, cr_w, u_w, km_w = get_kr_scalers(krw)
     l_w = max(l_w, zero(l_w))
 
-    R_w = 1.0 - CR_n
-    r_w = 1.0 - cr_n
+    R_w = one(CR_n) - CR_n
+    r_w = one(cr_n) - cr_n
 
-    R_n = 1.0 - CR_w
-    r_n = 1.0 - cr_w
-    U_n = 1.0 - L_w
-    u_n = 1.0 - l_w
+    R_n = one(CR_w) - CR_w
+    r_n = one(cr_w) - cr_w
+    U_n = one(L_w) - L_w
+    u_n = one(l_w) - l_w
 
     # Krw = ScaledPhaseRelativePermeability(krw, scaling, connate = L_w, critical = CR_w, k_max = KM_w, s_max = U_w, residual = R_w, residual_base = r_w)
     # Krn = ScaledPhaseRelativePermeability(krn, scaling, connate = L_n, critical = CR_n, k_max = KM_n, s_max = U_n, residual = R_n, residual_base = r_n)

@@ -190,7 +190,7 @@ function ConstMuBTable(pvtw::M) where M<:AbstractVector
     pvtw = flat_region_expand(pvtw)
     # Only one region supported atm
     pvtw = first(pvtw)
-    return ConstMuBTable(pvtw[1], 1.0/pvtw[2], pvtw[3], pvtw[4], pvtw[5])
+    return ConstMuBTable(pvtw[1], inv(pvtw[2]), pvtw[3], pvtw[4], pvtw[5])
 end
 
 function viscosity(pvt::AbstractTablePVT, reg, p, cell)

@@ -616,7 +616,7 @@ function flat_region_expand(x::AbstractMatrix, n = nothing)
     return x
 end
 
-function flat_region_expand(x::Vector{Float64}, n = nothing)
+function flat_region_expand(x::Vector{<:AbstractFloat}, n = nothing)
     return [x]
 end
 

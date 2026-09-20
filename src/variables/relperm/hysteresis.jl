@@ -128,7 +128,7 @@ function hysteresis_impl(t::CarlsonHysteresis, drain, imb, s, s_max)
     if imb isa PhaseRelativePermeability
         s_meet = Jutul.linear_interp(imb.k.F, imb.k.X, kr_at_max)
     else
-        ϵ = 1e-4
+        ϵ = convert(typeof(value(s_max)), 1e-4)
         F = s -> imb(s) - kr_at_max
         s_meet = find_zero(
             F,
@@ -142,15 +142,17 @@ function hysteresis_impl(t::CarlsonHysteresis, drain, imb, s, s_max)
 end
 
 function hysteresis_impl(h_model::KilloughHysteresis, drain, imb, S, S_max)
-    if S < h_model.s_min
+    F = typeof(value(S))
+    if S < convert(F, h_model.s_min)
         kr = drain(S)
     else
         S_crit_imbibition = imb.critical
         S_crit_drainage = drain.critical
         # TODO: Check that this matches that of imbibition?
         kr_s_max = drain.s_max
-        K = 1.0/(S_crit_imbibition - S_crit_drainage) - 1.0/(kr_s_max - S_crit_drainage)
-        M = 1.0 + h_model.tol*(kr_s_max - S_max)
+        K = inv(S_crit_imbibition - S_crit_drainage) -
+            inv(kr_s_max - S_crit_drainage)
+        M = one(S_max) + convert(F, h_model.tol)*(kr_s_max - S_max)
         S_crit = S_crit_drainage + (S_max - S_crit_drainage)/(M + K*(S_max - S_crit_drainage))
         S_norm = S_crit_imbibition + (S - S_crit)*(kr_s_max - S_crit_imbibition)/(S_max - S_crit)
         kr = imb(S_norm)*drain(S_max)/drain(kr_s_max)
