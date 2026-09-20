@@ -8,7 +8,8 @@ module KernelExecution
     using SparseArrays: nonzeros
     using StaticArrays
 
-    import ..JutulDarcy: DeckPhaseMassDensities, DeckPhaseViscosities,
+    import ..JutulDarcy: BlackOilUnknown, BlackOilX,
+        DeckPhaseMassDensities, DeckPhaseViscosities,
         DeckShrinkageFactors, DeckThermalViscosityTable, FacilitySystem,
         LinearlyCompressiblePoreVolume, MinimalTPFATopology, MuBTable,
         PerforationMask, PhaseRelativePermeability, PVDG, PVDO, PVTG,

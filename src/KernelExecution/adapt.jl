@@ -19,6 +19,32 @@ Adapt.@adapt_structure KValueWrapper
 Adapt.@adapt_structure PTViscosities
 Adapt.@adapt_structure BrineCO2MixingDensities
 
+Jutul.KernelExecution.ka_storage_eltype(ctx::Jutul.KernelAbstractionsContext,
+    ::Type{BlackOilX{T}}) where T =
+    BlackOilX{Jutul.KernelExecution.ka_storage_eltype(ctx, T)}
+
+function Jutul.KernelExecution.ka_storage_eltype(
+        ctx::Jutul.KernelAbstractionsContext,
+        ::Type{MultiComponentFlash.FlashedMixture2Phase{T, A, E}}) where {T, A, E}
+    F = Jutul.KernelExecution.ka_storage_eltype(ctx, T)
+    V = Jutul.KernelExecution.ka_storage_eltype(ctx, A)
+    return MultiComponentFlash.FlashedMixture2Phase{F, V, E}
+end
+
+function Adapt.adapt_structure(ctx::Jutul.KernelAbstractionsContext,
+        x::BlackOilX)
+    T = Jutul.KernelExecution.ka_storage_eltype(ctx, typeof(x.val))
+    return convert(BlackOilX{T}, x)
+end
+
+function Adapt.adapt_structure(ctx::Jutul.KernelAbstractionsContext,
+        variable::BlackOilUnknown)
+    F = Jutul.float_type(ctx)
+    return BlackOilUnknown(
+        dr_max = convert(F, variable.dr_max),
+        ds_max = convert(F, variable.ds_max))
+end
+
 function Adapt.adapt_structure(to,
         variable::PressureTemperatureDependentVariable{T, R, N}) where {T, R, N}
     return PressureTemperatureDependentVariable(
@@ -101,12 +127,19 @@ function Adapt.adapt_structure(to,
     rho_ref = Adapt.adapt(to, system.rho_ref)
     phase_indices = Adapt.adapt(to, system.phase_indices)
     phases = Adapt.adapt(to, system.phases)
+    if to isa Jutul.KernelAbstractionsContext
+        Num_t = Jutul.float_type(to)
+    else
+        Num_t = Num
+    end
+    rho_ref = map(x -> convert(Num_t, x), rho_ref)
     return StandardBlackOilSystem{
         typeof(rs_max), typeof(rv_max), W, typeof(rho_ref), F,
-        typeof(phase_indices), typeof(phases), Num, Ref
+        typeof(phase_indices), typeof(phases), Num_t, Ref
     }(rs_max, rv_max, rho_ref, phase_indices, phases,
         system.saturated_chop, system.keep_bubble_flag,
-        system.rs_eps, system.rv_eps, system.s_eps,
+        convert(Num_t, system.rs_eps), convert(Num_t, system.rv_eps),
+        convert(Num_t, system.s_eps),
         system.reference_phase_index)
 end
 

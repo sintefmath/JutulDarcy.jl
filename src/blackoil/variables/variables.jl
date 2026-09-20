@@ -196,6 +196,10 @@ end
     return ifelse(x.phases_present == phase, abs(dx), zero(dx))
 end
 
+function Base.convert(::Type{BlackOilX{T}}, x::BlackOilX) where {T<:Real}
+    return BlackOilX(convert(T, x.val), x.phases_present, x.sat_close)
+end
+
 linearized_blackoil_increment(dX) = vec(dX)
 linearized_blackoil_increment(dX::LinearAlgebra.Adjoint) = vec(parent(dX))
 linearized_blackoil_increment(dX::LinearAlgebra.Transpose) = vec(parent(dX))

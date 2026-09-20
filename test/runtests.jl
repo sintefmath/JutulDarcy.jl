@@ -24,6 +24,10 @@ end
     include("kernel_abstractions.jl")
 end
 
+@testitem "Float32 reservoir models" begin
+    include("reservoir_float32.jl")
+end
+
 @testitem "Multi-phase" begin
     include("multiphase.jl")
 end

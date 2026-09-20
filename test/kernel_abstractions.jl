@@ -301,6 +301,34 @@ end
         @test all(isfinite, Array(states[end][:Reservoir][:Pressure]))
     end
 
+    mixed_simulator, mixed_config = setup_reservoir_simulator(cases.two_phase;
+        mode = :ka,
+        ka_backend = Jutul.KernelExecution.KernelAbstractions.CPU(),
+        float_type = Float32,
+        index_type = Int32,
+        linear_float_type = Float64,
+        linear_index_type = Int64,
+        linear_solver = nothing,
+        failure_cuts_timestep = false,
+        timesteps = :none,
+        info_level = -1)
+    mixed_context = mixed_simulator.model.context
+    mixed_system = mixed_simulator.storage.LinearizedSystem
+    @test Jutul.linear_float_type(mixed_context) === Float64
+    @test Jutul.linear_index_type(mixed_context) === Int64
+    @test Jutul.float_type(mixed_context) === Float32
+    @test Jutul.index_type(mixed_context) === Int32
+    @test eltype(mixed_system.r_buffer) === Float64
+    @test eltype(mixed_system.jac.nzval) === Float64
+    @test eltype(mixed_system.jac.rowptr) === Int64
+    mixed_pressure_type = eltype(mixed_simulator.storage.Reservoir.state.Pressure)
+    @test typeof(Jutul.value(zero(mixed_pressure_type))) === Float32
+    mixed_states, = simulate!(mixed_simulator, cases.two_phase.dt;
+        forces = cases.two_phase.forces,
+        state0 = cases.two_phase.state0,
+        config = mixed_config)
+    @test all(isfinite, Array(mixed_states[end][:Reservoir][:Pressure]))
+
     unsupported = try
         setup_reservoir_simulator(cases.two_phase;
             mode = :default, float_type = Float32, index_type = Int32)

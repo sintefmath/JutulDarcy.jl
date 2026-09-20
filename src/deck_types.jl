@@ -200,12 +200,13 @@ end
 
 
 function viscosity(tbl::ConstMuBTable, p::T) where T
-    p_r = tbl.p_ref
-    μ_r = tbl.mu_ref
-    c = tbl.mu_c
+    F_t = typeof(Jutul.value(p))
+    p_r = convert(F_t, tbl.p_ref)
+    μ_r = convert(F_t, tbl.mu_ref)
+    c = convert(F_t, tbl.mu_c)
 
     F = -c*(p - p_r)
-    μ = μ_r/(one(T) + F + 0.5*F^2)
+    μ = μ_r/(one(F_t) + F + convert(F_t, 0.5)*F^2)
     return μ::T
 end
 
@@ -216,12 +217,13 @@ function shrinkage(pvt::AbstractTablePVT, reg, p::T, cell) where T
 end
 
 function shrinkage(tbl::ConstMuBTable, p::T) where T
-    p_r = tbl.p_ref
-    b_r = tbl.b_ref
-    c = tbl.b_c
+    F_t = typeof(Jutul.value(p))
+    p_r = convert(F_t, tbl.p_ref)
+    b_r = convert(F_t, tbl.b_ref)
+    c = convert(F_t, tbl.b_c)
 
     F = c*(p - p_r)
-    b = b_r*(one(T) + F + 0.5*F^2)
+    b = b_r*(one(F_t) + F + convert(F_t, 0.5)*F^2)
     return b::T
 end
 

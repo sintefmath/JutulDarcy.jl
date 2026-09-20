@@ -1068,6 +1068,9 @@ end
 - `float_type=missing`, `index_type=missing`: Override the floating-point and
   sparse-index types used by the `KernelAbstractionsContext`. These options are
   only valid for KA modes; omitted values inherit the CPU model's context.
+- `linear_float_type=missing`, `linear_index_type=missing`: Override the KA
+  linear system and solver types independently. Each defaults to its
+  corresponding assembly type.
 - `reduce_memory=true`: For KA modes, use fused equation assembly for TPFA
   conservation laws without face-variable fluxes instead of storing cell
   half-face AD flux values on the backend.
@@ -1138,6 +1141,9 @@ values for pressure models.
 - `inc_tol_saturation=Inf`: Maximum allowable saturation change.
 - `inc_tol_dp_rel=missing`: Maximum allowable pressure change (relative)
 - `inc_tol_dz=Inf`: Maximum allowable composition change (compositional only).
+- `tolerances=(tol_control=...)`: Absolute facility control tolerance. The
+  default is `1e-3`, or `1e-2` for Float32 assembly to account for rate
+  rounding after per-day scaling.
 
 ## Convergence criterions (energy conservation)
 - `tol_cnve=tol_cnv`: Maximum allowable point-wise error
@@ -1193,6 +1199,8 @@ function setup_reservoir_simulator(case::JutulCase;
         mixed_cross_terms_on_host::Bool = wells_on_device,
         float_type = missing,
         index_type = missing,
+        linear_float_type = missing,
+        linear_index_type = missing,
         reduce_memory = true,
         method = :newton,
         precond = :cpr,
@@ -1238,10 +1246,11 @@ function setup_reservoir_simulator(case::JutulCase;
         kwarg...
     )
     ka_mode = mode isa Symbol && (mode == :ka || startswith(String(mode), "ka_"))
-    requested_ka_types = !ismissing(float_type) || !ismissing(index_type)
+    requested_ka_types = !ismissing(float_type) || !ismissing(index_type) ||
+        !ismissing(linear_float_type) || !ismissing(linear_index_type)
     if requested_ka_types && !ka_mode
         throw(ArgumentError(
-            "float_type and index_type are only supported for KernelAbstractions (:ka) modes"))
+            "Numeric type overrides are only supported for KernelAbstractions (:ka) modes"))
     end
     if ismissing(set_linear_solver)
         set_linear_solver = linear_solver isa Symbol || ismissing(linear_solver)
@@ -1275,8 +1284,19 @@ function setup_reservoir_simulator(case::JutulCase;
         else
             I = index_type
         end
+        if ismissing(linear_float_type)
+            LF = F
+        else
+            LF = linear_float_type
+        end
+        if ismissing(linear_index_type)
+            LI = I
+        else
+            LI = linear_index_type
+        end
         ka_context = Jutul.KernelAbstractionsContext(ka_backend;
             float_type = F, index_type = I,
+            linear_float_type = LF, linear_index_type = LI,
             matrix_layout = Jutul.matrix_layout(sim_cpu.model.context),
             workgroupsize = ka_workgroupsize,
             reduce_memory = reduce_memory)
@@ -1541,6 +1561,7 @@ function set_default_cnv_mb_inner!(tol, model;
         tol_mb_well = 1e-3,
         tol_cnv_well = 1e-2,
         tol_dp_well = 1e-3,
+        tol_control = missing,
         inc_tol_dz = Inf,
         inc_tol_saturation = Inf,
         tol_cnve = tol_cnv,
@@ -1572,6 +1593,18 @@ function set_default_cnv_mb_inner!(tol, model;
         end
     end
     sys = model.system
+    if sys isa FacilitySystem && haskey(model.equations, :control_equation)
+        if ismissing(tol_control)
+            # A surface rate in Float32 can have a few milliday units of
+            # roundoff after the control equation's per-day scaling.
+            if Jutul.float_type(model.context) === Float32
+                tol_control = 1e-2
+            else
+                tol_control = 1e-3
+            end
+        end
+        tol[:control_equation] = (Abs = tol_control,)
+    end
     if system_uses_cnv_mb(sys)
         is_well = model_or_domain_is_well(model)
         if is_well
@@ -1874,7 +1907,7 @@ function full_well_outputs(model, states, forces; targets = missing)
     end
     cnames = component_names(rmodel.system)
     has_temperature = length(states) > 0 && haskey(first(states)[:Reservoir], :Temperature)
-    well_t = Dict{Symbol, Union{Vector{Float64}, Vector{Symbol}}}
+    well_t = Dict{Symbol, AbstractVector}
     out = Dict{Symbol, well_t}()
     for w in well_symbols(model)
         outw = well_t()
