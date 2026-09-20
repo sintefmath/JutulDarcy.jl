@@ -84,8 +84,7 @@ end
                 B_pref = inv(shrinkage(pvt_ph, reg, p_ref, i))
                 Δp = pvtw.b_c*(p - p_ref)
                 ΔT = T - T_ref
-                B_w = B_pref*(one(Δp) - Δp)*
-                    (one(ΔT) + c1*ΔT + c2*ΔT^2)
+                B_w = B_pref*(one(Δp) - Δp)*(one(ΔT) + c1*ΔT + c2*ΔT^2)
                 rho[ph, i] = rhos_ph/B_w
             else
                 rho[ph, i] = rhos_ph*shrinkage(pvt_ph, reg, p, i)
