@@ -37,6 +37,11 @@ function test_float32_reservoir_case(case, linear_float, linear_index;
     @test config[:tolerances][:Facility][:control_equation].Abs == 0.01
 
     result = simulate_reservoir(case; simulator, config)
+    solver = config[:linear_solver]
+    @test eltype(solver.storage.x) === linear_float
+    if solver.preconditioner isa CPRPreconditioner
+        @test eltype(solver.preconditioner.storage.w_rhs) === linear_float
+    end
     @test length(result.states) == 1
     if length(result.states) == 1
         @test all(isfinite, result.states[1][:Pressure])

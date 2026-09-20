@@ -5,6 +5,32 @@ using ForwardDiff
 using SparseArrays
 using Test
 
+@testset "Float32 CPR inner pressure solve" begin
+    T = Float32
+    matrix = spdiagm(-1 => fill(-1.0f0, 3),
+        0 => fill(4.0f0, 4),
+        1 => fill(-1.0f0, 3))
+    pressure_matrix = Jutul.KAPreconditioners.csr_matrix(matrix)
+    rhs = ones(T, 4)
+    increment = zeros(T, 4)
+    context = Jutul.KernelAbstractionsContext(
+        Jutul.KernelExecution.KernelAbstractions.CPU();
+        float_type = T, index_type = Int32)
+    pressure = AMGPreconditioner(:aggregation;
+        smoother_type = :spai0, coarse_size = 2)
+    Jutul.update_preconditioner!(pressure, pressure_matrix, rhs,
+        context, Jutul.default_executor())
+    cpr = CPRPreconditioner(pressure,
+        KASmootherPreconditioner(:spai0); p_rtol = 0.1)
+    cpr.storage = JutulDarcy.CPRStorage(4, 1, nothing,
+        (pressure_matrix, similar(rhs), similar(rhs)),
+        similar(rhs), similar(rhs), T)
+
+    JutulDarcy.cpr_p_apply!(increment, cpr, pressure, rhs, cpr.p_rtol)
+    @test eltype(cpr.psolver.x) === Float32
+    @test all(isfinite, increment)
+end
+
 function setup_spe1_ka_case(; block_backend = false)
     spe1 = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1", "SPE1.DATA")
     return setup_case_from_data_file(spe1;

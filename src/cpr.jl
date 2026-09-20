@@ -62,8 +62,8 @@ function CPRStorage(p_prec, lin_op, full_jac, ncomp = missing;
     solution = allocate_cpr_array(prototype, T, ncell*bz)
     residual = allocate_cpr_array(prototype, T, ncell*bz)
     w_p = allocate_cpr_array(prototype, T, ncomp, np)
-    w_rhs = zeros(ncomp)
-    w_rhs[1] = 1
+    w_rhs = zeros(T, ncomp)
+    w_rhs[1] = one(T)
     w_rhs = SVector{ncomp, T}(w_rhs)
     if p_buffer
         p_buf = allocate_cpr_array(prototype, T, np)
@@ -76,8 +76,8 @@ end
 function CPRStorage(np::Int, bz::Int, lin_op, psys::Tuple, solution, residual, T = Float64, id = zero(UInt64); ncomp = bz)
     A_p, r_p, p = psys
     w_p = zeros(T, ncomp, np)
-    w_rhs = zeros(ncomp)
-    w_rhs[1] = 1
+    w_rhs = zeros(T, ncomp)
+    w_rhs[1] = one(T)
     w_rhs = SVector{ncomp, T}(w_rhs)
     return CPRStorage(A_p, r_p, p, solution, residual, lin_op, w_p, w_rhs, np, bz, ncomp, id, zeros(T, np), nothing, T)
 end
@@ -476,7 +476,7 @@ function apply!(x, cpr::CPRPreconditioner, r0, arg...)
     smoother = cpr.system_precond
     bz = cpr_s.block_size
     # Zero out buffer, just in case (assumed by some solvers)
-    @. x = 0.0
+    fill!(x, zero(eltype(x)))
     # presmooth
     if cpr.npre > 0
         @tic "cpr smoother" apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npre)
@@ -502,7 +502,8 @@ function apply_cpr_smoother!(x, r, buf, smoother, A_ps, n; skip_last = false)
 end
 
 function correct_residual!(r, A, x)
-    @tic "residual correction" mul!(r, A, x, -1.0, true)
+    @tic "residual correction" mul!(r, A, x,
+        -one(eltype(r)), one(eltype(r)))
 end
 
 function apply_cpr_pressure_stage!(cpr::CPRPreconditioner, cpr_s::CPRStorage, r, arg...)
@@ -528,14 +529,18 @@ end
 function cpr_p_apply!(Δp, cpr, p_precond, r_p, p_rtol)
     apply!(Δp, p_precond, r_p)
     if !isnothing(p_rtol)
-        A_p = cpr.A_p
+        A_p = cpr.storage.A_p
         if isnothing(cpr.psolver)
             cpr.psolver = FgmresSolver(A_p, r_p)
         end
         psolve = cpr.psolver
         warm_start!(psolve, Δp)
-        M = Jutul.PrecondWrapper(linear_operator(p_precond))
-        fgmres!(psolve, A_p, r_p, M = M, rtol = p_rtol, atol = 1e-12, itmax = 20)
+        T = eltype(r_p)
+        M = Jutul.PrecondWrapper(linear_operator(p_precond, T,
+            nothing, nothing, nothing, nothing, nothing))
+        fgmres!(psolve, A_p, r_p, M = M,
+            rtol = convert(T, p_rtol), atol = convert(T, 1e-12),
+            itmax = 20)
         @. Δp = psolve.x
     end
 end

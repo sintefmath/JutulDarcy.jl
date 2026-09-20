@@ -176,6 +176,7 @@ function update_true_impes_weights!(weights, accumulation, rhs,
         context::Jutul.KernelAbstractionsContext)
     backend = context.backend
     kernel! = true_impes_weights_kernel!(backend, 128)
+    pressure_scale = convert(eltype(rhs), pressure_scale)
     event = kernel!(weights, accumulation, rhs, pressure_scale,
         number_of_cells, Val(number_of_components), Val(scaling == :unit);
         ndrange = number_of_cells)
