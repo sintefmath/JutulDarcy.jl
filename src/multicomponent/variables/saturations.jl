@@ -18,7 +18,9 @@ end
         fr = FlashResults[i]
         S_eos = one(T) - S_other
         if fr.state == MultiComponentFlash.two_phase_lv
-            S_l_pure, S_v_pure = phase_saturations(eos, Pressure[i], Temperature[i], fr)
+            @inbounds p = Pressure[i]
+            @inbounds T = Temperature[i]
+            S_l_pure, S_v_pure = phase_saturations(eos, p, T, fr)
         elseif fr.state == MultiComponentFlash.single_phase_v
             S_l_pure = zero(T)
             S_v_pure = one(T)
