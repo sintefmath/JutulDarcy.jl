@@ -153,7 +153,7 @@ end
 
 function update_capillary_pressure!(Δp, pc, model, Saturations, scale, ix)
     cap = pc.pc
-    npc = size(Δp, 1)
+    npc = number_of_phases(model.system) - 1
     reference_ph = get_reference_phase_index(model.system)
     if npc == 1
         if reference_ph == 1
