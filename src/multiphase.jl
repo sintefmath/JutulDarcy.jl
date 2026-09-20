@@ -548,9 +548,7 @@ end
     return(pc, ref_index)
 end
 
-function get_reference_phase_index(::SinglePhaseSystem)
-    return 1
-end
+@inline get_reference_phase_index(::SinglePhaseSystem{P, F, Ref}) where {P, F, Ref} = Ref
 
 """
     get_reference_phase_index(system::JutulSystem)
@@ -567,6 +565,10 @@ end
 function get_reference_phase_index(sys::MultiPhaseSystem)
     return sys.reference_phase_index
 end
+
+@inline get_reference_phase_index(::MultiPhaseCompositionalSystemLV{E, T, O, R, N, C, Ref}) where {E, T, O, R, N, C, Ref} = Ref
+@inline get_reference_phase_index(::StandardBlackOilSystem{D, V, W, R, F, T, P, Num, Ref}) where {D, V, W, R, F, T, P, Num, Ref} = Ref
+@inline get_reference_phase_index(::ImmiscibleSystem{T, F, Ref}) where {T, F, Ref} = Ref
 
 """
     get_reference_phase_index(mphases)

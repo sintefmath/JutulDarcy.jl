@@ -91,16 +91,26 @@ end
 
 function region_wrap(x::Tuple, regions::Nothing)
     @assert length(x) >= 1
+    warn_mixed_region_types(x)
     return x
 end
 
 function region_wrap(x::Tuple, regions::AbstractArray)
     length(x) >= maximum(regions) || error("Length of tuple $(length(x)) is less than maximum region $(maximum(regions))")
+    warn_mixed_region_types(x)
     return x
 end
 
 function region_wrap(x::Tuple, regions::Missing)
+    warn_mixed_region_types(x)
     return x
+end
+
+function warn_mixed_region_types(tables)
+    if length(tables) > 1 && any(x -> typeof(x) !== typeof(first(tables)), tables)
+        @warn "Region tables have mixed types, which may be detrimental to performance."
+    end
+    return nothing
 end
 
 function region_wrap(x::AbstractVector, regions = missing)
@@ -109,6 +119,7 @@ function region_wrap(x::AbstractVector, regions = missing)
     else
         # Don't make huge tuples, just return the vector with possibly tighter
         # type for the container.
+        warn_mixed_region_types(x)
         out = [i for i in x]
     end
     return out

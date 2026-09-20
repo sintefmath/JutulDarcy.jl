@@ -12,6 +12,10 @@ end
     include("relperm.jl")
 end
 
+@testitem "Capillary pressure" begin
+    include("capillary.jl")
+end
+
 @testitem "Single-phase" begin
     include("singlephase.jl")
 end

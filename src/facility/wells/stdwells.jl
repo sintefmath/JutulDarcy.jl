@@ -12,7 +12,7 @@ function Jutul.default_values(model, mf::WellMassFractions)
     return [1/nc for _ in 1:nc]
 end
 
-struct SimpleWellSystem{T, P} <: MultiPhaseSystem
+struct SimpleWellSystem{T, P, Ref} <: MultiPhaseSystem
     ncomp::Int
     phases::P
     c::Float64
@@ -21,16 +21,21 @@ end
 
 const StandardWellFlowModel = SimulationModel{<:SimpleWellDomain, <:SimpleWellSystem}
 
-function SimpleWellSystem(ncomp, phases; c = 1e-8, reference_densities = ones(ncomp))
+function SimpleWellSystem(ncomp, phases; c = 1e-8,
+        reference_densities = ones(ncomp),
+        reference_phase_index = get_reference_phase_index(phases))
     reference_densities = tuple(reference_densities...)
-    return SimpleWellSystem(ncomp, phases, c, reference_densities)
+    return SimpleWellSystem{typeof(reference_densities), typeof(phases), reference_phase_index}(
+        ncomp, phases, c, reference_densities)
 end
 
-function SimpleWellSystem(system; kwarg...)
+function SimpleWellSystem(system; reference_phase_index = get_reference_phase_index(system), kwarg...)
     rho = reference_densities(system)
     ncomp = number_of_components(system)
     phases = get_phases(system)
-    return SimpleWellSystem(ncomp, phases; reference_densities = rho, kwarg...)
+    return SimpleWellSystem(ncomp, phases;
+        reference_densities = rho,
+        reference_phase_index = reference_phase_index, kwarg...)
 end
 
 number_of_components(s::SimpleWellSystem) = s.ncomp
@@ -80,6 +85,8 @@ function Jutul.select_minimum_output_variables!(vars, domain::DiscretizedDomain,
     push!(vars, :Saturations)
     return vars
 end
+
+@inline get_reference_phase_index(::SimpleWellSystem{T, P, Ref}) where {T, P, Ref} = Ref
 
 well_has_explicit_pressure_drop(m::SimpleWellFlowModel) = well_has_explicit_pressure_drop(physical_representation(m.domain))
 well_has_explicit_pressure_drop(w::SimpleWell) = w.explicit_dp

@@ -39,13 +39,13 @@ function adapt_compositional_eos(to, eos::MultiComponentFlash.KValuesEOS)
 end
 
 function Adapt.adapt_structure(to,
-        system::MultiPhaseCompositionalSystemLV{E, T, O, R, N, C}) where {
-        E, T, O, R, N, C}
+        system::MultiPhaseCompositionalSystemLV{E, T, O, R, N, C, Ref}) where {
+        E, T, O, R, N, C, Ref}
     eos = adapt_compositional_eos(to, system.equation_of_state)
     phases = Adapt.adapt(to, system.phases)
     rho_ref = Adapt.adapt(to, system.rho_ref)
     return MultiPhaseCompositionalSystemLV{
-        typeof(eos), typeof(phases), O, typeof(rho_ref), N, Nothing}(
+        typeof(eos), typeof(phases), O, typeof(rho_ref), N, Nothing, Ref}(
         phases, nothing, eos, rho_ref, system.reference_phase_index)
 end
 
@@ -95,16 +95,15 @@ function Adapt.adapt_structure(to, well::SimpleWell)
 end
 
 function Adapt.adapt_structure(to,
-        system::StandardBlackOilSystem{D, V, W, R, F}) where {D, V, W, R, F}
+        system::StandardBlackOilSystem{D, V, W, R, F, T, P, Num, Ref}) where {D, V, W, R, F, T, P, Num, Ref}
     rs_max = Adapt.adapt(to, system.rs_max)
     rv_max = Adapt.adapt(to, system.rv_max)
     rho_ref = Adapt.adapt(to, system.rho_ref)
     phase_indices = Adapt.adapt(to, system.phase_indices)
     phases = Adapt.adapt(to, system.phases)
-    Num = typeof(system.rs_eps)
     return StandardBlackOilSystem{
         typeof(rs_max), typeof(rv_max), W, typeof(rho_ref), F,
-        typeof(phase_indices), typeof(phases), Num
+        typeof(phase_indices), typeof(phases), Num, Ref
     }(rs_max, rv_max, rho_ref, phase_indices, phases,
         system.saturated_chop, system.keep_bubble_flag,
         system.rs_eps, system.rv_eps, system.s_eps,

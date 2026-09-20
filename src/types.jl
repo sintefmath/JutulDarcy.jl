@@ -20,7 +20,7 @@ abstract type PhaseVariables <: VectorVariables end
 abstract type ComponentVariables <: VectorVariables end
 
 abstract type CompositionalSystemLV <: CompositionalSystem end
-struct MultiPhaseCompositionalSystemLV{E, T, O, R, N, C} <: CompositionalSystemLV where T<:Tuple
+struct MultiPhaseCompositionalSystemLV{E, T, O, R, N, C, Ref} <: CompositionalSystemLV where T<:Tuple
     phases::T
     components::C
     equation_of_state::E
@@ -30,7 +30,7 @@ end
 
 function MultiPhaseCompositionalSystemLV{R, T, O, D, N, C}(phases, c, equation_of_state, reference_densities) where {R, T, O, D, N, C}
     reference_phase_index = get_reference_phase_index(phases)
-    return MultiPhaseCompositionalSystemLV{R, T, O, D, N, C}(phases, c, equation_of_state, reference_densities, reference_phase_index)
+    return MultiPhaseCompositionalSystemLV{R, T, O, D, N, C, reference_phase_index}(phases, c, equation_of_state, reference_densities, reference_phase_index)
 end
 
 const LVCompositional2PhaseSystem = MultiPhaseCompositionalSystemLV{<:Any, <:Any, Nothing, <:Any, <:Any, <:Any}
@@ -75,7 +75,7 @@ function MultiPhaseCompositionalSystemLV(
     only(findall(isequal(LiquidPhase()), phases))
     only(findall(isequal(VaporPhase()), phases))
     return MultiPhaseCompositionalSystemLV{typeof(equation_of_state), T, O,
-        typeof(reference_densities), N, typeof(c)}(
+        typeof(reference_densities), N, typeof(c), reference_phase_index}(
         phases, c, equation_of_state, reference_densities,
         reference_phase_index)
 end
@@ -95,7 +95,7 @@ function Base.show(io::IO, sys::MultiPhaseCompositionalSystemLV)
     print(io, "MultiPhaseCompositionalSystemLV $name with $(MultiComponentFlash.eostype(eos)) EOS with $n EOS components: $cnames")
 end
 
-struct StandardBlackOilSystem{D, V, W, R, F, T, P, Num} <: BlackOilSystem
+struct StandardBlackOilSystem{D, V, W, R, F, T, P, Num, Ref} <: BlackOilSystem
     rs_max::D
     rv_max::V
     rho_ref::R
@@ -175,7 +175,7 @@ function StandardBlackOilSystem(;
         end
     end
     @assert formulation == :varswitch || formulation == :zg
-    return StandardBlackOilSystem{RS, RV, has_water, typeof(reference_densities), formulation, typeof(phase_ind), typeof(phases), Float64}(rs_max, rv_max, reference_densities, phase_ind, phases, saturated_chop, keep_bubble_flag, eps_rs, eps_rv, eps_s, reference_phase_index)
+    return StandardBlackOilSystem{RS, RV, has_water, typeof(reference_densities), formulation, typeof(phase_ind), typeof(phases), Float64, reference_phase_index}(rs_max, rv_max, reference_densities, phase_ind, phases, saturated_chop, keep_bubble_flag, eps_rs, eps_rv, eps_s, reference_phase_index)
 end
 
 @inline function rs_max_function(sys::StandardBlackOilSystem, region = 1)
@@ -211,7 +211,7 @@ const DisgasBlackOilModel            = SimulationModel{<:Any, <:DisgasBlackOilSy
 
 const StandardBlackOilModelWithWater = SimulationModel{<:Any, <:StandardBlackOilSystem{<:Any, <:Any, true, <:Any, <:Any, <:Any, <:Any}, <:Any, <:Any}
 
-struct ImmiscibleSystem{T, F} <: MultiPhaseSystem where {T<:Tuple, F<:NTuple}
+struct ImmiscibleSystem{T, F, Ref} <: MultiPhaseSystem where {T<:Tuple, F<:NTuple}
     phases::T
     rho_ref::F
     reference_phase_index::Int
@@ -259,13 +259,13 @@ function ImmiscibleSystem(phases; reference_densities = ones(length(phases)), re
         reference_phase_index = get_reference_phase_index(phases)
     end
     reference_densities = tuple(reference_densities...)
-    return ImmiscibleSystem(phases, reference_densities, reference_phase_index)
+    return ImmiscibleSystem{typeof(phases), typeof(reference_densities), reference_phase_index}(phases, reference_densities, reference_phase_index)
 end
 
 Base.show(io::IO, t::ImmiscibleSystem) = print(io, "ImmiscibleSystem with $(join([typeof(p) for p in t.phases], ", "))")
 
 
-struct SinglePhaseSystem{P, F} <: MultiPhaseSystem where {P, F<:AbstractFloat}
+struct SinglePhaseSystem{P, F, Ref} <: MultiPhaseSystem
     phase::P
     rho_ref::F
 end
@@ -281,7 +281,7 @@ function SinglePhaseSystem(phase = LiquidPhase(); reference_density = 1.0)
     if reference_density isa Real
         reference_density = (reference_density, )
     end
-    return SinglePhaseSystem{typeof(phase), typeof(reference_density)}(phase, reference_density)
+    return SinglePhaseSystem{typeof(phase), typeof(reference_density), 1}(phase, reference_density)
 end
 
 const SinglePhaseModel = SimulationModel{D, S, F, C} where {D, S<:SinglePhaseSystem, F, C}
