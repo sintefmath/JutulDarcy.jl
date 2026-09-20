@@ -147,17 +147,18 @@ function update_injector_connection_pressure_drop!(
         dp, phases, res_cells, gdz, ρ)
     # Traverse down the well, using the phase notion encoded in ctrl and then
     # just accumulate pressure drop as we go assuming no cross flow.
-    dp_current = 0.0
-    gdz_current = 0.0
+    T = eltype(dp)
+    dp_current = zero(T)
+    gdz_current = zero(T)
     for i in eachindex(dp)
         rc = res_cells[i]
         gdz_next = value(gdz[i])
 
         Δgdz = gdz_next - gdz_current
         # Mixture density along well bore
-        local_density = 0
+        local_density = zero(T)
         for (ph, mix) in phases
-            local_density += mix*value(ρ[ph, rc])
+            local_density += convert(T, mix)*value(ρ[ph, rc])
         end
         dp_current += local_density*Δgdz
         dp[i] = value(dp_current)
@@ -189,14 +190,15 @@ end
 
 function update_producer_connection_pressure_drop!(
         dp, res_cells, gdz, WI, ρ, mob, p, well_pressure, mask_values)
+    T = eltype(dp)
     bhp = value(well_pressure[1])
     # Integrate up, adding weighted density into well bore and keeping track of
     # current weight. Initialize by a simple average first.
-    mobility_density_sum = 0.0
-    mobility_sum = 0.0
+    mobility_density_sum = zero(T)
+    mobility_sum = zero(T)
     for i in eachindex(dp)
         rc = res_cells[i]
-        mobility_density_sum = 0.0
+        mobility_density_sum = zero(T)
         WI_i = value(WI[i])
         if !isnothing(mask_values)
             WI_i *= value(mask_values[i])
@@ -208,15 +210,15 @@ function update_producer_connection_pressure_drop!(
         end
         if i == 1
             dz = value(gdz[i])
-            dp_prev = 0.0
+            dp_prev = zero(T)
         else
             dz = value(gdz[i]) - value(gdz[i-1])
             dp_prev = dp[i-1]
         end
-        est_density = mobility_density_sum/max(mobility_sum, 1e-3)
+        est_density = mobility_density_sum/max(mobility_sum, convert(T, 1e-3))
         dp[i] = dp_prev + dz*est_density
     end
-    current_density = current_weight = 0.0
+    current_density = current_weight = zero(T)
     for i in reverse(eachindex(dp))
         rc = res_cells[i]
         wi = value(WI[i])
@@ -226,8 +228,8 @@ function update_producer_connection_pressure_drop!(
         pot = abs(bhp + dp[i] - value(p[rc]))
         q_perf = wi*pot
         # Mixture density along well bore
-        local_density = 0
-        local_weight = 0
+        local_density = zero(T)
+        local_weight = zero(T)
         for ph in axes(ρ, 1)
             λ = value(mob[ph, rc])
             weight_ph = q_perf*λ
@@ -236,10 +238,10 @@ function update_producer_connection_pressure_drop!(
         end
         current_weight += local_weight
         current_density += local_density
-        if abs(current_weight) > 0.0
+        if abs(current_weight) > zero(T)
             next_dp = current_density/current_weight
         else
-            next_dp = 0.0
+            next_dp = zero(T)
         end
         # NOTE: This is a real hack - should be fixed higher up in the
         # initialization of the parameter.
@@ -247,8 +249,8 @@ function update_producer_connection_pressure_drop!(
     end
     # Integrate down, using the mixture densities (temporarily stored in dp) to
     # calculate the pressure drop from the top.
-    dp_current = 0.0
-    gdz_current = 0.0
+    dp_current = zero(T)
+    gdz_current = zero(T)
     for i in eachindex(dp)
         local_density = dp[i]
         gdz_next = value(gdz[i])

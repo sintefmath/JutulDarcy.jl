@@ -80,6 +80,63 @@ if CUDA.functional()
             CUDA.synchronize()
         end
         @test allocated < 4096
+
+        # Hybrid Float32 simulations retain Float64 host well state while
+        # their device mirror uses Float32 storage.
+        mixed_host = zeros(Float64, 3)
+        mixed_device = CUDA.CuArray(Float32[1.25, 2.5, 3.75])
+        Jutul.backend_copyto!(mixed_host, mixed_device)
+        @test mixed_host == Float64[1.25, 2.5, 3.75]
+        Jutul.backend_copyto!(mixed_device, Float64[4.5, 5.25, 6.75])
+        @test Array(mixed_device) == Float32[4.5, 5.25, 6.75]
+    end
+    @testset "EGG Float32 CUDA linearization and solve" begin
+        path = JutulDarcy.GeoEnergyIO.test_input_file_path(
+            "EGG", "EGG.DATA")
+        original = setup_case_from_data_file(path;
+            backend = :csr, block_backend = true)[1:1]
+        case = JutulCase(original.model,
+            [0.01*si_unit(:day)], original.forces[1:1];
+            state0 = original.state0,
+            parameters = original.parameters)
+        simulator, config = setup_reservoir_simulator(case;
+            mode = :ka_cuda,
+            float_type = Float32, index_type = Int32,
+            info_level = -1, timesteps = :none)
+
+        forces = Jutul.preprocess_forces(
+            simulator, only(case.forces)).forces
+        dt = only(case.dt)
+        Jutul.update_before_step!(simulator, dt, forces; time = 0.0)
+        Jutul.update_state_dependents!(
+            simulator.storage, simulator.model, dt, forces; time = dt)
+        Jutul.update_before_step!(simulator, dt, forces; time = 0.0)
+        host = simulator.storage.host_evaluation
+        pressure_drop_wells = filter(host.keys) do key
+            haskey(host.storage[key].state, :ConnectionPressureDrop)
+        end
+        @test !isempty(pressure_drop_wells)
+        for key in pressure_drop_wells
+            host_dp = host.storage[key].state.ConnectionPressureDrop
+            device_dp = simulator.storage[key].state.ConnectionPressureDrop
+            @test eltype(host_dp) == Float64
+            @test eltype(device_dp) == Float32
+            @test host_dp == Array(device_dp)
+        end
+        Jutul.update_linearized_system!(
+            simulator.storage, simulator.model)
+
+        system = simulator.storage.LinearizedSystem
+        @test eltype(system.r_buffer) == Float32
+        @test all(isfinite, Array(system.r_buffer))
+        for block in system.subsystems
+            @test all(matrix -> all(isfinite, matrix),
+                Array(nonzeros(block.jac)))
+        end
+        result = Jutul.linear_solve!(system, config[:linear_solver],
+            simulator.model, simulator.storage, dt)
+        @test result.iterations > 0
+        @test all(isfinite, Array(system.dx_buffer))
     end
     @testset "Preconverted CUDA launch" begin
         output = CUDA.zeros(Int, 4)
