@@ -37,26 +37,26 @@ Base.@propagate_inbounds @inline function evaluate_table_by_region(
     return only(tab)(arg...)
 end
 
-# Calling the selected table inside each branch avoids boxing a table when a
-# regional tuple contains different interpolator types.
-Base.@propagate_inbounds @generated function evaluate_table_by_region(
-        tab::T, reg::Integer, arg...) where {T<:Tuple}
-    N = fieldcount(T)
-    evaluated = :((getfield(tab, $N))(arg...))
-    for i in (N - 1):-1:1
-        evaluated = :(if reg == $i
-            (getfield(tab, $i))(arg...)
-        else
-            $evaluated
-        end)
-    end
-    return quote
-        @boundscheck if !(1 <= reg <= $N)
-            throw(BoundsError(tab, reg))
-        end
-        $evaluated
-    end
-end
+# # Calling the selected table inside each branch avoids boxing a table when a
+# # regional tuple contains different interpolator types.
+# Base.@propagate_inbounds @generated function evaluate_table_by_region(
+#         tab::T, reg::Integer, arg...) where {T<:Tuple}
+#     N = fieldcount(T)
+#     evaluated = :((getfield(tab, $N))(arg...))
+#     for i in (N - 1):-1:1
+#         evaluated = :(if reg == $i
+#             (getfield(tab, $i))(arg...)
+#         else
+#             $evaluated
+#         end)
+#     end
+#     return quote
+#         @boundscheck if !(1 <= reg <= $N)
+#             throw(BoundsError(tab, reg))
+#         end
+#         $evaluated
+#     end
+# end
 
 Base.@propagate_inbounds @inline function table_by_region(tab, reg)
     return tab[reg]

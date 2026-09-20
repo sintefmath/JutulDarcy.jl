@@ -35,6 +35,9 @@ struct SimpleCapillaryPressure{T, R} <: AbstractCapillaryPressure
         end
         pc = map(x -> region_wrap(x, regions), pc)
         pc = tuple(pc...)
+        if !(pc isa NTuple)
+            @warn "pc is not an NTuple after mapping regions due to mixing of interpolators. Performance may be degraded."
+        end
         return new{typeof(pc), T}(pc, regions)
     end
     function SimpleCapillaryPressure(pc::T, regions::R,
@@ -56,10 +59,9 @@ end
 
 @jutul_secondary function update_pc!(Δp, pc::SimpleCapillaryPressure, model, Saturations, ix)
     cap = pc.pc
-    npc = size(Δp, 1)
-    nph = size(Saturations, 1)
-    @assert npc == nph - 1
+    npc = number_of_phases(model.system) - 1
     reference_ph = get_reference_phase_index(model.system)
+    T = eltype(Δp)
     if npc == 1
         if reference_ph == 1
             w = 2
@@ -86,7 +88,7 @@ end
             @inbounds for c in ix
                 reg = region(pc.regions, c)
                 sg = Saturations[g, c]
-                Δp[1, c] = 0
+                Δp[1, c] = zero(T)
                 Δp[2, c] = evaluate_table_by_region(pcog, reg, sg)
             end
         elseif isnothing(pcog)
@@ -94,7 +96,7 @@ end
                 reg = region(pc.regions, c)
                 sw = Saturations[w, c]
                 Δp[1, c] = evaluate_table_by_region(pcow, reg, sw)
-                Δp[2, c] = 0
+                Δp[2, c] = zero(T)
             end
         else
             @inbounds for c in ix
