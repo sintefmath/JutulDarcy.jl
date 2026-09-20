@@ -1188,6 +1188,7 @@ function setup_reservoir_simulator(case::JutulCase;
         mode = :default,
         ka_backend = missing,
         group_execution = missing,
+        ka_workgroupsize = 256,
         wells_on_device::Bool = false,
         mixed_cross_terms_on_host::Bool = wells_on_device,
         float_type = missing,
@@ -1260,10 +1261,8 @@ function setup_reservoir_simulator(case::JutulCase;
         end
         method == :newton || throw(ArgumentError(
             "KernelAbstractions modes currently support method=:newton"))
-        backend = if ismissing(ka_backend)
-            kernel_abstractions_backend(mode)
-        else
-            ka_backend
+        if ismissing(ka_backend)
+            ka_backend = kernel_abstractions_backend(mode)
         end
         sim_cpu = Simulator(case; sim_kwarg...)
         if ismissing(float_type)
@@ -1276,9 +1275,10 @@ function setup_reservoir_simulator(case::JutulCase;
         else
             I = index_type
         end
-        ka_context = Jutul.KernelAbstractionsContext(backend;
+        ka_context = Jutul.KernelAbstractionsContext(ka_backend;
             float_type = F, index_type = I,
             matrix_layout = Jutul.matrix_layout(sim_cpu.model.context),
+            workgroupsize = ka_workgroupsize,
             reduce_memory = reduce_memory)
         if ismissing(group_execution)
             is_cpu = mode in (:ka, :ka_cpu, :ka_cpu_static)
