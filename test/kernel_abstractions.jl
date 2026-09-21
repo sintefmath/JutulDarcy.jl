@@ -463,13 +463,16 @@ end
     for (eos, composition) in ((cubic, Float32[0.6, 0.1, 0.3]),
             (kvalue, Float32[0.4, 0.6]))
         initial = JutulDarcy.static_flashed_mixture(eos, Float32)
+        @test isbitstype(typeof(initial))
         @test eltype(initial.K) === Float32
         @test initial.flash_cond.p isa Float32
 
         wide = JutulDarcy.static_flashed_mixture(eos, Float64)
+        @test isbitstype(typeof(wide))
         target = Jutul.KernelExecution.ka_storage_eltype(context,
             typeof(wide))
         adapted = convert(target, wide)
+        @test isbitstype(typeof(adapted))
         @test eltype(adapted.K) === Float32
         @test adapted.flash_cond.T isa Float32
 
