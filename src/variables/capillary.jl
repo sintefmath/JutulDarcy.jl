@@ -31,16 +31,17 @@ function normalize_capillary_pair(pair, fallback, nregions)
         return map(table -> isnothing(table) ? zero_table : table, pair)
     else
         if isnothing(pair)
-            zero_table = zero_capillary_interpolator(fallback)
-            if nregions == 1
-                return zero_table
-            elseif nregions < 20
-                return ntuple(_ -> zero_table, nregions)
-            else
-                return fill(zero_table, nregions)
-            end
+            table = zero_capillary_interpolator(fallback)
+        else
+            table = pair
         end
-        return pair
+        if nregions == 1
+            return table
+        elseif nregions < 20
+            return ntuple(_ -> table, nregions)
+        else
+            return fill(table, nregions)
+        end
     end
 end
 
