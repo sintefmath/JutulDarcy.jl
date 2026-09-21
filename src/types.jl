@@ -231,7 +231,7 @@ densitites. This system is easy to specify with [`Pressure`](@ref) and
 that there is no mass transfer between phases and that a phase is uniform in
 composition.
 """
-function ImmiscibleSystem(phases; reference_densities = ones(length(phases)), reference_phase_index = missing)
+function ImmiscibleSystem(phases; reference_densities = missing, reference_phase_index = missing)
     if phases isa Symbol
         if phases == :og || phases == :lv
             phases = (LiquidPhase(), VaporPhase())
@@ -255,6 +255,9 @@ function ImmiscibleSystem(phases; reference_densities = ones(length(phases)), re
         ph isa AbstractPhase || error("Phase $ph was not a phase?")
     end
     phases = tuple(phases...)
+    if ismissing(reference_densities)
+        reference_densities = ones(length(phases))
+    end
     if ismissing(reference_phase_index)
         reference_phase_index = get_reference_phase_index(phases)
     end
