@@ -73,9 +73,9 @@ end
     return SVector{N, T}(ntuple(i -> @inbounds(composition[i]), Val(N)))
 end
 
-@inline function numeric_composition(z::SVector{N}) where N
-    return SVector{N, Float64}(ntuple(Val(N)) do i
-        max(Float64(compositional_primal(z[i])),
+@inline function numeric_composition(z::SVector{N}, R = Float64) where N
+    return SVector{N, R}(ntuple(Val(N)) do i
+        max(R(compositional_primal(z[i])),
             MultiComponentFlash.MINIMUM_COMPOSITION)
     end)
 end
@@ -83,9 +83,9 @@ end
 @inline compositional_primal(x) = x
 @inline compositional_primal(x::ForwardDiff.Dual) = ForwardDiff.value(x)
 
-@inline function numeric_values(v::SVector{N}) where N
+@inline function numeric_values(v::SVector{N}, R = Float64) where N
     return SVector{N, Float64}(ntuple(Val(N)) do i
-        Float64(compositional_primal(v[i]))
+        R(compositional_primal(v[i]))
     end)
 end
 

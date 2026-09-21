@@ -123,15 +123,13 @@ end
     z = cell_composition(Val(N), OverallMoleFractions, cell)
     z_numeric = numeric_composition(z)
     cond_numeric = (
-        p = Float64(compositional_primal(P)),
-        T = Float64(compositional_primal(temperature)),
+        p = R(compositional_primal(P)),
+        T = R(compositional_primal(temperature)),
         z = z_numeric)
     if is_pure_single_phase(compositional_primal(Sw))
-        V_numeric, K_numeric, stability =
-            pure_immiscible_flash(f, eos, cond_numeric)
+        V_numeric, K_numeric, stability = pure_immiscible_flash(f, eos, cond_numeric)
     else
-        V_numeric, K_numeric, stability =
-            numeric_flash(f, fr, eos, cond_numeric)
+        V_numeric, K_numeric, stability = numeric_flash(f, fr, eos, cond_numeric)
     end
 
     Num = typeof(P + temperature + first(z))
@@ -181,9 +179,9 @@ end
     end
     K_out = numeric_values(K)
     cond_numeric = (
-            p = Float64(value(P)),
-            T = Float64(value(temperature)),
-            z = numeric_composition(z)
+            p = R(value(P)),
+            T = R(value(temperature)),
+            z = numeric_composition(z, R)
         )
     return FlashedMixture2Phase(state, K_out, V, x, y,
         one(Num), one(Num), NaN, cond_numeric, f.flash_stability)
