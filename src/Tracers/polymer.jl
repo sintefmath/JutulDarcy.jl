@@ -40,15 +40,15 @@ end
 
 function Jutul.get_dependencies(tracer::PolymerTracer, model)
     if model_or_domain_is_well(model)
-        out = Symbol[]
+        out = tuple()
     else
-        out = [
+        out = (
             :AdsorbedPolymerConcentration,
             :PolymerConcentration,
             :BulkVolume,
             :DeadPoreSpace,
             :PolymerRockDensity
-        ]
+        )
     end
     return out
 end

@@ -52,5 +52,5 @@ function Jutul.get_dependencies(var::TracerMasses, model)
             push!(out, dep)
         end
     end
-    return unique!(out)
+    return Tuple(unique!(out))
 end

@@ -52,7 +52,7 @@ function Jutul.default_values(model::FacilityModel, var::SurfaceWellConditions)
 end
 
 function Jutul.get_dependencies(x::SurfaceWellConditions, model::FacilityModel)
-    return [:SurfaceComponentRates]
+    return (:SurfaceComponentRates,)
 end
 
 function initialize_variable_ad!(state, model::FacilityModel, pvar::SurfaceWellConditions, symb, npartials, diag_pos; context = DefaultContext(), kwarg...)
