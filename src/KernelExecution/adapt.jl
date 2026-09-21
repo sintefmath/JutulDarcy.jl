@@ -58,12 +58,12 @@ function Adapt.adapt_structure(to,
         Val(N))
 end
 
-function adapt_compositional_eos(to, eos)
-    return MultiComponentFlash.make_eos_immutable(eos)
+function adapt_compositional_eos(to, eos; float_type = missing)
+    return MultiComponentFlash.make_eos_immutable(eos; float_type = float_type)
 end
 
-function adapt_compositional_eos(to, eos::MultiComponentFlash.KValuesEOS)
-    eos = MultiComponentFlash.make_eos_immutable(eos)
+function adapt_compositional_eos(to, eos::MultiComponentFlash.KValuesEOS; float_type = missing)
+    eos = MultiComponentFlash.make_eos_immutable(eos; float_type = float_type)
     evaluator = Adapt.adapt(to, eos.K_values_evaluator)
     return MultiComponentFlash.KValuesEOS(evaluator, eos.mixture;
         volume_shift = eos.volume_shift)
@@ -72,7 +72,12 @@ end
 function Adapt.adapt_structure(to,
         system::MultiPhaseCompositionalSystemLV{E, T, O, R, N, C, Ref}) where {
         E, T, O, R, N, C, Ref}
-    eos = adapt_compositional_eos(to, system.equation_of_state)
+    if to isa Jutul.JutulContext
+        float_type = Jutul.float_type(to)
+    else
+        float_type = missing
+    end
+    eos = adapt_compositional_eos(to, system.equation_of_state, float_type = float_type)
     phases = Adapt.adapt(to, system.phases)
     rho_ref = Adapt.adapt(to, system.rho_ref)
     return MultiPhaseCompositionalSystemLV{
