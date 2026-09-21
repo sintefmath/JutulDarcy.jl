@@ -84,6 +84,7 @@ end
 
 @inline compositional_primal(x) = x
 @inline compositional_primal(x::ForwardDiff.Dual) = ForwardDiff.value(x)
+@inline compositional_primal(x::Jutul.SCT.Dual) = Jutul.SCT.primal(x)
 
 @inline function numeric_values(v::SVector{N}, R = Float64) where N
     return SVector{N, R}(ntuple(Val(N)) do i
@@ -98,7 +99,7 @@ end
 end
 
 @inline function equilibrium_ad(eos, cond, vapor_fraction, K_numeric,
-        pressure::ForwardDiff.Dual, tolerance)
+        pressure::Union{ForwardDiff.Dual, Jutul.SCT.Dual}, tolerance)
     T = typeof(cond.p)
     config = MultiComponentFlash.StaticConfig()
     K0 = initial_guess_K(eos, cond, config)

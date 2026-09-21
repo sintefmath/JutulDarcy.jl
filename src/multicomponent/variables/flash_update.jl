@@ -180,8 +180,8 @@ end
     end
     K_out = numeric_values(K, eltype(f.K))
     cond_numeric = (
-            p = R(value(P)),
-            T = R(value(temperature)),
+            p = R(compositional_primal(P)),
+            T = R(compositional_primal(temperature)),
             z = numeric_composition(z, R)
         )
     return FlashedMixture2Phase(state, K_out, V, x, y,
