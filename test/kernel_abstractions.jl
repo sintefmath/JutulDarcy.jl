@@ -447,6 +447,42 @@ end
     @test uncached.flash_cond == condition
 end
 
+@testset "Float32 compositional flash results" begin
+    case = JutulDarcy.setup_mini_wellcase(
+        Val(:compositional_2ph_3c); nstep = 1)
+    model = reservoir_model(case.model)
+    cubic = model.system.equation_of_state
+    flash = model.secondary_variables[:FlashResults]
+    mixture = MultiComponentFlash.MultiComponentMixture(
+        ["CarbonDioxide", "Water"])
+    kvalue = MultiComponentFlash.KValuesEOS([0.05, 5.0], mixture)
+    context = Jutul.KernelAbstractionsContext(
+        Jutul.KernelExecution.KernelAbstractions.CPU();
+        float_type = Float32)
+
+    for (eos, composition) in ((cubic, Float32[0.6, 0.1, 0.3]),
+            (kvalue, Float32[0.4, 0.6]))
+        initial = JutulDarcy.static_flashed_mixture(eos, Float32)
+        @test eltype(initial.K) === Float32
+        @test initial.flash_cond.p isa Float32
+
+        wide = JutulDarcy.static_flashed_mixture(eos, Float64)
+        target = Jutul.KernelExecution.ka_storage_eltype(context,
+            typeof(wide))
+        adapted = convert(target, wide)
+        @test eltype(adapted.K) === Float32
+        @test adapted.flash_cond.T isa Float32
+
+        updated = JutulDarcy.immutable_flash_result(initial, flash, eos,
+            1.2f7, 300.0f0, composition, 0.0f0)
+        @test Jutul.value(updated.V) isa Float32
+        @test eltype(updated.K) === Float32
+        @test updated.critical_distance isa Float32
+        @test updated.flash_cond.p isa Float32
+        @test eltype(updated.flash_cond.z) === Float32
+    end
+end
+
 @testset "K-value compositional reservoir on a KA backend" begin
     grid = CartesianMesh((4, 1), (4.0, 1.0))
     domain = reservoir_domain(

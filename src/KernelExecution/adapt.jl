@@ -33,7 +33,8 @@ function Jutul.KernelExecution.ka_storage_eltype(
         ::Type{MultiComponentFlash.FlashedMixture2Phase{T, A, E}}) where {T, A, E}
     F = Jutul.KernelExecution.ka_storage_eltype(ctx, T)
     V = Jutul.KernelExecution.ka_storage_eltype(ctx, A)
-    return MultiComponentFlash.FlashedMixture2Phase{F, V, E}
+    K = Jutul.KernelExecution.ka_storage_eltype(ctx, E)
+    return MultiComponentFlash.FlashedMixture2Phase{F, V, K}
 end
 
 function Adapt.adapt_structure(ctx::Jutul.KernelAbstractionsContext,

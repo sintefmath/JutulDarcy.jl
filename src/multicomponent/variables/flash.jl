@@ -28,12 +28,13 @@ end
 @inline function static_flashed_mixture(
         eos::MultiComponentFlash.AbstractEOS, ::Type{T}) where T
     n = MultiComponentFlash.number_of_components(eos)
-    K = SVector{n, Float64}(ntuple(_ -> NaN, n))
+    R = typeof(compositional_primal(zero(T)))
+    K = SVector{n, R}(ntuple(_ -> R(NaN), n))
     xy = SVector{n, T}(ntuple(_ -> zero(T), n))
-    cond = (p = NaN, T = NaN, z = K)
+    cond = (p = R(NaN), T = R(NaN), z = K)
     return FlashedMixture2Phase(
         MultiComponentFlash.unknown_phase_state_lv,
-        K, zero(T), xy, xy, zero(T), zero(T), NaN, cond)
+        K, zero(T), xy, xy, zero(T), zero(T), R(NaN), cond)
 end
 
 function default_value(model, ::FlashResults,
@@ -57,7 +58,8 @@ end
 function initialize_variable_ad!(state, model, pvar::FlashResults, symb,
         npartials, diag_pos; context = DefaultContext(), kwarg...)
     n = number_of_entities(model, pvar)
-    sample = get_ad_entity_scalar(1.0, npartials, diag_pos; kwarg...)
+    sample = get_ad_entity_scalar(one(Jutul.float_type(context)),
+        npartials, diag_pos; kwarg...)
     state[symb] = fill(
         static_flashed_mixture(model.system.equation_of_state, typeof(sample)), n)
     return state
@@ -84,7 +86,7 @@ end
 @inline compositional_primal(x::ForwardDiff.Dual) = ForwardDiff.value(x)
 
 @inline function numeric_values(v::SVector{N}, R = Float64) where N
-    return SVector{N, Float64}(ntuple(Val(N)) do i
+    return SVector{N, R}(ntuple(Val(N)) do i
         R(compositional_primal(v[i]))
     end)
 end

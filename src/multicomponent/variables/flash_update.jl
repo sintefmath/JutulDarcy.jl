@@ -143,13 +143,14 @@ end
             eos, cond, P, V_numeric, K_numeric, fr.tolerance)
     end
 
-    K_out = K_numeric
+    R_out = eltype(f.K)
+    K_out = SVector{N, R_out}(K_numeric)
     if use_stability_bypass
         cd = compositional_primal(stability.storage.critical_distance)
-        critical_distance = Float64(cd)
+        critical_distance = R_out(cd)
         flash_cond = stability.storage.reference
     else
-        critical_distance = NaN
+        critical_distance = R_out(NaN)
         flash_cond = cond_numeric
     end
     return FlashedMixture2Phase(state, K_out, V, x, y, Z_l, Z_v,
@@ -177,7 +178,7 @@ end
         state = MultiComponentFlash.two_phase_lv
         x, y = phase_mole_fractions(z, K, V)
     end
-    K_out = numeric_values(K)
+    K_out = numeric_values(K, eltype(f.K))
     cond_numeric = (
             p = R(value(P)),
             T = R(value(temperature)),
