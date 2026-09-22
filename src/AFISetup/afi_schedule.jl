@@ -483,7 +483,6 @@ function setup_history_control(hist_ctrl, wname, wtype, wsetup, observation_data
         if cval == 0.0
             cval = integrate_rate(k)
         end
-        cval = integrate_rate(k)
         return cval
     end
     ismissing(observation_data) && error("Observation data is required for HistoricalControlModes")
