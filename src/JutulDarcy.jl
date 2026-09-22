@@ -4,6 +4,8 @@ __precompile__(false)
 $(README)
 """
 module JutulDarcy
+    const DEFAULT_OPTIMIZER_SIMULATOR_ARG = (output_substates = true, info_level = 0, end_report = false)
+
     export MultiPhaseSystem, ImmiscibleSystem, SinglePhaseSystem
     export select_reservoir_linear_solver
     export get_1d_reservoir

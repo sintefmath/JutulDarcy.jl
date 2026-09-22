@@ -10,6 +10,7 @@ functionality.
 
 ```@docs
 JutulDarcy.reservoir_sensitivities
+JutulDarcy.parameters_gradient_reservoir
 ```
 
 ## Optimization interface
