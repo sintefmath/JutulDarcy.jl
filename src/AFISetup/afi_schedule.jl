@@ -481,10 +481,7 @@ function setup_history_control(hist_ctrl, wname, wtype, wsetup, observation_data
         # Constraints override the integrated rate from observation data
         cval = get(constraints, k, 0.0)
         if cval == 0.0
-            println("No constraint found for $k, using integrated rate from observation data.")
             cval = integrate_rate(k)
-        else
-            println("Found what I need in cnstraints for $k = $cval")
         end
         cval = integrate_rate(k)
         return cval
