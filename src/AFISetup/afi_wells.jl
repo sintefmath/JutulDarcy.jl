@@ -7,39 +7,58 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
             continue
         end
         wname = welldef.value["WellName"]
+        w2c = copy(w2c)
+
+        cells = w2c["Cell"]
+        if haskey(w2c, "Completion")
+            completion = w2c["Completion"]
+        else
+            @warn "WellTocellConnections entry $wname has no Completion information. Generating default completion names."
+            completion = map(d -> "Completion$d", 1:length(cells))
+        end
+        w2c["UniqueID"] = map(tuple, cells, completion)
         if haskey(well_dict, wname)
             current_w2c = well_dict[wname]["w2c"]
-            new_cells = w2c["Cell"]
-            current_cells = current_w2c["Cell"]
+            current_uids = current_w2c["UniqueID"]
+            uid_pos_in_current = Int[]
             n_added = 0
-            cell_pos_in_current = Int[]
             is_new = Bool[]
-            for c in new_cells
-                pos = findfirst(x -> x == c, current_cells)
+            for uid in w2c["UniqueID"]
+                pos = findfirst(x -> x == uid, current_uids)
                 if isnothing(pos)
-                    push!(current_cells, c)
+                    push!(current_uids, uid)
                     n_added += 1
-                    new_idx = length(current_cells)
+                    new_idx = length(current_uids)
                     push!(is_new, true)
                 else
                     new_idx = pos
                     push!(is_new, false)
                 end
-                push!(cell_pos_in_current, new_idx)
+                push!(uid_pos_in_current, new_idx)
             end
             if n_added > 0
                 missing_fields = setdiff(keys(current_w2c), keys(w2c))
                 if length(missing_fields) > 0
                     @warn "New WellDef entry for well $wname has new cells but is missing fields $(missing_fields). These will be filled with UNINITIALIZED values and may lead to a crash if used. Please check the AFI file for consistency."
                 end
+                nuid = length(current_uids)
                 for (k, v) in pairs(current_w2c)
-                    if k == "Cell"
+                    if k == "UniqueID"
                         continue
                     end
-                    resize!(v, length(current_cells))
+                    function get_value(i)
+                        # Pad with missing
+                        if i <= length(v)
+                            out = v[i]
+                        else
+                            out = missing
+                        end
+                        return out
+                    end
+                    current_w2c[k] = map(get_value, 1:nuid)
                 end
             end
-
+            @assert length(uid_pos_in_current) == length(w2c["UniqueID"])
             for (k, v) in pairs(w2c)
                 if k in ("Transmissibility", "Status", "PiMultiplier")
                     # These can vary over time - we skip these
@@ -66,20 +85,19 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
                         end
                         msg = ""
                         for (i, v) in enumerate(new_value)
-                            current_i = cell_pos_in_current[i]
+                            current_i = uid_pos_in_current[i]
                             if is_new[i]
                                 # This is a new cell - we take the new value
                                 old_value[current_i] = v
                                 continue
                             end
                             ov = old_value[current_i]
+                            uid = current_uids[current_i]
                             if ov isa Real && ov ≈ 0.0 && !(v ≈ 0.0)
                                 # Old value was set to zero - we accept the new value
                                 old_value[i] = v
-                            elseif v isa Real && !isapprox(v, ov, rtol = 1e-6) && !(k == "WellBoreRadius" && v ≈ 0.0)
-                                msg *= " Index $i: old=$(ov) vs new=$v\n"
-                            elseif v isa String && v != ov
-                                msg *= " Index $i: old=$(ov) vs new=$v\n"
+                            elseif (v isa Real && !isapprox(v, ov, rtol = 1e-6) && !(k == "WellBoreRadius" && v ≈ 0.0)) || (v isa String && v != ov)
+                                msg *= " Index $i cell-completion $uid: old=$(ov) vs new=$v\n"
                             end
                         end
                         if msg != ""
@@ -203,9 +221,16 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
         compnames = compnames[active]
         worder = get(perf_sort, k, :track)
         sorted_ix = JutulDarcy.well_completion_sortperm(reservoir, head, worder, cells_mapped, dir)
-        reorder_and_typecheck(::Missing, T = missing) = missing
-        function reorder_and_typecheck(arr::AbstractVector, T = missing)
+        function reorder_and_typecheck(::Missing, T = missing, default = missing)
+            return missing
+        end
+        function reorder_and_typecheck(arr::AbstractVector, T = missing, default = missing)
             out = arr[sorted_ix]
+            for (i, v) in enumerate(out)
+                if ismissing(v)
+                    out[i] = default
+                end
+            end
             if ismissing(T)
                 out = out
             else
@@ -216,10 +241,10 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
 
         cells_mapped = cells_mapped[sorted_ix]
         skin = reorder_and_typecheck(skin, Float64)
-        WI = reorder_and_typecheck(WI, Float64)
+        WI = reorder_and_typecheck(WI, Float64, NaN)
         Kh = reorder_and_typecheck(Kh, Float64)
         r = reorder_and_typecheck(r, Float64)
-        pi_mult = reorder_and_typecheck(pi_mult, Float64)
+        pi_mult = reorder_and_typecheck(pi_mult, Float64, 1.0)
         # Not necessarily Float64
         dir = reorder_and_typecheck(dir)
         tvd = reorder_and_typecheck(tvd)
