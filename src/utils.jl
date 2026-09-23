@@ -21,13 +21,6 @@ function reservoir_model(case::JutulCase; kwarg...)
     return reservoir_model(case.model; kwarg...)
 end
 
-function reservoir_model(model::Jutul.CompositeModel; type = missing)
-    if !ismissing(type)
-        model = Jutul.composite_submodel(model, type)
-    end
-    return model
-end
-
 """
     rstorage = reservoir_storage(model, storage)
 
@@ -1628,8 +1621,6 @@ end
 
 function setup_reservoir_cross_terms!(model::MultiModel)
     rmodel = reservoir_model(model)
-    has_composite = rmodel isa Jutul.CompositeModel
-
     has_flow = rmodel.system isa MultiPhaseSystem
     has_thermal = haskey(rmodel.equations, :energy_conservation)
     conservation = :mass_conservation
@@ -1852,26 +1843,6 @@ function setup_reservoir_forces(model::MultiModel;
             end
         end
         out = setup_forces(model; pairs(new_forces)..., kwarg..., Reservoir = reservoir_forces)
-    end
-    # If the model is a composite model we need to do some extra work to pass on
-    # flow forces with the correct label.
-    #
-    # TODO: At the moment we have no mechanism for setting up forces for thermal
-    # specifically.
-    for (k, m) in pairs(submodels)
-        f = out[k]
-        if m isa Jutul.CompositeModel
-            mkeys = keys(m.system.systems)
-            if haskey(f, :flow) && haskey(f, :thermal)
-                tmp = f
-            else
-                tmp = Dict{Symbol, Any}()
-                for mk in mkeys
-                    tmp[mk] = nothing
-                end
-            end
-            out[k] = (; pairs(tmp)...)
-        end
     end
     return out
 end

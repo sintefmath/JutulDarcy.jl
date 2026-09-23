@@ -148,7 +148,7 @@ function CPRPreconditioner(p = reservoir_system_amg(), s = ILUZeroPreconditioner
 end
 
 function update_preconditioner!(cpr::CPRPreconditioner, lsys::Jutul.JutulLinearSystem, ctx_outer, model, storage, recorder, executor; update_system_precond = true, T = eltype(Jutul.vector_residual(lsys)))
-    rmodel = reservoir_model(model, type = :flow)
+    rmodel = reservoir_model(model)
     ctx = rmodel.context
     update_p, update_p_partial = update_cpr_internals!(
         cpr, lsys, model, storage, recorder, executor, T)
@@ -308,7 +308,7 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
     do_p_update = should_update_cpr(cpr, recorder, :amg)
     do_p_update_partial = !do_p_update && should_update_cpr(cpr, recorder, :partial)
     A = reservoir_jacobian(lsys)
-    rmodel = reservoir_model(model, type = :flow)
+    rmodel = reservoir_model(model)
     bz = number_of_components(rmodel.system)
     initialize_cpr_storage!(cpr, model, lsys, bz, T)
     ps = rmodel.primary_variables[:Pressure].scale
