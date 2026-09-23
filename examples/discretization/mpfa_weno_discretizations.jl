@@ -197,7 +197,7 @@ function compare_contours(name1, name2, title)
         colormap = :seismic,
         label = name2,
         levels = range(-1, 1, length = 10),
-        colorscale = (-1.0, 1.0)
+        colorrange = (-1.0, 1.0)
     )
     Colorbar(fig[1, 3], limits = (-1, 1), colormap = :seismic)
     Colorbar(fig[2, 1:3], limits = (-1, 1), colormap = cmp, vertical = false)
