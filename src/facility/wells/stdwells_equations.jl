@@ -1,12 +1,23 @@
+function Jutul.setup_storage_system!(storage, model::StandardWellFlowModel, system::SimpleWellSystem)
+    number_of_residuals = length(storage.state.TotalMasses)
+    storage[:well_convergence_names] = ["M$i" for i in 1:number_of_residuals]
+    return storage
+end
+
 function Jutul.convergence_criterion(model::StandardWellFlowModel, storage, eq::ConservationLaw{:TotalMasses}, eq_s, r; dt = 1, update_report = missing)
     vol = storage.state.FluidVolume
     scale = 0.1
+    # Reports retain the errors from each iteration, so keep one copy of the
+    # residual and perform all scaling on that copy.
+    e = copy(vec(r))
     if ndims(r) == 1
-        e = scale .* abs.(r) .* dt ./ value.(vol)
+        @. e = scale*abs(e)*dt/value(vol)
     else
-        e = vec(scale .* abs.(r) .* dt ./ reshape(value.(vol), 1, :))
+        errors_by_cell = reshape(e, size(r))
+        volumes_by_cell = reshape(vol, 1, :)
+        @. errors_by_cell = scale*abs(errors_by_cell)*dt/value(volumes_by_cell)
     end
-    R = (CNV = (errors = e, names = map(x -> "M$x", eachindex(e))), )
+    R = (CNV = (errors = e, names = storage.well_convergence_names), )
     return R
 end
 

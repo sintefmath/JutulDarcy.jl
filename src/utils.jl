@@ -312,11 +312,19 @@ function get_model_wells(model::MultiModel; data_domain = false)
             wd = m.data_domain
             w = physical_representation(wd)
             if !(w isa Union{SimpleWell, MultiSegmentWell}) || isnothing(w.multiwell)
-                wells[k] = data_domain ? wd : w
+                if data_domain
+                    wells[k] = wd
+                else
+                    wells[k] = w
+                end
             else
                 for (i, name) in enumerate(w.multiwell.names)
                     d = w.multiwell.domains[i]
-                    wells[name] = data_domain ? d : physical_representation(d)
+                    if data_domain
+                        wells[name] = d
+                    else
+                        wells[name] = physical_representation(d)
+                    end
                 end
             end
         end
@@ -1636,34 +1644,34 @@ function setup_reservoir_cross_terms!(model::MultiModel)
         elseif m.domain isa WellGroup
             well_groups = Dict{Symbol, Vector{Symbol}}()
             for target_well in m.domain.well_symbols
-                source_well = WellMerging.merged_well_key(model, target_well)
-                names = get!(well_groups, source_well, Symbol[])
+                resolved_target_well = WellMerging.merged_well_key(model, target_well)
+                names = get!(well_groups, resolved_target_well, Symbol[])
                 push!(names, target_well)
             end
-            for (source_well, names) in pairs(well_groups)
-                source_model = model.models[source_well]
-                source_domain = physical_representation(source_model)
+            for (resolved_target_well, names) in pairs(well_groups)
+                resolved_target_model = model.models[resolved_target_well]
+                resolved_target_domain = physical_representation(resolved_target_model)
                 facility_cells = [get_well_position(m.domain, name) for name in names]
-                well_cells = [WellMerging.well_top_node(source_domain, name) for name in names]
+                well_cells = [WellMerging.well_top_node(resolved_target_domain, name) for name in names]
                 if has_flow
                     ct = WellFromFacilityFlowCT(names, facility_cells, well_cells)
-                    add_cross_term!(model, ct, target = source_well, source = k, equation = conservation)
+                    add_cross_term!(model, ct, target = resolved_target_well, source = k, equation = conservation)
 
                     ct = FacilityFromWellBottomHolePressureCT(names, facility_cells, well_cells)
-                    add_cross_term!(model, ct, target = k, source = source_well, equation = :bottom_hole_pressure_equation)
+                    add_cross_term!(model, ct, target = k, source = resolved_target_well, equation = :bottom_hole_pressure_equation)
 
                     ct = FacilityFromSurfaceComponentRatesCT(names, facility_cells, well_cells)
-                    add_cross_term!(model, ct, target = k, source = source_well, equation = :surface_component_rates_equation)
+                    add_cross_term!(model, ct, target = k, source = resolved_target_well, equation = :surface_component_rates_equation)
                 end
                 if has_thermal
                     ct = WellFromFacilityThermalCT(names, facility_cells, well_cells)
-                    add_cross_term!(model, ct, target = source_well, source = k, equation = energy)
+                    add_cross_term!(model, ct, target = resolved_target_well, source = k, equation = energy)
 
                     ct = FacilityFromWellTemperatureCT(names, facility_cells, well_cells)
-                    add_cross_term!(model, ct, target = k, source = source_well, equation = :temperature_equation)
+                    add_cross_term!(model, ct, target = k, source = resolved_target_well, equation = :temperature_equation)
 
                     ct = FacilityFromWellEnthalpyCT(names, facility_cells, well_cells)
-                    add_cross_term!(model, ct, target = k, source = source_well, equation = :enthalpy_equation)
+                    add_cross_term!(model, ct, target = k, source = resolved_target_well, equation = :enthalpy_equation)
                 end
             end
         else
@@ -1912,8 +1920,11 @@ Get a specific well output from a valid operational target once a simulation is 
 function well_output(model::MultiModel, states, well_symbol, forces, target = BottomHolePressureTarget)
     n = length(states)
 
-    well_number = haskey(model.models, :Facility) ?
-        get_well_position(model.models[:Facility].domain, well_symbol) : 1
+    if haskey(model.models, :Facility)
+        well_number = get_well_position(model.models[:Facility].domain, well_symbol)
+    else
+        well_number = 1
+    end
     well_key = WellMerging.merged_well_key(model, well_symbol)
     well_model = model.models[well_key]
     top_node = WellMerging.well_top_node(physical_representation(well_model), well_symbol)

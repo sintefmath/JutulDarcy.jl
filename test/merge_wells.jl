@@ -25,7 +25,7 @@ using Jutul, JutulDarcy, Test
     forces[:SegmentProducer] = setup_forces(model[:SegmentProducer],
         mask = PerforationMask([1.0, 0.5, 1.0]))
     case = JutulCase(model, [si_unit(:day)], forces, state0 = state0)
-    merged = merge_similar_wells(case)
+    merged = JutulDarcy.merge_similar_wells(case)
     @test Set(well_symbols(merged.model)) == Set(keys(controls))
     @test length(merged.model.models) == length(model.models) - 2
     @test physical_representation(merged.model.models[:SimpleWells]).multiwell.top_nodes == [1, 2]
@@ -51,6 +51,27 @@ using Jutul, JutulDarcy, Test
     end
     @test merged.state0[:SimpleWells][:Pressure] ==
         [state0[:SimpleProducer][:Pressure]; state0[:SimpleInjector][:Pressure]]
+    well_domain = merged.model.models[:SimpleWells].data_domain
+    well_model = SimulationModel(well_domain, JutulDarcy.SimpleWellSystem(sys))
+    mass_equation = well_model.equations[:mass_conservation]
+    convergence_storage = (
+        state = (FluidVolume = [2.0, 4.0],),
+        well_convergence_names = ["M1", "M2", "M3", "M4"],
+    )
+    residual = [1.0 2.0; -3.0 4.0]
+    criterion = Jutul.convergence_criterion(well_model, convergence_storage,
+        mass_equation, nothing, residual; dt = 2.0)
+    @test criterion.CNV.errors ≈ [0.1, 0.3, 0.1, 0.2]
+    @test residual == [1.0 2.0; -3.0 4.0]
+    residual .= 0.0
+    @test criterion.CNV.errors ≈ [0.1, 0.3, 0.1, 0.2]
+    vector_storage = (
+        state = convergence_storage.state,
+        well_convergence_names = ["M1", "M2"],
+    )
+    vector_criterion = Jutul.convergence_criterion(well_model,
+        vector_storage, mass_equation, nothing, [1.0, -2.0]; dt = 2.0)
+    @test vector_criterion.CNV.errors ≈ [0.1, 0.1]
     fresh = setup_reservoir_state(merged.model, Pressure = 200bar,
         Saturations = [0.8, 0.2])
     @test fresh[:Facility][:BottomHolePressure] == state0[:Facility][:BottomHolePressure]
@@ -105,12 +126,12 @@ end
             [1.0, 0.0], density = 1000.0),
     )
     forces = setup_reservoir_forces(model, control = controls)
-    case = merge_similar_wells(JutulCase(model, [si_unit(:day)], forces, state0 = state0))
+    case = JutulDarcy.merge_similar_wells(JutulCase(model, [si_unit(:day)], forces, state0 = state0))
     cpu_model = setup_reservoir_model(domain, sys, wells = wells, block_backend = false)
     cpu_state0 = setup_reservoir_state(cpu_model, Pressure = 200bar,
         Saturations = [0.8, 0.2])
     cpu_forces = setup_reservoir_forces(cpu_model, control = controls)
-    cpu_case = merge_similar_wells(JutulCase(cpu_model, [si_unit(:day)],
+    cpu_case = JutulDarcy.merge_similar_wells(JutulCase(cpu_model, [si_unit(:day)],
         cpu_forces, state0 = cpu_state0))
     cpu = simulate_reservoir(cpu_case, precond = :cprw, info_level = -1)
     ka = simulate_reservoir(case, mode = :ka, precond = :cprw, info_level = -1)
@@ -149,7 +170,7 @@ end
     )
     forces = setup_reservoir_forces(model, control = controls)
     case = JutulCase(model, [si_unit(:day)], forces, state0 = state0)
-    merged = merge_similar_wells(case)
+    merged = JutulDarcy.merge_similar_wells(case)
     multiwell = physical_representation(merged.model.models[:SimpleWells]).multiwell
     term_locations = (
         (JutulDarcy.WellFromFacilityThermalCT, :SimpleWells, :Facility),

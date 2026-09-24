@@ -12,8 +12,6 @@ import ..JutulDarcy:
     FacilityFromWellTemperatureCT, FacilityFromWellEnthalpyCT,
     setup_reservoir_cross_terms!
 
-export merge_similar_wells
-
 """
     merge_similar_wells(case::JutulCase)
 
