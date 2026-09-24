@@ -314,7 +314,7 @@ function forces_from_constraints(well_setup, observation_data, streams, date, sy
         if status == GeoEnergyIO.IXParser.IX_OPEN || status == "OPEN" || has_history
             if has_history
                 hist_ctrl = wsetup["HistoricalControlModes"]
-                ctrl_type, val, wtype = setup_history_control(hist_ctrl, wname, wtype, wsetup, observation_data, t_since_start_before_step, dt)
+                ctrl_type, val, wtype = setup_history_control(hist_ctrl, wname, wtype, wsetup, observation_data, t_since_start_before_step, c, dt)
             else
                 ctrl_type, val, wtype = setup_constraint_control(c, wtype)
             end
@@ -446,7 +446,7 @@ function setup_constraint_control(c, wtype)
     return (ctrl_type, val, wtype)
 end
 
-function setup_history_control(hist_ctrl, wname, wtype, wsetup, observation_data, t_since_start, dt)
+function setup_history_control(hist_ctrl, wname, wtype, wsetup, observation_data, t_since_start, constraints, dt)
     if ismissing(hist_ctrl)
         if wtype == "producer"
             hmode = "LIQUID_PRODUCTION_RATE"
@@ -477,6 +477,14 @@ function setup_history_control(hist_ctrl, wname, wtype, wsetup, observation_data
         end
         return integrated_rate/dt
     end
+    function get_constraint_value(k)
+        # Constraints override the integrated rate from observation data
+        cval = get(constraints, k, 0.0)
+        if cval == 0.0
+            cval = integrate_rate(k)
+        end
+        return cval
+    end
     ismissing(observation_data) && error("Observation data is required for HistoricalControlModes")
     maybe_ctrl(x, T) = ifelse(x ≈ 0.0, DisabledControl(), T(x))
     obs = get(observation_data[wsetup["HistoryDataControl"]]["wells_interp"], wname, missing)
@@ -492,35 +500,34 @@ function setup_history_control(hist_ctrl, wname, wtype, wsetup, observation_data
         if hmode == "RES_VOLUME_INJECTION_RATE"
             # println("RES_VOLUME_INJECTION_RATE handling not implemented yet, switching to rate constraint.")
             if wtype == "water_injector"
-                ctrl_type, val, wtype = setup_history_control("WATER_INJECTION_RATE", wname, wtype, wsetup, observation_data, t_since_start, dt)
+                ctrl_type, val, wtype = setup_history_control("WATER_INJECTION_RATE", wname, wtype, wsetup, observation_data, t_since_start, constraints, dt)
             elseif wtype == "gas_injector"
-                ctrl_type, val, wtype = setup_history_control("GAS_INJECTION_RATE", wname, wtype, wsetup, observation_data, t_since_start, dt)
+                ctrl_type, val, wtype = setup_history_control("GAS_INJECTION_RATE", wname, wtype, wsetup, observation_data, t_since_start, constraints, dt)
             else
                 error("Unsupported well type '$wtype' for RES_VOLUME_INJECTION_RATE historical control for well '$wname'")
             end
         elseif hmode == "GAS_INJECTION_RATE"
             ctrl_type = :grat
-            val = integrate_rate("GAS_INJECTION_RATE")
+            val = get_constraint_value("GAS_INJECTION_RATE")
             wtype = "gas_injector"
         elseif hmode == "WATER_INJECTION_RATE"
             ctrl_type = :wrat
-            val = integrate_rate("WATER_INJECTION_RATE")
+            val = get_constraint_value("WATER_INJECTION_RATE")
             wtype = "water_injector"
         elseif hmode == "LIQUID_PRODUCTION_RATE"
             ctrl_type = :lrat
-            val = -integrate_rate("LIQUID_PRODUCTION_RATE")
+            val = -get_constraint_value("LIQUID_PRODUCTION_RATE")
         elseif hmode == "GAS_PRODUCTION_RATE"
-            val = -integrate_rate("GAS_PRODUCTION_RATE")
+            val = -get_constraint_value("GAS_PRODUCTION_RATE")
             ctrl_type = :grat
         elseif hmode == "RES_VOLUME_PRODUCTION_RATE"
-            # println("RES_VOLUME_PRODUCTION_RATE handling not implemented yet, switching to LIQUID_PRODUCTION_RATE.")
-            ctrl_type, val, wtype = setup_history_control("LIQUID_PRODUCTION_RATE", wname, wtype, wsetup, observation_data, t_since_start, dt)
+            ctrl_type, val, wtype = setup_history_control("LIQUID_PRODUCTION_RATE", wname, wtype, wsetup, observation_data, t_since_start, constraints, dt)
         elseif hmode == "LIQUID_PRODUCTION_RATE"
             ctrl_type = :lrat
-            val = -integrate_rate("LIQUID_PRODUCTION_RATE")
+            val = -get_constraint_value("LIQUID_PRODUCTION_RATE")
         elseif hmode == "OIL_PRODUCTION_RATE"
             ctrl_type = :orat
-            val = -integrate_rate("OIL_PRODUCTION_RATE")
+            val = -get_constraint_value("OIL_PRODUCTION_RATE")
         else
             error("Unsupported HistoricalControlModes '$hmode' for well '$wname'")
         end
