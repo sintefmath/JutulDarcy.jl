@@ -8,7 +8,7 @@ import ..JutulDarcy:
     add_thermal_to_model!, transfer_variables_and_parameters!,
     ReservoirFromWellFlowCT, ReservoirFromWellThermalCT,
     WellFromFacilityFlowCT, WellFromFacilityThermalCT,
-    FacilityFromWellBottomHolePressureCT, FacilityFromSurfaceComponentRatesCT,
+    FacilityFromWellBottomHolePressureCT, FacilityFromWellSurfaceComponentRatesCT,
     FacilityFromWellTemperatureCT, FacilityFromWellEnthalpyCT,
     setup_reservoir_cross_terms!
 
@@ -170,7 +170,7 @@ is_standard_well_cross_term(ct) = ct isa Union{
     ReservoirFromWellFlowCT, ReservoirFromWellThermalCT,
     WellFromFacilityFlowCT, WellFromFacilityThermalCT,
     FacilityFromWellBottomHolePressureCT,
-    FacilityFromSurfaceComponentRatesCT,
+    FacilityFromWellSurfaceComponentRatesCT,
     FacilityFromWellTemperatureCT, FacilityFromWellEnthalpyCT}
 
 function merge_well_domains(domains, name)

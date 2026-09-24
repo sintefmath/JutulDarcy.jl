@@ -492,19 +492,19 @@ function update_cross_term_in_entity!(out, i,
     out[1] = -P*eq.scale
 end
 
-struct FacilityFromSurfaceComponentRatesCT <: Jutul.AdditiveCrossTerm
+struct FacilityFromWellSurfaceComponentRatesCT <: Jutul.AdditiveCrossTerm
     wells::Vector{Symbol}
     facility_cells::Vector{Int}
     well_cells::Vector{Int}
 end
 
-Jutul.cross_term_entities(ct::FacilityFromSurfaceComponentRatesCT, eq::SurfaceComponentRatesEquation, model) = ct.facility_cells
+Jutul.cross_term_entities(ct::FacilityFromWellSurfaceComponentRatesCT, eq::SurfaceComponentRatesEquation, model) = ct.facility_cells
 
 function update_cross_term_in_entity!(out, i,
     state_facility, state0_facility,
     state_well, state0_well,
     facility, well,
-    ct::FacilityFromSurfaceComponentRatesCT, eq::SurfaceComponentRatesEquation, dt, ldisc = local_discretization(ct, i))
+    ct::FacilityFromWellSurfaceComponentRatesCT, eq::SurfaceComponentRatesEquation, dt, ldisc = local_discretization(ct, i))
 
     well_symbol = ct.wells[i]
     pos = ct.facility_cells[i]

@@ -37,7 +37,7 @@ using Jutul, JutulDarcy, Test
         term_locations = (
             (JutulDarcy.WellFromFacilityFlowCT, source, :Facility),
             (JutulDarcy.FacilityFromWellBottomHolePressureCT, :Facility, source),
-            (JutulDarcy.FacilityFromSurfaceComponentRatesCT, :Facility, source),
+            (JutulDarcy.FacilityFromWellSurfaceComponentRatesCT, :Facility, source),
         )
         for (ct_type, target, source_model) in term_locations
             terms = [pair.cross_term for pair in merged.model.cross_terms
