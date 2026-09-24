@@ -591,7 +591,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
                     w_domain[propk] = reservoir[propk][c]
                 end
             end
-            wmodel = SimulationModel(w_domain, system, context = well_context)
+            wmodel = SimulationModel(w_domain, wsys, context = well_context)
             if thermal
                 wmodel = add_thermal_to_model!(wmodel)
             end
