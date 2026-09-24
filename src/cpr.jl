@@ -576,19 +576,20 @@ function update_weights!(cpr, cpr_storage::CPRStorage, model, storage, J, ps)
         scaling = cpr.weight_scaling
         @assert !isnothing(wr_map)
         r = cpr_storage.w_rhs
-        for i in 1:(np-last_porous_media_index)
-            wno = last_porous_media_index+i
-            w_i = view(w, :, wno)
-            well = wr_map.wells[i]
+        for (well, well_range) in zip(wr_map.wells, wr_map.well_ranges)
+            first_column = last_porous_media_index + first(well_range)
+            last_column = last_porous_media_index + last(well_range)
+            w_i = view(w, :, first_column:last_column)
+            nwell_cells = length(well_range)
             wstate = storage[well].state
             if cpr.strategy == :analytical
                 update_analytical_cpr_weights!(
-                    w_i, rmodel, wstate, nothing, 1, ncomp, scaling,
+                    w_i, rmodel, wstate, nothing, nwell_cells, ncomp, scaling,
                     rmodel.context)
             else
                 acc_i = wstate.TotalMasses
                 update_true_impes_weights!(
-                    w_i, acc_i, r, 1, ncomp, ps, scaling,
+                    w_i, acc_i, r, nwell_cells, ncomp, ps, scaling,
                     rmodel.context)
             end
         end
@@ -931,14 +932,18 @@ cpr_host_matrix(matrix) = matrix
 function cpr_construct_well_reservoir_map(model::MultiModel, lsys, bz)
     num_simple_wells = 0
     simple_well_keys = Symbol[]
+    well_ranges = UnitRange{Int}[]
     for (k, m) in pairs(model.models)
         if k == :Reservoir
             continue
         end
         stop = true
         if model_or_domain_is_well(m)
-            if physical_representation(m.domain) isa SimpleWell
-                num_simple_wells += 1
+            w = physical_representation(m.domain)
+            if w isa SimpleWell
+                n = number_of_cells(w)
+                push!(well_ranges, (num_simple_wells + 1):(num_simple_wells + n))
+                num_simple_wells += n
                 push!(simple_well_keys, k)
                 stop = false
             end
@@ -948,31 +953,36 @@ function cpr_construct_well_reservoir_map(model::MultiModel, lsys, bz)
         end
     end
 
-    function weq_positions(J, cell_i, cell_j, ::Val{bz}, layout) where bz
+    function weq_positions(J, cell_i, cell_j, row_index, column_index,
+            ::Val{bz}, layout) where bz
         out = @MMatrix zeros(Int64, bz, bz)
         for eq in 1:bz
             for der in 1:bz
-                out[eq, der] = find_sparse_position(J, cell_i+eq-1, cell_j+der-1, layout)
+                row = row_index(cell_i, eq)
+                column = column_index(cell_j, der)
+                out[eq, der] = find_sparse_position(J, row, column, layout)
             end
         end
         return SMatrix{bz, bz, Int64, bz*bz}(out)
     end
 
-    function well_positions(wcells, wperf, lsys_block::Jutul.LinearizedBlock{R}, bz) where R
+    function well_positions(wcells, wperf, lsys_block::Jutul.LinearizedBlock{R},
+            row_index, column_index, bz) where R
         vbz = Val(bz)
         layout = R()
         jacobian = cpr_host_matrix(lsys_block.jac)
         return map(i -> weq_positions(jacobian,
-            bz*(wcells[i]-1)+1, bz*(wperf[i]-1)+1, vbz, layout),
+            wcells[i], wperf[i], row_index, column_index, vbz, layout),
             eachindex(wcells))
     end
 
-    function well_positions(wcells, wperf, lsys::LinearizedSystem, bz)
+    function well_positions(wcells, wperf, lsys::LinearizedSystem,
+            row_index, column_index, bz)
         vbz = Val(bz)
         layout = lsys.matrix_layout
         jacobian = cpr_host_matrix(lsys.jac)
         return map(i -> weq_positions(jacobian,
-            bz*(wcells[i]-1)+1, bz*(wperf[i]-1)+1, vbz, layout),
+            wcells[i], wperf[i], row_index, column_index, vbz, layout),
             eachindex(wcells))
     end
 
@@ -984,6 +994,7 @@ function cpr_construct_well_reservoir_map(model::MultiModel, lsys, bz)
     ncell = size(J_rr, 1)
 
     bz = bz + model_is_thermal(reservoir_model(model))
+    reservoir_index(cell, component) = bz*(cell - 1) + component
     well_cells = Vector{Int64}[]
     map_T = Vector{Vector{SMatrix{bz, bz, Int64, bz*bz}}}
     map_12 = map_T()
@@ -991,33 +1002,41 @@ function cpr_construct_well_reservoir_map(model::MultiModel, lsys, bz)
     map_22 = map_T()
     map_well = map_T()
 
-    for (i, k) in enumerate(simple_well_keys)
+    for (group, k) in enumerate(simple_well_keys)
         wmodel = model.models[k]
-        # layout = matrix_layout(wmodel.context)
         w = physical_representation(wmodel.domain)
+        nwell_cells = length(well_ranges[group])
+        model_offset = bz*(first(well_ranges[group]) - 1)
+        well_layout = matrix_layout(wmodel.context)
+        well_index(cell, component) = model_offset +
+            Jutul.alignment_linear_index(cell, component, nwell_cells, bz, well_layout)
         # This map is constructed once on the host. The completed index arrays
         # are moved to the execution backend by prepare_cprw_backend_maps!.
-        wc = Array(w.perforations.reservoir)
-        push!(well_cells, wc)
+        perforations = w.perforations
+        cells_by_node = [Int[] for _ in well_ranges[group]]
+        for (node, cell) in zip(Array(perforations.self), Array(perforations.reservoir))
+            push!(cells_by_node[node], cell)
+        end
+        for (local_node, i) in enumerate(well_ranges[group])
+            wc = cells_by_node[local_node]
+            push!(well_cells, wc)
+            # Reservoir differentiated with respect to wells
+            push!(map_12, well_positions(wc, fill(local_node, length(wc)),
+                lsys[1, 2], reservoir_index, well_index, bz))
+            # Wells differentiated with respect to reservoir
+            push!(map_21, well_positions(fill(local_node, length(wc)), wc,
+                lsys[2, 1], well_index, reservoir_index, bz))
+            # Wells differentiated with respect to wells
+            push!(map_22, well_positions([local_node], [local_node],
+                lsys[2, 2], well_index, well_index, bz))
+            # Extend sparsity to include well cells
+            for c in wc
+                push!(I, c)
+                push!(J, i + ncell)
 
-        wno = fill(i, length(wc))
-        # Reservoir differentiated with respect to wells
-        pos_12 = well_positions(wc, wno, lsys[1, 2], bz)
-        push!(map_12, pos_12)
-        # Wells differentiated with respect to reservoir
-        pos_21 = well_positions(wno, wc, lsys[2, 1], bz)
-        push!(map_21, pos_21)
-        # Wells differentiated with respect to wells
-        pos_22 = well_positions([i], [i], lsys[2, 2], bz)
-        push!(map_22, pos_22)
-        # Extend sparsity to include well cells
-        for c in wc
-            push!(I, c)
-            push!(J, i + ncell)
-
-            push!(J, c)
-            push!(I, i + ncell)
-
+                push!(J, c)
+                push!(I, i + ncell)
+            end
             push!(I, i + ncell)
             push!(J, i + ncell)
         end
@@ -1030,6 +1049,7 @@ function cpr_construct_well_reservoir_map(model::MultiModel, lsys, bz)
 
     well_reservoir_map = (
         wells = simple_well_keys,
+        well_ranges = well_ranges,
         I = I,
         J = J,
         np = ncell + num_simple_wells,

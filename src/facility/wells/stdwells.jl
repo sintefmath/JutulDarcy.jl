@@ -110,6 +110,7 @@ end
 function update_before_step_well!(well_state,
         well_model::SimpleWellFlowModel,
         res_state, res_model, ctrl, mask;
+        well_symbol = physical_representation(well_model).name,
         update_explicit = true,
         backend_well_state = well_state,
         backend_well_model = well_model,
@@ -121,11 +122,11 @@ function update_before_step_well!(well_state,
                 well_state.ConnectionPressureDrop,
                 backend_well_state, backend_well_model,
                 backend_reservoir_state, backend_reservoir_model,
-                ctrl, mask)
+                ctrl, mask, well_symbol)
         else
             update_connection_pressure_drop!(
                 well_state.ConnectionPressureDrop,
-                well_state, well_model, res_state, res_model, ctrl, mask)
+                well_state, well_model, res_state, res_model, ctrl, mask, well_symbol)
         end
     end
     return nothing
@@ -133,14 +134,15 @@ end
 
 function update_connection_pressure_drop!(
         dp, well_state, well_model, res_state, res_model,
-        ctrl::InjectorControl, mask)
+        ctrl::InjectorControl, mask, well_symbol)
     phases = ctrl.phases
-    perf = physical_representation(well_model.domain).perforations
-    res_cells = perf.reservoir
-    gdz = well_state.PerforationGravityDifference
+    well = physical_representation(well_model)
+    pr = WellMerging.well_perforations(well, well_symbol)
+    res_cells = @view well.perforations.reservoir[pr]
+    gdz = @view well_state.PerforationGravityDifference[pr]
     ρ = res_state.PhaseMassDensities
     return update_injector_connection_pressure_drop!(
-        dp, phases, res_cells, gdz, ρ)
+        view(dp, pr), phases, res_cells, gdz, ρ)
 end
 
 function update_injector_connection_pressure_drop!(
@@ -170,28 +172,32 @@ function update_injector_connection_pressure_drop!(
 end
 
 function update_connection_pressure_drop!(
-        dp, well_state, well_model, res_state, res_model, ctrl, mask)
+        dp, well_state, well_model, res_state, res_model, ctrl, mask, well_symbol)
     # Well is either disabled or producing. Loop over well from the bottom,
     # aggregating mixture density as we go. Then traverse down from the top and
     # accumulate the actual pressure drop due to hydrostatic assumptions.
     well = physical_representation(well_model)
-    perf = well.perforations
-    res_cells = perf.reservoir
-    gdz = well_state.PerforationGravityDifference
-    WI = well_state.WellIndices
+    pr = WellMerging.well_perforations(well, well_symbol)
+    cell = WellMerging.well_top_node(well, well_symbol)
+    res_cells = @view well.perforations.reservoir[pr]
+    gdz = @view well_state.PerforationGravityDifference[pr]
+    WI = @view well_state.WellIndices[pr]
     ρ = res_state.PhaseMassDensities
     mob = res_state.PhaseMobilities
     p = res_state.Pressure
     well_pressure = well_state.Pressure
     mask_values = connection_pressure_drop_mask_values(mask)
+    if !isnothing(mask_values)
+        mask_values = @view mask_values[pr]
+    end
     return update_producer_connection_pressure_drop!(
-        dp, res_cells, gdz, WI, ρ, mob, p, well_pressure, mask_values)
+        view(dp, pr), res_cells, gdz, WI, ρ, mob, p, well_pressure, mask_values, cell)
 end
 
 function update_producer_connection_pressure_drop!(
-        dp, res_cells, gdz, WI, ρ, mob, p, well_pressure, mask_values)
+        dp, res_cells, gdz, WI, ρ, mob, p, well_pressure, mask_values, cell = 1)
     T = eltype(dp)
-    bhp = value(well_pressure[1])
+    bhp = value(well_pressure[cell])
     # Integrate up, adding weighted density into well bore and keeping track of
     # current weight. Initialize by a simple average first.
     mobility_density_sum = zero(T)
@@ -266,17 +272,18 @@ end
 
 function update_connection_pressure_drop_backend!(
         host_dp, well_state, well_model, res_state, res_model,
-        ctrl::InjectorControl, mask)
+        ctrl::InjectorControl, mask, well_symbol)
     context = res_model.context
     dp = well_state.ConnectionPressureDrop
-    perf = physical_representation(well_model.domain).perforations
-    res_cells = perf.reservoir
-    gdz = well_state.PerforationGravityDifference
+    well = physical_representation(well_model)
+    pr = WellMerging.well_perforations(well, well_symbol)
+    res_cells = @view well.perforations.reservoir[pr]
+    gdz = @view well_state.PerforationGravityDifference[pr]
     ρ = res_state.PhaseMassDensities
     phases = Tuple(ctrl.phases)
     function update_pressure_drop(_)
         update_injector_connection_pressure_drop!(
-            dp, phases, res_cells, gdz, ρ)
+            view(dp, pr), phases, res_cells, gdz, ρ)
         return nothing
     end
     Jutul.threaded_loop(update_pressure_drop, 1, context)
@@ -287,22 +294,27 @@ end
 
 function update_connection_pressure_drop_backend!(
         host_dp, well_state, well_model, res_state, res_model,
-        ctrl, mask)
+        ctrl, mask, well_symbol)
     context = res_model.context
     dp = well_state.ConnectionPressureDrop
-    perf = physical_representation(well_model).perforations
-    res_cells = perf.reservoir
-    gdz = well_state.PerforationGravityDifference
-    WI = well_state.WellIndices
+    well = physical_representation(well_model)
+    pr = WellMerging.well_perforations(well, well_symbol)
+    cell = WellMerging.well_top_node(well, well_symbol)
+    res_cells = @view well.perforations.reservoir[pr]
+    gdz = @view well_state.PerforationGravityDifference[pr]
+    WI = @view well_state.WellIndices[pr]
     ρ = res_state.PhaseMassDensities
     mob = res_state.PhaseMobilities
     p = res_state.Pressure
     well_pressure = well_state.Pressure
     mask_values = connection_pressure_drop_mask_values(mask, context)
+    if !isnothing(mask_values)
+        mask_values = @view mask_values[pr]
+    end
     function update_pressure_drop(_)
         update_producer_connection_pressure_drop!(
-            dp, res_cells, gdz, WI, ρ, mob, p,
-            well_pressure, mask_values)
+            view(dp, pr), res_cells, gdz, WI, ρ, mob, p,
+            well_pressure, mask_values, cell)
         return nothing
     end
     Jutul.threaded_loop(update_pressure_drop, 1, context)

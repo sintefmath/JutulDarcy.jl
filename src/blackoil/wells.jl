@@ -130,7 +130,7 @@ Base.@propagate_inbounds function simple_well_perforation_flux!(out, sys::Standa
     end
 
     if Q_in < 0.0
-        X = state_well.MassFractions
+        X = @view state_well.MassFractions[:, conn.well]
         if has_other_phase(sys)
             Q_a += X[a]*Q_in
         end

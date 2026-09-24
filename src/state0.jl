@@ -304,10 +304,12 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
         init[k] = init_w
     end
     T = Float64
-    for (k, W) in get_model_wells(model)
-        T = promote_type(T, eltype(init[k][:Pressure]))
-        if is_thermal
-            T = promote_type(T, eltype(init[k][th_var]))
+    for (k, W) in pairs(model.models)
+        if model_or_domain_is_well(W)
+            T = promote_type(T, eltype(init[k][:Pressure]))
+            if is_thermal
+                T = promote_type(T, eltype(init[k][th_var]))
+            end
         end
     end
 
@@ -323,8 +325,10 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
             temp = similar(bh)
             enth = similar(bh)
             for (i, w) in enumerate(own_wells)
-                wc = well_cells[w][1]
-                bh[i] = init[w][:Pressure][1]
+                well_key = WellMerging.merged_well_key(model, w)
+                top = WellMerging.well_top_node(physical_representation(model.models[well_key]), w)
+                wc = well_cells[well_key][top]
+                bh[i] = init[well_key][:Pressure][top]
                 if is_thermal
                     if haskey(res_state, :Temperature)
                         temp[i] = res_state[:Temperature][wc]

@@ -108,6 +108,10 @@ end
     include("well_constructor.jl")
 end
 
+@testitem "Merged wells" begin
+    include("merge_wells.jl")
+end
+
 @testitem "HistoryMatching" begin
     include("historymatch.jl")
 end

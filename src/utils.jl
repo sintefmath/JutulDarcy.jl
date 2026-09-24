@@ -310,10 +310,14 @@ function get_model_wells(model::MultiModel; data_domain = false)
     for (k, m) in pairs(model.models)
         if model_or_domain_is_well(m)
             wd = m.data_domain
-            if data_domain
-                wells[k] = wd
+            w = physical_representation(wd)
+            if !(w isa Union{SimpleWell, MultiSegmentWell}) || isnothing(w.multiwell)
+                wells[k] = data_domain ? wd : w
             else
-                wells[k] = physical_representation(wd)
+                for (i, name) in enumerate(w.multiwell.names)
+                    d = w.multiwell.domains[i]
+                    wells[name] = data_domain ? d : physical_representation(d)
+                end
             end
         end
     end
@@ -1631,23 +1635,24 @@ function setup_reservoir_cross_terms!(model::MultiModel)
             # These are set up from wells via symmetry
         elseif m.domain isa WellGroup
             for target_well in m.domain.well_symbols
+                source_well = WellMerging.merged_well_key(model, target_well)
                 if has_flow
                     ct = WellFromFacilityFlowCT(target_well)
-                    add_cross_term!(model, ct, target = target_well, source = k, equation = conservation)
+                    add_cross_term!(model, ct, target = source_well, source = k, equation = conservation)
 
                     ct = FacilityFromWellBottomHolePressureCT(target_well)
-                    add_cross_term!(model, ct, target = k, source = target_well, equation = :bottom_hole_pressure_equation)
+                    add_cross_term!(model, ct, target = k, source = source_well, equation = :bottom_hole_pressure_equation)
 
                     ct = FacilityFromSurfaceComponentRatesCT(target_well)
-                    add_cross_term!(model, ct, target = k, source = target_well, equation = :surface_component_rates_equation)
+                    add_cross_term!(model, ct, target = k, source = source_well, equation = :surface_component_rates_equation)
                 end
                 if has_thermal
                     ct = WellFromFacilityThermalCT(target_well)
-                    add_cross_term!(model, ct, target = target_well, source = k, equation = energy)
+                    add_cross_term!(model, ct, target = source_well, source = k, equation = energy)
                     ct = FacilityFromWellTemperatureCT(target_well)
-                    add_cross_term!(model, ct, target = k, source = target_well, equation = :temperature_equation)
+                    add_cross_term!(model, ct, target = k, source = source_well, equation = :temperature_equation)
                     ct = FacilityFromWellEnthalpyCT(target_well)
-                    add_cross_term!(model, ct, target = k, source = target_well, equation = :enthalpy_equation)
+                    add_cross_term!(model, ct, target = k, source = source_well, equation = :enthalpy_equation)
                 end
             end
         else
@@ -1821,8 +1826,8 @@ function setup_reservoir_forces(model::MultiModel;
         out = setup_forces(model, Facility = surface_forces; kwarg..., Reservoir = reservoir_forces)
     else
         new_forces = Dict{Symbol, Any}()
-        for (k, m) in pairs(submodels)
-            if model_or_domain_is_well(m) && !isnothing(control)
+        for k in well_symbols(model)
+            if !isnothing(control)
                 ctrl_symbol = Symbol("$(k)_ctrl")
                 @assert haskey(submodels, ctrl_symbol) "Controller for well $k must be present with the name $ctrl_symbol"
                 subctrl = Dict{Symbol, Any}()
@@ -1870,7 +1875,9 @@ function full_well_outputs(model, states, forces; targets = missing)
         outw[:mass_rate] = well_output(model, states, w, forces, :TotalSurfaceMassRate)
         outw[:control] = well_output(model, states, w, forces, :control)
         if has_temperature
-            outw[:temperature] = map(s -> s[w][:Temperature][well_top_node()], states)
+            key = WellMerging.merged_well_key(model, w)
+            cell = WellMerging.well_top_node(physical_representation(model.models[key]), w)
+            outw[:temperature] = map(s -> s[key][:Temperature][cell], states)
         end
         for (i, cname) in enumerate(cnames)
             outw[Symbol("$(cname)_mass_rate")] = well_output(model, states, w, forces, i)
@@ -1894,16 +1901,11 @@ Get a specific well output from a valid operational target once a simulation is 
 function well_output(model::MultiModel, states, well_symbol, forces, target = BottomHolePressureTarget)
     n = length(states)
 
-    well_number = 1
-    for (k, m) in pairs(model.models)
-        if k == well_symbol
-            break
-        end
-        if model_or_domain_is_well(m)
-            well_number += 1
-        end
-    end
-    well_model = model.models[well_symbol]
+    well_number = haskey(model.models, :Facility) ?
+        get_well_position(model.models[:Facility].domain, well_symbol) : 1
+    well_key = WellMerging.merged_well_key(model, well_symbol)
+    well_model = model.models[well_key]
+    top_node = WellMerging.well_top_node(physical_representation(well_model), well_symbol)
     rhoS_o = reference_densities(well_model.system)
 
     to_target(t::DataType) = t(1.0)
@@ -1932,7 +1934,7 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
     else
         d = zeros(n)
         for (i, state) = enumerate(states)
-            well_state = state[well_symbol]
+            well_state = state[well_key]
             well_state = convert_to_immutable_storage(well_state)
             ctrl_grp = Symbol("$(well_symbol)_ctrl")
             if haskey(state, ctrl_grp)
@@ -1968,7 +1970,7 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
                 if q_t == 0 || control isa DisabledControl
                     current_control = DisabledControl()
                     if target == BottomHolePressureTarget
-                        v = well_state.Pressure[1]
+                        v = well_state.Pressure[top_node]
                     else
                         v = 0.0
                     end
@@ -1996,7 +1998,12 @@ function well_symbols(model::MultiModel)
     for (k, m) in pairs(models)
         D = m.domain
         if isa(physical_representation(D), WellDomain)
-            push!(symbols, k)
+            w = physical_representation(D)
+            if !(w isa Union{SimpleWell, MultiSegmentWell}) || isnothing(w.multiwell)
+                push!(symbols, k)
+            else
+                append!(symbols, w.multiwell.names)
+            end
         end
     end
     return symbols

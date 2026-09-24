@@ -48,6 +48,7 @@ module JutulDarcy
     export setup_reservoir_forces
     export full_well_outputs
     export well_output
+    export merge_similar_wells
     export well_symbols
     export wellgroup_symbols
     export available_well_targets

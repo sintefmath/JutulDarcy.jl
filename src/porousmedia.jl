@@ -323,6 +323,16 @@ function discretized_domain_well(W::MultiSegmentWell; kwarg...)
 end
 
 function discretized_domain_well(W::SimpleWell; z = nothing, kwarg...)
-    disc = (mass_flow = PotentialFlow(W), heat_flow = PotentialFlow(W))
+    if number_of_cells(W) == 1
+        flow = PotentialFlow(W)
+    else
+        # Jutul's empty-face constructor supplies a two-entry face position
+        # vector. A disconnected multiwell needs one entry per cell plus one.
+        base = PotentialFlow(zeros(Int, 2, 0), 1)
+        hf = (cells = Int[], faces = Int[],
+            face_pos = ones(Int, number_of_cells(W) + 1), face_sign = Int[])
+        flow = PotentialFlow(base.kgrad, base.upwind, hf)
+    end
+    disc = (mass_flow = flow, heat_flow = flow)
     return DiscretizedDomain(W, disc; kwarg...)
 end

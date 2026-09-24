@@ -127,7 +127,8 @@ function Adapt.adapt_structure(to, well::SimpleWell)
         Adapt.adapt(to, well.perforations),
         Adapt.adapt(to, well.surface),
         nothing,
-        well.explicit_dp
+        well.explicit_dp,
+        well.multiwell
     )
 end
 

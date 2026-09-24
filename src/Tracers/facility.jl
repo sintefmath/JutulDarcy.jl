@@ -2,7 +2,8 @@ struct WellFromFacilityTracerCT <: Jutul.AdditiveCrossTerm
     well::Symbol
 end
 
-Jutul.cross_term_entities(ct::WellFromFacilityTracerCT, eq::ConservationLaw{:TracerMasses}, model) = [JutulDarcy.well_top_node()]
+Jutul.cross_term_entities(ct::WellFromFacilityTracerCT, eq::ConservationLaw{:TracerMasses}, model) =
+    [JutulDarcy.WellMerging.well_top_node(physical_representation(model), ct.well)]
 
 const TRACER_TOL = 1e-12
 
@@ -23,7 +24,7 @@ function Jutul.update_cross_term_in_entity!(out, i,
     N = length(tracers)
     S = state_well.Saturations
     rho = state_well.PhaseMassDensities
-    wc = JutulDarcy.well_top_node()
+    wc = JutulDarcy.WellMerging.well_top_node(physical_representation(well), well_symbol)
 
     if ctrl isa InjectorControl
         if ismissing(ctrl.tracers)

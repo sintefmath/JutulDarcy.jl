@@ -119,7 +119,8 @@ struct WellFromFacilityFlowCT <: Jutul.AdditiveCrossTerm
     well::Symbol
 end
 
-Jutul.cross_term_entities(ct::WellFromFacilityFlowCT, eq::ConservationLaw, model) = [well_top_node()]
+Jutul.cross_term_entities(ct::WellFromFacilityFlowCT, eq::ConservationLaw, model) =
+    [WellMerging.well_top_node(physical_representation(model), ct.well)]
 
 """
     update_cross_term_in_entity!(out, i,
@@ -148,6 +149,7 @@ end
 
 function cross_term_total_surface_mass_rate_and_mixture(facility, well, state_facility, state_well, well_symbol)
     pos = get_well_position(facility.domain, well_symbol)
+    cell = WellMerging.well_top_node(physical_representation(well), well_symbol)
 
     cfg = state_facility.WellGroupConfiguration
     ctrl = operating_control(cfg, well_symbol)
@@ -162,7 +164,7 @@ function cross_term_total_surface_mass_rate_and_mixture(facility, well, state_fa
     bhp = state_facility[:BottomHolePressure][pos]
     ph = state_facility[:TotalSurfaceMassRate][pos]
     ph2 = state_facility[:SurfacePhaseRates][1, pos]
-    total_mass = state_well.TotalMasses[1, well_top_node()]
+    total_mass = state_well.TotalMasses[1, cell]
     q_t += 0*bhp + 0*ph + 0*total_mass + 0*ph2
     if isa(ctrl, InjectorControl)
         if value(q_t) < 0
@@ -177,9 +179,9 @@ function cross_term_total_surface_mass_rate_and_mixture(facility, well, state_fa
             @warn "Producer $well_symbol is injecting?"
         end
         if haskey(state_well, :MassFractions)
-            mix = state_well.MassFractions
+            mix = @view state_well.MassFractions[:, cell]
         else
-            masses = @views state_well.TotalMasses[:, well_top_node()]
+            masses = @view state_well.TotalMasses[:, cell]
             mass = sum(masses)
             mix = masses./mass
         end
@@ -285,7 +287,8 @@ struct WellFromFacilityThermalCT <: Jutul.AdditiveCrossTerm
     well::Symbol
 end
 
-Jutul.cross_term_entities(ct::WellFromFacilityThermalCT, eq::ConservationLaw, model) = [well_top_node()]
+Jutul.cross_term_entities(ct::WellFromFacilityThermalCT, eq::ConservationLaw, model) =
+    [WellMerging.well_top_node(physical_representation(model), ct.well)]
 
 """
     update_cross_term_in_entity!(out, i,
@@ -308,9 +311,8 @@ function update_cross_term_in_entity!(out, i,
     ctrl = operating_control(cfg, well_symbol)
     qT = state_facility.TotalSurfaceMassRate[pos]
     # Hack for sparsity detection
-    qT += 0*bottom_hole_pressure(state_well)
-
-    cell = well_top_node()
+    cell = WellMerging.well_top_node(physical_representation(well), well_symbol)
+    qT += 0*state_well.Pressure[cell]
 
     H = get_target_enthalpy(ctrl, ctrl.target, facility, state_facility, well, state_well, cell)
     out[] = -qT*H
@@ -429,7 +431,7 @@ function update_cross_term_in_entity!(out, i,
 
     pos = get_well_position(facility.domain, ct.well)
     T = 0*state_facility[:SurfaceTemperature][pos]
-    T += state_well[:Temperature][well_top_node()]
+    T += state_well[:Temperature][WellMerging.well_top_node(physical_representation(well), ct.well)]
     out[1] = -T
 end
 
@@ -447,7 +449,8 @@ function update_cross_term_in_entity!(out, i,
 
     pos = get_well_position(facility.domain, ct.well)
     H = 0*state_facility[:SurfaceEnthalpy][pos]
-    H += well_top_node_enthalpy(well, state_well, well_top_node())
+    H += well_top_node_enthalpy(well, state_well,
+        WellMerging.well_top_node(physical_representation(well), ct.well))
     out[1] = -H*eq.scale
 end
 
@@ -465,7 +468,7 @@ function update_cross_term_in_entity!(out, i,
 
     pos = get_well_position(facility.domain, ct.well)
     P = 0*state_facility[:BottomHolePressure][pos]
-    P += state_well[:Pressure][well_top_node()]
+    P += state_well[:Pressure][WellMerging.well_top_node(physical_representation(well), ct.well)]
     out[1] = -P*eq.scale
 end
 

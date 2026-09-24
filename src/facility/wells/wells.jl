@@ -349,20 +349,17 @@ function map_well_nodes_to_reservoir_cells(w::MultiSegmentWell, reservoir::Union
     # improved...
     c = zeros(Int, number_of_cells(w))
     c[w.perforations.self] .= w.perforations.reservoir
-    for i in eachindex(c)
-        if i == firstindex(c)
-            continue
+    ranges = isnothing(w.multiwell) ? (eachindex(c),) : w.multiwell.nodes
+    for nodes in ranges
+        for i in nodes[2:end]
+            if c[i] == 0
+                c[i] = c[i-1]
+            end
         end
-        if c[i] == 0
-            c[i] = c[i-1]
-        end
-    end
-    for i in reverse(eachindex(c))
-        if i == lastindex(c)
-            continue
-        end
-        if c[i] == 0
-            c[i] = c[i+1]
+        for i in reverse(nodes[1:end-1])
+            if c[i] == 0
+                c[i] = c[i+1]
+            end
         end
     end
     @assert all(x -> x > 0, c)
@@ -374,7 +371,11 @@ function map_well_nodes_to_reservoir_cells(w::DataDomain, reservoir::Union{DataD
 end
 
 function map_well_nodes_to_reservoir_cells(w::SimpleWell, reservoir::Union{DataDomain, Missing} = missing)
-    return [w.perforations.reservoir[1]]
+    if isnothing(w.multiwell)
+        return [w.perforations.reservoir[1]]
+    else
+        return [w.perforations.reservoir[first(pr)] for pr in w.multiwell.perforations]
+    end
 end
 
 function Jutul.plot_primitives(mesh::MultiSegmentWell, plot_type; kwarg...)
@@ -509,7 +510,12 @@ function domain_bulk_volume(d::DataDomain, grid::WellDomain; outer_boundary = :g
             cdims = d[:cell_dims, Perforations()]
             dir = d[:perforation_direction, Perforations()]
             L = length_from_cell_dims.(cdims, dir)
-            vols = only(mult)*sum(π .* r.^2 .* L)
+            if isnothing(grid.multiwell)
+                vols = only(mult)*sum(π .* r.^2 .* L)
+            else
+                vols = [mult[i]*sum(π .* r[grid.multiwell.perforations[i]].^2 .* L[grid.multiwell.perforations[i]])
+                    for i in eachindex(grid.multiwell.names)]
+            end
         end
     end
     return vols
@@ -535,7 +541,7 @@ function get_neighborship(::SimpleWell)
 end
 
 function number_of_cells(W::SimpleWell)
-    return 1
+    return isnothing(W.multiwell) ? 1 : length(W.multiwell.names)
 end
 
 function number_of_cells(W::MultiSegmentWell)
@@ -600,7 +606,7 @@ Base.@propagate_inbounds function simple_well_perforation_flux!(out, sys::Union{
     for ph in 1:nph
         ρλ_t += ρ[ph, rc]*mob[ph, rc]
     end
-    X = state_well.MassFractions
+    X = @view state_well.MassFractions[:, conn.well]
     for ph in 1:nph
         # ψ is pressure difference from reservoir to well. If it is negative, we are injecting into the reservoir.
         ψ = perforation_phase_potential_difference(conn, state_res, state_well, ph)

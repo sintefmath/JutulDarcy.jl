@@ -444,7 +444,7 @@ end
 function Base.show(io::IO, w::WellDomain)
     if w isa SimpleWell
         nseg = 0
-        nn = 1
+        nn = number_of_cells(w)
         n = "SimpleWell"
     else
         nseg = size(w.neighborship, 2)
@@ -454,13 +454,17 @@ function Base.show(io::IO, w::WellDomain)
     print(io, "$n [$(w.name)] ($(nn) nodes, $(nseg) segments, $(length(w.perforations.reservoir)) perforations)")
 end
 
-struct SimpleWell{SC, P, N} <: WellDomain where {SC, P, N}
+struct SimpleWell{SC, P, N, M} <: WellDomain
     perforations::P
     surface::SC
     name::N
     explicit_dp::Bool
+    multiwell::M
     # reference_depth::V
 end
+
+SimpleWell(perforations, surface, name, explicit_dp) =
+    SimpleWell(perforations, surface, name, explicit_dp, nothing)
 
 Jutul.dim(w::DataDomain{<:WellDomain}) = size(w[:cell_centroids], 1)
 Jutul.mesh_z_is_depth(w::DataDomain{<:WellDomain}) = true
@@ -496,7 +500,7 @@ function SimpleWell(
     )
 end
 
-struct MultiSegmentWell{P, N, SC, S} <: WellDomain
+struct MultiSegmentWell{P, N, SC, S, M} <: WellDomain
     type::Symbol
     num_nodes::Int
     num_segments::Int
@@ -513,7 +517,13 @@ struct MultiSegmentWell{P, N, SC, S} <: WellDomain
     name::Symbol
     "Pressure drop model for seg well segment"
     segment_models::S
+    multiwell::M
 end
+
+MultiSegmentWell(type, num_nodes, num_segments, num_perforations,
+    perforations, neighborship, end_nodes, surface, name, segment_models) =
+    MultiSegmentWell(type, num_nodes, num_segments, num_perforations,
+        perforations, neighborship, end_nodes, surface, name, segment_models, nothing)
 
 """
     MultiSegmentWell(reservoir_cells;
