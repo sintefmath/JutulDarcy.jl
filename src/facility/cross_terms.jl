@@ -116,11 +116,13 @@ end
 
 # Facility influence on well
 struct WellFromFacilityFlowCT <: Jutul.AdditiveCrossTerm
-    well::Symbol
+    wells::Vector{Symbol}
+    facility_cells::Vector{Int}
+    well_cells::Vector{Int}
 end
 
 Jutul.cross_term_entities(ct::WellFromFacilityFlowCT, eq::ConservationLaw, model) =
-    [WellMerging.well_top_node(physical_representation(model), ct.well)]
+    ct.well_cells
 
 """
     update_cross_term_in_entity!(out, i,
@@ -139,10 +141,13 @@ function update_cross_term_in_entity!(out, i,
         well, facility,
         ct::WellFromFacilityFlowCT, eq, dt, ldisc = local_discretization(ct, i)
     )
-    well_symbol = ct.well
-    q_t, mix = cross_term_total_surface_mass_rate_and_mixture(facility, well, state_facility, state_well, well_symbol)
-    for i in eachindex(out, mix)
-        @inbounds out[i] = -mix[i]*q_t
+    well_symbol = ct.wells[i]
+    pos = ct.facility_cells[i]
+    cell = ct.well_cells[i]
+    q_t, mix = cross_term_total_surface_mass_rate_and_mixture(
+        facility, well, state_facility, state_well, well_symbol, pos, cell)
+    for component in eachindex(out, mix)
+        @inbounds out[component] = -mix[component]*q_t
     end
     return out
 end
@@ -150,7 +155,12 @@ end
 function cross_term_total_surface_mass_rate_and_mixture(facility, well, state_facility, state_well, well_symbol)
     pos = get_well_position(facility.domain, well_symbol)
     cell = WellMerging.well_top_node(physical_representation(well), well_symbol)
+    return cross_term_total_surface_mass_rate_and_mixture(
+        facility, well, state_facility, state_well, well_symbol, pos, cell)
+end
 
+function cross_term_total_surface_mass_rate_and_mixture(
+        facility, well, state_facility, state_well, well_symbol, pos, cell)
     cfg = state_facility.WellGroupConfiguration
     ctrl = operating_control(cfg, well_symbol)
     q_t = facility_surface_mass_rate_for_well(
@@ -284,11 +294,13 @@ function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellThe
 end
 
 struct WellFromFacilityThermalCT <: Jutul.AdditiveCrossTerm
-    well::Symbol
+    wells::Vector{Symbol}
+    facility_cells::Vector{Int}
+    well_cells::Vector{Int}
 end
 
 Jutul.cross_term_entities(ct::WellFromFacilityThermalCT, eq::ConservationLaw, model) =
-    [WellMerging.well_top_node(physical_representation(model), ct.well)]
+    ct.well_cells
 
 """
     update_cross_term_in_entity!(out, i,
@@ -304,14 +316,14 @@ function update_cross_term_in_entity!(out, i,
     state_facility, state0_facility,
     well, facility,
     ct::WellFromFacilityThermalCT, eq, dt, ldisc = local_discretization(ct, i))
-    well_symbol = ct.well
-    pos = get_well_position(facility.domain, well_symbol)
+    well_symbol = ct.wells[i]
+    pos = ct.facility_cells[i]
 
     cfg = state_facility.WellGroupConfiguration
     ctrl = operating_control(cfg, well_symbol)
     qT = state_facility.TotalSurfaceMassRate[pos]
     # Hack for sparsity detection
-    cell = WellMerging.well_top_node(physical_representation(well), well_symbol)
+    cell = ct.well_cells[i]
     qT += 0*state_well.Pressure[cell]
 
     H = get_target_enthalpy(ctrl, ctrl.target, facility, state_facility, well, state_well, cell)
@@ -418,10 +430,12 @@ function well_top_node_enthalpy(ctrl, model, state_well, T, cell)
 end
 
 struct FacilityFromWellTemperatureCT <: Jutul.AdditiveCrossTerm
-    well::Symbol
+    wells::Vector{Symbol}
+    facility_cells::Vector{Int}
+    well_cells::Vector{Int}
 end
 
-Jutul.cross_term_entities(ct::FacilityFromWellTemperatureCT, eq::SurfaceTemperatureEquation, model) = get_well_position(model.domain, ct.well)
+Jutul.cross_term_entities(ct::FacilityFromWellTemperatureCT, eq::SurfaceTemperatureEquation, model) = ct.facility_cells
 
 function update_cross_term_in_entity!(out, i,
     state_facility, state0_facility,
@@ -429,17 +443,20 @@ function update_cross_term_in_entity!(out, i,
     facility, well,
     ct::FacilityFromWellTemperatureCT, eq, dt, ldisc = local_discretization(ct, i))
 
-    pos = get_well_position(facility.domain, ct.well)
+    pos = ct.facility_cells[i]
+    cell = ct.well_cells[i]
     T = 0*state_facility[:SurfaceTemperature][pos]
-    T += state_well[:Temperature][WellMerging.well_top_node(physical_representation(well), ct.well)]
+    T += state_well[:Temperature][cell]
     out[1] = -T
 end
 
 struct FacilityFromWellEnthalpyCT <: Jutul.AdditiveCrossTerm
-    well::Symbol
+    wells::Vector{Symbol}
+    facility_cells::Vector{Int}
+    well_cells::Vector{Int}
 end
 
-Jutul.cross_term_entities(ct::FacilityFromWellEnthalpyCT, eq::SurfaceEnthalpyEquation, model) = get_well_position(model.domain, ct.well)
+Jutul.cross_term_entities(ct::FacilityFromWellEnthalpyCT, eq::SurfaceEnthalpyEquation, model) = ct.facility_cells
 
 function update_cross_term_in_entity!(out, i,
     state_facility, state0_facility,
@@ -447,18 +464,20 @@ function update_cross_term_in_entity!(out, i,
     facility, well,
     ct::FacilityFromWellEnthalpyCT, eq::SurfaceEnthalpyEquation, dt, ldisc = local_discretization(ct, i))
 
-    pos = get_well_position(facility.domain, ct.well)
+    pos = ct.facility_cells[i]
+    cell = ct.well_cells[i]
     H = 0*state_facility[:SurfaceEnthalpy][pos]
-    H += well_top_node_enthalpy(well, state_well,
-        WellMerging.well_top_node(physical_representation(well), ct.well))
+    H += well_top_node_enthalpy(well, state_well, cell)
     out[1] = -H*eq.scale
 end
 
 struct FacilityFromWellBottomHolePressureCT <: Jutul.AdditiveCrossTerm
-    well::Symbol
+    wells::Vector{Symbol}
+    facility_cells::Vector{Int}
+    well_cells::Vector{Int}
 end
 
-Jutul.cross_term_entities(ct::FacilityFromWellBottomHolePressureCT, eq::BottomHolePressureEquation, model) = get_well_position(model.domain, ct.well)
+Jutul.cross_term_entities(ct::FacilityFromWellBottomHolePressureCT, eq::BottomHolePressureEquation, model) = ct.facility_cells
 
 function update_cross_term_in_entity!(out, i,
     state_facility, state0_facility,
@@ -466,17 +485,20 @@ function update_cross_term_in_entity!(out, i,
     facility, well,
     ct::FacilityFromWellBottomHolePressureCT, eq::BottomHolePressureEquation, dt, ldisc = local_discretization(ct, i))
 
-    pos = get_well_position(facility.domain, ct.well)
+    pos = ct.facility_cells[i]
+    cell = ct.well_cells[i]
     P = 0*state_facility[:BottomHolePressure][pos]
-    P += state_well[:Pressure][WellMerging.well_top_node(physical_representation(well), ct.well)]
+    P += state_well[:Pressure][cell]
     out[1] = -P*eq.scale
 end
 
 struct FacilityFromSurfaceComponentRatesCT <: Jutul.AdditiveCrossTerm
-    well::Symbol
+    wells::Vector{Symbol}
+    facility_cells::Vector{Int}
+    well_cells::Vector{Int}
 end
 
-Jutul.cross_term_entities(ct::FacilityFromSurfaceComponentRatesCT, eq::SurfaceComponentRatesEquation, model) = get_well_position(model.domain, ct.well)
+Jutul.cross_term_entities(ct::FacilityFromSurfaceComponentRatesCT, eq::SurfaceComponentRatesEquation, model) = ct.facility_cells
 
 function update_cross_term_in_entity!(out, i,
     state_facility, state0_facility,
@@ -484,8 +506,11 @@ function update_cross_term_in_entity!(out, i,
     facility, well,
     ct::FacilityFromSurfaceComponentRatesCT, eq::SurfaceComponentRatesEquation, dt, ldisc = local_discretization(ct, i))
 
+    well_symbol = ct.wells[i]
+    pos = ct.facility_cells[i]
+    cell = ct.well_cells[i]
     q_t, mixture = cross_term_total_surface_mass_rate_and_mixture(
-        facility, well, state_facility, state_well, ct.well)
+        facility, well, state_facility, state_well, well_symbol, pos, cell)
     for component in eachindex(out, mixture)
         out[component] = -q_t*mixture[component]*eq.scale
     end

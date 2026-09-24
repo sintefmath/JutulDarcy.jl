@@ -30,6 +30,25 @@ using Jutul, JutulDarcy, Test
     @test length(merged.model.models) == length(model.models) - 2
     @test physical_representation(merged.model.models[:SimpleWells]).multiwell.top_nodes == [1, 2]
     @test physical_representation(merged.model.models[:MultiSegmentWells]).multiwell.top_nodes == [1, 4]
+    for source in (:SimpleWells, :MultiSegmentWells)
+        multiwell = physical_representation(merged.model.models[source]).multiwell
+        facility_names = merged.model.models[:Facility].domain.well_symbols
+        expected_cells = [findfirst(isequal(name), facility_names) for name in multiwell.names]
+        term_locations = (
+            (JutulDarcy.WellFromFacilityFlowCT, source, :Facility),
+            (JutulDarcy.FacilityFromWellBottomHolePressureCT, :Facility, source),
+            (JutulDarcy.FacilityFromSurfaceComponentRatesCT, :Facility, source),
+        )
+        for (ct_type, target, source_model) in term_locations
+            terms = [pair.cross_term for pair in merged.model.cross_terms
+                if pair.target == target && pair.source == source_model &&
+                   pair.cross_term isa ct_type]
+            @test length(terms) == 1
+            @test only(terms).wells == multiwell.names
+            @test only(terms).facility_cells == expected_cells
+            @test only(terms).well_cells == multiwell.top_nodes
+        end
+    end
     @test merged.state0[:SimpleWells][:Pressure] ==
         [state0[:SimpleProducer][:Pressure]; state0[:SimpleInjector][:Pressure]]
     fresh = setup_reservoir_state(merged.model, Pressure = 200bar,
@@ -100,6 +119,14 @@ end
             @test isapprox(cpu.wells[name][quantity], ka.wells[name][quantity]; rtol = 1e-5)
         end
     end
+    add_tracers_to_model!(case.model, SinglePhaseTracer(1))
+    tracer_terms = [pair.cross_term for pair in case.model.cross_terms
+        if pair.target == :SimpleWells && pair.source == :Facility &&
+           pair.cross_term isa JutulDarcy.Tracers.WellFromFacilityTracerCT]
+    @test length(tracer_terms) == 1
+    @test only(tracer_terms).wells == [:Producer, :Injector]
+    @test only(tracer_terms).well_cells ==
+        physical_representation(case.model.models[:SimpleWells]).multiwell.top_nodes
 end
 
 @testset "Merged thermal wells" begin
@@ -123,6 +150,20 @@ end
     forces = setup_reservoir_forces(model, control = controls)
     case = JutulCase(model, [si_unit(:day)], forces, state0 = state0)
     merged = merge_similar_wells(case)
+    multiwell = physical_representation(merged.model.models[:SimpleWells]).multiwell
+    term_locations = (
+        (JutulDarcy.WellFromFacilityThermalCT, :SimpleWells, :Facility),
+        (JutulDarcy.FacilityFromWellTemperatureCT, :Facility, :SimpleWells),
+        (JutulDarcy.FacilityFromWellEnthalpyCT, :Facility, :SimpleWells),
+    )
+    for (ct_type, target, source_model) in term_locations
+        terms = [pair.cross_term for pair in merged.model.cross_terms
+            if pair.target == target && pair.source == source_model &&
+               pair.cross_term isa ct_type]
+        @test length(terms) == 1
+        @test only(terms).wells == multiwell.names
+        @test only(terms).well_cells == multiwell.top_nodes
+    end
     ref = simulate_reservoir(case, info_level = -1)
     got = simulate_reservoir(merged, info_level = -1)
     got_cprw = simulate_reservoir(merged, precond = :cprw, info_level = -1)

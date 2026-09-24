@@ -1634,24 +1634,35 @@ function setup_reservoir_cross_terms!(model::MultiModel)
         if k == :Reservoir
             # These are set up from wells via symmetry
         elseif m.domain isa WellGroup
+            well_groups = Dict{Symbol, Vector{Symbol}}()
             for target_well in m.domain.well_symbols
                 source_well = WellMerging.merged_well_key(model, target_well)
+                names = get!(well_groups, source_well, Symbol[])
+                push!(names, target_well)
+            end
+            for (source_well, names) in pairs(well_groups)
+                source_model = model.models[source_well]
+                source_domain = physical_representation(source_model)
+                facility_cells = [get_well_position(m.domain, name) for name in names]
+                well_cells = [WellMerging.well_top_node(source_domain, name) for name in names]
                 if has_flow
-                    ct = WellFromFacilityFlowCT(target_well)
+                    ct = WellFromFacilityFlowCT(names, facility_cells, well_cells)
                     add_cross_term!(model, ct, target = source_well, source = k, equation = conservation)
 
-                    ct = FacilityFromWellBottomHolePressureCT(target_well)
+                    ct = FacilityFromWellBottomHolePressureCT(names, facility_cells, well_cells)
                     add_cross_term!(model, ct, target = k, source = source_well, equation = :bottom_hole_pressure_equation)
 
-                    ct = FacilityFromSurfaceComponentRatesCT(target_well)
+                    ct = FacilityFromSurfaceComponentRatesCT(names, facility_cells, well_cells)
                     add_cross_term!(model, ct, target = k, source = source_well, equation = :surface_component_rates_equation)
                 end
                 if has_thermal
-                    ct = WellFromFacilityThermalCT(target_well)
+                    ct = WellFromFacilityThermalCT(names, facility_cells, well_cells)
                     add_cross_term!(model, ct, target = source_well, source = k, equation = energy)
-                    ct = FacilityFromWellTemperatureCT(target_well)
+
+                    ct = FacilityFromWellTemperatureCT(names, facility_cells, well_cells)
                     add_cross_term!(model, ct, target = k, source = source_well, equation = :temperature_equation)
-                    ct = FacilityFromWellEnthalpyCT(target_well)
+
+                    ct = FacilityFromWellEnthalpyCT(names, facility_cells, well_cells)
                     add_cross_term!(model, ct, target = k, source = source_well, equation = :enthalpy_equation)
                 end
             end

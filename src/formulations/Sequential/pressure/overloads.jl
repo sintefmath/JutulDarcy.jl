@@ -60,13 +60,15 @@ function Jutul.update_cross_term_in_entity!(out, i,
         well::PressureModel, facility,
         ct::JutulDarcy.WellFromFacilityFlowCT, eq, dt, ldisc = local_discretization(ct, i)
     )
-    well_symbol = ct.well
-    q_t, mix = JutulDarcy.cross_term_total_surface_mass_rate_and_mixture(facility, well, state_facility, state_well, well_symbol)
+    well_symbol = ct.wells[i]
+    facility_cell = ct.facility_cells[i]
+    top_node = ct.well_cells[i]
+    q_t, mix = JutulDarcy.cross_term_total_surface_mass_rate_and_mixture(
+        facility, well, state_facility, state_well, well_symbol, facility_cell, top_node)
     @assert length(out) == 1
     val = zero(eltype(out))
-    top_node = JutulDarcy.well_top_node()
-    for i in eachindex(mix)
-        val += mix[i]*state_well.PressureReductionFactors[i, top_node]
+    for component in eachindex(mix)
+        val += mix[component]*state_well.PressureReductionFactors[component, top_node]
     end
     out[1] = -val*q_t
     return out
