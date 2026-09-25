@@ -25,15 +25,60 @@ end
 @inline number_of_regions(regions::AbstractVector) = 1
 
 Base.@propagate_inbounds @inline function evaluate_table_by_region(tab, reg, arg...)
-    return tab[reg](arg...)
+    return table_by_region(tab, reg)(arg...)
 end
 
 Base.@propagate_inbounds @inline function evaluate_table_by_region(tab, ::Nothing, arg...)
     return tab(arg...)
 end
 
+Base.@propagate_inbounds @inline function evaluate_table_by_region(
+        tab::Tuple{T}, reg::Integer, arg...) where T
+    return only(tab)(arg...)
+end
+
+# # Calling the selected table inside each branch avoids boxing a table when a
+# # regional tuple contains different interpolator types.
+# Base.@propagate_inbounds @generated function evaluate_table_by_region(
+#         tab::T, reg::Integer, arg...) where {T<:Tuple}
+#     N = fieldcount(T)
+#     evaluated = :((getfield(tab, $N))(arg...))
+#     for i in (N - 1):-1:1
+#         evaluated = :(if reg == $i
+#             (getfield(tab, $i))(arg...)
+#         else
+#             $evaluated
+#         end)
+#     end
+#     return quote
+#         @boundscheck if !(1 <= reg <= $N)
+#             throw(BoundsError(tab, reg))
+#         end
+#         $evaluated
+#     end
+# end
+
 Base.@propagate_inbounds @inline function table_by_region(tab, reg)
     return tab[reg]
+end
+
+Base.@propagate_inbounds @inline function table_by_region(tab::Tuple{T}, reg) where T
+    return only(tab)
+end
+
+Base.@propagate_inbounds @generated function table_by_region(
+        tab::T, reg) where {T<:Tuple}
+    N = fieldcount(T)
+    selected = :(getfield(tab, $N))
+    for i in (N - 1):-1:1
+        selected = :(ifelse(reg == $i, getfield(tab, $i), $selected))
+    end
+    return quote
+        @boundscheck if !(1 <= reg <= $N)
+            throw(BoundsError(tab, reg))
+        end
+        $selected
+    end
 end
 
 @inline function table_by_region(tab::Nothing, reg)
@@ -46,16 +91,26 @@ end
 
 function region_wrap(x::Tuple, regions::Nothing)
     @assert length(x) >= 1
+    warn_mixed_region_types(x)
     return x
 end
 
 function region_wrap(x::Tuple, regions::AbstractArray)
     length(x) >= maximum(regions) || error("Length of tuple $(length(x)) is less than maximum region $(maximum(regions))")
+    warn_mixed_region_types(x)
     return x
 end
 
 function region_wrap(x::Tuple, regions::Missing)
+    warn_mixed_region_types(x)
     return x
+end
+
+function warn_mixed_region_types(tables)
+    if length(tables) > 1 && any(x -> typeof(x) !== typeof(first(tables)), tables)
+        @warn "Region tables have mixed types, which may be detrimental to performance."
+    end
+    return nothing
 end
 
 function region_wrap(x::AbstractVector, regions = missing)
@@ -64,6 +119,7 @@ function region_wrap(x::AbstractVector, regions = missing)
     else
         # Don't make huge tuples, just return the vector with possibly tighter
         # type for the container.
+        warn_mixed_region_types(x)
         out = [i for i in x]
     end
     return out

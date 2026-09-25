@@ -3,9 +3,11 @@ struct NoKrScale <: AbstractKrScale end
 struct TwoPointKrScale <: AbstractKrScale end
 struct ThreePointKrScale <: AbstractKrScale end
 
-struct ScaledPhaseRelativePermeability{T, N, S<:AbstractKrScale} <: AbstractPhaseRelativePermeability{T, N}
+struct ScaledPhaseRelativePermeability{T, N, S<:AbstractKrScale,
+        K<:AbstractPhaseRelativePermeability{T, N}} <:
+        AbstractPhaseRelativePermeability{T, N}
     scaling::S
-    unscaled_kr::PhaseRelativePermeability{T, N}
+    unscaled_kr::K
     "Connate saturation"
     connate::N
     "The saturation at which rel. perm. becomes positive"
@@ -16,50 +18,44 @@ struct ScaledPhaseRelativePermeability{T, N, S<:AbstractKrScale} <: AbstractPhas
     s_max::N
     residual::N
     residual_base::N
-    function ScaledPhaseRelativePermeability(
-            kr::PhaseRelativePermeability{T, M},
-            scaling::AbstractKrScale,
-            connate,
-            critical,
-            s_max,
-            k_max,
-            residual,
-            residual_base
-        ) where {T, M}
-        # Promote types
-        N = promote_type(
-            M,
-            typeof(connate),
-            typeof(critical),
-            typeof(s_max),
-            typeof(k_max),
-            typeof(residual),
-            typeof(residual_base)
-        )
-        kr_conv = PhaseRelativePermeability{T, N}(
-            kr.k,
-            kr.label,
-            N(kr.connate),
-            N(kr.critical),
-            N(kr.s_max),
-            N(kr.k_max),
-            N(kr.input_s_max)
-        )
-        return new{T, N, typeof(scaling)}(
-            scaling,
-            kr_conv,
-            N(connate),
-            N(critical),
-            N(k_max),
-            N(s_max),
-            N(residual),
-            N(residual_base)
-        )
-    end
 end
 
 function ScaledPhaseRelativePermeability(
-        kr::PhaseRelativePermeability,
+        kr::AbstractPhaseRelativePermeability{T, M},
+        scaling::AbstractKrScale,
+        connate,
+        critical,
+        s_max,
+        k_max,
+        residual,
+        residual_base
+    ) where {T, M}
+    N = promote_type(M, typeof(connate), typeof(critical), typeof(s_max),
+        typeof(k_max), typeof(residual), typeof(residual_base))
+    kr_conv = phase_relative_permeability_with_number_type(kr, N)
+    return ScaledPhaseRelativePermeability{
+        T, N, typeof(scaling), typeof(kr_conv)
+    }(
+        scaling,
+        kr_conv,
+        N(connate),
+        N(critical),
+        N(k_max),
+        N(s_max),
+        N(residual),
+        N(residual_base)
+    )
+end
+
+function phase_relative_permeability_with_number_type(
+        kr::PhaseRelativePermeability, ::Type{N}) where N
+    return PhaseRelativePermeability(
+        kr.k, kr.label, N(kr.connate), N(kr.critical), N(kr.s_max),
+        N(kr.k_max), N(kr.input_s_max))
+end
+
+function ScaledPhaseRelativePermeability(
+        kr::AbstractPhaseRelativePermeability,
         scaling::AbstractKrScale;
         connate,
         critical,
@@ -68,14 +64,13 @@ function ScaledPhaseRelativePermeability(
         residual,
         residual_base
     )
-
     return ScaledPhaseRelativePermeability(
+        kr,
         scaling,
-        kr_conv,
         connate,
         critical,
-        k_max,
         s_max,
+        k_max,
         residual,
         residual_base
     )
@@ -410,13 +405,13 @@ function get_two_phase_scaled_relperms(scaling, krw, krn, scaler_w, scaler_n, c)
     l_w, cr_w, u_w, km_w = get_kr_scalers(krw)
     l_w = max(l_w, zero(l_w))
 
-    R_w = 1.0 - CR_n
-    r_w = 1.0 - cr_n
+    R_w = one(CR_n) - CR_n
+    r_w = one(cr_n) - cr_n
 
-    R_n = 1.0 - CR_w
-    r_n = 1.0 - cr_w
-    U_n = 1.0 - L_w
-    u_n = 1.0 - l_w
+    R_n = one(CR_w) - CR_w
+    r_n = one(cr_w) - cr_w
+    U_n = one(L_w) - L_w
+    u_n = one(l_w) - l_w
 
     # Krw = ScaledPhaseRelativePermeability(krw, scaling, connate = L_w, critical = CR_w, k_max = KM_w, s_max = U_w, residual = R_w, residual_base = r_w)
     # Krn = ScaledPhaseRelativePermeability(krn, scaling, connate = L_n, critical = CR_n, k_max = KM_n, s_max = U_n, residual = R_n, residual_base = r_n)

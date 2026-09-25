@@ -1,3 +1,5 @@
+__precompile__(false)
+
 """
 $(README)
 """
@@ -5,7 +7,7 @@ module JutulDarcy
     const DEFAULT_OPTIMIZER_SIMULATOR_ARG = (output_substates = true, info_level = 0, end_report = false)
 
     export MultiPhaseSystem, ImmiscibleSystem, SinglePhaseSystem
-    export reservoir_linsolve
+    export select_reservoir_linear_solver
     export get_1d_reservoir
     export DeckPhaseViscosities
     export DeckShrinkageFactors
@@ -51,7 +53,7 @@ module JutulDarcy
     export available_well_targets
     export BlackOilUnknown
     export BlackOilX
-    export TotalSurfaceMassRate
+    export TotalSurfaceMassRate, SurfaceComponentRates
     export WellGroup
     export DisabledControl
     export Wells
@@ -130,6 +132,7 @@ module JutulDarcy
     import Jutul: @tic
 
     using Jutul
+    import Adapt
     using ForwardDiff, StaticArrays, SparseArrays, LinearAlgebra, Statistics
     using HYPRE
     # PVT
@@ -156,6 +159,7 @@ module JutulDarcy
         end
     end
 
+    include("KernelExecution/interface.jl")
     include("types.jl")
     include("deck_types.jl")
     include("porousmedia_grids.jl")
@@ -208,6 +212,10 @@ module JutulDarcy
     include("CO2Properties/CO2Properties.jl")
     # Timestepping
     include("timesteps.jl")
+
+    # Backend adaptation for reservoir-specific simulation types.
+    include("KernelExecution/KernelExecution.jl")
+    using .KernelExecution
 
     # Postprocessing
     include("postprocessing.jl")

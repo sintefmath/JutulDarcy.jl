@@ -85,7 +85,7 @@ end
 end
 
 
-function compositional_mass_update_loop!(totmass, model, F, ρ, Sat, X, Y, sw, pv, ix)
+@inline function compositional_mass_update_loop!(totmass, model, F, ρ, Sat, X, Y, sw, pv, ix)
     sys = model.system
     phase_ix = phase_indices(sys)
     N = size(totmass, 1)

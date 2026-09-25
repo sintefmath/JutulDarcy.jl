@@ -29,7 +29,6 @@ end
 function Jutul.select_minimum_output_variables!(vars, domain::DiscretizedDomain, model::MSWellFlowModel)
     push!(vars, :PhaseMassDensities)
     push!(vars, :Saturations)
-    push!(vars, :SurfaceWellConditions)
     return vars
 end
 

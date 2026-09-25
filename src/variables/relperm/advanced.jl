@@ -48,7 +48,8 @@ Residual Oil Data." Journal of Canadian Petroleum Technology 12.4 (1973).
 """
 struct StoneIIMethod <: AbstractThreePhaseOilMethod end
 
-struct ReservoirRelativePermeabilities{Scaling, ph, O, OW, OG, G, R, HW, HOW, HOG, HG, M} <: AbstractRelativePermeabilities
+struct ReservoirRelativePermeabilities{Scaling, ph, O, OW, OG, G, R, HW, HOW, HOG, HG, M} <:
+        AbstractRelativePermeabilities
     "Water relative permeability as a function of water saturation: ``k_{rw}(S_w)``"
     krw::O
     "Oil relative permeability (in the presence of water) as a function of oil saturation: ``k_{row}(S_o)``"
@@ -59,8 +60,6 @@ struct ReservoirRelativePermeabilities{Scaling, ph, O, OW, OG, G, R, HW, HOW, HO
     krg::G
     "Regions to use for each cell of the domain. Can be `nothing` if a single region is used throughout the domain."
     regions::R
-    "Symbol designating the type of system, :wog for three-phase, :og for oil-gas, :wg for water-gas, etc."
-    phases::Symbol
     "Hysteresis model for water rel. perm."
     hysteresis_w::HW
     "Hysteresis model for oil-water rel. perm."
@@ -77,6 +76,22 @@ struct ReservoirRelativePermeabilities{Scaling, ph, O, OW, OG, G, R, HW, HOW, HO
     hysteresis_s_eps::Float64
     "Method for computing three-phase oil relative permeability"
     three_phase_method::M
+end
+
+function Base.getproperty(kr::ReservoirRelativePermeabilities{Scaling, ph},
+        name::Symbol) where {Scaling, ph}
+    if name === :phases
+        return ph
+    else
+        return getfield(kr, name)
+    end
+end
+
+function Base.propertynames(::ReservoirRelativePermeabilities,
+        private::Bool = false)
+    return (:krw, :krow, :krog, :krg, :regions, :phases, :hysteresis_w,
+        :hysteresis_ow, :hysteresis_og, :hysteresis_g, :scaling,
+        :hysteresis_s_threshold, :hysteresis_s_eps, :three_phase_method)
 end
 
 
@@ -179,7 +194,9 @@ function ReservoirRelativePermeabilities(;
         typeof(hysteresis_og),
         typeof(hysteresis_g),
         typeof(three_phase_method)
-        }(krw, krow, krog, krg, regions, phases, hysteresis_w, hysteresis_ow, hysteresis_og, hysteresis_g, scaling, hysteresis_s_threshold, hysteresis_s_eps, three_phase_method)
+        }(krw, krow, krog, krg, regions, hysteresis_w, hysteresis_ow,
+            hysteresis_og, hysteresis_g, scaling, hysteresis_s_threshold,
+            hysteresis_s_eps, three_phase_method)
 end
 
 function Jutul.get_dependencies(kr::ReservoirRelativePermeabilities, model)
@@ -226,7 +243,9 @@ function Jutul.get_dependencies(kr::ReservoirRelativePermeabilities, model)
     return out
 end
 
-function update_secondary_variable!(kr, relperm::ReservoirRelativePermeabilities{scaling_t, ph}, model, state, ix = entity_eachindex(kr)) where {scaling_t, ph}
+function update_secondary_variable!(kr,
+        relperm::ReservoirRelativePermeabilities{scaling_t, ph},
+        model, state, ix = entity_eachindex(kr)) where {scaling_t, ph}
     s = state.Saturations
     regions = relperm.regions
     phases = phase_indices(model.system)
@@ -527,8 +546,9 @@ Base.@propagate_inbounds @inline function update_two_phase_relperm!(kr, relperm,
         krni_base = imbibition_table_by_region(krn, reg)
         krwi, krni = get_two_phase_relperms(relperm, c, krwi_base, krni_base, scalersi)
 
-        ϵ = relperm.hysteresis_s_eps
-        s_th = relperm.hysteresis_s_threshold
+        F = typeof(Jutul.value(sw))
+        ϵ = convert(F, relperm.hysteresis_s_eps)
+        s_th = convert(F, relperm.hysteresis_s_threshold)
 
         val_w = kr_hysteresis(H_w, krwd, krwi, sw, sw_max, ϵ, s_th)
         val_n = kr_hysteresis(H_n, krnd, krni, sn, sn_max, ϵ, s_th)

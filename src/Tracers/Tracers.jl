@@ -1,5 +1,6 @@
 module Tracers
     using Jutul, JutulDarcy
+    import Adapt
     import JutulDarcy: AbstractPhase, get_phases, darcy_phase_mass_flux, phase_upwind, MultiPhaseSystem
     import StaticArrays: setindex
 

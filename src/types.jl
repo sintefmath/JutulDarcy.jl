@@ -20,23 +20,23 @@ abstract type PhaseVariables <: VectorVariables end
 abstract type ComponentVariables <: VectorVariables end
 
 abstract type CompositionalSystemLV <: CompositionalSystem end
-struct MultiPhaseCompositionalSystemLV{E, T, O, R, N} <: CompositionalSystemLV where T<:Tuple
+struct MultiPhaseCompositionalSystemLV{E, T, O, R, N, C, Ref} <: CompositionalSystemLV where T<:Tuple
     phases::T
-    components::Vector{String}
+    components::C
     equation_of_state::E
     rho_ref::R
     reference_phase_index::Int
 end
 
-function MultiPhaseCompositionalSystemLV{R, T, O, D, N}(phases, c, equation_of_state, reference_densities) where {R, T, O, D, N}
+function MultiPhaseCompositionalSystemLV{R, T, O, D, N, C}(phases, c, equation_of_state, reference_densities) where {R, T, O, D, N, C}
     reference_phase_index = get_reference_phase_index(phases)
-    return MultiPhaseCompositionalSystemLV{R, T, O, D, N}(phases, c, equation_of_state, reference_densities, reference_phase_index)
+    return MultiPhaseCompositionalSystemLV{R, T, O, D, N, C, reference_phase_index}(phases, c, equation_of_state, reference_densities, reference_phase_index)
 end
 
-const LVCompositional2PhaseSystem = MultiPhaseCompositionalSystemLV{<:Any, <:Any, Nothing, <:Any, <:Any}
-const LVCompositional3PhaseSystem = MultiPhaseCompositionalSystemLV{<:Any, <:Any, <:AbstractPhase, <:Any, <:Any}
+const LVCompositional2PhaseSystem = MultiPhaseCompositionalSystemLV{<:Any, <:Any, Nothing, <:Any, <:Any, <:Any}
+const LVCompositional3PhaseSystem = MultiPhaseCompositionalSystemLV{<:Any, <:Any, <:AbstractPhase, <:Any, <:Any, <:Any}
 
-const LVCompositionalModel = SimulationModel{D, S, F, C} where {D, S<:MultiPhaseCompositionalSystemLV{<:Any, <:Any, <:Any, <:Any, <:Any}, F, C}
+const LVCompositionalModel = SimulationModel{D, S, F, C} where {D, S<:MultiPhaseCompositionalSystemLV, F, C}
 const LVCompositionalModel2Phase = SimulationModel{D, S, F, C} where {D, S<:LVCompositional2PhaseSystem, F, C}
 const LVCompositionalModel3Phase = SimulationModel{D, S, F, C} where {D, S<:LVCompositional3PhaseSystem, F, C}
 
@@ -74,11 +74,14 @@ function MultiPhaseCompositionalSystemLV(
     end
     only(findall(isequal(LiquidPhase()), phases))
     only(findall(isequal(VaporPhase()), phases))
-    return MultiPhaseCompositionalSystemLV{typeof(equation_of_state), T, O, typeof(reference_densities), N}(phases, c, equation_of_state, reference_densities, reference_phase_index)
+    return MultiPhaseCompositionalSystemLV{typeof(equation_of_state), T, O,
+        typeof(reference_densities), N, typeof(c), reference_phase_index}(
+        phases, c, equation_of_state, reference_densities,
+        reference_phase_index)
 end
 
 function Base.show(io::IO, sys::MultiPhaseCompositionalSystemLV)
-    components = copy(sys.components)
+    components = component_names(sys)
     n = number_of_components(sys)
     if has_other_phase(sys)
         name = "(three-phase)"
@@ -92,7 +95,7 @@ function Base.show(io::IO, sys::MultiPhaseCompositionalSystemLV)
     print(io, "MultiPhaseCompositionalSystemLV $name with $(MultiComponentFlash.eostype(eos)) EOS with $n EOS components: $cnames")
 end
 
-struct StandardBlackOilSystem{D, V, W, R, F, T, P, Num} <: BlackOilSystem
+struct StandardBlackOilSystem{D, V, W, R, F, T, P, Num, Ref} <: BlackOilSystem
     rs_max::D
     rv_max::V
     rho_ref::R
@@ -172,7 +175,7 @@ function StandardBlackOilSystem(;
         end
     end
     @assert formulation == :varswitch || formulation == :zg
-    return StandardBlackOilSystem{RS, RV, has_water, typeof(reference_densities), formulation, typeof(phase_ind), typeof(phases), Float64}(rs_max, rv_max, reference_densities, phase_ind, phases, saturated_chop, keep_bubble_flag, eps_rs, eps_rv, eps_s, reference_phase_index)
+    return StandardBlackOilSystem{RS, RV, has_water, typeof(reference_densities), formulation, typeof(phase_ind), typeof(phases), Float64, reference_phase_index}(rs_max, rv_max, reference_densities, phase_ind, phases, saturated_chop, keep_bubble_flag, eps_rs, eps_rv, eps_s, reference_phase_index)
 end
 
 @inline function rs_max_function(sys::StandardBlackOilSystem, region = 1)
@@ -208,7 +211,7 @@ const DisgasBlackOilModel            = SimulationModel{<:Any, <:DisgasBlackOilSy
 
 const StandardBlackOilModelWithWater = SimulationModel{<:Any, <:StandardBlackOilSystem{<:Any, <:Any, true, <:Any, <:Any, <:Any, <:Any}, <:Any, <:Any}
 
-struct ImmiscibleSystem{T, F} <: MultiPhaseSystem where {T<:Tuple, F<:NTuple}
+struct ImmiscibleSystem{T, F, Ref} <: MultiPhaseSystem where {T<:Tuple, F<:NTuple}
     phases::T
     rho_ref::F
     reference_phase_index::Int
@@ -228,7 +231,7 @@ densitites. This system is easy to specify with [`Pressure`](@ref) and
 that there is no mass transfer between phases and that a phase is uniform in
 composition.
 """
-function ImmiscibleSystem(phases; reference_densities = ones(length(phases)), reference_phase_index = missing)
+function ImmiscibleSystem(phases; reference_densities = missing, reference_phase_index = missing)
     if phases isa Symbol
         if phases == :og || phases == :lv
             phases = (LiquidPhase(), VaporPhase())
@@ -252,17 +255,20 @@ function ImmiscibleSystem(phases; reference_densities = ones(length(phases)), re
         ph isa AbstractPhase || error("Phase $ph was not a phase?")
     end
     phases = tuple(phases...)
+    if ismissing(reference_densities)
+        reference_densities = ones(length(phases))
+    end
     if ismissing(reference_phase_index)
         reference_phase_index = get_reference_phase_index(phases)
     end
     reference_densities = tuple(reference_densities...)
-    return ImmiscibleSystem(phases, reference_densities, reference_phase_index)
+    return ImmiscibleSystem{typeof(phases), typeof(reference_densities), reference_phase_index}(phases, reference_densities, reference_phase_index)
 end
 
 Base.show(io::IO, t::ImmiscibleSystem) = print(io, "ImmiscibleSystem with $(join([typeof(p) for p in t.phases], ", "))")
 
 
-struct SinglePhaseSystem{P, F} <: MultiPhaseSystem where {P, F<:AbstractFloat}
+struct SinglePhaseSystem{P, F, Ref} <: MultiPhaseSystem
     phase::P
     rho_ref::F
 end
@@ -278,7 +284,7 @@ function SinglePhaseSystem(phase = LiquidPhase(); reference_density = 1.0)
     if reference_density isa Real
         reference_density = (reference_density, )
     end
-    return SinglePhaseSystem{typeof(phase), typeof(reference_density)}(phase, reference_density)
+    return SinglePhaseSystem{typeof(phase), typeof(reference_density), 1}(phase, reference_density)
 end
 
 const SinglePhaseModel = SimulationModel{D, S, F, C} where {D, S<:SinglePhaseSystem, F, C}
@@ -287,9 +293,8 @@ number_of_components(sys::SinglePhaseSystem) = 1
 
 abstract type AbstractPhaseRelativePermeability{T, N} end
 
-struct PhaseRelativePermeability{T, N} <: AbstractPhaseRelativePermeability{T, N}
+struct PhaseRelativePermeability{label, T, N} <: AbstractPhaseRelativePermeability{T, N}
     k::T
-    label::Symbol
     "Connate saturation"
     connate::N
     "The saturation at which rel. perm. becomes positive"
@@ -302,6 +307,23 @@ struct PhaseRelativePermeability{T, N} <: AbstractPhaseRelativePermeability{T, N
     input_s_max::N
 end
 
+function PhaseRelativePermeability(k::T, label::Symbol, connate::N,
+        critical::N, s_max::N, k_max::N, input_s_max::N) where {T, N}
+    return PhaseRelativePermeability{label, T, N}(
+        k, connate, critical, s_max, k_max, input_s_max)
+end
+
+function Base.getproperty(kr::PhaseRelativePermeability{label}, name::Symbol) where label
+    if name === :label
+        return label
+    else
+        return getfield(kr, name)
+    end
+end
+
+function Base.propertynames(::PhaseRelativePermeability, private::Bool = false)
+    return (:k, :label, :connate, :critical, :s_max, :k_max, :input_s_max)
+end
 
 """
     PhaseRelativePermeability(s, k; label = :w, connate = s[1], epsilon = 1e-16)
@@ -397,15 +419,15 @@ If `enthalpy` is left as `nothing`, thermal inflow falls back to
 the local reservoir-state enthalpy at the boundary cell: `Enthalpy` when
 available, otherwise a saturation-weighted value from `FluidEnthalpy`.
 """
-struct FlowBoundaryCondition{I, F, T} <: JutulForce
+struct FlowBoundaryCondition{I, F, T, D, H} <: JutulForce
     cell::I
     pressure::F
     temperature::F
     trans_flow::F
     trans_thermal::F
     fractional_flow::T
-    density::Union{F, Nothing}
-    enthalpy::Union{F, Nothing}
+    density::D
+    enthalpy::H
 end
 
 abstract type PorousMediumDomain <: JutulMesh end
@@ -432,10 +454,10 @@ function Base.show(io::IO, w::WellDomain)
     print(io, "$n [$(w.name)] ($(nn) nodes, $(nseg) segments, $(length(w.perforations.reservoir)) perforations)")
 end
 
-struct SimpleWell{SC, P} <: WellDomain where {SC, P}
+struct SimpleWell{SC, P, N} <: WellDomain where {SC, P, N}
     perforations::P
     surface::SC
-    name::Symbol
+    name::N
     explicit_dp::Bool
     # reference_depth::V
 end
@@ -704,19 +726,19 @@ function Base.convert(::Type{TopConditions{N, R}}, tc::TopConditions{N, Float64}
 end
 
 struct SurfaceWellConditions{T, R} <: ScalarVariable
-    storage::T
-    separator_conditions::Vector{NamedTuple{(:p, :T), Tuple{R, R}}}
-    separator_targets::Vector{Tuple{Int, Int}}
-    function SurfaceWellConditions(S::T, c, t, R::DataType = Float64) where T
+    storage::Vector{T}
+    separator_conditions::Vector{Vector{NamedTuple{(:p, :T), Tuple{R, R}}}}
+    separator_targets::Vector{Vector{Tuple{Int, Int}}}
+    function SurfaceWellConditions(S::Vector{T}, c, t, R::DataType = Float64) where T
         new{T, R}(S, c, t)
     end
 end
 
-function SurfaceWellConditions(sys::JutulSystem; kwarg...)
-    s = Dict{Type, Any}()
+function SurfaceWellConditions(sys::JutulSystem, n = 1; kwarg...)
+    s = [Dict{Type, Any}() for _ in 1:n]
     S_t = typeof(default_surface_cond())
-    cond = S_t[]
-    targets = Tuple{Int, Int}[]
+    cond = [S_t[] for _ in 1:n]
+    targets = [Tuple{Int, Int}[] for _ in 1:n]
     return SurfaceWellConditions(s, cond, targets)
 end
 
@@ -801,3 +823,8 @@ function setup_nnc_connections(mesh::JutulMesh, neighbors::Vector{Tuple{Int, Int
     return NonNeighboringConnections{R}(neighbors, trans, trans_thermal)
 end
 
+
+export KValueWrapper
+struct KValueWrapper{T, D}
+    K::T
+end

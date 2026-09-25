@@ -2,6 +2,55 @@ abstract type AbstractCapillaryPressure <: VectorVariables end
 
 degrees_of_freedom_per_entity(model, v::AbstractCapillaryPressure) = number_of_phases(model.system) - 1
 
+# Use the same interpolation representation as a supplied table, including its
+# lookup mode and storage type, for an omitted capillary pressure curve.
+function zero_capillary_interpolator(table::Jutul.LinearInterpolant)
+    return Jutul.LinearInterpolant(table.X, zero.(table.F), table.lookup)
+end
+
+zero_capillary_interpolator(::Nothing) =
+    get_1d_interpolator([0.0, 1.0], [0.0, 0.0])
+
+function capillary_template(pc)
+    for pair in pc
+        tables = pair isa Union{Tuple, AbstractVector} ? pair : (pair,)
+        for table in tables
+            if table isa Jutul.LinearInterpolant
+                return table
+            end
+        end
+    end
+    return nothing
+end
+
+function normalize_capillary_pair(pair, fallback, nregions)
+    if pair isa Union{Tuple, AbstractVector}
+        any(isnothing, pair) || return pair
+        template = capillary_template((pair,))
+        zero_table = zero_capillary_interpolator(isnothing(template) ? fallback : template)
+        return map(table -> isnothing(table) ? zero_table : table, pair)
+    else
+        if isnothing(pair)
+            table = zero_capillary_interpolator(fallback)
+        else
+            table = pair
+        end
+        if nregions == 1
+            return table
+        elseif nregions < 20
+            return ntuple(_ -> table, nregions)
+        else
+            return fill(table, nregions)
+        end
+    end
+end
+
+function prepare_capillary_tables(pc, regions)
+    template = capillary_template(pc)
+    nregions = regions isa AbstractArray ? maximum(regions) : 1
+    return tuple((region_wrap(normalize_capillary_pair(pair, template, nregions), regions) for pair in pc)...)
+end
+
 function Jutul.line_plot_data(model::SimulationModel, cap::AbstractCapillaryPressure)
     npc = number_of_phases(model.system)-1
     phases = phase_names(model.system)
@@ -29,13 +78,15 @@ struct SimpleCapillaryPressure{T, R} <: AbstractCapillaryPressure
     pc::T
     regions::R
     function SimpleCapillaryPressure(pc::C; regions::T = nothing) where {C, T}
-        is_tup_tup = first(pc) isa Tuple
         if isnothing(regions)
-            @assert !is_tup_tup || all(x -> length(x) == 1, pc)
+            @assert all(x -> !(x isa Union{Tuple, AbstractVector}) || length(x) == 1, pc)
         end
-        pc = map(x -> region_wrap(x, regions), pc)
-        pc = tuple(pc...)
+        pc = prepare_capillary_tables(pc, regions)
         return new{typeof(pc), T}(pc, regions)
+    end
+    function SimpleCapillaryPressure(pc::T, regions::R,
+            ::Val{:assembled}) where {T, R}
+        return new{T, R}(pc, regions)
     end
 end
 
@@ -51,65 +102,7 @@ end
 
 
 @jutul_secondary function update_pc!(Δp, pc::SimpleCapillaryPressure, model, Saturations, ix)
-    cap = pc.pc
-    npc = size(Δp, 1)
-    nph = size(Saturations, 1)
-    @assert npc == nph - 1
-    reference_ph = get_reference_phase_index(model.system)
-    if npc == 1
-        if reference_ph == 1
-            w = 2
-        else
-            w = 1
-        end
-        pcow = only(cap)
-        @inbounds for c in ix
-            reg = region(pc.regions, c)
-            pcow_c = table_by_region(pcow, reg)
-            sw = Saturations[w, c]
-            Δp[1, c] = pcow_c(sw)
-        end
-    elseif npc == 2
-        if reference_ph == 1
-            w, g = 2, 3
-        elseif reference_ph == 2
-            w, g = 1, 3
-        else
-            @assert reference_ph == 3
-            w, g = 1, 2
-        end
-        pcow, pcog = cap
-        if isnothing(pcow)
-            @inbounds for c in ix
-                reg = region(pc.regions, c)
-                pcog_c = table_by_region(pcog, reg)
-                sg = Saturations[g, c]
-                Δp[1, c] = 0
-                Δp[2, c] = pcog_c(sg)
-            end
-        elseif isnothing(pcog)
-            @inbounds for c in ix
-                reg = region(pc.regions, c)
-                pcow_c = table_by_region(pcow, reg)
-                sw = Saturations[w, c]
-                Δp[1, c] = pcow_c(sw)
-                Δp[2, c] = 0
-            end
-        else
-            @inbounds for c in ix
-                reg = region(pc.regions, c)
-                pcow_c = table_by_region(pcow, reg)
-                pcog_c = table_by_region(pcog, reg)
-                sw = Saturations[w, c]
-                sg = Saturations[g, c]
-                # Note: Negative sign already taken care of in input
-                Δp[1, c] = pcow_c(sw)
-                Δp[2, c] = pcog_c(sg)
-            end
-        end
-    else
-        error("Only implemented for two and three-phase flow.")
-    end
+    return update_capillary_pressure!(Δp, pc, model, Saturations, nothing, ix)
 end
 
 struct CapillaryPressureScaling <: Jutul.VectorVariables end
@@ -134,13 +127,15 @@ struct ScaledCapillaryPressure{T, R} <: AbstractCapillaryPressure
     pc::T
     regions::R
     function ScaledCapillaryPressure(pc::C; regions::T = nothing) where {C, T}
-        is_tup_tup = first(pc) isa Tuple
         if isnothing(regions)
-            @assert !is_tup_tup || all(x -> length(x) == 1, pc)
+            @assert all(x -> !(x isa Union{Tuple, AbstractVector}) || length(x) == 1, pc)
         end
-        pc = map(x -> region_wrap(x, regions), pc)
-        pc = tuple(pc...)
+        pc = prepare_capillary_tables(pc, regions)
         return new{typeof(pc), T}(pc, regions)
+    end
+    function ScaledCapillaryPressure(pc::T, regions::R,
+            ::Val{:assembled}) where {T, R}
+        return new{T, R}(pc, regions)
     end
 end
 
@@ -151,9 +146,15 @@ function Jutul.subvariable(p::ScaledCapillaryPressure, map::FiniteVolumeGlobalMa
 end
 
 @jutul_secondary function update_pc!(Δp, pc::ScaledCapillaryPressure, model, Saturations, CapillaryPressureScaling, ix)
+    return update_capillary_pressure!(Δp, pc, model, Saturations, CapillaryPressureScaling, ix)
+end
+
+@inline capillary_scale(::Nothing, phase, cell) = 1
+@inline capillary_scale(scale, phase, cell) = scale[phase, cell]
+
+function update_capillary_pressure!(Δp, pc, model, Saturations, scale, ix)
     cap = pc.pc
-    npc = size(Δp, 1)
-    scale = CapillaryPressureScaling
+    npc = number_of_phases(model.system) - 1
     reference_ph = get_reference_phase_index(model.system)
     if npc == 1
         if reference_ph == 1
@@ -161,12 +162,11 @@ end
         else
             w = 1
         end
-        pcow = only(cap)
+        pcow = cap[1]
         @inbounds for c in ix
             reg = region(pc.regions, c)
-            pcow_c = table_by_region(pcow, reg)
-            sw = Saturations[1, c]
-            Δp[1, c] = scale[1, c]*pcow_c(sw)
+            sw = Saturations[w, c]
+            Δp[1, c] = capillary_scale(scale, 1, c)*evaluate_table_by_region(pcow, reg, sw)
         end
     elseif npc == 2
         if reference_ph == 1
@@ -178,32 +178,13 @@ end
             w, g = 1, 2
         end
         pcow, pcog = cap
-        if isnothing(pcow)
-            @inbounds for c in ix
-                reg = region(pc.regions, c)
-                pcog_c = table_by_region(pcog, reg)
-                sg = Saturations[g, c]
-                Δp[1, c] = 0
-                Δp[2, c] = scale[2, c]*pcog_c(sg)
-            end
-        elseif isnothing(pcog)
-            @inbounds for c in ix
-                reg = region(pc.regions, c)
-                pcow_c = table_by_region(pcow, reg)
-                sw = Saturations[w, c]
-                Δp[1, c] = scale[1, c]*pcow_c(sw)
-                Δp[2, c] = 0
-            end
-        else
-            @inbounds for c in ix
-                reg = region(pc.regions, c)
-                pcow_c = table_by_region(pcow, reg)
-                pcog_c = table_by_region(pcog, reg)
-                sw = Saturations[w, c]
-                sg = Saturations[g, c]
-                Δp[1, c] = scale[1, c]*pcow_c(sw)
-                Δp[2, c] = scale[2, c]*pcog_c(sg)
-            end
+        @inbounds for c in ix
+            reg = region(pc.regions, c)
+            sw = Saturations[w, c]
+            sg = Saturations[g, c]
+            # The input interpolators already include the capillary pressure sign.
+            Δp[1, c] = capillary_scale(scale, 1, c)*evaluate_table_by_region(pcow, reg, sw)
+            Δp[2, c] = capillary_scale(scale, 2, c)*evaluate_table_by_region(pcog, reg, sg)
         end
     else
         error("Only implemented for two and three-phase flow.")

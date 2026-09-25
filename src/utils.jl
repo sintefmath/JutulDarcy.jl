@@ -21,13 +21,6 @@ function reservoir_model(case::JutulCase; kwarg...)
     return reservoir_model(case.model; kwarg...)
 end
 
-function reservoir_model(model::Jutul.CompositeModel; type = missing)
-    if !ismissing(type)
-        model = Jutul.composite_submodel(model, type)
-    end
-    return model
-end
-
 """
     rstorage = reservoir_storage(model, storage)
 
@@ -478,7 +471,8 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         immutable_model = false,
         wells_systems = missing,
         wells_as_cells = false,
-        discretization_arg = NamedTuple()
+        discretization_arg = NamedTuple(),
+        groups = missing
     )
     # Deal with wells, make sure that multisegment wells come last.
     if !(wells isa AbstractArray)
@@ -639,6 +633,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         split_wells = split_wells,
         assemble_wells_together = assemble_wells_together,
         immutable_model = immutable_model,
+        groups = groups,
     )
     if length(tracers) > 0
         add_tracers_to_model!(model, tracers)
@@ -807,7 +802,7 @@ function set_reservoir_variable_defaults!(model;
         dT_max_abs = nothing,
         T_min = convert_to_si(0.0, :Celsius),
         flash_reuse_guess = false,
-        flash_stability_bypass = flash_reuse_guess
+        flash_stability_bypass = false
     )
     # Replace various variables - if they are available
     replace_variables!(model, OverallMoleFractions = OverallMoleFractions(dz_max = dz_max), throw = false)
@@ -1031,7 +1026,7 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing;
     state0 = setup_state(mmodel, initializer)
 
     case = JutulCase(mmodel, state0 = state0, parameters = parameters)
-    setup_reservoir_simulator(case; kwarg...)
+    return setup_reservoir_simulator(case; kwarg...)
 end
 
 function mode_to_backend(mode::Symbol)
@@ -1056,6 +1051,22 @@ end
 
 - `mode=:default`: Mode used for solving. Can be set to `:mpi` if running in MPI
   mode together with HYPRE, PartitionedArrays and MPI in your environment.
+  KernelAbstractions execution is selected with `:ka` (`:ka_cpu`), or a
+  backend-specific mode: `:ka_cuda`, `:ka_amd`, or `:ka_metal`. The reservoir
+  is evaluated fully on the selected backend while wells and facility
+  equations remain on the host and are copied to device storage for assembly.
+- `group_execution=missing`: Per-model `DeviceExecutionMode` policy for KA
+  modes, supplied as a function or keyed collection. By default the reservoir
+  uses `SolveFullyOnDevice` and wells/facility use `AssembleOnDevice`.
+- `float_type=Float64`, `index_type=Int`: Override the floating-point and
+  sparse-index types used by the `KernelAbstractionsContext`. These options are
+  only valid for KA modes; omitted values inherit the CPU model's context.
+- `linear_float_type=float_type`, `linear_index_type=index_type`: Override the KA
+  linear system and solver types independently. Each defaults to its
+  corresponding assembly type.
+- `reduce_memory=true`: For KA modes, use fused equation assembly for TPFA
+  conservation laws without face-variable fluxes instead of storing cell
+  half-face AD flux values on the backend.
 - `method=:newton`: Can be `:newton`, `:nldd` or `:aspen`. Newton is the most
   tested approach and `:nldd` can speed up difficult models. The `:nldd` option
   enables a host of additional options (look at the simulator config for more
@@ -1080,6 +1091,10 @@ end
 - `rtol=nothing`: relative tolerance for linear solver. If set to `nothing`, the
   default tolerance for the preconditioner is used, which is 5e-3 for CPR
   variants and 1e-2 for smoothers.
+- `linear_solver_backend=:auto`: Select the backend-native Krylov and
+  preconditioner path. KernelAbstractions simulator modes automatically use
+  the KA AMG and smoother implementations. Set this explicitly to `:cpu`,
+  `:ka`, or the legacy `:cuda` transfer path to override the default.
 - `linear_solver_arg`: `Dict` containing additional linear solver arguments.
 
 ## Timestepping options
@@ -1119,6 +1134,9 @@ values for pressure models.
 - `inc_tol_saturation=Inf`: Maximum allowable saturation change.
 - `inc_tol_dp_rel=missing`: Maximum allowable pressure change (relative)
 - `inc_tol_dz=Inf`: Maximum allowable composition change (compositional only).
+- `tolerances=(tol_control=...)`: Absolute facility control tolerance. The
+  default is `1e-3`, or `1e-2` for Float32 assembly to account for rate
+  rounding after per-day scaling.
 
 ## Convergence criterions (energy conservation)
 - `tol_cnve=tol_cnv`: Maximum allowable point-wise error
@@ -1157,17 +1175,25 @@ list a few of the most relevant entries here for convenience:
   severe impact on numerical accuracy. A value of 1 to 10 is typically safe if
   your default tolerances are strict.
 
+
+## GPU options
+- `wells_on_device=false`: Evaluate wells on the device if set to `true`,
+  otherwise on the host.
+- `mixed_cross_terms_on_host=wells_on_device`: Evaluate cross terms between host- and
+  device-evaluated models on the host after copying back only the current
+  device state. Set to `false` to evaluate these cross terms on the backend.
 """
 function setup_reservoir_simulator(case::JutulCase;
         mode = :default,
+        ka_backend = missing,
         method = :newton,
         precond = :cpr,
         linear_solver = :bicgstab,
-        linear_solver_backend = :cpu,
+        linear_solver_backend = :auto,
         max_timestep = si_unit(:year),
         min_timestep = 0.0,
         max_dt = max_timestep,
-        rtol = nothing,
+        rtol = missing,
         initial_dt = si_unit(:day),
         target_ds = Inf,
         target_dz = Inf,
@@ -1201,8 +1227,24 @@ function setup_reservoir_simulator(case::JutulCase;
         linear_solver_arg = Dict{Symbol, Any}(),
         parray_arg = Dict{Symbol, Any}(),
         nldd_arg = Dict{Symbol, Any}(),
+        group_execution = missing,
+        ka_workgroupsize = 256,
+        wells_on_device::Bool = false,
+        mixed_cross_terms_on_host::Bool = wells_on_device,
+        float_type = Float64,
+        index_type = Int,
+        linear_float_type = float_type,
+        linear_index_type = index_type,
+        reduce_memory = true,
         kwarg...
     )
+    ka_mode = mode isa Symbol && (mode == :ka || startswith(String(mode), "ka_"))
+    sim_type_overridden = float_type != Float64 || index_type != Int
+    lsolve_type_overridden = linear_float_type != float_type || linear_index_type != index_type
+    if (sim_type_overridden || lsolve_type_overridden) && !ka_mode
+        throw(ArgumentError(
+            "Numeric type overrides are only supported for KernelAbstractions (:ka) modes"))
+    end
     if ismissing(set_linear_solver)
         set_linear_solver = linear_solver isa Symbol || ismissing(linear_solver)
     end
@@ -1215,7 +1257,45 @@ function setup_reservoir_simulator(case::JutulCase;
     if presolve_wells
         sim_kwarg[:prepare_step_handler] = PrepareStepWellSolver()
     end
-    if mode == :default
+    if ka_mode
+        if wells_on_device != mixed_cross_terms_on_host
+            @warn "wells_on_device and mixed_cross_terms_on_host are inconsistent. This may lead to large copies or errors."
+        end
+        method == :newton || throw(ArgumentError(
+            "KernelAbstractions modes currently support method=:newton"))
+        if ismissing(ka_backend)
+            ka_backend = kernel_abstractions_backend(mode)
+        end
+        sim_cpu = Simulator(case; sim_kwarg...)
+        ka_context = Jutul.KernelAbstractionsContext(ka_backend;
+            float_type = float_type,
+            index_type = index_type,
+            linear_float_type = linear_float_type,
+            linear_index_type = linear_index_type,
+            matrix_layout = Jutul.matrix_layout(sim_cpu.model.context),
+            workgroupsize = ka_workgroupsize,
+            reduce_memory = reduce_memory)
+        if ismissing(group_execution)
+            is_cpu = ka_backend isa Jutul.KernelExecution.KernelAbstractions.CPU
+            if is_cpu
+                group_execution = Dict{Symbol, Jutul.DeviceExecutionMode}(
+                    :default => Jutul.SolveFullyOnDevice
+                )
+            else
+                group_execution = Dict{Symbol, Jutul.DeviceExecutionMode}()
+                group_execution[:Reservoir] = Jutul.SolveFullyOnDevice
+                group_execution[:default] = Jutul.AssembleOnDevice
+                if wells_on_device
+                    for k in keys(get_model_wells(case))
+                        group_execution[k] = Jutul.SolveFullyOnDevice
+                    end
+                end
+            end
+        end
+        sim = transfer_to_backend(sim_cpu, ka_context;
+            group_execution = group_execution,
+            mixed_cross_terms_on_host = mixed_cross_terms_on_host)
+    elseif mode == :default
         # Single-process solve
         if method == :newton
             sim = Simulator(case; sim_kwarg...)
@@ -1285,7 +1365,22 @@ function setup_reservoir_simulator(case::JutulCase;
         else
             extra_ls = NamedTuple()
         end
-        extra_kwarg[:linear_solver] = reservoir_linsolve(case.model, precond;
+        if linear_solver_backend == :auto
+            if ka_mode
+                linear_solver_backend = :ka
+            else
+                linear_solver_backend = :cpu
+            end
+        end
+        # KA models have been transferred at this point, so select against the
+        # simulator model to make device-specific defaults available. Keep the
+        # established model selection for all other execution modes.
+        if ka_mode
+            solver_model = sim.model
+        else
+            solver_model = case.model
+        end
+        extra_kwarg[:linear_solver] = select_reservoir_linear_solver(solver_model, precond;
             backend = linear_solver_backend,
             rtol = rtol,
             extra_ls...,
@@ -1441,6 +1536,7 @@ function set_default_cnv_mb_inner!(tol, model;
         tol_mb_well = 1e-3,
         tol_cnv_well = 1e-2,
         tol_dp_well = 1e-3,
+        tol_control = missing,
         inc_tol_dz = Inf,
         inc_tol_saturation = Inf,
         tol_cnve = tol_cnv,
@@ -1472,6 +1568,18 @@ function set_default_cnv_mb_inner!(tol, model;
         end
     end
     sys = model.system
+    if sys isa FacilitySystem && haskey(model.equations, :control_equation)
+        if ismissing(tol_control)
+            # A surface rate in Float32 can have a few milliday units of
+            # roundoff after the control equation's per-day scaling.
+            if Jutul.float_type(model.context) === Float32
+                tol_control = 1e-2
+            else
+                tol_control = 1e-3
+            end
+        end
+        tol[:control_equation] = (Abs = tol_control,)
+    end
     if system_uses_cnv_mb(sys)
         is_well = model_or_domain_is_well(model)
         if is_well
@@ -1483,7 +1591,7 @@ function set_default_cnv_mb_inner!(tol, model;
             end
             cnv, cnve = tol_cnv_well, tol_cnve_well
         else
-            cnv, cnve = tol_cnv, tol_cnv
+            cnv, cnve = tol_cnv, tol_cnve
             mb, eb = tol_mb, tol_eb
         end
 
@@ -1513,8 +1621,6 @@ end
 
 function setup_reservoir_cross_terms!(model::MultiModel)
     rmodel = reservoir_model(model)
-    has_composite = rmodel isa Jutul.CompositeModel
-
     has_flow = rmodel.system isa MultiPhaseSystem
     has_thermal = haskey(rmodel.equations, :energy_conservation)
     conservation = :mass_conservation
@@ -1532,8 +1638,8 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                     ct = FacilityFromWellBottomHolePressureCT(target_well)
                     add_cross_term!(model, ct, target = k, source = target_well, equation = :bottom_hole_pressure_equation)
 
-                    ct = FacilityFromSurfacePhaseRatesCT(target_well)
-                    add_cross_term!(model, ct, target = k, source = target_well, equation = :surface_phase_rates_equation)
+                    ct = FacilityFromSurfaceComponentRatesCT(target_well)
+                    add_cross_term!(model, ct, target = k, source = target_well, equation = :surface_component_rates_equation)
                 end
                 if has_thermal
                     ct = WellFromFacilityThermalCT(target_well)
@@ -1667,7 +1773,8 @@ function reservoir_multimodel(models::AbstractDict;
         red = :schur_apply
     end
     models = convert_to_immutable_storage(models)
-    model = MultiModel(models, groups = groups, context = outer_context, reduction = red, specialize = specialize)
+    model = MultiModel(models, groups = groups, context = outer_context,
+        reduction = red, specialize = specialize)
     setup_reservoir_cross_terms!(model)
     if immutable_model
         model = convert_to_immutable_storage(model)
@@ -1737,26 +1844,6 @@ function setup_reservoir_forces(model::MultiModel;
         end
         out = setup_forces(model; pairs(new_forces)..., kwarg..., Reservoir = reservoir_forces)
     end
-    # If the model is a composite model we need to do some extra work to pass on
-    # flow forces with the correct label.
-    #
-    # TODO: At the moment we have no mechanism for setting up forces for thermal
-    # specifically.
-    for (k, m) in pairs(submodels)
-        f = out[k]
-        if m isa Jutul.CompositeModel
-            mkeys = keys(m.system.systems)
-            if haskey(f, :flow) && haskey(f, :thermal)
-                tmp = f
-            else
-                tmp = Dict{Symbol, Any}()
-                for mk in mkeys
-                    tmp[mk] = nothing
-                end
-            end
-            out[k] = (; pairs(tmp)...)
-        end
-    end
     return out
 end
 
@@ -1773,7 +1860,7 @@ function full_well_outputs(model, states, forces; targets = missing)
     end
     cnames = component_names(rmodel.system)
     has_temperature = length(states) > 0 && haskey(first(states)[:Reservoir], :Temperature)
-    well_t = Dict{Symbol, Union{Vector{Float64}, Vector{Symbol}}}
+    well_t = Dict{Symbol, AbstractVector}
     out = Dict{Symbol, well_t}()
     for w in well_symbols(model)
         outw = well_t()
@@ -1875,13 +1962,8 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
                 d[i] = q_t
             elseif target isa Int
                 # Shorthand for component mass rate
-                if control isa InjectorControl
-                    mix = control.injection_mixture[target]
-                else
-                    totmass = well_state[:TotalMasses][:, 1]
-                    mix = totmass[target]/sum(totmass)
-                end
-                d[i] = q_t*mix
+                pos = get_well_position(fmodel.domain, well_symbol)
+                d[i] = fstate[:SurfaceComponentRates][target, pos]
             else
                 if q_t == 0 || control isa DisabledControl
                     current_control = DisabledControl()
@@ -3128,18 +3210,18 @@ function transfer_variables_or_parameters!(vars, new_model::SimulationModel, rep
 end
 
 # Utility to transfer variables and parameters from one model to another
-function transfer_variables_and_parameters!(new_model, old_model;
+function transfer_variables_and_parameters!(new_model,
+        old_model::SimulationModel{O, S, F, C};
         primary = true,
         secondary = true,
         parameters = true,
         add_new = true,
         check_type = true,
         skip = Symbol[]
-    )
+    ) where {O, S, F, C}
     if check_type
-        new_type = typeof(new_model)
-        old_type = typeof(old_model)
-        @assert new_type == old_type "Models must be of the same type ($new_type ≠ $old_type)"
+        matching_type = new_model isa SimulationModel{O, S, F, C}
+        @assert matching_type "Models must have matching domains, systems, formulations and contexts"
     end
     function transfer!(x)
         transfer_variables_or_parameters!(

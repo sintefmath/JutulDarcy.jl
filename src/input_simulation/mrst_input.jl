@@ -240,33 +240,37 @@ function get_well_from_mrst_data(
     end
     # W_domain = discretized_domain_well(W)
     wmodel = SimulationModel(W, wsys; kwarg...)
-    if haskey(mrst_data["deck"], "SOLUTION")
-        sol = mrst_data["deck"]["SOLUTION"]
-        if haskey(sol, "FIELDSEP")
-            fsep = sol["FIELDSEP"]
-            stage = Int.(fsep[:, 1])
-            T = fsep[:, 2]
-            p = fsep[:, 3]
-            liquid_dest = Int.(fsep[:, 4])
-            vapor_dest = Int.(fsep[:, 5])
-            n = length(stage)
-            for i in eachindex(stage)
-                cond = (p = p[i], T = T[i])
-                l = liquid_dest[i]
-                if l == 0 && i < n
-                    l = i+1
-                end
-                v = vapor_dest[i]
-                add_separator_stage!(wmodel, cond, (l, v), clear = i == 1)
-            end
-        end
-    end
     if extraout
         out = (wmodel, W_mrst, vec(reservoir_cells))
     else
         out = wmodel
     end
     return out
+end
+
+function add_mrst_separator_stages!(facility::FacilityModel, mrst_data)
+    haskey(mrst_data["deck"], "SOLUTION") || return facility
+    sol = mrst_data["deck"]["SOLUTION"]
+    haskey(sol, "FIELDSEP") || return facility
+    fsep = sol["FIELDSEP"]
+    stage = Int.(fsep[:, 1])
+    T = fsep[:, 2]
+    p = fsep[:, 3]
+    liquid_dest = Int.(fsep[:, 4])
+    vapor_dest = Int.(fsep[:, 5])
+    n = length(stage)
+    for well in facility.domain.well_symbols
+        for i in eachindex(stage)
+            cond = (p = p[i], T = T[i])
+            liquid = liquid_dest[i]
+            if liquid == 0 && i < n
+                liquid = i + 1
+            end
+            vapor = vapor_dest[i]
+            add_separator_stage!(facility, cond, (liquid, vapor); well = well, clear = i == 1)
+        end
+    end
+    return facility
 end
 
 function simple_ms_setup(n, volume, well_cell_volume, rc, ref_depth, z_res)
@@ -612,7 +616,7 @@ function flat_region_expand(x::AbstractMatrix, n = nothing)
     return x
 end
 
-function flat_region_expand(x::Vector{Float64}, n = nothing)
+function flat_region_expand(x::Vector{<:AbstractFloat}, n = nothing)
     return [x]
 end
 
@@ -1246,13 +1250,18 @@ function setup_case_from_mrst(casename;
     end
     #
     mode = FacilitySystem(sys)
-    F0 = Dict(:TotalSurfaceMassRate => 0.0)
+    F0 = Dict(
+        :TotalSurfaceMassRate => 0.0,
+        :SurfacePhaseRates => 0.0,
+        :SurfaceComponentRates => 0.0
+    )
 
     facility_symbols = []
     facility_owned_wells = []
     function add_facility!(wsymbols, sym)
         g = WellGroup(wsymbols)
         WG = SimulationModel(g, mode)
+        add_mrst_separator_stages!(WG, mrst_data)
         ctrls = facility_subset(wsymbols, controls)
         facility_forces = setup_forces(WG, control = ctrls)
         # Specifics

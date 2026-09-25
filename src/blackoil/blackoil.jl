@@ -48,7 +48,19 @@ end
 
 get_phases(sys::StandardBlackOilSystem) = sys.phases
 number_of_components(sys::StandardBlackOilSystem) = length(get_phases(sys))
-phase_indices(sys::StandardBlackOilSystem) = sys.phase_indices
+@generated function phase_indices(
+        ::StandardBlackOilSystem{D, V, W, R, F, T, P}) where {D, V, W, R, F, T, P}
+    phase_types = P.parameters
+    aqueous = findfirst(phase -> phase <: AqueousPhase, phase_types)
+    liquid = findfirst(phase -> phase <: LiquidPhase, phase_types)
+    vapor = findfirst(phase -> phase <: VaporPhase, phase_types)
+    @assert !isnothing(liquid) && !isnothing(vapor)
+    if isnothing(aqueous)
+        return :((l = $liquid, v = $vapor))
+    else
+        return :((a = $aqueous, l = $liquid, v = $vapor))
+    end
+end
 
 function component_names(sys::StandardBlackOilSystem)
     return phase_names(sys)
@@ -65,7 +77,11 @@ has_disgas(::VapoilBlackOilSystem) = false
 
 function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw{:TotalMasses}, eq_s, r; dt = 1.0, update_report = missing) where {D, S<:StandardBlackOilSystem}
     M = global_map(model.domain)
-    v = x -> as_value(Jutul.active_view(x, M, for_variables = false))
+    # Keep the original backend arrays. `as_value` on an AD array creates a
+    # lazy MappedArray, and reducing a view of that wrapper can fall back to
+    # scalar iteration on GPU. The reduction functions below extract values
+    # elementwise inside the backend reduction instead.
+    v = x -> Jutul.active_view(x, M, for_variables = false)
     Φ = v(storage.state.FluidVolume)
     b = v(storage.state.ShrinkageFactors)
 
@@ -94,32 +110,30 @@ function convergence_criterion(model::SimulationModel{D, S}, storage, eq::Conser
 end
 
 function cnv_mb_errors_bo(r, Φ, b, dt, rhoS, ::Val{N}) where N
-    nc = length(Φ)
-    mb = @MVector zeros(N)
-    cnv = @MVector zeros(N)
-    avg_B = @MVector zeros(N)
+    cell_count = length(Φ)
+    total_pore_volume = sum(value, Φ)
+    average_inverse_formation_volume_factor = ntuple(Val(N)) do phase
+        shrinkage = view(b, phase, :)
+        sum(x -> inv(value(x)), shrinkage)/cell_count
+    end
 
-    pv_t = 0.0
-    @inbounds for c in 1:nc
-        pv_c = Φ[c]
-        pv_t += pv_c
-        @inbounds for ph = 1:N
-            r_ph = r[ph, c]
-            b_ph = b[ph, c]
-            # MB
-            mb[ph] += r_ph
-            avg_B[ph] += 1/b_ph
-            # CNV
-            cnv[ph] = max(cnv[ph], abs(r_ph)/pv_c)
+    cnv = ntuple(Val(N)) do phase
+        residual = view(r, phase, :)
+        function residual_per_pore_volume(residual, pore_volume)
+            return abs(value(residual))/value(pore_volume)
         end
+        maximum_residual = mapreduce(
+            residual_per_pore_volume, max, residual, Φ)
+        B = average_inverse_formation_volume_factor[phase]
+        B*dt*maximum_residual/rhoS[phase]
     end
-    @inbounds for ph = 1:N
-        B = avg_B[ph]/nc
-        scale = B*dt/rhoS[ph]
-        mb[ph] = scale*abs(mb[ph])/pv_t
-        cnv[ph] = scale*abs(cnv[ph])
+
+    mb = ntuple(Val(N)) do phase
+        residual_sum = sum(value, view(r, phase, :))
+        B = average_inverse_formation_volume_factor[phase]
+        B*dt*abs(residual_sum)/(rhoS[phase]*total_pore_volume)
     end
-    return (Tuple(cnv), Tuple(mb))
+    return cnv, mb
 end
 
 function handle_alternate_primary_variable_spec!(init, found, rmodel, sys::StandardBlackOilSystem)

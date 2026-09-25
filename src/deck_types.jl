@@ -18,6 +18,10 @@ struct DeckPhaseViscosities{T, M, R} <: DeckPhaseVariables
         thermal::Union{Nothing, DeckThermalViscosityTable}
         new{typeof(pvt_t), typeof(thermal), typeof(regions)}(pvt_t, thermal, regions)
     end
+    function DeckPhaseViscosities(pvt::T, thermal::M, regions::R,
+            ::Val{:assembled}) where {T, M, R}
+        new{T, M, R}(pvt, thermal, regions)
+    end
 end
 
 function Jutul.subvariable(p::DeckPhaseViscosities, map::FiniteVolumeGlobalMap)
@@ -42,6 +46,10 @@ struct DeckPhaseMassDensities{T, W, R} <: DeckPhaseVariables
         watdent::Union{Nothing, WATDENT}
         new{typeof(pvt_t), typeof(watdent), typeof(regions)}(pvt_t, watdent, regions)
     end
+    function DeckPhaseMassDensities(pvt::T, watdent::W, regions::R,
+            ::Val{:assembled}) where {T, W, R}
+        new{T, W, R}(pvt, watdent, regions)
+    end
 end
 
 function Jutul.subvariable(p::DeckPhaseMassDensities, map::FiniteVolumeGlobalMap)
@@ -65,6 +73,10 @@ struct DeckShrinkageFactors{T, W, R} <: DeckPhaseVariables
         pvt_t = Tuple(pvt)
         watdent_t = region_wrap(watdent, regions)
         new{typeof(pvt_t), typeof(watdent_t), typeof(regions)}(pvt_t, watdent, regions)
+    end
+    function DeckShrinkageFactors(pvt::T, watdent::W, regions::R,
+            ::Val{:assembled}) where {T, W, R}
+        new{T, W, R}(pvt, watdent, regions)
     end
 end
 
@@ -126,6 +138,10 @@ struct MuBTable{V, I}
         end
         new{T, typeof(I_b)}(p, b, I_b, mu, I_mu)
     end
+    function MuBTable(p::V, b::V, I_b::I, mu::V, I_mu::I,
+            ::Val{:assembled}) where {V, I}
+        new{V, I}(p, b, I_b, mu, I_mu)
+    end
 end
 
 function MuBTable(pvtx::T; kwarg...) where T<:AbstractMatrix
@@ -174,7 +190,7 @@ function ConstMuBTable(pvtw::M) where M<:AbstractVector
     pvtw = flat_region_expand(pvtw)
     # Only one region supported atm
     pvtw = first(pvtw)
-    return ConstMuBTable(pvtw[1], 1.0/pvtw[2], pvtw[3], pvtw[4], pvtw[5])
+    return ConstMuBTable(pvtw[1], inv(pvtw[2]), pvtw[3], pvtw[4], pvtw[5])
 end
 
 function viscosity(pvt::AbstractTablePVT, reg, p, cell)
@@ -184,12 +200,13 @@ end
 
 
 function viscosity(tbl::ConstMuBTable, p::T) where T
-    p_r = tbl.p_ref
-    μ_r = tbl.mu_ref
-    c = tbl.mu_c
+    F_t = typeof(Jutul.value(p))
+    p_r = convert(F_t, tbl.p_ref)
+    μ_r = convert(F_t, tbl.mu_ref)
+    c = convert(F_t, tbl.mu_c)
 
     F = -c*(p - p_r)
-    μ = μ_r/(one(T) + F + 0.5*F^2)
+    μ = μ_r/(one(F_t) + F + convert(F_t, 0.5)*F^2)
     return μ::T
 end
 
@@ -200,12 +217,13 @@ function shrinkage(pvt::AbstractTablePVT, reg, p::T, cell) where T
 end
 
 function shrinkage(tbl::ConstMuBTable, p::T) where T
-    p_r = tbl.p_ref
-    b_r = tbl.b_ref
-    c = tbl.b_c
+    F_t = typeof(Jutul.value(p))
+    p_r = convert(F_t, tbl.p_ref)
+    b_r = convert(F_t, tbl.b_ref)
+    c = convert(F_t, tbl.b_c)
 
     F = c*(p - p_r)
-    b = b_r*(one(T) + F + 0.5*F^2)
+    b = b_r*(one(F_t) + F + convert(F_t, 0.5)*F^2)
     return b::T
 end
 
@@ -719,6 +737,10 @@ struct LinearlyCompressiblePoreVolume{V, R} <: ScalarVariable
         reference_pressure = region_wrap(reference_pressure, regions)
         expansion = region_wrap(expansion, regions)
         new{typeof(reference_pressure), typeof(regions)}(reference_pressure, expansion, regions)
+    end
+    function LinearlyCompressiblePoreVolume(reference_pressure::V,
+            expansion::V, regions::R, ::Val{:assembled}) where {V, R}
+        new{V, R}(reference_pressure, expansion, regions)
     end
 end
 

@@ -460,7 +460,7 @@ end
 include("mswells_equations.jl")
 
 function update_before_step_well!(well_state, well_model, res_state, res_model, ctr, mask; kwarg...)
-
+    return nothing
 end
 
 function domain_fluid_volume(d::DataDomain, grid::WellDomain)
@@ -553,13 +553,6 @@ function declare_entities(W::WellDomain)
         push!(entities, fp)
     end
     return entities
-end
-
-function Jutul.select_secondary_variables!(S, D::WellDomain, model)
-    sys = model.system
-    if sys isa MultiPhaseSystem
-        S[:SurfaceWellConditions] = SurfaceWellConditions(sys)
-    end
 end
 
 Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::Union{ImmiscibleSystem, SinglePhaseSystem}, state_res, state_well, rhoS, conn)
@@ -670,27 +663,33 @@ function apply_perforation_mask!(M::AbstractMatrix, mask::AbstractVector)
     return M
 end
 
-function apply_perforation_mask!(storage::NamedTuple, mask::AbstractVector)
-    function mask_row!(M::AbstractMatrix, m, ix)
-        for i in axes(M, 1)
-            M[i, ix] *= m
-        end
+@inline function mask_perforation_entry!(M::AbstractMatrix, m, ix)
+    for i in axes(M, 1)
+        M[i, ix] *= m
     end
-    function mask_row!(M::AbstractVector, m, ix)
-        M[ix] *= m
-    end
+    return M
+end
+
+@inline function mask_perforation_entry!(M::AbstractVector, m, ix)
+    M[ix] *= m
+    return M
+end
+
+function apply_perforation_mask!(storage::NamedTuple, mask::AbstractVector,
+        context)
     for (k, s) in pairs(storage)
         if k == :numeric
             continue
         end
         v = s.entries
-        for i in 1:Jutul.number_of_entities(s)
+        Jutul.threaded_loop(Jutul.number_of_entities(s), context) do i
             mask_value = mask[i]
             for j in Jutul.vrange(s, i)
-                mask_row!(v, mask_value, j)
+                mask_perforation_entry!(v, mask_value, j)
             end
         end
     end
+    return storage
 end
 
 function flash_wellstream_at_surface(var, well_model, well_state, rhoS, cond = default_surface_cond())
@@ -708,8 +707,8 @@ function flash_wellstream_at_surface(var, well_model, system::SinglePhaseSystem,
     return (rhoS, [1.0])
 end
 
-function surface_density_and_volume_fractions(state)
-    x = only(state.SurfaceWellConditions)
+function surface_density_and_volume_fractions(state, well = 1)
+    x = state.SurfaceWellConditions[well]
     return (x.density, x.volume_fractions)
 end
 

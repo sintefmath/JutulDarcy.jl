@@ -27,37 +27,27 @@ function update_primary_variable!(state, pvar::BlackOilUnknown, state_symbol, mo
     else
         reg_rv = nothing
     end
-    update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, reg_rs, reg_rv, keep_bub, sat_chop, pressure, active, sw, ϵ, w)
+    update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, reg_rs,
+        reg_rv, keep_bub, sat_chop, pressure, active, sw, ϵ, w,
+        model.context)
 end
 
+@inline water_saturation(::Nothing, i) = 0.0
+@inline water_saturation(sat, i) = value(sat[i])
 
-function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, reg_rs, reg_rv, keep_bub, sat_chop, pressure, active, sw, ϵ, w)
-    water_saturation(::Nothing, i) = 0.0
-    water_saturation(sat, i) = value(sat[i])
-    n_switched = 0
-    @inbounds for (i, dx) in zip(active, Dx)
+function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, reg_rs,
+        reg_rv, keep_bub, sat_chop, pressure, active, sw, ϵ, w, context)
+    function update(local_index)
+        @inbounds i = active[local_index]
+        @inbounds dx = Dx[local_index]
         swi = water_saturation(sw, i)
         rs_tab_i = table_by_region(rs_tab, region(reg_rs, i))
         rv_tab_i = table_by_region(rv_tab, region(reg_rv, i))
-        n_switched += varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab_i, rv_tab_i, keep_bub, sat_chop, pressure, swi, ϵ, w)
+        varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab_i,
+            rv_tab_i, keep_bub, sat_chop, pressure, swi, ϵ, w)
     end
-    if n_switched > 0
-        @debug begin
-            og = 0
-            g = 0
-            o = 0
-            for bo in v
-                if bo.phases_present == OilAndGas
-                    og += 1
-                elseif bo.phases_present == GasOnly
-                    g += 1
-                elseif bo.phases_present == OilOnly
-                    o += 1
-                end
-            end
-            "Black oil updated for $(length(Dx)) cells, with $n_switched phase state changes. Phase state distribution after update: Oil and Gas: $og, Gas only: $g, Oil only: $o"
-        end
-    end
+    Jutul.threaded_loop(update, length(Dx), context)
+    return v
 end
 
 Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab, rv_tab, keep_bubble, sat_chop, pressure, swi, ϵ, w)
@@ -139,6 +129,16 @@ function handle_phase_disappearance(pressure, i, r_tab, next_x, swi, old_state, 
     return (next_x, next_state, is_near_bubble)
 end
 
+@inline function handle_phase_appearance(pressure, i, ::Nothing, dr_max,
+        old_state, old_x, swi, dx, was_near_bubble, ϵ_s, ϵ_r,
+        keep_bubble, w)
+    # This branch is unreachable for valid states: a phase cannot reappear
+    # when the corresponding dissolved/vaporized-component model is disabled.
+    # Keeping it total is important for device compilation, which specializes
+    # every branch of the phase-state switch.
+    return (old_x, old_state, was_near_bubble)
+end
+
 function handle_phase_appearance(pressure, i, r_tab, dr_max, old_state, old_x, swi, dx, was_near_bubble, ϵ_s, ϵ_r, keep_bubble, w)
     p = pressure[i]
     r_sat = max(r_tab(value(p)), 10*ϵ_r)
@@ -213,19 +213,39 @@ end
 
 Jutul.value(t::BlackOilX{T}) where T<:ForwardDiff.Dual = BlackOilX(value(t.val), t.phases_present, t.sat_close)
 
-function Jutul.update_values!(old::AbstractVector{<:BlackOilX}, new::AbstractVector{<:BlackOilX})
-    for (i, v) in enumerate(new)
-        o = old[i]
-        oldval = value(o.val)
-        if isfinite(oldval)
-            newval = o.val - value(o.val) + value(v.val)
-        elseif o.val isa ForwardDiff.Dual
-            newval = typeof(o.val)(value(v.val), o.val.partials)
-        else
-            newval = v.val
-        end
-        old[i] = BlackOilX(newval, v.phases_present, v.sat_close)
+@inline function updated_blackoil_value(o::BlackOilX{T}, v::BlackOilX) where T<:ForwardDiff.Dual
+    oldval = value(o.val)
+    if isfinite(oldval)
+        newval = o.val - oldval + value(v.val)
+    else
+        newval = T(value(v.val), o.val.partials)
     end
+    return BlackOilX(newval, v.phases_present, v.sat_close)
+end
+
+@inline function updated_blackoil_value(o::BlackOilX{T}, v::BlackOilX) where T<:Real
+    newval = convert(T, value(v.val))
+    return BlackOilX(newval, v.phases_present, v.sat_close)
+end
+
+function update_blackoil_values!(old::AbstractVector{<:BlackOilX}, new::AbstractVector{<:BlackOilX}, context)
+    function update(i)
+        @inbounds v = new[i]
+        @inbounds o = old[i]
+        @inbounds old[i] = updated_blackoil_value(o, v)
+    end
+    Jutul.threaded_loop_minbatch(update, length(old), context)
+    return old
+end
+
+function Jutul.update_values!(old::AbstractVector{<:BlackOilX},
+        new::AbstractVector{<:BlackOilX})
+    return update_blackoil_values!(old, new, Jutul.DefaultContext())
+end
+
+function Jutul.update_values!(old::AbstractVector{<:BlackOilX},
+        new::AbstractVector{<:BlackOilX}, context::Jutul.JutulContext)
+    return update_blackoil_values!(old, new, context)
 end
 
 # Overloads for our specific data type

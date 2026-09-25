@@ -14,17 +14,17 @@ function component_names(sys::MultiPhaseCompositionalSystemLV{E, T, O, G, N}) wh
     return copy(sys.components)
 end
 
+function component_names(sys::MultiPhaseCompositionalSystemLV{
+        E, T, O, G, N, Nothing}) where {E, T, O, G, N}
+    return ["C$i" for i in 1:number_of_components(sys)]
+end
+
 phase_index(sys, phase) = only(findfirst(isequal(phase), sys.phases))
 has_other_phase(sys) = number_of_phases(sys) > 2
 has_other_phase(sys::MultiPhaseCompositionalSystemLV{E, T, O}) where {E, T, O<:Nothing} = false
 
 phase_indices(sys::MultiPhaseCompositionalSystemLV{E, T, O}) where {E, T, O<:Nothing} = (liquid_phase_index(sys), vapor_phase_index(sys))
 phase_indices(sys::MultiComponentSystem) = (other_phase_index(sys), liquid_phase_index(sys), vapor_phase_index(sys))
-
-export KValueWrapper
-struct KValueWrapper{T, D}
-    K::T
-end
 
 """
     KValueWrapper(K; dependence::Symbol = :pT)

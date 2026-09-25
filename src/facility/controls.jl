@@ -5,7 +5,19 @@ function Jutul.initialize_extra_state_fields!(state, domain::WellGroup, model; T
     state[:WellGroupConfiguration] = WellGroupConfiguration(domain.well_symbols)
 end
 
-function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, model::WellGroupModel, dt, forces_g, key;
+function Jutul.update_before_step_multimodel!(
+        storage_g, model_g::MultiModel, model::WellGroupModel,
+        dt, forces_g, key; kwarg...)
+    Jutul.update_before_step_multimodel_backend!(
+        storage_g, model_g, storage_g, model_g,
+        model, dt, forces_g, key; kwarg...)
+    return nothing
+end
+
+function Jutul.update_before_step_multimodel_backend!(
+        storage_g, model_g::MultiModel,
+        backend_storage, backend_model,
+        model::WellGroupModel, dt, forces_g, key;
         time = NaN,
         recorder = ProgressRecorder(),
         update_explicit = true
@@ -78,8 +90,15 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
         end
         rmodel = model_g[:Reservoir]
         rstate = storage_g.Reservoir.state
-        update_before_step_well!(wstate, wmodel, rstate, rmodel, op_ctrls[wname], mask, update_explicit = update_explicit)
+        update_before_step_well!(wstate, wmodel, rstate, rmodel,
+            op_ctrls[wname], mask;
+            update_explicit = update_explicit,
+            backend_well_state = backend_storage[wname].state,
+            backend_well_model = backend_model[wname],
+            backend_reservoir_state = backend_storage.Reservoir.state,
+            backend_reservoir_model = backend_model[:Reservoir])
     end
+    return nothing
 end
 
 

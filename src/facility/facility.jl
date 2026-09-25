@@ -22,6 +22,7 @@ function Jutul.select_minimum_output_variables!(vars, domain::WellGroup, model)
     for k in keys(model.primary_variables)
         push!(vars, k)
     end
+    push!(vars, :SurfaceWellConditions)
     push!(vars, :WellGroupConfiguration)
     return vars
 end

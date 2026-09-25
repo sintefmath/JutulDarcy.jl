@@ -317,6 +317,7 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
             init_arg = Dict{Symbol, Any}()
             init_arg[:TotalSurfaceMassRate] = 0.0
             init_arg[:SurfacePhaseRates] = 0.0
+            init_arg[:SurfaceComponentRates] = 0.0
             own_wells = W.domain.well_symbols
             bh = zeros(T, length(own_wells))
             temp = similar(bh)

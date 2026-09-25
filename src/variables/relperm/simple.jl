@@ -301,7 +301,7 @@ function update_let!(kr, Saturations, WettingLET, NonWettingLET, WettingCritical
 end
 
 function Jutul.get_dependencies(model, kr::ParametricLETRelativePermeabilities)
-    return [
+    return (
         kr.wetting_let,
         kr.wetting_critical,
         kr.wetting_krmax,
@@ -309,7 +309,7 @@ function Jutul.get_dependencies(model, kr::ParametricLETRelativePermeabilities)
         kr.nonwetting_critical,
         kr.nonwetting_krmax,
         :Saturations
-    ]
+    )
 end
 
 function add_relperm_parameters!(param, kr::ParametricLETRelativePermeabilities)

@@ -138,6 +138,17 @@ module JutulDarcyPartitionedArraysExt
             return x
         end
         if isnothing(cpr.storage)
+            # HYPRE owns one contiguous row range per MPI rank.
+            # Each MPI rank stores one local item in these distributed arrays.
+            # `getany` returns that item without invoking forbidden scalar
+            # indexing on MPIArray (and is equivalent to `first` for arrays).
+            local_sim = PartitionedArrays.getany(sim.storage.simulators)
+            local_prec = PartitionedArrays.getany(preconditioners)
+            local_storage = Jutul.get_simulator_storage(local_sim)
+            local_system = local_storage.LinearizedSystem
+            local_matrix = JutulDarcy.reservoir_jacobian(local_system)
+            hypre_assembly_helper!(local_prec.pressure_precond,
+                local_matrix, local_sim.executor, offset + 1, offset + n)
             A_p = HYPREMatrix(comm, offset + 1, offset + n)
             r_p = create_hypre_vector()
             p = create_hypre_vector()

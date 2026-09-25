@@ -14,7 +14,7 @@ end
     @test test_single_phase()
 end
 
-agg = AMGPreconditioner(:smoothed_aggregation)
+agg = AMGPreconditioner(:aggregation)
 rs = AMGPreconditioner(:ruge_stuben)
 @testset "Single-phase linear solvers" begin
     @test test_single_phase(linear_solver = GenericKrylov(preconditioner = agg))
