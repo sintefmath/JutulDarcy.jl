@@ -182,6 +182,70 @@ end
     @test preconditioner.system_precond.config isa Jutul.KAPreconditioners.ILU0
 end
 
+@testset "Simple wells in the reservoir KA group" begin
+    case = JutulDarcy.setup_mini_wellcase(Val(:immiscible_2ph);
+        nstep = 1, total_time = 0.01*si_unit(:day),
+        backend = :csr, block_backend = true)
+    @test case.model.groups[1] != case.model.groups[2]
+    reference_simulator, reference_config = setup_reservoir_simulator(case;
+        mode = :ka, ka_backend = JLBackend(), precond = :cpr,
+        timesteps = :none, info_level = -1)
+    reference_states, = simulate!(reference_simulator, case.dt;
+        forces = case.forces, state0 = case.state0,
+        config = reference_config)
+    for variant in (:cpr, :cprw)
+        simulator, config = setup_reservoir_simulator(case;
+            mode = :ka, ka_backend = JLBackend(),
+            group_wells_and_reservoir = true, precond = variant,
+            timesteps = :none, info_level = -1)
+        model = simulator.model
+        @test model.group_lookup[:Reservoir] == model.group_lookup[:Injector]
+        @test model.group_lookup[:Reservoir] == model.group_lookup[:Producer]
+        @test model.group_lookup[:Reservoir] != model.group_lookup[:Facility]
+        system = simulator.storage.LinearizedSystem
+        @test size(system[1, 1].jac, 1) ==
+            Jutul.number_of_cells(model[:Reservoir].domain) +
+            Jutul.number_of_cells(model[:Injector].domain) +
+            Jutul.number_of_cells(model[:Producer].domain)
+        states, = simulate!(simulator, case.dt;
+            forces = case.forces, state0 = case.state0, config = config)
+        @test all(isfinite, Array(states[end][:Reservoir][:Pressure]))
+        @test all(isfinite, Array(states[end][:Injector][:Pressure]))
+        @test all(isfinite, Array(states[end][:Producer][:Pressure]))
+        for key in (:Reservoir, :Injector, :Producer)
+            @test Array(states[end][key][:Pressure]) ≈
+                Array(reference_states[end][key][:Pressure]) rtol = 1e-5
+        end
+    end
+end
+
+@testset "Merged simple wells in the reservoir KA group" begin
+    case = JutulDarcy.setup_mini_wellcase(Val(:immiscible_2ph);
+        nstep = 1, total_time = 0.01*si_unit(:day),
+        backend = :csr, block_backend = true)
+    case = JutulDarcy.merge_similar_wells(case)
+    reference, reference_config = setup_reservoir_simulator(case;
+        mode = :ka, ka_backend = JLBackend(), precond = :cpr,
+        timesteps = :none, info_level = -1)
+    reference_states, = simulate!(reference, case.dt;
+        forces = case.forces, state0 = case.state0,
+        config = reference_config)
+    for variant in (:cpr, :cprw)
+        simulator, config = setup_reservoir_simulator(case;
+            mode = :ka, ka_backend = JLBackend(),
+            group_wells_and_reservoir = true, precond = variant,
+            timesteps = :none, info_level = -1)
+        @test simulator.model.group_lookup[:Reservoir] ==
+            simulator.model.group_lookup[:SimpleWells]
+        states, = simulate!(simulator, case.dt;
+            forces = case.forces, state0 = case.state0, config = config)
+        for key in (:Reservoir, :SimpleWells)
+            @test Array(states[end][key][:Pressure]) ≈
+                Array(reference_states[end][key][:Pressure]) rtol = 1e-5
+        end
+    end
+end
+
 @testset "Single-phase reservoir on a KA backend" begin
     grid = CartesianMesh((4, 1), (4.0, 1.0))
     state0, model, parameters, forces, timesteps = get_test_setup(

@@ -168,7 +168,7 @@ function initialize_cpr_storage!(cpr, model, lsys, bz, T)
     J = reservoir_jacobian(lsys)
     do_setup = isnothing(cpr.storage) || cpr.storage.id != objectid(J)
     if do_setup
-        if cpr.variant == :cprw
+        if cpr.variant == :cprw && !cpr_has_grouped_simple_wells(model)
             well_reservoir_map = cpr_construct_well_reservoir_map(model, lsys, bz)
         else
             well_reservoir_map = nothing
@@ -184,6 +184,53 @@ function initialize_cpr_storage!(cpr, model, lsys, bz, T)
             T = T
         )
     end
+end
+
+# The facility block can be singular by itself once every simple well is in
+# the reservoir group. Precondition the reservoir block and leave facility
+# unknowns to the full-system Krylov solve.
+mutable struct ReservoirGroupPreconditioner{P} <: JutulPreconditioner
+    inner::P
+    reservoir_dofs::Int
+    total_dofs::Int
+end
+
+ReservoirGroupPreconditioner(inner) =
+    ReservoirGroupPreconditioner(inner, 0, 0)
+
+function update_preconditioner!(prec::ReservoirGroupPreconditioner,
+        lsys::MultiLinearizedSystem, context, model, storage, recorder,
+        executor)
+    reservoir_system = lsys[1, 1]
+    prec.reservoir_dofs = length(reservoir_system.r_buffer)
+    prec.total_dofs = length(lsys.r_buffer)
+    update_preconditioner!(prec.inner, reservoir_system, context,
+        model, storage, recorder, executor)
+    return prec
+end
+
+operator_nrows(prec::ReservoirGroupPreconditioner) = prec.total_dofs
+
+function apply!(x, prec::ReservoirGroupPreconditioner, r)
+    n = prec.reservoir_dofs
+    apply!(view(x, 1:n), prec.inner, view(r, 1:n))
+    copyto!(view(x, (n + 1):length(x)), view(r, (n + 1):length(r)))
+    return x
+end
+
+function cpr_has_grouped_simple_wells(model)
+    model isa MultiModel || return false
+    groups = model.groups
+    isnothing(groups) && return false
+    reservoir_group = model.group_lookup[:Reservoir]
+    for (key, submodel) in pairs(model.models)
+        if key != :Reservoir && model.group_lookup[key] == reservoir_group &&
+                model_or_domain_is_well(submodel) &&
+                physical_representation(submodel.domain) isa SimpleWell
+            return true
+        end
+    end
+    return false
 end
 
 function pressure_matrix_from_global_jacobian(J::SparseMatrixCSC, T, lsys, well_reservoir_map::Nothing)
@@ -574,13 +621,19 @@ function update_weights!(cpr, cpr_storage::CPRStorage, model, storage, J, ps)
         wr_map = cpr_storage.well_reservoir_map
         ncomp = size(w, 1)
         scaling = cpr.weight_scaling
-        @assert !isnothing(wr_map)
         r = cpr_storage.w_rhs
-        for (well, well_range) in zip(wr_map.wells, wr_map.well_ranges)
-            first_column = last_porous_media_index + first(well_range)
-            last_column = last_porous_media_index + last(well_range)
+        well_columns = if isnothing(wr_map)
+            cpr_grouped_simple_well_columns(model, cpr_storage.block_size)
+        else
+            [(well, (last_porous_media_index + first(well_range)):
+                    (last_porous_media_index + last(well_range)))
+                for (well, well_range) in zip(wr_map.wells, wr_map.well_ranges)]
+        end
+        for (well, columns) in well_columns
+            first_column = first(columns)
+            last_column = last(columns)
             w_i = view(w, :, first_column:last_column)
-            nwell_cells = length(well_range)
+            nwell_cells = length(columns)
             wstate = storage[well].state
             if cpr.strategy == :analytical
                 update_analytical_cpr_weights!(
@@ -595,6 +648,22 @@ function update_weights!(cpr, cpr_storage::CPRStorage, model, storage, J, ps)
         end
     end
     return w
+end
+
+function cpr_grouped_simple_well_columns(model::MultiModel, block_size)
+    group = model.group_lookup[:Reservoir]
+    offset = 0
+    ranges = Tuple{Symbol, UnitRange{Int}}[]
+    for (key, submodel) in pairs(model.models)
+        model.group_lookup[key] == group || continue
+        n = Jutul.number_of_degrees_of_freedom(submodel) ÷ block_size
+        if model_or_domain_is_well(submodel) &&
+                physical_representation(submodel.domain) isa SimpleWell
+            push!(ranges, (key, (offset + 1):(offset + n)))
+        end
+        offset += n
+    end
+    return ranges
 end
 
 function cpr_weights_for_reservoir!(model::SimulationModel, J, cpr, cpr_storage, storage, offset)

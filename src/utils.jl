@@ -1041,6 +1041,34 @@ function setup_reservoir_simulator(models, initializer, parameters = nothing;
     return setup_reservoir_simulator(case; kwarg...)
 end
 
+function reservoir_simple_well_groups(model)
+    model isa MultiModel || return missing
+    isnothing(model.groups) && return missing
+    keys_m = collect(keys(model.models))
+    reservoir_position = findfirst(isequal(:Reservoir), keys_m)
+    isnothing(reservoir_position) && return missing
+    groups = copy(model.groups)
+    reservoir_group = groups[reservoir_position]
+    found_simple_well = false
+    for (position, key) in enumerate(keys_m)
+        submodel = model.models[key]
+        if model_or_domain_is_well(submodel) &&
+                physical_representation(submodel.domain) isa SimpleWell
+            found_simple_well = true
+            groups[position] = reservoir_group
+        end
+    end
+    found_simple_well || return missing
+    group_numbers = Dict{Int, Int}()
+    renumbered = similar(groups)
+    for (position, group) in enumerate(groups)
+        renumbered[position] = get!(group_numbers, group) do
+            length(group_numbers) + 1
+        end
+    end
+    return renumbered
+end
+
 function mode_to_backend(mode::Symbol)
     if mode == :mpi
         mode = MPI_PArrayBackend()
@@ -1070,6 +1098,9 @@ end
 - `group_execution=missing`: Per-model `DeviceExecutionMode` policy for KA
   modes, supplied as a function or keyed collection. By default the reservoir
   uses `SolveFullyOnDevice` and wells/facility use `AssembleOnDevice`.
+- `group_wells_and_reservoir=false`: In KA modes, assemble simple well degrees
+  of freedom in the reservoir's linear-system group. This uses a full-system
+  FGMRES solve, with CPR/CPRW applied to the reservoir and well block.
 - `float_type=Float64`, `index_type=Int`: Override the floating-point and
   sparse-index types used by the `KernelAbstractionsContext`. These options are
   only valid for KA modes; omitted values inherit the CPU model's context.
@@ -1240,6 +1271,7 @@ function setup_reservoir_simulator(case::JutulCase;
         parray_arg = Dict{Symbol, Any}(),
         nldd_arg = Dict{Symbol, Any}(),
         group_execution = missing,
+        group_wells_and_reservoir::Bool = false,
         ka_workgroupsize = 256,
         wells_on_device::Bool = false,
         mixed_cross_terms_on_host::Bool = wells_on_device,
@@ -1307,8 +1339,13 @@ function setup_reservoir_simulator(case::JutulCase;
                 end
             end
         end
+        transfer_groups = group_wells_and_reservoir ?
+            reservoir_simple_well_groups(case.model) : missing
+        transfer_reduction = ismissing(transfer_groups) ? missing : nothing
         sim = transfer_to_backend(sim_cpu, ka_context;
             group_execution = group_execution,
+            groups = transfer_groups,
+            reduction = transfer_reduction,
             mixed_cross_terms_on_host = mixed_cross_terms_on_host)
     elseif mode == :default
         # Single-process solve
@@ -1395,16 +1432,35 @@ function setup_reservoir_simulator(case::JutulCase;
         else
             solver_model = case.model
         end
-        extra_kwarg[:linear_solver] = select_reservoir_linear_solver(solver_model, precond;
+        selected_solver = select_reservoir_linear_solver(solver_model, precond;
             backend = linear_solver_backend,
             rtol = rtol,
             extra_ls...,
             linear_solver_arg...,
         )
+        extra_kwarg[:linear_solver] = selected_solver
     elseif isnothing(linear_solver)
         # Nothing
     else
         extra_kwarg[:linear_solver] = linear_solver
+    end
+    if group_wells_and_reservoir && ka_mode &&
+            sim.storage.LinearizedSystem isa Jutul.MultiLinearizedSystem &&
+            isnothing(sim.model.reduction) &&
+            haskey(extra_kwarg, :linear_solver)
+        selected_solver = extra_kwarg[:linear_solver]
+        selected_solver isa GenericKrylov || throw(ArgumentError(
+            "Grouped reservoir and wells require a GenericKrylov linear solver"))
+        if selected_solver.preconditioner isa JutulPreconditioner &&
+                !(selected_solver.preconditioner isa ReservoirGroupPreconditioner)
+            selected_solver.preconditioner = ReservoirGroupPreconditioner(
+                selected_solver.preconditioner)
+        end
+        selected_solver.solver = :fgmres
+        if ismissing(rtol) && !haskey(linear_solver_arg, :relative_tolerance)
+            selected_solver.config.relative_tolerance = 1e-10
+        end
+        selected_solver.config.true_residual = true
     end
     if relaxation isa Bool
         if relaxation
