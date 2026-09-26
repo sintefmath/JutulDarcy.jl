@@ -107,6 +107,15 @@ function connection_pressure_drop_mask_values(::Nothing, context)
     return nothing
 end
 
+function connection_pressure_drop_mask_slice(mask, context, pr)
+    values = connection_pressure_drop_mask_values(mask, context)
+    return view(values, pr)
+end
+
+function connection_pressure_drop_mask_slice(::Nothing, context, pr)
+    return nothing
+end
+
 function update_before_step_well!(well_state,
         well_model::SimpleWellFlowModel,
         res_state, res_model, ctrl, mask;
@@ -307,14 +316,11 @@ function update_connection_pressure_drop_backend!(
     mob = res_state.PhaseMobilities
     p = res_state.Pressure
     well_pressure = well_state.Pressure
-    mask_values = connection_pressure_drop_mask_values(mask, context)
-    if !isnothing(mask_values)
-        mask_values = @view mask_values[pr]
-    end
+    mask_slice = connection_pressure_drop_mask_slice(mask, context, pr)
     function update_pressure_drop(_)
         update_producer_connection_pressure_drop!(
             view(dp, pr), res_cells, gdz, WI, ρ, mob, p,
-            well_pressure, mask_values, cell)
+            well_pressure, mask_slice, cell)
         return nothing
     end
     Jutul.threaded_loop(update_pressure_drop, 1, context)

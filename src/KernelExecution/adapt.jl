@@ -128,7 +128,27 @@ function Adapt.adapt_structure(to, well::SimpleWell)
         Adapt.adapt(to, well.surface),
         nothing,
         well.explicit_dp,
-        well.multiwell
+        Adapt.adapt(to, well.multiwell)
+    )
+end
+
+function Adapt.adapt_structure(to, well::MultiSegmentWell)
+    return MultiSegmentWell(
+        well.type, well.num_nodes, well.num_segments, well.num_perforations,
+        Adapt.adapt(to, well.perforations),
+        Adapt.adapt(to, well.neighborship),
+        Adapt.adapt(to, well.end_nodes),
+        Adapt.adapt(to, well.surface),
+        well.name,
+        Adapt.adapt(to, well.segment_models),
+        Adapt.adapt(to, well.multiwell)
+    )
+end
+
+function Adapt.adapt_structure(to, flow::WellSegmentFlow)
+    return WellSegmentFlow(
+        Adapt.adapt(to, flow.cell_discretizations),
+        Adapt.adapt(to, flow.face_discretizations)
     )
 end
 

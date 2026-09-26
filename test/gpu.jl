@@ -15,6 +15,18 @@ function Adapt.adapt_structure(
     error("Preconverted launch attempted to adapt its callable")
 end
 
+function indirection_map_cuda_kernel!(out, map)
+    index = Int(CUDA.threadIdx().x)
+    if index <= length(map)
+        total = zero(eltype(out))
+        for value in map[index]
+            total += value
+        end
+        out[index] = total
+    end
+    return nothing
+end
+
 function solve_bl_lsolve(; nx = 10, ny = 1, nstep = nx*ny, lsolve = missing, backend = :csr, step_limit = nothing, kwarg...)
     time = 1.0
     T = time
@@ -56,6 +68,57 @@ function solve_bl_lsolve(; nx = 10, ny = 1, nstep = nx*ny, lsolve = missing, bac
 end
 
 if CUDA.functional()
+    @testset "IndirectionMap on CUDA" begin
+        host_map = Jutul.IndirectionMap(Int[1, 2, 3], Int[1, 3, 4])
+        device_map = Adapt.adapt(CUDA.CuArray, host_map)
+        @test device_map.vals isa CUDA.CuArray
+        @test device_map.pos isa CUDA.CuArray
+        output = CUDA.zeros(Int, length(host_map))
+        CUDA.@cuda threads=length(host_map) indirection_map_cuda_kernel!(
+            output, device_map)
+        @test Array(output) == [3, 3]
+    end
+    @testset "Merged wells with host assembly on CUDA" begin
+        for simple_well in (true, false)
+            bar = si_unit(:bar)
+            grid = CartesianMesh((2, 1, 2), (200.0, 100.0, 40.0))
+            domain = reservoir_domain(grid,
+                permeability = 0.1*si_unit(:darcy), porosity = 0.2)
+            wells = [
+                setup_vertical_well(domain, 1, 1,
+                    name = :Producer, simple_well = simple_well),
+                setup_vertical_well(domain, 2, 1,
+                    name = :Injector, simple_well = simple_well),
+            ]
+            system = ImmiscibleSystem((LiquidPhase(), VaporPhase()),
+                reference_densities = [1000.0, 100.0])
+            model = setup_reservoir_model(domain, system,
+                wells = wells, block_backend = true)
+            state0 = setup_reservoir_state(model,
+                Pressure = 200bar, Saturations = [0.8, 0.2])
+            controls = Dict(
+                :Producer => ProducerControl(BottomHolePressureTarget(190bar)),
+                :Injector => InjectorControl(BottomHolePressureTarget(210bar),
+                    [1.0, 0.0], density = 1000.0),
+            )
+            if simple_well
+                controls[:Producer] = DisabledControl()
+            end
+            forces = setup_reservoir_forces(model, control = controls)
+            if simple_well
+                producer = model[:Producer]
+                nperf = length(physical_representation(producer).perforations.reservoir)
+                forces[:Producer] = setup_forces(producer,
+                    mask = PerforationMask(ones(nperf)))
+            end
+            case = JutulDarcy.merge_similar_wells(JutulCase(model,
+                [si_unit(:day)], forces, state0 = state0))
+            result = simulate_reservoir(case;
+                mode = :ka_cuda, wells_on_device = false, info_level = -1)
+            @test length(result.states) == 1
+            @test all(isfinite, only(result.states)[:Pressure])
+        end
+    end
     @testset "Compositional flash on CUDA" begin
         data_path = JutulDarcy.GeoEnergyIO.test_input_file_path(
             "SIMPLE_COMP", "SIMPLE_COMP.DATA")

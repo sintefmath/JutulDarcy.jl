@@ -349,7 +349,12 @@ function map_well_nodes_to_reservoir_cells(w::MultiSegmentWell, reservoir::Union
     # improved...
     c = zeros(Int, number_of_cells(w))
     c[w.perforations.self] .= w.perforations.reservoir
-    ranges = isnothing(w.multiwell) ? (eachindex(c),) : w.multiwell.nodes
+    if isnothing(w.multiwell)
+        ranges = (eachindex(c),)
+    else
+        ranges = (Jutul.indirection_range(w.multiwell.nodes, i)
+            for i in eachindex(w.multiwell.names))
+    end
     for nodes in ranges
         for i in nodes[2:end]
             if c[i] == 0
@@ -374,7 +379,8 @@ function map_well_nodes_to_reservoir_cells(w::SimpleWell, reservoir::Union{DataD
     if isnothing(w.multiwell)
         return [w.perforations.reservoir[1]]
     else
-        return [w.perforations.reservoir[first(pr)] for pr in w.multiwell.perforations]
+        return [w.perforations.reservoir[w.multiwell.perforations.pos[i]]
+            for i in eachindex(w.multiwell.names)]
     end
 end
 
@@ -513,8 +519,10 @@ function domain_bulk_volume(d::DataDomain, grid::WellDomain; outer_boundary = :g
             if isnothing(grid.multiwell)
                 vols = only(mult)*sum(π .* r.^2 .* L)
             else
-                vols = [mult[i]*sum(π .* r[grid.multiwell.perforations[i]].^2 .* L[grid.multiwell.perforations[i]])
-                    for i in eachindex(grid.multiwell.names)]
+                vols = [begin
+                    pr = Jutul.indirection_range(grid.multiwell.perforations, i)
+                    mult[i]*sum(π .* r[pr].^2 .* L[pr])
+                end for i in eachindex(grid.multiwell.names)]
             end
         end
     end
@@ -541,7 +549,10 @@ function get_neighborship(::SimpleWell)
 end
 
 function number_of_cells(W::SimpleWell)
-    return isnothing(W.multiwell) ? 1 : length(W.multiwell.names)
+    if isnothing(W.multiwell)
+        return 1
+    end
+    return length(W.multiwell)
 end
 
 function number_of_cells(W::MultiSegmentWell)

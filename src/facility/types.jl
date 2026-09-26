@@ -926,6 +926,9 @@ end
 struct WellSegmentFlow{C, T<:AbstractVector} <: Jutul.FlowDiscretization
     cell_discretizations::C
     face_discretizations::T
+    function WellSegmentFlow(cell_discretizations, face_discretizations::T) where {T<:AbstractVector}
+        return new{typeof(cell_discretizations), T}(cell_discretizations, face_discretizations)
+    end
     function WellSegmentFlow(well)#, z)
         # Face part
         N = get_neighborship(well)

@@ -454,6 +454,23 @@ function Base.show(io::IO, w::WellDomain)
     print(io, "$n [$(w.name)] ($(nn) nodes, $(nseg) segments, $(length(w.perforations.reservoir)) perforations)")
 end
 
+struct MultiWellInfo{N, D, Nodes, Faces, Perforations, TopNodes}
+    names::N
+    domains::D
+    nodes::Nodes
+    faces::Faces
+    perforations::Perforations
+    top_nodes::TopNodes
+end
+
+Base.length(info::MultiWellInfo) = length(info.names)
+
+struct KernelMultiWellInfo
+    count::Int
+end
+
+Base.length(info::KernelMultiWellInfo) = info.count
+
 struct SimpleWell{SC, P, N, M} <: WellDomain
     perforations::P
     surface::SC
@@ -500,8 +517,8 @@ function SimpleWell(
     )
 end
 
-struct MultiSegmentWell{P, N, SC, S, M} <: WellDomain
-    type::Symbol
+struct MultiSegmentWell{T, P, N, E, SC, Name, S, M} <: WellDomain
+    type::T
     num_nodes::Int
     num_segments::Int
     num_perforations::Int
@@ -510,11 +527,11 @@ struct MultiSegmentWell{P, N, SC, S, M} <: WellDomain
     "Well cell connectivity (connections between nodes)"
     neighborship::N
     "End node(s) for the well"
-    end_nodes::Vector{Int64}
+    end_nodes::E
     "pressure and temperature conditions at surface"
     surface::SC
     "Name of the well as a Symbol"
-    name::Symbol
+    name::Name
     "Pressure drop model for seg well segment"
     segment_models::S
     multiwell::M

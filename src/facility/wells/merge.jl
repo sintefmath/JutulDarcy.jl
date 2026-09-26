@@ -4,7 +4,7 @@ using Jutul
 using DataStructures: OrderedDict
 
 import ..JutulDarcy:
-    SimpleWell, MultiSegmentWell, WellDomain, PerforationMask,
+    SimpleWell, MultiSegmentWell, MultiWellInfo, WellDomain, PerforationMask,
     add_thermal_to_model!, transfer_variables_and_parameters!,
     ReservoirFromWellFlowCT, ReservoirFromWellThermalCT,
     WellFromFacilityFlowCT, WellFromFacilityThermalCT,
@@ -181,24 +181,17 @@ function merge_well_domains(domains, name)
     face_counts = number_of_faces.(wells)
     perforation_counts = [length(well.perforations.self) for well in wells]
 
-    node_ranges = entity_ranges(cell_counts)
-    face_ranges = entity_ranges(face_counts)
-    perforation_ranges = entity_ranges(perforation_counts)
-    top_nodes = [first(node_range) for node_range in node_ranges]
-    info = (
-        names = names,
-        nodes = node_ranges,
-        faces = face_ranges,
-        perforations = perforation_ranges,
-        top_nodes = top_nodes,
-        domains = domains,
-    )
+    nodes = entity_indirection_map(cell_counts)
+    faces = entity_indirection_map(face_counts)
+    perforation_map = entity_indirection_map(perforation_counts)
+    top_nodes = copy(nodes.pos[1:end-1])
+    info = MultiWellInfo(names, domains, nodes, faces, perforation_map, top_nodes)
 
     reservoir_cells = Int[]
     well_cells = Int[]
-    for (well, node_range) in zip(wells, node_ranges)
+    for (index, well) in enumerate(wells)
         append!(reservoir_cells, well.perforations.reservoir)
-        node_offset = first(node_range) - 1
+        node_offset = nodes.pos[index] - 1
         for node in well.perforations.self
             push!(well_cells, node + node_offset)
         end
@@ -221,8 +214,8 @@ function merge_well_domains(domains, name)
         neighbor_blocks = []
         end_node_blocks = []
         segment_model_blocks = []
-        for (well, node_range) in zip(wells, node_ranges)
-            node_offset = first(node_range) - 1
+        for (index, well) in enumerate(wells)
+            node_offset = nodes.pos[index] - 1
             push!(neighbor_blocks, well.neighborship .+ node_offset)
             push!(end_node_blocks, well.end_nodes .+ node_offset)
             push!(segment_model_blocks, well.segment_models)
@@ -260,15 +253,12 @@ function merge_well_domains(domains, name)
     return merged_domain
 end
 
-function entity_ranges(counts)
-    ranges = UnitRange{Int}[]
-    first_index = 1
+function entity_indirection_map(counts)
+    positions = Int[1]
     for count in counts
-        last_index = first_index + count - 1
-        push!(ranges, first_index:last_index)
-        first_index = last_index + 1
+        push!(positions, positions[end] + count)
     end
-    return ranges
+    return Jutul.IndirectionMap(collect(1:(positions[end] - 1)), positions)
 end
 
 function merged_well_key(model::MultiModel, name::Symbol)
@@ -314,7 +304,7 @@ function well_perforations(well::WellDomain, name::Symbol)
         return eachindex(well.perforations.self)
     end
     index = well_local_index(well, name)
-    return well.multiwell.perforations[index]
+    return Jutul.indirection_range(well.multiwell.perforations, index)
 end
 
 function merge_entity_values(values)
@@ -367,7 +357,9 @@ function merge_case_forces(forces, model, replacements)
                 merged_forces[key] = (mask = nothing,)
             else
                 mask_values = []
-                for (mask, perforation_range) in zip(masks, well.multiwell.perforations)
+                for (index, mask) in enumerate(masks)
+                    perforation_range = Jutul.indirection_range(
+                        well.multiwell.perforations, index)
                     if isnothing(mask)
                         push!(mask_values, ones(length(perforation_range)))
                     else

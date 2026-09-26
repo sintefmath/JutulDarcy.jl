@@ -32,6 +32,18 @@ using Jutul, JutulDarcy, Test
     @test physical_representation(merged.model.models[:MultiSegmentWells]).multiwell.top_nodes == [1, 4]
     for source in (:SimpleWells, :MultiSegmentWells)
         multiwell = physical_representation(merged.model.models[source]).multiwell
+        @test multiwell isa JutulDarcy.MultiWellInfo
+        @test multiwell.nodes isa Jutul.IndirectionMap
+        @test multiwell.faces isa Jutul.IndirectionMap
+        @test multiwell.perforations isa Jutul.IndirectionMap
+        for index in eachindex(multiwell.names)
+            original = physical_representation(model.models[multiwell.names[index]])
+            @test length(multiwell.nodes[index]) == number_of_cells(original)
+            @test length(multiwell.faces[index]) == number_of_faces(original)
+            @test length(multiwell.perforations[index]) ==
+                length(original.perforations.self)
+            @test multiwell.top_nodes[index] == first(multiwell.nodes[index])
+        end
         facility_names = merged.model.models[:Facility].domain.well_symbols
         expected_cells = [findfirst(isequal(name), facility_names) for name in multiwell.names]
         term_locations = (
