@@ -587,6 +587,13 @@ function deck_relperm(runspec, props; oil, water, gas, satnum = nothing)
     check(water && oil, tables_krow, "Phases water and oil", "KROW")
     check(gas, tables_krg, "Phase gas", "KRG")
 
+    has_water_tables = length(tables_krw) > 0
+    has_oil_tables = length(tables_krog) > 0
+    water_and_oil_swapped = oil && !water && has_water_tables && !has_oil_tables
+    if water_and_oil_swapped
+        tables_krw, tables_krog = tables_krog, tables_krw
+    end
+
     tables_krw = convert_to_tuple_or_nothing(tables_krw, water)
     tables_krow = convert_to_tuple_or_nothing(tables_krow, water && oil)
     tables_krog = convert_to_tuple_or_nothing(tables_krog, gas && oil)
@@ -668,10 +675,14 @@ function deck_pc(props; oil, water, gas, satnum = nothing, is_co2 = false)
             interp_og, found_pcog = get_pc(props["SGOF"], 4)
         elseif haskey(props, "SLGOF")
             interp_og, found_pcog = get_pc(props["SLGOF"], 4, sgn = -1)
-        else
+        elseif haskey(props, "SGFN")
             interp_og, found_pcog = get_pc(props["SGFN"], 3)
+        else
+            found_pcog = false
         end
-        push!(pc_impl, interp_og)
+        if found_pcog
+            push!(pc_impl, interp_og)
+        end
     else
         found_pcog = false
     end
