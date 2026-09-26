@@ -119,6 +119,45 @@ if CUDA.functional()
             @test all(isfinite, only(result.states)[:Pressure])
         end
     end
+    @testset "Merged wells fully on CUDA" begin
+        bar = si_unit(:bar)
+        grid = CartesianMesh((2, 1, 2), (200.0, 100.0, 40.0))
+        domain = reservoir_domain(grid,
+            permeability = 0.1*si_unit(:darcy), porosity = 0.2)
+        wells = [
+            setup_vertical_well(domain, 1, 1,
+                name = :Producer, simple_well = true),
+            setup_vertical_well(domain, 2, 1,
+                name = :Injector, simple_well = true),
+        ]
+        system = ImmiscibleSystem((LiquidPhase(), VaporPhase()),
+            reference_densities = [1000.0, 100.0])
+        model = setup_reservoir_model(domain, system,
+            wells = wells, block_backend = true)
+        state0 = setup_reservoir_state(model,
+            Pressure = 200bar, Saturations = [0.8, 0.2])
+        controls = Dict(
+            :Producer => ProducerControl(BottomHolePressureTarget(190bar)),
+            :Injector => InjectorControl(BottomHolePressureTarget(210bar),
+                [1.0, 0.0], density = 1000.0),
+        )
+        forces = setup_reservoir_forces(model, control = controls)
+        base_case = JutulCase(model, [si_unit(:day)], forces, state0 = state0)
+        merged_case = JutulDarcy.merge_similar_wells(base_case)
+        options = (
+            mode = :ka_cuda, wells_on_device = true, precond = :cprw,
+            timesteps = nothing, max_timestep = Inf,
+            max_timestep_cuts = 0, info_level = -1,
+        )
+        separate = simulate_reservoir(base_case; options...)
+        merged = simulate_reservoir(merged_case; options...)
+        @test length(merged.states) == 1
+        merged_simulator = merged.extra[:simulator]
+        @test Jutul.group_execution_mode(merged_simulator.model,
+            :SimpleWells) == Jutul.SolveFullyOnDevice
+        @test isapprox(only(merged.states)[:Pressure],
+            only(separate.states)[:Pressure]; rtol = 1e-8)
+    end
     @testset "Compositional flash on CUDA" begin
         data_path = JutulDarcy.GeoEnergyIO.test_input_file_path(
             "SIMPLE_COMP", "SIMPLE_COMP.DATA")

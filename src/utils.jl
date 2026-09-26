@@ -1298,8 +1298,11 @@ function setup_reservoir_simulator(case::JutulCase;
                 group_execution[:Reservoir] = Jutul.SolveFullyOnDevice
                 group_execution[:default] = Jutul.AssembleOnDevice
                 if wells_on_device
-                    for k in keys(get_model_wells(case))
-                        group_execution[k] = Jutul.SolveFullyOnDevice
+                    # The execution policy uses model keys, including merged wells.
+                    for (key, submodel) in pairs(case.model.models)
+                        if model_or_domain_is_well(submodel)
+                            group_execution[key] = Jutul.SolveFullyOnDevice
+                        end
                     end
                 end
             end
