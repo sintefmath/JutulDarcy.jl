@@ -121,7 +121,12 @@ function cpgrid_geometry(domain, grid_section = missing)
         side = logical_sign > 0 ? 1 : 0
         points = corners[left][cpgrid_face_corner_indices(direction, side)]
         # Use half face distances from the cell-side CPGRID centers
-        area_normal = cpgrid_area_normal(mesh.node_points[mesh.faces.faces_to_nodes[face]])
+        fnodes = mesh.faces.faces_to_nodes[face]
+        if length(fnodes) == 0
+            face_normals[direction, face] = logical_sign
+            continue
+        end
+        area_normal = cpgrid_area_normal(mesh.node_points[fnodes])
         area = norm(area_normal)
         face_centroids[:, face] .= sum(points)/4
         face_areas[face] = area
