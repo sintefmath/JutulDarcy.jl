@@ -668,6 +668,7 @@ function deck_pc(props; oil, water, gas, satnum = nothing, is_co2 = false)
         end
         push!(pc_impl, interp_ow)
     else
+        push!(pc_impl, nothing)
         found_pcow = false
     end
     if oil && gas
@@ -682,6 +683,8 @@ function deck_pc(props; oil, water, gas, satnum = nothing, is_co2 = false)
         end
         if found_pcog
             push!(pc_impl, interp_og)
+        else
+            push!(pc_impl, nothing)
         end
     else
         found_pcog = false
@@ -694,12 +697,13 @@ function deck_pc(props; oil, water, gas, satnum = nothing, is_co2 = false)
             end
             push!(pc_impl, interp_wg)
         else
+            push!(pc_impl, nothing)
             found_pcwg = false
         end
     else
         found_pcwg = false
     end
-    found = found_pcow || found_pcog
+    found = found_pcow || found_pcog || found_pcwg
     if found
         return SimpleCapillaryPressure(tuple(pc_impl...), regions = satnum)
     else
