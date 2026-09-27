@@ -500,21 +500,22 @@ if CUDA.functional()
             @test all(isfinite, only(result.states)[:Pressure])
         end
         if Sys.islinux()
-            @testset "AMGX-CPR" begin
-                using AMGX
-                res_cpr = simulate_reservoir(case; precond = :cpr, sim_kwarg...)
-                res_cucpr = simulate_reservoir(case; linear_solver_backend = :cuda, precond = :cpr, sim_kwarg...);
-                spe1_gpu_compare(res_cpr, res_cucpr)
-                ka_case = setup_case_from_data_file(spe1_pth;
-                    block_backend = true)[1:1]
-                ka_amgx = simulate_reservoir(ka_case;
-                    mode = :ka_cuda,
-                    linear_solver_backend = :cuda,
-                    precond = :cpr,
-                    sim_kwarg...)
-                @test length(ka_amgx.states) == 1
-                @test all(isfinite, only(ka_amgx.states)[:Pressure])
-            end
+            # AMGX is disbled until CUDA 6.0 compat is added
+            # @testset "AMGX-CPR" begin
+            #     using AMGX
+            #     res_cpr = simulate_reservoir(case; precond = :cpr, sim_kwarg...)
+            #     res_cucpr = simulate_reservoir(case; linear_solver_backend = :cuda, precond = :cpr, sim_kwarg...);
+            #     spe1_gpu_compare(res_cpr, res_cucpr)
+            #     ka_case = setup_case_from_data_file(spe1_pth;
+            #         block_backend = true)[1:1]
+            #     ka_amgx = simulate_reservoir(ka_case;
+            #         mode = :ka_cuda,
+            #         linear_solver_backend = :cuda,
+            #         precond = :cpr,
+            #         sim_kwarg...)
+            #     @test length(ka_amgx.states) == 1
+            #     @test all(isfinite, only(ka_amgx.states)[:Pressure])
+            # end
         end
     end
 end
