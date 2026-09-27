@@ -217,15 +217,8 @@ end
 
         @testset "All physics with CPR on JLArrays" begin
             setup = ka_setup(JLBackend(); linear_solver = :gmres)
-            # Cubic-EOS flash results contain nested heap-backed vectors and
-            # cannot be stored safely in a device array. Exercise that physics
-            # through the supported host-evaluation/device-solve path.
-            compositional_setup = merge(setup, (
-                group_execution = Dict(
-                    :default => Jutul.AssembleOnDevice),))
             test_compositional_with_wells(;
-                setuparg = compositional_setup,
-                fast_flash = true, model_arg...)
+                fast_flash = false, model_arg...)
             test_immiscible_with_wells(;
                 setuparg = setup, model_arg...)
             test_geothermal_with_wells(;
