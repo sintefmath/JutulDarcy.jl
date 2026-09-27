@@ -1143,10 +1143,10 @@ values for pressure models.
 ## GPU and parallel acceleration
 - `mode=:default`: Mode used for solving. Can be set to `:mpi` if running in MPI
   mode together with HYPRE, PartitionedArrays and MPI in your environment.
-  KernelAbstractions execution is selected with `:ka` (`:ka_cpu`), or a
-  backend-specific mode: `:ka_cuda`, `:ka_amd`, or `:ka_metal`. The reservoir
-  is evaluated fully on the selected backend while wells and facility
-  equations remain on the host and are copied to device storage for assembly.
+  GPU/KernelAbstractions execution is selected with `:ka` (`:ka_cpu`), or a
+  backend-specific mode that matches your hardware: `:ka_cuda` (for CUDA/NVIDIA
+  GPUs) or `:ka_amd` for AMD GPUs. You must load the required backend for GPU
+  execution (`using CUDA` for NVIDIA GPUs, `using AMDGPU` for AMD GPUs).
 - `group_execution=missing`: Per-model `DeviceExecutionMode` policy for KA
   modes, supplied as a function or keyed collection. By default the reservoir
   uses `SolveFullyOnDevice` and wells/facility use `AssembleOnDevice`.

@@ -1,16 +1,26 @@
 # GPU support
 
-JutulDarcy includes experimental support for running linear solves on the GPU. For many simulations, the linear systems are the most compute-intensive part and a natural choice for acceleration. At the moment, the support is limited to CUDA GPUs through [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl). For the most efficient CPR preconditioner, [AMGX.jl](https://github.com/JuliaGPU/AMGX.jl) is required which is currently limited to Linux systems. Windows users may have luck by running Julia inside [WSL](https://learn.microsoft.com/en-us/windows/wsl/install).
+JutulDarcy includes support for running the simulator as kernels. This means that the entire simulator is massively parallel, which is highly beneficial for running cases on GPU. or on CPUs with a large number of threads. Everything can run on GPU including property evaluation, equation assembly and linear solves. This is by far the fastest way to run simulations that have more than about 100,000 cells.
 
 ## How to use
 
-If you have installed JutulDarcy, you should start by adding the CUDA and optionally the AMGX packages using the package manager:
+If you have installed JutulDarcy, you should start by adding the desired backend that mathces your GPU device:
+
+### Adding CUDA backend
 
 ```julia
 using Pkg
 Pkg.add("CUDA") # Requires a CUDA-capable GPU
-Pkg.add("AMGX") # Requires CUDA + Linux
 ```
+
+### Adding AMDGPU backend
+
+```julia
+using Pkg
+Pkg.add("AMDGPU") # Requires a AMD ROC-capable GPU
+```
+
+### Loading a model
 
 Once the packages have been added to the same environment as JutulDarcy, you can load them to enable GPU support. Let us grab the first ten steps of the EGG benchmark model:
 
@@ -23,46 +33,36 @@ case = case[1:10]
 
 ### Running on CPU
 
-If we wanted to run this on CPU we would simply call `simulate_reservoir`:
+If we wanted to run this in parallel on CPU we would simply call `simulate_reservoir` with `:ka` as the mode:
 
 ```julia
-result_cpu = simulate_reservoir(case);
+result_cpu = simulate_reservoir(case, mode = :ka);
 ```
 
-### Running on GPU with block ILU(0)
-
-If we now load `CUDA` we can run the same simulation using the CUDA-accelerated linear solver. By itself, CUDA only supports the ILU(0) preconditioner. JutulDarcy will automatically pick this preconditioner when CUDA is requested without AMGX, but we write it explicitly here:
+### Running on CUDA GPUs
 
 ```julia
 using CUDA
-result_ilu0_cuda = simulate_reservoir(case, linear_solver_backend = :cuda, precond = :ilu0);
+result_cpu = simulate_reservoir(case, mode = :ka_cuda);
 ```
 
-### Running on GPU with CPR AMGX-ILU(0)
-
-Loading the AMGX package makes a pure GPU-based two-stage CPR available. Again, we are explicit in requesting CPR, but if both `CUDA` and `AMGX` are available and functional this is redundant:
+### Running on CUDA GPUs
 
 ```julia
-using AMGX
-result_amgx_cuda = simulate_reservoir(case, linear_solver_backend = :cuda, precond = :cpr);
+using CUDA
+result_cpu = simulate_reservoir(case, mode = :ka_cuda);
 ```
 
-In short, load `AMGX` and `CUDA` and run `simulate_reservoir(case, linear_solver_backend = :cuda)` to get GPU results. The EGG model is quite small, so if you want to see significant performance increases, a larger case will be necessary. `AMGX` also contains a large number of options that can be configured for advanced users.
+### Additional options
 
-## Technical details and limitations
-
-The GPU implementation relies on assembly on CPU and pinned memory to transfer onto the CPU. This means that the performance can be significantly improved by launching Julia with multiple threads to speed up the non-GPU parts of the code. AMGX is currently single-GPU only and does not work with MPI. To make use of lower precision, specify `Float32` in the `float_type` argument to the linear solver. Additional arguments to `AMGX` can also be specified this way. For example, we can solve using aggregation AMG in single precision by doing the following:
+The default settings use a fairly conservative setup strategy for the AMG and the other parts of the linear solver. For instance, many cases can run more quickly if we reuse AMG operators and use the vendor ILU(0):
 
 ```julia
-simulate_reservoir(case,
-    linear_solver_backend = :cuda,
+upd = :operators # Reuse operators, can be very fast, but degrades performance
+simulate_reservoir(case;
     linear_solver_arg = (
-        float_type = Float32,
-        algorithm = "AGGREGATION",
-        selector = "SIZE_8"
-        )
+        update_type = upd,
+        smoother_type = :vendor_ilu
     )
+)
 ```
-
-!!! warning "Experimental status"
-    Multiple successive runs with different `AMGX` instances have resulted in crashes when old instances are garbage collected. This part of the code is still considered experimental, with contributions welcome if you are using it.

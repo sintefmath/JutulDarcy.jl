@@ -66,6 +66,7 @@ TotalMassRateTarget
 JutulDarcy.well_target_value
 JutulDarcy.well_control_equation
 JutulDarcy.check_well_limit
+JutulDarcy.SurfaceComponentRates
 ```
 
 ### Well outputs

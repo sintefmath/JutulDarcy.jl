@@ -376,6 +376,7 @@ function build_jutul_darcy_docs(
                     "man/basics/utilities.md",
                 ],
                 "Parallelism and compilation" => [
+                    "man/advanced/parallel.md",
                     "man/advanced/mpi.md",
                     "man/advanced/gpu.md",
                     "man/advanced/compiled.md"
@@ -408,6 +409,7 @@ function build_jutul_darcy_docs(
             plugins = [bib],
             format = build_format,
             pages = build_pages,
+            checkdocs_ignored_modules = [Jutul],
             draft = get(ENV, "JUTULDARCY_DOCS_DRAFT_MODE", "0") == "1"
         )
     end
