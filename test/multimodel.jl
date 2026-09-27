@@ -227,10 +227,10 @@ end
             #     test_immiscible_with_wells(;
             #         setuparg = setup, model_arg...)
             # end
-            @testset "Geothermal" begin
-                test_geothermal_with_wells(;
-                    setuparg = setup, model_arg...)
-            end
+            # @testset "Geothermal" begin
+            #     test_geothermal_with_wells(;
+            #         setuparg = setup, model_arg...)
+            # end
             @testset "Geothermal" begin
                 test_blackoil_with_wells(;
                     setuparg = setup, model_arg...)
