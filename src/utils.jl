@@ -1061,24 +1061,6 @@ end
 
 # Keyword arguments
 
-- `mode=:default`: Mode used for solving. Can be set to `:mpi` if running in MPI
-  mode together with HYPRE, PartitionedArrays and MPI in your environment.
-  KernelAbstractions execution is selected with `:ka` (`:ka_cpu`), or a
-  backend-specific mode: `:ka_cuda`, `:ka_amd`, or `:ka_metal`. The reservoir
-  is evaluated fully on the selected backend while wells and facility
-  equations remain on the host and are copied to device storage for assembly.
-- `group_execution=missing`: Per-model `DeviceExecutionMode` policy for KA
-  modes, supplied as a function or keyed collection. By default the reservoir
-  uses `SolveFullyOnDevice` and wells/facility use `AssembleOnDevice`.
-- `float_type=Float64`, `index_type=Int`: Override the floating-point and
-  sparse-index types used by the `KernelAbstractionsContext`. These options are
-  only valid for KA modes; omitted values inherit the CPU model's context.
-- `linear_float_type=float_type`, `linear_index_type=index_type`: Override the KA
-  linear system and solver types independently. Each defaults to its
-  corresponding assembly type.
-- `reduce_memory=true`: For KA modes, use fused equation assembly for TPFA
-  conservation laws without face-variable fluxes instead of storing cell
-  half-face AD flux values on the backend.
 - `method=:newton`: Can be `:newton`, `:nldd` or `:aspen`. Newton is the most
   tested approach and `:nldd` can speed up difficult models. The `:nldd` option
   enables a host of additional options (look at the simulator config for more
@@ -1107,7 +1089,8 @@ end
   preconditioner path. KernelAbstractions simulator modes automatically use
   the KA AMG and smoother implementations. Set this explicitly to `:cpu`,
   `:ka`, or the legacy `:cuda` transfer path to override the default.
-- `linear_solver_arg`: `Dict` containing additional linear solver arguments.
+- `linear_solver_arg`: `Dict` containing additional linear solver arguments that
+  are passed onto [`select_reservoir_linear_solver`](@ref).
 
 ## Timestepping options
 
@@ -1157,6 +1140,29 @@ values for pressure models.
 - `tol_eb_well=1e4*tol_eb`: Maximum allowable integrated error for well node
 - `inc_tol_dT=Inf`: Maximum allowable temperature change (absolute)
 
+## GPU and parallel acceleration
+- `mode=:default`: Mode used for solving. Can be set to `:mpi` if running in MPI
+  mode together with HYPRE, PartitionedArrays and MPI in your environment.
+  KernelAbstractions execution is selected with `:ka` (`:ka_cpu`), or a
+  backend-specific mode: `:ka_cuda`, `:ka_amd`, or `:ka_metal`. The reservoir
+  is evaluated fully on the selected backend while wells and facility
+  equations remain on the host and are copied to device storage for assembly.
+- `group_execution=missing`: Per-model `DeviceExecutionMode` policy for KA
+  modes, supplied as a function or keyed collection. By default the reservoir
+  uses `SolveFullyOnDevice` and wells/facility use `AssembleOnDevice`.
+- `float_type=Float64`, `index_type=Int`: Override the floating-point and
+  sparse-index types used by the `KernelAbstractionsContext`. These options are
+  only valid for KA modes; omitted values inherit the CPU model's context.
+- `linear_float_type=float_type`, `linear_index_type=index_type`: Override the KA
+  linear system and solver types independently. Each defaults to its
+  corresponding assembly type.
+- `reduce_memory=true`: For KA modes, use fused equation assembly for TPFA
+  conservation laws without face-variable fluxes instead of storing cell
+  half-face AD flux values on the backend. This typically gives some speedup on
+  CPU, and substantial speedup on GPU.
+- `ka_workgroupsize=256`: Workgroup size used for KA execution. This controls the
+  number of threads per workgroup on the selected backend.
+
 ## Inherited keyword arguments
 
 Additional keyword arguments come from the base Jutul simulation framework. We
@@ -1186,11 +1192,10 @@ list a few of the most relevant entries here for convenience:
   tolerances with this value. Warning: Setting it to a large value can have
   severe impact on numerical accuracy. A value of 1 to 10 is typically safe if
   your default tolerances are strict.
-
-
-## GPU options
 - `wells_on_device=false`: Evaluate wells on the device if set to `true`,
-  otherwise on the host.
+  otherwise on the host. Wells are very small and the cost of kernel launches
+  typically outweighs any potential speedup from evaluating them on the device
+  unless `merge_similar_wells` has been used.
 - `mixed_cross_terms_on_host=wells_on_device`: Evaluate cross terms between host- and
   device-evaluated models on the host after copying back only the current
   device state. Set to `false` to evaluate these cross terms on the backend.
