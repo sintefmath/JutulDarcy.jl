@@ -86,6 +86,7 @@ module JutulDarcy
     export set_relative_permeability!
     export EquilibriumRegion
     export setup_reservoir_dict_optimization, optimize_reservoir, parameters_gradient_reservoir, setup_injector_control, setup_producer_control, setup_disabled_control
+    export setup_well_control_optimization, optimize_well_controls
 
     import Jutul:
         number_of_cells, number_of_faces,

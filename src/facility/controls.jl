@@ -8,7 +8,8 @@ end
 function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, model::WellGroupModel, dt, forces_g, key;
         time = NaN,
         recorder = ProgressRecorder(),
-        update_explicit = true
+        update_explicit = true,
+        from_state_reference = false
     )
     function value_has_promoted_type(newval::T1, oldval::T2) where {T1, T2}
         return T1 != T2 && promote_type(T1, T2) == T1
@@ -24,6 +25,21 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
     for key in keys(forces.limits)
         cfg.limits[key] = forces.limits[key]
     end
+    if from_state_reference
+        # `cfg` was just restored from a converged (stored) solution, e.g. during
+        # adjoint / helper residual evaluation. The operating controls recorded
+        # there are authoritative (they already reflect any control-vs-limit
+        # switching that happened during the forward solve). Re-deriving the
+        # switch at the converged point is both unnecessary and unreliable (a
+        # well sitting exactly on its bhp limit fails the strict inequality in
+        # `check_well_limit`). Instead, keep each operating control's identity and
+        # only refresh its target value from the forces so that force sensitivities
+        # propagate through whichever control was actually active.
+        update_before_step_reference_mode!(storage_g, model_g, model, dt, forces_g, key;
+            update_explicit = update_explicit)
+        return
+    end
+    cfg.reference_mode = false
     current_step = recorder.recorder.step
     # Set operational controls
     for key in keys(forces.control)
@@ -82,6 +98,83 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
     end
 end
 
+
+"""
+Rebuild `target` with a new (possibly AD) `val`, keeping its type. Returns the
+original target for control types that carry more than a single scalar value
+(reinjection / reservoir voidage / disabled), where a plain value swap is not
+well defined.
+"""
+function reference_retarget(target, val)
+    T = Base.typename(typeof(target)).wrapper
+    if T === BottomHolePressureTarget || T === TotalRateTarget || T === TotalMassRateTarget ||
+       T === SurfaceOilRateTarget || T === SurfaceWaterRateTarget || T === SurfaceGasRateTarget ||
+       T === SurfaceLiquidRateTarget
+        return T(val)
+    else
+        return target
+    end
+end
+
+function update_before_step_reference_mode!(storage_g, model_g, model::WellGroupModel, dt, forces_g, key;
+        update_explicit = true
+    )
+    forces = forces_g[key]
+    storage = storage_g[key]
+    cfg = storage.state.WellGroupConfiguration
+    q_t = storage.state.TotalSurfaceMassRate
+    op_ctrls = cfg.operating_controls
+    req_ctrls = cfg.requested_controls
+    cfg.reference_mode = true
+    rmodel = model_g[:Reservoir]
+    rstate = storage_g.Reservoir.state
+    for wkey in keys(forces.control)
+        newreq, = realize_control_for_reservoir(rstate, forces.control[wkey], rmodel, dt)
+        req_ctrls[wkey] = newreq
+        op = op_ctrls[wkey]
+        if op isa DisabledControl
+            # The forward solve shut this well on this (sub)step (e.g. the rate
+            # collapsed to zero). Keep it shut: its control equation then has no
+            # dependence on the requested target, which is the correct gradient.
+        elseif newreq isa DisabledControl
+            op_ctrls[wkey] = newreq
+        else
+            op_sym = translate_target_to_symbol(op.target)
+            if op_sym == translate_target_to_symbol(newreq.target)
+                # Operating on the requested target: take its (AD) value.
+                op_ctrls[wkey] = replace_target(op, reference_retarget(op.target, newreq.target.value))
+            else
+                # Operating on a limit: take the (AD) limit value when available.
+                lim = cfg.limits[wkey]
+                if !isnothing(lim) && haskey(lim, op_sym)
+                    op_ctrls[wkey] = replace_target(op, reference_retarget(op.target, lim[op_sym]))
+                else
+                    # No entry for this limit anywhere in cfg.limits
+                    @warn "Well $wkey is operating on limit :$op_sym, but no " *
+                        "matching entry was found in its operating limits during " *
+                        "adjoint reference-mode evaluation. Its gradient will be " *
+                        "zero on steps where this happens." maxlog = 5
+                end
+            end
+        end
+        pos = get_well_position(model.domain, wkey)
+        if q_t isa Vector
+            q_t[pos] = valid_surface_rate_for_control(q_t[pos], op_ctrls[wkey])
+        end
+    end
+    for wname in model.domain.well_symbols
+        wmodel = model_g[wname]
+        wstate = storage_g[wname].state
+        forces_w = forces_g[wname]
+        if isnothing(forces_w) || !haskey(forces_w, :mask)
+            mask = nothing
+        else
+            mask = forces_w.mask
+        end
+        update_before_step_well!(wstate, wmodel, rstate, rmodel, op_ctrls[wname], mask, update_explicit = update_explicit)
+    end
+    return
+end
 
 function valid_surface_rate_for_control(q_t, ::InjectorControl, val = MIN_INITIAL_WELL_RATE)
     if q_t < val
