@@ -9,7 +9,7 @@ end
 
 function select_equations!(eqs, domain::MSWellDomain, model::MSWellFlowModel)
     if count_active_entities(domain, Faces()) > 0
-        eqs[:potential_balance] = PotentialDropBalanceWell(domain.discretizations.mass_flow)
+        eqs[:potential_balance] = PotentialDropBalanceWell(domain.discretizations.mass_flow; include_inertia = false)
     end
 end
 
