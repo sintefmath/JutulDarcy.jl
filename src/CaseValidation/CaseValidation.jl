@@ -29,7 +29,7 @@ module CaseValidation
         p0 = JutulDarcy.DEFAULT_MINIMUM_PRESSURE
 
         add_bounds(:permeability, "meters^2",
-            (0.0, convert_to_si(10.0, :darcy)),
+            (0.0, convert_to_si(50.0, :darcy)),
             (0.0, convert_to_si(5.0, :darcy)),
             msg = "Large values for permeability often indicates that that the values may have been input as millidarcy or darcy instead of m^2. Use `val = convert_to_si(val, \"millidarcy\")` to convert from darcy to m^2."
         )
@@ -80,14 +80,15 @@ module CaseValidation
         model = case.model
         print_progress(msg) = info_level > 0 && print_result(msg)
         print_progress("Starting validation of reservoir case.")
-        print_progress("reservoir_domain")
+        print_progress("Checking reservoir_domain...")
         validate_reservoir(reservoir_domain(case), reservoir_model(case), result)
-        print_progress("state0")
+        print_progress("Checking state0...")
         validate_dict(case.state0, model, result, :state0, :model)
-        print_progress("parameters")
+        print_progress("Checking parameters...")
         validate_dict(case.parameters, model, result, :parameters, :model)
-        print_progress("forces")
+        print_progress("Checking dt...")
         validate_dt(case.dt, model, result)
+        print_progress("Checking forces...")
         validate_forces(case.forces, case.dt, model, result)
 
         errors = oks = warnings = 0
