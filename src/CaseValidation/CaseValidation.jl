@@ -173,6 +173,9 @@ module CaseValidation
     function validate_forces(forces, dt, model, result, step = missing)
         for (k, v) in pairs(model.models)
             model_forces = get(forces, k, missing)
+            if isnothing(model_forces)
+                continue
+            end
             ismissing(model_forces) && validation_warning(result, "forces", "Forces for submodel $k are missing at step $k.")
             if haskey(model_forces, :control)
                 validate_facility_forces(model_forces, dt, v, result, step)
