@@ -157,6 +157,10 @@ module CaseValidation
         validation_message(result, name, "Variable $varname for $model_name was missing. May be unused or represent added variable.")
     end
 
+    function validate_forces(::Nothing, dt, model, result)
+        return
+    end
+
     function validate_forces(forces::AbstractVector, dt, model, result)
         nforce = length(forces)
         ndt = length(dt)
