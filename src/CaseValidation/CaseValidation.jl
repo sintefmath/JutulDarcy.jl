@@ -256,7 +256,7 @@ module CaseValidation
             end
         end
 
-        if !allow_nonfinite
+        if !allow_nonfinite && eltype(vals) <: Real
             nbad = 0
             firstbad = 0
             for (i, v) in enumerate(vals)

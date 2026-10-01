@@ -871,7 +871,7 @@ function setup_reservoir_model_from_blackoil_tables(reservoir;
     else
         phases = (LiquidPhase(), VaporPhase())
     end
-    length(phases) == length(reference_densities) || throw(ArgumentError("Length of reference_densities $(length(phases)) must match the actiev phases implied by the tables $phases."))
+    length(phases) == length(reference_densities) || throw(ArgumentError("Length of reference_densities $(length(phases)) must match the active phases implied by the tables $phases."))
 
     is_bo = disgas || vapoil
     if is_bo
