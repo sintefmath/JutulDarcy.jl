@@ -542,21 +542,21 @@ end
         surface_conditions = default_surface_cond(),
     )
 
-Create a multisegment well from a connectivity matrix `neighbors` and vectors
-of perforation cells in the reservoir and the well. The connectivity matrix
-must have two rows, where the first row contains the "from" node and the second
-row contains the "to" node. The nodes are numbered from 1 to the maximum node
+Create a multisegment well from a connectivity matrix `neighbors` and vectors of
+perforation cells in the reservoir and the well. The connectivity matrix must
+have two rows, where the first row contains the "from" node and the second row
+contains the "to" node. The nodes are numbered from 1 to the maximum node
 number. The vectors `perforation_cells_reservoir` and `perforation_cells_self`
 must have the same length, and contain the cell indices in the reservoir grid
 and the local well grid, respectively, where the well is perforated. The
 optional argument `end_nodes` can be used to specify which nodes are end nodes
-of the well. If not provided, these are automatically detected as nodes that
-are not "from" nodes in the connectivity matrix. The optional argument
+of the well. If not provided, these are automatically detected as nodes that are
+not "from" nodes in the connectivity matrix. The optional argument
 `segment_models` can be used to provide a vector of segment pressure drop
 models, one per segment. If not provided, a default `SegmentWellBoreFrictionHB`
 model is used for all segments. The `include_inertia` flag toggles the transient
-acceleration term $L/A \cdot (V - V_0)/\Delta t$ in the segment pressure balance,
-which is useful for transient well effects when set to `true`.
+acceleration term in the segment pressure balance, which is useful for transient
+well effects when set to `true`.
 """
 function MultiSegmentWell(neighbors::AbstractMatrix, perforation_cells_reservoir, perforation_cells_self;
         end_nodes = missing,
