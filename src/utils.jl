@@ -871,7 +871,7 @@ function setup_reservoir_model_from_blackoil_tables(reservoir;
     else
         phases = (LiquidPhase(), VaporPhase())
     end
-    length(phases) == length(reference_densities) || throw(ArgumentError("Length of reference_densities $(length(phases)) must match the actiev phases implied by the tables $phases."))
+    length(phases) == length(reference_densities) || throw(ArgumentError("Length of reference_densities $(length(phases)) must match the active phases implied by the tables $phases."))
 
     is_bo = disgas || vapoil
     if is_bo
@@ -1340,6 +1340,7 @@ end
         parameters = setup_parameters(model),
         restart = false,
         forces = setup_forces(model),
+        validate = true,
         kwarg...
     )
     simulate_reservoir(case;
@@ -1388,6 +1389,7 @@ function simulate_reservoir(case::JutulCase;
         simulator = missing,
         states = Vector{Jutul.JUTUL_OUTPUT_TYPE}(),
         reports = [],
+        validate = true,
         kwarg...
     )
     (; model, forces, state0, parameters, dt) = case
@@ -1408,6 +1410,9 @@ function simulate_reservoir(case::JutulCase;
         end
         extra_arg = (state0 = case.state0, parameters = case.parameters)
         @assert !ismissing(config) "If simulator is provided, config must also be provided"
+    end
+    if validate
+        CaseValidation.validate(case, info_level = config[:info_level])
     end
     result = simulate!(sim, dt;
         forces = forces,
