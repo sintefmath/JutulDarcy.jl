@@ -54,7 +54,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         partial_update = true,
         amg_type = missing,
         amg_arg = NamedTuple(),
-        smoother_type = :ilu0,
+        smoother_type = missing,
         smoother_arg = NamedTuple(),
         cpr_type = missing,
         cpr_arg = NamedTuple(),
@@ -123,6 +123,11 @@ function select_reservoir_linear_solver(model, precond = :cpr;
             amg_type = :hypre
         end
     end
+    smoother = reservoir_system_smoother(smoother_type;
+        backend = backend,
+        is_cpu = !is_accelerator_ka,
+        smoother_arg...
+    )
 
     if is_cpr
         if ismissing(cpr_type)
@@ -148,9 +153,8 @@ function select_reservoir_linear_solver(model, precond = :cpr;
             amg_arg = merge(ka_amg_defaults, (; pairs(amg_arg)...))
         end
         p_solve = reservoir_system_amg(amg_type; backend = backend, amg_arg...)
-        s = reservoir_system_smoother(smoother_type; backend = backend, is_cpu = !is_accelerator_ka, smoother_arg...)
         prec = CPRPreconditioner(
-            p_solve, s;
+            p_solve, smoother;
             strategy = cpr_type,
             variant = precond,
             update_interval = update_interval,
@@ -164,7 +168,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
     else
         default_tol = 0.01
         max_it = 200
-        prec = reservoir_system_smoother(precond; backend = backend, smoother_arg...)
+        prec = smoother
     end
     if ismissing(rtol) || isnothing(rtol)
         rtol = default_tol
@@ -208,14 +212,16 @@ function reservoir_system_smoother(s::AbstractString; kwarg...)
     return reservoir_system_smoother(Symbol(s); kwarg...)
 end
 
-function reservoir_system_smoother(type::Symbol; backend = :cpu, is_cpu = backend == :cpu, kwarg...)
-    type_string = String(type)
-    if startswith(type_string, "ka_")
-        method = Symbol(type_string[4:end])
-        return Jutul.KASmootherPreconditioner(method; kwarg...)
+function reservoir_system_smoother(type::Union{Missing, Symbol}; backend = :cpu, is_cpu = backend == :cpu, kwarg...)
+    if !ismissing(type)
+        type_string = String(type)
+        if startswith(type_string, "ka_")
+            method = Symbol(type_string[4:end])
+            return Jutul.KASmootherPreconditioner(method; kwarg...)
+        end
     end
     if backend == :cpu || backend == :cuda
-        if type == :ilu0
+        if ismissing(type) || type == :ilu0
             return ILUZeroPreconditioner(; kwarg...)
         elseif type == :jacobi
             return JacobiPreconditioner(; kwarg...)
@@ -225,9 +231,12 @@ function reservoir_system_smoother(type::Symbol; backend = :cpu, is_cpu = backen
             throw(ArgumentError("Unsupported reservoir smoother for backend $backend: $type"))
         end
     elseif backend == :ka
-        if type == :ilu0 && is_cpu
+        if (ismissing(type) || type == :ilu0) && is_cpu
             return ILUZeroPreconditioner(; kwarg...)
         else
+            if ismissing(type)
+                type = :vendor_ilu
+            end
             return Jutul.KASmootherPreconditioner(type; kwarg...)
         end
     else
