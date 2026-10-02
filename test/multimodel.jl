@@ -222,17 +222,12 @@ end
                 test_compositional_with_wells(;
                     fast_flash = false, model_arg...)
             end
-            # This test is broken, but Egg first step covers the same thing
-            # @testset "Immiscible" begin
-            #     test_immiscible_with_wells(;
-            #         setuparg = setup, model_arg...)
-            # end
-            # @testset "Geothermal" begin
-            #     test_geothermal_with_wells(;
-            #         setuparg = setup, model_arg...)
-            # end
+            @testset "Immiscible" begin
+                test_immiscible_with_wells(;
+                    setuparg = setup, model_arg...)
+            end
             @testset "Geothermal" begin
-                test_blackoil_with_wells(;
+                test_geothermal_with_wells(;
                     setuparg = setup, model_arg...)
             end
         end
