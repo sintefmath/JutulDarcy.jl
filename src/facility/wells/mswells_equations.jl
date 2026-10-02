@@ -6,8 +6,7 @@ struct SegmentWellBoreFrictionHB
     assume_turbulent::Bool
     laminar_limit::Float64
     turbulent_limit::Float64
-    function SegmentWellBoreFrictionHB(; assume_turbulent = false, laminar_limit = 2000.0,
-            turbulent_limit = 4000.0)
+    function SegmentWellBoreFrictionHB(; assume_turbulent = false, laminar_limit = 2000.0, turbulent_limit = 4000.0)
         laminar_limit > 0.0 || throw(ArgumentError("laminar_limit must be positive"))
         turbulent_limit > laminar_limit || throw(ArgumentError("turbulent_limit must be larger than laminar_limit"))
         new(assume_turbulent, laminar_limit, turbulent_limit)

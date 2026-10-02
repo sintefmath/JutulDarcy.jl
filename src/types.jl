@@ -491,6 +491,8 @@ struct MultiSegmentWell{P, N, SC, S} <: WellDomain
     name::Symbol
     "Pressure drop model for seg well segment"
     segment_models::S
+    "Whether to include transient inertia in the segment pressure balance"
+    include_inertia::Bool
 end
 
 """
@@ -515,7 +517,7 @@ way of setting up wells.
 $FIELDS
 
 """
-function MultiSegmentWell(reservoir_cells; top_node = false, kwarg...)
+function MultiSegmentWell(reservoir_cells; top_node = false, include_inertia = false, kwarg...)
     numperf = length(reservoir_cells)
     pix = 1:numperf
     if top_node
@@ -526,7 +528,7 @@ function MultiSegmentWell(reservoir_cells; top_node = false, kwarg...)
         neighbors = vcat(pix[1:end-1]', pix[2:end]')
         self_cells = collect(pix)
     end
-    return MultiSegmentWell(neighbors, reservoir_cells, self_cells; kwarg...)
+    return MultiSegmentWell(neighbors, reservoir_cells, self_cells; include_inertia = include_inertia, kwarg...)
 end
 
 """
@@ -535,6 +537,7 @@ end
         type = :ms,
         name = :Well,
         segment_models = nothing,
+        include_inertia = false,
         surface_conditions = default_surface_cond(),
     )
 
@@ -557,6 +560,7 @@ function MultiSegmentWell(neighbors::AbstractMatrix, perforation_cells_reservoir
         type = :ms,
         name = :Well,
         segment_models = nothing,
+        include_inertia = false,
         surface_conditions = default_surface_cond(),
     )
     size(neighbors, 1) == 2 || throw(ArgumentError("Connectivity matrix for multisegment well must have two rows"))
@@ -591,6 +595,7 @@ function MultiSegmentWell(neighbors::AbstractMatrix, perforation_cells_reservoir
         surface_conditions,
         name,
         segment_models,
+        include_inertia,
     )
 end
 
