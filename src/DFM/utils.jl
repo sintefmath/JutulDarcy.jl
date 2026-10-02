@@ -401,6 +401,7 @@ function add_fractures_to_well(well::DataDomain{T}, fractures::DataDomain, matri
         well0.representation.surface,
         well0.representation.name,
         segment_models,
+        well0.representation.include_inertia,
     )
 
     well = DataDomain(W)

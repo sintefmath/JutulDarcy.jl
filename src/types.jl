@@ -499,6 +499,7 @@ end
     MultiSegmentWell(reservoir_cells;
         name = :Well,
         top_node = false,
+        include_inertia = false,
     )
 
 Create well perforated in a vector of `reservoir_cells`. This constructor
@@ -553,7 +554,9 @@ of the well. If not provided, these are automatically detected as nodes that
 are not "from" nodes in the connectivity matrix. The optional argument
 `segment_models` can be used to provide a vector of segment pressure drop
 models, one per segment. If not provided, a default `SegmentWellBoreFrictionHB`
-model is used for all segments.
+model is used for all segments. The `include_inertia` flag toggles the transient
+acceleration term $L/A \cdot (V - V_0)/\Delta t$ in the segment pressure balance,
+which is useful for transient well effects when set to `true`.
 """
 function MultiSegmentWell(neighbors::AbstractMatrix, perforation_cells_reservoir, perforation_cells_self;
         end_nodes = missing,
