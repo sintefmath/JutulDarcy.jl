@@ -77,7 +77,15 @@ function select_reservoir_linear_solver(model, precond = :cpr;
 
     is_cpr = precond == :cpr || precond == :cprw
     if is_ka_backend
-        is_accelerator_ka = !(model.context.backend isa Jutul.KernelExecution.KernelAbstractions.CPU)
+        # TODO: This should be part of the Jutul API somehow.
+        ka_backend = model.context.backend
+        bs = "$(typeof(ka_backend))"
+        if startswith(bs, "CPU")
+            array_type = "Julia"
+        else
+            array_type = split(bs, "Backend")[1]
+        end
+        is_accelerator_ka = Jutul.KernelExecution.KernelAbstractions.isgpu(ka_backend)
         !is_equation_major || throw(ArgumentError(
             "Equation-major storage is not supported for KernelAbstractions solvers. Set backend = :csr when setting up the model."))
         solver != :lu || throw(ArgumentError(
@@ -89,6 +97,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         krylov_arg = NamedTuple()
     elseif backend == :cuda
         is_accelerator_ka = false
+        array_type = "CUDA"
         # Check assumptions
         !is_equation_major || throw(ArgumentError("Equation-major storage not supported for CUDA backend. Set backend = :csr when setting up the model."))
         solver != :lu || throw(ArgumentError("LU direct solver not supported for CUDA backend."))
@@ -109,6 +118,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         krylov_constructor = CUDAReservoirKrylov
         krylov_arg = (Float_t = float_type, )
     else
+        array_type = "Julia"
         is_accelerator_ka = false
         if solver == :lu
             return LUSolver()
@@ -125,7 +135,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
     end
     smoother = reservoir_system_smoother(smoother_type;
         backend = backend,
-        is_cpu = !is_accelerator_ka,
+        array_type = array_type,
         smoother_arg...
     )
 
@@ -152,7 +162,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
             )
             amg_arg = merge(ka_amg_defaults, (; pairs(amg_arg)...))
         end
-        p_solve = reservoir_system_amg(amg_type; backend = backend, amg_arg...)
+        p_solve = reservoir_system_amg(amg_type; backend = backend, array_type = array_type,amg_arg...)
         prec = CPRPreconditioner(
             p_solve, smoother;
             strategy = cpr_type,
@@ -212,7 +222,7 @@ function reservoir_system_smoother(s::AbstractString; kwarg...)
     return reservoir_system_smoother(Symbol(s); kwarg...)
 end
 
-function reservoir_system_smoother(type::Union{Missing, Symbol}; backend = :cpu, is_cpu = backend == :cpu, kwarg...)
+function reservoir_system_smoother(type::Union{Missing, Symbol}; backend = :cpu, array_type = "Julia", kwarg...)
     if !ismissing(type)
         type_string = String(type)
         if startswith(type_string, "ka_")
@@ -231,12 +241,17 @@ function reservoir_system_smoother(type::Union{Missing, Symbol}; backend = :cpu,
             throw(ArgumentError("Unsupported reservoir smoother for backend $backend: $type"))
         end
     elseif backend == :ka
-        if (ismissing(type) || type == :ilu0) && is_cpu
+        if ismissing(type)
+            has_native_ilu = array_type == "CUDA" || array_type == "AMDGPU"
+            if has_native_ilu
+                type = :vendor_ilu
+            else
+                type = :ilu0
+            end
+        end
+        if array_type == "Julia" && type == :ilu0
             return ILUZeroPreconditioner(; kwarg...)
         else
-            if ismissing(type)
-                type = :vendor_ilu
-            end
             return Jutul.KASmootherPreconditioner(type; kwarg...)
         end
     else
@@ -258,6 +273,7 @@ end
 function reservoir_system_amg(variant = missing;
         amgcl_type = :amg,
         backend = :cpu,
+        array_type = "Julia",
         kwarg...
     )
     is_defaulted = ismissing(variant)
