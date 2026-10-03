@@ -1,18 +1,21 @@
 struct WellFromFacilityTracerCT <: Jutul.AdditiveCrossTerm
-    well::Symbol
+    wells::Vector{Symbol}
+    facility_cells::Vector{Int}
+    well_cells::Vector{Int}
 end
 
-Jutul.cross_term_entities(ct::WellFromFacilityTracerCT, eq::ConservationLaw{:TracerMasses}, model) = [JutulDarcy.well_top_node()]
+Jutul.cross_term_entities(ct::WellFromFacilityTracerCT, eq::ConservationLaw{:TracerMasses}, model) =
+    ct.well_cells
 
-TRACER_TOL = 1e-12
+const TRACER_TOL = 1e-12
 
 function Jutul.update_cross_term_in_entity!(out, i,
     state_well, state0_well,
     state_facility, state0_facility,
     well, facility,
     ct::WellFromFacilityTracerCT, eq, dt, ldisc = Jutul.local_discretization(ct, i))
-    well_symbol = ct.well
-    pos = JutulDarcy.get_well_position(facility.domain, well_symbol)
+    well_symbol = ct.wells[i]
+    pos = ct.facility_cells[i]
 
     cfg = state_facility.WellGroupConfiguration
     ctrl = JutulDarcy.operating_control(cfg, well_symbol)
@@ -23,21 +26,22 @@ function Jutul.update_cross_term_in_entity!(out, i,
     N = length(tracers)
     S = state_well.Saturations
     rho = state_well.PhaseMassDensities
-    wc = JutulDarcy.well_top_node()
+    wc = ct.well_cells[i]
 
     if ctrl isa InjectorControl
         if ismissing(ctrl.tracers)
-            @. out = zero(T)
+            out .= zero(T)
         else
             @assert length(ctrl.tracers) == N
-            phases = tuple(1:number_of_phases(well.system)...)
-            masses = map(ph -> S[ph, wc]*rho[ph, wc], phases)
-            mass_tot = sum(masses)
+            mass_tot = zero(T)
+            for phase in 1:number_of_phases(well.system)
+                mass_tot += S[phase, wc]*rho[phase, wc]
+            end
 
             for i in 1:N
                 mass = zero(T)
                 for phase in tracer_phase_indices(tracers[i])
-                    mass += masses[phase]
+                    mass += S[phase, wc]*rho[phase, wc]
                 end
                 if mass > TRACER_TOL
                     F = mass/mass_tot
@@ -49,16 +53,16 @@ function Jutul.update_cross_term_in_entity!(out, i,
             end
         end
     else
-        rho = state_well.PhaseMassDensities
-        phases = tuple(1:number_of_phases(well.system)...)
-        masses = map(ph -> S[ph, wc]*rho[ph, wc], phases)
-        mass_tot = sum(masses)
+        mass_tot = zero(T)
+        for phase in 1:number_of_phases(well.system)
+            mass_tot += S[phase, wc]*rho[phase, wc]
+        end
         for i in 1:N
             tracer = tracers[i]
             v = zero(T)
             C_i = state_well.TracerConcentrations[i, wc]
             for phase in tracer_phase_indices(tracer)
-                F_ph = masses[phase]/mass_tot
+                F_ph = S[phase, wc]*rho[phase, wc]/mass_tot
                 v += F_ph*C_i*qT
             end
             out[i] = -v
@@ -66,12 +70,15 @@ function Jutul.update_cross_term_in_entity!(out, i,
     end
     return out
 end
-
-
-
 struct ReservoirFromWellTracerCT{I<:AbstractVector} <: JutulDarcy.AbstractReservoirFromWellCT
     reservoir_cells::I
     well_cells::I
+end
+
+function Adapt.adapt_structure(to, ct::ReservoirFromWellTracerCT)
+    return ReservoirFromWellTracerCT(
+        Adapt.adapt(to, ct.reservoir_cells),
+        Adapt.adapt(to, ct.well_cells))
 end
 
 function Jutul.update_cross_term_in_entity!(out, i,
@@ -99,30 +106,30 @@ function Jutul.update_cross_term_in_entity!(out, i,
             reservoir = reservoir_cell
         )
     end
-    phases = tuple(1:number_of_phases(model_res.system)...)
-    λ_t = 0
+    λ_t = zero(eltype(state_res.PhaseMobilities))
     for ph in 1:nph
         λ_t += state_res.PhaseMobilities[ph, reservoir_cell]
     end
 
-    fluxes = map(ph -> JutulDarcy.perforation_phase_mass_flux(λ_t, conn, state_res, state_well, ph), phases)
-    tracers = model_res.equations[:tracers].flux_type.tracers
-    N = length(tracers)
+    tracers = eq.flux_type.tracers
     T = eltype(out)
-    for i in 1:N
-        tracer = tracers[i]
+    for tracer_index in eachindex(tracers)
+        tracer = tracers[tracer_index]
         v = zero(T)
         for phase in tracer_phase_indices(tracer)
-            q_ph = fluxes[phase]
+            q_ph = JutulDarcy.perforation_phase_mass_flux(
+                λ_t, conn, state_res, state_well, phase)
             if q_ph < 0
                 # Injection
-                C_perf = state_well.TracerConcentrations[i, well_cell]
+                C_perf = state_well.TracerConcentrations[
+                    tracer_index, well_cell]
             else
-                C_perf = state_res.TracerConcentrations[i, reservoir_cell]
+                C_perf = state_res.TracerConcentrations[
+                    tracer_index, reservoir_cell]
             end
             v += C_perf*q_ph
         end
-        out[i] = v
+        out[tracer_index] = v
     end
     return out
 end
@@ -142,7 +149,6 @@ end
 
 function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellTracerCT, target, source, model, storage, dt, force::PerforationMask; time = time)
     mask = force.values
-    apply_perforation_mask!(ct_s.target, mask)
-    apply_perforation_mask!(ct_s.source, mask)
+    apply_perforation_mask!(ct_s.target, mask, model.context)
+    apply_perforation_mask!(ct_s.source, mask, model.context)
 end
-

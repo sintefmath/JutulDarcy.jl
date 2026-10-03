@@ -12,8 +12,20 @@ end
     include("relperm.jl")
 end
 
+@testitem "Capillary pressure" begin
+    include("capillary.jl")
+end
+
 @testitem "Single-phase" begin
     include("singlephase.jl")
+end
+
+@testitem "KernelAbstractions single model" begin
+    include("kernel_abstractions.jl")
+end
+
+@testitem "Float32 reservoir models" begin
+    include("reservoir_float32.jl")
 end
 
 @testitem "Multi-phase" begin
@@ -94,6 +106,10 @@ end
 
 @testitem "Well constructors" begin
     include("well_constructor.jl")
+end
+
+@testitem "Merged wells" begin
+    include("merge_wells.jl")
 end
 
 @testitem "HistoryMatching" begin

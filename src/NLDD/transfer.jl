@@ -1,7 +1,7 @@
 function state_pair(storage_g, storage_l, current = true)
     # storage_g = simulator.simulator.storage
     # storage_l = sim.storage
-    F(x) = (; x...)
+    F(x) = (; pairs(x)...)
     if current
         return (F(storage_g.state), F(storage_l.state))
     else

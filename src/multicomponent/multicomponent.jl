@@ -30,8 +30,8 @@ function select_secondary_variables!(S, system::CompositionalSystem, model)
         set_secondary_variables!(model, PhaseViscosities = LBCViscosities(),
                                         PhaseMassDensities = TwoPhaseCompositionalDensities())
     end
-    S[:LiquidMassFractions] = PhaseMassFractions(:liquid)
-    S[:VaporMassFractions] = PhaseMassFractions(:vapor)
+    S[:LiquidMassFractions] = PhaseMassFractions(Val(:liquid))
+    S[:VaporMassFractions] = PhaseMassFractions(Val(:vapor))
     S[:FlashResults] = FlashResults(model)
     S[:Saturations] = Saturations()
 end
@@ -53,7 +53,7 @@ function convergence_criterion(model::CompositionalModel, storage, eq::Conservat
         return t
     end
     e = [maximum(i -> abs(r[j, i]) * dt / scale(i), axes(r, 2)) for j in axes(r, 1)]
-    names = model.system.components
+    names = component_names(model.system)
     R = (CNV = (errors = e, names = names), )
     return R
 end
@@ -62,10 +62,15 @@ end
 function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::ConservationLaw{:TotalMasses}, eq_s, r; dt = 1.0, update_report = missing) where S<:MultiPhaseCompositionalSystemLV
     sys = model.system
     state = storage.state
-    active = active_entities(model.domain, Cells())
+    M = global_map(model.domain)
+    active_view(x) = Jutul.active_view(x, M, for_variables = false)
     nc = number_of_components(sys)
-    get_sat(ph) = as_value(view(state.Saturations, ph, :))
-    get_density(ph) = as_value(view(state.PhaseMassDensities, ph, :))
+    saturations = active_view(state.Saturations)
+    densities = active_view(state.PhaseMassDensities)
+    volume = active_view(state.FluidVolume)
+    total_masses = active_view(state.TotalMasses)
+    get_sat(ph) = view(saturations, ph, :)
+    get_density(ph) = view(densities, ph, :)
 
     dz = compositional_increment(model, state, update_report)
     dp_abs, dp_rel = pressure_increments(model, state, update_report)
@@ -87,13 +92,10 @@ function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::Co
 
     sl = get_sat(l)
     sv = get_sat(v)
-    vol = as_value(state.FluidVolume)
-
-    w = MultiComponentFlash.molar_masses(sys.equation_of_state)
-    total_mass = domain_total_mass(state.TotalMasses, active)
-
-    e, r = compositional_criterion(state, dt, active, r, nc, w, sl, liquid_density, sv, vapor_density, sw, water_density, vol, total_mass)
-    names = model.system.components
+    total_mass = sum(value, total_masses)
+    e, r = compositional_criterion_backend(dt, r, sl, liquid_density,
+        sv, vapor_density, sw, water_density, volume, total_mass, Val(nc))
+    names = component_names(model.system)
     R = (
         CNV = (errors = e, names = names),
         MB = (errors = r, names = names),
@@ -104,14 +106,74 @@ function convergence_criterion(model::SimulationModel{<:Any, S}, storage, eq::Co
     return R
 end
 
-function domain_total_mass(tm, active)
-    total_mass = 0.0
-    for i in active
-        for c in axes(tm, 1)
-            total_mass += value(tm[c, i])
+domain_total_mass(tm, active) = sum(value, view(tm, :, active))
+
+function compositional_criterion_backend(dt, residual, sl, liquid_density,
+        sv, vapor_density, ::Nothing, ::Nothing, volume, total_mass,
+        ::Val{N}) where N
+    cnv = ntuple(Val(N)) do component
+        residual_component = view(residual, component, :)
+        function scaled_residual(r, s_l, rho_l, s_v, rho_v, pv)
+            total_density = value(rho_l)*value(s_l) +
+                value(rho_v)*value(s_v)
+            scale = dt/(value(pv)*max(total_density, 1e-8))
+            return scale*abs(value(r))
         end
+        mapreduce(scaled_residual, max, residual_component, sl,
+            liquid_density, sv, vapor_density, volume)
     end
-    return total_mass
+    mb = ntuple(Val(N)) do component
+        residual_sum = sum(value, view(residual, component, :))
+        dt*abs(residual_sum)/total_mass
+    end
+    return cnv, mb
+end
+
+function compositional_criterion_backend(dt, residual, sl, liquid_density,
+        sv, vapor_density, sw, water_density, volume, total_mass,
+        ::Val{N}) where N
+    eos_components = N - 1
+    cnv_eos = ntuple(Val(eos_components)) do component
+        residual_component = view(residual, component, :)
+        function scaled_residual(r, s_l, rho_l, s_v, rho_v, s_w, pv)
+            s_w_value = value(s_w)
+            if s_w_value > 1.0 - MINIMUM_COMPOSITIONAL_SATURATION
+                return zero(value(r))
+            else
+                scale_lv = 1.0 - s_w_value +
+                    MINIMUM_COMPOSITIONAL_SATURATION
+                s_l_scaled = value(s_l)/scale_lv
+                total_density = value(rho_l)*s_l_scaled +
+                    value(rho_v)*(1.0 - s_l_scaled)
+                scale = dt*scale_lv/
+                    (value(pv)*max(total_density, 1e-8))
+                return scale*abs(value(r))
+            end
+        end
+        mapreduce(scaled_residual, max, residual_component, sl,
+            liquid_density, sv, vapor_density, sw, volume)
+    end
+    water_residual = view(residual, N, :)
+    function scaled_water_residual(r, rho_w, pv)
+        scaled = dt*value(r)/(value(rho_w)*value(pv))
+        return max(zero(scaled), scaled)
+    end
+    water_cnv = mapreduce(scaled_water_residual, max,
+        water_residual, water_density, volume)
+    cnv = (cnv_eos..., water_cnv)
+    mb = ntuple(Val(N)) do component
+        if component == N
+            function scaled_water_residual_sum(r, rho_w, pv)
+                return dt*value(r)/(value(rho_w)*value(pv))
+            end
+            residual_sum = mapreduce(scaled_water_residual_sum, +,
+                view(residual, component, :), water_density, volume)
+        else
+            residual_sum = sum(value, view(residual, component, :))
+        end
+        dt*abs(residual_sum)/total_mass
+    end
+    return cnv, mb
 end
 
 function compositional_increment(model, state, update_report::Missing)

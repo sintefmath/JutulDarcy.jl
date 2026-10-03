@@ -63,9 +63,9 @@ end
 
 tracer_phase_indices(t::MultiPhaseTracer) = t.phase_indices
 
-struct TracerFluxType{T, N} <: Jutul.FluxType
+struct TracerFluxType{T, N, Names} <: Jutul.FluxType
     tracers::T
-    names::NTuple{N, String}
+    names::Names
     function TracerFluxType(tracers::Tuple; names = missing)
         N = length(tracers)
         if ismissing(names)
@@ -74,8 +74,19 @@ struct TracerFluxType{T, N} <: Jutul.FluxType
             length(names) == N || error("Number of names does not match number of tracers")
         end
         T = typeof(tracers)
-        return new{T, N}(tracers, tuple(names...))
+        names = tuple(names...)
+        return new{T, N, typeof(names)}(tracers, names)
     end
+    function TracerFluxType(tracers::T, names::Names,
+            ::Val{N}) where {T, Names, N}
+        return new{T, N, Names}(tracers, names)
+    end
+end
+
+function Adapt.adapt_structure(to, flux::TracerFluxType{T, N}) where {T, N}
+    # Names are reporting metadata and strings/symbols are not valid kernel
+    # arguments. The host model retains the authoritative labels.
+    return TracerFluxType(Adapt.adapt(to, flux.tracers), nothing, Val(N))
 end
 
 function TracerFluxType(tracers::AbstractTracer; kwarg...)

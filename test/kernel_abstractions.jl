@@ -1,0 +1,686 @@
+using Jutul, JutulDarcy
+using JLArrays
+using MultiComponentFlash
+using ForwardDiff
+using SparseArrays
+using Test
+
+@testset "Float32 CPR inner pressure solve" begin
+    T = Float32
+    matrix = spdiagm(-1 => fill(-1.0f0, 3),
+        0 => fill(4.0f0, 4),
+        1 => fill(-1.0f0, 3))
+    pressure_matrix = Jutul.KAPreconditioners.csr_matrix(matrix)
+    rhs = ones(T, 4)
+    increment = zeros(T, 4)
+    context = Jutul.KernelAbstractionsContext(
+        Jutul.KernelExecution.KernelAbstractions.CPU();
+        float_type = T, index_type = Int32)
+    pressure = AMGPreconditioner(:aggregation;
+        smoother_type = :spai0, coarse_size = 2)
+    Jutul.update_preconditioner!(pressure, pressure_matrix, rhs,
+        context, Jutul.default_executor())
+    cpr = CPRPreconditioner(pressure,
+        KASmootherPreconditioner(:spai0); p_rtol = 0.1)
+    cpr.storage = JutulDarcy.CPRStorage(4, 1, nothing,
+        (pressure_matrix, similar(rhs), similar(rhs)),
+        similar(rhs), similar(rhs), T)
+
+    JutulDarcy.cpr_p_apply!(increment, cpr, pressure, rhs, cpr.p_rtol)
+    @test eltype(cpr.psolver.x) === Float32
+    @test all(isfinite, increment)
+end
+
+function setup_spe1_ka_case(; block_backend = false)
+    spe1 = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1", "SPE1.DATA")
+    return setup_case_from_data_file(spe1;
+        block_backend = block_backend)[1:1]
+end
+
+function setup_spe1_optimization_test(backend)
+    case = setup_spe1_ka_case(block_backend = true)
+    transmissibilities = copy(
+        case.parameters[:Reservoir][:Transmissibilities])
+    function setup_optimization_case(parameters, step_info = missing)
+        next_case = deepcopy(case)
+        next_case.parameters[:Reservoir][:Transmissibilities] =
+            transmissibilities .* only(parameters["multiplier"])
+        return next_case
+    end
+    function objective(model, state, dt, step_info, forces)
+        pressure = state[:Reservoir][:Pressure]
+        value = zero(eltype(pressure))
+        for p in pressure
+            value += (p/1.0e7)^2
+        end
+        return value
+    end
+    parameters = Dict("multiplier" => [1.1])
+    dopt = setup_reservoir_dict_optimization(
+        parameters, setup_optimization_case; verbose = false)
+    free_optimization_parameter!(dopt, "multiplier";
+        abs_min = 0.5, abs_max = 2.0)
+    problem = JutulDarcy.reservoir_optimization_problem(dopt, objective;
+        simulator_arg = (
+            mode = :ka,
+            ka_backend = backend,
+            linear_solver = nothing,
+            timesteps = :none,
+        ))
+    return problem
+end
+
+@testset "Heterogeneous deck PVT adaptation" begin
+    water = JutulDarcy.PVTW(ConstMuBTable(
+        1.0e7, 1.0, 1.0e-9, 1.0e-3, 0.0))
+    oil = JutulDarcy.PVDO(MuBTable(
+        [1.0e7, 2.0e7], [1.0, 1.1], [2.0e-3, 2.2e-3]))
+    variable = DeckPhaseMassDensities((water, oil))
+    context = KernelAbstractionsContext(JLBackend())
+
+    adapted = JutulDarcy.Adapt.adapt(context, variable)
+
+    @test adapted.pvt[2].tab[1].pressure isa JLArray
+    @test adapted.pvt[2].tab[1].shrinkage isa JLArray
+    @test adapted.pvt[2].tab[1].viscosity isa JLArray
+
+    pc = Jutul.LinearInterpolant([0.0, 1.0], [0.0, 1.0])
+    scaled_pc = JutulDarcy.ScaledCapillaryPressure(
+        ((pc, pc), (pc, pc)); regions = [1])
+    adapted_pc = JutulDarcy.Adapt.adapt(context, scaled_pc)
+    @test adapted_pc.pc[1][1].X isa JLArray
+    @test adapted_pc.regions isa JLArray
+end
+
+@testset "Heterogeneous regional table selection" begin
+    without_lookup = Jutul.LinearInterpolant(
+        [0.0, 0.25, 1.0], [0.0, 1.0, 2.0]; constant_dx = false)
+    with_lookup = Jutul.LinearInterpolant(
+        [0.0, 0.5, 1.0], [2.0, 3.0, 4.0]; constant_dx = true)
+    tables = (without_lookup, with_lookup)
+    @test typeof(first(tables)) !== typeof(last(tables))
+    @test JutulDarcy.table_by_region(tables, 1) === without_lookup
+    @test JutulDarcy.table_by_region(tables, 2) === with_lookup
+    @test_throws BoundsError JutulDarcy.table_by_region(tables, 3)
+    @test JutulDarcy.evaluate_table_by_region((without_lookup,), 3, 0.375) ≈
+        without_lookup(0.375)
+
+    function evaluated_table_allocation(tables, reg, saturation)
+        allocated_bytes = @allocated result =
+            JutulDarcy.evaluate_table_by_region(tables, reg, saturation)
+        return allocated_bytes, result
+    end
+    @test_throws BoundsError JutulDarcy.evaluate_table_by_region(tables, 3, 0.375)
+end
+
+@testset "Convergence reductions on a KA backend" begin
+    residual = [1.0 -2.0 3.0; -4.0 5.0 -6.0]
+    pore_volume = [2.0, 4.0, 5.0]
+    density = [10.0 12.0 14.0; 20.0 22.0 24.0]
+    shrinkage = [0.9 0.8 0.7; 0.6 0.5 0.4]
+    reference_density = (1000.0, 800.0)
+    dt = 0.25
+    phases = Val(2)
+
+    cpu_cnv_mb = JutulDarcy.cnv_mb_errors(
+        residual, pore_volume, density, dt, phases)
+    cpu_bo = JutulDarcy.cnv_mb_errors_bo(
+        residual, pore_volume, shrinkage, dt, reference_density, phases)
+
+    context = KernelAbstractionsContext(JLBackend())
+    device_cnv_mb = JutulDarcy.cnv_mb_errors(
+        JLArray(residual), JLArray(pore_volume), JLArray(density),
+        dt, phases)
+    device_bo = JutulDarcy.cnv_mb_errors_bo(
+        JLArray(residual), JLArray(pore_volume), JLArray(shrinkage),
+        dt, reference_density, phases)
+
+    @test collect(device_cnv_mb[1]) ≈ collect(cpu_cnv_mb[1])
+    @test collect(device_cnv_mb[2]) ≈ collect(cpu_cnv_mb[2])
+    @test collect(device_bo[1]) ≈ collect(cpu_bo[1])
+    @test collect(device_bo[2]) ≈ collect(cpu_bo[2])
+end
+
+@testset "KA reservoir solver configuration" begin
+    grid = CartesianMesh((2, 1), (2.0, 1.0))
+    state0, model, parameters, _, _ = get_test_setup(
+        grid,
+        case_name = "two_phase_simple",
+        context = ParallelCSRContext(matrix_layout = BlockMajorLayout()),
+        timesteps = [0.1]
+    )
+    simulator = transfer_to_backend(
+        Simulator(model; state0 = state0, parameters = parameters),
+        JLBackend())
+    for variant in (:cpr, :cprw)
+        solver = select_reservoir_linear_solver(simulator.model, variant;
+            smoother_arg = (damping = 0.8,),
+            cpr_arg = (weight_scaling = :none,))
+        preconditioner = solver.preconditioner
+        @test preconditioner isa CPRPreconditioner
+        @test preconditioner.variant == variant
+        @test preconditioner.weight_scaling == :none
+        @test preconditioner.pressure_precond isa Jutul.AMGPreconditioner
+        @test preconditioner.pressure_precond.reuse == :memory
+        @test preconditioner.pressure_precond.reuse_partial == :operators
+        @test preconditioner.update_interval == :ministep
+        @test preconditioner.update_interval_partial == :iteration
+        @test preconditioner.partial_update
+        @test preconditioner.system_precond isa Jutul.KASmootherPreconditioner
+    end
+
+    solver = select_reservoir_linear_solver(simulator.model, :cpr;
+        update_type = :none,
+        update_type_partial = :sparsity,
+        amg_arg = (smoother_type = :spai0,),
+        smoother_type = :ilu0)
+    preconditioner = solver.preconditioner
+    @test preconditioner.pressure_precond.reuse == :none
+    @test preconditioner.pressure_precond.reuse_partial == :sparsity
+    @test preconditioner.pressure_precond.options.smoother isa
+        Jutul.KAPreconditioners.SPAI0
+    @test preconditioner.system_precond.config isa Jutul.KAPreconditioners.ILU0
+end
+
+@testset "Single-phase reservoir on a KA backend" begin
+    grid = CartesianMesh((4, 1), (4.0, 1.0))
+    state0, model, parameters, forces, timesteps = get_test_setup(
+        grid,
+        case_name = "single_phase_simple",
+        context = ParallelCSRContext(1),
+        timesteps = [0.1]
+    )
+
+    reference_simulator = Simulator(model, state0 = state0, parameters = parameters)
+    reference, = simulate!(reference_simulator, timesteps;
+        forces = forces, info_level = -1)
+
+    cpu_simulator = Simulator(model, state0 = state0, parameters = parameters)
+    simulator = transfer_to_backend(cpu_simulator, JLBackend())
+    law_storage = simulator.storage.equations.mass_conservation
+    @test ismissing(law_storage.half_face_flux_cells)
+    @test isnothing(law_storage.half_face_flux_faces)
+    @test law_storage.fused_equation_assembly isa
+        Jutul.FusedEquationAssemblyStorage
+
+    cpu_law_storage = cpu_simulator.storage.equations.mass_conservation
+    face_dependent_storage = Jutul.ConservationLawTPFAStorage(
+        cpu_law_storage.accumulation,
+        cpu_law_storage.accumulation_symbol,
+        cpu_law_storage.half_face_flux_cells,
+        cpu_law_storage.half_face_flux_cells,
+        cpu_law_storage.sources,
+        nothing)
+    adapted_face_dependent = JutulDarcy.Adapt.adapt(
+        KernelAbstractionsContext(JLBackend()), face_dependent_storage)
+    @test !ismissing(adapted_face_dependent.half_face_flux_cells)
+    @test !ismissing(adapted_face_dependent.half_face_flux_faces)
+    @test isnothing(adapted_face_dependent.fused_equation_assembly)
+    @test simulator.storage.state.Pressure isa JLArray
+    @test simulator.storage.primary_variables.Pressure === simulator.storage.state.Pressure
+    @test simulator.storage.LinearizedSystem.jac_buffer ===
+        nonzeros(simulator.storage.LinearizedSystem.jac)
+    @test cpu_simulator.storage.state.Pressure isa Vector
+
+    reset_state = deepcopy(state0)
+    reset_state[:Pressure] .+= 1.0
+    Jutul.reset_variables!(simulator, reset_state)
+    @test value.(Array(simulator.storage.state.Pressure)) ≈
+        reset_state[:Pressure]
+    Jutul.reset_variables!(simulator, state0)
+
+    full_storage_simulator = transfer_to_backend(
+        Simulator(model; state0 = state0, parameters = parameters),
+        JLBackend(); reduce_memory = false)
+    full_law_storage =
+        full_storage_simulator.storage.equations.mass_conservation
+    @test !ismissing(full_law_storage.half_face_flux_cells)
+    @test isnothing(full_law_storage.fused_equation_assembly)
+
+    states, = simulate!(simulator, timesteps; forces = forces, info_level = -1)
+    @test Array(states[end][:Pressure]) ≈ reference[end][:Pressure] rtol = 1e-10
+end
+
+@testset "Two-phase reservoir on a KA backend" begin
+    grid = CartesianMesh((4, 1), (4.0, 1.0))
+    state0, model, parameters, forces, timesteps = get_test_setup(
+        grid,
+        case_name = "two_phase_simple",
+        context = ParallelCSRContext(1),
+        timesteps = [0.1]
+    )
+
+    reference_simulator = Simulator(model, state0 = state0, parameters = parameters)
+    reference, = simulate!(reference_simulator, timesteps;
+        forces = forces, info_level = -1)
+
+    cpu_simulator = Simulator(model, state0 = state0, parameters = parameters)
+    simulator = transfer_to_backend(cpu_simulator, JLBackend())
+    states, = simulate!(simulator, timesteps; forces = forces, info_level = -1)
+
+    @test Array(states[end][:Pressure]) ≈ reference[end][:Pressure] rtol = 1e-10
+    @test Array(states[end][:Saturations]) ≈ reference[end][:Saturations] rtol = 1e-10
+end
+
+@testset "KA reservoir floating-point and index types" begin
+    cases = (
+        two_phase = JutulDarcy.setup_mini_wellcase(
+            Val(:immiscible_2ph); nstep = 1,
+            total_time = 0.01*si_unit(:day), backend = :csr,
+            block_backend = false),
+        compositional = JutulDarcy.setup_mini_wellcase(
+            Val(:compositional_2ph_3c); nstep = 1,
+            total_time = 0.01*si_unit(:day), backend = :csr,
+            block_backend = false, fast_flash = true),
+    )
+    for (name, case) in pairs(cases)
+        if name == :compositional
+            group_execution = Dict(:default => Jutul.AssembleOnDevice)
+        else
+            group_execution = missing
+        end
+        reduce_memory = name == :two_phase
+        simulator, config = setup_reservoir_simulator(case;
+            mode = :ka,
+            ka_backend = Jutul.KernelExecution.KernelAbstractions.CPU(),
+            group_execution = group_execution,
+            float_type = Float32,
+            index_type = Int32,
+            reduce_memory = reduce_memory,
+            linear_solver = nothing,
+            failure_cuts_timestep = false,
+            timesteps = :none,
+            info_level = -1)
+
+        @test Jutul.float_type(simulator.model.context) === Float32
+        @test Jutul.index_type(simulator.model.context) === Int32
+        @test simulator.model.context.reduce_memory == reduce_memory
+        @test all(Jutul.float_type(submodel.context) === Float32
+            for submodel in values(simulator.model.models))
+        @test all(Jutul.index_type(submodel.context) === Int32
+            for submodel in values(simulator.model.models))
+        system = simulator.storage.LinearizedSystem
+        @test eltype(system.r_buffer) === Float32
+        @test eltype(system.jac.nzval) === Float32
+        @test eltype(system.jac.rowptr) === Int32
+        @test eltype(system.jac.colval) === Int32
+        pressure_type = eltype(simulator.storage.Reservoir.state.Pressure)
+        @test typeof(Jutul.value(zero(pressure_type))) === Float32
+
+        states, = simulate!(simulator, case.dt;
+            forces = case.forces, state0 = case.state0, config = config)
+        @test all(isfinite, Array(states[end][:Reservoir][:Pressure]))
+    end
+
+    mixed_simulator, mixed_config = setup_reservoir_simulator(cases.two_phase;
+        mode = :ka,
+        ka_backend = Jutul.KernelExecution.KernelAbstractions.CPU(),
+        float_type = Float32,
+        index_type = Int32,
+        linear_float_type = Float64,
+        linear_index_type = Int64,
+        linear_solver = nothing,
+        failure_cuts_timestep = false,
+        timesteps = :none,
+        info_level = -1)
+    mixed_context = mixed_simulator.model.context
+    mixed_system = mixed_simulator.storage.LinearizedSystem
+    @test Jutul.linear_float_type(mixed_context) === Float64
+    @test Jutul.linear_index_type(mixed_context) === Int64
+    @test Jutul.float_type(mixed_context) === Float32
+    @test Jutul.index_type(mixed_context) === Int32
+    @test eltype(mixed_system.r_buffer) === Float64
+    @test eltype(mixed_system.jac.nzval) === Float64
+    @test eltype(mixed_system.jac.rowptr) === Int64
+    mixed_pressure_type = eltype(mixed_simulator.storage.Reservoir.state.Pressure)
+    @test typeof(Jutul.value(zero(mixed_pressure_type))) === Float32
+    mixed_states, = simulate!(mixed_simulator, cases.two_phase.dt;
+        forces = cases.two_phase.forces,
+        state0 = cases.two_phase.state0,
+        config = mixed_config)
+    @test all(isfinite, Array(mixed_states[end][:Reservoir][:Pressure]))
+
+    unsupported = try
+        setup_reservoir_simulator(cases.two_phase;
+            mode = :default, float_type = Float32, index_type = Int32)
+        nothing
+    catch error
+        error
+    end
+    @test unsupported isa ArgumentError
+    @test occursin("only supported for KernelAbstractions",
+        sprint(showerror, unsupported))
+end
+
+@testset "Compositional reservoirs on a KA backend" begin
+    grid = CartesianMesh((4, 1), (4.0, 1.0))
+    cases = (
+        ("simple_compositional_fake_wells", (:Pressure,), false),
+        ("compositional_three_phases",
+            (:Pressure, :ImmiscibleSaturation), false),
+        ("simple_compositional_fake_wells", (:Pressure,), true)
+    )
+    for (case_name, outputs, fast_flash) in cases
+        state0, model, parameters, forces, timesteps = get_test_setup(
+            grid;
+            case_name = case_name,
+            context = ParallelCSRContext(1),
+            timesteps = [0.1]
+        )
+        if fast_flash
+            replace_variables!(model,
+                FlashResults = JutulDarcy.FlashResults(model;
+                    stability_bypass = true, reuse_guess = true))
+        end
+        reference_simulator = Simulator(
+            model; state0 = state0, parameters = parameters)
+        reference, = simulate!(reference_simulator, timesteps;
+            forces = forces, info_level = -1)
+
+        cpu_simulator = Simulator(
+            model; state0 = state0, parameters = parameters)
+        simulator = transfer_to_backend(cpu_simulator, JLBackend())
+        @test isbitstype(typeof(simulator.model.system))
+        ncomp = JutulDarcy.number_of_components(simulator.model.system)
+        @test JutulDarcy.component_names(simulator.model.system)[1:ncomp] ==
+            ["C$i" for i in 1:ncomp]
+
+        states, = simulate!(simulator, timesteps;
+            forces = forces, info_level = -1)
+        for output in outputs
+            @test Array(states[end][output]) ≈ reference[end][output] rtol = 1e-10
+        end
+    end
+end
+
+@testset "Compositional stability bypass configuration" begin
+    case = JutulDarcy.setup_mini_wellcase(
+        Val(:compositional_2ph_3c); nstep = 1)
+    model = reservoir_model(case.model)
+    state = case.state0[:Reservoir]
+    eos = model.system.equation_of_state
+    flash_on = JutulDarcy.FlashResults(model;
+        stability_bypass = true, reuse_guess = false)
+    flash_off = JutulDarcy.FlashResults(model;
+        stability_bypass = false, reuse_guess = false)
+    initial = JutulDarcy.static_flashed_mixture(eos, Float64)
+    pressure = state[:Pressure][1]
+    temperature = case.parameters[:Reservoir][:Temperature][1]
+    composition = state[:OverallMoleFractions][:, 1]
+
+    cached = JutulDarcy.immutable_flash_result(initial, flash_on, eos,
+        pressure, temperature, composition, 0.0)
+    @test isfinite(cached.critical_distance)
+    next_pressure = pressure*(1.0 + 1.0e-6)
+    condition = (
+        p = next_pressure, T = temperature, z = cached.flash_cond.z)
+
+    _, _, enabled = JutulDarcy.numeric_flash(
+        cached, flash_on, eos, condition)
+    @test enabled.bypassed
+    @test enabled.storage.reference == cached.flash_cond
+
+    _, _, disabled = JutulDarcy.numeric_flash(
+        cached, flash_off, eos, condition)
+    @test !disabled.bypassed
+    @test isnan(disabled.storage.critical_distance)
+    @test disabled.storage.reference == condition
+
+    uncached = JutulDarcy.immutable_flash_result(cached, flash_off, eos,
+        next_pressure, temperature, composition, 0.0)
+    @test isnan(uncached.critical_distance)
+    @test uncached.flash_cond == condition
+end
+
+@testset "Float32 compositional flash results" begin
+    case = JutulDarcy.setup_mini_wellcase(
+        Val(:compositional_2ph_3c); nstep = 1)
+    model = reservoir_model(case.model)
+    cubic = model.system.equation_of_state
+    flash = model.secondary_variables[:FlashResults]
+    mixture = MultiComponentFlash.MultiComponentMixture(
+        ["CarbonDioxide", "Water"])
+    kvalue = MultiComponentFlash.KValuesEOS([0.05, 5.0], mixture)
+    context = Jutul.KernelAbstractionsContext(
+        Jutul.KernelExecution.KernelAbstractions.CPU();
+        float_type = Float32)
+
+    for (eos, composition) in ((cubic, Float32[0.6, 0.1, 0.3]),
+            (kvalue, Float32[0.4, 0.6]))
+        initial = JutulDarcy.static_flashed_mixture(eos, Float32)
+        @test isbitstype(typeof(initial))
+        @test eltype(initial.K) === Float32
+        @test initial.flash_cond.p isa Float32
+
+        wide = JutulDarcy.static_flashed_mixture(eos, Float64)
+        @test isbitstype(typeof(wide))
+        target = Jutul.KernelExecution.ka_storage_eltype(context,
+            typeof(wide))
+        adapted = convert(target, wide)
+        @test isbitstype(typeof(adapted))
+        @test eltype(adapted.K) === Float32
+        @test adapted.flash_cond.T isa Float32
+
+        updated = JutulDarcy.immutable_flash_result(initial, flash, eos,
+            1.2f7, 300.0f0, composition, 0.0f0)
+        @test Jutul.value(updated.V) isa Float32
+        @test eltype(updated.K) === Float32
+        @test updated.critical_distance isa Float32
+        @test updated.flash_cond.p isa Float32
+        @test eltype(updated.flash_cond.z) === Float32
+    end
+end
+
+@testset "K-value compositional reservoir on a KA backend" begin
+    grid = CartesianMesh((4, 1), (4.0, 1.0))
+    domain = reservoir_domain(
+        grid; porosity = 0.3, permeability = 1e-12)
+    mixture = MultiComponentFlash.MultiComponentMixture(
+        ["CarbonDioxide", "Water"])
+    eos = MultiComponentFlash.KValuesEOS([0.05, 5.0], mixture)
+    system = MultiPhaseCompositionalSystemLV(eos)
+    model, parameters = setup_reservoir_model(domain, system;
+        extra_out = true,
+        context = ParallelCSRContext(1),
+        block_backend = false)
+    state0 = setup_reservoir_state(model;
+        Pressure = [1.2e7, 1.1e7, 1.0e7, 0.9e7],
+        OverallMoleFractions = [0.4, 0.6])
+    model = reservoir_model(model)
+    parameters = parameters[:Reservoir]
+    state0 = state0[:Reservoir]
+    timesteps = [100.0]
+
+    reference_simulator = Simulator(
+        model; state0 = state0, parameters = parameters)
+    reference, = simulate!(reference_simulator, timesteps; info_level = -1)
+
+    cpu_simulator = Simulator(
+        model; state0 = state0, parameters = parameters)
+    simulator = transfer_to_backend(cpu_simulator, JLBackend())
+    @test isbitstype(typeof(simulator.model.system))
+    states, = simulate!(simulator, timesteps; info_level = -1)
+    @test Array(states[end][:Pressure]) ≈
+        reference[end][:Pressure] rtol = 1e-10
+    @test Array(states[end][:OverallMoleFractions]) ≈
+        reference[end][:OverallMoleFractions] rtol = 1e-10
+end
+
+@testset "Compositional wells on a KA backend" begin
+    case = JutulDarcy.setup_mini_wellcase(
+        Val(:compositional_2ph_3c);
+        simple_well = false,
+        nstep = 1,
+        total_time = 30.0*si_unit(:day)
+    )
+    simulator, = setup_reservoir_simulator(case;
+        mode = :ka,
+        ka_backend = JLBackend(),
+        info_level = -1,
+        linear_solver = nothing,
+        timesteps = :none)
+
+    forces = Jutul.preprocess_forces(simulator, case.forces).forces
+    dt = only(case.dt)
+    Jutul.update_before_step!(simulator, dt, forces; time = 0.0)
+    Jutul.update_state_dependents!(
+        simulator.storage, simulator.model, dt, forces; time = dt)
+    Jutul.update_linearized_system!(simulator.storage, simulator.model)
+
+    system = simulator.storage.LinearizedSystem
+    @test system isa Jutul.MultiLinearizedSystem
+    @test all(isfinite, Array(system.r_buffer))
+    function finite_entry(x)
+        if x isa Number
+            return isfinite(x)
+        else
+            return all(isfinite, x)
+        end
+    end
+    @test all(block -> all(finite_entry, Array(nonzeros(block.jac))),
+        system.subsystems)
+end
+
+@testset "SPE1 hybrid multimodel on a KA backend" begin
+    case = setup_spe1_ka_case()
+    for well_name in (:PROD, :INJ)
+        fill!(case.parameters[well_name][:PerforationGravityDifference], 1.0)
+    end
+    simulator, = setup_reservoir_simulator(case;
+        mode = :ka,
+        ka_backend = JLBackend(),
+        info_level = -1,
+        wells_on_device = true,
+        linear_solver = nothing,
+        timesteps = :none)
+
+    @test simulator.storage.host_evaluation.keys == (:Facility,)
+    @test isnothing(simulator.model.groups)
+    @test length(simulator.model.group_execution) ==
+        length(simulator.model.models)
+    @test Jutul.group_execution_mode(simulator.model, :Reservoir) ==
+        SolveFullyOnDevice
+    @test Jutul.group_execution_mode(simulator.model, :PROD) ==
+        SolveFullyOnDevice
+    @test Jutul.group_execution_mode(simulator.model, :Facility) ==
+        AssembleOnDevice
+    host = simulator.storage.host_evaluation
+    @test host.model.models.Facility.domain.well_symbols isa
+        Vector{Symbol}
+    @test simulator.model.models.Facility.domain.well_symbols isa Vector{Symbol}
+    @test !(simulator.model.models.Facility.domain.well_symbols isa Tuple)
+    @test host.model[:Reservoir] === simulator.model[:Reservoir]
+    @test host.storage[:Reservoir] === simulator.storage[:Reservoir]
+    @test host.storage.Reservoir.state.Pressure isa JLArray
+    @test host.cross_term_evaluation.mixed_on_host
+    @test Set(host.cross_term_evaluation.mixed_models) == Set((:PROD, :INJ))
+    @test simulator.storage.PROD.state.Pressure isa JLArray
+    @test simulator.storage.INJ.state.Pressure isa JLArray
+    @test host.storage.PROD.state.Pressure isa Vector
+    @test host.storage.INJ.state.Pressure isa Vector
+    @test simulator.storage.Facility.state.WellGroupConfiguration !== nothing
+    @test host.storage.Facility.state.WellGroupConfiguration !== nothing
+    @test all(cross_term ->
+            cross_term.target_impact_map.entries isa JLArray,
+        simulator.storage.cross_terms)
+    mask = PerforationMask([1.0, 0.0])
+    adapted_mask = Jutul.preprocess_forces(
+        simulator, (mask = mask,)).forces.mask
+    @test adapted_mask.values isa JLArray
+    reset_state = deepcopy(case.state0)
+    reset_state[:PROD][:Pressure] .+= 1.0
+    Jutul.reset_variables!(simulator, reset_state)
+    @test value.(Array(simulator.storage.PROD.state.Pressure)) ≈
+        reset_state[:PROD][:Pressure]
+    Jutul.reset_variables!(simulator, case.state0)
+
+    if case.forces isa AbstractVector
+        forces = first(case.forces)
+    else
+        forces = case.forces
+    end
+    forces = Jutul.preprocess_forces(simulator, forces).forces
+    dt = first(case.dt)
+    Jutul.update_before_step!(simulator, dt, forces; time = 0.0)
+    Jutul.update_state_dependents!(
+        simulator.storage, simulator.model, dt, forces; time = dt)
+    Jutul.update_before_step!(simulator, dt, forces; time = 0.0)
+    for well_name in (:PROD, :INJ)
+        host_dp = host.storage[well_name].state.ConnectionPressureDrop
+        backend_dp = Array(
+            simulator.storage[well_name].state.ConnectionPressureDrop)
+        @test any(value -> !iszero(value), host_dp)
+        @test backend_dp == host_dp
+    end
+    Jutul.update_state_dependents!(
+        simulator.storage, simulator.model, dt, forces; time = dt)
+    Jutul.update_linearized_system!(simulator.storage, simulator.model)
+
+    system = simulator.storage.LinearizedSystem
+    @test system isa Jutul.LinearizedSystem
+    @test system.r_buffer isa JLArray
+    @test all(isfinite, Array(system.r_buffer))
+    @test all(isfinite, Array(nonzeros(system.jac)))
+
+    tolerances = Jutul.set_default_tolerances(simulator.model)
+    converged, error, errors = Jutul.check_convergence(
+        simulator.storage,
+        simulator.model,
+        Dict(:tolerances => tolerances);
+        dt = dt,
+        extra_out = true
+    )
+    @test converged isa Bool
+    @test isfinite(error)
+    @test Set(keys(errors)) == Set(keys(simulator.model.models))
+
+    fill!(system.dx_buffer, 0.0)
+    report = Jutul.update_primary_variables!(simulator.storage, simulator.model)
+    @test Set(keys(report)) == Set(keys(simulator.model.models))
+end
+
+@testset "SPE1 reservoir simulator assembly on a KA backend" begin
+    case = setup_spe1_ka_case()
+    simulator, = setup_reservoir_simulator(case;
+        mode = :ka,
+        ka_backend = JLBackend(),
+        info_level = -1,
+        linear_solver = nothing,
+        timesteps = :none)
+
+    if case.forces isa AbstractVector
+        forces = only(case.forces)
+    else
+        forces = case.forces
+    end
+    forces = Jutul.preprocess_forces(simulator, forces).forces
+    dt = only(case.dt)
+    Jutul.update_before_step!(simulator, dt, forces; time = 0.0)
+    Jutul.update_state_dependents!(
+        simulator.storage, simulator.model, dt, forces; time = dt)
+    Jutul.update_linearized_system!(simulator.storage, simulator.model)
+
+    system = simulator.storage.LinearizedSystem
+    @test system.r_buffer isa JLArray
+    @test all(isfinite, Array(system.r_buffer))
+    @test all(isfinite, Array(nonzeros(system.jac)))
+end
+
+@testset "SPE1 adjoint solve on a KA backend" begin
+    problem = setup_spe1_optimization_test(JLBackend())
+    objective, gradient = problem()
+    simulator = problem.cache[:simulator]
+    storage = problem.cache[:storage]
+
+    @test isfinite(objective)
+    @test all(isfinite, gradient)
+    @test simulator.storage.host_evaluation.keys ==
+        (:PROD, :INJ, :Facility)
+    @test length(simulator.model.group_execution) ==
+        length(simulator.model.models)
+    @test storage.forward.storage.LinearizedSystem.r_buffer isa JLArray
+    @test storage.backward.storage.LinearizedSystem.r_buffer isa JLArray
+    @test storage.parameter.storage.LinearizedSystem.r_buffer isa Vector
+    @test storage.state0_buf isa JLArray
+    @test storage.dstate0 isa Vector
+end

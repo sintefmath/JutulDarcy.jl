@@ -110,40 +110,19 @@ end
 
 function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellFlowCT, target, source, model, storage, dt, force::PerforationMask; time = time)
     mask = force.values
-    apply_perforation_mask!(ct_s.target, mask)
-    apply_perforation_mask!(ct_s.source, mask)
-end
-
-function target_actual_pair(target::DisabledTarget, well, state_well, q_t, ctrl)
-    # The well should have zero rate. Enforce this by the trivial residual R = q_t = 0
-    t = q_t
-    t_num = 0.0
-    return (t, t_num)
-end
-
-function target_actual_pair(target, well, state_well, q_t, ctrl)
-    rhoS, S = surface_density_and_volume_fractions(state_well)
-    t = well_target(ctrl, target, well, state_well, rhoS, S)
-    if rate_weighted(target)
-        actual_rate = t*q_t
-        name = physical_representation(well.domain).name
-        if abs(actual_rate) < MIN_ACTIVE_WELL_RATE
-            t = q_t
-        else
-            t = actual_rate
-        end
-    end
-    t += 1e-20*q_t
-    t_num = target.value
-    return (t, t_num)
+    apply_perforation_mask!(ct_s.target, mask, model.context)
+    apply_perforation_mask!(ct_s.source, mask, model.context)
 end
 
 # Facility influence on well
 struct WellFromFacilityFlowCT <: Jutul.AdditiveCrossTerm
-    well::Symbol
+    wells::Vector{Symbol}
+    facility_cells::Vector{Int}
+    well_cells::Vector{Int}
 end
 
-Jutul.cross_term_entities(ct::WellFromFacilityFlowCT, eq::ConservationLaw, model) = [well_top_node()]
+Jutul.cross_term_entities(ct::WellFromFacilityFlowCT, eq::ConservationLaw, model) =
+    ct.well_cells
 
 """
     update_cross_term_in_entity!(out, i,
@@ -162,17 +141,26 @@ function update_cross_term_in_entity!(out, i,
         well, facility,
         ct::WellFromFacilityFlowCT, eq, dt, ldisc = local_discretization(ct, i)
     )
-    well_symbol = ct.well
-    q_t, mix = cross_term_total_surface_mass_rate_and_mixture(facility, well, state_facility, state_well, well_symbol)
-    for i in eachindex(out, mix)
-        @inbounds out[i] = -mix[i]*q_t
+    well_symbol = ct.wells[i]
+    pos = ct.facility_cells[i]
+    cell = ct.well_cells[i]
+    q_t, mix = cross_term_total_surface_mass_rate_and_mixture(
+        facility, well, state_facility, state_well, well_symbol, pos, cell)
+    for component in eachindex(out, mix)
+        @inbounds out[component] = -mix[component]*q_t
     end
     return out
 end
 
 function cross_term_total_surface_mass_rate_and_mixture(facility, well, state_facility, state_well, well_symbol)
     pos = get_well_position(facility.domain, well_symbol)
+    cell = WellMerging.well_top_node(physical_representation(well), well_symbol)
+    return cross_term_total_surface_mass_rate_and_mixture(
+        facility, well, state_facility, state_well, well_symbol, pos, cell)
+end
 
+function cross_term_total_surface_mass_rate_and_mixture(
+        facility, well, state_facility, state_well, well_symbol, pos, cell)
     cfg = state_facility.WellGroupConfiguration
     ctrl = operating_control(cfg, well_symbol)
     q_t = facility_surface_mass_rate_for_well(
@@ -186,7 +174,7 @@ function cross_term_total_surface_mass_rate_and_mixture(facility, well, state_fa
     bhp = state_facility[:BottomHolePressure][pos]
     ph = state_facility[:TotalSurfaceMassRate][pos]
     ph2 = state_facility[:SurfacePhaseRates][1, pos]
-    total_mass = state_well.TotalMasses[1, well_top_node()]
+    total_mass = state_well.TotalMasses[1, cell]
     q_t += 0*bhp + 0*ph + 0*total_mass + 0*ph2
     if isa(ctrl, InjectorControl)
         if value(q_t) < 0
@@ -201,9 +189,9 @@ function cross_term_total_surface_mass_rate_and_mixture(facility, well, state_fa
             @warn "Producer $well_symbol is injecting?"
         end
         if haskey(state_well, :MassFractions)
-            mix = state_well.MassFractions
+            mix = @view state_well.MassFractions[:, cell]
         else
-            masses = @views state_well.TotalMasses[:, well_top_node()]
+            masses = @view state_well.TotalMasses[:, cell]
             mass = sum(masses)
             mix = masses./mass
         end
@@ -301,15 +289,18 @@ end
 
 function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellThermalCT, target, source, model, storage, dt, force::PerforationMask; time = time)
     mask = force.values
-    apply_perforation_mask!(ct_s.target, mask)
-    apply_perforation_mask!(ct_s.source, mask)
+    apply_perforation_mask!(ct_s.target, mask, model.context)
+    apply_perforation_mask!(ct_s.source, mask, model.context)
 end
 
 struct WellFromFacilityThermalCT <: Jutul.AdditiveCrossTerm
-    well::Symbol
+    wells::Vector{Symbol}
+    facility_cells::Vector{Int}
+    well_cells::Vector{Int}
 end
 
-Jutul.cross_term_entities(ct::WellFromFacilityThermalCT, eq::ConservationLaw, model) = [well_top_node()]
+Jutul.cross_term_entities(ct::WellFromFacilityThermalCT, eq::ConservationLaw, model) =
+    ct.well_cells
 
 """
     update_cross_term_in_entity!(out, i,
@@ -325,16 +316,15 @@ function update_cross_term_in_entity!(out, i,
     state_facility, state0_facility,
     well, facility,
     ct::WellFromFacilityThermalCT, eq, dt, ldisc = local_discretization(ct, i))
-    well_symbol = ct.well
-    pos = get_well_position(facility.domain, well_symbol)
+    well_symbol = ct.wells[i]
+    pos = ct.facility_cells[i]
 
     cfg = state_facility.WellGroupConfiguration
     ctrl = operating_control(cfg, well_symbol)
     qT = state_facility.TotalSurfaceMassRate[pos]
     # Hack for sparsity detection
-    qT += 0*bottom_hole_pressure(state_well)
-
-    cell = well_top_node()
+    cell = ct.well_cells[i]
+    qT += 0*state_well.Pressure[cell]
 
     H = get_target_enthalpy(ctrl, ctrl.target, facility, state_facility, well, state_well, cell)
     out[] = -qT*H
@@ -440,10 +430,12 @@ function well_top_node_enthalpy(ctrl, model, state_well, T, cell)
 end
 
 struct FacilityFromWellTemperatureCT <: Jutul.AdditiveCrossTerm
-    well::Symbol
+    wells::Vector{Symbol}
+    facility_cells::Vector{Int}
+    well_cells::Vector{Int}
 end
 
-Jutul.cross_term_entities(ct::FacilityFromWellTemperatureCT, eq::SurfaceTemperatureEquation, model) = get_well_position(model.domain, ct.well)
+Jutul.cross_term_entities(ct::FacilityFromWellTemperatureCT, eq::SurfaceTemperatureEquation, model) = ct.facility_cells
 
 function update_cross_term_in_entity!(out, i,
     state_facility, state0_facility,
@@ -451,17 +443,20 @@ function update_cross_term_in_entity!(out, i,
     facility, well,
     ct::FacilityFromWellTemperatureCT, eq, dt, ldisc = local_discretization(ct, i))
 
-    pos = get_well_position(facility.domain, ct.well)
+    pos = ct.facility_cells[i]
+    cell = ct.well_cells[i]
     T = 0*state_facility[:SurfaceTemperature][pos]
-    T += state_well[:Temperature][well_top_node()]
+    T += state_well[:Temperature][cell]
     out[1] = -T
 end
 
 struct FacilityFromWellEnthalpyCT <: Jutul.AdditiveCrossTerm
-    well::Symbol
+    wells::Vector{Symbol}
+    facility_cells::Vector{Int}
+    well_cells::Vector{Int}
 end
 
-Jutul.cross_term_entities(ct::FacilityFromWellEnthalpyCT, eq::SurfaceEnthalpyEquation, model) = get_well_position(model.domain, ct.well)
+Jutul.cross_term_entities(ct::FacilityFromWellEnthalpyCT, eq::SurfaceEnthalpyEquation, model) = ct.facility_cells
 
 function update_cross_term_in_entity!(out, i,
     state_facility, state0_facility,
@@ -469,17 +464,20 @@ function update_cross_term_in_entity!(out, i,
     facility, well,
     ct::FacilityFromWellEnthalpyCT, eq::SurfaceEnthalpyEquation, dt, ldisc = local_discretization(ct, i))
 
-    pos = get_well_position(facility.domain, ct.well)
+    pos = ct.facility_cells[i]
+    cell = ct.well_cells[i]
     H = 0*state_facility[:SurfaceEnthalpy][pos]
-    H += well_top_node_enthalpy(well, state_well, well_top_node())
+    H += well_top_node_enthalpy(well, state_well, cell)
     out[1] = -H*eq.scale
 end
 
 struct FacilityFromWellBottomHolePressureCT <: Jutul.AdditiveCrossTerm
-    well::Symbol
+    wells::Vector{Symbol}
+    facility_cells::Vector{Int}
+    well_cells::Vector{Int}
 end
 
-Jutul.cross_term_entities(ct::FacilityFromWellBottomHolePressureCT, eq::BottomHolePressureEquation, model) = get_well_position(model.domain, ct.well)
+Jutul.cross_term_entities(ct::FacilityFromWellBottomHolePressureCT, eq::BottomHolePressureEquation, model) = ct.facility_cells
 
 function update_cross_term_in_entity!(out, i,
     state_facility, state0_facility,
@@ -487,52 +485,34 @@ function update_cross_term_in_entity!(out, i,
     facility, well,
     ct::FacilityFromWellBottomHolePressureCT, eq::BottomHolePressureEquation, dt, ldisc = local_discretization(ct, i))
 
-    pos = get_well_position(facility.domain, ct.well)
+    pos = ct.facility_cells[i]
+    cell = ct.well_cells[i]
     P = 0*state_facility[:BottomHolePressure][pos]
-    P += state_well[:Pressure][well_top_node()]
+    P += state_well[:Pressure][cell]
     out[1] = -P*eq.scale
 end
 
-struct FacilityFromSurfacePhaseRatesCT <: Jutul.AdditiveCrossTerm
-    well::Symbol
+struct FacilityFromWellSurfaceComponentRatesCT <: Jutul.AdditiveCrossTerm
+    wells::Vector{Symbol}
+    facility_cells::Vector{Int}
+    well_cells::Vector{Int}
 end
 
-Jutul.cross_term_entities(ct::FacilityFromSurfacePhaseRatesCT, eq::SurfacePhaseRatesEquation, model) = get_well_position(model.domain, ct.well)
+Jutul.cross_term_entities(ct::FacilityFromWellSurfaceComponentRatesCT, eq::SurfaceComponentRatesEquation, model) = ct.facility_cells
 
 function update_cross_term_in_entity!(out, i,
     state_facility, state0_facility,
     state_well, state0_well,
     facility, well,
-    ct::FacilityFromSurfacePhaseRatesCT, eq::SurfacePhaseRatesEquation, dt, ldisc = local_discretization(ct, i))
+    ct::FacilityFromWellSurfaceComponentRatesCT, eq::SurfaceComponentRatesEquation, dt, ldisc = local_discretization(ct, i))
 
-    pos = get_well_position(facility.domain, ct.well)
-    q_t = state_facility.TotalSurfaceMassRate[pos]
-    cfg = state_facility[:WellGroupConfiguration]
-    ctrl = operating_control(cfg, ct.well)
-    rhoS, S = surface_density_and_volume_fractions(state_well)
-
-    p_top = state_well.Pressure[well_top_node()]
-    tm = state_well.TotalMasses[1, well_top_node()]
-    # Sparsity hack
-    for ph_idx in eachindex(out)
-        out[ph_idx] = 0.0*(S[ph_idx] + rhoS[ph_idx] + q_t + tm + p_top)
-    end
-    is_injector = ctrl isa InjectorControl
-    if is_injector
-        density = ctrl.mixture_density
-        volume_rate = q_t/density
-        for (ph_idx, phase_fraction) in ctrl.phases
-            out[ph_idx] += -volume_rate*phase_fraction*eq.scale
-        end
-    else
-        total_density = 0.0
-        for i in eachindex(rhoS, S)
-            total_density += S[i]*rhoS[i]
-        end
-        q_vol = q_t/total_density
-        for ph in eachindex(rhoS, S)
-            out[ph] += -S[ph]*q_vol*eq.scale
-        end
+    well_symbol = ct.wells[i]
+    pos = ct.facility_cells[i]
+    cell = ct.well_cells[i]
+    q_t, mixture = cross_term_total_surface_mass_rate_and_mixture(
+        facility, well, state_facility, state_well, well_symbol, pos, cell)
+    for component in eachindex(out, mixture)
+        out[component] = -q_t*mixture[component]*eq.scale
     end
     return out
 end

@@ -21,6 +21,18 @@ Simulation results are written to disk using [JLD2](https://github.com/JuliaIO/J
 
 JutulDarcy nominally uses SI units, but the code contains utilities to convert from typical unit sets to the internal SI format. See [Unit support](@ref) for more details and a tutorial. Wrong units (caused by e.g. directly inserting field units like millidarcy or standard barrels without conversion) can lead to large differences between simulators, or make problems very difficult to simulate.
 
+### How can I speed up simulation?
+
+Look at the [GPU, multi-threading and MPI support](@ref) page for details on how to run the code in parallel.
+
+### What kind of hardware does JutulDarcy support?
+
+JutulDarcy supports both x86 CPUs (Windows/Linux) and ARM (e.g. macOS). In addition, we support GPU execution on CUDA, AMDGPU and potentially any other backends added to [`KernelAbstractions.jl`](https://github.com/JuliaGPU/KernelAbstractions.jl).
+
+### How does GPU execution work?
+
+The entire simulator is transferred to GPU. During execution, facility logic (well switching) and updated constraints happen on CPU, but all other parts happen on the GPU without memory transfers (equations are linearized and solved on the device). The physics is exactly the same on GPU and CPU.
+
 ### How do I restart an interrupted simulation?
 
 JutulDarcy keeps everything in memory by default. This is not practical for larger models. If the argument `output_path` is set to a directory, JutulDarcy writes to the `JLD2` format (variant of HDF5).

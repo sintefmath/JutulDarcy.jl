@@ -1,4 +1,5 @@
 include("flash.jl")
+include("flash_update.jl")
 include("density.jl")
 include("viscosity.jl")
 include("primary.jl")

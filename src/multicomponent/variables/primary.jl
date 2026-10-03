@@ -39,31 +39,36 @@ function Jutul.increment_norm(dX, state, model, X, pvar::OverallMoleFractions)
     else
         sw = missing
     end
-    M = global_map(model.domain)
-    active = active_entities(model.domain, M, Cells())
-    get_scaling(::Missing, i) = 1.0
-    get_scaling(s, i) = 1.0 - value(s[i])
     T = eltype(dX)
     scale = @something Jutul.variable_scale(pvar) one(T)
-    max_v = sum_v = max_v_scaled = sum_v_scaled = zero(T)
     N = degrees_of_freedom_per_entity(model, pvar)
-    for i in axes(dX, 1)
-        for j in axes(dX, 2)
-            cell = active[j]
-            dx = dX[i, j]
-            s = get_scaling(sw, cell)
-
-            dx_abs = abs(dx)
-            # Scale by 1-water saturation
-            dx_abs_scaled = dx_abs*s
-            max_v = max(max_v, dx_abs)
-            max_v_scaled = max(max_v_scaled, dx_abs_scaled)
-
-            sum_v += dx_abs
-            sum_v_scaled += dx_abs_scaled
-        end
-    end
+    sum_v = sum(abs, dX)
+    max_v = maximum(abs, dX)
+    sum_v_scaled, max_v_scaled = compositional_increment_scaled(
+        dX, sw, model, Val(N))
     return (sum = scale*sum_v, sum_scaled = sum_v_scaled, max = scale*max_v, max_scaled = max_v_scaled)
+end
+
+function compositional_increment_scaled(dX, ::Missing, model, ::Val{N}) where N
+    return sum(abs, dX), maximum(abs, dX)
+end
+
+function compositional_increment_scaled(dX, sw, model, ::Val{N}) where N
+    M = global_map(model.domain)
+    sw = Jutul.active_view(sw, M, for_variables = false)
+    component_sums = ntuple(Val(N)) do component
+        function scaled_increment(dx, saturation)
+            return abs(dx)*(1.0 - value(saturation))
+        end
+        mapreduce(scaled_increment, +, view(dX, component, :), sw)
+    end
+    component_maxima = ntuple(Val(N)) do component
+        function scaled_increment(dx, saturation)
+            return abs(dx)*(1.0 - value(saturation))
+        end
+        mapreduce(scaled_increment, max, view(dX, component, :), sw)
+    end
+    return sum(component_sums), maximum(component_maxima)
 end
 
 """

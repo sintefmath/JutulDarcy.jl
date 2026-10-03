@@ -349,20 +349,22 @@ function map_well_nodes_to_reservoir_cells(w::MultiSegmentWell, reservoir::Union
     # improved...
     c = zeros(Int, number_of_cells(w))
     c[w.perforations.self] .= w.perforations.reservoir
-    for i in eachindex(c)
-        if i == firstindex(c)
-            continue
-        end
-        if c[i] == 0
-            c[i] = c[i-1]
-        end
+    if isnothing(w.multiwell)
+        ranges = (eachindex(c),)
+    else
+        ranges = (Jutul.indirection_range(w.multiwell.nodes, i)
+            for i in eachindex(w.multiwell.names))
     end
-    for i in reverse(eachindex(c))
-        if i == lastindex(c)
-            continue
+    for nodes in ranges
+        for i in nodes[2:end]
+            if c[i] == 0
+                c[i] = c[i-1]
+            end
         end
-        if c[i] == 0
-            c[i] = c[i+1]
+        for i in reverse(nodes[1:end-1])
+            if c[i] == 0
+                c[i] = c[i+1]
+            end
         end
     end
     @assert all(x -> x > 0, c)
@@ -374,7 +376,12 @@ function map_well_nodes_to_reservoir_cells(w::DataDomain, reservoir::Union{DataD
 end
 
 function map_well_nodes_to_reservoir_cells(w::SimpleWell, reservoir::Union{DataDomain, Missing} = missing)
-    return [w.perforations.reservoir[1]]
+    if isnothing(w.multiwell)
+        return [w.perforations.reservoir[1]]
+    else
+        return [w.perforations.reservoir[w.multiwell.perforations.pos[i]]
+            for i in eachindex(w.multiwell.names)]
+    end
 end
 
 function Jutul.plot_primitives(mesh::MultiSegmentWell, plot_type; kwarg...)
@@ -460,7 +467,7 @@ end
 include("mswells_equations.jl")
 
 function update_before_step_well!(well_state, well_model, res_state, res_model, ctr, mask; kwarg...)
-
+    return nothing
 end
 
 function domain_fluid_volume(d::DataDomain, grid::WellDomain)
@@ -509,7 +516,14 @@ function domain_bulk_volume(d::DataDomain, grid::WellDomain; outer_boundary = :g
             cdims = d[:cell_dims, Perforations()]
             dir = d[:perforation_direction, Perforations()]
             L = length_from_cell_dims.(cdims, dir)
-            vols = only(mult)*sum(π .* r.^2 .* L)
+            if isnothing(grid.multiwell)
+                vols = only(mult)*sum(π .* r.^2 .* L)
+            else
+                vols = [begin
+                    pr = Jutul.indirection_range(grid.multiwell.perforations, i)
+                    mult[i]*sum(π .* r[pr].^2 .* L[pr])
+                end for i in eachindex(grid.multiwell.names)]
+            end
         end
     end
     return vols
@@ -535,7 +549,10 @@ function get_neighborship(::SimpleWell)
 end
 
 function number_of_cells(W::SimpleWell)
-    return 1
+    if isnothing(W.multiwell)
+        return 1
+    end
+    return length(W.multiwell)
 end
 
 function number_of_cells(W::MultiSegmentWell)
@@ -553,13 +570,6 @@ function declare_entities(W::WellDomain)
         push!(entities, fp)
     end
     return entities
-end
-
-function Jutul.select_secondary_variables!(S, D::WellDomain, model)
-    sys = model.system
-    if sys isa MultiPhaseSystem
-        S[:SurfaceWellConditions] = SurfaceWellConditions(sys)
-    end
 end
 
 Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::Union{ImmiscibleSystem, SinglePhaseSystem}, state_res, state_well, rhoS, conn)
@@ -607,7 +617,7 @@ Base.@propagate_inbounds function simple_well_perforation_flux!(out, sys::Union{
     for ph in 1:nph
         ρλ_t += ρ[ph, rc]*mob[ph, rc]
     end
-    X = state_well.MassFractions
+    X = @view state_well.MassFractions[:, conn.well]
     for ph in 1:nph
         # ψ is pressure difference from reservoir to well. If it is negative, we are injecting into the reservoir.
         ψ = perforation_phase_potential_difference(conn, state_res, state_well, ph)
@@ -670,27 +680,33 @@ function apply_perforation_mask!(M::AbstractMatrix, mask::AbstractVector)
     return M
 end
 
-function apply_perforation_mask!(storage::NamedTuple, mask::AbstractVector)
-    function mask_row!(M::AbstractMatrix, m, ix)
-        for i in axes(M, 1)
-            M[i, ix] *= m
-        end
+@inline function mask_perforation_entry!(M::AbstractMatrix, m, ix)
+    for i in axes(M, 1)
+        M[i, ix] *= m
     end
-    function mask_row!(M::AbstractVector, m, ix)
-        M[ix] *= m
-    end
+    return M
+end
+
+@inline function mask_perforation_entry!(M::AbstractVector, m, ix)
+    M[ix] *= m
+    return M
+end
+
+function apply_perforation_mask!(storage::NamedTuple, mask::AbstractVector,
+        context)
     for (k, s) in pairs(storage)
         if k == :numeric
             continue
         end
         v = s.entries
-        for i in 1:Jutul.number_of_entities(s)
+        Jutul.threaded_loop(Jutul.number_of_entities(s), context) do i
             mask_value = mask[i]
             for j in Jutul.vrange(s, i)
-                mask_row!(v, mask_value, j)
+                mask_perforation_entry!(v, mask_value, j)
             end
         end
     end
+    return storage
 end
 
 function flash_wellstream_at_surface(var, well_model, well_state, rhoS, cond = default_surface_cond())
@@ -708,8 +724,8 @@ function flash_wellstream_at_surface(var, well_model, system::SinglePhaseSystem,
     return (rhoS, [1.0])
 end
 
-function surface_density_and_volume_fractions(state)
-    x = only(state.SurfaceWellConditions)
+function surface_density_and_volume_fractions(state, well = 1)
+    x = state.SurfaceWellConditions[well]
     return (x.density, x.volume_fractions)
 end
 

@@ -169,26 +169,31 @@ function Jutul.subforce(s::AbstractVector{S}, model) where S<:FlowBoundaryCondit
 end
 
 function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw{:TotalMasses}, eq_s, force::V, time) where {V <: AbstractVector{<:FlowBoundaryCondition}, D, S<:MultiPhaseSystem}
-    state = storage.state
+    state = Jutul.evaluation_state(storage)
     system = reservoir_model(model).system
-    for bc in force
+    gmap = global_map(model)
+    Jutul.threaded_loop(length(force), model.context) do index
+        @inbounds bc = force[index]
         c = bc.cell
         acc_i = view(acc, :, c)
-        q = compute_bc_mass_fluxes(system, bc, global_map(model), state)
+        q = compute_bc_mass_fluxes(system, bc, gmap, state)
         apply_flow_bc!(acc_i, q, bc, model, state, time)
     end
+    return acc
 end
 
 function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw{:TotalThermalEnergy}, eq_s, force::V, time) where {V <: AbstractVector{<:FlowBoundaryCondition}, D, S<:MultiPhaseSystem}
-    state = storage.state
+    state = Jutul.evaluation_state(storage)
     system = reservoir_model(model).system
-    nph = number_of_phases(system)
-    for bc in force
+    gmap = global_map(model)
+    Jutul.threaded_loop(length(force), model.context) do index
+        @inbounds bc = force[index]
         c = bc.cell
         acc_i = view(acc, :, c)
-        qh_adv, qh_cond = compute_bc_heat_fluxes(system, bc, global_map(model), state)
+        qh_adv, qh_cond = compute_bc_heat_fluxes(system, bc, gmap, state)
         apply_flow_bc!(acc_i, qh_adv + qh_cond, bc, model, state, time)
     end
+    return acc
 end
 
 function compute_bc_mass_fluxes(system::JutulSystem, bc, gmap, state)
@@ -256,9 +261,7 @@ function compute_bc_mass_fluxes(system::JutulSystem, bc, gmap, state)
         end
     end
     if isbits_out
-        out = SVector{nph, num_t}(q)
-    else
-        out = q
+        q = SVector{nph, num_t}(q)
     end
     return q
 end

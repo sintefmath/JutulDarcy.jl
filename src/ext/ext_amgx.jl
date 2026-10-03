@@ -53,8 +53,10 @@ end
 
 const AMGXCPR = CPRPreconditioner{JutulDarcy.AMGXPreconditioner, <:Any}
 
-function update_preconditioner!(amg::AMGXPreconditioner, A::Jutul.StaticSparsityMatrixCSR, b, context::ParallelCSRContext, executor)
+function update_preconditioner!(amg::AMGXPreconditioner,
+        A::Jutul.StaticSparsityMatrixCSR, b, context, executor)
     # Intentionally do nothing - a bit hackish
+    return amg
 end
 
 function JutulDarcy.gpu_update_preconditioner!(cpr::AMGXCPR, lsys, model, storage, recorder, executor, krylov, J_bsr, r_cu, op)

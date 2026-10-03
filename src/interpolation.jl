@@ -27,7 +27,7 @@ function interp_pvt(pvto, p, v, F_tab = pvt.shrinkage; cap = false)
     # Width of interval in saturation table
     @inbounds Δp = SP[ix+1] - SP[ix]
 
-    p_u = p + (1-w)*Δp
+    p_u = p + (one(w)-w)*Δp
     p_l = p - w*Δp
 
     F_u = @inbounds view(F_tab, upper)
@@ -36,5 +36,5 @@ function interp_pvt(pvto, p, v, F_tab = pvt.shrinkage; cap = false)
     f_l = linear_interp(P_l, F_l, p_l)
     f_u = linear_interp(P_u, F_u, p_u)
 
-    return f_l*(1.0-w) + w*f_u
+    return f_l*(one(w)-w) + w*f_u
 end

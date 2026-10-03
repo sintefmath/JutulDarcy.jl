@@ -25,10 +25,6 @@ function setup_average_resv_state(model::StandardBlackOilModel, rstate; qw = 0.0
     sys = model.system
     has_water = has_other_phase(sys)
 
-    pv_t = 0.0
-    p_avg = 0.0
-    rs_avg = 0.0
-    rv_avg = 0.0
     disgas = has_disgas(sys)
     vapoil = has_vapoil(sys)
     Tv = eltype(rstate.FluidVolume)
@@ -49,27 +45,37 @@ function setup_average_resv_state(model::StandardBlackOilModel, rstate; qw = 0.0
             rv = 0.0
         )
     end
-    for c in eachindex(rstate.Pressure)
-        p = value(rstate.Pressure[c])
-        vol = value(rstate.FluidVolume[c])
-        if has_water
-            sw = value(rstate.ImmiscibleSaturation[c])
-        else
-            sw = 0.0
-        end
-        vol_hc = vol*(1.0 - sw)
-        p_avg += p*vol_hc
-        pv_t += vol_hc
-        if disgas
-            rs_avg += value(rstate.Rs[c])*vol_hc
-        end
-        if vapoil
-            rv_avg += value(rstate.Rv[c])*vol_hc
-        end
+    if has_water
+        hc_pv_fn = Base.Broadcast.broadcasted(
+            (vol, sw) -> value(vol)*(1.0 - value(sw)),
+            rstate.FluidVolume, rstate.ImmiscibleSaturation)
+        pv_t = sum(hc_pv_fn)
+    else
+        pv_t = sum(value, rstate.FluidVolume)
     end
-    p_avg /= pv_t
-    rs_avg /= pv_t
-    rv_avg /= pv_t
+    function weighted_average(x)
+        if has_water
+            wfn = Base.Broadcast.broadcasted(
+                (v, vol, sw) -> value(v)*value(vol)*(1.0 - value(sw)),
+                x, rstate.FluidVolume, rstate.ImmiscibleSaturation)
+        else
+            wfn = Base.Broadcast.broadcasted(
+                (v, vol) -> value(v)*value(vol),
+                x, rstate.FluidVolume)
+        end
+        return sum(wfn)/pv_t
+    end
+    p_avg = weighted_average(rstate.Pressure)
+    if disgas
+        rs_avg = weighted_average(rstate.Rs)
+    else
+        rs_avg = 0.0
+    end
+    if vapoil
+        rv_avg = weighted_average(rstate.Rv)
+    else
+        rv_avg = 0.0
+    end
 
     svar = Jutul.get_secondary_variables(model)
     b_var = svar[:ShrinkageFactors]
