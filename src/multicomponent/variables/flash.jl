@@ -86,37 +86,36 @@ end
 @inline compositional_primal(x::ForwardDiff.Dual) = ForwardDiff.value(x)
 @inline compositional_primal(x::Jutul.SCT.Dual) = Jutul.SCT.primal(x)
 
+@inline flash_condition_type(cond) = promote_type(
+    typeof(cond.p), typeof(cond.T), eltype(cond.z))
+
 @inline function numeric_values(v::SVector{N}, R = Float64) where N
     return SVector{N, R}(ntuple(Val(N)) do i
         R(compositional_primal(v[i]))
     end)
 end
 
-@inline function equilibrium_ad(eos, cond, vapor_fraction, K_numeric,
-        pressure::AbstractFloat, tolerance)
-    T = typeof(cond.p)
+@inline function equilibrium_ad(eos, cond_numeric, cond,
+        vapor_fraction, K_numeric, ::Type{T}) where {T<:AbstractFloat}
     return convert(T, vapor_fraction), SVector{length(K_numeric), T}(K_numeric)
 end
 
-@inline function equilibrium_ad(eos, cond, vapor_fraction, K_numeric,
-        pressure::Union{ForwardDiff.Dual, Jutul.SCT.Dual}, tolerance)
-    T = typeof(cond.p)
-    config = MultiComponentFlash.StaticConfig()
-    K0 = initial_guess_K(eos, cond, config)
-    V, K, _ = flash_2ph!(config, K0, eos, cond,
-        convert(T, vapor_fraction);
-        method = SSIFlash(),
-        extra_out = true,
-        tolerance = tolerance,
-        z_min = nothing,
-        stability_bypass = false,
-        check = false,
-        verbose = false)
-    return V, K
+@inline function equilibrium_ad(eos, cond_numeric, cond,
+        vapor_fraction, K_numeric,
+        ::Type{<:Union{ForwardDiff.Dual, Jutul.SCT.Dual}})
+    # The numeric flash clamps tiny overall fractions. Keep its primal
+    # condition while carrying the original AD seeds through the linearization.
+    z = map(cond.z, cond_numeric.z) do z_ad, z_numeric
+        z_ad - compositional_primal(z_ad) +
+            oftype(compositional_primal(z_ad), z_numeric)
+    end
+    sensitivity_cond = (p = cond.p, T = cond.T, z = z)
+    return MultiComponentFlash.implicit_flash_derivatives(
+        eos, cond_numeric, sensitivity_cond, vapor_fraction, K_numeric)
 end
 
 @inline function phase_compressibility(eos, cond, phase)
-    T = typeof(cond.p)
+    T = flash_condition_type(cond)
     phase_cond = (p = cond.p, T = cond.T, z = cond.z, phase = phase)
     forces = MultiComponentFlash.static_force_coefficients(
         eos, phase_cond, T)
@@ -140,7 +139,7 @@ end
 
 @inline function single_phase_flash_result(eos, cond, cond_numeric,
         K_numeric, stability, is_vapor::Bool)
-    Num = typeof(cond.p)
+    Num = flash_condition_type(cond)
     state = is_vapor ? MultiComponentFlash.single_phase_v :
         MultiComponentFlash.single_phase_l
     V = convert(Num, is_vapor)
@@ -153,10 +152,11 @@ end
     return state, V, x, y, Z_l, Z_v
 end
 
-@inline function two_phase_flash_result(eos, cond, P, V_numeric,
-        K_numeric, tolerance)
+@inline function two_phase_flash_result(eos, cond_numeric, cond,
+        V_numeric, K_numeric)
     V, K = equilibrium_ad(
-        eos, cond, V_numeric, K_numeric, P, tolerance)
+        eos, cond_numeric, cond, V_numeric, K_numeric,
+        flash_condition_type(cond))
     x, y = phase_mole_fractions(cond.z, K, V)
     liquid = (p = cond.p, T = cond.T, z = x)
     vapor = (p = cond.p, T = cond.T, z = y)

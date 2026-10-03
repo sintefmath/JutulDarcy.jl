@@ -132,7 +132,7 @@ end
         V_numeric, K_numeric, stability = numeric_flash(f, fr, eos, cond_numeric)
     end
 
-    Num = typeof(P + temperature + first(z))
+    Num = promote_type(typeof(P), typeof(temperature), eltype(z))
     cond = (p = convert(Num, P), T = convert(Num, temperature), z = z)
     if isnan(V_numeric)
         is_vapor = single_phase_label(eos, cond_numeric) > 0.5
@@ -140,7 +140,7 @@ end
             eos, cond, cond_numeric, K_numeric, stability, is_vapor)
     else
         state, V, x, y, Z_l, Z_v = two_phase_flash_result(
-            eos, cond, P, V_numeric, K_numeric, fr.tolerance)
+            eos, cond_numeric, cond, V_numeric, K_numeric)
     end
 
     R_out = eltype(f.K)
@@ -161,11 +161,18 @@ end
         eos::KValuesEOS{E, R, N}, P, temperature,
         OverallMoleFractions, Sw, cell = 1) where {E, R, N}
     z = cell_composition(Val(N), OverallMoleFractions, cell)
-    Num = typeof(P + temperature + first(z))
+    Num = promote_type(typeof(P), typeof(temperature), eltype(z))
     z = SVector{N, Num}(z)
     cond = (p = convert(Num, P), T = convert(Num, temperature), z = z)
     K = SVector{N, Num}(initial_guess_K(eos, cond))
-    V = MultiComponentFlash.solve_rachford_rice(K, z)
+    K_numeric = numeric_values(K, R)
+    z_numeric = numeric_values(z, R)
+    cond_numeric = (
+        p = R(compositional_primal(P)),
+        T = R(compositional_primal(temperature)),
+        z = z_numeric)
+    V_numeric = MultiComponentFlash.solve_rachford_rice(K_numeric, z_numeric)
+    V = convert(Num, V_numeric)
     if V <= zero(V)
         state = MultiComponentFlash.single_phase_l
         V = zero(V)
@@ -176,14 +183,16 @@ end
         x = y = z
     else
         state = MultiComponentFlash.two_phase_lv
+        if !(Num <: AbstractFloat)
+            V, K = MultiComponentFlash.implicit_flash_derivatives(
+                eos, cond_numeric, cond, V_numeric, K_numeric, K)
+        end
         x, y = phase_mole_fractions(z, K, V)
     end
-    K_out = numeric_values(K, eltype(f.K))
-    cond_numeric = (
-            p = R(compositional_primal(P)),
-            T = R(compositional_primal(temperature)),
-            z = numeric_composition(z, R)
-        )
+    K_out = numeric_values(K_numeric, eltype(f.K))
+    flash_cond = (
+        p = cond_numeric.p, T = cond_numeric.T,
+        z = numeric_composition(z, R))
     return FlashedMixture2Phase(state, K_out, V, x, y,
-        one(Num), one(Num), NaN, cond_numeric, f.flash_stability)
+        one(Num), one(Num), NaN, flash_cond, f.flash_stability)
 end

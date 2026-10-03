@@ -88,6 +88,10 @@ end
     include("compositional.jl")
 end
 
+@testitem "Two-phase flash derivatives" begin
+    include("flash_implicit_derivatives.jl")
+end
+
 @testitem "CO2 props" begin
     include("co2props.jl")
 end

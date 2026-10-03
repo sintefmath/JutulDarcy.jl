@@ -68,6 +68,7 @@ function solve_bl_lsolve(; nx = 10, ny = 1, nstep = nx*ny, lsolve = missing, bac
 end
 
 if CUDA.functional()
+    include("gpu_flash_derivatives.jl")
     @testset "IndirectionMap on CUDA" begin
         host_map = Jutul.IndirectionMap(Int[1, 2, 3], Int[1, 3, 4])
         device_map = Adapt.adapt(CUDA.CuArray, host_map)
