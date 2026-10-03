@@ -26,11 +26,16 @@ function JutulDarcy.plot_summary_impl(arg...;
     )
     lookup = JutulDarcy.summary_key_lookup()
 
-    if length(arg) == 1 && only(arg) isa AbstractVector
+    if length(arg) == 1 && only(arg) isa AbstractVector || only(arg) isa AbstractDict
         arg = only(arg)
     end
     if ismissing(names)
-        names = ["Summary $i" for i in 1:length(arg)]
+        if arg isa AbstractDict
+            names = String.(collect(keys(arg)))
+            arg = collect(values(arg))
+        else
+            names = ["Summary $i" for i in 1:length(arg)]
+        end
     end
     function split_name(inp::String)
         sep = ':'
