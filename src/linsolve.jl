@@ -13,15 +13,6 @@ Set up iterative linear solver for a reservoir model from [`setup_reservoir_mode
   the legacy transfer-based `:cuda` path can be selected explicitly.
 - `v=0`: verbosity (can lead to a large amount of output)
 - `solver=:bicgstab`: the symbol of a Krylov.jl solver (typically :gmres or :bicgstab)
-- `update_interval=:ministep`: how often the full CPR pressure preconditioner
-  gets updated (`:once`, `:iteration`, `:ministep`, or `:step`)
-- `update_interval_partial=:iteration`: how often the partial CPR pressure
-  update runs between full updates
-- `update_type=:memory`: KA AMG reuse mode for full pressure updates
-- `update_type_partial=:operators`: KA AMG reuse mode for partial pressure
-  updates. Both update paths fully refresh the AMG and system smoothers. HYPRE
-  performs a full setup for either path. The pressure system itself is updated
-  from the current Jacobian on every preconditioner update.
 - `max_coarse`: max size of coarse level if using AMG
 - `amg_type`: pressure AMG variant. For the KernelAbstractions backend this is
   the coarsening method (`:hmis`, `:ruge_stuben`, or `:aggregation`),
@@ -37,6 +28,29 @@ Set up iterative linear solver for a reservoir model from [`setup_reservoir_mode
 - `rtol=1e-3`: relative tolerance for the linear solver
 - `max_iterations=100`: limit for linear solver iterations
 
+## Arguments relating to AMG reuse
+- `update_interval=:ministep`: how often the full CPR pressure preconditioner
+  gets updated (`:once`, `:iteration`, `:ministep`, or `:step`)
+- `update_interval_partial=:iteration`: how often the partial CPR pressure
+  update runs between full updates
+- `update_type=:partial_sparsity`: KA AMG reuse mode for full pressure updates
+- `update_type_partial=:operators`: KA AMG reuse mode for partial pressure
+  updates. Both update paths fully refresh the AMG and system smoothers. HYPRE
+  performs a full setup for either path. The pressure system itself is updated
+  from the current Jacobian on every preconditioner update.
+
+For `update_type` and `update_type_partial`, the available options are, in order
+of increasing aggressiveness (lower cost, potentially higher iteration count):
+- `:memory`: Reuse memory, but do full resetup of the AMG hierarchy.
+- `:sparsity`: Reuse the sparsity pattern of the AMG hierarchy, but do full
+  resetup of the operators (keeping coarse-fine splits)
+- `:partial_sparsity`: Reuse the sparsity pattern for the finest levels, but do
+  full resetup of the operators on the coarser levels.
+- `:partial_operators`: Reuse the operators for the finest levels, but do full
+  resetup of the operators on the coarser levels.
+- `:operators`: Reuse the full AMG operators without any resetup. Smoothers and
+  Galerkin products are recomputed.
+
 Additional keywords are passed onto the linear solver constructor.
 """
 function select_reservoir_linear_solver(model, precond = :cpr;
@@ -49,7 +63,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         max_iterations = missing,
         update_interval = :ministep,
         update_interval_partial = :iteration,
-        update_type = :memory,
+        update_type = :partial_sparsity,
         update_type_partial = :operators,
         partial_update = true,
         amg_type = missing,
