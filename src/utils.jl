@@ -1527,7 +1527,7 @@ function simulate_reservoir(case::JutulCase;
         @assert !ismissing(config) "If simulator is provided, config must also be provided"
     end
     if validate
-        CaseValidation.validate(case, info_level = config[:info_level])
+        CaseValidation.validate(case, info_level = config[:info_level]-1)
     end
     result = simulate!(sim, dt;
         forces = forces,
