@@ -18,6 +18,7 @@ end
 
 struct OverallMoleFractions <: CompositionalFractions
     dz_max::Float64
+    z_min::Float64
 end
 
 """
@@ -26,10 +27,11 @@ end
 Overall mole fractions definition for compositional. `dz_max` is the maximum
 allowable change in any composition during a single Newton iteration.
 """
-function OverallMoleFractions(;dz_max = 0.2)
-    OverallMoleFractions(dz_max)
+function OverallMoleFractions(; dz_max = 0.2, z_min = MultiComponentFlash.MINIMUM_COMPOSITION)
+    return OverallMoleFractions(dz_max, z_min)
 end
-minimum_value(::OverallMoleFractions) = MultiComponentFlash.MINIMUM_COMPOSITION
+
+minimum_value(z::OverallMoleFractions) = z.z_min
 absolute_increment_limit(z::OverallMoleFractions) = z.dz_max
 
 

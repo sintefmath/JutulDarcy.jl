@@ -14,7 +14,12 @@ include("wells.jl")
 
 function select_primary_variables!(S, system::CompositionalSystem, model)
     S[:Pressure] = Pressure()
-    S[:OverallMoleFractions] = OverallMoleFractions(dz_max = 0.1)
+    if system.equation_of_state isa MultiComponentFlash.KValuesEOS
+        z_min = 0.0
+    else
+        z_min = MultiComponentFlash.MINIMUM_COMPOSITION
+    end
+    S[:OverallMoleFractions] = OverallMoleFractions(dz_max = 0.1, z_min = z_min)
     if has_other_phase(system)
         S[:ImmiscibleSaturation] = ImmiscibleSaturation(ds_max = 0.2)
     end
