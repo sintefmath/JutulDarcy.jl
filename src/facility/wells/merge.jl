@@ -210,6 +210,11 @@ function merge_well_domains(domains, name)
         if !same_type
             throw(ArgumentError("Multisegment wells must have matching types."))
         end
+        inc_inertia = first_well.include_inertia
+        same_momentum = all(well -> well.include_inertia == inc_inertia, wells)
+        if !same_momentum
+            throw(ArgumentError("Multisegment wells must have matching include_inertia settings."))
+        end
 
         neighbor_blocks = []
         end_node_blocks = []
@@ -225,7 +230,7 @@ function merge_well_domains(domains, name)
         segment_models = reduce(vcat, segment_model_blocks)
         merged_well = MultiSegmentWell(first_well.type, sum(cell_counts),
             sum(face_counts), sum(perforation_counts), perforations, neighbors,
-            end_nodes, first_well.surface, name, segment_models, info)
+            end_nodes, first_well.surface, name, segment_models, inc_inertia, info)
     end
 
     merged_domain = DataDomain(merged_well)
