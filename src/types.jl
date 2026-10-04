@@ -534,6 +534,8 @@ struct MultiSegmentWell{T, P, N, E, SC, Name, S, M} <: WellDomain
     name::Name
     "Pressure drop model for seg well segment"
     segment_models::S
+    "Whether to include transient inertia in the segment pressure balance"
+    include_inertia::Bool
     multiwell::M
 end
 
@@ -546,6 +548,7 @@ MultiSegmentWell(type, num_nodes, num_segments, num_perforations,
     MultiSegmentWell(reservoir_cells;
         name = :Well,
         top_node = false,
+        include_inertia = false,
     )
 
 Create well perforated in a vector of `reservoir_cells`. This constructor
@@ -564,7 +567,7 @@ way of setting up wells.
 $FIELDS
 
 """
-function MultiSegmentWell(reservoir_cells; top_node = false, kwarg...)
+function MultiSegmentWell(reservoir_cells; top_node = false, include_inertia = false, kwarg...)
     numperf = length(reservoir_cells)
     pix = 1:numperf
     if top_node
@@ -575,7 +578,7 @@ function MultiSegmentWell(reservoir_cells; top_node = false, kwarg...)
         neighbors = vcat(pix[1:end-1]', pix[2:end]')
         self_cells = collect(pix)
     end
-    return MultiSegmentWell(neighbors, reservoir_cells, self_cells; kwarg...)
+    return MultiSegmentWell(neighbors, reservoir_cells, self_cells; include_inertia = include_inertia, kwarg...)
 end
 
 """
@@ -584,28 +587,32 @@ end
         type = :ms,
         name = :Well,
         segment_models = nothing,
+        include_inertia = false,
         surface_conditions = default_surface_cond(),
     )
 
-Create a multisegment well from a connectivity matrix `neighbors` and vectors
-of perforation cells in the reservoir and the well. The connectivity matrix
-must have two rows, where the first row contains the "from" node and the second
-row contains the "to" node. The nodes are numbered from 1 to the maximum node
+Create a multisegment well from a connectivity matrix `neighbors` and vectors of
+perforation cells in the reservoir and the well. The connectivity matrix must
+have two rows, where the first row contains the "from" node and the second row
+contains the "to" node. The nodes are numbered from 1 to the maximum node
 number. The vectors `perforation_cells_reservoir` and `perforation_cells_self`
 must have the same length, and contain the cell indices in the reservoir grid
 and the local well grid, respectively, where the well is perforated. The
 optional argument `end_nodes` can be used to specify which nodes are end nodes
-of the well. If not provided, these are automatically detected as nodes that
-are not "from" nodes in the connectivity matrix. The optional argument
+of the well. If not provided, these are automatically detected as nodes that are
+not "from" nodes in the connectivity matrix. The optional argument
 `segment_models` can be used to provide a vector of segment pressure drop
 models, one per segment. If not provided, a default `SegmentWellBoreFrictionHB`
-model is used for all segments.
+model is used for all segments. The `include_inertia` flag toggles the transient
+acceleration term in the segment pressure balance, which is useful for transient
+well effects when set to `true`.
 """
 function MultiSegmentWell(neighbors::AbstractMatrix, perforation_cells_reservoir, perforation_cells_self;
         end_nodes = missing,
         type = :ms,
         name = :Well,
         segment_models = nothing,
+        include_inertia = false,
         surface_conditions = default_surface_cond(),
     )
     size(neighbors, 1) == 2 || throw(ArgumentError("Connectivity matrix for multisegment well must have two rows"))
@@ -640,6 +647,7 @@ function MultiSegmentWell(neighbors::AbstractMatrix, perforation_cells_reservoir
         surface_conditions,
         name,
         segment_models,
+        include_inertia,
     )
 end
 

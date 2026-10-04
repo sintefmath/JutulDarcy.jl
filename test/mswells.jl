@@ -174,6 +174,12 @@ function test_multisegment_well_orientation_invariance()
     end
 end
 
+@testset "Multisegment well inertia toggle" begin
+    w = MultiSegmentWell([1 2; 2 3], [1, 2], [1, 2]; include_inertia = true)
+    @test w.include_inertia
+    @test !MultiSegmentWell([1 2; 2 3], [1, 2], [1, 2]).include_inertia
+end
+
 @testset "Multisegment wells" begin
     test_multisegment_well_orientation_invariance()
 end

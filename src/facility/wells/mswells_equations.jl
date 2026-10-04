@@ -78,6 +78,10 @@ the current flow regime.
 """
 struct PotentialDropBalanceWell{T} <: JutulEquation
     flow_discretization::T
+    include_inertia::Bool
+    function PotentialDropBalanceWell(flow_discretization; include_inertia = false)
+        new{typeof(flow_discretization)}(flow_discretization, include_inertia)
+    end
 end
 
 associated_entity(::PotentialDropBalanceWell) = Faces()
@@ -103,7 +107,7 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
     w = physical_representation(model.domain)
     seg_model = w.segment_models[face]
     if well_segment_is_closed(seg_model)
-        eq = V
+        eq_value = V
     else
         rho_l, mu_l = saturation_mixed(s, densities, μ, left)
         rho_r, mu_r = saturation_mixed(s, densities, μ, right)
@@ -111,10 +115,16 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
         μ_mix = ifelse(V >= 0, mu_l, mu_r) # Upwind
         Δp = segment_pressure_drop(seg_model, L, roughness, radius_outer, radius_inner, V, rho, μ_mix)
         Δθ = two_point_potential_drop(p[left], p[right], gdz, rho_l, rho_r)
-        eq = Δθ - Δp
-
+        eq_value = Δθ - Δp
+        if eq.include_inertia
+            # Add inertia term to the pressure drop equation to model unsteady
+            # flow. Useful for capturing transient effects in the well segment.
+            A = well_cross_section_area(radius_outer, radius_inner)
+            V0 = state0.TotalMassFlux[face]
+            eq_value -= L/A*(V - V0)/dt
+        end
     end
-    eq_buf[] = eq
+    eq_buf[] = eq_value
 end
 
 function saturation_mixed(saturations, densities, viscosities, ix)
