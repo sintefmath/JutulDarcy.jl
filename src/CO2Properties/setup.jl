@@ -21,7 +21,9 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
     rho = JutulDarcy.BrineCO2MixingDensities(tables[:density])
     mu = JutulDarcy.PTViscosities(tables[:viscosity])
     if thermal
-        c_v = JutulDarcy.PressureTemperatureDependentVariable(tables[:heat_capacity_constant_volume])
+        # Alternate form that matches SPE11 description but may be inconsistent
+        # c_v = JutulDarcy.PressureTemperatureDependentVariable(tables[:heat_capacity_constant_volume])
+        c_v = JutulDarcy.PressureTemperatureDependentEnthalpy(tables[:heat_capacity_constant_volume])
     end
     rhoS = JutulDarcy.reference_densities(:co2brine)
     phases = JutulDarcy.get_phases(:co2brine)
