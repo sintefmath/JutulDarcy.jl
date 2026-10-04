@@ -819,8 +819,13 @@ mutable struct WellGroupConfiguration{T, O, L}
     const requested_controls::O # The requested control (which may be different if limits are hit)
     const limits::L             # Operating limits for the wells
     step_index::Int             # Internal book-keeping of what step we are at
-    function WellGroupConfiguration(; operating, limits, requested = operating, step = 0)
-        new{typeof(operating), typeof(requested), typeof(limits)}(operating, requested, limits, step)
+    reference_mode::Bool        # True when the config was restored from a stored
+                                # (converged) solution, e.g. during adjoint/helper
+                                # residual evaluation. In this mode the operating
+                                # controls are authoritative and limit switching is
+                                # not re-evaluated.
+    function WellGroupConfiguration(; operating, limits, requested = operating, step = 0, reference_mode = false)
+        new{typeof(operating), typeof(requested), typeof(limits)}(operating, requested, limits, step, reference_mode)
     end
 end
 
@@ -852,6 +857,7 @@ function Base.copy(c::WellGroupConfiguration)
         requested = copy(c.requested_controls),
         limits = copy(c.limits),
         step = c.step_index
+        # reference_mode is intentionally not copied
     )
 end
 
@@ -870,6 +876,7 @@ function Jutul.update_values!(old::WellGroupConfiguration, new::WellGroupConfigu
         old.limits[k] = v
     end
     old.step_index = new.step_index
+    # reference_mode is deliberately not synced here
     return old
 end
 
