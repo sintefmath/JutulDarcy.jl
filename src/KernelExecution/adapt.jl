@@ -59,6 +59,15 @@ function Adapt.adapt_structure(to,
         Val(N))
 end
 
+function Adapt.adapt_structure(to,
+        variable::PressureTemperatureDependentEnthalpy{T, R, N}) where {T, R, N}
+    return PressureTemperatureDependentEnthalpy(
+        Adapt.adapt(to, variable.tab),
+        Adapt.adapt(to, variable.regions),
+        Val(N))
+end
+
+
 function adapt_compositional_eos(to, eos; float_type = missing)
     return MultiComponentFlash.make_eos_immutable(eos; float_type = float_type)
 end

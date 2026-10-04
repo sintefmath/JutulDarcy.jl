@@ -147,6 +147,10 @@ struct PressureTemperatureDependentEnthalpy{T, R, N} <: VectorVariables
         N = length(ex(1e8, 273.15 + 30.0))
         new{typeof(tab), typeof(regions), N}(tab, regions)
     end
+    function PressureTemperatureDependentEnthalpy(tab::T, regions::R,
+            ::Val{N}) where {T, R, N}
+        return new{T, R, N}(tab, regions)
+    end
 end
 
 function Jutul.values_per_entity(model, ::PressureTemperatureDependentEnthalpy{T, R, N}) where {T, R, N}
