@@ -150,6 +150,7 @@ function Adapt.adapt_structure(to, well::MultiSegmentWell)
         Adapt.adapt(to, well.surface),
         well.name,
         Adapt.adapt(to, well.segment_models),
+        Adapt.adapt(to, well.include_inertia),
         Adapt.adapt(to, well.multiwell)
     )
 end
