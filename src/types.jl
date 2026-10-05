@@ -648,6 +648,7 @@ function MultiSegmentWell(neighbors::AbstractMatrix, perforation_cells_reservoir
         name,
         segment_models,
         include_inertia,
+        nothing
     )
 end
 

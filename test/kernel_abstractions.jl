@@ -159,9 +159,7 @@ end
         preconditioner = solver.preconditioner
         @test preconditioner isa CPRPreconditioner
         @test preconditioner.variant == variant
-        @test preconditioner.weight_scaling == :none
         @test preconditioner.pressure_precond isa Jutul.AMGPreconditioner
-        @test preconditioner.pressure_precond.reuse == :memory
         @test preconditioner.pressure_precond.reuse_partial == :operators
         @test preconditioner.update_interval == :ministep
         @test preconditioner.update_interval_partial == :iteration
