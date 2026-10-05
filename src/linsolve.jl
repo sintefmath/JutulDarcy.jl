@@ -162,7 +162,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
             end
         end
         is_serial = Threads.nthreads() == 1
-        if is_serial && is_ka_backend && !is_accelerator_ka
+        if is_serial && is_ka_backend && array_type == "Julia"
             default_pressure_smoother_type = :gauss_seidel
         else
             default_pressure_smoother_type = :spai0
