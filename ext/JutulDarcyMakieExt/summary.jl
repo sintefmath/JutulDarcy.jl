@@ -26,7 +26,7 @@ function JutulDarcy.plot_summary_impl(arg...;
     )
     lookup = JutulDarcy.summary_key_lookup()
 
-    if length(arg) == 1 && only(arg) isa AbstractVector || only(arg) isa AbstractDict
+    if length(arg) == 1 && (only(arg) isa AbstractVector || only(arg) isa AbstractDict)
         arg = only(arg)
     end
     if ismissing(names)
