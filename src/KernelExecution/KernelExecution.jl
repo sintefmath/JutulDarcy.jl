@@ -12,7 +12,7 @@ module KernelExecution
         ConstMuBTable, DeckPhaseMassDensities, DeckPhaseViscosities,
         DeckShrinkageFactors, DeckThermalViscosityTable, FacilitySystem,
         ImmiscibleSystem, LinearlyCompressiblePoreVolume,
-        MinimalTPFATopology, MultiSegmentWell, MuBTable,
+        MinimalTPFATopology, MultiSegmentWell, MultiWellInfo, KernelMultiWellInfo, MuBTable,
         PerforationMask, PhaseRelativePermeability, PVCDO, PVDG, PVDO, PVTG,
         PVTGTable, PVTO, PVTOTable, PVTW, ReservoirFromWellFlowCT,
         ReservoirFromWellThermalCT, ReservoirRelativePermeabilities, Rs, Rv,

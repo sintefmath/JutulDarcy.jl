@@ -1,4 +1,5 @@
 using Jutul, JutulDarcy, Test
+using JLArrays
 
 @testset "Merged wells" begin
     bar = si_unit(:bar)
@@ -31,8 +32,37 @@ using Jutul, JutulDarcy, Test
     @test physical_representation(merged.model.models[:SimpleWells]).multiwell.top_nodes == [1, 2]
     @test physical_representation(merged.model.models[:MultiSegmentWells]).multiwell.top_nodes == [1, 4]
     for source in (:SimpleWells, :MultiSegmentWells)
-        multiwell = physical_representation(merged.model.models[source]).multiwell
+        well = physical_representation(merged.model.models[source])
+        multiwell = well.multiwell
         @test multiwell isa JutulDarcy.MultiWellInfo
+        cpu_backend = Jutul.KernelExecution.KernelAbstractions.CPU()
+        for target in (nothing, Array, KernelAbstractionsContext(cpu_backend),
+                KernelAbstractionsContext(JLBackend()))
+            adapted = JutulDarcy.Adapt.adapt(target, multiwell)
+            if target isa KernelAbstractionsContext
+                @test adapted === multiwell
+                kernel_info = JutulDarcy.Adapt.adapt(nothing, adapted)
+                @test kernel_info isa JutulDarcy.KernelMultiWellInfo
+                @test length(kernel_info) == length(multiwell)
+            else
+                @test adapted isa JutulDarcy.KernelMultiWellInfo
+                @test isbitstype(typeof(adapted))
+            end
+            @test length(adapted) == length(multiwell)
+            @test JutulDarcy.Adapt.adapt(target, adapted) === adapted
+            adapted_well = JutulDarcy.Adapt.adapt(target, well)
+            @test adapted_well.multiwell === adapted
+            if well isa MultiSegmentWell
+                @test isnothing(adapted_well.type)
+                @test isnothing(adapted_well.name)
+                @test adapted_well.num_nodes == well.num_nodes
+                @test adapted_well.num_segments == well.num_segments
+                @test adapted_well.num_perforations == well.num_perforations
+                @test JutulDarcy.Adapt.adapt(Array, adapted_well.neighborship) ==
+                    well.neighborship
+                @test adapted_well.include_inertia == well.include_inertia
+            end
+        end
         @test multiwell.nodes isa Jutul.IndirectionMap
         @test multiwell.faces isa Jutul.IndirectionMap
         @test multiwell.perforations isa Jutul.IndirectionMap

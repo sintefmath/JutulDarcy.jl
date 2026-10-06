@@ -131,6 +131,12 @@ end
 
 Adapt.adapt_structure(::Jutul.KernelAbstractionsContext, group::WellGroup) = group
 
+# The host model owns well names, domains and range maps. Kernels only
+# need the merged well count from this metadata, regardless of backend.
+Adapt.adapt_structure(to, info::MultiWellInfo) = KernelMultiWellInfo(length(info))
+# Backend model transfers still need this metadata for host-side well controls.
+Adapt.adapt_structure(::Jutul.KernelAbstractionsContext, info::MultiWellInfo) = info
+
 function Adapt.adapt_structure(to, well::SimpleWell)
     return SimpleWell(
         Adapt.adapt(to, well.perforations),
@@ -142,13 +148,15 @@ function Adapt.adapt_structure(to, well::SimpleWell)
 end
 
 function Adapt.adapt_structure(to, well::MultiSegmentWell)
+    # The symbolic type and name are host metadata. Only numerical fields
+    # are needed by kernels on any backend.
     return MultiSegmentWell(
-        well.type, well.num_nodes, well.num_segments, well.num_perforations,
+        nothing, well.num_nodes, well.num_segments, well.num_perforations,
         Adapt.adapt(to, well.perforations),
         Adapt.adapt(to, well.neighborship),
         Adapt.adapt(to, well.end_nodes),
         Adapt.adapt(to, well.surface),
-        well.name,
+        nothing,
         Adapt.adapt(to, well.segment_models),
         Adapt.adapt(to, well.include_inertia),
         Adapt.adapt(to, well.multiwell)
