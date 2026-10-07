@@ -70,6 +70,10 @@ function JutulDarcy.update_cross_term_in_entity!(out, i,
         supply_node = ct.supply_nodes[i]
         return_node = ct.return_nodes[i]
         q = btes_supply_return_heatflux(sys, state_s, state_t, supply_node, return_node)
+        if eq isa ConservationLaw{:TotalEnergy}
+            # Account for potential energy in total energy balance
+            q += btes_supply_return_potential_energy_flux(sys, state_s, state_t, supply_node, return_node)
+        end
     end
     out[] = q
 
@@ -133,6 +137,20 @@ Base.@propagate_inbounds function btes_supply_return_massflux(system::JutulDarcy
         q[i] = f*λ_t*rho_mix*Ψ
     end
 
+    return q
+end
+
+Base.@propagate_inbounds function btes_supply_return_potential_energy_flux(system, state_supply, state_return, supply_node, return_node)
+    q_mass = btes_supply_return_massflux(system, state_supply, state_return, supply_node, return_node)
+    q = 0.0
+    for q_i in q_mass
+        if q_i < 0
+            Φ = state_supply.UnitPotentialEnergy[supply_node]
+        else
+            Φ = state_return.UnitPotentialEnergy[return_node]
+        end
+        q += q_i*Φ
+    end
     return q
 end
 

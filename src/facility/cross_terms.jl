@@ -246,6 +246,11 @@ function update_cross_term_in_entity!(out, i,
 
     λ_t = sum(perforation_reservoir_mobilities(state_res, state_well, sys, reservoir_cell, well_cell))
     qh = perforation_phase_thermal_flux(λ_t, conn, state_res, state_well, nph)
+    if eq isa ConservationLaw{:TotalEnergy}
+        # Account for the upwinded potential energy of the mass crossing the
+        # perforation.
+        qh += perforation_potential_energy_flux(λ_t, conn, state_res, state_well, nph)
+    end
     out[] = qh
 
 end
@@ -272,6 +277,21 @@ function perforation_phase_thermal_flux(λ_t, conn, state_res, state_well, nph)
 
     conductive_heat_flux = -WIth*(T_well - T_res)
     return advective_heat_flux + conductive_heat_flux
+end
+
+function perforation_potential_energy_flux(λ_t, conn, state_res, state_well, nph)
+    q = 0
+    for ph in 1:nph
+        q_ph = perforation_phase_mass_flux(λ_t, conn, state_res, state_well, ph)
+        if q_ph < 0
+            # Injection
+            Φ = state_well.UnitPotentialEnergy[conn.well]
+        else
+            Φ = state_res.UnitPotentialEnergy[conn.reservoir]
+        end
+        q += Φ*q_ph
+    end
+    return q
 end
 
 function Base.show(io::IO, d::ReservoirFromWellThermalCT)
@@ -327,7 +347,13 @@ function update_cross_term_in_entity!(out, i,
     qT += 0*state_well.Pressure[cell]
 
     H = get_target_enthalpy(ctrl, ctrl.target, facility, state_facility, well, state_well, cell)
-    out[] = -qT*H
+    Q = -qT*H
+    if eq isa ConservationLaw{:TotalEnergy}
+        # Mass entering/leaving through the top node carries the potential
+        # energy of that node
+        Q -= qT*state_well.UnitPotentialEnergy[cell]
+    end
+    out[] = Q
 end
 
 function get_target_enthalpy(ctrl, target, facility, state_facility, model, state_well, cell)
