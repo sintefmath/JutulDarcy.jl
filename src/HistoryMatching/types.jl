@@ -141,6 +141,9 @@ struct GlobalHistoryMatchObjective <: Jutul.AbstractGlobalObjective
     evaluation_count
 end
 
+Jutul.objective_depends_on_parameters(::GlobalHistoryMatchObjective) = false
+Jutul.objective_depends_on_parameters(::SumHistoryMatchObjective) = false
+
 function Base.show(io::IO, obj::GlobalHistoryMatchObjective)
     print(io, "GlobalHistoryMatchObjective:\n")
     Base.show(io, obj.match)
