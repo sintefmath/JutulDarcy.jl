@@ -48,9 +48,9 @@ function JutulDarcy.plot_summary_impl(arg...;
         end
     else
         arg = collect(arg)
-        if ismissing(names)
-            names = ["Summary $i" for i in 1:length(arg)]
-        end
+    end
+    if ismissing(names)
+        names = ["Summary $i" for i in 1:length(arg)]
     end
     function split_name(inp::String)
         sep = ':'
