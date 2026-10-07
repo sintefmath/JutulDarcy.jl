@@ -77,7 +77,8 @@ function solve_thermal_wells(;
         block_backend = false,
         thermal = true,
         simple_well = false,
-        single_phase = false
+        single_phase = false,
+        energy_formulation = :thermal
     )
     day = 3600*24
     bar = 1e5
@@ -108,6 +109,7 @@ function solve_thermal_wells(;
     wells = [I, P]
     model, parameters = setup_reservoir_model(res, sys,
         thermal = thermal,
+        energy_formulation = energy_formulation,
         wells = wells,
         block_backend = block_backend,
         extra_out = true
@@ -167,5 +169,118 @@ end
                 end
             end
         end
+    end
+end
+
+function solve_thermal_column(; energy_formulation = :total, nz = 10, height = 1000.0)
+    bar = 1e5
+    day = 3600*24
+    g = CartesianMesh((1, 1, nz), (10.0, 10.0, height))
+    res = reservoir_domain(g, porosity = 0.3, permeability = 1e-12)
+    rhoS = [1000.0, 100.0]
+    sys = ImmiscibleSystem((AqueousPhase(), VaporPhase()), reference_densities = rhoS)
+    model, parameters = setup_reservoir_model(res, sys,
+        thermal = true,
+        energy_formulation = energy_formulation,
+        extra_out = true
+    )
+    ρ = ConstantCompressibilityDensities(p_ref = 1*bar, density_ref = rhoS, compressibility = [1e-6/bar, 1e-5/bar])
+    replace_variables!(model, PhaseMassDensities = ρ)
+    # Heavy phase on top of light phase: Gravity segregation in a closed column
+    s = zeros(2, nz)
+    s[1, 1:(nz ÷ 2)] .= 1.0
+    s[2, :] .= 1.0 .- s[1, :]
+    state0 = setup_reservoir_state(model,
+        Pressure = 100*bar,
+        Saturations = s,
+        Temperature = 300.0
+    )
+    dt = fill(10.0*day, 50)
+    forces = setup_reservoir_forces(model)
+    result = simulate_reservoir(state0, model, dt,
+        forces = forces, parameters = parameters, info_level = -1)
+    return (result, model, parameters)
+end
+
+function solve_deep_injector(energy_formulation)
+    bar = 1e5
+    day = 3600*24
+    nz = 20
+    g = CartesianMesh((1, 1, nz), (100.0, 100.0, 100.0), origin = [0.0, 0.0, 2000.0])
+    res = reservoir_domain(g, porosity = 0.2, permeability = 1e-12)
+    W = setup_well(res, [(1, 1, nz)], name = :Injector, simple_well = false,
+        reference_depth = 0.0, WIth = 0.0)
+    sys = SinglePhaseSystem(AqueousPhase(), reference_density = 1000.0)
+    model, parameters = setup_reservoir_model(res, sys,
+        wells = [W],
+        thermal = true,
+        energy_formulation = energy_formulation,
+        extra_out = true
+    )
+    state0 = setup_reservoir_state(model, Pressure = 200*bar, Temperature = 300.0)
+    ctrl = InjectorControl(TotalRateTarget(0.01), [1.0], density = 1000.0, temperature = 300.0)
+    forces = setup_reservoir_forces(model, control = Dict(:Injector => ctrl))
+    result = simulate_reservoir(state0, model, fill(1.0*day, 30),
+        forces = forces, parameters = parameters, info_level = -1)
+    T_well = result.result.states[end][:Injector][:Temperature]
+    return T_well[end] - T_well[1]
+end
+
+@testset "total energy formulation" begin
+    @testset "closed system conserves total energy" begin
+        result, model, = solve_thermal_column(energy_formulation = :total)
+        @test JutulDarcy.model_energy_formulation(model) == :total
+        rstates = result.result.states
+        E(state, k) = sum(state[:Reservoir][k])
+        E0_tot = E(rstates[1], :TotalEnergy)
+        E_tot = E(rstates[end], :TotalEnergy)
+        E0_th = E(rstates[1], :TotalThermalEnergy)
+        E_th = E(rstates[end], :TotalThermalEnergy)
+        # Potential energy released by gravity segregation is converted to
+        # thermal energy, while the total energy is conserved (up to the
+        # nonlinear solver tolerance).
+        ΔE_th = E_th - E0_th
+        ΔE_pot = (E_tot - E_th) - (E0_tot - E0_th)
+        @test ΔE_th > 0
+        @test ΔE_pot < 0
+        @test abs(E_tot - E0_tot) < 0.01*abs(ΔE_pot)
+        @test minimum(result.states[end][:Temperature]) > 300.0
+        # Thermal formulation: Thermal energy is conserved instead, and the
+        # change is much smaller than what is released as potential energy.
+        result, model, = solve_thermal_column(energy_formulation = :thermal)
+        @test JutulDarcy.model_energy_formulation(model) == :thermal
+        rstates = result.result.states
+        @test abs(E(rstates[end], :TotalThermalEnergy) - E(rstates[1], :TotalThermalEnergy)) < 0.01*abs(ΔE_pot)
+    end
+    @testset "deep injector" begin
+        # Injection through an insulated 2 km multisegment well. Conservation of
+        # thermal energy gives spurious cooling as the pressure increases
+        # downwards, approximately g*Δz/c. With the total energy formulation,
+        # the work done by gravity is accounted for.
+        ΔT = Dict()
+        for form in (:thermal, :total)
+            ΔT[form] = solve_deep_injector(form)
+        end
+        @test ΔT[:thermal] < -3.0
+        @test abs(ΔT[:total]) < 1.0
+    end
+    @testset "wells" begin
+        for simple_well in [true, false]
+            @testset "simple=$simple_well" begin
+                states, reports, dt, model = solve_thermal_wells(nx = 3, nz = 2,
+                    simple_well = simple_well,
+                    energy_formulation = :total
+                )
+                @test length(states) == length(dt)
+                for k in (:Reservoir, :Injector, :Producer)
+                    @test JutulDarcy.model_energy_formulation(model[k]) == :total
+                end
+                @test haskey(states[end], :TotalEnergy)
+                @test model.models[:Producer].equations[:energy_conservation] isa Jutul.ConservationLaw{:TotalEnergy}
+            end
+        end
+        @test_throws ArgumentError solve_thermal_wells(nx = 3, nz = 1,
+            energy_formulation = :kinetic
+        )
     end
 end

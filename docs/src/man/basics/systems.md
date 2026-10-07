@@ -174,6 +174,19 @@ Thermal effects are modelled as an additional residual equation that comes in ad
 r_i = \frac{\partial}{\partial t}\Bigl(\rho_r U_r (1-\phi) + \sum_\alpha \rho_\alpha S_\alpha U_\alpha \phi \Bigr) + \nabla \cdot \left (\sum_\alpha ( H_\alpha \rho_\alpha v_\alpha - S_\alpha \lambda_\alpha \nabla T)-\lambda_r \nabla T \right) - Q_e
 ```
 
+### Total energy formulation
+
+By default, the conserved quantity is the thermal energy. Alternatively, the total energy formulation (`energy_formulation = :total` in [`setup_reservoir_model`](@ref) or [`add_thermal_to_model!`](@ref)) also includes the gravitational potential energy of the fluid, ``\Phi = -g z`` per unit mass:
+
+```math
+r_i = \frac{\partial}{\partial t}\Bigl(\rho_r U_r (1-\phi) + \sum_\alpha \rho_\alpha S_\alpha (U_\alpha + \Phi) \phi \Bigr) + \nabla \cdot \left (\sum_\alpha ( (H_\alpha + \Phi) \rho_\alpha v_\alpha - S_\alpha \lambda_\alpha \nabla T)-\lambda_r \nabla T \right) - Q_e
+```
+
+Here, ``z`` is the depth (positive downwards) and the datum ``z = 0`` is shared by the reservoir and all wells. This accounts for the work done by gravity on the moving fluid, which can be significant for flow over large vertical distances, for instance in deep wells. The formulation is always used for both the reservoir and the wells.
+
 ```@docs
 JutulDarcy.add_thermal_to_model!
+JutulDarcy.TotalEnergy
+JutulDarcy.PotentialEnergy
+JutulDarcy.UnitPotentialEnergy
 ```

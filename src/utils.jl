@@ -355,6 +355,10 @@ reservoir and that facility.
   model.
 - `thermal = false`: Add additional equations for conservation of energy and
   temperature as a primary variable.
+- `energy_formulation = :thermal`: Energy formulation used for the reservoir
+  and wells when `thermal = true`. Either `:thermal` (conservation of thermal
+  energy) or `:total` (conservation of thermal and gravitational potential
+  energy). See [`add_thermal_to_model!`](@ref).
 - `kgrad=nothing`: Type of spatial discretization to use:
     - `:tpfa` or `nothing` gives standard two-point flux approximation (TPFA) with hard-coded
       two-point assembly
@@ -454,6 +458,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         general_ad = false,
         backend = :csr,
         thermal = false,
+        energy_formulation = :thermal,
         extra_outputs = [:LiquidMassFractions, :VaporMassFractions, :Rs, :Rv, :Saturations],
         split_wells = false,
         assemble_wells_together = true,
@@ -531,7 +536,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     )
     system = rmodel.system
     if thermal
-        rmodel = add_thermal_to_model!(rmodel)
+        rmodel = add_thermal_to_model!(rmodel, energy_formulation = energy_formulation)
     end
     set_discretization_variables!(rmodel)
     set_reservoir_variable_defaults!(rmodel,
@@ -599,7 +604,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             end
             wmodel = SimulationModel(w_domain, wsys, context = well_context)
             if thermal
-                wmodel = add_thermal_to_model!(wmodel)
+                wmodel = add_thermal_to_model!(wmodel, energy_formulation = energy_formulation)
             end
             set_reservoir_variable_defaults!(wmodel,
                 dp_max_abs = dp_max_abs_well,
@@ -740,10 +745,18 @@ function setup_reservoir_model(reservoir::Union{DataDomain, Missing, Nothing}, m
     end
     sys = rmodel_template.system
 
+    if thermal
+        thermal_kwarg = (
+            energy_formulation = something(model_energy_formulation(rmodel_template), :thermal),
+        )
+    else
+        thermal_kwarg = NamedTuple()
+    end
     model = setup_reservoir_model(reservoir, sys;
         wells = wells,
         thermal = thermal,
         extra_out = false,
+        thermal_kwarg...,
         kwarg...
     )
 
@@ -1701,6 +1714,9 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                 if has_thermal
                     ct = ReservoirFromWellThermalCT(rc, wc)
                     add_cross_term!(model, ct, target = :Reservoir, source = k, equation = energy)
+                    if model_energy_formulation(m) != model_energy_formulation(rmodel)
+                        throw(ArgumentError("Well $k and the reservoir must use the same energy formulation."))
+                    end
                 end
                 is_closed_loop = g isa MultiSegmentWell &&
                     m.data_domain.representation.type == :closed_loop

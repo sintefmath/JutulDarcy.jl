@@ -182,7 +182,7 @@ function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D,
     return acc
 end
 
-function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw{:TotalThermalEnergy}, eq_s, force::V, time) where {V <: AbstractVector{<:FlowBoundaryCondition}, D, S<:MultiPhaseSystem}
+function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::Union{ConservationLaw{:TotalThermalEnergy}, ConservationLaw{:TotalEnergy}}, eq_s, force::V, time) where {V <: AbstractVector{<:FlowBoundaryCondition}, D, S<:MultiPhaseSystem}
     state = Jutul.evaluation_state(storage)
     system = reservoir_model(model).system
     gmap = global_map(model)
@@ -191,7 +191,14 @@ function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D,
         c = bc.cell
         acc_i = view(acc, :, c)
         qh_adv, qh_cond = compute_bc_heat_fluxes(system, bc, gmap, state)
-        apply_flow_bc!(acc_i, qh_adv + qh_cond, bc, model, state, time)
+        qh = qh_adv + qh_cond
+        if eq isa ConservationLaw{:TotalEnergy}
+            # Mass crossing the boundary carries the potential energy of the
+            # boundary cell
+            q = compute_bc_mass_fluxes(system, bc, gmap, state)
+            qh += sum(q)*state.UnitPotentialEnergy[Jutul.full_cell(c, gmap)]
+        end
+        apply_flow_bc!(acc_i, qh, bc, model, state, time)
     end
     return acc
 end

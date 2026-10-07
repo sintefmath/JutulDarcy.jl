@@ -92,3 +92,19 @@ end
         U_m[i] = MaterialHeatCapacities[i]*Temperature[i]
     end
 end
+
+@jutul_secondary function update_potential_energy!(E_p, pe::PotentialEnergy, model, UnitPotentialEnergy, TotalMasses, ix)
+    for i in ix
+        M = zero(eltype(TotalMasses))
+        for c in axes(TotalMasses, 1)
+            M += TotalMasses[c, i]
+        end
+        E_p[i] = M*UnitPotentialEnergy[i]
+    end
+end
+
+@jutul_secondary function update_total_energy!(E_total, te::TotalEnergy, model, TotalThermalEnergy, PotentialEnergy, ix)
+    for i in ix
+        E_total[i] = TotalThermalEnergy[i] + PotentialEnergy[i]
+    end
+end

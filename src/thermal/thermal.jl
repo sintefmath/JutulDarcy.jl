@@ -42,6 +42,24 @@ end
 struct RockInternalEnergy <: ScalarVariable end
 struct TotalThermalEnergy <: ScalarVariable end
 
+"""
+    PotentialEnergy()
+
+Gravitational potential energy of the fluid in each cell, i.e. the total fluid
+mass times [`UnitPotentialEnergy`](@ref). Only used with the `:total` energy
+formulation.
+"""
+struct PotentialEnergy <: ScalarVariable end
+
+"""
+    TotalEnergy()
+
+Total energy in each cell, defined as the sum of `TotalThermalEnergy`
+and [`PotentialEnergy`](@ref). This is the conserved quantity when the `:total`
+energy formulation is used.
+"""
+struct TotalEnergy <: ScalarVariable end
+
 struct ComponentHeatCapacity <: ComponentVariables end
 Jutul.default_value(model, ::ComponentHeatCapacity) = 4184.0
 
@@ -276,6 +294,32 @@ function reservoir_conductivity(reservoir::DataDomain)
 end
 
 """
+    UnitPotentialEnergy()
+
+Parameter for the gravitational potential energy per unit mass in each cell
+(J/kg). The default is `-g*z` where `z` is the depth of the cell centroid
+(positive downwards). The datum is `z = 0` for all models (reservoir and
+wells), which is required for consistent energy exchange between them. Zero for
+models that are not three-dimensional, consistent with how gravity is treated
+in the flow equations.
+"""
+struct UnitPotentialEnergy <: ScalarVariable end
+
+function Jutul.default_parameter_values(data_domain, model, param::UnitPotentialEnergy, symb)
+    # Note: The datum z = 0 is shared by all models (reservoir and wells), as
+    # the cell centroids are given in the same global coordinates. This is
+    # required for consistent exchange of energy between the models.
+    cc = data_domain[:cell_centroids, Cells()]
+    if size(cc, 1) == 3
+        Φ = -gravity_constant.*vec(cc[3, :])
+    else
+        # Consistent with TwoPointGravityDifference: No gravity in 1D/2D
+        Φ = zeros(size(cc, 2))
+    end
+    return Φ
+end
+
+"""
     WellIndicesThermal()
 
 Parameter for the thermal connection strength between a well and the reservoir
@@ -400,17 +444,29 @@ end
 struct MaterialInternalEnergy <: ScalarVariable end
 
 """
-    add_thermal_to_model!(model::MultiModel)
+    add_thermal_to_model!(model::MultiModel; energy_formulation = :thermal)
+    add_thermal_to_model!(model; energy_formulation = :thermal)
 
 Add energy conservation equation and thermal primary variable together with
 standard set of parameters to existing flow model. Note that more complex models
 require additional customization after this function call to get correct
 results.
+
+The `energy_formulation` keyword determines the conserved energy:
+- `:thermal`: Conservation of thermal energy (internal energy of fluid and
+  rock/well material), with advection of enthalpy and heat conduction.
+- `:total`: Conservation of total energy, which in addition includes the
+  gravitational potential energy of the fluid (see [`TotalEnergy`](@ref) and
+  [`UnitPotentialEnergy`](@ref)). This accounts for the work done by gravity on
+  the fluid, which can be significant in e.g. deep wells.
+
+For a `MultiModel`, the same formulation is used for the reservoir and all
+wells, which is required for consistent energy exchange between them.
 """
-function add_thermal_to_model!(model::MultiModel)
+function add_thermal_to_model!(model::MultiModel; energy_formulation = :thermal)
     for (k, m) in pairs(model.models)
         if m.system isa MultiPhaseSystem
-            add_thermal_to_model!(m)
+            add_thermal_to_model!(m, energy_formulation = energy_formulation)
         elseif m.system isa FacilitySystem
             add_thermal_to_facility!(m)
         end
@@ -418,7 +474,8 @@ function add_thermal_to_model!(model::MultiModel)
     return m
 end
 
-function add_thermal_to_model!(model)
+function add_thermal_to_model!(model; energy_formulation = :thermal)
+    energy_formulation in (:thermal, :total) || throw(ArgumentError("energy_formulation must be :thermal or :total, was :$energy_formulation"))
     set_primary_variables!(model, Temperature = Temperature())
     set_parameters!(model,
         RockHeatCapacity = RockHeatCapacity(),
@@ -466,9 +523,18 @@ function add_thermal_to_model!(model)
         end
     end
     disc = model.domain.discretizations.heat_flow
-    model.equations[:energy_conservation] = ConservationLaw(disc, :TotalThermalEnergy, 1)
-
     out = model.output_variables
+    if energy_formulation == :total
+        set_parameters!(model, UnitPotentialEnergy = UnitPotentialEnergy())
+        set_secondary_variables!(model,
+            PotentialEnergy = PotentialEnergy(),
+            TotalEnergy = TotalEnergy()
+        )
+        model.equations[:energy_conservation] = ConservationLaw(disc, :TotalEnergy, 1)
+        push!(out, :TotalEnergy)
+    else
+        model.equations[:energy_conservation] = ConservationLaw(disc, :TotalThermalEnergy, 1)
+    end
     push!(out, :TotalThermalEnergy)
     push!(out, :FluidEnthalpy)
     push!(out, :Temperature)
@@ -489,6 +555,27 @@ function add_thermal_to_facility!(facility)
     push!(out, :SurfaceEnthalpy)
     unique!(out)
     return facility
+end
+
+"""
+    model_energy_formulation(model)
+
+Get the energy formulation (`:thermal` or `:total`) of a thermal model, or
+`nothing` if the model has no energy equation.
+"""
+function model_energy_formulation(model::SimulationModel)
+    eq = get(model.equations, :energy_conservation, nothing)
+    if isnothing(eq)
+        return nothing
+    elseif eq isa ConservationLaw{:TotalEnergy}
+        return :total
+    else
+        return :thermal
+    end
+end
+
+function model_energy_formulation(model::MultiModel)
+    return model_energy_formulation(reservoir_model(model))
 end
 
 """
