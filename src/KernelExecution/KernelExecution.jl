@@ -25,6 +25,7 @@ module KernelExecution
         BrineCO2MixingDensities, KValueWrapper, PTViscosities,
         MultiPhaseCompositionalSystemLV,
         PressureTemperatureDependentVariable, PressureTemperatureDependentEnthalpy,
+        PressureTemperatureDependentInternalEnergy,
         TemperatureDependentVariable,
         kernel_abstractions_backend
 

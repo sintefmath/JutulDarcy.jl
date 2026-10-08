@@ -60,6 +60,14 @@ function Adapt.adapt_structure(to,
 end
 
 function Adapt.adapt_structure(to,
+        variable::PressureTemperatureDependentInternalEnergy)
+    return PressureTemperatureDependentInternalEnergy(
+        Adapt.adapt(to, variable.tab),
+        Adapt.adapt(to, variable.regions),
+        Val(:assembled))
+end
+
+function Adapt.adapt_structure(to,
         variable::PressureTemperatureDependentEnthalpy{T, R, N}) where {T, R, N}
     return PressureTemperatureDependentEnthalpy(
         Adapt.adapt(to, variable.tab),

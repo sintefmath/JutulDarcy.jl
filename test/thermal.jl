@@ -284,3 +284,67 @@ end
         )
     end
 end
+
+function solve_isothermal_injection(sys, T0; mix = [1.0], density = 1000.0, state_arg = NamedTuple(), kwarg...)
+    bar = 1e5
+    day = 3600*24
+    g = CartesianMesh((5, 1, 1), (500.0, 100.0, 10.0), origin = [0.0, 0.0, 1000.0])
+    d = reservoir_domain(g, permeability = 1e-13, porosity = 0.1)
+    # Separate top node so that it is not directly connected to the reservoir
+    I = setup_well(d, [(1, 1, 1)], name = :Injector, simple_well = false, use_top_node = true)
+    P = setup_well(d, [(5, 1, 1)], name = :Producer, simple_well = false)
+    model, parameters = setup_reservoir_model(d, sys, wells = [I, P], extra_out = true; kwarg...)
+    state0 = setup_reservoir_state(model; Pressure = 150bar, Temperature = T0, state_arg...)
+    ctrl = Dict(
+        :Injector => InjectorControl(TotalRateTarget(1e-3), mix, density = density, temperature = T0),
+        :Producer => ProducerControl(BottomHolePressureTarget(140bar))
+    )
+    forces = setup_reservoir_forces(model, control = ctrl)
+    result = simulate_reservoir(state0, model, fill(10.0*day, 20),
+        forces = forces, parameters = parameters, info_level = -1)
+    return (result, model)
+end
+
+@testset "tabulated internal energy" begin
+    tables = JutulDarcy.Geothermal.geothermal_setup_tables()
+    for T0 in [300.0, 350.0]
+        result, model = solve_isothermal_injection(:geothermal, T0)
+        for k in (:Reservoir, :Injector, :Producer)
+            m = model.models[k]
+            @test Jutul.get_secondary_variables(m)[:FluidInternalEnergy] isa JutulDarcy.PressureTemperatureDependentInternalEnergy
+            # Heat capacity is not used and should not be present
+            @test !haskey(Jutul.get_secondary_variables(m), :ComponentHeatCapacity)
+            @test !haskey(Jutul.get_parameters(m), :ComponentHeatCapacity)
+        end
+        states = result.result.states
+        # Internal energy is taken from the table
+        res = states[end][:Reservoir]
+        p, T = res[:Pressure][1], res[:Temperature][1]
+        @test res[:FluidInternalEnergy][1] ≈ tables[:internal_energy](p, T) rtol = 1e-8
+        # Injected enthalpy is evaluated from the same tables at the injection
+        # temperature, so the top node of the injector is at that temperature.
+        inj = states[end][:Injector]
+        p_top = inj[:Pressure][1]
+        H_inj = tables[:internal_energy](p_top, T0) + p_top/tables[:density](p_top, T0)
+        @test inj[:FluidEnthalpy][1] ≈ H_inj rtol = 1e-8
+        @test inj[:Temperature][1] ≈ T0 atol = 1e-4
+        # Injection at reservoir temperature: Only small changes due to
+        # Joule-Thomson effects.
+        @test all(x -> abs(x - T0) < 0.5, res[:Temperature])
+    end
+    @testset "co2-brine $physics" for physics in (:kvalue, :immiscible)
+        T0 = 320.0
+        result, model = solve_isothermal_injection(:co2brine, T0,
+            mix = [0.0, 1.0],
+            density = 1.87,
+            thermal = true,
+            co2_physics = physics,
+            state_arg = physics == :kvalue ? (OverallMoleFractions = [1.0, 0.0], ) : (Saturations = [1.0, 0.0], )
+        )
+        rmodel = model.models[:Reservoir]
+        @test Jutul.get_secondary_variables(rmodel)[:FluidInternalEnergy] isa JutulDarcy.PressureTemperatureDependentInternalEnergy
+        @test !haskey(Jutul.get_secondary_variables(rmodel), :ComponentHeatCapacity)
+        T = result.result.states[end][:Reservoir][:Temperature]
+        @test all(x -> abs(x - T0) < 0.5, T)
+    end
+end

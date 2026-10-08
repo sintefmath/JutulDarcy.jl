@@ -79,8 +79,66 @@ function Jutul.default_parameter_values(data_domain, model, param::ComponentHeat
     return T
 end
 
+"""
+    FluidInternalEnergy()
+
+Specific internal energy of each fluid phase (J/kg). The default implementation
+is `C*T` where `C` is `ComponentHeatCapacity` and `T` the temperature.
+See [`PressureTemperatureDependentInternalEnergy`](@ref) for a tabulated
+alternative.
+"""
 struct FluidInternalEnergy <: PhaseVariables end
 struct FluidEnthalpy <: PhaseVariables end
+
+"""
+    PressureTemperatureDependentInternalEnergy(tab; regions = nothing)
+
+Specific internal energy of each fluid phase (J/kg) given by a table `tab` that
+is evaluated as `tab(p, T)`. Used in place of [`FluidInternalEnergy`](@ref),
+replacing the default `C*T` implementation.
+
+For immiscible and single-phase systems, the table gives one value per phase.
+For compositional systems, the table gives one value per component (pure
+component internal energy), and the phase values are obtained by mass fraction
+weighting (ideal mixing). If the system has an additional immiscible aqueous
+phase, the first entry in the table corresponds to that phase.
+
+When this variable is used, the default enthalpy of injected fluid (see
+[`InjectorControl`](@ref)) is evaluated from the same table at the injection
+temperature, ensuring that the injected enthalpy uses the same reference state
+as the rest of the model.
+"""
+struct PressureTemperatureDependentInternalEnergy{T, R} <: PhaseVariables
+    tab::T
+    regions::R
+    function PressureTemperatureDependentInternalEnergy(tab; regions = nothing)
+        tab = region_wrap(tab, regions)
+        new{typeof(tab), typeof(regions)}(tab, regions)
+    end
+    function PressureTemperatureDependentInternalEnergy(tab::T, regions::R,
+            ::Val{:assembled}) where {T, R}
+        # Internal constructor for already processed tables (e.g. for Adapt)
+        return new{T, R}(tab, regions)
+    end
+end
+
+function Jutul.subvariable(p::PressureTemperatureDependentInternalEnergy, map::FiniteVolumeGlobalMap)
+    c = map.cells
+    regions = Jutul.partition_variable_slice(p.regions, c)
+    return PressureTemperatureDependentInternalEnergy(p.tab, regions = regions)
+end
+
+"""
+    tabulated_internal_energy(var::PressureTemperatureDependentInternalEnergy, p, T, cell)
+
+Evaluate the table of `var` at pressure `p` and temperature `T` for the region
+of `cell`. Returns per-phase values (immiscible) or per-component values
+(compositional).
+"""
+function tabulated_internal_energy(var::PressureTemperatureDependentInternalEnergy, p, T, cell)
+    interpolator = table_by_region(var.tab, region(var.regions, cell))
+    return interpolator(p, T)
+end
 
 struct TemperatureDependentVariable{T, R, N} <: VectorVariables
     tab::T
@@ -555,6 +613,39 @@ function add_thermal_to_facility!(facility)
     push!(out, :SurfaceEnthalpy)
     unique!(out)
     return facility
+end
+
+"""
+    set_tabulated_internal_energy!(model, tab; regions = nothing)
+
+Use tabulated fluid internal energy `tab(p, T)` (see
+[`PressureTemperatureDependentInternalEnergy`](@ref)) for the reservoir and all
+wells in `model`. The `ComponentHeatCapacity` variable is removed as it is no
+longer used, so that it cannot be mixed with the tabulated values. Note that
+`tab` must give the internal energy (not the enthalpy) and that all models must
+use the same table so that the reference state is consistent.
+"""
+function set_tabulated_internal_energy!(model::MultiModel, tab; kwarg...)
+    for (k, m) in pairs(model.models)
+        if k == :Reservoir || model_or_domain_is_well(m)
+            set_tabulated_internal_energy!(m, tab; kwarg...)
+        end
+    end
+    return model
+end
+
+function set_tabulated_internal_energy!(model::SimulationModel, tab; regions = nothing)
+    if !haskey(Jutul.get_secondary_variables(model), :FluidInternalEnergy)
+        throw(ArgumentError("Model does not have FluidInternalEnergy, is it thermal?"))
+    end
+    if model_or_domain_is_well(model)
+        # Wells are not partitioned by region
+        regions = nothing
+    end
+    U = PressureTemperatureDependentInternalEnergy(tab, regions = regions)
+    set_secondary_variables!(model, FluidInternalEnergy = U)
+    Jutul.delete_variable!(model, :ComponentHeatCapacity)
+    return model
 end
 
 """
